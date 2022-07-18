@@ -1,0 +1,26 @@
+[package]
+name = "burn-tensor"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = ["tch"]
+full = ["arrayfire", "tch"]
+arrayfire = ["dep:arrayfire"]
+tch = ["dep:tch"]
+
+[dependencies]
+derive-new = "0.5"
+rand = "0.8"
+num-traits = "0.2"
+once_cell = "1.1"
+
+# Backends
+arrayfire = { version = "3.8", optional = true }
+tch = { version = "0.8", optional = true }
+
+# Autodiff
+nanoid = "0.4"
+
+[dev-dependencies]
+float-cmp = "0.9.0"
