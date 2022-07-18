@@ -79,11 +79,8 @@ impl<P: tch::kind::Element + Default, const D: usize> TchTensor<P, D> {
         }
     }
 }
-
-impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> TensorBase<P, D>
-    for TchTensor<P, D>
-{
-    fn empty(shape: Shape<D>) -> Self {
+impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> TchTensor<P, D> {
+    pub fn empty(shape: Shape<D>) -> Self {
         let shape_tch = TchShape::from(shape.clone());
         let device = tch::Device::Cpu;
         let kind = TchKind::new();
@@ -96,11 +93,11 @@ impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> T
             shape,
         }
     }
+}
 
-    fn from<O: TensorBase<P, D>>(other: O) -> Self {
-        Self::from_data(other.into_data(), tch::Device::Cpu)
-    }
-
+impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> TensorBase<P, D>
+    for TchTensor<P, D>
+{
     fn shape(&self) -> &Shape<D> {
         &self.shape
     }

@@ -66,10 +66,6 @@ impl<P: HasAfEnum + Default + Copy + std::fmt::Debug, const D: usize> TensorBase
         }
     }
 
-    fn from<O: TensorBase<P, D>>(other: O) -> Self {
-        Self::from_data(other.into_data(), Device::CPU)
-    }
-
     fn shape(&self) -> &Shape<D> {
         &self.shape
     }

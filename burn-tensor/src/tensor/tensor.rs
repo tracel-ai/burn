@@ -19,8 +19,6 @@ pub trait FloatTensor<P: num_traits::Float, const D: usize>:
 pub trait TensorBase<P, const D: usize> {
     fn shape(&self) -> &Shape<D>;
     fn into_data(self) -> Data<P, D>;
-    fn from<O: TensorBase<P, D>>(other: O) -> Self;
-    fn empty(shape: Shape<D>) -> Self;
 }
 
 pub trait TensorOpsAdd<P, const D: usize>:

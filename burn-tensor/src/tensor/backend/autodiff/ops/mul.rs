@@ -80,7 +80,6 @@ mod tests {
     use super::*;
     use crate::{
         backend::tch::TchTensor,
-        node_init,
         tape::{Tape, TapeRef},
         Data, TensorBase,
     };
@@ -95,8 +94,8 @@ mod tests {
         let tensor_1 = TchTensor::from_data(data_1.clone(), tch::Device::Cpu);
         let tensor_2 = TchTensor::from_data(data_2.clone(), tch::Device::Cpu);
 
-        let tensor_ad_1 = ADTensor::new(node_init!(root tensor_1), tape.clone());
-        let tensor_ad_2 = ADTensor::new(node_init!(root tensor_2), tape.clone());
+        let tensor_ad_1 = ADTensor::from_tensor(tensor_1, tape.clone());
+        let tensor_ad_2 = ADTensor::from_tensor(tensor_2, tape.clone());
 
         let tensor_ad_3 = tensor_ad_1.mul(&tensor_ad_2);
         let data_ad_3 = tensor_ad_3.tensor().into_data();

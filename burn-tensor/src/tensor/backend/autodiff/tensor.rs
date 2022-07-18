@@ -1,8 +1,9 @@
 use crate::{
     node::{NodeRef, Ones, Zeros},
+    node_init,
     ops::InitRecordedOps,
     tape::TapeRef,
-    FloatTensor, Shape,
+    FloatTensor, Shape, TensorBase,
 };
 use num_traits::Float;
 
@@ -14,15 +15,29 @@ pub struct ADTensor<P, const D: usize, T> {
     pub tape: TapeRef,
 }
 
+impl<T, P, const D: usize> TensorBase<P, D> for ADTensor<P, D, T>
+where
+    P: Float + Zeros<P> + Default + 'static,
+    T: FloatTensor<P, D> + Clone + Zeros<T> + Ones<T> + 'static,
+{
+    fn shape(&self) -> &Shape<D> {
+        &self.shape
+    }
+
+    fn into_data(self) -> crate::Data<P, D> {
+        self.tensor().into_data()
+    }
+}
+
 impl<T, P, const D: usize> ADTensor<P, D, T>
 where
     P: Float + Zeros<P> + Default + 'static,
     T: FloatTensor<P, D> + Clone + Zeros<T> + Ones<T> + 'static,
 {
-    pub fn new(node: NodeRef<T>, tape: TapeRef) -> Self {
-        let tensor = node.borrow().value();
+    pub fn from_tensor(tensor: T, tape: TapeRef) -> Self {
         let shape = tensor.shape().clone();
         let kind = ADKind::new();
+        let node = node_init!(root tensor);
 
         let ops = InitRecordedOps::new(node.clone());
         let ops = Box::new(ops);
