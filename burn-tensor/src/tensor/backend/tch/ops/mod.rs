@@ -4,3 +4,4 @@ mod matmul;
 mod mul;
 mod neg;
 mod reshape;
+mod sub;

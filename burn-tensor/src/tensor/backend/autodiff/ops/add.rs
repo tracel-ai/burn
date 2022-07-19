@@ -82,8 +82,8 @@ mod tests {
     #[test]
     fn should_diff_add() {
         let tape = Tape::new_ref();
-        let data_1 = Data::from([2.0]);
-        let data_2 = Data::from([4.0]);
+        let data_1 = Data::from([2.0, 5.0]);
+        let data_2 = Data::from([4.0, 1.0]);
 
         let tensor_1 = ADTchTensor::from_data(data_1.clone(), tape.clone());
         let tensor_2 = ADTchTensor::from_data(data_2.clone(), tape.clone());
@@ -94,8 +94,22 @@ mod tests {
         let grad_1 = tensor_1.grad();
         let grad_2 = tensor_2.grad();
 
-        assert_eq!(grad_1.into_data(), Data::from([1.0]));
-        assert_eq!(grad_2.into_data(), Data::from([1.0]));
-        assert_eq!(tensor_3.into_data(), Data::from([6.0]));
+        assert_eq!(grad_1.into_data(), Data::from([1.0, 1.0]));
+        assert_eq!(grad_2.into_data(), Data::from([1.0, 1.0]));
+        assert_eq!(tensor_3.into_data(), Data::from([6.0, 6.0]));
+    }
+
+    #[test]
+    fn should_diff_add_scalar() {
+        let tape = Tape::new_ref();
+        let data = Data::from([2.0, 10.0]);
+
+        let tensor = ADTchTensor::from_data(data.clone(), tape.clone());
+        let tensor_out = tensor.clone() + 5.0;
+        tensor_out.backprob();
+
+        let grad = tensor.grad();
+        assert_eq!(grad.into_data(), Data::from([1.0, 1.0]));
+        assert_eq!(tensor_out.into_data(), Data::from([7.0, 15.0]));
     }
 }
