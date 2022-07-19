@@ -3,7 +3,6 @@ use crate::node::{Node, NodeId, NodeRef, Ones, Zeros};
 use std::ops::{Add, Mul};
 
 pub trait SingleOps<In, Out>: std::fmt::Debug {
-    fn forward(&self, input: In) -> Out;
     fn partial(&self, state: &SingleRecordedState<In, Out>) -> In;
 }
 

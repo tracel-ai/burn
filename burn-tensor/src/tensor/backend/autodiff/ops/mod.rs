@@ -1,4 +1,5 @@
 mod add;
+mod matmul;
 mod mul;
 mod sub;
 

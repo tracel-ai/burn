@@ -3,7 +3,6 @@ use crate::node::{Node, NodeId, NodeRef, Ones, Zeros};
 use std::ops::{Add, Mul};
 
 pub trait BinaryOps<Lhs, Rhs, Out>: std::fmt::Debug {
-    fn forward(&self, left: Lhs, right: Rhs) -> Out;
     fn partial_left(&self, state: &BinaryRecordedState<Lhs, Rhs, Out>) -> Lhs;
     fn partial_right(&self, state: &BinaryRecordedState<Lhs, Rhs, Out>) -> Rhs;
 }
@@ -80,13 +79,11 @@ where
     }
 
     fn backward(&mut self) {
-        let left = self.lhs.borrow().value();
-        let right = self.rhs.borrow().value();
-        let output = self.out.borrow().value();
-        let state = BinaryRecordedState::new(&left, &right, &output);
+        let state = BinaryRecordedState::new(&self.lhs, &self.rhs, &self.out);
 
         let partial_left = self.ops.partial_left(&state);
         let partial_right: Rhs = self.ops.partial_right(&state);
+
         let grad_mine = self.out.borrow_mut().grad();
 
         self.lhs

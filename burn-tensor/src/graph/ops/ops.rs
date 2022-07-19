@@ -1,10 +1,10 @@
-use crate::node::NodeId;
+use crate::node::{NodeId, NodeRef};
 
 #[derive(new)]
 pub struct BinaryRecordedState<'a, Lhs, Rhs, Out> {
-    pub left: &'a Lhs,
-    pub right: &'a Rhs,
-    pub output: &'a Out,
+    pub left: &'a NodeRef<Lhs>,
+    pub right: &'a NodeRef<Rhs>,
+    pub output: &'a NodeRef<Out>,
 }
 
 #[derive(new)]

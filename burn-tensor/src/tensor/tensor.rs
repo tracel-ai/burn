@@ -13,6 +13,7 @@ pub trait FloatTensor<P: num_traits::Float, const D: usize>:
     + TensorOpsAdd<P, D>
     + TensorOpsSub<P, D>
     + TensorOpsMatmul<P, D>
+    + TensorOpsTranspose<P, D>
     + std::fmt::Debug
 {
 }
@@ -38,6 +39,10 @@ where
 {
     fn sub(&self, other: &Self) -> Self;
     fn sub_scalar(&self, other: &P) -> Self;
+}
+
+pub trait TensorOpsTranspose<P, const D: usize> {
+    fn transpose(&self) -> Self;
 }
 
 pub trait TensorOpsMatmul<P, const D: usize> {

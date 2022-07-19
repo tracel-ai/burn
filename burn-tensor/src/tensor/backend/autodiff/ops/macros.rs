@@ -42,7 +42,6 @@ macro_rules! register_ops {
     (
         ops $ops:ty,
         name $name:ident,
-        forward $forward:expr,
         partial_left $partial_left:expr,
         partial_right $partial_right:expr,
     ) => {
@@ -55,10 +54,6 @@ macro_rules! register_ops {
             P: $crate::tensor::backend::autodiff::ADFloat,
             T: $crate::tensor::backend::autodiff::ADFloatTensor<P, D>,
         {
-            fn forward(&self, left: T, right: T) -> T {
-                $forward(left, right)
-            }
-
             fn partial_left(&self, state: &$crate::graph::ops::BinaryRecordedState<T, T, T>) -> T {
                 $partial_left(state)
             }
@@ -71,7 +66,6 @@ macro_rules! register_ops {
     (
         ops $ops:ty,
         name $name:ident state $ops_tensor_state:ident,
-        forward $forward:expr,
         partial $partial:expr,
     ) => {
         define_ops!(
@@ -84,10 +78,6 @@ macro_rules! register_ops {
             P: $crate::tensor::backend::autodiff::ADFloat,
             T: $crate::tensor::backend::autodiff::ADFloatTensor<P, D>,
         {
-            fn forward(&self, input: T) -> T {
-                $forward(self.state, input)
-            }
-
             fn partial(&self, state: &$crate::graph::ops::SingleRecordedState<T, T>) -> T {
                 $partial(self.state, state)
             }
@@ -96,7 +86,6 @@ macro_rules! register_ops {
     (
         ops $ops:ty,
         name $name:ident,
-        forward $forward:expr,
         partial $partial:expr,
     ) => {
         define_ops!(
@@ -108,10 +97,6 @@ macro_rules! register_ops {
             P: $crate::tensor::backend::autodiff::ADFloat,
             T: $crate::tensor::backend::autodiff::ADFloatTensor<P, D>,
         {
-            fn forward(&self, input: T) -> T {
-                $forward(input)
-            }
-
             fn partial(&self, state: &$crate::graph::ops::SingleRecordedState<T, T>) -> T {
                 $partial(state)
             }

@@ -12,15 +12,13 @@ use num_traits::Float;
 register_ops!(
     ops BinaryOps<T, T, T>,
     name ADTensorAddOps,
-    forward |left, right| left * right,
-    partial_left |state: &BinaryRecordedState<T, T, T>| state.left.ones(),
-    partial_right |state: &BinaryRecordedState<T, T, T>| state.right.ones(),
+    partial_left |state: &BinaryRecordedState<T, T, T>| state.left.borrow().value().ones(),
+    partial_right |state: &BinaryRecordedState<T, T, T>| state.right.borrow().value().ones(),
 );
 
 register_ops!(
     ops SingleOps<T, T>,
     name ADTensorAddScalarOps state P,
-    forward |state, input|  input * state,
     partial |_state, state_recorded: &SingleRecordedState<T, T>|  state_recorded.input.ones(),
 );
 
