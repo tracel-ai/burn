@@ -124,7 +124,7 @@ macro_rules! execute_ops {
 
                 let ops = $ops;
                 let ops = BinaryRecordedOps::new($lhs, $rhs, state.clone(), ops);
-                let ops = Box::new(ops);
+                let ops = std::rc::Rc::new(ops);
 
                 let node = $crate::node::Node::new(state, ops);
                 std::rc::Rc::new(node)
@@ -147,7 +147,7 @@ macro_rules! execute_ops {
 
                 let ops = $ops;
                 let ops = SingleRecordedOps::new($input, state.clone(), ops);
-                let ops = Box::new(ops);
+                let ops = std::rc::Rc::new(ops);
 
                 let node = $crate::node::Node::new(state, ops);
                 std::rc::Rc::new(node)

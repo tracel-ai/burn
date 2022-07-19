@@ -1,7 +1,5 @@
-use crate::{
-    node::{NodeId, NodeStateRef},
-    tape::Tape,
-};
+use crate::node::{NodeId, NodeStateRef};
+use std::rc::Rc;
 
 #[derive(new)]
 pub struct BinaryRecordedState<'a, Lhs, Rhs, Out> {
@@ -18,8 +16,8 @@ pub struct SingleRecordedState<'a, In, Out> {
 
 pub trait RecordedOps: std::fmt::Debug {
     fn id(&self) -> NodeId;
-    fn backward(&mut self);
-    fn set_last_ops(&mut self);
-    fn record(&self, tape: &mut Tape);
+    fn backward(&self);
+    fn set_last_ops(&self);
+    fn parents_ops(&self) -> Vec<RecordedOpsRef>;
 }
-pub type RecordedOpsRef = Box<dyn RecordedOps>;
+pub type RecordedOpsRef = Rc<dyn RecordedOps>;

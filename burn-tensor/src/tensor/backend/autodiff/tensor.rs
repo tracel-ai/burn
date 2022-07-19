@@ -40,7 +40,7 @@ where
         let state = node_init!(root tensor);
 
         let ops = InitRecordedOps::new(state.clone());
-        let ops = Box::new(ops);
+        let ops = Rc::new(ops);
         let node = Rc::new(Node::new(state, ops));
 
         Self { node, shape, kind }
@@ -63,9 +63,9 @@ impl<T, P, const D: usize> ADTensor<P, D, T> {
 impl<T, P, const D: usize> ADTensor<P, D, T> {
     pub fn backprob(&self) {
         let mut tape = Tape::new();
-        let id = self.node.state.borrow().id();
+        self.node.ops.set_last_ops();
         self.node.record(&mut tape);
-        tape.backward(id);
+        tape.backward();
     }
 }
 

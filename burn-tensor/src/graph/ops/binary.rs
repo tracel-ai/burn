@@ -1,4 +1,4 @@
-use super::{BinaryRecordedState, RecordedOps};
+use super::{BinaryRecordedState, RecordedOps, RecordedOpsRef};
 use crate::node::{NodeId, NodeRef, NodeState, NodeStateRef, Ones, Zeros};
 use std::ops::{Add, Mul};
 
@@ -82,7 +82,7 @@ where
         self.out.borrow().id()
     }
 
-    fn backward(&mut self) {
+    fn backward(&self) {
         let state = BinaryRecordedState::new(&self.lhs.state, &self.rhs.state, &self.out);
 
         let partial_left = self.ops.partial_left(&state);
@@ -100,15 +100,12 @@ where
             .update_grad(partial_right * grad_mine);
     }
 
-    fn set_last_ops(&mut self) {
+    fn set_last_ops(&self) {
         let value = self.out.borrow().value();
         self.out.borrow_mut().update_grad(value.ones());
     }
 
-    fn record(&self, tape: &mut crate::tape::Tape) {
-        tape.add(Box::new(self.clone()));
-
-        self.lhs.record(tape);
-        self.rhs.record(tape);
+    fn parents_ops(&self) -> Vec<RecordedOpsRef> {
+        vec![self.lhs.ops.clone(), self.rhs.ops.clone()]
     }
 }

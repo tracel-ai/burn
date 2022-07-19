@@ -1,4 +1,4 @@
-use super::RecordedOps;
+use super::{RecordedOps, RecordedOpsRef};
 use crate::node::{NodeId, NodeStateRef, Ones, Zeros};
 
 #[derive(new, Debug, Clone)]
@@ -15,13 +15,13 @@ where
         self.root.borrow().id()
     }
 
-    fn backward(&mut self) {}
-    fn set_last_ops(&mut self) {
+    fn backward(&self) {}
+    fn set_last_ops(&self) {
         let value = self.root.borrow().value();
         self.root.borrow_mut().update_grad(value.ones());
     }
 
-    fn record(&self, tape: &mut crate::tape::Tape) {
-        tape.add(Box::new(self.clone()))
+    fn parents_ops(&self) -> Vec<RecordedOpsRef> {
+        vec![]
     }
 }

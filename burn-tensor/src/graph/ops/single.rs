@@ -1,4 +1,4 @@
-use super::{RecordedOps, SingleRecordedState};
+use super::{RecordedOps, RecordedOpsRef, SingleRecordedState};
 use crate::node::{NodeId, NodeRef, NodeState, NodeStateRef, Ones, Zeros};
 use std::ops::{Add, Mul};
 
@@ -71,7 +71,7 @@ where
         self.out.borrow().id()
     }
 
-    fn backward(&mut self) {
+    fn backward(&self) {
         let input = self.input.state.borrow().value();
         let output = self.out.borrow().value();
         let state = SingleRecordedState::new(&input, &output);
@@ -85,13 +85,12 @@ where
             .update_grad(partial * grad_mine.clone());
     }
 
-    fn set_last_ops(&mut self) {
+    fn set_last_ops(&self) {
         let value = self.out.borrow().value();
         self.out.borrow_mut().update_grad(value.ones());
     }
 
-    fn record(&self, tape: &mut crate::tape::Tape) {
-        tape.add(Box::new(self.clone()));
-        self.input.record(tape);
+    fn parents_ops(&self) -> Vec<RecordedOpsRef> {
+        vec![self.input.ops.clone()]
     }
 }
