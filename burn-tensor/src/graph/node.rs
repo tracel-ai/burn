@@ -15,6 +15,9 @@ impl NodeId {
             value: nanoid::nanoid!(),
         }
     }
+    pub fn to_string(&self) -> String {
+        self.value.to_string()
+    }
 }
 
 pub trait Node<Out>: std::fmt::Debug {

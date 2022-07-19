@@ -7,7 +7,7 @@ use crate::{
 };
 use num_traits::Float;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ADTensor<P, const D: usize, T> {
     pub node: NodeRef<T>,
     pub shape: Shape<D>,
@@ -92,5 +92,23 @@ pub struct ADKind<P> {
 impl<P: Float + Default> ADKind<P> {
     pub fn new() -> Self {
         Self { _p: P::default() }
+    }
+}
+
+#[cfg(test)]
+pub mod helper {
+    use super::*;
+    use crate::{
+        backend::{autodiff::ADFloat, tch::TchTensor},
+        Data,
+    };
+
+    pub type ADTchTensor<P, const D: usize> = ADTensor<P, D, TchTensor<P, D>>;
+
+    impl<P: ADFloat + tch::kind::Element + Into<f64>, const D: usize> ADTchTensor<P, D> {
+        pub fn from_data(data: Data<P, D>, tape: TapeRef) -> Self {
+            let tensor = TchTensor::from_data(data, tch::Device::Cpu);
+            ADTensor::from_tensor(tensor, tape)
+        }
     }
 }

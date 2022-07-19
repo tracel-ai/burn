@@ -77,35 +77,39 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{
-        backend::tch::TchTensor,
-        tape::{Tape, TapeRef},
-        Data, TensorBase,
-    };
-    use std::cell::RefCell;
+    use crate::{backend::autodiff::helper::ADTchTensor, tape::Tape, Data, TensorBase};
 
     #[test]
     fn should_diff_mul() {
-        let tape = TapeRef::new(RefCell::new(Tape::new()));
+        let tape = Tape::new_ref();
         let data_1 = Data::from([1.0]);
         let data_2 = Data::from([4.0]);
 
-        let tensor_1 = TchTensor::from_data(data_1.clone(), tch::Device::Cpu);
-        let tensor_2 = TchTensor::from_data(data_2.clone(), tch::Device::Cpu);
+        let tensor_1 = ADTchTensor::from_data(data_1.clone(), tape.clone());
+        let tensor_2 = ADTchTensor::from_data(data_2.clone(), tape.clone());
 
-        let tensor_ad_1 = ADTensor::from_tensor(tensor_1, tape.clone());
-        let tensor_ad_2 = ADTensor::from_tensor(tensor_2, tape.clone());
+        let tensor_3 = tensor_1.clone() * tensor_2.clone();
+        tensor_3.backprob();
 
-        let tensor_ad_3 = tensor_ad_1.mul(&tensor_ad_2);
-        let data_ad_3 = tensor_ad_3.tensor().into_data();
-        assert_eq!(data_ad_3, Data::from([4.0]));
-
-        tensor_ad_3.backprob();
-        let grad_1 = tensor_ad_1.grad();
-        let grad_2 = tensor_ad_2.grad();
+        let grad_1 = tensor_1.grad();
+        let grad_2 = tensor_2.grad();
 
         assert_eq!(grad_1.into_data(), data_2);
         assert_eq!(grad_2.into_data(), data_1);
+        assert_eq!(tensor_3.into_data(), Data::from([4.0]));
+    }
+
+    #[test]
+    fn should_diff_mul_scalar() {
+        let tape = Tape::new_ref();
+        let data = Data::from([2.0]);
+
+        let tensor = ADTchTensor::from_data(data.clone(), tape.clone());
+        let tensor_out = tensor.clone() * 4.0;
+        tensor_out.backprob();
+
+        let grad = tensor.grad();
+        assert_eq!(tensor_out.into_data(), Data::from([8.0]));
+        assert_eq!(grad.into_data(), Data::from([4.0]));
     }
 }

@@ -69,7 +69,7 @@ where
     Ops: SingleOps<In, Out>,
 {
     fn id(&self) -> NodeId {
-        self.input.borrow().id()
+        self.out.borrow().id()
     }
 
     fn backward(&mut self) {

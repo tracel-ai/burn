@@ -14,6 +14,10 @@ impl Tape {
         }
     }
 
+    pub fn new_ref() -> TapeRef {
+        Rc::new(RefCell::new(Self::new()))
+    }
+
     pub fn backward(&mut self, from: NodeId) {
         let mut init = false;
 
@@ -21,17 +25,14 @@ impl Tape {
             if init {
                 ops.backward();
             } else if ops.id() == from {
-                ops.set_last_ops();
                 init = true;
+                ops.set_last_ops();
                 ops.backward();
             }
         }
     }
 
     pub fn add(&mut self, ops: RecordedOpsRef) {
-        println!("---");
-        println!("Adding ops {:?}", ops);
-        println!("---");
         self.operations.push(ops)
     }
 }

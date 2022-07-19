@@ -13,15 +13,15 @@ register_ops!(
     ops BinaryOps<T, T, T>,
     name ADTensorAddOps,
     forward |left, right| left * right,
-    partial_left |state: &BinaryRecordedState<T, T, T>| state.right.clone(),
-    partial_right |state: &BinaryRecordedState<T, T, T>| state.left.clone(),
+    partial_left |state: &BinaryRecordedState<T, T, T>| state.left.ones(),
+    partial_right |state: &BinaryRecordedState<T, T, T>| state.right.ones(),
 );
 
 register_ops!(
     ops SingleOps<T, T>,
     name ADTensorAddScalarOps state P,
     forward |state, input|  input * state,
-    partial |state, state_recorded: &SingleRecordedState<T, T>|  state_recorded.input.ones() * state,
+    partial |_state, state_recorded: &SingleRecordedState<T, T>|  state_recorded.input.ones(),
 );
 
 impl<T, P, const D: usize> TensorOpsAdd<P, D> for ADTensor<P, D, T>
@@ -72,5 +72,30 @@ where
 
     fn add(self, rhs: Self) -> Self::Output {
         TensorOpsAdd::add(&self, &rhs)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{backend::autodiff::helper::ADTchTensor, tape::Tape, Data, TensorBase};
+
+    #[test]
+    fn should_diff_add() {
+        let tape = Tape::new_ref();
+        let data_1 = Data::from([2.0]);
+        let data_2 = Data::from([4.0]);
+
+        let tensor_1 = ADTchTensor::from_data(data_1.clone(), tape.clone());
+        let tensor_2 = ADTchTensor::from_data(data_2.clone(), tape.clone());
+
+        let tensor_3 = tensor_1.clone() + tensor_2.clone();
+        tensor_3.backprob();
+
+        let grad_1 = tensor_1.grad();
+        let grad_2 = tensor_2.grad();
+
+        assert_eq!(grad_1.into_data(), Data::from([1.0]));
+        assert_eq!(grad_2.into_data(), Data::from([1.0]));
+        assert_eq!(tensor_3.into_data(), Data::from([6.0]));
     }
 }
