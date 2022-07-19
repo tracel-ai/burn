@@ -1,9 +1,5 @@
-use crate::{ops::RecordedOpsRef, tape::Tape};
-use std::{
-    cell::RefCell,
-    ops::{Add, Mul},
-    rc::Rc,
-};
+use crate::{ops::RecordedOpsRef, state::NodeStateImpl, tape::Tape};
+use std::{cell::RefCell, ops::Add, rc::Rc};
 
 #[derive(PartialEq, Eq, Debug, Clone, Hash)]
 pub struct NodeId {
@@ -43,15 +39,7 @@ impl<Out> Node<Out> {
     }
 }
 pub type NodeRef<Out> = Rc<Node<Out>>;
-
-pub trait NodeState<Out>: std::fmt::Debug {
-    fn id(&self) -> NodeId;
-    fn grad(&mut self) -> Out;
-    fn value(&self) -> Out;
-    fn update_grad(&mut self, grad: Out);
-}
-
-pub type NodeStateRef<T> = Rc<RefCell<dyn NodeState<T>>>;
+pub type NodeStateRef<T> = Rc<RefCell<NodeStateImpl<T>>>;
 
 pub trait Zeros<T> {
     fn zeros(&self) -> T;
@@ -77,47 +65,21 @@ impl<Out> RootNode<Out> {
     }
 }
 
-impl<Out> NodeState<Out> for RootNode<Out>
-where
-    Out: Zeros<Out> + Ones<Out> + Clone + Mul<Output = Out> + Add<Output = Out> + 'static,
-    Out: std::fmt::Debug,
-{
-    fn id(&self) -> NodeId {
-        self.id.clone()
-    }
-    fn grad(&mut self) -> Out {
-        let grad_self: Out = match &self.grad {
-            Some(val) => val.clone(),
-            None => self.value.zeros(),
-        };
-        self.grad = Some(grad_self.clone());
-        grad_self
-    }
-
-    fn value(&self) -> Out {
-        self.value.clone()
-    }
-
-    fn update_grad(&mut self, grad: Out) {
-        self.grad = Some(self.grad() + grad);
-    }
-}
-
 #[macro_export]
 macro_rules! node_init {
     ( lhs $lhs:expr, rhs $rhs:expr, out $out:expr, ) => {{
-        use $crate::graph::ops::BinaryOpsNode;
-        let node = BinaryOpsNode::new($lhs.state.clone(), $rhs.state.clone(), $out);
+        use $crate::graph::state::NodeStateImpl;
+        let node = NodeStateImpl::new($out);
         std::rc::Rc::new(std::cell::RefCell::new(node))
     }};
     ( input $input:expr, out $out:expr, ) => {{
-        use $crate::graph::ops::SingleOpsNode;
-        let node = SingleOpsNode::new($input.state.clone(), $out);
+        use $crate::graph::state::NodeStateImpl;
+        let node = NodeStateImpl::new($out);
         std::rc::Rc::new(std::cell::RefCell::new(node))
     }};
     ( root $out:expr ) => {{
-        use $crate::graph::node::RootNode;
-        let node = RootNode::new($out);
+        use $crate::graph::state::NodeStateImpl;
+        let node = NodeStateImpl::new($out);
         std::rc::Rc::new(std::cell::RefCell::new(node))
     }};
 }

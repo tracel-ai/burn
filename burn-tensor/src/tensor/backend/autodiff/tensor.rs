@@ -6,7 +6,7 @@ use crate::{
     FloatTensor, Shape, TensorBase,
 };
 use num_traits::Float;
-use std::rc::Rc;
+use std::{ops::Add, rc::Rc};
 
 #[derive(Debug, Clone)]
 pub struct ADTensor<P, const D: usize, T> {
@@ -54,7 +54,7 @@ where
     }
 }
 
-impl<T, P, const D: usize> ADTensor<P, D, T> {
+impl<T: Clone + std::fmt::Debug, P, const D: usize> ADTensor<P, D, T> {
     pub fn tensor(&self) -> T {
         self.node.state.borrow().value()
     }
@@ -69,7 +69,11 @@ impl<T, P, const D: usize> ADTensor<P, D, T> {
     }
 }
 
-impl<T, P, const D: usize> ADTensor<P, D, T> {
+impl<T, P, const D: usize> ADTensor<P, D, T>
+where
+    T: Zeros<T> + Clone + Add<Output = T>,
+    T: std::fmt::Debug,
+{
     pub fn grad(&self) -> T {
         self.node.state.borrow_mut().grad()
     }

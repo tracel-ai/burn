@@ -3,7 +3,7 @@ macro_rules! define_ops {
     (
         name $name:ident
     ) => {
-        #[derive(Debug, Clone)]
+        #[derive(Debug)]
         struct $name<P, const D: usize> {
             _kind: $crate::tensor::backend::autodiff::ADKind<P>,
         }
@@ -20,7 +20,7 @@ macro_rules! define_ops {
         name $name:ident,
         state $state_ident:ident,
     ) => {
-        #[derive(Debug, Clone)]
+        #[derive(Debug)]
         struct $name<P, const D: usize> {
             pub state: $state_ident,
             _kind: $crate::tensor::backend::autodiff::ADKind<P>,

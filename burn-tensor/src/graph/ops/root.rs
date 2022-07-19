@@ -1,5 +1,6 @@
 use super::{RecordedOps, RecordedOpsRef};
 use crate::node::{NodeId, NodeStateRef, Ones, Zeros};
+use std::ops::Add;
 
 #[derive(new, Debug, Clone)]
 pub struct InitRecordedOps<Out> {
@@ -8,7 +9,7 @@ pub struct InitRecordedOps<Out> {
 
 impl<Out> RecordedOps for InitRecordedOps<Out>
 where
-    Out: Clone + Zeros<Out> + Ones<Out> + 'static,
+    Out: Clone + Zeros<Out> + Ones<Out> + Add<Output = Out> + 'static,
     Out: std::fmt::Debug,
 {
     fn id(&self) -> NodeId {

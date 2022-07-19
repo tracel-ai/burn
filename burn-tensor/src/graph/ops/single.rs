@@ -1,71 +1,25 @@
 use super::{RecordedOps, RecordedOpsRef, SingleRecordedState};
-use crate::node::{NodeId, NodeRef, NodeState, NodeStateRef, Ones, Zeros};
+use crate::node::{NodeId, NodeRef, NodeStateRef, Ones, Zeros};
 use std::ops::{Add, Mul};
 
 pub trait SingleOps<In, Out>: std::fmt::Debug {
     fn partial(&self, state: &SingleRecordedState<In, Out>) -> In;
 }
 
-#[derive(Debug)]
-pub struct SingleOpsNode<In, Out> {
-    pub id: NodeId,
-    pub parent: NodeStateRef<In>,
-    pub value: Out,
-    pub grad: Option<Out>,
-}
-
-#[derive(new, Debug, Clone)]
+#[derive(new, Debug)]
 pub struct SingleRecordedOps<In, Out, Ops> {
     input: NodeRef<In>,
     out: NodeStateRef<Out>,
     ops: Ops,
 }
 
-impl<In, Out> SingleOpsNode<In, Out> {
-    pub fn new(parent: NodeStateRef<In>, value: Out) -> Self {
-        Self {
-            id: NodeId::new(),
-            parent,
-            value,
-            grad: None,
-        }
-    }
-}
-
-impl<In, Out> NodeState<Out> for SingleOpsNode<In, Out>
-where
-    Out: Zeros<Out> + Clone + Mul<Output = Out> + Add<Output = Out>,
-    In: std::fmt::Debug,
-    Out: std::fmt::Debug,
-{
-    fn id(&self) -> NodeId {
-        self.id.clone()
-    }
-    fn value(&self) -> Out {
-        self.value.clone()
-    }
-
-    fn grad(&mut self) -> Out {
-        let grad_self = match &self.grad {
-            Some(val) => val.clone(),
-            None => self.value.zeros(),
-        };
-        self.grad = Some(grad_self.clone());
-        grad_self
-    }
-
-    fn update_grad(&mut self, grad: Out) {
-        self.grad = Some(self.grad() + grad);
-    }
-}
-
 impl<In, Out, Ops> RecordedOps for SingleRecordedOps<In, Out, Ops>
 where
-    In: Clone + Zeros<In> + Mul<Out, Output = In> + 'static,
-    Out: Clone + Zeros<Out> + Ones<Out> + 'static,
+    In: Clone + Zeros<In> + Mul<Out, Output = In> + Add<Output = In> + 'static,
+    Out: Clone + Zeros<Out> + Ones<Out> + Add<Output = Out> + 'static,
     In: std::fmt::Debug,
     Out: std::fmt::Debug,
-    Ops: SingleOps<In, Out> + 'static + Clone,
+    Ops: SingleOps<In, Out> + 'static,
 {
     fn id(&self) -> NodeId {
         self.out.borrow().id()
