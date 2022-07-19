@@ -3,7 +3,7 @@ macro_rules! define_ops {
     (
         name $name:ident
     ) => {
-        #[derive(Debug)]
+        #[derive(Debug, Clone)]
         struct $name<P, const D: usize> {
             _kind: $crate::tensor::backend::autodiff::ADKind<P>,
         }
@@ -20,7 +20,7 @@ macro_rules! define_ops {
         name $name:ident,
         state $state_ident:ident,
     ) => {
-        #[derive(Debug)]
+        #[derive(Debug, Clone)]
         struct $name<P, const D: usize> {
             pub state: $state_ident,
             _kind: $crate::tensor::backend::autodiff::ADKind<P>,
@@ -111,24 +111,23 @@ macro_rules! execute_ops {
         lhs $lhs:expr,
         rhs $rhs:expr,
         out $out:expr,
-        tape $tape:expr,
         ops $ops:expr,
     ) =>
     {
         {
             let callback = || {
-                let node = $crate::node_init!(
+                let state = $crate::node_init!(
                     lhs $lhs,
                     rhs $rhs,
                     out $out,
                 );
 
                 let ops = $ops;
-                let ops = BinaryRecordedOps::new($lhs, $rhs, node.clone(), ops);
+                let ops = BinaryRecordedOps::new($lhs, $rhs, state.clone(), ops);
                 let ops = Box::new(ops);
 
-                $tape.borrow_mut().add(ops);
-                node
+                let node = $crate::node::Node::new(state, ops);
+                std::rc::Rc::new(node)
             };
             callback()
         }
@@ -136,23 +135,22 @@ macro_rules! execute_ops {
     (
         input $input:expr,
         out $out:expr,
-        tape $tape:expr,
         ops $ops:expr,
     ) =>
     {
         {
             let callback = || {
-                let node = $crate::node_init!(
+                let state = $crate::node_init!(
                     input $input,
                     out $out,
                 );
 
                 let ops = $ops;
-                let ops = SingleRecordedOps::new($input, node.clone(), ops);
+                let ops = SingleRecordedOps::new($input, state.clone(), ops);
                 let ops = Box::new(ops);
 
-                $tape.borrow_mut().add(ops);
-                node
+                let node = $crate::node::Node::new(state, ops);
+                std::rc::Rc::new(node)
             };
             callback()
         }

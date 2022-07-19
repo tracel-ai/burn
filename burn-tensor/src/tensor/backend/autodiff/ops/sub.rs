@@ -32,7 +32,6 @@ where
             lhs self.node.clone(),
             rhs other.node.clone(),
             out TensorOpsSub::sub(&self.tensor(), &other.tensor()),
-            tape self.tape.clone(),
             ops ADTensorSubOps::new(),
         );
         self.from_existing(node)
@@ -42,7 +41,6 @@ where
         let node = execute_ops!(
             input self.node.clone(),
             out TensorOpsSub::sub_scalar(&self.tensor(), &other),
-            tape self.tape.clone(),
             ops ADTensorSubScalarOps::new(other.clone()),
         );
         self.from_existing(node)
@@ -75,16 +73,15 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{backend::autodiff::helper::ADTchTensor, tape::Tape, Data, TensorBase};
+    use crate::{backend::autodiff::helper::ADTchTensor, Data, TensorBase};
 
     #[test]
     fn should_diff_sub() {
-        let tape = Tape::new_ref();
         let data_1 = Data::from([2.0, 5.0]);
         let data_2 = Data::from([4.0, 1.0]);
 
-        let tensor_1 = ADTchTensor::from_data(data_1.clone(), tape.clone());
-        let tensor_2 = ADTchTensor::from_data(data_2.clone(), tape.clone());
+        let tensor_1 = ADTchTensor::from_data(data_1.clone());
+        let tensor_2 = ADTchTensor::from_data(data_2.clone());
 
         let tensor_3 = tensor_1.clone() - tensor_2.clone();
         tensor_3.backprob();
@@ -99,10 +96,8 @@ mod tests {
 
     #[test]
     fn should_diff_sub_scalar() {
-        let tape = Tape::new_ref();
         let data = Data::from([2.0, 10.0]);
-
-        let tensor = ADTchTensor::from_data(data.clone(), tape.clone());
+        let tensor = ADTchTensor::from_data(data.clone());
         let tensor_out = tensor.clone() - 5.0;
         tensor_out.backprob();
 

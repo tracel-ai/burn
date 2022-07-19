@@ -1,5 +1,5 @@
 use super::{BinaryRecordedState, RecordedOps};
-use crate::node::{Node, NodeId, NodeRef, Ones, Zeros};
+use crate::node::{NodeId, NodeRef, NodeState, NodeStateRef, Ones, Zeros};
 use std::ops::{Add, Mul};
 
 pub trait BinaryOps<Lhs, Rhs, Out>: std::fmt::Debug {
@@ -7,25 +7,29 @@ pub trait BinaryOps<Lhs, Rhs, Out>: std::fmt::Debug {
     fn partial_right(&self, state: &BinaryRecordedState<Lhs, Rhs, Out>) -> Rhs;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BinaryOpsNode<Lhs, Rhs, Out> {
     pub id: NodeId,
-    pub parent_left: NodeRef<Lhs>,
-    pub parent_right: NodeRef<Rhs>,
+    pub parent_left: NodeStateRef<Lhs>,
+    pub parent_right: NodeStateRef<Rhs>,
     pub value: Out,
     pub grad: Option<Out>,
 }
 
-#[derive(new, Debug)]
+#[derive(new, Debug, Clone)]
 pub struct BinaryRecordedOps<Lhs, Rhs, Out, Ops> {
     lhs: NodeRef<Lhs>,
     rhs: NodeRef<Rhs>,
-    out: NodeRef<Out>,
+    out: NodeStateRef<Out>,
     ops: Ops,
 }
 
 impl<Lhs, Rhs, Out> BinaryOpsNode<Lhs, Rhs, Out> {
-    pub fn new(parent_left: NodeRef<Lhs>, parent_right: NodeRef<Rhs>, value: Out) -> Self {
+    pub fn new(
+        parent_left: NodeStateRef<Lhs>,
+        parent_right: NodeStateRef<Rhs>,
+        value: Out,
+    ) -> Self {
         Self {
             id: NodeId::new(),
             parent_left,
@@ -36,7 +40,7 @@ impl<Lhs, Rhs, Out> BinaryOpsNode<Lhs, Rhs, Out> {
     }
 }
 
-impl<Lhs, Rhs, Out> Node<Out> for BinaryOpsNode<Lhs, Rhs, Out>
+impl<Lhs, Rhs, Out> NodeState<Out> for BinaryOpsNode<Lhs, Rhs, Out>
 where
     Out: Zeros<Out> + Clone + Mul<Output = Out> + Add<Output = Out>,
     Lhs: std::fmt::Debug,
@@ -66,20 +70,20 @@ where
 
 impl<Lhs, Rhs, Out, Ops> RecordedOps for BinaryRecordedOps<Lhs, Rhs, Out, Ops>
 where
-    Lhs: Clone + Zeros<Lhs> + Mul<Out, Output = Lhs>,
-    Rhs: Clone + Zeros<Rhs> + Mul<Out, Output = Rhs>,
+    Lhs: Clone + Zeros<Lhs> + Mul<Out, Output = Lhs> + 'static,
+    Rhs: Clone + Zeros<Rhs> + Mul<Out, Output = Rhs> + 'static,
     Out: Clone + Zeros<Out> + Ones<Out> + 'static,
     Lhs: std::fmt::Debug,
     Rhs: std::fmt::Debug,
     Out: std::fmt::Debug,
-    Ops: BinaryOps<Lhs, Rhs, Out>,
+    Ops: BinaryOps<Lhs, Rhs, Out> + 'static + Clone,
 {
     fn id(&self) -> NodeId {
         self.out.borrow().id()
     }
 
     fn backward(&mut self) {
-        let state = BinaryRecordedState::new(&self.lhs, &self.rhs, &self.out);
+        let state = BinaryRecordedState::new(&self.lhs.state, &self.rhs.state, &self.out);
 
         let partial_left = self.ops.partial_left(&state);
         let partial_right: Rhs = self.ops.partial_right(&state);
@@ -87,13 +91,24 @@ where
         let grad_mine = self.out.borrow_mut().grad();
 
         self.lhs
+            .state
             .borrow_mut()
             .update_grad(partial_left * grad_mine.clone());
-        self.rhs.borrow_mut().update_grad(partial_right * grad_mine);
+        self.rhs
+            .state
+            .borrow_mut()
+            .update_grad(partial_right * grad_mine);
     }
 
     fn set_last_ops(&mut self) {
         let value = self.out.borrow().value();
         self.out.borrow_mut().update_grad(value.ones());
+    }
+
+    fn record(&self, tape: &mut crate::tape::Tape) {
+        tape.add(Box::new(self.clone()));
+
+        self.lhs.record(tape);
+        self.rhs.record(tape);
     }
 }

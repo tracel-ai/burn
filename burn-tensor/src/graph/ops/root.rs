@@ -1,9 +1,9 @@
 use super::RecordedOps;
-use crate::node::{NodeId, NodeRef, Ones, Zeros};
+use crate::node::{NodeId, NodeStateRef, Ones, Zeros};
 
-#[derive(new, Debug)]
+#[derive(new, Debug, Clone)]
 pub struct InitRecordedOps<Out> {
-    root: NodeRef<Out>,
+    root: NodeStateRef<Out>,
 }
 
 impl<Out> RecordedOps for InitRecordedOps<Out>
@@ -19,5 +19,9 @@ where
     fn set_last_ops(&mut self) {
         let value = self.root.borrow().value();
         self.root.borrow_mut().update_grad(value.ones());
+    }
+
+    fn record(&self, tape: &mut crate::tape::Tape) {
+        tape.add(Box::new(self.clone()))
     }
 }

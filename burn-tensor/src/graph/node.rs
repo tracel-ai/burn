@@ -1,3 +1,4 @@
+use crate::{ops::RecordedOpsRef, tape::Tape};
 use std::{
     cell::RefCell,
     ops::{Add, Mul},
@@ -20,13 +21,27 @@ impl NodeId {
     }
 }
 
-pub trait Node<Out>: std::fmt::Debug {
+#[derive(new, Debug)]
+pub struct Node<Out> {
+    pub state: NodeStateRef<Out>,
+    pub ops: RecordedOpsRef,
+}
+
+impl<Out> Node<Out> {
+    pub fn record(&self, tape: &mut Tape) {
+        self.ops.record(tape)
+    }
+}
+pub type NodeRef<Out> = Rc<Node<Out>>;
+
+pub trait NodeState<Out>: std::fmt::Debug {
     fn id(&self) -> NodeId;
     fn grad(&mut self) -> Out;
     fn value(&self) -> Out;
     fn update_grad(&mut self, grad: Out);
 }
-pub type NodeRef<T> = Rc<RefCell<dyn Node<T>>>;
+
+pub type NodeStateRef<T> = Rc<RefCell<dyn NodeState<T>>>;
 
 pub trait Zeros<T> {
     fn zeros(&self) -> T;
@@ -52,9 +67,9 @@ impl<Out> RootNode<Out> {
     }
 }
 
-impl<Out> Node<Out> for RootNode<Out>
+impl<Out> NodeState<Out> for RootNode<Out>
 where
-    Out: Zeros<Out> + Clone + Mul<Output = Out> + Add<Output = Out>,
+    Out: Zeros<Out> + Ones<Out> + Clone + Mul<Output = Out> + Add<Output = Out> + 'static,
     Out: std::fmt::Debug,
 {
     fn id(&self) -> NodeId {
@@ -82,12 +97,12 @@ where
 macro_rules! node_init {
     ( lhs $lhs:expr, rhs $rhs:expr, out $out:expr, ) => {{
         use $crate::graph::ops::BinaryOpsNode;
-        let node = BinaryOpsNode::new($lhs, $rhs, $out);
+        let node = BinaryOpsNode::new($lhs.state.clone(), $rhs.state.clone(), $out);
         std::rc::Rc::new(std::cell::RefCell::new(node))
     }};
     ( input $input:expr, out $out:expr, ) => {{
         use $crate::graph::ops::SingleOpsNode;
-        let node = SingleOpsNode::new($input, $out);
+        let node = SingleOpsNode::new($input.state.clone(), $out);
         std::rc::Rc::new(std::cell::RefCell::new(node))
     }};
     ( root $out:expr ) => {{
