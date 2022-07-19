@@ -13,7 +13,6 @@ tch = ["dep:tch"]
 derive-new = "0.5"
 rand = "0.8"
 num-traits = "0.2"
-once_cell = "1.1"
 
 # Backends
 arrayfire = { version = "3.8", optional = true }
@@ -23,4 +22,3 @@ tch = { version = "0.8", optional = true }
 nanoid = "0.4"
 
 [dev-dependencies]
-float-cmp = "0.9.0"
