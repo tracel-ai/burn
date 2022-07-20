@@ -1,11 +1,12 @@
+use super::ADKind;
 use crate::{
     node::{Node, NodeRef, NodeState, Ones, Zeros},
     ops::InitRecordedOps,
-    tape::Tape,
-    FloatTensor, Shape, TensorBase,
+    FloatTensor,
 };
+use crate::{Shape, TensorBase};
 use num_traits::Float;
-use std::{ops::Add, rc::Rc};
+use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub struct ADTensor<P, const D: usize, T> {
@@ -56,36 +57,6 @@ where
 impl<T: Clone + std::fmt::Debug, P, const D: usize> ADTensor<P, D, T> {
     pub fn tensor(&self) -> T {
         self.node.state.borrow().value()
-    }
-}
-
-impl<T, P, const D: usize> ADTensor<P, D, T> {
-    pub fn backprob(&self) {
-        let mut tape = Tape::new();
-        self.node.ops.set_last_ops();
-        self.node.record(&mut tape);
-        tape.backward();
-    }
-}
-
-impl<T, P, const D: usize> ADTensor<P, D, T>
-where
-    T: Zeros<T> + Clone + Add<Output = T>,
-    T: std::fmt::Debug,
-{
-    pub fn grad(&self) -> T {
-        self.node.state.borrow_mut().grad()
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct ADKind<P> {
-    _p: P,
-}
-
-impl<P: Float + Default> ADKind<P> {
-    pub fn new() -> Self {
-        Self { _p: P::default() }
     }
 }
 
