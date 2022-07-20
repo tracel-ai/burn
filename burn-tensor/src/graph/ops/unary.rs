@@ -27,12 +27,7 @@ where
         let state = UnaryOpsNodeState::new(&input, &output);
 
         let partial = self.ops.partial(&state);
-        let grad_mine = self.out.borrow_mut().grad();
-
-        self.input
-            .state
-            .borrow_mut()
-            .update_grad(partial * grad_mine.clone());
+        self.input.state.borrow_mut().update_grad(partial);
     }
 
     fn set_last_ops(&self) {
