@@ -1,4 +1,4 @@
-use crate::node::NodeStateRef;
+use crate::node::{Node, NodeStateRef};
 use std::rc::Rc;
 
 #[derive(new)]
@@ -17,6 +17,20 @@ pub struct SingleOpsNodeState<'a, In, Out> {
 pub trait RecordedOps: std::fmt::Debug {
     fn backward(&self);
     fn set_last_ops(&self);
-    fn parents_ops(&self) -> Vec<RecordedOpsRef>;
+    fn parents_ops(&self) -> Vec<ParentOps>;
 }
 pub type RecordedOpsRef = Rc<dyn RecordedOps>;
+
+pub struct ParentOps {
+    pub id: String,
+    pub ops: RecordedOpsRef,
+}
+
+impl ParentOps {
+    pub fn from<T>(node: &Node<T>) -> Self {
+        Self {
+            id: node.id.clone(),
+            ops: node.ops.clone(),
+        }
+    }
+}

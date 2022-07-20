@@ -1,4 +1,4 @@
-use super::{BinaryOpsNodeState, RecordedOps, RecordedOpsRef};
+use super::{BinaryOpsNodeState, ParentOps, RecordedOps};
 use crate::node::{NodeRef, NodeStateRef, Ones, Zeros};
 use std::ops::{Add, Mul};
 
@@ -48,7 +48,7 @@ where
         self.out.borrow_mut().update_grad(value.ones());
     }
 
-    fn parents_ops(&self) -> Vec<RecordedOpsRef> {
-        vec![self.lhs.ops.clone(), self.rhs.ops.clone()]
+    fn parents_ops(&self) -> Vec<ParentOps> {
+        vec![ParentOps::from(&self.lhs), ParentOps::from(&self.rhs)]
     }
 }

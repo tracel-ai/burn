@@ -1,16 +1,29 @@
 use super::NodeStateRef;
 use crate::{ops::RecordedOpsRef, tape::Tape};
-use std::rc::Rc;
+use std::{collections::HashSet, rc::Rc};
 
-#[derive(new, Debug)]
+#[derive(Debug)]
 pub struct Node<Out> {
+    pub id: String,
     pub state: NodeStateRef<Out>,
     pub ops: RecordedOpsRef,
 }
 
 impl<Out> Node<Out> {
+    pub fn new(state: NodeStateRef<Out>, ops: RecordedOpsRef) -> Self {
+        Self {
+            id: nanoid::nanoid!(),
+            state,
+            ops,
+        }
+    }
+}
+
+impl<Out> Node<Out> {
     pub fn record(&self, tape: &mut Tape) {
+        let mut visited = HashSet::new();
         let mut all_ops = self.ops.parents_ops();
+
         tape.add(self.ops.clone());
 
         loop {
@@ -18,8 +31,17 @@ impl<Out> Node<Out> {
                 return;
             }
             let ops = all_ops.pop().unwrap();
-            all_ops.append(&mut ops.parents_ops());
-            tape.add(ops);
+
+            if !visited.contains(&ops.id) {
+                tape.add(ops.ops.clone());
+                visited.insert(ops.id);
+            }
+
+            for neighbor in ops.ops.parents_ops() {
+                if !visited.contains(&neighbor.id) {
+                    all_ops.push(neighbor);
+                }
+            }
         }
     }
 }
