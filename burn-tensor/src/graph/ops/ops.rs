@@ -1,4 +1,4 @@
-use crate::node::{Node, NodeStateRef};
+use crate::node::NodeStateRef;
 use std::rc::Rc;
 
 #[derive(new)]
@@ -14,23 +14,15 @@ pub struct UnaryOpsNodeState<'a, In, Out> {
     pub output: &'a Out,
 }
 
-pub trait RecordedOps: std::fmt::Debug {
-    fn backward(&self);
-    fn set_last_ops(&self);
-    fn parents_ops(&self) -> Vec<ParentOps>;
-}
-pub type RecordedOpsRef = Rc<dyn RecordedOps>;
-
-pub struct ParentOps {
-    pub id: usize,
-    pub ops: RecordedOpsRef,
+pub trait RecordedOps<T>: std::fmt::Debug {
+    fn backward_step(&self, state: &NodeStateRef<T>);
+    fn backward_parents(&self) -> Vec<RecordedOpsParentRef>;
 }
 
-impl ParentOps {
-    pub fn from<T>(node: &Node<T>) -> Self {
-        Self {
-            id: node.id.clone(),
-            ops: node.ops.clone(),
-        }
-    }
+pub trait RecordedOpsParent: std::fmt::Debug {
+    fn backward_step(&self);
+    fn backward_parents(&self) -> Vec<RecordedOpsParentRef>;
 }
+
+pub type RecordedOpsRef<T> = Rc<dyn RecordedOps<T>>;
+pub type RecordedOpsParentRef = Rc<dyn RecordedOpsParent>;

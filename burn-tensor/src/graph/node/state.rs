@@ -1,19 +1,19 @@
 use crate::node::Zeros;
-use std::{cell::RefCell, ops::Add, rc::Rc};
+use std::{cell::RefCell, ops::Add};
 
 #[derive(Debug)]
 pub struct NodeState<Out> {
     pub value: Out,
     pub grad: Option<Out>,
 }
-pub type NodeStateRef<Out> = Rc<RefCell<NodeState<Out>>>;
+pub type NodeStateRef<Out> = RefCell<NodeState<Out>>;
 
 impl<Out> NodeState<Out> {
     pub fn new(value: Out) -> Self {
         Self { value, grad: None }
     }
     pub fn new_mut(value: Out) -> NodeStateRef<Out> {
-        Rc::new(RefCell::new(Self::new(value)))
+        RefCell::new(Self::new(value))
     }
 }
 impl<Out> NodeState<Out>

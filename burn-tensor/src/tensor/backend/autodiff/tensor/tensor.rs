@@ -39,7 +39,7 @@ where
         let kind = ADKind::new();
         let state = NodeState::new_mut(tensor);
 
-        let ops = InitRecordedOps::new(state.clone());
+        let ops = InitRecordedOps::new();
         let ops = Rc::new(ops);
         let node = Rc::new(Node::new(state, ops));
 

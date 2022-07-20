@@ -1,12 +1,14 @@
 use super::ADTensor;
-use crate::{node::Zeros, tape::Tape};
+use crate::node::{Ones, Zeros};
 use std::ops::Add;
 
-impl<T, P, const D: usize> ADTensor<P, D, T> {
+impl<T, P, const D: usize> ADTensor<P, D, T>
+where
+    T: Zeros<T> + Ones<T> + Clone + Add<Output = T>,
+    T: std::fmt::Debug,
+{
     pub fn backward(&self) {
-        let mut tape = Tape::new();
-        self.node.record(&mut tape);
-        tape.backward();
+        self.node.backward();
     }
 }
 
