@@ -2,8 +2,8 @@ use crate::{
     backend::autodiff::{ADFloat, ADFloatTensor, ADTensor},
     define_ops, execute_ops,
     ops::{
-        BinaryOps, BinaryOpsNodeState, BinaryRecordedOps, SingleOps, SingleOpsNodeState,
-        SingleRecordedOps,
+        BinaryOps, BinaryOpsNodeState, BinaryRecordedOps, UnaryOps, UnaryOpsNodeState,
+        UnaryRecordedOps,
     },
     register_ops, TensorOpsMul,
 };
@@ -12,14 +12,14 @@ use num_traits::Float;
 register_ops!(
     ops BinaryOps<T, T, T>,
     name ADTensorMulOps,
-    partial_left |state: &BinaryOpsNodeState<T, T, T>| state.right.borrow().value().clone(),
-    partial_right |state: &BinaryOpsNodeState<T, T, T>| state.left.borrow().value().clone(),
+    partial_left |state: &BinaryOpsNodeState<T, T, T>| state.output.borrow_mut().grad() * state.right.borrow().value().clone(),
+    partial_right |state: &BinaryOpsNodeState<T, T, T>| state.output.borrow_mut().grad() * state.left.borrow().value().clone(),
 );
 
 register_ops!(
-    ops SingleOps<T, T>,
+    ops UnaryOps<T, T>,
     name ADTensorMulScalarOps state P,
-    partial |state, state_recorded: &SingleOpsNodeState<T, T>|  state_recorded.input.ones() * state,
+    partial |state, state_recorded: &UnaryOpsNodeState<T, T>|  state_recorded.input.ones() * state,
 );
 
 impl<T, P, const D: usize> TensorOpsMul<P, D> for ADTensor<P, D, T>
@@ -84,7 +84,7 @@ mod tests {
         let tensor_2 = ADTchTensor::from_data(data_2.clone());
 
         let tensor_3 = tensor_1.clone() * tensor_2.clone();
-        tensor_3.backprob();
+        tensor_3.backward();
 
         let grad_1 = tensor_1.grad();
         let grad_2 = tensor_2.grad();
@@ -100,7 +100,7 @@ mod tests {
 
         let tensor = ADTchTensor::from_data(data.clone());
         let tensor_out = tensor.clone() * 4.0;
-        tensor_out.backprob();
+        tensor_out.backward();
 
         let grad = tensor.grad();
         assert_eq!(tensor_out.into_data(), Data::from([8.0, 20.0]));
