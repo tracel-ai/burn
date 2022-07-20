@@ -12,8 +12,8 @@ use num_traits::Float;
 register_ops!(
     ops BinaryOps<T, T, T>,
     name ADTensorMulOps,
-    partial_left |state: &BinaryOpsNodeState<T, T, T>| state.right.borrow().value().clone(),
-    partial_right |state: &BinaryOpsNodeState<T, T, T>| state.left.borrow().value().clone(),
+    partial_left |state: &BinaryOpsNodeState<T, T, T>| state.output.borrow_mut().grad() * state.right.borrow().value().clone(),
+    partial_right |state: &BinaryOpsNodeState<T, T, T>| state.output.borrow_mut().grad() * state.left.borrow().value().clone(),
 );
 
 register_ops!(
