@@ -78,7 +78,7 @@ macro_rules! register_ops {
             P: $crate::tensor::backend::autodiff::ADFloat,
             T: $crate::tensor::backend::autodiff::ADFloatTensor<P, D>,
         {
-            fn partial(&self, state: &$crate::graph::ops::SingleOpsNodeState<T, T>) -> T {
+            fn partial(&self, state: &$crate::graph::ops::UnaryOpsNodeState<T, T>) -> T {
                 $partial(self.state, state)
             }
         }
@@ -97,7 +97,7 @@ macro_rules! register_ops {
             P: $crate::tensor::backend::autodiff::ADFloat,
             T: $crate::tensor::backend::autodiff::ADFloatTensor<P, D>,
         {
-            fn partial(&self, state: &$crate::graph::ops::SingleRecordedState<T, T>) -> T {
+            fn partial(&self, state: &$crate::graph::ops::UnaryRecordedState<T, T>) -> T {
                 $partial(state)
             }
         }
@@ -116,11 +116,12 @@ macro_rules! execute_ops {
         let callback = || {
             let state = $crate::node::NodeState::new_mut($out);
 
+            println!("New binary recorded ops {}", stringify!($ops));
             let ops = $ops;
             let ops = BinaryRecordedOps::new($lhs, $rhs, state.clone(), ops);
             let ops = std::rc::Rc::new(ops);
 
-            let node = $crate::node::Node::new(state, ops);
+            let node = $crate::node::Node::from_binary(&$lhs, &$rhs, state, ops);
             std::rc::Rc::new(node)
         };
         callback()
@@ -133,11 +134,12 @@ macro_rules! execute_ops {
         let callback = || {
             let state = $crate::node::NodeState::new_mut($out);
 
+            println!("New single recorded ops {}", stringify!($ops));
             let ops = $ops;
-            let ops = SingleRecordedOps::new($input, state.clone(), ops);
+            let ops = UnaryRecordedOps::new($input, state.clone(), ops);
             let ops = std::rc::Rc::new(ops);
 
-            let node = $crate::node::Node::new(state, ops);
+            let node = $crate::node::Node::from_single(&$input, state, ops);
             std::rc::Rc::new(node)
         };
         callback()

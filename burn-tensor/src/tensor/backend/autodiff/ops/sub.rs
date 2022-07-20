@@ -2,8 +2,8 @@ use crate::{
     backend::autodiff::{ADFloat, ADFloatTensor, ADTensor},
     define_ops, execute_ops,
     ops::{
-        BinaryOps, BinaryOpsNodeState, BinaryRecordedOps, SingleOps, SingleOpsNodeState,
-        SingleRecordedOps,
+        BinaryOps, BinaryOpsNodeState, BinaryRecordedOps, UnaryOps, UnaryOpsNodeState,
+        UnaryRecordedOps,
     },
     register_ops, TensorOpsSub,
 };
@@ -17,9 +17,9 @@ register_ops!(
 );
 
 register_ops!(
-    ops SingleOps<T, T>,
+    ops UnaryOps<T, T>,
     name ADTensorSubScalarOps state P,
-    partial |_state, state_recorded: &SingleOpsNodeState<T, T>|  state_recorded.input.ones(),
+    partial |_state, state_recorded: &UnaryOpsNodeState<T, T>|  state_recorded.input.ones(),
 );
 
 impl<T, P, const D: usize> TensorOpsSub<P, D> for ADTensor<P, D, T>
@@ -84,7 +84,7 @@ mod tests {
         let tensor_2 = ADTchTensor::from_data(data_2.clone());
 
         let tensor_3 = tensor_1.clone() - tensor_2.clone();
-        tensor_3.backprob();
+        tensor_3.backward();
 
         let grad_1 = tensor_1.grad();
         let grad_2 = tensor_2.grad();
@@ -99,7 +99,7 @@ mod tests {
         let data = Data::from([2.0, 10.0]);
         let tensor = ADTchTensor::from_data(data.clone());
         let tensor_out = tensor.clone() - 5.0;
-        tensor_out.backprob();
+        tensor_out.backward();
 
         let grad = tensor.grad();
         assert_eq!(grad.into_data(), Data::from([1.0, 1.0]));

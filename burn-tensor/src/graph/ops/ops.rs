@@ -9,7 +9,7 @@ pub struct BinaryOpsNodeState<'a, Lhs, Rhs, Out> {
 }
 
 #[derive(new)]
-pub struct SingleOpsNodeState<'a, In, Out> {
+pub struct UnaryOpsNodeState<'a, In, Out> {
     pub input: &'a In,
     pub output: &'a Out,
 }
@@ -22,7 +22,7 @@ pub trait RecordedOps: std::fmt::Debug {
 pub type RecordedOpsRef = Rc<dyn RecordedOps>;
 
 pub struct ParentOps {
-    pub id: String,
+    pub id: usize,
     pub ops: RecordedOpsRef,
 }
 
