@@ -10,12 +10,12 @@ register_ops!(
     ops BinaryOps<T, T, T>,
     name ADTensorMatmulOps,
     partial_left |state: &BinaryOpsNodeState<T, T, T>| {
-        let out_grad = state.output.borrow_mut().grad();
+        let out_grad = state.output.borrow().value().ones();
         let rhs = state.right.borrow().value().transpose();
         out_grad.matmul(&rhs)
     },
     partial_right |state: &BinaryOpsNodeState<T, T, T>| {
-        let out_grad = state.output.borrow_mut().grad();
+        let out_grad = state.output.borrow().value().ones();
         let lhs = state.left.borrow().value().transpose();
         lhs.matmul(&out_grad)
     },
