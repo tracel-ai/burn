@@ -1,11 +1,9 @@
-use crate::{node::NodeId, ops::RecordedOpsRef};
-use std::{cell::RefCell, rc::Rc};
+use crate::ops::RecordedOpsRef;
 
 #[derive(Debug)]
 pub struct Tape {
     pub operations: Vec<RecordedOpsRef>,
 }
-pub type TapeRef = Rc<RefCell<Tape>>;
 
 impl Tape {
     pub fn new() -> Self {
@@ -14,21 +12,9 @@ impl Tape {
         }
     }
 
-    pub fn new_ref() -> TapeRef {
-        Rc::new(RefCell::new(Self::new()))
-    }
-
-    pub fn backward(&mut self, from: NodeId) {
-        let mut init = false;
-
-        for ops in self.operations.iter_mut().rev() {
-            if init {
-                ops.backward();
-            } else if ops.id() == from {
-                init = true;
-                ops.set_last_ops();
-                ops.backward();
-            }
+    pub fn backward(&mut self) {
+        for ops in self.operations.iter_mut() {
+            ops.backward();
         }
     }
 

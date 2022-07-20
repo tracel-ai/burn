@@ -2,8 +2,8 @@ use crate::{
     backend::autodiff::{ADFloat, ADFloatTensor, ADTensor},
     define_ops, execute_ops,
     ops::{
-        BinaryOps, BinaryRecordedOps, BinaryRecordedState, SingleOps, SingleRecordedOps,
-        SingleRecordedState,
+        BinaryOps, BinaryOpsNodeState, BinaryRecordedOps, SingleOps, SingleOpsNodeState,
+        SingleRecordedOps,
     },
     register_ops, TensorOpsMul,
 };
@@ -12,14 +12,14 @@ use num_traits::Float;
 register_ops!(
     ops BinaryOps<T, T, T>,
     name ADTensorMulOps,
-    partial_left |state: &BinaryRecordedState<T, T, T>| state.right.borrow().value().clone(),
-    partial_right |state: &BinaryRecordedState<T, T, T>| state.left.borrow().value().clone(),
+    partial_left |state: &BinaryOpsNodeState<T, T, T>| state.right.borrow().value().clone(),
+    partial_right |state: &BinaryOpsNodeState<T, T, T>| state.left.borrow().value().clone(),
 );
 
 register_ops!(
     ops SingleOps<T, T>,
     name ADTensorMulScalarOps state P,
-    partial |state, state_recorded: &SingleRecordedState<T, T>|  state_recorded.input.ones() * state,
+    partial |state, state_recorded: &SingleOpsNodeState<T, T>|  state_recorded.input.ones() * state,
 );
 
 impl<T, P, const D: usize> TensorOpsMul<P, D> for ADTensor<P, D, T>
@@ -32,7 +32,6 @@ where
             lhs self.node.clone(),
             rhs other.node.clone(),
             out TensorOpsMul::mul(&self.tensor(), &other.tensor()),
-            tape self.tape.clone(),
             ops ADTensorMulOps::new(),
         );
         self.from_existing(node)
@@ -42,7 +41,6 @@ where
         let node = execute_ops!(
             input self.node.clone(),
             out TensorOpsMul::mul_scalar(&self.tensor(), &other),
-            tape self.tape.clone(),
             ops ADTensorMulScalarOps::new(other.clone()),
         );
         self.from_existing(node)
@@ -75,16 +73,15 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{backend::autodiff::helper::ADTchTensor, tape::Tape, Data, TensorBase};
+    use crate::{backend::autodiff::helper::ADTchTensor, Data, TensorBase};
 
     #[test]
     fn should_diff_mul() {
-        let tape = Tape::new_ref();
         let data_1 = Data::from([1.0, 7.0]);
         let data_2 = Data::from([4.0, 7.0]);
 
-        let tensor_1 = ADTchTensor::from_data(data_1.clone(), tape.clone());
-        let tensor_2 = ADTchTensor::from_data(data_2.clone(), tape.clone());
+        let tensor_1 = ADTchTensor::from_data(data_1.clone());
+        let tensor_2 = ADTchTensor::from_data(data_2.clone());
 
         let tensor_3 = tensor_1.clone() * tensor_2.clone();
         tensor_3.backprob();
@@ -99,10 +96,9 @@ mod tests {
 
     #[test]
     fn should_diff_mul_scalar() {
-        let tape = Tape::new_ref();
         let data = Data::from([2.0, 5.0]);
 
-        let tensor = ADTchTensor::from_data(data.clone(), tape.clone());
+        let tensor = ADTchTensor::from_data(data.clone());
         let tensor_out = tensor.clone() * 4.0;
         tensor_out.backprob();
 

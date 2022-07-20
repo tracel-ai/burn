@@ -54,11 +54,11 @@ macro_rules! register_ops {
             P: $crate::tensor::backend::autodiff::ADFloat,
             T: $crate::tensor::backend::autodiff::ADFloatTensor<P, D>,
         {
-            fn partial_left(&self, state: &$crate::graph::ops::BinaryRecordedState<T, T, T>) -> T {
+            fn partial_left(&self, state: &$crate::graph::ops::BinaryOpsNodeState<T, T, T>) -> T {
                 $partial_left(state)
             }
 
-            fn partial_right(&self, state: &$crate::graph::ops::BinaryRecordedState<T, T, T>) -> T {
+            fn partial_right(&self, state: &$crate::graph::ops::BinaryOpsNodeState<T, T, T>) -> T {
                 $partial_right(state)
             }
         }
@@ -78,7 +78,7 @@ macro_rules! register_ops {
             P: $crate::tensor::backend::autodiff::ADFloat,
             T: $crate::tensor::backend::autodiff::ADFloatTensor<P, D>,
         {
-            fn partial(&self, state: &$crate::graph::ops::SingleRecordedState<T, T>) -> T {
+            fn partial(&self, state: &$crate::graph::ops::SingleOpsNodeState<T, T>) -> T {
                 $partial(self.state, state)
             }
         }
@@ -111,50 +111,35 @@ macro_rules! execute_ops {
         lhs $lhs:expr,
         rhs $rhs:expr,
         out $out:expr,
-        tape $tape:expr,
         ops $ops:expr,
-    ) =>
-    {
-        {
-            let callback = || {
-                let node = $crate::node_init!(
-                    lhs $lhs,
-                    rhs $rhs,
-                    out $out,
-                );
+    ) => {{
+        let callback = || {
+            let state = $crate::node::NodeState::new_mut($out);
 
-                let ops = $ops;
-                let ops = BinaryRecordedOps::new($lhs, $rhs, node.clone(), ops);
-                let ops = Box::new(ops);
+            let ops = $ops;
+            let ops = BinaryRecordedOps::new($lhs, $rhs, state.clone(), ops);
+            let ops = std::rc::Rc::new(ops);
 
-                $tape.borrow_mut().add(ops);
-                node
-            };
-            callback()
-        }
-    };
+            let node = $crate::node::Node::new(state, ops);
+            std::rc::Rc::new(node)
+        };
+        callback()
+    }};
     (
         input $input:expr,
         out $out:expr,
-        tape $tape:expr,
         ops $ops:expr,
-    ) =>
-    {
-        {
-            let callback = || {
-                let node = $crate::node_init!(
-                    input $input,
-                    out $out,
-                );
+    ) => {{
+        let callback = || {
+            let state = $crate::node::NodeState::new_mut($out);
 
-                let ops = $ops;
-                let ops = SingleRecordedOps::new($input, node.clone(), ops);
-                let ops = Box::new(ops);
+            let ops = $ops;
+            let ops = SingleRecordedOps::new($input, state.clone(), ops);
+            let ops = std::rc::Rc::new(ops);
 
-                $tape.borrow_mut().add(ops);
-                node
-            };
-            callback()
-        }
-    };
+            let node = $crate::node::Node::new(state, ops);
+            std::rc::Rc::new(node)
+        };
+        callback()
+    }};
 }

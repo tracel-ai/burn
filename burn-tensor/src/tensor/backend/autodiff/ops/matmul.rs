@@ -1,7 +1,7 @@
 use crate::execute_ops;
 use crate::{
     backend::autodiff::{ADFloat, ADFloatTensor, ADTensor},
-    ops::{BinaryOps, BinaryRecordedOps, BinaryRecordedState},
+    ops::{BinaryOps, BinaryOpsNodeState, BinaryRecordedOps},
     register_ops, TensorOpsMatmul,
 };
 use num_traits::Float;
@@ -9,13 +9,13 @@ use num_traits::Float;
 register_ops!(
     ops BinaryOps<T, T, T>,
     name ADTensorMatmulOps,
-    partial_left |state: &BinaryRecordedState<T, T, T>| {
-        let out_grad = state.output.borrow_mut().grad();
+    partial_left |state: &BinaryOpsNodeState<T, T, T>| {
+        let out_grad = state.output.borrow().value().ones();
         let rhs = state.right.borrow().value().transpose();
         out_grad.matmul(&rhs)
     },
-    partial_right |state: &BinaryRecordedState<T, T, T>| {
-        let out_grad = state.output.borrow_mut().grad();
+    partial_right |state: &BinaryOpsNodeState<T, T, T>| {
+        let out_grad = state.output.borrow().value().ones();
         let lhs = state.left.borrow().value().transpose();
         lhs.matmul(&out_grad)
     },
@@ -31,7 +31,6 @@ where
             lhs self.node.clone(),
             rhs other.node.clone(),
             out TensorOpsMatmul::matmul(&self.tensor(), &other.tensor()),
-            tape self.tape.clone(),
             ops ADTensorMatmulOps::new(),
         );
         self.from_existing(node)
@@ -41,16 +40,15 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{backend::autodiff::helper::ADTchTensor, tape::Tape, Data, TensorBase};
+    use crate::{backend::autodiff::helper::ADTchTensor, Data, TensorBase};
 
     #[test]
     fn should_diff_mul() {
-        let tape = Tape::new_ref();
         let data_1: Data<f64, 2> = Data::from([[1.0, 7.0], [2.0, 3.0]]);
         let data_2: Data<f64, 2> = Data::from([[4.0, 7.0], [2.0, 3.0]]);
 
-        let tensor_1 = ADTchTensor::from_data(data_1.clone(), tape.clone());
-        let tensor_2 = ADTchTensor::from_data(data_2.clone(), tape.clone());
+        let tensor_1 = ADTchTensor::from_data(data_1.clone());
+        let tensor_2 = ADTchTensor::from_data(data_2.clone());
 
         let tensor_3 = &tensor_1.matmul(&tensor_2);
         tensor_3.backprob();
