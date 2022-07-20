@@ -1,9 +1,9 @@
-use super::{RecordedOps, RecordedOpsRef, SingleRecordedState};
-use crate::node::{NodeId, NodeRef, NodeStateRef, Ones, Zeros};
+use super::{RecordedOps, RecordedOpsRef, SingleOpsNodeState};
+use crate::node::{NodeRef, NodeStateRef, Ones, Zeros};
 use std::ops::{Add, Mul};
 
 pub trait SingleOps<In, Out>: std::fmt::Debug {
-    fn partial(&self, state: &SingleRecordedState<In, Out>) -> In;
+    fn partial(&self, state: &SingleOpsNodeState<In, Out>) -> In;
 }
 
 #[derive(new, Debug)]
@@ -21,14 +21,10 @@ where
     Out: std::fmt::Debug,
     Ops: SingleOps<In, Out> + 'static,
 {
-    fn id(&self) -> NodeId {
-        self.out.borrow().id()
-    }
-
     fn backward(&self) {
         let input = self.input.state.borrow().value();
         let output = self.out.borrow().value();
-        let state = SingleRecordedState::new(&input, &output);
+        let state = SingleOpsNodeState::new(&input, &output);
 
         let partial = self.ops.partial(&state);
         let grad_mine = self.out.borrow_mut().grad();

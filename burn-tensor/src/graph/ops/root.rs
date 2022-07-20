@@ -1,5 +1,5 @@
 use super::{RecordedOps, RecordedOpsRef};
-use crate::node::{NodeId, NodeStateRef, Ones, Zeros};
+use crate::node::{NodeStateRef, Ones, Zeros};
 use std::ops::Add;
 
 #[derive(new, Debug, Clone)]
@@ -12,10 +12,6 @@ where
     Out: Clone + Zeros<Out> + Ones<Out> + Add<Output = Out> + 'static,
     Out: std::fmt::Debug,
 {
-    fn id(&self) -> NodeId {
-        self.root.borrow().id()
-    }
-
     fn backward(&self) {}
     fn set_last_ops(&self) {
         let value = self.root.borrow().value();

@@ -1,35 +1,31 @@
-use crate::node::{NodeId, Zeros};
-use std::ops::{Add, Mul};
+use crate::node::Zeros;
+use std::{cell::RefCell, ops::Add, rc::Rc};
 
 #[derive(Debug)]
-pub struct NodeStateImpl<Out> {
-    pub id: NodeId,
+pub struct NodeState<Out> {
     pub value: Out,
     pub grad: Option<Out>,
 }
+pub type NodeStateRef<Out> = Rc<RefCell<NodeState<Out>>>;
 
-impl<Out> NodeStateImpl<Out> {
+impl<Out> NodeState<Out> {
     pub fn new(value: Out) -> Self {
-        Self {
-            id: NodeId::new(),
-            value,
-            grad: None,
-        }
+        Self { value, grad: None }
+    }
+    pub fn new_mut(value: Out) -> NodeStateRef<Out> {
+        Rc::new(RefCell::new(Self::new(value)))
     }
 }
-impl<Out> NodeStateImpl<Out>
+impl<Out> NodeState<Out>
 where
-    Out: std::fmt::Debug + Clone,
+    Out: Clone,
 {
-    pub fn id(&self) -> NodeId {
-        self.id.clone()
-    }
     pub fn value(&self) -> Out {
         self.value.clone()
     }
 }
 
-impl<Out> NodeStateImpl<Out>
+impl<Out> NodeState<Out>
 where
     Out: Zeros<Out> + Clone + Add<Output = Out>,
     Out: std::fmt::Debug,

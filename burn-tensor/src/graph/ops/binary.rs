@@ -1,10 +1,10 @@
-use super::{BinaryRecordedState, RecordedOps, RecordedOpsRef};
-use crate::node::{NodeId, NodeRef, NodeStateRef, Ones, Zeros};
+use super::{BinaryOpsNodeState, RecordedOps, RecordedOpsRef};
+use crate::node::{NodeRef, NodeStateRef, Ones, Zeros};
 use std::ops::{Add, Mul};
 
 pub trait BinaryOps<Lhs, Rhs, Out>: std::fmt::Debug {
-    fn partial_left(&self, state: &BinaryRecordedState<Lhs, Rhs, Out>) -> Lhs;
-    fn partial_right(&self, state: &BinaryRecordedState<Lhs, Rhs, Out>) -> Rhs;
+    fn partial_left(&self, state: &BinaryOpsNodeState<Lhs, Rhs, Out>) -> Lhs;
+    fn partial_right(&self, state: &BinaryOpsNodeState<Lhs, Rhs, Out>) -> Rhs;
 }
 
 #[derive(new, Debug)]
@@ -25,12 +25,8 @@ where
     Out: std::fmt::Debug,
     Ops: BinaryOps<Lhs, Rhs, Out> + 'static,
 {
-    fn id(&self) -> NodeId {
-        self.out.borrow().id()
-    }
-
     fn backward(&self) {
-        let state = BinaryRecordedState::new(&self.lhs.state, &self.rhs.state, &self.out);
+        let state = BinaryOpsNodeState::new(&self.lhs.state, &self.rhs.state, &self.out);
 
         let partial_left = self.ops.partial_left(&state);
         let partial_right: Rhs = self.ops.partial_right(&state);

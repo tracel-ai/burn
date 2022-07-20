@@ -1,6 +1,5 @@
 use crate::{
-    node::{Node, NodeRef, Ones, Zeros},
-    node_init,
+    node::{Node, NodeRef, NodeState, Ones, Zeros},
     ops::InitRecordedOps,
     tape::Tape,
     FloatTensor, Shape, TensorBase,
@@ -37,7 +36,7 @@ where
     pub fn from_tensor(tensor: T) -> Self {
         let shape = tensor.shape().clone();
         let kind = ADKind::new();
-        let state = node_init!(root tensor);
+        let state = NodeState::new_mut(tensor);
 
         let ops = InitRecordedOps::new(state.clone());
         let ops = Rc::new(ops);

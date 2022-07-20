@@ -2,8 +2,8 @@ use crate::{
     backend::autodiff::{ADFloat, ADFloatTensor, ADTensor},
     define_ops, execute_ops,
     ops::{
-        BinaryOps, BinaryRecordedOps, BinaryRecordedState, SingleOps, SingleRecordedOps,
-        SingleRecordedState,
+        BinaryOps, BinaryOpsNodeState, BinaryRecordedOps, SingleOps, SingleOpsNodeState,
+        SingleRecordedOps,
     },
     register_ops, TensorOpsSub,
 };
@@ -12,14 +12,14 @@ use num_traits::Float;
 register_ops!(
     ops BinaryOps<T, T, T>,
     name ADTensorSubOps,
-    partial_left |state: &BinaryRecordedState<T, T, T>| state.left.borrow().value().ones(),
-    partial_right |state: &BinaryRecordedState<T, T, T>| state.right.borrow().value().ones().neg(),
+    partial_left |state: &BinaryOpsNodeState<T, T, T>| state.left.borrow().value().ones(),
+    partial_right |state: &BinaryOpsNodeState<T, T, T>| state.right.borrow().value().ones().neg(),
 );
 
 register_ops!(
     ops SingleOps<T, T>,
     name ADTensorSubScalarOps state P,
-    partial |_state, state_recorded: &SingleRecordedState<T, T>|  state_recorded.input.ones(),
+    partial |_state, state_recorded: &SingleOpsNodeState<T, T>|  state_recorded.input.ones(),
 );
 
 impl<T, P, const D: usize> TensorOpsSub<P, D> for ADTensor<P, D, T>
