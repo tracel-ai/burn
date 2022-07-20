@@ -1,6 +1,6 @@
 use super::{RecordedOps, RecordedOpsParentRef, UnaryOpsNodeState};
-use crate::node::{NodeRef, NodeStateRef, Ones, Zeros};
-use std::ops::{Add, Mul};
+use crate::node::{NodeRef, NodeStateRef, Zeros};
+use std::ops::Add;
 
 pub trait UnaryOps<In, Out>: std::fmt::Debug {
     fn partial(&self, state: &UnaryOpsNodeState<In, Out>) -> In;
@@ -14,11 +14,9 @@ pub struct UnaryRecordedOps<In, Ops> {
 
 impl<In, Out, Ops> RecordedOps<Out> for UnaryRecordedOps<In, Ops>
 where
-    In: Clone + Zeros<In> + Mul<Out, Output = In> + Add<Output = In> + 'static,
-    Out: Clone + Zeros<Out> + Ones<Out> + Add<Output = Out> + 'static,
-    In: std::fmt::Debug,
-    Out: std::fmt::Debug,
-    Ops: UnaryOps<In, Out> + 'static,
+    In: Clone + Zeros<In> + Add<Output = In> + std::fmt::Debug + 'static,
+    Out: Clone + Zeros<Out> + Add<Output = Out> + std::fmt::Debug + 'static,
+    Ops: UnaryOps<In, Out> + std::fmt::Debug + 'static,
 {
     fn backward_step(&self, state: &NodeStateRef<Out>) {
         let input = self.input.state.borrow().value();

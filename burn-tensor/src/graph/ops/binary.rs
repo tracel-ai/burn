@@ -1,6 +1,6 @@
 use super::{BinaryOpsNodeState, RecordedOps, RecordedOpsParentRef};
-use crate::node::{NodeRef, NodeStateRef, Ones, Zeros};
-use std::ops::{Add, Mul};
+use crate::node::{NodeRef, NodeStateRef, Zeros};
+use std::ops::Add;
 
 pub trait BinaryOps<Lhs, Rhs, Out>: std::fmt::Debug {
     fn partial_left(&self, state: &BinaryOpsNodeState<Lhs, Rhs, Out>) -> Lhs;
@@ -16,23 +16,10 @@ pub struct BinaryRecordedOps<Lhs, Rhs, Ops> {
 
 impl<Lhs, Rhs, Out, Ops> RecordedOps<Out> for BinaryRecordedOps<Lhs, Rhs, Ops>
 where
-    Lhs: Clone
-        + Zeros<Lhs>
-        + Mul<Out, Output = Lhs>
-        + Add<Output = Lhs>
-        + Add<Out, Output = Lhs>
-        + 'static,
-    Rhs: Clone
-        + Zeros<Rhs>
-        + Mul<Out, Output = Rhs>
-        + Add<Output = Rhs>
-        + Add<Out, Output = Rhs>
-        + 'static,
-    Out: Clone + Zeros<Out> + Ones<Out> + Add<Output = Out> + 'static,
-    Lhs: std::fmt::Debug,
-    Rhs: std::fmt::Debug,
-    Out: std::fmt::Debug,
-    Ops: BinaryOps<Lhs, Rhs, Out> + 'static,
+    Lhs: Clone + Zeros<Lhs> + Add<Output = Lhs> + std::fmt::Debug + 'static,
+    Rhs: Clone + Zeros<Rhs> + Add<Output = Rhs> + std::fmt::Debug + 'static,
+    Out: Clone + Zeros<Out> + Add<Output = Out> + std::fmt::Debug + 'static,
+    Ops: BinaryOps<Lhs, Rhs, Out> + std::fmt::Debug + 'static,
 {
     fn backward_step(&self, state: &NodeStateRef<Out>) {
         let state = BinaryOpsNodeState::new(&self.lhs.state, &self.rhs.state, state);
