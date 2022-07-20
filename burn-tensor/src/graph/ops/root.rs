@@ -1,24 +1,17 @@
-use super::{ParentOps, RecordedOps};
+use super::{BackwardRef, RecordedOps};
 use crate::node::{NodeStateRef, Ones, Zeros};
 use std::ops::Add;
 
 #[derive(new, Debug, Clone)]
-pub struct InitRecordedOps<Out> {
-    root: NodeStateRef<Out>,
-}
+pub struct InitRecordedOps {}
 
-impl<Out> RecordedOps for InitRecordedOps<Out>
+impl<Out> RecordedOps<Out> for InitRecordedOps
 where
     Out: Clone + Zeros<Out> + Ones<Out> + Add<Output = Out> + 'static,
     Out: std::fmt::Debug,
 {
-    fn backward(&self) {}
-    fn set_last_ops(&self) {
-        let value = self.root.borrow().value();
-        self.root.borrow_mut().update_grad(value.ones());
-    }
-
-    fn parents_ops(&self) -> Vec<ParentOps> {
+    fn backward(&self, _: &NodeStateRef<Out>) {}
+    fn parents(&self) -> Vec<BackwardRef> {
         vec![]
     }
 }

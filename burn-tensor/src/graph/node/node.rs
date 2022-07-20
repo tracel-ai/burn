@@ -1,16 +1,16 @@
 use super::NodeStateRef;
-use crate::{ops::RecordedOpsRef, tape::Tape};
-use std::{collections::HashSet, rc::Rc};
+use crate::ops::RecordedOpsRef;
+use std::{ops::Add, rc::Rc};
 
 #[derive(Debug)]
 pub struct Node<Out> {
     pub id: usize,
     pub state: NodeStateRef<Out>,
-    pub ops: RecordedOpsRef,
+    pub ops: RecordedOpsRef<Out>,
 }
 
 impl<Out> Node<Out> {
-    pub fn new(state: NodeStateRef<Out>, ops: RecordedOpsRef) -> Self {
+    pub fn new(state: NodeStateRef<Out>, ops: RecordedOpsRef<Out>) -> Self {
         let id = 0;
         println!("Creating new node with id {}", id);
 
@@ -20,7 +20,7 @@ impl<Out> Node<Out> {
         lhs: &Node<Lhs>,
         rhs: &Node<Rhs>,
         state: NodeStateRef<Out>,
-        ops: RecordedOpsRef,
+        ops: RecordedOpsRef<Out>,
     ) -> Self {
         let id = usize::max(lhs.id, rhs.id) + 1;
         println!("Creating new node with id {}", id);
@@ -30,7 +30,7 @@ impl<Out> Node<Out> {
     pub fn from_single<Lhs>(
         input: &Node<Lhs>,
         state: NodeStateRef<Out>,
-        ops: RecordedOpsRef,
+        ops: RecordedOpsRef<Out>,
     ) -> Self {
         let id = input.id + 1;
         println!("Creating new node with id {}", id);
@@ -39,29 +39,27 @@ impl<Out> Node<Out> {
     }
 }
 
-impl<Out> Node<Out> {
-    pub fn record(&self, tape: &mut Tape) {
-        let mut visited = HashSet::new();
-        let mut ops_queue = self.ops.parents_ops();
+impl<Out> Node<Out>
+where
+    Out: Zeros<Out> + Ones<Out> + Clone + Add<Output = Out>,
+    Out: std::fmt::Debug,
+{
+    pub fn record(&self) {
+        let grad = self.state.borrow().value().ones();
 
-        self.ops.set_last_ops();
-        tape.add(self.ops.clone());
+        self.state.borrow_mut().update_grad(grad);
+        self.ops.backward(&self.state);
 
+        let mut nodes = self.ops.parents();
         loop {
-            if ops_queue.len() == 0 {
-                break;
-            }
-            let ops = ops_queue.pop().unwrap();
+            if let Some(node) = nodes.pop() {
+                node.backward();
 
-            for neighbor in ops.ops.parents_ops() {
-                if !visited.contains(&neighbor.id) {
-                    ops_queue.push(neighbor);
+                for neighbor in node.parents() {
+                    nodes.push(neighbor);
                 }
-            }
-
-            if !visited.contains(&ops.id) {
-                visited.insert(ops.id);
-                tape.add(ops.ops.clone());
+            } else {
+                break;
             }
         }
     }

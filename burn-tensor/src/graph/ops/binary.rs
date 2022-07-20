@@ -1,4 +1,4 @@
-use super::{BinaryOpsNodeState, ParentOps, RecordedOps};
+use super::{BackwardRef, BinaryOpsNodeState, RecordedOps};
 use crate::node::{NodeRef, NodeStateRef, Ones, Zeros};
 use std::ops::{Add, Mul};
 
@@ -8,14 +8,13 @@ pub trait BinaryOps<Lhs, Rhs, Out>: std::fmt::Debug {
 }
 
 #[derive(new, Debug)]
-pub struct BinaryRecordedOps<Lhs, Rhs, Out, Ops> {
+pub struct BinaryRecordedOps<Lhs, Rhs, Ops> {
     lhs: NodeRef<Lhs>,
     rhs: NodeRef<Rhs>,
-    out: NodeStateRef<Out>,
     ops: Ops,
 }
 
-impl<Lhs, Rhs, Out, Ops> RecordedOps for BinaryRecordedOps<Lhs, Rhs, Out, Ops>
+impl<Lhs, Rhs, Out, Ops> RecordedOps<Out> for BinaryRecordedOps<Lhs, Rhs, Ops>
 where
     Lhs: Clone
         + Zeros<Lhs>
@@ -35,8 +34,8 @@ where
     Out: std::fmt::Debug,
     Ops: BinaryOps<Lhs, Rhs, Out> + 'static,
 {
-    fn backward(&self) {
-        let state = BinaryOpsNodeState::new(&self.lhs.state, &self.rhs.state, &self.out);
+    fn backward(&self, state: &NodeStateRef<Out>) {
+        let state = BinaryOpsNodeState::new(&self.lhs.state, &self.rhs.state, state);
 
         let partial_left: Lhs = self.ops.partial_left(&state);
         let partial_right: Rhs = self.ops.partial_right(&state);
@@ -45,12 +44,7 @@ where
         self.rhs.state.borrow_mut().update_grad(partial_right);
     }
 
-    fn set_last_ops(&self) {
-        let value = self.out.borrow().value();
-        self.out.borrow_mut().update_grad(value.ones());
-    }
-
-    fn parents_ops(&self) -> Vec<ParentOps> {
-        vec![ParentOps::from(&self.lhs), ParentOps::from(&self.rhs)]
+    fn parents(&self) -> Vec<BackwardRef> {
+        vec![self.lhs.clone(), self.rhs.clone()]
     }
 }

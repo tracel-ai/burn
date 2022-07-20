@@ -14,23 +14,23 @@ pub struct UnaryOpsNodeState<'a, In, Out> {
     pub output: &'a Out,
 }
 
-pub trait RecordedOps: std::fmt::Debug {
+pub trait RecordedOps<T>: std::fmt::Debug {
+    fn backward(&self, state: &NodeStateRef<T>);
+    fn parents(&self) -> Vec<BackwardRef>;
+}
+pub type RecordedOpsRef<T> = Rc<dyn RecordedOps<T>>;
+
+pub trait Backward: std::fmt::Debug {
     fn backward(&self);
-    fn set_last_ops(&self);
-    fn parents_ops(&self) -> Vec<ParentOps>;
+    fn parents(&self) -> Vec<BackwardRef>;
 }
-pub type RecordedOpsRef = Rc<dyn RecordedOps>;
+pub type BackwardRef = Rc<dyn Backward>;
 
-pub struct ParentOps {
-    pub id: usize,
-    pub ops: RecordedOpsRef,
-}
-
-impl ParentOps {
-    pub fn from<T>(node: &Node<T>) -> Self {
-        Self {
-            id: node.id.clone(),
-            ops: node.ops.clone(),
-        }
+impl<T: std::fmt::Debug> Backward for Node<T> {
+    fn backward(&self) {
+        self.ops.backward(&self.state)
+    }
+    fn parents(&self) -> Vec<BackwardRef> {
+        self.ops.parents()
     }
 }
