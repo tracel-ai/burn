@@ -1,8 +1,8 @@
-use crate::ops::BackwardRef;
+use crate::ops::RecordedOpsParentRef;
 
 #[derive(Debug)]
 pub struct Tape {
-    pub operations: Vec<BackwardRef>,
+    pub operations: Vec<RecordedOpsParentRef>,
 }
 
 impl Tape {
@@ -14,11 +14,11 @@ impl Tape {
 
     pub fn backward(&mut self) {
         for ops in self.operations.iter_mut() {
-            ops.backward();
+            ops.backward_step();
         }
     }
 
-    pub fn add(&mut self, ops: BackwardRef) {
+    pub fn add(&mut self, ops: RecordedOpsParentRef) {
         self.operations.push(ops)
     }
 }

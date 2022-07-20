@@ -1,4 +1,4 @@
-use super::{BackwardRef, BinaryOpsNodeState, RecordedOps};
+use super::{BinaryOpsNodeState, RecordedOps, RecordedOpsParentRef};
 use crate::node::{NodeRef, NodeStateRef, Ones, Zeros};
 use std::ops::{Add, Mul};
 
@@ -34,7 +34,7 @@ where
     Out: std::fmt::Debug,
     Ops: BinaryOps<Lhs, Rhs, Out> + 'static,
 {
-    fn backward(&self, state: &NodeStateRef<Out>) {
+    fn backward_step(&self, state: &NodeStateRef<Out>) {
         let state = BinaryOpsNodeState::new(&self.lhs.state, &self.rhs.state, state);
 
         let partial_left: Lhs = self.ops.partial_left(&state);
@@ -44,7 +44,7 @@ where
         self.rhs.state.borrow_mut().update_grad(partial_right);
     }
 
-    fn parents(&self) -> Vec<BackwardRef> {
+    fn backward_parents(&self) -> Vec<RecordedOpsParentRef> {
         vec![self.lhs.clone(), self.rhs.clone()]
     }
 }

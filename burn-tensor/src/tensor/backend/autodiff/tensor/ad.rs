@@ -8,7 +8,7 @@ where
     T: std::fmt::Debug,
 {
     pub fn backward(&self) {
-        self.node.record();
+        self.node.backward();
     }
 }
 
