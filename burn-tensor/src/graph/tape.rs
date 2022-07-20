@@ -13,7 +13,7 @@ impl Tape {
     }
 
     pub fn backward(&mut self) {
-        for ops in self.operations.iter_mut().rev() {
+        for ops in self.operations.iter_mut() {
             ops.backward();
         }
     }
