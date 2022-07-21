@@ -19,10 +19,7 @@ where
     Ops: UnaryOps<In, Out> + std::fmt::Debug + 'static,
 {
     fn backward_step(&self, state: &NodeStateRef<Out>) {
-        let input = self.input.state.borrow().value();
-        let output = state.borrow().value();
-        let state = UnaryOpsNodeState::new(&input, &output);
-
+        let state = UnaryOpsNodeState::new(&self.input.state, &state);
         let partial = self.ops.partial(&state);
         self.input.state.borrow_mut().update_grad(partial);
     }

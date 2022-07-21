@@ -10,8 +10,8 @@ pub struct BinaryOpsNodeState<'a, Lhs, Rhs, Out> {
 
 #[derive(new)]
 pub struct UnaryOpsNodeState<'a, In, Out> {
-    pub input: &'a In,
-    pub output: &'a Out,
+    pub input: &'a NodeStateRef<In>,
+    pub output: &'a NodeStateRef<Out>,
 }
 
 pub trait RecordedOps<T>: std::fmt::Debug {
@@ -20,6 +20,7 @@ pub trait RecordedOps<T>: std::fmt::Debug {
 }
 
 pub trait RecordedOpsParent: std::fmt::Debug {
+    fn id(&self) -> String;
     fn backward_step(&self);
     fn backward_parents(&self) -> Vec<RecordedOpsParentRef>;
 }

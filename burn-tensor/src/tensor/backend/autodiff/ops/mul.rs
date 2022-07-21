@@ -12,14 +12,20 @@ use num_traits::Float;
 register_ops!(
     ops BinaryOps<T, T, T>,
     name ADTensorMulOps,
-    partial_left |state: &BinaryOpsNodeState<T, T, T>| state.output.borrow_mut().grad() * state.right.borrow().value().clone(),
-    partial_right |state: &BinaryOpsNodeState<T, T, T>| state.output.borrow_mut().grad() * state.left.borrow().value().clone(),
+    partial_left |state: &BinaryOpsNodeState<T, T, T>| {
+        state.output.borrow_mut().grad() * state.right.borrow().value().clone()
+    },
+    partial_right |state: &BinaryOpsNodeState<T, T, T>| {
+        state.output.borrow_mut().grad() * state.left.borrow().value().clone()
+    },
 );
 
 register_ops!(
     ops UnaryOps<T, T>,
     name ADTensorMulScalarOps state P,
-    partial |state, state_recorded: &UnaryOpsNodeState<T, T>|  state_recorded.input.ones() * state,
+    partial |state, state_recorded: &UnaryOpsNodeState<T, T>| {
+        state_recorded.input.borrow().value().ones() * state
+    },
 );
 
 impl<T, P, const D: usize> TensorOpsMul<P, D> for ADTensor<P, D, T>
@@ -73,7 +79,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{backend::autodiff::helper::ADTchTensor, Data, TensorBase};
+    use crate::{backend::autodiff::helper::ADTchTensor, Data, TensorBase, TensorOpsMul};
 
     #[test]
     fn should_diff_mul() {
@@ -105,5 +111,31 @@ mod tests {
         let grad = tensor.grad();
         assert_eq!(tensor_out.into_data(), Data::from([8.0, 20.0]));
         assert_eq!(grad.into_data(), Data::from([4.0, 4.0]));
+    }
+
+    #[test]
+    fn test_mul_complex_1() {
+        let data_1: Data<f64, 2> = Data::from([[1.0, 7.0], [13.0, -3.0]]);
+        let data_2: Data<f64, 2> = Data::from([[4.0, 7.0], [2.0, 3.0]]);
+        let data_3: Data<f64, 2> = Data::from([[2.0, 2.0], [2.0, 2.0]]);
+
+        let tensor_1 = ADTchTensor::from_data(data_1.clone());
+        let tensor_2 = ADTchTensor::from_data(data_2.clone());
+        let tensor_3 = ADTchTensor::from_data(data_3.clone());
+
+        let tensor_4 = tensor_1.mul(&tensor_2);
+        let tensor_5 = tensor_4.mul(&tensor_3);
+        let tensor_6 = tensor_1.mul(&tensor_5);
+
+        tensor_6.backward();
+
+        let grad_1 = tensor_1.grad();
+        let grad_2 = tensor_2.grad();
+
+        assert_eq!(
+            grad_1.into_data(),
+            Data::from([[16.0, 196.0], [104.0, -36.0]])
+        );
+        assert_eq!(grad_2.into_data(), Data::from([[2.0, 98.0], [338.0, 18.0]]));
     }
 }
