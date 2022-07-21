@@ -41,7 +41,7 @@ where
 
         let ops = InitRecordedOps::new();
         let ops = Rc::new(ops);
-        let node = Rc::new(Node::new(state, ops));
+        let node = Rc::new(Node::from_root(state, ops));
 
         Self { node, shape, kind }
     }

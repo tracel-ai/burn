@@ -20,7 +20,7 @@ pub trait RecordedOps<T>: std::fmt::Debug {
 }
 
 pub trait RecordedOpsParent: std::fmt::Debug {
-    fn id(&self) -> String;
+    fn id(&self) -> usize;
     fn backward_step(&self);
     fn backward_parents(&self) -> Vec<RecordedOpsParentRef>;
 }
