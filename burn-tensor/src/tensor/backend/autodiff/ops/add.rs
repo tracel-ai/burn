@@ -1,10 +1,9 @@
 use crate::{
-    backend::autodiff::{ADFloat, ADFloatTensor, ADTensor},
+    backend::autodiff::{ADCompatibleTensor, ADElement, ADTensor},
     define_ops, execute_ops,
     ops::{BinaryOps, BinaryOpsNodeState, UnaryOps, UnaryOpsNodeState},
     register_ops, TensorOpsAdd,
 };
-use num_traits::Float;
 
 register_ops!(
     ops BinaryOps<T, T, T>,
@@ -27,8 +26,8 @@ register_ops!(
 
 impl<T, P, const D: usize> TensorOpsAdd<P, D> for ADTensor<P, D, T>
 where
-    T: ADFloatTensor<P, D>,
-    P: ADFloat,
+    T: ADCompatibleTensor<P, D>,
+    P: ADElement,
 {
     fn add(&self, other: &Self) -> Self {
         let node = execute_ops!(
@@ -52,8 +51,8 @@ where
 
 impl<T, P, const D: usize> std::ops::Add<P> for ADTensor<P, D, T>
 where
-    T: ADFloatTensor<P, D> + 'static,
-    P: ADFloat + 'static,
+    T: ADCompatibleTensor<P, D> + 'static,
+    P: ADElement + 'static,
 {
     type Output = ADTensor<P, D, T>;
 
@@ -64,8 +63,8 @@ where
 
 impl<T, P, const D: usize> std::ops::Add<ADTensor<P, D, T>> for ADTensor<P, D, T>
 where
-    T: ADFloatTensor<P, D> + 'static,
-    P: ADFloat + 'static,
+    T: ADCompatibleTensor<P, D> + 'static,
+    P: ADElement + 'static,
 {
     type Output = ADTensor<P, D, T>;
 

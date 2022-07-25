@@ -1,5 +1,4 @@
-use crate::{Data, FloatTensor, Shape, TensorBase};
-use num_traits::Float;
+use crate::{Data, Shape, TensorBase};
 
 #[derive(Debug, PartialEq)]
 pub struct TchTensor<P: tch::kind::Element, const D: usize> {
@@ -23,13 +22,6 @@ impl<P: tch::kind::Element, const D: usize> Clone for TchTensor<P, D> {
 
 pub struct TchShape<const D: usize> {
     pub dims: [i64; D],
-}
-
-impl<
-        P: Float + tch::kind::Element + Default + Copy + std::fmt::Debug + Into<f64>,
-        const D: usize,
-    > FloatTensor<P, D> for TchTensor<P, D>
-{
 }
 
 impl<const D: usize> From<Shape<D>> for TchShape<D> {

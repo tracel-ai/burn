@@ -6,18 +6,6 @@ pub enum TensorError {
     ReshapeError(String),
 }
 
-pub trait FloatTensor<P: num_traits::Float, const D: usize>:
-    TensorBase<P, D>
-    + TensorOpsMul<P, D>
-    + TensorOpsNeg<P, D>
-    + TensorOpsAdd<P, D>
-    + TensorOpsSub<P, D>
-    + TensorOpsMatmul<P, D>
-    + TensorOpsTranspose<P, D>
-    + std::fmt::Debug
-{
-}
-
 pub trait TensorBase<P, const D: usize> {
     fn shape(&self) -> &Shape<D>;
     fn into_data(self) -> Data<P, D>;

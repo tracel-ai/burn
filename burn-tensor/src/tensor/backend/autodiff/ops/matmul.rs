@@ -1,10 +1,9 @@
 use crate::execute_ops;
 use crate::{
-    backend::autodiff::{ADFloat, ADFloatTensor, ADTensor},
+    backend::autodiff::{ADCompatibleTensor, ADElement, ADTensor},
     ops::{BinaryOps, BinaryOpsNodeState},
     register_ops, TensorOpsMatmul,
 };
-use num_traits::Float;
 
 register_ops!(
     ops BinaryOps<T, T, T>,
@@ -23,8 +22,8 @@ register_ops!(
 
 impl<T, P, const D: usize> TensorOpsMatmul<P, D> for ADTensor<P, D, T>
 where
-    T: ADFloatTensor<P, D>,
-    P: ADFloat,
+    T: ADCompatibleTensor<P, D>,
+    P: ADElement,
 {
     fn matmul(&self, other: &Self) -> Self {
         let node = execute_ops!(

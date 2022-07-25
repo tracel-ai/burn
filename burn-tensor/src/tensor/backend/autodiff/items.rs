@@ -1,55 +1,96 @@
 use crate::{
     node::{Ones, Zeros},
-    FloatTensor,
+    TensorBase, TensorOpsAdd, TensorOpsMatmul, TensorOpsMul, TensorOpsNeg, TensorOpsSub,
+    TensorOpsTranspose,
 };
+use half::f16;
 
-pub trait ADFloat:
-    num_traits::Float + Zeros<Self> + Ones<Self> + std::fmt::Debug + Default + 'static + Send + Sync
+pub trait ADElement:
+    Zeros<Self> + Ones<Self> + std::fmt::Debug + Default + 'static + Send + Sync + Copy
 {
 }
-pub trait ADFloatTensor<P: ADFloat, const D: usize>:
-    FloatTensor<P, D> + Clone + Zeros<Self> + Ones<Self> + std::fmt::Debug + 'static + Send + Sync
+
+pub trait ADCompatibleTensor<P: ADElement, const D: usize>:
+    TensorBase<P, D>
+    + TensorOpsMatmul<P, D>
+    + TensorOpsTranspose<P, D>
+    + TensorOpsMul<P, D>
+    + TensorOpsNeg<P, D>
+    + TensorOpsAdd<P, D>
+    + TensorOpsSub<P, D>
+    + Zeros<Self>
+    + Ones<Self>
+    + Clone
+    + Send
+    + Sync
+    + 'static
+    + std::fmt::Debug
 {
 }
 
 macro_rules! ad_items {
     (
-        float $float:ident
+        ty $float:ident,
+        zero $zero:expr,
+        one $one:expr
     ) => {
-        impl ADFloat for $float {}
+        impl ADElement for $float {}
         impl Zeros<$float> for $float {
             fn zeros(&self) -> $float {
-                0.0
+                $zero
             }
         }
 
         impl Ones<$float> for $float {
             fn ones(&self) -> $float {
-                1.0
+                $one
             }
         }
     };
+    (
+        float $float:ident
+    ) => {
+        ad_items!(ty $float, zero 0.0, one 1.0);
+    };
+    (
+        int $int:ident
+    ) => {
+        ad_items!(ty $int, zero 0, one 1);
+    };
 }
+
+ad_items!(ty f16, zero f16::from_f32(0.0), one f16::from_f32(1.0));
 
 ad_items!(float f64);
 ad_items!(float f32);
 
+ad_items!(int i64);
+ad_items!(int i32);
+ad_items!(int i16);
+ad_items!(int i8);
+
+ad_items!(int u64);
+ad_items!(int u32);
+ad_items!(int u16);
+ad_items!(int u8);
+
 #[cfg(feature = "tch")]
 mod tch {
-    use super::{ADFloat, ADFloatTensor};
+    use super::{ADCompatibleTensor, ADElement};
     use crate::{
         backend::tch::TchTensor,
         node::{Ones, Zeros},
-        TensorOpsAdd, TensorOpsMul,
+        TensorOpsMul,
     };
-    use num_traits::Float;
 
-    impl<P: tch::kind::Element + Into<f64> + ADFloat, const D: usize> ADFloatTensor<P, D>
+    impl<P: tch::kind::Element + Into<f64> + ADElement, const D: usize> ADCompatibleTensor<P, D>
         for TchTensor<P, D>
     {
     }
 
-    impl<P: tch::kind::Element + Into<f64>, const D: usize> Zeros<TchTensor<P, D>> for TchTensor<P, D> {
+    impl<P: tch::kind::Element + Into<f64> + ADElement, const D: usize> Zeros<TchTensor<P, D>>
+        for TchTensor<P, D>
+    {
         fn zeros(&self) -> TchTensor<P, D> {
             TensorOpsMul::mul_scalar(&self, &P::ZERO)
         }
@@ -57,12 +98,18 @@ mod tch {
 
     impl<P, const D: usize> Ones<TchTensor<P, D>> for TchTensor<P, D>
     where
-        P: tch::kind::Element + Into<f64> + Float + Default,
-        P: std::fmt::Debug,
+        P: ADElement + tch::kind::Element + Into<f64>,
     {
         fn ones(&self) -> TchTensor<P, D> {
-            let zeros = self.zeros();
-            TensorOpsAdd::add_scalar(&zeros, &P::one())
+            let tensor = self.tensor.ones_like();
+            let kind = self.kind.clone();
+            let shape = self.shape.clone();
+
+            Self {
+                tensor,
+                kind,
+                shape,
+            }
         }
     }
 }

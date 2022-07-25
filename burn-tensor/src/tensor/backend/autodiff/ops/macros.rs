@@ -8,7 +8,7 @@ macro_rules! define_ops {
             _kind: $crate::tensor::backend::autodiff::ADKind<P>,
         }
 
-        impl<P: Float + Default, const D: usize> $name<P, D> {
+        impl<P: Default, const D: usize> $name<P, D> {
             pub fn new() -> Self {
                 Self {
                     _kind: $crate::tensor::backend::autodiff::ADKind::new(),
@@ -26,7 +26,7 @@ macro_rules! define_ops {
             _kind: $crate::tensor::backend::autodiff::ADKind<P>,
         }
 
-        impl<P: Float + Default, const D: usize> $name<P, D> {
+        impl<P: Default, const D: usize> $name<P, D> {
             pub fn new(value: $state_ident) -> Self {
                 Self {
                     state: value,
@@ -51,8 +51,8 @@ macro_rules! register_ops {
 
         impl<T, P, const D: usize> $ops for $name<P, D>
         where
-            P: $crate::tensor::backend::autodiff::ADFloat + Send + Sync,
-            T: $crate::tensor::backend::autodiff::ADFloatTensor<P, D> + Send + Sync,
+            P: $crate::tensor::backend::autodiff::ADElement,
+            T: $crate::tensor::backend::autodiff::ADCompatibleTensor<P, D>,
         {
             fn partial_left(&self, state: &$crate::graph::ops::BinaryOpsNodeState<T, T, T>) -> T {
                 $partial_left(state)
@@ -75,8 +75,8 @@ macro_rules! register_ops {
 
         impl<T, P, const D: usize> $ops for $name<P, D>
         where
-            P: $crate::tensor::backend::autodiff::ADFloat + Send + Sync,
-            T: $crate::tensor::backend::autodiff::ADFloatTensor<P, D> + Send + Sync,
+            P: $crate::tensor::backend::autodiff::ADElement,
+            T: $crate::tensor::backend::autodiff::ADCompatibleTensor<P, D>,
         {
             fn partial(&self, state: &$crate::graph::ops::UnaryOpsNodeState<T, T>) -> T {
                 $partial(self.state, state)
@@ -94,8 +94,8 @@ macro_rules! register_ops {
 
         impl<T, P, const D: usize> $ops for $name<P, D>
         where
-            P: $crate::tensor::backend::autodiff::ADFloat,
-            T: $crate::tensor::backend::autodiff::ADFloatTensor<P, D>,
+            P: $crate::tensor::backend::autodiff::ADElement,
+            T: $crate::tensor::backend::autodiff::ADCompatibleTensor<P, D>,
         {
             fn partial(&self, state: &$crate::graph::ops::UnaryRecordedState<T, T>) -> T {
                 $partial(state)

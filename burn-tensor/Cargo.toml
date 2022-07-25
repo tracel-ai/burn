@@ -12,7 +12,7 @@ tch = ["dep:tch"]
 [dependencies]
 derive-new = "0.5"
 rand = "0.8"
-num-traits = "0.2"
+half = "2.1.0"
 
 # Backends
 arrayfire = { version = "3.8", optional = true }
