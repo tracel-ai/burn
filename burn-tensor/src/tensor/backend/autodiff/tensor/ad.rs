@@ -1,8 +1,8 @@
 use super::ADTensor;
 use crate::{
+    converter::Forward2BackwardGraphConverter,
     grad::{AsNode, Gradients},
     node::{BackwardNode, Ones, Zeros},
-    ops::Forward2BackwardGraphConverter,
 };
 use std::ops::Add;
 
@@ -12,9 +12,11 @@ where
     T: std::fmt::Debug + 'static,
 {
     pub fn backward(&self) -> Gradients {
-        let mut converter = Forward2BackwardGraphConverter::empty();
-        let mut node_backward = BackwardNode::from_node(&self.node, &mut converter);
-        node_backward.backward()
+        let mut converter = Forward2BackwardGraphConverter::new();
+        let mut node = BackwardNode::from_node(&self.node, &mut converter);
+        std::mem::drop(converter);
+
+        node.backward()
     }
 }
 
