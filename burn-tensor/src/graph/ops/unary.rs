@@ -1,6 +1,6 @@
 use super::{BackwardRecordedOps, ForwardRecordedOps, RecordedOpsParentRef, UnaryOpsNodeState};
 use crate::node::{BackwardNodeRef, BackwardNodeState, ForwardNodeRef, Zeros};
-use std::{ops::Add, rc::Rc, sync::Arc};
+use std::{ops::Add, sync::Arc};
 
 pub trait UnaryOps<In, Out>: std::fmt::Debug + Send + Sync {
     fn partial(&self, state: &UnaryOpsNodeState<In, Out>) -> In;
@@ -31,13 +31,13 @@ where
         let input = graph.from(&self.input);
         let ops = self.ops.clone();
 
-        Rc::new(BackwareUnaryRecordedOps::new(input, ops))
+        Arc::new(BackwareUnaryRecordedOps::new(input, ops))
     }
 }
 
 impl<In, Out, Ops> BackwardRecordedOps<Out> for BackwareUnaryRecordedOps<In, Ops>
 where
-    In: Clone + Zeros<In> + Add<Output = In> + std::fmt::Debug + 'static,
+    In: Clone + Zeros<In> + Add<Output = In> + std::fmt::Debug + 'static + Send + Sync,
     Out: Clone + Zeros<Out> + Add<Output = Out> + std::fmt::Debug + 'static,
     Ops: UnaryOps<In, Out> + std::fmt::Debug + 'static,
 {

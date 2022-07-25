@@ -25,7 +25,7 @@ impl<Out: Clone + Zeros<Out>> BackwardNode<Out> {
         BackwardNode {
             id: node.id.clone(),
             order: node.order,
-            state: BackwardNodeState::new_mut(node.state.value()),
+            state: BackwardNodeState::new(node.state.value()),
             ops: node.ops.as_backward(converter),
         }
     }
@@ -84,8 +84,17 @@ where
 
         for i in (0..self.order + 1).rev() {
             if let Some(nodes) = nodes.get(i) {
+                let mut handles = Vec::new();
                 for node in nodes {
-                    node.backward_step();
+                    let node_cloned = node.clone();
+                    let task = move || {
+                        node_cloned.backward_step();
+                    };
+                    let handle = std::thread::spawn(task);
+                    handles.push(handle);
+                }
+                for handle in handles {
+                    handle.join().unwrap();
                 }
             }
         }
@@ -96,7 +105,7 @@ where
 
 impl<T> RecordedOpsParent for BackwardNode<T>
 where
-    T: Zeros<T> + Clone + Add<Output = T>,
+    T: Zeros<T> + Clone + Add<Output = T> + Send + Sync,
     T: std::fmt::Debug + 'static,
 {
     fn backward_step(&self) {

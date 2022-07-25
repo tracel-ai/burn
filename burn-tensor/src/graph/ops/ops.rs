@@ -2,7 +2,7 @@ use crate::{
     grad::Gradients,
     node::{BackwardNode, BackwardNodeRef, BackwardNodeState, ForwardNodeRef, Zeros},
 };
-use std::{any::Any, collections::HashMap, rc::Rc, sync::Arc};
+use std::{any::Any, collections::HashMap, sync::Arc};
 
 #[derive(new)]
 pub struct BinaryOpsNodeState<'a, Lhs, Rhs, Out> {
@@ -17,7 +17,7 @@ pub struct UnaryOpsNodeState<'a, In, Out> {
     pub output: &'a BackwardNodeState<Out>,
 }
 
-pub trait BackwardRecordedOps<T>: std::fmt::Debug {
+pub trait BackwardRecordedOps<T>: std::fmt::Debug + Send + Sync {
     fn backward_step(&self, state: &BackwardNodeState<T>);
     fn backward_parents(&self) -> Vec<RecordedOpsParentRef>;
 }
@@ -53,7 +53,7 @@ pub trait ForwardRecordedOps<T>: std::fmt::Debug + Send + Sync {
     fn as_backward(&self, graph: &mut Forward2BackwardGraphConverter) -> BackwardRecordedOpsRef<T>;
 }
 
-pub trait RecordedOpsParent: std::fmt::Debug {
+pub trait RecordedOpsParent: std::fmt::Debug + Send + Sync {
     fn order(&self) -> usize;
     fn id(&self) -> &String;
     fn backward_step(&self);
@@ -62,5 +62,5 @@ pub trait RecordedOpsParent: std::fmt::Debug {
 }
 
 pub type ForwardRecordedOpsRef<T> = Arc<dyn ForwardRecordedOps<T>>;
-pub type BackwardRecordedOpsRef<T> = Rc<dyn BackwardRecordedOps<T>>;
+pub type BackwardRecordedOpsRef<T> = Arc<dyn BackwardRecordedOps<T>>;
 pub type RecordedOpsParentRef = Arc<dyn RecordedOpsParent>;

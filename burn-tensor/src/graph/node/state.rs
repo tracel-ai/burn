@@ -14,21 +14,21 @@ where
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BackwardNodeState<Out> {
     pub value: Out,
     pub grad: RefCell<Out>,
 }
 
+unsafe impl<Out> Send for BackwardNodeState<Out> {}
+unsafe impl<Out> Sync for BackwardNodeState<Out> {}
+
 impl<Out: Zeros<Out>> BackwardNodeState<Out> {
-    fn new(value: Out) -> Self {
+    pub fn new(value: Out) -> Self {
         let grad = value.zeros();
         let grad = RefCell::new(grad);
 
         Self { value, grad }
-    }
-    pub fn new_mut(value: Out) -> BackwardNodeState<Out> {
-        Self::new(value)
     }
 }
 impl<Out> BackwardNodeState<Out>

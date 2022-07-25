@@ -1,6 +1,6 @@
 use super::{BackwardRecordedOps, ForwardRecordedOps, RecordedOpsParentRef};
 use crate::node::{BackwardNodeState, Zeros};
-use std::{ops::Add, rc::Rc};
+use std::{ops::Add, sync::Arc};
 
 #[derive(new, Debug, Clone)]
 pub struct InitRecordedOps {}
@@ -23,6 +23,6 @@ where
         &self,
         _graph: &mut super::Forward2BackwardGraphConverter,
     ) -> super::BackwardRecordedOpsRef<Out> {
-        Rc::new(self.clone())
+        Arc::new(self.clone())
     }
 }
