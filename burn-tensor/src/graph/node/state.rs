@@ -1,22 +1,11 @@
 use crate::node::Zeros;
 use std::{cell::RefCell, ops::Add};
 
-#[derive(Debug)]
-pub struct NodeState<Out> {
-    pub value: Out,
-    pub grad: Option<Out>,
+#[derive(new, Debug)]
+pub struct ForwardNodeState<Out> {
+    value: Out,
 }
-pub type NodeStateRef<Out> = RefCell<NodeState<Out>>;
-
-impl<Out> NodeState<Out> {
-    pub fn new(value: Out) -> Self {
-        Self { value, grad: None }
-    }
-    pub fn new_mut(value: Out) -> NodeStateRef<Out> {
-        RefCell::new(Self::new(value))
-    }
-}
-impl<Out> NodeState<Out>
+impl<Out> ForwardNodeState<Out>
 where
     Out: Clone,
 {
@@ -25,21 +14,39 @@ where
     }
 }
 
-impl<Out> NodeState<Out>
+#[derive(Debug, Clone)]
+pub struct BackwardNodeState<Out> {
+    pub value: Out,
+    pub grad: RefCell<Out>,
+}
+
+impl<Out: Zeros<Out>> BackwardNodeState<Out> {
+    pub fn new(value: Out) -> Self {
+        let grad = value.zeros();
+        let grad = RefCell::new(grad);
+
+        Self { value, grad }
+    }
+}
+impl<Out> BackwardNodeState<Out>
+where
+    Out: Clone,
+{
+    pub fn value(&self) -> Out {
+        self.value.clone()
+    }
+}
+
+impl<Out> BackwardNodeState<Out>
 where
     Out: Zeros<Out> + Clone + Add<Output = Out>,
     Out: std::fmt::Debug,
 {
-    pub fn grad(&mut self) -> Out {
-        let grad_self = match &self.grad {
-            Some(val) => val.clone(),
-            None => self.value.zeros(),
-        };
-        self.grad = Some(grad_self.clone());
-        grad_self
+    pub fn grad(&self) -> Out {
+        self.grad.borrow().clone()
     }
 
-    pub fn update_grad(&mut self, grad: Out) {
-        self.grad = Some(self.grad() + grad);
+    pub fn update_grad(&self, grad: Out) {
+        self.grad.swap(&RefCell::new(self.grad() + grad));
     }
 }

@@ -1,4 +1,4 @@
-use crate::node::{Node, Zeros};
+use crate::node::{BackwardNode, ForwardNode, Zeros};
 use std::{
     any::Any,
     collections::{HashMap, HashSet},
@@ -10,12 +10,12 @@ pub struct Gradients {
 }
 
 impl Gradients {
-    pub fn register<T>(&mut self, node: &Node<T>)
+    pub fn register<T>(&mut self, node: &BackwardNode<T>)
     where
         T: Zeros<T> + Clone + Add<Output = T>,
         T: std::fmt::Debug + 'static,
     {
-        let grad = node.state.borrow_mut().grad();
+        let grad = node.state.grad();
         self.grads.insert(node.id.clone(), Box::new(grad));
     }
     fn empty() -> Self {
@@ -26,11 +26,11 @@ impl Gradients {
 }
 
 pub trait AsNode<T> {
-    fn as_node(&self) -> &Node<T>;
+    fn as_node(&self) -> &ForwardNode<T>;
 }
 
 impl Gradients {
-    pub fn from<T>(node: &Node<T>) -> Self
+    pub fn from<T>(node: &BackwardNode<T>) -> Self
     where
         T: Zeros<T> + Clone + Add<Output = T>,
         T: std::fmt::Debug + 'static,

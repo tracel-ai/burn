@@ -1,10 +1,7 @@
 use crate::{
     backend::autodiff::{ADFloat, ADFloatTensor, ADTensor},
     define_ops, execute_ops,
-    ops::{
-        BinaryOps, BinaryOpsNodeState, BinaryRecordedOps, UnaryOps, UnaryOpsNodeState,
-        UnaryRecordedOps,
-    },
+    ops::{BinaryOps, BinaryOpsNodeState, UnaryOps, UnaryOpsNodeState},
     register_ops, TensorOpsSub,
 };
 use num_traits::Float;
@@ -13,10 +10,10 @@ register_ops!(
     ops BinaryOps<T, T, T>,
     name ADTensorSubOps,
     partial_left |state: &BinaryOpsNodeState<T, T, T>| {
-        state.output.borrow_mut().grad() * state.left.borrow().value().ones()
+        state.output.grad() * state.left.value().ones()
     },
     partial_right |state: &BinaryOpsNodeState<T, T, T>| {
-        state.output.borrow_mut().grad() * state.right.borrow().value().ones().neg()
+        state.output.grad() * state.right.value().ones().neg()
     },
 );
 
@@ -24,7 +21,7 @@ register_ops!(
     ops UnaryOps<T, T>,
     name ADTensorSubScalarOps state P,
     partial |_state, state_recorded: &UnaryOpsNodeState<T, T>|{
-        state_recorded.output.borrow_mut().grad() * state_recorded.input.borrow().value().ones()
+        state_recorded.output.grad() * state_recorded.input.value().ones()
     },
 );
 

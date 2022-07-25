@@ -1,5 +1,6 @@
 mod ad;
 mod kind;
+mod multithread;
 mod tensor;
 
 pub use ad::*;

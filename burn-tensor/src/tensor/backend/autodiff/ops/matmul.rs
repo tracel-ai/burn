@@ -1,7 +1,7 @@
 use crate::execute_ops;
 use crate::{
     backend::autodiff::{ADFloat, ADFloatTensor, ADTensor},
-    ops::{BinaryOps, BinaryOpsNodeState, BinaryRecordedOps},
+    ops::{BinaryOps, BinaryOpsNodeState},
     register_ops, TensorOpsMatmul,
 };
 use num_traits::Float;
@@ -10,13 +10,13 @@ register_ops!(
     ops BinaryOps<T, T, T>,
     name ADTensorMatmulOps,
     partial_left |state: &BinaryOpsNodeState<T, T, T>| {
-        let out_grad = state.output.borrow_mut().grad();
-        let rhs = state.right.borrow().value().transpose();
+        let out_grad = state.output.grad();
+        let rhs = state.right.value().transpose();
         out_grad.matmul(&rhs)
     },
     partial_right |state: &BinaryOpsNodeState<T, T, T>| {
-        let out_grad = state.output.borrow_mut().grad();
-        let lhs = state.left.borrow().value().transpose();
+        let out_grad = state.output.grad();
+        let lhs = state.left.value().transpose();
         lhs.matmul(&out_grad)
     },
 );
