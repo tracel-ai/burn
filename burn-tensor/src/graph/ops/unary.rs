@@ -1,5 +1,8 @@
 use super::{BackwardRecordedOps, ForwardRecordedOps, RecordedOpsParentRef, UnaryOpsNodeState};
-use crate::node::{BackwardNodeRef, BackwardNodeState, ForwardNodeRef, Zeros};
+use crate::{
+    converter::Forward2BackwardGraphConverter,
+    node::{BackwardNodeRef, BackwardNodeState, ForwardNodeRef, Zeros},
+};
 use std::{ops::Add, sync::Arc};
 
 pub trait UnaryOps<In, Out>: std::fmt::Debug + Send + Sync {
@@ -24,9 +27,9 @@ where
     Out: Clone + Zeros<Out> + Add<Output = Out> + std::fmt::Debug + 'static,
     Ops: UnaryOps<In, Out> + std::fmt::Debug + 'static,
 {
-    fn as_backward(
+    fn to_backward(
         &self,
-        graph: &mut super::Forward2BackwardGraphConverter,
+        graph: &mut Forward2BackwardGraphConverter,
     ) -> super::BackwardRecordedOpsRef<Out> {
         let input = graph.from(&self.input);
         let ops = self.ops.clone();

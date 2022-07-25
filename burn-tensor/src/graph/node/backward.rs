@@ -1,12 +1,11 @@
 use super::{BackwardNodeState, ForwardNodeRef, Ones, Zeros};
 use crate::{
+    converter::Forward2BackwardGraphConverter,
     grad::Gradients,
-    ops::{
-        BackwardRecordedOpsRef, Forward2BackwardGraphConverter, RecordedOpsParent,
-        RecordedOpsParentRef,
-    },
+    ops::{BackwardRecordedOpsRef, RecordedOpsParent, RecordedOpsParentRef},
+    traversal::{BreadthFirstSearch, GraphTraversal},
 };
-use std::{collections::HashSet, ops::Add, sync::Arc};
+use std::{ops::Add, sync::Arc};
 
 #[derive(Debug)]
 pub struct BackwardNode<Out> {
@@ -26,7 +25,7 @@ impl<Out: Clone + Zeros<Out>> BackwardNode<Out> {
             id: node.id.clone(),
             order: node.order,
             state: BackwardNodeState::new(node.state.value()),
-            ops: node.ops.as_backward(converter),
+            ops: node.ops.to_backward(converter),
         }
     }
 }
@@ -41,49 +40,22 @@ where
         self.state.update_grad(grad);
         self.ops.backward_step(&mut self.state);
 
-        let mut visited = HashSet::with_capacity(self.order);
-        visited.insert(self.id.clone());
+        let traversal = BreadthFirstSearch::new(&self);
+        let mut tape = vec![Vec::new(); self.order];
 
-        let mut nodes = Vec::with_capacity(self.order);
-        for _ in 0..self.order + 1 {
-            nodes.push(Vec::new());
-        }
-
-        let mut parents = self.ops.backward_parents();
-
-        loop {
-            match parents.pop() {
-                Some(node) => {
-                    let id = node.id();
-                    let order = node.order();
-
-                    if order == 0 {
-                        continue;
-                    }
-
-                    for parent in node.backward_parents() {
-                        let id = parent.id();
-
-                        if !visited.contains(id) {
-                            parents.push(parent);
-                        }
-                    }
-                    match nodes.get_mut(order) {
-                        Some(nodes) => {
-                            if !visited.contains(id) {
-                                visited.insert(id.clone());
-                                nodes.push(node);
-                            }
-                        }
-                        None => {}
-                    };
-                }
-                None => break,
+        traversal.traverse(|node| {
+            let order = node.order();
+            if order == 0 {
+                return;
             }
-        }
+            match tape.get_mut(order) {
+                Some(nodes) => nodes.push(node),
+                None => {}
+            };
+        });
 
-        for i in (0..self.order + 1).rev() {
-            if let Some(nodes) = nodes.get(i) {
+        for i in (1..self.order).rev() {
+            if let Some(nodes) = tape.get(i) {
                 for node in nodes {
                     node.backward_step();
                 }

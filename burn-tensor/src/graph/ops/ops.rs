@@ -1,8 +1,5 @@
-use crate::{
-    grad::Gradients,
-    node::{BackwardNode, BackwardNodeRef, BackwardNodeState, ForwardNodeRef, Zeros},
-};
-use std::{any::Any, collections::HashMap, sync::Arc};
+use crate::{converter::Forward2BackwardGraphConverter, grad::Gradients, node::BackwardNodeState};
+use std::sync::Arc;
 
 #[derive(new)]
 pub struct BinaryOpsNodeState<'a, Lhs, Rhs, Out> {
@@ -22,35 +19,8 @@ pub trait BackwardRecordedOps<T>: std::fmt::Debug {
     fn backward_parents(&self) -> Vec<RecordedOpsParentRef>;
 }
 
-pub struct Forward2BackwardGraphConverter {
-    state: HashMap<String, Box<dyn Any>>,
-}
-
-impl Forward2BackwardGraphConverter {
-    pub fn empty() -> Self {
-        Self {
-            state: HashMap::new(),
-        }
-    }
-    pub fn from<T: Clone + 'static + Zeros<T>>(
-        &mut self,
-        node: &ForwardNodeRef<T>,
-    ) -> BackwardNodeRef<T> {
-        match self.state.get(&node.id) {
-            Some(node) => {
-                let node: &BackwardNodeRef<T> = node.downcast_ref().unwrap();
-                return node.clone();
-            }
-            None => {}
-        };
-
-        let node = Arc::new(BackwardNode::from_node(node, self));
-        self.state.insert(node.id.clone(), Box::new(node.clone()));
-        node
-    }
-}
 pub trait ForwardRecordedOps<T>: std::fmt::Debug + Send + Sync {
-    fn as_backward(&self, graph: &mut Forward2BackwardGraphConverter) -> BackwardRecordedOpsRef<T>;
+    fn to_backward(&self, graph: &mut Forward2BackwardGraphConverter) -> BackwardRecordedOpsRef<T>;
 }
 
 pub trait RecordedOpsParent: std::fmt::Debug {

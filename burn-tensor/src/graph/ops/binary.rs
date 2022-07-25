@@ -1,8 +1,11 @@
 use super::{
-    BackwardRecordedOps, BackwardRecordedOpsRef, BinaryOpsNodeState,
-    Forward2BackwardGraphConverter, ForwardRecordedOps, RecordedOpsParentRef,
+    BackwardRecordedOps, BackwardRecordedOpsRef, BinaryOpsNodeState, ForwardRecordedOps,
+    RecordedOpsParentRef,
 };
-use crate::node::{BackwardNodeRef, BackwardNodeState, ForwardNodeRef, Zeros};
+use crate::{
+    converter::Forward2BackwardGraphConverter,
+    node::{BackwardNodeRef, BackwardNodeState, ForwardNodeRef, Zeros},
+};
 use std::{ops::Add, sync::Arc};
 
 pub trait BinaryOps<Lhs, Rhs, Out>: std::fmt::Debug + Send + Sync {
@@ -16,6 +19,14 @@ pub struct ForwardBinaryRecordedOps<Lhs, Rhs, Ops> {
     rhs: ForwardNodeRef<Rhs>,
     ops: Arc<Ops>,
 }
+
+#[derive(new, Debug)]
+pub struct BackwardBinaryRecordedOps<Lhs, Rhs, Ops> {
+    lhs: BackwardNodeRef<Lhs>,
+    rhs: BackwardNodeRef<Rhs>,
+    ops: Arc<Ops>,
+}
+
 impl<Lhs, Rhs, Out, Ops> ForwardRecordedOps<Out> for ForwardBinaryRecordedOps<Lhs, Rhs, Ops>
 where
     Lhs: Clone + Zeros<Lhs> + Add<Output = Lhs> + std::fmt::Debug + 'static + Send + Sync,
@@ -23,7 +34,7 @@ where
     Out: Clone + Zeros<Out> + Add<Output = Out> + std::fmt::Debug + 'static,
     Ops: BinaryOps<Lhs, Rhs, Out> + std::fmt::Debug + 'static + Send + Sync,
 {
-    fn as_backward(
+    fn to_backward(
         &self,
         graph: &mut Forward2BackwardGraphConverter,
     ) -> BackwardRecordedOpsRef<Out> {
@@ -33,13 +44,6 @@ where
 
         Arc::new(BackwardBinaryRecordedOps::new(lhs, rhs, ops))
     }
-}
-
-#[derive(new, Debug)]
-pub struct BackwardBinaryRecordedOps<Lhs, Rhs, Ops> {
-    lhs: BackwardNodeRef<Lhs>,
-    rhs: BackwardNodeRef<Rhs>,
-    ops: Arc<Ops>,
 }
 
 impl<Lhs, Rhs, Out, Ops> BackwardRecordedOps<Out> for BackwardBinaryRecordedOps<Lhs, Rhs, Ops>
