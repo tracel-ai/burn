@@ -19,7 +19,7 @@ where
 }
 
 impl<T, P, const D: usize> AsNode<T> for ADTensor<P, D, T> {
-    fn as_node(&self) -> &crate::node::Node<T> {
+    fn as_node(&self) -> &crate::node::ForwardNode<T> {
         &self.node
     }
 }

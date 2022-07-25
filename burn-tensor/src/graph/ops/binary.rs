@@ -2,7 +2,7 @@ use super::{
     BackwardRecordedOps, BackwardRecordedOpsRef, BinaryOpsNodeState,
     Forward2BackwardGraphConverter, ForwardRecordedOps, RecordedOpsParentRef,
 };
-use crate::node::{BackwardNodeRef, BackwardNodeStateRef, NodeRef, Zeros};
+use crate::node::{BackwardNodeRef, BackwardNodeStateRef, ForwardNodeRef, Zeros};
 use std::{ops::Add, rc::Rc};
 
 pub trait BinaryOps<Lhs, Rhs, Out>: std::fmt::Debug {
@@ -11,12 +11,12 @@ pub trait BinaryOps<Lhs, Rhs, Out>: std::fmt::Debug {
 }
 
 #[derive(new, Debug)]
-pub struct BinaryRecordedOps<Lhs, Rhs, Ops> {
-    lhs: NodeRef<Lhs>,
-    rhs: NodeRef<Rhs>,
+pub struct ForwardBinaryRecordedOps<Lhs, Rhs, Ops> {
+    lhs: ForwardNodeRef<Lhs>,
+    rhs: ForwardNodeRef<Rhs>,
     ops: Rc<Ops>,
 }
-impl<Lhs, Rhs, Out, Ops> ForwardRecordedOps<Out> for BinaryRecordedOps<Lhs, Rhs, Ops>
+impl<Lhs, Rhs, Out, Ops> ForwardRecordedOps<Out> for ForwardBinaryRecordedOps<Lhs, Rhs, Ops>
 where
     Lhs: Clone + Zeros<Lhs> + Add<Output = Lhs> + std::fmt::Debug + 'static,
     Rhs: Clone + Zeros<Rhs> + Add<Output = Rhs> + std::fmt::Debug + 'static,

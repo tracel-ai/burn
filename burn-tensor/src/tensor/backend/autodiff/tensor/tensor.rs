@@ -1,7 +1,7 @@
 use super::ADKind;
 use crate::{
     execute_ops,
-    node::{NodeRef, Ones, Zeros},
+    node::{ForwardNodeRef, Ones, Zeros},
     FloatTensor,
 };
 use crate::{Shape, TensorBase};
@@ -9,7 +9,7 @@ use num_traits::Float;
 
 #[derive(Debug, Clone)]
 pub struct ADTensor<P, const D: usize, T> {
-    pub node: NodeRef<T>,
+    pub node: ForwardNodeRef<T>,
     pub shape: Shape<D>,
     pub kind: ADKind<P>,
 }
@@ -46,7 +46,7 @@ where
         Self { node, shape, kind }
     }
 
-    pub fn from_existing(&self, node: NodeRef<T>) -> Self {
+    pub fn from_existing(&self, node: ForwardNodeRef<T>) -> Self {
         let shape = self.shape.clone();
         let kind = self.kind.clone();
 

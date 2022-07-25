@@ -1,6 +1,6 @@
 use crate::{
     grad::Gradients,
-    node::{BackwardNode, BackwardNodeRef, BackwardNodeStateRef, NodeRef},
+    node::{BackwardNode, BackwardNodeRef, BackwardNodeStateRef, ForwardNodeRef},
 };
 use std::{any::Any, collections::HashMap, rc::Rc};
 
@@ -32,7 +32,7 @@ impl Forward2BackwardGraphConverter {
             state: HashMap::new(),
         }
     }
-    pub fn from<T: Clone + 'static>(&mut self, node: &NodeRef<T>) -> BackwardNodeRef<T> {
+    pub fn from<T: Clone + 'static>(&mut self, node: &ForwardNodeRef<T>) -> BackwardNodeRef<T> {
         match self.state.get(&node.id) {
             Some(node) => {
                 let node: &BackwardNodeRef<T> = node.downcast_ref().unwrap();

@@ -1,5 +1,5 @@
 use super::{BackwardRecordedOps, ForwardRecordedOps, RecordedOpsParentRef, UnaryOpsNodeState};
-use crate::node::{BackwardNodeRef, BackwardNodeStateRef, NodeRef, Zeros};
+use crate::node::{BackwardNodeRef, BackwardNodeStateRef, ForwardNodeRef, Zeros};
 use std::{ops::Add, rc::Rc};
 
 pub trait UnaryOps<In, Out>: std::fmt::Debug {
@@ -7,8 +7,8 @@ pub trait UnaryOps<In, Out>: std::fmt::Debug {
 }
 
 #[derive(new, Debug)]
-pub struct UnaryRecordedOps<In, Ops> {
-    input: NodeRef<In>,
+pub struct ForwardUnaryRecordedOps<In, Ops> {
+    input: ForwardNodeRef<In>,
     ops: Rc<Ops>,
 }
 
@@ -18,7 +18,7 @@ pub struct BackwareUnaryRecordedOps<In, Ops> {
     ops: Rc<Ops>,
 }
 
-impl<In, Out, Ops> ForwardRecordedOps<Out> for UnaryRecordedOps<In, Ops>
+impl<In, Out, Ops> ForwardRecordedOps<Out> for ForwardUnaryRecordedOps<In, Ops>
 where
     In: Clone + Zeros<In> + Add<Output = In> + std::fmt::Debug + 'static,
     Out: Clone + Zeros<Out> + Add<Output = Out> + std::fmt::Debug + 'static,

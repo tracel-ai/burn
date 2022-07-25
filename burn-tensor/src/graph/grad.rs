@@ -1,4 +1,4 @@
-use crate::node::{BackwardNode, Node, Zeros};
+use crate::node::{BackwardNode, ForwardNode, Zeros};
 use std::{
     any::Any,
     collections::{HashMap, HashSet},
@@ -26,7 +26,7 @@ impl Gradients {
 }
 
 pub trait AsNode<T> {
-    fn as_node(&self) -> &Node<T>;
+    fn as_node(&self) -> &ForwardNode<T>;
 }
 
 impl Gradients {
