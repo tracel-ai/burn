@@ -12,11 +12,11 @@ tch = ["dep:tch"]
 [dependencies]
 derive-new = "0.5"
 rand = "0.8"
-half = "2.1.0"
 
 # Backends
 arrayfire = { version = "3.8", optional = true }
 tch = { version = "0.8", optional = true }
+half = "1.6" # needs to be 1.6 to work with tch
 
 # Autodiff
 nanoid = "0.4"

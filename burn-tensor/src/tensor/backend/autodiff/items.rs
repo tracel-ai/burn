@@ -3,6 +3,7 @@ use crate::{
     TensorBase, TensorOpsAdd, TensorOpsMatmul, TensorOpsMul, TensorOpsNeg, TensorOpsSub,
     TensorOpsTranspose,
 };
+use half::bf16;
 use half::f16;
 
 pub trait ADElement:
@@ -60,6 +61,7 @@ macro_rules! ad_items {
 }
 
 ad_items!(ty f16, zero f16::from_f32(0.0), one f16::from_f32(1.0));
+ad_items!(ty bf16, zero bf16::from_f32(0.0), one bf16::from_f32(1.0));
 
 ad_items!(float f64);
 ad_items!(float f32);

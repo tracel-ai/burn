@@ -35,8 +35,8 @@ mod tests {
 
     #[test]
     fn should_diff_full_complex_1() {
-        let data_1: Data<f64, 2> = Data::from([[1.0, 7.0], [13.0, -3.0]]);
-        let data_2: Data<f64, 2> = Data::from([[4.0, 7.0], [2.0, 3.0]]);
+        let data_1: Data<f32, 2> = Data::from([[1.0, 7.0], [13.0, -3.0]]);
+        let data_2: Data<f32, 2> = Data::from([[4.0, 7.0], [2.0, 3.0]]);
 
         let tensor_1 = ADTchTensor::from_data(data_1.clone());
         let tensor_2 = ADTchTensor::from_data(data_2.clone());
