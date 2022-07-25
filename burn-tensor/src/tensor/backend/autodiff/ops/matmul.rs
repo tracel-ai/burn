@@ -51,13 +51,13 @@ mod tests {
         let tensor_2 = ADTchTensor::from_data(data_2.clone());
 
         let tensor_3 = &tensor_1.matmul(&tensor_2);
-        tensor_3.backward();
+        let grads = tensor_3.backward();
 
-        let grad_1 = tensor_1.grad();
-        let grad_2 = tensor_2.grad();
+        let grad_1 = grads.wrt(&tensor_1).unwrap();
+        let grad_2 = grads.wrt(&tensor_2).unwrap();
 
-        assert_eq!(grad_1.into_data(), Data::from([[11.0, 5.0], [11.0, 5.0]]));
-        assert_eq!(grad_2.into_data(), Data::from([[3.0, 3.0], [10.0, 10.0]]));
+        assert_eq!(grad_1.to_data(), Data::from([[11.0, 5.0], [11.0, 5.0]]));
+        assert_eq!(grad_2.to_data(), Data::from([[3.0, 3.0], [10.0, 10.0]]));
         assert_eq!(
             tensor_3.clone().into_data(),
             Data::from([[18.0, 28.0], [14.0, 23.0]])
@@ -77,13 +77,13 @@ mod tests {
         let tensor_4 = tensor_1.matmul(&tensor_2);
         let tensor_5 = tensor_4.matmul(&tensor_3);
 
-        tensor_5.backward();
+        let grads = tensor_5.backward();
 
-        let grad_1 = tensor_1.grad();
-        let grad_2 = tensor_2.grad();
+        let grad_1 = grads.wrt(&tensor_1).unwrap();
+        let grad_2 = grads.wrt(&tensor_2).unwrap();
 
-        assert_eq!(grad_1.into_data(), Data::from([[44.0, 20.0], [44.0, 20.0]]));
-        assert_eq!(grad_2.into_data(), Data::from([[56.0, 56.0], [16.0, 16.0]]));
+        assert_eq!(grad_1.to_data(), Data::from([[44.0, 20.0], [44.0, 20.0]]));
+        assert_eq!(grad_2.to_data(), Data::from([[56.0, 56.0], [16.0, 16.0]]));
     }
     #[test]
     fn test_matmul_complex_2() {
@@ -99,17 +99,17 @@ mod tests {
         let tensor_5 = tensor_4.matmul(&tensor_3);
         let tensor_6 = tensor_1.matmul(&tensor_5);
 
-        tensor_6.backward();
+        let grads = tensor_6.backward();
 
-        let grad_1 = tensor_1.grad();
-        let grad_2 = tensor_2.grad();
+        let grad_1 = grads.wrt(&tensor_1).unwrap();
+        let grad_2 = grads.wrt(&tensor_2).unwrap();
 
         assert_eq!(
-            grad_1.into_data(),
+            grad_1.to_data(),
             Data::from([[800.0, 792.0], [360.0, 592.0]])
         );
         assert_eq!(
-            grad_2.into_data(),
+            grad_2.to_data(),
             Data::from([[264., 264.0], [344.0, 344.0]])
         );
     }

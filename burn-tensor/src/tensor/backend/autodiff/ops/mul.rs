@@ -90,13 +90,13 @@ mod tests {
         let tensor_2 = ADTchTensor::from_data(data_2.clone());
 
         let tensor_3 = tensor_1.clone() * tensor_2.clone();
-        tensor_3.backward();
+        let grads = tensor_3.backward();
 
-        let grad_1 = tensor_1.grad();
-        let grad_2 = tensor_2.grad();
+        let grad_1 = grads.wrt(&tensor_1).unwrap();
+        let grad_2 = grads.wrt(&tensor_2).unwrap();
 
-        assert_eq!(grad_1.into_data(), data_2);
-        assert_eq!(grad_2.into_data(), data_1);
+        assert_eq!(grad_1.to_data(), data_2);
+        assert_eq!(grad_2.to_data(), data_1);
         assert_eq!(tensor_3.into_data(), Data::from([4.0, 49.0]));
     }
 
@@ -106,11 +106,12 @@ mod tests {
 
         let tensor = ADTchTensor::from_data(data.clone());
         let tensor_out = tensor.clone() * 4.0;
-        tensor_out.backward();
 
-        let grad = tensor.grad();
+        let grads = tensor_out.backward();
+        let grad = grads.wrt(&tensor).unwrap();
+
         assert_eq!(tensor_out.into_data(), Data::from([8.0, 20.0]));
-        assert_eq!(grad.into_data(), Data::from([4.0, 4.0]));
+        assert_eq!(grad.to_data(), Data::from([4.0, 4.0]));
     }
 
     #[test]
@@ -127,15 +128,15 @@ mod tests {
         let tensor_5 = tensor_4.mul(&tensor_3);
         let tensor_6 = tensor_1.mul(&tensor_5);
 
-        tensor_6.backward();
+        let grads = tensor_6.backward();
 
-        let grad_1 = tensor_1.grad();
-        let grad_2 = tensor_2.grad();
+        let grad_1 = grads.wrt(&tensor_1).unwrap();
+        let grad_2 = grads.wrt(&tensor_2).unwrap();
 
         assert_eq!(
-            grad_1.into_data(),
+            grad_1.to_data(),
             Data::from([[16.0, 196.0], [104.0, -36.0]])
         );
-        assert_eq!(grad_2.into_data(), Data::from([[2.0, 98.0], [338.0, 18.0]]));
+        assert_eq!(grad_2.to_data(), Data::from([[2.0, 98.0], [338.0, 18.0]]));
     }
 }
