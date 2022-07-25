@@ -116,10 +116,8 @@ macro_rules! execute_ops {
         let callback = || {
             let state = $crate::node::ForwardNodeState::new($out);
 
-            println!("New binary recorded ops {}", stringify!($ops));
-            let ops = $ops;
-            let ops = std::rc::Rc::new(ops);
-            let ops = BinaryRecordedOps::new($lhs, $rhs, ops.clone());
+            let ops = std::rc::Rc::new($ops);
+            let ops = $crate::ops::BinaryRecordedOps::new($lhs, $rhs, ops.clone());
             let ops = std::rc::Rc::new(ops);
 
             let node = $crate::node::Node::from_binary(&$lhs, &$rhs, state, ops);
@@ -135,12 +133,25 @@ macro_rules! execute_ops {
         let callback = || {
             let state = $crate::node::ForwardNodeState::new($out);
 
-            let ops = $ops;
-            let ops = std::rc::Rc::new(ops);
-            let ops = UnaryRecordedOps::new($input, ops.clone());
+            let ops = std::rc::Rc::new($ops);
+            let ops = $crate::ops::UnaryRecordedOps::new($input, ops.clone());
             let ops = std::rc::Rc::new(ops);
 
             let node = $crate::node::Node::from_unary(&$input, state, ops);
+            std::rc::Rc::new(node)
+        };
+        callback()
+    }};
+    (
+        init $out:expr
+    ) => {{
+        let callback = || {
+            let state = $crate::node::ForwardNodeState::new($out);
+
+            let ops = $crate::ops::InitRecordedOps::new();
+            let ops = std::rc::Rc::new(ops);
+
+            let node = $crate::node::Node::from_root(state, ops);
             std::rc::Rc::new(node)
         };
         callback()

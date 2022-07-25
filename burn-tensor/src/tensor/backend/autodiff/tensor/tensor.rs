@@ -1,12 +1,11 @@
 use super::ADKind;
 use crate::{
-    node::{ForwardNodeState, Node, NodeRef, Ones, Zeros},
-    ops::InitRecordedOps,
+    execute_ops,
+    node::{NodeRef, Ones, Zeros},
     FloatTensor,
 };
 use crate::{Shape, TensorBase};
 use num_traits::Float;
-use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub struct ADTensor<P, const D: usize, T> {
@@ -38,14 +37,12 @@ where
     T: FloatTensor<P, D> + Clone + Zeros<T> + Ones<T> + 'static,
 {
     pub fn from_tensor(tensor: T) -> Self {
+        let node = execute_ops!(
+            init tensor.clone()
+        );
+
         let shape = tensor.shape().clone();
         let kind = ADKind::new();
-        let state = ForwardNodeState::new(tensor);
-
-        let ops = InitRecordedOps::new();
-        let ops = Rc::new(ops);
-        let node = Rc::new(Node::from_root(state, ops));
-
         Self { node, shape, kind }
     }
 

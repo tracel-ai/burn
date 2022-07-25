@@ -1,7 +1,7 @@
 use crate::execute_ops;
 use crate::{
     backend::autodiff::{ADFloat, ADFloatTensor, ADTensor},
-    ops::{BinaryOps, BinaryOpsNodeState, BinaryRecordedOps},
+    ops::{BinaryOps, BinaryOpsNodeState},
     register_ops, TensorOpsMatmul,
 };
 use num_traits::Float;

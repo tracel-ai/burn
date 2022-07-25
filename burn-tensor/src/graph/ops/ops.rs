@@ -58,6 +58,6 @@ pub trait RecordedOpsParent: std::fmt::Debug {
     fn register_grad(&self, grads: &mut Gradients);
 }
 
-pub type BackwardRecordedOpsRef<T> = Rc<dyn BackwardRecordedOps<T>>;
 pub type ForwardRecordedOpsRef<T> = Rc<dyn ForwardRecordedOps<T>>;
+pub type BackwardRecordedOpsRef<T> = Rc<dyn BackwardRecordedOps<T>>;
 pub type RecordedOpsParentRef = Rc<dyn RecordedOpsParent>;
