@@ -17,16 +17,18 @@ where
 #[derive(Debug)]
 pub struct BackwardNodeState<Out> {
     pub value: Out,
-    pub grad: Option<Out>,
+    pub grad: RefCell<Out>,
 }
-pub type BackwardNodeStateRef<Out> = RefCell<BackwardNodeState<Out>>;
 
-impl<Out> BackwardNodeState<Out> {
+impl<Out: Zeros<Out>> BackwardNodeState<Out> {
     fn new(value: Out) -> Self {
-        Self { value, grad: None }
+        let grad = value.zeros();
+        let grad = RefCell::new(grad);
+
+        Self { value, grad }
     }
-    pub fn new_mut(value: Out) -> BackwardNodeStateRef<Out> {
-        RefCell::new(Self::new(value))
+    pub fn new_mut(value: Out) -> BackwardNodeState<Out> {
+        Self::new(value)
     }
 }
 impl<Out> BackwardNodeState<Out>
@@ -43,16 +45,11 @@ where
     Out: Zeros<Out> + Clone + Add<Output = Out>,
     Out: std::fmt::Debug,
 {
-    pub fn grad(&mut self) -> Out {
-        let grad_self = match &self.grad {
-            Some(val) => val.clone(),
-            None => self.value.zeros(),
-        };
-        self.grad = Some(grad_self.clone());
-        grad_self
+    pub fn grad(&self) -> Out {
+        self.grad.borrow().clone()
     }
 
-    pub fn update_grad(&mut self, grad: Out) {
-        self.grad = Some(self.grad() + grad);
+    pub fn update_grad(&self, grad: Out) {
+        self.grad.swap(&RefCell::new(self.grad() + grad));
     }
 }

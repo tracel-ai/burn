@@ -2,7 +2,7 @@ use super::{
     BackwardRecordedOps, BackwardRecordedOpsRef, BinaryOpsNodeState,
     Forward2BackwardGraphConverter, ForwardRecordedOps, RecordedOpsParentRef,
 };
-use crate::node::{BackwardNodeRef, BackwardNodeStateRef, ForwardNodeRef, Zeros};
+use crate::node::{BackwardNodeRef, BackwardNodeState, ForwardNodeRef, Zeros};
 use std::{ops::Add, rc::Rc, sync::Arc};
 
 pub trait BinaryOps<Lhs, Rhs, Out>: std::fmt::Debug + Send + Sync {
@@ -49,14 +49,14 @@ where
     Out: Clone + Zeros<Out> + Add<Output = Out> + std::fmt::Debug + 'static,
     Ops: BinaryOps<Lhs, Rhs, Out> + std::fmt::Debug + 'static,
 {
-    fn backward_step(&self, state: &BackwardNodeStateRef<Out>) {
+    fn backward_step(&self, state: &BackwardNodeState<Out>) {
         let state = BinaryOpsNodeState::new(&self.lhs.state, &self.rhs.state, state);
 
         let partial_left: Lhs = self.ops.partial_left(&state);
         let partial_right: Rhs = self.ops.partial_right(&state);
 
-        self.lhs.state.borrow_mut().update_grad(partial_left);
-        self.rhs.state.borrow_mut().update_grad(partial_right);
+        self.lhs.state.update_grad(partial_left);
+        self.rhs.state.update_grad(partial_right);
     }
 
     fn backward_parents(&self) -> Vec<RecordedOpsParentRef> {

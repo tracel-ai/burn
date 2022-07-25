@@ -1,5 +1,5 @@
 use super::{BackwardRecordedOps, ForwardRecordedOps, RecordedOpsParentRef};
-use crate::node::{BackwardNodeStateRef, Zeros};
+use crate::node::{BackwardNodeState, Zeros};
 use std::{ops::Add, rc::Rc};
 
 #[derive(new, Debug, Clone)]
@@ -9,7 +9,7 @@ impl<Out> BackwardRecordedOps<Out> for InitRecordedOps
 where
     Out: Clone + Zeros<Out> + Add<Output = Out> + std::fmt::Debug + 'static,
 {
-    fn backward_step(&self, _: &BackwardNodeStateRef<Out>) {}
+    fn backward_step(&self, _: &BackwardNodeState<Out>) {}
     fn backward_parents(&self) -> Vec<RecordedOpsParentRef> {
         vec![]
     }

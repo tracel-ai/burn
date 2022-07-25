@@ -13,7 +13,7 @@ where
 {
     pub fn backward(&self) -> Gradients {
         let mut converter = Forward2BackwardGraphConverter::empty();
-        let node_backward = BackwardNode::from_node(&self.node, &mut converter);
+        let mut node_backward = BackwardNode::from_node(&self.node, &mut converter);
         node_backward.backward()
     }
 }

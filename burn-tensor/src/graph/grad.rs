@@ -15,7 +15,7 @@ impl Gradients {
         T: Zeros<T> + Clone + Add<Output = T>,
         T: std::fmt::Debug + 'static,
     {
-        let grad = node.state.borrow_mut().grad();
+        let grad = node.state.grad();
         self.grads.insert(node.id.clone(), Box::new(grad));
     }
     fn empty() -> Self {

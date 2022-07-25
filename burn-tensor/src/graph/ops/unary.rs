@@ -1,5 +1,5 @@
 use super::{BackwardRecordedOps, ForwardRecordedOps, RecordedOpsParentRef, UnaryOpsNodeState};
-use crate::node::{BackwardNodeRef, BackwardNodeStateRef, ForwardNodeRef, Zeros};
+use crate::node::{BackwardNodeRef, BackwardNodeState, ForwardNodeRef, Zeros};
 use std::{ops::Add, rc::Rc, sync::Arc};
 
 pub trait UnaryOps<In, Out>: std::fmt::Debug + Send + Sync {
@@ -41,10 +41,10 @@ where
     Out: Clone + Zeros<Out> + Add<Output = Out> + std::fmt::Debug + 'static,
     Ops: UnaryOps<In, Out> + std::fmt::Debug + 'static,
 {
-    fn backward_step(&self, state: &BackwardNodeStateRef<Out>) {
+    fn backward_step(&self, state: &BackwardNodeState<Out>) {
         let state = UnaryOpsNodeState::new(&self.input.state, &state);
         let partial = self.ops.partial(&state);
-        self.input.state.borrow_mut().update_grad(partial);
+        self.input.state.update_grad(partial);
     }
     fn backward_parents(&self) -> Vec<RecordedOpsParentRef> {
         vec![self.input.clone()]

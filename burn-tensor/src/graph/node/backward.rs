@@ -1,4 +1,4 @@
-use super::{BackwardNodeState, BackwardNodeStateRef, ForwardNodeRef, Ones, Zeros};
+use super::{BackwardNodeState, ForwardNodeRef, Ones, Zeros};
 use crate::{
     grad::Gradients,
     ops::{
@@ -6,18 +6,18 @@ use crate::{
         RecordedOpsParentRef,
     },
 };
-use std::{collections::HashSet, ops::Add, rc::Rc};
+use std::{collections::HashSet, ops::Add, sync::Arc};
 
 #[derive(Debug)]
 pub struct BackwardNode<Out> {
     pub id: String,
     pub order: usize,
-    pub state: BackwardNodeStateRef<Out>,
+    pub state: BackwardNodeState<Out>,
     pub ops: BackwardRecordedOpsRef<Out>,
 }
-pub type BackwardNodeRef<Out> = Rc<BackwardNode<Out>>;
+pub type BackwardNodeRef<Out> = Arc<BackwardNode<Out>>;
 
-impl<Out: Clone> BackwardNode<Out> {
+impl<Out: Clone + Zeros<Out>> BackwardNode<Out> {
     pub fn from_node(
         node: &ForwardNodeRef<Out>,
         converter: &mut Forward2BackwardGraphConverter,
@@ -36,10 +36,10 @@ where
     Out: Zeros<Out> + Ones<Out> + Clone + Add<Output = Out>,
     Out: std::fmt::Debug + 'static,
 {
-    pub fn backward(&self) -> Gradients {
-        let grad = self.state.borrow().value().ones();
-        self.state.borrow_mut().update_grad(grad);
-        self.ops.backward_step(&self.state);
+    pub fn backward(&mut self) -> Gradients {
+        let grad = self.state.value().ones();
+        self.state.update_grad(grad);
+        self.ops.backward_step(&mut self.state);
 
         let mut visited = HashSet::with_capacity(self.order);
         visited.insert(self.id.clone());
