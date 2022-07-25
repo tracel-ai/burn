@@ -1,26 +1,26 @@
 use super::{BackwardRecordedOps, ForwardRecordedOps, RecordedOpsParentRef, UnaryOpsNodeState};
 use crate::node::{BackwardNodeRef, BackwardNodeStateRef, ForwardNodeRef, Zeros};
-use std::{ops::Add, rc::Rc};
+use std::{ops::Add, rc::Rc, sync::Arc};
 
-pub trait UnaryOps<In, Out>: std::fmt::Debug {
+pub trait UnaryOps<In, Out>: std::fmt::Debug + Send + Sync {
     fn partial(&self, state: &UnaryOpsNodeState<In, Out>) -> In;
 }
 
 #[derive(new, Debug)]
 pub struct ForwardUnaryRecordedOps<In, Ops> {
     input: ForwardNodeRef<In>,
-    ops: Rc<Ops>,
+    ops: Arc<Ops>,
 }
 
 #[derive(new, Debug)]
 pub struct BackwareUnaryRecordedOps<In, Ops> {
     input: BackwardNodeRef<In>,
-    ops: Rc<Ops>,
+    ops: Arc<Ops>,
 }
 
 impl<In, Out, Ops> ForwardRecordedOps<Out> for ForwardUnaryRecordedOps<In, Ops>
 where
-    In: Clone + Zeros<In> + Add<Output = In> + std::fmt::Debug + 'static,
+    In: Clone + Zeros<In> + Add<Output = In> + std::fmt::Debug + 'static + Send + Sync,
     Out: Clone + Zeros<Out> + Add<Output = Out> + std::fmt::Debug + 'static,
     Ops: UnaryOps<In, Out> + std::fmt::Debug + 'static,
 {

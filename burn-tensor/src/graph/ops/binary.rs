@@ -3,9 +3,9 @@ use super::{
     Forward2BackwardGraphConverter, ForwardRecordedOps, RecordedOpsParentRef,
 };
 use crate::node::{BackwardNodeRef, BackwardNodeStateRef, ForwardNodeRef, Zeros};
-use std::{ops::Add, rc::Rc};
+use std::{ops::Add, rc::Rc, sync::Arc};
 
-pub trait BinaryOps<Lhs, Rhs, Out>: std::fmt::Debug {
+pub trait BinaryOps<Lhs, Rhs, Out>: std::fmt::Debug + Send + Sync {
     fn partial_left(&self, state: &BinaryOpsNodeState<Lhs, Rhs, Out>) -> Lhs;
     fn partial_right(&self, state: &BinaryOpsNodeState<Lhs, Rhs, Out>) -> Rhs;
 }
@@ -14,14 +14,14 @@ pub trait BinaryOps<Lhs, Rhs, Out>: std::fmt::Debug {
 pub struct ForwardBinaryRecordedOps<Lhs, Rhs, Ops> {
     lhs: ForwardNodeRef<Lhs>,
     rhs: ForwardNodeRef<Rhs>,
-    ops: Rc<Ops>,
+    ops: Arc<Ops>,
 }
 impl<Lhs, Rhs, Out, Ops> ForwardRecordedOps<Out> for ForwardBinaryRecordedOps<Lhs, Rhs, Ops>
 where
-    Lhs: Clone + Zeros<Lhs> + Add<Output = Lhs> + std::fmt::Debug + 'static,
-    Rhs: Clone + Zeros<Rhs> + Add<Output = Rhs> + std::fmt::Debug + 'static,
+    Lhs: Clone + Zeros<Lhs> + Add<Output = Lhs> + std::fmt::Debug + 'static + Send + Sync,
+    Rhs: Clone + Zeros<Rhs> + Add<Output = Rhs> + std::fmt::Debug + 'static + Send + Sync,
     Out: Clone + Zeros<Out> + Add<Output = Out> + std::fmt::Debug + 'static,
-    Ops: BinaryOps<Lhs, Rhs, Out> + std::fmt::Debug + 'static,
+    Ops: BinaryOps<Lhs, Rhs, Out> + std::fmt::Debug + 'static + Send + Sync,
 {
     fn as_backward(
         &self,
@@ -39,7 +39,7 @@ where
 pub struct BackwardBinaryRecordedOps<Lhs, Rhs, Ops> {
     lhs: BackwardNodeRef<Lhs>,
     rhs: BackwardNodeRef<Rhs>,
-    ops: Rc<Ops>,
+    ops: Arc<Ops>,
 }
 
 impl<Lhs, Rhs, Out, Ops> BackwardRecordedOps<Out> for BackwardBinaryRecordedOps<Lhs, Rhs, Ops>

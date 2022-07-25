@@ -1,6 +1,6 @@
 use super::ForwardNodeState;
 use crate::ops::ForwardRecordedOpsRef;
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub struct ForwardNode<Out> {
@@ -9,7 +9,7 @@ pub struct ForwardNode<Out> {
     pub state: ForwardNodeState<Out>,
     pub ops: ForwardRecordedOpsRef<Out>,
 }
-pub type ForwardNodeRef<Out> = Rc<ForwardNode<Out>>;
+pub type ForwardNodeRef<Out> = Arc<ForwardNode<Out>>;
 
 impl<Out> ForwardNode<Out> {
     pub fn from_root(state: ForwardNodeState<Out>, ops: ForwardRecordedOpsRef<Out>) -> Self {
@@ -37,6 +37,7 @@ impl<Out> ForwardNode<Out> {
 
     fn new(order: usize, state: ForwardNodeState<Out>, ops: ForwardRecordedOpsRef<Out>) -> Self {
         let id = nanoid::nanoid!();
+        println!("Creating a new node with id={} and order={}", id, order);
         Self {
             id,
             order,

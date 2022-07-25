@@ -51,8 +51,8 @@ macro_rules! register_ops {
 
         impl<T, P, const D: usize> $ops for $name<P, D>
         where
-            P: $crate::tensor::backend::autodiff::ADFloat,
-            T: $crate::tensor::backend::autodiff::ADFloatTensor<P, D>,
+            P: $crate::tensor::backend::autodiff::ADFloat + Send + Sync,
+            T: $crate::tensor::backend::autodiff::ADFloatTensor<P, D> + Send + Sync,
         {
             fn partial_left(&self, state: &$crate::graph::ops::BinaryOpsNodeState<T, T, T>) -> T {
                 $partial_left(state)
@@ -75,8 +75,8 @@ macro_rules! register_ops {
 
         impl<T, P, const D: usize> $ops for $name<P, D>
         where
-            P: $crate::tensor::backend::autodiff::ADFloat,
-            T: $crate::tensor::backend::autodiff::ADFloatTensor<P, D>,
+            P: $crate::tensor::backend::autodiff::ADFloat + Send + Sync,
+            T: $crate::tensor::backend::autodiff::ADFloatTensor<P, D> + Send + Sync,
         {
             fn partial(&self, state: &$crate::graph::ops::UnaryOpsNodeState<T, T>) -> T {
                 $partial(self.state, state)
@@ -116,12 +116,12 @@ macro_rules! execute_ops {
         let callback = || {
             let state = $crate::node::ForwardNodeState::new($out);
 
-            let ops = std::rc::Rc::new($ops);
+            let ops = std::sync::Arc::new($ops);
             let ops = $crate::ops::ForwardBinaryRecordedOps::new($lhs, $rhs, ops.clone());
-            let ops = std::rc::Rc::new(ops);
+            let ops = std::sync::Arc::new(ops);
 
             let node = $crate::node::ForwardNode::from_binary(&$lhs, &$rhs, state, ops);
-            std::rc::Rc::new(node)
+            std::sync::Arc::new(node)
         };
         callback()
     }};
@@ -133,12 +133,12 @@ macro_rules! execute_ops {
         let callback = || {
             let state = $crate::node::ForwardNodeState::new($out);
 
-            let ops = std::rc::Rc::new($ops);
+            let ops = std::sync::Arc::new($ops);
             let ops = $crate::ops::ForwardUnaryRecordedOps::new($input, ops.clone());
-            let ops = std::rc::Rc::new(ops);
+            let ops = std::sync::Arc::new(ops);
 
             let node = $crate::node::ForwardNode::from_unary(&$input, state, ops);
-            std::rc::Rc::new(node)
+            std::sync::Arc::new(node)
         };
         callback()
     }};
@@ -149,10 +149,10 @@ macro_rules! execute_ops {
             let state = $crate::node::ForwardNodeState::new($out);
 
             let ops = $crate::ops::InitRecordedOps::new();
-            let ops = std::rc::Rc::new(ops);
+            let ops = std::sync::Arc::new(ops);
 
             let node = $crate::node::ForwardNode::from_root(state, ops);
-            std::rc::Rc::new(node)
+            std::sync::Arc::new(node)
         };
         callback()
     }};

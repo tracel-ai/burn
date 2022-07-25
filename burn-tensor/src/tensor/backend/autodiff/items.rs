@@ -4,11 +4,11 @@ use crate::{
 };
 
 pub trait ADFloat:
-    num_traits::Float + Zeros<Self> + Ones<Self> + std::fmt::Debug + Default + 'static
+    num_traits::Float + Zeros<Self> + Ones<Self> + std::fmt::Debug + Default + 'static + Send + Sync
 {
 }
-pub trait ADFloatTensor<P: num_traits::Float, const D: usize>:
-    FloatTensor<P, D> + Clone + Zeros<Self> + Ones<Self> + std::fmt::Debug + 'static
+pub trait ADFloatTensor<P: ADFloat, const D: usize>:
+    FloatTensor<P, D> + Clone + Zeros<Self> + Ones<Self> + std::fmt::Debug + 'static + Send + Sync
 {
 }
 

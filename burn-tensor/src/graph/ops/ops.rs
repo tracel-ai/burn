@@ -2,7 +2,7 @@ use crate::{
     grad::Gradients,
     node::{BackwardNode, BackwardNodeRef, BackwardNodeStateRef, ForwardNodeRef},
 };
-use std::{any::Any, collections::HashMap, rc::Rc};
+use std::{any::Any, collections::HashMap, rc::Rc, sync::Arc};
 
 #[derive(new)]
 pub struct BinaryOpsNodeState<'a, Lhs, Rhs, Out> {
@@ -46,7 +46,7 @@ impl Forward2BackwardGraphConverter {
         node
     }
 }
-pub trait ForwardRecordedOps<T>: std::fmt::Debug {
+pub trait ForwardRecordedOps<T>: std::fmt::Debug + Send + Sync {
     fn as_backward(&self, graph: &mut Forward2BackwardGraphConverter) -> BackwardRecordedOpsRef<T>;
 }
 
@@ -58,6 +58,6 @@ pub trait RecordedOpsParent: std::fmt::Debug {
     fn register_grad(&self, grads: &mut Gradients);
 }
 
-pub type ForwardRecordedOpsRef<T> = Rc<dyn ForwardRecordedOps<T>>;
+pub type ForwardRecordedOpsRef<T> = Arc<dyn ForwardRecordedOps<T>>;
 pub type BackwardRecordedOpsRef<T> = Rc<dyn BackwardRecordedOps<T>>;
 pub type RecordedOpsParentRef = Rc<dyn RecordedOpsParent>;

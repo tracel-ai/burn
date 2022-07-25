@@ -8,6 +8,9 @@ pub struct TchTensor<P: tch::kind::Element, const D: usize> {
     pub shape: Shape<D>,
 }
 
+unsafe impl<P: tch::kind::Element, const D: usize> Send for TchTensor<P, D> {}
+unsafe impl<P: tch::kind::Element, const D: usize> Sync for TchTensor<P, D> {}
+
 impl<P: tch::kind::Element, const D: usize> Clone for TchTensor<P, D> {
     fn clone(&self) -> Self {
         Self {

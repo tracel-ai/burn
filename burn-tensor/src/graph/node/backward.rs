@@ -6,7 +6,7 @@ use crate::{
         RecordedOpsParentRef,
     },
 };
-use std::{collections::HashMap, ops::Add, rc::Rc};
+use std::{collections::HashSet, ops::Add, rc::Rc};
 
 #[derive(Debug)]
 pub struct BackwardNode<Out> {
@@ -41,36 +41,52 @@ where
         self.state.borrow_mut().update_grad(grad);
         self.ops.backward_step(&self.state);
 
-        let mut nodes = HashMap::with_capacity(self.order);
+        let mut visited = HashSet::with_capacity(self.order);
+        visited.insert(self.id.clone());
+
+        let mut nodes = Vec::with_capacity(self.order);
+        for _ in 0..self.order + 1 {
+            nodes.push(Vec::new());
+        }
+
         let mut parents = self.ops.backward_parents();
 
         loop {
             match parents.pop() {
                 Some(node) => {
+                    let id = node.id();
                     let order = node.order();
 
                     if order == 0 {
                         continue;
                     }
 
-                    if nodes.contains_key(&order) {
-                        continue;
-                    }
-
                     for parent in node.backward_parents() {
-                        if !nodes.contains_key(&parent.order()) {
+                        let id = parent.id();
+
+                        if !visited.contains(id) {
                             parents.push(parent);
                         }
                     }
-                    nodes.insert(order, node);
+                    match nodes.get_mut(order) {
+                        Some(nodes) => {
+                            if !visited.contains(id) {
+                                visited.insert(id.clone());
+                                nodes.push(node);
+                            }
+                        }
+                        None => {}
+                    };
                 }
                 None => break,
             }
         }
 
         for i in (0..self.order + 1).rev() {
-            if let Some(node) = nodes.get(&i) {
-                node.backward_step();
+            if let Some(nodes) = nodes.get(i) {
+                for node in nodes {
+                    node.backward_step();
+                }
             }
         }
 
@@ -84,7 +100,7 @@ where
     T: std::fmt::Debug + 'static,
 {
     fn backward_step(&self) {
-        println!("backward node {}", self.order);
+        println!("backward node id={} order={}", self.id, self.order);
         self.ops.backward_step(&self.state)
     }
     fn backward_parents(&self) -> Vec<RecordedOpsParentRef> {
