@@ -1,14 +1,17 @@
 use super::ADTensor;
-use crate::node::{Ones, Zeros};
+use crate::{
+    grad::{AsNode, Gradients},
+    node::{Ones, Zeros},
+};
 use std::ops::Add;
 
 impl<T, P, const D: usize> ADTensor<P, D, T>
 where
     T: Zeros<T> + Ones<T> + Clone + Add<Output = T>,
-    T: std::fmt::Debug,
+    T: std::fmt::Debug + 'static,
 {
-    pub fn backward(&self) {
-        self.node.backward();
+    pub fn backward(&self) -> Gradients {
+        self.node.backward()
     }
 }
 
@@ -19,6 +22,12 @@ where
 {
     pub fn grad(&self) -> T {
         self.node.state.borrow_mut().grad()
+    }
+}
+
+impl<T, P, const D: usize> AsNode<T> for ADTensor<P, D, T> {
+    fn as_node(&self) -> &crate::node::Node<T> {
+        &self.node
     }
 }
 
@@ -96,18 +105,15 @@ mod tests {
         let tensor_5 = tensor_4.sub(&tensor_2);
         let tensor_6 = tensor_5.add(&tensor_4);
 
-        tensor_6.backward();
+        let grads = tensor_6.backward();
 
-        let grad_1 = tensor_1.grad();
-        let grad_2 = tensor_2.grad();
+        let grad_1 = grads.wrt(&tensor_1).unwrap();
+        let grad_2 = grads.wrt(&tensor_2).unwrap();
 
         assert_eq!(
-            grad_1.into_data(),
+            grad_1.to_data(),
             Data::from([[332.0, 220.0], [424.0, 312.0]])
         );
-        assert_eq!(
-            grad_2.into_data(),
-            Data::from([[223.0, 279.0], [63.0, 79.0]])
-        );
+        assert_eq!(grad_2.to_data(), Data::from([[223.0, 279.0], [63.0, 79.0]]));
     }
 }

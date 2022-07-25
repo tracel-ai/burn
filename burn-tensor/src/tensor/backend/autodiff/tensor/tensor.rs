@@ -27,6 +27,9 @@ where
     fn into_data(self) -> crate::Data<P, D> {
         self.tensor().into_data()
     }
+    fn to_data(&self) -> crate::Data<P, D> {
+        self.tensor().to_data()
+    }
 }
 
 impl<T, P, const D: usize> ADTensor<P, D, T>

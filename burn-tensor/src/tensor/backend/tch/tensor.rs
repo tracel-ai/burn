@@ -105,6 +105,10 @@ impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> T
         let values = self.tensor.into();
         Data::new(values, self.shape)
     }
+    fn to_data(&self) -> Data<P, D> {
+        let values = self.tensor.shallow_clone().into();
+        Data::new(values, self.shape.clone())
+    }
 }
 
 #[cfg(test)]

@@ -1,4 +1,4 @@
-use crate::node::NodeStateRef;
+use crate::{grad::Gradients, node::NodeStateRef};
 use std::rc::Rc;
 
 #[derive(new)]
@@ -20,9 +20,11 @@ pub trait RecordedOps<T>: std::fmt::Debug {
 }
 
 pub trait RecordedOpsParent: std::fmt::Debug {
-    fn id(&self) -> usize;
+    fn order(&self) -> usize;
+    fn id(&self) -> &String;
     fn backward_step(&self);
     fn backward_parents(&self) -> Vec<RecordedOpsParentRef>;
+    fn register_grad(&self, grads: &mut Gradients);
 }
 
 pub type RecordedOpsRef<T> = Rc<dyn RecordedOps<T>>;
