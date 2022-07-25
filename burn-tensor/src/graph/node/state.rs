@@ -1,22 +1,11 @@
 use crate::node::Zeros;
 use std::{cell::RefCell, ops::Add};
 
-#[derive(Debug)]
-pub struct NodeState<Out> {
-    pub value: Out,
-    pub grad: Option<Out>,
+#[derive(new, Debug)]
+pub struct ForwardNodeState<Out> {
+    value: Out,
 }
-pub type NodeStateRef<Out> = RefCell<NodeState<Out>>;
-
-impl<Out> NodeState<Out> {
-    pub fn new(value: Out) -> Self {
-        Self { value, grad: None }
-    }
-    pub fn new_mut(value: Out) -> NodeStateRef<Out> {
-        RefCell::new(Self::new(value))
-    }
-}
-impl<Out> NodeState<Out>
+impl<Out> ForwardNodeState<Out>
 where
     Out: Clone,
 {
@@ -25,7 +14,31 @@ where
     }
 }
 
-impl<Out> NodeState<Out>
+#[derive(Debug)]
+pub struct BackwardNodeState<Out> {
+    pub value: Out,
+    pub grad: Option<Out>,
+}
+pub type BackwardNodeStateRef<Out> = RefCell<BackwardNodeState<Out>>;
+
+impl<Out> BackwardNodeState<Out> {
+    fn new(value: Out) -> Self {
+        Self { value, grad: None }
+    }
+    pub fn new_mut(value: Out) -> BackwardNodeStateRef<Out> {
+        RefCell::new(Self::new(value))
+    }
+}
+impl<Out> BackwardNodeState<Out>
+where
+    Out: Clone,
+{
+    pub fn value(&self) -> Out {
+        self.value.clone()
+    }
+}
+
+impl<Out> BackwardNodeState<Out>
 where
     Out: Zeros<Out> + Clone + Add<Output = Out>,
     Out: std::fmt::Debug,

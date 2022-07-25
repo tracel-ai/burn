@@ -1,6 +1,6 @@
 use super::ADKind;
 use crate::{
-    node::{Node, NodeRef, NodeState, Ones, Zeros},
+    node::{ForwardNodeState, Node, NodeRef, Ones, Zeros},
     ops::InitRecordedOps,
     FloatTensor,
 };
@@ -40,7 +40,7 @@ where
     pub fn from_tensor(tensor: T) -> Self {
         let shape = tensor.shape().clone();
         let kind = ADKind::new();
-        let state = NodeState::new_mut(tensor);
+        let state = ForwardNodeState::new(tensor);
 
         let ops = InitRecordedOps::new();
         let ops = Rc::new(ops);
@@ -59,7 +59,7 @@ where
 
 impl<T: Clone + std::fmt::Debug, P, const D: usize> ADTensor<P, D, T> {
     pub fn tensor(&self) -> T {
-        self.node.state.borrow().value()
+        self.node.state.value()
     }
 }
 

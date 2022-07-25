@@ -1,7 +1,10 @@
-use super::NodeStateRef;
+use super::{BackwardNodeState, BackwardNodeStateRef, ForwardNodeState};
 use crate::{
     grad::Gradients,
-    ops::{RecordedOpsParent, RecordedOpsParentRef, RecordedOpsRef},
+    ops::{
+        BackwardRecordedOpsRef, Forward2BackwardGraphConverter, ForwardRecordedOpsRef,
+        RecordedOpsParent, RecordedOpsParentRef,
+    },
 };
 use std::{collections::HashMap, ops::Add, rc::Rc};
 
@@ -9,20 +12,39 @@ use std::{collections::HashMap, ops::Add, rc::Rc};
 pub struct Node<Out> {
     pub id: String,
     pub order: usize,
-    pub state: NodeStateRef<Out>,
-    pub ops: RecordedOpsRef<Out>,
+    pub state: ForwardNodeState<Out>,
+    pub ops: ForwardRecordedOpsRef<Out>,
+}
+
+#[derive(Debug)]
+pub struct BackwardNode<Out> {
+    pub id: String,
+    pub order: usize,
+    pub state: BackwardNodeStateRef<Out>,
+    pub ops: BackwardRecordedOpsRef<Out>,
+}
+
+impl<Out: Clone> BackwardNode<Out> {
+    pub fn from_node(node: &NodeRef<Out>, converter: &mut Forward2BackwardGraphConverter) -> Self {
+        BackwardNode {
+            id: node.id.clone(),
+            order: node.order,
+            state: BackwardNodeState::new_mut(node.state.value()),
+            ops: node.ops.as_backward(converter),
+        }
+    }
 }
 
 impl<Out> Node<Out> {
-    pub fn from_root(state: NodeStateRef<Out>, ops: RecordedOpsRef<Out>) -> Self {
+    pub fn from_root(state: ForwardNodeState<Out>, ops: ForwardRecordedOpsRef<Out>) -> Self {
         let order = 0;
         Self::new(order, state, ops)
     }
 
     pub fn from_unary<T>(
         node: &Node<T>,
-        state: NodeStateRef<Out>,
-        ops: RecordedOpsRef<Out>,
+        state: ForwardNodeState<Out>,
+        ops: ForwardRecordedOpsRef<Out>,
     ) -> Self {
         let order = node.order + 1;
         Self::new(order, state, ops)
@@ -30,14 +52,14 @@ impl<Out> Node<Out> {
     pub fn from_binary<Lhs, Rhs>(
         lhs: &Node<Lhs>,
         rhs: &Node<Rhs>,
-        state: NodeStateRef<Out>,
-        ops: RecordedOpsRef<Out>,
+        state: ForwardNodeState<Out>,
+        ops: ForwardRecordedOpsRef<Out>,
     ) -> Self {
         let order = usize::max(lhs.order, rhs.order) + 1;
         Self::new(order, state, ops)
     }
 
-    fn new(order: usize, state: NodeStateRef<Out>, ops: RecordedOpsRef<Out>) -> Self {
+    fn new(order: usize, state: ForwardNodeState<Out>, ops: ForwardRecordedOpsRef<Out>) -> Self {
         let id = nanoid::nanoid!();
         Self {
             id,
@@ -48,7 +70,7 @@ impl<Out> Node<Out> {
     }
 }
 
-impl<Out> Node<Out>
+impl<Out> BackwardNode<Out>
 where
     Out: Zeros<Out> + Ones<Out> + Clone + Add<Output = Out>,
     Out: std::fmt::Debug + 'static,
@@ -95,7 +117,7 @@ where
     }
 }
 
-impl<T> RecordedOpsParent for Node<T>
+impl<T> RecordedOpsParent for BackwardNode<T>
 where
     T: Zeros<T> + Clone + Add<Output = T>,
     T: std::fmt::Debug + 'static,
@@ -120,6 +142,7 @@ where
 }
 
 pub type NodeRef<Out> = Rc<Node<Out>>;
+pub type BackwardNodeRef<Out> = Rc<BackwardNode<Out>>;
 
 pub trait Zeros<T> {
     fn zeros(&self) -> T;

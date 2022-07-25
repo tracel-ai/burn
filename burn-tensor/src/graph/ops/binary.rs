@@ -1,6 +1,9 @@
-use super::{BinaryOpsNodeState, RecordedOps, RecordedOpsParentRef};
-use crate::node::{NodeRef, NodeStateRef, Zeros};
-use std::ops::Add;
+use super::{
+    BackwardRecordedOps, BackwardRecordedOpsRef, BinaryOpsNodeState,
+    Forward2BackwardGraphConverter, ForwardRecordedOps, RecordedOpsParentRef,
+};
+use crate::node::{BackwardNodeRef, BackwardNodeStateRef, NodeRef, Zeros};
+use std::{ops::Add, rc::Rc};
 
 pub trait BinaryOps<Lhs, Rhs, Out>: std::fmt::Debug {
     fn partial_left(&self, state: &BinaryOpsNodeState<Lhs, Rhs, Out>) -> Lhs;
@@ -11,17 +14,42 @@ pub trait BinaryOps<Lhs, Rhs, Out>: std::fmt::Debug {
 pub struct BinaryRecordedOps<Lhs, Rhs, Ops> {
     lhs: NodeRef<Lhs>,
     rhs: NodeRef<Rhs>,
-    ops: Ops,
+    ops: Rc<Ops>,
 }
-
-impl<Lhs, Rhs, Out, Ops> RecordedOps<Out> for BinaryRecordedOps<Lhs, Rhs, Ops>
+impl<Lhs, Rhs, Out, Ops> ForwardRecordedOps<Out> for BinaryRecordedOps<Lhs, Rhs, Ops>
 where
     Lhs: Clone + Zeros<Lhs> + Add<Output = Lhs> + std::fmt::Debug + 'static,
     Rhs: Clone + Zeros<Rhs> + Add<Output = Rhs> + std::fmt::Debug + 'static,
     Out: Clone + Zeros<Out> + Add<Output = Out> + std::fmt::Debug + 'static,
     Ops: BinaryOps<Lhs, Rhs, Out> + std::fmt::Debug + 'static,
 {
-    fn backward_step(&self, state: &NodeStateRef<Out>) {
+    fn as_backward(
+        &self,
+        graph: &mut Forward2BackwardGraphConverter,
+    ) -> BackwardRecordedOpsRef<Out> {
+        let lhs = graph.from(&self.lhs);
+        let rhs = graph.from(&self.rhs);
+        let ops = self.ops.clone();
+
+        Rc::new(BackwardBinaryRecordedOps::new(lhs, rhs, ops))
+    }
+}
+
+#[derive(new, Debug)]
+pub struct BackwardBinaryRecordedOps<Lhs, Rhs, Ops> {
+    lhs: BackwardNodeRef<Lhs>,
+    rhs: BackwardNodeRef<Rhs>,
+    ops: Rc<Ops>,
+}
+
+impl<Lhs, Rhs, Out, Ops> BackwardRecordedOps<Out> for BackwardBinaryRecordedOps<Lhs, Rhs, Ops>
+where
+    Lhs: Clone + Zeros<Lhs> + Add<Output = Lhs> + std::fmt::Debug + 'static,
+    Rhs: Clone + Zeros<Rhs> + Add<Output = Rhs> + std::fmt::Debug + 'static,
+    Out: Clone + Zeros<Out> + Add<Output = Out> + std::fmt::Debug + 'static,
+    Ops: BinaryOps<Lhs, Rhs, Out> + std::fmt::Debug + 'static,
+{
+    fn backward_step(&self, state: &BackwardNodeStateRef<Out>) {
         let state = BinaryOpsNodeState::new(&self.lhs.state, &self.rhs.state, state);
 
         let partial_left: Lhs = self.ops.partial_left(&state);
