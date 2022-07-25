@@ -84,17 +84,8 @@ where
 
         for i in (0..self.order + 1).rev() {
             if let Some(nodes) = nodes.get(i) {
-                let mut handles = Vec::new();
                 for node in nodes {
-                    let node_cloned = node.clone();
-                    let task = move || {
-                        node_cloned.backward_step();
-                    };
-                    let handle = std::thread::spawn(task);
-                    handles.push(handle);
-                }
-                for handle in handles {
-                    handle.join().unwrap();
+                    node.backward_step();
                 }
             }
         }
@@ -105,7 +96,7 @@ where
 
 impl<T> RecordedOpsParent for BackwardNode<T>
 where
-    T: Zeros<T> + Clone + Add<Output = T> + Send + Sync,
+    T: Zeros<T> + Clone + Add<Output = T>,
     T: std::fmt::Debug + 'static,
 {
     fn backward_step(&self) {

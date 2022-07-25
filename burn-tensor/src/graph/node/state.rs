@@ -20,9 +20,6 @@ pub struct BackwardNodeState<Out> {
     pub grad: RefCell<Out>,
 }
 
-unsafe impl<Out> Send for BackwardNodeState<Out> {}
-unsafe impl<Out> Sync for BackwardNodeState<Out> {}
-
 impl<Out: Zeros<Out>> BackwardNodeState<Out> {
     pub fn new(value: Out) -> Self {
         let grad = value.zeros();
