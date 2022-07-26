@@ -25,7 +25,7 @@ where
         shape.dims[D - 1] = other.shape.dims[D - 1];
         let output = BatchMatrix::new(arrays, shape.clone());
 
-        Self::from(output)
+        Self::from_bmatrix(output)
     }
 }
 
@@ -38,8 +38,8 @@ mod tests {
         let data_1: Data<f64, 2> = Data::from([[1.0, 7.0], [2.0, 3.0], [1.0, 5.0]]);
         let data_2: Data<f64, 2> = Data::from([[4.0, 7.0, 5.0], [2.0, 3.0, 5.0]]);
 
-        let tensor_1 = NdArrayTensor::from(data_1.clone());
-        let tensor_2 = NdArrayTensor::from(data_2.clone());
+        let tensor_1 = NdArrayTensor::from_data(data_1.clone());
+        let tensor_2 = NdArrayTensor::from_data(data_2.clone());
 
         let tensor_3 = tensor_1.matmul(&tensor_2);
 
@@ -54,8 +54,8 @@ mod tests {
         let data_1: Data<f64, 3> = Data::from([[[1.0, 7.0], [2.0, 3.0]]]);
         let data_2: Data<f64, 3> = Data::from([[[4.0, 7.0], [2.0, 3.0]]]);
 
-        let tensor_1 = NdArrayTensor::from(data_1.clone());
-        let tensor_2 = NdArrayTensor::from(data_2.clone());
+        let tensor_1 = NdArrayTensor::from_data(data_1.clone());
+        let tensor_2 = NdArrayTensor::from_data(data_2.clone());
 
         let tensor_3 = tensor_1.matmul(&tensor_2);
 

@@ -69,25 +69,25 @@ pub mod helper {
         Data,
     };
 
-    // pub type ADTchTensor<P, const D: usize> = ADTensor<P, D, NdArrayTensor<P, D>>;
+    pub type ADTchTensor<P, const D: usize> = ADTensor<P, D, NdArrayTensor<P, D>>;
 
-    // impl<P: ADElement + ndarray::ScalarOperand + ndarray::LinalgScalar, const D: usize>
-    //     ADTchTensor<P, D>
-    // where
-    //     Dim<[usize; D]>: Dimension,
-    // {
-    //     pub fn from_data(data: Data<P, D>) -> Self {
-    //         let tensor = NdArrayTensor::from(data);
-    //         ADTensor::from_tensor(tensor)
-    //     }
-    // }
-
-    pub type ADTchTensor<P, const D: usize> = ADTensor<P, D, TchTensor<P, D>>;
-
-    impl<P: ADElement + tch::kind::Element + Into<f64>, const D: usize> ADTchTensor<P, D> {
+    impl<P: ADElement + ndarray::ScalarOperand + ndarray::LinalgScalar, const D: usize>
+        ADTchTensor<P, D>
+    where
+        Dim<[usize; D]>: Dimension,
+    {
         pub fn from_data(data: Data<P, D>) -> Self {
-            let tensor = TchTensor::from_data(data, tch::Device::Cpu);
+            let tensor = NdArrayTensor::from_data(data);
             ADTensor::from_tensor(tensor)
         }
     }
+
+    // pub type ADTchTensor<P, const D: usize> = ADTensor<P, D, TchTensor<P, D>>;
+
+    // impl<P: ADElement + tch::kind::Element + Into<f64>, const D: usize> ADTchTensor<P, D> {
+    //     pub fn from_data(data: Data<P, D>) -> Self {
+    //         let tensor = TchTensor::from_data(data, tch::Device::Cpu);
+    //         ADTensor::from_tensor(tensor)
+    //     }
+    // }
 }

@@ -1,20 +1,37 @@
-use crate::{backend::ndarray::NdArrayTensor, TensorOpsTranspose};
+use crate::{
+    backend::ndarray::{BatchMatrix, NdArrayTensor},
+    TensorOpsTranspose,
+};
+use ndarray::{Dim, Dimension};
 
 impl<P, const D: usize> TensorOpsTranspose<P, D> for NdArrayTensor<P, D>
 where
-    P: Clone + std::fmt::Debug,
+    P: Default + Clone + std::fmt::Debug,
+    Dim<[usize; D]>: Dimension,
+    Dim<[usize; D]>: Dimension,
 {
     fn transpose(&self) -> Self {
-        let array = self.array.t().into_dyn().into_owned().into_shared();
-        let mut shape = self.shape.clone();
-
-        if D >= 2 {
-            let size0 = shape.dims[D - 2];
-            let size1 = shape.dims[D - 1];
-            shape.dims[D - 2] = size1;
-            shape.dims[D - 1] = size0;
+        if D > 2 {
+            return self.clone();
         }
 
-        Self { array, shape }
+        let batch_matrix = BatchMatrix::from_ndarray(self.array.clone(), self.shape.clone());
+
+        let arrays = batch_matrix
+            .arrays
+            .iter()
+            .map(|matrix| matrix.t())
+            .map(|output| output.into_owned().into_shared())
+            .collect();
+
+        let mut shape = self.shape.clone();
+        let size0 = shape.dims[D - 2];
+        let size1 = shape.dims[D - 1];
+        shape.dims[D - 2] = size1;
+        shape.dims[D - 1] = size0;
+
+        let output = BatchMatrix::new(arrays, shape.clone());
+
+        Self::from_bmatrix(output)
     }
 }

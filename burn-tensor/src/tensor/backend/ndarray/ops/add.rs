@@ -55,8 +55,8 @@ mod tests {
         let data_1 = Data::<f64, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
         let data_2 = Data::<f64, 2>::from([[6.0, 7.0, 8.0], [9.0, 10.0, 11.0]]);
         let data_expected = Data::from([[6.0, 8.0, 10.0], [12.0, 14.0, 16.0]]);
-        let tensor_1 = NdArrayTensor::from(data_1);
-        let tensor_2 = NdArrayTensor::from(data_2);
+        let tensor_1 = NdArrayTensor::from_data(data_1);
+        let tensor_2 = NdArrayTensor::from_data(data_2);
 
         let data_actual = (tensor_1 + tensor_2).into_data();
 

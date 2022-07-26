@@ -123,7 +123,7 @@ mod ndarray {
     use crate::{
         backend::ndarray::NdArrayTensor,
         node::{Ones, Zeros},
-        TensorOpsMul,
+        TensorOpsAdd, TensorOpsMul,
     };
 
     impl<P: ADElement + ScalarOperand + LinalgScalar, const D: usize> ADCompatibleTensor<P, D>
@@ -139,7 +139,7 @@ mod ndarray {
         Dim<[usize; D]>: Dimension,
     {
         fn zeros(&self) -> Self {
-            TensorOpsMul::mul_scalar(&self, &P::default().ones())
+            TensorOpsMul::mul_scalar(&self, &P::default().zeros())
         }
     }
 
@@ -148,8 +148,10 @@ mod ndarray {
         P: Ones<P> + Default + ScalarOperand + LinalgScalar,
         Dim<[usize; D]>: Dimension,
     {
-        fn ones(&self) -> Self {
-            TensorOpsMul::mul_scalar(&self, &P::default().ones())
+        fn ones(&self) -> NdArrayTensor<P, D> {
+            let x = TensorOpsMul::mul_scalar(self, &P::default().zeros());
+            let x = TensorOpsAdd::add_scalar(&x, &P::default().ones());
+            x
         }
     }
 }
@@ -159,7 +161,7 @@ mod ad {
     use crate::{
         backend::autodiff::ADTensor,
         node::{Ones, Zeros},
-        TensorOpsMul,
+        TensorOpsAdd, TensorOpsMul,
     };
 
     impl<T: ADCompatibleTensor<P, D>, P: ADElement, const D: usize> ADCompatibleTensor<P, D>
@@ -172,7 +174,7 @@ mod ad {
         P: Ones<P> + Default,
     {
         fn zeros(&self) -> Self {
-            TensorOpsMul::mul_scalar(&self, &P::default().ones())
+            TensorOpsMul::mul_scalar(&self, &P::default().zeros())
         }
     }
 
@@ -181,7 +183,9 @@ mod ad {
         P: Ones<P> + Default,
     {
         fn ones(&self) -> Self {
-            TensorOpsMul::mul_scalar(&self, &P::default().ones())
+            let x = TensorOpsMul::mul_scalar(self, &P::default().zeros());
+            let x = TensorOpsAdd::add_scalar(&x, &P::default().ones());
+            x
         }
     }
 }

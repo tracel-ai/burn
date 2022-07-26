@@ -8,13 +8,14 @@ where
 {
     fn mul(&self, other: &Self) -> Self {
         let array = self.array.clone() * other.array.clone();
-        let array = array.into_shared();
+        let array = array.to_owned().into_shared();
         let shape = self.shape.clone();
 
         Self { array, shape }
     }
     fn mul_scalar(&self, other: &P) -> Self {
         let array = self.array.clone() * other.clone();
+        let array = array.to_owned().into_shared();
         let shape = self.shape.clone();
 
         Self { array, shape }
@@ -54,8 +55,8 @@ mod tests {
     fn should_support_mul_ops() {
         let data_1 = Data::<f64, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
         let data_2 = Data::<f64, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-        let tensor_1 = NdArrayTensor::from(data_1);
-        let tensor_2 = NdArrayTensor::from(data_2);
+        let tensor_1 = NdArrayTensor::from_data(data_1);
+        let tensor_2 = NdArrayTensor::from_data(data_2);
 
         let data_actual = (tensor_1 * tensor_2).into_data();
 
@@ -67,7 +68,7 @@ mod tests {
     fn should_support_mul_scalar_ops() {
         let data = Data::<f64, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
         let scalar = 2.0;
-        let tensor = NdArrayTensor::from(data);
+        let tensor = NdArrayTensor::from_data(data);
 
         let output = tensor * scalar;
         let data_actual = output.into_data();

@@ -35,7 +35,7 @@ mod tests {
     #[test]
     fn should_support_neg_ops() {
         let data = Data::<f64, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-        let tensor = NdArrayTensor::from(data);
+        let tensor = NdArrayTensor::from_data(data);
 
         let data_actual = tensor.neg().into_data();
 

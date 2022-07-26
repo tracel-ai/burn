@@ -107,13 +107,13 @@ macro_rules! to_nd_array_tensor {
     }};
 }
 
-impl<P, const D: usize> From<BatchMatrix<P, D>> for NdArrayTensor<P, D>
+impl<P, const D: usize> NdArrayTensor<P, D>
 where
     P: Default + Clone,
     Dim<[usize; D]>: Dimension,
 {
-    fn from(data: BatchMatrix<P, D>) -> NdArrayTensor<P, D> {
-        let shape = data.shape;
+    pub fn from_bmatrix(bmatrix: BatchMatrix<P, D>) -> NdArrayTensor<P, D> {
+        let shape = bmatrix.shape;
         let to_array = |data: BatchMatrix<P, D>| {
             let mut values = Vec::new();
             for array in data.arrays {
@@ -124,21 +124,21 @@ where
         };
 
         match D {
-            1 => to_nd_array_tensor!(1, shape, to_array(data)),
-            2 => to_nd_array_tensor!(2, shape, to_array(data)),
-            3 => to_nd_array_tensor!(3, shape, to_array(data)),
-            4 => to_nd_array_tensor!(4, shape, to_array(data)),
-            5 => to_nd_array_tensor!(5, shape, to_array(data)),
-            6 => to_nd_array_tensor!(6, shape, to_array(data)),
+            1 => to_nd_array_tensor!(1, shape, to_array(bmatrix)),
+            2 => to_nd_array_tensor!(2, shape, to_array(bmatrix)),
+            3 => to_nd_array_tensor!(3, shape, to_array(bmatrix)),
+            4 => to_nd_array_tensor!(4, shape, to_array(bmatrix)),
+            5 => to_nd_array_tensor!(5, shape, to_array(bmatrix)),
+            6 => to_nd_array_tensor!(6, shape, to_array(bmatrix)),
             _ => panic!(""),
         }
     }
 }
-impl<P, const D: usize> From<Data<P, D>> for NdArrayTensor<P, D>
+impl<P, const D: usize> NdArrayTensor<P, D>
 where
     P: Default + Clone,
 {
-    fn from(data: Data<P, D>) -> NdArrayTensor<P, D> {
+    pub fn from_data(data: Data<P, D>) -> NdArrayTensor<P, D> {
         let shape = data.shape.clone();
         let to_array = |data: Data<P, D>| Array::from_iter(data.value.into_iter()).into_shared();
 
@@ -160,8 +160,8 @@ mod tests {
 
     #[test]
     fn should_support_into_and_from_data_1d() {
-        let data_expected = Data::<f32, 1>::random(Shape::new([3]));
-        let tensor = NdArrayTensor::from(data_expected.clone());
+        let data_expected = Data::<f32, 1>::random(Shape::new([3]), crate::Distribution::Standard);
+        let tensor = NdArrayTensor::from_data(data_expected.clone());
 
         let data_actual = tensor.into_data();
 
@@ -170,8 +170,9 @@ mod tests {
 
     #[test]
     fn should_support_into_and_from_data_2d() {
-        let data_expected = Data::<f32, 2>::random(Shape::new([2, 3]));
-        let tensor = NdArrayTensor::from(data_expected.clone());
+        let data_expected =
+            Data::<f32, 2>::random(Shape::new([2, 3]), crate::Distribution::Standard);
+        let tensor = NdArrayTensor::from_data(data_expected.clone());
 
         let data_actual = tensor.into_data();
 
@@ -180,8 +181,9 @@ mod tests {
 
     #[test]
     fn should_support_into_and_from_data_3d() {
-        let data_expected = Data::<f32, 3>::random(Shape::new([2, 3, 4]));
-        let tensor = NdArrayTensor::from(data_expected.clone());
+        let data_expected =
+            Data::<f32, 3>::random(Shape::new([2, 3, 4]), crate::Distribution::Standard);
+        let tensor = NdArrayTensor::from_data(data_expected.clone());
 
         let data_actual = tensor.into_data();
 
@@ -190,8 +192,9 @@ mod tests {
 
     #[test]
     fn should_support_into_and_from_data_4d() {
-        let data_expected = Data::<f32, 4>::random(Shape::new([2, 3, 4, 2]));
-        let tensor = NdArrayTensor::from(data_expected.clone());
+        let data_expected =
+            Data::<f32, 4>::random(Shape::new([2, 3, 4, 2]), crate::Distribution::Standard);
+        let tensor = NdArrayTensor::from_data(data_expected.clone());
 
         let data_actual = tensor.into_data();
 

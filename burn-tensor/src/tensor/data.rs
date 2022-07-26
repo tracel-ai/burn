@@ -76,7 +76,7 @@ where
     Standard: rand::distributions::Distribution<P>,
     P: rand::distributions::uniform::SampleUniform,
 {
-    pub fn sample(shape: Shape<D>, distribution: Distribution<P>) -> Self {
+    pub fn random(shape: Shape<D>, distribution: Distribution<P>) -> Self {
         let num_elements = shape.num_elements();
 
         let mut sampler = distribution.sampler();
@@ -89,8 +89,8 @@ where
         Data::new(data, shape)
     }
     /// Usefull to force a kind
-    pub fn sample_(shape: Shape<D>, distribution: Distribution<P>, _kind: P) -> Self {
-        Self::sample(shape, distribution)
+    pub fn random_(shape: Shape<D>, distribution: Distribution<P>, _kind: P) -> Self {
+        Self::random(shape, distribution)
     }
 }
 impl<P: std::fmt::Debug, const D: usize> Data<P, D>
@@ -130,26 +130,6 @@ where
     }
     pub fn ones_(shape: Shape<D>, _kind: P) -> Data<P, D> {
         Self::ones(shape)
-    }
-}
-
-impl<P: std::fmt::Debug, const D: usize> Data<P, D>
-where
-    Standard: rand::prelude::Distribution<P>,
-{
-    pub fn random(shape: Shape<D>) -> Data<P, D> {
-        let num_elements = shape.num_elements();
-        let mut data = Vec::with_capacity(num_elements);
-
-        for _ in 0..num_elements {
-            data.push(rand::random());
-        }
-
-        Data::new(data, shape)
-    }
-    /// Usefull to force a kind
-    pub fn random_(shape: Shape<D>, _kind: P) -> Data<P, D> {
-        Data::random(shape)
     }
 }
 
@@ -201,7 +181,7 @@ mod tests {
     #[test]
     fn should_have_right_num_elements() {
         let shape = Shape::new([3, 5, 6]);
-        let data = Data::<f32, 3>::random(shape.clone());
+        let data = Data::<f32, 3>::random(shape.clone(), Distribution::Standard);
         assert_eq!(shape.num_elements(), data.value.len());
     }
 

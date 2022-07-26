@@ -14,6 +14,7 @@ pub type TchDevice = Device;
 pub enum Backend {
     #[cfg(feature = "tch")]
     Tch(TchDevice),
+    NdArray,
 }
 
 impl Default for Backend {
