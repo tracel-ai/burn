@@ -3,9 +3,11 @@ use crate::Shape;
 use crate::TensorBase;
 use ndarray::s;
 use ndarray::Array;
+use ndarray::Axis;
 use ndarray::Dim;
 use ndarray::Dimension;
 use ndarray::Ix2;
+use ndarray::Ix3;
 use ndarray::{ArcArray, IxDyn};
 
 #[derive(Debug, Clone)]
@@ -115,12 +117,14 @@ where
     pub fn from_bmatrix(bmatrix: BatchMatrix<P, D>) -> NdArrayTensor<P, D> {
         let shape = bmatrix.shape;
         let to_array = |data: BatchMatrix<P, D>| {
-            let mut values = Vec::new();
-            for array in data.arrays {
-                values.append(&mut array.into_iter().collect());
+            let dims = data.shape.dims;
+            let mut array: Array<P, Ix3> = Array::default((0, dims[D - 2], dims[D - 1]));
+
+            for item in data.arrays {
+                array.push(Axis(0), item.view()).unwrap();
             }
 
-            Array::from_iter(values).into_shared()
+            array.into_shared()
         };
 
         match D {
