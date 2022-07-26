@@ -1,11 +1,10 @@
-use std::sync::Arc;
-
 use crate::{
     backend::autodiff::{ADCompatibleTensor, ADElement, ADKind, ADTensor},
     node::{ForwardNode, ForwardNodeState},
     ops::{ForwardUnaryRecordedOps, UnaryOps, UnaryOpsNodeState},
     Shape, TensorOpsReshape,
 };
+use std::sync::Arc;
 
 #[derive(Debug)]
 struct ADTensorOpsReshape<P, const D1: usize, const D2: usize> {

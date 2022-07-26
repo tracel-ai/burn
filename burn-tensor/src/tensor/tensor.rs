@@ -57,4 +57,5 @@ pub trait TensorOpsReshape<P, const D1: usize, const D2: usize, T: TensorBase<P,
 
 pub trait TensorOpsIndex<P, const D1: usize, const D2: usize> {
     fn index(&self, indexes: [Range<usize>; D2]) -> Self;
+    fn index_assign(&self, indexes: [Range<usize>; D2], values: &Self) -> Self;
 }

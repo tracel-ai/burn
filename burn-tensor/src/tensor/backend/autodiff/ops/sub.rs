@@ -9,10 +9,10 @@ register_ops!(
     ops BinaryOps<T, T, T>,
     name ADTensorSubOps,
     partial_left |state: &BinaryOpsNodeState<T, T, T>| {
-        state.output.grad() * state.left.value().ones()
+        state.output.grad()
     },
     partial_right |state: &BinaryOpsNodeState<T, T, T>| {
-        state.output.grad() * state.right.value().ones().neg()
+        state.output.grad().neg()
     },
 );
 
@@ -20,7 +20,7 @@ register_ops!(
     ops UnaryOps<T, T>,
     name ADTensorSubScalarOps state P,
     partial |_state, state_recorded: &UnaryOpsNodeState<T, T>|{
-        state_recorded.output.grad() * state_recorded.input.value().ones()
+        state_recorded.output.grad()
     },
 );
 
