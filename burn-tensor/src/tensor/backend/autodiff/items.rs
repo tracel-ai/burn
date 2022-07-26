@@ -115,3 +115,35 @@ mod tch {
         }
     }
 }
+
+mod ad {
+    use super::{ADCompatibleTensor, ADElement};
+    use crate::{
+        backend::autodiff::ADTensor,
+        node::{Ones, Zeros},
+        TensorOpsMul,
+    };
+
+    impl<T: ADCompatibleTensor<P, D>, P: ADElement, const D: usize> ADCompatibleTensor<P, D>
+        for ADTensor<P, D, T>
+    {
+    }
+
+    impl<T: ADCompatibleTensor<P, D>, P: ADElement, const D: usize> Zeros<Self> for ADTensor<P, D, T>
+    where
+        P: Ones<P> + Default,
+    {
+        fn zeros(&self) -> Self {
+            TensorOpsMul::mul_scalar(&self, &P::default().ones())
+        }
+    }
+
+    impl<T: ADCompatibleTensor<P, D>, P: ADElement, const D: usize> Ones<Self> for ADTensor<P, D, T>
+    where
+        P: Ones<P> + Default,
+    {
+        fn ones(&self) -> Self {
+            TensorOpsMul::mul_scalar(&self, &P::default().ones())
+        }
+    }
+}
