@@ -1,6 +1,6 @@
 use crate::{
     backend::autodiff::{ADCompatibleTensor, ADElement, ADTensor},
-    define_ops, execute_ops,
+    execute_ops,
     ops::{UnaryOps, UnaryOpsNodeState},
     register_ops, TensorOpsNeg,
 };

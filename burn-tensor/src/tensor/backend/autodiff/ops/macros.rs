@@ -68,7 +68,7 @@ macro_rules! register_ops {
         name $name:ident state $ops_tensor_state:ident,
         partial $partial:expr,
     ) => {
-        define_ops!(
+        $crate::define_ops!(
             name $name,
             state $ops_tensor_state,
         );
@@ -88,7 +88,7 @@ macro_rules! register_ops {
         name $name:ident,
         partial $partial:expr,
     ) => {
-        define_ops!(
+        $crate::define_ops!(
             name $name
         );
 
