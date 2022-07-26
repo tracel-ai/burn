@@ -20,7 +20,7 @@ register_ops!(
     ops UnaryOps<T, T>,
     name ADTensorMulScalarOps state P,
     partial |state, state_recorded: &UnaryOpsNodeState<T, T>| {
-        state_recorded.input.value().ones() * state
+        state_recorded.output.grad() * state
     },
 );
 

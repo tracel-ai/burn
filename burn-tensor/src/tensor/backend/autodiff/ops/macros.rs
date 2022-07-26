@@ -89,7 +89,7 @@ macro_rules! register_ops {
         partial $partial:expr,
     ) => {
         define_ops!(
-            name $name,
+            name $name
         );
 
         impl<T, P, const D: usize> $ops for $name<P, D>
