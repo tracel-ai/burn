@@ -110,8 +110,8 @@ macro_rules! random {
         let data = $crate::Data::sample_(shape, $distribution, $kind::default());
 
         match $backend {
-            Backend::Tch(device) => {
-                $crate::tensor::backend::tch::TchTensor::from_data(data, device)
+            $crate::backend::Backend::Tch(device) => {
+                $crate::backend::tch::TchTensor::from_data(data, device)
             }
         }
     }};
@@ -152,7 +152,7 @@ macro_rules! random {
         $crate::random!(
             kind: $kind,
             shape: $shape,
-            backend: $crate::tensor::backend::Backend::default()
+            backend: $crate::backend::Backend::default()
         )
     }};
 

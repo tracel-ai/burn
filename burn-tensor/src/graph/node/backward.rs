@@ -72,7 +72,7 @@ where
     T: std::fmt::Debug + 'static,
 {
     fn backward_step(&self) {
-        println!("backward node id={} order={}", self.id, self.order);
+        // println!("backward node id={} order={}", self.id, self.order);
         self.ops.backward_step(&self.state)
     }
     fn backward_parents(&self) -> Vec<RecordedOpsParentRef> {
