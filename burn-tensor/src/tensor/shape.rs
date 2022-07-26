@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-#[derive(new, Debug, Clone, PartialEq)]
+#[derive(new, Debug, Clone, PartialEq, Copy)]
 pub struct Shape<const D: usize> {
     pub dims: [usize; D],
 }

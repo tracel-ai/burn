@@ -1,5 +1,8 @@
-use crate::Shape;
-use rand::{distributions::Standard, prelude::Distribution};
+use crate::{
+    node::{Ones, Zeros},
+    Shape,
+};
+use rand::{distributions::Standard, prelude::StdRng, Rng, SeedableRng};
 
 #[derive(new, Debug, Clone, PartialEq)]
 pub struct Data<P, const D: usize> {
@@ -7,9 +10,132 @@ pub struct Data<P, const D: usize> {
     pub shape: Shape<D>,
 }
 
+pub enum Distribution<P> {
+    Standard,
+    Uniform(P, P),
+}
+
+pub struct DistributionSampler<P>
+where
+    Standard: rand::distributions::Distribution<P>,
+    P: rand::distributions::uniform::SampleUniform,
+{
+    kind: DistributionSamplerKind<P>,
+    rng: StdRng,
+}
+
+pub enum DistributionSamplerKind<P>
+where
+    Standard: rand::distributions::Distribution<P>,
+    P: rand::distributions::uniform::SampleUniform,
+{
+    Standard(rand::distributions::Standard),
+    Uniform(rand::distributions::Uniform<P>),
+}
+
+impl<P> DistributionSampler<P>
+where
+    Standard: rand::distributions::Distribution<P>,
+    P: rand::distributions::uniform::SampleUniform,
+{
+    pub fn from_entropy(kind: DistributionSamplerKind<P>) -> Self {
+        let rng = StdRng::from_entropy();
+
+        Self { rng, kind }
+    }
+
+    pub fn sample(&mut self) -> P {
+        match &self.kind {
+            DistributionSamplerKind::Standard(distribution) => self.rng.sample(distribution),
+            DistributionSamplerKind::Uniform(distribution) => self.rng.sample(distribution),
+        }
+    }
+}
+
+impl<P> Distribution<P>
+where
+    Standard: rand::distributions::Distribution<P>,
+    P: rand::distributions::uniform::SampleUniform,
+{
+    pub fn sampler(self) -> DistributionSampler<P> {
+        let kind = match self {
+            Distribution::Standard => {
+                DistributionSamplerKind::Standard(rand::distributions::Standard {})
+            }
+            Distribution::Uniform(low, high) => {
+                DistributionSamplerKind::Uniform(rand::distributions::Uniform::new(low, high))
+            }
+        };
+
+        DistributionSampler::from_entropy(kind)
+    }
+}
+
 impl<P: std::fmt::Debug, const D: usize> Data<P, D>
 where
-    Standard: Distribution<P>,
+    Standard: rand::distributions::Distribution<P>,
+    P: rand::distributions::uniform::SampleUniform,
+{
+    pub fn sample(shape: Shape<D>, distribution: Distribution<P>) -> Self {
+        let num_elements = shape.num_elements();
+
+        let mut sampler = distribution.sampler();
+        let mut data = Vec::with_capacity(num_elements);
+
+        for _ in 0..num_elements {
+            data.push(sampler.sample());
+        }
+
+        Data::new(data, shape)
+    }
+    /// Usefull to force a kind
+    pub fn sample_(shape: Shape<D>, distribution: Distribution<P>, _kind: P) -> Self {
+        Self::sample(shape, distribution)
+    }
+}
+impl<P: std::fmt::Debug, const D: usize> Data<P, D>
+where
+    P: Zeros<P> + Default,
+{
+    pub fn zeros(shape: Shape<D>) -> Data<P, D> {
+        let elem = P::default();
+        let num_elements = shape.num_elements();
+        let mut data = Vec::with_capacity(num_elements);
+
+        for _ in 0..num_elements {
+            data.push(elem.zeros());
+        }
+
+        Data::new(data, shape)
+    }
+    pub fn zeros_(shape: Shape<D>, _kind: P) -> Data<P, D> {
+        Self::zeros(shape)
+    }
+}
+
+impl<P: std::fmt::Debug, const D: usize> Data<P, D>
+where
+    P: Ones<P> + Default,
+{
+    pub fn ones(shape: Shape<D>) -> Data<P, D> {
+        let elem = P::default();
+        let num_elements = shape.num_elements();
+        let mut data = Vec::with_capacity(num_elements);
+
+        for _ in 0..num_elements {
+            data.push(elem.ones());
+        }
+
+        Data::new(data, shape)
+    }
+    pub fn ones_(shape: Shape<D>, _kind: P) -> Data<P, D> {
+        Self::ones(shape)
+    }
+}
+
+impl<P: std::fmt::Debug, const D: usize> Data<P, D>
+where
+    Standard: rand::prelude::Distribution<P>,
 {
     pub fn random(shape: Shape<D>) -> Data<P, D> {
         let num_elements = shape.num_elements();
@@ -20,6 +146,10 @@ where
         }
 
         Data::new(data, shape)
+    }
+    /// Usefull to force a kind
+    pub fn random_(shape: Shape<D>, _kind: P) -> Data<P, D> {
+        Data::random(shape)
     }
 }
 
