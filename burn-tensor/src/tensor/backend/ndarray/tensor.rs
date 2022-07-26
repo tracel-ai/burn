@@ -8,6 +8,7 @@ use ndarray::Dimension;
 use ndarray::Ix2;
 use ndarray::{ArcArray, IxDyn};
 
+#[derive(Debug, Clone)]
 pub struct NdArrayTensor<P, const D: usize> {
     pub array: ArcArray<P, IxDyn>,
     pub shape: Shape<D>,
@@ -74,54 +75,84 @@ fn batch_size<const D: usize>(shape: &Shape<D>) -> usize {
     num_batch
 }
 
-macro_rules! define_from {
+macro_rules! to_typed_dims {
     (
-        $n:expr
-    ) => {
-        impl<P> From<Data<P, $n>> for NdArrayTensor<P, $n>
-        where
-            P: Default + Clone,
-        {
-            fn from(data: Data<P, $n>) -> NdArrayTensor<P, $n> {
-                let shape = data.shape.clone();
-                let dim: Dim<[usize; $n]> = shape.clone().into();
-
-                let array: ArcArray<P, Dim<[usize; $n]>> = Array::from_iter(data.value.into_iter())
-                    .into_shared()
-                    .reshape(dim);
-                let array = array.into_dyn();
-
-                NdArrayTensor { array, shape }
-            }
+        $n:expr,
+        $dims:expr,
+        justdim
+    ) => {{
+        let mut dims = [0; $n];
+        for i in 0..$n {
+            dims[i] = $dims[i];
         }
-        impl<P> From<BatchMatrix<P, $n>> for NdArrayTensor<P, $n>
-        where
-            P: Default + Clone,
-        {
-            fn from(data: BatchMatrix<P, $n>) -> NdArrayTensor<P, $n> {
-                let shape = data.shape;
-                let dim: Dim<[usize; $n]> = shape.clone().into();
-                let mut values = Vec::new();
-                for array in data.arrays {
-                    values.append(&mut array.into_iter().collect());
-                }
-
-                let array: ArcArray<P, Dim<[usize; $n]>> =
-                    Array::from_iter(values).into_shared().reshape(dim);
-                let array = array.into_dyn();
-
-                NdArrayTensor { array, shape }
-            }
-        }
-    };
+        let dim: Dim<[usize; $n]> = Dim(dims);
+        dim
+    }};
 }
 
-define_from!(1);
-define_from!(2);
-define_from!(3);
-define_from!(4);
-define_from!(5);
-define_from!(6);
+macro_rules! to_nd_array_tensor {
+    (
+        $n:expr,
+        $shape:expr,
+        $array:expr
+    ) => {{
+        let dim = to_typed_dims!($n, $shape.dims, justdim);
+        let array: ArcArray<P, Dim<[usize; $n]>> = $array.reshape(dim);
+        let array = array.into_dyn();
+
+        NdArrayTensor {
+            array,
+            shape: $shape,
+        }
+    }};
+}
+
+impl<P, const D: usize> From<BatchMatrix<P, D>> for NdArrayTensor<P, D>
+where
+    P: Default + Clone,
+    Dim<[usize; D]>: Dimension,
+{
+    fn from(data: BatchMatrix<P, D>) -> NdArrayTensor<P, D> {
+        let shape = data.shape;
+        let to_array = |data: BatchMatrix<P, D>| {
+            let mut values = Vec::new();
+            for array in data.arrays {
+                values.append(&mut array.into_iter().collect());
+            }
+
+            Array::from_iter(values).into_shared()
+        };
+
+        match D {
+            1 => to_nd_array_tensor!(1, shape, to_array(data)),
+            2 => to_nd_array_tensor!(2, shape, to_array(data)),
+            3 => to_nd_array_tensor!(3, shape, to_array(data)),
+            4 => to_nd_array_tensor!(4, shape, to_array(data)),
+            5 => to_nd_array_tensor!(5, shape, to_array(data)),
+            6 => to_nd_array_tensor!(6, shape, to_array(data)),
+            _ => panic!(""),
+        }
+    }
+}
+impl<P, const D: usize> From<Data<P, D>> for NdArrayTensor<P, D>
+where
+    P: Default + Clone,
+{
+    fn from(data: Data<P, D>) -> NdArrayTensor<P, D> {
+        let shape = data.shape.clone();
+        let to_array = |data: Data<P, D>| Array::from_iter(data.value.into_iter()).into_shared();
+
+        match D {
+            1 => to_nd_array_tensor!(1, shape, to_array(data)),
+            2 => to_nd_array_tensor!(2, shape, to_array(data)),
+            3 => to_nd_array_tensor!(3, shape, to_array(data)),
+            4 => to_nd_array_tensor!(4, shape, to_array(data)),
+            5 => to_nd_array_tensor!(5, shape, to_array(data)),
+            6 => to_nd_array_tensor!(6, shape, to_array(data)),
+            _ => panic!(""),
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

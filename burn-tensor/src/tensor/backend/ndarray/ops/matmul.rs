@@ -4,44 +4,30 @@ use crate::{
 };
 use ndarray::{Dim, Dimension, LinalgScalar};
 
-macro_rules! define_from {
-    (
-        $n:expr
-    ) => {
-        impl<P> TensorOpsMatmul<f32, $n> for NdArrayTensor<P, $n>
-        where
-            P: Clone + LinalgScalar + Default + std::fmt::Debug,
-            Dim<[usize; $n]>: Dimension,
-        {
-            fn matmul(&self, other: &Self) -> Self {
-                let batch_self = BatchMatrix::from_ndarray(self.array.clone(), self.shape.clone());
-                let batch_other =
-                    BatchMatrix::from_ndarray(other.array.clone(), other.shape.clone());
+impl<P, const D: usize> TensorOpsMatmul<P, D> for NdArrayTensor<P, D>
+where
+    P: Clone + LinalgScalar + Default + std::fmt::Debug,
+    Dim<[usize; D]>: Dimension,
+{
+    fn matmul(&self, other: &Self) -> Self {
+        let batch_self = BatchMatrix::from_ndarray(self.array.clone(), self.shape.clone());
+        let batch_other = BatchMatrix::from_ndarray(other.array.clone(), other.shape.clone());
 
-                let self_iter = batch_self.arrays.iter();
-                let other_iter = batch_other.arrays.iter();
-                let arrays = self_iter
-                    .zip(other_iter)
-                    .map(|(lhs, rhs)| lhs.dot(rhs))
-                    .map(|output| output.into_shared())
-                    .collect();
+        let self_iter = batch_self.arrays.iter();
+        let other_iter = batch_other.arrays.iter();
+        let arrays = self_iter
+            .zip(other_iter)
+            .map(|(lhs, rhs)| lhs.dot(rhs))
+            .map(|output| output.into_shared())
+            .collect();
 
-                let mut shape = self.shape.clone();
-                shape.dims[$n - 1] = other.shape.dims[$n - 1];
-                let output = BatchMatrix::new(arrays, shape.clone());
+        let mut shape = self.shape.clone();
+        shape.dims[D - 1] = other.shape.dims[D - 1];
+        let output = BatchMatrix::new(arrays, shape.clone());
 
-                Self::from(output)
-            }
-        }
-    };
+        Self::from(output)
+    }
 }
-
-define_from!(1);
-define_from!(2);
-define_from!(3);
-define_from!(4);
-define_from!(5);
-define_from!(6);
 
 #[cfg(test)]
 mod tests {

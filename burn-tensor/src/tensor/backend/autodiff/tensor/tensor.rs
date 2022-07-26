@@ -61,11 +61,26 @@ impl<T: Clone + std::fmt::Debug, P, const D: usize> ADTensor<P, D, T> {
 
 #[cfg(test)]
 pub mod helper {
+    use ndarray::{Dim, Dimension};
+
     use super::*;
     use crate::{
-        backend::{autodiff::ADElement, tch::TchTensor},
+        backend::{autodiff::ADElement, ndarray::NdArrayTensor, tch::TchTensor},
         Data,
     };
+
+    // pub type ADTchTensor<P, const D: usize> = ADTensor<P, D, NdArrayTensor<P, D>>;
+
+    // impl<P: ADElement + ndarray::ScalarOperand + ndarray::LinalgScalar, const D: usize>
+    //     ADTchTensor<P, D>
+    // where
+    //     Dim<[usize; D]>: Dimension,
+    // {
+    //     pub fn from_data(data: Data<P, D>) -> Self {
+    //         let tensor = NdArrayTensor::from(data);
+    //         ADTensor::from_tensor(tensor)
+    //     }
+    // }
 
     pub type ADTchTensor<P, const D: usize> = ADTensor<P, D, TchTensor<P, D>>;
 

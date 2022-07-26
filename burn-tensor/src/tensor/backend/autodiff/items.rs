@@ -116,6 +116,44 @@ mod tch {
     }
 }
 
+mod ndarray {
+    use ndarray::{Dim, Dimension, LinalgScalar, ScalarOperand};
+
+    use super::{ADCompatibleTensor, ADElement};
+    use crate::{
+        backend::ndarray::NdArrayTensor,
+        node::{Ones, Zeros},
+        TensorOpsMul,
+    };
+
+    impl<P: ADElement + ScalarOperand + LinalgScalar, const D: usize> ADCompatibleTensor<P, D>
+        for NdArrayTensor<P, D>
+    where
+        Dim<[usize; D]>: Dimension,
+    {
+    }
+
+    impl<P: ADElement, const D: usize> Zeros<Self> for NdArrayTensor<P, D>
+    where
+        P: Ones<P> + Default + ScalarOperand + LinalgScalar,
+        Dim<[usize; D]>: Dimension,
+    {
+        fn zeros(&self) -> Self {
+            TensorOpsMul::mul_scalar(&self, &P::default().ones())
+        }
+    }
+
+    impl<P: ADElement, const D: usize> Ones<Self> for NdArrayTensor<P, D>
+    where
+        P: Ones<P> + Default + ScalarOperand + LinalgScalar,
+        Dim<[usize; D]>: Dimension,
+    {
+        fn ones(&self) -> Self {
+            TensorOpsMul::mul_scalar(&self, &P::default().ones())
+        }
+    }
+}
+
 mod ad {
     use super::{ADCompatibleTensor, ADElement};
     use crate::{
