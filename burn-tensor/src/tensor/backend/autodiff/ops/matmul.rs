@@ -42,7 +42,7 @@ mod tests {
     use crate::{backend::autodiff::helper::ADTchTensor, Data, TensorBase};
 
     #[test]
-    fn should_diff_mul() {
+    fn should_diff_matmul() {
         let data_1: Data<f64, 2> = Data::from([[1.0, 7.0], [2.0, 3.0]]);
         let data_2: Data<f64, 2> = Data::from([[4.0, 7.0], [2.0, 3.0]]);
 

@@ -74,6 +74,7 @@ impl<P: tch::kind::Element + Default, const D: usize> TchTensor<P, D> {
         }
     }
 }
+
 impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> TchTensor<P, D> {
     pub fn empty(shape: Shape<D>) -> Self {
         let shape_tch = TchShape::from(shape.clone());

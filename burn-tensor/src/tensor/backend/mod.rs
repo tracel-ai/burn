@@ -5,6 +5,7 @@ use ::tch::Device;
 pub mod arrayfire;
 pub mod autodiff;
 pub mod conversion;
+pub mod ndarray;
 #[cfg(feature = "tch")]
 pub mod tch;
 
