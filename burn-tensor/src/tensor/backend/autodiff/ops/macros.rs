@@ -97,7 +97,7 @@ macro_rules! register_ops {
             P: $crate::tensor::backend::autodiff::ADElement,
             T: $crate::tensor::backend::autodiff::ADCompatibleTensor<P, D>,
         {
-            fn partial(&self, state: &$crate::graph::ops::UnaryRecordedState<T, T>) -> T {
+            fn partial(&self, state: &$crate::graph::ops::UnaryOpsNodeState<T, T>) -> T {
                 $partial(state)
             }
         }
