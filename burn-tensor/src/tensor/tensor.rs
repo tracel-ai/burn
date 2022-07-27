@@ -75,35 +75,10 @@ ad_items!(int u8);
 #[cfg(feature = "tch")]
 mod tch {
     use super::*;
-    use crate::{tensor::backend::tch::TchTensor, tensor::ops::TensorOpsMul};
+    use crate::tensor::backend::tch::TchTensor;
     use ::tch::kind::Element as TchElement;
 
     impl<P: Element + Into<f64> + TchElement, const D: usize> Tensor<P, D> for TchTensor<P, D> {}
-
-    impl<P: Element + Into<f64> + TchElement, const D: usize> Zeros<TchTensor<P, D>>
-        for TchTensor<P, D>
-    {
-        fn zeros(&self) -> TchTensor<P, D> {
-            TensorOpsMul::mul_scalar(&self, &P::ZERO)
-        }
-    }
-
-    impl<P, const D: usize> Ones<TchTensor<P, D>> for TchTensor<P, D>
-    where
-        P: TchElement + Element + Into<f64>,
-    {
-        fn ones(&self) -> TchTensor<P, D> {
-            let tensor = self.tensor.ones_like();
-            let kind = self.kind.clone();
-            let shape = self.shape.clone();
-
-            Self {
-                tensor,
-                kind,
-                shape,
-            }
-        }
-    }
 }
 
 mod ndarray {
@@ -115,28 +90,6 @@ mod ndarray {
         Dim<[usize; D]>: Dimension
     {
     }
-
-    impl<P: Element, const D: usize> Zeros<Self> for NdArrayTensor<P, D>
-    where
-        P: Ones<P> + Default + ScalarOperand + LinalgScalar,
-        Dim<[usize; D]>: Dimension,
-    {
-        fn zeros(&self) -> Self {
-            TensorOpsMul::mul_scalar(&self, &P::default().zeros())
-        }
-    }
-
-    impl<P: Element, const D: usize> Ones<Self> for NdArrayTensor<P, D>
-    where
-        P: Ones<P> + Default + ScalarOperand + LinalgScalar,
-        Dim<[usize; D]>: Dimension,
-    {
-        fn ones(&self) -> NdArrayTensor<P, D> {
-            let x = TensorOpsMul::mul_scalar(self, &P::default().zeros());
-            let x = TensorOpsAdd::add_scalar(&x, &P::default().ones());
-            x
-        }
-    }
 }
 
 mod ad {
@@ -144,24 +97,4 @@ mod ad {
     use crate::tensor::backend::autodiff::ADTensor;
 
     impl<T: Tensor<P, D>, P: Element, const D: usize> Tensor<P, D> for ADTensor<P, D, T> {}
-
-    impl<T: Tensor<P, D>, P: Element, const D: usize> Zeros<Self> for ADTensor<P, D, T>
-    where
-        P: Ones<P> + Default,
-    {
-        fn zeros(&self) -> Self {
-            TensorOpsMul::mul_scalar(&self, &P::default().zeros())
-        }
-    }
-
-    impl<T: Tensor<P, D>, P: Element, const D: usize> Ones<Self> for ADTensor<P, D, T>
-    where
-        P: Ones<P> + Default,
-    {
-        fn ones(&self) -> Self {
-            let x = TensorOpsMul::mul_scalar(self, &P::default().zeros());
-            let x = TensorOpsAdd::add_scalar(&x, &P::default().ones());
-            x
-        }
-    }
 }

@@ -62,3 +62,23 @@ where
         ADTensor::from_tensor(self.tensor().new_fork_ones(shape))
     }
 }
+
+impl<T, P, const D: usize> Zeros<Self> for ADTensor<P, D, T>
+where
+    P: Element,
+    T: Tensor<P, D>,
+{
+    fn zeros(&self) -> Self {
+        ADTensor::from_tensor(self.tensor().zeros())
+    }
+}
+
+impl<T, P, const D: usize> Ones<Self> for ADTensor<P, D, T>
+where
+    P: Element,
+    T: Tensor<P, D>,
+{
+    fn ones(&self) -> Self {
+        ADTensor::from_tensor(self.tensor().ones())
+    }
+}

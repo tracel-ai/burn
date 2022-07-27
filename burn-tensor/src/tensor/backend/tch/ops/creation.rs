@@ -35,27 +35,11 @@ where
     }
 
     fn new_like_zeros(&self) -> Self {
-        let tensor = self.tensor.zeros_like();
-        let shape = self.shape.clone();
-        let kind = self.kind.clone();
-
-        Self {
-            kind,
-            tensor,
-            shape,
-        }
+        self.zeros()
     }
 
     fn new_like_ones(&self) -> Self {
-        let tensor = self.tensor.ones_like();
-        let shape = self.shape.clone();
-        let kind = self.kind.clone();
-
-        Self {
-            kind,
-            tensor,
-            shape,
-        }
+        self.ones()
     }
 }
 
@@ -113,6 +97,40 @@ where
         let tensor = tch::Tensor::ones(&tch_shape.dims, (kind.kind(), device));
 
         TchTensor {
+            kind,
+            tensor,
+            shape,
+        }
+    }
+}
+
+impl<P, const D: usize> Zeros<TchTensor<P, D>> for TchTensor<P, D>
+where
+    P: tch::kind::Element,
+{
+    fn zeros(&self) -> TchTensor<P, D> {
+        let tensor = self.tensor.zeros_like();
+        let shape = self.shape.clone();
+        let kind = self.kind.clone();
+
+        Self {
+            kind,
+            tensor,
+            shape,
+        }
+    }
+}
+
+impl<P, const D: usize> Ones<TchTensor<P, D>> for TchTensor<P, D>
+where
+    P: tch::kind::Element,
+{
+    fn ones(&self) -> TchTensor<P, D> {
+        let tensor = self.tensor.ones_like();
+        let shape = self.shape.clone();
+        let kind = self.kind.clone();
+
+        Self {
             kind,
             tensor,
             shape,
