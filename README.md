@@ -1,2 +1,2 @@
 # burn
-BURN: Burn Unbelievably Rapidly Neurons
+BURN: Burn Unstoppable Rusty Neurons
