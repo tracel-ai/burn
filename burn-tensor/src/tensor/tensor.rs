@@ -2,13 +2,13 @@ use crate::tensor::ops::*;
 use half::bf16;
 use half::f16;
 
-pub trait ADElement:
+pub trait Element:
     Zeros<Self> + Ones<Self> + std::fmt::Debug + Default + 'static + Send + Sync + Copy
 {
 }
 
-pub trait ADCompatibleTensor<P: ADElement, const D: usize>:
-    TensorBase<P, D>
+pub trait Tensor<P: Element, const D: usize>:
+    TensorOpsUtilities<P, D>
     + TensorOpsMatmul<P, D>
     + TensorOpsTranspose<P, D>
     + TensorOpsMul<P, D>
@@ -31,7 +31,7 @@ macro_rules! ad_items {
         zero $zero:expr,
         one $one:expr
     ) => {
-        impl ADElement for $float {}
+        impl Element for $float {}
         impl Zeros<$float> for $float {
             fn zeros(&self) -> $float {
                 $zero
@@ -76,14 +76,11 @@ ad_items!(int u8);
 mod tch {
     use super::*;
     use crate::{tensor::backend::tch::TchTensor, tensor::ops::TensorOpsMul};
-    use ::tch::kind::Element;
+    use ::tch::kind::Element as TchElement;
 
-    impl<P: Element + Into<f64> + ADElement, const D: usize> ADCompatibleTensor<P, D>
-        for TchTensor<P, D>
-    {
-    }
+    impl<P: Element + Into<f64> + TchElement, const D: usize> Tensor<P, D> for TchTensor<P, D> {}
 
-    impl<P: Element + Into<f64> + ADElement, const D: usize> Zeros<TchTensor<P, D>>
+    impl<P: Element + Into<f64> + TchElement, const D: usize> Zeros<TchTensor<P, D>>
         for TchTensor<P, D>
     {
         fn zeros(&self) -> TchTensor<P, D> {
@@ -93,7 +90,7 @@ mod tch {
 
     impl<P, const D: usize> Ones<TchTensor<P, D>> for TchTensor<P, D>
     where
-        P: ADElement + Element + Into<f64>,
+        P: TchElement + Element + Into<f64>,
     {
         fn ones(&self) -> TchTensor<P, D> {
             let tensor = self.tensor.ones_like();
@@ -110,19 +107,16 @@ mod tch {
 }
 
 mod ndarray {
-    use super::{ADCompatibleTensor, ADElement};
+    use super::*;
     use crate::tensor::backend::ndarray::NdArrayTensor;
-    use crate::tensor::ops::*;
-    use ndarray::{Dim, Dimension, LinalgScalar, ScalarOperand};
+    use ::ndarray::{Dim, Dimension, LinalgScalar, ScalarOperand};
 
-    impl<P: ADElement + ScalarOperand + LinalgScalar, const D: usize> ADCompatibleTensor<P, D>
-        for NdArrayTensor<P, D>
-    where
-        Dim<[usize; D]>: Dimension,
+    impl<P: Element + ScalarOperand + LinalgScalar, const D: usize> Tensor<P, D> for NdArrayTensor<P, D> where
+        Dim<[usize; D]>: Dimension
     {
     }
 
-    impl<P: ADElement, const D: usize> Zeros<Self> for NdArrayTensor<P, D>
+    impl<P: Element, const D: usize> Zeros<Self> for NdArrayTensor<P, D>
     where
         P: Ones<P> + Default + ScalarOperand + LinalgScalar,
         Dim<[usize; D]>: Dimension,
@@ -132,7 +126,7 @@ mod ndarray {
         }
     }
 
-    impl<P: ADElement, const D: usize> Ones<Self> for NdArrayTensor<P, D>
+    impl<P: Element, const D: usize> Ones<Self> for NdArrayTensor<P, D>
     where
         P: Ones<P> + Default + ScalarOperand + LinalgScalar,
         Dim<[usize; D]>: Dimension,
@@ -146,16 +140,12 @@ mod ndarray {
 }
 
 mod ad {
-    use super::{ADCompatibleTensor, ADElement};
+    use super::*;
     use crate::tensor::backend::autodiff::ADTensor;
-    use crate::tensor::ops::*;
 
-    impl<T: ADCompatibleTensor<P, D>, P: ADElement, const D: usize> ADCompatibleTensor<P, D>
-        for ADTensor<P, D, T>
-    {
-    }
+    impl<T: Tensor<P, D>, P: Element, const D: usize> Tensor<P, D> for ADTensor<P, D, T> {}
 
-    impl<T: ADCompatibleTensor<P, D>, P: ADElement, const D: usize> Zeros<Self> for ADTensor<P, D, T>
+    impl<T: Tensor<P, D>, P: Element, const D: usize> Zeros<Self> for ADTensor<P, D, T>
     where
         P: Ones<P> + Default,
     {
@@ -164,7 +154,7 @@ mod ad {
         }
     }
 
-    impl<T: ADCompatibleTensor<P, D>, P: ADElement, const D: usize> Ones<Self> for ADTensor<P, D, T>
+    impl<T: Tensor<P, D>, P: Element, const D: usize> Ones<Self> for ADTensor<P, D, T>
     where
         P: Ones<P> + Default,
     {

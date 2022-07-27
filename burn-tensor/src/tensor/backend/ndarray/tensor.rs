@@ -1,4 +1,4 @@
-use crate::tensor::{ops::TensorBase, Data, Shape};
+use crate::tensor::{ops::TensorOpsUtilities, Data, Shape};
 use ndarray::{s, ArcArray, Array, Axis, Dim, Dimension, Ix2, Ix3, IxDyn};
 
 #[derive(Debug, Clone)]
@@ -7,7 +7,7 @@ pub struct NdArrayTensor<P, const D: usize> {
     pub shape: Shape<D>,
 }
 
-impl<P, const D: usize> TensorBase<P, D> for NdArrayTensor<P, D>
+impl<P, const D: usize> TensorOpsUtilities<P, D> for NdArrayTensor<P, D>
 where
     P: Default + Clone,
     Dim<[usize; D]>: Dimension,

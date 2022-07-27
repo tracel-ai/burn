@@ -2,11 +2,7 @@ use super::ADKind;
 use crate::{
     execute_ops,
     graph::node::ForwardNodeRef,
-    tensor::{
-        backend::autodiff::{ADCompatibleTensor, ADElement},
-        ops::TensorBase,
-        Data, Shape,
-    },
+    tensor::{ops::TensorOpsUtilities, Data, Element, Shape, Tensor},
 };
 
 #[derive(Debug, Clone)]
@@ -16,10 +12,10 @@ pub struct ADTensor<P, const D: usize, T> {
     pub kind: ADKind<P>,
 }
 
-impl<T, P, const D: usize> TensorBase<P, D> for ADTensor<P, D, T>
+impl<T, P, const D: usize> TensorOpsUtilities<P, D> for ADTensor<P, D, T>
 where
-    P: ADElement,
-    T: ADCompatibleTensor<P, D>,
+    P: Element,
+    T: Tensor<P, D>,
 {
     fn shape(&self) -> &Shape<D> {
         &self.shape
@@ -35,8 +31,8 @@ where
 
 impl<T, P, const D: usize> ADTensor<P, D, T>
 where
-    P: ADElement,
-    T: ADCompatibleTensor<P, D>,
+    P: Element,
+    T: Tensor<P, D>,
 {
     pub fn from_tensor(tensor: T) -> Self {
         let node = execute_ops!(
@@ -65,15 +61,12 @@ impl<T: Clone + std::fmt::Debug, P, const D: usize> ADTensor<P, D, T> {
 #[cfg(test)]
 pub mod helper {
     use super::*;
-    use crate::tensor::{
-        backend::{autodiff::ADElement, ndarray::NdArrayTensor},
-        Data,
-    };
+    use crate::tensor::{backend::ndarray::NdArrayTensor, Data};
     use ndarray::{Dim, Dimension};
 
     pub type ADTchTensor<P, const D: usize> = ADTensor<P, D, NdArrayTensor<P, D>>;
 
-    impl<P: ADElement + ndarray::ScalarOperand + ndarray::LinalgScalar, const D: usize>
+    impl<P: Element + ndarray::ScalarOperand + ndarray::LinalgScalar, const D: usize>
         ADTchTensor<P, D>
     where
         Dim<[usize; D]>: Dimension,

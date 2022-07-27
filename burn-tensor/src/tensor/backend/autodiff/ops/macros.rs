@@ -51,8 +51,8 @@ macro_rules! register_ops {
 
         impl<T, P, const D: usize> $ops for $name<P, D>
         where
-            P: $crate::tensor::backend::autodiff::ADElement,
-            T: $crate::tensor::backend::autodiff::ADCompatibleTensor<P, D>,
+            P: $crate::tensor::Element,
+            T: $crate::tensor::Tensor<P, D>,
         {
             fn partial_left(&self, state: &$crate::graph::ops::BinaryOpsNodeState<T, T, T>) -> T {
                 $partial_left(state)
@@ -75,8 +75,8 @@ macro_rules! register_ops {
 
         impl<T, P, const D: usize> $ops for $name<P, D>
         where
-            P: $crate::tensor::backend::autodiff::ADElement,
-            T: $crate::tensor::backend::autodiff::ADCompatibleTensor<P, D>,
+            P: $crate::tensor::Element,
+            T: $crate::tensor::Tensor<P, D>,
         {
             fn partial(&self, state: &$crate::graph::ops::UnaryOpsNodeState<T, T>) -> T {
                 $partial(self.state, state)
@@ -94,8 +94,8 @@ macro_rules! register_ops {
 
         impl<T, P, const D: usize> $ops for $name<P, D>
         where
-            P: $crate::tensor::backend::autodiff::ADElement,
-            T: $crate::tensor::backend::autodiff::ADCompatibleTensor<P, D>,
+            P: $crate::tensor::Element,
+            T: $crate::tensor::Tensor<P, D>,
         {
             fn partial(&self, state: &$crate::graph::ops::UnaryOpsNodeState<T, T>) -> T {
                 $partial(state)

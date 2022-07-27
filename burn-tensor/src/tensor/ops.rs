@@ -2,7 +2,7 @@ use super::Data;
 use crate::tensor::Shape;
 use std::ops::Range;
 
-pub trait TensorBase<P, const D: usize> {
+pub trait TensorOpsUtilities<P, const D: usize> {
     fn shape(&self) -> &Shape<D>;
     fn into_data(self) -> Data<P, D>;
     fn to_data(&self) -> Data<P, D>;
@@ -47,7 +47,7 @@ where
     fn mul_scalar(&self, other: &P) -> Self;
 }
 
-pub trait TensorOpsReshape<P, const D1: usize, const D2: usize, T: TensorBase<P, D2>> {
+pub trait TensorOpsReshape<P, const D1: usize, const D2: usize, T: TensorOpsUtilities<P, D2>> {
     fn reshape(&self, shape: Shape<D2>) -> T;
 }
 

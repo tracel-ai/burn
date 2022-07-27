@@ -1,11 +1,9 @@
+use crate::tensor::{Element, Tensor};
 use crate::{
     execute_ops,
     graph::ops::{UnaryOps, UnaryOpsNodeState},
     register_ops,
-    tensor::{
-        backend::autodiff::{ADCompatibleTensor, ADElement, ADTensor},
-        ops::*,
-    },
+    tensor::{backend::autodiff::ADTensor, ops::*},
 };
 
 register_ops!(
@@ -18,8 +16,8 @@ register_ops!(
 
 impl<T, P, const D: usize> TensorOpsNeg<P, D> for ADTensor<P, D, T>
 where
-    T: ADCompatibleTensor<P, D>,
-    P: ADElement,
+    T: Tensor<P, D>,
+    P: Element,
 {
     fn neg(&self) -> Self {
         let node = execute_ops!(
@@ -33,8 +31,8 @@ where
 
 impl<T, P, const D: usize> std::ops::Neg for ADTensor<P, D, T>
 where
-    T: ADCompatibleTensor<P, D> + 'static,
-    P: ADElement + 'static,
+    T: Tensor<P, D> + 'static,
+    P: Element + 'static,
 {
     type Output = ADTensor<P, D, T>;
 

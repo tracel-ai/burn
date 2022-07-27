@@ -1,11 +1,9 @@
+use crate::tensor::{Element, Tensor};
 use crate::{
     execute_ops,
     graph::ops::{BinaryOps, BinaryOpsNodeState, UnaryOps, UnaryOpsNodeState},
     register_ops,
-    tensor::{
-        backend::autodiff::{ADCompatibleTensor, ADElement, ADTensor},
-        ops::*,
-    },
+    tensor::{backend::autodiff::ADTensor, ops::*},
 };
 
 register_ops!(
@@ -29,8 +27,8 @@ register_ops!(
 
 impl<T, P, const D: usize> TensorOpsSub<P, D> for ADTensor<P, D, T>
 where
-    T: ADCompatibleTensor<P, D>,
-    P: ADElement,
+    T: Tensor<P, D>,
+    P: Element,
 {
     fn sub(&self, other: &Self) -> Self {
         let node = execute_ops!(
@@ -54,8 +52,8 @@ where
 
 impl<T, P, const D: usize> std::ops::Sub<P> for ADTensor<P, D, T>
 where
-    T: ADCompatibleTensor<P, D> + 'static,
-    P: ADElement + 'static,
+    T: Tensor<P, D> + 'static,
+    P: Element + 'static,
 {
     type Output = ADTensor<P, D, T>;
 
@@ -66,8 +64,8 @@ where
 
 impl<T, P, const D: usize> std::ops::Sub<ADTensor<P, D, T>> for ADTensor<P, D, T>
 where
-    T: ADCompatibleTensor<P, D> + 'static,
-    P: ADElement + 'static,
+    T: Tensor<P, D> + 'static,
+    P: Element + 'static,
 {
     type Output = ADTensor<P, D, T>;
 

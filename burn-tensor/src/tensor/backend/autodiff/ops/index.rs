@@ -3,8 +3,9 @@ use crate::graph::ops::{
     BinaryOps, BinaryOpsNodeState, ForwardBinaryRecordedOps, ForwardUnaryRecordedOps, UnaryOps,
     UnaryOpsNodeState,
 };
-use crate::tensor::backend::autodiff::{ADCompatibleTensor, ADElement, ADKind, ADTensor};
+use crate::tensor::backend::autodiff::{ADKind, ADTensor};
 use crate::tensor::ops::*;
+use crate::tensor::{Element, Tensor};
 use std::{ops::Range, sync::Arc};
 
 #[derive(Debug)]
@@ -24,8 +25,8 @@ impl<P: Default, const D1: usize, const D2: usize> ADTensorOpsIndex<P, D1, D2> {
 
 impl<T1, P, const D1: usize, const D2: usize> UnaryOps<T1, T1> for ADTensorOpsIndex<P, D1, D2>
 where
-    P: ADElement,
-    T1: ADCompatibleTensor<P, D1> + TensorOpsIndex<P, D1, D2>,
+    P: Element,
+    T1: Tensor<P, D1> + TensorOpsIndex<P, D1, D2>,
 {
     fn partial(&self, state: &UnaryOpsNodeState<T1, T1>) -> T1 {
         state
@@ -54,8 +55,8 @@ impl<P: Default, const D1: usize, const D2: usize> ADTensorOpsIndexAssign<P, D1,
 impl<T, P, const D1: usize, const D2: usize> BinaryOps<T, T, T>
     for ADTensorOpsIndexAssign<P, D1, D2>
 where
-    P: ADElement,
-    T: ADCompatibleTensor<P, D1> + TensorOpsIndex<P, D1, D2>,
+    P: Element,
+    T: Tensor<P, D1> + TensorOpsIndex<P, D1, D2>,
 {
     fn partial_left(&self, state: &BinaryOpsNodeState<T, T, T>) -> T {
         state
@@ -71,8 +72,8 @@ where
 
 impl<P, const D1: usize, const D2: usize, T> TensorOpsIndex<P, D1, D2> for ADTensor<P, D1, T>
 where
-    P: ADElement,
-    T: ADCompatibleTensor<P, D1> + TensorOpsIndex<P, D1, D2>,
+    P: Element,
+    T: Tensor<P, D1> + TensorOpsIndex<P, D1, D2>,
 {
     fn index(&self, indexes: [Range<usize>; D2]) -> Self {
         let input = self.tensor();

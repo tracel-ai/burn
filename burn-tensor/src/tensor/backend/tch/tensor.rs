@@ -1,4 +1,4 @@
-use crate::tensor::{ops::TensorBase, Data, Shape};
+use crate::tensor::{ops::TensorOpsUtilities, Data, Shape};
 
 #[derive(Debug, PartialEq)]
 pub struct TchTensor<P: tch::kind::Element, const D: usize> {
@@ -91,8 +91,8 @@ impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> T
     }
 }
 
-impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> TensorBase<P, D>
-    for TchTensor<P, D>
+impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize>
+    TensorOpsUtilities<P, D> for TchTensor<P, D>
 {
     fn shape(&self) -> &Shape<D> {
         &self.shape

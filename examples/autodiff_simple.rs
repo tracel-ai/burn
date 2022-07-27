@@ -1,16 +1,11 @@
 use burn::tensor::{
-    backend::{
-        autodiff::{ADCompatibleTensor, ADElement, ADTensor},
-        ndarray::NdArrayTensor,
-        tch::TchTensor,
-        TchDevice,
-    },
+    backend::{autodiff::ADTensor, ndarray::NdArrayTensor, tch::TchTensor, TchDevice},
     ops::*,
-    Data, Distribution, Shape,
+    Data, Distribution, Element, Shape, Tensor,
 };
 use std::time::{Duration, SystemTime};
 
-fn my_func<T: ADCompatibleTensor<P, D>, P: ADElement, const D: usize>(
+fn my_func<T: Tensor<P, D>, P: Element, const D: usize>(
     x: T,
     y: T,
 ) -> (Data<P, D>, Data<P, D>, Duration) {
