@@ -1,0 +1,35 @@
+name: test
+
+on: [push]
+
+jobs:
+  publish:
+    name: test burn tensor
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+
+      - name: install rust stable
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: check format
+        run: |
+          cd burn-tensor
+          cargo fmt --check --all
+
+      - name: check tests backend ndarray
+        run: |
+          cd burn-tensor
+          cargo test --no-default-features --features ndarray
+
+      - name: check tests backend tch
+        run: |
+          cd burn-tensor
+          cargo test --no-default-features --features tch
+
+
