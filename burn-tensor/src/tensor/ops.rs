@@ -1,4 +1,4 @@
-use super::Data;
+use super::{Data, Distribution};
 use crate::tensor::Shape;
 use std::ops::Range;
 
@@ -6,6 +6,22 @@ pub trait TensorOpsUtilities<P, const D: usize> {
     fn shape(&self) -> &Shape<D>;
     fn into_data(self) -> Data<P, D>;
     fn to_data(&self) -> Data<P, D>;
+}
+
+pub trait TensorCreationLike<P, const D: usize> {
+    fn new_like_empty(&self) -> Self;
+    fn new_like_random(&self, distribution: Distribution<P>) -> Self;
+    fn new_like_data(&self, data: Data<P, D>) -> Self;
+    fn new_like_zeros(&self) -> Self;
+    fn new_like_ones(&self) -> Self;
+}
+
+pub trait TensorCreationFork<P, const D: usize, const D2: usize, T: TensorOpsUtilities<P, D2>> {
+    fn new_fork_empty(&self, shape: Shape<D2>) -> T;
+    fn new_fork_random(&self, shape: Shape<D2>, distribution: Distribution<P>) -> T;
+    fn new_fork_data(&self, data: Data<P, D2>) -> T;
+    fn new_fork_zeros(&self, shape: Shape<D2>) -> T;
+    fn new_fork_ones(&self, shape: Shape<D2>) -> T;
 }
 
 pub trait TensorOpsAdd<P, const D: usize>:

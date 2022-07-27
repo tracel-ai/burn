@@ -66,8 +66,7 @@ pub mod helper {
 
     pub type ADTchTensor<P, const D: usize> = ADTensor<P, D, NdArrayTensor<P, D>>;
 
-    impl<P: Element + ndarray::ScalarOperand + ndarray::LinalgScalar, const D: usize>
-        ADTchTensor<P, D>
+    impl<P: Element + ndarray::ScalarOperand + ndarray::LinalgScalar, const D: usize> ADTchTensor<P, D>
     where
         Dim<[usize; D]>: Dimension,
     {
