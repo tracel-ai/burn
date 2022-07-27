@@ -1,6 +1,9 @@
-use crate::graph::{
-    node::{BackwardNode, ForwardNode, Zeros},
-    traversal::{BreadthFirstSearch, GraphTraversal},
+use crate::{
+    graph::{
+        node::{BackwardNode, ForwardNode},
+        traversal::{BreadthFirstSearch, GraphTraversal},
+    },
+    tensor::ops::Zeros,
 };
 use std::{any::Any, collections::HashMap, ops::Add};
 

@@ -1,9 +1,12 @@
-use super::{BackwardNodeState, ForwardNodeRef, Ones, Zeros};
-use crate::graph::{
-    converter::Forward2BackwardGraphConverter,
-    grad::Gradients,
-    ops::{BackwardRecordedOpsRef, RecordedOpsParent, RecordedOpsParentRef},
-    traversal::{BreadthFirstSearch, GraphTraversal},
+use super::{BackwardNodeState, ForwardNodeRef};
+use crate::{
+    graph::{
+        converter::Forward2BackwardGraphConverter,
+        grad::Gradients,
+        ops::{BackwardRecordedOpsRef, RecordedOpsParent, RecordedOpsParentRef},
+        traversal::{BreadthFirstSearch, GraphTraversal},
+    },
+    tensor::ops::{Ones, Zeros},
 };
 use std::{ops::Add, sync::Arc};
 

@@ -2,9 +2,12 @@ use super::{
     BackwardRecordedOps, BackwardRecordedOpsRef, BinaryOpsNodeState, ForwardRecordedOps,
     RecordedOpsParentRef,
 };
-use crate::graph::{
-    converter::Forward2BackwardGraphConverter,
-    node::{BackwardNodeRef, BackwardNodeState, ForwardNodeRef, Zeros},
+use crate::{
+    graph::{
+        converter::Forward2BackwardGraphConverter,
+        node::{BackwardNodeRef, BackwardNodeState, ForwardNodeRef},
+    },
+    tensor::ops::Zeros,
 };
 use std::{ops::Add, sync::Arc};
 

@@ -1,10 +1,5 @@
-use crate::tensor::ops::{
-    TensorOpsAdd, TensorOpsMatmul, TensorOpsMul, TensorOpsNeg, TensorOpsSub, TensorOpsTranspose,
-};
-use crate::{
-    graph::node::{Ones, Zeros},
-    tensor::TensorBase,
-};
+use crate::tensor::ops::*;
+use crate::tensor::TensorBase;
 use half::bf16;
 use half::f16;
 
@@ -80,19 +75,16 @@ ad_items!(int u8);
 
 #[cfg(feature = "tch")]
 mod tch {
-    use super::{ADCompatibleTensor, ADElement};
-    use crate::{
-        graph::node::{Ones, Zeros},
-        tensor::backend::tch::TchTensor,
-        tensor::ops::TensorOpsMul,
-    };
+    use super::*;
+    use crate::{tensor::backend::tch::TchTensor, tensor::ops::TensorOpsMul};
+    use ::tch::kind::Element;
 
-    impl<P: tch::kind::Element + Into<f64> + ADElement, const D: usize> ADCompatibleTensor<P, D>
+    impl<P: Element + Into<f64> + ADElement, const D: usize> ADCompatibleTensor<P, D>
         for TchTensor<P, D>
     {
     }
 
-    impl<P: tch::kind::Element + Into<f64> + ADElement, const D: usize> Zeros<TchTensor<P, D>>
+    impl<P: Element + Into<f64> + ADElement, const D: usize> Zeros<TchTensor<P, D>>
         for TchTensor<P, D>
     {
         fn zeros(&self) -> TchTensor<P, D> {
@@ -102,7 +94,7 @@ mod tch {
 
     impl<P, const D: usize> Ones<TchTensor<P, D>> for TchTensor<P, D>
     where
-        P: ADElement + tch::kind::Element + Into<f64>,
+        P: ADElement + Element + Into<f64>,
     {
         fn ones(&self) -> TchTensor<P, D> {
             let tensor = self.tensor.ones_like();
@@ -120,11 +112,8 @@ mod tch {
 
 mod ndarray {
     use super::{ADCompatibleTensor, ADElement};
+    use crate::tensor::backend::ndarray::NdArrayTensor;
     use crate::tensor::ops::*;
-    use crate::{
-        graph::node::{Ones, Zeros},
-        tensor::backend::ndarray::NdArrayTensor,
-    };
     use ndarray::{Dim, Dimension, LinalgScalar, ScalarOperand};
 
     impl<P: ADElement + ScalarOperand + LinalgScalar, const D: usize> ADCompatibleTensor<P, D>
@@ -159,11 +148,8 @@ mod ndarray {
 
 mod ad {
     use super::{ADCompatibleTensor, ADElement};
+    use crate::tensor::backend::autodiff::ADTensor;
     use crate::tensor::ops::*;
-    use crate::{
-        graph::node::{Ones, Zeros},
-        tensor::backend::autodiff::ADTensor,
-    };
 
     impl<T: ADCompatibleTensor<P, D>, P: ADElement, const D: usize> ADCompatibleTensor<P, D>
         for ADTensor<P, D, T>

@@ -1,7 +1,7 @@
 use super::{BackwardRecordedOps, ForwardRecordedOps, RecordedOpsParentRef};
-use crate::graph::{
-    converter::Forward2BackwardGraphConverter,
-    node::{BackwardNodeState, Zeros},
+use crate::{
+    graph::{converter::Forward2BackwardGraphConverter, node::BackwardNodeState},
+    tensor::ops::Zeros,
 };
 use std::{ops::Add, sync::Arc};
 

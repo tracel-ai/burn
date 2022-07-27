@@ -1,8 +1,7 @@
-use crate::{
-    graph::node::{Ones, Zeros},
-    tensor::Shape,
-};
+use crate::tensor::Shape;
 use rand::{distributions::Standard, prelude::StdRng, Rng, SeedableRng};
+
+use super::ops::{Ones, Zeros};
 
 #[derive(new, Debug, Clone, PartialEq)]
 pub struct Data<P, const D: usize> {

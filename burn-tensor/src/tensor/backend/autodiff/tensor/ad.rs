@@ -1,8 +1,11 @@
 use super::ADTensor;
-use crate::graph::{
-    converter::Forward2BackwardGraphConverter,
-    grad::{AsNode, Gradients},
-    node::{BackwardNode, ForwardNode, Ones, Zeros},
+use crate::{
+    graph::{
+        converter::Forward2BackwardGraphConverter,
+        grad::{AsNode, Gradients},
+        node::{BackwardNode, ForwardNode},
+    },
+    tensor::ops::{Ones, Zeros},
 };
 use std::ops::Add;
 
