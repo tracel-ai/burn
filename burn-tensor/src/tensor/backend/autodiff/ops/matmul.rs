@@ -38,15 +38,15 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::{backend::autodiff::helper::ADTchTensor, Data};
+    use crate::tensor::{backend::autodiff::helper::TestADTensor, Data};
 
     #[test]
     fn should_diff_matmul() {
         let data_1: Data<f64, 2> = Data::from([[1.0, 7.0], [2.0, 3.0]]);
         let data_2: Data<f64, 2> = Data::from([[4.0, 7.0], [2.0, 3.0]]);
 
-        let tensor_1 = ADTchTensor::from_data(data_1.clone());
-        let tensor_2 = ADTchTensor::from_data(data_2.clone());
+        let tensor_1 = TestADTensor::from_data(data_1.clone());
+        let tensor_2 = TestADTensor::from_data(data_2.clone());
 
         let tensor_3 = &tensor_1.matmul(&tensor_2);
         let grads = tensor_3.backward();
@@ -68,9 +68,9 @@ mod tests {
         let data_2: Data<f64, 2> = Data::from([[4.0, 7.0], [2.0, 3.0]]);
         let data_3: Data<f64, 2> = Data::from([[2.0, 2.0], [2.0, 2.0]]);
 
-        let tensor_1 = ADTchTensor::from_data(data_1.clone());
-        let tensor_2 = ADTchTensor::from_data(data_2.clone());
-        let tensor_3 = ADTchTensor::from_data(data_3.clone());
+        let tensor_1 = TestADTensor::from_data(data_1.clone());
+        let tensor_2 = TestADTensor::from_data(data_2.clone());
+        let tensor_3 = TestADTensor::from_data(data_3.clone());
 
         let tensor_4 = tensor_1.matmul(&tensor_2);
         let tensor_5 = tensor_4.matmul(&tensor_3);
@@ -89,9 +89,9 @@ mod tests {
         let data_2: Data<f64, 2> = Data::from([[4.0, 7.0], [2.0, 3.0]]);
         let data_3: Data<f64, 2> = Data::from([[2.0, 2.0], [2.0, 2.0]]);
 
-        let tensor_1 = ADTchTensor::from_data(data_1.clone());
-        let tensor_2 = ADTchTensor::from_data(data_2.clone());
-        let tensor_3 = ADTchTensor::from_data(data_3.clone());
+        let tensor_1 = TestADTensor::from_data(data_1.clone());
+        let tensor_2 = TestADTensor::from_data(data_2.clone());
+        let tensor_3 = TestADTensor::from_data(data_3.clone());
 
         let tensor_4 = tensor_1.matmul(&tensor_2);
         let tensor_5 = tensor_4.matmul(&tensor_3);

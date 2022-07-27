@@ -61,27 +61,40 @@ impl<T: Clone + std::fmt::Debug, P, const D: usize> ADTensor<P, D, T> {
 #[cfg(test)]
 pub mod helper {
     use super::*;
-    use crate::tensor::{backend::ndarray::NdArrayTensor, Data};
-    use ndarray::{Dim, Dimension};
 
-    pub type ADTchTensor<P, const D: usize> = ADTensor<P, D, NdArrayTensor<P, D>>;
+    #[cfg(feature = "ndarray")]
+    mod helper_impl {
+        use super::*;
+        use crate::tensor::{backend::ndarray::NdArrayTensor, Data};
+        use ndarray::{Dim, Dimension};
 
-    impl<P: Element + ndarray::ScalarOperand + ndarray::LinalgScalar, const D: usize> ADTchTensor<P, D>
-    where
-        Dim<[usize; D]>: Dimension,
-    {
-        pub fn from_data(data: Data<P, D>) -> Self {
-            let tensor = NdArrayTensor::from_data(data);
-            ADTensor::from_tensor(tensor)
+        pub type TestADTensor<P, const D: usize> = ADTensor<P, D, NdArrayTensor<P, D>>;
+
+        impl<P: Element + ndarray::ScalarOperand + ndarray::LinalgScalar, const D: usize> TestADTensor<P, D>
+        where
+            Dim<[usize; D]>: Dimension,
+        {
+            pub fn from_data(data: Data<P, D>) -> Self {
+                let tensor = NdArrayTensor::from_data(data);
+                ADTensor::from_tensor(tensor)
+            }
         }
     }
+    pub use helper_impl::*;
 
-    // pub type ADTchTensor<P, const D: usize> = ADTensor<P, D, TchTensor<P, D>>;
+    #[cfg(feature = "tch")]
+    #[cfg(not(feature = "ndarray"))]
+    mod helper_impl {
+        use super::*;
+        use crate::tensor::backend::tch::TchTensor;
 
-    // impl<P: ADElement + tch::kind::Element + Into<f64>, const D: usize> ADTchTensor<P, D> {
-    //     pub fn from_data(data: Data<P, D>) -> Self {
-    //         let tensor = TchTensor::from_data(data, tch::Device::Cpu);
-    //         ADTensor::from_tensor(tensor)
-    //     }
-    // }
+        pub type TestADTensor<P, const D: usize> = ADTensor<P, D, TchTensor<P, D>>;
+        impl<P: Element + tch::kind::Element + Into<f64>, const D: usize> TestADTensor<P, D> {
+            pub fn from_data(data: Data<P, D>) -> Self {
+                let tensor = TchTensor::from_data(data, tch::Device::Cpu);
+                ADTensor::from_tensor(tensor)
+            }
+        }
+    }
+    pub use helper_impl::*;
 }

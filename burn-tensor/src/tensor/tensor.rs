@@ -72,26 +72,6 @@ ad_items!(int u32);
 ad_items!(int u16);
 ad_items!(int u8);
 
-#[cfg(feature = "tch")]
-mod tch {
-    use super::*;
-    use crate::tensor::backend::tch::TchTensor;
-    use ::tch::kind::Element as TchElement;
-
-    impl<P: Element + Into<f64> + TchElement, const D: usize> Tensor<P, D> for TchTensor<P, D> {}
-}
-
-mod ndarray {
-    use super::*;
-    use crate::tensor::backend::ndarray::NdArrayTensor;
-    use ::ndarray::{Dim, Dimension, LinalgScalar, ScalarOperand};
-
-    impl<P: Element + ScalarOperand + LinalgScalar, const D: usize> Tensor<P, D> for NdArrayTensor<P, D> where
-        Dim<[usize; D]>: Dimension
-    {
-    }
-}
-
 mod ad {
     use super::*;
     use crate::tensor::backend::autodiff::ADTensor;

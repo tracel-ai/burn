@@ -1,4 +1,4 @@
-use crate::tensor::{ops::TensorOpsUtilities, Data, Shape};
+use crate::tensor::{ops::TensorOpsUtilities, Data, Element, Shape, Tensor};
 
 #[derive(Debug, PartialEq)]
 pub struct TchTensor<P: tch::kind::Element, const D: usize> {
@@ -106,6 +106,8 @@ impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize>
         Data::new(values, self.shape.clone())
     }
 }
+
+impl<P: Element + Into<f64> + tch::kind::Element, const D: usize> Tensor<P, D> for TchTensor<P, D> {}
 
 #[cfg(test)]
 mod tests {

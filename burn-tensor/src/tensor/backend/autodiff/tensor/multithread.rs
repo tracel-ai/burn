@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::tensor::{backend::autodiff::helper::ADTchTensor, ops::*, Data};
+    use crate::tensor::{backend::autodiff::helper::TestADTensor, ops::*, Data};
 
     #[test]
     fn should_behave_the_same_with_multithread() {
@@ -8,8 +8,8 @@ mod tests {
         let data_2: Data<f32, 2> = Data::from([[4.0, 7.0], [2.0, 3.0]]);
 
         let with_move = || {
-            let tensor_1 = ADTchTensor::from_data(data_1.clone());
-            let tensor_2 = ADTchTensor::from_data(data_2.clone());
+            let tensor_1 = TestADTensor::from_data(data_1.clone());
+            let tensor_2 = TestADTensor::from_data(data_2.clone());
 
             let tensor_3 = tensor_1.matmul(&tensor_2);
             let tensor_4 = tensor_3.matmul(&tensor_2);
@@ -48,8 +48,8 @@ mod tests {
             return (grad_1.clone(), grad_2.clone());
         };
         let without_move = || {
-            let tensor_1 = ADTchTensor::from_data(data_1.clone());
-            let tensor_2 = ADTchTensor::from_data(data_2.clone());
+            let tensor_1 = TestADTensor::from_data(data_1.clone());
+            let tensor_2 = TestADTensor::from_data(data_2.clone());
 
             let tensor_3 = tensor_1.matmul(&tensor_2);
             let tensor_4 = tensor_3.matmul(&tensor_2);

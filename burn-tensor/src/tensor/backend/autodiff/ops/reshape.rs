@@ -66,15 +66,15 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::{backend::autodiff::helper::ADTchTensor, Data};
+    use crate::tensor::{backend::autodiff::helper::TestADTensor, Data};
 
     #[test]
     fn should_diff_mul() {
         let data_1: Data<f64, 2> = Data::from([[1.0, 7.0], [2.0, 3.0]]);
         let data_2: Data<f64, 1> = Data::from([4.0, 7.0, 2.0, 3.0]);
 
-        let tensor_1 = ADTchTensor::from_data(data_1.clone());
-        let tensor_2 = ADTchTensor::from_data(data_2.clone());
+        let tensor_1 = TestADTensor::from_data(data_1.clone());
+        let tensor_2 = TestADTensor::from_data(data_2.clone());
 
         let tensor_3 = tensor_2.reshape(Shape::new([2, 2]));
         let tensor_4 = &tensor_1.matmul(&tensor_3);

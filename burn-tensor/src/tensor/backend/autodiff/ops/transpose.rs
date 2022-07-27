@@ -26,15 +26,15 @@ impl<T: Tensor<P, D>, P: Element, const D: usize> TensorOpsTranspose<P, D> for A
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::{backend::autodiff::helper::ADTchTensor, Data};
+    use crate::tensor::{backend::autodiff::helper::TestADTensor, Data};
 
     #[test]
     fn should_diff_transpose() {
         let data_1 = Data::<f64, 2>::from([[1.0, 7.0], [2.0, 3.0]]);
         let data_2 = Data::<f64, 2>::from([[4.0, 7.0], [2.0, 3.0]]);
 
-        let tensor_1 = ADTchTensor::from_data(data_1.clone());
-        let tensor_2 = ADTchTensor::from_data(data_2.clone());
+        let tensor_1 = TestADTensor::from_data(data_1.clone());
+        let tensor_2 = TestADTensor::from_data(data_2.clone());
 
         let tensor_3 = tensor_1.matmul(&tensor_2.transpose());
         let tensor_4 = tensor_3.transpose();

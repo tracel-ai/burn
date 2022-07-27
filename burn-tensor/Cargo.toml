@@ -4,20 +4,19 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = ["tch"]
-full = ["arrayfire", "tch"]
-arrayfire = ["dep:arrayfire"]
+default = ["full"]
+full = ["tch", "ndarray"]
 tch = ["dep:tch"]
+ndarray = ["dep:ndarray"]
 
 [dependencies]
 derive-new = "0.5"
 rand = "0.8"
+half = "1.6" # needs to be 1.6 to work with tch
 
 # Backends
-arrayfire = { version = "3.8", optional = true }
 tch = { version = "0.8", optional = true }
-half = "1.6" # needs to be 1.6 to work with tch
-ndarray = "0.15"
+ndarray = { version = "0.15", optional = true }
 
 # Autodiff
 nanoid = "0.4"
