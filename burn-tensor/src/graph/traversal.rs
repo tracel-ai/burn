@@ -1,4 +1,4 @@
-use crate::{node::BackwardNode, ops::RecordedOpsParentRef};
+use crate::graph::{node::BackwardNode, ops::RecordedOpsParentRef};
 use std::collections::HashSet;
 
 pub trait GraphTraversal {

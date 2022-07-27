@@ -1,8 +1,11 @@
 use crate::{
-    backend::autodiff::{ADCompatibleTensor, ADElement, ADTensor},
     execute_ops,
-    ops::{BinaryOps, BinaryOpsNodeState, UnaryOps, UnaryOpsNodeState},
-    register_ops, TensorOpsMul,
+    graph::ops::{BinaryOps, BinaryOpsNodeState, UnaryOps, UnaryOpsNodeState},
+    register_ops,
+    tensor::{
+        backend::autodiff::{ADCompatibleTensor, ADElement, ADTensor},
+        ops::*,
+    },
 };
 
 register_ops!(
@@ -75,7 +78,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{backend::autodiff::helper::ADTchTensor, Data, TensorBase, TensorOpsMul};
+    use super::*;
+    use crate::tensor::{backend::autodiff::helper::ADTchTensor, Data, TensorBase};
 
     #[test]
     fn should_diff_mul() {

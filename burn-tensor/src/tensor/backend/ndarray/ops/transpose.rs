@@ -1,6 +1,6 @@
-use crate::{
+use crate::tensor::{
     backend::ndarray::{BatchMatrix, NdArrayTensor},
-    TensorOpsTranspose,
+    ops::*,
 };
 use ndarray::{Dim, Dimension};
 

@@ -1,6 +1,6 @@
-use crate::{
+use crate::tensor::{
     backend::ndarray::{BatchMatrix, NdArrayTensor},
-    TensorOpsMatmul,
+    ops::*,
 };
 use ndarray::{Dim, Dimension, LinalgScalar};
 
@@ -31,7 +31,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{backend::ndarray::NdArrayTensor, Data, TensorBase, TensorOpsMatmul};
+    use crate::tensor::{backend::ndarray::NdArrayTensor, ops::*, Data, TensorBase};
 
     #[test]
     fn should_matmul_d2() {

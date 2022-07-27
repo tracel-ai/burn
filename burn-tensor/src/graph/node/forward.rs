@@ -1,5 +1,5 @@
 use super::ForwardNodeState;
-use crate::ops::ForwardRecordedOpsRef;
+use crate::graph::ops::ForwardRecordedOpsRef;
 use std::sync::Arc;
 
 #[derive(Debug)]

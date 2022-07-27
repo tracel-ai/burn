@@ -1,8 +1,11 @@
 use crate::{
-    backend::autodiff::{ADCompatibleTensor, ADElement, ADTensor},
     execute_ops,
-    ops::{UnaryOps, UnaryOpsNodeState},
-    register_ops, TensorOpsNeg,
+    graph::ops::{UnaryOps, UnaryOpsNodeState},
+    register_ops,
+    tensor::{
+        backend::autodiff::{ADCompatibleTensor, ADElement, ADTensor},
+        ops::*,
+    },
 };
 
 register_ops!(
@@ -42,9 +45,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        backend::autodiff::helper::ADTchTensor, Data, TensorBase, TensorOpsMatmul, TensorOpsNeg,
-    };
+    use super::*;
+    use crate::tensor::{backend::autodiff::helper::ADTchTensor, Data, TensorBase};
 
     #[test]
     fn should_diff_neg() {

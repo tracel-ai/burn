@@ -1,8 +1,8 @@
 use super::ADTensor;
-use crate::{
+use crate::graph::{
     converter::Forward2BackwardGraphConverter,
     grad::{AsNode, Gradients},
-    node::{BackwardNode, Ones, Zeros},
+    node::{BackwardNode, ForwardNode, Ones, Zeros},
 };
 use std::ops::Add;
 
@@ -21,17 +21,14 @@ where
 }
 
 impl<T, P, const D: usize> AsNode<T> for ADTensor<P, D, T> {
-    fn as_node(&self) -> &crate::node::ForwardNode<T> {
+    fn as_node(&self) -> &ForwardNode<T> {
         &self.node
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        backend::autodiff::helper::ADTchTensor, Data, TensorBase, TensorOpsAdd, TensorOpsMatmul,
-        TensorOpsMul, TensorOpsSub,
-    };
+    use crate::tensor::{backend::autodiff::helper::ADTchTensor, ops::*, Data, TensorBase};
 
     #[test]
     fn should_diff_full_complex_1() {

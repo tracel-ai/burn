@@ -1,11 +1,10 @@
-use crate::{
-    backend::autodiff::{ADCompatibleTensor, ADElement, ADKind, ADTensor},
-    node::{ForwardNode, ForwardNodeState},
-    ops::{
-        BinaryOps, ForwardBinaryRecordedOps, ForwardUnaryRecordedOps, UnaryOps, UnaryOpsNodeState,
-    },
-    TensorOpsIndex,
+use crate::graph::node::{ForwardNode, ForwardNodeState};
+use crate::graph::ops::{
+    BinaryOps, BinaryOpsNodeState, ForwardBinaryRecordedOps, ForwardUnaryRecordedOps, UnaryOps,
+    UnaryOpsNodeState,
 };
+use crate::tensor::backend::autodiff::{ADCompatibleTensor, ADElement, ADKind, ADTensor};
+use crate::tensor::ops::*;
 use std::{ops::Range, sync::Arc};
 
 #[derive(Debug)]
@@ -58,14 +57,14 @@ where
     P: ADElement,
     T: ADCompatibleTensor<P, D1> + TensorOpsIndex<P, D1, D2>,
 {
-    fn partial_left(&self, state: &crate::ops::BinaryOpsNodeState<T, T, T>) -> T {
+    fn partial_left(&self, state: &BinaryOpsNodeState<T, T, T>) -> T {
         state
             .output
             .grad()
             .index_assign(self.indexes.clone(), &state.right.value().zeros())
     }
 
-    fn partial_right(&self, state: &crate::ops::BinaryOpsNodeState<T, T, T>) -> T {
+    fn partial_right(&self, state: &BinaryOpsNodeState<T, T, T>) -> T {
         state.output.grad().index(self.indexes.clone())
     }
 }
@@ -117,9 +116,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        backend::autodiff::helper::ADTchTensor, Data, TensorBase, TensorOpsMatmul, TensorOpsMul,
-    };
+    use crate::tensor::{backend::autodiff::helper::ADTchTensor, Data, TensorBase};
 
     #[test]
     fn should_diff_matmul_with_index() {

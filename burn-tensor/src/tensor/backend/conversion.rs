@@ -1,6 +1,5 @@
+use crate::tensor::Shape;
 use std::collections::HashMap;
-
-use crate::Shape;
 
 #[derive(Debug)]
 pub struct Convertor {

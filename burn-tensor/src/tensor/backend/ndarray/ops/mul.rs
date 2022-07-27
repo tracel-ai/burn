@@ -1,4 +1,4 @@
-use crate::{backend::ndarray::NdArrayTensor, TensorOpsMul};
+use crate::tensor::{backend::ndarray::NdArrayTensor, ops::*};
 use ndarray::{Dim, Dimension, LinalgScalar, ScalarOperand};
 
 impl<P, const D: usize> TensorOpsMul<P, D> for NdArrayTensor<P, D>
@@ -49,7 +49,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Data, TensorBase};
+    use crate::tensor::{Data, TensorBase};
 
     #[test]
     fn should_support_mul_ops() {

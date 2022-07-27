@@ -1,14 +1,5 @@
-use crate::Data;
-use crate::Shape;
-use crate::TensorBase;
-use ndarray::s;
-use ndarray::Array;
-use ndarray::Axis;
-use ndarray::Dim;
-use ndarray::Dimension;
-use ndarray::Ix2;
-use ndarray::Ix3;
-use ndarray::{ArcArray, IxDyn};
+use crate::tensor::{Data, Shape, TensorBase};
+use ndarray::{s, ArcArray, Array, Axis, Dim, Dimension, Ix2, Ix3, IxDyn};
 
 #[derive(Debug, Clone)]
 pub struct NdArrayTensor<P, const D: usize> {
@@ -161,10 +152,11 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::Distribution;
 
     #[test]
     fn should_support_into_and_from_data_1d() {
-        let data_expected = Data::<f32, 1>::random(Shape::new([3]), crate::Distribution::Standard);
+        let data_expected = Data::<f32, 1>::random(Shape::new([3]), Distribution::Standard);
         let tensor = NdArrayTensor::from_data(data_expected.clone());
 
         let data_actual = tensor.into_data();
@@ -174,8 +166,7 @@ mod tests {
 
     #[test]
     fn should_support_into_and_from_data_2d() {
-        let data_expected =
-            Data::<f32, 2>::random(Shape::new([2, 3]), crate::Distribution::Standard);
+        let data_expected = Data::<f32, 2>::random(Shape::new([2, 3]), Distribution::Standard);
         let tensor = NdArrayTensor::from_data(data_expected.clone());
 
         let data_actual = tensor.into_data();
@@ -185,8 +176,7 @@ mod tests {
 
     #[test]
     fn should_support_into_and_from_data_3d() {
-        let data_expected =
-            Data::<f32, 3>::random(Shape::new([2, 3, 4]), crate::Distribution::Standard);
+        let data_expected = Data::<f32, 3>::random(Shape::new([2, 3, 4]), Distribution::Standard);
         let tensor = NdArrayTensor::from_data(data_expected.clone());
 
         let data_actual = tensor.into_data();
@@ -197,7 +187,7 @@ mod tests {
     #[test]
     fn should_support_into_and_from_data_4d() {
         let data_expected =
-            Data::<f32, 4>::random(Shape::new([2, 3, 4, 2]), crate::Distribution::Standard);
+            Data::<f32, 4>::random(Shape::new([2, 3, 4, 2]), Distribution::Standard);
         let tensor = NdArrayTensor::from_data(data_expected.clone());
 
         let data_actual = tensor.into_data();

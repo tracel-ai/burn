@@ -1,6 +1,6 @@
 use crate::{
-    node::{Ones, Zeros},
-    Shape,
+    graph::node::{Ones, Zeros},
+    tensor::Shape,
 };
 use rand::{distributions::Standard, prelude::StdRng, Rng, SeedableRng};
 

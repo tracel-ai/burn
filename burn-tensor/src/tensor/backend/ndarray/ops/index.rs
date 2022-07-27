@@ -1,4 +1,4 @@
-use crate::{backend::ndarray::NdArrayTensor, TensorOpsIndex};
+use crate::tensor::{backend::ndarray::NdArrayTensor, ops::*};
 use ndarray::SliceInfoElem;
 use std::ops::Range;
 
@@ -57,7 +57,7 @@ fn to_slice_args<const D1: usize, const D2: usize>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Data, TensorBase};
+    use crate::tensor::{Data, TensorBase};
 
     #[test]
     fn should_support_full_indexing_1d() {

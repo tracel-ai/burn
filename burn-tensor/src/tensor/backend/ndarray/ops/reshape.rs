@@ -1,4 +1,4 @@
-use crate::{backend::ndarray::NdArrayTensor, Shape, TensorOpsReshape};
+use crate::tensor::{backend::ndarray::NdArrayTensor, ops::*, Shape};
 use ndarray::{Dim, Dimension};
 
 macro_rules! define_impl {

@@ -1,10 +1,12 @@
 use super::ADKind;
 use crate::{
-    backend::autodiff::{ADCompatibleTensor, ADElement},
     execute_ops,
-    node::ForwardNodeRef,
+    graph::node::ForwardNodeRef,
+    tensor::{
+        backend::autodiff::{ADCompatibleTensor, ADElement},
+        Data, Shape, TensorBase,
+    },
 };
-use crate::{Shape, TensorBase};
 
 #[derive(Debug, Clone)]
 pub struct ADTensor<P, const D: usize, T> {
@@ -22,10 +24,10 @@ where
         &self.shape
     }
 
-    fn into_data(self) -> crate::Data<P, D> {
+    fn into_data(self) -> Data<P, D> {
         self.tensor().into_data()
     }
-    fn to_data(&self) -> crate::Data<P, D> {
+    fn to_data(&self) -> Data<P, D> {
         self.tensor().to_data()
     }
 }
@@ -61,13 +63,12 @@ impl<T: Clone + std::fmt::Debug, P, const D: usize> ADTensor<P, D, T> {
 
 #[cfg(test)]
 pub mod helper {
-    use ndarray::{Dim, Dimension};
-
     use super::*;
-    use crate::{
-        backend::{autodiff::ADElement, ndarray::NdArrayTensor, tch::TchTensor},
+    use crate::tensor::{
+        backend::{autodiff::ADElement, ndarray::NdArrayTensor},
         Data,
     };
+    use ndarray::{Dim, Dimension};
 
     pub type ADTchTensor<P, const D: usize> = ADTensor<P, D, NdArrayTensor<P, D>>;
 

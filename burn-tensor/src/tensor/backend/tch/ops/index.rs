@@ -1,6 +1,6 @@
-use crate::{
+use crate::tensor::{
     backend::tch::{TchShape, TchTensor},
-    TensorOpsIndex,
+    ops::*,
 };
 use std::ops::Range;
 
@@ -59,7 +59,7 @@ impl<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Data, TensorBase};
+    use crate::tensor::{Data, TensorBase};
 
     #[test]
     fn should_support_full_indexing_1d() {

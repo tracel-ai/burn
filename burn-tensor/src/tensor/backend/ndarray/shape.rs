@@ -1,4 +1,4 @@
-use crate::Shape;
+use crate::tensor::Shape;
 use ndarray::Dim;
 
 macro_rules! define_convertion {

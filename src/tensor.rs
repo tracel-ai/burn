@@ -1,1 +1,1 @@
-pub use burn_tensor::*;
+pub use burn_tensor::tensor::*;

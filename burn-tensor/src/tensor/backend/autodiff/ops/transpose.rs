@@ -1,9 +1,7 @@
-use crate::{
-    backend::autodiff::{ADCompatibleTensor, ADElement, ADTensor},
-    execute_ops,
-    ops::{UnaryOps, UnaryOpsNodeState},
-    register_ops, TensorOpsTranspose,
-};
+use crate::graph::ops::{UnaryOps, UnaryOpsNodeState};
+use crate::tensor::backend::autodiff::{ADCompatibleTensor, ADElement, ADTensor};
+use crate::tensor::ops::*;
+use crate::{execute_ops, register_ops};
 
 register_ops!(
     ops UnaryOps<T, T>,
@@ -28,10 +26,8 @@ impl<T: ADCompatibleTensor<P, D>, P: ADElement, const D: usize> TensorOpsTranspo
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        backend::autodiff::helper::ADTchTensor, Data, TensorBase, TensorOpsMatmul,
-        TensorOpsTranspose,
-    };
+    use super::*;
+    use crate::tensor::{backend::autodiff::helper::ADTchTensor, Data, TensorBase};
 
     #[test]
     fn should_diff_transpose() {

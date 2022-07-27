@@ -1,4 +1,4 @@
-use crate::{backend::tch::TchTensor, Shape, TensorOpsMatmul};
+use crate::tensor::{backend::tch::TchTensor, ops::*, Shape};
 
 impl<P: tch::kind::Element, const D: usize> TensorOpsMatmul<P, D> for TchTensor<P, D> {
     fn matmul(&self, other: &Self) -> Self {

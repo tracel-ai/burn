@@ -1,4 +1,4 @@
-use crate::{backend::tch::TchTensor, TensorOpsNeg};
+use crate::tensor::{backend::tch::TchTensor, ops::*};
 
 impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> TensorOpsNeg<P, D>
     for TchTensor<P, D>
@@ -29,7 +29,7 @@ impl<P: tch::kind::Element + Default + std::fmt::Debug + Copy, const D: usize> s
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Data, TensorBase};
+    use crate::tensor::{Data, TensorBase};
 
     #[test]
     fn should_support_neg_ops() {

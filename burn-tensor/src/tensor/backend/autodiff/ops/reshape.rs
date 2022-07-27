@@ -1,9 +1,12 @@
+use crate::graph::node::{ForwardNode, ForwardNodeState};
+use crate::graph::ops::ForwardUnaryRecordedOps;
+use crate::tensor::backend::autodiff::ADKind;
+use crate::tensor::{ops::*, Shape};
 use crate::{
-    backend::autodiff::{ADCompatibleTensor, ADElement, ADKind, ADTensor},
-    node::{ForwardNode, ForwardNodeState},
-    ops::{ForwardUnaryRecordedOps, UnaryOps, UnaryOpsNodeState},
-    Shape, TensorOpsReshape,
+    graph::ops::{UnaryOps, UnaryOpsNodeState},
+    tensor::backend::autodiff::{ADCompatibleTensor, ADElement, ADTensor},
 };
+
 use std::sync::Arc;
 
 #[derive(Debug)]
@@ -62,7 +65,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{backend::autodiff::helper::ADTchTensor, Data, TensorBase, TensorOpsMatmul};
+    use crate::tensor::{backend::autodiff::helper::ADTchTensor, Data, TensorBase};
 
     #[test]
     fn should_diff_mul() {

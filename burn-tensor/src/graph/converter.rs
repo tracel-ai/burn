@@ -1,4 +1,4 @@
-use crate::node::{BackwardNode, BackwardNodeRef, ForwardNodeRef, Zeros};
+use crate::graph::node::{BackwardNode, BackwardNodeRef, ForwardNodeRef, Zeros};
 use std::{any::Any, collections::HashMap, sync::Arc};
 
 pub struct Forward2BackwardGraphConverter {

@@ -1,4 +1,4 @@
-use crate::{
+use crate::graph::{
     node::{BackwardNode, ForwardNode, Zeros},
     traversal::{BreadthFirstSearch, GraphTraversal},
 };

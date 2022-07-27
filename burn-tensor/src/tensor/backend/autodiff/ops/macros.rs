@@ -114,13 +114,13 @@ macro_rules! execute_ops {
         ops $ops:expr,
     ) => {{
         let callback = || {
-            let state = $crate::node::ForwardNodeState::new($out);
+            let state = $crate::graph::node::ForwardNodeState::new($out);
 
             let ops = std::sync::Arc::new($ops);
-            let ops = $crate::ops::ForwardBinaryRecordedOps::new($lhs, $rhs, ops.clone());
+            let ops = $crate::graph::ops::ForwardBinaryRecordedOps::new($lhs, $rhs, ops.clone());
             let ops = std::sync::Arc::new(ops);
 
-            let node = $crate::node::ForwardNode::from_binary(&$lhs, &$rhs, state, ops);
+            let node = $crate::graph::node::ForwardNode::from_binary(&$lhs, &$rhs, state, ops);
             std::sync::Arc::new(node)
         };
         callback()
@@ -131,13 +131,13 @@ macro_rules! execute_ops {
         ops $ops:expr,
     ) => {{
         let callback = || {
-            let state = $crate::node::ForwardNodeState::new($out);
+            let state = $crate::graph::node::ForwardNodeState::new($out);
 
             let ops = std::sync::Arc::new($ops);
-            let ops = $crate::ops::ForwardUnaryRecordedOps::new($input, ops.clone());
+            let ops = $crate::graph::ops::ForwardUnaryRecordedOps::new($input, ops.clone());
             let ops = std::sync::Arc::new(ops);
 
-            let node = $crate::node::ForwardNode::from_unary(&$input, state, ops);
+            let node = $crate::graph::node::ForwardNode::from_unary(&$input, state, ops);
             std::sync::Arc::new(node)
         };
         callback()
@@ -146,12 +146,12 @@ macro_rules! execute_ops {
         init $out:expr
     ) => {{
         let callback = || {
-            let state = $crate::node::ForwardNodeState::new($out);
+            let state = $crate::graph::node::ForwardNodeState::new($out);
 
-            let ops = $crate::ops::InitRecordedOps::new();
+            let ops = $crate::graph::ops::InitRecordedOps::new();
             let ops = std::sync::Arc::new(ops);
 
-            let node = $crate::node::ForwardNode::from_root(state, ops);
+            let node = $crate::graph::node::ForwardNode::from_root(state, ops);
             std::sync::Arc::new(node)
         };
         callback()

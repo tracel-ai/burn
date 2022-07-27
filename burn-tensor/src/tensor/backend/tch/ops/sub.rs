@@ -1,4 +1,4 @@
-use crate::{backend::tch::TchTensor, Data, TensorOpsSub};
+use crate::tensor::{backend::tch::TchTensor, ops::*, Data};
 use std::ops::Sub;
 
 impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> TensorOpsSub<P, D>
@@ -54,7 +54,7 @@ impl<P: tch::kind::Element + Default + std::fmt::Debug + Copy, const D: usize> s
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TensorBase;
+    use crate::tensor::TensorBase;
 
     #[test]
     fn should_support_sub_ops() {

@@ -1,9 +1,7 @@
-use crate::execute_ops;
-use crate::{
-    backend::autodiff::{ADCompatibleTensor, ADElement, ADTensor},
-    ops::{BinaryOps, BinaryOpsNodeState},
-    register_ops, TensorOpsMatmul,
-};
+use crate::graph::ops::{BinaryOps, BinaryOpsNodeState};
+use crate::tensor::backend::autodiff::{ADCompatibleTensor, ADElement, ADTensor};
+use crate::tensor::ops::*;
+use crate::{execute_ops, register_ops};
 
 register_ops!(
     ops BinaryOps<T, T, T>,
@@ -39,7 +37,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{backend::autodiff::helper::ADTchTensor, Data, TensorBase};
+    use crate::tensor::{backend::autodiff::helper::ADTchTensor, Data, TensorBase};
 
     #[test]
     fn should_diff_matmul() {

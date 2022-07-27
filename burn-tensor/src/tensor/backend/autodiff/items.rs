@@ -1,7 +1,9 @@
+use crate::tensor::ops::{
+    TensorOpsAdd, TensorOpsMatmul, TensorOpsMul, TensorOpsNeg, TensorOpsSub, TensorOpsTranspose,
+};
 use crate::{
-    node::{Ones, Zeros},
-    TensorBase, TensorOpsAdd, TensorOpsMatmul, TensorOpsMul, TensorOpsNeg, TensorOpsSub,
-    TensorOpsTranspose,
+    graph::node::{Ones, Zeros},
+    tensor::TensorBase,
 };
 use half::bf16;
 use half::f16;
@@ -80,9 +82,9 @@ ad_items!(int u8);
 mod tch {
     use super::{ADCompatibleTensor, ADElement};
     use crate::{
-        backend::tch::TchTensor,
-        node::{Ones, Zeros},
-        TensorOpsMul,
+        graph::node::{Ones, Zeros},
+        tensor::backend::tch::TchTensor,
+        tensor::ops::TensorOpsMul,
     };
 
     impl<P: tch::kind::Element + Into<f64> + ADElement, const D: usize> ADCompatibleTensor<P, D>
@@ -117,14 +119,13 @@ mod tch {
 }
 
 mod ndarray {
-    use ndarray::{Dim, Dimension, LinalgScalar, ScalarOperand};
-
     use super::{ADCompatibleTensor, ADElement};
+    use crate::tensor::ops::*;
     use crate::{
-        backend::ndarray::NdArrayTensor,
-        node::{Ones, Zeros},
-        TensorOpsAdd, TensorOpsMul,
+        graph::node::{Ones, Zeros},
+        tensor::backend::ndarray::NdArrayTensor,
     };
+    use ndarray::{Dim, Dimension, LinalgScalar, ScalarOperand};
 
     impl<P: ADElement + ScalarOperand + LinalgScalar, const D: usize> ADCompatibleTensor<P, D>
         for NdArrayTensor<P, D>
@@ -158,10 +159,10 @@ mod ndarray {
 
 mod ad {
     use super::{ADCompatibleTensor, ADElement};
+    use crate::tensor::ops::*;
     use crate::{
-        backend::autodiff::ADTensor,
-        node::{Ones, Zeros},
-        TensorOpsAdd, TensorOpsMul,
+        graph::node::{Ones, Zeros},
+        tensor::backend::autodiff::ADTensor,
     };
 
     impl<T: ADCompatibleTensor<P, D>, P: ADElement, const D: usize> ADCompatibleTensor<P, D>

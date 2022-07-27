@@ -2,7 +2,7 @@ use super::{
     BackwardRecordedOps, BackwardRecordedOpsRef, BinaryOpsNodeState, ForwardRecordedOps,
     RecordedOpsParentRef,
 };
-use crate::{
+use crate::graph::{
     converter::Forward2BackwardGraphConverter,
     node::{BackwardNodeRef, BackwardNodeState, ForwardNodeRef, Zeros},
 };

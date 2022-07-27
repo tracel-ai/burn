@@ -1,4 +1,4 @@
-use crate::{backend::tch::TchTensor, Shape, TensorOpsTranspose};
+use crate::tensor::{backend::tch::TchTensor, ops::*, Shape};
 
 impl<P: tch::kind::Element, const D: usize> TensorOpsTranspose<P, D> for TchTensor<P, D> {
     fn transpose(&self) -> Self {

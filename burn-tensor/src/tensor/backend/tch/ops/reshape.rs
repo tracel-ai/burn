@@ -1,6 +1,7 @@
-use crate::{
+use crate::tensor::{
     backend::tch::{TchShape, TchTensor},
-    Shape, TensorOpsReshape,
+    ops::*,
+    Shape,
 };
 
 impl<

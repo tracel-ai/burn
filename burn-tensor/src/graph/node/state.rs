@@ -1,4 +1,4 @@
-use crate::node::Zeros;
+use crate::graph::node::Zeros;
 use std::{cell::RefCell, ops::Add};
 
 #[derive(new, Debug)]

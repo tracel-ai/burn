@@ -1,6 +1,5 @@
+use crate::tensor::{backend::ndarray::NdArrayTensor, ops::*};
 use ndarray::{LinalgScalar, ScalarOperand};
-
-use crate::{backend::ndarray::NdArrayTensor, TensorOpsNeg};
 
 impl<P, const D: usize> TensorOpsNeg<P, D> for NdArrayTensor<P, D>
 where
@@ -30,7 +29,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Data, TensorBase};
+    use crate::tensor::{Data, TensorBase};
 
     #[test]
     fn should_support_neg_ops() {
