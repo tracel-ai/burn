@@ -32,8 +32,8 @@ This library separates data from tensors, where the former is used to create new
 ```rust
     use burn_tensor::tensor::*;
 
-    let data_x = Data::<f32, 2>::random(Shape::new([32, 24, 24]), Distribution::Standard);
-    let data_y = Data::<f32, 2>::random(Shape::new([32, 24, 24]), Distribution::Standard);
+    let data_x = Data::<f32, 3>::random(Shape::new([32, 24, 24]), Distribution::Standard);
+    let data_y = Data::<f32, 3>::random(Shape::new([32, 24, 24]), Distribution::Standard);
 ```
 
 Tensors can be created from the generated data.

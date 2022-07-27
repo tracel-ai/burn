@@ -1,0 +1,46 @@
+name: publish
+
+on:
+  push:
+    tags:        
+      - '*'
+
+jobs:
+  publish-burn-tensor:
+    name: publish-burn-tensor
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+
+      - name: install rust stable
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: publish burn-tensor to crates.io
+        run: ./ci/publish.sh burn-tensor
+        env:
+          CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
+
+  publish-burn:
+    needs: publish-burn-tensor
+    name: publish-burn
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+
+      - name: install rust stable
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: publish burn to crates.io
+        run: ./ci/publish.sh burn
+        env:
+          CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
