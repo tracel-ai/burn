@@ -54,7 +54,6 @@ impl<P: tch::kind::Element + Default + std::fmt::Debug + Copy, const D: usize> s
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::TensorBase;
 
     #[test]
     fn should_support_add_ops() {

@@ -4,7 +4,8 @@ use crate::{
     graph::node::ForwardNodeRef,
     tensor::{
         backend::autodiff::{ADCompatibleTensor, ADElement},
-        Data, Shape, TensorBase,
+        ops::TensorBase,
+        Data, Shape,
     },
 };
 

@@ -57,7 +57,7 @@ fn to_slice_args<const D1: usize, const D2: usize>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::{Data, TensorBase};
+    use crate::tensor::Data;
 
     #[test]
     fn should_support_full_indexing_1d() {

@@ -116,7 +116,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::{backend::autodiff::helper::ADTchTensor, Data, TensorBase};
+    use crate::tensor::{backend::autodiff::helper::ADTchTensor, Data};
 
     #[test]
     fn should_diff_matmul_with_index() {

@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::tensor::{backend::autodiff::helper::ADTchTensor, ops::*, Data, TensorBase};
+    use crate::tensor::{backend::autodiff::helper::ADTchTensor, ops::*, Data};
 
     #[test]
     fn should_behave_the_same_with_multithread() {

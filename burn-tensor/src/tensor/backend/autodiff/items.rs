@@ -1,5 +1,4 @@
 use crate::tensor::ops::*;
-use crate::tensor::TensorBase;
 use half::bf16;
 use half::f16;
 

@@ -31,7 +31,7 @@ impl<T, P, const D: usize> AsNode<T> for ADTensor<P, D, T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::tensor::{backend::autodiff::helper::ADTchTensor, ops::*, Data, TensorBase};
+    use crate::tensor::{backend::autodiff::helper::ADTchTensor, ops::*, Data};
 
     #[test]
     fn should_diff_full_complex_1() {

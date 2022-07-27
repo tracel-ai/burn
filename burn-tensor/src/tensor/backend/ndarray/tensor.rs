@@ -1,4 +1,4 @@
-use crate::tensor::{Data, Shape, TensorBase};
+use crate::tensor::{ops::TensorBase, Data, Shape};
 use ndarray::{s, ArcArray, Array, Axis, Dim, Dimension, Ix2, Ix3, IxDyn};
 
 #[derive(Debug, Clone)]

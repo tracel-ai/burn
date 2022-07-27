@@ -1,5 +1,12 @@
-use crate::tensor::{Shape, TensorBase};
+use super::Data;
+use crate::tensor::Shape;
 use std::ops::Range;
+
+pub trait TensorBase<P, const D: usize> {
+    fn shape(&self) -> &Shape<D>;
+    fn into_data(self) -> Data<P, D>;
+    fn to_data(&self) -> Data<P, D>;
+}
 
 pub trait TensorOpsAdd<P, const D: usize>:
     std::ops::Add<Self, Output = Self> + std::ops::Add<P, Output = Self>
@@ -52,6 +59,7 @@ pub trait TensorOpsIndex<P, const D1: usize, const D2: usize> {
 pub trait Zeros<T> {
     fn zeros(&self) -> T;
 }
+
 pub trait Ones<T> {
     fn ones(&self) -> T;
 }

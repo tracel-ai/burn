@@ -31,7 +31,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::tensor::{backend::ndarray::NdArrayTensor, ops::*, Data, TensorBase};
+    use crate::tensor::{backend::ndarray::NdArrayTensor, ops::*, Data};
 
     #[test]
     fn should_matmul_d2() {

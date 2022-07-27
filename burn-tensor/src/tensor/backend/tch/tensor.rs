@@ -1,4 +1,4 @@
-use crate::tensor::{Data, Shape, TensorBase};
+use crate::tensor::{ops::TensorBase, Data, Shape};
 
 #[derive(Debug, PartialEq)]
 pub struct TchTensor<P: tch::kind::Element, const D: usize> {

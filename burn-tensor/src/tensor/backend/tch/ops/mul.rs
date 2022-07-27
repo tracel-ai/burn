@@ -48,7 +48,7 @@ impl<P: tch::kind::Element + Into<f64>, const D: usize> std::ops::Mul<TchTensor<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::{Data, TensorBase};
+    use crate::tensor::Data;
 
     #[test]
     fn should_support_mul_ops() {
