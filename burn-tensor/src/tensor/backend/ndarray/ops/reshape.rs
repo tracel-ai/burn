@@ -5,8 +5,7 @@ macro_rules! define_impl {
     (
         $n:expr
     ) => {
-        impl<P, const D1: usize> TensorOpsReshape<P, D1, $n>
-            for NdArrayTensor<P, D1>
+        impl<P, const D1: usize> TensorOpsReshape<P, D1, $n> for NdArrayTensor<P, D1>
         where
             P: Clone + Default + std::fmt::Debug,
         {

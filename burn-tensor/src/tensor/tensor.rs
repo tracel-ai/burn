@@ -1,6 +1,5 @@
-use super::backend::autodiff::ADTensor;
 use super::ops::*;
-use super::{ops::TensorOpsReshape, Data, Element, Shape, TensorTrait};
+use super::{ops::TensorOpsReshape, Data, Element, TensorTrait};
 
 type E<B> = <B as Backend>::E;
 pub type Tensor<const D: usize, B> = <B as TensorType<E<B>, D, B>>::T;
@@ -46,12 +45,4 @@ pub trait TensorType<E: Element, const D: usize, B: Backend> {
         + TensorOpsReshape<E, D, 6, Output = Tensor<6, B>>;
 
     fn from_data(data: Data<E, D>) -> Self::T;
-}
-
-fn allo<B: Backend>(tensor: &Tensor<1, B>) {
-    let t1 = tensor.reshape(Shape::new([1, 1, 1, 1]));
-    let t3 = t1.reshape(Shape::new([1, 1, 1, 1]));
-    let t4 = t1.add(&t3);
-    let forked = t4.new_fork_empty(Shape::new([2, 2])); // Very complex type
-    let ad = ADTensor::from_tensor(forked);
 }
