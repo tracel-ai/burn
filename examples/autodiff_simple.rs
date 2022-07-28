@@ -1,17 +1,14 @@
 use burn::{
     random,
-    tensor::{
-        ops::*, ADTensor, Backend, Data, Element, NdArrayTensorBackend, TchTensorCPUBackend,
-        TchTensorGPUBackend, Tensor,
-    },
+    tensor::{ops::*, ADTensor, Backend, Data, NdArrayTensorBackend, TchTensorGPUBackend, Tensor},
 };
 use burn_tensor::tensor::Distribution;
 use std::time::{Duration, SystemTime};
 
-fn my_func<E: Element, B: Backend<E>>(
-    x: Tensor<E, 2, B>,
-    y: Tensor<E, 2, B>,
-) -> (Data<E, 2>, Data<E, 2>, Duration) {
+fn my_func<B: Backend>(
+    x: Tensor<2, B>,
+    y: Tensor<2, B>,
+) -> (Data<B::E, 2>, Data<B::E, 2>, Duration) {
     let start = SystemTime::now();
 
     let x = ADTensor::from_tensor(x);
@@ -44,7 +41,7 @@ fn run() {
         backend: ndarray
     );
 
-    let (x_grad, y_grad, duration) = my_func::<f32, NdArrayTensorBackend<f32>>(x, y);
+    let (x_grad, y_grad, duration) = my_func::<NdArrayTensorBackend<f32>>(x, y);
 
     println!("--- ndarray ---");
     println!("took: {} ns", duration.as_nanos());
@@ -55,16 +52,16 @@ fn run() {
         elem: f32,
         shape: [2, 3],
         distribution: Distribution::Standard,
-        backend: tch gpu 1
+        backend: tch cpu
     );
     let y = random!(
         elem: f32,
         shape: [3, 1],
         distribution: Distribution::Standard,
-        backend: tch gpu 1
+        backend: tch cpu
     );
 
-    let (x_grad, y_grad, duration) = my_func::<f32, TchTensorGPUBackend<f32, 1>>(x, y);
+    let (x_grad, y_grad, duration) = my_func::<TchTensorGPUBackend<f32, 1>>(x, y);
 
     println!("--- tch ---");
     println!("took: {} ns", duration.as_nanos());

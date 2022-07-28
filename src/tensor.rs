@@ -9,19 +9,22 @@ use burn_tensor::tensor::ops::*;
 use burn_tensor::tensor::Tensor as TensorTrait;
 use ndarray::{LinalgScalar, ScalarOperand};
 
-pub type Tensor<E, const D: usize, B> = <B as TensorType<E, D>>::T;
+type E<B> = <B as Backend>::E;
+pub type Tensor<const D: usize, B> = <B as TensorType<E<B>, D>>::T;
 
-pub trait Backend<E: Element>:
-    TensorType<E, 1>
-    + TensorType<E, 2>
-    + TensorType<E, 3>
-    + TensorType<E, 4>
-    + TensorType<E, 5>
-    + TensorType<E, 6>
+pub trait Backend:
+    TensorType<Self::E, 1>
+    + TensorType<Self::E, 2>
+    + TensorType<Self::E, 3>
+    + TensorType<Self::E, 4>
+    + TensorType<Self::E, 5>
+    + TensorType<Self::E, 6>
 {
-    fn from_data<const D: usize>(data: Data<E, D>) -> <Self as TensorType<E, D>>::T
+    type E: Element;
+
+    fn from_data<const D: usize>(data: Data<Self::E, D>) -> <Self as TensorType<Self::E, D>>::T
     where
-        Self: TensorType<E, D>;
+        Self: TensorType<Self::E, D>;
 }
 
 pub trait TensorType<E: Element, const D: usize> {
@@ -93,25 +96,25 @@ macro_rules! init (
     ($e:ident, $n:expr, $data:expr, $b:ty) => {
         <$b as $crate::tensor::TensorType<$e, $n>>::from_data($data)
     };
-    ($e:ident, $n:expr, $data:expr) => {
+    ($e:ty, $n:expr, $data:expr) => {
         <B as TensorType<$e, $n>>::from_data($data)
     };
 );
 
-pub struct Linear<E: Element, B: Backend<E>> {
-    weight: Tensor<E, 2, B>,
-    bias: Tensor<E, 2, B>,
+pub struct Linear<B: Backend> {
+    weight: Tensor<2, B>,
+    bias: Tensor<2, B>,
 }
 
-impl<E: Element, B: Backend<E>> Linear<E, B> {
+impl<B: Backend> Linear<B> {
     pub fn new() -> Self {
-        let weight = init!(E, 2, Data::zeros(Shape::new([2, 2])));
-        let bias = init!(E, 2, Data::zeros(Shape::new([1, 2])));
+        let weight = init!(B::E, 2, Data::zeros(Shape::new([2, 2])));
+        let bias = init!(B::E, 2, Data::zeros(Shape::new([1, 2])));
 
         Self { weight, bias }
     }
 
-    pub fn forward(&self, x: &Tensor<E, 2, B>) -> Tensor<E, 2, B> {
+    pub fn forward(&self, x: &Tensor<2, B>) -> Tensor<2, B> {
         self.weight.matmul(&x).add(&self.bias)
     }
 }
@@ -120,7 +123,9 @@ pub struct NdArrayTensorBackend<E> {
     _e: E,
 }
 
-impl<E: Element + ScalarOperand + LinalgScalar> Backend<E> for NdArrayTensorBackend<E> {
+impl<E: Element + ScalarOperand + LinalgScalar> Backend for NdArrayTensorBackend<E> {
+    type E = E;
+
     fn from_data<const D: usize>(data: Data<E, D>) -> <Self as TensorType<E, D>>::T
     where
         Self: TensorType<E, D>,
@@ -144,9 +149,11 @@ pub struct TchTensorGPUBackend<E, const N: usize> {
     _e: E,
 }
 
-impl<E: Element + tch::kind::Element + Into<f64>, const N: usize> Backend<E>
+impl<E: Element + tch::kind::Element + Into<f64>, const N: usize> Backend
     for TchTensorGPUBackend<E, N>
 {
+    type E = E;
+
     fn from_data<const D: usize>(data: Data<E, D>) -> <Self as TensorType<E, D>>::T
     where
         Self: TensorType<E, D>,
@@ -171,7 +178,9 @@ pub struct TchTensorCPUBackend<E> {
     _e: E,
 }
 
-impl<E: Element + tch::kind::Element + Into<f64>> Backend<E> for TchTensorCPUBackend<E> {
+impl<E: Element + tch::kind::Element + Into<f64>> Backend for TchTensorCPUBackend<E> {
+    type E = E;
+
     fn from_data<const D: usize>(data: Data<E, D>) -> <Self as TensorType<E, D>>::T
     where
         Self: TensorType<E, D>,
