@@ -1,10 +1,9 @@
 use crate::tensor::{backend::ndarray::NdArrayTensor, ops::*};
-use ndarray::{Dim, Dimension, LinalgScalar, ScalarOperand};
+use ndarray::{LinalgScalar, ScalarOperand};
 
 impl<P, const D: usize> TensorOpsAdd<P, D> for NdArrayTensor<P, D>
 where
     P: Clone + LinalgScalar + Default + std::fmt::Debug + ScalarOperand,
-    Dim<[usize; D]>: Dimension,
 {
     fn add(&self, other: &Self) -> Self {
         let array = self.array.clone() + other.array.clone();
@@ -24,7 +23,6 @@ where
 impl<P, const D: usize> std::ops::Add<Self> for NdArrayTensor<P, D>
 where
     P: Clone + LinalgScalar + Default + std::fmt::Debug + ScalarOperand,
-    Dim<[usize; D]>: Dimension,
 {
     type Output = Self;
 
@@ -36,7 +34,6 @@ where
 impl<P, const D: usize> std::ops::Add<P> for NdArrayTensor<P, D>
 where
     P: Clone + LinalgScalar + Default + std::fmt::Debug + ScalarOperand,
-    Dim<[usize; D]>: Dimension,
 {
     type Output = Self;
 

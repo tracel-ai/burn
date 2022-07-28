@@ -2,13 +2,10 @@ use crate::tensor::{
     backend::ndarray::{BatchMatrix, NdArrayTensor},
     ops::*,
 };
-use ndarray::{Dim, Dimension};
 
 impl<P, const D: usize> TensorOpsTranspose<P, D> for NdArrayTensor<P, D>
 where
     P: Default + Clone + std::fmt::Debug,
-    Dim<[usize; D]>: Dimension,
-    Dim<[usize; D]>: Dimension,
 {
     fn transpose(&self) -> Self {
         if D > 2 {

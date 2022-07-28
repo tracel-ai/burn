@@ -1,7 +1,5 @@
 use crate::tensor::{ops::TensorOpsUtilities, Data, Shape, Tensor};
-use ndarray::{
-    s, ArcArray, Array, Axis, Dim, Dimension, Ix2, Ix3, IxDyn, LinalgScalar, ScalarOperand,
-};
+use ndarray::{s, ArcArray, Array, Axis, Dim, Ix2, Ix3, IxDyn, LinalgScalar, ScalarOperand};
 
 #[derive(Debug, Clone)]
 pub struct NdArrayTensor<P, const D: usize> {
@@ -12,7 +10,6 @@ pub struct NdArrayTensor<P, const D: usize> {
 impl<P, const D: usize> TensorOpsUtilities<P, D> for NdArrayTensor<P, D>
 where
     P: Default + Clone,
-    Dim<[usize; D]>: Dimension,
 {
     fn shape(&self) -> &Shape<D> {
         &self.shape
@@ -38,7 +35,6 @@ pub struct BatchMatrix<P, const D: usize> {
 impl<P, const D: usize> BatchMatrix<P, D>
 where
     P: Clone,
-    Dim<[usize; D]>: Dimension,
 {
     pub fn from_ndarray(array: ArcArray<P, IxDyn>, shape: Shape<D>) -> Self {
         let mut arrays = Vec::new();
@@ -105,7 +101,6 @@ macro_rules! to_nd_array_tensor {
 impl<P, const D: usize> NdArrayTensor<P, D>
 where
     P: Default + Clone,
-    Dim<[usize; D]>: Dimension,
 {
     pub fn from_bmatrix(bmatrix: BatchMatrix<P, D>) -> NdArrayTensor<P, D> {
         let shape = bmatrix.shape;
@@ -153,8 +148,6 @@ where
 
 impl<P: crate::tensor::Element + ScalarOperand + LinalgScalar, const D: usize> Tensor<P, D>
     for NdArrayTensor<P, D>
-where
-    Dim<[usize; D]>: Dimension,
 {
 }
 

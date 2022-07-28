@@ -1,5 +1,4 @@
 use crate::tensor::{backend::ndarray::NdArrayTensor, ops::*, Data, Distribution, Shape};
-use ndarray::{Dim, Dimension};
 use rand::distributions::{uniform::SampleUniform, Standard};
 
 impl<P, const D: usize> TensorCreationLike<P, D> for NdArrayTensor<P, D>
@@ -33,7 +32,6 @@ impl<P, const D: usize, const D2: usize> TensorCreationFork<P, D, D2, NdArrayTen
     for NdArrayTensor<P, D>
 where
     P: std::fmt::Debug + SampleUniform + Default + Clone + Zeros<P> + Ones<P>,
-    Dim<[usize; D2]>: Dimension,
     Standard: rand::distributions::Distribution<P>,
 {
     fn new_fork_empty(&self, shape: Shape<D2>) -> NdArrayTensor<P, D2> {

@@ -1,5 +1,5 @@
 use crate::tensor::{backend::ndarray::NdArrayTensor, ops::*, Shape};
-use ndarray::{Dim, Dimension};
+use ndarray::Dim;
 
 macro_rules! define_impl {
     (
@@ -9,7 +9,6 @@ macro_rules! define_impl {
             for NdArrayTensor<P, D1>
         where
             P: Clone + Default + std::fmt::Debug,
-            Dim<[usize; $n]>: Dimension,
         {
             fn reshape(&self, shape: Shape<$n>) -> NdArrayTensor<P, $n> {
                 let dim: Dim<[usize; $n]> = shape.clone().into();

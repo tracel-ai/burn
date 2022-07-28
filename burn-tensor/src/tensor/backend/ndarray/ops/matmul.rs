@@ -2,12 +2,11 @@ use crate::tensor::{
     backend::ndarray::{BatchMatrix, NdArrayTensor},
     ops::*,
 };
-use ndarray::{Dim, Dimension, LinalgScalar};
+use ndarray::LinalgScalar;
 
 impl<P, const D: usize> TensorOpsMatmul<P, D> for NdArrayTensor<P, D>
 where
     P: Clone + LinalgScalar + Default + std::fmt::Debug,
-    Dim<[usize; D]>: Dimension,
 {
     fn matmul(&self, other: &Self) -> Self {
         let batch_self = BatchMatrix::from_ndarray(self.array.clone(), self.shape.clone());

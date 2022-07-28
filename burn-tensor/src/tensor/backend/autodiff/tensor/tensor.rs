@@ -66,13 +66,11 @@ pub mod helper {
     mod helper_impl {
         use super::*;
         use crate::tensor::{backend::ndarray::NdArrayTensor, Data};
-        use ndarray::{Dim, Dimension};
 
         pub type TestADTensor<P, const D: usize> = ADTensor<P, D, NdArrayTensor<P, D>>;
 
-        impl<P: Element + ndarray::ScalarOperand + ndarray::LinalgScalar, const D: usize> TestADTensor<P, D>
-        where
-            Dim<[usize; D]>: Dimension,
+        impl<P: Element + ndarray::ScalarOperand + ndarray::LinalgScalar, const D: usize>
+            TestADTensor<P, D>
         {
             pub fn from_data(data: Data<P, D>) -> Self {
                 let tensor = NdArrayTensor::from_data(data);

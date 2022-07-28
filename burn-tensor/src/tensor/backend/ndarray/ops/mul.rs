@@ -1,10 +1,9 @@
 use crate::tensor::{backend::ndarray::NdArrayTensor, ops::*};
-use ndarray::{Dim, Dimension, LinalgScalar, ScalarOperand};
+use ndarray::{LinalgScalar, ScalarOperand};
 
 impl<P, const D: usize> TensorOpsMul<P, D> for NdArrayTensor<P, D>
 where
     P: Clone + LinalgScalar + Default + std::fmt::Debug + ScalarOperand,
-    Dim<[usize; D]>: Dimension,
 {
     fn mul(&self, other: &Self) -> Self {
         let array = self.array.clone() * other.array.clone();
@@ -25,7 +24,6 @@ where
 impl<P, const D: usize> std::ops::Mul<Self> for NdArrayTensor<P, D>
 where
     P: Clone + LinalgScalar + Default + std::fmt::Debug + ScalarOperand,
-    Dim<[usize; D]>: Dimension,
 {
     type Output = Self;
 
@@ -37,7 +35,6 @@ where
 impl<P, const D: usize> std::ops::Mul<P> for NdArrayTensor<P, D>
 where
     P: Clone + LinalgScalar + Default + std::fmt::Debug + ScalarOperand,
-    Dim<[usize; D]>: Dimension,
 {
     type Output = Self;
 
