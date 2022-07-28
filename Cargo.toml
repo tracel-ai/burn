@@ -13,3 +13,5 @@ edition = "2021"
 [dependencies]
 burn-tensor = { path = "./burn-tensor", version = "0.1.0" }
 rand = "0.8"
+ndarray = "0.15"
+tch = "0.8"

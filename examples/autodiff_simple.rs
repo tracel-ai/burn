@@ -1,14 +1,17 @@
-use burn::tensor::{
-    backend::{autodiff::ADTensor, ndarray::NdArrayTensor, tch::TchTensor, TchDevice},
-    ops::*,
-    Data, Distribution, Element, Shape, Tensor,
+use burn::{
+    random,
+    tensor::{
+        ops::*, ADTensor, Backend, Data, Element, NdArrayTensorBackend, TchTensorCPUBackend,
+        TchTensorGPUBackend, Tensor,
+    },
 };
+use burn_tensor::tensor::Distribution;
 use std::time::{Duration, SystemTime};
 
-fn my_func<T: Tensor<P, D>, P: Element, const D: usize>(
-    x: T,
-    y: T,
-) -> (Data<P, D>, Data<P, D>, Duration) {
+fn my_func<E: Element, B: Backend<E>>(
+    x: Tensor<E, 2, B>,
+    y: Tensor<E, 2, B>,
+) -> (Data<E, 2>, Data<E, 2>, Duration) {
     let start = SystemTime::now();
 
     let x = ADTensor::from_tensor(x);
@@ -28,32 +31,45 @@ fn my_func<T: Tensor<P, D>, P: Element, const D: usize>(
 }
 
 fn run() {
-    let x = Data::<f32, 2>::random(Shape::new([2, 3]), Distribution::Standard);
-    let y = Data::<f32, 2>::random(Shape::new([3, 1]), Distribution::Standard);
-
-    let (x_grad_ndarray, y_grad_ndarray, duration_ndarray) = my_func(
-        NdArrayTensor::from_data(x.clone()),
-        NdArrayTensor::from_data(y.clone()),
+    let x = random!(
+        elem: f32,
+        shape: [2, 3],
+        distribution: Distribution::Standard,
+        backend: ndarray
+    );
+    let y = random!(
+        elem: f32,
+        shape: [3, 1],
+        distribution: Distribution::Standard,
+        backend: ndarray
     );
 
-    let device = TchDevice::Cpu;
-    let (x_grad_tch, y_grad_tch, duration_tch) = my_func(
-        TchTensor::from_data(x.clone(), device),
-        TchTensor::from_data(y.clone(), device),
-    );
-
-    println!("x: {}", x);
-    println!("y: {}", y);
+    let (x_grad, y_grad, duration) = my_func::<f32, NdArrayTensorBackend<f32>>(x, y);
 
     println!("--- ndarray ---");
-    println!("took: {} ns", duration_ndarray.as_nanos());
-    println!("x_grad: {}", x_grad_ndarray);
-    println!("y_grad: {}", y_grad_ndarray);
+    println!("took: {} ns", duration.as_nanos());
+    println!("x_grad: {}", x_grad);
+    println!("y_grad: {}", y_grad);
+
+    let x = random!(
+        elem: f32,
+        shape: [2, 3],
+        distribution: Distribution::Standard,
+        backend: tch gpu 1
+    );
+    let y = random!(
+        elem: f32,
+        shape: [3, 1],
+        distribution: Distribution::Standard,
+        backend: tch gpu 1
+    );
+
+    let (x_grad, y_grad, duration) = my_func::<f32, TchTensorGPUBackend<f32, 1>>(x, y);
 
     println!("--- tch ---");
-    println!("took: {} ns", duration_tch.as_nanos());
-    println!("x_grad: {}", x_grad_tch);
-    println!("y_grad: {}", y_grad_tch);
+    println!("took: {} ns", duration.as_nanos());
+    println!("x_grad: {}", x_grad);
+    println!("y_grad: {}", y_grad);
 }
 
 fn main() {
