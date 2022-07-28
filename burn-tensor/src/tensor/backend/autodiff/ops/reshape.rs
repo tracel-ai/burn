@@ -2,7 +2,7 @@ use crate::graph::node::{ForwardNode, ForwardNodeState};
 use crate::graph::ops::ForwardUnaryRecordedOps;
 use crate::tensor::backend::autodiff::ADKind;
 use crate::tensor::{ops::*, Shape};
-use crate::tensor::{Element, Tensor};
+use crate::tensor::{Element, TensorTrait};
 use crate::{
     graph::ops::{UnaryOps, UnaryOpsNodeState},
     tensor::backend::autodiff::ADTensor,
@@ -28,21 +28,23 @@ impl<P: Default, const D1: usize, const D2: usize> ADTensorOpsReshape<P, D1, D2>
 impl<T1, T2, P, const D1: usize, const D2: usize> UnaryOps<T1, T2> for ADTensorOpsReshape<P, D1, D2>
 where
     P: Element,
-    T1: Tensor<P, D1> + TensorOpsReshape<P, D1, D2, T2>,
-    T2: Tensor<P, D2> + TensorOpsReshape<P, D2, D1, T1>,
+    T1: TensorTrait<P, D1> + TensorOpsReshape<P, D1, D2, Output = T2>,
+    T2: TensorTrait<P, D2> + TensorOpsReshape<P, D2, D1, Output = T1>,
 {
     fn partial(&self, state: &UnaryOpsNodeState<T1, T2>) -> T1 {
         state.output.grad().reshape(self.shape.clone())
     }
 }
 
-impl<P, const D1: usize, const D2: usize, T1, T2> TensorOpsReshape<P, D1, D2, ADTensor<P, D2, T2>>
+impl<P, const D1: usize, const D2: usize, T1, T2> TensorOpsReshape<P, D1, D2>
     for ADTensor<P, D1, T1>
 where
     P: Element,
-    T1: Tensor<P, D1> + TensorOpsReshape<P, D1, D2, T2>,
-    T2: Tensor<P, D2> + TensorOpsReshape<P, D2, D1, T1>,
+    T1: TensorTrait<P, D1> + TensorOpsReshape<P, D1, D2, Output = T2>,
+    T2: TensorTrait<P, D2> + TensorOpsReshape<P, D2, D1, Output = T1>,
 {
+    type Output = ADTensor<P, D2, T2>;
+
     fn reshape(&self, shape: Shape<D2>) -> ADTensor<P, D2, T2> {
         let input = self.tensor();
         let out = TensorOpsReshape::reshape(&input, shape.clone());

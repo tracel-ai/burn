@@ -2,7 +2,7 @@ use super::ADKind;
 use crate::{
     execute_ops,
     graph::node::ForwardNodeRef,
-    tensor::{ops::TensorOpsUtilities, Data, Element, Shape, Tensor},
+    tensor::{ops::TensorOpsUtilities, Data, Element, Shape, TensorTrait},
 };
 
 #[derive(Debug, Clone)]
@@ -15,7 +15,7 @@ pub struct ADTensor<P, const D: usize, T> {
 impl<T, P, const D: usize> TensorOpsUtilities<P, D> for ADTensor<P, D, T>
 where
     P: Element,
-    T: Tensor<P, D>,
+    T: TensorTrait<P, D>,
 {
     fn shape(&self) -> &Shape<D> {
         &self.shape
@@ -32,7 +32,7 @@ where
 impl<T, P, const D: usize> ADTensor<P, D, T>
 where
     P: Element,
-    T: Tensor<P, D>,
+    T: TensorTrait<P, D>,
 {
     pub fn from_tensor(tensor: T) -> Self {
         let node = execute_ops!(

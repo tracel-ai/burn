@@ -28,12 +28,13 @@ where
     }
 }
 
-impl<P, const D: usize, const D2: usize> TensorCreationFork<P, D, D2, NdArrayTensor<P, D2>>
-    for NdArrayTensor<P, D>
+impl<P, const D: usize, const D2: usize> TensorCreationFork<P, D, D2> for NdArrayTensor<P, D>
 where
     P: std::fmt::Debug + SampleUniform + Default + Clone + Zeros<P> + Ones<P>,
     Standard: rand::distributions::Distribution<P>,
 {
+    type Output = NdArrayTensor<P, D2>;
+
     fn new_fork_empty(&self, shape: Shape<D2>) -> NdArrayTensor<P, D2> {
         self.new_fork_zeros(shape)
     }

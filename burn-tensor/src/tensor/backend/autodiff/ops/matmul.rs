@@ -1,7 +1,7 @@
 use crate::graph::ops::{BinaryOps, BinaryOpsNodeState};
 use crate::tensor::backend::autodiff::ADTensor;
 use crate::tensor::ops::*;
-use crate::tensor::{Element, Tensor};
+use crate::tensor::{Element, TensorTrait};
 use crate::{execute_ops, register_ops};
 
 register_ops!(
@@ -21,7 +21,7 @@ register_ops!(
 
 impl<T, P, const D: usize> TensorOpsMatmul<P, D> for ADTensor<P, D, T>
 where
-    T: Tensor<P, D>,
+    T: TensorTrait<P, D>,
     P: Element,
 {
     fn matmul(&self, other: &Self) -> Self {

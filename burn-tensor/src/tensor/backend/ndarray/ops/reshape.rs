@@ -5,11 +5,13 @@ macro_rules! define_impl {
     (
         $n:expr
     ) => {
-        impl<P, const D1: usize> TensorOpsReshape<P, D1, $n, NdArrayTensor<P, $n>>
+        impl<P, const D1: usize> TensorOpsReshape<P, D1, $n>
             for NdArrayTensor<P, D1>
         where
             P: Clone + Default + std::fmt::Debug,
         {
+            type Output = NdArrayTensor<P, $n>;
+
             fn reshape(&self, shape: Shape<$n>) -> NdArrayTensor<P, $n> {
                 let dim: Dim<[usize; $n]> = shape.clone().into();
                 let array = self.array.reshape(dim).into_dyn();

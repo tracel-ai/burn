@@ -1,11 +1,11 @@
 use crate::tensor::{
-    backend::autodiff::ADTensor, ops::*, Data, Distribution, Element, Shape, Tensor,
+    backend::autodiff::ADTensor, ops::*, Data, Distribution, Element, Shape, TensorTrait,
 };
 use rand::distributions::Standard;
 
 impl<P, const D: usize, T> TensorCreationLike<P, D> for ADTensor<P, D, T>
 where
-    T: Tensor<P, D> + TensorCreationLike<P, D>,
+    T: TensorTrait<P, D> + TensorCreationLike<P, D>,
     P: Element,
     Standard: rand::distributions::Distribution<P>,
 {
@@ -30,14 +30,15 @@ where
     }
 }
 
-impl<P, const D: usize, const D2: usize, T, T2> TensorCreationFork<P, D, D2, ADTensor<P, D2, T2>>
-    for ADTensor<P, D, T>
+impl<P, const D: usize, const D2: usize, T, T2> TensorCreationFork<P, D, D2> for ADTensor<P, D, T>
 where
-    T: Tensor<P, D> + TensorCreationFork<P, D, D2, T2>,
-    T2: Tensor<P, D2>,
+    T: TensorTrait<P, D> + TensorCreationFork<P, D, D2, Output = T2>,
+    T2: TensorTrait<P, D2>,
     P: Element,
     Standard: rand::distributions::Distribution<P>,
 {
+    type Output = ADTensor<P, D2, T2>;
+
     fn new_fork_empty(&self, shape: Shape<D2>) -> ADTensor<P, D2, T2> {
         ADTensor::from_tensor(self.tensor().new_fork_empty(shape))
     }
@@ -66,7 +67,7 @@ where
 impl<T, P, const D: usize> Zeros<Self> for ADTensor<P, D, T>
 where
     P: Element,
-    T: Tensor<P, D>,
+    T: TensorTrait<P, D>,
 {
     fn zeros(&self) -> Self {
         ADTensor::from_tensor(self.tensor().zeros())
@@ -76,7 +77,7 @@ where
 impl<T, P, const D: usize> Ones<Self> for ADTensor<P, D, T>
 where
     P: Element,
-    T: Tensor<P, D>,
+    T: TensorTrait<P, D>,
 {
     fn ones(&self) -> Self {
         ADTensor::from_tensor(self.tensor().ones())

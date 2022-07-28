@@ -16,12 +16,13 @@ pub trait TensorCreationLike<P, const D: usize> {
     fn new_like_ones(&self) -> Self;
 }
 
-pub trait TensorCreationFork<P, const D: usize, const D2: usize, T: TensorOpsUtilities<P, D2>> {
-    fn new_fork_empty(&self, shape: Shape<D2>) -> T;
-    fn new_fork_random(&self, shape: Shape<D2>, distribution: Distribution<P>) -> T;
-    fn new_fork_data(&self, data: Data<P, D2>) -> T;
-    fn new_fork_zeros(&self, shape: Shape<D2>) -> T;
-    fn new_fork_ones(&self, shape: Shape<D2>) -> T;
+pub trait TensorCreationFork<P, const D: usize, const D2: usize> {
+    type Output;
+    fn new_fork_empty(&self, shape: Shape<D2>) -> Self::Output;
+    fn new_fork_random(&self, shape: Shape<D2>, distribution: Distribution<P>) -> Self::Output;
+    fn new_fork_data(&self, data: Data<P, D2>) -> Self::Output;
+    fn new_fork_zeros(&self, shape: Shape<D2>) -> Self::Output;
+    fn new_fork_ones(&self, shape: Shape<D2>) -> Self::Output;
 }
 
 pub trait TensorOpsAdd<P, const D: usize>:
@@ -63,8 +64,9 @@ where
     fn mul_scalar(&self, other: &P) -> Self;
 }
 
-pub trait TensorOpsReshape<P, const D1: usize, const D2: usize, T: TensorOpsUtilities<P, D2>> {
-    fn reshape(&self, shape: Shape<D2>) -> T;
+pub trait TensorOpsReshape<P, const D1: usize, const D2: usize> {
+    type Output;
+    fn reshape(&self, shape: Shape<D2>) -> Self::Output;
 }
 
 pub trait TensorOpsIndex<P, const D1: usize, const D2: usize> {

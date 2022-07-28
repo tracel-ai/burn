@@ -1,7 +1,7 @@
 use crate::graph::ops::{BinaryOps, BinaryOpsNodeState, UnaryOps, UnaryOpsNodeState};
 use crate::tensor::backend::autodiff::ADTensor;
 use crate::tensor::ops::*;
-use crate::tensor::{Element, Tensor};
+use crate::tensor::{Element, TensorTrait};
 use crate::{execute_ops, register_ops};
 
 register_ops!(
@@ -25,7 +25,7 @@ register_ops!(
 
 impl<T, P, const D: usize> TensorOpsAdd<P, D> for ADTensor<P, D, T>
 where
-    T: Tensor<P, D>,
+    T: TensorTrait<P, D>,
     P: Element,
 {
     fn add(&self, other: &Self) -> Self {
@@ -50,7 +50,7 @@ where
 
 impl<T, P, const D: usize> std::ops::Add<P> for ADTensor<P, D, T>
 where
-    T: Tensor<P, D> + 'static,
+    T: TensorTrait<P, D> + 'static,
     P: Element + 'static,
 {
     type Output = ADTensor<P, D, T>;
@@ -62,7 +62,7 @@ where
 
 impl<T, P, const D: usize> std::ops::Add<ADTensor<P, D, T>> for ADTensor<P, D, T>
 where
-    T: Tensor<P, D> + 'static,
+    T: TensorTrait<P, D> + 'static,
     P: Element + 'static,
 {
     type Output = ADTensor<P, D, T>;

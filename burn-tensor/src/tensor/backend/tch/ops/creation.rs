@@ -43,12 +43,13 @@ where
     }
 }
 
-impl<P, const D: usize, const D2: usize> TensorCreationFork<P, D, D2, TchTensor<P, D2>>
-    for TchTensor<P, D>
+impl<P, const D: usize, const D2: usize> TensorCreationFork<P, D, D2> for TchTensor<P, D>
 where
     P: tch::kind::Element + std::fmt::Debug + SampleUniform + Default + Copy,
     Standard: rand::distributions::Distribution<P>,
 {
+    type Output = TchTensor<P, D2>;
+
     fn new_fork_empty(&self, shape: Shape<D2>) -> TchTensor<P, D2> {
         let device = self.tensor.device();
         let kind = self.kind.clone();

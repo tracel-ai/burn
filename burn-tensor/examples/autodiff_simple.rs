@@ -1,11 +1,11 @@
 use burn_tensor::tensor::{
     backend::{autodiff::ADTensor, ndarray::NdArrayTensor, tch::TchTensor, TchDevice},
     ops::*,
-    Data, Distribution, Element, Shape, Tensor,
+    Data, Distribution, Element, Shape, TensorTrait,
 };
 use std::time::{Duration, SystemTime};
 
-fn my_func<T: Tensor<P, D>, P: Element, const D: usize>(
+fn my_func<T: TensorTrait<P, D>, P: Element, const D: usize>(
     x: T,
     y: T,
 ) -> (Data<P, D>, Data<P, D>, Duration) {
