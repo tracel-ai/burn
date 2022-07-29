@@ -1,9 +1,7 @@
-use crate::tensor::{backend::tch::TchTensor, ops::*, Data};
+use crate::tensor::{backend::tch::TchTensor, ops::*, Data, Element};
 use std::ops::Sub;
 
-impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> TensorOpsSub<P, D>
-    for TchTensor<P, D>
-{
+impl<P: Element, const D: usize> TensorOpsSub<P, D> for TchTensor<P, D> {
     fn sub(&self, other: &Self) -> Self {
         let tensor = (&self.tensor).sub(&other.tensor);
         let kind = self.kind.clone();
@@ -31,9 +29,7 @@ impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> T
     }
 }
 
-impl<P: tch::kind::Element + Default + std::fmt::Debug + Copy, const D: usize> std::ops::Sub<Self>
-    for TchTensor<P, D>
-{
+impl<P: Element, const D: usize> std::ops::Sub<Self> for TchTensor<P, D> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
@@ -41,9 +37,7 @@ impl<P: tch::kind::Element + Default + std::fmt::Debug + Copy, const D: usize> s
     }
 }
 
-impl<P: tch::kind::Element + Default + std::fmt::Debug + Copy, const D: usize> std::ops::Sub<P>
-    for TchTensor<P, D>
-{
+impl<P: Element, const D: usize> std::ops::Sub<P> for TchTensor<P, D> {
     type Output = Self;
 
     fn sub(self, rhs: P) -> Self::Output {

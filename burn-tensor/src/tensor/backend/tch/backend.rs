@@ -1,5 +1,5 @@
 use super::TchTensor;
-use crate::tensor::{backend::TchDevice, Backend, Data, Element, TensorType};
+use crate::tensor::{Backend, Data, Element, TensorType};
 use rand::distributions::{uniform::SampleUniform, Standard};
 
 #[derive(Debug, Copy, Clone)]
@@ -51,7 +51,10 @@ where
     type T = TchTensor<E, D>;
 
     fn from_data(data: Data<E, D>, device: Device) -> Self::T {
-        let device = TchDevice::Cpu;
+        let device = match device {
+            Device::Cpu => tch::Device::Cpu,
+            Device::Cuda(num) => tch::Device::Cuda(num),
+        };
         let tensor = TchTensor::from_data(data, device);
         tensor
     }

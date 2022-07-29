@@ -1,5 +1,7 @@
 use super::{
-    ops::{TensorCreationFork, TensorCreationLike, TensorOpsIndex, TensorOpsReshape},
+    ops::{
+        TensorCreationFork, TensorCreationLike, TensorOpsDevice, TensorOpsIndex, TensorOpsReshape,
+    },
     Data, Element, TensorTrait,
 };
 
@@ -19,7 +21,7 @@ pub trait Backend:
     + TensorType<6, Self>
 {
     type E: Element;
-    type Device: Default;
+    type Device: Default + Send + Sync + std::fmt::Debug + Clone + Copy;
 
     fn from_data<const D: usize>(
         data: Data<Self::E, D>,
@@ -31,6 +33,7 @@ pub trait Backend:
 
 pub trait TensorType<const D: usize, B: Backend> {
     type T: TensorTrait<B::E, D>
+        + TensorOpsDevice<B::E, D, B>
         + TensorCreationLike<B::E, D>
         + TensorCreationFork<B::E, D, 1, Output = Tensor<1, B>>
         + TensorCreationFork<B::E, D, 2, Output = Tensor<2, B>>

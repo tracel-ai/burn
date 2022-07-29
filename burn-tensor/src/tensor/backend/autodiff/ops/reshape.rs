@@ -8,7 +8,6 @@ use crate::{
     tensor::backend::autodiff::ADTensor,
 };
 use rand::distributions::Standard;
-
 use std::sync::Arc;
 
 #[derive(Debug)]
