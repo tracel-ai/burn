@@ -19,8 +19,12 @@ pub trait Backend:
     + TensorType<6, Self>
 {
     type E: Element;
+    type Device: Default;
 
-    fn from_data<const D: usize>(data: Data<Self::E, D>) -> <Self as TensorType<D, Self>>::T
+    fn from_data<const D: usize>(
+        data: Data<Self::E, D>,
+        device: Self::Device,
+    ) -> <Self as TensorType<D, Self>>::T
     where
         Self: TensorType<D, Self>;
 }
@@ -42,5 +46,5 @@ pub trait TensorType<const D: usize, B: Backend> {
         + TensorOpsIndex<B::E, D, 6>
         + TensorOpsReshape<B::E, D, B>;
 
-    fn from_data(data: Data<B::E, D>) -> Self::T;
+    fn from_data(data: Data<B::E, D>, device: B::Device) -> Self::T;
 }

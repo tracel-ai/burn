@@ -56,12 +56,16 @@ macro_rules! define_impl {
             Standard: rand::distributions::Distribution<E>,
         {
             type E = E;
+            type Device = <$b as Backend>::Device;
 
-            fn from_data<const D: usize>(data: Data<E, D>) -> <Self as TensorType<D, Self>>::T
+            fn from_data<const D: usize>(
+                data: Data<E, D>,
+                device: Self::Device,
+            ) -> <Self as TensorType<D, Self>>::T
             where
                 Self: TensorType<D, Self>,
             {
-                <Self as TensorType<D, Self>>::from_data(data)
+                <Self as TensorType<D, Self>>::from_data(data, device)
             }
         }
 
@@ -72,8 +76,8 @@ macro_rules! define_impl {
         {
             type T = ADTensor<E, D, Tensor<D, $b>>;
 
-            fn from_data(data: Data<E, D>) -> Self::T {
-                let tensor = <$b as TensorType<D, $b>>::from_data(data);
+            fn from_data(data: Data<E, D>, device: <$b as Backend>::Device) -> Self::T {
+                let tensor = <$b as TensorType<D, $b>>::from_data(data, device);
                 let tensor = ADTensor::from_tensor(tensor);
                 tensor
             }

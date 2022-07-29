@@ -3,6 +3,17 @@ use crate::tensor::{Backend, Data, Element, TensorType};
 use ndarray::{LinalgScalar, ScalarOperand};
 use rand::distributions::{uniform::SampleUniform, Standard};
 
+#[derive(Debug, Copy, Clone)]
+pub enum Device {
+    Cpu,
+}
+
+impl Default for Device {
+    fn default() -> Self {
+        Self::Cpu
+    }
+}
+
 #[derive(Debug)]
 pub struct NdArrayTensorBackend<E> {
     _e: E,
@@ -20,12 +31,16 @@ where
     Standard: rand::distributions::Distribution<E>,
 {
     type E = E;
+    type Device = Device;
 
-    fn from_data<const D: usize>(data: Data<E, D>) -> <Self as TensorType<D, Self>>::T
+    fn from_data<const D: usize>(
+        data: Data<E, D>,
+        device: Device,
+    ) -> <Self as TensorType<D, Self>>::T
     where
         Self: TensorType<D, Self>,
     {
-        <Self as TensorType<D, Self>>::from_data(data)
+        <Self as TensorType<D, Self>>::from_data(data, device)
     }
 }
 
@@ -36,7 +51,7 @@ where
 {
     type T = NdArrayTensor<E, D>;
 
-    fn from_data(data: Data<E, D>) -> Self::T {
+    fn from_data(data: Data<E, D>, _device: Device) -> Self::T {
         let tensor = NdArrayTensor::from_data(data);
         tensor
     }

@@ -1,45 +1,18 @@
+use super::TchTensor;
+use crate::tensor::{backend::TchDevice, Backend, Data, Element, TensorType};
 use rand::distributions::{uniform::SampleUniform, Standard};
 
-use crate::tensor::{backend::TchDevice, Backend, Data, Element, TensorType};
+#[derive(Debug, Copy, Clone)]
+pub enum Device {
+    Cpu,
+    Cuda(usize),
+}
 
-use super::TchTensor;
-
-// #[derive(Debug, new)]
-// pub struct TchTensorGPUBackend<E, const N: usize> {
-//     _e: E,
-// }
-//
-// impl<E: Element + tch::kind::Element + Into<f64> + SampleUniform, const N: usize> Backend
-//     for TchTensorGPUBackend<E, N>
-// where
-//     Standard: rand::distributions::Distribution<E>,
-// {
-//     type E = E;
-//
-//     fn from_data<const D: usize>(data: Data<E, D>) -> <Self as TensorType<D, Self>>::T
-//     where
-//         Self: TensorType<D, Self>,
-//     {
-//         <Self as TensorType<D, Self>>::from_data(data)
-//     }
-// }
-//
-// impl<
-//         E: Element + tch::kind::Element + Into<f64> + SampleUniform,
-//         const D: usize,
-//         const N: usize,
-//     > TensorType<D, Self> for TchTensorGPUBackend<E, N>
-// where
-//     Standard: rand::distributions::Distribution<E>,
-// {
-//     type T = TchTensor<E, D>;
-//
-//     fn from_data(data: Data<E, D>) -> Self::T {
-//         let device = TchDevice::Cuda(N);
-//         let tensor = TchTensor::from_data(data, device);
-//         tensor
-//     }
-// }
+impl Default for Device {
+    fn default() -> Self {
+        Self::Cpu
+    }
+}
 
 #[derive(Debug, new)]
 pub struct TchTensorCPUBackend<E> {
@@ -57,12 +30,16 @@ where
     Standard: rand::distributions::Distribution<E>,
 {
     type E = E;
+    type Device = Device;
 
-    fn from_data<const D: usize>(data: Data<E, D>) -> <Self as TensorType<D, Self>>::T
+    fn from_data<const D: usize>(
+        data: Data<E, D>,
+        device: Device,
+    ) -> <Self as TensorType<D, Self>>::T
     where
         Self: TensorType<D, Self>,
     {
-        <Self as TensorType<D, Self>>::from_data(data)
+        <Self as TensorType<D, Self>>::from_data(data, device)
     }
 }
 
@@ -73,7 +50,7 @@ where
 {
     type T = TchTensor<E, D>;
 
-    fn from_data(data: Data<E, D>) -> Self::T {
+    fn from_data(data: Data<E, D>, device: Device) -> Self::T {
         let device = TchDevice::Cpu;
         let tensor = TchTensor::from_data(data, device);
         tensor

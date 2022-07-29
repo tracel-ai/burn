@@ -2,9 +2,9 @@ use super::{Backend, Data, Distribution, Tensor, TensorType};
 use crate::tensor::Shape;
 use std::ops::Range;
 
-pub trait TensorOpsBackend<P, const D: usize, B1: Backend, B2: Backend> {
-    type Output;
-    fn to_backend(&self) -> Self::Output;
+pub trait TensorOpsDevice<P, const D: usize, B: Backend<E = P>> {
+    fn device(&self) -> B::Device;
+    fn to_device(&self, device: B::Device) -> Self;
 }
 
 pub trait TensorOpsUtilities<P, const D: usize> {

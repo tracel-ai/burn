@@ -1,6 +1,6 @@
 mod add;
-mod backend;
 mod creation;
+mod device;
 mod index;
 mod matmul;
 mod mul;
