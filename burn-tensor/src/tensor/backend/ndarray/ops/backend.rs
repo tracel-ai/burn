@@ -4,15 +4,17 @@ use crate::tensor::{
     Backend, Element, Tensor, TensorType,
 };
 
-impl<E, const D: usize, B: Backend> TensorOpsBackend<E, D, B> for NdArrayTensor<E, D>
+impl<E, const D: usize, B1: Backend, B2: Backend> TensorOpsBackend<E, D, B1, B2>
+    for NdArrayTensor<E, D>
 where
     E: Element,
-    B: Backend<E = E> + TensorType<D, B>,
+    B1: Backend<E = E> + TensorType<D, B1>,
+    B2: Backend<E = E> + TensorType<D, B2>,
 {
-    type Output = Tensor<D, B>;
+    type Output = Tensor<D, B2>;
 
     fn to_backend(&self) -> Self::Output {
         let data = self.to_data();
-        <B as TensorType<D, B>>::from_data(data)
+        <B2 as TensorType<D, B2>>::from_data(data)
     }
 }

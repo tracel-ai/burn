@@ -2,7 +2,7 @@ use super::{Backend, Data, Distribution};
 use crate::tensor::Shape;
 use std::ops::Range;
 
-pub trait TensorOpsBackend<P, const D: usize, B: Backend> {
+pub trait TensorOpsBackend<P, const D: usize, B1: Backend, B2: Backend> {
     type Output;
     fn to_backend(&self) -> Self::Output;
 }

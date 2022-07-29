@@ -1,4 +1,5 @@
 mod add;
+mod backend;
 mod creation;
 mod index;
 mod matmul;
@@ -7,7 +8,6 @@ mod neg;
 mod reshape;
 mod sub;
 mod transpose;
-mod backend;
 
 mod macros;
 pub use macros::*;

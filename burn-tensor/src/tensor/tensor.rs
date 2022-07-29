@@ -27,12 +27,12 @@ pub trait Backend:
 pub trait TensorType<const D: usize, B: Backend> {
     type T: TensorTrait<B::E, D>
         + TensorCreationLike<B::E, D>
-        + TensorCreationFork<B::E, D, 2, Output = Tensor<1, B>>
-        + TensorCreationFork<B::E, D, 2, Output = Tensor<2, B>>
-        + TensorCreationFork<B::E, D, 3, Output = Tensor<3, B>>
-        + TensorCreationFork<B::E, D, 4, Output = Tensor<4, B>>
-        + TensorCreationFork<B::E, D, 5, Output = Tensor<5, B>>
-        + TensorCreationFork<B::E, D, 6, Output = Tensor<6, B>>
+        // + TensorCreationFork<B::E, D, 2, Output = Tensor<1, B>>
+        // + TensorCreationFork<B::E, D, 2, Output = Tensor<2, B>>
+        // + TensorCreationFork<B::E, D, 3, Output = Tensor<3, B>>
+        // + TensorCreationFork<B::E, D, 4, Output = Tensor<4, B>>
+        // + TensorCreationFork<B::E, D, 5, Output = Tensor<5, B>>
+        // + TensorCreationFork<B::E, D, 6, Output = Tensor<6, B>>
         + TensorOpsIndex<B::E, D, 1>
         + TensorOpsIndex<B::E, D, 2>
         + TensorOpsIndex<B::E, D, 3>
