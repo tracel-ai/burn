@@ -1,29 +1,28 @@
-use crate::tensor::{backend::ndarray::NdArrayTensor, ops::*, Shape};
-use ndarray::Dim;
+use crate::{
+    tensor::{
+        backend::ndarray::{NdArrayTensor, NdArrayTensorBackend},
+        ops::*,
+        Element, Shape, Tensor,
+    },
+    to_nd_array_tensor,
+};
+use ndarray::{Dim, LinalgScalar, ScalarOperand};
+use rand::distributions::{uniform::SampleUniform, Standard};
 
-macro_rules! define_impl {
-    (
-        $n:expr
-    ) => {
-        impl<P, const D1: usize> TensorOpsReshape<P, D1, $n> for NdArrayTensor<P, D1>
-        where
-            P: Clone + Default + std::fmt::Debug,
-        {
-            type Output = NdArrayTensor<P, $n>;
-
-            fn reshape(&self, shape: Shape<$n>) -> NdArrayTensor<P, $n> {
-                let dim: Dim<[usize; $n]> = shape.clone().into();
-                let array = self.array.reshape(dim).into_dyn();
-
-                NdArrayTensor { array, shape }
-            }
+impl<P, const D1: usize> TensorOpsReshape<P, D1, NdArrayTensorBackend<P>> for NdArrayTensor<P, D1>
+where
+    P: Element + ScalarOperand + LinalgScalar + SampleUniform,
+    Standard: rand::distributions::Distribution<P>,
+{
+    fn reshape<const D2: usize>(&self, shape: Shape<D2>) -> Tensor<D2, NdArrayTensorBackend<P>> {
+        match D2 {
+            1 => to_nd_array_tensor!(1, shape, self.array),
+            2 => to_nd_array_tensor!(2, shape, self.array),
+            3 => to_nd_array_tensor!(3, shape, self.array),
+            4 => to_nd_array_tensor!(4, shape, self.array),
+            5 => to_nd_array_tensor!(5, shape, self.array),
+            6 => to_nd_array_tensor!(6, shape, self.array),
+            _ => panic!("NdArrayTensor support only 6 dimensions."),
         }
-    };
+    }
 }
-
-define_impl!(1);
-define_impl!(2);
-define_impl!(3);
-define_impl!(4);
-define_impl!(5);
-define_impl!(6);

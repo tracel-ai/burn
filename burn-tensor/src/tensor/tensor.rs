@@ -7,6 +7,7 @@ pub type Tensor<const D: usize, B> = <B as TensorType<D, B>>::T;
 
 pub trait Backend:
     Sized
+    + Default
     + Send
     + Sync
     + std::fmt::Debug
@@ -39,12 +40,7 @@ pub trait TensorType<const D: usize, B: Backend> {
         + TensorOpsIndex<B::E, D, 4>
         + TensorOpsIndex<B::E, D, 5>
         + TensorOpsIndex<B::E, D, 6>
-        + TensorOpsReshape<B::E, D, 1, Output = Tensor<1, B>>
-        + TensorOpsReshape<B::E, D, 2, Output = Tensor<2, B>>
-        + TensorOpsReshape<B::E, D, 3, Output = Tensor<3, B>>
-        + TensorOpsReshape<B::E, D, 4, Output = Tensor<4, B>>
-        + TensorOpsReshape<B::E, D, 5, Output = Tensor<5, B>>
-        + TensorOpsReshape<B::E, D, 6, Output = Tensor<6, B>>;
+        + TensorOpsReshape<B::E, D, B>;
 
     fn from_data(data: Data<B::E, D>) -> Self::T;
 }

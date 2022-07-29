@@ -1,4 +1,4 @@
-use super::{Backend, Data, Distribution};
+use super::{Backend, Data, Distribution, Tensor, TensorType};
 use crate::tensor::Shape;
 use std::ops::Range;
 
@@ -69,9 +69,10 @@ where
     fn mul_scalar(&self, other: &P) -> Self;
 }
 
-pub trait TensorOpsReshape<P, const D1: usize, const D2: usize> {
-    type Output;
-    fn reshape(&self, shape: Shape<D2>) -> Self::Output;
+pub trait TensorOpsReshape<P, const D1: usize, B: Backend<E = P>> {
+    fn reshape<const D2: usize>(&self, shape: Shape<D2>) -> Tensor<D2, B>
+    where
+        B: Backend<E = P> + TensorType<D2, B>;
 }
 
 pub trait TensorOpsIndex<P, const D1: usize, const D2: usize> {

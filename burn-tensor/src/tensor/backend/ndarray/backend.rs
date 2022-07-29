@@ -8,8 +8,15 @@ pub struct NdArrayTensorBackend<E> {
     _e: E,
 }
 
-impl<E: Element + ScalarOperand + LinalgScalar + SampleUniform> Backend for NdArrayTensorBackend<E>
+impl<E: Default> Default for NdArrayTensorBackend<E> {
+    fn default() -> Self {
+        Self { _e: E::default() }
+    }
+}
+
+impl<E> Backend for NdArrayTensorBackend<E>
 where
+    E: Element + ScalarOperand + LinalgScalar + SampleUniform,
     Standard: rand::distributions::Distribution<E>,
 {
     type E = E;
