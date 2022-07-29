@@ -1,22 +1,25 @@
-use burn_tensor::tensor::backend::ndarray::{NdArrayBackend, NdArrayTensor};
-use burn_tensor::tensor::backend::tch::{TchBackend, TchTensor};
-use burn_tensor::tensor::backend::TchDevice;
+use burn_tensor::tensor::backend::ndarray::NdArrayBackend;
+use burn_tensor::tensor::backend::tch::TchBackend;
 use burn_tensor::tensor::{backend::autodiff::ADTensor, Backend, Tensor};
 use burn_tensor::tensor::{ops::*, Data, Distribution, Shape};
 use std::time::{Duration, SystemTime};
 
-fn my_func<B: Backend>(
-    x: Tensor<2, B>,
-    y: Tensor<2, B>,
-) -> (Data<B::E, 2>, Data<B::E, 2>, Duration) {
+fn loss<B: Backend>(x: &Tensor<2, B>, y: &Tensor<2, B>) -> Tensor<2, B> {
+    x.matmul(y)
+}
+
+fn my_func<BForward: Backend>(
+    x: Tensor<2, BForward>,
+    y: Tensor<2, BForward>,
+) -> (Data<BForward::E, 2>, Data<BForward::E, 2>, Duration) {
     let start = SystemTime::now();
 
     let x = ADTensor::from_tensor(x);
     let y = ADTensor::from_tensor(y);
 
-    let z = x.matmul(&y);
+    let loss = x.matmul(&y);
 
-    let grads = z.backward();
+    let grads = loss.backward();
 
     let x_grad = grads.wrt(&x).expect("x gradient defined");
     let y_grad = grads.wrt(&y).expect("y gradient defined");
@@ -27,35 +30,30 @@ fn my_func<B: Backend>(
     (x_grad.to_data(), y_grad.to_data(), duration)
 }
 
-fn run() {
+fn run<B: Backend>(x: Data<B::E, 2>, y: Data<B::E, 2>, device: B::Device) {
+    let (x_grad, y_grad, duration) = my_func::<B>(B::from_data(x, device), B::from_data(y, device));
+
+    println!("--- {} ---", B::name());
+    println!("took: {} ns", duration.as_nanos());
+    println!("x_grad: {}", x_grad);
+    println!("y_grad: {}", y_grad);
+}
+
+fn main() {
     let x = Data::<f32, 2>::random(Shape::new([2, 3]), Distribution::Standard);
     let y = Data::<f32, 2>::random(Shape::new([3, 1]), Distribution::Standard);
-
-    let (x_grad_ndarray, y_grad_ndarray, duration_ndarray) = my_func::<NdArrayBackend<f32>>(
-        NdArrayTensor::from_data(x.clone()),
-        NdArrayTensor::from_data(y.clone()),
-    );
-
-    let device = TchDevice::Cpu;
-    let (x_grad_tch, y_grad_tch, duration_tch) = my_func::<TchBackend<f32>>(
-        TchTensor::from_data(x.clone(), device),
-        TchTensor::from_data(y.clone(), device),
-    );
 
     println!("x: {}", x);
     println!("y: {}", y);
 
-    println!("--- ndarray ---");
-    println!("took: {} ns", duration_ndarray.as_nanos());
-    println!("x_grad: {}", x_grad_ndarray);
-    println!("y_grad: {}", y_grad_ndarray);
-
-    println!("--- tch ---");
-    println!("took: {} ns", duration_tch.as_nanos());
-    println!("x_grad: {}", x_grad_tch);
-    println!("y_grad: {}", y_grad_tch);
-}
-
-fn main() {
-    run()
+    run::<NdArrayBackend<f32>>(
+        x.clone(),
+        y.clone(),
+        burn_tensor::tensor::backend::ndarray::Device::Cpu,
+    );
+    run::<TchBackend<f32>>(
+        x.clone(),
+        y.clone(),
+        burn_tensor::tensor::backend::tch::Device::Cpu,
+    );
 }

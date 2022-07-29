@@ -1,7 +1,19 @@
 use crate::tensor::{
-    backend::autodiff::ADTensor, ops::*, Data, Distribution, Element, Shape, TensorTrait,
+    backend::autodiff::ADTensor, ops::*, Backend, Data, Distribution, Element, Shape, Tensor,
+    TensorTrait, TensorType,
 };
 use rand::distributions::Standard;
+
+impl<E, const D: usize, B> TensorOpsCreation<E, D, B> for ADTensor<E, D, Tensor<D, B>>
+where
+    E: Element,
+    B: Backend<E = E> + TensorType<D, B>,
+    Standard: rand::distributions::Distribution<E>,
+{
+    fn grad(&self) -> Tensor<D, B> {
+        panic!();
+    }
+}
 
 impl<P, const D: usize, T> TensorCreationLike<P, D> for ADTensor<P, D, T>
 where

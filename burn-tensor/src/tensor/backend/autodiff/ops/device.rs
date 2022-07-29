@@ -3,9 +3,7 @@ use crate::graph::ops::ForwardUnaryRecordedOps;
 use crate::graph::ops::{UnaryOps, UnaryOpsNodeState};
 use crate::tensor::backend::autodiff::{ADKind, ADTensor};
 use crate::tensor::TensorType;
-use crate::tensor::{
-    backend::autodiff::ADTensorBackend, ops::TensorOpsDevice, Backend, Element, Tensor,
-};
+use crate::tensor::{backend::autodiff::ADBackend, ops::TensorOpsDevice, Backend, Element, Tensor};
 use rand::distributions::Standard;
 use std::sync::Arc;
 
@@ -38,7 +36,7 @@ where
 
 macro_rules! define_impl {
     ($b:ty) => {
-        impl<E, const D: usize> TensorOpsDevice<E, D, ADTensorBackend<E, $b>>
+        impl<E, const D: usize> TensorOpsDevice<E, D, ADBackend<E, $b>>
             for ADTensor<E, D, Tensor<D, $b>>
         where
             E: Element,

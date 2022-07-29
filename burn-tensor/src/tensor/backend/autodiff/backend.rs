@@ -3,12 +3,12 @@ use crate::tensor::{Backend, Data, Element, Tensor, TensorType};
 use rand::distributions::Standard;
 
 #[derive(Debug)]
-pub struct ADTensorBackend<E, B> {
+pub struct ADBackend<E, B> {
     _b: B,
     _e: E,
 }
 
-impl<E: Default, B: Backend> Default for ADTensorBackend<E, B> {
+impl<E: Default, B: Backend> Default for ADBackend<E, B> {
     fn default() -> Self {
         Self {
             _b: B::default(),
@@ -26,7 +26,7 @@ macro_rules! register_ad_backend {
         type B1<E> = crate::tensor::backend::ndarray::NdArrayBackend<E>;
         #[cfg(feature = "tch")]
         type B2<E> = crate::tensor::backend::tch::TchBackend<E>;
-        type AD<E, B> = crate::tensor::backend::autodiff::ADTensorBackend<E, B>;
+        type AD<E, B> = crate::tensor::backend::autodiff::ADBackend<E, B>;
 
         // First order derivative
         #[cfg(feature = "ndarray")]
@@ -50,7 +50,7 @@ macro_rules! register_ad_backend {
 
 macro_rules! define_impl {
     ($b:ty) => {
-        impl<E> Backend for ADTensorBackend<E, $b>
+        impl<E> Backend for ADBackend<E, $b>
         where
             E: Element,
             Standard: rand::distributions::Distribution<E>,
@@ -58,18 +58,12 @@ macro_rules! define_impl {
             type E = E;
             type Device = <$b as Backend>::Device;
 
-            fn from_data<const D: usize>(
-                data: Data<E, D>,
-                device: Self::Device,
-            ) -> <Self as TensorType<D, Self>>::T
-            where
-                Self: TensorType<D, Self>,
-            {
-                <Self as TensorType<D, Self>>::from_data(data, device)
+            fn name() -> String {
+                format!("AD Backend using {}", <$b as Backend>::name())
             }
         }
 
-        impl<E, const D: usize> TensorType<D, Self> for ADTensorBackend<E, $b>
+        impl<E, const D: usize> TensorType<D, Self> for ADBackend<E, $b>
         where
             E: Element,
             Standard: rand::distributions::Distribution<E>,
@@ -78,6 +72,16 @@ macro_rules! define_impl {
 
             fn from_data(data: Data<E, D>, device: <$b as Backend>::Device) -> Self::T {
                 let tensor = <$b as TensorType<D, $b>>::from_data(data, device);
+                let tensor = ADTensor::from_tensor(tensor);
+                tensor
+            }
+        }
+        impl<E> ADBackend<E, $b>
+        where
+            E: Element,
+            Standard: rand::distributions::Distribution<E>,
+        {
+            pub fn from_tensor<const D: usize>(tensor: Tensor<D, $b>) -> Tensor<D, Self> {
                 let tensor = ADTensor::from_tensor(tensor);
                 tensor
             }

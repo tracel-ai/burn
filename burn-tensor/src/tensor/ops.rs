@@ -13,6 +13,12 @@ pub trait TensorOpsUtilities<P, const D: usize> {
     fn to_data(&self) -> Data<P, D>;
 }
 
+pub trait TensorOpsCreation<P, const D: usize, B> {
+    fn grad(&self) -> Tensor<D, B>
+    where
+        B: Backend<E = P> + TensorType<D, B>;
+}
+
 pub trait TensorCreationLike<P, const D: usize> {
     fn new_like_empty(&self) -> Self;
     fn new_like_random(&self, distribution: Distribution<P>) -> Self;

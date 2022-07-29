@@ -1,6 +1,6 @@
 use crate::graph::node::{ForwardNode, ForwardNodeState};
 use crate::graph::ops::ForwardUnaryRecordedOps;
-use crate::tensor::backend::autodiff::{ADKind, ADTensorBackend};
+use crate::tensor::backend::autodiff::{ADBackend, ADKind};
 use crate::tensor::{ops::*, Shape, Tensor, TensorType};
 use crate::tensor::{Backend, Element};
 use crate::{
@@ -41,16 +41,13 @@ where
 
 macro_rules! define_impl {
     ($b:ty) => {
-        impl<E, const D1: usize> TensorOpsReshape<E, D1, ADTensorBackend<E, $b>>
+        impl<E, const D1: usize> TensorOpsReshape<E, D1, ADBackend<E, $b>>
             for ADTensor<E, D1, Tensor<D1, $b>>
         where
             E: Element,
             Standard: rand::distributions::Distribution<E>,
         {
-            fn reshape<const D2: usize>(
-                &self,
-                shape: Shape<D2>,
-            ) -> Tensor<D2, ADTensorBackend<E, $b>> {
+            fn reshape<const D2: usize>(&self, shape: Shape<D2>) -> Tensor<D2, ADBackend<E, $b>> {
                 let input = self.tensor();
                 let out = TensorOpsReshape::reshape(&input, shape.clone());
 

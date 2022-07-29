@@ -32,14 +32,8 @@ where
     type E = E;
     type Device = Device;
 
-    fn from_data<const D: usize>(
-        data: Data<E, D>,
-        device: Device,
-    ) -> <Self as TensorType<D, Self>>::T
-    where
-        Self: TensorType<D, Self>,
-    {
-        <Self as TensorType<D, Self>>::from_data(data, device)
+    fn name() -> String {
+        "Tch Backend".to_string()
     }
 }
 
