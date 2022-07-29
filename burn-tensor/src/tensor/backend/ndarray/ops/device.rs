@@ -1,11 +1,11 @@
 use crate::tensor::{
-    backend::ndarray::{Device, NdArrayTensor, NdArrayTensorBackend},
+    backend::ndarray::{Device, NdArrayBackend, NdArrayTensor},
     ops::TensorOpsDevice,
     Element,
 };
 use rand::distributions::Standard;
 
-impl<E, const D: usize> TensorOpsDevice<E, D, NdArrayTensorBackend<E>> for NdArrayTensor<E, D>
+impl<E, const D: usize> TensorOpsDevice<E, D, NdArrayBackend<E>> for NdArrayTensor<E, D>
 where
     E: Element,
     Standard: rand::distributions::Distribution<E>,

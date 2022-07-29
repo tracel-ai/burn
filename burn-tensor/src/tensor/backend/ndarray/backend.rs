@@ -15,17 +15,17 @@ impl Default for Device {
 }
 
 #[derive(Debug)]
-pub struct NdArrayTensorBackend<E> {
+pub struct NdArrayBackend<E> {
     _e: E,
 }
 
-impl<E: Default> Default for NdArrayTensorBackend<E> {
+impl<E: Default> Default for NdArrayBackend<E> {
     fn default() -> Self {
         Self { _e: E::default() }
     }
 }
 
-impl<E> Backend for NdArrayTensorBackend<E>
+impl<E> Backend for NdArrayBackend<E>
 where
     E: Element + ScalarOperand + LinalgScalar + SampleUniform,
     Standard: rand::distributions::Distribution<E>,
@@ -45,7 +45,7 @@ where
 }
 
 impl<E: Element + ScalarOperand + LinalgScalar + SampleUniform, const D: usize> TensorType<D, Self>
-    for NdArrayTensorBackend<E>
+    for NdArrayBackend<E>
 where
     Standard: rand::distributions::Distribution<E>,
 {

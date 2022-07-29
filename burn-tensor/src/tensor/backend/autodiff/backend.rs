@@ -23,9 +23,9 @@ impl<E: Default, B: Backend> Default for ADTensorBackend<E, B> {
 macro_rules! register_ad_backend {
     () => {
         #[cfg(feature = "ndarray")]
-        type B1<E> = crate::tensor::backend::ndarray::NdArrayTensorBackend<E>;
+        type B1<E> = crate::tensor::backend::ndarray::NdArrayBackend<E>;
         #[cfg(feature = "tch")]
-        type B2<E> = crate::tensor::backend::tch::TchTensorCPUBackend<E>;
+        type B2<E> = crate::tensor::backend::tch::TchBackend<E>;
         type AD<E, B> = crate::tensor::backend::autodiff::ADTensorBackend<E, B>;
 
         // First order derivative

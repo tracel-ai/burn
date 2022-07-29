@@ -1,12 +1,12 @@
 use rand::distributions::Standard;
 
 use crate::tensor::{
-    backend::tch::{Device, TchTensor, TchTensorCPUBackend},
+    backend::tch::{Device, TchBackend, TchTensor},
     ops::TensorOpsDevice,
     Element,
 };
 
-impl<E, const D: usize> TensorOpsDevice<E, D, TchTensorCPUBackend<E>> for TchTensor<E, D>
+impl<E, const D: usize> TensorOpsDevice<E, D, TchBackend<E>> for TchTensor<E, D>
 where
     E: Element,
     Standard: rand::distributions::Distribution<E>,
