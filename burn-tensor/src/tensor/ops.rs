@@ -1,6 +1,11 @@
-use super::{Data, Distribution};
+use super::{Backend, Data, Distribution};
 use crate::tensor::Shape;
 use std::ops::Range;
+
+pub trait TensorOpsBackend<P, const D: usize, B: Backend> {
+    type Output;
+    fn to_backend(&self) -> Self::Output;
+}
 
 pub trait TensorOpsUtilities<P, const D: usize> {
     fn shape(&self) -> &Shape<D>;

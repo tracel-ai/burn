@@ -7,6 +7,7 @@ mod neg;
 mod reshape;
 mod sub;
 mod transpose;
+mod backend;
 
 mod macros;
 pub use macros::*;

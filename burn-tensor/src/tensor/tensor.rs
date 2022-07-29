@@ -1,48 +1,50 @@
-use super::ops::*;
-use super::{ops::TensorOpsReshape, Data, Element, TensorTrait};
+use super::{
+    ops::{TensorCreationFork, TensorCreationLike, TensorOpsIndex, TensorOpsReshape},
+    Data, Element, TensorTrait,
+};
 
-type E<B> = <B as Backend>::E;
-pub type Tensor<const D: usize, B> = <B as TensorType<E<B>, D, B>>::T;
+pub type Tensor<const D: usize, B> = <B as TensorType<D, B>>::T;
 
 pub trait Backend:
     Sized
-    + TensorType<Self::E, 1, Self>
-    + TensorType<Self::E, 2, Self>
-    + TensorType<Self::E, 3, Self>
-    + TensorType<Self::E, 4, Self>
-    + TensorType<Self::E, 5, Self>
-    + TensorType<Self::E, 6, Self>
+    + Send
+    + Sync
+    + std::fmt::Debug
+    + TensorType<1, Self>
+    + TensorType<2, Self>
+    + TensorType<3, Self>
+    + TensorType<4, Self>
+    + TensorType<5, Self>
+    + TensorType<6, Self>
 {
     type E: Element;
 
-    fn from_data<const D: usize>(
-        data: Data<Self::E, D>,
-    ) -> <Self as TensorType<Self::E, D, Self>>::T
+    fn from_data<const D: usize>(data: Data<Self::E, D>) -> <Self as TensorType<D, Self>>::T
     where
-        Self: TensorType<Self::E, D, Self>;
+        Self: TensorType<D, Self>;
 }
 
-pub trait TensorType<E: Element, const D: usize, B: Backend> {
-    type T: TensorTrait<E, D>
-        + TensorCreationLike<E, D>
-        + TensorCreationFork<E, D, 2, Output = Tensor<1, B>>
-        + TensorCreationFork<E, D, 2, Output = Tensor<2, B>>
-        + TensorCreationFork<E, D, 3, Output = Tensor<3, B>>
-        + TensorCreationFork<E, D, 4, Output = Tensor<4, B>>
-        + TensorCreationFork<E, D, 5, Output = Tensor<5, B>>
-        + TensorCreationFork<E, D, 6, Output = Tensor<6, B>>
-        + TensorOpsIndex<E, D, 1>
-        + TensorOpsIndex<E, D, 2>
-        + TensorOpsIndex<E, D, 3>
-        + TensorOpsIndex<E, D, 4>
-        + TensorOpsIndex<E, D, 5>
-        + TensorOpsIndex<E, D, 6>
-        + TensorOpsReshape<E, D, 1, Output = Tensor<1, B>>
-        + TensorOpsReshape<E, D, 2, Output = Tensor<2, B>>
-        + TensorOpsReshape<E, D, 3, Output = Tensor<3, B>>
-        + TensorOpsReshape<E, D, 4, Output = Tensor<4, B>>
-        + TensorOpsReshape<E, D, 5, Output = Tensor<5, B>>
-        + TensorOpsReshape<E, D, 6, Output = Tensor<6, B>>;
+pub trait TensorType<const D: usize, B: Backend> {
+    type T: TensorTrait<B::E, D>
+        + TensorCreationLike<B::E, D>
+        + TensorCreationFork<B::E, D, 2, Output = Tensor<1, B>>
+        + TensorCreationFork<B::E, D, 2, Output = Tensor<2, B>>
+        + TensorCreationFork<B::E, D, 3, Output = Tensor<3, B>>
+        + TensorCreationFork<B::E, D, 4, Output = Tensor<4, B>>
+        + TensorCreationFork<B::E, D, 5, Output = Tensor<5, B>>
+        + TensorCreationFork<B::E, D, 6, Output = Tensor<6, B>>
+        + TensorOpsIndex<B::E, D, 1>
+        + TensorOpsIndex<B::E, D, 2>
+        + TensorOpsIndex<B::E, D, 3>
+        + TensorOpsIndex<B::E, D, 4>
+        + TensorOpsIndex<B::E, D, 5>
+        + TensorOpsIndex<B::E, D, 6>
+        + TensorOpsReshape<B::E, D, 1, Output = Tensor<1, B>>
+        + TensorOpsReshape<B::E, D, 2, Output = Tensor<2, B>>
+        + TensorOpsReshape<B::E, D, 3, Output = Tensor<3, B>>
+        + TensorOpsReshape<B::E, D, 4, Output = Tensor<4, B>>
+        + TensorOpsReshape<B::E, D, 5, Output = Tensor<5, B>>
+        + TensorOpsReshape<B::E, D, 6, Output = Tensor<6, B>>;
 
-    fn from_data(data: Data<E, D>) -> Self::T;
+    fn from_data(data: Data<B::E, D>) -> Self::T;
 }
