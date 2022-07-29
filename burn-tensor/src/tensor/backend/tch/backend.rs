@@ -4,7 +4,7 @@ use crate::tensor::{backend::TchDevice, Backend, Data, Element, TensorType};
 
 use super::TchTensor;
 
-#[derive(Debug)]
+#[derive(Debug, new)]
 pub struct TchTensorGPUBackend<E, const N: usize> {
     _e: E,
 }
@@ -41,7 +41,7 @@ where
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, new)]
 pub struct TchTensorCPUBackend<E> {
     _e: E,
 }
