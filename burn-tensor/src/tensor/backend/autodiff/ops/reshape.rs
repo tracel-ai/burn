@@ -7,8 +7,6 @@ use crate::{
     graph::ops::{UnaryOps, UnaryOpsNodeState},
     tensor::backend::autodiff::ADTensor,
 };
-use ndarray::{LinalgScalar, ScalarOperand};
-use rand::distributions::uniform::SampleUniform;
 use rand::distributions::Standard;
 
 use std::sync::Arc;
@@ -34,7 +32,7 @@ impl<P, const D1: usize, const D2: usize, B> UnaryOps<Tensor<D1, B>, Tensor<D2, 
     for ADTensorOpsReshape<P, D1, D2, B>
 where
     B: Backend<E = P> + TensorType<D1, B> + TensorType<D2, B>,
-    P: Element + ScalarOperand + LinalgScalar + SampleUniform,
+    P: Element,
     Standard: rand::distributions::Distribution<P>,
 {
     fn partial(&self, state: &UnaryOpsNodeState<Tensor<D1, B>, Tensor<D2, B>>) -> Tensor<D1, B> {
@@ -44,27 +42,22 @@ where
 
 macro_rules! define_impl {
     ($b:ty) => {
-        impl<P, const D1: usize> TensorOpsReshape<P, D1, ADTensorBackend<P, $b>>
-            for ADTensor<P, D1, Tensor<D1, $b>>
+        impl<E, const D1: usize> TensorOpsReshape<E, D1, ADTensorBackend<E, $b>>
+            for ADTensor<E, D1, Tensor<D1, $b>>
         where
-            P: Element
-                + ScalarOperand
-                + LinalgScalar
-                + SampleUniform
-                + Into<f64>
-                + tch::kind::Element,
-            Standard: rand::distributions::Distribution<P>,
+            E: Element,
+            Standard: rand::distributions::Distribution<E>,
         {
             fn reshape<const D2: usize>(
                 &self,
                 shape: Shape<D2>,
-            ) -> Tensor<D2, ADTensorBackend<P, $b>> {
+            ) -> Tensor<D2, ADTensorBackend<E, $b>> {
                 let input = self.tensor();
                 let out = TensorOpsReshape::reshape(&input, shape.clone());
 
                 let state = ForwardNodeState::new(out);
 
-                let ops = ADTensorOpsReshape::<P, D1, D2, $b>::new(self.shape.clone());
+                let ops = ADTensorOpsReshape::<E, D1, D2, $b>::new(self.shape.clone());
                 let ops = Arc::new(ops);
                 let ops = ForwardUnaryRecordedOps::new(self.node.clone(), ops);
                 let ops = Arc::new(ops);
@@ -81,8 +74,7 @@ macro_rules! define_impl {
     };
 }
 
-define_impl!(crate::tensor::backend::ndarray::NdArrayTensorBackend<P>);
-define_impl!(crate::tensor::backend::tch::TchTensorCPUBackend<P>);
+crate::register_ad_backend!();
 
 #[cfg(test)]
 mod tests {

@@ -1,8 +1,6 @@
-use crate::tensor::{Backend, Data, Element, Tensor, TensorType};
-use ndarray::{LinalgScalar, ScalarOperand};
-use rand::distributions::{uniform::SampleUniform, Standard};
-
 use super::ADTensor;
+use crate::tensor::{Backend, Data, Element, Tensor, TensorType};
+use rand::distributions::Standard;
 
 #[derive(Debug)]
 pub struct ADTensorBackend<E, B> {
@@ -19,12 +17,42 @@ impl<E: Default, B: Backend> Default for ADTensorBackend<E, B> {
     }
 }
 
+#[macro_export]
+/// Run the macro in score with de name define_impl with backend as argument.
+/// Element should be defined in generic as E.
+macro_rules! register_ad_backend {
+    () => {
+        #[cfg(feature = "ndarray")]
+        type B1<E> = crate::tensor::backend::ndarray::NdArrayTensorBackend<E>;
+        #[cfg(feature = "tch")]
+        type B2<E> = crate::tensor::backend::tch::TchTensorCPUBackend<E>;
+        type AD<E, B> = crate::tensor::backend::autodiff::ADTensorBackend<E, B>;
+
+        // First order derivative
+        #[cfg(feature = "ndarray")]
+        define_impl!(B1<E>);
+        #[cfg(feature = "tch")]
+        define_impl!(B2<E>);
+
+        // Second order derivative
+        #[cfg(feature = "ndarray")]
+        define_impl!(AD<E, B1<E>>);
+        #[cfg(feature = "tch")]
+        define_impl!(AD<E, B2<E>>);
+
+        // third order derivative
+        #[cfg(feature = "ndarray")]
+        define_impl!(AD<E, AD<E, B1<E>>>);
+        #[cfg(feature = "tch")]
+        define_impl!(AD<E, AD<E, B2<E>>>);
+    };
+}
+
 macro_rules! define_impl {
     ($b:ty) => {
         impl<E> Backend for ADTensorBackend<E, $b>
         where
-            E: Element + ScalarOperand + LinalgScalar + SampleUniform,
-            E: tch::kind::Element + Into<f64>,
+            E: Element,
             Standard: rand::distributions::Distribution<E>,
         {
             type E = E;
@@ -39,8 +67,7 @@ macro_rules! define_impl {
 
         impl<E, const D: usize> TensorType<D, Self> for ADTensorBackend<E, $b>
         where
-            E: Element + ScalarOperand + LinalgScalar + SampleUniform,
-            E: tch::kind::Element + Into<f64>,
+            E: Element,
             Standard: rand::distributions::Distribution<E>,
         {
             type T = ADTensor<E, D, Tensor<D, $b>>;
@@ -54,5 +81,4 @@ macro_rules! define_impl {
     };
 }
 
-define_impl!(crate::tensor::backend::ndarray::NdArrayTensorBackend<E>);
-define_impl!(crate::tensor::backend::tch::TchTensorCPUBackend<E>);
+register_ad_backend!();

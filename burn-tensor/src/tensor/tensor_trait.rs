@@ -1,11 +1,20 @@
 use crate::tensor::ops::*;
-use half::bf16;
-use half::f16;
+use rand::distributions::uniform::SampleUniform;
 
-pub trait Element:
-    Zeros<Self> + Ones<Self> + std::fmt::Debug + Default + 'static + Send + Sync + Copy
+pub trait BasicElement:
+    Zeros<Self> + Ones<Self> + std::fmt::Debug + Default + 'static + Send + Sync + Copy + SampleUniform
 {
 }
+#[cfg(all(feature = "tch", feature = "ndarray"))]
+pub trait Element:
+    BasicElement + ndarray::LinalgScalar + ndarray::ScalarOperand + tch::kind::Element + Into<f64>
+{
+}
+#[cfg(all(feature = "tch", not(feature = "ndarray")))]
+pub trait Element: BasicElement + tch::kind::Element + Into<f64> {}
+
+#[cfg(all(feature = "ndarray", not(feature = "tch")))]
+pub trait Element: BasicElement + ndarray::LinalgScalar + ndarray::ScalarOperand {}
 
 pub trait TensorTrait<P: Element, const D: usize>:
     TensorOpsUtilities<P, D>
@@ -31,7 +40,9 @@ macro_rules! ad_items {
         zero $zero:expr,
         one $one:expr
     ) => {
+        impl BasicElement for $float {}
         impl Element for $float {}
+
         impl Zeros<$float> for $float {
             fn zeros(&self) -> $float {
                 $zero
@@ -56,19 +67,20 @@ macro_rules! ad_items {
     };
 }
 
-ad_items!(ty f16, zero f16::from_f32(0.0), one f16::from_f32(1.0));
-ad_items!(ty bf16, zero bf16::from_f32(0.0), one bf16::from_f32(1.0));
-
 ad_items!(float f64);
 ad_items!(float f32);
 
+#[cfg(not(feature = "tch"))]
 ad_items!(int i64);
 ad_items!(int i32);
 ad_items!(int i16);
 ad_items!(int i8);
 
+#[cfg(not(feature = "tch"))]
 ad_items!(int u64);
+#[cfg(not(feature = "tch"))]
 ad_items!(int u32);
+#[cfg(not(feature = "tch"))]
 ad_items!(int u16);
 ad_items!(int u8);
 
