@@ -4,12 +4,15 @@ use burn_tensor::tensor::{backend::autodiff::ADTensor, Backend, Tensor};
 use burn_tensor::tensor::{
     ops::*, ADBackend2, Backend2, Data, Distribution, Shape, TchBackend2, Tensor2, TensorOps,
 };
+use rand::distributions::Standard;
 use std::time::{Duration, SystemTime};
 
 fn loss<B: Backend2>(x: &Tensor2<2, B>, y: &Tensor2<2, B>) -> Tensor2<1, B>
 where
     TensorOps<2, B>: TensorOpsReshape<B::Elem, 2, 1, TensorOps<1, B>>,
 {
+    x.new_fork_empty(Shape::new([2, 2, 2]));
+    x.index([0..1, 0..1, 0..1, 0..1, 0..1, 0..1]);
     let z = x.matmul(y);
     z.reshape(Shape::new([4]))
 }
@@ -49,6 +52,7 @@ fn trya<B: Backend2>(x: &Tensor2<2, B>)
 where
     TensorOps<2, B>: TensorOpsIndex<B::Elem, 2, 3>,
     TensorOps<2, ADBackend2<B>>: TensorOpsReshape<B::Elem, 2, 1, TensorOps<1, ADBackend2<B>>>,
+    Standard: rand::distributions::Distribution<B::Elem>,
 {
     x.add(&x);
     let x = x.track_grad();

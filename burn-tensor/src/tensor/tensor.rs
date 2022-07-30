@@ -1,3 +1,5 @@
+use rand::distributions::Standard;
+
 use super::{
     backend::{autodiff::ADTensor, tch::TchTensor},
     ops::*,
@@ -77,8 +79,27 @@ pub trait Backend2:
 pub trait TensorType2<const D: usize, B: Backend2>
 where
     B: TensorType2<D, B>,
+    B: TensorType2<1, B>,
+    B: TensorType2<2, B>,
+    B: TensorType2<3, B>,
+    B: TensorType2<4, B>,
+    B: TensorType2<5, B>,
+    B: TensorType2<6, B>,
 {
-    type T: TensorTrait<B::Elem, D>;
+    type T: TensorTrait<B::Elem, D>
+        + TensorCreationLike<B::Elem, D>
+        + TensorCreationFork<B::Elem, D, 1, Output = TensorOps<1, B>>
+        + TensorCreationFork<B::Elem, D, 2, Output = TensorOps<2, B>>
+        + TensorCreationFork<B::Elem, D, 3, Output = TensorOps<3, B>>
+        + TensorCreationFork<B::Elem, D, 4, Output = TensorOps<4, B>>
+        + TensorCreationFork<B::Elem, D, 5, Output = TensorOps<5, B>>
+        + TensorCreationFork<B::Elem, D, 6, Output = TensorOps<6, B>>
+        + TensorOpsIndex<B::Elem, D, 1>
+        + TensorOpsIndex<B::Elem, D, 2>
+        + TensorOpsIndex<B::Elem, D, 3>
+        + TensorOpsIndex<B::Elem, D, 4>
+        + TensorOpsIndex<B::Elem, D, 5>
+        + TensorOpsIndex<B::Elem, D, 6>;
 }
 
 #[derive(Default)]
@@ -91,17 +112,26 @@ pub struct TchBackend2<E: Default> {
     _e: E,
 }
 
-impl<E: Element> Backend2 for TchBackend2<E> {
+impl<E: Element> Backend2 for TchBackend2<E>
+where
+    Standard: rand::distributions::Distribution<E>,
+{
     type Device = tch::Device;
 
     type Elem = E;
 }
 
-impl<E: Element, const D: usize> TensorType2<D, Self> for TchBackend2<E> {
+impl<E: Element, const D: usize> TensorType2<D, Self> for TchBackend2<E>
+where
+    Standard: rand::distributions::Distribution<E>,
+{
     type T = TchTensor<E, D>;
 }
 
-impl<B: Backend2> Backend2 for ADBackend2<B> {
+impl<B: Backend2> Backend2 for ADBackend2<B>
+where
+    Standard: rand::distributions::Distribution<B::Elem>,
+{
     type Device = tch::Device;
 
     type Elem = B::Elem;
@@ -110,6 +140,7 @@ impl<B: Backend2> Backend2 for ADBackend2<B> {
 impl<B: Backend2, const D: usize> TensorType2<D, Self> for ADBackend2<B>
 where
     B: TensorType2<D, B>,
+    Standard: rand::distributions::Distribution<B::Elem>,
 {
     type T = ADTensor<B::Elem, D, TensorOps<D, B>>;
 }
@@ -158,10 +189,7 @@ where
         self.value.to_data()
     }
 
-    pub fn new_like_empty(&self) -> Self
-    where
-        TensorOps<D, B>: TensorCreationLike<B::Elem, D>,
-    {
+    pub fn new_like_empty(&self) -> Self {
         Self::new(self.value.new_like_empty())
     }
 
@@ -290,7 +318,10 @@ where
         Self::new(self.value.index_assign(indexes, &values.value))
     }
 
-    pub fn track_grad(&self) -> Tensor2<D, ADBackend2<B>> {
+    pub fn track_grad(&self) -> Tensor2<D, ADBackend2<B>>
+    where
+        Standard: rand::distributions::Distribution<B::Elem>,
+    {
         Tensor2::new(ADTensor::from_tensor(self.value.clone()))
     }
 }
