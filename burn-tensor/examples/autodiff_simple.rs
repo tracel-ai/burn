@@ -12,7 +12,6 @@ where
     TensorOps<2, B>: TensorOpsReshape<B::Elem, 2, 1, TensorOps<1, B>>,
 {
     x.new_fork_empty(Shape::new([2, 2, 2]));
-    x.index([0..1, 0..1, 0..1, 0..1, 0..1, 0..1]);
     let z = x.matmul(y);
     z.reshape(Shape::new([4]))
 }

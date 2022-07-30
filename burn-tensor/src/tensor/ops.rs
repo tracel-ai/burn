@@ -7,6 +7,8 @@ pub trait TensorOpsDevice<E, const D: usize, B: Backend<E = E>> {
     fn to_device(&self, device: B::Device) -> Self;
 }
 
+pub type Allo<E, const D: usize> = Box<dyn TensorOpsUtilities<E, D>>;
+
 pub trait TensorOpsUtilities<E, const D: usize> {
     fn shape(&self) -> &Shape<D>;
     fn into_data(self) -> Data<E, D>;

@@ -114,7 +114,7 @@ impl<P: Element + Into<f64> + tch::kind::Element, const D: usize> TensorTrait<P,
 
 #[cfg(test)]
 mod tests {
-    use crate::tensor::Distribution;
+    use crate::tensor::{Distribution, ops::TensorCreationFork};
 
     use super::*;
 
@@ -123,7 +123,7 @@ mod tests {
         let data_expected = Data::<f32, 1>::random(Shape::new([3]), Distribution::Standard);
         let tensor = TchTensor::from_data(data_expected.clone(), tch::Device::Cpu);
 
-        let data_actual = tensor.into_data();
+        let data_actual = tensor.to_data();
 
         assert_eq!(data_expected, data_actual);
     }

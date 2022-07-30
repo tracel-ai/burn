@@ -7,7 +7,12 @@ pub trait BasicElement:
 }
 #[cfg(all(feature = "tch", feature = "ndarray"))]
 pub trait Element:
-    BasicElement + ndarray::LinalgScalar + ndarray::ScalarOperand + tch::kind::Element + Into<f64>
+    Sized
+    + BasicElement
+    + ndarray::LinalgScalar
+    + ndarray::ScalarOperand
+    + tch::kind::Element
+    + Into<f64>
 {
 }
 #[cfg(all(feature = "tch", not(feature = "ndarray")))]
@@ -31,6 +36,7 @@ pub trait TensorTrait<P: Element, const D: usize>:
     + Sync
     + 'static
     + std::fmt::Debug
+    + std::any::Any
 {
 }
 
