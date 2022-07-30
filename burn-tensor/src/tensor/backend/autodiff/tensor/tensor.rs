@@ -2,39 +2,30 @@ use super::ADKind;
 use crate::{
     execute_ops,
     graph::node::ForwardNodeRef,
-    tensor::{ops::TensorOpsUtilities, Data, Element, Shape, Tensor},
+    tensor::{backend::Backend, ops::TensorOpsUtilities, Data, Shape},
 };
 
 #[derive(Debug, Clone)]
-pub struct ADTensor<P, const D: usize, T> {
-    pub node: ForwardNodeRef<T>,
+pub struct ADTensor<const D: usize, B: Backend> {
+    pub node: ForwardNodeRef<B::Tensor<D>>,
     pub shape: Shape<D>,
-    pub kind: ADKind<P>,
 }
 
-impl<T, P, const D: usize> TensorOpsUtilities<P, D> for ADTensor<P, D, T>
-where
-    P: Element,
-    T: Tensor<P, D>,
-{
+impl<B: Backend, const D: usize> TensorOpsUtilities<B::Elem, D> for ADTensor<D, B> {
     fn shape(&self) -> &Shape<D> {
         &self.shape
     }
 
-    fn into_data(self) -> Data<P, D> {
+    fn into_data(self) -> Data<B::Elem, D> {
         self.tensor().into_data()
     }
-    fn to_data(&self) -> Data<P, D> {
+    fn to_data(&self) -> Data<B::Elem, D> {
         self.tensor().to_data()
     }
 }
 
-impl<T, P, const D: usize> ADTensor<P, D, T>
-where
-    P: Element,
-    T: Tensor<P, D>,
-{
-    pub fn from_tensor(tensor: T) -> Self {
+impl<B: Backend, const D: usize> ADTensor<D, B> {
+    pub fn from_tensor(tensor: B::Tensor<D>) -> Self {
         let node = execute_ops!(
             init tensor.clone()
         );
@@ -44,7 +35,7 @@ where
         Self { node, shape, kind }
     }
 
-    pub fn from_existing(&self, node: ForwardNodeRef<T>) -> Self {
+    pub fn from_existing(&self, node: ForwardNodeRef<B::Tensor<D>>) -> Self {
         let shape = self.shape.clone();
         let kind = self.kind.clone();
 
@@ -52,8 +43,8 @@ where
     }
 }
 
-impl<T: Clone + std::fmt::Debug, P, const D: usize> ADTensor<P, D, T> {
-    pub fn tensor(&self) -> T {
+impl<B: Backend, const D: usize> ADTensor<D, B> {
+    pub fn tensor(&self) -> B::Tensor<D> {
         self.node.state.value()
     }
 }
@@ -65,15 +56,15 @@ pub mod helper {
     #[cfg(feature = "ndarray")]
     mod helper_impl {
         use super::*;
+        use crate::tensor::backend::ndarray::NdArrayBackend;
+        use crate::tensor::Element;
         use crate::tensor::{backend::ndarray::NdArrayTensor, Data};
 
-        pub type TestADTensor<P, const D: usize> = ADTensor<P, D, NdArrayTensor<P, D>>;
+        pub type TestADTensor<P, const D: usize> = ADTensor<D, NdArrayTensor<P, D>>;
 
-        impl<P: Element + ndarray::ScalarOperand + ndarray::LinalgScalar, const D: usize>
-            TestADTensor<P, D>
-        {
-            pub fn from_data(data: Data<P, D>) -> Self {
-                let tensor = NdArrayTensor::from_data(data);
+        impl<E: Element, const D: usize> TestADTensor<E, D> {
+            pub fn from_data(data: Data<E, D>) -> Self {
+                let tensor = NdArrayBackend::<E>::Tensor::from_data(data);
                 ADTensor::from_tensor(tensor)
             }
         }

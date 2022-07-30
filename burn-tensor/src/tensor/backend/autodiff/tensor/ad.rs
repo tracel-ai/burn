@@ -1,19 +1,12 @@
 use super::ADTensor;
-use crate::{
-    graph::{
-        converter::Forward2BackwardGraphConverter,
-        grad::{AsNode, Gradients},
-        node::{BackwardNode, ForwardNode},
-    },
-    tensor::ops::{Ones, Zeros},
+use crate::graph::{
+    converter::Forward2BackwardGraphConverter,
+    grad::{AsNode, Gradients},
+    node::{BackwardNode, ForwardNode},
 };
-use std::ops::Add;
+use crate::tensor::backend::Backend;
 
-impl<T, P, const D: usize> ADTensor<P, D, T>
-where
-    T: Zeros<T> + Ones<T> + Clone + Add<Output = T>,
-    T: std::fmt::Debug + 'static,
-{
+impl<B: Backend, const D: usize> ADTensor<D, B> {
     pub fn backward(&self) -> Gradients {
         let mut converter = Forward2BackwardGraphConverter::new();
         let mut node = BackwardNode::from_node(&self.node, &mut converter);
@@ -23,8 +16,8 @@ where
     }
 }
 
-impl<T, P, const D: usize> AsNode<T> for ADTensor<P, D, T> {
-    fn as_node(&self) -> &ForwardNode<T> {
+impl<B: Backend, const D: usize> AsNode<B::Tensor<D>> for ADTensor<D, B> {
+    fn as_node(&self) -> &ForwardNode<B::Tensor<D>> {
         &self.node
     }
 }

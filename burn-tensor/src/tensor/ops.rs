@@ -24,8 +24,7 @@ pub trait TensorCreationFork<P, const D: usize, const D2: usize, T: TensorOpsUti
     fn new_fork_ones(&self, shape: Shape<D2>) -> T;
 }
 
-pub trait TensorOpsAdd<P, const D: usize>:
-    std::ops::Add<Self, Output = Self> + std::ops::Add<P, Output = Self>
+pub trait TensorOpsAdd<P, const D: usize>: std::ops::Add<Self, Output = Self>
 where
     Self: Sized,
 {
@@ -33,11 +32,7 @@ where
     fn add_scalar(&self, other: &P) -> Self;
 }
 
-pub trait TensorOpsSub<P, const D: usize>:
-    std::ops::Sub<Self, Output = Self> + std::ops::Sub<P, Output = Self>
-where
-    Self: Sized,
-{
+pub trait TensorOpsSub<P, const D: usize> {
     fn sub(&self, other: &Self) -> Self;
     fn sub_scalar(&self, other: &P) -> Self;
 }
@@ -50,15 +45,11 @@ pub trait TensorOpsMatmul<P, const D: usize> {
     fn matmul(&self, other: &Self) -> Self;
 }
 
-pub trait TensorOpsNeg<P, const D: usize>: std::ops::Neg<Output = Self> {
+pub trait TensorOpsNeg<P, const D: usize> {
     fn neg(&self) -> Self;
 }
 
-pub trait TensorOpsMul<P, const D: usize>:
-    std::ops::Mul<P, Output = Self> + std::ops::Mul<Self, Output = Self>
-where
-    Self: Sized,
-{
+pub trait TensorOpsMul<P, const D: usize> {
     fn mul(&self, other: &Self) -> Self;
     fn mul_scalar(&self, other: &P) -> Self;
 }

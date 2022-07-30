@@ -1,18 +1,18 @@
 use crate::graph::ops::{UnaryOps, UnaryOpsNodeState};
 use crate::tensor::backend::autodiff::ADTensor;
+use crate::tensor::backend::backend::Backend;
 use crate::tensor::ops::*;
-use crate::tensor::{Element, Tensor};
 use crate::{execute_ops, register_ops};
 
 register_ops!(
-    ops UnaryOps<T, T>,
+    ops UnaryOps,
     name ADTensorTransposeOps,
-    partial |state: &UnaryOpsNodeState<T, T>|{
+    partial |state: &UnaryOpsNodeState<B::Tensor<D>, B::Tensor<D>>|{
         state.output.grad().transpose()
     },
 );
 
-impl<T: Tensor<P, D>, P: Element, const D: usize> TensorOpsTranspose<P, D> for ADTensor<P, D, T> {
+impl<B: Backend, const D: usize> TensorOpsTranspose<B::Elem, D> for ADTensor<D, B> {
     fn transpose(&self) -> Self {
         let node = execute_ops!(
             input self.node.clone(),

@@ -1,35 +1,30 @@
-use crate::tensor::{Element, Tensor};
+use crate::graph::ops::{BinaryOps, BinaryOpsNodeState, UnaryOps, UnaryOpsNodeState};
+use crate::tensor::backend::backend::Backend;
 use crate::{
-    execute_ops,
-    graph::ops::{BinaryOps, BinaryOpsNodeState, UnaryOps, UnaryOpsNodeState},
-    register_ops,
+    execute_ops, register_ops,
     tensor::{backend::autodiff::ADTensor, ops::*},
 };
 
 register_ops!(
-    ops BinaryOps<T, T, T>,
+    ops BinaryOps,
     name ADTensorSubOps,
-    partial_left |state: &BinaryOpsNodeState<T, T, T>| {
+    partial_left |state: &BinaryOpsNodeState<B::Tensor<D>, B::Tensor<D>, B::Tensor<D>>| {
         state.output.grad()
     },
-    partial_right |state: &BinaryOpsNodeState<T, T, T>| {
+    partial_right |state: &BinaryOpsNodeState<B::Tensor<D>, B::Tensor<D>, B::Tensor<D>>| {
         state.output.grad().neg()
     },
 );
 
 register_ops!(
-    ops UnaryOps<T, T>,
-    name ADTensorSubScalarOps state P,
-    partial |_state, state_recorded: &UnaryOpsNodeState<T, T>|{
+    ops UnaryOps,
+    name ADTensorSubScalarOps state B::Elem,
+    partial |_state, state_recorded: &UnaryOpsNodeState<B::Tensor<D>, B::Tensor<D>>|{
         state_recorded.output.grad()
     },
 );
 
-impl<T, P, const D: usize> TensorOpsSub<P, D> for ADTensor<P, D, T>
-where
-    T: Tensor<P, D>,
-    P: Element,
-{
+impl<B: Backend, P, const D: usize> TensorOpsSub<P, D> for ADTensor<D, B> {
     fn sub(&self, other: &Self) -> Self {
         let node = execute_ops!(
             lhs self.node.clone(),
@@ -47,30 +42,6 @@ where
             ops ADTensorSubScalarOps::new(other.clone()),
         );
         self.from_existing(node)
-    }
-}
-
-impl<T, P, const D: usize> std::ops::Sub<P> for ADTensor<P, D, T>
-where
-    T: Tensor<P, D> + 'static,
-    P: Element + 'static,
-{
-    type Output = ADTensor<P, D, T>;
-
-    fn sub(self, rhs: P) -> Self::Output {
-        TensorOpsSub::sub_scalar(&self, &rhs)
-    }
-}
-
-impl<T, P, const D: usize> std::ops::Sub<ADTensor<P, D, T>> for ADTensor<P, D, T>
-where
-    T: Tensor<P, D> + 'static,
-    P: Element + 'static,
-{
-    type Output = ADTensor<P, D, T>;
-
-    fn sub(self, rhs: Self) -> Self::Output {
-        TensorOpsSub::sub(&self, &rhs)
     }
 }
 

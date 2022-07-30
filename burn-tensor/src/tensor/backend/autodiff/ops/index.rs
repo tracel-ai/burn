@@ -4,31 +4,30 @@ use crate::graph::ops::{
     UnaryOpsNodeState,
 };
 use crate::tensor::backend::autodiff::{ADKind, ADTensor};
+use crate::tensor::backend::backend::Backend;
 use crate::tensor::ops::*;
-use crate::tensor::{Element, Tensor};
+use crate::tensor::{Element, TensorTrait};
 use std::{ops::Range, sync::Arc};
 
 #[derive(Debug)]
-struct ADTensorOpsIndex<P, const D1: usize, const D2: usize> {
+struct ADTensorOpsIndex<B: Backend, const D1: usize, const D2: usize> {
     indexes: [Range<usize>; D2],
-    _kind: ADKind<P>,
+    _b: B,
 }
 
-impl<P: Default, const D1: usize, const D2: usize> ADTensorOpsIndex<P, D1, D2> {
+impl<B: Backend, const D1: usize, const D2: usize> ADTensorOpsIndex<B, D1, D2> {
     pub fn new(indexes: [Range<usize>; D2]) -> Self {
         Self {
             indexes,
-            _kind: ADKind::new(),
+            _b: B::Default(),
         }
     }
 }
 
-impl<T1, P, const D1: usize, const D2: usize> UnaryOps<T1, T1> for ADTensorOpsIndex<P, D1, D2>
-where
-    P: Element,
-    T1: Tensor<P, D1> + TensorOpsIndex<P, D1, D2>,
+impl<B: Backend, const D1: usize, const D2: usize> UnaryOps<B::Tensor<D1>, B::Tensor<D2>>
+    for ADTensorOpsIndex<B, D1, D2>
 {
-    fn partial(&self, state: &UnaryOpsNodeState<T1, T1>) -> T1 {
+    fn partial(&self, state: &UnaryOpsNodeState<B::Tensor<D1>, B::Tensor<D1>>) -> B::Tensor<D1> {
         state
             .input
             .value()
@@ -56,7 +55,7 @@ impl<T, P, const D1: usize, const D2: usize> BinaryOps<T, T, T>
     for ADTensorOpsIndexAssign<P, D1, D2>
 where
     P: Element,
-    T: Tensor<P, D1> + TensorOpsIndex<P, D1, D2>,
+    T: TensorTrait<P, D1> + TensorOpsIndex<P, D1, D2>,
 {
     fn partial_left(&self, state: &BinaryOpsNodeState<T, T, T>) -> T {
         state
@@ -70,10 +69,8 @@ where
     }
 }
 
-impl<P, const D1: usize, const D2: usize, T> TensorOpsIndex<P, D1, D2> for ADTensor<P, D1, T>
-where
-    P: Element,
-    T: Tensor<P, D1> + TensorOpsIndex<P, D1, D2>,
+impl<B: Backend, const D1: usize, const D2: usize> TensorOpsIndex<B::Elem, D1, D2>
+    for ADTensor<D1, B>
 {
     fn index(&self, indexes: [Range<usize>; D2]) -> Self {
         let input = self.tensor();
@@ -82,7 +79,7 @@ where
 
         let state = ForwardNodeState::new(out);
 
-        let ops = ADTensorOpsIndex::<P, D1, D2>::new(indexes);
+        let ops = ADTensorOpsIndex::<B::Elem, D1, D2>::new(indexes);
         let ops = Arc::new(ops);
         let ops = ForwardUnaryRecordedOps::new(self.node.clone(), ops);
         let ops = Arc::new(ops);
@@ -101,7 +98,7 @@ where
 
         let state = ForwardNodeState::new(out);
 
-        let ops = ADTensorOpsIndexAssign::<P, D1, D2>::new(indexes);
+        let ops = ADTensorOpsIndexAssign::<B::Elem, D1, D2>::new(indexes);
         let ops = Arc::new(ops);
         let ops = ForwardBinaryRecordedOps::new(self.node.clone(), values.node.clone(), ops);
         let ops = Arc::new(ops);

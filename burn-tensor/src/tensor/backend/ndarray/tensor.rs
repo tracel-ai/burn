@@ -1,4 +1,4 @@
-use crate::tensor::{ops::TensorOpsUtilities, Data, Shape, Tensor};
+use crate::tensor::{ops::TensorOpsUtilities, Data, Shape, TensorTrait};
 use ndarray::{s, ArcArray, Array, Axis, Dim, Ix2, Ix3, IxDyn, LinalgScalar, ScalarOperand};
 
 #[derive(Debug, Clone)]
@@ -146,7 +146,7 @@ where
     }
 }
 
-impl<P: crate::tensor::Element + ScalarOperand + LinalgScalar, const D: usize> Tensor<P, D>
+impl<P: crate::tensor::Element + ScalarOperand + LinalgScalar, const D: usize> TensorTrait<P, D>
     for NdArrayTensor<P, D>
 {
 }

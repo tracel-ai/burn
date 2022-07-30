@@ -1,29 +1,25 @@
 use crate::graph::ops::{BinaryOps, BinaryOpsNodeState};
 use crate::tensor::backend::autodiff::ADTensor;
+use crate::tensor::backend::backend::Backend;
 use crate::tensor::ops::*;
-use crate::tensor::{Element, Tensor};
 use crate::{execute_ops, register_ops};
 
 register_ops!(
-    ops BinaryOps<T, T, T>,
+    ops BinaryOps,
     name ADTensorMatmulOps,
-    partial_left |state: &BinaryOpsNodeState<T, T, T>| {
+    partial_left |state: &BinaryOpsNodeState<B::Tensor<D>, B::Tensor<D>, B::Tensor<D>>| {
         let out_grad = state.output.grad();
         let rhs = state.right.value().transpose();
         out_grad.matmul(&rhs)
     },
-    partial_right |state: &BinaryOpsNodeState<T, T, T>| {
+    partial_right |state: &BinaryOpsNodeState<B::Tensor<D>, B::Tensor<D>, B::Tensor<D>>| {
         let out_grad = state.output.grad();
         let lhs = state.left.value().transpose();
         lhs.matmul(&out_grad)
     },
 );
 
-impl<T, P, const D: usize> TensorOpsMatmul<P, D> for ADTensor<P, D, T>
-where
-    T: Tensor<P, D>,
-    P: Element,
-{
+impl<B: Backend, P, const D: usize> TensorOpsMatmul<P, D> for ADTensor<D, B> {
     fn matmul(&self, other: &Self) -> Self {
         let node = execute_ops!(
             lhs self.node.clone(),

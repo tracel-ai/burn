@@ -1,4 +1,4 @@
-use crate::tensor::{Element, Tensor};
+use crate::tensor::backend::backend::Backend;
 use crate::{
     execute_ops,
     graph::ops::{BinaryOps, BinaryOpsNodeState, UnaryOps, UnaryOpsNodeState},
@@ -7,29 +7,25 @@ use crate::{
 };
 
 register_ops!(
-    ops BinaryOps<T, T, T>,
+    ops BinaryOps,
     name ADTensorMulOps,
-    partial_left |state: &BinaryOpsNodeState<T, T, T>| {
+    partial_left |state: &BinaryOpsNodeState<B::Tensor<D>, B::Tensor<D>, B::Tensor<D>>| {
         state.output.grad() * state.right.value().clone()
     },
-    partial_right |state: &BinaryOpsNodeState<T, T, T>| {
+    partial_right |state: &BinaryOpsNodeState<B::Tensor<D>, B::Tensor<D>, B::Tensor<D>>| {
         state.output.grad() * state.left.value().clone()
     },
 );
 
 register_ops!(
-    ops UnaryOps<T, T>,
-    name ADTensorMulScalarOps state P,
-    partial |state, state_recorded: &UnaryOpsNodeState<T, T>| {
+    ops UnaryOps,
+    name ADTensorMulScalarOps state B::Elem,
+    partial |state, state_recorded: &UnaryOpsNodeState<B::Tensor<D>, B::Tensor<D>>| {
         state_recorded.output.grad() * state
     },
 );
 
-impl<T, P, const D: usize> TensorOpsMul<P, D> for ADTensor<P, D, T>
-where
-    T: Tensor<P, D>,
-    P: Element,
-{
+impl<B: Backend, P, const D: usize> TensorOpsMul<P, D> for ADTensor<D, B> {
     fn mul(&self, other: &Self) -> Self {
         let node = execute_ops!(
             lhs self.node.clone(),
@@ -47,30 +43,6 @@ where
             ops ADTensorMulScalarOps::new(other.clone()),
         );
         self.from_existing(node)
-    }
-}
-
-impl<T, P, const D: usize> std::ops::Mul<P> for ADTensor<P, D, T>
-where
-    T: Tensor<P, D> + 'static,
-    P: Element + 'static,
-{
-    type Output = ADTensor<P, D, T>;
-
-    fn mul(self, rhs: P) -> Self::Output {
-        TensorOpsMul::mul_scalar(&self, &rhs)
-    }
-}
-
-impl<T, P, const D: usize> std::ops::Mul<ADTensor<P, D, T>> for ADTensor<P, D, T>
-where
-    T: Tensor<P, D> + 'static,
-    P: Element + 'static,
-{
-    type Output = ADTensor<P, D, T>;
-
-    fn mul(self, rhs: Self) -> Self::Output {
-        TensorOpsMul::mul(&self, &rhs)
     }
 }
 

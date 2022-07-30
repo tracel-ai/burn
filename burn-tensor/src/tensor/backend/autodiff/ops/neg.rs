@@ -1,4 +1,4 @@
-use crate::tensor::{Element, Tensor};
+use crate::tensor::backend::backend::Backend;
 use crate::{
     execute_ops,
     graph::ops::{UnaryOps, UnaryOpsNodeState},
@@ -7,18 +7,14 @@ use crate::{
 };
 
 register_ops!(
-    ops UnaryOps<T, T>,
+    ops UnaryOps,
     name ADTensorNegOps,
-    partial |state: &UnaryOpsNodeState<T, T>|{
+    partial |state: &UnaryOpsNodeState<B::Tensor<D>, B::Tensor<D>>|{
         state.output.grad().neg()
     },
 );
 
-impl<T, P, const D: usize> TensorOpsNeg<P, D> for ADTensor<P, D, T>
-where
-    T: Tensor<P, D>,
-    P: Element,
-{
+impl<B: Backend, P, const D: usize> TensorOpsNeg<P, D> for ADTensor<D, B> {
     fn neg(&self) -> Self {
         let node = execute_ops!(
             input self.node.clone(),
@@ -26,18 +22,6 @@ where
             ops ADTensorNegOps::new(),
         );
         self.from_existing(node)
-    }
-}
-
-impl<T, P, const D: usize> std::ops::Neg for ADTensor<P, D, T>
-where
-    T: Tensor<P, D> + 'static,
-    P: Element + 'static,
-{
-    type Output = ADTensor<P, D, T>;
-
-    fn neg(self) -> Self::Output {
-        TensorOpsNeg::neg(&self)
     }
 }
 
