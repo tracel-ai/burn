@@ -53,12 +53,13 @@ pub mod helper {
     #[cfg(feature = "ndarray")]
     mod helper_impl {
         use super::*;
-        use crate::tensor::backend::ndarray::NdArrayBackend;
+        use crate::tensor::Tensor;
+        use crate::tensor::backend::autodiff::ADBackendNdArray;
         use crate::tensor::Element;
         use crate::tensor::{backend::ndarray::NdArrayTensor, Data};
         use rand::distributions::Standard;
 
-        pub type TestADTensor<E, const D: usize> = ADTensor<D, NdArrayBackend<E>>;
+        pub type TestADTensor<E, const D: usize> = Tensor<D, ADBackendNdArray<E>>;
 
         impl<E: Element, const D: usize> TestADTensor<E, D>
         where
@@ -67,7 +68,7 @@ pub mod helper {
             pub fn from_data(data: Data<E, D>) -> Self {
                 let tensor = NdArrayTensor::from_data(data);
                 let tensor = ADTensor::from_tensor(tensor);
-                tensor
+                Tensor::new(tensor)
             }
         }
     }
