@@ -24,22 +24,22 @@ register_ops!(
     },
 );
 
-impl<B: Backend, P, const D: usize> TensorOpsSub<P, D> for ADTensor<D, B> {
+impl<B: Backend, const D: usize> TensorOpsSub<B::Elem, D> for ADTensor<D, B> {
     fn sub(&self, other: &Self) -> Self {
         let node = execute_ops!(
             lhs self.node.clone(),
             rhs other.node.clone(),
             out TensorOpsSub::sub(&self.tensor(), &other.tensor()),
-            ops ADTensorSubOps::new(),
+            ops ADTensorSubOps::<B, D>::new(),
         );
         self.from_existing(node)
     }
 
-    fn sub_scalar(&self, other: &P) -> Self {
+    fn sub_scalar(&self, other: &B::Elem) -> Self {
         let node = execute_ops!(
             input self.node.clone(),
             out TensorOpsSub::sub_scalar(&self.tensor(), &other),
-            ops ADTensorSubScalarOps::new(other.clone()),
+            ops ADTensorSubScalarOps::<B, D>::new(other.clone()),
         );
         self.from_existing(node)
     }
@@ -58,7 +58,7 @@ mod tests {
         let tensor_1 = TestADTensor::from_data(data_1.clone());
         let tensor_2 = TestADTensor::from_data(data_2.clone());
 
-        let tensor_3 = tensor_1.clone() - tensor_2.clone();
+        let tensor_3 = tensor_1.clone().sub(&tensor_2);
         let grads = tensor_3.backward();
 
         let grad_1 = grads.wrt(&tensor_1).unwrap();
@@ -73,7 +73,7 @@ mod tests {
     fn should_diff_sub_scalar() {
         let data = Data::from([2.0, 10.0]);
         let tensor = TestADTensor::from_data(data.clone());
-        let tensor_out = tensor.clone() - 5.0;
+        let tensor_out = tensor.clone().sub_scalar(&5.0);
         let grads = tensor_out.backward();
 
         let grad = grads.wrt(&tensor).unwrap();

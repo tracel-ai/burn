@@ -31,15 +31,12 @@ impl<B: Backend, const D: usize> ADTensor<D, B> {
         );
 
         let shape = tensor.shape().clone();
-        let kind = ADKind::new();
-        Self { node, shape, kind }
+        Self { node, shape }
     }
 
     pub fn from_existing(&self, node: ForwardNodeRef<B::Tensor<D>>) -> Self {
         let shape = self.shape.clone();
-        let kind = self.kind.clone();
-
-        Self { node, shape, kind }
+        Self { node, shape }
     }
 }
 
@@ -59,13 +56,18 @@ pub mod helper {
         use crate::tensor::backend::ndarray::NdArrayBackend;
         use crate::tensor::Element;
         use crate::tensor::{backend::ndarray::NdArrayTensor, Data};
+        use rand::distributions::Standard;
 
-        pub type TestADTensor<P, const D: usize> = ADTensor<D, NdArrayTensor<P, D>>;
+        pub type TestADTensor<E, const D: usize> = ADTensor<D, NdArrayBackend<E>>;
 
-        impl<E: Element, const D: usize> TestADTensor<E, D> {
+        impl<E: Element, const D: usize> TestADTensor<E, D>
+        where
+            Standard: rand::distributions::Distribution<E>,
+        {
             pub fn from_data(data: Data<E, D>) -> Self {
-                let tensor = NdArrayBackend::<E>::Tensor::from_data(data);
-                ADTensor::from_tensor(tensor)
+                let tensor = NdArrayTensor::from_data(data);
+                let tensor = ADTensor::from_tensor(tensor);
+                tensor
             }
         }
     }

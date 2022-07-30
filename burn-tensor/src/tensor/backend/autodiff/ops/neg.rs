@@ -19,7 +19,7 @@ impl<B: Backend, P, const D: usize> TensorOpsNeg<P, D> for ADTensor<D, B> {
         let node = execute_ops!(
             input self.node.clone(),
             out TensorOpsNeg::neg(&self.tensor()),
-            ops ADTensorNegOps::new(),
+            ops ADTensorNegOps::<B, D>::new(),
         );
         self.from_existing(node)
     }

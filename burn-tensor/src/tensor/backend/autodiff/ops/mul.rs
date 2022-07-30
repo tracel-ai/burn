@@ -10,10 +10,10 @@ register_ops!(
     ops BinaryOps,
     name ADTensorMulOps,
     partial_left |state: &BinaryOpsNodeState<B::Tensor<D>, B::Tensor<D>, B::Tensor<D>>| {
-        state.output.grad() * state.right.value().clone()
+        state.output.grad().mul(&state.right.value())
     },
     partial_right |state: &BinaryOpsNodeState<B::Tensor<D>, B::Tensor<D>, B::Tensor<D>>| {
-        state.output.grad() * state.left.value().clone()
+        state.output.grad().mul(&state.left.value())
     },
 );
 
@@ -21,26 +21,26 @@ register_ops!(
     ops UnaryOps,
     name ADTensorMulScalarOps state B::Elem,
     partial |state, state_recorded: &UnaryOpsNodeState<B::Tensor<D>, B::Tensor<D>>| {
-        state_recorded.output.grad() * state
+        state_recorded.output.grad().mul_scalar(&state)
     },
 );
 
-impl<B: Backend, P, const D: usize> TensorOpsMul<P, D> for ADTensor<D, B> {
+impl<B: Backend, const D: usize> TensorOpsMul<B::Elem, D> for ADTensor<D, B> {
     fn mul(&self, other: &Self) -> Self {
         let node = execute_ops!(
             lhs self.node.clone(),
             rhs other.node.clone(),
             out TensorOpsMul::mul(&self.tensor(), &other.tensor()),
-            ops ADTensorMulOps::new(),
+            ops ADTensorMulOps::<B, D>::new(),
         );
         self.from_existing(node)
     }
 
-    fn mul_scalar(&self, other: &P) -> Self {
+    fn mul_scalar(&self, other: &B::Elem) -> Self {
         let node = execute_ops!(
             input self.node.clone(),
             out TensorOpsMul::mul_scalar(&self.tensor(), &other),
-            ops ADTensorMulScalarOps::new(other.clone()),
+            ops ADTensorMulScalarOps::<B, D>::new(other.clone()),
         );
         self.from_existing(node)
     }
@@ -59,7 +59,7 @@ mod tests {
         let tensor_1 = TestADTensor::from_data(data_1.clone());
         let tensor_2 = TestADTensor::from_data(data_2.clone());
 
-        let tensor_3 = tensor_1.clone() * tensor_2.clone();
+        let tensor_3 = tensor_1.clone().mul(&tensor_2);
         let grads = tensor_3.backward();
 
         let grad_1 = grads.wrt(&tensor_1).unwrap();
@@ -75,7 +75,7 @@ mod tests {
         let data = Data::from([2.0, 5.0]);
 
         let tensor = TestADTensor::from_data(data.clone());
-        let tensor_out = tensor.clone() * 4.0;
+        let tensor_out = tensor.clone().mul_scalar(&4.0);
 
         let grads = tensor_out.backward();
         let grad = grads.wrt(&tensor).unwrap();

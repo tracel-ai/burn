@@ -25,7 +25,7 @@ impl<B: Backend, P, const D: usize> TensorOpsMatmul<P, D> for ADTensor<D, B> {
             lhs self.node.clone(),
             rhs other.node.clone(),
             out TensorOpsMatmul::matmul(&self.tensor(), &other.tensor()),
-            ops ADTensorMatmulOps::new(),
+            ops ADTensorMatmulOps::<B, D>::new(),
         );
         self.from_existing(node)
     }

@@ -17,7 +17,7 @@ impl<B: Backend, const D: usize> TensorOpsTranspose<B::Elem, D> for ADTensor<D, 
         let node = execute_ops!(
             input self.node.clone(),
             out TensorOpsTranspose::transpose(&self.tensor()),
-            ops ADTensorTransposeOps::new(),
+            ops ADTensorTransposeOps::<B, D>::new(),
         );
         self.from_existing(node)
     }

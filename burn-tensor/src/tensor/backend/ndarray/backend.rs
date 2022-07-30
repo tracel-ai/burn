@@ -1,5 +1,6 @@
 use super::NdArrayTensor;
 use crate::tensor::{backend::Backend, Element};
+use rand::distributions::Standard;
 
 #[derive(Clone, Copy, Debug)]
 pub enum NdArrayDevice {
@@ -17,7 +18,10 @@ pub struct NdArrayBackend<E> {
     _e: E,
 }
 
-impl<E: Element> Backend for NdArrayBackend<E> {
+impl<E: Element> Backend for NdArrayBackend<E>
+where
+    Standard: rand::distributions::Distribution<E>,
+{
     type Device = NdArrayDevice;
     type Elem = E;
     type Tensor<const D: usize> = NdArrayTensor<E, D>;

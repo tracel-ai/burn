@@ -80,7 +80,7 @@ mod tests {
         let data = Data::from([2.0, 10.0]);
 
         let tensor = TestADTensor::from_data(data.clone());
-        let tensor_out = tensor.clone() + 5.0;
+        let tensor_out = tensor.clone().add_scalar(&5.0);
         let grads = tensor_out.backward();
 
         let grad = grads.wrt(&tensor).unwrap();

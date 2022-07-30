@@ -1,10 +1,10 @@
 mod add;
 mod creation;
-mod index;
+// mod index;
 mod matmul;
 mod mul;
 mod neg;
-mod reshape;
+// mod reshape;
 mod sub;
 mod transpose;
 

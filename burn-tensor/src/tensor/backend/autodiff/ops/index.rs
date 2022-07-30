@@ -27,7 +27,7 @@ impl<B: Backend, const D1: usize, const D2: usize> ADTensorOpsIndex<B, D1, D2> {
 impl<B: Backend, const D1: usize, const D2: usize> UnaryOps<B::Tensor<D1>, B::Tensor<D2>>
     for ADTensorOpsIndex<B, D1, D2>
 {
-    fn partial(&self, state: &UnaryOpsNodeState<B::Tensor<D1>, B::Tensor<D1>>) -> B::Tensor<D1> {
+    fn partial(&self, state: &UnaryOpsNodeState<B::Tensor<D1>, B::Tensor<D2>>) -> B::Tensor<D1> {
         state
             .input
             .value()
