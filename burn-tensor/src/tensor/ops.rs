@@ -7,9 +7,10 @@ pub trait TensorOpsDevice<E, const D: usize, B: Backend<E = E>> {
     fn to_device(&self, device: B::Device) -> Self;
 }
 
-pub trait TensorOpsAny<E, const D: usize> {
+pub trait TensorOpsAny<E> {
     fn to_any(self) -> Box<dyn std::any::Any>;
     fn from_any(any: Box<dyn std::any::Any>) -> Self;
+    fn reshape_any<const D: usize>(&self, shape: Shape<D>) -> Box<dyn std::any::Any>;
 }
 
 pub trait TensorOpsUtilities<E, const D: usize> {
@@ -80,7 +81,7 @@ where
     fn mul_scalar(&self, other: &E) -> Self;
 }
 
-pub trait TensorOpsReshape<E: Element, const D1: usize, const D2: usize, T> {
+pub trait TensorOpsReshape<E: Element, const D1: usize, const D2: usize, T: TensorOpsAny<E>> {
     fn reshape(&self, shape: Shape<D2>) -> T;
 }
 

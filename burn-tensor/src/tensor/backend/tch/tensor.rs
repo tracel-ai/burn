@@ -1,5 +1,5 @@
 use crate::tensor::{
-    ops::{TensorOpsAny, TensorOpsUtilities},
+    ops::{TensorOpsAny, TensorOpsReshape, TensorOpsUtilities},
     Data, Element, Shape, TensorTrait,
 };
 
@@ -110,7 +110,7 @@ impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize>
     }
 }
 
-impl<P: Element + 'static, const D: usize> TensorOpsAny<P, D> for TchTensor<P, D> {
+impl<P: Element + 'static, const D: usize> TensorOpsAny<P> for TchTensor<P, D> {
     fn to_any(self) -> Box<dyn std::any::Any> {
         Box::new(self)
     }
@@ -118,6 +118,11 @@ impl<P: Element + 'static, const D: usize> TensorOpsAny<P, D> for TchTensor<P, D
     fn from_any(any: Box<dyn std::any::Any>) -> Self {
         let me: Box<TchTensor<P, D>> = any.downcast().unwrap();
         *me
+    }
+
+    fn reshape_any<const D2: usize>(&self, shape: Shape<D2>) -> Box<dyn std::any::Any> {
+        let out = TensorOpsReshape::<P, D, D2, TchTensor<P, D2>>::reshape(self, shape);
+        Box::new(out)
     }
 }
 
@@ -128,7 +133,7 @@ impl<P: Element + Into<f64> + tch::kind::Element, const D: usize> TensorTrait<P,
 
 #[cfg(test)]
 mod tests {
-    use crate::tensor::{ops::TensorCreationFork, Distribution};
+    use crate::tensor::Distribution;
 
     use super::*;
 

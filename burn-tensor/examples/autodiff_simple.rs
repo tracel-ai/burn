@@ -49,7 +49,6 @@ fn run<B: Backend>(x: Data<B::E, 2>, y: Data<B::E, 2>, device: B::Device) {
 
 fn trya<B: Backend2>(x: &Tensor2<2, B>)
 where
-    TensorOps<2, B>: TensorOpsIndex<B::Elem, 2, 3>,
     TensorOps<2, ADBackend2<B>>: TensorOpsReshape<B::Elem, 2, 1, TensorOps<1, ADBackend2<B>>>,
     Standard: rand::distributions::Distribution<B::Elem>,
 {

@@ -22,7 +22,7 @@ pub trait Element: BasicElement + tch::kind::Element + Into<f64> {}
 pub trait Element: BasicElement + ndarray::LinalgScalar + ndarray::ScalarOperand {}
 
 pub trait TensorTrait<P: Element, const D: usize>:
-    TensorOpsAny<P, D>
+    TensorOpsAny<P>
     + TensorOpsUtilities<P, D>
     + TensorOpsMatmul<P, D>
     + TensorOpsTranspose<P, D>

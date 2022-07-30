@@ -3,13 +3,11 @@ use crate::{
     to_nd_array_tensor,
 };
 use ndarray::Dim;
-use rand::distributions::Standard;
 
 impl<P, const D1: usize, const D2: usize> TensorOpsReshape<P, D1, D2, NdArrayTensor<P, D2>>
     for NdArrayTensor<P, D1>
 where
     P: Element,
-    Standard: rand::distributions::Distribution<P>,
 {
     fn reshape(&self, shape: Shape<D2>) -> NdArrayTensor<P, D2> {
         match D2 {

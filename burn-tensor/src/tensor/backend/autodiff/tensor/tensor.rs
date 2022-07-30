@@ -3,7 +3,7 @@ use crate::{
     execute_ops,
     graph::node::ForwardNodeRef,
     tensor::{
-        ops::{TensorOpsAny, TensorOpsUtilities},
+        ops::{TensorOpsAny, TensorOpsReshape, TensorOpsUtilities},
         Backend, Data, Element, Shape, Tensor, TensorTrait, TensorType,
     },
 };
@@ -15,7 +15,12 @@ pub struct ADTensor<P, const D: usize, T> {
     pub kind: ADKind<P>,
 }
 
-impl<P: 'static, const D: usize, T: 'static> TensorOpsAny<P, D> for ADTensor<P, D, T> {
+impl<
+        P: Element + 'static,
+        const D: usize,
+        T: TensorTrait<P, D> + Clone + std::fmt::Debug + 'static,
+    > TensorOpsAny<P> for ADTensor<P, D, T>
+{
     fn to_any(self) -> Box<dyn std::any::Any> {
         Box::new(self)
     }
@@ -23,6 +28,13 @@ impl<P: 'static, const D: usize, T: 'static> TensorOpsAny<P, D> for ADTensor<P, 
     fn from_any(any: Box<dyn std::any::Any>) -> Self {
         let me: Box<ADTensor<P, D, T>> = any.downcast().unwrap();
         *me
+    }
+
+    fn reshape_any<const D2: usize>(&self, shape: Shape<D2>) -> Box<dyn std::any::Any> {
+        let out = self.tensor();
+        let out = out.reshape_any(shape);
+
+        Box::new(out)
     }
 }
 

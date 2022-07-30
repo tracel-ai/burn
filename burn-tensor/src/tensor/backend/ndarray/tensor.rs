@@ -1,8 +1,9 @@
 use crate::tensor::{
-    ops::{TensorOpsAny, TensorOpsUtilities},
-    Data, Shape, TensorTrait,
+    ops::{TensorOpsAny, TensorOpsReshape, TensorOpsUtilities},
+    Data, Element, Shape, TensorTrait,
 };
 use ndarray::{s, ArcArray, Array, Axis, Dim, Ix2, Ix3, IxDyn, LinalgScalar, ScalarOperand};
+use rand::distributions::Standard;
 
 #[derive(Debug, Clone)]
 pub struct NdArrayTensor<P, const D: usize> {
@@ -10,7 +11,7 @@ pub struct NdArrayTensor<P, const D: usize> {
     pub shape: Shape<D>,
 }
 
-impl<P: 'static, const D: usize> TensorOpsAny<P, D> for NdArrayTensor<P, D> {
+impl<P: Element + 'static, const D: usize> TensorOpsAny<P> for NdArrayTensor<P, D> {
     fn to_any(self) -> Box<dyn std::any::Any> {
         Box::new(self)
     }
@@ -18,6 +19,11 @@ impl<P: 'static, const D: usize> TensorOpsAny<P, D> for NdArrayTensor<P, D> {
     fn from_any(any: Box<dyn std::any::Any>) -> Self {
         let me: Box<NdArrayTensor<P, D>> = any.downcast().unwrap();
         *me
+    }
+
+    fn reshape_any<const D2: usize>(&self, shape: Shape<D2>) -> Box<dyn std::any::Any> {
+        let out = TensorOpsReshape::<P, D, D2, NdArrayTensor<P, D2>>::reshape(self, shape);
+        Box::new(out)
     }
 }
 
@@ -164,6 +170,8 @@ where
 
 impl<P: crate::tensor::Element + ScalarOperand + LinalgScalar, const D: usize> TensorTrait<P, D>
     for NdArrayTensor<P, D>
+where
+    Standard: rand::distributions::Distribution<P>,
 {
 }
 

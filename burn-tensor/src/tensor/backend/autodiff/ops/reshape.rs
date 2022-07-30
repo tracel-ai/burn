@@ -29,19 +29,20 @@ impl<T1, T2, P, const D1: usize, const D2: usize> UnaryOps<T1, T2> for ADTensorO
 where
     P: Element,
     T1: TensorTrait<P, D1> + TensorOpsReshape<P, D1, D2, T2>,
-    T2: TensorTrait<P, D2> + TensorOpsReshape<P, D2, D1, T1>,
+    T2: TensorTrait<P, D2>,
 {
     fn partial(&self, state: &UnaryOpsNodeState<T1, T2>) -> T1 {
-        state.output.grad().reshape(self.shape.clone())
+        let tensor = state.output.grad().reshape_any(self.shape.clone());
+        T1::from_any(tensor)
     }
 }
 
-impl<P, const D1: usize, const D2: usize, T1, T2> TensorOpsReshape<P, D1, D2, ADTensor<P, D2, T2>>
-    for ADTensor<P, D1, T1>
+impl<P, const D1: usize, const D2: usize, T1, T2: 'static>
+    TensorOpsReshape<P, D1, D2, ADTensor<P, D2, T2>> for ADTensor<P, D1, T1>
 where
     P: Element,
     T1: TensorTrait<P, D1> + TensorOpsReshape<P, D1, D2, T2>,
-    T2: TensorTrait<P, D2> + TensorOpsReshape<P, D2, D1, T1>,
+    T2: TensorTrait<P, D2>,
 {
     fn reshape(&self, shape: Shape<D2>) -> ADTensor<P, D2, T2> {
         let input = self.tensor();
