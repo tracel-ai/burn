@@ -1,4 +1,7 @@
-use crate::tensor::{ops::TensorOpsUtilities, Data, Element, Shape, TensorTrait};
+use crate::tensor::{
+    ops::{TensorOpsAny, TensorOpsUtilities},
+    Data, Element, Shape, TensorTrait,
+};
 
 #[derive(Debug, PartialEq)]
 pub struct TchTensor<P: tch::kind::Element, const D: usize> {
@@ -107,6 +110,17 @@ impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize>
     }
 }
 
+impl<P: Element + 'static, const D: usize> TensorOpsAny<P, D> for TchTensor<P, D> {
+    fn to_any(self) -> Box<dyn std::any::Any> {
+        Box::new(self)
+    }
+
+    fn from_any(any: Box<dyn std::any::Any>) -> Self {
+        let me: Box<TchTensor<P, D>> = any.downcast().unwrap();
+        *me
+    }
+}
+
 impl<P: Element + Into<f64> + tch::kind::Element, const D: usize> TensorTrait<P, D>
     for TchTensor<P, D>
 {
@@ -114,7 +128,7 @@ impl<P: Element + Into<f64> + tch::kind::Element, const D: usize> TensorTrait<P,
 
 #[cfg(test)]
 mod tests {
-    use crate::tensor::{Distribution, ops::TensorCreationFork};
+    use crate::tensor::{ops::TensorCreationFork, Distribution};
 
     use super::*;
 

@@ -3,7 +3,8 @@ use crate::{
     execute_ops,
     graph::node::ForwardNodeRef,
     tensor::{
-        ops::TensorOpsUtilities, Backend, Data, Element, Shape, Tensor, TensorTrait, TensorType,
+        ops::{TensorOpsAny, TensorOpsUtilities},
+        Backend, Data, Element, Shape, Tensor, TensorTrait, TensorType,
     },
 };
 
@@ -14,15 +15,15 @@ pub struct ADTensor<P, const D: usize, T> {
     pub kind: ADKind<P>,
 }
 
-#[derive(Debug, Clone)]
-pub struct ADTensor2<P, const D: usize, B>
-where
-    B: Backend<E = P> + TensorType<D, B>,
-{
-    pub node: ForwardNodeRef<Tensor<D, B>>,
-    pub shape: Shape<D>,
-    pub kind: ADKind<P>,
-    pub b: B,
+impl<P: 'static, const D: usize, T: 'static> TensorOpsAny<P, D> for ADTensor<P, D, T> {
+    fn to_any(self) -> Box<dyn std::any::Any> {
+        Box::new(self)
+    }
+
+    fn from_any(any: Box<dyn std::any::Any>) -> Self {
+        let me: Box<ADTensor<P, D, T>> = any.downcast().unwrap();
+        *me
+    }
 }
 
 impl<T, P, const D: usize> TensorOpsUtilities<P, D> for ADTensor<P, D, T>
@@ -62,16 +63,6 @@ where
         let kind = self.kind.clone();
 
         Self { node, shape, kind }
-    }
-}
-
-impl<P, const D: usize, B> ADTensor2<P, D, B>
-where
-    P: Element,
-    B: Backend<E = P> + TensorType<D, B>,
-{
-    pub fn tensor(&self) -> Tensor<D, B> {
-        self.node.state.value()
     }
 }
 

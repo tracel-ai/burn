@@ -1,10 +1,24 @@
-use crate::tensor::{ops::TensorOpsUtilities, Data, Shape, TensorTrait};
+use crate::tensor::{
+    ops::{TensorOpsAny, TensorOpsUtilities},
+    Data, Shape, TensorTrait,
+};
 use ndarray::{s, ArcArray, Array, Axis, Dim, Ix2, Ix3, IxDyn, LinalgScalar, ScalarOperand};
 
 #[derive(Debug, Clone)]
 pub struct NdArrayTensor<P, const D: usize> {
     pub array: ArcArray<P, IxDyn>,
     pub shape: Shape<D>,
+}
+
+impl<P: 'static, const D: usize> TensorOpsAny<P, D> for NdArrayTensor<P, D> {
+    fn to_any(self) -> Box<dyn std::any::Any> {
+        Box::new(self)
+    }
+
+    fn from_any(any: Box<dyn std::any::Any>) -> Self {
+        let me: Box<NdArrayTensor<P, D>> = any.downcast().unwrap();
+        *me
+    }
 }
 
 impl<P, const D: usize> TensorOpsUtilities<P, D> for NdArrayTensor<P, D>
