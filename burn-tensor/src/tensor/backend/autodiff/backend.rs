@@ -2,7 +2,7 @@
 // use crate::tensor::backend::Backend;
 // use rand::distributions::Standard;
 //
-// #[derive(Clone, Copy, Debug, Default)]
+// #[derive(Clone, Debug, Default)]
 // pub struct ADBackend<B: Backend> {
 //     _b: B,
 // }

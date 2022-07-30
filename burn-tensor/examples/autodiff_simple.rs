@@ -1,13 +1,11 @@
 use burn_tensor::tensor::{
     backend::autodiff::ADBackendNdArray,
-    backend::autodiff::ADTensor,
     backend::ndarray::{NdArrayBackend, NdArrayTensor},
     backend::Backend,
-    ops::*,
     Data, Distribution, Shape, Tensor,
 };
 
-fn loss<B: Backend>(x: &Tensor<2, B>, y: &Tensor<2, B>) -> Tensor<2, B> {
+fn lossa<B: Backend>(x: &Tensor<2, B>, y: &Tensor<2, B>) -> Tensor<2, B> {
     let z = x.matmul(y);
     z
 }
@@ -16,20 +14,23 @@ fn run() {
     let x = Data::<f32, 2>::random(Shape::new([2, 3]), Distribution::Standard);
     let y = Data::<f32, 2>::random(Shape::new([3, 1]), Distribution::Standard);
 
-    let x = Tensor::<2, NdArrayBackend<f32>>::new(NdArrayTensor::from_data(x));
-    let y = Tensor::<2, NdArrayBackend<f32>>::new(NdArrayTensor::from_data(y));
+    let x = Tensor::new(NdArrayTensor::from_data(x));
+    let y = Tensor::new(NdArrayTensor::from_data(y));
 
-    let z = loss(&x, &y);
+    let z = lossa::<NdArrayBackend<f32>>(&x, &y);
+    println!("Without AD");
+    println!("z={}", z.to_data());
 
-    println!("without AD {}", z.to_data());
-    let x = Tensor::<2, ADBackendNdArray<f32>>::new(ADTensor::from_tensor(x.value));
-    let y = Tensor::<2, ADBackendNdArray<f32>>::new(ADTensor::from_tensor(y.value));
+    let x = x.with_grad();
+    let y = y.with_grad();
 
-    let z = loss(&x, &y);
-    let grads = z.value.backward();
+    let z = lossa::<ADBackendNdArray<f32>>(&x, &y);
+    let grads = z.backward();
 
-    println!("X {}", grads.wrt(&x.value).unwrap().to_data());
-    println!("Y {}", grads.wrt(&y.value).unwrap().to_data());
+    println!("With AD");
+    println!("z={}", z.to_data());
+    println!("x_grad {}", x.grad(&grads).unwrap().to_data());
+    println!("y_grad {}", y.grad(&grads).unwrap().to_data());
 }
 
 fn main() {

@@ -1,7 +1,7 @@
 use crate::tensor::{
     backend::{autodiff::ADTensor, Backend},
     ops::*,
-    Data, Distribution, Shape,
+    Data, Distribution,
 };
 use rand::distributions::Standard;
 

@@ -1,4 +1,3 @@
-use super::ADKind;
 use crate::{
     execute_ops,
     graph::node::ForwardNodeRef,
@@ -53,9 +52,9 @@ pub mod helper {
     #[cfg(feature = "ndarray")]
     mod helper_impl {
         use super::*;
-        use crate::tensor::Tensor;
         use crate::tensor::backend::autodiff::ADBackendNdArray;
         use crate::tensor::Element;
+        use crate::tensor::Tensor;
         use crate::tensor::{backend::ndarray::NdArrayTensor, Data};
         use rand::distributions::Standard;
 

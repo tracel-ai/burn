@@ -1,9 +1,59 @@
+use super::backend::autodiff::{ADBackendNdArray, ADTensor};
+use super::backend::ndarray::NdArrayBackend;
 use super::backend::Backend;
+use crate::graph::grad::Gradients;
 use crate::tensor::ops::*;
+use crate::tensor::Element;
 use crate::tensor::{Data, Distribution, Shape};
+use rand::distributions::Standard;
 
+#[derive(Debug, Clone)]
 pub struct Tensor<const D: usize, B: Backend> {
     pub value: B::Tensor<D>,
+}
+
+/// Numpy grad backend impl
+impl<E: Element, const D: usize> Tensor<D, ADBackendNdArray<E>>
+where
+    Standard: rand::distributions::Distribution<E>,
+{
+    pub fn backward(&self) -> Gradients {
+        let grads = self.value.backward();
+        grads
+    }
+
+    pub fn grad(&self, grads: &Gradients) -> Option<Tensor<D, NdArrayBackend<E>>> {
+        let grad = grads.wrt(&self.value);
+        let tensor = match grad {
+            None => return None,
+            Some(val) => val,
+        };
+
+        Some(Tensor::new(tensor.clone()))
+    }
+}
+
+/// Numpy backend impl
+impl<E: Element, const D: usize> Tensor<D, NdArrayBackend<E>>
+where
+    Standard: rand::distributions::Distribution<E>,
+{
+    pub fn with_grad(self) -> Tensor<D, ADBackendNdArray<E>> {
+        let tensor = ADTensor::from_tensor(self.value);
+        Tensor::new(tensor)
+    }
+}
+
+impl<const D: usize, B> std::ops::Add<Self> for Tensor<D, B>
+where
+    B: Backend,
+{
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        let value = self.value + other.value;
+        Self::new(value)
+    }
 }
 
 impl<const D: usize, B> Tensor<D, B>
@@ -115,16 +165,5 @@ where
     //     TensorOps<D, B>: TensorOpsIndex<B::Elem, D, D2>,
     // {
     //     Self::new(self.value.index(indexes))
-    // }
-
-    // pub fn index_assign<const D2: usize>(
-    //     &self,
-    //     indexes: [std::ops::Range<usize>; D2],
-    //     values: &Self,
-    // ) -> Self
-    // where
-    //     TensorOps<D, B>: TensorOpsIndex<B::Elem, D, D2>,
-    // {
-    //     Self::new(self.value.index_assign(indexes, &values.value))
     // }
 }
