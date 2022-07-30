@@ -2,7 +2,9 @@ use super::ADKind;
 use crate::{
     execute_ops,
     graph::node::ForwardNodeRef,
-    tensor::{ops::TensorOpsUtilities, Data, Element, Shape, TensorTrait},
+    tensor::{
+        ops::TensorOpsUtilities, Backend, Data, Element, Shape, Tensor, TensorTrait, TensorType,
+    },
 };
 
 #[derive(Debug, Clone)]
@@ -10,6 +12,17 @@ pub struct ADTensor<P, const D: usize, T> {
     pub node: ForwardNodeRef<T>,
     pub shape: Shape<D>,
     pub kind: ADKind<P>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ADTensor2<P, const D: usize, B>
+where
+    B: Backend<E = P> + TensorType<D, B>,
+{
+    pub node: ForwardNodeRef<Tensor<D, B>>,
+    pub shape: Shape<D>,
+    pub kind: ADKind<P>,
+    pub b: B,
 }
 
 impl<T, P, const D: usize> TensorOpsUtilities<P, D> for ADTensor<P, D, T>
@@ -49,6 +62,16 @@ where
         let kind = self.kind.clone();
 
         Self { node, shape, kind }
+    }
+}
+
+impl<P, const D: usize, B> ADTensor2<P, D, B>
+where
+    P: Element,
+    B: Backend<E = P> + TensorType<D, B>,
+{
+    pub fn tensor(&self) -> Tensor<D, B> {
+        self.node.state.value()
     }
 }
 

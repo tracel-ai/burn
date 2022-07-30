@@ -1,20 +1,17 @@
 use crate::{
-    tensor::{
-        backend::ndarray::{NdArrayBackend, NdArrayTensor},
-        ops::*,
-        Element, Shape, Tensor,
-    },
+    tensor::{backend::ndarray::NdArrayTensor, ops::*, Element, Shape},
     to_nd_array_tensor,
 };
-use ndarray::{Dim, LinalgScalar, ScalarOperand};
-use rand::distributions::{uniform::SampleUniform, Standard};
+use ndarray::Dim;
+use rand::distributions::Standard;
 
-impl<P, const D1: usize> TensorOpsReshape<P, D1, NdArrayBackend<P>> for NdArrayTensor<P, D1>
+impl<P, const D1: usize, const D2: usize> TensorOpsReshape<P, D1, D2, NdArrayTensor<P, D2>>
+    for NdArrayTensor<P, D1>
 where
-    P: Element + ScalarOperand + LinalgScalar + SampleUniform,
+    P: Element,
     Standard: rand::distributions::Distribution<P>,
 {
-    fn reshape<const D2: usize>(&self, shape: Shape<D2>) -> Tensor<D2, NdArrayBackend<P>> {
+    fn reshape(&self, shape: Shape<D2>) -> NdArrayTensor<P, D2> {
         match D2 {
             1 => to_nd_array_tensor!(1, shape, self.array),
             2 => to_nd_array_tensor!(2, shape, self.array),

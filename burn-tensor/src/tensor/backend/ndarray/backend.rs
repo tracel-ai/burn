@@ -1,5 +1,8 @@
 use super::NdArrayTensor;
-use crate::tensor::{Backend, Data, Element, TensorType};
+use crate::tensor::{
+    ops::{TensorOpsDevice, TensorOpsReshape, TensorOpsUtilities},
+    Backend, Data, Element, TensorType,
+};
 use ndarray::{LinalgScalar, ScalarOperand};
 use rand::distributions::{uniform::SampleUniform, Standard};
 

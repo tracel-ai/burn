@@ -1,87 +1,85 @@
-use super::{Backend, Data, Distribution, Tensor, TensorType};
+use super::{Backend, Data, Distribution, Element, Tensor, TensorType};
 use crate::tensor::Shape;
 use std::ops::Range;
 
-pub trait TensorOpsDevice<P, const D: usize, B: Backend<E = P>> {
+pub trait TensorOpsDevice<E, const D: usize, B: Backend<E = E>> {
     fn device(&self) -> B::Device;
     fn to_device(&self, device: B::Device) -> Self;
 }
 
-pub trait TensorOpsUtilities<P, const D: usize> {
+pub trait TensorOpsUtilities<E, const D: usize> {
     fn shape(&self) -> &Shape<D>;
-    fn into_data(self) -> Data<P, D>;
-    fn to_data(&self) -> Data<P, D>;
+    fn into_data(self) -> Data<E, D>;
+    fn to_data(&self) -> Data<E, D>;
 }
 
-pub trait TensorOpsCreation<P, const D: usize, B> {
+pub trait TensorOpsCreation<E, const D: usize, B> {
     fn grad(&self) -> Tensor<D, B>
     where
-        B: Backend<E = P> + TensorType<D, B>;
+        B: Backend<E = E> + TensorType<D, B>;
 }
 
-pub trait TensorCreationLike<P, const D: usize> {
+pub trait TensorCreationLike<E, const D: usize> {
     fn new_like_empty(&self) -> Self;
-    fn new_like_random(&self, distribution: Distribution<P>) -> Self;
-    fn new_like_data(&self, data: Data<P, D>) -> Self;
+    fn new_like_random(&self, distribution: Distribution<E>) -> Self;
+    fn new_like_data(&self, data: Data<E, D>) -> Self;
     fn new_like_zeros(&self) -> Self;
     fn new_like_ones(&self) -> Self;
 }
 
-pub trait TensorCreationFork<P, const D: usize, const D2: usize> {
+pub trait TensorCreationFork<E, const D: usize, const D2: usize> {
     type Output;
     fn new_fork_empty(&self, shape: Shape<D2>) -> Self::Output;
-    fn new_fork_random(&self, shape: Shape<D2>, distribution: Distribution<P>) -> Self::Output;
-    fn new_fork_data(&self, data: Data<P, D2>) -> Self::Output;
+    fn new_fork_random(&self, shape: Shape<D2>, distribution: Distribution<E>) -> Self::Output;
+    fn new_fork_data(&self, data: Data<E, D2>) -> Self::Output;
     fn new_fork_zeros(&self, shape: Shape<D2>) -> Self::Output;
     fn new_fork_ones(&self, shape: Shape<D2>) -> Self::Output;
 }
 
-pub trait TensorOpsAdd<P, const D: usize>:
-    std::ops::Add<Self, Output = Self> + std::ops::Add<P, Output = Self>
+pub trait TensorOpsAdd<E, const D: usize>:
+    std::ops::Add<Self, Output = Self> + std::ops::Add<E, Output = Self>
 where
     Self: Sized,
 {
     fn add(&self, other: &Self) -> Self;
-    fn add_scalar(&self, other: &P) -> Self;
+    fn add_scalar(&self, other: &E) -> Self;
 }
 
-pub trait TensorOpsSub<P, const D: usize>:
-    std::ops::Sub<Self, Output = Self> + std::ops::Sub<P, Output = Self>
+pub trait TensorOpsSub<E, const D: usize>:
+    std::ops::Sub<Self, Output = Self> + std::ops::Sub<E, Output = Self>
 where
     Self: Sized,
 {
     fn sub(&self, other: &Self) -> Self;
-    fn sub_scalar(&self, other: &P) -> Self;
+    fn sub_scalar(&self, other: &E) -> Self;
 }
 
-pub trait TensorOpsTranspose<P, const D: usize> {
+pub trait TensorOpsTranspose<E, const D: usize> {
     fn transpose(&self) -> Self;
 }
 
-pub trait TensorOpsMatmul<P, const D: usize> {
+pub trait TensorOpsMatmul<E, const D: usize> {
     fn matmul(&self, other: &Self) -> Self;
 }
 
-pub trait TensorOpsNeg<P, const D: usize>: std::ops::Neg<Output = Self> {
+pub trait TensorOpsNeg<E, const D: usize>: std::ops::Neg<Output = Self> {
     fn neg(&self) -> Self;
 }
 
-pub trait TensorOpsMul<P, const D: usize>:
-    std::ops::Mul<P, Output = Self> + std::ops::Mul<Self, Output = Self>
+pub trait TensorOpsMul<E, const D: usize>:
+    std::ops::Mul<E, Output = Self> + std::ops::Mul<Self, Output = Self>
 where
     Self: Sized,
 {
     fn mul(&self, other: &Self) -> Self;
-    fn mul_scalar(&self, other: &P) -> Self;
+    fn mul_scalar(&self, other: &E) -> Self;
 }
 
-pub trait TensorOpsReshape<P, const D1: usize, B: Backend<E = P>> {
-    fn reshape<const D2: usize>(&self, shape: Shape<D2>) -> Tensor<D2, B>
-    where
-        B: Backend<E = P> + TensorType<D2, B>;
+pub trait TensorOpsReshape<E: Element, const D1: usize, const D2: usize, T> {
+    fn reshape(&self, shape: Shape<D2>) -> T;
 }
 
-pub trait TensorOpsIndex<P, const D1: usize, const D2: usize> {
+pub trait TensorOpsIndex<E, const D1: usize, const D2: usize> {
     fn index(&self, indexes: [Range<usize>; D2]) -> Self;
     fn index_assign(&self, indexes: [Range<usize>; D2], values: &Self) -> Self;
 }

@@ -8,16 +8,6 @@ use crate::tensor::{
 };
 use rand::distributions::{uniform::SampleUniform, Standard};
 
-impl<E, const D: usize> TensorOpsCreation<E, D, ADBackend<E, TchBackend<E>>> for TchTensor<E, D>
-where
-    E: Element,
-    Standard: rand::distributions::Distribution<E>,
-{
-    fn grad(&self) -> Tensor<D, ADBackend<E, TchBackend<E>>> {
-        ADTensor::from_tensor(self.clone())
-    }
-}
-
 impl<P, const D: usize> TensorCreationLike<P, D> for TchTensor<P, D>
 where
     P: tch::kind::Element + std::fmt::Debug + SampleUniform + Default,

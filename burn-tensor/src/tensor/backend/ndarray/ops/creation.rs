@@ -8,17 +8,6 @@ use crate::tensor::{
 };
 use rand::distributions::{uniform::SampleUniform, Standard};
 
-impl<E, const D: usize> TensorOpsCreation<E, D, ADBackend<E, NdArrayBackend<E>>>
-    for NdArrayTensor<E, D>
-where
-    E: Element,
-    Standard: rand::distributions::Distribution<E>,
-{
-    fn grad(&self) -> Tensor<D, ADBackend<E, NdArrayBackend<E>>> {
-        ADTensor::from_tensor(self.clone())
-    }
-}
-
 impl<P, const D: usize> TensorCreationLike<P, D> for NdArrayTensor<P, D>
 where
     P: std::fmt::Debug + SampleUniform + Default + Clone + Zeros<P> + Ones<P>,

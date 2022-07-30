@@ -1,11 +1,17 @@
 use burn_tensor::tensor::backend::ndarray::NdArrayBackend;
-use burn_tensor::tensor::backend::tch::TchBackend;
+use burn_tensor::tensor::backend::tch::{TchBackend, TchTensor};
 use burn_tensor::tensor::{backend::autodiff::ADTensor, Backend, Tensor};
-use burn_tensor::tensor::{ops::*, Data, Distribution, Shape};
+use burn_tensor::tensor::{
+    ops::*, ADBackend2, Backend2, Data, Distribution, Shape, TchBackend2, Tensor2, TensorOps,
+};
 use std::time::{Duration, SystemTime};
 
-fn loss<B: Backend>(x: &Tensor<2, B>, y: &Tensor<2, B>) -> Tensor<2, B> {
-    x.matmul(y)
+fn loss<B: Backend2>(x: &Tensor2<2, B>, y: &Tensor2<2, B>) -> Tensor2<1, B>
+where
+    TensorOps<2, B>: TensorOpsReshape<B::Elem, 2, 1, TensorOps<1, B>>,
+{
+    let z = x.matmul(y);
+    z.reshape(Shape::new([4]))
 }
 
 fn my_func<BForward: Backend>(
@@ -39,7 +45,27 @@ fn run<B: Backend>(x: Data<B::E, 2>, y: Data<B::E, 2>, device: B::Device) {
     println!("y_grad: {}", y_grad);
 }
 
+fn trya<B: Backend2>(x: &Tensor2<2, B>)
+where
+    TensorOps<2, B>: TensorOpsIndex<B::Elem, 2, 3>,
+    TensorOps<2, ADBackend2<B>>: TensorOpsReshape<B::Elem, 2, 1, TensorOps<1, ADBackend2<B>>>,
+{
+    x.add(&x);
+    let x = x.track_grad();
+
+    let loss = loss::<ADBackend2<B>>(&x, &x);
+    println!("{}", loss.to_data());
+}
+
 fn main() {
+    let x = Data::<f32, 2>::random(Shape::new([2, 2]), Distribution::Standard);
+
+    let tensor = TchTensor::from_data(x, tch::Device::Cpu);
+    let tensor: Tensor2<2, TchBackend2<f32>> = Tensor2::new(tensor);
+    trya(&tensor)
+}
+
+fn main2() {
     let x = Data::<f32, 2>::random(Shape::new([2, 3]), Distribution::Standard);
     let y = Data::<f32, 2>::random(Shape::new([3, 1]), Distribution::Standard);
 
