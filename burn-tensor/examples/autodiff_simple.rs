@@ -1,14 +1,13 @@
-use burn_tensor::tensor::backend::{ADBackend, Backend};
-use burn_tensor::tensor::{Data, Distribution, Shape, Tensor};
+use burn_tensor::{back, Data, Distribution, Shape, Tensor};
 
 /// This function works for all backends
-fn loss<B: Backend>(x: &Tensor<2, B>, y: &Tensor<2, B>) -> Tensor<2, B> {
+fn loss<B: back::Backend>(x: &Tensor<2, B>, y: &Tensor<2, B>) -> Tensor<2, B> {
     let z = x.matmul(y);
     z
 }
 
 /// This function requires a backend that can backward and compute gradients
-fn run<B: ADBackend>(x: Data<B::Elem, 2>, y: Data<B::Elem, 2>) {
+fn run<B: back::ad::Backend>(x: Data<B::Elem, 2>, y: Data<B::Elem, 2>) {
     let x: Tensor<2, B> = Tensor::from_data(x);
     let y: Tensor<2, B> = Tensor::from_data(y);
 
@@ -28,35 +27,29 @@ fn main() {
 
     #[cfg(feature = "ndarray")]
     {
-        use burn_tensor::tensor::backend::autodiff::ADBackendNdArray;
-        use burn_tensor::tensor::backend::ndarray::NdArrayBackend;
-
         println!("=== ndarray Backend ===\n");
 
         // NO AD
-        let z = loss::<NdArrayBackend<f32>>(
+        let z = loss::<back::NdArray<f32>>(
             &Tensor::from_data(x.clone()),
             &Tensor::from_data(y.clone()),
         );
 
         // WITH AD
         println!("z={} without ad", z.to_data());
-        run::<ADBackendNdArray<f32>>(x.clone(), y.clone());
+        run::<back::ad::NdArray<f32>>(x.clone(), y.clone());
     }
 
     #[cfg(feature = "tch")]
     {
-        use burn_tensor::tensor::backend::autodiff::ADBackendTch;
-        use burn_tensor::tensor::backend::tch::TchBackend;
-
         println!("=== Tch Backend ===\n");
 
         // NO AD
         let z =
-            loss::<TchBackend<f32>>(&Tensor::from_data(x.clone()), &Tensor::from_data(y.clone()));
+            loss::<back::Tch<f32>>(&Tensor::from_data(x.clone()), &Tensor::from_data(y.clone()));
 
         // WITH AD
         println!("z={} without ad", z.to_data());
-        run::<ADBackendTch<f32>>(x.clone(), y.clone());
+        run::<back::ad::Tch<f32>>(x.clone(), y.clone());
     }
 }
