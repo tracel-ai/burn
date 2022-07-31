@@ -125,11 +125,28 @@ where
         Self::new(self.value.index(indexes))
     }
 
+    pub fn update(&mut self, other: Self) {
+        self.value = other.value;
+    }
+
     pub fn index_assign<const D2: usize>(
         &self,
         indexes: [std::ops::Range<usize>; D2],
         values: &Self,
     ) -> Self {
         Self::new(self.value.index_assign(indexes, &values.value))
+    }
+
+    pub fn unsqueeze<const D2: usize>(&self) -> Tensor<D2, B> {
+        let mut dims = [1; D2];
+        let num_ones = D2 - D;
+        let shape = self.shape();
+
+        for i in 0..D {
+            dims[i + num_ones] = shape.dims[i];
+        }
+
+        let shape = Shape::new(dims);
+        self.reshape(shape)
     }
 }
