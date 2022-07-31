@@ -17,10 +17,11 @@
 // }
 
 use super::ADTensor;
+use crate::graph::grad::Gradients;
 use crate::tensor::{
     backend::{
-        ndarray::{NdArrayBackend, NdArrayDevice},
-        Backend,
+        ndarray::{NdArrayBackend, NdArrayDevice, NdArrayTensor},
+        ADBackend, Backend,
     },
     Element,
 };
@@ -38,4 +39,21 @@ where
     type Device = NdArrayDevice;
     type Elem = E;
     type Tensor<const D: usize> = ADTensor<D, NdArrayBackend<E>>;
+}
+
+impl<E: Element> ADBackend for ADBackendNdArray<E>
+where
+    Standard: rand::distributions::Distribution<E>,
+{
+    type InnerBackend = NdArrayBackend<E>;
+
+    fn backward<const D: usize>(tensor: &Self::Tensor<D>) -> Gradients {
+        tensor.backward()
+    }
+    fn grad<const D: usize>(
+        tensor: &Self::Tensor<D>,
+        grads: &Gradients,
+    ) -> Option<NdArrayTensor<E, D>> {
+        grads.wrt(tensor).map(|grad| grad.clone())
+    }
 }

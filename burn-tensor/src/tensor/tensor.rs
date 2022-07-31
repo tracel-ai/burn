@@ -1,5 +1,6 @@
 use super::backend::autodiff::{ADBackendNdArray, ADTensor};
 use super::backend::ndarray::NdArrayBackend;
+use super::backend::ADBackend;
 use super::backend::Backend;
 use crate::graph::grad::Gradients;
 use crate::tensor::ops::*;
@@ -12,28 +13,16 @@ pub struct Tensor<const D: usize, B: Backend> {
     pub value: B::Tensor<D>,
 }
 
-/// Numpy grad backend impl
-impl<E: Element, const D: usize> Tensor<D, ADBackendNdArray<E>>
-where
-    Standard: rand::distributions::Distribution<E>,
-{
+impl<const D: usize, B: ADBackend> Tensor<D, B> {
     pub fn backward(&self) -> Gradients {
-        let grads = self.value.backward();
-        grads
+        B::backward::<D>(&self.value)
     }
 
-    pub fn grad(&self, grads: &Gradients) -> Option<Tensor<D, NdArrayBackend<E>>> {
-        let grad = grads.wrt(&self.value);
-        let tensor = match grad {
-            None => return None,
-            Some(val) => val,
-        };
-
-        Some(Tensor::new(tensor.clone()))
+    pub fn grad(&self, grads: &Gradients) -> Option<Tensor<D, B::InnerBackend>> {
+        B::grad(&self.value, grads).map(|value| Tensor::new(value))
     }
 }
 
-/// Numpy backend impl
 impl<E: Element, const D: usize> Tensor<D, NdArrayBackend<E>>
 where
     Standard: rand::distributions::Distribution<E>,
