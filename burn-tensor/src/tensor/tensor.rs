@@ -181,10 +181,16 @@ where
         let tensor = B::from_data(data, device);
         Tensor::new(tensor)
     }
-    // pub fn index<const D2: usize>(&self, indexes: [std::ops::Range<usize>; D2]) -> Self
-    // where
-    //     TensorOps<D, B>: TensorOpsIndex<B::Elem, D, D2>,
-    // {
-    //     Self::new(self.value.index(indexes))
-    // }
+
+    pub fn index<const D2: usize>(&self, indexes: [std::ops::Range<usize>; D2]) -> Self {
+        Self::new(self.value.index(indexes))
+    }
+
+    pub fn index_assign<const D2: usize>(
+        &self,
+        indexes: [std::ops::Range<usize>; D2],
+        values: &Self,
+    ) -> Self {
+        Self::new(self.value.index_assign(indexes, &values.value))
+    }
 }

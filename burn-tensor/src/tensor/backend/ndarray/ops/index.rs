@@ -2,10 +2,10 @@ use crate::tensor::{backend::ndarray::NdArrayTensor, ops::*};
 use ndarray::SliceInfoElem;
 use std::ops::Range;
 
-impl<P: std::fmt::Debug + Copy + Default, const D1: usize, const D2: usize>
-    TensorOpsIndex<P, D1, D2> for NdArrayTensor<P, D1>
+impl<P: std::fmt::Debug + Copy + Default, const D1: usize> TensorOpsIndex<P, D1>
+    for NdArrayTensor<P, D1>
 {
-    fn index(&self, indexes: [Range<usize>; D2]) -> Self {
+    fn index<const D2: usize>(&self, indexes: [Range<usize>; D2]) -> Self {
         let slices = to_slice_args::<D1, D2>(indexes.clone());
         let array = self
             .array
@@ -17,7 +17,7 @@ impl<P: std::fmt::Debug + Copy + Default, const D1: usize, const D2: usize>
         Self { array, shape }
     }
 
-    fn index_assign(&self, indexes: [Range<usize>; D2], values: &Self) -> Self {
+    fn index_assign<const D2: usize>(&self, indexes: [Range<usize>; D2], values: &Self) -> Self {
         let slices = to_slice_args::<D1, D2>(indexes.clone());
         let mut array = self.array.to_owned();
         array.slice_mut(slices.as_slice()).assign(&values.array);

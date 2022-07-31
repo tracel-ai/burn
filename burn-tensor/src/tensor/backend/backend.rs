@@ -1,5 +1,5 @@
 use crate::graph::grad::Gradients;
-use crate::tensor::ops::TensorOpsReshape;
+use crate::tensor::ops::{TensorOpsIndex, TensorOpsReshape};
 use crate::tensor::Data;
 use crate::tensor::{ops::TensorCreationLike, Element, TensorTrait};
 
@@ -9,6 +9,7 @@ pub trait Backend: Clone + Sized + Default + Send + Sync + std::fmt::Debug + 'st
     type Tensor<const D: usize>: TensorTrait<Self::Elem, D>
         + TensorCreationLike<Self::Elem, D>
         + TensorOpsReshape<Self, D>
+        + TensorOpsIndex<Self::Elem, D>
         + 'static;
 
     fn from_data<const D: usize>(

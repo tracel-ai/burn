@@ -58,9 +58,9 @@ pub trait TensorOpsReshape<B: Backend, const D: usize> {
     fn reshape<const D2: usize>(&self, shape: Shape<D2>) -> B::Tensor<D2>;
 }
 
-pub trait TensorOpsIndex<P, const D1: usize, const D2: usize> {
-    fn index(&self, indexes: [Range<usize>; D2]) -> Self;
-    fn index_assign(&self, indexes: [Range<usize>; D2], values: &Self) -> Self;
+pub trait TensorOpsIndex<P, const D1: usize> {
+    fn index<const D2: usize>(&self, indexes: [Range<usize>; D2]) -> Self;
+    fn index_assign<const D2: usize>(&self, indexes: [Range<usize>; D2], values: &Self) -> Self;
 }
 
 pub trait Zeros<T> {
