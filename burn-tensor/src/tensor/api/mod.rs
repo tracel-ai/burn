@@ -1,6 +1,7 @@
-mod backend;
+pub mod back;
+
+mod ad;
 mod ops;
 mod tensor;
 
-pub use backend::*;
 pub use tensor::*;

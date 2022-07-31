@@ -4,8 +4,9 @@ use crate::graph::ops::{
     UnaryOpsNodeState,
 };
 use crate::tensor::backend::autodiff::{ADKind, ADTensor};
+use crate::tensor::backend::Backend;
 use crate::tensor::ops::*;
-use crate::tensor::{Element, Tensor};
+use crate::tensor::{Element, TensorTrait};
 use std::{ops::Range, sync::Arc};
 
 #[derive(Debug)]
@@ -26,7 +27,7 @@ impl<P: Default, const D1: usize, const D2: usize> ADTensorOpsIndex<P, D1, D2> {
 impl<T1, P, const D1: usize, const D2: usize> UnaryOps<T1, T1> for ADTensorOpsIndex<P, D1, D2>
 where
     P: Element,
-    T1: Tensor<P, D1> + TensorOpsIndex<P, D1, D2>,
+    T1: TensorTrait<P, D1> + TensorOpsIndex<P, D1>,
 {
     fn partial(&self, state: &UnaryOpsNodeState<T1, T1>) -> T1 {
         state
@@ -56,7 +57,7 @@ impl<T, P, const D1: usize, const D2: usize> BinaryOps<T, T, T>
     for ADTensorOpsIndexAssign<P, D1, D2>
 where
     P: Element,
-    T: Tensor<P, D1> + TensorOpsIndex<P, D1, D2>,
+    T: TensorTrait<P, D1> + TensorOpsIndex<P, D1>,
 {
     fn partial_left(&self, state: &BinaryOpsNodeState<T, T, T>) -> T {
         state
@@ -70,19 +71,15 @@ where
     }
 }
 
-impl<P, const D1: usize, const D2: usize, T> TensorOpsIndex<P, D1, D2> for ADTensor<P, D1, T>
-where
-    P: Element,
-    T: Tensor<P, D1> + TensorOpsIndex<P, D1, D2>,
-{
-    fn index(&self, indexes: [Range<usize>; D2]) -> Self {
+impl<B: Backend, const D1: usize> TensorOpsIndex<B::Elem, D1> for ADTensor<D1, B> {
+    fn index<const D2: usize>(&self, indexes: [Range<usize>; D2]) -> Self {
         let input = self.tensor();
         let out = TensorOpsIndex::index(&input, indexes.clone());
         let shape = out.shape().clone();
 
         let state = ForwardNodeState::new(out);
 
-        let ops = ADTensorOpsIndex::<P, D1, D2>::new(indexes);
+        let ops = ADTensorOpsIndex::<B::Elem, D1, D2>::new(indexes);
         let ops = Arc::new(ops);
         let ops = ForwardUnaryRecordedOps::new(self.node.clone(), ops);
         let ops = Arc::new(ops);
@@ -90,18 +87,16 @@ where
         let node = ForwardNode::from_unary(&self.node, state, ops);
         let node = Arc::new(node);
 
-        let kind = self.kind.clone();
-
-        Self { node, shape, kind }
+        Self { node, shape }
     }
-    fn index_assign(&self, indexes: [Range<usize>; D2], values: &Self) -> Self {
+    fn index_assign<const D2: usize>(&self, indexes: [Range<usize>; D2], values: &Self) -> Self {
         let input = self.tensor();
         let out = TensorOpsIndex::index_assign(&input, indexes.clone(), &values.tensor());
         let shape = out.shape().clone();
 
         let state = ForwardNodeState::new(out);
 
-        let ops = ADTensorOpsIndexAssign::<P, D1, D2>::new(indexes);
+        let ops = ADTensorOpsIndexAssign::<B::Elem, D1, D2>::new(indexes);
         let ops = Arc::new(ops);
         let ops = ForwardBinaryRecordedOps::new(self.node.clone(), values.node.clone(), ops);
         let ops = Arc::new(ops);
@@ -109,14 +104,11 @@ where
         let node = ForwardNode::from_binary(&self.node, &values.node, state, ops);
         let node = Arc::new(node);
 
-        let kind = self.kind.clone();
-
-        Self { node, shape, kind }
+        Self { node, shape }
     }
 }
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::tensor::{backend::autodiff::helper::TestADTensor, Data};
 
     #[test]
@@ -131,8 +123,8 @@ mod tests {
         let tensor_4 = &tensor_1.matmul(&tensor_3);
         let grads = tensor_4.backward();
 
-        let grad_1 = grads.wrt(&tensor_1).unwrap();
-        let grad_2 = grads.wrt(&tensor_2).unwrap();
+        let grad_1 = tensor_1.grad(&grads).unwrap();
+        let grad_2 = tensor_2.grad(&grads).unwrap();
 
         assert_eq!(grad_1.to_data(), Data::from([[11.0, 5.0], [11.0, 5.0]]));
         assert_eq!(
@@ -157,8 +149,8 @@ mod tests {
 
         let grads = tensor_5.backward();
 
-        let grad_1 = grads.wrt(&tensor_1).unwrap();
-        let grad_2 = grads.wrt(&tensor_2).unwrap();
+        let grad_1 = tensor_1.grad(&grads).unwrap();
+        let grad_2 = tensor_2.grad(&grads).unwrap();
 
         assert_eq!(grad_1.to_data(), Data::from([[58.0, 38.0], [118.0, 82.0]]));
         assert_eq!(grad_2.to_data(), Data::from([[16.0, 15.0], [24.0, 50.0]]));
@@ -182,9 +174,9 @@ mod tests {
 
         let grads = tensor_8.backward();
 
-        let grad_1 = grads.wrt(&tensor_1).unwrap();
-        let grad_2 = grads.wrt(&tensor_2).unwrap();
-        let grad_3 = grads.wrt(&tensor_3).unwrap();
+        let grad_1 = tensor_1.grad(&grads).unwrap();
+        let grad_2 = tensor_2.grad(&grads).unwrap();
+        let grad_3 = tensor_3.grad(&grads).unwrap();
 
         assert_eq!(grad_3.to_data(), Data::from([[32.0]]));
         assert_eq!(grad_1.to_data(), Data::from([[85.0, 65.0], [118.0, 82.0]]));

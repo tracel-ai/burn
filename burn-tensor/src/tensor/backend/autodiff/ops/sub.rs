@@ -1,82 +1,52 @@
-use crate::tensor::{Element, Tensor};
+use crate::graph::ops::{BinaryOps, BinaryOpsNodeState, UnaryOps, UnaryOpsNodeState};
+use crate::tensor::backend::backend::Backend;
 use crate::{
-    execute_ops,
-    graph::ops::{BinaryOps, BinaryOpsNodeState, UnaryOps, UnaryOpsNodeState},
-    register_ops,
+    execute_ops, register_ops,
     tensor::{backend::autodiff::ADTensor, ops::*},
 };
 
 register_ops!(
-    ops BinaryOps<T, T, T>,
+    ops BinaryOps,
     name ADTensorSubOps,
-    partial_left |state: &BinaryOpsNodeState<T, T, T>| {
+    partial_left |state: &BinaryOpsNodeState<B::Tensor<D>, B::Tensor<D>, B::Tensor<D>>| {
         state.output.grad()
     },
-    partial_right |state: &BinaryOpsNodeState<T, T, T>| {
+    partial_right |state: &BinaryOpsNodeState<B::Tensor<D>, B::Tensor<D>, B::Tensor<D>>| {
         state.output.grad().neg()
     },
 );
 
 register_ops!(
-    ops UnaryOps<T, T>,
-    name ADTensorSubScalarOps state P,
-    partial |_state, state_recorded: &UnaryOpsNodeState<T, T>|{
+    ops UnaryOps,
+    name ADTensorSubScalarOps state B::Elem,
+    partial |_state, state_recorded: &UnaryOpsNodeState<B::Tensor<D>, B::Tensor<D>>|{
         state_recorded.output.grad()
     },
 );
 
-impl<T, P, const D: usize> TensorOpsSub<P, D> for ADTensor<P, D, T>
-where
-    T: Tensor<P, D>,
-    P: Element,
-{
+impl<B: Backend, const D: usize> TensorOpsSub<B::Elem, D> for ADTensor<D, B> {
     fn sub(&self, other: &Self) -> Self {
         let node = execute_ops!(
             lhs self.node.clone(),
             rhs other.node.clone(),
             out TensorOpsSub::sub(&self.tensor(), &other.tensor()),
-            ops ADTensorSubOps::new(),
+            ops ADTensorSubOps::<B, D>::new(),
         );
         self.from_existing(node)
     }
 
-    fn sub_scalar(&self, other: &P) -> Self {
+    fn sub_scalar(&self, other: &B::Elem) -> Self {
         let node = execute_ops!(
             input self.node.clone(),
             out TensorOpsSub::sub_scalar(&self.tensor(), &other),
-            ops ADTensorSubScalarOps::new(other.clone()),
+            ops ADTensorSubScalarOps::<B, D>::new(other.clone()),
         );
         self.from_existing(node)
-    }
-}
-
-impl<T, P, const D: usize> std::ops::Sub<P> for ADTensor<P, D, T>
-where
-    T: Tensor<P, D> + 'static,
-    P: Element + 'static,
-{
-    type Output = ADTensor<P, D, T>;
-
-    fn sub(self, rhs: P) -> Self::Output {
-        TensorOpsSub::sub_scalar(&self, &rhs)
-    }
-}
-
-impl<T, P, const D: usize> std::ops::Sub<ADTensor<P, D, T>> for ADTensor<P, D, T>
-where
-    T: Tensor<P, D> + 'static,
-    P: Element + 'static,
-{
-    type Output = ADTensor<P, D, T>;
-
-    fn sub(self, rhs: Self) -> Self::Output {
-        TensorOpsSub::sub(&self, &rhs)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::tensor::{backend::autodiff::helper::TestADTensor, Data};
 
     #[test]
@@ -87,11 +57,11 @@ mod tests {
         let tensor_1 = TestADTensor::from_data(data_1.clone());
         let tensor_2 = TestADTensor::from_data(data_2.clone());
 
-        let tensor_3 = tensor_1.clone() - tensor_2.clone();
+        let tensor_3 = tensor_1.clone().sub(&tensor_2);
         let grads = tensor_3.backward();
 
-        let grad_1 = grads.wrt(&tensor_1).unwrap();
-        let grad_2 = grads.wrt(&tensor_2).unwrap();
+        let grad_1 = tensor_1.grad(&grads).unwrap();
+        let grad_2 = tensor_2.grad(&grads).unwrap();
 
         assert_eq!(grad_1.to_data(), Data::from([1.0, 1.0]));
         assert_eq!(grad_2.to_data(), Data::from([-1.0, -1.0]));
@@ -102,10 +72,10 @@ mod tests {
     fn should_diff_sub_scalar() {
         let data = Data::from([2.0, 10.0]);
         let tensor = TestADTensor::from_data(data.clone());
-        let tensor_out = tensor.clone() - 5.0;
+        let tensor_out = tensor.clone().sub_scalar(&5.0);
         let grads = tensor_out.backward();
 
-        let grad = grads.wrt(&tensor).unwrap();
+        let grad = tensor.grad(&grads).unwrap();
 
         assert_eq!(grad.to_data(), Data::from([1.0, 1.0]));
         assert_eq!(tensor_out.into_data(), Data::from([-3.0, 5.0]));
@@ -127,8 +97,8 @@ mod tests {
 
         let grads = tensor_6.backward();
 
-        let grad_1 = grads.wrt(&tensor_1).unwrap();
-        let grad_2 = grads.wrt(&tensor_2).unwrap();
+        let grad_1 = tensor_1.grad(&grads).unwrap();
+        let grad_2 = tensor_2.grad(&grads).unwrap();
 
         assert_eq!(grad_1.to_data(), Data::from([[0.0, 0.0], [0.0, 0.0]]));
         assert_eq!(grad_2.to_data(), Data::from([[1.0, 1.0], [1.0, 1.0]]));

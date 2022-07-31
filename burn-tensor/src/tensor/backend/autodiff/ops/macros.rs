@@ -1,46 +1,44 @@
-#[macro_export]
+#[macro_export(local_inner_macros)]
 macro_rules! define_ops {
     (
         name $name:ident
     ) => {
         #[derive(Debug)]
-        struct $name<P, const D: usize> {
-            _kind: $crate::tensor::backend::autodiff::ADKind<P>,
+        struct $name<B: Backend, const D: usize> {
+            _b: B,
         }
 
-        impl<P: Default, const D: usize> $name<P, D> {
+        impl<B: Backend, const D: usize> $name<B, D> {
             pub fn new() -> Self {
-                Self {
-                    _kind: $crate::tensor::backend::autodiff::ADKind::new(),
-                }
+                Self { _b: B::default() }
             }
         }
     };
     (
         name $name:ident,
-        state $state_ident:ident,
+        state $state_ident:ty,
     ) => {
         #[derive(Debug)]
-        struct $name<P, const D: usize> {
+        struct $name<B: Backend, const D: usize> {
             pub state: $state_ident,
-            _kind: $crate::tensor::backend::autodiff::ADKind<P>,
+            _b: B,
         }
 
-        impl<P: Default, const D: usize> $name<P, D> {
+        impl<B: Backend, const D: usize> $name<B, D> {
             pub fn new(value: $state_ident) -> Self {
                 Self {
                     state: value,
-                    _kind: $crate::tensor::backend::autodiff::ADKind::new(),
+                    _b: B::default(),
                 }
             }
         }
     };
 }
 
-#[macro_export]
+#[macro_export(local_inner_macros)]
 macro_rules! register_ops {
     (
-        ops $ops:ty,
+        ops $ops:ident,
         name $name:ident,
         partial_left $partial_left:expr,
         partial_right $partial_right:expr,
@@ -49,23 +47,34 @@ macro_rules! register_ops {
             name $name
         );
 
-        impl<T, P, const D: usize> $ops for $name<P, D>
-        where
-            P: $crate::tensor::Element,
-            T: $crate::tensor::Tensor<P, D>,
+        impl<B: Backend, const D: usize> $ops<B::Tensor<D>, B::Tensor<D>, B::Tensor<D>> for $name<B, D>
         {
-            fn partial_left(&self, state: &$crate::graph::ops::BinaryOpsNodeState<T, T, T>) -> T {
+            fn partial_left(
+                &self,
+                state: &$crate::graph::ops::BinaryOpsNodeState<
+                    B::Tensor<D>,
+                    B::Tensor<D>,
+                    B::Tensor<D>
+                >
+            ) -> B::Tensor<D> {
                 $partial_left(state)
             }
+            fn partial_right(
+                &self,
+                state: &$crate::graph::ops::BinaryOpsNodeState<
+                    B::Tensor<D>,
+                    B::Tensor<D>,
+                    B::Tensor<D>
+                >
+            ) -> B::Tensor<D> {
 
-            fn partial_right(&self, state: &$crate::graph::ops::BinaryOpsNodeState<T, T, T>) -> T {
                 $partial_right(state)
             }
         }
     };
     (
-        ops $ops:ty,
-        name $name:ident state $ops_tensor_state:ident,
+        ops $ops:ident,
+        name $name:ident state $ops_tensor_state:ty,
         partial $partial:expr,
     ) => {
         $crate::define_ops!(
@@ -73,18 +82,15 @@ macro_rules! register_ops {
             state $ops_tensor_state,
         );
 
-        impl<T, P, const D: usize> $ops for $name<P, D>
-        where
-            P: $crate::tensor::Element,
-            T: $crate::tensor::Tensor<P, D>,
+        impl<B: Backend, const D: usize> $ops<B::Tensor<D>, B::Tensor<D>> for $name<B, D>
         {
-            fn partial(&self, state: &$crate::graph::ops::UnaryOpsNodeState<T, T>) -> T {
+            fn partial(&self, state: &$crate::graph::ops::UnaryOpsNodeState<B::Tensor<D>, B::Tensor<D>>) -> B::Tensor<D> {
                 $partial(self.state, state)
             }
         }
     };
     (
-        ops $ops:ty,
+        ops $ops:ident,
         name $name:ident,
         partial $partial:expr,
     ) => {
@@ -92,12 +98,9 @@ macro_rules! register_ops {
             name $name
         );
 
-        impl<T, P, const D: usize> $ops for $name<P, D>
-        where
-            P: $crate::tensor::Element,
-            T: $crate::tensor::Tensor<P, D>,
+        impl<B: Backend, const D: usize> $ops<B::Tensor<D>, B::Tensor<D>> for $name<B, D>
         {
-            fn partial(&self, state: &$crate::graph::ops::UnaryOpsNodeState<T, T>) -> T {
+            fn partial(&self, state: &$crate::graph::ops::UnaryOpsNodeState<B::Tensor<D>, B::Tensor<D>>) -> B::Tensor<D> {
                 $partial(state)
             }
         }
@@ -105,7 +108,7 @@ macro_rules! register_ops {
 
 }
 
-#[macro_export]
+#[macro_export(local_inner_macros)]
 macro_rules! execute_ops {
     (
         lhs $lhs:expr,

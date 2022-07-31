@@ -1,23 +1,23 @@
 use crate::graph::ops::{UnaryOps, UnaryOpsNodeState};
 use crate::tensor::backend::autodiff::ADTensor;
+use crate::tensor::backend::backend::Backend;
 use crate::tensor::ops::*;
-use crate::tensor::{Element, Tensor};
 use crate::{execute_ops, register_ops};
 
 register_ops!(
-    ops UnaryOps<T, T>,
+    ops UnaryOps,
     name ADTensorTransposeOps,
-    partial |state: &UnaryOpsNodeState<T, T>|{
+    partial |state: &UnaryOpsNodeState<B::Tensor<D>, B::Tensor<D>>|{
         state.output.grad().transpose()
     },
 );
 
-impl<T: Tensor<P, D>, P: Element, const D: usize> TensorOpsTranspose<P, D> for ADTensor<P, D, T> {
+impl<B: Backend, const D: usize> TensorOpsTranspose<B::Elem, D> for ADTensor<D, B> {
     fn transpose(&self) -> Self {
         let node = execute_ops!(
             input self.node.clone(),
             out TensorOpsTranspose::transpose(&self.tensor()),
-            ops ADTensorTransposeOps::new(),
+            ops ADTensorTransposeOps::<B, D>::new(),
         );
         self.from_existing(node)
     }
@@ -25,7 +25,6 @@ impl<T: Tensor<P, D>, P: Element, const D: usize> TensorOpsTranspose<P, D> for A
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::tensor::{backend::autodiff::helper::TestADTensor, Data};
 
     #[test]
@@ -40,8 +39,8 @@ mod tests {
         let tensor_4 = tensor_3.transpose();
         let grads = tensor_4.backward();
 
-        let grad_1 = grads.wrt(&tensor_1).unwrap();
-        let grad_2 = grads.wrt(&tensor_2).unwrap();
+        let grad_1 = tensor_1.grad(&grads).unwrap();
+        let grad_2 = tensor_2.grad(&grads).unwrap();
 
         assert_eq!(grad_1.to_data(), Data::from([[6.0, 10.0], [6.0, 10.0]]));
         assert_eq!(grad_2.to_data(), Data::from([[3.0, 10.0], [3.0, 10.0]]));

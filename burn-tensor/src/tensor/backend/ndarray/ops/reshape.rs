@@ -1,28 +1,28 @@
-use crate::tensor::{backend::ndarray::NdArrayTensor, ops::*, Shape};
+use crate::{
+    tensor::{
+        backend::ndarray::{NdArrayBackend, NdArrayTensor},
+        ops::*,
+        Element, Shape,
+    },
+    to_nd_array_tensor,
+};
 use ndarray::Dim;
+use rand::distributions::Standard;
 
-macro_rules! define_impl {
-    (
-        $n:expr
-    ) => {
-        impl<P, const D1: usize> TensorOpsReshape<P, D1, $n, NdArrayTensor<P, $n>>
-            for NdArrayTensor<P, D1>
-        where
-            P: Clone + Default + std::fmt::Debug,
-        {
-            fn reshape(&self, shape: Shape<$n>) -> NdArrayTensor<P, $n> {
-                let dim: Dim<[usize; $n]> = shape.clone().into();
-                let array = self.array.reshape(dim).into_dyn();
-
-                NdArrayTensor { array, shape }
-            }
+impl<P, const D: usize> TensorOpsReshape<NdArrayBackend<P>, D> for NdArrayTensor<P, D>
+where
+    P: Element,
+    Standard: rand::distributions::Distribution<P>,
+{
+    fn reshape<const D2: usize>(&self, shape: Shape<D2>) -> NdArrayTensor<P, D2> {
+        match D2 {
+            1 => to_nd_array_tensor!(1, shape, self.array),
+            2 => to_nd_array_tensor!(2, shape, self.array),
+            3 => to_nd_array_tensor!(3, shape, self.array),
+            4 => to_nd_array_tensor!(4, shape, self.array),
+            5 => to_nd_array_tensor!(5, shape, self.array),
+            6 => to_nd_array_tensor!(6, shape, self.array),
+            _ => panic!("NdArrayTensor support only 6 dimensions."),
         }
-    };
+    }
 }
-
-define_impl!(1);
-define_impl!(2);
-define_impl!(3);
-define_impl!(4);
-define_impl!(5);
-define_impl!(6);

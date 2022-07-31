@@ -4,13 +4,10 @@ use crate::tensor::{
 };
 use std::ops::Range;
 
-impl<
-        P: tch::kind::Element + std::fmt::Debug + Copy + Default,
-        const D1: usize,
-        const D2: usize,
-    > TensorOpsIndex<P, D1, D2> for TchTensor<P, D1>
+impl<P: tch::kind::Element + std::fmt::Debug + Copy + Default, const D1: usize>
+    TensorOpsIndex<P, D1> for TchTensor<P, D1>
 {
-    fn index(&self, indexes: [Range<usize>; D2]) -> Self {
+    fn index<const D2: usize>(&self, indexes: [Range<usize>; D2]) -> Self {
         let mut tensor = self.tensor.shallow_clone();
 
         for i in 0..D2 {
@@ -29,7 +26,7 @@ impl<
         }
     }
 
-    fn index_assign(&self, indexes: [Range<usize>; D2], values: &Self) -> Self {
+    fn index_assign<const D2: usize>(&self, indexes: [Range<usize>; D2], values: &Self) -> Self {
         let tensor_original = self.tensor.copy();
         let tch_shape = TchShape::from(self.shape.clone());
 

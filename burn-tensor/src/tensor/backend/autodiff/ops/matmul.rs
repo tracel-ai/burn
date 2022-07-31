@@ -1,35 +1,31 @@
 use crate::graph::ops::{BinaryOps, BinaryOpsNodeState};
 use crate::tensor::backend::autodiff::ADTensor;
+use crate::tensor::backend::backend::Backend;
 use crate::tensor::ops::*;
-use crate::tensor::{Element, Tensor};
 use crate::{execute_ops, register_ops};
 
 register_ops!(
-    ops BinaryOps<T, T, T>,
+    ops BinaryOps,
     name ADTensorMatmulOps,
-    partial_left |state: &BinaryOpsNodeState<T, T, T>| {
+    partial_left |state: &BinaryOpsNodeState<B::Tensor<D>, B::Tensor<D>, B::Tensor<D>>| {
         let out_grad = state.output.grad();
         let rhs = state.right.value().transpose();
         out_grad.matmul(&rhs)
     },
-    partial_right |state: &BinaryOpsNodeState<T, T, T>| {
+    partial_right |state: &BinaryOpsNodeState<B::Tensor<D>, B::Tensor<D>, B::Tensor<D>>| {
         let out_grad = state.output.grad();
         let lhs = state.left.value().transpose();
         lhs.matmul(&out_grad)
     },
 );
 
-impl<T, P, const D: usize> TensorOpsMatmul<P, D> for ADTensor<P, D, T>
-where
-    T: Tensor<P, D>,
-    P: Element,
-{
+impl<B: Backend, P, const D: usize> TensorOpsMatmul<P, D> for ADTensor<D, B> {
     fn matmul(&self, other: &Self) -> Self {
         let node = execute_ops!(
             lhs self.node.clone(),
             rhs other.node.clone(),
             out TensorOpsMatmul::matmul(&self.tensor(), &other.tensor()),
-            ops ADTensorMatmulOps::new(),
+            ops ADTensorMatmulOps::<B, D>::new(),
         );
         self.from_existing(node)
     }
@@ -37,7 +33,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::tensor::{backend::autodiff::helper::TestADTensor, Data};
 
     #[test]
@@ -51,8 +46,8 @@ mod tests {
         let tensor_3 = &tensor_1.matmul(&tensor_2);
         let grads = tensor_3.backward();
 
-        let grad_1 = grads.wrt(&tensor_1).unwrap();
-        let grad_2 = grads.wrt(&tensor_2).unwrap();
+        let grad_1 = tensor_1.grad(&grads).unwrap();
+        let grad_2 = tensor_2.grad(&grads).unwrap();
 
         assert_eq!(grad_1.to_data(), Data::from([[11.0, 5.0], [11.0, 5.0]]));
         assert_eq!(grad_2.to_data(), Data::from([[3.0, 3.0], [10.0, 10.0]]));
@@ -77,8 +72,8 @@ mod tests {
 
         let grads = tensor_5.backward();
 
-        let grad_1 = grads.wrt(&tensor_1).unwrap();
-        let grad_2 = grads.wrt(&tensor_2).unwrap();
+        let grad_1 = tensor_1.grad(&grads).unwrap();
+        let grad_2 = tensor_2.grad(&grads).unwrap();
 
         assert_eq!(grad_1.to_data(), Data::from([[44.0, 20.0], [44.0, 20.0]]));
         assert_eq!(grad_2.to_data(), Data::from([[56.0, 56.0], [16.0, 16.0]]));
@@ -99,8 +94,8 @@ mod tests {
 
         let grads = tensor_6.backward();
 
-        let grad_1 = grads.wrt(&tensor_1).unwrap();
-        let grad_2 = grads.wrt(&tensor_2).unwrap();
+        let grad_1 = tensor_1.grad(&grads).unwrap();
+        let grad_2 = tensor_2.grad(&grads).unwrap();
 
         assert_eq!(
             grad_1.to_data(),

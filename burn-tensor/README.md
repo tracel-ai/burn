@@ -88,6 +88,10 @@ Therefore, creating the tape only requires a simple and efficent graph traversal
     let y_grad = grads.wrt(&y);
 ```
 
+## Cuda
+
+To run with CUDA set `TORCH_CUDA_VERSION=cu113`.
+
 ## Note
 
 This crate can be use alone without the entire burn stack and with only selected backends for smaller binaries.

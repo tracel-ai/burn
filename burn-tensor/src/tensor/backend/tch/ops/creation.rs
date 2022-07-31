@@ -1,7 +1,7 @@
 use crate::tensor::{
-    backend::tch::{TchShape, TchTensor},
+    backend::tch::{TchBackend, TchShape, TchTensor},
     ops::*,
-    Data, Distribution, Shape,
+    Data, Distribution, Element, Shape,
 };
 use rand::distributions::{uniform::SampleUniform, Standard};
 
@@ -43,13 +43,11 @@ where
     }
 }
 
-impl<P, const D: usize, const D2: usize> TensorCreationFork<P, D, D2, TchTensor<P, D2>>
-    for TchTensor<P, D>
+impl<P: Element, const D: usize> TensorCreationFork<TchBackend<P>, D> for TchTensor<P, D>
 where
-    P: tch::kind::Element + std::fmt::Debug + SampleUniform + Default + Copy,
     Standard: rand::distributions::Distribution<P>,
 {
-    fn new_fork_empty(&self, shape: Shape<D2>) -> TchTensor<P, D2> {
+    fn new_fork_empty<const D2: usize>(&self, shape: Shape<D2>) -> TchTensor<P, D2> {
         let device = self.tensor.device();
         let kind = self.kind.clone();
 
@@ -63,19 +61,23 @@ where
         }
     }
 
-    fn new_fork_random(&self, shape: Shape<D2>, distribution: Distribution<P>) -> TchTensor<P, D2> {
+    fn new_fork_random<const D2: usize>(
+        &self,
+        shape: Shape<D2>,
+        distribution: Distribution<P>,
+    ) -> TchTensor<P, D2> {
         let device = self.tensor.device();
         let data = Data::<P, D2>::random(shape, distribution);
 
         TchTensor::from_data(data, device)
     }
 
-    fn new_fork_data(&self, data: Data<P, D2>) -> TchTensor<P, D2> {
+    fn new_fork_data<const D2: usize>(&self, data: Data<P, D2>) -> TchTensor<P, D2> {
         let device = self.tensor.device();
         TchTensor::from_data(data, device)
     }
 
-    fn new_fork_zeros(&self, shape: Shape<D2>) -> TchTensor<P, D2> {
+    fn new_fork_zeros<const D2: usize>(&self, shape: Shape<D2>) -> TchTensor<P, D2> {
         let device = self.tensor.device();
         let kind = self.kind.clone();
 
@@ -89,7 +91,7 @@ where
         }
     }
 
-    fn new_fork_ones(&self, shape: Shape<D2>) -> TchTensor<P, D2> {
+    fn new_fork_ones<const D2: usize>(&self, shape: Shape<D2>) -> TchTensor<P, D2> {
         let device = self.tensor.device();
         let kind = self.kind.clone();
 

@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::tensor::{backend::autodiff::helper::TestADTensor, ops::*, Data};
+    use crate::tensor::{backend::autodiff::helper::TestADTensor, Data};
 
     #[test]
     fn should_behave_the_same_with_multithread() {
@@ -42,8 +42,8 @@ mod tests {
 
             let grads = tensor_8.backward();
 
-            let grad_1 = grads.wrt(&tensor_1).unwrap();
-            let grad_2 = grads.wrt(&tensor_2).unwrap();
+            let grad_1 = tensor_1.grad(&grads).unwrap();
+            let grad_2 = tensor_2.grad(&grads).unwrap();
 
             return (grad_1.clone(), grad_2.clone());
         };
@@ -67,8 +67,8 @@ mod tests {
 
             let grads = tensor_8.backward();
 
-            let grad_1 = grads.wrt(&tensor_1).unwrap();
-            let grad_2 = grads.wrt(&tensor_2).unwrap();
+            let grad_1 = tensor_1.grad(&grads).unwrap();
+            let grad_2 = tensor_2.grad(&grads).unwrap();
 
             return (grad_1.clone(), grad_2.clone());
         };

@@ -1,4 +1,4 @@
-use crate::tensor::{Element, Tensor};
+use crate::tensor::backend::backend::Backend;
 use crate::{
     execute_ops,
     graph::ops::{UnaryOps, UnaryOpsNodeState},
@@ -7,43 +7,26 @@ use crate::{
 };
 
 register_ops!(
-    ops UnaryOps<T, T>,
+    ops UnaryOps,
     name ADTensorNegOps,
-    partial |state: &UnaryOpsNodeState<T, T>|{
+    partial |state: &UnaryOpsNodeState<B::Tensor<D>, B::Tensor<D>>|{
         state.output.grad().neg()
     },
 );
 
-impl<T, P, const D: usize> TensorOpsNeg<P, D> for ADTensor<P, D, T>
-where
-    T: Tensor<P, D>,
-    P: Element,
-{
+impl<B: Backend, P, const D: usize> TensorOpsNeg<P, D> for ADTensor<D, B> {
     fn neg(&self) -> Self {
         let node = execute_ops!(
             input self.node.clone(),
             out TensorOpsNeg::neg(&self.tensor()),
-            ops ADTensorNegOps::new(),
+            ops ADTensorNegOps::<B, D>::new(),
         );
         self.from_existing(node)
     }
 }
 
-impl<T, P, const D: usize> std::ops::Neg for ADTensor<P, D, T>
-where
-    T: Tensor<P, D> + 'static,
-    P: Element + 'static,
-{
-    type Output = ADTensor<P, D, T>;
-
-    fn neg(self) -> Self::Output {
-        TensorOpsNeg::neg(&self)
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::tensor::{backend::autodiff::helper::TestADTensor, Data};
 
     #[test]
@@ -58,8 +41,8 @@ mod tests {
         let tensor_4 = tensor_3.neg();
         let grads = tensor_4.backward();
 
-        let grad_1 = grads.wrt(&tensor_1).unwrap();
-        let grad_2 = grads.wrt(&tensor_2).unwrap();
+        let grad_1 = tensor_1.grad(&grads).unwrap();
+        let grad_2 = tensor_2.grad(&grads).unwrap();
 
         assert_eq!(grad_1.to_data(), Data::from([[11.0, 5.0], [11.0, 5.0]]));
         assert_eq!(grad_2.to_data(), Data::from([[3.0, 3.0], [10.0, 10.0]]));

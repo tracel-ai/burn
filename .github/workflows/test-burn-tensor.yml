@@ -10,11 +10,12 @@ jobs:
       - name: checkout
         uses: actions/checkout@v2
 
-      - name: install rust stable
+      - name: install rust nightly
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: stable
+          toolchain: nightly
+          components: rustfmt
           override: true
 
       - name: check format
