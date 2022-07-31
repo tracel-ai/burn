@@ -38,4 +38,12 @@ where
         };
         TchTensor::from_data(data, device)
     }
+
+    fn ad_enabled() -> bool {
+        false
+    }
+
+    fn name() -> String {
+        "tch".to_string()
+    }
 }

@@ -17,6 +17,8 @@ pub trait Backend: Clone + Sized + Default + Send + Sync + std::fmt::Debug + 'st
         data: Data<Self::Elem, D>,
         device: Self::Device,
     ) -> Self::Tensor<D>;
+    fn ad_enabled() -> bool;
+    fn name() -> String;
 }
 
 pub type ADBackendTensor<const D: usize, B> =

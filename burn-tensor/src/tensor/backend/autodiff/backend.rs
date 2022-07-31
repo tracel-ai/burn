@@ -50,6 +50,14 @@ macro_rules! define_impl {
                 let tensor = <$backend as Backend>::from_data(data, device);
                 ADTensor::from_tensor(tensor)
             }
+
+            fn ad_enabled() -> bool {
+                true
+            }
+
+            fn name() -> String {
+                format!("autodiff<{}>", <$backend as Backend>::name())
+            }
         }
 
         impl<E: Element> ADBackend for $name<E>

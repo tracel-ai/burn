@@ -1,13 +1,17 @@
 use burn_tensor::{back, Data, Distribution, Shape, Tensor};
 
-/// This function works for all backends
 fn loss<B: back::Backend>(x: &Tensor<2, B>, y: &Tensor<2, B>) -> Tensor<2, B> {
     let z = x.matmul(y);
+
+    println!("fn name  : loss");
+    println!("backend  : {}", B::name());
+    println!("z        : {}", z.to_data());
+    println!("autodiff : {}", B::ad_enabled());
     z
 }
 
-/// This function requires a backend that can backward and compute gradients
-fn run<B: back::ad::Backend>(x: Data<B::Elem, 2>, y: Data<B::Elem, 2>) {
+fn run_ad<B: back::ad::Backend>(x: Data<B::Elem, 2>, y: Data<B::Elem, 2>) {
+    println!("---------- Ad Enabled -----------");
     let x: Tensor<2, B> = Tensor::from_data(x);
     let y: Tensor<2, B> = Tensor::from_data(y);
 
@@ -15,9 +19,17 @@ fn run<B: back::ad::Backend>(x: Data<B::Elem, 2>, y: Data<B::Elem, 2>) {
 
     let grads = z.backward();
 
-    println!("z={} with ad", z.to_data());
-    println!("x_grad {}", x.grad(&grads).unwrap().to_data());
-    println!("y_grad {}\n", y.grad(&grads).unwrap().to_data());
+    println!("x_grad   : {}", x.grad(&grads).unwrap().to_data());
+    println!("y_grad   : {}", y.grad(&grads).unwrap().to_data());
+    println!("---------------------------------");
+    println!("")
+}
+
+fn run<B: back::Backend>(x: Data<B::Elem, 2>, y: Data<B::Elem, 2>) {
+    println!("---------- Ad Disabled ----------");
+    loss::<B>(&Tensor::from_data(x.clone()), &Tensor::from_data(y.clone()));
+    println!("---------------------------------");
+    println!("")
 }
 
 fn main() {
@@ -27,29 +39,13 @@ fn main() {
 
     #[cfg(feature = "ndarray")]
     {
-        println!("=== ndarray Backend ===\n");
-
-        // NO AD
-        let z = loss::<back::NdArray<f32>>(
-            &Tensor::from_data(x.clone()),
-            &Tensor::from_data(y.clone()),
-        );
-
-        // WITH AD
-        println!("z={} without ad", z.to_data());
-        run::<back::ad::NdArray<f32>>(x.clone(), y.clone());
+        run::<back::NdArray<f32>>(x.clone(), y.clone());
+        run_ad::<back::ad::NdArray<f32>>(x.clone(), y.clone());
     }
 
     #[cfg(feature = "tch")]
     {
-        println!("=== Tch Backend ===\n");
-
-        // NO AD
-        let z =
-            loss::<back::Tch<f32>>(&Tensor::from_data(x.clone()), &Tensor::from_data(y.clone()));
-
-        // WITH AD
-        println!("z={} without ad", z.to_data());
-        run::<back::ad::Tch<f32>>(x.clone(), y.clone());
+        run::<back::Tch<f32>>(x.clone(), y.clone());
+        run_ad::<back::ad::Tch<f32>>(x.clone(), y.clone());
     }
 }

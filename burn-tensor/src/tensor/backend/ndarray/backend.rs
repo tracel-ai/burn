@@ -33,4 +33,12 @@ where
     ) -> NdArrayTensor<E, D> {
         NdArrayTensor::from_data(data)
     }
+
+    fn ad_enabled() -> bool {
+        false
+    }
+
+    fn name() -> String {
+        "ndarray".to_string()
+    }
 }
