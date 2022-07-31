@@ -53,9 +53,9 @@ where
         Self { value: tensor }
     }
 
-    // pub fn reshape<const D2: usize>(&self, shape: Shape<D2>) -> Tensor<D2, B> {
-    //     Tensor::new(self.value.reshape(shape))
-    // }
+    pub fn reshape<const D2: usize>(&self, shape: Shape<D2>) -> Tensor<D2, B> {
+        Tensor::new(self.value.reshape(shape))
+    }
 
     pub fn shape(&self) -> &Shape<D> {
         self.value.shape()
