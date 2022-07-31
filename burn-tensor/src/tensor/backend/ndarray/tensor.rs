@@ -66,6 +66,7 @@ fn batch_size<const D: usize>(shape: &Shape<D>) -> usize {
     num_batch
 }
 
+#[macro_export]
 macro_rules! to_typed_dims {
     (
         $n:expr,
@@ -81,14 +82,15 @@ macro_rules! to_typed_dims {
     }};
 }
 
+#[macro_export]
 macro_rules! to_nd_array_tensor {
     (
         $n:expr,
         $shape:expr,
         $array:expr
     ) => {{
-        let dim = to_typed_dims!($n, $shape.dims, justdim);
-        let array: ArcArray<P, Dim<[usize; $n]>> = $array.reshape(dim);
+        let dim = $crate::to_typed_dims!($n, $shape.dims, justdim);
+        let array: ndarray::ArcArray<P, Dim<[usize; $n]>> = $array.reshape(dim);
         let array = array.into_dyn();
 
         NdArrayTensor {

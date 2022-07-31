@@ -1,16 +1,16 @@
+use rand::distributions::Standard;
+
 use crate::tensor::{
-    backend::tch::{TchShape, TchTensor},
+    backend::tch::{TchBackend, TchShape, TchTensor},
     ops::*,
-    Shape,
+    Element, Shape,
 };
 
-impl<
-        P: tch::kind::Element + std::fmt::Debug + Copy + Default,
-        const D1: usize,
-        const D2: usize,
-    > TensorOpsReshape<P, D1, D2, TchTensor<P, D2>> for TchTensor<P, D1>
+impl<P: Element, const D: usize> TensorOpsReshape<TchBackend<P>, D> for TchTensor<P, D>
+where
+    Standard: rand::distributions::Distribution<P>,
 {
-    fn reshape(&self, shape: Shape<D2>) -> TchTensor<P, D2> {
+    fn reshape<const D2: usize>(&self, shape: Shape<D2>) -> TchTensor<P, D2> {
         let shape_tch: TchShape<D2> = shape.clone().into();
         let tensor = self.tensor.reshape(&shape_tch.dims);
         let kind = self.kind.clone();

@@ -1,4 +1,4 @@
-use super::{Data, Distribution};
+use super::{backend::Backend, Data, Distribution};
 use crate::tensor::Shape;
 use std::ops::Range;
 
@@ -54,8 +54,8 @@ pub trait TensorOpsMul<P, const D: usize> {
     fn mul_scalar(&self, other: &P) -> Self;
 }
 
-pub trait TensorOpsReshape<P, const D1: usize, const D2: usize, T: TensorOpsUtilities<P, D2>> {
-    fn reshape(&self, shape: Shape<D2>) -> T;
+pub trait TensorOpsReshape<B: Backend, const D: usize> {
+    fn reshape<const D2: usize>(&self, shape: Shape<D2>) -> B::Tensor<D2>;
 }
 
 pub trait TensorOpsIndex<P, const D1: usize, const D2: usize> {

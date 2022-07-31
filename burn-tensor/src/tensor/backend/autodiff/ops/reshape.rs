@@ -32,29 +32,36 @@ impl<B: Backend, const D1: usize, const D2: usize> UnaryOps<B::Tensor<D2>, B::Te
     }
 }
 
-impl<B: Backend, const D1: usize, const D2: usize>
-    TensorOpsReshape<B::Elem, D1, D2, ADTensor<D2, B>> for ADTensor<D1, B>
-{
-    fn reshape(&self, shape: Shape<D2>) -> ADTensor<D2, B> {
-        let input = self.tensor();
-        let out = TensorOpsReshape::reshape(&input, shape.clone());
+macro_rules! define_impl {
+    (
+        $backend:ty
+    ) => {
+        impl<P: Element, const D1: usize> TensorOpsReshape<$backend, D1> for $backend::Tensor<D1> {
+            fn reshape<const D2: usize>(&self, shape: Shape<D2>) -> $backend::Tensor<D2> {
+                let input = self.tensor();
+                let out = TensorOpsReshape::reshape(&input, shape.clone());
 
-        let state = ForwardNodeState::new(out);
+                let state = ForwardNodeState::new(out);
 
-        let ops = ADTensorOpsReshape::<B::Elem, D1, D2>::new(self.shape.clone());
-        let ops = Arc::new(ops);
-        let ops = ForwardUnaryRecordedOps::new(self.node.clone(), ops);
-        let ops = Arc::new(ops);
+                let ops = ADTensorOpsReshape::<$backend::Elem, D1, D2>::new(self.shape.clone());
+                let ops = Arc::new(ops);
+                let ops = ForwardUnaryRecordedOps::new(self.node.clone(), ops);
+                let ops = Arc::new(ops);
 
-        let node = ForwardNode::from_unary(&self.node, state, ops);
-        let node = Arc::new(node);
+                let node = ForwardNode::from_unary(&self.node, state, ops);
+                let node = Arc::new(node);
 
-        let shape = shape.clone();
-        let kind = self.kind.clone();
+                let shape = shape.clone();
+                let kind = self.kind.clone();
 
-        ADTensor { node, shape, kind }
-    }
+                ADTensor { node, shape, kind }
+            }
+        }
+    };
 }
+
+define_impl!(crate::tensor::backend::autodiff::ADBackendNdArray<P>);
+
 #[cfg(test)]
 mod tests {
     use super::*;

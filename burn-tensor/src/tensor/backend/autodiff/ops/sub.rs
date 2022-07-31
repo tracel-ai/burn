@@ -47,7 +47,6 @@ impl<B: Backend, const D: usize> TensorOpsSub<B::Elem, D> for ADTensor<D, B> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::tensor::{backend::autodiff::helper::TestADTensor, Data};
 
     #[test]
@@ -61,8 +60,8 @@ mod tests {
         let tensor_3 = tensor_1.clone().sub(&tensor_2);
         let grads = tensor_3.backward();
 
-        let grad_1 = grads.wrt(&tensor_1).unwrap();
-        let grad_2 = grads.wrt(&tensor_2).unwrap();
+        let grad_1 = tensor_1.grad(&grads).unwrap();
+        let grad_2 = tensor_2.grad(&grads).unwrap();
 
         assert_eq!(grad_1.to_data(), Data::from([1.0, 1.0]));
         assert_eq!(grad_2.to_data(), Data::from([-1.0, -1.0]));
@@ -76,7 +75,7 @@ mod tests {
         let tensor_out = tensor.clone().sub_scalar(&5.0);
         let grads = tensor_out.backward();
 
-        let grad = grads.wrt(&tensor).unwrap();
+        let grad = tensor.grad(&grads).unwrap();
 
         assert_eq!(grad.to_data(), Data::from([1.0, 1.0]));
         assert_eq!(tensor_out.into_data(), Data::from([-3.0, 5.0]));
@@ -98,8 +97,8 @@ mod tests {
 
         let grads = tensor_6.backward();
 
-        let grad_1 = grads.wrt(&tensor_1).unwrap();
-        let grad_2 = grads.wrt(&tensor_2).unwrap();
+        let grad_1 = tensor_1.grad(&grads).unwrap();
+        let grad_2 = tensor_2.grad(&grads).unwrap();
 
         assert_eq!(grad_1.to_data(), Data::from([[0.0, 0.0], [0.0, 0.0]]));
         assert_eq!(grad_2.to_data(), Data::from([[1.0, 1.0], [1.0, 1.0]]));
