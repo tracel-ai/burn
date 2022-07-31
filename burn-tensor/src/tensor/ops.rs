@@ -16,12 +16,16 @@ pub trait TensorCreationLike<P, const D: usize> {
     fn new_like_ones(&self) -> Self;
 }
 
-pub trait TensorCreationFork<P, const D: usize, const D2: usize, T: TensorOpsUtilities<P, D2>> {
-    fn new_fork_empty(&self, shape: Shape<D2>) -> T;
-    fn new_fork_random(&self, shape: Shape<D2>, distribution: Distribution<P>) -> T;
-    fn new_fork_data(&self, data: Data<P, D2>) -> T;
-    fn new_fork_zeros(&self, shape: Shape<D2>) -> T;
-    fn new_fork_ones(&self, shape: Shape<D2>) -> T;
+pub trait TensorCreationFork<B: Backend, const D: usize> {
+    fn new_fork_empty<const D2: usize>(&self, shape: Shape<D2>) -> B::Tensor<D2>;
+    fn new_fork_random<const D2: usize>(
+        &self,
+        shape: Shape<D2>,
+        distribution: Distribution<B::Elem>,
+    ) -> B::Tensor<D2>;
+    fn new_fork_data<const D2: usize>(&self, data: Data<B::Elem, D2>) -> B::Tensor<D2>;
+    fn new_fork_zeros<const D2: usize>(&self, shape: Shape<D2>) -> B::Tensor<D2>;
+    fn new_fork_ones<const D2: usize>(&self, shape: Shape<D2>) -> B::Tensor<D2>;
 }
 
 pub trait TensorOpsAdd<P, const D: usize>: std::ops::Add<Self, Output = Self>

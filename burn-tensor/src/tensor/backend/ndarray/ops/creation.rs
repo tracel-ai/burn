@@ -1,4 +1,8 @@
-use crate::tensor::{backend::ndarray::NdArrayTensor, ops::*, Data, Distribution, Shape};
+use crate::tensor::{
+    backend::ndarray::{NdArrayBackend, NdArrayTensor},
+    ops::*,
+    Data, Distribution, Element, Shape,
+};
 use rand::distributions::{uniform::SampleUniform, Standard};
 
 impl<P, const D: usize> TensorCreationLike<P, D> for NdArrayTensor<P, D>
@@ -28,17 +32,15 @@ where
     }
 }
 
-impl<P, const D: usize, const D2: usize> TensorCreationFork<P, D, D2, NdArrayTensor<P, D2>>
-    for NdArrayTensor<P, D>
+impl<P: Element, const D: usize> TensorCreationFork<NdArrayBackend<P>, D> for NdArrayTensor<P, D>
 where
-    P: std::fmt::Debug + SampleUniform + Default + Clone + Zeros<P> + Ones<P>,
     Standard: rand::distributions::Distribution<P>,
 {
-    fn new_fork_empty(&self, shape: Shape<D2>) -> NdArrayTensor<P, D2> {
+    fn new_fork_empty<const D2: usize>(&self, shape: Shape<D2>) -> NdArrayTensor<P, D2> {
         self.new_fork_zeros(shape)
     }
 
-    fn new_fork_random(
+    fn new_fork_random<const D2: usize>(
         &self,
         shape: Shape<D2>,
         distribution: Distribution<P>,
@@ -47,16 +49,16 @@ where
         NdArrayTensor::from_data(data)
     }
 
-    fn new_fork_data(&self, data: Data<P, D2>) -> NdArrayTensor<P, D2> {
+    fn new_fork_data<const D2: usize>(&self, data: Data<P, D2>) -> NdArrayTensor<P, D2> {
         NdArrayTensor::from_data(data)
     }
 
-    fn new_fork_zeros(&self, shape: Shape<D2>) -> NdArrayTensor<P, D2> {
+    fn new_fork_zeros<const D2: usize>(&self, shape: Shape<D2>) -> NdArrayTensor<P, D2> {
         let data = Data::<P, D2>::zeros(shape);
         NdArrayTensor::from_data(data)
     }
 
-    fn new_fork_ones(&self, shape: Shape<D2>) -> NdArrayTensor<P, D2> {
+    fn new_fork_ones<const D2: usize>(&self, shape: Shape<D2>) -> NdArrayTensor<P, D2> {
         let data = Data::<P, D2>::ones(shape);
         NdArrayTensor::from_data(data)
     }
