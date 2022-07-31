@@ -10,5 +10,10 @@ pub mod ad {
 
 #[cfg(feature = "tch")]
 pub type Tch<E> = crate::tensor::backend::tch::TchBackend<E>;
+#[cfg(feature = "tch")]
+pub type TchDevice = crate::tensor::backend::tch::TchDevice;
+
 #[cfg(feature = "ndarray")]
 pub type NdArray<E> = crate::tensor::backend::ndarray::NdArrayBackend<E>;
+#[cfg(feature = "ndarray")]
+pub type NdArrayDevice = crate::tensor::backend::ndarray::NdArrayDevice;

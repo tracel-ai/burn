@@ -1,4 +1,4 @@
-#[macro_export]
+#[macro_export(local_inner_macros)]
 macro_rules! define_ops {
     (
         name $name:ident
@@ -35,7 +35,7 @@ macro_rules! define_ops {
     };
 }
 
-#[macro_export]
+#[macro_export(local_inner_macros)]
 macro_rules! register_ops {
     (
         ops $ops:ident,
@@ -108,7 +108,7 @@ macro_rules! register_ops {
 
 }
 
-#[macro_export]
+#[macro_export(local_inner_macros)]
 macro_rules! execute_ops {
     (
         lhs $lhs:expr,

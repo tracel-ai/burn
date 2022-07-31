@@ -66,7 +66,7 @@ fn batch_size<const D: usize>(shape: &Shape<D>) -> usize {
     num_batch
 }
 
-#[macro_export]
+#[macro_export(local_inner_macros)]
 macro_rules! to_typed_dims {
     (
         $n:expr,
@@ -82,7 +82,7 @@ macro_rules! to_typed_dims {
     }};
 }
 
-#[macro_export]
+#[macro_export(local_inner_macros)]
 macro_rules! to_nd_array_tensor {
     (
         $n:expr,
