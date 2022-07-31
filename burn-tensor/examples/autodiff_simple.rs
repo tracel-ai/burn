@@ -1,38 +1,62 @@
-use burn_tensor::tensor::{
-    backend::autodiff::ADBackendNdArray,
-    backend::ndarray::{NdArrayBackend, NdArrayTensor},
-    backend::Backend,
-    Data, Distribution, Shape, Tensor,
-};
+use burn_tensor::tensor::backend::{ADBackend, Backend};
+use burn_tensor::tensor::{Data, Distribution, Shape, Tensor};
 
-fn lossa<B: Backend>(x: &Tensor<2, B>, y: &Tensor<2, B>) -> Tensor<2, B> {
+/// This function works for all backends
+fn loss<B: Backend>(x: &Tensor<2, B>, y: &Tensor<2, B>) -> Tensor<2, B> {
     let z = x.matmul(y);
     z
 }
 
-fn run() {
-    let x = Data::<f32, 2>::random(Shape::new([2, 3]), Distribution::Standard);
-    let y = Data::<f32, 2>::random(Shape::new([3, 1]), Distribution::Standard);
+/// This function requires a backend that can backward and compute gradients
+fn run<B: ADBackend>(x: Data<B::Elem, 2>, y: Data<B::Elem, 2>) {
+    let x: Tensor<2, B> = Tensor::from_data(x);
+    let y: Tensor<2, B> = Tensor::from_data(y);
 
-    let x = Tensor::new(NdArrayTensor::from_data(x));
-    let y = Tensor::new(NdArrayTensor::from_data(y));
+    let z = loss(&x, &y);
 
-    let z = lossa::<NdArrayBackend<f32>>(&x, &y);
-    println!("Without AD");
-    println!("z={}", z.to_data());
-
-    let x = x.with_grad();
-    let y = y.with_grad();
-
-    let z = lossa::<ADBackendNdArray<f32>>(&x, &y);
     let grads = z.backward();
 
-    println!("With AD");
-    println!("z={}", z.to_data());
+    println!("z={} with ad", z.to_data());
     println!("x_grad {}", x.grad(&grads).unwrap().to_data());
-    println!("y_grad {}", y.grad(&grads).unwrap().to_data());
+    println!("y_grad {}\n", y.grad(&grads).unwrap().to_data());
 }
 
 fn main() {
-    run()
+    // Same data for all backends
+    let x = Data::<f32, 2>::random(Shape::new([2, 3]), Distribution::Standard);
+    let y = Data::<f32, 2>::random(Shape::new([3, 1]), Distribution::Standard);
+
+    #[cfg(feature = "ndarray")]
+    {
+        use burn_tensor::tensor::backend::autodiff::ADBackendNdArray;
+        use burn_tensor::tensor::backend::ndarray::NdArrayBackend;
+
+        println!("=== ndarray Backend ===\n");
+
+        // NO AD
+        let z = loss::<NdArrayBackend<f32>>(
+            &Tensor::from_data(x.clone()),
+            &Tensor::from_data(y.clone()),
+        );
+
+        // WITH AD
+        println!("z={} without ad", z.to_data());
+        run::<ADBackendNdArray<f32>>(x.clone(), y.clone());
+    }
+
+    #[cfg(feature = "tch")]
+    {
+        use burn_tensor::tensor::backend::autodiff::ADBackendTch;
+        use burn_tensor::tensor::backend::tch::TchBackend;
+
+        println!("=== Tch Backend ===\n");
+
+        // NO AD
+        let z =
+            loss::<TchBackend<f32>>(&Tensor::from_data(x.clone()), &Tensor::from_data(y.clone()));
+
+        // WITH AD
+        println!("z={} without ad", z.to_data());
+        run::<ADBackendTch<f32>>(x.clone(), y.clone());
+    }
 }

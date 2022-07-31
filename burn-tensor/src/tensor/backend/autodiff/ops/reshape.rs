@@ -69,9 +69,16 @@ macro_rules! define_impl {
     };
 }
 
+#[cfg(feature = "ndarray")]
 define_impl!(
     crate::tensor::backend::autodiff::ADBackendNdArray::<E>,
     crate::tensor::backend::ndarray::NdArrayBackend::<E>
+);
+
+#[cfg(feature = "tch")]
+define_impl!(
+    crate::tensor::backend::autodiff::ADBackendTch::<E>,
+    crate::tensor::backend::tch::TchBackend::<E>
 );
 
 #[cfg(test)]

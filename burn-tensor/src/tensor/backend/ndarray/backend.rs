@@ -1,4 +1,5 @@
 use super::NdArrayTensor;
+use crate::tensor::Data;
 use crate::tensor::{backend::Backend, Element};
 use rand::distributions::Standard;
 
@@ -25,4 +26,11 @@ where
     type Device = NdArrayDevice;
     type Elem = E;
     type Tensor<const D: usize> = NdArrayTensor<E, D>;
+
+    fn from_data<const D: usize>(
+        data: Data<Self::Elem, D>,
+        _device: Self::Device,
+    ) -> NdArrayTensor<E, D> {
+        NdArrayTensor::from_data(data)
+    }
 }

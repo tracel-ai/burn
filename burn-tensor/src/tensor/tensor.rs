@@ -1,5 +1,4 @@
-use super::backend::autodiff::{ADBackendNdArray, ADTensor};
-use super::backend::ndarray::NdArrayBackend;
+use super::backend::autodiff::ADTensor;
 use super::backend::ADBackend;
 use super::backend::Backend;
 use crate::graph::grad::Gradients;
@@ -23,13 +22,37 @@ impl<const D: usize, B: ADBackend> Tensor<D, B> {
     }
 }
 
-impl<E: Element, const D: usize> Tensor<D, NdArrayBackend<E>>
-where
-    Standard: rand::distributions::Distribution<E>,
-{
-    pub fn with_grad(self) -> Tensor<D, ADBackendNdArray<E>> {
-        let tensor = ADTensor::from_tensor(self.value);
-        Tensor::new(tensor)
+#[cfg(feature = "ndarray")]
+mod ndarray {
+    use super::*;
+    use crate::tensor::backend::autodiff::ADBackendNdArray;
+    use crate::tensor::backend::ndarray::NdArrayBackend;
+
+    impl<E: Element, const D: usize> Tensor<D, NdArrayBackend<E>>
+    where
+        Standard: rand::distributions::Distribution<E>,
+    {
+        pub fn with_grad(self) -> Tensor<D, ADBackendNdArray<E>> {
+            let tensor = ADTensor::from_tensor(self.value);
+            Tensor::new(tensor)
+        }
+    }
+}
+
+#[cfg(feature = "tch")]
+mod tch {
+    use super::*;
+    use crate::tensor::backend::autodiff::ADBackendTch;
+    use crate::tensor::backend::tch::TchBackend;
+
+    impl<E: Element, const D: usize> Tensor<D, TchBackend<E>>
+    where
+        Standard: rand::distributions::Distribution<E>,
+    {
+        pub fn with_grad(self) -> Tensor<D, ADBackendTch<E>> {
+            let tensor = ADTensor::from_tensor(self.value);
+            Tensor::new(tensor)
+        }
     }
 }
 
@@ -149,6 +172,15 @@ where
         Self::new(self.value.mul_scalar(&other))
     }
 
+    pub fn from_data(data: Data<B::Elem, D>) -> Self {
+        let tensor = B::from_data(data, B::Device::default());
+        Tensor::new(tensor)
+    }
+
+    pub fn from_data_device(data: Data<B::Elem, D>, device: B::Device) -> Self {
+        let tensor = B::from_data(data, device);
+        Tensor::new(tensor)
+    }
     // pub fn index<const D2: usize>(&self, indexes: [std::ops::Range<usize>; D2]) -> Self
     // where
     //     TensorOps<D, B>: TensorOpsIndex<B::Elem, D, D2>,
