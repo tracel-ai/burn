@@ -16,8 +16,8 @@ impl<B: Backend, const D: usize> ADTensor<D, B> {
     }
 }
 
-impl<B: Backend, const D: usize> AsNode<B::Tensor<D>> for ADTensor<D, B> {
-    fn as_node(&self) -> &ForwardNode<B::Tensor<D>> {
+impl<B: Backend, const D: usize> AsNode<B::TensorPrimitive<D>> for ADTensor<D, B> {
+    fn as_node(&self) -> &ForwardNode<B::TensorPrimitive<D>> {
         &self.node
     }
 }

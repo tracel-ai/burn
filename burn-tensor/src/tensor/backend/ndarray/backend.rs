@@ -25,7 +25,7 @@ where
 {
     type Device = NdArrayDevice;
     type Elem = E;
-    type Tensor<const D: usize> = NdArrayTensor<E, D>;
+    type TensorPrimitive<const D: usize> = NdArrayTensor<E, D>;
 
     fn from_data<const D: usize>(
         data: Data<Self::Elem, D>,
@@ -38,15 +38,15 @@ where
         shape: Shape<D>,
         distribution: Distribution<Self::Elem>,
         device: Self::Device,
-    ) -> Self::Tensor<D> {
+    ) -> Self::TensorPrimitive<D> {
         Self::from_data(Data::random(shape, distribution), device)
     }
 
-    fn zeros<const D: usize>(shape: Shape<D>, device: Self::Device) -> Self::Tensor<D> {
+    fn zeros<const D: usize>(shape: Shape<D>, device: Self::Device) -> Self::TensorPrimitive<D> {
         Self::from_data(Data::zeros(shape), device)
     }
 
-    fn ones<const D: usize>(shape: Shape<D>, device: Self::Device) -> Self::Tensor<D> {
+    fn ones<const D: usize>(shape: Shape<D>, device: Self::Device) -> Self::TensorPrimitive<D> {
         Self::from_data(Data::ones(shape), device)
     }
 

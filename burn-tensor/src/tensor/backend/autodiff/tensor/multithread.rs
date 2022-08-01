@@ -15,6 +15,7 @@ mod tests {
             let tensor_4 = tensor_3.matmul(&tensor_2);
             let tensor_5 = tensor_4.matmul(&tensor_3);
 
+            // Task 1
             let tensor_1_cloned = tensor_1.clone();
             let tensor_2_cloned = tensor_2.clone();
             let tensor_5_cloned = tensor_5.clone();
@@ -24,6 +25,7 @@ mod tests {
                 tensor_6_1.matmul(&tensor_1_cloned)
             };
 
+            // Task 2
             let tensor_1_cloned = tensor_1.clone();
             let tensor_2_cloned = tensor_2.clone();
             let tensor_5_cloned = tensor_5.clone();

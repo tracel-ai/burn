@@ -17,15 +17,15 @@ pub trait TensorCreationLike<P, const D: usize> {
 }
 
 pub trait TensorCreationFork<B: Backend, const D: usize> {
-    fn new_fork_empty<const D2: usize>(&self, shape: Shape<D2>) -> B::Tensor<D2>;
+    fn new_fork_empty<const D2: usize>(&self, shape: Shape<D2>) -> B::TensorPrimitive<D2>;
     fn new_fork_random<const D2: usize>(
         &self,
         shape: Shape<D2>,
         distribution: Distribution<B::Elem>,
-    ) -> B::Tensor<D2>;
-    fn new_fork_data<const D2: usize>(&self, data: Data<B::Elem, D2>) -> B::Tensor<D2>;
-    fn new_fork_zeros<const D2: usize>(&self, shape: Shape<D2>) -> B::Tensor<D2>;
-    fn new_fork_ones<const D2: usize>(&self, shape: Shape<D2>) -> B::Tensor<D2>;
+    ) -> B::TensorPrimitive<D2>;
+    fn new_fork_data<const D2: usize>(&self, data: Data<B::Elem, D2>) -> B::TensorPrimitive<D2>;
+    fn new_fork_zeros<const D2: usize>(&self, shape: Shape<D2>) -> B::TensorPrimitive<D2>;
+    fn new_fork_ones<const D2: usize>(&self, shape: Shape<D2>) -> B::TensorPrimitive<D2>;
 }
 
 pub trait TensorOpsAdd<P, const D: usize>: std::ops::Add<Self, Output = Self>
@@ -59,7 +59,7 @@ pub trait TensorOpsMul<P, const D: usize> {
 }
 
 pub trait TensorOpsReshape<B: Backend, const D: usize> {
-    fn reshape<const D2: usize>(&self, shape: Shape<D2>) -> B::Tensor<D2>;
+    fn reshape<const D2: usize>(&self, shape: Shape<D2>) -> B::TensorPrimitive<D2>;
 }
 
 pub trait TensorOpsIndex<P, const D1: usize> {

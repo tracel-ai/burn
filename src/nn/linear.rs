@@ -1,6 +1,7 @@
-use crate::module::Forward;
+use crate::module::{Forward, Param};
 use crate::tensor::back::Backend;
 use crate::tensor::{Distribution, Shape, Tensor};
+use std::ops::Deref;
 
 pub struct LinearConfig {
     d_input: usize,
@@ -8,8 +9,8 @@ pub struct LinearConfig {
 }
 
 pub struct Linear<B: Backend> {
-    weight: Tensor<2, B>,
-    bias: Option<Tensor<1, B>>,
+    weight: Param<Tensor<2, B>>,
+    bias: Param<Option<Tensor<1, B>>>,
 }
 
 impl<B: Backend> Linear<B> {
@@ -20,7 +21,10 @@ impl<B: Backend> Linear<B> {
         );
         let bias = Some(Tensor::zeros(Shape::new([config.d_output])));
 
-        Self { weight, bias }
+        Self {
+            weight: Param::new(weight),
+            bias: Param::new(bias),
+        }
     }
 }
 
@@ -28,7 +32,7 @@ impl<B: Backend, const D: usize> Forward<&Tensor<D, B>, Tensor<D, B>> for Linear
     fn forward(&self, input: &Tensor<D, B>) -> Tensor<D, B> {
         let output = self.weight.unsqueeze().matmul(input);
 
-        match &self.bias {
+        match self.bias.deref() {
             Some(bias) => output + bias.unsqueeze(),
             None => output,
         }

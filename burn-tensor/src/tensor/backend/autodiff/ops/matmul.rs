@@ -7,12 +7,12 @@ use crate::{execute_ops, register_ops};
 register_ops!(
     ops BinaryOps,
     name ADTensorMatmulOps,
-    partial_left |state: &BinaryOpsNodeState<B::Tensor<D>, B::Tensor<D>, B::Tensor<D>>| {
+    partial_left |state: &BinaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>, B::TensorPrimitive<D>>| {
         let out_grad = state.output.grad();
         let rhs = state.right.value().transpose();
         out_grad.matmul(&rhs)
     },
-    partial_right |state: &BinaryOpsNodeState<B::Tensor<D>, B::Tensor<D>, B::Tensor<D>>| {
+    partial_right |state: &BinaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>, B::TensorPrimitive<D>>| {
         let out_grad = state.output.grad();
         let lhs = state.left.value().transpose();
         lhs.matmul(&out_grad)

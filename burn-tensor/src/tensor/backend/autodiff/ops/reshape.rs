@@ -26,10 +26,13 @@ impl<B: Backend, const D1: usize, const D2: usize> ADTensorOpsReshape<B, D1, D2>
     }
 }
 
-impl<B: Backend, const D1: usize, const D2: usize> UnaryOps<B::Tensor<D1>, B::Tensor<D2>>
-    for ADTensorOpsReshape<B, D1, D2>
+impl<B: Backend, const D1: usize, const D2: usize>
+    UnaryOps<B::TensorPrimitive<D1>, B::TensorPrimitive<D2>> for ADTensorOpsReshape<B, D1, D2>
 {
-    fn partial(&self, state: &UnaryOpsNodeState<B::Tensor<D1>, B::Tensor<D2>>) -> B::Tensor<D1> {
+    fn partial(
+        &self,
+        state: &UnaryOpsNodeState<B::TensorPrimitive<D1>, B::TensorPrimitive<D2>>,
+    ) -> B::TensorPrimitive<D1> {
         state.output.grad().reshape(self.shape.clone())
     }
 }
@@ -40,14 +43,14 @@ macro_rules! define_impl {
         $backend_inner:ty
     ) => {
         impl<E: Element, const D1: usize> TensorOpsReshape<$backend, D1>
-            for <$backend as Backend>::Tensor<D1>
+            for <$backend as Backend>::TensorPrimitive<D1>
         where
             Standard: rand::distributions::Distribution<E>,
         {
             fn reshape<const D2: usize>(
                 &self,
                 shape: Shape<D2>,
-            ) -> <$backend as Backend>::Tensor<D2> {
+            ) -> <$backend as Backend>::TensorPrimitive<D2> {
                 let input = self.tensor();
                 let out = TensorOpsReshape::reshape(&input, shape.clone());
 

@@ -7,17 +7,17 @@ use crate::{execute_ops, register_ops};
 register_ops!(
     ops BinaryOps,
     name ADTensorAddOps,
-    partial_left |state: &BinaryOpsNodeState<B::Tensor<D>, B::Tensor<D>, B::Tensor<D>>| {
+    partial_left |state: &BinaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>, B::TensorPrimitive<D>>| {
         state.output.grad()
     },
-    partial_right |state: &BinaryOpsNodeState<B::Tensor<D>, B::Tensor<D>, B::Tensor<D>>| {
+    partial_right |state: &BinaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>, B::TensorPrimitive<D>>| {
         state.output.grad()
     },
 );
 register_ops!(
     ops UnaryOps,
     name ADTensorAddScalarOps state B::Elem,
-    partial |_state, state_recorded: &UnaryOpsNodeState<B::Tensor<D>, B::Tensor<D>>|  {
+    partial |_state, state_recorded: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>|  {
         state_recorded.output.grad()
     },
 );

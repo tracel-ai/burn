@@ -9,10 +9,10 @@ use crate::{
 register_ops!(
     ops BinaryOps,
     name ADTensorMulOps,
-    partial_left |state: &BinaryOpsNodeState<B::Tensor<D>, B::Tensor<D>, B::Tensor<D>>| {
+    partial_left |state: &BinaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>, B::TensorPrimitive<D>>| {
         state.output.grad().mul(&state.right.value())
     },
-    partial_right |state: &BinaryOpsNodeState<B::Tensor<D>, B::Tensor<D>, B::Tensor<D>>| {
+    partial_right |state: &BinaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>, B::TensorPrimitive<D>>| {
         state.output.grad().mul(&state.left.value())
     },
 );
@@ -20,7 +20,7 @@ register_ops!(
 register_ops!(
     ops UnaryOps,
     name ADTensorMulScalarOps state B::Elem,
-    partial |state, state_recorded: &UnaryOpsNodeState<B::Tensor<D>, B::Tensor<D>>| {
+    partial |state, state_recorded: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>| {
         state_recorded.output.grad().mul_scalar(&state)
     },
 );

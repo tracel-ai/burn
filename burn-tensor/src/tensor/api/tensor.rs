@@ -4,14 +4,14 @@ use crate::tensor::{Data, Distribution, Shape};
 
 #[derive(Debug, Clone)]
 pub struct Tensor<const D: usize, B: Backend> {
-    pub(crate) value: B::Tensor<D>,
+    pub(crate) value: B::TensorPrimitive<D>,
 }
 
 impl<const D: usize, B> Tensor<D, B>
 where
     B: Backend,
 {
-    pub fn new(tensor: B::Tensor<D>) -> Self {
+    pub fn new(tensor: B::TensorPrimitive<D>) -> Self {
         Self { value: tensor }
     }
 
@@ -29,6 +29,11 @@ where
 
     pub fn to_data(&self) -> Data<B::Elem, D> {
         self.value.to_data()
+    }
+
+    pub fn zeros_like<const D2: usize>(other: &Tensor<D2, B>) -> Tensor<D2, B> {
+        todo!()
+        // Tensor::new(B::zeros(other.shape()), other.value.get_device())
     }
 
     pub fn new_like_empty(&self) -> Self {
