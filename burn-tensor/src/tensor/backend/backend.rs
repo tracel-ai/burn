@@ -1,15 +1,17 @@
 use crate::graph::grad::Gradients;
+use crate::ops::TensorOpsDevice;
 use crate::tensor::ops::{TensorCreationFork, TensorOpsIndex, TensorOpsReshape};
 use crate::tensor::{ops::TensorCreationLike, Element, TensorTrait};
 use crate::tensor::{Data, Distribution, Shape};
 
 pub trait Backend: Clone + Sized + Default + Send + Sync + std::fmt::Debug + 'static {
-    type Device: Copy + Clone + Default;
+    type Device: Copy + Clone + Default + std::fmt::Debug + Send + Sync;
     type Elem: Element;
     type TensorPrimitive<const D: usize>: TensorTrait<Self::Elem, D>
         + TensorCreationLike<Self::Elem, D>
         + TensorCreationFork<Self, D>
         + TensorOpsReshape<Self, D>
+        + TensorOpsDevice<Self, D>
         + TensorOpsIndex<Self::Elem, D>
         + 'static;
 

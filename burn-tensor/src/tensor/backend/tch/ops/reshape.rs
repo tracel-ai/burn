@@ -1,10 +1,9 @@
-use rand::distributions::Standard;
-
 use crate::tensor::{
     backend::tch::{TchBackend, TchShape, TchTensor},
     ops::*,
     Element, Shape,
 };
+use rand::distributions::Standard;
 
 impl<P: Element, const D: usize> TensorOpsReshape<TchBackend<P>, D> for TchTensor<P, D>
 where

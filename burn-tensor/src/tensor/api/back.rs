@@ -1,5 +1,9 @@
 pub use crate::tensor::backend::Backend;
 
+pub(crate) trait Allo {
+    type Toto: Clone;
+}
+
 pub mod ad {
     pub use crate::tensor::backend::ADBackend as Backend;
     #[cfg(feature = "tch")]

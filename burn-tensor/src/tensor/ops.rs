@@ -8,6 +8,11 @@ pub trait TensorOpsUtilities<P, const D: usize> {
     fn to_data(&self) -> Data<P, D>;
 }
 
+pub trait TensorOpsDevice<B: Backend, const D: usize> {
+    fn device(&self) -> B::Device;
+    fn to_device(&self, device: B::Device) -> Self;
+}
+
 pub trait TensorCreationLike<P, const D: usize> {
     fn new_like_empty(&self) -> Self;
     fn new_like_random(&self, distribution: Distribution<P>) -> Self;
