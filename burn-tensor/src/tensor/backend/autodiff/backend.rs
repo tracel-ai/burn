@@ -1,28 +1,10 @@
-// use super::ADTensor;
-// use crate::tensor::backend::Backend;
-// use rand::distributions::Standard;
-//
-// #[derive(Clone, Debug, Default)]
-// pub struct ADBackend<B: Backend> {
-//     _b: B,
-// }
-//
-// impl<B: Backend> Backend for ADBackend<B>
-// where
-//     Standard: rand::distributions::Distribution<B::Elem>,
-// {
-//     type Device = B::Device;
-//     type Elem = B::Elem;
-//     type Tensor<const D: usize> = ADTensor<D, B>;
-// }
-
 use super::ADTensor;
 use crate::graph::grad::Gradients;
-use crate::tensor::Data;
 use crate::tensor::{
     backend::{ADBackend, Backend},
     Element,
 };
+use crate::tensor::{Data, Distribution, Shape};
 use rand::distributions::Standard;
 
 macro_rules! define_impl {
@@ -51,8 +33,24 @@ macro_rules! define_impl {
                 ADTensor::from_tensor(tensor)
             }
 
+            fn random<const D: usize>(
+                shape: Shape<D>,
+                distribution: Distribution<Self::Elem>,
+                device: Self::Device,
+            ) -> Self::Tensor<D> {
+                Self::from_data(Data::random(shape, distribution), device)
+            }
+
             fn ad_enabled() -> bool {
                 true
+            }
+
+            fn zeros<const D: usize>(shape: Shape<D>, device: Self::Device) -> Self::Tensor<D> {
+                Self::from_data(Data::zeros(shape), device)
+            }
+
+            fn ones<const D: usize>(shape: Shape<D>, device: Self::Device) -> Self::Tensor<D> {
+                Self::from_data(Data::ones(shape), device)
             }
 
             fn name() -> String {

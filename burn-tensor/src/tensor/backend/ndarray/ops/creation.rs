@@ -3,11 +3,11 @@ use crate::tensor::{
     ops::*,
     Data, Distribution, Element, Shape,
 };
-use rand::distributions::{uniform::SampleUniform, Standard};
+use rand::distributions::Standard;
 
 impl<P, const D: usize> TensorCreationLike<P, D> for NdArrayTensor<P, D>
 where
-    P: std::fmt::Debug + SampleUniform + Default + Clone + Zeros<P> + Ones<P>,
+    P: Element,
     Standard: rand::distributions::Distribution<P>,
 {
     fn new_like_empty(&self) -> Self {

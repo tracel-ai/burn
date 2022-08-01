@@ -111,6 +111,21 @@ where
         Self::new(self.value.mul_scalar(&other))
     }
 
+    pub fn random(shape: Shape<D>, distribution: Distribution<B::Elem>) -> Self {
+        let tensor = B::random(shape, distribution, B::Device::default());
+        Self::new(tensor)
+    }
+
+    pub fn zeros(shape: Shape<D>) -> Self {
+        let tensor = B::zeros(shape, B::Device::default());
+        Self::new(tensor)
+    }
+
+    pub fn ones(shape: Shape<D>) -> Self {
+        let tensor = B::ones(shape, B::Device::default());
+        Self::new(tensor)
+    }
+
     pub fn from_data(data: Data<B::Elem, D>) -> Self {
         let tensor = B::from_data(data, B::Device::default());
         Tensor::new(tensor)
@@ -138,6 +153,13 @@ where
     }
 
     pub fn unsqueeze<const D2: usize>(&self) -> Tensor<D2, B> {
+        if D2 < D {
+            panic!(
+                "Can't unsqueeze smaller tensor, got dim {}, expected > {}",
+                D2, D
+            )
+        }
+
         let mut dims = [1; D2];
         let num_ones = D2 - D;
         let shape = self.shape();
