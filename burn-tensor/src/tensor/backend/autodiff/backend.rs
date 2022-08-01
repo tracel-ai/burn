@@ -79,6 +79,18 @@ macro_rules! define_impl {
             ) -> Option<<$backend as Backend>::TensorPrimitive<D>> {
                 grads.wrt(tensor).map(|grad| grad.clone())
             }
+
+            fn inner<const D: usize>(
+                tensor: &Self::TensorPrimitive<D>,
+            ) -> <Self::InnerBackend as Backend>::TensorPrimitive<D> {
+                tensor.tensor()
+            }
+
+            fn from_inner<const D: usize>(
+                tensor: <Self::InnerBackend as Backend>::TensorPrimitive<D>,
+            ) -> Self::TensorPrimitive<D> {
+                ADTensor::from_tensor(tensor)
+            }
         }
     };
 }

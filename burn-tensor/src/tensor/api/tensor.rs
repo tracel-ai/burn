@@ -120,10 +120,6 @@ where
         Self::new(self.value.index(indexes))
     }
 
-    pub fn update(&mut self, other: Self) {
-        self.value = other.value;
-    }
-
     pub fn index_assign<const D2: usize>(
         &self,
         indexes: [std::ops::Range<usize>; D2],

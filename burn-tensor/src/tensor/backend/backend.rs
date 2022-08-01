@@ -45,4 +45,10 @@ pub trait ADBackend: Backend {
         tensor: &Self::TensorPrimitive<D>,
         grads: &Gradients,
     ) -> Option<ADBackendTensorPrimitive<D, Self>>;
+    fn inner<const D: usize>(
+        tensor: &Self::TensorPrimitive<D>,
+    ) -> <Self::InnerBackend as Backend>::TensorPrimitive<D>;
+    fn from_inner<const D: usize>(
+        tensor: <Self::InnerBackend as Backend>::TensorPrimitive<D>,
+    ) -> Self::TensorPrimitive<D>;
 }

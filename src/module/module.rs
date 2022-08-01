@@ -1,14 +1,15 @@
-use crate::tensor::back::Backend;
+use crate::optim::Optimizer;
+use crate::tensor::back;
 use crate::tensor::Gradients;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-pub struct State<B: Backend> {
+pub struct State<B: back::Backend> {
     root: String,
     values: Rc<HashMap<String, Vec<B::Elem>>>,
 }
 
-impl<B: Backend> State<B> {
+impl<B: back::Backend> State<B> {
     pub fn new(name: &str) -> State<B> {
         Self {
             root: name.to_string(),
@@ -29,12 +30,16 @@ impl<B: Backend> State<B> {
     }
 }
 
-pub trait Module<B: Backend>: Send + Sync + std::fmt::Debug + std::fmt::Display {
-    fn update(&mut self, grads: &Gradients);
+pub trait Module<B: back::Backend>: Send + Sync + std::fmt::Debug + std::fmt::Display {
+    fn update_params<O: Optimizer<B>>(&mut self, grads: &Gradients, optim: &mut O)
+    where
+        B: back::ad::Backend;
+    fn num_params(&self) -> usize;
     fn get_devices(&self) -> Vec<B::Device>;
     fn to_device(self, device: B::Device) -> Self;
     fn state(&self) -> State<B>;
     fn load(self, state: State<B>) -> Self;
+    fn save(self);
 }
 
 pub trait Forward<In, Out> {
