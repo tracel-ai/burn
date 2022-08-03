@@ -1,34 +1,58 @@
-pub use burn_derive::Module;
-
 use crate::optim::Optimizer;
-use crate::tensor::back;
-use crate::tensor::Gradients;
+use crate::tensor::{back, DataSerialize, Gradients};
+pub use burn_derive::Module;
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::rc::Rc;
 
-pub struct State<B: back::Backend> {
+#[derive(Serialize, Deserialize)]
+pub struct State<B: back::Backend>
+where
+    B::Elem: Serialize,
+    B::Elem: DeserializeOwned,
+{
     root: String,
-    values: Rc<HashMap<String, Vec<B::Elem>>>,
+    values: HashMap<String, DataSerialize<B::Elem>>,
 }
 
-impl<B: back::Backend> State<B> {
+impl<B: back::Backend> State<B>
+where
+    B::Elem: Serialize,
+    B::Elem: DeserializeOwned,
+{
     pub fn new(name: &str) -> State<B> {
         Self {
             root: name.to_string(),
-            values: Rc::new(HashMap::new()),
+            values: HashMap::new(),
         }
     }
 
-    pub fn get(&self, name: &str) -> &Vec<B::Elem> {
+    pub fn get(&self, name: &str) -> &DataSerialize<B::Elem> {
         let key = format!("{}.{}", self.root, name);
         self.values.get(&key).expect("param with the name")
     }
 
-    pub fn with_name(&self, name: &str) -> State<B> {
-        Self {
-            root: format!("{}.{}", self.root, name),
-            values: self.values.clone(),
+    pub fn register(self, parent: &mut Self) {
+        for (key, value) in self.values.into_iter() {
+            let key = format!("{}.{}", parent.root, key);
+            parent.values.insert(key, value);
         }
+    }
+}
+
+impl<B: back::Backend> State<B>
+where
+    B::Elem: Serialize,
+    B::Elem: DeserializeOwned,
+{
+    pub fn save(&self, file: &str) {
+        let values = serde_json::to_string(&self).unwrap();
+        std::fs::write(file, values).unwrap();
+    }
+
+    pub fn load(file: &str) -> Self {
+        let values = std::fs::read_to_string(file).unwrap();
+        serde_json::from_str(values.as_str()).unwrap()
     }
 }
 

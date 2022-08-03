@@ -32,4 +32,7 @@ ndarray = { version = "0.15", optional = true }
 # Autodiff
 nanoid = "0.4"
 
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+
 [dev-dependencies]

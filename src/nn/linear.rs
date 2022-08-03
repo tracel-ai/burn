@@ -9,6 +9,7 @@ use std::ops::Deref;
 pub struct LinearConfig {
     d_input: usize,
     d_output: usize,
+    bias: bool,
 }
 
 #[derive(Module, Debug)]
@@ -26,7 +27,10 @@ impl<B: Backend> Linear<B> {
             Shape::new([config.d_input, config.d_output]),
             Distribution::Standard,
         );
-        let bias = Some(Tensor::zeros(Shape::new([config.d_output])));
+        let bias = match config.bias {
+            true => Some(Tensor::zeros(Shape::new([config.d_output]))),
+            false => None,
+        };
 
         Self {
             weight: Param::new(weight),
