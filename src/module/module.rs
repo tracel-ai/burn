@@ -1,3 +1,5 @@
+pub use burn_derive::Module;
+
 use crate::optim::Optimizer;
 use crate::tensor::back;
 use crate::tensor::Gradients;
@@ -31,15 +33,15 @@ impl<B: back::Backend> State<B> {
 }
 
 pub trait Module<B: back::Backend>: Send + Sync + std::fmt::Debug + std::fmt::Display {
-    fn update_params<O: Optimizer<B>>(&mut self, grads: &Gradients, optim: &mut O)
-    where
-        B: back::ad::Backend;
+    // fn update_params<O: Optimizer<B>>(&mut self, grads: &Gradients, optim: &mut O)
+    // where
+    //     B: back::ad::Backend;
+    // fn get_devices(&self) -> Vec<B::Device>;
+    // fn to_device(self, device: B::Device) -> Self;
+    // fn state(&self) -> State<B>;
+    // fn load(self, state: State<B>) -> Self;
     fn num_params(&self) -> usize;
-    fn get_devices(&self) -> Vec<B::Device>;
-    fn to_device(self, device: B::Device) -> Self;
-    fn state(&self) -> State<B>;
-    fn load(self, state: State<B>) -> Self;
-    fn save(self);
+    fn save(&self);
 }
 
 pub trait Forward<In, Out> {

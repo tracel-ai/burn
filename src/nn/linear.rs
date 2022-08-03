@@ -1,3 +1,6 @@
+use crate as burn;
+
+use crate::module::Module;
 use crate::module::{Forward, Param};
 use crate::tensor::back::Backend;
 use crate::tensor::{Distribution, Shape, Tensor};
@@ -8,7 +11,11 @@ pub struct LinearConfig {
     d_output: usize,
 }
 
-pub struct Linear<B: Backend> {
+#[derive(Module, Debug)]
+pub struct Linear<B>
+where
+    B: Backend,
+{
     weight: Param<Tensor<2, B>>,
     bias: Param<Option<Tensor<1, B>>>,
 }
