@@ -2,6 +2,8 @@ use proc_macro::TokenStream;
 use quote::quote;
 
 pub(crate) mod field;
+
+mod display;
 mod param;
 
 use param::Param;
@@ -20,19 +22,22 @@ fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
     let param = Param::from_ast(ast);
 
     let num_params_fn = param.gen_num_params_fn();
+    let update_params_fn = param.gen_update_params_fn();
+    let devices_fn = param.gen_devices_fn();
+    let to_device_fn = param.gen_to_device_fn();
+    let display_fn = display::display_fn(name);
 
     let gen = quote! {
         impl #generics burn::module::Module<B> for #name #generics #generics_where {
-            fn save(&self) {
-                todo!()
-            }
             #num_params_fn
+            #update_params_fn
+            #devices_fn
+            #to_device_fn
         }
 
+
         impl #generics std::fmt::Display for #name #generics #generics_where {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(f, "display")
-            }
+            #display_fn
         }
     };
 

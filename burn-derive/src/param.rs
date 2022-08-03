@@ -32,11 +32,70 @@ impl Param {
             num_params
         });
 
-        quote!(
+        quote! {
             fn num_params(&self) -> usize {
                 #body
             }
-        )
+        }
+    }
+
+    pub fn gen_update_params_fn(&self) -> TokenStream {
+        let mut body = quote! {};
+        for field in self.fields.iter() {
+            let name = field.ident();
+            body.extend(quote! {
+                self.#name.update_params(grads, optim);
+            });
+        }
+
+        quote! {
+            fn update_params<O: burn::optim::Optimizer<B>>(&mut self, grads: &burn::tensor::Gradients, optim: &mut O)
+                where
+                B: burn::tensor::back::ad::Backend {
+                #body
+            }
+        }
+        .into()
+    }
+
+    pub fn gen_devices_fn(&self) -> TokenStream {
+        let mut body = quote! {
+            let mut devices = Vec::new();
+        };
+        for field in self.fields.iter() {
+            let name = field.ident();
+            body.extend(quote! {
+                devices.append(&mut self.#name.devices());
+            });
+        }
+
+        body.extend(quote! {
+            devices
+        });
+
+        quote! {
+            fn devices(&self) -> Vec<B::Device> {
+                #body
+            }
+        }
+        .into()
+    }
+
+    pub fn gen_to_device_fn(&self) -> TokenStream {
+        let mut body = quote! {};
+        for field in self.fields.iter() {
+            let name = field.ident();
+            body.extend(quote! {
+                self.#name.to_device(device);
+            });
+        }
+
+        quote! {
+            fn to_device(&mut self, device: B::Device) {
+                #body
+            }
+        }
+        .into()
     }
 }
 

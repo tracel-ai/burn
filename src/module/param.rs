@@ -1,4 +1,5 @@
-use crate::tensor::{back, Tensor};
+use crate::optim::Optimizer;
+use crate::tensor::{back, Gradients, Tensor};
 
 #[derive(Debug)]
 pub struct Param<T> {
@@ -23,6 +24,21 @@ impl<const D: usize, B: back::Backend> Param<Tensor<D, B>> {
     pub fn num_params(&self) -> usize {
         self.value.shape().num_elements()
     }
+
+    pub fn update_params<O: Optimizer<B>>(&mut self, grads: &Gradients, optim: &mut O)
+    where
+        B: back::ad::Backend,
+    {
+        optim.update(&mut self.value, grads);
+    }
+
+    pub fn devices(&self) -> Vec<B::Device> {
+        vec![self.value.device()]
+    }
+
+    pub fn to_device(&mut self, device: B::Device) {
+        self.value = self.value.to_device(device);
+    }
 }
 
 impl<const D: usize, B: back::Backend> Param<Option<Tensor<D, B>>> {
@@ -32,5 +48,28 @@ impl<const D: usize, B: back::Backend> Param<Option<Tensor<D, B>>> {
         }
 
         0
+    }
+
+    pub fn update_params<O: Optimizer<B>>(&mut self, grads: &Gradients, optim: &mut O)
+    where
+        B: back::ad::Backend,
+    {
+        if let Some(value) = &mut self.value {
+            optim.update(value, grads);
+        }
+    }
+
+    pub fn devices(&self) -> Vec<B::Device> {
+        if let Some(value) = &self.value {
+            return vec![value.device()];
+        }
+
+        vec![]
+    }
+
+    pub fn to_device(&mut self, device: B::Device) {
+        if let Some(value) = &self.value {
+            self.value = Some(value.to_device(device));
+        }
     }
 }
