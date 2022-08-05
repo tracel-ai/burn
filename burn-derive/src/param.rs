@@ -122,17 +122,23 @@ impl Param {
         .into()
     }
 
-    pub fn gen_load_fn(&self) -> TokenStream {
+    pub fn gen_load_from_parent_fn(&self) -> TokenStream {
         let mut body = quote! {};
         for field in self.fields.iter() {
             let name = field.ident();
             body.extend(quote! {
-                self.#name.load(stringify!(#name), state);
+                println!("PARENT NAME {} NAME {} FIELD {}", name, self.name(), stringify!(#name));
+                let name_new = if name == "" {
+                    format!("{}.{}", self.name(), stringify!(#name))
+                } else {
+                    format!("{}.{}.{}", name, self.name(), stringify!(#name))
+                };
+                self.#name.load_from_parent(name_new.as_str(), state);
             });
         }
 
         quote! {
-            fn load(&mut self, name: &str, state: &burn::module::State<Self::Backend>)
+            fn load_from_parent(&mut self, name: &str, state: &burn::module::State<Self::Backend>)
             where
                 <Self::Backend as burn::tensor::back::Backend>::Elem: serde::Serialize,
                 <Self::Backend as burn::tensor::back::Backend>::Elem: serde::de::DeserializeOwned,
@@ -142,6 +148,20 @@ impl Param {
         }
         .into()
     }
+
+    pub fn gen_load_fn(&self) -> TokenStream {
+        quote! {
+            fn load(&mut self, state: &burn::module::State<Self::Backend>)
+            where
+                <Self::Backend as burn::tensor::back::Backend>::Elem: serde::Serialize,
+                <Self::Backend as burn::tensor::back::Backend>::Elem: serde::de::DeserializeOwned,
+            {
+                self.load_from_parent("", state)
+            }
+        }
+        .into()
+    }
+
 }
 
 fn parse_fields(ast: &syn::DeriveInput) -> Vec<Field> {

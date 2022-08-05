@@ -1,11 +1,11 @@
 use crate::optim::Optimizer;
-use crate::tensor::{back, DataSerialize, Gradients};
+use crate::tensor::{back, Data, DataSerialize, Gradients};
 pub use burn_derive::Module;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct State<B: back::Backend>
 where
     B::Elem: Serialize,
@@ -27,9 +27,9 @@ where
         }
     }
 
-    pub fn get(&self, name: &str) -> &DataSerialize<B::Elem> {
-        let key = format!("{}.{}", self.root, name);
-        self.values.get(&key).expect("param with the name")
+    pub fn get<const D: usize>(&self, name: &str) -> Data<B::Elem, D> {
+        let data = self.values.get(name).expect("param with the name");
+        Data::from(data)
     }
 
     pub fn register_child(&mut self, child: Self) {
@@ -69,7 +69,11 @@ pub trait Module: Send + Sync + std::fmt::Debug + std::fmt::Display {
     fn devices(&self) -> Vec<<Self::Backend as back::Backend>::Device>;
     fn to_device(&mut self, device: <Self::Backend as back::Backend>::Device);
     fn name(&self) -> &str;
-    fn load(&mut self, name: &str, state: &State<Self::Backend>)
+    fn load(&mut self, state: &State<Self::Backend>)
+    where
+        <Self::Backend as back::Backend>::Elem: Serialize,
+        <Self::Backend as back::Backend>::Elem: DeserializeOwned;
+    fn load_from_parent(&mut self, name: &str, state: &State<Self::Backend>)
     where
         <Self::Backend as back::Backend>::Elem: Serialize,
         <Self::Backend as back::Backend>::Elem: DeserializeOwned;

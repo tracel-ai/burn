@@ -2,7 +2,7 @@ use super::ops::{Ones, Zeros};
 use crate::tensor::Shape;
 use rand::{distributions::Standard, prelude::StdRng, Rng, SeedableRng};
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct DataSerialize<P> {
     pub value: Vec<P>,
     pub shape: Vec<usize>,

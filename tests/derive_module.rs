@@ -3,21 +3,21 @@ use burn::tensor::back::Backend;
 use burn::tensor::{Distribution, Shape, Tensor};
 use std::collections::HashSet;
 
-type TestBackend = burn::tensor::back::NdArray<f32>;
+type TestBackend = burn::tensor::back::NdArray<i16>;
 
 #[derive(Module, Debug)]
 struct ModuleBasic<B>
 where
     B: Backend,
 {
-    weight: Param<Tensor<2, B>>,
+    weight_basic: Param<Tensor<2, B>>,
 }
 
 impl<B: Backend> ModuleBasic<B> {
     fn new() -> Self {
-        let weight = Tensor::random(Shape::new([20, 20]), Distribution::Standard);
+        let weight_basic = Tensor::random(Shape::new([20, 20]), Distribution::Standard);
         Self {
-            weight: Param::new(weight),
+            weight_basic: Param::new(weight_basic),
         }
     }
 }
@@ -51,7 +51,7 @@ mod state {
         let state = module.state();
 
         let keys: Vec<String> = state.values.keys().map(|n| n.to_string()).collect();
-        assert_eq!(keys, vec!["ModuleBasic.weight".to_string()]);
+        assert_eq!(keys, vec!["ModuleBasic.weight_basic".to_string()]);
     }
 
     #[test]
@@ -61,9 +61,46 @@ mod state {
         let state = module.state();
 
         let keys: HashSet<String> = state.values.keys().map(|n| n.to_string()).collect();
-        assert!(keys.contains("ModuleComposed.basic.ModuleBasic.weight"));
+        assert!(keys.contains("ModuleComposed.basic.ModuleBasic.weight_basic"));
         assert!(keys.contains("ModuleComposed.weight"));
         assert_eq!(keys.len(), 2);
+    }
+
+    #[test]
+    fn should_load_from_state_basic() {
+        let module_1 = ModuleBasic::<TestBackend>::new();
+        let mut module_2 = ModuleBasic::<TestBackend>::new();
+        let state_1 = module_1.state();
+        assert_ne!(
+            module_1.weight_basic.to_data(),
+            module_2.weight_basic.to_data()
+        );
+
+        module_2.load(&state_1);
+        assert_eq!(
+            module_1.weight_basic.to_data(),
+            module_2.weight_basic.to_data()
+        );
+    }
+
+    #[test]
+    fn should_load_from_state_compose() {
+        let module_1 = ModuleComposed::<TestBackend>::new();
+        let mut module_2 = ModuleComposed::<TestBackend>::new();
+        assert_ne!(module_1.weight.to_data(), module_2.weight.to_data());
+        assert_ne!(
+            module_1.basic.weight_basic.to_data(),
+            module_2.basic.weight_basic.to_data()
+        );
+
+        let state_1 = module_1.state();
+        module_2.load(&state_1);
+
+        assert_eq!(module_1.weight.to_data(), module_2.weight.to_data());
+        assert_eq!(
+            module_1.basic.weight_basic.to_data(),
+            module_2.basic.weight_basic.to_data()
+        );
     }
 }
 

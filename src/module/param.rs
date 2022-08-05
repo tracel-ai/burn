@@ -1,6 +1,6 @@
 use crate::module::{Module, State};
 use crate::optim::Optimizer;
-use crate::tensor::{back, Data, Gradients, Tensor};
+use crate::tensor::{back, Gradients, Tensor};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -52,13 +52,14 @@ impl<const D: usize, B: back::Backend> Param<Tensor<D, B>> {
         state.register(self.value.to_data().serialize());
         state
     }
-    pub fn load(&mut self, name: &str, state: &State<B>)
+    pub fn load_from_parent(&mut self, name: &str, state: &State<B>)
     where
         B::Elem: Serialize,
         B::Elem: DeserializeOwned,
     {
         let data = state.get(name);
-        self.value = Tensor::from_data_device(Data::from(data), self.value.device());
+        println!("TENSOR: Loading name {}", name);
+        self.value = Tensor::from_data_device(data, self.value.device());
     }
 }
 
@@ -106,16 +107,13 @@ impl<const D: usize, B: back::Backend> Param<Option<Tensor<D, B>>> {
         state
     }
 
-    pub fn load(&mut self, name: &str, state: &State<B>)
+    pub fn load_from_parent(&mut self, name: &str, state: &State<B>)
     where
         B::Elem: Serialize,
         B::Elem: DeserializeOwned,
     {
         let value = match &self.value {
-            Some(value) => Some(Tensor::from_data_device(
-                Data::from(state.get(name)),
-                value.device(),
-            )),
+            Some(value) => Some(Tensor::from_data_device(state.get(name), value.device())),
             None => None,
         };
 
@@ -153,11 +151,12 @@ impl<M: Module> Param<M> {
         state
     }
 
-    pub fn load(&mut self, name: &str, state: &State<M::Backend>)
+    pub fn load_from_parent(&mut self, name: &str, state: &State<M::Backend>)
     where
         <M::Backend as back::Backend>::Elem: Serialize,
         <M::Backend as back::Backend>::Elem: DeserializeOwned,
     {
-        self.value.load(name, state);
+        println!("MODULE: Loading name {}", name);
+        self.value.load_from_parent(name, state);
     }
 }
