@@ -146,7 +146,18 @@ impl<P: std::fmt::Debug + Copy, const D: usize> Data<P, D> {
     }
 }
 
-impl<P: std::fmt::Debug + Copy, const D: usize> From<DataSerialize<P>> for Data<P, D> {
+impl<P: Clone, const D: usize> From<&DataSerialize<P>> for Data<P, D> {
+    fn from(data: &DataSerialize<P>) -> Self {
+        let mut dims = [0; D];
+        for i in 0..D {
+            dims[i] = data.shape[i];
+        }
+
+        Data::new(data.value.clone(), Shape::new(dims))
+    }
+}
+
+impl<P, const D: usize> From<DataSerialize<P>> for Data<P, D> {
     fn from(data: DataSerialize<P>) -> Self {
         let mut dims = [0; D];
         for i in 0..D {

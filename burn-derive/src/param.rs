@@ -1,5 +1,5 @@
 use crate::field::FieldTypeAnalyzer;
-use proc_macro2::{Ident, TokenStream};
+use proc_macro2::TokenStream;
 use quote::quote;
 use syn::Field;
 
@@ -98,9 +98,9 @@ impl Param {
         .into()
     }
 
-    pub fn gen_state_fn(&self, name: &Ident) -> TokenStream {
+    pub fn gen_state_fn(&self) -> TokenStream {
         let mut body = quote! {
-            let mut state = burn::module::State::new(stringify!(#name));
+            let mut state = burn::module::State::new(self.name());
         };
         for field in self.fields.iter() {
             let name = field.ident();
@@ -117,6 +117,27 @@ impl Param {
             {
                 #body
                 state
+            }
+        }
+        .into()
+    }
+
+    pub fn gen_load_fn(&self) -> TokenStream {
+        let mut body = quote! {};
+        for field in self.fields.iter() {
+            let name = field.ident();
+            body.extend(quote! {
+                self.#name.load(stringify!(#name), state);
+            });
+        }
+
+        quote! {
+            fn load(&mut self, name: &str, state: &burn::module::State<Self::Backend>)
+            where
+                <Self::Backend as burn::tensor::back::Backend>::Elem: serde::Serialize,
+                <Self::Backend as burn::tensor::back::Backend>::Elem: serde::de::DeserializeOwned,
+            {
+                #body
             }
         }
         .into()

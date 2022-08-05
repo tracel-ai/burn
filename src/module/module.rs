@@ -69,7 +69,10 @@ pub trait Module: Send + Sync + std::fmt::Debug + std::fmt::Display {
     fn devices(&self) -> Vec<<Self::Backend as back::Backend>::Device>;
     fn to_device(&mut self, device: <Self::Backend as back::Backend>::Device);
     fn name(&self) -> &str;
-    // fn load(self, state: State<B>) -> Self;
+    fn load(&mut self, name: &str, state: &State<Self::Backend>)
+    where
+        <Self::Backend as back::Backend>::Elem: Serialize,
+        <Self::Backend as back::Backend>::Elem: DeserializeOwned;
     fn state(&self) -> State<Self::Backend>
     where
         <Self::Backend as back::Backend>::Elem: Serialize,
