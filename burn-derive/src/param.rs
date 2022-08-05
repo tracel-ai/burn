@@ -127,7 +127,6 @@ impl Param {
         for field in self.fields.iter() {
             let name = field.ident();
             body.extend(quote! {
-                println!("PARENT NAME {} NAME {} FIELD {}", name, self.name(), stringify!(#name));
                 let name_new = if name == "" {
                     format!("{}.{}", self.name(), stringify!(#name))
                 } else {

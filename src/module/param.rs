@@ -58,7 +58,6 @@ impl<const D: usize, B: back::Backend> Param<Tensor<D, B>> {
         B::Elem: DeserializeOwned,
     {
         let data = state.get(name);
-        println!("TENSOR: Loading name {}", name);
         self.value = Tensor::from_data_device(data, self.value.device());
     }
 }
@@ -156,7 +155,6 @@ impl<M: Module> Param<M> {
         <M::Backend as back::Backend>::Elem: Serialize,
         <M::Backend as back::Backend>::Elem: DeserializeOwned,
     {
-        println!("MODULE: Loading name {}", name);
         self.value.load_from_parent(name, state);
     }
 }
