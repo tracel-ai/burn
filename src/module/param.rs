@@ -1,5 +1,8 @@
+use crate::module::{Module, State};
 use crate::optim::Optimizer;
 use crate::tensor::{back, Gradients, Tensor};
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 #[derive(Debug)]
 pub struct Param<T> {
@@ -39,6 +42,16 @@ impl<const D: usize, B: back::Backend> Param<Tensor<D, B>> {
     pub fn to_device(&mut self, device: B::Device) {
         self.value = self.value.to_device(device);
     }
+
+    pub fn state(&self, name: &str) -> State<B>
+    where
+        B::Elem: Serialize,
+        B::Elem: DeserializeOwned,
+    {
+        let mut state = State::new(name);
+        state.register(self.value.to_data().serialize());
+        state
+    }
 }
 
 impl<const D: usize, B: back::Backend> Param<Option<Tensor<D, B>>> {
@@ -71,5 +84,48 @@ impl<const D: usize, B: back::Backend> Param<Option<Tensor<D, B>>> {
         if let Some(value) = &self.value {
             self.value = Some(value.to_device(device));
         }
+    }
+
+    pub fn state(&self, name: &str) -> State<B>
+    where
+        B::Elem: Serialize,
+        B::Elem: DeserializeOwned,
+    {
+        let mut state = State::new(name);
+        if let Some(value) = &self.value {
+            state.register(value.to_data().serialize());
+        }
+        state
+    }
+}
+
+impl<M: Module> Param<M> {
+    pub fn num_params(&self) -> usize {
+        self.value.num_params()
+    }
+
+    pub fn update_params<O: Optimizer<M::Backend>>(&mut self, grads: &Gradients, optim: &mut O)
+    where
+        M::Backend: back::ad::Backend,
+    {
+        self.value.update_params(grads, optim);
+    }
+
+    pub fn devices(&self) -> Vec<<M::Backend as back::Backend>::Device> {
+        self.value.devices()
+    }
+
+    pub fn to_device(&mut self, device: <M::Backend as back::Backend>::Device) {
+        self.value.to_device(device)
+    }
+
+    pub fn state(&self, name: &str) -> State<M::Backend>
+    where
+        <M::Backend as back::Backend>::Elem: Serialize,
+        <M::Backend as back::Backend>::Elem: DeserializeOwned,
+    {
+        let mut state = State::new(name);
+        state.register_child(self.value.state());
+        state
     }
 }

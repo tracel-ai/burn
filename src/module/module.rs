@@ -12,7 +12,7 @@ where
     B::Elem: DeserializeOwned,
 {
     root: String,
-    values: HashMap<String, DataSerialize<B::Elem>>,
+    pub values: HashMap<String, DataSerialize<B::Elem>>,
 }
 
 impl<B: back::Backend> State<B>
@@ -32,11 +32,15 @@ where
         self.values.get(&key).expect("param with the name")
     }
 
-    pub fn register(self, parent: &mut Self) {
-        for (key, value) in self.values.into_iter() {
-            let key = format!("{}.{}", parent.root, key);
-            parent.values.insert(key, value);
+    pub fn register_child(&mut self, child: Self) {
+        for (key, value) in child.values.into_iter() {
+            let key = format!("{}.{}", self.root, key);
+            self.values.insert(key, value);
         }
+    }
+
+    pub fn register(&mut self, data: DataSerialize<B::Elem>) {
+        self.values.insert(self.root.to_string(), data);
     }
 }
 
@@ -56,14 +60,20 @@ where
     }
 }
 
-pub trait Module<B: back::Backend>: Send + Sync + std::fmt::Debug + std::fmt::Display {
-    fn update_params<O: Optimizer<B>>(&mut self, grads: &Gradients, optim: &mut O)
+pub trait Module: Send + Sync + std::fmt::Debug + std::fmt::Display {
+    type Backend: back::Backend;
+
+    fn update_params<O: Optimizer<Self::Backend>>(&mut self, grads: &Gradients, optim: &mut O)
     where
-        B: back::ad::Backend;
-    fn devices(&self) -> Vec<B::Device>;
-    fn to_device(&mut self, device: B::Device);
-    // fn state(&self) -> State<B>;
+        Self::Backend: back::ad::Backend;
+    fn devices(&self) -> Vec<<Self::Backend as back::Backend>::Device>;
+    fn to_device(&mut self, device: <Self::Backend as back::Backend>::Device);
+    fn name(&self) -> &str;
     // fn load(self, state: State<B>) -> Self;
+    fn state(&self) -> State<Self::Backend>
+    where
+        <Self::Backend as back::Backend>::Elem: Serialize,
+        <Self::Backend as back::Backend>::Elem: DeserializeOwned;
     fn num_params(&self) -> usize;
 }
 
