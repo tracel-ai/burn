@@ -26,6 +26,7 @@ where
     type Device = NdArrayDevice;
     type Elem = E;
     type TensorPrimitive<const D: usize> = NdArrayTensor<E, D>;
+    type BoolTensorPrimitive<const D: usize> = NdArrayTensor<bool, D>;
 
     fn from_data<const D: usize>(
         data: Data<Self::Elem, D>,

@@ -7,6 +7,23 @@ pub struct Tensor<const D: usize, B: Backend> {
     pub(crate) value: B::TensorPrimitive<D>,
 }
 
+pub struct BoolTensor<const D: usize, B: Backend> {
+    pub(crate) value: B::BoolTensorPrimitive<D>,
+}
+
+impl<const D: usize, B> BoolTensor<D, B>
+where
+    B: Backend,
+{
+    pub fn new(tensor: B::BoolTensorPrimitive<D>) -> Self {
+        Self { value: tensor }
+    }
+
+    pub fn shape(&self) -> &Shape<D> {
+        self.value.shape()
+    }
+}
+
 impl<const D: usize, B> Tensor<D, B>
 where
     B: Backend,
