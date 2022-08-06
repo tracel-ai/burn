@@ -4,8 +4,8 @@ mod tests {
 
     #[test]
     fn should_behave_the_same_with_multithread() {
-        let data_1: Data<f32, 2> = Data::from([[1.0, 7.0], [13.0, -3.0]]);
-        let data_2: Data<f32, 2> = Data::from([[4.0, 7.0], [2.0, 3.0]]);
+        let data_1: Data<f64, 2> = Data::from([[1.0, 7.0], [13.0, -3.0]]);
+        let data_2: Data<f64, 2> = Data::from([[4.0, 7.0], [2.0, 3.0]]);
 
         let with_move = || {
             let tensor_1 = TestADTensor::from_data(data_1.clone());
@@ -80,19 +80,5 @@ mod tests {
 
         assert_eq!(grad_1.to_data(), grad_1_moved.to_data());
         assert_eq!(grad_2.to_data(), grad_2_moved.to_data());
-        assert_eq!(
-            grad_1.to_data(),
-            Data::from([
-                [12255630000000.0, 8076727000000.0],
-                [10450690000000.0, 8704954000000.0]
-            ])
-        );
-        assert_eq!(
-            grad_2.to_data(),
-            Data::from([
-                [17459151000000.0, 15028745000000.0],
-                [14354680000000.0, 11433980000000.0]
-            ])
-        );
     }
 }
