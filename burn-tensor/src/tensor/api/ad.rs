@@ -13,6 +13,14 @@ impl<const D: usize, B: ADBackend> Tensor<D, B> {
     pub fn grad(&self, grads: &Gradients) -> Option<Tensor<D, B::InnerBackend>> {
         B::grad(&self.value, grads).map(|value| Tensor::new(value))
     }
+
+    pub fn inner(&self) -> Tensor<D, B::InnerBackend> {
+        Tensor::new(B::inner(&self.value))
+    }
+
+    pub fn update(&mut self, other_inner: Tensor<D, B::InnerBackend>) {
+        self.value = B::from_inner(other_inner.value);
+    }
 }
 
 #[cfg(feature = "ndarray")]

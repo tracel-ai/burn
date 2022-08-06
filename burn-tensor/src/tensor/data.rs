@@ -1,7 +1,12 @@
+use super::ops::{Ones, Zeros};
 use crate::tensor::Shape;
 use rand::{distributions::Standard, prelude::StdRng, Rng, SeedableRng};
 
-use super::ops::{Ones, Zeros};
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+pub struct DataSerialize<P> {
+    pub value: Vec<P>,
+    pub shape: Vec<usize>,
+}
 
 #[derive(new, Debug, Clone, PartialEq)]
 pub struct Data<P, const D: usize> {
@@ -129,6 +134,37 @@ where
     }
     pub fn ones_(shape: Shape<D>, _kind: P) -> Data<P, D> {
         Self::ones(shape)
+    }
+}
+
+impl<P: std::fmt::Debug + Copy, const D: usize> Data<P, D> {
+    pub fn serialize(&self) -> DataSerialize<P> {
+        DataSerialize {
+            value: self.value.clone(),
+            shape: self.shape.dims.to_vec(),
+        }
+    }
+}
+
+impl<P: Clone, const D: usize> From<&DataSerialize<P>> for Data<P, D> {
+    fn from(data: &DataSerialize<P>) -> Self {
+        let mut dims = [0; D];
+        for i in 0..D {
+            dims[i] = data.shape[i];
+        }
+
+        Data::new(data.value.clone(), Shape::new(dims))
+    }
+}
+
+impl<P, const D: usize> From<DataSerialize<P>> for Data<P, D> {
+    fn from(data: DataSerialize<P>) -> Self {
+        let mut dims = [0; D];
+        for i in 0..D {
+            dims[i] = data.shape[i];
+        }
+
+        Data::new(data.value, Shape::new(dims))
     }
 }
 

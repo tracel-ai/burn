@@ -1,5 +1,6 @@
 mod add;
 mod creation;
+mod device;
 mod index;
 mod matmul;
 mod mul;

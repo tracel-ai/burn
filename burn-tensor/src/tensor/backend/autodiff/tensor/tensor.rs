@@ -6,7 +6,7 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct ADTensor<const D: usize, B: Backend> {
-    pub node: ForwardNodeRef<B::Tensor<D>>,
+    pub node: ForwardNodeRef<B::TensorPrimitive<D>>,
     pub shape: Shape<D>,
 }
 
@@ -24,7 +24,7 @@ impl<B: Backend, const D: usize> TensorOpsUtilities<B::Elem, D> for ADTensor<D, 
 }
 
 impl<B: Backend, const D: usize> ADTensor<D, B> {
-    pub fn from_tensor(tensor: B::Tensor<D>) -> Self {
+    pub fn from_tensor(tensor: B::TensorPrimitive<D>) -> Self {
         let node = execute_ops!(
             init tensor.clone()
         );
@@ -33,14 +33,14 @@ impl<B: Backend, const D: usize> ADTensor<D, B> {
         Self { node, shape }
     }
 
-    pub fn from_existing(&self, node: ForwardNodeRef<B::Tensor<D>>) -> Self {
+    pub fn from_existing(&self, node: ForwardNodeRef<B::TensorPrimitive<D>>) -> Self {
         let shape = self.shape.clone();
         Self { node, shape }
     }
 }
 
 impl<B: Backend, const D: usize> ADTensor<D, B> {
-    pub fn tensor(&self) -> B::Tensor<D> {
+    pub fn tensor(&self) -> B::TensorPrimitive<D> {
         self.node.state.value()
     }
 }

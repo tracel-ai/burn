@@ -47,26 +47,26 @@ macro_rules! register_ops {
             name $name
         );
 
-        impl<B: Backend, const D: usize> $ops<B::Tensor<D>, B::Tensor<D>, B::Tensor<D>> for $name<B, D>
+        impl<B: Backend, const D: usize> $ops<B::TensorPrimitive<D>, B::TensorPrimitive<D>, B::TensorPrimitive<D>> for $name<B, D>
         {
             fn partial_left(
                 &self,
                 state: &$crate::graph::ops::BinaryOpsNodeState<
-                    B::Tensor<D>,
-                    B::Tensor<D>,
-                    B::Tensor<D>
+                    B::TensorPrimitive<D>,
+                    B::TensorPrimitive<D>,
+                    B::TensorPrimitive<D>
                 >
-            ) -> B::Tensor<D> {
+            ) -> B::TensorPrimitive<D> {
                 $partial_left(state)
             }
             fn partial_right(
                 &self,
                 state: &$crate::graph::ops::BinaryOpsNodeState<
-                    B::Tensor<D>,
-                    B::Tensor<D>,
-                    B::Tensor<D>
+                    B::TensorPrimitive<D>,
+                    B::TensorPrimitive<D>,
+                    B::TensorPrimitive<D>
                 >
-            ) -> B::Tensor<D> {
+            ) -> B::TensorPrimitive<D> {
 
                 $partial_right(state)
             }
@@ -82,9 +82,9 @@ macro_rules! register_ops {
             state $ops_tensor_state,
         );
 
-        impl<B: Backend, const D: usize> $ops<B::Tensor<D>, B::Tensor<D>> for $name<B, D>
+        impl<B: Backend, const D: usize> $ops<B::TensorPrimitive<D>, B::TensorPrimitive<D>> for $name<B, D>
         {
-            fn partial(&self, state: &$crate::graph::ops::UnaryOpsNodeState<B::Tensor<D>, B::Tensor<D>>) -> B::Tensor<D> {
+            fn partial(&self, state: &$crate::graph::ops::UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>) -> B::TensorPrimitive<D> {
                 $partial(self.state, state)
             }
         }
@@ -98,9 +98,9 @@ macro_rules! register_ops {
             name $name
         );
 
-        impl<B: Backend, const D: usize> $ops<B::Tensor<D>, B::Tensor<D>> for $name<B, D>
+        impl<B: Backend, const D: usize> $ops<B::TensorPrimitive<D>, B::TensorPrimitive<D>> for $name<B, D>
         {
-            fn partial(&self, state: &$crate::graph::ops::UnaryOpsNodeState<B::Tensor<D>, B::Tensor<D>>) -> B::Tensor<D> {
+            fn partial(&self, state: &$crate::graph::ops::UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>) -> B::TensorPrimitive<D> {
                 $partial(state)
             }
         }

@@ -1,6 +1,6 @@
 use super::TchTensor;
-use crate::tensor::Data;
 use crate::tensor::{backend::Backend, Element};
+use crate::tensor::{Data, Distribution, Shape};
 use rand::distributions::Standard;
 
 #[derive(Clone, Copy, Debug)]
@@ -26,7 +26,7 @@ where
 {
     type Device = TchDevice;
     type Elem = E;
-    type Tensor<const D: usize> = TchTensor<E, D>;
+    type TensorPrimitive<const D: usize> = TchTensor<E, D>;
 
     fn from_data<const D: usize>(
         data: Data<Self::Elem, D>,
@@ -37,6 +37,22 @@ where
             TchDevice::Cuda(num) => tch::Device::Cuda(num),
         };
         TchTensor::from_data(data, device)
+    }
+
+    fn random<const D: usize>(
+        shape: Shape<D>,
+        distribution: Distribution<Self::Elem>,
+        device: Self::Device,
+    ) -> Self::TensorPrimitive<D> {
+        Self::from_data(Data::random(shape, distribution), device)
+    }
+
+    fn zeros<const D: usize>(shape: Shape<D>, device: Self::Device) -> Self::TensorPrimitive<D> {
+        Self::from_data(Data::zeros(shape), device)
+    }
+
+    fn ones<const D: usize>(shape: Shape<D>, device: Self::Device) -> Self::TensorPrimitive<D> {
+        Self::from_data(Data::ones(shape), device)
     }
 
     fn ad_enabled() -> bool {

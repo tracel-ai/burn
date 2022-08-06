@@ -4,19 +4,27 @@ use crate::tensor::{Data, Distribution, Shape};
 
 #[derive(Debug, Clone)]
 pub struct Tensor<const D: usize, B: Backend> {
-    pub(crate) value: B::Tensor<D>,
+    pub(crate) value: B::TensorPrimitive<D>,
 }
 
 impl<const D: usize, B> Tensor<D, B>
 where
     B: Backend,
 {
-    pub fn new(tensor: B::Tensor<D>) -> Self {
+    pub fn new(tensor: B::TensorPrimitive<D>) -> Self {
         Self { value: tensor }
     }
 
     pub fn reshape<const D2: usize>(&self, shape: Shape<D2>) -> Tensor<D2, B> {
         Tensor::new(self.value.reshape(shape))
+    }
+
+    pub fn to_device(&self, device: B::Device) -> Self {
+        Self::new(self.value.to_device(device))
+    }
+
+    pub fn device(&self) -> B::Device {
+        self.value.device()
     }
 
     pub fn shape(&self) -> &Shape<D> {
@@ -31,48 +39,20 @@ where
         self.value.to_data()
     }
 
-    pub fn new_like_empty(&self) -> Self {
-        Self::new(self.value.new_like_empty())
+    pub fn zeros_like(&self) -> Self {
+        Tensor::new(B::zeros(self.shape().clone(), self.value.device()))
     }
 
-    pub fn new_like_random(&self, distribution: Distribution<B::Elem>) -> Self {
-        Self::new(self.value.new_like_random(distribution))
+    pub fn ones_like(&self) -> Self {
+        Tensor::new(B::ones(self.shape().clone(), self.value.device()))
     }
 
-    pub fn new_like_data(&self, data: Data<B::Elem, D>) -> Self {
-        Self::new(self.value.new_like_data(data))
-    }
-
-    pub fn new_like_zeros(&self) -> Self {
-        Self::new(self.value.new_like_zeros())
-    }
-
-    pub fn new_like_ones(&self) -> Self {
-        Self::new(self.value.new_like_ones())
-    }
-
-    pub fn new_fork_empty<const D2: usize>(&self, shape: Shape<D2>) -> Tensor<D2, B> {
-        Tensor::new(self.value.new_fork_empty(shape))
-    }
-
-    pub fn new_fork_random<const D2: usize>(
-        &self,
-        shape: Shape<D2>,
-        distribution: Distribution<B::Elem>,
-    ) -> Tensor<D2, B> {
-        Tensor::new(self.value.new_fork_random(shape, distribution))
-    }
-
-    pub fn new_fork_data<const D2: usize>(&self, data: Data<B::Elem, D2>) -> Tensor<D2, B> {
-        Tensor::new(self.value.new_fork_data(data))
-    }
-
-    pub fn new_fork_zeros<const D2: usize>(&self, shape: Shape<D2>) -> Tensor<D2, B> {
-        Tensor::new(self.value.new_fork_zeros(shape))
-    }
-
-    pub fn new_fork_ones<const D2: usize>(&self, shape: Shape<D2>) -> Tensor<D2, B> {
-        Tensor::new(self.value.new_fork_ones(shape))
+    pub fn random_like(&self, distribution: Distribution<B::Elem>) -> Self {
+        Tensor::new(B::random(
+            self.shape().clone(),
+            distribution,
+            self.value.device(),
+        ))
     }
 
     pub fn add(&self, other: &Self) -> Self {
@@ -111,6 +91,21 @@ where
         Self::new(self.value.mul_scalar(&other))
     }
 
+    pub fn random(shape: Shape<D>, distribution: Distribution<B::Elem>) -> Self {
+        let tensor = B::random(shape, distribution, B::Device::default());
+        Self::new(tensor)
+    }
+
+    pub fn zeros(shape: Shape<D>) -> Self {
+        let tensor = B::zeros(shape, B::Device::default());
+        Self::new(tensor)
+    }
+
+    pub fn ones(shape: Shape<D>) -> Self {
+        let tensor = B::ones(shape, B::Device::default());
+        Self::new(tensor)
+    }
+
     pub fn from_data(data: Data<B::Elem, D>) -> Self {
         let tensor = B::from_data(data, B::Device::default());
         Tensor::new(tensor)
@@ -131,5 +126,25 @@ where
         values: &Self,
     ) -> Self {
         Self::new(self.value.index_assign(indexes, &values.value))
+    }
+
+    pub fn unsqueeze<const D2: usize>(&self) -> Tensor<D2, B> {
+        if D2 < D {
+            panic!(
+                "Can't unsqueeze smaller tensor, got dim {}, expected > {}",
+                D2, D
+            )
+        }
+
+        let mut dims = [1; D2];
+        let num_ones = D2 - D;
+        let shape = self.shape();
+
+        for i in 0..D {
+            dims[i + num_ones] = shape.dims[i];
+        }
+
+        let shape = Shape::new(dims);
+        self.reshape(shape)
     }
 }

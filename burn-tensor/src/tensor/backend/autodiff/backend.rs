@@ -1,28 +1,10 @@
-// use super::ADTensor;
-// use crate::tensor::backend::Backend;
-// use rand::distributions::Standard;
-//
-// #[derive(Clone, Debug, Default)]
-// pub struct ADBackend<B: Backend> {
-//     _b: B,
-// }
-//
-// impl<B: Backend> Backend for ADBackend<B>
-// where
-//     Standard: rand::distributions::Distribution<B::Elem>,
-// {
-//     type Device = B::Device;
-//     type Elem = B::Elem;
-//     type Tensor<const D: usize> = ADTensor<D, B>;
-// }
-
 use super::ADTensor;
 use crate::graph::grad::Gradients;
-use crate::tensor::Data;
 use crate::tensor::{
     backend::{ADBackend, Backend},
     Element,
 };
+use crate::tensor::{Data, Distribution, Shape};
 use rand::distributions::Standard;
 
 macro_rules! define_impl {
@@ -41,18 +23,40 @@ macro_rules! define_impl {
         {
             type Device = <$backend as Backend>::Device;
             type Elem = E;
-            type Tensor<const D: usize> = ADTensor<D, $backend>;
+            type TensorPrimitive<const D: usize> = ADTensor<D, $backend>;
 
             fn from_data<const D: usize>(
                 data: Data<Self::Elem, D>,
                 device: Self::Device,
-            ) -> Self::Tensor<D> {
+            ) -> Self::TensorPrimitive<D> {
                 let tensor = <$backend as Backend>::from_data(data, device);
                 ADTensor::from_tensor(tensor)
             }
 
+            fn random<const D: usize>(
+                shape: Shape<D>,
+                distribution: Distribution<Self::Elem>,
+                device: Self::Device,
+            ) -> Self::TensorPrimitive<D> {
+                Self::from_data(Data::random(shape, distribution), device)
+            }
+
             fn ad_enabled() -> bool {
                 true
+            }
+
+            fn zeros<const D: usize>(
+                shape: Shape<D>,
+                device: Self::Device,
+            ) -> Self::TensorPrimitive<D> {
+                Self::from_data(Data::zeros(shape), device)
+            }
+
+            fn ones<const D: usize>(
+                shape: Shape<D>,
+                device: Self::Device,
+            ) -> Self::TensorPrimitive<D> {
+                Self::from_data(Data::ones(shape), device)
             }
 
             fn name() -> String {
@@ -66,14 +70,26 @@ macro_rules! define_impl {
         {
             type InnerBackend = $backend;
 
-            fn backward<const D: usize>(tensor: &Self::Tensor<D>) -> Gradients {
+            fn backward<const D: usize>(tensor: &Self::TensorPrimitive<D>) -> Gradients {
                 tensor.backward()
             }
             fn grad<const D: usize>(
-                tensor: &Self::Tensor<D>,
+                tensor: &Self::TensorPrimitive<D>,
                 grads: &Gradients,
-            ) -> Option<<$backend as Backend>::Tensor<D>> {
+            ) -> Option<<$backend as Backend>::TensorPrimitive<D>> {
                 grads.wrt(tensor).map(|grad| grad.clone())
+            }
+
+            fn inner<const D: usize>(
+                tensor: &Self::TensorPrimitive<D>,
+            ) -> <Self::InnerBackend as Backend>::TensorPrimitive<D> {
+                tensor.tensor()
+            }
+
+            fn from_inner<const D: usize>(
+                tensor: <Self::InnerBackend as Backend>::TensorPrimitive<D>,
+            ) -> Self::TensorPrimitive<D> {
+                ADTensor::from_tensor(tensor)
             }
         }
     };

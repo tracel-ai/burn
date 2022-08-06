@@ -7,7 +7,7 @@ use crate::{execute_ops, register_ops};
 register_ops!(
     ops UnaryOps,
     name ADTensorTransposeOps,
-    partial |state: &UnaryOpsNodeState<B::Tensor<D>, B::Tensor<D>>|{
+    partial |state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>|{
         state.output.grad().transpose()
     },
 );
