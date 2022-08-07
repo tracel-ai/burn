@@ -1,4 +1,4 @@
-#[cfg(all(feature = "ndarray", not(any(feature = "tch"))))]
+#[cfg(feature = "ndarray")]
 pub type TestBackend = burn_tensor::back::NdArray<f32>;
 
 #[cfg(all(feature = "tch", not(any(feature = "ndarray"))))]
