@@ -1,0 +1,72 @@
+use crate::backend::backend::Backend;
+use crate::tensor::{ops::*, Element};
+use rand::distributions::Standard;
+
+macro_rules! define_impl {
+    (
+        $backend:ty,
+        $backend_inner:ty
+    ) => {
+        impl<E: Element, const D: usize> TensorOpsMapComparison<$backend, D>
+            for <$backend as Backend>::TensorPrimitive<D>
+        where
+            Standard: rand::distributions::Distribution<E>,
+        {
+            fn greater(&self, other: &Self) -> <$backend as Backend>::BoolTensorPrimitive<D> {
+                TensorOpsMapComparison::greater(&self.tensor(), &other.tensor())
+            }
+
+            fn greater_scalar(
+                &self,
+                other: &<$backend as Backend>::Elem,
+            ) -> <$backend as Backend>::BoolTensorPrimitive<D> {
+                TensorOpsMapComparison::greater_scalar(&self.tensor(), other)
+            }
+
+            fn greater_equal(&self, other: &Self) -> <$backend as Backend>::BoolTensorPrimitive<D> {
+                TensorOpsMapComparison::greater_equal(&self.tensor(), &other.tensor())
+            }
+
+            fn greater_equal_scalar(
+                &self,
+                other: &<$backend as Backend>::Elem,
+            ) -> <$backend as Backend>::BoolTensorPrimitive<D> {
+                TensorOpsMapComparison::greater_equal_scalar(&self.tensor(), other)
+            }
+
+            fn lower(&self, other: &Self) -> <$backend as Backend>::BoolTensorPrimitive<D> {
+                TensorOpsMapComparison::lower(&self.tensor(), &other.tensor())
+            }
+
+            fn lower_scalar(
+                &self,
+                other: &<$backend as Backend>::Elem,
+            ) -> <$backend as Backend>::BoolTensorPrimitive<D> {
+                TensorOpsMapComparison::lower_scalar(&self.tensor(), other)
+            }
+
+            fn lower_equal(&self, other: &Self) -> <$backend as Backend>::BoolTensorPrimitive<D> {
+                TensorOpsMapComparison::lower_equal(&self.tensor(), &other.tensor())
+            }
+
+            fn lower_equal_scalar(
+                &self,
+                other: &<$backend as Backend>::Elem,
+            ) -> <$backend as Backend>::BoolTensorPrimitive<D> {
+                TensorOpsMapComparison::lower_equal_scalar(&self.tensor(), other)
+            }
+        }
+    };
+}
+
+#[cfg(feature = "ndarray")]
+define_impl!(
+    crate::tensor::backend::autodiff::ADBackendNdArray::<E>,
+    crate::tensor::backend::ndarray::NdArrayBackend::<E>
+);
+
+#[cfg(feature = "tch")]
+define_impl!(
+    crate::tensor::backend::autodiff::ADBackendTch::<E>,
+    crate::tensor::backend::tch::TchBackend::<E>
+);
