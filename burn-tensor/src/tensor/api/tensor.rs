@@ -7,6 +7,31 @@ pub struct Tensor<const D: usize, B: Backend> {
     pub(crate) value: B::TensorPrimitive<D>,
 }
 
+pub struct BoolTensor<const D: usize, B: Backend> {
+    pub(crate) value: B::BoolTensorPrimitive<D>,
+}
+
+impl<const D: usize, B> BoolTensor<D, B>
+where
+    B: Backend,
+{
+    pub fn new(tensor: B::BoolTensorPrimitive<D>) -> Self {
+        Self { value: tensor }
+    }
+
+    pub fn shape(&self) -> &Shape<D> {
+        self.value.shape()
+    }
+
+    pub fn into_data(self) -> Data<bool, D> {
+        self.value.into_data()
+    }
+
+    pub fn to_data(&self) -> Data<bool, D> {
+        self.value.to_data()
+    }
+}
+
 impl<const D: usize, B> Tensor<D, B>
 where
     B: Backend,
@@ -94,6 +119,38 @@ where
     pub fn random(shape: Shape<D>, distribution: Distribution<B::Elem>) -> Self {
         let tensor = B::random(shape, distribution, B::Device::default());
         Self::new(tensor)
+    }
+
+    pub fn greater(&self, other: &Self) -> BoolTensor<D, B> {
+        BoolTensor::new(self.value.greater(&other.value))
+    }
+
+    pub fn greater_equal(&self, other: &Self) -> BoolTensor<D, B> {
+        BoolTensor::new(self.value.greater_equal(&other.value))
+    }
+
+    pub fn greater_scalar(&self, other: &B::Elem) -> BoolTensor<D, B> {
+        BoolTensor::new(self.value.greater_scalar(other))
+    }
+
+    pub fn greater_equal_scalar(&self, other: &B::Elem) -> BoolTensor<D, B> {
+        BoolTensor::new(self.value.greater_equal_scalar(other))
+    }
+
+    pub fn lower(&self, other: &Self) -> BoolTensor<D, B> {
+        BoolTensor::new(self.value.lower(&other.value))
+    }
+
+    pub fn lower_equal(&self, other: &Self) -> BoolTensor<D, B> {
+        BoolTensor::new(self.value.lower_equal(&other.value))
+    }
+
+    pub fn lower_scalar(&self, other: &B::Elem) -> BoolTensor<D, B> {
+        BoolTensor::new(self.value.lower_scalar(other))
+    }
+
+    pub fn lower_equal_scalar(&self, other: &B::Elem) -> BoolTensor<D, B> {
+        BoolTensor::new(self.value.lower_equal_scalar(other))
     }
 
     pub fn zeros(shape: Shape<D>) -> Self {

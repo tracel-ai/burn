@@ -27,6 +27,7 @@ where
     type Device = TchDevice;
     type Elem = E;
     type TensorPrimitive<const D: usize> = TchTensor<E, D>;
+    type BoolTensorPrimitive<const D: usize> = TchTensor<bool, D>;
 
     fn from_data<const D: usize>(
         data: Data<Self::Elem, D>,

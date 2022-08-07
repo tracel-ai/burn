@@ -10,8 +10,13 @@ categories = ["science"]
 license = "MIT"
 edition = "2021"
 
+[features]
+default = ["tch", "ndarray"]
+tch = ["burn-tensor/tch"]
+ndarray = ["burn-tensor/ndarray"]
+
 [dependencies]
-burn-tensor = { path = "./burn-tensor", version = "0.1.0" }
+burn-tensor = { path = "./burn-tensor", version = "0.1.0", default-features = false }
 burn-derive = { path = "./burn-derive", version = "0.1.0" }
 rand = "0.8"
 

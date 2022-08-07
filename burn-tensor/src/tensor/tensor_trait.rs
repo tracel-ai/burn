@@ -2,7 +2,16 @@ use crate::tensor::ops::*;
 use rand::distributions::uniform::SampleUniform;
 
 pub trait BasicElement:
-    Zeros<Self> + Ones<Self> + std::fmt::Debug + Default + 'static + Send + Sync + Copy + SampleUniform
+    Zeros<Self>
+    + Ones<Self>
+    + std::fmt::Debug
+    + Default
+    + 'static
+    + Send
+    + Sync
+    + Copy
+    + SampleUniform
+    + std::cmp::PartialOrd<Self>
 {
 }
 #[cfg(all(feature = "tch", feature = "ndarray"))]
