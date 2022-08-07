@@ -1,4 +1,4 @@
-use super::{backend::Backend, Data, Distribution};
+use super::{backend::Backend, Data};
 use crate::tensor::Shape;
 use std::ops::Range;
 
@@ -11,26 +11,6 @@ pub trait TensorOpsUtilities<E, const D: usize> {
 pub trait TensorOpsDevice<B: Backend, const D: usize> {
     fn device(&self) -> B::Device;
     fn to_device(&self, device: B::Device) -> Self;
-}
-
-pub trait TensorCreationLike<E, const D: usize> {
-    fn new_like_empty(&self) -> Self;
-    fn new_like_random(&self, distribution: Distribution<E>) -> Self;
-    fn new_like_data(&self, data: Data<E, D>) -> Self;
-    fn new_like_zeros(&self) -> Self;
-    fn new_like_ones(&self) -> Self;
-}
-
-pub trait TensorCreationFork<B: Backend, const D: usize> {
-    fn new_fork_empty<const D2: usize>(&self, shape: Shape<D2>) -> B::TensorPrimitive<D2>;
-    fn new_fork_random<const D2: usize>(
-        &self,
-        shape: Shape<D2>,
-        distribution: Distribution<B::Elem>,
-    ) -> B::TensorPrimitive<D2>;
-    fn new_fork_data<const D2: usize>(&self, data: Data<B::Elem, D2>) -> B::TensorPrimitive<D2>;
-    fn new_fork_zeros<const D2: usize>(&self, shape: Shape<D2>) -> B::TensorPrimitive<D2>;
-    fn new_fork_ones<const D2: usize>(&self, shape: Shape<D2>) -> B::TensorPrimitive<D2>;
 }
 
 pub trait TensorOpsAdd<E, const D: usize>: std::ops::Add<Self, Output = Self>
