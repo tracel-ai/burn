@@ -50,21 +50,3 @@ impl<P: tch::kind::Element + Default + std::fmt::Debug + Copy, const D: usize> s
         TensorOpsAdd::add_scalar(&self, &rhs)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn should_support_add_ops() {
-        let data_1 = Data::<f64, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-        let data_2 = Data::<f64, 2>::from([[6.0, 7.0, 8.0], [9.0, 10.0, 11.0]]);
-        let data_expected = Data::from([[6.0, 8.0, 10.0], [12.0, 14.0, 16.0]]);
-        let tensor_1 = TchTensor::from_data(data_1, tch::Device::Cpu);
-        let tensor_2 = TchTensor::from_data(data_2, tch::Device::Cpu);
-
-        let data_actual = (tensor_1 + tensor_2).into_data();
-
-        assert_eq!(data_expected, data_actual);
-    }
-}
