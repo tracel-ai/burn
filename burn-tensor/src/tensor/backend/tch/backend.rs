@@ -1,5 +1,5 @@
 use super::TchTensor;
-use crate::tensor::{backend::Backend, Element};
+use crate::tensor::{backend::Backend, TchElement};
 use crate::tensor::{Data, Distribution, Shape};
 use rand::distributions::Standard;
 
@@ -20,7 +20,7 @@ pub struct TchBackend<E> {
     _e: E,
 }
 
-impl<E: Element> Backend for TchBackend<E>
+impl<E: TchElement> Backend for TchBackend<E>
 where
     Standard: rand::distributions::Distribution<E>,
 {

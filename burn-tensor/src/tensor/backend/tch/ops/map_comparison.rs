@@ -1,5 +1,5 @@
 use crate::backend::tch::TchBackend;
-use crate::tensor::Element;
+use crate::tensor::TchElement;
 use crate::tensor::{
     backend::tch::{TchKind, TchTensor},
     ops::*,
@@ -8,7 +8,7 @@ use rand::distributions::Standard;
 
 impl<E, const D: usize> TensorOpsMapComparison<TchBackend<E>, D> for TchTensor<E, D>
 where
-    E: Element,
+    E: TchElement,
     Standard: rand::distributions::Distribution<E>,
 {
     fn greater(

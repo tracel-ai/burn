@@ -10,15 +10,17 @@ use rand::distributions::Standard;
 macro_rules! define_impl {
     (
         name: $name:ident,
-        backend: $backend:ty
+        backend: $backend:ty,
+        element: $element:ty
     ) => {
         #[derive(Clone, Copy, Debug, Default)]
         pub struct $name<E> {
             _b: $backend,
         }
 
-        impl<E: Element> Backend for $name<E>
+        impl<E> Backend for $name<E>
         where
+            E: $element,
             Standard: rand::distributions::Distribution<E>,
         {
             type Device = <$backend as Backend>::Device;
@@ -107,10 +109,12 @@ macro_rules! define_impl {
 #[cfg(feature = "ndarray")]
 define_impl!(
     name: ADBackendNdArray,
-    backend: crate::tensor::backend::ndarray::NdArrayBackend<E>
+    backend: crate::tensor::backend::ndarray::NdArrayBackend<E>,
+    element: crate::NdArrayElement
 );
 #[cfg(feature = "tch")]
 define_impl!(
     name: ADBackendTch,
-    backend: crate::tensor::backend::tch::TchBackend<E>
+    backend: crate::tensor::backend::tch::TchBackend<E>,
+    element: crate::TchElement
 );

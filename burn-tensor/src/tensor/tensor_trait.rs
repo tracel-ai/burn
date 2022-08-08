@@ -1,7 +1,7 @@
 use crate::tensor::ops::*;
 use rand::distributions::uniform::SampleUniform;
 
-pub trait BasicElement:
+pub trait Element:
     Zeros<Self>
     + Ones<Self>
     + std::fmt::Debug
@@ -14,21 +14,12 @@ pub trait BasicElement:
     + std::cmp::PartialOrd<Self>
 {
 }
-#[cfg(all(feature = "tch", feature = "ndarray"))]
-pub trait Element:
-    Sized
-    + BasicElement
-    + ndarray::LinalgScalar
-    + ndarray::ScalarOperand
-    + tch::kind::Element
-    + Into<f64>
-{
-}
-#[cfg(all(feature = "tch", not(feature = "ndarray")))]
-pub trait Element: BasicElement + tch::kind::Element + Into<f64> {}
 
-#[cfg(all(feature = "ndarray", not(feature = "tch")))]
-pub trait Element: BasicElement + ndarray::LinalgScalar + ndarray::ScalarOperand {}
+#[cfg(feature = "tch")]
+pub trait TchElement: Element + tch::kind::Element + Into<f64> {}
+
+#[cfg(feature = "ndarray")]
+pub trait NdArrayElement: Element + tch::kind::Element + Into<f64> {}
 
 pub trait TensorTrait<P: Element, const D: usize>:
     TensorOpsUtilities<P, D>
@@ -53,7 +44,6 @@ macro_rules! ad_items {
         zero $zero:expr,
         one $one:expr
     ) => {
-        impl BasicElement for $float {}
         impl Element for $float {}
 
         impl Zeros<$float> for $float {

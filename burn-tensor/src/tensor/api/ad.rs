@@ -45,8 +45,9 @@ mod tch {
     use super::*;
     use crate::tensor::backend::autodiff::ADBackendTch;
     use crate::tensor::backend::tch::TchBackend;
+    use crate::TchElement;
 
-    impl<E: Element, const D: usize> Tensor<D, TchBackend<E>>
+    impl<E: TchElement, const D: usize> Tensor<D, TchBackend<E>>
     where
         Standard: rand::distributions::Distribution<E>,
     {
