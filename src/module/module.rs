@@ -1,6 +1,7 @@
+pub use burn_derive::Module;
+
 use crate::optim::Optimizer;
 use crate::tensor::{back, Data, DataSerialize, Gradients};
-pub use burn_derive::Module;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

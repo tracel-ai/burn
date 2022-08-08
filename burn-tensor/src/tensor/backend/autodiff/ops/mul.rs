@@ -21,7 +21,7 @@ register_ops!(
     ops UnaryOps,
     name ADTensorMulScalarOps state B::Elem,
     partial |state, state_recorded: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>| {
-        state_recorded.output.grad().mul_scalar(&state)
+        state_recorded.output.grad().mul_scalar(state)
     },
 );
 

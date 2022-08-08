@@ -35,6 +35,13 @@ macro_rules! define_impl {
                 ADTensor::from_tensor(tensor)
             }
 
+            fn from_data_bool<const D: usize>(
+                data: Data<bool, D>,
+                device: Self::Device,
+            ) -> Self::BoolTensorPrimitive<D> {
+                <$backend as Backend>::from_data_bool(data, device)
+            }
+
             fn random<const D: usize>(
                 shape: Shape<D>,
                 distribution: Distribution<Self::Elem>,

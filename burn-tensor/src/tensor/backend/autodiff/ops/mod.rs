@@ -3,6 +3,7 @@ mod creation;
 mod device;
 mod index;
 mod map_comparison;
+mod mask;
 mod matmul;
 mod mul;
 mod neg;

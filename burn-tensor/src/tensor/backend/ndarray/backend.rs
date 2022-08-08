@@ -35,6 +35,13 @@ where
         NdArrayTensor::from_data(data)
     }
 
+    fn from_data_bool<const D: usize>(
+        data: Data<bool, D>,
+        _device: Self::Device,
+    ) -> Self::BoolTensorPrimitive<D> {
+        NdArrayTensor::from_data(data)
+    }
+
     fn random<const D: usize>(
         shape: Shape<D>,
         distribution: Distribution<Self::Elem>,

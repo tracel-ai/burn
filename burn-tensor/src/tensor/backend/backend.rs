@@ -1,5 +1,5 @@
 use crate::graph::grad::Gradients;
-use crate::ops::{TensorOpsDevice, TensorOpsMapComparison, TensorOpsUtilities};
+use crate::ops::{TensorOpsDevice, TensorOpsMapComparison, TensorOpsMask, TensorOpsUtilities};
 use crate::tensor::ops::{TensorOpsIndex, TensorOpsReshape};
 use crate::tensor::{Data, Distribution, Shape};
 use crate::tensor::{Element, TensorTrait};
@@ -11,14 +11,25 @@ pub trait Backend: Clone + Sized + Default + Send + Sync + std::fmt::Debug + 'st
         + TensorOpsReshape<Self, D>
         + TensorOpsDevice<Self, D>
         + TensorOpsIndex<Self::Elem, D>
+        + TensorOpsMask<Self, D>
         + TensorOpsMapComparison<Self, D>
         + 'static;
-    type BoolTensorPrimitive<const D: usize>: TensorOpsUtilities<bool, D>;
+    type BoolTensorPrimitive<const D: usize>: TensorOpsUtilities<bool, D>
+        + Clone
+        + Send
+        + Sync
+        + 'static
+        + std::fmt::Debug;
 
     fn from_data<const D: usize>(
         data: Data<Self::Elem, D>,
         device: Self::Device,
     ) -> Self::TensorPrimitive<D>;
+
+    fn from_data_bool<const D: usize>(
+        data: Data<bool, D>,
+        device: Self::Device,
+    ) -> Self::BoolTensorPrimitive<D>;
 
     fn random<const D: usize>(
         shape: Shape<D>,
