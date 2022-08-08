@@ -30,6 +30,11 @@ where
     pub fn to_data(&self) -> Data<bool, D> {
         self.value.to_data()
     }
+
+    pub fn from_data(data: Data<bool, D>) -> Self {
+        let value = B::from_data_bool(data, B::Device::default());
+        Self::new(value)
+    }
 }
 
 impl<const D: usize, B> Tensor<D, B>
@@ -183,6 +188,10 @@ where
         values: &Self,
     ) -> Self {
         Self::new(self.value.index_assign(indexes, &values.value))
+    }
+
+    pub fn mask_fill(&self, mask: &BoolTensor<D, B>, value: B::Elem) -> Self {
+        Self::new(self.value.mask_fill(&mask.value, value))
     }
 
     pub fn unsqueeze<const D2: usize>(&self) -> Tensor<D2, B> {

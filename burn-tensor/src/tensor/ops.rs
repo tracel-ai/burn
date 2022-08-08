@@ -63,8 +63,8 @@ pub trait TensorOpsMapComparison<B: Backend, const D: usize> {
     fn lower_equal_scalar(&self, other: &B::Elem) -> B::BoolTensorPrimitive<D>;
 }
 
-pub trait ActivationOpsReLU<E, const D: usize> {
-    fn relu(&self) -> Self;
+pub trait TensorOpsMask<B: Backend, const D: usize> {
+    fn mask_fill(&self, mask: &B::BoolTensorPrimitive<D>, value: B::Elem) -> Self;
 }
 
 pub trait Zeros<T> {

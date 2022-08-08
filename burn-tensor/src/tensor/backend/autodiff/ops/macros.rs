@@ -85,7 +85,7 @@ macro_rules! register_ops {
         impl<B: Backend, const D: usize> $ops<B::TensorPrimitive<D>, B::TensorPrimitive<D>> for $name<B, D>
         {
             fn partial(&self, state: &$crate::graph::ops::UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>) -> B::TensorPrimitive<D> {
-                $partial(self.state, state)
+                $partial(&self.state, state)
             }
         }
     };

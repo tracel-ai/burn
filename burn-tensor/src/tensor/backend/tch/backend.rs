@@ -40,6 +40,17 @@ where
         TchTensor::from_data(data, device)
     }
 
+    fn from_data_bool<const D: usize>(
+        data: Data<bool, D>,
+        device: Self::Device,
+    ) -> Self::BoolTensorPrimitive<D> {
+        let device = match device {
+            TchDevice::Cpu => tch::Device::Cpu,
+            TchDevice::Cuda(num) => tch::Device::Cuda(num),
+        };
+        TchTensor::from_data(data, device)
+    }
+
     fn random<const D: usize>(
         shape: Shape<D>,
         distribution: Distribution<Self::Elem>,

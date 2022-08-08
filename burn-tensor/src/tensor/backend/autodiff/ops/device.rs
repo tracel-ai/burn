@@ -10,8 +10,11 @@ use rand::distributions::Standard;
 register_ops!(
     ops UnaryOps,
     name ADTensorDeviceOps state B::Device,
-    partial |device, state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>|{
-        state.output.grad().to_device(device)
+    partial |
+        device: &B::Device,
+        state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>
+    | {
+        state.output.grad().to_device(device.clone())
     },
 );
 
