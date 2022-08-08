@@ -2,7 +2,6 @@ use super::Tensor;
 use crate::graph::grad::Gradients;
 use crate::tensor::backend::autodiff::ADTensor;
 use crate::tensor::backend::ADBackend;
-use crate::tensor::Element;
 use rand::distributions::Standard;
 
 impl<const D: usize, B: ADBackend> Tensor<D, B> {
@@ -29,7 +28,7 @@ mod ndarray {
     use crate::tensor::backend::autodiff::ADBackendNdArray;
     use crate::tensor::backend::ndarray::NdArrayBackend;
 
-    impl<E: Element, const D: usize> Tensor<D, NdArrayBackend<E>>
+    impl<E: crate::NdArrayElement, const D: usize> Tensor<D, NdArrayBackend<E>>
     where
         Standard: rand::distributions::Distribution<E>,
     {

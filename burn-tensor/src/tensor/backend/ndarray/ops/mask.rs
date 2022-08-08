@@ -1,12 +1,12 @@
 use crate::{
     back::Backend, backend::ndarray::NdArrayBackend, backend::ndarray::NdArrayTensor,
-    ops::TensorOpsMask, Element,
+    ops::TensorOpsMask, NdArrayElement,
 };
 use rand::distributions::Standard;
 
-impl<E: Element, const D: usize> TensorOpsMask<NdArrayBackend<E>, D> for NdArrayTensor<E, D>
+impl<E, const D: usize> TensorOpsMask<NdArrayBackend<E>, D> for NdArrayTensor<E, D>
 where
-    E: Element,
+    E: NdArrayElement,
     Standard: rand::distributions::Distribution<E>,
 {
     fn mask_fill(

@@ -1,14 +1,12 @@
 use crate::graph::node::{ForwardNode, ForwardNodeState};
 use crate::graph::ops::ForwardUnaryRecordedOps;
 use crate::tensor::backend::backend::Backend;
-use crate::tensor::Element;
 use crate::tensor::{ops::*, Shape};
 use crate::{
     graph::ops::{UnaryOps, UnaryOpsNodeState},
     tensor::backend::autodiff::ADTensor,
 };
 use rand::distributions::Standard;
-
 use std::sync::Arc;
 
 #[derive(Debug)]
@@ -40,9 +38,10 @@ impl<B: Backend, const D1: usize, const D2: usize>
 macro_rules! define_impl {
     (
         $backend:ty,
-        $backend_inner:ty
+        $backend_inner:ty,
+        $element:ident
     ) => {
-        impl<E: Element, const D1: usize> TensorOpsReshape<$backend, D1>
+        impl<E: $element, const D1: usize> TensorOpsReshape<$backend, D1>
             for <$backend as Backend>::TensorPrimitive<D1>
         where
             Standard: rand::distributions::Distribution<E>,
@@ -73,16 +72,28 @@ macro_rules! define_impl {
 }
 
 #[cfg(feature = "ndarray")]
-define_impl!(
-    crate::tensor::backend::autodiff::ADBackendNdArray::<E>,
-    crate::tensor::backend::ndarray::NdArrayBackend::<E>
-);
+mod ndarray_impl {
+    use super::*;
+    use crate::NdArrayElement;
+
+    define_impl!(
+        crate::tensor::backend::autodiff::ADBackendNdArray::<E>,
+        crate::tensor::backend::ndarray::NdArrayBackend::<E>,
+        NdArrayElement
+    );
+}
 
 #[cfg(feature = "tch")]
-define_impl!(
-    crate::tensor::backend::autodiff::ADBackendTch::<E>,
-    crate::tensor::backend::tch::TchBackend::<E>
-);
+mod tch_impl {
+    use super::*;
+    use crate::TchElement;
+
+    define_impl!(
+        crate::tensor::backend::autodiff::ADBackendTch::<E>,
+        crate::tensor::backend::tch::TchBackend::<E>,
+        TchElement
+    );
+}
 
 #[cfg(test)]
 mod tests {

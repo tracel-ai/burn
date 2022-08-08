@@ -1,13 +1,13 @@
 use crate::{
     backend::ndarray::{NdArrayBackend, NdArrayDevice, NdArrayTensor},
     ops::TensorOpsDevice,
-    Element,
+    NdArrayElement,
 };
 use rand::distributions::Standard;
 
-impl<E: Element, const D: usize> TensorOpsDevice<NdArrayBackend<E>, D> for NdArrayTensor<E, D>
+impl<E, const D: usize> TensorOpsDevice<NdArrayBackend<E>, D> for NdArrayTensor<E, D>
 where
-    E: Element,
+    E: NdArrayElement,
     Standard: rand::distributions::Distribution<E>,
 {
     fn device(&self) -> <NdArrayBackend<E> as crate::back::Backend>::Device {
