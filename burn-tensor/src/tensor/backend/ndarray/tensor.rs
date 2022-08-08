@@ -2,41 +2,41 @@ use crate::tensor::{ops::TensorOpsUtilities, Data, Shape, TensorTrait};
 use ndarray::{s, ArcArray, Array, Axis, Dim, Ix2, Ix3, IxDyn, LinalgScalar, ScalarOperand};
 
 #[derive(Debug, Clone)]
-pub struct NdArrayTensor<P, const D: usize> {
-    pub array: ArcArray<P, IxDyn>,
+pub struct NdArrayTensor<E, const D: usize> {
+    pub array: ArcArray<E, IxDyn>,
     pub shape: Shape<D>,
 }
 
-impl<P, const D: usize> TensorOpsUtilities<P, D> for NdArrayTensor<P, D>
+impl<E, const D: usize> TensorOpsUtilities<E, D> for NdArrayTensor<E, D>
 where
-    P: Default + Clone,
+    E: Default + Clone,
 {
     fn shape(&self) -> &Shape<D> {
         &self.shape
     }
 
-    fn into_data(self) -> Data<P, D> {
+    fn into_data(self) -> Data<E, D> {
         let values = self.array.into_iter().collect();
         Data::new(values, self.shape)
     }
 
-    fn to_data(&self) -> Data<P, D> {
+    fn to_data(&self) -> Data<E, D> {
         let values = self.array.clone().into_iter().collect();
         Data::new(values, self.shape)
     }
 }
 
 #[derive(new)]
-pub struct BatchMatrix<P, const D: usize> {
-    pub arrays: Vec<ArcArray<P, Ix2>>,
+pub struct BatchMatrix<E, const D: usize> {
+    pub arrays: Vec<ArcArray<E, Ix2>>,
     pub shape: Shape<D>,
 }
 
-impl<P, const D: usize> BatchMatrix<P, D>
+impl<E, const D: usize> BatchMatrix<E, D>
 where
-    P: Clone,
+    E: Clone,
 {
-    pub fn from_ndarray(array: ArcArray<P, IxDyn>, shape: Shape<D>) -> Self {
+    pub fn from_ndarray(array: ArcArray<E, IxDyn>, shape: Shape<D>) -> Self {
         let mut arrays = Vec::new();
         if D < 2 {
             let array = array.reshape((1, shape.dims[0]));
@@ -90,7 +90,7 @@ macro_rules! to_nd_array_tensor {
         $array:expr
     ) => {{
         let dim = $crate::to_typed_dims!($n, $shape.dims, justdim);
-        let array: ndarray::ArcArray<P, Dim<[usize; $n]>> = $array.reshape(dim);
+        let array: ndarray::ArcArray<E, Dim<[usize; $n]>> = $array.reshape(dim);
         let array = array.into_dyn();
 
         NdArrayTensor {
@@ -100,15 +100,15 @@ macro_rules! to_nd_array_tensor {
     }};
 }
 
-impl<P, const D: usize> NdArrayTensor<P, D>
+impl<E, const D: usize> NdArrayTensor<E, D>
 where
-    P: Default + Clone,
+    E: Default + Clone,
 {
-    pub fn from_bmatrix(bmatrix: BatchMatrix<P, D>) -> NdArrayTensor<P, D> {
+    pub fn from_bmatrix(bmatrix: BatchMatrix<E, D>) -> NdArrayTensor<E, D> {
         let shape = bmatrix.shape;
-        let to_array = |data: BatchMatrix<P, D>| {
+        let to_array = |data: BatchMatrix<E, D>| {
             let dims = data.shape.dims;
-            let mut array: Array<P, Ix3> = Array::default((0, dims[D - 2], dims[D - 1]));
+            let mut array: Array<E, Ix3> = Array::default((0, dims[D - 2], dims[D - 1]));
 
             for item in data.arrays {
                 array.push(Axis(0), item.view()).unwrap();
@@ -128,13 +128,13 @@ where
         }
     }
 }
-impl<P, const D: usize> NdArrayTensor<P, D>
+impl<E, const D: usize> NdArrayTensor<E, D>
 where
-    P: Default + Clone,
+    E: Default + Clone,
 {
-    pub fn from_data(data: Data<P, D>) -> NdArrayTensor<P, D> {
+    pub fn from_data(data: Data<E, D>) -> NdArrayTensor<E, D> {
         let shape = data.shape.clone();
-        let to_array = |data: Data<P, D>| Array::from_iter(data.value.into_iter()).into_shared();
+        let to_array = |data: Data<E, D>| Array::from_iter(data.value.into_iter()).into_shared();
 
         match D {
             1 => to_nd_array_tensor!(1, shape, to_array(data)),
@@ -148,8 +148,8 @@ where
     }
 }
 
-impl<P: crate::tensor::Element + ScalarOperand + LinalgScalar, const D: usize> TensorTrait<P, D>
-    for NdArrayTensor<P, D>
+impl<E: crate::tensor::Element + ScalarOperand + LinalgScalar, const D: usize> TensorTrait<E, D>
+    for NdArrayTensor<E, D>
 {
 }
 

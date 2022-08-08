@@ -2,19 +2,19 @@ use crate::{
     tensor::{
         backend::ndarray::{NdArrayBackend, NdArrayTensor},
         ops::*,
-        Element, Shape,
+        NdArrayElement, Shape,
     },
     to_nd_array_tensor,
 };
 use ndarray::Dim;
 use rand::distributions::Standard;
 
-impl<P, const D: usize> TensorOpsReshape<NdArrayBackend<P>, D> for NdArrayTensor<P, D>
+impl<E, const D: usize> TensorOpsReshape<NdArrayBackend<E>, D> for NdArrayTensor<E, D>
 where
-    P: Element,
-    Standard: rand::distributions::Distribution<P>,
+    E: NdArrayElement,
+    Standard: rand::distributions::Distribution<E>,
 {
-    fn reshape<const D2: usize>(&self, shape: Shape<D2>) -> NdArrayTensor<P, D2> {
+    fn reshape<const D2: usize>(&self, shape: Shape<D2>) -> NdArrayTensor<E, D2> {
         match D2 {
             1 => to_nd_array_tensor!(1, shape, self.array),
             2 => to_nd_array_tensor!(2, shape, self.array),

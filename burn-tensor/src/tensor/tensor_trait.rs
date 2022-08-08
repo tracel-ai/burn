@@ -19,7 +19,7 @@ pub trait Element:
 pub trait TchElement: Element + tch::kind::Element + Into<f64> {}
 
 #[cfg(feature = "ndarray")]
-pub trait NdArrayElement: Element + tch::kind::Element + Into<f64> {}
+pub trait NdArrayElement: Element + ndarray::LinalgScalar + ndarray::ScalarOperand {}
 
 pub trait TensorTrait<P: Element, const D: usize>:
     TensorOpsUtilities<P, D>
@@ -73,19 +73,45 @@ macro_rules! ad_items {
 ad_items!(float f64);
 ad_items!(float f32);
 
-#[cfg(not(feature = "tch"))]
 ad_items!(int i64);
 ad_items!(int i32);
 ad_items!(int i16);
 ad_items!(int i8);
 
-#[cfg(not(feature = "tch"))]
 ad_items!(int u64);
-#[cfg(not(feature = "tch"))]
 ad_items!(int u32);
-#[cfg(not(feature = "tch"))]
 ad_items!(int u16);
 ad_items!(int u8);
+
+#[cfg(feature = "tch")]
+mod tch_elem {
+    use super::*;
+
+    impl TchElement for f64 {}
+    impl TchElement for f32 {}
+
+    impl TchElement for i32 {}
+    impl TchElement for i16 {}
+
+    impl TchElement for u8 {}
+}
+
+#[cfg(feature = "ndarray")]
+mod ndarray_elem {
+    use super::*;
+
+    impl NdArrayElement for f64 {}
+    impl NdArrayElement for f32 {}
+
+    impl NdArrayElement for i64 {}
+    impl NdArrayElement for i32 {}
+    impl NdArrayElement for i16 {}
+
+    impl NdArrayElement for u64 {}
+    impl NdArrayElement for u32 {}
+    impl NdArrayElement for u16 {}
+    impl NdArrayElement for u8 {}
+}
 
 mod ad {
     use super::*;

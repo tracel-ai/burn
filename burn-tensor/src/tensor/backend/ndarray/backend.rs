@@ -1,5 +1,5 @@
 use super::NdArrayTensor;
-use crate::tensor::{backend::Backend, Element};
+use crate::tensor::{backend::Backend, NdArrayElement};
 use crate::tensor::{Data, Distribution, Shape};
 use rand::distributions::Standard;
 
@@ -19,7 +19,7 @@ pub struct NdArrayBackend<E> {
     _e: E,
 }
 
-impl<E: Element> Backend for NdArrayBackend<E>
+impl<E: NdArrayElement> Backend for NdArrayBackend<E>
 where
     Standard: rand::distributions::Distribution<E>,
 {

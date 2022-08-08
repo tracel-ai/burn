@@ -21,9 +21,10 @@ register_ops!(
 macro_rules! define_impl {
     (
         $backend:ty,
-        $backend_inner:ty
+        $backend_inner:ty,
+        $element:ident
     ) => {
-        impl<E: Element, const D: usize> TensorOpsDevice<$backend, D>
+        impl<E: $element, const D: usize> TensorOpsDevice<$backend, D>
             for <$backend as Backend>::TensorPrimitive<D>
         where
             E: Element,
@@ -49,14 +50,5 @@ macro_rules! define_impl {
     };
 }
 
-#[cfg(feature = "ndarray")]
-define_impl!(
-    crate::tensor::backend::autodiff::ADBackendNdArray::<E>,
-    crate::tensor::backend::ndarray::NdArrayBackend::<E>
-);
-
-#[cfg(feature = "tch")]
-define_impl!(
-    crate::tensor::backend::autodiff::ADBackendTch::<E>,
-    crate::tensor::backend::tch::TchBackend::<E>
-);
+crate::register_tch!();
+crate::register_ndarray!();

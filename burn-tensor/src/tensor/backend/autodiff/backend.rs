@@ -1,26 +1,28 @@
 use super::ADTensor;
 use crate::graph::grad::Gradients;
-use crate::tensor::{
-    backend::{ADBackend, Backend},
-    Element,
-};
+use crate::tensor::backend::{ADBackend, Backend};
 use crate::tensor::{Data, Distribution, Shape};
 use rand::distributions::Standard;
+
+#[cfg(feature = "ndarray")]
+use crate::NdArrayElement;
+
+#[cfg(feature = "tch")]
+use crate::TchElement;
 
 macro_rules! define_impl {
     (
         name: $name:ident,
         backend: $backend:ty,
-        element: $element:ty
+        element: $element:ident
     ) => {
         #[derive(Clone, Copy, Debug, Default)]
         pub struct $name<E> {
             _b: $backend,
         }
 
-        impl<E> Backend for $name<E>
+        impl<E: $element> Backend for $name<E>
         where
-            E: $element,
             Standard: rand::distributions::Distribution<E>,
         {
             type Device = <$backend as Backend>::Device;
@@ -75,7 +77,7 @@ macro_rules! define_impl {
             }
         }
 
-        impl<E: Element> ADBackend for $name<E>
+        impl<E: $element> ADBackend for $name<E>
         where
             Standard: rand::distributions::Distribution<E>,
         {
@@ -110,11 +112,45 @@ macro_rules! define_impl {
 define_impl!(
     name: ADBackendNdArray,
     backend: crate::tensor::backend::ndarray::NdArrayBackend<E>,
-    element: crate::NdArrayElement
+    element: NdArrayElement
 );
 #[cfg(feature = "tch")]
 define_impl!(
     name: ADBackendTch,
     backend: crate::tensor::backend::tch::TchBackend<E>,
-    element: crate::TchElement
+    element: TchElement
 );
+
+#[macro_export]
+macro_rules! register_ndarray {
+    () => {
+        #[cfg(feature = "ndarray")]
+        mod ndarray_impl {
+            use super::*;
+            use crate::NdArrayElement;
+
+            define_impl!(
+                crate::tensor::backend::autodiff::ADBackendNdArray::<E>,
+                crate::tensor::backend::ndarray::NdArrayBackend::<E>,
+                NdArrayElement
+            );
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! register_tch {
+    () => {
+        #[cfg(feature = "tch")]
+        mod tch_impl {
+            use super::*;
+            use crate::TchElement;
+
+            define_impl!(
+                $crate::tensor::backend::autodiff::ADBackendTch::<E>,
+                $crate::tensor::backend::tch::TchBackend::<E>,
+                TchElement
+            );
+        }
+    };
+}

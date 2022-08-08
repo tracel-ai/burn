@@ -34,8 +34,8 @@ fn run<B: back::Backend>(x: Data<B::Elem, 2>, y: Data<B::Elem, 2>) {
 
 fn main() {
     // Same data for all backends
-    let x = Data::<f32, 2>::random(Shape::new([2, 3]), Distribution::Standard);
-    let y = Data::<f32, 2>::random(Shape::new([3, 1]), Distribution::Standard);
+    let x = Data::random(Shape::new([2, 3]), Distribution::Standard);
+    let y = Data::random(Shape::new([3, 1]), Distribution::Standard);
 
     #[cfg(feature = "ndarray")]
     {
