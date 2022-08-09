@@ -2,7 +2,7 @@ use super::Tensor;
 use crate::tensor::backend::Backend;
 use crate::tensor::Element;
 
-impl<const D: usize, B> std::ops::Add<Self> for Tensor<D, B>
+impl<const D: usize, B> std::ops::Add<Self> for Tensor<B, D>
 where
     B: Backend,
 {
@@ -13,7 +13,7 @@ where
     }
 }
 
-impl<E, const D: usize, B> std::ops::Add<E> for Tensor<D, B>
+impl<E, const D: usize, B> std::ops::Add<E> for Tensor<B, D>
 where
     E: Element,
     B: Backend<Elem = E>,
@@ -25,7 +25,7 @@ where
     }
 }
 
-impl<const D: usize, B> std::ops::Sub<Self> for Tensor<D, B>
+impl<const D: usize, B> std::ops::Sub<Self> for Tensor<B, D>
 where
     B: Backend,
 {
@@ -36,7 +36,7 @@ where
     }
 }
 
-impl<E, const D: usize, B> std::ops::Sub<E> for Tensor<D, B>
+impl<E, const D: usize, B> std::ops::Sub<E> for Tensor<B, D>
 where
     E: Element,
     B: Backend<Elem = E>,
@@ -48,7 +48,7 @@ where
     }
 }
 
-impl<const D: usize, B> std::ops::Mul<Self> for Tensor<D, B>
+impl<const D: usize, B> std::ops::Mul<Self> for Tensor<B, D>
 where
     B: Backend,
 {
@@ -59,7 +59,7 @@ where
     }
 }
 
-impl<E, const D: usize, B> std::ops::Mul<E> for Tensor<D, B>
+impl<E, const D: usize, B> std::ops::Mul<E> for Tensor<B, D>
 where
     E: Element,
     B: Backend<Elem = E>,

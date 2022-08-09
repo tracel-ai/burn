@@ -1,6 +1,6 @@
 use burn_tensor::{back, Data, Distribution, Shape, Tensor};
 
-fn loss<B: back::Backend>(x: &Tensor<2, B>, y: &Tensor<2, B>) -> Tensor<2, B> {
+fn loss<B: back::Backend>(x: &Tensor<B, 2>, y: &Tensor<B, 2>) -> Tensor<B, 2> {
     let z = x.matmul(y);
 
     println!("fn name  : loss");
@@ -12,8 +12,8 @@ fn loss<B: back::Backend>(x: &Tensor<2, B>, y: &Tensor<2, B>) -> Tensor<2, B> {
 
 fn run_ad<B: back::ad::Backend>(x: Data<B::Elem, 2>, y: Data<B::Elem, 2>) {
     println!("---------- Ad Enabled -----------");
-    let x: Tensor<2, B> = Tensor::from_data(x);
-    let y: Tensor<2, B> = Tensor::from_data(y);
+    let x: Tensor<B, 2> = Tensor::from_data(x);
+    let y: Tensor<B, 2> = Tensor::from_data(y);
 
     let z = loss(&x, &y);
 

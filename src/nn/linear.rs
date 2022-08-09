@@ -17,8 +17,8 @@ pub struct Linear<B>
 where
     B: Backend,
 {
-    weight: Param<Tensor<2, B>>,
-    bias: Param<Option<Tensor<1, B>>>,
+    weight: Param<Tensor<B, 2>>,
+    bias: Param<Option<Tensor<B, 1>>>,
 }
 
 impl<B: Backend> Linear<B> {
@@ -39,8 +39,8 @@ impl<B: Backend> Linear<B> {
     }
 }
 
-impl<B: Backend, const D: usize> Forward<&Tensor<D, B>, Tensor<D, B>> for Linear<B> {
-    fn forward(&self, input: &Tensor<D, B>) -> Tensor<D, B> {
+impl<B: Backend, const D: usize> Forward<&Tensor<B, D>, Tensor<B, D>> for Linear<B> {
+    fn forward(&self, input: &Tensor<B, D>) -> Tensor<B, D> {
         let output = self.weight.unsqueeze().matmul(input);
 
         match self.bias.deref() {

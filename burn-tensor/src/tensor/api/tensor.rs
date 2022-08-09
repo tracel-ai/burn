@@ -3,15 +3,15 @@ use crate::tensor::ops::*;
 use crate::tensor::{Data, Distribution, Shape};
 
 #[derive(Debug, Clone)]
-pub struct Tensor<const D: usize, B: Backend> {
+pub struct Tensor<B: Backend, const D: usize> {
     pub(crate) value: B::TensorPrimitive<D>,
 }
 
-pub struct BoolTensor<const D: usize, B: Backend> {
+pub struct BoolTensor<B: Backend, const D: usize> {
     pub(crate) value: B::BoolTensorPrimitive<D>,
 }
 
-impl<const D: usize, B> BoolTensor<D, B>
+impl<B, const D: usize> BoolTensor<B, D>
 where
     B: Backend,
 {
@@ -37,7 +37,7 @@ where
     }
 }
 
-impl<const D: usize, B> Tensor<D, B>
+impl<const D: usize, B> Tensor<B, D>
 where
     B: Backend,
 {
@@ -45,7 +45,7 @@ where
         Self { value: tensor }
     }
 
-    pub fn reshape<const D2: usize>(&self, shape: Shape<D2>) -> Tensor<D2, B> {
+    pub fn reshape<const D2: usize>(&self, shape: Shape<D2>) -> Tensor<B, D2> {
         Tensor::new(self.value.reshape(shape))
     }
 
@@ -126,35 +126,35 @@ where
         Self::new(tensor)
     }
 
-    pub fn greater(&self, other: &Self) -> BoolTensor<D, B> {
+    pub fn greater(&self, other: &Self) -> BoolTensor<B, D> {
         BoolTensor::new(self.value.greater(&other.value))
     }
 
-    pub fn greater_equal(&self, other: &Self) -> BoolTensor<D, B> {
+    pub fn greater_equal(&self, other: &Self) -> BoolTensor<B, D> {
         BoolTensor::new(self.value.greater_equal(&other.value))
     }
 
-    pub fn greater_scalar(&self, other: &B::Elem) -> BoolTensor<D, B> {
+    pub fn greater_scalar(&self, other: &B::Elem) -> BoolTensor<B, D> {
         BoolTensor::new(self.value.greater_scalar(other))
     }
 
-    pub fn greater_equal_scalar(&self, other: &B::Elem) -> BoolTensor<D, B> {
+    pub fn greater_equal_scalar(&self, other: &B::Elem) -> BoolTensor<B, D> {
         BoolTensor::new(self.value.greater_equal_scalar(other))
     }
 
-    pub fn lower(&self, other: &Self) -> BoolTensor<D, B> {
+    pub fn lower(&self, other: &Self) -> BoolTensor<B, D> {
         BoolTensor::new(self.value.lower(&other.value))
     }
 
-    pub fn lower_equal(&self, other: &Self) -> BoolTensor<D, B> {
+    pub fn lower_equal(&self, other: &Self) -> BoolTensor<B, D> {
         BoolTensor::new(self.value.lower_equal(&other.value))
     }
 
-    pub fn lower_scalar(&self, other: &B::Elem) -> BoolTensor<D, B> {
+    pub fn lower_scalar(&self, other: &B::Elem) -> BoolTensor<B, D> {
         BoolTensor::new(self.value.lower_scalar(other))
     }
 
-    pub fn lower_equal_scalar(&self, other: &B::Elem) -> BoolTensor<D, B> {
+    pub fn lower_equal_scalar(&self, other: &B::Elem) -> BoolTensor<B, D> {
         BoolTensor::new(self.value.lower_equal_scalar(other))
     }
 
@@ -190,11 +190,11 @@ where
         Self::new(self.value.index_assign(indexes, &values.value))
     }
 
-    pub fn mask_fill(&self, mask: &BoolTensor<D, B>, value: B::Elem) -> Self {
+    pub fn mask_fill(&self, mask: &BoolTensor<B, D>, value: B::Elem) -> Self {
         Self::new(self.value.mask_fill(&mask.value, value))
     }
 
-    pub fn unsqueeze<const D2: usize>(&self) -> Tensor<D2, B> {
+    pub fn unsqueeze<const D2: usize>(&self) -> Tensor<B, D2> {
         if D2 < D {
             panic!(
                 "Can't unsqueeze smaller tensor, got dim {}, expected > {}",

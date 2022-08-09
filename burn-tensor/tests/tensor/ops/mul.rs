@@ -5,8 +5,8 @@ use burn_tensor::{Data, Tensor};
 fn should_support_mul_ops() {
     let data_1 = Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
     let data_2 = Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-    let tensor_1 = Tensor::<2, TestBackend>::from_data(data_1);
-    let tensor_2 = Tensor::<2, TestBackend>::from_data(data_2);
+    let tensor_1 = Tensor::<TestBackend, 2>::from_data(data_1);
+    let tensor_2 = Tensor::<TestBackend, 2>::from_data(data_2);
 
     let output = tensor_1 * tensor_2;
 
@@ -19,7 +19,7 @@ fn should_support_mul_ops() {
 fn should_support_mul_scalar_ops() {
     let data = Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
     let scalar = 2.0;
-    let tensor = Tensor::<2, TestBackend>::from_data(data);
+    let tensor = Tensor::<TestBackend, 2>::from_data(data);
 
     let output = tensor * scalar;
 

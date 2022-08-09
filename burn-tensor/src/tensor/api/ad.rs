@@ -4,20 +4,20 @@ use crate::tensor::backend::autodiff::ADTensor;
 use crate::tensor::backend::ADBackend;
 use rand::distributions::Standard;
 
-impl<const D: usize, B: ADBackend> Tensor<D, B> {
+impl<const D: usize, B: ADBackend> Tensor<B, D> {
     pub fn backward(&self) -> Gradients {
         B::backward::<D>(&self.value)
     }
 
-    pub fn grad(&self, grads: &Gradients) -> Option<Tensor<D, B::InnerBackend>> {
+    pub fn grad(&self, grads: &Gradients) -> Option<Tensor<B::InnerBackend, D>> {
         B::grad(&self.value, grads).map(|value| Tensor::new(value))
     }
 
-    pub fn inner(&self) -> Tensor<D, B::InnerBackend> {
+    pub fn inner(&self) -> Tensor<B::InnerBackend, D> {
         Tensor::new(B::inner(&self.value))
     }
 
-    pub fn update(&mut self, other_inner: Tensor<D, B::InnerBackend>) {
+    pub fn update(&mut self, other_inner: Tensor<B::InnerBackend, D>) {
         self.value = B::from_inner(other_inner.value);
     }
 }
@@ -28,11 +28,11 @@ mod ndarray {
     use crate::tensor::backend::autodiff::ADBackendNdArray;
     use crate::tensor::backend::ndarray::NdArrayBackend;
 
-    impl<E: crate::NdArrayElement, const D: usize> Tensor<D, NdArrayBackend<E>>
+    impl<E: crate::NdArrayElement, const D: usize> Tensor<NdArrayBackend<E>, D>
     where
         Standard: rand::distributions::Distribution<E>,
     {
-        pub fn with_grad(self) -> Tensor<D, ADBackendNdArray<E>> {
+        pub fn with_grad(self) -> Tensor<ADBackendNdArray<E>, D> {
             let tensor = ADTensor::from_tensor(self.value);
             Tensor::new(tensor)
         }
@@ -46,11 +46,11 @@ mod tch {
     use crate::tensor::backend::tch::TchBackend;
     use crate::TchElement;
 
-    impl<E: TchElement, const D: usize> Tensor<D, TchBackend<E>>
+    impl<E: TchElement, const D: usize> Tensor<TchBackend<E>, D>
     where
         Standard: rand::distributions::Distribution<E>,
     {
-        pub fn with_grad(self) -> Tensor<D, ADBackendTch<E>> {
+        pub fn with_grad(self) -> Tensor<ADBackendTch<E>, D> {
             let tensor = ADTensor::from_tensor(self.value);
             Tensor::new(tensor)
         }

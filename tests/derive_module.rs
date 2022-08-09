@@ -10,7 +10,7 @@ struct ModuleBasic<B>
 where
     B: Backend,
 {
-    weight_basic: Param<Tensor<2, B>>,
+    weight_basic: Param<Tensor<B, 2>>,
 }
 
 impl<B: Backend> ModuleBasic<B> {
@@ -27,7 +27,7 @@ struct ModuleComposed<B>
 where
     B: Backend,
 {
-    weight: Param<Tensor<2, B>>,
+    weight: Param<Tensor<B, 2>>,
     basic: Param<ModuleBasic<B>>,
 }
 

@@ -52,7 +52,7 @@ pub mod helper {
         use crate::tensor::backend::autodiff::ADBackendNdArray;
         use crate::tensor::Tensor;
 
-        pub type TestADTensor<E, const D: usize> = Tensor<D, ADBackendNdArray<E>>;
+        pub type TestADTensor<E, const D: usize> = Tensor<ADBackendNdArray<E>, D>;
     }
     pub use helper_impl::*;
 
@@ -62,7 +62,7 @@ pub mod helper {
         use crate::tensor::backend::autodiff::ADBackendTch;
         use crate::tensor::Tensor;
 
-        pub type TestADTensor<E, const D: usize> = Tensor<D, ADBackendTch<E>>;
+        pub type TestADTensor<E, const D: usize> = Tensor<ADBackendTch<E>, D>;
     }
     pub use helper_impl::*;
 }

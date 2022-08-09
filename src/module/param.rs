@@ -23,7 +23,7 @@ impl<T> Param<T> {
     }
 }
 
-impl<const D: usize, B: back::Backend> Param<Tensor<D, B>> {
+impl<const D: usize, B: back::Backend> Param<Tensor<B, D>> {
     pub fn num_params(&self) -> usize {
         self.value.shape().num_elements()
     }
@@ -62,7 +62,7 @@ impl<const D: usize, B: back::Backend> Param<Tensor<D, B>> {
     }
 }
 
-impl<const D: usize, B: back::Backend> Param<Option<Tensor<D, B>>> {
+impl<const D: usize, B: back::Backend> Param<Option<Tensor<B, D>>> {
     pub fn num_params(&self) -> usize {
         if let Some(value) = &self.value {
             return value.shape().num_elements();
