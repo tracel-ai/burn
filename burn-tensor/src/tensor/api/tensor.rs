@@ -1,3 +1,4 @@
+use crate::tensor::activation::*;
 use crate::tensor::backend::Backend;
 use crate::tensor::ops::*;
 use crate::tensor::{Data, Distribution, Shape};
@@ -212,5 +213,9 @@ where
 
         let shape = Shape::new(dims);
         self.reshape(shape)
+    }
+
+    pub(crate) fn relu(&self) -> Self {
+        Self::new(self.value.relu())
     }
 }

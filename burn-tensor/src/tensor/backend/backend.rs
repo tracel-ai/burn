@@ -1,3 +1,4 @@
+use crate::activation::ReLU;
 use crate::graph::grad::Gradients;
 use crate::ops::{TensorOpsDevice, TensorOpsMapComparison, TensorOpsMask, TensorOpsUtilities};
 use crate::tensor::ops::{TensorOpsIndex, TensorOpsReshape};
@@ -13,6 +14,7 @@ pub trait Backend: Clone + Sized + Default + Send + Sync + std::fmt::Debug + 'st
         + TensorOpsIndex<Self::Elem, D>
         + TensorOpsMask<Self, D>
         + TensorOpsMapComparison<Self, D>
+        + ReLU<Self::Elem, D>
         + 'static;
     type BoolTensorPrimitive<const D: usize>: TensorOpsUtilities<bool, D>
         + Clone

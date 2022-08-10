@@ -1,7 +1,8 @@
-use burn_tensor::{back, Data, Distribution, Shape, Tensor};
+use burn_tensor::{af, back, Data, Distribution, Shape, Tensor};
 
 fn loss<B: back::Backend>(x: &Tensor<B, 2>, y: &Tensor<B, 2>) -> Tensor<B, 2> {
     let z = x.matmul(y);
+    let z = af::relu(&z);
 
     println!("fn name  : loss");
     println!("backend  : {}", B::name());
