@@ -1,6 +1,7 @@
 mod add;
 mod creation;
 mod device;
+mod exp;
 mod index;
 mod map_comparison;
 mod mask;

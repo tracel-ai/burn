@@ -73,8 +73,8 @@ pub trait TensorOpsAggregation<B: Backend, const D: usize> {
 }
 
 pub trait TensorOpsExp<E, const D: usize> {
-    fn exp(&self, value: &E) -> Self;
-    fn exp_base(&self, base: &E, value: &E) -> Self;
+    fn exp(&self) -> Self;
+    fn exp_base(&self, base: &E) -> Self;
 }
 
 pub trait TensorOpsPow<E, const D: usize> {

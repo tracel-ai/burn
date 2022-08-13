@@ -54,6 +54,10 @@ where
         Self::new(self.value.to_device(device))
     }
 
+    pub fn exp(&self) -> Self {
+        Self::new(self.value.exp())
+    }
+
     pub fn device(&self) -> B::Device {
         self.value.device()
     }

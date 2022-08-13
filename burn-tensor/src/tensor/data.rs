@@ -146,6 +146,38 @@ impl<P: std::fmt::Debug + Copy, const D: usize> Data<P, D> {
     }
 }
 
+impl<P: Into<f64> + Clone + std::fmt::Debug + PartialEq, const D: usize> Data<P, D> {
+    pub fn assert_approx_eq(&self, other: &Self, precision: usize) {
+        if self.shape != other.shape {
+            return;
+        }
+
+        let mut eq = true;
+
+        let iter = self
+            .value
+            .clone()
+            .into_iter()
+            .zip(other.value.clone().into_iter());
+
+        for (a, b) in iter {
+            let a: f64 = a.into();
+            let b: f64 = b.into();
+            let a = f64::round(10.0_f64.powi(precision as i32) * a);
+            let b = f64::round(10.0_f64.powi(precision as i32) * b);
+
+            if a != b {
+                println!("a {:?}, b {:?}", a, b);
+                eq = false;
+            }
+        }
+
+        if !eq {
+            assert_eq!(self.value, other.value);
+        }
+    }
+}
+
 impl<P: Clone, const D: usize> From<&DataSerialize<P>> for Data<P, D> {
     fn from(data: &DataSerialize<P>) -> Self {
         let mut dims = [0; D];

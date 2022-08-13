@@ -18,8 +18,33 @@ pub trait Element:
 #[cfg(feature = "tch")]
 pub trait TchElement: Element + tch::kind::Element + Into<f64> {}
 
+pub trait ExpElement {
+    fn exp_elem(self) -> Self;
+}
+
+macro_rules! impl_exp_elem {
+    ($elem:ident) => {
+        impl ExpElement for $elem {
+            fn exp_elem(self) -> Self {
+                $elem::exp(self)
+            }
+        }
+    };
+    ($elem:ident, $tmp:ident) => {
+        impl ExpElement for $elem {
+            fn exp_elem(self) -> Self {
+                let tmp = $tmp::exp(self as $tmp);
+                tmp as $elem
+            }
+        }
+    };
+}
+
 #[cfg(feature = "ndarray")]
-pub trait NdArrayElement: Element + ndarray::LinalgScalar + ndarray::ScalarOperand {}
+pub trait NdArrayElement:
+    Element + ndarray::LinalgScalar + ndarray::ScalarOperand + ExpElement
+{
+}
 
 pub trait TensorTrait<P: Element, const D: usize>:
     TensorOpsUtilities<P, D>
@@ -101,16 +126,31 @@ mod ndarray_elem {
     use super::*;
 
     impl NdArrayElement for f64 {}
+    impl_exp_elem!(f64);
+
     impl NdArrayElement for f32 {}
+    impl_exp_elem!(f32);
 
     impl NdArrayElement for i64 {}
+    impl_exp_elem!(i64, f64);
+
     impl NdArrayElement for i32 {}
+    impl_exp_elem!(i32, f32);
+
     impl NdArrayElement for i16 {}
+    impl_exp_elem!(i16, f32);
 
     impl NdArrayElement for u64 {}
+    impl_exp_elem!(u64, f64);
+
     impl NdArrayElement for u32 {}
+    impl_exp_elem!(u32, f32);
+
     impl NdArrayElement for u16 {}
+    impl_exp_elem!(u16, f32);
+
     impl NdArrayElement for u8 {}
+    impl_exp_elem!(u8, f32);
 }
 
 mod ad {
