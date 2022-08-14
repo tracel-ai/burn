@@ -42,7 +42,11 @@ macro_rules! impl_exp_elem {
 
 #[cfg(feature = "ndarray")]
 pub trait NdArrayElement:
-    Element + ndarray::LinalgScalar + ndarray::ScalarOperand + ExpElement
+    Element
+    + ndarray::LinalgScalar
+    + ndarray::ScalarOperand
+    + ExpElement
+    + num_traits::cast::FromPrimitive
 {
 }
 
