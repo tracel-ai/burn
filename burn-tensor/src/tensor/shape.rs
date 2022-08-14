@@ -52,4 +52,15 @@ impl<const D1: usize> Shape<D1> {
 
         Shape::new(dims)
     }
+
+    pub fn higher(&self, other: &Self) -> Self {
+        let sum_self: usize = self.dims.iter().sum();
+        let sum_other: usize = other.dims.iter().sum();
+
+        if sum_self < sum_other {
+            other.clone()
+        } else {
+            self.clone()
+        }
+    }
 }
