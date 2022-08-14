@@ -131,6 +131,30 @@ where
         Self::new(tensor)
     }
 
+    pub fn mean(&self) -> Tensor<B, 1> {
+        Tensor::new(self.value.mean())
+    }
+
+    pub fn sum(&self) -> Tensor<B, 1> {
+        Tensor::new(self.value.sum())
+    }
+
+    pub fn mean_dim<const D2: usize>(&self, dim: usize) -> Tensor<B, D2> {
+        Tensor::new(self.value.mean_dim(dim))
+    }
+
+    pub fn sum_dim<const D2: usize>(&self, dim: usize) -> Tensor<B, D2> {
+        Tensor::new(self.value.sum_dim(dim))
+    }
+
+    pub fn mean_dim_keepdim(&self, dim: usize) -> Self {
+        Self::new(self.value.mean_dim_keepdim(dim))
+    }
+
+    pub fn sum_dim_keepdim(&self, dim: usize) -> Self {
+        Self::new(self.value.sum_dim_keepdim(dim))
+    }
+
     pub fn greater(&self, other: &Self) -> BoolTensor<B, D> {
         BoolTensor::new(self.value.greater(&other.value))
     }

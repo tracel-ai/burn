@@ -1,4 +1,5 @@
 mod add;
+mod aggregation;
 mod exp;
 mod index;
 mod map_comparison;

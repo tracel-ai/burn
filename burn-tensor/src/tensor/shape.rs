@@ -34,4 +34,22 @@ impl<const D1: usize> Shape<D1> {
 
         Self::new(dims)
     }
+
+    pub fn remove_dim<const D2: usize>(&self, dim: usize) -> Shape<D2> {
+        if D2 > D1 {
+            panic!("Cant aggregate");
+        }
+
+        let mut dims = [0; D2];
+        let mut index = 0;
+
+        for i in 0..D1 {
+            if i != dim {
+                dims[index] = self.dims[i].clone();
+                index += 1;
+            }
+        }
+
+        Shape::new(dims)
+    }
 }
