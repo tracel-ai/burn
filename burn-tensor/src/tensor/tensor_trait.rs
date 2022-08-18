@@ -3,6 +3,7 @@ use rand::distributions::uniform::SampleUniform;
 
 pub trait Element:
     Zeros<Self>
+    + num_traits::cast::FromPrimitive
     + Ones<Self>
     + std::fmt::Debug
     + Default
@@ -42,11 +43,7 @@ macro_rules! impl_exp_elem {
 
 #[cfg(feature = "ndarray")]
 pub trait NdArrayElement:
-    Element
-    + ndarray::LinalgScalar
-    + ndarray::ScalarOperand
-    + ExpElement
-    + num_traits::cast::FromPrimitive
+    Element + ndarray::LinalgScalar + ndarray::ScalarOperand + ExpElement
 {
 }
 
