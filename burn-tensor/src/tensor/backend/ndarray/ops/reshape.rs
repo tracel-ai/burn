@@ -15,8 +15,6 @@ where
     Standard: rand::distributions::Distribution<E>,
 {
     fn reshape<const D2: usize>(&self, shape: Shape<D2>) -> NdArrayTensor<E, D2> {
-        println!("Reshape to {:?} from {:?}", shape, self.shape);
-
         let out = match D2 {
             1 => to_nd_array_tensor!(1, shape, self.array),
             2 => to_nd_array_tensor!(2, shape, self.array),
@@ -26,7 +24,6 @@ where
             6 => to_nd_array_tensor!(6, shape, self.array),
             _ => panic!("NdArrayTensor support only 6 dimensions."),
         };
-        println!("Done");
         out
     }
 }

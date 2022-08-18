@@ -26,8 +26,6 @@ impl<B: Backend, const D1: usize> UnaryOps<B::TensorPrimitive<D1>, B::TensorPrim
         &self,
         state: &UnaryOpsNodeState<B::TensorPrimitive<D1>, B::TensorPrimitive<1>>,
     ) -> B::TensorPrimitive<D1> {
-        println!("HERE");
-        println!("{:?}", state.input.value());
         state.input.value().ones()
     }
 }

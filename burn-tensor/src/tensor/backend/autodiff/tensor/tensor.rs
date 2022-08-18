@@ -34,7 +34,7 @@ impl<B: Backend, const D: usize> ADTensor<D, B> {
     }
 
     pub fn from_existing(&self, node: ForwardNodeRef<B::TensorPrimitive<D>>) -> Self {
-        let shape = self.shape.clone();
+        let shape = node.state.value().shape().clone();
         Self { node, shape }
     }
 }
