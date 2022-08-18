@@ -31,17 +31,23 @@ impl<B: Backend, const D1: usize, const D2: usize>
         &self,
         state: &UnaryOpsNodeState<B::TensorPrimitive<D1>, B::TensorPrimitive<D2>>,
     ) -> B::TensorPrimitive<D1> {
-        let grad = state.output.grad();
-        let shape_original = grad.shape();
+        let mut grad = state.output.grad();
+        let value = state.output.value();
 
-        let num_elem_original: usize = shape_original.dims.iter().sum();
-        let num_elem: usize = self.shape.dims.iter().sum();
+        let shape_grad = grad.shape().clone();
+        let shape_value = value.shape().clone();
 
-        if num_elem_original == num_elem {
+        if shape_value == shape_grad {
             return grad.reshape(self.shape.clone());
         }
 
-        grad.mean().reshape(self.shape.clone())
+        for i in 0..D2 {
+            if shape_value.dims[i] == 1 && shape_grad.dims[i] != 1 {
+                grad = grad.sum_dim_keepdim(i);
+            }
+        }
+
+        grad.reshape(self.shape.clone())
     }
 }
 
