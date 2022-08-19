@@ -26,22 +26,20 @@ register_ops!(
 
 impl<B: Backend, const D: usize> TensorOpsSub<B::Elem, D> for ADTensor<D, B> {
     fn sub(&self, other: &Self) -> Self {
-        let node = execute_ops!(
+        execute_ops!(
             lhs self.node.clone(),
             rhs other.node.clone(),
             out TensorOpsSub::sub(&self.tensor(), &other.tensor()),
             ops ADTensorSubOps::<B, D>::new(),
-        );
-        self.from_existing(node)
+        )
     }
 
     fn sub_scalar(&self, other: &B::Elem) -> Self {
-        let node = execute_ops!(
+        execute_ops!(
             input self.node.clone(),
             out TensorOpsSub::sub_scalar(&self.tensor(), &other),
             ops ADTensorSubScalarOps::<B, D>::new(other.clone()),
-        );
-        self.from_existing(node)
+        )
     }
 }
 

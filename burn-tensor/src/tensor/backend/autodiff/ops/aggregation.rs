@@ -1,44 +1,53 @@
-use crate::graph::node::{ForwardNode, ForwardNodeState};
-use crate::graph::ops::ForwardUnaryRecordedOps;
 use crate::tensor::api::Tensor;
 use crate::{back::Backend, tensor::ops::*};
 use crate::{
+    define_ops, execute_ops,
     graph::ops::{UnaryOps, UnaryOpsNodeState},
-    tensor::backend::autodiff::ADTensor,
     Shape,
 };
 use num_traits::cast::FromPrimitive;
 use rand::distributions::Standard;
-use std::sync::Arc;
 
-#[derive(Debug)]
-struct ADTensorOpsMean<B: Backend, const D1: usize> {
-    shape: Shape<D1>,
-    _b: B,
+define_ops! {
+    name ADTensorOpsMean,
+    state Shape<D>,
 }
 
-impl<B: Backend, const D1: usize> ADTensorOpsMean<B, D1> {
-    pub fn new(shape: Shape<D1>) -> Self {
-        Self {
-            shape,
-            _b: B::default(),
-        }
-    }
+define_ops! {
+    name ADTensorOpsSum,
+    state Shape<D>,
 }
 
-impl<B: Backend, const D1: usize> UnaryOps<B::TensorPrimitive<D1>, B::TensorPrimitive<1>>
-    for ADTensorOpsMean<B, D1>
+impl<B: Backend, const D: usize> UnaryOps<B::TensorPrimitive<D>, B::TensorPrimitive<1>>
+    for ADTensorOpsMean<B, D>
 {
     fn partial(
         &self,
-        state: &UnaryOpsNodeState<B::TensorPrimitive<D1>, B::TensorPrimitive<1>>,
-    ) -> B::TensorPrimitive<D1> {
+        state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<1>>,
+    ) -> B::TensorPrimitive<D> {
         let grad = state.output.grad();
-        let ones = B::ones(self.shape, grad.device());
+        let ones = B::ones(self.state, grad.device());
 
         let grad: Tensor<B, 1> = Tensor::new(grad);
-        let val = 1 as f64 / self.shape.num_elements() as f64;
-        let ones: Tensor<B, D1> = Tensor::new(ones).mul_scalar(&B::Elem::from_f64(val).unwrap());
+        let val = 1 as f64 / self.state.num_elements() as f64;
+        let ones: Tensor<B, D> = Tensor::new(ones).mul_scalar(&B::Elem::from_f64(val).unwrap());
+
+        ones.mul(&grad.unsqueeze()).value
+    }
+}
+
+impl<B: Backend, const D: usize> UnaryOps<B::TensorPrimitive<D>, B::TensorPrimitive<1>>
+    for ADTensorOpsSum<B, D>
+{
+    fn partial(
+        &self,
+        state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<1>>,
+    ) -> B::TensorPrimitive<D> {
+        let grad = state.output.grad();
+        let ones = B::ones(self.state, grad.device());
+
+        let grad: Tensor<B, 1> = Tensor::new(grad);
+        let ones: Tensor<B, D> = Tensor::new(ones);
 
         ones.mul(&grad.unsqueeze()).value
     }
@@ -56,25 +65,19 @@ macro_rules! define_impl {
             Standard: rand::distributions::Distribution<E>,
         {
             fn mean(&self) -> <$backend as Backend>::TensorPrimitive<1> {
-                let input = self.tensor();
-                let out = TensorOpsAggregation::mean(&input);
-                let shape = out.shape.clone();
-
-                let state = ForwardNodeState::new(out);
-
-                let ops = ADTensorOpsMean::<$backend_inner, D>::new(self.shape.clone());
-                let ops = Arc::new(ops);
-                let ops = ForwardUnaryRecordedOps::new(self.node.clone(), ops);
-                let ops = Arc::new(ops);
-
-                let node = ForwardNode::from_unary(&self.node, state, ops);
-                let node = Arc::new(node);
-
-                ADTensor { node, shape }
+                execute_ops!(
+                    input self.node.clone(),
+                    out TensorOpsAggregation::mean(&self.tensor()),
+                    ops ADTensorOpsMean::<$backend_inner, D>::new(self.shape.clone()),
+                )
             }
 
             fn sum(&self) -> <$backend as Backend>::TensorPrimitive<1> {
-                todo!()
+                execute_ops!(
+                    input self.node.clone(),
+                    out TensorOpsAggregation::sum(&self.tensor()),
+                    ops ADTensorOpsSum::<$backend_inner, D>::new(self.shape.clone()),
+                )
             }
 
             fn mean_dim<const D2: usize>(

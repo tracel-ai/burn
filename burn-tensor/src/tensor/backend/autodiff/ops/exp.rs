@@ -16,12 +16,11 @@ register_ops!(
 
 impl<B: Backend, const D: usize> TensorOpsExp<B::Elem, D> for ADTensor<D, B> {
     fn exp(&self) -> Self {
-        let node = execute_ops!(
+        execute_ops!(
             input self.node.clone(),
             out TensorOpsExp::exp(&self.tensor()),
             ops ADTensorExpOps::<B, D>::new(),
-        );
-        self.from_existing(node)
+        )
     }
 
     fn exp_base(&self, base: &B::Elem) -> Self {

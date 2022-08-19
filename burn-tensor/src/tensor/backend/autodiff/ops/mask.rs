@@ -31,12 +31,11 @@ macro_rules! define_impl {
                 mask: &<$backend as Backend>::BoolTensorPrimitive<D>,
                 value: E,
             ) -> Self {
-                let node = execute_ops!(
+                execute_ops!(
                     input self.node.clone(),
                     out TensorOpsMask::mask_fill(&self.tensor(), &mask, value),
                     ops ADTensorMaskFillOps::<$backend_inner, D>::new(mask.clone()),
-                );
-                self.from_existing(node)
+                )
             }
         }
     };

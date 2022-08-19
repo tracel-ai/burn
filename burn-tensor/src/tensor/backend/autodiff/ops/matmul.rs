@@ -21,13 +21,12 @@ register_ops!(
 
 impl<B: Backend, P, const D: usize> TensorOpsMatmul<P, D> for ADTensor<D, B> {
     fn matmul(&self, other: &Self) -> Self {
-        let node = execute_ops!(
+        execute_ops!(
             lhs self.node.clone(),
             rhs other.node.clone(),
             out TensorOpsMatmul::matmul(&self.tensor(), &other.tensor()),
             ops ADTensorMatmulOps::<B, D>::new(),
-        );
-        self.from_existing(node)
+        )
     }
 }
 

@@ -21,12 +21,11 @@ register_ops!(
 
 impl<B: Backend, const D: usize> ReLU<B::Elem, D> for ADTensor<D, B> {
     fn relu(&self) -> Self {
-        let node = execute_ops!(
+        execute_ops!(
             input self.node.clone(),
             out ReLU::relu(&self.tensor()),
             ops ADReLU::<B, D>::new(),
-        );
-        self.from_existing(node)
+        )
     }
 }
 

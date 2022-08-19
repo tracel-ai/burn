@@ -14,12 +14,11 @@ register_ops!(
 
 impl<B: Backend, const D: usize> TensorOpsTranspose<B::Elem, D> for ADTensor<D, B> {
     fn transpose(&self) -> Self {
-        let node = execute_ops!(
+        execute_ops!(
             input self.node.clone(),
             out TensorOpsTranspose::transpose(&self.tensor()),
             ops ADTensorTransposeOps::<B, D>::new(),
-        );
-        self.from_existing(node)
+        )
     }
 }
 
