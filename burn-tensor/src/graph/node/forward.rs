@@ -37,7 +37,6 @@ impl<Out> ForwardNode<Out> {
 
     fn new(order: usize, state: ForwardNodeState<Out>, ops: ForwardRecordedOpsRef<Out>) -> Self {
         let id = nanoid::nanoid!();
-        // println!("Creating a new node with id={} and order={}", id, order);
         Self {
             id,
             order,

@@ -87,6 +87,10 @@ pub trait TensorOpsPow<E, const D: usize> {
     fn pow(&self, value: &E) -> Self;
 }
 
+pub trait TensorOpsLog<E, const D: usize> {
+    fn log(&self) -> Self;
+}
+
 pub trait Zeros<T> {
     fn zeros(&self) -> T;
 }

@@ -58,6 +58,10 @@ where
         Self::new(self.value.exp())
     }
 
+    pub fn log(&self) -> Self {
+        Self::new(self.value.log())
+    }
+
     pub fn device(&self) -> B::Device {
         self.value.device()
     }

@@ -5,6 +5,7 @@ mod device;
 mod div;
 mod exp;
 mod index;
+mod log;
 mod map_comparison;
 mod mask;
 mod matmul;
