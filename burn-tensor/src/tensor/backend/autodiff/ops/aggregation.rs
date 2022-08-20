@@ -18,6 +18,16 @@ define_ops! {
     state Shape<D>,
 }
 
+define_ops! {
+    name ADTensorOpsMeanDim,
+    state (Shape<D>, usize),
+}
+
+define_ops! {
+    name ADTensorOpsSumDim,
+    state (Shape<D>, usize),
+}
+
 impl<B: Backend, const D: usize> UnaryOps<B::TensorPrimitive<D>, B::TensorPrimitive<1>>
     for ADTensorOpsMean<B, D>
 {
@@ -53,6 +63,61 @@ impl<B: Backend, const D: usize> UnaryOps<B::TensorPrimitive<D>, B::TensorPrimit
     }
 }
 
+impl<B: Backend, const D: usize> UnaryOps<B::TensorPrimitive<D>, B::TensorPrimitive<D>>
+    for ADTensorOpsMeanDim<B, D>
+{
+    fn partial(
+        &self,
+        state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
+    ) -> B::TensorPrimitive<D> {
+        let (shape, dim) = self.state;
+
+        let mut shape_dims_tmp = shape.dims.clone();
+        shape_dims_tmp[dim] = 1;
+
+        let mut shape_dims_ones = [0; D];
+        shape_dims_ones[dim] = shape.dims[dim];
+
+        let shape_tmp = Shape::new(shape_dims_tmp);
+        let shape_ones = Shape::new(shape_dims_ones);
+
+        let grad = state.output.grad();
+        let grad = grad.reshape(shape_tmp);
+        let ones = B::ones(shape, grad.device());
+
+        let val = 1 as f64 / shape.dims[dim] as f64;
+        let ones = ones.mul_scalar(&B::Elem::from_f64(val).unwrap());
+
+        ones.mul(&grad)
+    }
+}
+
+impl<B: Backend, const D: usize> UnaryOps<B::TensorPrimitive<D>, B::TensorPrimitive<D>>
+    for ADTensorOpsSumDim<B, D>
+{
+    fn partial(
+        &self,
+        state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
+    ) -> B::TensorPrimitive<D> {
+        let (shape, dim) = self.state;
+
+        let mut shape_dims_tmp = shape.dims.clone();
+        shape_dims_tmp[dim] = 1;
+
+        let mut shape_dims_ones = [0; D];
+        shape_dims_ones[dim] = shape.dims[dim];
+
+        let shape_tmp = Shape::new(shape_dims_tmp);
+        let shape_ones = Shape::new(shape_dims_ones);
+
+        let grad = state.output.grad();
+        let grad = grad.reshape(shape_tmp);
+        let ones = B::ones(shape, grad.device());
+
+        ones.mul(&grad)
+    }
+}
+
 macro_rules! define_impl {
     (
         $backend:ty,
@@ -80,26 +145,22 @@ macro_rules! define_impl {
                 )
             }
 
-            fn mean_dim<const D2: usize>(
-                &self,
-                dim: usize,
-            ) -> <$backend as Backend>::TensorPrimitive<D2> {
-                todo!()
+            fn mean_dim(&self, dim: usize) -> <$backend as Backend>::TensorPrimitive<D> {
+                execute_ops!(
+                    input self.node.clone(),
+                    out TensorOpsAggregation::mean_dim(&self.tensor(), dim),
+                    ops ADTensorOpsMeanDim::<$backend_inner, D>::new((self.shape.clone(), dim)),
+                )
+
             }
 
-            fn sum_dim<const D2: usize>(
-                &self,
-                dim: usize,
-            ) -> <$backend as Backend>::TensorPrimitive<D2> {
-                todo!()
-            }
+            fn sum_dim(&self, dim: usize) -> <$backend as Backend>::TensorPrimitive<D> {
+                execute_ops!(
+                    input self.node.clone(),
+                    out TensorOpsAggregation::sum_dim(&self.tensor(), dim),
+                    ops ADTensorOpsSumDim::<$backend_inner, D>::new((self.shape.clone(), dim)),
+                )
 
-            fn mean_dim_keepdim(&self, dim: usize) -> <$backend as Backend>::TensorPrimitive<D> {
-                todo!()
-            }
-
-            fn sum_dim_keepdim(&self, dim: usize) -> <$backend as Backend>::TensorPrimitive<D> {
-                todo!()
             }
         }
     };
@@ -156,5 +217,51 @@ mod tests {
         grad_2
             .to_data()
             .assert_approx_eq(&Data::from([[-3.0, -3.0], [12.0, 12.0]]), 5);
+    }
+
+    #[test]
+    fn should_diff_mean_dim() {
+        let data_1 = Data::<f64, 2>::from([[1.0, 7.0], [-2.0, -3.0]]);
+        let data_2 = Data::<f64, 2>::from([[4.0, -7.0], [2.0, 3.0]]);
+
+        let tensor_1 = TestADTensor::from_data(data_1.clone());
+        let tensor_2 = TestADTensor::from_data(data_2.clone());
+
+        let tensor_3 = tensor_1.matmul(&tensor_2);
+        let tensor_4 = tensor_1.mul(&tensor_3.mean_dim(1).unsqueeze());
+        let grads = tensor_4.backward();
+
+        let grad_1 = tensor_1.grad(&grads).unwrap();
+        let grad_2 = tensor_2.grad(&grads).unwrap();
+
+        grad_1
+            .to_data()
+            .assert_approx_eq(&Data::from([[4.0, 36.0], [3.0, -17.0]]), 5);
+        grad_2
+            .to_data()
+            .assert_approx_eq(&Data::from([[9.0, 9.0], [35.5, 35.5]]), 5);
+    }
+
+    #[test]
+    fn should_diff_sum_dim() {
+        let data_1 = Data::<f64, 2>::from([[1.0, 7.0], [-2.0, -3.0]]);
+        let data_2 = Data::<f64, 2>::from([[4.0, -7.0], [2.0, 3.0]]);
+
+        let tensor_1 = TestADTensor::from_data(data_1.clone());
+        let tensor_2 = TestADTensor::from_data(data_2.clone());
+
+        let tensor_3 = tensor_1.matmul(&tensor_2);
+        let tensor_4 = tensor_1.mul(&tensor_3.sum_dim(1).unsqueeze());
+        let grads = tensor_4.backward();
+
+        let grad_1 = tensor_1.grad(&grads).unwrap();
+        let grad_2 = tensor_2.grad(&grads).unwrap();
+
+        grad_1
+            .to_data()
+            .assert_approx_eq(&Data::from([[8.0, 72.0], [6.0, -34.0]]), 5);
+        grad_2
+            .to_data()
+            .assert_approx_eq(&Data::from([[18.0, 18.0], [71.0, 71.0]]), 5);
     }
 }

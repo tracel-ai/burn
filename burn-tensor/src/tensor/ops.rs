@@ -70,10 +70,8 @@ pub trait TensorOpsMask<B: Backend, const D: usize> {
 pub trait TensorOpsAggregation<B: Backend, const D: usize> {
     fn mean(&self) -> B::TensorPrimitive<1>;
     fn sum(&self) -> B::TensorPrimitive<1>;
-    fn mean_dim<const D2: usize>(&self, dim: usize) -> B::TensorPrimitive<D2>;
-    fn sum_dim<const D2: usize>(&self, dim: usize) -> B::TensorPrimitive<D2>;
-    fn mean_dim_keepdim(&self, dim: usize) -> B::TensorPrimitive<D>;
-    fn sum_dim_keepdim(&self, dim: usize) -> B::TensorPrimitive<D>;
+    fn mean_dim(&self, dim: usize) -> B::TensorPrimitive<D>;
+    fn sum_dim(&self, dim: usize) -> B::TensorPrimitive<D>;
 }
 
 pub trait TensorOpsExp<E, const D: usize> {

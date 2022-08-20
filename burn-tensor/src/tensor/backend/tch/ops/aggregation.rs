@@ -37,39 +37,7 @@ where
         }
     }
 
-    fn mean_dim<const D2: usize>(
-        &self,
-        dim: usize,
-    ) -> <TchBackend<E> as Backend>::TensorPrimitive<D2> {
-        let kind = self.kind.clone();
-        let tensor = self.tensor.mean_dim(&[dim as i64], false, kind.kind());
-        let shape = self.shape.remove_dim(dim);
-
-        TchTensor {
-            tensor,
-            kind,
-            shape,
-        }
-    }
-
-    fn sum_dim<const D2: usize>(
-        &self,
-        dim: usize,
-    ) -> <TchBackend<E> as Backend>::TensorPrimitive<D2> {
-        let kind = self.kind.clone();
-        let tensor = self
-            .tensor
-            .sum_dim_intlist(&[dim as i64], false, kind.kind());
-        let shape = self.shape.remove_dim(dim);
-
-        TchTensor {
-            tensor,
-            kind,
-            shape,
-        }
-    }
-
-    fn mean_dim_keepdim(&self, dim: usize) -> <TchBackend<E> as Backend>::TensorPrimitive<D> {
+    fn mean_dim(&self, dim: usize) -> <TchBackend<E> as Backend>::TensorPrimitive<D> {
         let kind = self.kind.clone();
         let tensor = self.tensor.mean_dim(&[dim as i64], true, kind.kind());
         let shape = Shape::from(tensor.size());
@@ -81,7 +49,7 @@ where
         }
     }
 
-    fn sum_dim_keepdim(&self, dim: usize) -> <TchBackend<E> as Backend>::TensorPrimitive<D> {
+    fn sum_dim(&self, dim: usize) -> <TchBackend<E> as Backend>::TensorPrimitive<D> {
         let kind = self.kind.clone();
         let tensor = self
             .tensor

@@ -43,7 +43,7 @@ impl<B: Backend, const D1: usize, const D2: usize>
 
         for i in 0..D2 {
             if shape_value.dims[i] == 1 && shape_grad.dims[i] != 1 {
-                grad = grad.sum_dim_keepdim(i);
+                grad = grad.sum_dim(i);
             }
         }
 

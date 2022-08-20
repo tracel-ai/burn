@@ -22,61 +22,21 @@ fn test_should_sum() {
 }
 
 #[test]
-fn test_should_mean_dim_1() {
+fn test_should_mean_dim() {
     let data = Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
     let tensor = Tensor::<TestBackend, 2>::from_data(data);
 
     let data_actual = tensor.mean_dim(1).to_data();
 
-    assert_eq!(data_actual, Data::from([3.0 / 3.0, 12.0 / 3.0]));
-}
-
-#[test]
-fn test_should_mean_dim_2() {
-    let data = Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-    let tensor = Tensor::<TestBackend, 2>::from_data(data);
-
-    let data_actual = tensor.mean_dim(0).to_data();
-
-    assert_eq!(data_actual, Data::from([3.0 / 2.0, 5.0 / 2.0, 7.0 / 2.0]));
-}
-
-#[test]
-fn test_should_sum_dim_1() {
-    let data = Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-    let tensor = Tensor::<TestBackend, 2>::from_data(data);
-
-    let data_actual = tensor.sum_dim(1).to_data();
-
-    assert_eq!(data_actual, Data::from([3.0, 12.0]));
-}
-
-#[test]
-fn test_should_sum_dim_2() {
-    let data = Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-    let tensor = Tensor::<TestBackend, 2>::from_data(data);
-
-    let data_actual = tensor.sum_dim(0).to_data();
-
-    assert_eq!(data_actual, Data::from([3.0, 5.0, 7.0]));
-}
-
-#[test]
-fn test_should_mean_dim_keepdim() {
-    let data = Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-    let tensor = Tensor::<TestBackend, 2>::from_data(data);
-
-    let data_actual = tensor.mean_dim_keepdim(1).to_data();
-
     assert_eq!(data_actual, Data::from([[3.0 / 3.0], [12.0 / 3.0]]));
 }
 
 #[test]
-fn test_should_sum_dim_keepdim() {
+fn test_should_sum_dim() {
     let data = Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
     let tensor = Tensor::<TestBackend, 2>::from_data(data);
 
-    let data_actual = tensor.sum_dim_keepdim(1).to_data();
+    let data_actual = tensor.sum_dim(1).to_data();
 
     assert_eq!(data_actual, Data::from([[3.0], [12.0]]));
 }
