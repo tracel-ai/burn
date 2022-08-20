@@ -7,7 +7,7 @@ impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> T
     fn add(&self, other: &Self) -> Self {
         let tensor = (&self.tensor).add(&other.tensor);
         let kind = self.kind.clone();
-        let shape = self.shape.clone();
+        let shape = self.shape.higher(&other.shape);
 
         Self {
             tensor,

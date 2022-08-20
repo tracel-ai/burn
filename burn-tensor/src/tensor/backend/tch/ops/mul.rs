@@ -4,7 +4,7 @@ use std::ops::Mul;
 impl<P: tch::kind::Element + Into<f64>, const D: usize> TensorOpsMul<P, D> for TchTensor<P, D> {
     fn mul(&self, other: &Self) -> Self {
         let tensor = (&self.tensor) * &other.tensor;
-        let shape = Shape::from(tensor.size());
+        let shape = self.shape.higher(&other.shape);
         let kind = self.kind.clone();
 
         Self {

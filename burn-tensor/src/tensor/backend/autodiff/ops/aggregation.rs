@@ -134,4 +134,27 @@ mod tests {
             .to_data()
             .assert_approx_eq(&Data::from([[-0.75, -0.75], [3.0, 3.0]]), 5);
     }
+
+    #[test]
+    fn should_diff_sum() {
+        let data_1 = Data::<f64, 2>::from([[1.0, 7.0], [-2.0, -3.0]]);
+        let data_2 = Data::<f64, 2>::from([[4.0, -7.0], [2.0, 3.0]]);
+
+        let tensor_1 = TestADTensor::from_data(data_1.clone());
+        let tensor_2 = TestADTensor::from_data(data_2.clone());
+
+        let tensor_3 = tensor_1.matmul(&tensor_2);
+        let tensor_4 = tensor_1.mul(&tensor_3.sum().unsqueeze());
+        let grads = tensor_4.backward();
+
+        let grad_1 = tensor_1.grad(&grads).unwrap();
+        let grad_2 = tensor_2.grad(&grads).unwrap();
+
+        grad_1
+            .to_data()
+            .assert_approx_eq(&Data::from([[14.0, 38.0], [14.0, 38.0]]), 5);
+        grad_2
+            .to_data()
+            .assert_approx_eq(&Data::from([[-3.0, -3.0], [12.0, 12.0]]), 5);
+    }
 }
