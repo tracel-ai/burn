@@ -39,12 +39,11 @@ macro_rules! define_impl {
                 device: <$backend as Backend>::Device,
             ) -> ADTensor<D, $backend_inner> {
                 let tensor = self.tensor();
-                let node = execute_ops!(
+                execute_ops!(
                     input self.node.clone(),
                     out TensorOpsDevice::to_device(&tensor, device),
                     ops ADTensorDeviceOps::<$backend_inner, D>::new(tensor.device()),
-                );
-                self.from_existing(node)
+                )
             }
         }
     };

@@ -16,12 +16,11 @@ register_ops!(
 
 impl<B: Backend, P, const D: usize> TensorOpsNeg<P, D> for ADTensor<D, B> {
     fn neg(&self) -> Self {
-        let node = execute_ops!(
+        execute_ops!(
             input self.node.clone(),
             out TensorOpsNeg::neg(&self.tensor()),
             ops ADTensorNegOps::<B, D>::new(),
-        );
-        self.from_existing(node)
+        )
     }
 }
 

@@ -27,22 +27,20 @@ register_ops!(
 
 impl<B: Backend, const D: usize> TensorOpsMul<B::Elem, D> for ADTensor<D, B> {
     fn mul(&self, other: &Self) -> Self {
-        let node = execute_ops!(
+        execute_ops!(
             lhs self.node.clone(),
             rhs other.node.clone(),
             out TensorOpsMul::mul(&self.tensor(), &other.tensor()),
             ops ADTensorMulOps::<B, D>::new(),
-        );
-        self.from_existing(node)
+        )
     }
 
     fn mul_scalar(&self, other: &B::Elem) -> Self {
-        let node = execute_ops!(
+        execute_ops!(
             input self.node.clone(),
             out TensorOpsMul::mul_scalar(&self.tensor(), &other),
             ops ADTensorMulScalarOps::<B, D>::new(other.clone()),
-        );
-        self.from_existing(node)
+        )
     }
 }
 

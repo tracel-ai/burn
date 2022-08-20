@@ -25,20 +25,3 @@ where
         TensorOpsNeg::neg(&self)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::tensor::Data;
-
-    #[test]
-    fn should_support_neg_ops() {
-        let data = Data::<f64, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-        let tensor = NdArrayTensor::from_data(data);
-
-        let data_actual = tensor.neg().into_data();
-
-        let data_expected = Data::from([[-0.0, -1.0, -2.0], [-3.0, -4.0, -5.0]]);
-        assert_eq!(data_expected, data_actual);
-    }
-}

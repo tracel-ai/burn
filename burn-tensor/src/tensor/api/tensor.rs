@@ -54,6 +54,10 @@ where
         Self::new(self.value.to_device(device))
     }
 
+    pub fn exp(&self) -> Self {
+        Self::new(self.value.exp())
+    }
+
     pub fn device(&self) -> B::Device {
         self.value.device()
     }
@@ -125,6 +129,22 @@ where
     pub fn random(shape: Shape<D>, distribution: Distribution<B::Elem>) -> Self {
         let tensor = B::random(shape, distribution, B::Device::default());
         Self::new(tensor)
+    }
+
+    pub fn mean(&self) -> Tensor<B, 1> {
+        Tensor::new(self.value.mean())
+    }
+
+    pub fn sum(&self) -> Tensor<B, 1> {
+        Tensor::new(self.value.sum())
+    }
+
+    pub fn mean_dim(&self, dim: usize) -> Self {
+        Self::new(self.value.mean_dim(dim))
+    }
+
+    pub fn sum_dim(&self, dim: usize) -> Self {
+        Self::new(self.value.sum_dim(dim))
     }
 
     pub fn greater(&self, other: &Self) -> BoolTensor<B, D> {

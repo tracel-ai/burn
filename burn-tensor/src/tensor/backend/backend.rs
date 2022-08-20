@@ -1,6 +1,9 @@
 use crate::activation::ReLU;
 use crate::graph::grad::Gradients;
-use crate::ops::{TensorOpsDevice, TensorOpsMapComparison, TensorOpsMask, TensorOpsUtilities};
+use crate::ops::{
+    TensorOpsAggregation, TensorOpsDevice, TensorOpsExp, TensorOpsMapComparison, TensorOpsMask,
+    TensorOpsUtilities,
+};
 use crate::tensor::ops::{TensorOpsIndex, TensorOpsReshape};
 use crate::tensor::{Data, Distribution, Shape};
 use crate::tensor::{Element, TensorTrait};
@@ -12,6 +15,8 @@ pub trait Backend: Clone + Sized + Default + Send + Sync + std::fmt::Debug + 'st
         + TensorOpsReshape<Self, D>
         + TensorOpsDevice<Self, D>
         + TensorOpsIndex<Self::Elem, D>
+        + TensorOpsAggregation<Self, D>
+        + TensorOpsExp<Self::Elem, D>
         + TensorOpsMask<Self, D>
         + TensorOpsMapComparison<Self, D>
         + ReLU<Self::Elem, D>

@@ -67,6 +67,21 @@ pub trait TensorOpsMask<B: Backend, const D: usize> {
     fn mask_fill(&self, mask: &B::BoolTensorPrimitive<D>, value: B::Elem) -> Self;
 }
 
+pub trait TensorOpsAggregation<B: Backend, const D: usize> {
+    fn mean(&self) -> B::TensorPrimitive<1>;
+    fn sum(&self) -> B::TensorPrimitive<1>;
+    fn mean_dim(&self, dim: usize) -> B::TensorPrimitive<D>;
+    fn sum_dim(&self, dim: usize) -> B::TensorPrimitive<D>;
+}
+
+pub trait TensorOpsExp<E, const D: usize> {
+    fn exp(&self) -> Self;
+}
+
+pub trait TensorOpsPow<E, const D: usize> {
+    fn pow(&self, value: &E) -> Self;
+}
+
 pub trait Zeros<T> {
     fn zeros(&self) -> T;
 }

@@ -8,7 +8,7 @@ where
     fn sub(&self, other: &Self) -> Self {
         let array = self.array.clone() - other.array.clone();
         let array = array.into_shared();
-        let shape = self.shape.clone();
+        let shape = self.shape.higher(&other.shape);
 
         Self { array, shape }
     }
