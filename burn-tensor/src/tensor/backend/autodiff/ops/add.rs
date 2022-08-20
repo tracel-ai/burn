@@ -8,11 +8,9 @@ register_ops!(
     ops BinaryOps,
     name ADTensorAddOps,
     partial_left |state: &BinaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>, B::TensorPrimitive<D>>| {
-        println!("partial left ADTensorAddOps");
         state.output.grad()
     },
     partial_right |state: &BinaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>, B::TensorPrimitive<D>>| {
-        println!("partial right ADTensorAddOps");
         state.output.grad()
     },
 );

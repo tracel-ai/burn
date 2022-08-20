@@ -41,7 +41,6 @@ where
     pub fn backward(&mut self) -> Gradients {
         let grad = self.state.value().ones();
         self.state.update_grad(grad);
-        println!("Backward node {:?}", self.id());
         self.ops.backward_step(&mut self.state);
 
         let traversal = BreadthFirstSearch::new(&self);
@@ -61,7 +60,6 @@ where
         for i in (1..self.order).rev() {
             if let Some(nodes) = tape.get(i) {
                 for node in nodes {
-                    println!("Backward node {:?}", node.id());
                     node.backward_step();
                 }
             }
@@ -77,7 +75,6 @@ where
     T: std::fmt::Debug + 'static,
 {
     fn backward_step(&self) {
-        // println!("backward node id={} order={}", self.id, self.order);
         self.ops.backward_step(&self.state)
     }
     fn backward_parents(&self) -> Vec<RecordedOpsParentRef> {

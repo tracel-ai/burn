@@ -90,12 +90,9 @@ impl<B: Backend, const D: usize> UnaryOps<B::TensorPrimitive<D>, B::TensorPrimit
         state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
     ) -> B::TensorPrimitive<D> {
         let (shape, dim) = self.state;
-        println!("Backard ad tensor sum, {:?}, {}", shape, dim);
 
         let grad = state.output.grad().sum_dim(dim);
         let ones = B::ones(shape, grad.device());
-        println!("GRAD {:?}", grad.to_data());
-        println!("ONES {:?}", ones.to_data());
 
         ones.mul(&grad)
     }

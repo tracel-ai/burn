@@ -8,13 +8,11 @@ register_ops!(
     ops BinaryOps,
     name ADTensorMatmulOps,
     partial_left |state: &BinaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>, B::TensorPrimitive<D>>| {
-        println!("partial left matmul");
         let out_grad = state.output.grad();
         let rhs = state.right.value().transpose();
         out_grad.matmul(&rhs)
     },
     partial_right |state: &BinaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>, B::TensorPrimitive<D>>| {
-        println!("partial right matmul");
         let out_grad = state.output.grad();
         let lhs = state.left.value().transpose();
         lhs.matmul(&out_grad)
