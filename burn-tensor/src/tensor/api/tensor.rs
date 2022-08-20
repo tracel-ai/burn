@@ -126,6 +126,14 @@ where
         Self::new(self.value.mul_scalar(&other))
     }
 
+    pub fn div(&self, other: &Self) -> Self {
+        Self::new(self.value.div(&other.value))
+    }
+
+    pub fn div_scalar(&self, other: &B::Elem) -> Self {
+        Self::new(self.value.div_scalar(&other))
+    }
+
     pub fn random(shape: Shape<D>, distribution: Distribution<B::Elem>) -> Self {
         let tensor = B::random(shape, distribution, B::Device::default());
         Self::new(tensor)

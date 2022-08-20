@@ -70,3 +70,26 @@ where
         Tensor::mul_scalar(&self, &other)
     }
 }
+
+impl<const D: usize, B> std::ops::Div<Self> for Tensor<B, D>
+where
+    B: Backend,
+{
+    type Output = Self;
+
+    fn div(self, other: Self) -> Self {
+        Tensor::div(&self, &other)
+    }
+}
+
+impl<E, const D: usize, B> std::ops::Div<E> for Tensor<B, D>
+where
+    E: Element,
+    B: Backend<Elem = E>,
+{
+    type Output = Self;
+
+    fn div(self, other: E) -> Self {
+        Tensor::div_scalar(&self, &other)
+    }
+}

@@ -43,6 +43,11 @@ pub trait TensorOpsMul<E, const D: usize> {
     fn mul_scalar(&self, other: &E) -> Self;
 }
 
+pub trait TensorOpsDiv<E, const D: usize> {
+    fn div(&self, other: &Self) -> Self;
+    fn div_scalar(&self, other: &E) -> Self;
+}
+
 pub trait TensorOpsReshape<B: Backend, const D: usize> {
     fn reshape<const D2: usize>(&self, shape: Shape<D2>) -> B::TensorPrimitive<D2>;
 }

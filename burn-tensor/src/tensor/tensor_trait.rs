@@ -5,6 +5,7 @@ pub trait Element:
     Zeros<Self>
     + num_traits::cast::FromPrimitive
     + Ones<Self>
+    + std::ops::Mul<Self, Output = Self>
     + std::fmt::Debug
     + Default
     + 'static
@@ -34,6 +35,7 @@ pub trait TensorTrait<P: Element, const D: usize>:
     + TensorOpsMatmul<P, D>
     + TensorOpsTranspose<P, D>
     + TensorOpsMul<P, D>
+    + TensorOpsDiv<P, D>
     + TensorOpsNeg<P, D>
     + TensorOpsAdd<P, D>
     + TensorOpsSub<P, D>

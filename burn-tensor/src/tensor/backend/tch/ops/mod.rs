@@ -2,6 +2,7 @@ mod add;
 mod aggregation;
 mod creation;
 mod device;
+mod div;
 mod exp;
 mod index;
 mod map_comparison;
