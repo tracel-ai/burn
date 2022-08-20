@@ -74,12 +74,7 @@ impl<B: Backend, const D: usize> UnaryOps<B::TensorPrimitive<D>, B::TensorPrimit
 
         let mut shape_dims_tmp = shape.dims.clone();
         shape_dims_tmp[dim] = 1;
-
-        let mut shape_dims_ones = [0; D];
-        shape_dims_ones[dim] = shape.dims[dim];
-
         let shape_tmp = Shape::new(shape_dims_tmp);
-        let shape_ones = Shape::new(shape_dims_ones);
 
         let grad = state.output.grad();
         let grad = grad.reshape(shape_tmp);
@@ -103,12 +98,7 @@ impl<B: Backend, const D: usize> UnaryOps<B::TensorPrimitive<D>, B::TensorPrimit
 
         let mut shape_dims_tmp = shape.dims.clone();
         shape_dims_tmp[dim] = 1;
-
-        let mut shape_dims_ones = [0; D];
-        shape_dims_ones[dim] = shape.dims[dim];
-
         let shape_tmp = Shape::new(shape_dims_tmp);
-        let shape_ones = Shape::new(shape_dims_ones);
 
         let grad = state.output.grad();
         let grad = grad.reshape(shape_tmp);

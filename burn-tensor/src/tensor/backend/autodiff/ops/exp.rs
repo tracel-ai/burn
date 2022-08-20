@@ -22,10 +22,6 @@ impl<B: Backend, const D: usize> TensorOpsExp<B::Elem, D> for ADTensor<D, B> {
             ops ADTensorExpOps::<B, D>::new(),
         )
     }
-
-    fn exp_base(&self, base: &B::Elem) -> Self {
-        todo!()
-    }
 }
 
 #[cfg(test)]

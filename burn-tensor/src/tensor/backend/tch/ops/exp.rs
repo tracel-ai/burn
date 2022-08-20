@@ -18,8 +18,4 @@ where
             kind,
         }
     }
-
-    fn exp_base(&self, base: &E) -> Self {
-        todo!()
-    }
 }

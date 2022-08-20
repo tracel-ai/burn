@@ -13,8 +13,4 @@ where
 
         Self { array, shape }
     }
-
-    fn exp_base(&self, base: &E) -> Self {
-        todo!()
-    }
 }

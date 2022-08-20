@@ -23,24 +23,6 @@ pub trait ExpElement {
     fn exp_elem(self) -> Self;
 }
 
-macro_rules! impl_exp_elem {
-    ($elem:ident) => {
-        impl ExpElement for $elem {
-            fn exp_elem(self) -> Self {
-                $elem::exp(self)
-            }
-        }
-    };
-    ($elem:ident, $tmp:ident) => {
-        impl ExpElement for $elem {
-            fn exp_elem(self) -> Self {
-                let tmp = $tmp::exp(self as $tmp);
-                tmp as $elem
-            }
-        }
-    };
-}
-
 #[cfg(feature = "ndarray")]
 pub trait NdArrayElement:
     Element + ndarray::LinalgScalar + ndarray::ScalarOperand + ExpElement
@@ -125,6 +107,24 @@ mod tch_elem {
 #[cfg(feature = "ndarray")]
 mod ndarray_elem {
     use super::*;
+
+    macro_rules! impl_exp_elem {
+        ($elem:ident) => {
+            impl ExpElement for $elem {
+                fn exp_elem(self) -> Self {
+                    $elem::exp(self)
+                }
+            }
+        };
+        ($elem:ident, $tmp:ident) => {
+            impl ExpElement for $elem {
+                fn exp_elem(self) -> Self {
+                    let tmp = $tmp::exp(self as $tmp);
+                    tmp as $elem
+                }
+            }
+        };
+    }
 
     impl NdArrayElement for f64 {}
     impl_exp_elem!(f64);
