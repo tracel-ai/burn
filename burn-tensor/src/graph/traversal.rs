@@ -27,7 +27,6 @@ impl<'a, T> GraphTraversal for BreadthFirstSearch<'a, T> {
             let id = node.id();
             if visited.contains(id) {
                 continue;
-            } else {
             }
 
             visited.insert(id.clone());

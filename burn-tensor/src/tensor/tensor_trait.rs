@@ -22,6 +22,7 @@ pub trait TchElement: Element + tch::kind::Element + Into<f64> {}
 
 pub trait ExpElement {
     fn exp_elem(self) -> Self;
+    fn log_elem(self) -> Self;
 }
 
 #[cfg(feature = "ndarray")]
@@ -116,12 +117,19 @@ mod ndarray_elem {
                 fn exp_elem(self) -> Self {
                     $elem::exp(self)
                 }
+                fn log_elem(self) -> Self {
+                    $elem::ln(self)
+                }
             }
         };
         ($elem:ident, $tmp:ident) => {
             impl ExpElement for $elem {
                 fn exp_elem(self) -> Self {
                     let tmp = $tmp::exp(self as $tmp);
+                    tmp as $elem
+                }
+                fn log_elem(self) -> Self {
+                    let tmp = $tmp::ln(self as $tmp);
                     tmp as $elem
                 }
             }

@@ -5,14 +5,12 @@ pub fn relu<const D: usize, B: Backend>(tensor: &Tensor<B, D>) -> Tensor<B, D> {
     tensor.relu()
 }
 
-pub fn softmax<const D: usize, B: Backend>(
-    tensor: &Tensor<B, D>,
-    dim: usize,
-    eps: B::Elem,
-) -> Tensor<B, D> {
-    let tensor = tensor.add_scalar(&eps);
-    let tensor = tensor.exp();
-    let tensor = tensor.div(&tensor.sum_dim(dim));
+pub fn softmax<const D: usize, B: Backend>(tensor: &Tensor<B, D>, dim: usize) -> Tensor<B, D> {
+    log_softmax(&tensor, dim).exp()
+}
 
-    tensor
+pub fn log_softmax<const D: usize, B: Backend>(tensor: &Tensor<B, D>, dim: usize) -> Tensor<B, D> {
+    let tensor_tmp = tensor.exp().sum_dim(dim).log();
+
+    tensor.sub(&tensor_tmp)
 }

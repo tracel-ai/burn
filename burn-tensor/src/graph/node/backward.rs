@@ -41,6 +41,7 @@ where
     pub fn backward(&mut self) -> Gradients {
         let grad = self.state.value().ones();
         self.state.update_grad(grad);
+        println!("Backward node {:?}", self.id());
         self.ops.backward_step(&mut self.state);
 
         let traversal = BreadthFirstSearch::new(&self);
