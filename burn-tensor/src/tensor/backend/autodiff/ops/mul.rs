@@ -10,9 +10,11 @@ register_ops!(
     ops BinaryOps,
     name ADTensorMulOps,
     partial_left |state: &BinaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>, B::TensorPrimitive<D>>| {
+        println!("partial left mul");
         state.output.grad().mul(&state.right.value())
     },
     partial_right |state: &BinaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>, B::TensorPrimitive<D>>| {
+        println!("partial right mul");
         state.output.grad().mul(&state.left.value())
     },
 );

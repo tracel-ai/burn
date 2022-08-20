@@ -10,12 +10,14 @@ register_ops!(
     ops BinaryOps,
     name ADTensorDivOps,
     partial_left |state: &BinaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>, B::TensorPrimitive<D>>| {
+        println!("partial left div");
         let value = state.right.value();
         let tmp = value.ones().div(&value);
 
         state.output.grad().mul(&tmp)
     },
     partial_right |state: &BinaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>, B::TensorPrimitive<D>>| {
+        println!("partial right div");
         let value_left = state.left.value();
         let value_right = state.right.value();
         let tmp = value_left.neg().div(&value_right.mul(&value_right));
