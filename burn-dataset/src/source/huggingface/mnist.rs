@@ -5,21 +5,21 @@ use serde::{Deserialize, Serialize};
 use super::downloader::cache_dir;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct Item {
+pub struct MNISTItem {
     pub image: [[f32; 28]; 28],
     pub label: usize,
 }
 
 pub struct MNISTDataset {
-    dataset: InMemDataset<Item>,
+    dataset: InMemDataset<MNISTItem>,
 }
 
-impl Dataset<Item> for MNISTDataset {
-    fn iter<'a>(&'a self) -> crate::DatasetIterator<'a, Item> {
+impl Dataset<MNISTItem> for MNISTDataset {
+    fn iter<'a>(&'a self) -> crate::DatasetIterator<'a, MNISTItem> {
         DatasetIterator::new(self)
     }
 
-    fn get(&self, index: usize) -> Option<Item> {
+    fn get(&self, index: usize) -> Option<MNISTItem> {
         self.dataset.get(index)
     }
 

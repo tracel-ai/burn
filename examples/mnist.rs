@@ -1,12 +1,13 @@
-use burn::data::dataset::source::huggingface::MNISTDataset;
-use burn::data::dataset::Dataset;
+use burn::data::dataloader::batcher::Batcher;
+use burn::data::dataloader::{BasicDataLoader, DataLoader};
+use burn::data::dataset::source::huggingface::{MNISTDataset, MNISTItem};
 use burn::module::{Forward, Module, Param};
 use burn::nn;
 use burn::optim::SGDOptimizer;
 use burn::tensor::af::relu;
 use burn::tensor::back::{ad, Backend};
 use burn::tensor::losses::cross_entropy_with_logits;
-use burn::tensor::{Data, Distribution, Shape, Tensor};
+use burn::tensor::{Data, Shape, Tensor};
 use num_traits::FromPrimitive;
 
 #[derive(Module, Debug)]
@@ -95,53 +96,66 @@ impl<B: Backend> Model<B> {
     }
 }
 
-fn run<B: ad::Backend>(device: B::Device) {
-    let mut model: Model<B> = Model::new(784, 2024, 4, 10);
-    model.to_device(device);
+struct MNISTBatcher<B: Backend> {
+    device: B::Device,
+}
 
-    let mut optim: SGDOptimizer<B> = SGDOptimizer::new(2.5e-2);
-    let dataset = MNISTDataset::train();
+struct MNISTBatch<B: Backend> {
+    images: Tensor<B, 2>,
+    targets: Tensor<B, 2>,
+}
 
-    let mut batch = Vec::new();
+impl<B: Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
+    fn batch(&self, items: Vec<MNISTItem>) -> MNISTBatch<B> {
+        let mut images_list = Vec::with_capacity(items.len());
+        let mut targets_list = Vec::with_capacity(items.len());
 
-    for epoch in 0..20 {
-        for item in dataset.iter() {
+        for item in items {
             let data: Data<f32, 2> = Data::from(item.image);
-            let input = Tensor::<B, 2>::from_data(data.from_f32()).to_device(device);
-            let input = input
+            let image = Tensor::<B, 2>::from_data(data.from_f32()).to_device(self.device);
+            let image = image
                 .reshape(Shape::new([1, 784]))
                 .div_scalar(&B::Elem::from_f32(255.0).unwrap());
-            let targets = Tensor::<B, 2>::zeros(Shape::new([1, 10]));
-            let targets = targets
+            let target = Tensor::<B, 2>::zeros(Shape::new([1, 10]));
+            let target = target
                 .index_assign(
                     [0..1, item.label..(item.label + 1)],
                     &Tensor::ones(Shape::new([1, 1])),
                 )
-                .to_device(device);
-            let item = (input, targets);
-            batch.push(item);
+                .to_device(self.device);
 
-            if batch.len() < 128 {
-                continue;
-            }
+            images_list.push(image);
+            targets_list.push(target);
+        }
 
-            let inputs: Vec<Tensor<B, 2>> = batch.iter().map(|b| b.0.clone()).collect();
-            let inputs = inputs.iter().collect();
-            let inputs = Tensor::cat(inputs, 0);
+        let images = images_list.iter().collect();
+        let images = Tensor::cat(images, 0);
 
-            let targets: Vec<Tensor<B, 2>> = batch.iter().map(|b| b.1.clone()).collect();
-            let targets = targets.iter().collect();
-            let targets = Tensor::cat(targets, 0);
+        let targets = targets_list.iter().collect();
+        let targets = Tensor::cat(targets, 0);
 
-            let output = model.forward(inputs);
-            let loss = cross_entropy_with_logits(&output, &targets);
+        MNISTBatch { images, targets }
+    }
+}
+
+fn run<B: ad::Backend>(device: B::Device) {
+    let mut model: Model<B> = Model::new(784, 1024, 50, 10);
+    model.to_device(device);
+
+    let mut optim: SGDOptimizer<B> = SGDOptimizer::new(2.5e-3);
+    let dataset = MNISTDataset::train();
+    let batcher = MNISTBatcher::<B::InnerBackend> { device };
+    let dataloader = BasicDataLoader::new(128, Box::new(dataset), Box::new(batcher));
+
+    for epoch in 0..20 {
+        for item in dataloader.iter() {
+            let output = model.forward(Tensor::from_inner(item.images));
+            let loss = cross_entropy_with_logits(&output, &Tensor::from_inner(item.targets));
             let grads = loss.backward();
 
             model.update_params(&grads, &mut optim);
 
             println!("Epoch {}; loss {}", epoch, loss.to_data());
-
-            batch.clear();
         }
     }
 }

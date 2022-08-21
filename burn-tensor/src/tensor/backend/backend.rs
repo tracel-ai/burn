@@ -58,7 +58,7 @@ pub type ADBackendTensorPrimitive<const D: usize, B> =
     <<B as ADBackend>::InnerBackend as Backend>::TensorPrimitive<D>;
 
 pub trait ADBackend: Backend {
-    type InnerBackend: Backend;
+    type InnerBackend: Backend<Device = Self::Device>;
 
     fn backward<const D: usize>(tensor: &Self::TensorPrimitive<D>) -> Gradients;
     fn grad<const D: usize>(
