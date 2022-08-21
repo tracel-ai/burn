@@ -17,7 +17,9 @@ impl<M, I> MapperDataset<M, I> {
 
 impl<M, I, O> Dataset<O> for MapperDataset<M, I>
 where
-    M: Mapper<I, O>,
+    M: Mapper<I, O> + Send,
+    I: Send,
+    O: Send,
 {
     fn get(&self, index: usize) -> Option<O> {
         let item = self.dataset.get(index);

@@ -100,6 +100,7 @@ struct MNISTBatcher<B: Backend> {
     device: B::Device,
 }
 
+#[derive(Clone)]
 struct MNISTBatch<B: Backend> {
     images: Tensor<B, 2>,
     targets: Tensor<B, 2>,
@@ -139,16 +140,19 @@ impl<B: Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
 }
 
 fn run<B: ad::Backend>(device: B::Device) {
-    let mut model: Model<B> = Model::new(784, 1024, 50, 10);
+    // Model and optim preparation
+    let mut model: Model<B> = Model::new(784, 1024, 6, 10);
+    let mut optim: SGDOptimizer<B> = SGDOptimizer::new(2.5e-3);
     model.to_device(device);
 
-    let mut optim: SGDOptimizer<B> = SGDOptimizer::new(2.5e-3);
+    // Data pipeline preparation
     let dataset = MNISTDataset::train();
     let batcher = MNISTBatcher::<B::InnerBackend> { device };
-    let dataloader = BasicDataLoader::new(128, Box::new(dataset), Box::new(batcher));
+    let dataloader = BasicDataLoader::new(32, Box::new(dataset), Box::new(batcher));
 
+    let batches: Vec<MNISTBatch<B::InnerBackend>> = dataloader.iter().collect();
     for epoch in 0..20 {
-        for item in dataloader.iter() {
+        for item in batches.clone().into_iter() {
             let output = model.forward(Tensor::from_inner(item.images));
             let loss = cross_entropy_with_logits(&output, &Tensor::from_inner(item.targets));
             let grads = loss.backward();
