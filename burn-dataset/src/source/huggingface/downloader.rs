@@ -61,19 +61,19 @@ pub fn download(
     println!("{:?}", output);
 }
 
+pub(crate) fn cache_dir() -> String {
+    let home_dir = home_dir().unwrap();
+    let home_dir = home_dir.to_str().map(|s| s.to_string());
+    let home_dir = home_dir.unwrap();
+    format!("{}/.cache/burn-dataset", home_dir)
+}
+
 fn dataset_downloader_file_path() -> String {
     let path_dir = cache_dir();
     let path_file = format!("{}/dataset.py", path_dir);
 
     fs::write(path_file.as_str(), PYTHON_SOURCE).expect("Write python dataset downloader");
     path_file
-}
-
-fn cache_dir() -> String {
-    let home_dir = home_dir().unwrap();
-    let home_dir = home_dir.to_str().map(|s| s.to_string());
-    let home_dir = home_dir.unwrap();
-    format!("{}/.cache/burn-dataset", home_dir)
 }
 
 const PYTHON_SOURCE: &str = r#"

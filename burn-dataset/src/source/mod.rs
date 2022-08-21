@@ -1,1 +1,1 @@
-mod huggingface;
+pub mod huggingface;
