@@ -1,3 +1,8 @@
+use std::{
+    fs::File,
+    io::{BufRead, BufReader},
+};
+
 use crate::{Dataset, DatasetIterator};
 
 pub struct InMemDataset<I> {
@@ -25,6 +30,26 @@ where
     }
     fn len(&self) -> usize {
         self.items.len()
+    }
+}
+
+impl<I> InMemDataset<I>
+where
+    I: Clone + serde::de::DeserializeOwned,
+{
+    pub fn from_file(file: &str) -> Result<Self, std::io::Error> {
+        let file = File::open(file)?;
+        let reader = BufReader::new(file);
+        let mut items = Vec::new();
+
+        for line in reader.lines() {
+            let item = serde_json::from_str(line.unwrap().as_str()).unwrap();
+            items.push(item);
+        }
+
+        let dataset = Self::new(items);
+
+        Ok(dataset)
     }
 }
 

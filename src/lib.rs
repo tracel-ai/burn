@@ -1,3 +1,4 @@
+pub mod data;
 pub mod module;
 pub mod nn;
 pub mod optim;

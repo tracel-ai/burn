@@ -1,5 +1,6 @@
 mod add;
 mod aggregation;
+mod cat;
 mod creation;
 mod device;
 mod div;

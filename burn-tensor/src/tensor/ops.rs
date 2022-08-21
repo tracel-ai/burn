@@ -83,6 +83,10 @@ pub trait TensorOpsExp<E, const D: usize> {
     fn exp(&self) -> Self;
 }
 
+pub trait TensorOpsCat<E, const D: usize> {
+    fn cat(tensors: Vec<&Self>, dim: usize) -> Self;
+}
+
 pub trait TensorOpsPow<E, const D: usize> {
     fn pow(&self, value: &E) -> Self;
 }

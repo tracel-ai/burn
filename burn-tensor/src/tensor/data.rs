@@ -178,6 +178,36 @@ impl<P: Into<f64> + Clone + std::fmt::Debug + PartialEq, const D: usize> Data<P,
     }
 }
 
+impl<const D: usize> Data<f32, D> {
+    pub fn from_f32<O: num_traits::FromPrimitive>(self) -> Data<O, D> {
+        let value: Vec<O> = self
+            .value
+            .into_iter()
+            .map(|a| num_traits::FromPrimitive::from_f32(a).unwrap())
+            .collect();
+
+        Data {
+            value,
+            shape: self.shape,
+        }
+    }
+}
+
+impl<const D: usize> Data<usize, D> {
+    pub fn from_usize<O: num_traits::FromPrimitive>(self) -> Data<O, D> {
+        let value: Vec<O> = self
+            .value
+            .into_iter()
+            .map(|a| num_traits::FromPrimitive::from_usize(a).unwrap())
+            .collect();
+
+        Data {
+            value,
+            shape: self.shape,
+        }
+    }
+}
+
 impl<P: Clone, const D: usize> From<&DataSerialize<P>> for Data<P, D> {
     fn from(data: &DataSerialize<P>) -> Self {
         let mut dims = [0; D];
