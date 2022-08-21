@@ -1,2 +1,4 @@
 pub mod downloader;
-pub mod mnist;
+mod mnist;
+
+pub use mnist::*;

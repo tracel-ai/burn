@@ -6,8 +6,8 @@ use super::downloader::cache_dir;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Item {
-    image: Vec<Vec<f32>>,
-    label: usize,
+    pub image: [[f32; 28]; 28],
+    pub label: usize,
 }
 
 pub struct MNISTDataset {

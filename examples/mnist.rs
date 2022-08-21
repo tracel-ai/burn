@@ -1,10 +1,13 @@
+use burn::data::dataset::source::huggingface::MNISTDataset;
+use burn::data::dataset::Dataset;
 use burn::module::{Forward, Module, Param};
 use burn::nn;
 use burn::optim::SGDOptimizer;
 use burn::tensor::af::relu;
 use burn::tensor::back::{ad, Backend};
 use burn::tensor::losses::cross_entropy_with_logits;
-use burn::tensor::{Distribution, Shape, Tensor};
+use burn::tensor::{Data, Distribution, Shape, Tensor};
+use num_traits::FromPrimitive;
 
 #[derive(Module, Debug)]
 struct Model<B>
@@ -93,19 +96,31 @@ impl<B: Backend> Model<B> {
 }
 
 fn run<B: ad::Backend>() {
-    let mut model: Model<B> = Model::new(768, 256, 2, 10);
-    let mut optim: SGDOptimizer<B> = SGDOptimizer::new(5.0e-4);
+    let mut model: Model<B> = Model::new(784, 32, 1, 10);
+    let mut optim: SGDOptimizer<B> = SGDOptimizer::new(5.0e-5);
+    let dataset = MNISTDataset::train();
 
-    let input = Tensor::<B, 2>::random(Shape::new([32, 768]), Distribution::Standard);
-    let targets = Tensor::<B, 2>::random(Shape::new([32, 10]), Distribution::Standard);
+    for item in dataset.iter() {
+        let data: Data<f32, 2> = Data::from(item.image);
+        let input = Tensor::<B, 2>::from_data(data.from_f32());
+        let input = input
+            .reshape(Shape::new([1, 784]))
+            .div_scalar(&B::Elem::from_f32(255.0).unwrap());
+        let targets = Tensor::<B, 2>::zeros(Shape::new([1, 10]));
 
-    let output = model.forward(input);
-    let loss = cross_entropy_with_logits(&output, &targets);
-    let grads = loss.backward();
+        let targets = targets.index_assign(
+            [0..1, item.label..(item.label + 1)],
+            &Tensor::ones(Shape::new([1, 1])),
+        );
 
-    model.update_params(&grads, &mut optim);
+        let output = model.forward(input);
+        let loss = cross_entropy_with_logits(&output, &targets);
+        let grads = loss.backward();
 
-    println!("loss {:?}", loss.to_data());
+        model.update_params(&grads, &mut optim);
+
+        println!("loss {}", loss.to_data());
+    }
 }
 
 fn main() {
