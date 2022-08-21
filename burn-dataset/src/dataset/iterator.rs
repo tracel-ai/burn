@@ -1,0 +1,29 @@
+use crate::dataset::Dataset;
+use std::iter::Iterator;
+
+pub struct DatasetIterator<'a, I> {
+    current: usize,
+    dataset: Box<&'a dyn Dataset<I>>,
+}
+
+impl<'a, I> DatasetIterator<'a, I> {
+    pub fn new<D>(dataset: &'a D) -> Self
+    where
+        D: Dataset<I>,
+    {
+        DatasetIterator {
+            current: 0,
+            dataset: Box::new(dataset),
+        }
+    }
+}
+
+impl<'a, I> Iterator for DatasetIterator<'a, I> {
+    type Item = I;
+
+    fn next(&mut self) -> Option<I> {
+        let item = self.dataset.get(self.current);
+        self.current += 1;
+        item
+    }
+}

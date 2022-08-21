@@ -40,6 +40,15 @@ where
         }
     }
 
+    pub fn register_children(&mut self, children: Vec<Self>) {
+        for (i, child) in children.into_iter().enumerate() {
+            for (key, value) in child.values.into_iter() {
+                let key = format!("{}.{}-{}", self.root, key, i);
+                self.values.insert(key, value);
+            }
+        }
+    }
+
     pub fn register(&mut self, data: DataSerialize<B::Elem>) {
         self.values.insert(self.root.to_string(), data);
     }

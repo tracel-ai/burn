@@ -197,7 +197,9 @@ impl<M: Module> Param<Vec<M>> {
         <M::Backend as back::Backend>::Elem: Serialize,
         <M::Backend as back::Backend>::Elem: DeserializeOwned,
     {
-        todo!();
+        let mut state = State::new(name);
+        state.register_children(self.value.iter().map(|c| c.state()).collect());
+        state
     }
 
     pub fn load_from_parent(&mut self, name: &str, state: &State<M::Backend>)
