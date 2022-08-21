@@ -158,3 +158,53 @@ impl<M: Module> Param<M> {
         self.value.load_from_parent(name, state);
     }
 }
+
+impl<M: Module> Param<Vec<M>> {
+    pub fn num_params(&self) -> usize {
+        let mut num_params = 0;
+        for module in self.value.iter() {
+            num_params += module.num_params();
+        }
+
+        num_params
+    }
+
+    pub fn update_params<O: Optimizer<M::Backend>>(&mut self, grads: &Gradients, optim: &mut O)
+    where
+        M::Backend: back::ad::Backend,
+    {
+        for module in self.value.iter_mut() {
+            module.update_params(grads, optim);
+        }
+    }
+
+    pub fn devices(&self) -> Vec<<M::Backend as back::Backend>::Device> {
+        let mut devices = Vec::new();
+        for module in self.value.iter() {
+            devices.append(&mut module.devices());
+        }
+        devices
+    }
+
+    pub fn to_device(&mut self, device: <M::Backend as back::Backend>::Device) {
+        for module in self.value.iter_mut() {
+            module.to_device(device);
+        }
+    }
+
+    pub fn state(&self, name: &str) -> State<M::Backend>
+    where
+        <M::Backend as back::Backend>::Elem: Serialize,
+        <M::Backend as back::Backend>::Elem: DeserializeOwned,
+    {
+        todo!();
+    }
+
+    pub fn load_from_parent(&mut self, name: &str, state: &State<M::Backend>)
+    where
+        <M::Backend as back::Backend>::Elem: Serialize,
+        <M::Backend as back::Backend>::Elem: DeserializeOwned,
+    {
+        todo!();
+    }
+}

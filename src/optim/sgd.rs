@@ -2,11 +2,19 @@ use crate::optim::Optimizer;
 use crate::tensor::back;
 use crate::tensor::Gradients;
 use crate::tensor::Tensor;
+use num_traits::cast::FromPrimitive;
 
 pub struct SGDOptimizer<B: back::ad::Backend> {
     learning_rate: <B::InnerBackend as back::Backend>::Elem,
 }
 
+impl<B: back::ad::Backend> SGDOptimizer<B> {
+    pub fn new(learning_rate: f64) -> Self {
+        let learning_rate =
+            <B::InnerBackend as back::Backend>::Elem::from_f64(learning_rate).unwrap();
+        Self { learning_rate }
+    }
+}
 impl<B: back::ad::Backend> Optimizer<B> for SGDOptimizer<B> {
     fn update<const D: usize>(&mut self, tensor: &mut Tensor<B, D>, grads: &Gradients) {
         let grad = tensor.grad(&grads).unwrap();
