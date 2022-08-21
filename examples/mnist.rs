@@ -95,34 +95,58 @@ impl<B: Backend> Model<B> {
     }
 }
 
-fn run<B: ad::Backend>() {
-    let mut model: Model<B> = Model::new(784, 32, 1, 10);
-    let mut optim: SGDOptimizer<B> = SGDOptimizer::new(5.0e-5);
+fn run<B: ad::Backend>(device: B::Device) {
+    let mut model: Model<B> = Model::new(784, 2024, 4, 10);
+    model.to_device(device);
+
+    let mut optim: SGDOptimizer<B> = SGDOptimizer::new(2.5e-2);
     let dataset = MNISTDataset::train();
 
-    for item in dataset.iter() {
-        let data: Data<f32, 2> = Data::from(item.image);
-        let input = Tensor::<B, 2>::from_data(data.from_f32());
-        let input = input
-            .reshape(Shape::new([1, 784]))
-            .div_scalar(&B::Elem::from_f32(255.0).unwrap());
-        let targets = Tensor::<B, 2>::zeros(Shape::new([1, 10]));
+    let mut batch = Vec::new();
 
-        let targets = targets.index_assign(
-            [0..1, item.label..(item.label + 1)],
-            &Tensor::ones(Shape::new([1, 1])),
-        );
+    for epoch in 0..20 {
+        for item in dataset.iter() {
+            let data: Data<f32, 2> = Data::from(item.image);
+            let input = Tensor::<B, 2>::from_data(data.from_f32()).to_device(device);
+            let input = input
+                .reshape(Shape::new([1, 784]))
+                .div_scalar(&B::Elem::from_f32(255.0).unwrap());
+            let targets = Tensor::<B, 2>::zeros(Shape::new([1, 10]));
+            let targets = targets
+                .index_assign(
+                    [0..1, item.label..(item.label + 1)],
+                    &Tensor::ones(Shape::new([1, 1])),
+                )
+                .to_device(device);
+            let item = (input, targets);
+            batch.push(item);
 
-        let output = model.forward(input);
-        let loss = cross_entropy_with_logits(&output, &targets);
-        let grads = loss.backward();
+            if batch.len() < 128 {
+                continue;
+            }
 
-        model.update_params(&grads, &mut optim);
+            let inputs: Vec<Tensor<B, 2>> = batch.iter().map(|b| b.0.clone()).collect();
+            let inputs = inputs.iter().collect();
+            let inputs = Tensor::cat(inputs, 0);
 
-        println!("loss {}", loss.to_data());
+            let targets: Vec<Tensor<B, 2>> = batch.iter().map(|b| b.1.clone()).collect();
+            let targets = targets.iter().collect();
+            let targets = Tensor::cat(targets, 0);
+
+            let output = model.forward(inputs);
+            let loss = cross_entropy_with_logits(&output, &targets);
+            let grads = loss.backward();
+
+            model.update_params(&grads, &mut optim);
+
+            println!("Epoch {}; loss {}", epoch, loss.to_data());
+
+            batch.clear();
+        }
     }
 }
 
 fn main() {
-    run::<ad::Tch<f32>>();
+    let device = burn::tensor::back::TchDevice::Cuda(0);
+    run::<ad::Tch<f32>>(device);
 }
