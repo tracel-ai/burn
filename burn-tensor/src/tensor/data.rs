@@ -71,6 +71,18 @@ where
     }
 }
 
+impl<P> Distribution<P>
+where
+    P: Element,
+{
+    pub fn convert<E: Element>(self) -> Distribution<E> {
+        match self {
+            Distribution::Standard => Distribution::Standard,
+            Distribution::Uniform(a, b) => Distribution::Uniform(E::from_elem(a), E::from_elem(b)),
+        }
+    }
+}
+
 impl<P: Element, const D: usize> Data<P, D> {
     pub fn random(shape: Shape<D>, distribution: Distribution<P>) -> Self {
         let num_elements = shape.num_elements();

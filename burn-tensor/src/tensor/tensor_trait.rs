@@ -1,10 +1,11 @@
 use crate::{tensor::ops::*, Distribution};
-use half::bf16;
-use num_traits::ToPrimitive;
+use half::f16;
+use num_traits::{One, ToPrimitive, Zero};
 use rand::prelude::StdRng;
 
 pub trait Element:
     Zeros<Self>
+    + ToPrimitive
     + ElementRandom<Self>
     + ElementConversion
     + Ones<Self>
@@ -127,6 +128,18 @@ ad_items!(
     convert |elem: &dyn ToPrimitive| elem.to_f64().unwrap(),
     random |distribution: Distribution<f64>, rng: &mut StdRng| distribution.sampler(rng).sample()
 );
+
+ad_items!(
+    ty f16,
+    zero f16::zero(),
+    one f16::one(),
+    convert |elem: &dyn ToPrimitive| f16::from_f32(elem.to_f32().unwrap()),
+    random |distribution: Distribution<f16>, rng: &mut StdRng| {
+        let distribution: Distribution<f32> = distribution.convert();
+        let sample = distribution.sampler(rng).sample();
+        f16::from_elem(sample)
+    }
+);
 ad_items!(
     float f32,
     convert |elem: &dyn ToPrimitive| elem.to_f32().unwrap(),
@@ -182,6 +195,7 @@ mod tch_elem {
 
     impl TchElement for f64 {}
     impl TchElement for f32 {}
+    impl TchElement for f16 {}
 
     impl TchElement for i32 {}
     impl TchElement for i16 {}
