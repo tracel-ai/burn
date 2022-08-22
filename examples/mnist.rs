@@ -8,8 +8,7 @@ use burn::optim::SGDOptimizer;
 use burn::tensor::af::relu;
 use burn::tensor::back::{ad, Backend};
 use burn::tensor::losses::cross_entropy_with_logits;
-use burn::tensor::{Data, Shape, Tensor};
-use num_traits::FromPrimitive;
+use burn::tensor::{Data, ElementConversion, Shape, Tensor};
 use std::sync::Arc;
 
 #[derive(Module, Debug)]
@@ -115,10 +114,10 @@ impl<B: Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
 
         for item in items {
             let data: Data<f32, 2> = Data::from(item.image);
-            let image = Tensor::<B, 2>::from_data(data.from_f32()).to_device(self.device);
+            let image = Tensor::<B, 2>::from_data(data.convert()).to_device(self.device);
             let image = image
                 .reshape(Shape::new([1, 784]))
-                .div_scalar(&B::Elem::from_f32(255.0).unwrap());
+                .div_scalar(&255.to_elem());
             let target = Tensor::<B, 2>::zeros(Shape::new([1, 10]));
             let target = target
                 .index_assign(
@@ -143,8 +142,8 @@ impl<B: Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
 
 fn run<B: ad::Backend>(device: B::Device) {
     // Model and optim preparation
-    let mut model: Model<B> = Model::new(784, 1024, 6, 10);
-    let mut optim: SGDOptimizer<B> = SGDOptimizer::new(5.0e-2);
+    let mut model: Model<B> = Model::new(784, 128, 2, 10);
+    let mut optim: SGDOptimizer<B> = SGDOptimizer::new(1.0e-2);
     model.to_device(device);
 
     // Data pipeline preparation
@@ -184,5 +183,5 @@ fn run<B: ad::Backend>(device: B::Device) {
 
 fn main() {
     let device = burn::tensor::back::TchDevice::Cuda(0);
-    run::<ad::Tch<f32>>(device);
+    run::<ad::Tch<burn::tensor::f16>>(device);
 }

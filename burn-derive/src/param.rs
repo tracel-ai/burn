@@ -160,7 +160,6 @@ impl Param {
         }
         .into()
     }
-
 }
 
 fn parse_fields(ast: &syn::DeriveInput) -> Vec<Field> {

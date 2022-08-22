@@ -3,8 +3,7 @@ use crate as burn;
 use crate::module::Module;
 use crate::module::{Forward, Param};
 use crate::tensor::back::Backend;
-use crate::tensor::{Distribution, Shape, Tensor};
-use num_traits::FromPrimitive;
+use crate::tensor::{Distribution, ElementConversion, Shape, Tensor};
 use std::ops::Deref;
 
 pub struct LinearConfig {
@@ -25,10 +24,10 @@ where
 impl<B: Backend> Linear<B> {
     pub fn new(config: &LinearConfig) -> Self {
         // Glorot init
-        let distribution = Distribution::Uniform(
-            <B as Backend>::Elem::from_f64(-1.0 / f64::sqrt(config.d_input as f64)).unwrap(),
-            <B as Backend>::Elem::from_f64(1.0 / f64::sqrt(config.d_input as f64)).unwrap(),
-        );
+        let start = -1.0 / f64::sqrt(config.d_input as f64);
+        let end = 1.0 / f64::sqrt(config.d_input as f64);
+        let distribution = Distribution::Uniform(start.to_elem(), end.to_elem());
+
         let weight = Tensor::random(Shape::new([config.d_input, config.d_output]), distribution);
         let bias = match config.bias {
             true => Some(Tensor::zeros(Shape::new([config.d_output]))),

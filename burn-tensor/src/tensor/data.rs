@@ -83,6 +83,17 @@ where
     }
 }
 
+impl<const D: usize, P: Element> Data<P, D> {
+    pub fn convert<E: Element>(self) -> Data<E, D> {
+        let value: Vec<E> = self.value.into_iter().map(|a| a.to_elem()).collect();
+
+        Data {
+            value,
+            shape: self.shape,
+        }
+    }
+}
+
 impl<P: Element, const D: usize> Data<P, D> {
     pub fn random(shape: Shape<D>, distribution: Distribution<P>) -> Self {
         let num_elements = shape.num_elements();
@@ -177,21 +188,6 @@ impl<P: Into<f64> + Clone + std::fmt::Debug + PartialEq, const D: usize> Data<P,
 
         if !eq {
             assert_eq!(self.value, other.value);
-        }
-    }
-}
-
-impl<const D: usize> Data<f32, D> {
-    pub fn from_f32<O: num_traits::FromPrimitive>(self) -> Data<O, D> {
-        let value: Vec<O> = self
-            .value
-            .into_iter()
-            .map(|a| num_traits::FromPrimitive::from_f32(a).unwrap())
-            .collect();
-
-        Data {
-            value,
-            shape: self.shape,
         }
     }
 }

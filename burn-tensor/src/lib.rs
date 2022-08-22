@@ -8,3 +8,5 @@ pub use graph::grad::Gradients;
 
 mod tensor;
 pub use tensor::*;
+
+pub use half::f16;

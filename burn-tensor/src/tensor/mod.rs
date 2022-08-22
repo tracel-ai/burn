@@ -11,4 +11,4 @@ mod tensor_trait;
 pub use api::*;
 pub use data::*;
 pub use shape::*;
-pub(crate) use tensor_trait::*;
+pub use tensor_trait::*;

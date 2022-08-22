@@ -30,6 +30,7 @@ pub trait ExpElement {
 
 pub trait ElementConversion {
     fn from_elem<E: ToPrimitive>(elem: E) -> Self;
+    fn to_elem<E: Element>(&self) -> E;
 }
 
 pub trait ElementRandom<T> {
@@ -80,6 +81,9 @@ macro_rules! ad_items {
         impl ElementConversion for $float {
             fn from_elem<E: ToPrimitive>(elem: E) -> Self {
                 $convert(&elem)
+            }
+            fn to_elem<E: Element>(&self) -> E {
+                E::from_elem(*self)
             }
         }
 
