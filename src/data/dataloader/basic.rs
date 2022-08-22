@@ -1,4 +1,4 @@
-use super::{batcher::Batcher, DataLoader, MultiThreadsDataLoader};
+use super::{batcher::Batcher, DataLoader, MultiThreadDataLoader};
 use burn_dataset::{transform::PartialDataset, Dataset};
 use std::sync::Arc;
 
@@ -38,7 +38,7 @@ where
         dataset: Arc<dyn Dataset<I>>,
         batcher: Arc<dyn Batcher<I, O>>,
         num_threads: usize,
-    ) -> MultiThreadsDataLoader<O> {
+    ) -> MultiThreadDataLoader<O> {
         let datasets = PartialDataset::split(dataset, num_threads);
         let mut dataloaders: Vec<Arc<dyn DataLoader<_> + Send + Sync>> = Vec::new();
         for dataset in datasets {
@@ -46,7 +46,7 @@ where
             let dataloader = Arc::new(dataloader);
             dataloaders.push(dataloader);
         }
-        MultiThreadsDataLoader::new(dataloaders)
+        MultiThreadDataLoader::new(dataloaders)
     }
 }
 

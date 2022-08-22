@@ -1,9 +1,9 @@
 mod basic;
 mod dataloader;
-mod multithreads;
+mod multithread;
 
 pub mod batcher;
 
 pub use basic::*;
 pub use dataloader::*;
-pub use multithreads::*;
+pub use multithread::*;

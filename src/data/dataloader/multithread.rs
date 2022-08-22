@@ -4,7 +4,7 @@ use std::thread;
 
 static MAX_QUEUED_ITEMS: usize = 100;
 
-pub struct MultiThreadsDataLoader<O> {
+pub struct MultiThreadDataLoader<O> {
     dataloaders: Vec<Arc<dyn DataLoader<O> + Send + Sync>>,
 }
 
@@ -20,13 +20,13 @@ struct MultiThreadsDataloaderIterator<O> {
     receiver: mpsc::Receiver<Message<O>>,
 }
 
-impl<O> MultiThreadsDataLoader<O> {
+impl<O> MultiThreadDataLoader<O> {
     pub fn new(dataloaders: Vec<Arc<dyn DataLoader<O> + Send + Sync>>) -> Self {
         Self { dataloaders }
     }
 }
 
-impl<O> DataLoader<O> for MultiThreadsDataLoader<O>
+impl<O> DataLoader<O> for MultiThreadDataLoader<O>
 where
     O: Send + 'static + std::fmt::Debug,
 {
