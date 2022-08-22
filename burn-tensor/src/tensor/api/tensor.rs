@@ -235,6 +235,15 @@ where
         Self::new(self.value.mask_fill(&mask.value, value))
     }
 
+    pub fn to_full_precision(&self) -> Tensor<B::FullPrecisionBackend, D> {
+        Tensor::new(self.value.to_full_precision())
+    }
+
+    pub fn from_full_precision(tensor: Tensor<B::FullPrecisionBackend, D>) -> Self {
+        let value = B::TensorPrimitive::from_full_precision(tensor.value);
+        Tensor::new(value)
+    }
+
     pub fn cat(tensors: Vec<&Self>, dim: usize) -> Self {
         let tensors: Vec<B::TensorPrimitive<D>> =
             tensors.into_iter().map(|a| a.value.clone()).collect();

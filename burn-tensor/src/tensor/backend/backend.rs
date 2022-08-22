@@ -2,7 +2,7 @@ use crate::activation::ReLU;
 use crate::graph::grad::Gradients;
 use crate::ops::{
     TensorOpsAggregation, TensorOpsCat, TensorOpsDevice, TensorOpsExp, TensorOpsLog,
-    TensorOpsMapComparison, TensorOpsMask, TensorOpsUtilities,
+    TensorOpsMapComparison, TensorOpsMask, TensorOpsPrecision, TensorOpsUtilities,
 };
 use crate::tensor::ops::{TensorOpsIndex, TensorOpsReshape};
 use crate::tensor::{Data, Distribution, Shape};
@@ -11,8 +11,11 @@ use crate::tensor::{Element, TensorTrait};
 pub trait Backend: Clone + Sized + Default + Send + Sync + std::fmt::Debug + 'static {
     type Device: Copy + Clone + Default + std::fmt::Debug + Send + Sync;
     type Elem: Element;
+    type FullPrecisionElem: Element;
+    type FullPrecisionBackend: Backend<Elem = Self::FullPrecisionElem>;
     type TensorPrimitive<const D: usize>: TensorTrait<Self::Elem, D>
         + TensorOpsReshape<Self, D>
+        + TensorOpsPrecision<Self, D>
         + TensorOpsDevice<Self, D>
         + TensorOpsIndex<Self::Elem, D>
         + TensorOpsAggregation<Self, D>
