@@ -22,12 +22,6 @@ jobs:
         run: |
           cargo fmt --check --all
 
-      - name: check tests backend ndarray
+      - name: check tests
         run: |
-          cargo test --no-default-features --features ndarray
-
-      - name: check tests backend tch
-        run: |
-          cargo test --no-default-features --features tch
-
-
+          cargo test
