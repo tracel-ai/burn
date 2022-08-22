@@ -8,6 +8,7 @@ pub trait Element:
     + ToPrimitive
     + ElementRandom<Self>
     + ElementConversion
+    + ElementPrecision
     + ElementValue
     + Ones<Self>
     + std::ops::Mul<Self, Output = Self>
@@ -46,6 +47,18 @@ pub trait ElementValue {
     fn one() -> Self;
 }
 
+#[derive(Clone, PartialEq, Copy, Debug)]
+pub enum Precision {
+    Double,
+    Full,
+    Half,
+    Other,
+}
+
+pub trait ElementPrecision {
+    fn precision() -> Precision;
+}
+
 #[cfg(feature = "ndarray")]
 pub trait NdArrayElement:
     Element + ndarray::LinalgScalar + ndarray::ScalarOperand + ExpElement + num_traits::FromPrimitive
@@ -72,7 +85,7 @@ pub trait TensorTrait<P: Element, const D: usize>:
 
 macro_rules! ad_items {
     (
-        ty $float:ident,
+        ty $float:ident $precision:expr,
         zero $zero:expr,
         one $one:expr,
         convert $convert:expr,
@@ -114,6 +127,12 @@ macro_rules! ad_items {
             }
         }
 
+        impl ElementPrecision for $float {
+            fn precision() -> Precision {
+                $precision
+            }
+        }
+
         impl ElementRandom<$float> for $float {
             fn random(distribution: Distribution<$float>, rng: &mut StdRng) -> $float {
                 $random(distribution, rng)
@@ -127,12 +146,12 @@ macro_rules! ad_items {
         }
     };
     (
-        float $float:ident,
+        float $float:ident $precision:expr,
         convert $convert:expr,
         random $random:expr
     ) => {
         ad_items!(
-            ty $float,
+            ty $float $precision,
             zero 0.0,
             one 1.0,
             convert $convert,
@@ -140,12 +159,12 @@ macro_rules! ad_items {
         );
     };
     (
-        int $int:ident,
+        int $int:ident $precision:expr,
         convert $convert:expr,
         random $random:expr
     ) => {
         ad_items!(
-            ty $int,
+            ty $int $precision,
             zero 0,
             one 1,
             convert $convert,
@@ -155,13 +174,13 @@ macro_rules! ad_items {
 }
 
 ad_items!(
-    float f64,
+    float f64 Precision::Double,
     convert |elem: &dyn ToPrimitive| elem.to_f64().unwrap(),
     random |distribution: Distribution<f64>, rng: &mut StdRng| distribution.sampler(rng).sample()
 );
 
 ad_items!(
-    ty f16,
+    ty f16 Precision::Half,
     zero <f16 as num_traits::Zero>::zero(),
     one <f16 as num_traits::One>::one(),
     convert |elem: &dyn ToPrimitive| f16::from_f32(elem.to_f32().unwrap()),
@@ -172,50 +191,34 @@ ad_items!(
     }
 );
 ad_items!(
-    float f32,
+    float f32 Precision::Full,
     convert |elem: &dyn ToPrimitive| elem.to_f32().unwrap(),
     random |distribution: Distribution<f32>, rng: &mut StdRng| distribution.sampler(rng).sample()
 );
-// ad_items!(float bf16, convert |elem: &dyn ToPrimitive| elem.to_f32().unwrap());
 
 ad_items!(
-    int i64,
+    int i64 Precision::Double,
     convert |elem: &dyn ToPrimitive| elem.to_i64().unwrap(),
     random |distribution: Distribution<i64>, rng: &mut StdRng| distribution.sampler(rng).sample()
 );
 ad_items!(
-    int i32,
+    int i32 Precision::Full,
     convert |elem: &dyn ToPrimitive| elem.to_i32().unwrap(),
     random |distribution: Distribution<i32>, rng: &mut StdRng| distribution.sampler(rng).sample()
 );
 ad_items!(
-    int i16,
+    int i16 Precision::Half,
     convert |elem: &dyn ToPrimitive| elem.to_i16().unwrap(),
     random |distribution: Distribution<i16>, rng: &mut StdRng| distribution.sampler(rng).sample()
 );
 ad_items!(
-    int i8,
+    int i8 Precision::Other,
     convert |elem: &dyn ToPrimitive| elem.to_i8().unwrap(),
     random |distribution: Distribution<i8>, rng: &mut StdRng| distribution.sampler(rng).sample()
 );
 
 ad_items!(
-    int u64,
-    convert |elem: &dyn ToPrimitive| elem.to_u64().unwrap(),
-    random |distribution: Distribution<u64>, rng: &mut StdRng| distribution.sampler(rng).sample()
-);
-ad_items!(
-    int u32,
-    convert |elem: &dyn ToPrimitive| elem.to_u32().unwrap(),
-    random |distribution: Distribution<u32>, rng: &mut StdRng| distribution.sampler(rng).sample()
-);
-ad_items!(
-    int u16,
-    convert |elem: &dyn ToPrimitive| elem.to_u16().unwrap(),
-    random |distribution: Distribution<u16>, rng: &mut StdRng| distribution.sampler(rng).sample()
-);
-ad_items!(
-    int u8,
+    int u8 Precision::Other,
     convert |elem: &dyn ToPrimitive| elem.to_u8().unwrap(),
     random |distribution: Distribution<u8>, rng: &mut StdRng| distribution.sampler(rng).sample()
 );
@@ -277,15 +280,6 @@ mod ndarray_elem {
 
     impl NdArrayElement for i16 {}
     impl_exp_elem!(i16, f32);
-
-    impl NdArrayElement for u64 {}
-    impl_exp_elem!(u64, f64);
-
-    impl NdArrayElement for u32 {}
-    impl_exp_elem!(u32, f32);
-
-    impl NdArrayElement for u16 {}
-    impl_exp_elem!(u16, f32);
 
     impl NdArrayElement for u8 {}
     impl_exp_elem!(u8, f32);

@@ -142,7 +142,7 @@ impl<B: Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
 
 fn run<B: ad::Backend>(device: B::Device) {
     // Model and optim preparation
-    let mut model: Model<B> = Model::new(784, 128, 2, 10);
+    let mut model: Model<B> = Model::new(784, 1024, 3, 10);
     let mut optim: SGDOptimizer<B> = SGDOptimizer::new(1.0e-2);
     model.to_device(device);
 
