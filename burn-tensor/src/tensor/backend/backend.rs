@@ -22,6 +22,8 @@ pub trait Backend: Clone + Sized + Default + Send + Sync + std::fmt::Debug + 'st
         + TensorOpsMask<Self, D>
         + TensorOpsMapComparison<Self, D>
         + ReLU<Self::Elem, D>
+        + Send
+        + Sync
         + 'static;
     type BoolTensorPrimitive<const D: usize>: TensorOpsUtilities<bool, D>
         + Clone

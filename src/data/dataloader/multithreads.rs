@@ -6,6 +6,7 @@ pub struct MultiThreadsDataLoader<O> {
     dataloaders: Vec<Arc<dyn DataLoader<O> + Send + Sync>>,
 }
 
+#[derive(Debug)]
 pub enum Message<O> {
     Batch(O),
     Done,
@@ -25,27 +26,29 @@ impl<O> MultiThreadsDataLoader<O> {
 
 impl<O> DataLoader<O> for MultiThreadsDataLoader<O>
 where
-    O: Send + 'static,
+    O: Send + 'static + std::fmt::Debug,
 {
     fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = O> + 'a> {
         let (sender, receiver) = mpsc::channel::<Message<O>>();
 
-        let joins = self.dataloaders.clone().into_iter().map(|dataloader| {
-            let dataloader_cloned = dataloader.clone();
-            let sender_cloned = sender.clone();
+        let handlers: Vec<_> = self
+            .dataloaders
+            .clone()
+            .into_iter()
+            .map(|dataloader| {
+                let dataloader_cloned = dataloader.clone();
+                let sender_cloned = sender.clone();
 
-            thread::spawn(move || {
-                for item in dataloader_cloned.iter() {
-                    sender_cloned.send(Message::Batch(item)).unwrap();
-                }
-                sender_cloned.send(Message::Done).unwrap();
+                thread::spawn(move || {
+                    for item in dataloader_cloned.iter() {
+                        sender_cloned.send(Message::Batch(item)).unwrap();
+                    }
+                    sender_cloned.send(Message::Done).unwrap();
+                })
             })
-        });
+            .collect();
 
-        Box::new(MultiThreadsDataloaderIterator::new(
-            receiver,
-            joins.collect(),
-        ))
+        Box::new(MultiThreadsDataloaderIterator::new(receiver, handlers))
     }
 
     fn len(&self) -> usize {
@@ -67,7 +70,7 @@ impl<O> MultiThreadsDataloaderIterator<O> {
     }
 }
 
-impl<O> Iterator for MultiThreadsDataloaderIterator<O> {
+impl<O: std::fmt::Debug> Iterator for MultiThreadsDataloaderIterator<O> {
     type Item = O;
 
     fn next(&mut self) -> Option<O> {
@@ -90,8 +93,8 @@ impl<O> Iterator for MultiThreadsDataloaderIterator<O> {
                 while let Some(worker) = self.workers.pop() {
                     worker.join().unwrap();
                 }
+                return None;
             }
-            return None;
         }
     }
 }

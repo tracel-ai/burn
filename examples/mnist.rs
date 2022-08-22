@@ -1,6 +1,7 @@
 use burn::data::dataloader::batcher::Batcher;
-use burn::data::dataloader::{BasicDataLoader, DataLoader};
+use burn::data::dataloader::{BasicDataLoader, DataLoader, MultiThreadsDataLoader};
 use burn::data::dataset::source::huggingface::{MNISTDataset, MNISTItem};
+use burn::data::dataset::transform::PartialDataset;
 use burn::module::{Forward, Module, Param};
 use burn::nn;
 use burn::optim::SGDOptimizer;
@@ -9,6 +10,7 @@ use burn::tensor::back::{ad, Backend};
 use burn::tensor::losses::cross_entropy_with_logits;
 use burn::tensor::{Data, Shape, Tensor};
 use num_traits::FromPrimitive;
+use std::sync::Arc;
 
 #[derive(Module, Debug)]
 struct Model<B>
@@ -100,7 +102,7 @@ struct MNISTBatcher<B: Backend> {
     device: B::Device,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct MNISTBatch<B: Backend> {
     images: Tensor<B, 2>,
     targets: Tensor<B, 2>,
@@ -147,12 +149,19 @@ fn run<B: ad::Backend>(device: B::Device) {
 
     // Data pipeline preparation
     let dataset = MNISTDataset::train();
-    let batcher = MNISTBatcher::<B::InnerBackend> { device };
-    let dataloader = BasicDataLoader::new(32, Box::new(dataset), Box::new(batcher));
+    let datasets = PartialDataset::split(Arc::new(dataset), 8);
 
-    let batches: Vec<MNISTBatch<B::InnerBackend>> = dataloader.iter().collect();
-    for epoch in 0..20 {
-        for item in batches.clone().into_iter() {
+    let mut dataloaders: Vec<Arc<dyn DataLoader<_> + Send + Sync>> = Vec::new();
+    for dataset in datasets {
+        let batcher = MNISTBatcher::<B::InnerBackend> { device };
+        let dataloader = BasicDataLoader::new(32, Box::new(dataset), Box::new(batcher));
+        let dataloader = Arc::new(dataloader);
+        dataloaders.push(dataloader);
+    }
+    let dataloader = MultiThreadsDataLoader::<MNISTBatch<B::InnerBackend>>::new(dataloaders);
+
+    for epoch in 0..1 {
+        for item in dataloader.iter() {
             let output = model.forward(Tensor::from_inner(item.images));
             let loss = cross_entropy_with_logits(&output, &Tensor::from_inner(item.targets));
             let grads = loss.backward();
