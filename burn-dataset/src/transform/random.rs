@@ -1,22 +1,26 @@
 use crate::{Dataset, DatasetIterator};
-use rand::seq::SliceRandom;
-use rand::thread_rng;
+use rand::{prelude::SliceRandom, rngs::StdRng, SeedableRng};
+use std::sync::Arc;
 
 pub struct ShuffledDataset<I> {
-    dataset: Box<dyn Dataset<I>>,
+    dataset: Arc<dyn Dataset<I>>,
     indexes: Vec<usize>,
 }
 
 impl<I> ShuffledDataset<I> {
-    pub fn new(dataset: Box<dyn Dataset<I>>) -> Self {
+    pub fn new(dataset: Arc<dyn Dataset<I>>, rng: &mut StdRng) -> Self {
         let mut indexes = Vec::with_capacity(dataset.len());
         for i in 0..dataset.len() {
             indexes.push(i);
         }
-        let mut rng = thread_rng();
-        indexes.shuffle(&mut rng);
+        indexes.shuffle(rng);
 
         Self { dataset, indexes }
+    }
+
+    pub fn with_seed(dataset: Arc<dyn Dataset<I>>, seed: u64) -> Self {
+        let mut rng = StdRng::seed_from_u64(seed);
+        Self::new(dataset, &mut rng)
     }
 }
 

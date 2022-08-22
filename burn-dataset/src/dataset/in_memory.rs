@@ -17,7 +17,7 @@ impl<I> InMemDataset<I> {
 
 impl<I> Dataset<I> for InMemDataset<I>
 where
-    I: Clone,
+    I: Clone + Send + Sync,
 {
     fn get(&self, index: usize) -> Option<I> {
         match self.items.get(index) {

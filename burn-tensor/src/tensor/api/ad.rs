@@ -20,6 +20,10 @@ impl<const D: usize, B: ADBackend> Tensor<B, D> {
     pub fn update(&mut self, other_inner: Tensor<B::InnerBackend, D>) {
         self.value = B::from_inner(other_inner.value);
     }
+
+    pub fn from_inner(inner: Tensor<B::InnerBackend, D>) -> Self {
+        Self::new(B::from_inner(inner.value))
+    }
 }
 
 #[cfg(feature = "ndarray")]
