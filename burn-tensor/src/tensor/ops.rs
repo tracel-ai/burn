@@ -58,6 +58,8 @@ pub trait TensorOpsIndex<E, const D1: usize> {
 }
 
 pub trait TensorOpsMapComparison<B: Backend, const D: usize> {
+    fn equal(&self, other: &Self) -> B::BoolTensorPrimitive<D>;
+    fn equal_scalar(&self, other: &B::Elem) -> B::BoolTensorPrimitive<D>;
     fn greater(&self, other: &Self) -> B::BoolTensorPrimitive<D>;
     fn greater_scalar(&self, other: &B::Elem) -> B::BoolTensorPrimitive<D>;
     fn greater_equal(&self, other: &Self) -> B::BoolTensorPrimitive<D>;

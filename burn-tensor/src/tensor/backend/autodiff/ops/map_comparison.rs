@@ -10,6 +10,17 @@ macro_rules! define_impl {
         impl<E: $element, const D: usize> TensorOpsMapComparison<$backend, D>
             for <$backend as Backend>::TensorPrimitive<D>
         {
+            fn equal(&self, other: &Self) -> <$backend as Backend>::BoolTensorPrimitive<D> {
+                TensorOpsMapComparison::equal(&self.tensor(), &other.tensor())
+            }
+
+            fn equal_scalar(
+                &self,
+                other: &<$backend as Backend>::Elem,
+            ) -> <$backend as Backend>::BoolTensorPrimitive<D> {
+                TensorOpsMapComparison::equal_scalar(&self.tensor(), other)
+            }
+
             fn greater(&self, other: &Self) -> <$backend as Backend>::BoolTensorPrimitive<D> {
                 TensorOpsMapComparison::greater(&self.tensor(), &other.tensor())
             }

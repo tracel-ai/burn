@@ -1,6 +1,6 @@
 use crate::{tensor::ops::*, Distribution};
 use half::f16;
-use num_traits::{One, ToPrimitive, Zero};
+use num_traits::ToPrimitive;
 use rand::prelude::StdRng;
 
 pub trait Element:
@@ -8,6 +8,7 @@ pub trait Element:
     + ToPrimitive
     + ElementRandom<Self>
     + ElementConversion
+    + ElementValue
     + Ones<Self>
     + std::ops::Mul<Self, Output = Self>
     + std::fmt::Debug
@@ -35,6 +36,14 @@ pub trait ElementConversion {
 
 pub trait ElementRandom<T> {
     fn random(distribution: Distribution<T>, rng: &mut StdRng) -> T;
+}
+
+pub trait ElementValue {
+    fn inf() -> Self;
+    fn inf_neg() -> Self;
+    fn nan() -> Self;
+    fn zero() -> Self;
+    fn one() -> Self;
 }
 
 #[cfg(feature = "ndarray")]
@@ -87,6 +96,24 @@ macro_rules! ad_items {
             }
         }
 
+        impl ElementValue for $float {
+            fn inf() -> Self {
+                Self::from_elem(f64::INFINITY)
+            }
+            fn inf_neg() -> Self {
+                Self::from_elem(std::ops::Neg::neg(f64::INFINITY))
+            }
+            fn nan() -> Self {
+                Self::from_elem(f64::NAN)
+            }
+            fn zero() -> Self {
+                $zero
+            }
+            fn one() -> Self {
+                $one
+            }
+        }
+
         impl ElementRandom<$float> for $float {
             fn random(distribution: Distribution<$float>, rng: &mut StdRng) -> $float {
                 $random(distribution, rng)
@@ -135,8 +162,8 @@ ad_items!(
 
 ad_items!(
     ty f16,
-    zero f16::zero(),
-    one f16::one(),
+    zero <f16 as num_traits::Zero>::zero(),
+    one <f16 as num_traits::One>::one(),
     convert |elem: &dyn ToPrimitive| f16::from_f32(elem.to_f32().unwrap()),
     random |distribution: Distribution<f16>, rng: &mut StdRng| {
         let distribution: Distribution<f32> = distribution.convert();

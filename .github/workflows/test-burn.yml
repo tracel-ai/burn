@@ -1,0 +1,27 @@
+name: test
+
+on: [push]
+
+jobs:
+  publish:
+    name: test burn
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+
+      - name: install rust nightly
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          components: rustfmt
+          override: true
+
+      - name: check format
+        run: |
+          cargo fmt --check --all
+
+      - name: check tests
+        run: |
+          cargo test
