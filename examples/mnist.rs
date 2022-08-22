@@ -144,26 +144,23 @@ impl<B: Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
 fn run<B: ad::Backend>(device: B::Device) {
     // Model and optim preparation
     let mut model: Model<B> = Model::new(784, 1024, 6, 10);
-    let mut optim: SGDOptimizer<B> = SGDOptimizer::new(2.5e-3);
+    let mut optim: SGDOptimizer<B> = SGDOptimizer::new(9.5e-3);
     model.to_device(device);
 
     // Data pipeline preparation
     let dataset = MNISTDataset::train();
-    let datasets = PartialDataset::split(Arc::new(dataset), 8);
+    let batcher = MNISTBatcher::<B::InnerBackend> {
+        device: B::Device::default(),
+    };
+    let dataloader = BasicDataLoader::multi_threads(32, Arc::new(dataset), Arc::new(batcher), 1);
 
-    let mut dataloaders: Vec<Arc<dyn DataLoader<_> + Send + Sync>> = Vec::new();
-    for dataset in datasets {
-        let batcher = MNISTBatcher::<B::InnerBackend> { device };
-        let dataloader = BasicDataLoader::new(32, Box::new(dataset), Box::new(batcher));
-        let dataloader = Arc::new(dataloader);
-        dataloaders.push(dataloader);
-    }
-    let dataloader = MultiThreadsDataLoader::<MNISTBatch<B::InnerBackend>>::new(dataloaders);
-
-    for epoch in 0..1 {
+    for epoch in 0..20 {
         for item in dataloader.iter() {
-            let output = model.forward(Tensor::from_inner(item.images));
-            let loss = cross_entropy_with_logits(&output, &Tensor::from_inner(item.targets));
+            let output = model.forward(Tensor::from_inner(item.images).to_device(device));
+            let loss = cross_entropy_with_logits(
+                &output,
+                &Tensor::from_inner(item.targets).to_device(device),
+            );
             let grads = loss.backward();
 
             model.update_params(&grads, &mut optim);

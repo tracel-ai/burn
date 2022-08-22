@@ -35,10 +35,10 @@ where
     I: Clone + Send + Sync,
 {
     fn get(&self, index: usize) -> Option<I> {
-        if index < self.start_index || index >= self.end_index {
+        let index = index + self.start_index;
+        if index < self.start_index && index >= self.end_index {
             return None;
         }
-
         self.dataset.get(index)
     }
 

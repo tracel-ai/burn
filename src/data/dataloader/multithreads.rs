@@ -29,7 +29,7 @@ where
     O: Send + 'static + std::fmt::Debug,
 {
     fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = O> + 'a> {
-        let (sender, receiver) = mpsc::channel::<Message<O>>();
+        let (sender, receiver) = mpsc::sync_channel::<Message<O>>(200);
 
         let handlers: Vec<_> = self
             .dataloaders
