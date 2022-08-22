@@ -2,6 +2,8 @@ use super::DataLoader;
 use std::sync::{mpsc, Arc};
 use std::thread;
 
+static MAX_QUEUED_ITEMS: usize = 100;
+
 pub struct MultiThreadsDataLoader<O> {
     dataloaders: Vec<Arc<dyn DataLoader<O> + Send + Sync>>,
 }
@@ -29,7 +31,7 @@ where
     O: Send + 'static + std::fmt::Debug,
 {
     fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = O> + 'a> {
-        let (sender, receiver) = mpsc::sync_channel::<Message<O>>(200);
+        let (sender, receiver) = mpsc::sync_channel::<Message<O>>(MAX_QUEUED_ITEMS);
 
         let handlers: Vec<_> = self
             .dataloaders

@@ -1,6 +1,7 @@
 use burn::data::dataloader::batcher::Batcher;
 use burn::data::dataloader::{BasicDataLoader, DataLoader};
 use burn::data::dataset::source::huggingface::{MNISTDataset, MNISTItem};
+use burn::data::dataset::transform::ShuffledDataset;
 use burn::module::{Forward, Module, Param};
 use burn::nn;
 use burn::optim::SGDOptimizer;
@@ -143,18 +144,23 @@ impl<B: Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
 fn run<B: ad::Backend>(device: B::Device) {
     // Model and optim preparation
     let mut model: Model<B> = Model::new(784, 1024, 6, 10);
-    let mut optim: SGDOptimizer<B> = SGDOptimizer::new(9.5e-3);
+    let mut optim: SGDOptimizer<B> = SGDOptimizer::new(5.0e-2);
     model.to_device(device);
 
     // Data pipeline preparation
-    let dataset = MNISTDataset::train();
-    let batcher = MNISTBatcher::<B::InnerBackend> {
-        device: B::Device::default(),
-    };
-    let dataloader = BasicDataLoader::multi_thread(32, Arc::new(dataset), Arc::new(batcher), 1);
+    let batcher = Arc::new(MNISTBatcher::<B::InnerBackend> {
+        device: B::Device::default(), // Create batch on the default device
+    });
+    let dataset_train = Arc::new(ShuffledDataset::with_seed(
+        Arc::new(MNISTDataset::train()),
+        42,
+    ));
+    let dataset_test = Arc::new(MNISTDataset::test());
+    let dataloader_train = BasicDataLoader::multi_thread(64, dataset_train, batcher.clone(), 8);
+    let dataloader_test = BasicDataLoader::multi_thread(64, dataset_test, batcher.clone(), 8);
 
     for epoch in 0..20 {
-        for item in dataloader.iter() {
+        for item in dataloader_train.iter() {
             let output = model.forward(Tensor::from_inner(item.images).to_device(device));
             let loss = cross_entropy_with_logits(
                 &output,
@@ -166,6 +172,13 @@ fn run<B: ad::Backend>(device: B::Device) {
 
             println!("Epoch {}; loss {}", epoch, loss.to_data());
         }
+    }
+
+    for item in dataloader_test.iter() {
+        let output = model.forward(Tensor::from_inner(item.images).to_device(device));
+        let loss =
+            cross_entropy_with_logits(&output, &Tensor::from_inner(item.targets).to_device(device));
+        println!("Test loss {}", loss.to_data());
     }
 }
 
