@@ -135,7 +135,6 @@ mod tests {
         }
 
         assert_eq!(items_dataset, items_dataloader);
-        assert_eq!(items_dataloader.len(), dataset.len());
     }
 
     #[test]

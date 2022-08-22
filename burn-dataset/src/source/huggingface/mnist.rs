@@ -1,8 +1,7 @@
+use super::downloader::cache_dir;
 use crate::source::huggingface::downloader::{download, Extractor};
 use crate::{Dataset, DatasetIterator, InMemDataset};
 use serde::{Deserialize, Serialize};
-
-use super::downloader::cache_dir;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct MNISTItem {
@@ -56,17 +55,5 @@ impl MNISTDataset {
         let dataset = InMemDataset::from_file(path_file.as_str()).unwrap();
 
         Self { dataset }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test() {
-        let dataset = MNISTDataset::test();
-        println!("{:?}", dataset.len());
-        assert_ne!(3, 3);
     }
 }
