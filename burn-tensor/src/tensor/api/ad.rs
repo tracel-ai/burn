@@ -2,7 +2,6 @@ use super::Tensor;
 use crate::graph::grad::Gradients;
 use crate::tensor::backend::autodiff::ADTensor;
 use crate::tensor::backend::ADBackend;
-use rand::distributions::Standard;
 
 impl<const D: usize, B: ADBackend> Tensor<B, D> {
     pub fn backward(&self) -> Gradients {
@@ -32,10 +31,7 @@ mod ndarray {
     use crate::tensor::backend::autodiff::ADBackendNdArray;
     use crate::tensor::backend::ndarray::NdArrayBackend;
 
-    impl<E: crate::NdArrayElement, const D: usize> Tensor<NdArrayBackend<E>, D>
-    where
-        Standard: rand::distributions::Distribution<E>,
-    {
+    impl<E: crate::NdArrayElement, const D: usize> Tensor<NdArrayBackend<E>, D> {
         pub fn with_grad(self) -> Tensor<ADBackendNdArray<E>, D> {
             let tensor = ADTensor::from_tensor(self.value);
             Tensor::new(tensor)
@@ -50,10 +46,7 @@ mod tch {
     use crate::tensor::backend::tch::TchBackend;
     use crate::TchElement;
 
-    impl<E: TchElement, const D: usize> Tensor<TchBackend<E>, D>
-    where
-        Standard: rand::distributions::Distribution<E>,
-    {
+    impl<E: TchElement, const D: usize> Tensor<TchBackend<E>, D> {
         pub fn with_grad(self) -> Tensor<ADBackendTch<E>, D> {
             let tensor = ADTensor::from_tensor(self.value);
             Tensor::new(tensor)

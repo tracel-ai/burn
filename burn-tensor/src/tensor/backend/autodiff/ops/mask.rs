@@ -5,7 +5,6 @@ use crate::{
     register_ops,
     tensor::ops::*,
 };
-use rand::distributions::Standard;
 
 register_ops!(
     ops UnaryOps,
@@ -23,8 +22,6 @@ macro_rules! define_impl {
     ) => {
         impl<E: $element, const D: usize> TensorOpsMask<$backend, D>
             for <$backend as Backend>::TensorPrimitive<D>
-        where
-            Standard: rand::distributions::Distribution<E>,
         {
             fn mask_fill(
                 &self,

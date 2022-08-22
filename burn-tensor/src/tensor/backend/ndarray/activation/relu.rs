@@ -4,12 +4,10 @@ use crate::{
     backend::ndarray::{NdArrayBackend, NdArrayTensor},
     NdArrayElement,
 };
-use rand::distributions::Standard;
 
 impl<E, const D: usize> ReLU<E, D> for NdArrayTensor<E, D>
 where
     E: NdArrayElement,
-    Standard: rand::distributions::Distribution<E>,
 {
     fn relu(&self) -> Self {
         let zero = E::zeros(&E::default());

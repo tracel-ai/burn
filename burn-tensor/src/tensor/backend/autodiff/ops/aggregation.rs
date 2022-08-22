@@ -6,7 +6,6 @@ use crate::{
     graph::ops::{UnaryOps, UnaryOpsNodeState},
     Shape,
 };
-use rand::distributions::Standard;
 
 define_ops! {
     name ADTensorOpsMean,
@@ -106,8 +105,6 @@ macro_rules! define_impl {
     ) => {
         impl<E: $element, const D: usize> TensorOpsAggregation<$backend, D>
             for <$backend as Backend>::TensorPrimitive<D>
-        where
-            Standard: rand::distributions::Distribution<E>,
         {
             fn mean(&self) -> <$backend as Backend>::TensorPrimitive<1> {
                 execute_ops!(

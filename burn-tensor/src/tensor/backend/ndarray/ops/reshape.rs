@@ -7,12 +7,10 @@ use crate::{
     to_nd_array_tensor,
 };
 use ndarray::Dim;
-use rand::distributions::Standard;
 
 impl<E, const D: usize> TensorOpsReshape<NdArrayBackend<E>, D> for NdArrayTensor<E, D>
 where
     E: NdArrayElement,
-    Standard: rand::distributions::Distribution<E>,
 {
     fn reshape<const D2: usize>(&self, shape: Shape<D2>) -> NdArrayTensor<E, D2> {
         let out = match D2 {

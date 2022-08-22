@@ -1,12 +1,10 @@
 use crate::backend::ndarray::NdArrayBackend;
 use crate::tensor::{backend::ndarray::NdArrayTensor, ops::*};
 use crate::NdArrayElement;
-use rand::distributions::Standard;
 
 impl<E, const D: usize> TensorOpsMapComparison<NdArrayBackend<E>, D> for NdArrayTensor<E, D>
 where
     E: NdArrayElement,
-    Standard: rand::distributions::Distribution<E>,
 {
     fn greater(
         &self,

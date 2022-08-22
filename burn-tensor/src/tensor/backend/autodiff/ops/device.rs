@@ -5,7 +5,6 @@ use crate::{
     tensor::backend::autodiff::ADTensor,
 };
 use crate::{ops::TensorOpsDevice, Element};
-use rand::distributions::Standard;
 
 register_ops!(
     ops UnaryOps,
@@ -28,7 +27,6 @@ macro_rules! define_impl {
             for <$backend as Backend>::TensorPrimitive<D>
         where
             E: Element,
-            Standard: rand::distributions::Distribution<E>,
         {
             fn device(&self) -> <$backend as Backend>::Device {
                 TensorOpsDevice::device(&self.tensor())
