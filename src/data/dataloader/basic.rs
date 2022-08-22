@@ -1,7 +1,6 @@
-use std::sync::Arc;
-
 use super::{batcher::Batcher, DataLoader, MultiThreadsDataLoader};
-use burn_dataset::{transform::PartialDataset, Dataset, DatasetIterator};
+use burn_dataset::{transform::PartialDataset, Dataset};
+use std::sync::Arc;
 
 pub struct BasicDataLoader<I, O> {
     batch_size: usize,
@@ -105,5 +104,37 @@ impl<I, O> Iterator for BasicDataloaderIterator<I, O> {
 
         let batch = self.batcher.batch(items);
         Some(batch)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use super::*;
+    use crate::data::dataloader::batcher::TestBatcher;
+    use crate::data::dataset::FakeDataset;
+
+    #[test]
+    fn should_iterate_over_all_data() {
+        let batcher = Arc::new(TestBatcher::new());
+        let dataset = Arc::new(FakeDataset::<String>::new(27));
+        let dataloader = BasicDataLoader::new(5, dataset.clone(), batcher);
+
+        let mut items_dataset = HashSet::new();
+        let mut items_dataloader = HashSet::new();
+
+        for item in dataset.iter() {
+            items_dataset.insert(item);
+        }
+
+        for items in dataloader.iter() {
+            for item in items {
+                items_dataloader.insert(item);
+            }
+        }
+
+        assert_eq!(items_dataset, items_dataloader);
+        assert_eq!(items_dataloader.len(), dataset.len());
     }
 }

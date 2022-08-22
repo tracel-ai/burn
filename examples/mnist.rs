@@ -1,7 +1,6 @@
 use burn::data::dataloader::batcher::Batcher;
-use burn::data::dataloader::{BasicDataLoader, DataLoader, MultiThreadsDataLoader};
+use burn::data::dataloader::{BasicDataLoader, DataLoader};
 use burn::data::dataset::source::huggingface::{MNISTDataset, MNISTItem};
-use burn::data::dataset::transform::PartialDataset;
 use burn::module::{Forward, Module, Param};
 use burn::nn;
 use burn::optim::SGDOptimizer;
