@@ -23,6 +23,10 @@ impl<const D: usize, B: ADBackend> Tensor<B, D> {
     pub fn from_inner(inner: Tensor<B::InnerBackend, D>) -> Self {
         Self::new(B::from_inner(inner.value))
     }
+
+    pub fn detach(&self) -> Self {
+        Self::from_inner(self.inner())
+    }
 }
 
 #[cfg(feature = "ndarray")]

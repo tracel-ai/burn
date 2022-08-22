@@ -1,5 +1,5 @@
 use burn::data::dataloader::batcher::Batcher;
-use burn::data::dataloader::{BasicDataLoader, DataLoader};
+use burn::data::dataloader::BasicDataLoader;
 use burn::data::dataset::source::huggingface::{MNISTDataset, MNISTItem};
 use burn::data::dataset::transform::ShuffledDataset;
 use burn::module::{Forward, Module, Param};
@@ -9,6 +9,7 @@ use burn::tensor::af::relu;
 use burn::tensor::back::{ad, Backend};
 use burn::tensor::losses::cross_entropy_with_logits;
 use burn::tensor::{Data, ElementConversion, Shape, Tensor};
+use burn::train::{Loss, SimpleLearner, SupervisedTrainer};
 use std::sync::Arc;
 
 #[derive(Module, Debug)]
@@ -54,6 +55,15 @@ impl<B: Backend> Forward<Tensor<B, 2>, Tensor<B, 2>> for Model<B> {
     }
 }
 
+impl<B: Backend> Loss<B, MNISTBatch<B>> for Model<B> {
+    fn loss(&self, item: MNISTBatch<B>) -> Tensor<B, 1> {
+        let output = self.forward(item.images);
+        let loss = cross_entropy_with_logits(&output, &item.targets);
+
+        loss
+    }
+}
+
 impl<B: Backend> MLP<B> {
     fn new(dim: usize, num_layers: usize) -> Self {
         let mut linears = Vec::with_capacity(num_layers);
@@ -73,6 +83,7 @@ impl<B: Backend> MLP<B> {
         }
     }
 }
+
 impl<B: Backend> Model<B> {
     fn new(d_input: usize, d_hidden: usize, num_layers: usize, num_classes: usize) -> Self {
         let mlp = MLP::new(d_hidden, num_layers);
@@ -107,78 +118,83 @@ struct MNISTBatch<B: Backend> {
     targets: Tensor<B, 2>,
 }
 
-impl<B: Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
+impl<B: ad::Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
     fn batch(&self, items: Vec<MNISTItem>) -> MNISTBatch<B> {
         let mut images_list = Vec::with_capacity(items.len());
         let mut targets_list = Vec::with_capacity(items.len());
 
         for item in items {
             let data: Data<f32, 2> = Data::from(item.image);
-            let image = Tensor::<B, 2>::from_data(data.convert()).to_device(self.device);
+            let image = Tensor::<B, 2>::from_data(data.convert());
             let image = image
                 .reshape(Shape::new([1, 784]))
                 .div_scalar(&255.to_elem());
             let target = Tensor::<B, 2>::zeros(Shape::new([1, 10]));
-            let target = target
-                .index_assign(
-                    [0..1, item.label..(item.label + 1)],
-                    &Tensor::ones(Shape::new([1, 1])),
-                )
-                .to_device(self.device);
+            let target = target.index_assign(
+                [0..1, item.label..(item.label + 1)],
+                &Tensor::ones(Shape::new([1, 1])),
+            );
 
             images_list.push(image);
             targets_list.push(target);
         }
 
         let images = images_list.iter().collect();
-        let images = Tensor::cat(images, 0);
+        let images = Tensor::cat(images, 0).to_device(self.device).detach();
 
         let targets = targets_list.iter().collect();
-        let targets = Tensor::cat(targets, 0);
+        let targets = Tensor::cat(targets, 0).to_device(self.device).detach();
 
         MNISTBatch { images, targets }
     }
 }
 
 fn run<B: ad::Backend>(device: B::Device) {
-    // Model and optim preparation
-    let mut model: Model<B> = Model::new(784, 1024, 3, 10);
-    let mut optim: SGDOptimizer<B> = SGDOptimizer::new(1.0e-2);
-    model.to_device(device);
+    let batch_size = 64;
+    let learning_rate = 1.2e-2;
+    let num_workers = 8;
+    let seed = 42;
 
-    // Data pipeline preparation
-    let batcher = Arc::new(MNISTBatcher::<B::InnerBackend> {
-        device: B::Device::default(), // Create batch on the default device
-    });
+    let mut model: Model<B> = Model::new(784, 1024, 3, 10);
+    model.to_device(device);
+    println!(
+        "Training '{}' with {} params on backend {} {:?}",
+        model.name(),
+        model.num_params(),
+        B::name(),
+        device,
+    );
+
+    let optim: SGDOptimizer<B> = SGDOptimizer::new(learning_rate);
+    let batcher = Arc::new(MNISTBatcher::<B> { device });
     let dataset_train = Arc::new(ShuffledDataset::with_seed(
         Arc::new(MNISTDataset::train()),
-        42,
+        seed,
     ));
     let dataset_test = Arc::new(MNISTDataset::test());
-    let dataloader_train = BasicDataLoader::multi_thread(64, dataset_train, batcher.clone(), 8);
-    let dataloader_test = BasicDataLoader::multi_thread(64, dataset_test, batcher.clone(), 8);
+    let dataloader_train = Arc::new(BasicDataLoader::multi_thread(
+        batch_size,
+        dataset_train,
+        batcher.clone(),
+        num_workers,
+    ));
+    let dataloader_test = Arc::new(BasicDataLoader::multi_thread(
+        batch_size,
+        dataset_test,
+        batcher.clone(),
+        num_workers,
+    ));
 
-    for epoch in 0..20 {
-        for item in dataloader_train.iter() {
-            let output = model.forward(Tensor::from_inner(item.images).to_device(device));
-            let loss = cross_entropy_with_logits(
-                &output,
-                &Tensor::from_inner(item.targets).to_device(device),
-            );
-            let grads = loss.backward();
+    let learner = SimpleLearner::new(model);
+    let trainer = SupervisedTrainer::new(
+        dataloader_train,
+        dataloader_test.clone(),
+        dataloader_test.clone(),
+        learner,
+        optim,
+    );
 
-            model.update_params(&grads, &mut optim);
-
-            println!("Epoch {}; loss {}", epoch, loss.to_data());
-        }
-    }
-
-    for item in dataloader_test.iter() {
-        let output = model.forward(Tensor::from_inner(item.images).to_device(device));
-        let loss =
-            cross_entropy_with_logits(&output, &Tensor::from_inner(item.targets).to_device(device));
-        println!("Test loss {}", loss.to_data());
-    }
+    trainer.run(20);
 }
 
 fn main() {
