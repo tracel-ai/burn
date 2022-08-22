@@ -151,7 +151,7 @@ fn run<B: ad::Backend>(device: B::Device) {
     let batcher = MNISTBatcher::<B::InnerBackend> {
         device: B::Device::default(),
     };
-    let dataloader = BasicDataLoader::multi_threads(32, Arc::new(dataset), Arc::new(batcher), 1);
+    let dataloader = BasicDataLoader::multi_thread(32, Arc::new(dataset), Arc::new(batcher), 1);
 
     for epoch in 0..20 {
         for item in dataloader.iter() {

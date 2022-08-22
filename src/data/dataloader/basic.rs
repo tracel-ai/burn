@@ -33,7 +33,7 @@ where
     I: Send + Sync + Clone + 'static,
     O: Send + Sync + Clone + 'static,
 {
-    pub fn multi_threads(
+    pub fn multi_thread(
         batch_size: usize,
         dataset: Arc<dyn Dataset<I>>,
         batcher: Arc<dyn Batcher<I, O>>,
@@ -116,7 +116,7 @@ mod tests {
     use crate::data::dataset::FakeDataset;
 
     #[test]
-    fn should_iterate_over_all_data() {
+    fn test_basic_dataloader() {
         let batcher = Arc::new(TestBatcher::new());
         let dataset = Arc::new(FakeDataset::<String>::new(27));
         let dataloader = BasicDataLoader::new(5, dataset.clone(), batcher);
@@ -136,5 +136,31 @@ mod tests {
 
         assert_eq!(items_dataset, items_dataloader);
         assert_eq!(items_dataloader.len(), dataset.len());
+    }
+
+    #[test]
+    fn test_multi_thread_basic_dataloader() {
+        let batcher = Arc::new(TestBatcher::new());
+        let dataset = Arc::new(FakeDataset::<String>::new(27));
+        let dataloader_single_thread = BasicDataLoader::new(5, dataset.clone(), batcher.clone());
+        let dataloader_multi_thread =
+            BasicDataLoader::multi_thread(5, dataset.clone(), batcher.clone(), 4);
+
+        let mut items_single_thread = HashSet::new();
+        let mut items_multi_thread = HashSet::new();
+
+        for items in dataloader_single_thread.iter() {
+            for item in items {
+                items_single_thread.insert(item);
+            }
+        }
+
+        for items in dataloader_multi_thread.iter() {
+            for item in items {
+                items_multi_thread.insert(item);
+            }
+        }
+
+        assert_eq!(items_single_thread, items_multi_thread);
     }
 }
