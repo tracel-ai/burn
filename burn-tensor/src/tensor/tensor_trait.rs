@@ -1,9 +1,11 @@
 use crate::tensor::ops::*;
+use half::bf16;
+use num_traits::{FromPrimitive, ToPrimitive};
 use rand::distributions::uniform::SampleUniform;
 
 pub trait Element:
     Zeros<Self>
-    + num_traits::cast::FromPrimitive
+    + ElementConversion
     + Ones<Self>
     + std::ops::Mul<Self, Output = Self>
     + std::fmt::Debug
@@ -25,9 +27,13 @@ pub trait ExpElement {
     fn log_elem(self) -> Self;
 }
 
+pub trait ElementConversion {
+    fn from_elem<E: ToPrimitive>(elem: E) -> Self;
+}
+
 #[cfg(feature = "ndarray")]
 pub trait NdArrayElement:
-    Element + ndarray::LinalgScalar + ndarray::ScalarOperand + ExpElement
+    Element + ndarray::LinalgScalar + ndarray::ScalarOperand + ExpElement + num_traits::FromPrimitive
 {
 }
 
@@ -53,13 +59,21 @@ macro_rules! ad_items {
     (
         ty $float:ident,
         zero $zero:expr,
-        one $one:expr
+        one $one:expr,
+        convert $convert:expr
+
     ) => {
         impl Element for $float {}
 
         impl Zeros<$float> for $float {
             fn zeros(&self) -> $float {
                 $zero
+            }
+        }
+
+        impl ElementConversion for $float {
+            fn from_elem<E: ToPrimitive>(elem: E) -> Self {
+                $convert(&elem)
             }
         }
 
@@ -70,29 +84,32 @@ macro_rules! ad_items {
         }
     };
     (
-        float $float:ident
+        float $float:ident,
+        convert $convert:expr
     ) => {
-        ad_items!(ty $float, zero 0.0, one 1.0);
+        ad_items!(ty $float, zero 0.0, one 1.0, convert $convert);
     };
     (
-        int $int:ident
+        int $int:ident,
+        convert $convert:expr
     ) => {
-        ad_items!(ty $int, zero 0, one 1);
+        ad_items!(ty $int, zero 0, one 1, convert $convert);
     };
 }
 
-ad_items!(float f64);
-ad_items!(float f32);
+ad_items!(float f64, convert |elem: &dyn ToPrimitive| elem.to_f64().unwrap());
+ad_items!(float f32, convert |elem: &dyn ToPrimitive| elem.to_f32().unwrap());
+// ad_items!(float bf16, convert |elem: &dyn ToPrimitive| elem.to_f32().unwrap());
 
-ad_items!(int i64);
-ad_items!(int i32);
-ad_items!(int i16);
-ad_items!(int i8);
+ad_items!(int i64, convert |elem: &dyn ToPrimitive| elem.to_i64().unwrap());
+ad_items!(int i32, convert |elem: &dyn ToPrimitive| elem.to_i32().unwrap());
+ad_items!(int i16, convert |elem: &dyn ToPrimitive| elem.to_i16().unwrap());
+ad_items!(int i8, convert |elem: &dyn ToPrimitive| elem.to_i8().unwrap());
 
-ad_items!(int u64);
-ad_items!(int u32);
-ad_items!(int u16);
-ad_items!(int u8);
+ad_items!(int u64, convert |elem: &dyn ToPrimitive| elem.to_u64().unwrap());
+ad_items!(int u32, convert |elem: &dyn ToPrimitive| elem.to_u32().unwrap());
+ad_items!(int u16, convert |elem: &dyn ToPrimitive| elem.to_u16().unwrap());
+ad_items!(int u8, convert |elem: &dyn ToPrimitive| elem.to_u8().unwrap());
 
 #[cfg(feature = "tch")]
 mod tch_elem {
