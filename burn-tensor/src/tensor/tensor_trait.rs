@@ -1,10 +1,11 @@
-use crate::tensor::ops::*;
+use crate::{tensor::ops::*, Distribution};
 use half::bf16;
-use num_traits::{FromPrimitive, ToPrimitive};
-use rand::distributions::uniform::SampleUniform;
+use num_traits::ToPrimitive;
+use rand::prelude::StdRng;
 
 pub trait Element:
     Zeros<Self>
+    + ElementRandom<Self>
     + ElementConversion
     + Ones<Self>
     + std::ops::Mul<Self, Output = Self>
@@ -14,7 +15,6 @@ pub trait Element:
     + Send
     + Sync
     + Copy
-    + SampleUniform
     + std::cmp::PartialOrd<Self>
 {
 }
@@ -29,6 +29,10 @@ pub trait ExpElement {
 
 pub trait ElementConversion {
     fn from_elem<E: ToPrimitive>(elem: E) -> Self;
+}
+
+pub trait ElementRandom<T> {
+    fn random(distribution: Distribution<T>, rng: &mut StdRng) -> T;
 }
 
 #[cfg(feature = "ndarray")]
@@ -60,7 +64,8 @@ macro_rules! ad_items {
         ty $float:ident,
         zero $zero:expr,
         one $one:expr,
-        convert $convert:expr
+        convert $convert:expr,
+        random $random:expr
 
     ) => {
         impl Element for $float {}
@@ -77,6 +82,12 @@ macro_rules! ad_items {
             }
         }
 
+        impl ElementRandom<$float> for $float {
+            fn random(distribution: Distribution<$float>, rng: &mut StdRng) -> $float {
+                $random(distribution, rng)
+            }
+        }
+
         impl Ones<$float> for $float {
             fn ones(&self) -> $float {
                 $one
@@ -85,31 +96,85 @@ macro_rules! ad_items {
     };
     (
         float $float:ident,
-        convert $convert:expr
+        convert $convert:expr,
+        random $random:expr
     ) => {
-        ad_items!(ty $float, zero 0.0, one 1.0, convert $convert);
+        ad_items!(
+            ty $float,
+            zero 0.0,
+            one 1.0,
+            convert $convert,
+            random $random
+        );
     };
     (
         int $int:ident,
-        convert $convert:expr
+        convert $convert:expr,
+        random $random:expr
     ) => {
-        ad_items!(ty $int, zero 0, one 1, convert $convert);
+        ad_items!(
+            ty $int,
+            zero 0,
+            one 1,
+            convert $convert,
+            random $random
+        );
     };
 }
 
-ad_items!(float f64, convert |elem: &dyn ToPrimitive| elem.to_f64().unwrap());
-ad_items!(float f32, convert |elem: &dyn ToPrimitive| elem.to_f32().unwrap());
+ad_items!(
+    float f64,
+    convert |elem: &dyn ToPrimitive| elem.to_f64().unwrap(),
+    random |distribution: Distribution<f64>, rng: &mut StdRng| distribution.sampler(rng).sample()
+);
+ad_items!(
+    float f32,
+    convert |elem: &dyn ToPrimitive| elem.to_f32().unwrap(),
+    random |distribution: Distribution<f32>, rng: &mut StdRng| distribution.sampler(rng).sample()
+);
 // ad_items!(float bf16, convert |elem: &dyn ToPrimitive| elem.to_f32().unwrap());
 
-ad_items!(int i64, convert |elem: &dyn ToPrimitive| elem.to_i64().unwrap());
-ad_items!(int i32, convert |elem: &dyn ToPrimitive| elem.to_i32().unwrap());
-ad_items!(int i16, convert |elem: &dyn ToPrimitive| elem.to_i16().unwrap());
-ad_items!(int i8, convert |elem: &dyn ToPrimitive| elem.to_i8().unwrap());
+ad_items!(
+    int i64,
+    convert |elem: &dyn ToPrimitive| elem.to_i64().unwrap(),
+    random |distribution: Distribution<i64>, rng: &mut StdRng| distribution.sampler(rng).sample()
+);
+ad_items!(
+    int i32,
+    convert |elem: &dyn ToPrimitive| elem.to_i32().unwrap(),
+    random |distribution: Distribution<i32>, rng: &mut StdRng| distribution.sampler(rng).sample()
+);
+ad_items!(
+    int i16,
+    convert |elem: &dyn ToPrimitive| elem.to_i16().unwrap(),
+    random |distribution: Distribution<i16>, rng: &mut StdRng| distribution.sampler(rng).sample()
+);
+ad_items!(
+    int i8,
+    convert |elem: &dyn ToPrimitive| elem.to_i8().unwrap(),
+    random |distribution: Distribution<i8>, rng: &mut StdRng| distribution.sampler(rng).sample()
+);
 
-ad_items!(int u64, convert |elem: &dyn ToPrimitive| elem.to_u64().unwrap());
-ad_items!(int u32, convert |elem: &dyn ToPrimitive| elem.to_u32().unwrap());
-ad_items!(int u16, convert |elem: &dyn ToPrimitive| elem.to_u16().unwrap());
-ad_items!(int u8, convert |elem: &dyn ToPrimitive| elem.to_u8().unwrap());
+ad_items!(
+    int u64,
+    convert |elem: &dyn ToPrimitive| elem.to_u64().unwrap(),
+    random |distribution: Distribution<u64>, rng: &mut StdRng| distribution.sampler(rng).sample()
+);
+ad_items!(
+    int u32,
+    convert |elem: &dyn ToPrimitive| elem.to_u32().unwrap(),
+    random |distribution: Distribution<u32>, rng: &mut StdRng| distribution.sampler(rng).sample()
+);
+ad_items!(
+    int u16,
+    convert |elem: &dyn ToPrimitive| elem.to_u16().unwrap(),
+    random |distribution: Distribution<u16>, rng: &mut StdRng| distribution.sampler(rng).sample()
+);
+ad_items!(
+    int u8,
+    convert |elem: &dyn ToPrimitive| elem.to_u8().unwrap(),
+    random |distribution: Distribution<u8>, rng: &mut StdRng| distribution.sampler(rng).sample()
+);
 
 #[cfg(feature = "tch")]
 mod tch_elem {
