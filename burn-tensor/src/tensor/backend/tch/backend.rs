@@ -22,6 +22,8 @@ pub struct TchBackend<E> {
 impl<E: TchElement> Backend for TchBackend<E> {
     type Device = TchDevice;
     type Elem = E;
+    type FullPrecisionElem = f32;
+    type FullPrecisionBackend = TchBackend<f32>;
     type TensorPrimitive<const D: usize> = TchTensor<E, D>;
     type BoolTensorPrimitive<const D: usize> = TchTensor<bool, D>;
 

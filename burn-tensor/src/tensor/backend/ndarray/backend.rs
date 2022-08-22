@@ -21,6 +21,8 @@ pub struct NdArrayBackend<E> {
 impl<E: NdArrayElement> Backend for NdArrayBackend<E> {
     type Device = NdArrayDevice;
     type Elem = E;
+    type FullPrecisionElem = f32;
+    type FullPrecisionBackend = NdArrayBackend<f32>;
     type TensorPrimitive<const D: usize> = NdArrayTensor<E, D>;
     type BoolTensorPrimitive<const D: usize> = NdArrayTensor<bool, D>;
 

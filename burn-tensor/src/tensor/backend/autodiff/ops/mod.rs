@@ -12,6 +12,7 @@ mod mask;
 mod matmul;
 mod mul;
 mod neg;
+mod precision;
 mod reshape;
 mod sub;
 mod transpose;

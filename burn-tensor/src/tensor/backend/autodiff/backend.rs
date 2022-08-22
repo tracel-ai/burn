@@ -23,6 +23,8 @@ macro_rules! define_impl {
         impl<E: $element> Backend for $name<E> {
             type Device = <$backend as Backend>::Device;
             type Elem = E;
+            type FullPrecisionElem = f32;
+            type FullPrecisionBackend = $name<<$backend as Backend>::FullPrecisionElem>;
             type TensorPrimitive<const D: usize> = ADTensor<D, $backend>;
             type BoolTensorPrimitive<const D: usize> =
                 <$backend as Backend>::BoolTensorPrimitive<D>;
