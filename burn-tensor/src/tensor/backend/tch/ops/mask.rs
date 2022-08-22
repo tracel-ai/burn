@@ -2,12 +2,8 @@ use crate::{
     back::Backend, backend::tch::TchBackend, backend::tch::TchTensor, ops::TensorOpsMask,
     TchElement,
 };
-use rand::distributions::Standard;
 
-impl<E: TchElement, const D: usize> TensorOpsMask<TchBackend<E>, D> for TchTensor<E, D>
-where
-    Standard: rand::distributions::Distribution<E>,
-{
+impl<E: TchElement, const D: usize> TensorOpsMask<TchBackend<E>, D> for TchTensor<E, D> {
     fn mask_fill(
         &self,
         mask: &<TchBackend<E> as Backend>::BoolTensorPrimitive<D>,

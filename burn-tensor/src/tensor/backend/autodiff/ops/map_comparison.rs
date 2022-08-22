@@ -1,6 +1,5 @@
 use crate::backend::backend::Backend;
 use crate::tensor::ops::*;
-use rand::distributions::Standard;
 
 macro_rules! define_impl {
     (
@@ -10,8 +9,6 @@ macro_rules! define_impl {
     ) => {
         impl<E: $element, const D: usize> TensorOpsMapComparison<$backend, D>
             for <$backend as Backend>::TensorPrimitive<D>
-        where
-            Standard: rand::distributions::Distribution<E>,
         {
             fn greater(&self, other: &Self) -> <$backend as Backend>::BoolTensorPrimitive<D> {
                 TensorOpsMapComparison::greater(&self.tensor(), &other.tensor())

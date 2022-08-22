@@ -7,7 +7,6 @@ use crate::{
     Data, NdArrayElement,
 };
 use ndarray::Axis;
-use rand::distributions::Standard;
 
 macro_rules! keepdim {
     (
@@ -36,8 +35,6 @@ macro_rules! keepdim {
 
 impl<E: NdArrayElement, const D: usize> TensorOpsAggregation<NdArrayBackend<E>, D>
     for NdArrayTensor<E, D>
-where
-    Standard: rand::distributions::Distribution<E>,
 {
     fn mean(&self) -> NdArrayTensor<E, 1> {
         let data = Data::from([self.array.mean().unwrap()]);

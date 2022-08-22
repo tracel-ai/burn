@@ -7,12 +7,8 @@ use crate::{
     },
     TchElement,
 };
-use rand::distributions::Standard;
 
-impl<E: TchElement, const D: usize> TensorOpsAggregation<TchBackend<E>, D> for TchTensor<E, D>
-where
-    Standard: rand::distributions::Distribution<E>,
-{
+impl<E: TchElement, const D: usize> TensorOpsAggregation<TchBackend<E>, D> for TchTensor<E, D> {
     fn mean(&self) -> <TchBackend<E> as Backend>::TensorPrimitive<1> {
         let kind = self.kind.clone();
         let tensor = self.tensor.mean(kind.kind());

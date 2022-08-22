@@ -2,7 +2,6 @@ use super::ADTensor;
 use crate::graph::grad::Gradients;
 use crate::tensor::backend::{ADBackend, Backend};
 use crate::tensor::{Data, Distribution, Shape};
-use rand::distributions::Standard;
 
 #[cfg(feature = "ndarray")]
 use crate::NdArrayElement;
@@ -21,10 +20,7 @@ macro_rules! define_impl {
             _b: $backend,
         }
 
-        impl<E: $element> Backend for $name<E>
-        where
-            Standard: rand::distributions::Distribution<E>,
-        {
+        impl<E: $element> Backend for $name<E> {
             type Device = <$backend as Backend>::Device;
             type Elem = E;
             type TensorPrimitive<const D: usize> = ADTensor<D, $backend>;
@@ -77,10 +73,7 @@ macro_rules! define_impl {
             }
         }
 
-        impl<E: $element> ADBackend for $name<E>
-        where
-            Standard: rand::distributions::Distribution<E>,
-        {
+        impl<E: $element> ADBackend for $name<E> {
             type InnerBackend = $backend;
 
             fn backward<const D: usize>(tensor: &Self::TensorPrimitive<D>) -> Gradients {

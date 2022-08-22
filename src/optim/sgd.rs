@@ -1,8 +1,8 @@
 use crate::optim::Optimizer;
 use crate::tensor::back;
+use crate::tensor::ElementConversion;
 use crate::tensor::Gradients;
 use crate::tensor::Tensor;
-use num_traits::cast::FromPrimitive;
 
 pub struct SGDOptimizer<B: back::ad::Backend> {
     learning_rate: <B::InnerBackend as back::Backend>::Elem,
@@ -10,8 +10,7 @@ pub struct SGDOptimizer<B: back::ad::Backend> {
 
 impl<B: back::ad::Backend> SGDOptimizer<B> {
     pub fn new(learning_rate: f64) -> Self {
-        let learning_rate =
-            <B::InnerBackend as back::Backend>::Elem::from_f64(learning_rate).unwrap();
+        let learning_rate = learning_rate.to_elem();
         Self { learning_rate }
     }
 }

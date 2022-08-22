@@ -1,7 +1,6 @@
 use super::TchTensor;
 use crate::tensor::{backend::Backend, TchElement};
 use crate::tensor::{Data, Distribution, Shape};
-use rand::distributions::Standard;
 
 #[derive(Clone, Copy, Debug)]
 pub enum TchDevice {
@@ -20,10 +19,7 @@ pub struct TchBackend<E> {
     _e: E,
 }
 
-impl<E: TchElement> Backend for TchBackend<E>
-where
-    Standard: rand::distributions::Distribution<E>,
-{
+impl<E: TchElement> Backend for TchBackend<E> {
     type Device = TchDevice;
     type Elem = E;
     type TensorPrimitive<const D: usize> = TchTensor<E, D>;

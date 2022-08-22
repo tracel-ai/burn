@@ -1,5 +1,5 @@
 use super::ops::{Ones, Zeros};
-use crate::tensor::Shape;
+use crate::{tensor::Shape, Element};
 use rand::{distributions::Standard, prelude::StdRng, Rng, SeedableRng};
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
@@ -14,18 +14,20 @@ pub struct Data<P, const D: usize> {
     pub shape: Shape<D>,
 }
 
+#[derive(Clone, Copy)]
 pub enum Distribution<P> {
     Standard,
     Uniform(P, P),
 }
 
-pub struct DistributionSampler<P>
+#[derive(new)]
+pub struct DistributionSampler<'a, P>
 where
     Standard: rand::distributions::Distribution<P>,
     P: rand::distributions::uniform::SampleUniform,
 {
     kind: DistributionSamplerKind<P>,
-    rng: StdRng,
+    rng: &'a mut StdRng,
 }
 
 pub enum DistributionSamplerKind<P>
@@ -37,17 +39,11 @@ where
     Uniform(rand::distributions::Uniform<P>),
 }
 
-impl<P> DistributionSampler<P>
+impl<'a, P> DistributionSampler<'a, P>
 where
     Standard: rand::distributions::Distribution<P>,
     P: rand::distributions::uniform::SampleUniform,
 {
-    pub fn from_entropy(kind: DistributionSamplerKind<P>) -> Self {
-        let rng = StdRng::from_entropy();
-
-        Self { rng, kind }
-    }
-
     pub fn sample(&mut self) -> P {
         match &self.kind {
             DistributionSamplerKind::Standard(distribution) => self.rng.sample(distribution),
@@ -61,7 +57,7 @@ where
     Standard: rand::distributions::Distribution<P>,
     P: rand::distributions::uniform::SampleUniform,
 {
-    pub fn sampler(self) -> DistributionSampler<P> {
+    pub fn sampler<'a>(self, rng: &'a mut StdRng) -> DistributionSampler<'a, P> {
         let kind = match self {
             Distribution::Standard => {
                 DistributionSamplerKind::Standard(rand::distributions::Standard {})
@@ -71,23 +67,41 @@ where
             }
         };
 
-        DistributionSampler::from_entropy(kind)
+        DistributionSampler::new(kind, rng)
     }
 }
 
-impl<P: std::fmt::Debug, const D: usize> Data<P, D>
+impl<P> Distribution<P>
 where
-    Standard: rand::distributions::Distribution<P>,
-    P: rand::distributions::uniform::SampleUniform,
+    P: Element,
 {
+    pub fn convert<E: Element>(self) -> Distribution<E> {
+        match self {
+            Distribution::Standard => Distribution::Standard,
+            Distribution::Uniform(a, b) => Distribution::Uniform(E::from_elem(a), E::from_elem(b)),
+        }
+    }
+}
+
+impl<const D: usize, P: Element> Data<P, D> {
+    pub fn convert<E: Element>(self) -> Data<E, D> {
+        let value: Vec<E> = self.value.into_iter().map(|a| a.to_elem()).collect();
+
+        Data {
+            value,
+            shape: self.shape,
+        }
+    }
+}
+
+impl<P: Element, const D: usize> Data<P, D> {
     pub fn random(shape: Shape<D>, distribution: Distribution<P>) -> Self {
         let num_elements = shape.num_elements();
-
-        let mut sampler = distribution.sampler();
+        let mut rng = StdRng::from_entropy();
         let mut data = Vec::with_capacity(num_elements);
 
         for _ in 0..num_elements {
-            data.push(sampler.sample());
+            data.push(P::random(distribution, &mut rng));
         }
 
         Data::new(data, shape)
@@ -174,21 +188,6 @@ impl<P: Into<f64> + Clone + std::fmt::Debug + PartialEq, const D: usize> Data<P,
 
         if !eq {
             assert_eq!(self.value, other.value);
-        }
-    }
-}
-
-impl<const D: usize> Data<f32, D> {
-    pub fn from_f32<O: num_traits::FromPrimitive>(self) -> Data<O, D> {
-        let value: Vec<O> = self
-            .value
-            .into_iter()
-            .map(|a| num_traits::FromPrimitive::from_f32(a).unwrap())
-            .collect();
-
-        Data {
-            value,
-            shape: self.shape,
         }
     }
 }

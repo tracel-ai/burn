@@ -6,7 +6,6 @@ use crate::{
     graph::ops::{UnaryOps, UnaryOpsNodeState},
     tensor::backend::autodiff::ADTensor,
 };
-use rand::distributions::Standard;
 use std::sync::Arc;
 
 #[derive(Debug)]
@@ -59,8 +58,6 @@ macro_rules! define_impl {
     ) => {
         impl<E: $element, const D1: usize> TensorOpsReshape<$backend, D1>
             for <$backend as Backend>::TensorPrimitive<D1>
-        where
-            Standard: rand::distributions::Distribution<E>,
         {
             fn reshape<const D2: usize>(
                 &self,
