@@ -159,6 +159,14 @@ where
         Self::new(self.value.sum_dim(dim))
     }
 
+    pub fn equal(&self, other: &Self) -> BoolTensor<B, D> {
+        BoolTensor::new(self.value.equal(&other.value))
+    }
+
+    pub fn equal_scalar(&self, other: &B::Elem) -> BoolTensor<B, D> {
+        BoolTensor::new(self.value.equal_scalar(other))
+    }
+
     pub fn greater(&self, other: &Self) -> BoolTensor<B, D> {
         BoolTensor::new(self.value.greater(&other.value))
     }
