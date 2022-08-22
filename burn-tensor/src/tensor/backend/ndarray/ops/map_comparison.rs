@@ -6,6 +6,27 @@ impl<E, const D: usize> TensorOpsMapComparison<NdArrayBackend<E>, D> for NdArray
 where
     E: NdArrayElement,
 {
+    fn equal(
+        &self,
+        other: &Self,
+    ) -> <NdArrayBackend<E> as crate::back::Backend>::BoolTensorPrimitive<D> {
+        let tensor = self.sub(other);
+        let zero = E::zeros(&E::default());
+        tensor.equal_scalar(&zero)
+    }
+
+    fn equal_scalar(
+        &self,
+        other: &<NdArrayBackend<E> as crate::back::Backend>::Elem,
+    ) -> <NdArrayBackend<E> as crate::back::Backend>::BoolTensorPrimitive<D> {
+        let array = self.array.mapv(|a| a == *other).into_shared();
+
+        NdArrayTensor {
+            shape: self.shape,
+            array,
+        }
+    }
+
     fn greater(
         &self,
         other: &Self,

@@ -9,6 +9,33 @@ impl<E, const D: usize> TensorOpsMapComparison<TchBackend<E>, D> for TchTensor<E
 where
     E: TchElement,
 {
+    fn equal(
+        &self,
+        other: &Self,
+    ) -> <TchBackend<E> as crate::back::Backend>::BoolTensorPrimitive<D> {
+        let tensor = self.tensor.eq_tensor(&other.tensor);
+
+        TchTensor {
+            shape: self.shape,
+            tensor,
+            kind: TchKind::<bool>::new(),
+        }
+    }
+
+    fn equal_scalar(
+        &self,
+        other: &<TchBackend<E> as crate::back::Backend>::Elem,
+    ) -> <TchBackend<E> as crate::back::Backend>::BoolTensorPrimitive<D> {
+        let other: f64 = (*other).into();
+        let tensor = self.tensor.eq(other);
+
+        TchTensor {
+            shape: self.shape,
+            tensor,
+            kind: TchKind::<bool>::new(),
+        }
+    }
+
     fn greater(
         &self,
         other: &Self,
