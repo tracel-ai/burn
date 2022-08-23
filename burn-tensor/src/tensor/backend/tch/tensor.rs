@@ -107,10 +107,23 @@ impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize>
     }
 }
 
-impl<P: Element + Into<f64> + tch::kind::Element, const D: usize> TensorTrait<P, D>
-    for TchTensor<P, D>
-{
+impl<const D: usize> TensorOpsUtilities<usize, D> for TchTensor<i64, D> {
+    fn shape(&self) -> &Shape<D> {
+        &self.shape
+    }
+    fn into_data(self) -> Data<usize, D> {
+        let values: Vec<i64> = self.tensor.into();
+        let values = values.into_iter().map(|v| v as usize).collect();
+        Data::new(values, self.shape)
+    }
+    fn to_data(&self) -> Data<usize, D> {
+        let values: Vec<i64> = self.tensor.shallow_clone().into();
+        let values = values.into_iter().map(|v| v as usize).collect();
+        Data::new(values, self.shape.clone())
+    }
 }
+
+impl<P: Element + tch::kind::Element, const D: usize> TensorTrait<P, D> for TchTensor<P, D> {}
 
 #[cfg(test)]
 mod tests {

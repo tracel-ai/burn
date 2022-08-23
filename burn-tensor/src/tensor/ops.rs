@@ -88,6 +88,10 @@ pub trait TensorOpsPrecision<B: Backend, const D: usize> {
     ) -> B::TensorPrimitive<D>;
 }
 
+pub trait TensorOpsArg<E, const D: usize> {
+    fn argmax(&self) -> Self;
+}
+
 pub trait TensorOpsExp<E, const D: usize> {
     fn exp(&self) -> Self;
 }

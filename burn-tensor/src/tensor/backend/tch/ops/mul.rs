@@ -1,7 +1,10 @@
-use crate::tensor::{backend::tch::TchTensor, ops::*, Shape};
+use crate::{
+    tensor::{backend::tch::TchTensor, ops::*, Shape},
+    Element,
+};
 use std::ops::Mul;
 
-impl<P: tch::kind::Element + Into<f64>, const D: usize> TensorOpsMul<P, D> for TchTensor<P, D> {
+impl<P: Element + tch::kind::Element, const D: usize> TensorOpsMul<P, D> for TchTensor<P, D> {
     fn mul(&self, other: &Self) -> Self {
         let tensor = (&self.tensor) * &other.tensor;
         let shape = self.shape.higher(&other.shape);
@@ -14,7 +17,7 @@ impl<P: tch::kind::Element + Into<f64>, const D: usize> TensorOpsMul<P, D> for T
         }
     }
     fn mul_scalar(&self, other: &P) -> Self {
-        let other: f64 = (other.clone()).into();
+        let other: f64 = (other.clone()).to_elem();
         let tensor = (&self.tensor).mul(other);
         let shape = Shape::from(tensor.size());
         let kind = self.kind.clone();
@@ -27,7 +30,7 @@ impl<P: tch::kind::Element + Into<f64>, const D: usize> TensorOpsMul<P, D> for T
     }
 }
 
-impl<P: tch::kind::Element + Into<f64>, const D: usize> std::ops::Mul<P> for TchTensor<P, D> {
+impl<P: Element + tch::kind::Element, const D: usize> std::ops::Mul<P> for TchTensor<P, D> {
     type Output = TchTensor<P, D>;
 
     fn mul(self, rhs: P) -> Self::Output {
@@ -35,7 +38,7 @@ impl<P: tch::kind::Element + Into<f64>, const D: usize> std::ops::Mul<P> for Tch
     }
 }
 
-impl<P: tch::kind::Element + Into<f64>, const D: usize> std::ops::Mul<TchTensor<P, D>>
+impl<P: Element + tch::kind::Element, const D: usize> std::ops::Mul<TchTensor<P, D>>
     for TchTensor<P, D>
 {
     type Output = TchTensor<P, D>;

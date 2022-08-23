@@ -9,7 +9,7 @@ impl<E: TchElement, const D: usize> TensorOpsMask<TchBackend<E>, D> for TchTenso
         mask: &<TchBackend<E> as Backend>::BoolTensorPrimitive<D>,
         value: E,
     ) -> Self {
-        let value: f64 = value.into();
+        let value: f64 = value.to_elem();
         let tensor = self.tensor.f_masked_fill(&mask.tensor, value).unwrap();
 
         Self {

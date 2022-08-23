@@ -28,7 +28,14 @@ pub trait Backend: Clone + Sized + Default + Send + Sync + std::fmt::Debug + 'st
         + Send
         + Sync
         + 'static;
+
     type BoolTensorPrimitive<const D: usize>: TensorOpsUtilities<bool, D>
+        + Clone
+        + Send
+        + Sync
+        + 'static
+        + std::fmt::Debug;
+    type IndexTensorPrimitive<const D: usize>: TensorTrait<i64, D>
         + Clone
         + Send
         + Sync
