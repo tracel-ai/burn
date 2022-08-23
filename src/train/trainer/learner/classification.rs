@@ -17,24 +17,22 @@ pub struct ClassificationOutput<B: Backend> {
     pub targets: Tensor<B, 2>,
 }
 
-impl<B: Backend> metric::RunningMetric<ClassificationOutput<B>> for metric::LossMetric {
-    fn update(&mut self, item: &ClassificationOutput<B>) -> metric::RunningMetricResult {
+impl<B: Backend> metric::Metric<ClassificationOutput<B>> for metric::LossMetric {
+    fn update(&mut self, item: &ClassificationOutput<B>) -> metric::MetricStateDyn {
         self.update(&item.loss)
     }
     fn clear(&mut self) {
-        <metric::LossMetric as metric::RunningMetric<Tensor<B, 1>>>::clear(self);
+        <metric::LossMetric as metric::Metric<Tensor<B, 1>>>::clear(self);
     }
 }
 
-impl<B: Backend> metric::RunningMetric<ClassificationOutput<B>> for metric::AccuracyMetric {
-    fn update(&mut self, item: &ClassificationOutput<B>) -> metric::RunningMetricResult {
+impl<B: Backend> metric::Metric<ClassificationOutput<B>> for metric::AccuracyMetric {
+    fn update(&mut self, item: &ClassificationOutput<B>) -> metric::MetricStateDyn {
         self.update(&(item.output.clone(), item.targets.clone()))
     }
 
     fn clear(&mut self) {
-        <metric::AccuracyMetric as metric::RunningMetric<(Tensor<B, 2>, Tensor<B, 2>)>>::clear(
-            self,
-        );
+        <metric::AccuracyMetric as metric::Metric<(Tensor<B, 2>, Tensor<B, 2>)>>::clear(self);
     }
 }
 

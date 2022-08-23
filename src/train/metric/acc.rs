@@ -1,7 +1,7 @@
 use super::RunningMetricResult;
 use crate::tensor::back::Backend;
 use crate::tensor::Tensor;
-use crate::train::metric::RunningMetric;
+use crate::train::metric::{Metric, MetricStateDyn};
 
 pub struct AccuracyMetric {
     current: f64,
@@ -19,8 +19,8 @@ impl AccuracyMetric {
     }
 }
 
-impl<B: Backend> RunningMetric<(Tensor<B, 2>, Tensor<B, 2>)> for AccuracyMetric {
-    fn update(&mut self, batch: &(Tensor<B, 2>, Tensor<B, 2>)) -> RunningMetricResult {
+impl<B: Backend> Metric<(Tensor<B, 2>, Tensor<B, 2>)> for AccuracyMetric {
+    fn update(&mut self, batch: &(Tensor<B, 2>, Tensor<B, 2>)) -> MetricStateDyn {
         let (outputs, targets) = batch;
         let logits_outputs = outputs.argmax(1).to_data();
         let logits_targets = targets.argmax(1).to_data();
@@ -49,12 +49,12 @@ impl<B: Backend> RunningMetric<(Tensor<B, 2>, Tensor<B, 2>)> for AccuracyMetric 
             100.0 * self.current
         );
 
-        RunningMetricResult {
+        Box::new(RunningMetricResult {
             name,
             formatted,
             raw_running,
             raw_current,
-        }
+        })
     }
 
     fn clear(&mut self) {
