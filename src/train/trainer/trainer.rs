@@ -57,7 +57,7 @@ where
 
         for epoch in 0..num_epochs {
             for (i, item) in dataloader_train.iter().enumerate() {
-                let item = self.learner.train(item, epoch, &mut self.optimizer);
+                let item = self.learner.train(item, &mut self.optimizer);
                 let log = LogItem::new(item)
                     .iteration(i)
                     .iteration_total(dataloader_train.len())
@@ -66,8 +66,10 @@ where
                 self.logger_train.log(log);
             }
 
+            self.logger_train.clear();
+
             for (i, item) in dataloader_valid.iter().enumerate() {
-                let item = self.learner.valid(item, epoch);
+                let item = self.learner.valid(item);
                 let log = LogItem::new(item)
                     .iteration(i)
                     .iteration_total(dataloader_valid.len())
@@ -75,6 +77,8 @@ where
                     .epoch_total(num_epochs);
                 self.logger_valid.log(log);
             }
+
+            self.logger_valid.clear();
         }
 
         let dataloader_test = self.dataloader_test.clone();
@@ -85,6 +89,8 @@ where
                 .iteration_total(dataloader_valid.len());
             self.logger_test.log(log);
         }
+
+        self.logger_test.clear();
 
         self.learner
     }

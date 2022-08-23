@@ -10,6 +10,7 @@ use burn::tensor::back::{ad, Backend};
 use burn::tensor::losses::cross_entropy_with_logits;
 use burn::tensor::{Data, ElementConversion, Shape, Tensor};
 use burn::train::logger::{CLILogger, CLIMetric};
+use burn::train::metric::LossMetric;
 use burn::train::{Loss, SimpleLearner, SupervisedTrainer};
 use std::sync::Arc;
 
@@ -188,14 +189,17 @@ fn run<B: ad::Backend>(device: B::Device) {
 
     let learner = SimpleLearner::new(model);
     let logger_train = Box::new(CLILogger::new(
-        vec![CLIMetric::Epoch, CLIMetric::Loss],
+        vec![CLIMetric::Epoch, CLIMetric::Loss(LossMetric::new())],
         "Train".to_string(),
     ));
     let logger_valid = Box::new(CLILogger::new(
-        vec![CLIMetric::Epoch, CLIMetric::Loss],
+        vec![CLIMetric::Epoch, CLIMetric::Loss(LossMetric::new())],
         "Valid".to_string(),
     ));
-    let logger_test = Box::new(CLILogger::new(vec![CLIMetric::Loss], "Test".to_string()));
+    let logger_test = Box::new(CLILogger::new(
+        vec![CLIMetric::Loss(LossMetric::new())],
+        "Test".to_string(),
+    ));
     let trainer = SupervisedTrainer::new(
         dataloader_train,
         dataloader_test.clone(),

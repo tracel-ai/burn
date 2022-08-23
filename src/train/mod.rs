@@ -1,4 +1,5 @@
 pub mod logger;
+pub mod metric;
 
 mod trainer;
 

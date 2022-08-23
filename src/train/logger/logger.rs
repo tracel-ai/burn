@@ -40,4 +40,5 @@ impl<T> LogItem<T> {
 
 pub trait Logger<T>: Send {
     fn log(&mut self, item: LogItem<T>);
+    fn clear(&mut self);
 }
