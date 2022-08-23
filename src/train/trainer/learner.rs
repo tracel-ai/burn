@@ -7,10 +7,10 @@ pub trait Loss<B: Backend, T>: Module<Backend = B> {
     fn loss(&self, item: T) -> Tensor<B, 1>;
 }
 
-pub trait Learner<B: Backend, T, V, O> {
-    fn train(&mut self, item: T, epoch: usize, optim: &mut O);
-    fn valid(&self, item: V, epoch: usize);
-    fn test(&self, item: V);
+pub trait Learner<B: Backend, T, V, O, TO, VO> {
+    fn train(&mut self, item: T, epoch: usize, optim: &mut O) -> TO;
+    fn valid(&self, item: V, epoch: usize) -> VO;
+    fn test(&self, item: V) -> VO;
 }
 
 #[derive(new)]
@@ -18,27 +18,33 @@ pub struct SimpleLearner<L> {
     model: L,
 }
 
-impl<B, T, L, O> Learner<B, T, T, O> for SimpleLearner<L>
+#[derive(new)]
+pub struct SimpleOutput<B: Backend> {
+    pub loss: Tensor<B, 1>,
+}
+
+impl<B, T, L, O> Learner<B, T, T, O, SimpleOutput<B>, SimpleOutput<B>> for SimpleLearner<L>
 where
     B: ad::Backend,
     L: Loss<B, T>,
     O: Optimizer<B>,
 {
-    fn train(&mut self, item: T, epoch: usize, optim: &mut O) {
+    fn train(&mut self, item: T, epoch: usize, optim: &mut O) -> SimpleOutput<B> {
         let loss = self.model.loss(item);
         let grads = loss.backward();
 
         self.model.update_params(&grads, optim);
-        println!("Train | Epoch {} - Loss {}", epoch, loss.to_data());
+
+        SimpleOutput::new(loss)
     }
 
-    fn valid(&self, item: T, epoch: usize) {
+    fn valid(&self, item: T, epoch: usize) -> SimpleOutput<B> {
         let loss = self.model.loss(item);
-        println!("Valid | Epoch {} - Loss {}", epoch, loss.to_data());
+        SimpleOutput::new(loss)
     }
 
-    fn test(&self, item: T) {
+    fn test(&self, item: T) -> SimpleOutput<B> {
         let loss = self.model.loss(item);
-        println!("Test | Loss {}", loss.to_data());
+        SimpleOutput::new(loss)
     }
 }
