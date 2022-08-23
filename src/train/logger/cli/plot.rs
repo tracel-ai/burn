@@ -44,14 +44,13 @@ where
         self.values.push(self.metric.value() as f32);
 
         let graph = Chart::new(256, 32, 0.0, self.values.len() as f32)
-            .lineplot(&Shape::Lines(&smooth_values(&self.values, 128)))
+            .lineplot(&Shape::Lines(&smooth_values(&self.values, 256)))
             .to_string();
 
-        Box::new(TextPlotState::new(state, format!("\n{}", graph)))
+        Box::new(TextPlotState::new(state, format!("\n\n{}", graph)))
     }
 
     fn clear(&mut self) {
-        self.values.clear();
         self.metric.clear();
     }
 }

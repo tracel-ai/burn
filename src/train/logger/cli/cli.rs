@@ -25,6 +25,10 @@ where
         let style = ProgressStyle::with_template(&template).unwrap();
         let style = self.register_style_progress(&item, style);
 
+        if self.pb.length() == Some(0) {
+            self.pb.println("\n\n");
+        }
+
         self.pb.set_style(style.progress_chars("#>-"));
         self.pb.set_position(item.iteration as u64);
         self.pb.set_length(item.iteration_total as u64);
@@ -32,7 +36,7 @@ where
     }
 
     fn clear(&mut self) {
-        self.pb.finish_and_clear();
+        self.pb.finish();
         self.pb = ProgressBar::new(0);
 
         for metric in &mut self.metrics {
