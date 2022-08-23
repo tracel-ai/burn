@@ -25,7 +25,7 @@ pub struct SimpleOutput<B: Backend> {
 }
 
 impl<B: Backend> metric::RunningMetric<SimpleOutput<B>> for metric::LossMetric {
-    fn update(&mut self, item: &SimpleOutput<B>) -> String {
+    fn update(&mut self, item: &SimpleOutput<B>) -> metric::RunningMetricResult {
         self.update_(&item.loss)
     }
     fn clear(&mut self) {
