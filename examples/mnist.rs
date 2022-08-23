@@ -11,7 +11,7 @@ use burn::tensor::losses::cross_entropy_with_logits;
 use burn::tensor::{Data, ElementConversion, Shape, Tensor};
 use burn::train::logger::CLILogger;
 use burn::train::metric::{CUDAMetric, LossMetric};
-use burn::train::{BasicLearner, Loss, SupervisedTrainer};
+use burn::train::{ClassificationLearner, ClassificationOutput, SupervisedTrainer};
 use std::sync::Arc;
 
 #[derive(Module, Debug)]
@@ -57,12 +57,17 @@ impl<B: Backend> Forward<Tensor<B, 2>, Tensor<B, 2>> for Model<B> {
     }
 }
 
-impl<B: Backend> Loss<B, MNISTBatch<B>> for Model<B> {
-    fn loss(&self, item: MNISTBatch<B>) -> Tensor<B, 1> {
+impl<B: Backend> Forward<MNISTBatch<B>, ClassificationOutput<B>> for Model<B> {
+    fn forward(&self, item: MNISTBatch<B>) -> ClassificationOutput<B> {
+        let targets = item.targets;
         let output = self.forward(item.images);
-        let loss = cross_entropy_with_logits(&output, &item.targets);
+        let loss = cross_entropy_with_logits(&output, &targets);
 
-        loss
+        ClassificationOutput {
+            loss,
+            output,
+            targets,
+        }
     }
 }
 
@@ -153,11 +158,11 @@ impl<B: ad::Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
 
 fn run<B: ad::Backend>(device: B::Device) {
     let batch_size = 64;
-    let learning_rate = 1.2e-2;
+    let learning_rate = 9.5e-2;
     let num_workers = 8;
     let seed = 42;
 
-    let mut model: Model<B> = Model::new(784, 4048, 3, 10);
+    let mut model: Model<B> = Model::new(784, 1024, 3, 10);
     model.to_device(device);
     println!(
         "Training '{}' with {} params on backend {} {:?}",
@@ -187,7 +192,7 @@ fn run<B: ad::Backend>(device: B::Device) {
         num_workers,
     ));
 
-    let learner = BasicLearner::new(model);
+    let learner = ClassificationLearner::new(model);
     let logger_train = Box::new(CLILogger::new(
         vec![Box::new(LossMetric::new()), Box::new(CUDAMetric::new())],
         "Train".to_string(),
