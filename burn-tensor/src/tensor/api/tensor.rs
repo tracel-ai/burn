@@ -35,6 +35,10 @@ where
     pub fn to_data(&self) -> Data<i64, D> {
         self.value.to_data()
     }
+
+    pub fn mul(&self, other: &Self) -> Self {
+        Self::new(self.value.mul(&other.value))
+    }
 }
 
 impl<B, const D: usize> BoolTensor<B, D>
