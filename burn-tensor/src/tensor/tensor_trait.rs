@@ -61,7 +61,11 @@ pub trait ElementPrecision {
 
 #[cfg(feature = "ndarray")]
 pub trait NdArrayElement:
-    Element + ndarray::LinalgScalar + ndarray::ScalarOperand + ExpElement + num_traits::FromPrimitive
+    Element
+    + ndarray::LinalgScalar
+    + ndarray::ScalarOperand
+    + ExpElement
+    + num_traits::FromPrimitive
 {
 }
 
