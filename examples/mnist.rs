@@ -10,7 +10,7 @@ use burn::tensor::back::{ad, Backend};
 use burn::tensor::losses::cross_entropy_with_logits;
 use burn::tensor::{Data, ElementConversion, Shape, Tensor};
 use burn::train::logger::CLILogger;
-use burn::train::metric::{CUDAMetric, LossMetric};
+use burn::train::metric::{AccuracyMetric, CUDAMetric, LossMetric, RunningMetric};
 use burn::train::{ClassificationLearner, ClassificationOutput, SupervisedTrainer};
 use std::sync::Arc;
 
@@ -161,6 +161,13 @@ fn run<B: ad::Backend>(device: B::Device) {
     let learning_rate = 9.5e-2;
     let num_workers = 8;
     let seed = 42;
+    let metrics = || -> Vec<Box<dyn RunningMetric<ClassificationOutput<B>>>> {
+        vec![
+            Box::new(LossMetric::new()),
+            Box::new(AccuracyMetric::new()),
+            Box::new(CUDAMetric::new()),
+        ]
+    };
 
     let mut model: Model<B> = Model::new(784, 1024, 3, 10);
     model.to_device(device);
@@ -193,18 +200,11 @@ fn run<B: ad::Backend>(device: B::Device) {
     ));
 
     let learner = ClassificationLearner::new(model);
-    let logger_train = Box::new(CLILogger::new(
-        vec![Box::new(LossMetric::new()), Box::new(CUDAMetric::new())],
-        "Train".to_string(),
-    ));
-    let logger_valid = Box::new(CLILogger::new(
-        vec![Box::new(LossMetric::new())],
-        "Valid".to_string(),
-    ));
-    let logger_test = Box::new(CLILogger::new(
-        vec![Box::new(LossMetric::new())],
-        "Test".to_string(),
-    ));
+
+    let logger_train = Box::new(CLILogger::new(metrics(), "Train".to_string()));
+    let logger_valid = Box::new(CLILogger::new(metrics(), "Valid".to_string()));
+    let logger_test = Box::new(CLILogger::new(metrics(), "Test".to_string()));
+
     let trainer = SupervisedTrainer::new(
         dataloader_train,
         dataloader_test.clone(),

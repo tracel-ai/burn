@@ -23,7 +23,7 @@ pub trait Element:
 }
 
 #[cfg(feature = "tch")]
-pub trait TchElement: Element + tch::kind::Element + Into<f64> {}
+pub trait TchElement: Element + tch::kind::Element {}
 
 pub trait ExpElement {
     fn exp_elem(self) -> Self;
@@ -231,6 +231,7 @@ mod tch_elem {
     impl TchElement for f32 {}
     impl TchElement for f16 {}
 
+    impl TchElement for i64 {}
     impl TchElement for i32 {}
     impl TchElement for i16 {}
 

@@ -26,6 +26,18 @@ impl<B: Backend> metric::RunningMetric<ClassificationOutput<B>> for metric::Loss
     }
 }
 
+impl<B: Backend> metric::RunningMetric<ClassificationOutput<B>> for metric::AccuracyMetric {
+    fn update(&mut self, item: &ClassificationOutput<B>) -> metric::RunningMetricResult {
+        self.update(&(item.output.clone(), item.targets.clone()))
+    }
+
+    fn clear(&mut self) {
+        <metric::AccuracyMetric as metric::RunningMetric<(Tensor<B, 2>, Tensor<B, 2>)>>::clear(
+            self,
+        );
+    }
+}
+
 impl<B, I, M, O> Learner<B, I, I, O, ClassificationOutput<B>, ClassificationOutput<B>>
     for ClassificationLearner<M>
 where

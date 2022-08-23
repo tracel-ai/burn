@@ -12,6 +12,35 @@ pub struct BoolTensor<B: Backend, const D: usize> {
     pub(crate) value: B::BoolTensorPrimitive<D>,
 }
 
+pub struct IndexTensor<B: Backend, const D: usize> {
+    pub(crate) value: B::IndexTensorPrimitive<D>,
+}
+
+impl<B, const D: usize> IndexTensor<B, D>
+where
+    B: Backend,
+{
+    pub fn new(tensor: B::IndexTensorPrimitive<D>) -> Self {
+        Self { value: tensor }
+    }
+
+    pub fn shape(&self) -> &Shape<D> {
+        self.value.shape()
+    }
+
+    pub fn into_data(self) -> Data<i64, D> {
+        self.value.into_data()
+    }
+
+    pub fn to_data(&self) -> Data<i64, D> {
+        self.value.to_data()
+    }
+
+    pub fn mul(&self, other: &Self) -> Self {
+        Self::new(self.value.mul(&other.value))
+    }
+}
+
 impl<B, const D: usize> BoolTensor<B, D>
 where
     B: Backend,
@@ -242,6 +271,14 @@ where
     pub fn from_full_precision(tensor: Tensor<B::FullPrecisionBackend, D>) -> Self {
         let value = B::TensorPrimitive::from_full_precision(tensor.value);
         Tensor::new(value)
+    }
+
+    pub fn argmax(&self, dim: usize) -> IndexTensor<B, D> {
+        IndexTensor::new(self.value.argmax(dim))
+    }
+
+    pub fn argmin(&self, dim: usize) -> IndexTensor<B, D> {
+        IndexTensor::new(self.value.argmin(dim))
     }
 
     pub fn cat(tensors: Vec<&Self>, dim: usize) -> Self {

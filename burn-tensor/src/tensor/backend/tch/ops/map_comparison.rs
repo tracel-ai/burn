@@ -26,7 +26,7 @@ where
         &self,
         other: &<TchBackend<E> as crate::back::Backend>::Elem,
     ) -> <TchBackend<E> as crate::back::Backend>::BoolTensorPrimitive<D> {
-        let other: f64 = (*other).into();
+        let other: f64 = (*other).to_elem();
         let tensor = self.tensor.eq(other);
 
         TchTensor {
@@ -53,7 +53,7 @@ where
         &self,
         other: &<TchBackend<E> as crate::back::Backend>::Elem,
     ) -> <TchBackend<E> as crate::back::Backend>::BoolTensorPrimitive<D> {
-        let other: f64 = (*other).into();
+        let other: f64 = (*other).to_elem();
         let tensor = self.tensor.greater(other);
 
         TchTensor {
@@ -80,7 +80,7 @@ where
         &self,
         other: &<TchBackend<E> as crate::back::Backend>::Elem,
     ) -> <TchBackend<E> as crate::back::Backend>::BoolTensorPrimitive<D> {
-        let other: f64 = (*other).into();
+        let other: f64 = (*other).to_elem();
         let tensor = self.tensor.greater_equal(other);
 
         TchTensor {
@@ -107,7 +107,7 @@ where
         &self,
         other: &<TchBackend<E> as crate::back::Backend>::Elem,
     ) -> <TchBackend<E> as crate::back::Backend>::BoolTensorPrimitive<D> {
-        let other: f64 = (*other).into();
+        let other: f64 = (*other).to_elem();
         let tensor = self.tensor.less(other);
 
         TchTensor {
@@ -134,7 +134,7 @@ where
         &self,
         other: &<TchBackend<E> as crate::back::Backend>::Elem,
     ) -> <TchBackend<E> as crate::back::Backend>::BoolTensorPrimitive<D> {
-        let other: f64 = (*other).into();
+        let other: f64 = (*other).to_elem();
         let tensor = self.tensor.less_equal(other);
 
         TchTensor {
