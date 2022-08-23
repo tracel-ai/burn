@@ -11,7 +11,7 @@ use burn::tensor::losses::cross_entropy_with_logits;
 use burn::tensor::{Data, ElementConversion, Shape, Tensor};
 use burn::train::logger::CLILogger;
 use burn::train::metric::{CUDAMetric, LossMetric};
-use burn::train::{Loss, SimpleLearner, SupervisedTrainer};
+use burn::train::{BasicLearner, Loss, SupervisedTrainer};
 use std::sync::Arc;
 
 #[derive(Module, Debug)]
@@ -187,7 +187,7 @@ fn run<B: ad::Backend>(device: B::Device) {
         num_workers,
     ));
 
-    let learner = SimpleLearner::new(model);
+    let learner = BasicLearner::new(model);
     let logger_train = Box::new(CLILogger::new(
         vec![Box::new(LossMetric::new()), Box::new(CUDAMetric::new())],
         "Train".to_string(),

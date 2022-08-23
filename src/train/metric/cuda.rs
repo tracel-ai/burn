@@ -30,7 +30,10 @@ impl<T> RunningMetric<T> for CUDAMetric {
             let memory_info_formatted = format!("{:.2}/{:.2} Gb", used_gb, total_gb);
             let memory_info_raw = format!("{}/{}", used_gb, total_gb);
 
-            formatted = format!("{} GPU #{} - Memory {}", formatted, index, memory_info_formatted);
+            formatted = format!(
+                "{} GPU #{} - Memory {}",
+                formatted, index, memory_info_formatted
+            );
             raw_running = format!("{} ", memory_info_raw);
 
             let utilization_rates = device.utilization_rates().unwrap();

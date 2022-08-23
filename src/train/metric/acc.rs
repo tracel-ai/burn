@@ -4,13 +4,13 @@ use crate::tensor::ElementConversion;
 use crate::tensor::Tensor;
 use crate::train::metric::RunningMetric;
 
-pub struct LossMetric {
+pub struct AccMetric {
     current: f64,
     count: usize,
     total: f64,
 }
 
-impl LossMetric {
+impl AccMetric {
     pub fn new() -> Self {
         Self {
             count: 0,
@@ -19,15 +19,16 @@ impl LossMetric {
         }
     }
 }
-impl<B: Backend> RunningMetric<Tensor<B, 1>> for LossMetric {
-    fn update(&mut self, loss: &Tensor<B, 1>) -> RunningMetricResult {
-        let loss = f64::from_elem(loss.to_data().value[0]);
+impl<B: Backend> RunningMetric<(Tensor<B, 2>, Tensor<B, 2>)> for AccMetric {
+    fn update(&mut self, batch: &(Tensor<B, 2>, Tensor<B, 2>)) -> RunningMetricResult {
+        let (outputs, targets) = batch;
+        // TODO: Needs Argmax
 
         self.count += 1;
-        self.total += loss;
-        self.current = loss;
+        self.total += 1.0;
+        self.current = 1.0;
 
-        let name = String::from("Loss");
+        let name = String::from("Acc");
         let running = self.total / self.count as f64;
         let raw_running = format!("{}", running);
         let raw_current = format!("{}", self.current);
