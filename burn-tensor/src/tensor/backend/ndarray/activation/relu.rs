@@ -11,8 +11,7 @@ where
 {
     fn relu(&self) -> Self {
         let zero = E::zeros(&E::default());
-        let mask =
-            TensorOpsMapComparison::<NdArrayBackend<E>, D>::lower_equal_scalar(self, &zero);
+        let mask = TensorOpsMapComparison::<NdArrayBackend<E>, D>::lower_equal_scalar(self, &zero);
         self.mask_fill(&mask, zero)
     }
 }
