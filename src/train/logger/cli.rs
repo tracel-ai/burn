@@ -16,7 +16,7 @@ where
     fn log(&mut self, item: LogItem<T>) {
         let metrics = self.update_metrics(&item);
 
-        let template = format!("{} {}\n", TASK_TAG, self.name);
+        let template = format!("{}\n  - Name: {}\n", GENERAL_TAG, self.name);
         let template = self.register_template_metrics(&metrics, template);
         let template = self.register_template_progress(&item, template);
 
@@ -67,14 +67,14 @@ impl<T> CLILogger<T> {
         let mut progress = Vec::new();
 
         if let Some(_) = &item.epoch {
-            progress.push("{epoch}");
+            progress.push("  - {epoch}");
         }
 
-        progress.push("{iteration} [{wide_bar:.cyan/blue}] ({eta})");
+        progress.push("  - {iteration} [{wide_bar:.cyan/blue}] ({eta})  ");
 
         if progress.len() > 0 {
-            let progress = progress.join(" - ");
-            template = template + format!("{} {}\n", PROGRESS_TAG, progress).as_str();
+            let progress = progress.join("\n");
+            template = template + format!("{}\n{}\n", PROGRESS_TAG, progress).as_str();
         }
 
         template
@@ -89,12 +89,12 @@ impl<T> CLILogger<T> {
         let mut metrics_keys = Vec::new();
 
         for i in 0..metrics.len() {
-            metrics_keys.push(format!("{{metric{}}}", i));
+            metrics_keys.push(format!("  - {{metric{}}}", i));
         }
 
         if metrics.len() > 0 {
-            let metrics_template = metrics_keys.join(" - ");
-            template = template + format!("{} {}\n", METRICS_TAG, metrics_template).as_str();
+            let metrics_template = metrics_keys.join("\n");
+            template = template + format!("{}\n{}\n", METRICS_TAG, metrics_template).as_str();
         }
 
         template
@@ -178,8 +178,8 @@ impl<T> CLILogger<T> {
     }
 }
 
-static TASK_TAG: &str = "[Task]    ";
-static METRICS_TAG: &str = "[Metrics] ";
+static GENERAL_TAG: &str = "[General]";
+static METRICS_TAG: &str = "[Metrics]";
 static PROGRESS_TAG: &str = "[Progress]";
 
 static METRIC_0: &str = "metric0";
