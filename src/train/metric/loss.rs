@@ -2,7 +2,7 @@ use super::RunningMetricResult;
 use crate::tensor::back::Backend;
 use crate::tensor::ElementConversion;
 use crate::tensor::Tensor;
-use crate::train::metric::{Metric, MetricState};
+use crate::train::metric::{Metric, MetricState, NumericMetric};
 
 pub struct LossMetric {
     current: f64,
@@ -17,6 +17,12 @@ impl LossMetric {
             current: 0.0,
             total: 0.0,
         }
+    }
+}
+
+impl NumericMetric for LossMetric {
+    fn value(&self) -> f64 {
+        self.current * 100.0
     }
 }
 

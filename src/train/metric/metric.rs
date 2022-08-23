@@ -9,6 +9,10 @@ pub trait MetricState {
     fn serialize(&self) -> String;
 }
 
+pub trait NumericMetric {
+    fn value(&self) -> f64;
+}
+
 pub type MetricStateDyn = Box<dyn MetricState>;
 
 #[derive(new)]

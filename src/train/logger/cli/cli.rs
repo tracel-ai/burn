@@ -1,5 +1,7 @@
-use super::{LogItem, Logger};
-use crate::train::metric::{LossMetric, Metric, MetricStateDyn};
+use crate::train::{
+    logger::{LogItem, Logger},
+    metric::{LossMetric, Metric, MetricStateDyn},
+};
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use std::fmt::Write;
 
@@ -21,20 +23,16 @@ where
         let template = self.register_template_progress(&item, template);
 
         let style = ProgressStyle::with_template(&template).unwrap();
-        let style = self.register_style_metrics(&metrics, style);
         let style = self.register_style_progress(&item, style);
-
-        if self.pb.length() == Some(0) {
-            self.pb.println("\n\n");
-        }
 
         self.pb.set_style(style.progress_chars("#>-"));
         self.pb.set_position(item.iteration as u64);
         self.pb.set_length(item.iteration_total as u64);
+        self.pb.tick();
     }
 
     fn clear(&mut self) {
-        self.pb.finish();
+        self.pb.finish_and_clear();
         self.pb = ProgressBar::new(0);
 
         for metric in &mut self.metrics {
@@ -88,8 +86,8 @@ impl<T> CLILogger<T> {
         let mut template = template;
         let mut metrics_keys = Vec::new();
 
-        for i in 0..metrics.len() {
-            metrics_keys.push(format!("  - {{metric{}}}", i));
+        for metric in metrics {
+            metrics_keys.push(format!("  - {}: {}", metric.name(), metric.pretty()));
         }
 
         if metrics.len() > 0 {

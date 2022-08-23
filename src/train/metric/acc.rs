@@ -1,7 +1,7 @@
 use super::RunningMetricResult;
 use crate::tensor::back::Backend;
 use crate::tensor::Tensor;
-use crate::train::metric::{Metric, MetricStateDyn};
+use crate::train::metric::{Metric, MetricStateDyn, NumericMetric};
 
 pub struct AccuracyMetric {
     current: f64,
@@ -16,6 +16,12 @@ impl AccuracyMetric {
             current: 0.0,
             total: 0,
         }
+    }
+}
+
+impl NumericMetric for AccuracyMetric {
+    fn value(&self) -> f64 {
+        self.current * 100.0
     }
 }
 
