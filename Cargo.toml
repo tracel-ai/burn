@@ -22,6 +22,7 @@ burn-derive = { path = "./burn-derive", version = "0.1.0" }
 
 # Metrics
 nvml-wrapper = "0.8"
+textplots = "0.8"
 
 # Console
 indicatif = "0.17"

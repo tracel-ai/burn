@@ -1,17 +1,19 @@
-use super::{LogItem, Logger};
-use crate::train::metric::{LossMetric, RunningMetric, RunningMetricResult};
+use crate::train::{
+    logger::{LogItem, Logger},
+    metric::{LossMetric, Metric, MetricStateDyn},
+};
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use std::fmt::Write;
 
 pub struct CLILogger<T> {
-    metrics: Vec<Box<dyn RunningMetric<T>>>,
+    metrics: Vec<Box<dyn Metric<T>>>,
     name: String,
     pb: ProgressBar,
 }
 
 impl<T> Logger<T> for CLILogger<T>
 where
-    LossMetric: RunningMetric<T>,
+    LossMetric: Metric<T>,
 {
     fn log(&mut self, item: LogItem<T>) {
         let metrics = self.update_metrics(&item);
@@ -21,7 +23,6 @@ where
         let template = self.register_template_progress(&item, template);
 
         let style = ProgressStyle::with_template(&template).unwrap();
-        let style = self.register_style_metrics(&metrics, style);
         let style = self.register_style_progress(&item, style);
 
         if self.pb.length() == Some(0) {
@@ -31,6 +32,7 @@ where
         self.pb.set_style(style.progress_chars("#>-"));
         self.pb.set_position(item.iteration as u64);
         self.pb.set_length(item.iteration_total as u64);
+        self.pb.tick();
     }
 
     fn clear(&mut self) {
@@ -44,7 +46,7 @@ where
 }
 
 impl<T> CLILogger<T> {
-    pub fn new(metrics: Vec<Box<dyn RunningMetric<T>>>, name: String) -> Self {
+    pub fn new(metrics: Vec<Box<dyn Metric<T>>>, name: String) -> Self {
         Self {
             metrics,
             name,
@@ -52,7 +54,7 @@ impl<T> CLILogger<T> {
         }
     }
 
-    pub fn update_metrics(&mut self, item: &LogItem<T>) -> Vec<RunningMetricResult> {
+    pub fn update_metrics(&mut self, item: &LogItem<T>) -> Vec<MetricStateDyn> {
         let mut metrics_result = Vec::with_capacity(self.metrics.len());
 
         for metric in &mut self.metrics {
@@ -82,14 +84,14 @@ impl<T> CLILogger<T> {
 
     pub fn register_template_metrics(
         &self,
-        metrics: &Vec<RunningMetricResult>,
+        metrics: &Vec<MetricStateDyn>,
         template: String,
     ) -> String {
         let mut template = template;
         let mut metrics_keys = Vec::new();
 
-        for i in 0..metrics.len() {
-            metrics_keys.push(format!("  - {{metric{}}}", i));
+        for metric in metrics {
+            metrics_keys.push(format!("  - {}: {}", metric.name(), metric.pretty()));
         }
 
         if metrics.len() > 0 {
@@ -127,7 +129,7 @@ impl<T> CLILogger<T> {
 
     pub fn register_style_metrics(
         &self,
-        items: &Vec<RunningMetricResult>,
+        items: &Vec<MetricStateDyn>,
         style: ProgressStyle,
     ) -> ProgressStyle {
         let mut style = style;
@@ -155,10 +157,10 @@ impl<T> CLILogger<T> {
         &self,
         key: &'static str,
         style: ProgressStyle,
-        metric_result: &RunningMetricResult,
+        metric_result: &MetricStateDyn,
     ) -> ProgressStyle {
-        let formatted = metric_result.formatted.clone();
-        let name = metric_result.name.clone();
+        let formatted = metric_result.pretty();
+        let name = metric_result.name();
 
         self.register_key_item(key, style, name, formatted)
     }

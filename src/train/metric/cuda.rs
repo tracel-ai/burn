@@ -1,5 +1,5 @@
 use super::RunningMetricResult;
-use crate::train::metric::RunningMetric;
+use crate::train::metric::{Metric, MetricState};
 use nvml_wrapper::Nvml;
 
 pub struct CUDAMetric {
@@ -14,8 +14,8 @@ impl CUDAMetric {
     }
 }
 
-impl<T> RunningMetric<T> for CUDAMetric {
-    fn update(&mut self, _item: &T) -> RunningMetricResult {
+impl<T> Metric<T> for CUDAMetric {
+    fn update(&mut self, _item: &T) -> Box<dyn MetricState> {
         let name = String::from("Cuda");
 
         let mut formatted = String::new();
@@ -41,12 +41,12 @@ impl<T> RunningMetric<T> for CUDAMetric {
             formatted = format!("{} - Usage {}", formatted, utilization_rate_formatted);
         }
 
-        RunningMetricResult {
+        Box::new(RunningMetricResult {
             name,
             formatted,
             raw_running,
             raw_current: String::new(),
-        }
+        })
     }
 
     fn clear(&mut self) {}

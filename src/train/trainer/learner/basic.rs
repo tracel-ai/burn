@@ -14,12 +14,12 @@ pub struct BasicOutput<B: Backend> {
     pub loss: Tensor<B, 1>,
 }
 
-impl<B: Backend> metric::RunningMetric<BasicOutput<B>> for metric::LossMetric {
-    fn update(&mut self, item: &BasicOutput<B>) -> metric::RunningMetricResult {
+impl<B: Backend> metric::Metric<BasicOutput<B>> for metric::LossMetric {
+    fn update(&mut self, item: &BasicOutput<B>) -> metric::MetricStateDyn {
         self.update(&item.loss)
     }
     fn clear(&mut self) {
-        <metric::LossMetric as metric::RunningMetric<Tensor<B, 1>>>::clear(self);
+        <metric::LossMetric as metric::Metric<Tensor<B, 1>>>::clear(self);
     }
 }
 

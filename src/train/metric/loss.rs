@@ -2,7 +2,7 @@ use super::RunningMetricResult;
 use crate::tensor::back::Backend;
 use crate::tensor::ElementConversion;
 use crate::tensor::Tensor;
-use crate::train::metric::RunningMetric;
+use crate::train::metric::{Metric, MetricState, NumericMetric};
 
 pub struct LossMetric {
     current: f64,
@@ -19,8 +19,15 @@ impl LossMetric {
         }
     }
 }
-impl<B: Backend> RunningMetric<Tensor<B, 1>> for LossMetric {
-    fn update(&mut self, loss: &Tensor<B, 1>) -> RunningMetricResult {
+
+impl NumericMetric for LossMetric {
+    fn value(&self) -> f64 {
+        self.current * 100.0
+    }
+}
+
+impl<B: Backend> Metric<Tensor<B, 1>> for LossMetric {
+    fn update(&mut self, loss: &Tensor<B, 1>) -> Box<dyn MetricState> {
         let loss = f64::from_elem(loss.to_data().value[0]);
 
         self.count += 1;
@@ -33,12 +40,12 @@ impl<B: Backend> RunningMetric<Tensor<B, 1>> for LossMetric {
         let raw_current = format!("{}", self.current);
         let formatted = format!("running {:.3} current {:.3}", running, self.current);
 
-        RunningMetricResult {
+        Box::new(RunningMetricResult {
             name,
             formatted,
             raw_running,
             raw_current,
-        }
+        })
     }
 
     fn clear(&mut self) {
