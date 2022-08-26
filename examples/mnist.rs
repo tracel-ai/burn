@@ -9,7 +9,7 @@ use burn::tensor::af::relu;
 use burn::tensor::back::{ad, Backend};
 use burn::tensor::losses::cross_entropy_with_logits;
 use burn::tensor::{Data, ElementConversion, Shape, Tensor};
-use burn::train::logger::{CLILogger, TextPlot};
+use burn::train::logger::CLILogger;
 use burn::train::metric::{AccuracyMetric, CUDAMetric, LossMetric, Metric};
 use burn::train::{ClassificationLearner, ClassificationOutput, SupervisedTrainer};
 use std::sync::Arc;
@@ -157,17 +157,17 @@ impl<B: ad::Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
 }
 
 fn run<B: ad::Backend>(device: B::Device) {
-    let batch_size = 64;
-    let learning_rate = 9.5e-2;
-    let num_epochs = 20;
+    let batch_size = 256;
+    let learning_rate = 5.5e-2;
+    let num_epochs = 100;
     let num_workers = 8;
     let num_layers = 4;
-    let hidden_dim = 1024;
+    let hidden_dim = 256;
     let seed = 42;
     let metrics = || -> Vec<Box<dyn Metric<ClassificationOutput<B>>>> {
         vec![
-            Box::new(TextPlot::new(LossMetric::new())),
-            Box::new(TextPlot::new(AccuracyMetric::new())),
+            Box::new(LossMetric::new()),
+            Box::new(AccuracyMetric::new()),
             Box::new(CUDAMetric::new()),
         ]
     };
@@ -210,7 +210,7 @@ fn run<B: ad::Backend>(device: B::Device) {
 
     let trainer = SupervisedTrainer::new(
         dataloader_train.clone(),
-        dataloader_train.clone(),
+        dataloader_test.clone(),
         dataloader_test.clone(),
         logger_train,
         logger_valid,

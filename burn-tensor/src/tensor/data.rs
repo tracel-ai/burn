@@ -162,9 +162,7 @@ impl<P: std::fmt::Debug + Copy, const D: usize> Data<P, D> {
 
 impl<P: Into<f64> + Clone + std::fmt::Debug + PartialEq, const D: usize> Data<P, D> {
     pub fn assert_approx_eq(&self, other: &Self, precision: usize) {
-        if self.shape != other.shape {
-            return;
-        }
+        assert_eq!(self.shape, other.shape);
 
         let mut eq = true;
 
