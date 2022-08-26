@@ -8,7 +8,9 @@ use crate::{
     },
     tensor::ops::{Ones, Zeros},
 };
-use std::{ops::Add, sync::Arc};
+use std::ops::Add;
+use std::sync::{mpsc, Arc};
+use threadpool::ThreadPool;
 
 #[derive(Debug)]
 pub struct BackwardNode<Out> {
@@ -52,27 +54,41 @@ where
                 return;
             }
             match tape.get_mut(order) {
-                Some(nodes) => nodes.push(node),
+                Some(nodes) => {
+                    nodes.push(node);
+                }
                 None => {}
             };
         });
 
+        let pool = ThreadPool::new(1);
+        let (sender, receiver) = mpsc::channel();
+
         for i in (1..self.order).rev() {
-            if let Some(nodes) = tape.get(i) {
-                let mut handles = Vec::with_capacity(nodes.len());
+            let nodes = match tape.get(i) {
+                Some(nodes) => nodes,
+                None => continue,
+            };
+
+            if nodes.len() != 0 {
                 for node in nodes {
-                    let node_cloned = node.clone();
-
-                    let handle = std::thread::spawn(move || {
-                        node_cloned.backward_step();
-                    });
-
-                    handles.push(handle);
+                    node.backward_step();
                 }
+                continue;
+            }
 
-                for handle in handles {
-                    handle.join().unwrap();
-                }
+            for node in nodes {
+                let node_cloned = node.clone();
+                let sender_cloned = sender.clone();
+
+                pool.execute(move || {
+                    node_cloned.backward_step();
+                    sender_cloned.send(()).unwrap();
+                });
+            }
+
+            for _ in 0..nodes.len() {
+                receiver.recv().unwrap();
             }
         }
 

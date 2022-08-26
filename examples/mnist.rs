@@ -14,7 +14,7 @@ use burn::train::metric::{AccuracyMetric, CUDAMetric, LossMetric, Metric};
 use burn::train::{ClassificationLearner, ClassificationOutput, SupervisedTrainer};
 use std::sync::Arc;
 
-#[derive(Module, Debug)]
+#[derive(Module, Debug, Clone)]
 struct Model<B>
 where
     B: Backend,
@@ -24,7 +24,7 @@ where
     output: Param<nn::Linear<B>>,
 }
 
-#[derive(Module, Debug)]
+#[derive(Module, Debug, Clone)]
 struct MLP<B>
 where
     B: Backend,
@@ -57,11 +57,41 @@ impl<B: Backend> Forward<Tensor<B, 2>, Tensor<B, 2>> for Model<B> {
     }
 }
 
-impl<B: Backend> Forward<MNISTBatch<B>, ClassificationOutput<B>> for Model<B> {
+impl<B: ad::Backend> Forward<MNISTBatch<B>, ClassificationOutput<B>> for Model<B> {
     fn forward(&self, item: MNISTBatch<B>) -> ClassificationOutput<B> {
-        let targets = item.targets;
-        let output = self.forward(item.images);
-        let loss = cross_entropy_with_logits(&output, &targets);
+        let batch_size = item.targets.shape().dims[0];
+        let targets = item.targets.clone();
+
+        let mut losses = Vec::with_capacity(batch_size);
+        let mut outputs = Vec::with_capacity(batch_size);
+        let mut handles = Vec::with_capacity(batch_size);
+
+        let module = Arc::new(self.clone());
+
+        for i in 0..batch_size {
+            let targets = targets.index([i..i + 1]);
+            let images = item.images.index([i..i + 1]);
+            let module = module.clone();
+
+            let handle = std::thread::spawn(move || {
+                let output = module.forward(images.detach());
+                let loss = cross_entropy_with_logits(&output, &targets.detach());
+                (loss.reshape(Shape::new([1, 1])), output)
+            });
+            handles.push(handle);
+        }
+
+        for handle in handles {
+            let (loss, output) = handle.join().unwrap();
+            losses.push(loss);
+            outputs.push(output);
+        }
+        let loss = Tensor::cat_owned(losses, 0).mean();
+        let output = Tensor::cat_owned(outputs, 0);
+
+        // let targets = item.targets;
+        // let output = self.forward(item.images);
+        // let loss = cross_entropy_with_logits(&output, &targets);
 
         ClassificationOutput {
             loss,
@@ -157,12 +187,12 @@ impl<B: ad::Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
 }
 
 fn run<B: ad::Backend>(device: B::Device) {
-    let batch_size = 256;
-    let learning_rate = 5.5e-2;
-    let num_epochs = 100;
+    let batch_size = 16;
+    let learning_rate = 9.5e-2;
+    let num_epochs = 1;
     let num_workers = 8;
     let num_layers = 4;
-    let hidden_dim = 256;
+    let hidden_dim = 128;
     let seed = 42;
     let metrics = || -> Vec<Box<dyn Metric<ClassificationOutput<B>>>> {
         vec![
@@ -224,5 +254,5 @@ fn run<B: ad::Backend>(device: B::Device) {
 
 fn main() {
     let device = burn::tensor::back::TchDevice::Cuda(0);
-    run::<ad::Tch<burn::tensor::f16>>(device);
+    run::<ad::Tch<f32>>(device);
 }

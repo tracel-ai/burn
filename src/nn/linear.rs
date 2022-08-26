@@ -12,7 +12,7 @@ pub struct LinearConfig {
     pub bias: bool,
 }
 
-#[derive(Module, Debug)]
+#[derive(Module, Debug, Clone)]
 pub struct Linear<B>
 where
     B: Backend,

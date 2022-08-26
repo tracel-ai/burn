@@ -4,7 +4,7 @@ use crate::tensor::{back, Gradients, Tensor};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Param<T> {
     value: T,
 }

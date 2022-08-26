@@ -44,12 +44,11 @@ where
     Out: std::fmt::Debug,
 {
     pub fn grad(&self) -> Out {
-        let grad = self.grad.read().unwrap();
-        grad.clone()
+        self.grad.read().unwrap().clone()
     }
 
     pub fn update_grad(&self, grad: Out) {
         let mut grad_state = self.grad.write().unwrap();
-        *grad_state = grad + grad_state.clone();
+        *grad_state = grad_state.clone() + grad;
     }
 }
