@@ -15,20 +15,14 @@ use burn::train::{ClassificationLearner, ClassificationOutput, SupervisedTrainer
 use std::sync::Arc;
 
 #[derive(Module, Debug)]
-struct Model<B>
-where
-    B: Backend,
-{
+struct Model<B: Backend> {
     mlp: Param<MLP<B>>,
     input: Param<nn::Linear<B>>,
     output: Param<nn::Linear<B>>,
 }
 
 #[derive(Module, Debug)]
-struct MLP<B>
-where
-    B: Backend,
-{
+struct MLP<B: Backend> {
     linears: Param<Vec<nn::Linear<B>>>,
 }
 
@@ -127,29 +121,20 @@ struct MNISTBatch<B: Backend> {
 
 impl<B: ad::Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
     fn batch(&self, items: Vec<MNISTItem>) -> MNISTBatch<B> {
-        let mut images_list = Vec::with_capacity(items.len());
-        let mut targets_list = Vec::with_capacity(items.len());
+        let images = items
+            .iter()
+            .map(|item| Data::<f32, 2>::from(item.image))
+            .map(|data| Tensor::<B, 2>::from_data(data.convert()))
+            .map(|tensor| tensor.reshape(Shape::new([1, 784])))
+            .map(|tensor| tensor.div_scalar(&255.to_elem()))
+            .collect();
 
-        for item in items {
-            let data: Data<f32, 2> = Data::from(item.image);
-            let image = Tensor::<B, 2>::from_data(data.convert());
-            let image = image
-                .reshape(Shape::new([1, 784]))
-                .div_scalar(&255.to_elem());
-            let target = Tensor::<B, 2>::zeros(Shape::new([1, 10]));
-            let target = target.index_assign(
-                [0..1, item.label..(item.label + 1)],
-                &Tensor::ones(Shape::new([1, 1])),
-            );
+        let targets = items
+            .iter()
+            .map(|item| Tensor::<B, 2>::one_hot(item.label, 10))
+            .collect();
 
-            images_list.push(image);
-            targets_list.push(target);
-        }
-
-        let images = images_list.iter().collect();
         let images = Tensor::cat(images, 0).to_device(self.device).detach();
-
-        let targets = targets_list.iter().collect();
         let targets = Tensor::cat(targets, 0).to_device(self.device).detach();
 
         MNISTBatch { images, targets }
@@ -157,9 +142,9 @@ impl<B: ad::Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
 }
 
 fn run<B: ad::Backend>(device: B::Device) {
-    let batch_size = 256;
+    let batch_size = 128;
     let learning_rate = 5.5e-2;
-    let num_epochs = 100;
+    let num_epochs = 1;
     let num_workers = 8;
     let num_layers = 4;
     let hidden_dim = 256;

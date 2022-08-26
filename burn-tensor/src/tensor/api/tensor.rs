@@ -2,6 +2,7 @@ use crate::tensor::activation::*;
 use crate::tensor::backend::Backend;
 use crate::tensor::ops::*;
 use crate::tensor::{Data, Distribution, Shape};
+use std::convert::TryInto;
 
 #[derive(Debug, Clone)]
 pub struct Tensor<B: Backend, const D: usize> {
@@ -109,6 +110,20 @@ where
 
     pub fn zeros_like(&self) -> Self {
         Tensor::new(B::zeros(self.shape().clone(), self.value.device()))
+    }
+
+    pub fn one_hot(index: usize, num_classes: usize) -> Self {
+        let mut dims = [1; D];
+        dims[D - 1] = num_classes;
+        let shape = Shape::new(dims);
+        let tensor = Tensor::zeros(shape);
+        let ranges: Vec<_> = shape.dims.iter().map(|dim| 0..dim.clone()).collect();
+        let mut ranges: [std::ops::Range<usize>; D] = ranges.try_into().unwrap();
+        ranges[D - 1] = index..index + 1;
+
+        let tensor = tensor.index_assign(ranges, &Tensor::ones(Shape::new([1; D])));
+
+        tensor
     }
 
     pub fn ones_like(&self) -> Self {
@@ -281,16 +296,7 @@ where
         IndexTensor::new(self.value.argmin(dim))
     }
 
-    pub fn cat(tensors: Vec<&Self>, dim: usize) -> Self {
-        let tensors: Vec<B::TensorPrimitive<D>> =
-            tensors.into_iter().map(|a| a.value.clone()).collect();
-        let tensors: Vec<&B::TensorPrimitive<D>> = tensors.iter().collect();
-        let value = B::TensorPrimitive::cat(tensors, dim);
-
-        Self::new(value)
-    }
-
-    pub fn cat_owned(tensors: Vec<Self>, dim: usize) -> Self {
+    pub fn cat(tensors: Vec<Self>, dim: usize) -> Self {
         let tensors: Vec<B::TensorPrimitive<D>> =
             tensors.into_iter().map(|a| a.value.clone()).collect();
         let tensors: Vec<&B::TensorPrimitive<D>> = tensors.iter().collect();

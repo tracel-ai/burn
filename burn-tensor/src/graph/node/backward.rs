@@ -58,11 +58,13 @@ where
         });
 
         for i in (1..self.order).rev() {
-            if let Some(nodes) = tape.get(i) {
-                for node in nodes {
-                    println!("Backward {:?}", node.id());
-                    node.backward_step();
-                }
+            let nodes = match tape.get(i) {
+                Some(nodes) => nodes,
+                None => continue,
+            };
+
+            for node in nodes {
+                node.backward_step();
             }
         }
 

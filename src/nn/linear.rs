@@ -13,10 +13,7 @@ pub struct LinearConfig {
 }
 
 #[derive(Module, Debug)]
-pub struct Linear<B>
-where
-    B: Backend,
-{
+pub struct Linear<B: Backend> {
     weight: Param<Tensor<B, 2>>,
     bias: Param<Option<Tensor<B, 1>>>,
 }

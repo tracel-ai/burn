@@ -119,8 +119,8 @@ mod tests {
             ));
         }
 
-        let tensor_1_cat = TestADTensor::cat_owned(tensor_1_list.clone(), 0);
-        let tensor_2_cat = TestADTensor::cat_owned(tensor_2_list.clone(), 0);
+        let tensor_1_cat = TestADTensor::cat(tensor_1_list.clone(), 0);
+        let tensor_2_cat = TestADTensor::cat(tensor_2_list.clone(), 0);
 
         let tensor_3_cat = tensor_1_cat.matmul(&tensor_2_cat);
         let grads_cat = tensor_3_cat.backward();
