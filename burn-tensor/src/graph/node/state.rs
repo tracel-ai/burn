@@ -1,5 +1,6 @@
 use crate::tensor::ops::Zeros;
-use std::{cell::RefCell, ops::Add};
+use std::ops::Add;
+use std::sync::RwLock;
 
 #[derive(new, Debug)]
 pub struct ForwardNodeState<Out> {
@@ -14,16 +15,16 @@ where
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct BackwardNodeState<Out> {
-    pub value: Out,
-    pub grad: RefCell<Out>,
+    value: Out,
+    grad: RwLock<Out>,
 }
 
 impl<Out: Zeros<Out>> BackwardNodeState<Out> {
     pub fn new(value: Out) -> Self {
         let grad = value.zeros();
-        let grad = RefCell::new(grad);
+        let grad = RwLock::new(grad);
 
         Self { value, grad }
     }
@@ -43,10 +44,12 @@ where
     Out: std::fmt::Debug,
 {
     pub fn grad(&self) -> Out {
-        self.grad.borrow().clone()
+        let grad = self.grad.read().unwrap();
+        grad.clone()
     }
 
     pub fn update_grad(&self, grad: Out) {
-        self.grad.swap(&RefCell::new(self.grad() + grad));
+        let mut grad_state = self.grad.write().unwrap();
+        *grad_state = grad + grad_state.clone();
     }
 }

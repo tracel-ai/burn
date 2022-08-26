@@ -16,7 +16,7 @@ pub struct UnaryOpsNodeState<'a, In, Out> {
     pub output: &'a BackwardNodeState<Out>,
 }
 
-pub trait BackwardRecordedOps<T>: std::fmt::Debug {
+pub trait BackwardRecordedOps<T>: std::fmt::Debug + Send + Sync {
     fn backward_step(&self, state: &BackwardNodeState<T>);
     fn backward_parents(&self) -> Vec<RecordedOpsParentRef>;
 }
@@ -25,7 +25,7 @@ pub trait ForwardRecordedOps<T>: std::fmt::Debug + Send + Sync {
     fn to_backward(&self, graph: &mut Forward2BackwardGraphConverter) -> BackwardRecordedOpsRef<T>;
 }
 
-pub trait RecordedOpsParent: std::fmt::Debug {
+pub trait RecordedOpsParent: std::fmt::Debug + Send + Sync {
     fn order(&self) -> usize;
     fn id(&self) -> &String;
     fn backward_step(&self);
