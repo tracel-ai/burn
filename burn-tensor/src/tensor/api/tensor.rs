@@ -290,6 +290,15 @@ where
         Self::new(value)
     }
 
+    pub fn cat_owned(tensors: Vec<Self>, dim: usize) -> Self {
+        let tensors: Vec<B::TensorPrimitive<D>> =
+            tensors.into_iter().map(|a| a.value.clone()).collect();
+        let tensors: Vec<&B::TensorPrimitive<D>> = tensors.iter().collect();
+        let value = B::TensorPrimitive::cat(tensors, dim);
+
+        Self::new(value)
+    }
+
     pub fn unsqueeze<const D2: usize>(&self) -> Tensor<B, D2> {
         if D2 < D {
             panic!(
