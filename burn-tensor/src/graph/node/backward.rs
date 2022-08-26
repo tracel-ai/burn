@@ -60,6 +60,7 @@ where
         for i in (1..self.order).rev() {
             if let Some(nodes) = tape.get(i) {
                 for node in nodes {
+                    println!("Backward {:?}", node.id());
                     node.backward_step();
                 }
             }
