@@ -25,6 +25,7 @@ impl<Out> ForwardNode<Out> {
         let order = node.order + 1;
         Self::new(order, state, ops)
     }
+
     pub fn from_binary<Lhs, Rhs>(
         lhs: &ForwardNode<Lhs>,
         rhs: &ForwardNode<Rhs>,
@@ -35,7 +36,11 @@ impl<Out> ForwardNode<Out> {
         Self::new(order, state, ops)
     }
 
-    fn new(order: usize, state: ForwardNodeState<Out>, ops: ForwardRecordedOpsRef<Out>) -> Self {
+    pub fn new(
+        order: usize,
+        state: ForwardNodeState<Out>,
+        ops: ForwardRecordedOpsRef<Out>,
+    ) -> Self {
         let id = nanoid::nanoid!();
         Self {
             id,
