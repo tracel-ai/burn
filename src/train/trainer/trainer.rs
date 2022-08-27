@@ -52,15 +52,17 @@ where
     }
 
     pub fn run(mut self, num_epochs: usize) -> L {
-        let dataloader_train = self.dataloader_train.clone();
-        let dataloader_valid = self.dataloader_valid.clone();
-
         for epoch in 0..num_epochs {
-            for (i, item) in dataloader_train.iter().enumerate() {
+            let mut iterator = self.dataloader_train.iter();
+            let mut iteration = 0;
+
+            while let Some(item) = iterator.next() {
+                let progress = iterator.progress();
+                iteration += 1;
+
                 let item = self.learner.train(item, &mut self.optimizer);
-                let log = LogItem::new(item)
-                    .iteration(i)
-                    .iteration_total(dataloader_train.len())
+                let log = LogItem::new(item, progress)
+                    .iteration(iteration)
                     .epoch(epoch)
                     .epoch_total(num_epochs);
                 self.logger_train.log(log);
@@ -68,11 +70,16 @@ where
 
             self.logger_train.clear();
 
-            for (i, item) in dataloader_valid.iter().enumerate() {
+            let mut iterator = self.dataloader_valid.iter();
+            let mut iteration = 0;
+
+            while let Some(item) = iterator.next() {
+                let progress = iterator.progress();
+                iteration += 1;
+
                 let item = self.learner.valid(item);
-                let log = LogItem::new(item)
-                    .iteration(i)
-                    .iteration_total(dataloader_valid.len())
+                let log = LogItem::new(item, progress)
+                    .iteration(iteration)
                     .epoch(epoch)
                     .epoch_total(num_epochs);
                 self.logger_valid.log(log);
@@ -81,12 +88,15 @@ where
             self.logger_valid.clear();
         }
 
-        let dataloader_test = self.dataloader_test.clone();
-        for (i, item) in dataloader_test.iter().enumerate() {
+        let mut iterator = self.dataloader_test.iter();
+        let mut iteration = 0;
+
+        while let Some(item) = iterator.next() {
+            let progress = iterator.progress();
+            iteration += 1;
+
             let item = self.learner.test(item);
-            let log = LogItem::new(item)
-                .iteration(i)
-                .iteration_total(dataloader_valid.len());
+            let log = LogItem::new(item, progress).iteration(iteration);
             self.logger_test.log(log);
         }
 

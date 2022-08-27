@@ -1,7 +1,6 @@
 use burn::data::dataloader::batcher::Batcher;
-use burn::data::dataloader::BasicDataLoader;
+use burn::data::dataloader::DataLoaderBuilder;
 use burn::data::dataset::source::huggingface::{MNISTDataset, MNISTItem};
-use burn::data::dataset::transform::ShuffledDataset;
 use burn::module::{Forward, Module, Param};
 use burn::nn;
 use burn::optim::SGDOptimizer;
@@ -144,10 +143,10 @@ impl<B: ad::Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
 fn run<B: ad::Backend>(device: B::Device) {
     let batch_size = 128;
     let learning_rate = 5.5e-2;
-    let num_epochs = 1;
+    let num_epochs = 10;
     let num_workers = 8;
     let num_layers = 4;
-    let hidden_dim = 256;
+    let hidden_dim = 2560;
     let seed = 42;
     let metrics = || -> Vec<Box<dyn Metric<ClassificationOutput<B>>>> {
         vec![
@@ -169,23 +168,15 @@ fn run<B: ad::Backend>(device: B::Device) {
 
     let optim: SGDOptimizer<B> = SGDOptimizer::new(learning_rate);
     let batcher = Arc::new(MNISTBatcher::<B> { device });
-    let dataset_train = Arc::new(ShuffledDataset::with_seed(
-        Arc::new(MNISTDataset::train()),
-        seed,
-    ));
-    let dataset_test = Arc::new(MNISTDataset::test());
-    let dataloader_train = Arc::new(BasicDataLoader::multi_thread(
-        batch_size,
-        dataset_train,
-        batcher.clone(),
-        num_workers,
-    ));
-    let dataloader_test = Arc::new(BasicDataLoader::multi_thread(
-        batch_size,
-        dataset_test,
-        batcher.clone(),
-        num_workers,
-    ));
+    let dataloader_train = DataLoaderBuilder::new(batcher.clone())
+        .batch_size(batch_size)
+        .shuffle(seed)
+        .num_workers(num_workers)
+        .build(Arc::new(MNISTDataset::train()));
+    let dataloader_test = DataLoaderBuilder::new(batcher.clone())
+        .batch_size(batch_size)
+        .num_workers(num_workers)
+        .build(Arc::new(MNISTDataset::test()));
 
     let learner = ClassificationLearner::new(model);
 

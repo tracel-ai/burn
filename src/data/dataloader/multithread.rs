@@ -1,4 +1,5 @@
-use super::DataLoader;
+use super::{DataLoader, DataLoaderIterator, Progress};
+use std::collections::HashMap;
 use std::sync::{mpsc, Arc};
 use std::thread;
 
@@ -10,7 +11,7 @@ pub struct MultiThreadDataLoader<O> {
 
 #[derive(Debug)]
 pub enum Message<O> {
-    Batch(O),
+    Batch(usize, O, Progress),
     Done,
 }
 
@@ -18,6 +19,7 @@ struct MultiThreadsDataloaderIterator<O> {
     num_done: usize,
     workers: Vec<thread::JoinHandle<()>>,
     receiver: mpsc::Receiver<Message<O>>,
+    progresses: HashMap<usize, Progress>,
 }
 
 impl<O> MultiThreadDataLoader<O> {
@@ -30,20 +32,25 @@ impl<O> DataLoader<O> for MultiThreadDataLoader<O>
 where
     O: Send + 'static + std::fmt::Debug,
 {
-    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = O> + 'a> {
+    fn iter<'a>(&'a self) -> Box<dyn DataLoaderIterator<O> + 'a> {
         let (sender, receiver) = mpsc::sync_channel::<Message<O>>(MAX_QUEUED_ITEMS);
 
         let handlers: Vec<_> = self
             .dataloaders
             .clone()
             .into_iter()
-            .map(|dataloader| {
+            .enumerate()
+            .map(|(index, dataloader)| {
                 let dataloader_cloned = dataloader.clone();
                 let sender_cloned = sender.clone();
 
                 thread::spawn(move || {
-                    for item in dataloader_cloned.iter() {
-                        sender_cloned.send(Message::Batch(item)).unwrap();
+                    let mut iterator = dataloader_cloned.iter();
+                    while let Some(item) = iterator.next() {
+                        let progress = iterator.progress();
+                        sender_cloned
+                            .send(Message::Batch(index, item, progress))
+                            .unwrap();
                     }
                     sender_cloned.send(Message::Done).unwrap();
                 })
@@ -51,14 +58,6 @@ where
             .collect();
 
         Box::new(MultiThreadsDataloaderIterator::new(receiver, handlers))
-    }
-
-    fn len(&self) -> usize {
-        let mut len = 0;
-        for dataloader in self.dataloaders.iter() {
-            len += dataloader.len();
-        }
-        len
     }
 }
 
@@ -68,6 +67,23 @@ impl<O> MultiThreadsDataloaderIterator<O> {
             num_done: 0,
             workers,
             receiver,
+            progresses: HashMap::new(),
+        }
+    }
+}
+impl<O: std::fmt::Debug> DataLoaderIterator<O> for MultiThreadsDataloaderIterator<O> {
+    fn progress(&self) -> Progress {
+        let mut items_total = 0;
+        let mut items_processed = 0;
+
+        for progress in self.progresses.values().into_iter() {
+            items_total += progress.items_total;
+            items_processed += progress.items_processed;
+        }
+
+        Progress {
+            items_processed,
+            items_total,
         }
     }
 }
@@ -85,7 +101,10 @@ impl<O: std::fmt::Debug> Iterator for MultiThreadsDataloaderIterator<O> {
             let item = item.unwrap();
 
             match item {
-                Message::Batch(item) => return Some(item),
+                Message::Batch(index, item, progress) => {
+                    self.progresses.insert(index, progress);
+                    return Some(item);
+                }
                 Message::Done => {
                     self.num_done += 1;
                 }

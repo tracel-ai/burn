@@ -1,40 +1,43 @@
-use super::{batcher::Batcher, DataLoader, MultiThreadDataLoader};
+use super::{
+    batcher::Batcher, BatchStrategy, DataLoader, DataLoaderIterator, MultiThreadDataLoader,
+    Progress,
+};
 use burn_dataset::{transform::PartialDataset, Dataset};
 use std::sync::Arc;
 
-pub struct BasicDataLoader<I, O> {
-    batch_size: usize,
+pub struct BatchDataLoader<I, O> {
+    strategy: Box<dyn BatchStrategy<I>>,
     dataset: Arc<dyn Dataset<I>>,
     batcher: Arc<dyn Batcher<I, O>>,
 }
 
-struct BasicDataloaderIterator<I, O> {
+struct BatchDataloaderIterator<I, O> {
     current_index: usize,
-    batch_size: usize,
+    strategy: Box<dyn BatchStrategy<I>>,
     dataset: Arc<dyn Dataset<I>>,
     batcher: Arc<dyn Batcher<I, O>>,
 }
 
-impl<I, O> BasicDataLoader<I, O> {
+impl<I, O> BatchDataLoader<I, O> {
     pub fn new(
-        batch_size: usize,
+        strategy: Box<dyn BatchStrategy<I>>,
         dataset: Arc<dyn Dataset<I>>,
         batcher: Arc<dyn Batcher<I, O>>,
     ) -> Self {
         Self {
-            batch_size,
+            strategy,
             dataset,
             batcher,
         }
     }
 }
-impl<I, O> BasicDataLoader<I, O>
+impl<I, O> BatchDataLoader<I, O>
 where
     I: Send + Sync + Clone + 'static,
     O: Send + Sync + Clone + 'static,
 {
     pub fn multi_thread(
-        batch_size: usize,
+        strategy: Box<dyn BatchStrategy<I>>,
         dataset: Arc<dyn Dataset<I>>,
         batcher: Arc<dyn Batcher<I, O>>,
         num_threads: usize,
@@ -42,7 +45,8 @@ where
         let datasets = PartialDataset::split(dataset, num_threads);
         let mut dataloaders: Vec<Arc<dyn DataLoader<_> + Send + Sync>> = Vec::new();
         for dataset in datasets {
-            let dataloader = BasicDataLoader::new(batch_size, Arc::new(dataset), batcher.clone());
+            let strategy = strategy.new_like();
+            let dataloader = BatchDataLoader::new(strategy, Arc::new(dataset), batcher.clone());
             let dataloader = Arc::new(dataloader);
             dataloaders.push(dataloader);
         }
@@ -50,45 +54,36 @@ where
     }
 }
 
-impl<I, O> DataLoader<O> for BasicDataLoader<I, O> {
-    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = O> + 'a> {
-        Box::new(BasicDataloaderIterator::new(
-            self.batch_size,
+impl<I, O> DataLoader<O> for BatchDataLoader<I, O> {
+    fn iter<'a>(&'a self) -> Box<dyn DataLoaderIterator<O> + 'a> {
+        Box::new(BatchDataloaderIterator::new(
+            self.strategy.new_like(),
             self.dataset.clone(),
             self.batcher.clone(),
         ))
     }
-
-    fn len(&self) -> usize {
-        self.dataset.len() / self.batch_size
-    }
 }
 
-impl<I, O> BasicDataloaderIterator<I, O> {
+impl<I, O> BatchDataloaderIterator<I, O> {
     pub fn new(
-        batch_size: usize,
+        strategy: Box<dyn BatchStrategy<I>>,
         dataset: Arc<dyn Dataset<I>>,
         batcher: Arc<dyn Batcher<I, O>>,
     ) -> Self {
-        BasicDataloaderIterator {
+        BatchDataloaderIterator {
             current_index: 0,
-            batch_size,
+            strategy,
             dataset,
             batcher,
         }
     }
 }
 
-impl<I, O> Iterator for BasicDataloaderIterator<I, O> {
+impl<I, O> Iterator for BatchDataloaderIterator<I, O> {
     type Item = O;
 
     fn next(&mut self) -> Option<O> {
-        let mut items = Vec::with_capacity(self.batch_size);
         loop {
-            if items.len() >= self.batch_size {
-                break;
-            }
-
             let item = self.dataset.get(self.current_index);
             self.current_index += 1;
 
@@ -96,14 +91,27 @@ impl<I, O> Iterator for BasicDataloaderIterator<I, O> {
                 Some(item) => item,
                 None => break,
             };
-            items.push(item);
-        }
-        if items.len() == 0 {
-            return None;
+            self.strategy.add(item);
+
+            if let Some(items) = self.strategy.batch(false) {
+                return Some(self.batcher.batch(items));
+            }
         }
 
-        let batch = self.batcher.batch(items);
-        Some(batch)
+        if let Some(items) = self.strategy.batch(true) {
+            return Some(self.batcher.batch(items));
+        }
+
+        None
+    }
+}
+
+impl<I, O> DataLoaderIterator<O> for BatchDataloaderIterator<I, O> {
+    fn progress(&self) -> Progress {
+        Progress {
+            items_processed: self.current_index,
+            items_total: self.dataset.len(),
+        }
     }
 }
 
@@ -113,13 +121,15 @@ mod tests {
 
     use super::*;
     use crate::data::dataloader::batcher::TestBatcher;
+    use crate::data::dataloader::FixBatchStrategy;
     use crate::data::dataset::FakeDataset;
 
     #[test]
-    fn test_basic_dataloader() {
+    fn test_batch_dataloader() {
         let batcher = Arc::new(TestBatcher::new());
         let dataset = Arc::new(FakeDataset::<String>::new(27));
-        let dataloader = BasicDataLoader::new(5, dataset.clone(), batcher);
+        let dataloader =
+            BatchDataLoader::new(Box::new(FixBatchStrategy::new(5)), dataset.clone(), batcher);
 
         let mut items_dataset = HashSet::new();
         let mut items_dataloader = HashSet::new();
@@ -138,12 +148,20 @@ mod tests {
     }
 
     #[test]
-    fn test_multi_thread_basic_dataloader() {
+    fn test_multi_thread_batch_dataloader() {
         let batcher = Arc::new(TestBatcher::new());
         let dataset = Arc::new(FakeDataset::<String>::new(27));
-        let dataloader_single_thread = BasicDataLoader::new(5, dataset.clone(), batcher.clone());
-        let dataloader_multi_thread =
-            BasicDataLoader::multi_thread(5, dataset.clone(), batcher.clone(), 4);
+        let dataloader_single_thread = BatchDataLoader::new(
+            Box::new(FixBatchStrategy::new(5)),
+            dataset.clone(),
+            batcher.clone(),
+        );
+        let dataloader_multi_thread = BatchDataLoader::multi_thread(
+            Box::new(FixBatchStrategy::new(5)),
+            dataset.clone(),
+            batcher.clone(),
+            4,
+        );
 
         let mut items_single_thread = HashSet::new();
         let mut items_multi_thread = HashSet::new();

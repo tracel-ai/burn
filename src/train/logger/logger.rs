@@ -1,29 +1,26 @@
+use crate::data::dataloader::Progress;
+
 pub struct LogItem<T> {
+    pub progress: Progress,
+    pub item: T,
     pub epoch: Option<usize>,
     pub epoch_total: Option<usize>,
-    pub iteration: usize,
-    pub iteration_total: usize,
-    pub item: T,
+    pub iteration: Option<usize>,
 }
 
 impl<T> LogItem<T> {
-    pub fn new(item: T) -> Self {
+    pub fn new(item: T, progress: Progress) -> Self {
         Self {
             epoch: None,
             epoch_total: None,
-            iteration: 0,
-            iteration_total: 0,
+            iteration: None,
+            progress,
             item,
         }
     }
 
     pub fn iteration(mut self, iteration: usize) -> Self {
-        self.iteration = iteration;
-        self
-    }
-
-    pub fn iteration_total(mut self, iteration: usize) -> Self {
-        self.iteration_total = iteration;
+        self.iteration = Some(iteration);
         self
     }
 

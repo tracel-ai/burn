@@ -30,8 +30,8 @@ where
         }
 
         self.pb.set_style(style.progress_chars("#>-"));
-        self.pb.set_position(item.iteration as u64);
-        self.pb.set_length(item.iteration_total as u64);
+        self.pb.set_position(item.progress.items_processed as u64);
+        self.pb.set_length(item.progress.items_total as u64);
         self.pb.tick();
     }
 
@@ -111,7 +111,7 @@ impl<T> CLILogger<T> {
             "iteration",
             style,
             String::from("Iteration"),
-            format!("{}", item.iteration),
+            format!("{}", item.iteration.unwrap_or(0)),
         );
 
         if let Some(epoch) = item.epoch {
