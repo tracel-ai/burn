@@ -42,9 +42,4 @@ where
         let loss = self.model.loss(item);
         BasicOutput::new(loss)
     }
-
-    fn test(&self, item: T) -> BasicOutput<B> {
-        let loss = self.model.loss(item);
-        BasicOutput::new(loss)
-    }
 }

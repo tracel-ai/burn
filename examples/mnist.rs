@@ -143,7 +143,7 @@ impl<B: ad::Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
 fn run<B: ad::Backend>(device: B::Device) {
     let batch_size = 128;
     let learning_rate = 5.5e-2;
-    let num_epochs = 10;
+    let num_epochs = 100;
     let num_workers = 8;
     let num_layers = 4;
     let hidden_dim = 1024;
@@ -188,15 +188,12 @@ fn run<B: ad::Backend>(device: B::Device) {
         metrics(),
         "Valid".to_string(),
     ))));
-    let logger_test = Box::new(CLILogger::new(metrics(), "Test".to_string()));
 
     let trainer = SupervisedTrainer::new(
         dataloader_train.clone(),
         dataloader_test.clone(),
-        dataloader_test.clone(),
         logger_train,
         logger_valid,
-        logger_test,
         learner,
         optim,
     );
@@ -207,6 +204,4 @@ fn run<B: ad::Backend>(device: B::Device) {
 fn main() {
     let device = burn::tensor::back::TchDevice::Cuda(0);
     run::<ad::Tch<burn::tensor::f16>>(device);
-    // let device = burn::tensor::back::NdArrayDevice::Cpu;
-    // run::<ad::NdArray<f32>>(device);
 }

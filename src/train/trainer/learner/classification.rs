@@ -55,8 +55,4 @@ where
     fn valid(&self, item: I) -> ClassificationOutput<B> {
         self.model.forward(item)
     }
-
-    fn test(&self, item: I) -> ClassificationOutput<B> {
-        self.model.forward(item)
-    }
 }

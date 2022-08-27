@@ -13,10 +13,8 @@ where
 {
     dataloader_train: Arc<dyn DataLoader<T>>,
     dataloader_valid: Arc<dyn DataLoader<V>>,
-    dataloader_test: Arc<dyn DataLoader<V>>,
     logger_train: Box<dyn Logger<TrainerItem<TO>>>,
     logger_valid: Box<dyn Logger<TrainerItem<VO>>>,
-    logger_test: Box<dyn Logger<TrainerItem<VO>>>,
     learner: L,
     optimizer: O,
     _b: B,
@@ -31,77 +29,68 @@ where
     pub fn new(
         dataloader_train: Arc<dyn DataLoader<T>>,
         dataloader_valid: Arc<dyn DataLoader<V>>,
-        dataloader_test: Arc<dyn DataLoader<V>>,
         logger_train: Box<dyn Logger<TrainerItem<TO>>>,
         logger_valid: Box<dyn Logger<TrainerItem<VO>>>,
-        logger_test: Box<dyn Logger<TrainerItem<VO>>>,
         learner: L,
         optimizer: O,
     ) -> Self {
         Self {
             dataloader_train,
             dataloader_valid,
-            dataloader_test,
             learner,
             optimizer,
             logger_train,
             logger_valid,
-            logger_test,
             _b: B::default(),
         }
     }
 
     pub fn run(mut self, num_epochs: usize) -> L {
         for epoch in 0..num_epochs {
-            let mut iterator = self.dataloader_train.iter();
-            let mut iteration = 0;
+            run_step(
+                epoch,
+                num_epochs,
+                &self.dataloader_train,
+                &mut self.logger_train,
+                &mut |item| self.learner.train(item, &mut self.optimizer),
+            );
 
-            while let Some(item) = iterator.next() {
-                let progress = iterator.progress();
-                iteration += 1;
-
-                let item = self.learner.train(item, &mut self.optimizer);
-                let log = TrainerItem::new(item, progress)
-                    .iteration(iteration)
-                    .epoch(epoch)
-                    .epoch_total(num_epochs);
-                self.logger_train.log(log);
-            }
-
-            self.logger_train.clear();
-
-            let mut iterator = self.dataloader_valid.iter();
-            let mut iteration = 0;
-
-            while let Some(item) = iterator.next() {
-                let progress = iterator.progress();
-                iteration += 1;
-
-                let item = self.learner.valid(item);
-                let log = TrainerItem::new(item, progress)
-                    .iteration(iteration)
-                    .epoch(epoch)
-                    .epoch_total(num_epochs);
-                self.logger_valid.log(log);
-            }
-
-            self.logger_valid.clear();
+            run_step(
+                epoch,
+                num_epochs,
+                &self.dataloader_valid,
+                &mut self.logger_valid,
+                &mut |item| self.learner.valid(item),
+            );
         }
-
-        let mut iterator = self.dataloader_test.iter();
-        let mut iteration = 0;
-
-        while let Some(item) = iterator.next() {
-            let progress = iterator.progress();
-            iteration += 1;
-
-            let item = self.learner.test(item);
-            let log = TrainerItem::new(item, progress).iteration(iteration);
-            self.logger_test.log(log);
-        }
-
-        self.logger_test.clear();
 
         self.learner
     }
+}
+
+pub fn run_step<I, O, F>(
+    epoch: usize,
+    num_epochs: usize,
+    dataloader: &Arc<dyn DataLoader<I>>,
+    logger: &mut Box<dyn Logger<TrainerItem<O>>>,
+    func: &mut F,
+) where
+    F: FnMut(I) -> O,
+{
+    let mut iterator = dataloader.iter();
+    let mut iteration = 0;
+
+    while let Some(item) = iterator.next() {
+        let progress = iterator.progress();
+        iteration += 1;
+
+        let item = func(item);
+        let log = TrainerItem::new(item, progress)
+            .iteration(iteration)
+            .epoch(epoch)
+            .epoch_total(num_epochs);
+        logger.log(log);
+    }
+
+    logger.clear();
 }
