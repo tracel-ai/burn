@@ -6,7 +6,7 @@ enum Message<T> {
     Clear,
 }
 
-pub struct MultiThreadLogger<T> {
+pub struct AsyncLogger<T> {
     sender: mpsc::Sender<Message<T>>,
 }
 
@@ -33,7 +33,7 @@ impl<T> LoggerThread<T> {
     }
 }
 
-impl<T: Send + Sync + 'static> MultiThreadLogger<T> {
+impl<T: Send + Sync + 'static> AsyncLogger<T> {
     pub fn new(logger: Box<dyn Logger<T>>) -> Self {
         let (sender, receiver) = mpsc::channel();
         let thread = LoggerThread::new(Mutex::new(logger), receiver);
@@ -44,7 +44,7 @@ impl<T: Send + Sync + 'static> MultiThreadLogger<T> {
     }
 }
 
-impl<T: Send> Logger<T> for MultiThreadLogger<T> {
+impl<T: Send> Logger<T> for AsyncLogger<T> {
     fn log(&mut self, item: T) {
         self.sender.send(Message::Log(item)).unwrap();
     }

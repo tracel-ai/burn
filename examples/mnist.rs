@@ -8,7 +8,7 @@ use burn::tensor::af::relu;
 use burn::tensor::back::{ad, Backend};
 use burn::tensor::losses::cross_entropy_with_logits;
 use burn::tensor::{Data, ElementConversion, Shape, Tensor};
-use burn::train::logger::{CLILogger, MultiThreadLogger};
+use burn::train::logger::{AsyncLogger, CLILogger};
 use burn::train::metric::{AccuracyMetric, CUDAMetric, LossMetric, Metric};
 use burn::train::{ClassificationLearner, ClassificationOutput, SupervisedTrainer};
 use std::sync::Arc;
@@ -180,11 +180,11 @@ fn run<B: ad::Backend>(device: B::Device) {
 
     let learner = ClassificationLearner::new(model);
 
-    let logger_train = Box::new(MultiThreadLogger::new(Box::new(CLILogger::new(
+    let logger_train = Box::new(AsyncLogger::new(Box::new(CLILogger::new(
         metrics(),
         "Train".to_string(),
     ))));
-    let logger_valid = Box::new(MultiThreadLogger::new(Box::new(CLILogger::new(
+    let logger_valid = Box::new(AsyncLogger::new(Box::new(CLILogger::new(
         metrics(),
         "Valid".to_string(),
     ))));
