@@ -24,9 +24,9 @@ impl<E: TchElement> Backend for TchBackend<E> {
     type Elem = E;
     type FullPrecisionElem = f32;
     type FullPrecisionBackend = TchBackend<f32>;
+    type IntegerBackend = TchBackend<i64>;
     type TensorPrimitive<const D: usize> = TchTensor<E, D>;
     type BoolTensorPrimitive<const D: usize> = TchTensor<bool, D>;
-    type IndexTensorPrimitive<const D: usize> = TchTensor<i64, D>;
 
     fn from_data<const D: usize>(
         data: Data<Self::Elem, D>,

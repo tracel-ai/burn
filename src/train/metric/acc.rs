@@ -28,18 +28,16 @@ impl NumericMetric for AccuracyMetric {
 impl<B: Backend> Metric<(Tensor<B, 2>, Tensor<B, 2>)> for AccuracyMetric {
     fn update(&mut self, batch: &(Tensor<B, 2>, Tensor<B, 2>)) -> MetricStateDyn {
         let (outputs, targets) = batch;
-        let logits_outputs = outputs.argmax(1).to_data();
-        let logits_targets = targets.argmax(1).to_data();
+        let logits_outputs = outputs.argmax(1).to_device(B::Device::default());
+        let logits_targets = targets.argmax(1).to_device(B::Device::default());
+        let count_current = logits_targets.shape().dims[0];
 
-        let mut total_current = 0;
-
-        for (output, target) in logits_outputs.value.iter().zip(logits_targets.value.iter()) {
-            if output == target {
-                total_current += 1;
-            }
-        }
-
-        let count_current = targets.shape().dims[0];
+        let total_current = logits_outputs
+            .equal(&logits_targets)
+            .to_int()
+            .sum()
+            .to_data()
+            .value[0] as usize;
 
         self.count += count_current;
         self.total += total_current;

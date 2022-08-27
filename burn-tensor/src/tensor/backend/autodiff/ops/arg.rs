@@ -10,11 +10,17 @@ macro_rules! define_impl {
         impl<E: $element, const D: usize> TensorOpsArg<$backend, D>
             for <$backend as Backend>::TensorPrimitive<D>
         {
-            fn argmax(&self, dim: usize) -> <$backend as Backend>::IndexTensorPrimitive<D> {
+            fn argmax(
+                &self,
+                dim: usize,
+            ) -> <<$backend as Backend>::IntegerBackend as Backend>::TensorPrimitive<D> {
                 TensorOpsArg::argmax(&self.tensor(), dim)
             }
 
-            fn argmin(&self, dim: usize) -> <$backend as Backend>::IndexTensorPrimitive<D> {
+            fn argmin(
+                &self,
+                dim: usize,
+            ) -> <<$backend as Backend>::IntegerBackend as Backend>::TensorPrimitive<D> {
                 TensorOpsArg::argmin(&self.tensor(), dim)
             }
         }

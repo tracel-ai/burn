@@ -24,12 +24,11 @@ macro_rules! define_impl {
             type Device = <$backend as Backend>::Device;
             type Elem = E;
             type FullPrecisionElem = f32;
+            type IntegerBackend = <$backend as Backend>::IntegerBackend;
             type FullPrecisionBackend = $name<<$backend as Backend>::FullPrecisionElem>;
             type TensorPrimitive<const D: usize> = ADTensor<D, $backend>;
             type BoolTensorPrimitive<const D: usize> =
                 <$backend as Backend>::BoolTensorPrimitive<D>;
-            type IndexTensorPrimitive<const D: usize> =
-                <$backend as Backend>::IndexTensorPrimitive<D>;
 
             fn from_data<const D: usize>(
                 data: Data<Self::Elem, D>,

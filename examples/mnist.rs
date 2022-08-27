@@ -146,7 +146,7 @@ fn run<B: ad::Backend>(device: B::Device) {
     let num_epochs = 10;
     let num_workers = 8;
     let num_layers = 4;
-    let hidden_dim = 5560;
+    let hidden_dim = 1024;
     let seed = 42;
     let metrics = || -> Vec<Box<dyn Metric<ClassificationOutput<B>>>> {
         vec![
@@ -207,4 +207,6 @@ fn run<B: ad::Backend>(device: B::Device) {
 fn main() {
     let device = burn::tensor::back::TchDevice::Cuda(0);
     run::<ad::Tch<burn::tensor::f16>>(device);
+    // let device = burn::tensor::back::NdArrayDevice::Cpu;
+    // run::<ad::NdArray<f32>>(device);
 }

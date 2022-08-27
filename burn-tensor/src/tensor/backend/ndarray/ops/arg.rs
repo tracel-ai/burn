@@ -1,7 +1,6 @@
 use crate::backend::ndarray::NdArrayBackend;
 use crate::tensor::{backend::ndarray::NdArrayTensor, ops::*};
-use crate::ElementValue;
-use crate::NdArrayElement;
+use crate::{Data, NdArrayElement};
 use std::cmp::Ordering;
 
 impl<E, const D: usize> TensorOpsArg<NdArrayBackend<E>, D> for NdArrayTensor<E, D>
@@ -9,11 +8,11 @@ where
     E: NdArrayElement,
 {
     fn argmax(&self, dim: usize) -> NdArrayTensor<i64, D> {
-        arg(self, dim, cmp_max)
+        arg(self, dim, cmp_min)
     }
 
     fn argmin(&self, dim: usize) -> NdArrayTensor<i64, D> {
-        arg(self, dim, cmp_min)
+        arg(self, dim, cmp_max)
     }
 }
 
@@ -26,32 +25,34 @@ where
     F: Fn(&f64, &f64) -> Ordering,
 {
     let mut data = tensor.to_data();
-    let mut start = 1;
+    let batch_size = tensor.shape.dims[dim];
+    let mut start = 0;
+    let mut end = tensor.shape.dims[dim];
+    let mut output = Vec::new();
 
-    for i in 0..dim {
-        start = start * tensor.shape.dims[i];
-    }
-    let end = start + tensor.shape.dims[dim];
+    while end <= data.value.len() {
+        let data_dim = &mut data.value[start..end];
+        let mut sorted: Vec<f64> = data_dim.iter().map(|a| a.to_elem()).collect();
+        sorted.sort_by(&cmp);
 
-    let data_dim = &mut data.value[start..end];
-    let mut sorted: Vec<f64> = data_dim.iter().map(|a| a.to_elem()).collect();
-    sorted.sort_by(cmp);
+        let max = sorted[0];
 
-    let max = sorted[0];
-    for elem in data_dim {
-        *elem = <E as ElementValue>::zero();
-    }
-
-    let data_dim = &mut data.value[start..end];
-    for elem in data_dim {
-        let as_float: f64 = elem.to_elem();
-        if as_float == max {
-            *elem = <E as ElementValue>::one();
-            break;
+        let data_dim = &mut data.value[start..end];
+        let mut index: i64 = 0;
+        for elem in data_dim {
+            let as_float: f64 = elem.to_elem();
+            if as_float == max {
+                break;
+            }
+            index += 1;
         }
+        output.push(index);
+        start = start + batch_size;
+        end = end + batch_size;
     }
-
-    NdArrayTensor::from_data(data.convert())
+    let mut shape = tensor.shape.clone();
+    shape.dims[dim] = 1;
+    NdArrayTensor::from_data(Data::new(output, shape))
 }
 
 fn cmp_max(a: &f64, b: &f64) -> Ordering {

@@ -23,9 +23,9 @@ impl<E: NdArrayElement> Backend for NdArrayBackend<E> {
     type Elem = E;
     type FullPrecisionElem = f32;
     type FullPrecisionBackend = NdArrayBackend<f32>;
+    type IntegerBackend = NdArrayBackend<i64>;
     type TensorPrimitive<const D: usize> = NdArrayTensor<E, D>;
     type BoolTensorPrimitive<const D: usize> = NdArrayTensor<bool, D>;
-    type IndexTensorPrimitive<const D: usize> = NdArrayTensor<i64, D>;
 
     fn from_data<const D: usize>(
         data: Data<Self::Elem, D>,

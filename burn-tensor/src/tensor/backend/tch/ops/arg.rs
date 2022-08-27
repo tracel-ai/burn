@@ -11,7 +11,8 @@ where
 {
     fn argmax(&self, dim: usize) -> TchTensor<i64, D> {
         let tensor = self.tensor.argmax(dim as i64, true);
-        let shape = self.shape.clone();
+        let mut shape = self.shape.clone();
+        shape.dims[dim] = 1;
 
         TchTensor {
             tensor,
@@ -22,7 +23,8 @@ where
 
     fn argmin(&self, dim: usize) -> TchTensor<i64, D> {
         let tensor = self.tensor.argmin(dim as i64, true);
-        let shape = self.shape.clone();
+        let mut shape = self.shape.clone();
+        shape.dims[dim] = 1;
 
         TchTensor {
             tensor,

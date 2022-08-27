@@ -1,5 +1,5 @@
 use super::ops::{Ones, Zeros};
-use crate::{tensor::Shape, Element};
+use crate::{tensor::Shape, Element, ElementConversion};
 use rand::{distributions::Standard, prelude::StdRng, Rng, SeedableRng};
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
@@ -94,6 +94,20 @@ impl<const D: usize, P: Element> Data<P, D> {
     }
 }
 
+impl<const D: usize> Data<bool, D> {
+    pub fn convert<E: Element>(self) -> Data<E, D> {
+        let value: Vec<E> = self
+            .value
+            .into_iter()
+            .map(|a| (a as i64).to_elem())
+            .collect();
+
+        Data {
+            value,
+            shape: self.shape,
+        }
+    }
+}
 impl<P: Element, const D: usize> Data<P, D> {
     pub fn random(shape: Shape<D>, distribution: Distribution<P>) -> Self {
         let num_elements = shape.num_elements();

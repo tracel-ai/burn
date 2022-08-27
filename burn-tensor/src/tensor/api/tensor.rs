@@ -1,3 +1,4 @@
+use super::BoolTensor;
 use crate::tensor::activation::*;
 use crate::tensor::backend::Backend;
 use crate::tensor::ops::*;
@@ -7,65 +8,6 @@ use std::convert::TryInto;
 #[derive(Debug, Clone)]
 pub struct Tensor<B: Backend, const D: usize> {
     pub(crate) value: B::TensorPrimitive<D>,
-}
-
-pub struct BoolTensor<B: Backend, const D: usize> {
-    pub(crate) value: B::BoolTensorPrimitive<D>,
-}
-
-pub struct IndexTensor<B: Backend, const D: usize> {
-    pub(crate) value: B::IndexTensorPrimitive<D>,
-}
-
-impl<B, const D: usize> IndexTensor<B, D>
-where
-    B: Backend,
-{
-    pub fn new(tensor: B::IndexTensorPrimitive<D>) -> Self {
-        Self { value: tensor }
-    }
-
-    pub fn shape(&self) -> &Shape<D> {
-        self.value.shape()
-    }
-
-    pub fn into_data(self) -> Data<i64, D> {
-        self.value.into_data()
-    }
-
-    pub fn to_data(&self) -> Data<i64, D> {
-        self.value.to_data()
-    }
-
-    pub fn mul(&self, other: &Self) -> Self {
-        Self::new(self.value.mul(&other.value))
-    }
-}
-
-impl<B, const D: usize> BoolTensor<B, D>
-where
-    B: Backend,
-{
-    pub fn new(tensor: B::BoolTensorPrimitive<D>) -> Self {
-        Self { value: tensor }
-    }
-
-    pub fn shape(&self) -> &Shape<D> {
-        self.value.shape()
-    }
-
-    pub fn into_data(self) -> Data<bool, D> {
-        self.value.into_data()
-    }
-
-    pub fn to_data(&self) -> Data<bool, D> {
-        self.value.to_data()
-    }
-
-    pub fn from_data(data: Data<bool, D>) -> Self {
-        let value = B::from_data_bool(data, B::Device::default());
-        Self::new(value)
-    }
 }
 
 impl<const D: usize, B> Tensor<B, D>
@@ -288,12 +230,12 @@ where
         Tensor::new(value)
     }
 
-    pub fn argmax(&self, dim: usize) -> IndexTensor<B, D> {
-        IndexTensor::new(self.value.argmax(dim))
+    pub fn argmax(&self, dim: usize) -> Tensor<B::IntegerBackend, D> {
+        Tensor::new(self.value.argmax(dim))
     }
 
-    pub fn argmin(&self, dim: usize) -> IndexTensor<B, D> {
-        IndexTensor::new(self.value.argmin(dim))
+    pub fn argmin(&self, dim: usize) -> Tensor<B::IntegerBackend, D> {
+        Tensor::new(self.value.argmin(dim))
     }
 
     pub fn cat(tensors: Vec<Self>, dim: usize) -> Self {

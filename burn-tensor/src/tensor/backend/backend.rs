@@ -12,7 +12,8 @@ pub trait Backend: Clone + Sized + Default + Send + Sync + std::fmt::Debug + 'st
     type Device: Copy + Clone + Default + std::fmt::Debug + Send + Sync;
     type Elem: Element;
     type FullPrecisionElem: Element;
-    type FullPrecisionBackend: Backend<Elem = Self::FullPrecisionElem>;
+    type FullPrecisionBackend: Backend<Elem = Self::FullPrecisionElem, Device = Self::Device>;
+    type IntegerBackend: Backend<Elem = i64, Device = Self::Device>;
     type TensorPrimitive<const D: usize>: TensorTrait<Self::Elem, D>
         + TensorOpsReshape<Self, D>
         + TensorOpsPrecision<Self, D>
@@ -31,12 +32,6 @@ pub trait Backend: Clone + Sized + Default + Send + Sync + std::fmt::Debug + 'st
         + 'static;
 
     type BoolTensorPrimitive<const D: usize>: TensorOpsUtilities<bool, D>
-        + Clone
-        + Send
-        + Sync
-        + 'static
-        + std::fmt::Debug;
-    type IndexTensorPrimitive<const D: usize>: TensorTrait<i64, D>
         + Clone
         + Send
         + Sync
