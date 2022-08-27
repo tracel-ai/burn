@@ -1,21 +1,33 @@
+use crate::train::trainer::TrainerItem;
 use crate::train::{
-    logger::{LogItem, Logger},
+    logger::Logger,
     metric::{LossMetric, Metric, MetricStateDyn},
 };
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use std::fmt::Write;
 
+static MAX_REFRESH_RATE_MILLIS: u128 = 50;
+
 pub struct CLILogger<T> {
     metrics: Vec<Box<dyn Metric<T>>>,
     name: String,
     pb: ProgressBar,
+    last_update: std::time::Instant,
 }
 
-impl<T> Logger<T> for CLILogger<T>
+impl<T> Logger<TrainerItem<T>> for CLILogger<T>
 where
     LossMetric: Metric<T>,
 {
-    fn log(&mut self, item: LogItem<T>) {
+    fn log(&mut self, item: TrainerItem<T>) {
+        if std::time::Instant::now()
+            .duration_since(self.last_update)
+            .as_millis()
+            < MAX_REFRESH_RATE_MILLIS
+        {
+            return;
+        }
+
         let metrics = self.update_metrics(&item);
 
         let template = format!("{}\n  - Name: {}\n", GENERAL_TAG, self.name);
@@ -33,6 +45,7 @@ where
         self.pb.set_position(item.progress.items_processed as u64);
         self.pb.set_length(item.progress.items_total as u64);
         self.pb.tick();
+        self.last_update = std::time::Instant::now();
     }
 
     fn clear(&mut self) {
@@ -51,10 +64,11 @@ impl<T> CLILogger<T> {
             metrics,
             name,
             pb: ProgressBar::new(0),
+            last_update: std::time::Instant::now(),
         }
     }
 
-    pub fn update_metrics(&mut self, item: &LogItem<T>) -> Vec<MetricStateDyn> {
+    pub fn update_metrics(&mut self, item: &TrainerItem<T>) -> Vec<MetricStateDyn> {
         let mut metrics_result = Vec::with_capacity(self.metrics.len());
 
         for metric in &mut self.metrics {
@@ -64,7 +78,7 @@ impl<T> CLILogger<T> {
         metrics_result
     }
 
-    pub fn register_template_progress(&self, item: &LogItem<T>, template: String) -> String {
+    pub fn register_template_progress(&self, item: &TrainerItem<T>, template: String) -> String {
         let mut template = template;
         let mut progress = Vec::new();
 
@@ -104,7 +118,7 @@ impl<T> CLILogger<T> {
 
     pub fn register_style_progress(
         &self,
-        item: &LogItem<T>,
+        item: &TrainerItem<T>,
         style: ProgressStyle,
     ) -> ProgressStyle {
         let mut style = self.register_key_item(

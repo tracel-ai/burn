@@ -1,8 +1,8 @@
-use super::Learner;
+use super::{Learner, TrainerItem};
 use crate::data::dataloader::DataLoader;
 use crate::optim::Optimizer;
 use crate::tensor::back::ad;
-use crate::train::logger::{LogItem, Logger};
+use crate::train::logger::Logger;
 use std::sync::Arc;
 
 pub struct SupervisedTrainer<B, T, V, L, O, TO, VO>
@@ -14,9 +14,9 @@ where
     dataloader_train: Arc<dyn DataLoader<T>>,
     dataloader_valid: Arc<dyn DataLoader<V>>,
     dataloader_test: Arc<dyn DataLoader<V>>,
-    logger_train: Box<dyn Logger<TO>>,
-    logger_valid: Box<dyn Logger<VO>>,
-    logger_test: Box<dyn Logger<VO>>,
+    logger_train: Box<dyn Logger<TrainerItem<TO>>>,
+    logger_valid: Box<dyn Logger<TrainerItem<VO>>>,
+    logger_test: Box<dyn Logger<TrainerItem<VO>>>,
     learner: L,
     optimizer: O,
     _b: B,
@@ -32,9 +32,9 @@ where
         dataloader_train: Arc<dyn DataLoader<T>>,
         dataloader_valid: Arc<dyn DataLoader<V>>,
         dataloader_test: Arc<dyn DataLoader<V>>,
-        logger_train: Box<dyn Logger<TO>>,
-        logger_valid: Box<dyn Logger<VO>>,
-        logger_test: Box<dyn Logger<VO>>,
+        logger_train: Box<dyn Logger<TrainerItem<TO>>>,
+        logger_valid: Box<dyn Logger<TrainerItem<VO>>>,
+        logger_test: Box<dyn Logger<TrainerItem<VO>>>,
         learner: L,
         optimizer: O,
     ) -> Self {
@@ -61,7 +61,7 @@ where
                 iteration += 1;
 
                 let item = self.learner.train(item, &mut self.optimizer);
-                let log = LogItem::new(item, progress)
+                let log = TrainerItem::new(item, progress)
                     .iteration(iteration)
                     .epoch(epoch)
                     .epoch_total(num_epochs);
@@ -78,7 +78,7 @@ where
                 iteration += 1;
 
                 let item = self.learner.valid(item);
-                let log = LogItem::new(item, progress)
+                let log = TrainerItem::new(item, progress)
                     .iteration(iteration)
                     .epoch(epoch)
                     .epoch_total(num_epochs);
@@ -96,7 +96,7 @@ where
             iteration += 1;
 
             let item = self.learner.test(item);
-            let log = LogItem::new(item, progress).iteration(iteration);
+            let log = TrainerItem::new(item, progress).iteration(iteration);
             self.logger_test.log(log);
         }
 

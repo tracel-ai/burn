@@ -8,7 +8,7 @@ use burn::tensor::af::relu;
 use burn::tensor::back::{ad, Backend};
 use burn::tensor::losses::cross_entropy_with_logits;
 use burn::tensor::{Data, ElementConversion, Shape, Tensor};
-use burn::train::logger::CLILogger;
+use burn::train::logger::{CLILogger, MultiThreadLogger};
 use burn::train::metric::{AccuracyMetric, CUDAMetric, LossMetric, Metric};
 use burn::train::{ClassificationLearner, ClassificationOutput, SupervisedTrainer};
 use std::sync::Arc;
@@ -146,7 +146,7 @@ fn run<B: ad::Backend>(device: B::Device) {
     let num_epochs = 10;
     let num_workers = 8;
     let num_layers = 4;
-    let hidden_dim = 2560;
+    let hidden_dim = 5560;
     let seed = 42;
     let metrics = || -> Vec<Box<dyn Metric<ClassificationOutput<B>>>> {
         vec![
@@ -180,8 +180,14 @@ fn run<B: ad::Backend>(device: B::Device) {
 
     let learner = ClassificationLearner::new(model);
 
-    let logger_train = Box::new(CLILogger::new(metrics(), "Train".to_string()));
-    let logger_valid = Box::new(CLILogger::new(metrics(), "Valid".to_string()));
+    let logger_train = Box::new(MultiThreadLogger::new(Box::new(CLILogger::new(
+        metrics(),
+        "Train".to_string(),
+    ))));
+    let logger_valid = Box::new(MultiThreadLogger::new(Box::new(CLILogger::new(
+        metrics(),
+        "Valid".to_string(),
+    ))));
     let logger_test = Box::new(CLILogger::new(metrics(), "Test".to_string()));
 
     let trainer = SupervisedTrainer::new(
