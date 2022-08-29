@@ -1,4 +1,4 @@
-use crate::module::{Module, State};
+use crate::module::{ADModule, Module, State};
 use crate::optim::Optimizer;
 use crate::tensor::{back, Gradients, Tensor};
 use serde::de::DeserializeOwned;
@@ -60,6 +60,13 @@ impl<const D: usize, B: back::Backend> Param<Tensor<B, D>> {
         let data = state.get(name);
         self.value = Tensor::from_data_device(data, self.value.device());
     }
+
+    pub fn inner(&self) -> Param<Tensor<B::InnerBackend, D>>
+    where
+        B: back::ad::Backend,
+    {
+        Param::new(self.value.inner())
+    }
 }
 
 impl<const D: usize, B: back::Backend> Param<Option<Tensor<B, D>>> {
@@ -118,6 +125,16 @@ impl<const D: usize, B: back::Backend> Param<Option<Tensor<B, D>>> {
 
         self.value = value;
     }
+
+    pub fn inner(&self) -> Param<Option<Tensor<B::InnerBackend, D>>>
+    where
+        B: back::ad::Backend,
+    {
+        match &self.value {
+            Some(tensor) => Param::new(Some(tensor.inner())),
+            None => Param::new(None),
+        }
+    }
 }
 
 impl<M: Module> Param<M> {
@@ -156,6 +173,14 @@ impl<M: Module> Param<M> {
         <M::Backend as back::Backend>::Elem: DeserializeOwned,
     {
         self.value.load_from_parent(name, state);
+    }
+
+    pub fn inner(&self) -> Param<M::InnerModule>
+    where
+        M: ADModule,
+        M::Backend: back::ad::Backend,
+    {
+        Param::new(self.value.inner())
     }
 }
 
@@ -208,5 +233,13 @@ impl<M: Module> Param<Vec<M>> {
         <M::Backend as back::Backend>::Elem: DeserializeOwned,
     {
         todo!();
+    }
+
+    pub fn inner(&self) -> Param<Vec<M::InnerModule>>
+    where
+        M: ADModule,
+        M::Backend: back::ad::Backend,
+    {
+        Param::new(self.value.iter().map(|v| v.inner()).collect())
     }
 }

@@ -93,6 +93,13 @@ pub trait Module: Send + Sync + std::fmt::Debug + std::fmt::Display {
     fn num_params(&self) -> usize;
 }
 
+pub trait ADModule: Module + Send + Sync + std::fmt::Debug + std::fmt::Display {
+    type ADBackend: back::ad::Backend;
+    type InnerModule: Module<Backend = <Self::ADBackend as back::ad::Backend>::InnerBackend>;
+
+    fn inner(&self) -> Self::InnerModule;
+}
+
 pub trait Forward<In, Out> {
     fn forward(&self, input: In) -> Out;
 }

@@ -1,5 +1,5 @@
 use super::Learner;
-use crate::module::{Forward, Module};
+use crate::module::{ADModule, Forward, Module};
 use crate::optim::Optimizer;
 use crate::tensor::back::{ad, Backend};
 use crate::train::metric;
@@ -36,11 +36,12 @@ impl<B: Backend> metric::Metric<ClassificationOutput<B>> for metric::AccuracyMet
     }
 }
 
-impl<B, I, M, O> Learner<B, I, I, O, ClassificationOutput<B>, ClassificationOutput<B>>
+impl<B, I, M, M2, O> Learner<B, I, I, O, ClassificationOutput<B>, ClassificationOutput<B>>
     for ClassificationLearner<M>
 where
     B: ad::Backend,
-    M: Forward<I, ClassificationOutput<B>> + Module<Backend = B>,
+    M2: Forward<I, ClassificationOutput<B::InnerBackend>> + Module<Backend = B::InnerBackend>,
+    M: Forward<I, ClassificationOutput<B>> + ADModule<Backend = B, InnerModule = M2>,
     O: Optimizer<B>,
 {
     fn train(&mut self, item: I, optim: &mut O) -> ClassificationOutput<B> {
@@ -53,6 +54,12 @@ where
     }
 
     fn valid(&self, item: I) -> ClassificationOutput<B> {
-        self.model.forward(item)
+        let output: ClassificationOutput<B::InnerBackend> = self.model.inner().forward(item);
+
+        ClassificationOutput {
+            loss: Tensor::from_inner(output.loss),
+            output: Tensor::from_inner(output.output),
+            targets: Tensor::from_inner(output.targets),
+        }
     }
 }

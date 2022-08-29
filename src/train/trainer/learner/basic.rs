@@ -1,4 +1,5 @@
 use super::{Learner, Loss};
+use crate::module::ADModule;
 use crate::optim::Optimizer;
 use crate::tensor::back::{ad, Backend};
 use crate::train::metric;
@@ -26,7 +27,7 @@ impl<B: Backend> metric::Metric<BasicOutput<B>> for metric::LossMetric {
 impl<B, T, L, O> Learner<B, T, T, O, BasicOutput<B>, BasicOutput<B>> for BasicLearner<L>
 where
     B: ad::Backend,
-    L: Loss<B, T>,
+    L: Loss<B, T> + ADModule<Backend = B, InnerModule = L>,
     O: Optimizer<B>,
 {
     fn train(&mut self, item: T, optim: &mut O) -> BasicOutput<B> {
@@ -39,7 +40,7 @@ where
     }
 
     fn valid(&self, item: T) -> BasicOutput<B> {
-        let loss = self.model.loss(item);
+        let loss = self.model.inner().loss(item);
         BasicOutput::new(loss)
     }
 }
