@@ -37,13 +37,13 @@ impl<B: Backend> metric::Metric<ClassificationOutput<B>> for metric::AccuracyMet
     }
 }
 
-impl<B, B2, I, M, M2, O> Learner<I, I, ClassificationOutput<B>, ClassificationOutput<B2>>
+impl<B, I, IV, M, M2, O>
+    Learner<I, IV, ClassificationOutput<B>, ClassificationOutput<B::InnerBackend>>
     for ClassificationLearner<M, O>
 where
-    B: ad::Backend<InnerBackend = B2>,
-    B2: Backend,
+    B: ad::Backend,
     M: Forward<I, ClassificationOutput<B>> + ADModule<Backend = B, InnerModule = M2>,
-    M2: Forward<I, ClassificationOutput<B2>> + Module<Backend = B2>,
+    M2: Forward<IV, ClassificationOutput<B::InnerBackend>> + Module<Backend = B::InnerBackend>,
     O: Optimizer<Backend = B>,
 {
     type Backend = B;
@@ -57,7 +57,7 @@ where
         output
     }
 
-    fn valid(&self, item: I) -> ClassificationOutput<B2> {
+    fn valid(&self, item: IV) -> ClassificationOutput<B::InnerBackend> {
         self.model.inner().forward(item)
     }
 }

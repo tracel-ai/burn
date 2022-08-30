@@ -9,7 +9,7 @@ use burn::tensor::back::{ad, Backend};
 use burn::tensor::losses::cross_entropy_with_logits;
 use burn::tensor::{Data, ElementConversion, Shape, Tensor};
 use burn::train::logger::{AsyncLogger, CLILogger, TextPlot};
-use burn::train::metric::{AccuracyMetric, CUDAMetric, LossMetric, Metric};
+use burn::train::metric::{AccuracyMetric, CUDAMetric, LossMetric};
 use burn::train::{ClassificationLearner, ClassificationOutput, SupervisedTrainer};
 use std::sync::Arc;
 
@@ -118,7 +118,7 @@ struct MNISTBatch<B: Backend> {
     targets: Tensor<B, 2>,
 }
 
-impl<B: ad::Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
+impl<B: Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
     fn batch(&self, items: Vec<MNISTItem>) -> MNISTBatch<B> {
         let images = items
             .iter()
@@ -133,8 +133,11 @@ impl<B: ad::Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
             .map(|item| Tensor::<B, 2>::one_hot(item.label, 10))
             .collect();
 
-        let images = Tensor::cat(images, 0).to_device(self.device).detach();
-        let targets = Tensor::cat(targets, 0).to_device(self.device).detach();
+        let images = Tensor::cat(images, 0);
+        let targets = Tensor::cat(targets, 0);
+
+        let images = Tensor::from_data_device(images.into_data(), self.device);
+        let targets = Tensor::from_data_device(targets.into_data(), self.device);
 
         MNISTBatch { images, targets }
     }
@@ -148,13 +151,6 @@ fn run<B: ad::Backend>(device: B::Device) {
     let num_layers = 4;
     let hidden_dim = 1024;
     let seed = 42;
-    let metrics = || -> Vec<Box<dyn Metric<ClassificationOutput<B>>>> {
-        vec![
-            Box::new(TextPlot::new(LossMetric::new())),
-            Box::new(AccuracyMetric::new()),
-            Box::new(CUDAMetric::new()),
-        ]
-    };
 
     let mut model: Model<B> = Model::new(784, hidden_dim, num_layers, 10);
     model.to_device(device);
@@ -167,13 +163,14 @@ fn run<B: ad::Backend>(device: B::Device) {
     );
 
     let optim: SGDOptimizer<B> = SGDOptimizer::new(learning_rate);
-    let batcher = Arc::new(MNISTBatcher::<B> { device });
-    let dataloader_train = DataLoaderBuilder::new(batcher.clone())
+    let batcher_train = Arc::new(MNISTBatcher::<B> { device });
+    let batcher_valid = Arc::new(MNISTBatcher::<B::InnerBackend> { device });
+    let dataloader_train = DataLoaderBuilder::new(batcher_train)
         .batch_size(batch_size)
         .shuffle(seed)
         .num_workers(num_workers)
         .build(Arc::new(MNISTDataset::train()));
-    let dataloader_test = DataLoaderBuilder::new(batcher.clone())
+    let dataloader_test = DataLoaderBuilder::new(batcher_valid)
         .batch_size(batch_size)
         .num_workers(num_workers)
         .build(Arc::new(MNISTDataset::test()));
@@ -181,11 +178,19 @@ fn run<B: ad::Backend>(device: B::Device) {
     let learner = ClassificationLearner::new(model, optim);
 
     let logger_train = Box::new(AsyncLogger::new(Box::new(CLILogger::new(
-        metrics(),
+        vec![
+            Box::new(TextPlot::new(LossMetric::new())),
+            Box::new(AccuracyMetric::new()),
+            Box::new(CUDAMetric::new()),
+        ],
         "Train".to_string(),
     ))));
     let logger_valid = Box::new(AsyncLogger::new(Box::new(CLILogger::new(
-        metrics(),
+        vec![
+            Box::new(TextPlot::new(LossMetric::new())),
+            Box::new(AccuracyMetric::new()),
+            Box::new(CUDAMetric::new()),
+        ],
         "Valid".to_string(),
     ))));
 
