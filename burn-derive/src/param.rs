@@ -49,7 +49,7 @@ impl Param {
         }
 
         quote! {
-            fn update_params<O: burn::optim::Optimizer<B>>(&mut self, grads: &burn::tensor::Gradients, optim: &mut O)
+            fn update_params<O: burn::optim::Optimizer<Backend = B>>(&mut self, grads: &burn::tensor::Gradients, optim: &mut O)
                 where
                 B: burn::tensor::back::ad::Backend {
                 #body
@@ -93,6 +93,30 @@ impl Param {
         quote! {
             fn to_device(&mut self, device: B::Device) {
                 #body
+            }
+        }
+        .into()
+    }
+
+    pub fn gen_inner_fn(&self) -> TokenStream {
+        let mut body = quote! {};
+        let mut names = Vec::new();
+        for field in self.fields.iter() {
+            let name = field.ident();
+            names.push(name.clone());
+
+            body.extend(quote! {
+                let #name = self.#name.inner();
+            });
+        }
+
+        quote! {
+            fn inner(&self) -> Self::InnerModule {
+                #body
+
+                Self::InnerModule {
+                    #(#names),*
+                }
             }
         }
         .into()

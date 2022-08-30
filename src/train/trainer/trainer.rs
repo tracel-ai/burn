@@ -1,30 +1,28 @@
 use super::{Learner, TrainerItem};
 use crate::data::dataloader::DataLoader;
-use crate::optim::Optimizer;
-use crate::tensor::back::ad;
+use crate::data::dataloader::Detach;
+use crate::tensor::back;
 use crate::train::logger::Logger;
 use std::sync::Arc;
 
-pub struct SupervisedTrainer<B, T, V, L, O, TO, VO>
+pub struct SupervisedTrainer<B, T, V, L, TO, VO>
 where
-    B: ad::Backend,
-    L: Learner<B, T, V, O, TO, VO>,
-    O: Optimizer<B>,
+    B: back::ad::Backend,
+    L: Learner<T, V, TO, VO, Backend = B>,
 {
     dataloader_train: Arc<dyn DataLoader<T>>,
     dataloader_valid: Arc<dyn DataLoader<V>>,
     logger_train: Box<dyn Logger<TrainerItem<TO>>>,
     logger_valid: Box<dyn Logger<TrainerItem<VO>>>,
     learner: L,
-    optimizer: O,
     _b: B,
 }
 
-impl<B, T, V, L, O, TO, VO> SupervisedTrainer<B, T, V, L, O, TO, VO>
+impl<B, T, V, L, TO, VO> SupervisedTrainer<B, T, V, L, TO, VO>
 where
-    B: ad::Backend,
-    L: Learner<B, T, V, O, TO, VO>,
-    O: Optimizer<B>,
+    B: back::ad::Backend,
+    T: Detach,
+    L: Learner<T, V, TO, VO, Backend = B>,
 {
     pub fn new(
         dataloader_train: Arc<dyn DataLoader<T>>,
@@ -32,13 +30,11 @@ where
         logger_train: Box<dyn Logger<TrainerItem<TO>>>,
         logger_valid: Box<dyn Logger<TrainerItem<VO>>>,
         learner: L,
-        optimizer: O,
     ) -> Self {
         Self {
             dataloader_train,
             dataloader_valid,
             learner,
-            optimizer,
             logger_train,
             logger_valid,
             _b: B::default(),
@@ -52,7 +48,7 @@ where
                 num_epochs,
                 &self.dataloader_train,
                 &mut self.logger_train,
-                &mut |item| self.learner.train(item, &mut self.optimizer),
+                &mut |item| self.learner.train(item.detach()),
             );
 
             run_step(

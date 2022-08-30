@@ -1,5 +1,11 @@
 use crate::tensor::{ops::TensorOpsUtilities, Data, Element, Shape, TensorTrait};
 
+lazy_static::lazy_static! {
+    static ref NO_GRAD: tch::NoGradGuard = {
+        tch::no_grad_guard()
+    };
+}
+
 #[derive(Debug, PartialEq)]
 pub struct TchTensor<P: tch::kind::Element, const D: usize> {
     pub kind: TchKind<P>,
@@ -65,6 +71,8 @@ impl<P: tch::kind::Element + Default, const D: usize> TchTensor<P, D> {
         let shape_tch = TchShape::from(data.shape);
         let kind = TchKind::new();
         let tensor = tensor.reshape(&shape_tch.dims).to_kind(kind.kind());
+
+        lazy_static::initialize(&NO_GRAD);
         let tensor = tensor.set_requires_grad(false);
 
         Self {
@@ -81,6 +89,8 @@ impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> T
         let device = tch::Device::Cpu;
         let kind = TchKind::new();
         let tensor = tch::Tensor::empty(&shape_tch.dims, (kind.kind(), device.clone()));
+
+        lazy_static::initialize(&NO_GRAD);
         let tensor = tensor.set_requires_grad(false);
 
         Self {

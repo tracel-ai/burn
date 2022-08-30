@@ -11,13 +11,13 @@ pub fn softmax<const D: usize, B: Backend>(tensor: &Tensor<B, D>, dim: usize) ->
 }
 
 pub fn log_softmax<const D: usize, B: Backend>(tensor: &Tensor<B, D>, dim: usize) -> Tensor<B, D> {
-    let tensor_tmp = match Precision::Half == B::Elem::precision() {
-        true => {
+    let tensor_tmp = match B::Elem::precision() {
+        Precision::Half => {
             let tensor_full = tensor.to_full_precision();
             let tensor_tmp = tensor_full.exp().sum_dim(dim).log();
             Tensor::from_full_precision(tensor_tmp)
         }
-        false => tensor.exp().sum_dim(dim).log(),
+        _ => tensor.exp().sum_dim(dim).log(),
     };
 
     tensor.sub(&tensor_tmp)

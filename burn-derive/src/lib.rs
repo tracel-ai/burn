@@ -29,6 +29,7 @@ fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
     let state_fn = param.gen_state_fn();
     let load_from_parent_fn = param.gen_load_from_parent_fn();
     let load_fn = param.gen_load_fn();
+    let inner_fn = param.gen_inner_fn();
 
     let gen = quote! {
         impl #generics burn::module::Module for #name #generics_ty #generics_where {
@@ -44,11 +45,17 @@ fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
             #load_fn
         }
 
+        impl #generics burn::module::ADModule for #name #generics_ty where B: burn::tensor::back::ad::Backend, {
+            type ADBackend=B;
+            type InnerModule=#name<B::InnerBackend>;
+
+            #inner_fn
+        }
 
         impl #generics std::fmt::Display for #name #generics_ty #generics_where {
             #display_fn
         }
     };
-
-    gen.into()
+    let tokens = gen.into();
+    tokens
 }
