@@ -8,7 +8,7 @@ use burn::tensor::af::relu;
 use burn::tensor::back::{ad, Backend};
 use burn::tensor::losses::cross_entropy_with_logits;
 use burn::tensor::{Data, ElementConversion, Shape, Tensor};
-use burn::train::logger::{AsyncLogger, CLILogger};
+use burn::train::logger::{AsyncLogger, CLILogger, TextPlot};
 use burn::train::metric::{AccuracyMetric, CUDAMetric, LossMetric, Metric};
 use burn::train::{ClassificationLearner, ClassificationOutput, SupervisedTrainer};
 use std::sync::Arc;
@@ -150,7 +150,7 @@ fn run<B: ad::Backend>(device: B::Device) {
     let seed = 42;
     let metrics = || -> Vec<Box<dyn Metric<ClassificationOutput<B>>>> {
         vec![
-            Box::new(LossMetric::new()),
+            Box::new(TextPlot::new(LossMetric::new())),
             Box::new(AccuracyMetric::new()),
             Box::new(CUDAMetric::new()),
         ]
@@ -178,7 +178,7 @@ fn run<B: ad::Backend>(device: B::Device) {
         .num_workers(num_workers)
         .build(Arc::new(MNISTDataset::test()));
 
-    let learner = ClassificationLearner::new(model);
+    let learner = ClassificationLearner::new(model, optim);
 
     let logger_train = Box::new(AsyncLogger::new(Box::new(CLILogger::new(
         metrics(),
@@ -195,7 +195,6 @@ fn run<B: ad::Backend>(device: B::Device) {
         logger_train,
         logger_valid,
         learner,
-        optim,
     );
 
     trainer.run(num_epochs);

@@ -6,8 +6,9 @@ use crate::train::metric;
 use burn_tensor::Tensor;
 
 #[derive(new)]
-pub struct ClassificationLearner<M> {
+pub struct ClassificationLearner<M, O> {
     model: M,
+    optim: O,
 }
 
 #[derive(new)]
@@ -36,30 +37,27 @@ impl<B: Backend> metric::Metric<ClassificationOutput<B>> for metric::AccuracyMet
     }
 }
 
-impl<B, I, M, M2, O> Learner<B, I, I, O, ClassificationOutput<B>, ClassificationOutput<B>>
-    for ClassificationLearner<M>
+impl<B, B2, I, M, M2, O> Learner<I, I, ClassificationOutput<B>, ClassificationOutput<B2>>
+    for ClassificationLearner<M, O>
 where
-    B: ad::Backend,
-    M2: Forward<I, ClassificationOutput<B::InnerBackend>> + Module<Backend = B::InnerBackend>,
+    B: ad::Backend<InnerBackend = B2>,
+    B2: Backend,
     M: Forward<I, ClassificationOutput<B>> + ADModule<Backend = B, InnerModule = M2>,
-    O: Optimizer<B>,
+    M2: Forward<I, ClassificationOutput<B2>> + Module<Backend = B2>,
+    O: Optimizer<Backend = B>,
 {
-    fn train(&mut self, item: I, optim: &mut O) -> ClassificationOutput<B> {
+    type Backend = B;
+
+    fn train(&mut self, item: I) -> ClassificationOutput<B> {
         let output = self.model.forward(item);
         let grads = output.loss.backward();
 
-        self.model.update_params(&grads, optim);
+        self.model.update_params(&grads, &mut self.optim);
 
         output
     }
 
-    fn valid(&self, item: I) -> ClassificationOutput<B> {
-        let output: ClassificationOutput<B::InnerBackend> = self.model.inner().forward(item);
-
-        ClassificationOutput {
-            loss: Tensor::from_inner(output.loss),
-            output: Tensor::from_inner(output.output),
-            targets: Tensor::from_inner(output.targets),
-        }
+    fn valid(&self, item: I) -> ClassificationOutput<B2> {
+        self.model.inner().forward(item)
     }
 }

@@ -6,8 +6,9 @@ use crate::train::metric;
 use burn_tensor::Tensor;
 
 #[derive(new)]
-pub struct BasicLearner<L> {
+pub struct BasicLearner<L, O> {
     model: L,
+    optim: O,
 }
 
 #[derive(new)]
@@ -24,22 +25,27 @@ impl<B: Backend> metric::Metric<BasicOutput<B>> for metric::LossMetric {
     }
 }
 
-impl<B, T, L, O> Learner<B, T, T, O, BasicOutput<B>, BasicOutput<B>> for BasicLearner<L>
+impl<B, B2, T, L, L2, O> Learner<T, T, BasicOutput<B>, BasicOutput<B2>> for BasicLearner<L, O>
 where
-    B: ad::Backend,
-    L: Loss<B, T> + ADModule<Backend = B, InnerModule = L>,
-    O: Optimizer<B>,
+    B: ad::Backend<InnerBackend = B2>,
+    B2: Backend,
+    O: Optimizer<Backend = B>,
+    L: Loss<Backend = B, Item = T> + ADModule<Backend = B, InnerModule = L2>,
+    L2: Loss<Backend = B::InnerBackend, Item = T>,
+    O: Optimizer<Backend = B>,
 {
-    fn train(&mut self, item: T, optim: &mut O) -> BasicOutput<B> {
+    type Backend = B;
+
+    fn train(&mut self, item: T) -> BasicOutput<B> {
         let loss = self.model.loss(item);
         let grads = loss.backward();
 
-        self.model.update_params(&grads, optim);
+        self.model.update_params(&grads, &mut self.optim);
 
         BasicOutput::new(loss)
     }
 
-    fn valid(&self, item: T) -> BasicOutput<B> {
+    fn valid(&self, item: T) -> BasicOutput<B2> {
         let loss = self.model.inner().loss(item);
         BasicOutput::new(loss)
     }

@@ -72,8 +72,11 @@ where
 pub trait Module: Send + Sync + std::fmt::Debug + std::fmt::Display {
     type Backend: back::Backend;
 
-    fn update_params<O: Optimizer<Self::Backend>>(&mut self, grads: &Gradients, optim: &mut O)
-    where
+    fn update_params<O: Optimizer<Backend = Self::Backend>>(
+        &mut self,
+        grads: &Gradients,
+        optim: &mut O,
+    ) where
         Self::Backend: back::ad::Backend;
     fn devices(&self) -> Vec<<Self::Backend as back::Backend>::Device>;
     fn to_device(&mut self, device: <Self::Backend as back::Backend>::Device);

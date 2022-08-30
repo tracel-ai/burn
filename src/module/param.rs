@@ -28,7 +28,7 @@ impl<const D: usize, B: back::Backend> Param<Tensor<B, D>> {
         self.value.shape().num_elements()
     }
 
-    pub fn update_params<O: Optimizer<B>>(&mut self, grads: &Gradients, optim: &mut O)
+    pub fn update_params<O: Optimizer<Backend = B>>(&mut self, grads: &Gradients, optim: &mut O)
     where
         B: back::ad::Backend,
     {
@@ -78,7 +78,7 @@ impl<const D: usize, B: back::Backend> Param<Option<Tensor<B, D>>> {
         0
     }
 
-    pub fn update_params<O: Optimizer<B>>(&mut self, grads: &Gradients, optim: &mut O)
+    pub fn update_params<O: Optimizer<Backend = B>>(&mut self, grads: &Gradients, optim: &mut O)
     where
         B: back::ad::Backend,
     {
@@ -142,8 +142,11 @@ impl<M: Module> Param<M> {
         self.value.num_params()
     }
 
-    pub fn update_params<O: Optimizer<M::Backend>>(&mut self, grads: &Gradients, optim: &mut O)
-    where
+    pub fn update_params<O: Optimizer<Backend = M::Backend>>(
+        &mut self,
+        grads: &Gradients,
+        optim: &mut O,
+    ) where
         M::Backend: back::ad::Backend,
     {
         self.value.update_params(grads, optim);
@@ -194,8 +197,11 @@ impl<M: Module> Param<Vec<M>> {
         num_params
     }
 
-    pub fn update_params<O: Optimizer<M::Backend>>(&mut self, grads: &Gradients, optim: &mut O)
-    where
+    pub fn update_params<O: Optimizer<Backend = M::Backend>>(
+        &mut self,
+        grads: &Gradients,
+        optim: &mut O,
+    ) where
         M::Backend: back::ad::Backend,
     {
         for module in self.value.iter_mut() {
