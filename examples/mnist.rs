@@ -142,11 +142,8 @@ impl<B: Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
             .map(|item| Tensor::<B, 2>::one_hot(item.label, 10))
             .collect();
 
-        let images = Tensor::cat(images, 0);
-        let targets = Tensor::cat(targets, 0);
-
-        let images = Tensor::from_data_device(images.into_data(), self.device);
-        let targets = Tensor::from_data_device(targets.into_data(), self.device);
+        let images = Tensor::cat(images, 0).to_device(self.device);
+        let targets = Tensor::cat(targets, 0).to_device(self.device);
 
         MNISTBatch { images, targets }
     }
@@ -158,7 +155,7 @@ fn run<B: ad::Backend>(device: B::Device) {
     let num_epochs = 10;
     let num_workers = 8;
     let num_layers = 4;
-    let hidden_dim = 1024;
+    let hidden_dim = 3024;
     let seed = 42;
 
     let mut model: Model<B> = Model::new(784, hidden_dim, num_layers, 10);

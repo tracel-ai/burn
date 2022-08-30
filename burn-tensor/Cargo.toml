@@ -28,6 +28,7 @@ half = { version = "1.6", features = ["num-traits"] } # needs to be 1.6 to work 
 
 # Backends
 tch = { version = "0.8", optional = true }
+lazy_static = "1.4"
 ndarray = { version = "0.15", optional = true }
 
 # Autodiff
