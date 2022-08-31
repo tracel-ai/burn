@@ -1,8 +1,6 @@
-use crate::module::{ADModule, Module, State};
+use crate::module::{ADModule, Module, State, StateNamed};
 use crate::optim::Optimizer;
-use crate::tensor::{back, Gradients, Tensor};
-use serde::de::DeserializeOwned;
-use serde::Serialize;
+use crate::tensor::{back, Data, Gradients, Tensor};
 
 #[derive(Debug)]
 pub struct Param<T> {
@@ -43,22 +41,17 @@ impl<const D: usize, B: back::Backend> Param<Tensor<B, D>> {
         self.value = self.value.to_device(device);
     }
 
-    pub fn state(&self, name: &str) -> State<B>
-    where
-        B::Elem: Serialize,
-        B::Elem: DeserializeOwned,
-    {
-        let mut state = State::new(name);
-        state.register(self.value.to_data().serialize());
-        state
+    pub fn state(&self) -> State<B> {
+        State::Data(self.value.to_data().serialize())
     }
-    pub fn load_from_parent(&mut self, name: &str, state: &State<B>)
-    where
-        B::Elem: Serialize,
-        B::Elem: DeserializeOwned,
-    {
-        let data = state.get(name);
-        self.value = Tensor::from_data_device(data, self.value.device());
+
+    pub fn load(&mut self, state: &State<B>) {
+        match state {
+            State::Data(data) => {
+                self.value = Tensor::from_data_device(Data::from(data), self.value.device());
+            }
+            _ => {}
+        }
     }
 
     pub fn inner(&self) -> Param<Tensor<B::InnerBackend, D>>
@@ -101,29 +94,23 @@ impl<const D: usize, B: back::Backend> Param<Option<Tensor<B, D>>> {
         }
     }
 
-    pub fn state(&self, name: &str) -> State<B>
-    where
-        B::Elem: Serialize,
-        B::Elem: DeserializeOwned,
-    {
-        let mut state = State::new(name);
+    pub fn state(&self) -> State<B> {
         if let Some(value) = &self.value {
-            state.register(value.to_data().serialize());
+            return State::Data(value.to_data().serialize());
         }
-        state
+
+        State::StateNamed(StateNamed::new())
     }
 
-    pub fn load_from_parent(&mut self, name: &str, state: &State<B>)
-    where
-        B::Elem: Serialize,
-        B::Elem: DeserializeOwned,
-    {
-        let value = match &self.value {
-            Some(value) => Some(Tensor::from_data_device(state.get(name), value.device())),
-            None => None,
+    pub fn load(&mut self, state: &State<B>) {
+        let data = match state {
+            State::Data(data) => data,
+            _ => return,
         };
 
-        self.value = value;
+        if let Some(value) = &self.value {
+            self.value = Some(Tensor::from_data_device(Data::from(data), value.device()));
+        }
     }
 
     pub fn inner(&self) -> Param<Option<Tensor<B::InnerBackend, D>>>
@@ -160,22 +147,12 @@ impl<M: Module> Param<M> {
         self.value.to_device(device)
     }
 
-    pub fn state(&self, name: &str) -> State<M::Backend>
-    where
-        <M::Backend as back::Backend>::Elem: Serialize,
-        <M::Backend as back::Backend>::Elem: DeserializeOwned,
-    {
-        let mut state = State::new(name);
-        state.register_child(self.value.state());
-        state
+    pub fn state(&self) -> State<M::Backend> {
+        self.value.state()
     }
 
-    pub fn load_from_parent(&mut self, name: &str, state: &State<M::Backend>)
-    where
-        <M::Backend as back::Backend>::Elem: Serialize,
-        <M::Backend as back::Backend>::Elem: DeserializeOwned,
-    {
-        self.value.load_from_parent(name, state);
+    pub fn load(&mut self, state: &State<M::Backend>) {
+        self.value.load(state)
     }
 
     pub fn inner(&self) -> Param<M::InnerModule>
@@ -223,22 +200,20 @@ impl<M: Module> Param<Vec<M>> {
         }
     }
 
-    pub fn state(&self, name: &str) -> State<M::Backend>
-    where
-        <M::Backend as back::Backend>::Elem: Serialize,
-        <M::Backend as back::Backend>::Elem: DeserializeOwned,
-    {
-        let mut state = State::new(name);
-        state.register_children(self.value.iter().map(|c| c.state()).collect());
-        state
+    pub fn state(&self) -> State<M::Backend> {
+        let mut state = StateNamed::new();
+
+        for (i, module) in self.value.iter().enumerate() {
+            state.register_state(format!("mod-{}", i).as_str(), module.state());
+        }
+
+        State::StateNamed(state)
     }
 
-    pub fn load_from_parent(&mut self, name: &str, state: &State<M::Backend>)
-    where
-        <M::Backend as back::Backend>::Elem: Serialize,
-        <M::Backend as back::Backend>::Elem: DeserializeOwned,
-    {
-        todo!();
+    pub fn load(&mut self, state: &State<M::Backend>) {
+        for (i, module) in self.value.iter_mut().enumerate() {
+            module.load(state.get(format!("mod-{}", i).as_str()));
+        }
     }
 
     pub fn inner(&self) -> Param<Vec<M::InnerModule>>

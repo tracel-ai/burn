@@ -1,71 +1,57 @@
 use crate::optim::Optimizer;
-use crate::tensor::{back, Data, DataSerialize, Gradients};
+use crate::tensor::{back, DataSerialize, Gradients};
 pub use burn_derive::Module;
-use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct State<B: back::Backend>
-where
-    B::Elem: Serialize,
-    B::Elem: DeserializeOwned,
-{
-    root: String,
-    pub values: HashMap<String, DataSerialize<B::Elem>>,
+#[derive(Debug)]
+pub struct StateNamed<B: back::Backend> {
+    pub values: HashMap<String, State<B>>,
 }
 
-impl<B: back::Backend> State<B>
-where
-    B::Elem: Serialize,
-    B::Elem: DeserializeOwned,
-{
-    pub fn new(name: &str) -> State<B> {
+#[derive(Debug)]
+pub enum State<B: back::Backend> {
+    StateNamed(StateNamed<B>),
+    Data(DataSerialize<B::Elem>),
+}
+
+impl<B: back::Backend> StateNamed<B> {
+    pub fn new() -> Self {
         Self {
-            root: name.to_string(),
             values: HashMap::new(),
         }
     }
 
-    pub fn get<const D: usize>(&self, name: &str) -> Data<B::Elem, D> {
-        let data = self.values.get(name).expect("param with the name");
-        Data::from(data)
-    }
-
-    pub fn register_child(&mut self, child: Self) {
-        for (key, value) in child.values.into_iter() {
-            let key = format!("{}.{}", self.root, key);
-            self.values.insert(key, value);
-        }
-    }
-
-    pub fn register_children(&mut self, children: Vec<Self>) {
-        for (i, child) in children.into_iter().enumerate() {
-            for (key, value) in child.values.into_iter() {
-                let key = format!("{}.{}-{}", self.root, key, i);
-                self.values.insert(key, value);
-            }
-        }
-    }
-
-    pub fn register(&mut self, data: DataSerialize<B::Elem>) {
-        self.values.insert(self.root.to_string(), data);
+    pub fn register_state(&mut self, name: &str, state: State<B>) {
+        self.values.insert(name.to_string(), state);
     }
 }
 
-impl<B: back::Backend> State<B>
-where
-    B::Elem: Serialize,
-    B::Elem: DeserializeOwned,
-{
-    pub fn save(&self, file: &str) {
-        let values = serde_json::to_string(&self).unwrap();
-        std::fs::write(file, values).unwrap();
+impl<B: back::Backend> StateNamed<B> {
+    pub fn get(&self, name: &str) -> &State<B> {
+        self.values.get(name).unwrap()
+    }
+}
+
+impl<B: back::Backend> State<B> {
+    pub fn get(&self, name: &str) -> &Self {
+        match self {
+            State::StateNamed(named) => named.get(name),
+            _ => panic!("Can't"),
+        }
+    }
+}
+
+impl<B: back::Backend> State<B> {
+    pub fn save(&self, _file: &str) {
+        // let values = serde_json::to_string(&self).unwrap();
+        // std::fs::write(file, values).unwrap();
+        todo!()
     }
 
-    pub fn load(file: &str) -> Self {
-        let values = std::fs::read_to_string(file).unwrap();
-        serde_json::from_str(values.as_str()).unwrap()
+    pub fn load(_file: &str) -> Self {
+        // let values = std::fs::read_to_string(file).unwrap();
+        // serde_json::from_str(values.as_str()).unwrap()
+        todo!()
     }
 }
 
@@ -81,18 +67,8 @@ pub trait Module: Send + Sync + std::fmt::Debug + std::fmt::Display {
     fn devices(&self) -> Vec<<Self::Backend as back::Backend>::Device>;
     fn to_device(&mut self, device: <Self::Backend as back::Backend>::Device);
     fn name(&self) -> &str;
-    fn load(&mut self, state: &State<Self::Backend>)
-    where
-        <Self::Backend as back::Backend>::Elem: Serialize,
-        <Self::Backend as back::Backend>::Elem: DeserializeOwned;
-    fn load_from_parent(&mut self, name: &str, state: &State<Self::Backend>)
-    where
-        <Self::Backend as back::Backend>::Elem: Serialize,
-        <Self::Backend as back::Backend>::Elem: DeserializeOwned;
-    fn state(&self) -> State<Self::Backend>
-    where
-        <Self::Backend as back::Backend>::Elem: Serialize,
-        <Self::Backend as back::Backend>::Elem: DeserializeOwned;
+    fn load(&mut self, state: &State<Self::Backend>);
+    fn state(&self) -> State<Self::Backend>;
     fn num_params(&self) -> usize;
 }
 

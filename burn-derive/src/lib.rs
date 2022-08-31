@@ -27,7 +27,6 @@ fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
     let devices_fn = param.gen_devices_fn();
     let to_device_fn = param.gen_to_device_fn();
     let state_fn = param.gen_state_fn();
-    let load_from_parent_fn = param.gen_load_from_parent_fn();
     let load_fn = param.gen_load_fn();
     let inner_fn = param.gen_inner_fn();
 
@@ -39,9 +38,8 @@ fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
             #update_params_fn
             #devices_fn
             #to_device_fn
-            #state_fn
 
-            #load_from_parent_fn
+            #state_fn
             #load_fn
         }
 
