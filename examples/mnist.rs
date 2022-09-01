@@ -193,7 +193,7 @@ fn run<B: ad::Backend>(device: B::Device) {
     ))));
     let logger_valid = Box::new(AsyncLogger::new(Box::new(CLILogger::new(
         vec![
-            Box::new(TextPlot::new(LossMetric::new())),
+            Box::new(LossMetric::new()),
             Box::new(AccuracyMetric::new()),
             Box::new(CUDAMetric::new()),
         ],
@@ -213,5 +213,5 @@ fn run<B: ad::Backend>(device: B::Device) {
 
 fn main() {
     let device = burn::tensor::back::TchDevice::Cuda(0);
-    run::<ad::Tch<burn::tensor::f16>>(device);
+    run::<ad::Tch<f32>>(device);
 }
