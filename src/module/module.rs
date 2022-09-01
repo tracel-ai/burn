@@ -3,6 +3,19 @@ use crate::optim::Optimizer;
 use crate::tensor::{back, Gradients};
 pub use burn_derive::Module;
 
+#[derive(Debug, new)]
+pub struct LoadingError {
+    message: String,
+}
+
+impl std::fmt::Display for LoadingError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(format!("Loading error: {}", self.message).as_str())
+    }
+}
+
+impl std::error::Error for LoadingError {}
+
 pub trait Module: Send + Sync + std::fmt::Debug + std::fmt::Display {
     type Backend: back::Backend;
 
@@ -15,7 +28,7 @@ pub trait Module: Send + Sync + std::fmt::Debug + std::fmt::Display {
     fn devices(&self) -> Vec<<Self::Backend as back::Backend>::Device>;
     fn to_device(&mut self, device: <Self::Backend as back::Backend>::Device);
     fn name(&self) -> &str;
-    fn load(&mut self, state: &State<Self::Backend>);
+    fn load(&mut self, state: &State<Self::Backend>) -> Result<(), LoadingError>;
     fn state(&self) -> State<Self::Backend>;
     fn num_params(&self) -> usize;
 }

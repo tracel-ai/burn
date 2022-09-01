@@ -148,13 +148,14 @@ impl Param {
         for field in self.fields.iter() {
             let name = field.ident();
             body.extend(quote! {
-                self.#name.load(state.get(stringify!(#name)));
+                self.#name.load(state.get(stringify!(#name)))?;
             });
         }
         quote! {
-            fn load(&mut self, state: &burn::module::State<Self::Backend>)
+            fn load(&mut self, state: &burn::module::State<Self::Backend>) -> Result<(), burn::module::LoadingError>
             {
                 #body
+                Ok(())
             }
         }
         .into()

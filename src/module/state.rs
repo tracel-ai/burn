@@ -18,6 +18,24 @@ pub enum StateError {
     FileNotFound(String),
 }
 
+impl std::fmt::Display for StateError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut message = "State error => ".to_string();
+
+        match self {
+            Self::InvalidFormat(err) => {
+                message += format!("Invalid format: {}", err).as_str();
+            }
+            Self::FileNotFound(err) => {
+                message += format!("File not found: {}", err).as_str();
+            }
+        };
+
+        f.write_str(message.as_str())
+    }
+}
+impl std::error::Error for StateError {}
+
 impl<B: back::Backend> Into<serde_json::Value> for State<B>
 where
     B::Elem: serde::de::DeserializeOwned,
@@ -166,6 +184,8 @@ mod tests {
             bias: true,
         });
         linear.state().save("/tmp/test.json").unwrap();
-        linear.load(&State::load("/tmp/test.json").unwrap())
+        linear
+            .load(&State::load("/tmp/test.json").unwrap())
+            .unwrap();
     }
 }
