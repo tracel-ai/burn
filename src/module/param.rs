@@ -1,4 +1,4 @@
-use crate::module::{ADModule, Module, State, StateNamed};
+use crate::module::{ADModule, LoadingError, Module, State, StateNamed};
 use crate::optim::Optimizer;
 use crate::tensor::{back, Data, Gradients, Tensor};
 
@@ -41,17 +41,19 @@ impl<const D: usize, B: back::Backend> Param<Tensor<B, D>> {
         self.value = self.value.to_device(device);
     }
 
-    pub fn state(&self) -> State<B> {
+    pub fn state(&self) -> State<B::Elem> {
         State::Data(self.value.to_data().serialize())
     }
 
-    pub fn load(&mut self, state: &State<B>) {
+    pub fn load(&mut self, state: &State<B::Elem>) -> Result<(), LoadingError> {
         match state {
             State::Data(data) => {
                 self.value = Tensor::from_data_device(Data::from(data), self.value.device());
             }
-            _ => {}
-        }
+            _ => return Err(LoadingError::new("Can't load tensor".to_string())),
+        };
+
+        Ok(())
     }
 
     pub fn inner(&self) -> Param<Tensor<B::InnerBackend, D>>
@@ -94,7 +96,7 @@ impl<const D: usize, B: back::Backend> Param<Option<Tensor<B, D>>> {
         }
     }
 
-    pub fn state(&self) -> State<B> {
+    pub fn state(&self) -> State<B::Elem> {
         if let Some(value) = &self.value {
             return State::Data(value.to_data().serialize());
         }
@@ -102,15 +104,21 @@ impl<const D: usize, B: back::Backend> Param<Option<Tensor<B, D>>> {
         State::StateNamed(StateNamed::new())
     }
 
-    pub fn load(&mut self, state: &State<B>) {
+    pub fn load(&mut self, state: &State<B::Elem>) -> Result<(), LoadingError> {
         let data = match state {
             State::Data(data) => data,
-            _ => return,
+            _ => {
+                return Err(LoadingError::new(
+                    "Can't load Option<Tensor> from NamedState".to_string(),
+                ))
+            }
         };
 
         if let Some(value) = &self.value {
             self.value = Some(Tensor::from_data_device(Data::from(data), value.device()));
         }
+
+        Ok(())
     }
 
     pub fn inner(&self) -> Param<Option<Tensor<B::InnerBackend, D>>>
@@ -147,11 +155,14 @@ impl<M: Module> Param<M> {
         self.value.to_device(device)
     }
 
-    pub fn state(&self) -> State<M::Backend> {
+    pub fn state(&self) -> State<<M::Backend as back::Backend>::Elem> {
         self.value.state()
     }
 
-    pub fn load(&mut self, state: &State<M::Backend>) {
+    pub fn load(
+        &mut self,
+        state: &State<<M::Backend as back::Backend>::Elem>,
+    ) -> Result<(), LoadingError> {
         self.value.load(state)
     }
 
@@ -200,7 +211,7 @@ impl<M: Module> Param<Vec<M>> {
         }
     }
 
-    pub fn state(&self) -> State<M::Backend> {
+    pub fn state(&self) -> State<<M::Backend as back::Backend>::Elem> {
         let mut state = StateNamed::new();
 
         for (i, module) in self.value.iter().enumerate() {
@@ -210,10 +221,27 @@ impl<M: Module> Param<Vec<M>> {
         State::StateNamed(state)
     }
 
-    pub fn load(&mut self, state: &State<M::Backend>) {
+    pub fn load(
+        &mut self,
+        state: &State<<M::Backend as back::Backend>::Elem>,
+    ) -> Result<(), LoadingError> {
+        let num = self.value.len();
         for (i, module) in self.value.iter_mut().enumerate() {
-            module.load(state.get(format!("mod-{}", i).as_str()));
+            module
+                .load(
+                    state
+                        .get(format!("mod-{}", i).as_str())
+                        .ok_or(LoadingError::new(format!(
+                            "Invalid number of modules, expected {} modules missing #{}",
+                            num, i
+                        )))?,
+                )
+                .map_err(|err| {
+                    LoadingError::new(format!("Can't load modules mod-{}: {}", i, err))
+                })?;
         }
+
+        Ok(())
     }
 
     pub fn inner(&self) -> Param<Vec<M::InnerModule>>

@@ -134,7 +134,7 @@ impl Param {
         }
 
         quote! {
-            fn state(&self) -> burn::module::State<Self::Backend>
+            fn state(&self) -> burn::module::State<<Self::Backend as burn::tensor::back::Backend>::Elem>
             {
                 #body
                 burn::module::State::StateNamed(state)
@@ -148,13 +148,21 @@ impl Param {
         for field in self.fields.iter() {
             let name = field.ident();
             body.extend(quote! {
-                self.#name.load(state.get(stringify!(#name)));
+                let state_mod = state.get(stringify!(#name)).ok_or(
+                    burn::module::LoadingError::new(format!(
+                        "Missing module '{}' from state",
+                        stringify!(#name),
+                    )))?;
+                self.#name.load(state_mod).map_err(|err| {
+                    burn::module::LoadingError::new(format!("Can't load module {}: {}", stringify!(#name), err))
+                })?;
             });
         }
         quote! {
-            fn load(&mut self, state: &burn::module::State<Self::Backend>)
+            fn load(&mut self, state: &burn::module::State<<Self::Backend as burn::tensor::back::Backend>::Elem>) -> Result<(), burn::module::LoadingError>
             {
                 #body
+                Ok(())
             }
         }
         .into()

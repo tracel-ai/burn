@@ -7,7 +7,7 @@ use burn_tensor::Tensor;
 
 #[derive(new)]
 pub struct ClassificationLearner<M, O> {
-    model: M,
+    pub model: M,
     optim: O,
 }
 
