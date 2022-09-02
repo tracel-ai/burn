@@ -94,6 +94,17 @@ impl<const D: usize, P: Element> Data<P, D> {
     }
 }
 
+impl<P: Element> DataSerialize<P> {
+    pub fn convert<E: Element>(self) -> DataSerialize<E> {
+        let value: Vec<E> = self.value.into_iter().map(|a| a.to_elem()).collect();
+
+        DataSerialize {
+            value,
+            shape: self.shape,
+        }
+    }
+}
+
 impl<const D: usize> Data<bool, D> {
     pub fn convert<E: Element>(self) -> Data<E, D> {
         let value: Vec<E> = self

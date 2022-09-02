@@ -155,7 +155,7 @@ fn run<B: ad::Backend>(device: B::Device) {
     let num_epochs = 10;
     let num_workers = 8;
     let num_layers = 4;
-    let hidden_dim = 3024;
+    let hidden_dim = 1024;
     let seed = 42;
 
     let mut model: Model<B> = Model::new(784, hidden_dim, num_layers, 10);
@@ -208,10 +208,10 @@ fn run<B: ad::Backend>(device: B::Device) {
         learner,
     );
 
-    trainer.run(num_epochs);
+    let _learned = trainer.run(num_epochs);
 }
 
 fn main() {
     let device = burn::tensor::back::TchDevice::Cuda(0);
-    run::<ad::Tch<f32>>(device);
+    run::<ad::Tch<burn::tensor::f16>>(device);
 }

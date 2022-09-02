@@ -28,8 +28,11 @@ pub trait Module: Send + Sync + std::fmt::Debug + std::fmt::Display {
     fn devices(&self) -> Vec<<Self::Backend as back::Backend>::Device>;
     fn to_device(&mut self, device: <Self::Backend as back::Backend>::Device);
     fn name(&self) -> &str;
-    fn load(&mut self, state: &State<Self::Backend>) -> Result<(), LoadingError>;
-    fn state(&self) -> State<Self::Backend>;
+    fn load(
+        &mut self,
+        state: &State<<Self::Backend as back::Backend>::Elem>,
+    ) -> Result<(), LoadingError>;
+    fn state(&self) -> State<<Self::Backend as back::Backend>::Elem>;
     fn num_params(&self) -> usize;
 }
 
