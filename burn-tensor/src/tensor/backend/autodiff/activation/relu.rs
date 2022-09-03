@@ -1,8 +1,8 @@
 use crate::tensor::backend::backend::Backend;
 use crate::{
-    activation::ReLU,
     execute_ops,
     graph::ops::{UnaryOps, UnaryOpsNodeState},
+    ops::activation::*,
     ops::*,
     register_ops,
     tensor::backend::autodiff::ADTensor,

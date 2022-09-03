@@ -6,7 +6,6 @@ use crate::graph::ops::{
 use crate::tensor::backend::autodiff::{ADKind, ADTensor};
 use crate::tensor::backend::Backend;
 use crate::tensor::ops::*;
-use crate::tensor::{Element, TensorTrait};
 use std::{ops::Range, sync::Arc};
 
 #[derive(Debug)]
@@ -24,12 +23,13 @@ impl<P: Default, const D1: usize, const D2: usize> ADTensorOpsIndex<P, D1, D2> {
     }
 }
 
-impl<T1, P, const D1: usize, const D2: usize> UnaryOps<T1, T1> for ADTensorOpsIndex<P, D1, D2>
-where
-    P: Element,
-    T1: TensorTrait<P, D1> + TensorOpsIndex<P, D1>,
+impl<B: Backend, const D1: usize, const D2: usize>
+    UnaryOps<B::TensorPrimitive<D1>, B::TensorPrimitive<D1>> for ADTensorOpsIndex<B, D1, D2>
 {
-    fn partial(&self, state: &UnaryOpsNodeState<T1, T1>) -> T1 {
+    fn partial(
+        &self,
+        state: &UnaryOpsNodeState<B::TensorPrimitive<D1>, B::TensorPrimitive<D1>>,
+    ) -> B::TensorPrimitive<D1> {
         state
             .input
             .value()
@@ -39,34 +39,46 @@ where
 }
 
 #[derive(Debug)]
-struct ADTensorOpsIndexAssign<P, const D1: usize, const D2: usize> {
+struct ADTensorOpsIndexAssign<B: Backend, const D1: usize, const D2: usize> {
     indexes: [Range<usize>; D2],
-    _kind: ADKind<P>,
+    _b: B,
 }
 
-impl<P: Default, const D1: usize, const D2: usize> ADTensorOpsIndexAssign<P, D1, D2> {
+impl<B: Backend, const D1: usize, const D2: usize> ADTensorOpsIndexAssign<B, D1, D2> {
     pub fn new(indexes: [Range<usize>; D2]) -> Self {
         Self {
             indexes,
-            _kind: ADKind::new(),
+            _b: B::default(),
         }
     }
 }
 
-impl<T, P, const D1: usize, const D2: usize> BinaryOps<T, T, T>
-    for ADTensorOpsIndexAssign<P, D1, D2>
-where
-    P: Element,
-    T: TensorTrait<P, D1> + TensorOpsIndex<P, D1>,
+impl<B: Backend, const D1: usize, const D2: usize>
+    BinaryOps<B::TensorPrimitive<D1>, B::TensorPrimitive<D1>, B::TensorPrimitive<D1>>
+    for ADTensorOpsIndexAssign<B, D1, D2>
 {
-    fn partial_left(&self, state: &BinaryOpsNodeState<T, T, T>) -> T {
+    fn partial_left(
+        &self,
+        state: &BinaryOpsNodeState<
+            B::TensorPrimitive<D1>,
+            B::TensorPrimitive<D1>,
+            B::TensorPrimitive<D1>,
+        >,
+    ) -> B::TensorPrimitive<D1> {
         state
             .output
             .grad()
             .index_assign(self.indexes.clone(), &state.right.value().zeros())
     }
 
-    fn partial_right(&self, state: &BinaryOpsNodeState<T, T, T>) -> T {
+    fn partial_right(
+        &self,
+        state: &BinaryOpsNodeState<
+            B::TensorPrimitive<D1>,
+            B::TensorPrimitive<D1>,
+            B::TensorPrimitive<D1>,
+        >,
+    ) -> B::TensorPrimitive<D1> {
         state.output.grad().index(self.indexes.clone())
     }
 }
@@ -79,7 +91,7 @@ impl<B: Backend, const D1: usize> TensorOpsIndex<B::Elem, D1> for ADTensor<D1, B
 
         let state = ForwardNodeState::new(out);
 
-        let ops = ADTensorOpsIndex::<B::Elem, D1, D2>::new(indexes);
+        let ops = ADTensorOpsIndex::<B, D1, D2>::new(indexes);
         let ops = Arc::new(ops);
         let ops = ForwardUnaryRecordedOps::new(self.node.clone(), ops);
         let ops = Arc::new(ops);
@@ -96,7 +108,7 @@ impl<B: Backend, const D1: usize> TensorOpsIndex<B::Elem, D1> for ADTensor<D1, B
 
         let state = ForwardNodeState::new(out);
 
-        let ops = ADTensorOpsIndexAssign::<B::Elem, D1, D2>::new(indexes);
+        let ops = ADTensorOpsIndexAssign::<B, D1, D2>::new(indexes);
         let ops = Arc::new(ops);
         let ops = ForwardBinaryRecordedOps::new(self.node.clone(), values.node.clone(), ops);
         let ops = Arc::new(ops);

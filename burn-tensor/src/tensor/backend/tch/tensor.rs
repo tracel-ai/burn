@@ -1,4 +1,4 @@
-use crate::tensor::{ops::TensorOpsUtilities, Data, Element, Shape, TensorTrait};
+use crate::tensor::{ops::TensorOpsUtilities, Data, Shape};
 
 lazy_static::lazy_static! {
     static ref NO_GRAD: tch::NoGradGuard = {
@@ -132,8 +132,6 @@ impl<const D: usize> TensorOpsUtilities<usize, D> for TchTensor<i64, D> {
         Data::new(values, self.shape.clone())
     }
 }
-
-impl<P: Element + tch::kind::Element, const D: usize> TensorTrait<P, D> for TchTensor<P, D> {}
 
 #[cfg(test)]
 mod tests {

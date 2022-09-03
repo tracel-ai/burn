@@ -65,24 +65,6 @@ pub trait NdArrayElement:
 {
 }
 
-pub trait TensorTrait<P: Element, const D: usize>:
-    TensorOpsUtilities<P, D>
-    + TensorOpsMatmul<P, D>
-    + TensorOpsTranspose<P, D>
-    + TensorOpsMul<P, D>
-    + TensorOpsDiv<P, D>
-    + TensorOpsNeg<P, D>
-    + TensorOpsAdd<P, D>
-    + TensorOpsSub<P, D>
-    + Zeros<Self>
-    + Ones<Self>
-    + Clone
-    + Send
-    + Sync
-    + std::fmt::Debug
-{
-}
-
 macro_rules! ad_items {
     (
         ty $float:ident $precision:expr,
@@ -284,11 +266,4 @@ mod ndarray_elem {
 
     impl NdArrayElement for u8 {}
     impl_exp_elem!(u8, f32);
-}
-
-mod ad {
-    use super::*;
-    use crate::tensor::backend::{autodiff::ADTensor, Backend};
-
-    impl<B: Backend, const D: usize> TensorTrait<B::Elem, D> for ADTensor<D, B> {}
 }

@@ -4,11 +4,10 @@ pub(crate) mod ops;
 
 mod api;
 mod data;
-mod print;
+mod element;
 mod shape;
-mod tensor_trait;
 
 pub use api::*;
 pub use data::*;
+pub use element::*;
 pub use shape::*;
-pub use tensor_trait::*;

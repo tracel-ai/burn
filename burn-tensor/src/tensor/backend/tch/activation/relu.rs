@@ -1,4 +1,4 @@
-use crate::{activation::ReLU, backend::tch::TchTensor, TchElement};
+use crate::{backend::tch::TchTensor, ops::activation::ReLU, TchElement};
 
 impl<E, const D: usize> ReLU<E, D> for TchTensor<E, D>
 where

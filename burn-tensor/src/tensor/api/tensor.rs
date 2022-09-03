@@ -1,6 +1,6 @@
 use super::BoolTensor;
-use crate::tensor::activation::*;
 use crate::tensor::backend::Backend;
+use crate::tensor::ops::activation::*;
 use crate::tensor::ops::*;
 use crate::tensor::{Data, Distribution, Shape};
 use std::convert::TryInto;

@@ -1,5 +1,4 @@
-use super::{backend::Backend, Data};
-use crate::tensor::Shape;
+use crate::{backend::Backend, tensor::Shape, Data};
 use std::ops::Range;
 
 pub trait TensorOpsUtilities<E, const D: usize> {
