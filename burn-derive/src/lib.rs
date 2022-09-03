@@ -43,7 +43,7 @@ fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
             #load_fn
         }
 
-        impl #generics burn::module::ADModule for #name #generics_ty where B: burn::tensor::back::ad::Backend, {
+        impl #generics burn::module::ADModule for #name #generics_ty where B: burn::tensor::backend::ADBackend, {
             type ADBackend=B;
             type InnerModule=#name<B::InnerBackend>;
 

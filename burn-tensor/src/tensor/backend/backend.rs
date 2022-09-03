@@ -72,7 +72,7 @@ pub trait Backend: Clone + Sized + Default + Send + Sync + std::fmt::Debug + 'st
     fn name() -> String;
 }
 
-pub type ADBackendTensorPrimitive<const D: usize, B> =
+pub(crate) type ADBackendTensorPrimitive<const D: usize, B> =
     <<B as ADBackend>::InnerBackend as Backend>::TensorPrimitive<D>;
 
 pub trait ADBackend: Backend {

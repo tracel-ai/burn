@@ -1,7 +1,7 @@
 use super::{Learner, Loss};
 use crate::module::ADModule;
 use crate::optim::Optimizer;
-use crate::tensor::back::{ad, Backend};
+use crate::tensor::backend::{ADBackend, Backend};
 use crate::train::metric;
 use burn_tensor::Tensor;
 
@@ -27,7 +27,7 @@ impl<B: Backend> metric::Metric<BasicOutput<B>> for metric::LossMetric {
 
 impl<B, B2, T, L, L2, O> Learner<T, T, BasicOutput<B>, BasicOutput<B2>> for BasicLearner<L, O>
 where
-    B: ad::Backend<InnerBackend = B2>,
+    B: ADBackend<InnerBackend = B2>,
     B2: Backend,
     O: Optimizer<Backend = B>,
     L: Loss<Backend = B, Item = T> + ADModule<Backend = B, InnerModule = L2>,

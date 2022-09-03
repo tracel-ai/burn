@@ -1,8 +1,8 @@
 use burn::module::{Module, Param};
-use burn::tensor::back::Backend;
+use burn::tensor::backend::Backend;
 use burn::tensor::{Distribution, Shape, Tensor};
 
-type TestBackend = burn::tensor::back::NdArray<i16>;
+type TestBackend = burn::tensor::backend::NdArrayBackend<f32>;
 
 #[derive(Module, Debug)]
 struct ModuleBasic<B>

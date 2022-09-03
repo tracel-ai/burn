@@ -1,13 +1,13 @@
 use super::{Learner, TrainerItem};
 use crate::data::dataloader::DataLoader;
 use crate::data::dataloader::Detach;
-use crate::tensor::back;
+use crate::tensor::backend::ADBackend;
 use crate::train::logger::Logger;
 use std::sync::Arc;
 
 pub struct SupervisedTrainer<B, T, V, L, TO, VO>
 where
-    B: back::ad::Backend,
+    B: ADBackend,
     L: Learner<T, V, TO, VO, Backend = B>,
 {
     dataloader_train: Arc<dyn DataLoader<T>>,
@@ -20,7 +20,7 @@ where
 
 impl<B, T, V, L, TO, VO> SupervisedTrainer<B, T, V, L, TO, VO>
 where
-    B: back::ad::Backend,
+    B: ADBackend,
     T: Detach,
     L: Learner<T, V, TO, VO, Backend = B>,
 {

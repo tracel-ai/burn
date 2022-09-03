@@ -1,7 +1,7 @@
 use super::Learner;
 use crate::module::{ADModule, Forward, Module};
 use crate::optim::Optimizer;
-use crate::tensor::back::{ad, Backend};
+use crate::tensor::backend::{ADBackend, Backend};
 use crate::train::metric;
 use burn_tensor::Tensor;
 
@@ -41,7 +41,7 @@ impl<B, I, IV, M, M2, O>
     Learner<I, IV, ClassificationOutput<B>, ClassificationOutput<B::InnerBackend>>
     for ClassificationLearner<M, O>
 where
-    B: ad::Backend,
+    B: ADBackend,
     M: Forward<I, ClassificationOutput<B>> + ADModule<Backend = B, InnerModule = M2>,
     M2: Forward<IV, ClassificationOutput<B::InnerBackend>> + Module<Backend = B::InnerBackend>,
     O: Optimizer<Backend = B>,

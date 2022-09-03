@@ -1,5 +1,5 @@
 use super::RunningMetricResult;
-use crate::tensor::back::Backend;
+use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 use crate::train::metric::{Metric, MetricStateDyn, NumericMetric};
 

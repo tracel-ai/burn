@@ -1,5 +1,4 @@
 use crate::graph::grad::Gradients;
-use crate::tensor::backend::autodiff::ADTensor;
 use crate::tensor::backend::ADBackend;
 use crate::tensor::backend::Backend;
 use crate::tensor::ops::activation::*;
@@ -391,34 +390,5 @@ impl<const D: usize, B: ADBackend> Tensor<B, D> {
 
     pub fn detach(&self) -> Self {
         Self::from_inner(self.inner())
-    }
-}
-
-#[cfg(feature = "ndarray")]
-mod ndarray {
-    use super::*;
-    use crate::tensor::backend::autodiff::ADBackendNdArray;
-    use crate::tensor::backend::ndarray::NdArrayBackend;
-
-    impl<E: crate::NdArrayElement, const D: usize> Tensor<NdArrayBackend<E>, D> {
-        pub fn with_grad(self) -> Tensor<ADBackendNdArray<E>, D> {
-            let tensor = ADTensor::from_tensor(self.value);
-            Tensor::new(tensor)
-        }
-    }
-}
-
-#[cfg(feature = "tch")]
-mod tch {
-    use super::*;
-    use crate::tensor::backend::autodiff::ADBackendTch;
-    use crate::tensor::backend::tch::TchBackend;
-    use crate::TchElement;
-
-    impl<E: TchElement, const D: usize> Tensor<TchBackend<E>, D> {
-        pub fn with_grad(self) -> Tensor<ADBackendTch<E>, D> {
-            let tensor = ADTensor::from_tensor(self.value);
-            Tensor::new(tensor)
-        }
     }
 }

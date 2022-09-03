@@ -23,9 +23,9 @@ pub trait Element:
 }
 
 #[cfg(feature = "tch")]
-pub trait TchElement: Element + tch::kind::Element {}
+pub(crate) trait TchElement: Element + tch::kind::Element {}
 
-pub trait ExpElement {
+pub(crate) trait ExpElement {
     fn exp_elem(self) -> Self;
     fn log_elem(self) -> Self;
 }
@@ -60,7 +60,7 @@ pub trait ElementPrecision {
 }
 
 #[cfg(feature = "ndarray")]
-pub trait NdArrayElement:
+pub(crate) trait NdArrayElement:
     Element + ndarray::LinalgScalar + ndarray::ScalarOperand + ExpElement + num_traits::FromPrimitive
 {
 }
