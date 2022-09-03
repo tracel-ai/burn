@@ -8,11 +8,11 @@ impl<E, const D: usize> TensorOpsDevice<NdArrayBackend<E>, D> for NdArrayTensor<
 where
     E: NdArrayElement,
 {
-    fn device(&self) -> <NdArrayBackend<E> as crate::back::Backend>::Device {
+    fn device(&self) -> <NdArrayBackend<E> as crate::backend::Backend>::Device {
         NdArrayDevice::Cpu
     }
 
-    fn to_device(&self, _device: <NdArrayBackend<E> as crate::back::Backend>::Device) -> Self {
+    fn to_device(&self, _device: <NdArrayBackend<E> as crate::backend::Backend>::Device) -> Self {
         self.clone()
     }
 }

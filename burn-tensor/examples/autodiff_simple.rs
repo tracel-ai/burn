@@ -1,8 +1,8 @@
-use burn_tensor::{af, back, Data, Distribution, Shape, Tensor};
+use burn_tensor::{activation, backend, Data, Distribution, Shape, Tensor};
 
-fn loss<B: back::Backend>(x: &Tensor<B, 2>, y: &Tensor<B, 2>) -> Tensor<B, 2> {
+fn loss<B: backend::Backend>(x: &Tensor<B, 2>, y: &Tensor<B, 2>) -> Tensor<B, 2> {
     let z = x.matmul(y);
-    let z = af::relu(&z);
+    let z = activation::relu(&z);
 
     println!("fn name  : loss");
     println!("backend  : {}", B::name());
@@ -11,7 +11,7 @@ fn loss<B: back::Backend>(x: &Tensor<B, 2>, y: &Tensor<B, 2>) -> Tensor<B, 2> {
     z
 }
 
-fn run_ad<B: back::ad::Backend>(x: Data<B::Elem, 2>, y: Data<B::Elem, 2>) {
+fn run_ad<B: backend::ADBackend>(x: Data<B::Elem, 2>, y: Data<B::Elem, 2>) {
     println!("---------- Ad Enabled -----------");
     let x: Tensor<B, 2> = Tensor::from_data(x);
     let y: Tensor<B, 2> = Tensor::from_data(y);
@@ -26,7 +26,7 @@ fn run_ad<B: back::ad::Backend>(x: Data<B::Elem, 2>, y: Data<B::Elem, 2>) {
     println!("")
 }
 
-fn run<B: back::Backend>(x: Data<B::Elem, 2>, y: Data<B::Elem, 2>) {
+fn run<B: backend::Backend>(x: Data<B::Elem, 2>, y: Data<B::Elem, 2>) {
     println!("---------- Ad Disabled ----------");
     loss::<B>(&Tensor::from_data(x.clone()), &Tensor::from_data(y.clone()));
     println!("---------------------------------");
@@ -40,13 +40,13 @@ fn main() {
 
     #[cfg(feature = "ndarray")]
     {
-        run::<back::NdArray<f32>>(x.clone(), y.clone());
-        run_ad::<back::ad::NdArray<f32>>(x.clone(), y.clone());
+        run::<backend::NdArrayBackend<f32>>(x.clone(), y.clone());
+        run_ad::<backend::NdArrayADBackend<f32>>(x.clone(), y.clone());
     }
 
     #[cfg(feature = "tch")]
     {
-        run::<back::Tch<f32>>(x.clone(), y.clone());
-        run_ad::<back::ad::Tch<f32>>(x.clone(), y.clone());
+        run::<backend::TchBackend<f32>>(x.clone(), y.clone());
+        run_ad::<backend::TchADBackend<f32>>(x.clone(), y.clone());
     }
 }

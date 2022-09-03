@@ -1,5 +1,5 @@
 use crate::{
-    back::Backend,
+    backend::Backend,
     tensor::{
         backend::tch::{TchBackend, TchTensor},
         ops::*,

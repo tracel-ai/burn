@@ -1,5 +1,5 @@
 use super::super::TestADBackend;
-use burn_tensor::{losses, Data, Tensor};
+use burn_tensor::{loss, Data, Tensor};
 
 #[test]
 fn test_cross_entropy_loss_grad() {
@@ -12,7 +12,7 @@ fn test_cross_entropy_loss_grad() {
     let tensor_targets = Tensor::<TestADBackend, 2>::from_data(data_targets);
 
     let tensor_3 = tensor_1.matmul(&tensor_2);
-    let tensor_4 = losses::cross_entropy_with_logits(&tensor_3, &tensor_targets);
+    let tensor_4 = loss::cross_entropy_with_logits(&tensor_3, &tensor_targets);
 
     let grads = tensor_4.backward();
     let grad_1 = tensor_1.grad(&grads).unwrap();

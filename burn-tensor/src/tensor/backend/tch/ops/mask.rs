@@ -1,5 +1,5 @@
 use crate::{
-    back::Backend, backend::tch::TchBackend, backend::tch::TchTensor, ops::TensorOpsMask,
+    backend::tch::TchBackend, backend::tch::TchTensor, backend::Backend, ops::TensorOpsMask,
     TchElement,
 };
 
