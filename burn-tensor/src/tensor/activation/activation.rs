@@ -1,5 +1,5 @@
-use super::Tensor;
-use crate::back::Backend;
+use crate::backend::Backend;
+use crate::Tensor;
 use crate::{ElementPrecision, Precision};
 
 pub fn relu<const D: usize, B: Backend>(tensor: &Tensor<B, D>) -> Tensor<B, D> {

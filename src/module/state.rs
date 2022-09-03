@@ -190,7 +190,7 @@ mod tests {
     use super::*;
     use crate::module::Module;
     use crate::nn;
-    use crate::tensor::back;
+    use crate::tensor::backend::Backend;
 
     #[test]
     fn test_state_to_from_value() {
@@ -202,7 +202,7 @@ mod tests {
 
         let state = linear.state();
         let value: serde_json::Value = state.into();
-        let state_from: State<<crate::TestBackend as back::Backend>::Elem> =
+        let state_from: State<<crate::TestBackend as Backend>::Elem> =
             State::try_from(value.clone()).unwrap();
         let value_from: serde_json::Value = state_from.into();
 

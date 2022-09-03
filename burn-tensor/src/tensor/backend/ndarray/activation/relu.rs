@@ -1,7 +1,7 @@
 use crate::tensor::ops::{TensorOpsMapComparison, TensorOpsMask};
 use crate::{
-    activation::ReLU,
     backend::ndarray::{NdArrayBackend, NdArrayTensor},
+    ops::activation::ReLU,
     NdArrayElement,
 };
 

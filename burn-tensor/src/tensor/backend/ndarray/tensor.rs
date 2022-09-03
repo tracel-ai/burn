@@ -1,5 +1,5 @@
-use crate::tensor::{ops::TensorOpsUtilities, Data, Shape, TensorTrait};
-use ndarray::{s, ArcArray, Array, Axis, Dim, Ix2, Ix3, IxDyn, LinalgScalar, ScalarOperand};
+use crate::tensor::{ops::TensorOpsUtilities, Data, Shape};
+use ndarray::{s, ArcArray, Array, Axis, Dim, Ix2, Ix3, IxDyn};
 
 #[derive(Debug, Clone)]
 pub struct NdArrayTensor<E, const D: usize> {
@@ -146,11 +146,6 @@ where
             _ => panic!(""),
         }
     }
-}
-
-impl<E: crate::tensor::Element + ScalarOperand + LinalgScalar, const D: usize> TensorTrait<E, D>
-    for NdArrayTensor<E, D>
-{
 }
 
 #[cfg(test)]

@@ -1,5 +1,5 @@
 use super::super::TestADBackend;
-use burn_tensor::{af, Data, Tensor};
+use burn_tensor::{activation, Data, Tensor};
 
 #[test]
 fn test_softmax_grad() {
@@ -9,7 +9,7 @@ fn test_softmax_grad() {
     let tensor_2 = Tensor::<TestADBackend, 2>::from_data(data_2);
 
     let tensor_3 = tensor_1.matmul(&tensor_2);
-    let tensor_4 = af::softmax(&tensor_3, 1).matmul(&tensor_2);
+    let tensor_4 = activation::softmax(&tensor_3, 1).matmul(&tensor_2);
 
     let grads = tensor_4.backward();
     let grad_1 = tensor_1.grad(&grads).unwrap();
@@ -31,7 +31,7 @@ fn test_log_softmax_grad() {
     let tensor_2 = Tensor::<TestADBackend, 2>::from_data(data_2);
 
     let tensor_3 = tensor_1.matmul(&tensor_2);
-    let tensor_4 = af::log_softmax(&tensor_3, 1).matmul(&tensor_2);
+    let tensor_4 = activation::log_softmax(&tensor_3, 1).matmul(&tensor_2);
 
     let grads = tensor_4.backward();
     let grad_1 = tensor_1.grad(&grads).unwrap();

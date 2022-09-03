@@ -293,6 +293,11 @@ impl<P: std::fmt::Debug + Copy, const A: usize, const B: usize, const C: usize>
     }
 }
 
+impl<P: std::fmt::Debug, const D: usize> std::fmt::Display for Data<P, D> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(format!("{:?}", &self.value).as_str())
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;

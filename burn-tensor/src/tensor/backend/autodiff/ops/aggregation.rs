@@ -1,6 +1,6 @@
-use crate::tensor::api::Tensor;
-use crate::tensor::tensor_trait::ElementConversion;
-use crate::{back::Backend, tensor::ops::*};
+use crate::tensor::ElementConversion;
+use crate::Tensor;
+use crate::{backend::Backend, tensor::ops::*};
 use crate::{
     define_ops, execute_ops,
     graph::ops::{UnaryOps, UnaryOpsNodeState},

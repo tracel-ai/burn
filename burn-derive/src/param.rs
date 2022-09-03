@@ -51,7 +51,7 @@ impl Param {
         quote! {
             fn update_params<O: burn::optim::Optimizer<Backend = B>>(&mut self, grads: &burn::tensor::Gradients, optim: &mut O)
                 where
-                B: burn::tensor::back::ad::Backend {
+                B: burn::tensor::backend::ADBackend {
                 #body
             }
         }
@@ -134,7 +134,7 @@ impl Param {
         }
 
         quote! {
-            fn state(&self) -> burn::module::State<<Self::Backend as burn::tensor::back::Backend>::Elem>
+            fn state(&self) -> burn::module::State<<Self::Backend as burn::tensor::backend::Backend>::Elem>
             {
                 #body
                 burn::module::State::StateNamed(state)
@@ -159,7 +159,7 @@ impl Param {
             });
         }
         quote! {
-            fn load(&mut self, state: &burn::module::State<<Self::Backend as burn::tensor::back::Backend>::Elem>) -> Result<(), burn::module::LoadingError>
+            fn load(&mut self, state: &burn::module::State<<Self::Backend as burn::tensor::backend::Backend>::Elem>) -> Result<(), burn::module::LoadingError>
             {
                 #body
                 Ok(())

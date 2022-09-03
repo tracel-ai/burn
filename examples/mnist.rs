@@ -4,9 +4,9 @@ use burn::data::dataset::source::huggingface::{MNISTDataset, MNISTItem};
 use burn::module::{Forward, Module, Param};
 use burn::nn;
 use burn::optim::SGDOptimizer;
-use burn::tensor::af::relu;
-use burn::tensor::back::{ad, Backend};
-use burn::tensor::losses::cross_entropy_with_logits;
+use burn::tensor::activation::relu;
+use burn::tensor::backend::{ADBackend, Backend};
+use burn::tensor::loss::cross_entropy_with_logits;
 use burn::tensor::{Data, ElementConversion, Shape, Tensor};
 use burn::train::logger::{AsyncLogger, CLILogger, TextPlot};
 use burn::train::metric::{AccuracyMetric, CUDAMetric, LossMetric};
@@ -118,7 +118,7 @@ struct MNISTBatch<B: Backend> {
     targets: Tensor<B, 2>,
 }
 
-impl<B: ad::Backend> Detach for MNISTBatch<B> {
+impl<B: ADBackend> Detach for MNISTBatch<B> {
     fn detach(self) -> Self {
         Self {
             images: self.images.detach(),
@@ -149,7 +149,7 @@ impl<B: Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
     }
 }
 
-fn run<B: ad::Backend>(device: B::Device) {
+fn run<B: ADBackend>(device: B::Device) {
     let batch_size = 128;
     let learning_rate = 5.5e-2;
     let num_epochs = 10;
@@ -212,6 +212,9 @@ fn run<B: ad::Backend>(device: B::Device) {
 }
 
 fn main() {
-    let device = burn::tensor::back::TchDevice::Cuda(0);
-    run::<ad::Tch<burn::tensor::f16>>(device);
+    use burn::tensor::backend::{TchADBackend, TchDevice};
+    use burn::tensor::f16;
+
+    let device = TchDevice::Cuda(0);
+    run::<TchADBackend<f16>>(device);
 }

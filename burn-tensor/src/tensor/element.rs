@@ -23,9 +23,9 @@ pub trait Element:
 }
 
 #[cfg(feature = "tch")]
-pub trait TchElement: Element + tch::kind::Element {}
+pub(crate) trait TchElement: Element + tch::kind::Element {}
 
-pub trait ExpElement {
+pub(crate) trait ExpElement {
     fn exp_elem(self) -> Self;
     fn log_elem(self) -> Self;
 }
@@ -60,26 +60,8 @@ pub trait ElementPrecision {
 }
 
 #[cfg(feature = "ndarray")]
-pub trait NdArrayElement:
+pub(crate) trait NdArrayElement:
     Element + ndarray::LinalgScalar + ndarray::ScalarOperand + ExpElement + num_traits::FromPrimitive
-{
-}
-
-pub trait TensorTrait<P: Element, const D: usize>:
-    TensorOpsUtilities<P, D>
-    + TensorOpsMatmul<P, D>
-    + TensorOpsTranspose<P, D>
-    + TensorOpsMul<P, D>
-    + TensorOpsDiv<P, D>
-    + TensorOpsNeg<P, D>
-    + TensorOpsAdd<P, D>
-    + TensorOpsSub<P, D>
-    + Zeros<Self>
-    + Ones<Self>
-    + Clone
-    + Send
-    + Sync
-    + std::fmt::Debug
 {
 }
 
@@ -284,11 +266,4 @@ mod ndarray_elem {
 
     impl NdArrayElement for u8 {}
     impl_exp_elem!(u8, f32);
-}
-
-mod ad {
-    use super::*;
-    use crate::tensor::backend::{autodiff::ADTensor, Backend};
-
-    impl<B: Backend, const D: usize> TensorTrait<B::Elem, D> for ADTensor<D, B> {}
 }

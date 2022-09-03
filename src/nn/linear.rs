@@ -2,7 +2,7 @@ use crate as burn;
 
 use crate::module::Module;
 use crate::module::{Forward, Param};
-use crate::tensor::back::Backend;
+use crate::tensor::backend::Backend;
 use crate::tensor::{Distribution, ElementConversion, Shape, Tensor};
 use std::ops::Deref;
 

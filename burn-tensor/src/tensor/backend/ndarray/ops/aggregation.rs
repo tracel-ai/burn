@@ -1,5 +1,5 @@
 use crate::{
-    back::Backend,
+    backend::Backend,
     tensor::{
         backend::ndarray::{NdArrayBackend, NdArrayTensor},
         ops::*,

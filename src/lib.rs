@@ -9,4 +9,4 @@ pub mod tensor;
 pub mod train;
 
 #[cfg(test)]
-pub type TestBackend = crate::tensor::back::NdArray<f32>;
+pub type TestBackend = crate::tensor::backend::NdArrayBackend<f32>;

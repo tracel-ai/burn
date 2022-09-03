@@ -1,12 +1,9 @@
-use crate::activation::ReLU;
-use crate::graph::grad::Gradients;
-use crate::ops::{
-    TensorOpsAggregation, TensorOpsArg, TensorOpsCat, TensorOpsDevice, TensorOpsExp, TensorOpsLog,
-    TensorOpsMapComparison, TensorOpsMask, TensorOpsPrecision, TensorOpsUtilities,
-};
+use crate::ops::activation::*;
+use crate::ops::*;
 use crate::tensor::ops::{TensorOpsIndex, TensorOpsReshape};
+use crate::tensor::Element;
 use crate::tensor::{Data, Distribution, Shape};
-use crate::tensor::{Element, TensorTrait};
+use crate::Gradients;
 
 pub trait Backend: Clone + Sized + Default + Send + Sync + std::fmt::Debug + 'static {
     type Device: Copy + Clone + Default + std::fmt::Debug + Send + Sync;
@@ -14,7 +11,16 @@ pub trait Backend: Clone + Sized + Default + Send + Sync + std::fmt::Debug + 'st
     type FullPrecisionElem: Element;
     type FullPrecisionBackend: Backend<Elem = Self::FullPrecisionElem, Device = Self::Device>;
     type IntegerBackend: Backend<Elem = i64, Device = Self::Device>;
-    type TensorPrimitive<const D: usize>: TensorTrait<Self::Elem, D>
+    type TensorPrimitive<const D: usize>: TensorOpsUtilities<Self::Elem, D>
+        + TensorOpsMatmul<Self::Elem, D>
+        + TensorOpsTranspose<Self::Elem, D>
+        + TensorOpsMul<Self::Elem, D>
+        + TensorOpsDiv<Self::Elem, D>
+        + TensorOpsNeg<Self::Elem, D>
+        + TensorOpsAdd<Self::Elem, D>
+        + TensorOpsSub<Self::Elem, D>
+        + Zeros<Self::TensorPrimitive<D>>
+        + Ones<Self::TensorPrimitive<D>>
         + TensorOpsReshape<Self, D>
         + TensorOpsPrecision<Self, D>
         + TensorOpsDevice<Self, D>
@@ -27,9 +33,13 @@ pub trait Backend: Clone + Sized + Default + Send + Sync + std::fmt::Debug + 'st
         + TensorOpsMask<Self, D>
         + TensorOpsMapComparison<Self, D>
         + ReLU<Self::Elem, D>
+        + Clone
         + Send
         + Sync
-        + 'static;
+        + Send
+        + Sync
+        + 'static
+        + std::fmt::Debug;
 
     type BoolTensorPrimitive<const D: usize>: TensorOpsUtilities<bool, D>
         + Clone
@@ -62,7 +72,7 @@ pub trait Backend: Clone + Sized + Default + Send + Sync + std::fmt::Debug + 'st
     fn name() -> String;
 }
 
-pub type ADBackendTensorPrimitive<const D: usize, B> =
+pub(crate) type ADBackendTensorPrimitive<const D: usize, B> =
     <<B as ADBackend>::InnerBackend as Backend>::TensorPrimitive<D>;
 
 pub trait ADBackend: Backend {

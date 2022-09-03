@@ -1,14 +1,17 @@
-pub(crate) mod activation;
-pub(crate) mod backend;
 pub(crate) mod ops;
 
-mod api;
+mod bool_tensor;
 mod data;
-mod print;
+mod element;
 mod shape;
-mod tensor_trait;
+mod tensor;
 
-pub use api::*;
+pub use bool_tensor::*;
 pub use data::*;
+pub use element::*;
 pub use shape::*;
-pub use tensor_trait::*;
+pub use tensor::*;
+
+pub mod activation;
+pub mod backend;
+pub mod loss;

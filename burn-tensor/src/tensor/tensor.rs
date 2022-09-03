@@ -1,8 +1,11 @@
-use super::BoolTensor;
-use crate::tensor::activation::*;
+use crate::graph::grad::Gradients;
+use crate::tensor::backend::ADBackend;
 use crate::tensor::backend::Backend;
+use crate::tensor::ops::activation::*;
 use crate::tensor::ops::*;
 use crate::tensor::{Data, Distribution, Shape};
+use crate::BoolTensor;
+use crate::Element;
 use std::convert::TryInto;
 
 #[derive(Debug, Clone)]
@@ -269,5 +272,123 @@ where
 
     pub(crate) fn relu(&self) -> Self {
         Self::new(self.value.relu())
+    }
+}
+
+impl<const D: usize, B> std::ops::Add<Self> for Tensor<B, D>
+where
+    B: Backend,
+{
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        Tensor::add(&self, &other)
+    }
+}
+
+impl<E, const D: usize, B> std::ops::Add<E> for Tensor<B, D>
+where
+    E: Element,
+    B: Backend<Elem = E>,
+{
+    type Output = Self;
+
+    fn add(self, other: E) -> Self {
+        Tensor::add_scalar(&self, &other)
+    }
+}
+
+impl<const D: usize, B> std::ops::Sub<Self> for Tensor<B, D>
+where
+    B: Backend,
+{
+    type Output = Self;
+
+    fn sub(self, other: Self) -> Self {
+        Tensor::sub(&self, &other)
+    }
+}
+
+impl<E, const D: usize, B> std::ops::Sub<E> for Tensor<B, D>
+where
+    E: Element,
+    B: Backend<Elem = E>,
+{
+    type Output = Self;
+
+    fn sub(self, other: E) -> Self {
+        Tensor::sub_scalar(&self, &other)
+    }
+}
+
+impl<const D: usize, B> std::ops::Mul<Self> for Tensor<B, D>
+where
+    B: Backend,
+{
+    type Output = Self;
+
+    fn mul(self, other: Self) -> Self {
+        Tensor::mul(&self, &other)
+    }
+}
+
+impl<E, const D: usize, B> std::ops::Mul<E> for Tensor<B, D>
+where
+    E: Element,
+    B: Backend<Elem = E>,
+{
+    type Output = Self;
+
+    fn mul(self, other: E) -> Self {
+        Tensor::mul_scalar(&self, &other)
+    }
+}
+
+impl<const D: usize, B> std::ops::Div<Self> for Tensor<B, D>
+where
+    B: Backend,
+{
+    type Output = Self;
+
+    fn div(self, other: Self) -> Self {
+        Tensor::div(&self, &other)
+    }
+}
+
+impl<E, const D: usize, B> std::ops::Div<E> for Tensor<B, D>
+where
+    E: Element,
+    B: Backend<Elem = E>,
+{
+    type Output = Self;
+
+    fn div(self, other: E) -> Self {
+        Tensor::div_scalar(&self, &other)
+    }
+}
+
+impl<const D: usize, B: ADBackend> Tensor<B, D> {
+    pub fn backward(&self) -> Gradients {
+        B::backward::<D>(&self.value)
+    }
+
+    pub fn grad(&self, grads: &Gradients) -> Option<Tensor<B::InnerBackend, D>> {
+        B::grad(&self.value, grads).map(|value| Tensor::new(value))
+    }
+
+    pub fn inner(&self) -> Tensor<B::InnerBackend, D> {
+        Tensor::new(B::inner(&self.value))
+    }
+
+    pub fn update(&mut self, other_inner: Tensor<B::InnerBackend, D>) {
+        self.value = B::from_inner(other_inner.value);
+    }
+
+    pub fn from_inner(inner: Tensor<B::InnerBackend, D>) -> Self {
+        Self::new(B::from_inner(inner.value))
+    }
+
+    pub fn detach(&self) -> Self {
+        Self::from_inner(self.inner())
     }
 }

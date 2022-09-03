@@ -1,5 +1,5 @@
 use crate::module::Module;
-use crate::tensor::back::Backend;
+use crate::tensor::backend::Backend;
 use burn_tensor::Tensor;
 
 pub trait Loss: Module {

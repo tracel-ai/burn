@@ -1,4 +1,5 @@
 use crate::backend::tch::TchBackend;
+use crate::backend::Backend;
 use crate::tensor::TchElement;
 use crate::tensor::{
     backend::tch::{TchKind, TchTensor},
@@ -9,10 +10,7 @@ impl<E, const D: usize> TensorOpsMapComparison<TchBackend<E>, D> for TchTensor<E
 where
     E: TchElement,
 {
-    fn equal(
-        &self,
-        other: &Self,
-    ) -> <TchBackend<E> as crate::back::Backend>::BoolTensorPrimitive<D> {
+    fn equal(&self, other: &Self) -> <TchBackend<E> as Backend>::BoolTensorPrimitive<D> {
         let tensor = self.tensor.eq_tensor(&other.tensor);
 
         TchTensor {
@@ -24,8 +22,8 @@ where
 
     fn equal_scalar(
         &self,
-        other: &<TchBackend<E> as crate::back::Backend>::Elem,
-    ) -> <TchBackend<E> as crate::back::Backend>::BoolTensorPrimitive<D> {
+        other: &<TchBackend<E> as Backend>::Elem,
+    ) -> <TchBackend<E> as Backend>::BoolTensorPrimitive<D> {
         let other: f64 = (*other).to_elem();
         let tensor = self.tensor.eq(other);
 
@@ -36,10 +34,7 @@ where
         }
     }
 
-    fn greater(
-        &self,
-        other: &Self,
-    ) -> <TchBackend<E> as crate::back::Backend>::BoolTensorPrimitive<D> {
+    fn greater(&self, other: &Self) -> <TchBackend<E> as Backend>::BoolTensorPrimitive<D> {
         let tensor = self.tensor.greater_tensor(&other.tensor);
 
         TchTensor {
@@ -51,8 +46,8 @@ where
 
     fn greater_scalar(
         &self,
-        other: &<TchBackend<E> as crate::back::Backend>::Elem,
-    ) -> <TchBackend<E> as crate::back::Backend>::BoolTensorPrimitive<D> {
+        other: &<TchBackend<E> as Backend>::Elem,
+    ) -> <TchBackend<E> as Backend>::BoolTensorPrimitive<D> {
         let other: f64 = (*other).to_elem();
         let tensor = self.tensor.greater(other);
 
@@ -63,10 +58,7 @@ where
         }
     }
 
-    fn greater_equal(
-        &self,
-        other: &Self,
-    ) -> <TchBackend<E> as crate::back::Backend>::BoolTensorPrimitive<D> {
+    fn greater_equal(&self, other: &Self) -> <TchBackend<E> as Backend>::BoolTensorPrimitive<D> {
         let tensor = self.tensor.greater_equal_tensor(&other.tensor);
 
         TchTensor {
@@ -78,8 +70,8 @@ where
 
     fn greater_equal_scalar(
         &self,
-        other: &<TchBackend<E> as crate::back::Backend>::Elem,
-    ) -> <TchBackend<E> as crate::back::Backend>::BoolTensorPrimitive<D> {
+        other: &<TchBackend<E> as Backend>::Elem,
+    ) -> <TchBackend<E> as Backend>::BoolTensorPrimitive<D> {
         let other: f64 = (*other).to_elem();
         let tensor = self.tensor.greater_equal(other);
 
@@ -90,10 +82,7 @@ where
         }
     }
 
-    fn lower(
-        &self,
-        other: &Self,
-    ) -> <TchBackend<E> as crate::back::Backend>::BoolTensorPrimitive<D> {
+    fn lower(&self, other: &Self) -> <TchBackend<E> as Backend>::BoolTensorPrimitive<D> {
         let tensor = self.tensor.less_tensor(&other.tensor);
 
         TchTensor {
@@ -105,8 +94,8 @@ where
 
     fn lower_scalar(
         &self,
-        other: &<TchBackend<E> as crate::back::Backend>::Elem,
-    ) -> <TchBackend<E> as crate::back::Backend>::BoolTensorPrimitive<D> {
+        other: &<TchBackend<E> as Backend>::Elem,
+    ) -> <TchBackend<E> as Backend>::BoolTensorPrimitive<D> {
         let other: f64 = (*other).to_elem();
         let tensor = self.tensor.less(other);
 
@@ -117,10 +106,7 @@ where
         }
     }
 
-    fn lower_equal(
-        &self,
-        other: &Self,
-    ) -> <TchBackend<E> as crate::back::Backend>::BoolTensorPrimitive<D> {
+    fn lower_equal(&self, other: &Self) -> <TchBackend<E> as Backend>::BoolTensorPrimitive<D> {
         let tensor = self.tensor.less_equal_tensor(&other.tensor);
 
         TchTensor {
@@ -132,8 +118,8 @@ where
 
     fn lower_equal_scalar(
         &self,
-        other: &<TchBackend<E> as crate::back::Backend>::Elem,
-    ) -> <TchBackend<E> as crate::back::Backend>::BoolTensorPrimitive<D> {
+        other: &<TchBackend<E> as Backend>::Elem,
+    ) -> <TchBackend<E> as Backend>::BoolTensorPrimitive<D> {
         let other: f64 = (*other).to_elem();
         let tensor = self.tensor.less_equal(other);
 
