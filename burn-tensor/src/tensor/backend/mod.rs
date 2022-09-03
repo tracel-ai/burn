@@ -18,9 +18,9 @@ pub type TchDevice = self::tch::TchDevice;
 
 #[cfg(feature = "ndarray")]
 pub(crate) mod ndarray;
-#[cfg(feature = "tch")]
+#[cfg(feature = "ndarray")]
 pub type NdArrayADBackend<E> = self::autodiff::ADBackendNdArray<E>;
-#[cfg(feature = "tch")]
+#[cfg(feature = "ndarray")]
 pub type NdArrayBackend<E> = self::ndarray::NdArrayBackend<E>;
-#[cfg(feature = "tch")]
+#[cfg(feature = "ndarray")]
 pub type NdArrayDevice = self::ndarray::NdArrayDevice;
