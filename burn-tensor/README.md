@@ -1,6 +1,9 @@
 # Burn Tensor
 
-> Burn Tensor Library
+> [Burn](https://github.com/burn-rs/burn) Tensor Library 
+
+[![Current Crates.io Version](https://img.shields.io/crates/v/burn-tensor.svg)](https://crates.io/crates/burn-tensor)
+[![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](https://github.com/burn-rs/burn-tensor/blob/master/README.md)
 
 This library provides multiple tensor implementations hidden behind an easy to use API that supports reverse mode automatic differentiation.
 
@@ -16,56 +19,13 @@ This library provides multiple tensor implementations hidden behind an easy to u
 
 ### Backends
 
-For now, only two backends are implementated, but adding new ones should be easy.
+For now, only two backends are implementated, but adding new ones should not be that hard.
 
 * [X] Pytorch using [tch-rs](https://github.com/LaurentMazare/tch-rs)
 * [X] 100% Rust backend using [ndarray](https://github.com/rust-ndarray/ndarray)
 * [ ] Tensorflow using [tensorflow-rust](https://github.com/tensorflow/rust)
+* [ ] CuDNN using RustCUDA[tensorflow-rust](https://github.com/Rust-GPU/Rust-CUDA)
 * [ ] ...
-
-## Usage
-
-### Basic
-
-This library separates data from tensors, where the former is used to create new tensors and serialize/deserialize data, and the later is used to execute tensor operations.
-
-```rust
-    use burn_tensor::tensor::*;
-
-    let data_x = Data::<f32, 3>::random(Shape::new([32, 24, 24]), Distribution::Standard);
-    let data_y = Data::<f32, 3>::random(Shape::new([32, 24, 24]), Distribution::Standard);
-```
-
-Tensors can be created from the generated data.
-
-```rust
-    use burn_tensor::tensor::backend::ndarray::*;
-    use burn_tensor::tensor::backend::tch::*;
-
-    let x_ndarray = NdArrayTensor::from_data(data_x.clone());
-    let x_tch = TchTensor::from_data(data_x, TchDevice::Cpu);
-
-    let y_ndarray = NdArrayTensor::from_data(data_y.clone());
-    let y_tch = TchTensor::from_data(data_y, TchDevice::Cpu);
-```
-
-Operations can be executed only with other tensors of the same type.
-
-```rust
-    use burn_tensor::tensor::ops::*;
-
-    let z_ndarray = x_ndarray.matmul(&y_ndarray);
-    let z_tch = x_tch.matmul(&y_tch);
-```
-
-Tensors can be exported to Data for easy serialization.
-
-```rust
-    let z_ndarray_data = z_ndarray.into_data();
-    let z_tch_data = z_tch.into_data();
-
-    assert_eq!(z_ndarray_data, z_tch_data);
-```
 
 ### Autodiff
 
@@ -75,8 +35,6 @@ To do so, each operation creates a new node which has a reference to its parent 
 Therefore, creating the tape only requires a simple and efficent graph traversal algorithm.
 
 ```rust
-    use burn_tensor::tensor::backend::autodiff::*;
-
     let x = ADTensor::from_tensor(x_ndarray);
     let y = ADTensor::from_tensor(y_ndarray);
 
@@ -84,8 +42,8 @@ Therefore, creating the tape only requires a simple and efficent graph traversal
 
     let grads = z.backward();
 
-    let x_grad = grads.wrt(&x);
-    let y_grad = grads.wrt(&y);
+    let x_grad = x.grad(&grads);
+    let y_grad = y.grad(&grads);
 ```
 
 ## Cuda
