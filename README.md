@@ -1,7 +1,5 @@
 <div align="center">
-    <img src="./assets/logo-burn-full.png" width="200px"/>
-    <div style="padding: 1px; background-color: #eaecef; margin-bottom: 16px" width="200px"/>
-</div>
+<img src="./assets/logo-burn-full.png" width="200px"/>
 
 [![Current Crates.io Version](https://img.shields.io/crates/v/burn.svg)](https://crates.io/crates/burn)
 [![Test Status](https://github.com/burn-rs/burn/actions/workflows/test-burn.yml/badge.svg)](https://github.com/burn-rs/burn/actions/workflows/test-burn.yml)
@@ -10,8 +8,8 @@
 
 <div align="left">
 
-This library aims to be a complete deep learning framework with extreme flexibility written in Rust.
-The goal would be to satisfy researchers as well as practitioners making it easier to experiment, train and deploy your solution.
+> This library aims to be a complete deep learning framework with extreme flexibility written in Rust. 
+> The goal would be to satisfy researchers as well as practitioners making it easier to experiment, train and deploy your solution.
 
 ## Why Rust?
 
@@ -22,9 +20,5 @@ Also, asynchronous sparsely activated networks without copying weights is kind o
 
 ## Burn-Tensor
 
-BURN has its own tensor library supporting multiple backends, it can also be used for other scientific computing applications.
-Click [here](./burn-tensor/) for more details.
-
-## Module Definition
-
-Currently working on it ... 💻
+Burn has its own tensor library supporting multiple backends, it can also be used for other scientific computing applications.
+Click [here](../burn-tensor/) for more details.
