@@ -1,6 +1,6 @@
 [package]
 name = "burn-tensor"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 
 description = """
@@ -11,7 +11,7 @@ repository = "https://github.com/nathanielsimard/burn/tree/main/burn-tensor"
 readme="README.md"
 keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
 categories = ["science"]
-license = "MIT"
+license = "MIT/Apache-2.0"
 edition = "2021"
 
 [features]
@@ -19,6 +19,10 @@ default = ["full"]
 full = ["tch", "ndarray"]
 tch = ["dep:tch"]
 ndarray = ["dep:ndarray"]
+
+[package.metadata.docs.rs]
+features = ["ndarray"]
+all-features = false
 
 [dependencies]
 num-traits = "0.2"

@@ -1,6 +1,14 @@
-# BURN
+<div align="center">
+    <img src="./assets/logo-burn-full.png" width="200px"/>
+    <div style="padding: 1px; background-color: #eaecef; margin-bottom: 16px" width="200px"/>
+</div>
 
-> BURN: Burn Unstoppable Rusty Neurons
+[![Current Crates.io Version](https://img.shields.io/crates/v/burn.svg)](https://crates.io/crates/burn)
+[![Test Status](https://github.com/burn-rs/burn/actions/workflows/test-burn.yml/badge.svg)](https://github.com/burn-rs/burn/actions/workflows/test-burn.yml)
+[![Documentation](https://docs.rs/burn/badge.svg)](https://docs.rs/burn-tensor)
+[![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](https://github.com/burn-rs/burn/blob/master/LICENSE)
+
+<div align="left">
 
 This library aims to be a complete deep learning framework with extreme flexibility written in Rust.
 The goal would be to satisfy researchers as well as practitioners making it easier to experiment, train and deploy your solution.

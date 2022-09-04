@@ -26,8 +26,29 @@ jobs:
         env:
           CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
 
-  publish-burn:
+  publish-burn-dataset:
     needs: publish-burn-tensor
+    name: publish-burn-dataset
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+
+      - name: install rust nightly
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          components: rustfmt
+          override: true
+
+      - name: publish burn-dataset to crates.io
+        run: ./ci/publish.sh burn-dataset
+        env:
+          CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
+
+  publish-burn:
+    needs: publish-burn-dataset
     name: publish-burn
     runs-on: ubuntu-latest
     steps:

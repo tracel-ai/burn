@@ -20,8 +20,10 @@ jobs:
 
       - name: check format
         run: |
+          cd burn
           cargo fmt --check --all
 
       - name: check tests
         run: |
+          cd burn
           cargo test
