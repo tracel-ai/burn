@@ -368,27 +368,61 @@ where
         Self::new(self.value.index_assign(indexes, &values.value))
     }
 
+    /// Fill each element with the given value based on the given mask.
     pub fn mask_fill(&self, mask: &BoolTensor<B, D>, value: B::Elem) -> Self {
         Self::new(self.value.mask_fill(&mask.value, value))
     }
 
+    /// Returns a tensor with full precision based on the selected backend.
     pub fn to_full_precision(&self) -> Tensor<B::FullPrecisionBackend, D> {
         Tensor::new(self.value.to_full_precision())
     }
 
+    /// Returns a tensor on the selected backend from a full precision tensor.
     pub fn from_full_precision(tensor: Tensor<B::FullPrecisionBackend, D>) -> Self {
         let value = B::TensorPrimitive::from_full_precision(tensor.value);
         Tensor::new(value)
     }
 
+    /// Apply the argmax function along the given dimension and returns an integer tensor.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn::backend::NdArrayBackend;
+    /// use burn::tensor::Tensor;
+    ///
+    /// let tensor = Tensor::<NdArrayBackend<f32>, 3>::ones(Shape::new([2, 3, 3]));
+    /// let tensor = tensor.argmax(1);
+    /// println!("{:?}", tensor.shape());
+    /// // Shape { dims: [2, 1, 3] }
+    /// ```
     pub fn argmax(&self, dim: usize) -> Tensor<B::IntegerBackend, D> {
         Tensor::new(self.value.argmax(dim))
     }
 
+    /// Apply the argmin function along the given dimension and returns an integer tensor.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn::backend::NdArrayBackend;
+    /// use burn::tensor::Tensor;
+    ///
+    /// let tensor = Tensor::<NdArrayBackend<f32>, 3>::ones(Shape::new([2, 3, 3]));
+    /// let tensor = tensor.argmin(1);
+    /// println!("{:?}", tensor.shape());
+    /// // Shape { dims: [2, 1, 3] }
+    /// ```
     pub fn argmin(&self, dim: usize) -> Tensor<B::IntegerBackend, D> {
         Tensor::new(self.value.argmin(dim))
     }
 
+    /// Concatenates all tensors into a new one along the given dimension.
+    ///
+    /// # Panics
+    ///
+    /// If all tensors don't have the same shape.
     pub fn cat(tensors: Vec<Self>, dim: usize) -> Self {
         let tensors: Vec<B::TensorPrimitive<D>> =
             tensors.into_iter().map(|a| a.value.clone()).collect();
@@ -398,6 +432,23 @@ where
         Self::new(value)
     }
 
+    /// Unsqueeze the current tensor. Create new dimensions to fit the given size.
+    ///
+    /// # Panics
+    ///
+    /// If the output size is higher than the current tensor.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn::backend::NdArrayBackend;
+    /// use burn::tensor::Tensor;
+    ///
+    /// let tensor = Tensor::<NdArrayBackend<f32>, 3>::ones(Shape::new([3, 3]));
+    /// let tensor = tensor.unsqueeze::<4>();
+    /// println!("{:?}", tensor.shape());
+    /// // Shape { dims: [1, 1, 3, 3] }
+    /// ```
     pub fn unsqueeze<const D2: usize>(&self) -> Tensor<B, D2> {
         if D2 < D {
             panic!(
