@@ -1,6 +1,6 @@
 [package]
 name = "burn-tensor"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 
 description = """
@@ -14,15 +14,16 @@ categories = ["science"]
 license = "MIT/Apache-2.0"
 edition = "2021"
 
-[features]
-default = ["full"]
-full = ["tch", "ndarray"]
-tch = ["dep:tch"]
-ndarray = ["dep:ndarray"]
-
 [package.metadata.docs.rs]
 features = ["ndarray"]
 all-features = false
+no-default-features = true
+
+[features]
+default = ["ndarray"]
+full = ["tch", "ndarray"]
+tch = ["dep:tch"]
+ndarray = ["dep:ndarray"]
 
 [dependencies]
 num-traits = "0.2"
