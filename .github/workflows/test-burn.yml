@@ -26,7 +26,7 @@ jobs:
 
       - name: check doc
         run: |
-          cd burn-tensor
+          cd burn
           cargo test --no-default-features --features doc --doc
 
       - name: check tests

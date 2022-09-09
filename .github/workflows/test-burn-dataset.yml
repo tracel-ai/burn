@@ -25,7 +25,7 @@ jobs:
 
       - name: check doc
         run: |
-          cd burn-tensor
+          cd burn-dataset
           cargo test --doc
 
       - name: check tests
