@@ -107,12 +107,14 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn::backend::NdArrayBackend;
-    /// use burn::tensor::Tensor;
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
     ///
-    /// let one_hot = Tensor::<NdArrayBackend<f32>, 1>::one_hot(2, 10);
-    /// println!("{}", one_hot.to_data());
-    /// // [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    /// fn example<B: Backend>() {
+    ///     let one_hot = Tensor::<B, 1>::one_hot(2, 10);
+    ///     println!("{}", one_hot.to_data());
+    ///     // [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    /// }
     /// ```
     pub fn one_hot(index: usize, num_classes: usize) -> Self {
         let mut dims = [1; D];
@@ -331,13 +333,15 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn::backend::NdArrayBackend;
-    /// use burn::tensor::Tensor;
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
     ///
-    /// let tensor = Tensor::<NdArrayBackend<f32>, 3>::ones(Shape::new([2, 3, 3]));
-    /// let tensor_indexed = tensor.index([0..1, 0..3, 1..2]);
-    /// println!("{:?}", tensor_indexed.shape());
-    /// // Shape { dims: [1, 3, 2] }
+    /// fn example<B: Backend>() {
+    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 3]));
+    ///     let tensor_indexed = tensor.index([0..1, 0..3, 1..2]);
+    ///     println!("{:?}", tensor_indexed.shape());
+    ///     // Shape { dims: [1, 3, 2] }
+    /// }
     /// ```
     pub fn index<const D2: usize>(&self, indexes: [std::ops::Range<usize>; D2]) -> Self {
         Self::new(self.value.index(indexes))
@@ -350,15 +354,20 @@ where
     ///
     /// - If a range exceeds the number of elements on a dimension.
     /// - If the given values don't match the given ranges.
-    /// ```rust
-    /// use burn::backend::NdArrayBackend;
-    /// use burn::tensor::Tensor;
     ///
-    /// let tensor = Tensor::<NdArrayBackend<f32>, 3>::ones(Shape::new([2, 3, 3]));
-    /// let values = Tensor::<NdArrayBackend<f32>, 3>::zeros(Shape::new([1, 1, 1]));
-    /// let tensor_indexed = tensor.index_assign([0..1, 0..1, 0..1], &values);
-    /// println!("{:?}", tensor_indexed.shape());
-    /// // Shape { dims: [2, 3, 3] }
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 3]));
+    ///     let values = Tensor::<B, 3>::zeros(Shape::new([1, 1, 1]));
+    ///     let tensor_indexed = tensor.index_assign([0..1, 0..1, 0..1], &values);
+    ///     println!("{:?}", tensor_indexed.shape());
+    ///     // Shape { dims: [2, 3, 3] }
+    /// }
     /// ```
     pub fn index_assign<const D2: usize>(
         &self,
@@ -389,13 +398,15 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn::backend::NdArrayBackend;
-    /// use burn::tensor::Tensor;
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
     ///
-    /// let tensor = Tensor::<NdArrayBackend<f32>, 3>::ones(Shape::new([2, 3, 3]));
-    /// let tensor = tensor.argmax(1);
-    /// println!("{:?}", tensor.shape());
-    /// // Shape { dims: [2, 1, 3] }
+    /// fn example<B: Backend>() {
+    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 3]));
+    ///     let tensor = tensor.argmax(1);
+    ///     println!("{:?}", tensor.shape());
+    ///     // Shape { dims: [2, 1, 3] }
+    /// }
     /// ```
     pub fn argmax(&self, dim: usize) -> Tensor<B::IntegerBackend, D> {
         Tensor::new(self.value.argmax(dim))
@@ -406,13 +417,15 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn::backend::NdArrayBackend;
-    /// use burn::tensor::Tensor;
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
     ///
-    /// let tensor = Tensor::<NdArrayBackend<f32>, 3>::ones(Shape::new([2, 3, 3]));
-    /// let tensor = tensor.argmin(1);
-    /// println!("{:?}", tensor.shape());
-    /// // Shape { dims: [2, 1, 3] }
+    /// fn example<B: Backend>() {
+    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 3]));
+    ///     let tensor = tensor.argmin(1);
+    ///     println!("{:?}", tensor.shape());
+    ///     // Shape { dims: [2, 1, 3] }
+    /// }
     /// ```
     pub fn argmin(&self, dim: usize) -> Tensor<B::IntegerBackend, D> {
         Tensor::new(self.value.argmin(dim))
@@ -441,13 +454,15 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn::backend::NdArrayBackend;
-    /// use burn::tensor::Tensor;
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
     ///
-    /// let tensor = Tensor::<NdArrayBackend<f32>, 3>::ones(Shape::new([3, 3]));
-    /// let tensor = tensor.unsqueeze::<4>();
-    /// println!("{:?}", tensor.shape());
-    /// // Shape { dims: [1, 1, 3, 3] }
+    /// fn example<B: Backend>() {
+    ///     let tensor = Tensor::<B, 2>::ones(Shape::new([3, 3]));
+    ///     let tensor = tensor.unsqueeze::<4>();
+    ///     println!("{:?}", tensor.shape());
+    ///     // Shape { dims: [1, 1, 3, 3] }
+    /// }
     /// ```
     pub fn unsqueeze<const D2: usize>(&self) -> Tensor<B, D2> {
         if D2 < D {

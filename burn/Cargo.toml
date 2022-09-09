@@ -13,11 +13,11 @@ edition = "2021"
 [features]
 default = ["tch", "ndarray"]
 tch = ["burn-tensor/tch"]
-tch-doc = ["burn-tensor/tch-doc"]
 ndarray = ["burn-tensor/ndarray"]
+doc = ["burn-tensor/doc"]
 
 [package.metadata.docs.rs]
-features = ["tch-doc", "ndarray"]
+features = ["doc"]
 all-features = false
 no-default-features = true
 

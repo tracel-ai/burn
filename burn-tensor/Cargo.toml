@@ -13,9 +13,10 @@ keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
 categories = ["science"]
 license = "MIT/Apache-2.0"
 edition = "2021"
+doctest = false
 
 [package.metadata.docs.rs]
-features = ["tch-doc", "ndarray"]
+features = ["doc"]
 all-features = false
 no-default-features = true
 
@@ -23,7 +24,7 @@ no-default-features = true
 default = ["tch", "ndarray"]
 tch = ["dep:tch"]
 ndarray = ["dep:ndarray"]
-tch-doc = ["dep:tch", "tch/doc-only"]
+doc = ["dep:tch", "tch/doc-only", "dep:ndarray"]
 
 [dependencies]
 num-traits = "0.2"

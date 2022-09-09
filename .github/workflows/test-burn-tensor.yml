@@ -23,14 +23,19 @@ jobs:
           cd burn-tensor
           cargo fmt --check --all
 
+      - name: check doc
+        run: |
+          cd burn-tensor
+          cargo test --no-default-features --features doc --doc
+
       - name: check tests backend ndarray
         run: |
           cd burn-tensor
-          cargo test --no-default-features --features ndarray
+          cargo test --no-default-features --features ndarray --tests
 
       - name: check tests backend tch
         run: |
           cd burn-tensor
-          cargo test --no-default-features --features tch
+          cargo test --no-default-features --features tch --tests
 
 
