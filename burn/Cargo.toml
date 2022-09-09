@@ -1,6 +1,6 @@
 [package]
 name = "burn"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 description = "BURN: Burn Unstoppable Rusty Neurons"
 repository = "https://github.com/nathanielsimard/burn"
@@ -14,9 +14,10 @@ edition = "2021"
 default = ["tch", "ndarray"]
 tch = ["burn-tensor/tch"]
 ndarray = ["burn-tensor/ndarray"]
+doc = ["burn-tensor/doc"]
 
 [package.metadata.docs.rs]
-features = ["ndarray"]
+features = ["doc"]
 all-features = false
 no-default-features = true
 

@@ -23,7 +23,13 @@ jobs:
           cd burn
           cargo fmt --check --all
 
+
+      - name: check doc
+        run: |
+          cd burn
+          cargo test --no-default-features --features doc --doc
+
       - name: check tests
         run: |
           cd burn
-          cargo test
+          cargo test --tests
