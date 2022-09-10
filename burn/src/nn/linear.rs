@@ -1,16 +1,19 @@
 use crate as burn;
 
+use crate::macros::config;
 use crate::module::Module;
 use crate::module::{Forward, Param};
 use crate::tensor::backend::Backend;
 use crate::tensor::{Distribution, ElementConversion, Shape, Tensor};
 use std::ops::Deref;
 
-pub struct LinearConfig {
-    pub d_input: usize,
-    pub d_output: usize,
-    pub bias: bool,
-}
+config!(
+    pub struct LinearConfig {
+        pub d_input: usize,
+        pub d_output: usize,
+        pub bias: bool,
+    }
+);
 
 #[derive(Module, Debug)]
 pub struct Linear<B: Backend> {

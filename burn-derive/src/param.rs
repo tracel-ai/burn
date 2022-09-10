@@ -4,25 +4,34 @@ use quote::quote;
 use syn::Field;
 
 pub struct Param {
-    fields: Vec<FieldTypeAnalyzer>,
+    fields_param: Vec<FieldTypeAnalyzer>,
+    fields_other: Vec<FieldTypeAnalyzer>,
 }
 
 impl Param {
     pub fn from_ast(ast: &syn::DeriveInput) -> Self {
-        let fields = parse_fields(ast)
+        let fields_param = parse_fields(ast)
             .into_iter()
             .map(FieldTypeAnalyzer::new)
             .filter(FieldTypeAnalyzer::is_param)
             .collect();
+        let fields_other = parse_fields(ast)
+            .into_iter()
+            .map(FieldTypeAnalyzer::new)
+            .filter(|val| !FieldTypeAnalyzer::is_param(val))
+            .collect();
 
-        Self { fields }
+        Self {
+            fields_param,
+            fields_other,
+        }
     }
 
     pub fn gen_num_params_fn(&self) -> TokenStream {
         let mut body = quote! {
             let mut num_params = 0;
         };
-        for field in self.fields.iter() {
+        for field in self.fields_param.iter() {
             let name = field.ident();
             body.extend(quote! {
                 num_params += self.#name.num_params();
@@ -41,7 +50,7 @@ impl Param {
 
     pub fn gen_update_params_fn(&self) -> TokenStream {
         let mut body = quote! {};
-        for field in self.fields.iter() {
+        for field in self.fields_param.iter() {
             let name = field.ident();
             body.extend(quote! {
                 self.#name.update_params(grads, optim);
@@ -62,7 +71,7 @@ impl Param {
         let mut body = quote! {
             let mut devices = Vec::new();
         };
-        for field in self.fields.iter() {
+        for field in self.fields_param.iter() {
             let name = field.ident();
             body.extend(quote! {
                 devices.append(&mut self.#name.devices());
@@ -83,7 +92,7 @@ impl Param {
 
     pub fn gen_to_device_fn(&self) -> TokenStream {
         let mut body = quote! {};
-        for field in self.fields.iter() {
+        for field in self.fields_param.iter() {
             let name = field.ident();
             body.extend(quote! {
                 self.#name.to_device(device);
@@ -101,12 +110,20 @@ impl Param {
     pub fn gen_inner_fn(&self) -> TokenStream {
         let mut body = quote! {};
         let mut names = Vec::new();
-        for field in self.fields.iter() {
+        for field in self.fields_param.iter() {
             let name = field.ident();
             names.push(name.clone());
 
             body.extend(quote! {
                 let #name = self.#name.inner();
+            });
+        }
+        for field in self.fields_other.iter() {
+            let name = field.ident();
+            names.push(name.clone());
+
+            body.extend(quote! {
+                let #name = self.#name.clone();
             });
         }
 
@@ -126,7 +143,7 @@ impl Param {
         let mut body = quote! {
             let mut state = burn::module::StateNamed::new();
         };
-        for field in self.fields.iter() {
+        for field in self.fields_param.iter() {
             let name = field.ident();
             body.extend(quote! {
                 state.register_state(stringify!(#name), self.#name.state());
@@ -145,7 +162,7 @@ impl Param {
 
     pub fn gen_load_fn(&self) -> TokenStream {
         let mut body = quote! {};
-        for field in self.fields.iter() {
+        for field in self.fields_param.iter() {
             let name = field.ident();
             body.extend(quote! {
                 let state_mod = state.get(stringify!(#name)).ok_or(
