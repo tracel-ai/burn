@@ -101,7 +101,7 @@ pub trait TensorOpsCat<E, const D: usize> {
 }
 
 pub trait TensorOpsPow<E, const D: usize> {
-    fn pow(&self, value: &E) -> Self;
+    fn powf(&self, value: f32) -> Self;
 }
 
 pub trait TensorOpsLog<E, const D: usize> {

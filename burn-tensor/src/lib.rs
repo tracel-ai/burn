@@ -6,7 +6,8 @@ extern crate derive_new;
 pub(crate) mod graph;
 pub use graph::grad::Gradients;
 
+pub mod linalg;
 mod tensor;
-pub use tensor::*;
 
 pub use half::f16;
+pub use tensor::*;

@@ -28,6 +28,7 @@ pub(crate) trait TchElement: Element + tch::kind::Element {}
 pub(crate) trait ExpElement {
     fn exp_elem(self) -> Self;
     fn log_elem(self) -> Self;
+    fn pow_elem(self, value: f32) -> Self;
 }
 
 pub trait ElementConversion {
@@ -233,6 +234,9 @@ mod ndarray_elem {
                 fn log_elem(self) -> Self {
                     $elem::ln(self)
                 }
+                fn pow_elem(self, value: f32) -> Self {
+                    $elem::powf(self, value.into())
+                }
             }
         };
         ($elem:ident, $tmp:ident) => {
@@ -243,6 +247,10 @@ mod ndarray_elem {
                 }
                 fn log_elem(self) -> Self {
                     let tmp = $tmp::ln(self as $tmp);
+                    tmp as $elem
+                }
+                fn pow_elem(self, value: f32) -> Self {
+                    let tmp = $tmp::powf(self as $tmp, value as $tmp);
                     tmp as $elem
                 }
             }
