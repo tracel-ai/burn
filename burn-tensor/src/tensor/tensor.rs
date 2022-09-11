@@ -3,6 +3,7 @@ use crate::tensor::backend::ADBackend;
 use crate::tensor::backend::Backend;
 use crate::tensor::ops::activation::*;
 use crate::tensor::ops::*;
+use crate::tensor::stats;
 use crate::tensor::{Data, Distribution, Shape};
 use crate::BoolTensor;
 use crate::Element;
@@ -240,6 +241,18 @@ where
     /// Aggregate all elements along the given *dimension* or *axis* in the tensor with the sum operation.
     pub fn sum_dim(&self, dim: usize) -> Self {
         Self::new(self.value.sum_dim(dim))
+    }
+
+    /// Calculate the variance along the given dimension.
+    pub fn var(&self, dim: usize) -> Self {
+        stats::var(self, dim)
+    }
+
+    /// Calculate the variance along the given dimension and also returns the mean.
+    pub fn var_mean(&self, dim: usize) -> (Self, Self) {
+        let mean = self.mean_dim(dim);
+        let var = stats::var_with_mean(self, &mean, dim);
+        (var, mean)
     }
 
     /// Apply element wise equal comparison and returns a boolean tensor.

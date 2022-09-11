@@ -1,4 +1,5 @@
 pub(crate) mod ops;
+pub(crate) mod stats;
 
 mod bool_tensor;
 mod data;
