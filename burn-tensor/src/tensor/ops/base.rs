@@ -101,11 +101,15 @@ pub trait TensorOpsCat<E, const D: usize> {
 }
 
 pub trait TensorOpsPow<E, const D: usize> {
-    fn pow(&self, value: &E) -> Self;
+    fn powf(&self, value: f32) -> Self;
 }
 
 pub trait TensorOpsLog<E, const D: usize> {
     fn log(&self) -> Self;
+}
+
+pub trait TensorOpsDetach<E, const D: usize> {
+    fn detach(self) -> Self;
 }
 
 pub trait Zeros<T> {

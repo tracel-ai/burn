@@ -9,5 +9,6 @@ mod mask;
 mod matmul;
 mod mul;
 mod neg;
+mod powf;
 mod reshape;
 mod sub;

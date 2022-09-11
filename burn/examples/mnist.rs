@@ -1,5 +1,5 @@
 use burn::data::dataloader::batcher::Batcher;
-use burn::data::dataloader::{DataLoaderBuilder, Detach};
+use burn::data::dataloader::DataLoaderBuilder;
 use burn::data::dataset::source::huggingface::{MNISTDataset, MNISTItem};
 use burn::module::{Forward, Module, Param};
 use burn::nn;
@@ -118,15 +118,6 @@ struct MNISTBatch<B: Backend> {
     targets: Tensor<B, 2>,
 }
 
-impl<B: ADBackend> Detach for MNISTBatch<B> {
-    fn detach(self) -> Self {
-        Self {
-            images: self.images.detach(),
-            targets: self.targets.detach(),
-        }
-    }
-}
-
 impl<B: Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
     fn batch(&self, items: Vec<MNISTItem>) -> MNISTBatch<B> {
         let images = items
@@ -142,8 +133,8 @@ impl<B: Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
             .map(|item| Tensor::<B, 2>::one_hot(item.label, 10))
             .collect();
 
-        let images = Tensor::cat(images, 0).to_device(self.device);
-        let targets = Tensor::cat(targets, 0).to_device(self.device);
+        let images = Tensor::cat(images, 0).to_device(self.device).detach();
+        let targets = Tensor::cat(targets, 0).to_device(self.device).detach();
 
         MNISTBatch { images, targets }
     }

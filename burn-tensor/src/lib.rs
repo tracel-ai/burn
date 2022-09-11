@@ -7,6 +7,6 @@ pub(crate) mod graph;
 pub use graph::grad::Gradients;
 
 mod tensor;
-pub use tensor::*;
 
 pub use half::f16;
+pub use tensor::*;

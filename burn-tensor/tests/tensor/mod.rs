@@ -13,3 +13,4 @@ pub type TestADBackend = burn_tensor::backend::TchADBackend<f32>;
 mod activation;
 mod grad;
 mod ops;
+mod stats;

@@ -3,6 +3,7 @@ use crate::tensor::backend::ADBackend;
 use crate::tensor::backend::Backend;
 use crate::tensor::ops::activation::*;
 use crate::tensor::ops::*;
+use crate::tensor::stats;
 use crate::tensor::{Data, Distribution, Shape};
 use crate::BoolTensor;
 use crate::Element;
@@ -53,6 +54,13 @@ where
     /// `y = log(x)`
     pub fn log(&self) -> Self {
         Self::new(self.value.log())
+    }
+
+    /// Apply element wise power operation.
+    ///
+    /// `y = x^a`
+    pub fn powf(&self, value: f32) -> Self {
+        Self::new(self.value.powf(value))
     }
 
     /// Returns the shape of the current tensor.
@@ -233,6 +241,18 @@ where
     /// Aggregate all elements along the given *dimension* or *axis* in the tensor with the sum operation.
     pub fn sum_dim(&self, dim: usize) -> Self {
         Self::new(self.value.sum_dim(dim))
+    }
+
+    /// Calculate the variance along the given dimension.
+    pub fn var(&self, dim: usize) -> Self {
+        stats::var(self, dim)
+    }
+
+    /// Calculate the variance along the given dimension and also returns the mean.
+    pub fn var_mean(&self, dim: usize) -> (Self, Self) {
+        let mean = self.mean_dim(dim);
+        let var = stats::var_with_mean(self, &mean, dim);
+        (var, mean)
     }
 
     /// Apply element wise equal comparison and returns a boolean tensor.
@@ -445,6 +465,14 @@ where
         Self::new(value)
     }
 
+    /// Detach the current tensor from the autodiff graph.
+    /// This function does nothing when autodiff is not enabled.
+    /// This can be used in batchers or elsewere to ensure that previous operations are not
+    /// considered in the autodiff graph.
+    pub fn detach(self) -> Self {
+        Self::new(self.value.detach())
+    }
+
     /// Unsqueeze the current tensor. Create new dimensions to fit the given size.
     ///
     /// # Panics
@@ -600,9 +628,5 @@ impl<const D: usize, B: ADBackend> Tensor<B, D> {
 
     pub fn from_inner(inner: Tensor<B::InnerBackend, D>) -> Self {
         Self::new(B::from_inner(inner.value))
-    }
-
-    pub fn detach(&self) -> Self {
-        Self::from_inner(self.inner())
     }
 }
