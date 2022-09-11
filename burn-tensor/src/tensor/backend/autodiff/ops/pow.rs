@@ -44,7 +44,7 @@ mod tests {
         let tensor_1 = TestADTensor::from_data(data_1.clone());
         let tensor_2 = TestADTensor::from_data(data_2.clone());
 
-        let tensor_3 = tensor_1.matmul(&tensor_2.log());
+        let tensor_3 = tensor_1.matmul(&tensor_2.powf(0.4));
         let tensor_4 = tensor_3.matmul(&tensor_2);
         let grads = tensor_4.backward();
 
@@ -53,9 +53,9 @@ mod tests {
 
         grad_1
             .to_data()
-            .assert_approx_eq(&Data::from([[60.2652, 72.3130], [60.2652, 72.3130]]), 3);
+            .assert_approx_eq(&Data::from([[68.0, 79.0328], [68.0, 79.0328]]), 3);
         grad_2
             .to_data()
-            .assert_approx_eq(&Data::from([[22.8614, 24.5043], [24.5729, 26.8507]]), 3);
+            .assert_approx_eq(&Data::from([[23.5081, 25.2779], [26.0502, 28.6383]]), 3);
     }
 }

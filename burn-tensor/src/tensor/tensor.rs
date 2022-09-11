@@ -55,6 +55,13 @@ where
         Self::new(self.value.log())
     }
 
+    /// Apply element wise power operation.
+    ///
+    /// `y = x^a`
+    pub fn powf(&self, value: f32) -> Self {
+        Self::new(self.value.powf(value))
+    }
+
     /// Returns the shape of the current tensor.
     pub fn shape(&self) -> &Shape<D> {
         self.value.shape()
