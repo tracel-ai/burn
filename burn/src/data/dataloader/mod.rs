@@ -11,7 +11,3 @@ pub use builder::*;
 pub use dataloader::*;
 pub use multithread::*;
 pub use strategy::*;
-
-pub trait Detach {
-    fn detach(self) -> Self;
-}

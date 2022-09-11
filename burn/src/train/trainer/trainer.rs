@@ -1,6 +1,5 @@
 use super::{Learner, TrainerItem};
 use crate::data::dataloader::DataLoader;
-use crate::data::dataloader::Detach;
 use crate::tensor::backend::ADBackend;
 use crate::train::logger::Logger;
 use std::sync::Arc;
@@ -21,7 +20,6 @@ where
 impl<B, T, V, L, TO, VO> SupervisedTrainer<B, T, V, L, TO, VO>
 where
     B: ADBackend,
-    T: Detach,
     L: Learner<T, V, TO, VO, Backend = B>,
 {
     pub fn new(
@@ -48,7 +46,7 @@ where
                 num_epochs,
                 &self.dataloader_train,
                 &mut self.logger_train,
-                &mut |item| self.learner.train(item.detach()),
+                &mut |item| self.learner.train(item),
             );
 
             run_step(

@@ -108,6 +108,10 @@ pub trait TensorOpsLog<E, const D: usize> {
     fn log(&self) -> Self;
 }
 
+pub trait TensorOpsDetach<E, const D: usize> {
+    fn detach(self) -> Self;
+}
+
 pub trait Zeros<T> {
     fn zeros(&self) -> T;
 }

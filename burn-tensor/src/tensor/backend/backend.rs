@@ -19,6 +19,7 @@ pub trait Backend: Clone + Sized + Default + Send + Sync + std::fmt::Debug + 'st
         + TensorOpsNeg<Self::Elem, D>
         + TensorOpsAdd<Self::Elem, D>
         + TensorOpsSub<Self::Elem, D>
+        + TensorOpsDetach<Self::Elem, D>
         + Zeros<Self::TensorPrimitive<D>>
         + Ones<Self::TensorPrimitive<D>>
         + TensorOpsReshape<Self, D>
