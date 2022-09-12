@@ -33,3 +33,7 @@ jobs:
         run: |
           cd burn
           cargo test --tests
+
+      - name: check clippy
+        run: |
+          cargo clippy -p burn -- -D warnings
