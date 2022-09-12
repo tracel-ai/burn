@@ -31,7 +31,7 @@ impl<I: Send + Sync + 'static> BatchStrategy<I> for FixBatchStrategy<I> {
         let mut items = Vec::with_capacity(self.batch_size);
         std::mem::swap(&mut items, &mut self.items);
 
-        if items.len() == 0 {
+        if items.is_empty() {
             return None;
         }
 

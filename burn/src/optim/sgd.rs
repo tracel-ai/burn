@@ -18,7 +18,7 @@ impl<B: backend::ADBackend> Optimizer for SGDOptimizer<B> {
     type Backend = B;
 
     fn update<const D: usize>(&mut self, tensor: &mut Tensor<B, D>, grads: &Gradients) {
-        let grad = tensor.grad(&grads).unwrap();
+        let grad = tensor.grad(grads).unwrap();
         let delta = grad.mul_scalar(&self.learning_rate);
         tensor.update(tensor.inner() - delta);
     }

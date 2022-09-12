@@ -158,8 +158,8 @@ mod tests {
         );
         let dataloader_multi_thread = BatchDataLoader::multi_thread(
             Box::new(FixBatchStrategy::new(5)),
-            dataset.clone(),
-            batcher.clone(),
+            dataset,
+            batcher,
             4,
         );
 
