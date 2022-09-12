@@ -51,11 +51,16 @@ where
         self.dataset.get(index)
     }
 
-    fn iter<'a>(&'a self) -> DatasetIterator<'a, I> {
+    fn iter(&self) -> DatasetIterator<'_, I> {
         DatasetIterator::new(self)
     }
+
     fn len(&self) -> usize {
         usize::min(self.end_index - self.start_index, self.dataset.len())
+    }
+
+    fn is_empty(&self) -> bool {
+        self.dataset.is_empty()
     }
 }
 

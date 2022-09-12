@@ -22,11 +22,14 @@ where
     fn get(&self, index: usize) -> Option<I> {
         self.items.get(index).cloned()
     }
-    fn iter<'a>(&'a self) -> DatasetIterator<'a, I> {
+    fn iter(&self) -> DatasetIterator<'_, I> {
         DatasetIterator::new(self)
     }
     fn len(&self) -> usize {
         self.items.len()
+    }
+    fn is_empty(&self) -> bool {
+        self.items.is_empty()
     }
 }
 

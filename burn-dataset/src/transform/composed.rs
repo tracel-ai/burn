@@ -24,7 +24,7 @@ where
         }
         None
     }
-    fn iter<'a>(&'a self) -> DatasetIterator<'a, I> {
+    fn iter(&self) -> DatasetIterator<'_, I> {
         DatasetIterator::new(self)
     }
     fn len(&self) -> usize {
@@ -33,5 +33,17 @@ where
             total += dataset.len();
         }
         total
+    }
+
+    fn is_empty(&self) -> bool {
+        let mut is_empty = true;
+
+        for dataset in self.datasets.iter() {
+            if !dataset.is_empty() {
+                is_empty = false;
+            }
+        }
+
+        is_empty
     }
 }
