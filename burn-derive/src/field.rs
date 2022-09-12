@@ -14,7 +14,7 @@ impl FieldTypeAnalyzer {
         self.field.ident.clone().unwrap()
     }
 
-    pub fn is_of_type(&self, paths: &Vec<&str>) -> bool {
+    pub fn is_of_type(&self, paths: &[&str]) -> bool {
         match &self.field.ty {
             syn::Type::Path(path) => {
                 let name = Self::path_name(path);
@@ -26,12 +26,7 @@ impl FieldTypeAnalyzer {
 
     #[allow(dead_code)]
     pub fn first_generic_field(&self) -> TypePath {
-        let err = || {
-            panic!(
-                "Field {} as no generic",
-                self.field.ident.clone().unwrap()
-            )
-        };
+        let err = || panic!("Field {} as no generic", self.field.ident.clone().unwrap());
         match &self.field.ty {
             syn::Type::Path(path) => Self::path_generic_argument(path),
             _ => err(),
@@ -39,24 +34,16 @@ impl FieldTypeAnalyzer {
     }
     pub fn path_generic_argument(path: &TypePath) -> TypePath {
         let segment = path.path.segments.last().unwrap();
-        let err = || {
-            panic!(
-                "Path segment {} has no generic",
-                segment.ident.clone(),
-            )
-        };
+        let err = || panic!("Path segment {} has no generic", segment.ident.clone(),);
         match &segment.arguments {
             syn::PathArguments::None => err(),
             syn::PathArguments::AngleBracketed(param) => {
                 let first_param = param.args.first().unwrap();
-                match first_param {
-                    syn::GenericArgument::Type(ty) => match ty {
-                        Type::Path(path) => {
-                            path.clone()
-                        }
-                        _ => err(),
-                    },
-                    _ => err(),
+
+                if let syn::GenericArgument::Type(Type::Path(path)) = first_param {
+                    path.clone()
+                } else {
+                    err()
                 }
             }
             syn::PathArguments::Parenthesized(_) => err(),

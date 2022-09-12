@@ -54,6 +54,6 @@ fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
             #display_fn
         }
     };
-    
+
     gen.into()
 }
