@@ -13,7 +13,6 @@ keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
 categories = ["science"]
 license = "MIT/Apache-2.0"
 edition = "2021"
-doctest = false
 
 [package.metadata.docs.rs]
 features = ["doc"]
@@ -42,5 +41,3 @@ nanoid = "0.4"
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
-
-[dev-dependencies]

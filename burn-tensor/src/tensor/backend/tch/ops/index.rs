@@ -10,12 +10,12 @@ impl<P: tch::kind::Element + std::fmt::Debug + Copy + Default, const D1: usize>
     fn index<const D2: usize>(&self, indexes: [Range<usize>; D2]) -> Self {
         let mut tensor = self.tensor.shallow_clone();
 
-        for i in 0..D2 {
-            let index = indexes[i].clone();
+        for (i, index) in indexes.iter().enumerate().take(D2) {
             let start = index.start as i64;
             let length = (index.end - index.start) as i64;
             tensor = tensor.narrow(i as i64, start, length);
         }
+
         let shape = self.shape.index(indexes);
         let kind = self.kind.clone();
 
@@ -32,8 +32,7 @@ impl<P: tch::kind::Element + std::fmt::Debug + Copy + Default, const D1: usize>
 
         let mut tensor = tensor_original.view_(&tch_shape.dims);
 
-        for i in 0..D2 {
-            let index = indexes[i].clone();
+        for (i, index) in indexes.into_iter().enumerate().take(D2) {
             let start = index.start as i64;
             let length = (index.end - index.start) as i64;
 

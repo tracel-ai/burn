@@ -33,8 +33,8 @@ pub struct TchShape<const D: usize> {
 impl<const D: usize> From<Shape<D>> for TchShape<D> {
     fn from(shape: Shape<D>) -> Self {
         let mut dims = [0; D];
-        for i in 0..D {
-            dims[i] = shape.dims[i] as i64;
+        for (i, dim) in dims.iter_mut().enumerate().take(D) {
+            *dim = shape.dims[i] as i64;
         }
         TchShape { dims }
     }
@@ -43,14 +43,14 @@ impl<const D: usize> From<Shape<D>> for TchShape<D> {
 impl<const D: usize> From<Vec<i64>> for Shape<D> {
     fn from(shape: Vec<i64>) -> Self {
         let mut dims = [0; D];
-        for i in 0..D {
-            dims[i] = *shape.get(i).unwrap() as usize;
+        for (i, dim) in shape.into_iter().enumerate() {
+            dims[i] = dim as usize;
         }
         Self::new(dims)
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct TchKind<P: tch::kind::Element> {
     _p: P,
 }
