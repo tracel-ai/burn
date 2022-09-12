@@ -497,9 +497,7 @@ where
         let num_ones = D2 - D;
         let shape = self.shape();
 
-        for i in 0..D {
-            dims[i + num_ones] = shape.dims[i];
-        }
+        dims[num_ones..(D + num_ones)].copy_from_slice(&shape.dims[..D]);
 
         let shape = Shape::new(dims);
         self.reshape(shape)

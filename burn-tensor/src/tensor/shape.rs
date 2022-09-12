@@ -28,9 +28,7 @@ impl<const D1: usize> Shape<D1> {
             dims[i] = indexes[i].clone().count();
         }
 
-        for i in D2..D1 {
-            dims[i] = self.dims[i];
-        }
+        dims[D2..D1].copy_from_slice(&self.dims[D2..D1]);
 
         Self::new(dims)
     }

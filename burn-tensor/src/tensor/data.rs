@@ -57,7 +57,7 @@ where
     Standard: rand::distributions::Distribution<P>,
     P: rand::distributions::uniform::SampleUniform,
 {
-    pub fn sampler<'a>(self, rng: &'a mut StdRng) -> DistributionSampler<'a, P> {
+    pub fn sampler(self, rng: &'_ mut StdRng) -> DistributionSampler<'_, P> {
         let kind = match self {
             Distribution::Standard => {
                 DistributionSamplerKind::Standard(rand::distributions::Standard {})
@@ -233,10 +233,7 @@ impl<const D: usize> Data<usize, D> {
 impl<P: Clone, const D: usize> From<&DataSerialize<P>> for Data<P, D> {
     fn from(data: &DataSerialize<P>) -> Self {
         let mut dims = [0; D];
-        for i in 0..D {
-            dims[i] = data.shape[i];
-        }
-
+        dims[..D].copy_from_slice(&data.shape[..D]);
         Data::new(data.value.clone(), Shape::new(dims))
     }
 }
@@ -244,10 +241,7 @@ impl<P: Clone, const D: usize> From<&DataSerialize<P>> for Data<P, D> {
 impl<P, const D: usize> From<DataSerialize<P>> for Data<P, D> {
     fn from(data: DataSerialize<P>) -> Self {
         let mut dims = [0; D];
-        for i in 0..D {
-            dims[i] = data.shape[i];
-        }
-
+        dims[..D].copy_from_slice(&data.shape[..D]);
         Data::new(data.value, Shape::new(dims))
     }
 }
@@ -255,8 +249,8 @@ impl<P, const D: usize> From<DataSerialize<P>> for Data<P, D> {
 impl<P: std::fmt::Debug + Copy, const A: usize> From<[P; A]> for Data<P, 1> {
     fn from(elems: [P; A]) -> Self {
         let mut data = Vec::with_capacity(2 * A);
-        for i in 0..A {
-            data.push(elems[i]);
+        for elem in elems.into_iter().take(A) {
+            data.push(elem);
         }
 
         Data::new(data, Shape::new([A]))
@@ -266,9 +260,9 @@ impl<P: std::fmt::Debug + Copy, const A: usize> From<[P; A]> for Data<P, 1> {
 impl<P: std::fmt::Debug + Copy, const A: usize, const B: usize> From<[[P; B]; A]> for Data<P, 2> {
     fn from(elems: [[P; B]; A]) -> Self {
         let mut data = Vec::with_capacity(A * B);
-        for i in 0..A {
-            for j in 0..B {
-                data.push(elems[i][j]);
+        for elem in elems.into_iter().take(A) {
+            for elem in elem.into_iter().take(B) {
+                data.push(elem);
             }
         }
 
@@ -281,10 +275,11 @@ impl<P: std::fmt::Debug + Copy, const A: usize, const B: usize, const C: usize>
 {
     fn from(elems: [[[P; C]; B]; A]) -> Self {
         let mut data = Vec::with_capacity(A * B * C);
-        for i in 0..A {
-            for j in 0..B {
-                for k in 0..C {
-                    data.push(elems[i][j][k]);
+
+        for elem in elems.into_iter().take(A) {
+            for elem in elem.into_iter().take(B) {
+                for elem in elem.into_iter().take(C) {
+                    data.push(elem);
                 }
             }
         }

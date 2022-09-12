@@ -1,6 +1,6 @@
 use crate::graph::node::{ForwardNode, ForwardNodeState};
 use crate::graph::ops::ForwardUnaryRecordedOps;
-use crate::tensor::backend::backend::Backend;
+use crate::tensor::backend::Backend;
 use crate::tensor::{ops::*, Shape};
 use crate::{
     graph::ops::{UnaryOps, UnaryOpsNodeState},

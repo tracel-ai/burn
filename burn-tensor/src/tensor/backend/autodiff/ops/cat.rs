@@ -3,7 +3,7 @@ use crate::graph::node::{BackwardNode, BackwardNodeRef, BackwardNodeState, Forwa
 use crate::graph::ops::{
     BackwardRecordedOps, BackwardRecordedOpsRef, ForwardRecordedOps, RecordedOpsParentRef,
 };
-use crate::tensor::backend::backend::Backend;
+use crate::tensor::backend::Backend;
 use crate::tensor::{backend::autodiff::ADTensor, ops::*};
 use std::convert::TryInto;
 use std::sync::Arc;

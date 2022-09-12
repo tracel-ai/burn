@@ -1,4 +1,4 @@
-use crate::tensor::backend::backend::Backend;
+use crate::tensor::backend::Backend;
 use crate::{
     execute_ops,
     graph::ops::{UnaryOps, UnaryOpsNodeState},

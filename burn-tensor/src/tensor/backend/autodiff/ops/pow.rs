@@ -1,4 +1,4 @@
-use crate::tensor::backend::backend::Backend;
+use crate::tensor::backend::Backend;
 use crate::ElementConversion;
 use crate::{
     execute_ops,

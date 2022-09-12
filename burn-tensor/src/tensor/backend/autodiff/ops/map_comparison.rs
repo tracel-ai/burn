@@ -1,4 +1,4 @@
-use crate::backend::backend::Backend;
+use crate::backend::Backend;
 use crate::tensor::ops::*;
 
 macro_rules! define_impl {

@@ -1,5 +1,5 @@
 use crate::graph::ops::{BinaryOps, BinaryOpsNodeState, UnaryOps, UnaryOpsNodeState};
-use crate::tensor::backend::backend::Backend;
+use crate::tensor::backend::Backend;
 use crate::{
     execute_ops, register_ops,
     tensor::{backend::autodiff::ADTensor, ops::*},

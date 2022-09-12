@@ -1,6 +1,6 @@
 use crate::graph::ops::{BinaryOps, BinaryOpsNodeState};
 use crate::tensor::backend::autodiff::ADTensor;
-use crate::tensor::backend::backend::Backend;
+use crate::tensor::backend::Backend;
 use crate::tensor::ops::*;
 use crate::{execute_ops, register_ops};
 
