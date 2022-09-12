@@ -17,7 +17,7 @@ impl FieldTypeAnalyzer {
     pub fn is_of_type(&self, paths: &Vec<&str>) -> bool {
         match &self.field.ty {
             syn::Type::Path(path) => {
-                let name = Self::path_name(&path);
+                let name = Self::path_name(path);
                 paths.contains(&name.as_str())
             }
             _ => false,
@@ -29,7 +29,7 @@ impl FieldTypeAnalyzer {
         let err = || {
             panic!(
                 "Field {} as no generic",
-                self.field.ident.clone().unwrap().to_string()
+                self.field.ident.clone().unwrap()
             )
         };
         match &self.field.ty {
@@ -42,7 +42,7 @@ impl FieldTypeAnalyzer {
         let err = || {
             panic!(
                 "Path segment {} has no generic",
-                segment.ident.clone().to_string(),
+                segment.ident.clone(),
             )
         };
         match &segment.arguments {
@@ -52,7 +52,7 @@ impl FieldTypeAnalyzer {
                 match first_param {
                     syn::GenericArgument::Type(ty) => match ty {
                         Type::Path(path) => {
-                            return path.clone();
+                            path.clone()
                         }
                         _ => err(),
                     },

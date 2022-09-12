@@ -7,7 +7,6 @@ pub fn display_fn() -> proc_macro2::TokenStream {
             write!(f, "{}[num_params={}]", self.name(), self.num_params())
         }
     }
-    .into()
 }
 
 pub fn name_fn(name: &Ident) -> proc_macro2::TokenStream {
@@ -16,5 +15,4 @@ pub fn name_fn(name: &Ident) -> proc_macro2::TokenStream {
             stringify!(#name)
         }
     }
-    .into()
 }
