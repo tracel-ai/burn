@@ -10,7 +10,7 @@ where
     fn exp(&self) -> Self {
         let tensor = self.tensor.exp();
         let kind = self.kind.clone();
-        let shape = self.shape.clone();
+        let shape = self.shape;
 
         Self {
             tensor,

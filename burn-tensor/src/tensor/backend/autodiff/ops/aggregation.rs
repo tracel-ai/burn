@@ -38,7 +38,7 @@ impl<B: Backend, const D: usize> UnaryOps<B::TensorPrimitive<D>, B::TensorPrimit
         let ones = B::ones(self.state, grad.device());
 
         let grad: Tensor<B, 1> = Tensor::new(grad);
-        let val = 1 as f64 / self.state.num_elements() as f64;
+        let val = 1_f64 / self.state.num_elements() as f64;
         let ones: Tensor<B, D> = Tensor::new(ones).mul_scalar(&B::Elem::from_elem(val));
 
         ones.mul(&grad.unsqueeze()).value
@@ -74,7 +74,7 @@ impl<B: Backend, const D: usize> UnaryOps<B::TensorPrimitive<D>, B::TensorPrimit
         let grad = state.output.grad().sum_dim(dim);
         let ones = B::ones(shape, grad.device());
 
-        let val = 1 as f64 / shape.dims[dim] as f64;
+        let val = 1_f64 / shape.dims[dim] as f64;
         let ones = ones.mul_scalar(&B::Elem::from_elem(val));
 
         ones.mul(&grad)
@@ -155,8 +155,8 @@ mod tests {
         let data_1 = Data::<f64, 2>::from([[1.0, 7.0], [-2.0, -3.0]]);
         let data_2 = Data::<f64, 2>::from([[4.0, -7.0], [2.0, 3.0]]);
 
-        let tensor_1 = TestADTensor::from_data(data_1.clone());
-        let tensor_2 = TestADTensor::from_data(data_2.clone());
+        let tensor_1 = TestADTensor::from_data(data_1);
+        let tensor_2 = TestADTensor::from_data(data_2);
 
         let tensor_3 = tensor_1.matmul(&tensor_2);
         let tensor_4 = tensor_1.mul(&tensor_3.mean().unsqueeze());
@@ -178,8 +178,8 @@ mod tests {
         let data_1 = Data::<f64, 2>::from([[1.0, 7.0], [-2.0, -3.0]]);
         let data_2 = Data::<f64, 2>::from([[4.0, -7.0], [2.0, 3.0]]);
 
-        let tensor_1 = TestADTensor::from_data(data_1.clone());
-        let tensor_2 = TestADTensor::from_data(data_2.clone());
+        let tensor_1 = TestADTensor::from_data(data_1);
+        let tensor_2 = TestADTensor::from_data(data_2);
 
         let tensor_3 = tensor_1.matmul(&tensor_2);
         let tensor_4 = tensor_1.mul(&tensor_3.sum().unsqueeze());
@@ -201,8 +201,8 @@ mod tests {
         let data_1 = Data::<f64, 2>::from([[1.0, 7.0], [-2.0, -3.0]]);
         let data_2 = Data::<f64, 2>::from([[4.0, -7.0], [2.0, 3.0]]);
 
-        let tensor_1 = TestADTensor::from_data(data_1.clone());
-        let tensor_2 = TestADTensor::from_data(data_2.clone());
+        let tensor_1 = TestADTensor::from_data(data_1);
+        let tensor_2 = TestADTensor::from_data(data_2);
 
         let tensor_3 = tensor_1.matmul(&tensor_2);
         let tensor_4 = tensor_1.mul(&tensor_3.mean_dim(1).unsqueeze());
@@ -224,8 +224,8 @@ mod tests {
         let data_1 = Data::<f64, 2>::from([[1.0, 7.0], [-2.0, -3.0]]);
         let data_2 = Data::<f64, 2>::from([[4.0, -7.0], [2.0, 3.0]]);
 
-        let tensor_1 = TestADTensor::from_data(data_1.clone());
-        let tensor_2 = TestADTensor::from_data(data_2.clone());
+        let tensor_1 = TestADTensor::from_data(data_1);
+        let tensor_2 = TestADTensor::from_data(data_2);
 
         let tensor_3 = tensor_1.matmul(&tensor_2);
         let tensor_4 = tensor_1.mul(&tensor_3.sum_dim(1).unsqueeze());

@@ -43,7 +43,7 @@ where
         self.state.update_grad(grad);
         self.ops.backward_step(&mut self.state);
 
-        let traversal = BreadthFirstSearch::new(&self);
+        let traversal = BreadthFirstSearch::new(self);
         let mut tape = vec![Vec::new(); self.order];
 
         traversal.traverse(|node| {
@@ -68,7 +68,7 @@ where
             }
         }
 
-        Gradients::from(&self)
+        Gradients::from(self)
     }
 }
 
@@ -91,6 +91,6 @@ where
         &self.id
     }
     fn register_grad(&self, grads: &mut Gradients) {
-        grads.register(&self)
+        grads.register(self)
     }
 }

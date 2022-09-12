@@ -107,8 +107,8 @@ mod tests {
         let data_1: Data<f64, 2> = Data::from([[1.0, 7.0], [2.0, 3.0]]);
         let data_2: Data<f64, 2> = Data::from([[4.0, 7.0, 100.0], [2.0, 3.0, 15.0]]);
 
-        let tensor_1 = TestADTensor::from_data(data_1.clone());
-        let tensor_2 = TestADTensor::from_data(data_2.clone());
+        let tensor_1 = TestADTensor::from_data(data_1);
+        let tensor_2 = TestADTensor::from_data(data_2);
 
         let tensor_3 = tensor_2.index([0..2, 0..2]);
         let tensor_4 = &tensor_1.matmul(&tensor_3);
@@ -130,9 +130,9 @@ mod tests {
         let data_2: Data<f64, 2> = Data::from([[4.0, 7.0], [2.0, 3.0]]);
         let data_assigned: Data<f64, 2> = Data::from([[9.0]]);
 
-        let tensor_1 = TestADTensor::from_data(data_1.clone());
-        let tensor_2 = TestADTensor::from_data(data_2.clone());
-        let tensor_assigned = TestADTensor::from_data(data_assigned.clone());
+        let tensor_1 = TestADTensor::from_data(data_1);
+        let tensor_2 = TestADTensor::from_data(data_2);
+        let tensor_assigned = TestADTensor::from_data(data_assigned);
 
         let tensor_3 = tensor_1.matmul(&tensor_2);
         let tensor_4 = tensor_3.index_assign([0..1, 0..1], &tensor_assigned);
@@ -153,9 +153,9 @@ mod tests {
         let data_2: Data<f64, 2> = Data::from([[4.0, 7.0], [2.0, 3.0]]);
         let data_3: Data<f64, 2> = Data::from([[9.0]]);
 
-        let tensor_1 = TestADTensor::from_data(data_1.clone());
-        let tensor_2 = TestADTensor::from_data(data_2.clone());
-        let tensor_3 = TestADTensor::from_data(data_3.clone());
+        let tensor_1 = TestADTensor::from_data(data_1);
+        let tensor_2 = TestADTensor::from_data(data_2);
+        let tensor_3 = TestADTensor::from_data(data_3);
 
         let tensor_4 = tensor_1.matmul(&tensor_2);
         let tensor_5 = tensor_2.index([0..1, 0..1]);

@@ -47,10 +47,10 @@ where
             index += 1;
         }
         output.push(index);
-        start = start + batch_size;
-        end = end + batch_size;
+        start += batch_size;
+        end += batch_size;
     }
-    let mut shape = tensor.shape.clone();
+    let mut shape = tensor.shape;
     shape.dims[dim] = 1;
     NdArrayTensor::from_data(Data::new(output, shape))
 }
@@ -61,7 +61,7 @@ fn cmp_max(a: &f64, b: &f64) -> Ordering {
     } else if a > b {
         return Ordering::Greater;
     }
-    return Ordering::Equal;
+    Ordering::Equal
 }
 
 fn cmp_min(a: &f64, b: &f64) -> Ordering {
@@ -70,5 +70,5 @@ fn cmp_min(a: &f64, b: &f64) -> Ordering {
     } else if a < b {
         return Ordering::Greater;
     }
-    return Ordering::Equal;
+    Ordering::Equal
 }

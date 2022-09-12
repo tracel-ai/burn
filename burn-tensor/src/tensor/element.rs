@@ -48,7 +48,7 @@ pub trait ElementValue {
     fn one() -> Self;
 }
 
-#[derive(Clone, PartialEq, Copy, Debug)]
+#[derive(Clone, PartialEq, Eq, Copy, Debug)]
 pub enum Precision {
     Double,
     Full,

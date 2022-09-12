@@ -48,24 +48,24 @@ impl<E: NdArrayElement, const D: usize> TensorOpsAggregation<NdArrayBackend<E>, 
 
     fn mean_dim(&self, dim: usize) -> Self {
         match D {
-            1 => keepdim!(0, dim, &self, mean),
-            2 => keepdim!(1, dim, &self, mean),
-            3 => keepdim!(2, dim, &self, mean),
-            4 => keepdim!(3, dim, &self, mean),
-            5 => keepdim!(4, dim, &self, mean),
-            6 => keepdim!(5, dim, &self, mean),
+            1 => keepdim!(0, dim, self, mean),
+            2 => keepdim!(1, dim, self, mean),
+            3 => keepdim!(2, dim, self, mean),
+            4 => keepdim!(3, dim, self, mean),
+            5 => keepdim!(4, dim, self, mean),
+            6 => keepdim!(5, dim, self, mean),
             _ => panic!("Dim not supported {}", D),
         }
     }
 
     fn sum_dim(&self, dim: usize) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D> {
         match D {
-            1 => keepdim!(0, dim, &self, sum),
-            2 => keepdim!(1, dim, &self, sum),
-            3 => keepdim!(2, dim, &self, sum),
-            4 => keepdim!(3, dim, &self, sum),
-            5 => keepdim!(4, dim, &self, sum),
-            6 => keepdim!(5, dim, &self, sum),
+            1 => keepdim!(0, dim, self, sum),
+            2 => keepdim!(1, dim, self, sum),
+            3 => keepdim!(2, dim, self, sum),
+            4 => keepdim!(3, dim, self, sum),
+            5 => keepdim!(4, dim, self, sum),
+            6 => keepdim!(5, dim, self, sum),
             _ => panic!("Dim not supported {}", D),
         }
     }

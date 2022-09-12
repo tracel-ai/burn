@@ -28,7 +28,7 @@ impl<P: tch::kind::Element + std::fmt::Debug + Copy + Default, const D1: usize>
 
     fn index_assign<const D2: usize>(&self, indexes: [Range<usize>; D2], values: &Self) -> Self {
         let tensor_original = self.tensor.copy();
-        let tch_shape = TchShape::from(self.shape.clone());
+        let tch_shape = TchShape::from(self.shape);
 
         let mut tensor = tensor_original.view_(&tch_shape.dims);
 
@@ -42,7 +42,7 @@ impl<P: tch::kind::Element + std::fmt::Debug + Copy + Default, const D1: usize>
 
         tensor.copy_(&values.tensor);
 
-        let shape = self.shape.clone();
+        let shape = self.shape;
         let kind = self.kind.clone();
 
         Self {

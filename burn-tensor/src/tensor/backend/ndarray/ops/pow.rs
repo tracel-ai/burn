@@ -9,7 +9,7 @@ where
 {
     fn powf(&self, value: f32) -> Self {
         let array = self.array.mapv(|a| a.pow_elem(value)).into_shared();
-        let shape = self.shape.clone();
+        let shape = self.shape;
 
         Self { array, shape }
     }

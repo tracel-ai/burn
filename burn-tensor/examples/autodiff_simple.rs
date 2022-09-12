@@ -23,14 +23,14 @@ fn run_ad<B: backend::ADBackend>(x: Data<B::Elem, 2>, y: Data<B::Elem, 2>) {
     println!("x_grad   : {}", x.grad(&grads).unwrap().to_data());
     println!("y_grad   : {}", y.grad(&grads).unwrap().to_data());
     println!("---------------------------------");
-    println!("")
+    println!()
 }
 
 fn run<B: backend::Backend>(x: Data<B::Elem, 2>, y: Data<B::Elem, 2>) {
     println!("---------- Ad Disabled ----------");
-    loss::<B>(&Tensor::from_data(x.clone()), &Tensor::from_data(y.clone()));
+    loss::<B>(&Tensor::from_data(x), &Tensor::from_data(y));
     println!("---------------------------------");
-    println!("")
+    println!()
 }
 
 fn main() {
@@ -47,6 +47,6 @@ fn main() {
     #[cfg(feature = "tch")]
     {
         run::<backend::TchBackend<f32>>(x.clone(), y.clone());
-        run_ad::<backend::TchADBackend<f32>>(x.clone(), y.clone());
+        run_ad::<backend::TchADBackend<f32>>(x, y);
     }
 }

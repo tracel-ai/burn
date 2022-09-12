@@ -2,13 +2,13 @@ use super::ops::{Ones, Zeros};
 use crate::{tensor::Shape, Element, ElementConversion};
 use rand::{distributions::Standard, prelude::StdRng, Rng, SeedableRng};
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq)]
 pub struct DataSerialize<P> {
     pub value: Vec<P>,
     pub shape: Vec<usize>,
 }
 
-#[derive(new, Debug, Clone, PartialEq)]
+#[derive(new, Debug, Clone, PartialEq, Eq)]
 pub struct Data<P, const D: usize> {
     pub value: Vec<P>,
     pub shape: Shape<D>,
@@ -305,7 +305,7 @@ mod tests {
     #[test]
     fn should_have_right_num_elements() {
         let shape = Shape::new([3, 5, 6]);
-        let data = Data::<f32, 3>::random(shape.clone(), Distribution::Standard);
+        let data = Data::<f32, 3>::random(shape, Distribution::Standard);
         assert_eq!(shape.num_elements(), data.value.len());
     }
 

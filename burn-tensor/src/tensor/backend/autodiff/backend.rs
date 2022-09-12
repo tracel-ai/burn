@@ -123,11 +123,11 @@ macro_rules! register_ndarray {
         #[cfg(feature = "ndarray")]
         mod ndarray_impl {
             use super::*;
-            use crate::NdArrayElement;
+            use $crate::NdArrayElement;
 
             define_impl!(
-                crate::tensor::backend::autodiff::ADBackendNdArray::<E>,
-                crate::tensor::backend::ndarray::NdArrayBackend::<E>,
+                $crate::tensor::backend::autodiff::ADBackendNdArray::<E>,
+                $crate::tensor::backend::ndarray::NdArrayBackend::<E>,
                 NdArrayElement
             );
         }
@@ -140,7 +140,7 @@ macro_rules! register_tch {
         #[cfg(feature = "tch")]
         mod tch_impl {
             use super::*;
-            use crate::TchElement;
+            use $crate::TchElement;
 
             define_impl!(
                 $crate::tensor::backend::autodiff::ADBackendTch::<E>,

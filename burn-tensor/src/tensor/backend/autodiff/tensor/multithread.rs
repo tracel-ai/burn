@@ -28,7 +28,7 @@ mod tests {
             // Task 2
             let tensor_1_cloned = tensor_1.clone();
             let tensor_2_cloned = tensor_2.clone();
-            let tensor_5_cloned = tensor_5.clone();
+            let tensor_5_cloned = tensor_5;
 
             let second_call = move || {
                 let tensor_6_2 = tensor_5_cloned.matmul(&tensor_1_cloned);
@@ -47,7 +47,7 @@ mod tests {
             let grad_1 = tensor_1.grad(&grads).unwrap();
             let grad_2 = tensor_2.grad(&grads).unwrap();
 
-            return (grad_1.clone(), grad_2.clone());
+            (grad_1, grad_2)
         };
         let without_move = || {
             let tensor_1 = TestADTensor::from_data(data_1.clone());
@@ -72,7 +72,7 @@ mod tests {
             let grad_1 = tensor_1.grad(&grads).unwrap();
             let grad_2 = tensor_2.grad(&grads).unwrap();
 
-            return (grad_1.clone(), grad_2.clone());
+            (grad_1, grad_2)
         };
 
         let (grad_1, grad_2) = without_move();

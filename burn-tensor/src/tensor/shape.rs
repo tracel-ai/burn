@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-#[derive(new, Debug, Clone, PartialEq, Copy)]
+#[derive(new, Debug, Clone, PartialEq, Eq, Copy)]
 pub struct Shape<const D: usize> {
     pub dims: [usize; D],
 }
@@ -45,7 +45,7 @@ impl<const D1: usize> Shape<D1> {
 
         for i in 0..D1 {
             if i != dim {
-                dims[index] = self.dims[i].clone();
+                dims[index] = self.dims[i];
                 index += 1;
             }
         }
@@ -58,9 +58,9 @@ impl<const D1: usize> Shape<D1> {
         let sum_other: usize = other.dims.iter().sum();
 
         if sum_self < sum_other {
-            other.clone()
+            *other
         } else {
-            self.clone()
+            *self
         }
     }
 }
