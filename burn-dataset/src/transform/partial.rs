@@ -103,7 +103,7 @@ mod tests {
         let mut items_partial = HashSet::new();
 
         for (i, item) in dataset_original.iter().enumerate() {
-            if i < 10 || i >= 20 {
+            if !(10..20).contains(&i) {
                 items_original_2.insert(item);
             } else {
                 items_original_1.insert(item);

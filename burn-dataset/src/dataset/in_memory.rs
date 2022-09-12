@@ -20,10 +20,7 @@ where
     I: Clone + Send + Sync,
 {
     fn get(&self, index: usize) -> Option<I> {
-        match self.items.get(index) {
-            Some(item) => Some(item.clone()),
-            None => None,
-        }
+        self.items.get(index).cloned()
     }
     fn iter<'a>(&'a self) -> DatasetIterator<'a, I> {
         DatasetIterator::new(self)
