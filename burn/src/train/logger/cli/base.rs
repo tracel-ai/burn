@@ -143,7 +143,7 @@ impl<T> CLILogger<T> {
 
     pub fn register_style_metrics(
         &self,
-        items: &Vec<MetricStateDyn>,
+        items: &[MetricStateDyn],
         style: ProgressStyle,
     ) -> ProgressStyle {
         let mut style = style;
@@ -186,8 +186,6 @@ impl<T> CLILogger<T> {
         name: String,
         formatted: String,
     ) -> ProgressStyle {
-        
-
         style.with_key(key, move |_state: &ProgressState, w: &mut dyn Write| {
             write!(w, "{}: {}", name, formatted).unwrap()
         })

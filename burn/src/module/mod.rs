@@ -1,7 +1,7 @@
-mod module;
+mod base;
 mod param;
 mod state;
 
-pub use module::*;
+pub use base::*;
 pub use param::*;
 pub use state::*;

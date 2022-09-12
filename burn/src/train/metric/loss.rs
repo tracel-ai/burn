@@ -20,6 +20,12 @@ impl LossMetric {
     }
 }
 
+impl Default for LossMetric {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NumericMetric for LossMetric {
     fn value(&self) -> f64 {
         self.current * 100.0

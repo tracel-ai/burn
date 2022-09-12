@@ -5,12 +5,12 @@ use flate2::Compression;
 use std::collections::HashMap;
 use std::io::{Read, Write};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Default)]
 pub struct StateNamed<E> {
     pub values: HashMap<String, State<E>>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum State<E> {
     StateNamed(StateNamed<E>),
     Data(DataSerialize<E>),
@@ -40,28 +40,28 @@ impl std::fmt::Display for StateError {
 }
 impl std::error::Error for StateError {}
 
-impl<E: Element> Into<serde_json::Value> for State<E>
+impl<E: Element> From<State<E>> for serde_json::Value
 where
     E: serde::de::DeserializeOwned,
     E: serde::Serialize,
 {
-    fn into(self) -> serde_json::Value {
-        match self {
-            Self::StateNamed(state) => state.into(),
-            Self::Data(data) => serde_json::to_value(data).unwrap(),
+    fn from(state: State<E>) -> serde_json::Value {
+        match state {
+            State::StateNamed(state) => state.into(),
+            State::Data(data) => serde_json::to_value(data).unwrap(),
         }
     }
 }
 
-impl<E: Element> Into<serde_json::Value> for StateNamed<E>
+impl<E: Element> From<StateNamed<E>> for serde_json::Value
 where
     E: serde::de::DeserializeOwned,
     E: serde::Serialize,
 {
-    fn into(self) -> serde_json::Value {
+    fn from(state: StateNamed<E>) -> serde_json::Value {
         let mut map = serde_json::Map::new();
 
-        for (key, state) in self.values {
+        for (key, state) in state.values {
             map.insert(key, state.into());
         }
 

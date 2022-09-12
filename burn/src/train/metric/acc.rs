@@ -19,6 +19,12 @@ impl AccuracyMetric {
     }
 }
 
+impl Default for AccuracyMetric {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NumericMetric for AccuracyMetric {
     fn value(&self) -> f64 {
         self.current * 100.0

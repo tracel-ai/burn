@@ -1,5 +1,5 @@
-mod cli;
+mod base;
 mod plot;
 
-pub use cli::*;
+pub use base::*;
 pub use plot::*;

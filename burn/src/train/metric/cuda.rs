@@ -14,6 +14,12 @@ impl CUDAMetric {
     }
 }
 
+impl Default for CUDAMetric {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T> Metric<T> for CUDAMetric {
     fn update(&mut self, _item: &T) -> Box<dyn MetricState> {
         let name = String::from("Cuda");
