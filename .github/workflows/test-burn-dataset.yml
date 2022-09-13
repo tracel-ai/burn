@@ -15,7 +15,7 @@ jobs:
         with:
           profile: minimal
           toolchain: nightly
-          components: rustfmt
+          components: rustfmt, clippy
           override: true
 
       - name: check format
