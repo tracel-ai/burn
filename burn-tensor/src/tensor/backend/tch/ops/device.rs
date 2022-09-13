@@ -21,7 +21,7 @@ impl<E: TchElement, const D: usize> TensorOpsDevice<TchBackend<E>, D> for TchTen
         Self {
             kind: self.kind.clone(),
             tensor: self.tensor.to(device),
-            shape: self.shape.clone(),
+            shape: self.shape,
         }
     }
 }

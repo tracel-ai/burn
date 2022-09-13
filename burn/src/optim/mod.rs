@@ -1,5 +1,5 @@
-mod optim;
+mod base;
 mod sgd;
 
-pub use optim::*;
+pub use base::*;
 pub use sgd::*;

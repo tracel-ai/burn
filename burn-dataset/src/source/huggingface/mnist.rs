@@ -14,7 +14,7 @@ pub struct MNISTDataset {
 }
 
 impl Dataset<MNISTItem> for MNISTDataset {
-    fn iter<'a>(&'a self) -> crate::DatasetIterator<'a, MNISTItem> {
+    fn iter(&self) -> crate::DatasetIterator<'_, MNISTItem> {
         DatasetIterator::new(self)
     }
 
@@ -24,6 +24,10 @@ impl Dataset<MNISTItem> for MNISTDataset {
 
     fn len(&self) -> usize {
         self.dataset.len()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.dataset.is_empty()
     }
 }
 

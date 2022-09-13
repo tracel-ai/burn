@@ -4,7 +4,7 @@ use burn_tensor::{Data, Shape, Tensor};
 #[test]
 fn should_support_reshape_1d() {
     let data = Data::from([0.0, 1.0, 2.0]);
-    let tensor = Tensor::<TestBackend, 1>::from_data(data.clone());
+    let tensor = Tensor::<TestBackend, 1>::from_data(data);
 
     let data_actual = tensor.reshape(Shape::new([1, 3])).into_data();
 
@@ -15,7 +15,7 @@ fn should_support_reshape_1d() {
 #[test]
 fn should_support_reshape_2d() {
     let data = Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-    let tensor = Tensor::<TestBackend, 2>::from_data(data.clone());
+    let tensor = Tensor::<TestBackend, 2>::from_data(data);
 
     let data_actual = tensor.reshape(Shape::new([6])).into_data();
 

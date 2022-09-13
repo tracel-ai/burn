@@ -5,9 +5,9 @@ macro_rules! define_convertion {
     (
         $n:expr
     ) => {
-        impl Into<Dim<[usize; $n]>> for Shape<$n> {
-            fn into(self) -> Dim<[usize; $n]> {
-                Dim(self.dims)
+        impl From<Shape<$n>> for Dim<[usize; $n]> {
+            fn from(shape: Shape<$n>) -> Dim<[usize; $n]> {
+                Dim(shape.dims)
             }
         }
     };

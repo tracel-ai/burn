@@ -1,5 +1,5 @@
 use crate::graph::ops::{BinaryOps, BinaryOpsNodeState, UnaryOps, UnaryOpsNodeState};
-use crate::tensor::backend::backend::Backend;
+use crate::tensor::backend::Backend;
 use crate::{
     execute_ops, register_ops,
     tensor::{backend::autodiff::ADTensor, ops::*},
@@ -37,8 +37,8 @@ impl<B: Backend, const D: usize> TensorOpsSub<B::Elem, D> for ADTensor<D, B> {
     fn sub_scalar(&self, other: &B::Elem) -> Self {
         execute_ops!(
             input self.node.clone(),
-            out TensorOpsSub::sub_scalar(&self.tensor(), &other),
-            ops ADTensorSubScalarOps::<B, D>::new(other.clone()),
+            out TensorOpsSub::sub_scalar(&self.tensor(), other),
+            ops ADTensorSubScalarOps::<B, D>::new(*other),
         )
     }
 }
@@ -52,10 +52,10 @@ mod tests {
         let data_1 = Data::from([2.0, 5.0]);
         let data_2 = Data::from([4.0, 1.0]);
 
-        let tensor_1 = TestADTensor::from_data(data_1.clone());
-        let tensor_2 = TestADTensor::from_data(data_2.clone());
+        let tensor_1 = TestADTensor::from_data(data_1);
+        let tensor_2 = TestADTensor::from_data(data_2);
 
-        let tensor_3 = tensor_1.clone().sub(&tensor_2);
+        let tensor_3 = tensor_1.sub(&tensor_2);
         let grads = tensor_3.backward();
 
         let grad_1 = tensor_1.grad(&grads).unwrap();
@@ -69,8 +69,8 @@ mod tests {
     #[test]
     fn should_diff_sub_scalar() {
         let data = Data::from([2.0, 10.0]);
-        let tensor = TestADTensor::from_data(data.clone());
-        let tensor_out = tensor.clone().sub_scalar(&5.0);
+        let tensor = TestADTensor::from_data(data);
+        let tensor_out = tensor.sub_scalar(&5.0);
         let grads = tensor_out.backward();
 
         let grad = tensor.grad(&grads).unwrap();
@@ -85,9 +85,9 @@ mod tests {
         let data_2: Data<f64, 2> = Data::from([[4.0, 7.0], [2.0, 3.0]]);
         let data_3: Data<f64, 2> = Data::from([[2.0, 2.0], [2.0, 2.0]]);
 
-        let tensor_1 = TestADTensor::from_data(data_1.clone());
-        let tensor_2 = TestADTensor::from_data(data_2.clone());
-        let tensor_3 = TestADTensor::from_data(data_3.clone());
+        let tensor_1 = TestADTensor::from_data(data_1);
+        let tensor_2 = TestADTensor::from_data(data_2);
+        let tensor_3 = TestADTensor::from_data(data_3);
 
         let tensor_4 = tensor_1.sub(&tensor_2);
         let tensor_5 = tensor_4.sub(&tensor_3).sub_scalar(&5.0);

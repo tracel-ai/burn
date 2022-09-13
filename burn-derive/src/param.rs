@@ -64,7 +64,6 @@ impl Param {
                 #body
             }
         }
-        .into()
     }
 
     pub fn gen_devices_fn(&self) -> TokenStream {
@@ -87,7 +86,6 @@ impl Param {
                 #body
             }
         }
-        .into()
     }
 
     pub fn gen_to_device_fn(&self) -> TokenStream {
@@ -104,7 +102,6 @@ impl Param {
                 #body
             }
         }
-        .into()
     }
 
     pub fn gen_inner_fn(&self) -> TokenStream {
@@ -136,7 +133,6 @@ impl Param {
                 }
             }
         }
-        .into()
     }
 
     pub fn gen_state_fn(&self) -> TokenStream {
@@ -157,7 +153,6 @@ impl Param {
                 burn::module::State::StateNamed(state)
             }
         }
-        .into()
     }
 
     pub fn gen_load_fn(&self) -> TokenStream {
@@ -182,7 +177,6 @@ impl Param {
                 Ok(())
             }
         }
-        .into()
     }
 }
 

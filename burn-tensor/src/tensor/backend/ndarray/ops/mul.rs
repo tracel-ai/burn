@@ -13,9 +13,9 @@ where
         Self { array, shape }
     }
     fn mul_scalar(&self, other: &P) -> Self {
-        let array = self.array.clone() * other.clone();
+        let array = self.array.clone() * *other;
         let array = array.to_owned().into_shared();
-        let shape = self.shape.clone();
+        let shape = self.shape;
 
         Self { array, shape }
     }

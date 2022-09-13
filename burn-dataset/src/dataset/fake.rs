@@ -18,7 +18,7 @@ impl<I: Dummy<Faker>> FakeDataset<I> {
 }
 
 impl<I: Send + Sync + Clone> Dataset<I> for FakeDataset<I> {
-    fn iter<'a>(&'a self) -> DatasetIterator<'a, I> {
+    fn iter(&self) -> DatasetIterator<'_, I> {
         DatasetIterator::new(self)
     }
 
@@ -28,5 +28,9 @@ impl<I: Send + Sync + Clone> Dataset<I> for FakeDataset<I> {
 
     fn len(&self) -> usize {
         self.dataset.len()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.dataset.is_empty()
     }
 }

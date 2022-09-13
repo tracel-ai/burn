@@ -15,7 +15,7 @@ jobs:
         with:
           profile: minimal
           toolchain: nightly
-          components: rustfmt
+          components: rustfmt, clippy
           override: true
 
       - name: check format
@@ -38,4 +38,10 @@ jobs:
           cd burn-tensor
           cargo test --no-default-features --features tch --tests
 
+      - name: check clippy backend tch
+        run: |
+          cargo clippy -p burn-tensor --no-default-features --features tch -- -D warnings
 
+      - name: check clippy backend ndarray
+        run: |
+          cargo clippy -p burn-tensor --no-default-features --features tch -- -D warnings

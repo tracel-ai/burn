@@ -92,22 +92,18 @@ where
 
     /// Returns a new tensor with the same shape and device as the current tensor filled with zeros.
     pub fn zeros_like(&self) -> Self {
-        Tensor::new(B::zeros(self.shape().clone(), self.value.device()))
+        Tensor::new(B::zeros(*self.shape(), self.value.device()))
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor filled with ones.
     pub fn ones_like(&self) -> Self {
-        Tensor::new(B::ones(self.shape().clone(), self.value.device()))
+        Tensor::new(B::ones(*self.shape(), self.value.device()))
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor filled random
     /// values sampled from the given distribution.
     pub fn random_like(&self, distribution: Distribution<B::Elem>) -> Self {
-        Tensor::new(B::random(
-            self.shape().clone(),
-            distribution,
-            self.value.device(),
-        ))
+        Tensor::new(B::random(*self.shape(), distribution, self.value.device()))
     }
 
     /// Create a one hot tensor.
@@ -129,13 +125,11 @@ where
         dims[D - 1] = num_classes;
         let shape = Shape::new(dims);
         let tensor = Tensor::zeros(shape);
-        let ranges: Vec<_> = shape.dims.iter().map(|dim| 0..dim.clone()).collect();
+        let ranges: Vec<_> = shape.dims.iter().map(|dim| 0..*dim).collect();
         let mut ranges: [std::ops::Range<usize>; D] = ranges.try_into().unwrap();
         ranges[D - 1] = index..index + 1;
 
-        let tensor = tensor.index_assign(ranges, &Tensor::ones(Shape::new([1; D])));
-
-        tensor
+        tensor.index_assign(ranges, &Tensor::ones(Shape::new([1; D])))
     }
 
     /// Apply element wise addition operation.
@@ -149,7 +143,7 @@ where
     ///
     /// `y = x + s`
     pub fn add_scalar(&self, other: &B::Elem) -> Self {
-        Self::new(self.value.add_scalar(&other))
+        Self::new(self.value.add_scalar(other))
     }
 
     /// Apply element wise substraction operation.
@@ -163,7 +157,7 @@ where
     ///
     /// `y = x - s`
     pub fn sub_scalar(&self, other: &B::Elem) -> Self {
-        Self::new(self.value.sub_scalar(&other))
+        Self::new(self.value.sub_scalar(other))
     }
 
     /// Apply the transpose operation.
@@ -206,7 +200,7 @@ where
     ///
     /// `y = x2 * x1`
     pub fn mul_scalar(&self, other: &B::Elem) -> Self {
-        Self::new(self.value.mul_scalar(&other))
+        Self::new(self.value.mul_scalar(other))
     }
 
     /// Apply element wise division operation.
@@ -220,7 +214,7 @@ where
     ///
     /// `y = x2 / x1`
     pub fn div_scalar(&self, other: &B::Elem) -> Self {
-        Self::new(self.value.div_scalar(&other))
+        Self::new(self.value.div_scalar(other))
     }
 
     /// Aggregate all elements in the tensor with the mean operation.
@@ -457,8 +451,7 @@ where
     ///
     /// If all tensors don't have the same shape.
     pub fn cat(tensors: Vec<Self>, dim: usize) -> Self {
-        let tensors: Vec<B::TensorPrimitive<D>> =
-            tensors.into_iter().map(|a| a.value.clone()).collect();
+        let tensors: Vec<B::TensorPrimitive<D>> = tensors.into_iter().map(|a| a.value).collect();
         let tensors: Vec<&B::TensorPrimitive<D>> = tensors.iter().collect();
         let value = B::TensorPrimitive::cat(tensors, dim);
 
@@ -504,9 +497,7 @@ where
         let num_ones = D2 - D;
         let shape = self.shape();
 
-        for i in 0..D {
-            dims[i + num_ones] = shape.dims[i];
-        }
+        dims[num_ones..(D + num_ones)].copy_from_slice(&shape.dims[..D]);
 
         let shape = Shape::new(dims);
         self.reshape(shape)
@@ -615,7 +606,7 @@ impl<const D: usize, B: ADBackend> Tensor<B, D> {
     }
 
     pub fn grad(&self, grads: &Gradients) -> Option<Tensor<B::InnerBackend, D>> {
-        B::grad(&self.value, grads).map(|value| Tensor::new(value))
+        B::grad(&self.value, grads).map(Tensor::new)
     }
 
     pub fn inner(&self) -> Tensor<B::InnerBackend, D> {

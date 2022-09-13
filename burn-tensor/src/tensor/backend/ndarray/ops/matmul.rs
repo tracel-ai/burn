@@ -9,8 +9,8 @@ where
     P: Clone + LinalgScalar + Default + std::fmt::Debug,
 {
     fn matmul(&self, other: &Self) -> Self {
-        let batch_self = BatchMatrix::from_ndarray(self.array.clone(), self.shape.clone());
-        let batch_other = BatchMatrix::from_ndarray(other.array.clone(), other.shape.clone());
+        let batch_self = BatchMatrix::from_ndarray(self.array.clone(), self.shape);
+        let batch_other = BatchMatrix::from_ndarray(other.array.clone(), other.shape);
 
         let self_iter = batch_self.arrays.iter();
         let other_iter = batch_other.arrays.iter();
@@ -20,9 +20,9 @@ where
             .map(|output| output.into_shared())
             .collect();
 
-        let mut shape = self.shape.clone();
+        let mut shape = self.shape;
         shape.dims[D - 1] = other.shape.dims[D - 1];
-        let output = BatchMatrix::new(arrays, shape.clone());
+        let output = BatchMatrix::new(arrays, shape);
 
         Self::from_bmatrix(output)
     }

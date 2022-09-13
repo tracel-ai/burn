@@ -12,18 +12,18 @@ impl<P: std::fmt::Debug + Copy + Default, const D1: usize> TensorOpsIndex<P, D1>
             .clone()
             .slice_move(slices.as_slice())
             .into_shared();
-        let shape = self.shape.index(indexes.clone());
+        let shape = self.shape.index(indexes);
 
         Self { array, shape }
     }
 
     fn index_assign<const D2: usize>(&self, indexes: [Range<usize>; D2], values: &Self) -> Self {
-        let slices = to_slice_args::<D1, D2>(indexes.clone());
+        let slices = to_slice_args::<D1, D2>(indexes);
         let mut array = self.array.to_owned();
         array.slice_mut(slices.as_slice()).assign(&values.array);
         let array = array.into_owned().into_shared();
 
-        let shape = self.shape.clone();
+        let shape = self.shape;
 
         Self { array, shape }
     }

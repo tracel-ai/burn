@@ -1,4 +1,4 @@
-use crate::tensor::backend::backend::Backend;
+use crate::tensor::backend::Backend;
 use crate::{
     execute_ops,
     graph::ops::{UnaryOps, UnaryOpsNodeState},
@@ -38,8 +38,8 @@ mod tests {
         let data_1 = Data::<f64, 2>::from([[1.0, 7.0], [-2.0, -3.0]]);
         let data_2 = Data::<f64, 2>::from([[4.0, -7.0], [2.0, 3.0]]);
 
-        let tensor_1 = TestADTensor::from_data(data_1.clone());
-        let tensor_2 = TestADTensor::from_data(data_2.clone());
+        let tensor_1 = TestADTensor::from_data(data_1);
+        let tensor_2 = TestADTensor::from_data(data_2);
 
         let tensor_3 = tensor_1.matmul(&tensor_2);
         let tensor_4 = tensor_3.relu();

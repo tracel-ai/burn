@@ -13,5 +13,5 @@ pub fn var_with_mean<B: Backend, const D: usize>(
     let n = tensor.shape().dims[dim] - 1;
     let n = (n as f32).to_elem();
 
-    tensor.sub(&mean).powf(2.0).sum_dim(dim).div_scalar(&n)
+    tensor.sub(mean).powf(2.0).sum_dim(dim).div_scalar(&n)
 }

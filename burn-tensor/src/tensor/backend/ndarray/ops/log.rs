@@ -9,7 +9,7 @@ where
 {
     fn log(&self) -> Self {
         let array = self.array.mapv(|a| a.log_elem()).into_shared();
-        let shape = self.shape.clone();
+        let shape = self.shape;
 
         Self { array, shape }
     }

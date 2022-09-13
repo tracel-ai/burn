@@ -13,7 +13,7 @@ register_ops!(
         device: &B::Device,
         state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>
     | {
-        state.output.grad().to_device(device.clone())
+        state.output.grad().to_device(*device)
     },
 );
 

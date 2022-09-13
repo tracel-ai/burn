@@ -38,7 +38,7 @@ impl Gradients {
         T: std::fmt::Debug + 'static,
     {
         let mut grads = Self::empty();
-        let traversal = BreadthFirstSearch::new(&node);
+        let traversal = BreadthFirstSearch::new(node);
         grads.register(node);
 
         traversal.traverse(|node| {

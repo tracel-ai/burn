@@ -15,7 +15,7 @@ jobs:
         with:
           profile: minimal
           toolchain: nightly
-          components: rustfmt
+          components: rustfmt, clippy
           override: true
 
       - name: check format
@@ -32,3 +32,7 @@ jobs:
         run: |
           cd burn-dataset
           cargo test --tests
+
+      - name: check clippy
+        run: |
+          cargo clippy -p burn-dataset -- -D warnings

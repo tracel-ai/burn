@@ -76,7 +76,7 @@ impl<O: std::fmt::Debug> DataLoaderIterator<O> for MultiThreadsDataloaderIterato
         let mut items_total = 0;
         let mut items_processed = 0;
 
-        for progress in self.progresses.values().into_iter() {
+        for progress in self.progresses.values() {
             items_total += progress.items_total;
             items_processed += progress.items_processed;
         }
@@ -92,7 +92,7 @@ impl<O: std::fmt::Debug> Iterator for MultiThreadsDataloaderIterator<O> {
     type Item = O;
 
     fn next(&mut self) -> Option<O> {
-        if self.workers.len() == 0 {
+        if self.workers.is_empty() {
             return None;
         }
 

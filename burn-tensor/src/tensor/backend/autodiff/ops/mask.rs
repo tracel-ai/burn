@@ -1,4 +1,4 @@
-use crate::tensor::backend::backend::Backend;
+use crate::tensor::backend::Backend;
 use crate::{
     execute_ops,
     graph::ops::{UnaryOps, UnaryOpsNodeState},
@@ -10,7 +10,7 @@ register_ops!(
     ops UnaryOps,
     name ADTensorMaskFillOps state B::BoolTensorPrimitive<D>,
     partial |mask: &B::BoolTensorPrimitive<D>, state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>|{
-        state.output.grad().mask_fill(&mask, B::Elem::zeros(&B::Elem::default()))
+        state.output.grad().mask_fill(mask, B::Elem::zeros(&B::Elem::default()))
     },
 );
 
@@ -52,8 +52,8 @@ mod tests {
         let data_2 = Data::<f64, 2>::from([[4.0, 7.0], [2.0, 3.0]]);
         let mask = Data::<bool, 2>::from([[true, false], [false, true]]);
 
-        let tensor_1 = TestADTensor::from_data(data_1.clone());
-        let tensor_2 = TestADTensor::from_data(data_2.clone());
+        let tensor_1 = TestADTensor::from_data(data_1);
+        let tensor_2 = TestADTensor::from_data(data_2);
         let mask = BoolTensor::from_data(mask);
 
         let tensor_3 = tensor_1.matmul(&tensor_2);

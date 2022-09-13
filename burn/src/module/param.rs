@@ -231,14 +231,12 @@ impl<M: Module> Param<Vec<M>> {
         let num = self.value.len();
         for (i, module) in self.value.iter_mut().enumerate() {
             module
-                .load(
-                    state
-                        .get(format!("mod-{}", i).as_str())
-                        .ok_or(LoadingError::new(format!(
-                            "Invalid number of modules, expected {} modules missing #{}",
-                            num, i
-                        )))?,
-                )
+                .load(state.get(format!("mod-{}", i).as_str()).ok_or_else(|| {
+                    LoadingError::new(format!(
+                        "Invalid number of modules, expected {} modules missing #{}",
+                        num, i
+                    ))
+                })?)
                 .map_err(|err| {
                     LoadingError::new(format!("Can't load modules mod-{}: {}", i, err))
                 })?;

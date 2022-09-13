@@ -51,11 +51,16 @@ where
         self.dataset.get(index)
     }
 
-    fn iter<'a>(&'a self) -> DatasetIterator<'a, I> {
+    fn iter(&self) -> DatasetIterator<'_, I> {
         DatasetIterator::new(self)
     }
+
     fn len(&self) -> usize {
         usize::min(self.end_index - self.start_index, self.dataset.len())
+    }
+
+    fn is_empty(&self) -> bool {
+        self.dataset.is_empty()
     }
 }
 
@@ -103,7 +108,7 @@ mod tests {
         let mut items_partial = HashSet::new();
 
         for (i, item) in dataset_original.iter().enumerate() {
-            if i < 10 || i >= 20 {
+            if !(10..20).contains(&i) {
                 items_original_2.insert(item);
             } else {
                 items_original_1.insert(item);

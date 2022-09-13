@@ -23,17 +23,18 @@ where
 {
     fn get(&self, index: usize) -> Option<O> {
         let item = self.dataset.get(index);
-        match item {
-            None => None,
-            Some(item) => Some(self.mapper.map(&item)),
-        }
+        item.map(|item| self.mapper.map(&item))
     }
 
-    fn iter<'a>(&'a self) -> DatasetIterator<'a, O> {
+    fn iter(&self) -> DatasetIterator<'_, O> {
         DatasetIterator::new(self)
     }
     fn len(&self) -> usize {
         self.dataset.len()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.dataset.is_empty()
     }
 }
 
@@ -53,7 +54,7 @@ mod tests {
             }
         }
         let items_original = test_data::string_items();
-        let dataset = InMemDataset::new(items_original.clone());
+        let dataset = InMemDataset::new(items_original);
         let dataset = MapperDataset::new(Box::new(dataset), StringToFirstChar {});
 
         let items: Vec<String> = dataset.iter().collect();

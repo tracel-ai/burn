@@ -1,6 +1,6 @@
 use crate::graph::node::{ForwardNode, ForwardNodeState};
 use crate::graph::ops::ForwardUnaryRecordedOps;
-use crate::tensor::backend::backend::Backend;
+use crate::tensor::backend::Backend;
 use crate::tensor::{ops::*, Shape};
 use crate::{
     graph::ops::{UnaryOps, UnaryOpsNodeState},
@@ -33,11 +33,11 @@ impl<B: Backend, const D1: usize, const D2: usize>
         let mut grad = state.output.grad();
         let value = state.output.value();
 
-        let shape_grad = grad.shape().clone();
-        let shape_value = value.shape().clone();
+        let shape_grad = *grad.shape();
+        let shape_value = *value.shape();
 
         if shape_value == shape_grad {
-            return grad.reshape(self.shape.clone());
+            return grad.reshape(self.shape);
         }
 
         for i in 0..D2 {
@@ -46,7 +46,7 @@ impl<B: Backend, const D1: usize, const D2: usize>
             }
         }
 
-        grad.reshape(self.shape.clone())
+        grad.reshape(self.shape)
     }
 }
 
@@ -118,8 +118,8 @@ mod tests {
         let data_1: Data<f64, 2> = Data::from([[1.0, 7.0], [2.0, 3.0]]);
         let data_2: Data<f64, 1> = Data::from([4.0, 7.0, 2.0, 3.0]);
 
-        let tensor_1 = TestADTensor::from_data(data_1.clone());
-        let tensor_2 = TestADTensor::from_data(data_2.clone());
+        let tensor_1 = TestADTensor::from_data(data_1);
+        let tensor_2 = TestADTensor::from_data(data_2);
 
         let tensor_3 = tensor_2.reshape(Shape::new([2, 2]));
         let tensor_4 = &tensor_1.matmul(&tensor_3);

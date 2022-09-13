@@ -13,8 +13,8 @@ where
         Self { array, shape }
     }
     fn sub_scalar(&self, other: &P) -> Self {
-        let array = self.array.clone() - other.clone();
-        let shape = self.shape.clone();
+        let array = self.array.clone() - *other;
+        let shape = self.shape;
 
         Self { array, shape }
     }

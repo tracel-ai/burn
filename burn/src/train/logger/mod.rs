@@ -1,7 +1,7 @@
 mod async_logger;
+mod base;
 mod cli;
-mod logger;
 
 pub use async_logger::*;
+pub use base::*;
 pub use cli::*;
-pub use logger::*;

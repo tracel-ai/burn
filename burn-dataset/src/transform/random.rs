@@ -33,15 +33,18 @@ where
             Some(index) => index,
             None => return None,
         };
-        match self.dataset.get(*index) {
-            Some(item) => Some(item.clone()),
-            None => None,
-        }
+        self.dataset.get(*index)
     }
-    fn iter<'a>(&'a self) -> DatasetIterator<'a, I> {
+
+    fn iter(&self) -> DatasetIterator<'_, I> {
         DatasetIterator::new(self)
     }
+
     fn len(&self) -> usize {
         self.dataset.len()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.dataset.is_empty()
     }
 }

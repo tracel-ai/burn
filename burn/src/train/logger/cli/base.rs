@@ -82,15 +82,15 @@ impl<T> CLILogger<T> {
         let mut template = template;
         let mut progress = Vec::new();
 
-        if let Some(_) = &item.epoch {
+        if item.epoch.is_some() {
             progress.push("  - {epoch}");
         }
 
         progress.push("  - {iteration} [{wide_bar:.cyan/blue}] ({eta})  ");
 
-        if progress.len() > 0 {
+        if !progress.is_empty() {
             let progress = progress.join("\n");
-            template = template + format!("{}\n{}\n", PROGRESS_TAG, progress).as_str();
+            template += format!("{}\n{}\n", PROGRESS_TAG, progress).as_str();
         }
 
         template
@@ -108,9 +108,9 @@ impl<T> CLILogger<T> {
             metrics_keys.push(format!("  - {}: {}", metric.name(), metric.pretty()));
         }
 
-        if metrics.len() > 0 {
+        if !metrics.is_empty() {
             let metrics_template = metrics_keys.join("\n");
-            template = template + format!("{}\n{}\n", METRICS_TAG, metrics_template).as_str();
+            template += format!("{}\n{}\n", METRICS_TAG, metrics_template).as_str();
         }
 
         template
@@ -143,7 +143,7 @@ impl<T> CLILogger<T> {
 
     pub fn register_style_metrics(
         &self,
-        items: &Vec<MetricStateDyn>,
+        items: &[MetricStateDyn],
         style: ProgressStyle,
     ) -> ProgressStyle {
         let mut style = style;
@@ -186,11 +186,9 @@ impl<T> CLILogger<T> {
         name: String,
         formatted: String,
     ) -> ProgressStyle {
-        let style = style.with_key(key, move |_state: &ProgressState, w: &mut dyn Write| {
+        style.with_key(key, move |_state: &ProgressState, w: &mut dyn Write| {
             write!(w, "{}: {}", name, formatted).unwrap()
-        });
-
-        style
+        })
     }
 }
 

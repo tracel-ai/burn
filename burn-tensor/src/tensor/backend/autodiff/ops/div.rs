@@ -1,4 +1,4 @@
-use crate::tensor::backend::backend::Backend;
+use crate::tensor::backend::Backend;
 use crate::{
     execute_ops,
     graph::ops::{BinaryOps, BinaryOpsNodeState, UnaryOps, UnaryOpsNodeState},
@@ -29,7 +29,7 @@ register_ops!(
     name ADTensorDivScalarOps state B::Elem,
     partial |state: &B::Elem, state_recorded: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>| {
         let value = state_recorded.input.value();
-        let tmp = value.ones().div_scalar(&state);
+        let tmp = value.ones().div_scalar(state);
 
         state_recorded.output.grad().mul(&tmp)
     },
@@ -48,8 +48,8 @@ impl<B: Backend, const D: usize> TensorOpsDiv<B::Elem, D> for ADTensor<D, B> {
     fn div_scalar(&self, other: &B::Elem) -> Self {
         execute_ops!(
             input self.node.clone(),
-            out TensorOpsDiv::div_scalar(&self.tensor(), &other),
-            ops ADTensorDivScalarOps::<B, D>::new(other.clone()),
+            out TensorOpsDiv::div_scalar(&self.tensor(), other),
+            ops ADTensorDivScalarOps::<B, D>::new(*other),
         )
     }
 }
@@ -63,10 +63,10 @@ mod tests {
         let data_1 = Data::from([1.0, 7.0]);
         let data_2 = Data::from([4.0, 7.0]);
 
-        let tensor_1 = TestADTensor::from_data(data_1.clone());
-        let tensor_2 = TestADTensor::from_data(data_2.clone());
+        let tensor_1 = TestADTensor::from_data(data_1);
+        let tensor_2 = TestADTensor::from_data(data_2);
 
-        let tensor_3 = tensor_1.clone().div(&tensor_2);
+        let tensor_3 = tensor_1.div(&tensor_2);
         let grads = tensor_3.backward();
 
         let grad_1 = tensor_1.grad(&grads).unwrap();
@@ -84,8 +84,8 @@ mod tests {
     fn should_diff_div_scalar() {
         let data = Data::from([1.0, 7.0]);
 
-        let tensor = TestADTensor::from_data(data.clone());
-        let tensor_out = tensor.clone().div_scalar(&4.0);
+        let tensor = TestADTensor::from_data(data);
+        let tensor_out = tensor.div_scalar(&4.0);
 
         let grads = tensor_out.backward();
         let grad = tensor.grad(&grads).unwrap();
@@ -99,9 +99,9 @@ mod tests {
         let data_2: Data<f64, 2> = Data::from([[4.0, 7.0], [2.0, 3.0]]);
         let data_3: Data<f64, 2> = Data::from([[2.0, 2.0], [2.0, 2.0]]);
 
-        let tensor_1 = TestADTensor::from_data(data_1.clone());
-        let tensor_2 = TestADTensor::from_data(data_2.clone());
-        let tensor_3 = TestADTensor::from_data(data_3.clone());
+        let tensor_1 = TestADTensor::from_data(data_1);
+        let tensor_2 = TestADTensor::from_data(data_2);
+        let tensor_3 = TestADTensor::from_data(data_3);
 
         let tensor_4 = tensor_1.div(&tensor_2);
         let tensor_5 = tensor_4.div(&tensor_3);

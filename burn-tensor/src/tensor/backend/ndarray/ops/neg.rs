@@ -9,7 +9,7 @@ where
         let minus_one = P::zero() - P::one();
         let array = self.array.clone() * minus_one;
         let array = array.into_shared();
-        let shape = self.shape.clone();
+        let shape = self.shape;
 
         Self { array, shape }
     }

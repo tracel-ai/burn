@@ -21,7 +21,7 @@ impl<P: tch::kind::Element, const D: usize> Clone for TchTensor<P, D> {
         Self {
             kind: self.kind.clone(),
             tensor: self.tensor.shallow_clone(),
-            shape: self.shape.clone(),
+            shape: self.shape,
         }
     }
 }
@@ -33,8 +33,8 @@ pub struct TchShape<const D: usize> {
 impl<const D: usize> From<Shape<D>> for TchShape<D> {
     fn from(shape: Shape<D>) -> Self {
         let mut dims = [0; D];
-        for i in 0..D {
-            dims[i] = shape.dims[i] as i64;
+        for (i, dim) in dims.iter_mut().enumerate().take(D) {
+            *dim = shape.dims[i] as i64;
         }
         TchShape { dims }
     }
@@ -43,14 +43,14 @@ impl<const D: usize> From<Shape<D>> for TchShape<D> {
 impl<const D: usize> From<Vec<i64>> for Shape<D> {
     fn from(shape: Vec<i64>) -> Self {
         let mut dims = [0; D];
-        for i in 0..D {
-            dims[i] = *shape.get(i).unwrap() as usize;
+        for (i, dim) in shape.into_iter().enumerate() {
+            dims[i] = dim as usize;
         }
         Self::new(dims)
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct TchKind<P: tch::kind::Element> {
     _p: P,
 }
@@ -67,7 +67,7 @@ impl<P: tch::kind::Element + Default> TchKind<P> {
 impl<P: tch::kind::Element + Default, const D: usize> TchTensor<P, D> {
     pub fn from_data(data: Data<P, D>, device: tch::Device) -> Self {
         let tensor = tch::Tensor::of_slice(data.value.as_slice()).to(device);
-        let shape = data.shape.clone();
+        let shape = data.shape;
         let shape_tch = TchShape::from(data.shape);
         let kind = TchKind::new();
         let tensor = tensor.reshape(&shape_tch.dims).to_kind(kind.kind());
@@ -85,10 +85,10 @@ impl<P: tch::kind::Element + Default, const D: usize> TchTensor<P, D> {
 
 impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> TchTensor<P, D> {
     pub fn empty(shape: Shape<D>) -> Self {
-        let shape_tch = TchShape::from(shape.clone());
+        let shape_tch = TchShape::from(shape);
         let device = tch::Device::Cpu;
         let kind = TchKind::new();
-        let tensor = tch::Tensor::empty(&shape_tch.dims, (kind.kind(), device.clone()));
+        let tensor = tch::Tensor::empty(&shape_tch.dims, (kind.kind(), device));
 
         lazy_static::initialize(&NO_GRAD);
         let tensor = tensor.set_requires_grad(false);
@@ -113,7 +113,7 @@ impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize>
     }
     fn to_data(&self) -> Data<P, D> {
         let values = self.tensor.shallow_clone().into();
-        Data::new(values, self.shape.clone())
+        Data::new(values, self.shape)
     }
 }
 
@@ -129,7 +129,7 @@ impl<const D: usize> TensorOpsUtilities<usize, D> for TchTensor<i64, D> {
     fn to_data(&self) -> Data<usize, D> {
         let values: Vec<i64> = self.tensor.shallow_clone().into();
         let values = values.into_iter().map(|v| v as usize).collect();
-        Data::new(values, self.shape.clone())
+        Data::new(values, self.shape)
     }
 }
 

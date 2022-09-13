@@ -21,7 +21,7 @@ impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> T
         let other = TchTensor::from_data(data, self.tensor.device());
         let tensor = (&self.tensor).sub(&other.tensor);
         let kind = self.kind.clone();
-        let shape = self.shape.clone();
+        let shape = self.shape;
 
         Self {
             tensor,

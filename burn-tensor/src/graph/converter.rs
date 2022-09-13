@@ -4,6 +4,7 @@ use crate::{
 };
 use std::{any::Any, collections::HashMap, sync::Arc};
 
+#[derive(Default)]
 pub struct Forward2BackwardGraphConverter {
     state: HashMap<String, Box<dyn Any>>,
 }
@@ -18,12 +19,9 @@ impl Forward2BackwardGraphConverter {
         &mut self,
         node: &ForwardNodeRef<T>,
     ) -> BackwardNodeRef<T> {
-        match self.state.get(&node.id) {
-            Some(node) => {
-                let node: &BackwardNodeRef<T> = node.downcast_ref().unwrap();
-                return node.clone();
-            }
-            None => {}
+        if let Some(node) = self.state.get(&node.id) {
+            let node: &BackwardNodeRef<T> = node.downcast_ref().unwrap();
+            return node.clone();
         };
 
         let node = Arc::new(BackwardNode::from_node(node, self));

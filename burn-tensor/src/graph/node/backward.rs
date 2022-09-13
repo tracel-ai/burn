@@ -41,19 +41,19 @@ where
     pub fn backward(&mut self) -> Gradients {
         let grad = self.state.value().ones();
         self.state.update_grad(grad);
-        self.ops.backward_step(&mut self.state);
+        self.ops.backward_step(&self.state);
 
-        let traversal = BreadthFirstSearch::new(&self);
+        let traversal = BreadthFirstSearch::new(self);
         let mut tape = vec![Vec::new(); self.order];
 
         traversal.traverse(|node| {
             let order = node.order();
+
             if order == 0 {
                 return;
             }
-            match tape.get_mut(order) {
-                Some(nodes) => nodes.push(node),
-                None => {}
+            if let Some(nodes) = tape.get_mut(order) {
+                nodes.push(node)
             };
         });
 
@@ -68,7 +68,7 @@ where
             }
         }
 
-        Gradients::from(&self)
+        Gradients::from(self)
     }
 }
 
@@ -91,6 +91,6 @@ where
         &self.id
     }
     fn register_grad(&self, grads: &mut Gradients) {
-        grads.register(&self)
+        grads.register(self)
     }
 }

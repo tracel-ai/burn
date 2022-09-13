@@ -156,12 +156,8 @@ mod tests {
             dataset.clone(),
             batcher.clone(),
         );
-        let dataloader_multi_thread = BatchDataLoader::multi_thread(
-            Box::new(FixBatchStrategy::new(5)),
-            dataset.clone(),
-            batcher.clone(),
-            4,
-        );
+        let dataloader_multi_thread =
+            BatchDataLoader::multi_thread(Box::new(FixBatchStrategy::new(5)), dataset, batcher, 4);
 
         let mut items_single_thread = HashSet::new();
         let mut items_multi_thread = HashSet::new();

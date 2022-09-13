@@ -48,7 +48,7 @@ where
     Ops: UnaryOps<In, Out> + std::fmt::Debug + 'static,
 {
     fn backward_step(&self, state: &BackwardNodeState<Out>) {
-        let state = UnaryOpsNodeState::new(&self.input.state, &state);
+        let state = UnaryOpsNodeState::new(&self.input.state, state);
         let partial = self.ops.partial(&state);
         self.input.state.update_grad(partial);
     }

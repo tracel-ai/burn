@@ -1,4 +1,4 @@
-use crate::tensor::backend::backend::Backend;
+use crate::tensor::backend::Backend;
 use crate::ElementConversion;
 use crate::{
     execute_ops,
@@ -27,7 +27,7 @@ impl<B: Backend, const D: usize> TensorOpsPow<B::Elem, D> for ADTensor<D, B> {
         execute_ops!(
             input self.node.clone(),
             out TensorOpsPow::powf(&self.tensor(), value),
-            ops ADTensorPowOps::<B, D>::new(value.clone()),
+            ops ADTensorPowOps::<B, D>::new(value),
         )
     }
 }
@@ -41,8 +41,8 @@ mod tests {
         let data_1 = Data::<f64, 2>::from([[0.0, 1.0], [3.0, 4.0]]);
         let data_2 = Data::<f64, 2>::from([[6.0, 7.0], [9.0, 10.0]]);
 
-        let tensor_1 = TestADTensor::from_data(data_1.clone());
-        let tensor_2 = TestADTensor::from_data(data_2.clone());
+        let tensor_1 = TestADTensor::from_data(data_1);
+        let tensor_2 = TestADTensor::from_data(data_2);
 
         let tensor_3 = tensor_1.matmul(&tensor_2.powf(0.4));
         let tensor_4 = tensor_3.matmul(&tensor_2);

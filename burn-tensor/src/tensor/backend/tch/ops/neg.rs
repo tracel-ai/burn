@@ -6,7 +6,7 @@ impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> T
     fn neg(&self) -> Self {
         let tensor = -(&self.tensor);
         let kind = self.kind.clone();
-        let shape = self.shape.clone();
+        let shape = self.shape;
 
         Self {
             tensor,

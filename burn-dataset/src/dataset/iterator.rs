@@ -3,7 +3,7 @@ use std::iter::Iterator;
 
 pub struct DatasetIterator<'a, I> {
     current: usize,
-    dataset: Box<&'a dyn Dataset<I>>,
+    dataset: &'a dyn Dataset<I>,
 }
 
 impl<'a, I> DatasetIterator<'a, I> {
@@ -13,7 +13,7 @@ impl<'a, I> DatasetIterator<'a, I> {
     {
         DatasetIterator {
             current: 0,
-            dataset: Box::new(dataset),
+            dataset,
         }
     }
 }

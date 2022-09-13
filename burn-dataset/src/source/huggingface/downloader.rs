@@ -43,13 +43,13 @@ pub fn download(
         };
     }
 
-    if config.len() > 0 {
+    if !config.is_empty() {
         command.arg("--config");
         for config in config {
             command.arg(config);
         }
     }
-    if config_named.len() > 0 {
+    if !config_named.is_empty() {
         command.arg("--config-named");
         for (key, value) in config_named {
             command.arg(format!("{}={}", key, value));

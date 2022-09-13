@@ -3,7 +3,7 @@ use crate::graph::node::{BackwardNode, BackwardNodeRef, BackwardNodeState, Forwa
 use crate::graph::ops::{
     BackwardRecordedOps, BackwardRecordedOpsRef, ForwardRecordedOps, RecordedOpsParentRef,
 };
-use crate::tensor::backend::backend::Backend;
+use crate::tensor::backend::Backend;
 use crate::tensor::{backend::autodiff::ADTensor, ops::*};
 use std::convert::TryInto;
 use std::sync::Arc;
@@ -44,7 +44,7 @@ impl<const D: usize, B: Backend> BackwardRecordedOps<B::TensorPrimitive<D>>
 {
     fn backward_step(&self, state: &BackwardNodeState<B::TensorPrimitive<D>>) {
         let grad = state.grad();
-        let indexes: Vec<_> = grad.shape().dims.iter().map(|v| 0..v.clone()).collect();
+        let indexes: Vec<_> = grad.shape().dims.iter().map(|v| 0..*v).collect();
         let indexes: [std::ops::Range<usize>; D] = indexes.try_into().unwrap();
 
         for (i, node) in self.nodes.iter().enumerate() {
@@ -76,7 +76,7 @@ impl<B: Backend, const D: usize> TensorOpsCat<B::Elem, D> for ADTensor<D, B> {
 
         let out = TensorOpsCat::cat(tensors_inner_ref, dim);
 
-        let shape = out.shape().clone();
+        let shape = *out.shape();
         let state = crate::graph::node::ForwardNodeState::new(out);
 
         let ops = ForwardCatOps::<D, B>::new(nodes, dim);
@@ -98,8 +98,8 @@ mod tests {
         let data_1 = Data::<_, 2>::from([[2.0, -1.0], [5.0, 2.0]]);
         let data_2 = Data::<_, 2>::from([[5.0, 4.0], [-1.0, 4.0]]);
 
-        let tensor_1 = TestADTensor::from_data(data_1.clone());
-        let tensor_2 = TestADTensor::from_data(data_2.clone());
+        let tensor_1 = TestADTensor::from_data(data_1);
+        let tensor_2 = TestADTensor::from_data(data_2);
 
         let tensor_3 = tensor_1.matmul(&tensor_2);
         let grads = tensor_3.backward();

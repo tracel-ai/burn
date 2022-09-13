@@ -1,4 +1,4 @@
-use crate::tensor::backend::backend::Backend;
+use crate::tensor::backend::Backend;
 use crate::{
     execute_ops,
     graph::ops::{BinaryOps, BinaryOpsNodeState, UnaryOps, UnaryOpsNodeState},
@@ -38,8 +38,8 @@ impl<B: Backend, const D: usize> TensorOpsMul<B::Elem, D> for ADTensor<D, B> {
     fn mul_scalar(&self, other: &B::Elem) -> Self {
         execute_ops!(
             input self.node.clone(),
-            out TensorOpsMul::mul_scalar(&self.tensor(), &other),
-            ops ADTensorMulScalarOps::<B, D>::new(other.clone()),
+            out TensorOpsMul::mul_scalar(&self.tensor(), other),
+            ops ADTensorMulScalarOps::<B, D>::new(*other),
         )
     }
 }
@@ -56,7 +56,7 @@ mod tests {
         let tensor_1 = TestADTensor::from_data(data_1.clone());
         let tensor_2 = TestADTensor::from_data(data_2.clone());
 
-        let tensor_3 = tensor_1.clone().mul(&tensor_2);
+        let tensor_3 = tensor_1.mul(&tensor_2);
         let grads = tensor_3.backward();
 
         let grad_1 = tensor_1.grad(&grads).unwrap();
@@ -71,8 +71,8 @@ mod tests {
     fn should_diff_mul_scalar() {
         let data = Data::from([2.0, 5.0]);
 
-        let tensor = TestADTensor::from_data(data.clone());
-        let tensor_out = tensor.clone().mul_scalar(&4.0);
+        let tensor = TestADTensor::from_data(data);
+        let tensor_out = tensor.mul_scalar(&4.0);
 
         let grads = tensor_out.backward();
         let grad = tensor.grad(&grads).unwrap();
@@ -87,9 +87,9 @@ mod tests {
         let data_2: Data<f64, 2> = Data::from([[4.0, 7.0], [2.0, 3.0]]);
         let data_3: Data<f64, 2> = Data::from([[2.0, 2.0], [2.0, 2.0]]);
 
-        let tensor_1 = TestADTensor::from_data(data_1.clone());
-        let tensor_2 = TestADTensor::from_data(data_2.clone());
-        let tensor_3 = TestADTensor::from_data(data_3.clone());
+        let tensor_1 = TestADTensor::from_data(data_1);
+        let tensor_2 = TestADTensor::from_data(data_2);
+        let tensor_3 = TestADTensor::from_data(data_3);
 
         let tensor_4 = tensor_1.mul(&tensor_2);
         let tensor_5 = tensor_4.mul(&tensor_3);
