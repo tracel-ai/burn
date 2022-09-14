@@ -242,10 +242,22 @@ where
         stats::var(self, dim)
     }
 
+    /// Calculate the variance along the given dimension without applying the Bessel’s correction.
+    pub fn var_bias(&self, dim: usize) -> Self {
+        stats::var_bias(self, dim)
+    }
+
     /// Calculate the variance along the given dimension and also returns the mean.
     pub fn var_mean(&self, dim: usize) -> (Self, Self) {
         let mean = self.mean_dim(dim);
         let var = stats::var_with_mean(self, &mean, dim);
+        (var, mean)
+    }
+
+    /// Calculate the variance along the given dimension without applying the Bessel’s correction and also returns the mean.
+    pub fn var_mean_bias(&self, dim: usize) -> (Self, Self) {
+        let mean = self.mean_dim(dim);
+        let var = stats::var_with_mean_bias(self, &mean, dim);
         (var, mean)
     }
 

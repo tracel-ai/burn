@@ -1,6 +1,6 @@
 macro_rules! config {
     ($item:item) => {
-        #[derive(new, serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq)]
+        #[derive(new, serde::Serialize, serde::Deserialize, Clone, Debug)]
         $item
     };
 }

@@ -1,9 +1,10 @@
-use crate::tensor::{backend::tch::TchTensor, ops::*, Data};
+use crate::{
+    tensor::{backend::tch::TchTensor, ops::*},
+    TchElement,
+};
 use std::ops::Add;
 
-impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> TensorOpsAdd<P, D>
-    for TchTensor<P, D>
-{
+impl<P: TchElement, const D: usize> TensorOpsAdd<P, D> for TchTensor<P, D> {
     fn add(&self, other: &Self) -> Self {
         let tensor = (&self.tensor).add(&other.tensor);
         let kind = self.kind.clone();
@@ -16,10 +17,8 @@ impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> T
         }
     }
     fn add_scalar(&self, other: &P) -> Self {
-        let elems: [P; D] = [*other; D];
-        let data = Data::from(elems);
-        let other = TchTensor::from_data(data, self.tensor.device());
-        let tensor = (&self.tensor).add(&other.tensor);
+        let other: f64 = (other.clone()).to_elem();
+        let tensor = (&self.tensor).add(other);
         let kind = self.kind.clone();
         let shape = self.shape;
 
@@ -31,9 +30,7 @@ impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> T
     }
 }
 
-impl<P: tch::kind::Element + Default + std::fmt::Debug + Copy, const D: usize> std::ops::Add<Self>
-    for TchTensor<P, D>
-{
+impl<P: TchElement, const D: usize> std::ops::Add<Self> for TchTensor<P, D> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -41,9 +38,7 @@ impl<P: tch::kind::Element + Default + std::fmt::Debug + Copy, const D: usize> s
     }
 }
 
-impl<P: tch::kind::Element + Default + std::fmt::Debug + Copy, const D: usize> std::ops::Add<P>
-    for TchTensor<P, D>
-{
+impl<P: TchElement, const D: usize> std::ops::Add<P> for TchTensor<P, D> {
     type Output = Self;
 
     fn add(self, rhs: P) -> Self::Output {
