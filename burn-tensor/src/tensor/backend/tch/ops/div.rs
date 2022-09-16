@@ -6,7 +6,7 @@ use std::ops::Div;
 
 impl<P: Element + tch::kind::Element, const D: usize> TensorOpsDiv<P, D> for TchTensor<P, D> {
     fn div(&self, other: &Self) -> Self {
-        let tensor = (&self.tensor) / &other.tensor;
+        let tensor = (&self.tensor).div(&other.tensor);
         let shape = self.shape.higher(&other.shape);
         let kind = self.kind.clone();
 

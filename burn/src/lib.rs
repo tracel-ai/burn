@@ -11,4 +11,6 @@ pub mod train;
 pub(crate) mod macros;
 
 #[cfg(test)]
-pub type TestBackend = crate::tensor::backend::NdArrayBackend<f32>;
+pub type TestBackend = crate::tensor::backend::TchBackend<f32>;
+#[cfg(test)]
+pub type TestADBackend = crate::tensor::backend::TchADBackend<f32>;

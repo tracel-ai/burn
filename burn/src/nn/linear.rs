@@ -8,13 +8,20 @@ use crate::tensor::{Distribution, ElementConversion, Shape, Tensor};
 use std::ops::Deref;
 
 config!(
+    /// Configuration to create a [Linear](Linear) layer.
     pub struct LinearConfig {
+        /// The size of the input features.
         pub d_input: usize,
+        /// The size of the output features.
         pub d_output: usize,
+        /// If a bias should be applied during the linear transformation.
         pub bias: bool,
     }
 );
 
+/// Applies a linear transformation to the input tensor:
+///
+/// `O = IW + b`
 #[derive(Module, Debug)]
 pub struct Linear<B: Backend> {
     weight: Param<Tensor<B, 2>>,

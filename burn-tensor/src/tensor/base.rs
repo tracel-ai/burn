@@ -42,21 +42,21 @@ where
         self.value.device()
     }
 
-    /// Apply element wise exponential operation.
+    /// Applies element wise exponential operation.
     ///
     /// `y = e^x`
     pub fn exp(&self) -> Self {
         Self::new(self.value.exp())
     }
 
-    /// Apply element wise natural log operation *ln*.
+    /// Applies element wise natural log operation *ln*.
     ///
     /// `y = log(x)`
     pub fn log(&self) -> Self {
         Self::new(self.value.log())
     }
 
-    /// Apply element wise power operation.
+    /// Applies element wise power operation.
     ///
     /// `y = x^a`
     pub fn powf(&self, value: f32) -> Self {
@@ -132,35 +132,35 @@ where
         tensor.index_assign(ranges, &Tensor::ones(Shape::new([1; D])))
     }
 
-    /// Apply element wise addition operation.
+    /// Applies element wise addition operation.
     ///
     /// `y = x2 + x1`
     pub fn add(&self, other: &Self) -> Self {
         Self::new(self.value.add(&other.value))
     }
 
-    /// Apply element wise addition operation with a scalar.
+    /// Applies element wise addition operation with a scalar.
     ///
     /// `y = x + s`
     pub fn add_scalar(&self, other: &B::Elem) -> Self {
         Self::new(self.value.add_scalar(other))
     }
 
-    /// Apply element wise substraction operation.
+    /// Applies element wise substraction operation.
     ///
     /// `y = x2 - x1`
     pub fn sub(&self, other: &Self) -> Self {
         Self::new(self.value.sub(&other.value))
     }
 
-    /// Apply element wise substraction operation with a scalar.
+    /// Applies element wise substraction operation with a scalar.
     ///
     /// `y = x - s`
     pub fn sub_scalar(&self, other: &B::Elem) -> Self {
         Self::new(self.value.sub_scalar(other))
     }
 
-    /// Apply the transpose operation.
+    /// Applies the transpose operation.
     ///
     /// On matrix and higher dimension tensor, it swap the last two dimensions.
     ///
@@ -171,7 +171,7 @@ where
         Self::new(self.value.transpose())
     }
 
-    /// Apply the matrix multiplication operation.
+    /// Applies the matrix multiplication operation.
     ///
     /// `C = AB`
     ///
@@ -189,28 +189,28 @@ where
         Self::new(self.value.neg())
     }
 
-    /// Apply element wise multiplication operation.
+    /// Applies element wise multiplication operation.
     ///
     /// `y = x2 * x1`
     pub fn mul(&self, other: &Self) -> Self {
         Self::new(self.value.mul(&other.value))
     }
 
-    /// Apply element wise multiplication operation with scalar.
+    /// Applies element wise multiplication operation with scalar.
     ///
     /// `y = x2 * x1`
     pub fn mul_scalar(&self, other: &B::Elem) -> Self {
         Self::new(self.value.mul_scalar(other))
     }
 
-    /// Apply element wise division operation.
+    /// Applies element wise division operation.
     ///
     /// `y = x2 / x1`
     pub fn div(&self, other: &Self) -> Self {
         Self::new(self.value.div(&other.value))
     }
 
-    /// Apply element wise division operation with scalar.
+    /// Applies element wise division operation with scalar.
     ///
     /// `y = x2 / x1`
     pub fn div_scalar(&self, other: &B::Elem) -> Self {
@@ -242,6 +242,11 @@ where
         stats::var(self, dim)
     }
 
+    /// Calculate the variance along the given dimension without applying the Bessel’s correction.
+    pub fn var_bias(&self, dim: usize) -> Self {
+        stats::var_bias(self, dim)
+    }
+
     /// Calculate the variance along the given dimension and also returns the mean.
     pub fn var_mean(&self, dim: usize) -> (Self, Self) {
         let mean = self.mean_dim(dim);
@@ -249,7 +254,14 @@ where
         (var, mean)
     }
 
-    /// Apply element wise equal comparison and returns a boolean tensor.
+    /// Calculate the variance along the given dimension without applying the Bessel’s correction and also returns the mean.
+    pub fn var_mean_bias(&self, dim: usize) -> (Self, Self) {
+        let mean = self.mean_dim(dim);
+        let var = stats::var_with_mean_bias(self, &mean, dim);
+        (var, mean)
+    }
+
+    /// Applies element wise equal comparison and returns a boolean tensor.
     ///
     /// # Panics
     ///
@@ -258,7 +270,7 @@ where
         BoolTensor::new(self.value.equal(&other.value))
     }
 
-    /// Apply element wise greater comparison and returns a boolean tensor.
+    /// Applies element wise greater comparison and returns a boolean tensor.
     ///
     /// # Panics
     ///
@@ -267,7 +279,7 @@ where
         BoolTensor::new(self.value.greater(&other.value))
     }
 
-    /// Apply element wise greater-equal comparison and returns a boolean tensor.
+    /// Applies element wise greater-equal comparison and returns a boolean tensor.
     ///
     /// # Panics
     ///
@@ -276,7 +288,7 @@ where
         BoolTensor::new(self.value.greater_equal(&other.value))
     }
 
-    /// Apply element wise lower comparison and returns a boolean tensor.
+    /// Applies element wise lower comparison and returns a boolean tensor.
     ///
     /// # Panics
     ///
@@ -285,7 +297,7 @@ where
         BoolTensor::new(self.value.lower(&other.value))
     }
 
-    /// Apply element wise lower-equal comparison and returns a boolean tensor.
+    /// Applies element wise lower-equal comparison and returns a boolean tensor.
     ///
     /// # Panics
     ///
@@ -294,27 +306,27 @@ where
         BoolTensor::new(self.value.lower_equal(&other.value))
     }
 
-    /// Apply element wise equal comparison and returns a boolean tensor.
+    /// Applies element wise equal comparison and returns a boolean tensor.
     pub fn equal_scalar(&self, other: &B::Elem) -> BoolTensor<B, D> {
         BoolTensor::new(self.value.equal_scalar(other))
     }
 
-    /// Apply element wise greater comparison and returns a boolean tensor.
+    /// Applies element wise greater comparison and returns a boolean tensor.
     pub fn greater_scalar(&self, other: &B::Elem) -> BoolTensor<B, D> {
         BoolTensor::new(self.value.greater_scalar(other))
     }
 
-    /// Apply element wise greater-equal comparison and returns a boolean tensor.
+    /// Applies element wise greater-equal comparison and returns a boolean tensor.
     pub fn greater_equal_scalar(&self, other: &B::Elem) -> BoolTensor<B, D> {
         BoolTensor::new(self.value.greater_equal_scalar(other))
     }
 
-    /// Apply element wise lower comparison and returns a boolean tensor.
+    /// Applies element wise lower comparison and returns a boolean tensor.
     pub fn lower_scalar(&self, other: &B::Elem) -> BoolTensor<B, D> {
         BoolTensor::new(self.value.lower_scalar(other))
     }
 
-    /// Apply element wise lower-equal comparison and returns a boolean tensor.
+    /// Applies element wise lower-equal comparison and returns a boolean tensor.
     pub fn lower_equal_scalar(&self, other: &B::Elem) -> BoolTensor<B, D> {
         BoolTensor::new(self.value.lower_equal_scalar(other))
     }
@@ -407,7 +419,7 @@ where
         Tensor::new(value)
     }
 
-    /// Apply the argmax function along the given dimension and returns an integer tensor.
+    /// Applies the argmax function along the given dimension and returns an integer tensor.
     ///
     /// # Example
     ///
@@ -426,7 +438,7 @@ where
         Tensor::new(self.value.argmax(dim))
     }
 
-    /// Apply the argmin function along the given dimension and returns an integer tensor.
+    /// Applies the argmin function along the given dimension and returns an integer tensor.
     ///
     /// # Example
     ///
