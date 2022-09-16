@@ -1,4 +1,4 @@
-use crate::{Dataset, DatasetIterator};
+use crate::Dataset;
 
 pub struct ComposedDataset<I> {
     datasets: Vec<Box<dyn Dataset<I>>>,
@@ -24,26 +24,11 @@ where
         }
         None
     }
-    fn iter(&self) -> DatasetIterator<'_, I> {
-        DatasetIterator::new(self)
-    }
     fn len(&self) -> usize {
         let mut total = 0;
         for dataset in self.datasets.iter() {
             total += dataset.len();
         }
         total
-    }
-
-    fn is_empty(&self) -> bool {
-        let mut is_empty = true;
-
-        for dataset in self.datasets.iter() {
-            if !dataset.is_empty() {
-                is_empty = false;
-            }
-        }
-
-        is_empty
     }
 }

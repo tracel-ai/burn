@@ -1,4 +1,4 @@
-use crate::{Dataset, DatasetIterator};
+use crate::Dataset;
 use std::sync::Arc;
 
 pub struct PartialDataset<I> {
@@ -51,16 +51,8 @@ where
         self.dataset.get(index)
     }
 
-    fn iter(&self) -> DatasetIterator<'_, I> {
-        DatasetIterator::new(self)
-    }
-
     fn len(&self) -> usize {
         usize::min(self.end_index - self.start_index, self.dataset.len())
-    }
-
-    fn is_empty(&self) -> bool {
-        self.dataset.is_empty()
     }
 }
 
