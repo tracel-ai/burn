@@ -50,7 +50,7 @@ macro_rules! define_impl {
                 distribution: Distribution<Self::Elem>,
                 device: Self::Device,
             ) -> Self::TensorPrimitive<D> {
-                Self::from_data(Data::random(shape, distribution), device)
+                Self::from_inner(<$backend as Backend>::random(shape, distribution, device))
             }
 
             fn ad_enabled() -> bool {
@@ -61,14 +61,14 @@ macro_rules! define_impl {
                 shape: Shape<D>,
                 device: Self::Device,
             ) -> Self::TensorPrimitive<D> {
-                Self::from_data(Data::zeros(shape), device)
+                Self::from_inner(<$backend as Backend>::zeros(shape, device))
             }
 
             fn ones<const D: usize>(
                 shape: Shape<D>,
                 device: Self::Device,
             ) -> Self::TensorPrimitive<D> {
-                Self::from_data(Data::ones(shape), device)
+                Self::from_inner(<$backend as Backend>::ones(shape, device))
             }
 
             fn name() -> String {
