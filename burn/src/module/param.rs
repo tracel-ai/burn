@@ -65,6 +65,16 @@ impl<const D: usize, B: Backend> Param<Tensor<B, D>> {
         optim.update(&self.id, &mut self.value, grads);
     }
 
+    pub fn load_optim_state<O: Optimizer<Backend = B>>(
+        &self,
+        optim: &mut O,
+        state_optim: &StateNamed<B::Elem>,
+    ) where
+        B: ADBackend,
+    {
+        optim.load_state::<D>(&self.id, state_optim, &self.value.device());
+    }
+
     pub fn devices(&self) -> Vec<B::Device> {
         vec![self.value.device()]
     }
@@ -116,6 +126,18 @@ impl<const D: usize, B: Backend> Param<Option<Tensor<B, D>>> {
     {
         if let Some(value) = &mut self.value {
             optim.update(&self.id, value, grads);
+        }
+    }
+
+    pub fn load_optim_state<O: Optimizer<Backend = B>>(
+        &self,
+        optim: &mut O,
+        state_optim: &StateNamed<B::Elem>,
+    ) where
+        B: ADBackend,
+    {
+        if let Some(value) = &self.value {
+            optim.load_state::<D>(&self.id, state_optim, &value.device());
         }
     }
 
@@ -188,6 +210,16 @@ impl<M: Module> Param<M> {
         self.value.update_params(grads, optim);
     }
 
+    pub fn load_optim_state<O: Optimizer<Backend = M::Backend>>(
+        &self,
+        optim: &mut O,
+        state_optim: &StateNamed<<M::Backend as Backend>::Elem>,
+    ) where
+        M::Backend: ADBackend,
+    {
+        self.value.load_optim_state(optim, state_optim);
+    }
+
     pub fn devices(&self) -> Vec<<M::Backend as Backend>::Device> {
         self.value.devices()
     }
@@ -240,6 +272,18 @@ impl<M: Module> Param<Vec<M>> {
     {
         for module in self.value.iter_mut() {
             module.update_params(grads, optim);
+        }
+    }
+
+    pub fn load_optim_state<O: Optimizer<Backend = M::Backend>>(
+        &self,
+        optim: &mut O,
+        state_optim: &StateNamed<<M::Backend as Backend>::Elem>,
+    ) where
+        M::Backend: ADBackend,
+    {
+        for module in self.value.iter() {
+            module.load_optim_state(optim, state_optim);
         }
     }
 
