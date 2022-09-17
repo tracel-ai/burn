@@ -1,3 +1,4 @@
+pub mod decay;
 pub mod momentum;
 
 mod adam;

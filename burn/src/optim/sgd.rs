@@ -1,3 +1,4 @@
+use super::decay::{WeightDecay, WeightDecayConfig};
 use super::momentum::{Momentum, MomentumConfig};
 use crate::macros::config;
 use crate::module::ParamId;
@@ -10,8 +11,8 @@ config!(
     pub struct SgdConfig {
         /// Learning rate for the optimizer.
         pub learning_rate: f64,
-        /// Weight decay, L2 penalty.
-        pub weight_decay: f64,
+        /// [Weight decay](WeightDecayConfig) config.
+        pub weight_decay: Option<WeightDecayConfig>,
         /// [Momentum](MomentumConfig) config.
         pub momentum: Option<MomentumConfig>,
     }
@@ -23,16 +24,22 @@ config!(
 pub struct Sgd<B: ADBackend> {
     learning_rate: B::Elem,
     momentum: Option<Momentum<B>>,
+    weight_decay: Option<WeightDecay<B>>,
 }
 
 impl<B: ADBackend> Sgd<B> {
     pub fn new(config: &SgdConfig) -> Self {
         let learning_rate = config.learning_rate.to_elem();
         let momentum = config.momentum.as_ref().map(|config| Momentum::new(config));
+        let weight_decay = config
+            .weight_decay
+            .as_ref()
+            .map(|config| WeightDecay::new(config));
 
         Self {
             learning_rate,
             momentum,
+            weight_decay,
         }
     }
 }
@@ -46,6 +53,10 @@ impl<B: ADBackend> Optimizer for Sgd<B> {
         grads: &Gradients,
     ) {
         let grad = tensor.grad(grads).unwrap();
+        let grad = match &mut self.weight_decay {
+            Some(weight_decay) => weight_decay.transform(id, grad),
+            None => grad,
+        };
         let grad = match &mut self.momentum {
             Some(momentum) => momentum.transform(id, grad),
             None => grad,

@@ -3,6 +3,7 @@ use burn::data::dataloader::DataLoaderBuilder;
 use burn::data::dataset::source::huggingface::{MNISTDataset, MNISTItem};
 use burn::module::{Forward, Module, Param};
 use burn::nn;
+use burn::optim::decay::WeightDecayConfig;
 use burn::optim::momentum::MomentumConfig;
 use burn::optim::{Sgd, SgdConfig};
 use burn::tensor::backend::{ADBackend, Backend};
@@ -147,8 +148,7 @@ impl<B: Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
 
 fn run<B: ADBackend>(device: B::Device) {
     let batch_size = 128;
-    let learning_rate = 5.5e-2;
-    let num_epochs = 10;
+    let num_epochs = 15;
     let num_workers = 8;
     let num_layers = 4;
     let hidden_dim = 1024;
@@ -165,8 +165,8 @@ fn run<B: ADBackend>(device: B::Device) {
     );
 
     let optim: Sgd<B> = Sgd::new(&SgdConfig {
-        learning_rate,
-        weight_decay: 0.0,
+        learning_rate: 2.5e-2,
+        weight_decay: Some(WeightDecayConfig { penalty: 0.005 }),
         momentum: Some(MomentumConfig {
             momentum: 0.9,
             dampening: 0.1,
