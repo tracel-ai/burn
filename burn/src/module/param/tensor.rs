@@ -25,7 +25,17 @@ impl<const D: usize, B: Backend> Param<Tensor<B, D>> {
     ) where
         B: ADBackend,
     {
-        optim.load_state::<D>(&self.id, state_optim, &self.value.device());
+        optim.load_param_state::<D>(&self.id, state_optim, &self.value.device());
+    }
+
+    pub fn register_optim_state<O: Optimizer<Backend = B>>(
+        &self,
+        optim: &O,
+        state_optim: &mut StateNamed<B::Elem>,
+    ) where
+        B: ADBackend,
+    {
+        optim.register_param_state::<D>(&self.id, state_optim);
     }
 
     pub fn devices(&self) -> Vec<B::Device> {
@@ -90,7 +100,19 @@ impl<const D: usize, B: Backend> Param<Option<Tensor<B, D>>> {
         B: ADBackend,
     {
         if let Some(value) = &self.value {
-            optim.load_state::<D>(&self.id, state_optim, &value.device());
+            optim.load_param_state::<D>(&self.id, state_optim, &value.device());
+        }
+    }
+
+    pub fn register_optim_state<O: Optimizer<Backend = B>>(
+        &self,
+        optim: &O,
+        state_optim: &mut StateNamed<B::Elem>,
+    ) where
+        B: ADBackend,
+    {
+        if let Some(_) = &self.value {
+            optim.register_param_state::<D>(&self.id, state_optim);
         }
     }
 

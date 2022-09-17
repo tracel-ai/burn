@@ -1,6 +1,14 @@
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
 pub struct ParamId {
-    pub(crate) value: String,
+    value: String,
+}
+
+impl From<&str> for ParamId {
+    fn from(val: &str) -> Self {
+        Self {
+            value: val.to_string(),
+        }
+    }
 }
 
 impl Default for ParamId {

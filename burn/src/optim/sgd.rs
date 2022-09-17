@@ -67,13 +67,13 @@ impl<B: ADBackend> Optimizer for Sgd<B> {
         tensor.update(tensor.inner() - delta);
     }
 
-    fn register_state<const D: usize>(&self, id: &ParamId, state: &mut StateNamed<B::Elem>) {
+    fn register_param_state<const D: usize>(&self, id: &ParamId, state: &mut StateNamed<B::Elem>) {
         if let Some(momentum) = &self.momentum {
             momentum.register_state::<D>(id, state);
         }
     }
 
-    fn load_state<const D: usize>(
+    fn load_param_state<const D: usize>(
         &mut self,
         id: &ParamId,
         state: &StateNamed<B::Elem>,

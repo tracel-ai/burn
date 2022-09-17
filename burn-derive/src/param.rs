@@ -84,6 +84,24 @@ impl Param {
         }
     }
 
+    pub fn gen_register_optim_state_fn(&self) -> TokenStream {
+        let mut body = quote! {};
+        for field in self.fields_param.iter() {
+            let name = field.ident();
+            body.extend(quote! {
+                self.#name.register_optim_state(optim, state_optim);
+            });
+        }
+
+        quote! {
+            fn register_optim_state<O: burn::optim::Optimizer<Backend = B>>(&self, optim: &O, state_optim: &mut burn::module::StateNamed<B::Elem>)
+                where
+                B: burn::tensor::backend::ADBackend {
+                #body
+            }
+        }
+    }
+
     pub fn gen_devices_fn(&self) -> TokenStream {
         let mut body = quote! {
             let mut devices = Vec::new();

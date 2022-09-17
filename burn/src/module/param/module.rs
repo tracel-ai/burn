@@ -31,6 +31,16 @@ impl<M: Module> Param<M> {
         self.value.load_optim_state(optim, state_optim);
     }
 
+    pub fn register_optim_state<O: Optimizer<Backend = M::Backend>>(
+        &self,
+        optim: &O,
+        state_optim: &mut StateNamed<<M::Backend as Backend>::Elem>,
+    ) where
+        M::Backend: ADBackend,
+    {
+        self.value.register_optim_state(optim, state_optim);
+    }
+
     pub fn devices(&self) -> Vec<<M::Backend as Backend>::Device> {
         self.value.devices()
     }
@@ -95,6 +105,17 @@ impl<M: Module> Param<Vec<M>> {
     {
         for module in self.value.iter() {
             module.load_optim_state(optim, state_optim);
+        }
+    }
+    pub fn register_optim_state<O: Optimizer<Backend = M::Backend>>(
+        &self,
+        optim: &O,
+        state_optim: &mut StateNamed<<M::Backend as Backend>::Elem>,
+    ) where
+        M::Backend: ADBackend,
+    {
+        for module in self.value.iter() {
+            module.register_optim_state(optim, state_optim);
         }
     }
 

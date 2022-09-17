@@ -34,12 +34,12 @@ pub trait Module: Send + Sync + std::fmt::Debug + std::fmt::Display {
         state_optim: &StateNamed<<Self::Backend as Backend>::Elem>,
     ) where
         Self::Backend: ADBackend;
-    // fn register_optim_state<O: Optimizer<Backend = Self::Backend>>(
-    //     &self,
-    //     optim: &mut O,
-    //     state_optim: &mut StateNamed<<Self::Backend as Backend>::Elem>,
-    // ) where
-    //     Self::Backend: ADBackend;
+    fn register_optim_state<O: Optimizer<Backend = Self::Backend>>(
+        &self,
+        optim: &O,
+        state_optim: &mut StateNamed<<Self::Backend as Backend>::Elem>,
+    ) where
+        Self::Backend: ADBackend;
     fn devices(&self) -> Vec<<Self::Backend as Backend>::Device>;
     fn to_device(&mut self, device: <Self::Backend as Backend>::Device);
     fn name(&self) -> &str;

@@ -91,7 +91,7 @@ where
         };
 
         match serde_json::from_value::<String>(value.clone()) {
-            Ok(id) => Ok(State::ParamId(ParamId { value: id.clone() })),
+            Ok(id) => Ok(State::ParamId(ParamId::from(id.as_str()))),
             Err(_) => Err(StateError::InvalidFormat(format!(
                 "Invalid value {:?}",
                 value

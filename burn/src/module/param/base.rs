@@ -4,8 +4,8 @@ use crate::tensor::Element;
 
 #[derive(Debug)]
 pub struct Param<T> {
-    pub(crate) id: ParamId,
-    pub(crate) value: T,
+    pub(super) id: ParamId,
+    pub(super) value: T,
 }
 
 impl<T> Param<T> {

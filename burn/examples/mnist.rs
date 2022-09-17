@@ -5,7 +5,7 @@ use burn::module::{Forward, Module, Param, State};
 use burn::nn;
 use burn::optim::decay::WeightDecayConfig;
 use burn::optim::momentum::MomentumConfig;
-use burn::optim::{Sgd, SgdConfig};
+use burn::optim::{Optimizer, Sgd, SgdConfig};
 use burn::tensor::backend::{ADBackend, Backend};
 use burn::tensor::loss::cross_entropy_with_logits;
 use burn::tensor::{Data, ElementConversion, Shape, Tensor};
@@ -154,8 +154,13 @@ fn run<B: ADBackend>(device: B::Device) {
     let hidden_dim = 1024;
     let seed = 42;
 
+    let state_model = State::<f32>::load("/tmp/mnist_state_model").unwrap();
+    let state_optim = State::<f32>::load("/tmp/mnist_state_optim").unwrap();
+
     let mut model = Model::new(784, hidden_dim, num_layers, 10);
     model.to_device(device);
+    model.load(&state_model.convert()).unwrap();
+
     println!(
         "Training '{}' with {} params on backend {} {:?}",
         model.name(),
@@ -164,7 +169,7 @@ fn run<B: ADBackend>(device: B::Device) {
         device,
     );
 
-    let optim = Sgd::new(&SgdConfig {
+    let mut optim = Sgd::new(&SgdConfig {
         learning_rate: 2.5e-2,
         weight_decay: Some(WeightDecayConfig { penalty: 0.01 }),
         momentum: Some(MomentumConfig {
@@ -173,6 +178,8 @@ fn run<B: ADBackend>(device: B::Device) {
             nesterov: true,
         }),
     });
+    optim.load(&model, &state_optim.convert()).unwrap();
+
     let batcher_train = Arc::new(MNISTBatcher::<B> { device });
     let batcher_valid = Arc::new(MNISTBatcher::<B::InnerBackend> { device });
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
@@ -213,8 +220,11 @@ fn run<B: ADBackend>(device: B::Device) {
     );
 
     let learned = trainer.run(num_epochs);
-    let state: State<f32> = learned.model.state().convert();
-    state.save("/tmp/mnist_weights").unwrap();
+    let state_model: State<f32> = learned.model.state().convert();
+    let state_optim: State<f32> = learned.optim.state(&learned.model).convert();
+
+    state_model.save("/tmp/mnist_state_model").unwrap();
+    state_optim.save("/tmp/mnist_state_optim").unwrap();
 }
 
 fn main() {
