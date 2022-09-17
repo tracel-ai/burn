@@ -1,4 +1,4 @@
-use crate::{Dataset, DatasetIterator};
+use crate::Dataset;
 use rand::{prelude::SliceRandom, rngs::StdRng, SeedableRng};
 use std::sync::Arc;
 
@@ -36,15 +36,7 @@ where
         self.dataset.get(*index)
     }
 
-    fn iter(&self) -> DatasetIterator<'_, I> {
-        DatasetIterator::new(self)
-    }
-
     fn len(&self) -> usize {
         self.dataset.len()
-    }
-
-    fn is_empty(&self) -> bool {
-        self.dataset.is_empty()
     }
 }

@@ -1,6 +1,6 @@
 use super::NdArrayTensor;
+use crate::tensor::Data;
 use crate::tensor::{backend::Backend, NdArrayElement};
-use crate::tensor::{Data, Distribution, Shape};
 
 #[derive(Clone, Copy, Debug)]
 pub enum NdArrayDevice {
@@ -39,22 +39,6 @@ impl<E: NdArrayElement> Backend for NdArrayBackend<E> {
         _device: Self::Device,
     ) -> Self::BoolTensorPrimitive<D> {
         NdArrayTensor::from_data(data)
-    }
-
-    fn random<const D: usize>(
-        shape: Shape<D>,
-        distribution: Distribution<Self::Elem>,
-        device: Self::Device,
-    ) -> Self::TensorPrimitive<D> {
-        Self::from_data(Data::random(shape, distribution), device)
-    }
-
-    fn zeros<const D: usize>(shape: Shape<D>, device: Self::Device) -> Self::TensorPrimitive<D> {
-        Self::from_data(Data::zeros(shape), device)
-    }
-
-    fn ones<const D: usize>(shape: Shape<D>, device: Self::Device) -> Self::TensorPrimitive<D> {
-        Self::from_data(Data::ones(shape), device)
     }
 
     fn ad_enabled() -> bool {

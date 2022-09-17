@@ -1,6 +1,6 @@
 use super::downloader::cache_dir;
 use crate::source::huggingface::downloader::{download, Extractor};
-use crate::{Dataset, DatasetIterator, InMemDataset};
+use crate::{Dataset, InMemDataset};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -14,20 +14,12 @@ pub struct MNISTDataset {
 }
 
 impl Dataset<MNISTItem> for MNISTDataset {
-    fn iter(&self) -> crate::DatasetIterator<'_, MNISTItem> {
-        DatasetIterator::new(self)
-    }
-
     fn get(&self, index: usize) -> Option<MNISTItem> {
         self.dataset.get(index)
     }
 
     fn len(&self) -> usize {
         self.dataset.len()
-    }
-
-    fn is_empty(&self) -> bool {
-        self.dataset.is_empty()
     }
 }
 

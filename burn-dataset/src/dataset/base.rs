@@ -1,8 +1,15 @@
 use crate::DatasetIterator;
 
 pub trait Dataset<I>: Send + Sync {
-    fn iter(&self) -> DatasetIterator<'_, I>;
     fn get(&self, index: usize) -> Option<I>;
     fn len(&self) -> usize;
-    fn is_empty(&self) -> bool;
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+    fn iter(&self) -> DatasetIterator<'_, I>
+    where
+        Self: Sized,
+    {
+        DatasetIterator::new(self)
+    }
 }

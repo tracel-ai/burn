@@ -60,18 +60,24 @@ pub trait Backend: Clone + Sized + Default + Send + Sync + std::fmt::Debug + 'st
         device: Self::Device,
     ) -> Self::BoolTensorPrimitive<D>;
 
+    fn ad_enabled() -> bool;
+    fn name() -> String;
+
     fn random<const D: usize>(
         shape: Shape<D>,
         distribution: Distribution<Self::Elem>,
         device: Self::Device,
-    ) -> Self::TensorPrimitive<D>;
+    ) -> Self::TensorPrimitive<D> {
+        Self::from_data(Data::random(shape, distribution), device)
+    }
 
-    fn zeros<const D: usize>(shape: Shape<D>, device: Self::Device) -> Self::TensorPrimitive<D>;
+    fn zeros<const D: usize>(shape: Shape<D>, device: Self::Device) -> Self::TensorPrimitive<D> {
+        Self::from_data(Data::zeros(shape), device)
+    }
 
-    fn ones<const D: usize>(shape: Shape<D>, device: Self::Device) -> Self::TensorPrimitive<D>;
-
-    fn ad_enabled() -> bool;
-    fn name() -> String;
+    fn ones<const D: usize>(shape: Shape<D>, device: Self::Device) -> Self::TensorPrimitive<D> {
+        Self::from_data(Data::ones(shape), device)
+    }
 }
 
 pub(crate) type ADBackendTensorPrimitive<const D: usize, B> =

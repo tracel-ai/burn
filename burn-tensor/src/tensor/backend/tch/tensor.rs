@@ -1,4 +1,7 @@
-use crate::tensor::{ops::TensorOpsUtilities, Data, Shape};
+use crate::{
+    backend::TchDevice,
+    tensor::{ops::TensorOpsUtilities, Data, Shape},
+};
 
 lazy_static::lazy_static! {
     static ref NO_GRAD: tch::NoGradGuard = {
@@ -84,11 +87,10 @@ impl<P: tch::kind::Element + Default, const D: usize> TchTensor<P, D> {
 }
 
 impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> TchTensor<P, D> {
-    pub fn empty(shape: Shape<D>) -> Self {
+    pub fn empty(shape: Shape<D>, device: TchDevice) -> Self {
         let shape_tch = TchShape::from(shape);
-        let device = tch::Device::Cpu;
         let kind = TchKind::new();
-        let tensor = tch::Tensor::empty(&shape_tch.dims, (kind.kind(), device));
+        let tensor = tch::Tensor::empty(&shape_tch.dims, (kind.kind(), device.into()));
 
         lazy_static::initialize(&NO_GRAD);
         let tensor = tensor.set_requires_grad(false);

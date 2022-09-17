@@ -23,6 +23,7 @@ struct Model<B: Backend> {
 #[derive(Module, Debug)]
 struct MLP<B: Backend> {
     linears: Param<Vec<nn::Linear<B>>>,
+    dropout: nn::Dropout,
 }
 
 impl<B: Backend> Forward<Tensor<B, 2>, Tensor<B, 2>> for MLP<B> {
@@ -31,6 +32,7 @@ impl<B: Backend> Forward<Tensor<B, 2>, Tensor<B, 2>> for MLP<B> {
 
         for linear in self.linears.iter() {
             x = linear.forward(x);
+            x = self.dropout.forward(x);
             x = relu(&x);
         }
 
@@ -80,6 +82,7 @@ impl<B: Backend> MLP<B> {
 
         Self {
             linears: Param::new(linears),
+            dropout: nn::Dropout::new(&nn::DropoutConfig { prob: 0.3 }),
         }
     }
 }

@@ -3,7 +3,7 @@ use std::{
     io::{BufRead, BufReader},
 };
 
-use crate::{Dataset, DatasetIterator};
+use crate::Dataset;
 
 pub struct InMemDataset<I> {
     items: Vec<I>,
@@ -22,14 +22,8 @@ where
     fn get(&self, index: usize) -> Option<I> {
         self.items.get(index).cloned()
     }
-    fn iter(&self) -> DatasetIterator<'_, I> {
-        DatasetIterator::new(self)
-    }
     fn len(&self) -> usize {
         self.items.len()
-    }
-    fn is_empty(&self) -> bool {
-        self.items.is_empty()
     }
 }
 

@@ -12,7 +12,7 @@ config!(
         /// The size of the input features.
         pub d_model: usize,
         /// A value required for numerical stability, typically 1e-5.
-        pub epsilon: f32,
+        pub epsilon: f64,
     }
 );
 
@@ -23,7 +23,7 @@ config!(
 pub struct LayerNorm<B: Backend> {
     gamma: Param<Tensor<B, 1>>,
     beta: Param<Tensor<B, 1>>,
-    epsilon: f32,
+    epsilon: f64,
 }
 
 impl<B: Backend> LayerNorm<B> {
@@ -108,9 +108,9 @@ mod tests {
             .assert_approx_eq(&Data::from([2.0, 2.0]), 3);
         tensor_1_grad
             .to_data()
-            .assert_approx_eq(&Data::zeros(tensor_1_grad.shape().clone()), 3);
+            .assert_approx_eq(&Data::zeros(*tensor_1_grad.shape()), 3);
         tensor_2_grad
             .to_data()
-            .assert_approx_eq(&Data::zeros(tensor_2_grad.shape().clone()), 3);
+            .assert_approx_eq(&Data::zeros(*tensor_2_grad.shape()), 3);
     }
 }

@@ -17,6 +17,7 @@ pub struct Data<P, const D: usize> {
 #[derive(Clone, Copy)]
 pub enum Distribution<P> {
     Standard,
+    Bernoulli(f64),
     Uniform(P, P),
 }
 
@@ -37,17 +38,26 @@ where
 {
     Standard(rand::distributions::Standard),
     Uniform(rand::distributions::Uniform<P>),
+    Bernoulli(rand::distributions::Bernoulli),
 }
 
 impl<'a, P> DistributionSampler<'a, P>
 where
     Standard: rand::distributions::Distribution<P>,
     P: rand::distributions::uniform::SampleUniform,
+    P: Element,
 {
     pub fn sample(&mut self) -> P {
         match &self.kind {
             DistributionSamplerKind::Standard(distribution) => self.rng.sample(distribution),
             DistributionSamplerKind::Uniform(distribution) => self.rng.sample(distribution),
+            DistributionSamplerKind::Bernoulli(distribution) => {
+                if self.rng.sample(distribution) {
+                    P::ones(&P::default())
+                } else {
+                    P::zeros(&P::default())
+                }
+            }
         }
     }
 }
@@ -65,6 +75,9 @@ where
             Distribution::Uniform(low, high) => {
                 DistributionSamplerKind::Uniform(rand::distributions::Uniform::new(low, high))
             }
+            Distribution::Bernoulli(prob) => DistributionSamplerKind::Bernoulli(
+                rand::distributions::Bernoulli::new(prob).unwrap(),
+            ),
         };
 
         DistributionSampler::new(kind, rng)
@@ -79,6 +92,7 @@ where
         match self {
             Distribution::Standard => Distribution::Standard,
             Distribution::Uniform(a, b) => Distribution::Uniform(E::from_elem(a), E::from_elem(b)),
+            Distribution::Bernoulli(prob) => Distribution::Bernoulli(prob),
         }
     }
 }

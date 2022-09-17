@@ -1,4 +1,4 @@
-use crate::{Dataset, DatasetIterator};
+use crate::Dataset;
 
 pub trait Mapper<I, O> {
     fn map(&self, item: &I) -> O;
@@ -26,15 +26,8 @@ where
         item.map(|item| self.mapper.map(&item))
     }
 
-    fn iter(&self) -> DatasetIterator<'_, O> {
-        DatasetIterator::new(self)
-    }
     fn len(&self) -> usize {
         self.dataset.len()
-    }
-
-    fn is_empty(&self) -> bool {
-        self.dataset.is_empty()
     }
 }
 

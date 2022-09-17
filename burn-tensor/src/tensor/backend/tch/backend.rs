@@ -7,6 +7,14 @@ pub enum TchDevice {
     Cpu,
     Cuda(usize),
 }
+impl From<TchDevice> for tch::Device {
+    fn from(device: TchDevice) -> Self {
+        match device {
+            TchDevice::Cpu => tch::Device::Cpu,
+            TchDevice::Cuda(num) => tch::Device::Cuda(num),
+        }
+    }
+}
 
 impl Default for TchDevice {
     fn default() -> Self {
@@ -55,15 +63,37 @@ impl<E: TchElement> Backend for TchBackend<E> {
         distribution: Distribution<Self::Elem>,
         device: Self::Device,
     ) -> Self::TensorPrimitive<D> {
-        Self::from_data(Data::random(shape, distribution), device)
+        match distribution {
+            Distribution::Standard => {
+                let mut tensor = TchTensor::<Self::Elem, D>::empty(shape, device);
+                tensor.tensor = tensor.tensor.normal_(0.0, 1.0);
+                tensor
+            }
+            Distribution::Bernoulli(prob) => {
+                let mut tensor = TchTensor::<Self::Elem, D>::empty(shape, device);
+                tensor.tensor = tensor.tensor.f_bernoulli_float_(prob).unwrap();
+                tensor
+            }
+            Distribution::Uniform(from, to) => {
+                let mut tensor = TchTensor::<Self::Elem, D>::empty(shape, device);
+                tensor.tensor = tensor
+                    .tensor
+                    .uniform_(from.to_f64().unwrap(), to.to_f64().unwrap());
+                tensor
+            }
+        }
     }
 
     fn zeros<const D: usize>(shape: Shape<D>, device: Self::Device) -> Self::TensorPrimitive<D> {
-        Self::from_data(Data::zeros(shape), device)
+        let mut tensor = TchTensor::<Self::Elem, D>::empty(shape, device);
+        tensor.tensor = tensor.tensor.zero_();
+        tensor
     }
 
     fn ones<const D: usize>(shape: Shape<D>, device: Self::Device) -> Self::TensorPrimitive<D> {
-        Self::from_data(Data::ones(shape), device)
+        let mut tensor = TchTensor::<Self::Elem, D>::empty(shape, device);
+        tensor.tensor = tensor.tensor.ones_like();
+        tensor
     }
 
     fn ad_enabled() -> bool {
