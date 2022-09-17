@@ -1,6 +1,6 @@
 use crate::module::{LoadingError, Module, ParamId, State, StateNamed};
 use crate::tensor::backend::{ADBackend, Backend};
-use crate::tensor::{Gradients, Tensor};
+use crate::tensor::{Data, Gradients, Tensor};
 
 pub trait Optimizer: Send + Sync {
     type Backend: ADBackend;
@@ -66,4 +66,40 @@ pub trait Optimizer: Send + Sync {
 
         Ok(())
     }
+}
+
+pub(super) fn register_state_gradients<const D: usize, B: ADBackend, F: Fn(&str) -> String>(
+    id: &ParamId,
+    state: &mut StateNamed<B::Elem>,
+    grads: &Gradients,
+    id_to_key: F,
+) {
+    let id = id.to_string();
+
+    match grads.get::<Tensor<B::InnerBackend, D>>(&id) {
+        Some(velocity) => {
+            let data = State::Data(velocity.to_data().serialize());
+            state.register_state(id_to_key(&id).as_str(), data);
+        }
+        None => {}
+    };
+}
+
+pub(super) fn load_state_gradients<const D: usize, B: ADBackend, F: Fn(&str) -> String>(
+    id: &ParamId,
+    state: &StateNamed<B::Elem>,
+    grads: &mut Gradients,
+    id_to_key: F,
+    device: &B::Device,
+) {
+    let id = id.to_string();
+
+    match state.get(id_to_key(&id).as_str()) {
+        Some(State::Data(data)) => {
+            let velocity =
+                Tensor::<B::InnerBackend, D>::from_data_device(Data::from(data), device.clone());
+            grads.register_any(id, velocity);
+        }
+        _ => {}
+    };
 }

@@ -1,5 +1,6 @@
+use super::{load_state_gradients, register_state_gradients};
 use crate::macros::config;
-use crate::module::ParamId;
+use crate::module::{ParamId, StateNamed};
 use crate::tensor::backend::ADBackend;
 use crate::tensor::{ElementConversion, Gradients, Tensor};
 
@@ -41,5 +42,21 @@ impl<B: ADBackend> WeightDecay<B> {
         self.gradients.register_any(id, grad.clone());
 
         grad
+    }
+    pub fn register_state<const D: usize>(&self, id: &ParamId, state: &mut StateNamed<B::Elem>) {
+        register_state_gradients::<D, B, _>(id, state, &self.gradients, Self::state_key);
+    }
+
+    pub fn load_state<const D: usize>(
+        &mut self,
+        id: &ParamId,
+        state: &StateNamed<B::Elem>,
+        device: &B::Device,
+    ) {
+        load_state_gradients::<D, B, _>(id, state, &mut self.gradients, Self::state_key, device);
+    }
+
+    fn state_key(id: &str) -> String {
+        format!("weight-decay-{}", id)
     }
 }

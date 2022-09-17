@@ -71,6 +71,10 @@ impl<B: ADBackend> Optimizer for Sgd<B> {
         if let Some(momentum) = &self.momentum {
             momentum.register_state::<D>(id, state);
         }
+
+        if let Some(weight_decay) = &self.weight_decay {
+            weight_decay.register_state::<D>(id, state);
+        }
     }
 
     fn load_param_state<const D: usize>(
@@ -81,6 +85,10 @@ impl<B: ADBackend> Optimizer for Sgd<B> {
     ) {
         if let Some(momentum) = &mut self.momentum {
             momentum.load_state::<D>(id, state, device);
+        }
+
+        if let Some(weight_decay) = &mut self.weight_decay {
+            weight_decay.load_state::<D>(id, state, device);
         }
     }
 }

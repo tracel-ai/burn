@@ -9,7 +9,7 @@ use burn::optim::{Optimizer, Sgd, SgdConfig};
 use burn::tensor::backend::{ADBackend, Backend};
 use burn::tensor::loss::cross_entropy_with_logits;
 use burn::tensor::{Data, ElementConversion, Shape, Tensor};
-use burn::train::logger::{AsyncLogger, CLILogger, TextPlot};
+use burn::train::logger::{AsyncLogger, CLILogger};
 use burn::train::metric::{AccuracyMetric, CUDAMetric, LossMetric};
 use burn::train::{ClassificationLearner, ClassificationOutput, SupervisedTrainer};
 use std::sync::Arc;
@@ -154,20 +154,16 @@ fn run<B: ADBackend>(device: B::Device) {
     let hidden_dim = 1024;
     let seed = 42;
 
-    let state_model = State::<f32>::load("/tmp/mnist_state_model").unwrap();
-    let state_optim = State::<f32>::load("/tmp/mnist_state_optim").unwrap();
+    let state_model = State::<f32>::load("/tmp/mnist_state_model").ok();
+    let state_optim = State::<f32>::load("/tmp/mnist_state_optim").ok();
 
     let mut model = Model::new(784, hidden_dim, num_layers, 10);
     model.to_device(device);
-    model.load(&state_model.convert()).unwrap();
 
-    println!(
-        "Training '{}' with {} params on backend {} {:?}",
-        model.name(),
-        model.num_params(),
-        B::name(),
-        device,
-    );
+    if let Some(state) = state_model {
+        println!("Loading model state");
+        model.load(&state.convert()).unwrap();
+    }
 
     let mut optim = Sgd::new(&SgdConfig {
         learning_rate: 2.5e-2,
@@ -178,7 +174,19 @@ fn run<B: ADBackend>(device: B::Device) {
             nesterov: true,
         }),
     });
-    optim.load(&model, &state_optim.convert()).unwrap();
+
+    if let Some(state) = state_optim {
+        println!("Loading optimizer state");
+        optim.load(&model, &state.convert()).unwrap();
+    }
+
+    println!(
+        "Training '{}' with {} params on backend {} {:?}",
+        model.name(),
+        model.num_params(),
+        B::name(),
+        device,
+    );
 
     let batcher_train = Arc::new(MNISTBatcher::<B> { device });
     let batcher_valid = Arc::new(MNISTBatcher::<B::InnerBackend> { device });
@@ -196,7 +204,7 @@ fn run<B: ADBackend>(device: B::Device) {
 
     let logger_train = Box::new(AsyncLogger::new(Box::new(CLILogger::new(
         vec![
-            Box::new(TextPlot::new(LossMetric::new())),
+            Box::new(LossMetric::new()),
             Box::new(AccuracyMetric::new()),
             Box::new(CUDAMetric::new()),
         ],

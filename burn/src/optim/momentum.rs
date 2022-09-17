@@ -1,7 +1,8 @@
+use super::{load_state_gradients, register_state_gradients};
 use crate::macros::config;
-use crate::module::{ParamId, State, StateNamed};
+use crate::module::{ParamId, StateNamed};
 use crate::tensor::backend::ADBackend;
-use crate::tensor::{Data, ElementConversion, Gradients, Tensor};
+use crate::tensor::{ElementConversion, Gradients, Tensor};
 
 config!(
     /// Configuration to create momentum [Momentum](Momentum).
@@ -57,15 +58,7 @@ impl<B: ADBackend> Momentum<B> {
     }
 
     pub fn register_state<const D: usize>(&self, id: &ParamId, state: &mut StateNamed<B::Elem>) {
-        let id = id.to_string();
-
-        match self.velocity.get::<Tensor<B::InnerBackend, D>>(&id) {
-            Some(velocity) => {
-                let data = State::Data(velocity.to_data().serialize());
-                state.register_state(Self::state_key(&id).as_str(), data);
-            }
-            None => {}
-        };
+        register_state_gradients::<D, B, _>(id, state, &self.velocity, Self::state_key);
     }
 
     pub fn load_state<const D: usize>(
@@ -74,18 +67,7 @@ impl<B: ADBackend> Momentum<B> {
         state: &StateNamed<B::Elem>,
         device: &B::Device,
     ) {
-        let id = id.to_string();
-
-        match state.get(Self::state_key(&id).as_str()) {
-            Some(State::Data(data)) => {
-                let velocity = Tensor::<B::InnerBackend, D>::from_data_device(
-                    Data::from(data),
-                    device.clone(),
-                );
-                self.velocity.register_any(id, velocity);
-            }
-            _ => {}
-        };
+        load_state_gradients::<D, B, _>(id, state, &mut self.velocity, Self::state_key, device);
     }
 
     fn state_key(id: &str) -> String {
