@@ -39,9 +39,9 @@ impl<B: Backend, const D: usize> Forward<Tensor<B, D>, Tensor<B, D>> for Dropout
         let random = input.random_like(Distribution::Bernoulli(self.prob));
         let mask = random.equal_scalar(&1.to_elem());
         let x = input.mask_fill(&mask, 0.to_elem());
-        let x = x.div_scalar(&(1.0 - self.prob).to_elem());
+        
 
-        x
+        x.div_scalar(&(1.0 - self.prob).to_elem())
     }
 }
 
