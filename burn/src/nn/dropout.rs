@@ -7,11 +7,11 @@ config!(
     /// Configuration to create a [Dropout](Dropout) layer.
     pub struct DropoutConfig {
         /// The probability of randomly zeroes some elements of the input tensor during training.
-        pub prob: f32,
+        pub prob: f64,
     }
 );
 
-/// Set at random some elements of the input tensor to zeroes during training.
+/// Set at random some elements of the input tensor to zero during training.
 ///
 /// This is an effective regularization technique as describe in the paper
 /// [Improving neural networks by preventing co-adaptation of feature detectors](https://arxiv.org/abs/1207.0580).
@@ -24,9 +24,7 @@ pub struct Dropout {
 
 impl Dropout {
     pub fn new(config: &DropoutConfig) -> Self {
-        Self {
-            prob: config.prob as f64,
-        }
+        Self { prob: config.prob }
     }
 }
 
@@ -39,7 +37,6 @@ impl<B: Backend, const D: usize> Forward<Tensor<B, D>, Tensor<B, D>> for Dropout
         let random = input.random_like(Distribution::Bernoulli(self.prob));
         let mask = random.equal_scalar(&1.to_elem());
         let x = input.mask_fill(&mask, 0.to_elem());
-        
 
         x.div_scalar(&(1.0 - self.prob).to_elem())
     }

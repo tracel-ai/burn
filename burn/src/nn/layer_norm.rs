@@ -12,7 +12,7 @@ config!(
         /// The size of the input features.
         pub d_model: usize,
         /// A value required for numerical stability, typically 1e-5.
-        pub epsilon: f32,
+        pub epsilon: f64,
     }
 );
 
@@ -23,7 +23,7 @@ config!(
 pub struct LayerNorm<B: Backend> {
     gamma: Param<Tensor<B, 1>>,
     beta: Param<Tensor<B, 1>>,
-    epsilon: f32,
+    epsilon: f64,
 }
 
 impl<B: Backend> LayerNorm<B> {
