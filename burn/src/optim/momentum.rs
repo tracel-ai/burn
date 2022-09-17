@@ -50,11 +50,9 @@ impl<B: ADBackend> Momentum<B> {
         // Update velocity
         self.velocity.register_any(id, velocity.clone());
 
-        let grad = match self.nesterov {
+        match self.nesterov {
             true => velocity.mul_scalar(&self.momentum).add(&grad),
             false => velocity,
-        };
-
-        grad
+        }
     }
 }

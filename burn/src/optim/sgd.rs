@@ -28,10 +28,7 @@ pub struct Sgd<B: ADBackend> {
 impl<B: ADBackend> Sgd<B> {
     pub fn new(config: &SgdConfig) -> Self {
         let learning_rate = config.learning_rate.to_elem();
-        let momentum = match &config.momentum {
-            Some(config) => Some(Momentum::new(config)),
-            None => None,
-        };
+        let momentum = config.momentum.as_ref().map(|config| Momentum::new(config));
 
         Self {
             learning_rate,
