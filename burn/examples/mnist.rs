@@ -3,8 +3,8 @@ use burn::data::dataloader::DataLoaderBuilder;
 use burn::data::dataset::source::huggingface::{MNISTDataset, MNISTItem};
 use burn::module::{Forward, Module, Param};
 use burn::nn;
-use burn::optim::SGDOptimizer;
-use burn::tensor::activation::relu;
+use burn::optim::momentum::MomentumConfig;
+use burn::optim::{Sgd, SgdConfig};
 use burn::tensor::backend::{ADBackend, Backend};
 use burn::tensor::loss::cross_entropy_with_logits;
 use burn::tensor::{Data, ElementConversion, Shape, Tensor};
@@ -24,6 +24,7 @@ struct Model<B: Backend> {
 struct MLP<B: Backend> {
     linears: Param<Vec<nn::Linear<B>>>,
     dropout: nn::Dropout,
+    activation: nn::ReLU,
 }
 
 impl<B: Backend> Forward<Tensor<B, 2>, Tensor<B, 2>> for MLP<B> {
@@ -33,7 +34,7 @@ impl<B: Backend> Forward<Tensor<B, 2>, Tensor<B, 2>> for MLP<B> {
         for linear in self.linears.iter() {
             x = linear.forward(x);
             x = self.dropout.forward(x);
-            x = relu(&x);
+            x = self.activation.forward(x);
         }
 
         x
@@ -83,6 +84,7 @@ impl<B: Backend> MLP<B> {
         Self {
             linears: Param::new(linears),
             dropout: nn::Dropout::new(&nn::DropoutConfig { prob: 0.3 }),
+            activation: nn::ReLU::new(),
         }
     }
 }
@@ -162,7 +164,15 @@ fn run<B: ADBackend>(device: B::Device) {
         device,
     );
 
-    let optim: SGDOptimizer<B> = SGDOptimizer::new(learning_rate);
+    let optim: Sgd<B> = Sgd::new(&SgdConfig {
+        learning_rate,
+        weight_decay: 0.0,
+        momentum: Some(MomentumConfig {
+            momentum: 0.9,
+            dampening: 0.1,
+            nesterov: true,
+        }),
+    });
     let batcher_train = Arc::new(MNISTBatcher::<B> { device });
     let batcher_valid = Arc::new(MNISTBatcher::<B::InnerBackend> { device });
     let dataloader_train = DataLoaderBuilder::new(batcher_train)

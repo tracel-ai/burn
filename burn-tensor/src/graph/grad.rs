@@ -7,35 +7,38 @@ use crate::{
 };
 use std::{any::Any, collections::HashMap, ops::Add};
 
+#[derive(Default)]
 pub struct Gradients {
-    grads: HashMap<String, Box<dyn Any>>,
+    grads: HashMap<String, Box<dyn Any + Send + Sync>>,
 }
 
 impl Gradients {
-    pub fn register<T>(&mut self, node: &BackwardNode<T>)
-    where
-        T: Zeros<T> + Clone + Add<Output = T>,
-        T: std::fmt::Debug + 'static,
-    {
-        let grad = node.state.grad();
-        self.grads.insert(node.id.clone(), Box::new(grad));
-    }
-    fn empty() -> Self {
+    pub fn empty() -> Self {
         Self {
             grads: HashMap::new(),
         }
     }
-}
 
-pub trait AsNode<T> {
-    fn as_node(&self) -> &ForwardNode<T>;
-}
+    pub fn register<T>(&mut self, node: &BackwardNode<T>)
+    where
+        T: Zeros<T> + Clone + Add<Output = T>,
+        T: std::fmt::Debug + 'static + Send + Sync,
+    {
+        let grad = node.state.grad();
+        self.grads.insert(node.id.clone(), Box::new(grad));
+    }
 
-impl Gradients {
+    pub fn register_any<V>(&mut self, id: String, value: V)
+    where
+        V: std::fmt::Debug + 'static + Send + Sync,
+    {
+        self.grads.insert(id, Box::new(value));
+    }
+
     pub fn from<T>(node: &BackwardNode<T>) -> Self
     where
         T: Zeros<T> + Clone + Add<Output = T>,
-        T: std::fmt::Debug + 'static,
+        T: std::fmt::Debug + 'static + Send + Sync,
     {
         let mut grads = Self::empty();
         let traversal = BreadthFirstSearch::new(node);
@@ -57,4 +60,17 @@ impl Gradients {
 
         grad.downcast_ref()
     }
+
+    pub fn get<V: 'static>(&self, id: &str) -> Option<&V> {
+        let grad = match self.grads.get(id) {
+            Some(grad) => grad,
+            None => return None,
+        };
+
+        grad.downcast_ref()
+    }
+}
+
+pub trait AsNode<T> {
+    fn as_node(&self) -> &ForwardNode<T>;
 }

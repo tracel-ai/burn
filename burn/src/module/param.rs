@@ -6,7 +6,33 @@ use crate::tensor::{
 };
 
 #[derive(Debug)]
+pub struct ParamId {
+    pub value: String,
+}
+
+impl Default for ParamId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ParamId {
+    pub fn new() -> Self {
+        Self {
+            value: nanoid::nanoid!(),
+        }
+    }
+}
+
+impl std::fmt::Display for ParamId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.value.as_str())
+    }
+}
+
+#[derive(Debug)]
 pub struct Param<T> {
+    pub id: ParamId,
     value: T,
 }
 
@@ -20,7 +46,10 @@ impl<T> std::ops::Deref for Param<T> {
 
 impl<T> Param<T> {
     pub fn new(value: T) -> Self {
-        Self { value }
+        Self {
+            id: ParamId::new(),
+            value,
+        }
     }
 }
 
@@ -33,7 +62,7 @@ impl<const D: usize, B: Backend> Param<Tensor<B, D>> {
     where
         B: ADBackend,
     {
-        optim.update(&mut self.value, grads);
+        optim.update(&self.id, &mut self.value, grads);
     }
 
     pub fn devices(&self) -> Vec<B::Device> {
@@ -81,7 +110,7 @@ impl<const D: usize, B: Backend> Param<Option<Tensor<B, D>>> {
         B: ADBackend,
     {
         if let Some(value) = &mut self.value {
-            optim.update(value, grads);
+            optim.update(&self.id, value, grads);
         }
     }
 
