@@ -76,12 +76,9 @@ pub(super) fn register_state_gradients<const D: usize, B: ADBackend, F: Fn(&str)
 ) {
     let id = id.to_string();
 
-    match grads.get::<Tensor<B::InnerBackend, D>>(&id) {
-        Some(velocity) => {
-            let data = State::Data(velocity.to_data().serialize());
-            state.register_state(id_to_key(&id).as_str(), data);
-        }
-        None => {}
+    if let Some(velocity) = grads.get::<Tensor<B::InnerBackend, D>>(&id) {
+        let data = State::Data(velocity.to_data().serialize());
+        state.register_state(id_to_key(&id).as_str(), data);
     };
 }
 
@@ -94,12 +91,8 @@ pub(super) fn load_state_gradients<const D: usize, B: ADBackend, F: Fn(&str) -> 
 ) {
     let id = id.to_string();
 
-    match state.get(id_to_key(&id).as_str()) {
-        Some(State::Data(data)) => {
-            let velocity =
-                Tensor::<B::InnerBackend, D>::from_data_device(Data::from(data), device.clone());
-            grads.register_any(id, velocity);
-        }
-        _ => {}
+    if let Some(State::Data(data)) = state.get(id_to_key(&id).as_str()) {
+        let velocity = Tensor::<B::InnerBackend, D>::from_data_device(Data::from(data), *device);
+        grads.register_any(id, velocity);
     };
 }

@@ -80,14 +80,12 @@ where
     type Error = StateError;
 
     fn try_from(value: serde_json::Value) -> Result<Self, Self::Error> {
-        match serde_json::from_value(value.clone()) {
-            Ok(data) => return Ok(State::Data(data)),
-            Err(_) => {}
+        if let Ok(data) = serde_json::from_value(value.clone()) {
+            return Ok(State::Data(data));
         };
 
-        match StateNamed::<E>::try_from(value.clone()) {
-            Ok(state) => return Ok(State::StateNamed(state)),
-            Err(_) => {}
+        if let Ok(state) = StateNamed::<E>::try_from(value.clone()) {
+            return Ok(State::StateNamed(state));
         };
 
         match serde_json::from_value::<String>(value.clone()) {

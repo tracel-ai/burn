@@ -8,6 +8,6 @@ fn should_support_exp_ops() {
 
     let data_actual = tensor.exp().into_data();
 
-    let data_expected = Data::from([[1.0, 2.7183, 7.3891], [20.0855, 54.5981, 148.4132]]);
+    let data_expected = Data::from([[1.0, 2.71830, 7.3891], [20.0855, 54.5981, 148.4132]]);
     data_expected.assert_approx_eq(&data_actual, 3);
 }

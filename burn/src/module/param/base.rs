@@ -47,7 +47,7 @@ pub(super) fn load_with_id<E: Element>(
     };
 
     let state = match state_wrapper.get("data") {
-        Some(state) => state.clone(),
+        Some(state) => state,
         None => {
             return Err(LoadingError::new(
                 "Can't load state data from state wrapper".to_string(),

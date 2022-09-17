@@ -111,7 +111,7 @@ impl<const D: usize, B: Backend> Param<Option<Tensor<B, D>>> {
     ) where
         B: ADBackend,
     {
-        if let Some(_) = &self.value {
+        if self.value.is_some() {
             optim.register_param_state::<D>(&self.id, state_optim);
         }
     }
