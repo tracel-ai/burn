@@ -32,9 +32,14 @@ impl<B: ADBackend> WeightDecay<B> {
     ) -> Tensor<B::InnerBackend, D> {
         let id = id.to_string();
 
-        match self.gradients.get::<Tensor<B::InnerBackend, D>>(&id) {
+        let grad = match self.gradients.get::<Tensor<B::InnerBackend, D>>(&id) {
             Some(grad_last_step) => grad_last_step.mul_scalar(&self.penalty).add(&grad),
             None => grad,
-        }
+        };
+
+        // Update gradients
+        self.gradients.register_any(id, grad.clone());
+
+        grad
     }
 }

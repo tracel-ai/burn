@@ -1,7 +1,7 @@
 use burn::data::dataloader::batcher::Batcher;
 use burn::data::dataloader::DataLoaderBuilder;
 use burn::data::dataset::source::huggingface::{MNISTDataset, MNISTItem};
-use burn::module::{Forward, Module, Param};
+use burn::module::{Forward, Module, Param, State};
 use burn::nn;
 use burn::optim::decay::WeightDecayConfig;
 use burn::optim::momentum::MomentumConfig;
@@ -16,19 +16,19 @@ use std::sync::Arc;
 
 #[derive(Module, Debug)]
 struct Model<B: Backend> {
-    mlp: Param<MLP<B>>,
+    mlp: Param<Mlp<B>>,
     input: Param<nn::Linear<B>>,
     output: Param<nn::Linear<B>>,
 }
 
 #[derive(Module, Debug)]
-struct MLP<B: Backend> {
+struct Mlp<B: Backend> {
     linears: Param<Vec<nn::Linear<B>>>,
     dropout: nn::Dropout,
     activation: nn::ReLU,
 }
 
-impl<B: Backend> Forward<Tensor<B, 2>, Tensor<B, 2>> for MLP<B> {
+impl<B: Backend> Forward<Tensor<B, 2>, Tensor<B, 2>> for Mlp<B> {
     fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
         let mut x = input;
 
@@ -68,7 +68,7 @@ impl<B: Backend> Forward<MNISTBatch<B>, ClassificationOutput<B>> for Model<B> {
     }
 }
 
-impl<B: Backend> MLP<B> {
+impl<B: Backend> Mlp<B> {
     fn new(dim: usize, num_layers: usize) -> Self {
         let mut linears = Vec::with_capacity(num_layers);
 
@@ -92,7 +92,7 @@ impl<B: Backend> MLP<B> {
 
 impl<B: Backend> Model<B> {
     fn new(d_input: usize, d_hidden: usize, num_layers: usize, num_classes: usize) -> Self {
-        let mlp = MLP::new(d_hidden, num_layers);
+        let mlp = Mlp::new(d_hidden, num_layers);
         let config_input = nn::LinearConfig {
             d_input,
             d_output: d_hidden,
@@ -154,7 +154,7 @@ fn run<B: ADBackend>(device: B::Device) {
     let hidden_dim = 1024;
     let seed = 42;
 
-    let mut model: Model<B> = Model::new(784, hidden_dim, num_layers, 10);
+    let mut model = Model::new(784, hidden_dim, num_layers, 10);
     model.to_device(device);
     println!(
         "Training '{}' with {} params on backend {} {:?}",
@@ -164,9 +164,9 @@ fn run<B: ADBackend>(device: B::Device) {
         device,
     );
 
-    let optim: Sgd<B> = Sgd::new(&SgdConfig {
+    let optim = Sgd::new(&SgdConfig {
         learning_rate: 2.5e-2,
-        weight_decay: Some(WeightDecayConfig { penalty: 0.005 }),
+        weight_decay: Some(WeightDecayConfig { penalty: 0.01 }),
         momentum: Some(MomentumConfig {
             momentum: 0.9,
             dampening: 0.1,
@@ -212,7 +212,9 @@ fn run<B: ADBackend>(device: B::Device) {
         learner,
     );
 
-    let _learned = trainer.run(num_epochs);
+    let learned = trainer.run(num_epochs);
+    let state: State<f32> = learned.model.state().convert();
+    state.save("/tmp/mnist_weights").unwrap();
 }
 
 fn main() {

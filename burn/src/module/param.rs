@@ -2,12 +2,18 @@ use crate::module::{ADModule, LoadingError, Module, State, StateNamed};
 use crate::optim::Optimizer;
 use crate::tensor::{
     backend::{ADBackend, Backend},
-    Data, Gradients, Tensor,
+    Data, Element, Gradients, Tensor,
 };
 
 #[derive(Debug)]
+pub struct Param<T> {
+    pub id: ParamId,
+    value: T,
+}
+
+#[derive(Debug, Hash, PartialEq, Eq, Clone)]
 pub struct ParamId {
-    pub value: String,
+    pub(crate) value: String,
 }
 
 impl Default for ParamId {
@@ -28,12 +34,6 @@ impl std::fmt::Display for ParamId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.value.as_str())
     }
-}
-
-#[derive(Debug)]
-pub struct Param<T> {
-    pub id: ParamId,
-    value: T,
 }
 
 impl<T> std::ops::Deref for Param<T> {
@@ -74,10 +74,15 @@ impl<const D: usize, B: Backend> Param<Tensor<B, D>> {
     }
 
     pub fn state(&self) -> State<B::Elem> {
-        State::Data(self.value.to_data().serialize())
+        let state = State::Data(self.value.to_data().serialize());
+
+        state_with_id(self.id.clone(), state)
     }
 
     pub fn load(&mut self, state: &State<B::Elem>) -> Result<(), LoadingError> {
+        let (id, state) = load_with_id(state)?;
+        self.id = id.clone();
+
         match state {
             State::Data(data) => {
                 self.value = Tensor::from_data_device(Data::from(data), self.value.device());
@@ -129,14 +134,18 @@ impl<const D: usize, B: Backend> Param<Option<Tensor<B, D>>> {
     }
 
     pub fn state(&self) -> State<B::Elem> {
-        if let Some(value) = &self.value {
-            return State::Data(value.to_data().serialize());
-        }
+        let state = match &self.value {
+            Some(value) => State::Data(value.to_data().serialize()),
+            None => State::StateNamed(StateNamed::new()),
+        };
 
-        State::StateNamed(StateNamed::new())
+        state_with_id(self.id.clone(), state)
     }
 
     pub fn load(&mut self, state: &State<B::Elem>) -> Result<(), LoadingError> {
+        let (id, state) = load_with_id(state)?;
+        self.id = id.clone();
+
         let data = match state {
             State::Data(data) => data,
             _ => {
@@ -188,13 +197,18 @@ impl<M: Module> Param<M> {
     }
 
     pub fn state(&self) -> State<<M::Backend as Backend>::Elem> {
-        self.value.state()
+        let state = self.value.state();
+
+        state_with_id(self.id.clone(), state)
     }
 
     pub fn load(
         &mut self,
         state: &State<<M::Backend as Backend>::Elem>,
     ) -> Result<(), LoadingError> {
+        let (id, state) = load_with_id(state)?;
+        self.id = id.clone();
+
         self.value.load(state)
     }
 
@@ -250,13 +264,18 @@ impl<M: Module> Param<Vec<M>> {
             state.register_state(format!("mod-{}", i).as_str(), module.state());
         }
 
-        State::StateNamed(state)
+        let state = State::StateNamed(state);
+
+        state_with_id(self.id.clone(), state)
     }
 
     pub fn load(
         &mut self,
         state: &State<<M::Backend as Backend>::Elem>,
     ) -> Result<(), LoadingError> {
+        let (id, state) = load_with_id(state)?;
+        self.id = id.clone();
+
         let num = self.value.len();
         for (i, module) in self.value.iter_mut().enumerate() {
             module
@@ -281,4 +300,44 @@ impl<M: Module> Param<Vec<M>> {
     {
         Param::new(self.value.iter().map(|v| v.inner()).collect())
     }
+}
+
+fn state_with_id<E: Element>(id: ParamId, state: State<E>) -> State<E> {
+    let mut state_wrapper = StateNamed::new();
+
+    state_wrapper.register_state("data", state);
+    state_wrapper.register_state("id", State::ParamId(id));
+
+    State::StateNamed(state_wrapper)
+}
+
+fn load_with_id<E: Element>(state: &State<E>) -> Result<(&ParamId, &State<E>), LoadingError> {
+    let state_wrapper = match state {
+        State::StateNamed(state) => state,
+        _ => {
+            return Err(LoadingError::new(
+                "Can't load state wrapper to fetch id and data".to_string(),
+            ))
+        }
+    };
+
+    let state = match state_wrapper.get("data") {
+        Some(state) => state.clone(),
+        None => {
+            return Err(LoadingError::new(
+                "Can't load state data from state wrapper".to_string(),
+            ))
+        }
+    };
+
+    let id = match state_wrapper.get("id") {
+        Some(State::ParamId(id)) => id,
+        _ => {
+            return Err(LoadingError::new(
+                "Can't load state id from state wrapper".to_string(),
+            ))
+        }
+    };
+
+    Ok((id, state))
 }

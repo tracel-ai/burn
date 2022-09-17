@@ -1,7 +1,7 @@
 use super::decay::{WeightDecay, WeightDecayConfig};
 use super::momentum::{Momentum, MomentumConfig};
 use crate::macros::config;
-use crate::module::ParamId;
+use crate::module::{ParamId, StateNamed};
 use crate::optim::Optimizer;
 use crate::tensor::backend::ADBackend;
 use crate::tensor::{ElementConversion, Gradients, Tensor};
@@ -43,6 +43,7 @@ impl<B: ADBackend> Sgd<B> {
         }
     }
 }
+
 impl<B: ADBackend> Optimizer for Sgd<B> {
     type Backend = B;
 
@@ -64,5 +65,22 @@ impl<B: ADBackend> Optimizer for Sgd<B> {
 
         let delta = grad.mul_scalar(&self.learning_rate);
         tensor.update(tensor.inner() - delta);
+    }
+
+    fn register_state<const D: usize>(&self, id: &ParamId, state: &mut StateNamed<B::Elem>) {
+        if let Some(momentum) = &self.momentum {
+            momentum.register_state::<D>(id, state);
+        }
+    }
+
+    fn load_state<const D: usize>(
+        &mut self,
+        id: &ParamId,
+        state: &StateNamed<B::Elem>,
+        device: &B::Device,
+    ) {
+        if let Some(momentum) = &mut self.momentum {
+            momentum.load_state::<D>(id, state, device);
+        }
     }
 }

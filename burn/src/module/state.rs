@@ -1,3 +1,4 @@
+use super::ParamId;
 use crate::tensor::{DataSerialize, Element};
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
@@ -14,6 +15,7 @@ pub struct StateNamed<E> {
 pub enum State<E> {
     StateNamed(StateNamed<E>),
     Data(DataSerialize<E>),
+    ParamId(ParamId),
 }
 
 #[derive(Debug)]
@@ -49,6 +51,7 @@ where
         match state {
             State::StateNamed(state) => state.into(),
             State::Data(data) => serde_json::to_value(data).unwrap(),
+            State::ParamId(id) => serde_json::to_value(id.to_string()).unwrap(),
         }
     }
 }
@@ -78,8 +81,21 @@ where
 
     fn try_from(value: serde_json::Value) -> Result<Self, Self::Error> {
         match serde_json::from_value(value.clone()) {
-            Ok(data) => Ok(State::Data(data)),
-            Err(_) => Ok(State::StateNamed(StateNamed::try_from(value)?)),
+            Ok(data) => return Ok(State::Data(data)),
+            Err(_) => {}
+        };
+
+        match StateNamed::<E>::try_from(value.clone()) {
+            Ok(state) => return Ok(State::StateNamed(state)),
+            Err(_) => {}
+        };
+
+        match serde_json::from_value::<String>(value.clone()) {
+            Ok(id) => Ok(State::ParamId(ParamId { value: id.clone() })),
+            Err(_) => Err(StateError::InvalidFormat(format!(
+                "Invalid value {:?}",
+                value
+            ))),
         }
     }
 }
@@ -151,6 +167,7 @@ impl<E: Element> State<E> {
         match self {
             State::StateNamed(named) => State::StateNamed(named.convert()),
             State::Data(data) => State::Data(data.convert()),
+            State::ParamId(id) => State::ParamId(id),
         }
     }
 }
@@ -202,6 +219,7 @@ mod tests {
 
         let state = linear.state();
         let value: serde_json::Value = state.into();
+        println!("{:?}", value);
         let state_from: State<<crate::TestBackend as Backend>::Elem> =
             State::try_from(value.clone()).unwrap();
         let value_from: serde_json::Value = state_from.into();
