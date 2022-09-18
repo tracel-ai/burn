@@ -1,4 +1,4 @@
-use super::State;
+use super::{State, StateNamed};
 use crate::optim::Optimizer;
 use crate::tensor::{
     backend::{ADBackend, Backend},
@@ -26,6 +26,18 @@ pub trait Module: Send + Sync + std::fmt::Debug + std::fmt::Display {
         &mut self,
         grads: &Gradients,
         optim: &mut O,
+    ) where
+        Self::Backend: ADBackend;
+    fn load_optim_state<O: Optimizer<Backend = Self::Backend>>(
+        &self,
+        optim: &mut O,
+        state_optim: &StateNamed<<Self::Backend as Backend>::Elem>,
+    ) where
+        Self::Backend: ADBackend;
+    fn register_optim_state<O: Optimizer<Backend = Self::Backend>>(
+        &self,
+        optim: &O,
+        state_optim: &mut StateNamed<<Self::Backend as Backend>::Elem>,
     ) where
         Self::Backend: ADBackend;
     fn devices(&self) -> Vec<<Self::Backend as Backend>::Device>;

@@ -36,7 +36,7 @@ impl<Out: Clone + Zeros<Out>> BackwardNode<Out> {
 impl<Out> BackwardNode<Out>
 where
     Out: Zeros<Out> + Ones<Out> + Clone + Add<Output = Out>,
-    Out: std::fmt::Debug + 'static,
+    Out: std::fmt::Debug + 'static + Send + Sync,
 {
     pub fn backward(&mut self) -> Gradients {
         let grad = self.state.value().ones();
@@ -75,7 +75,7 @@ where
 impl<T> RecordedOpsParent for BackwardNode<T>
 where
     T: Zeros<T> + Clone + Add<Output = T>,
-    T: std::fmt::Debug + 'static,
+    T: std::fmt::Debug + 'static + Send + Sync,
 {
     fn backward_step(&self) {
         self.ops.backward_step(&self.state)

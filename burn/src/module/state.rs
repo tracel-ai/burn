@@ -1,3 +1,4 @@
+use super::ParamId;
 use crate::tensor::{DataSerialize, Element};
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
@@ -14,6 +15,7 @@ pub struct StateNamed<E> {
 pub enum State<E> {
     StateNamed(StateNamed<E>),
     Data(DataSerialize<E>),
+    ParamId(ParamId),
 }
 
 #[derive(Debug)]
@@ -49,6 +51,7 @@ where
         match state {
             State::StateNamed(state) => state.into(),
             State::Data(data) => serde_json::to_value(data).unwrap(),
+            State::ParamId(id) => serde_json::to_value(id.to_string()).unwrap(),
         }
     }
 }
@@ -77,9 +80,20 @@ where
     type Error = StateError;
 
     fn try_from(value: serde_json::Value) -> Result<Self, Self::Error> {
-        match serde_json::from_value(value.clone()) {
-            Ok(data) => Ok(State::Data(data)),
-            Err(_) => Ok(State::StateNamed(StateNamed::try_from(value)?)),
+        if let Ok(data) = serde_json::from_value(value.clone()) {
+            return Ok(State::Data(data));
+        };
+
+        if let Ok(state) = StateNamed::<E>::try_from(value.clone()) {
+            return Ok(State::StateNamed(state));
+        };
+
+        match serde_json::from_value::<String>(value.clone()) {
+            Ok(id) => Ok(State::ParamId(ParamId::from(id.as_str()))),
+            Err(_) => Err(StateError::InvalidFormat(format!(
+                "Invalid value {:?}",
+                value
+            ))),
         }
     }
 }
@@ -128,6 +142,10 @@ impl<E: Element> StateNamed<E> {
         self.values.get(name)
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.values.is_empty()
+    }
+
     pub fn convert<O: Element>(self) -> StateNamed<O> {
         let mut values = HashMap::with_capacity(self.values.len());
 
@@ -147,10 +165,19 @@ impl<E: Element> State<E> {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        match self {
+            State::StateNamed(named) => named.is_empty(),
+            State::Data(_) => false,
+            State::ParamId(_) => false,
+        }
+    }
+
     pub fn convert<O: Element>(self) -> State<O> {
         match self {
             State::StateNamed(named) => State::StateNamed(named.convert()),
             State::Data(data) => State::Data(data.convert()),
+            State::ParamId(id) => State::ParamId(id),
         }
     }
 }
@@ -202,6 +229,7 @@ mod tests {
 
         let state = linear.state();
         let value: serde_json::Value = state.into();
+        println!("{:?}", value);
         let state_from: State<<crate::TestBackend as Backend>::Elem> =
             State::try_from(value.clone()).unwrap();
         let value_from: serde_json::Value = state_from.into();
