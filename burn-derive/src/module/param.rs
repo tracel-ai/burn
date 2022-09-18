@@ -1,4 +1,4 @@
-use crate::field::FieldTypeAnalyzer;
+use crate::module::field::FieldTypeAnalyzer;
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::Field;
