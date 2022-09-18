@@ -142,6 +142,10 @@ impl<E: Element> StateNamed<E> {
         self.values.get(name)
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.values.is_empty()
+    }
+
     pub fn convert<O: Element>(self) -> StateNamed<O> {
         let mut values = HashMap::with_capacity(self.values.len());
 
@@ -158,6 +162,14 @@ impl<E: Element> State<E> {
         match self {
             State::StateNamed(named) => named.get(name),
             _ => None,
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        match self {
+            State::StateNamed(named) => named.is_empty(),
+            State::Data(_) => false,
+            State::ParamId(_) => false,
         }
     }
 

@@ -92,3 +92,100 @@ impl<B: ADBackend> Optimizer for Sgd<B> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        module::{Forward, Module},
+        nn::{Linear, LinearConfig},
+        tensor::{Distribution, Shape},
+        TestADBackend,
+    };
+
+    #[test]
+    fn with_updated_params_should_have_state() {
+        let mut layer = layer();
+        let mut optim = sgd_with_all();
+        let loss = layer.forward(random_tensor());
+        let grads = loss.backward();
+        layer.update_params(&grads, &mut optim);
+
+        let state = optim.state(&layer);
+
+        assert!(!state.is_empty());
+    }
+
+    #[test]
+    fn without_updated_params_should_not_have_state() {
+        let layer = layer();
+        let optim = sgd_with_all();
+
+        let state = optim.state(&layer);
+
+        assert!(state.is_empty());
+    }
+
+    #[test]
+    fn without_momentum_and_weights_decay_should_not_have_state() {
+        let mut layer = layer();
+        let mut optim = sgd_with_nothing();
+        let loss = layer.forward(random_tensor());
+        let grads = loss.backward();
+        layer.update_params(&grads, &mut optim);
+
+        let state = optim.state(&layer);
+
+        assert!(state.is_empty());
+    }
+
+    #[test]
+    fn should_load_state() {
+        let mut layer = layer();
+        let mut optim = sgd_with_all();
+        let loss = layer.forward(random_tensor());
+        let grads = loss.backward();
+        layer.update_params(&grads, &mut optim);
+
+        let state = optim.state(&layer);
+        let mut optim_new = sgd_with_all();
+        let state_new = optim_new.state(&layer);
+        optim_new.load(&layer, &state).unwrap();
+        let state_restored = optim_new.state(&layer);
+
+        assert_ne!(state, state_new);
+        assert_eq!(state, state_restored);
+    }
+
+    fn random_tensor() -> Tensor<TestADBackend, 2> {
+        Tensor::<TestADBackend, 2>::random(Shape::new([2, 20]), Distribution::Standard)
+    }
+
+    fn layer() -> Linear<TestADBackend> {
+        Linear::<TestADBackend>::new(&LinearConfig {
+            d_input: 20,
+            d_output: 20,
+            bias: true,
+        })
+    }
+
+    fn sgd_with_all() -> Sgd<TestADBackend> {
+        Sgd::new(&SgdConfig {
+            learning_rate: 0.02,
+            weight_decay: Some(WeightDecayConfig { penalty: 0.05 }),
+            momentum: Some(MomentumConfig {
+                momentum: 0.9,
+                dampening: 0.1,
+                nesterov: true,
+            }),
+        })
+    }
+
+    fn sgd_with_nothing() -> Sgd<TestADBackend> {
+        Sgd::new(&SgdConfig {
+            learning_rate: 0.02,
+            weight_decay: None,
+            momentum: None,
+        })
+    }
+}
