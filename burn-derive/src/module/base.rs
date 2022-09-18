@@ -1,5 +1,5 @@
+use super::param::Param;
 use crate::module::display;
-use crate::Param;
 use proc_macro::TokenStream;
 use quote::quote;
 
