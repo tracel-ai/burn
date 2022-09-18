@@ -1,6 +1,8 @@
+use crate as burn;
+
 use super::decay::{WeightDecay, WeightDecayConfig};
 use super::momentum::{Momentum, MomentumConfig};
-use crate::macros::config;
+use crate::config;
 use crate::module::{ParamId, StateNamed};
 use crate::optim::Optimizer;
 use crate::tensor::backend::ADBackend;
@@ -10,6 +12,7 @@ config!(
     /// Configuration to create the [Sgd](Sgd) optimizer.
     pub struct SgdConfig {
         /// Learning rate for the optimizer.
+        #[config(default = 0.01)]
         pub learning_rate: f64,
         /// [Weight decay](WeightDecayConfig) config.
         pub weight_decay: Option<WeightDecayConfig>,

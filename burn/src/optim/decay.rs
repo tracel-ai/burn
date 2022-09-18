@@ -1,5 +1,7 @@
+use crate as burn;
+
 use super::{load_state_gradients, register_state_gradients};
-use crate::macros::config;
+use crate::config;
 use crate::module::{ParamId, StateNamed};
 use crate::tensor::backend::ADBackend;
 use crate::tensor::{ElementConversion, Gradients, Tensor};

@@ -1,7 +1,6 @@
-use crate::field::FieldTypeAnalyzer;
+use crate::shared::field::{parse_fields, FieldTypeAnalyzer};
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::Field;
 
 pub struct Param {
     fields_param: Vec<FieldTypeAnalyzer>,
@@ -214,19 +213,4 @@ impl Param {
             }
         }
     }
-}
-
-fn parse_fields(ast: &syn::DeriveInput) -> Vec<Field> {
-    let mut fields = Vec::new();
-
-    match &ast.data {
-        syn::Data::Struct(struct_data) => {
-            for field in struct_data.fields.iter() {
-                fields.push(field.clone());
-            }
-        }
-        syn::Data::Enum(_) => panic!("Only struct can be derived"),
-        syn::Data::Union(_) => panic!("Only struct cna be derived"),
-    };
-    fields
 }

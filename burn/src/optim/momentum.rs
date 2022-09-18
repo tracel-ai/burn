@@ -1,5 +1,7 @@
+use crate as burn;
+
 use super::{load_state_gradients, register_state_gradients};
-use crate::macros::config;
+use crate::config;
 use crate::module::{ParamId, StateNamed};
 use crate::tensor::backend::ADBackend;
 use crate::tensor::{ElementConversion, Gradients, Tensor};
@@ -8,10 +10,13 @@ config!(
     /// Configuration to create momentum [Momentum](Momentum).
     pub struct MomentumConfig {
         /// Momemtum factor
+        #[config(default = 0.9)]
         pub momentum: f64,
         /// Dampening factor.
+        #[config(default = 0.1)]
         pub dampening: f64,
         /// Enables Nesterov momentum, see [On the importance of initialization and momentum in deep learning](http://www.cs.toronto.edu/~hinton/absps/momentum.pdf).
+        #[config(default = false)]
         pub nesterov: bool,
     }
 );

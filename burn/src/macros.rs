@@ -1,8 +1,7 @@
+#[macro_export]
 macro_rules! config {
     ($item:item) => {
-        #[derive(new, serde::Serialize, serde::Deserialize, Clone, Debug)]
+        #[derive(burn::Config, serde::Serialize, serde::Deserialize, Clone, Debug)]
         $item
     };
 }
-
-pub(crate) use config;

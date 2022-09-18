@@ -1,4 +1,6 @@
-use crate::macros::config;
+use crate as burn;
+
+use crate::config;
 use crate::module::Forward;
 use crate::tensor::backend::Backend;
 use crate::tensor::{Distribution, ElementConversion, Tensor};

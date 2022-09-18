@@ -1,6 +1,6 @@
 use crate as burn;
 
-use crate::macros::config;
+use crate::config;
 use crate::module::Module;
 use crate::module::{Forward, Param};
 use crate::tensor::backend::Backend;
@@ -11,7 +11,8 @@ config!(
     pub struct LayerNormConfig {
         /// The size of the input features.
         pub d_model: usize,
-        /// A value required for numerical stability, typically 1e-5.
+        /// A value required for numerical stability. Default: 1e-5
+        #[config(default = 1e-5)]
         pub epsilon: f64,
     }
 );
@@ -61,10 +62,7 @@ mod tests {
 
     #[test]
     fn layer_norm_forward() {
-        let config = LayerNormConfig {
-            d_model: 10,
-            epsilon: 1e-5,
-        };
+        let config = LayerNormConfig::new(10);
         let module = LayerNorm::<TestBackend>::new(&config);
         let input = Tensor::from_data(Data::from([[
             -0.6897, -2.7106, 2.2222, -1.0330, -0.8933, 1.1765, 0.0601, 1.5252, -0.3630, 0.6728,
@@ -82,10 +80,7 @@ mod tests {
 
     #[test]
     fn layer_norm_backward() {
-        let config = LayerNormConfig {
-            d_model: 2,
-            epsilon: 1e-5,
-        };
+        let config = LayerNormConfig::new(2);
         let module = LayerNorm::<TestADBackend>::new(&config);
         let tensor_1 = Tensor::<TestADBackend, 2>::from_data(Data::from([[0.0, 1.0], [3.0, 4.0]]));
         let tensor_2 = Tensor::<TestADBackend, 2>::from_data(Data::from([[6.0, 7.0], [9.0, 10.0]]));

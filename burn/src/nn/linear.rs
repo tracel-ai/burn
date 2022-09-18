@@ -1,6 +1,6 @@
 use crate as burn;
 
-use crate::macros::config;
+use crate::config;
 use crate::module::Module;
 use crate::module::{Forward, Param};
 use crate::tensor::backend::Backend;
@@ -15,6 +15,7 @@ config!(
         /// The size of the output features.
         pub d_output: usize,
         /// If a bias should be applied during the linear transformation.
+        #[config(default = true)]
         pub bias: bool,
     }
 );

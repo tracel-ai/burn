@@ -1,6 +1,8 @@
+use super::attribute::AttributeAnalyzer;
 use proc_macro2::Ident;
 use syn::{Field, Type, TypePath};
 
+#[derive(Debug, Clone)]
 pub struct FieldTypeAnalyzer {
     pub field: Field,
 }
@@ -50,7 +52,7 @@ impl FieldTypeAnalyzer {
         }
     }
 
-    pub fn path_name(path: &TypePath) -> String {
+    fn path_name(path: &TypePath) -> String {
         let length = path.path.segments.len();
         let mut name = String::new();
         for (i, segment) in path.path.segments.iter().enumerate() {
@@ -64,8 +66,30 @@ impl FieldTypeAnalyzer {
         name
     }
 
-    pub fn is_param(&self) -> bool {
-        let params_types = vec!["Param", "burn::Param"];
-        self.is_of_type(&params_types)
+    pub fn attributes(&self) -> impl Iterator<Item = AttributeAnalyzer> {
+        self.field
+            .attrs
+            .clone()
+            .into_iter()
+            .map(AttributeAnalyzer::new)
     }
+
+    pub fn is_param(&self) -> bool {
+        self.is_of_type(&["Param", "burn::Param"])
+    }
+}
+
+pub(crate) fn parse_fields(ast: &syn::DeriveInput) -> Vec<Field> {
+    let mut fields = Vec::new();
+
+    match &ast.data {
+        syn::Data::Struct(struct_data) => {
+            for field in struct_data.fields.iter() {
+                fields.push(field.clone());
+            }
+        }
+        syn::Data::Enum(_) => panic!("Only struct can be derived"),
+        syn::Data::Union(_) => panic!("Only struct cna be derived"),
+    };
+    fields
 }
