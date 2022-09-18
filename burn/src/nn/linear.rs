@@ -15,6 +15,7 @@ config!(
         /// The size of the output features.
         pub d_output: usize,
         /// If a bias should be applied during the linear transformation.
+        #[config(default = true)]
         pub bias: bool,
     }
 );

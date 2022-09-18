@@ -73,11 +73,7 @@ impl<B: Backend> Mlp<B> {
         let mut linears = Vec::with_capacity(num_layers);
 
         for _ in 0..num_layers {
-            let config = nn::LinearConfig {
-                d_input: dim,
-                d_output: dim,
-                bias: true,
-            };
+            let config = nn::LinearConfig::new(dim, dim);
             let linear = nn::Linear::new(&config);
             linears.push(linear);
         }
@@ -93,16 +89,8 @@ impl<B: Backend> Mlp<B> {
 impl<B: Backend> Model<B> {
     fn new(d_input: usize, d_hidden: usize, num_layers: usize, num_classes: usize) -> Self {
         let mlp = Mlp::new(d_hidden, num_layers);
-        let config_input = nn::LinearConfig {
-            d_input,
-            d_output: d_hidden,
-            bias: true,
-        };
-        let config_output = nn::LinearConfig {
-            d_input: d_hidden,
-            d_output: num_classes,
-            bias: true,
-        };
+        let config_input = nn::LinearConfig::new(d_input, d_hidden);
+        let config_output = nn::LinearConfig::new(d_hidden, num_classes);
         let output = nn::Linear::new(&config_output);
         let input = nn::Linear::new(&config_input);
 

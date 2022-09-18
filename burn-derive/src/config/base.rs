@@ -74,7 +74,7 @@ impl ConfigAnalyzer {
         }
 
         let body = quote! {
-            fn new(
+            pub fn new(
                 #(#names),*
             ) -> Self {
                 Self { #body }
