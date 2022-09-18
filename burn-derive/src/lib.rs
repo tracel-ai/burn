@@ -9,14 +9,12 @@ use module::module_derive_impl;
 
 #[proc_macro_derive(Module)]
 pub fn module_derive(input: TokenStream) -> TokenStream {
-    let ast = syn::parse(input).unwrap();
-    module_derive_impl(&ast)
+    let input = syn::parse(input).unwrap();
+    module_derive_impl(&input)
 }
 
 #[proc_macro_derive(Config, attributes(config))]
-pub fn config_derive(item: TokenStream) -> TokenStream {
-    let item = syn::parse(item).unwrap();
-
-    // panic!("{}", tokens);
+pub fn config_derive(input: TokenStream) -> TokenStream {
+    let item = syn::parse(input).unwrap();
     config_attr_impl(&item).into()
 }
