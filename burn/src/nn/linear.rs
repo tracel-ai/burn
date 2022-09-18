@@ -1,6 +1,6 @@
 use crate as burn;
 
-use crate::macros::config;
+use crate::config;
 use crate::module::Module;
 use crate::module::{Forward, Param};
 use crate::tensor::backend::Backend;

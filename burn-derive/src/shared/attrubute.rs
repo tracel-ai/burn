@@ -5,7 +5,7 @@ pub struct AttributeAnalyzer {
     attr: Attribute,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AttributeItem {
     pub ident: Ident,
     pub value: syn::Lit,

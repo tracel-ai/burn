@@ -1,5 +1,5 @@
 use crate::shared::{
-    attrubute::AttributeAnalyzer,
+    attrubute::AttributeItem,
     field::{parse_fields, FieldTypeAnalyzer},
 };
 use proc_macro2::{Ident, TokenStream};
@@ -12,9 +12,11 @@ pub(crate) fn config_attr_impl(item: &syn::DeriveInput) -> TokenStream {
     let config = Config { name, fields }.analyze();
 
     let constructor = config.gen_constructor_impl();
+    let builders = config.gen_builder_fn_impl();
 
     quote! {
         #constructor
+        #builders
     }
     .into()
 }
@@ -28,7 +30,7 @@ struct ConfigAnalyzer {
     name: Ident,
     fields_required: Vec<FieldTypeAnalyzer>,
     fields_option: Vec<FieldTypeAnalyzer>,
-    fields_default: Vec<(FieldTypeAnalyzer, Vec<AttributeAnalyzer>)>,
+    fields_default: Vec<(FieldTypeAnalyzer, AttributeItem)>,
 }
 
 impl ConfigAnalyzer {
@@ -56,21 +58,13 @@ impl ConfigAnalyzer {
             });
         }
 
-        for (field, attributes) in self.fields_default.iter() {
+        for (field, attribute) in self.fields_default.iter() {
             let name = field.ident();
-            let value = attributes.first().unwrap();
-            let items = value.items();
+            let value = &attribute.value;
 
-            match items.first() {
-                Some(item) => {
-                    let value = &item.value;
-
-                    body.extend(quote! {
-                        #name: #value,
-                    });
-                }
-                _ => panic!("No value provided for default field {}", name.to_string()),
-            };
+            body.extend(quote! {
+                #name: #value,
+            });
         }
 
         let body = quote! {
@@ -81,6 +75,38 @@ impl ConfigAnalyzer {
             }
         };
         self.wrap_impl_block(body)
+    }
+
+    fn gen_builder_fn_impl(&self) -> TokenStream {
+        let mut body = quote! {};
+
+        for (field, _) in self.fields_default.iter() {
+            let name = field.ident();
+            let ty = &field.field.ty;
+            let fn_name = Ident::new(&format!("with_{}", name.to_string()), name.span());
+
+            body.extend(quote! {
+                pub fn #fn_name(mut self, #name: #ty) -> Self {
+                    self.#name = #name;
+                    self
+                }
+            });
+        }
+
+        for field in self.fields_option.iter() {
+            let name = field.ident();
+            let ty = &field.field.ty;
+            let fn_name = Ident::new(&format!("with_{}", name.to_string()), name.span());
+
+            body.extend(quote! {
+                pub fn #fn_name(mut self, #name: #ty) -> Self {
+                    self.#name = #name;
+                    self
+                }
+            });
+        }
+
+        self.wrap_impl_block(body.into())
     }
 
     fn wrap_impl_block(&self, tokens: TokenStream) -> TokenStream {
@@ -102,13 +128,17 @@ impl Config {
         let mut fields_default = Vec::new();
 
         for field in self.fields.iter() {
-            let attributes: Vec<AttributeAnalyzer> = field
+            let attributes: Vec<AttributeItem> = field
                 .attributes()
                 .filter(|attr| attr.has_name("config"))
+                .map(|attr| attr.items())
+                .map(|attr| attr.first().map(Clone::clone))
+                .filter_map(|attr| attr)
                 .collect();
 
             if !attributes.is_empty() {
-                fields_default.push((field.clone(), attributes));
+                let item = attributes.first().unwrap().clone();
+                fields_default.push((field.clone(), item));
                 continue;
             }
 

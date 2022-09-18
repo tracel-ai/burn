@@ -1,4 +1,5 @@
-use crate::macros::config;
+use crate as burn;
+use crate::config;
 
 config!(
     pub struct AdamConfig {

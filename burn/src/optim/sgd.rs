@@ -1,6 +1,8 @@
+use crate as burn;
+
 use super::decay::{WeightDecay, WeightDecayConfig};
 use super::momentum::{Momentum, MomentumConfig};
-use crate::macros::config;
+use crate::config;
 use crate::module::{ParamId, StateNamed};
 use crate::optim::Optimizer;
 use crate::tensor::backend::ADBackend;
