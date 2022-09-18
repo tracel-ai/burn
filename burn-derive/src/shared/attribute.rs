@@ -21,21 +21,18 @@ impl AttributeAnalyzer {
             Ok(val) => val,
             _ => return Vec::new(),
         };
-        let nested = match config.clone() {
+        let nested = match config {
             Meta::List(val) => val.nested,
             _ => return Vec::new(),
         };
 
         let mut output = Vec::new();
         for pair in nested.into_iter() {
-            match pair {
-                NestedMeta::Meta(Meta::NameValue(value)) => {
-                    output.push(AttributeItem {
-                        ident: value.path.get_ident().unwrap().clone(),
-                        value: value.lit,
-                    });
-                }
-                _ => {}
+            if let NestedMeta::Meta(Meta::NameValue(value)) = pair {
+                output.push(AttributeItem {
+                    ident: value.path.get_ident().unwrap().clone(),
+                    value: value.lit,
+                });
             };
         }
         output

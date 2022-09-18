@@ -1,4 +1,4 @@
-use super::attrubute::AttributeAnalyzer;
+use super::attribute::AttributeAnalyzer;
 use proc_macro2::Ident;
 use syn::{Field, Type, TypePath};
 

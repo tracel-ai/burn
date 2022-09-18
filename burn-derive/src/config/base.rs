@@ -1,5 +1,5 @@
 use crate::shared::{
-    attrubute::AttributeItem,
+    attribute::AttributeItem,
     field::{parse_fields, FieldTypeAnalyzer},
 };
 use proc_macro2::{Ident, TokenStream};
@@ -18,7 +18,6 @@ pub(crate) fn config_attr_impl(item: &syn::DeriveInput) -> TokenStream {
         #constructor
         #builders
     }
-    .into()
 }
 
 struct Config {
@@ -83,7 +82,7 @@ impl ConfigAnalyzer {
         for (field, _) in self.fields_default.iter() {
             let name = field.ident();
             let ty = &field.field.ty;
-            let fn_name = Ident::new(&format!("with_{}", name.to_string()), name.span());
+            let fn_name = Ident::new(&format!("with_{}", name), name.span());
 
             body.extend(quote! {
                 pub fn #fn_name(mut self, #name: #ty) -> Self {
@@ -96,7 +95,7 @@ impl ConfigAnalyzer {
         for field in self.fields_option.iter() {
             let name = field.ident();
             let ty = &field.field.ty;
-            let fn_name = Ident::new(&format!("with_{}", name.to_string()), name.span());
+            let fn_name = Ident::new(&format!("with_{}", name), name.span());
 
             body.extend(quote! {
                 pub fn #fn_name(mut self, #name: #ty) -> Self {
@@ -106,7 +105,7 @@ impl ConfigAnalyzer {
             });
         }
 
-        self.wrap_impl_block(body.into())
+        self.wrap_impl_block(body)
     }
 
     fn wrap_impl_block(&self, tokens: TokenStream) -> TokenStream {
@@ -117,7 +116,6 @@ impl ConfigAnalyzer {
                 #tokens
             }
         }
-        .into()
     }
 }
 
@@ -132,8 +130,7 @@ impl Config {
                 .attributes()
                 .filter(|attr| attr.has_name("config"))
                 .map(|attr| attr.items())
-                .map(|attr| attr.first().map(Clone::clone))
-                .filter_map(|attr| attr)
+                .filter_map(|attr| attr.first().map(Clone::clone))
                 .collect();
 
             if !attributes.is_empty() {
