@@ -1,4 +1,5 @@
-use crate::Config;
+use crate as burn;
+use crate::config::Config;
 
 #[derive(Config)]
 pub struct AdamConfig {

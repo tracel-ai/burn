@@ -16,8 +16,10 @@ pub(crate) fn config_attr_impl(item: &syn::DeriveInput) -> TokenStream {
     let serde = config.gen_serde();
     let clone = config.gen_clone();
     let display = config.gen_display();
+    let config_impl = config.gen_config_impl();
 
     quote! {
+        #config_impl
         #constructor
         #builders
         #serde
@@ -31,6 +33,7 @@ struct Config {
     fields: Vec<FieldTypeAnalyzer>,
 }
 
+#[derive(Debug)]
 struct ConfigAnalyzer {
     name: Ident,
     fields_required: Vec<FieldTypeAnalyzer>,
@@ -214,8 +217,17 @@ impl ConfigAnalyzer {
         quote! {
             impl std::fmt::Display for #name {
                 fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                    f.write_str(serde_json::to_string_pretty(self).unwrap().as_str())
+                    f.write_str(&burn::config::config_to_yaml(self))
                 }
+            }
+        }
+    }
+
+    pub fn gen_config_impl(&self) -> TokenStream {
+        let name = &self.name;
+
+        quote! {
+            impl burn::config::Config for #name {
             }
         }
     }
@@ -264,8 +276,6 @@ impl ConfigAnalyzer {
         }
     }
 }
-
-impl ConfigAnalyzer {}
 
 impl Config {
     fn analyze(&self) -> ConfigAnalyzer {

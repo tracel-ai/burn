@@ -1,10 +1,10 @@
 use crate as burn;
 
+use crate::config::Config;
 use crate::module::Module;
 use crate::module::{Forward, Param};
 use crate::tensor::backend::Backend;
 use crate::tensor::{Distribution, ElementConversion, Shape, Tensor};
-use crate::Config;
 use std::ops::Deref;
 
 /// Configuration to create a [Linear](Linear) layer.

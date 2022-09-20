@@ -1,10 +1,11 @@
 use super::decay::{WeightDecay, WeightDecayConfig};
 use super::momentum::{Momentum, MomentumConfig};
+use crate as burn;
+use crate::config::Config;
 use crate::module::{ParamId, StateNamed};
 use crate::optim::Optimizer;
 use crate::tensor::backend::ADBackend;
 use crate::tensor::{ElementConversion, Gradients, Tensor};
-use crate::Config;
 
 /// Configuration to create the [Sgd](Sgd) optimizer.
 #[derive(Config)]
