@@ -8,6 +8,12 @@ pub struct Param<T> {
     pub(super) value: T,
 }
 
+impl<T> std::fmt::Display for Param<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(format!("Param: {}", self.id).as_str())
+    }
+}
+
 impl<T> Param<T> {
     pub fn new(value: T) -> Self {
         Self {

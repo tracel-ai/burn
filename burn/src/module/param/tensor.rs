@@ -1,24 +1,26 @@
 use super::{load_with_id, state_with_id, Param};
-use crate::module::{LoadingError, State, StateNamed};
+use crate::module::{LoadingError, Module, State, StateNamed};
 use crate::optim::Optimizer;
 use crate::tensor::{
     backend::{ADBackend, Backend},
     Data, Gradients, Tensor,
 };
 
-impl<const D: usize, B: Backend> Param<Tensor<B, D>> {
-    pub fn num_params(&self) -> usize {
+impl<const D: usize, B: Backend> Module for Param<Tensor<B, D>> {
+    type Backend = B;
+
+    fn num_params(&self) -> usize {
         self.value.shape().num_elements()
     }
 
-    pub fn update_params<O: Optimizer<Backend = B>>(&mut self, grads: &Gradients, optim: &mut O)
+    fn update_params<O: Optimizer<Backend = B>>(&mut self, grads: &Gradients, optim: &mut O)
     where
         B: ADBackend,
     {
         optim.update(&self.id, &mut self.value, grads);
     }
 
-    pub fn load_optim_state<O: Optimizer<Backend = B>>(
+    fn load_optim_state<O: Optimizer<Backend = B>>(
         &self,
         optim: &mut O,
         state_optim: &StateNamed<B::Elem>,
@@ -28,7 +30,7 @@ impl<const D: usize, B: Backend> Param<Tensor<B, D>> {
         optim.load_param_state::<D>(&self.id, state_optim, &self.value.device());
     }
 
-    pub fn register_optim_state<O: Optimizer<Backend = B>>(
+    fn register_optim_state<O: Optimizer<Backend = B>>(
         &self,
         optim: &O,
         state_optim: &mut StateNamed<B::Elem>,
@@ -38,21 +40,21 @@ impl<const D: usize, B: Backend> Param<Tensor<B, D>> {
         optim.register_param_state::<D>(&self.id, state_optim);
     }
 
-    pub fn devices(&self) -> Vec<B::Device> {
+    fn devices(&self) -> Vec<B::Device> {
         vec![self.value.device()]
     }
 
-    pub fn to_device(&mut self, device: B::Device) {
+    fn to_device(&mut self, device: B::Device) {
         self.value = self.value.to_device(device);
     }
 
-    pub fn state(&self) -> State<B::Elem> {
+    fn state(&self) -> State<B::Elem> {
         let state = State::Data(self.value.to_data().serialize());
 
         state_with_id(self.id.clone(), state)
     }
 
-    pub fn load(&mut self, state: &State<B::Elem>) -> Result<(), LoadingError> {
+    fn load(&mut self, state: &State<B::Elem>) -> Result<(), LoadingError> {
         let (id, state) = load_with_id(state)?;
         self.id = id.clone();
 
@@ -65,17 +67,12 @@ impl<const D: usize, B: Backend> Param<Tensor<B, D>> {
 
         Ok(())
     }
-
-    pub fn inner(&self) -> Param<Tensor<B::InnerBackend, D>>
-    where
-        B: ADBackend,
-    {
-        Param::new(self.value.inner())
-    }
 }
 
-impl<const D: usize, B: Backend> Param<Option<Tensor<B, D>>> {
-    pub fn num_params(&self) -> usize {
+impl<const D: usize, B: Backend> Module for Param<Option<Tensor<B, D>>> {
+    type Backend = B;
+
+    fn num_params(&self) -> usize {
         if let Some(value) = &self.value {
             return value.shape().num_elements();
         }
@@ -83,7 +80,7 @@ impl<const D: usize, B: Backend> Param<Option<Tensor<B, D>>> {
         0
     }
 
-    pub fn update_params<O: Optimizer<Backend = B>>(&mut self, grads: &Gradients, optim: &mut O)
+    fn update_params<O: Optimizer<Backend = B>>(&mut self, grads: &Gradients, optim: &mut O)
     where
         B: ADBackend,
     {
@@ -92,7 +89,7 @@ impl<const D: usize, B: Backend> Param<Option<Tensor<B, D>>> {
         }
     }
 
-    pub fn load_optim_state<O: Optimizer<Backend = B>>(
+    fn load_optim_state<O: Optimizer<Backend = B>>(
         &self,
         optim: &mut O,
         state_optim: &StateNamed<B::Elem>,
@@ -104,7 +101,7 @@ impl<const D: usize, B: Backend> Param<Option<Tensor<B, D>>> {
         }
     }
 
-    pub fn register_optim_state<O: Optimizer<Backend = B>>(
+    fn register_optim_state<O: Optimizer<Backend = B>>(
         &self,
         optim: &O,
         state_optim: &mut StateNamed<B::Elem>,
@@ -116,7 +113,7 @@ impl<const D: usize, B: Backend> Param<Option<Tensor<B, D>>> {
         }
     }
 
-    pub fn devices(&self) -> Vec<B::Device> {
+    fn devices(&self) -> Vec<B::Device> {
         if let Some(value) = &self.value {
             return vec![value.device()];
         }
@@ -124,13 +121,13 @@ impl<const D: usize, B: Backend> Param<Option<Tensor<B, D>>> {
         vec![]
     }
 
-    pub fn to_device(&mut self, device: B::Device) {
+    fn to_device(&mut self, device: B::Device) {
         if let Some(value) = &self.value {
             self.value = Some(value.to_device(device));
         }
     }
 
-    pub fn state(&self) -> State<B::Elem> {
+    fn state(&self) -> State<B::Elem> {
         let state = match &self.value {
             Some(value) => State::Data(value.to_data().serialize()),
             None => State::StateNamed(StateNamed::new()),
@@ -139,7 +136,7 @@ impl<const D: usize, B: Backend> Param<Option<Tensor<B, D>>> {
         state_with_id(self.id.clone(), state)
     }
 
-    pub fn load(&mut self, state: &State<B::Elem>) -> Result<(), LoadingError> {
+    fn load(&mut self, state: &State<B::Elem>) -> Result<(), LoadingError> {
         let (id, state) = load_with_id(state)?;
         self.id = id.clone();
 
@@ -158,7 +155,18 @@ impl<const D: usize, B: Backend> Param<Option<Tensor<B, D>>> {
 
         Ok(())
     }
+}
 
+impl<const D: usize, B: Backend> Param<Tensor<B, D>> {
+    pub fn inner(&self) -> Param<Tensor<B::InnerBackend, D>>
+    where
+        B: ADBackend,
+    {
+        Param::new(self.value.inner())
+    }
+}
+
+impl<const D: usize, B: Backend> Param<Option<Tensor<B, D>>> {
     pub fn inner(&self) -> Param<Option<Tensor<B::InnerBackend, D>>>
     where
         B: ADBackend,

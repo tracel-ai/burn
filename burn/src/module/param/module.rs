@@ -6,12 +6,14 @@ use crate::tensor::{
     Gradients,
 };
 
-impl<M: Module> Param<M> {
-    pub fn num_params(&self) -> usize {
+impl<M: Module> Module for Param<M> {
+    type Backend = M::Backend;
+
+    fn num_params(&self) -> usize {
         self.value.num_params()
     }
 
-    pub fn update_params<O: Optimizer<Backend = M::Backend>>(
+    fn update_params<O: Optimizer<Backend = M::Backend>>(
         &mut self,
         grads: &Gradients,
         optim: &mut O,
@@ -21,7 +23,7 @@ impl<M: Module> Param<M> {
         self.value.update_params(grads, optim);
     }
 
-    pub fn load_optim_state<O: Optimizer<Backend = M::Backend>>(
+    fn load_optim_state<O: Optimizer<Backend = M::Backend>>(
         &self,
         optim: &mut O,
         state_optim: &StateNamed<<M::Backend as Backend>::Elem>,
@@ -31,7 +33,7 @@ impl<M: Module> Param<M> {
         self.value.load_optim_state(optim, state_optim);
     }
 
-    pub fn register_optim_state<O: Optimizer<Backend = M::Backend>>(
+    fn register_optim_state<O: Optimizer<Backend = M::Backend>>(
         &self,
         optim: &O,
         state_optim: &mut StateNamed<<M::Backend as Backend>::Elem>,
@@ -41,41 +43,32 @@ impl<M: Module> Param<M> {
         self.value.register_optim_state(optim, state_optim);
     }
 
-    pub fn devices(&self) -> Vec<<M::Backend as Backend>::Device> {
+    fn devices(&self) -> Vec<<M::Backend as Backend>::Device> {
         self.value.devices()
     }
 
-    pub fn to_device(&mut self, device: <M::Backend as Backend>::Device) {
+    fn to_device(&mut self, device: <Self::Backend as Backend>::Device) {
         self.value.to_device(device)
     }
 
-    pub fn state(&self) -> State<<M::Backend as Backend>::Elem> {
+    fn state(&self) -> State<<M::Backend as Backend>::Elem> {
         let state = self.value.state();
 
         state_with_id(self.id.clone(), state)
     }
 
-    pub fn load(
-        &mut self,
-        state: &State<<M::Backend as Backend>::Elem>,
-    ) -> Result<(), LoadingError> {
+    fn load(&mut self, state: &State<<M::Backend as Backend>::Elem>) -> Result<(), LoadingError> {
         let (id, state) = load_with_id(state)?;
         self.id = id.clone();
 
         self.value.load(state)
     }
-
-    pub fn inner(&self) -> Param<M::InnerModule>
-    where
-        M: ADModule,
-        M::Backend: ADBackend,
-    {
-        Param::new(self.value.inner())
-    }
 }
 
-impl<M: Module> Param<Vec<M>> {
-    pub fn num_params(&self) -> usize {
+impl<M: Module> Module for Param<Vec<M>> {
+    type Backend = M::Backend;
+
+    fn num_params(&self) -> usize {
         let mut num_params = 0;
         for module in self.value.iter() {
             num_params += module.num_params();
@@ -84,7 +77,7 @@ impl<M: Module> Param<Vec<M>> {
         num_params
     }
 
-    pub fn update_params<O: Optimizer<Backend = M::Backend>>(
+    fn update_params<O: Optimizer<Backend = M::Backend>>(
         &mut self,
         grads: &Gradients,
         optim: &mut O,
@@ -96,7 +89,7 @@ impl<M: Module> Param<Vec<M>> {
         }
     }
 
-    pub fn load_optim_state<O: Optimizer<Backend = M::Backend>>(
+    fn load_optim_state<O: Optimizer<Backend = M::Backend>>(
         &self,
         optim: &mut O,
         state_optim: &StateNamed<<M::Backend as Backend>::Elem>,
@@ -107,7 +100,7 @@ impl<M: Module> Param<Vec<M>> {
             module.load_optim_state(optim, state_optim);
         }
     }
-    pub fn register_optim_state<O: Optimizer<Backend = M::Backend>>(
+    fn register_optim_state<O: Optimizer<Backend = M::Backend>>(
         &self,
         optim: &O,
         state_optim: &mut StateNamed<<M::Backend as Backend>::Elem>,
@@ -119,7 +112,7 @@ impl<M: Module> Param<Vec<M>> {
         }
     }
 
-    pub fn devices(&self) -> Vec<<M::Backend as Backend>::Device> {
+    fn devices(&self) -> Vec<<M::Backend as Backend>::Device> {
         let mut devices = Vec::new();
         for module in self.value.iter() {
             devices.append(&mut module.devices());
@@ -127,13 +120,13 @@ impl<M: Module> Param<Vec<M>> {
         devices
     }
 
-    pub fn to_device(&mut self, device: <M::Backend as Backend>::Device) {
+    fn to_device(&mut self, device: <M::Backend as Backend>::Device) {
         for module in self.value.iter_mut() {
             module.to_device(device);
         }
     }
 
-    pub fn state(&self) -> State<<M::Backend as Backend>::Elem> {
+    fn state(&self) -> State<<M::Backend as Backend>::Elem> {
         let mut state = StateNamed::new();
 
         for (i, module) in self.value.iter().enumerate() {
@@ -145,10 +138,7 @@ impl<M: Module> Param<Vec<M>> {
         state_with_id(self.id.clone(), state)
     }
 
-    pub fn load(
-        &mut self,
-        state: &State<<M::Backend as Backend>::Elem>,
-    ) -> Result<(), LoadingError> {
+    fn load(&mut self, state: &State<<M::Backend as Backend>::Elem>) -> Result<(), LoadingError> {
         let (id, state) = load_with_id(state)?;
         self.id = id.clone();
 
@@ -168,12 +158,24 @@ impl<M: Module> Param<Vec<M>> {
 
         Ok(())
     }
+}
 
+impl<M: Module> Param<Vec<M>> {
     pub fn inner(&self) -> Param<Vec<M::InnerModule>>
     where
         M: ADModule,
         M::Backend: ADBackend,
     {
         Param::new(self.value.iter().map(|v| v.inner()).collect())
+    }
+}
+
+impl<M: Module> Param<M> {
+    pub fn inner(&self) -> Param<M::InnerModule>
+    where
+        M: ADModule,
+        M::Backend: ADBackend,
+    {
+        Param::new(self.value.inner())
     }
 }
