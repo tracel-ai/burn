@@ -16,7 +16,5 @@ pub fn module_derive(input: TokenStream) -> TokenStream {
 #[proc_macro_derive(Config, attributes(config))]
 pub fn config_derive(input: TokenStream) -> TokenStream {
     let item = syn::parse(input).unwrap();
-    let tokens = config_attr_impl(&item).into();
-    // panic!("{}", tokens);
-    tokens
+    config_attr_impl(&item).into()
 }

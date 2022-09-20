@@ -160,7 +160,6 @@ impl ConfigAnalyzer {
             #serialize_gen
             #deserialize_gen
         }
-        .into()
     }
 
     fn serde_struct_ident(&self) -> Ident {
@@ -184,7 +183,6 @@ impl ConfigAnalyzer {
             }
 
         }
-        .into()
     }
 
     pub fn gen_serialize_fn(&self, names: &[FieldTypeAnalyzer]) -> TokenStream {
@@ -208,7 +206,6 @@ impl ConfigAnalyzer {
             }
 
         }
-        .into()
     }
 
     pub fn gen_display(&self) -> TokenStream {
@@ -221,7 +218,6 @@ impl ConfigAnalyzer {
                 }
             }
         }
-        .into()
     }
 
     pub fn gen_deserialize_fn(&self, names: &[FieldTypeAnalyzer]) -> TokenStream {
@@ -245,7 +241,6 @@ impl ConfigAnalyzer {
             }
 
         }
-        .into()
     }
 
     pub fn gen_serde_struct(&self, names: &[TokenStream]) -> TokenStream {
@@ -257,7 +252,6 @@ impl ConfigAnalyzer {
             }
 
         }
-        .into()
     }
 
     fn wrap_impl_block(&self, tokens: TokenStream) -> TokenStream {
