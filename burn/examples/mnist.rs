@@ -11,7 +11,7 @@ use burn::tensor::{Data, ElementConversion, Shape, Tensor};
 use burn::train::logger::{AsyncLogger, CLILogger};
 use burn::train::metric::{AccuracyMetric, CUDAMetric, LossMetric};
 use burn::train::{ClassificationLearner, ClassificationOutput, SupervisedTrainer};
-use burn::{config, nn};
+use burn::{nn, Config};
 use std::sync::Arc;
 
 #[derive(Module, Debug)]
@@ -21,16 +21,15 @@ struct Model<B: Backend> {
     output: Param<nn::Linear<B>>,
 }
 
-config!(
-    struct MlpConfig {
-        #[config(default = 4)]
-        num_layers: usize,
-        #[config(default = 0.2)]
-        dropout: f64,
-        #[config(default = 1024)]
-        dim: usize,
-    }
-);
+#[derive(Config)]
+struct MlpConfig {
+    #[config(default = 4)]
+    num_layers: usize,
+    #[config(default = 0.2)]
+    dropout: f64,
+    #[config(default = 1024)]
+    dim: usize,
+}
 
 #[derive(Module, Debug)]
 struct Mlp<B: Backend> {

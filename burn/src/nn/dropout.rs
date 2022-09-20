@@ -1,17 +1,14 @@
-use crate as burn;
-
-use crate::config;
 use crate::module::Forward;
 use crate::tensor::backend::Backend;
 use crate::tensor::{Distribution, ElementConversion, Tensor};
+use crate::Config;
 
-config!(
-    /// Configuration to create a [Dropout](Dropout) layer.
-    pub struct DropoutConfig {
-        /// The probability of randomly zeroes some elements of the input tensor during training.
-        pub prob: f64,
-    }
-);
+/// Configuration to create a [Dropout](Dropout) layer.
+#[derive(Config)]
+pub struct DropoutConfig {
+    /// The probability of randomly zeroes some elements of the input tensor during training.
+    pub prob: f64,
+}
 
 /// Set at random some elements of the input tensor to zero during training.
 ///

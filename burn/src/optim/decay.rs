@@ -1,18 +1,15 @@
-use crate as burn;
-
 use super::{load_state_gradients, register_state_gradients};
-use crate::config;
 use crate::module::{ParamId, StateNamed};
 use crate::tensor::backend::ADBackend;
 use crate::tensor::{ElementConversion, Gradients, Tensor};
+use crate::Config;
 
-config!(
-    /// Configuration to create [WeightDecay](WeightDecay).
-    pub struct WeightDecayConfig {
-        /// L2 penalty.
-        pub penalty: f64,
-    }
-);
+/// Configuration to create [WeightDecay](WeightDecay).
+#[derive(Config)]
+pub struct WeightDecayConfig {
+    /// L2 penalty.
+    pub penalty: f64,
+}
 
 /// Weight decay implementation that transforms gradients.
 pub struct WeightDecay<B: ADBackend> {
