@@ -1,7 +1,9 @@
+use burn::config::Config;
 use burn::data::dataloader::batcher::Batcher;
 use burn::data::dataloader::DataLoaderBuilder;
 use burn::data::dataset::source::huggingface::{MNISTDataset, MNISTItem};
 use burn::module::{Forward, Module, Param, State};
+use burn::nn;
 use burn::optim::decay::WeightDecayConfig;
 use burn::optim::momentum::MomentumConfig;
 use burn::optim::{Optimizer, Sgd, SgdConfig};
@@ -11,8 +13,25 @@ use burn::tensor::{Data, ElementConversion, Shape, Tensor};
 use burn::train::logger::{AsyncLogger, CLILogger};
 use burn::train::metric::{AccuracyMetric, CUDAMetric, LossMetric};
 use burn::train::{ClassificationLearner, ClassificationOutput, SupervisedTrainer};
-use burn::{config, nn};
 use std::sync::Arc;
+
+static MODEL_STATE_PATH: &str = "/tmp/mnist_state_model.json.gz";
+static OPTIMIZER_STATE_PATH: &str = "/tmp/mnist_state_optim.json.gz";
+static CONFIG_PATH: &str = "/tmp/mnist_config.yaml";
+
+#[derive(Config)]
+struct MnistConfig {
+    #[config(default = 15)]
+    num_epochs: usize,
+    #[config(default = 128)]
+    batch_size: usize,
+    #[config(default = 8)]
+    num_workers: usize,
+    #[config(default = 42)]
+    seed: u64,
+    optimizer: SgdConfig,
+    mlp: MlpConfig,
+}
 
 #[derive(Module, Debug)]
 struct Model<B: Backend> {
@@ -21,16 +40,15 @@ struct Model<B: Backend> {
     output: Param<nn::Linear<B>>,
 }
 
-config!(
-    struct MlpConfig {
-        #[config(default = 4)]
-        num_layers: usize,
-        #[config(default = 0.2)]
-        dropout: f64,
-        #[config(default = 1024)]
-        dim: usize,
-    }
-);
+#[derive(Config)]
+struct MlpConfig {
+    #[config(default = 4)]
+    num_layers: usize,
+    #[config(default = 0.2)]
+    dropout: f64,
+    #[config(default = 1024)]
+    dim: usize,
+}
 
 #[derive(Module, Debug)]
 struct Mlp<B: Backend> {
@@ -97,11 +115,10 @@ impl<B: Backend> Mlp<B> {
 }
 
 impl<B: Backend> Model<B> {
-    fn new(d_input: usize, num_classes: usize) -> Self {
-        let mlp_config = MlpConfig::new();
-        let mlp = Mlp::new(&mlp_config);
-        let output = nn::Linear::new(&nn::LinearConfig::new(mlp_config.dim, num_classes));
-        let input = nn::Linear::new(&nn::LinearConfig::new(d_input, mlp_config.dim));
+    fn new(config: &MnistConfig, d_input: usize, num_classes: usize) -> Self {
+        let mlp = Mlp::new(&config.mlp);
+        let output = nn::Linear::new(&nn::LinearConfig::new(config.mlp.dim, num_classes));
+        let input = nn::Linear::new(&nn::LinearConfig::new(d_input, config.mlp.dim));
 
         Self {
             mlp: Param::new(mlp),
@@ -143,16 +160,15 @@ impl<B: Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
     }
 }
 
-fn run<B: ADBackend>(device: B::Device) {
-    let batch_size = 128;
-    let num_epochs = 15;
-    let num_workers = 8;
-    let seed = 42;
+fn build_learner<B: ADBackend>(
+    config: &MnistConfig,
+    device: B::Device,
+) -> ClassificationLearner<Model<B>, Sgd<B>> {
+    let state_model = State::<f32>::load(MODEL_STATE_PATH).ok();
+    let state_optim = State::<f32>::load(OPTIMIZER_STATE_PATH).ok();
 
-    let state_model = State::<f32>::load("/tmp/mnist_state_model").ok();
-    let state_optim = State::<f32>::load("/tmp/mnist_state_optim").ok();
-
-    let mut model = Model::new(784, 10);
+    let mut optim = Sgd::new(&config.optimizer);
+    let mut model = Model::new(&config, 784, 10);
     model.to_device(device);
 
     if let Some(state) = state_model {
@@ -160,32 +176,46 @@ fn run<B: ADBackend>(device: B::Device) {
         model.load(&state.convert()).unwrap();
     }
 
-    let optim_config = SgdConfig::new()
-        .with_learning_rate(2.5e-2)
-        .with_weight_decay(Some(WeightDecayConfig::new(0.05)))
-        .with_momentum(Some(MomentumConfig::new().with_nesterov(true)));
-
-    let mut optim = Sgd::new(&optim_config);
     if let Some(state) = state_optim {
         println!("Loading optimizer state");
         optim.load(&model, &state.convert()).unwrap();
     }
+    println!(
+        "Training '{}' on backend {} {:?} \nConfig:\n\n{}",
+        model,
+        B::name(),
+        device,
+        config
+    );
+    ClassificationLearner::new(model, optim)
+}
 
-    println!("Training '{}' on backend {} {:?}", model, B::name(), device,);
+fn run<B: ADBackend>(device: B::Device) {
+    let config = MnistConfig::load(CONFIG_PATH).ok();
+    let config = match config {
+        Some(config) => config,
+        None => MnistConfig::new(
+            SgdConfig::new()
+                .with_learning_rate(2.5e-2)
+                .with_weight_decay(Some(WeightDecayConfig::new(0.05)))
+                .with_momentum(Some(MomentumConfig::new().with_nesterov(true))),
+            MlpConfig::new(),
+        ),
+    };
 
     let batcher_train = Arc::new(MNISTBatcher::<B> { device });
     let batcher_valid = Arc::new(MNISTBatcher::<B::InnerBackend> { device });
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
-        .batch_size(batch_size)
-        .shuffle(seed)
-        .num_workers(num_workers)
+        .batch_size(config.batch_size)
+        .shuffle(config.seed)
+        .num_workers(config.num_workers)
         .build(Arc::new(MNISTDataset::train()));
     let dataloader_test = DataLoaderBuilder::new(batcher_valid)
-        .batch_size(batch_size)
-        .num_workers(num_workers)
+        .batch_size(config.batch_size)
+        .num_workers(config.num_workers)
         .build(Arc::new(MNISTDataset::test()));
 
-    let learner = ClassificationLearner::new(model, optim);
+    let learner = build_learner(&config, device);
 
     let logger_train = Box::new(AsyncLogger::new(Box::new(CLILogger::new(
         vec![
@@ -212,12 +242,13 @@ fn run<B: ADBackend>(device: B::Device) {
         learner,
     );
 
-    let learned = trainer.run(num_epochs);
+    let learned = trainer.run(config.num_epochs);
     let state_model: State<f32> = learned.model.state().convert();
     let state_optim: State<f32> = learned.optim.state(&learned.model).convert();
 
-    state_model.save("/tmp/mnist_state_model").unwrap();
-    state_optim.save("/tmp/mnist_state_optim").unwrap();
+    state_model.save(MODEL_STATE_PATH).unwrap();
+    state_optim.save(OPTIMIZER_STATE_PATH).unwrap();
+    config.save(CONFIG_PATH).unwrap();
 }
 
 fn main() {

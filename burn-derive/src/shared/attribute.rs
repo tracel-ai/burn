@@ -19,7 +19,7 @@ impl AttributeAnalyzer {
     pub fn items(&self) -> Vec<AttributeItem> {
         let config = match self.attr.parse_meta() {
             Ok(val) => val,
-            _ => return Vec::new(),
+            Err(err) => panic!("Fail to parse items: {:?}", err),
         };
         let nested = match config {
             Meta::List(val) => val.nested,

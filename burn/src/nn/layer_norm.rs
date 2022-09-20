@@ -1,21 +1,20 @@
 use crate as burn;
 
-use crate::config;
+use crate::config::Config;
 use crate::module::Module;
 use crate::module::{Forward, Param};
 use crate::tensor::backend::Backend;
 use crate::tensor::{ElementConversion, Shape, Tensor};
 
-config!(
-    /// Configuration to create a [LayerNorm](LayerNorm) layer.
-    pub struct LayerNormConfig {
-        /// The size of the input features.
-        pub d_model: usize,
-        /// A value required for numerical stability. Default: 1e-5
-        #[config(default = 1e-5)]
-        pub epsilon: f64,
-    }
-);
+/// Configuration to create a [LayerNorm](LayerNorm) layer.
+#[derive(Config)]
+pub struct LayerNormConfig {
+    /// The size of the input features.
+    pub d_model: usize,
+    /// A value required for numerical stability. Default: 1e-5
+    #[config(default = 1e-5)]
+    pub epsilon: f64,
+}
 
 /// Applies Layer Normalization over an input tensor as described in the paper [Layer Normalization](https://arxiv.org/abs/1607.06450).
 ///

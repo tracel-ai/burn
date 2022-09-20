@@ -1,24 +1,23 @@
 use crate as burn;
 
-use crate::config;
+use crate::config::Config;
 use crate::module::Module;
 use crate::module::{Forward, Param};
 use crate::tensor::backend::Backend;
 use crate::tensor::{Distribution, ElementConversion, Shape, Tensor};
 use std::ops::Deref;
 
-config!(
-    /// Configuration to create a [Linear](Linear) layer.
-    pub struct LinearConfig {
-        /// The size of the input features.
-        pub d_input: usize,
-        /// The size of the output features.
-        pub d_output: usize,
-        /// If a bias should be applied during the linear transformation.
-        #[config(default = true)]
-        pub bias: bool,
-    }
-);
+/// Configuration to create a [Linear](Linear) layer.
+#[derive(Config)]
+pub struct LinearConfig {
+    /// The size of the input features.
+    pub d_input: usize,
+    /// The size of the output features.
+    pub d_output: usize,
+    /// If a bias should be applied during the linear transformation.
+    #[config(default = true)]
+    pub bias: bool,
+}
 
 /// Applies a linear transformation to the input tensor:
 ///

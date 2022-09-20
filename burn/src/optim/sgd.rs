@@ -1,25 +1,23 @@
-use crate as burn;
-
 use super::decay::{WeightDecay, WeightDecayConfig};
 use super::momentum::{Momentum, MomentumConfig};
-use crate::config;
+use crate as burn;
+use crate::config::Config;
 use crate::module::{ParamId, StateNamed};
 use crate::optim::Optimizer;
 use crate::tensor::backend::ADBackend;
 use crate::tensor::{ElementConversion, Gradients, Tensor};
 
-config!(
-    /// Configuration to create the [Sgd](Sgd) optimizer.
-    pub struct SgdConfig {
-        /// Learning rate for the optimizer.
-        #[config(default = 0.01)]
-        pub learning_rate: f64,
-        /// [Weight decay](WeightDecayConfig) config.
-        pub weight_decay: Option<WeightDecayConfig>,
-        /// [Momentum](MomentumConfig) config.
-        pub momentum: Option<MomentumConfig>,
-    }
-);
+/// Configuration to create the [Sgd](Sgd) optimizer.
+#[derive(Config)]
+pub struct SgdConfig {
+    /// Learning rate for the optimizer.
+    #[config(default = 0.01)]
+    pub learning_rate: f64,
+    /// [Weight decay](WeightDecayConfig) config.
+    pub weight_decay: Option<WeightDecayConfig>,
+    /// [Momentum](MomentumConfig) config.
+    pub momentum: Option<MomentumConfig>,
+}
 
 /// Optimizer that implements stochastic gradient descent with momentum.
 ///

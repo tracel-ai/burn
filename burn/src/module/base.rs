@@ -9,19 +9,19 @@ pub use burn_derive::Module;
 /// Trait for all neural network modules.
 ///
 /// Modules should be created using the [derive](burn_derive::Module) attribute.
-/// This will make your module trainable, savable and loadable via (update_params)[Module::update_params],
-/// (state)[Module::state] and (load)[Module::load].
+/// This will make your module trainable, savable and loadable via [update_params](Module::update_params),
+/// [state](Module::state) and [load](Module::load).
 ///
-/// Module concrete types should define their parameters via the (Param)[crate::module::Param]
+/// Module concrete types should define their parameters via the [Param](crate::module::Param)
 /// struct.
 ///
 /// # Example
 ///
-/// A module should have a (backend)[crate::tensor::backend::Backend] defined as a generic
-/// parameter B. This will be used by the (derive)[burn_derive::Module] attribute to generate the code
+/// A module should have a [backend](crate::tensor::backend::Backend) defined as a generic
+/// parameter B. This will be used by the [derive](burn_derive::Module) attribute to generate the code
 /// necessary to optimize and train the module on any backend.
 ///
-/// Also, to define to forward pass of your module, you should implement (Forward)[Forward].
+/// Also, to define to forward pass of your module, you should implement [Forward](Forward).
 ///
 /// ```rust
 /// use burn::nn;
@@ -104,7 +104,7 @@ pub trait ADModule: Module + Send + Sync + std::fmt::Debug + std::fmt::Display {
     fn inner(&self) -> Self::InnerModule;
 }
 
-/// Trait that can be implemented by (module)[Module] to define the forward pass.
+/// Trait that can be implemented by [module](Module) to define the forward pass.
 ///
 /// # Note
 ///
