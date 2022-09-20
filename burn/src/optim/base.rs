@@ -13,6 +13,10 @@ pub trait Optimizer: Send + Sync {
     );
 
     /// Register the optimizer state for a given parameter.
+    ///
+    /// # Note
+    ///
+    /// This should only be called by generated code.
     fn register_param_state<const D: usize>(
         &self,
         _id: &ParamId,
@@ -22,6 +26,10 @@ pub trait Optimizer: Send + Sync {
     }
 
     /// Load the optimizer state for a given parameter.
+    ///
+    /// # Note
+    ///
+    /// This should only be called by generated code.
     fn load_param_state<const D: usize>(
         &mut self,
         _id: &ParamId,

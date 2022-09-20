@@ -171,13 +171,7 @@ fn run<B: ADBackend>(device: B::Device) {
         optim.load(&model, &state.convert()).unwrap();
     }
 
-    println!(
-        "Training '{}' with {} params on backend {} {:?}",
-        model.name(),
-        model.num_params(),
-        B::name(),
-        device,
-    );
+    println!("Training '{}' on backend {} {:?}", model, B::name(), device,);
 
     let batcher_train = Arc::new(MNISTBatcher::<B> { device });
     let batcher_valid = Arc::new(MNISTBatcher::<B::InnerBackend> { device });

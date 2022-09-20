@@ -182,7 +182,7 @@ impl Param {
         }
 
         quote! {
-            fn state(&self) -> burn::module::State<<Self::Backend as burn::tensor::backend::Backend>::Elem>
+            fn state(&self) -> burn::module::State<B::Elem>
             {
                 #body
                 burn::module::State::StateNamed(state)
@@ -206,7 +206,7 @@ impl Param {
             });
         }
         quote! {
-            fn load(&mut self, state: &burn::module::State<<Self::Backend as burn::tensor::backend::Backend>::Elem>) -> Result<(), burn::module::LoadingError>
+            fn load(&mut self, state: &burn::module::State<B::Elem>) -> Result<(), burn::module::LoadingError>
             {
                 #body
                 Ok(())

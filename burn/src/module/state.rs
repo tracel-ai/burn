@@ -215,7 +215,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::module::Module;
+    use crate::module::Variable;
     use crate::nn;
     use crate::tensor::backend::Backend;
 

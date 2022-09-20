@@ -1,4 +1,4 @@
-use burn::module::{Module, Param};
+use burn::module::{Module, Param, Variable};
 use burn::tensor::backend::Backend;
 use burn::tensor::{Distribution, Shape, Tensor};
 

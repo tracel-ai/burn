@@ -24,16 +24,22 @@ pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
     let gen = quote! {
         impl #generics burn::module::Module for #name #generics_ty #generics_where {
             type Backend=B;
+
             #name_fn
-            #num_params_fn
-            #update_params_fn
-            #load_optim_state
-            #register_optim_state
+        }
+
+        impl #generics burn::module::Variable<B> for #name #generics_ty #generics_where {
             #devices_fn
             #to_device_fn
 
             #state_fn
             #load_fn
+
+            #num_params_fn
+            #update_params_fn
+
+            #load_optim_state
+            #register_optim_state
         }
 
         impl #generics burn::module::ADModule for #name #generics_ty where B: burn::tensor::backend::ADBackend, {
