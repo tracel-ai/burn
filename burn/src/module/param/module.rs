@@ -1,12 +1,14 @@
 use super::{load_with_id, state_with_id, Param};
-use crate::module::{ADModule, LoadingError, Module, State, StateNamed, Variable};
+use crate::module::{ADModule, LoadingError, Module, State, StateNamed};
 use crate::optim::Optimizer;
 use crate::tensor::{
     backend::{ADBackend, Backend},
     Gradients,
 };
 
-impl<M: Module> Variable<M::Backend> for Param<M> {
+impl<M: Module> Module for Param<M> {
+    type Backend = M::Backend;
+
     fn num_params(&self) -> usize {
         self.value.num_params()
     }
@@ -45,7 +47,7 @@ impl<M: Module> Variable<M::Backend> for Param<M> {
         self.value.devices()
     }
 
-    fn to_device(&mut self, device: <M::Backend as Backend>::Device) {
+    fn to_device(&mut self, device: <Self::Backend as Backend>::Device) {
         self.value.to_device(device)
     }
 
@@ -63,7 +65,9 @@ impl<M: Module> Variable<M::Backend> for Param<M> {
     }
 }
 
-impl<M: Module> Variable<M::Backend> for Param<Vec<M>> {
+impl<M: Module> Module for Param<Vec<M>> {
+    type Backend = M::Backend;
+
     fn num_params(&self) -> usize {
         let mut num_params = 0;
         for module in self.value.iter() {

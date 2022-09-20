@@ -1,12 +1,14 @@
 use super::{load_with_id, state_with_id, Param};
-use crate::module::{LoadingError, State, StateNamed, Variable};
+use crate::module::{LoadingError, Module, State, StateNamed};
 use crate::optim::Optimizer;
 use crate::tensor::{
     backend::{ADBackend, Backend},
     Data, Gradients, Tensor,
 };
 
-impl<const D: usize, B: Backend> Variable<B> for Param<Tensor<B, D>> {
+impl<const D: usize, B: Backend> Module for Param<Tensor<B, D>> {
+    type Backend = B;
+
     fn num_params(&self) -> usize {
         self.value.shape().num_elements()
     }
@@ -67,7 +69,9 @@ impl<const D: usize, B: Backend> Variable<B> for Param<Tensor<B, D>> {
     }
 }
 
-impl<const D: usize, B: Backend> Variable<B> for Param<Option<Tensor<B, D>>> {
+impl<const D: usize, B: Backend> Module for Param<Option<Tensor<B, D>>> {
+    type Backend = B;
+
     fn num_params(&self) -> usize {
         if let Some(value) = &self.value {
             return value.shape().num_elements();

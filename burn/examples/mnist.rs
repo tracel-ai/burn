@@ -1,7 +1,7 @@
 use burn::data::dataloader::batcher::Batcher;
 use burn::data::dataloader::DataLoaderBuilder;
 use burn::data::dataset::source::huggingface::{MNISTDataset, MNISTItem};
-use burn::module::{Forward, Module, Param, State};
+use burn::module::{Forward, Module, Param, State, Variable};
 use burn::optim::decay::WeightDecayConfig;
 use burn::optim::momentum::MomentumConfig;
 use burn::optim::{Optimizer, Sgd, SgdConfig};
