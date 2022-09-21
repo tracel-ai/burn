@@ -90,6 +90,10 @@ impl<E: TchElement> Backend for TchBackend<E> {
         tensor
     }
 
+    fn seed(seed: u64) {
+        tch::manual_seed(seed as i64);
+    }
+
     fn ones<const D: usize>(shape: Shape<D>, device: Self::Device) -> Self::TensorPrimitive<D> {
         let mut tensor = TchTensor::<Self::Elem, D>::empty(shape, device);
         tensor.tensor = tensor.tensor.ones_like();

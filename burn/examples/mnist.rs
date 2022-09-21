@@ -202,6 +202,7 @@ fn run<B: ADBackend>(device: B::Device) {
             MlpConfig::new(),
         ),
     };
+    B::seed(config.seed);
 
     let batcher_train = Arc::new(MNISTBatcher::<B> { device });
     let batcher_valid = Arc::new(MNISTBatcher::<B::InnerBackend> { device });

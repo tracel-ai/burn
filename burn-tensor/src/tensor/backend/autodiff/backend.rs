@@ -74,6 +74,10 @@ macro_rules! define_impl {
             fn name() -> String {
                 format!("autodiff<{}>", <$backend as Backend>::name())
             }
+
+            fn seed(seed: u64) {
+                <$backend as Backend>::seed(seed)
+            }
         }
 
         impl<E: $element> ADBackend for $name<E> {

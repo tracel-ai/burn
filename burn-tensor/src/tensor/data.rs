@@ -1,6 +1,6 @@
 use super::ops::{Ones, Zeros};
 use crate::{tensor::Shape, Element, ElementConversion};
-use rand::{distributions::Standard, prelude::StdRng, Rng, SeedableRng};
+use rand::{distributions::Standard, prelude::StdRng, Rng};
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq)]
 pub struct DataSerialize<P> {
@@ -134,20 +134,15 @@ impl<const D: usize> Data<bool, D> {
     }
 }
 impl<P: Element, const D: usize> Data<P, D> {
-    pub fn random(shape: Shape<D>, distribution: Distribution<P>) -> Self {
+    pub fn random(shape: Shape<D>, distribution: Distribution<P>, rng: &mut StdRng) -> Self {
         let num_elements = shape.num_elements();
-        let mut rng = StdRng::from_entropy();
         let mut data = Vec::with_capacity(num_elements);
 
         for _ in 0..num_elements {
-            data.push(P::random(distribution, &mut rng));
+            data.push(P::random(distribution, rng));
         }
 
         Data::new(data, shape)
-    }
-    /// Usefull to force a kind
-    pub fn random_(shape: Shape<D>, distribution: Distribution<P>, _kind: P) -> Self {
-        Self::random(shape, distribution)
     }
 }
 impl<P: std::fmt::Debug, const D: usize> Data<P, D>
@@ -310,11 +305,13 @@ impl<P: std::fmt::Debug, const D: usize> std::fmt::Display for Data<P, D> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::SeedableRng;
 
     #[test]
     fn should_have_right_num_elements() {
         let shape = Shape::new([3, 5, 6]);
-        let data = Data::<f32, 3>::random(shape, Distribution::Standard);
+        let data =
+            Data::<f32, 3>::random(shape, Distribution::Standard, &mut StdRng::from_entropy());
         assert_eq!(shape.num_elements(), data.value.len());
     }
 
