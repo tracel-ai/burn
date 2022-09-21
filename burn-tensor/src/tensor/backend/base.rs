@@ -62,14 +62,13 @@ pub trait Backend: Clone + Sized + Default + Send + Sync + std::fmt::Debug + 'st
 
     fn ad_enabled() -> bool;
     fn name() -> String;
+    fn seed(seed: u64);
 
     fn random<const D: usize>(
         shape: Shape<D>,
         distribution: Distribution<Self::Elem>,
         device: Self::Device,
-    ) -> Self::TensorPrimitive<D> {
-        Self::from_data(Data::random(shape, distribution), device)
-    }
+    ) -> Self::TensorPrimitive<D>;
 
     fn zeros<const D: usize>(shape: Shape<D>, device: Self::Device) -> Self::TensorPrimitive<D> {
         Self::from_data(Data::zeros(shape), device)

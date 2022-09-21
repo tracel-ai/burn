@@ -137,13 +137,18 @@ impl<const D: usize> TensorOpsUtilities<usize, D> for TchTensor<i64, D> {
 
 #[cfg(test)]
 mod tests {
-    use crate::tensor::Distribution;
-
     use super::*;
+    use crate::tensor::Distribution;
+    use rand::prelude::StdRng;
+    use rand::SeedableRng;
 
     #[test]
     fn should_support_into_and_from_data_1d() {
-        let data_expected = Data::<f32, 1>::random(Shape::new([3]), Distribution::Standard);
+        let data_expected = Data::<f32, 1>::random(
+            Shape::new([3]),
+            Distribution::Standard,
+            &mut StdRng::from_entropy(),
+        );
         let tensor = TchTensor::from_data(data_expected.clone(), tch::Device::Cpu);
 
         let data_actual = tensor.into_data();
@@ -153,7 +158,11 @@ mod tests {
 
     #[test]
     fn should_support_into_and_from_data_2d() {
-        let data_expected = Data::<f32, 2>::random(Shape::new([2, 3]), Distribution::Standard);
+        let data_expected = Data::<f32, 2>::random(
+            Shape::new([2, 3]),
+            Distribution::Standard,
+            &mut StdRng::from_entropy(),
+        );
         let tensor = TchTensor::from_data(data_expected.clone(), tch::Device::Cpu);
 
         let data_actual = tensor.into_data();

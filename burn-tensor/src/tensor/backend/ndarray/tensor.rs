@@ -150,12 +150,18 @@ where
 
 #[cfg(test)]
 mod tests {
+    use rand::{rngs::StdRng, SeedableRng};
+
     use super::*;
     use crate::tensor::Distribution;
 
     #[test]
     fn should_support_into_and_from_data_1d() {
-        let data_expected = Data::<f32, 1>::random(Shape::new([3]), Distribution::Standard);
+        let data_expected = Data::<f32, 1>::random(
+            Shape::new([3]),
+            Distribution::Standard,
+            &mut StdRng::from_entropy(),
+        );
         let tensor = NdArrayTensor::from_data(data_expected.clone());
 
         let data_actual = tensor.into_data();
@@ -165,7 +171,11 @@ mod tests {
 
     #[test]
     fn should_support_into_and_from_data_2d() {
-        let data_expected = Data::<f32, 2>::random(Shape::new([2, 3]), Distribution::Standard);
+        let data_expected = Data::<f32, 2>::random(
+            Shape::new([2, 3]),
+            Distribution::Standard,
+            &mut StdRng::from_entropy(),
+        );
         let tensor = NdArrayTensor::from_data(data_expected.clone());
 
         let data_actual = tensor.into_data();
@@ -175,7 +185,11 @@ mod tests {
 
     #[test]
     fn should_support_into_and_from_data_3d() {
-        let data_expected = Data::<f32, 3>::random(Shape::new([2, 3, 4]), Distribution::Standard);
+        let data_expected = Data::<f32, 3>::random(
+            Shape::new([2, 3, 4]),
+            Distribution::Standard,
+            &mut StdRng::from_entropy(),
+        );
         let tensor = NdArrayTensor::from_data(data_expected.clone());
 
         let data_actual = tensor.into_data();
@@ -185,8 +199,11 @@ mod tests {
 
     #[test]
     fn should_support_into_and_from_data_4d() {
-        let data_expected =
-            Data::<f32, 4>::random(Shape::new([2, 3, 4, 2]), Distribution::Standard);
+        let data_expected = Data::<f32, 4>::random(
+            Shape::new([2, 3, 4, 2]),
+            Distribution::Standard,
+            &mut StdRng::from_entropy(),
+        );
         let tensor = NdArrayTensor::from_data(data_expected.clone());
 
         let data_actual = tensor.into_data();

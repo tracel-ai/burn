@@ -1,6 +1,12 @@
 use super::NdArrayTensor;
 use crate::tensor::Data;
 use crate::tensor::{backend::Backend, NdArrayElement};
+use crate::{Distribution, Shape};
+use rand::rngs::StdRng;
+use rand::SeedableRng;
+use std::sync::Mutex;
+
+static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 
 #[derive(Clone, Copy, Debug)]
 pub enum NdArrayDevice {
@@ -45,7 +51,28 @@ impl<E: NdArrayElement> Backend for NdArrayBackend<E> {
         false
     }
 
+    fn random<const D: usize>(
+        shape: Shape<D>,
+        distribution: Distribution<Self::Elem>,
+        device: Self::Device,
+    ) -> Self::TensorPrimitive<D> {
+        let mut seed = SEED.lock().unwrap();
+        let mut rng: StdRng = match seed.as_ref() {
+            Some(rng) => rng.clone(),
+            None => StdRng::from_entropy(),
+        };
+        let tensor = Self::from_data(Data::random(shape, distribution, &mut rng), device);
+        *seed = Some(rng);
+        tensor
+    }
+
     fn name() -> String {
         "ndarray".to_string()
+    }
+
+    fn seed(seed: u64) {
+        let rng = StdRng::seed_from_u64(seed);
+        let mut seed = SEED.lock().unwrap();
+        *seed = Some(rng);
     }
 }
