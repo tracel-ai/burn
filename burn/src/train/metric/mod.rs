@@ -1,3 +1,5 @@
+pub mod dashboard;
+
 mod acc;
 mod base;
 mod cuda;

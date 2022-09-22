@@ -1,40 +1,50 @@
-use super::Logger;
+use super::TrainValidLogger;
 use std::sync::{mpsc, Mutex};
 
-enum Message<T> {
-    Log(T),
-    Clear,
+enum Message<T, V> {
+    LogTrain(T),
+    LogValid(V),
+    ClearTrain,
+    ClearValid,
 }
 
-pub struct AsyncLogger<T> {
-    sender: mpsc::Sender<Message<T>>,
+pub struct AsyncTrainValidLogger<T, V> {
+    sender: mpsc::Sender<Message<T, V>>,
 }
 
 #[derive(new)]
-struct LoggerThread<T> {
-    logger: Mutex<Box<dyn Logger<T>>>,
-    receiver: mpsc::Receiver<Message<T>>,
+struct LoggerThread<T, V> {
+    logger: Mutex<Box<dyn TrainValidLogger<T, V>>>,
+    receiver: mpsc::Receiver<Message<T, V>>,
 }
 
-impl<T> LoggerThread<T> {
+impl<T, V> LoggerThread<T, V> {
     fn run(self) {
         for item in self.receiver.iter() {
             match item {
-                Message::Log(item) => {
+                Message::LogTrain(item) => {
                     let mut logger = self.logger.lock().unwrap();
-                    logger.log(item);
+                    logger.log_train(item);
                 }
-                Message::Clear => {
+                Message::ClearTrain => {
                     let mut logger = self.logger.lock().unwrap();
-                    logger.clear();
+                    logger.clear_train();
+                }
+                Message::LogValid(item) => {
+                    let mut logger = self.logger.lock().unwrap();
+                    logger.log_valid(item);
+                }
+                Message::ClearValid => {
+                    let mut logger = self.logger.lock().unwrap();
+                    logger.clear_valid();
                 }
             }
         }
     }
 }
 
-impl<T: Send + Sync + 'static> AsyncLogger<T> {
-    pub fn new(logger: Box<dyn Logger<T>>) -> Self {
+impl<T: Send + Sync + 'static, V: Send + Sync + 'static> AsyncTrainValidLogger<T, V> {
+    pub fn new(logger: Box<dyn TrainValidLogger<T, V>>) -> Self {
         let (sender, receiver) = mpsc::channel();
         let thread = LoggerThread::new(Mutex::new(logger), receiver);
 
@@ -44,12 +54,20 @@ impl<T: Send + Sync + 'static> AsyncLogger<T> {
     }
 }
 
-impl<T: Send> Logger<T> for AsyncLogger<T> {
-    fn log(&mut self, item: T) {
-        self.sender.send(Message::Log(item)).unwrap();
+impl<T: Send, V: Send> TrainValidLogger<T, V> for AsyncTrainValidLogger<T, V> {
+    fn log_train(&mut self, item: T) {
+        self.sender.send(Message::LogTrain(item)).unwrap();
     }
 
-    fn clear(&mut self) {
-        self.sender.send(Message::Clear).unwrap();
+    fn log_valid(&mut self, item: V) {
+        self.sender.send(Message::LogValid(item)).unwrap();
+    }
+
+    fn clear_train(&mut self) {
+        self.sender.send(Message::ClearTrain).unwrap();
+    }
+
+    fn clear_valid(&mut self) {
+        self.sender.send(Message::ClearValid).unwrap();
     }
 }

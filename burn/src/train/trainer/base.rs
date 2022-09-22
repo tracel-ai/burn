@@ -1,7 +1,7 @@
 use super::{Learner, TrainerItem};
 use crate::data::dataloader::DataLoader;
 use crate::tensor::backend::ADBackend;
-use crate::train::logger::Logger;
+use crate::train::logger::TrainValidLogger;
 use std::sync::Arc;
 
 pub struct SupervisedTrainer<B, T, V, L, TO, VO>
@@ -11,8 +11,7 @@ where
 {
     dataloader_train: Arc<dyn DataLoader<T>>,
     dataloader_valid: Arc<dyn DataLoader<V>>,
-    logger_train: Box<dyn Logger<TrainerItem<TO>>>,
-    logger_valid: Box<dyn Logger<TrainerItem<VO>>>,
+    logger: Box<dyn TrainValidLogger<TrainerItem<TO>, TrainerItem<VO>>>,
     learner: L,
     _b: B,
 }
@@ -25,16 +24,14 @@ where
     pub fn new(
         dataloader_train: Arc<dyn DataLoader<T>>,
         dataloader_valid: Arc<dyn DataLoader<V>>,
-        logger_train: Box<dyn Logger<TrainerItem<TO>>>,
-        logger_valid: Box<dyn Logger<TrainerItem<VO>>>,
+        logger: Box<dyn TrainValidLogger<TrainerItem<TO>, TrainerItem<VO>>>,
         learner: L,
     ) -> Self {
         Self {
             dataloader_train,
             dataloader_valid,
             learner,
-            logger_train,
-            logger_valid,
+            logger,
             _b: B::default(),
         }
     }
@@ -45,31 +42,34 @@ where
                 epoch,
                 num_epochs,
                 &self.dataloader_train,
-                &mut self.logger_train,
                 &mut |item| self.learner.train(item),
+                &mut |log| self.logger.log_train(log),
             );
+            self.logger.clear_train();
 
             run_step(
                 epoch,
                 num_epochs,
                 &self.dataloader_valid,
-                &mut self.logger_valid,
                 &mut |item| self.learner.valid(item),
+                &mut |log| self.logger.log_valid(log),
             );
+            self.logger.clear_valid();
         }
 
         self.learner
     }
 }
 
-pub fn run_step<I, O, F>(
+pub fn run_step<I, O, F, FL>(
     epoch: usize,
     num_epochs: usize,
     dataloader: &Arc<dyn DataLoader<I>>,
-    logger: &mut Box<dyn Logger<TrainerItem<O>>>,
     func: &mut F,
+    func_log: &mut FL,
 ) where
     F: FnMut(I) -> O,
+    FL: FnMut(TrainerItem<O>),
 {
     let mut iterator = dataloader.iter();
     let mut iteration = 0;
@@ -79,12 +79,8 @@ pub fn run_step<I, O, F>(
         iteration += 1;
 
         let item = func(item);
-        let log = TrainerItem::new(item, progress)
-            .iteration(iteration)
-            .epoch(epoch)
-            .epoch_total(num_epochs);
-        logger.log(log);
+        func_log(TrainerItem::new(
+            item, progress, epoch, num_epochs, iteration,
+        ));
     }
-
-    logger.clear();
 }

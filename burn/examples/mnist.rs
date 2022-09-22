@@ -10,7 +10,9 @@ use burn::optim::{Optimizer, Sgd, SgdConfig};
 use burn::tensor::backend::{ADBackend, Backend};
 use burn::tensor::loss::cross_entropy_with_logits;
 use burn::tensor::{Data, ElementConversion, Shape, Tensor};
-use burn::train::logger::{AsyncLogger, CLILogger};
+use burn::train::logger::AsyncTrainValidLogger;
+use burn::train::metric::dashboard::cli::CLIDashboardRenderer;
+use burn::train::metric::dashboard::Dashboard;
 use burn::train::metric::{AccuracyMetric, CUDAMetric, LossMetric};
 use burn::train::{ClassificationLearner, ClassificationOutput, SupervisedTrainer};
 use std::sync::Arc;
@@ -218,28 +220,18 @@ fn run<B: ADBackend>(device: B::Device) {
 
     let learner = build_learner(&config, device);
 
-    let logger_train = Box::new(AsyncLogger::new(Box::new(CLILogger::new(
-        vec![
-            Box::new(LossMetric::new()),
-            Box::new(AccuracyMetric::new()),
-            Box::new(CUDAMetric::new()),
-        ],
-        "Train".to_string(),
-    ))));
-    let logger_valid = Box::new(AsyncLogger::new(Box::new(CLILogger::new(
-        vec![
-            Box::new(LossMetric::new()),
-            Box::new(AccuracyMetric::new()),
-            Box::new(CUDAMetric::new()),
-        ],
-        "Valid".to_string(),
-    ))));
+    let renderer = CLIDashboardRenderer::new("Mnist");
+    let mut dashboard = Dashboard::new(Box::new(renderer));
+    dashboard.register_train(CUDAMetric::new());
+    dashboard.register_train_numeric(LossMetric::new());
+    dashboard.register_train_numeric(AccuracyMetric::new());
+    dashboard.register_valid_numeric(LossMetric::new());
+    dashboard.register_valid_numeric(AccuracyMetric::new());
 
     let trainer = SupervisedTrainer::new(
         dataloader_train.clone(),
         dataloader_test.clone(),
-        logger_train,
-        logger_valid,
+        Box::new(AsyncTrainValidLogger::new(Box::new(dashboard))),
         learner,
     );
 
