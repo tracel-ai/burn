@@ -1,63 +1,77 @@
 use super::{Learner, TrainerItem};
 use crate::data::dataloader::DataLoader;
 use crate::tensor::backend::ADBackend;
-use crate::train::logger::TrainValidLogger;
 use std::sync::Arc;
 
-pub struct SupervisedTrainer<B, T, V, L, TO, VO>
+pub trait SupervisedTrainerCallback<T, V>: Send {
+    fn on_train_item(&mut self, item: T);
+    fn on_valid_item(&mut self, item: V);
+    fn on_train_end_epoch(&mut self);
+    fn on_valid_end_epoch(&mut self);
+}
+
+pub trait Train<M, D> {
+    fn train(self, model: M, data: D) -> M;
+}
+
+#[derive(new)]
+pub struct SupervisedData<T, V> {
+    pub train: Arc<dyn DataLoader<T>>,
+    pub valid: Arc<dyn DataLoader<V>>,
+}
+
+pub struct SupervisedTrainer<B, TO, VO>
 where
     B: ADBackend,
-    L: Learner<T, V, TO, VO, Backend = B>,
 {
-    dataloader_train: Arc<dyn DataLoader<T>>,
-    dataloader_valid: Arc<dyn DataLoader<V>>,
-    logger: Box<dyn TrainValidLogger<TrainerItem<TO>, TrainerItem<VO>>>,
-    learner: L,
+    callback: Box<dyn SupervisedTrainerCallback<TrainerItem<TO>, TrainerItem<VO>>>,
+    num_epochs: usize,
     _b: B,
 }
 
-impl<B, T, V, L, TO, VO> SupervisedTrainer<B, T, V, L, TO, VO>
+impl<B, TO, VO> SupervisedTrainer<B, TO, VO>
+where
+    B: ADBackend,
+{
+    pub fn new(
+        callback: Box<dyn SupervisedTrainerCallback<TrainerItem<TO>, TrainerItem<VO>>>,
+        num_epochs: usize,
+    ) -> Self {
+        Self {
+            num_epochs,
+            callback,
+            _b: B::default(),
+        }
+    }
+}
+
+impl<B, T, V, L, TO, VO> Train<L, SupervisedData<T, V>> for SupervisedTrainer<B, TO, VO>
 where
     B: ADBackend,
     L: Learner<T, V, TO, VO, Backend = B>,
 {
-    pub fn new(
-        dataloader_train: Arc<dyn DataLoader<T>>,
-        dataloader_valid: Arc<dyn DataLoader<V>>,
-        logger: Box<dyn TrainValidLogger<TrainerItem<TO>, TrainerItem<VO>>>,
-        learner: L,
-    ) -> Self {
-        Self {
-            dataloader_train,
-            dataloader_valid,
-            learner,
-            logger,
-            _b: B::default(),
-        }
-    }
-
-    pub fn run(mut self, num_epochs: usize) -> L {
-        for epoch in 0..num_epochs {
+    fn train(mut self, mut learner: L, data: SupervisedData<T, V>) -> L {
+        for epoch in 0..self.num_epochs {
             run_step(
                 epoch,
-                num_epochs,
-                &self.dataloader_train,
-                &mut |item| self.learner.train(item),
-                &mut |log| self.logger.log_train(log),
+                self.num_epochs,
+                &data.train,
+                &mut |item| learner.train(item),
+                &mut |log| self.callback.on_train_item(log),
             );
-            self.logger.clear_train();
+            self.callback.on_train_end_epoch();
 
             run_step(
                 epoch,
-                num_epochs,
-                &self.dataloader_valid,
-                &mut |item| self.learner.valid(item),
-                &mut |log| self.logger.log_valid(log),
+                self.num_epochs,
+                &data.valid,
+                &mut |item| learner.valid(item),
+                &mut |log| self.callback.on_valid_item(log),
             );
-            self.logger.clear_valid();
+            self.callback.on_valid_end_epoch();
         }
 
-        self.learner
+        learner
     }
 }
 

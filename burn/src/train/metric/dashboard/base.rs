@@ -1,9 +1,8 @@
 use crate::{
     data::dataloader::Progress,
     train::{
-        logger::TrainValidLogger,
         metric::{Metric, MetricStateDyn, Numeric},
-        TrainerItem,
+        SupervisedTrainerCallback, TrainerItem,
     },
 };
 
@@ -98,12 +97,12 @@ impl<T> From<TrainerItem<T>> for TrainingProgress {
     }
 }
 
-impl<T, V> TrainValidLogger<TrainerItem<T>, TrainerItem<V>> for Dashboard<T, V>
+impl<T, V> SupervisedTrainerCallback<TrainerItem<T>, TrainerItem<V>> for Dashboard<T, V>
 where
     T: Send + Sync + 'static,
     V: Send + Sync + 'static,
 {
-    fn log_train(&mut self, item: TrainerItem<T>) {
+    fn on_train_item(&mut self, item: TrainerItem<T>) {
         for metric in self.metrics_train.iter_mut() {
             self.renderer
                 .update_train(DashboardMetricState::Generic(metric.update(&item)));
@@ -116,7 +115,7 @@ where
         self.renderer.render_train(item.into());
     }
 
-    fn log_valid(&mut self, item: TrainerItem<V>) {
+    fn on_valid_item(&mut self, item: TrainerItem<V>) {
         for metric in self.metrics_valid.iter_mut() {
             self.renderer
                 .update_valid(DashboardMetricState::Generic(metric.update(&item)));
@@ -129,7 +128,7 @@ where
         self.renderer.render_valid(item.into());
     }
 
-    fn clear_train(&mut self) {
+    fn on_train_end_epoch(&mut self) {
         for metric in self.metrics_train.iter_mut() {
             metric.clear();
         }
@@ -138,7 +137,7 @@ where
         }
     }
 
-    fn clear_valid(&mut self) {
+    fn on_valid_end_epoch(&mut self) {
         for metric in self.metrics_valid.iter_mut() {
             metric.clear();
         }
