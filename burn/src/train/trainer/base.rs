@@ -1,75 +1,89 @@
 use super::{Learner, TrainerItem};
 use crate::data::dataloader::DataLoader;
 use crate::tensor::backend::ADBackend;
-use crate::train::logger::Logger;
 use std::sync::Arc;
 
-pub struct SupervisedTrainer<B, T, V, L, TO, VO>
+pub trait SupervisedTrainerCallback<T, V>: Send {
+    fn on_train_item(&mut self, item: T);
+    fn on_valid_item(&mut self, item: V);
+    fn on_train_end_epoch(&mut self);
+    fn on_valid_end_epoch(&mut self);
+}
+
+pub trait Train<M, D> {
+    fn train(self, model: M, data: D) -> M;
+}
+
+#[derive(new)]
+pub struct SupervisedData<T, V> {
+    pub train: Arc<dyn DataLoader<T>>,
+    pub valid: Arc<dyn DataLoader<V>>,
+}
+
+pub struct SupervisedTrainer<B, TO, VO>
 where
     B: ADBackend,
-    L: Learner<T, V, TO, VO, Backend = B>,
 {
-    dataloader_train: Arc<dyn DataLoader<T>>,
-    dataloader_valid: Arc<dyn DataLoader<V>>,
-    logger_train: Box<dyn Logger<TrainerItem<TO>>>,
-    logger_valid: Box<dyn Logger<TrainerItem<VO>>>,
-    learner: L,
+    callback: Box<dyn SupervisedTrainerCallback<TrainerItem<TO>, TrainerItem<VO>>>,
+    num_epochs: usize,
     _b: B,
 }
 
-impl<B, T, V, L, TO, VO> SupervisedTrainer<B, T, V, L, TO, VO>
+impl<B, TO, VO> SupervisedTrainer<B, TO, VO>
+where
+    B: ADBackend,
+{
+    pub fn new(
+        callback: Box<dyn SupervisedTrainerCallback<TrainerItem<TO>, TrainerItem<VO>>>,
+        num_epochs: usize,
+    ) -> Self {
+        Self {
+            num_epochs,
+            callback,
+            _b: B::default(),
+        }
+    }
+}
+
+impl<B, T, V, L, TO, VO> Train<L, SupervisedData<T, V>> for SupervisedTrainer<B, TO, VO>
 where
     B: ADBackend,
     L: Learner<T, V, TO, VO, Backend = B>,
 {
-    pub fn new(
-        dataloader_train: Arc<dyn DataLoader<T>>,
-        dataloader_valid: Arc<dyn DataLoader<V>>,
-        logger_train: Box<dyn Logger<TrainerItem<TO>>>,
-        logger_valid: Box<dyn Logger<TrainerItem<VO>>>,
-        learner: L,
-    ) -> Self {
-        Self {
-            dataloader_train,
-            dataloader_valid,
-            learner,
-            logger_train,
-            logger_valid,
-            _b: B::default(),
-        }
-    }
-
-    pub fn run(mut self, num_epochs: usize) -> L {
-        for epoch in 0..num_epochs {
+    fn train(mut self, mut learner: L, data: SupervisedData<T, V>) -> L {
+        for epoch in 0..self.num_epochs {
             run_step(
                 epoch,
-                num_epochs,
-                &self.dataloader_train,
-                &mut self.logger_train,
-                &mut |item| self.learner.train(item),
+                self.num_epochs,
+                &data.train,
+                &mut |item| learner.train(item),
+                &mut |log| self.callback.on_train_item(log),
             );
+            self.callback.on_train_end_epoch();
 
             run_step(
                 epoch,
-                num_epochs,
-                &self.dataloader_valid,
-                &mut self.logger_valid,
-                &mut |item| self.learner.valid(item),
+                self.num_epochs,
+                &data.valid,
+                &mut |item| learner.valid(item),
+                &mut |log| self.callback.on_valid_item(log),
             );
+            self.callback.on_valid_end_epoch();
         }
 
-        self.learner
+        learner
     }
 }
 
-pub fn run_step<I, O, F>(
+pub fn run_step<I, O, F, FL>(
     epoch: usize,
     num_epochs: usize,
     dataloader: &Arc<dyn DataLoader<I>>,
-    logger: &mut Box<dyn Logger<TrainerItem<O>>>,
     func: &mut F,
+    func_log: &mut FL,
 ) where
     F: FnMut(I) -> O,
+    FL: FnMut(TrainerItem<O>),
 {
     let mut iterator = dataloader.iter();
     let mut iteration = 0;
@@ -79,12 +93,8 @@ pub fn run_step<I, O, F>(
         iteration += 1;
 
         let item = func(item);
-        let log = TrainerItem::new(item, progress)
-            .iteration(iteration)
-            .epoch(epoch)
-            .epoch_total(num_epochs);
-        logger.log(log);
+        func_log(TrainerItem::new(
+            item, progress, epoch, num_epochs, iteration,
+        ));
     }
-
-    logger.clear();
 }

@@ -1,3 +1,5 @@
+pub mod cli;
+
 mod base;
 mod plot;
 

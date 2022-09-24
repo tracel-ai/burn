@@ -9,7 +9,7 @@ pub trait MetricState {
     fn serialize(&self) -> String;
 }
 
-pub trait NumericMetric {
+pub trait Numeric {
     fn value(&self) -> f64;
 }
 

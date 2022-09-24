@@ -10,9 +10,9 @@ use burn::optim::{Optimizer, Sgd, SgdConfig};
 use burn::tensor::backend::{ADBackend, Backend};
 use burn::tensor::loss::cross_entropy_with_logits;
 use burn::tensor::{Data, ElementConversion, Shape, Tensor};
-use burn::train::logger::{AsyncLogger, CLILogger};
 use burn::train::metric::{AccuracyMetric, CUDAMetric, LossMetric};
-use burn::train::{ClassificationLearner, ClassificationOutput, SupervisedTrainer};
+use burn::train::{ClassificationLearner, ClassificationOutput, Train};
+use burn::train::{SupervisedData, SupervisedTrainerBuilder};
 use std::sync::Arc;
 
 static MODEL_STATE_PATH: &str = "/tmp/mnist_state_model.json.gz";
@@ -42,9 +42,9 @@ struct Model<B: Backend> {
 
 #[derive(Config)]
 struct MlpConfig {
-    #[config(default = 4)]
+    #[config(default = 6)]
     num_layers: usize,
-    #[config(default = 0.2)]
+    #[config(default = 0.5)]
     dropout: f64,
     #[config(default = 1024)]
     dim: usize,
@@ -160,50 +160,17 @@ impl<B: Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
     }
 }
 
-fn build_learner<B: ADBackend>(
-    config: &MnistConfig,
-    device: B::Device,
-) -> ClassificationLearner<Model<B>, Sgd<B>> {
-    let state_model = State::<f32>::load(MODEL_STATE_PATH).ok();
-    let state_optim = State::<f32>::load(OPTIMIZER_STATE_PATH).ok();
-
-    let mut optim = Sgd::new(&config.optimizer);
-    let mut model = Model::new(&config, 784, 10);
-    model.to_device(device);
-
-    if let Some(state) = state_model {
-        println!("Loading model state");
-        model.load(&state.convert()).unwrap();
-    }
-
-    if let Some(state) = state_optim {
-        println!("Loading optimizer state");
-        optim.load(&model, &state.convert()).unwrap();
-    }
-    println!(
-        "Training '{}' on backend {} {:?} \nConfig:\n\n{}",
-        model,
-        B::name(),
-        device,
-        config
-    );
-    ClassificationLearner::new(model, optim)
-}
-
 fn run<B: ADBackend>(device: B::Device) {
-    let config = MnistConfig::load(CONFIG_PATH).ok();
-    let config = match config {
-        Some(config) => config,
-        None => MnistConfig::new(
-            SgdConfig::new()
-                .with_learning_rate(2.5e-2)
-                .with_weight_decay(Some(WeightDecayConfig::new(0.05)))
-                .with_momentum(Some(MomentumConfig::new().with_nesterov(true))),
-            MlpConfig::new(),
-        ),
-    };
+    // Config
+    let config_optimizer = SgdConfig::new()
+        .with_learning_rate(2.5e-2)
+        .with_weight_decay(Some(WeightDecayConfig::new(0.05)))
+        .with_momentum(Some(MomentumConfig::new().with_nesterov(true)));
+    let config_mlp = MlpConfig::new();
+    let config = MnistConfig::new(config_optimizer, config_mlp);
     B::seed(config.seed);
 
+    // Data
     let batcher_train = Arc::new(MNISTBatcher::<B> { device });
     let batcher_valid = Arc::new(MNISTBatcher::<B::InnerBackend> { device });
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
@@ -215,37 +182,28 @@ fn run<B: ADBackend>(device: B::Device) {
         .batch_size(config.batch_size)
         .num_workers(config.num_workers)
         .build(Arc::new(MNISTDataset::test()));
+    let data = SupervisedData::new(dataloader_train, dataloader_test);
 
-    let learner = build_learner(&config, device);
+    // Model
+    let optim = Sgd::new(&config.optimizer);
+    let mut model = Model::new(&config, 784, 10);
+    model.to_device(device);
+    let learner = ClassificationLearner::new(model, optim);
 
-    let logger_train = Box::new(AsyncLogger::new(Box::new(CLILogger::new(
-        vec![
-            Box::new(LossMetric::new()),
-            Box::new(AccuracyMetric::new()),
-            Box::new(CUDAMetric::new()),
-        ],
-        "Train".to_string(),
-    ))));
-    let logger_valid = Box::new(AsyncLogger::new(Box::new(CLILogger::new(
-        vec![
-            Box::new(LossMetric::new()),
-            Box::new(AccuracyMetric::new()),
-            Box::new(CUDAMetric::new()),
-        ],
-        "Valid".to_string(),
-    ))));
+    // Training
+    let trainer = SupervisedTrainerBuilder::default()
+        .metric_train(CUDAMetric::new())
+        .metric_train_plot(AccuracyMetric::new())
+        .metric_valid_plot(AccuracyMetric::new())
+        .metric_train_plot(LossMetric::new())
+        .metric_valid_plot(LossMetric::new())
+        .num_epochs(config.num_epochs)
+        .build();
+    let trained = trainer.train(learner, data);
 
-    let trainer = SupervisedTrainer::new(
-        dataloader_train.clone(),
-        dataloader_test.clone(),
-        logger_train,
-        logger_valid,
-        learner,
-    );
-
-    let learned = trainer.run(config.num_epochs);
-    let state_model: State<f32> = learned.model.state().convert();
-    let state_optim: State<f32> = learned.optim.state(&learned.model).convert();
+    // Saving
+    let state_model: State<f32> = trained.model.state().convert();
+    let state_optim: State<f32> = trained.optim.state(&trained.model).convert();
 
     state_model.save(MODEL_STATE_PATH).unwrap();
     state_optim.save(OPTIMIZER_STATE_PATH).unwrap();
@@ -258,4 +216,5 @@ fn main() {
 
     let device = TchDevice::Cuda(0);
     run::<TchADBackend<f16>>(device);
+    println!("Done.");
 }
