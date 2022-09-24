@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 static MODEL_STATE_PATH: &str = "/tmp/mnist_state_model.json.gz";
 static OPTIMIZER_STATE_PATH: &str = "/tmp/mnist_state_optim.json.gz";
-static CONFIG_PATH: &str = "/tmp/mnist_config.yaml";
+static CONFIG_PATH: &str = "/tmp/mnist_config.json";
 
 #[derive(Config)]
 struct MnistConfig {
