@@ -26,7 +26,7 @@ impl std::error::Error for ConfigError {}
 
 pub trait Config: serde::Serialize + serde::de::DeserializeOwned {
     fn save(&self, file: &str) -> std::io::Result<()> {
-        std::fs::write(file, config_to_yaml(self))
+        std::fs::write(file, config_to_json(self))
     }
 
     fn load(file: &str) -> Result<Self, ConfigError> {
@@ -36,10 +36,10 @@ pub trait Config: serde::Serialize + serde::de::DeserializeOwned {
     }
 }
 
-pub fn config_to_yaml<C: Config>(config: &C) -> String {
-    serde_yaml::to_string(config).unwrap()
+pub fn config_to_json<C: Config>(config: &C) -> String {
+    serde_json::to_string_pretty(config).unwrap()
 }
 
 fn config_from_str<C: Config>(content: &str) -> Result<C, ConfigError> {
-    serde_yaml::from_str(content).map_err(|err| ConfigError::InvalidFormat(format!("{}", err)))
+    serde_json::from_str(content).map_err(|err| ConfigError::InvalidFormat(format!("{}", err)))
 }
