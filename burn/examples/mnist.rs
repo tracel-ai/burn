@@ -193,10 +193,10 @@ fn run<B: ADBackend>(device: B::Device) {
     // Training
     let trainer = SupervisedTrainerBuilder::default()
         .metric_train(CUDAMetric::new())
+        .metric_train_plot(AccuracyMetric::new())
+        .metric_valid_plot(AccuracyMetric::new())
         .metric_train_plot(LossMetric::new())
         .metric_valid_plot(LossMetric::new())
-        .metric_train(AccuracyMetric::new())
-        .metric_valid(AccuracyMetric::new())
         .num_epochs(config.num_epochs)
         .build();
     let trained = trainer.train(learner, data);
