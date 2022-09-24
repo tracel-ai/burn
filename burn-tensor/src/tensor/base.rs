@@ -56,6 +56,13 @@ where
         Self::new(self.value.log())
     }
 
+    /// Applies the error function element wise.
+    ///
+    /// `y = erf(x)`
+    pub fn erf(&self) -> Self {
+        Self::new(self.value.erf())
+    }
+
     /// Applies element wise power operation.
     ///
     /// `y = x^a`

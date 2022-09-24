@@ -6,6 +6,7 @@ mod creation;
 mod detach;
 mod device;
 mod div;
+mod erf;
 mod exp;
 mod index;
 mod log;
