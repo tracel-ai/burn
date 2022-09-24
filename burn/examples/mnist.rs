@@ -42,7 +42,7 @@ struct Model<B: Backend> {
 
 #[derive(Config)]
 struct MlpConfig {
-    #[config(default = 2)]
+    #[config(default = 6)]
     num_layers: usize,
     #[config(default = 0.5)]
     dropout: f64,
@@ -194,10 +194,10 @@ fn run<B: ADBackend>(device: B::Device) {
     // Training
     let trainer = SupervisedTrainerBuilder::default()
         .metric_train(CUDAMetric::new())
-        .metric_train(LossMetric::new())
-        .metric_train(AccuracyMetric::new())
-        .metric_valid(LossMetric::new())
-        .metric_valid(AccuracyMetric::new())
+        .metric_train_plot(LossMetric::new())
+        .metric_valid_plot(LossMetric::new())
+        .metric_train_plot(AccuracyMetric::new())
+        .metric_valid_plot(AccuracyMetric::new())
         .num_epochs(config.num_epochs)
         .build();
     let trained = trainer.train(learner, data);

@@ -71,7 +71,7 @@ where
             .push(Box::new(MetricWrapper::new(metric)));
     }
 
-    pub fn register_train_numeric<M: Numeric + Metric<T> + 'static>(&mut self, metric: M) {
+    pub fn register_train_plot<M: Numeric + Metric<T> + 'static>(&mut self, metric: M) {
         self.metrics_train_numeric
             .push(Box::new(MetricWrapper::new(metric)));
     }
@@ -80,7 +80,7 @@ where
             .push(Box::new(MetricWrapper::new(metric)));
     }
 
-    pub fn register_valid_numeric<M: Numeric + Metric<V> + 'static>(&mut self, metric: M) {
+    pub fn register_valid_plot<M: Numeric + Metric<V> + 'static>(&mut self, metric: M) {
         self.metrics_valid_numeric
             .push(Box::new(MetricWrapper::new(metric)));
     }

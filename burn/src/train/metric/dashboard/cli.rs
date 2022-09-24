@@ -1,4 +1,4 @@
-use super::{DashboardMetricState, DashboardRenderer, TrainingProgress};
+use super::{DashboardMetricState, DashboardRenderer, TextPlot, TrainingProgress};
 use indicatif::{MultiProgress, ProgressBar, ProgressState, ProgressStyle};
 use std::{collections::HashMap, fmt::Write};
 
@@ -12,8 +12,9 @@ pub struct CLIDashboardRenderer {
     progress: TrainingProgress,
     metric_train: HashMap<String, String>,
     metric_valid: HashMap<String, String>,
-    metric_train_numeric: HashMap<String, String>,
-    metric_valid_numeric: HashMap<String, String>,
+    metric_both_plot: HashMap<String, TextPlot>,
+    metric_train_plot: HashMap<String, TextPlot>,
+    metric_valid_plot: HashMap<String, TextPlot>,
 }
 
 impl DashboardRenderer for CLIDashboardRenderer {
@@ -22,9 +23,22 @@ impl DashboardRenderer for CLIDashboardRenderer {
             DashboardMetricState::Generic(state) => {
                 self.metric_train.insert(state.name(), state.pretty());
             }
-            DashboardMetricState::Numeric(state, _value) => {
-                self.metric_train_numeric
-                    .insert(state.name(), state.pretty());
+            DashboardMetricState::Numeric(state, value) => {
+                let name = state.name();
+
+                if let Some(mut plot) = self.text_plot_in_both(&name) {
+                    plot.update_train(value as f32);
+                    self.metric_both_plot.insert(name, plot);
+                    return;
+                }
+
+                if let Some(plot) = self.metric_train_plot.get_mut(&name) {
+                    plot.update_train(value as f32);
+                } else {
+                    let mut plot = TextPlot::new();
+                    plot.update_train(value as f32);
+                    self.metric_train_plot.insert(state.name(), plot);
+                }
             }
         };
     }
@@ -34,9 +48,22 @@ impl DashboardRenderer for CLIDashboardRenderer {
             DashboardMetricState::Generic(state) => {
                 self.metric_valid.insert(state.name(), state.pretty());
             }
-            DashboardMetricState::Numeric(state, _value) => {
-                self.metric_valid_numeric
-                    .insert(state.name(), state.pretty());
+            DashboardMetricState::Numeric(state, value) => {
+                let name = state.name();
+
+                if let Some(mut plot) = self.text_plot_in_both(&name) {
+                    plot.update_valid(value as f32);
+                    self.metric_both_plot.insert(name, plot);
+                    return;
+                }
+
+                if let Some(plot) = self.metric_valid_plot.get_mut(&name) {
+                    plot.update_valid(value as f32);
+                } else {
+                    let mut plot = TextPlot::new();
+                    plot.update_valid(value as f32);
+                    self.metric_valid_plot.insert(state.name(), plot);
+                }
             }
         };
     }
@@ -69,25 +96,43 @@ impl CLIDashboardRenderer {
             progress: TrainingProgress::none(),
             metric_train: HashMap::new(),
             metric_valid: HashMap::new(),
-            metric_train_numeric: HashMap::new(),
-            metric_valid_numeric: HashMap::new(),
+            metric_both_plot: HashMap::new(),
+            metric_train_plot: HashMap::new(),
+            metric_valid_plot: HashMap::new(),
         }
+    }
+
+    fn text_plot_in_both(&mut self, key: &str) -> Option<TextPlot> {
+        if let Some(plot) = self.metric_both_plot.remove(key) {
+            return Some(plot);
+        }
+        if self.metric_train_plot.contains_key(key) && self.metric_valid_plot.contains_key(key) {
+            let plot_train = self.metric_train_plot.remove(key).unwrap();
+            let plot_valid = self.metric_valid_plot.remove(key).unwrap();
+
+            return Some(plot_train.merge(plot_valid));
+        }
+
+        None
     }
 
     fn register_template_metrics(&self, template: String) -> String {
         let mut template = template;
         let mut metrics_keys = Vec::new();
 
+        for (name, metric) in self.metric_both_plot.iter() {
+            metrics_keys.push(format!("  - Both  {}: \n{}", name, metric.render()));
+        }
+        for (name, metric) in self.metric_train_plot.iter() {
+            metrics_keys.push(format!("  - Train {}: \n{}", name, metric.render()));
+        }
+        for (name, metric) in self.metric_valid_plot.iter() {
+            metrics_keys.push(format!("  - Valid {}: \n{}", name, metric.render()));
+        }
         for (name, metric) in self.metric_train.iter() {
             metrics_keys.push(format!("  - Train {}: {}", name, metric));
         }
-        for (name, metric) in self.metric_train_numeric.iter() {
-            metrics_keys.push(format!("  - Train {}: {}", name, metric));
-        }
         for (name, metric) in self.metric_valid.iter() {
-            metrics_keys.push(format!("  - Valid {}: {}", name, metric));
-        }
-        for (name, metric) in self.metric_valid_numeric.iter() {
             metrics_keys.push(format!("  - Valid {}: {}", name, metric));
         }
 

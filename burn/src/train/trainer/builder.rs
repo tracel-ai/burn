@@ -47,12 +47,12 @@ where
     }
 
     pub fn metric_train_plot<M: Metric<T> + Numeric + 'static>(mut self, metric: M) -> Self {
-        self.dashboard.register_train_numeric(metric);
+        self.dashboard.register_train_plot(metric);
         self
     }
 
     pub fn metric_valid_plot<M: Metric<V> + Numeric + 'static>(mut self, metric: M) -> Self {
-        self.dashboard.register_valid_numeric(metric);
+        self.dashboard.register_valid_plot(metric);
         self
     }
 
