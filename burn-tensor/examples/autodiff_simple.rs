@@ -1,4 +1,5 @@
 use burn_tensor::{activation, backend, Data, Distribution, Shape, Tensor};
+use rand::{rngs::StdRng, SeedableRng};
 
 fn loss<B: backend::Backend>(x: &Tensor<B, 2>, y: &Tensor<B, 2>) -> Tensor<B, 2> {
     let z = x.matmul(y);
@@ -35,8 +36,9 @@ fn run<B: backend::Backend>(x: Data<B::Elem, 2>, y: Data<B::Elem, 2>) {
 
 fn main() {
     // Same data for all backends
-    let x = Data::random(Shape::new([2, 3]), Distribution::Standard);
-    let y = Data::random(Shape::new([3, 1]), Distribution::Standard);
+    let mut rng = StdRng::from_entropy();
+    let x = Data::random(Shape::new([2, 3]), Distribution::Standard, &mut rng);
+    let y = Data::random(Shape::new([3, 1]), Distribution::Standard, &mut rng);
 
     #[cfg(feature = "ndarray")]
     {
