@@ -112,6 +112,10 @@ pub trait TensorOpsDetach<E, const D: usize> {
     fn detach(self) -> Self;
 }
 
+pub trait TensorOpsErf<E, const D: usize> {
+    fn erf(&self) -> Self;
+}
+
 pub trait Zeros<T> {
     fn zeros(&self) -> T;
 }

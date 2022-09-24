@@ -22,7 +22,7 @@ no-default-features = true
 [features]
 default = ["tch", "ndarray"]
 tch = ["dep:tch"]
-ndarray = ["dep:ndarray"]
+ndarray = ["dep:ndarray", "dep:libm"]
 doc = ["dep:tch", "tch/doc-only", "dep:ndarray"]
 
 [dependencies]
@@ -34,7 +34,12 @@ half = { version = "1.6", features = ["num-traits"] } # needs to be 1.6 to work 
 # Backends
 tch = { version = "0.8", optional = true }
 lazy_static = "1.4"
+
+
+
+# NdArray
 ndarray = { version = "0.15", optional = true }
+libm = { version = "0.2", optional = true }
 
 # Autodiff
 nanoid = "0.4"

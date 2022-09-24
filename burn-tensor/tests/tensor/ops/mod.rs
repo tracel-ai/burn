@@ -2,6 +2,7 @@ mod add;
 mod aggregation;
 mod arg;
 mod div;
+mod erf;
 mod exp;
 mod index;
 mod map_comparison;
