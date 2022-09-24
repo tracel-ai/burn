@@ -185,9 +185,7 @@ where
     M: Metric<T> + 'static,
 {
     fn update(&mut self, item: &TrainerItem<T>) -> MetricStateDyn {
-        let update = self.metric.update(&item.item);
-
-        update
+        self.metric.update(&item.item) as _
     }
 
     fn clear(&mut self) {

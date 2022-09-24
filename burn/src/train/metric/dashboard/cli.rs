@@ -16,6 +16,12 @@ pub struct CLIDashboardRenderer {
     metric_valid_plot: HashMap<String, TextPlot>,
 }
 
+impl Default for CLIDashboardRenderer {
+    fn default() -> Self {
+        CLIDashboardRenderer::new()
+    }
+}
+
 impl Drop for CLIDashboardRenderer {
     fn drop(&mut self) {
         self.pb_iteration.finish();

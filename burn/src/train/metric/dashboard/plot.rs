@@ -9,6 +9,12 @@ pub struct TextPlot {
     iteration: usize,
 }
 
+impl Default for TextPlot {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TextPlot {
     pub fn new() -> Self {
         Self {
@@ -42,18 +48,16 @@ impl TextPlot {
         let x_max = self
             .train
             .last()
-            .map(|(iteration, _)| iteration.clone())
+            .map(|(iteration, _)| *iteration)
             .unwrap_or(f32::MIN);
         let x_min = self
             .train
             .first()
-            .map(|(iteration, _)| iteration.clone())
+            .map(|(iteration, _)| *iteration)
             .unwrap_or(f32::MAX);
 
-        if x_max - x_min > self.max_values as f32 {
-            if !self.train.is_empty() {
-                self.train.remove(0);
-            }
+        if x_max - x_min > self.max_values as f32 && !self.train.is_empty() {
+            self.train.remove(0);
         }
     }
 
@@ -64,18 +68,16 @@ impl TextPlot {
         let x_max = self
             .valid
             .last()
-            .map(|(iteration, _)| iteration.clone())
+            .map(|(iteration, _)| *iteration)
             .unwrap_or(f32::MIN);
         let x_min = self
             .valid
             .first()
-            .map(|(iteration, _)| iteration.clone())
+            .map(|(iteration, _)| *iteration)
             .unwrap_or(f32::MAX);
 
-        if x_max - x_min > self.max_values as f32 {
-            if !self.valid.is_empty() {
-                self.valid.remove(0);
-            }
+        if x_max - x_min > self.max_values as f32 && !self.valid.is_empty() {
+            self.valid.remove(0);
         }
     }
 
@@ -86,24 +88,24 @@ impl TextPlot {
         let x_max_valid = self
             .valid
             .last()
-            .map(|(iteration, _)| iteration.clone())
+            .map(|(iteration, _)| *iteration)
             .unwrap_or(f32::MIN);
         let x_max_train = self
             .train
             .last()
-            .map(|(iteration, _)| iteration.clone())
+            .map(|(iteration, _)| *iteration)
             .unwrap_or(f32::MIN);
         let x_max = f32::max(x_max_train, x_max_valid);
 
         let x_min_valid = self
             .valid
             .first()
-            .map(|(iteration, _)| iteration.clone())
+            .map(|(iteration, _)| *iteration)
             .unwrap_or(f32::MAX);
         let x_min_train = self
             .train
             .first()
-            .map(|(iteration, _)| iteration.clone())
+            .map(|(iteration, _)| *iteration)
             .unwrap_or(f32::MAX);
         let x_min = f32::min(x_min_train, x_min_valid);
 
@@ -113,8 +115,8 @@ impl TextPlot {
         };
 
         Chart::new(width, height, x_min, x_max)
-            .linecolorplot(&Shape::Lines(&self.train), train_color.clone())
-            .linecolorplot(&Shape::Lines(&self.valid), valid_color.clone())
+            .linecolorplot(&Shape::Lines(&self.train), train_color)
+            .linecolorplot(&Shape::Lines(&self.valid), valid_color)
             .to_string()
     }
 }
