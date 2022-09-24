@@ -20,7 +20,7 @@ where
     V: Send + Sync + 'static,
 {
     fn default() -> Self {
-        Self::new(Box::new(CLIDashboardRenderer::new("Supervised training")))
+        Self::new(Box::new(CLIDashboardRenderer::new()))
     }
 }
 

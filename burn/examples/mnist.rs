@@ -46,7 +46,7 @@ struct MlpConfig {
     num_layers: usize,
     #[config(default = 0.5)]
     dropout: f64,
-    #[config(default = 4024)]
+    #[config(default = 1024)]
     dim: usize,
 }
 
@@ -162,13 +162,12 @@ impl<B: Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
 
 fn run<B: ADBackend>(device: B::Device) {
     // Config
-    let config = MnistConfig::new(
-        SgdConfig::new()
-            .with_learning_rate(2.5e-2)
-            .with_weight_decay(Some(WeightDecayConfig::new(0.05)))
-            .with_momentum(Some(MomentumConfig::new().with_nesterov(true))),
-        MlpConfig::new(),
-    );
+    let config_optimizer = SgdConfig::new()
+        .with_learning_rate(2.5e-2)
+        .with_weight_decay(Some(WeightDecayConfig::new(0.05)))
+        .with_momentum(Some(MomentumConfig::new().with_nesterov(true)));
+    let config_mlp = MlpConfig::new();
+    let config = MnistConfig::new(config_optimizer, config_mlp);
     B::seed(config.seed);
 
     // Data
@@ -196,8 +195,8 @@ fn run<B: ADBackend>(device: B::Device) {
         .metric_train(CUDAMetric::new())
         .metric_train_plot(LossMetric::new())
         .metric_valid_plot(LossMetric::new())
-        .metric_train_plot(AccuracyMetric::new())
-        .metric_valid_plot(AccuracyMetric::new())
+        .metric_train(AccuracyMetric::new())
+        .metric_valid(AccuracyMetric::new())
         .num_epochs(config.num_epochs)
         .build();
     let trained = trainer.train(learner, data);
@@ -217,4 +216,5 @@ fn main() {
 
     let device = TchDevice::Cuda(0);
     run::<TchADBackend<f16>>(device);
+    println!("Done.");
 }

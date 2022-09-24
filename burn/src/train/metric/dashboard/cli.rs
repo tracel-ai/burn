@@ -5,7 +5,6 @@ use std::{collections::HashMap, fmt::Write};
 static MAX_REFRESH_RATE_MILLIS: u128 = 50;
 
 pub struct CLIDashboardRenderer {
-    name: String,
     pb_epoch: ProgressBar,
     pb_iteration: ProgressBar,
     last_update: std::time::Instant,
@@ -17,6 +16,13 @@ pub struct CLIDashboardRenderer {
     metric_valid_plot: HashMap<String, TextPlot>,
 }
 
+impl Drop for CLIDashboardRenderer {
+    fn drop(&mut self) {
+        self.pb_iteration.finish();
+        self.pb_epoch.finish();
+    }
+}
+
 impl DashboardRenderer for CLIDashboardRenderer {
     fn update_train(&mut self, state: DashboardMetricState) {
         match state {
@@ -24,8 +30,9 @@ impl DashboardRenderer for CLIDashboardRenderer {
                 self.metric_train.insert(state.name(), state.pretty());
             }
             DashboardMetricState::Numeric(state, value) => {
-                let name = state.name();
+                self.metric_train.insert(state.name(), state.pretty());
 
+                let name = state.name();
                 if let Some(mut plot) = self.text_plot_in_both(&name) {
                     plot.update_train(value as f32);
                     self.metric_both_plot.insert(name, plot);
@@ -49,8 +56,9 @@ impl DashboardRenderer for CLIDashboardRenderer {
                 self.metric_valid.insert(state.name(), state.pretty());
             }
             DashboardMetricState::Numeric(state, value) => {
-                let name = state.name();
+                self.metric_valid.insert(state.name(), state.pretty());
 
+                let name = state.name();
                 if let Some(mut plot) = self.text_plot_in_both(&name) {
                     plot.update_valid(value as f32);
                     self.metric_both_plot.insert(name, plot);
@@ -80,7 +88,7 @@ impl DashboardRenderer for CLIDashboardRenderer {
 }
 
 impl CLIDashboardRenderer {
-    pub fn new(name: &str) -> Self {
+    pub fn new() -> Self {
         let pb = MultiProgress::new();
         let pb_epoch = ProgressBar::new(0);
         let pb_iteration = ProgressBar::new(0);
@@ -89,7 +97,6 @@ impl CLIDashboardRenderer {
         let pb_epoch = pb.add(pb_epoch);
 
         Self {
-            name: name.to_string(),
             pb_epoch,
             pb_iteration,
             last_update: std::time::Instant::now(),
@@ -116,12 +123,16 @@ impl CLIDashboardRenderer {
         None
     }
 
-    fn register_template_metrics(&self, template: String) -> String {
+    fn register_template_plots(&self, template: String) -> String {
         let mut template = template;
         let mut metrics_keys = Vec::new();
 
         for (name, metric) in self.metric_both_plot.iter() {
-            metrics_keys.push(format!("  - Both  {}: \n{}", name, metric.render()));
+            metrics_keys.push(format!(
+                "  - {} RED: train | BLUE: valid \n{}",
+                name,
+                metric.render()
+            ));
         }
         for (name, metric) in self.metric_train_plot.iter() {
             metrics_keys.push(format!("  - Train {}: \n{}", name, metric.render()));
@@ -129,6 +140,18 @@ impl CLIDashboardRenderer {
         for (name, metric) in self.metric_valid_plot.iter() {
             metrics_keys.push(format!("  - Valid {}: \n{}", name, metric.render()));
         }
+
+        if !metrics_keys.is_empty() {
+            let metrics_template = metrics_keys.join("\n");
+            template += format!("{}\n{}\n", PLOTS_TAG, metrics_template).as_str();
+        }
+
+        template
+    }
+    fn register_template_metrics(&self, template: String) -> String {
+        let mut template = template;
+        let mut metrics_keys = Vec::new();
+
         for (name, metric) in self.metric_train.iter() {
             metrics_keys.push(format!("  - Train {}: {}", name, metric));
         }
@@ -170,9 +193,17 @@ impl CLIDashboardRenderer {
             return;
         }
 
-        let template = format!("{}\n  - Name: {}\n", GENERAL_TAG, self.name);
+        let template = self.register_template_plots(String::default());
         let template = self.register_template_metrics(template);
-        let template = template + format!("{}\n", PROGRESS_TAG).as_str();
+        let template = template
+            + format!(
+                "\n{}\n  - Iteration {} Epoch {}/{}\n",
+                PROGRESS_TAG,
+                self.progress.iteration + 1,
+                self.progress.epoch + 1,
+                self.progress.epoch_total
+            )
+            .as_str();
 
         let template = self.register_template_progress("iteration", template);
         let style_iteration = ProgressStyle::with_template(&template).unwrap();
@@ -182,7 +213,7 @@ impl CLIDashboardRenderer {
             format!("{}", self.progress.iteration),
         );
 
-        let template = self.register_template_progress("epoch", "".to_string());
+        let template = self.register_template_progress("epoch    ", String::default());
         let style_epoch = ProgressStyle::with_template(&template).unwrap();
         let style_epoch =
             self.register_style_progress("epoch", style_epoch, format!("{}", self.progress.epoch));
@@ -214,6 +245,6 @@ impl CLIDashboardRenderer {
     }
 }
 
-static GENERAL_TAG: &str = "[General]";
 static METRICS_TAG: &str = "[Metrics]";
+static PLOTS_TAG: &str = "[Plots]";
 static PROGRESS_TAG: &str = "[Progress]";
