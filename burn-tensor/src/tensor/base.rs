@@ -4,9 +4,9 @@ use crate::tensor::backend::Backend;
 use crate::tensor::ops::activation::*;
 use crate::tensor::ops::*;
 use crate::tensor::stats;
+use crate::tensor::ElementConversion;
 use crate::tensor::{Data, Distribution, Shape};
 use crate::BoolTensor;
-use crate::Element;
 use std::convert::TryInto;
 
 /// A tensor or a *n-dimensional* array.
@@ -149,8 +149,8 @@ where
     /// Applies element wise addition operation with a scalar.
     ///
     /// `y = x + s`
-    pub fn add_scalar(&self, other: &B::Elem) -> Self {
-        Self::new(self.value.add_scalar(other))
+    pub fn add_scalar<E: ElementConversion>(&self, other: E) -> Self {
+        Self::new(self.value.add_scalar(&other.to_elem()))
     }
 
     /// Applies element wise substraction operation.
@@ -163,8 +163,8 @@ where
     /// Applies element wise substraction operation with a scalar.
     ///
     /// `y = x - s`
-    pub fn sub_scalar(&self, other: &B::Elem) -> Self {
-        Self::new(self.value.sub_scalar(other))
+    pub fn sub_scalar<E: ElementConversion>(&self, other: E) -> Self {
+        Self::new(self.value.sub_scalar(&other.to_elem()))
     }
 
     /// Applies the transpose operation.
@@ -206,8 +206,8 @@ where
     /// Applies element wise multiplication operation with scalar.
     ///
     /// `y = x2 * x1`
-    pub fn mul_scalar(&self, other: &B::Elem) -> Self {
-        Self::new(self.value.mul_scalar(other))
+    pub fn mul_scalar<E: ElementConversion>(&self, other: E) -> Self {
+        Self::new(self.value.mul_scalar(&other.to_elem()))
     }
 
     /// Applies element wise division operation.
@@ -220,8 +220,8 @@ where
     /// Applies element wise division operation with scalar.
     ///
     /// `y = x2 / x1`
-    pub fn div_scalar(&self, other: &B::Elem) -> Self {
-        Self::new(self.value.div_scalar(other))
+    pub fn div_scalar<E: ElementConversion>(&self, other: E) -> Self {
+        Self::new(self.value.div_scalar(&other.to_elem()))
     }
 
     /// Aggregate all elements in the tensor with the mean operation.
@@ -314,28 +314,28 @@ where
     }
 
     /// Applies element wise equal comparison and returns a boolean tensor.
-    pub fn equal_scalar(&self, other: &B::Elem) -> BoolTensor<B, D> {
-        BoolTensor::new(self.value.equal_scalar(other))
+    pub fn equal_scalar<E: ElementConversion>(&self, other: E) -> BoolTensor<B, D> {
+        BoolTensor::new(self.value.equal_scalar(&other.to_elem()))
     }
 
     /// Applies element wise greater comparison and returns a boolean tensor.
-    pub fn greater_scalar(&self, other: &B::Elem) -> BoolTensor<B, D> {
-        BoolTensor::new(self.value.greater_scalar(other))
+    pub fn greater_scalar<E: ElementConversion>(&self, other: E) -> BoolTensor<B, D> {
+        BoolTensor::new(self.value.greater_scalar(&other.to_elem()))
     }
 
     /// Applies element wise greater-equal comparison and returns a boolean tensor.
-    pub fn greater_equal_scalar(&self, other: &B::Elem) -> BoolTensor<B, D> {
-        BoolTensor::new(self.value.greater_equal_scalar(other))
+    pub fn greater_equal_scalar<E: ElementConversion>(&self, other: E) -> BoolTensor<B, D> {
+        BoolTensor::new(self.value.greater_equal_scalar(&other.to_elem()))
     }
 
     /// Applies element wise lower comparison and returns a boolean tensor.
-    pub fn lower_scalar(&self, other: &B::Elem) -> BoolTensor<B, D> {
-        BoolTensor::new(self.value.lower_scalar(other))
+    pub fn lower_scalar<E: ElementConversion>(&self, other: E) -> BoolTensor<B, D> {
+        BoolTensor::new(self.value.lower_scalar(&other.to_elem()))
     }
 
     /// Applies element wise lower-equal comparison and returns a boolean tensor.
-    pub fn lower_equal_scalar(&self, other: &B::Elem) -> BoolTensor<B, D> {
-        BoolTensor::new(self.value.lower_equal_scalar(other))
+    pub fn lower_equal_scalar<E: ElementConversion>(&self, other: E) -> BoolTensor<B, D> {
+        BoolTensor::new(self.value.lower_equal_scalar(&other.to_elem()))
     }
 
     /// Create a random tensor of the given shape where each element is sampled from the given
@@ -411,8 +411,8 @@ where
     }
 
     /// Fill each element with the given value based on the given mask.
-    pub fn mask_fill(&self, mask: &BoolTensor<B, D>, value: B::Elem) -> Self {
-        Self::new(self.value.mask_fill(&mask.value, value))
+    pub fn mask_fill<E: ElementConversion>(&self, mask: &BoolTensor<B, D>, value: E) -> Self {
+        Self::new(self.value.mask_fill(&mask.value, value.to_elem()))
     }
 
     /// Returns a tensor with full precision based on the selected backend.
@@ -540,13 +540,13 @@ where
 
 impl<E, const D: usize, B> std::ops::Add<E> for Tensor<B, D>
 where
-    E: Element,
-    B: Backend<Elem = E>,
+    E: ElementConversion,
+    B: Backend,
 {
     type Output = Self;
 
     fn add(self, other: E) -> Self {
-        Tensor::add_scalar(&self, &other)
+        Tensor::add_scalar(&self, other)
     }
 }
 
@@ -563,13 +563,13 @@ where
 
 impl<E, const D: usize, B> std::ops::Sub<E> for Tensor<B, D>
 where
-    E: Element,
-    B: Backend<Elem = E>,
+    E: ElementConversion,
+    B: Backend,
 {
     type Output = Self;
 
     fn sub(self, other: E) -> Self {
-        Tensor::sub_scalar(&self, &other)
+        Tensor::sub_scalar(&self, other)
     }
 }
 
@@ -586,13 +586,13 @@ where
 
 impl<E, const D: usize, B> std::ops::Mul<E> for Tensor<B, D>
 where
-    E: Element,
-    B: Backend<Elem = E>,
+    E: ElementConversion,
+    B: Backend,
 {
     type Output = Self;
 
     fn mul(self, other: E) -> Self {
-        Tensor::mul_scalar(&self, &other)
+        Tensor::mul_scalar(&self, other)
     }
 }
 
@@ -609,13 +609,13 @@ where
 
 impl<E, const D: usize, B> std::ops::Div<E> for Tensor<B, D>
 where
-    E: Element,
-    B: Backend<Elem = E>,
+    E: ElementConversion,
+    B: Backend,
 {
     type Output = Self;
 
     fn div(self, other: E) -> Self {
-        Tensor::div_scalar(&self, &other)
+        Tensor::div_scalar(&self, other)
     }
 }
 

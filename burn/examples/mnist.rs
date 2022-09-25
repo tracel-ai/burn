@@ -9,7 +9,7 @@ use burn::optim::momentum::MomentumConfig;
 use burn::optim::{Optimizer, Sgd, SgdConfig};
 use burn::tensor::backend::{ADBackend, Backend};
 use burn::tensor::loss::cross_entropy_with_logits;
-use burn::tensor::{Data, ElementConversion, Shape, Tensor};
+use burn::tensor::{Data, Shape, Tensor};
 use burn::train::metric::{AccuracyMetric, CUDAMetric, LossMetric};
 use burn::train::{ClassificationLearner, ClassificationOutput, Train};
 use burn::train::{SupervisedData, SupervisedTrainerBuilder};
@@ -145,7 +145,7 @@ impl<B: Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
             .map(|item| Data::<f32, 2>::from(item.image))
             .map(|data| Tensor::<B, 2>::from_data(data.convert()))
             .map(|tensor| tensor.reshape(Shape::new([1, 784])))
-            .map(|tensor| tensor.div_scalar(&255.to_elem()))
+            .map(|tensor| tensor / 255)
             .collect();
 
         let targets = items

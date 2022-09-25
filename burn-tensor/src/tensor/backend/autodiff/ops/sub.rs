@@ -70,7 +70,7 @@ mod tests {
     fn should_diff_sub_scalar() {
         let data = Data::from([2.0, 10.0]);
         let tensor = TestADTensor::from_data(data);
-        let tensor_out = tensor.sub_scalar(&5.0);
+        let tensor_out = tensor.sub_scalar(5.0);
         let grads = tensor_out.backward();
 
         let grad = tensor.grad(&grads).unwrap();
@@ -90,7 +90,7 @@ mod tests {
         let tensor_3 = TestADTensor::from_data(data_3);
 
         let tensor_4 = tensor_1.sub(&tensor_2);
-        let tensor_5 = tensor_4.sub(&tensor_3).sub_scalar(&5.0);
+        let tensor_5 = tensor_4.sub(&tensor_3).sub_scalar(5.0);
         let tensor_6 = tensor_1.sub(&tensor_5);
 
         let grads = tensor_6.backward();

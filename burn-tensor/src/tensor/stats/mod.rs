@@ -1,4 +1,4 @@
-use crate::{backend::Backend, ElementConversion, Tensor};
+use crate::{backend::Backend, Tensor};
 
 pub fn var<B: Backend, const D: usize>(tensor: &Tensor<B, D>, dim: usize) -> Tensor<B, D> {
     let mean = tensor.mean_dim(dim);
@@ -32,6 +32,5 @@ pub fn var_with_mean_n<B: Backend, const D: usize>(
     dim: usize,
     n: usize,
 ) -> Tensor<B, D> {
-    let n = (n as f32).to_elem();
-    tensor.sub(mean).powf(2.0).sum_dim(dim).div_scalar(&n)
+    tensor.sub(mean).powf(2.0).sum_dim(dim).div_scalar(n as f32)
 }
