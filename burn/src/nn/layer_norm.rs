@@ -4,7 +4,7 @@ use crate::config::Config;
 use crate::module::Module;
 use crate::module::{Forward, Param};
 use crate::tensor::backend::Backend;
-use crate::tensor::{ElementConversion, Shape, Tensor};
+use crate::tensor::{Shape, Tensor};
 
 /// Configuration to create a [LayerNorm](LayerNorm) layer.
 #[derive(Config)]
@@ -45,7 +45,7 @@ impl<B: Backend, const D: usize> Forward<Tensor<B, D>, Tensor<B, D>> for LayerNo
 
         let input_normalized = input
             .sub(&mean)
-            .div(&var.powf(0.5).add_scalar(&self.epsilon.to_elem()));
+            .div(&var.powf(0.5).add_scalar(self.epsilon));
 
         input_normalized
             .mul(&self.gamma.unsqueeze())

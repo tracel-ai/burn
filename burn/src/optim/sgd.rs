@@ -64,7 +64,7 @@ impl<B: ADBackend> Optimizer for Sgd<B> {
             None => grad,
         };
 
-        let delta = grad.mul_scalar(&self.learning_rate);
+        let delta = grad.mul_scalar(self.learning_rate);
         tensor.update(tensor.inner() - delta);
     }
 

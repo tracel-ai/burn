@@ -2,7 +2,7 @@ use crate as burn;
 use crate::config::Config;
 use crate::module::Forward;
 use crate::tensor::backend::Backend;
-use crate::tensor::{Distribution, ElementConversion, Tensor};
+use crate::tensor::{Distribution, Tensor};
 
 /// Configuration to create a [Dropout](Dropout) layer.
 #[derive(Config)]
@@ -35,10 +35,10 @@ impl<B: Backend, const D: usize> Forward<Tensor<B, D>, Tensor<B, D>> for Dropout
         }
 
         let random = input.random_like(Distribution::Bernoulli(self.prob));
-        let mask = random.equal_scalar(&1.to_elem());
-        let x = input.mask_fill(&mask, 0.to_elem());
+        let mask = random.equal_scalar(1);
+        let x = input.mask_fill(&mask, 0.0_f32);
 
-        x.div_scalar(&(1.0 - self.prob).to_elem())
+        x / (1.0 - self.prob)
     }
 }
 

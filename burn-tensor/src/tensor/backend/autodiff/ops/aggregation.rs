@@ -39,7 +39,7 @@ impl<B: Backend, const D: usize> UnaryOps<B::TensorPrimitive<D>, B::TensorPrimit
 
         let grad: Tensor<B, 1> = Tensor::new(grad);
         let val = 1_f64 / self.state.num_elements() as f64;
-        let ones: Tensor<B, D> = Tensor::new(ones).mul_scalar(&B::Elem::from_elem(val));
+        let ones: Tensor<B, D> = Tensor::new(ones).mul_scalar(val);
 
         ones.mul(&grad.unsqueeze()).value
     }

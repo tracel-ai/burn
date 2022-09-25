@@ -72,7 +72,7 @@ mod tests {
         let data = Data::from([2.0, 5.0]);
 
         let tensor = TestADTensor::from_data(data);
-        let tensor_out = tensor.mul_scalar(&4.0);
+        let tensor_out = tensor.mul_scalar(4.0);
 
         let grads = tensor_out.backward();
         let grad = tensor.grad(&grads).unwrap();

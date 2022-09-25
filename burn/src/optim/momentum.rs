@@ -46,8 +46,8 @@ impl<B: ADBackend> Momentum<B> {
 
         let velocity = match self.velocity.get::<Tensor<B::InnerBackend, D>>(&id) {
             Some(grad_last_step) => grad
-                .mul_scalar(&(1.0 - self.dampening).to_elem())
-                .add(&grad_last_step.mul_scalar(&self.momentum)),
+                .mul_scalar(1.0 - self.dampening)
+                .add(&grad_last_step.mul_scalar(self.momentum)),
             None => grad.clone(),
         };
 
@@ -55,7 +55,7 @@ impl<B: ADBackend> Momentum<B> {
         self.velocity.register_any(id, velocity.clone());
 
         match self.nesterov {
-            true => velocity.mul_scalar(&self.momentum).add(&grad),
+            true => velocity.mul_scalar(self.momentum).add(&grad),
             false => velocity,
         }
     }

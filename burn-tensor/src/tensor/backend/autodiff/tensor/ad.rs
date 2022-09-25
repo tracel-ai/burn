@@ -63,7 +63,7 @@ mod tests {
 
         let tensor_3 = tensor_1.matmul(&tensor_2);
         let tensor_4 = tensor_3.matmul(&tensor_1);
-        let tensor_5 = tensor_4.add_scalar(&17.0).add(&tensor_2);
+        let tensor_5 = tensor_4.add_scalar(17.0).add(&tensor_2);
 
         let grads = tensor_5.backward();
 
