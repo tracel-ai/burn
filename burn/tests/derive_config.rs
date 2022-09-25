@@ -1,6 +1,6 @@
 use burn::config::Config;
 
-#[derive(Config, Debug, PartialEq)]
+#[derive(Config, Debug, PartialEq, Eq)]
 pub struct TestEmptyStructConfig {}
 
 #[derive(Config, Debug, PartialEq)]
@@ -17,7 +17,7 @@ pub struct TestStructConfig {
 
 #[derive(Config, Debug, PartialEq)]
 pub enum TestEnumConfig {
-    NoValue,
+    WithoutValue,
     WithOneValue(f32),
     WithMultipleValue(f32, String),
 }
@@ -35,7 +35,7 @@ fn struct_config_should_impl_serde() {
 
 #[test]
 fn struct_enum_no_value_should_impl_serde() {
-    let config = TestEnumConfig::NoValue;
+    let config = TestEnumConfig::WithoutValue;
     let file_path = "/tmp/test_enum_no_value_config.json";
 
     config.save(file_path).unwrap();

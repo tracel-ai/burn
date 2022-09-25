@@ -105,11 +105,11 @@ impl ConfigEnumAnalyzer {
 
 impl ConfigAnalyzer for ConfigEnumAnalyzer {
     fn gen_constructor_impl(&self) -> TokenStream {
-        quote! {}.into()
+        quote! {}
     }
 
     fn gen_builder_fn_impl(&self) -> TokenStream {
-        quote! {}.into()
+        quote! {}
     }
 
     fn gen_serde(&self) -> TokenStream {
@@ -125,11 +125,11 @@ impl ConfigAnalyzer for ConfigEnumAnalyzer {
     }
 
     fn gen_clone(&self) -> TokenStream {
-        quote! {}.into()
+        quote! {}
     }
 
     fn gen_display(&self) -> TokenStream {
-        quote! {}.into()
+        quote! {}
     }
 
     fn gen_config_impl(&self) -> TokenStream {
