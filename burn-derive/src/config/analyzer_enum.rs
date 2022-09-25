@@ -104,15 +104,7 @@ impl ConfigEnumAnalyzer {
 }
 
 impl ConfigAnalyzer for ConfigEnumAnalyzer {
-    fn gen_constructor_impl(&self) -> TokenStream {
-        quote! {}
-    }
-
-    fn gen_builder_fn_impl(&self) -> TokenStream {
-        quote! {}
-    }
-
-    fn gen_serde(&self) -> TokenStream {
+    fn gen_serde_impl(&self) -> TokenStream {
         let struct_gen = self.gen_serde_enum();
         let serialize_gen = self.gen_serialize_fn();
         let deserialize_gen = self.gen_deserialize_fn();
@@ -124,12 +116,37 @@ impl ConfigAnalyzer for ConfigEnumAnalyzer {
         }
     }
 
-    fn gen_clone(&self) -> TokenStream {
-        quote! {}
+    fn gen_clone_impl(&self) -> TokenStream {
+        let variants = self.data.variants.iter().map(|variant| {
+            let variant_name = &variant.ident;
+            let (variant_input, variant_output) = self.gen_variant_field(variant);
+
+            quote! { Self::#variant_name #variant_input => Self::#variant_name #variant_output }
+        });
+        let name = &self.name;
+
+        quote! {
+            impl Clone for #name {
+                fn clone(&self) -> Self {
+                    match self {
+                        #(#variants),*
+                    }
+                }
+            }
+
+        }
     }
 
-    fn gen_display(&self) -> TokenStream {
-        quote! {}
+    fn gen_display_impl(&self) -> TokenStream {
+        let name = &self.name;
+
+        quote! {
+            impl std::fmt::Display for #name {
+                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    f.write_str(&burn::config::config_to_json(self))
+                }
+            }
+        }
     }
 
     fn gen_config_impl(&self) -> TokenStream {

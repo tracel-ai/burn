@@ -1,18 +1,22 @@
+use super::ConfigEnumAnalyzer;
 use crate::config::ConfigStructAnalyzer;
 use crate::shared::{attribute::AttributeItem, field::FieldTypeAnalyzer};
 use proc_macro2::TokenStream;
+use quote::quote;
 use syn::{Field, Ident};
-
-use super::ConfigEnumAnalyzer;
 
 pub struct ConfigAnalyzerFactory {}
 
 pub trait ConfigAnalyzer {
-    fn gen_constructor_impl(&self) -> TokenStream;
-    fn gen_builder_fn_impl(&self) -> TokenStream;
-    fn gen_serde(&self) -> TokenStream;
-    fn gen_clone(&self) -> TokenStream;
-    fn gen_display(&self) -> TokenStream;
+    fn gen_new_fn(&self) -> TokenStream {
+        quote! {}
+    }
+    fn gen_builder_fns(&self) -> TokenStream {
+        quote! {}
+    }
+    fn gen_serde_impl(&self) -> TokenStream;
+    fn gen_clone_impl(&self) -> TokenStream;
+    fn gen_display_impl(&self) -> TokenStream;
     fn gen_config_impl(&self) -> TokenStream;
 }
 

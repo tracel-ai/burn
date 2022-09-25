@@ -34,7 +34,19 @@ fn struct_config_should_impl_serde() {
 }
 
 #[test]
-fn struct_enum_no_value_should_impl_serde() {
+fn struct_config_should_impl_clone() {
+    let config = TestStructConfig::new(2, 3.0, "Allo".to_string(), TestEmptyStructConfig::new());
+    assert_eq!(config, config.clone());
+}
+
+#[test]
+fn struct_config_should_impl_display() {
+    let config = TestStructConfig::new(2, 3.0, "Allo".to_string(), TestEmptyStructConfig::new());
+    assert_eq!(burn::config::config_to_json(&config), config.to_string());
+}
+
+#[test]
+fn enum_config_no_value_should_impl_serde() {
     let config = TestEnumConfig::WithoutValue;
     let file_path = "/tmp/test_enum_no_value_config.json";
 
@@ -45,7 +57,7 @@ fn struct_enum_no_value_should_impl_serde() {
 }
 
 #[test]
-fn struct_enum_one_value_should_impl_serde() {
+fn enum_config_one_value_should_impl_serde() {
     let config = TestEnumConfig::WithOneValue(42.0);
     let file_path = "/tmp/test_enum_one_value_config.json";
 
@@ -56,7 +68,7 @@ fn struct_enum_one_value_should_impl_serde() {
 }
 
 #[test]
-fn struct_enum_multiple_values_should_impl_serde() {
+fn enum_config_multiple_values_should_impl_serde() {
     let config = TestEnumConfig::WithMultipleValue(42.0, "Allo".to_string());
     let file_path = "/tmp/test_enum_multiple_values_config.json";
 
@@ -64,4 +76,16 @@ fn struct_enum_multiple_values_should_impl_serde() {
 
     let config_loaded = TestEnumConfig::load(file_path).unwrap();
     assert_eq!(config, config_loaded);
+}
+
+#[test]
+fn enum_config_should_impl_clone() {
+    let config = TestEnumConfig::WithMultipleValue(42.0, "Allo".to_string());
+    assert_eq!(config, config.clone());
+}
+
+#[test]
+fn enum_config_should_impl_display() {
+    let config = TestEnumConfig::WithMultipleValue(42.0, "Allo".to_string());
+    assert_eq!(burn::config::config_to_json(&config), config.to_string());
 }

@@ -132,7 +132,7 @@ impl ConfigStructAnalyzer {
 }
 
 impl ConfigAnalyzer for ConfigStructAnalyzer {
-    fn gen_constructor_impl(&self) -> TokenStream {
+    fn gen_new_fn(&self) -> TokenStream {
         let mut body = quote! {};
         let mut names = Vec::new();
 
@@ -175,7 +175,7 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
         self.wrap_impl_block(body)
     }
 
-    fn gen_builder_fn_impl(&self) -> TokenStream {
+    fn gen_builder_fns(&self) -> TokenStream {
         let mut body = quote! {};
 
         for (field, _) in self.fields_default.iter() {
@@ -207,7 +207,7 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
         self.wrap_impl_block(body)
     }
 
-    fn gen_serde(&self) -> TokenStream {
+    fn gen_serde_impl(&self) -> TokenStream {
         let names = self.names();
         let name_types = self.name_types(&names);
 
@@ -222,7 +222,7 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
         }
     }
 
-    fn gen_clone(&self) -> TokenStream {
+    fn gen_clone_impl(&self) -> TokenStream {
         let name = &self.name;
         let names = self.names().into_iter().map(|name| {
             let name = name.ident();
@@ -241,7 +241,7 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
         }
     }
 
-    fn gen_display(&self) -> TokenStream {
+    fn gen_display_impl(&self) -> TokenStream {
         let name = &self.name;
 
         quote! {
