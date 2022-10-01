@@ -2,7 +2,8 @@ use crate::{
     data::dataloader::Progress,
     train::{
         metric::{Metric, MetricStateDyn, Numeric},
-        SupervisedTrainerCallback, TrainerItem,
+        supervised::SupervisedTrainerCallback,
+        TrainerItem,
     },
 };
 

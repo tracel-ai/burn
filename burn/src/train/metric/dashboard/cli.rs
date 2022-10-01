@@ -205,8 +205,8 @@ impl CLIDashboardRenderer {
             + format!(
                 "\n{}\n  - Iteration {} Epoch {}/{}\n",
                 PROGRESS_TAG,
-                self.progress.iteration + 1,
-                self.progress.epoch + 1,
+                self.progress.iteration,
+                self.progress.epoch,
                 self.progress.epoch_total
             )
             .as_str();

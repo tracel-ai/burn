@@ -1,15 +1,9 @@
-use super::Learner;
+use super::{BasicLearner, Learner};
 use crate::module::{ADModule, Forward, Module};
 use crate::optim::Optimizer;
 use crate::tensor::backend::{ADBackend, Backend};
 use crate::train::metric;
 use burn_tensor::Tensor;
-
-#[derive(new)]
-pub struct ClassificationLearner<M, O> {
-    pub model: M,
-    pub optim: O,
-}
 
 #[derive(new)]
 pub struct ClassificationOutput<B: Backend> {
@@ -37,9 +31,9 @@ impl<B: Backend> metric::Metric<ClassificationOutput<B>> for metric::AccuracyMet
     }
 }
 
-impl<B, I, IV, M, M2, O>
+impl<B, I, IV, M, M2, O, CM, CO>
     Learner<I, IV, ClassificationOutput<B>, ClassificationOutput<B::InnerBackend>>
-    for ClassificationLearner<M, O>
+    for BasicLearner<M, O, CM, CO>
 where
     B: ADBackend,
     M: Forward<I, ClassificationOutput<B>> + ADModule<Backend = B, InnerModule = M2>,

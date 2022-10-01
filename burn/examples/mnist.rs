@@ -2,21 +2,19 @@ use burn::config::Config;
 use burn::data::dataloader::batcher::Batcher;
 use burn::data::dataloader::DataLoaderBuilder;
 use burn::data::dataset::source::huggingface::{MNISTDataset, MNISTItem};
-use burn::module::{Forward, Module, Param, State};
+use burn::module::{Forward, Module, Param};
 use burn::nn;
 use burn::optim::decay::WeightDecayConfig;
 use burn::optim::momentum::MomentumConfig;
-use burn::optim::{Optimizer, Sgd, SgdConfig};
+use burn::optim::{Sgd, SgdConfig};
 use burn::tensor::backend::{ADBackend, Backend};
 use burn::tensor::loss::cross_entropy_with_logits;
 use burn::tensor::{Data, Shape, Tensor};
 use burn::train::metric::{AccuracyMetric, CUDAMetric, LossMetric};
-use burn::train::{ClassificationLearner, ClassificationOutput, Train};
-use burn::train::{SupervisedData, SupervisedTrainerBuilder};
+use burn::train::supervised::{SupervisedData, SupervisedTrainerBuilder};
+use burn::train::{ClassificationOutput, LearnerBuilder, Train};
 use std::sync::Arc;
 
-static MODEL_STATE_PATH: &str = "/tmp/mnist_state_model.json.gz";
-static OPTIMIZER_STATE_PATH: &str = "/tmp/mnist_state_optim.json.gz";
 static CONFIG_PATH: &str = "/tmp/mnist_config.json";
 
 #[derive(Config)]
@@ -42,11 +40,11 @@ struct Model<B: Backend> {
 
 #[derive(Config)]
 struct MlpConfig {
-    #[config(default = 6)]
+    #[config(default = 3)]
     num_layers: usize,
     #[config(default = 0.5)]
     dropout: f64,
-    #[config(default = 1024)]
+    #[config(default = 256)]
     dim: usize,
 }
 
@@ -188,7 +186,10 @@ fn run<B: ADBackend>(device: B::Device) {
     let optim = Sgd::new(&config.optimizer);
     let mut model = Model::new(&config, 784, 10);
     model.to_device(device);
-    let learner = ClassificationLearner::new(model, optim);
+
+    let learner = LearnerBuilder::<B>::default()
+        .with_file_checkpointer::<f32>("/tmp/mnist")
+        .build(model, optim);
 
     // Training
     let trainer = SupervisedTrainerBuilder::default()
@@ -199,14 +200,7 @@ fn run<B: ADBackend>(device: B::Device) {
         .metric_valid_plot(LossMetric::new())
         .num_epochs(config.num_epochs)
         .build();
-    let trained = trainer.train(learner, data);
-
-    // Saving
-    let state_model: State<f32> = trained.model.state().convert();
-    let state_optim: State<f32> = trained.optim.state(&trained.model).convert();
-
-    state_model.save(MODEL_STATE_PATH).unwrap();
-    state_optim.save(OPTIMIZER_STATE_PATH).unwrap();
+    let _trained = trainer.train(learner, data);
     config.save(CONFIG_PATH).unwrap();
 }
 

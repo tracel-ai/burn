@@ -1,5 +1,4 @@
-use super::callback::AsyncSupervisedTrainerCallback;
-use super::SupervisedTrainer;
+use super::{AsyncSupervisedTrainerCallback, SupervisedTrainer};
 use crate::train::metric::dashboard::cli::CLIDashboardRenderer;
 use crate::train::metric::dashboard::{Dashboard, DashboardRenderer};
 use crate::train::metric::{Metric, Numeric};
@@ -12,6 +11,7 @@ where
 {
     dashboard: Dashboard<T, V>,
     num_epochs: usize,
+    checkpoint: Option<usize>,
 }
 
 impl<T, V> Default for SupervisedTrainerBuilder<T, V>
@@ -33,6 +33,7 @@ where
         Self {
             dashboard: Dashboard::new(renderer),
             num_epochs: 1,
+            checkpoint: None,
         }
     }
 
@@ -61,10 +62,15 @@ where
         self
     }
 
+    pub fn checkpoint(mut self, checkpoint: usize) -> Self {
+        self.checkpoint = Some(checkpoint);
+        self
+    }
+
     pub fn build<B: ADBackend>(self) -> SupervisedTrainer<B, T, V> {
         let callack = Box::new(self.dashboard);
         let callback = Box::new(AsyncSupervisedTrainerCallback::new(callack));
 
-        SupervisedTrainer::new(callback, self.num_epochs)
+        SupervisedTrainer::new(callback, self.num_epochs, self.checkpoint)
     }
 }
