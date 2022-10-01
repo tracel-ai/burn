@@ -109,8 +109,7 @@ impl<B: ADBackend> ValidStep for Model<B> {
     type Output = ClassificationOutput<B::InnerBackend>;
 
     fn step(&self, item: Self::Input) -> Self::Output {
-        let model = self.inner();
-        model.forward(item)
+        self.inner().forward(item)
     }
 }
 
