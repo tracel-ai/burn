@@ -1,12 +1,14 @@
-use super::{AsyncTrainerCallback, Learner};
 use crate::module::ADModule;
 use crate::train::checkpoint::{AsyncCheckpointer, Checkpointer, FileCheckpointer};
 use crate::train::metric::dashboard::cli::CLIDashboardRenderer;
 use crate::train::metric::dashboard::{Dashboard, DashboardRenderer};
 use crate::train::metric::{Metric, Numeric};
+use crate::train::AsyncTrainerCallback;
 use burn_tensor::backend::ADBackend;
 use burn_tensor::Element;
 use std::sync::Arc;
+
+use super::Learner;
 
 pub struct LearnerBuilder<B, T, V>
 where

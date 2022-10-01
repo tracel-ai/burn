@@ -3,9 +3,7 @@ pub mod logger;
 pub mod metric;
 
 mod callback;
-mod checkpoint;
-mod trainer;
+mod learner;
 
 pub use callback::*;
-pub use checkpoint::*;
-pub use trainer::*;
+pub use learner::*;
