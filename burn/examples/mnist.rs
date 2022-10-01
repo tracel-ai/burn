@@ -199,16 +199,16 @@ fn run<B: ADBackend>(device: B::Device) {
     model.to_device(device);
 
     let learner = LearnerBuilder::default()
-        .with_file_checkpointer::<f32>("/tmp/mnist")
-        .metric_train(CUDAMetric::new())
         .metric_train_plot(AccuracyMetric::new())
         .metric_valid_plot(AccuracyMetric::new())
         .metric_train_plot(LossMetric::new())
         .metric_valid_plot(LossMetric::new())
+        .with_file_checkpointer::<f32>("/tmp/mnist")
+        .metric_train(CUDAMetric::new())
         .num_epochs(config.num_epochs)
         .build(model, optim);
 
-    let _model_trained = learner.fit((dataloader_train, dataloader_test));
+    let _model_trained = learner.fit(dataloader_train, dataloader_test);
 
     config.save(CONFIG_PATH).unwrap();
 }
