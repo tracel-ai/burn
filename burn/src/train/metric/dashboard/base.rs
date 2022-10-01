@@ -2,8 +2,7 @@ use crate::{
     data::dataloader::Progress,
     train::{
         metric::{Metric, MetricStateDyn, Numeric},
-        supervised::SupervisedTrainerCallback,
-        TrainerItem,
+        TrainerCallback, TrainerItem,
     },
 };
 
@@ -98,7 +97,7 @@ impl<T> From<TrainerItem<T>> for TrainingProgress {
     }
 }
 
-impl<T, V> SupervisedTrainerCallback<TrainerItem<T>, TrainerItem<V>> for Dashboard<T, V>
+impl<T, V> TrainerCallback<TrainerItem<T>, TrainerItem<V>> for Dashboard<T, V>
 where
     T: Send + Sync + 'static,
     V: Send + Sync + 'static,

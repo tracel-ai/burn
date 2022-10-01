@@ -1,10 +1,9 @@
-use super::{AsyncSupervisedTrainerCallback, SupervisedTrainer};
+use super::{AsyncTrainerCallback, Trainer};
 use crate::train::metric::dashboard::cli::CLIDashboardRenderer;
 use crate::train::metric::dashboard::{Dashboard, DashboardRenderer};
 use crate::train::metric::{Metric, Numeric};
-use burn_tensor::backend::ADBackend;
 
-pub struct SupervisedTrainerBuilder<T, V>
+pub struct TrainerBuilder<T, V>
 where
     T: Send + Sync + 'static,
     V: Send + Sync + 'static,
@@ -14,7 +13,7 @@ where
     checkpoint: Option<usize>,
 }
 
-impl<T, V> Default for SupervisedTrainerBuilder<T, V>
+impl<T, V> Default for TrainerBuilder<T, V>
 where
     T: Send + Sync + 'static,
     V: Send + Sync + 'static,
@@ -24,7 +23,7 @@ where
     }
 }
 
-impl<T, V> SupervisedTrainerBuilder<T, V>
+impl<T, V> TrainerBuilder<T, V>
 where
     T: Send + Sync + 'static,
     V: Send + Sync + 'static,
@@ -67,10 +66,10 @@ where
         self
     }
 
-    pub fn build<B: ADBackend>(self) -> SupervisedTrainer<B, T, V> {
+    pub fn build(self) -> Trainer<T, V> {
         let callack = Box::new(self.dashboard);
-        let callback = Box::new(AsyncSupervisedTrainerCallback::new(callack));
+        let callback = Box::new(AsyncTrainerCallback::new(callack));
 
-        SupervisedTrainer::new(callback, self.num_epochs, self.checkpoint)
+        Trainer::new(callback, self.num_epochs, self.checkpoint)
     }
 }

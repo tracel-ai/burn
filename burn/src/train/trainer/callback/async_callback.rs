@@ -1,4 +1,4 @@
-use super::SupervisedTrainerCallback;
+use super::TrainerCallback;
 use std::sync::{mpsc, Mutex};
 
 enum Message<T, V> {
@@ -8,13 +8,13 @@ enum Message<T, V> {
     ClearValid,
 }
 
-pub struct AsyncSupervisedTrainerCallback<T, V> {
+pub struct AsyncTrainerCallback<T, V> {
     sender: mpsc::Sender<Message<T, V>>,
 }
 
 #[derive(new)]
 struct CallbackThread<T, V> {
-    callback: Mutex<Box<dyn SupervisedTrainerCallback<T, V>>>,
+    callback: Mutex<Box<dyn TrainerCallback<T, V>>>,
     receiver: mpsc::Receiver<Message<T, V>>,
 }
 
@@ -43,8 +43,8 @@ impl<T, V> CallbackThread<T, V> {
     }
 }
 
-impl<T: Send + Sync + 'static, V: Send + Sync + 'static> AsyncSupervisedTrainerCallback<T, V> {
-    pub fn new(callback: Box<dyn SupervisedTrainerCallback<T, V>>) -> Self {
+impl<T: Send + Sync + 'static, V: Send + Sync + 'static> AsyncTrainerCallback<T, V> {
+    pub fn new(callback: Box<dyn TrainerCallback<T, V>>) -> Self {
         let (sender, receiver) = mpsc::channel();
         let thread = CallbackThread::new(Mutex::new(callback), receiver);
 
@@ -54,7 +54,7 @@ impl<T: Send + Sync + 'static, V: Send + Sync + 'static> AsyncSupervisedTrainerC
     }
 }
 
-impl<T: Send, V: Send> SupervisedTrainerCallback<T, V> for AsyncSupervisedTrainerCallback<T, V> {
+impl<T: Send, V: Send> TrainerCallback<T, V> for AsyncTrainerCallback<T, V> {
     fn on_train_item(&mut self, item: T) {
         self.sender.send(Message::LogTrain(item)).unwrap();
     }

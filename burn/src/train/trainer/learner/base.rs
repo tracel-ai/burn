@@ -1,21 +1,18 @@
-use crate::module::Module;
-use crate::tensor::backend::Backend;
-use burn_tensor::Tensor;
+pub trait TrainStep {
+    type Input;
+    type Output;
 
-pub trait Loss: Module {
-    type Item;
-
-    fn loss(&self, item: Self::Item) -> Tensor<Self::Backend, 1>;
+    fn step(&mut self, item: Self::Input) -> Self::Output;
 }
 
-pub trait Learner<TI, VI, TO, VO> {
-    type Backend: Backend;
+pub trait ValidStep {
+    type Input;
+    type Output;
 
-    fn train(&mut self, item: TI) -> TO;
-    fn valid(&self, item: VI) -> VO;
+    fn step(&self, item: Self::Input) -> Self::Output;
 }
 
-pub trait LearnerCheckpoint {
+pub trait CheckpointModel {
     fn checkpoint(&self, epoch: usize);
     fn load_checkpoint(&mut self, epoch: usize);
 }

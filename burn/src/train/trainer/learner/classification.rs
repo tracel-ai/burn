@@ -1,6 +1,4 @@
-use super::{BasicLearner, Learner};
-use crate::module::{ADModule, Forward, Module};
-use crate::optim::Optimizer;
+use super::Backward;
 use crate::tensor::backend::{ADBackend, Backend};
 use crate::train::metric;
 use burn_tensor::Tensor;
@@ -10,6 +8,12 @@ pub struct ClassificationOutput<B: Backend> {
     pub loss: Tensor<B, 1>,
     pub output: Tensor<B, 2>,
     pub targets: Tensor<B, 2>,
+}
+
+impl<B: ADBackend> Backward for ClassificationOutput<B> {
+    fn backward(&self) -> burn_tensor::Gradients {
+        self.loss.backward()
+    }
 }
 
 impl<B: Backend> metric::Metric<ClassificationOutput<B>> for metric::LossMetric {
@@ -28,30 +32,5 @@ impl<B: Backend> metric::Metric<ClassificationOutput<B>> for metric::AccuracyMet
 
     fn clear(&mut self) {
         <metric::AccuracyMetric as metric::Metric<(Tensor<B, 2>, Tensor<B, 2>)>>::clear(self);
-    }
-}
-
-impl<B, I, IV, M, M2, O, CM, CO>
-    Learner<I, IV, ClassificationOutput<B>, ClassificationOutput<B::InnerBackend>>
-    for BasicLearner<M, O, CM, CO>
-where
-    B: ADBackend,
-    M: Forward<I, ClassificationOutput<B>> + ADModule<Backend = B, InnerModule = M2>,
-    M2: Forward<IV, ClassificationOutput<B::InnerBackend>> + Module<Backend = B::InnerBackend>,
-    O: Optimizer<Backend = B>,
-{
-    type Backend = B;
-
-    fn train(&mut self, item: I) -> ClassificationOutput<B> {
-        let output = self.model.forward(item);
-        let grads = output.loss.backward();
-
-        self.model.update_params(&grads, &mut self.optim);
-
-        output
-    }
-
-    fn valid(&self, item: IV) -> ClassificationOutput<B::InnerBackend> {
-        self.model.inner().forward(item)
     }
 }

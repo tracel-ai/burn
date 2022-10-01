@@ -2,7 +2,7 @@ use burn::config::Config;
 use burn::data::dataloader::batcher::Batcher;
 use burn::data::dataloader::DataLoaderBuilder;
 use burn::data::dataset::source::huggingface::{MNISTDataset, MNISTItem};
-use burn::module::{Forward, Module, Param};
+use burn::module::{ADModule, Forward, Module, Param};
 use burn::nn;
 use burn::optim::decay::WeightDecayConfig;
 use burn::optim::momentum::MomentumConfig;
@@ -11,8 +11,8 @@ use burn::tensor::backend::{ADBackend, Backend};
 use burn::tensor::loss::cross_entropy_with_logits;
 use burn::tensor::{Data, Shape, Tensor};
 use burn::train::metric::{AccuracyMetric, CUDAMetric, LossMetric};
-use burn::train::supervised::{SupervisedData, SupervisedTrainerBuilder};
-use burn::train::{ClassificationOutput, LearnerBuilder, Train};
+use burn::train::{ClassificationOutput, Train, TrainStep, TrainerModelBuilder, ValidStep};
+use burn::train::{TrainerBuilder, TrainerData};
 use std::sync::Arc;
 
 static CONFIG_PATH: &str = "/tmp/mnist_config.json";
@@ -92,6 +92,25 @@ impl<B: Backend> Forward<MNISTBatch<B>, ClassificationOutput<B>> for Model<B> {
             output,
             targets,
         }
+    }
+}
+
+impl<B: ADBackend> TrainStep for Model<B> {
+    type Input = MNISTBatch<B>;
+    type Output = ClassificationOutput<B>;
+
+    fn step(&mut self, item: Self::Input) -> Self::Output {
+        self.forward(item)
+    }
+}
+
+impl<B: ADBackend> ValidStep for Model<B> {
+    type Input = MNISTBatch<B::InnerBackend>;
+    type Output = ClassificationOutput<B::InnerBackend>;
+
+    fn step(&self, item: Self::Input) -> Self::Output {
+        let model = self.inner();
+        model.forward(item)
     }
 }
 
@@ -180,19 +199,19 @@ fn run<B: ADBackend>(device: B::Device) {
         .batch_size(config.batch_size)
         .num_workers(config.num_workers)
         .build(Arc::new(MNISTDataset::test()));
-    let data = SupervisedData::new(dataloader_train, dataloader_test);
+    let data = TrainerData::new(dataloader_train, dataloader_test);
 
     // Model
     let optim = Sgd::new(&config.optimizer);
     let mut model = Model::new(&config, 784, 10);
     model.to_device(device);
 
-    let learner = LearnerBuilder::<B>::default()
+    let learner = TrainerModelBuilder::<B>::default()
         .with_file_checkpointer::<f32>("/tmp/mnist")
         .build(model, optim);
 
     // Training
-    let trainer = SupervisedTrainerBuilder::default()
+    let trainer = TrainerBuilder::default()
         .metric_train(CUDAMetric::new())
         .metric_train_plot(AccuracyMetric::new())
         .metric_valid_plot(AccuracyMetric::new())

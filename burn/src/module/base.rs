@@ -96,7 +96,9 @@ pub trait Module: Send + Sync + std::fmt::Debug + std::fmt::Display {
 }
 
 /// Module with auto-differentiation backend.
-pub trait ADModule: Module + Send + Sync + std::fmt::Debug + std::fmt::Display {
+pub trait ADModule:
+    Module<Backend = Self::ADBackend> + Send + Sync + std::fmt::Debug + std::fmt::Display
+{
     type ADBackend: ADBackend;
     type InnerModule: Module<Backend = <Self::ADBackend as ADBackend>::InnerBackend>;
 
