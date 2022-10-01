@@ -2,7 +2,7 @@ use burn::config::Config;
 use burn::data::dataloader::batcher::Batcher;
 use burn::data::dataloader::DataLoaderBuilder;
 use burn::data::dataset::source::huggingface::{MNISTDataset, MNISTItem};
-use burn::module::{ADModule, Forward, Module, Param};
+use burn::module::{Forward, Module, Param};
 use burn::nn;
 use burn::optim::decay::WeightDecayConfig;
 use burn::optim::momentum::MomentumConfig;
@@ -11,8 +11,7 @@ use burn::tensor::backend::{ADBackend, Backend};
 use burn::tensor::loss::cross_entropy_with_logits;
 use burn::tensor::{Data, Shape, Tensor};
 use burn::train::metric::{AccuracyMetric, CUDAMetric, LossMetric};
-use burn::train::{ClassificationOutput, Train, TrainStep, TrainerModelBuilder, ValidStep};
-use burn::train::{TrainerBuilder, TrainerData};
+use burn::train::{ClassificationOutput, LearnerBuilder, TrainOutput, TrainStep, ValidStep};
 use std::sync::Arc;
 
 static CONFIG_PATH: &str = "/tmp/mnist_config.json";
@@ -95,21 +94,16 @@ impl<B: Backend> Forward<MNISTBatch<B>, ClassificationOutput<B>> for Model<B> {
     }
 }
 
-impl<B: ADBackend> TrainStep for Model<B> {
-    type Input = MNISTBatch<B>;
-    type Output = ClassificationOutput<B>;
-
-    fn step(&mut self, item: Self::Input) -> Self::Output {
-        self.forward(item)
+impl<B: ADBackend> TrainStep<MNISTBatch<B>, ClassificationOutput<B>> for Model<B> {
+    fn step(&self, item: MNISTBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
+        let item = self.forward(item);
+        TrainOutput::new(item.loss.backward(), item)
     }
 }
 
-impl<B: ADBackend> ValidStep for Model<B> {
-    type Input = MNISTBatch<B::InnerBackend>;
-    type Output = ClassificationOutput<B::InnerBackend>;
-
-    fn step(&self, item: Self::Input) -> Self::Output {
-        self.inner().forward(item)
+impl<B: Backend> ValidStep<MNISTBatch<B>, ClassificationOutput<B>> for Model<B> {
+    fn step(&self, item: MNISTBatch<B>) -> ClassificationOutput<B> {
+        self.forward(item)
     }
 }
 
@@ -198,27 +192,24 @@ fn run<B: ADBackend>(device: B::Device) {
         .batch_size(config.batch_size)
         .num_workers(config.num_workers)
         .build(Arc::new(MNISTDataset::test()));
-    let data = TrainerData::new(dataloader_train, dataloader_test);
 
     // Model
     let optim = Sgd::new(&config.optimizer);
     let mut model = Model::new(&config, 784, 10);
     model.to_device(device);
 
-    let learner = TrainerModelBuilder::<B>::default()
+    let learner = LearnerBuilder::default()
         .with_file_checkpointer::<f32>("/tmp/mnist")
-        .build(model, optim);
-
-    // Training
-    let trainer = TrainerBuilder::default()
         .metric_train(CUDAMetric::new())
         .metric_train_plot(AccuracyMetric::new())
         .metric_valid_plot(AccuracyMetric::new())
         .metric_train_plot(LossMetric::new())
         .metric_valid_plot(LossMetric::new())
         .num_epochs(config.num_epochs)
-        .build();
-    let _trained = trainer.train(learner, data);
+        .build(model, optim);
+
+    let _model_trained = learner.fit((dataloader_train, dataloader_test));
+
     config.save(CONFIG_PATH).unwrap();
 }
 

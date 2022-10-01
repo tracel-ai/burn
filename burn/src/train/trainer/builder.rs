@@ -1,38 +1,50 @@
-use super::{AsyncTrainerCallback, Trainer};
+use super::{AsyncTrainerCallback, Learner};
+use crate::module::ADModule;
+use crate::train::checkpoint::{AsyncCheckpointer, Checkpointer, FileCheckpointer};
 use crate::train::metric::dashboard::cli::CLIDashboardRenderer;
 use crate::train::metric::dashboard::{Dashboard, DashboardRenderer};
 use crate::train::metric::{Metric, Numeric};
+use burn_tensor::backend::ADBackend;
+use burn_tensor::Element;
+use std::sync::Arc;
 
-pub struct TrainerBuilder<T, V>
+pub struct LearnerBuilder<B, T, V>
 where
     T: Send + Sync + 'static,
     V: Send + Sync + 'static,
+    B: ADBackend,
 {
     dashboard: Dashboard<T, V>,
+    checkpointer_model: Option<Arc<dyn Checkpointer<B::Elem> + Send + Sync>>,
+    checkpointer_optimizer: Option<Arc<dyn Checkpointer<B::Elem> + Send + Sync>>,
     num_epochs: usize,
     checkpoint: Option<usize>,
 }
 
-impl<T, V> Default for TrainerBuilder<T, V>
+impl<B, T, V> Default for LearnerBuilder<B, T, V>
 where
     T: Send + Sync + 'static,
     V: Send + Sync + 'static,
+    B: ADBackend,
 {
     fn default() -> Self {
         Self::new(Box::new(CLIDashboardRenderer::new()))
     }
 }
 
-impl<T, V> TrainerBuilder<T, V>
+impl<B, T, V> LearnerBuilder<B, T, V>
 where
     T: Send + Sync + 'static,
     V: Send + Sync + 'static,
+    B: ADBackend,
 {
     pub fn new(renderer: Box<dyn DashboardRenderer>) -> Self {
         Self {
             dashboard: Dashboard::new(renderer),
             num_epochs: 1,
             checkpoint: None,
+            checkpointer_model: None,
+            checkpointer_optimizer: None,
         }
     }
 
@@ -66,10 +78,35 @@ where
         self
     }
 
-    pub fn build(self) -> Trainer<T, V> {
+    pub fn with_file_checkpointer<P: Element + serde::de::DeserializeOwned + serde::Serialize>(
+        mut self,
+        directory: &str,
+    ) -> Self {
+        self.checkpointer_model = Some(Arc::new(FileCheckpointer::<P>::new(directory, "model")));
+        self.checkpointer_optimizer =
+            Some(Arc::new(FileCheckpointer::<P>::new(directory, "optim")));
+        self
+    }
+
+    pub fn build<M, O>(
+        self,
+        model: M,
+        optim: O,
+    ) -> Learner<M, O, AsyncCheckpointer<B::Elem>, AsyncCheckpointer<B::Elem>, T, V>
+    where
+        M: ADModule<ADBackend = B>,
+    {
         let callack = Box::new(self.dashboard);
         let callback = Box::new(AsyncTrainerCallback::new(callack));
 
-        Trainer::new(callback, self.num_epochs, self.checkpoint)
+        Learner::new(
+            model,
+            optim,
+            self.checkpointer_model.map(AsyncCheckpointer::new),
+            self.checkpointer_optimizer.map(AsyncCheckpointer::new),
+            callback,
+            self.num_epochs,
+            self.checkpoint,
+        )
     }
 }

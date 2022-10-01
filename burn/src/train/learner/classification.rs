@@ -1,5 +1,4 @@
-use super::Backward;
-use crate::tensor::backend::{ADBackend, Backend};
+use crate::tensor::backend::Backend;
 use crate::train::metric;
 use burn_tensor::Tensor;
 
@@ -8,12 +7,6 @@ pub struct ClassificationOutput<B: Backend> {
     pub loss: Tensor<B, 1>,
     pub output: Tensor<B, 2>,
     pub targets: Tensor<B, 2>,
-}
-
-impl<B: ADBackend> Backward for ClassificationOutput<B> {
-    fn backward(&self) -> burn_tensor::Gradients {
-        self.loss.backward()
-    }
 }
 
 impl<B: Backend> metric::Metric<ClassificationOutput<B>> for metric::LossMetric {

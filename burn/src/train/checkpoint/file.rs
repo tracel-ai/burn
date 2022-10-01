@@ -38,8 +38,7 @@ where
         let file_path_old_checkpoint = self.path_for_epoch(epoch - 1);
 
         if std::path::Path::new(&file_path_old_checkpoint).exists() {
-            std::fs::remove_file(file_path_old_checkpoint)
-                .map_err(CheckpointerError::IOError)?;
+            std::fs::remove_file(file_path_old_checkpoint).map_err(CheckpointerError::IOError)?;
         }
 
         Ok(())
@@ -48,8 +47,7 @@ where
     fn restore(&self, epoch: usize) -> Result<State<E>, CheckpointerError> {
         let file_path = self.path_for_epoch(epoch);
 
-        let state =
-            State::<P>::load(&file_path).map_err(CheckpointerError::StateError)?;
+        let state = State::<P>::load(&file_path).map_err(CheckpointerError::StateError)?;
 
         Ok(state.convert())
     }
