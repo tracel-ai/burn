@@ -33,6 +33,9 @@ where
     }
 }
 
+pub type AsyncLearner<E, M, O, T, V> =
+    Learner<M, O, AsyncCheckpointer<E>, AsyncCheckpointer<E>, T, V>;
+
 impl<B, T, V> LearnerBuilder<B, T, V>
 where
     T: Send + Sync + 'static,
@@ -89,11 +92,7 @@ where
         self
     }
 
-    pub fn build<M, O>(
-        self,
-        model: M,
-        optim: O,
-    ) -> Learner<M, O, AsyncCheckpointer<B::Elem>, AsyncCheckpointer<B::Elem>, T, V>
+    pub fn build<M, O>(self, model: M, optim: O) -> AsyncLearner<B::Elem, M, O, T, V>
     where
         M: ADModule<ADBackend = B>,
     {
