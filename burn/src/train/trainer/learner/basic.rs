@@ -60,9 +60,9 @@ where
 
     fn step(&mut self, item: Self::Input) -> Self::Output {
         let output = self.model.step(item);
-        let mut grads = output.backward();
+        let grads = output.backward();
 
-        self.model.update_params(&mut grads, &mut self.optim);
+        self.model.update_params(&grads, &mut self.optim);
 
         output
     }
