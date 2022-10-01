@@ -1,7 +1,9 @@
 mod base;
-mod basic;
+mod builder;
 mod classification;
+mod train_val;
 
 pub use base::*;
-pub use basic::*;
+pub use builder::*;
 pub use classification::*;
+pub use train_val::*;

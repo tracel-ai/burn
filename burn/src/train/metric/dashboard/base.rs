@@ -2,7 +2,7 @@ use crate::{
     data::dataloader::Progress,
     train::{
         metric::{Metric, MetricStateDyn, Numeric},
-        SupervisedTrainerCallback, TrainerItem,
+        LearnerCallback, LearnerItem,
     },
 };
 
@@ -86,8 +86,8 @@ where
     }
 }
 
-impl<T> From<TrainerItem<T>> for TrainingProgress {
-    fn from(item: TrainerItem<T>) -> Self {
+impl<T> From<LearnerItem<T>> for TrainingProgress {
+    fn from(item: LearnerItem<T>) -> Self {
         Self {
             progress: item.progress,
             epoch: item.epoch,
@@ -97,12 +97,12 @@ impl<T> From<TrainerItem<T>> for TrainingProgress {
     }
 }
 
-impl<T, V> SupervisedTrainerCallback<TrainerItem<T>, TrainerItem<V>> for Dashboard<T, V>
+impl<T, V> LearnerCallback<T, V> for Dashboard<T, V>
 where
     T: Send + Sync + 'static,
     V: Send + Sync + 'static,
 {
-    fn on_train_item(&mut self, item: TrainerItem<T>) {
+    fn on_train_item(&mut self, item: LearnerItem<T>) {
         for metric in self.metrics_train.iter_mut() {
             self.renderer
                 .update_train(DashboardMetricState::Generic(metric.update(&item)));
@@ -115,7 +115,7 @@ where
         self.renderer.render_train(item.into());
     }
 
-    fn on_valid_item(&mut self, item: TrainerItem<V>) {
+    fn on_valid_item(&mut self, item: LearnerItem<V>) {
         for metric in self.metrics_valid.iter_mut() {
             self.renderer
                 .update_valid(DashboardMetricState::Generic(metric.update(&item)));
@@ -148,12 +148,12 @@ where
 }
 
 trait DashboardNumericMetric<T>: Send + Sync {
-    fn update(&mut self, item: &TrainerItem<T>) -> (MetricStateDyn, f64);
+    fn update(&mut self, item: &LearnerItem<T>) -> (MetricStateDyn, f64);
     fn clear(&mut self);
 }
 
 trait DashboardMetric<T>: Send + Sync {
-    fn update(&mut self, item: &TrainerItem<T>) -> MetricStateDyn;
+    fn update(&mut self, item: &LearnerItem<T>) -> MetricStateDyn;
     fn clear(&mut self);
 }
 
@@ -167,7 +167,7 @@ where
     T: 'static,
     M: Metric<T> + Numeric + 'static,
 {
-    fn update(&mut self, item: &TrainerItem<T>) -> (MetricStateDyn, f64) {
+    fn update(&mut self, item: &LearnerItem<T>) -> (MetricStateDyn, f64) {
         let update = self.metric.update(&item.item);
         let numeric = self.metric.value();
 
@@ -184,7 +184,7 @@ where
     T: 'static,
     M: Metric<T> + 'static,
 {
-    fn update(&mut self, item: &TrainerItem<T>) -> MetricStateDyn {
+    fn update(&mut self, item: &LearnerItem<T>) -> MetricStateDyn {
         self.metric.update(&item.item) as _
     }
 
