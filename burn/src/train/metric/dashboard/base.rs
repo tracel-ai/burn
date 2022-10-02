@@ -1,6 +1,7 @@
 use crate::{
     data::dataloader::Progress,
     train::{
+        logger::MetricLogger,
         metric::{Metric, MetricStateDyn, Numeric},
         LearnerCallback, LearnerItem,
     },
@@ -48,6 +49,8 @@ where
     metrics_valid: Vec<Box<dyn DashboardMetric<V>>>,
     metrics_train_numeric: Vec<Box<dyn DashboardNumericMetric<T>>>,
     metrics_valid_numeric: Vec<Box<dyn DashboardNumericMetric<V>>>,
+    logger_train: Box<dyn MetricLogger>,
+    logger_valid: Box<dyn MetricLogger>,
     renderer: Box<dyn DashboardRenderer>,
 }
 
@@ -56,12 +59,18 @@ where
     T: Send + Sync + 'static,
     V: Send + Sync + 'static,
 {
-    pub fn new(renderer: Box<dyn DashboardRenderer>) -> Self {
+    pub fn new(
+        renderer: Box<dyn DashboardRenderer>,
+        logger_train: Box<dyn MetricLogger>,
+        logger_valid: Box<dyn MetricLogger>,
+    ) -> Self {
         Self {
             metrics_train: Vec::new(),
             metrics_valid: Vec::new(),
             metrics_train_numeric: Vec::new(),
             metrics_valid_numeric: Vec::new(),
+            logger_train,
+            logger_valid,
             renderer,
         }
     }
@@ -104,11 +113,16 @@ where
 {
     fn on_train_item(&mut self, item: LearnerItem<T>) {
         for metric in self.metrics_train.iter_mut() {
+            let state = metric.update(&item);
+            self.logger_train.log(state.as_ref());
+
             self.renderer
-                .update_train(DashboardMetricState::Generic(metric.update(&item)));
+                .update_train(DashboardMetricState::Generic(state));
         }
         for metric in self.metrics_train_numeric.iter_mut() {
             let (state, value) = metric.update(&item);
+            self.logger_train.log(state.as_ref());
+
             self.renderer
                 .update_train(DashboardMetricState::Numeric(state, value));
         }
@@ -117,33 +131,40 @@ where
 
     fn on_valid_item(&mut self, item: LearnerItem<V>) {
         for metric in self.metrics_valid.iter_mut() {
+            let state = metric.update(&item);
+            self.logger_valid.log(state.as_ref());
+
             self.renderer
-                .update_valid(DashboardMetricState::Generic(metric.update(&item)));
+                .update_valid(DashboardMetricState::Generic(state));
         }
         for metric in self.metrics_valid_numeric.iter_mut() {
             let (state, value) = metric.update(&item);
+            self.logger_valid.log(state.as_ref());
+
             self.renderer
                 .update_valid(DashboardMetricState::Numeric(state, value));
         }
         self.renderer.render_valid(item.into());
     }
 
-    fn on_train_end_epoch(&mut self) {
+    fn on_train_end_epoch(&mut self, epoch: usize) {
         for metric in self.metrics_train.iter_mut() {
             metric.clear();
         }
         for metric in self.metrics_train_numeric.iter_mut() {
             metric.clear();
         }
+        self.logger_train.epoch(epoch + 1);
     }
 
-    fn on_valid_end_epoch(&mut self) {
+    fn on_valid_end_epoch(&mut self, epoch: usize) {
         for metric in self.metrics_valid.iter_mut() {
             metric.clear();
         }
         for metric in self.metrics_valid_numeric.iter_mut() {
             metric.clear();
         }
+        self.logger_valid.epoch(epoch + 1);
     }
 }
 

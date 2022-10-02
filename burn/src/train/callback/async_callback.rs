@@ -4,8 +4,8 @@ use std::sync::{mpsc, Mutex};
 enum Message<T, V> {
     LogTrain(LearnerItem<T>),
     LogValid(LearnerItem<V>),
-    ClearTrain,
-    ClearValid,
+    ClearTrain(usize),
+    ClearValid(usize),
 }
 
 pub struct AsyncTrainerCallback<T, V> {
@@ -26,17 +26,17 @@ impl<T, V> CallbackThread<T, V> {
                     let mut callback = self.callback.lock().unwrap();
                     callback.on_train_item(item);
                 }
-                Message::ClearTrain => {
+                Message::ClearTrain(epoch) => {
                     let mut callback = self.callback.lock().unwrap();
-                    callback.on_train_end_epoch();
+                    callback.on_train_end_epoch(epoch);
                 }
                 Message::LogValid(item) => {
                     let mut callback = self.callback.lock().unwrap();
                     callback.on_valid_item(item);
                 }
-                Message::ClearValid => {
+                Message::ClearValid(epoch) => {
                     let mut callback = self.callback.lock().unwrap();
-                    callback.on_valid_end_epoch();
+                    callback.on_valid_end_epoch(epoch);
                 }
             }
         }
@@ -63,11 +63,11 @@ impl<T: Send, V: Send> LearnerCallback<T, V> for AsyncTrainerCallback<T, V> {
         self.sender.send(Message::LogValid(item)).unwrap();
     }
 
-    fn on_train_end_epoch(&mut self) {
-        self.sender.send(Message::ClearTrain).unwrap();
+    fn on_train_end_epoch(&mut self, epoch: usize) {
+        self.sender.send(Message::ClearTrain(epoch)).unwrap();
     }
 
-    fn on_valid_end_epoch(&mut self) {
-        self.sender.send(Message::ClearValid).unwrap();
+    fn on_valid_end_epoch(&mut self, epoch: usize) {
+        self.sender.send(Message::ClearValid(epoch)).unwrap();
     }
 }
