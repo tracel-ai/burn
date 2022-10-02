@@ -12,7 +12,7 @@ impl FileLogger {
             .write(true)
             .truncate(true)
             .create(true)
-            .open(&path)
+            .open(path)
             .unwrap();
 
         Self { file }
@@ -24,6 +24,6 @@ where
     T: std::fmt::Display,
 {
     fn log(&mut self, item: T) {
-        writeln!(&mut self.file, "{}", item.to_string()).unwrap();
+        writeln!(&mut self.file, "{}", item).unwrap();
     }
 }
