@@ -110,7 +110,7 @@ impl TextPlot {
         let x_min = f32::min(x_min_train, x_min_valid);
 
         let (width, height) = match terminal_size() {
-            Some((Width(w), Height(h))) => (w as u32, u32::min(64, h.into())),
+            Some((Width(w), Height(_))) => (u32::max(64, w.into()) * 2 - 16, 64),
             None => (256, 64),
         };
 
