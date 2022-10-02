@@ -4,7 +4,9 @@ use crate::tensor::backend::Backend;
 use crate::train::checkpoint::Checkpointer;
 use crate::train::LearnerCallback;
 
-#[derive(new)]
+/// Learner struct encapsulating all components necessary to train a Neural Network model.
+///
+/// To create a learner, use the [builder](crate::train::LearnerBuilder) struct.
 pub struct Learner<M, O, TO, VO>
 where
     M: ADModule,
