@@ -3,11 +3,12 @@ use std::sync::{mpsc, Mutex};
 
 enum Message<T> {
     Log(T),
-    Clear,
+    End,
 }
 
 pub struct AsyncLogger<T> {
     sender: mpsc::Sender<Message<T>>,
+    handler: Option<std::thread::JoinHandle<()>>,
 }
 
 #[derive(new)]
@@ -24,9 +25,8 @@ impl<T> LoggerThread<T> {
                     let mut logger = self.logger.lock().unwrap();
                     logger.log(item);
                 }
-                Message::Clear => {
-                    let mut logger = self.logger.lock().unwrap();
-                    logger.clear();
+                Message::End => {
+                    return;
                 }
             }
         }
@@ -38,9 +38,9 @@ impl<T: Send + Sync + 'static> AsyncLogger<T> {
         let (sender, receiver) = mpsc::channel();
         let thread = LoggerThread::new(Mutex::new(logger), receiver);
 
-        std::thread::spawn(move || thread.run());
+        let handler = Some(std::thread::spawn(move || thread.run()));
 
-        Self { sender }
+        Self { sender, handler }
     }
 }
 
@@ -48,8 +48,15 @@ impl<T: Send> Logger<T> for AsyncLogger<T> {
     fn log(&mut self, item: T) {
         self.sender.send(Message::Log(item)).unwrap();
     }
+}
 
-    fn clear(&mut self) {
-        self.sender.send(Message::Clear).unwrap();
+impl<T> Drop for AsyncLogger<T> {
+    fn drop(&mut self) {
+        self.sender.send(Message::End).unwrap();
+        let handler = std::mem::replace(&mut self.handler, None);
+
+        if let Some(handler) = handler {
+            handler.join().unwrap();
+        }
     }
 }

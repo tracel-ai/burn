@@ -5,6 +5,7 @@ use std::sync::{mpsc, Arc};
 
 enum Message<E> {
     Save(usize, State<E>),
+    End,
 }
 
 #[derive(new)]
@@ -18,6 +19,9 @@ impl<T> CheckpointerThread<T> {
         for item in self.receiver.iter() {
             match item {
                 Message::Save(epoch, state) => self.checkpointer.save(epoch, state).unwrap(),
+                Message::End => {
+                    return;
+                }
             };
         }
     }
@@ -26,6 +30,7 @@ impl<T> CheckpointerThread<T> {
 pub struct AsyncCheckpointer<E> {
     checkpointer: Arc<dyn Checkpointer<E> + Send + Sync>,
     sender: mpsc::SyncSender<Message<E>>,
+    handler: Option<std::thread::JoinHandle<()>>,
 }
 
 impl<E: Element + 'static> AsyncCheckpointer<E> {
@@ -33,12 +38,12 @@ impl<E: Element + 'static> AsyncCheckpointer<E> {
         // Only on checkpoint can be done in advance.
         let (sender, receiver) = mpsc::sync_channel(0);
         let thread = CheckpointerThread::new(checkpointer.clone(), receiver);
-
-        std::thread::spawn(move || thread.run());
+        let handler = Some(std::thread::spawn(move || thread.run()));
 
         Self {
             checkpointer,
             sender,
+            handler,
         }
     }
 }
@@ -55,5 +60,16 @@ where
 
     fn restore(&self, epoch: usize) -> Result<State<E>, CheckpointerError> {
         self.checkpointer.restore(epoch)
+    }
+}
+
+impl<E> Drop for AsyncCheckpointer<E> {
+    fn drop(&mut self) {
+        self.sender.send(Message::End).unwrap();
+        let handler = std::mem::replace(&mut self.handler, None);
+
+        if let Some(handler) = handler {
+            handler.join().unwrap();
+        }
     }
 }

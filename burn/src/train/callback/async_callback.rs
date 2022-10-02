@@ -1,15 +1,20 @@
 use super::{LearnerCallback, LearnerItem};
-use std::sync::{mpsc, Mutex};
+use std::{
+    sync::{mpsc, Mutex},
+    thread::JoinHandle,
+};
 
 enum Message<T, V> {
     LogTrain(LearnerItem<T>),
     LogValid(LearnerItem<V>),
-    ClearTrain,
-    ClearValid,
+    ClearTrain(usize),
+    ClearValid(usize),
+    End,
 }
 
 pub struct AsyncTrainerCallback<T, V> {
     sender: mpsc::Sender<Message<T, V>>,
+    handler: Option<JoinHandle<()>>,
 }
 
 #[derive(new)]
@@ -26,17 +31,20 @@ impl<T, V> CallbackThread<T, V> {
                     let mut callback = self.callback.lock().unwrap();
                     callback.on_train_item(item);
                 }
-                Message::ClearTrain => {
+                Message::ClearTrain(epoch) => {
                     let mut callback = self.callback.lock().unwrap();
-                    callback.on_train_end_epoch();
+                    callback.on_train_end_epoch(epoch);
                 }
                 Message::LogValid(item) => {
                     let mut callback = self.callback.lock().unwrap();
                     callback.on_valid_item(item);
                 }
-                Message::ClearValid => {
+                Message::ClearValid(epoch) => {
                     let mut callback = self.callback.lock().unwrap();
-                    callback.on_valid_end_epoch();
+                    callback.on_valid_end_epoch(epoch);
+                }
+                Message::End => {
+                    return;
                 }
             }
         }
@@ -48,9 +56,10 @@ impl<T: Send + Sync + 'static, V: Send + Sync + 'static> AsyncTrainerCallback<T,
         let (sender, receiver) = mpsc::channel();
         let thread = CallbackThread::new(Mutex::new(callback), receiver);
 
-        std::thread::spawn(move || thread.run());
+        let handler = std::thread::spawn(move || thread.run());
+        let handler = Some(handler);
 
-        Self { sender }
+        Self { sender, handler }
     }
 }
 
@@ -63,11 +72,22 @@ impl<T: Send, V: Send> LearnerCallback<T, V> for AsyncTrainerCallback<T, V> {
         self.sender.send(Message::LogValid(item)).unwrap();
     }
 
-    fn on_train_end_epoch(&mut self) {
-        self.sender.send(Message::ClearTrain).unwrap();
+    fn on_train_end_epoch(&mut self, epoch: usize) {
+        self.sender.send(Message::ClearTrain(epoch)).unwrap();
     }
 
-    fn on_valid_end_epoch(&mut self) {
-        self.sender.send(Message::ClearValid).unwrap();
+    fn on_valid_end_epoch(&mut self, epoch: usize) {
+        self.sender.send(Message::ClearValid(epoch)).unwrap();
+    }
+}
+
+impl<T, V> Drop for AsyncTrainerCallback<T, V> {
+    fn drop(&mut self) {
+        self.sender.send(Message::End).unwrap();
+        let handler = std::mem::replace(&mut self.handler, None);
+
+        if let Some(handler) = handler {
+            handler.join().unwrap();
+        }
     }
 }

@@ -75,7 +75,7 @@ where
                 iteration,
             ));
         }
-        self.callback.on_train_end_epoch();
+        self.callback.on_train_end_epoch(epoch);
     }
 
     fn valid_step<VI>(&mut self, dataloader_valid: &Arc<dyn DataLoader<VI>>, epoch: usize)
@@ -100,6 +100,6 @@ where
                 iteration,
             ));
         }
-        self.callback.on_valid_end_epoch();
+        self.callback.on_valid_end_epoch(epoch);
     }
 }

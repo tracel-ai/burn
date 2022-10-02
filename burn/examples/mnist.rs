@@ -14,11 +14,11 @@ use burn::train::metric::{AccuracyMetric, LossMetric};
 use burn::train::{ClassificationOutput, LearnerBuilder, TrainOutput, TrainStep, ValidStep};
 use std::sync::Arc;
 
-static CONFIG_PATH: &str = "/tmp/mnist_config.json";
+static ARTIFACT_DIR: &str = "/tmp/mnist-test-2";
 
 #[derive(Config)]
 struct MnistConfig {
-    #[config(default = 15)]
+    #[config(default = 6)]
     num_epochs: usize,
     #[config(default = 128)]
     batch_size: usize,
@@ -198,19 +198,20 @@ fn run<B: ADBackend>(device: B::Device) {
     let mut model = Model::new(&config, 784, 10);
     model.to_device(device);
 
-    let learner = LearnerBuilder::default()
+    let learner = LearnerBuilder::new(ARTIFACT_DIR)
         .metric_train_plot(AccuracyMetric::new())
         .metric_valid_plot(AccuracyMetric::new())
         .metric_train_plot(LossMetric::new())
         .metric_valid_plot(LossMetric::new())
-        .with_file_checkpointer::<f32>("/tmp/mnist")
-        // .metric_train(CUDAMetric::new())
+        .with_file_checkpointer::<f32>(2)
         .num_epochs(config.num_epochs)
         .build(model, optim);
 
     let _model_trained = learner.fit(dataloader_train, dataloader_test);
 
-    config.save(CONFIG_PATH).unwrap();
+    config
+        .save(format!("{}/config.json", ARTIFACT_DIR).as_str())
+        .unwrap();
 }
 
 fn main() {

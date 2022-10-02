@@ -1,8 +1,9 @@
 use super::Learner;
 use crate::module::ADModule;
 use crate::train::checkpoint::{AsyncCheckpointer, Checkpointer, FileCheckpointer};
+use crate::train::logger::FileMetricLogger;
 use crate::train::metric::dashboard::cli::CLIDashboardRenderer;
-use crate::train::metric::dashboard::{Dashboard, DashboardRenderer};
+use crate::train::metric::dashboard::Dashboard;
 use crate::train::metric::{Metric, Numeric};
 use crate::train::AsyncTrainerCallback;
 use burn_tensor::backend::ADBackend;
@@ -21,17 +22,7 @@ where
     checkpointer_optimizer: Option<Arc<dyn Checkpointer<B::Elem> + Send + Sync>>,
     num_epochs: usize,
     checkpoint: Option<usize>,
-}
-
-impl<B, T, V> Default for LearnerBuilder<B, T, V>
-where
-    T: Send + Sync + 'static,
-    V: Send + Sync + 'static,
-    B: ADBackend,
-{
-    fn default() -> Self {
-        Self::new(Box::new(CLIDashboardRenderer::new()))
-    }
+    directory: String,
 }
 
 impl<B, T, V> LearnerBuilder<B, T, V>
@@ -40,13 +31,22 @@ where
     V: Send + Sync + 'static,
     B: ADBackend,
 {
-    fn new(renderer: Box<dyn DashboardRenderer>) -> Self {
+    pub fn new(directory: &str) -> Self {
+        let renderer = Box::new(CLIDashboardRenderer::new());
+        let logger_train = Box::new(FileMetricLogger::new(
+            format!("{}/train", directory).as_str(),
+        ));
+        let logger_valid = Box::new(FileMetricLogger::new(
+            format!("{}/valid", directory).as_str(),
+        ));
+
         Self {
-            dashboard: Dashboard::new(renderer),
+            dashboard: Dashboard::new(renderer, logger_train, logger_valid),
             num_epochs: 1,
             checkpoint: None,
             checkpointer_model: None,
             checkpointer_optimizer: None,
+            directory: directory.to_string(),
         }
     }
 
@@ -99,14 +99,25 @@ where
     }
 
     /// Register a checkpointer that will save the [optimizer](crate::optim::Optimizer) and the
-    /// [model](crate::module::Module) [states](crate::module::State) in the specified directoty.
+    /// [model](crate::module::Module) [states](crate::module::State).
+    ///
+    /// The number of checkpoints to be keep should be set to a minimum of two to be safe, since
+    /// they are saved and deleted asynchronously and a crash during training might make a
+    /// checkpoint non-usable.
     pub fn with_file_checkpointer<P: Element + serde::de::DeserializeOwned + serde::Serialize>(
         mut self,
-        directory: &str,
+        num_keep: usize,
     ) -> Self {
-        self.checkpointer_model = Some(Arc::new(FileCheckpointer::<P>::new(directory, "model")));
-        self.checkpointer_optimizer =
-            Some(Arc::new(FileCheckpointer::<P>::new(directory, "optim")));
+        self.checkpointer_model = Some(Arc::new(FileCheckpointer::<P>::new(
+            format!("{}/checkpoint", self.directory).as_str(),
+            "model",
+            num_keep,
+        )));
+        self.checkpointer_optimizer = Some(Arc::new(FileCheckpointer::<P>::new(
+            format!("{}/checkpoint", self.directory).as_str(),
+            "optim",
+            num_keep,
+        )));
         self
     }
 
