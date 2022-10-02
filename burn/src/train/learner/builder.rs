@@ -33,9 +33,6 @@ where
     }
 }
 
-pub type AsyncLearner<E, M, O, T, V> =
-    Learner<M, O, AsyncCheckpointer<E>, AsyncCheckpointer<E>, T, V>;
-
 impl<B, T, V> LearnerBuilder<B, T, V>
 where
     T: Send + Sync + 'static,
@@ -92,21 +89,30 @@ where
         self
     }
 
-    pub fn build<M, O>(self, model: M, optim: O) -> AsyncLearner<B::Elem, M, O, T, V>
+    pub fn build<M, O>(self, model: M, optim: O) -> Learner<M, O, T, V>
     where
         M: ADModule<ADBackend = B>,
     {
         let callack = Box::new(self.dashboard);
         let callback = Box::new(AsyncTrainerCallback::new(callack));
 
+        let create_checkpointer = |checkpointer| match checkpointer {
+            Some(checkpointer) => {
+                let checkpointer: Box<dyn Checkpointer<B::Elem>> =
+                    Box::new(AsyncCheckpointer::new(checkpointer));
+                Some(checkpointer)
+            }
+            None => None,
+        };
+
         Learner::new(
             model,
             optim,
-            self.checkpointer_model.map(AsyncCheckpointer::new),
-            self.checkpointer_optimizer.map(AsyncCheckpointer::new),
-            callback,
             self.num_epochs,
+            callback,
             self.checkpoint,
+            create_checkpointer(self.checkpointer_model),
+            create_checkpointer(self.checkpointer_optimizer),
         )
     }
 }

@@ -2,8 +2,6 @@ use super::Learner;
 use crate::data::dataloader::DataLoader;
 use crate::module::ADModule;
 use crate::optim::Optimizer;
-use crate::tensor::backend::Backend;
-use crate::train::checkpoint::Checkpointer;
 use crate::train::LearnerItem;
 use burn_tensor::Gradients;
 use std::sync::Arc;
@@ -22,14 +20,12 @@ pub trait ValidStep<VI, VO> {
     fn step(&self, item: VI) -> VO;
 }
 
-impl<M, O, CM, CO, TO, VO> Learner<M, O, CM, CO, TO, VO>
+impl<M, O, TO, VO> Learner<M, O, TO, VO>
 where
     VO: Send + Sync + 'static,
     TO: Send + Sync + 'static,
     M: ADModule,
     O: Optimizer<Backend = M::Backend>,
-    CM: Checkpointer<<M::Backend as Backend>::Elem>,
-    CO: Checkpointer<<M::Backend as Backend>::Elem>,
 {
     pub fn fit<TI, VI>(
         mut self,

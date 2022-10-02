@@ -1,5 +1,4 @@
-use super::downloader::cache_dir;
-use crate::source::huggingface::downloader::{download, Extractor};
+use crate::source::huggingface::downloader::HuggingfaceDatasetLoader;
 use crate::{Dataset, InMemDataset};
 use serde::{Deserialize, Serialize};
 
@@ -27,28 +26,18 @@ impl MNISTDataset {
     pub fn train() -> Self {
         Self::new("train")
     }
+
     pub fn test() -> Self {
         Self::new("test")
     }
 
     fn new(split: &str) -> Self {
-        let cache_dir = cache_dir();
-        let path_file = format!("{}/mnist-{}", cache_dir, split);
-
-        if !std::path::Path::new(path_file.as_str()).exists() {
-            download(
-                "mnist".to_string(),
-                vec![split.to_string()],
-                "mnist".to_string(),
-                vec![
-                    Extractor::Image("image".to_string()),
-                    Extractor::Raw("label".to_string()),
-                ],
-                vec![],
-                vec![],
-            );
-        }
-        let dataset = InMemDataset::from_file(path_file.as_str()).unwrap();
+        let dataset = HuggingfaceDatasetLoader::new("mnist", split)
+            .extract_image("image")
+            .extract_number("label")
+            .deps(&["pillow", "numpy"])
+            .load_in_memory()
+            .unwrap();
 
         Self { dataset }
     }

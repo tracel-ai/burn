@@ -1,20 +1,120 @@
+use crate::InMemDataset;
 use dirs::home_dir;
 use std::fs;
 use std::process::Command;
+use thiserror::Error;
 
-pub enum Extractor {
-    Raw(String),
-    Image(String),
+#[derive(Error, Debug)]
+pub enum DownloaderError {
+    #[error("unknown: `{0}`")]
+    Unknown(String),
+    #[error("fail to download python dependencies: `{0}`")]
+    FailToDownloadPythonDependencies(String),
 }
 
-pub fn download(
+/// Load datasets from [huggingface datasets](https://huggingface.co/datasets).
+pub struct HuggingfaceDatasetLoader {
+    name: String,
+    split: String,
+    extractors: Vec<Extractor>,
+    config: Vec<String>,
+    config_named: Vec<(String, String)>,
+    deps: Vec<String>,
+}
+
+impl HuggingfaceDatasetLoader {
+    /// Create a huggingface dataset loader.
+    pub fn new(name: &str, split: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            split: split.to_string(),
+            extractors: Vec::new(),
+            config: Vec::new(),
+            config_named: Vec::new(),
+            deps: Vec::new(),
+        }
+    }
+
+    pub fn config(mut self, config: &str) -> Self {
+        self.config.push(config.to_string());
+        self
+    }
+
+    pub fn config_named(mut self, name: &str, config: &str) -> Self {
+        self.config_named
+            .push((name.to_string(), config.to_string()));
+        self
+    }
+
+    pub fn deps(mut self, deps: &[&str]) -> Self {
+        self.deps
+            .append(&mut deps.iter().copied().map(String::from).collect());
+        self
+    }
+
+    pub fn dep(mut self, dep: &str) -> Self {
+        self.deps.push(dep.to_string());
+        self
+    }
+
+    pub fn extract_image(mut self, field_name: &str) -> Self {
+        self.extractors
+            .push(Extractor::Image(field_name.to_string()));
+        self
+    }
+
+    pub fn extract_number(self, field_name: &str) -> Self {
+        self.extract_raw(field_name)
+    }
+
+    pub fn extract_string(self, field_name: &str) -> Self {
+        self.extract_raw(field_name)
+    }
+
+    pub fn load_in_memory<I: serde::de::DeserializeOwned + Clone>(
+        self,
+    ) -> Result<InMemDataset<I>, DownloaderError> {
+        let path_file = self.load_file()?;
+        let dataset = InMemDataset::from_file(path_file.as_str()).unwrap();
+
+        Ok(dataset)
+    }
+
+    pub fn load_file(self) -> Result<String, DownloaderError> {
+        let path_file = format!("{}/{}-{}", cache_dir(), self.name, self.split);
+
+        if !std::path::Path::new(&path_file).exists() {
+            download(
+                self.name.clone(),
+                vec![self.split],
+                self.name,
+                self.extractors,
+                self.config,
+                self.config_named,
+                &self.deps,
+            )?;
+        }
+
+        Ok(path_file)
+    }
+
+    fn extract_raw(mut self, field_name: &str) -> Self {
+        self.extractors.push(Extractor::Raw(field_name.to_string()));
+        self
+    }
+}
+
+fn download(
     name: String,
     splits: Vec<String>,
     base_file: String,
     extractors: Vec<Extractor>,
     config: Vec<String>,
     config_named: Vec<(String, String)>,
-) {
+    deps: &[String],
+) -> Result<(), DownloaderError> {
+    download_python_deps(deps)?;
+
     let mut command = Command::new("python");
 
     command.arg(dataset_downloader_file_path());
@@ -56,16 +156,21 @@ pub fn download(
         }
     }
 
-    println!("{:?}", command);
-    let output = command.output().unwrap();
-    println!("{:?}", output);
+    let mut handle = command.spawn().unwrap();
+    handle
+        .wait()
+        .map_err(|err| DownloaderError::Unknown(format!("{:?}", err)))?;
+
+    Ok(())
 }
 
-pub(crate) fn cache_dir() -> String {
+fn cache_dir() -> String {
     let home_dir = home_dir().unwrap();
     let home_dir = home_dir.to_str().map(|s| s.to_string());
     let home_dir = home_dir.unwrap();
-    format!("{}/.cache/burn-dataset", home_dir)
+    let cache_dir = format!("{}/.cache/burn-dataset", home_dir);
+    std::fs::create_dir(&cache_dir).ok();
+    cache_dir
 }
 
 fn dataset_downloader_file_path() -> String {
@@ -74,6 +179,40 @@ fn dataset_downloader_file_path() -> String {
 
     fs::write(path_file.as_str(), PYTHON_SOURCE).expect("Write python dataset downloader");
     path_file
+}
+
+fn download_python_deps(deps: &[String]) -> Result<(), DownloaderError> {
+    let mut command = Command::new("python");
+
+    command
+        .args(["-m", "pip", "install", "datasets"])
+        .args(deps);
+
+    command
+        .spawn()
+        .map_err(|err| {
+            DownloaderError::FailToDownloadPythonDependencies(format!(
+                "{} | error: {}",
+                deps.to_vec().join(", "),
+                err
+            ))
+        })?
+        .wait()
+        .map_err(|err| {
+            DownloaderError::FailToDownloadPythonDependencies(format!(
+                "{} | error: {}",
+                deps.to_vec().join(", "),
+                err
+            ))
+        })?;
+
+    Ok(())
+}
+
+#[derive(Debug)]
+enum Extractor {
+    Raw(String),
+    Image(String),
 }
 
 const PYTHON_SOURCE: &str = r#"
