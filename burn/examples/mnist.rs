@@ -10,7 +10,7 @@ use burn::optim::{Sgd, SgdConfig};
 use burn::tensor::backend::{ADBackend, Backend};
 use burn::tensor::loss::cross_entropy_with_logits;
 use burn::tensor::{Data, Shape, Tensor};
-use burn::train::metric::{AccuracyMetric, CUDAMetric, LossMetric};
+use burn::train::metric::{AccuracyMetric, LossMetric};
 use burn::train::{ClassificationOutput, LearnerBuilder, TrainOutput, TrainStep, ValidStep};
 use std::sync::Arc;
 
@@ -204,7 +204,7 @@ fn run<B: ADBackend>(device: B::Device) {
         .metric_train_plot(LossMetric::new())
         .metric_valid_plot(LossMetric::new())
         .with_file_checkpointer::<f32>("/tmp/mnist")
-        .metric_train(CUDAMetric::new())
+        // .metric_train(CUDAMetric::new())
         .num_epochs(config.num_epochs)
         .build(model, optim);
 
@@ -214,10 +214,9 @@ fn run<B: ADBackend>(device: B::Device) {
 }
 
 fn main() {
-    use burn::tensor::backend::{TchADBackend, TchDevice};
-    use burn::tensor::f16;
+    use burn::tensor::backend::{NdArrayADBackend, NdArrayDevice};
 
-    let device = TchDevice::Cuda(0);
-    run::<TchADBackend<f16>>(device);
+    let device = NdArrayDevice::Cpu;
+    run::<NdArrayADBackend<f32>>(device);
     println!("Done.");
 }
