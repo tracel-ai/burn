@@ -9,6 +9,7 @@ use burn_tensor::backend::ADBackend;
 use burn_tensor::Element;
 use std::sync::Arc;
 
+/// Struct to configure and create a [learner](Learner).
 pub struct LearnerBuilder<B, T, V>
 where
     T: Send + Sync + 'static,
@@ -39,7 +40,7 @@ where
     V: Send + Sync + 'static,
     B: ADBackend,
 {
-    pub fn new(renderer: Box<dyn DashboardRenderer>) -> Self {
+    fn new(renderer: Box<dyn DashboardRenderer>) -> Self {
         Self {
             dashboard: Dashboard::new(renderer),
             num_epochs: 1,
@@ -49,36 +50,56 @@ where
         }
     }
 
+    /// Register a training metric.
     pub fn metric_train<M: Metric<T> + 'static>(mut self, metric: M) -> Self {
         self.dashboard.register_train(metric);
         self
     }
 
+    /// Register a validation metric.
     pub fn metric_valid<M: Metric<V> + 'static>(mut self, metric: M) -> Self {
         self.dashboard.register_valid(metric);
         self
     }
 
+    /// Register a training metric and displays it on a plot.
+    ///
+    /// # Notes
+    ///
+    /// Only [numeric](Numeric) metric can be displayed on a plot.
+    /// If the same metric is also registered for the [validation split](Self::metric_valid_plot),
+    /// the same graph will be used for both.
     pub fn metric_train_plot<M: Metric<T> + Numeric + 'static>(mut self, metric: M) -> Self {
         self.dashboard.register_train_plot(metric);
         self
     }
 
+    /// Register a validation metric and displays it on a plot.
+    ///
+    /// # Notes
+    ///
+    /// Only [numeric](Numeric) metric can be displayed on a plot.
+    /// If the same metric is also registered for the [training split](Self::metric_train_plot),
+    /// the same graph will be used for both.
     pub fn metric_valid_plot<M: Metric<V> + Numeric + 'static>(mut self, metric: M) -> Self {
         self.dashboard.register_valid_plot(metric);
         self
     }
 
+    /// The number of epochs the training should last.
     pub fn num_epochs(mut self, num_epochs: usize) -> Self {
         self.num_epochs = num_epochs;
         self
     }
 
+    /// The epoch from which the training must resume.
     pub fn checkpoint(mut self, checkpoint: usize) -> Self {
         self.checkpoint = Some(checkpoint);
         self
     }
 
+    /// Register a checkpointer that will save the [optimizer](crate::optim::Optimizer) and the
+    /// [model](crate::module::Module) [states](crate::module::State) in the specified directoty.
     pub fn with_file_checkpointer<P: Element + serde::de::DeserializeOwned + serde::Serialize>(
         mut self,
         directory: &str,
@@ -89,6 +110,8 @@ where
         self
     }
 
+    /// Create the [learner](Learner) from a [module](ADModule) and an
+    /// [optimizer](crate::optim::Optimizer).
     pub fn build<M, O>(self, model: M, optim: O) -> Learner<M, O, T, V>
     where
         M: ADModule<ADBackend = B>,
@@ -105,14 +128,14 @@ where
             None => None,
         };
 
-        Learner::new(
+        Learner {
             model,
             optim,
-            self.num_epochs,
+            num_epochs: self.num_epochs,
             callback,
-            self.checkpoint,
-            create_checkpointer(self.checkpointer_model),
-            create_checkpointer(self.checkpointer_optimizer),
-        )
+            checkpoint: self.checkpoint,
+            checkpointer_model: create_checkpointer(self.checkpointer_model),
+            checkpointer_optimizer: create_checkpointer(self.checkpointer_optimizer),
+        }
     }
 }
