@@ -46,7 +46,9 @@ impl MNISTDataset {
                 ],
                 vec![],
                 vec![],
-            );
+                &["numpy", "pillow"],
+            )
+            .unwrap();
         }
         let dataset = InMemDataset::from_file(path_file.as_str()).unwrap();
 

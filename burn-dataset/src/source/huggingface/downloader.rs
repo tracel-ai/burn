@@ -1,10 +1,37 @@
 use dirs::home_dir;
 use std::fs;
 use std::process::Command;
+use thiserror::Error;
 
 pub enum Extractor {
     Raw(String),
     Image(String),
+}
+
+#[derive(Error, Debug)]
+pub enum DownloaderError {
+    #[error("unknown: `{0}`")]
+    Unknown(String),
+    #[error("fail to download python dependencies: `{0}`")]
+    FailToDownloadPythonDependencies(String),
+}
+
+fn download_python_deps(deps: &[&str]) -> Result<(), DownloaderError> {
+    let mut command = Command::new("python");
+
+    command
+        .args(["-m", "pip", "install", "datasets"])
+        .args(deps);
+
+    command.spawn().unwrap().wait().map_err(|err| {
+        DownloaderError::FailToDownloadPythonDependencies(format!(
+            "{} | error: {}",
+            deps.to_vec().join(", "),
+            err
+        ))
+    })?;
+
+    Ok(())
 }
 
 pub fn download(
@@ -14,7 +41,10 @@ pub fn download(
     extractors: Vec<Extractor>,
     config: Vec<String>,
     config_named: Vec<(String, String)>,
-) {
+    deps: &[&str],
+) -> Result<(), DownloaderError> {
+    download_python_deps(deps)?;
+
     let mut command = Command::new("python");
 
     command.arg(dataset_downloader_file_path());
@@ -56,16 +86,21 @@ pub fn download(
         }
     }
 
-    println!("{:?}", command);
-    let output = command.output().unwrap();
-    println!("{:?}", output);
+    let mut handle = command.spawn().unwrap();
+    handle
+        .wait()
+        .map_err(|err| DownloaderError::Unknown(format!("{:?}", err)))?;
+
+    Ok(())
 }
 
 pub(crate) fn cache_dir() -> String {
     let home_dir = home_dir().unwrap();
     let home_dir = home_dir.to_str().map(|s| s.to_string());
     let home_dir = home_dir.unwrap();
-    format!("{}/.cache/burn-dataset", home_dir)
+    let cache_dir = format!("{}/.cache/burn-dataset", home_dir);
+    std::fs::create_dir(&cache_dir).ok();
+    cache_dir
 }
 
 fn dataset_downloader_file_path() -> String {
