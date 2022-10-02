@@ -48,7 +48,7 @@ impl HuggingfaceDatasetLoader {
 
     pub fn deps(mut self, deps: &[&str]) -> Self {
         self.deps
-            .append(&mut deps.to_vec().into_iter().map(String::from).collect());
+            .append(&mut deps.iter().copied().map(String::from).collect());
         self
     }
 
