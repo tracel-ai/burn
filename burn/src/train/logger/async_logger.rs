@@ -3,7 +3,6 @@ use std::sync::{mpsc, Mutex};
 
 enum Message<T> {
     Log(T),
-    Clear,
 }
 
 pub struct AsyncLogger<T> {
@@ -24,10 +23,6 @@ impl<T> LoggerThread<T> {
                     let mut logger = self.logger.lock().unwrap();
                     logger.log(item);
                 }
-                Message::Clear => {
-                    let mut logger = self.logger.lock().unwrap();
-                    logger.clear();
-                }
             }
         }
     }
@@ -47,9 +42,5 @@ impl<T: Send + Sync + 'static> AsyncLogger<T> {
 impl<T: Send> Logger<T> for AsyncLogger<T> {
     fn log(&mut self, item: T) {
         self.sender.send(Message::Log(item)).unwrap();
-    }
-
-    fn clear(&mut self) {
-        self.sender.send(Message::Clear).unwrap();
     }
 }
