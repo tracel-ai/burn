@@ -10,7 +10,7 @@ impl FileLogger {
         let mut options = std::fs::File::options();
         let file = options
             .write(true)
-            .append(true)
+            .truncate(true)
             .create(true)
             .open(&path)
             .unwrap();
@@ -24,6 +24,6 @@ where
     T: std::fmt::Display,
 {
     fn log(&mut self, item: T) {
-        write!(&mut self.file, "{}", item.to_string()).unwrap();
+        writeln!(&mut self.file, "{}", item.to_string()).unwrap();
     }
 }

@@ -169,7 +169,7 @@ fn cache_dir() -> String {
     let home_dir = home_dir.to_str().map(|s| s.to_string());
     let home_dir = home_dir.unwrap();
     let cache_dir = format!("{}/.cache/burn-dataset", home_dir);
-    std::fs::create_dir(&cache_dir).ok();
+    std::fs::create_dir_all(&cache_dir).ok();
     cache_dir
 }
 

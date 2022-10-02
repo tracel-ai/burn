@@ -31,9 +31,11 @@ impl MetricLogger for FileMetricLogger {
         let logger = match self.loggers.get_mut(&key) {
             Some(val) => val,
             None => {
-                let directory = format!("{}/epoch-{}/{}", self.directory, self.epoch, key);
+                let directory = format!("{}/epoch-{}", self.directory, self.epoch);
+                let file_path = format!("{}/{}.log", directory, key);
+                std::fs::create_dir_all(&directory).ok();
 
-                let logger = FileLogger::new(&directory);
+                let logger = FileLogger::new(&file_path);
                 let logger = AsyncLogger::new(Box::new(logger));
 
                 self.loggers.insert(key.clone(), Box::new(logger));

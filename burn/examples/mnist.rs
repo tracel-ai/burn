@@ -198,13 +198,12 @@ fn run<B: ADBackend>(device: B::Device) {
     let mut model = Model::new(&config, 784, 10);
     model.to_device(device);
 
-    let learner = LearnerBuilder::default()
+    let learner = LearnerBuilder::new("/tmp/mnist-test-1")
         .metric_train_plot(AccuracyMetric::new())
         .metric_valid_plot(AccuracyMetric::new())
         .metric_train_plot(LossMetric::new())
         .metric_valid_plot(LossMetric::new())
-        .with_file_checkpointer::<f32>("/tmp/mnist")
-        // .metric_train(CUDAMetric::new())
+        .with_file_checkpointer::<f32>(2)
         .num_epochs(config.num_epochs)
         .build(model, optim);
 

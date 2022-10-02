@@ -100,16 +100,23 @@ where
 
     /// Register a checkpointer that will save the [optimizer](crate::optim::Optimizer) and the
     /// [model](crate::module::Module) [states](crate::module::State).
+    ///
+    /// The number of checkpoints to be keep should be set to a minimum of two to be safe, since
+    /// they are saved and deleted asynchronously and a crash during training might make a
+    /// checkpoint non-usable.
     pub fn with_file_checkpointer<P: Element + serde::de::DeserializeOwned + serde::Serialize>(
         mut self,
+        num_keep: usize,
     ) -> Self {
         self.checkpointer_model = Some(Arc::new(FileCheckpointer::<P>::new(
-            self.directory.as_str(),
+            format!("{}/checkpoint", self.directory).as_str(),
             "model",
+            num_keep,
         )));
         self.checkpointer_optimizer = Some(Arc::new(FileCheckpointer::<P>::new(
-            self.directory.as_str(),
+            format!("{}/checkpoint", self.directory).as_str(),
             "optim",
+            num_keep,
         )));
         self
     }
