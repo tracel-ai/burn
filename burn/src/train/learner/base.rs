@@ -5,24 +5,25 @@ use crate::train::checkpoint::Checkpointer;
 use crate::train::LearnerCallback;
 
 #[derive(new)]
-pub struct Learner<M, O, CM, CO, TO, VO> {
+pub struct Learner<M, O, TO, VO>
+where
+    M: ADModule,
+{
     pub(super) model: M,
     pub(super) optim: O,
-    pub(super) checkpointer_model: Option<CM>,
-    pub(super) checkpointer_optimizer: Option<CO>,
-    pub(super) callback: Box<dyn LearnerCallback<TO, VO>>,
     pub(super) num_epochs: usize,
+    pub(super) callback: Box<dyn LearnerCallback<TO, VO>>,
     pub(super) checkpoint: Option<usize>,
+    pub(super) checkpointer_model: Option<Box<dyn Checkpointer<<M::Backend as Backend>::Elem>>>,
+    pub(super) checkpointer_optimizer: Option<Box<dyn Checkpointer<<M::Backend as Backend>::Elem>>>,
 }
 
-impl<M, O, CM, CO, TO, VO> Learner<M, O, CM, CO, TO, VO>
+impl<M, O, TO, VO> Learner<M, O, TO, VO>
 where
     VO: Send + Sync + 'static,
     TO: Send + Sync + 'static,
     M: ADModule,
     O: Optimizer<Backend = M::Backend>,
-    CM: Checkpointer<<M::Backend as Backend>::Elem>,
-    CO: Checkpointer<<M::Backend as Backend>::Elem>,
 {
     pub(super) fn checkpoint(&self, epoch: usize) {
         if let Some(checkpointer) = &self.checkpointer_model {
