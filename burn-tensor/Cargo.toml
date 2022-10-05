@@ -1,6 +1,6 @@
 [package]
 name = "burn-tensor"
-version = "0.2.2"
+version = "0.2.3"
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 
 description = """
