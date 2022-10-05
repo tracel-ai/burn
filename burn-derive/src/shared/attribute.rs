@@ -1,11 +1,10 @@
 use syn::{Attribute, Ident, Meta, NestedMeta};
 
-#[derive(Debug)]
 pub struct AttributeAnalyzer {
     attr: Attribute,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct AttributeItem {
     pub ident: Ident,
     pub value: syn::Lit,

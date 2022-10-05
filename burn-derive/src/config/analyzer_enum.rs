@@ -3,7 +3,6 @@ use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 use syn::Variant;
 
-#[derive(Debug)]
 pub struct ConfigEnumAnalyzer {
     name: Ident,
     data: syn::DataEnum,

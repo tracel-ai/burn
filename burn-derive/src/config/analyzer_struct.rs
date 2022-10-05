@@ -3,7 +3,6 @@ use crate::shared::{attribute::AttributeItem, field::FieldTypeAnalyzer};
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 
-#[derive(Debug)]
 pub struct ConfigStructAnalyzer {
     name: Ident,
     fields_required: Vec<FieldTypeAnalyzer>,

@@ -2,7 +2,7 @@ use super::attribute::AttributeAnalyzer;
 use proc_macro2::Ident;
 use syn::{Field, Type, TypePath};
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct FieldTypeAnalyzer {
     pub field: Field,
 }
