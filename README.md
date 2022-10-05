@@ -20,7 +20,13 @@
  * [Burn-Tensor](https://github.com/burn-rs/burn/burn-tensor): Tensor library with autodiff, CPU and GPU support 🔥
  * [Burn-Dataset](https://github.com/burn-rs/burn/burn-dataset): Dataset library with multiple utilities and sources 📚
 
-### Details
+## Details
+
+### Example
+
+Full example showing most of the features from `burn` [MNIST](https://github.com/burn-rs/burn/blob/main/burn/examples/mnist.rs).
+
+### Components
 
 Knowing the main components will be of great help when starting playing with `burn`.
 
