@@ -7,7 +7,7 @@ description = """
 This library provides multiple tensor implementations hidden behind
 an easy to use API that supports reverse mode automatic differentiation.
 """
-repository = "https://github.com/nathanielsimard/burn/tree/main/burn-tensor"
+repository = "https://github.com/burn-rs/burn/tree/main/burn-tensor"
 readme="README.md"
 keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
 categories = ["science"]
