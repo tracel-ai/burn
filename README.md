@@ -32,9 +32,8 @@ __Sections__
  * Flexible and intuitive custom neural network module 🤖
  * Stateless and thread safe forward pass 🚀
  * Fast training with full support for `metric`, `logging` and `checkpoining` 🌟
- * [Burn-Tensor](https://github.com/burn-rs/burn/burn-tensor): Tensor library with autodiff, CPU and GPU support 🔥
- * [Burn-Dataset](https://github.com/burn-rs/burn/burn-dataset): Dataset library with multiple utilities and sources 📚
-
+ * [Burn-Tensor](https://github.com/burn-rs/burn/tree/doc/readme/burn-tensor): Tensor library with autodiff, CPU and GPU support 🔥
+ * [Burn-Dataset](https://github.com/burn-rs/burn/tree/doc/readme/burn-dataset): Dataset library with multiple utilities and sources 📚
 
 ## Get Started
 
@@ -143,14 +142,14 @@ fn my_func() {
     let config = MyConfig::new(100);
     println!("{}", config.epsilone); // 1.0.e-6
     println!("{}", config.dim); // 100
-    let config = config.with_epsilone(1.0e-8);
+    let config =  MyConfig::new(100).with_epsilone(1.0e-8);
     println!("{}", config.epsilone); // 1.0.e-8
 }
 ```
 
 #### Learner
 
-The `Learner` is the main `struct` that let you train a neural network will support for `logging`, `metric`, `checkpointing` and more.
+The `Learner` is the main `struct` that let you train a neural network with support for `logging`, `metric`, `checkpointing` and more.
 In order to create a learner, you must use the `LearnerBuilder`.
 
 ```rust
