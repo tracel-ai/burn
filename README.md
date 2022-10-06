@@ -1,5 +1,5 @@
 <div align="center">
-<img src="https://github.com/burn-rs/burn/blob/main/assets/logo-burn-full.png" width="200px"/>
+<img src="./assets/logo-burn-full.png" width="200px"/>
 
 [![Current Crates.io Version](https://img.shields.io/crates/v/burn.svg)](https://crates.io/crates/burn)
 [![Test Status](https://github.com/burn-rs/burn/actions/workflows/test-burn.yml/badge.svg)](https://github.com/burn-rs/burn/actions/workflows/test-burn.yml)
@@ -12,28 +12,54 @@
 
 <div align="left">
 
+__Sections__
+
+* [Features](#features)
+* [Get Started](#get-started)
+    * [Examples](#examples)
+        * [MNIST](#mnist)
+    * [Components](#components)
+        * [Backend](#backend)
+        * [Tensor](#tensor)
+        * [Module](#module)
+        * [Forward](#forward)
+        * [Config](#config)
+        * [Learner](#learner)
+* [License](#license)
+
 ## Features
 
  * Flexible and intuitive custom neural network module 🤖
  * Stateless and thread safe forward pass 🚀
  * Fast training with full support for `metric`, `logging` and `checkpoining` 🌟
- * [Burn-Tensor](https://github.com/burn-rs/burn/burn-tensor): Tensor library with autodiff, CPU and GPU support 🔥
- * [Burn-Dataset](https://github.com/burn-rs/burn/burn-dataset): Dataset library with multiple utilities and sources 📚
+ * [Burn-Tensor](https://github.com/burn-rs/burn/tree/doc/readme/burn-tensor): Tensor library with autodiff, CPU and GPU support 🔥
+ * [Burn-Dataset](https://github.com/burn-rs/burn/tree/doc/readme/burn-dataset): Dataset library with multiple utilities and sources 📚
 
-## Details
+## Get Started
 
-### Example
+The best way to get started with burn is the look at the [examples](#examples).
+Also, this may be a good idea to checkout the main [components](#components) to get a quick overview of how to use burn.
 
-Full example showing most of the features from `burn` [MNIST](https://github.com/burn-rs/burn/blob/main/burn/examples/mnist.rs).
+### Examples
+
+For now there is only one example, but more to come 💪.
+
+#### MNIST
+
+The [MNIST](https://github.com/burn-rs/burn/blob/main/burn/examples/mnist.rs) example is not just of small script that shows you how to train a basic model, but it's a quick one showing you how to:
+
+* Define your own custom [module](#module) (MLP).
+* Create the data pipeline from a raw dataset to a batched multi-threaded fast DataLoader.
+* Configure a [learner](#learner) to display and log metrics as well as to keep training checkpoints.
 
 ### Components
 
 Knowing the main components will be of great help when starting playing with `burn`.
 
-#### __Backend__
+#### Backend
 
 Almost everything is based on the `Backend` trait, which allows to run tensor operations with different implementations without having to change your code.
-A backend does not necessary have autodiff capabilities, therefore you can use `ADBackend` when you need it.
+A backend does not necessary have autodiff capabilities, therefore you can use `ADBackend` when you require it.
 
 #### Tensor
 
@@ -42,15 +68,17 @@ It takes two generic parameters, the `Backend` and the number of dimensions `D`,
 
 ```rust
 use burn::tensor::{Tensor, Shape, Data};
-use burn::tensor::backend::{NdArrayBackend, TchBackend};
+use burn::tensor::backend::{Backend, NdArrayBackend, TchBackend};
 
-let my_ndarray_matrix = Tensor::<NdArrayBackend<f32>, 2>::ones(Shape::new([3, 3]));
-let my_tch_matrix = Tensor::<TchBackend<f32>, 2>::from_data(
-    Data::from([[1.0, 7.0], [13.0, -3.0]])
-);
+fn my_func<B: Backend>() {
+    let _my_tensor = Tensor::<B, 2>::ones(Shape::new([3, 3]));
+}
+
+fn main() {
+    my_func<NdArrayBackend<f32>>();
+    my_func<TchBackend<f32>>();
+}
 ```
-
-Note that `Data` is not specific to any backend.
 
 #### Module
 
@@ -92,3 +120,55 @@ impl<B: Backend> Forward<Tensor<B, 2>, Tensor<B, 2>> for MyModule<B> {
 ```
 
 Note that you can implement multiple time the `Forward` trait with different inputs and outputs.
+
+#### Config
+
+The `Config` derive let you define serializable and deserializable configurations or hyper-parameters for your [modules](#module) or any components.
+
+```rust
+use burn::config::Config;
+
+#[derive(Config)]
+struct MyConfig {
+    #[config(default = 1.0e-6)]
+    pub epsilone: usize,
+    pub dim: usize,
+}
+```
+The derive also add usefull methods to your config.
+
+```rust
+fn my_func() {
+    let config = MyConfig::new(100);
+    println!("{}", config.epsilone); // 1.0.e-6
+    println!("{}", config.dim); // 100
+    let config =  MyConfig::new(100).with_epsilone(1.0e-8);
+    println!("{}", config.epsilone); // 1.0.e-8
+}
+```
+
+#### Learner
+
+The `Learner` is the main `struct` that let you train a neural network with support for `logging`, `metric`, `checkpointing` and more.
+In order to create a learner, you must use the `LearnerBuilder`.
+
+```rust
+use burn::train::LearnerBuilder;
+
+let learner = LearnerBuilder::new("/tmp/artifact_dir")
+    .metric_train_plot(AccuracyMetric::new())
+    .metric_valid_plot(AccuracyMetric::new())
+    .metric_train(LossMetric::new())
+    .metric_valid(LossMetric::new())
+    .with_file_checkpointer::<f32>(2)
+    .num_epochs(config.num_epochs)
+    .build(model, optim);
+```
+
+See this [example](./burn/examples/mnist.rs) for a real usage.
+
+## License
+
+Burn is distributed under the terms of both the MIT license and the Apache License (Version 2.0).
+See [LICENSE-APACHE](./LICENSE-APACHE) and [LICENSE-MIT](./LICENSE-MIT) for details.
+Opening a pull request is assumed to signal agreement with these licensing terms.

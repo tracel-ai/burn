@@ -6,7 +6,7 @@ authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 description = """
 Burn derive crate.
 """
-repository = "https://github.com/nathanielsimard/burn/tree/main/burn-dataset"
+repository = "https://github.com/burn-rs/burn/tree/main/burn-dataset"
 readme="README.md"
 keywords = []
 categories = ["science"]
