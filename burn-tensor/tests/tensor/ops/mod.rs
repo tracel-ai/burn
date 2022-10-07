@@ -13,3 +13,4 @@ mod neg;
 mod powf;
 mod reshape;
 mod sub;
+mod transpose;

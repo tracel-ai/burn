@@ -12,4 +12,15 @@ impl<P: tch::kind::Element, const D: usize> TensorOpsTranspose<P, D> for TchTens
             shape,
         }
     }
+    fn swap_dims(&self, dim1: usize, dim2: usize) -> Self {
+        let tensor = self.tensor.transpose(dim1 as i64, dim2 as i64);
+        let kind = self.kind.clone();
+        let shape = Shape::from(tensor.size());
+
+        Self {
+            kind,
+            tensor,
+            shape,
+        }
+    }
 }

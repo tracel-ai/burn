@@ -27,6 +27,7 @@ pub trait TensorOpsSub<E, const D: usize> {
 
 pub trait TensorOpsTranspose<E, const D: usize> {
     fn transpose(&self) -> Self;
+    fn swap_dims(&self, dim1: usize, dim2: usize) -> Self;
 }
 
 pub trait TensorOpsMatmul<E, const D: usize> {
