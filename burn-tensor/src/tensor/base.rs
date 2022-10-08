@@ -178,6 +178,15 @@ where
         Self::new(self.value.transpose())
     }
 
+    /// Swap two dimensions.
+    ///
+    /// # Panics
+    ///
+    /// If the dimensions exceed the shape of than the tensor.
+    pub fn swap_dims(&self, dim1: usize, dim2: usize) -> Self {
+        Self::new(self.value.swap_dims(dim1, dim2))
+    }
+
     /// Applies the matrix multiplication operation.
     ///
     /// `C = AB`
