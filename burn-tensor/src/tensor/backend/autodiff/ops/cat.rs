@@ -47,11 +47,11 @@ impl<const D: usize, B: Backend> BackwardRecordedOps<B::TensorPrimitive<D>>
         let indexes: Vec<_> = grad.shape().dims.iter().map(|v| 0..*v).collect();
         let indexes: [std::ops::Range<usize>; D] = indexes.try_into().unwrap();
 
-        for (i, node) in self.nodes.iter().enumerate() {
+        self.nodes.iter().enumerate().for_each(|(i, node)| {
             let mut indexes = indexes.clone();
             indexes[self.dim] = i..i + 1;
             node.state.update_grad(grad.index(indexes));
-        }
+        });
     }
 
     fn backward_parents(&self) -> Vec<RecordedOpsParentRef> {

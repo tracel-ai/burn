@@ -360,6 +360,12 @@ where
         Self::new(tensor)
     }
 
+    /// Create a tensor of the given shape where each element is zero.
+    pub fn zeros_device(shape: Shape<D>, device: B::Device) -> Self {
+        let tensor = B::zeros(shape, device);
+        Self::new(tensor)
+    }
+
     /// Create a tensor of the given shape where each element is one.
     pub fn ones(shape: Shape<D>) -> Self {
         let tensor = B::ones(shape, B::Device::default());

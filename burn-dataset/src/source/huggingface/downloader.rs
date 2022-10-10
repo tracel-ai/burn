@@ -130,17 +130,28 @@ fn download(
         command.arg(split);
     }
 
+    let mut extracted_raw = Vec::new();
+    let mut extracted_images = Vec::new();
+
     for extractor in extractors {
         match extractor {
-            Extractor::Raw(field) => {
-                command.arg("--extract-raw");
-                command.arg(field);
-            }
-            Extractor::Image(field) => {
-                command.arg("--extract-image");
-                command.arg(field);
-            }
+            Extractor::Raw(field) => extracted_raw.push(field),
+            Extractor::Image(field) => extracted_images.push(field),
         };
+    }
+
+    if !extracted_raw.is_empty() {
+        command.arg("--extract-raw");
+        for field in extracted_raw {
+            command.arg(field);
+        }
+    }
+
+    if !extracted_images.is_empty() {
+        command.arg("--extract-image");
+        for field in extracted_images {
+            command.arg(field);
+        }
     }
 
     if !config.is_empty() {

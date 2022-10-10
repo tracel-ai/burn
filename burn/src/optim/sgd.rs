@@ -54,18 +54,19 @@ impl<B: ADBackend> Optimizer for Sgd<B> {
         tensor: &mut Tensor<B, D>,
         grads: &Gradients,
     ) {
-        let grad = tensor.grad(grads).unwrap();
-        let grad = match &mut self.weight_decay {
-            Some(weight_decay) => weight_decay.transform(id, grad),
-            None => grad,
-        };
-        let grad = match &mut self.momentum {
-            Some(momentum) => momentum.transform(id, grad),
-            None => grad,
-        };
+        if let Some(grad) = tensor.grad(grads) {
+            let grad = match &mut self.weight_decay {
+                Some(weight_decay) => weight_decay.transform(id, grad),
+                None => grad,
+            };
+            let grad = match &mut self.momentum {
+                Some(momentum) => momentum.transform(id, grad),
+                None => grad,
+            };
 
-        let delta = grad.mul_scalar(self.learning_rate);
-        tensor.update(tensor.inner() - delta);
+            let delta = grad.mul_scalar(self.learning_rate);
+            tensor.update(tensor.inner() - delta);
+        }
     }
 
     fn register_param_state<const D: usize>(&self, id: &ParamId, state: &mut StateNamed<B::Elem>) {
