@@ -1,3 +1,4 @@
+use crate::backend::autodiff::ADBackendDecorator;
 use crate::tensor::backend::Backend;
 use crate::{
     execute_ops,
@@ -14,32 +15,21 @@ register_ops!(
     },
 );
 
-macro_rules! define_impl {
-    (
-        $backend:ty,
-        $backend_inner:ty,
-        $element:ident
-    ) => {
-        impl<E: $element, const D: usize> TensorOpsMask<$backend, D>
-            for <$backend as Backend>::TensorPrimitive<D>
-        {
-            fn mask_fill(
-                &self,
-                mask: &<$backend as Backend>::BoolTensorPrimitive<D>,
-                value: E,
-            ) -> Self {
-                execute_ops!(
-                    input self.node.clone(),
-                    out TensorOpsMask::mask_fill(&self.tensor(), &mask, value),
-                    ops ADTensorMaskFillOps::<$backend_inner, D>::new(mask.clone()),
-                )
-            }
-        }
-    };
+impl<B: Backend, const D: usize> TensorOpsMask<ADBackendDecorator<B>, D>
+    for <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>
+{
+    fn mask_fill(
+        &self,
+        mask: &<ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D>,
+        value: B::Elem,
+    ) -> Self {
+        execute_ops!(
+            input self.node.clone(),
+            out TensorOpsMask::mask_fill(&self.tensor(), mask, value),
+            ops ADTensorMaskFillOps::<B, D>::new(mask.clone()),
+        )
+    }
 }
-
-crate::register_tch!();
-crate::register_ndarray!();
 
 #[cfg(test)]
 mod tests {

@@ -1,3 +1,4 @@
+use crate::backend::autodiff::ADBackendDecorator;
 use crate::graph::node::{ForwardNode, ForwardNodeState};
 use crate::graph::ops::ForwardUnaryRecordedOps;
 use crate::tensor::backend::Backend;
@@ -50,62 +51,30 @@ impl<B: Backend, const D1: usize, const D2: usize>
     }
 }
 
-macro_rules! define_impl {
-    (
-        $backend:ty,
-        $backend_inner:ty,
-        $element:ident
-    ) => {
-        impl<E: $element, const D1: usize> TensorOpsReshape<$backend, D1>
-            for <$backend as Backend>::TensorPrimitive<D1>
-        {
-            fn reshape<const D2: usize>(
-                &self,
-                shape: Shape<D2>,
-            ) -> <$backend as Backend>::TensorPrimitive<D2> {
-                let input = self.tensor();
-                let out = TensorOpsReshape::reshape(&input, shape.clone());
+impl<B: Backend, const D1: usize> TensorOpsReshape<ADBackendDecorator<B>, D1>
+    for <ADBackendDecorator<B> as Backend>::TensorPrimitive<D1>
+{
+    fn reshape<const D2: usize>(
+        &self,
+        shape: Shape<D2>,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D2> {
+        let input = self.tensor();
+        let out = TensorOpsReshape::reshape(&input, shape);
 
-                let state = ForwardNodeState::new(out);
+        let state = ForwardNodeState::new(out);
 
-                let ops = ADTensorOpsReshape::<$backend_inner, D1, D2>::new(self.shape.clone());
-                let ops = Arc::new(ops);
-                let ops = ForwardUnaryRecordedOps::new(self.node.clone(), ops);
-                let ops = Arc::new(ops);
+        let ops = ADTensorOpsReshape::<B, D1, D2>::new(self.shape);
+        let ops = Arc::new(ops);
+        let ops = ForwardUnaryRecordedOps::new(self.node.clone(), ops);
+        let ops = Arc::new(ops);
 
-                let node = ForwardNode::from_unary(&self.node, state, ops);
-                let node = Arc::new(node);
+        let node = ForwardNode::from_unary(&self.node, state, ops);
+        let node = Arc::new(node);
 
-                let shape = shape.clone();
+        let shape = shape;
 
-                ADTensor { node, shape }
-            }
-        }
-    };
-}
-
-#[cfg(feature = "ndarray")]
-mod ndarray_impl {
-    use super::*;
-    use crate::NdArrayElement;
-
-    define_impl!(
-        crate::tensor::backend::autodiff::ADBackendNdArray::<E>,
-        crate::tensor::backend::ndarray::NdArrayBackend::<E>,
-        NdArrayElement
-    );
-}
-
-#[cfg(feature = "tch")]
-mod tch_impl {
-    use super::*;
-    use crate::TchElement;
-
-    define_impl!(
-        crate::tensor::backend::autodiff::ADBackendTch::<E>,
-        crate::tensor::backend::tch::TchBackend::<E>,
-        TchElement
-    );
+        ADTensor { node, shape }
+    }
 }
 
 #[cfg(test)]

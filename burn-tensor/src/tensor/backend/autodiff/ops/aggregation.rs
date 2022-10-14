@@ -1,3 +1,4 @@
+use crate::backend::autodiff::ADBackendDecorator;
 use crate::tensor::ElementConversion;
 use crate::Tensor;
 use crate::{backend::Backend, tensor::ops::*};
@@ -97,54 +98,41 @@ impl<B: Backend, const D: usize> UnaryOps<B::TensorPrimitive<D>, B::TensorPrimit
     }
 }
 
-macro_rules! define_impl {
-    (
-        $backend:ty,
-        $backend_inner:ty,
-        $element:ident
-    ) => {
-        impl<E: $element, const D: usize> TensorOpsAggregation<$backend, D>
-            for <$backend as Backend>::TensorPrimitive<D>
-        {
-            fn mean(&self) -> <$backend as Backend>::TensorPrimitive<1> {
-                execute_ops!(
-                    input self.node.clone(),
-                    out TensorOpsAggregation::mean(&self.tensor()),
-                    ops ADTensorOpsMean::<$backend_inner, D>::new(self.shape.clone()),
-                )
-            }
+impl<B: Backend, const D: usize> TensorOpsAggregation<ADBackendDecorator<B>, D>
+    for <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>
+{
+    fn mean(&self) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<1> {
+        execute_ops!(
+            input self.node.clone(),
+            out TensorOpsAggregation::mean(&self.tensor()),
+            ops ADTensorOpsMean::<B, D>::new(self.shape),
+        )
+    }
 
-            fn sum(&self) -> <$backend as Backend>::TensorPrimitive<1> {
-                execute_ops!(
-                    input self.node.clone(),
-                    out TensorOpsAggregation::sum(&self.tensor()),
-                    ops ADTensorOpsSum::<$backend_inner, D>::new(self.shape.clone()),
-                )
-            }
+    fn sum(&self) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<1> {
+        execute_ops!(
+            input self.node.clone(),
+            out TensorOpsAggregation::sum(&self.tensor()),
+            ops ADTensorOpsSum::<B, D>::new(self.shape),
+        )
+    }
 
-            fn mean_dim(&self, dim: usize) -> <$backend as Backend>::TensorPrimitive<D> {
-                execute_ops!(
-                    input self.node.clone(),
-                    out TensorOpsAggregation::mean_dim(&self.tensor(), dim),
-                    ops ADTensorOpsMeanDim::<$backend_inner, D>::new((self.shape.clone(), dim)),
-                )
+    fn mean_dim(&self, dim: usize) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
+        execute_ops!(
+            input self.node.clone(),
+            out TensorOpsAggregation::mean_dim(&self.tensor(), dim),
+            ops ADTensorOpsMeanDim::<B, D>::new((self.shape, dim)),
+        )
+    }
 
-            }
-
-            fn sum_dim(&self, dim: usize) -> <$backend as Backend>::TensorPrimitive<D> {
-                execute_ops!(
-                    input self.node.clone(),
-                    out TensorOpsAggregation::sum_dim(&self.tensor(), dim),
-                    ops ADTensorOpsSumDim::<$backend_inner, D>::new((self.shape.clone(), dim)),
-                )
-
-            }
-        }
-    };
+    fn sum_dim(&self, dim: usize) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
+        execute_ops!(
+            input self.node.clone(),
+            out TensorOpsAggregation::sum_dim(&self.tensor(), dim),
+            ops ADTensorOpsSumDim::<B, D>::new((self.shape, dim)),
+        )
+    }
 }
-
-crate::register_tch!();
-crate::register_ndarray!();
 
 #[cfg(test)]
 mod tests {
