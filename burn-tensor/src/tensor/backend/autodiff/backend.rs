@@ -71,7 +71,7 @@ impl<B: Backend> ADBackend for ADBackendDecorator<B> {
         tensor: &Self::TensorPrimitive<D>,
         grads: &Gradients,
     ) -> Option<B::TensorPrimitive<D>> {
-        grads.wrt(tensor).map(|grad| grad.clone())
+        grads.wrt(tensor).cloned()
     }
 
     fn inner<const D: usize>(

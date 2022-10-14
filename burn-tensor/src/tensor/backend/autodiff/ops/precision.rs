@@ -61,16 +61,16 @@ impl<B: Backend, const D: usize> TensorOpsPrecision<ADBackendDecorator<B>, D>
         tensor_full: ADTensor<D, <B as Backend>::FullPrecisionBackend>,
     ) -> ADTensor<D, B> {
         let tensor = <B as Backend>::TensorPrimitive::from_full_precision(tensor_full.tensor());
-        let shape = crate::tensor::ops::TensorOpsUtilities::shape(&tensor).clone();
+        let shape = *crate::tensor::ops::TensorOpsUtilities::shape(&tensor);
         let state = crate::graph::node::ForwardNodeState::new(tensor);
 
         let ops = std::sync::Arc::new(ADTensorFromFullPrecisionOps::<B, D>::new());
         let ops =
-            crate::graph::ops::ForwardUnaryRecordedOps::new(tensor_full.node.clone(), ops.clone());
+            crate::graph::ops::ForwardUnaryRecordedOps::new(tensor_full.node.clone(), ops);
         let ops = std::sync::Arc::new(ops);
 
         let node =
-            crate::graph::node::ForwardNode::from_unary(&tensor_full.node.clone(), state, ops);
+            crate::graph::node::ForwardNode::from_unary(&tensor_full.node, state, ops);
         let node = std::sync::Arc::new(node);
 
         crate::tensor::backend::autodiff::ADTensor { node, shape }

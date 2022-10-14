@@ -25,7 +25,7 @@ impl<B: Backend, const D: usize> TensorOpsMask<ADBackendDecorator<B>, D>
     ) -> Self {
         execute_ops!(
             input self.node.clone(),
-            out TensorOpsMask::mask_fill(&self.tensor(), &mask, value),
+            out TensorOpsMask::mask_fill(&self.tensor(), mask, value),
             ops ADTensorMaskFillOps::<B, D>::new(mask.clone()),
         )
     }

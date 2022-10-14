@@ -105,7 +105,7 @@ impl<B: Backend, const D: usize> TensorOpsAggregation<ADBackendDecorator<B>, D>
         execute_ops!(
             input self.node.clone(),
             out TensorOpsAggregation::mean(&self.tensor()),
-            ops ADTensorOpsMean::<B, D>::new(self.shape.clone()),
+            ops ADTensorOpsMean::<B, D>::new(self.shape),
         )
     }
 
@@ -113,7 +113,7 @@ impl<B: Backend, const D: usize> TensorOpsAggregation<ADBackendDecorator<B>, D>
         execute_ops!(
             input self.node.clone(),
             out TensorOpsAggregation::sum(&self.tensor()),
-            ops ADTensorOpsSum::<B, D>::new(self.shape.clone()),
+            ops ADTensorOpsSum::<B, D>::new(self.shape),
         )
     }
 
@@ -121,7 +121,7 @@ impl<B: Backend, const D: usize> TensorOpsAggregation<ADBackendDecorator<B>, D>
         execute_ops!(
             input self.node.clone(),
             out TensorOpsAggregation::mean_dim(&self.tensor(), dim),
-            ops ADTensorOpsMeanDim::<B, D>::new((self.shape.clone(), dim)),
+            ops ADTensorOpsMeanDim::<B, D>::new((self.shape, dim)),
         )
     }
 
@@ -129,7 +129,7 @@ impl<B: Backend, const D: usize> TensorOpsAggregation<ADBackendDecorator<B>, D>
         execute_ops!(
             input self.node.clone(),
             out TensorOpsAggregation::sum_dim(&self.tensor(), dim),
-            ops ADTensorOpsSumDim::<B, D>::new((self.shape.clone(), dim)),
+            ops ADTensorOpsSumDim::<B, D>::new((self.shape, dim)),
         )
     }
 }

@@ -59,11 +59,11 @@ impl<B: Backend, const D1: usize> TensorOpsReshape<ADBackendDecorator<B>, D1>
         shape: Shape<D2>,
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D2> {
         let input = self.tensor();
-        let out = TensorOpsReshape::reshape(&input, shape.clone());
+        let out = TensorOpsReshape::reshape(&input, shape);
 
         let state = ForwardNodeState::new(out);
 
-        let ops = ADTensorOpsReshape::<B, D1, D2>::new(self.shape.clone());
+        let ops = ADTensorOpsReshape::<B, D1, D2>::new(self.shape);
         let ops = Arc::new(ops);
         let ops = ForwardUnaryRecordedOps::new(self.node.clone(), ops);
         let ops = Arc::new(ops);
@@ -71,7 +71,7 @@ impl<B: Backend, const D1: usize> TensorOpsReshape<ADBackendDecorator<B>, D1>
         let node = ForwardNode::from_unary(&self.node, state, ops);
         let node = Arc::new(node);
 
-        let shape = shape.clone();
+        let shape = shape;
 
         ADTensor { node, shape }
     }
