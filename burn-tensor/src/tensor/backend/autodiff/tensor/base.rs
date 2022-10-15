@@ -27,7 +27,7 @@ impl<B: Backend, const D: usize> ADTensor<D, B> {
     }
 
     pub fn tensor_ref(&self) -> &B::TensorPrimitive<D> {
-        &self.node.state.value_ref()
+        self.node.state.value_ref()
     }
 }
 
