@@ -23,7 +23,7 @@ impl<B: Backend, const D: usize> ReLU<B::Elem, D> for ADTensor<D, B> {
     fn relu(&self) -> Self {
         execute_ops!(
             input self.node.clone(),
-            out ReLU::relu(&self.tensor()),
+            out self.tensor_ref().relu(),
             ops ADReLU::<B, D>::new(),
         )
     }

@@ -35,7 +35,7 @@ impl<B: Backend, const D: usize> TensorOpsAdd<B::Elem, D> for ADTensor<D, B> {
     fn add_scalar(&self, other: &B::Elem) -> Self {
         execute_ops!(
             input self.node.clone(),
-            out TensorOpsAdd::add_scalar(&self.tensor(), other),
+            out TensorOpsAdd::add_scalar(self.tensor_ref(), other),
             ops ADTensorAddScalarOps::<B, D>::new(*other),
         )
     }

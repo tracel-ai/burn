@@ -24,7 +24,7 @@ fn arg<E: NdArrayElement, F, const D: usize>(
 where
     F: Fn(&f64, &f64) -> Ordering,
 {
-    let mut data = tensor.to_data();
+    let mut data = <NdArrayBackend<E> as TensorOps<NdArrayBackend<E>>>::to_data::<D>(tensor);
     let batch_size = tensor.shape.dims[dim];
     let mut start = 0;
     let mut end = tensor.shape.dims[dim];

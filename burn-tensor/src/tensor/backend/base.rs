@@ -5,14 +5,15 @@ use crate::tensor::Element;
 use crate::tensor::{Data, Distribution, Shape};
 use crate::Gradients;
 
-pub trait Backend: Clone + Sized + Default + Send + Sync + std::fmt::Debug + 'static {
+pub trait Backend:
+    TensorOps<Self> + Clone + Sized + Default + Send + Sync + std::fmt::Debug + 'static
+{
     type Device: Copy + Clone + Default + std::fmt::Debug + Send + Sync;
     type Elem: Element;
     type FullPrecisionElem: Element;
     type FullPrecisionBackend: Backend<Elem = Self::FullPrecisionElem, Device = Self::Device>;
     type IntegerBackend: Backend<Elem = i64, Device = Self::Device>;
-    type TensorPrimitive<const D: usize>: TensorOpsUtilities<Self::Elem, D>
-        + TensorOpsMatmul<Self::Elem, D>
+    type TensorPrimitive<const D: usize>: TensorOpsMatmul<Self::Elem, D>
         + TensorOpsTranspose<Self::Elem, D>
         + TensorOpsMul<Self::Elem, D>
         + TensorOpsDiv<Self::Elem, D>
@@ -44,12 +45,7 @@ pub trait Backend: Clone + Sized + Default + Send + Sync + std::fmt::Debug + 'st
         + 'static
         + std::fmt::Debug;
 
-    type BoolTensorPrimitive<const D: usize>: TensorOpsUtilities<bool, D>
-        + Clone
-        + Send
-        + Sync
-        + 'static
-        + std::fmt::Debug;
+    type BoolTensorPrimitive<const D: usize>: Clone + Send + Sync + 'static + std::fmt::Debug;
 
     fn from_data<const D: usize>(
         data: Data<Self::Elem, D>,

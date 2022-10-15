@@ -72,17 +72,17 @@ where
 
     /// Returns the shape of the current tensor.
     pub fn shape(&self) -> &Shape<D> {
-        self.value.shape()
+        B::shape(&self.value)
     }
 
     /// Returns the data of the current tensor.
     pub fn into_data(self) -> Data<B::Elem, D> {
-        self.value.into_data()
+        B::into_data(self.value)
     }
 
     /// Returns the data of the current tensor without taking ownership.
     pub fn to_data(&self) -> Data<B::Elem, D> {
-        self.value.to_data()
+        B::to_data(&self.value)
     }
 
     /// Create a tensor from the given data.

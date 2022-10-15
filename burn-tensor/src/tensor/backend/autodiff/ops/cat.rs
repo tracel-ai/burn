@@ -44,7 +44,7 @@ impl<const D: usize, B: Backend> BackwardRecordedOps<B::TensorPrimitive<D>>
 {
     fn backward_step(&self, state: &BackwardNodeState<B::TensorPrimitive<D>>) {
         let grad = state.grad();
-        let indexes: Vec<_> = grad.shape().dims.iter().map(|v| 0..*v).collect();
+        let indexes: Vec<_> = B::shape(&grad).dims.iter().map(|v| 0..*v).collect();
         let indexes: [std::ops::Range<usize>; D] = indexes.try_into().unwrap();
 
         self.nodes.iter().enumerate().for_each(|(i, node)| {
@@ -76,7 +76,7 @@ impl<B: Backend, const D: usize> TensorOpsCat<B::Elem, D> for ADTensor<D, B> {
 
         let out = TensorOpsCat::cat(tensors_inner_ref, dim);
 
-        let shape = *out.shape();
+        let shape = *B::shape(&out);
         let state = crate::graph::node::ForwardNodeState::new(out);
 
         let ops = ForwardCatOps::<D, B>::new(nodes, dim);

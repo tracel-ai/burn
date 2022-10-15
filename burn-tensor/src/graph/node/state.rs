@@ -12,6 +12,9 @@ where
     pub fn value(&self) -> Out {
         self.value.clone()
     }
+    pub fn value_ref(&self) -> &Out {
+        &self.value
+    }
 }
 
 #[derive(Debug, Clone)]
