@@ -34,8 +34,8 @@ impl<B: Backend, const D1: usize, const D2: usize>
         let mut grad = state.output.grad();
         let value = state.output.value();
 
-        let shape_grad = *grad.shape();
-        let shape_value = *value.shape();
+        let shape_grad = *B::shape(&grad);
+        let shape_value = *B::shape(&value);
 
         if shape_value == shape_grad {
             return grad.reshape(self.shape);

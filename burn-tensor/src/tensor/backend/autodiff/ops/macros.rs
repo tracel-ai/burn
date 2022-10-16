@@ -117,7 +117,7 @@ macro_rules! execute_ops {
         ops $ops:expr,
     ) => {{
         let callback = || {
-            let shape = $crate::tensor::ops::TensorOpsUtilities::shape(&$out).clone();
+            let shape = B::shape(&$out).clone();
             let state = $crate::graph::node::ForwardNodeState::new($out);
 
             let ops = std::sync::Arc::new($ops);
@@ -137,7 +137,7 @@ macro_rules! execute_ops {
         ops $ops:expr,
     ) => {{
         let callback = || {
-            let shape = $crate::tensor::ops::TensorOpsUtilities::shape(&$out).clone();
+            let shape = B::shape(&$out).clone();
             let state = $crate::graph::node::ForwardNodeState::new($out);
 
             let ops = std::sync::Arc::new($ops);
@@ -151,6 +151,28 @@ macro_rules! execute_ops {
         };
         callback()
     }};
+    (
+        input $input:expr,
+        out $out:expr,
+        ops $ops:expr,
+        shape $shape:expr,
+    ) => {{
+        let callback = || {
+            let shape = $shape;
+            let state = $crate::graph::node::ForwardNodeState::new($out);
+
+            let ops = std::sync::Arc::new($ops);
+            let ops = $crate::graph::ops::ForwardUnaryRecordedOps::new($input, ops.clone());
+            let ops = std::sync::Arc::new(ops);
+
+            let node = $crate::graph::node::ForwardNode::from_unary(&$input, state, ops);
+            let node = std::sync::Arc::new(node);
+
+            $crate::tensor::backend::autodiff::ADTensor { node, shape }
+        };
+        callback()
+    }};
+
     (
         init $out:expr
     ) => {{

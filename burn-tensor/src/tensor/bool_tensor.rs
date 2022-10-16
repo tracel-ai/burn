@@ -1,6 +1,5 @@
 use super::Tensor;
 use crate::tensor::backend::Backend;
-use crate::tensor::ops::*;
 use crate::tensor::{Data, Shape};
 
 pub struct BoolTensor<B: Backend, const D: usize> {
@@ -16,15 +15,15 @@ where
     }
 
     pub fn shape(&self) -> &Shape<D> {
-        self.value.shape()
+        B::bool_shape(&self.value)
     }
 
     pub fn into_data(self) -> Data<bool, D> {
-        self.value.into_data()
+        B::bool_into_data(self.value)
     }
 
     pub fn to_data(&self) -> Data<bool, D> {
-        self.value.to_data()
+        B::bool_to_data(&self.value)
     }
 
     pub fn from_data(data: Data<bool, D>) -> Self {
@@ -33,6 +32,7 @@ where
     }
 
     pub fn to_int(&self) -> Tensor<B::IntegerBackend, D> {
-        Tensor::from_data(self.value.to_data().convert())
+        let data = B::bool_to_data(&self.value);
+        Tensor::from_data(data.convert())
     }
 }

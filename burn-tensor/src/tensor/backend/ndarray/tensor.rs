@@ -1,4 +1,4 @@
-use crate::tensor::{ops::TensorOpsUtilities, Data, Shape};
+use crate::tensor::{Data, Shape};
 use ndarray::{s, ArcArray, Array, Axis, Dim, Ix2, Ix3, IxDyn};
 
 #[derive(Debug, Clone)]
@@ -7,22 +7,21 @@ pub struct NdArrayTensor<E, const D: usize> {
     pub shape: Shape<D>,
 }
 
-impl<E, const D: usize> TensorOpsUtilities<E, D> for NdArrayTensor<E, D>
-where
-    E: Default + Clone,
-{
-    fn shape(&self) -> &Shape<D> {
-        &self.shape
-    }
+#[cfg(test)]
+mod utils {
+    use crate::{backend::NdArrayBackend, ops::TensorOps, NdArrayElement};
 
-    fn into_data(self) -> Data<E, D> {
-        let values = self.array.into_iter().collect();
-        Data::new(values, self.shape)
-    }
-
-    fn to_data(&self) -> Data<E, D> {
-        let values = self.array.clone().into_iter().collect();
-        Data::new(values, self.shape)
+    use super::*;
+    impl<E, const D: usize> NdArrayTensor<E, D>
+    where
+        E: Default + Clone,
+    {
+        pub(crate) fn into_data(self) -> Data<E, D>
+        where
+            E: NdArrayElement,
+        {
+            <NdArrayBackend<E> as TensorOps<NdArrayBackend<E>>>::into_data::<D>(self)
+        }
     }
 }
 

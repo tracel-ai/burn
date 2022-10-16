@@ -6,7 +6,7 @@ use ndarray::{Axis, IxDyn};
 
 impl<P: NdArrayElement, const D: usize> TensorOpsCat<P, D> for NdArrayTensor<P, D> {
     fn cat(tensors: Vec<&Self>, dim: usize) -> Self {
-        let mut shape = *tensors.get(0).unwrap().shape();
+        let mut shape = tensors.get(0).unwrap().shape;
         shape.dims[dim] = tensors.len();
 
         let arrays: Vec<ndarray::ArrayView<P, IxDyn>> =

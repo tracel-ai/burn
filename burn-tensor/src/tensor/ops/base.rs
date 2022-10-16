@@ -1,10 +1,13 @@
 use crate::{backend::Backend, tensor::Shape, Data};
 use std::ops::Range;
 
-pub trait TensorOpsUtilities<E, const D: usize> {
-    fn shape(&self) -> &Shape<D>;
-    fn into_data(self) -> Data<E, D>;
-    fn to_data(&self) -> Data<E, D>;
+pub trait TensorOps<B: Backend> {
+    fn shape<const D: usize>(tensor: &B::TensorPrimitive<D>) -> &Shape<D>;
+    fn to_data<const D: usize>(tensor: &B::TensorPrimitive<D>) -> Data<B::Elem, D>;
+    fn into_data<const D: usize>(tensor: B::TensorPrimitive<D>) -> Data<B::Elem, D>;
+    fn bool_shape<const D: usize>(tensor: &B::BoolTensorPrimitive<D>) -> &Shape<D>;
+    fn bool_to_data<const D: usize>(tensor: &B::BoolTensorPrimitive<D>) -> Data<bool, D>;
+    fn bool_into_data<const D: usize>(tensor: B::BoolTensorPrimitive<D>) -> Data<bool, D>;
 }
 
 pub trait TensorOpsDevice<B: Backend, const D: usize> {

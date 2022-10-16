@@ -1,6 +1,6 @@
 use crate::{
     backend::TchDevice,
-    tensor::{ops::TensorOpsUtilities, Data, Shape},
+    tensor::{Data, Shape},
 };
 
 lazy_static::lazy_static! {
@@ -86,6 +86,21 @@ impl<P: tch::kind::Element + Default, const D: usize> TchTensor<P, D> {
     }
 }
 
+#[cfg(test)]
+mod utils {
+    use super::*;
+    use crate::{backend::TchBackend, ops::TensorOps, TchElement};
+
+    impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
+        pub(crate) fn into_data(self) -> Data<P, D>
+        where
+            P: TchElement,
+        {
+            <TchBackend<P> as TensorOps<TchBackend<P>>>::into_data(self)
+        }
+    }
+}
+
 impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> TchTensor<P, D> {
     pub fn empty(shape: Shape<D>, device: TchDevice) -> Self {
         let shape_tch = TchShape::from(shape);
@@ -100,38 +115,6 @@ impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> T
             tensor,
             shape,
         }
-    }
-}
-
-impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize>
-    TensorOpsUtilities<P, D> for TchTensor<P, D>
-{
-    fn shape(&self) -> &Shape<D> {
-        &self.shape
-    }
-    fn into_data(self) -> Data<P, D> {
-        let values = self.tensor.into();
-        Data::new(values, self.shape)
-    }
-    fn to_data(&self) -> Data<P, D> {
-        let values = self.tensor.shallow_clone().into();
-        Data::new(values, self.shape)
-    }
-}
-
-impl<const D: usize> TensorOpsUtilities<usize, D> for TchTensor<i64, D> {
-    fn shape(&self) -> &Shape<D> {
-        &self.shape
-    }
-    fn into_data(self) -> Data<usize, D> {
-        let values: Vec<i64> = self.tensor.into();
-        let values = values.into_iter().map(|v| v as usize).collect();
-        Data::new(values, self.shape)
-    }
-    fn to_data(&self) -> Data<usize, D> {
-        let values: Vec<i64> = self.tensor.shallow_clone().into();
-        let values = values.into_iter().map(|v| v as usize).collect();
-        Data::new(values, self.shape)
     }
 }
 
