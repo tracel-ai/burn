@@ -16,6 +16,12 @@ impl<const D: usize> Shape<D> {
     }
 }
 
+impl<const D: usize> From<[usize; D]> for Shape<D> {
+    fn from(dims: [usize; D]) -> Self {
+        Shape::new(dims)
+    }
+}
+
 impl<const D1: usize> Shape<D1> {
     pub fn index<const D2: usize>(&self, indexes: [Range<usize>; D2]) -> Self {
         if D2 > D1 {
