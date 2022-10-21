@@ -34,12 +34,12 @@ where
 
     /// Returns a new tensor on the given device.
     pub fn to_device(&self, device: B::Device) -> Self {
-        Self::new(self.value.to_device(device))
+        Self::new(B::to_device(&self.value, device))
     }
 
     /// Returns the device of the current tensor.
     pub fn device(&self) -> B::Device {
-        self.value.device()
+        B::device(&self.value)
     }
 
     /// Applies element wise exponential operation.
@@ -99,18 +99,18 @@ where
 
     /// Returns a new tensor with the same shape and device as the current tensor filled with zeros.
     pub fn zeros_like(&self) -> Self {
-        Tensor::new(B::zeros(*self.shape(), self.value.device()))
+        Tensor::new(B::zeros(*self.shape(), self.device()))
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor filled with ones.
     pub fn ones_like(&self) -> Self {
-        Tensor::new(B::ones(*self.shape(), self.value.device()))
+        Tensor::new(B::ones(*self.shape(), self.device()))
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor filled random
     /// values sampled from the given distribution.
     pub fn random_like(&self, distribution: Distribution<B::Elem>) -> Self {
-        Tensor::new(B::random(*self.shape(), distribution, self.value.device()))
+        Tensor::new(B::random(*self.shape(), distribution, self.device()))
     }
 
     /// Create a one hot tensor.

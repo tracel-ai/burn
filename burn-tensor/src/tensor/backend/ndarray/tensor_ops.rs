@@ -1,5 +1,9 @@
-use super::NdArrayBackend;
-use crate::{backend::Backend, ops::TensorOps, Data, NdArrayElement, Shape};
+use super::{NdArrayBackend, NdArrayTensor};
+use crate::{
+    backend::{Backend, NdArrayDevice},
+    ops::TensorOps,
+    Data, NdArrayElement, Shape,
+};
 
 impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     fn shape<const D: usize>(
@@ -40,5 +44,15 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     ) -> Data<bool, D> {
         let values = tensor.array.into_iter().collect();
         Data::new(values, tensor.shape)
+    }
+    fn device<const D: usize>(_tensor: &NdArrayTensor<E, D>) -> NdArrayDevice {
+        NdArrayDevice::Cpu
+    }
+
+    fn to_device<const D: usize>(
+        tensor: &NdArrayTensor<E, D>,
+        _device: NdArrayDevice,
+    ) -> NdArrayTensor<E, D> {
+        tensor.clone()
     }
 }
