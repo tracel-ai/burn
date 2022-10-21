@@ -1,4 +1,4 @@
-use super::TchBackend;
+use super::{TchBackend, TchDevice, TchTensor};
 use crate::{backend::Backend, ops::TensorOps, Data, Shape, TchElement};
 
 impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
@@ -38,5 +38,23 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     ) -> Data<bool, D> {
         let values: Vec<bool> = tensor.tensor.into();
         Data::new(values, tensor.shape)
+    }
+    fn device<const D: usize>(tensor: &TchTensor<E, D>) -> TchDevice {
+        match tensor.tensor.device() {
+            tch::Device::Cpu => TchDevice::Cpu,
+            tch::Device::Cuda(num) => TchDevice::Cuda(num),
+        }
+    }
+
+    fn to_device<const D: usize>(tensor: &TchTensor<E, D>, device: TchDevice) -> TchTensor<E, D> {
+        let device = match device {
+            TchDevice::Cpu => tch::Device::Cpu,
+            TchDevice::Cuda(num) => tch::Device::Cuda(num),
+        };
+        TchTensor {
+            kind: tensor.kind.clone(),
+            tensor: tensor.tensor.to(device),
+            shape: tensor.shape,
+        }
     }
 }

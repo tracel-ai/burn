@@ -4,7 +4,6 @@ mod arg;
 mod cat;
 mod creation;
 mod detach;
-mod device;
 mod div;
 mod erf;
 mod exp;

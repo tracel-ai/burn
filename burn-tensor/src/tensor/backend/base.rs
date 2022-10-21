@@ -25,7 +25,6 @@ pub trait Backend:
         + Ones<Self::TensorPrimitive<D>>
         + TensorOpsReshape<Self, D>
         + TensorOpsPrecision<Self, D>
-        + TensorOpsDevice<Self, D>
         + TensorOpsIndex<Self::Elem, D>
         + TensorOpsAggregation<Self, D>
         + TensorOpsExp<Self::Elem, D>

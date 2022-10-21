@@ -36,7 +36,7 @@ impl<B: Backend, const D: usize> UnaryOps<B::TensorPrimitive<D>, B::TensorPrimit
         state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<1>>,
     ) -> B::TensorPrimitive<D> {
         let grad = state.output.grad();
-        let ones = B::ones(self.state, grad.device());
+        let ones = B::ones(self.state, B::device(&grad));
 
         let grad: Tensor<B, 1> = Tensor::new(grad);
         let val = 1_f64 / self.state.num_elements() as f64;
@@ -54,7 +54,7 @@ impl<B: Backend, const D: usize> UnaryOps<B::TensorPrimitive<D>, B::TensorPrimit
         state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<1>>,
     ) -> B::TensorPrimitive<D> {
         let grad = state.output.grad();
-        let ones = B::ones(self.state, grad.device());
+        let ones = B::ones(self.state, B::device(&grad));
 
         let grad: Tensor<B, 1> = Tensor::new(grad);
         let ones: Tensor<B, D> = Tensor::new(ones);
@@ -73,7 +73,7 @@ impl<B: Backend, const D: usize> UnaryOps<B::TensorPrimitive<D>, B::TensorPrimit
         let (shape, dim) = self.state;
 
         let grad = state.output.grad().sum_dim(dim);
-        let ones = B::ones(shape, grad.device());
+        let ones = B::ones(shape, B::device(&grad));
 
         let val = 1_f64 / shape.dims[dim] as f64;
         let ones = ones.mul_scalar(&B::Elem::from_elem(val));
@@ -92,7 +92,7 @@ impl<B: Backend, const D: usize> UnaryOps<B::TensorPrimitive<D>, B::TensorPrimit
         let (shape, dim) = self.state;
 
         let grad = state.output.grad().sum_dim(dim);
-        let ones = B::ones(shape, grad.device());
+        let ones = B::ones(shape, B::device(&grad));
 
         ones.mul(&grad)
     }

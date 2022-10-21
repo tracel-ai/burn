@@ -8,11 +8,11 @@ pub trait TensorOps<B: Backend> {
     fn bool_shape<const D: usize>(tensor: &B::BoolTensorPrimitive<D>) -> &Shape<D>;
     fn bool_to_data<const D: usize>(tensor: &B::BoolTensorPrimitive<D>) -> Data<bool, D>;
     fn bool_into_data<const D: usize>(tensor: B::BoolTensorPrimitive<D>) -> Data<bool, D>;
-}
-
-pub trait TensorOpsDevice<B: Backend, const D: usize> {
-    fn device(&self) -> B::Device;
-    fn to_device(&self, device: B::Device) -> Self;
+    fn device<const D: usize>(tensor: &B::TensorPrimitive<D>) -> B::Device;
+    fn to_device<const D: usize>(
+        tensor: &B::TensorPrimitive<D>,
+        device: B::Device,
+    ) -> B::TensorPrimitive<D>;
 }
 
 pub trait TensorOpsAdd<E, const D: usize>: std::ops::Add<Self, Output = Self>
