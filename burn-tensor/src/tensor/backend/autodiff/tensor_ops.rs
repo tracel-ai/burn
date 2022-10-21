@@ -22,7 +22,7 @@ impl<B: Backend, const D: usize> UnaryOps<B::TensorPrimitive<D>, B::TensorPrimit
         &self,
         state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
     ) -> B::TensorPrimitive<D> {
-        B::to_device(&state.output.grad(), self.device.clone())
+        B::to_device(&state.output.grad(), self.device)
     }
 }
 
@@ -94,7 +94,7 @@ where
     let state = ForwardNodeState::new(output);
 
     let ops = Arc::new(ops);
-    let ops = ForwardUnaryRecordedOps::new(input.clone(), ops.clone());
+    let ops = ForwardUnaryRecordedOps::new(input.clone(), ops);
     let ops = Arc::new(ops);
 
     let node = ForwardNode::from_unary(&input, state, ops);
