@@ -1,5 +1,6 @@
 mod activation;
 mod backend;
+mod module_ops;
 mod ops;
 mod tensor;
 mod tensor_ops;
