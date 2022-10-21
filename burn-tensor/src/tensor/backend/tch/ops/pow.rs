@@ -9,7 +9,7 @@ where
 {
     fn powf(&self, value: f32) -> Self {
         let tensor = self.tensor.pow_tensor_scalar(value as f64);
-        let kind = self.kind.clone();
+        let kind = self.kind;
         let shape = self.shape;
 
         Self {

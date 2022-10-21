@@ -9,7 +9,7 @@ where
 {
     fn erf(&self) -> Self {
         let tensor = self.tensor.erf();
-        let kind = self.kind.clone();
+        let kind = self.kind;
         let shape = self.shape;
 
         Self {

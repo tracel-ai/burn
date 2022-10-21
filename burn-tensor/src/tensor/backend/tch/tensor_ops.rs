@@ -52,7 +52,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
             TchDevice::Cuda(num) => tch::Device::Cuda(num),
         };
         TchTensor {
-            kind: tensor.kind.clone(),
+            kind: tensor.kind,
             tensor: tensor.tensor.to(device),
             shape: tensor.shape,
         }

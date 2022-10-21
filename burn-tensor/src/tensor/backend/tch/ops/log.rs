@@ -9,7 +9,7 @@ where
 {
     fn log(&self) -> Self {
         let tensor = self.tensor.log();
-        let kind = self.kind.clone();
+        let kind = self.kind;
         let shape = self.shape;
 
         Self {
