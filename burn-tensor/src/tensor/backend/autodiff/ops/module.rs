@@ -18,7 +18,7 @@ impl<B: Backend> UnaryOps<B::TensorPrimitive<2>, B::TensorPrimitive<3>> for Embe
         &self,
         state: &UnaryOpsNodeState<B::TensorPrimitive<2>, B::TensorPrimitive<3>>,
     ) -> B::TensorPrimitive<2> {
-        B::embedding_backward(&state.input.value, &state.output.value, &self.indexes)
+        B::embedding_backward(&state.input.value, &state.output.grad(), &self.indexes)
     }
 }
 

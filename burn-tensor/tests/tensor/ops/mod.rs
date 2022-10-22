@@ -2,7 +2,6 @@ mod add;
 mod aggregation;
 mod arg;
 mod div;
-mod embedding;
 mod erf;
 mod exp;
 mod index;
