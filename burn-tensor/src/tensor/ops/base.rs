@@ -8,7 +8,7 @@ pub trait ModuleOps<B: Backend> {
     ) -> B::TensorPrimitive<3>;
     fn embedding_backward(
         weights: &B::TensorPrimitive<2>,
-        weights_grad: &B::TensorPrimitive<2>,
+        output: &B::TensorPrimitive<3>,
         indexes: &<B::IntegerBackend as Backend>::TensorPrimitive<2>,
     ) -> B::TensorPrimitive<2>;
 }

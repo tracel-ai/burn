@@ -15,13 +15,14 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
 
     fn embedding_backward(
         weights: &TchTensor<E, 2>,
-        weights_grad: &TchTensor<E, 2>,
+        output: &TchTensor<E, 3>,
         indexes: &TchTensor<i64, 2>,
     ) -> TchTensor<E, 2> {
+        let [n_embedding, _d_model] = weights.shape.dims;
         let tensor = tch::Tensor::embedding_backward(
-            &weights_grad.tensor,
+            &output.tensor,
             &indexes.tensor,
-            weights.shape.dims[1] as i64,
+            n_embedding as i64,
             -1,
             false,
             false,
