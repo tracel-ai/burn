@@ -16,3 +16,4 @@ pub use shape::*;
 pub mod activation;
 pub mod backend;
 pub mod loss;
+pub mod module;
