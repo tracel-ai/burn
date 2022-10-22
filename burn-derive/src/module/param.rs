@@ -139,6 +139,22 @@ impl Param {
         }
     }
 
+    pub fn gen_detach_fn(&self) -> TokenStream {
+        let mut body = quote! {};
+        for field in self.fields_param.iter() {
+            let name = field.ident();
+            body.extend(quote! {
+                self.#name.detach();
+            });
+        }
+
+        quote! {
+            fn detach(&mut self) {
+                #body
+            }
+        }
+    }
+
     pub fn gen_inner_fn(&self) -> TokenStream {
         let mut body = quote! {};
         let mut names = Vec::new();

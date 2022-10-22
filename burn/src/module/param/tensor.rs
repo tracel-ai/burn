@@ -67,6 +67,10 @@ impl<const D: usize, B: Backend> Module for Param<Tensor<B, D>> {
 
         Ok(())
     }
+
+    fn detach(&mut self) {
+        self.value = self.value.clone().detach()
+    }
 }
 
 impl<const D: usize, B: Backend> Module for Param<Option<Tensor<B, D>>> {
@@ -154,6 +158,10 @@ impl<const D: usize, B: Backend> Module for Param<Option<Tensor<B, D>>> {
         }
 
         Ok(())
+    }
+
+    fn detach(&mut self) {
+        self.value = self.value.clone().map(|tensor| tensor.detach());
     }
 }
 

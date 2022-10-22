@@ -18,7 +18,7 @@ impl<P: TchElement, const D: usize> TensorOpsAdd<P, D> for TchTensor<P, D> {
     }
     fn add_scalar(&self, other: &P) -> Self {
         let other: f64 = (other.clone()).to_elem();
-        let tensor = (&self.tensor).add(other);
+        let tensor = (&self.tensor).add(other).to_kind(self.kind.kind());
         let kind = self.kind;
         let shape = self.shape;
 

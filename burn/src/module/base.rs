@@ -60,6 +60,8 @@ pub trait Module: Send + Sync + std::fmt::Debug + std::fmt::Display {
         -> Result<(), LoadingError>;
     /// Get the module state.
     fn state(&self) -> State<<Self::Backend as Backend>::Elem>;
+    /// Detach the module from the graph.
+    fn detach(&mut self);
     /// Get the number of parameters the module has, including all of its sub-modules.
     fn num_params(&self) -> usize;
     /// Update the module parameters with the given [gradients](Gradients) and [optimizer](Optimizer).

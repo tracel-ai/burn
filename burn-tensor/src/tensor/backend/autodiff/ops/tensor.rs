@@ -18,6 +18,8 @@ impl<B: Backend, const D: usize> UnaryOps<B::TensorPrimitive<D>, B::TensorPrimit
         &self,
         state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
     ) -> B::TensorPrimitive<D> {
+        println!("{:?}", state.output.grad());
+        println!("{:?}", self.device);
         B::to_device(&state.output.grad(), self.device)
     }
 }
@@ -69,9 +71,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         tensor: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
         device: <ADBackendDecorator<B> as Backend>::Device,
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
+        let device_old = B::device(tensor.tensor_ref());
         let input = tensor.node.clone();
         let output = B::to_device(tensor.tensor_ref(), device);
-        let ops = ToDeviceBackward::<B, D>::new(device);
+        let ops = ToDeviceBackward::<B, D>::new(device_old);
 
         unary_ops_wrapper(input, output, ops)
     }
