@@ -1,4 +1,4 @@
-use crate::{backend::Backend, tensor::Shape, Data};
+use crate::{backend::Backend, tensor::Shape, Data, ElementConversion};
 use std::ops::Range;
 
 pub trait ModuleOps<B: Backend> {
@@ -24,6 +24,18 @@ pub trait TensorOps<B: Backend> {
         tensor: &B::TensorPrimitive<D>,
         device: B::Device,
     ) -> B::TensorPrimitive<D>;
+    fn arange(
+        range: Range<usize>,
+        device: B::Device,
+    ) -> <B::IntegerBackend as Backend>::TensorPrimitive<1> {
+        let shape = Shape::new([range.end - range.start]);
+        let value = range
+            .into_iter()
+            .map(|i| (i as i64).to_elem())
+            .collect::<Vec<<B::IntegerBackend as Backend>::Elem>>();
+        let data = Data::new(value, shape);
+        <B::IntegerBackend as Backend>::from_data(data, device)
+    }
 }
 
 pub trait TensorOpsAdd<E, const D: usize>: std::ops::Add<Self, Output = Self>
