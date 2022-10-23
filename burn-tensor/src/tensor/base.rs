@@ -8,11 +8,26 @@ use crate::tensor::ElementConversion;
 use crate::tensor::{Data, Distribution, Shape};
 use crate::BoolTensor;
 use std::convert::TryInto;
+use std::ops::Range;
 
 /// A tensor or a *n-dimensional* array.
 #[derive(Debug, Clone)]
 pub struct Tensor<B: Backend, const D: usize> {
     pub(crate) value: B::TensorPrimitive<D>,
+}
+
+impl<B> Tensor<B, 1>
+where
+    B: Backend,
+{
+    /// Returns a new integer tensor on the default device which values are generated from the given range.
+    pub fn arange(range: Range<usize>) -> Tensor<B::IntegerBackend, 1> {
+        Tensor::new(B::arange(range, B::Device::default()))
+    }
+    /// Returns a new integer tensor on the specified device which values are generated from the given range.
+    pub fn arange_device(range: Range<usize>, device: B::Device) -> Tensor<B::IntegerBackend, 1> {
+        Tensor::new(B::arange(range, device))
+    }
 }
 
 impl<const D: usize, B> Tensor<B, D>
