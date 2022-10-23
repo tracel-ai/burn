@@ -10,7 +10,7 @@ where
         Self {
             tensor,
             shape: self.shape,
-            kind: self.kind.clone(),
+            kind: self.kind,
         }
     }
 }

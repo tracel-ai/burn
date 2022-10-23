@@ -8,7 +8,7 @@ impl<P: Element + tch::kind::Element, const D: usize> TensorOpsDiv<P, D> for Tch
     fn div(&self, other: &Self) -> Self {
         let tensor = (&self.tensor).div(&other.tensor);
         let shape = self.shape.higher(&other.shape);
-        let kind = self.kind.clone();
+        let kind = self.kind;
 
         Self {
             tensor,
@@ -20,7 +20,7 @@ impl<P: Element + tch::kind::Element, const D: usize> TensorOpsDiv<P, D> for Tch
         let other: f64 = (other.clone()).to_elem();
         let tensor = (&self.tensor).div(other);
         let shape = Shape::from(tensor.size());
-        let kind = self.kind.clone();
+        let kind = self.kind;
 
         Self {
             tensor,

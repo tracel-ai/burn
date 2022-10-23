@@ -7,7 +7,7 @@ use std::ops::Add;
 impl<P: TchElement, const D: usize> TensorOpsAdd<P, D> for TchTensor<P, D> {
     fn add(&self, other: &Self) -> Self {
         let tensor = (&self.tensor).add(&other.tensor);
-        let kind = self.kind.clone();
+        let kind = self.kind;
         let shape = self.shape.higher(&other.shape);
 
         Self {
@@ -18,8 +18,8 @@ impl<P: TchElement, const D: usize> TensorOpsAdd<P, D> for TchTensor<P, D> {
     }
     fn add_scalar(&self, other: &P) -> Self {
         let other: f64 = (other.clone()).to_elem();
-        let tensor = (&self.tensor).add(other);
-        let kind = self.kind.clone();
+        let tensor = (&self.tensor).add(other).to_kind(self.kind.kind());
+        let kind = self.kind;
         let shape = self.shape;
 
         Self {

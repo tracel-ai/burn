@@ -14,7 +14,7 @@ impl<E: TchElement, const D: usize> TensorOpsMask<TchBackend<E>, D> for TchTenso
 
         Self {
             tensor,
-            kind: self.kind.clone(),
+            kind: self.kind,
             shape: self.shape,
         }
     }

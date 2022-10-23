@@ -1,14 +1,10 @@
-use super::{ADBackendDecorator, ADTensor};
+use super::unary_ops_wrapper;
 use crate::{
-    backend::Backend,
-    graph::{
-        node::{ForwardNode, ForwardNodeRef, ForwardNodeState},
-        ops::{ForwardUnaryRecordedOps, UnaryOps, UnaryOpsNodeState},
-    },
+    backend::{autodiff::ADBackendDecorator, Backend},
+    graph::ops::{UnaryOps, UnaryOpsNodeState},
     ops::TensorOps,
     Data, Shape,
 };
-use std::sync::Arc;
 
 #[derive(new, Debug)]
 struct ToDeviceBackward<B: Backend, const D: usize> {
@@ -73,32 +69,11 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         tensor: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
         device: <ADBackendDecorator<B> as Backend>::Device,
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
+        let device_old = B::device(tensor.tensor_ref());
         let input = tensor.node.clone();
         let output = B::to_device(tensor.tensor_ref(), device);
-        let ops = ToDeviceBackward::<B, D>::new(device);
+        let ops = ToDeviceBackward::<B, D>::new(device_old);
 
         unary_ops_wrapper(input, output, ops)
     }
-}
-
-fn unary_ops_wrapper<B, O, const D: usize>(
-    input: ForwardNodeRef<B::TensorPrimitive<D>>,
-    output: B::TensorPrimitive<D>,
-    ops: O,
-) -> ADTensor<D, B>
-where
-    B: Backend,
-    O: UnaryOps<B::TensorPrimitive<D>, B::TensorPrimitive<D>> + 'static,
-{
-    let shape = *B::shape(&output);
-    let state = ForwardNodeState::new(output);
-
-    let ops = Arc::new(ops);
-    let ops = ForwardUnaryRecordedOps::new(input.clone(), ops);
-    let ops = Arc::new(ops);
-
-    let node = ForwardNode::from_unary(&input, state, ops);
-    let node = Arc::new(node);
-
-    ADTensor { node, shape }
 }
