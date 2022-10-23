@@ -1,6 +1,9 @@
 use super::unary_ops_wrapper;
 use crate::{
-    backend::{autodiff::ADBackendDecorator, Backend},
+    backend::{
+        autodiff::{ADBackendDecorator, ADTensor},
+        Backend,
+    },
     graph::ops::{UnaryOps, UnaryOpsNodeState},
     ops::TensorOps,
     Data, Shape,
@@ -75,5 +78,12 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let ops = ToDeviceBackward::<B, D>::new(device_old);
 
         unary_ops_wrapper(input, output, ops)
+    }
+
+    fn empty<const D: usize>(
+        shape: Shape<D>,
+        device: <ADBackendDecorator<B> as Backend>::Device,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
+        ADTensor::from_tensor(B::empty(shape, device))
     }
 }
