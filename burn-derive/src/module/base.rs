@@ -19,6 +19,7 @@ pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
     let state_fn = param.gen_state_fn();
     let load_fn = param.gen_load_fn();
     let inner_fn = param.gen_inner_fn();
+    let detach_fn = param.gen_detach_fn();
 
     let gen = quote! {
         impl #generics burn::module::Module for #name #generics_ty #generics_where {
@@ -26,6 +27,7 @@ pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
 
             #devices_fn
             #to_device_fn
+            #detach_fn
 
             #state_fn
             #load_fn

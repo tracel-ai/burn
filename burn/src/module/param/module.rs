@@ -63,6 +63,10 @@ impl<M: Module> Module for Param<M> {
 
         self.value.load(state)
     }
+
+    fn detach(&mut self) {
+        self.value.detach()
+    }
 }
 
 impl<M: Module> Module for Param<Vec<M>> {
@@ -157,6 +161,12 @@ impl<M: Module> Module for Param<Vec<M>> {
         }
 
         Ok(())
+    }
+
+    fn detach(&mut self) {
+        for value in self.value.iter_mut() {
+            value.detach();
+        }
     }
 }
 

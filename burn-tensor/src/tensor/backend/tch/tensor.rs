@@ -53,7 +53,7 @@ impl<const D: usize> From<Vec<i64>> for Shape<D> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct TchKind<P: tch::kind::Element> {
     _p: P,
 }

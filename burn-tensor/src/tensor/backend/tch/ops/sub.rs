@@ -6,7 +6,7 @@ impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> T
 {
     fn sub(&self, other: &Self) -> Self {
         let tensor = (&self.tensor).sub(&other.tensor);
-        let kind = self.kind.clone();
+        let kind = self.kind;
         let shape = self.shape.higher(&other.shape);
 
         Self {
@@ -20,7 +20,7 @@ impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> T
         let data = Data::from(elems);
         let other = TchTensor::from_data(data, self.tensor.device());
         let tensor = (&self.tensor).sub(&other.tensor);
-        let kind = self.kind.clone();
+        let kind = self.kind;
         let shape = self.shape;
 
         Self {

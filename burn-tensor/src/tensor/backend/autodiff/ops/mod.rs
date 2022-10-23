@@ -1,6 +1,7 @@
 mod add;
 mod aggregation;
 mod arg;
+mod base;
 mod cat;
 mod creation;
 mod detach;
@@ -12,13 +13,16 @@ mod log;
 mod map_comparison;
 mod mask;
 mod matmul;
+mod module;
 mod mul;
 mod neg;
 mod pow;
 mod precision;
 mod reshape;
 mod sub;
+mod tensor;
 mod transpose;
 
 mod macros;
+pub(crate) use base::*;
 pub use macros::*;

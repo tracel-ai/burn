@@ -6,7 +6,15 @@ use crate::tensor::{Data, Distribution, Shape};
 use crate::Gradients;
 
 pub trait Backend:
-    TensorOps<Self> + Clone + Sized + Default + Send + Sync + std::fmt::Debug + 'static
+    TensorOps<Self>
+    + ModuleOps<Self>
+    + Clone
+    + Sized
+    + Default
+    + Send
+    + Sync
+    + std::fmt::Debug
+    + 'static
 {
     type Device: Copy + Clone + Default + std::fmt::Debug + Send + Sync;
     type Elem: Element;

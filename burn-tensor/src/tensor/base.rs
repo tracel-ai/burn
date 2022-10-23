@@ -28,8 +28,8 @@ where
     /// # Panics
     ///
     /// If the tensor can not be reshape to the given shape.
-    pub fn reshape<const D2: usize>(&self, shape: Shape<D2>) -> Tensor<B, D2> {
-        Tensor::new(self.value.reshape(shape))
+    pub fn reshape<const D2: usize, S: Into<Shape<D2>>>(&self, shape: S) -> Tensor<B, D2> {
+        Tensor::new(self.value.reshape(shape.into()))
     }
 
     /// Returns a new tensor on the given device.
@@ -73,6 +73,13 @@ where
     /// Returns the shape of the current tensor.
     pub fn shape(&self) -> &Shape<D> {
         B::shape(&self.value)
+    }
+
+    /// Returns the dimensions of the current tensor.
+    ///
+    /// Equivalent to `tensor.shape().dims`.
+    pub fn dims(&self) -> &[usize; D] {
+        &B::shape(&self.value).dims
     }
 
     /// Returns the data of the current tensor.
@@ -349,26 +356,26 @@ where
 
     /// Create a random tensor of the given shape where each element is sampled from the given
     /// distribution.
-    pub fn random(shape: Shape<D>, distribution: Distribution<B::Elem>) -> Self {
-        let tensor = B::random(shape, distribution, B::Device::default());
+    pub fn random<S: Into<Shape<D>>>(shape: S, distribution: Distribution<B::Elem>) -> Self {
+        let tensor = B::random(shape.into(), distribution, B::Device::default());
         Self::new(tensor)
     }
 
     /// Create a tensor of the given shape where each element is zero.
-    pub fn zeros(shape: Shape<D>) -> Self {
-        let tensor = B::zeros(shape, B::Device::default());
+    pub fn zeros<S: Into<Shape<D>>>(shape: S) -> Self {
+        let tensor = B::zeros(shape.into(), B::Device::default());
         Self::new(tensor)
     }
 
     /// Create a tensor of the given shape where each element is zero.
-    pub fn zeros_device(shape: Shape<D>, device: B::Device) -> Self {
-        let tensor = B::zeros(shape, device);
+    pub fn zeros_device<S: Into<Shape<D>>>(shape: S, device: B::Device) -> Self {
+        let tensor = B::zeros(shape.into(), device);
         Self::new(tensor)
     }
 
     /// Create a tensor of the given shape where each element is one.
-    pub fn ones(shape: Shape<D>) -> Self {
-        let tensor = B::ones(shape, B::Device::default());
+    pub fn ones<S: Into<Shape<D>>>(shape: S) -> Self {
+        let tensor = B::ones(shape.into(), B::Device::default());
         Self::new(tensor)
     }
 

@@ -17,7 +17,7 @@ impl<P: tch::kind::Element + std::fmt::Debug + Copy + Default, const D1: usize>
         }
 
         let shape = self.shape.index(indexes);
-        let kind = self.kind.clone();
+        let kind = self.kind;
 
         Self {
             kind,
@@ -42,7 +42,7 @@ impl<P: tch::kind::Element + std::fmt::Debug + Copy + Default, const D1: usize>
         tensor.copy_(&values.tensor);
 
         let shape = self.shape;
-        let kind = self.kind.clone();
+        let kind = self.kind;
 
         Self {
             kind,

@@ -1,6 +1,17 @@
 use crate::{backend::Backend, tensor::Shape, Data};
 use std::ops::Range;
 
+pub trait ModuleOps<B: Backend> {
+    fn embedding(
+        weights: &B::TensorPrimitive<2>,
+        indexes: &<B::IntegerBackend as Backend>::TensorPrimitive<2>,
+    ) -> B::TensorPrimitive<3>;
+    fn embedding_backward(
+        weights: &B::TensorPrimitive<2>,
+        output: &B::TensorPrimitive<3>,
+        indexes: &<B::IntegerBackend as Backend>::TensorPrimitive<2>,
+    ) -> B::TensorPrimitive<2>;
+}
 pub trait TensorOps<B: Backend> {
     fn shape<const D: usize>(tensor: &B::TensorPrimitive<D>) -> &Shape<D>;
     fn to_data<const D: usize>(tensor: &B::TensorPrimitive<D>) -> Data<B::Elem, D>;
