@@ -42,7 +42,7 @@ pub trait TensorOps<B: Backend> {
         dim: usize,
         times: usize,
     ) -> B::TensorPrimitive<D> {
-        let mut shape = B::shape(tensor).clone();
+        let mut shape = *B::shape(tensor);
         if shape.dims[dim] != 1 {
             panic!("Can only repeat dimension with dim=1");
         }
