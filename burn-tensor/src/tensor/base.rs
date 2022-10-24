@@ -563,7 +563,7 @@ where
     ///
     /// # Panics
     ///
-    /// If the selected dimension has dim != 0.
+    /// If the selected dimension more than one item.
     pub fn repeat(&self, dim: usize, times: usize) -> Self {
         Self::new(B::repeat(&self.value, dim, times))
     }
