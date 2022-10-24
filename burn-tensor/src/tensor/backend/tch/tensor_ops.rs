@@ -1,4 +1,4 @@
-use super::{TchBackend, TchDevice, TchTensor};
+use super::{TchBackend, TchDevice, TchKind, TchTensor};
 use crate::{backend::Backend, ops::TensorOps, Data, Shape, TchElement};
 
 impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
@@ -55,6 +55,21 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
             kind: tensor.kind,
             tensor: tensor.tensor.to(device),
             shape: tensor.shape,
+        }
+    }
+
+    fn empty<const D: usize>(
+        shape: Shape<D>,
+        device: <TchBackend<E> as Backend>::Device,
+    ) -> <TchBackend<E> as Backend>::TensorPrimitive<D> {
+        let kind = TchKind::new();
+        let tensor =
+            tch::Tensor::empty(&shape.dims.map(|a| a as i64), (kind.kind(), device.into()));
+
+        TchTensor {
+            kind,
+            tensor,
+            shape,
         }
     }
 }

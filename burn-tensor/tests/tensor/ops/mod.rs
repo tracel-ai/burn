@@ -11,6 +11,7 @@ mod matmul;
 mod mul;
 mod neg;
 mod powf;
+mod repeat;
 mod reshape;
 mod sub;
 mod transpose;

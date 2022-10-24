@@ -55,4 +55,11 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     ) -> NdArrayTensor<E, D> {
         tensor.clone()
     }
+
+    fn empty<const D: usize>(
+        shape: Shape<D>,
+        device: <NdArrayBackend<E> as Backend>::Device,
+    ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D> {
+        NdArrayBackend::<E>::zeros(shape, device)
+    }
 }

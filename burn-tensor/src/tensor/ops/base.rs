@@ -36,6 +36,35 @@ pub trait TensorOps<B: Backend> {
         let data = Data::new(value, shape);
         <B::IntegerBackend as Backend>::from_data(data, device)
     }
+    fn empty<const D: usize>(shape: Shape<D>, device: B::Device) -> B::TensorPrimitive<D>;
+    fn repeat<const D: usize>(
+        tensor: &B::TensorPrimitive<D>,
+        dim: usize,
+        times: usize,
+    ) -> B::TensorPrimitive<D> {
+        let mut shape = *B::shape(tensor);
+        if shape.dims[dim] != 1 {
+            panic!("Can only repeat dimension with dim=1");
+        }
+        shape.dims[dim] = times;
+
+        let mut i = 0;
+        let indexes_select_all = [0; D].map(|_| {
+            let start = 0;
+            let end = shape.dims[i];
+            i += 1;
+            start..end
+        });
+
+        let mut tensor_output = B::empty(shape, B::device(tensor));
+        for i in 0..times {
+            let mut indexes = indexes_select_all.clone();
+            indexes[dim] = i..i + 1;
+            tensor_output = tensor_output.index_assign(indexes, tensor);
+        }
+
+        tensor_output
+    }
 }
 
 pub trait TensorOpsAdd<E, const D: usize>: std::ops::Add<Self, Output = Self>
