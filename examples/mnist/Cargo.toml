@@ -1,0 +1,13 @@
+[package]
+name = "mnist"
+version = "0.1.0"
+authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
+license = "MIT/Apache-2.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+burn = { path = "../../burn" }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }

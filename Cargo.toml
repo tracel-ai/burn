@@ -1,8 +1,11 @@
 [workspace]
 
+resolver = "2"
 members = [
   "burn",
   "burn-derive",
   "burn-tensor",
   "burn-dataset",
+
+  "examples/*",
 ]
