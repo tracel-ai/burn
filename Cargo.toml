@@ -1,8 +1,8 @@
 [workspace]
-
 members = [
   "burn",
   "burn-derive",
   "burn-tensor",
   "burn-dataset",
+  "examples/*",
 ]
