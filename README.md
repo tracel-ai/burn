@@ -46,7 +46,7 @@ For now there is only one example, but more to come 💪.
 
 #### MNIST
 
-The [MNIST](https://github.com/burn-rs/burn/blob/main/burn/examples/mnist.rs) example is not just of small script that shows you how to train a basic model, but it's a quick one showing you how to:
+The [MNIST](https://github.com/burn-rs/burn/blob/main/examples/mnist) example is not just of small script that shows you how to train a basic model, but it's a quick one showing you how to:
 
 * Define your own custom [module](#module) (MLP).
 * Create the data pipeline from a raw dataset to a batched multi-threaded fast DataLoader.
