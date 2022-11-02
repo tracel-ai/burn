@@ -165,14 +165,14 @@ where
     ///
     /// `y = x2 + x1`
     pub fn add(&self, other: &Self) -> Self {
-        Self::new(self.value.add(&other.value))
+        Self::new(B::add(&self.value, &other.value))
     }
 
     /// Applies element wise addition operation with a scalar.
     ///
     /// `y = x + s`
     pub fn add_scalar<E: ElementConversion>(&self, other: E) -> Self {
-        Self::new(self.value.add_scalar(&other.to_elem()))
+        Self::new(B::add_scalar(&self.value, &other.to_elem()))
     }
 
     /// Applies element wise substraction operation.

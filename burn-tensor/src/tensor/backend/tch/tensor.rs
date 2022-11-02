@@ -1,6 +1,8 @@
 use crate::{
-    backend::TchDevice,
+    backend::{TchBackend, TchDevice},
+    ops::TensorOps,
     tensor::{Data, Shape},
+    TchElement,
 };
 
 lazy_static::lazy_static! {
@@ -14,6 +16,14 @@ pub struct TchTensor<P: tch::kind::Element, const D: usize> {
     pub kind: TchKind<P>,
     pub tensor: tch::Tensor,
     pub shape: Shape<D>,
+}
+
+impl<E: TchElement, const D: usize> std::ops::Add for TchTensor<E, D> {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        TchBackend::add(&self, &rhs)
+    }
 }
 
 unsafe impl<P: tch::kind::Element, const D: usize> Send for TchTensor<P, D> {}

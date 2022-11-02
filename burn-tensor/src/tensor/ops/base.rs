@@ -65,14 +65,14 @@ pub trait TensorOps<B: Backend> {
 
         tensor_output
     }
-}
-
-pub trait TensorOpsAdd<E, const D: usize>: std::ops::Add<Self, Output = Self>
-where
-    Self: Sized,
-{
-    fn add(&self, other: &Self) -> Self;
-    fn add_scalar(&self, other: &E) -> Self;
+    fn add<const D: usize>(
+        lhs: &B::TensorPrimitive<D>,
+        rhs: &B::TensorPrimitive<D>,
+    ) -> B::TensorPrimitive<D>;
+    fn add_scalar<const D: usize>(
+        lhs: &B::TensorPrimitive<D>,
+        rhs: &B::Elem,
+    ) -> B::TensorPrimitive<D>;
 }
 
 pub trait TensorOpsSub<E, const D: usize> {

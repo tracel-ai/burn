@@ -1,10 +1,23 @@
-use crate::tensor::{Data, Shape};
+use super::NdArrayBackend;
+use crate::{
+    ops::TensorOps,
+    tensor::{Data, Shape},
+    NdArrayElement,
+};
 use ndarray::{s, ArcArray, Array, Axis, Dim, Ix2, Ix3, IxDyn};
 
 #[derive(Debug, Clone)]
 pub struct NdArrayTensor<E, const D: usize> {
     pub array: ArcArray<E, IxDyn>,
     pub shape: Shape<D>,
+}
+
+impl<E: NdArrayElement, const D: usize> std::ops::Add for NdArrayTensor<E, D> {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        NdArrayBackend::add(&self, &rhs)
+    }
 }
 
 #[cfg(test)]

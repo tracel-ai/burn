@@ -1,13 +1,21 @@
-use super::unary_ops_wrapper;
+use super::{binary_ops_wrapper, unary_ops_wrapper};
 use crate::{
     backend::{
         autodiff::{ADBackendDecorator, ADTensor},
         Backend,
     },
-    graph::ops::{UnaryOps, UnaryOpsNodeState},
+    graph::ops::{BinaryOps, BinaryOpsNodeState, UnaryOps, UnaryOpsNodeState},
     ops::TensorOps,
     Data, Shape,
 };
+
+impl<B: Backend, const D: usize> std::ops::Add<ADTensor<D, B>> for ADTensor<D, B> {
+    type Output = ADTensor<D, B>;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        ADBackendDecorator::add(&self, &rhs)
+    }
+}
 
 #[derive(new, Debug)]
 struct ToDeviceBackward<B: Backend, const D: usize> {
@@ -22,6 +30,54 @@ impl<B: Backend, const D: usize> UnaryOps<B::TensorPrimitive<D>, B::TensorPrimit
         state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
     ) -> B::TensorPrimitive<D> {
         B::to_device(&state.output.grad(), self.device)
+    }
+}
+
+#[derive(Default, Debug)]
+struct AddBackward<B: Backend, const D: usize> {
+    _b: B,
+}
+
+impl<B: Backend, const D: usize>
+    BinaryOps<B::TensorPrimitive<D>, B::TensorPrimitive<D>, B::TensorPrimitive<D>>
+    for AddBackward<B, D>
+{
+    fn partial_left(
+        &self,
+        state: &BinaryOpsNodeState<
+            B::TensorPrimitive<D>,
+            B::TensorPrimitive<D>,
+            B::TensorPrimitive<D>,
+        >,
+    ) -> B::TensorPrimitive<D> {
+        state.output.grad()
+    }
+
+    fn partial_right(
+        &self,
+        state: &BinaryOpsNodeState<
+            B::TensorPrimitive<D>,
+            B::TensorPrimitive<D>,
+            B::TensorPrimitive<D>,
+        >,
+    ) -> B::TensorPrimitive<D> {
+        state.output.grad()
+    }
+}
+
+#[derive(Default, Debug)]
+struct AddScalarBackward<B: Backend, const D: usize> {
+    _b: B,
+}
+
+impl<B: Backend, const D: usize> UnaryOps<B::TensorPrimitive<D>, B::TensorPrimitive<D>>
+    for AddScalarBackward<B, D>
+{
+    fn partial(
+        &self,
+        state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
+    ) -> B::TensorPrimitive<D> {
+        state.output.grad()
     }
 }
 
@@ -85,5 +141,25 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         device: <ADBackendDecorator<B> as Backend>::Device,
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
         ADTensor::from_tensor(B::empty(shape, device))
+    }
+
+    fn add<const D: usize>(
+        lhs: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        rhs: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
+        let output = B::add(lhs.tensor_ref(), rhs.tensor_ref());
+        let ops = AddBackward::<B, D>::default();
+
+        binary_ops_wrapper(lhs.node.clone(), rhs.node.clone(), output, ops)
+    }
+
+    fn add_scalar<const D: usize>(
+        lhs: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        rhs: &<ADBackendDecorator<B> as Backend>::Elem,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
+        let output = B::add_scalar(lhs.tensor_ref(), rhs);
+        let ops = AddScalarBackward::<B, D>::default();
+
+        unary_ops_wrapper(lhs.node.clone(), output, ops)
     }
 }
