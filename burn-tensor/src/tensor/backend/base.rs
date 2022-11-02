@@ -22,11 +22,11 @@ pub trait Backend:
     type FullPrecisionBackend: Backend<Elem = Self::FullPrecisionElem, Device = Self::Device>;
     type IntegerBackend: Backend<Elem = i64, Device = Self::Device>;
     type TensorPrimitive<const D: usize>: TensorOpsMatmul<Self::Elem, D>
+        + std::ops::Add<Self::TensorPrimitive<D>, Output = Self::TensorPrimitive<D>>
         + TensorOpsTranspose<Self::Elem, D>
         + TensorOpsMul<Self::Elem, D>
         + TensorOpsDiv<Self::Elem, D>
         + TensorOpsNeg<Self::Elem, D>
-        + TensorOpsAdd<Self::Elem, D>
         + TensorOpsSub<Self::Elem, D>
         + TensorOpsDetach<Self::Elem, D>
         + Zeros<Self::TensorPrimitive<D>>

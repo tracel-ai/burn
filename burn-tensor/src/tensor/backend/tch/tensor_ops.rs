@@ -1,3 +1,5 @@
+use std::ops::Add;
+
 use super::{TchBackend, TchDevice, TchKind, TchTensor};
 use crate::{backend::Backend, ops::TensorOps, Data, Shape, TchElement};
 
@@ -70,6 +72,31 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
             kind,
             tensor,
             shape,
+        }
+    }
+
+    fn add<const D: usize>(lhs: &TchTensor<E, D>, rhs: &TchTensor<E, D>) -> TchTensor<E, D> {
+        let tensor = (&lhs.tensor).add(&rhs.tensor);
+        let kind = lhs.kind;
+        let shape = lhs.shape.higher(&rhs.shape);
+
+        TchTensor {
+            tensor,
+            shape,
+            kind,
+        }
+    }
+
+    fn add_scalar<const D: usize>(lhs: &TchTensor<E, D>, rhs: &E) -> TchTensor<E, D> {
+        let other: f64 = (rhs.clone()).to_elem();
+        let tensor = (&lhs.tensor).add(other).to_kind(lhs.kind.kind());
+        let kind = lhs.kind;
+        let shape = lhs.shape;
+
+        TchTensor {
+            tensor,
+            shape,
+            kind,
         }
     }
 }

@@ -2,7 +2,7 @@ use crate::{
     backend::{autodiff::ADTensor, Backend},
     graph::{
         node::{ForwardNode, ForwardNodeRef, ForwardNodeState},
-        ops::{ForwardUnaryRecordedOps, UnaryOps},
+        ops::{BinaryOps, ForwardBinaryRecordedOps, ForwardUnaryRecordedOps, UnaryOps},
     },
 };
 use std::sync::Arc;
@@ -24,6 +24,29 @@ where
     let ops = Arc::new(ops);
 
     let node = ForwardNode::from_unary(&input, state, ops);
+    let node = Arc::new(node);
+
+    ADTensor { node, shape }
+}
+
+pub fn binary_ops_wrapper<B, O, const D1: usize, const D2: usize, const D3: usize>(
+    lhs: ForwardNodeRef<B::TensorPrimitive<D1>>,
+    rhs: ForwardNodeRef<B::TensorPrimitive<D2>>,
+    output: B::TensorPrimitive<D3>,
+    ops: O,
+) -> ADTensor<D3, B>
+where
+    B: Backend,
+    O: BinaryOps<B::TensorPrimitive<D1>, B::TensorPrimitive<D2>, B::TensorPrimitive<D3>> + 'static,
+{
+    let shape = *B::shape(&output);
+    let state = ForwardNodeState::new(output);
+
+    let ops = Arc::new(ops);
+    let ops = ForwardBinaryRecordedOps::new(lhs.clone(), rhs.clone(), ops);
+    let ops = Arc::new(ops);
+
+    let node = ForwardNode::from_binary(&lhs, &rhs, state, ops);
     let node = Arc::new(node);
 
     ADTensor { node, shape }

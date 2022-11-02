@@ -1,3 +1,5 @@
+use std::ops::Add;
+
 use super::{NdArrayBackend, NdArrayTensor};
 use crate::{ops::*, NdArrayElement, Shape};
 
@@ -47,7 +49,7 @@ impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
 
             weights_grad = weights_grad.index_assign(
                 [index..index + 1, 0..d_model],
-                &output_grad.add(&weights_grad_current),
+                &output_grad.add(weights_grad_current),
             );
         }
 
