@@ -43,7 +43,7 @@ where
     let state = ForwardNodeState::new(output);
 
     let ops = Arc::new(ops);
-    let ops = ForwardBinaryRecordedOps::new(lhs.clone(), rhs.clone(), ops.clone());
+    let ops = ForwardBinaryRecordedOps::new(lhs.clone(), rhs.clone(), ops);
     let ops = Arc::new(ops);
 
     let node = ForwardNode::from_binary(&lhs, &rhs, state, ops);
