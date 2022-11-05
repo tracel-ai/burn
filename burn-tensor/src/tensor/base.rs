@@ -217,7 +217,7 @@ where
     ///
     /// If the two tensors dont' have a compatible shape.
     pub fn matmul(&self, other: &Self) -> Self {
-        Self::new(self.value.matmul(&other.value))
+        Self::new(B::matmul(&self.value, &other.value))
     }
 
     /// Switch sign of each element in the tensor.

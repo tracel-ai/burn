@@ -174,4 +174,16 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
             kind,
         }
     }
+
+    fn matmul<const D: usize>(lhs: &TchTensor<E, D>, rhs: &TchTensor<E, D>) -> TchTensor<E, D> {
+        let tensor = lhs.tensor.matmul(&rhs.tensor);
+        let kind = lhs.kind;
+        let shape = Shape::from(tensor.size());
+
+        TchTensor {
+            tensor,
+            shape,
+            kind,
+        }
+    }
 }
