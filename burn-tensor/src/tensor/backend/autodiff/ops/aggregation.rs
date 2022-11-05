@@ -76,9 +76,9 @@ impl<B: Backend, const D: usize> UnaryOps<B::TensorPrimitive<D>, B::TensorPrimit
         let ones = B::ones(shape, B::device(&grad));
 
         let val = 1_f64 / shape.dims[dim] as f64;
-        let ones = ones.mul_scalar(&B::Elem::from_elem(val));
+        let ones = B::mul_scalar(&ones, &B::Elem::from_elem(val));
 
-        ones.mul(&grad)
+        B::mul(&ones, &grad)
     }
 }
 
@@ -94,7 +94,7 @@ impl<B: Backend, const D: usize> UnaryOps<B::TensorPrimitive<D>, B::TensorPrimit
         let grad = state.output.grad().sum_dim(dim);
         let ones = B::ones(shape, B::device(&grad));
 
-        ones.mul(&grad)
+        B::mul(&ones, &grad)
     }
 }
 

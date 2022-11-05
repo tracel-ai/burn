@@ -231,14 +231,14 @@ where
     ///
     /// `y = x2 * x1`
     pub fn mul(&self, other: &Self) -> Self {
-        Self::new(self.value.mul(&other.value))
+        Self::new(B::mul(&self.value, &other.value))
     }
 
     /// Applies element wise multiplication operation with scalar.
     ///
     /// `y = x2 * x1`
     pub fn mul_scalar<E: ElementConversion>(&self, other: E) -> Self {
-        Self::new(self.value.mul_scalar(&other.to_elem()))
+        Self::new(B::mul_scalar(&self.value, &other.to_elem()))
     }
 
     /// Applies element wise division operation.

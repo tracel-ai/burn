@@ -81,6 +81,14 @@ pub trait TensorOps<B: Backend> {
         lhs: &B::TensorPrimitive<D>,
         rhs: &B::Elem,
     ) -> B::TensorPrimitive<D>;
+    fn mul<const D: usize>(
+        lhs: &B::TensorPrimitive<D>,
+        rhs: &B::TensorPrimitive<D>,
+    ) -> B::TensorPrimitive<D>;
+    fn mul_scalar<const D: usize>(
+        lhs: &B::TensorPrimitive<D>,
+        rhs: &B::Elem,
+    ) -> B::TensorPrimitive<D>;
 }
 
 pub trait TensorOpsTranspose<E, const D: usize> {
@@ -94,11 +102,6 @@ pub trait TensorOpsMatmul<E, const D: usize> {
 
 pub trait TensorOpsNeg<E, const D: usize> {
     fn neg(&self) -> Self;
-}
-
-pub trait TensorOpsMul<E, const D: usize> {
-    fn mul(&self, other: &Self) -> Self;
-    fn mul_scalar(&self, other: &E) -> Self;
 }
 
 pub trait TensorOpsDiv<E, const D: usize> {

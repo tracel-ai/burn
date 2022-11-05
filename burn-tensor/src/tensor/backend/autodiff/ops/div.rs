@@ -13,14 +13,14 @@ register_ops!(
         let value = state.right.value();
         let value = value.ones().div(&value);
 
-        state.output.grad().mul(&value)
+        B::mul(&state.output.grad(), &value)
     },
     partial_right |state: &BinaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>, B::TensorPrimitive<D>>| {
         let value_left = state.left.value();
         let value_right = state.right.value();
-        let value = value_left.neg().div(&value_right.mul(&value_right));
+        let value = value_left.neg().div(&B::mul(&value_right, &value_right));
 
-        state.output.grad().mul(&value)
+        B::mul(&state.output.grad(), &value)
     },
 );
 
@@ -31,7 +31,7 @@ register_ops!(
         let value = state_recorded.input.value();
         let tmp = value.ones().div_scalar(state);
 
-        state_recorded.output.grad().mul(&tmp)
+        B::mul(&state_recorded.output.grad(), &tmp)
     },
 );
 

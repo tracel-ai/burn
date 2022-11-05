@@ -11,7 +11,6 @@ mod log;
 mod map_comparison;
 mod mask;
 mod matmul;
-mod mul;
 mod neg;
 mod pow;
 mod precision;
