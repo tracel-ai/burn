@@ -13,10 +13,11 @@ register_ops!(
     partial |state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>|{
         let value = state.input.value();
         let exponent = value.powf(2.0.to_elem()).neg();
-        let numerator = exponent.exp().mul_scalar(&2.0.to_elem());
+        let numerator = B::mul_scalar(&exponent.exp(), &2.0.to_elem());
         let denominator = std::f64::consts::PI.sqrt().to_elem();
         let value = numerator.div_scalar(&denominator);
-        state.output.grad().mul(&value)
+
+        B::mul(&state.output.grad(), &value)
     },
 );
 

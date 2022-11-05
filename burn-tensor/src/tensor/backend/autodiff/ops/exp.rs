@@ -10,7 +10,7 @@ register_ops!(
     ops UnaryOps,
     name ADTensorExpOps,
     partial |state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>|{
-        state.output.grad().mul(&state.output.value())
+        B::mul(&state.output.grad(), &state.output.value())
     },
 );
 

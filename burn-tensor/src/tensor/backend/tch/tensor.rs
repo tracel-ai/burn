@@ -55,7 +55,7 @@ impl<const D: usize> From<Shape<D>> for TchShape<D> {
 
 impl<const D: usize> From<Vec<i64>> for Shape<D> {
     fn from(shape: Vec<i64>) -> Self {
-        let mut dims = [0; D];
+        let mut dims = [1; D];
         for (i, dim) in shape.into_iter().enumerate() {
             dims[i] = dim as usize;
         }

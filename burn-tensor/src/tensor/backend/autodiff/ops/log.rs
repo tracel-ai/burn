@@ -12,7 +12,7 @@ register_ops!(
     partial |state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>|{
         let value = state.input.value();
         let value = value.ones().div(&value);
-        state.output.grad().mul(&value)
+        B::mul(&state.output.grad(), &value)
     },
 );
 

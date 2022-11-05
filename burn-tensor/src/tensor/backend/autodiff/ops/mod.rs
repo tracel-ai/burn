@@ -13,7 +13,6 @@ mod map_comparison;
 mod mask;
 mod matmul;
 mod module;
-mod mul;
 mod neg;
 mod pow;
 mod precision;

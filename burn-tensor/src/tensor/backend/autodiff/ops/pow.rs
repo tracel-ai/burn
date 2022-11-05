@@ -14,11 +14,11 @@ register_ops!(
         value: &f32,
         state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>
     | {
-        let value = state.input
+        let value = B::mul_scalar(&state.input
             .value()
             .powf(value - 1.0)
-            .mul_scalar(&value.clone().to_elem());
-        state.output.grad().mul(&value)
+            , &value.clone().to_elem());
+        B::mul(&state.output.grad(), &value)
     },
 );
 
