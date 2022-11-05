@@ -10,7 +10,6 @@ mod index;
 mod log;
 mod map_comparison;
 mod mask;
-mod matmul;
 mod module;
 mod neg;
 mod pow;

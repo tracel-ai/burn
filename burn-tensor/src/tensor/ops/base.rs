@@ -98,15 +98,15 @@ pub trait TensorOps<B: Backend> {
         lhs: &B::TensorPrimitive<D>,
         rhs: &B::Elem,
     ) -> B::TensorPrimitive<D>;
+    fn matmul<const D: usize>(
+        lhs: &B::TensorPrimitive<D>,
+        rhs: &B::TensorPrimitive<D>,
+    ) -> B::TensorPrimitive<D>;
 }
 
 pub trait TensorOpsTranspose<E, const D: usize> {
     fn transpose(&self) -> Self;
     fn swap_dims(&self, dim1: usize, dim2: usize) -> Self;
-}
-
-pub trait TensorOpsMatmul<E, const D: usize> {
-    fn matmul(&self, other: &Self) -> Self;
 }
 
 pub trait TensorOpsNeg<E, const D: usize> {

@@ -5,7 +5,7 @@ use crate::{
         Backend,
     },
     graph::ops::{BinaryOps, BinaryOpsNodeState, UnaryOps, UnaryOpsNodeState},
-    ops::{Ones, TensorOps, TensorOpsNeg},
+    ops::{Ones, TensorOps, TensorOpsNeg, TensorOpsTranspose},
     Data, Shape,
 };
 
@@ -375,5 +375,51 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let ops = DivScalarBackward::<B, D>::new(*rhs);
 
         unary_ops_wrapper(lhs.node.clone(), output, ops)
+    }
+
+    fn matmul<const D: usize>(
+        lhs: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        rhs: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
+        #[derive(Default, Debug)]
+        struct MatmulBackward<B: Backend, const D: usize> {
+            _b: B,
+        }
+
+        impl<B: Backend, const D: usize>
+            BinaryOps<B::TensorPrimitive<D>, B::TensorPrimitive<D>, B::TensorPrimitive<D>>
+            for MatmulBackward<B, D>
+        {
+            fn partial_left(
+                &self,
+                state: &BinaryOpsNodeState<
+                    B::TensorPrimitive<D>,
+                    B::TensorPrimitive<D>,
+                    B::TensorPrimitive<D>,
+                >,
+            ) -> B::TensorPrimitive<D> {
+                let out_grad = state.output.grad();
+                let rhs = state.right.value().transpose();
+                B::matmul(&out_grad, &rhs)
+            }
+
+            fn partial_right(
+                &self,
+                state: &BinaryOpsNodeState<
+                    B::TensorPrimitive<D>,
+                    B::TensorPrimitive<D>,
+                    B::TensorPrimitive<D>,
+                >,
+            ) -> B::TensorPrimitive<D> {
+                let out_grad = state.output.grad();
+                let lhs = state.left.value().transpose();
+                B::matmul(&lhs, &out_grad)
+            }
+        }
+
+        let output = B::matmul(lhs.tensor_ref(), rhs.tensor_ref());
+        let ops = MatmulBackward::<B, D>::default();
+
+        binary_ops_wrapper(lhs.node.clone(), rhs.node.clone(), output, ops)
     }
 }
