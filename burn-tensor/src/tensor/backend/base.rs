@@ -24,7 +24,6 @@ pub trait Backend:
     type TensorPrimitive<const D: usize>: TensorOpsMatmul<Self::Elem, D>
         + std::ops::Add<Self::TensorPrimitive<D>, Output = Self::TensorPrimitive<D>>
         + TensorOpsTranspose<Self::Elem, D>
-        + TensorOpsDiv<Self::Elem, D>
         + TensorOpsNeg<Self::Elem, D>
         + TensorOpsDetach<Self::Elem, D>
         + Zeros<Self::TensorPrimitive<D>>

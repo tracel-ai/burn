@@ -15,7 +15,7 @@ register_ops!(
         let exponent = value.powf(2.0.to_elem()).neg();
         let numerator = B::mul_scalar(&exponent.exp(), &2.0.to_elem());
         let denominator = std::f64::consts::PI.sqrt().to_elem();
-        let value = numerator.div_scalar(&denominator);
+        let value = B::div_scalar(&numerator, &denominator);
 
         B::mul(&state.output.grad(), &value)
     },

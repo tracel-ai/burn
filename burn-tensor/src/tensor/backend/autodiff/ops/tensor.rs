@@ -5,7 +5,7 @@ use crate::{
         Backend,
     },
     graph::ops::{BinaryOps, BinaryOpsNodeState, UnaryOps, UnaryOpsNodeState},
-    ops::{TensorOps, TensorOpsNeg},
+    ops::{Ones, TensorOps, TensorOpsNeg},
     Data, Shape,
 };
 
@@ -295,6 +295,84 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
         let output = B::mul_scalar(lhs.tensor_ref(), rhs);
         let ops = MulScalarBackward::<B, D>::new(*rhs);
+
+        unary_ops_wrapper(lhs.node.clone(), output, ops)
+    }
+
+    fn div<const D: usize>(
+        lhs: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        rhs: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
+        #[derive(Default, Debug)]
+        struct DivBackward<B: Backend, const D: usize> {
+            _b: B,
+        }
+
+        impl<B: Backend, const D: usize>
+            BinaryOps<B::TensorPrimitive<D>, B::TensorPrimitive<D>, B::TensorPrimitive<D>>
+            for DivBackward<B, D>
+        {
+            fn partial_left(
+                &self,
+                state: &BinaryOpsNodeState<
+                    B::TensorPrimitive<D>,
+                    B::TensorPrimitive<D>,
+                    B::TensorPrimitive<D>,
+                >,
+            ) -> B::TensorPrimitive<D> {
+                let value = state.right.value();
+                let value = B::div(&value.ones(), &value);
+
+                B::mul(&state.output.grad(), &value)
+            }
+
+            fn partial_right(
+                &self,
+                state: &BinaryOpsNodeState<
+                    B::TensorPrimitive<D>,
+                    B::TensorPrimitive<D>,
+                    B::TensorPrimitive<D>,
+                >,
+            ) -> B::TensorPrimitive<D> {
+                let value_left = state.left.value();
+                let value_right = state.right.value();
+                let value = B::div(&value_left.neg(), &B::mul(&value_right, &value_right));
+
+                B::mul(&state.output.grad(), &value)
+            }
+        }
+
+        let output = B::div(lhs.tensor_ref(), rhs.tensor_ref());
+        let ops = DivBackward::<B, D>::default();
+
+        binary_ops_wrapper(lhs.node.clone(), rhs.node.clone(), output, ops)
+    }
+
+    fn div_scalar<const D: usize>(
+        lhs: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        rhs: &<ADBackendDecorator<B> as Backend>::Elem,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
+        #[derive(new, Debug)]
+        struct DivScalarBackward<B: Backend, const D: usize> {
+            elem: B::Elem,
+        }
+
+        impl<B: Backend, const D: usize> UnaryOps<B::TensorPrimitive<D>, B::TensorPrimitive<D>>
+            for DivScalarBackward<B, D>
+        {
+            fn partial(
+                &self,
+                state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
+            ) -> B::TensorPrimitive<D> {
+                let value = state.input.value();
+                let tmp = B::div_scalar(&value.ones(), &self.elem);
+
+                B::mul(&state.output.grad(), &tmp)
+            }
+        }
+
+        let output = B::div_scalar(lhs.tensor_ref(), rhs);
+        let ops = DivScalarBackward::<B, D>::new(*rhs);
 
         unary_ops_wrapper(lhs.node.clone(), output, ops)
     }

@@ -12,6 +12,7 @@ pub trait ModuleOps<B: Backend> {
         indexes: &<B::IntegerBackend as Backend>::TensorPrimitive<2>,
     ) -> B::TensorPrimitive<2>;
 }
+
 pub trait TensorOps<B: Backend> {
     fn shape<const D: usize>(tensor: &B::TensorPrimitive<D>) -> &Shape<D>;
     fn to_data<const D: usize>(tensor: &B::TensorPrimitive<D>) -> Data<B::Elem, D>;
@@ -89,6 +90,14 @@ pub trait TensorOps<B: Backend> {
         lhs: &B::TensorPrimitive<D>,
         rhs: &B::Elem,
     ) -> B::TensorPrimitive<D>;
+    fn div<const D: usize>(
+        lhs: &B::TensorPrimitive<D>,
+        rhs: &B::TensorPrimitive<D>,
+    ) -> B::TensorPrimitive<D>;
+    fn div_scalar<const D: usize>(
+        lhs: &B::TensorPrimitive<D>,
+        rhs: &B::Elem,
+    ) -> B::TensorPrimitive<D>;
 }
 
 pub trait TensorOpsTranspose<E, const D: usize> {
@@ -102,11 +111,6 @@ pub trait TensorOpsMatmul<E, const D: usize> {
 
 pub trait TensorOpsNeg<E, const D: usize> {
     fn neg(&self) -> Self;
-}
-
-pub trait TensorOpsDiv<E, const D: usize> {
-    fn div(&self, other: &Self) -> Self;
-    fn div_scalar(&self, other: &E) -> Self;
 }
 
 pub trait TensorOpsReshape<B: Backend, const D: usize> {

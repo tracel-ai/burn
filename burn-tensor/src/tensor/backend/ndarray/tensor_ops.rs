@@ -67,7 +67,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         lhs: &<NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
         rhs: &<NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
     ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D> {
-        let array = lhs.array.clone() + rhs.array.clone();
+        let array = &lhs.array + &rhs.array;
         let array = array.into_shared();
         let shape = lhs.shape.higher(&rhs.shape);
 
@@ -78,7 +78,8 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         lhs: &<NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
         rhs: &E,
     ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D> {
-        let array = lhs.array.clone() + *rhs;
+        let array = &lhs.array + *rhs;
+        let array = array.into_shared();
         let shape = lhs.shape;
 
         NdArrayTensor { array, shape }
@@ -88,7 +89,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         lhs: &<NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
         rhs: &<NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
     ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D> {
-        let array = lhs.array.clone() - rhs.array.clone();
+        let array = &lhs.array - &rhs.array;
         let array = array.into_shared();
         let shape = lhs.shape.higher(&rhs.shape);
 
@@ -99,7 +100,8 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         lhs: &<NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
         rhs: &E,
     ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D> {
-        let array = lhs.array.clone() - *rhs;
+        let array = &lhs.array - *rhs;
+        let array = array.into_shared();
         let shape = lhs.shape;
 
         NdArrayTensor { array, shape }
@@ -109,7 +111,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         lhs: &<NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
         rhs: &<NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
     ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D> {
-        let array = lhs.array.clone() * rhs.array.clone();
+        let array = &lhs.array * &rhs.array;
         let array = array.into_shared();
         let shape = lhs.shape.higher(&rhs.shape);
 
@@ -120,7 +122,30 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         lhs: &<NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
         rhs: &E,
     ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D> {
-        let array = lhs.array.clone() * *rhs;
+        let array = &lhs.array * *rhs;
+        let array = array.into_shared();
+        let shape = lhs.shape;
+
+        NdArrayTensor { array, shape }
+    }
+
+    fn div<const D: usize>(
+        lhs: &<NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
+        rhs: &<NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
+    ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D> {
+        let array = &lhs.array / &rhs.array;
+        let array = array.into_shared();
+        let shape = lhs.shape.higher(&rhs.shape);
+
+        NdArrayTensor { array, shape }
+    }
+
+    fn div_scalar<const D: usize>(
+        lhs: &<NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
+        rhs: &E,
+    ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D> {
+        let array = &lhs.array / *rhs;
+        let array = array.into_shared();
         let shape = lhs.shape;
 
         NdArrayTensor { array, shape }
