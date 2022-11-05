@@ -3,7 +3,6 @@ mod arg;
 mod cat;
 mod creation;
 mod detach;
-mod div;
 mod erf;
 mod exp;
 mod index;

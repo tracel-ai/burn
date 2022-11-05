@@ -245,14 +245,14 @@ where
     ///
     /// `y = x2 / x1`
     pub fn div(&self, other: &Self) -> Self {
-        Self::new(self.value.div(&other.value))
+        Self::new(B::div(&self.value, &other.value))
     }
 
     /// Applies element wise division operation with scalar.
     ///
     /// `y = x2 / x1`
     pub fn div_scalar<E: ElementConversion>(&self, other: E) -> Self {
-        Self::new(self.value.div_scalar(&other.to_elem()))
+        Self::new(B::div_scalar(&self.value, &other.to_elem()))
     }
 
     /// Aggregate all elements in the tensor with the mean operation.

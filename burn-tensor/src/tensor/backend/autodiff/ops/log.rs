@@ -11,7 +11,7 @@ register_ops!(
     name ADTensorLogOps,
     partial |state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>|{
         let value = state.input.value();
-        let value = value.ones().div(&value);
+        let value = B::div(&value.ones(), &value);
         B::mul(&state.output.grad(), &value)
     },
 );
