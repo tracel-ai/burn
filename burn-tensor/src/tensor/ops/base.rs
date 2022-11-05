@@ -73,11 +73,14 @@ pub trait TensorOps<B: Backend> {
         lhs: &B::TensorPrimitive<D>,
         rhs: &B::Elem,
     ) -> B::TensorPrimitive<D>;
-}
-
-pub trait TensorOpsSub<E, const D: usize> {
-    fn sub(&self, other: &Self) -> Self;
-    fn sub_scalar(&self, other: &E) -> Self;
+    fn sub<const D: usize>(
+        lhs: &B::TensorPrimitive<D>,
+        rhs: &B::TensorPrimitive<D>,
+    ) -> B::TensorPrimitive<D>;
+    fn sub_scalar<const D: usize>(
+        lhs: &B::TensorPrimitive<D>,
+        rhs: &B::Elem,
+    ) -> B::TensorPrimitive<D>;
 }
 
 pub trait TensorOpsTranspose<E, const D: usize> {

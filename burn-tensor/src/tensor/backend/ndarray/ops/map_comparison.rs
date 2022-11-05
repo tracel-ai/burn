@@ -8,7 +8,7 @@ where
     E: NdArrayElement,
 {
     fn equal(&self, other: &Self) -> <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D> {
-        let tensor = self.sub(other);
+        let tensor = NdArrayBackend::<E>::sub(self, other);
         let zero = E::zeros(&E::default());
         tensor.equal_scalar(&zero)
     }
@@ -26,7 +26,7 @@ where
     }
 
     fn greater(&self, other: &Self) -> <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D> {
-        let tensor = self.sub(other);
+        let tensor = NdArrayBackend::<E>::sub(self, other);
         let zero = E::zeros(&E::default());
         tensor.greater_scalar(&zero)
     }
@@ -47,7 +47,7 @@ where
         &self,
         other: &Self,
     ) -> <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D> {
-        let tensor = self.sub(other);
+        let tensor = NdArrayBackend::<E>::sub(self, other);
         let zero = E::zeros(&E::default());
         tensor.greater_equal_scalar(&zero)
     }
@@ -65,7 +65,7 @@ where
     }
 
     fn lower(&self, other: &Self) -> <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D> {
-        let tensor = self.sub(other);
+        let tensor = NdArrayBackend::<E>::sub(self, other);
         let zero = E::zeros(&E::default());
         tensor.lower_scalar(&zero)
     }
@@ -83,7 +83,7 @@ where
     }
 
     fn lower_equal(&self, other: &Self) -> <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D> {
-        let tensor = self.sub(other);
+        let tensor = NdArrayBackend::<E>::sub(self, other);
         let zero = E::zeros(&E::default());
         tensor.lower_equal_scalar(&zero)
     }
@@ -99,12 +99,4 @@ where
             array,
         }
     }
-}
-
-#[cfg(tests)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_greater() {}
 }
