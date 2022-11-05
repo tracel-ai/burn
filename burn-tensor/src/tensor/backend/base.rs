@@ -23,7 +23,6 @@ pub trait Backend:
     type IntegerBackend: Backend<Elem = i64, Device = Self::Device>;
     type TensorPrimitive<const D: usize>: std::ops::Add<Self::TensorPrimitive<D>, Output = Self::TensorPrimitive<D>>
         + TensorOpsTranspose<Self::Elem, D>
-        + TensorOpsNeg<Self::Elem, D>
         + TensorOpsDetach<Self::Elem, D>
         + Zeros<Self::TensorPrimitive<D>>
         + Ones<Self::TensorPrimitive<D>>

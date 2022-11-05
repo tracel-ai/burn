@@ -5,7 +5,7 @@ use crate::{
         Backend,
     },
     graph::ops::{BinaryOps, BinaryOpsNodeState, UnaryOps, UnaryOpsNodeState},
-    ops::{Ones, TensorOps, TensorOpsNeg, TensorOpsTranspose},
+    ops::{Ones, TensorOps, TensorOpsTranspose},
     Data, Shape,
 };
 
@@ -195,7 +195,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     B::TensorPrimitive<D>,
                 >,
             ) -> B::TensorPrimitive<D> {
-                state.output.grad().neg()
+                B::neg(&state.output.grad())
             }
         }
 
@@ -336,7 +336,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             ) -> B::TensorPrimitive<D> {
                 let value_left = state.left.value();
                 let value_right = state.right.value();
-                let value = B::div(&value_left.neg(), &B::mul(&value_right, &value_right));
+                let value = B::div(&B::neg(&value_left), &B::mul(&value_right, &value_right));
 
                 B::mul(&state.output.grad(), &value)
             }
@@ -421,5 +421,30 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let ops = MatmulBackward::<B, D>::default();
 
         binary_ops_wrapper(lhs.node.clone(), rhs.node.clone(), output, ops)
+    }
+
+    fn neg<const D: usize>(
+        tensor: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
+        #[derive(Default, Debug)]
+        struct NegBackward<B: Backend, const D: usize> {
+            _b: B,
+        }
+
+        impl<B: Backend, const D: usize> UnaryOps<B::TensorPrimitive<D>, B::TensorPrimitive<D>>
+            for NegBackward<B, D>
+        {
+            fn partial(
+                &self,
+                state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
+            ) -> B::TensorPrimitive<D> {
+                B::neg(&state.output.grad())
+            }
+        }
+
+        let output = B::neg(tensor.tensor_ref());
+        let ops = NegBackward::<B, D>::default();
+
+        unary_ops_wrapper(tensor.node.clone(), output, ops)
     }
 }
