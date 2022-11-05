@@ -176,6 +176,6 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     fn neg<const D: usize>(
         tensor: &NdArrayTensor<E, D>,
     ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D> {
-        Self::mul_scalar(&tensor, &(-1f32).to_elem::<E>())
+        Self::mul_scalar(tensor, &(-1f32).to_elem::<E>())
     }
 }

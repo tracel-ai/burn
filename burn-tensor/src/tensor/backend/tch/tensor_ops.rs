@@ -125,7 +125,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     }
 
     fn neg<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
-        Self::mul_scalar(&tensor, &(-1f32).to_elem::<E>())
+        Self::mul_scalar(tensor, &(-1f32).to_elem::<E>())
     }
 }
 
