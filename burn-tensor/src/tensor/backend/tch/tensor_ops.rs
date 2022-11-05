@@ -1,7 +1,6 @@
-use std::ops::{Add, Div, Mul, Sub};
-
 use super::{TchBackend, TchDevice, TchKind, TchTensor};
-use crate::{backend::Backend, ops::TensorOps, Data, Shape, TchElement};
+use crate::{backend::Backend, ops::TensorOps, Data, ElementConversion, Shape, TchElement};
+use std::ops::{Add, Div, Mul, Sub};
 
 impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     fn shape<const D: usize>(tensor: &<TchBackend<E> as Backend>::TensorPrimitive<D>) -> &Shape<D> {
@@ -64,126 +63,78 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         shape: Shape<D>,
         device: <TchBackend<E> as Backend>::Device,
     ) -> <TchBackend<E> as Backend>::TensorPrimitive<D> {
-        let kind = TchKind::new();
+        let kind = TchKind::<E>::new();
         let tensor =
             tch::Tensor::empty(&shape.dims.map(|a| a as i64), (kind.kind(), device.into()));
 
-        TchTensor {
-            kind,
-            tensor,
-            shape,
-        }
+        to_tensor(tensor)
     }
 
     fn add<const D: usize>(lhs: &TchTensor<E, D>, rhs: &TchTensor<E, D>) -> TchTensor<E, D> {
         let tensor = (&lhs.tensor).add(&rhs.tensor);
-        let kind = lhs.kind;
-        let shape = Shape::from(tensor.size());
 
-        TchTensor {
-            tensor,
-            shape,
-            kind,
-        }
+        to_tensor(tensor)
     }
 
     fn add_scalar<const D: usize>(lhs: &TchTensor<E, D>, rhs: &E) -> TchTensor<E, D> {
         let other: f64 = (rhs.clone()).to_elem();
         let tensor = (&lhs.tensor).add(other).to_kind(lhs.kind.kind());
-        let kind = lhs.kind;
-        let shape = Shape::from(tensor.size());
 
-        TchTensor {
-            tensor,
-            shape,
-            kind,
-        }
+        to_tensor(tensor)
     }
 
     fn sub<const D: usize>(lhs: &TchTensor<E, D>, rhs: &TchTensor<E, D>) -> TchTensor<E, D> {
         let tensor = (&lhs.tensor).sub(&rhs.tensor);
-        let kind = lhs.kind;
-        let shape = Shape::from(tensor.size());
-
-        TchTensor {
-            tensor,
-            shape,
-            kind,
-        }
+        to_tensor(tensor)
     }
 
     fn sub_scalar<const D: usize>(lhs: &TchTensor<E, D>, rhs: &E) -> TchTensor<E, D> {
         let other: f64 = (rhs.clone()).to_elem();
         let tensor = (&lhs.tensor).sub(other).to_kind(lhs.kind.kind());
-        let kind = lhs.kind;
-        let shape = Shape::from(tensor.size());
 
-        TchTensor {
-            tensor,
-            shape,
-            kind,
-        }
+        to_tensor(tensor)
     }
 
     fn mul<const D: usize>(lhs: &TchTensor<E, D>, rhs: &TchTensor<E, D>) -> TchTensor<E, D> {
         let tensor = (&lhs.tensor).mul(&rhs.tensor);
-        let kind = lhs.kind;
-        let shape = Shape::from(tensor.size());
-
-        TchTensor {
-            tensor,
-            shape,
-            kind,
-        }
+        to_tensor(tensor)
     }
 
     fn mul_scalar<const D: usize>(lhs: &TchTensor<E, D>, rhs: &E) -> TchTensor<E, D> {
         let other: f64 = (rhs.clone()).to_elem();
         let tensor = (&lhs.tensor).mul(other).to_kind(lhs.kind.kind());
-        let kind = lhs.kind;
-        let shape = Shape::from(tensor.size());
 
-        TchTensor {
-            tensor,
-            shape,
-            kind,
-        }
+        to_tensor(tensor)
     }
 
     fn div<const D: usize>(lhs: &TchTensor<E, D>, rhs: &TchTensor<E, D>) -> TchTensor<E, D> {
         let tensor = (&lhs.tensor).div(&rhs.tensor);
-        let kind = lhs.kind;
-        let shape = Shape::from(tensor.size());
-
-        TchTensor {
-            tensor,
-            shape,
-            kind,
-        }
+        to_tensor(tensor)
     }
 
     fn div_scalar<const D: usize>(lhs: &TchTensor<E, D>, rhs: &E) -> TchTensor<E, D> {
         let other: f64 = (rhs.clone()).to_elem();
         let tensor = (&lhs.tensor).div(other).to_kind(lhs.kind.kind());
-        let kind = lhs.kind;
-        let shape = Shape::from(tensor.size());
 
-        TchTensor {
-            tensor,
-            shape,
-            kind,
-        }
+        to_tensor(tensor)
     }
 
     fn matmul<const D: usize>(lhs: &TchTensor<E, D>, rhs: &TchTensor<E, D>) -> TchTensor<E, D> {
         let tensor = lhs.tensor.matmul(&rhs.tensor);
-        let kind = lhs.kind;
-        let shape = Shape::from(tensor.size());
+        to_tensor(tensor)
+    }
 
-        TchTensor {
-            tensor,
-            shape,
-            kind,
-        }
+    fn neg<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
+        Self::mul_scalar(tensor, &(-1f32).to_elem::<E>())
+    }
+}
+
+fn to_tensor<const D: usize, E: TchElement>(tensor: tch::Tensor) -> TchTensor<E, D> {
+    let shape = Shape::from(tensor.size());
+
+    TchTensor {
+        tensor,
+        shape,
+        kind: TchKind::new(),
     }
 }

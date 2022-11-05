@@ -2,7 +2,7 @@ use super::{BatchMatrix, NdArrayBackend, NdArrayTensor};
 use crate::{
     backend::{Backend, NdArrayDevice},
     ops::TensorOps,
-    Data, NdArrayElement, Shape,
+    Data, ElementConversion, NdArrayElement, Shape,
 };
 
 impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
@@ -171,5 +171,11 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         let output = BatchMatrix::new(arrays, shape);
 
         NdArrayTensor::from_bmatrix(output)
+    }
+
+    fn neg<const D: usize>(
+        tensor: &NdArrayTensor<E, D>,
+    ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D> {
+        Self::mul_scalar(tensor, &(-1f32).to_elem::<E>())
     }
 }

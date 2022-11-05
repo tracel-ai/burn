@@ -224,7 +224,7 @@ where
     ///
     /// `y = -x`
     pub fn neg(&self) -> Self {
-        Self::new(self.value.neg())
+        Self::new(B::neg(&self.value))
     }
 
     /// Applies element wise multiplication operation.

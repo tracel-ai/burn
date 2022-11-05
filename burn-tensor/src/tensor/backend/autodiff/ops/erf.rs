@@ -12,7 +12,7 @@ register_ops!(
     name ADTensorErfOps,
     partial |state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>|{
         let value = state.input.value();
-        let exponent = value.powf(2.0.to_elem()).neg();
+        let exponent = B::neg(&value.powf(2.0.to_elem()));
         let numerator = B::mul_scalar(&exponent.exp(), &2.0.to_elem());
         let denominator = std::f64::consts::PI.sqrt().to_elem();
         let value = B::div_scalar(&numerator, &denominator);

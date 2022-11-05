@@ -4,5 +4,6 @@ mod cross_entropy;
 mod div;
 mod matmul;
 mod mul;
+mod neg;
 mod softmax;
 mod sub;
