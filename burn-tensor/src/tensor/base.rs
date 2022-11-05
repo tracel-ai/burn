@@ -179,14 +179,14 @@ where
     ///
     /// `y = x2 - x1`
     pub fn sub(&self, other: &Self) -> Self {
-        Self::new(self.value.sub(&other.value))
+        Self::new(B::sub(&self.value, &other.value))
     }
 
     /// Applies element wise substraction operation with a scalar.
     ///
     /// `y = x - s`
     pub fn sub_scalar<E: ElementConversion>(&self, other: E) -> Self {
-        Self::new(self.value.sub_scalar(&other.to_elem()))
+        Self::new(B::sub_scalar(&self.value, &other.to_elem()))
     }
 
     /// Applies the transpose operation.

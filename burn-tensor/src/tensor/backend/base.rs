@@ -27,7 +27,6 @@ pub trait Backend:
         + TensorOpsMul<Self::Elem, D>
         + TensorOpsDiv<Self::Elem, D>
         + TensorOpsNeg<Self::Elem, D>
-        + TensorOpsSub<Self::Elem, D>
         + TensorOpsDetach<Self::Elem, D>
         + Zeros<Self::TensorPrimitive<D>>
         + Ones<Self::TensorPrimitive<D>>

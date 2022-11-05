@@ -18,7 +18,6 @@ mod neg;
 mod pow;
 mod precision;
 mod reshape;
-mod sub;
 mod tensor;
 mod transpose;
 

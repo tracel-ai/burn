@@ -5,7 +5,7 @@ use crate::{
         Backend,
     },
     graph::ops::{BinaryOps, BinaryOpsNodeState, UnaryOps, UnaryOpsNodeState},
-    ops::TensorOps,
+    ops::{TensorOps, TensorOpsNeg},
     Data, Shape,
 };
 
@@ -66,12 +66,60 @@ impl<B: Backend, const D: usize>
 }
 
 #[derive(Default, Debug)]
+struct SubBackward<B: Backend, const D: usize> {
+    _b: B,
+}
+
+impl<B: Backend, const D: usize>
+    BinaryOps<B::TensorPrimitive<D>, B::TensorPrimitive<D>, B::TensorPrimitive<D>>
+    for SubBackward<B, D>
+{
+    fn partial_left(
+        &self,
+        state: &BinaryOpsNodeState<
+            B::TensorPrimitive<D>,
+            B::TensorPrimitive<D>,
+            B::TensorPrimitive<D>,
+        >,
+    ) -> B::TensorPrimitive<D> {
+        state.output.grad()
+    }
+
+    fn partial_right(
+        &self,
+        state: &BinaryOpsNodeState<
+            B::TensorPrimitive<D>,
+            B::TensorPrimitive<D>,
+            B::TensorPrimitive<D>,
+        >,
+    ) -> B::TensorPrimitive<D> {
+        state.output.grad().neg()
+    }
+}
+
+#[derive(Default, Debug)]
 struct AddScalarBackward<B: Backend, const D: usize> {
     _b: B,
 }
 
 impl<B: Backend, const D: usize> UnaryOps<B::TensorPrimitive<D>, B::TensorPrimitive<D>>
     for AddScalarBackward<B, D>
+{
+    fn partial(
+        &self,
+        state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
+    ) -> B::TensorPrimitive<D> {
+        state.output.grad()
+    }
+}
+
+#[derive(Default, Debug)]
+struct SubScalarBackward<B: Backend, const D: usize> {
+    _b: B,
+}
+
+impl<B: Backend, const D: usize> UnaryOps<B::TensorPrimitive<D>, B::TensorPrimitive<D>>
+    for SubScalarBackward<B, D>
 {
     fn partial(
         &self,
@@ -159,6 +207,26 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
         let output = B::add_scalar(lhs.tensor_ref(), rhs);
         let ops = AddScalarBackward::<B, D>::default();
+
+        unary_ops_wrapper(lhs.node.clone(), output, ops)
+    }
+
+    fn sub<const D: usize>(
+        lhs: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        rhs: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
+        let output = B::sub(lhs.tensor_ref(), rhs.tensor_ref());
+        let ops = SubBackward::<B, D>::default();
+
+        binary_ops_wrapper(lhs.node.clone(), rhs.node.clone(), output, ops)
+    }
+
+    fn sub_scalar<const D: usize>(
+        lhs: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        rhs: &<ADBackendDecorator<B> as Backend>::Elem,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
+        let output = B::sub_scalar(lhs.tensor_ref(), rhs);
+        let ops = SubScalarBackward::<B, D>::default();
 
         unary_ops_wrapper(lhs.node.clone(), output, ops)
     }
