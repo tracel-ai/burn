@@ -44,7 +44,7 @@ where
     ///
     /// If the tensor can not be reshape to the given shape.
     pub fn reshape<const D2: usize, S: Into<Shape<D2>>>(&self, shape: S) -> Tensor<B, D2> {
-        Tensor::new(self.value.reshape(shape.into()))
+        Tensor::new(B::reshape(&self.value, shape.into()))
     }
 
     /// Returns a new tensor on the given device.

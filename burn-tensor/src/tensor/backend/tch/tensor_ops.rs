@@ -1,4 +1,4 @@
-use super::{TchBackend, TchDevice, TchKind, TchTensor};
+use super::{TchBackend, TchDevice, TchKind, TchShape, TchTensor};
 use crate::{backend::Backend, ops::TensorOps, Data, ElementConversion, Shape, TchElement};
 use std::ops::{Add, Div, Mul, Sub};
 
@@ -134,6 +134,16 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         dim2: usize,
     ) -> TchTensor<E, D> {
         let tensor = tensor.tensor.transpose(dim1 as i64, dim2 as i64);
+        to_tensor(tensor)
+    }
+
+    fn reshape<const D1: usize, const D2: usize>(
+        tensor: &TchTensor<E, D1>,
+        shape: Shape<D2>,
+    ) -> TchTensor<E, D2> {
+        let shape_tch: TchShape<D2> = shape.into();
+        let tensor = tensor.tensor.reshape(&shape_tch.dims);
+
         to_tensor(tensor)
     }
 }

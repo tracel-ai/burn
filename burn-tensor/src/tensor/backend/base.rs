@@ -1,6 +1,6 @@
 use crate::ops::activation::*;
 use crate::ops::*;
-use crate::tensor::ops::{TensorOpsIndex, TensorOpsReshape};
+use crate::tensor::ops::TensorOpsIndex;
 use crate::tensor::Element;
 use crate::tensor::{Data, Distribution, Shape};
 use crate::Gradients;
@@ -25,7 +25,6 @@ pub trait Backend:
         + TensorOpsDetach<Self::Elem, D>
         + Zeros<Self::TensorPrimitive<D>>
         + Ones<Self::TensorPrimitive<D>>
-        + TensorOpsReshape<Self, D>
         + TensorOpsPrecision<Self, D>
         + TensorOpsIndex<Self::Elem, D>
         + TensorOpsAggregation<Self, D>

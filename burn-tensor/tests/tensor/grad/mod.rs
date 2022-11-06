@@ -5,6 +5,7 @@ mod div;
 mod matmul;
 mod mul;
 mod neg;
+mod reshape;
 mod softmax;
 mod sub;
 mod transpose;

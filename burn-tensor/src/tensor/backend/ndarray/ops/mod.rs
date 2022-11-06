@@ -11,4 +11,3 @@ mod map_comparison;
 mod mask;
 mod pow;
 mod precision;
-mod reshape;
