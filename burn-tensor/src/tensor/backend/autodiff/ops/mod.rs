@@ -8,7 +8,6 @@ mod erf;
 mod exp;
 mod log;
 mod map_comparison;
-mod mask;
 mod module;
 mod pow;
 mod precision;

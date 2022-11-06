@@ -196,6 +196,17 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
             shape,
         }
     }
+
+    fn mask_fill<const D: usize>(
+        tensor: &TchTensor<E, D>,
+        mask: &TchTensor<bool, D>,
+        value: E,
+    ) -> TchTensor<E, D> {
+        let value: f64 = value.to_elem();
+        let tensor = tensor.tensor.f_masked_fill(&mask.tensor, value).unwrap();
+
+        to_tensor(tensor)
+    }
 }
 
 fn to_tensor<const D: usize, E: TchElement>(tensor: tch::Tensor) -> TchTensor<E, D> {

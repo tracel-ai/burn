@@ -14,7 +14,8 @@ register_ops!(
     partial |state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>|{
         let zero = B::Elem::zeros(&B::Elem::default());
         let mask = state.output.value().lower_equal_scalar(&zero);
-        state.output.grad().mask_fill(&mask, zero)
+
+        B::mask_fill(&state.output.grad(), &mask, zero)
 
     },
 );

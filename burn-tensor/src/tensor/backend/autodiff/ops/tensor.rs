@@ -528,14 +528,13 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         indexes: [std::ops::Range<usize>; D2],
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D1> {
         #[derive(new, Debug)]
-        struct ADTensorOpsIndex<B: Backend, const D1: usize, const D2: usize> {
+        struct IndexBackward<B: Backend, const D1: usize, const D2: usize> {
             indexes: [Range<usize>; D2],
             _b: B,
         }
 
         impl<B: Backend, const D1: usize, const D2: usize>
-            UnaryOps<B::TensorPrimitive<D1>, B::TensorPrimitive<D1>>
-            for ADTensorOpsIndex<B, D1, D2>
+            UnaryOps<B::TensorPrimitive<D1>, B::TensorPrimitive<D1>> for IndexBackward<B, D1, D2>
         {
             fn partial(
                 &self,
@@ -550,7 +549,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
 
         let output = B::index(tensor.tensor_ref(), indexes.clone());
-        let ops = ADTensorOpsIndex::<B, D1, D2>::new(indexes, B::default());
+        let ops = IndexBackward::<B, D1, D2>::new(indexes, B::default());
 
         unary_ops_wrapper(tensor.node.clone(), output, ops)
     }
@@ -561,14 +560,14 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         value: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D1>,
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D1> {
         #[derive(new, Debug)]
-        struct IndexAssignBackend<B: Backend, const D1: usize, const D2: usize> {
+        struct IndexAssignBackward<B: Backend, const D1: usize, const D2: usize> {
             indexes: [Range<usize>; D2],
             _b: B,
         }
 
         impl<B: Backend, const D1: usize, const D2: usize>
             BinaryOps<B::TensorPrimitive<D1>, B::TensorPrimitive<D1>, B::TensorPrimitive<D1>>
-            for IndexAssignBackend<B, D1, D2>
+            for IndexAssignBackward<B, D1, D2>
         {
             fn partial_left(
                 &self,
@@ -598,8 +597,39 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
 
         let output = B::index_assign(tensor.tensor_ref(), indexes.clone(), value.tensor_ref());
-        let ops = IndexAssignBackend::<B, D1, D2>::new(indexes, B::default());
+        let ops = IndexAssignBackward::<B, D1, D2>::new(indexes, B::default());
 
         binary_ops_wrapper(tensor.node.clone(), value.node.clone(), output, ops)
+    }
+
+    fn mask_fill<const D: usize>(
+        tensor: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        mask: &<ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D>,
+        value: <ADBackendDecorator<B> as Backend>::Elem,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
+        #[derive(new, Debug)]
+        struct MaskFillBackward<B: Backend, const D: usize> {
+            mask: B::BoolTensorPrimitive<D>,
+        }
+
+        impl<B: Backend, const D: usize> UnaryOps<B::TensorPrimitive<D>, B::TensorPrimitive<D>>
+            for MaskFillBackward<B, D>
+        {
+            fn partial(
+                &self,
+                state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
+            ) -> B::TensorPrimitive<D> {
+                B::mask_fill(
+                    &state.output.grad(),
+                    &self.mask,
+                    B::Elem::zeros(&B::Elem::default()),
+                )
+            }
+        }
+
+        let output = B::mask_fill(tensor.tensor_ref(), mask, value);
+        let ops = MaskFillBackward::<B, D>::new(mask.clone());
+
+        unary_ops_wrapper(tensor.node.clone(), output, ops)
     }
 }
