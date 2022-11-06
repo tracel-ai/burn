@@ -10,5 +10,5 @@ pub struct AdamConfig {
     /// Parameter for Adam.
     beta_2: f64,
     /// A value required for numerical stability, typically 1e-8.
-    epsilone: f64,
+    epsilon: f64,
 }
