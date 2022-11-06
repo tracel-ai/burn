@@ -197,7 +197,7 @@ where
     ///
     /// If the tensor is of 1 dimension or less.
     pub fn transpose(&self) -> Self {
-        Self::new(self.value.transpose())
+        Self::new(B::transpose(&self.value))
     }
 
     /// Swap two dimensions.
@@ -206,7 +206,7 @@ where
     ///
     /// If the dimensions exceed the shape of than the tensor.
     pub fn swap_dims(&self, dim1: usize, dim2: usize) -> Self {
-        Self::new(self.value.swap_dims(dim1, dim2))
+        Self::new(B::swap_dims(&self.value, dim1, dim2))
     }
 
     /// Applies the matrix multiplication operation.

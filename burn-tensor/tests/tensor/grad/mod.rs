@@ -7,3 +7,4 @@ mod mul;
 mod neg;
 mod softmax;
 mod sub;
+mod transpose;

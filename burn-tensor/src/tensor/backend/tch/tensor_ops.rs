@@ -127,6 +127,15 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     fn neg<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
         Self::mul_scalar(tensor, &(-1f32).to_elem::<E>())
     }
+
+    fn swap_dims<const D: usize>(
+        tensor: &TchTensor<E, D>,
+        dim1: usize,
+        dim2: usize,
+    ) -> TchTensor<E, D> {
+        let tensor = tensor.tensor.transpose(dim1 as i64, dim2 as i64);
+        to_tensor(tensor)
+    }
 }
 
 fn to_tensor<const D: usize, E: TchElement>(tensor: tch::Tensor) -> TchTensor<E, D> {

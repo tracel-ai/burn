@@ -15,7 +15,6 @@ mod pow;
 mod precision;
 mod reshape;
 mod tensor;
-mod transpose;
 
 mod macros;
 pub(crate) use base::*;
