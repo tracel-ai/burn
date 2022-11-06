@@ -111,10 +111,10 @@ pub trait TensorOps<B: Backend> {
         dim1: usize,
         dim2: usize,
     ) -> B::TensorPrimitive<D>;
-}
-
-pub trait TensorOpsReshape<B: Backend, const D: usize> {
-    fn reshape<const D2: usize>(&self, shape: Shape<D2>) -> B::TensorPrimitive<D2>;
+    fn reshape<const D1: usize, const D2: usize>(
+        tensor: &B::TensorPrimitive<D1>,
+        shape: Shape<D2>,
+    ) -> B::TensorPrimitive<D2>;
 }
 
 pub trait TensorOpsIndex<E, const D1: usize> {

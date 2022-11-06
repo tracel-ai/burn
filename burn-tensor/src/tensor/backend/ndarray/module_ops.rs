@@ -13,8 +13,7 @@ impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
 
         let mut tensors = Vec::with_capacity(batch_size * seq_length);
 
-        for index in indexes
-            .reshape(Shape::new([batch_size * seq_length]))
+        for index in NdArrayBackend::reshape(indexes, Shape::new([batch_size * seq_length]))
             .array
             .iter()
         {
@@ -22,7 +21,7 @@ impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
             tensors.push(weights.index([index..index + 1, 0..d_model]));
         }
         let embedding = TensorOpsCat::cat(tensors.iter().collect(), 0);
-        embedding.reshape(Shape::new([batch_size, seq_length, d_model]))
+        NdArrayBackend::reshape(&embedding, Shape::new([batch_size, seq_length, d_model]))
     }
 
     fn embedding_backward(
@@ -34,13 +33,14 @@ impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         let [_n_embedding, d_model] = weights.shape.dims;
 
         let mut weights_grad = weights.zeros();
-        let output = output.reshape(Shape::new([batch_size * seq_length, d_model]));
+        let output =
+            NdArrayBackend::reshape(output, Shape::new([batch_size * seq_length, d_model]));
 
-        for (index_output, index) in indexes
-            .reshape(Shape::new([batch_size * seq_length]))
-            .array
-            .iter()
-            .enumerate()
+        for (index_output, index) in
+            NdArrayBackend::reshape(indexes, Shape::new([batch_size * seq_length]))
+                .array
+                .iter()
+                .enumerate()
         {
             let index = *index as usize;
 

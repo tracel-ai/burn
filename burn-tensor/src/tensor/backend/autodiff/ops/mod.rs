@@ -13,7 +13,6 @@ mod mask;
 mod module;
 mod pow;
 mod precision;
-mod reshape;
 mod tensor;
 
 mod macros;

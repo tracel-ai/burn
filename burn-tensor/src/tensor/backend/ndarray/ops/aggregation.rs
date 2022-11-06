@@ -18,7 +18,7 @@ macro_rules! keepdim {
         let tensor: NdArrayTensor<E, $D> = mean_dim(&$self, $dim);
         let mut shape = $self.shape.clone();
         shape.dims[$dim] = 1;
-        tensor.reshape(shape)
+        NdArrayBackend::reshape(&tensor, shape)
     }};
     (
         $D:expr,
@@ -29,7 +29,7 @@ macro_rules! keepdim {
         let tensor: NdArrayTensor<E, $D> = sum_dim(&$self, $dim);
         let mut shape = $self.shape.clone();
         shape.dims[$dim] = 1;
-        tensor.reshape(shape)
+        NdArrayBackend::reshape(&tensor, shape)
     }};
 }
 

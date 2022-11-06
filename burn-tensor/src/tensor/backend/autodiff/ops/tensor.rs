@@ -5,7 +5,7 @@ use crate::{
         Backend,
     },
     graph::ops::{BinaryOps, BinaryOpsNodeState, UnaryOps, UnaryOpsNodeState},
-    ops::{Ones, TensorOps},
+    ops::{Ones, TensorOps, TensorOpsAggregation},
     Data, Shape,
 };
 
@@ -473,6 +473,51 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
         let output = B::swap_dims(tensor.tensor_ref(), dim1, dim2);
         let ops = SwapDimsBackward::<B, D>::new(B::default(), dim1, dim2);
+
+        unary_ops_wrapper(tensor.node.clone(), output, ops)
+    }
+
+    fn reshape<const D1: usize, const D2: usize>(
+        tensor: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D1>,
+        shape: Shape<D2>,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D2> {
+        #[derive(new, Debug)]
+        struct ReshapeBackward<B: Backend, const D1: usize, const D2: usize> {
+            shape: Shape<D1>,
+            _b: B,
+        }
+
+        impl<B: Backend, const D1: usize, const D2: usize>
+            UnaryOps<B::TensorPrimitive<D1>, B::TensorPrimitive<D2>>
+            for ReshapeBackward<B, D1, D2>
+        {
+            fn partial(
+                &self,
+                state: &UnaryOpsNodeState<B::TensorPrimitive<D1>, B::TensorPrimitive<D2>>,
+            ) -> B::TensorPrimitive<D1> {
+                let mut grad = state.output.grad();
+                let value = state.output.value();
+
+                let shape_grad = *B::shape(&grad);
+                let shape_value = *B::shape(&value);
+
+                if shape_value == shape_grad {
+                    return B::reshape(&grad, self.shape);
+                }
+
+                for i in 0..D2 {
+                    if shape_value.dims[i] == 1 && shape_grad.dims[i] != 1 {
+                        grad = grad.sum_dim(i);
+                    }
+                }
+
+                B::reshape(&grad, self.shape)
+            }
+        }
+
+        let shape_old = B::shape(tensor.tensor_ref());
+        let output = B::reshape(tensor.tensor_ref(), shape);
+        let ops = ReshapeBackward::<B, D1, D2>::new(*shape_old, B::default());
 
         unary_ops_wrapper(tensor.node.clone(), output, ops)
     }
