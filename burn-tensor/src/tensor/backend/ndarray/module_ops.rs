@@ -19,7 +19,7 @@ impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         {
             let index = *index as usize;
             tensors.push(NdArrayBackend::index(
-                &weights,
+                weights,
                 [index..index + 1, 0..d_model],
             ));
         }

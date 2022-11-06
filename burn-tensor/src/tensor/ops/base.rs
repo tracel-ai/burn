@@ -61,7 +61,7 @@ pub trait TensorOps<B: Backend> {
         for i in 0..times {
             let mut indexes = indexes_select_all.clone();
             indexes[dim] = i..i + 1;
-            tensor_output = B::index_assign(&tensor_output, indexes, &tensor);
+            tensor_output = B::index_assign(&tensor_output, indexes, tensor);
         }
 
         tensor_output
