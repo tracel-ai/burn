@@ -414,7 +414,7 @@ where
     /// }
     /// ```
     pub fn index<const D2: usize>(&self, indexes: [std::ops::Range<usize>; D2]) -> Self {
-        Self::new(self.value.index(indexes))
+        Self::new(B::index(&self.value, indexes))
     }
 
     /// Returns a copy of the current tensor with the selected elements changed to the new ones at
@@ -444,7 +444,7 @@ where
         indexes: [std::ops::Range<usize>; D2],
         values: &Self,
     ) -> Self {
-        Self::new(self.value.index_assign(indexes, &values.value))
+        Self::new(B::index_assign(&self.value, indexes, &values.value))
     }
 
     /// Fill each element with the given value based on the given mask.

@@ -1,10 +1,12 @@
+use std::ops::Range;
+
 use super::{BatchMatrix, NdArrayBackend, NdArrayTensor};
 use crate::{
     backend::{Backend, NdArrayDevice},
     ops::TensorOps,
     to_nd_array_tensor, Data, ElementConversion, NdArrayElement, Shape,
 };
-use ndarray::Dim;
+use ndarray::{Dim, SliceInfoElem};
 
 impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     fn shape<const D: usize>(
@@ -211,4 +213,56 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
             _ => panic!("NdArrayTensor support only 6 dimensions."),
         }
     }
+
+    fn index<const D1: usize, const D2: usize>(
+        tensor: &NdArrayTensor<E, D1>,
+        indexes: [Range<usize>; D2],
+    ) -> NdArrayTensor<E, D1> {
+        let shape = tensor.shape.index(indexes.clone());
+        let slices = to_slice_args::<D1, D2>(indexes);
+        let array = tensor
+            .array
+            .clone()
+            .slice_move(slices.as_slice())
+            .into_shared();
+
+        NdArrayTensor { array, shape }
+    }
+
+    fn index_assign<const D1: usize, const D2: usize>(
+        tensor: &NdArrayTensor<E, D1>,
+        indexes: [Range<usize>; D2],
+        value: &NdArrayTensor<E, D1>,
+    ) -> NdArrayTensor<E, D1> {
+        let slices = to_slice_args::<D1, D2>(indexes);
+        let mut array = tensor.array.to_owned();
+        array.slice_mut(slices.as_slice()).assign(&value.array);
+        let array = array.into_owned().into_shared();
+
+        let shape = tensor.shape;
+
+        NdArrayTensor { array, shape }
+    }
+}
+
+fn to_slice_args<const D1: usize, const D2: usize>(
+    indexes: [Range<usize>; D2],
+) -> [SliceInfoElem; D1] {
+    let mut slices = [SliceInfoElem::NewAxis; D1];
+    for i in 0..D1 {
+        if i >= D2 {
+            slices[i] = SliceInfoElem::Slice {
+                start: 0,
+                end: None,
+                step: 1,
+            }
+        } else {
+            slices[i] = SliceInfoElem::Slice {
+                start: indexes[i].start as isize,
+                end: Some(indexes[i].end as isize),
+                step: 1,
+            }
+        }
+    }
+    slices
 }

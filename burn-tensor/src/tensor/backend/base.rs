@@ -1,6 +1,5 @@
 use crate::ops::activation::*;
 use crate::ops::*;
-use crate::tensor::ops::TensorOpsIndex;
 use crate::tensor::Element;
 use crate::tensor::{Data, Distribution, Shape};
 use crate::Gradients;
@@ -26,7 +25,6 @@ pub trait Backend:
         + Zeros<Self::TensorPrimitive<D>>
         + Ones<Self::TensorPrimitive<D>>
         + TensorOpsPrecision<Self, D>
-        + TensorOpsIndex<Self::Elem, D>
         + TensorOpsAggregation<Self, D>
         + TensorOpsExp<Self::Elem, D>
         + TensorOpsArg<Self, D>

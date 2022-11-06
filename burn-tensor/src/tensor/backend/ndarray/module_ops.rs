@@ -18,7 +18,10 @@ impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
             .iter()
         {
             let index = *index as usize;
-            tensors.push(weights.index([index..index + 1, 0..d_model]));
+            tensors.push(NdArrayBackend::index(
+                weights,
+                [index..index + 1, 0..d_model],
+            ));
         }
         let embedding = TensorOpsCat::cat(tensors.iter().collect(), 0);
         NdArrayBackend::reshape(&embedding, Shape::new([batch_size, seq_length, d_model]))
@@ -44,10 +47,13 @@ impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         {
             let index = *index as usize;
 
-            let weights_grad_current = weights_grad.index([index..index + 1, 0..d_model]);
-            let output_grad = output.index([index_output..index_output + 1, 0..d_model]);
+            let weights_grad_current =
+                NdArrayBackend::index(&weights_grad, [index..index + 1, 0..d_model]);
+            let output_grad =
+                NdArrayBackend::index(&output, [index_output..index_output + 1, 0..d_model]);
 
-            weights_grad = weights_grad.index_assign(
+            weights_grad = NdArrayBackend::index_assign(
+                &weights_grad,
                 [index..index + 1, 0..d_model],
                 &output_grad.add(weights_grad_current),
             );

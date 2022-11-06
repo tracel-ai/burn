@@ -61,7 +61,7 @@ pub trait TensorOps<B: Backend> {
         for i in 0..times {
             let mut indexes = indexes_select_all.clone();
             indexes[dim] = i..i + 1;
-            tensor_output = tensor_output.index_assign(indexes, tensor);
+            tensor_output = B::index_assign(&tensor_output, indexes, tensor);
         }
 
         tensor_output
@@ -115,11 +115,15 @@ pub trait TensorOps<B: Backend> {
         tensor: &B::TensorPrimitive<D1>,
         shape: Shape<D2>,
     ) -> B::TensorPrimitive<D2>;
-}
-
-pub trait TensorOpsIndex<E, const D1: usize> {
-    fn index<const D2: usize>(&self, indexes: [Range<usize>; D2]) -> Self;
-    fn index_assign<const D2: usize>(&self, indexes: [Range<usize>; D2], values: &Self) -> Self;
+    fn index<const D1: usize, const D2: usize>(
+        tensor: &B::TensorPrimitive<D1>,
+        indexes: [Range<usize>; D2],
+    ) -> B::TensorPrimitive<D1>;
+    fn index_assign<const D1: usize, const D2: usize>(
+        tensor: &B::TensorPrimitive<D1>,
+        indexes: [Range<usize>; D2],
+        value: &B::TensorPrimitive<D1>,
+    ) -> B::TensorPrimitive<D1>;
 }
 
 pub trait TensorOpsMapComparison<B: Backend, const D: usize> {

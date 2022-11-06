@@ -1,6 +1,6 @@
 use super::{TchBackend, TchDevice, TchKind, TchShape, TchTensor};
 use crate::{backend::Backend, ops::TensorOps, Data, ElementConversion, Shape, TchElement};
-use std::ops::{Add, Div, Mul, Sub};
+use std::ops::{Add, Div, Mul, Range, Sub};
 
 impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     fn shape<const D: usize>(tensor: &<TchBackend<E> as Backend>::TensorPrimitive<D>) -> &Shape<D> {
@@ -145,6 +145,56 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         let tensor = tensor.tensor.reshape(&shape_tch.dims);
 
         to_tensor(tensor)
+    }
+
+    fn index<const D1: usize, const D2: usize>(
+        tensor: &TchTensor<E, D1>,
+        indexes: [Range<usize>; D2],
+    ) -> TchTensor<E, D1> {
+        let shape = tensor.shape.index(indexes.clone());
+        let kind = tensor.kind;
+
+        let mut tensor = tensor.tensor.shallow_clone();
+
+        for (i, index) in indexes.iter().enumerate().take(D2) {
+            let start = index.start as i64;
+            let length = (index.end - index.start) as i64;
+            tensor = tensor.narrow(i as i64, start, length);
+        }
+
+        TchTensor {
+            kind,
+            tensor,
+            shape,
+        }
+    }
+
+    fn index_assign<const D1: usize, const D2: usize>(
+        tensor: &TchTensor<E, D1>,
+        indexes: [Range<usize>; D2],
+        value: &TchTensor<E, D1>,
+    ) -> <TchBackend<E> as Backend>::TensorPrimitive<D1> {
+        let shape = tensor.shape;
+        let kind = tensor.kind;
+        let tensor_original = tensor.tensor.copy();
+        let tch_shape = TchShape::from(tensor.shape);
+
+        let mut tensor = tensor_original.view_(&tch_shape.dims);
+
+        for (i, index) in indexes.into_iter().enumerate().take(D2) {
+            let start = index.start as i64;
+            let length = (index.end - index.start) as i64;
+
+            tensor = tensor.narrow(i as i64, start, length);
+        }
+
+        tensor.copy_(&value.tensor);
+
+        TchTensor {
+            kind,
+            tensor: tensor_original,
+            shape,
+        }
     }
 }
 

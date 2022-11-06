@@ -2,6 +2,7 @@ mod add;
 mod aggregation;
 mod cross_entropy;
 mod div;
+mod index;
 mod matmul;
 mod mul;
 mod neg;

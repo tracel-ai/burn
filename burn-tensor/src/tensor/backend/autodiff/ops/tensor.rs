@@ -5,9 +5,10 @@ use crate::{
         Backend,
     },
     graph::ops::{BinaryOps, BinaryOpsNodeState, UnaryOps, UnaryOpsNodeState},
-    ops::{Ones, TensorOps, TensorOpsAggregation},
+    ops::{Ones, TensorOps, TensorOpsAggregation, Zeros},
     Data, Shape,
 };
+use std::ops::Range;
 
 impl<B: Backend, const D: usize> std::ops::Add<ADTensor<D, B>> for ADTensor<D, B> {
     type Output = ADTensor<D, B>;
@@ -520,5 +521,85 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let ops = ReshapeBackward::<B, D1, D2>::new(*shape_old, B::default());
 
         unary_ops_wrapper(tensor.node.clone(), output, ops)
+    }
+
+    fn index<const D1: usize, const D2: usize>(
+        tensor: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D1>,
+        indexes: [std::ops::Range<usize>; D2],
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D1> {
+        #[derive(new, Debug)]
+        struct ADTensorOpsIndex<B: Backend, const D1: usize, const D2: usize> {
+            indexes: [Range<usize>; D2],
+            _b: B,
+        }
+
+        impl<B: Backend, const D1: usize, const D2: usize>
+            UnaryOps<B::TensorPrimitive<D1>, B::TensorPrimitive<D1>>
+            for ADTensorOpsIndex<B, D1, D2>
+        {
+            fn partial(
+                &self,
+                state: &UnaryOpsNodeState<B::TensorPrimitive<D1>, B::TensorPrimitive<D1>>,
+            ) -> B::TensorPrimitive<D1> {
+                B::index_assign(
+                    &state.input.value().zeros(),
+                    self.indexes.clone(),
+                    &state.output.grad(),
+                )
+            }
+        }
+
+        let output = B::index(tensor.tensor_ref(), indexes.clone());
+        let ops = ADTensorOpsIndex::<B, D1, D2>::new(indexes, B::default());
+
+        unary_ops_wrapper(tensor.node.clone(), output, ops)
+    }
+
+    fn index_assign<const D1: usize, const D2: usize>(
+        tensor: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D1>,
+        indexes: [Range<usize>; D2],
+        value: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D1>,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D1> {
+        #[derive(new, Debug)]
+        struct IndexAssignBackend<B: Backend, const D1: usize, const D2: usize> {
+            indexes: [Range<usize>; D2],
+            _b: B,
+        }
+
+        impl<B: Backend, const D1: usize, const D2: usize>
+            BinaryOps<B::TensorPrimitive<D1>, B::TensorPrimitive<D1>, B::TensorPrimitive<D1>>
+            for IndexAssignBackend<B, D1, D2>
+        {
+            fn partial_left(
+                &self,
+                state: &BinaryOpsNodeState<
+                    B::TensorPrimitive<D1>,
+                    B::TensorPrimitive<D1>,
+                    B::TensorPrimitive<D1>,
+                >,
+            ) -> B::TensorPrimitive<D1> {
+                B::index_assign(
+                    &state.output.grad(),
+                    self.indexes.clone(),
+                    &state.right.value().zeros(),
+                )
+            }
+
+            fn partial_right(
+                &self,
+                state: &BinaryOpsNodeState<
+                    B::TensorPrimitive<D1>,
+                    B::TensorPrimitive<D1>,
+                    B::TensorPrimitive<D1>,
+                >,
+            ) -> B::TensorPrimitive<D1> {
+                B::index(&state.output.grad(), self.indexes.clone())
+            }
+        }
+
+        let output = B::index_assign(tensor.tensor_ref(), indexes.clone(), value.tensor_ref());
+        let ops = IndexAssignBackend::<B, D1, D2>::new(indexes, B::default());
+
+        binary_ops_wrapper(tensor.node.clone(), value.node.clone(), output, ops)
     }
 }
