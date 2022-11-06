@@ -449,7 +449,7 @@ where
 
     /// Fill each element with the given value based on the given mask.
     pub fn mask_fill<E: ElementConversion>(&self, mask: &BoolTensor<B, D>, value: E) -> Self {
-        Self::new(self.value.mask_fill(&mask.value, value.to_elem()))
+        Self::new(B::mask_fill(&self.value, &mask.value, value.to_elem()))
     }
 
     /// Returns a tensor with full precision based on the selected backend.

@@ -243,6 +243,28 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
 
         NdArrayTensor { array, shape }
     }
+
+    fn mask_fill<const D: usize>(
+        tensor: &NdArrayTensor<E, D>,
+        mask: &NdArrayTensor<bool, D>,
+        value: E,
+    ) -> NdArrayTensor<E, D> {
+        let elem = E::default();
+        let mask_mul = mask.array.mapv(|x| match x {
+            true => E::zeros(&elem),
+            false => E::ones(&elem),
+        });
+        let mask_add = mask.array.mapv(|x| match x {
+            true => value,
+            false => E::zeros(&elem),
+        });
+        let array = (tensor.array.clone() * mask_mul) + mask_add;
+
+        NdArrayTensor {
+            array,
+            shape: tensor.shape,
+        }
+    }
 }
 
 fn to_slice_args<const D1: usize, const D2: usize>(

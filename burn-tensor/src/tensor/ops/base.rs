@@ -124,6 +124,11 @@ pub trait TensorOps<B: Backend> {
         indexes: [Range<usize>; D2],
         value: &B::TensorPrimitive<D1>,
     ) -> B::TensorPrimitive<D1>;
+    fn mask_fill<const D: usize>(
+        tensor: &B::TensorPrimitive<D>,
+        mask: &B::BoolTensorPrimitive<D>,
+        value: B::Elem,
+    ) -> B::TensorPrimitive<D>;
 }
 
 pub trait TensorOpsMapComparison<B: Backend, const D: usize> {
@@ -137,10 +142,6 @@ pub trait TensorOpsMapComparison<B: Backend, const D: usize> {
     fn lower_scalar(&self, other: &B::Elem) -> B::BoolTensorPrimitive<D>;
     fn lower_equal(&self, other: &Self) -> B::BoolTensorPrimitive<D>;
     fn lower_equal_scalar(&self, other: &B::Elem) -> B::BoolTensorPrimitive<D>;
-}
-
-pub trait TensorOpsMask<B: Backend, const D: usize> {
-    fn mask_fill(&self, mask: &B::BoolTensorPrimitive<D>, value: B::Elem) -> Self;
 }
 
 pub trait TensorOpsAggregation<B: Backend, const D: usize> {

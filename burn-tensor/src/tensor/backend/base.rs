@@ -32,7 +32,6 @@ pub trait Backend:
         + TensorOpsLog<Self::Elem, D>
         + TensorOpsErf<Self::Elem, D>
         + TensorOpsPow<Self::Elem, D>
-        + TensorOpsMask<Self, D>
         + TensorOpsMapComparison<Self, D>
         + ReLU<Self::Elem, D>
         + Clone

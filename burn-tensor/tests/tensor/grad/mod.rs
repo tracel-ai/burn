@@ -3,6 +3,7 @@ mod aggregation;
 mod cross_entropy;
 mod div;
 mod index;
+mod mask;
 mod matmul;
 mod mul;
 mod neg;
