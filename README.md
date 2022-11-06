@@ -31,7 +31,7 @@ __Sections__
 
  * Flexible and intuitive custom neural network module 🤖
  * Stateless and thread safe forward pass 🚀
- * Fast training with full support for `metric`, `logging` and `checkpoining` 🌟
+ * Fast training with full support for `metric`, `logging` and `checkpointing` 🌟
  * [Burn-Tensor](https://github.com/burn-rs/burn/tree/doc/readme/burn-tensor): Tensor library with autodiff, CPU and GPU support 🔥
  * [Burn-Dataset](https://github.com/burn-rs/burn/tree/doc/readme/burn-dataset): Dataset library with multiple utilities and sources 📚
 
@@ -123,7 +123,7 @@ Note that you can implement multiple time the `Forward` trait with different inp
 
 #### Config
 
-The `Config` derive let you define serializable and deserializable configurations or hyper-parameters for your [modules](#module) or any components.
+The `Config` derive lets you define serializable and deserializable configurations or hyper-parameters for your [modules](#module) or any components.
 
 ```rust
 use burn::config::Config;
@@ -131,19 +131,19 @@ use burn::config::Config;
 #[derive(Config)]
 struct MyConfig {
     #[config(default = 1.0e-6)]
-    pub epsilone: usize,
+    pub epsilon: usize,
     pub dim: usize,
 }
 ```
-The derive also add usefull methods to your config.
+The derive also adds useful methods to your config.
 
 ```rust
 fn my_func() {
     let config = MyConfig::new(100);
-    println!("{}", config.epsilone); // 1.0.e-6
+    println!("{}", config.epsilon); // 1.0.e-6
     println!("{}", config.dim); // 100
-    let config =  MyConfig::new(100).with_epsilone(1.0e-8);
-    println!("{}", config.epsilone); // 1.0.e-8
+    let config =  MyConfig::new(100).with_epsilon(1.0e-8);
+    println!("{}", config.epsilon); // 1.0.e-8
 }
 ```
 
