@@ -597,7 +597,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        let output = B::index(tensor.tensor_ref(), indexes.clone());
+        let output = B::index_assign(tensor.tensor_ref(), indexes.clone(), value.tensor_ref());
         let ops = IndexAssignBackend::<B, D1, D2>::new(indexes, B::default());
 
         binary_ops_wrapper(tensor.node.clone(), value.node.clone(), output, ops)
