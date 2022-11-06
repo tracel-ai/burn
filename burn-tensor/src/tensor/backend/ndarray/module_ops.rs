@@ -13,7 +13,7 @@ impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
 
         let mut tensors = Vec::with_capacity(batch_size * seq_length);
 
-        for index in NdArrayBackend::reshape(&indexes, Shape::new([batch_size * seq_length]))
+        for index in NdArrayBackend::reshape(indexes, Shape::new([batch_size * seq_length]))
             .array
             .iter()
         {
@@ -34,10 +34,10 @@ impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
 
         let mut weights_grad = weights.zeros();
         let output =
-            NdArrayBackend::reshape(&output, Shape::new([batch_size * seq_length, d_model]));
+            NdArrayBackend::reshape(output, Shape::new([batch_size * seq_length, d_model]));
 
         for (index_output, index) in
-            NdArrayBackend::reshape(&indexes, Shape::new([batch_size * seq_length]))
+            NdArrayBackend::reshape(indexes, Shape::new([batch_size * seq_length]))
                 .array
                 .iter()
                 .enumerate()
