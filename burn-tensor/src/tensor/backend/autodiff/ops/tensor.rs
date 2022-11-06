@@ -627,7 +627,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        let output = B::mask_fill(tensor.tensor_ref(), &mask, value);
+        let output = B::mask_fill(tensor.tensor_ref(), mask, value);
         let ops = MaskFillBackward::<B, D>::new(mask.clone());
 
         unary_ops_wrapper(tensor.node.clone(), output, ops)

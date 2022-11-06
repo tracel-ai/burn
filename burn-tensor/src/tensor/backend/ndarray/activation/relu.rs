@@ -14,6 +14,6 @@ where
         let zero = E::zeros(&E::default());
         let mask = TensorOpsMapComparison::<NdArrayBackend<E>, D>::lower_equal_scalar(self, &zero);
 
-        NdArrayBackend::mask_fill(&self, &mask, zero)
+        NdArrayBackend::mask_fill(self, &mask, zero)
     }
 }
