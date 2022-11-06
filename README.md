@@ -165,7 +165,7 @@ let learner = LearnerBuilder::new("/tmp/artifact_dir")
     .build(model, optim);
 ```
 
-See this [example](./burn/examples/mnist.rs) for a real usage.
+See this [example](https://github.com/burn-rs/burn/blob/main/examples/mnist) for a real usage.
 
 ## License
 
