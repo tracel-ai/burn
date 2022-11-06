@@ -5,7 +5,7 @@ use crate::{
         Backend,
     },
     graph::ops::{BinaryOps, BinaryOpsNodeState, UnaryOps, UnaryOpsNodeState},
-    ops::{Ones, TensorOps, TensorOpsTranspose},
+    ops::{Ones, TensorOps},
     Data, Shape,
 };
 
@@ -399,7 +399,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 >,
             ) -> B::TensorPrimitive<D> {
                 let out_grad = state.output.grad();
-                let rhs = state.right.value().transpose();
+                let rhs = B::transpose(&state.right.value());
                 B::matmul(&out_grad, &rhs)
             }
 
@@ -412,7 +412,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 >,
             ) -> B::TensorPrimitive<D> {
                 let out_grad = state.output.grad();
-                let lhs = state.left.value().transpose();
+                let lhs = B::transpose(&state.left.value());
                 B::matmul(&lhs, &out_grad)
             }
         }
@@ -444,6 +444,35 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
         let output = B::neg(tensor.tensor_ref());
         let ops = NegBackward::<B, D>::default();
+
+        unary_ops_wrapper(tensor.node.clone(), output, ops)
+    }
+
+    fn swap_dims<const D: usize>(
+        tensor: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        dim1: usize,
+        dim2: usize,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
+        #[derive(new, Debug)]
+        struct SwapDimsBackward<B: Backend, const D: usize> {
+            _b: B,
+            dim1: usize,
+            dim2: usize,
+        }
+
+        impl<B: Backend, const D: usize> UnaryOps<B::TensorPrimitive<D>, B::TensorPrimitive<D>>
+            for SwapDimsBackward<B, D>
+        {
+            fn partial(
+                &self,
+                state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
+            ) -> B::TensorPrimitive<D> {
+                B::swap_dims(&state.output.grad(), self.dim2, self.dim1)
+            }
+        }
+
+        let output = B::swap_dims(tensor.tensor_ref(), dim1, dim2);
+        let ops = SwapDimsBackward::<B, D>::new(B::default(), dim1, dim2);
 
         unary_ops_wrapper(tensor.node.clone(), output, ops)
     }

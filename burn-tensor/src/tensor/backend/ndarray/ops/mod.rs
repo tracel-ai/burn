@@ -12,4 +12,3 @@ mod mask;
 mod pow;
 mod precision;
 mod reshape;
-mod transpose;

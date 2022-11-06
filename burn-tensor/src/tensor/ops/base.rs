@@ -103,11 +103,14 @@ pub trait TensorOps<B: Backend> {
         rhs: &B::TensorPrimitive<D>,
     ) -> B::TensorPrimitive<D>;
     fn neg<const D: usize>(tensor: &B::TensorPrimitive<D>) -> B::TensorPrimitive<D>;
-}
-
-pub trait TensorOpsTranspose<E, const D: usize> {
-    fn transpose(&self) -> Self;
-    fn swap_dims(&self, dim1: usize, dim2: usize) -> Self;
+    fn transpose<const D: usize>(tensor: &B::TensorPrimitive<D>) -> B::TensorPrimitive<D> {
+        Self::swap_dims(tensor, D - 2, D - 1)
+    }
+    fn swap_dims<const D: usize>(
+        tensor: &B::TensorPrimitive<D>,
+        dim1: usize,
+        dim2: usize,
+    ) -> B::TensorPrimitive<D>;
 }
 
 pub trait TensorOpsReshape<B: Backend, const D: usize> {

@@ -178,4 +178,21 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D> {
         Self::mul_scalar(tensor, &(-1f32).to_elem::<E>())
     }
+    fn swap_dims<const D: usize>(
+        tensor: &NdArrayTensor<E, D>,
+        dim1: usize,
+        dim2: usize,
+    ) -> NdArrayTensor<E, D> {
+        let mut shape = tensor.shape;
+        let dim1_new = shape.dims[dim2];
+        let dim2_new = shape.dims[dim1];
+
+        shape.dims[dim1] = dim1_new;
+        shape.dims[dim2] = dim2_new;
+
+        let mut array = tensor.array.clone();
+        array.swap_axes(dim1, dim2);
+
+        NdArrayTensor { array, shape }
+    }
 }
