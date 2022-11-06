@@ -50,7 +50,7 @@ impl<const D: usize, B: Backend> BackwardRecordedOps<B::TensorPrimitive<D>>
         self.nodes.iter().enumerate().for_each(|(i, node)| {
             let mut indexes = indexes.clone();
             indexes[self.dim] = i..i + 1;
-            node.state.update_grad(grad.index(indexes));
+            node.state.update_grad(B::index(&grad, indexes));
         });
     }
 

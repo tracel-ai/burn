@@ -5,7 +5,6 @@ mod creation;
 mod detach;
 mod erf;
 mod exp;
-mod index;
 mod log;
 mod map_comparison;
 mod mask;
