@@ -7,7 +7,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
-burn = { path = "../../burn" }
+burn = { path = "../../burn", default-features = false, features = ["ndarray"] }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }

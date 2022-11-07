@@ -37,7 +37,10 @@ where
             .save(&file_path)
             .map_err(CheckpointerError::IOError)?;
 
-        // Keep two versions because all checkpoints are not synced.
+        if self.num_keep > epoch {
+            return Ok(());
+        }
+
         let file_path_old_checkpoint = self.path_for_epoch(epoch - self.num_keep);
 
         if std::path::Path::new(&file_path_old_checkpoint).exists() {

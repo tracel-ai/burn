@@ -13,7 +13,7 @@ use burn::{
 };
 use std::sync::Arc;
 
-static ARTIFACT_DIR: &str = "/tmp/mnist-test-2";
+static ARTIFACT_DIR: &str = "/tmp/burn-example-mnist";
 
 pub fn run<B: ADBackend>(device: B::Device) {
     // Config
