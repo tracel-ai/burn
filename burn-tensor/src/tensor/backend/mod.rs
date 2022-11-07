@@ -13,6 +13,7 @@ pub(crate) mod tch;
 pub type TchADBackend<E> = self::autodiff::ADBackendTch<E>;
 #[cfg(feature = "tch")]
 pub type TchBackend<E> = self::tch::TchBackend<E>;
+
 #[cfg(feature = "tch")]
 pub type TchDevice = self::tch::TchDevice;
 

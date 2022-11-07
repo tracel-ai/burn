@@ -3,10 +3,24 @@ use crate::tensor::{backend::Backend, TchElement};
 use crate::tensor::{Data, Distribution, Shape};
 
 #[derive(Clone, Copy, Debug)]
+/// The device struct when using the `tch` backend.
+///
+/// Note that you need to provide the device index when using Cuda.
+///
+/// # Example
+///
+/// ```rust
+/// use burn_tensor::backend::TchDevice;
+///
+/// let device_gpu_1 = TchDevice::Cuda(0); // First GPU
+/// let device_gpu_2 = TchDevice::Cuda(1); // Second GPU
+/// let device_cpu = TchDevice::Cpu; // CPU
+/// ```
 pub enum TchDevice {
     Cpu,
     Cuda(usize),
 }
+
 impl From<TchDevice> for tch::Device {
     fn from(device: TchDevice) -> Self {
         match device {
