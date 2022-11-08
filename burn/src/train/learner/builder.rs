@@ -1,3 +1,4 @@
+use super::log::update_log_file;
 use super::Learner;
 use crate::module::ADModule;
 use crate::train::checkpoint::{AsyncCheckpointer, Checkpointer, FileCheckpointer};
@@ -127,6 +128,7 @@ where
     where
         M: ADModule<ADBackend = B>,
     {
+        self.init_logger();
         let callack = Box::new(self.dashboard);
         let callback = Box::new(AsyncTrainerCallback::new(callack));
 
@@ -150,5 +152,10 @@ where
             checkpointer_model: create_checkpointer(self.checkpointer_model),
             checkpointer_optimizer: create_checkpointer(self.checkpointer_optimizer),
         }
+    }
+
+    fn init_logger(&self) {
+        let file_path = format!("{}/experiment.log", self.directory);
+        update_log_file(file_path.as_str());
     }
 }

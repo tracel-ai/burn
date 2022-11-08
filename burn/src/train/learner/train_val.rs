@@ -36,6 +36,8 @@ where
         M: TrainStep<TI, TO>,
         M::InnerModule: ValidStep<VI, VO>,
     {
+        log::info!("Fitting {}", self.model.to_string());
+
         let starting_epoch = match self.checkpoint {
             Some(checkpoint) => {
                 self.load_checkpoint(checkpoint);
@@ -57,6 +59,8 @@ where
     where
         M: TrainStep<TI, TO>,
     {
+        log::info!("Executing training step for epoch {}", epoch);
+
         let mut iterator = dataloader_train.iter();
         let mut iteration = 0;
 
@@ -82,6 +86,8 @@ where
     where
         M::InnerModule: ValidStep<VI, VO>,
     {
+        log::info!("Executing validation step for epoch {}", epoch);
+
         let model = self.model.inner();
 
         let mut iterator = dataloader_valid.iter();

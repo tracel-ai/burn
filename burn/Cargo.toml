@@ -39,6 +39,8 @@ terminal_size = "0.2"
 
 # Console
 indicatif = "0.17"
+log4rs = "1.2"
+log = "0.4"
 
 # Serialize Deserialize
 serde = { version = "1.0", features = ["derive"] }
