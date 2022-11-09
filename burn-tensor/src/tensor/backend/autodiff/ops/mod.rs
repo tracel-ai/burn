@@ -7,7 +7,6 @@ mod detach;
 mod erf;
 mod exp;
 mod log;
-mod map_comparison;
 mod module;
 mod pow;
 mod precision;

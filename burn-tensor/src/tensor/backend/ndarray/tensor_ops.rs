@@ -265,6 +265,106 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
             shape: tensor.shape,
         }
     }
+
+    fn equal<const D: usize>(
+        lhs: &NdArrayTensor<E, D>,
+        rhs: &NdArrayTensor<E, D>,
+    ) -> NdArrayTensor<bool, D> {
+        let tensor = NdArrayBackend::<E>::sub(lhs, rhs);
+        let zero = E::zeros(&E::default());
+
+        Self::equal_scalar(&tensor, &zero)
+    }
+
+    fn equal_scalar<const D: usize>(lhs: &NdArrayTensor<E, D>, rhs: &E) -> NdArrayTensor<bool, D> {
+        let array = lhs.array.mapv(|a| a == *rhs).into_shared();
+
+        NdArrayTensor {
+            shape: lhs.shape,
+            array,
+        }
+    }
+
+    fn greater<const D: usize>(
+        lhs: &NdArrayTensor<E, D>,
+        rhs: &NdArrayTensor<E, D>,
+    ) -> NdArrayTensor<bool, D> {
+        let tensor = NdArrayBackend::<E>::sub(lhs, rhs);
+        let zero = E::zeros(&E::default());
+        Self::greater_scalar(&tensor, &zero)
+    }
+
+    fn greater_scalar<const D: usize>(
+        lhs: &NdArrayTensor<E, D>,
+        rhs: &E,
+    ) -> NdArrayTensor<bool, D> {
+        let array = lhs.array.mapv(|a| a > *rhs).into_shared();
+
+        NdArrayTensor {
+            shape: lhs.shape,
+            array,
+        }
+    }
+
+    fn greater_equal<const D: usize>(
+        lhs: &NdArrayTensor<E, D>,
+        rhs: &NdArrayTensor<E, D>,
+    ) -> NdArrayTensor<bool, D> {
+        let tensor = NdArrayBackend::<E>::sub(lhs, rhs);
+        let zero = E::zeros(&E::default());
+        Self::greater_equal_scalar(&tensor, &zero)
+    }
+
+    fn greater_equal_scalar<const D: usize>(
+        lhs: &NdArrayTensor<E, D>,
+        rhs: &E,
+    ) -> NdArrayTensor<bool, D> {
+        let array = lhs.array.mapv(|a| a >= *rhs).into_shared();
+
+        NdArrayTensor {
+            shape: lhs.shape,
+            array,
+        }
+    }
+
+    fn lower<const D: usize>(
+        lhs: &NdArrayTensor<E, D>,
+        rhs: &NdArrayTensor<E, D>,
+    ) -> NdArrayTensor<bool, D> {
+        let tensor = NdArrayBackend::<E>::sub(lhs, rhs);
+        let zero = E::zeros(&E::default());
+        Self::lower_scalar(&tensor, &zero)
+    }
+
+    fn lower_scalar<const D: usize>(lhs: &NdArrayTensor<E, D>, rhs: &E) -> NdArrayTensor<bool, D> {
+        let array = lhs.array.mapv(|a| a < *rhs).into_shared();
+
+        NdArrayTensor {
+            shape: lhs.shape,
+            array,
+        }
+    }
+
+    fn lower_equal<const D: usize>(
+        lhs: &NdArrayTensor<E, D>,
+        rhs: &NdArrayTensor<E, D>,
+    ) -> NdArrayTensor<bool, D> {
+        let tensor = NdArrayBackend::<E>::sub(lhs, rhs);
+        let zero = E::zeros(&E::default());
+        Self::lower_equal_scalar(&tensor, &zero)
+    }
+
+    fn lower_equal_scalar<const D: usize>(
+        lhs: &NdArrayTensor<E, D>,
+        rhs: &E,
+    ) -> NdArrayTensor<bool, D> {
+        let array = lhs.array.mapv(|a| a <= *rhs).into_shared();
+
+        NdArrayTensor {
+            shape: lhs.shape,
+            array,
+        }
+    }
 }
 
 fn to_slice_args<const D1: usize, const D2: usize>(

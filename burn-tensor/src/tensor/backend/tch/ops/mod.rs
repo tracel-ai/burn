@@ -6,6 +6,5 @@ mod detach;
 mod erf;
 mod exp;
 mod log;
-mod map_comparison;
 mod pow;
 mod precision;

@@ -129,19 +129,46 @@ pub trait TensorOps<B: Backend> {
         mask: &B::BoolTensorPrimitive<D>,
         value: B::Elem,
     ) -> B::TensorPrimitive<D>;
-}
-
-pub trait TensorOpsMapComparison<B: Backend, const D: usize> {
-    fn equal(&self, other: &Self) -> B::BoolTensorPrimitive<D>;
-    fn equal_scalar(&self, other: &B::Elem) -> B::BoolTensorPrimitive<D>;
-    fn greater(&self, other: &Self) -> B::BoolTensorPrimitive<D>;
-    fn greater_scalar(&self, other: &B::Elem) -> B::BoolTensorPrimitive<D>;
-    fn greater_equal(&self, other: &Self) -> B::BoolTensorPrimitive<D>;
-    fn greater_equal_scalar(&self, other: &B::Elem) -> B::BoolTensorPrimitive<D>;
-    fn lower(&self, other: &Self) -> B::BoolTensorPrimitive<D>;
-    fn lower_scalar(&self, other: &B::Elem) -> B::BoolTensorPrimitive<D>;
-    fn lower_equal(&self, other: &Self) -> B::BoolTensorPrimitive<D>;
-    fn lower_equal_scalar(&self, other: &B::Elem) -> B::BoolTensorPrimitive<D>;
+    fn equal<const D: usize>(
+        lhs: &B::TensorPrimitive<D>,
+        rhs: &B::TensorPrimitive<D>,
+    ) -> B::BoolTensorPrimitive<D>;
+    fn equal_scalar<const D: usize>(
+        lhs: &B::TensorPrimitive<D>,
+        rhs: &B::Elem,
+    ) -> B::BoolTensorPrimitive<D>;
+    fn greater<const D: usize>(
+        lhs: &B::TensorPrimitive<D>,
+        rhs: &B::TensorPrimitive<D>,
+    ) -> B::BoolTensorPrimitive<D>;
+    fn greater_scalar<const D: usize>(
+        lhs: &B::TensorPrimitive<D>,
+        rhs: &B::Elem,
+    ) -> B::BoolTensorPrimitive<D>;
+    fn greater_equal<const D: usize>(
+        lhs: &B::TensorPrimitive<D>,
+        rhs: &B::TensorPrimitive<D>,
+    ) -> B::BoolTensorPrimitive<D>;
+    fn greater_equal_scalar<const D: usize>(
+        lhs: &B::TensorPrimitive<D>,
+        rhs: &B::Elem,
+    ) -> B::BoolTensorPrimitive<D>;
+    fn lower<const D: usize>(
+        lhs: &B::TensorPrimitive<D>,
+        rhs: &B::TensorPrimitive<D>,
+    ) -> B::BoolTensorPrimitive<D>;
+    fn lower_scalar<const D: usize>(
+        lhs: &B::TensorPrimitive<D>,
+        rhs: &B::Elem,
+    ) -> B::BoolTensorPrimitive<D>;
+    fn lower_equal<const D: usize>(
+        lhs: &B::TensorPrimitive<D>,
+        rhs: &B::TensorPrimitive<D>,
+    ) -> B::BoolTensorPrimitive<D>;
+    fn lower_equal_scalar<const D: usize>(
+        lhs: &B::TensorPrimitive<D>,
+        rhs: &B::Elem,
+    ) -> B::BoolTensorPrimitive<D>;
 }
 
 pub trait TensorOpsAggregation<B: Backend, const D: usize> {
