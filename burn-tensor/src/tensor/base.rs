@@ -305,7 +305,7 @@ where
     ///
     /// If the two tensors don't have the same shape.
     pub fn equal(&self, other: &Self) -> BoolTensor<B, D> {
-        BoolTensor::new(self.value.equal(&other.value))
+        BoolTensor::new(B::equal(&self.value, &other.value))
     }
 
     /// Applies element wise greater comparison and returns a boolean tensor.
@@ -314,7 +314,7 @@ where
     ///
     /// If the two tensors don't have the same shape.
     pub fn greater(&self, other: &Self) -> BoolTensor<B, D> {
-        BoolTensor::new(self.value.greater(&other.value))
+        BoolTensor::new(B::greater(&self.value, &other.value))
     }
 
     /// Applies element wise greater-equal comparison and returns a boolean tensor.
@@ -323,7 +323,7 @@ where
     ///
     /// If the two tensors don't have the same shape.
     pub fn greater_equal(&self, other: &Self) -> BoolTensor<B, D> {
-        BoolTensor::new(self.value.greater_equal(&other.value))
+        BoolTensor::new(B::greater_equal(&self.value, &other.value))
     }
 
     /// Applies element wise lower comparison and returns a boolean tensor.
@@ -332,7 +332,7 @@ where
     ///
     /// If the two tensors don't have the same shape.
     pub fn lower(&self, other: &Self) -> BoolTensor<B, D> {
-        BoolTensor::new(self.value.lower(&other.value))
+        BoolTensor::new(B::lower(&self.value, &other.value))
     }
 
     /// Applies element wise lower-equal comparison and returns a boolean tensor.
@@ -341,32 +341,32 @@ where
     ///
     /// If the two tensors don't have the same shape.
     pub fn lower_equal(&self, other: &Self) -> BoolTensor<B, D> {
-        BoolTensor::new(self.value.lower_equal(&other.value))
+        BoolTensor::new(B::lower_equal(&self.value, &other.value))
     }
 
     /// Applies element wise equal comparison and returns a boolean tensor.
     pub fn equal_scalar<E: ElementConversion>(&self, other: E) -> BoolTensor<B, D> {
-        BoolTensor::new(self.value.equal_scalar(&other.to_elem()))
+        BoolTensor::new(B::equal_scalar(&self.value, &other.to_elem()))
     }
 
     /// Applies element wise greater comparison and returns a boolean tensor.
     pub fn greater_scalar<E: ElementConversion>(&self, other: E) -> BoolTensor<B, D> {
-        BoolTensor::new(self.value.greater_scalar(&other.to_elem()))
+        BoolTensor::new(B::greater_scalar(&self.value, &other.to_elem()))
     }
 
     /// Applies element wise greater-equal comparison and returns a boolean tensor.
     pub fn greater_equal_scalar<E: ElementConversion>(&self, other: E) -> BoolTensor<B, D> {
-        BoolTensor::new(self.value.greater_equal_scalar(&other.to_elem()))
+        BoolTensor::new(B::greater_equal_scalar(&self.value, &other.to_elem()))
     }
 
     /// Applies element wise lower comparison and returns a boolean tensor.
     pub fn lower_scalar<E: ElementConversion>(&self, other: E) -> BoolTensor<B, D> {
-        BoolTensor::new(self.value.lower_scalar(&other.to_elem()))
+        BoolTensor::new(B::lower_scalar(&self.value, &other.to_elem()))
     }
 
     /// Applies element wise lower-equal comparison and returns a boolean tensor.
     pub fn lower_equal_scalar<E: ElementConversion>(&self, other: E) -> BoolTensor<B, D> {
-        BoolTensor::new(self.value.lower_equal_scalar(&other.to_elem()))
+        BoolTensor::new(B::lower_equal_scalar(&self.value, &other.to_elem()))
     }
 
     /// Create a random tensor of the given shape where each element is sampled from the given

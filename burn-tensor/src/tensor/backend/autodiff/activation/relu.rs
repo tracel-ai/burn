@@ -13,7 +13,7 @@ register_ops!(
     name ADReLU,
     partial |state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>|{
         let zero = B::Elem::zeros(&B::Elem::default());
-        let mask = state.output.value().lower_equal_scalar(&zero);
+        let mask = B::lower_equal_scalar(&state.output.value(),&zero);
 
         B::mask_fill(&state.output.grad(), &mask, zero)
 
