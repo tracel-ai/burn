@@ -1,7 +1,4 @@
-pub mod data;
-pub mod model;
-
-mod training;
+use mnist::training;
 
 fn main() {
     use burn::tensor::backend::{NdArrayADBackend, NdArrayDevice};

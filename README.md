@@ -7,7 +7,7 @@
 [![Rust Version](https://img.shields.io/badge/Rust-1.65.0-blue)](https://releases.rs/docs/released/1.65.0)
 [![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](https://github.com/burn-rs/burn/blob/master/LICENSE)
 
-> This library aims to be a complete deep learning framework with extreme flexibility written in Rust. 
+> This library aims to be a complete deep learning framework with extreme flexibility written in Rust.
 > The goal would be to satisfy researchers as well as practitioners making it easier to experiment, train and deploy your models.
 
 <div align="left">
@@ -42,7 +42,15 @@ Also, this may be a good idea to checkout the main [components](#components) to 
 
 ### Examples
 
-For now there is only one example, but more to come 💪.
+For now there is only one example, but more to come 💪..
+
+The `mnist` example can be run like so:
+
+```console
+$ git clone https://github.com/burn-rs/burn.git
+$ cd burn
+$ cargo run --example mnist
+```
 
 #### MNIST
 
