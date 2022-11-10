@@ -44,14 +44,6 @@ Also, this may be a good idea to checkout the main [components](#components) to 
 
 For now there is only one example, but more to come 💪..
 
-The `mnist` example can be run like so:
-
-```console
-$ git clone https://github.com/burn-rs/burn.git
-$ cd burn
-$ cargo run --example mnist
-```
-
 #### MNIST
 
 The [MNIST](https://github.com/burn-rs/burn/blob/main/examples/mnist) example is not just of small script that shows you how to train a basic model, but it's a quick one showing you how to:
@@ -59,6 +51,17 @@ The [MNIST](https://github.com/burn-rs/burn/blob/main/examples/mnist) example is
 * Define your own custom [module](#module) (MLP).
 * Create the data pipeline from a raw dataset to a batched multi-threaded fast DataLoader.
 * Configure a [learner](#learner) to display and log metrics as well as to keep training checkpoints.
+
+The example can be run like so:
+
+```console
+$ git clone https://github.com/burn-rs/burn.git
+$ cd burn
+$ export TORCH_CUDA_VERSION=cu113               # Set the cuda version
+$ # Use the --release flag to really speed up training.
+$ cargo run --example mnist --release           # CPU NdArray Backend
+$ cargo run --example mnist_cuda_gpu --release  # GPU Tch Backend
+```
 
 ### Components
 
