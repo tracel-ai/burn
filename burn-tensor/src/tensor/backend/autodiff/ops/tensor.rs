@@ -702,4 +702,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     ) -> <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D> {
         B::lower_equal_scalar(lhs.tensor_ref(), rhs)
     }
+
+    fn detach<const D: usize>(
+        tensor: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
+        ADTensor::from_tensor(B::detach(tensor.tensor_ref()))
+    }
 }

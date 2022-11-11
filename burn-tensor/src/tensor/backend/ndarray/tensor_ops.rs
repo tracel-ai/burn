@@ -365,6 +365,9 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
             array,
         }
     }
+    fn detach<const D: usize>(tensor: &NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+        tensor.clone()
+    }
 }
 
 fn to_slice_args<const D1: usize, const D2: usize>(
