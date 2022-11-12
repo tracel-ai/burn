@@ -23,7 +23,7 @@ impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
                 [index..index + 1, 0..d_model],
             ));
         }
-        let embedding = TensorOpsCat::cat(tensors.iter().collect(), 0);
+        let embedding = NdArrayBackend::cat(&tensors, 0);
         NdArrayBackend::reshape(&embedding, Shape::new([batch_size, seq_length, d_model]))
     }
 

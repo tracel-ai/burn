@@ -2,7 +2,6 @@ use crate::graph::grad::Gradients;
 use crate::tensor::backend::ADBackend;
 use crate::tensor::backend::Backend;
 use crate::tensor::ops::activation::*;
-use crate::tensor::ops::*;
 use crate::tensor::stats;
 use crate::tensor::ElementConversion;
 use crate::tensor::{Data, Distribution, Shape};
@@ -506,11 +505,10 @@ where
     ///
     /// If all tensors don't have the same shape.
     pub fn cat(tensors: Vec<Self>, dim: usize) -> Self {
-        let tensors: Vec<B::TensorPrimitive<D>> = tensors.into_iter().map(|a| a.value).collect();
-        let tensors: Vec<&B::TensorPrimitive<D>> = tensors.iter().collect();
-        let value = B::TensorPrimitive::cat(tensors, dim);
-
-        Self::new(value)
+        Self::new(B::cat(
+            &tensors.into_iter().map(|t| t.value).collect::<Vec<_>>(),
+            dim,
+        ))
     }
 
     /// Detach the current tensor from the autodiff graph.

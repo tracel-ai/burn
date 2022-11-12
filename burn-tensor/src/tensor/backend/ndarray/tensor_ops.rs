@@ -4,7 +4,7 @@ use crate::{
     ops::TensorOps,
     to_nd_array_tensor, Data, ElementConversion, NdArrayElement, Shape,
 };
-use ndarray::{Axis, Dim, SliceInfoElem};
+use ndarray::{Axis, Dim, IxDyn, SliceInfoElem};
 use std::{cmp::Ordering, ops::Range};
 
 macro_rules! keepdim {
@@ -481,6 +481,19 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
             .mapv(|a| libm::erf(a.to_f64().unwrap()).to_elem())
             .into_shared();
         let shape = tensor.shape;
+
+        NdArrayTensor { array, shape }
+    }
+
+    fn cat<const D: usize>(tensors: &[NdArrayTensor<E, D>], dim: usize) -> NdArrayTensor<E, D> {
+        let mut shape = tensors.get(0).unwrap().shape;
+        shape.dims[dim] = tensors.len();
+
+        let arrays: Vec<ndarray::ArrayView<E, IxDyn>> =
+            tensors.iter().map(|t| t.array.view()).collect();
+        let array = ndarray::concatenate(Axis(dim), &arrays)
+            .unwrap()
+            .into_shared();
 
         NdArrayTensor { array, shape }
     }

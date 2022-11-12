@@ -382,6 +382,12 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     fn erf<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
         to_tensor(tensor.tensor.erf())
     }
+
+    fn cat<const D: usize>(tensors: &[TchTensor<E, D>], dim: usize) -> TchTensor<E, D> {
+        let tensors: Vec<tch::Tensor> = tensors.iter().map(|t| t.tensor.shallow_clone()).collect();
+        let tensor = tch::Tensor::cat(&tensors, dim as i64);
+        to_tensor(tensor)
+    }
 }
 
 fn to_tensor<const D: usize, E: TchElement>(tensor: tch::Tensor) -> TchTensor<E, D> {

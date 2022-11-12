@@ -1,5 +1,4 @@
 mod base;
-mod cat;
 mod creation;
 mod module;
 mod tensor;
