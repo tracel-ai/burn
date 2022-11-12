@@ -1,5 +1,10 @@
 use super::{binary_ops_wrapper, unary_ops_wrapper};
 use crate::backend::autodiff::ops::unary_ops_wrapper_explicit;
+use crate::graph::converter::Forward2BackwardGraphConverter;
+use crate::graph::node::{BackwardNode, BackwardNodeRef, BackwardNodeState, ForwardNodeRef};
+use crate::graph::ops::{
+    BackwardRecordedOps, BackwardRecordedOpsRef, ForwardRecordedOps, RecordedOpsParentRef,
+};
 use crate::tensor::ElementConversion;
 use crate::{
     backend::{
@@ -11,6 +16,7 @@ use crate::{
     Data, Shape, Tensor,
 };
 use std::ops::Range;
+use std::sync::Arc;
 
 impl<B: Backend, const D: usize> std::ops::Add<ADTensor<D, B>> for ADTensor<D, B> {
     type Output = ADTensor<D, B>;
@@ -1044,5 +1050,86 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let ops = Backward::<B, D>::default();
 
         unary_ops_wrapper(tensor.node.clone(), output, ops)
+    }
+
+    fn cat<const D: usize>(
+        tensors: &[<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>],
+        dim: usize,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
+        #[derive(new, Debug)]
+        pub struct ForwardCatOps<const D: usize, B: Backend> {
+            nodes: Vec<ForwardNodeRef<B::TensorPrimitive<D>>>,
+            dim: usize,
+        }
+
+        #[derive(new, Debug)]
+        pub struct BackwardCatOps<const D: usize, B: Backend> {
+            nodes: Vec<BackwardNodeRef<B::TensorPrimitive<D>>>,
+            dim: usize,
+        }
+
+        impl<const D: usize, B: Backend> ForwardRecordedOps<B::TensorPrimitive<D>> for ForwardCatOps<D, B> {
+            fn to_backward(
+                &self,
+                graph: &mut Forward2BackwardGraphConverter,
+            ) -> BackwardRecordedOpsRef<B::TensorPrimitive<D>> {
+                Arc::new(BackwardCatOps::<D, B>::new(
+                    self.nodes
+                        .iter()
+                        .map(|node| {
+                            let ops: BackwardNode<B::TensorPrimitive<D>> =
+                                BackwardNode::from_node(node, graph);
+                            Arc::new(ops)
+                        })
+                        .collect(),
+                    self.dim,
+                ))
+            }
+        }
+
+        impl<const D: usize, B: Backend> BackwardRecordedOps<B::TensorPrimitive<D>>
+            for BackwardCatOps<D, B>
+        {
+            fn backward_step(&self, state: &BackwardNodeState<B::TensorPrimitive<D>>) {
+                let grad = state.grad();
+                let indexes: Vec<_> = B::shape(&grad).dims.iter().map(|v| 0..*v).collect();
+                let indexes: [std::ops::Range<usize>; D] = indexes.try_into().unwrap();
+
+                self.nodes.iter().enumerate().for_each(|(i, node)| {
+                    let mut indexes = indexes.clone();
+                    indexes[self.dim] = i..i + 1;
+                    node.state.update_grad(B::index(&grad, indexes));
+                });
+            }
+
+            fn backward_parents(&self) -> Vec<RecordedOpsParentRef> {
+                self.nodes
+                    .iter()
+                    .map(|node| {
+                        let ops: RecordedOpsParentRef = node.clone();
+                        ops
+                    })
+                    .collect()
+            }
+        }
+
+        let nodes: Vec<_> = tensors.iter().map(|t| t.node.clone()).collect();
+        let order = nodes.iter().map(|node| node.order).max().unwrap() + 1;
+
+        let tensors_inner: Vec<B::TensorPrimitive<D>> =
+            tensors.iter().map(|a| a.tensor()).collect();
+
+        let out = B::cat(&tensors_inner, dim);
+
+        let shape = *B::shape(&out);
+        let state = crate::graph::node::ForwardNodeState::new(out);
+
+        let ops = ForwardCatOps::<D, B>::new(nodes, dim);
+        let ops = Arc::new(ops);
+
+        let node = crate::graph::node::ForwardNode::new(order, state, ops);
+        let node = std::sync::Arc::new(node);
+
+        ADTensor { node, shape }
     }
 }

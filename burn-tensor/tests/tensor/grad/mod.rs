@@ -1,5 +1,6 @@
 mod add;
 mod aggregation;
+mod cat;
 mod cross_entropy;
 mod div;
 mod erf;

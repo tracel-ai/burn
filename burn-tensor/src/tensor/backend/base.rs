@@ -23,7 +23,6 @@ pub trait Backend:
     type TensorPrimitive<const D: usize>: std::ops::Add<Self::TensorPrimitive<D>, Output = Self::TensorPrimitive<D>>
         + Zeros<Self::TensorPrimitive<D>>
         + Ones<Self::TensorPrimitive<D>>
-        + TensorOpsCat<Self::Elem, D>
         + ReLU<Self::Elem, D>
         + Clone
         + Send
