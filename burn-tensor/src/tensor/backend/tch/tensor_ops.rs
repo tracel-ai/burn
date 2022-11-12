@@ -356,6 +356,16 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         let tensor = tensor.tensor.to_kind(TchKind::<E>::new().kind());
         to_tensor(tensor)
     }
+
+    fn argmax<const D: usize>(tensor: &TchTensor<E, D>, dim: usize) -> TchTensor<i64, D> {
+        let tensor = tensor.tensor.argmax(dim as i64, true);
+        to_tensor(tensor)
+    }
+
+    fn argmin<const D: usize>(tensor: &TchTensor<E, D>, dim: usize) -> TchTensor<i64, D> {
+        let tensor = tensor.tensor.argmin(dim as i64, true);
+        to_tensor(tensor)
+    }
 }
 
 fn to_tensor<const D: usize, E: TchElement>(tensor: tch::Tensor) -> TchTensor<E, D> {

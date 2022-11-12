@@ -184,11 +184,14 @@ pub trait TensorOps<B: Backend> {
     fn from_full_precision<const D: usize>(
         tensor: &<B::FullPrecisionBackend as Backend>::TensorPrimitive<D>,
     ) -> B::TensorPrimitive<D>;
-}
-
-pub trait TensorOpsArg<B: Backend, const D: usize> {
-    fn argmax(&self, dim: usize) -> <B::IntegerBackend as Backend>::TensorPrimitive<D>;
-    fn argmin(&self, dim: usize) -> <B::IntegerBackend as Backend>::TensorPrimitive<D>;
+    fn argmax<const D: usize>(
+        tensor: &B::TensorPrimitive<D>,
+        dim: usize,
+    ) -> <B::IntegerBackend as Backend>::TensorPrimitive<D>;
+    fn argmin<const D: usize>(
+        tensor: &B::TensorPrimitive<D>,
+        dim: usize,
+    ) -> <B::IntegerBackend as Backend>::TensorPrimitive<D>;
 }
 
 pub trait TensorOpsExp<E, const D: usize> {

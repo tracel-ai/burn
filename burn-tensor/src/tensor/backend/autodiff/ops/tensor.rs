@@ -917,4 +917,18 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             ops,
         )
     }
+
+    fn argmax<const D: usize>(
+        tensor: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        dim: usize,
+    ) -> <<ADBackendDecorator<B> as Backend>::IntegerBackend as Backend>::TensorPrimitive<D> {
+        B::argmax(tensor.tensor_ref(), dim)
+    }
+
+    fn argmin<const D: usize>(
+        tensor: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        dim: usize,
+    ) -> <<ADBackendDecorator<B> as Backend>::IntegerBackend as Backend>::TensorPrimitive<D> {
+        B::argmin(tensor.tensor_ref(), dim)
+    }
 }

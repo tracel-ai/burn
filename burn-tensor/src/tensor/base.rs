@@ -478,7 +478,7 @@ where
     /// }
     /// ```
     pub fn argmax(&self, dim: usize) -> Tensor<B::IntegerBackend, D> {
-        Tensor::new(self.value.argmax(dim))
+        Tensor::new(B::argmax(&self.value, dim))
     }
 
     /// Applies the argmin function along the given dimension and returns an integer tensor.
@@ -497,7 +497,7 @@ where
     /// }
     /// ```
     pub fn argmin(&self, dim: usize) -> Tensor<B::IntegerBackend, D> {
-        Tensor::new(self.value.argmin(dim))
+        Tensor::new(B::argmin(&self.value, dim))
     }
 
     /// Concatenates all tensors into a new one along the given dimension.

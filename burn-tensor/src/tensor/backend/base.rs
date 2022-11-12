@@ -24,7 +24,6 @@ pub trait Backend:
         + Zeros<Self::TensorPrimitive<D>>
         + Ones<Self::TensorPrimitive<D>>
         + TensorOpsExp<Self::Elem, D>
-        + TensorOpsArg<Self, D>
         + TensorOpsCat<Self::Elem, D>
         + TensorOpsLog<Self::Elem, D>
         + TensorOpsErf<Self::Elem, D>
