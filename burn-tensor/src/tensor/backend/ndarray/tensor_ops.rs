@@ -474,6 +474,16 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
 
         NdArrayTensor { array, shape }
     }
+
+    fn erf<const D: usize>(tensor: &NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+        let array = tensor
+            .array
+            .mapv(|a| libm::erf(a.to_f64().unwrap()).to_elem())
+            .into_shared();
+        let shape = tensor.shape;
+
+        NdArrayTensor { array, shape }
+    }
 }
 
 fn to_slice_args<const D1: usize, const D2: usize>(

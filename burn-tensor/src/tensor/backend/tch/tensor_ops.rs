@@ -378,6 +378,10 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     fn powf<const D: usize>(tensor: &TchTensor<E, D>, value: f32) -> TchTensor<E, D> {
         to_tensor(tensor.tensor.pow_tensor_scalar(value as f64))
     }
+
+    fn erf<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
+        to_tensor(tensor.tensor.erf())
+    }
 }
 
 fn to_tensor<const D: usize, E: TchElement>(tensor: tch::Tensor) -> TchTensor<E, D> {

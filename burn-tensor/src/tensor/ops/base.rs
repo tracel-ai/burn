@@ -195,14 +195,11 @@ pub trait TensorOps<B: Backend> {
     fn exp<const D: usize>(tensor: &B::TensorPrimitive<D>) -> B::TensorPrimitive<D>;
     fn log<const D: usize>(tensor: &B::TensorPrimitive<D>) -> B::TensorPrimitive<D>;
     fn powf<const D: usize>(tensor: &B::TensorPrimitive<D>, value: f32) -> B::TensorPrimitive<D>;
+    fn erf<const D: usize>(tensor: &B::TensorPrimitive<D>) -> B::TensorPrimitive<D>;
 }
 
 pub trait TensorOpsCat<E, const D: usize> {
     fn cat(tensors: Vec<&Self>, dim: usize) -> Self;
-}
-
-pub trait TensorOpsErf<E, const D: usize> {
-    fn erf(&self) -> Self;
 }
 
 pub trait Zeros<T> {

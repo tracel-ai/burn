@@ -1014,4 +1014,35 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
         unary_ops_wrapper(tensor.node.clone(), output, ops)
     }
+
+    fn erf<const D: usize>(
+        tensor: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
+        #[derive(Default, Debug)]
+        struct Backward<B: Backend, const D: usize> {
+            _b: B,
+        }
+
+        impl<B: Backend, const D: usize> UnaryOps<B::TensorPrimitive<D>, B::TensorPrimitive<D>>
+            for Backward<B, D>
+        {
+            fn partial(
+                &self,
+                state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
+            ) -> B::TensorPrimitive<D> {
+                let value = state.input.value();
+                let exponent = B::neg(&B::powf(&value, 2.0));
+                let numerator = B::mul_scalar(&B::exp(&exponent), &2.0.to_elem());
+                let denominator = std::f64::consts::PI.sqrt().to_elem();
+                let value = B::div_scalar(&numerator, &denominator);
+
+                B::mul(&state.output.grad(), &value)
+            }
+        }
+
+        let output = B::erf(tensor.tensor_ref());
+        let ops = Backward::<B, D>::default();
+
+        unary_ops_wrapper(tensor.node.clone(), output, ops)
+    }
 }
