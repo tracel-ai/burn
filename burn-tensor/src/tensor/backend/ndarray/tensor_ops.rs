@@ -497,6 +497,13 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
 
         NdArrayTensor { array, shape }
     }
+
+    fn relu<const D: usize>(tensor: &NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+        let zero = 0.to_elem();
+        let mask = Self::lower_equal_scalar(tensor, &zero);
+
+        Self::mask_fill(tensor, &mask, zero)
+    }
 }
 
 fn to_slice_args<const D1: usize, const D2: usize>(

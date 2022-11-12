@@ -1,4 +1,3 @@
-mod activation;
 mod backend;
 mod ops;
 mod tensor;
