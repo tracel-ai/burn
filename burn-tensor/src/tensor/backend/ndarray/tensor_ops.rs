@@ -453,6 +453,20 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     fn argmin<const D: usize>(tensor: &NdArrayTensor<E, D>, dim: usize) -> NdArrayTensor<i64, D> {
         arg(tensor, dim, cmp_max)
     }
+
+    fn exp<const D: usize>(tensor: &NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+        let array = tensor.array.mapv(|a| a.exp_elem()).into_shared();
+        let shape = tensor.shape;
+
+        NdArrayTensor { array, shape }
+    }
+
+    fn log<const D: usize>(tensor: &NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+        let array = tensor.array.mapv(|a| a.log_elem()).into_shared();
+        let shape = tensor.shape;
+
+        NdArrayTensor { array, shape }
+    }
 }
 
 fn to_slice_args<const D1: usize, const D2: usize>(

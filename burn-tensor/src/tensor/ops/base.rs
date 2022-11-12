@@ -192,10 +192,8 @@ pub trait TensorOps<B: Backend> {
         tensor: &B::TensorPrimitive<D>,
         dim: usize,
     ) -> <B::IntegerBackend as Backend>::TensorPrimitive<D>;
-}
-
-pub trait TensorOpsExp<E, const D: usize> {
-    fn exp(&self) -> Self;
+    fn exp<const D: usize>(tensor: &B::TensorPrimitive<D>) -> B::TensorPrimitive<D>;
+    fn log<const D: usize>(tensor: &B::TensorPrimitive<D>) -> B::TensorPrimitive<D>;
 }
 
 pub trait TensorOpsCat<E, const D: usize> {
@@ -204,10 +202,6 @@ pub trait TensorOpsCat<E, const D: usize> {
 
 pub trait TensorOpsPow<E, const D: usize> {
     fn powf(&self, value: f32) -> Self;
-}
-
-pub trait TensorOpsLog<E, const D: usize> {
-    fn log(&self) -> Self;
 }
 
 pub trait TensorOpsErf<E, const D: usize> {

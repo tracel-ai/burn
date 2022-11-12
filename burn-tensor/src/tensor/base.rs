@@ -61,14 +61,14 @@ where
     ///
     /// `y = e^x`
     pub fn exp(&self) -> Self {
-        Self::new(self.value.exp())
+        Self::new(B::exp(&self.value))
     }
 
     /// Applies element wise natural log operation *ln*.
     ///
     /// `y = log(x)`
     pub fn log(&self) -> Self {
-        Self::new(self.value.log())
+        Self::new(B::log(&self.value))
     }
 
     /// Applies the [error function](https://en.wikipedia.org/wiki/Error_function) element wise.
