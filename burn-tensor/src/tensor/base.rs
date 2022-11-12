@@ -82,7 +82,7 @@ where
     ///
     /// `y = x^a`
     pub fn powf(&self, value: f32) -> Self {
-        Self::new(self.value.powf(value))
+        Self::new(B::powf(&self.value, value))
     }
 
     /// Returns the shape of the current tensor.

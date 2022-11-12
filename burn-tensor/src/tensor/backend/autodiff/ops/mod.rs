@@ -3,7 +3,6 @@ mod cat;
 mod creation;
 mod erf;
 mod module;
-mod pow;
 mod tensor;
 
 mod macros;
