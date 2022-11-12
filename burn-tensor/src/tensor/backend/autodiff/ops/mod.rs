@@ -2,8 +2,6 @@ mod base;
 mod cat;
 mod creation;
 mod erf;
-mod exp;
-mod log;
 mod module;
 mod pow;
 mod tensor;

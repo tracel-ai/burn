@@ -366,6 +366,14 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         let tensor = tensor.tensor.argmin(dim as i64, true);
         to_tensor(tensor)
     }
+
+    fn exp<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
+        to_tensor(tensor.tensor.exp())
+    }
+
+    fn log<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
+        to_tensor(tensor.tensor.log())
+    }
 }
 
 fn to_tensor<const D: usize, E: TchElement>(tensor: tch::Tensor) -> TchTensor<E, D> {
