@@ -519,7 +519,7 @@ where
     /// This can be used in batchers or elsewere to ensure that previous operations are not
     /// considered in the autodiff graph.
     pub fn detach(self) -> Self {
-        Self::new(self.value.detach())
+        Self::new(B::detach(&self.value))
     }
 
     /// Unsqueeze the current tensor. Create new dimensions to fit the given size.

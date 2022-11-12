@@ -169,6 +169,7 @@ pub trait TensorOps<B: Backend> {
         lhs: &B::TensorPrimitive<D>,
         rhs: &B::Elem,
     ) -> B::BoolTensorPrimitive<D>;
+    fn detach<const D: usize>(tensor: &B::TensorPrimitive<D>) -> B::TensorPrimitive<D>;
 }
 
 pub trait TensorOpsAggregation<B: Backend, const D: usize> {
@@ -204,10 +205,6 @@ pub trait TensorOpsPow<E, const D: usize> {
 
 pub trait TensorOpsLog<E, const D: usize> {
     fn log(&self) -> Self;
-}
-
-pub trait TensorOpsDetach<E, const D: usize> {
-    fn detach(self) -> Self;
 }
 
 pub trait TensorOpsErf<E, const D: usize> {

@@ -318,6 +318,9 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
             kind: TchKind::<bool>::new(),
         }
     }
+    fn detach<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
+        tensor.clone()
+    }
 }
 
 fn to_tensor<const D: usize, E: TchElement>(tensor: tch::Tensor) -> TchTensor<E, D> {
