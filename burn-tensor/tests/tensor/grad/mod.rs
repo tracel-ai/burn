@@ -2,6 +2,7 @@ mod add;
 mod aggregation;
 mod cross_entropy;
 mod div;
+mod erf;
 mod exp;
 mod index;
 mod log;

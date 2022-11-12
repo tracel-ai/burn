@@ -75,7 +75,7 @@ where
     ///
     /// `y = erf(x)`
     pub fn erf(&self) -> Self {
-        Self::new(self.value.erf())
+        Self::new(B::erf(&self.value))
     }
 
     /// Applies element wise power operation.

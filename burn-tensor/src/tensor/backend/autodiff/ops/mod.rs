@@ -1,7 +1,6 @@
 mod base;
 mod cat;
 mod creation;
-mod erf;
 mod module;
 mod tensor;
 
