@@ -1,5 +1,5 @@
 use super::{binary_ops_wrapper, unary_ops_wrapper};
-use crate::backend::autodiff::ops::unary_ops_wrapper_explicite;
+use crate::backend::autodiff::ops::unary_ops_wrapper_explicit;
 use crate::tensor::ElementConversion;
 use crate::{
     backend::{
@@ -875,7 +875,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let output = B::to_full_precision(tensor.tensor_ref());
         let ops = Backward::<B, D>::default();
 
-        unary_ops_wrapper_explicite::<B, B::FullPrecisionBackend, Backward<B, D>, D, D>(
+        unary_ops_wrapper_explicit::<B, B::FullPrecisionBackend, Backward<B, D>, D, D>(
             tensor.node.clone(),
             output,
             ops,
@@ -911,7 +911,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let output = B::from_full_precision(tensor.tensor_ref());
         let ops = Backward::<B, D>::default();
 
-        unary_ops_wrapper_explicite::<B::FullPrecisionBackend, B, Backward<B, D>, D, D>(
+        unary_ops_wrapper_explicit::<B::FullPrecisionBackend, B, Backward<B, D>, D, D>(
             tensor.node.clone(),
             output,
             ops,

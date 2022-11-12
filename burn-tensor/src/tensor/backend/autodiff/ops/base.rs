@@ -7,7 +7,7 @@ use crate::{
 };
 use std::sync::Arc;
 
-pub fn unary_ops_wrapper_explicite<B1, B2, O, const D1: usize, const D2: usize>(
+pub fn unary_ops_wrapper_explicit<B1, B2, O, const D1: usize, const D2: usize>(
     input: ForwardNodeRef<B1::TensorPrimitive<D1>>,
     output: B2::TensorPrimitive<D2>,
     ops: O,
@@ -39,7 +39,7 @@ where
     B: Backend,
     O: UnaryOps<B::TensorPrimitive<D1>, B::TensorPrimitive<D2>> + 'static,
 {
-    unary_ops_wrapper_explicite::<B, B, O, D1, D2>(input, output, ops)
+    unary_ops_wrapper_explicit::<B, B, O, D1, D2>(input, output, ops)
 }
 
 pub fn binary_ops_wrapper<B, O, const D1: usize, const D2: usize, const D3: usize>(
