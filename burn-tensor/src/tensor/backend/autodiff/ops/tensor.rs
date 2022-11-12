@@ -1,12 +1,13 @@
 use super::{binary_ops_wrapper, unary_ops_wrapper};
+use crate::tensor::ElementConversion;
 use crate::{
     backend::{
         autodiff::{ADBackendDecorator, ADTensor},
         Backend,
     },
     graph::ops::{BinaryOps, BinaryOpsNodeState, UnaryOps, UnaryOpsNodeState},
-    ops::{Ones, TensorOps, TensorOpsAggregation, Zeros},
-    Data, Shape,
+    ops::{Ones, TensorOps, Zeros},
+    Data, Shape, Tensor,
 };
 use std::ops::Range;
 
@@ -508,7 +509,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
                 for i in 0..D2 {
                     if shape_value.dims[i] == 1 && shape_grad.dims[i] != 1 {
-                        grad = grad.sum_dim(i);
+                        grad = B::sum_dim(&grad, i);
                     }
                 }
 
@@ -707,5 +708,139 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         tensor: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
         ADTensor::from_tensor(B::detach(tensor.tensor_ref()))
+    }
+
+    fn mean<const D: usize>(
+        tensor: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<1> {
+        #[derive(new, Debug)]
+        struct Backward<B: Backend, const D: usize> {
+            shape: Shape<D>,
+            _b: B,
+        }
+
+        impl<B: Backend, const D: usize> UnaryOps<B::TensorPrimitive<D>, B::TensorPrimitive<1>>
+            for Backward<B, D>
+        {
+            fn partial(
+                &self,
+                state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<1>>,
+            ) -> B::TensorPrimitive<D> {
+                let grad = state.output.grad();
+                let ones = B::ones(self.shape, B::device(&grad));
+
+                let grad: Tensor<B, 1> = Tensor::new(grad);
+                let val = 1_f64 / self.shape.num_elements() as f64;
+                let ones: Tensor<B, D> = Tensor::new(ones).mul_scalar(val);
+
+                ones.mul(&grad.unsqueeze()).value
+            }
+        }
+
+        let shape = B::shape(tensor.tensor_ref());
+        let output = B::mean(tensor.tensor_ref());
+        let ops = Backward::<B, D>::new(*shape, B::default());
+
+        unary_ops_wrapper(tensor.node.clone(), output, ops)
+    }
+
+    fn sum<const D: usize>(
+        tensor: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<1> {
+        #[derive(new, Debug)]
+        struct Backward<B: Backend, const D: usize> {
+            shape: Shape<D>,
+            _b: B,
+        }
+
+        impl<B: Backend, const D: usize> UnaryOps<B::TensorPrimitive<D>, B::TensorPrimitive<1>>
+            for Backward<B, D>
+        {
+            fn partial(
+                &self,
+                state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<1>>,
+            ) -> B::TensorPrimitive<D> {
+                let grad = state.output.grad();
+                let ones = B::ones(self.shape, B::device(&grad));
+
+                let grad: Tensor<B, 1> = Tensor::new(grad);
+                let ones: Tensor<B, D> = Tensor::new(ones);
+
+                ones.mul(&grad.unsqueeze()).value
+            }
+        }
+
+        let shape = B::shape(tensor.tensor_ref());
+        let output = B::sum(tensor.tensor_ref());
+        let ops = Backward::<B, D>::new(*shape, B::default());
+
+        unary_ops_wrapper(tensor.node.clone(), output, ops)
+    }
+
+    fn mean_dim<const D: usize>(
+        tensor: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        dim: usize,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
+        #[derive(new, Debug)]
+        struct Backward<B: Backend, const D: usize> {
+            shape: Shape<D>,
+            dim: usize,
+            _b: B,
+        }
+
+        impl<B: Backend, const D: usize> UnaryOps<B::TensorPrimitive<D>, B::TensorPrimitive<D>>
+            for Backward<B, D>
+        {
+            fn partial(
+                &self,
+                state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
+            ) -> B::TensorPrimitive<D> {
+                let grad = B::sum_dim(&state.output.grad(), self.dim);
+                let ones = B::ones(self.shape, B::device(&grad));
+
+                let val = 1_f64 / self.shape.dims[self.dim] as f64;
+                let ones = B::mul_scalar(&ones, &B::Elem::from_elem(val));
+
+                B::mul(&ones, &grad)
+            }
+        }
+
+        let shape = B::shape(tensor.tensor_ref());
+        let output = B::mean_dim(tensor.tensor_ref(), dim);
+        let ops = Backward::<B, D>::new(*shape, dim, B::default());
+
+        unary_ops_wrapper(tensor.node.clone(), output, ops)
+    }
+
+    fn sum_dim<const D: usize>(
+        tensor: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        dim: usize,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
+        #[derive(new, Debug)]
+        struct Backward<B: Backend, const D: usize> {
+            shape: Shape<D>,
+            dim: usize,
+            _b: B,
+        }
+
+        impl<B: Backend, const D: usize> UnaryOps<B::TensorPrimitive<D>, B::TensorPrimitive<D>>
+            for Backward<B, D>
+        {
+            fn partial(
+                &self,
+                state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
+            ) -> B::TensorPrimitive<D> {
+                let grad = B::sum_dim(&state.output.grad(), self.dim);
+                let ones = B::ones(self.shape, B::device(&grad));
+
+                B::mul(&ones, &grad)
+            }
+        }
+
+        let shape = B::shape(tensor.tensor_ref());
+        let output = B::sum_dim(tensor.tensor_ref(), dim);
+        let ops = Backward::<B, D>::new(*shape, dim, B::default());
+
+        unary_ops_wrapper(tensor.node.clone(), output, ops)
     }
 }

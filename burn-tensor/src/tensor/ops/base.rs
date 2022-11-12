@@ -170,13 +170,14 @@ pub trait TensorOps<B: Backend> {
         rhs: &B::Elem,
     ) -> B::BoolTensorPrimitive<D>;
     fn detach<const D: usize>(tensor: &B::TensorPrimitive<D>) -> B::TensorPrimitive<D>;
-}
-
-pub trait TensorOpsAggregation<B: Backend, const D: usize> {
-    fn mean(&self) -> B::TensorPrimitive<1>;
-    fn sum(&self) -> B::TensorPrimitive<1>;
-    fn mean_dim(&self, dim: usize) -> B::TensorPrimitive<D>;
-    fn sum_dim(&self, dim: usize) -> B::TensorPrimitive<D>;
+    fn mean<const D: usize>(tensor: &B::TensorPrimitive<D>) -> B::TensorPrimitive<1>;
+    fn sum<const D: usize>(tensor: &B::TensorPrimitive<D>) -> B::TensorPrimitive<1>;
+    fn mean_dim<const D: usize>(
+        tensor: &B::TensorPrimitive<D>,
+        dim: usize,
+    ) -> B::TensorPrimitive<D>;
+    fn sum_dim<const D: usize>(tensor: &B::TensorPrimitive<D>, dim: usize)
+        -> B::TensorPrimitive<D>;
 }
 
 pub trait TensorOpsPrecision<B: Backend, const D: usize> {

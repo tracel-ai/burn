@@ -1,12 +1,36 @@
-use std::ops::Range;
-
 use super::{BatchMatrix, NdArrayBackend, NdArrayTensor};
 use crate::{
     backend::{Backend, NdArrayDevice},
     ops::TensorOps,
     to_nd_array_tensor, Data, ElementConversion, NdArrayElement, Shape,
 };
-use ndarray::{Dim, SliceInfoElem};
+use ndarray::{Axis, Dim, SliceInfoElem};
+use std::ops::Range;
+
+macro_rules! keepdim {
+    (
+        $D:expr,
+        $dim:expr,
+        $self:expr,
+        mean
+    ) => {{
+        let tensor: NdArrayTensor<E, $D> = mean_dim(&$self, $dim);
+        let mut shape = $self.shape.clone();
+        shape.dims[$dim] = 1;
+        NdArrayBackend::reshape(&tensor, shape)
+    }};
+    (
+        $D:expr,
+        $dim:expr,
+        $self:expr,
+        sum
+    ) => {{
+        let tensor: NdArrayTensor<E, $D> = sum_dim(&$self, $dim);
+        let mut shape = $self.shape.clone();
+        shape.dims[$dim] = 1;
+        NdArrayBackend::reshape(&tensor, shape)
+    }};
+}
 
 impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     fn shape<const D: usize>(
@@ -365,8 +389,43 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
             array,
         }
     }
+
     fn detach<const D: usize>(tensor: &NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         tensor.clone()
+    }
+
+    fn mean<const D: usize>(tensor: &NdArrayTensor<E, D>) -> NdArrayTensor<E, 1> {
+        let data = Data::from([tensor.array.mean().unwrap()]);
+        NdArrayTensor::from_data(data)
+    }
+
+    fn sum<const D: usize>(tensor: &NdArrayTensor<E, D>) -> NdArrayTensor<E, 1> {
+        let data = Data::from([tensor.array.sum()]);
+        NdArrayTensor::from_data(data)
+    }
+
+    fn mean_dim<const D: usize>(tensor: &NdArrayTensor<E, D>, dim: usize) -> NdArrayTensor<E, D> {
+        match D {
+            1 => keepdim!(0, dim, tensor, mean),
+            2 => keepdim!(1, dim, tensor, mean),
+            3 => keepdim!(2, dim, tensor, mean),
+            4 => keepdim!(3, dim, tensor, mean),
+            5 => keepdim!(4, dim, tensor, mean),
+            6 => keepdim!(5, dim, tensor, mean),
+            _ => panic!("Dim not supported {}", D),
+        }
+    }
+
+    fn sum_dim<const D: usize>(tensor: &NdArrayTensor<E, D>, dim: usize) -> NdArrayTensor<E, D> {
+        match D {
+            1 => keepdim!(0, dim, tensor, sum),
+            2 => keepdim!(1, dim, tensor, sum),
+            3 => keepdim!(2, dim, tensor, sum),
+            4 => keepdim!(3, dim, tensor, sum),
+            5 => keepdim!(4, dim, tensor, sum),
+            6 => keepdim!(5, dim, tensor, sum),
+            _ => panic!("Dim not supported {}", D),
+        }
     }
 }
 
@@ -390,4 +449,24 @@ fn to_slice_args<const D1: usize, const D2: usize>(
         }
     }
     slices
+}
+
+fn mean_dim<E: NdArrayElement, const D1: usize, const D2: usize>(
+    tensor: &NdArrayTensor<E, D1>,
+    dim: usize,
+) -> NdArrayTensor<E, D2> {
+    let array = tensor.array.mean_axis(Axis(dim)).unwrap().into_shared();
+    let shape = tensor.shape.remove_dim(dim);
+
+    NdArrayTensor { array, shape }
+}
+
+fn sum_dim<E: NdArrayElement, const D1: usize, const D2: usize>(
+    tensor: &NdArrayTensor<E, D1>,
+    dim: usize,
+) -> NdArrayTensor<E, D2> {
+    let array = tensor.array.sum_axis(Axis(dim)).into_shared();
+    let shape = tensor.shape.remove_dim(dim);
+
+    NdArrayTensor { array, shape }
 }
