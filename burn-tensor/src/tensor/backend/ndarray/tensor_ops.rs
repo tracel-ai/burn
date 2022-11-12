@@ -427,6 +427,24 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
             _ => panic!("Dim not supported {}", D),
         }
     }
+
+    fn to_full_precision<const D: usize>(tensor: &NdArrayTensor<E, D>) -> NdArrayTensor<f32, D> {
+        let array = tensor.array.mapv(|a| a.to_elem()).into_shared();
+
+        NdArrayTensor {
+            shape: tensor.shape,
+            array,
+        }
+    }
+
+    fn from_full_precision<const D: usize>(tensor: &NdArrayTensor<f32, D>) -> NdArrayTensor<E, D> {
+        let array = tensor.array.mapv(|a| a.to_elem()).into_shared();
+
+        NdArrayTensor {
+            shape: tensor.shape,
+            array,
+        }
+    }
 }
 
 fn to_slice_args<const D1: usize, const D2: usize>(

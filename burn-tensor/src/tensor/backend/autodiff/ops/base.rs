@@ -7,16 +7,17 @@ use crate::{
 };
 use std::sync::Arc;
 
-pub fn unary_ops_wrapper<B, O, const D1: usize, const D2: usize>(
-    input: ForwardNodeRef<B::TensorPrimitive<D1>>,
-    output: B::TensorPrimitive<D2>,
+pub fn unary_ops_wrapper_explicit<B1, B2, O, const D1: usize, const D2: usize>(
+    input: ForwardNodeRef<B1::TensorPrimitive<D1>>,
+    output: B2::TensorPrimitive<D2>,
     ops: O,
-) -> ADTensor<D2, B>
+) -> ADTensor<D2, B2>
 where
-    B: Backend,
-    O: UnaryOps<B::TensorPrimitive<D1>, B::TensorPrimitive<D2>> + 'static,
+    B1: Backend,
+    B2: Backend,
+    O: UnaryOps<B1::TensorPrimitive<D1>, B2::TensorPrimitive<D2>> + 'static,
 {
-    let shape = *B::shape(&output);
+    let shape = *B2::shape(&output);
     let state = ForwardNodeState::new(output);
 
     let ops = Arc::new(ops);
@@ -27,6 +28,18 @@ where
     let node = Arc::new(node);
 
     ADTensor { node, shape }
+}
+
+pub fn unary_ops_wrapper<B, O, const D1: usize, const D2: usize>(
+    input: ForwardNodeRef<B::TensorPrimitive<D1>>,
+    output: B::TensorPrimitive<D2>,
+    ops: O,
+) -> ADTensor<D2, B>
+where
+    B: Backend,
+    O: UnaryOps<B::TensorPrimitive<D1>, B::TensorPrimitive<D2>> + 'static,
+{
+    unary_ops_wrapper_explicit::<B, B, O, D1, D2>(input, output, ops)
 }
 
 pub fn binary_ops_wrapper<B, O, const D1: usize, const D2: usize, const D3: usize>(

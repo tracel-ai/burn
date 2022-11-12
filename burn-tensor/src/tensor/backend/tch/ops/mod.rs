@@ -5,4 +5,3 @@ mod erf;
 mod exp;
 mod log;
 mod pow;
-mod precision;

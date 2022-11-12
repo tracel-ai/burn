@@ -1,4 +1,5 @@
 use super::{binary_ops_wrapper, unary_ops_wrapper};
+use crate::backend::autodiff::ops::unary_ops_wrapper_explicit;
 use crate::tensor::ElementConversion;
 use crate::{
     backend::{
@@ -842,5 +843,78 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let ops = Backward::<B, D>::new(*shape, dim, B::default());
 
         unary_ops_wrapper(tensor.node.clone(), output, ops)
+    }
+
+    fn to_full_precision<const D: usize>(
+        tensor: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+    ) -> <<ADBackendDecorator<B> as Backend>::FullPrecisionBackend as Backend>::TensorPrimitive<D>
+    {
+        #[derive(Default, Debug)]
+        struct Backward<B: Backend, const D: usize> {
+            _b: B,
+        }
+
+        impl<B: Backend, const D: usize>
+            UnaryOps<
+                B::TensorPrimitive<D>,
+                <B::FullPrecisionBackend as Backend>::TensorPrimitive<D>,
+            > for Backward<B, D>
+        {
+            fn partial(
+                &self,
+                state: &UnaryOpsNodeState<
+                    B::TensorPrimitive<D>,
+                    <B::FullPrecisionBackend as Backend>::TensorPrimitive<D>,
+                >,
+            ) -> B::TensorPrimitive<D> {
+                let grad = state.output.grad();
+                B::from_full_precision(&grad)
+            }
+        }
+
+        let output = B::to_full_precision(tensor.tensor_ref());
+        let ops = Backward::<B, D>::default();
+
+        unary_ops_wrapper_explicit::<B, B::FullPrecisionBackend, Backward<B, D>, D, D>(
+            tensor.node.clone(),
+            output,
+            ops,
+        )
+    }
+
+    fn from_full_precision<const D: usize>(
+        tensor: &<<ADBackendDecorator<B> as Backend>::FullPrecisionBackend as Backend>::TensorPrimitive<D>,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
+        #[derive(Default, Debug)]
+        struct Backward<B: Backend, const D: usize> {
+            _b: B,
+        }
+
+        impl<B: Backend, const D: usize>
+            UnaryOps<
+                <B::FullPrecisionBackend as Backend>::TensorPrimitive<D>,
+                B::TensorPrimitive<D>,
+            > for Backward<B, D>
+        {
+            fn partial(
+                &self,
+                state: &UnaryOpsNodeState<
+                    <B::FullPrecisionBackend as Backend>::TensorPrimitive<D>,
+                    B::TensorPrimitive<D>,
+                >,
+            ) -> <B::FullPrecisionBackend as Backend>::TensorPrimitive<D> {
+                let grad = state.output.grad();
+                B::to_full_precision(&grad)
+            }
+        }
+
+        let output = B::from_full_precision(tensor.tensor_ref());
+        let ops = Backward::<B, D>::default();
+
+        unary_ops_wrapper_explicit::<B::FullPrecisionBackend, B, Backward<B, D>, D, D>(
+            tensor.node.clone(),
+            output,
+            ops,
+        )
     }
 }
