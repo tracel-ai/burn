@@ -454,13 +454,12 @@ where
 
     /// Returns a tensor with full precision based on the selected backend.
     pub fn to_full_precision(&self) -> Tensor<B::FullPrecisionBackend, D> {
-        Tensor::new(self.value.to_full_precision())
+        Tensor::new(B::to_full_precision(&self.value))
     }
 
     /// Returns a tensor on the selected backend from a full precision tensor.
     pub fn from_full_precision(tensor: Tensor<B::FullPrecisionBackend, D>) -> Self {
-        let value = B::TensorPrimitive::from_full_precision(tensor.value);
-        Tensor::new(value)
+        Self::new(B::from_full_precision(&tensor.value))
     }
 
     /// Applies the argmax function along the given dimension and returns an integer tensor.

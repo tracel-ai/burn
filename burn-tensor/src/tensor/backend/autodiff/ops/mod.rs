@@ -7,7 +7,6 @@ mod exp;
 mod log;
 mod module;
 mod pow;
-mod precision;
 mod tensor;
 
 mod macros;

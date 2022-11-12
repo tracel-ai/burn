@@ -346,6 +346,16 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
             .sum_dim_intlist(&[dim as i64], true, tensor.kind.kind());
         to_tensor(tensor)
     }
+
+    fn to_full_precision<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<f32, D> {
+        let tensor = tensor.tensor.to_kind(TchKind::<f32>::new().kind());
+        to_tensor(tensor)
+    }
+
+    fn from_full_precision<const D: usize>(tensor: &TchTensor<f32, D>) -> TchTensor<E, D> {
+        let tensor = tensor.tensor.to_kind(TchKind::<E>::new().kind());
+        to_tensor(tensor)
+    }
 }
 
 fn to_tensor<const D: usize, E: TchElement>(tensor: tch::Tensor) -> TchTensor<E, D> {

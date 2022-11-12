@@ -178,12 +178,11 @@ pub trait TensorOps<B: Backend> {
     ) -> B::TensorPrimitive<D>;
     fn sum_dim<const D: usize>(tensor: &B::TensorPrimitive<D>, dim: usize)
         -> B::TensorPrimitive<D>;
-}
-
-pub trait TensorOpsPrecision<B: Backend, const D: usize> {
-    fn to_full_precision(&self) -> <B::FullPrecisionBackend as Backend>::TensorPrimitive<D>;
-    fn from_full_precision(
-        tensor: <B::FullPrecisionBackend as Backend>::TensorPrimitive<D>,
+    fn to_full_precision<const D: usize>(
+        tensor: &B::TensorPrimitive<D>,
+    ) -> <B::FullPrecisionBackend as Backend>::TensorPrimitive<D>;
+    fn from_full_precision<const D: usize>(
+        tensor: &<B::FullPrecisionBackend as Backend>::TensorPrimitive<D>,
     ) -> B::TensorPrimitive<D>;
 }
 
