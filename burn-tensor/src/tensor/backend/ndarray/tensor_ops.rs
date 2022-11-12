@@ -467,6 +467,13 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
 
         NdArrayTensor { array, shape }
     }
+
+    fn powf<const D: usize>(tensor: &NdArrayTensor<E, D>, value: f32) -> NdArrayTensor<E, D> {
+        let array = tensor.array.mapv(|a| a.pow_elem(value)).into_shared();
+        let shape = tensor.shape;
+
+        NdArrayTensor { array, shape }
+    }
 }
 
 fn to_slice_args<const D1: usize, const D2: usize>(

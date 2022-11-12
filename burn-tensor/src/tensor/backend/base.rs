@@ -25,7 +25,6 @@ pub trait Backend:
         + Ones<Self::TensorPrimitive<D>>
         + TensorOpsCat<Self::Elem, D>
         + TensorOpsErf<Self::Elem, D>
-        + TensorOpsPow<Self::Elem, D>
         + ReLU<Self::Elem, D>
         + Clone
         + Send
