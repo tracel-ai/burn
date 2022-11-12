@@ -1,4 +1,3 @@
-use crate::ops::activation::*;
 use crate::ops::*;
 use crate::tensor::Element;
 use crate::tensor::{Data, Distribution, Shape};
@@ -23,7 +22,6 @@ pub trait Backend:
     type TensorPrimitive<const D: usize>: std::ops::Add<Self::TensorPrimitive<D>, Output = Self::TensorPrimitive<D>>
         + Zeros<Self::TensorPrimitive<D>>
         + Ones<Self::TensorPrimitive<D>>
-        + ReLU<Self::Elem, D>
         + Clone
         + Send
         + Sync

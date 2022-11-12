@@ -388,6 +388,10 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         let tensor = tch::Tensor::cat(&tensors, dim as i64);
         to_tensor(tensor)
     }
+
+    fn relu<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
+        to_tensor(tensor.tensor.relu())
+    }
 }
 
 fn to_tensor<const D: usize, E: TchElement>(tensor: tch::Tensor) -> TchTensor<E, D> {

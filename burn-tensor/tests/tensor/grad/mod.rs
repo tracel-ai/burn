@@ -12,6 +12,7 @@ mod matmul;
 mod mul;
 mod neg;
 mod pow;
+mod relu;
 mod reshape;
 mod softmax;
 mod sub;

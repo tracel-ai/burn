@@ -1,7 +1,6 @@
 use crate::graph::grad::Gradients;
 use crate::tensor::backend::ADBackend;
 use crate::tensor::backend::Backend;
-use crate::tensor::ops::activation::*;
 use crate::tensor::stats;
 use crate::tensor::ElementConversion;
 use crate::tensor::{Data, Distribution, Shape};
@@ -566,7 +565,7 @@ where
     }
 
     pub(crate) fn relu(&self) -> Self {
-        Self::new(self.value.relu())
+        Self::new(B::relu(&self.value))
     }
 }
 

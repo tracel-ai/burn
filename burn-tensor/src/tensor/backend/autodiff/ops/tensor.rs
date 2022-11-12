@@ -1132,4 +1132,31 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
         ADTensor { node, shape }
     }
+
+    fn relu<const D: usize>(
+        tensor: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
+        #[derive(Default, Debug)]
+        struct Backward<B: Backend, const D: usize> {
+            _b: B,
+        }
+
+        impl<B: Backend, const D: usize> UnaryOps<B::TensorPrimitive<D>, B::TensorPrimitive<D>>
+            for Backward<B, D>
+        {
+            fn partial(
+                &self,
+                state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
+            ) -> B::TensorPrimitive<D> {
+                let zero = 0.to_elem();
+                let mask = B::lower_equal_scalar(&state.output.value(), &zero);
+                B::mask_fill(&state.output.grad(), &mask, zero)
+            }
+        }
+
+        let output = B::relu(tensor.tensor_ref());
+        let ops = Backward::<B, D>::default();
+
+        unary_ops_wrapper(tensor.node.clone(), output, ops)
+    }
 }
