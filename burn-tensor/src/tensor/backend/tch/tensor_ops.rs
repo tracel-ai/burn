@@ -318,8 +318,33 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
             kind: TchKind::<bool>::new(),
         }
     }
+
     fn detach<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
         tensor.clone()
+    }
+
+    fn mean<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, 1> {
+        let tensor = tensor.tensor.mean(tensor.kind.kind());
+        to_tensor(tensor)
+    }
+
+    fn sum<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, 1> {
+        let tensor = tensor.tensor.sum(tensor.kind.kind());
+        to_tensor(tensor)
+    }
+
+    fn mean_dim<const D: usize>(tensor: &TchTensor<E, D>, dim: usize) -> TchTensor<E, D> {
+        let tensor = tensor
+            .tensor
+            .mean_dim(&[dim as i64], true, tensor.kind.kind());
+        to_tensor(tensor)
+    }
+
+    fn sum_dim<const D: usize>(tensor: &TchTensor<E, D>, dim: usize) -> TchTensor<E, D> {
+        let tensor = tensor
+            .tensor
+            .sum_dim_intlist(&[dim as i64], true, tensor.kind.kind());
+        to_tensor(tensor)
     }
 }
 

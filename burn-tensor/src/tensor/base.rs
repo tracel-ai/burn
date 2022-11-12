@@ -257,22 +257,22 @@ where
 
     /// Aggregate all elements in the tensor with the mean operation.
     pub fn mean(&self) -> Tensor<B, 1> {
-        Tensor::new(self.value.mean())
+        Tensor::new(B::mean(&self.value))
     }
 
     /// Aggregate all elements in the tensor with the sum operation.
     pub fn sum(&self) -> Tensor<B, 1> {
-        Tensor::new(self.value.sum())
+        Tensor::new(B::sum(&self.value))
     }
 
     /// Aggregate all elements along the given *dimension* or *axis* in the tensor with the mean operation.
     pub fn mean_dim(&self, dim: usize) -> Self {
-        Self::new(self.value.mean_dim(dim))
+        Self::new(B::mean_dim(&self.value, dim))
     }
 
     /// Aggregate all elements along the given *dimension* or *axis* in the tensor with the sum operation.
     pub fn sum_dim(&self, dim: usize) -> Self {
-        Self::new(self.value.sum_dim(dim))
+        Self::new(B::sum_dim(&self.value, dim))
     }
 
     /// Calculate the variance along the given dimension.
