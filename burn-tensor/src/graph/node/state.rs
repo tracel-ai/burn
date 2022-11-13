@@ -23,7 +23,7 @@ pub struct BackwardNodeState<Out> {
     pub grad: RefCell<Out>,
 }
 
-impl<Out: Zeros<Out>> BackwardNodeState<Out> {
+impl<Out: Zeros> BackwardNodeState<Out> {
     pub fn new(value: Out) -> Self {
         let grad = value.zeros();
         let grad = RefCell::new(grad);
@@ -42,7 +42,7 @@ where
 
 impl<Out> BackwardNodeState<Out>
 where
-    Out: Zeros<Out> + Clone + Add<Output = Out>,
+    Out: Zeros + Clone + Add<Output = Out>,
     Out: std::fmt::Debug,
 {
     pub fn grad(&self) -> Out {

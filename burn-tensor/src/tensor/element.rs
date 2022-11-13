@@ -4,13 +4,13 @@ use num_traits::ToPrimitive;
 use rand::prelude::StdRng;
 
 pub trait Element:
-    Zeros<Self>
+    Zeros
     + ToPrimitive
     + ElementRandom<Self>
     + ElementConversion
     + ElementPrecision
     + ElementValue
-    + Ones<Self>
+    + Ones
     + std::ops::Mul<Self, Output = Self>
     + std::fmt::Debug
     + Default
@@ -77,7 +77,7 @@ macro_rules! ad_items {
     ) => {
         impl Element for $float {}
 
-        impl Zeros<$float> for $float {
+        impl Zeros for $float {
             fn zeros(&self) -> $float {
                 $zero
             }
@@ -122,7 +122,7 @@ macro_rules! ad_items {
             }
         }
 
-        impl Ones<$float> for $float {
+        impl Ones for $float {
             fn ones(&self) -> $float {
                 $one
             }

@@ -32,9 +32,9 @@ pub struct BackwardBinaryRecordedOps<Lhs, Rhs, Ops> {
 
 impl<Lhs, Rhs, Out, Ops> ForwardRecordedOps<Out> for ForwardBinaryRecordedOps<Lhs, Rhs, Ops>
 where
-    Lhs: Clone + Zeros<Lhs> + Add<Output = Lhs> + std::fmt::Debug + 'static + Send + Sync,
-    Rhs: Clone + Zeros<Rhs> + Add<Output = Rhs> + std::fmt::Debug + 'static + Send + Sync,
-    Out: Clone + Zeros<Out> + Add<Output = Out> + std::fmt::Debug + 'static,
+    Lhs: Clone + Zeros + Add<Output = Lhs> + std::fmt::Debug + 'static + Send + Sync,
+    Rhs: Clone + Zeros + Add<Output = Rhs> + std::fmt::Debug + 'static + Send + Sync,
+    Out: Clone + Zeros + Add<Output = Out> + std::fmt::Debug + 'static,
     Ops: BinaryOps<Lhs, Rhs, Out> + std::fmt::Debug + 'static + Send + Sync,
 {
     fn to_backward(
@@ -51,9 +51,9 @@ where
 
 impl<Lhs, Rhs, Out, Ops> BackwardRecordedOps<Out> for BackwardBinaryRecordedOps<Lhs, Rhs, Ops>
 where
-    Lhs: Clone + Zeros<Lhs> + Add<Output = Lhs> + std::fmt::Debug + 'static + Send + Sync,
-    Rhs: Clone + Zeros<Rhs> + Add<Output = Rhs> + std::fmt::Debug + 'static + Send + Sync,
-    Out: Clone + Zeros<Out> + Add<Output = Out> + std::fmt::Debug + 'static,
+    Lhs: Clone + Zeros + Add<Output = Lhs> + std::fmt::Debug + 'static + Send + Sync,
+    Rhs: Clone + Zeros + Add<Output = Rhs> + std::fmt::Debug + 'static + Send + Sync,
+    Out: Clone + Zeros + Add<Output = Out> + std::fmt::Debug + 'static,
     Ops: BinaryOps<Lhs, Rhs, Out> + std::fmt::Debug + 'static,
 {
     fn backward_step(&self, state: &BackwardNodeState<Out>) {

@@ -1,6 +1,6 @@
 use crate::tensor::{backend::tch::TchTensor, ops::*};
 
-impl<P, const D: usize> Zeros<TchTensor<P, D>> for TchTensor<P, D>
+impl<P, const D: usize> Zeros for TchTensor<P, D>
 where
     P: tch::kind::Element,
 {
@@ -17,7 +17,7 @@ where
     }
 }
 
-impl<P, const D: usize> Ones<TchTensor<P, D>> for TchTensor<P, D>
+impl<P, const D: usize> Ones for TchTensor<P, D>
 where
     P: tch::kind::Element,
 {

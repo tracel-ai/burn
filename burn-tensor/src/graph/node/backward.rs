@@ -19,7 +19,7 @@ pub struct BackwardNode<Out> {
 }
 pub type BackwardNodeRef<Out> = Arc<BackwardNode<Out>>;
 
-impl<Out: Clone + Zeros<Out>> BackwardNode<Out> {
+impl<Out: Clone + Zeros> BackwardNode<Out> {
     pub fn from_node(
         node: &ForwardNodeRef<Out>,
         converter: &mut Forward2BackwardGraphConverter,
@@ -35,7 +35,7 @@ impl<Out: Clone + Zeros<Out>> BackwardNode<Out> {
 
 impl<Out> BackwardNode<Out>
 where
-    Out: Zeros<Out> + Ones<Out> + Clone + Add<Output = Out>,
+    Out: Zeros + Ones + Clone + Add<Output = Out>,
     Out: std::fmt::Debug + 'static + Send + Sync,
 {
     pub fn backward(&mut self) -> Gradients {
@@ -74,7 +74,7 @@ where
 
 impl<T> RecordedOpsParent for BackwardNode<T>
 where
-    T: Zeros<T> + Clone + Add<Output = T>,
+    T: Zeros + Clone + Add<Output = T>,
     T: std::fmt::Debug + 'static + Send + Sync,
 {
     fn backward_step(&self) {

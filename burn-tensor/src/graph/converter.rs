@@ -15,7 +15,7 @@ impl Forward2BackwardGraphConverter {
             state: HashMap::new(),
         }
     }
-    pub fn from<T: Clone + 'static + Zeros<T>>(
+    pub fn from<T: Clone + 'static + Zeros>(
         &mut self,
         node: &ForwardNodeRef<T>,
     ) -> BackwardNodeRef<T> {

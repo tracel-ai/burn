@@ -21,7 +21,7 @@ impl Gradients {
 
     pub fn register<T>(&mut self, node: &BackwardNode<T>)
     where
-        T: Zeros<T> + Clone + Add<Output = T>,
+        T: Zeros + Clone + Add<Output = T>,
         T: std::fmt::Debug + 'static + Send + Sync,
     {
         let grad = node.state.grad();
@@ -37,7 +37,7 @@ impl Gradients {
 
     pub fn from<T>(node: &BackwardNode<T>) -> Self
     where
-        T: Zeros<T> + Clone + Add<Output = T>,
+        T: Zeros + Clone + Add<Output = T>,
         T: std::fmt::Debug + 'static + Send + Sync,
     {
         let mut grads = Self::empty();
