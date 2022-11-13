@@ -1,6 +1,7 @@
+use super::element::NdArrayElement;
 use super::NdArrayTensor;
+use crate::tensor::backend::Backend;
 use crate::tensor::Data;
-use crate::tensor::{backend::Backend, NdArrayElement};
 use crate::{Distribution, Shape};
 use rand::rngs::StdRng;
 use rand::SeedableRng;

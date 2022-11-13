@@ -1,5 +1,5 @@
-use super::{TchBackend, TchTensor};
-use crate::{ops::ModuleOps, Shape, TchElement};
+use super::{element::TchElement, TchBackend, TchTensor};
+use crate::{ops::ModuleOps, Shape};
 
 impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
     fn embedding(weights: &TchTensor<E, 2>, indexes: &TchTensor<i64, 2>) -> TchTensor<E, 3> {

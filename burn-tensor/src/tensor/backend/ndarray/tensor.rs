@@ -1,8 +1,7 @@
-use super::NdArrayBackend;
+use super::{element::NdArrayElement, NdArrayBackend};
 use crate::{
     ops::TensorOps,
     tensor::{Data, Shape},
-    NdArrayElement,
 };
 use ndarray::{s, ArcArray, Array, Axis, Dim, Ix2, Ix3, IxDyn};
 
@@ -22,9 +21,9 @@ impl<E: NdArrayElement, const D: usize> std::ops::Add for NdArrayTensor<E, D> {
 
 #[cfg(test)]
 mod utils {
-    use crate::{backend::NdArrayBackend, ops::TensorOps, NdArrayElement};
-
     use super::*;
+    use crate::{backend::NdArrayBackend, ops::TensorOps};
+
     impl<E, const D: usize> NdArrayTensor<E, D>
     where
         E: Default + Clone,
