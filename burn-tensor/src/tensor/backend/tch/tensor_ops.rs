@@ -1,5 +1,5 @@
-use super::{TchBackend, TchDevice, TchKind, TchShape, TchTensor};
-use crate::{backend::Backend, ops::TensorOps, Data, ElementConversion, Shape, TchElement};
+use super::{element::TchElement, TchBackend, TchDevice, TchKind, TchShape, TchTensor};
+use crate::{backend::Backend, ops::TensorOps, Data, ElementConversion, Shape};
 use std::ops::{Add, Div, Mul, Range, Sub};
 
 impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {

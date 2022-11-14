@@ -1,5 +1,6 @@
+use super::element::TchElement;
 use super::TchTensor;
-use crate::tensor::{backend::Backend, TchElement};
+use crate::tensor::backend::Backend;
 use crate::tensor::{Data, Distribution, Shape};
 
 #[derive(Clone, Copy, Debug)]

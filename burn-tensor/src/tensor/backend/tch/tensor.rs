@@ -1,8 +1,8 @@
+use super::element::TchElement;
 use crate::{
     backend::{TchBackend, TchDevice},
     ops::TensorOps,
     tensor::{Data, Shape},
-    TchElement,
 };
 
 lazy_static::lazy_static! {
@@ -99,7 +99,7 @@ impl<P: tch::kind::Element + Default, const D: usize> TchTensor<P, D> {
 #[cfg(test)]
 mod utils {
     use super::*;
-    use crate::{backend::TchBackend, ops::TensorOps, TchElement};
+    use crate::{backend::TchBackend, ops::TensorOps};
 
     impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
         pub(crate) fn into_data(self) -> Data<P, D>

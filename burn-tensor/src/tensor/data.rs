@@ -147,7 +147,7 @@ impl<P: Element, const D: usize> Data<P, D> {
 }
 impl<P: std::fmt::Debug, const D: usize> Data<P, D>
 where
-    P: Zeros<P> + Default,
+    P: Zeros + Default,
 {
     pub fn zeros(shape: Shape<D>) -> Data<P, D> {
         let elem = P::default();
@@ -167,7 +167,7 @@ where
 
 impl<P: std::fmt::Debug, const D: usize> Data<P, D>
 where
-    P: Ones<P> + Default,
+    P: Ones + Default,
 {
     pub fn ones(shape: Shape<D>) -> Data<P, D> {
         let elem = P::default();

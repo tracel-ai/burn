@@ -1,8 +1,8 @@
 use crate::tensor::{backend::ndarray::NdArrayTensor, ops::*, Data};
 
-impl<P, const D: usize> Zeros<NdArrayTensor<P, D>> for NdArrayTensor<P, D>
+impl<P, const D: usize> Zeros for NdArrayTensor<P, D>
 where
-    P: Default + Clone + Zeros<P> + std::fmt::Debug,
+    P: Default + Clone + Zeros + std::fmt::Debug,
 {
     fn zeros(&self) -> NdArrayTensor<P, D> {
         let data = Data::<P, D>::zeros(self.shape);
@@ -10,9 +10,9 @@ where
     }
 }
 
-impl<P, const D: usize> Ones<NdArrayTensor<P, D>> for NdArrayTensor<P, D>
+impl<P, const D: usize> Ones for NdArrayTensor<P, D>
 where
-    P: Default + Clone + Ones<P> + std::fmt::Debug,
+    P: Default + Clone + Ones + std::fmt::Debug,
 {
     fn ones(&self) -> NdArrayTensor<P, D> {
         let data = Data::<P, D>::ones(self.shape);

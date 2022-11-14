@@ -26,8 +26,8 @@ pub struct BackwareUnaryRecordedOps<In, Ops> {
 
 impl<In, Out, Ops> ForwardRecordedOps<Out> for ForwardUnaryRecordedOps<In, Ops>
 where
-    In: Clone + Zeros<In> + Add<Output = In> + std::fmt::Debug + 'static + Send + Sync,
-    Out: Clone + Zeros<Out> + Add<Output = Out> + std::fmt::Debug + 'static,
+    In: Clone + Zeros + Add<Output = In> + std::fmt::Debug + 'static + Send + Sync,
+    Out: Clone + Zeros + Add<Output = Out> + std::fmt::Debug + 'static,
     Ops: UnaryOps<In, Out> + std::fmt::Debug + 'static,
 {
     fn to_backward(
@@ -43,8 +43,8 @@ where
 
 impl<In, Out, Ops> BackwardRecordedOps<Out> for BackwareUnaryRecordedOps<In, Ops>
 where
-    In: Clone + Zeros<In> + Add<Output = In> + std::fmt::Debug + 'static + Send + Sync,
-    Out: Clone + Zeros<Out> + Add<Output = Out> + std::fmt::Debug + 'static,
+    In: Clone + Zeros + Add<Output = In> + std::fmt::Debug + 'static + Send + Sync,
+    Out: Clone + Zeros + Add<Output = Out> + std::fmt::Debug + 'static,
     Ops: UnaryOps<In, Out> + std::fmt::Debug + 'static,
 {
     fn backward_step(&self, state: &BackwardNodeState<Out>) {

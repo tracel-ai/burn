@@ -10,7 +10,7 @@ pub struct InitRecordedOps {}
 
 impl<Out> BackwardRecordedOps<Out> for InitRecordedOps
 where
-    Out: Clone + Zeros<Out> + Add<Output = Out> + std::fmt::Debug + 'static,
+    Out: Clone + Zeros + Add<Output = Out> + std::fmt::Debug + 'static,
 {
     fn backward_step(&self, _: &BackwardNodeState<Out>) {}
     fn backward_parents(&self) -> Vec<RecordedOpsParentRef> {
@@ -20,7 +20,7 @@ where
 
 impl<Out> ForwardRecordedOps<Out> for InitRecordedOps
 where
-    Out: Clone + Zeros<Out> + Add<Output = Out> + std::fmt::Debug + 'static,
+    Out: Clone + Zeros + Add<Output = Out> + std::fmt::Debug + 'static,
 {
     fn to_backward(
         &self,

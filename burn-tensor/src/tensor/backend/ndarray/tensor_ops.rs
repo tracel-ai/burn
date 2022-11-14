@@ -1,8 +1,8 @@
-use super::{BatchMatrix, NdArrayBackend, NdArrayTensor};
+use super::{element::NdArrayElement, BatchMatrix, NdArrayBackend, NdArrayTensor};
 use crate::{
     backend::{Backend, NdArrayDevice},
     ops::TensorOps,
-    to_nd_array_tensor, Data, ElementConversion, NdArrayElement, Shape,
+    to_nd_array_tensor, Data, ElementConversion, Shape,
 };
 use ndarray::{Axis, Dim, IxDyn, SliceInfoElem};
 use std::{cmp::Ordering, ops::Range};

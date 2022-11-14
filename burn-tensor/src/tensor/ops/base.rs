@@ -200,10 +200,10 @@ pub trait TensorOps<B: Backend> {
     fn relu<const D: usize>(tensor: &B::TensorPrimitive<D>) -> B::TensorPrimitive<D>;
 }
 
-pub trait Zeros<T> {
-    fn zeros(&self) -> T;
+pub trait Zeros {
+    fn zeros(&self) -> Self;
 }
 
-pub trait Ones<T> {
-    fn ones(&self) -> T;
+pub trait Ones {
+    fn ones(&self) -> Self;
 }
