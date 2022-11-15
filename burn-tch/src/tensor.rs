@@ -1,9 +1,5 @@
-use super::element::TchElement;
-use crate::{
-    backend::{TchBackend, TchDevice},
-    ops::TensorOps,
-    tensor::{Data, Shape},
-};
+use crate::{element::TchElement, TchBackend, TchDevice};
+use burn_tensor::{ops::TensorOps, Data, Shape};
 
 lazy_static::lazy_static! {
     static ref NO_GRAD: tch::NoGradGuard = {
@@ -53,16 +49,6 @@ impl<const D: usize> From<Shape<D>> for TchShape<D> {
     }
 }
 
-impl<const D: usize> From<Vec<i64>> for Shape<D> {
-    fn from(shape: Vec<i64>) -> Self {
-        let mut dims = [1; D];
-        for (i, dim) in shape.into_iter().enumerate() {
-            dims[i] = dim as usize;
-        }
-        Self::new(dims)
-    }
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct TchKind<P: tch::kind::Element> {
     _p: P,
@@ -99,12 +85,12 @@ impl<P: tch::kind::Element + Default, const D: usize> TchTensor<P, D> {
 #[cfg(test)]
 mod utils {
     use super::*;
-    use crate::{backend::TchBackend, ops::TensorOps};
+    use crate::{backend::TchBackend, element::TchElement};
 
-    impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
+    impl<P: TchElement, const D: usize> TchTensor<P, D> {
         pub(crate) fn into_data(self) -> Data<P, D>
         where
-            P: TchElement,
+            P: tch::kind::Element,
         {
             <TchBackend<P> as TensorOps<TchBackend<P>>>::into_data(self)
         }
@@ -131,7 +117,7 @@ impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> T
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::Distribution;
+    use burn_tensor::Distribution;
     use rand::prelude::StdRng;
     use rand::SeedableRng;
 

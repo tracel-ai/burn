@@ -11,15 +11,8 @@ license = "MIT/Apache-2.0"
 edition = "2021"
 
 [features]
-default = ["tch", "ndarray"]
-tch = ["burn-tensor/tch"]
+default = ["ndarray"]
 ndarray = ["burn-tensor/ndarray"]
-doc = ["burn-tensor/doc"]
-
-[package.metadata.docs.rs]
-features = ["doc"]
-all-features = false
-no-default-features = true
 
 [dependencies]
 burn-tensor = { path = "../burn-tensor", version = "0.2.3", default-features = false }

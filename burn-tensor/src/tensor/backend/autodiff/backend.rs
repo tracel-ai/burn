@@ -90,6 +90,3 @@ impl<B: Backend> ADBackend for ADBackendDecorator<B> {
 #[cfg(feature = "ndarray")]
 pub type ADBackendNdArray<E> =
     ADBackendDecorator<crate::tensor::backend::ndarray::NdArrayBackend<E>>;
-
-#[cfg(feature = "tch")]
-pub type ADBackendTch<E> = ADBackendDecorator<crate::tensor::backend::tch::TchBackend<E>>;

@@ -1,4 +1,5 @@
-use crate::tensor::{backend::tch::TchTensor, ops::*};
+use crate::TchTensor;
+use burn_tensor::ops::*;
 
 impl<P, const D: usize> Zeros for TchTensor<P, D>
 where

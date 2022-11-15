@@ -4,5 +4,6 @@ members = [
   "burn-derive",
   "burn-tensor",
   "burn-dataset",
+  "burn-tch",
   "examples/*",
 ]

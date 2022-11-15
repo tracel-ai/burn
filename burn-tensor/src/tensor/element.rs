@@ -1,4 +1,5 @@
 use crate::{tensor::ops::*, Distribution};
+use half::f16;
 use num_traits::ToPrimitive;
 use rand::prelude::StdRng;
 
@@ -181,4 +182,15 @@ make_element!(
     int u8 Precision::Other,
     convert |elem: &dyn ToPrimitive| elem.to_u8().unwrap(),
     random |distribution: Distribution<u8>, rng: &mut StdRng| distribution.sampler(rng).sample()
+);
+make_element!(
+    ty f16 Precision::Half,
+    zero <f16 as num_traits::Zero>::zero(),
+    one <f16 as num_traits::One>::one(),
+    convert |elem: &dyn ToPrimitive| f16::from_f32(elem.to_f32().unwrap()),
+    random |distribution: Distribution<f16>, rng: &mut StdRng| {
+        let distribution: Distribution<f32> = distribution.convert();
+        let sample = distribution.sampler(rng).sample();
+        f16::from_elem(sample)
+    }
 );

@@ -1,7 +1,7 @@
 use super::element::TchElement;
 use super::TchTensor;
-use crate::tensor::backend::Backend;
-use crate::tensor::{Data, Distribution, Shape};
+use burn_tensor::backend::Backend;
+use burn_tensor::{Data, Distribution, Shape};
 
 #[derive(Clone, Copy, Debug)]
 /// The device struct when using the `tch` backend.
@@ -11,7 +11,7 @@ use crate::tensor::{Data, Distribution, Shape};
 /// # Example
 ///
 /// ```rust
-/// use burn_tensor::backend::TchDevice;
+/// use burn_tch::TchDevice;
 ///
 /// let device_gpu_1 = TchDevice::Cuda(0); // First GPU
 /// let device_gpu_2 = TchDevice::Cuda(1); // Second GPU

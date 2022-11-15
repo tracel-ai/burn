@@ -7,16 +7,6 @@ pub use base::*;
 
 pub(crate) mod autodiff;
 
-#[cfg(feature = "tch")]
-pub(crate) mod tch;
-#[cfg(feature = "tch")]
-pub type TchADBackend<E> = self::autodiff::ADBackendTch<E>;
-#[cfg(feature = "tch")]
-pub type TchBackend<E> = self::tch::TchBackend<E>;
-
-#[cfg(feature = "tch")]
-pub type TchDevice = self::tch::TchDevice;
-
 #[cfg(feature = "ndarray")]
 pub(crate) mod ndarray;
 #[cfg(feature = "ndarray")]
