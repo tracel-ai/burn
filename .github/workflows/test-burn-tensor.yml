@@ -26,7 +26,7 @@ jobs:
       - name: check doc
         run: |
           cd burn-tensor
-          cargo test --no-default-features --features doc --doc
+          cargo test --doc
 
       - name: check tests backend ndarray
         run: |
