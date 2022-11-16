@@ -15,3 +15,5 @@ pub type NdArrayADBackend<E> = self::autodiff::ADBackendNdArray<E>;
 pub type NdArrayBackend<E> = self::ndarray::NdArrayBackend<E>;
 #[cfg(feature = "ndarray")]
 pub type NdArrayDevice = self::ndarray::NdArrayDevice;
+
+pub use autodiff::ADBackendDecorator;

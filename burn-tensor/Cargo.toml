@@ -22,6 +22,7 @@ no-default-features = true
 [features]
 default = ["ndarray"]
 ndarray = ["dep:ndarray", "dep:libm"]
+export_tests = []
 
 [dependencies]
 num-traits = "0.2"
