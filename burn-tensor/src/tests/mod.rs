@@ -4,8 +4,6 @@ mod module;
 mod ops;
 mod stats;
 
-// use crate as burn_tensor;
-
 #[macro_export]
 macro_rules! test_all {
     () => {

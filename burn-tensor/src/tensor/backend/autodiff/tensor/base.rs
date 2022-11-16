@@ -41,14 +41,4 @@ pub mod helper {
         pub type TestADTensor<E, const D: usize> = Tensor<ADBackendNdArray<E>, D>;
     }
     pub use helper_impl::*;
-
-    #[cfg(feature = "tch")]
-    #[cfg(not(feature = "ndarray"))]
-    mod helper_impl {
-        use crate::tensor::backend::autodiff::ADBackendTch;
-        use crate::tensor::Tensor;
-
-        pub type TestADTensor<E, const D: usize> = Tensor<ADBackendTch<E>, D>;
-    }
-    pub use helper_impl::*;
 }
