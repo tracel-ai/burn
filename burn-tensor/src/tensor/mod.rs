@@ -1,4 +1,4 @@
-pub(crate) mod ops;
+pub mod ops;
 pub(crate) mod stats;
 
 mod base;

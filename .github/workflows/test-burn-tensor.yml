@@ -26,22 +26,13 @@ jobs:
       - name: check doc
         run: |
           cd burn-tensor
-          cargo test --no-default-features --features doc --doc
+          cargo test --doc
 
       - name: check tests backend ndarray
         run: |
           cd burn-tensor
-          cargo test --no-default-features --features ndarray --tests
-
-      - name: check tests backend tch
-        run: |
-          cd burn-tensor
-          cargo test --no-default-features --features tch --tests
-
-      - name: check clippy backend tch
-        run: |
-          cargo clippy -p burn-tensor --no-default-features --features tch -- -D warnings
+          cargo test --no-default-features --features ndarray export_tests --tests
 
       - name: check clippy backend ndarray
         run: |
-          cargo clippy -p burn-tensor --no-default-features --features tch -- -D warnings
+          cargo clippy -p burn-tensor --no-default-features --features ndarray -- -D warnings

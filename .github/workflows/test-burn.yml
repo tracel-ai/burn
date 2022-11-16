@@ -27,7 +27,7 @@ jobs:
       - name: check doc
         run: |
           cd burn
-          cargo test --no-default-features --features doc --doc
+          cargo test --doc
 
       - name: check tests
         run: |

@@ -20,22 +20,15 @@ all-features = false
 no-default-features = true
 
 [features]
-default = ["tch", "ndarray"]
-tch = ["dep:tch"]
+default = ["ndarray"]
 ndarray = ["dep:ndarray", "dep:libm"]
-doc = ["dep:tch", "tch/doc-only", "dep:ndarray"]
+export_tests = []
 
 [dependencies]
 num-traits = "0.2"
 derive-new = "0.5"
 rand = "0.8"
 half = { version = "1.6", features = ["num-traits"] } # needs to be 1.6 to work with tch
-
-# Backends
-tch = { version = "0.8", optional = true }
-lazy_static = "1.4"
-
-
 
 # NdArray
 ndarray = { version = "0.15", optional = true }
