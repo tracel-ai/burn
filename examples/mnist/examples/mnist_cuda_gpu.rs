@@ -1,9 +1,9 @@
+use burn::tensor::backend::ADBackendDecorator;
+use burn_tch::{TchBackend, TchDevice};
 use mnist::training;
 
 fn main() {
-    use burn::tensor::backend::{TchADBackend, TchDevice};
-
     let device = TchDevice::Cuda(0);
-    training::run::<TchADBackend<burn::tensor::f16>>(device);
+    training::run::<ADBackendDecorator<TchBackend<burn::tensor::f16>>>(device);
     println!("Done.");
 }

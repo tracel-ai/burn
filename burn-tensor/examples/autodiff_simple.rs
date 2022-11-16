@@ -43,7 +43,7 @@ fn main() {
     #[cfg(feature = "ndarray")]
     {
         run::<backend::NdArrayBackend<f32>>(x.clone(), y.clone());
-        run_ad::<backend::NdArrayADBackend<f32>>(x.clone(), y.clone());
+        run_ad::<backend::NdArrayADBackend<f32>>(x, y);
     }
 
     #[cfg(feature = "tch")]
