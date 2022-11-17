@@ -31,7 +31,7 @@ jobs:
       - name: check tests backend ndarray
         run: |
           cd burn-tensor
-          cargo test --no-default-features --features ndarray export_tests --tests
+          cargo test --no-default-features --features ndarray --tests
 
       - name: check clippy backend ndarray
         run: |

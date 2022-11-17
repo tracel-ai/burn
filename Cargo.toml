@@ -3,6 +3,7 @@ members = [
   "burn",
   "burn-derive",
   "burn-tensor",
+  "burn-tensor-testgen",
   "burn-dataset",
   "burn-tch",
   "examples/*",

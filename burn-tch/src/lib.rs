@@ -13,5 +13,5 @@ pub use tensor_ops::*;
 mod tests {
     type TestBackend = crate::TchBackend<f32>;
 
-    burn_tensor::test_all!();
+    burn_tensor::testgen_all!();
 }

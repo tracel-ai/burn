@@ -4,67 +4,62 @@ mod module;
 mod ops;
 mod stats;
 
+#[cfg(test)]
+type TestBackend = crate::backend::NdArrayBackend<f32>;
+
 #[macro_export]
-macro_rules! test_all {
+macro_rules! testgen_all {
     () => {
-        use burn_tensor::activation::*;
-        use burn_tensor::backend::Backend;
-        use burn_tensor::module::*;
-        use burn_tensor::*;
-
-        type TestADTensor<const D: usize> = burn_tensor::Tensor<TestADBackend, D>;
-        type TestADBackend = burn_tensor::backend::ADBackendDecorator<TestBackend>;
-
         // test activation
-        burn_tensor::test_gelu!();
-        burn_tensor::test_relu!();
-        burn_tensor::test_softmax!();
+        burn_tensor::testgen_gelu!();
+        burn_tensor::testgen_relu!();
+        burn_tensor::testgen_softmax!();
 
         // test ad
-        burn_tensor::test_ad_add!();
-        burn_tensor::test_ad_aggregation!();
-        burn_tensor::test_ad_cat!();
-        burn_tensor::test_ad_cross_entropy_loss!();
-        burn_tensor::test_ad_div!();
-        burn_tensor::test_ad_erf!();
-        burn_tensor::test_ad_exp!();
-        burn_tensor::test_ad_index!();
-        burn_tensor::test_ad_log!();
-        burn_tensor::test_ad_mask!();
-        burn_tensor::test_ad_matmul!();
-        burn_tensor::test_ad_mul!();
-        burn_tensor::test_ad_neg!();
-        burn_tensor::test_ad_powf!();
-        burn_tensor::test_ad_relu!();
-        burn_tensor::test_ad_reshape!();
-        burn_tensor::test_ad_softmax!();
-        burn_tensor::test_ad_sub!();
-        burn_tensor::test_ad_transpose!();
+        burn_tensor::testgen_ad_add!();
+        burn_tensor::testgen_ad_aggregation!();
+        burn_tensor::testgen_ad_cat!();
+        burn_tensor::testgen_ad_cross_entropy_loss!();
+        burn_tensor::testgen_ad_div!();
+        burn_tensor::testgen_ad_erf!();
+        burn_tensor::testgen_ad_exp!();
+        burn_tensor::testgen_ad_index!();
+        burn_tensor::testgen_ad_log!();
+        burn_tensor::testgen_ad_mask!();
+        burn_tensor::testgen_ad_matmul!();
+        burn_tensor::testgen_ad_mul!();
+        burn_tensor::testgen_ad_neg!();
+        burn_tensor::testgen_ad_powf!();
+        burn_tensor::testgen_ad_relu!();
+        burn_tensor::testgen_ad_reshape!();
+        burn_tensor::testgen_ad_softmax!();
+        burn_tensor::testgen_ad_sub!();
+        burn_tensor::testgen_ad_transpose!();
 
         // test module
-        burn_tensor::test_module_backward!();
-        burn_tensor::test_module_forward!();
+        burn_tensor::testgen_module_backward!();
+        burn_tensor::testgen_module_forward!();
 
         // test ops
-        burn_tensor::test_add!();
-        burn_tensor::test_aggregation!();
-        burn_tensor::test_arg!();
-        burn_tensor::test_div!();
-        burn_tensor::test_erf!();
-        burn_tensor::test_exp!();
-        burn_tensor::test_index!();
-        burn_tensor::test_map_comparison!();
-        burn_tensor::test_mask!();
-        burn_tensor::test_matmul!();
-        burn_tensor::test_mul!();
-        burn_tensor::test_neg!();
-        burn_tensor::test_powf!();
-        burn_tensor::test_repeat!();
-        burn_tensor::test_reshape!();
-        burn_tensor::test_sub!();
-        burn_tensor::test_transpose!();
+        burn_tensor::testgen_add!();
+        burn_tensor::testgen_aggregation!();
+        burn_tensor::testgen_arg!();
+        burn_tensor::testgen_div!();
+        burn_tensor::testgen_erf!();
+        burn_tensor::testgen_exp!();
+        burn_tensor::testgen_index!();
+        burn_tensor::testgen_map_comparison!();
+        burn_tensor::testgen_mask!();
+        burn_tensor::testgen_matmul!();
+        burn_tensor::testgen_mul!();
+        burn_tensor::testgen_neg!();
+        burn_tensor::testgen_powf!();
+        burn_tensor::testgen_repeat!();
+        burn_tensor::testgen_reshape!();
+        burn_tensor::testgen_sub!();
+        burn_tensor::testgen_transpose!();
 
         // test stats
-        burn_tensor::test_stats!();
+        burn_tensor::testgen_stats!();
     };
 }
