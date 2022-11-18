@@ -32,8 +32,8 @@ mod tests {
 
     #[test]
     fn should_diff_full_complex_2() {
-        let data_1: Data<f64, 2> = Data::from([[1.0, 7.0], [13.0, -3.0]]);
-        let data_2: Data<f64, 2> = Data::from([[4.0, 7.0], [2.0, 3.0]]);
+        let data_1: Data<f32, 2> = Data::from([[1.0, 7.0], [13.0, -3.0]]);
+        let data_2: Data<f32, 2> = Data::from([[4.0, 7.0], [2.0, 3.0]]);
 
         let tensor_1 = TestADTensor::from_data(data_1);
         let tensor_2 = TestADTensor::from_data(data_2);
@@ -56,8 +56,8 @@ mod tests {
 
     #[test]
     fn should_diff_full_complex_3() {
-        let data_1: Data<f64, 2> = Data::from([[1.0, 7.0], [13.0, -3.0]]);
-        let data_2: Data<f64, 2> = Data::from([[4.0, 7.0], [2.0, 3.0]]);
+        let data_1: Data<f32, 2> = Data::from([[1.0, 7.0], [13.0, -3.0]]);
+        let data_2: Data<f32, 2> = Data::from([[4.0, 7.0], [2.0, 3.0]]);
 
         let tensor_1 = TestADTensor::from_data(data_1);
         let tensor_2 = TestADTensor::from_data(data_2);

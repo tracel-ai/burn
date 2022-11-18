@@ -23,24 +23,5 @@ pub fn testgen(attr: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
-    let test_gen = quote! {
-        #[cfg(test)]
-        use crate::tests::TestBackend;
-        #[cfg(test)]
-        use crate as burn_tensor;
-        #[cfg(test)]
-        type TestADBackend = burn_tensor::backend::ADBackendDecorator<TestBackend>;
-        #[cfg(test)]
-        type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
-        #[cfg(test)]
-        type TestADTensor<const D: usize> = burn_tensor::Tensor<TestADBackend, D>;
-        #[cfg(test)]
-        #item
-    };
-
-    quote! {
-        #test_gen
-        #macro_gen
-    }
-    .into()
+    macro_gen.into()
 }

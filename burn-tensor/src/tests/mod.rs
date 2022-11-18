@@ -4,9 +4,6 @@ mod module;
 mod ops;
 mod stats;
 
-// #[cfg(test)]
-// type TestBackend = burn_ndarray::NdArrayBackend<f32>;
-
 #[macro_export]
 macro_rules! testgen_all {
     () => {
