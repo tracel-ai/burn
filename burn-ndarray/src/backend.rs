@@ -1,8 +1,8 @@
 use super::element::NdArrayElement;
 use super::NdArrayTensor;
-use crate::tensor::backend::Backend;
-use crate::tensor::Data;
-use crate::{Distribution, Shape};
+use burn_tensor::backend::Backend;
+use burn_tensor::Data;
+use burn_tensor::{Distribution, Shape};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use std::sync::Mutex;

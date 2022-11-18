@@ -1,8 +1,5 @@
 use super::{element::NdArrayElement, NdArrayBackend};
-use crate::{
-    ops::TensorOps,
-    tensor::{Data, Shape},
-};
+use burn_tensor::{ops::TensorOps, Data, Shape};
 use ndarray::{s, ArcArray, Array, Axis, Dim, Ix2, Ix3, IxDyn};
 
 #[derive(Debug, Clone)]
@@ -22,7 +19,7 @@ impl<E: NdArrayElement, const D: usize> std::ops::Add for NdArrayTensor<E, D> {
 #[cfg(test)]
 mod utils {
     use super::*;
-    use crate::{backend::NdArrayBackend, ops::TensorOps};
+    use crate::NdArrayBackend;
 
     impl<E, const D: usize> NdArrayTensor<E, D>
     where
@@ -161,10 +158,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use rand::{rngs::StdRng, SeedableRng};
-
     use super::*;
-    use crate::tensor::Distribution;
+    use burn_tensor::Distribution;
+    use rand::{rngs::StdRng, SeedableRng};
 
     #[test]
     fn should_support_into_and_from_data_1d() {

@@ -1,6 +1,7 @@
 mod add;
 mod aggregation;
 mod cat;
+mod complex;
 mod cross_entropy;
 mod div;
 mod erf;
@@ -10,6 +11,7 @@ mod log;
 mod mask;
 mod matmul;
 mod mul;
+mod multithread;
 mod neg;
 mod pow;
 mod relu;

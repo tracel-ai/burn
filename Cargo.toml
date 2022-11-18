@@ -6,5 +6,6 @@ members = [
   "burn-tensor-testgen",
   "burn-dataset",
   "burn-tch",
+  "burn-ndarray",
   "examples/*",
 ]

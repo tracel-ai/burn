@@ -11,8 +11,6 @@ license = "MIT/Apache-2.0"
 edition = "2021"
 
 [features]
-default = ["ndarray"]
-ndarray = ["burn-tensor/ndarray"]
 
 [dependencies]
 burn-tensor = { path = "../burn-tensor", version = "0.2.3", default-features = false }

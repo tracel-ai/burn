@@ -1,4 +1,4 @@
-use crate::Element;
+use burn_tensor::Element;
 
 pub(crate) trait NdArrayElement:
     Element + ndarray::LinalgScalar + ndarray::ScalarOperand + ExpElement + num_traits::FromPrimitive

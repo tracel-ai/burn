@@ -30,15 +30,3 @@ impl<B: Backend, const D: usize> ADTensor<D, B> {
         self.node.state.value_ref()
     }
 }
-
-#[cfg(test)]
-pub mod helper {
-    #[cfg(feature = "ndarray")]
-    mod helper_impl {
-        use crate::tensor::backend::autodiff::ADBackendNdArray;
-        use crate::tensor::Tensor;
-
-        pub type TestADTensor<E, const D: usize> = Tensor<ADBackendNdArray<E>, D>;
-    }
-    pub use helper_impl::*;
-}
