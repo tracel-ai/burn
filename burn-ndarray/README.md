@@ -1,3 +1,3 @@
-# Burn-tch
+# Burn-NdArray
 
-Tch backend for burn.
+NdArray backend for burn.

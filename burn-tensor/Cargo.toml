@@ -15,6 +15,7 @@ license = "MIT/Apache-2.0"
 edition = "2021"
 
 [features]
+default = []
 export_tests = ["dep:burn-tensor-testgen"]
 
 [dependencies]
@@ -32,4 +33,3 @@ serde = { version = "1.0", features = ["derive"] }
 
 [dev-dependencies]
 burn-tensor-testgen = { path = "../burn-tensor-testgen" }
-burn-ndarray = { path = "../burn-ndarray" }
