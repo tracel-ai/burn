@@ -54,13 +54,18 @@ The [MNIST](https://github.com/burn-rs/burn/blob/main/examples/mnist) example is
 
 The example can be run like so:
 
-```console
-$ git clone https://github.com/burn-rs/burn.git
-$ cd burn
-$ export TORCH_CUDA_VERSION=cu113               # Set the cuda version
-$ # Use the --release flag to really speed up training.
-$ cargo run --example mnist --release           # CPU NdArray Backend
-$ cargo run --example mnist_cuda_gpu --release  # GPU Tch Backend
+```bash
+git clone https://github.com/burn-rs/burn.git
+cd burn
+# Use the --release flag to really speed up training.
+echo "Using ndarray backend"
+cargo run --example mnist --release --features ndarray                # CPU NdArray Backend - f32 - single thread
+cargo run --example mnist --release --features ndarray-blas-openblas  # CPU NdArray Backend - f32 - blas with openblas
+cargo run --example mnist --release --features ndarray-blas-netlib    # CPU NdArray Backend - f32 - blas with netlib
+echo "Using tch backend"
+export TORCH_CUDA_VERSION=cu113                                       # Set the cuda version
+cargo run --example mnist --release --features tch-gpu                # GPU Tch Backend - f16
+cargo run --example mnist --release --features tch-cpu                # CPU Tch Backend - f32
 ```
 
 ### Components

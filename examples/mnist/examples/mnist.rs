@@ -1,4 +1,8 @@
-#[cfg(feature = "ndarray")]
+#[cfg(any(
+    feature = "ndarray",
+    feature = "ndarray-blas-netlib",
+    feature = "ndarray-blas-openblas",
+))]
 mod ndarray {
     use burn::tensor::backend::ADBackendDecorator;
     use burn_ndarray::{NdArrayBackend, NdArrayDevice};
@@ -35,7 +39,11 @@ mod tch_cpu {
 }
 
 fn main() {
-    #[cfg(feature = "ndarray")]
+    #[cfg(any(
+        feature = "ndarray",
+        feature = "ndarray-blas-netlib",
+        feature = "ndarray-blas-openblas",
+    ))]
     ndarray::run();
     #[cfg(feature = "tch-gpu")]
     tch_gpu::run();

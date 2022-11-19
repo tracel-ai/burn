@@ -10,7 +10,9 @@ publish = false
 default = []
 tch-cpu = ["dep:burn-tch"]
 tch-gpu = ["dep:burn-tch"]
-ndarray = ["dep:burn-ndarray"]
+ndarray = ["burn-ndarray"]
+ndarray-blas-netlib = ["burn-ndarray/blas-netlib"]
+ndarray-blas-openblas = ["burn-ndarray/blas-openblas"]
 
 [dependencies]
 burn = { path = "../../burn" }

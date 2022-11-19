@@ -1,6 +1,13 @@
 #[macro_use]
 extern crate derive_new;
 
+#[cfg(any(
+    feature = "blas-netlib",
+    feature = "blas-openblas",
+    feature = "blas-openblas-system",
+))]
+extern crate blas_src;
+
 mod backend;
 mod element;
 mod module_ops;
