@@ -16,7 +16,7 @@ use burn::{
 pub struct MnistConfig {
     #[config(default = 6)]
     pub num_epochs: usize,
-    #[config(default = 128)]
+    #[config(default = 64)]
     pub batch_size: usize,
     #[config(default = 8)]
     pub num_workers: usize,

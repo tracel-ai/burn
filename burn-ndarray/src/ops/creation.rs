@@ -1,4 +1,5 @@
-use crate::tensor::{backend::ndarray::NdArrayTensor, ops::*, Data};
+use crate::NdArrayTensor;
+use burn_tensor::{ops::*, Data};
 
 impl<P, const D: usize> Zeros for NdArrayTensor<P, D>
 where

@@ -6,9 +6,18 @@ license = "MIT/Apache-2.0"
 edition = "2021"
 publish = false
 
+[features]
+default = []
+tch-cpu = ["dep:burn-tch"]
+tch-gpu = ["dep:burn-tch"]
+ndarray = ["burn-ndarray"]
+ndarray-blas-netlib = ["burn-ndarray/blas-netlib"]
+ndarray-blas-openblas = ["burn-ndarray/blas-openblas"]
+
 [dependencies]
 burn = { path = "../../burn" }
-burn-tch = { path = "../../burn-tch" }
+burn-tch = { path = "../../burn-tch", optional = true }
+burn-ndarray = { path = "../../burn-ndarray", optional = true }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }

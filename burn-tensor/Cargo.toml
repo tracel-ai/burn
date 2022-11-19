@@ -14,15 +14,9 @@ categories = ["science"]
 license = "MIT/Apache-2.0"
 edition = "2021"
 
-[package.metadata.docs.rs]
-features = ["doc"]
-all-features = false
-no-default-features = true
-
 [features]
-default = ["ndarray"]
-ndarray = ["dep:ndarray", "dep:libm"]
-export_tests = ["dep:burn-tensor-testgen"]
+default = []
+export_tests = ["burn-tensor-testgen"]
 
 [dependencies]
 burn-tensor-testgen = { path = "../burn-tensor-testgen", optional = true }
@@ -30,10 +24,6 @@ num-traits = "0.2"
 derive-new = "0.5"
 rand = "0.8"
 half = { version = "1.6", features = ["num-traits"] } # needs to be 1.6 to work with tch
-
-# NdArray
-ndarray = { version = "0.15", optional = true }
-libm = { version = "0.2", optional = true }
 
 # Autodiff
 nanoid = "0.4"

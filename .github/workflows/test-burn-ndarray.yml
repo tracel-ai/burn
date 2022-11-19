@@ -4,7 +4,7 @@ on: [push]
 
 jobs:
   publish:
-    name: test burn tensor
+    name: test burn ndarray
     runs-on: ubuntu-latest
     steps:
       - name: checkout
@@ -20,19 +20,19 @@ jobs:
 
       - name: check format
         run: |
-          cd burn-tensor
+          cd burn-ndarray
           cargo fmt --check --all
 
       - name: check doc
         run: |
-          cd burn-tensor
+          cd burn-ndarray
           cargo test --doc
 
       - name: check tests
         run: |
-          cd burn-tensor
+          cd burn-ndarray
           cargo test --tests
 
-      - name: check clippy backend
+      - name: check clippy
         run: |
-          cargo clippy -p burn-tensor -- -D warnings
+          cargo clippy -p burn-ndarray -- -D warnings

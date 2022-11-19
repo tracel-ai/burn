@@ -1,9 +1,6 @@
 use super::{element::NdArrayElement, BatchMatrix, NdArrayBackend, NdArrayTensor};
-use crate::{
-    backend::{Backend, NdArrayDevice},
-    ops::TensorOps,
-    to_nd_array_tensor, Data, ElementConversion, Shape,
-};
+use crate::{to_nd_array_tensor, NdArrayDevice};
+use burn_tensor::{backend::Backend, ops::TensorOps, Data, ElementConversion, Shape};
 use ndarray::{Axis, Dim, IxDyn, SliceInfoElem};
 use std::{cmp::Ordering, ops::Range};
 
@@ -184,18 +181,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D> {
         let batch_self = BatchMatrix::from_ndarray(lhs.array.clone(), lhs.shape);
         let batch_other = BatchMatrix::from_ndarray(rhs.array.clone(), rhs.shape);
-
-        let self_iter = batch_self.arrays.iter();
-        let other_iter = batch_other.arrays.iter();
-        let arrays = self_iter
-            .zip(other_iter)
-            .map(|(lhs, rhs)| lhs.dot(rhs))
-            .map(|output| output.into_shared())
-            .collect();
-
-        let mut shape = lhs.shape;
-        shape.dims[D - 1] = rhs.shape.dims[D - 1];
-        let output = BatchMatrix::new(arrays, shape);
+        let output = batch_self.matmul(batch_other);
 
         NdArrayTensor::from_bmatrix(output)
     }

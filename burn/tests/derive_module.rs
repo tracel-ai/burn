@@ -2,7 +2,7 @@ use burn::module::{Module, Param};
 use burn::tensor::backend::Backend;
 use burn::tensor::{Distribution, Shape, Tensor};
 
-type TestBackend = burn::tensor::backend::NdArrayBackend<f32>;
+pub type TestBackend = burn_ndarray::NdArrayBackend<f32>;
 
 #[derive(Module, Debug)]
 struct ModuleBasic<B>

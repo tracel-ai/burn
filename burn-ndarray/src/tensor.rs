@@ -1,8 +1,5 @@
 use super::{element::NdArrayElement, NdArrayBackend};
-use crate::{
-    ops::TensorOps,
-    tensor::{Data, Shape},
-};
+use burn_tensor::{ops::TensorOps, Data, Shape};
 use ndarray::{s, ArcArray, Array, Axis, Dim, Ix2, Ix3, IxDyn};
 
 #[derive(Debug, Clone)]
@@ -22,7 +19,7 @@ impl<E: NdArrayElement, const D: usize> std::ops::Add for NdArrayTensor<E, D> {
 #[cfg(test)]
 mod utils {
     use super::*;
-    use crate::{backend::NdArrayBackend, ops::TensorOps};
+    use crate::NdArrayBackend;
 
     impl<E, const D: usize> NdArrayTensor<E, D>
     where
@@ -38,14 +35,14 @@ mod utils {
 }
 
 #[derive(new)]
-pub struct BatchMatrix<E, const D: usize> {
+pub(crate) struct BatchMatrix<E, const D: usize> {
     pub arrays: Vec<ArcArray<E, Ix2>>,
     pub shape: Shape<D>,
 }
 
 impl<E, const D: usize> BatchMatrix<E, D>
 where
-    E: Clone,
+    E: NdArrayElement,
 {
     pub fn from_ndarray(array: ArcArray<E, IxDyn>, shape: Shape<D>) -> Self {
         let mut arrays = Vec::new();
@@ -65,6 +62,22 @@ where
         }
 
         Self { arrays, shape }
+    }
+
+    pub fn matmul(self, other: BatchMatrix<E, D>) -> Self {
+        let self_iter = self.arrays.iter();
+        let other_iter = other.arrays.iter();
+
+        let arrays = self_iter
+            .zip(other_iter)
+            .map(|(lhs, rhs)| lhs.dot(rhs))
+            .map(|output| output.into_shared())
+            .collect();
+
+        let mut shape = self.shape;
+        shape.dims[D - 1] = other.shape.dims[D - 1];
+
+        Self::new(arrays, shape)
     }
 }
 
@@ -115,7 +128,7 @@ impl<E, const D: usize> NdArrayTensor<E, D>
 where
     E: Default + Clone,
 {
-    pub fn from_bmatrix(bmatrix: BatchMatrix<E, D>) -> NdArrayTensor<E, D> {
+    pub(crate) fn from_bmatrix(bmatrix: BatchMatrix<E, D>) -> NdArrayTensor<E, D> {
         let shape = bmatrix.shape;
         let to_array = |data: BatchMatrix<E, D>| {
             let dims = data.shape.dims;
@@ -161,10 +174,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use rand::{rngs::StdRng, SeedableRng};
-
     use super::*;
-    use crate::tensor::Distribution;
+    use burn_tensor::Distribution;
+    use rand::{rngs::StdRng, SeedableRng};
 
     #[test]
     fn should_support_into_and_from_data_1d() {

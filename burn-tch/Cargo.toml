@@ -17,9 +17,7 @@ doc = ["tch/doc-only"]
 [dependencies]
 burn-tensor = { path = "../burn-tensor", version = "0.2.3", default-features = false }
 rand = "0.8"
-num-traits = "0.2"
 tch = { version = "0.8" }
-serde = { version = "1.0", features = ["derive"] }
 lazy_static = "1.4"
 half = { version = "1.6", features = ["num-traits"] } # needs to be 1.6 to work with tch
 

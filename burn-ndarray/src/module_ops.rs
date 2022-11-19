@@ -1,5 +1,5 @@
 use super::{element::NdArrayElement, NdArrayBackend, NdArrayTensor};
-use crate::{ops::*, Shape};
+use burn_tensor::{ops::*, Shape};
 use std::ops::Add;
 
 impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {

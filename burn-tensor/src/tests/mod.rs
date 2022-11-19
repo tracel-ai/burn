@@ -4,9 +4,6 @@ mod module;
 mod ops;
 mod stats;
 
-#[cfg(test)]
-type TestBackend = crate::backend::NdArrayBackend<f32>;
-
 #[macro_export]
 macro_rules! testgen_all {
     () => {
@@ -16,6 +13,8 @@ macro_rules! testgen_all {
         burn_tensor::testgen_softmax!();
 
         // test ad
+        burn_tensor::testgen_ad_complex!();
+        burn_tensor::testgen_ad_multithread!();
         burn_tensor::testgen_ad_add!();
         burn_tensor::testgen_ad_aggregation!();
         burn_tensor::testgen_ad_cat!();
