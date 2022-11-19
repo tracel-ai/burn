@@ -14,9 +14,6 @@ pub fn testgen(attr: TokenStream, item: TokenStream) -> TokenStream {
                 mod #attr {
                     use super::*;
 
-                    type TestADBackend = burn_tensor::backend::ADBackendDecorator<TestBackend>;
-                    type TestADTensor<const D: usize> = burn_tensor::Tensor<TestADBackend, D>;
-
                     #item
                 }
             };

@@ -1,5 +1,4 @@
-use crate::graph::grad::Gradients;
-use crate::tensor::backend::ADBackend;
+use crate::backend::ADBackend;
 use crate::tensor::backend::Backend;
 use crate::tensor::stats;
 use crate::tensor::ElementConversion;
@@ -670,11 +669,11 @@ where
 }
 
 impl<const D: usize, B: ADBackend> Tensor<B, D> {
-    pub fn backward(&self) -> Gradients {
+    pub fn backward(&self) -> B::Gradients {
         B::backward::<D>(&self.value)
     }
 
-    pub fn grad(&self, grads: &Gradients) -> Option<Tensor<B::InnerBackend, D>> {
+    pub fn grad(&self, grads: &B::Gradients) -> Option<Tensor<B::InnerBackend, D>> {
         B::grad(&self.value, grads).map(Tensor::new)
     }
 

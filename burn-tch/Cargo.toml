@@ -23,3 +23,4 @@ half = { version = "1.6", features = ["num-traits"] } # needs to be 1.6 to work 
 
 [dev-dependencies]
 burn-tensor = { path = "../burn-tensor", version = "0.2.3", default-features = false, features = ["export_tests"] }
+burn-autodiff = { path = "../burn-autodiff", version = "0.2.3", default-features = false, features = ["export_tests"] }

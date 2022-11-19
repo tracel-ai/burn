@@ -11,9 +11,11 @@ license = "MIT/Apache-2.0"
 edition = "2021"
 
 [features]
-default = []
+default = ["export_tests"]
+export_tests = ["burn-tensor-testgen"]
 
 [dependencies]
+burn-tensor-testgen = { path = "../burn-tensor-testgen", optional = true }
 burn-tensor = { path = "../burn-tensor", version = "0.2.3" }
 libm = "0.2"
 derive-new = "0.5"

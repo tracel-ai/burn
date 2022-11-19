@@ -7,3 +7,6 @@ pub(crate) mod tensor;
 
 mod backend;
 pub use backend::*;
+
+#[cfg(feature = "export_tests")]
+mod tests;

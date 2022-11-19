@@ -1,6 +1,6 @@
 use crate::graph::grad::Gradients;
 use crate::tensor::ADTensor;
-use burn_tensor::backend::Backend;
+use burn_tensor::backend::{ADBackend, Backend};
 use burn_tensor::{Data, Distribution, Shape};
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -63,6 +63,7 @@ impl<B: Backend> Backend for ADBackendDecorator<B> {
 
 impl<B: Backend> ADBackend for ADBackendDecorator<B> {
     type InnerBackend = B;
+    type Gradients = Gradients;
 
     fn backward<const D: usize>(tensor: &ADTensor<D, B>) -> Gradients {
         tensor.backward()
@@ -82,23 +83,4 @@ impl<B: Backend> ADBackend for ADBackendDecorator<B> {
     fn from_inner<const D: usize>(tensor: B::TensorPrimitive<D>) -> ADTensor<D, B> {
         ADTensor::from_tensor(tensor)
     }
-}
-
-pub(crate) type ADBackendTensorPrimitive<const D: usize, B> =
-    <<B as ADBackend>::InnerBackend as Backend>::TensorPrimitive<D>;
-
-pub trait ADBackend: Backend {
-    type InnerBackend: Backend<Device = Self::Device, Elem = Self::Elem>;
-
-    fn backward<const D: usize>(tensor: &Self::TensorPrimitive<D>) -> Gradients;
-    fn grad<const D: usize>(
-        tensor: &Self::TensorPrimitive<D>,
-        grads: &Gradients,
-    ) -> Option<ADBackendTensorPrimitive<D, Self>>;
-    fn inner<const D: usize>(
-        tensor: &Self::TensorPrimitive<D>,
-    ) -> <Self::InnerBackend as Backend>::TensorPrimitive<D>;
-    fn from_inner<const D: usize>(
-        tensor: <Self::InnerBackend as Backend>::TensorPrimitive<D>,
-    ) -> Self::TensorPrimitive<D>;
 }
