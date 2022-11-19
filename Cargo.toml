@@ -7,5 +7,6 @@ members = [
   "burn-dataset",
   "burn-tch",
   "burn-ndarray",
+  "burn-autodiff",
   "examples/*",
 ]

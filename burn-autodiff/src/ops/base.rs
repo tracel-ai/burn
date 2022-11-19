@@ -1,10 +1,9 @@
-use crate::{
-    backend::{autodiff::ADTensor, Backend},
-    graph::{
-        node::{ForwardNode, ForwardNodeRef, ForwardNodeState},
-        ops::{BinaryOps, ForwardBinaryRecordedOps, ForwardUnaryRecordedOps, UnaryOps},
-    },
+use crate::graph::{
+    node::{ForwardNode, ForwardNodeRef, ForwardNodeState},
+    ops::{BinaryOps, ForwardBinaryRecordedOps, ForwardUnaryRecordedOps, UnaryOps},
 };
+use crate::tensor::ADTensor;
+use burn_tensor::backend::Backend;
 use std::sync::Arc;
 
 pub fn unary_ops_wrapper_explicit<B1, B2, O, const D1: usize, const D2: usize>(

@@ -5,7 +5,7 @@ use crate::config::Config;
 use crate::module::{ParamId, StateNamed};
 use crate::optim::Optimizer;
 use crate::tensor::backend::ADBackend;
-use crate::tensor::{ElementConversion, Gradients, Tensor};
+use crate::tensor::{ElementConversion, Tensor};
 
 /// Configuration to create the [Sgd](Sgd) optimizer.
 #[derive(Config)]
@@ -52,7 +52,7 @@ impl<B: ADBackend> Optimizer for Sgd<B> {
         &mut self,
         id: &ParamId,
         tensor: &mut Tensor<B, D>,
-        grads: &Gradients,
+        grads: &B::Gradients,
     ) {
         if let Some(grad) = tensor.grad(grads) {
             let grad = match &mut self.weight_decay {

@@ -14,4 +14,5 @@ mod tests {
     type TestBackend = crate::TchBackend<f32>;
 
     burn_tensor::testgen_all!();
+    burn_autodiff::testgen_all!();
 }

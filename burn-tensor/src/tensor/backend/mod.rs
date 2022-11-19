@@ -1,7 +1,7 @@
 mod base;
 pub use base::*;
-pub(crate) mod autodiff;
-pub use autodiff::ADBackendDecorator;
+mod grad;
+pub use grad::*;
 
 // Not needed for now, usefull for different tensor memory layout
 // pub mod conversion;

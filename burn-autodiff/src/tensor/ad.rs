@@ -1,13 +1,13 @@
-use super::ADTensor;
+use crate::graph::grad::{AsNode, Grads};
 use crate::graph::{
     converter::Forward2BackwardGraphConverter,
-    grad::{AsNode, Gradients},
     node::{BackwardNode, ForwardNode},
 };
-use crate::tensor::backend::Backend;
+use crate::tensor::ADTensor;
+use burn_tensor::backend::Backend;
 
 impl<B: Backend, const D: usize> ADTensor<D, B> {
-    pub fn backward(&self) -> Gradients {
+    pub fn backward(&self) -> Grads {
         let mut converter = Forward2BackwardGraphConverter::new();
         let mut node = BackwardNode::from_node(&self.node, &mut converter);
         std::mem::drop(converter);

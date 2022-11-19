@@ -30,3 +30,4 @@ num-traits = "0.2"
 
 [dev-dependencies]
 burn-tensor = { path = "../burn-tensor", version = "0.2.3", features = ["export_tests"] }
+burn-autodiff = { path = "../burn-autodiff", version = "0.2.3", features = ["export_tests"] }

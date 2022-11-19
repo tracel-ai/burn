@@ -1,7 +1,6 @@
-use crate::tensor::{
-    backend::{autodiff::ADTensor, Backend},
-    ops::*,
-};
+use crate::tensor::ADTensor;
+use burn_tensor::backend::Backend;
+use burn_tensor::ops::*;
 
 impl<B: Backend, const D: usize> Zeros for ADTensor<D, B> {
     fn zeros(&self) -> Self {

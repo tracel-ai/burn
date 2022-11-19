@@ -3,7 +3,7 @@ use crate::module::{LoadingError, Module, State, StateNamed};
 use crate::optim::Optimizer;
 use crate::tensor::{
     backend::{ADBackend, Backend},
-    Data, Gradients, Tensor,
+    Data, Tensor,
 };
 
 impl<const D: usize, B: Backend> Module for Param<Tensor<B, D>> {
@@ -13,8 +13,11 @@ impl<const D: usize, B: Backend> Module for Param<Tensor<B, D>> {
         self.value.shape().num_elements()
     }
 
-    fn update_params<O: Optimizer<Backend = B>>(&mut self, grads: &Gradients, optim: &mut O)
-    where
+    fn update_params<O: Optimizer<Backend = B>>(
+        &mut self,
+        grads: &<B as ADBackend>::Gradients,
+        optim: &mut O,
+    ) where
         B: ADBackend,
     {
         optim.update(&self.id, &mut self.value, grads);
@@ -84,7 +87,7 @@ impl<const D: usize, B: Backend> Module for Param<Option<Tensor<B, D>>> {
         0
     }
 
-    fn update_params<O: Optimizer<Backend = B>>(&mut self, grads: &Gradients, optim: &mut O)
+    fn update_params<O: Optimizer<Backend = B>>(&mut self, grads: &B::Gradients, optim: &mut O)
     where
         B: ADBackend,
     {

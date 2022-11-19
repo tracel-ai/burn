@@ -1,13 +1,11 @@
 use super::{BackwardNodeState, ForwardNodeRef};
-use crate::{
-    graph::{
-        converter::Forward2BackwardGraphConverter,
-        grad::Gradients,
-        ops::{BackwardRecordedOpsRef, RecordedOpsParent, RecordedOpsParentRef},
-        traversal::{BreadthFirstSearch, GraphTraversal},
-    },
-    tensor::ops::{Ones, Zeros},
+use crate::graph::grad::Grads;
+use crate::graph::{
+    converter::Forward2BackwardGraphConverter,
+    ops::{BackwardRecordedOpsRef, RecordedOpsParent, RecordedOpsParentRef},
+    traversal::{BreadthFirstSearch, GraphTraversal},
 };
+use burn_tensor::ops::{Ones, Zeros};
 use std::{ops::Add, sync::Arc};
 
 #[derive(Debug)]
@@ -38,7 +36,7 @@ where
     Out: Zeros + Ones + Clone + Add<Output = Out>,
     Out: std::fmt::Debug + 'static + Send + Sync,
 {
-    pub fn backward(&mut self) -> Gradients {
+    pub fn backward(&mut self) -> Grads {
         let grad = self.state.value().ones();
         self.state.update_grad(grad);
         self.ops.backward_step(&self.state);
@@ -68,7 +66,7 @@ where
             }
         }
 
-        Gradients::from(self)
+        Grads::from(self)
     }
 }
 
@@ -90,7 +88,7 @@ where
     fn id(&self) -> &String {
         &self.id
     }
-    fn register_grad(&self, grads: &mut Gradients) {
+    fn register_grad(&self, grads: &mut Grads) {
         grads.register(self)
     }
 }

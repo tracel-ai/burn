@@ -1,9 +1,6 @@
 use super::{State, StateNamed};
 use crate::optim::Optimizer;
-use crate::tensor::{
-    backend::{ADBackend, Backend},
-    Gradients,
-};
+use crate::tensor::backend::{ADBackend, Backend};
 pub use burn_derive::Module;
 
 /// Trait for all neural network modules.
@@ -64,10 +61,10 @@ pub trait Module: Send + Sync + std::fmt::Debug + std::fmt::Display {
     fn detach(&mut self);
     /// Get the number of parameters the module has, including all of its sub-modules.
     fn num_params(&self) -> usize;
-    /// Update the module parameters with the given [gradients](Gradients) and [optimizer](Optimizer).
+    /// Update the module parameters with the given gradients and [optimizer](Optimizer).
     fn update_params<O: Optimizer<Backend = Self::Backend>>(
         &mut self,
-        grads: &Gradients,
+        grads: &<Self::Backend as ADBackend>::Gradients,
         optim: &mut O,
     ) where
         Self::Backend: ADBackend;

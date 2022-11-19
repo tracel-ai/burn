@@ -1,7 +1,7 @@
-use super::ADTensor;
-use crate::graph::grad::Gradients;
-use crate::tensor::backend::{ADBackend, Backend};
-use crate::tensor::{Data, Distribution, Shape};
+use crate::graph::grad::Grads;
+use crate::tensor::ADTensor;
+use burn_tensor::backend::{ADBackend, Backend};
+use burn_tensor::{Data, Distribution, Shape};
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ADBackendDecorator<B> {
@@ -63,30 +63,24 @@ impl<B: Backend> Backend for ADBackendDecorator<B> {
 
 impl<B: Backend> ADBackend for ADBackendDecorator<B> {
     type InnerBackend = B;
+    type Gradients = Grads;
 
-    fn backward<const D: usize>(tensor: &Self::TensorPrimitive<D>) -> Gradients {
+    fn backward<const D: usize>(tensor: &ADTensor<D, B>) -> Grads {
         tensor.backward()
     }
+
     fn grad<const D: usize>(
-        tensor: &Self::TensorPrimitive<D>,
-        grads: &Gradients,
+        tensor: &ADTensor<D, B>,
+        grads: &Grads,
     ) -> Option<B::TensorPrimitive<D>> {
         grads.wrt(tensor).cloned()
     }
 
-    fn inner<const D: usize>(
-        tensor: &Self::TensorPrimitive<D>,
-    ) -> <Self::InnerBackend as Backend>::TensorPrimitive<D> {
+    fn inner<const D: usize>(tensor: &ADTensor<D, B>) -> B::TensorPrimitive<D> {
         tensor.tensor()
     }
 
-    fn from_inner<const D: usize>(
-        tensor: <Self::InnerBackend as Backend>::TensorPrimitive<D>,
-    ) -> Self::TensorPrimitive<D> {
+    fn from_inner<const D: usize>(tensor: B::TensorPrimitive<D>) -> ADTensor<D, B> {
         ADTensor::from_tensor(tensor)
     }
 }
-
-#[cfg(feature = "ndarray")]
-pub type ADBackendNdArray<E> =
-    ADBackendDecorator<crate::tensor::backend::ndarray::NdArrayBackend<E>>;

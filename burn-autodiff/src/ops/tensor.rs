@@ -1,20 +1,12 @@
 use super::{binary_ops_wrapper, unary_ops_wrapper};
-use crate::backend::autodiff::ops::unary_ops_wrapper_explicit;
 use crate::graph::converter::Forward2BackwardGraphConverter;
 use crate::graph::node::{BackwardNode, BackwardNodeRef, BackwardNodeState, ForwardNodeRef};
-use crate::graph::ops::{
-    BackwardRecordedOps, BackwardRecordedOpsRef, ForwardRecordedOps, RecordedOpsParentRef,
-};
-use crate::tensor::ElementConversion;
-use crate::{
-    backend::{
-        autodiff::{ADBackendDecorator, ADTensor},
-        Backend,
-    },
-    graph::ops::{BinaryOps, BinaryOpsNodeState, UnaryOps, UnaryOpsNodeState},
-    ops::{Ones, TensorOps, Zeros},
-    Data, Shape, Tensor,
-};
+use crate::graph::ops::*;
+use crate::ops::unary_ops_wrapper_explicit;
+use crate::tensor::ADTensor;
+use crate::ADBackendDecorator;
+use burn_tensor::backend::Backend;
+use burn_tensor::{ops::*, Data, ElementConversion, Shape, Tensor};
 use std::ops::Range;
 use std::sync::Arc;
 
@@ -736,11 +728,11 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 let grad = state.output.grad();
                 let ones = B::ones(self.shape, B::device(&grad));
 
-                let grad: Tensor<B, 1> = Tensor::new(grad);
+                let grad: Tensor<B, 1> = Tensor::from_primitive(grad);
                 let val = 1_f64 / self.shape.num_elements() as f64;
-                let ones: Tensor<B, D> = Tensor::new(ones).mul_scalar(val);
+                let ones: Tensor<B, D> = Tensor::from_primitive(ones).mul_scalar(val);
 
-                ones.mul(&grad.unsqueeze()).value
+                ones.mul(&grad.unsqueeze()).into_primitive()
             }
         }
 
@@ -770,10 +762,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 let grad = state.output.grad();
                 let ones = B::ones(self.shape, B::device(&grad));
 
-                let grad: Tensor<B, 1> = Tensor::new(grad);
-                let ones: Tensor<B, D> = Tensor::new(ones);
+                let grad: Tensor<B, 1> = Tensor::from_primitive(grad);
+                let ones: Tensor<B, D> = Tensor::from_primitive(ones);
 
-                ones.mul(&grad.unsqueeze()).value
+                ones.mul(&grad.unsqueeze()).into_primitive()
             }
         }
 

@@ -1,9 +1,6 @@
 #[macro_use]
 extern crate derive_new;
 
-pub(crate) mod graph;
-pub use graph::grad::Gradients;
-
 mod tensor;
 
 #[cfg(feature = "export_tests")]

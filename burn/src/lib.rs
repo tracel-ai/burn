@@ -12,4 +12,4 @@ pub mod train;
 #[cfg(test)]
 pub type TestBackend = burn_ndarray::NdArrayBackend<f32>;
 #[cfg(test)]
-pub type TestADBackend = crate::tensor::backend::ADBackendDecorator<TestBackend>;
+pub type TestADBackend = burn_autodiff::ADBackendDecorator<TestBackend>;

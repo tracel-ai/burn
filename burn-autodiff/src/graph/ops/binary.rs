@@ -2,13 +2,11 @@ use super::{
     BackwardRecordedOps, BackwardRecordedOpsRef, BinaryOpsNodeState, ForwardRecordedOps,
     RecordedOpsParentRef,
 };
-use crate::{
-    graph::{
-        converter::Forward2BackwardGraphConverter,
-        node::{BackwardNodeRef, BackwardNodeState, ForwardNodeRef},
-    },
-    tensor::ops::Zeros,
+use crate::graph::{
+    converter::Forward2BackwardGraphConverter,
+    node::{BackwardNodeRef, BackwardNodeState, ForwardNodeRef},
 };
+use burn_tensor::ops::Zeros;
 use std::{ops::Add, sync::Arc};
 
 pub trait BinaryOps<Lhs, Rhs, Out>: std::fmt::Debug + Send + Sync {

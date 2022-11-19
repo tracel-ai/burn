@@ -1,8 +1,5 @@
-use crate::{
-    execute_ops,
-    graph::node::ForwardNodeRef,
-    tensor::{backend::Backend, Shape},
-};
+use crate::{execute_ops, graph::node::ForwardNodeRef};
+use burn_tensor::{backend::Backend, Shape};
 
 #[derive(Debug, Clone)]
 pub struct ADTensor<const D: usize, B: Backend> {

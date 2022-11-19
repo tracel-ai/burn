@@ -1,8 +1,6 @@
 use super::{BackwardRecordedOps, ForwardRecordedOps, RecordedOpsParentRef};
-use crate::{
-    graph::{converter::Forward2BackwardGraphConverter, node::BackwardNodeState},
-    tensor::ops::Zeros,
-};
+use crate::graph::{converter::Forward2BackwardGraphConverter, node::BackwardNodeState};
+use burn_tensor::ops::Zeros;
 use std::{ops::Add, sync::Arc};
 
 #[derive(new, Debug, Clone)]

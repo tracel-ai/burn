@@ -1,4 +1,4 @@
-use crate::tensor::ops::Zeros;
+use burn_tensor::ops::Zeros;
 use std::{cell::RefCell, ops::Add};
 
 #[derive(new, Debug)]

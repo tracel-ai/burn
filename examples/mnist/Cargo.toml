@@ -16,6 +16,7 @@ ndarray-blas-openblas = ["burn-ndarray/blas-openblas"]
 
 [dependencies]
 burn = { path = "../../burn" }
+burn-autodiff = { path = "../../burn-autodiff" }
 burn-tch = { path = "../../burn-tch", optional = true }
 burn-ndarray = { path = "../../burn-ndarray", optional = true }
 

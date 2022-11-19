@@ -1,12 +1,9 @@
 use super::unary_ops_wrapper;
-use crate::{
-    backend::{
-        autodiff::{ADBackendDecorator, ADTensor},
-        Backend,
-    },
-    graph::ops::{UnaryOps, UnaryOpsNodeState},
-    ops::ModuleOps,
-};
+use crate::graph::ops::{UnaryOps, UnaryOpsNodeState};
+use crate::tensor::ADTensor;
+use crate::ADBackendDecorator;
+use burn_tensor::backend::Backend;
+use burn_tensor::ops::*;
 
 #[derive(new, Debug)]
 struct EmbeddingBackward<B: Backend> {
