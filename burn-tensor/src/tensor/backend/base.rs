@@ -2,6 +2,8 @@ use crate::ops::*;
 use crate::tensor::Element;
 use crate::tensor::{Data, Distribution, Shape};
 
+use super::Gradients;
+
 pub trait Backend:
     TensorOps<Self>
     + ModuleOps<Self>
@@ -65,7 +67,7 @@ pub(crate) type ADBackendTensorPrimitive<const D: usize, B> =
 
 pub trait ADBackend: Backend {
     type InnerBackend: Backend<Device = Self::Device, Elem = Self::Elem>;
-    type Gradients;
+    type Gradients: Gradients;
 
     fn backward<const D: usize>(tensor: &Self::TensorPrimitive<D>) -> Self::Gradients;
     fn grad<const D: usize>(

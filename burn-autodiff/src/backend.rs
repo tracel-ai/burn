@@ -1,4 +1,4 @@
-use crate::graph::grad::Gradients;
+use crate::graph::grad::Grads;
 use crate::tensor::ADTensor;
 use burn_tensor::backend::{ADBackend, Backend};
 use burn_tensor::{Data, Distribution, Shape};
@@ -63,15 +63,15 @@ impl<B: Backend> Backend for ADBackendDecorator<B> {
 
 impl<B: Backend> ADBackend for ADBackendDecorator<B> {
     type InnerBackend = B;
-    type Gradients = Gradients;
+    type Gradients = Grads;
 
-    fn backward<const D: usize>(tensor: &ADTensor<D, B>) -> Gradients {
+    fn backward<const D: usize>(tensor: &ADTensor<D, B>) -> Grads {
         tensor.backward()
     }
 
     fn grad<const D: usize>(
         tensor: &ADTensor<D, B>,
-        grads: &Gradients,
+        grads: &Grads,
     ) -> Option<B::TensorPrimitive<D>> {
         grads.wrt(tensor).cloned()
     }

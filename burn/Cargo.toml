@@ -13,7 +13,8 @@ edition = "2021"
 [features]
 
 [dependencies]
-burn-tensor = { path = "../burn-tensor", version = "0.2.3", default-features = false }
+burn-tensor = { path = "../burn-tensor", version = "0.2.3" }
+burn-autodiff = { path = "../burn-autodiff", version = "0.2.3" }
 burn-dataset = { path = "../burn-dataset", version = "0.2.3", default-features = false }
 burn-derive = { path = "../burn-derive", version = "0.2.3" }
 

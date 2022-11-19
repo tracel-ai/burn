@@ -90,8 +90,8 @@ impl<B: Backend> Forward<MNISTBatch<B>, ClassificationOutput<B>> for Model<B> {
     }
 }
 
-impl<B: ADBackend> TrainStep<MNISTBatch<B>, ClassificationOutput<B>> for Model<B> {
-    fn step(&self, item: MNISTBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
+impl<B: ADBackend> TrainStep<MNISTBatch<B>, ClassificationOutput<B>, B::Gradients> for Model<B> {
+    fn step(&self, item: MNISTBatch<B>) -> TrainOutput<ClassificationOutput<B>, B::Gradients> {
         let item = self.forward(item);
         TrainOutput::new(item.loss.backward(), item)
     }

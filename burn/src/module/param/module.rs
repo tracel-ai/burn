@@ -1,10 +1,7 @@
 use super::{load_with_id, state_with_id, Param};
 use crate::module::{ADModule, LoadingError, Module, State, StateNamed};
 use crate::optim::Optimizer;
-use crate::tensor::{
-    backend::{ADBackend, Backend},
-    Gradients,
-};
+use crate::tensor::backend::{ADBackend, Backend};
 
 impl<M: Module> Module for Param<M> {
     type Backend = M::Backend;
@@ -15,7 +12,7 @@ impl<M: Module> Module for Param<M> {
 
     fn update_params<O: Optimizer<Backend = M::Backend>>(
         &mut self,
-        grads: &Gradients,
+        grads: &<M::Backend as ADBackend>::Gradients,
         optim: &mut O,
     ) where
         M::Backend: ADBackend,
@@ -83,7 +80,7 @@ impl<M: Module> Module for Param<Vec<M>> {
 
     fn update_params<O: Optimizer<Backend = M::Backend>>(
         &mut self,
-        grads: &Gradients,
+        grads: &<M::Backend as ADBackend>::Gradients,
         optim: &mut O,
     ) where
         M::Backend: ADBackend,

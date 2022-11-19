@@ -1,9 +1,11 @@
+use burn_tensor::backend::Gradients;
+
 use super::{load_state_gradients, register_state_gradients};
 use crate as burn;
 use crate::config::Config;
 use crate::module::{ParamId, StateNamed};
 use crate::tensor::backend::ADBackend;
-use crate::tensor::{ElementConversion, Gradients, Tensor};
+use crate::tensor::{ElementConversion, Tensor};
 
 /// Configuration to create momentum [Momentum](Momentum).
 #[derive(Config)]
@@ -24,7 +26,7 @@ pub struct Momentum<B: ADBackend> {
     momentum: B::Elem,
     dampening: f64,
     nesterov: bool,
-    velocity: Gradients,
+    velocity: B::Gradients,
 }
 
 impl<B: ADBackend> Momentum<B> {
@@ -32,7 +34,7 @@ impl<B: ADBackend> Momentum<B> {
         Self {
             momentum: config.momentum.to_elem(),
             dampening: config.dampening,
-            velocity: Gradients::empty(),
+            velocity: B::Gradients::empty(),
             nesterov: config.nesterov,
         }
     }
@@ -52,7 +54,7 @@ impl<B: ADBackend> Momentum<B> {
         };
 
         // Update velocity
-        self.velocity.register_any(id, velocity.clone());
+        self.velocity.register(id, velocity.clone());
 
         match self.nesterov {
             true => velocity.mul_scalar(self.momentum).add(&grad),

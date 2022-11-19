@@ -1,19 +1,20 @@
+use burn_tensor::backend::ADBackend;
+
 use super::Learner;
 use crate::data::dataloader::DataLoader;
 use crate::module::ADModule;
 use crate::optim::Optimizer;
 use crate::train::LearnerItem;
-use burn_tensor::Gradients;
 use std::sync::Arc;
 
 #[derive(new)]
-pub struct TrainOutput<TO> {
-    grads: Gradients,
+pub struct TrainOutput<TO, G> {
+    grads: G,
     item: TO,
 }
 
-pub trait TrainStep<TI, TO> {
-    fn step(&self, item: TI) -> TrainOutput<TO>;
+pub trait TrainStep<TI, TO, G> {
+    fn step(&self, item: TI) -> TrainOutput<TO, G>;
 }
 
 pub trait ValidStep<VI, VO> {
@@ -33,7 +34,7 @@ where
         dataloader_valid: Arc<dyn DataLoader<VI>>,
     ) -> M
     where
-        M: TrainStep<TI, TO>,
+        M: TrainStep<TI, TO, <M::ADBackend as ADBackend>::Gradients>,
         M::InnerModule: ValidStep<VI, VO>,
     {
         log::info!("Fitting {}", self.model.to_string());
@@ -57,7 +58,7 @@ where
 
     fn train_step<TI>(&mut self, dataloader_train: &Arc<dyn DataLoader<TI>>, epoch: usize)
     where
-        M: TrainStep<TI, TO>,
+        M: TrainStep<TI, TO, <M::ADBackend as ADBackend>::Gradients>,
     {
         log::info!("Executing training step for epoch {}", epoch);
 

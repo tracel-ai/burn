@@ -1,5 +1,5 @@
 use crate::graph::{
-    converter::Forward2BackwardGraphConverter, grad::Gradients, node::BackwardNodeState,
+    converter::Forward2BackwardGraphConverter, grad::Grads, node::BackwardNodeState,
 };
 use std::sync::Arc;
 
@@ -30,7 +30,7 @@ pub trait RecordedOpsParent: std::fmt::Debug {
     fn id(&self) -> &String;
     fn backward_step(&self);
     fn backward_parents(&self) -> Vec<RecordedOpsParentRef>;
-    fn register_grad(&self, grads: &mut Gradients);
+    fn register_grad(&self, grads: &mut Grads);
 }
 
 pub type ForwardRecordedOpsRef<T> = Arc<dyn ForwardRecordedOps<T>>;
