@@ -32,6 +32,14 @@ impl<const D: usize, B> Tensor<B, D>
 where
     B: Backend,
 {
+    pub fn from_primitive(tensor: B::TensorPrimitive<D>) -> Self {
+        Self::new(tensor)
+    }
+
+    pub fn into_primitive(self) -> B::TensorPrimitive<D> {
+        self.value
+    }
+
     pub(crate) fn new(tensor: B::TensorPrimitive<D>) -> Self {
         Self { value: tensor }
     }

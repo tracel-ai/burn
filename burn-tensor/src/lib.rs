@@ -2,6 +2,7 @@
 extern crate derive_new;
 
 pub(crate) mod graph;
+pub use graph::grad::AsNode;
 pub use graph::grad::Gradients;
 
 mod tensor;
