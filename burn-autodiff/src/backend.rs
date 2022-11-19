@@ -61,23 +61,44 @@ impl<B: Backend> Backend for ADBackendDecorator<B> {
     }
 }
 
-impl<B: Backend> ADBackendDecorator<B> {
-    pub fn backward<const D: usize>(tensor: &ADTensor<D, B>) -> Gradients {
+impl<B: Backend> ADBackend for ADBackendDecorator<B> {
+    type InnerBackend = B;
+
+    fn backward<const D: usize>(tensor: &ADTensor<D, B>) -> Gradients {
         tensor.backward()
     }
 
-    pub fn grad<const D: usize>(
+    fn grad<const D: usize>(
         tensor: &ADTensor<D, B>,
         grads: &Gradients,
     ) -> Option<B::TensorPrimitive<D>> {
         grads.wrt(tensor).cloned()
     }
 
-    pub fn inner<const D: usize>(tensor: &ADTensor<D, B>) -> B::TensorPrimitive<D> {
+    fn inner<const D: usize>(tensor: &ADTensor<D, B>) -> B::TensorPrimitive<D> {
         tensor.tensor()
     }
 
-    pub fn from_inner<const D: usize>(tensor: B::TensorPrimitive<D>) -> ADTensor<D, B> {
+    fn from_inner<const D: usize>(tensor: B::TensorPrimitive<D>) -> ADTensor<D, B> {
         ADTensor::from_tensor(tensor)
     }
+}
+
+pub(crate) type ADBackendTensorPrimitive<const D: usize, B> =
+    <<B as ADBackend>::InnerBackend as Backend>::TensorPrimitive<D>;
+
+pub trait ADBackend: Backend {
+    type InnerBackend: Backend<Device = Self::Device, Elem = Self::Elem>;
+
+    fn backward<const D: usize>(tensor: &Self::TensorPrimitive<D>) -> Gradients;
+    fn grad<const D: usize>(
+        tensor: &Self::TensorPrimitive<D>,
+        grads: &Gradients,
+    ) -> Option<ADBackendTensorPrimitive<D, Self>>;
+    fn inner<const D: usize>(
+        tensor: &Self::TensorPrimitive<D>,
+    ) -> <Self::InnerBackend as Backend>::TensorPrimitive<D>;
+    fn from_inner<const D: usize>(
+        tensor: <Self::InnerBackend as Backend>::TensorPrimitive<D>,
+    ) -> Self::TensorPrimitive<D>;
 }
