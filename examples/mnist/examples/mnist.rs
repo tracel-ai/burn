@@ -4,7 +4,7 @@
     feature = "ndarray-blas-openblas",
 ))]
 mod ndarray {
-    use burn::tensor::backend::ADBackendDecorator;
+    use burn_autodiff::ADBackendDecorator;
     use burn_ndarray::{NdArrayBackend, NdArrayDevice};
     use mnist::training;
 
@@ -16,7 +16,7 @@ mod ndarray {
 
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
-    use burn::tensor::backend::ADBackendDecorator;
+    use burn_autodiff::ADBackendDecorator;
     use burn_tch::{TchBackend, TchDevice};
     use mnist::training;
 
@@ -28,7 +28,7 @@ mod tch_gpu {
 
 #[cfg(feature = "tch-cpu")]
 mod tch_cpu {
-    use burn::tensor::backend::ADBackendDecorator;
+    use burn_autodiff::ADBackendDecorator;
     use burn_tch::{TchBackend, TchDevice};
     use mnist::training;
 
