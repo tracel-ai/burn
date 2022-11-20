@@ -6,6 +6,12 @@ on:
       - '*'
 
 jobs:
+  publish-burn-derive:
+    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
+    with:
+      crate: burn-derive
+    secrets: inherit
+
   publish-burn-dataset:
     uses: burn-rs/burn/.github/workflows/publish-template.yml@main
     with:
@@ -48,7 +54,9 @@ jobs:
 
   publish-burn:
     uses: burn-rs/burn/.github/workflows/publish-template.yml@main
-    needs: publish-burn-ndarray
+    needs: 
+      - publish-burn-ndarray
+      - publish-burn-derive
     with:
       crate: burn
     secrets: inherit

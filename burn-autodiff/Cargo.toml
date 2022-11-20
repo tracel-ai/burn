@@ -1,6 +1,6 @@
 [package]
 name = "burn-autodiff"
-version = "0.2.3"
+version = "0.3.0"
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 description = "Autodiff backend for burn"
 repository = "https://github.com/burn-rs/burn/tree/main/burn-autodiff"
