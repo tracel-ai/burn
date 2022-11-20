@@ -2,7 +2,7 @@ use super::{BackwardNodeState, ForwardNodeRef};
 use crate::graph::grad::Grads;
 use crate::graph::{
     converter::Forward2BackwardGraphConverter,
-    ops::{BackwardRecordedOpsRef, RecordedOpsParent, RecordedOpsParentRef},
+    ops::{BackwardRecordedOpsBoxed, RecordedOpsParent, RecordedOpsParentRef},
     traversal::{BreadthFirstSearch, GraphTraversal},
 };
 use burn_tensor::ops::{Ones, Zeros};
@@ -13,7 +13,7 @@ pub struct BackwardNode<Out> {
     pub id: String,
     pub order: usize,
     pub state: BackwardNodeState<Out>,
-    pub ops: BackwardRecordedOpsRef<Out>,
+    pub ops: BackwardRecordedOpsBoxed<Out>,
 }
 pub type BackwardNodeRef<Out> = Arc<BackwardNode<Out>>;
 

@@ -1,5 +1,5 @@
 use super::{
-    BackwardRecordedOps, BackwardRecordedOpsRef, BinaryOpsNodeState, ForwardRecordedOps,
+    BackwardRecordedOps, BackwardRecordedOpsBoxed, BinaryOpsNodeState, ForwardRecordedOps,
     RecordedOpsParentRef,
 };
 use crate::graph::{
@@ -38,12 +38,12 @@ where
     fn to_backward(
         &self,
         graph: &mut Forward2BackwardGraphConverter,
-    ) -> BackwardRecordedOpsRef<Out> {
+    ) -> BackwardRecordedOpsBoxed<Out> {
         let lhs = graph.from(&self.lhs);
         let rhs = graph.from(&self.rhs);
         let ops = self.ops.clone();
 
-        Arc::new(BackwardBinaryRecordedOps::new(lhs, rhs, ops))
+        Box::new(BackwardBinaryRecordedOps::new(lhs, rhs, ops))
     }
 }
 

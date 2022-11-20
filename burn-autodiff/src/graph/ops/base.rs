@@ -22,7 +22,10 @@ pub trait BackwardRecordedOps<T>: std::fmt::Debug {
 }
 
 pub trait ForwardRecordedOps<T>: std::fmt::Debug + Send + Sync {
-    fn to_backward(&self, graph: &mut Forward2BackwardGraphConverter) -> BackwardRecordedOpsRef<T>;
+    fn to_backward(
+        &self,
+        graph: &mut Forward2BackwardGraphConverter,
+    ) -> BackwardRecordedOpsBoxed<T>;
 }
 
 pub trait RecordedOpsParent: std::fmt::Debug {
@@ -33,6 +36,6 @@ pub trait RecordedOpsParent: std::fmt::Debug {
     fn register_grad(&self, grads: &mut Grads);
 }
 
-pub type ForwardRecordedOpsRef<T> = Arc<dyn ForwardRecordedOps<T>>;
-pub type BackwardRecordedOpsRef<T> = Arc<dyn BackwardRecordedOps<T>>;
+pub type ForwardRecordedOpsBoxed<T> = Box<dyn ForwardRecordedOps<T>>;
+pub type BackwardRecordedOpsBoxed<T> = Box<dyn BackwardRecordedOps<T>>;
 pub type RecordedOpsParentRef = Arc<dyn RecordedOpsParent>;

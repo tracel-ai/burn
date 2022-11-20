@@ -1064,8 +1064,8 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             fn to_backward(
                 &self,
                 graph: &mut Forward2BackwardGraphConverter,
-            ) -> BackwardRecordedOpsRef<B::TensorPrimitive<D>> {
-                Arc::new(BackwardCatOps::<D, B>::new(
+            ) -> BackwardRecordedOpsBoxed<B::TensorPrimitive<D>> {
+                Box::new(BackwardCatOps::<D, B>::new(
                     self.nodes
                         .iter()
                         .map(|node| {
@@ -1117,7 +1117,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let state = crate::graph::node::ForwardNodeState::new(out);
 
         let ops = ForwardCatOps::<D, B>::new(nodes, dim);
-        let ops = Arc::new(ops);
+        let ops = Box::new(ops);
 
         let node = crate::graph::node::ForwardNode::new(order, state, ops);
         let node = std::sync::Arc::new(node);
