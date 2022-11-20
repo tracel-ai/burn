@@ -6,83 +6,49 @@ on:
       - '*'
 
 jobs:
-  publish-burn-tensor:
-    name: publish-burn-tensor
-    runs-on: ubuntu-latest
-    steps:
-      - name: checkout
-        uses: actions/checkout@v2
-
-      - name: install rust nightly
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: beta
-          components: rustfmt
-          override: true
-
-      - name: publish burn-tensor to crates.io
-        run: ./ci/publish.sh burn-tensor
-        env:
-          CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
-
   publish-burn-dataset:
-    name: publish-burn-dataset
-    runs-on: ubuntu-latest
-    steps:
-      - name: checkout
-        uses: actions/checkout@v2
+    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
+    with:
+      crate: burn-dataset
+    secrets: inherit
 
-      - name: install rust nightly
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: beta
-          components: rustfmt
-          override: true
+  publish-burn-tensor-testgen:
+    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
+    with:
+      crate: burn-tensor-testgen
+    secrets: inherit
 
-      - name: publish burn-dataset to crates.io
-        run: ./ci/publish.sh burn-dataset
-        env:
-          CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
+  publish-burn-tensor:
+    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
+    needs: publish-burn-tensor-testgen
+    with:
+      crate: burn-tensor
+    secrets: inherit
 
-  publish-burn-derive:
-    name: publish-burn-derive
-    runs-on: ubuntu-latest
-    steps:
-      - name: checkout
-        uses: actions/checkout@v2
+  publish-burn-autodiff:
+    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
+    needs: publish-burn-tensor
+    with:
+      crate: burn-autodiff
+    secrets: inherit
 
-      - name: install rust nightly
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: beta
-          components: rustfmt
-          override: true
+  publish-burn-tch:
+    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
+    needs: publish-burn-autodiff
+    with:
+      crate: burn-tch
+    secrets: inherit
 
-      - name: publish burn-derive to crates.io
-        run: ./ci/publish.sh burn-derive
-        env:
-          CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
+  publish-burn-ndarray:
+    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
+    needs: publish-burn-autodiff
+    with:
+      crate: burn-ndarray
+    secrets: inherit
 
   publish-burn:
-    needs: publish-burn-tensor
-    name: publish-burn
-    runs-on: ubuntu-latest
-    steps:
-      - name: checkout
-        uses: actions/checkout@v2
-
-      - name: install rust nightly
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: beta
-          components: rustfmt
-          override: true
-
-      - name: publish burn to crates.io
-        run: ./ci/publish.sh burn
-        env:
-          CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
+    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
+    needs: publish-burn-ndarray
+    with:
+      crate: burn
+    secrets: inherit

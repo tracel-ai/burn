@@ -1,0 +1,35 @@
+name: test
+
+on: [push]
+
+jobs:
+  test-burn-dataset:
+    uses: burn-rs/burn/.github/workflows/test-template.yml@main
+    with:
+      crate: burn-dataset
+
+  test-burn-tensor:
+    uses: burn-rs/burn/.github/workflows/test-template.yml@main
+    with:
+      crate: burn-tensor
+
+  test-burn-tch:
+    uses: burn-rs/burn/.github/workflows/test-template.yml@main
+    with:
+      crate: burn-tch
+      args-doc: --features doc
+
+  test-burn-ndarray:
+    uses: burn-rs/burn/.github/workflows/test-template.yml@main
+    with:
+      crate: burn-ndarray
+
+  test-burn-autodiff:
+    uses: burn-rs/burn/.github/workflows/test-template.yml@main
+    with:
+      crate: burn-autodiff
+
+  test-burn:
+    uses: burn-rs/burn/.github/workflows/test-template.yml@main
+    with:
+      crate: burn
