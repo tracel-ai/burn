@@ -1,0 +1,58 @@
+on:
+  workflow_call:
+    inputs:
+      crate:
+        required: true
+        type: string
+      args-doc:
+        required: false
+        type: string
+      args-format:
+        required: false
+        type: string
+      args-test:
+        required: false
+        type: string
+      args-clippy:
+        required: false
+        type: string
+
+jobs:
+  test-crate:
+    runs-on: ubuntu-latest
+    env:
+      CRATE: ${{ inputs.crate }}
+      ARGS_DOC: ${{ inputs.args-doc }}
+      ARGS_FORMAT: ${{ inputs.args-format }}
+      ARGS_TEST: ${{ inputs.args-test }}
+      ARGS_CLIPPY: ${{ inputs.args-clippy }}
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+
+      - name: install rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          components: rustfmt, clippy
+          override: true
+
+      - name: check doc
+        run: |
+          cd ${CRATE}
+          cargo test --doc ${ARGS_DOC}
+
+      - name: check format
+        run: |
+          cd ${CRATE}
+          cargo fmt --check --all ${ARGS_FORMAT}
+
+      - name: check test
+        run: |
+          cd ${CRATE}
+          cargo test --tests ${ARGS_TEST}
+
+      - name: check clippy
+        run: |
+          cargo clippy -p ${CRATE} -- -D warnings ${ARGS_CLIPPY}
