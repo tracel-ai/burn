@@ -1,7 +1,7 @@
 use super::{BackwardRecordedOps, ForwardRecordedOps, RecordedOpsParentRef};
 use crate::graph::{converter::Forward2BackwardGraphConverter, node::BackwardNodeState};
 use burn_tensor::ops::Zeros;
-use std::{ops::Add, sync::Arc};
+use std::ops::Add;
 
 #[derive(new, Debug, Clone)]
 pub struct InitRecordedOps {}
@@ -23,7 +23,7 @@ where
     fn to_backward(
         &self,
         _graph: &mut Forward2BackwardGraphConverter,
-    ) -> super::BackwardRecordedOpsRef<Out> {
-        Arc::new(self.clone())
+    ) -> super::BackwardRecordedOpsBoxed<Out> {
+        Box::new(self.clone())
     }
 }

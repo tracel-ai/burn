@@ -21,7 +21,7 @@ where
 
     let ops = Arc::new(ops);
     let ops = ForwardUnaryRecordedOps::new(input.clone(), ops);
-    let ops = Arc::new(ops);
+    let ops = Box::new(ops);
 
     let node = ForwardNode::from_unary(&input, state, ops);
     let node = Arc::new(node);
@@ -56,7 +56,7 @@ where
 
     let ops = Arc::new(ops);
     let ops = ForwardBinaryRecordedOps::new(lhs.clone(), rhs.clone(), ops);
-    let ops = Arc::new(ops);
+    let ops = Box::new(ops);
 
     let node = ForwardNode::from_binary(&lhs, &rhs, state, ops);
     let node = Arc::new(node);

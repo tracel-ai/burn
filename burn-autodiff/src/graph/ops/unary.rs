@@ -31,11 +31,11 @@ where
     fn to_backward(
         &self,
         graph: &mut Forward2BackwardGraphConverter,
-    ) -> super::BackwardRecordedOpsRef<Out> {
+    ) -> super::BackwardRecordedOpsBoxed<Out> {
         let input = graph.from(&self.input);
         let ops = self.ops.clone();
 
-        Arc::new(BackwareUnaryRecordedOps::new(input, ops))
+        Box::new(BackwareUnaryRecordedOps::new(input, ops))
     }
 }
 

@@ -1,5 +1,5 @@
 use super::ForwardNodeState;
-use crate::graph::ops::ForwardRecordedOpsRef;
+use crate::graph::ops::ForwardRecordedOpsBoxed;
 use std::sync::Arc;
 
 #[derive(Debug)]
@@ -7,12 +7,12 @@ pub struct ForwardNode<Out> {
     pub id: String,
     pub order: usize,
     pub state: ForwardNodeState<Out>,
-    pub ops: ForwardRecordedOpsRef<Out>,
+    pub ops: ForwardRecordedOpsBoxed<Out>,
 }
 pub type ForwardNodeRef<Out> = Arc<ForwardNode<Out>>;
 
 impl<Out> ForwardNode<Out> {
-    pub fn from_root(state: ForwardNodeState<Out>, ops: ForwardRecordedOpsRef<Out>) -> Self {
+    pub fn from_root(state: ForwardNodeState<Out>, ops: ForwardRecordedOpsBoxed<Out>) -> Self {
         let order = 0;
         Self::new(order, state, ops)
     }
@@ -20,7 +20,7 @@ impl<Out> ForwardNode<Out> {
     pub fn from_unary<T>(
         node: &ForwardNode<T>,
         state: ForwardNodeState<Out>,
-        ops: ForwardRecordedOpsRef<Out>,
+        ops: ForwardRecordedOpsBoxed<Out>,
     ) -> Self {
         let order = node.order + 1;
         Self::new(order, state, ops)
@@ -30,7 +30,7 @@ impl<Out> ForwardNode<Out> {
         lhs: &ForwardNode<Lhs>,
         rhs: &ForwardNode<Rhs>,
         state: ForwardNodeState<Out>,
-        ops: ForwardRecordedOpsRef<Out>,
+        ops: ForwardRecordedOpsBoxed<Out>,
     ) -> Self {
         let order = usize::max(lhs.order, rhs.order) + 1;
         Self::new(order, state, ops)
@@ -39,7 +39,7 @@ impl<Out> ForwardNode<Out> {
     pub fn new(
         order: usize,
         state: ForwardNodeState<Out>,
-        ops: ForwardRecordedOpsRef<Out>,
+        ops: ForwardRecordedOpsBoxed<Out>,
     ) -> Self {
         let id = nanoid::nanoid!();
         Self {
