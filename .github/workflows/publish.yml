@@ -3,7 +3,7 @@ name: publish
 on:
   push:
     tags:        
-      - '*'
+      - 'v*'
 
 jobs:
   publish-burn-derive:
@@ -26,28 +26,35 @@ jobs:
 
   publish-burn-tensor:
     uses: burn-rs/burn/.github/workflows/publish-template.yml@main
-    needs: publish-burn-tensor-testgen
+    needs:
+      - publish-burn-tensor-testgen
     with:
       crate: burn-tensor
     secrets: inherit
 
   publish-burn-autodiff:
     uses: burn-rs/burn/.github/workflows/publish-template.yml@main
-    needs: publish-burn-tensor
+    needs:
+      - publish-burn-tensor
+      - publish-burn-tensor-testgen
     with:
       crate: burn-autodiff
     secrets: inherit
 
   publish-burn-tch:
     uses: burn-rs/burn/.github/workflows/publish-template.yml@main
-    needs: publish-burn-autodiff
+    needs:
+      - publish-burn-tensor
+      - publish-burn-autodiff
     with:
       crate: burn-tch
     secrets: inherit
 
   publish-burn-ndarray:
     uses: burn-rs/burn/.github/workflows/publish-template.yml@main
-    needs: publish-burn-autodiff
+    needs:
+      - publish-burn-tensor
+      - publish-burn-autodiff
     with:
       crate: burn-ndarray
     secrets: inherit
@@ -55,8 +62,11 @@ jobs:
   publish-burn:
     uses: burn-rs/burn/.github/workflows/publish-template.yml@main
     needs: 
-      - publish-burn-ndarray
       - publish-burn-derive
+      - publish-burn-dataset
+      - publish-burn-tensor
+      - publish-burn-autodiff
+      - publish-burn-ndarray
     with:
       crate: burn
     secrets: inherit
