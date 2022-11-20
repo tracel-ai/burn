@@ -17,11 +17,5 @@ export_tests = ["burn-tensor-testgen"]
 [dependencies]
 burn-tensor-testgen = { path = "../burn-tensor-testgen", optional = true }
 burn-tensor = { path = "../burn-tensor", version = "0.2.3" }
-libm = "0.2"
 derive-new = "0.5"
-rand = "0.8"
-num-traits = "0.2"
 nanoid = "0.4"
-
-[dev-dependencies]
-burn-tensor = { path = "../burn-tensor", version = "0.2.3", features = ["export_tests"] }

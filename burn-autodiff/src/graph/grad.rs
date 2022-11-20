@@ -2,7 +2,11 @@ use crate::graph::{
     node::{BackwardNode, ForwardNode},
     traversal::{BreadthFirstSearch, GraphTraversal},
 };
-use burn_tensor::{backend::Gradients, ops::Zeros};
+use burn_tensor::{
+    backend::{ADBackend, Gradients},
+    ops::Zeros,
+    Tensor,
+};
 use std::{any::Any, collections::HashMap, ops::Add};
 
 #[derive(Default)]
@@ -10,13 +14,13 @@ pub struct Grads {
     grads: HashMap<String, Box<dyn Any + Send + Sync>>,
 }
 
-impl Gradients for Grads {
+impl<B: ADBackend> Gradients<B> for Grads {
     fn empty() -> Self {
         Self {
             grads: HashMap::new(),
         }
     }
-    fn get<V: 'static>(&self, id: &str) -> Option<&V> {
+    fn get<const D: usize>(&self, id: &str) -> Option<&Tensor<B::InnerBackend, D>> {
         let grad = match self.grads.get(id) {
             Some(grad) => grad,
             None => return None,
@@ -24,16 +28,13 @@ impl Gradients for Grads {
 
         grad.downcast_ref()
     }
-    fn register<V>(&mut self, id: String, value: V)
-    where
-        V: std::fmt::Debug + 'static + Send + Sync,
-    {
+    fn register<const D: usize>(&mut self, id: String, value: Tensor<B::InnerBackend, D>) {
         self.grads.insert(id, Box::new(value));
     }
 }
 
 impl Grads {
-    pub fn register<T>(&mut self, node: &BackwardNode<T>)
+    pub fn register_node<T>(&mut self, node: &BackwardNode<T>)
     where
         T: Zeros + Clone + Add<Output = T>,
         T: std::fmt::Debug + 'static + Send + Sync,
@@ -42,14 +43,14 @@ impl Grads {
         self.grads.insert(node.id.clone(), Box::new(grad));
     }
 
-    pub fn from<T>(node: &BackwardNode<T>) -> Self
+    pub fn from_node<T>(node: &BackwardNode<T>) -> Self
     where
         T: Zeros + Clone + Add<Output = T>,
         T: std::fmt::Debug + 'static + Send + Sync,
     {
-        let mut grads = Self::empty();
+        let mut grads = Self::default();
         let traversal = BreadthFirstSearch::new(node);
-        grads.register(node);
+        grads.register_node(node);
 
         traversal.traverse(|node| {
             node.register_grad(&mut grads);

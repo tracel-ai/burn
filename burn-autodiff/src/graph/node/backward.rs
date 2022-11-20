@@ -66,7 +66,7 @@ where
             }
         }
 
-        Grads::from(self)
+        Grads::from_node(self)
     }
 }
 
@@ -89,6 +89,6 @@ where
         &self.id
     }
     fn register_grad(&self, grads: &mut Grads) {
-        grads.register(self)
+        grads.register_node(self)
     }
 }
