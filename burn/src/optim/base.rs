@@ -86,7 +86,7 @@ pub(super) fn register_state_gradients<const D: usize, B: ADBackend, F: Fn(&str)
 ) {
     let id = id.to_string();
 
-    if let Some(velocity) = grads.get::<Tensor<B::InnerBackend, D>>(&id) {
+    if let Some(velocity) = grads.get::<D>(&id) {
         let data = State::Data(velocity.to_data().serialize());
         state.register_state(id_to_key(&id).as_str(), data);
     };

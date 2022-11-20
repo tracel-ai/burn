@@ -1,7 +1,8 @@
-pub trait Gradients: Send + Sync {
+use crate::backend::ADBackend;
+use crate::Tensor;
+
+pub trait Gradients<B: ADBackend>: Send + Sync {
     fn empty() -> Self;
-    fn get<V: 'static>(&self, id: &str) -> Option<&V>;
-    fn register<V>(&mut self, id: String, value: V)
-    where
-        V: std::fmt::Debug + 'static + Send + Sync;
+    fn get<const D: usize>(&self, id: &str) -> Option<&Tensor<B::InnerBackend, D>>;
+    fn register<const D: usize>(&mut self, id: String, value: Tensor<B::InnerBackend, D>);
 }

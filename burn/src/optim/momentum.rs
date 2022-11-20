@@ -46,7 +46,7 @@ impl<B: ADBackend> Momentum<B> {
     ) -> Tensor<B::InnerBackend, D> {
         let id = id.to_string();
 
-        let velocity = match self.velocity.get::<Tensor<B::InnerBackend, D>>(&id) {
+        let velocity = match self.velocity.get::<D>(&id) {
             Some(grad_last_step) => grad
                 .mul_scalar(1.0 - self.dampening)
                 .add(&grad_last_step.mul_scalar(self.momentum)),
