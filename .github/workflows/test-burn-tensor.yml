@@ -1,6 +1,9 @@
 name: test
 
-on: [push]
+on:
+  push:
+    tags:      
+      - '*'
 
 jobs:
   publish:

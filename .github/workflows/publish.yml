@@ -1,88 +1,10 @@
 name: publish
 
-on:
-  push:
-    tags:        
-      - '*'
+on: [push]
 
 jobs:
-  publish-burn-tensor:
-    name: publish-burn-tensor
-    runs-on: ubuntu-latest
-    steps:
-      - name: checkout
-        uses: actions/checkout@v2
-
-      - name: install rust nightly
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: beta
-          components: rustfmt
-          override: true
-
-      - name: publish burn-tensor to crates.io
-        run: ./ci/publish.sh burn-tensor
-        env:
-          CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
-
   publish-burn-dataset:
-    name: publish-burn-dataset
-    runs-on: ubuntu-latest
-    steps:
-      - name: checkout
-        uses: actions/checkout@v2
-
-      - name: install rust nightly
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: beta
-          components: rustfmt
-          override: true
-
-      - name: publish burn-dataset to crates.io
-        run: ./ci/publish.sh burn-dataset
-        env:
-          CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
-
-  publish-burn-derive:
-    name: publish-burn-derive
-    runs-on: ubuntu-latest
-    steps:
-      - name: checkout
-        uses: actions/checkout@v2
-
-      - name: install rust nightly
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: beta
-          components: rustfmt
-          override: true
-
-      - name: publish burn-derive to crates.io
-        run: ./ci/publish.sh burn-derive
-        env:
-          CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
-
-  publish-burn:
-    needs: publish-burn-tensor
-    name: publish-burn
-    runs-on: ubuntu-latest
-    steps:
-      - name: checkout
-        uses: actions/checkout@v2
-
-      - name: install rust nightly
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: beta
-          components: rustfmt
-          override: true
-
-      - name: publish burn to crates.io
-        run: ./ci/publish.sh burn
-        env:
-          CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
+    uses: burn-rs/burn/.github/workflows/publish-template.yml@ci-publish
+    with:
+      crate: burn-dataset
+    secrets: inherit
