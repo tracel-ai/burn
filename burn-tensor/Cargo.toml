@@ -19,7 +19,7 @@ default = []
 export_tests = ["burn-tensor-testgen"]
 
 [dependencies]
-burn-tensor-testgen = { path = "../burn-tensor-testgen", optional = true }
+burn-tensor-testgen = { version = "0.3.0", path = "../burn-tensor-testgen", optional = true }
 num-traits = "0.2"
 derive-new = "0.5"
 rand = "0.8"

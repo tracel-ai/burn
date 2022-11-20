@@ -18,7 +18,7 @@ blas-openblas = ["ndarray/blas", "blas-src/openblas", "openblas-src"]
 blas-openblas-system = ["ndarray/blas", "blas-src/openblas", "openblas-src/system"]
 
 [dependencies]
-burn-tensor = { path = "../burn-tensor" }
+burn-tensor = { version = "0.3.0", path = "../burn-tensor" }
 blas-src = { version = "0.8.0", default-features = false, optional = true }
 openblas-src = { version = "0.10", optional = true }
 
@@ -29,5 +29,5 @@ rand = "0.8"
 num-traits = "0.2"
 
 [dev-dependencies]
-burn-tensor = { path = "../burn-tensor", features = ["export_tests"] }
-burn-autodiff = { path = "../burn-autodiff", features = ["export_tests"] }
+burn-tensor = { version = "0.3.0", path = "../burn-tensor", features = ["export_tests"] }
+burn-autodiff = { version = "0.3.0", path = "../burn-autodiff", features = ["export_tests"] }

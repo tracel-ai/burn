@@ -15,7 +15,7 @@ default = ["export_tests"]
 export_tests = ["burn-tensor-testgen"]
 
 [dependencies]
-burn-tensor-testgen = { path = "../burn-tensor-testgen", optional = true }
-burn-tensor = { path = "../burn-tensor" }
+burn-tensor-testgen = { version = "0.3.0", path = "../burn-tensor-testgen", optional = true }
+burn-tensor = { version = "0.3.0", path = "../burn-tensor" }
 derive-new = "0.5"
 nanoid = "0.4"

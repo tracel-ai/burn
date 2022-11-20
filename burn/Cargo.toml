@@ -13,10 +13,10 @@ edition = "2021"
 [features]
 
 [dependencies]
-burn-tensor = { path = "../burn-tensor" }
-burn-autodiff = { path = "../burn-autodiff" }
-burn-dataset = { path = "../burn-dataset", default-features = false }
-burn-derive = { path = "../burn-derive" }
+burn-tensor = { version = "0.3.0", path = "../burn-tensor" }
+burn-autodiff = { version = "0.3.0", path = "../burn-autodiff" }
+burn-dataset = { version = "0.3.0", path = "../burn-dataset", default-features = false }
+burn-derive = { version = "0.3.0", path = "../burn-derive" }
 
 thiserror = "1.0"
 num-traits = "0.2"
@@ -43,5 +43,5 @@ flate2 = "1.0"
 nanoid = "0.4"
 
 [dev-dependencies]
-burn-dataset = { path = "../burn-dataset", features = ["fake"] }
-burn-ndarray = { path = "../burn-ndarray" }
+burn-dataset = { version = "0.3.0", path = "../burn-dataset", features = ["fake"] }
+burn-ndarray = { version = "0.3.0", path = "../burn-ndarray" }
