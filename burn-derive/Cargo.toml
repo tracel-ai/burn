@@ -1,6 +1,6 @@
 [package]
 name = "burn-derive"
-version = "0.2.3"
+version = "0.3.0"
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 
 description = """
