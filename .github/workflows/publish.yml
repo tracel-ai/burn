@@ -7,47 +7,47 @@ on:
 
 jobs:
   publish-burn-dataset:
-    uses: burn-rs/burn/.github/workflows/publish-template.yml@ci-publish
+    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
     with:
       crate: burn-dataset
     secrets: inherit
 
   publish-burn-tensor-testgen:
-    uses: burn-rs/burn/.github/workflows/publish-template.yml@ci-publish
+    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
     with:
       crate: burn-tensor-testgen
     secrets: inherit
 
   publish-burn-tensor:
-    uses: burn-rs/burn/.github/workflows/publish-template.yml@ci-publish
+    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
     needs: publish-burn-tensor-testgen
     with:
       crate: burn-tensor
     secrets: inherit
 
   publish-burn-autodiff:
-    uses: burn-rs/burn/.github/workflows/publish-template.yml@ci-publish
+    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
     needs: publish-burn-tensor
     with:
       crate: burn-autodiff
     secrets: inherit
 
   publish-burn-tch:
-    uses: burn-rs/burn/.github/workflows/publish-template.yml@ci-publish
+    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
     needs: publish-burn-autodiff
     with:
       crate: burn-tch
     secrets: inherit
 
   publish-burn-ndarray:
-    uses: burn-rs/burn/.github/workflows/publish-template.yml@ci-publish
+    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
     needs: publish-burn-autodiff
     with:
       crate: burn-ndarray
     secrets: inherit
 
   publish-burn:
-    uses: burn-rs/burn/.github/workflows/publish-template.yml@ci-publish
+    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
     needs: publish-burn-ndarray
     with:
       crate: burn
