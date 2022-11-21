@@ -34,7 +34,7 @@ __Sections__
    * [Tch](https://github.com/burn-rs/burn/tree/main/burn-tch) backend with CPU/GPU support 🚀
    * [NdArray](https://github.com/burn-rs/burn/tree/main/burn-ndarray) backend with fast compile time 👌
    * [Autodiff](https://github.com/burn-rs/burn/tree/main/burn-autodiff) backend making any backend differentiable 🌟
- * [Dataset](https://github.com/burn-rs/burn/tree/doc/readme/burn-dataset) crate with multiple utilities and sources 📚
+ * [Dataset](https://github.com/burn-rs/burn/tree/main/burn-dataset) crate with multiple utilities and sources 📚
 
 ## Get Started
 
@@ -54,7 +54,7 @@ Knowing the main components will be of great help when starting playing with `bu
 #### Backend
 
 Almost everything is based on the `Backend` trait, which allows to run tensor operations with different implementations without having to change your code.
-A backend does not necessary have autodiff capabilities, the `ADBackend` trait is there to specify when autodiff is always required.
+A backend does not necessary have autodiff capabilities, the `ADBackend` trait is there to specify when autodiff is required.
 
 #### Tensor
 
@@ -187,7 +187,7 @@ fn main() {
         .metric_train(LossMetric::new())
         .metric_valid(LossMetric::new())
         .with_file_checkpointer::<f32>(2)
-        .num_epochs(100)
+        .num_epochs(10)
         .build(model, optim);
 
     let _model_trained = learner.fit(dataloader_train, dataloader_valid);
