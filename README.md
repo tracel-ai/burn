@@ -2,7 +2,7 @@
 <img src="./assets/logo-burn-full.png" width="200px"/>
 
 [![Current Crates.io Version](https://img.shields.io/crates/v/burn.svg)](https://crates.io/crates/burn)
-[![Test Status](https://github.com/burn-rs/burn/actions/workflows/test-burn.yml/badge.svg)](https://github.com/burn-rs/burn/actions/workflows/test-burn.yml)
+[![Test Status](https://github.com/burn-rs/burn/actions/workflows/test.yml/badge.svg)](https://github.com/burn-rs/burn/actions/workflows/test.yml)
 [![Documentation](https://docs.rs/burn/badge.svg)](https://docs.rs/burn)
 [![Rust Version](https://img.shields.io/badge/Rust-1.65.0-blue)](https://releases.rs/docs/released/1.65.0)
 [![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](https://github.com/burn-rs/burn/blob/master/LICENSE)
@@ -17,7 +17,6 @@ __Sections__
 * [Features](#features)
 * [Get Started](#get-started)
     * [Examples](#examples)
-        * [MNIST](#mnist)
     * [Components](#components)
         * [Backend](#backend)
         * [Tensor](#tensor)
@@ -29,44 +28,24 @@ __Sections__
 
 ## Features
 
- * Flexible and intuitive custom neural network module 🤖
- * Stateless and thread safe forward pass 🚀
- * Fast training with full support for `metric`, `logging` and `checkpointing` 🌟
- * [Burn-Tensor](https://github.com/burn-rs/burn/tree/doc/readme/burn-tensor): Tensor library with autodiff, CPU and GPU support 🔥
- * [Burn-Dataset](https://github.com/burn-rs/burn/tree/doc/readme/burn-dataset): Dataset library with multiple utilities and sources 📚
+ * Flexible and intuitive custom neural network [module](#module) 🔥
+ * [Training](#learner) with full support for `metric`, `logging` and `checkpointing` 📈
+ * [Tensor](#tensor) crate with backends as pluging 🔧
+   * [Tch](https://github.com/burn-rs/burn/tree/main/burn-tch) backend with CPU/GPU support 🚀
+   * [NdArray](https://github.com/burn-rs/burn/tree/main/burn-ndarray) backend with fast compile time 👌
+   * [Autodiff](https://github.com/burn-rs/burn/tree/main/burn-autodiff) backend making any backend differentiable 🌟
+ * [Dataset](https://github.com/burn-rs/burn/tree/main/burn-dataset) crate with multiple utilities and sources 📚
 
 ## Get Started
 
-The best way to get started with burn is the look at the [examples](#examples).
-Also, this may be a good idea to checkout the main [components](#components) to get a quick overview of how to use burn.
+The best way to get started with `burn` is to clone the repo and play with the [examples](#examples).
+This may also be a good idea to take a look the main [components](#components) of `burn` to get a quick overview of the fundamental building blocks.
 
 ### Examples
 
 For now there is only one example, but more to come 💪..
 
-#### MNIST
-
-The [MNIST](https://github.com/burn-rs/burn/blob/main/examples/mnist) example is not just of small script that shows you how to train a basic model, but it's a quick one showing you how to:
-
-* Define your own custom [module](#module) (MLP).
-* Create the data pipeline from a raw dataset to a batched multi-threaded fast DataLoader.
-* Configure a [learner](#learner) to display and log metrics as well as to keep training checkpoints.
-
-The example can be run like so:
-
-```bash
-git clone https://github.com/burn-rs/burn.git
-cd burn
-# Use the --release flag to really speed up training.
-echo "Using ndarray backend"
-cargo run --example mnist --release --features ndarray                # CPU NdArray Backend - f32 - single thread
-cargo run --example mnist --release --features ndarray-blas-openblas  # CPU NdArray Backend - f32 - blas with openblas
-cargo run --example mnist --release --features ndarray-blas-netlib    # CPU NdArray Backend - f32 - blas with netlib
-echo "Using tch backend"
-export TORCH_CUDA_VERSION=cu113                                       # Set the cuda version
-cargo run --example mnist --release --features tch-gpu                # GPU Tch Backend - f16
-cargo run --example mnist --release --features tch-cpu                # CPU Tch Backend - f32
-```
+* [MNIST](https://github.com/burn-rs/burn/tree/main/examples/mnist) train a model on CPU/GPU using different backends.
 
 ### Components
 
@@ -75,30 +54,53 @@ Knowing the main components will be of great help when starting playing with `bu
 #### Backend
 
 Almost everything is based on the `Backend` trait, which allows to run tensor operations with different implementations without having to change your code.
-A backend does not necessary have autodiff capabilities, therefore you can use `ADBackend` when you require it.
+A backend does not necessary have autodiff capabilities, the `ADBackend` trait is there to specify when autodiff is required.
 
 #### Tensor
 
 The `Tensor` struct is at the core of the `burn` framework.
 It takes two generic parameters, the `Backend` and the number of dimensions `D`,
 
-```rust
-use burn::tensor::{Tensor, Shape, Data};
-use burn::tensor::backend::{Backend, NdArrayBackend, TchBackend};
+Backpropagation is also supported on any backend by making them auto differentiable using a simple decorator.
 
-fn my_func<B: Backend>() {
-    let _my_tensor = Tensor::<B, 2>::ones(Shape::new([3, 3]));
+```rust
+use burn::tensor::backend::{ADBackend, Backend};
+use burn::tensor::{Distribution, Tensor};
+use burn_autodiff::ADBackendDecorator;
+use burn_ndarray::NdArrayBackend;
+use burn_tch::TchBackend;
+
+fn simple_function<B: Backend>() -> Tensor<B, 2> {
+    let x = Tensor::<B, 2>::random([3, 3], Distribution::Standard);
+    let y = Tensor::<B, 2>::random([3, 3], Distribution::Standard);
+
+    x.matmul(&y)
+}
+
+fn simple_function_grads<B: ADBackend>() -> B::Gradients {
+    let z = simple_function::<B>();
+
+    z.backward()
 }
 
 fn main() {
-    my_func<NdArrayBackend<f32>>();
-    my_func<TchBackend<f32>>();
+    let _z = simple_function::<NdArrayBackend<f32>>(); // Compiles
+    let _z = simple_function::<TchBackend<f32>>(); // Compiles
+
+    let _grads = simple_function_grads::<NdArrayBackend<f32>>(); // Doesn't compile
+    let _grads = simple_function_grads::<TchBackend<f32>>(); // Doesn't compile
+
+    type ADNdArrayBackend = ADBackendDecorator<NdArrayBackend<f32>>;
+    type ADTchBackend = ADBackendDecorator<TchBackend<f32>>;
+
+    let _grads = simple_function_grads::<ADNdArrayBackend>(); // Compiles
+    let _grads = simple_function_grads::<ADTchBackend>(); // Compiles
 }
 ```
 
 #### Module
 
-The `Module` derive let your create your own neural network module similar to PyTorch.
+The `Module` derive let your create your own neural network modules similar to PyTorch.
 
 ```rust
 use burn::nn;
@@ -135,7 +137,7 @@ impl<B: Backend> Forward<Tensor<B, 2>, Tensor<B, 2>> for MyModule<B> {
 }
 ```
 
-Note that you can implement multiple time the `Forward` trait with different inputs and outputs.
+Note that you can implement multiple times the `Forward` trait with different inputs and outputs.
 
 #### Config
 
@@ -154,7 +156,7 @@ struct MyConfig {
 The derive also adds useful methods to your config.
 
 ```rust
-fn my_func() {
+fn main() {
     let config = MyConfig::new(100);
     println!("{}", config.epsilon); // 1.0.e-6
     println!("{}", config.dim); // 100
@@ -170,18 +172,29 @@ In order to create a learner, you must use the `LearnerBuilder`.
 
 ```rust
 use burn::train::LearnerBuilder;
+use burn::train::metric::{AccuracyMetric, LossMetric};
 
-let learner = LearnerBuilder::new("/tmp/artifact_dir")
-    .metric_train_plot(AccuracyMetric::new())
-    .metric_valid_plot(AccuracyMetric::new())
-    .metric_train(LossMetric::new())
-    .metric_valid(LossMetric::new())
-    .with_file_checkpointer::<f32>(2)
-    .num_epochs(config.num_epochs)
-    .build(model, optim);
+fn main() {
+    let dataloader_train = ...;
+    let dataloader_valid = ...;
+
+    let model = ...;
+    let optim = ...;
+
+    let learner = LearnerBuilder::new("/tmp/artifact_dir")
+        .metric_train_plot(AccuracyMetric::new())
+        .metric_valid_plot(AccuracyMetric::new())
+        .metric_train(LossMetric::new())
+        .metric_valid(LossMetric::new())
+        .with_file_checkpointer::<f32>(2)
+        .num_epochs(10)
+        .build(model, optim);
+
+    let _model_trained = learner.fit(dataloader_train, dataloader_valid);
+}
 ```
 
-See this [example](https://github.com/burn-rs/burn/blob/main/examples/mnist) for a real usage.
+See this [example](https://github.com/burn-rs/burn/tree/main/examples/mnist) for a real usage.
 
 ## License
 
