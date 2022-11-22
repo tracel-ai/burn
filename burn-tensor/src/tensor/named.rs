@@ -6,22 +6,22 @@ pub trait NamedDims<B: Backend> {
     type Tensor;
 }
 
-// impl<B: Backend, D1> NamedDims<B> for (D1,)
-// where
-//     B: Backend,
-//     D1: Dim,
-// {
-//     type Tensor = Tensor<B, 1>;
-// }
-//
-// impl<B: Backend, D1, D2> NamedDims<B> for (D1, D2)
-// where
-//     B: Backend,
-//     D1: Dim,
-//     D2: Dim,
-// {
-//     type Tensor = Tensor<B, 2>;
-// }
+impl<B: Backend, D1> NamedDims<B> for (D1,)
+where
+    B: Backend,
+    D1: Dim,
+{
+    type Tensor = Tensor<B, 1>;
+}
+
+impl<B: Backend, D1, D2> NamedDims<B> for (D1, D2)
+where
+    B: Backend,
+    D1: Dim,
+    D2: Dim,
+{
+    type Tensor = Tensor<B, 2>;
+}
 
 impl<B: Backend, D1, D2, D3> NamedDims<B> for (D1, D2, D3)
 where
@@ -33,46 +33,27 @@ where
     type Tensor = Tensor<B, 3>;
 }
 
-// impl<B: Backend, D1, D2, D3, D4> NamedDims<B> for (D1, D2, D3, D4)
-// where
-//     B: Backend,
-//     D1: Dim,
-//     D2: Dim,
-//     D3: Dim,
-//     D4: Dim,
-// {
-//     type Tensor = Tensor<B, 4>;
-// }
-//
-// impl<B: Backend, D1, D2, D3, D4, D5> NamedDims<B> for (D1, D2, D3, D4, D5)
-// where
-//     B: Backend,
-//     D1: Dim,
-//     D2: Dim,
-//     D3: Dim,
-//     D4: Dim,
-//     D5: Dim,
-// {
-//     type Tensor = Tensor<B, 5>;
-// }
-//
-// impl<B: Backend, D1, D2, D3, D4, D5, D6> NamedDims<B> for (D1, D2, D3, D4, D5, D6)
-// where
-//     B: Backend,
-//     D1: Dim,
-//     D2: Dim,
-//     D3: Dim,
-//     D4: Dim,
-//     D5: Dim,
-//     D6: Dim,
-// {
-//     type Tensor = Tensor<B, 6>;
-// }
+impl<B: Backend, D1, D2, D3, D4> NamedDims<B> for (D1, D2, D3, D4)
+where
+    B: Backend,
+    D1: Dim,
+    D2: Dim,
+    D3: Dim,
+    D4: Dim,
+{
+    type Tensor = Tensor<B, 4>;
+}
+
+pub trait Ten<const D: usize> {
+    type Backend: Backend;
+    const TENSOR: <Self::Backend as Backend>::TensorPrimitive<D>;
+}
 
 pub struct NamedTensor<B: Backend, D: NamedDims<B>> {
     tensor: D::Tensor,
 }
 
+#[macro_export]
 macro_rules! dim {
     ($name:ident) => {
         pub struct $name;
@@ -114,7 +95,17 @@ where
 }
 
 macro_rules! generate_permut {
-    (dim3: $output:ty, $dim1:expr, $dim2:expr) => {
+    (2 => $output:ty, ($dim1:expr, $dim2:expr)) => {
+        impl<B: Backend, D1: Dim, D2: Dim> Permut<NamedTensor<B, $output>, $dim1, $dim2>
+            for NamedTensor<B, (D1, D2)>
+        {
+            fn permut(&self) -> NamedTensor<B, $output> {
+                NamedTensor::from_tensor(self.tensor.swap_dims($dim1, $dim2))
+            }
+        }
+    };
+
+    (3 => $output:ty, ($dim1:expr, $dim2:expr)) => {
         impl<B: Backend, D1: Dim, D2: Dim, D3: Dim> Permut<NamedTensor<B, $output>, $dim1, $dim2>
             for NamedTensor<B, (D1, D2, D3)>
         {
@@ -123,13 +114,29 @@ macro_rules! generate_permut {
             }
         }
     };
+
+    (4 => $output:ty, ($dim1:expr, $dim2:expr)) => {
+        impl<B: Backend, D1: Dim, D2: Dim, D3: Dim, D4: Dim>
+            Permut<NamedTensor<B, $output>, $dim1, $dim2> for NamedTensor<B, (D1, D2, D3, D4)>
+        {
+            fn permut(&self) -> NamedTensor<B, $output> {
+                NamedTensor::from_tensor(self.tensor.swap_dims($dim1, $dim2))
+            }
+        }
+    };
 }
 
-generate_permut!(dim3: (D2, D1, D3), 0, 1);
-generate_permut!(dim3: (D3, D2, D1), 0, 2);
-generate_permut!(dim3: (D1, D3, D2), 1, 2);
+generate_permut!(2 => (D2, D1), (0, 1));
+generate_permut!(3 => (D2, D1, D3), (0, 1));
+generate_permut!(3 => (D3, D2, D1), (0, 2));
+generate_permut!(3 => (D1, D3, D2), (1, 2));
+generate_permut!(4 => (D2, D1, D3, D4), (0, 1));
+generate_permut!(4 => (D3, D2, D1, D4), (0, 2));
+generate_permut!(4 => (D4, D2, D3, D1), (0, 3));
+generate_permut!(4 => (D1, D3, D2, D4), (1, 2));
+generate_permut!(4 => (D1, D4, D3, D2), (1, 3));
 
-impl<B: Backend, X: Dim, Y: Dim> NamedTensor<B, (Batch, X, Y)> {
+impl<B: Backend, Batch: Dim, X: Dim, Y: Dim> NamedTensor<B, (Batch, X, Y)> {
     pub fn matmul<Z: Dim>(
         &self,
         rhs: NamedTensor<B, (Batch, Y, Z)>,
@@ -139,16 +146,20 @@ impl<B: Backend, X: Dim, Y: Dim> NamedTensor<B, (Batch, X, Y)> {
     }
 }
 
-dim!(Batch);
-dim!(DModel);
-dim!(NFeatures);
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-fn allo<B: Backend>(
-    input: NamedTensor<B, (Batch, DModel, NFeatures)>,
-    weights: NamedTensor<B, (Batch, DModel, DModel)>,
-) -> NamedTensor<B, (Batch, NFeatures, DModel)> {
-    // weights.matmul(input);
-    let input = input.permut::<_, 1, 2>();
-    input.matmul(weights)
-    // input.matmul(weights)
+    dim!(Batch);
+    dim!(DModel);
+    dim!(NFeatures);
+
+    fn test<B: Backend>(
+        input: NamedTensor<B, (Batch, DModel, NFeatures)>,
+        weights: NamedTensor<B, (Batch, DModel, DModel)>,
+    ) -> NamedTensor<B, (Batch, NFeatures, DModel)> {
+        let input = input.permut();
+        input.matmul(weights)
+        // input.matmul(weights)
+    }
 }

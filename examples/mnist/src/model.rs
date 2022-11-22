@@ -7,7 +7,7 @@ use burn::{
     tensor::{
         backend::{ADBackend, Backend},
         loss::cross_entropy_with_logits,
-        NamedTensor, Tensor,
+        Tensor,
     },
     train::{ClassificationOutput, TrainOutput, TrainStep, ValidStep},
 };
