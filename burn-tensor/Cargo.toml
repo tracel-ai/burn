@@ -17,6 +17,7 @@ edition = "2021"
 [features]
 default = []
 export_tests = ["burn-tensor-testgen"]
+named_tensor = []
 
 [dependencies]
 burn-tensor-testgen = { version = "0.3.0", path = "../burn-tensor-testgen", optional = true }

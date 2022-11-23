@@ -1,0 +1,15 @@
+[package]
+name = "named-tensor"
+version = "0.1.0"
+authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
+license = "MIT/Apache-2.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+burn = { path = "../../burn", features = ["named_tensor"] }
+burn-autodiff = { path = "../../burn-autodiff" }
+burn-ndarray = { path = "../../burn-ndarray" }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }

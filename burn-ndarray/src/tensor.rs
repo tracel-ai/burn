@@ -65,6 +65,11 @@ where
     }
 
     pub fn matmul(self, other: BatchMatrix<E, D>) -> Self {
+        let require_broadcast = self.arrays.len() != other.arrays.len();
+        if require_broadcast {
+            return self.matmul_broadcast(other);
+        }
+
         let self_iter = self.arrays.iter();
         let other_iter = other.arrays.iter();
 
@@ -73,6 +78,37 @@ where
             .map(|(lhs, rhs)| lhs.dot(rhs))
             .map(|output| output.into_shared())
             .collect();
+
+        let mut shape = self.shape;
+        shape.dims[D - 1] = other.shape.dims[D - 1];
+
+        Self::new(arrays, shape)
+    }
+
+    fn matmul_broadcast(self, other: BatchMatrix<E, D>) -> Self {
+        let valid_broadcast = self.arrays.len() == 1 || other.arrays.len() == 1;
+        if !valid_broadcast {
+            panic!("Invalid broadcast => {:?} , {:?}", self.shape, other.shape);
+        }
+        let batch_size = usize::max(self.arrays.len(), other.arrays.len());
+        let mut arrays = Vec::with_capacity(batch_size);
+
+        for batch in 0..batch_size {
+            let self_tensor = if self.arrays.len() == 1 {
+                &self.arrays[0]
+            } else {
+                &self.arrays[batch]
+            };
+
+            let other_tensor = if other.arrays.len() == 1 {
+                &other.arrays[0]
+            } else {
+                &other.arrays[batch]
+            };
+
+            let tensor = self_tensor.dot(other_tensor);
+            arrays.push(tensor.into_shared());
+        }
 
         let mut shape = self.shape;
         shape.dims[D - 1] = other.shape.dims[D - 1];

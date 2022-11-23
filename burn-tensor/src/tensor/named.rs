@@ -1,9 +1,12 @@
 use crate::backend::Backend;
-use crate::{Shape, Tensor};
+use crate::{Distribution, Shape, Tensor};
 
-pub trait Dim {}
+pub trait Dim {
+    fn to_string() -> String;
+}
 pub trait NamedDims<B: Backend> {
     type Tensor;
+    fn to_string() -> String;
 }
 
 impl<B: Backend, D1> NamedDims<B> for (D1,)
@@ -12,6 +15,9 @@ where
     D1: Dim,
 {
     type Tensor = Tensor<B, 1>;
+    fn to_string() -> String {
+        format!("[{}]", D1::to_string())
+    }
 }
 
 impl<B: Backend, D1, D2> NamedDims<B> for (D1, D2)
@@ -21,6 +27,9 @@ where
     D2: Dim,
 {
     type Tensor = Tensor<B, 2>;
+    fn to_string() -> String {
+        format!("[{}, {}]", D1::to_string(), D2::to_string())
+    }
 }
 
 impl<B: Backend, D1, D2, D3> NamedDims<B> for (D1, D2, D3)
@@ -31,6 +40,14 @@ where
     D3: Dim,
 {
     type Tensor = Tensor<B, 3>;
+    fn to_string() -> String {
+        format!(
+            "[{}, {}, {}]",
+            D1::to_string(),
+            D2::to_string(),
+            D3::to_string()
+        )
+    }
 }
 
 impl<B: Backend, D1, D2, D3, D4> NamedDims<B> for (D1, D2, D3, D4)
@@ -42,22 +59,43 @@ where
     D4: Dim,
 {
     type Tensor = Tensor<B, 4>;
-}
-
-pub trait Ten<const D: usize> {
-    type Backend: Backend;
-    const TENSOR: <Self::Backend as Backend>::TensorPrimitive<D>;
+    fn to_string() -> String {
+        format!(
+            "[{}, {}, {}, {}]",
+            D1::to_string(),
+            D2::to_string(),
+            D3::to_string(),
+            D4::to_string()
+        )
+    }
 }
 
 pub struct NamedTensor<B: Backend, D: NamedDims<B>> {
     tensor: D::Tensor,
 }
 
+impl<B: Backend, const D: usize, ND: NamedDims<B>> std::fmt::Display for NamedTensor<B, ND>
+where
+    ND: NamedDims<B, Tensor = Tensor<B, D>>,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&format!(
+            "NamedTensor[shape={:?}, dims={}]",
+            self.shape().dims,
+            ND::to_string(),
+        ))
+    }
+}
+
 #[macro_export]
-macro_rules! dim {
+macro_rules! NamedDim {
     ($name:ident) => {
         pub struct $name;
-        impl Dim for $name {}
+        impl Dim for $name {
+            fn to_string() -> String {
+                stringify!($name).to_string()
+            }
+        }
     };
 }
 
@@ -69,8 +107,16 @@ impl<B: Backend, const D: usize, ND> NamedTensor<B, ND>
 where
     ND: NamedDims<B, Tensor = Tensor<B, D>>,
 {
-    pub fn from_tensor(tensor: ND::Tensor) -> Self {
+    fn from_tensor(tensor: ND::Tensor) -> Self {
         Self { tensor }
+    }
+
+    pub fn random<S: Into<Shape<D>>>(shape: S, distribution: Distribution<B::Elem>) -> Self {
+        Self::from_tensor(Tensor::random(shape, distribution))
+    }
+
+    pub fn shape(&self) -> &Shape<D> {
+        self.tensor.shape()
     }
 
     pub fn mul(&self, rhs: &Self) -> Self {
@@ -139,27 +185,9 @@ generate_permut!(4 => (D1, D4, D3, D2), (1, 3));
 impl<B: Backend, Batch: Dim, X: Dim, Y: Dim> NamedTensor<B, (Batch, X, Y)> {
     pub fn matmul<Z: Dim>(
         &self,
-        rhs: NamedTensor<B, (Batch, Y, Z)>,
+        rhs: &NamedTensor<B, (Batch, Y, Z)>,
     ) -> NamedTensor<B, (Batch, X, Z)> {
         let tensor = self.tensor.matmul(&rhs.tensor);
         NamedTensor { tensor }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    dim!(Batch);
-    dim!(DModel);
-    dim!(NFeatures);
-
-    fn test<B: Backend>(
-        input: NamedTensor<B, (Batch, DModel, NFeatures)>,
-        weights: NamedTensor<B, (Batch, DModel, DModel)>,
-    ) -> NamedTensor<B, (Batch, NFeatures, DModel)> {
-        let input = input.permut();
-        input.matmul(weights)
-        // input.matmul(weights)
     }
 }
