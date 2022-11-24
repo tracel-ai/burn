@@ -17,3 +17,8 @@ pub mod activation;
 pub mod backend;
 pub mod loss;
 pub mod module;
+
+#[cfg(feature = "named_tensor")]
+mod named;
+#[cfg(feature = "named_tensor")]
+pub use named::*;
