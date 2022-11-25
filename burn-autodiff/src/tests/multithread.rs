@@ -4,118 +4,82 @@ mod tests {
     use burn_tensor::Data;
 
     #[test]
-    fn should_diff_mean() {
-        let data_1 = Data::<f32, 2>::from([[1.0, 7.0], [-2.0, -3.0]]);
-        let data_2 = Data::<f32, 2>::from([[4.0, -7.0], [2.0, 3.0]]);
+    fn should_behave_the_same_with_multithread() {
+        let data_1: Data<f32, 2> = Data::from([[1.0, 7.0], [13.0, -3.0]]);
+        let data_2: Data<f32, 2> = Data::from([[4.0, 7.0], [2.0, 3.0]]);
 
-        let tensor_1 = TestADTensor::from_data(data_1);
-        let tensor_2 = TestADTensor::from_data(data_2);
+        let with_move = || {
+            let tensor_1 = TestADTensor::from_data(data_1.clone());
+            let tensor_2 = TestADTensor::from_data(data_2.clone());
 
-        let tensor_3 = tensor_1.matmul(&tensor_2);
-        let tensor_4 = tensor_1.mul(&tensor_3.mean().unsqueeze());
-        let grads = tensor_4.backward();
+            let tensor_3 = tensor_1.matmul(&tensor_2);
+            let tensor_4 = tensor_3.matmul(&tensor_2);
+            let tensor_5 = tensor_4.matmul(&tensor_3);
 
-        let grad_1 = tensor_1.grad(&grads).unwrap();
-        let grad_2 = tensor_2.grad(&grads).unwrap();
+            // Task 1
+            let tensor_1_cloned = tensor_1.clone();
+            let tensor_2_cloned = tensor_2.clone();
+            let tensor_5_cloned = tensor_5.clone();
 
-        grad_1
-            .to_data()
-            .assert_approx_eq(&Data::from([[3.5, 9.5], [3.5, 9.5]]), 5);
-        grad_2
-            .to_data()
-            .assert_approx_eq(&Data::from([[-0.75, -0.75], [3.0, 3.0]]), 5);
-    }
+            let first_call = move || {
+                let tensor_6_1 = tensor_5_cloned.matmul(&tensor_2_cloned);
+                tensor_6_1.matmul(&tensor_1_cloned)
+            };
 
-    #[test]
-    fn should_diff_sum_1() {
-        let data_1 = Data::<f32, 2>::from([[1.0, 7.0], [-2.0, -3.0]]);
-        let data_2 = Data::<f32, 2>::from([[4.0, -7.0], [2.0, 3.0]]);
+            // Task 2
+            let tensor_1_cloned = tensor_1.clone();
+            let tensor_2_cloned = tensor_2.clone();
+            let tensor_5_cloned = tensor_5;
 
-        let tensor_1 = TestADTensor::from_data(data_1);
-        let tensor_2 = TestADTensor::from_data(data_2);
+            let second_call = move || {
+                let tensor_6_2 = tensor_5_cloned.matmul(&tensor_1_cloned);
+                tensor_6_2.matmul(&tensor_2_cloned)
+            };
 
-        let tensor_3 = tensor_1.matmul(&tensor_2);
-        let tensor_4 = tensor_1.mul(&tensor_3.sum().unsqueeze());
-        let grads = tensor_4.backward();
+            let tensor_7_1_handle = std::thread::spawn(first_call);
+            let tensor_7_2_handle = std::thread::spawn(second_call);
 
-        let grad_1 = tensor_1.grad(&grads).unwrap();
-        let grad_2 = tensor_2.grad(&grads).unwrap();
+            let tensor_7_1 = tensor_7_1_handle.join().unwrap();
+            let tensor_7_2 = tensor_7_2_handle.join().unwrap();
+            let tensor_8 = tensor_7_1.matmul(&tensor_7_2);
 
-        grad_1
-            .to_data()
-            .assert_approx_eq(&Data::from([[14.0, 38.0], [14.0, 38.0]]), 5);
-        grad_2
-            .to_data()
-            .assert_approx_eq(&Data::from([[-3.0, -3.0], [12.0, 12.0]]), 5);
-    }
+            let grads = tensor_8.backward();
 
-    #[test]
-    fn should_diff_sum_2() {
-        let data_1 = Data::from([[0.0, 1.0], [3.0, 4.0]]);
-        let data_2 = Data::from([[6.0, 7.0], [9.0, 10.0]]);
+            let grad_1 = tensor_1.grad(&grads).unwrap();
+            let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        let tensor_1 = TestADTensor::from_data(data_1);
-        let tensor_2 = TestADTensor::from_data(data_2);
+            (grad_1, grad_2)
+        };
+        let without_move = || {
+            let tensor_1 = TestADTensor::from_data(data_1.clone());
+            let tensor_2 = TestADTensor::from_data(data_2.clone());
 
-        let tensor_3 = tensor_1.matmul(&tensor_2);
-        let tensor_4 = tensor_3.sum_dim(1);
-        let tensor_5 = tensor_4.mul(&tensor_3);
+            let tensor_3 = tensor_1.matmul(&tensor_2);
+            let tensor_4 = tensor_3.matmul(&tensor_2);
+            let tensor_5 = tensor_4.matmul(&tensor_3);
 
-        let grads = tensor_5.sum().backward();
-        let grad_1 = tensor_1.grad(&grads).unwrap();
-        let grad_2 = tensor_2.grad(&grads).unwrap();
+            // Task 1
+            let tensor_6_1 = tensor_5.matmul(&tensor_2);
+            let tensor_7_1 = tensor_6_1.matmul(&tensor_1);
 
-        grad_1
-            .to_data()
-            .assert_approx_eq(&Data::from([[494.0, 722.0], [2990.0, 4370.0]]), 3);
-        grad_2
-            .to_data()
-            .assert_approx_eq(&Data::from([[690.0, 690.0], [958.0, 958.0]]), 3);
-    }
+            // Task 2
+            let tensor_6_2 = tensor_5.matmul(&tensor_1);
+            let tensor_7_2 = tensor_6_2.matmul(&tensor_2);
 
-    #[test]
-    fn should_diff_mean_dim() {
-        let data_1 = Data::<f32, 2>::from([[1.0, 7.0], [-2.0, -3.0]]);
-        let data_2 = Data::<f32, 2>::from([[4.0, -7.0], [2.0, 3.0]]);
+            let tensor_8 = tensor_7_1.matmul(&tensor_7_2);
 
-        let tensor_1 = TestADTensor::from_data(data_1);
-        let tensor_2 = TestADTensor::from_data(data_2);
+            let grads = tensor_8.backward();
 
-        let tensor_3 = tensor_1.matmul(&tensor_2);
-        let tensor_4 = tensor_1.mul(&tensor_3.mean_dim(1).unsqueeze());
-        let grads = tensor_4.backward();
+            let grad_1 = tensor_1.grad(&grads).unwrap();
+            let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        let grad_1 = tensor_1.grad(&grads).unwrap();
-        let grad_2 = tensor_2.grad(&grads).unwrap();
+            (grad_1, grad_2)
+        };
 
-        grad_1
-            .to_data()
-            .assert_approx_eq(&Data::from([[4.0, 36.0], [3.0, -17.0]]), 5);
-        grad_2
-            .to_data()
-            .assert_approx_eq(&Data::from([[9.0, 9.0], [35.5, 35.5]]), 5);
-    }
+        let (grad_1, grad_2) = without_move();
+        let (grad_1_moved, grad_2_moved) = with_move();
 
-    #[test]
-    fn should_diff_sum_dim() {
-        let data_1 = Data::<f32, 2>::from([[1.0, 7.0], [-2.0, -3.0]]);
-        let data_2 = Data::<f32, 2>::from([[4.0, -7.0], [2.0, 3.0]]);
-
-        let tensor_1 = TestADTensor::from_data(data_1);
-        let tensor_2 = TestADTensor::from_data(data_2);
-
-        let tensor_3 = tensor_1.matmul(&tensor_2);
-        let tensor_4 = tensor_1.mul(&tensor_3.sum_dim(1).unsqueeze());
-        let grads = tensor_4.backward();
-
-        let grad_1 = tensor_1.grad(&grads).unwrap();
-        let grad_2 = tensor_2.grad(&grads).unwrap();
-
-        grad_1
-            .to_data()
-            .assert_approx_eq(&Data::from([[8.0, 72.0], [6.0, -34.0]]), 5);
-        grad_2
-            .to_data()
-            .assert_approx_eq(&Data::from([[18.0, 18.0], [71.0, 71.0]]), 5);
+        assert_eq!(grad_1.to_data(), grad_1_moved.to_data());
+        assert_eq!(grad_2.to_data(), grad_2_moved.to_data());
     }
 }
