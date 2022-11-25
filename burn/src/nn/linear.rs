@@ -58,3 +58,12 @@ impl<B: Backend, const D: usize> Forward<Tensor<B, D>, Tensor<B, D>> for Linear<
         }
     }
 }
+
+// /// Applies a linear transformation to the input tensor:
+// ///
+// /// `O = IW + b`
+// #[derive(Module, Debug)]
+// pub struct NamedLinear<B: Backend, Batch: Dim, DInput: Dim, DOutput: Dim> {
+//     weight: Param<NamedTensor<B, (Batch, DInput, DOutput)>>,
+//     bias: Param<Option<NamedTensor<B, (Batch, DOutput)>>>,
+// }

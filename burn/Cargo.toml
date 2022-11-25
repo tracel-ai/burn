@@ -11,6 +11,7 @@ license = "MIT/Apache-2.0"
 edition = "2021"
 
 [features]
+default = ["named_tensor"]
 named_tensor = ["burn-tensor/named_tensor"]
 
 [dependencies]

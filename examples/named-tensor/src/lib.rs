@@ -2,7 +2,7 @@ use burn::tensor::backend::Backend;
 use burn::tensor::{Dim, Distribution, NamedDim, NamedTensor};
 
 NamedDim!(Batch);
-NamedDim!(SeqLenght);
+NamedDim!(SeqLength);
 NamedDim!(DModel);
 
 pub fn run<B: Backend>() {
@@ -15,7 +15,7 @@ pub fn run<B: Backend>() {
         Distribution::Standard,
     );
 
-    let input = NamedTensor::<B, (Batch, SeqLenght, DModel)>::random(
+    let input = NamedTensor::<B, (Batch, SeqLength, DModel)>::random(
         [batch_size, seq_length, d_model],
         Distribution::Standard,
     );
@@ -38,7 +38,7 @@ pub fn run<B: Backend>() {
 
     let output = output.mul(&input);
 
-    let permut = output.permut::<_, 1, 2>();
+    let permut = output.swap_dims::<_, 1, 2>();
 
     println!("Weights => {}", weights);
     println!("Input   => {}", input);

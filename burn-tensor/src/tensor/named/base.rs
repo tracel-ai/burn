@@ -2,8 +2,25 @@ use crate::backend::Backend;
 use crate::{Distribution, NamedDims, Shape, Tensor};
 
 /// A tensor with named dimensions.
+#[derive(Debug, Clone)]
 pub struct NamedTensor<B: Backend, D: NamedDims<B>> {
     pub(crate) tensor: D::Tensor,
+}
+
+impl<B: Backend, ND: NamedDims<B, Tensor = Tensor<B, D>>, const D: usize> From<NamedTensor<B, ND>>
+    for Tensor<B, D>
+{
+    fn from(nt: NamedTensor<B, ND>) -> Self {
+        nt.tensor
+    }
+}
+
+impl<B: Backend, ND: NamedDims<B, Tensor = Tensor<B, D>>, const D: usize> From<Tensor<B, D>>
+    for NamedTensor<B, ND>
+{
+    fn from(tensor: Tensor<B, D>) -> Self {
+        Self::from_tensor(tensor)
+    }
 }
 
 impl<B: Backend, const D: usize, ND: NamedDims<B>> std::fmt::Display for NamedTensor<B, ND>

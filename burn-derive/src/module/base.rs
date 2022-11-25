@@ -21,6 +21,23 @@ pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
     let inner_fn = param.gen_inner_fn();
     let detach_fn = param.gen_detach_fn();
 
+    let mut pairs = quote! {};
+    ast.generics.params.iter().for_each(|param| {
+        match param {
+            syn::GenericParam::Type(ty) => {
+                if ty.ident.to_string() != "B" {
+                    let ident = &ty.ident;
+                    pairs.extend(quote! { #ident, });
+                }
+            }
+            syn::GenericParam::Lifetime(_) => panic!("Lifetime not supported in module"),
+            syn::GenericParam::Const(c) => {
+                let ident = &c.ident;
+                pairs.extend(quote! { #ident, });
+            }
+        };
+    });
+
     let gen = quote! {
         impl #generics burn::module::Module for #name #generics_ty #generics_where {
             type Backend=B;
@@ -41,7 +58,7 @@ pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
 
         impl #generics burn::module::ADModule for #name #generics_ty where B: burn::tensor::backend::ADBackend, {
             type ADBackend=B;
-            type InnerModule=#name<B::InnerBackend>;
+            type InnerModule=#name<B::InnerBackend, #pairs>;
 
             #inner_fn
         }
@@ -51,5 +68,6 @@ pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
         }
     };
 
+    // panic!("{}", gen);
     gen.into()
 }

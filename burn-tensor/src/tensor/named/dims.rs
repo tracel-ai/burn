@@ -1,11 +1,11 @@
 use crate::backend::Backend;
 use crate::Tensor;
 
-pub trait Dim {
+pub trait Dim: std::fmt::Debug {
     fn to_string() -> String;
 }
 
-pub trait NamedDims<B: Backend> {
+pub trait NamedDims<B: Backend>: std::fmt::Debug {
     type Tensor;
     fn to_string() -> String;
 }
@@ -13,6 +13,7 @@ pub trait NamedDims<B: Backend> {
 #[macro_export]
 macro_rules! NamedDim {
     ($name:ident) => {
+        #[derive(Debug)]
         pub struct $name;
         impl Dim for $name {
             fn to_string() -> String {
