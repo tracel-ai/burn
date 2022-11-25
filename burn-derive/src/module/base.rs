@@ -56,23 +56,23 @@ pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
 }
 
 fn generics_names_except_backend(generics: &syn::Generics) -> proc_macro2::TokenStream {
-    let mut pairs = quote! {};
+    let mut named = quote! {};
 
     generics.params.iter().for_each(|param| {
         match param {
             syn::GenericParam::Type(ty) => {
                 if ty.ident != "B" {
                     let ident = &ty.ident;
-                    pairs.extend(quote! { #ident, });
+                    named.extend(quote! { #ident, });
                 }
             }
             syn::GenericParam::Lifetime(_) => panic!("Lifetime not supported in module"),
             syn::GenericParam::Const(c) => {
                 let ident = &c.ident;
-                pairs.extend(quote! { #ident, });
+                named.extend(quote! { #ident, });
             }
         };
     });
 
-    pairs
+    named
 }
