@@ -18,7 +18,7 @@ pub mod backend;
 pub mod loss;
 pub mod module;
 
-#[cfg(feature = "named_tensor")]
+#[cfg(feature = "experimental-named-tensor")]
 mod named;
-#[cfg(feature = "named_tensor")]
+#[cfg(feature = "experimental-named-tensor")]
 pub use named::*;
