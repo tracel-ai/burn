@@ -155,9 +155,8 @@ impl<B: Backend> MultiHeadAttention<B> {
         let attn_scores = query
             .matmul(&key.transpose())
             .div_scalar((self.d_k as f32).sqrt());
-        let attn_scores = self.dropout.forward(attn_scores);
 
-        attn_scores
+        self.dropout.forward(attn_scores)
     }
 
     fn attn_weights(
@@ -280,8 +279,8 @@ mod tests {
             &Tensor::random([batch_size, num_padded, d_model], Distribution::Standard),
         );
 
-        let input_1 = MhaInput::self_attn(tensor_1.clone()).mask_pad(mask_pad.clone());
-        let input_2 = MhaInput::self_attn(tensor_2.clone()).mask_pad(mask_pad.clone());
+        let input_1 = MhaInput::self_attn(tensor_1).mask_pad(mask_pad.clone());
+        let input_2 = MhaInput::self_attn(tensor_2).mask_pad(mask_pad);
 
         let output_1 = mha.forward(input_1);
         let output_2 = mha.forward(input_2);
