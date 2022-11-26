@@ -1,7 +1,7 @@
 mod base;
 mod dims;
 mod matmul;
-mod permut;
+mod swap_dims;
 
 pub use base::*;
 pub use dims::*;

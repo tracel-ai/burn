@@ -7,7 +7,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
-burn = { path = "../../burn", features = ["named_tensor"] }
+burn = { path = "../../burn", features = ["experimental-named-tensor"] }
 burn-autodiff = { path = "../../burn-autodiff" }
 burn-ndarray = { path = "../../burn-ndarray" }
 

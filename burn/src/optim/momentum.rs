@@ -1,11 +1,11 @@
-use burn_tensor::backend::Gradients;
+use crate as burn;
 
 use super::{load_state_gradients, register_state_gradients};
-use crate as burn;
 use crate::config::Config;
 use crate::module::{ParamId, StateNamed};
 use crate::tensor::backend::ADBackend;
 use crate::tensor::{ElementConversion, Tensor};
+use burn_tensor::backend::Gradients;
 
 /// Configuration to create momentum [Momentum](Momentum).
 #[derive(Config)]

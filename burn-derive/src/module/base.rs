@@ -20,6 +20,7 @@ pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
     let load_fn = param.gen_load_fn();
     let inner_fn = param.gen_inner_fn();
     let detach_fn = param.gen_detach_fn();
+    let generics_names_except_backend = generics_names_except_backend(&ast.generics);
 
     let gen = quote! {
         impl #generics burn::module::Module for #name #generics_ty #generics_where {
@@ -41,7 +42,7 @@ pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
 
         impl #generics burn::module::ADModule for #name #generics_ty where B: burn::tensor::backend::ADBackend, {
             type ADBackend=B;
-            type InnerModule=#name<B::InnerBackend>;
+            type InnerModule=#name<B::InnerBackend, #generics_names_except_backend>;
 
             #inner_fn
         }
@@ -52,4 +53,26 @@ pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
     };
 
     gen.into()
+}
+
+fn generics_names_except_backend(generics: &syn::Generics) -> proc_macro2::TokenStream {
+    let mut named = quote! {};
+
+    generics.params.iter().for_each(|param| {
+        match param {
+            syn::GenericParam::Type(ty) => {
+                if ty.ident != "B" {
+                    let ident = &ty.ident;
+                    named.extend(quote! { #ident, });
+                }
+            }
+            syn::GenericParam::Lifetime(_) => panic!("Lifetime not supported in module"),
+            syn::GenericParam::Const(c) => {
+                let ident = &c.ident;
+                named.extend(quote! { #ident, });
+            }
+        };
+    });
+
+    named
 }
