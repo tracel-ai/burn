@@ -2,9 +2,9 @@ use crate as burn;
 
 use crate::config::Config;
 use crate::module::Module;
-use crate::module::{Forward, Param};
+use crate::module::Param;
 use crate::tensor::backend::Backend;
-use crate::tensor::{Shape, Tensor};
+use crate::tensor::Tensor;
 
 /// Configuration to create a [LayerNorm](LayerNorm) layer.
 #[derive(Config)]
@@ -27,9 +27,10 @@ pub struct LayerNorm<B: Backend> {
 }
 
 impl<B: Backend> LayerNorm<B> {
+    /// Create the module from the given configuration.
     pub fn new(config: &LayerNormConfig) -> Self {
-        let gamma = Tensor::ones(Shape::new([config.d_model]));
-        let beta = Tensor::zeros(Shape::new([config.d_model]));
+        let gamma = Tensor::ones([config.d_model]);
+        let beta = Tensor::zeros([config.d_model]);
 
         Self {
             gamma: Param::new(gamma),
@@ -37,10 +38,14 @@ impl<B: Backend> LayerNorm<B> {
             epsilon: config.epsilon,
         }
     }
-}
 
-impl<B: Backend, const D: usize> Forward<Tensor<B, D>, Tensor<B, D>> for LayerNorm<B> {
-    fn forward(&self, input: Tensor<B, D>) -> Tensor<B, D> {
+    /// Applies the forward pass on the input tensor.
+    ///
+    /// # Shapes
+    ///
+    /// - input: [..., any, d_model]
+    /// - output: [..., any, d_model]
+    pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
         let (var, mean) = input.var_mean_bias(D - 1);
 
         let input_normalized = input

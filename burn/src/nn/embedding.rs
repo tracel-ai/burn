@@ -2,7 +2,7 @@ use crate as burn;
 
 use crate::config::Config;
 use crate::module::Module;
-use crate::module::{Forward, Param};
+use crate::module::Param;
 use crate::tensor::backend::Backend;
 use crate::tensor::{Distribution, ElementConversion, Tensor};
 
@@ -22,6 +22,7 @@ pub struct Embedding<B: Backend> {
 }
 
 impl<B: Backend> Embedding<B> {
+    /// Create the module from the given configuration.
     pub fn new(config: &EmbeddingConfig) -> Self {
         let start = -1.0 / f64::sqrt(config.d_model as f64);
         let end = 1.0 / f64::sqrt(config.d_model as f64);
@@ -32,10 +33,14 @@ impl<B: Backend> Embedding<B> {
             weight: Param::new(weight),
         }
     }
-}
 
-impl<B: Backend> Forward<Tensor<B::IntegerBackend, 2>, Tensor<B, 3>> for Embedding<B> {
-    fn forward(&self, input: Tensor<B::IntegerBackend, 2>) -> Tensor<B, 3> {
+    /// Applies the forward pass on the input tensor.
+    ///
+    /// # Shapes
+    ///
+    /// - input: [batch_size, seq_length]
+    /// - output: [batch_size, d_model]
+    pub fn forward(&self, input: Tensor<B::IntegerBackend, 2>) -> Tensor<B, 3> {
         burn_tensor::module::embedding(&self.weight, &input)
     }
 }

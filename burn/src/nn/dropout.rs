@@ -1,6 +1,5 @@
 use crate as burn;
 use crate::config::Config;
-use crate::module::Forward;
 use crate::tensor::backend::Backend;
 use crate::tensor::{Distribution, Tensor};
 
@@ -23,13 +22,18 @@ pub struct Dropout {
 }
 
 impl Dropout {
+    /// Create the module from the given configuration.
     pub fn new(config: &DropoutConfig) -> Self {
         Self { prob: config.prob }
     }
-}
 
-impl<B: Backend, const D: usize> Forward<Tensor<B, D>, Tensor<B, D>> for Dropout {
-    fn forward(&self, input: Tensor<B, D>) -> Tensor<B, D> {
+    /// Applies the forward pass on the input tensor.
+    ///
+    /// # Shapes
+    ///
+    /// - input: [..., any]
+    /// - output: [..., any]
+    pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
         if !B::ad_enabled() || self.prob == 0.0 {
             return input;
         }

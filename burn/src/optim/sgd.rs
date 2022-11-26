@@ -100,7 +100,7 @@ impl<B: ADBackend> Optimizer for Sgd<B> {
 mod tests {
     use super::*;
     use crate::{
-        module::{Forward, Module},
+        module::Module,
         nn::{Linear, LinearConfig},
         tensor::{Distribution, Shape},
         TestADBackend,

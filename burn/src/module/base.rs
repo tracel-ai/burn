@@ -18,31 +18,16 @@ pub use burn_derive::Module;
 /// parameter B. This will be used by the [derive](burn_derive::Module) attribute to generate the code
 /// necessary to optimize and train the module on any backend.
 ///
-/// Also, to define to forward pass of your module, you should implement [Forward](Forward).
-///
 /// ```rust
 /// use burn::nn;
 /// use burn::module::{Param, Module};
-/// use burn::module::Forward;
 /// use burn::tensor::Tensor;
 /// use burn::tensor::backend::Backend;
 ///
 /// #[derive(Module, Debug)]
 /// struct MyModule<B: Backend> {
 ///   my_param: Param<nn::Linear<B>>,
-///   repeat: usize,
-/// }
-///
-/// impl<B: Backend> Forward<Tensor<B, 2>, Tensor<B, 2>> for MyModule<B> {
-///    fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
-///        let mut x = input;
-///
-///        for _ in 0..self.repeat {
-///            x = self.my_param.forward(x);
-///        }
-///
-///        x
-///    }
+///   my_other_field: usize,
 /// }
 /// ```
 pub trait Module: Send + Sync + std::fmt::Debug + std::fmt::Display {
@@ -103,16 +88,6 @@ pub trait ADModule:
 
     /// Get the same module, but on the inner backend without auto-differentiation.
     fn inner(&self) -> Self::InnerModule;
-}
-
-/// Trait that can be implemented by [module](Module) to define the forward pass.
-///
-/// # Note
-///
-/// Modules can implement multiple times this trait to support different input and output types.
-pub trait Forward<In, Out> {
-    /// The forward method mapping the input to the output.
-    fn forward(&self, input: In) -> Out;
 }
 
 #[derive(new, Debug)]

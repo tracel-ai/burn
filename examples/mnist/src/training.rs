@@ -1,5 +1,6 @@
 use crate::data::MNISTBatcher;
-use crate::model::{MlpConfig, MnistConfig, Model};
+use crate::mlp::MlpConfig;
+use crate::model::{MnistConfig, Model};
 use burn::{
     config::Config,
     data::{dataloader::DataLoaderBuilder, dataset::source::huggingface::MNISTDataset},

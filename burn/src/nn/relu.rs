@@ -1,4 +1,3 @@
-use crate::module::Forward;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 
@@ -9,13 +8,17 @@ use crate::tensor::Tensor;
 pub struct ReLU {}
 
 impl ReLU {
+    /// Create the module from the given configuration.
     pub fn new() -> Self {
         Self {}
     }
-}
-
-impl<B: Backend, const D: usize> Forward<Tensor<B, D>, Tensor<B, D>> for ReLU {
-    fn forward(&self, input: Tensor<B, D>) -> Tensor<B, D> {
+    /// Applies the forward pass on the input tensor.
+    ///
+    /// # Shapes
+    ///
+    /// - input: [..., any]
+    /// - output: [..., any]
+    pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
         crate::tensor::activation::relu(&input)
     }
 }
