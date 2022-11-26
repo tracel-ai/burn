@@ -31,8 +31,8 @@ impl Dropout {
     ///
     /// # Shapes
     ///
-    /// - input: [..., any]
-    /// - output: [..., any]
+    /// - input: `[..., any]`
+    /// - output: `[..., any]`
     pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
         if !B::ad_enabled() || self.prob == 0.0 {
             return input;

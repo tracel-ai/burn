@@ -4,7 +4,7 @@ use crate::config::Config;
 use crate::module::Module;
 use crate::module::Param;
 use crate::tensor::backend::Backend;
-use crate::tensor::{Distribution, ElementConversion, Shape, Tensor};
+use crate::tensor::{Distribution, ElementConversion, Tensor};
 use std::ops::Deref;
 
 /// Configuration to create a [Linear](Linear) layer.
@@ -22,6 +22,14 @@ pub struct LinearConfig {
 /// Applies a linear transformation to the input tensor:
 ///
 /// `O = IW + b`
+///
+/// # Params
+///
+/// - weight: Matrix of shape `[d_input, d_output]` initialized from a uniform distribution:
+///     `U(-k, k)`, where `k = sqrt(1 / d_input)`
+///
+/// - bias (optional): Vector of size `d_output` initialized from a uniform distribution:
+///     `U(-k, k)`, where `k = sqrt(1 / d_input)`
 #[derive(Module, Debug)]
 pub struct Linear<B: Backend> {
     weight: Param<Tensor<B, 2>>,
@@ -31,14 +39,12 @@ pub struct Linear<B: Backend> {
 impl<B: Backend> Linear<B> {
     /// Create the module from the given configuration.
     pub fn new(config: &LinearConfig) -> Self {
-        // Glorot init
-        let start = -1.0 / f64::sqrt(config.d_input as f64);
-        let end = 1.0 / f64::sqrt(config.d_input as f64);
-        let distribution = Distribution::Uniform(start.to_elem(), end.to_elem());
+        let k = f64::sqrt(1.0 / config.d_input as f64);
+        let distribution = Distribution::Uniform((-1.0 * k).to_elem(), k.to_elem());
 
-        let weight = Tensor::random(Shape::new([config.d_input, config.d_output]), distribution);
+        let weight = Tensor::random([config.d_input, config.d_output], distribution);
         let bias = match config.bias {
-            true => Some(Tensor::zeros(Shape::new([config.d_output]))),
+            true => Some(Tensor::random([config.d_output], distribution)),
             false => None,
         };
 
@@ -52,8 +58,8 @@ impl<B: Backend> Linear<B> {
     ///
     /// # Shapes
     ///
-    /// - input: [..., any, d_input]
-    /// - output: [..., any, d_output]
+    /// - input: `[..., any, d_input]`
+    /// - output: `[..., any, d_output]`
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
         let output = input.matmul(&self.weight.unsqueeze());
 

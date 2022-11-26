@@ -2,6 +2,7 @@ use super::ParamId;
 use crate::module::{LoadingError, State, StateNamed};
 use crate::tensor::Element;
 
+/// Define a trainable parameter.
 #[derive(Debug)]
 pub struct Param<T> {
     pub(super) id: ParamId,

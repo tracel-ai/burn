@@ -48,8 +48,8 @@ impl<B: Backend> Mlp<B> {
     ///
     /// # Shapes
     ///
-    /// - input: [batch_size, d_model]
-    /// - output: [batch_size, d_model]
+    /// - input: `[batch_size, d_model]`
+    /// - output: `[batch_size, d_model]`
     pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
         let mut x = input;
 

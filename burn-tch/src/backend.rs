@@ -96,6 +96,11 @@ impl<E: TchElement> Backend for TchBackend<E> {
                     .uniform_(from.to_f64().unwrap(), to.to_f64().unwrap());
                 tensor
             }
+            Distribution::Normal(mean, std) => {
+                let mut tensor = TchTensor::<Self::Elem, D>::empty(shape, device);
+                tensor.tensor = tensor.tensor.normal(mean, std);
+                tensor
+            }
         }
     }
 
