@@ -43,8 +43,8 @@ impl<B: Backend> LayerNorm<B> {
     ///
     /// # Shapes
     ///
-    /// - input: [..., any, d_model]
-    /// - output: [..., any, d_model]
+    /// - input: `[..., any, d_model]`
+    /// - output: `[..., any, d_model]`
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
         let (var, mean) = input.var_mean_bias(D - 1);
 

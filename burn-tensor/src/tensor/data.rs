@@ -19,6 +19,7 @@ pub enum Distribution<P> {
     Standard,
     Bernoulli(f64),
     Uniform(P, P),
+    Normal(f64, f64),
 }
 
 #[derive(new)]
@@ -39,6 +40,7 @@ where
     Standard(rand::distributions::Standard),
     Uniform(rand::distributions::Uniform<P>),
     Bernoulli(rand::distributions::Bernoulli),
+    Normal(statrs::distribution::Normal),
 }
 
 impl<'a, P> DistributionSampler<'a, P>
@@ -57,6 +59,9 @@ where
                 } else {
                     P::zeros(&P::default())
                 }
+            }
+            DistributionSamplerKind::Normal(distribution) => {
+                self.rng.sample(distribution).to_elem()
             }
         }
     }
@@ -78,6 +83,9 @@ where
             Distribution::Bernoulli(prob) => DistributionSamplerKind::Bernoulli(
                 rand::distributions::Bernoulli::new(prob).unwrap(),
             ),
+            Distribution::Normal(mean, std) => DistributionSamplerKind::Normal(
+                statrs::distribution::Normal::new(mean, std).unwrap(),
+            ),
         };
 
         DistributionSampler::new(kind, rng)
@@ -93,6 +101,7 @@ where
             Distribution::Standard => Distribution::Standard,
             Distribution::Uniform(a, b) => Distribution::Uniform(E::from_elem(a), E::from_elem(b)),
             Distribution::Bernoulli(prob) => Distribution::Bernoulli(prob),
+            Distribution::Normal(mean, std) => Distribution::Normal(mean, std),
         }
     }
 }
