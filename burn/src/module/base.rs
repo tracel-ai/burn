@@ -105,16 +105,6 @@ pub trait ADModule:
     fn inner(&self) -> Self::InnerModule;
 }
 
-/// Trait that can be implemented by [module](Module) to define the forward pass.
-///
-/// # Note
-///
-/// Modules can implement multiple times this trait to support different input and output types.
-pub trait Forward<In, Out> {
-    /// The forward method mapping the input to the output.
-    fn forward(&self, input: In) -> Out;
-}
-
 #[derive(new, Debug)]
 pub struct LoadingError {
     message: String,

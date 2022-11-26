@@ -2,7 +2,7 @@ use crate as burn;
 
 use crate::config::Config;
 use crate::module::Module;
-use crate::module::{Forward, Param};
+use crate::module::Param;
 use crate::tensor::backend::Backend;
 use crate::tensor::{Distribution, ElementConversion, Shape, Tensor};
 use std::ops::Deref;
@@ -29,6 +29,7 @@ pub struct Linear<B: Backend> {
 }
 
 impl<B: Backend> Linear<B> {
+    /// Create the module from the given configuration.
     pub fn new(config: &LinearConfig) -> Self {
         // Glorot init
         let start = -1.0 / f64::sqrt(config.d_input as f64);
@@ -46,10 +47,14 @@ impl<B: Backend> Linear<B> {
             bias: Param::new(bias),
         }
     }
-}
 
-impl<B: Backend, const D: usize> Forward<Tensor<B, D>, Tensor<B, D>> for Linear<B> {
-    fn forward(&self, input: Tensor<B, D>) -> Tensor<B, D> {
+    /// Applies the forward pass on the input tensor.
+    ///
+    /// # Shapes
+    ///
+    /// - input: [..., any, d_input]
+    /// - output: [..., any, d_output]
+    pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
         let output = input.matmul(&self.weight.unsqueeze());
 
         match self.bias.deref() {

@@ -21,7 +21,6 @@ __Sections__
         * [Backend](#backend)
         * [Tensor](#tensor)
         * [Module](#module)
-        * [Forward](#forward)
         * [Config](#config)
         * [Learner](#learner)
 * [License](#license)
@@ -115,29 +114,6 @@ struct MyModule<B: Backend> {
 ```
 
 Note that only the fields wrapped inside `Param` are updated during training, and the other ones should implement `Clone`.
-
-#### Forward
-
-The `Forward` trait can also be implemented by your module.
-
-```rust
-use burn::module::Forward;
-use burn::tensor::Tensor;
-
-impl<B: Backend> Forward<Tensor<B, 2>, Tensor<B, 2>> for MyModule<B> {
-   fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
-       let mut x = input;
-
-       for _ in 0..self.repeat {
-           x = self.my_param.forward(x);
-       }
-
-       x
-   }
-}
-```
-
-Note that you can implement multiple times the `Forward` trait with different inputs and outputs.
 
 #### Config
 
