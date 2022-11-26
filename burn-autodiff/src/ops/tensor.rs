@@ -55,6 +55,13 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         B::bool_into_data(tensor)
     }
 
+    fn bool_reshape<const D1: usize, const D2: usize>(
+        tensor: &<ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D1>,
+        shape: Shape<D2>,
+    ) -> <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D2> {
+        B::bool_reshape(tensor, shape)
+    }
+
     fn device<const D: usize>(
         tensor: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
     ) -> <ADBackendDecorator<B> as Backend>::Device {

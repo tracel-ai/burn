@@ -158,6 +158,21 @@ macro_rules! to_nd_array_tensor {
             shape: $shape,
         }
     }};
+    (
+        bool,
+        $n:expr,
+        $shape:expr,
+        $array:expr
+    ) => {{
+        let dim = $crate::to_typed_dims!($n, $shape.dims, justdim);
+        let array: ndarray::ArcArray<bool, Dim<[usize; $n]>> = $array.reshape(dim);
+        let array = array.into_dyn();
+
+        NdArrayTensor {
+            array,
+            shape: $shape,
+        }
+    }};
 }
 
 impl<E, const D: usize> NdArrayTensor<E, D>

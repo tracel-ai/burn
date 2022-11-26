@@ -1,3 +1,4 @@
+mod attention;
 mod dropout;
 mod embedding;
 mod gelu;
@@ -5,6 +6,7 @@ mod layer_norm;
 mod linear;
 mod relu;
 
+pub use attention::*;
 pub use dropout::*;
 pub use embedding::*;
 pub use gelu::*;
