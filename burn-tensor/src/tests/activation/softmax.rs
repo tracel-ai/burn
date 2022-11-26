@@ -13,15 +13,4 @@ mod tests {
         let data_expected = Data::from([[2.47e-03, 9.975e-01], [1.0, 1.1254e-07]]);
         data_actual.assert_approx_eq(&data_expected, 4);
     }
-
-    #[test]
-    fn test_softmax_small_values() {
-        let data = Data::from([[1.0, 1.0e-14], [13.0, 1.0e-8]]);
-        let tensor = Tensor::<TestBackend, 2>::from_data(data);
-
-        let data_actual = activation::softmax(&tensor, 1).to_data();
-
-        let data_expected = Data::from([[1.0, 0.0], [1.0, 0.0]]);
-        data_actual.assert_approx_eq(&data_expected, 4);
-    }
 }
