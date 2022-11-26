@@ -40,6 +40,22 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         let values: Vec<bool> = tensor.tensor.into();
         Data::new(values, tensor.shape)
     }
+
+    fn bool_reshape<const D1: usize, const D2: usize>(
+        tensor: &TchTensor<bool, D1>,
+        shape: Shape<D2>,
+    ) -> TchTensor<bool, D2> {
+        let shape_tch: TchShape<D2> = shape.into();
+        let tensor = tensor.tensor.reshape(&shape_tch.dims);
+        let shape = Shape::from(tensor.size());
+
+        TchTensor {
+            tensor,
+            shape,
+            kind: TchKind::new(),
+        }
+    }
+
     fn device<const D: usize>(tensor: &TchTensor<E, D>) -> TchDevice {
         match tensor.tensor.device() {
             tch::Device::Cpu => TchDevice::Cpu,

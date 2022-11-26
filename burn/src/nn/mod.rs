@@ -1,3 +1,5 @@
+pub mod attention;
+
 mod dropout;
 mod embedding;
 mod gelu;

@@ -69,6 +69,22 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         let values = tensor.array.into_iter().collect();
         Data::new(values, tensor.shape)
     }
+
+    fn bool_reshape<const D1: usize, const D2: usize>(
+        tensor: &NdArrayTensor<bool, D1>,
+        shape: Shape<D2>,
+    ) -> NdArrayTensor<bool, D2> {
+        match D2 {
+            1 => to_nd_array_tensor!(bool, 1, shape, tensor.array),
+            2 => to_nd_array_tensor!(bool, 2, shape, tensor.array),
+            3 => to_nd_array_tensor!(bool, 3, shape, tensor.array),
+            4 => to_nd_array_tensor!(bool, 4, shape, tensor.array),
+            5 => to_nd_array_tensor!(bool, 5, shape, tensor.array),
+            6 => to_nd_array_tensor!(bool, 6, shape, tensor.array),
+            _ => panic!("NdArrayTensor support only 6 dimensions."),
+        }
+    }
+
     fn device<const D: usize>(_tensor: &NdArrayTensor<E, D>) -> NdArrayDevice {
         NdArrayDevice::Cpu
     }

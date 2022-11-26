@@ -98,8 +98,8 @@ where
     /// Returns the dimensions of the current tensor.
     ///
     /// Equivalent to `tensor.shape().dims`.
-    pub fn dims(&self) -> &[usize; D] {
-        &B::shape(&self.value).dims
+    pub fn dims(&self) -> [usize; D] {
+        B::shape(&self.value).dims
     }
 
     /// Returns the data of the current tensor.
