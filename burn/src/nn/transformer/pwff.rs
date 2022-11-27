@@ -54,8 +54,7 @@ impl<B: Backend> PositionWiseFeedForward<B> {
         let x = self.linear_inner.forward(input);
         let x = self.gelu.forward(x);
         let x = self.dropout.forward(x);
-        let x = self.linear_outer.forward(x);
 
-        x
+        self.linear_outer.forward(x)
     }
 }

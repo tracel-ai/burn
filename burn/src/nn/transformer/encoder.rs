@@ -153,8 +153,7 @@ impl<B: Backend> TransformerEncoderLayer<B> {
 
         let x_2 = self.pwff.forward(x_1.clone());
         let x_2 = self.dropout.forward(x_2) + x_1;
-        let x_2 = self.norm_2.forward(x_2);
 
-        x_2
+        self.norm_2.forward(x_2)
     }
 }
