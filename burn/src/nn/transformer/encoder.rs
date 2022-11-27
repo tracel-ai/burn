@@ -14,13 +14,13 @@ use crate::{
 /// Configuration to create a [Transformer Encoder](TransformerEncoder) layer.
 #[derive(Config)]
 pub struct TransformerEncoderConfig {
-    /// The size of each layer.
+    /// The size of the model.
     pub d_model: usize,
     /// The size of the position-wise feed-forward network.
     pub d_ff: usize,
     /// The number of attention heads.
     pub n_heads: usize,
-    /// The number layers.
+    /// The number of layers.
     pub n_layers: usize,
     /// The dropout rate. Default: 0.1
     #[config(default = 0.1)]
@@ -81,7 +81,7 @@ impl<B: Backend> TransformerEncoder<B> {
         }
     }
 
-    /// Applies the forward pass on the input tensors.
+    /// Applies the forward pass on the input tensor.
     ///
     /// # Shapes
     ///

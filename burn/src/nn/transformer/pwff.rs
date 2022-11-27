@@ -44,7 +44,7 @@ impl<B: Backend> PositionWiseFeedForward<B> {
         }
     }
 
-    /// Applies the forward pass on the input tensors.
+    /// Applies the forward pass on the input tensor.
     ///
     /// # Shapes
     ///
