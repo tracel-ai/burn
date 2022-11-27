@@ -1,4 +1,5 @@
 pub mod attention;
+pub mod transformer;
 
 mod dropout;
 mod embedding;
