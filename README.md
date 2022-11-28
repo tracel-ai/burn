@@ -2,7 +2,7 @@
 <img src="https://raw.githubusercontent.com/burn-rs/burn/main/assets/logo-burn-full.png" width="200px"/>
 
 [![Current Crates.io Version](https://img.shields.io/crates/v/burn.svg)](https://crates.io/crates/burn)
-[![Test Status](https://img.shields.io/github/workflow/status/burn-rs/burn/test?label=test&logo=github)](https://github.com/burn-rs/burn/actions/workflows/test.yml)
+[![Test Status](https://github.com/burn-rs/burn/actions/workflows/test.yml/badge.svg)](https://github.com/burn-rs/burn/actions/workflows/test.yml)
 [![Documentation](https://docs.rs/burn/badge.svg)](https://docs.rs/burn)
 [![Rust Version](https://img.shields.io/badge/Rust-1.65.0-blue)](https://releases.rs/docs/released/1.65.0)
 [![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](https://github.com/burn-rs/burn/blob/master/LICENSE)
