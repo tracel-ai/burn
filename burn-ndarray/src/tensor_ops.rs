@@ -70,6 +70,13 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         Data::new(values, tensor.shape)
     }
 
+    fn bool_to_device<const D: usize>(
+        tensor: &NdArrayTensor<bool, D>,
+        _device: NdArrayDevice,
+    ) -> NdArrayTensor<bool, D> {
+        tensor.clone()
+    }
+
     fn bool_reshape<const D1: usize, const D2: usize>(
         tensor: &NdArrayTensor<bool, D1>,
         shape: Shape<D2>,

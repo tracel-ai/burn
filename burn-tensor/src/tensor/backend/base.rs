@@ -31,7 +31,12 @@ pub trait Backend:
         + 'static
         + std::fmt::Debug;
 
-    type BoolTensorPrimitive<const D: usize>: Clone + Send + Sync + 'static + std::fmt::Debug;
+    type BoolTensorPrimitive<const D: usize>: Clone
+        + Send
+        + Sync
+        + 'static
+        + std::fmt::Debug
+        + From<<Self::IntegerBackend as Backend>::BoolTensorPrimitive<D>>;
 
     fn from_data<const D: usize>(
         data: Data<Self::Elem, D>,

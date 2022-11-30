@@ -19,6 +19,10 @@ where
         B::bool_shape(&self.value)
     }
 
+    pub fn to_device(&self, device: B::Device) -> Self {
+        Self::new(B::bool_to_device(&self.value, device))
+    }
+
     /// Returns the dimensions of the current tensor.
     ///
     /// Equivalent to `tensor.shape().dims`.
@@ -42,6 +46,10 @@ where
     pub fn to_int(&self) -> Tensor<B::IntegerBackend, D> {
         let data = B::bool_to_data(&self.value);
         Tensor::from_data(data.convert())
+    }
+
+    pub fn from_int_backend(tensor: BoolTensor<B::IntegerBackend, D>) -> Self {
+        Self::new(tensor.value.into())
     }
 
     /// Reshape the tensor to have the given shape.
