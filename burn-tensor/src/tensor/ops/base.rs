@@ -20,6 +20,10 @@ pub trait TensorOps<B: Backend> {
     fn bool_shape<const D: usize>(tensor: &B::BoolTensorPrimitive<D>) -> &Shape<D>;
     fn bool_to_data<const D: usize>(tensor: &B::BoolTensorPrimitive<D>) -> Data<bool, D>;
     fn bool_into_data<const D: usize>(tensor: B::BoolTensorPrimitive<D>) -> Data<bool, D>;
+    fn bool_to_device<const D: usize>(
+        tensor: &B::BoolTensorPrimitive<D>,
+        device: B::Device,
+    ) -> B::BoolTensorPrimitive<D>;
     fn bool_reshape<const D1: usize, const D2: usize>(
         tensor: &B::BoolTensorPrimitive<D1>,
         shape: Shape<D2>,
