@@ -20,6 +20,8 @@ use std::sync::Arc;
 pub struct ExperimentConfig {
     transformer: TransformerEncoderConfig,
     optimizer: SgdConfig,
+    #[config(default = 256)]
+    max_seq_length: usize,
     #[config(default = 32)]
     batch_size: usize,
     #[config(default = 10)]
@@ -42,17 +44,20 @@ pub fn train<B: ADBackend, D: TextClassificationDataset + 'static>(
         tokenizer.clone(),
         n_classes,
         device,
+        config.max_seq_length,
     ));
     let batcher_test = Arc::new(TextClassificationBatcher::<B::InnerBackend>::new(
         tokenizer.clone(),
         n_classes,
         device,
+        config.max_seq_length,
     ));
 
     let mut model = TextClassificationModel::new(&TextClassificationModelConfig::new(
         config.transformer.clone(),
         n_classes,
         tokenizer.vocab_size(),
+        config.max_seq_length,
     ));
     model.to_device(device);
     model.detach();

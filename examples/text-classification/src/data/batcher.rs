@@ -10,6 +10,7 @@ pub struct TextClassificationBatcher<B: Backend> {
     tokenizer: Arc<dyn Tokenizer>,
     num_classes: usize,
     device: B::Device,
+    max_seq_lenght: usize,
 }
 
 #[derive(Debug, Clone, new)]
@@ -31,7 +32,8 @@ impl<B: Backend> Batcher<TextClassificationItem, TextClassificationBatch<B>>
             labels_list.push(Tensor::one_hot(item.label, self.num_classes));
         }
 
-        let (tokens, mask_pad) = pad_tokens::<B>(self.tokenizer.pad_token(), tokens_list);
+        let (tokens, mask_pad) =
+            pad_tokens::<B>(self.tokenizer.pad_token(), tokens_list, self.max_seq_lenght);
 
         TextClassificationBatch {
             tokens: tokens.to_device(self.device).detach(),
@@ -44,9 +46,9 @@ impl<B: Backend> Batcher<TextClassificationItem, TextClassificationBatch<B>>
 pub fn pad_tokens<B: Backend>(
     pad_token: usize,
     tokens_list: Vec<Vec<usize>>,
+    max_seq_lenght: usize,
 ) -> (Tensor<B::IntegerBackend, 2>, BoolTensor<B, 2>) {
     let mut max_size = 0;
-    let max_seq_lenght = 256;
     let batch_size = tokens_list.len();
 
     for tokens in tokens_list.iter() {

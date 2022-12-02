@@ -5,7 +5,7 @@ type Backend = burn_autodiff::ADBackendDecorator<burn_tch::TchBackend<burn::tens
 
 fn main() {
     let config = ExperimentConfig::new(
-        burn::nn::transformer::TransformerEncoderConfig::new(128, 256, 4, 4),
+        burn::nn::transformer::TransformerEncoderConfig::new(256, 512, 4, 4),
         burn::optim::SgdConfig::new()
             .with_learning_rate(5.0e-3)
             .with_momentum(Some(MomentumConfig::new().with_nesterov(true)))
@@ -17,6 +17,6 @@ fn main() {
         DbPediaDataset::train(),
         DbPediaDataset::test(),
         config,
-        "/tmp/text-classification-ag-news",
+        "/tmp/text-classification-db-pedia",
     );
 }

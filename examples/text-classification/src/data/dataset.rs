@@ -12,6 +12,7 @@ pub trait TextClassificationDataset: Dataset<TextClassificationItem> {
     fn num_classes() -> usize;
     fn class_name(label: usize) -> String;
 }
+
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct AgNewsItem {
     pub text: String,

@@ -16,6 +16,7 @@ pub struct TextClassificationModelConfig {
     transformer: TransformerEncoderConfig,
     n_classes: usize,
     vocab_size: usize,
+    max_seq_length: usize,
 }
 
 #[derive(Module, Debug)]
@@ -24,14 +25,16 @@ pub struct TextClassificationModel<B: Backend> {
     embedding_token: Param<Embedding<B>>,
     embedding_pos: Param<Embedding<B>>,
     output: Param<Linear<B>>,
+    n_classes: usize,
+    max_seq_length: usize,
 }
 
 impl<B: Backend> TextClassificationModel<B> {
     pub fn new(config: &TextClassificationModelConfig) -> Self {
-        let max_seq_length = 256;
         let config_embedding_token =
             EmbeddingConfig::new(config.vocab_size, config.transformer.d_model);
-        let config_embedding_pos = EmbeddingConfig::new(max_seq_length, config.transformer.d_model);
+        let config_embedding_pos =
+            EmbeddingConfig::new(config.max_seq_length, config.transformer.d_model);
         let config_output = LinearConfig::new(config.transformer.d_model, config.n_classes);
 
         let transformer = TransformerEncoder::new(&config.transformer);
@@ -44,33 +47,35 @@ impl<B: Backend> TextClassificationModel<B> {
             embedding_token: Param::new(embedding_token),
             embedding_pos: Param::new(embedding_pos),
             output: Param::new(output),
+            n_classes: config.n_classes,
+            max_seq_length: config.max_seq_length,
         }
     }
 
     pub fn forward(&self, item: TextClassificationBatch<B>) -> ClassificationOutput<B> {
         let [batch_size, seq_length] = item.tokens.dims();
-        let pos = Tensor::<B, 1>::arange_device(0..seq_length, item.tokens.device())
+
+        let index_positions = Tensor::<B, 1>::arange_device(0..seq_length, item.tokens.device())
             .reshape([1, seq_length])
             .repeat(0, batch_size);
-        let x_pos = self.embedding_pos.forward(pos.detach());
-        let x_tokens = self.embedding_token.forward(item.tokens.detach());
-        let x = (x_pos + x_tokens) / 2;
-        let x = self
+        let embedding_positions = self.embedding_pos.forward(index_positions.detach());
+        let embedding_tokens = self.embedding_token.forward(item.tokens.detach());
+        let embedding = (embedding_positions + embedding_tokens) / 2;
+
+        let encoded = self
             .transformer
-            .forward(TransformerEncoderInput::new(x).mask_pad(item.mask_pad));
-        let x = self.output.forward(x);
+            .forward(TransformerEncoderInput::new(embedding).mask_pad(item.mask_pad));
+        let output = self.output.forward(encoded);
 
-        let [batch_size, _seq_length, d_model] = x.dims();
-
-        let x = x
+        let output_classification = output
             .index([0..batch_size, 0..1])
-            .reshape([batch_size, d_model]);
+            .reshape([batch_size, self.n_classes]);
 
-        let loss = cross_entropy_with_logits(&x, &item.labels.clone().detach());
+        let loss = cross_entropy_with_logits(&output_classification, &item.labels.clone().detach());
 
         ClassificationOutput {
             loss,
-            output: x,
+            output: output_classification,
             targets: item.labels,
         }
     }

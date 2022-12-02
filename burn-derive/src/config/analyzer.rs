@@ -83,6 +83,6 @@ fn parse_asm(ast: &syn::DeriveInput) -> ConfigType {
             ConfigType::Struct(struct_data.fields.clone().into_iter().collect())
         }
         syn::Data::Enum(enum_data) => ConfigType::Enum(enum_data.clone()),
-        syn::Data::Union(_) => panic!("Only struct cna be derived"),
+        syn::Data::Union(_) => panic!("Only struct and enum can be derived"),
     }
 }
