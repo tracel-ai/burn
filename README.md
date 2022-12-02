@@ -42,9 +42,8 @@ This may also be a good idea to take a look the main [components](#components) o
 
 ### Examples
 
-For now there is only one example, but more to come 💪..
-
 * [MNIST](https://github.com/burn-rs/burn/tree/main/examples/mnist) train a model on CPU/GPU using different backends.
+* [Text Classification](https://github.com/burn-rs/burn/tree/main/examples/text-classification) train a transformer encoder from scratch on GPU.
 
 ### Components
 
