@@ -1,4 +1,4 @@
-use super::{element::TchElement, TchBackend, TchDevice, TchKind, TchShape, TchTensor};
+use crate::{element::TchElement, TchBackend, TchDevice, TchKind, TchShape, TchTensor};
 use burn_tensor::{backend::Backend, ops::TensorOps, Data, ElementConversion, Shape};
 use std::ops::{Add, Div, Mul, Range, Sub};
 
