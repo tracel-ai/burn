@@ -1,8 +1,14 @@
-use super::{element::NdArrayElement, BatchMatrix, NdArrayBackend, NdArrayTensor};
-use crate::{to_nd_array_tensor, NdArrayDevice};
+use std::cmp::Ordering;
+use std::ops::Range;
+
+use crate::tensor::BatchMatrix;
+use crate::{element::NdArrayElement, tensor::NdArrayTensor, NdArrayBackend};
+use crate::{to_nd_array_tensor, NdArrayDevice, SEED};
+use burn_tensor::Distribution;
 use burn_tensor::{backend::Backend, ops::TensorOps, Data, ElementConversion, Shape};
 use ndarray::{Axis, Dim, IxDyn, SliceInfoElem};
-use std::{cmp::Ordering, ops::Range};
+use rand::rngs::StdRng;
+use rand::SeedableRng;
 
 macro_rules! keepdim {
     (
@@ -30,6 +36,32 @@ macro_rules! keepdim {
 }
 
 impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
+    fn from_data<const D: usize>(data: Data<E, D>, _device: NdArrayDevice) -> NdArrayTensor<E, D> {
+        NdArrayTensor::from_data(data)
+    }
+
+    fn from_data_bool<const D: usize>(
+        data: Data<bool, D>,
+        _device: NdArrayDevice,
+    ) -> NdArrayTensor<bool, D> {
+        NdArrayTensor::from_data(data)
+    }
+
+    fn random<const D: usize>(
+        shape: Shape<D>,
+        distribution: Distribution<E>,
+        device: NdArrayDevice,
+    ) -> NdArrayTensor<E, D> {
+        let mut seed = SEED.lock().unwrap();
+        let mut rng: StdRng = match seed.as_ref() {
+            Some(rng) => rng.clone(),
+            None => StdRng::from_entropy(),
+        };
+        let tensor = Self::from_data(Data::random(shape, distribution, &mut rng), device);
+        *seed = Some(rng);
+        tensor
+    }
+
     fn shape<const D: usize>(
         tensor: &<NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
     ) -> &Shape<D> {

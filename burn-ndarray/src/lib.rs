@@ -10,10 +10,8 @@ extern crate blas_src;
 
 mod backend;
 mod element;
-mod module_ops;
 mod ops;
 mod tensor;
-mod tensor_ops;
 
 pub use backend::*;
 pub(crate) use tensor::*;

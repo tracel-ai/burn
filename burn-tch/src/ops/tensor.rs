@@ -1,8 +1,70 @@
-use super::{element::TchElement, TchBackend, TchDevice, TchKind, TchShape, TchTensor};
-use burn_tensor::{backend::Backend, ops::TensorOps, Data, ElementConversion, Shape};
+use crate::{element::TchElement, TchBackend, TchDevice, TchKind, TchShape, TchTensor};
+use burn_tensor::{backend::Backend, ops::TensorOps, Data, Distribution, ElementConversion, Shape};
 use std::ops::{Add, Div, Mul, Range, Sub};
 
 impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
+    fn from_data<const D: usize>(data: Data<E, D>, device: TchDevice) -> TchTensor<E, D> {
+        let device = match device {
+            TchDevice::Cpu => tch::Device::Cpu,
+            TchDevice::Cuda(num) => tch::Device::Cuda(num),
+        };
+        TchTensor::from_data(data, device)
+    }
+
+    fn from_data_bool<const D: usize>(
+        data: Data<bool, D>,
+        device: TchDevice,
+    ) -> TchTensor<bool, D> {
+        let device = match device {
+            TchDevice::Cpu => tch::Device::Cpu,
+            TchDevice::Cuda(num) => tch::Device::Cuda(num),
+        };
+        TchTensor::from_data(data, device)
+    }
+
+    fn random<const D: usize>(
+        shape: Shape<D>,
+        distribution: Distribution<E>,
+        device: TchDevice,
+    ) -> TchTensor<E, D> {
+        match distribution {
+            Distribution::Standard => {
+                let mut tensor = TchTensor::<E, D>::empty(shape, device);
+                tensor.tensor = tensor.tensor.normal_(0.0, 1.0);
+                tensor
+            }
+            Distribution::Bernoulli(prob) => {
+                let mut tensor = TchTensor::<E, D>::empty(shape, device);
+                tensor.tensor = tensor.tensor.f_bernoulli_float_(prob).unwrap();
+                tensor
+            }
+            Distribution::Uniform(from, to) => {
+                let mut tensor = TchTensor::<E, D>::empty(shape, device);
+                tensor.tensor = tensor
+                    .tensor
+                    .uniform_(from.to_f64().unwrap(), to.to_f64().unwrap());
+                tensor
+            }
+            Distribution::Normal(mean, std) => {
+                let mut tensor = TchTensor::<E, D>::empty(shape, device);
+                tensor.tensor = tensor.tensor.normal(mean, std);
+                tensor
+            }
+        }
+    }
+
+    fn zeros<const D: usize>(shape: Shape<D>, device: TchDevice) -> TchTensor<E, D> {
+        let mut tensor = TchTensor::<E, D>::empty(shape, device);
+        tensor.tensor = tensor.tensor.zero_();
+        tensor
+    }
+
+    fn ones<const D: usize>(shape: Shape<D>, device: TchDevice) -> TchTensor<E, D> {
+        let mut tensor = TchTensor::<E, D>::empty(shape, device);
+        tensor.tensor = tensor.tensor.ones_like();
+        tensor
+    }
+
     fn shape<const D: usize>(tensor: &<TchBackend<E> as Backend>::TensorPrimitive<D>) -> &Shape<D> {
         &tensor.shape
     }

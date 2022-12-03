@@ -1,7 +1,6 @@
 use crate::graph::grad::Grads;
 use crate::tensor::ADTensor;
 use burn_tensor::backend::{ADBackend, Backend};
-use burn_tensor::{Data, Distribution, Shape};
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ADBackendDecorator<B> {
@@ -17,39 +16,8 @@ impl<B: Backend> Backend for ADBackendDecorator<B> {
     type TensorPrimitive<const D: usize> = ADTensor<D, B>;
     type BoolTensorPrimitive<const D: usize> = B::BoolTensorPrimitive<D>;
 
-    fn from_data<const D: usize>(
-        data: Data<Self::Elem, D>,
-        device: Self::Device,
-    ) -> Self::TensorPrimitive<D> {
-        let tensor = B::from_data(data, device);
-        ADTensor::from_tensor(tensor)
-    }
-
-    fn from_data_bool<const D: usize>(
-        data: Data<bool, D>,
-        device: Self::Device,
-    ) -> Self::BoolTensorPrimitive<D> {
-        B::from_data_bool(data, device)
-    }
-
-    fn random<const D: usize>(
-        shape: Shape<D>,
-        distribution: Distribution<Self::Elem>,
-        device: Self::Device,
-    ) -> Self::TensorPrimitive<D> {
-        Self::from_inner(B::random(shape, distribution, device))
-    }
-
     fn ad_enabled() -> bool {
         true
-    }
-
-    fn zeros<const D: usize>(shape: Shape<D>, device: Self::Device) -> Self::TensorPrimitive<D> {
-        Self::from_inner(B::zeros(shape, device))
-    }
-
-    fn ones<const D: usize>(shape: Shape<D>, device: Self::Device) -> Self::TensorPrimitive<D> {
-        Self::from_inner(B::ones(shape, device))
     }
 
     fn name() -> String {

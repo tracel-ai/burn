@@ -1,4 +1,4 @@
-use super::{element::NdArrayElement, NdArrayBackend, NdArrayTensor};
+use crate::{element::NdArrayElement, tensor::NdArrayTensor, NdArrayBackend};
 use burn_tensor::{ops::*, Shape};
 use std::ops::Add;
 

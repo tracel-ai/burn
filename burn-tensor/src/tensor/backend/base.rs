@@ -1,8 +1,6 @@
+use super::Gradients;
 use crate::ops::*;
 use crate::tensor::Element;
-use crate::tensor::{Data, Distribution, Shape};
-
-use super::Gradients;
 
 pub trait Backend:
     TensorOps<Self>
@@ -38,33 +36,9 @@ pub trait Backend:
         + std::fmt::Debug
         + From<<Self::IntegerBackend as Backend>::BoolTensorPrimitive<D>>;
 
-    fn from_data<const D: usize>(
-        data: Data<Self::Elem, D>,
-        device: Self::Device,
-    ) -> Self::TensorPrimitive<D>;
-
-    fn from_data_bool<const D: usize>(
-        data: Data<bool, D>,
-        device: Self::Device,
-    ) -> Self::BoolTensorPrimitive<D>;
-
     fn ad_enabled() -> bool;
     fn name() -> String;
     fn seed(seed: u64);
-
-    fn random<const D: usize>(
-        shape: Shape<D>,
-        distribution: Distribution<Self::Elem>,
-        device: Self::Device,
-    ) -> Self::TensorPrimitive<D>;
-
-    fn zeros<const D: usize>(shape: Shape<D>, device: Self::Device) -> Self::TensorPrimitive<D> {
-        Self::from_data(Data::zeros(shape), device)
-    }
-
-    fn ones<const D: usize>(shape: Shape<D>, device: Self::Device) -> Self::TensorPrimitive<D> {
-        Self::from_data(Data::ones(shape), device)
-    }
 }
 
 pub(crate) type ADBackendTensorPrimitive<const D: usize, B> =

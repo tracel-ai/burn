@@ -1,4 +1,4 @@
-use super::{element::TchElement, TchBackend, TchTensor};
+use crate::{element::TchElement, TchBackend, TchTensor};
 use burn_tensor::{ops::ModuleOps, Shape};
 
 impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
