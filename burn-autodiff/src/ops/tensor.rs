@@ -6,7 +6,7 @@ use crate::ops::unary_ops_wrapper_explicit;
 use crate::tensor::ADTensor;
 use crate::ADBackendDecorator;
 use burn_tensor::backend::Backend;
-use burn_tensor::{ops::*, Data, ElementConversion, Shape, Tensor};
+use burn_tensor::{ops::*, Data, Distribution, ElementConversion, Shape, Tensor};
 use std::ops::Range;
 use std::sync::Arc;
 
@@ -19,6 +19,34 @@ impl<B: Backend, const D: usize> std::ops::Add<ADTensor<D, B>> for ADTensor<D, B
 }
 
 impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
+    fn from_data<const D: usize>(data: Data<B::Elem, D>, device: B::Device) -> ADTensor<D, B> {
+        let tensor = B::from_data(data, device);
+        ADTensor::from_tensor(tensor)
+    }
+
+    fn from_data_bool<const D: usize>(
+        data: Data<bool, D>,
+        device: B::Device,
+    ) -> B::BoolTensorPrimitive<D> {
+        B::from_data_bool(data, device)
+    }
+
+    fn random<const D: usize>(
+        shape: Shape<D>,
+        distribution: Distribution<B::Elem>,
+        device: B::Device,
+    ) -> ADTensor<D, B> {
+        ADTensor::from_tensor(B::random(shape, distribution, device))
+    }
+
+    fn zeros<const D: usize>(shape: Shape<D>, device: B::Device) -> ADTensor<D, B> {
+        ADTensor::from_tensor(B::zeros(shape, device))
+    }
+
+    fn ones<const D: usize>(shape: Shape<D>, device: B::Device) -> ADTensor<D, B> {
+        ADTensor::from_tensor(B::ones(shape, device))
+    }
+
     fn shape<const D: usize>(
         tensor: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
     ) -> &Shape<D> {

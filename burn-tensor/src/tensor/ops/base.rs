@@ -1,4 +1,4 @@
-use crate::{backend::Backend, tensor::Shape, Data, ElementConversion};
+use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion};
 use std::ops::Range;
 
 pub trait ModuleOps<B: Backend> {
@@ -14,6 +14,25 @@ pub trait ModuleOps<B: Backend> {
 }
 
 pub trait TensorOps<B: Backend> {
+    fn from_data<const D: usize>(
+        data: Data<B::Elem, D>,
+        device: B::Device,
+    ) -> B::TensorPrimitive<D>;
+    fn from_data_bool<const D: usize>(
+        data: Data<bool, D>,
+        device: B::Device,
+    ) -> B::BoolTensorPrimitive<D>;
+    fn random<const D: usize>(
+        shape: Shape<D>,
+        distribution: Distribution<B::Elem>,
+        device: B::Device,
+    ) -> B::TensorPrimitive<D>;
+    fn zeros<const D: usize>(shape: Shape<D>, device: B::Device) -> B::TensorPrimitive<D> {
+        Self::from_data(Data::zeros(shape), device)
+    }
+    fn ones<const D: usize>(shape: Shape<D>, device: B::Device) -> B::TensorPrimitive<D> {
+        Self::from_data(Data::ones(shape), device)
+    }
     fn shape<const D: usize>(tensor: &B::TensorPrimitive<D>) -> &Shape<D>;
     fn to_data<const D: usize>(tensor: &B::TensorPrimitive<D>) -> Data<B::Elem, D>;
     fn into_data<const D: usize>(tensor: B::TensorPrimitive<D>) -> Data<B::Elem, D>;
@@ -43,7 +62,7 @@ pub trait TensorOps<B: Backend> {
             .map(|i| (i as i64).to_elem())
             .collect::<Vec<<B::IntegerBackend as Backend>::Elem>>();
         let data = Data::new(value, shape);
-        <B::IntegerBackend as Backend>::from_data(data, device)
+        <B::IntegerBackend as TensorOps<B::IntegerBackend>>::from_data(data, device)
     }
     fn empty<const D: usize>(shape: Shape<D>, device: B::Device) -> B::TensorPrimitive<D>;
     fn repeat<const D: usize>(
