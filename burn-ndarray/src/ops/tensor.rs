@@ -6,7 +6,7 @@ use crate::{element::NdArrayElement, tensor::NdArrayTensor, NdArrayBackend};
 use crate::{to_nd_array_tensor, NdArrayDevice, SEED};
 use burn_tensor::Distribution;
 use burn_tensor::{backend::Backend, ops::TensorOps, Data, ElementConversion, Shape};
-use ndarray::{Axis, Dim, IxDyn, SliceInfoElem};
+use ndarray::{ArcArray, Axis, Dim, Dimension, IxDyn, SliceInfoElem};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
@@ -527,14 +527,12 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     }
 
     fn cat<const D: usize>(tensors: &[NdArrayTensor<E, D>], dim: usize) -> NdArrayTensor<E, D> {
-        let mut shape = tensors.get(0).unwrap().shape;
-        shape.dims[dim] = tensors.len();
-
         let arrays: Vec<ndarray::ArrayView<E, IxDyn>> =
             tensors.iter().map(|t| t.array.view()).collect();
         let array = ndarray::concatenate(Axis(dim), &arrays)
             .unwrap()
             .into_shared();
+        let shape = array_shape(&array);
 
         NdArrayTensor { array, shape }
     }
@@ -645,4 +643,14 @@ fn cmp_min(a: &f64, b: &f64) -> Ordering {
         return Ordering::Greater;
     }
     Ordering::Equal
+}
+
+fn array_shape<const D: usize, E>(array: &ArcArray<E, IxDyn>) -> Shape<D> {
+    let dims = array
+        .raw_dim()
+        .slice()
+        .iter()
+        .map(|a| *a as i64)
+        .collect::<Vec<_>>();
+    Shape::from(dims)
 }

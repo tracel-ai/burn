@@ -1,5 +1,6 @@
 use crate as burn;
 
+use crate::nn::cache::TensorCache;
 use crate::{
     config::Config,
     module::{Module, Param},
@@ -46,7 +47,7 @@ pub struct MultiHeadAttention<B: Backend> {
 }
 
 /// [Multihead attention](MultiHeadAttention) forward pass input argument.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MhaInput<B: Backend> {
     query: Tensor<B, 3>,
     key: Tensor<B, 3>,
@@ -93,7 +94,7 @@ impl<B: Backend> MhaInput<B> {
 }
 
 /// [Multihead attention](MultiHeadAttention) outputs.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MhaOutput<B: Backend> {
     /// The attention weights [batch_size, seq_length_1, seq_length_2].
     pub weights: Tensor<B, 4>,
@@ -151,6 +152,51 @@ impl<B: Backend> MultiHeadAttention<B> {
         MhaOutput { weights, context }
     }
 
+    /// Applies the forward pass on the input tensors using an autoregressive cache.
+    ///
+    /// # Shapes
+    ///
+    /// - query: `[batch_size, seq_length_1, d_model]`
+    /// - key: `[batch_size, seq_length_2, d_model]`
+    /// - value: `[batch_size, seq_length_2, d_model]`
+    /// - output: `[batch_size, seq_length_1, d_model]`
+    pub fn forward_autoregressive_inference(
+        &self,
+        input: MhaInput<B>,
+        cache: &mut MHAAutoregressiveCache<B>,
+    ) -> MhaOutput<B> {
+        let [batch_size, seq_length_1, d_model] = input.query.dims();
+
+        let attention_linear = |cache: &mut TensorCache<B, 4>,
+                                tensor: Tensor<B, 3>,
+                                param: &Param<nn::Linear<B>>| {
+            cache.forward_autoregressive(tensor, 2, |tensor| self.attention_linear(tensor, param))
+        };
+
+        let query = attention_linear(&mut cache.query, input.query, &self.query);
+        let key = attention_linear(&mut cache.key, input.key, &self.key);
+        let value = attention_linear(&mut cache.value, input.value, &self.value);
+
+        let attn_scores = self.attn_scores(query, key);
+        let weights = self.attn_weights(attn_scores, input.mask_pad, input.mask_attn);
+
+        let context = weights.matmul(&value);
+        let context = context
+            .swap_dims(1, 2)
+            .reshape([batch_size, seq_length_1, d_model]);
+
+        let context = cache
+            .output
+            .forward_autoregressive(context, 1, |context| self.output.forward(context));
+
+        MhaOutput { weights, context }
+    }
+
+    /// Create an empty autoregressive cache.
+    pub fn new_autoregressive_cache(&self) -> MHAAutoregressiveCache<B> {
+        MHAAutoregressiveCache::default()
+    }
+
     fn attn_scores(&self, query: Tensor<B, 4>, key: Tensor<B, 4>) -> Tensor<B, 4> {
         let attn_scores = query
             .matmul(&key.transpose())
@@ -195,10 +241,21 @@ impl<B: Backend> MultiHeadAttention<B> {
     }
 }
 
+/// Autoregressive cache for the [Multi Head Attention](MultiHeadAttention) layer.
+///
+/// To be used during inference when decoding tokens.
+#[derive(Default)]
+pub struct MHAAutoregressiveCache<B: Backend> {
+    query: TensorCache<B, 4>,
+    key: TensorCache<B, 4>,
+    value: TensorCache<B, 4>,
+    output: TensorCache<B, 3>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestBackend;
+    use crate::{nn::attention::generate_autoregressive_mask, TestBackend};
     use burn::tensor::{Distribution, Shape};
 
     #[test]
@@ -253,7 +310,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_self_attention_mask_pad() {
+    fn test_self_attention_mask_pad() {
         let [batch_size, seq_length, d_model, n_heads, num_padded] = [3, 6, 32, 2, 2];
         let mha = MultiHeadAttention::new(&MultiHeadAttentionConfig::new(d_model, n_heads));
 
@@ -297,5 +354,39 @@ mod tests {
                     .into_data(),
                 3,
             );
+    }
+
+    #[test]
+    fn test_autoregressive_mask_should_have_same_output_as_autoregressive_decoding() {
+        let [batch_size, seq_length, d_model, n_heads] = [3, 4, 12, 2];
+        let mha = MultiHeadAttention::new(&MultiHeadAttentionConfig::new(d_model, n_heads));
+
+        let tensor = Tensor::<TestBackend, 3>::random(
+            [batch_size, seq_length, d_model],
+            Distribution::Standard,
+        );
+        let mask_attn = generate_autoregressive_mask(batch_size, seq_length, tensor.device());
+        let input = MhaInput::self_attn(tensor.clone()).mask_attn(mask_attn);
+
+        let output_1 = mha.forward(input);
+        let mut output_2 = Vec::new();
+        let mut cache = mha.new_autoregressive_cache();
+
+        for i in 1..seq_length + 1 {
+            let tensor = tensor.index([0..batch_size, 0..i, 0..d_model]);
+            let input = MhaInput::self_attn(tensor);
+            let next_tok = mha
+                .forward_autoregressive_inference(input, &mut cache)
+                .context
+                .index([0..batch_size, i - 1..i, 0..d_model]);
+            output_2.push(next_tok);
+        }
+
+        let output_2 = Tensor::cat(output_2, 1);
+
+        output_1
+            .context
+            .into_data()
+            .assert_approx_eq(&output_2.into_data(), 3);
     }
 }

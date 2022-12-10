@@ -399,6 +399,12 @@ where
         Self::new(tensor)
     }
 
+    /// Create a tensor of the given shape where each element is one.
+    pub fn ones_device<S: Into<Shape<D>>>(shape: S, device: B::Device) -> Self {
+        let tensor = B::ones(shape.into(), device);
+        Self::new(tensor)
+    }
+
     /// Returns a tensor containing the elements selected from the given ranges.
     ///
     /// # Panics
