@@ -649,7 +649,7 @@ fn array_shape<const D: usize, E>(array: &ArcArray<E, IxDyn>) -> Shape<D> {
     let dims = array
         .raw_dim()
         .slice()
-        .into_iter()
+        .iter()
         .map(|a| *a as i64)
         .collect::<Vec<_>>();
     Shape::from(dims)

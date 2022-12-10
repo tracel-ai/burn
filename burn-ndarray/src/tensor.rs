@@ -53,9 +53,6 @@ where
             let batch_size = batch_size(&shape);
             let size0 = shape.dims[D - 2];
             let size1 = shape.dims[D - 1];
-            // let dims: &[usize] = array.raw_dim().slice();
-            // println!("array {:?}", array.dim().to_owned());
-            // println!("shape {:?}", shape);
             let array_global = array.reshape((batch_size, size0, size1));
             for b in 0..batch_size {
                 let array = array_global.slice(s!(b, .., ..));

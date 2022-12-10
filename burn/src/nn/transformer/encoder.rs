@@ -114,13 +114,13 @@ impl<B: Backend> TransformerEncoder<B> {
 
         for i in 0..self.layers.len() {
             let layer = self.layers.get(i).unwrap();
-            let mut cache = cache.layers.get_mut(i).unwrap();
+            let cache = cache.layers.get_mut(i).unwrap();
 
             x = layer.forward_autoregressive_inference(
                 x,
                 input.mask_pad.clone(),
                 input.mask_attn.clone(),
-                &mut cache,
+                cache,
             );
         }
 

@@ -154,8 +154,6 @@ impl<B: Backend> MultiHeadAttention<B> {
 
     /// Applies the forward pass on the input tensors using an autoregressive cache.
     ///
-    /// This should only be use during inference.
-    ///
     /// # Shapes
     ///
     /// - query: `[batch_size, seq_length_1, d_model]`
@@ -172,7 +170,7 @@ impl<B: Backend> MultiHeadAttention<B> {
         let attention_linear = |cache: &mut TensorCache<B, 4>,
                                 tensor: Tensor<B, 3>,
                                 param: &Param<nn::Linear<B>>| {
-            cache.forward_autoregressive(tensor, 2, |tensor| self.attention_linear(tensor, &param))
+            cache.forward_autoregressive(tensor, 2, |tensor| self.attention_linear(tensor, param))
         };
 
         let query = attention_linear(&mut cache.query, input.query, &self.query);
