@@ -165,7 +165,7 @@ impl<B: Backend> MultiHeadAttention<B> {
     pub fn forward_autoregressive_inference(
         &self,
         input: MhaInput<B>,
-        cache: &mut AutoregressiveCache<B>,
+        cache: &mut MHAAutoregressiveCache<B>,
     ) -> MhaOutput<B> {
         let [batch_size, seq_length_1, d_model] = input.query.dims();
 
@@ -192,6 +192,11 @@ impl<B: Backend> MultiHeadAttention<B> {
             .forward_autoregressive(context, 1, |context| self.output.forward(context));
 
         MhaOutput { weights, context }
+    }
+
+    /// Create an empty autoregressive cache.
+    pub fn new_autoregressive_cache(&self) -> MHAAutoregressiveCache<B> {
+        MHAAutoregressiveCache::default()
     }
 
     fn attn_scores(&self, query: Tensor<B, 4>, key: Tensor<B, 4>) -> Tensor<B, 4> {
@@ -238,18 +243,15 @@ impl<B: Backend> MultiHeadAttention<B> {
     }
 }
 
+/// Autoregressive cache for the [Multi Head Attention](MultiHeadAttention) layer.
+///
+/// To be used during inference when decoding tokens.
 #[derive(Default)]
-pub struct AutoregressiveCache<B: Backend> {
+pub struct MHAAutoregressiveCache<B: Backend> {
     query: TensorCache<B, 4>,
     key: TensorCache<B, 4>,
     value: TensorCache<B, 4>,
     output: TensorCache<B, 3>,
-}
-
-impl<B: Backend> AutoregressiveCache<B> {
-    pub fn new() -> Self {
-        Self::default()
-    }
 }
 
 #[cfg(test)]
@@ -370,7 +372,7 @@ mod tests {
 
         let output_1 = mha.forward(input);
         let mut output_2 = Vec::new();
-        let mut cache = AutoregressiveCache::new();
+        let mut cache = mha.new_autoregressive_cache();
 
         for i in 1..seq_length + 1 {
             let tensor = tensor.index([0..batch_size, 0..i, 0..d_model]);

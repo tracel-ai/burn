@@ -3,7 +3,7 @@ use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 
 impl<B: Backend, const D: usize> TensorCache<B, D> {
-    pub fn forward_autoregressive<F>(
+    pub(crate) fn forward_autoregressive<F>(
         &mut self,
         tensor: Tensor<B, 3>,
         dim_cat: usize,
@@ -27,7 +27,6 @@ impl<B: Backend, const D: usize> TensorCache<B, D> {
             None => func(tensor),
         };
 
-        println!("Tensor new shape {:?}", tensor_new.shape());
         self.state = Some(tensor_new.clone());
         tensor_new
     }
