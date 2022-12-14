@@ -20,9 +20,9 @@ use std::sync::Arc;
 pub struct ExperimentConfig {
     transformer: TransformerEncoderConfig,
     optimizer: SgdConfig,
-    #[config(default = 256)]
+    #[config(default = 128)]
     max_seq_length: usize,
-    #[config(default = 32)]
+    #[config(default = 8)]
     batch_size: usize,
     #[config(default = 10)]
     num_epochs: usize,
