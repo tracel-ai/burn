@@ -49,7 +49,11 @@ pub trait Optimizer: Send + Sync {
         Self: Sized,
     {
         let mut state_named = StateNamed::new();
-        module.register_optim_state(self, &mut state_named);
+        let mut visitor = GradientsRegistering {
+            optimizer: self,
+            state: &mut state_named,
+        };
+        module.visit(&mut visitor);
         State::StateNamed(state_named)
     }
 
@@ -71,15 +75,19 @@ pub trait Optimizer: Send + Sync {
             }
         };
 
-        module.load_optim_state(self, state_named);
+        let mut visitor = GradientsLoading {
+            optimizer: self,
+            state: state_named,
+        };
+        module.visit(&mut visitor);
 
         Ok(())
     }
 }
 
 pub struct GradientsRegistering<'a, B: ADBackend, O> {
-    optimizer: &'a mut O,
-    state: StateNamed<B::Elem>,
+    optimizer: &'a O,
+    state: &'a mut StateNamed<B::Elem>,
 }
 
 impl<'a, B: ADBackend, O: Optimizer<Backend = B>> ModuleVisitor<B>
@@ -93,7 +101,7 @@ impl<'a, B: ADBackend, O: Optimizer<Backend = B>> ModuleVisitor<B>
 
 pub struct GradientsLoading<'a, B: ADBackend, O> {
     optimizer: &'a mut O,
-    state: StateNamed<B::Elem>,
+    state: &'a StateNamed<B::Elem>,
 }
 
 impl<'a, B: ADBackend, O: Optimizer<Backend = B>> ModuleVisitor<B> for GradientsLoading<'a, B, O> {

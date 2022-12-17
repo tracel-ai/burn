@@ -1,4 +1,4 @@
-use super::{ParamId, State, StateNamed};
+use super::{ParamId, State};
 use crate::optim::Optimizer;
 use crate::tensor::backend::{ADBackend, Backend};
 pub use burn_derive::Module;
@@ -56,30 +56,6 @@ pub trait Module: Send + Sync + std::fmt::Debug + std::fmt::Display {
         Self::Backend: ADBackend;
     /// Visit each tensor in the module with a [visitor](ModuleParamVisitor).
     fn visit<V: ModuleVisitor<Self::Backend>>(&self, visitor: &mut V);
-    /// Load the [optimizer](Optimizer) state for the module, including all of its sub-modules.
-    ///
-    /// # Note
-    ///
-    /// This method should only be called by generated code, see [load](Optimizer::load) to load
-    /// the state of the optimizer.
-    fn load_optim_state<O: Optimizer<Backend = Self::Backend>>(
-        &self,
-        optim: &mut O,
-        state_optim: &StateNamed<<Self::Backend as Backend>::Elem>,
-    ) where
-        Self::Backend: ADBackend;
-    /// Register the [optimizer](Optimizer) state for the module, including all of its sub-modules.
-    ///
-    /// # Note
-    ///
-    /// This method should only be called by generated code, see [state](Optimizer::state) to get
-    /// the state of the optimizer.
-    fn register_optim_state<O: Optimizer<Backend = Self::Backend>>(
-        &self,
-        optim: &O,
-        state_optim: &mut StateNamed<<Self::Backend as Backend>::Elem>,
-    ) where
-        Self::Backend: ADBackend;
 }
 
 pub trait ModuleVisitor<B: Backend> {

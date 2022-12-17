@@ -12,8 +12,6 @@ pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
     let param = Param::from_ast(ast);
     let num_params_fn = param.gen_num_params_fn();
     let update_params_fn = param.gen_update_params_fn();
-    let load_optim_state = param.gen_load_optim_state_fn();
-    let register_optim_state = param.gen_register_optim_state_fn();
     let visit = param.gen_visit_fn();
     let devices_fn = param.gen_devices_fn();
     let to_device_fn = param.gen_to_device_fn();
@@ -37,8 +35,6 @@ pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
             #num_params_fn
             #update_params_fn
 
-            #load_optim_state
-            #register_optim_state
             #visit
         }
 

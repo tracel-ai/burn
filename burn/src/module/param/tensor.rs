@@ -23,26 +23,6 @@ impl<const D: usize, B: Backend> Module for Param<Tensor<B, D>> {
         optim.update(&self.id, &mut self.value, grads);
     }
 
-    fn load_optim_state<O: Optimizer<Backend = B>>(
-        &self,
-        optim: &mut O,
-        state_optim: &StateNamed<B::Elem>,
-    ) where
-        B: ADBackend,
-    {
-        optim.load_param_state::<D>(&self.id, state_optim, &self.value.device());
-    }
-
-    fn register_optim_state<O: Optimizer<Backend = B>>(
-        &self,
-        optim: &O,
-        state_optim: &mut StateNamed<B::Elem>,
-    ) where
-        B: ADBackend,
-    {
-        optim.register_param_state::<D>(&self.id, state_optim);
-    }
-
     fn devices(&self) -> Vec<B::Device> {
         vec![self.value.device()]
     }
@@ -97,30 +77,6 @@ impl<const D: usize, B: Backend> Module for Param<Option<Tensor<B, D>>> {
     {
         if let Some(value) = &mut self.value {
             optim.update(&self.id, value, grads);
-        }
-    }
-
-    fn load_optim_state<O: Optimizer<Backend = B>>(
-        &self,
-        optim: &mut O,
-        state_optim: &StateNamed<B::Elem>,
-    ) where
-        B: ADBackend,
-    {
-        if let Some(value) = &self.value {
-            optim.load_param_state::<D>(&self.id, state_optim, &value.device());
-        }
-    }
-
-    fn register_optim_state<O: Optimizer<Backend = B>>(
-        &self,
-        optim: &O,
-        state_optim: &mut StateNamed<B::Elem>,
-    ) where
-        B: ADBackend,
-    {
-        if self.value.is_some() {
-            optim.register_param_state::<D>(&self.id, state_optim);
         }
     }
 

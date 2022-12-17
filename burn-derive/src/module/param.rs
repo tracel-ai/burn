@@ -69,24 +69,6 @@ impl Param {
         }
     }
 
-    pub fn gen_load_optim_state_fn(&self) -> TokenStream {
-        let mut body = quote! {};
-        for field in self.fields_param.iter() {
-            let name = field.ident();
-            body.extend(quote! {
-                self.#name.load_optim_state(optim, state_optim);
-            });
-        }
-
-        quote! {
-            fn load_optim_state<O: burn::optim::Optimizer<Backend = B>>(&self, optim: &mut O, state_optim: &burn::module::StateNamed<B::Elem>)
-                where
-                B: burn::tensor::backend::ADBackend {
-                #body
-            }
-        }
-    }
-
     pub fn gen_visit_fn(&self) -> TokenStream {
         let mut body = quote! {};
         for field in self.fields_param.iter() {
@@ -98,24 +80,6 @@ impl Param {
 
         quote! {
             fn visit<V: burn::module::ModuleVisitor<Self::Backend>>(&self, visitor: &mut V) {
-                #body
-            }
-        }
-    }
-
-    pub fn gen_register_optim_state_fn(&self) -> TokenStream {
-        let mut body = quote! {};
-        for field in self.fields_param.iter() {
-            let name = field.ident();
-            body.extend(quote! {
-                self.#name.register_optim_state(optim, state_optim);
-            });
-        }
-
-        quote! {
-            fn register_optim_state<O: burn::optim::Optimizer<Backend = B>>(&self, optim: &O, state_optim: &mut burn::module::StateNamed<B::Elem>)
-                where
-                B: burn::tensor::backend::ADBackend {
                 #body
             }
         }
