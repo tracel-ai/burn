@@ -1,5 +1,5 @@
 use crate::{
-    data::{BertCasedTokenizer, TextGenerationBatcher, TextGenerationItem, Tokenizer},
+    data::{Gpt2Tokenizer, TextGenerationBatcher, TextGenerationItem, Tokenizer},
     model::{TextClassificationModel, TextGenerationModelConfig},
 };
 use burn::{
@@ -20,9 +20,9 @@ use std::sync::Arc;
 pub struct ExperimentConfig {
     transformer: TransformerEncoderConfig,
     optimizer: SgdConfig,
-    #[config(default = 128)]
+    #[config(default = 256)]
     max_seq_length: usize,
-    #[config(default = 8)]
+    #[config(default = 4)]
     batch_size: usize,
     #[config(default = 10)]
     num_epochs: usize,
@@ -38,7 +38,7 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
     let dataset_train = Arc::new(dataset_train);
     let dataset_test = Arc::new(dataset_test);
 
-    let tokenizer = Arc::new(BertCasedTokenizer::default());
+    let tokenizer = Arc::new(Gpt2Tokenizer::default());
     let batcher_train = Arc::new(TextGenerationBatcher::<B>::new(
         tokenizer.clone(),
         device,

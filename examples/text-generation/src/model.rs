@@ -58,26 +58,33 @@ impl<B: Backend> TextClassificationModel<B> {
     pub fn forward(&self, item: TextGenerationBatch<B>) -> ClassificationOutput<B> {
         let [batch_size, seq_length] = item.tokens.dims();
 
-        let index_positions = Tensor::<B, 1>::arange_device(0..seq_length, item.tokens.device())
+        // Teacher forcing
+        let inputs = item.tokens.index([0..batch_size, 0..seq_length - 1]);
+        let targets = item.tokens.index([0..batch_size, 1..seq_length]);
+        let mask_pad = item.mask_pad.index([0..batch_size, 0..seq_length - 1]);
+
+        let seq_length = seq_length - 1;
+
+        let index_positions = Tensor::<B, 1>::arange_device(0..seq_length, inputs.device())
             .reshape([1, seq_length])
             .repeat(0, batch_size);
         let embedding_positions = self.embedding_pos.forward(index_positions.detach());
-        let embedding_tokens = self.embedding_token.forward(item.tokens.clone().detach());
+        let embedding_tokens = self.embedding_token.forward(inputs.detach());
         let embedding = (embedding_positions + embedding_tokens) / 2;
 
         let mask_attn =
             generate_autoregressive_mask::<B>(batch_size, seq_length, embedding.device());
+
         let encoded = self.transformer.forward(
             TransformerEncoderInput::new(embedding)
-                .mask_pad(item.mask_pad)
+                .mask_pad(mask_pad)
                 .mask_attn(mask_attn),
         );
 
         let output = self.output.forward(encoded);
         let output_classification = output.reshape([batch_size * seq_length, self.vocab_size]);
 
-        let targets = item
-            .tokens
+        let targets = targets
             .reshape([batch_size * seq_length])
             .to_data()
             .value

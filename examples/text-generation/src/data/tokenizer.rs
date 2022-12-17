@@ -16,11 +16,11 @@ pub trait Tokenizer: Send + Sync {
     }
 }
 
-pub struct BertCasedTokenizer {
+pub struct Gpt2Tokenizer {
     tokenizer: tokenizers::Tokenizer,
 }
 
-impl Default for BertCasedTokenizer {
+impl Default for Gpt2Tokenizer {
     fn default() -> Self {
         let mut tokenizer = tokenizers::Tokenizer::from_pretrained("gpt2", None).unwrap();
         tokenizer.add_special_tokens(&[
@@ -33,7 +33,7 @@ impl Default for BertCasedTokenizer {
     }
 }
 
-impl Tokenizer for BertCasedTokenizer {
+impl Tokenizer for Gpt2Tokenizer {
     fn encode(&self, value: &str, special_tokens: bool) -> Vec<usize> {
         let text = match special_tokens {
             true => "[START]".to_owned() + value + "[END]",
@@ -72,7 +72,7 @@ mod tests {
 
     #[test]
     fn test_encode_decode() {
-        let tokenizer = BertCasedTokenizer::default();
+        let tokenizer = Gpt2Tokenizer::default();
         let text = "A sentence";
 
         let tokens = tokenizer.encode(text, false);
@@ -83,7 +83,7 @@ mod tests {
 
     #[test]
     fn test_add_start_end_token() {
-        let tokenizer = BertCasedTokenizer::default();
+        let tokenizer = Gpt2Tokenizer::default();
         let text = "A sentence";
 
         let tokens_without = tokenizer.encode(text, false);
