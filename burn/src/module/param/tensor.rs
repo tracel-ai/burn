@@ -1,5 +1,5 @@
 use super::{load_with_id, state_with_id, Param};
-use crate::module::{LoadingError, Module, ModuleVisitor, State, StateNamed};
+use crate::module::{LoadingError, Module, ModuleVisitor, ModuleVisitorMut, State, StateNamed};
 use crate::optim::Optimizer;
 use crate::tensor::{
     backend::{ADBackend, Backend},
@@ -57,6 +57,10 @@ impl<const D: usize, B: Backend> Module for Param<Tensor<B, D>> {
 
     fn visit<V: ModuleVisitor<Self::Backend>>(&self, visitor: &mut V) {
         visitor.visit(&self.id, &self.value)
+    }
+
+    fn visit_mut<V: ModuleVisitorMut<Self::Backend>>(&mut self, visitor: &mut V) {
+        visitor.visit_mut(&self.id, &mut self.value)
     }
 }
 
@@ -130,6 +134,12 @@ impl<const D: usize, B: Backend> Module for Param<Option<Tensor<B, D>>> {
     fn visit<V: ModuleVisitor<Self::Backend>>(&self, visitor: &mut V) {
         if let Some(value) = &self.value {
             visitor.visit(&self.id, value)
+        }
+    }
+
+    fn visit_mut<V: ModuleVisitorMut<Self::Backend>>(&mut self, visitor: &mut V) {
+        if let Some(value) = &mut self.value {
+            visitor.visit_mut(&self.id, value)
         }
     }
 }

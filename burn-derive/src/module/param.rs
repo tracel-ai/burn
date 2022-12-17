@@ -85,6 +85,22 @@ impl Param {
         }
     }
 
+    pub fn gen_visit_mut_fn(&self) -> TokenStream {
+        let mut body = quote! {};
+        for field in self.fields_param.iter() {
+            let name = field.ident();
+            body.extend(quote! {
+                self.#name.visit_mut(visitor);
+            });
+        }
+
+        quote! {
+            fn visit_mut<V: burn::module::ModuleVisitorMut<Self::Backend>>(&mut self, visitor: &mut V) {
+                #body
+            }
+        }
+    }
+
     pub fn gen_devices_fn(&self) -> TokenStream {
         let mut body = quote! {
             let mut devices = Vec::new();

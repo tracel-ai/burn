@@ -13,6 +13,7 @@ pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
     let num_params_fn = param.gen_num_params_fn();
     let update_params_fn = param.gen_update_params_fn();
     let visit = param.gen_visit_fn();
+    let visit_mut = param.gen_visit_mut_fn();
     let devices_fn = param.gen_devices_fn();
     let to_device_fn = param.gen_to_device_fn();
     let state_fn = param.gen_state_fn();
@@ -36,6 +37,7 @@ pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
             #update_params_fn
 
             #visit
+            #visit_mut
         }
 
         impl #generics burn::module::ADModule for #name #generics_ty where B: burn::tensor::backend::ADBackend, {

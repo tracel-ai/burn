@@ -54,12 +54,20 @@ pub trait Module: Send + Sync + std::fmt::Debug + std::fmt::Display {
         optim: &mut O,
     ) where
         Self::Backend: ADBackend;
-    /// Visit each tensor in the module with a [visitor](ModuleParamVisitor).
+    /// Visit each tensor in the module with a [visitor](ModuleVisitor).
     fn visit<V: ModuleVisitor<Self::Backend>>(&self, visitor: &mut V);
+    /// Visit each tensor in the module with a [visitor](ModuleVisitorMut).
+    ///
+    /// Note that each tensor is mutable and may be updated by the visitor.
+    fn visit_mut<V: ModuleVisitorMut<Self::Backend>>(&mut self, visitor: &mut V);
 }
 
 pub trait ModuleVisitor<B: Backend> {
     fn visit<const D: usize>(&mut self, id: &ParamId, tensor: &Tensor<B, D>);
+}
+
+pub trait ModuleVisitorMut<B: Backend> {
+    fn visit_mut<const D: usize>(&mut self, id: &ParamId, tensor: &mut Tensor<B, D>);
 }
 
 /// Module with auto-differentiation backend.
