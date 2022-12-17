@@ -3,7 +3,7 @@ use crate::data::dataloader::DataLoader;
 use crate::module::ADModule;
 use crate::optim::Optimizer;
 use crate::train::LearnerItem;
-use burn_tensor::backend::{ADBackend, Gradients};
+use burn_tensor::backend::ADBackend;
 use std::sync::Arc;
 
 #[derive(new)]
@@ -73,12 +73,12 @@ where
 
             if let Some(grad_accumulation) = self.grad_accumulation {
                 if grads.len() >= grad_accumulation {
-                    self.model.update_params(&item.grads, &mut self.optim);
+                    self.optim.update_module(&mut self.model, &item.grads);
                 } else {
                     grads.push(item.grads);
                 }
             } else {
-                self.model.update_params(&item.grads, &mut self.optim);
+                self.optim.update_module(&mut self.model, &item.grads);
             }
 
             self.callback.on_train_item(LearnerItem::new(

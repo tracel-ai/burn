@@ -1,6 +1,5 @@
 use super::{load_with_id, state_with_id, Param};
 use crate::module::{LoadingError, Module, ModuleVisitor, ModuleVisitorMut, State, StateNamed};
-use crate::optim::Optimizer;
 use crate::tensor::{
     backend::{ADBackend, Backend},
     Data, Tensor,
@@ -11,16 +10,6 @@ impl<const D: usize, B: Backend> Module for Param<Tensor<B, D>> {
 
     fn num_params(&self) -> usize {
         self.value.shape().num_elements()
-    }
-
-    fn update_params<O: Optimizer<Backend = B>>(
-        &mut self,
-        grads: &<B as ADBackend>::Gradients,
-        optim: &mut O,
-    ) where
-        B: ADBackend,
-    {
-        optim.update(&self.id, &mut self.value, grads);
     }
 
     fn devices(&self) -> Vec<B::Device> {
@@ -73,15 +62,6 @@ impl<const D: usize, B: Backend> Module for Param<Option<Tensor<B, D>>> {
         }
 
         0
-    }
-
-    fn update_params<O: Optimizer<Backend = B>>(&mut self, grads: &B::Gradients, optim: &mut O)
-    where
-        B: ADBackend,
-    {
-        if let Some(value) = &mut self.value {
-            optim.update(&self.id, value, grads);
-        }
     }
 
     fn devices(&self) -> Vec<B::Device> {

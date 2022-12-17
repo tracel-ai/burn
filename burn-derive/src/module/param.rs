@@ -47,28 +47,6 @@ impl Param {
         }
     }
 
-    pub fn gen_update_params_fn(&self) -> TokenStream {
-        let mut body = quote! {};
-        for field in self.fields_param.iter() {
-            let name = field.ident();
-            body.extend(quote! {
-                self.#name.update_params(grads, optim);
-            });
-        }
-
-        quote! {
-            fn update_params<O: burn::optim::Optimizer<Backend = B>>(
-                &mut self,
-                grads: &<B as burn::tensor::backend::ADBackend>::Gradients,
-                optim: &mut O
-            )
-                where
-                B: burn::tensor::backend::ADBackend {
-                #body
-            }
-        }
-    }
-
     pub fn gen_visit_fn(&self) -> TokenStream {
         let mut body = quote! {};
         for field in self.fields_param.iter() {

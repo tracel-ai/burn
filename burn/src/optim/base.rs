@@ -1,4 +1,6 @@
-use crate::module::{LoadingError, Module, ModuleVisitor, ParamId, State, StateNamed};
+use crate::module::{
+    LoadingError, Module, ModuleVisitor, ModuleVisitorMut, ParamId, State, StateNamed,
+};
 use crate::tensor::backend::{ADBackend, Backend};
 use crate::tensor::{Data, Tensor};
 use burn_tensor::backend::Gradients;
@@ -6,7 +8,7 @@ use burn_tensor::backend::Gradients;
 pub trait Optimizer: Send + Sync {
     type Backend: ADBackend;
 
-    fn update<const D: usize>(
+    fn update_tensor<const D: usize>(
         &mut self,
         id: &ParamId,
         tensor: &mut Tensor<Self::Backend, D>,
@@ -38,6 +40,21 @@ pub trait Optimizer: Send + Sync {
         _device: &<Self::Backend as Backend>::Device,
     ) {
         // By default there is no state to load
+    }
+
+    fn update_module<M: Module>(
+        &mut self,
+        module: &mut M,
+        grads: &<Self::Backend as ADBackend>::Gradients,
+    ) where
+        M: Module<Backend = Self::Backend>,
+        Self: Sized,
+    {
+        let mut visitor = ModuleOptimizer {
+            optimizer: self,
+            grads,
+        };
+        module.visit_mut(&mut visitor);
     }
 
     /// Get the optimizer state for a given module.
@@ -85,7 +102,7 @@ pub trait Optimizer: Send + Sync {
     }
 }
 
-pub struct GradientsRegistering<'a, B: ADBackend, O> {
+struct GradientsRegistering<'a, B: ADBackend, O> {
     optimizer: &'a O,
     state: &'a mut StateNamed<B::Elem>,
 }
@@ -99,9 +116,22 @@ impl<'a, B: ADBackend, O: Optimizer<Backend = B>> ModuleVisitor<B>
     }
 }
 
-pub struct GradientsLoading<'a, B: ADBackend, O> {
+struct GradientsLoading<'a, B: ADBackend, O> {
     optimizer: &'a mut O,
     state: &'a StateNamed<B::Elem>,
+}
+
+struct ModuleOptimizer<'a, B: ADBackend, O> {
+    optimizer: &'a mut O,
+    grads: &'a B::Gradients,
+}
+
+impl<'a, B: ADBackend, O: Optimizer<Backend = B>> ModuleVisitorMut<B>
+    for ModuleOptimizer<'a, B, O>
+{
+    fn visit_mut<const D: usize>(&mut self, id: &ParamId, tensor: &mut Tensor<B, D>) {
+        self.optimizer.update_tensor(id, tensor, &self.grads);
+    }
 }
 
 impl<'a, B: ADBackend, O: Optimizer<Backend = B>> ModuleVisitor<B> for GradientsLoading<'a, B, O> {

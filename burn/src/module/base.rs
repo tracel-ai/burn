@@ -1,5 +1,4 @@
 use super::{ParamId, State};
-use crate::optim::Optimizer;
 use crate::tensor::backend::{ADBackend, Backend};
 pub use burn_derive::Module;
 use burn_tensor::Tensor;
@@ -47,13 +46,6 @@ pub trait Module: Send + Sync + std::fmt::Debug + std::fmt::Display {
     fn detach(&mut self);
     /// Get the number of parameters the module has, including all of its sub-modules.
     fn num_params(&self) -> usize;
-    /// Update the module parameters with the given gradients and [optimizer](Optimizer).
-    fn update_params<O: Optimizer<Backend = Self::Backend>>(
-        &mut self,
-        grads: &<Self::Backend as ADBackend>::Gradients,
-        optim: &mut O,
-    ) where
-        Self::Backend: ADBackend;
     /// Visit each tensor in the module with a [visitor](ModuleVisitor).
     fn visit<V: ModuleVisitor<Self::Backend>>(&self, visitor: &mut V);
     /// Visit each tensor in the module with a [visitor](ModuleVisitorMut).

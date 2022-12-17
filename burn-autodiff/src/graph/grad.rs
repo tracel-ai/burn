@@ -31,25 +31,6 @@ impl<B: ADBackend> Gradients<B> for Grads {
     fn register<const D: usize>(&mut self, id: String, value: Tensor<B::InnerBackend, D>) {
         self.grads.insert(id, Box::new(value));
     }
-
-    fn merge(mut grads: Vec<Self>) -> Self
-    where
-        Self: Sized,
-    {
-        if grads.len() <= 0 {
-            return <Self as Gradients<B>>::empty();
-        }
-
-        let mut grads_merged = grads.pop().unwrap();
-
-        for grad_item in grads {
-            for (key, item) in grad_item.grads {
-                if let Some(item_other) = grads_merged.grads.remove(&key) {}
-            }
-        }
-
-        grads_merged
-    }
 }
 
 impl Grads {
