@@ -83,7 +83,6 @@ pub fn train<B: ADBackend, D: TextClassificationDataset + 'static>(
         .metric_train_plot(LossMetric::new())
         .metric_valid_plot(LossMetric::new())
         .with_file_checkpointer::<f32>(2)
-        .grads_accumulation(2)
         .num_epochs(config.num_epochs)
         .build(model, optim);
 
