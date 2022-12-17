@@ -58,9 +58,7 @@ impl<'a, B: ADBackend> ModuleVisitor<B> for ModuleGradsAccumulator<'a, B> {
             },
             None => match tensor.grad(self.grads) {
                 Some(grad) => grad,
-                None => {
-                    return;
-                }
+                None => return,
             },
         };
 

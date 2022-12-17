@@ -7,7 +7,7 @@ use burn_tensor::backend::Gradients;
 pub trait Optimizer: Send + Sync {
     type Backend: ADBackend;
 
-    /// Update the tensor parameter using the given the gradient.
+    /// Update the tensor parameter using the given the gradients.
     fn update_tensor<const D: usize>(
         &mut self,
         id: &ParamId,
@@ -15,7 +15,7 @@ pub trait Optimizer: Send + Sync {
         grads: &<Self::Backend as ADBackend>::Gradients,
     );
 
-    /// Update the parameters of the given module using the given the gradient.
+    /// Update the parameters of the given module using the given the gradients.
     fn update_module<M>(&mut self, module: &mut M, grads: &<Self::Backend as ADBackend>::Gradients)
     where
         M: Module<Backend = Self::Backend>,
