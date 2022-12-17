@@ -1,6 +1,5 @@
-use crate::module::{
-    LoadingError, Module, ModuleVisitor, ModuleVisitorMut, ParamId, State, StateNamed,
-};
+use super::visitor::{GradientsLoader, GradientsRegister, ModuleTensorUpdater};
+use crate::module::{LoadingError, Module, ParamId, State, StateNamed};
 use crate::tensor::backend::{ADBackend, Backend};
 use crate::tensor::{Data, Tensor};
 use burn_tensor::backend::Gradients;
@@ -8,12 +7,23 @@ use burn_tensor::backend::Gradients;
 pub trait Optimizer: Send + Sync {
     type Backend: ADBackend;
 
+    /// Update the tensor parameter using the given the gradient.
     fn update_tensor<const D: usize>(
         &mut self,
         id: &ParamId,
         tensor: &mut Tensor<Self::Backend, D>,
         grads: &<Self::Backend as ADBackend>::Gradients,
     );
+
+    /// Update the parameters of the given module using the given the gradient.
+    fn update_module<M>(&mut self, module: &mut M, grads: &<Self::Backend as ADBackend>::Gradients)
+    where
+        M: Module<Backend = Self::Backend>,
+        Self: Sized,
+    {
+        let mut visitor = ModuleTensorUpdater::new(self, grads);
+        module.visit_mut(&mut visitor);
+    }
 
     /// Register the optimizer state for a given parameter.
     ///
@@ -42,15 +52,6 @@ pub trait Optimizer: Send + Sync {
         // By default there is no state to load
     }
 
-    fn update_module<M>(&mut self, module: &mut M, grads: &<Self::Backend as ADBackend>::Gradients)
-    where
-        M: Module<Backend = Self::Backend>,
-        Self: Sized,
-    {
-        let mut visitor = ModuleOptimizer::new(self, grads);
-        module.visit_mut(&mut visitor);
-    }
-
     /// Get the optimizer state for a given module.
     fn state<M: Module<Backend = Self::Backend>>(
         &self,
@@ -60,10 +61,8 @@ pub trait Optimizer: Send + Sync {
         Self: Sized,
     {
         let mut state_named = StateNamed::new();
-        let mut visitor = GradientsRegistering {
-            optimizer: self,
-            state: &mut state_named,
-        };
+        let mut visitor = GradientsRegister::new(self, &mut state_named);
+
         module.visit(&mut visitor);
         State::StateNamed(state_named)
     }
@@ -86,53 +85,10 @@ pub trait Optimizer: Send + Sync {
             }
         };
 
-        let mut visitor = GradientsLoading {
-            optimizer: self,
-            state: state_named,
-        };
+        let mut visitor = GradientsLoader::new(self, state_named);
         module.visit(&mut visitor);
 
         Ok(())
-    }
-}
-
-struct GradientsRegistering<'a, B: ADBackend, O> {
-    optimizer: &'a O,
-    state: &'a mut StateNamed<B::Elem>,
-}
-
-impl<'a, B: ADBackend, O: Optimizer<Backend = B>> ModuleVisitor<B>
-    for GradientsRegistering<'a, B, O>
-{
-    fn visit<const D: usize>(&mut self, id: &ParamId, _tensor: &Tensor<B, D>) {
-        self.optimizer
-            .register_param_state::<D>(id, &mut self.state)
-    }
-}
-
-struct GradientsLoading<'a, B: ADBackend, O> {
-    optimizer: &'a mut O,
-    state: &'a StateNamed<B::Elem>,
-}
-
-#[derive(new)]
-pub(super) struct ModuleOptimizer<'a, B: ADBackend, O> {
-    optimizer: &'a mut O,
-    grads: &'a B::Gradients,
-}
-
-impl<'a, B: ADBackend, O: Optimizer<Backend = B>> ModuleVisitorMut<B>
-    for ModuleOptimizer<'a, B, O>
-{
-    fn visit_mut<const D: usize>(&mut self, id: &ParamId, tensor: &mut Tensor<B, D>) {
-        self.optimizer.update_tensor(id, tensor, &self.grads);
-    }
-}
-
-impl<'a, B: ADBackend, O: Optimizer<Backend = B>> ModuleVisitor<B> for GradientsLoading<'a, B, O> {
-    fn visit<const D: usize>(&mut self, id: &ParamId, tensor: &Tensor<B, D>) {
-        self.optimizer
-            .load_param_state::<D>(id, &mut self.state, &tensor.device())
     }
 }
 

@@ -25,6 +25,7 @@ where
     num_epochs: usize,
     checkpoint: Option<usize>,
     directory: String,
+    grad_accumulation: Option<usize>,
 }
 
 impl<B, T, V> LearnerBuilder<B, T, V>
@@ -49,6 +50,7 @@ where
             checkpointer_model: None,
             checkpointer_optimizer: None,
             directory: directory.to_string(),
+            grad_accumulation: None,
         }
     }
 
@@ -61,6 +63,12 @@ where
     /// Register a validation metric.
     pub fn metric_valid<M: Metric<V> + 'static>(mut self, metric: M) -> Self {
         self.dashboard.register_valid(metric);
+        self
+    }
+
+    /// Enable gradients accumulation.
+    pub fn grads_accumulation(mut self, accumulation: usize) -> Self {
+        self.grad_accumulation = Some(accumulation);
         self
     }
 
@@ -152,6 +160,7 @@ where
             checkpoint: self.checkpoint,
             checkpointer_model: create_checkpointer(self.checkpointer_model),
             checkpointer_optimizer: create_checkpointer(self.checkpointer_optimizer),
+            grad_accumulation: self.grad_accumulation,
         }
     }
 

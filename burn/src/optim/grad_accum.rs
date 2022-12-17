@@ -1,89 +1,102 @@
-use super::{ModuleOptimizer, Optimizer};
-use crate::module::{Module, ParamId, StateNamed};
+use crate::module::{Module, ModuleVisitor, ParamId};
 use burn_tensor::{
     backend::{ADBackend, Gradients},
     Tensor,
 };
 
-pub struct GradientsAccumulation<O, B: ADBackend> {
+/// Accumulate gradients into a single [Gradients](ADBackend::Gradients) object.
+pub struct GradientsAccumulator<B: ADBackend> {
     grads: B::Gradients,
-    optimizer: O,
-    accumulation: usize,
-    accumulation_current: usize,
 }
 
-impl<B: ADBackend, O> GradientsAccumulation<O, B>
-where
-    O: Optimizer<Backend = B>,
-{
-    pub fn new(optim: O, accumulation: usize) -> Self {
+impl<B: ADBackend> Default for GradientsAccumulator<B> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<B: ADBackend> GradientsAccumulator<B> {
+    /// Create a new gradients accumulator.
+    pub fn new() -> Self {
         Self {
             grads: B::Gradients::empty(),
-            optimizer: optim,
-            accumulation,
-            accumulation_current: 0,
         }
     }
 }
 
-impl<B: ADBackend, O> Optimizer for GradientsAccumulation<O, B>
-where
-    O: Optimizer<Backend = B>,
-{
-    type Backend = B;
+impl<B: ADBackend> GradientsAccumulator<B> {
+    /// Accumulate the given gradients for each parameter in the given module.
+    pub fn accumulate<M>(&mut self, module: &M, grads: &B::Gradients)
+    where
+        M: Module<Backend = B>,
+    {
+        let mut visitor = ModuleGradsAccumulator::new(&mut self.grads, grads);
+        module.visit(&mut visitor);
+    }
 
-    fn update_tensor<const D: usize>(
-        &mut self,
-        id: &ParamId,
-        tensor: &mut Tensor<B, D>,
-        grads: &B::Gradients,
-    ) {
-        if self.accumulation_current >= self.accumulation {
-            self.optimizer.update_tensor(id, tensor, grads);
-            return;
-        }
+    /// Return the accumulated gradients and reset the accumulator state.
+    pub fn grads(&mut self) -> Option<B::Gradients> {
+        let mut grads = B::Gradients::empty();
+        std::mem::swap(&mut self.grads, &mut grads);
 
-        let id_str = id.to_string();
+        Some(grads)
+    }
+}
 
-        let grad = match grads.get::<D>(&id_str) {
-            Some(grad) => match self.grads.get::<D>(&id_str) {
-                Some(grad_last_step) => grad_last_step.clone() + grad.clone(),
-                None => grad.clone(),
+#[derive(new)]
+struct ModuleGradsAccumulator<'a, B: ADBackend> {
+    grads: &'a mut B::Gradients,
+    grads_new: &'a B::Gradients,
+}
+
+impl<'a, B: ADBackend> ModuleVisitor<B> for ModuleGradsAccumulator<'a, B> {
+    fn visit<const D: usize>(&mut self, _id: &ParamId, tensor: &Tensor<B, D>) {
+        let grad_updated = match tensor.grad(self.grads_new) {
+            Some(new) => match tensor.grad(&self.grads) {
+                Some(grad) => grad.add(&new),
+                None => new.clone(),
             },
-            None => match self.grads.get::<D>(&id_str) {
-                Some(grad_last_step) => grad_last_step.clone(),
+            None => match tensor.grad(&self.grads) {
+                Some(grad) => grad.clone(),
                 None => return,
             },
         };
 
-        self.grads.register(id_str, grad);
+        self.grads.register(tensor.node_id(), grad_updated);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        nn::{Linear, LinearConfig},
+        TestADBackend,
+    };
+    use burn_tensor::Distribution;
+
+    #[test]
+    fn test_accumulate_gradients() {
+        let mut accumulator = GradientsAccumulator::<TestADBackend>::new();
+        let layer = layer();
+        let loss = layer.forward(random_tensor());
+        let grads = loss.backward();
+
+        accumulator.accumulate(&layer, &grads);
+
+        let grads = accumulator.grads().unwrap();
+        assert!(!Gradients::<TestADBackend>::is_empty(&grads))
     }
 
-    fn update_module<M>(&mut self, module: &mut M, grads: &<Self::Backend as ADBackend>::Gradients)
-    where
-        M: Module<Backend = Self::Backend>,
-        Self: Sized,
-    {
-        self.accumulation_current += 1;
-
-        let mut visitor = ModuleOptimizer::new(self, grads);
-        module.visit_mut(&mut visitor);
-
-        if self.accumulation_current >= self.accumulation {
-            self.accumulation_current = 0;
-        }
+    fn layer() -> Linear<TestADBackend> {
+        Linear::<TestADBackend>::new(&LinearConfig {
+            d_input: 20,
+            d_output: 20,
+            bias: true,
+        })
     }
 
-    fn register_param_state<const D: usize>(&self, id: &ParamId, state: &mut StateNamed<B::Elem>) {
-        self.optimizer.register_param_state::<D>(id, state);
-    }
-
-    fn load_param_state<const D: usize>(
-        &mut self,
-        id: &ParamId,
-        state: &StateNamed<B::Elem>,
-        device: &B::Device,
-    ) {
-        self.optimizer.load_param_state::<D>(id, state, device);
+    fn random_tensor() -> Tensor<TestADBackend, 2> {
+        Tensor::<TestADBackend, 2>::random([2, 20], Distribution::Standard)
     }
 }

@@ -1,7 +1,7 @@
 use super::Learner;
 use crate::data::dataloader::DataLoader;
 use crate::module::ADModule;
-use crate::optim::Optimizer;
+use crate::optim::{GradientsAccumulator, Optimizer};
 use crate::train::LearnerItem;
 use burn_tensor::backend::ADBackend;
 use std::sync::Arc;
@@ -94,13 +94,36 @@ where
 
         let mut iterator = dataloader_train.iter();
         let mut iteration = 0;
+        let mut accumulator = GradientsAccumulator::new();
+        let mut accumulation_current = 0;
 
         while let Some(item) = iterator.next() {
-            let progress = iterator.progress();
             iteration += 1;
 
+            let progress = iterator.progress();
             let item = self.model.step(item);
-            self.optim.update_module(&mut self.model, &item.grads);
+
+            match self.grad_accumulation {
+                Some(accumulation) => {
+                    log::info!("Accumulate gradients");
+
+                    accumulator.accumulate(&self.model, &item.grads);
+                    accumulation_current += 1;
+
+                    if accumulation <= accumulation_current {
+                        log::info!("Update model with accumulated gradients");
+
+                        let grads = accumulator.grads().unwrap();
+                        self.optim.update_module(&mut self.model, &grads);
+                        accumulation_current = 0;
+                    }
+                }
+                None => {
+                    log::info!("Update model with gradients");
+
+                    self.optim.update_module(&mut self.model, &item.grads)
+                }
+            }
 
             self.callback.on_train_item(LearnerItem::new(
                 item.item,

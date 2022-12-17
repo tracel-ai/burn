@@ -1,3 +1,5 @@
+pub(super) mod visitor;
+
 pub mod decay;
 pub mod momentum;
 
