@@ -51,4 +51,8 @@ impl<B: Backend> ADBackend for ADBackendDecorator<B> {
     fn from_inner<const D: usize>(tensor: B::TensorPrimitive<D>) -> ADTensor<D, B> {
         ADTensor::from_tensor(tensor)
     }
+
+    fn node_id<const D: usize>(tensor: &Self::TensorPrimitive<D>) -> String {
+        tensor.node.id.to_string()
+    }
 }

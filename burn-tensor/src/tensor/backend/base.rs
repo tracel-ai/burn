@@ -53,6 +53,7 @@ pub trait ADBackend: Backend {
         tensor: &Self::TensorPrimitive<D>,
         grads: &Self::Gradients,
     ) -> Option<ADBackendTensorPrimitive<D, Self>>;
+    fn node_id<const D: usize>(tensor: &Self::TensorPrimitive<D>) -> String;
     fn inner<const D: usize>(
         tensor: &Self::TensorPrimitive<D>,
     ) -> <Self::InnerBackend as Backend>::TensorPrimitive<D>;

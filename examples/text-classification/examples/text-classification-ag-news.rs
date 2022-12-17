@@ -8,8 +8,7 @@ fn main() {
         burn::nn::transformer::TransformerEncoderConfig::new(256, 512, 4, 4),
         burn::optim::SgdConfig::new()
             .with_learning_rate(5.0e-3)
-            .with_momentum(None)
-            .with_weight_decay(Some(WeightDecayConfig::new(5e-4)))
+            .with_weight_decay(Some(WeightDecayConfig::new(5e-5)))
             .with_momentum(Some(MomentumConfig::new().with_nesterov(true))),
     );
 

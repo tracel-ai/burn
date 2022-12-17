@@ -53,13 +53,15 @@ impl<B: ADBackend> Momentum<B> {
             None => grad.clone(),
         };
 
-        // Update velocity
-        self.velocity.register(id, velocity.clone());
-
-        match self.nesterov {
+        let output = match self.nesterov {
             true => velocity.mul_scalar(self.momentum).add(&grad),
-            false => velocity,
-        }
+            false => velocity.clone(),
+        };
+
+        // Update velocity
+        self.velocity.register(id, velocity);
+
+        output
     }
 
     pub fn register_state<const D: usize>(&self, id: &ParamId, state: &mut StateNamed<B::Elem>) {

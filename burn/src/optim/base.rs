@@ -1,18 +1,29 @@
-use burn_tensor::backend::Gradients;
-
+use super::visitor::{GradientsLoader, GradientsRegister, ModuleTensorUpdater};
 use crate::module::{LoadingError, Module, ParamId, State, StateNamed};
 use crate::tensor::backend::{ADBackend, Backend};
 use crate::tensor::{Data, Tensor};
+use burn_tensor::backend::Gradients;
 
 pub trait Optimizer: Send + Sync {
     type Backend: ADBackend;
 
-    fn update<const D: usize>(
+    /// Update the tensor parameter using the given the gradients.
+    fn update_tensor<const D: usize>(
         &mut self,
         id: &ParamId,
         tensor: &mut Tensor<Self::Backend, D>,
         grads: &<Self::Backend as ADBackend>::Gradients,
     );
+
+    /// Update the parameters of the given module using the given the gradients.
+    fn update_module<M>(&mut self, module: &mut M, grads: &<Self::Backend as ADBackend>::Gradients)
+    where
+        M: Module<Backend = Self::Backend>,
+        Self: Sized,
+    {
+        let mut visitor = ModuleTensorUpdater::new(self, grads);
+        module.visit_mut(&mut visitor);
+    }
 
     /// Register the optimizer state for a given parameter.
     ///
@@ -50,7 +61,9 @@ pub trait Optimizer: Send + Sync {
         Self: Sized,
     {
         let mut state_named = StateNamed::new();
-        module.register_optim_state(self, &mut state_named);
+        let mut visitor = GradientsRegister::new(self, &mut state_named);
+
+        module.visit(&mut visitor);
         State::StateNamed(state_named)
     }
 
@@ -72,7 +85,8 @@ pub trait Optimizer: Send + Sync {
             }
         };
 
-        module.load_optim_state(self, state_named);
+        let mut visitor = GradientsLoader::new(self, state_named);
+        module.visit(&mut visitor);
 
         Ok(())
     }

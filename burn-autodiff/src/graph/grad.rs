@@ -3,7 +3,7 @@ use crate::graph::{
     traversal::{BreadthFirstSearch, GraphTraversal},
 };
 use burn_tensor::{
-    backend::{ADBackend, Gradients},
+    backend::{ADBackend, Backend, Gradients},
     ops::Zeros,
     Tensor,
 };
@@ -20,16 +20,27 @@ impl<B: ADBackend> Gradients<B> for Grads {
             grads: HashMap::new(),
         }
     }
-    fn get<const D: usize>(&self, id: &str) -> Option<&Tensor<B::InnerBackend, D>> {
+
+    fn get<const D: usize>(&self, id: &str) -> Option<Tensor<B::InnerBackend, D>> {
         let grad = match self.grads.get(id) {
             Some(grad) => grad,
             None => return None,
         };
 
-        grad.downcast_ref()
+        let tensor = grad.downcast_ref().map(
+            |primitive: &<B::InnerBackend as Backend>::TensorPrimitive<D>| {
+                Tensor::from_primitive(primitive.clone())
+            },
+        );
+        tensor
     }
+
     fn register<const D: usize>(&mut self, id: String, value: Tensor<B::InnerBackend, D>) {
-        self.grads.insert(id, Box::new(value));
+        self.grads.insert(id, Box::new(value.into_primitive()));
+    }
+
+    fn len(&self) -> usize {
+        self.grads.len()
     }
 }
 

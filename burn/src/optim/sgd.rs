@@ -49,7 +49,7 @@ impl<B: ADBackend> Sgd<B> {
 impl<B: ADBackend> Optimizer for Sgd<B> {
     type Backend = B;
 
-    fn update<const D: usize>(
+    fn update_tensor<const D: usize>(
         &mut self,
         id: &ParamId,
         tensor: &mut Tensor<B, D>,
@@ -100,7 +100,6 @@ impl<B: ADBackend> Optimizer for Sgd<B> {
 mod tests {
     use super::*;
     use crate::{
-        module::Module,
         nn::{Linear, LinearConfig},
         tensor::{Distribution, Shape},
         TestADBackend,
@@ -112,7 +111,7 @@ mod tests {
         let mut optim = sgd_with_all();
         let loss = layer.forward(random_tensor());
         let grads = loss.backward();
-        layer.update_params(&grads, &mut optim);
+        optim.update_module(&mut layer, &grads);
 
         let state = optim.state(&layer);
 
@@ -135,7 +134,7 @@ mod tests {
         let mut optim = sgd_with_nothing();
         let loss = layer.forward(random_tensor());
         let grads = loss.backward();
-        layer.update_params(&grads, &mut optim);
+        optim.update_module(&mut layer, &grads);
 
         let state = optim.state(&layer);
 
@@ -148,7 +147,7 @@ mod tests {
         let mut optim = sgd_with_all();
         let loss = layer.forward(random_tensor());
         let grads = loss.backward();
-        layer.update_params(&grads, &mut optim);
+        optim.update_module(&mut layer, &grads);
 
         let state = optim.state(&layer);
         let mut optim_new = sgd_with_all();

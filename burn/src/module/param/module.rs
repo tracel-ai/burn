@@ -1,6 +1,7 @@
 use super::{load_with_id, state_with_id, Param};
-use crate::module::{ADModule, LoadingError, Module, State, StateNamed};
-use crate::optim::Optimizer;
+use crate::module::{
+    ADModule, LoadingError, Module, ModuleVisitor, ModuleVisitorMut, State, StateNamed,
+};
 use crate::tensor::backend::{ADBackend, Backend};
 
 impl<M: Module> Module for Param<M> {
@@ -8,36 +9,6 @@ impl<M: Module> Module for Param<M> {
 
     fn num_params(&self) -> usize {
         self.value.num_params()
-    }
-
-    fn update_params<O: Optimizer<Backend = M::Backend>>(
-        &mut self,
-        grads: &<M::Backend as ADBackend>::Gradients,
-        optim: &mut O,
-    ) where
-        M::Backend: ADBackend,
-    {
-        self.value.update_params(grads, optim);
-    }
-
-    fn load_optim_state<O: Optimizer<Backend = M::Backend>>(
-        &self,
-        optim: &mut O,
-        state_optim: &StateNamed<<M::Backend as Backend>::Elem>,
-    ) where
-        M::Backend: ADBackend,
-    {
-        self.value.load_optim_state(optim, state_optim);
-    }
-
-    fn register_optim_state<O: Optimizer<Backend = M::Backend>>(
-        &self,
-        optim: &O,
-        state_optim: &mut StateNamed<<M::Backend as Backend>::Elem>,
-    ) where
-        M::Backend: ADBackend,
-    {
-        self.value.register_optim_state(optim, state_optim);
     }
 
     fn devices(&self) -> Vec<<M::Backend as Backend>::Device> {
@@ -64,6 +35,14 @@ impl<M: Module> Module for Param<M> {
     fn detach(&mut self) {
         self.value.detach()
     }
+
+    fn visit<V: ModuleVisitor<Self::Backend>>(&self, visitor: &mut V) {
+        self.value.visit(visitor);
+    }
+
+    fn visit_mut<V: ModuleVisitorMut<Self::Backend>>(&mut self, visitor: &mut V) {
+        self.value.visit_mut(visitor);
+    }
 }
 
 impl<M: Module> Module for Param<Vec<M>> {
@@ -76,41 +55,6 @@ impl<M: Module> Module for Param<Vec<M>> {
         }
 
         num_params
-    }
-
-    fn update_params<O: Optimizer<Backend = M::Backend>>(
-        &mut self,
-        grads: &<M::Backend as ADBackend>::Gradients,
-        optim: &mut O,
-    ) where
-        M::Backend: ADBackend,
-    {
-        for module in self.value.iter_mut() {
-            module.update_params(grads, optim);
-        }
-    }
-
-    fn load_optim_state<O: Optimizer<Backend = M::Backend>>(
-        &self,
-        optim: &mut O,
-        state_optim: &StateNamed<<M::Backend as Backend>::Elem>,
-    ) where
-        M::Backend: ADBackend,
-    {
-        for module in self.value.iter() {
-            module.load_optim_state(optim, state_optim);
-        }
-    }
-    fn register_optim_state<O: Optimizer<Backend = M::Backend>>(
-        &self,
-        optim: &O,
-        state_optim: &mut StateNamed<<M::Backend as Backend>::Elem>,
-    ) where
-        M::Backend: ADBackend,
-    {
-        for module in self.value.iter() {
-            module.register_optim_state(optim, state_optim);
-        }
     }
 
     fn devices(&self) -> Vec<<M::Backend as Backend>::Device> {
@@ -163,6 +107,18 @@ impl<M: Module> Module for Param<Vec<M>> {
     fn detach(&mut self) {
         for value in self.value.iter_mut() {
             value.detach();
+        }
+    }
+
+    fn visit<V: ModuleVisitor<Self::Backend>>(&self, visitor: &mut V) {
+        for module in self.value.iter() {
+            module.visit(visitor);
+        }
+    }
+
+    fn visit_mut<V: ModuleVisitorMut<Self::Backend>>(&mut self, visitor: &mut V) {
+        for module in self.value.iter_mut() {
+            module.visit_mut(visitor);
         }
     }
 }

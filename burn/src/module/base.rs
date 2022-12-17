@@ -1,7 +1,7 @@
-use super::{State, StateNamed};
-use crate::optim::Optimizer;
+use super::{ParamId, State};
 use crate::tensor::backend::{ADBackend, Backend};
 pub use burn_derive::Module;
+use burn_tensor::Tensor;
 
 /// Trait for all neural network modules.
 ///
@@ -46,37 +46,20 @@ pub trait Module: Send + Sync + std::fmt::Debug + std::fmt::Display {
     fn detach(&mut self);
     /// Get the number of parameters the module has, including all of its sub-modules.
     fn num_params(&self) -> usize;
-    /// Update the module parameters with the given gradients and [optimizer](Optimizer).
-    fn update_params<O: Optimizer<Backend = Self::Backend>>(
-        &mut self,
-        grads: &<Self::Backend as ADBackend>::Gradients,
-        optim: &mut O,
-    ) where
-        Self::Backend: ADBackend;
-    /// Load the [optimizer](Optimizer) state for the module, including all of its sub-modules.
+    /// Visit each tensor in the module with a [visitor](ModuleVisitor).
+    fn visit<V: ModuleVisitor<Self::Backend>>(&self, visitor: &mut V);
+    /// Visit each tensor in the module with a [visitor](ModuleVisitorMut).
     ///
-    /// # Note
-    ///
-    /// This method should only be called by generated code, see [load](Optimizer::load) to load
-    /// the state of the optimizer.
-    fn load_optim_state<O: Optimizer<Backend = Self::Backend>>(
-        &self,
-        optim: &mut O,
-        state_optim: &StateNamed<<Self::Backend as Backend>::Elem>,
-    ) where
-        Self::Backend: ADBackend;
-    /// Register the [optimizer](Optimizer) state for the module, including all of its sub-modules.
-    ///
-    /// # Note
-    ///
-    /// This method should only be called by generated code, see [state](Optimizer::state) to get
-    /// the state of the optimizer.
-    fn register_optim_state<O: Optimizer<Backend = Self::Backend>>(
-        &self,
-        optim: &O,
-        state_optim: &mut StateNamed<<Self::Backend as Backend>::Elem>,
-    ) where
-        Self::Backend: ADBackend;
+    /// Note that each tensor is mutable and may be updated by the visitor.
+    fn visit_mut<V: ModuleVisitorMut<Self::Backend>>(&mut self, visitor: &mut V);
+}
+
+pub trait ModuleVisitor<B: Backend> {
+    fn visit<const D: usize>(&mut self, id: &ParamId, tensor: &Tensor<B, D>);
+}
+
+pub trait ModuleVisitorMut<B: Backend> {
+    fn visit_mut<const D: usize>(&mut self, id: &ParamId, tensor: &mut Tensor<B, D>);
 }
 
 /// Module with auto-differentiation backend.

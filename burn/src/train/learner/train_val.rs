@@ -1,10 +1,9 @@
-use burn_tensor::backend::ADBackend;
-
 use super::Learner;
 use crate::data::dataloader::DataLoader;
 use crate::module::ADModule;
-use crate::optim::Optimizer;
+use crate::optim::{GradientsAccumulator, Optimizer};
 use crate::train::LearnerItem;
+use burn_tensor::backend::ADBackend;
 use std::sync::Arc;
 
 #[derive(new)]
@@ -21,6 +20,37 @@ pub trait ValidStep<VI, VO> {
     fn step(&self, item: VI) -> VO;
 }
 
+pub trait Fit<TO, VO, M: ADModule> {
+    fn fit<TI, VI>(
+        self,
+        dataloader_train: Arc<dyn DataLoader<TI>>,
+        dataloader_valid: Arc<dyn DataLoader<VI>>,
+    ) -> M
+    where
+        M: TrainStep<TI, TO, <M::ADBackend as ADBackend>::Gradients>,
+        M::InnerModule: ValidStep<VI, VO>;
+}
+
+impl<M, O, TO, VO> Fit<TO, VO, M> for Learner<M, O, TO, VO>
+where
+    VO: Send + Sync + 'static,
+    TO: Send + Sync + 'static,
+    M: ADModule,
+    O: Optimizer<Backend = M::Backend>,
+{
+    fn fit<TI, VI>(
+        self,
+        dataloader_train: Arc<dyn DataLoader<TI>>,
+        dataloader_valid: Arc<dyn DataLoader<VI>>,
+    ) -> M
+    where
+        M: TrainStep<TI, TO, <M::ADBackend as ADBackend>::Gradients>,
+        M::InnerModule: ValidStep<VI, VO>,
+    {
+        self.fit(dataloader_train, dataloader_valid)
+    }
+}
+
 impl<M, O, TO, VO> Learner<M, O, TO, VO>
 where
     VO: Send + Sync + 'static,
@@ -28,7 +58,7 @@ where
     M: ADModule,
     O: Optimizer<Backend = M::Backend>,
 {
-    pub fn fit<TI, VI>(
+    fn fit<TI, VI>(
         mut self,
         dataloader_train: Arc<dyn DataLoader<TI>>,
         dataloader_valid: Arc<dyn DataLoader<VI>>,
@@ -64,13 +94,28 @@ where
 
         let mut iterator = dataloader_train.iter();
         let mut iteration = 0;
+        let mut accumulator = GradientsAccumulator::new();
+        let mut accumulation_current = 0;
 
         while let Some(item) = iterator.next() {
-            let progress = iterator.progress();
             iteration += 1;
 
+            let progress = iterator.progress();
             let item = self.model.step(item);
-            self.model.update_params(&item.grads, &mut self.optim);
+
+            match self.grad_accumulation {
+                Some(accumulation) => {
+                    accumulator.accumulate(&self.model, &item.grads);
+                    accumulation_current += 1;
+
+                    if accumulation <= accumulation_current {
+                        let grads = accumulator.grads().unwrap();
+                        self.optim.update_module(&mut self.model, &grads);
+                        accumulation_current = 0;
+                    }
+                }
+                None => self.optim.update_module(&mut self.model, &item.grads),
+            }
 
             self.callback.on_train_item(LearnerItem::new(
                 item.item,

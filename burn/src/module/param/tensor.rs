@@ -1,6 +1,5 @@
 use super::{load_with_id, state_with_id, Param};
-use crate::module::{LoadingError, Module, State, StateNamed};
-use crate::optim::Optimizer;
+use crate::module::{LoadingError, Module, ModuleVisitor, ModuleVisitorMut, State, StateNamed};
 use crate::tensor::{
     backend::{ADBackend, Backend},
     Data, Tensor,
@@ -11,36 +10,6 @@ impl<const D: usize, B: Backend> Module for Param<Tensor<B, D>> {
 
     fn num_params(&self) -> usize {
         self.value.shape().num_elements()
-    }
-
-    fn update_params<O: Optimizer<Backend = B>>(
-        &mut self,
-        grads: &<B as ADBackend>::Gradients,
-        optim: &mut O,
-    ) where
-        B: ADBackend,
-    {
-        optim.update(&self.id, &mut self.value, grads);
-    }
-
-    fn load_optim_state<O: Optimizer<Backend = B>>(
-        &self,
-        optim: &mut O,
-        state_optim: &StateNamed<B::Elem>,
-    ) where
-        B: ADBackend,
-    {
-        optim.load_param_state::<D>(&self.id, state_optim, &self.value.device());
-    }
-
-    fn register_optim_state<O: Optimizer<Backend = B>>(
-        &self,
-        optim: &O,
-        state_optim: &mut StateNamed<B::Elem>,
-    ) where
-        B: ADBackend,
-    {
-        optim.register_param_state::<D>(&self.id, state_optim);
     }
 
     fn devices(&self) -> Vec<B::Device> {
@@ -74,6 +43,14 @@ impl<const D: usize, B: Backend> Module for Param<Tensor<B, D>> {
     fn detach(&mut self) {
         self.value = self.value.clone().detach()
     }
+
+    fn visit<V: ModuleVisitor<Self::Backend>>(&self, visitor: &mut V) {
+        visitor.visit(&self.id, &self.value)
+    }
+
+    fn visit_mut<V: ModuleVisitorMut<Self::Backend>>(&mut self, visitor: &mut V) {
+        visitor.visit_mut(&self.id, &mut self.value)
+    }
 }
 
 impl<const D: usize, B: Backend> Module for Param<Option<Tensor<B, D>>> {
@@ -85,39 +62,6 @@ impl<const D: usize, B: Backend> Module for Param<Option<Tensor<B, D>>> {
         }
 
         0
-    }
-
-    fn update_params<O: Optimizer<Backend = B>>(&mut self, grads: &B::Gradients, optim: &mut O)
-    where
-        B: ADBackend,
-    {
-        if let Some(value) = &mut self.value {
-            optim.update(&self.id, value, grads);
-        }
-    }
-
-    fn load_optim_state<O: Optimizer<Backend = B>>(
-        &self,
-        optim: &mut O,
-        state_optim: &StateNamed<B::Elem>,
-    ) where
-        B: ADBackend,
-    {
-        if let Some(value) = &self.value {
-            optim.load_param_state::<D>(&self.id, state_optim, &value.device());
-        }
-    }
-
-    fn register_optim_state<O: Optimizer<Backend = B>>(
-        &self,
-        optim: &O,
-        state_optim: &mut StateNamed<B::Elem>,
-    ) where
-        B: ADBackend,
-    {
-        if self.value.is_some() {
-            optim.register_param_state::<D>(&self.id, state_optim);
-        }
     }
 
     fn devices(&self) -> Vec<B::Device> {
@@ -165,6 +109,18 @@ impl<const D: usize, B: Backend> Module for Param<Option<Tensor<B, D>>> {
 
     fn detach(&mut self) {
         self.value = self.value.clone().map(|tensor| tensor.detach());
+    }
+
+    fn visit<V: ModuleVisitor<Self::Backend>>(&self, visitor: &mut V) {
+        if let Some(value) = &self.value {
+            visitor.visit(&self.id, value)
+        }
+    }
+
+    fn visit_mut<V: ModuleVisitorMut<Self::Backend>>(&mut self, visitor: &mut V) {
+        if let Some(value) = &mut self.value {
+            visitor.visit_mut(&self.id, value)
+        }
     }
 }
 
