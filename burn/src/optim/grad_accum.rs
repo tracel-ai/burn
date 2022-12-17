@@ -58,7 +58,9 @@ impl<'a, B: ADBackend> ModuleVisitor<B> for ModuleGradsAccumulator<'a, B> {
             },
             None => match tensor.grad(self.grads) {
                 Some(grad) => grad,
-                None => return,
+                None => {
+                    return;
+                }
             },
         };
 
@@ -76,7 +78,7 @@ mod tests {
     use burn_tensor::Distribution;
 
     #[test]
-    fn test_accumulate_gradients() {
+    fn test_accumulate_gradients_one_step() {
         let mut accumulator = GradientsAccumulator::<TestADBackend>::new();
         let layer = layer();
         let loss = layer.forward(random_tensor());
@@ -86,6 +88,22 @@ mod tests {
 
         let grads = accumulator.grads().unwrap();
         assert!(!Gradients::<TestADBackend>::is_empty(&grads))
+    }
+
+    #[test]
+    fn test_accumulate_gradients_two_steps() {
+        let mut accumulator = GradientsAccumulator::<TestADBackend>::new();
+        let layer = layer();
+        let loss_1 = layer.forward(random_tensor());
+        let loss_2 = layer.forward(random_tensor());
+        let grads_1 = loss_1.backward();
+        let grads_2 = loss_2.backward();
+
+        accumulator.accumulate(&layer, &grads_1);
+        accumulator.accumulate(&layer, &grads_2);
+
+        let grads = accumulator.grads().unwrap();
+        assert_eq!(Gradients::<TestADBackend>::len(&grads), 2)
     }
 
     fn layer() -> Linear<TestADBackend> {
