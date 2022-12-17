@@ -240,26 +240,18 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         to_tensor(tensor)
     }
 
+    fn bool_index<const D1: usize, const D2: usize>(
+        tensor: &TchTensor<bool, D1>,
+        indexes: [Range<usize>; D2],
+    ) -> TchTensor<bool, D1> {
+        index(tensor, indexes)
+    }
+
     fn index<const D1: usize, const D2: usize>(
         tensor: &TchTensor<E, D1>,
         indexes: [Range<usize>; D2],
     ) -> TchTensor<E, D1> {
-        let shape = tensor.shape.index(indexes.clone());
-        let kind = tensor.kind;
-
-        let mut tensor = tensor.tensor.shallow_clone();
-
-        for (i, index) in indexes.iter().enumerate().take(D2) {
-            let start = index.start as i64;
-            let length = (index.end - index.start) as i64;
-            tensor = tensor.narrow(i as i64, start, length);
-        }
-
-        TchTensor {
-            kind,
-            tensor,
-            shape,
-        }
+        index(tensor, indexes)
     }
 
     fn index_assign<const D1: usize, const D2: usize>(
@@ -494,5 +486,27 @@ fn to_tensor<const D: usize, E: TchElement>(tensor: tch::Tensor) -> TchTensor<E,
         tensor,
         shape,
         kind: TchKind::new(),
+    }
+}
+
+fn index<const D1: usize, const D2: usize, E: tch::kind::Element + Copy>(
+    tensor: &TchTensor<E, D1>,
+    indexes: [Range<usize>; D2],
+) -> TchTensor<E, D1> {
+    let shape = tensor.shape.index(indexes.clone());
+    let kind = tensor.kind;
+
+    let mut tensor = tensor.tensor.shallow_clone();
+
+    for (i, index) in indexes.iter().enumerate().take(D2) {
+        let start = index.start as i64;
+        let length = (index.end - index.start) as i64;
+        tensor = tensor.narrow(i as i64, start, length);
+    }
+
+    TchTensor {
+        kind,
+        tensor,
+        shape,
     }
 }

@@ -47,6 +47,10 @@ pub trait TensorOps<B: Backend> {
         tensor: &B::BoolTensorPrimitive<D1>,
         shape: Shape<D2>,
     ) -> B::BoolTensorPrimitive<D2>;
+    fn bool_index<const D1: usize, const D2: usize>(
+        tensor: &B::BoolTensorPrimitive<D1>,
+        indexes: [Range<usize>; D2],
+    ) -> B::BoolTensorPrimitive<D1>;
     fn device<const D: usize>(tensor: &B::TensorPrimitive<D>) -> B::Device;
     fn to_device<const D: usize>(
         tensor: &B::TensorPrimitive<D>,

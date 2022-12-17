@@ -279,6 +279,21 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         }
     }
 
+    fn bool_index<const D1: usize, const D2: usize>(
+        tensor: &NdArrayTensor<bool, D1>,
+        indexes: [Range<usize>; D2],
+    ) -> NdArrayTensor<bool, D1> {
+        let shape = tensor.shape.index(indexes.clone());
+        let slices = to_slice_args::<D1, D2>(indexes);
+        let array = tensor
+            .array
+            .clone()
+            .slice_move(slices.as_slice())
+            .into_shared();
+
+        NdArrayTensor { array, shape }
+    }
+
     fn index<const D1: usize, const D2: usize>(
         tensor: &NdArrayTensor<E, D1>,
         indexes: [Range<usize>; D2],

@@ -1,0 +1,23 @@
+[package]
+name = "text-generation"
+version = "0.1.0"
+authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
+license = "MIT/Apache-2.0"
+edition = "2021"
+publish = false
+
+[features]
+default = []
+
+[dependencies]
+# Burn
+burn = { path = "../../burn" }
+burn-autodiff = { path = "../../burn-autodiff" }
+burn-tch = { path = "../../burn-tch" }
+
+# Tokenizer
+tokenizers = { version = "0.13", default-features = false, features = ["onig", "http"] }
+
+# Utils
+derive-new = "0.5"
+serde = { version = "1.0", features = ["derive"] }

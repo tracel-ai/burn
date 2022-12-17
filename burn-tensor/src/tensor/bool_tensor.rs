@@ -60,4 +60,8 @@ where
     pub fn reshape<const D2: usize, S: Into<Shape<D2>>>(&self, shape: S) -> BoolTensor<B, D2> {
         BoolTensor::new(B::bool_reshape(&self.value, shape.into()))
     }
+
+    pub fn index<const D2: usize>(&self, indexes: [std::ops::Range<usize>; D2]) -> Self {
+        Self::new(B::bool_index(&self.value, indexes))
+    }
 }
