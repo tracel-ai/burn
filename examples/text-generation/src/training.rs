@@ -2,12 +2,13 @@ use crate::{
     data::{Gpt2Tokenizer, TextGenerationBatcher, TextGenerationItem, Tokenizer},
     model::{TextClassificationModel, TextGenerationModelConfig},
 };
+use burn::data::dataset::transform::SamplerDataset;
 use burn::{
     config::Config,
     data::{dataloader::DataLoaderBuilder, dataset::Dataset},
     module::Module,
     nn::transformer::TransformerEncoderConfig,
-    optim::{GradientsAccumulation, Sgd, SgdConfig},
+    optim::{Sgd, SgdConfig},
     tensor::backend::ADBackend,
     train::{
         metric::{AccuracyMetric, CUDAMetric, LossMetric},
@@ -22,7 +23,7 @@ pub struct ExperimentConfig {
     optimizer: SgdConfig,
     #[config(default = 256)]
     max_seq_length: usize,
-    #[config(default = 4)]
+    #[config(default = 6)]
     batch_size: usize,
     #[config(default = 10)]
     num_epochs: usize,
@@ -35,8 +36,8 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
     config: ExperimentConfig,
     artifact_dir: &str,
 ) {
-    let dataset_train = Arc::new(dataset_train);
-    let dataset_test = Arc::new(dataset_test);
+    let dataset_train = Arc::new(SamplerDataset::new(Box::new(dataset_train), 10_000));
+    let dataset_test = Arc::new(SamplerDataset::new(Box::new(dataset_test), 1_000));
 
     let tokenizer = Arc::new(Gpt2Tokenizer::default());
     let batcher_train = Arc::new(TextGenerationBatcher::<B>::new(
@@ -62,7 +63,6 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
         .batch_size(config.batch_size)
         .num_workers(8)
-        .shuffle(42)
         .build(dataset_train);
 
     let dataloader_test = DataLoaderBuilder::new(batcher_test)
@@ -71,7 +71,6 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
         .build(dataset_test);
 
     let optim = Sgd::new(&config.optimizer);
-    let optim = GradientsAccumulation::new(optim, 8);
 
     let learner = LearnerBuilder::new(artifact_dir)
         .metric_train(CUDAMetric::new())

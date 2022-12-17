@@ -22,8 +22,7 @@ pub struct ModuleTensorUpdater<'a, B: ADBackend, O> {
 
 impl<'a, B: ADBackend, O: Optimizer<Backend = B>> ModuleVisitor<B> for GradientsRegister<'a, B, O> {
     fn visit<const D: usize>(&mut self, id: &ParamId, _tensor: &Tensor<B, D>) {
-        self.optimizer
-            .register_param_state::<D>(id, &mut self.state)
+        self.optimizer.register_param_state::<D>(id, self.state)
     }
 }
 
@@ -31,13 +30,13 @@ impl<'a, B: ADBackend, O: Optimizer<Backend = B>> ModuleVisitorMut<B>
     for ModuleTensorUpdater<'a, B, O>
 {
     fn visit_mut<const D: usize>(&mut self, id: &ParamId, tensor: &mut Tensor<B, D>) {
-        self.optimizer.update_tensor(id, tensor, &self.grads);
+        self.optimizer.update_tensor(id, tensor, self.grads);
     }
 }
 
 impl<'a, B: ADBackend, O: Optimizer<Backend = B>> ModuleVisitor<B> for GradientsLoader<'a, B, O> {
     fn visit<const D: usize>(&mut self, id: &ParamId, tensor: &Tensor<B, D>) {
         self.optimizer
-            .load_param_state::<D>(id, &mut self.state, &tensor.device())
+            .load_param_state::<D>(id, self.state, &tensor.device())
     }
 }

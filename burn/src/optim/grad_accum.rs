@@ -52,12 +52,12 @@ struct ModuleGradsAccumulator<'a, B: ADBackend> {
 impl<'a, B: ADBackend> ModuleVisitor<B> for ModuleGradsAccumulator<'a, B> {
     fn visit<const D: usize>(&mut self, _id: &ParamId, tensor: &Tensor<B, D>) {
         let grad_updated = match tensor.grad(self.grads_new) {
-            Some(new) => match tensor.grad(&self.grads) {
+            Some(new) => match tensor.grad(self.grads) {
                 Some(grad) => grad.add(&new),
-                None => new.clone(),
+                None => new,
             },
-            None => match tensor.grad(&self.grads) {
-                Some(grad) => grad.clone(),
+            None => match tensor.grad(self.grads) {
+                Some(grad) => grad,
                 None => return,
             },
         };

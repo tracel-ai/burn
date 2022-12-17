@@ -31,6 +31,10 @@ impl<B: ADBackend> Gradients<B> for Grads {
     fn register<const D: usize>(&mut self, id: String, value: Tensor<B::InnerBackend, D>) {
         self.grads.insert(id, Box::new(value));
     }
+
+    fn len(&self) -> usize {
+        self.grads.len()
+    }
 }
 
 impl Grads {
