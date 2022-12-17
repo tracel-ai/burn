@@ -18,6 +18,7 @@ where
     pub(super) checkpoint: Option<usize>,
     pub(super) checkpointer_model: Option<Box<dyn Checkpointer<<M::Backend as Backend>::Elem>>>,
     pub(super) checkpointer_optimizer: Option<Box<dyn Checkpointer<<M::Backend as Backend>::Elem>>>,
+    pub(super) grad_accumulation: Option<usize>,
 }
 
 impl<M, O, TO, VO> Learner<M, O, TO, VO>

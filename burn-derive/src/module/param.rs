@@ -87,6 +87,22 @@ impl Param {
         }
     }
 
+    pub fn gen_visit_fn(&self) -> TokenStream {
+        let mut body = quote! {};
+        for field in self.fields_param.iter() {
+            let name = field.ident();
+            body.extend(quote! {
+                self.#name.visit(visitor);
+            });
+        }
+
+        quote! {
+            fn visit<V: burn::module::ModuleVisitor<Self::Backend>>(&self, visitor: &mut V) {
+                #body
+            }
+        }
+    }
+
     pub fn gen_register_optim_state_fn(&self) -> TokenStream {
         let mut body = quote! {};
         for field in self.fields_param.iter() {

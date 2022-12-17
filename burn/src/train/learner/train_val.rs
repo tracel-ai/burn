@@ -1,10 +1,9 @@
-use burn_tensor::backend::ADBackend;
-
 use super::Learner;
 use crate::data::dataloader::DataLoader;
 use crate::module::ADModule;
 use crate::optim::Optimizer;
 use crate::train::LearnerItem;
+use burn_tensor::backend::{ADBackend, Gradients};
 use std::sync::Arc;
 
 #[derive(new)]
@@ -63,6 +62,7 @@ where
         log::info!("Executing training step for epoch {}", epoch);
 
         let mut iterator = dataloader_train.iter();
+        let mut grads = Vec::new();
         let mut iteration = 0;
 
         while let Some(item) = iterator.next() {
@@ -70,7 +70,16 @@ where
             iteration += 1;
 
             let item = self.model.step(item);
-            self.model.update_params(&item.grads, &mut self.optim);
+
+            if let Some(grad_accumulation) = self.grad_accumulation {
+                if grads.len() >= grad_accumulation {
+                    self.model.update_params(&item.grads, &mut self.optim);
+                } else {
+                    grads.push(item.grads);
+                }
+            } else {
+                self.model.update_params(&item.grads, &mut self.optim);
+            }
 
             self.callback.on_train_item(LearnerItem::new(
                 item.item,

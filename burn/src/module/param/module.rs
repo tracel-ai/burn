@@ -1,5 +1,5 @@
 use super::{load_with_id, state_with_id, Param};
-use crate::module::{ADModule, LoadingError, Module, State, StateNamed};
+use crate::module::{ADModule, LoadingError, Module, ModuleVisitor, State, StateNamed};
 use crate::optim::Optimizer;
 use crate::tensor::backend::{ADBackend, Backend};
 
@@ -63,6 +63,10 @@ impl<M: Module> Module for Param<M> {
 
     fn detach(&mut self) {
         self.value.detach()
+    }
+
+    fn visit<V: ModuleVisitor<Self::Backend>>(&self, visitor: &mut V) {
+        self.value.visit(visitor);
     }
 }
 
@@ -163,6 +167,12 @@ impl<M: Module> Module for Param<Vec<M>> {
     fn detach(&mut self) {
         for value in self.value.iter_mut() {
             value.detach();
+        }
+    }
+
+    fn visit<V: ModuleVisitor<Self::Backend>>(&self, visitor: &mut V) {
+        for module in self.value.iter() {
+            module.visit(visitor);
         }
     }
 }

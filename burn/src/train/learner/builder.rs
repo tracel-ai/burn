@@ -24,6 +24,7 @@ where
     num_epochs: usize,
     checkpoint: Option<usize>,
     directory: String,
+    grad_accumulation: Option<usize>,
 }
 
 impl<B, T, V> LearnerBuilder<B, T, V>
@@ -48,6 +49,7 @@ where
             checkpointer_model: None,
             checkpointer_optimizer: None,
             directory: directory.to_string(),
+            grad_accumulation: None,
         }
     }
 
@@ -122,6 +124,14 @@ where
         self
     }
 
+    /// Enable gradient accumulation.
+    ///
+    /// Gradients will only be used each N iterations.
+    pub fn grad_accumulation(mut self, num_iterations: usize) -> Self {
+        self.grad_accumulation = Some(num_iterations);
+        self
+    }
+
     /// Create the [learner](Learner) from a [module](ADModule) and an
     /// [optimizer](crate::optim::Optimizer).
     pub fn build<M, O>(self, model: M, optim: O) -> Learner<M, O, T, V>
@@ -151,6 +161,7 @@ where
             checkpoint: self.checkpoint,
             checkpointer_model: create_checkpointer(self.checkpointer_model),
             checkpointer_optimizer: create_checkpointer(self.checkpointer_optimizer),
+            grad_accumulation: self.grad_accumulation,
         }
     }
 

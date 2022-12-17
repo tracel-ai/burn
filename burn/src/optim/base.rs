@@ -1,8 +1,7 @@
-use burn_tensor::backend::Gradients;
-
-use crate::module::{LoadingError, Module, ParamId, State, StateNamed};
+use crate::module::{LoadingError, Module, ModuleVisitor, ParamId, State, StateNamed};
 use crate::tensor::backend::{ADBackend, Backend};
 use crate::tensor::{Data, Tensor};
+use burn_tensor::backend::Gradients;
 
 pub trait Optimizer: Send + Sync {
     type Backend: ADBackend;
@@ -75,6 +74,32 @@ pub trait Optimizer: Send + Sync {
         module.load_optim_state(self, state_named);
 
         Ok(())
+    }
+}
+
+pub struct GradientsRegistering<'a, B: ADBackend, O> {
+    optimizer: &'a mut O,
+    state: StateNamed<B::Elem>,
+}
+
+impl<'a, B: ADBackend, O: Optimizer<Backend = B>> ModuleVisitor<B>
+    for GradientsRegistering<'a, B, O>
+{
+    fn visit<const D: usize>(&mut self, id: &ParamId, _tensor: &Tensor<B, D>) {
+        self.optimizer
+            .register_param_state::<D>(id, &mut self.state)
+    }
+}
+
+pub struct GradientsLoading<'a, B: ADBackend, O> {
+    optimizer: &'a mut O,
+    state: StateNamed<B::Elem>,
+}
+
+impl<'a, B: ADBackend, O: Optimizer<Backend = B>> ModuleVisitor<B> for GradientsLoading<'a, B, O> {
+    fn visit<const D: usize>(&mut self, id: &ParamId, tensor: &Tensor<B, D>) {
+        self.optimizer
+            .load_param_state::<D>(id, &mut self.state, &tensor.device())
     }
 }
 

@@ -1,7 +1,8 @@
-use super::{State, StateNamed};
+use super::{ParamId, State, StateNamed};
 use crate::optim::Optimizer;
 use crate::tensor::backend::{ADBackend, Backend};
 pub use burn_derive::Module;
+use burn_tensor::Tensor;
 
 /// Trait for all neural network modules.
 ///
@@ -53,6 +54,8 @@ pub trait Module: Send + Sync + std::fmt::Debug + std::fmt::Display {
         optim: &mut O,
     ) where
         Self::Backend: ADBackend;
+    /// Visit each tensor in the module with a [visitor](ModuleParamVisitor).
+    fn visit<V: ModuleVisitor<Self::Backend>>(&self, visitor: &mut V);
     /// Load the [optimizer](Optimizer) state for the module, including all of its sub-modules.
     ///
     /// # Note
@@ -77,6 +80,10 @@ pub trait Module: Send + Sync + std::fmt::Debug + std::fmt::Display {
         state_optim: &mut StateNamed<<Self::Backend as Backend>::Elem>,
     ) where
         Self::Backend: ADBackend;
+}
+
+pub trait ModuleVisitor<B: Backend> {
+    fn visit<const D: usize>(&mut self, id: &ParamId, tensor: &Tensor<B, D>);
 }
 
 /// Module with auto-differentiation backend.
