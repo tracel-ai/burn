@@ -20,6 +20,37 @@ pub trait ValidStep<VI, VO> {
     fn step(&self, item: VI) -> VO;
 }
 
+pub trait Fit<TO, VO, M: ADModule> {
+    fn fit<TI, VI>(
+        self,
+        dataloader_train: Arc<dyn DataLoader<TI>>,
+        dataloader_valid: Arc<dyn DataLoader<VI>>,
+    ) -> M
+    where
+        M: TrainStep<TI, TO, <M::ADBackend as ADBackend>::Gradients>,
+        M::InnerModule: ValidStep<VI, VO>;
+}
+
+impl<M, O, TO, VO> Fit<TO, VO, M> for Learner<M, O, TO, VO>
+where
+    VO: Send + Sync + 'static,
+    TO: Send + Sync + 'static,
+    M: ADModule,
+    O: Optimizer<Backend = M::Backend>,
+{
+    fn fit<TI, VI>(
+        self,
+        dataloader_train: Arc<dyn DataLoader<TI>>,
+        dataloader_valid: Arc<dyn DataLoader<VI>>,
+    ) -> M
+    where
+        M: TrainStep<TI, TO, <M::ADBackend as ADBackend>::Gradients>,
+        M::InnerModule: ValidStep<VI, VO>,
+    {
+        self.fit(dataloader_train, dataloader_valid)
+    }
+}
+
 impl<M, O, TO, VO> Learner<M, O, TO, VO>
 where
     VO: Send + Sync + 'static,
@@ -27,7 +58,7 @@ where
     M: ADModule,
     O: Optimizer<Backend = M::Backend>,
 {
-    pub fn fit<TI, VI>(
+    fn fit<TI, VI>(
         mut self,
         dataloader_train: Arc<dyn DataLoader<TI>>,
         dataloader_valid: Arc<dyn DataLoader<VI>>,
@@ -62,7 +93,6 @@ where
         log::info!("Executing training step for epoch {}", epoch);
 
         let mut iterator = dataloader_train.iter();
-        let mut grads = Vec::new();
         let mut iteration = 0;
 
         while let Some(item) = iterator.next() {
@@ -70,16 +100,7 @@ where
             iteration += 1;
 
             let item = self.model.step(item);
-
-            if let Some(grad_accumulation) = self.grad_accumulation {
-                if grads.len() >= grad_accumulation {
-                    self.optim.update_module(&mut self.model, &item.grads);
-                } else {
-                    grads.push(item.grads);
-                }
-            } else {
-                self.optim.update_module(&mut self.model, &item.grads);
-            }
+            self.optim.update_module(&mut self.model, &item.grads);
 
             self.callback.on_train_item(LearnerItem::new(
                 item.item,

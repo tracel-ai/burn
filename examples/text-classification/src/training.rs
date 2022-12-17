@@ -11,7 +11,7 @@ use burn::{
     tensor::backend::ADBackend,
     train::{
         metric::{AccuracyMetric, CUDAMetric, LossMetric},
-        LearnerBuilder,
+        Fit, LearnerBuilder,
     },
 };
 use std::sync::Arc;

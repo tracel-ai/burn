@@ -7,11 +7,11 @@ use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::Dataset},
     module::Module,
     nn::transformer::TransformerEncoderConfig,
-    optim::{Sgd, SgdConfig},
+    optim::{GradientsAccumulation, Sgd, SgdConfig},
     tensor::backend::ADBackend,
     train::{
         metric::{AccuracyMetric, CUDAMetric, LossMetric},
-        LearnerBuilder,
+        Fit, LearnerBuilder,
     },
 };
 use std::sync::Arc;
@@ -71,6 +71,7 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
         .build(dataset_test);
 
     let optim = Sgd::new(&config.optimizer);
+    let optim = GradientsAccumulation::new(optim, 8);
 
     let learner = LearnerBuilder::new(artifact_dir)
         .metric_train(CUDAMetric::new())

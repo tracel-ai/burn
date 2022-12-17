@@ -42,18 +42,12 @@ pub trait Optimizer: Send + Sync {
         // By default there is no state to load
     }
 
-    fn update_module<M: Module>(
-        &mut self,
-        module: &mut M,
-        grads: &<Self::Backend as ADBackend>::Gradients,
-    ) where
+    fn update_module<M>(&mut self, module: &mut M, grads: &<Self::Backend as ADBackend>::Gradients)
+    where
         M: Module<Backend = Self::Backend>,
         Self: Sized,
     {
-        let mut visitor = ModuleOptimizer {
-            optimizer: self,
-            grads,
-        };
+        let mut visitor = ModuleOptimizer::new(self, grads);
         module.visit_mut(&mut visitor);
     }
 
@@ -121,7 +115,8 @@ struct GradientsLoading<'a, B: ADBackend, O> {
     state: &'a StateNamed<B::Elem>,
 }
 
-struct ModuleOptimizer<'a, B: ADBackend, O> {
+#[derive(new)]
+pub(super) struct ModuleOptimizer<'a, B: ADBackend, O> {
     optimizer: &'a mut O,
     grads: &'a B::Gradients,
 }
