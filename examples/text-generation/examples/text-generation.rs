@@ -5,9 +5,9 @@ type Backend = burn_autodiff::ADBackendDecorator<burn_tch::TchBackend<burn::tens
 
 fn main() {
     let config = ExperimentConfig::new(
-        burn::nn::transformer::TransformerEncoderConfig::new(256, 1024, 8, 4),
+        burn::nn::transformer::TransformerEncoderConfig::new(1024, 4096, 16, 8),
         burn::optim::SgdConfig::new()
-            .with_learning_rate(1.0e-3)
+            .with_learning_rate(1.0e-4)
             .with_weight_decay(Some(WeightDecayConfig::new(5e-5)))
             .with_momentum(Some(MomentumConfig::new().with_nesterov(true))),
     );
