@@ -12,7 +12,7 @@ pub trait Optimizer: Send + Sync {
         &mut self,
         id: &ParamId,
         tensor: &mut Tensor<Self::Backend, D>,
-        grads: &<Self::Backend as ADBackend>::Gradients,
+        grad: Tensor<<Self::Backend as ADBackend>::InnerBackend, D>,
     );
 
     /// Update the parameters of the given module using the given the gradients.

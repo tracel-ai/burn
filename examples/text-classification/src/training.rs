@@ -11,7 +11,7 @@ use burn::{
     tensor::backend::ADBackend,
     train::{
         metric::{AccuracyMetric, CUDAMetric, LossMetric},
-        Fit, LearnerBuilder,
+        LearnerBuilder,
     },
 };
 use std::sync::Arc;
@@ -22,7 +22,7 @@ pub struct ExperimentConfig {
     optimizer: SgdConfig,
     #[config(default = 256)]
     max_seq_length: usize,
-    #[config(default = 32)]
+    #[config(default = 8)]
     batch_size: usize,
     #[config(default = 10)]
     num_epochs: usize,
@@ -83,6 +83,7 @@ pub fn train<B: ADBackend, D: TextClassificationDataset + 'static>(
         .metric_train_plot(LossMetric::new())
         .metric_valid_plot(LossMetric::new())
         .with_file_checkpointer::<f32>(2)
+        .devices(vec![device, device, device])
         .num_epochs(config.num_epochs)
         .build(model, optim);
 

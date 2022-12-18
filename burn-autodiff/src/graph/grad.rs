@@ -9,7 +9,7 @@ use burn_tensor::{
 };
 use std::{any::Any, collections::HashMap, ops::Add};
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Grads {
     grads: HashMap<String, Box<dyn Any + Send + Sync>>,
 }
@@ -41,6 +41,16 @@ impl<B: ADBackend> Gradients<B> for Grads {
 
     fn len(&self) -> usize {
         self.grads.len()
+    }
+
+    fn remove<const D: usize>(&mut self, id: &str) -> Option<Tensor<B::InnerBackend, D>> {
+        self.grads
+            .remove(id)
+            .map(|item| {
+                item.downcast::<<B::InnerBackend as Backend>::TensorPrimitive<D>>()
+                    .unwrap()
+            })
+            .map(|primitive| Tensor::from_primitive(*primitive))
     }
 }
 

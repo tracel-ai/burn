@@ -1,3 +1,4 @@
+use super::visitor::param_grad;
 use crate::module::{Module, ModuleVisitor, ParamId};
 use burn_tensor::{
     backend::{ADBackend, Gradients},
@@ -50,19 +51,19 @@ struct ModuleGradsAccumulator<'a, B: ADBackend> {
 }
 
 impl<'a, B: ADBackend> ModuleVisitor<B> for ModuleGradsAccumulator<'a, B> {
-    fn visit<const D: usize>(&mut self, _id: &ParamId, tensor: &Tensor<B, D>) {
-        let grad_updated = match tensor.grad(self.grads_new) {
-            Some(new) => match tensor.grad(self.grads) {
+    fn visit<const D: usize>(&mut self, id: &ParamId, tensor: &Tensor<B, D>) {
+        let grad_updated = match param_grad(id, tensor, &self.grads_new) {
+            Some(new) => match param_grad(id, tensor, &self.grads) {
                 Some(grad) => grad.add(&new),
                 None => new,
             },
-            None => match tensor.grad(self.grads) {
+            None => match param_grad(id, tensor, &self.grads) {
                 Some(grad) => grad,
                 None => return,
             },
         };
 
-        self.grads.register(tensor.node_id(), grad_updated);
+        self.grads.register(id.to_string(), grad_updated);
     }
 }
 

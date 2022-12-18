@@ -1,5 +1,5 @@
 use super::log::update_log_file;
-use super::{Fit, Learner};
+use super::Learner;
 use crate::module::ADModule;
 use crate::optim::Optimizer;
 use crate::train::checkpoint::{AsyncCheckpointer, Checkpointer, FileCheckpointer};
@@ -26,6 +26,7 @@ where
     checkpoint: Option<usize>,
     directory: String,
     grad_accumulation: Option<usize>,
+    devices: Vec<B::Device>,
 }
 
 impl<B, T, V> LearnerBuilder<B, T, V>
@@ -51,6 +52,7 @@ where
             checkpointer_optimizer: None,
             directory: directory.to_string(),
             grad_accumulation: None,
+            devices: vec![B::Device::default()],
         }
     }
 
@@ -111,6 +113,12 @@ where
         self
     }
 
+    /// Run the training loop on multiple devices.
+    pub fn devices(mut self, devices: Vec<B::Device>) -> Self {
+        self.devices = devices;
+        self
+    }
+
     /// The epoch from which the training must resume.
     pub fn checkpoint(mut self, checkpoint: usize) -> Self {
         self.checkpoint = Some(checkpoint);
@@ -141,7 +149,7 @@ where
     }
 
     /// Create the [learner](Learner) from a [module](ADModule) and an
-    pub fn build<M, O>(self, model: M, optim: O) -> impl Fit<T, V, M>
+    pub fn build<M, O>(self, model: M, optim: O) -> Learner<M, O, T, V>
     where
         M: ADModule<ADBackend = B>,
         O: Optimizer<Backend = B>,
@@ -170,6 +178,7 @@ where
             checkpointer_model: create_checkpointer(self.checkpointer_model),
             checkpointer_optimizer: create_checkpointer(self.checkpointer_optimizer),
             grad_accumulation: self.grad_accumulation,
+            devices: self.devices,
         }
     }
 

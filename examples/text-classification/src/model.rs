@@ -81,13 +81,10 @@ impl<B: Backend> TextClassificationModel<B> {
     }
 }
 
-impl<B: ADBackend> TrainStep<TextClassificationBatch<B>, ClassificationOutput<B>, B::Gradients>
+impl<B: ADBackend> TrainStep<B, TextClassificationBatch<B>, ClassificationOutput<B>>
     for TextClassificationModel<B>
 {
-    fn step(
-        &self,
-        item: TextClassificationBatch<B>,
-    ) -> TrainOutput<ClassificationOutput<B>, B::Gradients> {
+    fn step(&self, item: TextClassificationBatch<B>) -> TrainOutput<B, ClassificationOutput<B>> {
         let item = self.forward(item);
         let grads = item.loss.backward();
 

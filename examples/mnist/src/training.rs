@@ -1,7 +1,6 @@
 use crate::data::MNISTBatcher;
 use crate::mlp::MlpConfig;
 use crate::model::{MnistConfig, Model};
-use burn::train::Fit;
 use burn::{
     config::Config,
     data::{dataloader::DataLoaderBuilder, dataset::source::huggingface::MNISTDataset},
@@ -20,7 +19,7 @@ static ARTIFACT_DIR: &str = "/tmp/burn-example-mnist";
 pub fn run<B: ADBackend>(device: B::Device) {
     // Config
     let config_optimizer = SgdConfig::new()
-        .with_learning_rate(2.5e-2)
+        .with_learning_rate(2.5e-3)
         .with_weight_decay(Some(WeightDecayConfig::new(0.05)))
         .with_momentum(Some(MomentumConfig::new().with_nesterov(true)));
     let config_mlp = MlpConfig::new();
@@ -51,6 +50,7 @@ pub fn run<B: ADBackend>(device: B::Device) {
         .metric_train_plot(LossMetric::new())
         .metric_valid_plot(LossMetric::new())
         .with_file_checkpointer::<f32>(2)
+        .devices(vec![device, device])
         .num_epochs(config.num_epochs)
         .build(model, optim);
 
