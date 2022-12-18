@@ -164,6 +164,33 @@ impl Param {
         }
     }
 
+    pub fn gen_clone_fn(&self) -> TokenStream {
+        let mut body = quote! {};
+        let mut names = Vec::new();
+        let mut fields = Vec::new();
+
+        fields.append(&mut self.fields_param.clone());
+        fields.append(&mut self.fields_other.clone());
+        for field in fields {
+            let name = field.ident();
+            names.push(name.clone());
+
+            body.extend(quote! {
+                let #name = self.#name.clone();
+            });
+        }
+
+        quote! {
+            fn clone(&self) -> Self {
+                #body
+
+                Self {
+                    #(#names),*
+                }
+            }
+        }
+    }
+
     pub fn gen_state_fn(&self) -> TokenStream {
         let mut body = quote! {
             let mut state = burn::module::StateNamed::new();
