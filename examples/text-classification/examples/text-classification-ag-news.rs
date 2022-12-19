@@ -1,7 +1,7 @@
 use burn::optim::{decay::WeightDecayConfig, momentum::MomentumConfig};
 use text_classification::{training::ExperimentConfig, AgNewsDataset};
 
-type Backend = burn_autodiff::ADBackendDecorator<burn_tch::TchBackend<burn::tensor::f16>>;
+type Backend = burn_autodiff::ADBackendDecorator<burn_tch::TchBackend<f32>>;
 
 fn main() {
     let config = ExperimentConfig::new(

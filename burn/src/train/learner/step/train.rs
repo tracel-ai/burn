@@ -49,7 +49,6 @@ where
             match receiver_input.recv() {
                 Ok(item) => {
                     let mut step = item.model;
-                    log::info!("Here");
                     step.to_device(device);
                     step.detach();
 

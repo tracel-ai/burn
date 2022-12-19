@@ -1,6 +1,10 @@
 use super::Optimizer;
 use crate::module::{ADModule, ModuleVisitor, ModuleVisitorMut, ParamId, StateNamed};
-use burn_tensor::{backend::ADBackend, container::TensorContainer, Tensor};
+use burn_tensor::{
+    backend::{ADBackend, Backend},
+    container::TensorContainer,
+    Tensor,
+};
 
 pub type GradientsParams<B> = TensorContainer<<B as ADBackend>::InnerBackend, ParamId>;
 
@@ -26,6 +30,12 @@ pub struct GradientsParamsConverter<'a, B: ADBackend> {
 pub struct ModuleTensorUpdater<'a, B: ADBackend, O> {
     optimizer: &'a mut O,
     grads: GradientsParams<B>,
+}
+
+#[derive(new)]
+pub struct GradientsParamsChangeDevice<'a, B: ADBackend> {
+    device: B::Device,
+    grads: &'a mut GradientsParams<B>,
 }
 
 #[derive(new)]
@@ -70,15 +80,30 @@ impl<'a, B: ADBackend> ModuleVisitor<B> for GradientsParamsConverter<'a, B> {
     }
 }
 
+impl<'a, B: ADBackend> ModuleVisitor<B> for GradientsParamsChangeDevice<'a, B> {
+    fn visit<const D: usize>(&mut self, id: &ParamId, _tensor: &Tensor<B, D>) {
+        if let Some(grad) = self.grads.remove::<D>(id) {
+            self.grads.register(id.clone(), grad.to_device(self.device));
+        }
+    }
+}
+
+pub fn to_device_grads<M: ADModule>(
+    grads: &mut GradientsParams<M::ADBackend>,
+    device: <M::Backend as Backend>::Device,
+    module: &M,
+) {
+    let mut visitor = GradientsParamsChangeDevice::new(device, grads);
+    module.visit(&mut visitor);
+}
+
 pub fn convert_grads<M: ADModule>(
     grads: <M::ADBackend as ADBackend>::Gradients,
     module: &M,
 ) -> GradientsParams<M::ADBackend> {
     let mut grads_params = TensorContainer::new();
     let mut visitor = GradientsParamsConverter::new(grads, &mut grads_params);
-    log::info!("Converting grads");
     module.visit(&mut visitor);
-    log::info!("Converted grads");
 
     grads_params
 }

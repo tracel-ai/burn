@@ -1,7 +1,7 @@
 use super::Learner;
 use crate::data::dataloader::DataLoader;
 use crate::module::ADModule;
-use crate::optim::visitor::{convert_grads, GradientsParams};
+use crate::optim::visitor::{convert_grads, to_device_grads, GradientsParams};
 use crate::optim::{GradientsAccumulator, Optimizer};
 use crate::train::train::MultiDevicesTrainStep;
 use crate::train::LearnerItem;
@@ -94,16 +94,22 @@ where
         let accumulation = self.grad_accumulation.unwrap_or(1) * self.devices.len();
         let step = MultiDevicesTrainStep::new(&self.devices);
 
+        let device_main = self.devices.get(0).unwrap().clone();
+        self.model.to_device(device_main);
+        self.model.detach();
+
         loop {
             let items = step.step(&mut iterator, &self.model);
             if items.is_empty() {
                 break;
             }
 
-            for item in items {
+            for mut item in items {
                 iteration += 1;
                 let progress = iterator.progress();
 
+                to_device_grads(&mut item.grads, device_main, &self.model);
+                log::info!("Updated device");
                 accumulator.accumulate(&self.model, item.grads);
                 accumulation_current += 1;
 
