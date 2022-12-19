@@ -44,7 +44,7 @@ impl<B: ADBackend> Momentum<B> {
         id: &ParamId,
         grad: Tensor<B::InnerBackend, D>,
     ) -> Tensor<B::InnerBackend, D> {
-        let velocity = match self.velocity.get::<D>(&id) {
+        let velocity = match self.velocity.get::<D>(id) {
             Some(grad_last_step) => grad
                 .mul_scalar(1.0 - self.dampening)
                 .add(&grad_last_step.mul_scalar(self.momentum)),
@@ -76,6 +76,6 @@ impl<B: ADBackend> Momentum<B> {
     }
 
     fn state_key(id: &ParamId) -> String {
-        format!("momentum-{}", id.to_string())
+        format!("momentum-{}", id)
     }
 }

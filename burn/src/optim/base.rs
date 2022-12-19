@@ -99,7 +99,7 @@ pub(super) fn register_state_gradients<const D: usize, B: ADBackend, F: Fn(&Para
 ) {
     if let Some(grad) = grads.get::<D>(id) {
         let data = State::Data(grad.to_data().serialize());
-        state.register_state(id_to_key(&id).as_str(), data);
+        state.register_state(id_to_key(id).as_str(), data);
     };
 }
 

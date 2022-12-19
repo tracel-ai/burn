@@ -70,13 +70,15 @@ impl<'a, B: ADBackend> ModuleVisitor<B> for GradientsParamsConverter<'a, B> {
     }
 }
 
-pub fn convert_grads_to_param<M: ADModule>(
+pub fn convert_grads<M: ADModule>(
     grads: <M::ADBackend as ADBackend>::Gradients,
     module: &M,
-) -> TensorContainer<<M::ADBackend as ADBackend>::InnerBackend, ParamId> {
+) -> GradientsParams<M::ADBackend> {
     let mut grads_params = TensorContainer::new();
     let mut visitor = GradientsParamsConverter::new(grads, &mut grads_params);
+    log::info!("Converting grads");
     module.visit(&mut visitor);
+    log::info!("Converted grads");
 
     grads_params
 }
@@ -109,8 +111,8 @@ mod tests {
         layer_1.visit(&mut visitor_1);
         layer_2.visit(&mut visitor_2);
 
-        convert_grads_to_param(grads_1, &layer_1);
-        convert_grads_to_param(grads_2, &layer_2);
+        convert_grads(grads_1, &layer_1);
+        convert_grads(grads_2, &layer_2);
 
         layer_1.visit(&mut visitor_1);
         layer_2.visit(&mut visitor_2);

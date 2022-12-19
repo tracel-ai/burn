@@ -43,20 +43,24 @@ where
         TO: Send + 'static,
         M: TrainStep<B, TI, TO> + Send + 'static,
     {
-        let device = self.device.clone();
+        let device = self.device;
 
         spawn(move || loop {
             match receiver_input.recv() {
                 Ok(item) => {
                     let mut step = item.model;
-                    step.to_device(device.clone());
+                    log::info!("Here");
+                    step.to_device(device);
                     step.detach();
 
                     let output = step.step(item.item);
                     sender_output.send(output).unwrap();
                 }
-                Err(_err) => break,
-            };
+                Err(_err) => {
+                    log::info!("Closing thread on device {:?}", device);
+                    break;
+                }
+            }
         });
     }
 }
@@ -79,7 +83,7 @@ where
                 let (sender_input, receiver_input) = std::sync::mpsc::channel();
                 let worker = Worker {
                     sender_input,
-                    device: device.clone(),
+                    device: *device,
                 };
 
                 worker.start(sender_output.clone(), receiver_input);

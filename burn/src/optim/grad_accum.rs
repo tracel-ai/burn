@@ -70,7 +70,7 @@ mod tests {
     use super::*;
     use crate::{
         nn::{Linear, LinearConfig},
-        optim::visitor::convert_grads_to_param,
+        optim::visitor::convert_grads,
         TestADBackend,
     };
     use burn_tensor::Distribution;
@@ -80,7 +80,7 @@ mod tests {
         let mut accumulator = GradientsAccumulator::<TestADBackend>::new();
         let layer = layer();
         let loss = layer.forward(random_tensor());
-        let grads = convert_grads_to_param(loss.backward(), &layer);
+        let grads = convert_grads(loss.backward(), &layer);
 
         accumulator.accumulate(&layer, grads);
 
@@ -94,8 +94,8 @@ mod tests {
         let layer = layer();
         let loss_1 = layer.forward(random_tensor());
         let loss_2 = layer.forward(random_tensor());
-        let grads_1 = convert_grads_to_param(loss_1.backward(), &layer);
-        let grads_2 = convert_grads_to_param(loss_2.backward(), &layer);
+        let grads_1 = convert_grads(loss_1.backward(), &layer);
+        let grads_2 = convert_grads(loss_2.backward(), &layer);
 
         accumulator.accumulate(&layer, grads_1);
         accumulator.accumulate(&layer, grads_2);

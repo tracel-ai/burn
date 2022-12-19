@@ -1,7 +1,7 @@
 use super::Learner;
 use crate::data::dataloader::DataLoader;
 use crate::module::ADModule;
-use crate::optim::visitor::{convert_grads_to_param, GradientsParams};
+use crate::optim::visitor::{convert_grads, GradientsParams};
 use crate::optim::{GradientsAccumulator, Optimizer};
 use crate::train::train::MultiDevicesTrainStep;
 use crate::train::LearnerItem;
@@ -15,7 +15,7 @@ pub struct TrainOutput<B: ADBackend, TO> {
 
 impl<B: ADBackend, TO> TrainOutput<B, TO> {
     pub fn new<M: ADModule<ADBackend = B>>(module: &M, grads: B::Gradients, item: TO) -> Self {
-        let grads = convert_grads_to_param(grads, module);
+        let grads = convert_grads(grads, module);
 
         Self { grads, item }
     }
@@ -92,7 +92,7 @@ where
         let mut accumulation_current = 0;
 
         let accumulation = self.grad_accumulation.unwrap_or(1) * self.devices.len();
-        let step = MultiDevicesTrainStep::new(&self.model.devices());
+        let step = MultiDevicesTrainStep::new(&self.devices);
 
         loop {
             let items = step.step(&mut iterator, &self.model);
