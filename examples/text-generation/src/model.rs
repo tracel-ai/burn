@@ -106,7 +106,7 @@ impl<B: ADBackend> TrainStep<B, TrainingTextGenerationBatch<B>, ClassificationOu
         let item = self.forward_training(item);
         let grads = item.loss.backward();
 
-        TrainOutput::new(grads, item)
+        TrainOutput::new(self, grads, item)
     }
 }
 

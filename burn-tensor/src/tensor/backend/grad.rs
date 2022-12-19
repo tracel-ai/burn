@@ -1,13 +1,16 @@
-use crate::backend::ADBackend;
-use crate::Tensor;
+#[derive(Default, Debug, PartialEq, Eq, Hash)]
+pub struct NodeId {
+    value: String,
+}
 
-pub trait Gradients<B: ADBackend>: Send + Sync + std::fmt::Debug {
-    fn empty() -> Self;
-    fn get<const D: usize>(&self, id: &str) -> Option<Tensor<B::InnerBackend, D>>;
-    fn register<const D: usize>(&mut self, id: String, value: Tensor<B::InnerBackend, D>);
-    fn remove<const D: usize>(&mut self, id: &str) -> Option<Tensor<B::InnerBackend, D>>;
-    fn len(&self) -> usize;
-    fn is_empty(&self) -> bool {
-        self.len() == 0
+impl std::fmt::Display for NodeId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.value)
+    }
+}
+
+impl NodeId {
+    pub fn as_str(&self) -> &str {
+        self.value.as_str()
     }
 }

@@ -1,4 +1,3 @@
-pub mod ops;
 pub(crate) mod stats;
 
 mod base;
@@ -15,8 +14,10 @@ pub use shape::*;
 
 pub mod activation;
 pub mod backend;
+pub mod container;
 pub mod loss;
 pub mod module;
+pub mod ops;
 
 #[cfg(feature = "experimental-named-tensor")]
 mod named;

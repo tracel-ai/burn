@@ -88,7 +88,7 @@ impl<B: ADBackend> TrainStep<B, TextClassificationBatch<B>, ClassificationOutput
         let item = self.forward(item);
         let grads = item.loss.backward();
 
-        TrainOutput::new(grads, item)
+        TrainOutput::new(self, grads, item)
     }
 }
 

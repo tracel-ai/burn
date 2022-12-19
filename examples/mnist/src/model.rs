@@ -75,7 +75,7 @@ impl<B: Backend> Model<B> {
 impl<B: ADBackend> TrainStep<B, MNISTBatch<B>, ClassificationOutput<B>> for Model<B> {
     fn step(&self, item: MNISTBatch<B>) -> TrainOutput<B, ClassificationOutput<B>> {
         let item = self.forward_classification(item);
-        TrainOutput::new(item.loss.backward(), item)
+        TrainOutput::new(self, item.loss.backward(), item)
     }
 }
 

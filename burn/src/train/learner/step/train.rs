@@ -1,7 +1,6 @@
 use crate::{
     data::dataloader::DataLoaderIterator,
     module::ADModule,
-    optim::visitor::convert_grads_to_param,
     train::{TrainOutput, TrainStep},
 };
 use burn_tensor::backend::ADBackend;
@@ -53,8 +52,7 @@ where
                     step.to_device(device.clone());
                     step.detach();
 
-                    let mut output = step.step(item.item);
-                    convert_grads_to_param(&mut output.grads, &step);
+                    let output = step.step(item.item);
                     sender_output.send(output).unwrap();
                 }
                 Err(_err) => break,

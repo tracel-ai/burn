@@ -99,6 +99,7 @@ mod tests {
     use super::*;
     use crate::{
         nn::{Linear, LinearConfig},
+        optim::visitor::convert_grads_to_param,
         tensor::{Distribution, Shape},
         TestADBackend,
     };
@@ -109,7 +110,8 @@ mod tests {
         let mut optim = sgd_with_all();
         let loss = layer.forward(random_tensor());
         let grads = loss.backward();
-        optim.update_module(&mut layer, &grads);
+        let grads = convert_grads_to_param(grads, &layer);
+        optim.update_module(&mut layer, grads);
 
         let state = optim.state(&layer);
 
@@ -132,7 +134,9 @@ mod tests {
         let mut optim = sgd_with_nothing();
         let loss = layer.forward(random_tensor());
         let grads = loss.backward();
-        optim.update_module(&mut layer, &grads);
+        let grads = convert_grads_to_param(grads, &layer);
+
+        optim.update_module(&mut layer, grads);
 
         let state = optim.state(&layer);
 
@@ -145,7 +149,8 @@ mod tests {
         let mut optim = sgd_with_all();
         let loss = layer.forward(random_tensor());
         let grads = loss.backward();
-        optim.update_module(&mut layer, &grads);
+        let grads = convert_grads_to_param(grads, &layer);
+        optim.update_module(&mut layer, grads);
 
         let state = optim.state(&layer);
         let mut optim_new = sgd_with_all();

@@ -1,16 +1,24 @@
 use super::Learner;
 use crate::data::dataloader::DataLoader;
 use crate::module::ADModule;
+use crate::optim::visitor::{convert_grads_to_param, GradientsParams};
 use crate::optim::{GradientsAccumulator, Optimizer};
 use crate::train::train::MultiDevicesTrainStep;
 use crate::train::LearnerItem;
 use burn_tensor::backend::ADBackend;
 use std::sync::Arc;
 
-#[derive(new)]
 pub struct TrainOutput<B: ADBackend, TO> {
-    pub grads: B::Gradients,
+    pub grads: GradientsParams<B>,
     pub item: TO,
+}
+
+impl<B: ADBackend, TO> TrainOutput<B, TO> {
+    pub fn new<M: ADModule<ADBackend = B>>(module: &M, grads: B::Gradients, item: TO) -> Self {
+        let grads = convert_grads_to_param(grads, module);
+
+        Self { grads, item }
+    }
 }
 
 pub trait TrainStep<B: ADBackend, TI, TO> {
@@ -96,12 +104,12 @@ where
                 iteration += 1;
                 let progress = iterator.progress();
 
-                accumulator.accumulate(&self.model, &item.grads);
+                accumulator.accumulate(&self.model, item.grads);
                 accumulation_current += 1;
 
                 if accumulation <= accumulation_current {
-                    let grads = accumulator.grads().unwrap();
-                    self.optim.update_module(&mut self.model, &grads);
+                    let grads = accumulator.grads();
+                    self.optim.update_module(&mut self.model, grads);
                     accumulation_current = 0;
                 }
 
@@ -139,16 +147,16 @@ where
 
             match self.grad_accumulation {
                 Some(accumulation) => {
-                    accumulator.accumulate(&self.model, &item.grads);
+                    accumulator.accumulate(&self.model, item.grads);
                     accumulation_current += 1;
 
                     if accumulation <= accumulation_current {
-                        let grads = accumulator.grads().unwrap();
-                        self.optim.update_module(&mut self.model, &grads);
+                        let grads = accumulator.grads();
+                        self.optim.update_module(&mut self.model, grads);
                         accumulation_current = 0;
                     }
                 }
-                None => self.optim.update_module(&mut self.model, &item.grads),
+                None => self.optim.update_module(&mut self.model, item.grads),
             }
 
             self.callback.on_train_item(LearnerItem::new(

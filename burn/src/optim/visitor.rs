@@ -1,9 +1,8 @@
 use super::Optimizer;
 use crate::module::{ADModule, ModuleVisitor, ModuleVisitorMut, ParamId, StateNamed};
-use burn_tensor::{
-    backend::{ADBackend, Gradients},
-    Tensor,
-};
+use burn_tensor::{backend::ADBackend, container::TensorContainer, Tensor};
+
+pub type GradientsParams<B> = TensorContainer<<B as ADBackend>::InnerBackend, ParamId>;
 
 #[derive(new)]
 pub struct GradientsRegister<'a, B: ADBackend, O> {
@@ -19,13 +18,14 @@ pub struct GradientsLoader<'a, B: ADBackend, O> {
 
 #[derive(new)]
 pub struct GradientsParamsConverter<'a, B: ADBackend> {
-    grads: &'a mut B::Gradients,
+    grads: B::Gradients,
+    grads_params: &'a mut TensorContainer<B::InnerBackend, ParamId>,
 }
 
 #[derive(new)]
 pub struct ModuleTensorUpdater<'a, B: ADBackend, O> {
     optimizer: &'a mut O,
-    grads: &'a B::Gradients,
+    grads: GradientsParams<B>,
 }
 
 #[derive(new)]
@@ -43,7 +43,7 @@ impl<'a, B: ADBackend, O: Optimizer<Backend = B>> ModuleVisitorMut<B>
     for ModuleTensorUpdater<'a, B, O>
 {
     fn visit_mut<const D: usize>(&mut self, id: &ParamId, tensor: &mut Tensor<B, D>) {
-        if let Some(grad) = param_grad(id, tensor, self.grads) {
+        if let Some(grad) = self.grads.get(id) {
             self.optimizer.update_tensor(id, tensor, grad);
         }
     }
@@ -64,34 +64,21 @@ impl<'a, B: ADBackend> ModuleVisitor<B> for ParamIdCollector<'a> {
 
 impl<'a, B: ADBackend> ModuleVisitor<B> for GradientsParamsConverter<'a, B> {
     fn visit<const D: usize>(&mut self, id: &ParamId, tensor: &Tensor<B, D>) {
-        if let Some(grad) = self.grads.remove::<D>(&tensor.node_id()) {
-            self.grads.register(id.to_string(), grad);
+        if let Some(grad) = tensor.grad(&self.grads) {
+            self.grads_params.register(id.clone(), grad);
         }
     }
 }
 
-pub fn param_grad<B: ADBackend, const D: usize>(
-    id: &ParamId,
-    tensor: &Tensor<B, D>,
-    grads: &B::Gradients,
-) -> Option<Tensor<B::InnerBackend, D>> {
-    if let Some(grad) = grads.get(&id.to_string()) {
-        return Some(grad);
-    }
-
-    if let Some(grad) = tensor.grad(grads) {
-        return Some(grad);
-    }
-
-    None
-}
-
 pub fn convert_grads_to_param<M: ADModule>(
-    grads: &mut <M::ADBackend as ADBackend>::Gradients,
+    grads: <M::ADBackend as ADBackend>::Gradients,
     module: &M,
-) {
-    let mut visitor = GradientsParamsConverter::new(grads);
+) -> TensorContainer<<M::ADBackend as ADBackend>::InnerBackend, ParamId> {
+    let mut grads_params = TensorContainer::new();
+    let mut visitor = GradientsParamsConverter::new(grads, &mut grads_params);
     module.visit(&mut visitor);
+
+    grads_params
 }
 
 #[cfg(test)]
@@ -116,14 +103,14 @@ mod tests {
         let mut params_ids_2 = Vec::new();
         let mut visitor_1 = ParamIdCollector::new(&mut params_ids_1);
         let mut visitor_2 = ParamIdCollector::new(&mut params_ids_2);
-        let mut grads_1 = loss_1.backward();
-        let mut grads_2 = loss_2.backward();
+        let grads_1 = loss_1.backward();
+        let grads_2 = loss_2.backward();
 
         layer_1.visit(&mut visitor_1);
         layer_2.visit(&mut visitor_2);
 
-        convert_grads_to_param(&mut grads_1, &layer_1);
-        convert_grads_to_param(&mut grads_2, &layer_2);
+        convert_grads_to_param(grads_1, &layer_1);
+        convert_grads_to_param(grads_2, &layer_2);
 
         layer_1.visit(&mut visitor_1);
         layer_2.visit(&mut visitor_2);
