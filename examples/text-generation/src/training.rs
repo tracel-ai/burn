@@ -53,14 +53,12 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
         config.max_seq_length,
     ));
 
-    let mut model = TextClassificationModel::<B>::new(&TextGenerationModelConfig::new(
+    let model = TextClassificationModel::<B>::new(&TextGenerationModelConfig::new(
         config.transformer.clone(),
         tokenizer.vocab_size(),
         tokenizer.pad_token(),
         config.max_seq_length,
     ));
-    model.to_device(device);
-    model.detach();
 
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
         .batch_size(config.batch_size)
@@ -82,6 +80,7 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
         .metric_train_plot(LossMetric::new())
         .metric_valid_plot(LossMetric::new())
         .with_file_checkpointer::<f32>(2)
+        .devices(vec![device])
         .grads_accumulation(32)
         .num_epochs(config.num_epochs)
         .build(model, optim);

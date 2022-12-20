@@ -4,7 +4,6 @@ use crate::model::{MnistConfig, Model};
 use burn::{
     config::Config,
     data::{dataloader::DataLoaderBuilder, dataset::source::huggingface::MNISTDataset},
-    module::Module,
     optim::{decay::WeightDecayConfig, momentum::MomentumConfig, Sgd, SgdConfig},
     tensor::backend::ADBackend,
     train::{
@@ -41,8 +40,7 @@ pub fn run<B: ADBackend>(device: B::Device) {
 
     // Model
     let optim = Sgd::new(&config.optimizer);
-    let mut model = Model::new(&config, 784, 10);
-    model.to_device(device);
+    let model = Model::new(&config, 784, 10);
 
     let learner = LearnerBuilder::new(ARTIFACT_DIR)
         .metric_train_plot(AccuracyMetric::new())
@@ -50,7 +48,7 @@ pub fn run<B: ADBackend>(device: B::Device) {
         .metric_train_plot(LossMetric::new())
         .metric_valid_plot(LossMetric::new())
         .with_file_checkpointer::<f32>(2)
-        .devices(vec![device, device])
+        .devices(vec![device])
         .num_epochs(config.num_epochs)
         .build(model, optim);
 

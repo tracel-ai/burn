@@ -1,10 +1,21 @@
 use crate::{backend::Backend, Tensor};
 use std::{any::Any, collections::HashMap};
 
-#[derive(Default, Debug)]
+/// Contains tensor of arbitrary dimension.
+#[derive(Debug)]
 pub struct TensorContainer<B: Backend, ID> {
     tensors: HashMap<ID, Box<dyn Any + Send + Sync>>,
     _b: B,
+}
+
+impl<B, ID> Default for TensorContainer<B, ID>
+where
+    B: Backend,
+    ID: std::hash::Hash + PartialEq + Eq,
+{
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<B, ID> TensorContainer<B, ID>
@@ -12,6 +23,7 @@ where
     B: Backend,
     ID: std::hash::Hash + PartialEq + Eq,
 {
+    /// Create an empty container.
     pub fn new() -> Self {
         Self {
             tensors: HashMap::new(),
@@ -19,6 +31,7 @@ where
         }
     }
 
+    /// Get a tensor with the given ID.
     pub fn get<const D: usize>(&self, id: &ID) -> Option<Tensor<B, D>> {
         let grad = match self.tensors.get(id) {
             Some(grad) => grad,
@@ -31,10 +44,16 @@ where
         tensor
     }
 
+    /// Register a new tensor for the given ID.
+    ///
+    /// # Notes
+    ///
+    /// If a tensor is already registered for the given ID, it will be replaced.
     pub fn register<const D: usize>(&mut self, id: ID, value: Tensor<B, D>) {
         self.tensors.insert(id, Box::new(value.into_primitive()));
     }
 
+    /// Remove a tensor for the given ID and returns it.
     pub fn remove<const D: usize>(&mut self, id: &ID) -> Option<Tensor<B, D>> {
         self.tensors
             .remove(id)
@@ -42,10 +61,12 @@ where
             .map(|primitive| Tensor::from_primitive(*primitive))
     }
 
+    /// The number of tensors registered.
     pub fn len(&self) -> usize {
         self.tensors.len()
     }
 
+    /// If any tensor is contained.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }

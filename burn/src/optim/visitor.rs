@@ -97,6 +97,8 @@ pub fn to_device_grads<M: ADModule>(
     module.visit(&mut visitor);
 }
 
+/// Convert the gradients returned by the ADBackend into a tensor container that contains
+/// gradients corresponding to the given module.
 pub fn convert_grads<M: ADModule>(
     grads: <M::ADBackend as ADBackend>::Gradients,
     module: &M,

@@ -57,6 +57,12 @@ where
             None => 1,
         };
 
+        // The reference model is always on the first device provided.
+        if let Some(device) = self.devices.get(0) {
+            self.model.to_device(*device);
+            self.model.detach();
+        }
+
         for epoch in starting_epoch..self.num_epochs + 1 {
             if self.devices.len() > 1 {
                 self.train_step_multi_devices(&dataloader_train, epoch);
@@ -94,9 +100,8 @@ where
         let accumulation = self.grad_accumulation.unwrap_or(1) * self.devices.len();
         let step = MultiDevicesTrainStep::new(&self.devices);
 
-        let device_main = self.devices.get(0).unwrap().clone();
-        self.model.to_device(device_main);
-        self.model.detach();
+        // The main device is always the first in the list.
+        let device_main = *self.devices.get(0).unwrap();
 
         loop {
             let items = step.step(&mut iterator, &self.model);
