@@ -19,6 +19,7 @@ pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
     let load_fn = param.gen_load_fn();
     let inner_fn = param.gen_inner_fn();
     let detach_fn = param.gen_detach_fn();
+    let clone_fn = param.gen_clone_fn();
     let generics_names_except_backend = generics_names_except_backend(&ast.generics);
 
     let gen = quote! {
@@ -47,6 +48,10 @@ pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
 
         impl #generics std::fmt::Display for #name #generics_ty #generics_where {
             #display_fn
+        }
+
+        impl #generics Clone for #name #generics_ty #generics_where {
+            #clone_fn
         }
     };
 

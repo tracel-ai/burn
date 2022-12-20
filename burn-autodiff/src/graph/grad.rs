@@ -2,46 +2,12 @@ use crate::graph::{
     node::{BackwardNode, ForwardNode},
     traversal::{BreadthFirstSearch, GraphTraversal},
 };
-use burn_tensor::{
-    backend::{ADBackend, Backend, Gradients},
-    ops::Zeros,
-    Tensor,
-};
+use burn_tensor::ops::Zeros;
 use std::{any::Any, collections::HashMap, ops::Add};
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Grads {
     grads: HashMap<String, Box<dyn Any + Send + Sync>>,
-}
-
-impl<B: ADBackend> Gradients<B> for Grads {
-    fn empty() -> Self {
-        Self {
-            grads: HashMap::new(),
-        }
-    }
-
-    fn get<const D: usize>(&self, id: &str) -> Option<Tensor<B::InnerBackend, D>> {
-        let grad = match self.grads.get(id) {
-            Some(grad) => grad,
-            None => return None,
-        };
-
-        let tensor = grad.downcast_ref().map(
-            |primitive: &<B::InnerBackend as Backend>::TensorPrimitive<D>| {
-                Tensor::from_primitive(primitive.clone())
-            },
-        );
-        tensor
-    }
-
-    fn register<const D: usize>(&mut self, id: String, value: Tensor<B::InnerBackend, D>) {
-        self.grads.insert(id, Box::new(value.into_primitive()));
-    }
-
-    fn len(&self) -> usize {
-        self.grads.len()
-    }
 }
 
 impl Grads {

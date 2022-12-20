@@ -19,7 +19,7 @@ use burn::{
 pub struct MnistConfig {
     #[config(default = 6)]
     pub num_epochs: usize,
-    #[config(default = 64)]
+    #[config(default = 12)]
     pub batch_size: usize,
     #[config(default = 8)]
     pub num_workers: usize,
@@ -72,10 +72,10 @@ impl<B: Backend> Model<B> {
     }
 }
 
-impl<B: ADBackend> TrainStep<MNISTBatch<B>, ClassificationOutput<B>, B::Gradients> for Model<B> {
-    fn step(&self, item: MNISTBatch<B>) -> TrainOutput<ClassificationOutput<B>, B::Gradients> {
+impl<B: ADBackend> TrainStep<B, MNISTBatch<B>, ClassificationOutput<B>> for Model<B> {
+    fn step(&self, item: MNISTBatch<B>) -> TrainOutput<B, ClassificationOutput<B>> {
         let item = self.forward_classification(item);
-        TrainOutput::new(item.loss.backward(), item)
+        TrainOutput::new(self, item.loss.backward(), item)
     }
 }
 

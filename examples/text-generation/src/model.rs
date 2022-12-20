@@ -1,4 +1,4 @@
-use crate::data::TextGenerationBatch;
+use crate::data::TrainingTextGenerationBatch;
 use burn::{
     config::Config,
     module::{Module, Param},
@@ -55,21 +55,22 @@ impl<B: Backend> TextClassificationModel<B> {
         }
     }
 
-    pub fn forward(&self, item: TextGenerationBatch<B>) -> ClassificationOutput<B> {
-        let [batch_size, seq_length] = item.tokens.dims();
+    pub fn forward_training(
+        &self,
+        item: TrainingTextGenerationBatch<B>,
+    ) -> ClassificationOutput<B> {
+        let [batch_size, seq_length] = item.tokens_inputs.dims();
+        let device = self.embedding_token.devices()[0];
 
-        // Teacher forcing
-        let inputs = item.tokens.index([0..batch_size, 0..seq_length - 1]);
-        let targets = item.tokens.index([0..batch_size, 1..seq_length]);
-        let mask_pad = item.mask_pad.index([0..batch_size, 0..seq_length - 1]);
+        let inputs = item.tokens_inputs.to_device(device).detach();
+        let mask_pad = item.mask_pad.to_device(device);
 
-        let seq_length = seq_length - 1;
-
-        let index_positions = Tensor::<B, 1>::arange_device(0..seq_length, inputs.device())
+        let index_positions = Tensor::<B, 1>::arange_device(0..seq_length, device)
             .reshape([1, seq_length])
-            .repeat(0, batch_size);
-        let embedding_positions = self.embedding_pos.forward(index_positions.detach());
-        let embedding_tokens = self.embedding_token.forward(inputs.detach());
+            .repeat(0, batch_size)
+            .detach();
+        let embedding_positions = self.embedding_pos.forward(index_positions);
+        let embedding_tokens = self.embedding_token.forward(inputs);
         let embedding = (embedding_positions + embedding_tokens) / 2;
 
         let mask_attn =
@@ -83,21 +84,8 @@ impl<B: Backend> TextClassificationModel<B> {
 
         let output = self.output.forward(encoded);
         let output_classification = output.reshape([batch_size * seq_length, self.vocab_size]);
+        let targets = item.targets.to_device(device).detach();
 
-        let targets = targets
-            .reshape([batch_size * seq_length])
-            .to_data()
-            .value
-            .iter()
-            .map(|index| match *index as usize == self.pad_token {
-                true => Tensor::<B, 2>::zeros([1, self.vocab_size]),
-                false => Tensor::<B, 2>::one_hot(*index as usize, self.vocab_size),
-            })
-            .collect();
-
-        let targets = Tensor::cat(targets, 0)
-            .to_device(output_classification.device())
-            .detach();
         let loss = cross_entropy_with_logits(&output_classification, &targets);
 
         ClassificationOutput {
@@ -108,24 +96,24 @@ impl<B: Backend> TextClassificationModel<B> {
     }
 }
 
-impl<B: ADBackend> TrainStep<TextGenerationBatch<B>, ClassificationOutput<B>, B::Gradients>
+impl<B: ADBackend> TrainStep<B, TrainingTextGenerationBatch<B>, ClassificationOutput<B>>
     for TextClassificationModel<B>
 {
     fn step(
         &self,
-        item: TextGenerationBatch<B>,
-    ) -> TrainOutput<ClassificationOutput<B>, B::Gradients> {
-        let item = self.forward(item);
+        item: TrainingTextGenerationBatch<B>,
+    ) -> TrainOutput<B, ClassificationOutput<B>> {
+        let item = self.forward_training(item);
         let grads = item.loss.backward();
 
-        TrainOutput::new(grads, item)
+        TrainOutput::new(self, grads, item)
     }
 }
 
-impl<B: Backend> ValidStep<TextGenerationBatch<B>, ClassificationOutput<B>>
+impl<B: Backend> ValidStep<TrainingTextGenerationBatch<B>, ClassificationOutput<B>>
     for TextClassificationModel<B>
 {
-    fn step(&self, item: TextGenerationBatch<B>) -> ClassificationOutput<B> {
-        self.forward(item)
+    fn step(&self, item: TrainingTextGenerationBatch<B>) -> ClassificationOutput<B> {
+        self.forward_training(item)
     }
 }

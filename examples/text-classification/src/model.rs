@@ -54,44 +54,47 @@ impl<B: Backend> TextClassificationModel<B> {
 
     pub fn forward(&self, item: TextClassificationBatch<B>) -> ClassificationOutput<B> {
         let [batch_size, seq_length] = item.tokens.dims();
+        let device = self.embedding_token.devices()[0];
 
-        let index_positions = Tensor::<B, 1>::arange_device(0..seq_length, item.tokens.device())
+        let tokens = item.tokens.to_device(device).detach();
+        let labels = item.labels.to_device(device).detach();
+        let mask_pad = item.mask_pad.to_device(device);
+        std::mem::drop(item);
+
+        let index_positions = Tensor::<B, 1>::arange_device(0..seq_length, device)
             .reshape([1, seq_length])
             .repeat(0, batch_size);
         let embedding_positions = self.embedding_pos.forward(index_positions.detach());
-        let embedding_tokens = self.embedding_token.forward(item.tokens.detach());
+        let embedding_tokens = self.embedding_token.forward(tokens.detach());
         let embedding = (embedding_positions + embedding_tokens) / 2;
 
         let encoded = self
             .transformer
-            .forward(TransformerEncoderInput::new(embedding).mask_pad(item.mask_pad));
+            .forward(TransformerEncoderInput::new(embedding).mask_pad(mask_pad));
         let output = self.output.forward(encoded);
 
         let output_classification = output
             .index([0..batch_size, 0..1])
             .reshape([batch_size, self.n_classes]);
 
-        let loss = cross_entropy_with_logits(&output_classification, &item.labels.clone().detach());
+        let loss = cross_entropy_with_logits(&output_classification, &labels.clone().detach());
 
         ClassificationOutput {
             loss,
             output: output_classification,
-            targets: item.labels,
+            targets: labels,
         }
     }
 }
 
-impl<B: ADBackend> TrainStep<TextClassificationBatch<B>, ClassificationOutput<B>, B::Gradients>
+impl<B: ADBackend> TrainStep<B, TextClassificationBatch<B>, ClassificationOutput<B>>
     for TextClassificationModel<B>
 {
-    fn step(
-        &self,
-        item: TextClassificationBatch<B>,
-    ) -> TrainOutput<ClassificationOutput<B>, B::Gradients> {
+    fn step(&self, item: TextClassificationBatch<B>) -> TrainOutput<B, ClassificationOutput<B>> {
         let item = self.forward(item);
         let grads = item.loss.backward();
 
-        TrainOutput::new(grads, item)
+        TrainOutput::new(self, grads, item)
     }
 }
 

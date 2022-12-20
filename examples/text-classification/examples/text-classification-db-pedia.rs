@@ -1,13 +1,13 @@
 use burn::optim::{decay::WeightDecayConfig, momentum::MomentumConfig};
 use text_classification::{training::ExperimentConfig, DbPediaDataset};
 
-type Backend = burn_autodiff::ADBackendDecorator<burn_tch::TchBackend<burn::tensor::f16>>;
+type Backend = burn_autodiff::ADBackendDecorator<burn_tch::TchBackend<f32>>;
 
 fn main() {
     let config = ExperimentConfig::new(
         burn::nn::transformer::TransformerEncoderConfig::new(256, 512, 4, 4),
         burn::optim::SgdConfig::new()
-            .with_learning_rate(5.0e-3)
+            .with_learning_rate(1.0e-4)
             .with_momentum(Some(MomentumConfig::new().with_nesterov(true)))
             .with_weight_decay(Some(WeightDecayConfig::new(5e-4))),
     );

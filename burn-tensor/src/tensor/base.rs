@@ -683,10 +683,6 @@ impl<const D: usize, B: ADBackend> Tensor<B, D> {
         B::grad(&self.value, grads).map(Tensor::new)
     }
 
-    pub fn node_id(&self) -> String {
-        B::node_id(&self.value)
-    }
-
     pub fn inner(&self) -> Tensor<B::InnerBackend, D> {
         Tensor::new(B::inner(&self.value))
     }

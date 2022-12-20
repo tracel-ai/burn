@@ -1,8 +1,7 @@
-use super::visitor::{GradientsLoader, GradientsRegister, ModuleTensorUpdater};
-use crate::module::{LoadingError, Module, ParamId, State, StateNamed};
+use super::visitor::{GradientsLoader, GradientsParams, GradientsRegister, ModuleTensorUpdater};
+use crate::module::{ADModule, LoadingError, Module, ParamId, State, StateNamed};
 use crate::tensor::backend::{ADBackend, Backend};
 use crate::tensor::{Data, Tensor};
-use burn_tensor::backend::Gradients;
 
 pub trait Optimizer: Send + Sync {
     type Backend: ADBackend;
@@ -12,13 +11,13 @@ pub trait Optimizer: Send + Sync {
         &mut self,
         id: &ParamId,
         tensor: &mut Tensor<Self::Backend, D>,
-        grads: &<Self::Backend as ADBackend>::Gradients,
+        grad: Tensor<<Self::Backend as ADBackend>::InnerBackend, D>,
     );
 
     /// Update the parameters of the given module using the given the gradients.
-    fn update_module<M>(&mut self, module: &mut M, grads: &<Self::Backend as ADBackend>::Gradients)
+    fn update_module<M>(&mut self, module: &mut M, grads: GradientsParams<M::ADBackend>)
     where
-        M: Module<Backend = Self::Backend>,
+        M: ADModule<ADBackend = Self::Backend>,
         Self: Sized,
     {
         let mut visitor = ModuleTensorUpdater::new(self, grads);
@@ -92,31 +91,27 @@ pub trait Optimizer: Send + Sync {
     }
 }
 
-pub(super) fn register_state_gradients<const D: usize, B: ADBackend, F: Fn(&str) -> String>(
+pub(super) fn register_state_gradients<const D: usize, B: ADBackend, F: Fn(&ParamId) -> String>(
     id: &ParamId,
     state: &mut StateNamed<B::Elem>,
-    grads: &B::Gradients,
+    grads: &GradientsParams<B>,
     id_to_key: F,
 ) {
-    let id = id.to_string();
-
-    if let Some(velocity) = grads.get::<D>(&id) {
-        let data = State::Data(velocity.to_data().serialize());
-        state.register_state(id_to_key(&id).as_str(), data);
+    if let Some(grad) = grads.get::<D>(id) {
+        let data = State::Data(grad.to_data().serialize());
+        state.register_state(id_to_key(id).as_str(), data);
     };
 }
 
-pub(super) fn load_state_gradients<const D: usize, B: ADBackend, F: Fn(&str) -> String>(
+pub(super) fn load_state_gradients<const D: usize, B: ADBackend, F: Fn(&ParamId) -> String>(
     id: &ParamId,
     state: &StateNamed<B::Elem>,
-    grads: &mut B::Gradients,
+    grads: &mut GradientsParams<B>,
     id_to_key: F,
     device: &B::Device,
 ) {
-    let id = id.to_string();
-
-    if let Some(State::Data(data)) = state.get(id_to_key(&id).as_str()) {
-        let velocity = Tensor::<B::InnerBackend, D>::from_data_device(Data::from(data), *device);
-        grads.register(id, velocity);
+    if let Some(State::Data(data)) = state.get(id_to_key(id).as_str()) {
+        let tensor = Tensor::<B::InnerBackend, D>::from_data_device(Data::from(data), *device);
+        grads.register(id.clone(), tensor);
     };
 }

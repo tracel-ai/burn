@@ -1,11 +1,11 @@
 use crate as burn;
 
+use super::visitor::GradientsParams;
 use super::{load_state_gradients, register_state_gradients};
 use crate::config::Config;
 use crate::module::{ParamId, StateNamed};
 use crate::tensor::backend::ADBackend;
 use crate::tensor::{ElementConversion, Tensor};
-use burn_tensor::backend::Gradients;
 
 /// Configuration to create [WeightDecay](WeightDecay).
 #[derive(Config)]
@@ -17,14 +17,14 @@ pub struct WeightDecayConfig {
 /// Weight decay implementation that transforms gradients.
 pub struct WeightDecay<B: ADBackend> {
     penalty: B::Elem,
-    gradients: B::Gradients,
+    gradients: GradientsParams<B>,
 }
 
 impl<B: ADBackend> WeightDecay<B> {
     pub fn new(config: &WeightDecayConfig) -> Self {
         Self {
             penalty: config.penalty.to_elem(),
-            gradients: B::Gradients::empty(),
+            gradients: GradientsParams::<B>::new(),
         }
     }
 
@@ -33,15 +33,13 @@ impl<B: ADBackend> WeightDecay<B> {
         id: &ParamId,
         grad: Tensor<B::InnerBackend, D>,
     ) -> Tensor<B::InnerBackend, D> {
-        let id = id.to_string();
-
-        let grad = match self.gradients.get::<D>(&id) {
+        let grad = match self.gradients.get::<D>(id) {
             Some(grad_last_step) => grad_last_step.mul_scalar(self.penalty).add(&grad),
             None => grad,
         };
 
         // Update gradients
-        self.gradients.register(id, grad.clone());
+        self.gradients.register(id.clone(), grad.clone());
 
         grad
     }
@@ -58,7 +56,7 @@ impl<B: ADBackend> WeightDecay<B> {
         load_state_gradients::<D, B, _>(id, state, &mut self.gradients, Self::state_key, device);
     }
 
-    fn state_key(id: &str) -> String {
+    fn state_key(id: &ParamId) -> String {
         format!("weight-decay-{}", id)
     }
 }

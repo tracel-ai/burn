@@ -1,12 +1,11 @@
 use crate::module::{Module, ModuleVisitor, ParamId};
-use burn_tensor::{
-    backend::{ADBackend, Gradients},
-    Tensor,
-};
+use burn_tensor::{backend::ADBackend, Tensor};
+
+use super::visitor::GradientsParams;
 
 /// Accumulate gradients into a single [Gradients](ADBackend::Gradients) object.
 pub struct GradientsAccumulator<B: ADBackend> {
-    grads: B::Gradients,
+    grads: GradientsParams<B>,
 }
 
 impl<B: ADBackend> Default for GradientsAccumulator<B> {
@@ -19,14 +18,14 @@ impl<B: ADBackend> GradientsAccumulator<B> {
     /// Create a new gradients accumulator.
     pub fn new() -> Self {
         Self {
-            grads: B::Gradients::empty(),
+            grads: GradientsParams::<B>::new(),
         }
     }
 }
 
 impl<B: ADBackend> GradientsAccumulator<B> {
     /// Accumulate the given gradients for each parameter in the given module.
-    pub fn accumulate<M>(&mut self, module: &M, grads: &B::Gradients)
+    pub fn accumulate<M>(&mut self, module: &M, grads: GradientsParams<B>)
     where
         M: Module<Backend = B>,
     {
@@ -35,34 +34,34 @@ impl<B: ADBackend> GradientsAccumulator<B> {
     }
 
     /// Return the accumulated gradients and reset the accumulator state.
-    pub fn grads(&mut self) -> Option<B::Gradients> {
-        let mut grads = B::Gradients::empty();
+    pub fn grads(&mut self) -> GradientsParams<B> {
+        let mut grads = GradientsParams::<B>::new();
         std::mem::swap(&mut self.grads, &mut grads);
 
-        Some(grads)
+        grads
     }
 }
 
 #[derive(new)]
 struct ModuleGradsAccumulator<'a, B: ADBackend> {
-    grads: &'a mut B::Gradients,
-    grads_new: &'a B::Gradients,
+    grads: &'a mut GradientsParams<B>,
+    grads_new: GradientsParams<B>,
 }
 
 impl<'a, B: ADBackend> ModuleVisitor<B> for ModuleGradsAccumulator<'a, B> {
-    fn visit<const D: usize>(&mut self, _id: &ParamId, tensor: &Tensor<B, D>) {
-        let grad_updated = match tensor.grad(self.grads_new) {
-            Some(new) => match tensor.grad(self.grads) {
+    fn visit<const D: usize>(&mut self, id: &ParamId, _tensor: &Tensor<B, D>) {
+        let grad_updated = match self.grads_new.get::<D>(id) {
+            Some(new) => match self.grads.get::<D>(id) {
                 Some(grad) => grad.add(&new),
                 None => new,
             },
-            None => match tensor.grad(self.grads) {
+            None => match self.grads.get::<D>(id) {
                 Some(grad) => grad,
                 None => return,
             },
         };
 
-        self.grads.register(tensor.node_id(), grad_updated);
+        self.grads.register(id.clone(), grad_updated);
     }
 }
 
@@ -71,6 +70,7 @@ mod tests {
     use super::*;
     use crate::{
         nn::{Linear, LinearConfig},
+        optim::visitor::convert_grads,
         TestADBackend,
     };
     use burn_tensor::Distribution;
@@ -80,12 +80,12 @@ mod tests {
         let mut accumulator = GradientsAccumulator::<TestADBackend>::new();
         let layer = layer();
         let loss = layer.forward(random_tensor());
-        let grads = loss.backward();
+        let grads = convert_grads(loss.backward(), &layer);
 
-        accumulator.accumulate(&layer, &grads);
+        accumulator.accumulate(&layer, grads);
 
-        let grads = accumulator.grads().unwrap();
-        assert!(!Gradients::<TestADBackend>::is_empty(&grads))
+        let grads = accumulator.grads();
+        assert!(!grads.is_empty())
     }
 
     #[test]
@@ -94,14 +94,14 @@ mod tests {
         let layer = layer();
         let loss_1 = layer.forward(random_tensor());
         let loss_2 = layer.forward(random_tensor());
-        let grads_1 = loss_1.backward();
-        let grads_2 = loss_2.backward();
+        let grads_1 = convert_grads(loss_1.backward(), &layer);
+        let grads_2 = convert_grads(loss_2.backward(), &layer);
 
-        accumulator.accumulate(&layer, &grads_1);
-        accumulator.accumulate(&layer, &grads_2);
+        accumulator.accumulate(&layer, grads_1);
+        accumulator.accumulate(&layer, grads_2);
 
-        let grads = accumulator.grads().unwrap();
-        assert_eq!(Gradients::<TestADBackend>::len(&grads), 2)
+        let grads = accumulator.grads();
+        assert_eq!(grads.len(), 2)
     }
 
     fn layer() -> Linear<TestADBackend> {

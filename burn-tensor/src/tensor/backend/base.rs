@@ -1,4 +1,3 @@
-use super::Gradients;
 use crate::ops::*;
 use crate::tensor::Element;
 
@@ -46,14 +45,13 @@ pub(crate) type ADBackendTensorPrimitive<const D: usize, B> =
 
 pub trait ADBackend: Backend {
     type InnerBackend: Backend<Device = Self::Device, Elem = Self::Elem>;
-    type Gradients: Gradients<Self>;
+    type Gradients: Send + Sync;
 
     fn backward<const D: usize>(tensor: &Self::TensorPrimitive<D>) -> Self::Gradients;
     fn grad<const D: usize>(
         tensor: &Self::TensorPrimitive<D>,
         grads: &Self::Gradients,
     ) -> Option<ADBackendTensorPrimitive<D, Self>>;
-    fn node_id<const D: usize>(tensor: &Self::TensorPrimitive<D>) -> String;
     fn inner<const D: usize>(
         tensor: &Self::TensorPrimitive<D>,
     ) -> <Self::InnerBackend as Backend>::TensorPrimitive<D>;

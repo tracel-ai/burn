@@ -12,7 +12,7 @@ use burn::{
     tensor::backend::ADBackend,
     train::{
         metric::{AccuracyMetric, CUDAMetric, LossMetric},
-        Fit, LearnerBuilder,
+        LearnerBuilder,
     },
 };
 use std::sync::Arc;
@@ -23,7 +23,7 @@ pub struct ExperimentConfig {
     optimizer: SgdConfig,
     #[config(default = 256)]
     max_seq_length: usize,
-    #[config(default = 6)]
+    #[config(default = 1)]
     batch_size: usize,
     #[config(default = 10)]
     num_epochs: usize,
@@ -40,25 +40,25 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
     let dataset_test = Arc::new(SamplerDataset::new(Box::new(dataset_test), 1_000));
 
     let tokenizer = Arc::new(Gpt2Tokenizer::default());
-    let batcher_train = Arc::new(TextGenerationBatcher::<B>::new(
+    let batcher_train = Arc::new(TextGenerationBatcher::new(
         tokenizer.clone(),
-        device,
+        tokenizer.vocab_size(),
+        tokenizer.pad_token(),
         config.max_seq_length,
     ));
-    let batcher_test = Arc::new(TextGenerationBatcher::<B::InnerBackend>::new(
+    let batcher_test = Arc::new(TextGenerationBatcher::new(
         tokenizer.clone(),
-        device,
+        tokenizer.vocab_size(),
+        tokenizer.pad_token(),
         config.max_seq_length,
     ));
 
-    let mut model = TextClassificationModel::new(&TextGenerationModelConfig::new(
+    let model = TextClassificationModel::<B>::new(&TextGenerationModelConfig::new(
         config.transformer.clone(),
         tokenizer.vocab_size(),
         tokenizer.pad_token(),
         config.max_seq_length,
     ));
-    model.to_device(device);
-    model.detach();
 
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
         .batch_size(config.batch_size)
@@ -80,7 +80,8 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
         .metric_train_plot(LossMetric::new())
         .metric_valid_plot(LossMetric::new())
         .with_file_checkpointer::<f32>(2)
-        .grads_accumulation(4)
+        .devices(vec![device])
+        .grads_accumulation(32)
         .num_epochs(config.num_epochs)
         .build(model, optim);
 

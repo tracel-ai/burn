@@ -53,21 +53,19 @@ impl<B: ADBackend> Optimizer for Sgd<B> {
         &mut self,
         id: &ParamId,
         tensor: &mut Tensor<B, D>,
-        grads: &B::Gradients,
+        grad: Tensor<B::InnerBackend, D>,
     ) {
-        if let Some(grad) = tensor.grad(grads) {
-            let grad = match &mut self.weight_decay {
-                Some(weight_decay) => weight_decay.transform(id, grad),
-                None => grad,
-            };
-            let grad = match &mut self.momentum {
-                Some(momentum) => momentum.transform(id, grad),
-                None => grad,
-            };
+        let grad = match &mut self.weight_decay {
+            Some(weight_decay) => weight_decay.transform(id, grad),
+            None => grad,
+        };
+        let grad = match &mut self.momentum {
+            Some(momentum) => momentum.transform(id, grad),
+            None => grad,
+        };
 
-            let delta = grad.mul_scalar(self.learning_rate);
-            tensor.update(tensor.inner() - delta);
-        }
+        let delta = grad.mul_scalar(self.learning_rate);
+        tensor.update(tensor.inner() - delta);
     }
 
     fn register_param_state<const D: usize>(&self, id: &ParamId, state: &mut StateNamed<B::Elem>) {
@@ -101,6 +99,7 @@ mod tests {
     use super::*;
     use crate::{
         nn::{Linear, LinearConfig},
+        optim::visitor::convert_grads,
         tensor::{Distribution, Shape},
         TestADBackend,
     };
@@ -111,7 +110,8 @@ mod tests {
         let mut optim = sgd_with_all();
         let loss = layer.forward(random_tensor());
         let grads = loss.backward();
-        optim.update_module(&mut layer, &grads);
+        let grads = convert_grads(grads, &layer);
+        optim.update_module(&mut layer, grads);
 
         let state = optim.state(&layer);
 
@@ -134,7 +134,9 @@ mod tests {
         let mut optim = sgd_with_nothing();
         let loss = layer.forward(random_tensor());
         let grads = loss.backward();
-        optim.update_module(&mut layer, &grads);
+        let grads = convert_grads(grads, &layer);
+
+        optim.update_module(&mut layer, grads);
 
         let state = optim.state(&layer);
 
@@ -147,7 +149,8 @@ mod tests {
         let mut optim = sgd_with_all();
         let loss = layer.forward(random_tensor());
         let grads = loss.backward();
-        optim.update_module(&mut layer, &grads);
+        let grads = convert_grads(grads, &layer);
+        optim.update_module(&mut layer, grads);
 
         let state = optim.state(&layer);
         let mut optim_new = sgd_with_all();

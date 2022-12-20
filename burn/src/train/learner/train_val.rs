@@ -1,54 +1,32 @@
 use super::Learner;
 use crate::data::dataloader::DataLoader;
 use crate::module::ADModule;
+use crate::optim::visitor::{convert_grads, to_device_grads, GradientsParams};
 use crate::optim::{GradientsAccumulator, Optimizer};
+use crate::train::train::MultiDevicesTrainStep;
 use crate::train::LearnerItem;
 use burn_tensor::backend::ADBackend;
 use std::sync::Arc;
 
-#[derive(new)]
-pub struct TrainOutput<TO, G> {
-    grads: G,
-    item: TO,
+pub struct TrainOutput<B: ADBackend, TO> {
+    pub grads: GradientsParams<B>,
+    pub item: TO,
 }
 
-pub trait TrainStep<TI, TO, G> {
-    fn step(&self, item: TI) -> TrainOutput<TO, G>;
+impl<B: ADBackend, TO> TrainOutput<B, TO> {
+    pub fn new<M: ADModule<ADBackend = B>>(module: &M, grads: B::Gradients, item: TO) -> Self {
+        let grads = convert_grads(grads, module);
+
+        Self { grads, item }
+    }
+}
+
+pub trait TrainStep<B: ADBackend, TI, TO> {
+    fn step(&self, item: TI) -> TrainOutput<B, TO>;
 }
 
 pub trait ValidStep<VI, VO> {
     fn step(&self, item: VI) -> VO;
-}
-
-pub trait Fit<TO, VO, M: ADModule> {
-    fn fit<TI, VI>(
-        self,
-        dataloader_train: Arc<dyn DataLoader<TI>>,
-        dataloader_valid: Arc<dyn DataLoader<VI>>,
-    ) -> M
-    where
-        M: TrainStep<TI, TO, <M::ADBackend as ADBackend>::Gradients>,
-        M::InnerModule: ValidStep<VI, VO>;
-}
-
-impl<M, O, TO, VO> Fit<TO, VO, M> for Learner<M, O, TO, VO>
-where
-    VO: Send + Sync + 'static,
-    TO: Send + Sync + 'static,
-    M: ADModule,
-    O: Optimizer<Backend = M::Backend>,
-{
-    fn fit<TI, VI>(
-        self,
-        dataloader_train: Arc<dyn DataLoader<TI>>,
-        dataloader_valid: Arc<dyn DataLoader<VI>>,
-    ) -> M
-    where
-        M: TrainStep<TI, TO, <M::ADBackend as ADBackend>::Gradients>,
-        M::InnerModule: ValidStep<VI, VO>,
-    {
-        self.fit(dataloader_train, dataloader_valid)
-    }
 }
 
 impl<M, O, TO, VO> Learner<M, O, TO, VO>
@@ -58,13 +36,15 @@ where
     M: ADModule,
     O: Optimizer<Backend = M::Backend>,
 {
-    fn fit<TI, VI>(
+    pub fn fit<TI, VI>(
         mut self,
         dataloader_train: Arc<dyn DataLoader<TI>>,
         dataloader_valid: Arc<dyn DataLoader<VI>>,
     ) -> M
     where
-        M: TrainStep<TI, TO, <M::ADBackend as ADBackend>::Gradients>,
+        TI: Send + 'static,
+        TO: Send + 'static,
+        M: TrainStep<M::ADBackend, TI, TO> + Send + Clone + 'static,
         M::InnerModule: ValidStep<VI, VO>,
     {
         log::info!("Fitting {}", self.model.to_string());
@@ -77,8 +57,19 @@ where
             None => 1,
         };
 
+        // The reference model is always on the first device provided.
+        if let Some(device) = self.devices.get(0) {
+            self.model.to_device(*device);
+            self.model.detach();
+        }
+
         for epoch in starting_epoch..self.num_epochs + 1 {
-            self.train_step(&dataloader_train, epoch);
+            if self.devices.len() > 1 {
+                self.train_step_multi_devices(&dataloader_train, epoch);
+            } else {
+                self.train_step(&dataloader_train, epoch);
+            }
+
             self.valid_step(&dataloader_valid, epoch);
             self.checkpoint(epoch);
         }
@@ -86,9 +77,71 @@ where
         self.model
     }
 
+    fn train_step_multi_devices<TI>(
+        &mut self,
+        dataloader_train: &Arc<dyn DataLoader<TI>>,
+        epoch: usize,
+    ) where
+        TI: Send + 'static,
+        TO: Send + 'static,
+        M: TrainStep<M::ADBackend, TI, TO> + Send + Clone + 'static,
+    {
+        log::info!(
+            "Executing training step for epoch {} on devices {:?}",
+            epoch,
+            self.devices
+        );
+
+        let mut iterator = dataloader_train.iter();
+        let mut iteration = 0;
+        let mut accumulator = GradientsAccumulator::new();
+        let mut accumulation_current = 0;
+
+        let accumulation = self.grad_accumulation.unwrap_or(1) * self.devices.len();
+        let step = MultiDevicesTrainStep::new(&self.devices);
+
+        // The main device is always the first in the list.
+        let device_main = *self.devices.get(0).unwrap();
+
+        loop {
+            let items = step.step(&mut iterator, &self.model);
+            if items.is_empty() {
+                break;
+            }
+
+            for mut item in items {
+                iteration += 1;
+                let progress = iterator.progress();
+
+                to_device_grads(&mut item.grads, device_main, &self.model);
+                log::info!("Updated device");
+                accumulator.accumulate(&self.model, item.grads);
+                accumulation_current += 1;
+
+                if accumulation <= accumulation_current {
+                    let grads = accumulator.grads();
+                    self.optim.update_module(&mut self.model, grads);
+                    accumulation_current = 0;
+                }
+
+                self.callback.on_train_item(LearnerItem::new(
+                    item.item,
+                    progress,
+                    epoch,
+                    self.num_epochs,
+                    iteration,
+                ));
+            }
+        }
+
+        self.callback.on_train_end_epoch(epoch);
+    }
+
     fn train_step<TI>(&mut self, dataloader_train: &Arc<dyn DataLoader<TI>>, epoch: usize)
     where
-        M: TrainStep<TI, TO, <M::ADBackend as ADBackend>::Gradients>,
+        TI: Send + 'static,
+        TO: Send + 'static,
+        M: TrainStep<M::ADBackend, TI, TO> + Send + Clone + 'static,
     {
         log::info!("Executing training step for epoch {}", epoch);
 
@@ -105,16 +158,16 @@ where
 
             match self.grad_accumulation {
                 Some(accumulation) => {
-                    accumulator.accumulate(&self.model, &item.grads);
+                    accumulator.accumulate(&self.model, item.grads);
                     accumulation_current += 1;
 
                     if accumulation <= accumulation_current {
-                        let grads = accumulator.grads().unwrap();
-                        self.optim.update_module(&mut self.model, &grads);
+                        let grads = accumulator.grads();
+                        self.optim.update_module(&mut self.model, grads);
                         accumulation_current = 0;
                     }
                 }
-                None => self.optim.update_module(&mut self.model, &item.grads),
+                None => self.optim.update_module(&mut self.model, item.grads),
             }
 
             self.callback.on_train_item(LearnerItem::new(

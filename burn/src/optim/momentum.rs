@@ -1,11 +1,11 @@
 use crate as burn;
 
+use super::visitor::GradientsParams;
 use super::{load_state_gradients, register_state_gradients};
 use crate::config::Config;
 use crate::module::{ParamId, StateNamed};
 use crate::tensor::backend::ADBackend;
 use crate::tensor::{ElementConversion, Tensor};
-use burn_tensor::backend::Gradients;
 
 /// Configuration to create momentum [Momentum](Momentum).
 #[derive(Config)]
@@ -26,7 +26,7 @@ pub struct Momentum<B: ADBackend> {
     momentum: B::Elem,
     dampening: f64,
     nesterov: bool,
-    velocity: B::Gradients,
+    velocity: GradientsParams<B>,
 }
 
 impl<B: ADBackend> Momentum<B> {
@@ -34,7 +34,7 @@ impl<B: ADBackend> Momentum<B> {
         Self {
             momentum: config.momentum.to_elem(),
             dampening: config.dampening,
-            velocity: B::Gradients::empty(),
+            velocity: GradientsParams::<B>::new(),
             nesterov: config.nesterov,
         }
     }
@@ -44,9 +44,7 @@ impl<B: ADBackend> Momentum<B> {
         id: &ParamId,
         grad: Tensor<B::InnerBackend, D>,
     ) -> Tensor<B::InnerBackend, D> {
-        let id = id.to_string();
-
-        let velocity = match self.velocity.get::<D>(&id) {
+        let velocity = match self.velocity.get::<D>(id) {
             Some(grad_last_step) => grad
                 .mul_scalar(1.0 - self.dampening)
                 .add(&grad_last_step.mul_scalar(self.momentum)),
@@ -59,7 +57,7 @@ impl<B: ADBackend> Momentum<B> {
         };
 
         // Update velocity
-        self.velocity.register(id, velocity);
+        self.velocity.register(id.clone(), velocity);
 
         output
     }
@@ -77,7 +75,7 @@ impl<B: ADBackend> Momentum<B> {
         load_state_gradients::<D, B, _>(id, state, &mut self.velocity, Self::state_key, device);
     }
 
-    fn state_key(id: &str) -> String {
+    fn state_key(id: &ParamId) -> String {
         format!("momentum-{}", id)
     }
 }
