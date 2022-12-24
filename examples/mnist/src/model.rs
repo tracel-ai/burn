@@ -67,7 +67,7 @@ impl<B: Backend> Model<B> {
         ClassificationOutput {
             loss,
             output,
-            targets,
+            targets: targets.argmax(1).reshape([targets.dims()[0]]),
         }
     }
 }

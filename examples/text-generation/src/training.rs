@@ -42,14 +42,10 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
     let tokenizer = Arc::new(Gpt2Tokenizer::default());
     let batcher_train = Arc::new(TextGenerationBatcher::new(
         tokenizer.clone(),
-        tokenizer.vocab_size(),
-        tokenizer.pad_token(),
         config.max_seq_length,
     ));
     let batcher_test = Arc::new(TextGenerationBatcher::new(
         tokenizer.clone(),
-        tokenizer.vocab_size(),
-        tokenizer.pad_token(),
         config.max_seq_length,
     ));
 

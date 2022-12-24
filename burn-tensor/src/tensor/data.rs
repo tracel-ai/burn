@@ -158,7 +158,8 @@ impl<P: std::fmt::Debug, const D: usize> Data<P, D>
 where
     P: Zeros + Default,
 {
-    pub fn zeros(shape: Shape<D>) -> Data<P, D> {
+    pub fn zeros<S: Into<Shape<D>>>(shape: S) -> Data<P, D> {
+        let shape = shape.into();
         let elem = P::default();
         let num_elements = shape.num_elements();
         let mut data = Vec::with_capacity(num_elements);

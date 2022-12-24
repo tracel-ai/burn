@@ -4,11 +4,12 @@ use burn::{
     module::{Module, Param},
     nn::{
         attention::generate_autoregressive_mask,
+        loss::CrossEntropyLoss,
         transformer::{TransformerEncoder, TransformerEncoderConfig, TransformerEncoderInput},
         Embedding, EmbeddingConfig, Linear, LinearConfig,
     },
     tensor::backend::{ADBackend, Backend},
-    tensor::{loss::cross_entropy_with_logits, Tensor},
+    tensor::Tensor,
     train::{ClassificationOutput, TrainOutput, TrainStep, ValidStep},
 };
 
@@ -83,15 +84,16 @@ impl<B: Backend> TextClassificationModel<B> {
         );
 
         let output = self.output.forward(encoded);
-        let output_classification = output.reshape([batch_size * seq_length, self.vocab_size]);
-        let targets = item.targets.to_device(device).detach();
+        let output_flatten = output.reshape([batch_size * seq_length, self.vocab_size]);
+        let targets_flatten = item.targets.reshape([batch_size * seq_length]);
 
-        let loss = cross_entropy_with_logits(&output_classification, &targets);
+        let loss = CrossEntropyLoss::new(self.vocab_size, Some(self.pad_token));
+        let loss = loss.forward(&output_flatten, &targets_flatten);
 
         ClassificationOutput {
             loss,
-            output: output_classification,
-            targets,
+            output: output_flatten,
+            targets: targets_flatten,
         }
     }
 }

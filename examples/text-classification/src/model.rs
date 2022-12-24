@@ -82,7 +82,7 @@ impl<B: Backend> TextClassificationModel<B> {
         ClassificationOutput {
             loss,
             output: output_classification,
-            targets: labels,
+            targets: labels.argmax(1).reshape([labels.dims()[0]]),
         }
     }
 }
