@@ -1,4 +1,6 @@
-#[derive(Debug, Hash, PartialEq, Eq, Clone)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct ParamId {
     value: String,
 }
