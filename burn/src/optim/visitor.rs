@@ -38,11 +38,6 @@ pub struct GradientsParamsChangeDevice<'a, B: ADBackend> {
     grads: &'a mut GradientsParams<B>,
 }
 
-#[derive(new)]
-pub struct ParamIdCollector<'a> {
-    grads: &'a mut Vec<ParamId>,
-}
-
 impl<'a, B: ADBackend, O: Optimizer<Backend = B>> ModuleVisitor<B> for GradientsRegister<'a, B, O> {
     fn visit<const D: usize>(&mut self, id: &ParamId, _tensor: &Tensor<B, D>) {
         self.optimizer.register_param_state::<D>(id, self.state)
@@ -63,12 +58,6 @@ impl<'a, B: ADBackend, O: Optimizer<Backend = B>> ModuleVisitor<B> for Gradients
     fn visit<const D: usize>(&mut self, id: &ParamId, tensor: &Tensor<B, D>) {
         self.optimizer
             .load_param_state::<D>(id, self.state, &tensor.device())
-    }
-}
-
-impl<'a, B: ADBackend> ModuleVisitor<B> for ParamIdCollector<'a> {
-    fn visit<const D: usize>(&mut self, id: &ParamId, _tensor: &Tensor<B, D>) {
-        self.grads.push(id.clone());
     }
 }
 
@@ -114,37 +103,30 @@ pub fn convert_grads<M: ADModule>(
 mod tests {
     use super::*;
     use crate::{
-        module::Module,
+        module::{list_param_ids, Module},
         nn::{Linear, LinearConfig},
         TestADBackend,
     };
     use burn_tensor::{backend::Backend, Distribution};
 
     #[test]
-    fn test_convert_grads_to_params_id() {
+    fn test_convert_grads() {
         let layer_1 = layer();
         let mut layer_2 = layer_1.clone();
         layer_2.to_device(<TestADBackend as Backend>::Device::default());
         layer_2.detach();
         let loss_1 = layer_1.forward(random_tensor());
         let loss_2 = layer_2.forward(random_tensor());
-        let mut params_ids_1 = Vec::new();
-        let mut params_ids_2 = Vec::new();
-        let mut visitor_1 = ParamIdCollector::new(&mut params_ids_1);
-        let mut visitor_2 = ParamIdCollector::new(&mut params_ids_2);
         let grads_1 = loss_1.backward();
         let grads_2 = loss_2.backward();
-
-        layer_1.visit(&mut visitor_1);
-        layer_2.visit(&mut visitor_2);
 
         convert_grads(grads_1, &layer_1);
         convert_grads(grads_2, &layer_2);
 
-        layer_1.visit(&mut visitor_1);
-        layer_2.visit(&mut visitor_2);
+        let param_ids_1 = list_param_ids(&layer_1);
+        let params_ids_2 = list_param_ids(&layer_2);
 
-        assert_eq!(params_ids_1, params_ids_2);
+        assert_eq!(param_ids_1, params_ids_2);
     }
 
     fn layer() -> Linear<TestADBackend> {
