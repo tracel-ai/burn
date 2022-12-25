@@ -17,9 +17,9 @@ pub struct TestStructConfig {
 
 #[derive(Config, Debug, PartialEq)]
 pub enum TestEnumConfig {
-    WithoutValue,
-    WithOneValue(f32),
-    WithMultipleValue(f32, String),
+    None,
+    Single(f32),
+    Multiple(f32, String),
 }
 
 #[test]
@@ -47,7 +47,7 @@ fn struct_config_should_impl_display() {
 
 #[test]
 fn enum_config_no_value_should_impl_serde() {
-    let config = TestEnumConfig::WithoutValue;
+    let config = TestEnumConfig::None;
     let file_path = "/tmp/test_enum_no_value_config.json";
 
     config.save(file_path).unwrap();
@@ -58,7 +58,7 @@ fn enum_config_no_value_should_impl_serde() {
 
 #[test]
 fn enum_config_one_value_should_impl_serde() {
-    let config = TestEnumConfig::WithOneValue(42.0);
+    let config = TestEnumConfig::Single(42.0);
     let file_path = "/tmp/test_enum_one_value_config.json";
 
     config.save(file_path).unwrap();
@@ -69,7 +69,7 @@ fn enum_config_one_value_should_impl_serde() {
 
 #[test]
 fn enum_config_multiple_values_should_impl_serde() {
-    let config = TestEnumConfig::WithMultipleValue(42.0, "Allo".to_string());
+    let config = TestEnumConfig::Multiple(42.0, "Allo".to_string());
     let file_path = "/tmp/test_enum_multiple_values_config.json";
 
     config.save(file_path).unwrap();
@@ -80,12 +80,12 @@ fn enum_config_multiple_values_should_impl_serde() {
 
 #[test]
 fn enum_config_should_impl_clone() {
-    let config = TestEnumConfig::WithMultipleValue(42.0, "Allo".to_string());
+    let config = TestEnumConfig::Multiple(42.0, "Allo".to_string());
     assert_eq!(config, config.clone());
 }
 
 #[test]
 fn enum_config_should_impl_display() {
-    let config = TestEnumConfig::WithMultipleValue(42.0, "Allo".to_string());
+    let config = TestEnumConfig::Multiple(42.0, "Allo".to_string());
     assert_eq!(burn::config::config_to_json(&config), config.to_string());
 }
