@@ -1,5 +1,5 @@
 use crate::tensor::backend::Backend;
-use crate::train::metric;
+use crate::train::metric::{AccuracyInput, Adaptor};
 use burn_tensor::Tensor;
 
 #[derive(new)]
@@ -9,21 +9,14 @@ pub struct ClassificationOutput<B: Backend> {
     pub targets: Tensor<B::IntegerBackend, 1>,
 }
 
-impl<B: Backend> metric::Metric<ClassificationOutput<B>> for metric::LossMetric {
-    fn update(&mut self, item: &ClassificationOutput<B>) -> metric::MetricStateDyn {
-        self.update(&item.loss)
-    }
-    fn clear(&mut self) {
-        <metric::LossMetric as metric::Metric<Tensor<B, 1>>>::clear(self);
+impl<B: Backend> Adaptor<AccuracyInput<B>> for ClassificationOutput<B> {
+    fn adapt(&self) -> AccuracyInput<B> {
+        AccuracyInput::new(self.output.clone(), self.targets.clone())
     }
 }
 
-impl<B: Backend> metric::Metric<ClassificationOutput<B>> for metric::AccuracyMetric {
-    fn update(&mut self, item: &ClassificationOutput<B>) -> metric::MetricStateDyn {
-        self.update(&(item.output.clone(), item.targets.clone()))
-    }
-
-    fn clear(&mut self) {
-        <metric::AccuracyMetric as metric::Metric<(Tensor<B, 2>, Tensor<B::IntegerBackend, 1>)>>::clear(self);
+impl<B: Backend> Adaptor<Tensor<B, 1>> for ClassificationOutput<B> {
+    fn adapt(&self) -> Tensor<B, 1> {
+        self.loss.clone()
     }
 }

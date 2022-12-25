@@ -2,7 +2,7 @@ use crate::{
     data::dataloader::Progress,
     train::{
         logger::MetricLogger,
-        metric::{Metric, MetricStateDyn, Numeric},
+        metric::{Adaptor, Metric, MetricEntry, Numeric},
         LearnerCallback, LearnerItem,
     },
 };
@@ -29,8 +29,8 @@ impl TrainingProgress {
 }
 
 pub enum DashboardMetricState {
-    Generic(MetricStateDyn),
-    Numeric(MetricStateDyn, f64),
+    Generic(MetricEntry),
+    Numeric(MetricEntry, f64),
 }
 
 pub trait DashboardRenderer: Send + Sync {
@@ -75,21 +75,33 @@ where
         }
     }
 
-    pub fn register_train<M: Metric<T> + 'static>(&mut self, metric: M) {
+    pub fn register_train<M: Metric + 'static>(&mut self, metric: M)
+    where
+        T: Adaptor<M::Input>,
+    {
         self.metrics_train
             .push(Box::new(MetricWrapper::new(metric)));
     }
 
-    pub fn register_train_plot<M: Numeric + Metric<T> + 'static>(&mut self, metric: M) {
+    pub fn register_train_plot<M: Numeric + Metric + 'static>(&mut self, metric: M)
+    where
+        T: Adaptor<M::Input>,
+    {
         self.metrics_train_numeric
             .push(Box::new(MetricWrapper::new(metric)));
     }
-    pub fn register_valid<M: Metric<V> + 'static>(&mut self, metric: M) {
+    pub fn register_valid<M: Metric + 'static>(&mut self, metric: M)
+    where
+        V: Adaptor<M::Input>,
+    {
         self.metrics_valid
             .push(Box::new(MetricWrapper::new(metric)));
     }
 
-    pub fn register_valid_plot<M: Numeric + Metric<V> + 'static>(&mut self, metric: M) {
+    pub fn register_valid_plot<M: Numeric + Metric + 'static>(&mut self, metric: M)
+    where
+        V: Adaptor<M::Input>,
+    {
         self.metrics_valid_numeric
             .push(Box::new(MetricWrapper::new(metric)));
     }
@@ -114,14 +126,14 @@ where
     fn on_train_item(&mut self, item: LearnerItem<T>) {
         for metric in self.metrics_train.iter_mut() {
             let state = metric.update(&item);
-            self.logger_train.log(state.as_ref());
+            self.logger_train.log(&state);
 
             self.renderer
                 .update_train(DashboardMetricState::Generic(state));
         }
         for metric in self.metrics_train_numeric.iter_mut() {
             let (state, value) = metric.update(&item);
-            self.logger_train.log(state.as_ref());
+            self.logger_train.log(&state);
 
             self.renderer
                 .update_train(DashboardMetricState::Numeric(state, value));
@@ -132,14 +144,14 @@ where
     fn on_valid_item(&mut self, item: LearnerItem<V>) {
         for metric in self.metrics_valid.iter_mut() {
             let state = metric.update(&item);
-            self.logger_valid.log(state.as_ref());
+            self.logger_valid.log(&state);
 
             self.renderer
                 .update_valid(DashboardMetricState::Generic(state));
         }
         for metric in self.metrics_valid_numeric.iter_mut() {
             let (state, value) = metric.update(&item);
-            self.logger_valid.log(state.as_ref());
+            self.logger_valid.log(&state);
 
             self.renderer
                 .update_valid(DashboardMetricState::Numeric(state, value));
@@ -169,12 +181,12 @@ where
 }
 
 trait DashboardNumericMetric<T>: Send + Sync {
-    fn update(&mut self, item: &LearnerItem<T>) -> (MetricStateDyn, f64);
+    fn update(&mut self, item: &LearnerItem<T>) -> (MetricEntry, f64);
     fn clear(&mut self);
 }
 
 trait DashboardMetric<T>: Send + Sync {
-    fn update(&mut self, item: &LearnerItem<T>) -> MetricStateDyn;
+    fn update(&mut self, item: &LearnerItem<T>) -> MetricEntry;
     fn clear(&mut self);
 }
 
@@ -186,10 +198,11 @@ struct MetricWrapper<M> {
 impl<T, M> DashboardNumericMetric<T> for MetricWrapper<M>
 where
     T: 'static,
-    M: Metric<T> + Numeric + 'static,
+    M: Metric + Numeric + 'static,
+    T: Adaptor<M::Input>,
 {
-    fn update(&mut self, item: &LearnerItem<T>) -> (MetricStateDyn, f64) {
-        let update = self.metric.update(&item.item);
+    fn update(&mut self, item: &LearnerItem<T>) -> (MetricEntry, f64) {
+        let update = self.metric.update(&item.item.adapt());
         let numeric = self.metric.value();
 
         (update, numeric)
@@ -203,10 +216,11 @@ where
 impl<T, M> DashboardMetric<T> for MetricWrapper<M>
 where
     T: 'static,
-    M: Metric<T> + 'static,
+    M: Metric + 'static,
+    T: Adaptor<M::Input>,
 {
-    fn update(&mut self, item: &LearnerItem<T>) -> MetricStateDyn {
-        self.metric.update(&item.item)
+    fn update(&mut self, item: &LearnerItem<T>) -> MetricEntry {
+        self.metric.update(&item.item.adapt())
     }
 
     fn clear(&mut self) {

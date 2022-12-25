@@ -33,24 +33,24 @@ impl DashboardRenderer for CLIDashboardRenderer {
     fn update_train(&mut self, state: DashboardMetricState) {
         match state {
             DashboardMetricState::Generic(state) => {
-                self.metric_train.insert(state.name(), state.pretty());
+                self.metric_train.insert(state.name, state.formatted);
             }
             DashboardMetricState::Numeric(state, value) => {
-                self.metric_train.insert(state.name(), state.pretty());
+                let name = &state.name;
+                self.metric_train.insert(name.clone(), state.formatted);
 
-                let name = state.name();
-                if let Some(mut plot) = self.text_plot_in_both(&name) {
+                if let Some(mut plot) = self.text_plot_in_both(name) {
                     plot.update_train(value as f32);
-                    self.metric_both_plot.insert(name, plot);
+                    self.metric_both_plot.insert(name.clone(), plot);
                     return;
                 }
 
-                if let Some(plot) = self.metric_train_plot.get_mut(&name) {
+                if let Some(plot) = self.metric_train_plot.get_mut(name) {
                     plot.update_train(value as f32);
                 } else {
                     let mut plot = TextPlot::new();
                     plot.update_train(value as f32);
-                    self.metric_train_plot.insert(state.name(), plot);
+                    self.metric_train_plot.insert(state.name, plot);
                 }
             }
         };
@@ -59,24 +59,24 @@ impl DashboardRenderer for CLIDashboardRenderer {
     fn update_valid(&mut self, state: DashboardMetricState) {
         match state {
             DashboardMetricState::Generic(state) => {
-                self.metric_valid.insert(state.name(), state.pretty());
+                self.metric_valid.insert(state.name, state.formatted);
             }
             DashboardMetricState::Numeric(state, value) => {
-                self.metric_valid.insert(state.name(), state.pretty());
+                let name = &state.name;
+                self.metric_valid.insert(name.clone(), state.formatted);
 
-                let name = state.name();
-                if let Some(mut plot) = self.text_plot_in_both(&name) {
+                if let Some(mut plot) = self.text_plot_in_both(name) {
                     plot.update_valid(value as f32);
-                    self.metric_both_plot.insert(name, plot);
+                    self.metric_both_plot.insert(name.clone(), plot);
                     return;
                 }
 
-                if let Some(plot) = self.metric_valid_plot.get_mut(&name) {
+                if let Some(plot) = self.metric_valid_plot.get_mut(name) {
                     plot.update_valid(value as f32);
                 } else {
                     let mut plot = TextPlot::new();
                     plot.update_valid(value as f32);
-                    self.metric_valid_plot.insert(state.name(), plot);
+                    self.metric_valid_plot.insert(state.name, plot);
                 }
             }
         };

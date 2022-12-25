@@ -1,5 +1,5 @@
-use super::RunningMetricResult;
-use crate::train::metric::{Metric, MetricState};
+use super::Adaptor;
+use crate::train::metric::{Metric, MetricEntry};
 use nvml_wrapper::Nvml;
 
 pub struct CUDAMetric {
@@ -20,8 +20,16 @@ impl Default for CUDAMetric {
     }
 }
 
-impl<T> Metric<T> for CUDAMetric {
-    fn update(&mut self, _item: &T) -> Box<dyn MetricState> {
+impl<T> Adaptor<()> for T {
+    fn adapt(&self) -> () {
+        ()
+    }
+}
+
+impl Metric for CUDAMetric {
+    type Input = ();
+
+    fn update(&mut self, _item: &()) -> MetricEntry {
         let name = String::from("Cuda");
 
         let mut formatted = String::new();
@@ -44,12 +52,7 @@ impl<T> Metric<T> for CUDAMetric {
             formatted = format!("{formatted} - Usage {utilization_rate_formatted}");
         }
 
-        Box::new(RunningMetricResult {
-            name,
-            formatted,
-            raw_running,
-            raw_current: String::new(),
-        })
+        MetricEntry::new(name, formatted, raw_running)
     }
 
     fn clear(&mut self) {}

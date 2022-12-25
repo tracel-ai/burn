@@ -1,19 +1,24 @@
-pub trait Metric<T>: Send + Sync {
-    fn update(&mut self, item: &T) -> MetricStateDyn;
+pub trait Metric: Send + Sync {
+    type Input;
+
+    fn update(&mut self, item: &Self::Input) -> MetricEntry;
     fn clear(&mut self);
 }
 
-pub trait MetricState {
-    fn name(&self) -> String;
-    fn pretty(&self) -> String;
-    fn serialize(&self) -> String;
+pub trait Adaptor<T> {
+    fn adapt(&self) -> T;
 }
 
 pub trait Numeric {
     fn value(&self) -> f64;
 }
 
-pub type MetricStateDyn = Box<dyn MetricState>;
+#[derive(new)]
+pub struct MetricEntry {
+    pub name: String,
+    pub formatted: String,
+    pub serialize: String,
+}
 
 #[derive(new)]
 pub struct RunningMetricResult {
@@ -23,16 +28,12 @@ pub struct RunningMetricResult {
     pub raw_current: String,
 }
 
-impl MetricState for RunningMetricResult {
-    fn name(&self) -> String {
-        self.name.clone()
-    }
-
-    fn pretty(&self) -> String {
-        self.formatted.clone()
-    }
-
-    fn serialize(&self) -> String {
-        self.raw_current.clone()
+impl Into<MetricEntry> for RunningMetricResult {
+    fn into(self) -> MetricEntry {
+        MetricEntry {
+            name: self.name,
+            formatted: self.formatted,
+            serialize: self.raw_current,
+        }
     }
 }
