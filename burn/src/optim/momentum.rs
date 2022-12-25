@@ -76,6 +76,6 @@ impl<B: ADBackend> Momentum<B> {
     }
 
     fn state_key(id: &ParamId) -> String {
-        format!("momentum-{}", id)
+        format!("momentum-{id}")
     }
 }

@@ -32,7 +32,7 @@ impl MetricLogger for FileMetricLogger {
             Some(val) => val,
             None => {
                 let directory = format!("{}/epoch-{}", self.directory, self.epoch);
-                let file_path = format!("{}/{}.log", directory, key);
+                let file_path = format!("{directory}/{key}.log");
                 std::fs::create_dir_all(&directory).ok();
 
                 let logger = FileLogger::new(&file_path);

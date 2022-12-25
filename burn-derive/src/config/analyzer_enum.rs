@@ -36,7 +36,7 @@ impl ConfigEnumAnalyzer {
             let mut output = Vec::new();
 
             for i in 0..num {
-                let arg_name = Ident::new(&format!("arg_{}", i), self.name.span());
+                let arg_name = Ident::new(&format!("arg_{i}"), self.name.span());
 
                 input.push(quote! { #arg_name });
                 output.push(quote! { #arg_name.clone() });

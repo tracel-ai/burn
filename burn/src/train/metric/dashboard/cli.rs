@@ -149,7 +149,7 @@ impl CLIDashboardRenderer {
 
         if !metrics_keys.is_empty() {
             let metrics_template = metrics_keys.join("\n");
-            template += format!("{}\n{}\n", PLOTS_TAG, metrics_template).as_str();
+            template += format!("{PLOTS_TAG}\n{metrics_template}\n").as_str();
         }
 
         template
@@ -159,15 +159,15 @@ impl CLIDashboardRenderer {
         let mut metrics_keys = Vec::new();
 
         for (name, metric) in self.metric_train.iter() {
-            metrics_keys.push(format!("  - Train {}: {}", name, metric));
+            metrics_keys.push(format!("  - Train {name}: {metric}"));
         }
         for (name, metric) in self.metric_valid.iter() {
-            metrics_keys.push(format!("  - Valid {}: {}", name, metric));
+            metrics_keys.push(format!("  - Valid {name}: {metric}"));
         }
 
         if !metrics_keys.is_empty() {
             let metrics_template = metrics_keys.join("\n");
-            template += format!("{}\n{}\n", METRICS_TAG, metrics_template).as_str();
+            template += format!("{METRICS_TAG}\n{metrics_template}\n").as_str();
         }
 
         template
@@ -186,7 +186,7 @@ impl CLIDashboardRenderer {
         let mut template = template;
 
         let bar = "[{wide_bar:.cyan/blue}] ({eta})";
-        template += format!("  - {} {}", progress, bar).as_str();
+        template += format!("  - {progress} {bar}").as_str();
         template
     }
 
@@ -246,7 +246,7 @@ impl CLIDashboardRenderer {
         formatted: String,
     ) -> ProgressStyle {
         style.with_key(key, move |_state: &ProgressState, w: &mut dyn Write| {
-            write!(w, "{}: {}", name, formatted).unwrap()
+            write!(w, "{name}: {formatted}").unwrap()
         })
     }
 }

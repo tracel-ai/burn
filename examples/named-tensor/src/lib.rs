@@ -40,8 +40,8 @@ pub fn run<B: Backend>() {
 
     let permut = output.swap_dims::<_, 1, 2>();
 
-    println!("Weights => {}", weights);
-    println!("Input   => {}", input);
-    println!("Output  => {}", output);
-    println!("Permut  => {}", permut);
+    println!("Weights => {weights}");
+    println!("Input   => {input}");
+    println!("Output  => {output}");
+    println!("Permut  => {permut}");
 }

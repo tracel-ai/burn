@@ -55,6 +55,6 @@ pub fn run<B: ADBackend>(device: B::Device) {
     let _model_trained = learner.fit(dataloader_train, dataloader_test);
 
     config
-        .save(format!("{}/config.json", ARTIFACT_DIR).as_str())
+        .save(format!("{ARTIFACT_DIR}/config.json").as_str())
         .unwrap();
 }

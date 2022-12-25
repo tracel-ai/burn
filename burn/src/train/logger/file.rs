@@ -24,6 +24,6 @@ where
     T: std::fmt::Display,
 {
     fn log(&mut self, item: T) {
-        writeln!(&mut self.file, "{}", item).unwrap();
+        writeln!(&mut self.file, "{item}").unwrap();
     }
 }

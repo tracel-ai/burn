@@ -569,10 +569,7 @@ where
     /// ```
     pub fn unsqueeze<const D2: usize>(&self) -> Tensor<B, D2> {
         if D2 < D {
-            panic!(
-                "Can't unsqueeze smaller tensor, got dim {}, expected > {}",
-                D2, D
-            )
+            panic!("Can't unsqueeze smaller tensor, got dim {D2}, expected > {D}")
         }
 
         let mut dims = [1; D2];

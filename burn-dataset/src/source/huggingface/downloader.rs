@@ -163,14 +163,14 @@ fn download(
     if !config_named.is_empty() {
         command.arg("--config-named");
         for (key, value) in config_named {
-            command.arg(format!("{}={}", key, value));
+            command.arg(format!("{key}={value}"));
         }
     }
 
     let mut handle = command.spawn().unwrap();
     handle
         .wait()
-        .map_err(|err| DownloaderError::Unknown(format!("{:?}", err)))?;
+        .map_err(|err| DownloaderError::Unknown(format!("{err:?}")))?;
 
     Ok(())
 }
@@ -179,14 +179,14 @@ fn cache_dir() -> String {
     let home_dir = home_dir().unwrap();
     let home_dir = home_dir.to_str().map(|s| s.to_string());
     let home_dir = home_dir.unwrap();
-    let cache_dir = format!("{}/.cache/burn-dataset", home_dir);
+    let cache_dir = format!("{home_dir}/.cache/burn-dataset");
     std::fs::create_dir_all(&cache_dir).ok();
     cache_dir
 }
 
 fn dataset_downloader_file_path() -> String {
     let path_dir = cache_dir();
-    let path_file = format!("{}/dataset.py", path_dir);
+    let path_file = format!("{path_dir}/dataset.py");
 
     fs::write(path_file.as_str(), PYTHON_SOURCE).expect("Write python dataset downloader");
     path_file
