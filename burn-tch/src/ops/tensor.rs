@@ -4,22 +4,14 @@ use std::ops::{Add, Div, Mul, Range, Sub};
 
 impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     fn from_data<const D: usize>(data: Data<E, D>, device: TchDevice) -> TchTensor<E, D> {
-        let device = match device {
-            TchDevice::Cpu => tch::Device::Cpu,
-            TchDevice::Cuda(num) => tch::Device::Cuda(num),
-        };
-        TchTensor::from_data(data, device)
+        TchTensor::from_data(data, device.into())
     }
 
     fn from_data_bool<const D: usize>(
         data: Data<bool, D>,
         device: TchDevice,
     ) -> TchTensor<bool, D> {
-        let device = match device {
-            TchDevice::Cpu => tch::Device::Cpu,
-            TchDevice::Cuda(num) => tch::Device::Cuda(num),
-        };
-        TchTensor::from_data(data, device)
+        TchTensor::from_data(data, device.into())
     }
 
     fn random<const D: usize>(
@@ -47,7 +39,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
             }
             Distribution::Normal(mean, std) => {
                 let mut tensor = TchTensor::<E, D>::empty(shape, device);
-                tensor.tensor = tensor.tensor.normal(mean, std);
+                tensor.tensor = tensor.tensor.normal_(mean, std);
                 tensor
             }
         }
@@ -107,13 +99,9 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         tensor: &TchTensor<bool, D>,
         device: TchDevice,
     ) -> TchTensor<bool, D> {
-        let device = match device {
-            TchDevice::Cpu => tch::Device::Cpu,
-            TchDevice::Cuda(num) => tch::Device::Cuda(num),
-        };
         TchTensor {
             kind: tensor.kind,
-            tensor: tensor.tensor.to(device),
+            tensor: tensor.tensor.to(device.into()),
             shape: tensor.shape,
         }
     }
@@ -134,20 +122,13 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     }
 
     fn device<const D: usize>(tensor: &TchTensor<E, D>) -> TchDevice {
-        match tensor.tensor.device() {
-            tch::Device::Cpu => TchDevice::Cpu,
-            tch::Device::Cuda(num) => TchDevice::Cuda(num),
-        }
+        tensor.tensor.device().into()
     }
 
     fn to_device<const D: usize>(tensor: &TchTensor<E, D>, device: TchDevice) -> TchTensor<E, D> {
-        let device = match device {
-            TchDevice::Cpu => tch::Device::Cpu,
-            TchDevice::Cuda(num) => tch::Device::Cuda(num),
-        };
         TchTensor {
             kind: tensor.kind,
-            tensor: tensor.tensor.to(device),
+            tensor: tensor.tensor.to(device.into()),
             shape: tensor.shape,
         }
     }
@@ -419,16 +400,18 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     }
 
     fn mean_dim<const D: usize>(tensor: &TchTensor<E, D>, dim: usize) -> TchTensor<E, D> {
-        let tensor = tensor
-            .tensor
-            .mean_dim(&[dim as i64], true, tensor.kind.kind());
+        let tensor =
+            tensor
+                .tensor
+                .mean_dim(Some([dim as i64].as_slice()), true, tensor.kind.kind());
         to_tensor(tensor)
     }
 
     fn sum_dim<const D: usize>(tensor: &TchTensor<E, D>, dim: usize) -> TchTensor<E, D> {
-        let tensor = tensor
-            .tensor
-            .sum_dim_intlist(&[dim as i64], true, tensor.kind.kind());
+        let tensor =
+            tensor
+                .tensor
+                .sum_dim_intlist(Some([dim as i64].as_slice()), true, tensor.kind.kind());
         to_tensor(tensor)
     }
 

@@ -5,7 +5,7 @@ authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 
 description = "NdArray backend for burn"
 repository = "https://github.com/burn-rs/burn/tree/main/burn-ndarray"
-readme="README.md"
+readme = "README.md"
 keywords = ["deep-learning", "machine-learning", "data"]
 categories = ["science"]
 license = "MIT/Apache-2.0"
@@ -15,19 +15,27 @@ edition = "2021"
 default = []
 blas-netlib = ["ndarray/blas", "blas-src/netlib"]
 blas-openblas = ["ndarray/blas", "blas-src/openblas", "openblas-src"]
-blas-openblas-system = ["ndarray/blas", "blas-src/openblas", "openblas-src/system"]
+blas-openblas-system = [
+    "ndarray/blas",
+    "blas-src/openblas",
+    "openblas-src/system",
+]
 
 [dependencies]
 burn-tensor = { version = "0.3.0", path = "../burn-tensor" }
 blas-src = { version = "0.8.0", default-features = false, optional = true }
-openblas-src = { version = "0.10", optional = true }
+openblas-src = { version = "0.10.5", optional = true }
 
-ndarray = "0.15"
-libm = "0.2"
-derive-new = "0.5"
-rand = "0.8"
-num-traits = "0.2"
+ndarray = "0.15.6"
+libm = "0.2.6"
+derive-new = "0.5.9"
+rand = "0.8.5"
+num-traits = "0.2.15"
 
 [dev-dependencies]
-burn-tensor = { version = "0.3.0", path = "../burn-tensor", features = ["export_tests"] }
-burn-autodiff = { version = "0.3.0", path = "../burn-autodiff", features = ["export_tests"] }
+burn-tensor = { version = "0.3.0", path = "../burn-tensor", features = [
+    "export_tests",
+] }
+burn-autodiff = { version = "0.3.0", path = "../burn-autodiff", features = [
+    "export_tests",
+] }

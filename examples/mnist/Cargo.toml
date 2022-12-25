@@ -21,4 +21,4 @@ burn-tch = { path = "../../burn-tch", optional = true }
 burn-ndarray = { path = "../../burn-ndarray", optional = true }
 
 # Serialization
-serde = { version = "1.0", features = ["derive"] }
+serde = { version = "1.0.151", features = ["derive"] }

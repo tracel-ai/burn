@@ -4,7 +4,7 @@ version = "0.3.0"
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 description = "Autodiff backend for burn"
 repository = "https://github.com/burn-rs/burn/tree/main/burn-autodiff"
-readme="README.md"
+readme = "README.md"
 keywords = ["deep-learning", "machine-learning", "data"]
 categories = ["science"]
 license = "MIT/Apache-2.0"
@@ -17,5 +17,5 @@ export_tests = ["burn-tensor-testgen"]
 [dependencies]
 burn-tensor-testgen = { version = "0.3.0", path = "../burn-tensor-testgen", optional = true }
 burn-tensor = { version = "0.3.0", path = "../burn-tensor" }
-derive-new = "0.5"
-nanoid = "0.4"
+derive-new = "0.5.9"
+nanoid = "0.4.0"

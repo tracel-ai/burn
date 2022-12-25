@@ -7,7 +7,7 @@ description = """
 Burn derive crate.
 """
 repository = "https://github.com/burn-rs/burn/tree/main/burn-dataset"
-readme="README.md"
+readme = "README.md"
 keywords = []
 categories = ["science"]
 license = "MIT/Apache-2.0"
@@ -17,6 +17,6 @@ edition = "2021"
 proc-macro = true
 
 [dependencies]
-syn = "1.0"
-quote = "1.0"
-proc-macro2 = "1.0"
+syn = "1.0.107"
+quote = "1.0.23"
+proc-macro2 = "1.0.49"

@@ -15,10 +15,12 @@ use burn_tensor::backend::Backend;
 /// let device_gpu_1 = TchDevice::Cuda(0); // First GPU
 /// let device_gpu_2 = TchDevice::Cuda(1); // Second GPU
 /// let device_cpu = TchDevice::Cpu; // CPU
+/// let device_mps = TchDevice::Mps; // Metal Performance Shaders
 /// ```
 pub enum TchDevice {
     Cpu,
     Cuda(usize),
+    Mps,
 }
 
 impl From<TchDevice> for tch::Device {
@@ -26,6 +28,17 @@ impl From<TchDevice> for tch::Device {
         match device {
             TchDevice::Cpu => tch::Device::Cpu,
             TchDevice::Cuda(num) => tch::Device::Cuda(num),
+            TchDevice::Mps => tch::Device::Mps,
+        }
+    }
+}
+
+impl From<tch::Device> for TchDevice {
+    fn from(device: tch::Device) -> Self {
+        match device {
+            tch::Device::Cpu => TchDevice::Cpu,
+            tch::Device::Cuda(num) => TchDevice::Cuda(num),
+            tch::Device::Mps => TchDevice::Mps,
         }
     }
 }
