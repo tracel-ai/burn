@@ -1,5 +1,6 @@
 use burn_tensor::{backend::Backend, loss::cross_entropy_with_logits, Tensor};
 
+/// Calculate the cross entropy loss from the input logits and the targets.
 pub struct CrossEntropyLoss<B: Backend> {
     num_targets: usize,
     pad_index: Option<usize>,
@@ -7,6 +8,12 @@ pub struct CrossEntropyLoss<B: Backend> {
 }
 
 impl<B: Backend> CrossEntropyLoss<B> {
+    /// Create the criterion.
+    ///
+    /// # Notes
+    ///
+    /// The number of targets must be specified, this correspond to the number of classes in a
+    /// classification task. A padding index can also be specified.
     pub fn new(num_targets: usize, pad_index: Option<usize>) -> Self {
         Self {
             num_targets,
@@ -15,6 +22,12 @@ impl<B: Backend> CrossEntropyLoss<B> {
         }
     }
 
+    /// Compute the criterion on the input tensor.
+    ///
+    /// # Shapes
+    ///
+    /// - logits: [batch_size, num_targets]
+    /// - targets: [batch_size]
     pub fn forward(
         &self,
         logits: &Tensor<B, 2>,
