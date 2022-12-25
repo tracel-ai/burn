@@ -13,7 +13,11 @@ fn main() {
     );
 
     text_classification::training::train::<Backend, AgNewsDataset>(
-        burn_tch::TchDevice::Cuda(0),
+        if cfg!(target_os = "macos") {
+            burn_tch::TchDevice::Mps
+        } else {
+            burn_tch::TchDevice::Cuda(0)
+        },
         AgNewsDataset::train(),
         AgNewsDataset::test(),
         config,

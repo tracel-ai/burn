@@ -8,7 +8,7 @@ This library provides multiple tensor implementations hidden behind
 an easy to use API that supports reverse mode automatic differentiation.
 """
 repository = "https://github.com/burn-rs/burn/tree/main/burn-tensor"
-readme="README.md"
+readme = "README.md"
 keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
 categories = ["science"]
 license = "MIT/Apache-2.0"
@@ -21,14 +21,16 @@ experimental-named-tensor = []
 
 [dependencies]
 burn-tensor-testgen = { version = "0.3.0", path = "../burn-tensor-testgen", optional = true }
-num-traits = "0.2"
-derive-new = "0.5"
-rand = "0.8"
-statrs = "0.16"
-half = { version = "1.6", features = ["num-traits"] } # needs to be 1.6 to work with tch
+num-traits = "0.2.15"
+derive-new = "0.5.9"
+rand = "0.8.5"
+statrs = "0.16.0"
+half = { version = "1.6.0", features = [
+    "num-traits",
+] } # needs to be 1.6 to work with tch
 
 # Autodiff
-nanoid = "0.4"
+nanoid = "0.4.0"
 
 # Serialization
-serde = { version = "1.0", features = ["derive"] }
+serde = { version = "1.0.151", features = ["derive"] }

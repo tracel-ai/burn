@@ -21,7 +21,10 @@ mod tch_gpu {
     use mnist::training;
 
     pub fn run() {
+        #[cfg(not(target_os = "macos"))]
         let device = TchDevice::Cuda(0);
+        #[cfg(target_os = "macos")]
+        let device = TchDevice::Mps;
         training::run::<ADBackendDecorator<TchBackend<burn::tensor::f16>>>(device);
     }
 }
