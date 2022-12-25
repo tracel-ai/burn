@@ -124,6 +124,23 @@ where
         Tensor::new(tensor)
     }
 
+    /// Create a tensor from floats (f32).
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let _ = Tensor::<B, 1>::from_floats([1.0, 2.0]);
+    ///     let _ = Tensor::<B, 2>::from_floats([[1.0, 2.0], [3.0, 4.0]]);
+    /// }
+    /// ```
+    pub fn from_floats<A: Into<Data<f32, D>>>(floats: A) -> Self {
+        Self::from_data(floats.into().convert())
+    }
+
     /// Returns a new tensor with the same shape and device as the current tensor filled with zeros.
     pub fn zeros_like(&self) -> Self {
         Tensor::new(B::zeros(*self.shape(), self.device()))
