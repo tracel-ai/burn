@@ -57,3 +57,34 @@ impl<B: Backend> CrossEntropyLoss<B> {
         cross_entropy_with_logits(logits, &targets_logits.detach())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::TestBackend;
+    use burn_tensor::{Data, Distribution};
+
+    #[test]
+    fn test_cross_entropy_loss() {
+        let [batch_size, num_targets] = [4, 5];
+        let logits = Tensor::<TestBackend, 2>::random(
+            [batch_size, num_targets],
+            Distribution::Normal(0., 1.0),
+        );
+        let targets =
+            Tensor::<<TestBackend as Backend>::IntegerBackend, 1>::from_data(Data::from([
+                2, 0, 4, 1_i64,
+            ]));
+        let targets_logits = Tensor::<TestBackend, 2>::from_data(Data::from([
+            [0.0, 0.0, 1.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 1.0],
+            [0.0, 1.0, 0.0, 0.0, 0.0],
+        ]));
+
+        let loss_1 = CrossEntropyLoss::new(5, None).forward(&logits, &targets);
+        let loss_2 = cross_entropy_with_logits(&logits, &targets_logits);
+
+        loss_1.into_data().assert_approx_eq(&loss_2.into_data(), 3);
+    }
+}
