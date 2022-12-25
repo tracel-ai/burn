@@ -3,11 +3,12 @@ use burn::{
     config::Config,
     module::{Module, Param},
     nn::{
+        loss::CrossEntropyLoss,
         transformer::{TransformerEncoder, TransformerEncoderConfig, TransformerEncoderInput},
         Embedding, EmbeddingConfig, Linear, LinearConfig,
     },
     tensor::backend::{ADBackend, Backend},
-    tensor::{loss::cross_entropy_with_logits, Tensor},
+    tensor::Tensor,
     train::{ClassificationOutput, TrainOutput, TrainStep, ValidStep},
 };
 
@@ -77,7 +78,8 @@ impl<B: Backend> TextClassificationModel<B> {
             .index([0..batch_size, 0..1])
             .reshape([batch_size, self.n_classes]);
 
-        let loss = cross_entropy_with_logits(&output_classification, &labels.clone().detach());
+        let loss = CrossEntropyLoss::new(self.n_classes, None);
+        let loss = loss.forward(&output_classification, &labels);
 
         ClassificationOutput {
             loss,

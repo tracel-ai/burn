@@ -5,11 +5,10 @@ use crate::{
 use burn::{
     config::Config,
     module::{Module, Param},
-    nn,
+    nn::{self, loss::CrossEntropyLoss},
     optim::SgdConfig,
     tensor::{
         backend::{ADBackend, Backend},
-        loss::cross_entropy_with_logits,
         Tensor,
     },
     train::{ClassificationOutput, TrainOutput, TrainStep, ValidStep},
@@ -34,6 +33,7 @@ pub struct Model<B: Backend> {
     mlp: Param<Mlp<B>>,
     input: Param<nn::Linear<B>>,
     output: Param<nn::Linear<B>>,
+    num_classes: usize,
 }
 
 impl<B: Backend> Model<B> {
@@ -46,6 +46,7 @@ impl<B: Backend> Model<B> {
             mlp: Param::new(mlp),
             output: Param::new(output),
             input: Param::new(input),
+            num_classes,
         }
     }
 
@@ -62,7 +63,8 @@ impl<B: Backend> Model<B> {
     pub fn forward_classification(&self, item: MNISTBatch<B>) -> ClassificationOutput<B> {
         let targets = item.targets;
         let output = self.forward(item.images);
-        let loss = cross_entropy_with_logits(&output, &targets);
+        let loss = CrossEntropyLoss::new(self.num_classes, None);
+        let loss = loss.forward(&output, &targets);
 
         ClassificationOutput {
             loss,

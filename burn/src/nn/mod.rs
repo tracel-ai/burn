@@ -1,5 +1,6 @@
 pub mod attention;
 pub mod cache;
+pub mod loss;
 pub mod transformer;
 
 mod dropout;

@@ -6,7 +6,7 @@ use burn_tensor::Tensor;
 pub struct ClassificationOutput<B: Backend> {
     pub loss: Tensor<B, 1>,
     pub output: Tensor<B, 2>,
-    pub targets: Tensor<B, 2>,
+    pub targets: Tensor<B::IntegerBackend, 1>,
 }
 
 impl<B: Backend> metric::Metric<ClassificationOutput<B>> for metric::LossMetric {
@@ -24,6 +24,6 @@ impl<B: Backend> metric::Metric<ClassificationOutput<B>> for metric::AccuracyMet
     }
 
     fn clear(&mut self) {
-        <metric::AccuracyMetric as metric::Metric<(Tensor<B, 2>, Tensor<B, 2>)>>::clear(self);
+        <metric::AccuracyMetric as metric::Metric<(Tensor<B, 2>, Tensor<B::IntegerBackend, 1>)>>::clear(self);
     }
 }
