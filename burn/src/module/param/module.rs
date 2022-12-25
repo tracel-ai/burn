@@ -95,9 +95,7 @@ impl<M: Module> Module for Param<Vec<M>> {
                         "Invalid number of modules, expected {num} modules missing #{i}"
                     ))
                 })?)
-                .map_err(|err| {
-                    LoadingError::new(format!("Can't load modules mod-{i}: {err}"))
-                })?;
+                .map_err(|err| LoadingError::new(format!("Can't load modules mod-{i}: {err}")))?;
         }
 
         Ok(())

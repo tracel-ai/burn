@@ -83,9 +83,7 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
 
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 
-    config
-        .save(&format!("{artifact_dir}/config.json"))
-        .unwrap();
+    config.save(&format!("{artifact_dir}/config.json")).unwrap();
     model_trained
         .state()
         .convert::<f32>()

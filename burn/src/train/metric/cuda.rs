@@ -36,9 +36,7 @@ impl<T> Metric<T> for CUDAMetric {
             let memory_info_formatted = format!("{used_gb:.2}/{total_gb:.2} Gb");
             let memory_info_raw = format!("{used_gb}/{total_gb}");
 
-            formatted = format!(
-                "{formatted} GPU #{index} - Memory {memory_info_formatted}"
-            );
+            formatted = format!("{formatted} GPU #{index} - Memory {memory_info_formatted}");
             raw_running = format!("{memory_info_raw} ");
 
             let utilization_rates = device.utilization_rates().unwrap();
