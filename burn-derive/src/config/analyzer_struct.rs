@@ -180,7 +180,7 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
         for (field, _) in self.fields_default.iter() {
             let name = field.ident();
             let ty = &field.field.ty;
-            let fn_name = Ident::new(&format!("with_{}", name), name.span());
+            let fn_name = Ident::new(&format!("with_{name}"), name.span());
 
             body.extend(quote! {
                 pub fn #fn_name(mut self, #name: #ty) -> Self {
@@ -193,7 +193,7 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
         for field in self.fields_option.iter() {
             let name = field.ident();
             let ty = &field.field.ty;
-            let fn_name = Ident::new(&format!("with_{}", name), name.span());
+            let fn_name = Ident::new(&format!("with_{name}"), name.span());
 
             body.extend(quote! {
                 pub fn #fn_name(mut self, #name: #ty) -> Self {

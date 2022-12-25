@@ -75,7 +75,7 @@ impl<M: Module> Module for Param<Vec<M>> {
         let mut state = StateNamed::new();
 
         for (i, module) in self.value.iter().enumerate() {
-            state.register_state(format!("mod-{}", i).as_str(), module.state());
+            state.register_state(format!("mod-{i}").as_str(), module.state());
         }
 
         let state = State::StateNamed(state);
@@ -90,15 +90,12 @@ impl<M: Module> Module for Param<Vec<M>> {
         let num = self.value.len();
         for (i, module) in self.value.iter_mut().enumerate() {
             module
-                .load(state.get(format!("mod-{}", i).as_str()).ok_or_else(|| {
+                .load(state.get(format!("mod-{i}").as_str()).ok_or_else(|| {
                     LoadingError::new(format!(
-                        "Invalid number of modules, expected {} modules missing #{}",
-                        num, i
+                        "Invalid number of modules, expected {num} modules missing #{i}"
                     ))
                 })?)
-                .map_err(|err| {
-                    LoadingError::new(format!("Can't load modules mod-{}: {}", i, err))
-                })?;
+                .map_err(|err| LoadingError::new(format!("Can't load modules mod-{i}: {err}")))?;
         }
 
         Ok(())

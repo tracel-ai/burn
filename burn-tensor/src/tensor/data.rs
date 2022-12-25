@@ -223,7 +223,7 @@ impl<P: Into<f64> + Clone + std::fmt::Debug + PartialEq, const D: usize> Data<P,
             let b = f64::round(10.0_f64.powi(precision as i32) * b);
 
             if a != b {
-                println!("a {:?}, b {:?}", a, b);
+                println!("a {a:?}, b {b:?}");
                 eq = false;
             }
         }

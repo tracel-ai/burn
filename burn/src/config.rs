@@ -12,10 +12,10 @@ impl std::fmt::Display for ConfigError {
 
         match self {
             Self::InvalidFormat(err) => {
-                message += format!("Invalid format: {}", err).as_str();
+                message += format!("Invalid format: {err}").as_str();
             }
             Self::FileNotFound(err) => {
-                message += format!("File not found: {}", err).as_str();
+                message += format!("File not found: {err}").as_str();
             }
         };
 
@@ -41,5 +41,5 @@ pub fn config_to_json<C: Config>(config: &C) -> String {
 }
 
 fn config_from_str<C: Config>(content: &str) -> Result<C, ConfigError> {
-    serde_json::from_str(content).map_err(|err| ConfigError::InvalidFormat(format!("{}", err)))
+    serde_json::from_str(content).map_err(|err| ConfigError::InvalidFormat(format!("{err}")))
 }

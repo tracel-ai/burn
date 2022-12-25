@@ -42,7 +42,7 @@ impl<B: Backend> Metric<Tensor<B, 1>> for LossMetric {
 
         let name = String::from("Loss");
         let running = self.total / self.count as f64;
-        let raw_running = format!("{}", running);
+        let raw_running = format!("{running}");
         let raw_current = format!("{}", self.current);
         let formatted = format!("running {:.3} current {:.3}", running, self.current);
 

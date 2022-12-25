@@ -468,7 +468,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
             4 => keepdim!(3, dim, tensor, mean),
             5 => keepdim!(4, dim, tensor, mean),
             6 => keepdim!(5, dim, tensor, mean),
-            _ => panic!("Dim not supported {}", D),
+            _ => panic!("Dim not supported {D}"),
         }
     }
 
@@ -480,7 +480,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
             4 => keepdim!(3, dim, tensor, sum),
             5 => keepdim!(4, dim, tensor, sum),
             6 => keepdim!(5, dim, tensor, sum),
-            _ => panic!("Dim not supported {}", D),
+            _ => panic!("Dim not supported {D}"),
         }
     }
 

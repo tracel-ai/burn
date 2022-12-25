@@ -37,12 +37,8 @@ where
 {
     pub fn new(directory: &str) -> Self {
         let renderer = Box::new(CLIDashboardRenderer::new());
-        let logger_train = Box::new(FileMetricLogger::new(
-            format!("{}/train", directory).as_str(),
-        ));
-        let logger_valid = Box::new(FileMetricLogger::new(
-            format!("{}/valid", directory).as_str(),
-        ));
+        let logger_train = Box::new(FileMetricLogger::new(format!("{directory}/train").as_str()));
+        let logger_valid = Box::new(FileMetricLogger::new(format!("{directory}/valid").as_str()));
 
         Self {
             dashboard: Dashboard::new(renderer, logger_train, logger_valid),

@@ -85,12 +85,10 @@ pub fn train<B: ADBackend, D: TextClassificationDataset + 'static>(
 
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 
-    config
-        .save(&format!("{}/config.json", artifact_dir))
-        .unwrap();
+    config.save(&format!("{artifact_dir}/config.json")).unwrap();
     model_trained
         .state()
         .convert::<f32>()
-        .save(&format!("{}/model.json.gz", artifact_dir))
+        .save(&format!("{artifact_dir}/model.json.gz"))
         .unwrap();
 }

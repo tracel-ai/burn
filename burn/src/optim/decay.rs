@@ -57,6 +57,6 @@ impl<B: ADBackend> WeightDecay<B> {
     }
 
     fn state_key(id: &ParamId) -> String {
-        format!("weight-decay-{}", id)
+        format!("weight-decay-{id}")
     }
 }

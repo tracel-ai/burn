@@ -30,10 +30,10 @@ impl std::fmt::Display for StateError {
 
         match self {
             Self::InvalidFormat(err) => {
-                message += format!("Invalid format: {}", err).as_str();
+                message += format!("Invalid format: {err}").as_str();
             }
             Self::FileNotFound(err) => {
-                message += format!("File not found: {}", err).as_str();
+                message += format!("File not found: {err}").as_str();
             }
         };
 
@@ -122,7 +122,7 @@ where
     pub fn load(file: &str) -> Result<Self, StateError> {
         let path = Path::new(file);
         let reader =
-            File::open(path).map_err(|err| StateError::FileNotFound(format!("{:?}", err)))?;
+            File::open(path).map_err(|err| StateError::FileNotFound(format!("{err:?}")))?;
         let reader = GzDecoder::new(reader);
         let state = serde_json::from_reader(reader).unwrap();
 

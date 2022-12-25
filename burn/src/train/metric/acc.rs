@@ -50,7 +50,7 @@ impl<B: Backend> Metric<(Tensor<B, 2>, Tensor<B::IntegerBackend, 1>)> for Accura
 
         let name = String::from("Accurracy");
         let running = self.total as f64 / self.count as f64;
-        let raw_running = format!("{}", running);
+        let raw_running = format!("{running}");
         let raw_current = format!("{}", self.current);
         let formatted = format!(
             "running {:.2} % current {:.2} %",
