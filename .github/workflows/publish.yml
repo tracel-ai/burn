@@ -2,7 +2,7 @@ name: publish
 
 on:
   push:
-    tags:        
+    tags:
       - 'v*'
 
 jobs:
@@ -61,7 +61,7 @@ jobs:
 
   publish-burn:
     uses: burn-rs/burn/.github/workflows/publish-template.yml@main
-    needs: 
+    needs:
       - publish-burn-derive
       - publish-burn-dataset
       - publish-burn-tensor
