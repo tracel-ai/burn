@@ -31,19 +31,18 @@ impl Numeric for AccuracyMetric {
     }
 }
 
-impl<B: Backend> Metric<(Tensor<B, 2>, Tensor<B, 2>)> for AccuracyMetric {
-    fn update(&mut self, batch: &(Tensor<B, 2>, Tensor<B, 2>)) -> MetricStateDyn {
+impl<B: Backend> Metric<(Tensor<B, 2>, Tensor<B::IntegerBackend, 1>)> for AccuracyMetric {
+    fn update(&mut self, batch: &(Tensor<B, 2>, Tensor<B::IntegerBackend, 1>)) -> MetricStateDyn {
         let (outputs, targets) = batch;
-        let logits_outputs = outputs.argmax(1).to_device(B::Device::default());
-        let logits_targets = targets.argmax(1).to_device(B::Device::default());
-        let count_current = logits_targets.shape().dims[0];
+        let count_current = outputs.dims()[0];
 
-        let total_current = logits_outputs
-            .equal(&logits_targets)
-            .to_int()
-            .sum()
-            .to_data()
-            .value[0] as usize;
+        let targets = targets.to_device(B::Device::default());
+        let outputs = outputs
+            .argmax(1)
+            .to_device(B::Device::default())
+            .reshape([count_current]);
+
+        let total_current = outputs.equal(&targets).to_int().sum().to_data().value[0] as usize;
 
         self.count += count_current;
         self.total += total_current;
