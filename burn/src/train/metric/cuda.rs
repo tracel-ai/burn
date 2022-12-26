@@ -2,6 +2,7 @@ use super::Adaptor;
 use crate::train::metric::{Metric, MetricEntry};
 use nvml_wrapper::Nvml;
 
+/// Track basic cuda infos.
 pub struct CUDAMetric {
     nvml: Nvml,
 }

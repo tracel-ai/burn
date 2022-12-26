@@ -50,6 +50,6 @@ Therefore, creating the tape only requires a simple and efficent graph traversal
 
 To run with CUDA set `TORCH_CUDA_VERSION=cu113`.
 
-## Note
+## Notes
 
 This crate can be use alone without the entire burn stack and with only selected backends for smaller binaries.

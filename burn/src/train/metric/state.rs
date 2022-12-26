@@ -1,22 +1,18 @@
 use super::{MetricEntry, Numeric};
 
+/// Usefull utility to implement numeric [metrics](crate::train::metric::Metric).
+///
+/// # Notes
+///
+/// The numeric metric store values inside floats.
+/// Even if some metric are integers, their mean are floats.
 pub struct NumericMetricState {
     sum: f64,
     count: usize,
+    current: f64,
 }
 
-impl Numeric for NumericMetricState {
-    fn value(&self) -> f64 {
-        self.sum / self.count as f64
-    }
-}
-
-impl Default for NumericMetricState {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
+/// Formatting options for the [numeric metric state](NumericMetricState).
 pub struct FormatOptions {
     name: String,
     unit: Option<String>,
@@ -24,6 +20,7 @@ pub struct FormatOptions {
 }
 
 impl FormatOptions {
+    /// Create the [formatting options](FormatOptions) with a name.
     pub fn new(name: &str) -> Self {
         Self {
             name: name.to_string(),
@@ -32,11 +29,13 @@ impl FormatOptions {
         }
     }
 
+    /// Specify the metric unit.
     pub fn unit(mut self, unit: &str) -> Self {
         self.unit = Some(unit.to_string());
         self
     }
 
+    /// Specify the floating point precision.
     pub fn precision(mut self, precision: usize) -> Self {
         self.precision = Some(precision);
         self
@@ -44,18 +43,27 @@ impl FormatOptions {
 }
 
 impl NumericMetricState {
+    /// Create a new [numeric metric state](NumericMetricState).
     pub fn new() -> Self {
-        Self { sum: 0.0, count: 0 }
+        Self {
+            sum: 0.0,
+            count: 0,
+            current: f64::NAN,
+        }
     }
 
+    /// Reset the state.
     pub fn reset(&mut self) {
         self.sum = 0.0;
         self.count = 0;
+        self.current = f64::NAN;
     }
 
+    /// Update the state.
     pub fn update(&mut self, value: f64, batch_size: usize, format: FormatOptions) -> MetricEntry {
         self.sum += value * batch_size as f64;
         self.count += batch_size;
+        self.current = value;
 
         let value_current = value;
         let value_running = self.sum / self.count as f64;
@@ -77,5 +85,17 @@ impl NumericMetricState {
         };
 
         MetricEntry::new(format.name, formatted, serialized)
+    }
+}
+
+impl Numeric for NumericMetricState {
+    fn value(&self) -> f64 {
+        self.current
+    }
+}
+
+impl Default for NumericMetricState {
+    fn default() -> Self {
+        Self::new()
     }
 }

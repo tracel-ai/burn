@@ -26,7 +26,7 @@ pub trait Optimizer: Send + Sync {
 
     /// Register the optimizer state for a given parameter.
     ///
-    /// # Note
+    /// # Notes
     ///
     /// This should only be called by generated code.
     fn register_param_state<const D: usize>(
@@ -39,7 +39,7 @@ pub trait Optimizer: Send + Sync {
 
     /// Load the optimizer state for a given parameter.
     ///
-    /// # Note
+    /// # Notes
     ///
     /// This should only be called by generated code.
     fn load_param_state<const D: usize>(

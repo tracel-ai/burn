@@ -4,12 +4,14 @@ use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 use crate::train::metric::{Metric, Numeric};
 
+/// The accuracy metric.
 #[derive(Default)]
 pub struct AccuracyMetric<B: Backend> {
     state: NumericMetricState,
     _b: B,
 }
 
+/// The [accuracy metric](AccuracyMetric) input type.
 #[derive(new)]
 pub struct AccuracyInput<B: Backend> {
     outputs: Tensor<B, 2>,
@@ -17,18 +19,9 @@ pub struct AccuracyInput<B: Backend> {
 }
 
 impl<B: Backend> AccuracyMetric<B> {
+    /// Create the metric.
     pub fn new() -> Self {
         Self::default()
-    }
-
-    pub fn reset(&mut self) {
-        self.state.reset()
-    }
-}
-
-impl<B: Backend> Numeric for AccuracyMetric<B> {
-    fn value(&self) -> f64 {
-        self.state.value()
     }
 }
 
@@ -56,6 +49,12 @@ impl<B: Backend> Metric for AccuracyMetric<B> {
     }
 
     fn clear(&mut self) {
-        self.reset()
+        self.state.reset()
+    }
+}
+
+impl<B: Backend> Numeric for AccuracyMetric<B> {
+    fn value(&self) -> f64 {
+        self.state.value()
     }
 }

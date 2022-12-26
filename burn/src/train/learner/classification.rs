@@ -1,7 +1,8 @@
 use crate::tensor::backend::Backend;
-use crate::train::metric::{AccuracyInput, Adaptor};
+use crate::train::metric::{AccuracyInput, Adaptor, LossInput};
 use burn_tensor::Tensor;
 
+/// Simple classification output adapted for multiple metrics.
 #[derive(new)]
 pub struct ClassificationOutput<B: Backend> {
     pub loss: Tensor<B, 1>,
@@ -15,8 +16,8 @@ impl<B: Backend> Adaptor<AccuracyInput<B>> for ClassificationOutput<B> {
     }
 }
 
-impl<B: Backend> Adaptor<Tensor<B, 1>> for ClassificationOutput<B> {
-    fn adapt(&self) -> Tensor<B, 1> {
-        self.loss.clone()
+impl<B: Backend> Adaptor<LossInput<B>> for ClassificationOutput<B> {
+    fn adapt(&self) -> LossInput<B> {
+        LossInput::new(self.loss.clone())
     }
 }
