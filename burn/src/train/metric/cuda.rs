@@ -22,8 +22,8 @@ impl Default for CUDAMetric {
 }
 
 impl<T> Adaptor<()> for T {
-    fn adapt(&self) -> () {
-        ()
+    fn adapt(&self) {
+        
     }
 }
 
