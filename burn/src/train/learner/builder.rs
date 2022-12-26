@@ -6,7 +6,7 @@ use crate::train::checkpoint::{AsyncCheckpointer, Checkpointer, FileCheckpointer
 use crate::train::logger::FileMetricLogger;
 use crate::train::metric::dashboard::cli::CLIDashboardRenderer;
 use crate::train::metric::dashboard::Dashboard;
-use crate::train::metric::{Metric, Numeric};
+use crate::train::metric::{Adaptor, Metric, Numeric};
 use crate::train::AsyncTrainerCallback;
 use burn_tensor::backend::ADBackend;
 use burn_tensor::Element;
@@ -53,13 +53,19 @@ where
     }
 
     /// Register a training metric.
-    pub fn metric_train<M: Metric<T> + 'static>(mut self, metric: M) -> Self {
+    pub fn metric_train<M: Metric + 'static>(mut self, metric: M) -> Self
+    where
+        T: Adaptor<M::Input>,
+    {
         self.dashboard.register_train(metric);
         self
     }
 
     /// Register a validation metric.
-    pub fn metric_valid<M: Metric<V> + 'static>(mut self, metric: M) -> Self {
+    pub fn metric_valid<M: Metric + 'static>(mut self, metric: M) -> Self
+    where
+        V: Adaptor<M::Input>,
+    {
         self.dashboard.register_valid(metric);
         self
     }
@@ -86,7 +92,10 @@ where
     /// Only [numeric](Numeric) metric can be displayed on a plot.
     /// If the same metric is also registered for the [validation split](Self::metric_valid_plot),
     /// the same graph will be used for both.
-    pub fn metric_train_plot<M: Metric<T> + Numeric + 'static>(mut self, metric: M) -> Self {
+    pub fn metric_train_plot<M: Metric + Numeric + 'static>(mut self, metric: M) -> Self
+    where
+        T: Adaptor<M::Input>,
+    {
         self.dashboard.register_train_plot(metric);
         self
     }
@@ -98,7 +107,10 @@ where
     /// Only [numeric](Numeric) metric can be displayed on a plot.
     /// If the same metric is also registered for the [training split](Self::metric_train_plot),
     /// the same graph will be used for both.
-    pub fn metric_valid_plot<M: Metric<V> + Numeric + 'static>(mut self, metric: M) -> Self {
+    pub fn metric_valid_plot<M: Metric + Numeric + 'static>(mut self, metric: M) -> Self
+    where
+        V: Adaptor<M::Input>,
+    {
         self.dashboard.register_valid_plot(metric);
         self
     }

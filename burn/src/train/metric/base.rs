@@ -1,38 +1,42 @@
-pub trait Metric<T>: Send + Sync {
-    fn update(&mut self, item: &T) -> MetricStateDyn;
+/// Metric trait.
+///
+/// # Notes
+///
+/// Implementations should define their own input type only used by the metric.
+/// This is important since some conflict may happen when the model output is adapted for each
+/// metric's input type.
+pub trait Metric: Send + Sync {
+    type Input;
+
+    /// Update the metric state and returns the current metric entry.
+    fn update(&mut self, item: &Self::Input) -> MetricEntry;
+    /// Clear the metric state.
     fn clear(&mut self);
 }
 
-pub trait MetricState {
-    fn name(&self) -> String;
-    fn pretty(&self) -> String;
-    fn serialize(&self) -> String;
+/// Adaptor are used to transform types so that they can be used by metrics.
+///
+/// This should be implemented by a model's output type for all [metric inputs](Metric::Input) that are
+/// registed with the [leaner buidler](burn::train::LearnerBuilder).
+pub trait Adaptor<T> {
+    /// Adapt the type to be passed to a [metric](Metric).
+    fn adapt(&self) -> T;
 }
 
+/// Declare a metric to be numeric.
+///
+/// This is usefull to plot the values of a metric during training.
 pub trait Numeric {
     fn value(&self) -> f64;
 }
 
-pub type MetricStateDyn = Box<dyn MetricState>;
-
+/// Data type that contains the current state of a metric at a given time.
 #[derive(new)]
-pub struct RunningMetricResult {
+pub struct MetricEntry {
+    /// The name of the metric.
     pub name: String,
+    /// The string to be displayed.
     pub formatted: String,
-    pub raw_running: String,
-    pub raw_current: String,
-}
-
-impl MetricState for RunningMetricResult {
-    fn name(&self) -> String {
-        self.name.clone()
-    }
-
-    fn pretty(&self) -> String {
-        self.formatted.clone()
-    }
-
-    fn serialize(&self) -> String {
-        self.raw_current.clone()
-    }
+    /// The string to be saved.
+    pub serialize: String,
 }

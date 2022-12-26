@@ -1,9 +1,10 @@
+use crate::train::metric::MetricEntry;
+
 use super::{AsyncLogger, FileLogger, Logger};
-use crate::train::metric::MetricState;
 use std::collections::HashMap;
 
 pub trait MetricLogger: Send {
-    fn log(&mut self, item: &dyn MetricState);
+    fn log(&mut self, item: &MetricEntry);
     fn epoch(&mut self, epoch: usize);
 }
 
@@ -24,11 +25,11 @@ impl FileMetricLogger {
 }
 
 impl MetricLogger for FileMetricLogger {
-    fn log(&mut self, item: &dyn MetricState) {
-        let key = item.name();
-        let value = item.serialize();
+    fn log(&mut self, item: &MetricEntry) {
+        let key = &item.name;
+        let value = &item.serialize;
 
-        let logger = match self.loggers.get_mut(&key) {
+        let logger = match self.loggers.get_mut(key) {
             Some(val) => val,
             None => {
                 let directory = format!("{}/epoch-{}", self.directory, self.epoch);
@@ -39,11 +40,11 @@ impl MetricLogger for FileMetricLogger {
                 let logger = AsyncLogger::new(Box::new(logger));
 
                 self.loggers.insert(key.clone(), Box::new(logger));
-                self.loggers.get_mut(&key).unwrap()
+                self.loggers.get_mut(key).unwrap()
             }
         };
 
-        logger.log(value);
+        logger.log(value.clone());
     }
 
     fn epoch(&mut self, epoch: usize) {

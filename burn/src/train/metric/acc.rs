@@ -1,74 +1,60 @@
-use super::RunningMetricResult;
+use super::state::{FormatOptions, NumericMetricState};
+use super::MetricEntry;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
-use crate::train::metric::{Metric, MetricStateDyn, Numeric};
+use crate::train::metric::{Metric, Numeric};
 
-pub struct AccuracyMetric {
-    current: f64,
-    count: usize,
-    total: usize,
+/// The accuracy metric.
+#[derive(Default)]
+pub struct AccuracyMetric<B: Backend> {
+    state: NumericMetricState,
+    _b: B,
 }
 
-impl AccuracyMetric {
+/// The [accuracy metric](AccuracyMetric) input type.
+#[derive(new)]
+pub struct AccuracyInput<B: Backend> {
+    outputs: Tensor<B, 2>,
+    targets: Tensor<B::IntegerBackend, 1>,
+}
+
+impl<B: Backend> AccuracyMetric<B> {
+    /// Create the metric.
     pub fn new() -> Self {
-        Self {
-            count: 0,
-            current: 0.0,
-            total: 0,
-        }
+        Self::default()
     }
 }
 
-impl Default for AccuracyMetric {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+impl<B: Backend> Metric for AccuracyMetric<B> {
+    type Input = AccuracyInput<B>;
 
-impl Numeric for AccuracyMetric {
-    fn value(&self) -> f64 {
-        self.current * 100.0
-    }
-}
+    fn update(&mut self, input: &AccuracyInput<B>) -> MetricEntry {
+        let [batch_size, _n_classes] = input.outputs.dims();
 
-impl<B: Backend> Metric<(Tensor<B, 2>, Tensor<B::IntegerBackend, 1>)> for AccuracyMetric {
-    fn update(&mut self, batch: &(Tensor<B, 2>, Tensor<B::IntegerBackend, 1>)) -> MetricStateDyn {
-        let (outputs, targets) = batch;
-        let count_current = outputs.dims()[0];
-
-        let targets = targets.to_device(B::Device::default());
-        let outputs = outputs
+        let targets = input.targets.to_device(B::Device::default());
+        let outputs = input
+            .outputs
             .argmax(1)
             .to_device(B::Device::default())
-            .reshape([count_current]);
+            .reshape([batch_size]);
 
         let total_current = outputs.equal(&targets).to_int().sum().to_data().value[0] as usize;
+        let accuracy = 100.0 * total_current as f64 / batch_size as f64;
 
-        self.count += count_current;
-        self.total += total_current;
-        self.current = total_current as f64 / count_current as f64;
-
-        let name = String::from("Accurracy");
-        let running = self.total as f64 / self.count as f64;
-        let raw_running = format!("{running}");
-        let raw_current = format!("{}", self.current);
-        let formatted = format!(
-            "running {:.2} % current {:.2} %",
-            100.0 * running,
-            100.0 * self.current
-        );
-
-        Box::new(RunningMetricResult {
-            name,
-            formatted,
-            raw_running,
-            raw_current,
-        })
+        self.state.update(
+            accuracy,
+            batch_size,
+            FormatOptions::new("Accuracy").unit("%").precision(2),
+        )
     }
 
     fn clear(&mut self) {
-        self.count = 0;
-        self.total = 0;
-        self.current = 0.0;
+        self.state.reset()
+    }
+}
+
+impl<B: Backend> Numeric for AccuracyMetric<B> {
+    fn value(&self) -> f64 {
+        self.state.value()
     }
 }
