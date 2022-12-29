@@ -19,7 +19,7 @@ static ARTIFACT_DIR: &str = "/tmp/burn-example-mnist";
 pub fn run<B: ADBackend>(device: B::Device) {
     // Config
     let config_optimizer =
-        AdamConfig::new(5e-5).with_weight_decay(Some(WeightDecayConfig::new(5e-5)));
+        AdamConfig::new(1e-4).with_weight_decay(Some(WeightDecayConfig::new(5e-5)));
     let config_mlp = MlpConfig::new();
     let config = MnistConfig::new(config_optimizer, config_mlp);
     B::seed(config.seed);

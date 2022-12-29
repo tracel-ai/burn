@@ -22,7 +22,7 @@ pub struct AdamConfig {
     #[config(default = 0.999)]
     beta_2: f32,
     /// A value required for numerical stability.
-    #[config(default = 1e-8)]
+    #[config(default = 1e-5)]
     epsilon: f32,
     /// [Weight decay](WeightDecayConfig) config.
     pub weight_decay: Option<WeightDecayConfig>,
