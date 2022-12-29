@@ -1,10 +1,10 @@
 use crate::data::MNISTBatcher;
 use crate::mlp::MlpConfig;
 use crate::model::{MnistConfig, Model};
+use burn::optim::{Adam, AdamConfig};
 use burn::{
     config::Config,
     data::{dataloader::DataLoaderBuilder, dataset::source::huggingface::MNISTDataset},
-    optim::{decay::WeightDecayConfig, momentum::MomentumConfig, Sgd, SgdConfig},
     tensor::backend::ADBackend,
     train::{
         metric::{AccuracyMetric, LossMetric},
@@ -17,10 +17,7 @@ static ARTIFACT_DIR: &str = "/tmp/burn-example-mnist";
 
 pub fn run<B: ADBackend>(device: B::Device) {
     // Config
-    let config_optimizer = SgdConfig::new()
-        .with_learning_rate(2.5e-3)
-        .with_weight_decay(Some(WeightDecayConfig::new(0.05)))
-        .with_momentum(Some(MomentumConfig::new().with_nesterov(true)));
+    let config_optimizer = AdamConfig::new(5e-5);
     let config_mlp = MlpConfig::new();
     let config = MnistConfig::new(config_optimizer, config_mlp);
     B::seed(config.seed);
@@ -39,7 +36,7 @@ pub fn run<B: ADBackend>(device: B::Device) {
         .build(Arc::new(MNISTDataset::test()));
 
     // Model
-    let optim = Sgd::new(&config.optimizer);
+    let optim = Adam::new(&config.optimizer);
     let model = Model::new(&config, 784, 10);
 
     let learner = LearnerBuilder::new(ARTIFACT_DIR)

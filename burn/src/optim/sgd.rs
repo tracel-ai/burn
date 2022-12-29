@@ -12,7 +12,6 @@ use crate::tensor::{ElementConversion, Tensor};
 #[derive(Config)]
 pub struct SgdConfig {
     /// Learning rate for the optimizer.
-    #[config(default = 0.01)]
     pub learning_rate: f64,
     /// [Weight decay](WeightDecayConfig) config.
     pub weight_decay: Option<WeightDecayConfig>,

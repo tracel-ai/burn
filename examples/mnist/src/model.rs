@@ -6,7 +6,7 @@ use burn::{
     config::Config,
     module::{Module, Param},
     nn::{self, loss::CrossEntropyLoss},
-    optim::SgdConfig,
+    optim::AdamConfig,
     tensor::{
         backend::{ADBackend, Backend},
         Tensor,
@@ -24,7 +24,7 @@ pub struct MnistConfig {
     pub num_workers: usize,
     #[config(default = 42)]
     pub seed: u64,
-    pub optimizer: SgdConfig,
+    pub optimizer: AdamConfig,
     pub mlp: MlpConfig,
 }
 
