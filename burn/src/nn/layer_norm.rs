@@ -48,9 +48,7 @@ impl<B: Backend> LayerNorm<B> {
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
         let (var, mean) = input.var_mean_bias(D - 1);
 
-        let input_normalized = input
-            .sub(&mean)
-            .div(&var.powf(0.5).add_scalar(self.epsilon));
+        let input_normalized = input.sub(&mean).div(&var.sqrt().add_scalar(self.epsilon));
 
         input_normalized
             .mul(&self.gamma.unsqueeze())

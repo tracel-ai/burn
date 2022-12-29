@@ -100,6 +100,11 @@ where
         Self::new(B::powf(&self.value, value))
     }
 
+    /// Applies element wise root square operation.
+    pub fn sqrt(&self) -> Self {
+        Self::new(B::sqrt(&self.value))
+    }
+
     /// Returns the shape of the current tensor.
     pub fn shape(&self) -> &Shape<D> {
         B::shape(&self.value)

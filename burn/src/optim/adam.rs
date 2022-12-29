@@ -142,7 +142,7 @@ impl<B: ADBackend> AdaptiveMomentum<B> {
         let moment_1_corrected = moment_1.div_scalar(1f32 - self.beta_1.powf(time));
         let moment_2_corrected = moment_2.div_scalar(1f32 - self.beta_2.powf(time));
 
-        moment_1_corrected.div(&moment_2_corrected.powf(0.5).add_scalar(self.epsilon))
+        moment_1_corrected.div(&moment_2_corrected.sqrt().add_scalar(self.epsilon))
     }
 
     pub fn register_state<const D: usize>(&self, id: &ParamId, state: &mut StateNamed<B::Elem>) {
