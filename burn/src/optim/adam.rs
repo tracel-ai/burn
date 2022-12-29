@@ -111,24 +111,22 @@ impl<B: ADBackend> AdaptiveMomentum<B> {
         id: &ParamId,
         grad: Tensor<B::InnerBackend, D>,
     ) -> Tensor<B::InnerBackend, D> {
+        let factor = 1.0 - self.beta_1;
         let moment_1 = match self.moment_1.get::<D>(id) {
-            Some(moment_last_step) => {
-                let factor = 1.0 - self.beta_1;
-
-                grad.mul_scalar(self.beta_1)
-                    .add(&moment_last_step.mul_scalar(factor))
-            }
-            None => grad.clone(),
+            Some(moment_last_step) => moment_last_step
+                .mul_scalar(self.beta_1)
+                .add(&grad.mul_scalar(factor)),
+            None => grad.mul_scalar(factor),
         };
+
+        let factor = 1.0 - self.beta_2;
         let moment_2 = match self.moment_2.get::<D>(id) {
-            Some(moment_last_step) => {
-                let factor = 1.0 - self.beta_2;
-
-                grad.mul_scalar(self.beta_2)
-                    .add(&moment_last_step.powf(2.0).mul_scalar(factor))
-            }
-            None => grad,
+            Some(moment_last_step) => moment_last_step
+                .mul_scalar(self.beta_2)
+                .add(&grad.powf(2.0).mul_scalar(factor)),
+            None => grad.powf(2.0).mul_scalar(factor),
         };
+
         let time = match self.time.get::<1>(id) {
             Some(time) => time.add_scalar(1),
             None => Tensor::ones([1]),

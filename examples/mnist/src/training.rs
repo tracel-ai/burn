@@ -1,6 +1,7 @@
 use crate::data::MNISTBatcher;
 use crate::mlp::MlpConfig;
 use crate::model::{MnistConfig, Model};
+use burn::optim::decay::WeightDecayConfig;
 use burn::optim::{Adam, AdamConfig};
 use burn::{
     config::Config,
@@ -17,7 +18,8 @@ static ARTIFACT_DIR: &str = "/tmp/burn-example-mnist";
 
 pub fn run<B: ADBackend>(device: B::Device) {
     // Config
-    let config_optimizer = AdamConfig::new(5e-5);
+    let config_optimizer =
+        AdamConfig::new(5e-5).with_weight_decay(Some(WeightDecayConfig::new(5e-5)));
     let config_mlp = MlpConfig::new();
     let config = MnistConfig::new(config_optimizer, config_mlp);
     B::seed(config.seed);
