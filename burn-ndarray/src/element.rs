@@ -9,6 +9,7 @@ pub(crate) trait ExpElement {
     fn exp_elem(self) -> Self;
     fn log_elem(self) -> Self;
     fn pow_elem(self, value: f32) -> Self;
+    fn sqrt_elem(self) -> Self;
 }
 
 macro_rules! impl_exp_elem {
@@ -22,6 +23,9 @@ macro_rules! impl_exp_elem {
             }
             fn pow_elem(self, value: f32) -> Self {
                 $elem::powf(self, value.into())
+            }
+            fn sqrt_elem(self) -> Self {
+                $elem::sqrt(self)
             }
         }
     };
@@ -37,6 +41,10 @@ macro_rules! impl_exp_elem {
             }
             fn pow_elem(self, value: f32) -> Self {
                 let tmp = $tmp::powf(self as $tmp, value as $tmp);
+                tmp as $elem
+            }
+            fn sqrt_elem(self) -> Self {
+                let tmp = $tmp::sqrt(self as $tmp);
                 tmp as $elem
             }
         }

@@ -447,6 +447,10 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         to_tensor(tensor.tensor.pow_tensor_scalar(value as f64))
     }
 
+    fn sqrt<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
+        to_tensor(tensor.tensor.sqrt())
+    }
+
     fn erf<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
         to_tensor(tensor.tensor.erf())
     }

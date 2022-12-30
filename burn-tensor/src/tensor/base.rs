@@ -27,6 +27,16 @@ where
     }
 }
 
+impl<B> Tensor<B, 1>
+where
+    B: Backend,
+{
+    /// Returns the first value of the tensor.
+    pub fn single_value(&self) -> B::Elem {
+        self.to_data().value[0]
+    }
+}
+
 impl<const D: usize, B> Tensor<B, D>
 where
     B: Backend,
@@ -88,6 +98,11 @@ where
     /// `y = x^a`
     pub fn powf(&self, value: f32) -> Self {
         Self::new(B::powf(&self.value, value))
+    }
+
+    /// Applies element wise root square operation.
+    pub fn sqrt(&self) -> Self {
+        Self::new(B::sqrt(&self.value))
     }
 
     /// Returns the shape of the current tensor.

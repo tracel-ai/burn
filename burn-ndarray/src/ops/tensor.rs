@@ -531,6 +531,13 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         NdArrayTensor { array, shape }
     }
 
+    fn sqrt<const D: usize>(tensor: &NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+        let array = tensor.array.mapv(|a| a.sqrt_elem()).into_shared();
+        let shape = tensor.shape;
+
+        NdArrayTensor { array, shape }
+    }
+
     fn erf<const D: usize>(tensor: &NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor
             .array
