@@ -1,6 +1,6 @@
 [package]
 name = "burn"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 description = "BURN: Burn Unstoppable Rusty Neurons"
 repository = "https://github.com/burn-rs/burn"
@@ -15,10 +15,10 @@ default = []
 experimental-named-tensor = ["burn-tensor/experimental-named-tensor"]
 
 [dependencies]
-burn-tensor = { version = "0.3.0", path = "../burn-tensor" }
-burn-autodiff = { version = "0.3.0", path = "../burn-autodiff" }
-burn-dataset = { version = "0.3.0", path = "../burn-dataset", default-features = false }
-burn-derive = { version = "0.3.0", path = "../burn-derive" }
+burn-tensor = { version = "0.4.0", path = "../burn-tensor" }
+burn-autodiff = { version = "0.4.0", path = "../burn-autodiff" }
+burn-dataset = { version = "0.4.0", path = "../burn-dataset", default-features = false }
+burn-derive = { version = "0.4.0", path = "../burn-derive" }
 
 thiserror = "1.0.38"
 num-traits = "0.2.15"
@@ -45,7 +45,7 @@ flate2 = "1.0.25"
 nanoid = "0.4.0"
 
 [dev-dependencies]
-burn-dataset = { version = "0.3.0", path = "../burn-dataset", features = [
+burn-dataset = { version = "0.4.0", path = "../burn-dataset", features = [
     "fake",
 ] }
-burn-ndarray = { version = "0.3.0", path = "../burn-ndarray" }
+burn-ndarray = { version = "0.4.0", path = "../burn-ndarray" }

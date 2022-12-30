@@ -1,6 +1,6 @@
 [package]
 name = "burn-tensor"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 
 description = """
@@ -20,7 +20,7 @@ export_tests = ["burn-tensor-testgen"]
 experimental-named-tensor = []
 
 [dependencies]
-burn-tensor-testgen = { version = "0.3.0", path = "../burn-tensor-testgen", optional = true }
+burn-tensor-testgen = { version = "0.4.0", path = "../burn-tensor-testgen", optional = true }
 num-traits = "0.2.15"
 derive-new = "0.5.9"
 rand = "0.8.5"
