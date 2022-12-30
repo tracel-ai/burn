@@ -47,7 +47,10 @@ impl<B: ADBackend> Adam<B> {
                 moment_1: GradientsParams::<B>::new(),
                 moment_2: GradientsParams::<B>::new(),
             },
-            weight_decay: config.weight_decay.as_ref().map(|config| WeightDecay::new(config)),
+            weight_decay: config
+                .weight_decay
+                .as_ref()
+                .map(|config| WeightDecay::new(config)),
         }
     }
 }
@@ -134,7 +137,6 @@ impl<B: ADBackend> AdaptiveMomentum<B> {
         self.time.register(id.clone(), time.clone());
 
         let time = time.single_value().to_elem();
-        println!("Updating parameter {} with time {}", id, time);
         let moment_1_corrected = moment_1.div_scalar(1f32 - self.beta_1.powf(time));
         let moment_2_corrected = moment_2.div_scalar(1f32 - self.beta_2.powf(time));
 

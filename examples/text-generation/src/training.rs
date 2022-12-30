@@ -8,7 +8,7 @@ use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::Dataset},
     module::Module,
     nn::transformer::TransformerEncoderConfig,
-    optim::{Sgd, SgdConfig},
+    optim::{Adam, AdamConfig},
     tensor::backend::ADBackend,
     train::{
         metric::{AccuracyMetric, CUDAMetric, LossMetric},
@@ -20,7 +20,7 @@ use std::sync::Arc;
 #[derive(Config)]
 pub struct ExperimentConfig {
     transformer: TransformerEncoderConfig,
-    optimizer: SgdConfig,
+    optimizer: AdamConfig,
     #[config(default = 256)]
     max_seq_length: usize,
     #[config(default = 1)]
@@ -66,7 +66,7 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
         .num_workers(8)
         .build(dataset_test);
 
-    let optim = Sgd::new(&config.optimizer);
+    let optim = Adam::new(&config.optimizer);
 
     let learner = LearnerBuilder::new(artifact_dir)
         .metric_train(CUDAMetric::new())
