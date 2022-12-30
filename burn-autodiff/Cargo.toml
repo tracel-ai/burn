@@ -1,6 +1,6 @@
 [package]
 name = "burn-autodiff"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 description = "Autodiff backend for burn"
 repository = "https://github.com/burn-rs/burn/tree/main/burn-autodiff"
@@ -15,7 +15,7 @@ default = ["export_tests"]
 export_tests = ["burn-tensor-testgen"]
 
 [dependencies]
-burn-tensor-testgen = { version = "0.3.0", path = "../burn-tensor-testgen", optional = true }
-burn-tensor = { version = "0.3.0", path = "../burn-tensor" }
+burn-tensor-testgen = { version = "0.4.0", path = "../burn-tensor-testgen", optional = true }
+burn-tensor = { version = "0.4.0", path = "../burn-tensor" }
 derive-new = "0.5.9"
 nanoid = "0.4.0"

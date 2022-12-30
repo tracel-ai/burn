@@ -1,6 +1,6 @@
 [package]
 name = "burn-tch"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 
 description = "Tch backend for burn"
@@ -15,7 +15,7 @@ edition = "2021"
 doc = ["tch/doc-only"]
 
 [dependencies]
-burn-tensor = { version = "0.3.0", path = "../burn-tensor", default-features = false }
+burn-tensor = { version = "0.4.0", path = "../burn-tensor", default-features = false }
 rand = "0.8.5"
 tch = { version = "0.10.1" }
 lazy_static = "1.4.0"
@@ -24,9 +24,9 @@ half = { version = "1.6.0", features = [
 ] } # needs to be 1.6 to work with tch
 
 [dev-dependencies]
-burn-tensor = { version = "0.3.0", path = "../burn-tensor", default-features = false, features = [
+burn-tensor = { version = "0.4.0", path = "../burn-tensor", default-features = false, features = [
     "export_tests",
 ] }
-burn-autodiff = { version = "0.3.0", path = "../burn-autodiff", default-features = false, features = [
+burn-autodiff = { version = "0.4.0", path = "../burn-autodiff", default-features = false, features = [
     "export_tests",
 ] }
