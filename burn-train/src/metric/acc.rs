@@ -1,8 +1,8 @@
 use super::state::{FormatOptions, NumericMetricState};
 use super::MetricEntry;
-use crate::tensor::backend::Backend;
-use crate::tensor::Tensor;
-use crate::train::metric::{Metric, Numeric};
+use crate::metric::{Metric, Numeric};
+use burn_core::tensor::backend::Backend;
+use burn_core::tensor::Tensor;
 
 /// The accuracy metric.
 #[derive(Default)]

@@ -1,6 +1,6 @@
-use crate::tensor::backend::Backend;
-use crate::train::metric::{AccuracyInput, Adaptor, LossInput};
-use burn_tensor::Tensor;
+use crate::metric::{AccuracyInput, Adaptor, LossInput};
+use burn_core::tensor::backend::Backend;
+use burn_core::tensor::Tensor;
 
 /// Simple classification output adapted for multiple metrics.
 #[derive(new)]

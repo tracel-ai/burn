@@ -1,4 +1,5 @@
 use burn::config::Config;
+use burn_core as burn;
 
 #[derive(Config, Debug, PartialEq, Eq)]
 pub struct TestEmptyStructConfig {}

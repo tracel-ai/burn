@@ -1,15 +1,15 @@
 use super::log::update_log_file;
 use super::Learner;
-use crate::module::ADModule;
-use crate::optim::Optimizer;
-use crate::train::checkpoint::{AsyncCheckpointer, Checkpointer, FileCheckpointer};
-use crate::train::logger::FileMetricLogger;
-use crate::train::metric::dashboard::cli::CLIDashboardRenderer;
-use crate::train::metric::dashboard::Dashboard;
-use crate::train::metric::{Adaptor, Metric, Numeric};
-use crate::train::AsyncTrainerCallback;
-use burn_tensor::backend::ADBackend;
-use burn_tensor::Element;
+use crate::checkpoint::{AsyncCheckpointer, Checkpointer, FileCheckpointer};
+use crate::logger::FileMetricLogger;
+use crate::metric::dashboard::cli::CLIDashboardRenderer;
+use crate::metric::dashboard::Dashboard;
+use crate::metric::{Adaptor, Metric, Numeric};
+use crate::AsyncTrainerCallback;
+use burn_core::module::ADModule;
+use burn_core::optim::Optimizer;
+use burn_core::tensor::backend::ADBackend;
+use burn_core::tensor::Element;
 use std::sync::Arc;
 
 /// Struct to configure and create a [learner](Learner).

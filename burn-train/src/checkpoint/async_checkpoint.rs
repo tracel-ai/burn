@@ -1,6 +1,6 @@
 use super::{Checkpointer, CheckpointerError};
-use crate::module::State;
-use burn_tensor::Element;
+use burn_core::module::State;
+use burn_core::tensor::Element;
 use std::sync::{mpsc, Arc};
 
 enum Message<E> {

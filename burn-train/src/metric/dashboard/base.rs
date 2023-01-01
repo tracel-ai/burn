@@ -1,11 +1,9 @@
 use crate::{
-    data::dataloader::Progress,
-    train::{
-        logger::MetricLogger,
-        metric::{Adaptor, Metric, MetricEntry, Numeric},
-        LearnerCallback, LearnerItem,
-    },
+    logger::MetricLogger,
+    metric::{Adaptor, Metric, MetricEntry, Numeric},
+    LearnerCallback, LearnerItem,
 };
+use burn_core::data::dataloader::Progress;
 
 pub struct TrainingProgress {
     pub progress: Progress,

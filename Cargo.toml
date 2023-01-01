@@ -2,6 +2,7 @@
 members = [
   "burn",
   "burn-core",
+  "burn-train",
   "burn-derive",
   "burn-tensor",
   "burn-tensor-testgen",

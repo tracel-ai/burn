@@ -6,34 +6,35 @@ use burn_tensor::{
     Tensor,
 };
 
+/// Data type that contains gradients for a given backend.
 pub type GradientsParams<B> = TensorContainer<<B as ADBackend>::InnerBackend, ParamId>;
 
 #[derive(new)]
-pub struct GradientsRegister<'a, B: ADBackend, O> {
+pub(crate) struct GradientsRegister<'a, B: ADBackend, O> {
     optimizer: &'a O,
     state: &'a mut StateNamed<B::Elem>,
 }
 
 #[derive(new)]
-pub struct GradientsLoader<'a, B: ADBackend, O> {
+pub(crate) struct GradientsLoader<'a, B: ADBackend, O> {
     optimizer: &'a mut O,
     state: &'a StateNamed<B::Elem>,
 }
 
 #[derive(new)]
-pub struct GradientsParamsConverter<'a, B: ADBackend> {
+pub(crate) struct GradientsParamsConverter<'a, B: ADBackend> {
     grads: B::Gradients,
     grads_params: &'a mut TensorContainer<B::InnerBackend, ParamId>,
 }
 
 #[derive(new)]
-pub struct ModuleTensorUpdater<'a, B: ADBackend, O> {
+pub(crate) struct ModuleTensorUpdater<'a, B: ADBackend, O> {
     optimizer: &'a mut O,
     grads: GradientsParams<B>,
 }
 
 #[derive(new)]
-pub struct GradientsParamsChangeDevice<'a, B: ADBackend> {
+pub(crate) struct GradientsParamsChangeDevice<'a, B: ADBackend> {
     device: B::Device,
     grads: &'a mut GradientsParams<B>,
 }
@@ -77,6 +78,7 @@ impl<'a, B: ADBackend> ModuleVisitor<B> for GradientsParamsChangeDevice<'a, B> {
     }
 }
 
+/// Update the device of each tensor gradients.
 pub fn to_device_grads<M: ADModule>(
     grads: &mut GradientsParams<M::ADBackend>,
     device: <M::Backend as Backend>::Device,

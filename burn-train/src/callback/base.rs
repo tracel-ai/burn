@@ -1,4 +1,4 @@
-use crate::data::dataloader::Progress;
+use burn_core::data::dataloader::Progress;
 
 pub trait LearnerCallback<T, V>: Send {
     fn on_train_item(&mut self, _item: LearnerItem<T>) {}

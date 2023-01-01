@@ -1,4 +1,4 @@
-use crate::module::{State, StateError};
+use burn_core::module::{State, StateError};
 
 #[derive(Debug)]
 pub enum CheckpointerError {

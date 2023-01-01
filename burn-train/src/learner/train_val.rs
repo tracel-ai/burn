@@ -1,11 +1,12 @@
 use super::Learner;
-use crate::data::dataloader::DataLoader;
-use crate::module::ADModule;
-use crate::optim::visitor::{convert_grads, to_device_grads, GradientsParams};
-use crate::optim::{GradientsAccumulator, Optimizer};
-use crate::train::train::MultiDevicesTrainStep;
-use crate::train::LearnerItem;
-use burn_tensor::backend::ADBackend;
+use crate::train::MultiDevicesTrainStep;
+use crate::LearnerItem;
+use burn_core::data::dataloader::DataLoader;
+use burn_core::module::ADModule;
+use burn_core::optim::{
+    convert_grads, to_device_grads, GradientsAccumulator, GradientsParams, Optimizer,
+};
+use burn_core::tensor::backend::ADBackend;
 use std::sync::Arc;
 
 pub struct TrainOutput<B: ADBackend, TO> {

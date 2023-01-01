@@ -1,6 +1,7 @@
 use burn::module::{Module, Param};
 use burn::tensor::backend::Backend;
 use burn::tensor::{Distribution, Shape, Tensor};
+use burn_core as burn;
 
 pub type TestBackend = burn_ndarray::NdArrayBackend<f32>;
 

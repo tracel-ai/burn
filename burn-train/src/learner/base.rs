@@ -1,8 +1,8 @@
-use crate::module::ADModule;
-use crate::optim::Optimizer;
-use crate::tensor::backend::Backend;
-use crate::train::checkpoint::Checkpointer;
-use crate::train::LearnerCallback;
+use crate::checkpoint::Checkpointer;
+use crate::LearnerCallback;
+use burn_core::module::ADModule;
+use burn_core::optim::Optimizer;
+use burn_core::tensor::backend::Backend;
 
 /// Learner struct encapsulating all components necessary to train a Neural Network model.
 ///

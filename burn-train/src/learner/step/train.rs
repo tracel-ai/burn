@@ -1,9 +1,7 @@
-use crate::{
-    data::dataloader::DataLoaderIterator,
-    module::ADModule,
-    train::{TrainOutput, TrainStep},
+use crate::{TrainOutput, TrainStep};
+use burn_core::{
+    data::dataloader::DataLoaderIterator, module::ADModule, tensor::backend::ADBackend,
 };
-use burn_tensor::backend::ADBackend;
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread::spawn;
 

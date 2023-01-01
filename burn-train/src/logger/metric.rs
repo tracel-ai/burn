@@ -1,6 +1,5 @@
-use crate::train::metric::MetricEntry;
-
 use super::{AsyncLogger, FileLogger, Logger};
+use crate::metric::MetricEntry;
 use std::collections::HashMap;
 
 pub trait MetricLogger: Send {
