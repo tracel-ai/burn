@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "burn",
+  "burn-core",
   "burn-derive",
   "burn-tensor",
   "burn-tensor-testgen",
