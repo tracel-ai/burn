@@ -20,20 +20,9 @@ burn-autodiff = { version = "0.4.0", path = "../burn-autodiff" }
 burn-dataset = { version = "0.4.0", path = "../burn-dataset", default-features = false }
 burn-derive = { version = "0.4.0", path = "../burn-derive" }
 
-thiserror = "1.0.38"
-num-traits = "0.2.15"
+# Utilities
 derive-new = "0.5.9"
 rand = "0.8.5"
-
-# Metrics
-nvml-wrapper = "0.8.0"
-textplots = "0.8.0"
-rgb = "0.8.34"
-terminal_size = "0.2.3"
-
-# Console
-indicatif = "0.17.2"
-log4rs = "1.2.0"
 log = "0.4.17"
 
 # Serialize Deserialize

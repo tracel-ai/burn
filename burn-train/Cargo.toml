@@ -24,6 +24,6 @@ textplots = "0.8.0"
 rgb = "0.8.34"
 terminal_size = "0.2.3"
 
-# Base
+# Utilities
 derive-new = "0.5.9"
 serde = { version = "1.0.151", features = ["derive"] }

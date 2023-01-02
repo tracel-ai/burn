@@ -35,7 +35,12 @@ jobs:
     with:
       crate: burn-autodiff
 
-  test-burn:
+  test-burn-core:
     uses: burn-rs/burn/.github/workflows/test-template.yml@main
     with:
-      crate: burn
+      crate: burn-core
+
+  test-burn-train:
+    uses: burn-rs/burn/.github/workflows/test-template.yml@main
+    with:
+      crate: burn-train
