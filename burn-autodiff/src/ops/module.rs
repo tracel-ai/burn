@@ -55,4 +55,16 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<3> {
         todo!()
     }
+
+    fn conv2d(
+        x: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
+        weight: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
+        bias: &Option<<ADBackendDecorator<B> as Backend>::TensorPrimitive<1>>,
+        stride: [usize; 2],
+        padding: [usize; 2],
+        dilatation: [usize; 2],
+        groups: usize,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<4> {
+        todo!()
+    }
 }

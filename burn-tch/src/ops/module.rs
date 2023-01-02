@@ -54,7 +54,33 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
             &[dilatation as i64],
             groups as i64,
         );
+        let shape = Shape::from(tensor.size());
 
+        TchTensor {
+            kind: weight.kind,
+            tensor,
+            shape,
+        }
+    }
+
+    fn conv2d(
+        x: &TchTensor<E, 4>,
+        weight: &TchTensor<E, 4>,
+        bias: &Option<TchTensor<E, 1>>,
+        stride: [usize; 2],
+        padding: [usize; 2],
+        dilatation: [usize; 2],
+        groups: usize,
+    ) -> TchTensor<E, 4> {
+        let tensor = tch::Tensor::conv2d(
+            &x.tensor,
+            &weight.tensor,
+            bias.clone().map(|t| t.tensor),
+            &[stride[0] as i64, stride[1] as i64],
+            &[padding[0] as i64, padding[1] as i64],
+            &[dilatation[0] as i64, dilatation[1] as i64],
+            groups as i64,
+        );
         let shape = Shape::from(tensor.size());
 
         TchTensor {

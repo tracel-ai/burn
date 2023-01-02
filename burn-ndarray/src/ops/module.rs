@@ -61,15 +61,15 @@ impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         weights_grad
     }
 
-    fn conv1d(
-        x: &<NdArrayBackend<E> as burn_tensor::backend::Backend>::TensorPrimitive<3>,
-        weight: &<NdArrayBackend<E> as burn_tensor::backend::Backend>::TensorPrimitive<3>,
+    fn conv2d(
+        x: &<NdArrayBackend<E> as burn_tensor::backend::Backend>::TensorPrimitive<4>,
+        weight: &<NdArrayBackend<E> as burn_tensor::backend::Backend>::TensorPrimitive<4>,
         bias: &Option<<NdArrayBackend<E> as burn_tensor::backend::Backend>::TensorPrimitive<1>>,
-        stride: usize,
-        padding: usize,
-        dilatation: usize,
+        stride: [usize; 2],
+        padding: [usize; 2],
+        dilatation: [usize; 2],
         groups: usize,
-    ) -> <NdArrayBackend<E> as burn_tensor::backend::Backend>::TensorPrimitive<3> {
+    ) -> <NdArrayBackend<E> as burn_tensor::backend::Backend>::TensorPrimitive<4> {
         todo!()
     }
 }
