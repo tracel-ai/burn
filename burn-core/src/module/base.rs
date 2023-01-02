@@ -19,10 +19,15 @@ use burn_tensor::Tensor;
 /// necessary to optimize and train the module on any backend.
 ///
 /// ```rust
-/// use burn::nn;
-/// use burn::module::{Param, Module};
-/// use burn::tensor::Tensor;
-/// use burn::tensor::backend::Backend;
+/// // Not necessary when using the burn crate directly.
+/// use burn_core as burn;
+///
+/// use burn::{
+///     nn,
+///     module::{Param, Module},
+///     tensor::Tensor,
+///     tensor::backend::Backend,
+/// };
 ///
 /// #[derive(Module, Debug)]
 /// struct MyModule<B: Backend> {
