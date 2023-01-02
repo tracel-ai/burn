@@ -59,14 +59,32 @@ jobs:
       crate: burn-ndarray
     secrets: inherit
 
+
+  publish-burn-core:
+    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
+    needs:
+      - publish-burn-tensor
+      - publish-burn-autodiff
+      - publish-burn-dataset
+      - publish-burn-derive
+      - publish-burn-ndarray
+    with:
+      crate: burn-core
+    secrets: inherit
+
+  publish-burn-train:
+    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
+    needs:
+      - publish-burn-core
+    with:
+      crate: burn-train
+    secrets: inherit
+
   publish-burn:
     uses: burn-rs/burn/.github/workflows/publish-template.yml@main
     needs:
-      - publish-burn-derive
-      - publish-burn-dataset
-      - publish-burn-tensor
-      - publish-burn-autodiff
-      - publish-burn-ndarray
+      - publish-burn-core
+      - publish-burn-train
     with:
       crate: burn
     secrets: inherit

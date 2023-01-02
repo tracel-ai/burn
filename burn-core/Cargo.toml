@@ -1,0 +1,40 @@
+[package]
+name = "burn-core"
+version = "0.4.0"
+authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
+description = "BURN: Burn Unstoppable Rusty Neurons"
+repository = "https://github.com/burn-rs/burn-core"
+readme = "README.md"
+keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
+categories = ["science"]
+license = "MIT/Apache-2.0"
+edition = "2021"
+
+[features]
+default = []
+experimental-named-tensor = ["burn-tensor/experimental-named-tensor"]
+
+[dependencies]
+burn-tensor = { version = "0.4.0", path = "../burn-tensor" }
+burn-autodiff = { version = "0.4.0", path = "../burn-autodiff" }
+burn-dataset = { version = "0.4.0", path = "../burn-dataset", default-features = false }
+burn-derive = { version = "0.4.0", path = "../burn-derive" }
+
+# Utilities
+derive-new = "0.5.9"
+rand = "0.8.5"
+log = "0.4.17"
+
+# Serialize Deserialize
+serde = { version = "1.0.151", features = ["derive"] }
+serde_json = "1.0.91"
+flate2 = "1.0.25"
+
+# Parameter & Optimization
+nanoid = "0.4.0"
+
+[dev-dependencies]
+burn-dataset = { version = "0.4.0", path = "../burn-dataset", features = [
+    "fake",
+] }
+burn-ndarray = { version = "0.4.0", path = "../burn-ndarray" }
