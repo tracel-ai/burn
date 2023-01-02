@@ -11,6 +11,15 @@ pub trait ModuleOps<B: Backend> {
         output: &B::TensorPrimitive<3>,
         indexes: &<B::IntegerBackend as Backend>::TensorPrimitive<2>,
     ) -> B::TensorPrimitive<2>;
+    fn conv1d(
+        x: &B::TensorPrimitive<3>,
+        weight: &B::TensorPrimitive<3>,
+        bias: &Option<B::TensorPrimitive<1>>,
+        stride: usize,
+        padding: usize,
+        dilatation: usize,
+        groups: usize,
+    ) -> B::TensorPrimitive<3>;
 }
 
 pub trait TensorOps<B: Backend> {

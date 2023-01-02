@@ -35,4 +35,32 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
             shape,
         }
     }
+
+    fn conv1d(
+        x: &TchTensor<E, 3>,
+        weight: &TchTensor<E, 3>,
+        bias: &Option<TchTensor<E, 1>>,
+        stride: usize,
+        padding: usize,
+        dilatation: usize,
+        groups: usize,
+    ) -> TchTensor<E, 3> {
+        let tensor = tch::Tensor::conv1d(
+            &x.tensor,
+            &weight.tensor,
+            bias.clone().map(|t| t.tensor),
+            &[stride as i64],
+            &[padding as i64],
+            &[dilatation as i64],
+            groups as i64,
+        );
+
+        let shape = Shape::from(tensor.size());
+
+        TchTensor {
+            kind: weight.kind,
+            tensor,
+            shape,
+        }
+    }
 }

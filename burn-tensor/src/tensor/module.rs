@@ -6,3 +6,26 @@ where
 {
     Tensor::new(B::embedding(&weights.value, &indexes.value))
 }
+
+pub fn conv1d<B>(
+    x: &Tensor<B, 3>,
+    weight: &Tensor<B, 3>,
+    bias: &Option<Tensor<B, 1>>,
+    stride: usize,
+    padding: usize,
+    dilatation: usize,
+    groups: usize,
+) -> Tensor<B, 3>
+where
+    B: Backend,
+{
+    Tensor::new(B::conv1d(
+        &x.value,
+        &weight.value,
+        &bias.clone().map(|b| b.value),
+        stride,
+        padding,
+        dilatation,
+        groups,
+    ))
+}

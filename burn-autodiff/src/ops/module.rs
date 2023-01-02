@@ -43,4 +43,16 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let tensor = B::embedding_backward(weights.tensor_ref(), output.tensor_ref(), indexes);
         ADTensor::from_tensor(tensor)
     }
+
+    fn conv1d(
+        x: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<3>,
+        weight: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<3>,
+        bias: &Option<<ADBackendDecorator<B> as Backend>::TensorPrimitive<1>>,
+        stride: usize,
+        padding: usize,
+        dilatation: usize,
+        groups: usize,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<3> {
+        todo!()
+    }
 }

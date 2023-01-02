@@ -13,6 +13,7 @@ macro_rules! testgen_all {
 
         // test module
         burn_tensor::testgen_module_forward!();
+        burn_tensor::testgen_module_conv1d!();
 
         // test ops
         burn_tensor::testgen_add!();
