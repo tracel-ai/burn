@@ -53,7 +53,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     fn conv2d(
         x: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
         weight: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
-        bias: &Option<<ADBackendDecorator<B> as Backend>::TensorPrimitive<1>>,
+        bias: Option<&<ADBackendDecorator<B> as Backend>::TensorPrimitive<1>>,
         stride: [usize; 2],
         padding: [usize; 2],
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<4> {
@@ -117,10 +117,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let out = B::conv2d(
             x.tensor_ref(),
             weight.tensor_ref(),
-            &match bias {
-                Some(b) => Some(b.tensor()),
-                None => None,
-            },
+            bias.map(|b| b.tensor_ref()),
             stride,
             padding,
         );
@@ -135,10 +132,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let ops = ForwardConv2dOps::<B>::new(
             x.node.clone(),
             weight.node.clone(),
-            match bias {
-                Some(b) => Some(b.node.clone()),
-                None => None,
-            },
+            bias.map(|b| b.node.clone()),
         );
         let ops = Box::new(ops);
 

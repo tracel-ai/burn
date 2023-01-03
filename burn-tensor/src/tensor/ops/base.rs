@@ -14,14 +14,14 @@ pub trait ModuleOps<B: Backend> {
     fn conv2d(
         x: &B::TensorPrimitive<4>,
         weight: &B::TensorPrimitive<4>,
-        bias: &Option<B::TensorPrimitive<1>>,
+        bias: Option<&B::TensorPrimitive<1>>,
         stride: [usize; 2],
         padding: [usize; 2],
     ) -> B::TensorPrimitive<4>;
     fn conv1d(
         x: &B::TensorPrimitive<3>,
         weight: &B::TensorPrimitive<3>,
-        bias: &Option<B::TensorPrimitive<1>>,
+        bias: Option<&B::TensorPrimitive<1>>,
         stride: usize,
         padding: usize,
     ) -> B::TensorPrimitive<3> {

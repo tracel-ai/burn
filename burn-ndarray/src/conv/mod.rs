@@ -6,7 +6,7 @@ use burn_tensor::{ops::TensorOps, Shape};
 pub(crate) fn conv2d_naive<E: NdArrayElement>(
     x: &NdArrayTensor<E, 3>,
     weight: &NdArrayTensor<E, 4>,
-    bias: &Option<NdArrayTensor<E, 1>>,
+    bias: Option<&NdArrayTensor<E, 1>>,
     stride: [usize; 2],
     padding: [usize; 2],
 ) -> NdArrayTensor<E, 4> {

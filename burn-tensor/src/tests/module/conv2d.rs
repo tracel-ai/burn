@@ -133,7 +133,7 @@ mod tests {
         ]);
         let bias = TestTensor::from_floats([-0.0354, -0.0454, -0.0460]);
 
-        let output = conv2d(&x, &weights, &Some(bias), [1, 1], [1, 1]);
+        let output = conv2d(&x, &weights, Some(&bias), [1, 1], [1, 1]);
 
         y.to_data().assert_approx_eq(&output.into_data(), 3);
     }

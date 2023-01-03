@@ -64,7 +64,7 @@ impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     fn conv2d(
         x: &NdArrayTensor<E, 4>,
         weight: &NdArrayTensor<E, 4>,
-        bias: &Option<NdArrayTensor<E, 1>>,
+        bias: Option<&NdArrayTensor<E, 1>>,
         stride: [usize; 2],
         padding: [usize; 2],
     ) -> NdArrayTensor<E, 4> {
