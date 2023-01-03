@@ -1,6 +1,13 @@
 use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion};
 use std::ops::Range;
 
+/// Gradient computed during the backward pass for each tensor used by [conv2d](ModuleOps::conv2d).
+pub struct Conv2dGrads<B: Backend> {
+    pub x_grad: B::TensorPrimitive<4>,
+    pub weights_grad: B::TensorPrimitive<4>,
+    pub bias_grad: Option<B::TensorPrimitive<1>>,
+}
+
 pub trait ModuleOps<B: Backend> {
     fn embedding(
         weights: &B::TensorPrimitive<2>,
@@ -11,6 +18,13 @@ pub trait ModuleOps<B: Backend> {
         output: &B::TensorPrimitive<3>,
         indexes: &<B::IntegerBackend as Backend>::TensorPrimitive<2>,
     ) -> B::TensorPrimitive<2>;
+    /// Two dimensional convolution.
+    ///
+    /// # Shapes
+    ///
+    /// x:      [batch_size, channels_in, height, width],
+    /// weight: [channels_out, channels_in, kernel_size_1, kernel_size_2],
+    /// bias:   [channels_out],
     fn conv2d(
         x: &B::TensorPrimitive<4>,
         weight: &B::TensorPrimitive<4>,
@@ -18,6 +32,24 @@ pub trait ModuleOps<B: Backend> {
         stride: [usize; 2],
         padding: [usize; 2],
     ) -> B::TensorPrimitive<4>;
+    /// Backward pass for the [conv2d](ModuleOps::conv2d) operation.
+    fn conv2d_backward(
+        x: &B::TensorPrimitive<4>,
+        weight: &B::TensorPrimitive<4>,
+        bias: Option<&B::TensorPrimitive<1>>,
+        stride: [usize; 2],
+        output: &B::TensorPrimitive<4>,
+        output_grad: &B::TensorPrimitive<4>,
+    ) -> Conv2dGrads<B> {
+        todo!()
+    }
+    /// One dimensional convolution.
+    ///
+    /// # Shapes
+    ///
+    /// x:      [batch_size, channels_in, length],
+    /// weight: [channels_out, channels_in, kernel_size],
+    /// bias:   [channels_out],
     fn conv1d(
         x: &B::TensorPrimitive<3>,
         weight: &B::TensorPrimitive<3>,

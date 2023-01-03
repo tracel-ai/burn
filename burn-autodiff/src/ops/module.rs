@@ -1,6 +1,8 @@
 use super::unary_ops_wrapper;
 use crate::graph::converter::Forward2BackwardGraphConverter;
-use crate::graph::node::{BackwardNode, BackwardNodeRef, BackwardNodeState, ForwardNodeRef};
+use crate::graph::node::{
+    BackwardNode, BackwardNodeRef, BackwardNodeState, ForwardNode, ForwardNodeRef, ForwardNodeState,
+};
 use crate::graph::ops::{
     BackwardRecordedOps, BackwardRecordedOpsBoxed, ForwardRecordedOps, RecordedOpsParentRef,
     UnaryOps, UnaryOpsNodeState,
@@ -58,20 +60,22 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         padding: [usize; 2],
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<4> {
         #[derive(new, Debug)]
-        pub struct ForwardConv2dOps<B: Backend> {
+        pub struct Forward<B: Backend> {
             x: ForwardNodeRef<B::TensorPrimitive<4>>,
             weights: ForwardNodeRef<B::TensorPrimitive<4>>,
             bias: Option<ForwardNodeRef<B::TensorPrimitive<1>>>,
+            stride: [usize; 2],
         }
 
         #[derive(new, Debug)]
-        pub struct BackwardConv2dOps<B: Backend> {
+        pub struct Backward<B: Backend> {
             x: BackwardNodeRef<B::TensorPrimitive<4>>,
             weights: BackwardNodeRef<B::TensorPrimitive<4>>,
             bias: Option<BackwardNodeRef<B::TensorPrimitive<1>>>,
+            stride: [usize; 2],
         }
 
-        impl<B: Backend> ForwardRecordedOps<B::TensorPrimitive<4>> for ForwardConv2dOps<B> {
+        impl<B: Backend> ForwardRecordedOps<B::TensorPrimitive<4>> for Forward<B> {
             fn to_backward(
                 &self,
                 graph: &mut Forward2BackwardGraphConverter,
@@ -80,37 +84,43 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     Some(bias) => Some(Arc::new(BackwardNode::from_node(bias, graph))),
                     None => None,
                 };
-                let ops = BackwardConv2dOps::<B>::new(
+                let ops = Backward::<B>::new(
                     Arc::new(BackwardNode::from_node(&self.x, graph)),
                     Arc::new(BackwardNode::from_node(&self.weights, graph)),
                     bias,
+                    self.stride.clone(),
                 );
 
                 Box::new(ops)
             }
         }
 
-        impl<B: Backend> BackwardRecordedOps<B::TensorPrimitive<4>> for BackwardConv2dOps<B> {
+        impl<B: Backend> BackwardRecordedOps<B::TensorPrimitive<4>> for Backward<B> {
             fn backward_step(&self, state: &BackwardNodeState<B::TensorPrimitive<4>>) {
-                self.weights.state.update_grad(todo!());
-                self.x.state.update_grad(todo!());
+                let grads = B::conv2d_backward(
+                    &self.x.state.value,
+                    &self.weights.state.value,
+                    self.bias.as_ref().map(|b| &b.state.value),
+                    self.stride,
+                    &state.value,
+                    &state.grad.borrow(),
+                );
 
-                if let Some(bias) = &mut self.bias {
-                    bias.state.update_grad(todo!());
+                self.weights.state.update_grad(grads.weights_grad);
+                self.x.state.update_grad(grads.x_grad);
+
+                if let Some(bias) = &self.bias {
+                    if let Some(bias_grad) = grads.bias_grad {
+                        bias.state.update_grad(bias_grad);
+                    }
                 }
             }
 
             fn backward_parents(&self) -> Vec<RecordedOpsParentRef> {
-                let mut parents: Vec<RecordedOpsParentRef> = Vec::with_capacity(3);
-
-                parents.push(self.x.clone());
-                parents.push(self.weights.clone());
-
-                if let Some(bias) = &self.bias {
-                    parents.push(bias.clone());
+                match &self.bias {
+                    Some(bias) => vec![self.x.clone(), self.weights.clone(), bias.clone()],
+                    None => vec![self.x.clone(), self.weights.clone()],
                 }
-
-                parents
             }
         }
 
@@ -121,22 +131,21 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             stride,
             padding,
         );
-
         let shape = *B::shape(&out);
         let mut order = usize::max(weight.node.order, x.node.order);
         if let Some(bias) = bias {
             order = usize::max(order, bias.node.order);
         }
-        let state = crate::graph::node::ForwardNodeState::new(out);
 
-        let ops = ForwardConv2dOps::<B>::new(
+        let ops = Forward::<B>::new(
             x.node.clone(),
             weight.node.clone(),
             bias.map(|b| b.node.clone()),
+            stride,
         );
         let ops = Box::new(ops);
-
-        let node = crate::graph::node::ForwardNode::new(order, state, ops);
+        let state = ForwardNodeState::new(out);
+        let node = ForwardNode::new(order, state, ops);
         let node = std::sync::Arc::new(node);
 
         ADTensor { node, shape }
