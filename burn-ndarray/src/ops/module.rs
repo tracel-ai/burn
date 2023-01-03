@@ -1,4 +1,4 @@
-use crate::{element::NdArrayElement, tensor::NdArrayTensor, NdArrayBackend};
+use crate::{conv::conv2d, element::NdArrayElement, tensor::NdArrayTensor, NdArrayBackend};
 use burn_tensor::{ops::*, Shape};
 use std::ops::Add;
 
@@ -62,14 +62,24 @@ impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     }
 
     fn conv2d(
-        x: &<NdArrayBackend<E> as burn_tensor::backend::Backend>::TensorPrimitive<4>,
-        weight: &<NdArrayBackend<E> as burn_tensor::backend::Backend>::TensorPrimitive<4>,
-        bias: &Option<<NdArrayBackend<E> as burn_tensor::backend::Backend>::TensorPrimitive<1>>,
+        x: &NdArrayTensor<E, 4>,
+        weight: &NdArrayTensor<E, 4>,
+        bias: &Option<NdArrayTensor<E, 1>>,
         stride: [usize; 2],
         padding: [usize; 2],
-        dilatation: [usize; 2],
-        groups: usize,
-    ) -> <NdArrayBackend<E> as burn_tensor::backend::Backend>::TensorPrimitive<4> {
-        todo!()
+    ) -> NdArrayTensor<E, 4> {
+        let [batch_size, channels_in, heigth, width] = x.shape.dims;
+
+        let mut results = Vec::new();
+
+        for b in 0..batch_size {
+            let x = NdArrayBackend::index(x, [b..b + 1, 0..channels_in, 0..heigth, 0..width]);
+            let x = NdArrayBackend::reshape(&x, Shape::new([channels_in, heigth, width]));
+
+            let result = conv2d(&x, weight, bias, stride, padding);
+            results.push(result);
+        }
+
+        NdArrayBackend::cat(&results, 0)
     }
 }

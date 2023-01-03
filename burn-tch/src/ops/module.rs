@@ -42,8 +42,6 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
         bias: &Option<TchTensor<E, 1>>,
         stride: usize,
         padding: usize,
-        dilatation: usize,
-        groups: usize,
     ) -> TchTensor<E, 3> {
         let tensor = tch::Tensor::conv1d(
             &x.tensor,
@@ -51,8 +49,8 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
             bias.clone().map(|t| t.tensor),
             &[stride as i64],
             &[padding as i64],
-            &[dilatation as i64],
-            groups as i64,
+            &[1],
+            1,
         );
         let shape = Shape::from(tensor.size());
 
@@ -69,8 +67,6 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
         bias: &Option<TchTensor<E, 1>>,
         stride: [usize; 2],
         padding: [usize; 2],
-        dilatation: [usize; 2],
-        groups: usize,
     ) -> TchTensor<E, 4> {
         let tensor = tch::Tensor::conv2d(
             &x.tensor,
@@ -78,8 +74,8 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
             bias.clone().map(|t| t.tensor),
             &[stride[0] as i64, stride[1] as i64],
             &[padding[0] as i64, padding[1] as i64],
-            &[dilatation[0] as i64, dilatation[1] as i64],
-            groups as i64,
+            &[1, 1],
+            1,
         );
         let shape = Shape::from(tensor.size());
 

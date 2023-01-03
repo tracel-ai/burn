@@ -50,8 +50,6 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         bias: &Option<<ADBackendDecorator<B> as Backend>::TensorPrimitive<1>>,
         stride: usize,
         padding: usize,
-        dilatation: usize,
-        groups: usize,
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<3> {
         todo!()
     }
@@ -62,8 +60,6 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         bias: &Option<<ADBackendDecorator<B> as Backend>::TensorPrimitive<1>>,
         stride: [usize; 2],
         padding: [usize; 2],
-        dilatation: [usize; 2],
-        groups: usize,
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<4> {
         todo!()
     }

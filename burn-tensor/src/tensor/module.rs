@@ -13,8 +13,6 @@ pub fn conv1d<B>(
     bias: &Option<Tensor<B, 1>>,
     stride: usize,
     padding: usize,
-    dilatation: usize,
-    groups: usize,
 ) -> Tensor<B, 3>
 where
     B: Backend,
@@ -25,7 +23,5 @@ where
         &bias.clone().map(|b| b.value),
         stride,
         padding,
-        dilatation,
-        groups,
     ))
 }

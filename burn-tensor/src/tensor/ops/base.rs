@@ -17,8 +17,6 @@ pub trait ModuleOps<B: Backend> {
         bias: &Option<B::TensorPrimitive<1>>,
         stride: [usize; 2],
         padding: [usize; 2],
-        dilatation: [usize; 2],
-        groups: usize,
     ) -> B::TensorPrimitive<4>;
     fn conv1d(
         x: &B::TensorPrimitive<3>,
@@ -26,27 +24,17 @@ pub trait ModuleOps<B: Backend> {
         bias: &Option<B::TensorPrimitive<1>>,
         stride: usize,
         padding: usize,
-        dilatation: usize,
-        groups: usize,
     ) -> B::TensorPrimitive<3> {
-        let [channels_out, channels_in_div_groups, kernel_size] = B::shape(weight).dims;
+        let [channels_out, _channels_in, kernel_size] = B::shape(weight).dims;
         let [batch_size, channels_in, length_in] = B::shape(x).dims;
 
         let weight = B::reshape(
             weight,
-            Shape::new([channels_out, channels_in_div_groups, kernel_size, 1]),
+            Shape::new([channels_out, channels_in, kernel_size, 1]),
         );
         let x = B::reshape(x, Shape::new([batch_size, channels_in, length_in, 1]));
 
-        let tensor = B::conv2d(
-            &x,
-            &weight,
-            bias,
-            [stride, 1],
-            [padding, 0],
-            [dilatation, 1],
-            groups,
-        );
+        let tensor = B::conv2d(&x, &weight, bias, [stride, 1], [padding, 0]);
         let [batch_size, channels_out, height_out, _weight_out] = B::shape(&tensor).dims;
         B::reshape(&tensor, Shape::from([batch_size, channels_out, height_out]))
     }
