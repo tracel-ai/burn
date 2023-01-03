@@ -25,3 +25,22 @@ where
         padding,
     ))
 }
+
+pub fn conv2d<B>(
+    x: &Tensor<B, 4>,
+    weight: &Tensor<B, 4>,
+    bias: &Option<Tensor<B, 1>>,
+    stride: [usize; 2],
+    padding: [usize; 2],
+) -> Tensor<B, 4>
+where
+    B: Backend,
+{
+    Tensor::new(B::conv2d(
+        &x.value,
+        &weight.value,
+        &bias.clone().map(|b| b.value),
+        stride,
+        padding,
+    ))
+}

@@ -1,4 +1,4 @@
-use crate::{conv::conv2d, element::NdArrayElement, tensor::NdArrayTensor, NdArrayBackend};
+use crate::{conv::conv2d_naive, element::NdArrayElement, tensor::NdArrayTensor, NdArrayBackend};
 use burn_tensor::{ops::*, Shape};
 use std::ops::Add;
 
@@ -76,7 +76,7 @@ impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
             let x = NdArrayBackend::index(x, [b..b + 1, 0..channels_in, 0..heigth, 0..width]);
             let x = NdArrayBackend::reshape(&x, Shape::new([channels_in, heigth, width]));
 
-            let result = conv2d(&x, weight, bias, stride, padding);
+            let result = conv2d_naive(&x, weight, bias, stride, padding);
             results.push(result);
         }
 

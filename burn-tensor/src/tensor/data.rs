@@ -307,6 +307,26 @@ impl<P: std::fmt::Debug + Copy, const A: usize, const B: usize, const C: usize>
     }
 }
 
+impl<P: std::fmt::Debug + Copy, const A: usize, const B: usize, const C: usize, const D: usize>
+    From<[[[[P; D]; C]; B]; A]> for Data<P, 4>
+{
+    fn from(elems: [[[[P; D]; C]; B]; A]) -> Self {
+        let mut data = Vec::with_capacity(A * B * C * D);
+
+        for elem in elems.into_iter().take(A) {
+            for elem in elem.into_iter().take(B) {
+                for elem in elem.into_iter().take(C) {
+                    for elem in elem.into_iter().take(D) {
+                        data.push(elem);
+                    }
+                }
+            }
+        }
+
+        Data::new(data, Shape::new([A, B, C, D]))
+    }
+}
+
 impl<P: std::fmt::Debug, const D: usize> std::fmt::Display for Data<P, D> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(format!("{:?}", &self.value).as_str())

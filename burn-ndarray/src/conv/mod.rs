@@ -1,7 +1,7 @@
 use crate::{element::NdArrayElement, tensor::NdArrayTensor, NdArrayBackend, NdArrayDevice};
 use burn_tensor::{ops::TensorOps, Shape};
 
-pub(crate) fn conv2d<E: NdArrayElement>(
+pub(crate) fn conv2d_naive<E: NdArrayElement>(
     x: &NdArrayTensor<E, 3>,
     weight: &NdArrayTensor<E, 4>,
     bias: &Option<NdArrayTensor<E, 1>>,
@@ -27,11 +27,12 @@ pub(crate) fn conv2d<E: NdArrayElement>(
             matrices.push(matrix);
         }
         let matrices = NdArrayBackend::cat(&matrices, 1);
+        let matrices = NdArrayBackend::sum_dim(&matrices, 1);
+
         results.push(matrices);
     }
 
-    let mut result = NdArrayBackend::cat(&results, 0);
-    result = NdArrayBackend::sum_dim(&result, 0);
+    let mut result = NdArrayBackend::cat(&results, 1);
 
     if let Some(bias) = bias {
         let [size] = bias.shape.dims;
@@ -82,7 +83,6 @@ fn conv2d_with_kernel<E: NdArrayElement>(
     for i in 0..heigth_new {
         for j in 0..width_new {
             let x_ij = NdArrayBackend::index(&x, [i..i + k1, j..j + k2]);
-
             let value = NdArrayBackend::mul(&x_ij, &kernel);
             let value = NdArrayBackend::sum(&value);
             let value = NdArrayBackend::reshape(&value, Shape::new([1, 1]));
