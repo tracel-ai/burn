@@ -2,6 +2,7 @@ use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversi
 use std::ops::Range;
 
 /// Gradient computed during the backward pass for each tensor used by [conv2d](ModuleOps::conv2d).
+#[derive(new)]
 pub struct Conv2dGrads<B: Backend> {
     pub x_grad: B::TensorPrimitive<4>,
     pub weights_grad: B::TensorPrimitive<4>,
@@ -38,10 +39,40 @@ pub trait ModuleOps<B: Backend> {
         weight: &B::TensorPrimitive<4>,
         bias: Option<&B::TensorPrimitive<1>>,
         stride: [usize; 2],
-        output: &B::TensorPrimitive<4>,
         output_grad: &B::TensorPrimitive<4>,
     ) -> Conv2dGrads<B> {
-        todo!()
+        let [batch_size, _channels_in, width, height] = B::shape(&x).dims;
+        let [channels_in, channels_out, kernel_size_1, kernel_size_2] = B::shape(&weight).dims;
+
+        let weight_tmp = B::reshape(
+            &weight,
+            Shape::new([channels_in * channels_out, 1, kernel_size_1, kernel_size_2]),
+        );
+        let x_grad = B::conv2d(&weight_tmp, output_grad, None, stride, [1, 2]);
+        let x_grad = B::reshape(
+            &x_grad,
+            Shape::new([batch_size, channels_in, width, height]),
+        );
+
+        let x_tmp = B::reshape(&x, Shape::new([batch_size * channels_in, 1, width, height]));
+        let weight_grad = B::conv2d(&x_tmp, output_grad, None, stride, [1, 1]);
+        let weight_grad = B::reshape(
+            &weight_grad,
+            Shape::new([channels_in, channels_out, kernel_size_1, kernel_size_2]),
+        );
+
+        Conv2dGrads::new(
+            x_grad,
+            weight_grad,
+            bias.map(|b| {
+                let b = B::zeros(*B::shape(&b), B::device(b));
+                let elem = width * height;
+                let elem = (elem as i32).to_elem();
+                let b = B::add_scalar(&b, &elem);
+
+                b
+            }),
+        )
     }
     /// One dimensional convolution.
     ///

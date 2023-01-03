@@ -102,7 +102,6 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     &self.weights.state.value,
                     self.bias.as_ref().map(|b| &b.state.value),
                     self.stride,
-                    &state.value,
                     &state.grad.borrow(),
                 );
 
