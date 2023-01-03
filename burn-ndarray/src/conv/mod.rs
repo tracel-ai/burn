@@ -1,6 +1,8 @@
 use crate::{element::NdArrayElement, tensor::NdArrayTensor, NdArrayBackend, NdArrayDevice};
 use burn_tensor::{ops::TensorOps, Shape};
 
+/// This is incredibly inefficient, but it works as a baseline with a straightforward implementation.
+/// It should be replaced with a much better version.
 pub(crate) fn conv2d_naive<E: NdArrayElement>(
     x: &NdArrayTensor<E, 3>,
     weight: &NdArrayTensor<E, 4>,
