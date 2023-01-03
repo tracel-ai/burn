@@ -10,8 +10,8 @@ use burn_tensor::ops::Zeros;
 use std::{ops::Add, sync::Arc};
 
 pub trait BinaryOps<Lhs, Rhs, Out>: std::fmt::Debug + Send + Sync {
-    fn partial_left(&self, state: &BinaryOpsNodeState<Lhs, Rhs, Out>) -> Lhs;
-    fn partial_right(&self, state: &BinaryOpsNodeState<Lhs, Rhs, Out>) -> Rhs;
+    fn partial_left(&self, state: &BinaryOpsNodeState<'_, Lhs, Rhs, Out>) -> Lhs;
+    fn partial_right(&self, state: &BinaryOpsNodeState<'_, Lhs, Rhs, Out>) -> Rhs;
 }
 
 #[derive(new, Debug)]

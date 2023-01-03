@@ -7,7 +7,7 @@ use burn_tensor::ops::Zeros;
 use std::{ops::Add, sync::Arc};
 
 pub trait UnaryOps<In, Out>: std::fmt::Debug + Send + Sync {
-    fn partial(&self, state: &UnaryOpsNodeState<In, Out>) -> In;
+    fn partial(&self, state: &UnaryOpsNodeState<'_, In, Out>) -> In;
 }
 
 #[derive(new, Debug)]

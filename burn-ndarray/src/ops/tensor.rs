@@ -549,7 +549,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     }
 
     fn cat<const D: usize>(tensors: &[NdArrayTensor<E, D>], dim: usize) -> NdArrayTensor<E, D> {
-        let arrays: Vec<ndarray::ArrayView<E, IxDyn>> =
+        let arrays: Vec<ndarray::ArrayView<'_, E, IxDyn>> =
             tensors.iter().map(|t| t.array.view()).collect();
         let array = ndarray::concatenate(Axis(dim), &arrays)
             .unwrap()

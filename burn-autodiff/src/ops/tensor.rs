@@ -124,7 +124,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         {
             fn partial(
                 &self,
-                state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
+                state: &UnaryOpsNodeState<'_, B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
             ) -> B::TensorPrimitive<D> {
                 B::to_device(&state.output.grad(), self.device)
             }
@@ -160,7 +160,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         {
             fn partial_left(
                 &self,
-                state: &BinaryOpsNodeState<
+                state: &BinaryOpsNodeState<'_, 
                     B::TensorPrimitive<D>,
                     B::TensorPrimitive<D>,
                     B::TensorPrimitive<D>,
@@ -171,7 +171,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
             fn partial_right(
                 &self,
-                state: &BinaryOpsNodeState<
+                state: &BinaryOpsNodeState<'_, 
                     B::TensorPrimitive<D>,
                     B::TensorPrimitive<D>,
                     B::TensorPrimitive<D>,
@@ -201,7 +201,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         {
             fn partial(
                 &self,
-                state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
+                state: &UnaryOpsNodeState<'_, B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
             ) -> B::TensorPrimitive<D> {
                 state.output.grad()
             }
@@ -228,7 +228,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         {
             fn partial_left(
                 &self,
-                state: &BinaryOpsNodeState<
+                state: &BinaryOpsNodeState<'_, 
                     B::TensorPrimitive<D>,
                     B::TensorPrimitive<D>,
                     B::TensorPrimitive<D>,
@@ -239,7 +239,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
             fn partial_right(
                 &self,
-                state: &BinaryOpsNodeState<
+                state: &BinaryOpsNodeState<'_, 
                     B::TensorPrimitive<D>,
                     B::TensorPrimitive<D>,
                     B::TensorPrimitive<D>,
@@ -269,7 +269,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         {
             fn partial(
                 &self,
-                state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
+                state: &UnaryOpsNodeState<'_, B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
             ) -> B::TensorPrimitive<D> {
                 state.output.grad()
             }
@@ -296,7 +296,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         {
             fn partial_left(
                 &self,
-                state: &BinaryOpsNodeState<
+                state: &BinaryOpsNodeState<'_, 
                     B::TensorPrimitive<D>,
                     B::TensorPrimitive<D>,
                     B::TensorPrimitive<D>,
@@ -307,7 +307,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
             fn partial_right(
                 &self,
-                state: &BinaryOpsNodeState<
+                state: &BinaryOpsNodeState<'_, 
                     B::TensorPrimitive<D>,
                     B::TensorPrimitive<D>,
                     B::TensorPrimitive<D>,
@@ -337,7 +337,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         {
             fn partial(
                 &self,
-                state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
+                state: &UnaryOpsNodeState<'_, B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
             ) -> B::TensorPrimitive<D> {
                 B::mul_scalar(&state.output.grad(), &self.elem)
             }
@@ -364,7 +364,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         {
             fn partial_left(
                 &self,
-                state: &BinaryOpsNodeState<
+                state: &BinaryOpsNodeState<'_, 
                     B::TensorPrimitive<D>,
                     B::TensorPrimitive<D>,
                     B::TensorPrimitive<D>,
@@ -378,7 +378,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
             fn partial_right(
                 &self,
-                state: &BinaryOpsNodeState<
+                state: &BinaryOpsNodeState<'_, 
                     B::TensorPrimitive<D>,
                     B::TensorPrimitive<D>,
                     B::TensorPrimitive<D>,
@@ -412,7 +412,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         {
             fn partial(
                 &self,
-                state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
+                state: &UnaryOpsNodeState<'_, B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
             ) -> B::TensorPrimitive<D> {
                 let value = state.input.value();
                 let tmp = B::div_scalar(&value.ones(), &self.elem);
@@ -442,7 +442,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         {
             fn partial_left(
                 &self,
-                state: &BinaryOpsNodeState<
+                state: &BinaryOpsNodeState<'_, 
                     B::TensorPrimitive<D>,
                     B::TensorPrimitive<D>,
                     B::TensorPrimitive<D>,
@@ -455,7 +455,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
             fn partial_right(
                 &self,
-                state: &BinaryOpsNodeState<
+                state: &BinaryOpsNodeState<'_, 
                     B::TensorPrimitive<D>,
                     B::TensorPrimitive<D>,
                     B::TensorPrimitive<D>,
@@ -486,7 +486,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         {
             fn partial(
                 &self,
-                state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
+                state: &UnaryOpsNodeState<'_, B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
             ) -> B::TensorPrimitive<D> {
                 B::neg(&state.output.grad())
             }
@@ -515,7 +515,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         {
             fn partial(
                 &self,
-                state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
+                state: &UnaryOpsNodeState<'_, B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
             ) -> B::TensorPrimitive<D> {
                 B::swap_dims(&state.output.grad(), self.dim2, self.dim1)
             }
@@ -543,7 +543,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         {
             fn partial(
                 &self,
-                state: &UnaryOpsNodeState<B::TensorPrimitive<D1>, B::TensorPrimitive<D2>>,
+                state: &UnaryOpsNodeState<'_, B::TensorPrimitive<D1>, B::TensorPrimitive<D2>>,
             ) -> B::TensorPrimitive<D1> {
                 let mut grad = state.output.grad();
                 let value = state.output.value();
@@ -587,7 +587,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         {
             fn partial(
                 &self,
-                state: &UnaryOpsNodeState<B::TensorPrimitive<D1>, B::TensorPrimitive<D1>>,
+                state: &UnaryOpsNodeState<'_, B::TensorPrimitive<D1>, B::TensorPrimitive<D1>>,
             ) -> B::TensorPrimitive<D1> {
                 B::index_assign(
                     &state.input.value().zeros(),
@@ -620,7 +620,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         {
             fn partial_left(
                 &self,
-                state: &BinaryOpsNodeState<
+                state: &BinaryOpsNodeState<'_, 
                     B::TensorPrimitive<D1>,
                     B::TensorPrimitive<D1>,
                     B::TensorPrimitive<D1>,
@@ -635,7 +635,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
             fn partial_right(
                 &self,
-                state: &BinaryOpsNodeState<
+                state: &BinaryOpsNodeState<'_, 
                     B::TensorPrimitive<D1>,
                     B::TensorPrimitive<D1>,
                     B::TensorPrimitive<D1>,
@@ -666,7 +666,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         {
             fn partial(
                 &self,
-                state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
+                state: &UnaryOpsNodeState<'_, B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
             ) -> B::TensorPrimitive<D> {
                 B::mask_fill(
                     &state.output.grad(),
@@ -772,7 +772,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         {
             fn partial(
                 &self,
-                state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<1>>,
+                state: &UnaryOpsNodeState<'_, B::TensorPrimitive<D>, B::TensorPrimitive<1>>,
             ) -> B::TensorPrimitive<D> {
                 let grad = state.output.grad();
                 let ones = B::ones(self.shape, B::device(&grad));
@@ -806,7 +806,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         {
             fn partial(
                 &self,
-                state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<1>>,
+                state: &UnaryOpsNodeState<'_, B::TensorPrimitive<D>, B::TensorPrimitive<1>>,
             ) -> B::TensorPrimitive<D> {
                 let grad = state.output.grad();
                 let ones = B::ones(self.shape, B::device(&grad));
@@ -841,7 +841,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         {
             fn partial(
                 &self,
-                state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
+                state: &UnaryOpsNodeState<'_, B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
             ) -> B::TensorPrimitive<D> {
                 let grad = B::sum_dim(&state.output.grad(), self.dim);
                 let ones = B::ones(self.shape, B::device(&grad));
@@ -876,7 +876,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         {
             fn partial(
                 &self,
-                state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
+                state: &UnaryOpsNodeState<'_, B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
             ) -> B::TensorPrimitive<D> {
                 let grad = B::sum_dim(&state.output.grad(), self.dim);
                 let ones = B::ones(self.shape, B::device(&grad));
@@ -909,7 +909,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         {
             fn partial(
                 &self,
-                state: &UnaryOpsNodeState<
+                state: &UnaryOpsNodeState<'_, 
                     B::TensorPrimitive<D>,
                     <B::FullPrecisionBackend as Backend>::TensorPrimitive<D>,
                 >,
@@ -945,7 +945,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         {
             fn partial(
                 &self,
-                state: &UnaryOpsNodeState<
+                state: &UnaryOpsNodeState<'_, 
                     <B::FullPrecisionBackend as Backend>::TensorPrimitive<D>,
                     B::TensorPrimitive<D>,
                 >,
@@ -992,7 +992,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         {
             fn partial(
                 &self,
-                state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
+                state: &UnaryOpsNodeState<'_, B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
             ) -> B::TensorPrimitive<D> {
                 B::mul(&state.output.grad(), &state.output.value())
             }
@@ -1017,7 +1017,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         {
             fn partial(
                 &self,
-                state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
+                state: &UnaryOpsNodeState<'_, B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
             ) -> B::TensorPrimitive<D> {
                 let value = state.input.value();
                 let value = B::div(&value.ones(), &value);
@@ -1046,7 +1046,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         {
             fn partial(
                 &self,
-                state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
+                state: &UnaryOpsNodeState<'_, B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
             ) -> B::TensorPrimitive<D> {
                 let value = B::mul_scalar(
                     &B::powf(&state.input.value(), self.value - 1.0),
@@ -1075,7 +1075,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         {
             fn partial(
                 &self,
-                state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
+                state: &UnaryOpsNodeState<'_, B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
             ) -> B::TensorPrimitive<D> {
                 let value = B::div_scalar(&B::powf(&state.input.value(), -0.5), &2.to_elem());
                 B::mul(&state.output.grad(), &value)
@@ -1101,7 +1101,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         {
             fn partial(
                 &self,
-                state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
+                state: &UnaryOpsNodeState<'_, B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
             ) -> B::TensorPrimitive<D> {
                 let value = state.input.value();
                 let exponent = B::neg(&B::powf(&value, 2.0));
@@ -1213,7 +1213,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         {
             fn partial(
                 &self,
-                state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
+                state: &UnaryOpsNodeState<'_, B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
             ) -> B::TensorPrimitive<D> {
                 let zero = 0.to_elem();
                 let mask = B::lower_equal_scalar(&state.output.value(), &zero);
