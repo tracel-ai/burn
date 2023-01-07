@@ -5,6 +5,7 @@ use crate::tensor::ElementConversion;
 use crate::tensor::{Data, Distribution, Shape};
 use crate::BoolTensor;
 use std::convert::TryInto;
+use std::fmt::Display;
 use std::ops::Range;
 
 /// A tensor or a *n-dimensional* array.
@@ -722,5 +723,24 @@ impl<const D: usize, B: ADBackend> Tensor<B, D> {
 
     pub fn from_inner(inner: Tensor<B::InnerBackend, D>) -> Self {
         Self::new(B::from_inner(inner.value))
+    }
+}
+
+impl<const D: usize, B> Display for Tensor<B, D>
+where
+    B: Backend,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let dims = self.shape().dims;
+
+        f.write_str("Tensor {\n")?;
+        f.write_fmt(format_args!("\tshape: {dims:?},\n"))?;
+        f.write_fmt(format_args!("\tdevice: {:?},\n", self.device()))?;
+        f.write_str("}\n")?;
+
+        // TODO: figure out how to infer backend name + dtype
+        todo!();
+
+        Ok(())
     }
 }

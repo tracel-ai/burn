@@ -13,4 +13,12 @@ mod tests {
         let data_expected = Data::from([[2.4892], [15.3333]]);
         data_expected.assert_approx_eq(&data_actual, 3);
     }
+
+    #[test]
+    fn tensor_should_impl_display() {
+        let data = Data::from([[0.5, 1.8, 0.2, -2.0], [3.0, -4.0, 5.0, 0.0]]);
+        let tensor = Tensor::<TestBackend, 2>::from_data(data);
+
+        // TODO: figure out where to add this test
+    }
 }
