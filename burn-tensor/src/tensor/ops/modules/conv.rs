@@ -57,14 +57,14 @@ pub(crate) fn conv2d_backward<B: Backend>(
     stride: [usize; 2],
     output_grad: &B::TensorPrimitive<4>,
 ) -> Conv2dBackward<B> {
-    let [_batch_size, _channels_in, width, height] = B::shape(&x).dims;
+    let [_batch_size, _channels_in, width, height] = B::shape(x).dims;
 
-    let weight_tmp = B::swap_dims(&weight, 0, 1);
+    let weight_tmp = B::swap_dims(weight, 0, 1);
     let x_grad = conv2d_same_padding::<B>(&weight_tmp, output_grad, None, stride);
     let x_grad = B::swap_dims(&x_grad, 0, 1);
 
-    let x_tmp = B::swap_dims(&x, 0, 1);
-    let output_grad_tmp = B::swap_dims(&output_grad, 0, 1);
+    let x_tmp = B::swap_dims(x, 0, 1);
+    let output_grad_tmp = B::swap_dims(output_grad, 0, 1);
 
     let weight_grad = conv2d_same_padding::<B>(&x_tmp, &output_grad_tmp, None, stride);
     let weight_grad = B::swap_dims(&weight_grad, 0, 1);
@@ -76,10 +76,10 @@ pub(crate) fn conv2d_backward<B: Backend>(
             let elem = width * height;
             let elem = (elem as i32).to_elem();
 
-            let b = B::zeros(*B::shape(&b), B::device(b));
-            let b = B::add_scalar(&b, &elem);
+            let b = B::zeros(*B::shape(b), B::device(b));
+            
 
-            b
+            B::add_scalar(&b, &elem)
         }),
     )
 }
