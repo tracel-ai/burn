@@ -1,5 +1,6 @@
 use crate::{backend::Backend, Tensor};
 
+/// Applies the [embedding module](crate::ops::ModuleOps::embedding).
 pub fn embedding<B>(weights: &Tensor<B, 2>, indexes: &Tensor<B::IntegerBackend, 2>) -> Tensor<B, 3>
 where
     B: Backend,
@@ -7,6 +8,7 @@ where
     Tensor::new(B::embedding(&weights.value, &indexes.value))
 }
 
+/// Applies a [1D convolution](crate::ops::ModuleOps::conv2d).
 pub fn conv1d<B>(
     x: &Tensor<B, 3>,
     weight: &Tensor<B, 3>,
@@ -26,6 +28,7 @@ where
     ))
 }
 
+/// Applies a [2D convolution](crate::ops::ModuleOps::conv2d).
 pub fn conv2d<B>(
     x: &Tensor<B, 4>,
     weight: &Tensor<B, 4>,
