@@ -1,12 +1,8 @@
 use super::Conv2dBackward;
 use crate::{backend::Backend, ElementConversion, Shape};
 
-/// Calculate the amount of padding necessary to keep the same output size when applying a
-/// convolution with the specified kernel size and stride.
-pub fn calculate_same_padding(kernel_size: usize, stride: usize, size: usize) -> usize {
-    calculate_padding(kernel_size, stride, size, size)
-}
-
+/// Calculate the expected padding size when applying a convolution with the specified kernel size,
+/// stride and input/output sizes.
 pub fn calculate_padding(
     kernel_size: usize,
     stride: usize,
@@ -18,10 +14,11 @@ pub fn calculate_padding(
     let size_in = size_in as f32;
     let size_out = size_out as f32;
 
-    let padding = (stride * size_out - 1.) - size_in + kernel_size;
-    let padding = f32::floor(padding / 2.);
+    let padding = stride * (size_out - 1.) - size_in + kernel_size;
+    let padding = f32::ceil(padding / 2.);
+    let padding = padding as usize;
 
-    padding as usize
+    padding
 }
 
 /// Calculate the expected output size when applying a convolution with the specified kernel size,
@@ -37,35 +34,10 @@ pub fn calculate_output_size(
     let padding = padding as f32;
     let size_in = size_in as f32;
 
-    let size_out = (size_in + (2. * padding) - (kernel_size - 1.) - 1.) / stride;
-    let size_out = f32::floor(size_out + 1.);
+    let size_out = (size_in + (2. * padding) - kernel_size) / stride;
+    let size_out = f32::ceil(size_out + 1.);
 
     size_out as usize
-}
-
-/// Calculate a [2D convolution](crate::ops::ModuleOps::conv2d) with same padding strategy.
-pub fn conv2d_same_padding<B: Backend>(
-    x: &B::TensorPrimitive<4>,
-    weight: &B::TensorPrimitive<4>,
-    bias: Option<&B::TensorPrimitive<1>>,
-    stride: [usize; 2],
-) -> B::TensorPrimitive<4> {
-    let [_, _, height, width] = B::shape(x).dims;
-    let [_, _, kernel_size_1, kernel_size_2] = B::shape(weight).dims;
-
-    println!("X shape {:?}", B::shape(x));
-    println!("Weight shape {:?}", B::shape(weight));
-
-    let padding_1 = calculate_same_padding(kernel_size_1, stride[0], width);
-    let padding_2 = calculate_same_padding(kernel_size_2, stride[1], height);
-
-    println!(
-        "Padding {} {}, stride {} {}",
-        padding_1, padding_2, stride[0], stride[1]
-    );
-    let out = B::conv2d(x, weight, bias, stride, [padding_1, padding_2]);
-    println!("Out shape {:?}", B::shape(&out));
-    out
 }
 
 /// Calculate the [2D convolution](crate::ops::ModuleOps::conv2d) backward pass using convolutions.
@@ -76,25 +48,26 @@ pub(crate) fn conv2d_backward<B: Backend>(
     stride: [usize; 2],
     output_grad: &B::TensorPrimitive<4>,
 ) -> Conv2dBackward<B> {
-    let [_batch_size, _channels_in, height, width] = B::shape(x).dims;
+    let [batch_size, _channels_in, height_in, width_in] = B::shape(x).dims;
+    let [_batch_size, _channels_out, height_out, width_out] = B::shape(output_grad).dims;
     let [_, _, kernel_size_1, kernel_size_2] = B::shape(weight).dims;
+    let [stride_1, stride_2] = stride;
 
+    // TODO: Flip weights
     let weight_tmp = B::swap_dims(weight, 0, 1);
-
-    let padding_1 = calculate_padding(height, stride[0], kernel_size_2, height);
-    let padding_2 = calculate_padding(width, stride[1], kernel_size_1, width);
+    let padding_1 = calculate_padding(height_out, stride_1, kernel_size_2, height_in);
+    let padding_2 = calculate_padding(width_out, stride_1, kernel_size_1, width_in);
 
     let x_grad = B::conv2d(
         &weight_tmp,
         output_grad,
         None,
-        stride,
+        [stride_1, stride_1],
         [padding_1, padding_2],
     );
     let x_grad = B::swap_dims(&x_grad, 0, 1);
-
-    let padding_1 = calculate_padding(width, stride[0], width, width);
-    let padding_2 = calculate_padding(height, stride[1], height, height);
+    let padding_1 = calculate_padding(height_out, stride_1, height_in, kernel_size_1);
+    let padding_2 = calculate_padding(width_out, stride_2, width_in, kernel_size_2);
 
     let x_tmp = B::swap_dims(x, 0, 1);
     let output_grad_tmp = B::swap_dims(output_grad, 0, 1);
@@ -102,7 +75,7 @@ pub(crate) fn conv2d_backward<B: Backend>(
         &x_tmp,
         &output_grad_tmp,
         None,
-        stride,
+        [stride_1, stride_2],
         [padding_1, padding_2],
     );
     let weight_grad = B::swap_dims(&weight_grad, 0, 1);
@@ -111,7 +84,7 @@ pub(crate) fn conv2d_backward<B: Backend>(
         x_grad,
         weight_grad,
         bias.map(|b| {
-            let elem = width * height;
+            let elem = batch_size * width_in * height_in;
             let elem = (elem as i32).to_elem();
 
             let b = B::zeros(*B::shape(b), B::device(b));
@@ -177,11 +150,9 @@ mod tests {
         let stride = 1;
         let size_in = 3;
 
-        let padding_actual = calculate_same_padding(kernel_size, stride, size_in);
-        let size_out = calculate_output_size(kernel_size, stride, padding_actual, size_in);
+        let padding = calculate_padding(kernel_size, stride, size_in, size_in);
+        let size_out = calculate_output_size(kernel_size, stride, padding, size_in);
 
-        let padding_expected = 1;
-        assert_eq!(padding_actual, padding_expected, "Expected padding");
         assert_eq!(size_in, size_out, "Expected size");
     }
 
@@ -191,11 +162,22 @@ mod tests {
         let stride = 2;
         let size_in = 7;
 
-        let padding_actual = calculate_same_padding(kernel_size, stride, size_in);
-        let size_out = calculate_output_size(kernel_size, stride, padding_actual, size_in);
+        let padding = calculate_padding(kernel_size, stride, size_in, size_in);
+        let size_out = calculate_output_size(kernel_size, stride, padding, size_in);
 
-        let padding_expected = 4;
-        assert_eq!(padding_actual, padding_expected, "Expected padding");
         assert_eq!(size_in, size_out, "Expected size");
+    }
+
+    #[test]
+    fn test_calculate_output_padding_1() {
+        let kernel_size = 3;
+        let stride = 2;
+        let size_in = 7;
+        let size_out = 10;
+
+        let padding = calculate_padding(kernel_size, stride, size_in, size_out);
+        let size_out_expected = calculate_output_size(kernel_size, stride, padding, size_in);
+
+        assert_eq!(size_out, size_out_expected, "Expected size");
     }
 }

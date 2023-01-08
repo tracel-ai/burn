@@ -4,6 +4,175 @@ mod tests {
     use burn_tensor::{module::conv2d, Data};
 
     #[test]
+    fn test_conv2d_complex() {
+        let test = Conv2dTestCase {
+            batch_size: 2,
+            channels_in: 3,
+            channels_out: 3,
+            kernel_size_1: 3,
+            kernel_size_2: 3,
+            padding_1: 1,
+            padding_2: 1,
+            stride_1: 1,
+            stride_2: 1,
+            height: 6,
+            width: 6,
+        };
+        let grads = Grads {
+            x: TestTensor::from_floats([
+                [
+                    [
+                        [12., 18., 18., 18., 18., 12.],
+                        [18., 27., 27., 27., 27., 18.],
+                        [18., 27., 27., 27., 27., 18.],
+                        [18., 27., 27., 27., 27., 18.],
+                        [18., 27., 27., 27., 27., 18.],
+                        [12., 18., 18., 18., 18., 12.],
+                    ],
+                    [
+                        [12., 18., 18., 18., 18., 12.],
+                        [18., 27., 27., 27., 27., 18.],
+                        [18., 27., 27., 27., 27., 18.],
+                        [18., 27., 27., 27., 27., 18.],
+                        [18., 27., 27., 27., 27., 18.],
+                        [12., 18., 18., 18., 18., 12.],
+                    ],
+                    [
+                        [12., 18., 18., 18., 18., 12.],
+                        [18., 27., 27., 27., 27., 18.],
+                        [18., 27., 27., 27., 27., 18.],
+                        [18., 27., 27., 27., 27., 18.],
+                        [18., 27., 27., 27., 27., 18.],
+                        [12., 18., 18., 18., 18., 12.],
+                    ],
+                ],
+                [
+                    [
+                        [12., 18., 18., 18., 18., 12.],
+                        [18., 27., 27., 27., 27., 18.],
+                        [18., 27., 27., 27., 27., 18.],
+                        [18., 27., 27., 27., 27., 18.],
+                        [18., 27., 27., 27., 27., 18.],
+                        [12., 18., 18., 18., 18., 12.],
+                    ],
+                    [
+                        [12., 18., 18., 18., 18., 12.],
+                        [18., 27., 27., 27., 27., 18.],
+                        [18., 27., 27., 27., 27., 18.],
+                        [18., 27., 27., 27., 27., 18.],
+                        [18., 27., 27., 27., 27., 18.],
+                        [12., 18., 18., 18., 18., 12.],
+                    ],
+                    [
+                        [12., 18., 18., 18., 18., 12.],
+                        [18., 27., 27., 27., 27., 18.],
+                        [18., 27., 27., 27., 27., 18.],
+                        [18., 27., 27., 27., 27., 18.],
+                        [18., 27., 27., 27., 27., 18.],
+                        [12., 18., 18., 18., 18., 12.],
+                    ],
+                ],
+            ]),
+            weight: TestTensor::from_floats([
+                [
+                    [[50., 60., 50.], [60., 72., 60.], [50., 60., 50.]],
+                    [[50., 60., 50.], [60., 72., 60.], [50., 60., 50.]],
+                    [[50., 60., 50.], [60., 72., 60.], [50., 60., 50.]],
+                ],
+                [
+                    [[50., 60., 50.], [60., 72., 60.], [50., 60., 50.]],
+                    [[50., 60., 50.], [60., 72., 60.], [50., 60., 50.]],
+                    [[50., 60., 50.], [60., 72., 60.], [50., 60., 50.]],
+                ],
+                [
+                    [[50., 60., 50.], [60., 72., 60.], [50., 60., 50.]],
+                    [[50., 60., 50.], [60., 72., 60.], [50., 60., 50.]],
+                    [[50., 60., 50.], [60., 72., 60.], [50., 60., 50.]],
+                ],
+            ]),
+            bias: TestTensor::from_floats([72., 72., 72.]),
+        };
+        test.assert_grads(grads);
+    }
+
+    #[test]
+    fn test_conv2d_different_stride() {
+        let test = Conv2dTestCase {
+            batch_size: 2,
+            channels_in: 2,
+            channels_out: 2,
+            kernel_size_1: 3,
+            kernel_size_2: 3,
+            padding_1: 1,
+            padding_2: 1,
+            stride_1: 1,
+            stride_2: 2,
+            height: 8,
+            width: 8,
+        };
+        let grads = Grads {
+            x: TestTensor::from_floats([
+                [
+                    [
+                        [4., 8., 4., 8., 4., 8., 4., 4.],
+                        [6., 12., 6., 12., 6., 12., 6., 6.],
+                        [6., 12., 6., 12., 6., 12., 6., 6.],
+                        [6., 12., 6., 12., 6., 12., 6., 6.],
+                        [6., 12., 6., 12., 6., 12., 6., 6.],
+                        [6., 12., 6., 12., 6., 12., 6., 6.],
+                        [6., 12., 6., 12., 6., 12., 6., 6.],
+                        [4., 8., 4., 8., 4., 8., 4., 4.],
+                    ],
+                    [
+                        [4., 8., 4., 8., 4., 8., 4., 4.],
+                        [6., 12., 6., 12., 6., 12., 6., 6.],
+                        [6., 12., 6., 12., 6., 12., 6., 6.],
+                        [6., 12., 6., 12., 6., 12., 6., 6.],
+                        [6., 12., 6., 12., 6., 12., 6., 6.],
+                        [6., 12., 6., 12., 6., 12., 6., 6.],
+                        [6., 12., 6., 12., 6., 12., 6., 6.],
+                        [4., 8., 4., 8., 4., 8., 4., 4.],
+                    ],
+                ],
+                [
+                    [
+                        [4., 8., 4., 8., 4., 8., 4., 4.],
+                        [6., 12., 6., 12., 6., 12., 6., 6.],
+                        [6., 12., 6., 12., 6., 12., 6., 6.],
+                        [6., 12., 6., 12., 6., 12., 6., 6.],
+                        [6., 12., 6., 12., 6., 12., 6., 6.],
+                        [6., 12., 6., 12., 6., 12., 6., 6.],
+                        [6., 12., 6., 12., 6., 12., 6., 6.],
+                        [4., 8., 4., 8., 4., 8., 4., 4.],
+                    ],
+                    [
+                        [4., 8., 4., 8., 4., 8., 4., 4.],
+                        [6., 12., 6., 12., 6., 12., 6., 6.],
+                        [6., 12., 6., 12., 6., 12., 6., 6.],
+                        [6., 12., 6., 12., 6., 12., 6., 6.],
+                        [6., 12., 6., 12., 6., 12., 6., 6.],
+                        [6., 12., 6., 12., 6., 12., 6., 6.],
+                        [6., 12., 6., 12., 6., 12., 6., 6.],
+                        [4., 8., 4., 8., 4., 8., 4., 4.],
+                    ],
+                ],
+            ]),
+            weight: TestTensor::from_floats([
+                [
+                    [[42., 56., 56.], [48., 64., 64.], [42., 56., 56.]],
+                    [[42., 56., 56.], [48., 64., 64.], [42., 56., 56.]],
+                ],
+                [
+                    [[42., 56., 56.], [48., 64., 64.], [42., 56., 56.]],
+                    [[42., 56., 56.], [48., 64., 64.], [42., 56., 56.]],
+                ],
+            ]),
+            bias: TestTensor::from_floats([64., 64.]),
+        };
+        test.assert_grads(grads);
+    }
+
+    #[test]
     fn test_conv2d_backward_simple_1() {
         // Data
         let x = TestADTensor::from_floats([[[
@@ -300,5 +469,68 @@ mod tests {
         bias_grad
             .to_data()
             .assert_approx_eq(&bias_grad_actual.to_data(), 3);
+    }
+
+    struct Conv2dTestCase {
+        batch_size: usize,
+        channels_in: usize,
+        channels_out: usize,
+        kernel_size_1: usize,
+        kernel_size_2: usize,
+        padding_1: usize,
+        padding_2: usize,
+        stride_1: usize,
+        stride_2: usize,
+        height: usize,
+        width: usize,
+    }
+
+    struct Grads {
+        x: TestTensor<4>,
+        weight: TestTensor<4>,
+        bias: TestTensor<1>,
+    }
+
+    impl Conv2dTestCase {
+        fn assert_grads(self, expected_grads: Grads) {
+            let weight = TestADTensor::ones([
+                self.channels_out,
+                self.channels_in,
+                self.kernel_size_1,
+                self.kernel_size_2,
+            ]);
+            let bias = TestADTensor::ones([self.channels_out]);
+            let x =
+                TestADTensor::ones([self.batch_size, self.channels_in, self.height, self.width]);
+            let output = conv2d(
+                &x,
+                &weight,
+                Some(&bias),
+                [self.stride_1, self.stride_2],
+                [self.padding_1, self.padding_2],
+            );
+            let grads = output.backward();
+
+            // Assert
+            let x_grad_actual = x.grad(&grads).unwrap();
+            let weight_grad_actual = weight.grad(&grads).unwrap();
+            let bias_grad_actual = bias.grad(&grads).unwrap();
+
+            println!("x");
+            expected_grads
+                .x
+                .to_data()
+                .assert_approx_eq(&x_grad_actual.to_data(), 3);
+            println!("weight");
+            expected_grads
+                .weight
+                .to_data()
+                .assert_approx_eq(&weight_grad_actual.to_data(), 3);
+            println!("bias");
+            expected_grads
+                .bias
+                .to_data()
+                .assert_approx_eq(&bias_grad_actual.to_data(), 3);
+        }
     }
 }

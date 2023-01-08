@@ -6,22 +6,21 @@ mod tests {
 
     #[test]
     fn test_conv2d_simple() {
-        let batch_size = 2;
-        let channels_in = 3;
-        let channels_out = 3;
-        let kernel_size_1 = 3;
-        let kernel_size_2 = 3;
-        let padding_1 = 1;
-        let padding_2 = 1;
-        let stride_1 = 1;
-        let stride_2 = 1;
-        let height = 6;
-        let width = 6;
+        let test = Conv2dTestCase {
+            batch_size: 2,
+            channels_in: 3,
+            channels_out: 3,
+            kernel_size_1: 3,
+            kernel_size_2: 3,
+            padding_1: 1,
+            padding_2: 1,
+            stride_1: 1,
+            stride_2: 1,
+            height: 6,
+            width: 6,
+        };
 
-        let weights = TestTensor::ones([channels_out, channels_in, kernel_size_1, kernel_size_2]);
-        let bias = TestTensor::ones([channels_out]);
-        let x = TestTensor::ones([batch_size, channels_in, height, width]);
-        let y = TestTensor::from_floats([
+        test.assert_output(TestTensor::from_floats([
             [
                 [
                     [13., 19., 19., 19., 19., 13.],
@@ -74,37 +73,26 @@ mod tests {
                     [13., 19., 19., 19., 19., 13.],
                 ],
             ],
-        ]);
-
-        let output = conv2d(
-            &x,
-            &weights,
-            Some(&bias),
-            [stride_1, stride_2],
-            [padding_1, padding_2],
-        );
-
-        y.to_data().assert_approx_eq(&output.into_data(), 3);
+        ]));
     }
 
     #[test]
     fn test_conv2d_complex() {
-        let batch_size = 2;
-        let channels_in = 3;
-        let channels_out = 4;
-        let kernel_size_1 = 3;
-        let kernel_size_2 = 2;
-        let padding_1 = 1;
-        let padding_2 = 2;
-        let stride_1 = 2;
-        let stride_2 = 3;
-        let height = 7;
-        let width = 9;
+        let test = Conv2dTestCase {
+            batch_size: 2,
+            channels_in: 3,
+            channels_out: 4,
+            kernel_size_1: 3,
+            kernel_size_2: 2,
+            padding_1: 1,
+            padding_2: 2,
+            stride_1: 2,
+            stride_2: 3,
+            height: 7,
+            width: 9,
+        };
 
-        let weights = TestTensor::ones([channels_out, channels_in, kernel_size_1, kernel_size_2]);
-        let bias = TestTensor::ones([channels_out]);
-        let x = TestTensor::ones([batch_size, channels_in, height, width]);
-        let y = TestTensor::from_floats([
+        test.assert_output(TestTensor::from_floats([
             [
                 [
                     [1., 13., 13., 13.],
@@ -157,16 +145,42 @@ mod tests {
                     [1., 13., 13., 13.],
                 ],
             ],
-        ]);
+        ]));
+    }
 
-        let output = conv2d(
-            &x,
-            &weights,
-            Some(&bias),
-            [stride_1, stride_2],
-            [padding_1, padding_2],
-        );
+    struct Conv2dTestCase {
+        batch_size: usize,
+        channels_in: usize,
+        channels_out: usize,
+        kernel_size_1: usize,
+        kernel_size_2: usize,
+        padding_1: usize,
+        padding_2: usize,
+        stride_1: usize,
+        stride_2: usize,
+        height: usize,
+        width: usize,
+    }
 
-        y.to_data().assert_approx_eq(&output.into_data(), 3);
+    impl Conv2dTestCase {
+        fn assert_output(self, y: TestTensor<4>) {
+            let weights = TestTensor::ones([
+                self.channels_out,
+                self.channels_in,
+                self.kernel_size_1,
+                self.kernel_size_2,
+            ]);
+            let bias = TestTensor::ones([self.channels_out]);
+            let x = TestTensor::ones([self.batch_size, self.channels_in, self.height, self.width]);
+            let output = conv2d(
+                &x,
+                &weights,
+                Some(&bias),
+                [self.stride_1, self.stride_2],
+                [self.padding_1, self.padding_2],
+            );
+
+            y.to_data().assert_approx_eq(&output.into_data(), 3);
+        }
     }
 }
