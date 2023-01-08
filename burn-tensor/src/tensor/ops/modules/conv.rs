@@ -1,8 +1,8 @@
 use super::Conv2dBackward;
 use crate::{backend::Backend, ElementConversion, Shape};
 
-/// Calculate the expected padding size when applying a convolution with the specified kernel size,
-/// stride and input/output sizes.
+/// Calculate the expected padding size required when applying a convolution with the specified
+/// kernel size, stride, and input size to get the desired output size.
 pub fn calculate_padding(
     kernel_size: usize,
     stride: usize,
@@ -48,24 +48,26 @@ pub(crate) fn conv2d_backward<B: Backend>(
     stride: [usize; 2],
     output_grad: &B::TensorPrimitive<4>,
 ) -> Conv2dBackward<B> {
+    // TODO: Fix the backward pass when using stride > 1.
     let [batch_size, _channels_in, height_in, width_in] = B::shape(x).dims;
     let [_batch_size, _channels_out, height_out, width_out] = B::shape(output_grad).dims;
     let [_, _, kernel_size_1, kernel_size_2] = B::shape(weight).dims;
     let [stride_1, stride_2] = stride;
 
-    // TODO: Flip weights
-    let weight_tmp = B::swap_dims(weight, 0, 1);
-    let padding_1 = calculate_padding(height_out, stride_1, kernel_size_2, height_in);
-    let padding_2 = calculate_padding(width_out, stride_1, kernel_size_1, width_in);
+    let output_grad_tmp = &output_grad;
+    let weight_tmp = B::swap_dims(&weight, 0, 1);
+    let padding_1 = calculate_padding(height_out, stride_1, kernel_size_1, height_in);
+    let padding_2 = calculate_padding(width_out, stride_2, kernel_size_2, width_in);
 
     let x_grad = B::conv2d(
         &weight_tmp,
-        output_grad,
+        &output_grad_tmp,
         None,
-        [stride_1, stride_1],
+        [stride_1, stride_2],
         [padding_1, padding_2],
     );
     let x_grad = B::swap_dims(&x_grad, 0, 1);
+
     let padding_1 = calculate_padding(height_out, stride_1, height_in, kernel_size_1);
     let padding_2 = calculate_padding(width_out, stride_2, width_in, kernel_size_2);
 
@@ -84,7 +86,7 @@ pub(crate) fn conv2d_backward<B: Backend>(
         x_grad,
         weight_grad,
         bias.map(|b| {
-            let elem = batch_size * width_in * height_in;
+            let elem = batch_size * width_out * height_out;
             let elem = (elem as i32).to_elem();
 
             let b = B::zeros(*B::shape(b), B::device(b));
