@@ -77,14 +77,17 @@ fn conv2d_with_kernel<E: NdArrayElement>(
 ) -> NdArrayTensor<E, 2> {
     let [k1, k2] = kernel.shape.dims;
     let [heigth, width] = x.shape.dims;
-    let heigth_new = heigth / stride[0] - k1 + 1;
-    let width_new = width / stride[1] - k2 + 1;
 
+    let heigth_new = f32::ceil((heigth - k1 + 1) as f32 / stride[0] as f32) as usize;
+    let width_new = f32::ceil((width - k2 + 1) as f32 / stride[1] as f32) as usize;
     let mut output = NdArrayBackend::empty(Shape::new([heigth_new, width_new]), NdArrayDevice::Cpu);
 
     for i in 0..heigth_new {
         for j in 0..width_new {
-            let x_ij = NdArrayBackend::index(&x, [i..i + k1, j..j + k2]);
+            let i_x = i * stride[0];
+            let j_x = j * stride[1];
+
+            let x_ij = NdArrayBackend::index(&x, [i_x..i_x + k1, j_x..j_x + k2]);
             let value = NdArrayBackend::mul(&x_ij, &kernel);
             let value = NdArrayBackend::sum(&value);
             let value = NdArrayBackend::reshape(&value, Shape::new([1, 1]));
