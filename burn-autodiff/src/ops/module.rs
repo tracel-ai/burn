@@ -141,15 +141,12 @@ impl<B: Backend> ForwardRecordedOps<B::TensorPrimitive<4>> for ForwardConv<B, 2,
         &self,
         graph: &mut Forward2BackwardGraphConverter,
     ) -> BackwardRecordedOpsBoxed<B::TensorPrimitive<4>> {
-        let bias = match &self.bias {
-            Some(bias) => Some(Arc::new(BackwardNode::from_node(bias, graph))),
-            None => None,
-        };
+        let bias = self.bias.as_ref().map(|bias| Arc::new(BackwardNode::from_node(bias, graph)));
         let ops = BackwardConv::<B, 2, 4>::new(
             Arc::new(BackwardNode::from_node(&self.x, graph)),
             Arc::new(BackwardNode::from_node(&self.weights, graph)),
             bias,
-            self.stride.clone(),
+            self.stride,
         );
 
         Box::new(ops)
@@ -189,15 +186,12 @@ impl<B: Backend> ForwardRecordedOps<B::TensorPrimitive<3>> for ForwardConv<B, 1,
         &self,
         graph: &mut Forward2BackwardGraphConverter,
     ) -> BackwardRecordedOpsBoxed<B::TensorPrimitive<3>> {
-        let bias = match &self.bias {
-            Some(bias) => Some(Arc::new(BackwardNode::from_node(bias, graph))),
-            None => None,
-        };
+        let bias = self.bias.as_ref().map(|bias| Arc::new(BackwardNode::from_node(bias, graph)));
         let ops = BackwardConv::<B, 1, 3>::new(
             Arc::new(BackwardNode::from_node(&self.x, graph)),
             Arc::new(BackwardNode::from_node(&self.weights, graph)),
             bias,
-            self.stride.clone(),
+            self.stride,
         );
 
         Box::new(ops)

@@ -16,9 +16,9 @@ pub fn calculate_padding(
 
     let padding = stride * (size_out - 1.) - size_in + kernel_size;
     let padding = f32::ceil(padding / 2.);
-    let padding = padding as usize;
+    
 
-    padding
+    padding as usize
 }
 
 /// Calculate the expected output size when applying a convolution with the specified kernel size,
@@ -54,10 +54,10 @@ pub(crate) fn conv1d_backward<B: Backend>(
     let [_, _, kernel_size] = B::shape(weight).dims;
 
     let output_grad_tmp = &output_grad;
-    let weight_tmp = B::swap_dims(&weight, 0, 1);
+    let weight_tmp = B::swap_dims(weight, 0, 1);
     let padding = calculate_padding(length_out, stride, kernel_size, length_in);
 
-    let x_grad = B::conv1d(&weight_tmp, &output_grad_tmp, None, stride, padding);
+    let x_grad = B::conv1d(&weight_tmp, output_grad_tmp, None, stride, padding);
     let x_grad = B::swap_dims(&x_grad, 0, 1);
 
     let padding = calculate_padding(length_out, stride, length_in, kernel_size);
@@ -95,13 +95,13 @@ pub(crate) fn conv2d_backward<B: Backend>(
     let [stride_1, stride_2] = stride;
 
     let output_grad_tmp = &output_grad;
-    let weight_tmp = B::swap_dims(&weight, 0, 1);
+    let weight_tmp = B::swap_dims(weight, 0, 1);
     let padding_1 = calculate_padding(height_out, stride_1, kernel_size_1, height_in);
     let padding_2 = calculate_padding(width_out, stride_2, kernel_size_2, width_in);
 
     let x_grad = B::conv2d(
         &weight_tmp,
-        &output_grad_tmp,
+        output_grad_tmp,
         None,
         [stride_1, stride_2],
         [padding_1, padding_2],

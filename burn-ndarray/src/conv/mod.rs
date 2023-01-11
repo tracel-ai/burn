@@ -1,8 +1,8 @@
 use crate::{element::NdArrayElement, tensor::NdArrayTensor, NdArrayBackend, NdArrayDevice};
 use burn_tensor::{ops::TensorOps, Shape};
 
-/// This is incredibly inefficient, but it works as a baseline with a straightforward implementation.
-/// It should be replaced with a much better version.
+/// This method is not the most efficient, but it serves as a basic implementation that is easy to understand.
+/// A more optimized version should be used in its place.
 pub(crate) fn conv2d_naive<E: NdArrayElement>(
     x: &NdArrayTensor<E, 3>,
     weight: &NdArrayTensor<E, 4>,
@@ -20,7 +20,7 @@ pub(crate) fn conv2d_naive<E: NdArrayElement>(
             let kernel = NdArrayBackend::index(weight, [co..co + 1, ci..ci + 1, 0..k1, 0..k2]);
             let kernel = NdArrayBackend::reshape(&kernel, Shape::new([k1, k2]));
 
-            let x = apply_padding(&x, ci, padding);
+            let x = apply_padding(x, ci, padding);
 
             let matrix = conv2d_with_kernel(x, kernel, stride);
             let [heigth, width] = matrix.shape.dims;
@@ -54,7 +54,7 @@ fn apply_padding<E: NdArrayElement>(
     let heigth_new = heigth + (2 * padding[0]);
     let width_new = width + (2 * padding[1]);
 
-    let x = NdArrayBackend::index(&x, [channel..channel + 1, 0..heigth, 0..width]);
+    let x = NdArrayBackend::index(x, [channel..channel + 1, 0..heigth, 0..width]);
     let x = NdArrayBackend::reshape(&x, Shape::new([heigth, width]));
 
     let mut x_new = NdArrayBackend::zeros(Shape::new([heigth_new, width_new]), NdArrayDevice::Cpu);
