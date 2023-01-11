@@ -9,6 +9,14 @@ pub struct Conv2dBackward<B: Backend> {
     pub bias_grad: Option<B::TensorPrimitive<1>>,
 }
 
+/// Gradient computed during the backward pass for each tensor used by [conv1d](ModuleOps::conv1d).
+#[derive(new)]
+pub struct Conv1dBackward<B: Backend> {
+    pub x_grad: B::TensorPrimitive<3>,
+    pub weights_grad: B::TensorPrimitive<3>,
+    pub bias_grad: Option<B::TensorPrimitive<1>>,
+}
+
 pub trait ModuleOps<B: Backend> {
     fn embedding(
         weights: &B::TensorPrimitive<2>,
@@ -58,5 +66,15 @@ pub trait ModuleOps<B: Backend> {
         padding: usize,
     ) -> B::TensorPrimitive<3> {
         conv::conv1d_from_conv2d::<B>(x, weight, bias, stride, padding)
+    }
+    /// Backward pass for the [conv1d](ModuleOps::conv1d) operation.
+    fn conv1d_backward(
+        x: &B::TensorPrimitive<3>,
+        weight: &B::TensorPrimitive<3>,
+        bias: Option<&B::TensorPrimitive<1>>,
+        stride: usize,
+        output_grad: &B::TensorPrimitive<3>,
+    ) -> Conv1dBackward<B> {
+        conv::conv1d_backward(x, weight, bias, stride, output_grad)
     }
 }

@@ -3,6 +3,7 @@ mod aggregation;
 mod backward;
 mod cat;
 mod complex;
+mod conv1d;
 mod conv2d;
 mod cross_entropy;
 mod div;
@@ -31,6 +32,7 @@ macro_rules! testgen_all {
         type TestADTensor<const D: usize> = burn_tensor::Tensor<TestADBackend, D>;
 
         // Modules
+        burn_autodiff::testgen_ad_conv1d!();
         burn_autodiff::testgen_ad_conv2d!();
         burn_autodiff::testgen_module_backward!();
 

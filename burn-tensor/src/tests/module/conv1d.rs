@@ -5,62 +5,77 @@ mod tests {
     use burn_tensor::{Data, Tensor};
 
     #[test]
-    fn test_conv1d_simple_1() {
-        let x = TestTensor::from_floats([
-            [
-                [0.6256, 0.5820, 0.0026, 0.6435],
-                [0.8851, 0.5020, 0.4948, 0.7902],
-                [0.6681, 0.7031, 0.3782, 0.1365],
-            ],
-            [
-                [0.4034, 0.0118, 0.7122, 0.5584],
-                [0.9653, 0.7501, 0.8027, 0.8411],
-                [0.3460, 0.2865, 0.1539, 0.6281],
-            ],
-            [
-                [0.6007, 0.9767, 0.4304, 0.5086],
-                [0.2991, 0.6311, 0.6747, 0.7897],
-                [0.9532, 0.0246, 0.1495, 0.0235],
-            ],
-        ]);
-        let y = TestTensor::from_floats([
-            [
-                [0.3296, -0.0321, -0.0674, 0.1890],
-                [0.5170, 0.1829, 0.2059, 0.1014],
-                [-0.7917, -0.5047, -0.7150, -0.0190],
-            ],
-            [
-                [-0.0053, 0.1252, 0.2097, 0.1984],
-                [0.3208, 0.3318, 0.4818, 0.1339],
-                [-0.6311, -0.6842, -0.5186, -0.3954],
-            ],
-            [
-                [0.4509, -0.1150, 0.0611, 0.1840],
-                [0.5144, 0.1809, 0.2677, 0.0656],
-                [-0.6851, -0.2723, -0.7079, -0.1624],
-            ],
-        ]);
-        let weights = TestTensor::from_floats([
-            [
-                [-0.1646, 0.1271, 0.3310],
-                [0.1315, -0.0644, -0.3029],
-                [-0.2922, 0.0697, 0.0362],
-            ],
-            [
-                [-0.1067, 0.1248, 0.2145],
-                [0.0434, 0.1002, 0.1720],
-                [-0.1495, 0.1360, 0.1275],
-            ],
-            [
-                [-0.2855, 0.2917, -0.1422],
-                [0.1454, -0.1307, -0.2981],
-                [0.1822, -0.2974, -0.3193],
-            ],
-        ]);
-        let bias = TestTensor::from_floats([0.1944, -0.0413, -0.2030]);
+    fn test_conv1d_simple() {
+        let test = Conv1dTestCase {
+            batch_size: 2,
+            channels_in: 3,
+            channels_out: 3,
+            kernel_size: 3,
+            padding: 1,
+            stride: 1,
+            length: 6,
+        };
 
-        let output = conv1d(&x, &weights, Some(&bias), 1, 1);
+        test.assert_output(TestTensor::from_floats([
+            [
+                [7., 10., 10., 10., 10., 7.],
+                [7., 10., 10., 10., 10., 7.],
+                [7., 10., 10., 10., 10., 7.],
+            ],
+            [
+                [7., 10., 10., 10., 10., 7.],
+                [7., 10., 10., 10., 10., 7.],
+                [7., 10., 10., 10., 10., 7.],
+            ],
+        ]));
+    }
 
-        y.to_data().assert_approx_eq(&output.into_data(), 3);
+    #[test]
+    fn test_conv1d_complex() {
+        let test = Conv1dTestCase {
+            batch_size: 2,
+            channels_in: 3,
+            channels_out: 4,
+            kernel_size: 3,
+            padding: 1,
+            stride: 2,
+            length: 9,
+        };
+
+        test.assert_output(TestTensor::from_floats([
+            [
+                [7., 10., 10., 10., 7.],
+                [7., 10., 10., 10., 7.],
+                [7., 10., 10., 10., 7.],
+                [7., 10., 10., 10., 7.],
+            ],
+            [
+                [7., 10., 10., 10., 7.],
+                [7., 10., 10., 10., 7.],
+                [7., 10., 10., 10., 7.],
+                [7., 10., 10., 10., 7.],
+            ],
+        ]));
+    }
+
+    struct Conv1dTestCase {
+        batch_size: usize,
+        channels_in: usize,
+        channels_out: usize,
+        kernel_size: usize,
+        padding: usize,
+        stride: usize,
+        length: usize,
+    }
+
+    impl Conv1dTestCase {
+        fn assert_output(self, y: TestTensor<3>) {
+            let weights = TestTensor::ones([self.channels_out, self.channels_in, self.kernel_size]);
+            let bias = TestTensor::ones([self.channels_out]);
+            let x = TestTensor::ones([self.batch_size, self.channels_in, self.length]);
+            let output = conv1d(&x, &weights, Some(&bias), self.stride, self.padding);
+
+            y.to_data().assert_approx_eq(&output.into_data(), 3);
+        }
     }
 }

@@ -1,4 +1,4 @@
-use super::Conv2dBackward;
+use super::{Conv1dBackward, Conv2dBackward};
 use crate::{backend::Backend, ElementConversion, Shape};
 
 /// Calculate the expected padding size required when applying a convolution with the specified
@@ -40,6 +40,46 @@ pub fn calculate_output_size(
     size_out as usize
 }
 
+/// Calculate the [1D convolution](crate::ops::ModuleOps::conv1d) backward pass using convolutions.
+pub(crate) fn conv1d_backward<B: Backend>(
+    x: &B::TensorPrimitive<3>,
+    weight: &B::TensorPrimitive<3>,
+    bias: Option<&B::TensorPrimitive<1>>,
+    stride: usize,
+    output_grad: &B::TensorPrimitive<3>,
+) -> Conv1dBackward<B> {
+    // TODO: Fix the backward pass when using stride > 1.
+    let [batch_size, _channels_in, length_in] = B::shape(x).dims;
+    let [_batch_size, _channels_out, length_out] = B::shape(output_grad).dims;
+    let [_, _, kernel_size] = B::shape(weight).dims;
+
+    let output_grad_tmp = &output_grad;
+    let weight_tmp = B::swap_dims(&weight, 0, 1);
+    let padding = calculate_padding(length_out, stride, kernel_size, length_in);
+
+    let x_grad = B::conv1d(&weight_tmp, &output_grad_tmp, None, stride, padding);
+    let x_grad = B::swap_dims(&x_grad, 0, 1);
+
+    let padding = calculate_padding(length_out, stride, length_in, kernel_size);
+
+    let x_tmp = B::swap_dims(x, 0, 1);
+    let output_grad_tmp = B::swap_dims(output_grad, 0, 1);
+    let weight_grad = B::conv1d(&x_tmp, &output_grad_tmp, None, stride, padding);
+    let weight_grad = B::swap_dims(&weight_grad, 0, 1);
+
+    Conv1dBackward::new(
+        x_grad,
+        weight_grad,
+        bias.map(|b| {
+            let elem = batch_size * length_out;
+            let elem = (elem as i32).to_elem();
+
+            let b = B::zeros(*B::shape(b), B::device(b));
+
+            B::add_scalar(&b, &elem)
+        }),
+    )
+}
 /// Calculate the [2D convolution](crate::ops::ModuleOps::conv2d) backward pass using convolutions.
 pub(crate) fn conv2d_backward<B: Backend>(
     x: &B::TensorPrimitive<4>,

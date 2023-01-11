@@ -391,7 +391,7 @@ mod tests {
         test.assert_grads(grads);
     }
 
-    #[ignore = "Stride different than 1 are not supported yet."]
+    #[ignore = "Stride different than 1 is not supported yet."]
     #[test]
     fn test_conv2d_different_stride() {
         let test = Conv2dTestCase {
