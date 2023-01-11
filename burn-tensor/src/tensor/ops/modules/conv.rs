@@ -16,7 +16,6 @@ pub fn calculate_padding(
 
     let padding = stride * (size_out - 1.) - size_in + kernel_size;
     let padding = f32::ceil(padding / 2.);
-    
 
     padding as usize
 }
