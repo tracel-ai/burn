@@ -92,12 +92,14 @@ impl<B: Backend> Conv1d<B> {
     /// - input: [batch_size, channels_in, length_in],
     /// - output: [batch_size, channels_out, length_out],
     pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
+        let same_padding = || {
+            let [_batch_size, _channels_in, length] = input.dims();
+            calculate_padding(self.kernel_size, self.stride, length, length)
+        };
+
         let padding = match &self.padding {
             Some(config) => match config {
-                Conv1dPaddingConfig::Same => {
-                    let [_batch_size, _channels_in, length] = input.dims();
-                    calculate_padding(self.kernel_size, self.stride, length, length)
-                }
+                Conv1dPaddingConfig::Same => same_padding(),
                 Conv1dPaddingConfig::Explicit(value) => *value,
             },
             None => 0,
