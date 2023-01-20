@@ -41,4 +41,45 @@ mod tests {
             .to_data()
             .assert_approx_eq(&x_grad_actual.to_data(), 3);
     }
+
+    #[test]
+    fn test_max_pool2d_complex() {
+        let batch_size = 1;
+        let channels_in = 1;
+        let kernel_size_1 = 4;
+        let kernel_size_2 = 2;
+        let padding_1 = 2;
+        let padding_2 = 1;
+        let stride_1 = 1;
+        let stride_2 = 2;
+
+        let x = TestADTensor::from_floats([[[
+            [0.5388, 0.0676, 0.7122, 0.8316, 0.0653],
+            [0.9154, 0.1536, 0.9089, 0.8016, 0.7518],
+            [0.2073, 0.0501, 0.8811, 0.5604, 0.5075],
+            [0.4384, 0.9963, 0.9698, 0.4988, 0.2609],
+            [0.3391, 0.2230, 0.4610, 0.5365, 0.6880],
+        ]]]);
+        let x_grad_expected = TestADTensor::from_floats([[[
+            [0., 0., 0., 3., 0.],
+            [4., 0., 2., 1., 0.],
+            [0., 0., 0., 0., 0.],
+            [2., 4., 0., 0., 0.],
+            [0., 0., 0., 0., 2.],
+        ]]]);
+
+        let output = max_pool2d(
+            &x,
+            [kernel_size_1, kernel_size_2],
+            [stride_1, stride_2],
+            [padding_1, padding_2],
+        );
+        let grads = output.backward();
+
+        // Asserts
+        let x_grad_actual = x.grad(&grads).unwrap();
+        x_grad_expected
+            .to_data()
+            .assert_approx_eq(&x_grad_actual.to_data(), 3);
+    }
 }
