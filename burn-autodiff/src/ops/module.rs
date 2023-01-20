@@ -118,6 +118,37 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
         ADTensor { node, shape }
     }
+
+    fn max_pool2d(
+        x: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
+        kernel_size: [usize; 2],
+        stride: [usize; 2],
+        padding: [usize; 2],
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<4> {
+        todo!()
+    }
+
+    fn max_pool2d_with_indices(
+        x: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
+        kernel_size: [usize; 2],
+        stride: [usize; 2],
+        padding: [usize; 2],
+    ) -> MaxPool2dWithIndices<ADBackendDecorator<B>> {
+        todo!()
+    }
+
+    fn max_pool2d_backward(
+        x: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
+        kernel_size: [usize; 2],
+        stride: [usize; 2],
+        padding: [usize; 2],
+        output_grad: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
+        indices: &<<ADBackendDecorator<B> as Backend>::IntegerBackend as Backend>::TensorPrimitive<
+            4,
+        >,
+    ) -> MaxPool2dBackward<ADBackendDecorator<B>> {
+        todo!()
+    }
 }
 
 #[derive(new, Debug)]
