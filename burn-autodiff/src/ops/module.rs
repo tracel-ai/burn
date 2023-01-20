@@ -104,6 +104,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         if let Some(bias) = bias {
             order = usize::max(order, bias.node.order);
         }
+        order += 1;
 
         let ops = ForwardConv::<B, 1, 3>::new(
             x.node.clone(),
@@ -125,7 +126,23 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         stride: [usize; 2],
         padding: [usize; 2],
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<4> {
-        todo!()
+        let output = B::max_pool2d_with_indices(x.tensor_ref(), kernel_size, stride, padding);
+        let shape = *B::shape(&output.output);
+        let order = x.node.order + 1;
+
+        let ops = ForwardMaxPool::<B, 2, 4>::new(
+            x.node.clone(),
+            Arc::new(output.indices),
+            kernel_size,
+            stride,
+            padding,
+        );
+        let ops = Box::new(ops);
+        let state = ForwardNodeState::new(output.output);
+        let node = ForwardNode::new(order, state, ops);
+        let node = std::sync::Arc::new(node);
+
+        ADTensor { node, shape }
     }
 
     fn max_pool2d_with_indices(
@@ -134,7 +151,23 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         stride: [usize; 2],
         padding: [usize; 2],
     ) -> MaxPool2dWithIndices<ADBackendDecorator<B>> {
-        todo!()
+        let output = B::max_pool2d_with_indices(x.tensor_ref(), kernel_size, stride, padding);
+        let shape = *B::shape(&output.output);
+        let order = x.node.order + 1;
+
+        let ops = ForwardMaxPool::<B, 2, 4>::new(
+            x.node.clone(),
+            Arc::new(output.indices.clone()),
+            kernel_size,
+            stride,
+            padding,
+        );
+        let ops = Box::new(ops);
+        let state = ForwardNodeState::new(output.output);
+        let node = ForwardNode::new(order, state, ops);
+        let node = std::sync::Arc::new(node);
+
+        MaxPool2dWithIndices::new(ADTensor { node, shape }, output.indices)
     }
 
     fn max_pool2d_backward(
@@ -147,7 +180,16 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             4,
         >,
     ) -> MaxPool2dBackward<ADBackendDecorator<B>> {
-        todo!()
+        let tensor = B::max_pool2d_backward(
+            x.tensor_ref(),
+            kernel_size,
+            stride,
+            padding,
+            output_grad.tensor_ref(),
+            indices,
+        );
+
+        MaxPool2dBackward::new(ADTensor::from_tensor(tensor.x_grad))
     }
 }
 
@@ -260,5 +302,59 @@ impl<B: Backend> BackwardRecordedOps<B::TensorPrimitive<3>> for BackwardConv<B, 
             Some(bias) => vec![self.x.clone(), self.weights.clone(), bias.clone()],
             None => vec![self.x.clone(), self.weights.clone()],
         }
+    }
+}
+
+#[derive(new, Debug)]
+pub struct ForwardMaxPool<B: Backend, const D: usize, const S: usize> {
+    x: ForwardNodeRef<B::TensorPrimitive<S>>,
+    indices: Arc<<B::IntegerBackend as Backend>::TensorPrimitive<S>>,
+    kernel_size: [usize; D],
+    stride: [usize; D],
+    padding: [usize; D],
+}
+
+#[derive(new, Debug)]
+pub struct BackwardMaxPool<B: Backend, const D: usize, const S: usize> {
+    x: BackwardNodeRef<B::TensorPrimitive<S>>,
+    indices: Arc<<B::IntegerBackend as Backend>::TensorPrimitive<S>>,
+    kernel_size: [usize; D],
+    stride: [usize; D],
+    padding: [usize; D],
+}
+
+impl<B: Backend> ForwardRecordedOps<B::TensorPrimitive<4>> for ForwardMaxPool<B, 2, 4> {
+    fn to_backward(
+        &self,
+        graph: &mut Forward2BackwardGraphConverter,
+    ) -> BackwardRecordedOpsBoxed<B::TensorPrimitive<4>> {
+        let ops = BackwardMaxPool::<B, 2, 4>::new(
+            Arc::new(BackwardNode::from_node(&self.x, graph)),
+            self.indices.clone(),
+            self.kernel_size,
+            self.stride,
+            self.padding,
+        );
+
+        Box::new(ops)
+    }
+}
+
+impl<B: Backend> BackwardRecordedOps<B::TensorPrimitive<4>> for BackwardMaxPool<B, 2, 4> {
+    fn backward_step(&self, state: &BackwardNodeState<B::TensorPrimitive<4>>) {
+        let grads = B::max_pool2d_backward(
+            &self.x.state.value,
+            self.kernel_size,
+            self.stride,
+            self.padding,
+            &state.grad.borrow(),
+            &self.indices,
+        );
+
+        self.x.state.update_grad(grads.x_grad);
+    }
+
+    fn backward_parents(&self) -> Vec<RecordedOpsParentRef> {
+        vec![self.x.clone()]
     }
 }

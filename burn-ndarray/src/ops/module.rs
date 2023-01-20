@@ -82,30 +82,30 @@ impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     }
 
     fn max_pool2d(
-        x: &<NdArrayBackend<E> as burn_tensor::backend::Backend>::TensorPrimitive<4>,
-        kernel_size: [usize; 2],
-        stride: [usize; 2],
-        padding: [usize; 2],
+        _x: &<NdArrayBackend<E> as burn_tensor::backend::Backend>::TensorPrimitive<4>,
+        _kernel_size: [usize; 2],
+        _stride: [usize; 2],
+        _padding: [usize; 2],
     ) -> <NdArrayBackend<E> as burn_tensor::backend::Backend>::TensorPrimitive<4> {
         todo!()
     }
 
     fn max_pool2d_with_indices(
-        x: &<NdArrayBackend<E> as burn_tensor::backend::Backend>::TensorPrimitive<4>,
-        kernel_size: [usize; 2],
-        stride: [usize; 2],
-        padding: [usize; 2],
+        _x: &<NdArrayBackend<E> as burn_tensor::backend::Backend>::TensorPrimitive<4>,
+        _kernel_size: [usize; 2],
+        _stride: [usize; 2],
+        _padding: [usize; 2],
     ) -> MaxPool2dWithIndices<NdArrayBackend<E>> {
         todo!()
     }
 
     fn max_pool2d_backward(
-        x: &<NdArrayBackend<E> as burn_tensor::backend::Backend>::TensorPrimitive<4>,
-        kernel_size: [usize; 2],
-        stride: [usize; 2],
-        padding: [usize; 2],
-        output_grad: &<NdArrayBackend<E> as burn_tensor::backend::Backend>::TensorPrimitive<4>,
-        indices: &<<NdArrayBackend<E> as burn_tensor::backend::Backend>::IntegerBackend as burn_tensor::backend::Backend>::TensorPrimitive<4>,
+        _x: &<NdArrayBackend<E> as burn_tensor::backend::Backend>::TensorPrimitive<4>,
+        _kernel_size: [usize; 2],
+        _stride: [usize; 2],
+        _padding: [usize; 2],
+        _output_grad: &<NdArrayBackend<E> as burn_tensor::backend::Backend>::TensorPrimitive<4>,
+        _indices: &<<NdArrayBackend<E> as burn_tensor::backend::Backend>::IntegerBackend as burn_tensor::backend::Backend>::TensorPrimitive<4>,
     ) -> MaxPool2dBackward<NdArrayBackend<E>> {
         todo!()
     }

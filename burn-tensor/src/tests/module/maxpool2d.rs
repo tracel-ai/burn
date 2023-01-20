@@ -14,7 +14,6 @@ mod tests {
         let padding_2 = 1;
         let stride_1 = 1;
         let stride_2 = 1;
-        let width = 6;
 
         let x = TestTensor::from_floats([
             [

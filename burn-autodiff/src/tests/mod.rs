@@ -13,6 +13,7 @@ mod index;
 mod log;
 mod mask;
 mod matmul;
+mod maxpool2d;
 mod mul;
 mod multithread;
 mod neg;
@@ -34,6 +35,7 @@ macro_rules! testgen_all {
         // Modules
         burn_autodiff::testgen_ad_conv1d!();
         burn_autodiff::testgen_ad_conv2d!();
+        burn_autodiff::testgen_ad_max_pool2d!();
         burn_autodiff::testgen_module_backward!();
 
         // Tensor
