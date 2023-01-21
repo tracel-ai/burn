@@ -15,6 +15,7 @@ macro_rules! testgen_all {
         burn_tensor::testgen_module_forward!();
         burn_tensor::testgen_module_conv1d!();
         burn_tensor::testgen_module_conv2d!();
+        burn_tensor::testgen_module_max_pool2d!();
 
         // test ops
         burn_tensor::testgen_add!();

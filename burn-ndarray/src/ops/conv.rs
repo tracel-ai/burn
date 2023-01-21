@@ -1,9 +1,32 @@
+use super::padding::apply_padding2d;
 use crate::{element::NdArrayElement, tensor::NdArrayTensor, NdArrayBackend, NdArrayDevice};
 use burn_tensor::{ops::TensorOps, Shape};
 
 /// This method is not the most efficient, but it serves as a basic implementation that is easy to understand.
 /// A more optimized version should be used in its place.
 pub(crate) fn conv2d_naive<E: NdArrayElement>(
+    x: &NdArrayTensor<E, 4>,
+    weight: &NdArrayTensor<E, 4>,
+    bias: Option<&NdArrayTensor<E, 1>>,
+    stride: [usize; 2],
+    padding: [usize; 2],
+) -> NdArrayTensor<E, 4> {
+    let [batch_size, channels_in, heigth, width] = x.shape.dims;
+    let mut results = Vec::with_capacity(batch_size);
+
+    for b in 0..batch_size {
+        let x = NdArrayBackend::index(x, [b..b + 1, 0..channels_in, 0..heigth, 0..width]);
+        let x = NdArrayBackend::reshape(&x, Shape::new([channels_in, heigth, width]));
+
+        results.push(conv2d_naive_no_batch_size(
+            &x, weight, bias, stride, padding,
+        ));
+    }
+
+    NdArrayBackend::cat(&results, 0)
+}
+
+pub(crate) fn conv2d_naive_no_batch_size<E: NdArrayElement>(
     x: &NdArrayTensor<E, 3>,
     weight: &NdArrayTensor<E, 4>,
     bias: Option<&NdArrayTensor<E, 1>>,
@@ -11,6 +34,7 @@ pub(crate) fn conv2d_naive<E: NdArrayElement>(
     padding: [usize; 2],
 ) -> NdArrayTensor<E, 4> {
     let [channels_out, channels_in, k1, k2] = weight.shape.dims;
+    let [_, heigth, width] = x.shape.dims;
     let mut results = Vec::new();
 
     for co in 0..channels_out {
@@ -20,7 +44,9 @@ pub(crate) fn conv2d_naive<E: NdArrayElement>(
             let kernel = NdArrayBackend::index(weight, [co..co + 1, ci..ci + 1, 0..k1, 0..k2]);
             let kernel = NdArrayBackend::reshape(&kernel, Shape::new([k1, k2]));
 
-            let x = apply_padding(x, ci, padding);
+            let x = NdArrayBackend::index(x, [ci..ci + 1, 0..heigth, 0..width]);
+            let x = NdArrayBackend::reshape(&x, Shape::new([heigth, width]));
+            let x = apply_padding2d(&x, padding);
 
             let matrix = conv2d_with_kernel(x, kernel, stride);
             let [heigth, width] = matrix.shape.dims;
@@ -43,31 +69,6 @@ pub(crate) fn conv2d_naive<E: NdArrayElement>(
     }
 
     result
-}
-
-fn apply_padding<E: NdArrayElement>(
-    x: &NdArrayTensor<E, 3>,
-    channel: usize,
-    padding: [usize; 2],
-) -> NdArrayTensor<E, 2> {
-    let [_, heigth, width] = x.shape.dims;
-    let heigth_new = heigth + (2 * padding[0]);
-    let width_new = width + (2 * padding[1]);
-
-    let x = NdArrayBackend::index(x, [channel..channel + 1, 0..heigth, 0..width]);
-    let x = NdArrayBackend::reshape(&x, Shape::new([heigth, width]));
-
-    let mut x_new = NdArrayBackend::zeros(Shape::new([heigth_new, width_new]), NdArrayDevice::Cpu);
-    x_new = NdArrayBackend::index_assign(
-        &x_new,
-        [
-            padding[0]..heigth + padding[0],
-            padding[1]..width + padding[1],
-        ],
-        &x,
-    );
-
-    x_new
 }
 
 fn conv2d_with_kernel<E: NdArrayElement>(

@@ -47,3 +47,31 @@ where
         padding,
     ))
 }
+
+/// Applies a [2D max pooling](crate::ops::ModuleOps::max_pool2d).
+pub fn max_pool2d<B>(
+    x: &Tensor<B, 4>,
+    kernel_size: [usize; 2],
+    stride: [usize; 2],
+    padding: [usize; 2],
+) -> Tensor<B, 4>
+where
+    B: Backend,
+{
+    Tensor::new(B::max_pool2d(&x.value, kernel_size, stride, padding))
+}
+
+/// Applies a [2D max pooling with indexes](crate::ops::ModuleOps::max_pool2d_with_indexes).
+pub fn max_pool2d_with_indexes<B>(
+    x: &Tensor<B, 4>,
+    kernel_size: [usize; 2],
+    stride: [usize; 2],
+    padding: [usize; 2],
+) -> (Tensor<B, 4>, Tensor<B::IntegerBackend, 4>)
+where
+    B: Backend,
+{
+    let output = B::max_pool2d_with_indexes(&x.value, kernel_size, stride, padding);
+
+    (Tensor::new(output.output), Tensor::new(output.indexes))
+}

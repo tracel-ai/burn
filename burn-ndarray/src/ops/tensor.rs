@@ -1,6 +1,3 @@
-use std::cmp::Ordering;
-use std::ops::Range;
-
 use crate::tensor::BatchMatrix;
 use crate::{element::NdArrayElement, tensor::NdArrayTensor, NdArrayBackend};
 use crate::{to_nd_array_tensor, NdArrayDevice, SEED};
@@ -9,6 +6,8 @@ use burn_tensor::{backend::Backend, ops::TensorOps, Data, ElementConversion, Sha
 use ndarray::{ArcArray, Axis, Dim, Dimension, IxDyn, SliceInfoElem};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
+use std::cmp::Ordering;
+use std::ops::Range;
 
 macro_rules! keepdim {
     (

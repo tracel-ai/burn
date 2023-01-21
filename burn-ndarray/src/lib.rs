@@ -16,8 +16,6 @@ mod tensor;
 pub use backend::*;
 pub(crate) use tensor::*;
 
-pub(crate) mod conv;
-
 #[cfg(test)]
 mod tests {
     type TestBackend = crate::NdArrayBackend<f32>;

@@ -1,6 +1,11 @@
-use crate::{conv::conv2d_naive, element::NdArrayElement, tensor::NdArrayTensor, NdArrayBackend};
+use crate::{element::NdArrayElement, tensor::NdArrayTensor, NdArrayBackend};
 use burn_tensor::{ops::*, Shape};
 use std::ops::Add;
+
+use super::{
+    conv::conv2d_naive,
+    maxpool::{max_pool2d_backward_naive, max_pool2d_with_indexes_naive},
+};
 
 impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     fn embedding(
@@ -68,16 +73,44 @@ impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         stride: [usize; 2],
         padding: [usize; 2],
     ) -> NdArrayTensor<E, 4> {
-        let [batch_size, channels_in, heigth, width] = x.shape.dims;
-        let mut results = Vec::with_capacity(batch_size);
+        conv2d_naive(x, weight, bias, stride, padding)
+    }
 
-        for b in 0..batch_size {
-            let x = NdArrayBackend::index(x, [b..b + 1, 0..channels_in, 0..heigth, 0..width]);
-            let x = NdArrayBackend::reshape(&x, Shape::new([channels_in, heigth, width]));
+    fn max_pool2d(
+        x: &NdArrayTensor<E, 4>,
+        kernel_size: [usize; 2],
+        stride: [usize; 2],
+        padding: [usize; 2],
+    ) -> NdArrayTensor<E, 4> {
+        max_pool2d_with_indexes_naive(x, kernel_size, stride, padding).0
+    }
 
-            results.push(conv2d_naive(&x, weight, bias, stride, padding));
-        }
+    fn max_pool2d_with_indexes(
+        x: &NdArrayTensor<E, 4>,
+        kernel_size: [usize; 2],
+        stride: [usize; 2],
+        padding: [usize; 2],
+    ) -> MaxPool2dWithIndexes<NdArrayBackend<E>> {
+        let (output, indexes) = max_pool2d_with_indexes_naive(x, kernel_size, stride, padding);
 
-        NdArrayBackend::cat(&results, 0)
+        MaxPool2dWithIndexes::new(output, indexes)
+    }
+
+    fn max_pool2d_with_indexes_backward(
+        x: &NdArrayTensor<E, 4>,
+        kernel_size: [usize; 2],
+        stride: [usize; 2],
+        padding: [usize; 2],
+        output_grad: &NdArrayTensor<E, 4>,
+        indexes: &NdArrayTensor<i64, 4>,
+    ) -> MaxPool2dBackward<NdArrayBackend<E>> {
+        MaxPool2dBackward::new(max_pool2d_backward_naive(
+            x,
+            kernel_size,
+            stride,
+            padding,
+            output_grad,
+            indexes,
+        ))
     }
 }

@@ -9,6 +9,19 @@ pub struct Conv2dBackward<B: Backend> {
     pub bias_grad: Option<B::TensorPrimitive<1>>,
 }
 
+/// Gradient computed during the backward pass for each tensor used by [max_pool2d](ModuleOps::max_pool2d).
+#[derive(new)]
+pub struct MaxPool2dBackward<B: Backend> {
+    pub x_grad: B::TensorPrimitive<4>,
+}
+
+/// Results from [max_pool2d](ModuleOps::max_pool2d_with_indexes).
+#[derive(new)]
+pub struct MaxPool2dWithIndexes<B: Backend> {
+    pub output: B::TensorPrimitive<4>,
+    pub indexes: <B::IntegerBackend as Backend>::TensorPrimitive<4>,
+}
+
 /// Gradient computed during the backward pass for each tensor used by [conv1d](ModuleOps::conv1d).
 #[derive(new)]
 pub struct Conv1dBackward<B: Backend> {
@@ -77,4 +90,35 @@ pub trait ModuleOps<B: Backend> {
     ) -> Conv1dBackward<B> {
         conv::conv1d_backward(x, weight, bias, stride, output_grad)
     }
+    /// Two dimensional max pooling.
+    ///
+    /// # Shapes
+    ///
+    /// x: [batch_size, channels, height, width],
+    fn max_pool2d(
+        x: &B::TensorPrimitive<4>,
+        kernel_size: [usize; 2],
+        stride: [usize; 2],
+        padding: [usize; 2],
+    ) -> B::TensorPrimitive<4>;
+    /// Two dimensional max pooling with indexes.
+    ///
+    /// # Shapes
+    ///
+    /// x: [batch_size, channels, height, width],
+    fn max_pool2d_with_indexes(
+        x: &B::TensorPrimitive<4>,
+        kernel_size: [usize; 2],
+        stride: [usize; 2],
+        padding: [usize; 2],
+    ) -> MaxPool2dWithIndexes<B>;
+    /// Backward pass for the [max pooling 2d](ModuleOps::max_pool2d_with_indexes) operation.
+    fn max_pool2d_with_indexes_backward(
+        x: &B::TensorPrimitive<4>,
+        kernel_size: [usize; 2],
+        stride: [usize; 2],
+        padding: [usize; 2],
+        output_grad: &B::TensorPrimitive<4>,
+        indexes: &<B::IntegerBackend as Backend>::TensorPrimitive<4>,
+    ) -> MaxPool2dBackward<B>;
 }
