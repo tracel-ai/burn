@@ -96,7 +96,7 @@ impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         MaxPool2dWithIndexes::new(output, indexes)
     }
 
-    fn max_pool2d_backward(
+    fn max_pool2d_with_indexes_backward(
         x: &NdArrayTensor<E, 4>,
         kernel_size: [usize; 2],
         stride: [usize; 2],

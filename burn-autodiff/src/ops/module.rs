@@ -170,7 +170,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         MaxPool2dWithIndexes::new(ADTensor { node, shape }, output.indexes)
     }
 
-    fn max_pool2d_backward(
+    fn max_pool2d_with_indexes_backward(
         x: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
@@ -180,7 +180,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             4,
         >,
     ) -> MaxPool2dBackward<ADBackendDecorator<B>> {
-        let tensor = B::max_pool2d_backward(
+        let tensor = B::max_pool2d_with_indexes_backward(
             x.tensor_ref(),
             kernel_size,
             stride,
@@ -342,7 +342,7 @@ impl<B: Backend> ForwardRecordedOps<B::TensorPrimitive<4>> for ForwardMaxPool<B,
 
 impl<B: Backend> BackwardRecordedOps<B::TensorPrimitive<4>> for BackwardMaxPool<B, 2, 4> {
     fn backward_step(&self, state: &BackwardNodeState<B::TensorPrimitive<4>>) {
-        let grads = B::max_pool2d_backward(
+        let grads = B::max_pool2d_with_indexes_backward(
             &self.x.state.value,
             self.kernel_size,
             self.stride,

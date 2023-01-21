@@ -94,7 +94,7 @@ pub trait ModuleOps<B: Backend> {
     ///
     /// # Shapes
     ///
-    /// x: [batch_size, channels_in, height, width],
+    /// x: [batch_size, channels, height, width],
     fn max_pool2d(
         x: &B::TensorPrimitive<4>,
         kernel_size: [usize; 2],
@@ -105,15 +105,15 @@ pub trait ModuleOps<B: Backend> {
     ///
     /// # Shapes
     ///
-    /// x: [batch_size, channels_in, height, width],
+    /// x: [batch_size, channels, height, width],
     fn max_pool2d_with_indexes(
         x: &B::TensorPrimitive<4>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
     ) -> MaxPool2dWithIndexes<B>;
-    /// Backward pass for the [maxpooling2d](ModuleOps::maxpooling2d) operation.
-    fn max_pool2d_backward(
+    /// Backward pass for the [max pooling 2d](ModuleOps::max_pool2d_with_indexes) operation.
+    fn max_pool2d_with_indexes_backward(
         x: &B::TensorPrimitive<4>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
