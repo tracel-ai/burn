@@ -12,10 +12,8 @@ use burn_tensor::ops::conv::calculate_padding;
 /// Configuration to create an [2D convolution](Conv2d) layer.
 #[derive(Config)]
 pub struct Conv2dConfig {
-    /// The number of input channels.
-    pub channels_in: usize,
-    /// The number of output channels.
-    pub channels_out: usize,
+    /// The number of channels.
+    pub channels: [usize; 2],
     /// The size of the kernel.
     pub kernel_size: [usize; 2],
     /// The padding configuration.
@@ -59,7 +57,7 @@ pub struct Conv2d<B: Backend> {
 impl<B: Backend> Conv2d<B> {
     /// Create the module from the given configuration.
     pub fn new(config: &Conv2dConfig) -> Self {
-        let k = (config.channels_in * config.kernel_size[0] * config.kernel_size[1]) as f64;
+        let k = (config.channels[0] * config.kernel_size[0] * config.kernel_size[1]) as f64;
         let k = f64::sqrt(1.0 / k);
 
         let k1: B::Elem = (-k).to_elem();
@@ -67,8 +65,8 @@ impl<B: Backend> Conv2d<B> {
 
         let weight = Tensor::random(
             [
-                config.channels_out,
-                config.channels_in,
+                config.channels[1],
+                config.channels[0],
                 config.kernel_size[0],
                 config.kernel_size[1],
             ],
@@ -77,7 +75,7 @@ impl<B: Backend> Conv2d<B> {
 
         let bias = if config.bias {
             Some(Tensor::random(
-                [config.channels_out],
+                [config.channels[1]],
                 Distribution::Uniform(k1, k2),
             ))
         } else {

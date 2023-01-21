@@ -1,3 +1,4 @@
+mod conv;
 mod data;
 mod mlp;
 mod model;
