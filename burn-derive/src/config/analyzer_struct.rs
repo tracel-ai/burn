@@ -158,10 +158,20 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
         for (field, attribute) in self.fields_default.iter() {
             let name = field.ident();
             let value = &attribute.value;
+            match value {
+                syn::Lit::Str(value) => {
+                    let stream: proc_macro2::TokenStream = value.value().parse().unwrap();
 
-            body.extend(quote! {
-                #name: #value,
-            });
+                    body.extend(quote! {
+                        #name: #stream,
+                    });
+                }
+                _ => {
+                    body.extend(quote! {
+                        #name: #value,
+                    });
+                }
+            };
         }
 
         let body = quote! {

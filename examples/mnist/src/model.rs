@@ -1,4 +1,5 @@
 use crate::{
+    conv::{ConvBlock, ConvBlockConfig},
     data::MNISTBatch,
     mlp::{Mlp, MlpConfig},
 };
@@ -31,6 +32,7 @@ pub struct MnistConfig {
 #[derive(Module, Debug)]
 pub struct Model<B: Backend> {
     mlp: Param<Mlp<B>>,
+    conv: Param<ConvBlock<B>>,
     input: Param<nn::Linear<B>>,
     output: Param<nn::Linear<B>>,
     num_classes: usize,
@@ -41,23 +43,28 @@ impl<B: Backend> Model<B> {
         let mlp = Mlp::new(&config.mlp);
         let output = nn::Linear::new(&nn::LinearConfig::new(config.mlp.d_model, num_classes));
         let input = nn::Linear::new(&nn::LinearConfig::new(d_input, config.mlp.d_model));
+        let conv = ConvBlock::new(&ConvBlockConfig::new([1, 1]));
 
         Self {
             mlp: Param::new(mlp),
+            conv: Param::new(conv),
             output: Param::new(output),
             input: Param::new(input),
             num_classes,
         }
     }
 
-    pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
-        let mut x = input;
+    pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 2> {
+        let [batch_size, heigth, width] = input.dims();
 
-        x = self.input.forward(x);
-        x = self.mlp.forward(x);
-        x = self.output.forward(x);
+        let x = input.reshape([batch_size, 1, heigth, width]).detach();
+        let x = self.conv.forward(x);
+        let x = x.reshape([batch_size, heigth * width]);
 
-        x
+        let x = self.input.forward(x);
+        let x = self.mlp.forward(x);
+
+        self.output.forward(x)
     }
 
     pub fn forward_classification(&self, item: MNISTBatch<B>) -> ClassificationOutput<B> {

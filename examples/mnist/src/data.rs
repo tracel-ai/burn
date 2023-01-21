@@ -9,7 +9,7 @@ pub struct MNISTBatcher<B: Backend> {
 
 #[derive(Clone, Debug)]
 pub struct MNISTBatch<B: Backend> {
-    pub images: Tensor<B, 2>,
+    pub images: Tensor<B, 3>,
     pub targets: Tensor<B::IntegerBackend, 1>,
 }
 
@@ -25,7 +25,7 @@ impl<B: Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
             .iter()
             .map(|item| Data::<f32, 2>::from(item.image))
             .map(|data| Tensor::<B, 2>::from_data(data.convert()))
-            .map(|tensor| tensor.reshape([1, 784]))
+            .map(|tensor| tensor.reshape([1, 28, 28]))
             .map(|tensor| tensor / 255)
             .collect();
 
