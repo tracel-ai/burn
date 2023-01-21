@@ -1,12 +1,11 @@
-use crate::{
-    conv::conv2d_naive,
-    element::NdArrayElement,
-    maxpool::{max_pool2d_backward_naive, max_pool2d_with_indices_naive},
-    tensor::NdArrayTensor,
-    NdArrayBackend,
-};
+use crate::{element::NdArrayElement, tensor::NdArrayTensor, NdArrayBackend};
 use burn_tensor::{ops::*, Shape};
 use std::ops::Add;
+
+use super::{
+    conv::conv2d_naive,
+    maxpool::{max_pool2d_backward_naive, max_pool2d_with_indices_naive},
+};
 
 impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     fn embedding(
@@ -74,17 +73,7 @@ impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         stride: [usize; 2],
         padding: [usize; 2],
     ) -> NdArrayTensor<E, 4> {
-        let [batch_size, channels_in, heigth, width] = x.shape.dims;
-        let mut results = Vec::with_capacity(batch_size);
-
-        for b in 0..batch_size {
-            let x = NdArrayBackend::index(x, [b..b + 1, 0..channels_in, 0..heigth, 0..width]);
-            let x = NdArrayBackend::reshape(&x, Shape::new([channels_in, heigth, width]));
-
-            results.push(conv2d_naive(&x, weight, bias, stride, padding));
-        }
-
-        NdArrayBackend::cat(&results, 0)
+        conv2d_naive(x, weight, bias, stride, padding)
     }
 
     fn max_pool2d(

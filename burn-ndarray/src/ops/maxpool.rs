@@ -1,7 +1,5 @@
-use crate::{
-    conv::apply_padding, element::NdArrayElement, tensor::NdArrayTensor, NdArrayBackend,
-    NdArrayDevice,
-};
+use super::padding::apply_padding2d;
+use crate::{element::NdArrayElement, tensor::NdArrayTensor, NdArrayBackend, NdArrayDevice};
 use burn_tensor::{ops::TensorOps, Data, Shape};
 
 /// This method is not the most efficient, but it serves as a basic implementation that is easy to understand.
@@ -22,10 +20,9 @@ pub(crate) fn max_pool2d_with_indices_naive<E: NdArrayElement>(
         let mut batch_indices = Vec::new();
 
         for c in 0..channels {
-            let x = NdArrayBackend::index(x, [b..b + 1, 0..channels, 0..heigth, 0..width]);
-            let x = NdArrayBackend::reshape(&x, Shape::new([channels, heigth, width]));
-
-            let x = apply_padding(&x, c, padding);
+            let x = NdArrayBackend::index(x, [b..b + 1, c..c + 1, 0..heigth, 0..width]);
+            let x = NdArrayBackend::reshape(&x, Shape::new([heigth, width]));
+            let x = apply_padding2d(&x, padding);
 
             let (matrix, indices) = max_pool2d_with_kernel(x, kernel_size, stride, padding);
             let [heigth, width] = matrix.shape.dims;
