@@ -19,7 +19,8 @@ pub struct Conv2dConfig {
     /// The size of the kernel.
     pub kernel_size: [usize; 2],
     /// The padding configuration.
-    pub padding: Option<Conv2dPaddingConfig>,
+    #[config(default = "Conv2dPaddingConfig::Valid")]
+    pub padding: Conv2dPaddingConfig,
     /// If bias should be added to the output.
     #[config(default = true)]
     pub bias: bool,
@@ -31,6 +32,8 @@ pub enum Conv2dPaddingConfig {
     /// Dynamicaly calculate the amount of padding necessary to ensure that the output size will be
     /// the same as the input.
     Same,
+    /// Same as no padding.
+    Valid,
     /// Applies the specified amount of padding to all inputs.
     Explicit(usize, usize),
 }
@@ -50,7 +53,7 @@ pub struct Conv2d<B: Backend> {
     bias: Param<Option<Tensor<B, 1>>>,
     stride: [usize; 2],
     kernel_size: [usize; 2],
-    padding: Option<Conv2dPaddingConfig>,
+    padding: Conv2dPaddingConfig,
 }
 
 impl<B: Backend> Conv2d<B> {
@@ -97,23 +100,10 @@ impl<B: Backend> Conv2d<B> {
     /// - input: [batch_size, channels_in, height_in, width_in],
     /// - output: [batch_size, channels_out, height_out, width_out],
     pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
-        let same_padding = || {
-            let [_batch_size, _channels_in, height_in, width_in] = input.dims();
-
-            let p1 = calculate_padding(self.kernel_size[0], self.stride[0], height_in, height_in);
-            let p2 = calculate_padding(self.kernel_size[1], self.stride[1], width_in, width_in);
-
-            [p1, p2]
-        };
-
-        let padding = match &self.padding {
-            Some(config) => match config {
-                Conv2dPaddingConfig::Same => same_padding(),
-                Conv2dPaddingConfig::Explicit(v1, v2) => [*v1, *v2],
-            },
-            None => [0, 0],
-        };
-
+        let [_batch_size, _channels_in, height_in, width_in] = input.dims();
+        let padding =
+            self.padding
+                .calculate_padding_2d(height_in, width_in, &self.kernel_size, &self.stride);
         conv2d(
             &input,
             &self.weight,
@@ -121,5 +111,28 @@ impl<B: Backend> Conv2d<B> {
             self.stride,
             padding,
         )
+    }
+}
+
+impl Conv2dPaddingConfig {
+    pub(crate) fn calculate_padding_2d(
+        &self,
+        height: usize,
+        width: usize,
+        kernel_size: &[usize; 2],
+        stride: &[usize; 2],
+    ) -> [usize; 2] {
+        let same_padding = || {
+            let p1 = calculate_padding(kernel_size[0], stride[0], height, height);
+            let p2 = calculate_padding(kernel_size[1], stride[1], width, width);
+
+            [p1, p2]
+        };
+
+        match self {
+            Conv2dPaddingConfig::Same => same_padding(),
+            Conv2dPaddingConfig::Valid => [0, 0],
+            Conv2dPaddingConfig::Explicit(v1, v2) => [*v1, *v2],
+        }
     }
 }
