@@ -63,9 +63,8 @@ impl<B: Backend> Model<B> {
 
         let x = self.input.forward(x);
         let x = self.mlp.forward(x);
-        let x = self.output.forward(x);
 
-        x
+        self.output.forward(x)
     }
 
     pub fn forward_classification(&self, item: MNISTBatch<B>) -> ClassificationOutput<B> {
