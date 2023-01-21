@@ -1,5 +1,8 @@
 use crate::{
-    conv::conv2d_naive, element::NdArrayElement, maxpool::max_pool2d_naive, tensor::NdArrayTensor,
+    conv::conv2d_naive,
+    element::NdArrayElement,
+    maxpool::{max_pool2d_backward_naive, max_pool2d_with_indices_naive},
+    tensor::NdArrayTensor,
     NdArrayBackend,
 };
 use burn_tensor::{ops::*, Shape};
@@ -90,7 +93,7 @@ impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         stride: [usize; 2],
         padding: [usize; 2],
     ) -> NdArrayTensor<E, 4> {
-        max_pool2d_naive(x, kernel_size, stride, padding).0
+        max_pool2d_with_indices_naive(x, kernel_size, stride, padding).0
     }
 
     fn max_pool2d_with_indices(
@@ -99,19 +102,26 @@ impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         stride: [usize; 2],
         padding: [usize; 2],
     ) -> MaxPool2dWithIndices<NdArrayBackend<E>> {
-        let (output, indices) = max_pool2d_naive(x, kernel_size, stride, padding);
+        let (output, indices) = max_pool2d_with_indices_naive(x, kernel_size, stride, padding);
 
         MaxPool2dWithIndices::new(output, indices)
     }
 
     fn max_pool2d_backward(
-        _x: &<NdArrayBackend<E> as burn_tensor::backend::Backend>::TensorPrimitive<4>,
-        _kernel_size: [usize; 2],
-        _stride: [usize; 2],
-        _padding: [usize; 2],
-        _output_grad: &<NdArrayBackend<E> as burn_tensor::backend::Backend>::TensorPrimitive<4>,
-        _indices: &<<NdArrayBackend<E> as burn_tensor::backend::Backend>::IntegerBackend as burn_tensor::backend::Backend>::TensorPrimitive<4>,
+        x: &NdArrayTensor<E, 4>,
+        kernel_size: [usize; 2],
+        stride: [usize; 2],
+        padding: [usize; 2],
+        output_grad: &NdArrayTensor<E, 4>,
+        indices: &NdArrayTensor<i64, 4>,
     ) -> MaxPool2dBackward<NdArrayBackend<E>> {
-        todo!()
+        MaxPool2dBackward::new(max_pool2d_backward_naive(
+            x,
+            kernel_size,
+            stride,
+            padding,
+            output_grad,
+            indices,
+        ))
     }
 }
