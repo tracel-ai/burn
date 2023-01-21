@@ -73,7 +73,7 @@ impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         stride: [usize; 2],
         padding: [usize; 2],
     ) -> NdArrayTensor<E, 4> {
-        conv2d_naive(&x, weight, bias, stride, padding)
+        conv2d_naive(x, weight, bias, stride, padding)
     }
 
     fn max_pool2d(
