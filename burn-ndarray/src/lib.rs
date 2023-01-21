@@ -17,6 +17,7 @@ pub use backend::*;
 pub(crate) use tensor::*;
 
 pub(crate) mod conv;
+pub(crate) mod maxpool;
 
 #[cfg(test)]
 mod tests {

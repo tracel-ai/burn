@@ -1,4 +1,7 @@
-use crate::{conv::conv2d_naive, element::NdArrayElement, tensor::NdArrayTensor, NdArrayBackend};
+use crate::{
+    conv::conv2d_naive, element::NdArrayElement, maxpool::max_pool2d_naive, tensor::NdArrayTensor,
+    NdArrayBackend,
+};
 use burn_tensor::{ops::*, Shape};
 use std::ops::Add;
 
@@ -82,21 +85,23 @@ impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     }
 
     fn max_pool2d(
-        _x: &<NdArrayBackend<E> as burn_tensor::backend::Backend>::TensorPrimitive<4>,
-        _kernel_size: [usize; 2],
-        _stride: [usize; 2],
-        _padding: [usize; 2],
-    ) -> <NdArrayBackend<E> as burn_tensor::backend::Backend>::TensorPrimitive<4> {
-        todo!()
+        x: &NdArrayTensor<E, 4>,
+        kernel_size: [usize; 2],
+        stride: [usize; 2],
+        padding: [usize; 2],
+    ) -> NdArrayTensor<E, 4> {
+        max_pool2d_naive(x, kernel_size, stride, padding).0
     }
 
     fn max_pool2d_with_indices(
-        _x: &<NdArrayBackend<E> as burn_tensor::backend::Backend>::TensorPrimitive<4>,
-        _kernel_size: [usize; 2],
-        _stride: [usize; 2],
-        _padding: [usize; 2],
+        x: &NdArrayTensor<E, 4>,
+        kernel_size: [usize; 2],
+        stride: [usize; 2],
+        padding: [usize; 2],
     ) -> MaxPool2dWithIndices<NdArrayBackend<E>> {
-        todo!()
+        let (output, indices) = max_pool2d_naive(x, kernel_size, stride, padding);
+
+        MaxPool2dWithIndices::new(output, indices)
     }
 
     fn max_pool2d_backward(

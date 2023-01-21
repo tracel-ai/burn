@@ -45,7 +45,7 @@ pub(crate) fn conv2d_naive<E: NdArrayElement>(
     result
 }
 
-fn apply_padding<E: NdArrayElement>(
+pub(crate) fn apply_padding<E: NdArrayElement>(
     x: &NdArrayTensor<E, 3>,
     channel: usize,
     padding: [usize; 2],
