@@ -4,7 +4,7 @@ use std::ops::Add;
 
 use super::{
     conv::conv2d_naive,
-    maxpool::{max_pool2d_backward_naive, max_pool2d_with_indices_naive},
+    maxpool::{max_pool2d_backward_naive, max_pool2d_with_indexes_naive},
 };
 
 impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
@@ -73,7 +73,7 @@ impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         stride: [usize; 2],
         padding: [usize; 2],
     ) -> NdArrayTensor<E, 4> {
-        conv2d_naive(x, weight, bias, stride, padding)
+        conv2d_naive(&x, weight, bias, stride, padding)
     }
 
     fn max_pool2d(
@@ -82,18 +82,18 @@ impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         stride: [usize; 2],
         padding: [usize; 2],
     ) -> NdArrayTensor<E, 4> {
-        max_pool2d_with_indices_naive(x, kernel_size, stride, padding).0
+        max_pool2d_with_indexes_naive(x, kernel_size, stride, padding).0
     }
 
-    fn max_pool2d_with_indices(
+    fn max_pool2d_with_indexes(
         x: &NdArrayTensor<E, 4>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
-    ) -> MaxPool2dWithIndices<NdArrayBackend<E>> {
-        let (output, indices) = max_pool2d_with_indices_naive(x, kernel_size, stride, padding);
+    ) -> MaxPool2dWithIndexes<NdArrayBackend<E>> {
+        let (output, indexes) = max_pool2d_with_indexes_naive(x, kernel_size, stride, padding);
 
-        MaxPool2dWithIndices::new(output, indices)
+        MaxPool2dWithIndexes::new(output, indexes)
     }
 
     fn max_pool2d_backward(
@@ -102,7 +102,7 @@ impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         stride: [usize; 2],
         padding: [usize; 2],
         output_grad: &NdArrayTensor<E, 4>,
-        indices: &NdArrayTensor<i64, 4>,
+        indexes: &NdArrayTensor<i64, 4>,
     ) -> MaxPool2dBackward<NdArrayBackend<E>> {
         MaxPool2dBackward::new(max_pool2d_backward_naive(
             x,
@@ -110,7 +110,7 @@ impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
             stride,
             padding,
             output_grad,
-            indices,
+            indexes,
         ))
     }
 }

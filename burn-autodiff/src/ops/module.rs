@@ -126,13 +126,13 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         stride: [usize; 2],
         padding: [usize; 2],
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<4> {
-        let output = B::max_pool2d_with_indices(x.tensor_ref(), kernel_size, stride, padding);
+        let output = B::max_pool2d_with_indexes(x.tensor_ref(), kernel_size, stride, padding);
         let shape = *B::shape(&output.output);
         let order = x.node.order + 1;
 
         let ops = ForwardMaxPool::<B, 2, 4>::new(
             x.node.clone(),
-            Arc::new(output.indices),
+            Arc::new(output.indexes),
             kernel_size,
             stride,
             padding,
@@ -145,19 +145,19 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         ADTensor { node, shape }
     }
 
-    fn max_pool2d_with_indices(
+    fn max_pool2d_with_indexes(
         x: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
-    ) -> MaxPool2dWithIndices<ADBackendDecorator<B>> {
-        let output = B::max_pool2d_with_indices(x.tensor_ref(), kernel_size, stride, padding);
+    ) -> MaxPool2dWithIndexes<ADBackendDecorator<B>> {
+        let output = B::max_pool2d_with_indexes(x.tensor_ref(), kernel_size, stride, padding);
         let shape = *B::shape(&output.output);
         let order = x.node.order + 1;
 
         let ops = ForwardMaxPool::<B, 2, 4>::new(
             x.node.clone(),
-            Arc::new(output.indices.clone()),
+            Arc::new(output.indexes.clone()),
             kernel_size,
             stride,
             padding,
@@ -167,7 +167,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let node = ForwardNode::new(order, state, ops);
         let node = std::sync::Arc::new(node);
 
-        MaxPool2dWithIndices::new(ADTensor { node, shape }, output.indices)
+        MaxPool2dWithIndexes::new(ADTensor { node, shape }, output.indexes)
     }
 
     fn max_pool2d_backward(
@@ -176,7 +176,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         stride: [usize; 2],
         padding: [usize; 2],
         output_grad: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
-        indices: &<<ADBackendDecorator<B> as Backend>::IntegerBackend as Backend>::TensorPrimitive<
+        indexes: &<<ADBackendDecorator<B> as Backend>::IntegerBackend as Backend>::TensorPrimitive<
             4,
         >,
     ) -> MaxPool2dBackward<ADBackendDecorator<B>> {
@@ -186,7 +186,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             stride,
             padding,
             output_grad.tensor_ref(),
-            indices,
+            indexes,
         );
 
         MaxPool2dBackward::new(ADTensor::from_tensor(tensor.x_grad))
@@ -308,7 +308,7 @@ impl<B: Backend> BackwardRecordedOps<B::TensorPrimitive<3>> for BackwardConv<B, 
 #[derive(new, Debug)]
 pub struct ForwardMaxPool<B: Backend, const D: usize, const S: usize> {
     x: ForwardNodeRef<B::TensorPrimitive<S>>,
-    indices: Arc<<B::IntegerBackend as Backend>::TensorPrimitive<S>>,
+    indexes: Arc<<B::IntegerBackend as Backend>::TensorPrimitive<S>>,
     kernel_size: [usize; D],
     stride: [usize; D],
     padding: [usize; D],
@@ -317,7 +317,7 @@ pub struct ForwardMaxPool<B: Backend, const D: usize, const S: usize> {
 #[derive(new, Debug)]
 pub struct BackwardMaxPool<B: Backend, const D: usize, const S: usize> {
     x: BackwardNodeRef<B::TensorPrimitive<S>>,
-    indices: Arc<<B::IntegerBackend as Backend>::TensorPrimitive<S>>,
+    indexes: Arc<<B::IntegerBackend as Backend>::TensorPrimitive<S>>,
     kernel_size: [usize; D],
     stride: [usize; D],
     padding: [usize; D],
@@ -330,7 +330,7 @@ impl<B: Backend> ForwardRecordedOps<B::TensorPrimitive<4>> for ForwardMaxPool<B,
     ) -> BackwardRecordedOpsBoxed<B::TensorPrimitive<4>> {
         let ops = BackwardMaxPool::<B, 2, 4>::new(
             Arc::new(BackwardNode::from_node(&self.x, graph)),
-            self.indices.clone(),
+            self.indexes.clone(),
             self.kernel_size,
             self.stride,
             self.padding,
@@ -348,7 +348,7 @@ impl<B: Backend> BackwardRecordedOps<B::TensorPrimitive<4>> for BackwardMaxPool<
             self.stride,
             self.padding,
             &state.grad.borrow(),
-            &self.indices,
+            &self.indexes,
         );
 
         self.x.state.update_grad(grads.x_grad);

@@ -1,6 +1,6 @@
 use crate::{element::TchElement, TchBackend, TchKind, TchTensor};
 use burn_tensor::{
-    ops::{MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps},
+    ops::{MaxPool2dBackward, MaxPool2dWithIndexes, ModuleOps},
     Shape,
 };
 
@@ -112,13 +112,13 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
         }
     }
 
-    fn max_pool2d_with_indices(
+    fn max_pool2d_with_indexes(
         x: &TchTensor<E, 4>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
-    ) -> MaxPool2dWithIndices<TchBackend<E>> {
-        let (tensor, indices) = tch::Tensor::max_pool2d_with_indices(
+    ) -> MaxPool2dWithIndexes<TchBackend<E>> {
+        let (tensor, indexes) = tch::Tensor::max_pool2d_with_indices(
             &x.tensor,
             &[kernel_size[0] as i64, kernel_size[1] as i64],
             &[stride[0] as i64, stride[1] as i64],
@@ -133,14 +133,14 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
             tensor,
             shape,
         };
-        let shape = Shape::from(indices.size());
-        let indices = TchTensor {
+        let shape = Shape::from(indexes.size());
+        let indexes = TchTensor {
             kind: TchKind::<i64>::new(),
-            tensor: indices,
+            tensor: indexes,
             shape,
         };
 
-        MaxPool2dWithIndices::new(output, indices)
+        MaxPool2dWithIndexes::new(output, indexes)
     }
 
     fn max_pool2d_backward(
@@ -149,7 +149,7 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
         stride: [usize; 2],
         padding: [usize; 2],
         output_grad: &TchTensor<E, 4>,
-        indices: &TchTensor<i64, 4>,
+        indexes: &TchTensor<i64, 4>,
     ) -> MaxPool2dBackward<TchBackend<E>> {
         let grad = tch::Tensor::max_pool2d_with_indices_backward(
             &x.tensor,
@@ -159,7 +159,7 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
             &[padding[0] as i64, padding[1] as i64],
             &[1, 1],
             false,
-            &indices.tensor,
+            &indexes.tensor,
         );
 
         let shape = Shape::from(grad.size());

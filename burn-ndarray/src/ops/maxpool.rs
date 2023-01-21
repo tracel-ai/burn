@@ -4,45 +4,45 @@ use burn_tensor::{ops::TensorOps, Data, Shape};
 
 /// This method is not the most efficient, but it serves as a basic implementation that is easy to understand.
 /// A more optimized version should be used in its place.
-pub(crate) fn max_pool2d_with_indices_naive<E: NdArrayElement>(
+pub(crate) fn max_pool2d_with_indexes_naive<E: NdArrayElement>(
     x: &NdArrayTensor<E, 4>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
 ) -> (NdArrayTensor<E, 4>, NdArrayTensor<i64, 4>) {
     let mut batches = Vec::new();
-    let mut batches_indices = Vec::new();
+    let mut batches_indexes = Vec::new();
 
     let [batch_size, channels, heigth, width] = x.shape.dims;
 
     for b in 0..batch_size {
         let mut batch = Vec::new();
-        let mut batch_indices = Vec::new();
+        let mut batch_indexes = Vec::new();
 
         for c in 0..channels {
             let x = NdArrayBackend::index(x, [b..b + 1, c..c + 1, 0..heigth, 0..width]);
             let x = NdArrayBackend::reshape(&x, Shape::new([heigth, width]));
             let x = apply_padding2d(&x, padding);
 
-            let (matrix, indices) = max_pool2d_with_kernel(x, kernel_size, stride, padding);
+            let (matrix, indexes) = max_pool2d_with_kernel(x, kernel_size, stride, padding);
             let [heigth, width] = matrix.shape.dims;
 
             let matrix = NdArrayBackend::reshape(&matrix, Shape::new([1, 1, heigth, width]));
-            let indices = NdArrayBackend::reshape(&indices, Shape::new([1, 1, heigth, width]));
+            let indexes = NdArrayBackend::reshape(&indexes, Shape::new([1, 1, heigth, width]));
 
             batch.push(matrix);
-            batch_indices.push(indices);
+            batch_indexes.push(indexes);
         }
         let batch = NdArrayBackend::cat(&batch, 1);
-        let batch_indices = NdArrayBackend::cat(&batch_indices, 1);
+        let batch_indexes = NdArrayBackend::cat(&batch_indexes, 1);
 
         batches.push(batch);
-        batches_indices.push(batch_indices);
+        batches_indexes.push(batch_indexes);
     }
 
     (
         NdArrayBackend::cat(&batches, 0),
-        NdArrayBackend::cat(&batches_indices, 0),
+        NdArrayBackend::cat(&batches_indexes, 0),
     )
 }
 
@@ -52,7 +52,7 @@ pub(crate) fn max_pool2d_backward_naive<E: NdArrayElement>(
     _stride: [usize; 2],
     _padding: [usize; 2],
     output_grad: &NdArrayTensor<E, 4>,
-    indices: &NdArrayTensor<i64, 4>,
+    indexes: &NdArrayTensor<i64, 4>,
 ) -> NdArrayTensor<E, 4> {
     let [_batch_size, _channels, heigth, width] = output_grad.shape.dims;
     let [batch_size, channels, heigth_x, width_x] = x.shape.dims;
@@ -61,8 +61,8 @@ pub(crate) fn max_pool2d_backward_naive<E: NdArrayElement>(
         output_grad,
         Shape::new([batch_size, channels, heigth * width]),
     );
-    let indices_flatten =
-        NdArrayBackend::reshape(indices, Shape::new([batch_size, channels, heigth * width]));
+    let indexes_flatten =
+        NdArrayBackend::reshape(indexes, Shape::new([batch_size, channels, heigth * width]));
     let mut output_flatten = NdArrayBackend::zeros(
         Shape::new([batch_size, channels, heigth_x * width_x]),
         NdArrayDevice::Cpu,
@@ -71,7 +71,7 @@ pub(crate) fn max_pool2d_backward_naive<E: NdArrayElement>(
     for b in 0..batch_size {
         for c in 0..channels {
             for i in 0..(heigth * width) {
-                let index = NdArrayBackend::index(&indices_flatten, [b..b + 1, c..c + 1, i..i + 1]);
+                let index = NdArrayBackend::index(&indexes_flatten, [b..b + 1, c..c + 1, i..i + 1]);
                 let index = NdArrayBackend::into_data(index).value[0] as usize;
 
                 let current_value =
@@ -105,7 +105,7 @@ fn max_pool2d_with_kernel<E: NdArrayElement>(
     let heigth_new = f32::ceil((heigth - k1 + 1) as f32 / stride[0] as f32) as usize;
     let width_new = f32::ceil((width - k2 + 1) as f32 / stride[1] as f32) as usize;
     let mut output = NdArrayBackend::empty(Shape::new([heigth_new, width_new]), NdArrayDevice::Cpu);
-    let mut indices =
+    let mut indexes =
         NdArrayBackend::empty(Shape::new([heigth_new, width_new]), NdArrayDevice::Cpu);
 
     for i in 0..heigth_new {
@@ -135,10 +135,10 @@ fn max_pool2d_with_kernel<E: NdArrayElement>(
                 NdArrayDevice::Cpu,
             );
 
-            indices = NdArrayBackend::index_assign(&indices, [i..i + 1, j..j + 1], &index);
+            indexes = NdArrayBackend::index_assign(&indexes, [i..i + 1, j..j + 1], &index);
             output = NdArrayBackend::index_assign(&output, [i..i + 1, j..j + 1], &value);
         }
     }
 
-    (output, indices)
+    (output, indexes)
 }
