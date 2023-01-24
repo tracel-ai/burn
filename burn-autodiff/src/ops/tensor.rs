@@ -1155,7 +1155,8 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 &self,
                 state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
             ) -> B::TensorPrimitive<D> {
-                let value = B::add_scalar(&B::neg(&B::powf(&state.output.value(), 2.0)), &1.to_elem());
+                let value =
+                    B::add_scalar(&B::neg(&B::powf(&state.output.value(), 2.0)), &1.to_elem());
                 B::mul(&state.output.grad(), &value)
             }
         }

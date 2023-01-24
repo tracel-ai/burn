@@ -538,21 +538,30 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     }
 
     fn cos<const D: usize>(tensor: &NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
-        let array = tensor.array.mapv(|a| a.to_f64().unwrap().cos().to_elem()).into_shared();
+        let array = tensor
+            .array
+            .mapv(|a| a.to_f64().unwrap().cos().to_elem())
+            .into_shared();
         let shape = tensor.shape;
 
         NdArrayTensor { array, shape }
     }
 
     fn sin<const D: usize>(tensor: &NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
-        let array = tensor.array.mapv(|a| a.to_f64().unwrap().sin().to_elem()).into_shared();
+        let array = tensor
+            .array
+            .mapv(|a| a.to_f64().unwrap().sin().to_elem())
+            .into_shared();
         let shape = tensor.shape;
 
         NdArrayTensor { array, shape }
     }
 
     fn tanh<const D: usize>(tensor: &NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
-        let array = tensor.array.mapv(|a| a.to_f64().unwrap().tanh().to_elem()).into_shared();
+        let array = tensor
+            .array
+            .mapv(|a| a.to_f64().unwrap().tanh().to_elem())
+            .into_shared();
         let shape = tensor.shape;
 
         NdArrayTensor { array, shape }

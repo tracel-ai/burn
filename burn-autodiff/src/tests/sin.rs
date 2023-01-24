@@ -21,8 +21,9 @@ mod tests {
         grad_1
             .to_data()
             .assert_approx_eq(&Data::from([[8.8500, -4.9790], [8.8500, -4.9790]]), 3);
-        grad_2
-            .to_data()
-            .assert_approx_eq(&Data::from([[38.668987, 44.194775], [-59.97261, -80.46094]]), 3);
+        grad_2.to_data().assert_approx_eq(
+            &Data::from([[38.668987, 44.194775], [-59.97261, -80.46094]]),
+            3,
+        );
     }
 }
