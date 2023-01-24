@@ -1103,7 +1103,8 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 &self,
                 state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
             ) -> B::TensorPrimitive<D> {
-                B::neg(&B::sin(&state.input.value()))
+                let value = B::neg(&B::sin(&state.input.value()));
+                B::mul(&state.output.grad(), &value)
             }
         }
 
@@ -1128,7 +1129,8 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 &self,
                 state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
             ) -> B::TensorPrimitive<D> {
-                B::cos(&state.input.value())
+                let value = B::cos(&state.input.value());
+                B::mul(&state.output.grad(), &value)
             }
         }
 
@@ -1153,7 +1155,8 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 &self,
                 state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
             ) -> B::TensorPrimitive<D> {
-                B::add_scalar(&B::neg(&B::powf(&state.output.value(), 2.0)), &1.to_elem())
+                let value = B::add_scalar(&B::neg(&B::powf(&state.output.value(), 2.0)), &1.to_elem());
+                B::mul(&state.output.grad(), &value)
             }
         }
 

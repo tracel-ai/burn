@@ -5,6 +5,7 @@ mod cat;
 mod complex;
 mod conv1d;
 mod conv2d;
+mod cos;
 mod cross_entropy;
 mod div;
 mod erf;
@@ -20,9 +21,11 @@ mod neg;
 mod pow;
 mod relu;
 mod reshape;
+mod sin;
 mod softmax;
 mod sqrt;
 mod sub;
+mod tanh;
 mod transpose;
 
 #[macro_export]
@@ -44,6 +47,7 @@ macro_rules! testgen_all {
         burn_autodiff::testgen_ad_add!();
         burn_autodiff::testgen_ad_aggregation!();
         burn_autodiff::testgen_ad_cat!();
+        burn_autodiff::testgen_ad_cos!();
         burn_autodiff::testgen_ad_cross_entropy_loss!();
         burn_autodiff::testgen_ad_div!();
         burn_autodiff::testgen_ad_erf!();
@@ -55,11 +59,13 @@ macro_rules! testgen_all {
         burn_autodiff::testgen_ad_mul!();
         burn_autodiff::testgen_ad_neg!();
         burn_autodiff::testgen_ad_powf!();
-        burn_autodiff::testgen_ad_sqrt!();
         burn_autodiff::testgen_ad_relu!();
         burn_autodiff::testgen_ad_reshape!();
+        burn_autodiff::testgen_ad_sin!();
         burn_autodiff::testgen_ad_softmax!();
+        burn_autodiff::testgen_ad_sqrt!();
         burn_autodiff::testgen_ad_sub!();
+        burn_autodiff::testgen_ad_tanh!();
         burn_autodiff::testgen_ad_transpose!();
     };
 }

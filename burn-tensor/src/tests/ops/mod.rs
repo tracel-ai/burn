@@ -1,6 +1,7 @@
 mod add;
 mod aggregation;
 mod arg;
+mod cos;
 mod div;
 mod erf;
 mod exp;
@@ -13,5 +14,7 @@ mod neg;
 mod powf;
 mod repeat;
 mod reshape;
+mod sin;
 mod sub;
+mod tanh;
 mod transpose;
