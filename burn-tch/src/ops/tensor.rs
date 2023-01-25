@@ -451,6 +451,18 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         to_tensor(tensor.tensor.sqrt())
     }
 
+    fn cos<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
+        to_tensor(tensor.tensor.cos())
+    }
+
+    fn sin<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
+        to_tensor(tensor.tensor.sin())
+    }
+
+    fn tanh<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
+        to_tensor(tensor.tensor.tanh())
+    }
+
     fn erf<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
         to_tensor(tensor.tensor.erf())
     }

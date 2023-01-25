@@ -105,6 +105,21 @@ where
         Self::new(B::sqrt(&self.value))
     }
 
+    /// Applies element wise cosine operation.
+    pub fn cos(&self) -> Self {
+        Self::new(B::cos(&self.value))
+    }
+
+    /// Applies element wise sine operation.
+    pub fn sin(&self) -> Self {
+        Self::new(B::sin(&self.value))
+    }
+
+    /// Applies element wise hyperbolic tangent operation.
+    pub fn tanh(&self) -> Self {
+        Self::new(B::tanh(&self.value))
+    }
+
     /// Returns the shape of the current tensor.
     pub fn shape(&self) -> &Shape<D> {
         B::shape(&self.value)
