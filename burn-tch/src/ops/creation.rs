@@ -7,14 +7,9 @@ where
 {
     fn zeros(&self) -> TchTensor<P, D> {
         let tensor = self.tensor.zeros_like();
-        let shape = self.shape;
         let kind = self.kind.clone();
 
-        Self {
-            kind,
-            tensor,
-            shape,
-        }
+        Self { kind, tensor }
     }
 }
 
@@ -24,13 +19,8 @@ where
 {
     fn ones(&self) -> TchTensor<P, D> {
         let tensor = self.tensor.ones_like();
-        let shape = self.shape;
         let kind = self.kind.clone();
 
-        Self {
-            kind,
-            tensor,
-            shape,
-        }
+        Self { kind, tensor }
     }
 }

@@ -16,7 +16,7 @@ where
     B2: Backend,
     O: UnaryOps<B1::TensorPrimitive<D1>, B2::TensorPrimitive<D2>> + 'static,
 {
-    let shape = *B2::shape(&output);
+    let shape = B2::shape(&output);
     let state = ForwardNodeState::new(output);
 
     let ops = Arc::new(ops);
@@ -51,7 +51,7 @@ where
     B: Backend,
     O: BinaryOps<B::TensorPrimitive<D1>, B::TensorPrimitive<D2>, B::TensorPrimitive<D3>> + 'static,
 {
-    let shape = *B::shape(&output);
+    let shape = B::shape(&output);
     let state = ForwardNodeState::new(output);
 
     let ops = Arc::new(ops);

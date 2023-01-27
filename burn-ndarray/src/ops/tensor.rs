@@ -63,8 +63,8 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
 
     fn shape<const D: usize>(
         tensor: &<NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
-    ) -> &Shape<D> {
-        &tensor.shape
+    ) -> Shape<D> {
+        tensor.shape
     }
 
     fn to_data<const D: usize>(
@@ -83,8 +83,8 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
 
     fn bool_shape<const D: usize>(
         tensor: &<NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D>,
-    ) -> &Shape<D> {
-        &tensor.shape
+    ) -> Shape<D> {
+        tensor.shape
     }
 
     fn bool_to_data<const D: usize>(

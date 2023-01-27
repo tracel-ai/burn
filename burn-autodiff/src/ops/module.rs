@@ -66,7 +66,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             stride,
             padding,
         );
-        let shape = *B::shape(&out);
+        let shape = B::shape(&out);
         let mut order = usize::max(weight.node.order, x.node.order);
         if let Some(bias) = bias {
             order = usize::max(order, bias.node.order);
@@ -99,7 +99,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             stride,
             padding,
         );
-        let shape = *B::shape(&out);
+        let shape = B::shape(&out);
         let mut order = usize::max(weight.node.order, x.node.order);
         if let Some(bias) = bias {
             order = usize::max(order, bias.node.order);
@@ -127,7 +127,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         padding: [usize; 2],
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<4> {
         let output = B::max_pool2d_with_indexes(x.tensor_ref(), kernel_size, stride, padding);
-        let shape = *B::shape(&output.output);
+        let shape = B::shape(&output.output);
         let order = x.node.order + 1;
 
         let ops = ForwardMaxPool::<B, 2, 4>::new(
@@ -152,7 +152,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         padding: [usize; 2],
     ) -> MaxPool2dWithIndexes<ADBackendDecorator<B>> {
         let output = B::max_pool2d_with_indexes(x.tensor_ref(), kernel_size, stride, padding);
-        let shape = *B::shape(&output.output);
+        let shape = B::shape(&output.output);
         let order = x.node.order + 1;
 
         let ops = ForwardMaxPool::<B, 2, 4>::new(

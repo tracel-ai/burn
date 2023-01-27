@@ -73,7 +73,7 @@ pub(crate) fn conv1d_backward<B: Backend>(
             let elem = batch_size * length_out;
             let elem = (elem as i32).to_elem();
 
-            let b = B::zeros(*B::shape(b), B::device(b));
+            let b = B::zeros(B::shape(b), B::device(b));
 
             B::add_scalar(&b, &elem)
         }),
@@ -128,7 +128,7 @@ pub(crate) fn conv2d_backward<B: Backend>(
             let elem = batch_size * width_out * height_out;
             let elem = (elem as i32).to_elem();
 
-            let b = B::zeros(*B::shape(b), B::device(b));
+            let b = B::zeros(B::shape(b), B::device(b));
 
             B::add_scalar(&b, &elem)
         }),

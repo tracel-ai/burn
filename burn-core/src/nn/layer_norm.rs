@@ -105,9 +105,9 @@ mod tests {
             .assert_approx_eq(&Data::from([2.0, 2.0]), 3);
         tensor_1_grad
             .to_data()
-            .assert_approx_eq(&Data::zeros(*tensor_1_grad.shape()), 3);
+            .assert_approx_eq(&Data::zeros(tensor_1_grad.shape()), 3);
         tensor_2_grad
             .to_data()
-            .assert_approx_eq(&Data::zeros(*tensor_2_grad.shape()), 3);
+            .assert_approx_eq(&Data::zeros(tensor_2_grad.shape()), 3);
     }
 }

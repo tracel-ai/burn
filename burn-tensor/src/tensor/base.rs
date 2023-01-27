@@ -121,7 +121,7 @@ where
     }
 
     /// Returns the shape of the current tensor.
-    pub fn shape(&self) -> &Shape<D> {
+    pub fn shape(&self) -> Shape<D> {
         B::shape(&self.value)
     }
 
@@ -173,18 +173,18 @@ where
 
     /// Returns a new tensor with the same shape and device as the current tensor filled with zeros.
     pub fn zeros_like(&self) -> Self {
-        Tensor::new(B::zeros(*self.shape(), self.device()))
+        Tensor::new(B::zeros(self.shape(), self.device()))
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor filled with ones.
     pub fn ones_like(&self) -> Self {
-        Tensor::new(B::ones(*self.shape(), self.device()))
+        Tensor::new(B::ones(self.shape(), self.device()))
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor filled random
     /// values sampled from the given distribution.
     pub fn random_like(&self, distribution: Distribution<B::Elem>) -> Self {
-        Tensor::new(B::random(*self.shape(), distribution, self.device()))
+        Tensor::new(B::random(self.shape(), distribution, self.device()))
     }
 
     /// Create a one hot tensor.

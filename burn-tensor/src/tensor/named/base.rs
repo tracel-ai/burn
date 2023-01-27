@@ -52,7 +52,7 @@ where
     }
 
     /// Returns the shape of the current tensor.
-    pub fn shape(&self) -> &Shape<D> {
+    pub fn shape(&self) -> Shape<D> {
         self.tensor.shape()
     }
 

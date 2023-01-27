@@ -57,42 +57,44 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         tensor
     }
 
-    fn shape<const D: usize>(tensor: &<TchBackend<E> as Backend>::TensorPrimitive<D>) -> &Shape<D> {
-        &tensor.shape
+    fn shape<const D: usize>(tensor: &<TchBackend<E> as Backend>::TensorPrimitive<D>) -> Shape<D> {
+        tensor.shape()
     }
 
     fn to_data<const D: usize>(
         tensor: &<TchBackend<E> as Backend>::TensorPrimitive<D>,
     ) -> Data<<TchBackend<E> as Backend>::Elem, D> {
         let values: Vec<E> = tensor.tensor.shallow_clone().into();
-        Data::new(values, tensor.shape)
+        Data::new(values, tensor.shape())
     }
 
     fn into_data<const D: usize>(
         tensor: <TchBackend<E> as Backend>::TensorPrimitive<D>,
     ) -> Data<<TchBackend<E> as Backend>::Elem, D> {
+        let shape = tensor.shape();
         let values: Vec<E> = tensor.tensor.into();
-        Data::new(values, tensor.shape)
+        Data::new(values, shape)
     }
 
     fn bool_shape<const D: usize>(
         tensor: &<TchBackend<E> as Backend>::BoolTensorPrimitive<D>,
-    ) -> &Shape<D> {
-        &tensor.shape
+    ) -> Shape<D> {
+        tensor.shape()
     }
 
     fn bool_to_data<const D: usize>(
         tensor: &<TchBackend<E> as Backend>::BoolTensorPrimitive<D>,
     ) -> Data<bool, D> {
         let values: Vec<bool> = tensor.tensor.shallow_clone().into();
-        Data::new(values, tensor.shape)
+        Data::new(values, tensor.shape())
     }
 
     fn bool_into_data<const D: usize>(
         tensor: <TchBackend<E> as Backend>::BoolTensorPrimitive<D>,
     ) -> Data<bool, D> {
+        let shape = tensor.shape();
         let values: Vec<bool> = tensor.tensor.into();
-        Data::new(values, tensor.shape)
+        Data::new(values, shape)
     }
 
     fn bool_to_device<const D: usize>(
@@ -102,7 +104,6 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         TchTensor {
             kind: tensor.kind,
             tensor: tensor.tensor.to(device.into()),
-            shape: tensor.shape,
         }
     }
 
@@ -112,11 +113,9 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     ) -> TchTensor<bool, D2> {
         let shape_tch: TchShape<D2> = shape.into();
         let tensor = tensor.tensor.reshape(&shape_tch.dims);
-        let shape = Shape::from(tensor.size());
 
         TchTensor {
             tensor,
-            shape,
             kind: TchKind::new(),
         }
     }
@@ -129,7 +128,6 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         TchTensor {
             kind: tensor.kind,
             tensor: tensor.tensor.to(device.into()),
-            shape: tensor.shape,
         }
     }
 
@@ -240,10 +238,9 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         indexes: [Range<usize>; D2],
         value: &TchTensor<E, D1>,
     ) -> <TchBackend<E> as Backend>::TensorPrimitive<D1> {
-        let shape = tensor.shape;
         let kind = tensor.kind;
         let tensor_original = tensor.tensor.copy();
-        let tch_shape = TchShape::from(tensor.shape);
+        let tch_shape = TchShape::from(tensor.shape());
 
         let mut tensor = tensor_original.view_(&tch_shape.dims);
 
@@ -259,7 +256,6 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         TchTensor {
             kind,
             tensor: tensor_original,
-            shape,
         }
     }
 
@@ -278,7 +274,6 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         let tensor = lhs.tensor.eq_tensor(&rhs.tensor);
 
         TchTensor {
-            shape: lhs.shape,
             tensor,
             kind: TchKind::<bool>::new(),
         }
@@ -289,7 +284,6 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         let tensor = lhs.tensor.eq(other);
 
         TchTensor {
-            shape: lhs.shape,
             tensor,
             kind: TchKind::<bool>::new(),
         }
@@ -299,7 +293,6 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         let tensor = lhs.tensor.greater_tensor(&rhs.tensor);
 
         TchTensor {
-            shape: lhs.shape,
             tensor,
             kind: TchKind::<bool>::new(),
         }
@@ -310,7 +303,6 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         let tensor = lhs.tensor.greater(other);
 
         TchTensor {
-            shape: lhs.shape,
             tensor,
             kind: TchKind::<bool>::new(),
         }
@@ -323,7 +315,6 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         let tensor = lhs.tensor.greater_equal_tensor(&rhs.tensor);
 
         TchTensor {
-            shape: lhs.shape,
             tensor,
             kind: TchKind::<bool>::new(),
         }
@@ -334,7 +325,6 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         let tensor = lhs.tensor.greater_equal(other);
 
         TchTensor {
-            shape: lhs.shape,
             tensor,
             kind: TchKind::<bool>::new(),
         }
@@ -344,7 +334,6 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         let tensor = lhs.tensor.less_tensor(&rhs.tensor);
 
         TchTensor {
-            shape: lhs.shape,
             tensor,
             kind: TchKind::<bool>::new(),
         }
@@ -355,7 +344,6 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         let tensor = lhs.tensor.less(other);
 
         TchTensor {
-            shape: lhs.shape,
             tensor,
             kind: TchKind::<bool>::new(),
         }
@@ -368,7 +356,6 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         let tensor = lhs.tensor.less_equal_tensor(&rhs.tensor);
 
         TchTensor {
-            shape: lhs.shape,
             tensor,
             kind: TchKind::<bool>::new(),
         }
@@ -379,7 +366,6 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         let tensor = lhs.tensor.less_equal(other);
 
         TchTensor {
-            shape: lhs.shape,
             tensor,
             kind: TchKind::<bool>::new(),
         }
@@ -479,11 +465,8 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
 }
 
 fn to_tensor<const D: usize, E: TchElement>(tensor: tch::Tensor) -> TchTensor<E, D> {
-    let shape = Shape::from(tensor.size());
-
     TchTensor {
         tensor,
-        shape,
         kind: TchKind::new(),
     }
 }
@@ -492,7 +475,6 @@ fn index<const D1: usize, const D2: usize, E: tch::kind::Element + Copy>(
     tensor: &TchTensor<E, D1>,
     indexes: [Range<usize>; D2],
 ) -> TchTensor<E, D1> {
-    let shape = tensor.shape.index(indexes.clone());
     let kind = tensor.kind;
 
     let mut tensor = tensor.tensor.shallow_clone();
@@ -503,9 +485,5 @@ fn index<const D1: usize, const D2: usize, E: tch::kind::Element + Copy>(
         tensor = tensor.narrow(i as i64, start, length);
     }
 
-    TchTensor {
-        kind,
-        tensor,
-        shape,
-    }
+    TchTensor { kind, tensor }
 }

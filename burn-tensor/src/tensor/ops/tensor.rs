@@ -21,10 +21,10 @@ pub trait TensorOps<B: Backend> {
     fn ones<const D: usize>(shape: Shape<D>, device: B::Device) -> B::TensorPrimitive<D> {
         Self::from_data(Data::ones(shape), device)
     }
-    fn shape<const D: usize>(tensor: &B::TensorPrimitive<D>) -> &Shape<D>;
+    fn shape<const D: usize>(tensor: &B::TensorPrimitive<D>) -> Shape<D>;
     fn to_data<const D: usize>(tensor: &B::TensorPrimitive<D>) -> Data<B::Elem, D>;
     fn into_data<const D: usize>(tensor: B::TensorPrimitive<D>) -> Data<B::Elem, D>;
-    fn bool_shape<const D: usize>(tensor: &B::BoolTensorPrimitive<D>) -> &Shape<D>;
+    fn bool_shape<const D: usize>(tensor: &B::BoolTensorPrimitive<D>) -> Shape<D>;
     fn bool_to_data<const D: usize>(tensor: &B::BoolTensorPrimitive<D>) -> Data<bool, D>;
     fn bool_into_data<const D: usize>(tensor: B::BoolTensorPrimitive<D>) -> Data<bool, D>;
     fn bool_to_device<const D: usize>(
@@ -62,7 +62,7 @@ pub trait TensorOps<B: Backend> {
         dim: usize,
         times: usize,
     ) -> B::TensorPrimitive<D> {
-        let mut shape = *B::shape(tensor);
+        let mut shape = B::shape(tensor);
         if shape.dims[dim] != 1 {
             panic!("Can only repeat dimension with dim=1");
         }

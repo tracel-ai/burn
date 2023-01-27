@@ -12,7 +12,7 @@ pub struct ADTensor<const D: usize, B: Backend> {
 
 impl<B: Backend, const D: usize> ADTensor<D, B> {
     pub fn from_tensor(tensor: B::TensorPrimitive<D>) -> Self {
-        let shape = *B::shape(&tensor);
+        let shape = B::shape(&tensor);
         let state = ForwardNodeState::new(tensor);
         let ops = InitRecordedOps::new();
         let ops = Box::new(ops);
