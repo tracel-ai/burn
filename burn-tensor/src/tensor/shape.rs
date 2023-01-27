@@ -32,6 +32,16 @@ impl<const D: usize> From<Vec<i64>> for Shape<D> {
     }
 }
 
+impl<const D: usize> From<Vec<usize>> for Shape<D> {
+    fn from(shape: Vec<usize>) -> Self {
+        let mut dims = [1; D];
+        for (i, dim) in shape.into_iter().enumerate() {
+            dims[i] = dim;
+        }
+        Self::new(dims)
+    }
+}
+
 impl<const D1: usize> Shape<D1> {
     pub fn index<const D2: usize>(&self, indexes: [Range<usize>; D2]) -> Self {
         if D2 > D1 {

@@ -11,7 +11,7 @@ pub(crate) fn conv2d_naive<E: NdArrayElement>(
     stride: [usize; 2],
     padding: [usize; 2],
 ) -> NdArrayTensor<E, 4> {
-    let [batch_size, channels_in, heigth, width] = x.shape.dims;
+    let [batch_size, channels_in, heigth, width] = x.shape().dims;
     let mut results = Vec::with_capacity(batch_size);
 
     for b in 0..batch_size {
@@ -33,8 +33,8 @@ pub(crate) fn conv2d_naive_no_batch_size<E: NdArrayElement>(
     stride: [usize; 2],
     padding: [usize; 2],
 ) -> NdArrayTensor<E, 4> {
-    let [channels_out, channels_in, k1, k2] = weight.shape.dims;
-    let [_, heigth, width] = x.shape.dims;
+    let [channels_out, channels_in, k1, k2] = weight.shape().dims;
+    let [_, heigth, width] = x.shape().dims;
     let mut results = Vec::new();
 
     for co in 0..channels_out {
@@ -49,7 +49,7 @@ pub(crate) fn conv2d_naive_no_batch_size<E: NdArrayElement>(
             let x = apply_padding2d(&x, padding);
 
             let matrix = conv2d_with_kernel(x, kernel, stride);
-            let [heigth, width] = matrix.shape.dims;
+            let [heigth, width] = matrix.shape().dims;
             let matrix = NdArrayBackend::reshape(&matrix, Shape::new([1, 1, heigth, width]));
 
             matrices.push(matrix);
@@ -63,7 +63,7 @@ pub(crate) fn conv2d_naive_no_batch_size<E: NdArrayElement>(
     let mut result = NdArrayBackend::cat(&results, 1);
 
     if let Some(bias) = bias {
-        let [size] = bias.shape.dims;
+        let [size] = bias.shape().dims;
         let bias = NdArrayBackend::reshape(bias, Shape::new([1, size, 1, 1]));
         result = NdArrayBackend::add(&result, &bias);
     }
@@ -76,8 +76,8 @@ fn conv2d_with_kernel<E: NdArrayElement>(
     kernel: NdArrayTensor<E, 2>,
     stride: [usize; 2],
 ) -> NdArrayTensor<E, 2> {
-    let [k1, k2] = kernel.shape.dims;
-    let [heigth, width] = x.shape.dims;
+    let [k1, k2] = kernel.shape().dims;
+    let [heigth, width] = x.shape().dims;
 
     let heigth_new = f32::ceil((heigth - k1 + 1) as f32 / stride[0] as f32) as usize;
     let width_new = f32::ceil((width - k2 + 1) as f32 / stride[1] as f32) as usize;

@@ -6,7 +6,7 @@ where
     P: Default + Clone + Zeros + std::fmt::Debug,
 {
     fn zeros(&self) -> NdArrayTensor<P, D> {
-        let data = Data::<P, D>::zeros(self.shape);
+        let data = Data::<P, D>::zeros(self.shape());
         Self::from_data(data)
     }
 }
@@ -16,7 +16,7 @@ where
     P: Default + Clone + Ones + std::fmt::Debug,
 {
     fn ones(&self) -> NdArrayTensor<P, D> {
-        let data = Data::<P, D>::ones(self.shape);
+        let data = Data::<P, D>::ones(self.shape());
         Self::from_data(data)
     }
 }

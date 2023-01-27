@@ -12,8 +12,8 @@ impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         weights: &NdArrayTensor<E, 2>,
         indexes: &NdArrayTensor<i64, 2>,
     ) -> NdArrayTensor<E, 3> {
-        let [batch_size, seq_length] = indexes.shape.dims;
-        let [_n_embedding, d_model] = weights.shape.dims;
+        let [batch_size, seq_length] = indexes.shape().dims;
+        let [_n_embedding, d_model] = weights.shape().dims;
 
         let mut tensors = Vec::with_capacity(batch_size * seq_length);
 
@@ -36,8 +36,8 @@ impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         output: &NdArrayTensor<E, 3>,
         indexes: &NdArrayTensor<i64, 2>,
     ) -> NdArrayTensor<E, 2> {
-        let [batch_size, seq_length] = indexes.shape.dims;
-        let [_n_embedding, d_model] = weights.shape.dims;
+        let [batch_size, seq_length] = indexes.shape().dims;
+        let [_n_embedding, d_model] = weights.shape().dims;
 
         let mut weights_grad = weights.zeros();
         let output =

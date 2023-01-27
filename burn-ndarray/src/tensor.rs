@@ -5,7 +5,6 @@ use ndarray::{s, ArcArray, Array, Axis, Dim, Ix2, Ix3, IxDyn};
 #[derive(Debug, Clone)]
 pub struct NdArrayTensor<E, const D: usize> {
     pub array: ArcArray<E, IxDyn>,
-    pub shape: Shape<D>,
 }
 
 impl<E: NdArrayElement, const D: usize> std::ops::Add for NdArrayTensor<E, D> {
@@ -13,6 +12,12 @@ impl<E: NdArrayElement, const D: usize> std::ops::Add for NdArrayTensor<E, D> {
 
     fn add(self, rhs: Self) -> Self::Output {
         NdArrayBackend::add(&self, &rhs)
+    }
+}
+
+impl<E, const D: usize> NdArrayTensor<E, D> {
+    pub(crate) fn shape(&self) -> Shape<D> {
+        Shape::from(self.array.shape().to_vec())
     }
 }
 
@@ -153,10 +158,7 @@ macro_rules! to_nd_array_tensor {
         let array: ndarray::ArcArray<E, Dim<[usize; $n]>> = $array.reshape(dim);
         let array = array.into_dyn();
 
-        NdArrayTensor {
-            array,
-            shape: $shape,
-        }
+        NdArrayTensor { array }
     }};
     (
         bool,
@@ -168,10 +170,7 @@ macro_rules! to_nd_array_tensor {
         let array: ndarray::ArcArray<bool, Dim<[usize; $n]>> = $array.reshape(dim);
         let array = array.into_dyn();
 
-        NdArrayTensor {
-            array,
-            shape: $shape,
-        }
+        NdArrayTensor { array }
     }};
 }
 
