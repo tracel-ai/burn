@@ -19,10 +19,10 @@ where
 {
     /// Returns a new integer tensor on the default device which values are generated from the given range.
     pub fn arange(range: Range<usize>) -> Tensor<B::IntegerBackend, 1> {
-        Tensor::new(B::arange(range, B::Device::default()))
+        Tensor::new(B::arange(range, &B::Device::default()))
     }
     /// Returns a new integer tensor on the specified device which values are generated from the given range.
-    pub fn arange_device(range: Range<usize>, device: B::Device) -> Tensor<B::IntegerBackend, 1> {
+    pub fn arange_device(range: Range<usize>, device: &B::Device) -> Tensor<B::IntegerBackend, 1> {
         Tensor::new(B::arange(range, device))
     }
 }
@@ -63,7 +63,7 @@ where
     }
 
     /// Returns a new tensor on the given device.
-    pub fn to_device(&self, device: B::Device) -> Self {
+    pub fn to_device(&self, device: &B::Device) -> Self {
         Self::new(B::to_device(&self.value, device))
     }
 
@@ -144,12 +144,12 @@ where
 
     /// Create a tensor from the given data.
     pub fn from_data(data: Data<B::Elem, D>) -> Self {
-        let tensor = B::from_data(data, B::Device::default());
+        let tensor = B::from_data(data, &B::Device::default());
         Tensor::new(tensor)
     }
 
     /// Create a tensor from the given data on the given device.
-    pub fn from_data_device(data: Data<B::Elem, D>, device: B::Device) -> Self {
+    pub fn from_data_device(data: Data<B::Elem, D>, device: &B::Device) -> Self {
         let tensor = B::from_data(data, device);
         Tensor::new(tensor)
     }
@@ -173,18 +173,18 @@ where
 
     /// Returns a new tensor with the same shape and device as the current tensor filled with zeros.
     pub fn zeros_like(&self) -> Self {
-        Tensor::new(B::zeros(self.shape(), self.device()))
+        Tensor::new(B::zeros(self.shape(), &self.device()))
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor filled with ones.
     pub fn ones_like(&self) -> Self {
-        Tensor::new(B::ones(self.shape(), self.device()))
+        Tensor::new(B::ones(self.shape(), &self.device()))
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor filled random
     /// values sampled from the given distribution.
     pub fn random_like(&self, distribution: Distribution<B::Elem>) -> Self {
-        Tensor::new(B::random(self.shape(), distribution, self.device()))
+        Tensor::new(B::random(self.shape(), distribution, &self.device()))
     }
 
     /// Create a one hot tensor.
@@ -424,30 +424,30 @@ where
     /// Create a random tensor of the given shape where each element is sampled from the given
     /// distribution.
     pub fn random<S: Into<Shape<D>>>(shape: S, distribution: Distribution<B::Elem>) -> Self {
-        let tensor = B::random(shape.into(), distribution, B::Device::default());
+        let tensor = B::random(shape.into(), distribution, &B::Device::default());
         Self::new(tensor)
     }
 
     /// Create a tensor of the given shape where each element is zero.
     pub fn zeros<S: Into<Shape<D>>>(shape: S) -> Self {
-        let tensor = B::zeros(shape.into(), B::Device::default());
+        let tensor = B::zeros(shape.into(), &B::Device::default());
         Self::new(tensor)
     }
 
     /// Create a tensor of the given shape where each element is zero.
-    pub fn zeros_device<S: Into<Shape<D>>>(shape: S, device: B::Device) -> Self {
+    pub fn zeros_device<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
         let tensor = B::zeros(shape.into(), device);
         Self::new(tensor)
     }
 
     /// Create a tensor of the given shape where each element is one.
     pub fn ones<S: Into<Shape<D>>>(shape: S) -> Self {
-        let tensor = B::ones(shape.into(), B::Device::default());
+        let tensor = B::ones(shape.into(), &B::Device::default());
         Self::new(tensor)
     }
 
     /// Create a tensor of the given shape where each element is one.
-    pub fn ones_device<S: Into<Shape<D>>>(shape: S, device: B::Device) -> Self {
+    pub fn ones_device<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
         let tensor = B::ones(shape.into(), device);
         Self::new(tensor)
     }

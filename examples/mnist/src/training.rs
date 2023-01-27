@@ -25,8 +25,8 @@ pub fn run<B: ADBackend>(device: B::Device) {
     B::seed(config.seed);
 
     // Data
-    let batcher_train = Arc::new(MNISTBatcher::<B>::new(device));
-    let batcher_valid = Arc::new(MNISTBatcher::<B::InnerBackend>::new(device));
+    let batcher_train = Arc::new(MNISTBatcher::<B>::new(device.clone()));
+    let batcher_valid = Arc::new(MNISTBatcher::<B::InnerBackend>::new(device.clone()));
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
         .batch_size(config.batch_size)
         .shuffle(config.seed)

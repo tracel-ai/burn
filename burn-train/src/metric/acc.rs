@@ -31,11 +31,11 @@ impl<B: Backend> Metric for AccuracyMetric<B> {
     fn update(&mut self, input: &AccuracyInput<B>) -> MetricEntry {
         let [batch_size, _n_classes] = input.outputs.dims();
 
-        let targets = input.targets.to_device(B::Device::default());
+        let targets = input.targets.to_device(&B::Device::default());
         let outputs = input
             .outputs
             .argmax(1)
-            .to_device(B::Device::default())
+            .to_device(&B::Device::default())
             .reshape([batch_size]);
 
         let total_current = outputs.equal(&targets).to_int().sum().to_data().value[0] as usize;

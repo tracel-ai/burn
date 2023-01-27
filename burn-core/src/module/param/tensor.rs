@@ -16,7 +16,7 @@ impl<const D: usize, B: Backend> Module for Param<Tensor<B, D>> {
         vec![self.value.device()]
     }
 
-    fn to_device(&mut self, device: B::Device) {
+    fn to_device(&mut self, device: &B::Device) {
         self.value = self.value.to_device(device);
     }
 
@@ -32,7 +32,7 @@ impl<const D: usize, B: Backend> Module for Param<Tensor<B, D>> {
 
         match state {
             State::Data(data) => {
-                self.value = Tensor::from_data_device(Data::from(data), self.value.device());
+                self.value = Tensor::from_data_device(Data::from(data), &self.value.device());
             }
             _ => return Err(LoadingError::new("Can't load tensor".to_string())),
         };
@@ -72,7 +72,7 @@ impl<const D: usize, B: Backend> Module for Param<Option<Tensor<B, D>>> {
         vec![]
     }
 
-    fn to_device(&mut self, device: B::Device) {
+    fn to_device(&mut self, device: &B::Device) {
         if let Some(value) = &self.value {
             self.value = Some(value.to_device(device));
         }
@@ -101,7 +101,7 @@ impl<const D: usize, B: Backend> Module for Param<Option<Tensor<B, D>>> {
         };
 
         if let Some(value) = &self.value {
-            self.value = Some(Tensor::from_data_device(Data::from(data), value.device()));
+            self.value = Some(Tensor::from_data_device(Data::from(data), &value.device()));
         }
 
         Ok(())

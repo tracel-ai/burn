@@ -41,13 +41,13 @@ where
         TO: Send + 'static,
         M: TrainStep<B, TI, TO> + Send + 'static,
     {
-        let device = self.device;
+        let device = self.device.clone();
 
         spawn(move || loop {
             match receiver_input.recv() {
                 Ok(item) => {
                     let mut step = item.model;
-                    step.to_device(device);
+                    step.to_device(&device);
                     step.detach();
 
                     let output = step.step(item.item);
@@ -80,7 +80,7 @@ where
                 let (sender_input, receiver_input) = std::sync::mpsc::channel();
                 let worker = Worker {
                     sender_input,
-                    device: *device,
+                    device: device.clone(),
                 };
 
                 worker.start(sender_output.clone(), receiver_input);

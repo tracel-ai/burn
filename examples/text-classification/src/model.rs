@@ -55,7 +55,7 @@ impl<B: Backend> TextClassificationModel<B> {
 
     pub fn forward(&self, item: TextClassificationBatch<B>) -> ClassificationOutput<B> {
         let [batch_size, seq_length] = item.tokens.dims();
-        let device = self.embedding_token.devices()[0];
+        let device = &self.embedding_token.devices()[0];
 
         let tokens = item.tokens.to_device(device).detach();
         let labels = item.labels.to_device(device).detach();

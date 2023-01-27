@@ -19,7 +19,7 @@ where
         B::bool_shape(&self.value)
     }
 
-    pub fn to_device(&self, device: B::Device) -> Self {
+    pub fn to_device(&self, device: &B::Device) -> Self {
         Self::new(B::bool_to_device(&self.value, device))
     }
 
@@ -39,7 +39,7 @@ where
     }
 
     pub fn from_data(data: Data<bool, D>) -> Self {
-        let value = B::from_data_bool(data, B::Device::default());
+        let value = B::from_data_bool(data, &B::Device::default());
         Self::new(value)
     }
 

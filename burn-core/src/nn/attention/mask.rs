@@ -6,7 +6,7 @@ use burn_tensor::{backend::Backend, BoolTensor, Data, ElementConversion, Shape, 
 pub fn generate_autoregressive_mask<B: Backend>(
     batch_size: usize,
     seq_length: usize,
-    device: B::Device,
+    device: &B::Device,
 ) -> BoolTensor<B, 3> {
     let mut mask = Tensor::<B::IntegerBackend, 3>::zeros([1, seq_length, seq_length]);
 
@@ -30,7 +30,7 @@ pub fn generate_padding_mask<B: Backend>(
     pad_token: usize,
     tokens_list: Vec<Vec<usize>>,
     max_seq_lenght: Option<usize>,
-    device: B::Device,
+    device: &B::Device,
 ) -> GeneratePaddingMask<B> {
     let mut max_size = 0;
     let batch_size = tokens_list.len();
@@ -88,7 +88,7 @@ mod tests {
     fn test_generate_autoregressive_mask() {
         let device = <TestBackend as Backend>::Device::default();
 
-        let mask = generate_autoregressive_mask::<TestBackend>(2, 3, device);
+        let mask = generate_autoregressive_mask::<TestBackend>(2, 3, &device);
 
         assert_eq!(
             mask.into_data(),
@@ -117,7 +117,7 @@ mod tests {
             vec![3, 3, 3, 4, 10, 15],
         ];
 
-        let mask = generate_padding_mask::<TestBackend>(0, tokens, None, device);
+        let mask = generate_padding_mask::<TestBackend>(0, tokens, None, &device);
 
         assert_eq!(
             mask.mask.into_data(),

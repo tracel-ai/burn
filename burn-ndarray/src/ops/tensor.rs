@@ -35,13 +35,13 @@ macro_rules! keepdim {
 }
 
 impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
-    fn from_data<const D: usize>(data: Data<E, D>, _device: NdArrayDevice) -> NdArrayTensor<E, D> {
+    fn from_data<const D: usize>(data: Data<E, D>, _device: &NdArrayDevice) -> NdArrayTensor<E, D> {
         NdArrayTensor::from_data(data)
     }
 
     fn from_data_bool<const D: usize>(
         data: Data<bool, D>,
-        _device: NdArrayDevice,
+        _device: &NdArrayDevice,
     ) -> NdArrayTensor<bool, D> {
         NdArrayTensor::from_data(data)
     }
@@ -49,7 +49,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     fn random<const D: usize>(
         shape: Shape<D>,
         distribution: Distribution<E>,
-        device: NdArrayDevice,
+        device: &NdArrayDevice,
     ) -> NdArrayTensor<E, D> {
         let mut seed = SEED.lock().unwrap();
         let mut rng: StdRng = match seed.as_ref() {
@@ -105,7 +105,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
 
     fn bool_to_device<const D: usize>(
         tensor: &NdArrayTensor<bool, D>,
-        _device: NdArrayDevice,
+        _device: &NdArrayDevice,
     ) -> NdArrayTensor<bool, D> {
         tensor.clone()
     }
@@ -131,14 +131,14 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
 
     fn to_device<const D: usize>(
         tensor: &NdArrayTensor<E, D>,
-        _device: NdArrayDevice,
+        _device: &NdArrayDevice,
     ) -> NdArrayTensor<E, D> {
         tensor.clone()
     }
 
     fn empty<const D: usize>(
         shape: Shape<D>,
-        device: <NdArrayBackend<E> as Backend>::Device,
+        device: &<NdArrayBackend<E> as Backend>::Device,
     ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D> {
         NdArrayBackend::<E>::zeros(shape, device)
     }
