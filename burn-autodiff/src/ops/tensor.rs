@@ -1267,7 +1267,6 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
         let out = B::cat(&tensors_inner, dim);
 
-        let shape = B::shape(&out);
         let state = crate::graph::node::ForwardNodeState::new(out);
 
         let ops = ForwardCatOps::<D, B>::new(nodes, dim);
@@ -1276,7 +1275,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let node = crate::graph::node::ForwardNode::new(order, state, ops);
         let node = std::sync::Arc::new(node);
 
-        ADTensor { node, shape }
+        ADTensor { node }
     }
 
     fn relu<const D: usize>(
