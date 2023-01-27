@@ -36,13 +36,13 @@ impl<B: Backend> Batcher<TextClassificationItem, TextClassificationBatch<B>>
             self.tokenizer.pad_token(),
             tokens_list,
             Some(self.max_seq_lenght),
-            B::Device::default(),
+            &B::Device::default(),
         );
 
         TextClassificationBatch {
-            tokens: mask.tensor.to_device(self.device).detach(),
-            labels: Tensor::cat(labels_list, 0).to_device(self.device).detach(),
-            mask_pad: mask.mask.to_device(self.device),
+            tokens: mask.tensor.to_device(&self.device).detach(),
+            labels: Tensor::cat(labels_list, 0).to_device(&self.device).detach(),
+            mask_pad: mask.mask.to_device(&self.device),
         }
     }
 }

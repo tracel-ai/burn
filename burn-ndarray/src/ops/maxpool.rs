@@ -65,7 +65,7 @@ pub(crate) fn max_pool2d_backward_naive<E: NdArrayElement>(
         NdArrayBackend::reshape(indexes, Shape::new([batch_size, channels, heigth * width]));
     let mut output_flatten = NdArrayBackend::zeros(
         Shape::new([batch_size, channels, heigth_x * width_x]),
-        NdArrayDevice::Cpu,
+        &NdArrayDevice::Cpu,
     );
 
     for b in 0..batch_size {
@@ -104,9 +104,10 @@ fn max_pool2d_with_kernel<E: NdArrayElement>(
 
     let heigth_new = f32::ceil((heigth - k1 + 1) as f32 / stride[0] as f32) as usize;
     let width_new = f32::ceil((width - k2 + 1) as f32 / stride[1] as f32) as usize;
-    let mut output = NdArrayBackend::empty(Shape::new([heigth_new, width_new]), NdArrayDevice::Cpu);
+    let mut output =
+        NdArrayBackend::empty(Shape::new([heigth_new, width_new]), &NdArrayDevice::Cpu);
     let mut indexes =
-        NdArrayBackend::empty(Shape::new([heigth_new, width_new]), NdArrayDevice::Cpu);
+        NdArrayBackend::empty(Shape::new([heigth_new, width_new]), &NdArrayDevice::Cpu);
 
     for i in 0..heigth_new {
         for j in 0..width_new {
@@ -120,7 +121,7 @@ fn max_pool2d_with_kernel<E: NdArrayElement>(
             let value = NdArrayBackend::into_data(x_flatten).value[index as usize];
             let value = NdArrayBackend::from_data(
                 Data::new(vec![value], Shape::new([1, 1])),
-                NdArrayDevice::Cpu,
+                &NdArrayDevice::Cpu,
             );
 
             let index_i = index / k2 as i64;
@@ -132,7 +133,7 @@ fn max_pool2d_with_kernel<E: NdArrayElement>(
 
             let index = NdArrayBackend::from_data(
                 Data::new(vec![index], Shape::new([1, 1])),
-                NdArrayDevice::Cpu,
+                &NdArrayDevice::Cpu,
             );
 
             indexes = NdArrayBackend::index_assign(&indexes, [i..i + 1, j..j + 1], &index);

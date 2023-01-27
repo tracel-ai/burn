@@ -111,7 +111,7 @@ impl Param {
         }
 
         quote! {
-            fn to_device(&mut self, device: B::Device) {
+            fn to_device(&mut self, device: &B::Device) {
                 #body
             }
         }

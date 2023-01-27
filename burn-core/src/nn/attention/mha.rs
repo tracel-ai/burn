@@ -365,7 +365,7 @@ mod tests {
             [batch_size, seq_length, d_model],
             Distribution::Standard,
         );
-        let mask_attn = generate_autoregressive_mask(batch_size, seq_length, tensor.device());
+        let mask_attn = generate_autoregressive_mask(batch_size, seq_length, &tensor.device());
         let input = MhaInput::self_attn(tensor.clone()).mask_attn(mask_attn);
 
         let output_1 = mha.forward(input);

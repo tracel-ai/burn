@@ -41,7 +41,7 @@ pub trait Module: Send + Sync + std::fmt::Debug + std::fmt::Display {
     /// Get the device list of the module and all of its sub-modules.
     fn devices(&self) -> Vec<<Self::Backend as Backend>::Device>;
     /// Move the module and all of its sub-modules to the given device.
-    fn to_device(&mut self, device: <Self::Backend as Backend>::Device);
+    fn to_device(&mut self, device: &<Self::Backend as Backend>::Device);
     /// Load the module state.
     fn load(&mut self, state: &State<<Self::Backend as Backend>::Elem>)
         -> Result<(), LoadingError>;

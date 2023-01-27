@@ -47,7 +47,7 @@ where
             match receiver_input.recv() {
                 Ok(item) => {
                     let mut step = item.model;
-                    step.to_device(device);
+                    step.to_device(&device);
                     step.detach();
 
                     let output = step.step(item.item);

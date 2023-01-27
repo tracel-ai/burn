@@ -37,7 +37,7 @@ impl<B: Backend> Batcher<TextGenerationItem, TextGenerationBatch<B>> for TextGen
             self.tokenizer.pad_token(),
             tokens_list,
             Some(self.max_seq_lenght),
-            B::Device::default(),
+            &B::Device::default(),
         );
 
         TextGenerationBatch {

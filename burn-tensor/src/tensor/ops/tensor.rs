@@ -4,21 +4,21 @@ use std::ops::Range;
 pub trait TensorOps<B: Backend> {
     fn from_data<const D: usize>(
         data: Data<B::Elem, D>,
-        device: B::Device,
+        device: &B::Device,
     ) -> B::TensorPrimitive<D>;
     fn from_data_bool<const D: usize>(
         data: Data<bool, D>,
-        device: B::Device,
+        device: &B::Device,
     ) -> B::BoolTensorPrimitive<D>;
     fn random<const D: usize>(
         shape: Shape<D>,
         distribution: Distribution<B::Elem>,
-        device: B::Device,
+        device: &B::Device,
     ) -> B::TensorPrimitive<D>;
-    fn zeros<const D: usize>(shape: Shape<D>, device: B::Device) -> B::TensorPrimitive<D> {
+    fn zeros<const D: usize>(shape: Shape<D>, device: &B::Device) -> B::TensorPrimitive<D> {
         Self::from_data(Data::zeros(shape), device)
     }
-    fn ones<const D: usize>(shape: Shape<D>, device: B::Device) -> B::TensorPrimitive<D> {
+    fn ones<const D: usize>(shape: Shape<D>, device: &B::Device) -> B::TensorPrimitive<D> {
         Self::from_data(Data::ones(shape), device)
     }
     fn shape<const D: usize>(tensor: &B::TensorPrimitive<D>) -> Shape<D>;
@@ -29,7 +29,7 @@ pub trait TensorOps<B: Backend> {
     fn bool_into_data<const D: usize>(tensor: B::BoolTensorPrimitive<D>) -> Data<bool, D>;
     fn bool_to_device<const D: usize>(
         tensor: &B::BoolTensorPrimitive<D>,
-        device: B::Device,
+        device: &B::Device,
     ) -> B::BoolTensorPrimitive<D>;
     fn bool_reshape<const D1: usize, const D2: usize>(
         tensor: &B::BoolTensorPrimitive<D1>,
@@ -42,11 +42,11 @@ pub trait TensorOps<B: Backend> {
     fn device<const D: usize>(tensor: &B::TensorPrimitive<D>) -> B::Device;
     fn to_device<const D: usize>(
         tensor: &B::TensorPrimitive<D>,
-        device: B::Device,
+        device: &B::Device,
     ) -> B::TensorPrimitive<D>;
     fn arange(
         range: Range<usize>,
-        device: B::Device,
+        device: &B::Device,
     ) -> <B::IntegerBackend as Backend>::TensorPrimitive<1> {
         let shape = Shape::new([range.end - range.start]);
         let value = range
@@ -56,7 +56,7 @@ pub trait TensorOps<B: Backend> {
         let data = Data::new(value, shape);
         <B::IntegerBackend as TensorOps<B::IntegerBackend>>::from_data(data, device)
     }
-    fn empty<const D: usize>(shape: Shape<D>, device: B::Device) -> B::TensorPrimitive<D>;
+    fn empty<const D: usize>(shape: Shape<D>, device: &B::Device) -> B::TensorPrimitive<D>;
     fn repeat<const D: usize>(
         tensor: &B::TensorPrimitive<D>,
         dim: usize,
@@ -76,7 +76,7 @@ pub trait TensorOps<B: Backend> {
             start..end
         });
 
-        let mut tensor_output = B::empty(shape, B::device(tensor));
+        let mut tensor_output = B::empty(shape, &B::device(tensor));
         for i in 0..times {
             let mut indexes = indexes_select_all.clone();
             indexes[dim] = i..i + 1;

@@ -19,14 +19,14 @@ impl<B: Backend, const D: usize> std::ops::Add<ADTensor<D, B>> for ADTensor<D, B
 }
 
 impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
-    fn from_data<const D: usize>(data: Data<B::Elem, D>, device: B::Device) -> ADTensor<D, B> {
+    fn from_data<const D: usize>(data: Data<B::Elem, D>, device: &B::Device) -> ADTensor<D, B> {
         let tensor = B::from_data(data, device);
         ADTensor::from_tensor(tensor)
     }
 
     fn from_data_bool<const D: usize>(
         data: Data<bool, D>,
-        device: B::Device,
+        device: &B::Device,
     ) -> B::BoolTensorPrimitive<D> {
         B::from_data_bool(data, device)
     }
@@ -34,16 +34,16 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     fn random<const D: usize>(
         shape: Shape<D>,
         distribution: Distribution<B::Elem>,
-        device: B::Device,
+        device: &B::Device,
     ) -> ADTensor<D, B> {
         ADTensor::from_tensor(B::random(shape, distribution, device))
     }
 
-    fn zeros<const D: usize>(shape: Shape<D>, device: B::Device) -> ADTensor<D, B> {
+    fn zeros<const D: usize>(shape: Shape<D>, device: &B::Device) -> ADTensor<D, B> {
         ADTensor::from_tensor(B::zeros(shape, device))
     }
 
-    fn ones<const D: usize>(shape: Shape<D>, device: B::Device) -> ADTensor<D, B> {
+    fn ones<const D: usize>(shape: Shape<D>, device: &B::Device) -> ADTensor<D, B> {
         ADTensor::from_tensor(B::ones(shape, device))
     }
 
@@ -99,7 +99,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
     fn bool_to_device<const D: usize>(
         tensor: &<ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D>,
-        device: <ADBackendDecorator<B> as Backend>::Device,
+        device: &<ADBackendDecorator<B> as Backend>::Device,
     ) -> <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D> {
         B::bool_to_device(tensor, device)
     }
@@ -112,7 +112,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
     fn to_device<const D: usize>(
         tensor: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
-        device: <ADBackendDecorator<B> as Backend>::Device,
+        device: &<ADBackendDecorator<B> as Backend>::Device,
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
         #[derive(new, Debug)]
         struct ToDeviceBackward<B: Backend, const D: usize> {
@@ -126,7 +126,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 &self,
                 state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
             ) -> B::TensorPrimitive<D> {
-                B::to_device(&state.output.grad(), self.device)
+                B::to_device(&state.output.grad(), &self.device)
             }
         }
 
@@ -140,7 +140,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
     fn empty<const D: usize>(
         shape: Shape<D>,
-        device: <ADBackendDecorator<B> as Backend>::Device,
+        device: &<ADBackendDecorator<B> as Backend>::Device,
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
         ADTensor::from_tensor(B::empty(shape, device))
     }
@@ -775,7 +775,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<1>>,
             ) -> B::TensorPrimitive<D> {
                 let grad = state.output.grad();
-                let ones = B::ones(self.shape.clone(), B::device(&grad));
+                let ones = B::ones(self.shape.clone(), &B::device(&grad));
 
                 let grad: Tensor<B, 1> = Tensor::from_primitive(grad);
                 let val = 1_f64 / self.shape.num_elements() as f64;
@@ -809,7 +809,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<1>>,
             ) -> B::TensorPrimitive<D> {
                 let grad = state.output.grad();
-                let ones = B::ones(self.shape.clone(), B::device(&grad));
+                let ones = B::ones(self.shape.clone(), &B::device(&grad));
 
                 let grad: Tensor<B, 1> = Tensor::from_primitive(grad);
                 let ones: Tensor<B, D> = Tensor::from_primitive(ones);
@@ -844,7 +844,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
             ) -> B::TensorPrimitive<D> {
                 let grad = B::sum_dim(&state.output.grad(), self.dim);
-                let ones = B::ones(self.shape.clone(), B::device(&grad));
+                let ones = B::ones(self.shape.clone(), &B::device(&grad));
 
                 let val = 1_f64 / self.shape.dims[self.dim] as f64;
                 let ones = B::mul_scalar(&ones, &B::Elem::from_elem(val));
@@ -879,7 +879,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
             ) -> B::TensorPrimitive<D> {
                 let grad = B::sum_dim(&state.output.grad(), self.dim);
-                let ones = B::ones(self.shape.clone(), B::device(&grad));
+                let ones = B::ones(self.shape.clone(), &B::device(&grad));
 
                 B::mul(&ones, &grad)
             }

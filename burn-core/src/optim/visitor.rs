@@ -73,7 +73,8 @@ impl<'a, B: ADBackend> ModuleVisitor<B> for GradientsParamsConverter<'a, B> {
 impl<'a, B: ADBackend> ModuleVisitor<B> for GradientsParamsChangeDevice<'a, B> {
     fn visit<const D: usize>(&mut self, id: &ParamId, _tensor: &Tensor<B, D>) {
         if let Some(grad) = self.grads.remove::<D>(id) {
-            self.grads.register(id.clone(), grad.to_device(self.device));
+            self.grads
+                .register(id.clone(), grad.to_device(&self.device));
         }
     }
 }
@@ -115,7 +116,7 @@ mod tests {
     fn test_convert_grads() {
         let layer_1 = layer();
         let mut layer_2 = layer_1.clone();
-        layer_2.to_device(<TestADBackend as Backend>::Device::default());
+        layer_2.to_device(&<TestADBackend as Backend>::Device::default());
         layer_2.detach();
         let loss_1 = layer_1.forward(random_tensor());
         let loss_2 = layer_2.forward(random_tensor());

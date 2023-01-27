@@ -10,7 +10,7 @@ pub(crate) fn apply_padding2d<E: NdArrayElement>(
     let heigth_new = heigth + (2 * padding[0]);
     let width_new = width + (2 * padding[1]);
 
-    let mut x_new = NdArrayBackend::zeros(Shape::new([heigth_new, width_new]), NdArrayDevice::Cpu);
+    let mut x_new = NdArrayBackend::zeros(Shape::new([heigth_new, width_new]), &NdArrayDevice::Cpu);
     x_new = NdArrayBackend::index_assign(
         &x_new,
         [

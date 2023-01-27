@@ -34,8 +34,8 @@ impl<B: Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
             .map(|item| Tensor::<B::IntegerBackend, 1>::from_data(Data::from([item.label as i64])))
             .collect();
 
-        let images = Tensor::cat(images, 0).to_device(self.device).detach();
-        let targets = Tensor::cat(targets, 0).to_device(self.device).detach();
+        let images = Tensor::cat(images, 0).to_device(&self.device).detach();
+        let targets = Tensor::cat(targets, 0).to_device(&self.device).detach();
 
         MNISTBatch { images, targets }
     }

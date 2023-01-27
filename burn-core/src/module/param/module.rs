@@ -15,7 +15,7 @@ impl<M: Module> Module for Param<M> {
         self.value.devices()
     }
 
-    fn to_device(&mut self, device: <Self::Backend as Backend>::Device) {
+    fn to_device(&mut self, device: &<Self::Backend as Backend>::Device) {
         self.value.to_device(device)
     }
 
@@ -65,7 +65,7 @@ impl<M: Module> Module for Param<Vec<M>> {
         devices
     }
 
-    fn to_device(&mut self, device: <M::Backend as Backend>::Device) {
+    fn to_device(&mut self, device: &<M::Backend as Backend>::Device) {
         for module in self.value.iter_mut() {
             module.to_device(device);
         }

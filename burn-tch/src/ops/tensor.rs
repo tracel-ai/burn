@@ -3,56 +3,56 @@ use burn_tensor::{backend::Backend, ops::TensorOps, Data, Distribution, ElementC
 use std::ops::{Add, Div, Mul, Range, Sub};
 
 impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
-    fn from_data<const D: usize>(data: Data<E, D>, device: TchDevice) -> TchTensor<E, D> {
-        TchTensor::from_data(data, device.into())
+    fn from_data<const D: usize>(data: Data<E, D>, device: &TchDevice) -> TchTensor<E, D> {
+        TchTensor::from_data(data, (*device).into())
     }
 
     fn from_data_bool<const D: usize>(
         data: Data<bool, D>,
-        device: TchDevice,
+        device: &TchDevice,
     ) -> TchTensor<bool, D> {
-        TchTensor::from_data(data, device.into())
+        TchTensor::from_data(data, (*device).into())
     }
 
     fn random<const D: usize>(
         shape: Shape<D>,
         distribution: Distribution<E>,
-        device: TchDevice,
+        device: &TchDevice,
     ) -> TchTensor<E, D> {
         match distribution {
             Distribution::Standard => {
-                let mut tensor = TchTensor::<E, D>::empty(shape, device);
+                let mut tensor = TchTensor::<E, D>::empty(shape, *device);
                 tensor.tensor = tensor.tensor.normal_(0.0, 1.0);
                 tensor
             }
             Distribution::Bernoulli(prob) => {
-                let mut tensor = TchTensor::<E, D>::empty(shape, device);
+                let mut tensor = TchTensor::<E, D>::empty(shape, *device);
                 tensor.tensor = tensor.tensor.f_bernoulli_float_(prob).unwrap();
                 tensor
             }
             Distribution::Uniform(from, to) => {
-                let mut tensor = TchTensor::<E, D>::empty(shape, device);
+                let mut tensor = TchTensor::<E, D>::empty(shape, *device);
                 tensor.tensor = tensor
                     .tensor
                     .uniform_(from.to_f64().unwrap(), to.to_f64().unwrap());
                 tensor
             }
             Distribution::Normal(mean, std) => {
-                let mut tensor = TchTensor::<E, D>::empty(shape, device);
+                let mut tensor = TchTensor::<E, D>::empty(shape, *device);
                 tensor.tensor = tensor.tensor.normal_(mean, std);
                 tensor
             }
         }
     }
 
-    fn zeros<const D: usize>(shape: Shape<D>, device: TchDevice) -> TchTensor<E, D> {
-        let mut tensor = TchTensor::<E, D>::empty(shape, device);
+    fn zeros<const D: usize>(shape: Shape<D>, device: &TchDevice) -> TchTensor<E, D> {
+        let mut tensor = TchTensor::<E, D>::empty(shape, *device);
         tensor.tensor = tensor.tensor.zero_();
         tensor
     }
 
-    fn ones<const D: usize>(shape: Shape<D>, device: TchDevice) -> TchTensor<E, D> {
-        let mut tensor = TchTensor::<E, D>::empty(shape, device);
+    fn ones<const D: usize>(shape: Shape<D>, device: &TchDevice) -> TchTensor<E, D> {
+        let mut tensor = TchTensor::<E, D>::empty(shape, *device);
         tensor.tensor = tensor.tensor.ones_like();
         tensor
     }
@@ -99,11 +99,11 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
 
     fn bool_to_device<const D: usize>(
         tensor: &TchTensor<bool, D>,
-        device: TchDevice,
+        device: &TchDevice,
     ) -> TchTensor<bool, D> {
         TchTensor {
             kind: tensor.kind,
-            tensor: tensor.tensor.to(device.into()),
+            tensor: tensor.tensor.to((*device).into()),
         }
     }
 
@@ -124,20 +124,22 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         tensor.tensor.device().into()
     }
 
-    fn to_device<const D: usize>(tensor: &TchTensor<E, D>, device: TchDevice) -> TchTensor<E, D> {
+    fn to_device<const D: usize>(tensor: &TchTensor<E, D>, device: &TchDevice) -> TchTensor<E, D> {
         TchTensor {
             kind: tensor.kind,
-            tensor: tensor.tensor.to(device.into()),
+            tensor: tensor.tensor.to((*device).into()),
         }
     }
 
     fn empty<const D: usize>(
         shape: Shape<D>,
-        device: <TchBackend<E> as Backend>::Device,
+        device: &<TchBackend<E> as Backend>::Device,
     ) -> <TchBackend<E> as Backend>::TensorPrimitive<D> {
         let kind = TchKind::<E>::new();
-        let tensor =
-            tch::Tensor::empty(&shape.dims.map(|a| a as i64), (kind.kind(), device.into()));
+        let tensor = tch::Tensor::empty(
+            &shape.dims.map(|a| a as i64),
+            (kind.kind(), (*device).into()),
+        );
 
         to_tensor(tensor)
     }

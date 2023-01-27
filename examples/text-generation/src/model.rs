@@ -63,10 +63,10 @@ impl<B: Backend> TextClassificationModel<B> {
         let [batch_size, seq_length] = item.tokens_inputs.dims();
         let device = self.embedding_token.devices()[0];
 
-        let inputs = item.tokens_inputs.to_device(device).detach();
-        let mask_pad = item.mask_pad.to_device(device);
+        let inputs = item.tokens_inputs.to_device(&device).detach();
+        let mask_pad = item.mask_pad.to_device(&device);
 
-        let index_positions = Tensor::<B, 1>::arange_device(0..seq_length, device)
+        let index_positions = Tensor::<B, 1>::arange_device(0..seq_length, &device)
             .reshape([1, seq_length])
             .repeat(0, batch_size)
             .detach();
@@ -75,7 +75,7 @@ impl<B: Backend> TextClassificationModel<B> {
         let embedding = (embedding_positions + embedding_tokens) / 2;
 
         let mask_attn =
-            generate_autoregressive_mask::<B>(batch_size, seq_length, embedding.device());
+            generate_autoregressive_mask::<B>(batch_size, seq_length, &embedding.device());
 
         let encoded = self.transformer.forward(
             TransformerEncoderInput::new(embedding)

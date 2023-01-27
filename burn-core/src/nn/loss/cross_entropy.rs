@@ -38,7 +38,7 @@ impl<B: Backend> CrossEntropyLoss<B> {
         let indexes = targets.to_data();
 
         let mut targets_logits =
-            Tensor::<B, 2>::zeros_device([batch_size, self.num_targets], device);
+            Tensor::<B, 2>::zeros_device([batch_size, self.num_targets], &device);
 
         for b in 0..batch_size {
             let index = indexes.value[b] as usize;
@@ -50,7 +50,7 @@ impl<B: Backend> CrossEntropyLoss<B> {
 
             targets_logits = targets_logits.index_assign(
                 [b..b + 1, index..index + 1],
-                &Tensor::ones_device([1, 1], device),
+                &Tensor::ones_device([1, 1], &device),
             );
         }
 

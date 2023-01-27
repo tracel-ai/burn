@@ -60,7 +60,7 @@ where
 
         // The reference model is always on the first device provided.
         if let Some(device) = self.devices.get(0) {
-            self.model.to_device(*device);
+            self.model.to_device(device);
             self.model.detach();
         }
 
