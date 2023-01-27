@@ -15,7 +15,7 @@ where
         Self { value: tensor }
     }
 
-    pub fn shape(&self) -> &Shape<D> {
+    pub fn shape(&self) -> Shape<D> {
         B::bool_shape(&self.value)
     }
 

@@ -16,7 +16,6 @@ where
     B2: Backend,
     O: UnaryOps<B1::TensorPrimitive<D1>, B2::TensorPrimitive<D2>> + 'static,
 {
-    let shape = *B2::shape(&output);
     let state = ForwardNodeState::new(output);
 
     let ops = Arc::new(ops);
@@ -26,7 +25,7 @@ where
     let node = ForwardNode::from_unary(&input, state, ops);
     let node = Arc::new(node);
 
-    ADTensor { node, shape }
+    ADTensor { node }
 }
 
 pub fn unary_ops_wrapper<B, O, const D1: usize, const D2: usize>(
@@ -51,7 +50,6 @@ where
     B: Backend,
     O: BinaryOps<B::TensorPrimitive<D1>, B::TensorPrimitive<D2>, B::TensorPrimitive<D3>> + 'static,
 {
-    let shape = *B::shape(&output);
     let state = ForwardNodeState::new(output);
 
     let ops = Arc::new(ops);
@@ -61,5 +59,5 @@ where
     let node = ForwardNode::from_binary(&lhs, &rhs, state, ops);
     let node = Arc::new(node);
 
-    ADTensor { node, shape }
+    ADTensor { node }
 }

@@ -273,12 +273,12 @@ mod tests {
 
         assert_eq!(
             output.context.shape(),
-            &Shape::new([batch_size, seq_length, d_model]),
+            Shape::new([batch_size, seq_length, d_model]),
             "Context should have the correct shape",
         );
         assert_eq!(
             output.weights.shape(),
-            &Shape::new([batch_size, n_heads, seq_length, seq_length]),
+            Shape::new([batch_size, n_heads, seq_length, seq_length]),
             "Weights should have the correct shape",
         );
     }
@@ -299,12 +299,12 @@ mod tests {
 
         assert_eq!(
             output.context.shape(),
-            &Shape::new([batch_size, seq_length_1, d_model]),
+            Shape::new([batch_size, seq_length_1, d_model]),
             "Context should have the correct shape",
         );
         assert_eq!(
             output.weights.shape(),
-            &Shape::new([batch_size, n_heads, seq_length_1, seq_length_2]),
+            Shape::new([batch_size, n_heads, seq_length_1, seq_length_2]),
             "Weights should have the correct shape",
         );
     }

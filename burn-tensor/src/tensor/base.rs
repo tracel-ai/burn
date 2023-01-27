@@ -121,7 +121,7 @@ where
     }
 
     /// Returns the shape of the current tensor.
-    pub fn shape(&self) -> &Shape<D> {
+    pub fn shape(&self) -> Shape<D> {
         B::shape(&self.value)
     }
 
@@ -173,18 +173,18 @@ where
 
     /// Returns a new tensor with the same shape and device as the current tensor filled with zeros.
     pub fn zeros_like(&self) -> Self {
-        Tensor::new(B::zeros(*self.shape(), self.device()))
+        Tensor::new(B::zeros(self.shape(), self.device()))
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor filled with ones.
     pub fn ones_like(&self) -> Self {
-        Tensor::new(B::ones(*self.shape(), self.device()))
+        Tensor::new(B::ones(self.shape(), self.device()))
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor filled random
     /// values sampled from the given distribution.
     pub fn random_like(&self, distribution: Distribution<B::Elem>) -> Self {
-        Tensor::new(B::random(*self.shape(), distribution, self.device()))
+        Tensor::new(B::random(self.shape(), distribution, self.device()))
     }
 
     /// Create a one hot tensor.
@@ -205,8 +205,8 @@ where
         let mut dims = [1; D];
         dims[D - 1] = num_classes;
         let shape = Shape::new(dims);
-        let tensor = Tensor::zeros(shape);
         let ranges: Vec<_> = shape.dims.iter().map(|dim| 0..*dim).collect();
+        let tensor = Tensor::zeros(shape);
         let mut ranges: [std::ops::Range<usize>; D] = ranges.try_into().unwrap();
         ranges[D - 1] = index..index + 1;
 

@@ -49,7 +49,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
     fn shape<const D: usize>(
         tensor: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
-    ) -> &Shape<D> {
+    ) -> Shape<D> {
         B::shape(tensor.tensor_ref())
     }
 
@@ -67,7 +67,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
     fn bool_shape<const D: usize>(
         tensor: &<ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D>,
-    ) -> &Shape<D> {
+    ) -> Shape<D> {
         B::bool_shape(tensor)
     }
 
@@ -548,11 +548,11 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 let mut grad = state.output.grad();
                 let value = state.output.value();
 
-                let shape_grad = *B::shape(&grad);
-                let shape_value = *B::shape(&value);
+                let shape_grad = B::shape(&grad);
+                let shape_value = B::shape(&value);
 
                 if shape_value == shape_grad {
-                    return B::reshape(&grad, self.shape);
+                    return B::reshape(&grad, self.shape.clone());
                 }
 
                 for i in 0..D2 {
@@ -561,13 +561,13 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     }
                 }
 
-                B::reshape(&grad, self.shape)
+                B::reshape(&grad, self.shape.clone())
             }
         }
 
         let shape_old = B::shape(tensor.tensor_ref());
         let output = B::reshape(tensor.tensor_ref(), shape);
-        let ops = ReshapeBackward::<B, D1, D2>::new(*shape_old, B::default());
+        let ops = ReshapeBackward::<B, D1, D2>::new(shape_old, B::default());
 
         unary_ops_wrapper(tensor.node.clone(), output, ops)
     }
@@ -775,7 +775,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<1>>,
             ) -> B::TensorPrimitive<D> {
                 let grad = state.output.grad();
-                let ones = B::ones(self.shape, B::device(&grad));
+                let ones = B::ones(self.shape.clone(), B::device(&grad));
 
                 let grad: Tensor<B, 1> = Tensor::from_primitive(grad);
                 let val = 1_f64 / self.shape.num_elements() as f64;
@@ -787,7 +787,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
         let shape = B::shape(tensor.tensor_ref());
         let output = B::mean(tensor.tensor_ref());
-        let ops = Backward::<B, D>::new(*shape, B::default());
+        let ops = Backward::<B, D>::new(shape, B::default());
 
         unary_ops_wrapper(tensor.node.clone(), output, ops)
     }
@@ -809,7 +809,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<1>>,
             ) -> B::TensorPrimitive<D> {
                 let grad = state.output.grad();
-                let ones = B::ones(self.shape, B::device(&grad));
+                let ones = B::ones(self.shape.clone(), B::device(&grad));
 
                 let grad: Tensor<B, 1> = Tensor::from_primitive(grad);
                 let ones: Tensor<B, D> = Tensor::from_primitive(ones);
@@ -820,7 +820,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
         let shape = B::shape(tensor.tensor_ref());
         let output = B::sum(tensor.tensor_ref());
-        let ops = Backward::<B, D>::new(*shape, B::default());
+        let ops = Backward::<B, D>::new(shape, B::default());
 
         unary_ops_wrapper(tensor.node.clone(), output, ops)
     }
@@ -844,7 +844,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
             ) -> B::TensorPrimitive<D> {
                 let grad = B::sum_dim(&state.output.grad(), self.dim);
-                let ones = B::ones(self.shape, B::device(&grad));
+                let ones = B::ones(self.shape.clone(), B::device(&grad));
 
                 let val = 1_f64 / self.shape.dims[self.dim] as f64;
                 let ones = B::mul_scalar(&ones, &B::Elem::from_elem(val));
@@ -855,7 +855,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
         let shape = B::shape(tensor.tensor_ref());
         let output = B::mean_dim(tensor.tensor_ref(), dim);
-        let ops = Backward::<B, D>::new(*shape, dim, B::default());
+        let ops = Backward::<B, D>::new(shape, dim, B::default());
 
         unary_ops_wrapper(tensor.node.clone(), output, ops)
     }
@@ -879,7 +879,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
             ) -> B::TensorPrimitive<D> {
                 let grad = B::sum_dim(&state.output.grad(), self.dim);
-                let ones = B::ones(self.shape, B::device(&grad));
+                let ones = B::ones(self.shape.clone(), B::device(&grad));
 
                 B::mul(&ones, &grad)
             }
@@ -887,7 +887,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
         let shape = B::shape(tensor.tensor_ref());
         let output = B::sum_dim(tensor.tensor_ref(), dim);
-        let ops = Backward::<B, D>::new(*shape, dim, B::default());
+        let ops = Backward::<B, D>::new(shape, dim, B::default());
 
         unary_ops_wrapper(tensor.node.clone(), output, ops)
     }
@@ -1267,7 +1267,6 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
         let out = B::cat(&tensors_inner, dim);
 
-        let shape = *B::shape(&out);
         let state = crate::graph::node::ForwardNodeState::new(out);
 
         let ops = ForwardCatOps::<D, B>::new(nodes, dim);
@@ -1276,7 +1275,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let node = crate::graph::node::ForwardNode::new(order, state, ops);
         let node = std::sync::Arc::new(node);
 
-        ADTensor { node, shape }
+        ADTensor { node }
     }
 
     fn relu<const D: usize>(

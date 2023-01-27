@@ -5,7 +5,7 @@ pub(crate) fn apply_padding2d<E: NdArrayElement>(
     x: &NdArrayTensor<E, 2>,
     padding: [usize; 2],
 ) -> NdArrayTensor<E, 2> {
-    let [heigth, width] = x.shape.dims;
+    let [heigth, width] = x.shape().dims;
 
     let heigth_new = heigth + (2 * padding[0]);
     let width_new = width + (2 * padding[1]);

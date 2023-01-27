@@ -92,8 +92,9 @@ where
     /// Only [numeric](Numeric) metric can be displayed on a plot.
     /// If the same metric is also registered for the [validation split](Self::metric_valid_plot),
     /// the same graph will be used for both.
-    pub fn metric_train_plot<M: Metric + Numeric + 'static>(mut self, metric: M) -> Self
+    pub fn metric_train_plot<M>(mut self, metric: M) -> Self
     where
+        M: Metric + Numeric + 'static,
         T: Adaptor<M::Input>,
     {
         self.dashboard.register_train_plot(metric);

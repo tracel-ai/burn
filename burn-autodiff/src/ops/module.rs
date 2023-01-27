@@ -66,7 +66,6 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             stride,
             padding,
         );
-        let shape = *B::shape(&out);
         let mut order = usize::max(weight.node.order, x.node.order);
         if let Some(bias) = bias {
             order = usize::max(order, bias.node.order);
@@ -83,7 +82,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let node = ForwardNode::new(order, state, ops);
         let node = std::sync::Arc::new(node);
 
-        ADTensor { node, shape }
+        ADTensor { node }
     }
     fn conv1d(
         x: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<3>,
@@ -99,7 +98,6 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             stride,
             padding,
         );
-        let shape = *B::shape(&out);
         let mut order = usize::max(weight.node.order, x.node.order);
         if let Some(bias) = bias {
             order = usize::max(order, bias.node.order);
@@ -117,7 +115,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let node = ForwardNode::new(order, state, ops);
         let node = std::sync::Arc::new(node);
 
-        ADTensor { node, shape }
+        ADTensor { node }
     }
 
     fn max_pool2d(
@@ -127,7 +125,6 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         padding: [usize; 2],
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<4> {
         let output = B::max_pool2d_with_indexes(x.tensor_ref(), kernel_size, stride, padding);
-        let shape = *B::shape(&output.output);
         let order = x.node.order + 1;
 
         let ops = ForwardMaxPool::<B, 2, 4>::new(
@@ -142,7 +139,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let node = ForwardNode::new(order, state, ops);
         let node = std::sync::Arc::new(node);
 
-        ADTensor { node, shape }
+        ADTensor { node }
     }
 
     fn max_pool2d_with_indexes(
@@ -152,7 +149,6 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         padding: [usize; 2],
     ) -> MaxPool2dWithIndexes<ADBackendDecorator<B>> {
         let output = B::max_pool2d_with_indexes(x.tensor_ref(), kernel_size, stride, padding);
-        let shape = *B::shape(&output.output);
         let order = x.node.order + 1;
 
         let ops = ForwardMaxPool::<B, 2, 4>::new(
@@ -167,7 +163,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let node = ForwardNode::new(order, state, ops);
         let node = std::sync::Arc::new(node);
 
-        MaxPool2dWithIndexes::new(ADTensor { node, shape }, output.indexes)
+        MaxPool2dWithIndexes::new(ADTensor { node }, output.indexes)
     }
 
     fn max_pool2d_with_indexes_backward(

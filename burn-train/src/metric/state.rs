@@ -71,8 +71,8 @@ impl NumericMetricState {
 
         let (formatted_current, formatted_running) = match format.precision {
             Some(precision) => (
-                format!("{value_current:.0$}", precision),
-                format!("{value_running:.0$}", precision),
+                format!("{value_current:.precision$}"),
+                format!("{value_running:.precision$}"),
             ),
             None => (format!("{value_current}"), format!("{value_running}")),
         };

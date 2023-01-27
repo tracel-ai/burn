@@ -11,7 +11,6 @@ lazy_static::lazy_static! {
 pub struct TchTensor<P: tch::kind::Element, const D: usize> {
     pub kind: TchKind<P>,
     pub tensor: tch::Tensor,
-    pub shape: Shape<D>,
 }
 
 impl<E: TchElement, const D: usize> std::ops::Add for TchTensor<E, D> {
@@ -19,6 +18,12 @@ impl<E: TchElement, const D: usize> std::ops::Add for TchTensor<E, D> {
 
     fn add(self, rhs: Self) -> Self::Output {
         TchBackend::add(&self, &rhs)
+    }
+}
+
+impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
+    pub(crate) fn shape(&self) -> Shape<D> {
+        Shape::from(self.tensor.size())
     }
 }
 
@@ -30,7 +35,6 @@ impl<P: tch::kind::Element, const D: usize> Clone for TchTensor<P, D> {
         Self {
             kind: self.kind.clone(),
             tensor: self.tensor.shallow_clone(),
-            shape: self.shape,
         }
     }
 }
@@ -66,7 +70,6 @@ impl<P: tch::kind::Element + Default> TchKind<P> {
 impl<P: tch::kind::Element + Default, const D: usize> TchTensor<P, D> {
     pub fn from_data(data: Data<P, D>, device: tch::Device) -> Self {
         let tensor = tch::Tensor::of_slice(data.value.as_slice()).to(device);
-        let shape = data.shape;
         let shape_tch = TchShape::from(data.shape);
         let kind = TchKind::new();
         let tensor = tensor.reshape(&shape_tch.dims).to_kind(kind.kind());
@@ -74,11 +77,7 @@ impl<P: tch::kind::Element + Default, const D: usize> TchTensor<P, D> {
         lazy_static::initialize(&NO_GRAD);
         let tensor = tensor.set_requires_grad(false);
 
-        Self {
-            kind,
-            tensor,
-            shape,
-        }
+        Self { kind, tensor }
     }
 }
 
@@ -106,11 +105,7 @@ impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> T
         lazy_static::initialize(&NO_GRAD);
         let tensor = tensor.set_requires_grad(false);
 
-        Self {
-            kind,
-            tensor,
-            shape,
-        }
+        Self { kind, tensor }
     }
 }
 
