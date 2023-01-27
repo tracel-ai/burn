@@ -340,9 +340,11 @@ mod tests {
     #[test]
     fn should_have_right_num_elements() {
         let shape = Shape::new([3, 5, 6]);
+        let num_elements = shape.num_elements();
         let data =
             Data::<f32, 3>::random(shape, Distribution::Standard, &mut StdRng::from_entropy());
-        assert_eq!(shape.num_elements(), data.value.len());
+
+        assert_eq!(num_elements, data.value.len());
     }
 
     #[test]

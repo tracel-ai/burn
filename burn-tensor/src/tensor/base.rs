@@ -205,8 +205,8 @@ where
         let mut dims = [1; D];
         dims[D - 1] = num_classes;
         let shape = Shape::new(dims);
-        let tensor = Tensor::zeros(shape);
         let ranges: Vec<_> = shape.dims.iter().map(|dim| 0..*dim).collect();
+        let tensor = Tensor::zeros(shape);
         let mut ranges: [std::ops::Range<usize>; D] = ranges.try_into().unwrap();
         ranges[D - 1] = index..index + 1;
 

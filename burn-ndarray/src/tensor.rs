@@ -179,7 +179,7 @@ where
     E: Default + Clone,
 {
     pub(crate) fn from_bmatrix(bmatrix: BatchMatrix<E, D>) -> NdArrayTensor<E, D> {
-        let shape = bmatrix.shape;
+        let shape = bmatrix.shape.clone();
         let to_array = |data: BatchMatrix<E, D>| {
             let dims = data.shape.dims;
             let mut array: Array<E, Ix3> = Array::default((0, dims[D - 2], dims[D - 1]));
@@ -207,7 +207,7 @@ where
     E: Default + Clone,
 {
     pub fn from_data(data: Data<E, D>) -> NdArrayTensor<E, D> {
-        let shape = data.shape;
+        let shape = data.shape.clone();
         let to_array = |data: Data<E, D>| Array::from_iter(data.value.into_iter()).into_shared();
 
         match D {

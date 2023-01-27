@@ -552,7 +552,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 let shape_value = B::shape(&value);
 
                 if shape_value == shape_grad {
-                    return B::reshape(&grad, self.shape);
+                    return B::reshape(&grad, self.shape.clone());
                 }
 
                 for i in 0..D2 {
@@ -561,7 +561,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     }
                 }
 
-                B::reshape(&grad, self.shape)
+                B::reshape(&grad, self.shape.clone())
             }
         }
 
@@ -775,7 +775,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<1>>,
             ) -> B::TensorPrimitive<D> {
                 let grad = state.output.grad();
-                let ones = B::ones(self.shape, B::device(&grad));
+                let ones = B::ones(self.shape.clone(), B::device(&grad));
 
                 let grad: Tensor<B, 1> = Tensor::from_primitive(grad);
                 let val = 1_f64 / self.shape.num_elements() as f64;
@@ -809,7 +809,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<1>>,
             ) -> B::TensorPrimitive<D> {
                 let grad = state.output.grad();
-                let ones = B::ones(self.shape, B::device(&grad));
+                let ones = B::ones(self.shape.clone(), B::device(&grad));
 
                 let grad: Tensor<B, 1> = Tensor::from_primitive(grad);
                 let ones: Tensor<B, D> = Tensor::from_primitive(ones);
@@ -844,7 +844,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
             ) -> B::TensorPrimitive<D> {
                 let grad = B::sum_dim(&state.output.grad(), self.dim);
-                let ones = B::ones(self.shape, B::device(&grad));
+                let ones = B::ones(self.shape.clone(), B::device(&grad));
 
                 let val = 1_f64 / self.shape.dims[self.dim] as f64;
                 let ones = B::mul_scalar(&ones, &B::Elem::from_elem(val));
@@ -879,7 +879,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
             ) -> B::TensorPrimitive<D> {
                 let grad = B::sum_dim(&state.output.grad(), self.dim);
-                let ones = B::ones(self.shape, B::device(&grad));
+                let ones = B::ones(self.shape.clone(), B::device(&grad));
 
                 B::mul(&ones, &grad)
             }
