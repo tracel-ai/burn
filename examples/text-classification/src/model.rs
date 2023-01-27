@@ -55,14 +55,14 @@ impl<B: Backend> TextClassificationModel<B> {
 
     pub fn forward(&self, item: TextClassificationBatch<B>) -> ClassificationOutput<B> {
         let [batch_size, seq_length] = item.tokens.dims();
-        let device = self.embedding_token.devices()[0];
+        let device = &self.embedding_token.devices()[0];
 
-        let tokens = item.tokens.to_device(&device).detach();
-        let labels = item.labels.to_device(&device).detach();
-        let mask_pad = item.mask_pad.to_device(&device);
+        let tokens = item.tokens.to_device(device).detach();
+        let labels = item.labels.to_device(device).detach();
+        let mask_pad = item.mask_pad.to_device(device);
         std::mem::drop(item);
 
-        let index_positions = Tensor::<B, 1>::arange_device(0..seq_length, &device)
+        let index_positions = Tensor::<B, 1>::arange_device(0..seq_length, device)
             .reshape([1, seq_length])
             .repeat(0, batch_size);
         let embedding_positions = self.embedding_pos.forward(index_positions.detach());

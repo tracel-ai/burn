@@ -102,7 +102,7 @@ where
         let step = MultiDevicesTrainStep::new(&self.devices);
 
         // The main device is always the first in the list.
-        let device_main = *self.devices.get(0).unwrap();
+        let device_main = self.devices.get(0).unwrap().clone();
 
         loop {
             let items = step.step(&mut iterator, &self.model);
@@ -114,7 +114,7 @@ where
                 iteration += 1;
                 let progress = iterator.progress();
 
-                to_device_grads(&mut item.grads, device_main, &self.model);
+                to_device_grads(&mut item.grads, device_main.clone(), &self.model);
                 log::info!("Updated device");
                 accumulator.accumulate(&self.model, item.grads);
                 accumulation_current += 1;

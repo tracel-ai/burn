@@ -42,12 +42,12 @@ pub fn train<B: ADBackend, D: TextClassificationDataset + 'static>(
     let tokenizer = Arc::new(BertCasedTokenizer::default());
     let batcher_train = Arc::new(TextClassificationBatcher::<B>::new(
         tokenizer.clone(),
-        device,
+        device.clone(),
         config.max_seq_length,
     ));
     let batcher_test = Arc::new(TextClassificationBatcher::<B::InnerBackend>::new(
         tokenizer.clone(),
-        device,
+        device.clone(),
         config.max_seq_length,
     ));
 

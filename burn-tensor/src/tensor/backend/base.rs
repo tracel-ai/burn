@@ -12,7 +12,7 @@ pub trait Backend:
     + std::fmt::Debug
     + 'static
 {
-    type Device: Copy + Clone + Default + std::fmt::Debug + Send + Sync;
+    type Device: Clone + Default + std::fmt::Debug + Send + Sync;
     type Elem: Element;
     type FullPrecisionElem: Element;
     type FullPrecisionBackend: Backend<Elem = Self::FullPrecisionElem, Device = Self::Device>;
