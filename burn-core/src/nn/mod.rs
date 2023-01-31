@@ -8,13 +8,13 @@ pub mod transformer;
 mod dropout;
 mod embedding;
 mod gelu;
-mod layer_norm;
 mod linear;
+mod norm;
 mod relu;
 
 pub use dropout::*;
 pub use embedding::*;
 pub use gelu::*;
-pub use layer_norm::*;
 pub use linear::*;
+pub use norm::*;
 pub use relu::*;
