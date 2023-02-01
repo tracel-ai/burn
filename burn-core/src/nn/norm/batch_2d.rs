@@ -3,6 +3,7 @@ use crate as burn;
 use crate::config::Config;
 use crate::module::Module;
 use crate::module::Param;
+use crate::module::RunningState;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 
@@ -26,8 +27,8 @@ pub struct BatchNorm2dConfig {
 pub struct BatchNorm2d<B: Backend> {
     gamma: Param<Tensor<B, 1>>,
     beta: Param<Tensor<B, 1>>,
-    running_mean: Param<Tensor<B, 1>>,
-    running_var: Param<Tensor<B, 1>>,
+    running_mean: Param<RunningState<Tensor<B, 1>>>,
+    running_var: Param<RunningState<Tensor<B, 1>>>,
     epsilon: f64,
 }
 
@@ -43,8 +44,8 @@ impl<B: Backend> BatchNorm2d<B> {
         Self {
             gamma: Param::new(gamma),
             beta: Param::new(beta),
-            running_mean: Param::new(running_mean),
-            running_var: Param::new(running_var),
+            running_mean: Param::new(RunningState::new(running_mean)),
+            running_var: Param::new(RunningState::new(running_var)),
             epsilon: config.epsilon,
         }
     }
