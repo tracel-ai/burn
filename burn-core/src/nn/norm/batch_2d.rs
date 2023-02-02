@@ -79,13 +79,10 @@ impl<B: Backend> BatchNorm2d<B> {
     }
 
     fn forward_train(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
-        let [batch_size, channels, height, width] = input.dims();
-        let squeezed_shape = [batch_size, channels, 1, 1];
-        let input_squeezed = input
-            .reshape([batch_size, channels, height * width])
-            .detach();
+        let [_batch_size, channels, _height, _width] = input.dims();
 
-        let (var, mean) = input_squeezed.var_mean_bias(2);
+        let mean = input.mean_dim(3).mean_dim(2);
+        let var = input.sub(&mean).powf(2.0).mean_dim(3).mean_dim(2);
 
         let running_mean = self.running_mean.value_sync();
         let running_var = self.running_var.value_sync();
@@ -104,9 +101,6 @@ impl<B: Backend> BatchNorm2d<B> {
 
         self.running_mean.update(running_mean.detach());
         self.running_var.update(running_var.detach());
-
-        let var = var.reshape(squeezed_shape);
-        let mean = mean.reshape(squeezed_shape);
 
         self.forward_shared(input, mean, var)
     }
@@ -227,7 +221,7 @@ mod tests {
                 [[-2.0472e-07, 1.1094e-07], [3.7004e-07, -2.7626e-07]],
                 [[-2.8757e-05, 9.4754e-06], [3.4757e-06, 1.5806e-05]],
             ]]),
-            5,
+            4,
         );
     }
 
