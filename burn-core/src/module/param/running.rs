@@ -10,7 +10,9 @@ use std::{
     thread::ThreadId,
 };
 
-/// A state that can be updating during the forward pass thread safe.
+/// A state that can be updated during the forward pass while being thread safe.
+///
+/// # Note
 ///
 /// The state value is the average of all updates on all threads.
 #[derive(Clone, Debug)]
@@ -127,7 +129,7 @@ impl<const D: usize, B: Backend> RunningState<Tensor<B, D>> {
     /// # Note
     ///
     /// Don't use this function after an update on the same thread where other threads might have to
-    /// register their update before the actual synchonization happens.
+    /// register their update before the actual synchonization needs to happen.
     pub fn value_sync(&self) -> Tensor<B, D> {
         let thread_id = std::thread::current().id();
         let mut map = self.values.lock().unwrap();
