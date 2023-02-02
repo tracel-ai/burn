@@ -6,7 +6,7 @@ use burn_tensor::Tensor;
 /// Trait for all neural network modules.
 ///
 /// Modules should be created using the [derive](burn_derive::Module) attribute.
-/// This will make your module trainable, savable and loadable via [update_params](Module::update_params),
+/// This will make your module trainable, savable and loadable via
 /// [state](Module::state) and [load](Module::load).
 ///
 /// Module concrete types should define their parameters via the [Param](crate::module::Param)
