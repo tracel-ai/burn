@@ -117,15 +117,35 @@ impl<const D: usize, B: Backend> RunningState<Tensor<B, D>> {
     /// # Note
     ///
     /// The current value might be outdated by one update.
-    /// If this is unaceptable, you can call sync at a performance loss.
     pub fn value(&self) -> Tensor<B, D> {
+        let value = self.value.read().unwrap();
+        value.clone()
+    }
+
+    /// Get the current value and make sure it is sync.
+    ///
+    /// # Note
+    ///
+    /// Don't use this function after an update on the same thread where other threads might have to
+    /// register their update before the actual synchonization happens.
+    pub fn value_sync(&self) -> Tensor<B, D> {
+        let thread_id = std::thread::current().id();
+        let mut map = self.values.lock().unwrap();
+
+        if map.contains_key(&thread_id) {
+            self.update_value(&mut map);
+        }
+
         let value = self.value.read().unwrap();
         value.clone()
     }
 
     fn sync(&self) {
         let mut map = self.values.lock().unwrap();
-        self.update_value(&mut map);
+
+        if !map.is_empty() {
+            self.update_value(&mut map);
+        }
     }
 
     fn update_value(&self, map: &mut HashMap<ThreadId, Tensor<B, D>>) {
@@ -154,6 +174,8 @@ impl<const D: usize, B: Backend> RunningState<Tensor<B, D>> {
     where
         B: ADBackend,
     {
+        self.sync();
+
         let value = self.value.read().unwrap();
         Param::new(RunningState::new(value.inner()))
     }

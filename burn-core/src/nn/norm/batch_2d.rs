@@ -29,6 +29,7 @@ pub struct BatchNorm2d<B: Backend> {
     beta: Param<Tensor<B, 1>>,
     running_mean: Param<RunningState<Tensor<B, 1>>>,
     running_var: Param<RunningState<Tensor<B, 1>>>,
+    momentum: f64,
     epsilon: f64,
 }
 
@@ -46,6 +47,7 @@ impl<B: Backend> BatchNorm2d<B> {
             beta: Param::new(beta),
             running_mean: Param::new(RunningState::new(running_mean)),
             running_var: Param::new(RunningState::new(running_var)),
+            momentum: config.momentum,
             epsilon: config.epsilon,
         }
     }
@@ -57,41 +59,85 @@ impl<B: Backend> BatchNorm2d<B> {
     /// - input: `[batch_size, channels, height, width]`
     /// - output: `[batch_size, channels, height, width]`
     pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
+        match B::ad_enabled() {
+            true => self.forward_train(input),
+            false => self.forward_inference(input),
+        }
+    }
+
+    fn forward_inference(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
+        let [_batch_size, channels, _height, _width] = input.dims();
+
+        let mean = self.running_mean.value();
+        let var = self.running_var.value();
+
+        self.forward_shared(
+            input,
+            mean.reshape([1, channels, 1, 1]),
+            var.reshape([1, channels, 1, 1]),
+        )
+    }
+
+    fn forward_train(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
         let [batch_size, channels, height, width] = input.dims();
         let squeezed_shape = [batch_size, channels, 1, 1];
-
-        let input_squeezed = input.reshape([batch_size, channels, height * width]);
+        let input_squeezed = input
+            .reshape([batch_size, channels, height * width])
+            .detach();
 
         let (var, mean) = input_squeezed.var_mean_bias(2);
+
+        let running_mean = self.running_mean.value_sync();
+        let running_var = self.running_var.value_sync();
+
+        let running_mean = running_mean.mul_scalar(1.0 - self.momentum).add(
+            &mean
+                .mean_dim(0)
+                .mul_scalar(self.momentum)
+                .reshape([channels]),
+        );
+        let running_var = running_var.mul_scalar(1.0 - self.momentum).add(
+            &var.mean_dim(0)
+                .mul_scalar(self.momentum)
+                .reshape([channels]),
+        );
+
+        self.running_mean.update(running_mean.detach());
+        self.running_var.update(running_var.detach());
+
         let var = var.reshape(squeezed_shape);
         let mean = mean.reshape(squeezed_shape);
 
+        self.forward_shared(input, mean, var)
+    }
+
+    fn forward_shared(
+        &self,
+        input: Tensor<B, 4>,
+        mean: Tensor<B, 4>,
+        var: Tensor<B, 4>,
+    ) -> Tensor<B, 4> {
+        let [_batch_size, channels, _, _] = input.dims();
         let input_normalized = input.sub(&mean).div(&var.sqrt().add_scalar(self.epsilon));
 
         input_normalized
-            .mul(&self.gamma.reshape(squeezed_shape))
-            .add(&self.beta.reshape(squeezed_shape))
+            .mul(&self.gamma.reshape([1, channels, 1, 1]))
+            .add(&self.beta.reshape([1, channels, 1, 1]))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{TestADBackend, TestBackend};
+    use crate::{module::ADModule, TestADBackend};
     use burn_tensor::Data;
 
     #[test]
-    fn batch_norm_2d_forward() {
+    fn batch_norm_2d_forward_train() {
         let config = BatchNorm2dConfig::new(3);
-        let module = BatchNorm2d::<TestBackend>::new(&config);
+        let module = BatchNorm2d::<TestADBackend>::new(&config);
 
-        let input = Tensor::from_data(Data::from([[
-            [[0.2003, 0.2221], [0.7736, 0.8308]],
-            [[0.9154, 0.6224], [0.3819, 0.9818]],
-            [[0.8394, 0.7470], [0.7615, 0.7317]],
-        ]]));
-
-        let output = module.forward(input);
+        let output = module.forward(input_tensor());
 
         output.to_data().assert_approx_eq(
             &Data::from([[
@@ -101,5 +147,95 @@ mod tests {
             ]]),
             2,
         );
+    }
+
+    #[test]
+    fn batch_norm_2d_forward_inference() {
+        let config = BatchNorm2dConfig::new(3);
+        let module = BatchNorm2d::<TestADBackend>::new(&config);
+
+        module.forward(input_tensor());
+        let output = module.inner().forward(input_tensor());
+
+        output.to_data().assert_approx_eq(
+            &Data::from([[
+                [[0.1569, 0.1795], [0.7571, 0.8170]],
+                [[0.8851, 0.5771], [0.3251, 0.9551]],
+                [[0.8035, 0.7062], [0.7214, 0.6900]],
+            ]]),
+            2,
+        );
+    }
+
+    #[test]
+    fn batch_norm_2d_running_mean() {
+        let config = BatchNorm2dConfig::new(3);
+        let module = BatchNorm2d::<TestADBackend>::new(&config);
+
+        let _output = module.forward(input_tensor());
+
+        let running_mean = module.running_mean.value_sync();
+
+        running_mean
+            .reshape([3])
+            .to_data()
+            .assert_approx_eq(&Data::from([0.0507, 0.0725, 0.0770]), 2);
+    }
+
+    #[test]
+    fn batch_norm_2d_running_var() {
+        let config = BatchNorm2dConfig::new(3);
+        let module = BatchNorm2d::<TestADBackend>::new(&config);
+
+        let _output = module.forward(input_tensor());
+
+        let running_var = module.running_var.value_sync();
+
+        running_var
+            .reshape([3])
+            .to_data()
+            .assert_approx_eq(&Data::from([0.9117, 0.9077, 0.9002]), 2);
+    }
+
+    #[test]
+    fn batch_norm_2d_grads() {
+        let config = BatchNorm2dConfig::new(3);
+        let module = BatchNorm2d::<TestADBackend>::new(&config);
+        let input = input_tensor();
+
+        let output = module.forward(input.clone());
+
+        let grads = output.backward();
+
+        module
+            .gamma
+            .grad(&grads)
+            .unwrap()
+            .into_data()
+            .assert_approx_eq(&Data::from([2.0116e-07, 2.4831e-07, 2.8651e-06]), 3);
+
+        module
+            .beta
+            .grad(&grads)
+            .unwrap()
+            .into_data()
+            .assert_approx_eq(&Data::from([4., 4., 4.]), 3);
+
+        input.grad(&grads).unwrap().into_data().assert_approx_eq(
+            &Data::from([[
+                [[1.7550e-07, 1.6301e-07], [-1.5288e-07, -1.8564e-07]],
+                [[-2.0472e-07, 1.1094e-07], [3.7004e-07, -2.7626e-07]],
+                [[-2.8757e-05, 9.4754e-06], [3.4757e-06, 1.5806e-05]],
+            ]]),
+            5,
+        );
+    }
+
+    fn input_tensor<B: Backend>() -> Tensor<B, 4> {
+        Tensor::<B, 4>::from_floats([[
+            [[0.2003, 0.2221], [0.7736, 0.8308]],
+            [[0.9154, 0.6224], [0.3819, 0.9818]],
+            [[0.8394, 0.7470], [0.7615, 0.7317]],
+        ]])
     }
 }
