@@ -213,6 +213,7 @@ pub trait TensorOps<B: Backend> {
     ) -> <B::IntegerBackend as Backend>::TensorPrimitive<D>;
     fn exp<const D: usize>(tensor: &B::TensorPrimitive<D>) -> B::TensorPrimitive<D>;
     fn log<const D: usize>(tensor: &B::TensorPrimitive<D>) -> B::TensorPrimitive<D>;
+    fn log1p<const D: usize>(tensor: &B::TensorPrimitive<D>) -> B::TensorPrimitive<D>;
     fn powf<const D: usize>(tensor: &B::TensorPrimitive<D>, value: f32) -> B::TensorPrimitive<D>;
     fn sqrt<const D: usize>(tensor: &B::TensorPrimitive<D>) -> B::TensorPrimitive<D>;
     fn cos<const D: usize>(tensor: &B::TensorPrimitive<D>) -> B::TensorPrimitive<D>;

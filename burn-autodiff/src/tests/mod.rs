@@ -12,6 +12,7 @@ mod erf;
 mod exp;
 mod index;
 mod log;
+mod log1p;
 mod mask;
 mod matmul;
 mod maxpool2d;
@@ -54,6 +55,7 @@ macro_rules! testgen_all {
         burn_autodiff::testgen_ad_exp!();
         burn_autodiff::testgen_ad_index!();
         burn_autodiff::testgen_ad_log!();
+        burn_autodiff::testgen_ad_log1p!();
         burn_autodiff::testgen_ad_mask!();
         burn_autodiff::testgen_ad_matmul!();
         burn_autodiff::testgen_ad_mul!();
