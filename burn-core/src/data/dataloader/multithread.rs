@@ -41,7 +41,7 @@ where
             .into_iter()
             .enumerate()
             .map(|(index, dataloader)| {
-                let dataloader_cloned = dataloader.clone();
+                let dataloader_cloned = dataloader;
                 let sender_cloned = sender.clone();
 
                 thread::spawn(move || {
