@@ -25,6 +25,8 @@ macro_rules! testgen_all {
         burn_tensor::testgen_div!();
         burn_tensor::testgen_erf!();
         burn_tensor::testgen_exp!();
+        burn_tensor::testgen_log!();
+        burn_tensor::testgen_log1p!();
         burn_tensor::testgen_index!();
         burn_tensor::testgen_map_comparison!();
         burn_tensor::testgen_mask!();

@@ -86,6 +86,13 @@ where
         Self::new(B::log(&self.value))
     }
 
+    /// Applies the natural logarithm of one plus the input tensor, element-wise.
+    ///
+    /// `y = log(x+1)`
+    pub fn log1p(&self) -> Self {
+        Self::new(B::log1p(&self.value))
+    }
+
     /// Applies the [error function](https://en.wikipedia.org/wiki/Error_function) element wise.
     ///
     /// `y = erf(x)`

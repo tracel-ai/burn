@@ -8,6 +8,7 @@ pub(crate) trait NdArrayElement:
 pub(crate) trait ExpElement {
     fn exp_elem(self) -> Self;
     fn log_elem(self) -> Self;
+    fn log1p_elem(self) -> Self;
     fn pow_elem(self, value: f32) -> Self;
     fn sqrt_elem(self) -> Self;
 }
@@ -20,6 +21,9 @@ macro_rules! impl_exp_elem {
             }
             fn log_elem(self) -> Self {
                 $elem::ln(self)
+            }
+            fn log1p_elem(self) -> Self {
+                $elem::ln_1p(self)
             }
             fn pow_elem(self, value: f32) -> Self {
                 $elem::powf(self, value.into())
@@ -37,6 +41,10 @@ macro_rules! impl_exp_elem {
             }
             fn log_elem(self) -> Self {
                 let tmp = $tmp::ln(self as $tmp);
+                tmp as $elem
+            }
+            fn log1p_elem(self) -> Self {
+                let tmp = $tmp::ln_1p(self as $tmp);
                 tmp as $elem
             }
             fn pow_elem(self, value: f32) -> Self {

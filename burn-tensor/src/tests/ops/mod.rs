@@ -6,6 +6,8 @@ mod div;
 mod erf;
 mod exp;
 mod index;
+mod log;
+mod log1p;
 mod map_comparison;
 mod mask;
 mod matmul;

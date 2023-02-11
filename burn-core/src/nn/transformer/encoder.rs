@@ -75,7 +75,6 @@ impl<B: Backend> TransformerEncoder<B> {
     /// Create the module from the given configuration.
     pub fn new(config: &TransformerEncoderConfig) -> Self {
         let layers = (0..config.n_layers)
-            .into_iter()
             .map(|_| TransformerEncoderLayer::new(config))
             .collect();
 

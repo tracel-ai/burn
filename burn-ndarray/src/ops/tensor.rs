@@ -480,6 +480,12 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         NdArrayTensor { array }
     }
 
+    fn log1p<const D: usize>(tensor: &NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+        let array = tensor.array.mapv(|a| a.log1p_elem()).into_shared();
+
+        NdArrayTensor { array }
+    }
+
     fn powf<const D: usize>(tensor: &NdArrayTensor<E, D>, value: f32) -> NdArrayTensor<E, D> {
         let array = tensor.array.mapv(|a| a.pow_elem(value)).into_shared();
 
