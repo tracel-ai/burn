@@ -1,6 +1,6 @@
 [package]
 name = "burn-train"
-version = "0.4.0"
+version = "0.5.0"
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 description = "Training crate for burn"
 repository = "https://github.com/burn-rs/burn"
@@ -11,7 +11,7 @@ license = "MIT/Apache-2.0"
 edition = "2021"
 
 [dependencies]
-burn-core = { version = "0.4.0", path = "../burn-core" }
+burn-core = { version = "0.5.0", path = "../burn-core" }
 
 # Console
 indicatif = "0.17.2"

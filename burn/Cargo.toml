@@ -1,6 +1,6 @@
 [package]
 name = "burn"
-version = "0.4.0"
+version = "0.5.0"
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 description = "BURN: Burn Unstoppable Rusty Neurons"
 repository = "https://github.com/burn-rs/burn"
@@ -16,5 +16,5 @@ train = ["burn-train"]
 experimental-named-tensor = ["burn-core/experimental-named-tensor"]
 
 [dependencies]
-burn-core = { version = "0.4.0", path = "../burn-core" }
-burn-train = { version = "0.4.0", path = "../burn-train", optional = true }
+burn-core = { version = "0.5.0", path = "../burn-core" }
+burn-train = { version = "0.5.0", path = "../burn-train", optional = true }
