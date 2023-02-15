@@ -107,7 +107,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         tensor: NdArrayTensor<bool, D>,
         _device: &NdArrayDevice,
     ) -> NdArrayTensor<bool, D> {
-        tensor.clone()
+        tensor
     }
 
     fn bool_reshape<const D1: usize, const D2: usize>(
@@ -133,7 +133,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         tensor: NdArrayTensor<E, D>,
         _device: &NdArrayDevice,
     ) -> NdArrayTensor<E, D> {
-        tensor.clone()
+        tensor
     }
 
     fn empty<const D: usize>(
@@ -244,7 +244,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         dim1: usize,
         dim2: usize,
     ) -> NdArrayTensor<E, D> {
-        let mut array = tensor.array.clone();
+        let mut array = tensor.array;
         array.swap_axes(dim1, dim2);
 
         NdArrayTensor { array }
@@ -270,11 +270,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         indexes: [Range<usize>; D2],
     ) -> NdArrayTensor<bool, D1> {
         let slices = to_slice_args::<D1, D2>(indexes);
-        let array = tensor
-            .array
-            .clone()
-            .slice_move(slices.as_slice())
-            .into_shared();
+        let array = tensor.array.slice_move(slices.as_slice()).into_shared();
 
         NdArrayTensor { array }
     }
@@ -284,11 +280,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         indexes: [Range<usize>; D2],
     ) -> NdArrayTensor<E, D1> {
         let slices = to_slice_args::<D1, D2>(indexes);
-        let array = tensor
-            .array
-            .clone()
-            .slice_move(slices.as_slice())
-            .into_shared();
+        let array = tensor.array.slice_move(slices.as_slice()).into_shared();
 
         NdArrayTensor { array }
     }
@@ -320,7 +312,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
             true => value,
             false => E::zeros(&elem),
         });
-        let array = (tensor.array.clone() * mask_mul) + mask_add;
+        let array = (tensor.array * mask_mul) + mask_add;
 
         NdArrayTensor { array }
     }
@@ -408,7 +400,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     }
 
     fn detach<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
-        tensor.clone()
+        tensor
     }
 
     fn mean<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, 1> {

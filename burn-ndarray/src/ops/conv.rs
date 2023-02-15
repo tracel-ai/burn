@@ -69,7 +69,7 @@ pub(crate) fn conv2d_naive_no_batch_size<E: NdArrayElement>(
 
     if let Some(bias) = bias {
         let [size] = bias.shape().dims;
-        let bias = NdArrayBackend::reshape(bias.clone(), Shape::new([1, size, 1, 1]));
+        let bias = NdArrayBackend::reshape(bias, Shape::new([1, size, 1, 1]));
         result = NdArrayBackend::add(result, bias);
     }
 

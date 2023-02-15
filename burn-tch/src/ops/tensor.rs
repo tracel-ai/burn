@@ -374,7 +374,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     }
 
     fn detach<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
-        tensor.clone()
+        tensor
     }
 
     fn mean<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, 1> {

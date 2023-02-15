@@ -184,7 +184,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let output = B::add(lhs.tensor(), rhs.tensor());
         let ops = AddBackward::<B, D>::default();
 
-        binary_ops_wrapper(lhs.node.clone(), rhs.node.clone(), output, ops)
+        binary_ops_wrapper(lhs.node, rhs.node, output, ops)
     }
 
     fn add_scalar<const D: usize>(
@@ -210,7 +210,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let output = B::add_scalar(lhs.tensor(), rhs);
         let ops = AddScalarBackward::<B, D>::default();
 
-        unary_ops_wrapper(lhs.node.clone(), output, ops)
+        unary_ops_wrapper(lhs.node, output, ops)
     }
 
     fn sub<const D: usize>(
@@ -252,7 +252,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let output = B::sub(lhs.tensor(), rhs.tensor());
         let ops = SubBackward::<B, D>::default();
 
-        binary_ops_wrapper(lhs.node.clone(), rhs.node.clone(), output, ops)
+        binary_ops_wrapper(lhs.node, rhs.node, output, ops)
     }
 
     fn sub_scalar<const D: usize>(
@@ -278,7 +278,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let output = B::sub_scalar(lhs.tensor(), rhs);
         let ops = SubScalarBackward::<B, D>::default();
 
-        unary_ops_wrapper(lhs.node.clone(), output, ops)
+        unary_ops_wrapper(lhs.node, output, ops)
     }
 
     fn mul<const D: usize>(
@@ -320,7 +320,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let output = B::mul(lhs.tensor(), rhs.tensor());
         let ops = MulBackward::<B, D>::default();
 
-        binary_ops_wrapper(lhs.node.clone(), rhs.node.clone(), output, ops)
+        binary_ops_wrapper(lhs.node, rhs.node, output, ops)
     }
 
     fn mul_scalar<const D: usize>(
@@ -346,7 +346,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let output = B::mul_scalar(lhs.tensor(), rhs);
         let ops = MulScalarBackward::<B, D>::new(rhs);
 
-        unary_ops_wrapper(lhs.node.clone(), output, ops)
+        unary_ops_wrapper(lhs.node, output, ops)
     }
 
     fn div<const D: usize>(
@@ -395,7 +395,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let output = B::div(lhs.tensor(), rhs.tensor());
         let ops = DivBackward::<B, D>::default();
 
-        binary_ops_wrapper(lhs.node.clone(), rhs.node.clone(), output, ops)
+        binary_ops_wrapper(lhs.node, rhs.node, output, ops)
     }
 
     fn div_scalar<const D: usize>(
@@ -424,7 +424,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let output = B::div_scalar(lhs.tensor(), rhs);
         let ops = DivScalarBackward::<B, D>::new(rhs);
 
-        unary_ops_wrapper(lhs.node.clone(), output, ops)
+        unary_ops_wrapper(lhs.node, output, ops)
     }
 
     fn matmul<const D: usize>(
@@ -470,7 +470,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let output = B::matmul(lhs.tensor(), rhs.tensor());
         let ops = MatmulBackward::<B, D>::default();
 
-        binary_ops_wrapper(lhs.node.clone(), rhs.node.clone(), output, ops)
+        binary_ops_wrapper(lhs.node, rhs.node, output, ops)
     }
 
     fn neg<const D: usize>(
@@ -495,7 +495,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let output = B::neg(tensor.tensor());
         let ops = NegBackward::<B, D>::default();
 
-        unary_ops_wrapper(tensor.node.clone(), output, ops)
+        unary_ops_wrapper(tensor.node, output, ops)
     }
 
     fn swap_dims<const D: usize>(
@@ -524,7 +524,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let output = B::swap_dims(tensor.tensor(), dim1, dim2);
         let ops = SwapDimsBackward::<B, D>::new(B::default(), dim1, dim2);
 
-        unary_ops_wrapper(tensor.node.clone(), output, ops)
+        unary_ops_wrapper(tensor.node, output, ops)
     }
 
     fn reshape<const D1: usize, const D2: usize>(
@@ -569,7 +569,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let output = B::reshape(tensor.tensor(), shape);
         let ops = ReshapeBackward::<B, D1, D2>::new(shape_old, B::default());
 
-        unary_ops_wrapper(tensor.node.clone(), output, ops)
+        unary_ops_wrapper(tensor.node, output, ops)
     }
 
     fn index<const D1: usize, const D2: usize>(
@@ -600,7 +600,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let output = B::index(tensor.tensor(), indexes.clone());
         let ops = IndexBackward::<B, D1, D2>::new(indexes, B::default());
 
-        unary_ops_wrapper(tensor.node.clone(), output, ops)
+        unary_ops_wrapper(tensor.node, output, ops)
     }
 
     fn index_assign<const D1: usize, const D2: usize>(
@@ -648,7 +648,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let output = B::index_assign(tensor.tensor(), indexes.clone(), value.tensor());
         let ops = IndexAssignBackward::<B, D1, D2>::new(indexes, B::default());
 
-        binary_ops_wrapper(tensor.node.clone(), value.node.clone(), output, ops)
+        binary_ops_wrapper(tensor.node, value.node, output, ops)
     }
 
     fn mask_fill<const D: usize>(
@@ -679,7 +679,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let output = B::mask_fill(tensor.tensor(), mask.clone(), value);
         let ops = MaskFillBackward::<B, D>::new(mask);
 
-        unary_ops_wrapper(tensor.node.clone(), output, ops)
+        unary_ops_wrapper(tensor.node, output, ops)
     }
 
     fn equal<const D: usize>(
@@ -789,7 +789,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let output = B::mean(tensor.tensor());
         let ops = Backward::<B, D>::new(shape, B::default());
 
-        unary_ops_wrapper(tensor.node.clone(), output, ops)
+        unary_ops_wrapper(tensor.node, output, ops)
     }
 
     fn sum<const D: usize>(
@@ -822,7 +822,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let output = B::sum(tensor.tensor());
         let ops = Backward::<B, D>::new(shape, B::default());
 
-        unary_ops_wrapper(tensor.node.clone(), output, ops)
+        unary_ops_wrapper(tensor.node, output, ops)
     }
 
     fn mean_dim<const D: usize>(
@@ -857,7 +857,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let output = B::mean_dim(tensor.tensor(), dim);
         let ops = Backward::<B, D>::new(shape, dim, B::default());
 
-        unary_ops_wrapper(tensor.node.clone(), output, ops)
+        unary_ops_wrapper(tensor.node, output, ops)
     }
 
     fn sum_dim<const D: usize>(
@@ -889,7 +889,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let output = B::sum_dim(tensor.tensor(), dim);
         let ops = Backward::<B, D>::new(shape, dim, B::default());
 
-        unary_ops_wrapper(tensor.node.clone(), output, ops)
+        unary_ops_wrapper(tensor.node, output, ops)
     }
 
     fn to_full_precision<const D: usize>(
@@ -959,7 +959,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let ops = Backward::<B, D>::default();
 
         unary_ops_wrapper_explicit::<B::FullPrecisionBackend, B, Backward<B, D>, D, D>(
-            tensor.node.clone(),
+            tensor.node,
             output,
             ops,
         )
@@ -1001,7 +1001,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let output = B::exp(tensor.tensor());
         let ops = Backward::<B, D>::default();
 
-        unary_ops_wrapper(tensor.node.clone(), output, ops)
+        unary_ops_wrapper(tensor.node, output, ops)
     }
 
     fn log<const D: usize>(
@@ -1028,7 +1028,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let output = B::log(tensor.tensor());
         let ops = Backward::<B, D>::default();
 
-        unary_ops_wrapper(tensor.node.clone(), output, ops)
+        unary_ops_wrapper(tensor.node, output, ops)
     }
 
     fn log1p<const D: usize>(
@@ -1055,7 +1055,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let output = B::log(tensor.tensor());
         let ops = Backward::<B, D>::default();
 
-        unary_ops_wrapper(tensor.node.clone(), output, ops)
+        unary_ops_wrapper(tensor.node, output, ops)
     }
 
     fn powf<const D: usize>(
@@ -1086,7 +1086,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let output = B::powf(tensor.tensor(), value);
         let ops = Backward::<B, D>::new(value, B::default());
 
-        unary_ops_wrapper(tensor.node.clone(), output, ops)
+        unary_ops_wrapper(tensor.node, output, ops)
     }
 
     fn sqrt<const D: usize>(
@@ -1112,7 +1112,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let output = B::sqrt(tensor.tensor());
         let ops = Backward::<B, D>::new(B::default());
 
-        unary_ops_wrapper(tensor.node.clone(), output, ops)
+        unary_ops_wrapper(tensor.node, output, ops)
     }
 
     fn cos<const D: usize>(
@@ -1138,7 +1138,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let output = B::cos(tensor.tensor());
         let ops = Backward::<B, D>::new(B::default());
 
-        unary_ops_wrapper(tensor.node.clone(), output, ops)
+        unary_ops_wrapper(tensor.node, output, ops)
     }
 
     fn sin<const D: usize>(
@@ -1164,7 +1164,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let output = B::sin(tensor.tensor());
         let ops = Backward::<B, D>::new(B::default());
 
-        unary_ops_wrapper(tensor.node.clone(), output, ops)
+        unary_ops_wrapper(tensor.node, output, ops)
     }
 
     fn tanh<const D: usize>(
@@ -1190,7 +1190,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let output = B::tanh(tensor.tensor());
         let ops = Backward::<B, D>::new(B::default());
 
-        unary_ops_wrapper(tensor.node.clone(), output, ops)
+        unary_ops_wrapper(tensor.node, output, ops)
     }
 
     fn erf<const D: usize>(
@@ -1221,7 +1221,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let output = B::erf(tensor.tensor());
         let ops = Backward::<B, D>::default();
 
-        unary_ops_wrapper(tensor.node.clone(), output, ops)
+        unary_ops_wrapper(tensor.node, output, ops)
     }
 
     fn cat<const D: usize>(
@@ -1328,6 +1328,6 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let output = B::relu(tensor.tensor());
         let ops = Backward::<B, D>::default();
 
-        unary_ops_wrapper(tensor.node.clone(), output, ops)
+        unary_ops_wrapper(tensor.node, output, ops)
     }
 }

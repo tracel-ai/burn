@@ -71,8 +71,8 @@ pub fn generate_padding_mask<B: Backend>(
         );
     }
 
-    let mask = BoolTensor::from_int_backend(tensor.clone().equal_scalar(pad_token as i64))
-        .to_device(device);
+    let mask =
+        BoolTensor::from_int_backend(tensor.equal_scalar(pad_token as i64)).to_device(device);
     let tensor = tensor.to_device(device);
 
     GeneratePaddingMask { tensor, mask }

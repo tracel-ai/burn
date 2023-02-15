@@ -40,7 +40,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<3> {
         let input = weights.node.clone();
         let output = B::embedding(weights.tensor(), indexes.clone());
-        let ops = EmbeddingBackward::<B>::new(indexes.clone());
+        let ops = EmbeddingBackward::<B>::new(indexes);
 
         unary_ops_wrapper(input, output, ops)
     }
@@ -75,12 +75,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             order = usize::max(order, bias.node.order);
         }
 
-        let ops = ForwardConv::<B, 2, 4>::new(
-            x.node.clone(),
-            weight.node.clone(),
-            bias.map(|b| b.node.clone()),
-            stride,
-        );
+        let ops = ForwardConv::<B, 2, 4>::new(x.node, weight.node, bias.map(|b| b.node), stride);
         let ops = Box::new(ops);
         let state = ForwardNodeState::new(out);
         let node = ForwardNode::new(order, state, ops);
@@ -108,12 +103,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
         order += 1;
 
-        let ops = ForwardConv::<B, 1, 3>::new(
-            x.node.clone(),
-            weight.node.clone(),
-            bias.map(|b| b.node.clone()),
-            [stride],
-        );
+        let ops = ForwardConv::<B, 1, 3>::new(x.node, weight.node, bias.map(|b| b.node), [stride]);
         let ops = Box::new(ops);
         let state = ForwardNodeState::new(out);
         let node = ForwardNode::new(order, state, ops);
@@ -132,7 +122,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let order = x.node.order + 1;
 
         let ops = ForwardMaxPool::<B, 2, 4>::new(
-            x.node.clone(),
+            x.node,
             Arc::new(output.indexes),
             kernel_size,
             stride,
@@ -156,7 +146,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let order = x.node.order + 1;
 
         let ops = ForwardMaxPool::<B, 2, 4>::new(
-            x.node.clone(),
+            x.node,
             Arc::new(output.indexes.clone()),
             kernel_size,
             stride,
