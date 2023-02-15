@@ -11,8 +11,8 @@ mod tests {
         let tensor_1 = TestADTensor::from_data(data_1);
         let tensor_2 = TestADTensor::from_data(data_2);
 
-        let tensor_3 = tensor_2.reshape([2, 2]);
-        let tensor_4 = &tensor_1.matmul(&tensor_3);
+        let tensor_3 = tensor_2.clone().reshape([2, 2]);
+        let tensor_4 = tensor_1.clone().matmul(tensor_3);
         let grads = tensor_4.backward();
 
         let grad_1 = tensor_1.grad(&grads).unwrap();

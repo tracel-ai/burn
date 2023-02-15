@@ -81,20 +81,26 @@ impl<B: Backend> BatchNorm2d<B> {
     fn forward_train(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
         let [_batch_size, channels, _height, _width] = input.dims();
 
-        let mean = input.mean_dim(3).mean_dim(2);
-        let var = input.sub(&mean).powf(2.0).mean_dim(3).mean_dim(2);
+        let mean = input.clone().mean_dim(3).mean_dim(2);
+        let var = input
+            .clone()
+            .sub(mean.clone())
+            .powf(2.0)
+            .mean_dim(3)
+            .mean_dim(2);
 
         let running_mean = self.running_mean.value_sync();
         let running_var = self.running_var.value_sync();
 
         let running_mean = running_mean.mul_scalar(1.0 - self.momentum).add(
-            &mean
+            mean.clone()
                 .mean_dim(0)
                 .mul_scalar(self.momentum)
                 .reshape([channels]),
         );
         let running_var = running_var.mul_scalar(1.0 - self.momentum).add(
-            &var.mean_dim(0)
+            var.clone()
+                .mean_dim(0)
                 .mul_scalar(self.momentum)
                 .reshape([channels]),
         );
@@ -112,11 +118,11 @@ impl<B: Backend> BatchNorm2d<B> {
         var: Tensor<B, 4>,
     ) -> Tensor<B, 4> {
         let [_batch_size, channels, _, _] = input.dims();
-        let input_normalized = input.sub(&mean).div(&var.sqrt().add_scalar(self.epsilon));
+        let input_normalized = input.sub(mean).div(var.sqrt().add_scalar(self.epsilon));
 
         input_normalized
-            .mul(&self.gamma.reshape([1, channels, 1, 1]))
-            .add(&self.beta.reshape([1, channels, 1, 1]))
+            .mul(self.gamma.val().reshape([1, channels, 1, 1]))
+            .add(self.beta.val().reshape([1, channels, 1, 1]))
     }
 }
 

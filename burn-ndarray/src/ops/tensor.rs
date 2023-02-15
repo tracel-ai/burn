@@ -16,10 +16,10 @@ macro_rules! keepdim {
         $self:expr,
         mean
     ) => {{
-        let tensor: NdArrayTensor<E, $D> = mean_dim(&$self, $dim);
+        let tensor: NdArrayTensor<E, $D> = mean_dim($self.clone(), $dim);
         let mut shape = $self.shape();
         shape.dims[$dim] = 1;
-        NdArrayBackend::reshape(&tensor, shape)
+        NdArrayBackend::reshape(tensor.clone(), shape)
     }};
     (
         $D:expr,
@@ -27,10 +27,10 @@ macro_rules! keepdim {
         $self:expr,
         sum
     ) => {{
-        let tensor: NdArrayTensor<E, $D> = sum_dim(&$self, $dim);
+        let tensor: NdArrayTensor<E, $D> = sum_dim($self.clone(), $dim);
         let mut shape = $self.shape();
         shape.dims[$dim] = 1;
-        NdArrayBackend::reshape(&tensor, shape)
+        NdArrayBackend::reshape(tensor, shape)
     }};
 }
 
@@ -104,14 +104,14 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     }
 
     fn bool_to_device<const D: usize>(
-        tensor: &NdArrayTensor<bool, D>,
+        tensor: NdArrayTensor<bool, D>,
         _device: &NdArrayDevice,
     ) -> NdArrayTensor<bool, D> {
         tensor.clone()
     }
 
     fn bool_reshape<const D1: usize, const D2: usize>(
-        tensor: &NdArrayTensor<bool, D1>,
+        tensor: NdArrayTensor<bool, D1>,
         shape: Shape<D2>,
     ) -> NdArrayTensor<bool, D2> {
         match D2 {
@@ -130,7 +130,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     }
 
     fn to_device<const D: usize>(
-        tensor: &NdArrayTensor<E, D>,
+        tensor: NdArrayTensor<E, D>,
         _device: &NdArrayDevice,
     ) -> NdArrayTensor<E, D> {
         tensor.clone()
@@ -144,8 +144,8 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     }
 
     fn add<const D: usize>(
-        lhs: &<NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
-        rhs: &<NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
+        lhs: <NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
+        rhs: <NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
     ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D> {
         let array = &lhs.array + &rhs.array;
         let array = array.into_shared();
@@ -154,78 +154,78 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     }
 
     fn add_scalar<const D: usize>(
-        lhs: &<NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
-        rhs: &E,
+        lhs: <NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
+        rhs: E,
     ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D> {
-        let array = &lhs.array + *rhs;
+        let array = lhs.array + rhs;
         let array = array.into_shared();
 
         NdArrayTensor { array }
     }
 
     fn sub<const D: usize>(
-        lhs: &<NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
-        rhs: &<NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
+        lhs: <NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
+        rhs: <NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
     ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D> {
-        let array = &lhs.array - &rhs.array;
+        let array = lhs.array - rhs.array;
         let array = array.into_shared();
 
         NdArrayTensor { array }
     }
 
     fn sub_scalar<const D: usize>(
-        lhs: &<NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
-        rhs: &E,
+        lhs: <NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
+        rhs: E,
     ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D> {
-        let array = &lhs.array - *rhs;
+        let array = lhs.array - rhs;
         let array = array.into_shared();
 
         NdArrayTensor { array }
     }
 
     fn mul<const D: usize>(
-        lhs: &<NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
-        rhs: &<NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
+        lhs: <NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
+        rhs: <NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
     ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D> {
-        let array = &lhs.array * &rhs.array;
+        let array = lhs.array * rhs.array;
         let array = array.into_shared();
 
         NdArrayTensor { array }
     }
 
     fn mul_scalar<const D: usize>(
-        lhs: &<NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
-        rhs: &E,
+        lhs: <NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
+        rhs: E,
     ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D> {
-        let array = &lhs.array * *rhs;
+        let array = lhs.array * rhs;
         let array = array.into_shared();
 
         NdArrayTensor { array }
     }
 
     fn div<const D: usize>(
-        lhs: &<NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
-        rhs: &<NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
+        lhs: <NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
+        rhs: <NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
     ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D> {
-        let array = &lhs.array / &rhs.array;
+        let array = lhs.array / rhs.array;
         let array = array.into_shared();
 
         NdArrayTensor { array }
     }
 
     fn div_scalar<const D: usize>(
-        lhs: &<NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
-        rhs: &E,
+        lhs: <NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
+        rhs: E,
     ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D> {
-        let array = &lhs.array / *rhs;
+        let array = lhs.array / rhs;
         let array = array.into_shared();
 
         NdArrayTensor { array }
     }
 
     fn matmul<const D: usize>(
-        lhs: &<NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
-        rhs: &<NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
+        lhs: <NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
+        rhs: <NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
     ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D> {
         let batch_self = BatchMatrix::from_ndarray(lhs.array.clone(), lhs.shape());
         let batch_other = BatchMatrix::from_ndarray(rhs.array.clone(), rhs.shape());
@@ -235,12 +235,12 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     }
 
     fn neg<const D: usize>(
-        tensor: &NdArrayTensor<E, D>,
+        tensor: NdArrayTensor<E, D>,
     ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D> {
-        Self::mul_scalar(tensor, &(-1f32).to_elem::<E>())
+        Self::mul_scalar(tensor, (-1f32).to_elem::<E>())
     }
     fn swap_dims<const D: usize>(
-        tensor: &NdArrayTensor<E, D>,
+        tensor: NdArrayTensor<E, D>,
         dim1: usize,
         dim2: usize,
     ) -> NdArrayTensor<E, D> {
@@ -251,7 +251,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     }
 
     fn reshape<const D1: usize, const D2: usize>(
-        tensor: &NdArrayTensor<E, D1>,
+        tensor: NdArrayTensor<E, D1>,
         shape: Shape<D2>,
     ) -> NdArrayTensor<E, D2> {
         match D2 {
@@ -266,7 +266,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     }
 
     fn bool_index<const D1: usize, const D2: usize>(
-        tensor: &NdArrayTensor<bool, D1>,
+        tensor: NdArrayTensor<bool, D1>,
         indexes: [Range<usize>; D2],
     ) -> NdArrayTensor<bool, D1> {
         let slices = to_slice_args::<D1, D2>(indexes);
@@ -280,7 +280,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     }
 
     fn index<const D1: usize, const D2: usize>(
-        tensor: &NdArrayTensor<E, D1>,
+        tensor: NdArrayTensor<E, D1>,
         indexes: [Range<usize>; D2],
     ) -> NdArrayTensor<E, D1> {
         let slices = to_slice_args::<D1, D2>(indexes);
@@ -294,9 +294,9 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     }
 
     fn index_assign<const D1: usize, const D2: usize>(
-        tensor: &NdArrayTensor<E, D1>,
+        tensor: NdArrayTensor<E, D1>,
         indexes: [Range<usize>; D2],
-        value: &NdArrayTensor<E, D1>,
+        value: NdArrayTensor<E, D1>,
     ) -> NdArrayTensor<E, D1> {
         let slices = to_slice_args::<D1, D2>(indexes);
         let mut array = tensor.array.to_owned();
@@ -307,8 +307,8 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     }
 
     fn mask_fill<const D: usize>(
-        tensor: &NdArrayTensor<E, D>,
-        mask: &NdArrayTensor<bool, D>,
+        tensor: NdArrayTensor<E, D>,
+        mask: NdArrayTensor<bool, D>,
         value: E,
     ) -> NdArrayTensor<E, D> {
         let elem = E::default();
@@ -326,105 +326,102 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     }
 
     fn equal<const D: usize>(
-        lhs: &NdArrayTensor<E, D>,
-        rhs: &NdArrayTensor<E, D>,
+        lhs: NdArrayTensor<E, D>,
+        rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
         let tensor = NdArrayBackend::<E>::sub(lhs, rhs);
         let zero = E::zeros(&E::default());
 
-        Self::equal_scalar(&tensor, &zero)
+        Self::equal_scalar(tensor, zero)
     }
 
-    fn equal_scalar<const D: usize>(lhs: &NdArrayTensor<E, D>, rhs: &E) -> NdArrayTensor<bool, D> {
-        let array = lhs.array.mapv(|a| a == *rhs).into_shared();
+    fn equal_scalar<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<bool, D> {
+        let array = lhs.array.mapv(|a| a == rhs).into_shared();
 
         NdArrayTensor { array }
     }
 
     fn greater<const D: usize>(
-        lhs: &NdArrayTensor<E, D>,
-        rhs: &NdArrayTensor<E, D>,
+        lhs: NdArrayTensor<E, D>,
+        rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
         let tensor = NdArrayBackend::<E>::sub(lhs, rhs);
         let zero = E::zeros(&E::default());
-        Self::greater_scalar(&tensor, &zero)
+        Self::greater_scalar(tensor, zero)
     }
 
-    fn greater_scalar<const D: usize>(
-        lhs: &NdArrayTensor<E, D>,
-        rhs: &E,
-    ) -> NdArrayTensor<bool, D> {
-        let array = lhs.array.mapv(|a| a > *rhs).into_shared();
+    fn greater_scalar<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<bool, D> {
+        let array = lhs.array.mapv(|a| a > rhs).into_shared();
 
         NdArrayTensor { array }
     }
 
     fn greater_equal<const D: usize>(
-        lhs: &NdArrayTensor<E, D>,
-        rhs: &NdArrayTensor<E, D>,
+        lhs: NdArrayTensor<E, D>,
+        rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
         let tensor = NdArrayBackend::<E>::sub(lhs, rhs);
         let zero = E::zeros(&E::default());
-        Self::greater_equal_scalar(&tensor, &zero)
+        Self::greater_equal_scalar(tensor, zero)
     }
 
     fn greater_equal_scalar<const D: usize>(
-        lhs: &NdArrayTensor<E, D>,
-        rhs: &E,
+        lhs: NdArrayTensor<E, D>,
+        rhs: E,
     ) -> NdArrayTensor<bool, D> {
-        let array = lhs.array.mapv(|a| a >= *rhs).into_shared();
+        let array = lhs.array.mapv(|a| a >= rhs).into_shared();
 
         NdArrayTensor { array }
     }
 
     fn lower<const D: usize>(
-        lhs: &NdArrayTensor<E, D>,
-        rhs: &NdArrayTensor<E, D>,
+        lhs: NdArrayTensor<E, D>,
+        rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
         let tensor = NdArrayBackend::<E>::sub(lhs, rhs);
         let zero = E::zeros(&E::default());
-        Self::lower_scalar(&tensor, &zero)
+        Self::lower_scalar(tensor, zero)
     }
 
-    fn lower_scalar<const D: usize>(lhs: &NdArrayTensor<E, D>, rhs: &E) -> NdArrayTensor<bool, D> {
-        let array = lhs.array.mapv(|a| a < *rhs).into_shared();
+    fn lower_scalar<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<bool, D> {
+        let array = lhs.array.mapv(|a| a < rhs).into_shared();
 
         NdArrayTensor { array }
     }
 
     fn lower_equal<const D: usize>(
-        lhs: &NdArrayTensor<E, D>,
-        rhs: &NdArrayTensor<E, D>,
+        lhs: NdArrayTensor<E, D>,
+        rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
         let tensor = NdArrayBackend::<E>::sub(lhs, rhs);
         let zero = E::zeros(&E::default());
-        Self::lower_equal_scalar(&tensor, &zero)
+        Self::lower_equal_scalar(tensor, zero)
     }
 
     fn lower_equal_scalar<const D: usize>(
-        lhs: &NdArrayTensor<E, D>,
-        rhs: &E,
+        lhs: NdArrayTensor<E, D>,
+        rhs: E,
     ) -> NdArrayTensor<bool, D> {
-        let array = lhs.array.mapv(|a| a <= *rhs).into_shared();
+        let array = lhs.array.mapv(|a| a <= rhs).into_shared();
 
         NdArrayTensor { array }
     }
 
-    fn detach<const D: usize>(tensor: &NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+    fn detach<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         tensor.clone()
     }
 
-    fn mean<const D: usize>(tensor: &NdArrayTensor<E, D>) -> NdArrayTensor<E, 1> {
+    fn mean<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, 1> {
         let data = Data::from([tensor.array.mean().unwrap()]);
         NdArrayTensor::from_data(data)
     }
 
-    fn sum<const D: usize>(tensor: &NdArrayTensor<E, D>) -> NdArrayTensor<E, 1> {
+    fn sum<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, 1> {
         let data = Data::from([tensor.array.sum()]);
         NdArrayTensor::from_data(data)
     }
 
-    fn mean_dim<const D: usize>(tensor: &NdArrayTensor<E, D>, dim: usize) -> NdArrayTensor<E, D> {
+    fn mean_dim<const D: usize>(tensor: NdArrayTensor<E, D>, dim: usize) -> NdArrayTensor<E, D> {
         match D {
             1 => keepdim!(0, dim, tensor, mean),
             2 => keepdim!(1, dim, tensor, mean),
@@ -436,7 +433,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         }
     }
 
-    fn sum_dim<const D: usize>(tensor: &NdArrayTensor<E, D>, dim: usize) -> NdArrayTensor<E, D> {
+    fn sum_dim<const D: usize>(tensor: NdArrayTensor<E, D>, dim: usize) -> NdArrayTensor<E, D> {
         match D {
             1 => keepdim!(0, dim, tensor, sum),
             2 => keepdim!(1, dim, tensor, sum),
@@ -448,23 +445,23 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         }
     }
 
-    fn to_full_precision<const D: usize>(tensor: &NdArrayTensor<E, D>) -> NdArrayTensor<f32, D> {
+    fn into_full_precision<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<f32, D> {
         let array = tensor.array.mapv(|a| a.to_elem()).into_shared();
 
         NdArrayTensor { array }
     }
 
-    fn from_full_precision<const D: usize>(tensor: &NdArrayTensor<f32, D>) -> NdArrayTensor<E, D> {
+    fn from_full_precision<const D: usize>(tensor: NdArrayTensor<f32, D>) -> NdArrayTensor<E, D> {
         let array = tensor.array.mapv(|a| a.to_elem()).into_shared();
 
         NdArrayTensor { array }
     }
 
-    fn argmax<const D: usize>(tensor: &NdArrayTensor<E, D>, dim: usize) -> NdArrayTensor<i64, D> {
+    fn argmax<const D: usize>(tensor: NdArrayTensor<E, D>, dim: usize) -> NdArrayTensor<i64, D> {
         arg(tensor, dim, cmp_min)
     }
 
-    fn argmin<const D: usize>(tensor: &NdArrayTensor<E, D>, dim: usize) -> NdArrayTensor<i64, D> {
+    fn argmin<const D: usize>(tensor: NdArrayTensor<E, D>, dim: usize) -> NdArrayTensor<i64, D> {
         arg(tensor, dim, cmp_max)
     }
 
@@ -546,9 +543,9 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
 
     fn relu<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let zero = 0.to_elem();
-        let mask = Self::lower_equal_scalar(&tensor, &zero);
+        let mask = Self::lower_equal_scalar(tensor.clone(), zero);
 
-        Self::mask_fill(&tensor, &mask, zero)
+        Self::mask_fill(tensor, mask, zero)
     }
 }
 
@@ -575,7 +572,7 @@ fn to_slice_args<const D1: usize, const D2: usize>(
 }
 
 fn mean_dim<E: NdArrayElement, const D1: usize, const D2: usize>(
-    tensor: &NdArrayTensor<E, D1>,
+    tensor: NdArrayTensor<E, D1>,
     dim: usize,
 ) -> NdArrayTensor<E, D2> {
     let array = tensor.array.mean_axis(Axis(dim)).unwrap().into_shared();
@@ -584,7 +581,7 @@ fn mean_dim<E: NdArrayElement, const D1: usize, const D2: usize>(
 }
 
 fn sum_dim<E: NdArrayElement, const D1: usize, const D2: usize>(
-    tensor: &NdArrayTensor<E, D1>,
+    tensor: NdArrayTensor<E, D1>,
     dim: usize,
 ) -> NdArrayTensor<E, D2> {
     let array = tensor.array.sum_axis(Axis(dim)).into_shared();
@@ -593,7 +590,7 @@ fn sum_dim<E: NdArrayElement, const D1: usize, const D2: usize>(
 }
 
 fn arg<E: NdArrayElement, F, const D: usize>(
-    tensor: &NdArrayTensor<E, D>,
+    tensor: NdArrayTensor<E, D>,
     dim: usize,
     cmp: F,
 ) -> NdArrayTensor<i64, D>
@@ -602,7 +599,7 @@ where
 {
     let batch_size = tensor.shape().dims[dim];
 
-    let mut data = NdArrayBackend::to_data::<D>(tensor);
+    let mut data = NdArrayBackend::into_data::<D>(tensor.clone());
     let mut start = 0;
     let mut end = tensor.shape().dims[dim];
     let mut output = Vec::new();

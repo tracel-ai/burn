@@ -11,7 +11,7 @@ mod tests {
         let tensor_1 = TestADTensor::from_data(data_1.clone());
         let tensor_2 = TestADTensor::from_data(data_2.clone());
 
-        let tensor_3 = tensor_1.mul(&tensor_2);
+        let tensor_3 = tensor_1.clone().mul(tensor_2.clone());
         let grads = tensor_3.backward();
 
         let grad_1 = tensor_1.grad(&grads).unwrap();
@@ -27,7 +27,7 @@ mod tests {
         let data = Data::from([2.0, 5.0]);
 
         let tensor = TestADTensor::from_data(data);
-        let tensor_out = tensor.mul_scalar(4.0);
+        let tensor_out = tensor.clone().mul_scalar(4.0);
 
         let grads = tensor_out.backward();
         let grad = tensor.grad(&grads).unwrap();
@@ -46,9 +46,9 @@ mod tests {
         let tensor_2 = TestADTensor::from_data(data_2);
         let tensor_3 = TestADTensor::from_data(data_3);
 
-        let tensor_4 = tensor_1.mul(&tensor_2);
-        let tensor_5 = tensor_4.mul(&tensor_3);
-        let tensor_6 = tensor_1.mul(&tensor_5);
+        let tensor_4 = tensor_1.clone().mul(tensor_2.clone());
+        let tensor_5 = tensor_4.mul(tensor_3);
+        let tensor_6 = tensor_1.clone().mul(tensor_5);
 
         let grads = tensor_6.backward();
 

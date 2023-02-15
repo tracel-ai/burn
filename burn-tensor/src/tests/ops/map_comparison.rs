@@ -32,7 +32,7 @@ mod tests {
         let tensor_1 = Tensor::<TestBackend, 2>::from_data(data_1);
         let tensor_2 = Tensor::<TestBackend, 2>::from_data(data_2);
 
-        let data_actual = tensor_1.greater(&tensor_2);
+        let data_actual = tensor_1.greater(tensor_2);
 
         let data_expected = Data::from([[false, false, true], [false, true, false]]);
         assert_eq!(data_expected, data_actual.to_data());
@@ -45,7 +45,7 @@ mod tests {
         let tensor_1 = Tensor::<TestBackend, 2>::from_data(data_1);
         let tensor_2 = Tensor::<TestBackend, 2>::from_data(data_2);
 
-        let data_actual = tensor_1.greater_equal(&tensor_2);
+        let data_actual = tensor_1.greater_equal(tensor_2);
 
         let data_expected = Data::from([[false, true, true], [false, true, false]]);
         assert_eq!(data_expected, data_actual.to_data());
@@ -80,7 +80,7 @@ mod tests {
         let tensor_1 = Tensor::<TestBackend, 2>::from_data(data_1);
         let tensor_2 = Tensor::<TestBackend, 2>::from_data(data_2);
 
-        let data_actual = tensor_1.lower(&tensor_2);
+        let data_actual = tensor_1.lower(tensor_2);
 
         let data_expected = Data::from([[true, false, false], [true, false, true]]);
         assert_eq!(data_expected, data_actual.to_data());
@@ -93,7 +93,7 @@ mod tests {
         let tensor_1 = Tensor::<TestBackend, 2>::from_data(data_1);
         let tensor_2 = Tensor::<TestBackend, 2>::from_data(data_2);
 
-        let data_actual = tensor_1.lower_equal(&tensor_2);
+        let data_actual = tensor_1.lower_equal(tensor_2);
 
         let data_expected = Data::from([[true, true, false], [true, false, true]]);
         assert_eq!(data_expected, data_actual.to_data());

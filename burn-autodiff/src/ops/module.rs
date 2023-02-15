@@ -23,51 +23,55 @@ impl<B: Backend> UnaryOps<B::TensorPrimitive<2>, B::TensorPrimitive<3>> for Embe
         &self,
         state: &UnaryOpsNodeState<B::TensorPrimitive<2>, B::TensorPrimitive<3>>,
     ) -> B::TensorPrimitive<2> {
-        B::embedding_backward(&state.input.value, &state.output.grad(), &self.indexes)
+        B::embedding_backward(
+            state.input.value.clone(),
+            state.output.grad(),
+            self.indexes.clone(),
+        )
     }
 }
 
 impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     fn embedding(
-        weights: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<2>,
-        indexes: &<<ADBackendDecorator<B> as Backend>::IntegerBackend as Backend>::TensorPrimitive<
+        weights: <ADBackendDecorator<B> as Backend>::TensorPrimitive<2>,
+        indexes: <<ADBackendDecorator<B> as Backend>::IntegerBackend as Backend>::TensorPrimitive<
             2,
         >,
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<3> {
         let input = weights.node.clone();
-        let output = B::embedding(weights.tensor_ref(), indexes);
+        let output = B::embedding(weights.tensor(), indexes.clone());
         let ops = EmbeddingBackward::<B>::new(indexes.clone());
 
         unary_ops_wrapper(input, output, ops)
     }
 
     fn embedding_backward(
-        weights: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<2>,
-        output: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<3>,
-        indexes: &<<ADBackendDecorator<B> as Backend>::IntegerBackend as Backend>::TensorPrimitive<
+        weights: <ADBackendDecorator<B> as Backend>::TensorPrimitive<2>,
+        output: <ADBackendDecorator<B> as Backend>::TensorPrimitive<3>,
+        indexes: <<ADBackendDecorator<B> as Backend>::IntegerBackend as Backend>::TensorPrimitive<
             2,
         >,
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<2> {
-        let tensor = B::embedding_backward(weights.tensor_ref(), output.tensor_ref(), indexes);
+        let tensor = B::embedding_backward(weights.tensor(), output.tensor(), indexes);
         ADTensor::from_tensor(tensor)
     }
 
     fn conv2d(
-        x: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
-        weight: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
-        bias: Option<&<ADBackendDecorator<B> as Backend>::TensorPrimitive<1>>,
+        x: <ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
+        weight: <ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
+        bias: Option<<ADBackendDecorator<B> as Backend>::TensorPrimitive<1>>,
         stride: [usize; 2],
         padding: [usize; 2],
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<4> {
         let out = B::conv2d(
-            x.tensor_ref(),
-            weight.tensor_ref(),
-            bias.map(|b| b.tensor_ref()),
+            x.tensor(),
+            weight.tensor(),
+            bias.clone().map(|b| b.tensor()),
             stride,
             padding,
         );
         let mut order = usize::max(weight.node.order, x.node.order);
-        if let Some(bias) = bias {
+        if let Some(bias) = &bias {
             order = usize::max(order, bias.node.order);
         }
 
@@ -85,21 +89,21 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         ADTensor { node }
     }
     fn conv1d(
-        x: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<3>,
-        weight: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<3>,
-        bias: Option<&<ADBackendDecorator<B> as Backend>::TensorPrimitive<1>>,
+        x: <ADBackendDecorator<B> as Backend>::TensorPrimitive<3>,
+        weight: <ADBackendDecorator<B> as Backend>::TensorPrimitive<3>,
+        bias: Option<<ADBackendDecorator<B> as Backend>::TensorPrimitive<1>>,
         stride: usize,
         padding: usize,
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<3> {
         let out = B::conv1d(
-            x.tensor_ref(),
-            weight.tensor_ref(),
-            bias.map(|b| b.tensor_ref()),
+            x.tensor(),
+            weight.tensor(),
+            bias.clone().map(|b| b.tensor()),
             stride,
             padding,
         );
         let mut order = usize::max(weight.node.order, x.node.order);
-        if let Some(bias) = bias {
+        if let Some(bias) = &bias {
             order = usize::max(order, bias.node.order);
         }
         order += 1;
@@ -119,12 +123,12 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn max_pool2d(
-        x: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
+        x: <ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<4> {
-        let output = B::max_pool2d_with_indexes(x.tensor_ref(), kernel_size, stride, padding);
+        let output = B::max_pool2d_with_indexes(x.tensor(), kernel_size, stride, padding);
         let order = x.node.order + 1;
 
         let ops = ForwardMaxPool::<B, 2, 4>::new(
@@ -143,12 +147,12 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn max_pool2d_with_indexes(
-        x: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
+        x: <ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
     ) -> MaxPool2dWithIndexes<ADBackendDecorator<B>> {
-        let output = B::max_pool2d_with_indexes(x.tensor_ref(), kernel_size, stride, padding);
+        let output = B::max_pool2d_with_indexes(x.tensor(), kernel_size, stride, padding);
         let order = x.node.order + 1;
 
         let ops = ForwardMaxPool::<B, 2, 4>::new(
@@ -167,21 +171,21 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn max_pool2d_with_indexes_backward(
-        x: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
+        x: <ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
-        output_grad: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
-        indexes: &<<ADBackendDecorator<B> as Backend>::IntegerBackend as Backend>::TensorPrimitive<
+        output_grad: <ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
+        indexes: <<ADBackendDecorator<B> as Backend>::IntegerBackend as Backend>::TensorPrimitive<
             4,
         >,
     ) -> MaxPool2dBackward<ADBackendDecorator<B>> {
         let tensor = B::max_pool2d_with_indexes_backward(
-            x.tensor_ref(),
+            x.tensor(),
             kernel_size,
             stride,
             padding,
-            output_grad.tensor_ref(),
+            output_grad.tensor(),
             indexes,
         );
 
@@ -228,11 +232,11 @@ impl<B: Backend> ForwardRecordedOps<B::TensorPrimitive<4>> for ForwardConv<B, 2,
 impl<B: Backend> BackwardRecordedOps<B::TensorPrimitive<4>> for BackwardConv<B, 2, 4> {
     fn backward_step(&self, state: &BackwardNodeState<B::TensorPrimitive<4>>) {
         let grads = B::conv2d_backward(
-            &self.x.state.value,
-            &self.weights.state.value,
-            self.bias.as_ref().map(|b| &b.state.value),
+            self.x.state.value.clone(),
+            self.weights.state.value.clone(),
+            self.bias.as_ref().map(|b| b.state.value.clone()),
             self.stride,
-            &state.grad.borrow(),
+            state.grad.borrow().clone(),
         );
 
         self.weights.state.update_grad(grads.weights_grad);
@@ -276,11 +280,11 @@ impl<B: Backend> ForwardRecordedOps<B::TensorPrimitive<3>> for ForwardConv<B, 1,
 impl<B: Backend> BackwardRecordedOps<B::TensorPrimitive<3>> for BackwardConv<B, 1, 3> {
     fn backward_step(&self, state: &BackwardNodeState<B::TensorPrimitive<3>>) {
         let grads = B::conv1d_backward(
-            &self.x.state.value,
-            &self.weights.state.value,
-            self.bias.as_ref().map(|b| &b.state.value),
+            self.x.state.value.clone(),
+            self.weights.state.value.clone(),
+            self.bias.as_ref().map(|b| b.state.value.clone()),
             self.stride[0],
-            &state.grad.borrow(),
+            state.grad.borrow().clone(),
         );
 
         self.weights.state.update_grad(grads.weights_grad);
@@ -339,12 +343,12 @@ impl<B: Backend> ForwardRecordedOps<B::TensorPrimitive<4>> for ForwardMaxPool<B,
 impl<B: Backend> BackwardRecordedOps<B::TensorPrimitive<4>> for BackwardMaxPool<B, 2, 4> {
     fn backward_step(&self, state: &BackwardNodeState<B::TensorPrimitive<4>>) {
         let grads = B::max_pool2d_with_indexes_backward(
-            &self.x.state.value,
+            self.x.state.value.clone(),
             self.kernel_size,
             self.stride,
             self.padding,
-            &state.grad.borrow(),
-            &self.indexes,
+            state.grad.borrow().clone(),
+            self.indexes.as_ref().clone(),
         );
 
         self.x.state.update_grad(grads.x_grad);

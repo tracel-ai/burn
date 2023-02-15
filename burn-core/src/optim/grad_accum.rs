@@ -52,7 +52,7 @@ impl<'a, B: ADBackend> ModuleVisitor<B> for ModuleGradsAccumulator<'a, B> {
     fn visit<const D: usize>(&mut self, id: &ParamId, _tensor: &Tensor<B, D>) {
         let grad_updated = match self.grads_new.get::<D>(id) {
             Some(new) => match self.grads.get::<D>(id) {
-                Some(grad) => grad.add(&new),
+                Some(grad) => grad.add(new),
                 None => new,
             },
             None => match self.grads.get::<D>(id) {

@@ -88,7 +88,7 @@ impl<B: Backend> TextClassificationModel<B> {
         let targets_flatten = item.targets.reshape([batch_size * seq_length]);
 
         let loss = CrossEntropyLoss::new(self.vocab_size, Some(self.pad_token));
-        let loss = loss.forward(&output_flatten, &targets_flatten);
+        let loss = loss.forward(output_flatten.clone(), targets_flatten.clone());
 
         ClassificationOutput {
             loss,

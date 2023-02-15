@@ -60,7 +60,6 @@ impl<B: Backend> TextClassificationModel<B> {
         let tokens = item.tokens.to_device(device).detach();
         let labels = item.labels.to_device(device).detach();
         let mask_pad = item.mask_pad.to_device(device);
-        std::mem::drop(item);
 
         let index_positions = Tensor::<B, 1>::arange_device(0..seq_length, device)
             .reshape([1, seq_length])
@@ -79,7 +78,7 @@ impl<B: Backend> TextClassificationModel<B> {
             .reshape([batch_size, self.n_classes]);
 
         let loss = CrossEntropyLoss::new(self.n_classes, None);
-        let loss = loss.forward(&output_classification, &labels);
+        let loss = loss.forward(output_classification.clone(), labels.clone());
 
         ClassificationOutput {
             loss,

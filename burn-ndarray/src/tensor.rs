@@ -11,7 +11,7 @@ impl<E: NdArrayElement, const D: usize> std::ops::Add for NdArrayTensor<E, D> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
-        NdArrayBackend::add(&self, &rhs)
+        NdArrayBackend::add(self, rhs)
     }
 }
 

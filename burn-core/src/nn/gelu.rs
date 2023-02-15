@@ -18,6 +18,6 @@ impl GELU {
     /// - input: `[..., any]`
     /// - output: `[..., any]`
     pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
-        crate::tensor::activation::gelu(&input)
+        crate::tensor::activation::gelu(input)
     }
 }

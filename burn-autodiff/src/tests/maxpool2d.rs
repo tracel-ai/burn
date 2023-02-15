@@ -28,7 +28,7 @@ mod tests {
         ]]]);
 
         let output = max_pool2d(
-            &x,
+            x.clone(),
             [kernel_size_1, kernel_size_2],
             [stride_1, stride_2],
             [padding_1, padding_2],
@@ -69,7 +69,7 @@ mod tests {
         ]]]);
 
         let output = max_pool2d(
-            &x,
+            x.clone(),
             [kernel_size_1, kernel_size_2],
             [stride_1, stride_2],
             [padding_1, padding_2],

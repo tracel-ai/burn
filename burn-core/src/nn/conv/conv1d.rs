@@ -106,9 +106,9 @@ impl<B: Backend> Conv1d<B> {
         };
 
         conv1d(
-            &input,
-            &self.weight,
-            self.bias.as_ref(),
+            input,
+            self.weight.val(),
+            self.bias.val(),
             self.stride,
             padding,
         )

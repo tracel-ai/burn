@@ -10,7 +10,7 @@ mod tests {
         ]]);
         let tensor = Tensor::<TestBackend, 2>::from_data(data).clone().clone();
 
-        let data_actual = activation::gelu(&tensor).to_data();
+        let data_actual = activation::gelu(tensor).to_data();
 
         let data_expected = Data::from([[
             0.3851, 0.8207, 0.2714, 0.0777, 0.6351, 0.2704, 0.1419, 0.3687, 0.4993, 0.5051,

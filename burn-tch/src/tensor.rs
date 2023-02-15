@@ -17,7 +17,7 @@ impl<E: TchElement, const D: usize> std::ops::Add for TchTensor<E, D> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
-        TchBackend::add(&self, &rhs)
+        TchBackend::add(self, rhs)
     }
 }
 

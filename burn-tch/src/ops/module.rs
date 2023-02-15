@@ -2,7 +2,7 @@ use crate::{element::TchElement, TchBackend, TchKind, TchTensor};
 use burn_tensor::ops::{MaxPool2dBackward, MaxPool2dWithIndexes, ModuleOps};
 
 impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
-    fn embedding(weights: &TchTensor<E, 2>, indexes: &TchTensor<i64, 2>) -> TchTensor<E, 3> {
+    fn embedding(weights: TchTensor<E, 2>, indexes: TchTensor<i64, 2>) -> TchTensor<E, 3> {
         let tensor = tch::Tensor::embedding(&weights.tensor, &indexes.tensor, -1, false, false);
 
         TchTensor {
@@ -12,9 +12,9 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
     }
 
     fn embedding_backward(
-        weights: &TchTensor<E, 2>,
-        output: &TchTensor<E, 3>,
-        indexes: &TchTensor<i64, 2>,
+        weights: TchTensor<E, 2>,
+        output: TchTensor<E, 3>,
+        indexes: TchTensor<i64, 2>,
     ) -> TchTensor<E, 2> {
         let [n_embedding, _d_model] = weights.shape().dims;
         let tensor = tch::Tensor::embedding_backward(
@@ -33,16 +33,16 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
     }
 
     fn conv1d(
-        x: &TchTensor<E, 3>,
-        weight: &TchTensor<E, 3>,
-        bias: Option<&TchTensor<E, 1>>,
+        x: TchTensor<E, 3>,
+        weight: TchTensor<E, 3>,
+        bias: Option<TchTensor<E, 1>>,
         stride: usize,
         padding: usize,
     ) -> TchTensor<E, 3> {
         let tensor = tch::Tensor::conv1d(
             &x.tensor,
             &weight.tensor,
-            bias.map(|t| &t.tensor),
+            bias.map(|t| t.tensor),
             &[stride as i64],
             &[padding as i64],
             &[1],
@@ -56,16 +56,16 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
     }
 
     fn conv2d(
-        x: &TchTensor<E, 4>,
-        weight: &TchTensor<E, 4>,
-        bias: Option<&TchTensor<E, 1>>,
+        x: TchTensor<E, 4>,
+        weight: TchTensor<E, 4>,
+        bias: Option<TchTensor<E, 1>>,
         stride: [usize; 2],
         padding: [usize; 2],
     ) -> TchTensor<E, 4> {
         let tensor = tch::Tensor::conv2d(
             &x.tensor,
             &weight.tensor,
-            bias.map(|t| &t.tensor),
+            bias.map(|t| t.tensor),
             &[stride[0] as i64, stride[1] as i64],
             &[padding[0] as i64, padding[1] as i64],
             &[1, 1],
@@ -79,7 +79,7 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
     }
 
     fn max_pool2d(
-        x: &TchTensor<E, 4>,
+        x: TchTensor<E, 4>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
@@ -100,7 +100,7 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
     }
 
     fn max_pool2d_with_indexes(
-        x: &TchTensor<E, 4>,
+        x: TchTensor<E, 4>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
@@ -126,12 +126,12 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
     }
 
     fn max_pool2d_with_indexes_backward(
-        x: &TchTensor<E, 4>,
+        x: TchTensor<E, 4>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
-        output_grad: &TchTensor<E, 4>,
-        indexes: &TchTensor<i64, 4>,
+        output_grad: TchTensor<E, 4>,
+        indexes: TchTensor<i64, 4>,
     ) -> MaxPool2dBackward<TchBackend<E>> {
         let grad = tch::Tensor::max_pool2d_with_indices_backward(
             &x.tensor,

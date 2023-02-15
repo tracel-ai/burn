@@ -115,15 +115,15 @@ impl<B: ADBackend> AdaptiveMomentum<B> {
         let moment_1 = match self.moment_1.get::<D>(id) {
             Some(moment_last_step) => moment_last_step
                 .mul_scalar(self.beta_1)
-                .add(&grad.mul_scalar(factor)),
-            None => grad.mul_scalar(factor),
+                .add(grad.clone().mul_scalar(factor)),
+            None => grad.clone().mul_scalar(factor),
         };
 
         let factor = 1.0 - self.beta_2;
         let moment_2 = match self.moment_2.get::<D>(id) {
             Some(moment_last_step) => moment_last_step
                 .mul_scalar(self.beta_2)
-                .add(&grad.powf(2.0).mul_scalar(factor)),
+                .add(grad.powf(2.0).mul_scalar(factor)),
             None => grad.powf(2.0).mul_scalar(factor),
         };
 
@@ -140,7 +140,7 @@ impl<B: ADBackend> AdaptiveMomentum<B> {
         let moment_1_corrected = moment_1.div_scalar(1f32 - self.beta_1.powf(time));
         let moment_2_corrected = moment_2.div_scalar(1f32 - self.beta_2.powf(time));
 
-        moment_1_corrected.div(&moment_2_corrected.sqrt().add_scalar(self.epsilon))
+        moment_1_corrected.div(moment_2_corrected.sqrt().add_scalar(self.epsilon))
     }
 
     pub fn register_state<const D: usize>(&self, id: &ParamId, state: &mut StateNamed<B::Elem>) {

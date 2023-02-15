@@ -30,8 +30,8 @@ impl<B: Backend> CrossEntropyLoss<B> {
     /// - targets: [batch_size]
     pub fn forward(
         &self,
-        logits: &Tensor<B, 2>,
-        targets: &Tensor<B::IntegerBackend, 1>,
+        logits: Tensor<B, 2>,
+        targets: Tensor<B::IntegerBackend, 1>,
     ) -> Tensor<B, 1> {
         let device = logits.device();
         let [batch_size] = targets.dims();
@@ -50,11 +50,11 @@ impl<B: Backend> CrossEntropyLoss<B> {
 
             targets_logits = targets_logits.index_assign(
                 [b..b + 1, index..index + 1],
-                &Tensor::ones_device([1, 1], &device),
+                Tensor::ones_device([1, 1], &device),
             );
         }
 
-        cross_entropy_with_logits(logits, &targets_logits.detach())
+        cross_entropy_with_logits(logits, targets_logits.detach())
     }
 }
 
@@ -82,8 +82,8 @@ mod tests {
             [0.0, 1.0, 0.0, 0.0, 0.0],
         ]));
 
-        let loss_1 = CrossEntropyLoss::new(5, None).forward(&logits, &targets);
-        let loss_2 = cross_entropy_with_logits(&logits, &targets_logits);
+        let loss_1 = CrossEntropyLoss::new(5, None).forward(logits.clone(), targets);
+        let loss_2 = cross_entropy_with_logits(logits, targets_logits);
 
         loss_1.into_data().assert_approx_eq(&loss_2.into_data(), 3);
     }
