@@ -683,73 +683,73 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn equal<const D: usize>(
-        lhs: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
-        rhs: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        lhs: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        rhs: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
     ) -> <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D> {
-        B::equal(lhs.tensor(), rhs.tensor())
+        B::equal(lhs.tensor_ref(), rhs.tensor_ref())
     }
 
     fn equal_scalar<const D: usize>(
-        lhs: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        lhs: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
         rhs: <ADBackendDecorator<B> as Backend>::Elem,
     ) -> <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D> {
-        B::equal_scalar(lhs.tensor(), rhs)
+        B::equal_scalar(lhs.tensor_ref(), rhs)
     }
 
     fn greater<const D: usize>(
-        lhs: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
-        rhs: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        lhs: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        rhs: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
     ) -> <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D> {
-        B::greater(lhs.tensor(), rhs.tensor())
+        B::greater(lhs.tensor_ref(), rhs.tensor_ref())
     }
 
     fn greater_scalar<const D: usize>(
-        lhs: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        lhs: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
         rhs: <ADBackendDecorator<B> as Backend>::Elem,
     ) -> <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D> {
-        B::greater_scalar(lhs.tensor(), rhs)
+        B::greater_scalar(lhs.tensor_ref(), rhs)
     }
 
     fn greater_equal<const D: usize>(
-        lhs: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
-        rhs: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        lhs: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        rhs: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
     ) -> <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D> {
-        B::greater_equal(lhs.tensor(), rhs.tensor())
+        B::greater_equal(lhs.tensor_ref(), rhs.tensor_ref())
     }
 
     fn greater_equal_scalar<const D: usize>(
-        lhs: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        lhs: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
         rhs: <ADBackendDecorator<B> as Backend>::Elem,
     ) -> <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D> {
-        B::greater_equal_scalar(lhs.tensor(), rhs)
+        B::greater_equal_scalar(lhs.tensor_ref(), rhs)
     }
 
     fn lower<const D: usize>(
-        lhs: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
-        rhs: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        lhs: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        rhs: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
     ) -> <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D> {
-        B::lower(lhs.tensor(), rhs.tensor())
+        B::lower(lhs.tensor_ref(), rhs.tensor_ref())
     }
 
     fn lower_scalar<const D: usize>(
-        lhs: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        lhs: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
         rhs: <ADBackendDecorator<B> as Backend>::Elem,
     ) -> <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D> {
-        B::lower_scalar(lhs.tensor(), rhs)
+        B::lower_scalar(lhs.tensor_ref(), rhs)
     }
 
     fn lower_equal<const D: usize>(
-        lhs: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
-        rhs: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        lhs: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        rhs: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
     ) -> <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D> {
-        B::lower_equal(lhs.tensor(), rhs.tensor())
+        B::lower_equal(lhs.tensor_ref(), rhs.tensor_ref())
     }
 
     fn lower_equal_scalar<const D: usize>(
-        lhs: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        lhs: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
         rhs: <ADBackendDecorator<B> as Backend>::Elem,
     ) -> <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D> {
-        B::lower_equal_scalar(lhs.tensor(), rhs)
+        B::lower_equal_scalar(lhs.tensor_ref(), rhs)
     }
 
     fn detach<const D: usize>(
@@ -892,8 +892,8 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         unary_ops_wrapper(tensor.node.clone(), output, ops)
     }
 
-    fn into_full_precision<const D: usize>(
-        tensor: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+    fn to_full_precision<const D: usize>(
+        tensor: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
     ) -> <<ADBackendDecorator<B> as Backend>::FullPrecisionBackend as Backend>::TensorPrimitive<D>
     {
         #[derive(Default, Debug)]
@@ -919,7 +919,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        let output = B::into_full_precision(tensor.tensor());
+        let output = B::to_full_precision(tensor.tensor_ref());
         let ops = Backward::<B, D>::default();
 
         unary_ops_wrapper_explicit::<B, B::FullPrecisionBackend, Backward<B, D>, D, D>(
@@ -951,7 +951,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 >,
             ) -> <B::FullPrecisionBackend as Backend>::TensorPrimitive<D> {
                 let grad = state.output.grad();
-                B::into_full_precision(grad)
+                B::to_full_precision(&grad)
             }
         }
 
@@ -1320,7 +1320,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
             ) -> B::TensorPrimitive<D> {
                 let zero = 0.to_elem();
-                let mask = B::lower_equal_scalar(state.output.value(), zero);
+                let mask = B::lower_equal_scalar(&state.output.value(), zero);
                 B::mask_fill(state.output.grad(), mask, zero)
             }
         }

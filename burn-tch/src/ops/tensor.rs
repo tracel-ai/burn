@@ -272,7 +272,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         to_tensor(tensor)
     }
 
-    fn equal<const D: usize>(lhs: TchTensor<E, D>, rhs: TchTensor<E, D>) -> TchTensor<bool, D> {
+    fn equal<const D: usize>(lhs: &TchTensor<E, D>, rhs: &TchTensor<E, D>) -> TchTensor<bool, D> {
         let tensor = lhs.tensor.eq_tensor(&rhs.tensor);
 
         TchTensor {
@@ -281,7 +281,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         }
     }
 
-    fn equal_scalar<const D: usize>(lhs: TchTensor<E, D>, rhs: E) -> TchTensor<bool, D> {
+    fn equal_scalar<const D: usize>(lhs: &TchTensor<E, D>, rhs: E) -> TchTensor<bool, D> {
         let other: f64 = (rhs).to_elem();
         let tensor = lhs.tensor.eq(other);
 
@@ -291,7 +291,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         }
     }
 
-    fn greater<const D: usize>(lhs: TchTensor<E, D>, rhs: TchTensor<E, D>) -> TchTensor<bool, D> {
+    fn greater<const D: usize>(lhs: &TchTensor<E, D>, rhs: &TchTensor<E, D>) -> TchTensor<bool, D> {
         let tensor = lhs.tensor.greater_tensor(&rhs.tensor);
 
         TchTensor {
@@ -300,7 +300,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         }
     }
 
-    fn greater_scalar<const D: usize>(lhs: TchTensor<E, D>, rhs: E) -> TchTensor<bool, D> {
+    fn greater_scalar<const D: usize>(lhs: &TchTensor<E, D>, rhs: E) -> TchTensor<bool, D> {
         let other: f64 = rhs.to_elem();
         let tensor = lhs.tensor.greater(other);
 
@@ -311,8 +311,8 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     }
 
     fn greater_equal<const D: usize>(
-        lhs: TchTensor<E, D>,
-        rhs: TchTensor<E, D>,
+        lhs: &TchTensor<E, D>,
+        rhs: &TchTensor<E, D>,
     ) -> TchTensor<bool, D> {
         let tensor = lhs.tensor.greater_equal_tensor(&rhs.tensor);
 
@@ -322,7 +322,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         }
     }
 
-    fn greater_equal_scalar<const D: usize>(lhs: TchTensor<E, D>, rhs: E) -> TchTensor<bool, D> {
+    fn greater_equal_scalar<const D: usize>(lhs: &TchTensor<E, D>, rhs: E) -> TchTensor<bool, D> {
         let other: f64 = rhs.to_elem();
         let tensor = lhs.tensor.greater_equal(other);
 
@@ -332,7 +332,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         }
     }
 
-    fn lower<const D: usize>(lhs: TchTensor<E, D>, rhs: TchTensor<E, D>) -> TchTensor<bool, D> {
+    fn lower<const D: usize>(lhs: &TchTensor<E, D>, rhs: &TchTensor<E, D>) -> TchTensor<bool, D> {
         let tensor = lhs.tensor.less_tensor(&rhs.tensor);
 
         TchTensor {
@@ -341,7 +341,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         }
     }
 
-    fn lower_scalar<const D: usize>(lhs: TchTensor<E, D>, rhs: E) -> TchTensor<bool, D> {
+    fn lower_scalar<const D: usize>(lhs: &TchTensor<E, D>, rhs: E) -> TchTensor<bool, D> {
         let other: f64 = rhs.to_elem();
         let tensor = lhs.tensor.less(other);
 
@@ -352,8 +352,8 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     }
 
     fn lower_equal<const D: usize>(
-        lhs: TchTensor<E, D>,
-        rhs: TchTensor<E, D>,
+        lhs: &TchTensor<E, D>,
+        rhs: &TchTensor<E, D>,
     ) -> TchTensor<bool, D> {
         let tensor = lhs.tensor.less_equal_tensor(&rhs.tensor);
 
@@ -363,7 +363,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         }
     }
 
-    fn lower_equal_scalar<const D: usize>(lhs: TchTensor<E, D>, rhs: E) -> TchTensor<bool, D> {
+    fn lower_equal_scalar<const D: usize>(lhs: &TchTensor<E, D>, rhs: E) -> TchTensor<bool, D> {
         let other: f64 = rhs.to_elem();
         let tensor = lhs.tensor.less_equal(other);
 
@@ -403,7 +403,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         to_tensor(tensor)
     }
 
-    fn into_full_precision<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<f32, D> {
+    fn to_full_precision<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<f32, D> {
         let tensor = tensor.tensor.to_kind(TchKind::<f32>::new().kind());
         to_tensor(tensor)
     }

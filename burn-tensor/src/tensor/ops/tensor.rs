@@ -149,43 +149,43 @@ pub trait TensorOps<B: Backend> {
         value: B::Elem,
     ) -> B::TensorPrimitive<D>;
     fn equal<const D: usize>(
-        lhs: B::TensorPrimitive<D>,
-        rhs: B::TensorPrimitive<D>,
+        lhs: &B::TensorPrimitive<D>,
+        rhs: &B::TensorPrimitive<D>,
     ) -> B::BoolTensorPrimitive<D>;
     fn equal_scalar<const D: usize>(
-        lhs: B::TensorPrimitive<D>,
+        lhs: &B::TensorPrimitive<D>,
         rhs: B::Elem,
     ) -> B::BoolTensorPrimitive<D>;
     fn greater<const D: usize>(
-        lhs: B::TensorPrimitive<D>,
-        rhs: B::TensorPrimitive<D>,
+        lhs: &B::TensorPrimitive<D>,
+        rhs: &B::TensorPrimitive<D>,
     ) -> B::BoolTensorPrimitive<D>;
     fn greater_scalar<const D: usize>(
-        lhs: B::TensorPrimitive<D>,
+        lhs: &B::TensorPrimitive<D>,
         rhs: B::Elem,
     ) -> B::BoolTensorPrimitive<D>;
     fn greater_equal<const D: usize>(
-        lhs: B::TensorPrimitive<D>,
-        rhs: B::TensorPrimitive<D>,
+        lhs: &B::TensorPrimitive<D>,
+        rhs: &B::TensorPrimitive<D>,
     ) -> B::BoolTensorPrimitive<D>;
     fn greater_equal_scalar<const D: usize>(
-        lhs: B::TensorPrimitive<D>,
+        lhs: &B::TensorPrimitive<D>,
         rhs: B::Elem,
     ) -> B::BoolTensorPrimitive<D>;
     fn lower<const D: usize>(
-        lhs: B::TensorPrimitive<D>,
-        rhs: B::TensorPrimitive<D>,
+        lhs: &B::TensorPrimitive<D>,
+        rhs: &B::TensorPrimitive<D>,
     ) -> B::BoolTensorPrimitive<D>;
     fn lower_scalar<const D: usize>(
-        lhs: B::TensorPrimitive<D>,
+        lhs: &B::TensorPrimitive<D>,
         rhs: B::Elem,
     ) -> B::BoolTensorPrimitive<D>;
     fn lower_equal<const D: usize>(
-        lhs: B::TensorPrimitive<D>,
-        rhs: B::TensorPrimitive<D>,
+        lhs: &B::TensorPrimitive<D>,
+        rhs: &B::TensorPrimitive<D>,
     ) -> B::BoolTensorPrimitive<D>;
     fn lower_equal_scalar<const D: usize>(
-        lhs: B::TensorPrimitive<D>,
+        lhs: &B::TensorPrimitive<D>,
         rhs: B::Elem,
     ) -> B::BoolTensorPrimitive<D>;
     fn detach<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D>;
@@ -194,8 +194,8 @@ pub trait TensorOps<B: Backend> {
     fn mean_dim<const D: usize>(tensor: B::TensorPrimitive<D>, dim: usize)
         -> B::TensorPrimitive<D>;
     fn sum_dim<const D: usize>(tensor: B::TensorPrimitive<D>, dim: usize) -> B::TensorPrimitive<D>;
-    fn into_full_precision<const D: usize>(
-        tensor: B::TensorPrimitive<D>,
+    fn to_full_precision<const D: usize>(
+        tensor: &B::TensorPrimitive<D>,
     ) -> <B::FullPrecisionBackend as Backend>::TensorPrimitive<D>;
     fn from_full_precision<const D: usize>(
         tensor: <B::FullPrecisionBackend as Backend>::TensorPrimitive<D>,
