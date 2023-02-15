@@ -423,49 +423,49 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         to_tensor(tensor)
     }
 
-    fn exp<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
+    fn exp<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
         to_tensor(tensor.tensor.exp())
     }
 
-    fn log<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
+    fn log<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
         to_tensor(tensor.tensor.log())
     }
 
-    fn log1p<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
+    fn log1p<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
         to_tensor(tensor.tensor.log1p())
     }
 
-    fn powf<const D: usize>(tensor: &TchTensor<E, D>, value: f32) -> TchTensor<E, D> {
+    fn powf<const D: usize>(tensor: TchTensor<E, D>, value: f32) -> TchTensor<E, D> {
         to_tensor(tensor.tensor.pow_tensor_scalar(value as f64))
     }
 
-    fn sqrt<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
+    fn sqrt<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
         to_tensor(tensor.tensor.sqrt())
     }
 
-    fn cos<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
+    fn cos<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
         to_tensor(tensor.tensor.cos())
     }
 
-    fn sin<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
+    fn sin<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
         to_tensor(tensor.tensor.sin())
     }
 
-    fn tanh<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
+    fn tanh<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
         to_tensor(tensor.tensor.tanh())
     }
 
-    fn erf<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
+    fn erf<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
         to_tensor(tensor.tensor.erf())
     }
 
-    fn cat<const D: usize>(tensors: &[TchTensor<E, D>], dim: usize) -> TchTensor<E, D> {
-        let tensors: Vec<tch::Tensor> = tensors.iter().map(|t| t.tensor.shallow_clone()).collect();
+    fn cat<const D: usize>(tensors: Vec<TchTensor<E, D>>, dim: usize) -> TchTensor<E, D> {
+        let tensors: Vec<tch::Tensor> = tensors.into_iter().map(|t| t.tensor).collect();
         let tensor = tch::Tensor::cat(&tensors, dim as i64);
         to_tensor(tensor)
     }
 
-    fn relu<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
+    fn relu<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
         to_tensor(tensor.tensor.relu())
     }
 }

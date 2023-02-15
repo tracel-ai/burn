@@ -75,56 +75,56 @@ where
     /// Applies element wise exponential operation.
     ///
     /// `y = e^x`
-    pub fn exp(&self) -> Self {
-        Self::new(B::exp(&self.value))
+    pub fn exp(self) -> Self {
+        Self::new(B::exp(self.value))
     }
 
     /// Applies element wise natural log operation *ln*.
     ///
     /// `y = log(x)`
-    pub fn log(&self) -> Self {
-        Self::new(B::log(&self.value))
+    pub fn log(self) -> Self {
+        Self::new(B::log(self.value))
     }
 
     /// Applies the natural logarithm of one plus the input tensor, element-wise.
     ///
     /// `y = log(x+1)`
-    pub fn log1p(&self) -> Self {
-        Self::new(B::log1p(&self.value))
+    pub fn log1p(self) -> Self {
+        Self::new(B::log1p(self.value))
     }
 
     /// Applies the [error function](https://en.wikipedia.org/wiki/Error_function) element wise.
     ///
     /// `y = erf(x)`
-    pub fn erf(&self) -> Self {
-        Self::new(B::erf(&self.value))
+    pub fn erf(self) -> Self {
+        Self::new(B::erf(self.value))
     }
 
     /// Applies element wise power operation.
     ///
     /// `y = x^a`
-    pub fn powf(&self, value: f32) -> Self {
-        Self::new(B::powf(&self.value, value))
+    pub fn powf(self, value: f32) -> Self {
+        Self::new(B::powf(self.value, value))
     }
 
     /// Applies element wise root square operation.
-    pub fn sqrt(&self) -> Self {
-        Self::new(B::sqrt(&self.value))
+    pub fn sqrt(self) -> Self {
+        Self::new(B::sqrt(self.value))
     }
 
     /// Applies element wise cosine operation.
-    pub fn cos(&self) -> Self {
-        Self::new(B::cos(&self.value))
+    pub fn cos(self) -> Self {
+        Self::new(B::cos(self.value))
     }
 
     /// Applies element wise sine operation.
-    pub fn sin(&self) -> Self {
-        Self::new(B::sin(&self.value))
+    pub fn sin(self) -> Self {
+        Self::new(B::sin(self.value))
     }
 
     /// Applies element wise hyperbolic tangent operation.
-    pub fn tanh(&self) -> Self {
-        Self::new(B::tanh(&self.value))
+    pub fn tanh(self) -> Self {
+        Self::new(B::tanh(self.value))
     }
 
     /// Returns the shape of the current tensor.
@@ -571,10 +571,7 @@ where
     ///
     /// If all tensors don't have the same shape.
     pub fn cat(tensors: Vec<Self>, dim: usize) -> Self {
-        Self::new(B::cat(
-            &tensors.into_iter().map(|t| t.value).collect::<Vec<_>>(),
-            dim,
-        ))
+        Self::new(B::cat(tensors.into_iter().map(|t| t.value).collect(), dim))
     }
 
     /// Detach the current tensor from the autodiff graph.
@@ -628,8 +625,8 @@ where
         Self::new(B::repeat(&self.value, dim, times))
     }
 
-    pub(crate) fn relu(&self) -> Self {
-        Self::new(B::relu(&self.value))
+    pub(crate) fn relu(self) -> Self {
+        Self::new(B::relu(self.value))
     }
 }
 

@@ -468,73 +468,73 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         arg(tensor, dim, cmp_max)
     }
 
-    fn exp<const D: usize>(tensor: &NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
-        let array = tensor.array.mapv(|a| a.exp_elem()).into_shared();
+    fn exp<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+        let array = tensor.array.mapv_into(|a| a.exp_elem()).into_shared();
 
         NdArrayTensor { array }
     }
 
-    fn log<const D: usize>(tensor: &NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
-        let array = tensor.array.mapv(|a| a.log_elem()).into_shared();
+    fn log<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+        let array = tensor.array.mapv_into(|a| a.log_elem()).into_shared();
 
         NdArrayTensor { array }
     }
 
-    fn log1p<const D: usize>(tensor: &NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
-        let array = tensor.array.mapv(|a| a.log1p_elem()).into_shared();
+    fn log1p<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+        let array = tensor.array.mapv_into(|a| a.log1p_elem()).into_shared();
 
         NdArrayTensor { array }
     }
 
-    fn powf<const D: usize>(tensor: &NdArrayTensor<E, D>, value: f32) -> NdArrayTensor<E, D> {
-        let array = tensor.array.mapv(|a| a.pow_elem(value)).into_shared();
+    fn powf<const D: usize>(tensor: NdArrayTensor<E, D>, value: f32) -> NdArrayTensor<E, D> {
+        let array = tensor.array.mapv_into(|a| a.pow_elem(value)).into_shared();
 
         NdArrayTensor { array }
     }
 
-    fn sqrt<const D: usize>(tensor: &NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
-        let array = tensor.array.mapv(|a| a.sqrt_elem()).into_shared();
+    fn sqrt<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+        let array = tensor.array.mapv_into(|a| a.sqrt_elem()).into_shared();
 
         NdArrayTensor { array }
     }
 
-    fn cos<const D: usize>(tensor: &NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+    fn cos<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor
             .array
-            .mapv(|a| a.to_f64().unwrap().cos().to_elem())
+            .mapv_into(|a| a.to_f64().unwrap().cos().to_elem())
             .into_shared();
 
         NdArrayTensor { array }
     }
 
-    fn sin<const D: usize>(tensor: &NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+    fn sin<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor
             .array
-            .mapv(|a| a.to_f64().unwrap().sin().to_elem())
+            .mapv_into(|a| a.to_f64().unwrap().sin().to_elem())
             .into_shared();
 
         NdArrayTensor { array }
     }
 
-    fn tanh<const D: usize>(tensor: &NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+    fn tanh<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor
             .array
-            .mapv(|a| a.to_f64().unwrap().tanh().to_elem())
+            .mapv_into(|a| a.to_f64().unwrap().tanh().to_elem())
             .into_shared();
 
         NdArrayTensor { array }
     }
 
-    fn erf<const D: usize>(tensor: &NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+    fn erf<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor
             .array
-            .mapv(|a| libm::erf(a.to_f64().unwrap()).to_elem())
+            .mapv_into(|a| libm::erf(a.to_f64().unwrap()).to_elem())
             .into_shared();
 
         NdArrayTensor { array }
     }
 
-    fn cat<const D: usize>(tensors: &[NdArrayTensor<E, D>], dim: usize) -> NdArrayTensor<E, D> {
+    fn cat<const D: usize>(tensors: Vec<NdArrayTensor<E, D>>, dim: usize) -> NdArrayTensor<E, D> {
         let arrays: Vec<ndarray::ArrayView<E, IxDyn>> =
             tensors.iter().map(|t| t.array.view()).collect();
         let array = ndarray::concatenate(Axis(dim), &arrays)
@@ -544,11 +544,11 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         NdArrayTensor { array }
     }
 
-    fn relu<const D: usize>(tensor: &NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+    fn relu<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let zero = 0.to_elem();
-        let mask = Self::lower_equal_scalar(tensor, &zero);
+        let mask = Self::lower_equal_scalar(&tensor, &zero);
 
-        Self::mask_fill(tensor, &mask, zero)
+        Self::mask_fill(&tensor, &mask, zero)
     }
 }
 

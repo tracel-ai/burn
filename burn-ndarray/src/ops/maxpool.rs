@@ -33,16 +33,16 @@ pub(crate) fn max_pool2d_with_indexes_naive<E: NdArrayElement>(
             batch.push(matrix);
             batch_indexes.push(indexes);
         }
-        let batch = NdArrayBackend::cat(&batch, 1);
-        let batch_indexes = NdArrayBackend::cat(&batch_indexes, 1);
+        let batch = NdArrayBackend::cat(batch, 1);
+        let batch_indexes = NdArrayBackend::cat(batch_indexes, 1);
 
         batches.push(batch);
         batches_indexes.push(batch_indexes);
     }
 
     (
-        NdArrayBackend::cat(&batches, 0),
-        NdArrayBackend::cat(&batches_indexes, 0),
+        NdArrayBackend::cat(batches, 0),
+        NdArrayBackend::cat(batches_indexes, 0),
     )
 }
 

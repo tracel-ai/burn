@@ -980,7 +980,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn exp<const D: usize>(
-        tensor: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        tensor: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
         #[derive(Default, Debug)]
         struct Backward<B: Backend, const D: usize> {
@@ -998,14 +998,14 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        let output = B::exp(tensor.tensor_ref());
+        let output = B::exp(tensor.tensor());
         let ops = Backward::<B, D>::default();
 
         unary_ops_wrapper(tensor.node.clone(), output, ops)
     }
 
     fn log<const D: usize>(
-        tensor: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        tensor: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
         #[derive(Default, Debug)]
         struct Backward<B: Backend, const D: usize> {
@@ -1025,14 +1025,14 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        let output = B::log(tensor.tensor_ref());
+        let output = B::log(tensor.tensor());
         let ops = Backward::<B, D>::default();
 
         unary_ops_wrapper(tensor.node.clone(), output, ops)
     }
 
     fn log1p<const D: usize>(
-        tensor: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        tensor: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
         #[derive(Default, Debug)]
         struct Backward<B: Backend, const D: usize> {
@@ -1052,14 +1052,14 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        let output = B::log(tensor.tensor_ref());
+        let output = B::log(tensor.tensor());
         let ops = Backward::<B, D>::default();
 
         unary_ops_wrapper(tensor.node.clone(), output, ops)
     }
 
     fn powf<const D: usize>(
-        tensor: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        tensor: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
         value: f32,
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
         #[derive(new, Debug)]
@@ -1076,21 +1076,21 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
             ) -> B::TensorPrimitive<D> {
                 let value = B::mul_scalar(
-                    &B::powf(&state.input.value(), self.value - 1.0),
+                    &B::powf(state.input.value(), self.value - 1.0),
                     &self.value.clone().to_elem(),
                 );
                 B::mul(&state.output.grad(), &value)
             }
         }
 
-        let output = B::powf(tensor.tensor_ref(), value);
+        let output = B::powf(tensor.tensor(), value);
         let ops = Backward::<B, D>::new(value, B::default());
 
         unary_ops_wrapper(tensor.node.clone(), output, ops)
     }
 
     fn sqrt<const D: usize>(
-        tensor: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        tensor: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
         #[derive(new, Debug)]
         struct Backward<B: Backend, const D: usize> {
@@ -1104,19 +1104,19 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 &self,
                 state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
             ) -> B::TensorPrimitive<D> {
-                let value = B::div_scalar(&B::powf(&state.input.value(), -0.5), &2.to_elem());
+                let value = B::div_scalar(&B::powf(state.input.value(), -0.5), &2.to_elem());
                 B::mul(&state.output.grad(), &value)
             }
         }
 
-        let output = B::sqrt(tensor.tensor_ref());
+        let output = B::sqrt(tensor.tensor());
         let ops = Backward::<B, D>::new(B::default());
 
         unary_ops_wrapper(tensor.node.clone(), output, ops)
     }
 
     fn cos<const D: usize>(
-        tensor: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        tensor: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
         #[derive(new, Debug)]
         struct Backward<B: Backend, const D: usize> {
@@ -1130,19 +1130,19 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 &self,
                 state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
             ) -> B::TensorPrimitive<D> {
-                let value = B::neg(&B::sin(&state.input.value()));
+                let value = B::neg(&B::sin(state.input.value()));
                 B::mul(&state.output.grad(), &value)
             }
         }
 
-        let output = B::cos(tensor.tensor_ref());
+        let output = B::cos(tensor.tensor());
         let ops = Backward::<B, D>::new(B::default());
 
         unary_ops_wrapper(tensor.node.clone(), output, ops)
     }
 
     fn sin<const D: usize>(
-        tensor: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        tensor: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
         #[derive(new, Debug)]
         struct Backward<B: Backend, const D: usize> {
@@ -1156,19 +1156,19 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 &self,
                 state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
             ) -> B::TensorPrimitive<D> {
-                let value = B::cos(&state.input.value());
+                let value = B::cos(state.input.value());
                 B::mul(&state.output.grad(), &value)
             }
         }
 
-        let output = B::sin(tensor.tensor_ref());
+        let output = B::sin(tensor.tensor());
         let ops = Backward::<B, D>::new(B::default());
 
         unary_ops_wrapper(tensor.node.clone(), output, ops)
     }
 
     fn tanh<const D: usize>(
-        tensor: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        tensor: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
         #[derive(new, Debug)]
         struct Backward<B: Backend, const D: usize> {
@@ -1183,19 +1183,19 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
             ) -> B::TensorPrimitive<D> {
                 let value =
-                    B::add_scalar(&B::neg(&B::powf(&state.output.value(), 2.0)), &1.to_elem());
+                    B::add_scalar(&B::neg(&B::powf(state.output.value(), 2.0)), &1.to_elem());
                 B::mul(&state.output.grad(), &value)
             }
         }
 
-        let output = B::tanh(tensor.tensor_ref());
+        let output = B::tanh(tensor.tensor());
         let ops = Backward::<B, D>::new(B::default());
 
         unary_ops_wrapper(tensor.node.clone(), output, ops)
     }
 
     fn erf<const D: usize>(
-        tensor: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        tensor: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
         #[derive(Default, Debug)]
         struct Backward<B: Backend, const D: usize> {
@@ -1210,8 +1210,8 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 state: &UnaryOpsNodeState<B::TensorPrimitive<D>, B::TensorPrimitive<D>>,
             ) -> B::TensorPrimitive<D> {
                 let value = state.input.value();
-                let exponent = B::neg(&B::powf(&value, 2.0));
-                let numerator = B::mul_scalar(&B::exp(&exponent), &2.0.to_elem());
+                let exponent = B::neg(&B::powf(value, 2.0));
+                let numerator = B::mul_scalar(&B::exp(exponent), &2.0.to_elem());
                 let denominator = std::f64::consts::PI.sqrt().to_elem();
                 let value = B::div_scalar(&numerator, &denominator);
 
@@ -1219,14 +1219,14 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        let output = B::erf(tensor.tensor_ref());
+        let output = B::erf(tensor.tensor());
         let ops = Backward::<B, D>::default();
 
         unary_ops_wrapper(tensor.node.clone(), output, ops)
     }
 
     fn cat<const D: usize>(
-        tensors: &[<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>],
+        tensors: Vec<<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>>,
         dim: usize,
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
         #[derive(new, Debug)]
@@ -1292,7 +1292,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let tensors_inner: Vec<B::TensorPrimitive<D>> =
             tensors.iter().map(|a| a.tensor()).collect();
 
-        let out = B::cat(&tensors_inner, dim);
+        let out = B::cat(tensors_inner, dim);
 
         let state = crate::graph::node::ForwardNodeState::new(out);
 
@@ -1306,7 +1306,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn relu<const D: usize>(
-        tensor: &<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        tensor: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
         #[derive(Default, Debug)]
         struct Backward<B: Backend, const D: usize> {
@@ -1326,7 +1326,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        let output = B::relu(tensor.tensor_ref());
+        let output = B::relu(tensor.tensor());
         let ops = Backward::<B, D>::default();
 
         unary_ops_wrapper(tensor.node.clone(), output, ops)

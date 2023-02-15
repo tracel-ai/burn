@@ -23,7 +23,7 @@ pub(crate) fn conv2d_naive<E: NdArrayElement>(
         ));
     }
 
-    NdArrayBackend::cat(&results, 0)
+    NdArrayBackend::cat(results, 0)
 }
 
 pub(crate) fn conv2d_naive_no_batch_size<E: NdArrayElement>(
@@ -54,13 +54,13 @@ pub(crate) fn conv2d_naive_no_batch_size<E: NdArrayElement>(
 
             matrices.push(matrix);
         }
-        let matrices = NdArrayBackend::cat(&matrices, 1);
+        let matrices = NdArrayBackend::cat(matrices, 1);
         let matrices = NdArrayBackend::sum_dim(&matrices, 1);
 
         results.push(matrices);
     }
 
-    let mut result = NdArrayBackend::cat(&results, 1);
+    let mut result = NdArrayBackend::cat(results, 1);
 
     if let Some(bias) = bias {
         let [size] = bias.shape().dims;

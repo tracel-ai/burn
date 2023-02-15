@@ -3,7 +3,7 @@ use crate::Tensor;
 use crate::{ElementPrecision, Precision};
 
 /// Applies the rectified linear unit function.
-pub fn relu<const D: usize, B: Backend>(tensor: &Tensor<B, D>) -> Tensor<B, D> {
+pub fn relu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
     tensor.relu()
 }
 
@@ -27,7 +27,7 @@ pub fn log_softmax<const D: usize, B: Backend>(tensor: &Tensor<B, D>, dim: usize
             let tensor_tmp = tensor_full.exp().sum_dim(dim).log();
             Tensor::from_full_precision(tensor_tmp)
         }
-        _ => tensor.exp().sum_dim(dim).log(),
+        _ => tensor.clone().exp().sum_dim(dim).log(),
     };
 
     tensor.sub(&tensor_tmp)

@@ -12,7 +12,7 @@ mod tests {
         let tensor_2 = TestADTensor::from_data(data_2);
 
         let tensor_3 = tensor_1.matmul(&tensor_2);
-        let tensor_4 = activation::relu(&tensor_3);
+        let tensor_4 = activation::relu(tensor_3);
         let tensor_5 = tensor_4.matmul(&tensor_2);
         let grads = tensor_5.backward();
 
