@@ -59,6 +59,7 @@ where
     /// Applies element wise multiplication operation.
     ///
     /// `y = x2 * x1`
+    #[allow(clippy::should_implement_trait)]
     pub fn mul(self, rhs: Self) -> Self {
         Self::from_tensor(self.tensor.mul(rhs.tensor))
     }

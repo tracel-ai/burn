@@ -223,6 +223,7 @@ where
     /// Applies element wise addition operation.
     ///
     /// `y = x2 + x1`
+    #[allow(clippy::should_implement_trait)]
     pub fn add(self, other: Self) -> Self {
         Self::new(B::add(self.value, other.value))
     }
@@ -237,6 +238,7 @@ where
     /// Applies element wise substraction operation.
     ///
     /// `y = x2 - x1`
+    #[allow(clippy::should_implement_trait)]
     pub fn sub(self, other: Self) -> Self {
         Self::new(B::sub(self.value, other.value))
     }
@@ -282,6 +284,7 @@ where
     /// Switch sign of each element in the tensor.
     ///
     /// `y = -x`
+    #[allow(clippy::should_implement_trait)]
     pub fn neg(self) -> Self {
         Self::new(B::neg(self.value))
     }
@@ -289,6 +292,7 @@ where
     /// Applies element wise multiplication operation.
     ///
     /// `y = x2 * x1`
+    #[allow(clippy::should_implement_trait)]
     pub fn mul(self, other: Self) -> Self {
         Self::new(B::mul(self.value, other.value))
     }
@@ -303,6 +307,7 @@ where
     /// Applies element wise division operation.
     ///
     /// `y = x2 / x1`
+    #[allow(clippy::should_implement_trait)]
     pub fn div(self, other: Self) -> Self {
         Self::new(B::div(self.value, other.value))
     }
