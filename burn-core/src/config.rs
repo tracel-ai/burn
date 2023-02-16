@@ -36,8 +36,9 @@ pub trait Config: serde::Serialize + serde::de::DeserializeOwned {
     }
 
     fn load_binary(&self, data: &[u8]) -> Result<Self, ConfigError> {
-        let content = std::str::from_utf8(data)
-            .map_err(|_| ConfigError::InvalidFormat("Could not parse data as utf-8.".to_string()))?;
+        let content = std::str::from_utf8(data).map_err(|_| {
+            ConfigError::InvalidFormat("Could not parse data as utf-8.".to_string())
+        })?;
         config_from_str(content)
     }
 }
