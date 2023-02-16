@@ -197,7 +197,7 @@ mod tests {
 
         let state = model_1.state();
         let mut binary = Vec::new();
-        let writer = GzEncoder::new(&mut binary, Compression::default());     
+        let writer = GzEncoder::new(&mut binary, Compression::default());
         serde_json::to_writer(writer, &state).unwrap();
 
         // Load.
