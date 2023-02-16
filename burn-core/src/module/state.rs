@@ -128,6 +128,13 @@ where
 
         Ok(state)
     }
+
+    pub fn load_binary(data: &[u8]) -> Result<Self, StateError> {
+        let reader = GzDecoder::new(data);
+        let state = serde_json::from_reader(reader).unwrap();
+
+        Ok(state)
+    }
 }
 
 #[cfg(test)]
