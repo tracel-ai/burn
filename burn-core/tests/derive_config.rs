@@ -1,4 +1,4 @@
-use burn::config::Config;
+use burn::config::{config_to_json, Config};
 use burn_core as burn;
 
 #[derive(Config, Debug, PartialEq, Eq)]
@@ -89,4 +89,14 @@ fn enum_config_should_impl_clone() {
 fn enum_config_should_impl_display() {
     let config = TestEnumConfig::Multiple(42.0, "Allo".to_string());
     assert_eq!(burn::config::config_to_json(&config), config.to_string());
+}
+
+#[test]
+fn struct_config_can_load_binary() {
+    let config = TestStructConfig::new(2, 3.0, "Allo".to_string(), TestEmptyStructConfig::new());
+
+    let binary = config_to_json(&config).as_bytes().to_vec();
+
+    let config_loaded = TestStructConfig::load_binary(&binary).unwrap();
+    assert_eq!(config, config_loaded);
 }

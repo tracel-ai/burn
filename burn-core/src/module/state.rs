@@ -128,6 +128,13 @@ where
 
         Ok(state)
     }
+
+    pub fn load_binary(data: &[u8]) -> Result<Self, StateError> {
+        let reader = GzDecoder::new(data);
+        let state = serde_json::from_reader(reader).unwrap();
+
+        Ok(state)
+    }
 }
 
 #[cfg(test)]
@@ -174,6 +181,31 @@ mod tests {
         let state = model_1.state();
         model_2.load(&state).unwrap();
         let params_after_2 = list_param_ids(&model_2);
+
+        assert_ne!(params_before_1, params_before_2);
+        assert_eq!(params_before_1, params_after_2);
+    }
+
+    #[test]
+    fn test_load_binary() {
+        let model_1 = create_model();
+        let mut model_2 = create_model();
+        let params_before_1 = list_param_ids(&model_1);
+        let params_before_2 = list_param_ids(&model_2);
+
+        // Write to binary.
+
+        let state = model_1.state();
+        let mut binary = Vec::new();
+        let writer = GzEncoder::new(&mut binary, Compression::default());
+        serde_json::to_writer(writer, &state).unwrap();
+
+        // Load.
+
+        model_2.load(&State::load_binary(&binary).unwrap()).unwrap();
+        let params_after_2 = list_param_ids(&model_2);
+
+        // Verify.
 
         assert_ne!(params_before_1, params_before_2);
         assert_eq!(params_before_1, params_after_2);
