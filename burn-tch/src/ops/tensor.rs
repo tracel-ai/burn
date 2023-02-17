@@ -227,7 +227,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
             lhs,
             rhs,
             |lhs, rhs| lhs.f_mul_(rhs).unwrap(),
-            |lhs, rhs| rhs.f_mul(lhs).unwrap(),
+            |lhs, rhs| lhs.f_mul(rhs).unwrap(),
             |lhs, rhs| lhs.f_mul(rhs).unwrap(),
         );
         to_tensor(tensor)
@@ -510,39 +510,42 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     }
 
     fn exp<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
-        to_tensor(tensor.tensor.exp())
+        to_tensor(tensor.unary_ops(|mut tensor| tensor.exp_(), |tensor| tensor.exp()))
     }
 
     fn log<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
-        to_tensor(tensor.tensor.log())
+        to_tensor(tensor.unary_ops(|mut tensor| tensor.log_(), |tensor| tensor.log()))
     }
 
     fn log1p<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
-        to_tensor(tensor.tensor.log1p())
+        to_tensor(tensor.unary_ops(|mut tensor| tensor.log1p_(), |tensor| tensor.log1p()))
     }
 
     fn powf<const D: usize>(tensor: TchTensor<E, D>, value: f32) -> TchTensor<E, D> {
-        to_tensor(tensor.tensor.pow_tensor_scalar(value as f64))
+        to_tensor(tensor.unary_ops(
+            |mut tensor| tensor.f_pow_(value as f64).unwrap(),
+            |tensor| tensor.pow_tensor_scalar(value as f64),
+        ))
     }
 
     fn sqrt<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
-        to_tensor(tensor.tensor.sqrt())
+        to_tensor(tensor.unary_ops(|mut tensor| tensor.sqrt_(), |tensor| tensor.sqrt()))
     }
 
     fn cos<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
-        to_tensor(tensor.tensor.cos())
+        to_tensor(tensor.unary_ops(|mut tensor| tensor.cos_(), |tensor| tensor.cos()))
     }
 
     fn sin<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
-        to_tensor(tensor.tensor.sin())
+        to_tensor(tensor.unary_ops(|mut tensor| tensor.sin_(), |tensor| tensor.sin()))
     }
 
     fn tanh<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
-        to_tensor(tensor.tensor.tanh())
+        to_tensor(tensor.unary_ops(|mut tensor| tensor.tanh_(), |tensor| tensor.tanh()))
     }
 
     fn erf<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
-        to_tensor(tensor.tensor.erf())
+        to_tensor(tensor.unary_ops(|mut tensor| tensor.erf_(), |tensor| tensor.erf()))
     }
 
     fn cat<const D: usize>(tensors: Vec<TchTensor<E, D>>, dim: usize) -> TchTensor<E, D> {
@@ -555,7 +558,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     }
 
     fn relu<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
-        to_tensor(tensor.tensor.relu())
+        to_tensor(tensor.unary_ops(|mut tensor| tensor.relu_(), |tensor| tensor.relu()))
     }
 }
 

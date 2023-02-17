@@ -28,10 +28,14 @@ impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
     }
 }
 
+// This is safe since we don't use autodiff from LibTorch.
+// Also, atommic reference counting is used to know if the tensor's data can be reused.
+// If there are multiple reference on the same tensor, it becomes read only.
 unsafe impl<P: tch::kind::Element, const D: usize> Send for TchTensor<P, D> {}
 unsafe impl<P: tch::kind::Element, const D: usize> Sync for TchTensor<P, D> {}
 
 impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
+    // Execute an operation on a tensor if the data can be reused.
     pub fn mut_ops<F: Fn(&mut tch::Tensor) -> O, O>(&mut self, func: F) -> Option<O> {
         let output = match Arc::get_mut(&mut self.tensor) {
             Some(tensor) => func(tensor),
