@@ -499,12 +499,12 @@ where
     ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Shape};
+    /// use burn_tensor::Tensor;
     ///
     /// fn example<B: Backend>() {
-    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 3]));
-    ///     let values = Tensor::<B, 3>::zeros(Shape::new([1, 1, 1]));
-    ///     let tensor_indexed = tensor.index_assign([0..1, 0..1, 0..1], &values);
+    ///     let tensor = Tensor::<B, 3>::ones([2, 3, 3]);
+    ///     let values = Tensor::<B, 3>::zeros([1, 1, 1]);
+    ///     let tensor_indexed = tensor.index_assign([0..1, 0..1, 0..1], values);
     ///     println!("{:?}", tensor_indexed.shape());
     ///     // Shape { dims: [2, 3, 3] }
     /// }
