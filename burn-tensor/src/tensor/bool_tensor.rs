@@ -19,8 +19,8 @@ where
         B::bool_shape(&self.value)
     }
 
-    pub fn to_device(&self, device: &B::Device) -> Self {
-        Self::new(B::bool_to_device(&self.value, device))
+    pub fn to_device(self, device: &B::Device) -> Self {
+        Self::new(B::bool_to_device(self.value, device))
     }
 
     /// Returns the dimensions of the current tensor.
@@ -43,9 +43,8 @@ where
         Self::new(value)
     }
 
-    pub fn to_int(&self) -> Tensor<B::IntegerBackend, D> {
-        let data = B::bool_to_data(&self.value);
-        Tensor::from_data(data.convert())
+    pub fn into_int(self) -> Tensor<B::IntegerBackend, D> {
+        Tensor::from_primitive(B::bool_into_int(self.value))
     }
 
     pub fn from_int_backend(tensor: BoolTensor<B::IntegerBackend, D>) -> Self {
@@ -57,11 +56,11 @@ where
     /// # Panics
     ///
     /// If the tensor can not be reshape to the given shape.
-    pub fn reshape<const D2: usize, S: Into<Shape<D2>>>(&self, shape: S) -> BoolTensor<B, D2> {
-        BoolTensor::new(B::bool_reshape(&self.value, shape.into()))
+    pub fn reshape<const D2: usize, S: Into<Shape<D2>>>(self, shape: S) -> BoolTensor<B, D2> {
+        BoolTensor::new(B::bool_reshape(self.value, shape.into()))
     }
 
-    pub fn index<const D2: usize>(&self, indexes: [std::ops::Range<usize>; D2]) -> Self {
-        Self::new(B::bool_index(&self.value, indexes))
+    pub fn index<const D2: usize>(self, indexes: [std::ops::Range<usize>; D2]) -> Self {
+        Self::new(B::bool_index(self.value, indexes))
     }
 }

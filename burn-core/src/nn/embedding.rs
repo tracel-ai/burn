@@ -46,6 +46,6 @@ impl<B: Backend> Embedding<B> {
     /// - input: [batch_size, seq_length]
     /// - output: [batch_size, d_model]
     pub fn forward(&self, input: Tensor<B::IntegerBackend, 2>) -> Tensor<B, 3> {
-        burn_tensor::module::embedding(&self.weight, &input)
+        burn_tensor::module::embedding(self.weight.val(), input)
     }
 }

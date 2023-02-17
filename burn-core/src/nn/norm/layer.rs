@@ -46,13 +46,13 @@ impl<B: Backend> LayerNorm<B> {
     /// - input: `[..., any, d_model]`
     /// - output: `[..., any, d_model]`
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
-        let (var, mean) = input.var_mean_bias(D - 1);
+        let (var, mean) = input.clone().var_mean_bias(D - 1);
 
-        let input_normalized = input.sub(&mean).div(&var.sqrt().add_scalar(self.epsilon));
+        let input_normalized = input.sub(mean).div(var.sqrt().add_scalar(self.epsilon));
 
         input_normalized
-            .mul(&self.gamma.unsqueeze())
-            .add(&self.beta.unsqueeze())
+            .mul(self.gamma.val().unsqueeze())
+            .add(self.beta.val().unsqueeze())
     }
 }
 
@@ -87,7 +87,7 @@ mod tests {
         let tensor_1 = Tensor::<TestADBackend, 2>::from_data(Data::from([[0.0, 1.0], [3.0, 4.0]]));
         let tensor_2 = Tensor::<TestADBackend, 2>::from_data(Data::from([[6.0, 7.0], [9.0, 10.0]]));
 
-        let x = tensor_1.matmul(&tensor_2);
+        let x = tensor_1.clone().matmul(tensor_2.clone());
 
         let output = module.forward(x);
         let grads = output.backward();

@@ -173,9 +173,9 @@ mod tests {
             let bias = TestTensor::ones([self.channels_out]);
             let x = TestTensor::ones([self.batch_size, self.channels_in, self.height, self.width]);
             let output = conv2d(
-                &x,
-                &weights,
-                Some(&bias),
+                x,
+                weights,
+                Some(bias),
                 [self.stride_1, self.stride_2],
                 [self.padding_1, self.padding_2],
             );

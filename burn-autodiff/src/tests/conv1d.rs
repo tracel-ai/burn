@@ -136,7 +136,13 @@ mod tests {
                 TestADTensor::ones([self.channels_out, self.channels_in, self.kernel_size]);
             let bias = TestADTensor::ones([self.channels_out]);
             let x = TestADTensor::ones([self.batch_size, self.channels_in, self.length]);
-            let output = conv1d(&x, &weight, Some(&bias), self.stride, self.padding);
+            let output = conv1d(
+                x.clone(),
+                weight.clone(),
+                Some(bias.clone()),
+                self.stride,
+                self.padding,
+            );
             let grads = output.backward();
 
             // Assert

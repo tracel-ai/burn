@@ -17,7 +17,7 @@ impl<const D: usize, B: Backend> Module for Param<Tensor<B, D>> {
     }
 
     fn to_device(&mut self, device: &B::Device) {
-        self.value = self.value.to_device(device);
+        self.value = self.value.clone().to_device(device);
     }
 
     fn state(&self) -> State<B::Elem> {
@@ -74,7 +74,7 @@ impl<const D: usize, B: Backend> Module for Param<Option<Tensor<B, D>>> {
 
     fn to_device(&mut self, device: &B::Device) {
         if let Some(value) = &self.value {
-            self.value = Some(value.to_device(device));
+            self.value = Some(value.clone().to_device(device));
         }
     }
 

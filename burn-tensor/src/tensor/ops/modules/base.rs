@@ -32,13 +32,13 @@ pub struct Conv1dBackward<B: Backend> {
 
 pub trait ModuleOps<B: Backend> {
     fn embedding(
-        weights: &B::TensorPrimitive<2>,
-        indexes: &<B::IntegerBackend as Backend>::TensorPrimitive<2>,
+        weights: B::TensorPrimitive<2>,
+        indexes: <B::IntegerBackend as Backend>::TensorPrimitive<2>,
     ) -> B::TensorPrimitive<3>;
     fn embedding_backward(
-        weights: &B::TensorPrimitive<2>,
-        output: &B::TensorPrimitive<3>,
-        indexes: &<B::IntegerBackend as Backend>::TensorPrimitive<2>,
+        weights: B::TensorPrimitive<2>,
+        output: B::TensorPrimitive<3>,
+        indexes: <B::IntegerBackend as Backend>::TensorPrimitive<2>,
     ) -> B::TensorPrimitive<2>;
     /// Two dimensional convolution.
     ///
@@ -48,19 +48,19 @@ pub trait ModuleOps<B: Backend> {
     /// weight: [channels_out, channels_in, kernel_size_1, kernel_size_2],
     /// bias:   [channels_out],
     fn conv2d(
-        x: &B::TensorPrimitive<4>,
-        weight: &B::TensorPrimitive<4>,
-        bias: Option<&B::TensorPrimitive<1>>,
+        x: B::TensorPrimitive<4>,
+        weight: B::TensorPrimitive<4>,
+        bias: Option<B::TensorPrimitive<1>>,
         stride: [usize; 2],
         padding: [usize; 2],
     ) -> B::TensorPrimitive<4>;
     /// Backward pass for the [conv2d](ModuleOps::conv2d) operation.
     fn conv2d_backward(
-        x: &B::TensorPrimitive<4>,
-        weight: &B::TensorPrimitive<4>,
-        bias: Option<&B::TensorPrimitive<1>>,
+        x: B::TensorPrimitive<4>,
+        weight: B::TensorPrimitive<4>,
+        bias: Option<B::TensorPrimitive<1>>,
         stride: [usize; 2],
-        output_grad: &B::TensorPrimitive<4>,
+        output_grad: B::TensorPrimitive<4>,
     ) -> Conv2dBackward<B> {
         conv::conv2d_backward(x, weight, bias, stride, output_grad)
     }
@@ -72,9 +72,9 @@ pub trait ModuleOps<B: Backend> {
     /// weight: [channels_out, channels_in, kernel_size],
     /// bias:   [channels_out],
     fn conv1d(
-        x: &B::TensorPrimitive<3>,
-        weight: &B::TensorPrimitive<3>,
-        bias: Option<&B::TensorPrimitive<1>>,
+        x: B::TensorPrimitive<3>,
+        weight: B::TensorPrimitive<3>,
+        bias: Option<B::TensorPrimitive<1>>,
         stride: usize,
         padding: usize,
     ) -> B::TensorPrimitive<3> {
@@ -82,11 +82,11 @@ pub trait ModuleOps<B: Backend> {
     }
     /// Backward pass for the [conv1d](ModuleOps::conv1d) operation.
     fn conv1d_backward(
-        x: &B::TensorPrimitive<3>,
-        weight: &B::TensorPrimitive<3>,
-        bias: Option<&B::TensorPrimitive<1>>,
+        x: B::TensorPrimitive<3>,
+        weight: B::TensorPrimitive<3>,
+        bias: Option<B::TensorPrimitive<1>>,
         stride: usize,
-        output_grad: &B::TensorPrimitive<3>,
+        output_grad: B::TensorPrimitive<3>,
     ) -> Conv1dBackward<B> {
         conv::conv1d_backward(x, weight, bias, stride, output_grad)
     }
@@ -96,7 +96,7 @@ pub trait ModuleOps<B: Backend> {
     ///
     /// x: [batch_size, channels, height, width],
     fn max_pool2d(
-        x: &B::TensorPrimitive<4>,
+        x: B::TensorPrimitive<4>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
@@ -107,18 +107,18 @@ pub trait ModuleOps<B: Backend> {
     ///
     /// x: [batch_size, channels, height, width],
     fn max_pool2d_with_indexes(
-        x: &B::TensorPrimitive<4>,
+        x: B::TensorPrimitive<4>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
     ) -> MaxPool2dWithIndexes<B>;
     /// Backward pass for the [max pooling 2d](ModuleOps::max_pool2d_with_indexes) operation.
     fn max_pool2d_with_indexes_backward(
-        x: &B::TensorPrimitive<4>,
+        x: B::TensorPrimitive<4>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
-        output_grad: &B::TensorPrimitive<4>,
-        indexes: &<B::IntegerBackend as Backend>::TensorPrimitive<4>,
+        output_grad: B::TensorPrimitive<4>,
+        indexes: <B::IntegerBackend as Backend>::TensorPrimitive<4>,
     ) -> MaxPool2dBackward<B>;
 }

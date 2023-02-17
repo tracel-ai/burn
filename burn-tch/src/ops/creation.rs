@@ -1,26 +1,20 @@
-use crate::TchTensor;
+use crate::{to_tensor, TchTensor};
 use burn_tensor::ops::*;
 
-impl<P, const D: usize> Zeros for TchTensor<P, D>
+impl<E, const D: usize> Zeros for TchTensor<E, D>
 where
-    P: tch::kind::Element,
+    E: tch::kind::Element + Default,
 {
-    fn zeros(&self) -> TchTensor<P, D> {
-        let tensor = self.tensor.zeros_like();
-        let kind = self.kind.clone();
-
-        Self { kind, tensor }
+    fn zeros(&self) -> TchTensor<E, D> {
+        to_tensor(self.tensor.zeros_like())
     }
 }
 
-impl<P, const D: usize> Ones for TchTensor<P, D>
+impl<E, const D: usize> Ones for TchTensor<E, D>
 where
-    P: tch::kind::Element,
+    E: tch::kind::Element + Default,
 {
-    fn ones(&self) -> TchTensor<P, D> {
-        let tensor = self.tensor.ones_like();
-        let kind = self.kind.clone();
-
-        Self { kind, tensor }
+    fn ones(&self) -> TchTensor<E, D> {
+        to_tensor(self.tensor.ones_like())
     }
 }

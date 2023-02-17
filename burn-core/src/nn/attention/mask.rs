@@ -12,7 +12,7 @@ pub fn generate_autoregressive_mask<B: Backend>(
 
     for i in 0..seq_length {
         let values = Tensor::<B::IntegerBackend, 3>::ones([1, 1, seq_length - (i + 1)]);
-        mask = mask.index_assign([0..1, i..i + 1, i + 1..seq_length], &values);
+        mask = mask.index_assign([0..1, i..i + 1, i + 1..seq_length], values);
     }
 
     mask = mask.to_device(device).repeat(0, batch_size);
@@ -64,15 +64,15 @@ pub fn generate_padding_mask<B: Backend>(
 
         tensor = tensor.index_assign(
             [index..index + 1, 0..tokens.len()],
-            &Tensor::from_data(Data::new(
+            Tensor::from_data(Data::new(
                 tokens.into_iter().map(|e| e as i64).collect(),
                 Shape::new([1, seq_length]),
             )),
         );
     }
 
-    let mask =
-        BoolTensor::from_int_backend(tensor.equal_scalar(pad_token as i64)).to_device(device);
+    let mask = BoolTensor::from_int_backend(tensor.clone().equal_scalar(pad_token as i64))
+        .to_device(device);
     let tensor = tensor.to_device(device);
 
     GeneratePaddingMask { tensor, mask }

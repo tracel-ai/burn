@@ -13,7 +13,7 @@ pub trait NamedDims<B: Backend>: std::fmt::Debug {
 #[macro_export]
 macro_rules! NamedDim {
     ($name:ident) => {
-        #[derive(Debug)]
+        #[derive(Debug, Clone)]
         pub struct $name;
         impl Dim for $name {
             fn to_string() -> String {

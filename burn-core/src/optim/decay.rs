@@ -34,7 +34,7 @@ impl<B: ADBackend> WeightDecay<B> {
         grad: Tensor<B::InnerBackend, D>,
     ) -> Tensor<B::InnerBackend, D> {
         let grad = match self.gradients.get::<D>(id) {
-            Some(grad_last_step) => grad_last_step.mul_scalar(self.penalty).add(&grad),
+            Some(grad_last_step) => grad_last_step.mul_scalar(self.penalty).add(grad),
             None => grad,
         };
 

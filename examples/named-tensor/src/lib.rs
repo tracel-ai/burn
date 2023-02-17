@@ -27,7 +27,7 @@ pub fn run<B: Backend>() {
     //   found reference `&NamedTensor<B, (Batch, SeqLenght, DModel)>`
     // let output = weights.matmul(&input);
 
-    let output = input.matmul(&weights);
+    let output = input.clone().matmul(weights.clone());
 
     // Doesn't compile
     //
@@ -36,9 +36,9 @@ pub fn run<B: Backend>() {
     //   found reference `&NamedTensor<B, (Batch, DModel, DModel)>`
     // let output = output.mul(&weights);
 
-    let output = output.mul(&input);
+    let output = output.mul(input.clone());
 
-    let permut = output.swap_dims::<_, 1, 2>();
+    let permut = output.clone().swap_dims::<_, 1, 2>();
 
     println!("Weights => {weights}");
     println!("Input   => {input}");

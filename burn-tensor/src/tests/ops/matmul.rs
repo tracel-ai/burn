@@ -10,7 +10,7 @@ mod tests {
         let tensor_1 = Tensor::<TestBackend, 2>::from_data(data_1);
         let tensor_2 = Tensor::<TestBackend, 2>::from_data(data_2);
 
-        let tensor_3 = tensor_1.matmul(&tensor_2);
+        let tensor_3 = tensor_1.matmul(tensor_2);
 
         assert_eq!(
             tensor_3.into_data(),
@@ -25,7 +25,7 @@ mod tests {
         let tensor_1 = Tensor::<TestBackend, 3>::from_data(data_1);
         let tensor_2 = Tensor::<TestBackend, 3>::from_data(data_2);
 
-        let tensor_3 = tensor_1.matmul(&tensor_2);
+        let tensor_3 = tensor_1.matmul(tensor_2);
 
         assert_eq!(
             tensor_3.into_data(),

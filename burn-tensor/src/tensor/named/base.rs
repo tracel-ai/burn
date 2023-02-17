@@ -59,8 +59,9 @@ where
     /// Applies element wise multiplication operation.
     ///
     /// `y = x2 * x1`
-    pub fn mul(&self, rhs: &Self) -> Self {
-        Self::from_tensor(self.tensor.mul(&rhs.tensor))
+    #[allow(clippy::should_implement_trait)]
+    pub fn mul(self, rhs: Self) -> Self {
+        Self::from_tensor(self.tensor.mul(rhs.tensor))
     }
 
     /// Reshape the tensor to have the given shape.
@@ -68,7 +69,7 @@ where
     /// # Panics
     ///
     /// If the tensor can not be reshape to the given shape.
-    pub fn reshape<const D2: usize, S, ND2>(&self, shape: S, _: ND2) -> NamedTensor<B, ND2>
+    pub fn reshape<const D2: usize, S, ND2>(self, shape: S, _: ND2) -> NamedTensor<B, ND2>
     where
         S: Into<Shape<D2>>,
         ND2: NamedDims<B, Tensor = Tensor<B, D2>>,

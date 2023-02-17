@@ -1,6 +1,25 @@
-use crate::{element::TchElement, TchBackend, TchDevice, TchKind, TchShape, TchTensor};
+use crate::{element::TchElement, to_tensor, TchBackend, TchDevice, TchKind, TchShape, TchTensor};
 use burn_tensor::{backend::Backend, ops::TensorOps, Data, Distribution, ElementConversion, Shape};
-use std::ops::{Add, Div, Mul, Range, Sub};
+use std::{ops::Range, sync::Arc};
+
+macro_rules! run_scalar {
+    (
+        $scalar:ident,
+        $item:stmt
+
+    ) => {
+        match $scalar.is_int() {
+            true => {
+                let $scalar: i64 = $scalar.to_elem();
+                $item
+            }
+            false => {
+                let $scalar: f64 = $scalar.to_elem();
+                $item
+            }
+        }
+    };
+}
 
 impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     fn from_data<const D: usize>(data: Data<E, D>, device: &TchDevice) -> TchTensor<E, D> {
@@ -22,24 +41,26 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         match distribution {
             Distribution::Standard => {
                 let mut tensor = TchTensor::<E, D>::empty(shape, *device);
-                tensor.tensor = tensor.tensor.normal_(0.0, 1.0);
+                let _ = tensor.mut_ops(|tensor| tensor.normal_(0.0, 1.0)).unwrap();
                 tensor
             }
             Distribution::Bernoulli(prob) => {
                 let mut tensor = TchTensor::<E, D>::empty(shape, *device);
-                tensor.tensor = tensor.tensor.f_bernoulli_float_(prob).unwrap();
+                let _ = tensor
+                    .mut_ops(|tensor| tensor.f_bernoulli_float_(prob).unwrap())
+                    .unwrap();
                 tensor
             }
             Distribution::Uniform(from, to) => {
                 let mut tensor = TchTensor::<E, D>::empty(shape, *device);
-                tensor.tensor = tensor
-                    .tensor
-                    .uniform_(from.to_f64().unwrap(), to.to_f64().unwrap());
+                let _ = tensor
+                    .mut_ops(|tensor| tensor.uniform_(from.to_f64().unwrap(), to.to_f64().unwrap()))
+                    .unwrap();
                 tensor
             }
             Distribution::Normal(mean, std) => {
                 let mut tensor = TchTensor::<E, D>::empty(shape, *device);
-                tensor.tensor = tensor.tensor.normal_(mean, std);
+                let _ = tensor.mut_ops(|tensor| tensor.normal_(mean, std)).unwrap();
                 tensor
             }
         }
@@ -47,13 +68,13 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
 
     fn zeros<const D: usize>(shape: Shape<D>, device: &TchDevice) -> TchTensor<E, D> {
         let mut tensor = TchTensor::<E, D>::empty(shape, *device);
-        tensor.tensor = tensor.tensor.zero_();
+        let _ = tensor.mut_ops(|tensor| tensor.zero_());
         tensor
     }
 
     fn ones<const D: usize>(shape: Shape<D>, device: &TchDevice) -> TchTensor<E, D> {
         let mut tensor = TchTensor::<E, D>::empty(shape, *device);
-        tensor.tensor = tensor.tensor.ones_like();
+        tensor.tensor = Arc::new(tensor.tensor.ones_like());
         tensor
     }
 
@@ -72,7 +93,10 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         tensor: <TchBackend<E> as Backend>::TensorPrimitive<D>,
     ) -> Data<<TchBackend<E> as Backend>::Elem, D> {
         let shape = tensor.shape();
-        let values: Vec<E> = tensor.tensor.into();
+        let values: Vec<E> = match Arc::try_unwrap(tensor.tensor) {
+            Ok(tensor) => tensor.into(),
+            Err(tensor) => tensor.shallow_clone().into(),
+        };
         Data::new(values, shape)
     }
 
@@ -93,29 +117,35 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         tensor: <TchBackend<E> as Backend>::BoolTensorPrimitive<D>,
     ) -> Data<bool, D> {
         let shape = tensor.shape();
-        let values: Vec<bool> = tensor.tensor.into();
+        let values: Vec<bool> = tensor.unary_ops(
+            |tensor| tensor.into(),
+            |tensor| tensor.shallow_clone().into(),
+        );
         Data::new(values, shape)
     }
 
     fn bool_to_device<const D: usize>(
-        tensor: &TchTensor<bool, D>,
+        tensor: TchTensor<bool, D>,
         device: &TchDevice,
     ) -> TchTensor<bool, D> {
         TchTensor {
             kind: tensor.kind,
-            tensor: tensor.tensor.to((*device).into()),
+            tensor: Arc::new(tensor.tensor.to((*device).into())),
         }
     }
 
     fn bool_reshape<const D1: usize, const D2: usize>(
-        tensor: &TchTensor<bool, D1>,
+        tensor: TchTensor<bool, D1>,
         shape: Shape<D2>,
     ) -> TchTensor<bool, D2> {
         let shape_tch: TchShape<D2> = shape.into();
-        let tensor = tensor.tensor.reshape(&shape_tch.dims);
+        let tensor = tensor.unary_ops(
+            |mut tensor| tensor.resize_(&shape_tch.dims),
+            |tensor| tensor.reshape(&shape_tch.dims),
+        );
 
         TchTensor {
-            tensor,
+            tensor: Arc::new(tensor),
             kind: TchKind::new(),
         }
     }
@@ -124,10 +154,10 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         tensor.tensor.device().into()
     }
 
-    fn to_device<const D: usize>(tensor: &TchTensor<E, D>, device: &TchDevice) -> TchTensor<E, D> {
+    fn to_device<const D: usize>(tensor: TchTensor<E, D>, device: &TchDevice) -> TchTensor<E, D> {
         TchTensor {
             kind: tensor.kind,
-            tensor: tensor.tensor.to((*device).into()),
+            tensor: Arc::new(tensor.tensor.to((*device).into())),
         }
     }
 
@@ -144,66 +174,112 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         to_tensor(tensor)
     }
 
-    fn add<const D: usize>(lhs: &TchTensor<E, D>, rhs: &TchTensor<E, D>) -> TchTensor<E, D> {
-        let tensor = (&lhs.tensor).add(&rhs.tensor);
+    fn add<const D: usize>(lhs: TchTensor<E, D>, rhs: TchTensor<E, D>) -> TchTensor<E, D> {
+        let tensor = TchTensor::binary_ops_tensor(
+            lhs,
+            rhs,
+            |lhs, rhs| lhs.f_add_(rhs).unwrap(),
+            |lhs, rhs| rhs.f_add_(lhs).unwrap(),
+            |lhs, rhs| lhs.f_add(rhs).unwrap(),
+        );
 
         to_tensor(tensor)
     }
 
-    fn add_scalar<const D: usize>(lhs: &TchTensor<E, D>, rhs: &E) -> TchTensor<E, D> {
-        let other: f64 = (rhs.clone()).to_elem();
-        let tensor = (&lhs.tensor).add(other).to_kind(lhs.kind.kind());
+    fn add_scalar<const D: usize>(lhs: TchTensor<E, D>, rhs: E) -> TchTensor<E, D> {
+        let tensor = run_scalar!(
+            rhs,
+            lhs.unary_ops(
+                |mut tensor| tensor.f_add_scalar_(rhs).unwrap(),
+                |tensor| tensor.f_add_scalar(rhs).unwrap(),
+            )
+        );
 
         to_tensor(tensor)
     }
 
-    fn sub<const D: usize>(lhs: &TchTensor<E, D>, rhs: &TchTensor<E, D>) -> TchTensor<E, D> {
-        let tensor = (&lhs.tensor).sub(&rhs.tensor);
-        to_tensor(tensor)
-    }
-
-    fn sub_scalar<const D: usize>(lhs: &TchTensor<E, D>, rhs: &E) -> TchTensor<E, D> {
-        let other: f64 = (rhs.clone()).to_elem();
-        let tensor = (&lhs.tensor).sub(other).to_kind(lhs.kind.kind());
-
-        to_tensor(tensor)
-    }
-
-    fn mul<const D: usize>(lhs: &TchTensor<E, D>, rhs: &TchTensor<E, D>) -> TchTensor<E, D> {
-        let tensor = (&lhs.tensor).mul(&rhs.tensor);
-        to_tensor(tensor)
-    }
-
-    fn mul_scalar<const D: usize>(lhs: &TchTensor<E, D>, rhs: &E) -> TchTensor<E, D> {
-        let other: f64 = (rhs.clone()).to_elem();
-        let tensor = (&lhs.tensor).mul(other).to_kind(lhs.kind.kind());
+    fn sub<const D: usize>(lhs: TchTensor<E, D>, rhs: TchTensor<E, D>) -> TchTensor<E, D> {
+        let tensor = TchTensor::binary_ops_tensor(
+            lhs,
+            rhs,
+            |lhs, rhs| lhs.f_sub_(rhs).unwrap(),
+            |lhs, rhs| lhs.f_sub(rhs).unwrap(),
+            |lhs, rhs| lhs.f_sub(rhs).unwrap(),
+        );
 
         to_tensor(tensor)
     }
 
-    fn div<const D: usize>(lhs: &TchTensor<E, D>, rhs: &TchTensor<E, D>) -> TchTensor<E, D> {
-        let tensor = (&lhs.tensor).div(&rhs.tensor);
+    fn sub_scalar<const D: usize>(lhs: TchTensor<E, D>, rhs: E) -> TchTensor<E, D> {
+        let tensor = run_scalar!(
+            rhs,
+            lhs.unary_ops(
+                |mut tensor| tensor.f_sub_scalar_(rhs).unwrap(),
+                |tensor| tensor.f_sub_scalar(rhs).unwrap(),
+            )
+        );
+
         to_tensor(tensor)
     }
 
-    fn div_scalar<const D: usize>(lhs: &TchTensor<E, D>, rhs: &E) -> TchTensor<E, D> {
-        let other: f64 = (rhs.clone()).to_elem();
-        let tensor = (&lhs.tensor).div(other).to_kind(lhs.kind.kind());
+    fn mul<const D: usize>(lhs: TchTensor<E, D>, rhs: TchTensor<E, D>) -> TchTensor<E, D> {
+        let tensor = TchTensor::binary_ops_tensor(
+            lhs,
+            rhs,
+            |lhs, rhs| lhs.f_mul_(rhs).unwrap(),
+            |lhs, rhs| lhs.f_mul(rhs).unwrap(),
+            |lhs, rhs| lhs.f_mul(rhs).unwrap(),
+        );
+        to_tensor(tensor)
+    }
+
+    fn mul_scalar<const D: usize>(lhs: TchTensor<E, D>, rhs: E) -> TchTensor<E, D> {
+        let tensor = run_scalar!(
+            rhs,
+            lhs.unary_ops(
+                |mut tensor| tensor.f_mul_scalar_(rhs).unwrap(),
+                |tensor| tensor.f_mul_scalar(rhs).unwrap(),
+            )
+        );
 
         to_tensor(tensor)
     }
 
-    fn matmul<const D: usize>(lhs: &TchTensor<E, D>, rhs: &TchTensor<E, D>) -> TchTensor<E, D> {
+    fn div<const D: usize>(lhs: TchTensor<E, D>, rhs: TchTensor<E, D>) -> TchTensor<E, D> {
+        let tensor = TchTensor::binary_ops_tensor(
+            lhs,
+            rhs,
+            |lhs, rhs| lhs.f_div_(rhs).unwrap(),
+            |lhs, rhs| lhs.f_div(rhs).unwrap(),
+            |lhs, rhs| lhs.f_div(rhs).unwrap(),
+        );
+
+        to_tensor(tensor)
+    }
+
+    fn div_scalar<const D: usize>(lhs: TchTensor<E, D>, rhs: E) -> TchTensor<E, D> {
+        let tensor = run_scalar!(
+            rhs,
+            lhs.unary_ops(
+                |mut tensor| tensor.f_div_scalar_(rhs).unwrap(),
+                |tensor| tensor.f_div_scalar(rhs).unwrap(),
+            )
+        );
+
+        to_tensor(tensor)
+    }
+
+    fn matmul<const D: usize>(lhs: TchTensor<E, D>, rhs: TchTensor<E, D>) -> TchTensor<E, D> {
         let tensor = lhs.tensor.matmul(&rhs.tensor);
         to_tensor(tensor)
     }
 
-    fn neg<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
-        Self::mul_scalar(tensor, &(-1f32).to_elem::<E>())
+    fn neg<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
+        Self::mul_scalar(tensor, (-1f32).to_elem::<E>())
     }
 
     fn swap_dims<const D: usize>(
-        tensor: &TchTensor<E, D>,
+        tensor: TchTensor<E, D>,
         dim1: usize,
         dim2: usize,
     ) -> TchTensor<E, D> {
@@ -212,7 +288,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     }
 
     fn reshape<const D1: usize, const D2: usize>(
-        tensor: &TchTensor<E, D1>,
+        tensor: TchTensor<E, D1>,
         shape: Shape<D2>,
     ) -> TchTensor<E, D2> {
         let shape_tch: TchShape<D2> = shape.into();
@@ -222,23 +298,23 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     }
 
     fn bool_index<const D1: usize, const D2: usize>(
-        tensor: &TchTensor<bool, D1>,
+        tensor: TchTensor<bool, D1>,
         indexes: [Range<usize>; D2],
     ) -> TchTensor<bool, D1> {
-        index(tensor, indexes)
+        index(&tensor, indexes)
     }
 
     fn index<const D1: usize, const D2: usize>(
-        tensor: &TchTensor<E, D1>,
+        tensor: TchTensor<E, D1>,
         indexes: [Range<usize>; D2],
     ) -> TchTensor<E, D1> {
-        index(tensor, indexes)
+        index(&tensor, indexes)
     }
 
     fn index_assign<const D1: usize, const D2: usize>(
-        tensor: &TchTensor<E, D1>,
+        tensor: TchTensor<E, D1>,
         indexes: [Range<usize>; D2],
-        value: &TchTensor<E, D1>,
+        value: TchTensor<E, D1>,
     ) -> <TchBackend<E> as Backend>::TensorPrimitive<D1> {
         let kind = tensor.kind;
         let tensor_original = tensor.tensor.copy();
@@ -257,137 +333,144 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
 
         TchTensor {
             kind,
-            tensor: tensor_original,
+            tensor: Arc::new(tensor_original),
         }
     }
 
     fn mask_fill<const D: usize>(
-        tensor: &TchTensor<E, D>,
-        mask: &TchTensor<bool, D>,
+        tensor: TchTensor<E, D>,
+        mask: TchTensor<bool, D>,
         value: E,
     ) -> TchTensor<E, D> {
         let value: f64 = value.to_elem();
-        let tensor = tensor.tensor.f_masked_fill(&mask.tensor, value).unwrap();
+        let tensor = tensor.unary_ops(
+            |mut tensor| tensor.f_masked_fill_(&mask.tensor, value).unwrap(),
+            |tensor| tensor.f_masked_fill(&mask.tensor, value).unwrap(),
+        );
 
         to_tensor(tensor)
     }
 
-    fn equal<const D: usize>(lhs: &TchTensor<E, D>, rhs: &TchTensor<E, D>) -> TchTensor<bool, D> {
-        let tensor = lhs.tensor.eq_tensor(&rhs.tensor);
+    fn equal<const D: usize>(lhs: TchTensor<E, D>, rhs: TchTensor<E, D>) -> TchTensor<bool, D> {
+        let tensor = TchTensor::binary_ops_tensor(
+            lhs,
+            rhs,
+            |lhs, rhs| lhs.eq_tensor_(rhs),
+            |lhs, rhs| rhs.eq_tensor_(lhs),
+            |lhs, rhs| lhs.eq_tensor(rhs),
+        );
 
-        TchTensor {
-            tensor,
-            kind: TchKind::<bool>::new(),
-        }
+        to_tensor(tensor)
     }
 
-    fn equal_scalar<const D: usize>(lhs: &TchTensor<E, D>, rhs: &E) -> TchTensor<bool, D> {
-        let other: f64 = (*rhs).to_elem();
-        let tensor = lhs.tensor.eq(other);
-
-        TchTensor {
-            tensor,
-            kind: TchKind::<bool>::new(),
-        }
+    fn equal_scalar<const D: usize>(lhs: TchTensor<E, D>, rhs: E) -> TchTensor<bool, D> {
+        let rhs: f64 = rhs.to_elem();
+        let tensor = lhs.unary_ops(|mut tensor| tensor.eq_(rhs), |tensor| tensor.eq(rhs));
+        to_tensor(tensor)
     }
 
-    fn greater<const D: usize>(lhs: &TchTensor<E, D>, rhs: &TchTensor<E, D>) -> TchTensor<bool, D> {
-        let tensor = lhs.tensor.greater_tensor(&rhs.tensor);
+    fn greater<const D: usize>(lhs: TchTensor<E, D>, rhs: TchTensor<E, D>) -> TchTensor<bool, D> {
+        let tensor = TchTensor::binary_ops_tensor(
+            lhs,
+            rhs,
+            |lhs, rhs| lhs.greater_tensor_(rhs),
+            |lhs, rhs| rhs.less_tensor_(lhs),
+            |lhs, rhs| lhs.greater_tensor(rhs),
+        );
 
-        TchTensor {
-            tensor,
-            kind: TchKind::<bool>::new(),
-        }
+        to_tensor(tensor)
     }
 
-    fn greater_scalar<const D: usize>(lhs: &TchTensor<E, D>, rhs: &E) -> TchTensor<bool, D> {
-        let other: f64 = (*rhs).to_elem();
-        let tensor = lhs.tensor.greater(other);
-
-        TchTensor {
-            tensor,
-            kind: TchKind::<bool>::new(),
-        }
+    fn greater_scalar<const D: usize>(lhs: TchTensor<E, D>, rhs: E) -> TchTensor<bool, D> {
+        let rhs: f64 = rhs.to_elem();
+        let tensor = lhs.unary_ops(
+            |mut tensor| tensor.greater_(rhs),
+            |tensor| tensor.greater(rhs),
+        );
+        to_tensor(tensor)
     }
 
     fn greater_equal<const D: usize>(
-        lhs: &TchTensor<E, D>,
-        rhs: &TchTensor<E, D>,
+        lhs: TchTensor<E, D>,
+        rhs: TchTensor<E, D>,
     ) -> TchTensor<bool, D> {
-        let tensor = lhs.tensor.greater_equal_tensor(&rhs.tensor);
+        let tensor = TchTensor::binary_ops_tensor(
+            lhs,
+            rhs,
+            |lhs, rhs| lhs.greater_equal_tensor_(rhs),
+            |lhs, rhs| rhs.less_equal_tensor_(lhs),
+            |lhs, rhs| lhs.greater_equal_tensor(rhs),
+        );
 
-        TchTensor {
-            tensor,
-            kind: TchKind::<bool>::new(),
-        }
+        to_tensor(tensor)
     }
 
-    fn greater_equal_scalar<const D: usize>(lhs: &TchTensor<E, D>, rhs: &E) -> TchTensor<bool, D> {
-        let other: f64 = (*rhs).to_elem();
-        let tensor = lhs.tensor.greater_equal(other);
-
-        TchTensor {
-            tensor,
-            kind: TchKind::<bool>::new(),
-        }
+    fn greater_equal_scalar<const D: usize>(lhs: TchTensor<E, D>, rhs: E) -> TchTensor<bool, D> {
+        let rhs: f64 = rhs.to_elem();
+        let tensor = lhs.unary_ops(
+            |mut tensor| tensor.greater_equal_(rhs),
+            |tensor| tensor.greater_equal(rhs),
+        );
+        to_tensor(tensor)
     }
 
-    fn lower<const D: usize>(lhs: &TchTensor<E, D>, rhs: &TchTensor<E, D>) -> TchTensor<bool, D> {
-        let tensor = lhs.tensor.less_tensor(&rhs.tensor);
+    fn lower<const D: usize>(lhs: TchTensor<E, D>, rhs: TchTensor<E, D>) -> TchTensor<bool, D> {
+        let tensor = TchTensor::binary_ops_tensor(
+            lhs,
+            rhs,
+            |lhs, rhs| lhs.less_tensor_(rhs),
+            |lhs, rhs| rhs.greater_tensor_(lhs),
+            |lhs, rhs| lhs.less_tensor(rhs),
+        );
 
-        TchTensor {
-            tensor,
-            kind: TchKind::<bool>::new(),
-        }
+        to_tensor(tensor)
     }
 
-    fn lower_scalar<const D: usize>(lhs: &TchTensor<E, D>, rhs: &E) -> TchTensor<bool, D> {
-        let other: f64 = (*rhs).to_elem();
-        let tensor = lhs.tensor.less(other);
-
-        TchTensor {
-            tensor,
-            kind: TchKind::<bool>::new(),
-        }
+    fn lower_scalar<const D: usize>(lhs: TchTensor<E, D>, rhs: E) -> TchTensor<bool, D> {
+        let rhs: f64 = rhs.to_elem();
+        let tensor = lhs.unary_ops(|mut tensor| tensor.less_(rhs), |tensor| tensor.less(rhs));
+        to_tensor(tensor)
     }
 
     fn lower_equal<const D: usize>(
-        lhs: &TchTensor<E, D>,
-        rhs: &TchTensor<E, D>,
+        lhs: TchTensor<E, D>,
+        rhs: TchTensor<E, D>,
     ) -> TchTensor<bool, D> {
-        let tensor = lhs.tensor.less_equal_tensor(&rhs.tensor);
+        let tensor = TchTensor::binary_ops_tensor(
+            lhs,
+            rhs,
+            |lhs, rhs| lhs.less_equal_tensor_(rhs),
+            |lhs, rhs| rhs.greater_equal_tensor_(lhs),
+            |lhs, rhs| lhs.less_equal_tensor(rhs),
+        );
 
-        TchTensor {
-            tensor,
-            kind: TchKind::<bool>::new(),
-        }
+        to_tensor(tensor)
     }
 
-    fn lower_equal_scalar<const D: usize>(lhs: &TchTensor<E, D>, rhs: &E) -> TchTensor<bool, D> {
-        let other: f64 = (*rhs).to_elem();
-        let tensor = lhs.tensor.less_equal(other);
-
-        TchTensor {
-            tensor,
-            kind: TchKind::<bool>::new(),
-        }
+    fn lower_equal_scalar<const D: usize>(lhs: TchTensor<E, D>, rhs: E) -> TchTensor<bool, D> {
+        let rhs: f64 = rhs.to_elem();
+        let tensor = lhs.unary_ops(
+            |mut tensor| tensor.less_equal_(rhs),
+            |tensor| tensor.less_equal(rhs),
+        );
+        to_tensor(tensor)
     }
 
-    fn detach<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
-        tensor.clone()
+    fn detach<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
+        tensor
     }
 
-    fn mean<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, 1> {
+    fn mean<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, 1> {
         let tensor = tensor.tensor.mean(tensor.kind.kind());
         to_tensor(tensor)
     }
 
-    fn sum<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, 1> {
+    fn sum<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, 1> {
         let tensor = tensor.tensor.sum(tensor.kind.kind());
         to_tensor(tensor)
     }
 
-    fn mean_dim<const D: usize>(tensor: &TchTensor<E, D>, dim: usize) -> TchTensor<E, D> {
+    fn mean_dim<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<E, D> {
         let tensor =
             tensor
                 .tensor
@@ -395,7 +478,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         to_tensor(tensor)
     }
 
-    fn sum_dim<const D: usize>(tensor: &TchTensor<E, D>, dim: usize) -> TchTensor<E, D> {
+    fn sum_dim<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<E, D> {
         let tensor =
             tensor
                 .tensor
@@ -408,72 +491,78 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         to_tensor(tensor)
     }
 
-    fn from_full_precision<const D: usize>(tensor: &TchTensor<f32, D>) -> TchTensor<E, D> {
+    fn from_full_precision<const D: usize>(tensor: TchTensor<f32, D>) -> TchTensor<E, D> {
         let tensor = tensor.tensor.to_kind(TchKind::<E>::new().kind());
         to_tensor(tensor)
     }
 
-    fn argmax<const D: usize>(tensor: &TchTensor<E, D>, dim: usize) -> TchTensor<i64, D> {
+    fn argmax<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<i64, D> {
         let tensor = tensor.tensor.argmax(dim as i64, true);
         to_tensor(tensor)
     }
 
-    fn argmin<const D: usize>(tensor: &TchTensor<E, D>, dim: usize) -> TchTensor<i64, D> {
+    fn argmin<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<i64, D> {
         let tensor = tensor.tensor.argmin(dim as i64, true);
         to_tensor(tensor)
     }
 
-    fn exp<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
-        to_tensor(tensor.tensor.exp())
+    fn exp<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
+        to_tensor(tensor.unary_ops(|mut tensor| tensor.exp_(), |tensor| tensor.exp()))
     }
 
-    fn log<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
-        to_tensor(tensor.tensor.log())
+    fn log<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
+        to_tensor(tensor.unary_ops(|mut tensor| tensor.log_(), |tensor| tensor.log()))
     }
 
-    fn log1p<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
-        to_tensor(tensor.tensor.log1p())
+    fn log1p<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
+        to_tensor(tensor.unary_ops(|mut tensor| tensor.log1p_(), |tensor| tensor.log1p()))
     }
 
-    fn powf<const D: usize>(tensor: &TchTensor<E, D>, value: f32) -> TchTensor<E, D> {
-        to_tensor(tensor.tensor.pow_tensor_scalar(value as f64))
+    fn powf<const D: usize>(tensor: TchTensor<E, D>, value: f32) -> TchTensor<E, D> {
+        to_tensor(tensor.unary_ops(
+            |mut tensor| tensor.f_pow_(value as f64).unwrap(),
+            |tensor| tensor.pow_tensor_scalar(value as f64),
+        ))
     }
 
-    fn sqrt<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
-        to_tensor(tensor.tensor.sqrt())
+    fn sqrt<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
+        to_tensor(tensor.unary_ops(|mut tensor| tensor.sqrt_(), |tensor| tensor.sqrt()))
     }
 
-    fn cos<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
-        to_tensor(tensor.tensor.cos())
+    fn cos<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
+        to_tensor(tensor.unary_ops(|mut tensor| tensor.cos_(), |tensor| tensor.cos()))
     }
 
-    fn sin<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
-        to_tensor(tensor.tensor.sin())
+    fn sin<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
+        to_tensor(tensor.unary_ops(|mut tensor| tensor.sin_(), |tensor| tensor.sin()))
     }
 
-    fn tanh<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
-        to_tensor(tensor.tensor.tanh())
+    fn tanh<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
+        to_tensor(tensor.unary_ops(|mut tensor| tensor.tanh_(), |tensor| tensor.tanh()))
     }
 
-    fn erf<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
-        to_tensor(tensor.tensor.erf())
+    fn erf<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
+        to_tensor(tensor.unary_ops(|mut tensor| tensor.erf_(), |tensor| tensor.erf()))
     }
 
-    fn cat<const D: usize>(tensors: &[TchTensor<E, D>], dim: usize) -> TchTensor<E, D> {
-        let tensors: Vec<tch::Tensor> = tensors.iter().map(|t| t.tensor.shallow_clone()).collect();
+    fn cat<const D: usize>(tensors: Vec<TchTensor<E, D>>, dim: usize) -> TchTensor<E, D> {
+        let tensors: Vec<tch::Tensor> = tensors
+            .into_iter()
+            .map(|t| t.tensor.shallow_clone())
+            .collect();
         let tensor = tch::Tensor::cat(&tensors, dim as i64);
         to_tensor(tensor)
     }
 
-    fn relu<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<E, D> {
-        to_tensor(tensor.tensor.relu())
+    fn relu<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
+        to_tensor(tensor.unary_ops(|mut tensor| tensor.relu_(), |tensor| tensor.relu()))
     }
-}
 
-fn to_tensor<const D: usize, E: TchElement>(tensor: tch::Tensor) -> TchTensor<E, D> {
-    TchTensor {
-        tensor,
-        kind: TchKind::new(),
+    fn bool_into_int<const D: usize>(
+        tensor: <TchBackend<E> as Backend>::BoolTensorPrimitive<D>,
+    ) -> <<TchBackend<E> as Backend>::IntegerBackend as Backend>::TensorPrimitive<D> {
+        let tensor = tensor.tensor.to_kind(TchKind::<i64>::new().kind());
+        to_tensor(tensor)
     }
 }
 
@@ -490,6 +579,7 @@ fn index<const D1: usize, const D2: usize, E: tch::kind::Element + Copy>(
         let length = (index.end - index.start) as i64;
         tensor = tensor.narrow(i as i64, start, length);
     }
+    let tensor = Arc::new(tensor);
 
     TchTensor { kind, tensor }
 }

@@ -10,7 +10,7 @@ mod tests {
         let weights = Tensor::<TestBackend, 2>::from_data(weights);
         let indexes = Tensor::<<TestBackend as Backend>::IntegerBackend, 2>::from_data(indexes);
 
-        let output = embedding(&weights, &indexes);
+        let output = embedding(weights, indexes);
         let expected = Data::from([
             [[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]],
             [[3.0, 4.0, 5.0], [3.0, 4.0, 5.0]],

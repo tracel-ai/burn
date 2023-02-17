@@ -13,8 +13,8 @@ mod tests {
         let tensor_2 = TestADTensor::from_data(data_2);
         let mask = BoolTensor::from_data(mask);
 
-        let tensor_3 = tensor_1.matmul(&tensor_2);
-        let tensor_4 = tensor_3.mask_fill(&mask, 2.0);
+        let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
+        let tensor_4 = tensor_3.mask_fill(mask, 2.0);
         let grads = tensor_4.backward();
 
         let grad_1 = tensor_1.grad(&grads).unwrap();

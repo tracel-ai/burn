@@ -54,7 +54,10 @@ impl<B: Backend> Batcher<TextGenerationItem, TrainingTextGenerationBatch<B>>
         let item: TextGenerationBatch<B> = self.batch(items);
         let [batch_size, seq_length] = item.tokens.dims();
 
-        let inputs = item.tokens.index([0..batch_size, 0..seq_length - 1]);
+        let inputs = item
+            .tokens
+            .clone()
+            .index([0..batch_size, 0..seq_length - 1]);
         let targets = item.tokens.index([0..batch_size, 1..seq_length]);
         let mask_pad = item.mask_pad.index([0..batch_size, 0..seq_length - 1]);
 

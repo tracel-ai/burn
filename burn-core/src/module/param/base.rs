@@ -24,6 +24,12 @@ impl<T> Param<T> {
     }
 }
 
+impl<T: Clone> Param<T> {
+    pub fn val(&self) -> T {
+        self.value.clone()
+    }
+}
+
 impl<T> std::ops::Deref for Param<T> {
     type Target = T;
 

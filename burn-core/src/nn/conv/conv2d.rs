@@ -103,9 +103,9 @@ impl<B: Backend> Conv2d<B> {
             self.padding
                 .calculate_padding_2d(height_in, width_in, &self.kernel_size, &self.stride);
         conv2d(
-            &input,
-            &self.weight,
-            self.bias.as_ref(),
+            input,
+            self.weight.val(),
+            self.bias.val(),
             self.stride,
             padding,
         )

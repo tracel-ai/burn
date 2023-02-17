@@ -5,7 +5,6 @@ use crate::module::Module;
 use crate::module::Param;
 use crate::tensor::backend::Backend;
 use crate::tensor::{Distribution, ElementConversion, Tensor};
-use std::ops::Deref;
 
 /// Configuration to create a [Linear](Linear) layer.
 #[derive(Config)]
@@ -61,9 +60,9 @@ impl<B: Backend> Linear<B> {
     /// - input: `[..., any, d_input]`
     /// - output: `[..., any, d_output]`
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
-        let output = input.matmul(&self.weight.unsqueeze());
+        let output = input.matmul(self.weight.val().unsqueeze());
 
-        match self.bias.deref() {
+        match self.bias.val() {
             Some(bias) => output + bias.unsqueeze(),
             None => output,
         }

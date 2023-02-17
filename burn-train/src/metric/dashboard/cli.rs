@@ -2,7 +2,7 @@ use super::{DashboardMetricState, DashboardRenderer, TextPlot, TrainingProgress}
 use indicatif::{MultiProgress, ProgressBar, ProgressState, ProgressStyle};
 use std::{collections::HashMap, fmt::Write};
 
-static MAX_REFRESH_RATE_MILLIS: u128 = 50;
+static MAX_REFRESH_RATE_MILLIS: u128 = 250;
 
 pub struct CLIDashboardRenderer {
     pb_epoch: ProgressBar,

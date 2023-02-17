@@ -58,13 +58,13 @@ where
     /// # Panics
     ///
     /// If the tensor can not be reshape to the given shape.
-    pub fn reshape<const D2: usize, S: Into<Shape<D2>>>(&self, shape: S) -> Tensor<B, D2> {
-        Tensor::new(B::reshape(&self.value, shape.into()))
+    pub fn reshape<const D2: usize, S: Into<Shape<D2>>>(self, shape: S) -> Tensor<B, D2> {
+        Tensor::new(B::reshape(self.value, shape.into()))
     }
 
     /// Returns a new tensor on the given device.
-    pub fn to_device(&self, device: &B::Device) -> Self {
-        Self::new(B::to_device(&self.value, device))
+    pub fn to_device(self, device: &B::Device) -> Self {
+        Self::new(B::to_device(self.value, device))
     }
 
     /// Returns the device of the current tensor.
@@ -75,56 +75,56 @@ where
     /// Applies element wise exponential operation.
     ///
     /// `y = e^x`
-    pub fn exp(&self) -> Self {
-        Self::new(B::exp(&self.value))
+    pub fn exp(self) -> Self {
+        Self::new(B::exp(self.value))
     }
 
     /// Applies element wise natural log operation *ln*.
     ///
     /// `y = log(x)`
-    pub fn log(&self) -> Self {
-        Self::new(B::log(&self.value))
+    pub fn log(self) -> Self {
+        Self::new(B::log(self.value))
     }
 
     /// Applies the natural logarithm of one plus the input tensor, element-wise.
     ///
     /// `y = log(x+1)`
-    pub fn log1p(&self) -> Self {
-        Self::new(B::log1p(&self.value))
+    pub fn log1p(self) -> Self {
+        Self::new(B::log1p(self.value))
     }
 
     /// Applies the [error function](https://en.wikipedia.org/wiki/Error_function) element wise.
     ///
     /// `y = erf(x)`
-    pub fn erf(&self) -> Self {
-        Self::new(B::erf(&self.value))
+    pub fn erf(self) -> Self {
+        Self::new(B::erf(self.value))
     }
 
     /// Applies element wise power operation.
     ///
     /// `y = x^a`
-    pub fn powf(&self, value: f32) -> Self {
-        Self::new(B::powf(&self.value, value))
+    pub fn powf(self, value: f32) -> Self {
+        Self::new(B::powf(self.value, value))
     }
 
     /// Applies element wise root square operation.
-    pub fn sqrt(&self) -> Self {
-        Self::new(B::sqrt(&self.value))
+    pub fn sqrt(self) -> Self {
+        Self::new(B::sqrt(self.value))
     }
 
     /// Applies element wise cosine operation.
-    pub fn cos(&self) -> Self {
-        Self::new(B::cos(&self.value))
+    pub fn cos(self) -> Self {
+        Self::new(B::cos(self.value))
     }
 
     /// Applies element wise sine operation.
-    pub fn sin(&self) -> Self {
-        Self::new(B::sin(&self.value))
+    pub fn sin(self) -> Self {
+        Self::new(B::sin(self.value))
     }
 
     /// Applies element wise hyperbolic tangent operation.
-    pub fn tanh(&self) -> Self {
-        Self::new(B::tanh(&self.value))
+    pub fn tanh(self) -> Self {
+        Self::new(B::tanh(self.value))
     }
 
     /// Returns the shape of the current tensor.
@@ -217,35 +217,37 @@ where
         let mut ranges: [std::ops::Range<usize>; D] = ranges.try_into().unwrap();
         ranges[D - 1] = index..index + 1;
 
-        tensor.index_assign(ranges, &Tensor::ones(Shape::new([1; D])))
+        tensor.index_assign(ranges, Tensor::ones(Shape::new([1; D])))
     }
 
     /// Applies element wise addition operation.
     ///
     /// `y = x2 + x1`
-    pub fn add(&self, other: &Self) -> Self {
-        Self::new(B::add(&self.value, &other.value))
+    #[allow(clippy::should_implement_trait)]
+    pub fn add(self, other: Self) -> Self {
+        Self::new(B::add(self.value, other.value))
     }
 
     /// Applies element wise addition operation with a scalar.
     ///
     /// `y = x + s`
-    pub fn add_scalar<E: ElementConversion>(&self, other: E) -> Self {
-        Self::new(B::add_scalar(&self.value, &other.to_elem()))
+    pub fn add_scalar<E: ElementConversion>(self, other: E) -> Self {
+        Self::new(B::add_scalar(self.value, other.to_elem()))
     }
 
     /// Applies element wise substraction operation.
     ///
     /// `y = x2 - x1`
-    pub fn sub(&self, other: &Self) -> Self {
-        Self::new(B::sub(&self.value, &other.value))
+    #[allow(clippy::should_implement_trait)]
+    pub fn sub(self, other: Self) -> Self {
+        Self::new(B::sub(self.value, other.value))
     }
 
     /// Applies element wise substraction operation with a scalar.
     ///
     /// `y = x - s`
-    pub fn sub_scalar<E: ElementConversion>(&self, other: E) -> Self {
-        Self::new(B::sub_scalar(&self.value, &other.to_elem()))
+    pub fn sub_scalar<E: ElementConversion>(self, other: E) -> Self {
+        Self::new(B::sub_scalar(self.value, other.to_elem()))
     }
 
     /// Applies the transpose operation.
@@ -255,8 +257,8 @@ where
     /// # Panics
     ///
     /// If the tensor is of 1 dimension or less.
-    pub fn transpose(&self) -> Self {
-        Self::new(B::transpose(&self.value))
+    pub fn transpose(self) -> Self {
+        Self::new(B::transpose(self.value))
     }
 
     /// Swap two dimensions.
@@ -264,8 +266,8 @@ where
     /// # Panics
     ///
     /// If the dimensions exceed the shape of than the tensor.
-    pub fn swap_dims(&self, dim1: usize, dim2: usize) -> Self {
-        Self::new(B::swap_dims(&self.value, dim1, dim2))
+    pub fn swap_dims(self, dim1: usize, dim2: usize) -> Self {
+        Self::new(B::swap_dims(self.value, dim1, dim2))
     }
 
     /// Applies the matrix multiplication operation.
@@ -275,86 +277,89 @@ where
     /// # Panics
     ///
     /// If the two tensors dont' have a compatible shape.
-    pub fn matmul(&self, other: &Self) -> Self {
-        Self::new(B::matmul(&self.value, &other.value))
+    pub fn matmul(self, other: Self) -> Self {
+        Self::new(B::matmul(self.value, other.value))
     }
 
     /// Switch sign of each element in the tensor.
     ///
     /// `y = -x`
-    pub fn neg(&self) -> Self {
-        Self::new(B::neg(&self.value))
+    #[allow(clippy::should_implement_trait)]
+    pub fn neg(self) -> Self {
+        Self::new(B::neg(self.value))
     }
 
     /// Applies element wise multiplication operation.
     ///
     /// `y = x2 * x1`
-    pub fn mul(&self, other: &Self) -> Self {
-        Self::new(B::mul(&self.value, &other.value))
+    #[allow(clippy::should_implement_trait)]
+    pub fn mul(self, other: Self) -> Self {
+        Self::new(B::mul(self.value, other.value))
     }
 
     /// Applies element wise multiplication operation with scalar.
     ///
     /// `y = x2 * x1`
-    pub fn mul_scalar<E: ElementConversion>(&self, other: E) -> Self {
-        Self::new(B::mul_scalar(&self.value, &other.to_elem()))
+    pub fn mul_scalar<E: ElementConversion>(self, other: E) -> Self {
+        Self::new(B::mul_scalar(self.value, other.to_elem()))
     }
 
     /// Applies element wise division operation.
     ///
     /// `y = x2 / x1`
-    pub fn div(&self, other: &Self) -> Self {
-        Self::new(B::div(&self.value, &other.value))
+    #[allow(clippy::should_implement_trait)]
+    pub fn div(self, other: Self) -> Self {
+        Self::new(B::div(self.value, other.value))
     }
 
     /// Applies element wise division operation with scalar.
     ///
     /// `y = x2 / x1`
-    pub fn div_scalar<E: ElementConversion>(&self, other: E) -> Self {
-        Self::new(B::div_scalar(&self.value, &other.to_elem()))
+    pub fn div_scalar<E: ElementConversion>(self, other: E) -> Self {
+        Self::new(B::div_scalar(self.value, other.to_elem()))
     }
 
     /// Aggregate all elements in the tensor with the mean operation.
-    pub fn mean(&self) -> Tensor<B, 1> {
-        Tensor::new(B::mean(&self.value))
+    pub fn mean(self) -> Tensor<B, 1> {
+        Tensor::new(B::mean(self.value))
     }
 
     /// Aggregate all elements in the tensor with the sum operation.
-    pub fn sum(&self) -> Tensor<B, 1> {
-        Tensor::new(B::sum(&self.value))
+    pub fn sum(self) -> Tensor<B, 1> {
+        Tensor::new(B::sum(self.value))
     }
 
     /// Aggregate all elements along the given *dimension* or *axis* in the tensor with the mean operation.
-    pub fn mean_dim(&self, dim: usize) -> Self {
-        Self::new(B::mean_dim(&self.value, dim))
+    pub fn mean_dim(self, dim: usize) -> Self {
+        Self::new(B::mean_dim(self.value, dim))
     }
 
     /// Aggregate all elements along the given *dimension* or *axis* in the tensor with the sum operation.
-    pub fn sum_dim(&self, dim: usize) -> Self {
-        Self::new(B::sum_dim(&self.value, dim))
+    pub fn sum_dim(self, dim: usize) -> Self {
+        Self::new(B::sum_dim(self.value, dim))
     }
 
     /// Calculate the variance along the given dimension.
-    pub fn var(&self, dim: usize) -> Self {
+    pub fn var(self, dim: usize) -> Self {
         stats::var(self, dim)
     }
 
     /// Calculate the variance along the given dimension without applying the Bessel’s correction.
-    pub fn var_bias(&self, dim: usize) -> Self {
+    pub fn var_bias(self, dim: usize) -> Self {
         stats::var_bias(self, dim)
     }
 
     /// Calculate the variance along the given dimension and also returns the mean.
-    pub fn var_mean(&self, dim: usize) -> (Self, Self) {
-        let mean = self.mean_dim(dim);
-        let var = stats::var_with_mean(self, &mean, dim);
+    pub fn var_mean(self, dim: usize) -> (Self, Self) {
+        let mean = self.clone().mean_dim(dim);
+        let var = stats::var_with_mean(self, mean.clone(), dim);
         (var, mean)
     }
 
     /// Calculate the variance along the given dimension without applying the Bessel’s correction and also returns the mean.
-    pub fn var_mean_bias(&self, dim: usize) -> (Self, Self) {
-        let mean = self.mean_dim(dim);
-        let var = stats::var_with_mean_bias(self, &mean, dim);
+    pub fn var_mean_bias(self, dim: usize) -> (Self, Self) {
+        let mean = self.clone().mean_dim(dim);
+        let var = stats::var_with_mean_bias(self, mean.clone(), dim);
         (var, mean)
     }
 
@@ -363,8 +368,8 @@ where
     /// # Panics
     ///
     /// If the two tensors don't have the same shape.
-    pub fn equal(&self, other: &Self) -> BoolTensor<B, D> {
-        BoolTensor::new(B::equal(&self.value, &other.value))
+    pub fn equal(self, other: Self) -> BoolTensor<B, D> {
+        BoolTensor::new(B::equal(self.value, other.value))
     }
 
     /// Applies element wise greater comparison and returns a boolean tensor.
@@ -372,8 +377,8 @@ where
     /// # Panics
     ///
     /// If the two tensors don't have the same shape.
-    pub fn greater(&self, other: &Self) -> BoolTensor<B, D> {
-        BoolTensor::new(B::greater(&self.value, &other.value))
+    pub fn greater(self, other: Self) -> BoolTensor<B, D> {
+        BoolTensor::new(B::greater(self.value, other.value))
     }
 
     /// Applies element wise greater-equal comparison and returns a boolean tensor.
@@ -381,8 +386,8 @@ where
     /// # Panics
     ///
     /// If the two tensors don't have the same shape.
-    pub fn greater_equal(&self, other: &Self) -> BoolTensor<B, D> {
-        BoolTensor::new(B::greater_equal(&self.value, &other.value))
+    pub fn greater_equal(self, other: Self) -> BoolTensor<B, D> {
+        BoolTensor::new(B::greater_equal(self.value, other.value))
     }
 
     /// Applies element wise lower comparison and returns a boolean tensor.
@@ -390,8 +395,8 @@ where
     /// # Panics
     ///
     /// If the two tensors don't have the same shape.
-    pub fn lower(&self, other: &Self) -> BoolTensor<B, D> {
-        BoolTensor::new(B::lower(&self.value, &other.value))
+    pub fn lower(self, other: Self) -> BoolTensor<B, D> {
+        BoolTensor::new(B::lower(self.value, other.value))
     }
 
     /// Applies element wise lower-equal comparison and returns a boolean tensor.
@@ -399,33 +404,33 @@ where
     /// # Panics
     ///
     /// If the two tensors don't have the same shape.
-    pub fn lower_equal(&self, other: &Self) -> BoolTensor<B, D> {
-        BoolTensor::new(B::lower_equal(&self.value, &other.value))
+    pub fn lower_equal(self, other: Self) -> BoolTensor<B, D> {
+        BoolTensor::new(B::lower_equal(self.value, other.value))
     }
 
     /// Applies element wise equal comparison and returns a boolean tensor.
-    pub fn equal_scalar<E: ElementConversion>(&self, other: E) -> BoolTensor<B, D> {
-        BoolTensor::new(B::equal_scalar(&self.value, &other.to_elem()))
+    pub fn equal_scalar<E: ElementConversion>(self, other: E) -> BoolTensor<B, D> {
+        BoolTensor::new(B::equal_scalar(self.value, other.to_elem()))
     }
 
     /// Applies element wise greater comparison and returns a boolean tensor.
-    pub fn greater_scalar<E: ElementConversion>(&self, other: E) -> BoolTensor<B, D> {
-        BoolTensor::new(B::greater_scalar(&self.value, &other.to_elem()))
+    pub fn greater_scalar<E: ElementConversion>(self, other: E) -> BoolTensor<B, D> {
+        BoolTensor::new(B::greater_scalar(self.value, other.to_elem()))
     }
 
     /// Applies element wise greater-equal comparison and returns a boolean tensor.
-    pub fn greater_equal_scalar<E: ElementConversion>(&self, other: E) -> BoolTensor<B, D> {
-        BoolTensor::new(B::greater_equal_scalar(&self.value, &other.to_elem()))
+    pub fn greater_equal_scalar<E: ElementConversion>(self, other: E) -> BoolTensor<B, D> {
+        BoolTensor::new(B::greater_equal_scalar(self.value, other.to_elem()))
     }
 
     /// Applies element wise lower comparison and returns a boolean tensor.
-    pub fn lower_scalar<E: ElementConversion>(&self, other: E) -> BoolTensor<B, D> {
-        BoolTensor::new(B::lower_scalar(&self.value, &other.to_elem()))
+    pub fn lower_scalar<E: ElementConversion>(self, other: E) -> BoolTensor<B, D> {
+        BoolTensor::new(B::lower_scalar(self.value, other.to_elem()))
     }
 
     /// Applies element wise lower-equal comparison and returns a boolean tensor.
-    pub fn lower_equal_scalar<E: ElementConversion>(&self, other: E) -> BoolTensor<B, D> {
-        BoolTensor::new(B::lower_equal_scalar(&self.value, &other.to_elem()))
+    pub fn lower_equal_scalar<E: ElementConversion>(self, other: E) -> BoolTensor<B, D> {
+        BoolTensor::new(B::lower_equal_scalar(self.value, other.to_elem()))
     }
 
     /// Create a random tensor of the given shape where each element is sampled from the given
@@ -478,8 +483,8 @@ where
     ///     // Shape { dims: [1, 3, 2] }
     /// }
     /// ```
-    pub fn index<const D2: usize>(&self, indexes: [std::ops::Range<usize>; D2]) -> Self {
-        Self::new(B::index(&self.value, indexes))
+    pub fn index<const D2: usize>(self, indexes: [std::ops::Range<usize>; D2]) -> Self {
+        Self::new(B::index(self.value, indexes))
     }
 
     /// Returns a copy of the current tensor with the selected elements changed to the new ones at
@@ -494,27 +499,27 @@ where
     ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Shape};
+    /// use burn_tensor::Tensor;
     ///
     /// fn example<B: Backend>() {
-    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 3]));
-    ///     let values = Tensor::<B, 3>::zeros(Shape::new([1, 1, 1]));
-    ///     let tensor_indexed = tensor.index_assign([0..1, 0..1, 0..1], &values);
+    ///     let tensor = Tensor::<B, 3>::ones([2, 3, 3]);
+    ///     let values = Tensor::<B, 3>::zeros([1, 1, 1]);
+    ///     let tensor_indexed = tensor.index_assign([0..1, 0..1, 0..1], values);
     ///     println!("{:?}", tensor_indexed.shape());
     ///     // Shape { dims: [2, 3, 3] }
     /// }
     /// ```
     pub fn index_assign<const D2: usize>(
-        &self,
+        self,
         indexes: [std::ops::Range<usize>; D2],
-        values: &Self,
+        values: Self,
     ) -> Self {
-        Self::new(B::index_assign(&self.value, indexes, &values.value))
+        Self::new(B::index_assign(self.value, indexes, values.value))
     }
 
     /// Fill each element with the given value based on the given mask.
-    pub fn mask_fill<E: ElementConversion>(&self, mask: &BoolTensor<B, D>, value: E) -> Self {
-        Self::new(B::mask_fill(&self.value, &mask.value, value.to_elem()))
+    pub fn mask_fill<E: ElementConversion>(self, mask: BoolTensor<B, D>, value: E) -> Self {
+        Self::new(B::mask_fill(self.value, mask.value, value.to_elem()))
     }
 
     /// Returns a tensor with full precision based on the selected backend.
@@ -524,7 +529,7 @@ where
 
     /// Returns a tensor on the selected backend from a full precision tensor.
     pub fn from_full_precision(tensor: Tensor<B::FullPrecisionBackend, D>) -> Self {
-        Self::new(B::from_full_precision(&tensor.value))
+        Self::new(B::from_full_precision(tensor.value))
     }
 
     /// Applies the argmax function along the given dimension and returns an integer tensor.
@@ -542,8 +547,8 @@ where
     ///     // Shape { dims: [2, 1, 3] }
     /// }
     /// ```
-    pub fn argmax(&self, dim: usize) -> Tensor<B::IntegerBackend, D> {
-        Tensor::new(B::argmax(&self.value, dim))
+    pub fn argmax(self, dim: usize) -> Tensor<B::IntegerBackend, D> {
+        Tensor::new(B::argmax(self.value, dim))
     }
 
     /// Applies the argmin function along the given dimension and returns an integer tensor.
@@ -561,8 +566,8 @@ where
     ///     // Shape { dims: [2, 1, 3] }
     /// }
     /// ```
-    pub fn argmin(&self, dim: usize) -> Tensor<B::IntegerBackend, D> {
-        Tensor::new(B::argmin(&self.value, dim))
+    pub fn argmin(self, dim: usize) -> Tensor<B::IntegerBackend, D> {
+        Tensor::new(B::argmin(self.value, dim))
     }
 
     /// Concatenates all tensors into a new one along the given dimension.
@@ -571,10 +576,7 @@ where
     ///
     /// If all tensors don't have the same shape.
     pub fn cat(tensors: Vec<Self>, dim: usize) -> Self {
-        Self::new(B::cat(
-            &tensors.into_iter().map(|t| t.value).collect::<Vec<_>>(),
-            dim,
-        ))
+        Self::new(B::cat(tensors.into_iter().map(|t| t.value).collect(), dim))
     }
 
     /// Detach the current tensor from the autodiff graph.
@@ -582,7 +584,7 @@ where
     /// This can be used in batchers or elsewere to ensure that previous operations are not
     /// considered in the autodiff graph.
     pub fn detach(self) -> Self {
-        Self::new(B::detach(&self.value))
+        Self::new(B::detach(self.value))
     }
 
     /// Unsqueeze the current tensor. Create new dimensions to fit the given size.
@@ -604,7 +606,7 @@ where
     ///     // Shape { dims: [1, 1, 3, 3] }
     /// }
     /// ```
-    pub fn unsqueeze<const D2: usize>(&self) -> Tensor<B, D2> {
+    pub fn unsqueeze<const D2: usize>(self) -> Tensor<B, D2> {
         if D2 < D {
             panic!("Can't unsqueeze smaller tensor, got dim {D2}, expected > {D}")
         }
@@ -624,12 +626,12 @@ where
     /// # Panics
     ///
     /// If the selected dimension more than one item.
-    pub fn repeat(&self, dim: usize, times: usize) -> Self {
-        Self::new(B::repeat(&self.value, dim, times))
+    pub fn repeat(self, dim: usize, times: usize) -> Self {
+        Self::new(B::repeat(self.value, dim, times))
     }
 
-    pub(crate) fn relu(&self) -> Self {
-        Self::new(B::relu(&self.value))
+    pub(crate) fn relu(self) -> Self {
+        Self::new(B::relu(self.value))
     }
 }
 
@@ -640,7 +642,7 @@ where
     type Output = Self;
 
     fn add(self, other: Self) -> Self {
-        Tensor::add(&self, &other)
+        Tensor::add(self, other)
     }
 }
 
@@ -652,7 +654,7 @@ where
     type Output = Self;
 
     fn add(self, other: E) -> Self {
-        Tensor::add_scalar(&self, other)
+        Tensor::add_scalar(self, other)
     }
 }
 
@@ -663,7 +665,7 @@ where
     type Output = Self;
 
     fn sub(self, other: Self) -> Self {
-        Tensor::sub(&self, &other)
+        Tensor::sub(self, other)
     }
 }
 
@@ -675,7 +677,7 @@ where
     type Output = Self;
 
     fn sub(self, other: E) -> Self {
-        Tensor::sub_scalar(&self, other)
+        Tensor::sub_scalar(self, other)
     }
 }
 
@@ -686,7 +688,7 @@ where
     type Output = Self;
 
     fn mul(self, other: Self) -> Self {
-        Tensor::mul(&self, &other)
+        Tensor::mul(self, other)
     }
 }
 
@@ -698,7 +700,7 @@ where
     type Output = Self;
 
     fn mul(self, other: E) -> Self {
-        Tensor::mul_scalar(&self, other)
+        Tensor::mul_scalar(self, other)
     }
 }
 
@@ -709,7 +711,7 @@ where
     type Output = Self;
 
     fn div(self, other: Self) -> Self {
-        Tensor::div(&self, &other)
+        Tensor::div(self, other)
     }
 }
 
@@ -721,7 +723,7 @@ where
     type Output = Self;
 
     fn div(self, other: E) -> Self {
-        Tensor::div_scalar(&self, other)
+        Tensor::div_scalar(self, other)
     }
 }
 

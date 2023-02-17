@@ -40,7 +40,7 @@ impl Dropout {
 
         let random = input.random_like(Distribution::Bernoulli(self.prob));
         let mask = random.equal_scalar(1);
-        let x = input.mask_fill(&mask, 0.0_f32);
+        let x = input.mask_fill(mask, 0.0_f32);
 
         x / (1.0 - self.prob)
     }

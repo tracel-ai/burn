@@ -54,6 +54,6 @@ impl MaxPool2d {
             self.padding
                 .calculate_padding_2d(height_in, width_in, &self.kernel_size, &self.stride);
 
-        max_pool2d(&input, self.kernel_size, self.stride, padding)
+        max_pool2d(input, self.kernel_size, self.stride, padding)
     }
 }

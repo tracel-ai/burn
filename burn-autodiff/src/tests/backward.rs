@@ -15,8 +15,8 @@ mod tests {
         let indexes = Tensor::<<TestADBackend as Backend>::IntegerBackend, 2>::from_data(indexes);
         let x = Tensor::<TestADBackend, 3>::from_data(x);
 
-        let output = embedding(&weights, &indexes);
-        let output = output.matmul(&x);
+        let output = embedding(weights.clone(), indexes);
+        let output = output.matmul(x);
         let grads = output.backward();
 
         let grad = weights.grad(&grads).unwrap();

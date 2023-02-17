@@ -11,8 +11,8 @@ mod tests {
         let tensor_1 = TestADTensor::from_data(data_1);
         let tensor_2 = TestADTensor::from_data(data_2);
 
-        let tensor_3 = tensor_2.index([0..2, 0..2]);
-        let tensor_4 = &tensor_1.matmul(&tensor_3);
+        let tensor_3 = tensor_2.clone().index([0..2, 0..2]);
+        let tensor_4 = tensor_1.clone().matmul(tensor_3);
         let grads = tensor_4.backward();
 
         let grad_1 = tensor_1.grad(&grads).unwrap();
@@ -35,9 +35,9 @@ mod tests {
         let tensor_2 = TestADTensor::from_data(data_2);
         let tensor_assigned = TestADTensor::from_data(data_assigned);
 
-        let tensor_3 = tensor_1.matmul(&tensor_2);
-        let tensor_4 = tensor_3.index_assign([0..1, 0..1], &tensor_assigned);
-        let tensor_5 = &tensor_4.matmul(&tensor_1);
+        let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
+        let tensor_4 = tensor_3.index_assign([0..1, 0..1], tensor_assigned);
+        let tensor_5 = tensor_4.matmul(tensor_1.clone());
 
         let grads = tensor_5.backward();
 
@@ -58,11 +58,11 @@ mod tests {
         let tensor_2 = TestADTensor::from_data(data_2);
         let tensor_3 = TestADTensor::from_data(data_3);
 
-        let tensor_4 = tensor_1.matmul(&tensor_2);
-        let tensor_5 = tensor_2.index([0..1, 0..1]);
-        let tensor_6 = tensor_5.mul(&tensor_3);
-        let tensor_7 = tensor_4.index_assign([0..1, 0..1], &tensor_6);
-        let tensor_8 = &tensor_7.matmul(&tensor_1);
+        let tensor_4 = tensor_1.clone().matmul(tensor_2.clone());
+        let tensor_5 = tensor_2.clone().index([0..1, 0..1]);
+        let tensor_6 = tensor_5.mul(tensor_3.clone());
+        let tensor_7 = tensor_4.index_assign([0..1, 0..1], tensor_6);
+        let tensor_8 = tensor_7.matmul(tensor_1.clone());
 
         let grads = tensor_8.backward();
 

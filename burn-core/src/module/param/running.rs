@@ -36,11 +36,11 @@ impl<const D: usize, B: Backend> Module for Param<RunningState<Tensor<B, D>>> {
 
     fn to_device(&mut self, device: &B::Device) {
         let mut tensor = self.value.value.write().unwrap();
-        *tensor = tensor.to_device(device);
+        *tensor = tensor.clone().to_device(device);
 
         let mut tensors = self.value.values.lock().unwrap();
         for tensor in tensors.values_mut() {
-            *tensor = tensor.to_device(device);
+            *tensor = tensor.clone().to_device(device);
         }
     }
 
@@ -158,7 +158,7 @@ impl<const D: usize, B: Backend> RunningState<Tensor<B, D>> {
             counter += 1;
 
             value_updated = match value_updated {
-                Some(current) => Some(tensor.add(&current)),
+                Some(current) => Some(tensor.add(current)),
                 None => Some(tensor),
             };
         }

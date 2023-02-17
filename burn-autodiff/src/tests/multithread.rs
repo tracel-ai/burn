@@ -12,9 +12,9 @@ mod tests {
             let tensor_1 = TestADTensor::from_data(data_1.clone());
             let tensor_2 = TestADTensor::from_data(data_2.clone());
 
-            let tensor_3 = tensor_1.matmul(&tensor_2);
-            let tensor_4 = tensor_3.matmul(&tensor_2);
-            let tensor_5 = tensor_4.matmul(&tensor_3);
+            let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
+            let tensor_4 = tensor_3.clone().matmul(tensor_2.clone());
+            let tensor_5 = tensor_4.matmul(tensor_3);
 
             // Task 1
             let tensor_1_cloned = tensor_1.clone();
@@ -22,8 +22,8 @@ mod tests {
             let tensor_5_cloned = tensor_5.clone();
 
             let first_call = move || {
-                let tensor_6_1 = tensor_5_cloned.matmul(&tensor_2_cloned);
-                tensor_6_1.matmul(&tensor_1_cloned)
+                let tensor_6_1 = tensor_5_cloned.matmul(tensor_2_cloned);
+                tensor_6_1.matmul(tensor_1_cloned)
             };
 
             // Task 2
@@ -32,8 +32,8 @@ mod tests {
             let tensor_5_cloned = tensor_5;
 
             let second_call = move || {
-                let tensor_6_2 = tensor_5_cloned.matmul(&tensor_1_cloned);
-                tensor_6_2.matmul(&tensor_2_cloned)
+                let tensor_6_2 = tensor_5_cloned.matmul(tensor_1_cloned);
+                tensor_6_2.matmul(tensor_2_cloned)
             };
 
             let tensor_7_1_handle = std::thread::spawn(first_call);
@@ -41,7 +41,7 @@ mod tests {
 
             let tensor_7_1 = tensor_7_1_handle.join().unwrap();
             let tensor_7_2 = tensor_7_2_handle.join().unwrap();
-            let tensor_8 = tensor_7_1.matmul(&tensor_7_2);
+            let tensor_8 = tensor_7_1.matmul(tensor_7_2);
 
             let grads = tensor_8.backward();
 
@@ -54,19 +54,19 @@ mod tests {
             let tensor_1 = TestADTensor::from_data(data_1.clone());
             let tensor_2 = TestADTensor::from_data(data_2.clone());
 
-            let tensor_3 = tensor_1.matmul(&tensor_2);
-            let tensor_4 = tensor_3.matmul(&tensor_2);
-            let tensor_5 = tensor_4.matmul(&tensor_3);
+            let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
+            let tensor_4 = tensor_3.clone().matmul(tensor_2.clone());
+            let tensor_5 = tensor_4.matmul(tensor_3);
 
             // Task 1
-            let tensor_6_1 = tensor_5.matmul(&tensor_2);
-            let tensor_7_1 = tensor_6_1.matmul(&tensor_1);
+            let tensor_6_1 = tensor_5.clone().matmul(tensor_2.clone());
+            let tensor_7_1 = tensor_6_1.matmul(tensor_1.clone());
 
             // Task 2
-            let tensor_6_2 = tensor_5.matmul(&tensor_1);
-            let tensor_7_2 = tensor_6_2.matmul(&tensor_2);
+            let tensor_6_2 = tensor_5.matmul(tensor_1.clone());
+            let tensor_7_2 = tensor_6_2.matmul(tensor_2.clone());
 
-            let tensor_8 = tensor_7_1.matmul(&tensor_7_2);
+            let tensor_8 = tensor_7_1.matmul(tensor_7_2);
 
             let grads = tensor_8.backward();
 

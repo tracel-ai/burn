@@ -283,7 +283,7 @@ mod tests {
         let mut cache = transformer.new_autoregressive_cache();
 
         for i in 1..seq_length + 1 {
-            let tensor = tensor.index([0..batch_size, 0..i, 0..d_model]);
+            let tensor = tensor.clone().index([0..batch_size, 0..i, 0..d_model]);
             let input = TransformerEncoderInput::new(tensor.clone());
             let next_tok = transformer
                 .forward_autoregressive_inference(input, &mut cache)

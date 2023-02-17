@@ -73,7 +73,7 @@ mod tests {
             let weights = TestTensor::ones([self.channels_out, self.channels_in, self.kernel_size]);
             let bias = TestTensor::ones([self.channels_out]);
             let x = TestTensor::ones([self.batch_size, self.channels_in, self.length]);
-            let output = conv1d(&x, &weights, Some(&bias), self.stride, self.padding);
+            let output = conv1d(x, weights, Some(bias), self.stride, self.padding);
 
             y.to_data().assert_approx_eq(&output.into_data(), 3);
         }

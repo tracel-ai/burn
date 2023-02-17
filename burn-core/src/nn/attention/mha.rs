@@ -143,7 +143,7 @@ impl<B: Backend> MultiHeadAttention<B> {
         let attn_scores = self.attn_scores(query, key);
         let weights = self.attn_weights(attn_scores, input.mask_pad, input.mask_attn);
 
-        let context = weights.matmul(&value);
+        let context = weights.clone().matmul(value);
         let context = context
             .swap_dims(1, 2)
             .reshape([batch_size, seq_length_1, d_model]);
@@ -180,7 +180,7 @@ impl<B: Backend> MultiHeadAttention<B> {
         let attn_scores = self.attn_scores(query, key);
         let weights = self.attn_weights(attn_scores, input.mask_pad, input.mask_attn);
 
-        let context = weights.matmul(&value);
+        let context = weights.clone().matmul(value);
         let context = context
             .swap_dims(1, 2)
             .reshape([batch_size, seq_length_1, d_model]);
@@ -199,7 +199,7 @@ impl<B: Backend> MultiHeadAttention<B> {
 
     fn attn_scores(&self, query: Tensor<B, 4>, key: Tensor<B, 4>) -> Tensor<B, 4> {
         let attn_scores = query
-            .matmul(&key.transpose())
+            .matmul(key.transpose())
             .div_scalar((self.d_k as f32).sqrt());
 
         self.dropout.forward(attn_scores)
@@ -215,7 +215,7 @@ impl<B: Backend> MultiHeadAttention<B> {
             let [batch_size, seq_length] = mask_pad.dims();
 
             attn_scores = attn_scores.mask_fill(
-                &mask_pad.reshape([batch_size, 1, 1, seq_length]),
+                mask_pad.reshape([batch_size, 1, 1, seq_length]),
                 self.min_float,
             );
         }
@@ -224,12 +224,12 @@ impl<B: Backend> MultiHeadAttention<B> {
             let [batch_size, seq_length_1, seq_length_2] = mask_attn.dims();
 
             attn_scores = attn_scores.mask_fill(
-                &mask_attn.reshape([batch_size, 1, seq_length_1, seq_length_2]),
+                mask_attn.reshape([batch_size, 1, seq_length_1, seq_length_2]),
                 self.min_float,
             );
         }
 
-        activation::softmax(&attn_scores, 3)
+        activation::softmax(attn_scores, 3)
     }
 
     fn attention_linear(&self, x: Tensor<B, 3>, linear: &Param<nn::Linear<B>>) -> Tensor<B, 4> {
@@ -318,7 +318,7 @@ mod tests {
         let mask_pad = Tensor::zeros([batch_size, seq_length]);
         let mask_pad = mask_pad.index_assign(
             [0..batch_size, seq_length - num_padded..seq_length],
-            &Tensor::ones([batch_size, num_padded]),
+            Tensor::ones([batch_size, num_padded]),
         );
         let mask_pad = mask_pad.equal_scalar(1);
 
@@ -327,13 +327,13 @@ mod tests {
             Distribution::Standard,
         );
         // Change the end of the tensor
-        let tensor_2 = tensor_1.index_assign(
+        let tensor_2 = tensor_1.clone().index_assign(
             [
                 0..batch_size,
                 seq_length - num_padded..seq_length,
                 0..d_model,
             ],
-            &Tensor::random([batch_size, num_padded, d_model], Distribution::Standard),
+            Tensor::random([batch_size, num_padded, d_model], Distribution::Standard),
         );
 
         let input_1 = MhaInput::self_attn(tensor_1).mask_pad(mask_pad.clone());
@@ -373,7 +373,7 @@ mod tests {
         let mut cache = mha.new_autoregressive_cache();
 
         for i in 1..seq_length + 1 {
-            let tensor = tensor.index([0..batch_size, 0..i, 0..d_model]);
+            let tensor = tensor.clone().index([0..batch_size, 0..i, 0..d_model]);
             let input = MhaInput::self_attn(tensor);
             let next_tok = mha
                 .forward_autoregressive_inference(input, &mut cache)

@@ -501,9 +501,9 @@ mod tests {
             let x =
                 TestADTensor::ones([self.batch_size, self.channels_in, self.height, self.width]);
             let output = conv2d(
-                &x,
-                &weight,
-                Some(&bias),
+                x.clone(),
+                weight.clone(),
+                Some(bias.clone()),
                 [self.stride_1, self.stride_2],
                 [self.padding_1, self.padding_2],
             );

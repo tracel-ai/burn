@@ -93,7 +93,7 @@ mod tests {
         ]);
 
         let output = max_pool2d(
-            &x,
+            x,
             [kernel_size_1, kernel_size_2],
             [stride_1, stride_2],
             [padding_1, padding_2],
@@ -131,7 +131,7 @@ mod tests {
         ]]]);
 
         let output = max_pool2d(
-            &x,
+            x,
             [kernel_size_1, kernel_size_2],
             [stride_1, stride_2],
             [padding_1, padding_2],
@@ -173,7 +173,7 @@ mod tests {
         ]]]);
 
         let (output, output_indexes) = max_pool2d_with_indexes(
-            &x,
+            x,
             [kernel_size_1, kernel_size_2],
             [stride_1, stride_2],
             [padding_1, padding_2],
@@ -218,7 +218,7 @@ mod tests {
             [0.4384, 0.9963, 0.688],
         ]]]);
         let (output, output_indexes) = max_pool2d_with_indexes(
-            &x,
+            x,
             [kernel_size_1, kernel_size_2],
             [stride_1, stride_2],
             [padding_1, padding_2],
