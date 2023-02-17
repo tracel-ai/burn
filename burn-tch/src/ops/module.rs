@@ -1,16 +1,11 @@
-use crate::{element::TchElement, TchBackend, TchKind, TchTensor};
+use crate::{element::TchElement, to_tensor, TchBackend, TchTensor};
 use burn_tensor::ops::{MaxPool2dBackward, MaxPool2dWithIndexes, ModuleOps};
-use std::sync::Arc;
 
 impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
     fn embedding(weights: TchTensor<E, 2>, indexes: TchTensor<i64, 2>) -> TchTensor<E, 3> {
         let tensor = tch::Tensor::embedding(&weights.tensor, &indexes.tensor, -1, false, false);
-        let tensor = Arc::new(tensor);
 
-        TchTensor {
-            kind: weights.kind,
-            tensor,
-        }
+        to_tensor(tensor)
     }
 
     fn embedding_backward(
@@ -27,12 +22,8 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
             false,
             false,
         );
-        let tensor = Arc::new(tensor);
 
-        TchTensor {
-            kind: weights.kind,
-            tensor,
-        }
+        to_tensor(tensor)
     }
 
     fn conv1d(
@@ -51,12 +42,8 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
             &[1],
             1,
         );
-        let tensor = Arc::new(tensor);
 
-        TchTensor {
-            kind: weight.kind,
-            tensor,
-        }
+        to_tensor(tensor)
     }
 
     fn conv2d(
@@ -75,12 +62,8 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
             &[1, 1],
             1,
         );
-        let tensor = Arc::new(tensor);
 
-        TchTensor {
-            kind: weight.kind,
-            tensor,
-        }
+        to_tensor(tensor)
     }
 
     fn max_pool2d(
@@ -97,12 +80,8 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
             &[1, 1],
             false,
         );
-        let tensor = Arc::new(tensor);
 
-        TchTensor {
-            kind: x.kind,
-            tensor,
-        }
+        to_tensor(tensor)
     }
 
     fn max_pool2d_with_indexes(
@@ -119,16 +98,8 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
             &[1, 1],
             false,
         );
-        let output = TchTensor {
-            kind: x.kind,
-            tensor: Arc::new(tensor),
-        };
-        let indexes = TchTensor {
-            kind: TchKind::<i64>::new(),
-            tensor: Arc::new(indexes),
-        };
 
-        MaxPool2dWithIndexes::new(output, indexes)
+        MaxPool2dWithIndexes::new(to_tensor(tensor), to_tensor(indexes))
     }
 
     fn max_pool2d_with_indexes_backward(
@@ -150,11 +121,6 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
             &indexes.tensor,
         );
 
-        let tensor = TchTensor {
-            kind: x.kind,
-            tensor: Arc::new(grad),
-        };
-
-        MaxPool2dBackward::new(tensor)
+        MaxPool2dBackward::new(to_tensor(grad))
     }
 }

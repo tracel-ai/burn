@@ -14,6 +14,15 @@ pub struct TchTensor<P: tch::kind::Element, const D: usize> {
     pub tensor: Arc<tch::Tensor>,
 }
 
+pub(crate) fn to_tensor<const D: usize, E: tch::kind::Element + Default>(
+    tensor: tch::Tensor,
+) -> TchTensor<E, D> {
+    TchTensor {
+        tensor: Arc::new(tensor),
+        kind: TchKind::new(),
+    }
+}
+
 impl<E: TchElement, const D: usize> std::ops::Add for TchTensor<E, D> {
     type Output = Self;
 

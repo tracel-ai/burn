@@ -1,4 +1,4 @@
-use crate::{element::TchElement, TchBackend, TchDevice, TchKind, TchShape, TchTensor};
+use crate::{element::TchElement, to_tensor, TchBackend, TchDevice, TchKind, TchShape, TchTensor};
 use burn_tensor::{backend::Backend, ops::TensorOps, Data, Distribution, ElementConversion, Shape};
 use std::{ops::Range, sync::Arc};
 
@@ -556,15 +556,6 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
 
     fn relu<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
         to_tensor(tensor.unary_ops(|mut tensor| tensor.relu_(), |tensor| tensor.relu()))
-    }
-}
-
-fn to_tensor<const D: usize, E: tch::kind::Element + Default>(
-    tensor: tch::Tensor,
-) -> TchTensor<E, D> {
-    TchTensor {
-        tensor: Arc::new(tensor),
-        kind: TchKind::new(),
     }
 }
 
