@@ -1,5 +1,6 @@
 use crate::{element::TchElement, TchBackend, TchDevice};
 use burn_tensor::{ops::TensorOps, Data, Shape};
+use std::sync::Arc;
 
 lazy_static::lazy_static! {
     static ref NO_GRAD: tch::NoGradGuard = {
@@ -10,7 +11,7 @@ lazy_static::lazy_static! {
 #[derive(Debug, PartialEq)]
 pub struct TchTensor<P: tch::kind::Element, const D: usize> {
     pub kind: TchKind<P>,
-    pub tensor: tch::Tensor,
+    pub tensor: Arc<tch::Tensor>,
 }
 
 impl<E: TchElement, const D: usize> std::ops::Add for TchTensor<E, D> {
@@ -30,11 +31,56 @@ impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
 unsafe impl<P: tch::kind::Element, const D: usize> Send for TchTensor<P, D> {}
 unsafe impl<P: tch::kind::Element, const D: usize> Sync for TchTensor<P, D> {}
 
+impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
+    pub fn mut_ops<F: Fn(&mut tch::Tensor) -> O, O>(&mut self, func: F) -> Result<O, ()> {
+        let output = match Arc::get_mut(&mut self.tensor) {
+            Some(tensor) => func(tensor),
+            None => return Err(()),
+        };
+
+        Ok(output)
+    }
+    /// Execute a unary ops reusing the tensor data if possible.
+    pub fn unary_ops<FOwn, FRef, O>(self, fown: FOwn, fref: FRef) -> O
+    where
+        FOwn: Fn(tch::Tensor) -> O,
+        FRef: Fn(&tch::Tensor) -> O,
+    {
+        match Arc::try_unwrap(self.tensor) {
+            Ok(tensor) => fown(tensor),
+            Err(tensor) => fref(tensor.as_ref()),
+        }
+    }
+
+    /// Execute a binary ops reusing the tensor data if possible.
+    pub fn binary_ops_tensor<FLMut, FRMut, FRef, O>(
+        mut lhs: Self,
+        mut rhs: Self,
+        flmut: FLMut,
+        frmut: FRMut,
+        fref: FRef,
+    ) -> O
+    where
+        FLMut: Fn(&mut tch::Tensor, &tch::Tensor) -> O,
+        FRMut: Fn(&tch::Tensor, &mut tch::Tensor) -> O,
+        FRef: Fn(&tch::Tensor, &tch::Tensor) -> O,
+    {
+        if let Ok(output) = lhs.mut_ops(|lhs| flmut(lhs, &rhs.tensor)) {
+            return output;
+        }
+        if let Ok(output) = rhs.mut_ops(|rhs| frmut(&lhs.tensor, rhs)) {
+            return output;
+        }
+
+        fref(&lhs.tensor, &rhs.tensor)
+    }
+}
+
 impl<P: tch::kind::Element, const D: usize> Clone for TchTensor<P, D> {
     fn clone(&self) -> Self {
         Self {
             kind: self.kind.clone(),
-            tensor: self.tensor.shallow_clone(),
+            tensor: self.tensor.clone(),
         }
     }
 }
@@ -76,6 +122,7 @@ impl<P: tch::kind::Element + Default, const D: usize> TchTensor<P, D> {
 
         lazy_static::initialize(&NO_GRAD);
         let tensor = tensor.set_requires_grad(false);
+        let tensor = Arc::new(tensor);
 
         Self { kind, tensor }
     }
@@ -104,6 +151,7 @@ impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> T
 
         lazy_static::initialize(&NO_GRAD);
         let tensor = tensor.set_requires_grad(false);
+        let tensor = Arc::new(tensor);
 
         Self { kind, tensor }
     }

@@ -1,9 +1,11 @@
 use crate::{element::TchElement, TchBackend, TchKind, TchTensor};
 use burn_tensor::ops::{MaxPool2dBackward, MaxPool2dWithIndexes, ModuleOps};
+use std::sync::Arc;
 
 impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
     fn embedding(weights: TchTensor<E, 2>, indexes: TchTensor<i64, 2>) -> TchTensor<E, 3> {
         let tensor = tch::Tensor::embedding(&weights.tensor, &indexes.tensor, -1, false, false);
+        let tensor = Arc::new(tensor);
 
         TchTensor {
             kind: weights.kind,
@@ -25,6 +27,7 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
             false,
             false,
         );
+        let tensor = Arc::new(tensor);
 
         TchTensor {
             kind: weights.kind,
@@ -48,6 +51,7 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
             &[1],
             1,
         );
+        let tensor = Arc::new(tensor);
 
         TchTensor {
             kind: weight.kind,
@@ -71,6 +75,7 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
             &[1, 1],
             1,
         );
+        let tensor = Arc::new(tensor);
 
         TchTensor {
             kind: weight.kind,
@@ -92,6 +97,7 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
             &[1, 1],
             false,
         );
+        let tensor = Arc::new(tensor);
 
         TchTensor {
             kind: x.kind,
@@ -115,11 +121,11 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
         );
         let output = TchTensor {
             kind: x.kind,
-            tensor,
+            tensor: Arc::new(tensor),
         };
         let indexes = TchTensor {
             kind: TchKind::<i64>::new(),
-            tensor: indexes,
+            tensor: Arc::new(indexes),
         };
 
         MaxPool2dWithIndexes::new(output, indexes)
@@ -146,7 +152,7 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
 
         let tensor = TchTensor {
             kind: x.kind,
-            tensor: grad,
+            tensor: Arc::new(grad),
         };
 
         MaxPool2dBackward::new(tensor)
