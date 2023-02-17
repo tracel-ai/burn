@@ -321,7 +321,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         lhs: NdArrayTensor<E, D>,
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
-        let tensor = NdArrayBackend::<E>::sub(lhs.clone(), rhs.clone());
+        let tensor = NdArrayBackend::<E>::sub(lhs, rhs);
         let zero = E::zeros(&E::default());
 
         Self::equal_scalar(tensor, zero)
@@ -337,7 +337,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         lhs: NdArrayTensor<E, D>,
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
-        let tensor = NdArrayBackend::<E>::sub(lhs.clone(), rhs.clone());
+        let tensor = NdArrayBackend::<E>::sub(lhs, rhs);
         let zero = E::zeros(&E::default());
         Self::greater_scalar(tensor, zero)
     }
@@ -352,7 +352,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         lhs: NdArrayTensor<E, D>,
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
-        let tensor = NdArrayBackend::<E>::sub(lhs.clone(), rhs.clone());
+        let tensor = NdArrayBackend::<E>::sub(lhs, rhs);
         let zero = E::zeros(&E::default());
         Self::greater_equal_scalar(tensor, zero)
     }
@@ -370,7 +370,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         lhs: NdArrayTensor<E, D>,
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
-        let tensor = NdArrayBackend::<E>::sub(lhs.clone(), rhs.clone());
+        let tensor = NdArrayBackend::<E>::sub(lhs, rhs);
         let zero = E::zeros(&E::default());
         Self::lower_scalar(tensor, zero)
     }
@@ -385,7 +385,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         lhs: NdArrayTensor<E, D>,
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
-        let tensor = NdArrayBackend::<E>::sub(lhs.clone(), rhs.clone());
+        let tensor = NdArrayBackend::<E>::sub(lhs, rhs);
         let zero = E::zeros(&E::default());
         Self::lower_equal_scalar(tensor, zero)
     }
