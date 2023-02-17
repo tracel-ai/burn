@@ -1330,4 +1330,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
         unary_ops_wrapper(tensor.node, output, ops)
     }
+
+    fn bool_into_int<const D: usize>(
+        tensor: <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D>,
+    ) -> <<ADBackendDecorator<B> as Backend>::IntegerBackend as Backend>::TensorPrimitive<D> {
+        B::bool_into_int(tensor)
+    }
 }

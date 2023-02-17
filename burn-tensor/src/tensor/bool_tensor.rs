@@ -43,9 +43,8 @@ where
         Self::new(value)
     }
 
-    pub fn to_int(&self) -> Tensor<B::IntegerBackend, D> {
-        let data = B::bool_to_data(&self.value);
-        Tensor::from_data(data.convert())
+    pub fn into_int(self) -> Tensor<B::IntegerBackend, D> {
+        Tensor::from_primitive(B::bool_into_int(self.value))
     }
 
     pub fn from_int_backend(tensor: BoolTensor<B::IntegerBackend, D>) -> Self {

@@ -557,6 +557,13 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     fn relu<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
         to_tensor(tensor.unary_ops(|mut tensor| tensor.relu_(), |tensor| tensor.relu()))
     }
+
+    fn bool_into_int<const D: usize>(
+        tensor: <TchBackend<E> as Backend>::BoolTensorPrimitive<D>,
+    ) -> <<TchBackend<E> as Backend>::IntegerBackend as Backend>::TensorPrimitive<D> {
+        let tensor = tensor.tensor.to_kind(TchKind::<i64>::new().kind());
+        to_tensor(tensor)
+    }
 }
 
 fn index<const D1: usize, const D2: usize, E: tch::kind::Element + Copy>(

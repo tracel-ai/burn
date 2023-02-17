@@ -545,6 +545,13 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
 
         NdArrayTensor { array }
     }
+
+    fn bool_into_int<const D: usize>(
+        tensor: <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D>,
+    ) -> <<NdArrayBackend<E> as Backend>::IntegerBackend as Backend>::TensorPrimitive<D> {
+        let data = Self::bool_into_data(tensor);
+        NdArrayBackend::<i64>::from_data(data.convert(), &NdArrayDevice::Cpu)
+    }
 }
 
 fn to_slice_args<const D1: usize, const D2: usize>(
