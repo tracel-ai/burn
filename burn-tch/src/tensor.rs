@@ -32,13 +32,13 @@ unsafe impl<P: tch::kind::Element, const D: usize> Send for TchTensor<P, D> {}
 unsafe impl<P: tch::kind::Element, const D: usize> Sync for TchTensor<P, D> {}
 
 impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
-    pub fn mut_ops<F: Fn(&mut tch::Tensor) -> O, O>(&mut self, func: F) -> Result<O, ()> {
+    pub fn mut_ops<F: Fn(&mut tch::Tensor) -> O, O>(&mut self, func: F) -> Option<O> {
         let output = match Arc::get_mut(&mut self.tensor) {
             Some(tensor) => func(tensor),
-            None => return Err(()),
+            None => return None,
         };
 
-        Ok(output)
+        Some(output)
     }
     /// Execute a unary ops reusing the tensor data if possible.
     pub fn unary_ops<FOwn, FRef, O>(self, fown: FOwn, fref: FRef) -> O
@@ -65,10 +65,10 @@ impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
         FRMut: Fn(&tch::Tensor, &mut tch::Tensor) -> O,
         FRef: Fn(&tch::Tensor, &tch::Tensor) -> O,
     {
-        if let Ok(output) = lhs.mut_ops(|lhs| flmut(lhs, &rhs.tensor)) {
+        if let Some(output) = lhs.mut_ops(|lhs| flmut(lhs, &rhs.tensor)) {
             return output;
         }
-        if let Ok(output) = rhs.mut_ops(|rhs| frmut(&lhs.tensor, rhs)) {
+        if let Some(output) = rhs.mut_ops(|rhs| frmut(&lhs.tensor, rhs)) {
             return output;
         }
 
