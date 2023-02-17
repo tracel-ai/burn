@@ -318,47 +318,47 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     }
 
     fn equal<const D: usize>(
-        lhs: &NdArrayTensor<E, D>,
-        rhs: &NdArrayTensor<E, D>,
+        lhs: NdArrayTensor<E, D>,
+        rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
         let tensor = NdArrayBackend::<E>::sub(lhs.clone(), rhs.clone());
         let zero = E::zeros(&E::default());
 
-        Self::equal_scalar(&tensor, zero)
+        Self::equal_scalar(tensor, zero)
     }
 
-    fn equal_scalar<const D: usize>(lhs: &NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<bool, D> {
+    fn equal_scalar<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<bool, D> {
         let array = lhs.array.mapv(|a| a == rhs).into_shared();
 
         NdArrayTensor { array }
     }
 
     fn greater<const D: usize>(
-        lhs: &NdArrayTensor<E, D>,
-        rhs: &NdArrayTensor<E, D>,
+        lhs: NdArrayTensor<E, D>,
+        rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
         let tensor = NdArrayBackend::<E>::sub(lhs.clone(), rhs.clone());
         let zero = E::zeros(&E::default());
-        Self::greater_scalar(&tensor, zero)
+        Self::greater_scalar(tensor, zero)
     }
 
-    fn greater_scalar<const D: usize>(lhs: &NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<bool, D> {
+    fn greater_scalar<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<bool, D> {
         let array = lhs.array.mapv(|a| a > rhs).into_shared();
 
         NdArrayTensor { array }
     }
 
     fn greater_equal<const D: usize>(
-        lhs: &NdArrayTensor<E, D>,
-        rhs: &NdArrayTensor<E, D>,
+        lhs: NdArrayTensor<E, D>,
+        rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
         let tensor = NdArrayBackend::<E>::sub(lhs.clone(), rhs.clone());
         let zero = E::zeros(&E::default());
-        Self::greater_equal_scalar(&tensor, zero)
+        Self::greater_equal_scalar(tensor, zero)
     }
 
     fn greater_equal_scalar<const D: usize>(
-        lhs: &NdArrayTensor<E, D>,
+        lhs: NdArrayTensor<E, D>,
         rhs: E,
     ) -> NdArrayTensor<bool, D> {
         let array = lhs.array.mapv(|a| a >= rhs).into_shared();
@@ -367,31 +367,31 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     }
 
     fn lower<const D: usize>(
-        lhs: &NdArrayTensor<E, D>,
-        rhs: &NdArrayTensor<E, D>,
+        lhs: NdArrayTensor<E, D>,
+        rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
         let tensor = NdArrayBackend::<E>::sub(lhs.clone(), rhs.clone());
         let zero = E::zeros(&E::default());
-        Self::lower_scalar(&tensor, zero)
+        Self::lower_scalar(tensor, zero)
     }
 
-    fn lower_scalar<const D: usize>(lhs: &NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<bool, D> {
+    fn lower_scalar<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<bool, D> {
         let array = lhs.array.mapv(|a| a < rhs).into_shared();
 
         NdArrayTensor { array }
     }
 
     fn lower_equal<const D: usize>(
-        lhs: &NdArrayTensor<E, D>,
-        rhs: &NdArrayTensor<E, D>,
+        lhs: NdArrayTensor<E, D>,
+        rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
         let tensor = NdArrayBackend::<E>::sub(lhs.clone(), rhs.clone());
         let zero = E::zeros(&E::default());
-        Self::lower_equal_scalar(&tensor, zero)
+        Self::lower_equal_scalar(tensor, zero)
     }
 
     fn lower_equal_scalar<const D: usize>(
-        lhs: &NdArrayTensor<E, D>,
+        lhs: NdArrayTensor<E, D>,
         rhs: E,
     ) -> NdArrayTensor<bool, D> {
         let array = lhs.array.mapv(|a| a <= rhs).into_shared();
@@ -535,9 +535,15 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
 
     fn relu<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let zero = 0.to_elem();
-        let mask = Self::lower_equal_scalar(&tensor, zero);
+        let array = tensor
+            .array
+            .mapv_into(|elem| match elem < zero {
+                true => 0.0.to_elem(),
+                false => elem,
+            })
+            .into_shared();
 
-        Self::mask_fill(tensor, mask, zero)
+        NdArrayTensor { array }
     }
 }
 

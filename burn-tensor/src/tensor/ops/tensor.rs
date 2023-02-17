@@ -149,43 +149,43 @@ pub trait TensorOps<B: Backend> {
         value: B::Elem,
     ) -> B::TensorPrimitive<D>;
     fn equal<const D: usize>(
-        lhs: &B::TensorPrimitive<D>,
-        rhs: &B::TensorPrimitive<D>,
+        lhs: B::TensorPrimitive<D>,
+        rhs: B::TensorPrimitive<D>,
     ) -> B::BoolTensorPrimitive<D>;
     fn equal_scalar<const D: usize>(
-        lhs: &B::TensorPrimitive<D>,
+        lhs: B::TensorPrimitive<D>,
         rhs: B::Elem,
     ) -> B::BoolTensorPrimitive<D>;
     fn greater<const D: usize>(
-        lhs: &B::TensorPrimitive<D>,
-        rhs: &B::TensorPrimitive<D>,
+        lhs: B::TensorPrimitive<D>,
+        rhs: B::TensorPrimitive<D>,
     ) -> B::BoolTensorPrimitive<D>;
     fn greater_scalar<const D: usize>(
-        lhs: &B::TensorPrimitive<D>,
+        lhs: B::TensorPrimitive<D>,
         rhs: B::Elem,
     ) -> B::BoolTensorPrimitive<D>;
     fn greater_equal<const D: usize>(
-        lhs: &B::TensorPrimitive<D>,
-        rhs: &B::TensorPrimitive<D>,
+        lhs: B::TensorPrimitive<D>,
+        rhs: B::TensorPrimitive<D>,
     ) -> B::BoolTensorPrimitive<D>;
     fn greater_equal_scalar<const D: usize>(
-        lhs: &B::TensorPrimitive<D>,
+        lhs: B::TensorPrimitive<D>,
         rhs: B::Elem,
     ) -> B::BoolTensorPrimitive<D>;
     fn lower<const D: usize>(
-        lhs: &B::TensorPrimitive<D>,
-        rhs: &B::TensorPrimitive<D>,
+        lhs: B::TensorPrimitive<D>,
+        rhs: B::TensorPrimitive<D>,
     ) -> B::BoolTensorPrimitive<D>;
     fn lower_scalar<const D: usize>(
-        lhs: &B::TensorPrimitive<D>,
+        lhs: B::TensorPrimitive<D>,
         rhs: B::Elem,
     ) -> B::BoolTensorPrimitive<D>;
     fn lower_equal<const D: usize>(
-        lhs: &B::TensorPrimitive<D>,
-        rhs: &B::TensorPrimitive<D>,
+        lhs: B::TensorPrimitive<D>,
+        rhs: B::TensorPrimitive<D>,
     ) -> B::BoolTensorPrimitive<D>;
     fn lower_equal_scalar<const D: usize>(
-        lhs: &B::TensorPrimitive<D>,
+        lhs: B::TensorPrimitive<D>,
         rhs: B::Elem,
     ) -> B::BoolTensorPrimitive<D>;
     fn detach<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D>;

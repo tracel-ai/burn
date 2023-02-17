@@ -39,7 +39,7 @@ impl<B: Backend> Metric for AccuracyMetric<B> {
             .to_device(&B::Device::default())
             .reshape([batch_size]);
 
-        let total_current = outputs.equal(&targets).to_int().sum().to_data().value[0] as usize;
+        let total_current = outputs.equal(targets).to_int().sum().to_data().value[0] as usize;
         let accuracy = 100.0 * total_current as f64 / batch_size as f64;
 
         self.state.update(
