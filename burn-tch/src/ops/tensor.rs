@@ -66,6 +66,20 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         }
     }
 
+    fn arange(
+        range: Range<usize>,
+        device: &TchDevice,
+    ) -> <<TchBackend<E> as Backend>::IntegerBackend as Backend>::TensorPrimitive<1> {
+        let device: tch::Device = (*device).into();
+        let mut tensor = tch::Tensor::arange(range.end as i64, (tch::Kind::Int64, device));
+
+        if range.start != 0 {
+            tensor = tensor.f_add_scalar_(range.start as i64).unwrap();
+        }
+
+        to_tensor(tensor)
+    }
+
     fn zeros<const D: usize>(shape: Shape<D>, device: &TchDevice) -> TchTensor<E, D> {
         let mut tensor = TchTensor::<E, D>::empty(shape, *device);
         let _ = tensor.mut_ops(|tensor| tensor.zero_());
