@@ -5,10 +5,10 @@ type Backend = burn_autodiff::ADBackendDecorator<burn_tch::TchBackend<burn::tens
 
 fn main() {
     let config = ExperimentConfig::new(
-        burn::nn::transformer::TransformerEncoderConfig::new(1024, 4096, 16, 8),
-        burn::optim::AdamConfig::new(1.0e-4)
+        burn::nn::transformer::TransformerEncoderConfig::new(384, 1536, 8, 8),
+        burn::optim::AdamConfig::new(2.5e-5)
             .with_epsilon(1e-4)
-            .with_weight_decay(Some(WeightDecayConfig::new(5e-6))),
+            .with_weight_decay(Some(WeightDecayConfig::new(1.0e-5))),
     );
 
     text_generation::training::train::<Backend, DbPediaDataset>(

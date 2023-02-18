@@ -22,7 +22,7 @@ pub struct TextGenerationModelConfig {
 }
 
 #[derive(Module, Debug)]
-pub struct TextClassificationModel<B: Backend> {
+pub struct TextGenerationModel<B: Backend> {
     transformer: Param<TransformerEncoder<B>>,
     embedding_token: Param<Embedding<B>>,
     embedding_pos: Param<Embedding<B>>,
@@ -32,7 +32,7 @@ pub struct TextClassificationModel<B: Backend> {
     max_seq_length: usize,
 }
 
-impl<B: Backend> TextClassificationModel<B> {
+impl<B: Backend> TextGenerationModel<B> {
     pub fn new(config: &TextGenerationModelConfig) -> Self {
         let config_embedding_token =
             EmbeddingConfig::new(config.vocab_size, config.transformer.d_model);
@@ -99,7 +99,7 @@ impl<B: Backend> TextClassificationModel<B> {
 }
 
 impl<B: ADBackend> TrainStep<B, TrainingTextGenerationBatch<B>, ClassificationOutput<B>>
-    for TextClassificationModel<B>
+    for TextGenerationModel<B>
 {
     fn step(
         &self,
@@ -113,7 +113,7 @@ impl<B: ADBackend> TrainStep<B, TrainingTextGenerationBatch<B>, ClassificationOu
 }
 
 impl<B: Backend> ValidStep<TrainingTextGenerationBatch<B>, ClassificationOutput<B>>
-    for TextClassificationModel<B>
+    for TextGenerationModel<B>
 {
     fn step(&self, item: TrainingTextGenerationBatch<B>) -> ClassificationOutput<B> {
         self.forward_training(item)

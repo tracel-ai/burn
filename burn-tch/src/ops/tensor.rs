@@ -355,8 +355,8 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         let tensor = TchTensor::binary_ops_tensor(
             lhs,
             rhs,
-            |lhs, rhs| lhs.eq_tensor_(rhs),
-            |lhs, rhs| rhs.eq_tensor_(lhs),
+            |lhs, rhs| lhs.eq_tensor_(rhs).to_kind(tch::Kind::Bool),
+            |lhs, rhs| rhs.eq_tensor_(lhs).to_kind(tch::Kind::Bool),
             |lhs, rhs| lhs.eq_tensor(rhs),
         );
 
@@ -365,7 +365,10 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
 
     fn equal_scalar<const D: usize>(lhs: TchTensor<E, D>, rhs: E) -> TchTensor<bool, D> {
         let rhs: f64 = rhs.to_elem();
-        let tensor = lhs.unary_ops(|mut tensor| tensor.eq_(rhs), |tensor| tensor.eq(rhs));
+        let tensor = lhs.unary_ops(
+            |mut tensor| tensor.eq_(rhs).to_kind(tch::Kind::Bool),
+            |tensor| tensor.eq(rhs),
+        );
         to_tensor(tensor)
     }
 
@@ -373,8 +376,8 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         let tensor = TchTensor::binary_ops_tensor(
             lhs,
             rhs,
-            |lhs, rhs| lhs.greater_tensor_(rhs),
-            |lhs, rhs| rhs.less_tensor_(lhs),
+            |lhs, rhs| lhs.greater_tensor_(rhs).to_kind(tch::Kind::Bool),
+            |lhs, rhs| rhs.less_tensor_(lhs).to_kind(tch::Kind::Bool),
             |lhs, rhs| lhs.greater_tensor(rhs),
         );
 
@@ -384,7 +387,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     fn greater_scalar<const D: usize>(lhs: TchTensor<E, D>, rhs: E) -> TchTensor<bool, D> {
         let rhs: f64 = rhs.to_elem();
         let tensor = lhs.unary_ops(
-            |mut tensor| tensor.greater_(rhs),
+            |mut tensor| tensor.greater_(rhs).to_kind(tch::Kind::Bool),
             |tensor| tensor.greater(rhs),
         );
         to_tensor(tensor)
@@ -397,8 +400,8 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         let tensor = TchTensor::binary_ops_tensor(
             lhs,
             rhs,
-            |lhs, rhs| lhs.greater_equal_tensor_(rhs),
-            |lhs, rhs| rhs.less_equal_tensor_(lhs),
+            |lhs, rhs| lhs.greater_equal_tensor_(rhs).to_kind(tch::Kind::Bool),
+            |lhs, rhs| rhs.less_equal_tensor_(lhs).to_kind(tch::Kind::Bool),
             |lhs, rhs| lhs.greater_equal_tensor(rhs),
         );
 
@@ -408,7 +411,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     fn greater_equal_scalar<const D: usize>(lhs: TchTensor<E, D>, rhs: E) -> TchTensor<bool, D> {
         let rhs: f64 = rhs.to_elem();
         let tensor = lhs.unary_ops(
-            |mut tensor| tensor.greater_equal_(rhs),
+            |mut tensor| tensor.greater_equal_(rhs).to_kind(tch::Kind::Bool),
             |tensor| tensor.greater_equal(rhs),
         );
         to_tensor(tensor)
@@ -418,8 +421,8 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         let tensor = TchTensor::binary_ops_tensor(
             lhs,
             rhs,
-            |lhs, rhs| lhs.less_tensor_(rhs),
-            |lhs, rhs| rhs.greater_tensor_(lhs),
+            |lhs, rhs| lhs.less_tensor_(rhs).to_kind(tch::Kind::Bool),
+            |lhs, rhs| rhs.greater_tensor_(lhs).to_kind(tch::Kind::Bool),
             |lhs, rhs| lhs.less_tensor(rhs),
         );
 
@@ -428,7 +431,10 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
 
     fn lower_scalar<const D: usize>(lhs: TchTensor<E, D>, rhs: E) -> TchTensor<bool, D> {
         let rhs: f64 = rhs.to_elem();
-        let tensor = lhs.unary_ops(|mut tensor| tensor.less_(rhs), |tensor| tensor.less(rhs));
+        let tensor = lhs.unary_ops(
+            |mut tensor| tensor.less_(rhs).to_kind(tch::Kind::Bool),
+            |tensor| tensor.less(rhs),
+        );
         to_tensor(tensor)
     }
 
@@ -439,8 +445,8 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         let tensor = TchTensor::binary_ops_tensor(
             lhs,
             rhs,
-            |lhs, rhs| lhs.less_equal_tensor_(rhs),
-            |lhs, rhs| rhs.greater_equal_tensor_(lhs),
+            |lhs, rhs| lhs.less_equal_tensor_(rhs).to_kind(tch::Kind::Bool),
+            |lhs, rhs| rhs.greater_equal_tensor_(lhs).to_kind(tch::Kind::Bool),
             |lhs, rhs| lhs.less_equal_tensor(rhs),
         );
 
@@ -450,7 +456,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     fn lower_equal_scalar<const D: usize>(lhs: TchTensor<E, D>, rhs: E) -> TchTensor<bool, D> {
         let rhs: f64 = rhs.to_elem();
         let tensor = lhs.unary_ops(
-            |mut tensor| tensor.less_equal_(rhs),
+            |mut tensor| tensor.less_equal_(rhs).to_kind(tch::Kind::Bool),
             |tensor| tensor.less_equal(rhs),
         );
         to_tensor(tensor)
