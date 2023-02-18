@@ -39,6 +39,13 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         ADTensor::from_tensor(B::random(shape, distribution, device))
     }
 
+    fn arange(
+        range: Range<usize>,
+        device: &<ADBackendDecorator<B> as Backend>::Device,
+    ) -> <<ADBackendDecorator<B> as Backend>::IntegerBackend as Backend>::TensorPrimitive<1> {
+        <B as TensorOps<B>>::arange(range, device)
+    }
+
     fn zeros<const D: usize>(shape: Shape<D>, device: &B::Device) -> ADTensor<D, B> {
         ADTensor::from_tensor(B::zeros(shape, device))
     }
