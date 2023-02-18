@@ -1,6 +1,6 @@
 use crate::{
     data::{Gpt2Tokenizer, TextGenerationBatcher, TextGenerationItem, Tokenizer},
-    model::{TextClassificationModel, TextGenerationModelConfig},
+    model::{TextGenerationModel, TextGenerationModelConfig},
 };
 use burn::data::dataset::transform::SamplerDataset;
 use burn::{
@@ -21,11 +21,11 @@ use std::sync::Arc;
 pub struct ExperimentConfig {
     transformer: TransformerEncoderConfig,
     optimizer: AdamConfig,
-    #[config(default = 256)]
+    #[config(default = 192)]
     max_seq_length: usize,
     #[config(default = 1)]
     batch_size: usize,
-    #[config(default = 10)]
+    #[config(default = 50)]
     num_epochs: usize,
 }
 
@@ -36,8 +36,8 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
     config: ExperimentConfig,
     artifact_dir: &str,
 ) {
-    let dataset_train = Arc::new(SamplerDataset::new(Box::new(dataset_train), 10_000));
-    let dataset_test = Arc::new(SamplerDataset::new(Box::new(dataset_test), 1_000));
+    let dataset_train = Arc::new(SamplerDataset::new(Box::new(dataset_train), 2_000));
+    let dataset_test = Arc::new(SamplerDataset::new(Box::new(dataset_test), 500));
 
     let tokenizer = Arc::new(Gpt2Tokenizer::default());
     let batcher_train = Arc::new(TextGenerationBatcher::new(
@@ -49,7 +49,7 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
         config.max_seq_length,
     ));
 
-    let model = TextClassificationModel::<B>::new(&TextGenerationModelConfig::new(
+    let model = TextGenerationModel::<B>::new(&TextGenerationModelConfig::new(
         config.transformer.clone(),
         tokenizer.vocab_size(),
         tokenizer.pad_token(),
@@ -58,12 +58,12 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
 
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
         .batch_size(config.batch_size)
-        .num_workers(8)
+        .num_workers(4)
         .build(dataset_train);
 
     let dataloader_test = DataLoaderBuilder::new(batcher_test)
         .batch_size(config.batch_size)
-        .num_workers(8)
+        .num_workers(4)
         .build(dataset_test);
 
     let optim = Adam::new(&config.optimizer);
@@ -77,7 +77,7 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
         .metric_valid_plot(LossMetric::new())
         .with_file_checkpointer::<f32>(2)
         .devices(vec![device])
-        .grads_accumulation(32)
+        .grads_accumulation(16)
         .num_epochs(config.num_epochs)
         .build(model, optim);
 
