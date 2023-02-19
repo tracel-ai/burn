@@ -1,6 +1,9 @@
 use crate::backend::Backend;
 use crate::{Distribution, NamedDims, Shape, Tensor};
 
+extern crate alloc;
+use alloc::format;
+
 /// A tensor with named dimensions.
 #[derive(Debug, Clone)]
 pub struct NamedTensor<B: Backend, D: NamedDims<B>> {
@@ -23,11 +26,11 @@ impl<B: Backend, ND: NamedDims<B, Tensor = Tensor<B, D>>, const D: usize> From<T
     }
 }
 
-impl<B: Backend, const D: usize, ND: NamedDims<B>> std::fmt::Display for NamedTensor<B, ND>
+impl<B: Backend, const D: usize, ND: NamedDims<B>> core::fmt::Display for NamedTensor<B, ND>
 where
     ND: NamedDims<B, Tensor = Tensor<B, D>>,
 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(&format!(
             "NamedTensor[shape={:?}, dims={}]",
             self.shape().dims,

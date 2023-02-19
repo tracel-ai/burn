@@ -60,7 +60,7 @@ where
         BoolTensor::new(B::bool_reshape(self.value, shape.into()))
     }
 
-    pub fn index<const D2: usize>(self, indexes: [std::ops::Range<usize>; D2]) -> Self {
+    pub fn index<const D2: usize>(self, indexes: [core::ops::Range<usize>; D2]) -> Self {
         Self::new(B::bool_index(self.value, indexes))
     }
 }

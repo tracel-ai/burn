@@ -21,18 +21,29 @@ blas-openblas-system = [
     "openblas-src/system",
 ]
 
-[dependencies]
-burn-tensor = { version = "0.5.0", path = "../burn-tensor" }
-blas-src = { version = "0.8.0", default-features = false, optional = true }
-openblas-src = { version = "0.10.5", optional = true }
+# Use randomly generated seed during build. This is useful for testing purposes.
+build-generated-seed = []
 
-ndarray = "0.15.6"
-libm = "0.2.6"
-derive-new = "0.5.9"
-rand = "0.8.5"
-num-traits = "0.2.15"
+[dependencies]
+blas-src = {version = "0.8.0", default-features = false, optional = true}
+burn-tensor = {version = "0.5.0", path = "../burn-tensor", default-features = false}
+openblas-src = {version = "0.10.5", optional = true}
+
+derive-new = {version = "0.5.9", default-features = false} # Default enables std 
+libm = "0.2.6" # no-std compatible
+ndarray = {version = "0.15.6", default-features = false} # Default enables std 
+
+rand = {version = "0.8.5", default-features = false, features = ["small_rng"]} # Default enables std
+
+num-traits = {version = "0.2.15", default-features = false, features = ["libm"]} # Default enables std
+spin = {version = "0.9.5", features = ["mutex", "spin_mutex"]} # using in place of use std::sync::Mutex;
+
+# Used to generate a seed for random at build time
+const-random = {version = "0.1.15", optional = false}
 
 [dev-dependencies]
+rand = {version = "0.8.5", default-features = true}
+
 burn-tensor = { version = "0.5.0", path = "../burn-tensor", features = [
     "export_tests",
 ] }

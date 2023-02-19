@@ -1,17 +1,23 @@
 use crate::{backend::Backend, Tensor};
-use std::{any::Any, collections::HashMap};
+use core::any::Any;
+use core::marker::PhantomData;
+
+extern crate alloc;
+use alloc::boxed::Box;
+
+use alloc::collections::BTreeMap;
 
 /// Contains tensor of arbitrary dimension.
 #[derive(Debug)]
 pub struct TensorContainer<B: Backend, ID> {
-    tensors: HashMap<ID, Box<dyn Any + Send + Sync>>,
-    _b: B,
+    tensors: BTreeMap<ID, Box<dyn Any + Send + Sync>>,
+    phantom: PhantomData<B>,
 }
 
 impl<B, ID> Default for TensorContainer<B, ID>
 where
     B: Backend,
-    ID: std::hash::Hash + PartialEq + Eq,
+    ID: core::hash::Hash + PartialEq + Eq + Ord,
 {
     fn default() -> Self {
         Self::new()
@@ -21,13 +27,13 @@ where
 impl<B, ID> TensorContainer<B, ID>
 where
     B: Backend,
-    ID: std::hash::Hash + PartialEq + Eq,
+    ID: core::hash::Hash + PartialEq + Eq + Ord,
 {
     /// Create an empty container.
     pub fn new() -> Self {
         Self {
-            tensors: HashMap::new(),
-            _b: B::default(),
+            tensors: BTreeMap::new(),
+            phantom: PhantomData::default(),
         }
     }
 

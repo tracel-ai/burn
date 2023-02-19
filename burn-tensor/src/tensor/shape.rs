@@ -1,3 +1,7 @@
+extern crate alloc;
+use alloc::vec::Vec;
+
+
 #[derive(new, Debug, Clone, PartialEq, Eq)]
 pub struct Shape<const D: usize> {
     pub dims: [usize; D],

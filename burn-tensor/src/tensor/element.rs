@@ -1,7 +1,7 @@
 use crate::{tensor::ops::*, Distribution};
 use half::f16;
 use num_traits::ToPrimitive;
-use rand::prelude::StdRng;
+use rand::RngCore;
 
 pub trait Element:
     Zeros
@@ -11,13 +11,13 @@ pub trait Element:
     + ElementPrecision
     + ElementValue
     + Ones
-    + std::ops::Mul<Self, Output = Self>
-    + std::fmt::Debug
+    + core::ops::Mul<Self, Output = Self>
+    + core::fmt::Debug
     + Default
     + Send
     + Sync
     + Copy
-    + std::cmp::PartialOrd<Self>
+    + core::cmp::PartialOrd<Self>
     + 'static
 {
 }
@@ -28,7 +28,7 @@ pub trait ElementConversion {
 }
 
 pub trait ElementRandom {
-    fn random(distribution: Distribution<Self>, rng: &mut StdRng) -> Self
+    fn random<R: RngCore>(distribution: Distribution<Self>, rng: &mut R) -> Self
     where
         Self: Sized;
 }
@@ -91,7 +91,7 @@ macro_rules! make_element {
                 Self::from_elem(f64::INFINITY)
             }
             fn inf_neg() -> Self {
-                Self::from_elem(std::ops::Neg::neg(f64::INFINITY))
+                Self::from_elem(core::ops::Neg::neg(f64::INFINITY))
             }
             fn nan() -> Self {
                 Self::from_elem(f64::NAN)
@@ -111,7 +111,7 @@ macro_rules! make_element {
         }
 
         impl ElementRandom for $type {
-            fn random(distribution: Distribution<Self>, rng: &mut StdRng) -> Self {
+            fn random<R: RngCore>(distribution: Distribution<Self>, rng: &mut R) -> Self {
                 $random(distribution, rng)
             }
         }
@@ -148,47 +148,47 @@ macro_rules! make_element {
 make_element!(
     float f64 Precision::Double,
     convert |elem: &dyn ToPrimitive| elem.to_f64().unwrap(),
-    random |distribution: Distribution<f64>, rng: &mut StdRng| distribution.sampler(rng).sample()
+    random |distribution: Distribution<f64>, rng: &mut R| distribution.sampler(rng).sample()
 );
 
 make_element!(
     float f32 Precision::Full,
     convert |elem: &dyn ToPrimitive| elem.to_f32().unwrap(),
-    random |distribution: Distribution<f32>, rng: &mut StdRng| distribution.sampler(rng).sample()
+    random |distribution: Distribution<f32>, rng: &mut R| distribution.sampler(rng).sample()
 );
 
 make_element!(
     int i64 Precision::Double,
     convert |elem: &dyn ToPrimitive| elem.to_i64().unwrap(),
-    random |distribution: Distribution<i64>, rng: &mut StdRng| distribution.sampler(rng).sample()
+    random |distribution: Distribution<i64>, rng: &mut R| distribution.sampler(rng).sample()
 );
 make_element!(
     int i32 Precision::Full,
     convert |elem: &dyn ToPrimitive| elem.to_i32().unwrap(),
-    random |distribution: Distribution<i32>, rng: &mut StdRng| distribution.sampler(rng).sample()
+    random |distribution: Distribution<i32>, rng: &mut R| distribution.sampler(rng).sample()
 );
 make_element!(
     int i16 Precision::Half,
     convert |elem: &dyn ToPrimitive| elem.to_i16().unwrap(),
-    random |distribution: Distribution<i16>, rng: &mut StdRng| distribution.sampler(rng).sample()
+    random |distribution: Distribution<i16>, rng: &mut R| distribution.sampler(rng).sample()
 );
 make_element!(
     int i8 Precision::Other,
     convert |elem: &dyn ToPrimitive| elem.to_i8().unwrap(),
-    random |distribution: Distribution<i8>, rng: &mut StdRng| distribution.sampler(rng).sample()
+    random |distribution: Distribution<i8>, rng: &mut R| distribution.sampler(rng).sample()
 );
 
 make_element!(
     int u8 Precision::Other,
     convert |elem: &dyn ToPrimitive| elem.to_u8().unwrap(),
-    random |distribution: Distribution<u8>, rng: &mut StdRng| distribution.sampler(rng).sample()
+    random |distribution: Distribution<u8>, rng: &mut R| distribution.sampler(rng).sample()
 );
 make_element!(
     ty f16 Precision::Half,
     zero <f16 as num_traits::Zero>::zero(),
     one <f16 as num_traits::One>::one(),
     convert |elem: &dyn ToPrimitive| f16::from_f32(elem.to_f32().unwrap()),
-    random |distribution: Distribution<f16>, rng: &mut StdRng| {
+    random |distribution: Distribution<f16>, rng: &mut R| {
         let distribution: Distribution<f32> = distribution.convert();
         let sample = distribution.sampler(rng).sample();
         f16::from_elem(sample)

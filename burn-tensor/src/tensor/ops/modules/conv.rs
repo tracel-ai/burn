@@ -1,5 +1,6 @@
 use super::{Conv1dBackward, Conv2dBackward};
 use crate::{backend::Backend, ElementConversion, Shape};
+use libm::ceilf;
 
 /// Calculate the expected padding size required when applying a convolution with the specified
 /// kernel size, stride, and input size to get the desired output size.
@@ -15,7 +16,7 @@ pub fn calculate_padding(
     let size_out = size_out as f32;
 
     let padding = stride * (size_out - 1.) - size_in + kernel_size;
-    let padding = f32::ceil(padding / 2.);
+    let padding = ceilf(padding / 2.);
 
     padding as usize
 }
@@ -34,7 +35,7 @@ pub fn calculate_output_size(
     let size_in = size_in as f32;
 
     let size_out = (size_in + (2. * padding) - kernel_size) / stride;
-    let size_out = f32::ceil(size_out + 1.);
+    let size_out = ceilf(size_out + 1.);
 
     size_out as usize
 }

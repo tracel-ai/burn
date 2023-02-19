@@ -1,11 +1,19 @@
 use super::element::NdArrayElement;
 use super::NdArrayTensor;
 use burn_tensor::backend::Backend;
-use rand::rngs::StdRng;
+use core::marker::PhantomData;
+use rand::rngs::SmallRng;
 use rand::SeedableRng;
-use std::sync::Mutex;
+use spin::Mutex;
 
-pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
+use const_random::const_random;
+
+extern crate alloc;
+use alloc::string::String;
+
+pub(crate) static SEED: Mutex<Option<SmallRng>> = Mutex::new(None);
+
+pub const GENERATED_SEED: u64 = const_random!(u64);
 
 #[derive(Clone, Copy, Debug)]
 pub enum NdArrayDevice {
@@ -20,7 +28,7 @@ impl Default for NdArrayDevice {
 
 #[derive(Clone, Copy, Default, Debug)]
 pub struct NdArrayBackend<E> {
-    _e: E,
+    phantom: PhantomData<E>,
 }
 
 impl<E: NdArrayElement> Backend for NdArrayBackend<E> {
@@ -37,12 +45,12 @@ impl<E: NdArrayElement> Backend for NdArrayBackend<E> {
     }
 
     fn name() -> String {
-        "ndarray".to_string()
+        String::from("ndarray")
     }
 
     fn seed(seed: u64) {
-        let rng = StdRng::seed_from_u64(seed);
-        let mut seed = SEED.lock().unwrap();
+        let rng = SmallRng::seed_from_u64(seed);
+        let mut seed = SEED.lock();
         *seed = Some(rng);
     }
 }

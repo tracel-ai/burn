@@ -1,3 +1,13 @@
+#![cfg_attr(
+    not(any(
+        test,
+        feature = "blas-netlib",
+        feature = "blas-openblas",
+        feature = "blas-openblas-system",
+    )),
+    no_std
+)]
+
 #[macro_use]
 extern crate derive_new;
 

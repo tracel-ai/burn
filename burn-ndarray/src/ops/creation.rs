@@ -3,7 +3,7 @@ use burn_tensor::{ops::*, Data};
 
 impl<P, const D: usize> Zeros for NdArrayTensor<P, D>
 where
-    P: Default + Clone + Zeros + std::fmt::Debug,
+    P: Default + Clone + Zeros + core::fmt::Debug,
 {
     fn zeros(&self) -> NdArrayTensor<P, D> {
         let data = Data::<P, D>::zeros(self.shape());
@@ -13,7 +13,7 @@ where
 
 impl<P, const D: usize> Ones for NdArrayTensor<P, D>
 where
-    P: Default + Clone + Ones + std::fmt::Debug,
+    P: Default + Clone + Ones + core::fmt::Debug,
 {
     fn ones(&self) -> NdArrayTensor<P, D> {
         let data = Data::<P, D>::ones(self.shape());

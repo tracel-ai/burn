@@ -1,6 +1,9 @@
 use crate::ops::*;
 use crate::tensor::Element;
 
+extern crate alloc;
+use alloc::string::String;
+
 pub trait Backend:
     TensorOps<Self>
     + ModuleOps<Self>
@@ -9,15 +12,15 @@ pub trait Backend:
     + Default
     + Send
     + Sync
-    + std::fmt::Debug
+    + core::fmt::Debug
     + 'static
 {
-    type Device: Clone + Default + std::fmt::Debug + Send + Sync;
+    type Device: Clone + Default + core::fmt::Debug + Send + Sync;
     type Elem: Element;
     type FullPrecisionElem: Element;
     type FullPrecisionBackend: Backend<Elem = Self::FullPrecisionElem, Device = Self::Device>;
     type IntegerBackend: Backend<Elem = i64, Device = Self::Device>;
-    type TensorPrimitive<const D: usize>: std::ops::Add<Self::TensorPrimitive<D>, Output = Self::TensorPrimitive<D>>
+    type TensorPrimitive<const D: usize>: core::ops::Add<Self::TensorPrimitive<D>, Output = Self::TensorPrimitive<D>>
         + Zeros
         + Ones
         + Clone
@@ -26,13 +29,13 @@ pub trait Backend:
         + Send
         + Sync
         + 'static
-        + std::fmt::Debug;
+        + core::fmt::Debug;
 
     type BoolTensorPrimitive<const D: usize>: Clone
         + Send
         + Sync
         + 'static
-        + std::fmt::Debug
+        + core::fmt::Debug
         + From<<Self::IntegerBackend as Backend>::BoolTensorPrimitive<D>>;
 
     fn ad_enabled() -> bool;

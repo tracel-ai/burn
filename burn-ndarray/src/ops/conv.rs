@@ -1,7 +1,9 @@
 use super::padding::apply_padding2d;
 use crate::{element::NdArrayElement, tensor::NdArrayTensor, NdArrayBackend, NdArrayDevice};
 use burn_tensor::{ops::TensorOps, Shape};
-
+use libm::ceilf;
+extern crate alloc;
+use alloc::vec::Vec;
 /// This method is not the most efficient, but it serves as a basic implementation that is easy to understand.
 /// A more optimized version should be used in its place.
 pub(crate) fn conv2d_naive<E: NdArrayElement>(
@@ -84,8 +86,8 @@ fn conv2d_with_kernel<E: NdArrayElement>(
     let [k1, k2] = kernel.shape().dims;
     let [heigth, width] = x.shape().dims;
 
-    let heigth_new = f32::ceil((heigth - k1 + 1) as f32 / stride[0] as f32) as usize;
-    let width_new = f32::ceil((width - k2 + 1) as f32 / stride[1] as f32) as usize;
+    let heigth_new = ceilf((heigth - k1 + 1) as f32 / stride[0] as f32) as usize;
+    let width_new = ceilf((width - k2 + 1) as f32 / stride[1] as f32) as usize;
     let mut output =
         NdArrayBackend::empty(Shape::new([heigth_new, width_new]), &NdArrayDevice::Cpu);
 

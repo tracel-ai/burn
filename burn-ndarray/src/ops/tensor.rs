@@ -3,11 +3,18 @@ use crate::{element::NdArrayElement, tensor::NdArrayTensor, NdArrayBackend};
 use crate::{to_nd_array_tensor, NdArrayDevice, SEED};
 use burn_tensor::Distribution;
 use burn_tensor::{backend::Backend, ops::TensorOps, Data, ElementConversion, Shape};
+use core::cmp::Ordering;
+use core::ops::Range;
+use libm::{cos, erf, sin, tanh};
 use ndarray::{Axis, Dim, IxDyn, SliceInfoElem};
-use rand::rngs::StdRng;
+use rand::rngs::SmallRng;
+
+use crate::backend::GENERATED_SEED;
+
 use rand::SeedableRng;
-use std::cmp::Ordering;
-use std::ops::Range;
+
+extern crate alloc;
+use alloc::vec::Vec;
 
 macro_rules! keepdim {
     (
@@ -51,10 +58,16 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         distribution: Distribution<E>,
         device: &NdArrayDevice,
     ) -> NdArrayTensor<E, D> {
-        let mut seed = SEED.lock().unwrap();
-        let mut rng: StdRng = match seed.as_ref() {
-            Some(rng) => rng.clone(),
-            None => StdRng::from_entropy(),
+        let mut seed = SEED.lock();
+        let mut rng: SmallRng;
+        rng = if let Some(rng_seeded) = seed.as_ref() {
+            rng_seeded.clone()
+        } else {
+            if cfg!(feature = "build-generated-seed") || cfg!(test) {
+                SmallRng::seed_from_u64(GENERATED_SEED)
+            } else {
+                panic!("Seeding from the OS automatically is not supported.")
+            }
         };
         let tensor = Self::from_data(Data::random(shape, distribution, &mut rng), device);
         *seed = Some(rng);
@@ -490,7 +503,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     fn cos<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor
             .array
-            .mapv_into(|a| a.to_f64().unwrap().cos().to_elem())
+            .mapv_into(|a| cos(a.to_f64().unwrap()).to_elem())
             .into_shared();
 
         NdArrayTensor { array }
@@ -499,7 +512,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     fn sin<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor
             .array
-            .mapv_into(|a| a.to_f64().unwrap().sin().to_elem())
+            .mapv_into(|a| sin(a.to_f64().unwrap()).to_elem())
             .into_shared();
 
         NdArrayTensor { array }
@@ -508,7 +521,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     fn tanh<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor
             .array
-            .mapv_into(|a| a.to_f64().unwrap().tanh().to_elem())
+            .mapv_into(|a| tanh(a.to_f64().unwrap()).to_elem())
             .into_shared();
 
         NdArrayTensor { array }
@@ -517,7 +530,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     fn erf<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor
             .array
-            .mapv_into(|a| libm::erf(a.to_f64().unwrap()).to_elem())
+            .mapv_into(|a| erf(a.to_f64().unwrap()).to_elem())
             .into_shared();
 
         NdArrayTensor { array }
