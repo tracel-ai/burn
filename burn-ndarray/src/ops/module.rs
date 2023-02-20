@@ -1,8 +1,9 @@
-use crate::{element::NdArrayElement, tensor::NdArrayTensor, NdArrayBackend};
-use burn_tensor::{ops::*, Shape};
+use alloc::vec::Vec;
 use core::ops::Add;
-extern crate alloc;
-use alloc::{vec::Vec};
+
+use crate::{element::NdArrayElement, tensor::NdArrayTensor, NdArrayBackend};
+
+use burn_tensor::{ops::*, Shape};
 
 use super::{
     conv::conv2d_naive,

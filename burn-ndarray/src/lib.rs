@@ -1,12 +1,4 @@
-#![cfg_attr(
-    not(any(
-        test,
-        feature = "blas-netlib",
-        feature = "blas-openblas",
-        feature = "blas-openblas-system",
-    )),
-    no_std
-)]
+#![cfg_attr(not(any(feature = "std", test)), no_std)]
 
 #[macro_use]
 extern crate derive_new;
@@ -25,6 +17,8 @@ mod tensor;
 
 pub use backend::*;
 pub(crate) use tensor::*;
+
+extern crate alloc;
 
 #[cfg(test)]
 mod tests {

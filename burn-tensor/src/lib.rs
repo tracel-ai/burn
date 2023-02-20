@@ -1,8 +1,10 @@
-#![cfg_attr(not(test), no_std)]
+#![cfg_attr(not(any(feature = "std", test)), no_std)]
 
 
 #[macro_use]
 extern crate derive_new;
+
+extern crate alloc;
 
 mod tensor;
 

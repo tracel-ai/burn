@@ -1,9 +1,8 @@
-use crate::backend::Backend;
-use crate::Tensor;
-
-extern crate alloc;
 use alloc::string::String;
 use alloc::format;
+
+use crate::backend::Backend;
+use crate::Tensor;
 
 pub trait Dim: core::fmt::Debug {
     fn to_string() -> String;

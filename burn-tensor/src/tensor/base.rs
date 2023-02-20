@@ -1,15 +1,13 @@
+use alloc::vec::Vec;
+use core::convert::TryInto;
+use core::ops::Range;
+
 use crate::backend::ADBackend;
 use crate::tensor::backend::Backend;
 use crate::tensor::stats;
 use crate::tensor::ElementConversion;
 use crate::tensor::{Data, Distribution, Shape};
 use crate::BoolTensor;
-use core::convert::TryInto;
-use core::ops::Range;
-
-extern crate alloc;
-use alloc::vec::Vec;
-
 
 /// A tensor or a *n-dimensional* array.
 #[derive(Debug, Clone)]

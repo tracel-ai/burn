@@ -1,8 +1,8 @@
+use alloc::format;
+
 use crate::backend::Backend;
 use crate::{Distribution, NamedDims, Shape, Tensor};
 
-extern crate alloc;
-use alloc::format;
 
 /// A tensor with named dimensions.
 #[derive(Debug, Clone)]

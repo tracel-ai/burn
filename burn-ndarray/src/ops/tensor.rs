@@ -1,20 +1,38 @@
+// Language
+use alloc::vec::Vec;
+use core::cmp::Ordering;
+use core::ops::Range;
+
+// Current crate
 use crate::tensor::BatchMatrix;
 use crate::{element::NdArrayElement, tensor::NdArrayTensor, NdArrayBackend};
 use crate::{to_nd_array_tensor, NdArrayDevice, SEED};
+
+// Workspace crates
 use burn_tensor::Distribution;
 use burn_tensor::{backend::Backend, ops::TensorOps, Data, ElementConversion, Shape};
-use core::cmp::Ordering;
-use core::ops::Range;
+
+// External crates
 use libm::{cos, erf, sin, tanh};
 use ndarray::{Axis, Dim, IxDyn, SliceInfoElem};
-use rand::rngs::SmallRng;
+use rand::{rngs::StdRng, SeedableRng};
 
-use crate::backend::GENERATED_SEED;
 
-use rand::SeedableRng;
+#[cfg(not(feature = "std"))]
+use const_random::const_random;
 
-extern crate alloc;
-use alloc::vec::Vec;
+#[cfg(feature = "std")]
+#[inline(always)]
+fn get_seeded_rng() -> StdRng {
+    StdRng::from_entropy()
+}
+
+#[cfg(not(feature = "std"))]
+#[inline(always)]
+fn get_seeded_rng() -> StdRng {
+    const GENERATED_SEED: u64 = const_random!(u64);
+    StdRng::seed_from_u64(GENERATED_SEED)
+}
 
 macro_rules! keepdim {
     (
@@ -59,15 +77,10 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         device: &NdArrayDevice,
     ) -> NdArrayTensor<E, D> {
         let mut seed = SEED.lock();
-        let mut rng: SmallRng;
-        rng = if let Some(rng_seeded) = seed.as_ref() {
+        let mut rng = if let Some(rng_seeded) = seed.as_ref() {
             rng_seeded.clone()
         } else {
-            if cfg!(feature = "build-generated-seed") || cfg!(test) {
-                SmallRng::seed_from_u64(GENERATED_SEED)
-            } else {
-                panic!("Seeding from the OS automatically is not supported.")
-            }
+            get_seeded_rng()
         };
         let tensor = Self::from_data(Data::random(shape, distribution, &mut rng), device);
         *seed = Some(rng);

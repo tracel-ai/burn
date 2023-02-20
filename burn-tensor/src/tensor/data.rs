@@ -1,11 +1,11 @@
-use super::ops::{Ones, Zeros};
-use crate::{tensor::Shape, Element, ElementConversion};
-use rand::{distributions::Standard, Rng, RngCore};
-use libm::{round, pow}; 
-
-extern crate alloc;
 use alloc::format;
 use alloc::vec::Vec;
+
+use super::ops::{Ones, Zeros};
+use crate::{tensor::Shape, Element, ElementConversion};
+
+use libm::{pow, round};
+use rand::{distributions::Standard, Rng, RngCore};
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct DataSerialize<P> {
@@ -32,7 +32,7 @@ pub struct DistributionSampler<'a, P, R>
 where
     Standard: rand::distributions::Distribution<P>,
     P: rand::distributions::uniform::SampleUniform,
-    R: RngCore
+    R: RngCore,
 {
     kind: DistributionSamplerKind<P>,
     rng: &'a mut R,
@@ -54,7 +54,7 @@ where
     Standard: rand::distributions::Distribution<P>,
     P: rand::distributions::uniform::SampleUniform,
     P: Element,
-    R: RngCore
+    R: RngCore,
 {
     pub fn sample(&mut self) -> P {
         match &self.kind {
@@ -90,9 +90,9 @@ where
             Distribution::Bernoulli(prob) => DistributionSamplerKind::Bernoulli(
                 rand::distributions::Bernoulli::new(prob).unwrap(),
             ),
-            Distribution::Normal(mean, std) => DistributionSamplerKind::Normal(
-                rand_distr::Normal::new(mean, std).unwrap(),
-            ),
+            Distribution::Normal(mean, std) => {
+                DistributionSamplerKind::Normal(rand_distr::Normal::new(mean, std).unwrap())
+            }
         };
 
         DistributionSampler::new(kind, rng)
@@ -313,8 +313,13 @@ impl<P: core::fmt::Debug + Copy, const A: usize, const B: usize, const C: usize>
     }
 }
 
-impl<P: core::fmt::Debug + Copy, const A: usize, const B: usize, const C: usize, const D: usize>
-    From<[[[[P; D]; C]; B]; A]> for Data<P, 4>
+impl<
+        P: core::fmt::Debug + Copy,
+        const A: usize,
+        const B: usize,
+        const C: usize,
+        const D: usize,
+    > From<[[[[P; D]; C]; B]; A]> for Data<P, 4>
 {
     fn from(elems: [[[[P; D]; C]; B]; A]) -> Self {
         let mut data = Vec::with_capacity(A * B * C * D);
@@ -341,7 +346,7 @@ impl<P: core::fmt::Debug, const D: usize> core::fmt::Display for Data<P, D> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::{SeedableRng, rngs::StdRng};
+    use rand::{rngs::StdRng, SeedableRng};
 
     #[test]
     fn should_have_right_num_elements() {

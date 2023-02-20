@@ -1,8 +1,7 @@
+use alloc::string::String;
+
 use crate::ops::*;
 use crate::tensor::Element;
-
-extern crate alloc;
-use alloc::string::String;
 
 pub trait Backend:
     TensorOps<Self>

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Serialize, Deserialize, Ord, PartialOrd)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct ParamId {
     value: String,
 }

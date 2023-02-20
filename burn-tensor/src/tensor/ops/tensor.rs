@@ -1,8 +1,7 @@
-use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion};
+use alloc::vec::Vec;
 use core::ops::Range;
 
-extern crate alloc;
-use alloc::vec::Vec;
+use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion};
 
 pub trait TensorOps<B: Backend> {
     fn from_data<const D: usize>(

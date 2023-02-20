@@ -39,5 +39,5 @@ burn-dataset = { version = "0.5.0", path = "../burn-dataset", features = [
 ] }
 
 burn-ndarray = { version = "0.5.0", path = "../burn-ndarray", features = [ 
-    "build-generated-seed"
+    "std"
 ] }
