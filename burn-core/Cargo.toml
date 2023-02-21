@@ -37,4 +37,7 @@ nanoid = "0.4.0"
 burn-dataset = { version = "0.5.0", path = "../burn-dataset", features = [
     "fake",
 ] }
-burn-ndarray = { version = "0.5.0", path = "../burn-ndarray" }
+
+burn-ndarray = { version = "0.5.0", path = "../burn-ndarray", features = [ 
+    "std"
+] }

@@ -1,17 +1,26 @@
+use alloc::boxed::Box;
+use core::any::Any;
+use core::marker::PhantomData;
+
+#[cfg(not(feature = "std"))]
+use hashbrown::HashMap;
+
+#[cfg(feature = "std")]
+use std::collections::HashMap;
+
 use crate::{backend::Backend, Tensor};
-use std::{any::Any, collections::HashMap};
 
 /// Contains tensor of arbitrary dimension.
 #[derive(Debug)]
 pub struct TensorContainer<B: Backend, ID> {
     tensors: HashMap<ID, Box<dyn Any + Send + Sync>>,
-    _b: B,
+    phantom: PhantomData<B>,
 }
 
 impl<B, ID> Default for TensorContainer<B, ID>
 where
     B: Backend,
-    ID: std::hash::Hash + PartialEq + Eq,
+    ID: core::hash::Hash + PartialEq + Eq,
 {
     fn default() -> Self {
         Self::new()
@@ -21,13 +30,13 @@ where
 impl<B, ID> TensorContainer<B, ID>
 where
     B: Backend,
-    ID: std::hash::Hash + PartialEq + Eq,
+    ID: core::hash::Hash + PartialEq + Eq,
 {
     /// Create an empty container.
     pub fn new() -> Self {
         Self {
             tensors: HashMap::new(),
-            _b: B::default(),
+            phantom: PhantomData::default(),
         }
     }
 

@@ -1,5 +1,9 @@
+use alloc::vec::Vec;
+
 use super::{element::NdArrayElement, NdArrayBackend};
+
 use burn_tensor::{ops::TensorOps, Data, Shape};
+
 use ndarray::{s, ArcArray, Array, Axis, Dim, Ix2, Ix3, IxDyn};
 
 #[derive(Debug, Clone)]
@@ -7,7 +11,7 @@ pub struct NdArrayTensor<E, const D: usize> {
     pub array: ArcArray<E, IxDyn>,
 }
 
-impl<E: NdArrayElement, const D: usize> std::ops::Add for NdArrayTensor<E, D> {
+impl<E: NdArrayElement, const D: usize> core::ops::Add for NdArrayTensor<E, D> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {

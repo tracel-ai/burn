@@ -1,6 +1,9 @@
+use alloc::vec::Vec;
+use core::ops::Add;
+
 use crate::{element::NdArrayElement, tensor::NdArrayTensor, NdArrayBackend};
+
 use burn_tensor::{ops::*, Shape};
-use std::ops::Add;
 
 use super::{
     conv::conv2d_naive,

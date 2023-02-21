@@ -1,11 +1,14 @@
+use alloc::format;
+use alloc::string::String;
+
 use crate::backend::Backend;
 use crate::Tensor;
 
-pub trait Dim: std::fmt::Debug {
+pub trait Dim: core::fmt::Debug {
     fn to_string() -> String;
 }
 
-pub trait NamedDims<B: Backend>: std::fmt::Debug {
+pub trait NamedDims<B: Backend>: core::fmt::Debug {
     type Tensor;
     fn to_string() -> String;
 }

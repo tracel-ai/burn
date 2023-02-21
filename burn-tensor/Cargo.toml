@@ -15,22 +15,33 @@ license = "MIT/Apache-2.0"
 edition = "2021"
 
 [features]
-default = []
+default = ["std"]
+std = [
+    "rand/std"
+]
 export_tests = ["burn-tensor-testgen"]
 experimental-named-tensor = []
 
 [dependencies]
 burn-tensor-testgen = { version = "0.5.0", path = "../burn-tensor-testgen", optional = true }
-num-traits = "0.2.15"
-derive-new = "0.5.9"
-rand = "0.8.5"
-statrs = "0.16.0"
+num-traits = {version = "0.2.15", default-features = false } # Default enables std
+derive-new = {version = "0.5.9", default-features = false } # Default enables std
+
+rand = {version = "0.8.5", default-features = false, features = ["std_rng"] } # Default enables std
+rand_distr = {version = "0.4.3", default-features = false }  # use instead of statrs because it supports no_std
 half = { version = "1.6.0", features = [
     "num-traits",
 ] } # needs to be 1.6 to work with tch
 
-# Autodiff
-nanoid = "0.4.0"
+# The same implementation of HashMap in std but with no_std support (only needs alloc crate)
+hashbrown = "0.13.2" # no_std compatible
 
 # Serialization
-serde = { version = "1.0.151", features = ["derive"] }
+serde = { version = "1.0.151", features = ["derive", "alloc"], default-features = false }
+
+libm = "0.2.6" # no_std is supported by default
+
+[dev-dependencies]
+rand = {version = "0.8.5", features = ["std", "std_rng"] } # Default enables std
+
+#  default-features = true

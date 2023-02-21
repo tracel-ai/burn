@@ -1,11 +1,13 @@
+use alloc::vec::Vec;
+use core::convert::TryInto;
+use core::ops::Range;
+
 use crate::backend::ADBackend;
 use crate::tensor::backend::Backend;
 use crate::tensor::stats;
 use crate::tensor::ElementConversion;
 use crate::tensor::{Data, Distribution, Shape};
 use crate::BoolTensor;
-use std::convert::TryInto;
-use std::ops::Range;
 
 /// A tensor or a *n-dimensional* array.
 #[derive(Debug, Clone)]
@@ -214,7 +216,7 @@ where
         let shape = Shape::new(dims);
         let ranges: Vec<_> = shape.dims.iter().map(|dim| 0..*dim).collect();
         let tensor = Tensor::zeros(shape);
-        let mut ranges: [std::ops::Range<usize>; D] = ranges.try_into().unwrap();
+        let mut ranges: [core::ops::Range<usize>; D] = ranges.try_into().unwrap();
         ranges[D - 1] = index..index + 1;
 
         tensor.index_assign(ranges, Tensor::ones(Shape::new([1; D])))
@@ -483,7 +485,7 @@ where
     ///     // Shape { dims: [1, 3, 2] }
     /// }
     /// ```
-    pub fn index<const D2: usize>(self, indexes: [std::ops::Range<usize>; D2]) -> Self {
+    pub fn index<const D2: usize>(self, indexes: [core::ops::Range<usize>; D2]) -> Self {
         Self::new(B::index(self.value, indexes))
     }
 
@@ -511,7 +513,7 @@ where
     /// ```
     pub fn index_assign<const D2: usize>(
         self,
-        indexes: [std::ops::Range<usize>; D2],
+        indexes: [core::ops::Range<usize>; D2],
         values: Self,
     ) -> Self {
         Self::new(B::index_assign(self.value, indexes, values.value))
@@ -635,7 +637,7 @@ where
     }
 }
 
-impl<const D: usize, B> std::ops::Add<Self> for Tensor<B, D>
+impl<const D: usize, B> core::ops::Add<Self> for Tensor<B, D>
 where
     B: Backend,
 {
@@ -646,7 +648,7 @@ where
     }
 }
 
-impl<E, const D: usize, B> std::ops::Add<E> for Tensor<B, D>
+impl<E, const D: usize, B> core::ops::Add<E> for Tensor<B, D>
 where
     E: ElementConversion,
     B: Backend,
@@ -658,7 +660,7 @@ where
     }
 }
 
-impl<const D: usize, B> std::ops::Sub<Self> for Tensor<B, D>
+impl<const D: usize, B> core::ops::Sub<Self> for Tensor<B, D>
 where
     B: Backend,
 {
@@ -669,7 +671,7 @@ where
     }
 }
 
-impl<E, const D: usize, B> std::ops::Sub<E> for Tensor<B, D>
+impl<E, const D: usize, B> core::ops::Sub<E> for Tensor<B, D>
 where
     E: ElementConversion,
     B: Backend,
@@ -681,7 +683,7 @@ where
     }
 }
 
-impl<const D: usize, B> std::ops::Mul<Self> for Tensor<B, D>
+impl<const D: usize, B> core::ops::Mul<Self> for Tensor<B, D>
 where
     B: Backend,
 {
@@ -692,7 +694,7 @@ where
     }
 }
 
-impl<E, const D: usize, B> std::ops::Mul<E> for Tensor<B, D>
+impl<E, const D: usize, B> core::ops::Mul<E> for Tensor<B, D>
 where
     E: ElementConversion,
     B: Backend,
@@ -704,7 +706,7 @@ where
     }
 }
 
-impl<const D: usize, B> std::ops::Div<Self> for Tensor<B, D>
+impl<const D: usize, B> core::ops::Div<Self> for Tensor<B, D>
 where
     B: Backend,
 {
@@ -715,7 +717,7 @@ where
     }
 }
 
-impl<E, const D: usize, B> std::ops::Div<E> for Tensor<B, D>
+impl<E, const D: usize, B> core::ops::Div<E> for Tensor<B, D>
 where
     E: ElementConversion,
     B: Backend,

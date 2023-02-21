@@ -1,9 +1,18 @@
-use super::element::NdArrayElement;
-use super::NdArrayTensor;
+use alloc::string::String;
+use core::marker::PhantomData;
+
+use crate::element::NdArrayElement;
+use crate::NdArrayTensor;
+
 use burn_tensor::backend::Backend;
-use rand::rngs::StdRng;
-use rand::SeedableRng;
+
+use rand::{rngs::StdRng, SeedableRng};
+
+#[cfg(feature = "std")]
 use std::sync::Mutex;
+
+#[cfg(not(feature = "std"))]
+use crate::stubs::Mutex;
 
 pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 
@@ -20,7 +29,7 @@ impl Default for NdArrayDevice {
 
 #[derive(Clone, Copy, Default, Debug)]
 pub struct NdArrayBackend<E> {
-    _e: E,
+    phantom: PhantomData<E>,
 }
 
 impl<E: NdArrayElement> Backend for NdArrayBackend<E> {
@@ -37,7 +46,7 @@ impl<E: NdArrayElement> Backend for NdArrayBackend<E> {
     }
 
     fn name() -> String {
-        "ndarray".to_string()
+        String::from("ndarray")
     }
 
     fn seed(seed: u64) {

@@ -11,7 +11,7 @@ mod tests {
         let data_actual = tensor.log().into_data();
 
         let data_expected = Data::from([
-            [-f32::INFINITY, 0.0, std::f32::consts::LN_2],
+            [-f32::INFINITY, 0.0, core::f32::consts::LN_2],
             [1.0986, 1.3862, 1.6094],
         ]);
         data_expected.assert_approx_eq(&data_actual, 3);
