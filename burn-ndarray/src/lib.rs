@@ -18,6 +18,9 @@ mod tensor;
 pub use backend::*;
 pub(crate) use tensor::*;
 
+#[cfg(not(feature = "std"))]
+mod stubs;
+
 extern crate alloc;
 
 #[cfg(test)]

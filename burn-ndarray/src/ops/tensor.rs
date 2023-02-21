@@ -75,7 +75,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         distribution: Distribution<E>,
         device: &NdArrayDevice,
     ) -> NdArrayTensor<E, D> {
-        let mut seed = SEED.lock();
+        let mut seed = SEED.lock().unwrap();
         let mut rng = if let Some(rng_seeded) = seed.as_ref() {
             rng_seeded.clone()
         } else {

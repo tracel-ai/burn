@@ -7,7 +7,12 @@ use crate::NdArrayTensor;
 use burn_tensor::backend::Backend;
 
 use rand::{rngs::StdRng, SeedableRng};
-use spin::Mutex;
+
+#[cfg(feature = "std")]
+use std::sync::Mutex;
+
+#[cfg(not(feature = "std"))]
+use crate::stubs::Mutex;
 
 pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 
@@ -46,7 +51,7 @@ impl<E: NdArrayElement> Backend for NdArrayBackend<E> {
 
     fn seed(seed: u64) {
         let rng = StdRng::seed_from_u64(seed);
-        let mut seed = SEED.lock();
+        let mut seed = SEED.lock().unwrap();
         *seed = Some(rng);
     }
 }
