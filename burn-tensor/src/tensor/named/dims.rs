@@ -1,5 +1,5 @@
-use alloc::string::String;
 use alloc::format;
+use alloc::string::String;
 
 use crate::backend::Backend;
 use crate::Tensor;

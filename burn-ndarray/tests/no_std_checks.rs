@@ -77,8 +77,6 @@ mod tests {
         assert_eq!(libm::log1p(0.0).is_nan(), f64::ln_1p(0.0).is_nan());
     }
 
-
-
     #[test]
     fn exp_check() {
         assert_eq!(libm::expf(0.2), f32::exp(0.2));
@@ -90,5 +88,5 @@ mod tests {
         assert_eq!(libm::exp(2.0), f64::exp(2.0));
         assert_eq!(libm::exp(-0.2).is_nan(), f64::exp(-0.2).is_nan());
         assert_eq!(libm::exp(0.0).is_nan(), f64::exp(0.0).is_nan());
-    }    
+    }
 }

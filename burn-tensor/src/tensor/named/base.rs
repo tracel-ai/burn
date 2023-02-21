@@ -3,7 +3,6 @@ use alloc::format;
 use crate::backend::Backend;
 use crate::{Distribution, NamedDims, Shape, Tensor};
 
-
 /// A tensor with named dimensions.
 #[derive(Debug, Clone)]
 pub struct NamedTensor<B: Backend, D: NamedDims<B>> {

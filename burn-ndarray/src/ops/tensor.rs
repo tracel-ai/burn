@@ -17,7 +17,6 @@ use libm::{cos, erf, sin, tanh};
 use ndarray::{Axis, Dim, IxDyn, SliceInfoElem};
 use rand::{rngs::StdRng, SeedableRng};
 
-
 #[cfg(not(feature = "std"))]
 use const_random::const_random;
 

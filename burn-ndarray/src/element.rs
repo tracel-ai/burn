@@ -152,4 +152,3 @@ impl ExpElement for u8 {
         sqrtf(self as f32) as u8
     }
 }
-
