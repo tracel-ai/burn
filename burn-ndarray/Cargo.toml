@@ -15,6 +15,9 @@ default = ["std"]
 
 std = [
   "rand/std",
+  "ndarray/std",
+  "ndarray/rayon",
+  "ndarray/matrixmultiply-threading",
 ]
 
 blas-netlib = ["ndarray/blas", "blas-src/netlib"]
