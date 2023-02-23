@@ -14,5 +14,6 @@ members = [
   "burn-tch",
   "burn-ndarray",
   "burn-autodiff",
+  "burn-autodiff2",
   "examples/*",
 ]
