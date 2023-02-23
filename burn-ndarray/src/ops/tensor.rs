@@ -9,29 +9,13 @@ use crate::{element::NdArrayElement, tensor::NdArrayTensor, NdArrayBackend};
 use crate::{to_nd_array_tensor, NdArrayDevice, SEED};
 
 // Workspace crates
+use burn_common::rand::get_seeded_rng;
 use burn_tensor::Distribution;
 use burn_tensor::{backend::Backend, ops::TensorOps, Data, ElementConversion, Shape};
 
 // External crates
 use libm::{cos, erf, sin, tanh};
 use ndarray::{Axis, Dim, IxDyn, SliceInfoElem};
-use rand::{rngs::StdRng, SeedableRng};
-
-#[cfg(not(feature = "std"))]
-use const_random::const_random;
-
-#[cfg(feature = "std")]
-#[inline(always)]
-fn get_seeded_rng() -> StdRng {
-    StdRng::from_entropy()
-}
-
-#[cfg(not(feature = "std"))]
-#[inline(always)]
-fn get_seeded_rng() -> StdRng {
-    const GENERATED_SEED: u64 = const_random!(u64);
-    StdRng::seed_from_u64(GENERATED_SEED)
-}
 
 macro_rules! keepdim {
     (

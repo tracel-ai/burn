@@ -1,20 +1,23 @@
 [package]
-name = "burn-ndarray"
-version = "0.5.0"
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
-
+categories = ["science", "no-std", "embedded", "wasm"]
 description = "NdArray backend for burn"
-repository = "https://github.com/burn-rs/burn/tree/main/burn-ndarray"
-readme = "README.md"
+edition = "2021"
 keywords = ["deep-learning", "machine-learning", "data"]
 license = "MIT/Apache-2.0"
-edition = "2021"
+name = "burn-ndarray"
+readme = "README.md"
+repository = "https://github.com/burn-rs/burn/tree/main/burn-ndarray"
+version = "0.5.0"
 
 [features]
 default = ["std"]
 
 std = [
   "rand/std",
+  "burn-tensor/std",
+  "burn-common/std",
+  "burn-autodiff",
   "ndarray/std",
   "ndarray/rayon",
   "ndarray/matrixmultiply-threading",
@@ -29,20 +32,18 @@ blas-openblas-system = [
 ]
 
 [dependencies]
-burn-tensor = { version = "0.5.0", path = "../burn-tensor" }
-blas-src = { version = "0.8.0", default-features = false, optional = true }
-openblas-src = { version = "0.10.5", optional = true }
 
-ndarray = "0.15.6"
-libm = "0.2.6"
-derive-new = "0.5.9"
-rand = "0.8.5"
-num-traits = "0.2.15"
+# ** Please make sure all dependencies support no_std when std is disabled **
 
-[dev-dependencies]
-burn-tensor = { version = "0.5.0", path = "../burn-tensor", features = [
-    "export_tests",
-] }
-burn-autodiff = { version = "0.5.0", path = "../burn-autodiff", features = [
-    "export_tests",
-] }
+burn-autodiff = {path = "../burn-autodiff", features = ["export_tests"], optional = true}
+burn-common = {path = "../burn-common", default-features = false}
+burn-tensor = {path = "../burn-tensor", default-features = false, features = ["export_tests"]}
+
+blas-src = {version = "0.8.0", default-features = false, optional = true}# no-std compatible         
+derive-new = {workspace = true}
+libm = {workspace = true}
+ndarray = {workspace = true}
+num-traits = {workspace = true}
+openblas-src = {version = "0.10.8", optional = true}
+rand = {workspace = true}
+spin = {workspace = true}# using in place of use std::sync::Mutex;

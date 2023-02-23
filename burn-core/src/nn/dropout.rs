@@ -50,8 +50,14 @@ impl Dropout {
 mod tests {
     use super::*;
     use crate::tensor::Shape;
+
+    #[cfg(feature = "std")]
     use crate::{TestADBackend, TestBackend};
 
+    #[cfg(not(feature = "std"))]
+    use crate::TestBackend;
+
+    #[cfg(feature = "std")]
     #[test]
     fn with_ad_backend_should_mark_input() {
         let tensor = Tensor::<TestADBackend, 2>::ones(Shape::new([100, 100]));

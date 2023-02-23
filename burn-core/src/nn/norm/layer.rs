@@ -1,3 +1,5 @@
+use alloc::{format, vec::Vec};
+
 use crate as burn;
 
 use crate::config::Config;
@@ -59,8 +61,13 @@ impl<B: Backend> LayerNorm<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{TestADBackend, TestBackend};
     use burn_tensor::Data;
+
+    #[cfg(feature = "std")]
+    use crate::{TestADBackend, TestBackend};
+
+    #[cfg(not(feature = "std"))]
+    use crate::TestBackend;
 
     #[test]
     fn layer_norm_forward() {
@@ -80,6 +87,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "std")]
     #[test]
     fn layer_norm_backward() {
         let config = LayerNormConfig::new(2);

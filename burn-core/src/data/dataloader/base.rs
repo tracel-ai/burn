@@ -1,5 +1,5 @@
 pub use crate::data::dataset::{Dataset, DatasetIterator};
-use std::iter::Iterator;
+use core::iter::Iterator;
 
 #[derive(Clone, Debug)]
 pub struct Progress {

@@ -53,3 +53,13 @@ To run with CUDA set `TORCH_CUDA_VERSION=cu113`.
 ## Notes
 
 This crate can be use alone without the entire burn stack and with only selected backends for smaller binaries.
+
+
+## Feature Flags
+
+This crate can be used without the standard library (`#![no_std]`) with `alloc` by disabling
+the default `std` feature.
+
+* `std` - enables the standard library.
+* `burn-tensor-testgen` - enables test macros for genarating tensor tests. 
+

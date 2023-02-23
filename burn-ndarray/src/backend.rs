@@ -12,7 +12,7 @@ use rand::{rngs::StdRng, SeedableRng};
 use std::sync::Mutex;
 
 #[cfg(not(feature = "std"))]
-use crate::stubs::Mutex;
+use burn_common::stub::Mutex;
 
 pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 

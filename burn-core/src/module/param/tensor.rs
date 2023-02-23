@@ -1,3 +1,5 @@
+use alloc::{string::ToString, vec, vec::Vec};
+
 use super::{load_with_id, state_with_id, Param};
 use crate::module::{LoadingError, Module, ModuleVisitor, ModuleVisitorMut, State, StateNamed};
 use crate::tensor::{
