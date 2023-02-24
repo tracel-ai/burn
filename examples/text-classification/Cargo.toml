@@ -22,5 +22,5 @@ tokenizers = {version = "0.13.2", default-features = false, features = [
 ]}
 
 # Utils
-derive-new = {workspace = true, default-features = true}
-serde = {workspace = true, default-features = true, features = ["derive"]}
+derive-new = {workspace = true, features = ["std"]}
+serde = {workspace = true, features = ["std", "derive"]}

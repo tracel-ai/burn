@@ -26,4 +26,4 @@ terminal_size = "0.2.3"
 
 # Utilities
 derive-new = { workspace = true }
-serde = { workspace = true, default-features = true, features = ["derive"] }
+serde = { workspace = true, features = ["std", "derive"] }

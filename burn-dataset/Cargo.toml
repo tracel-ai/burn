@@ -20,9 +20,9 @@ fake = ["dep:fake"]
 [dependencies]
 dirs = {workspace = true}
 fake = {workspace = true, optional = true}
-rand = {workspace = true, default-features = true}
-serde = {workspace = true, features = ["derive"], default-features = true}
-serde_json = {workspace = true, default-features = true}
+rand = {workspace = true, features = ["std"]}
+serde = {workspace = true, features = ["std", "derive"]}
+serde_json = {workspace = true, features = ["std"]}
 thiserror = {workspace = true}
 
 [dev-dependencies]

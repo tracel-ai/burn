@@ -19,4 +19,4 @@ burn-common = {path = "../burn-common"}
 burn-tensor = {path = "../burn-tensor"}
 burn-tensor-testgen = {path = "../burn-tensor-testgen", optional = true}
 
-derive-new = {workspace = true, default-features = true}# Default enables std
+derive-new = {workspace = true, features = ["std"]}# Default enables std

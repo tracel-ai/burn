@@ -17,7 +17,7 @@ doc = ["tch/doc-only"]
 burn-tensor = {path = "../burn-tensor"}
 half = {workspace = true}
 lazy_static = {workspace = true}
-rand = {workspace = true, default-features = true}
+rand = {workspace = true, features = ["std"]}
 tch = {version = "0.10.1"}
 
 [dev-dependencies]

@@ -12,4 +12,4 @@ burn-autodiff = { path = "../../burn-autodiff" }
 burn-ndarray = { path = "../../burn-ndarray" }
 
 # Serialization
-serde = { workspace = true, default-features = true, features = ["derive"] }
+serde = { workspace = true, features = ["std", "derive"] }
