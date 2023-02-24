@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate derive_new;
 
+pub(crate) mod grads;
 pub(crate) mod graph;
 pub(crate) mod ops;
 pub(crate) mod tensor;

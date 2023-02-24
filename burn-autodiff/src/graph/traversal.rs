@@ -1,22 +1,26 @@
-use crate::graph::{node::BackwardNode, ops::RecordedOpsParentRef};
 use std::collections::HashSet;
 
-pub trait GraphTraversal {
-    fn traverse<F: FnMut(RecordedOpsParentRef)>(&self, callback: F);
+use burn_tensor::backend::Backend;
+
+use super::ops::{OpsMap, OpsMetadataRef};
+
+pub trait GraphTraversal<B: Backend> {
+    fn traverse<F: FnMut(OpsMetadataRef)>(&self, callback: F);
 }
 
 #[derive(new)]
-pub struct BreadthFirstSearch<'a, T> {
-    node: &'a BackwardNode<T>,
+pub struct BreadthFirstSearch<'a, B: Backend> {
+    node: &'a OpsMetadataRef,
+    ops: OpsMap<B>,
 }
 
-impl<'a, T> GraphTraversal for BreadthFirstSearch<'a, T> {
-    fn traverse<F: FnMut(RecordedOpsParentRef)>(&self, mut callback: F) {
+impl<'a, B: Backend> GraphTraversal<B> for BreadthFirstSearch<'a, B> {
+    fn traverse<F: FnMut(OpsMetadataRef)>(&self, mut callback: F) {
         let mut visited = HashSet::with_capacity(self.node.order);
         let mut parents = Vec::with_capacity(self.node.order);
 
         visited.insert(self.node.id.clone());
-        parents.append(&mut self.node.ops.backward_parents());
+        parents.append(&mut self.node.parents.clone());
 
         loop {
             let node = match parents.pop() {
@@ -24,18 +28,18 @@ impl<'a, T> GraphTraversal for BreadthFirstSearch<'a, T> {
                 None => break,
             };
 
-            let id = node.id();
-            if visited.contains(id) {
+            let node = self.ops.metadata(&node).unwrap();
+
+            let id = &node.id;
+            if visited.contains(&id) {
                 continue;
             }
 
             visited.insert(id.clone());
 
-            for parent in node.backward_parents() {
-                let id = parent.id();
-
-                if !visited.contains(id) {
-                    parents.push(parent);
+            for id in node.parents.iter() {
+                if !visited.contains(&id) {
+                    parents.push(id.clone());
                 }
             }
 

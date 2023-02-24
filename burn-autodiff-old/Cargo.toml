@@ -1,5 +1,5 @@
 [package]
-name = "burn-autodiff2"
+name = "burn-autodiff-old"
 version = "0.5.0"
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 description = "Autodiff backend for burn"
@@ -17,7 +17,5 @@ export_tests = ["burn-tensor-testgen"]
 [dependencies]
 burn-tensor-testgen = { version = "0.5.0", path = "../burn-tensor-testgen", optional = true }
 burn-tensor = { version = "0.5.0", path = "../burn-tensor" }
-
 derive-new = "0.5.9"
 nanoid = "0.4.0"
-dashmap = "5.4.0"
