@@ -7,7 +7,8 @@ keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
 license = "MIT/Apache-2.0"
 name = "burn"
 readme = "README.md"
-repository = "https://github.com/burn-rs/burn"
+repository = "https://github.com/burn-rs/burn/tree/main/burn"
+
 version = "0.5.0"
 
 [features]

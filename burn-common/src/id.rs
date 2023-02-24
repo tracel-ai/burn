@@ -42,9 +42,10 @@ mod tests {
 
     #[test]
     fn uniqueness_test() {
+        const IDS_CNT: usize = 10_000;
+
         let mut set: BTreeSet<String> = BTreeSet::new();
 
-        const IDS_CNT: usize = 10_000;
         for _i in 0..IDS_CNT {
             assert_eq!(set.insert(IdGenerator::generate()), true);
         }
@@ -55,15 +56,19 @@ mod tests {
     #[cfg(feature = "std")]
     #[test]
     fn thread_safety_test() {
+        const NUM_THREADS: usize = 10;
+        const NUM_REPEATS: usize = 1_000;
+        const EXPECTED_TOTAL_IDS: usize = NUM_THREADS * NUM_REPEATS;
+
         let set: Arc<DashSet<String>> = Arc::new(DashSet::new());
 
         let mut handles = vec![];
 
-        for _ in 0..10 {
+        for _ in 0..NUM_THREADS {
             let set = set.clone();
 
             let handle = thread::spawn(move || {
-                for _i in 0..1000 {
+                for _i in 0..NUM_REPEATS {
                     assert_eq!(set.insert(IdGenerator::generate()), true);
                 }
             });
@@ -73,6 +78,6 @@ mod tests {
         for handle in handles {
             handle.join().unwrap();
         }
-        assert_eq!(set.len(), 10_000);
+        assert_eq!(set.len(), EXPECTED_TOTAL_IDS);
     }
 }

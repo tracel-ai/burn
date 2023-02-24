@@ -9,7 +9,7 @@ keywords = []
 license = "MIT/Apache-2.0"
 name = "burn-derive"
 readme = "README.md"
-repository = "https://github.com/burn-rs/burn/tree/main/burn-dataset"
+repository = "https://github.com/burn-rs/burn/tree/main/burn-derive"
 version = "0.5.0"
 
 [lib]

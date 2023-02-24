@@ -7,27 +7,31 @@ use burn_tensor::{
     Data, Tensor,
 };
 
-cfg_if::cfg_if! {
-    if #[cfg(feature = "std")] {
-        use std::thread::ThreadId;
-        use std::sync::{Mutex, RwLock};
-        use std::collections::HashMap;
+#[cfg(feature = "std")]
+mod threading {
+    pub(super) use std::collections::HashMap;
+    pub(super) use std::sync::{Mutex, RwLock};
+    pub(super) use std::thread::ThreadId;
 
-        #[inline(always)]
-        fn get_thread_current_id() -> ThreadId {
-            std::thread::current().id()
-        }
-
-    } else {
-        use burn_common::stub::{Mutex, RwLock, ThreadId};
-        use hashbrown::HashMap;
-
-        #[inline(always)]
-        fn get_thread_current_id() -> ThreadId {
-            panic!("Current thread id is not available")
-        }
+    #[inline(always)]
+    pub(super) fn get_thread_current_id() -> ThreadId {
+        std::thread::current().id()
     }
 }
+
+#[cfg(not(feature = "std"))]
+mod threading {
+    pub(super) use burn_common::stub::{Mutex, RwLock, ThreadId};
+    pub(super) use hashbrown::HashMap;
+
+    #[inline(always)]
+    pub(super) fn get_thread_current_id() -> ThreadId {
+        panic!("Current thread id is not available")
+    }
+}
+
+// Re-export items from the disabled/enabled blocks
+use threading::*;
 
 /// A state that can be updated during the forward pass while being thread safe.
 ///

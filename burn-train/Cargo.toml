@@ -3,7 +3,8 @@ name = "burn-train"
 version = "0.5.0"
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 description = "Training crate for burn"
-repository = "https://github.com/burn-rs/burn"
+repository = "https://github.com/burn-rs/burn/tree/main/burn-train"
+
 readme = "README.md"
 keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
 categories = ["science"]

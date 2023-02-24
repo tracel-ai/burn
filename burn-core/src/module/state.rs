@@ -8,15 +8,14 @@ use crate::tensor::{DataSerialize, Element};
 
 use serde::{Deserialize, Serialize};
 
-cfg_if::cfg_if! {
-    if #[cfg(feature = "std")] {
-        use std::collections::HashMap;
-        use std::{ fs::File, path::Path};
-        use flate2::{Compression, read::GzDecoder, write::GzEncoder};
-    } else {
-        use hashbrown::HashMap;
-    }
-}
+#[cfg(feature = "std")]
+use std::{collections::HashMap, fs::File, path::Path};
+
+#[cfg(feature = "std")]
+use flate2::{read::GzDecoder, write::GzEncoder, Compression};
+
+#[cfg(not(feature = "std"))]
+use hashbrown::HashMap;
 
 #[derive(Debug, PartialEq, Eq, Clone, Default, Serialize, Deserialize)]
 pub struct StateNamed<E> {
