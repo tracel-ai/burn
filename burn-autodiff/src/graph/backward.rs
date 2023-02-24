@@ -1,22 +1,30 @@
 use burn_tensor::backend::Backend;
 
-use crate::grads::Gradients;
+use crate::{grads::Gradients, tensor::ADTensor};
 
-use super::{
-    ops::{OpsMap, OpsMetadataRef},
-    traversal::{BreadthFirstSearch, GraphTraversal},
-};
+use super::traversal::{BreadthFirstSearch, GraphTraversal};
 
-pub fn backward<B: Backend>(root: OpsMetadataRef, ops_map: OpsMap<B>) -> Gradients<B> {
+pub fn backward<B: Backend, const D: usize>(root: ADTensor<B, D>) -> Gradients<B> {
     let mut grads = Gradients::<B>::new();
-    let mut tape = Vec::with_capacity(root.order);
-    for _ in 0..root.order {
+    let order = root.metadata.order;
+    let ops_map = root.map.clone();
+    let mut tape = Vec::with_capacity(order);
+    for _ in 0..order {
         tape.push(Vec::with_capacity(1));
     }
 
-    let traversal = BreadthFirstSearch::new(&root, ops_map.clone());
+    let traversal = BreadthFirstSearch::new(&root.metadata, ops_map.clone());
+
+    if let Some(ops) = ops_map.pop(&root.metadata.id) {
+        grads.update(
+            root.clone(),
+            B::ones(B::shape(&root.primitive), &B::device(&root.primitive)),
+        );
+        ops.backward(&mut grads);
+    }
 
     traversal.traverse(|node| {
+        println!("{:?}", node);
         let order = node.order;
 
         if order == 0 {
@@ -26,8 +34,9 @@ pub fn backward<B: Backend>(root: OpsMetadataRef, ops_map: OpsMap<B>) -> Gradien
             nodes.push(node)
         };
     });
+    println!("{:?}", tape);
 
-    for i in (1..root.order).rev() {
+    for i in (1..order).rev() {
         let nodes = match tape.get(i) {
             Some(nodes) => nodes,
             None => continue,

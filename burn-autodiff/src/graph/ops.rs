@@ -35,7 +35,7 @@ impl OpsMetadata {
 
 #[derive(Clone, Hash, PartialEq, Eq, Debug)]
 pub struct OpsID {
-    value: String,
+    pub(crate) value: String,
 }
 
 impl OpsID {

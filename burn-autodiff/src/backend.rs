@@ -33,7 +33,7 @@ impl<B: Backend> ADBackend for ADBackendDecorator<B> {
     type Gradients = Gradients<B>;
 
     fn backward<const D: usize>(tensor: &ADTensor<B, D>) -> Gradients<B> {
-        backward(tensor.metadata.clone(), tensor.map.clone())
+        backward(tensor.clone())
     }
 
     fn grad<const D: usize>(

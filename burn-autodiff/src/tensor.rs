@@ -1,6 +1,9 @@
+use std::marker::PhantomData;
+
 use burn_tensor::backend::Backend;
 
 use crate::{
+    grads::Gradients,
     graph::ops::{Ops, OpsID, OpsMap, OpsMetadata, OpsMetadataRef, Requirement},
     ADBackendDecorator,
 };
@@ -42,16 +45,32 @@ impl<B: Backend, const D: usize> Ones for ADTensor<B, D> {
     }
 }
 
+#[derive(new, Debug)]
+struct NewTensor<B: Backend> {
+    metadata: OpsMetadataRef,
+    phantom: PhantomData<B>,
+}
+
+impl<B: Backend> Ops<B> for NewTensor<B> {
+    fn backward(self: Box<Self>, _grads: &mut Gradients<B>) {}
+
+    fn metadata(&self) -> OpsMetadataRef {
+        self.metadata.clone()
+    }
+}
+
 impl<B: Backend, const D: usize> ADTensor<B, D> {
     pub fn new(primitive: B::TensorPrimitive<D>) -> Self {
         let id = OpsID::new();
         let metadata = OpsMetadata::new(vec![], 0, id.clone(), Requirement::Grad);
-
-        Self {
+        let tensor = Self {
             primitive,
             metadata: metadata.into(),
             map: OpsMap::new(),
-        }
+        };
+        let ops = NewTensor::new(tensor.metadata.clone());
+
+        tensor.register_ops(ops)
     }
     pub fn from_binary_ops<const DLHS: usize, const DRHS: usize>(
         lhs: ADTensor<B, DLHS>,
@@ -73,6 +92,26 @@ impl<B: Backend, const D: usize> ADTensor<B, D> {
             primitive: output,
             metadata: metadata.into(),
             map,
+        }
+    }
+    pub fn from_unary_ops<const DLHS: usize>(
+        lhs: ADTensor<B, DLHS>,
+        output: B::TensorPrimitive<D>,
+    ) -> Self {
+        let order = lhs.metadata.order + 1;
+        let id = OpsID::new();
+        let parents = vec![lhs.metadata.id.clone()];
+        let metadata = OpsMetadata::new(
+            parents,
+            order,
+            id,
+            lhs.metadata.requirement.infer(&Requirement::None),
+        );
+
+        Self {
+            primitive: output,
+            metadata: metadata.into(),
+            map: lhs.map,
         }
     }
     pub fn register_ops<O: Ops<B> + 'static>(self, ops: O) -> Self {

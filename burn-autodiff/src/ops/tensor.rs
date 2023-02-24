@@ -12,7 +12,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         data: burn_tensor::Data<Elem<B>, D>,
         device: &<ADBackendDecorator<B> as Backend>::Device,
     ) -> ADTensor<B, D> {
-        todo!()
+        ADTensor::new(B::from_data(data, device))
     }
 
     fn from_data_bool<const D: usize>(
@@ -35,11 +35,11 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn to_data<const D: usize>(tensor: &ADTensor<B, D>) -> burn_tensor::Data<Elem<B>, D> {
-        todo!()
+        B::to_data(&tensor.primitive)
     }
 
     fn into_data<const D: usize>(tensor: ADTensor<B, D>) -> burn_tensor::Data<Elem<B>, D> {
-        todo!()
+        B::into_data(tensor.primitive)
     }
 
     fn bool_shape<const D: usize>(tensor: &BoolTensor<B, D>) -> burn_tensor::Shape<D> {
@@ -128,7 +128,29 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn add_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: Elem<B>) -> ADTensor<B, D> {
-        todo!()
+        #[derive(new, Debug)]
+        struct AddScalar<B: Backend, const D: usize> {
+            lhs: ADTensor<B, D>,
+            output: ADTensor<B, D>,
+        }
+
+        impl<B: Backend, const D: usize> Ops<B> for AddScalar<B, D> {
+            fn backward(self: Box<Self>, grads: &mut Gradients<B>) {
+                let grad_output = grads.consume(&self.output);
+
+                grads.update(self.lhs, grad_output.clone());
+            }
+
+            fn metadata(&self) -> OpsMetadataRef {
+                self.output.metadata.clone()
+            }
+        }
+
+        let output = B::add_scalar(lhs.primitive.clone(), rhs.clone());
+        let output = ADTensor::from_unary_ops(lhs.clone(), output);
+        let ops = AddScalar::new(lhs, output.clone());
+
+        output.register_ops(ops)
     }
 
     fn sub<const D: usize>(lhs: ADTensor<B, D>, rhs: ADTensor<B, D>) -> ADTensor<B, D> {
