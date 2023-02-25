@@ -1,110 +1,98 @@
 use crate::{
     grads::Gradients,
-    graph::ops::MetadataRef,
-    ops::{binary::BinaryOpsNoCapture, unary::UnaryOpsNoCapture},
+    graph::ops::{MetadataRef, Requirement},
+    ops::{binary::BinaryOps, unary::UnaryOpsNoCapture},
     tensor::{clone_if_shared, ADTensor, BackwardTensor, BoolTensor, Elem, IntTensor},
     ADBackendDecorator,
 };
 
-use burn_tensor::{backend::Backend, ops::TensorOps};
+use burn_tensor::{backend::Backend, ops::TensorOps, Data, Shape};
 
 impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
-    fn from_data<const D: usize>(
-        data: burn_tensor::Data<Elem<B>, D>,
-        device: &<ADBackendDecorator<B> as Backend>::Device,
-    ) -> ADTensor<B, D> {
+    fn from_data<const D: usize>(data: Data<Elem<B>, D>, device: &B::Device) -> ADTensor<B, D> {
         ADTensor::new(B::from_data(data, device))
     }
 
-    fn from_data_bool<const D: usize>(
-        _data: burn_tensor::Data<bool, D>,
-        _device: &<ADBackendDecorator<B> as Backend>::Device,
-    ) -> BoolTensor<B, D> {
-        todo!()
+    fn from_data_bool<const D: usize>(data: Data<bool, D>, device: &B::Device) -> BoolTensor<B, D> {
+        B::from_data_bool(data, device)
     }
 
     fn random<const D: usize>(
-        _shape: burn_tensor::Shape<D>,
-        _distribution: burn_tensor::Distribution<Elem<B>>,
-        _device: &<ADBackendDecorator<B> as Backend>::Device,
+        shape: Shape<D>,
+        distribution: burn_tensor::Distribution<Elem<B>>,
+        device: &B::Device,
     ) -> ADTensor<B, D> {
-        todo!()
+        ADTensor::new(B::random(shape, distribution, device))
     }
 
-    fn shape<const D: usize>(_tensor: &ADTensor<B, D>) -> burn_tensor::Shape<D> {
-        todo!()
+    fn shape<const D: usize>(tensor: &ADTensor<B, D>) -> Shape<D> {
+        B::shape(&tensor.primitive)
     }
 
-    fn to_data<const D: usize>(tensor: &ADTensor<B, D>) -> burn_tensor::Data<Elem<B>, D> {
+    fn to_data<const D: usize>(tensor: &ADTensor<B, D>) -> Data<Elem<B>, D> {
         B::to_data(&tensor.primitive)
     }
 
-    fn into_data<const D: usize>(tensor: ADTensor<B, D>) -> burn_tensor::Data<Elem<B>, D> {
+    fn into_data<const D: usize>(tensor: ADTensor<B, D>) -> Data<Elem<B>, D> {
         B::into_data(tensor.primitive)
     }
 
-    fn bool_shape<const D: usize>(_tensor: &BoolTensor<B, D>) -> burn_tensor::Shape<D> {
-        todo!()
+    fn bool_shape<const D: usize>(tensor: &BoolTensor<B, D>) -> Shape<D> {
+        B::bool_shape(&tensor)
     }
 
-    fn bool_to_data<const D: usize>(_tensor: &BoolTensor<B, D>) -> burn_tensor::Data<bool, D> {
-        todo!()
+    fn bool_to_data<const D: usize>(tensor: &BoolTensor<B, D>) -> Data<bool, D> {
+        B::bool_to_data(tensor)
     }
 
-    fn bool_into_data<const D: usize>(_tensor: BoolTensor<B, D>) -> burn_tensor::Data<bool, D> {
-        todo!()
+    fn bool_into_data<const D: usize>(tensor: BoolTensor<B, D>) -> Data<bool, D> {
+        B::bool_into_data(tensor)
     }
 
-    fn bool_into_int<const D: usize>(_tensor: BoolTensor<B, D>) -> IntTensor<B, D> {
-        todo!()
+    fn bool_into_int<const D: usize>(tensor: BoolTensor<B, D>) -> IntTensor<B, D> {
+        B::bool_into_int(tensor)
     }
 
     fn bool_to_device<const D: usize>(
-        _tensor: BoolTensor<B, D>,
-        _device: &<ADBackendDecorator<B> as Backend>::Device,
+        tensor: BoolTensor<B, D>,
+        device: &B::Device,
     ) -> BoolTensor<B, D> {
-        todo!()
+        B::bool_to_device(tensor, device)
     }
 
     fn bool_reshape<const D1: usize, const D2: usize>(
-        _tensor: BoolTensor<B, D1>,
-        _shape: burn_tensor::Shape<D2>,
+        tensor: BoolTensor<B, D1>,
+        shape: Shape<D2>,
     ) -> BoolTensor<B, D2> {
-        todo!()
+        B::bool_reshape(tensor, shape)
     }
 
     fn bool_index<const D1: usize, const D2: usize>(
-        _tensor: BoolTensor<B, D1>,
-        _indexes: [std::ops::Range<usize>; D2],
+        tensor: BoolTensor<B, D1>,
+        indexes: [std::ops::Range<usize>; D2],
     ) -> BoolTensor<B, D1> {
-        todo!()
+        B::bool_index(tensor, indexes)
     }
 
-    fn device<const D: usize>(
-        _tensor: &ADTensor<B, D>,
-    ) -> <ADBackendDecorator<B> as Backend>::Device {
-        todo!()
+    fn device<const D: usize>(tensor: &ADTensor<B, D>) -> B::Device {
+        B::device(&tensor.primitive)
     }
 
-    fn to_device<const D: usize>(
-        _tensor: ADTensor<B, D>,
-        _device: &<ADBackendDecorator<B> as Backend>::Device,
-    ) -> ADTensor<B, D> {
-        todo!()
+    fn to_device<const D: usize>(tensor: ADTensor<B, D>, device: &B::Device) -> ADTensor<B, D> {
+        ADTensor::new(B::to_device(tensor.primitive, device))
     }
 
-    fn empty<const D: usize>(
-        _shape: burn_tensor::Shape<D>,
-        _device: &<ADBackendDecorator<B> as Backend>::Device,
-    ) -> ADTensor<B, D> {
-        todo!()
+    fn empty<const D: usize>(shape: Shape<D>, device: &B::Device) -> ADTensor<B, D> {
+        ADTensor::new(B::empty(shape, device))
     }
 
     fn add<const D: usize>(lhs: ADTensor<B, D>, rhs: ADTensor<B, D>) -> ADTensor<B, D> {
         #[derive(Debug)]
         struct Add;
 
-        impl<B: Backend, const D: usize> BinaryOpsNoCapture<B, D> for Add {
+        impl<B: Backend, const D: usize> BinaryOps<B, D> for Add {
+            type BackwardState = ();
+
             fn forward(
                 &self,
                 lhs: B::TensorPrimitive<D>,
@@ -118,6 +106,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 rhs: Option<MetadataRef>,
                 output: BackwardTensor<B, D>,
                 grads: &mut Gradients<B>,
+                _state: (),
             ) {
                 let grad_output = grads.consume(&output);
                 let (grad_output_lhs, grad_output_rhs) = clone_if_shared(&lhs, &rhs, grad_output);
@@ -131,14 +120,17 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        Add.execute(lhs, rhs)
+        Add.execute(lhs, rhs, ())
     }
 
     fn add_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: Elem<B>) -> ADTensor<B, D> {
         #[derive(Debug)]
         struct AddScalar;
 
-        impl<B: Backend, const D: usize> UnaryOpsNoCapture<B, Elem<B>, D, D> for AddScalar {
+        impl<B: Backend, const D: usize> UnaryOpsNoCapture<B, D, D> for AddScalar {
+            type StateForward = Elem<B>;
+            type StateBackward = ();
+
             fn forward(&self, lhs: B::TensorPrimitive<D>, rhs: Elem<B>) -> B::TensorPrimitive<D> {
                 B::add_scalar(lhs, rhs)
             }
@@ -147,7 +139,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 tensor: Option<MetadataRef>,
                 output: BackwardTensor<B, D>,
                 grads: &mut Gradients<B>,
-                _rhs: Elem<B>,
+                _rhs: (),
             ) {
                 let grad_output = grads.consume(&output);
 
@@ -157,23 +149,150 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        AddScalar.execute(lhs, rhs)
+        AddScalar.execute(lhs, rhs, ())
     }
 
-    fn sub<const D: usize>(_lhs: ADTensor<B, D>, _rhs: ADTensor<B, D>) -> ADTensor<B, D> {
-        todo!()
+    fn sub<const D: usize>(lhs: ADTensor<B, D>, rhs: ADTensor<B, D>) -> ADTensor<B, D> {
+        #[derive(Debug)]
+        struct Sub;
+
+        impl<B: Backend, const D: usize> BinaryOps<B, D> for Sub {
+            type BackwardState = ();
+
+            fn forward(
+                &self,
+                lhs: B::TensorPrimitive<D>,
+                rhs: B::TensorPrimitive<D>,
+            ) -> B::TensorPrimitive<D> {
+                B::sub(lhs, rhs)
+            }
+            fn backward(
+                self,
+                lhs: Option<MetadataRef>,
+                rhs: Option<MetadataRef>,
+                output: BackwardTensor<B, D>,
+                grads: &mut Gradients<B>,
+                _state: (),
+            ) {
+                let grad_output = grads.consume(&output);
+                let (grad_output_lhs, grad_output_rhs) = clone_if_shared(&lhs, &rhs, grad_output);
+
+                if let Some((lhs, grad)) = lhs.zip(grad_output_lhs) {
+                    grads.update(lhs, grad)
+                }
+                if let Some((rhs, grad)) = rhs.zip(grad_output_rhs) {
+                    grads.update(rhs, B::neg(grad))
+                }
+            }
+        }
+
+        Sub.execute(lhs, rhs, ())
     }
 
-    fn sub_scalar<const D: usize>(_lhs: ADTensor<B, D>, _rhs: Elem<B>) -> ADTensor<B, D> {
-        todo!()
+    fn sub_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: Elem<B>) -> ADTensor<B, D> {
+        #[derive(Debug)]
+        struct SubScalar;
+
+        impl<B: Backend, const D: usize> UnaryOpsNoCapture<B, D, D> for SubScalar {
+            type StateForward = Elem<B>;
+            type StateBackward = ();
+
+            fn forward(&self, lhs: B::TensorPrimitive<D>, rhs: Elem<B>) -> B::TensorPrimitive<D> {
+                B::sub_scalar(lhs, rhs)
+            }
+            fn backward(
+                self,
+                tensor: Option<MetadataRef>,
+                output: BackwardTensor<B, D>,
+                grads: &mut Gradients<B>,
+                _rhs: (),
+            ) {
+                let grad_output = grads.consume(&output);
+
+                if let Some(tensor) = tensor {
+                    grads.update(tensor, grad_output)
+                }
+            }
+        }
+
+        SubScalar.execute(lhs, rhs, ())
     }
 
-    fn mul<const D: usize>(_lhs: ADTensor<B, D>, _rhs: ADTensor<B, D>) -> ADTensor<B, D> {
-        todo!()
+    fn mul<const D: usize>(lhs: ADTensor<B, D>, rhs: ADTensor<B, D>) -> ADTensor<B, D> {
+        #[derive(Debug)]
+        struct Mul;
+
+        impl<B: Backend, const D: usize> BinaryOps<B, D> for Mul {
+            type BackwardState = (Option<B::TensorPrimitive<D>>, Option<B::TensorPrimitive<D>>);
+
+            fn forward(
+                &self,
+                lhs: B::TensorPrimitive<D>,
+                rhs: B::TensorPrimitive<D>,
+            ) -> B::TensorPrimitive<D> {
+                B::sub(lhs, rhs)
+            }
+            fn backward(
+                self,
+                lhs: Option<MetadataRef>,
+                rhs: Option<MetadataRef>,
+                output: BackwardTensor<B, D>,
+                grads: &mut Gradients<B>,
+                (state_lhs, state_rhs): Self::BackwardState,
+            ) {
+                let grad_output = grads.consume(&output);
+                let (grad_output_lhs, grad_output_rhs) = clone_if_shared(&lhs, &rhs, grad_output);
+
+                if let Some((lhs, grad_output)) = lhs.zip(grad_output_lhs) {
+                    let grad_lhs = B::mul(grad_output, state_rhs.unwrap());
+                    grads.update(lhs, grad_lhs)
+                }
+                if let Some((rhs, grad_output)) = rhs.zip(grad_output_rhs) {
+                    let grad_rhs = B::mul(grad_output, state_lhs.unwrap());
+                    grads.update(rhs, grad_rhs)
+                }
+            }
+        }
+
+        let state_lhs = match rhs.metadata.requirement {
+            Requirement::None => None,
+            _ => Some(lhs.primitive.clone()),
+        };
+        let state_rhs = match lhs.metadata.requirement {
+            Requirement::None => None,
+            _ => Some(rhs.primitive.clone()),
+        };
+        Mul.execute(lhs, rhs, (state_lhs, state_rhs))
     }
 
-    fn mul_scalar<const D: usize>(_lhs: ADTensor<B, D>, _rhs: Elem<B>) -> ADTensor<B, D> {
-        todo!()
+    fn mul_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: Elem<B>) -> ADTensor<B, D> {
+        #[derive(Debug)]
+        struct MulScalar;
+
+        impl<B: Backend, const D: usize> UnaryOpsNoCapture<B, D, D> for MulScalar {
+            type StateForward = Elem<B>;
+            type StateBackward = Elem<B>;
+
+            fn forward(&self, lhs: B::TensorPrimitive<D>, rhs: Elem<B>) -> B::TensorPrimitive<D> {
+                B::sub_scalar(lhs, rhs)
+            }
+            fn backward(
+                self,
+                tensor: Option<MetadataRef>,
+                output: BackwardTensor<B, D>,
+                grads: &mut Gradients<B>,
+                rhs: Elem<B>,
+            ) {
+                let grad_output = grads.consume(&output);
+
+                if let Some(tensor) = tensor {
+                    let grad = B::mul_scalar(grad_output, rhs);
+                    grads.update(tensor, grad)
+                }
+            }
+        }
+
+        MulScalar.execute(lhs, rhs, rhs)
     }
 
     fn div<const D: usize>(_lhs: ADTensor<B, D>, _rhs: ADTensor<B, D>) -> ADTensor<B, D> {
@@ -184,8 +303,56 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         todo!()
     }
 
-    fn matmul<const D: usize>(_lhs: ADTensor<B, D>, _rhs: ADTensor<B, D>) -> ADTensor<B, D> {
-        todo!()
+    fn matmul<const D: usize>(lhs: ADTensor<B, D>, rhs: ADTensor<B, D>) -> ADTensor<B, D> {
+        #[derive(Debug)]
+        struct Matmul;
+
+        impl<B: Backend, const D: usize> BinaryOps<B, D> for Matmul {
+            type BackwardState = (Option<B::TensorPrimitive<D>>, Option<B::TensorPrimitive<D>>);
+
+            fn forward(
+                &self,
+                lhs: B::TensorPrimitive<D>,
+                rhs: B::TensorPrimitive<D>,
+            ) -> B::TensorPrimitive<D> {
+                B::sub(lhs, rhs)
+            }
+            fn backward(
+                self,
+                lhs: Option<MetadataRef>,
+                rhs: Option<MetadataRef>,
+                output: BackwardTensor<B, D>,
+                grads: &mut Gradients<B>,
+                (state_lhs, state_rhs): Self::BackwardState,
+            ) {
+                let grad_output = grads.consume(&output);
+                let (grad_output_lhs, grad_output_rhs) = clone_if_shared(&lhs, &rhs, grad_output);
+
+                if let Some(((lhs, grad_output), state_rhs)) =
+                    lhs.zip(grad_output_lhs).zip(state_rhs)
+                {
+                    let grad_lhs = B::matmul(grad_output, B::transpose(state_rhs));
+                    grads.update(lhs, grad_lhs)
+                }
+                if let Some(((rhs, grad_output), state_lhs)) =
+                    rhs.zip(grad_output_rhs).zip(state_lhs)
+                {
+                    let grad_rhs = B::matmul(grad_output, B::transpose(state_lhs));
+                    grads.update(rhs, grad_rhs)
+                }
+            }
+        }
+
+        let state_lhs = match rhs.metadata.requirement {
+            Requirement::None => None,
+            _ => Some(lhs.primitive.clone()),
+        };
+        let state_rhs = match lhs.metadata.requirement {
+            Requirement::None => None,
+            _ => Some(rhs.primitive.clone()),
+        };
+
+        Matmul.execute(lhs, rhs, (state_lhs, state_rhs))
     }
 
     fn neg<const D: usize>(_tensor: ADTensor<B, D>) -> ADTensor<B, D> {
@@ -202,7 +369,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
     fn reshape<const D1: usize, const D2: usize>(
         _tensor: ADTensor<B, D1>,
-        _shape: burn_tensor::Shape<D2>,
+        _shape: Shape<D2>,
     ) -> ADTensor<B, D2> {
         todo!()
     }
@@ -360,55 +527,15 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         todo!()
     }
 
-    fn zeros<const D: usize>(
-        shape: burn_tensor::Shape<D>,
-        device: &<ADBackendDecorator<B> as Backend>::Device,
-    ) -> ADTensor<B, D> {
-        Self::from_data(burn_tensor::Data::zeros(shape), device)
+    fn zeros<const D: usize>(shape: Shape<D>, device: &B::Device) -> ADTensor<B, D> {
+        Self::from_data(Data::zeros(shape), device)
     }
 
-    fn ones<const D: usize>(
-        shape: burn_tensor::Shape<D>,
-        device: &<ADBackendDecorator<B> as Backend>::Device,
-    ) -> ADTensor<B, D> {
-        Self::from_data(burn_tensor::Data::ones(shape), device)
+    fn ones<const D: usize>(shape: Shape<D>, device: &B::Device) -> ADTensor<B, D> {
+        Self::from_data(Data::ones(shape), device)
     }
 
-    fn arange(
-        _range: std::ops::Range<usize>,
-        _device: &<ADBackendDecorator<B> as Backend>::Device,
-    ) -> IntTensor<B, 1> {
-        todo!()
-    }
-
-    fn repeat<const D: usize>(tensor: ADTensor<B, D>, dim: usize, times: usize) -> ADTensor<B, D> {
-        let mut shape = <ADBackendDecorator<B>>::shape(&tensor);
-        if shape.dims[dim] != 1 {
-            panic!("Can only repeat dimension with dim=1");
-        }
-        shape.dims[dim] = times;
-
-        let mut i = 0;
-        let indexes_select_all = [0; D].map(|_| {
-            let start = 0;
-            let end = shape.dims[i];
-            i += 1;
-            start..end
-        });
-
-        let mut tensor_output =
-            <ADBackendDecorator<B>>::empty(shape, &<ADBackendDecorator<B>>::device(&tensor));
-        for i in 0..times {
-            let mut indexes = indexes_select_all.clone();
-            indexes[dim] = i..i + 1;
-            tensor_output =
-                <ADBackendDecorator<B>>::index_assign(tensor_output, indexes, tensor.clone());
-        }
-
-        tensor_output
-    }
-
-    fn transpose<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {
-        Self::swap_dims(tensor, D - 2, D - 1)
+    fn arange(range: std::ops::Range<usize>, device: &B::Device) -> IntTensor<B, 1> {
+        B::arange(range, device)
     }
 }
