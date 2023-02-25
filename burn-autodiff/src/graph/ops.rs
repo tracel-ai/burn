@@ -56,6 +56,12 @@ impl OpsID {
     }
 }
 
+impl Default for OpsID {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub type MetadataRef = Arc<Metadata>;
 
 #[derive(new, Debug)]

@@ -68,7 +68,7 @@ impl<B: Backend> Backward<B> for NewTensor<B> {
 impl<B: Backend, const D: usize> ADTensor<B, D> {
     pub fn new(primitive: B::TensorPrimitive<D>) -> Self {
         let id = OpsID::new();
-        let metadata = Metadata::new(vec![], 0, id.clone(), Requirement::Grad);
+        let metadata = Metadata::new(vec![], 0, id, Requirement::Grad);
         let tensor = Self {
             primitive,
             metadata: metadata.into(),
@@ -176,5 +176,5 @@ pub fn clone_if_shared<T1, T2, T3: Clone>(
         return (None, None);
     }
 
-    return (Some(maybe_cloned.clone()), Some(maybe_cloned.clone()));
+    (Some(maybe_cloned.clone()), Some(maybe_cloned))
 }

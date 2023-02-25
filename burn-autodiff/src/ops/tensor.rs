@@ -17,21 +17,21 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn from_data_bool<const D: usize>(
-        data: burn_tensor::Data<bool, D>,
-        device: &<ADBackendDecorator<B> as Backend>::Device,
+        _data: burn_tensor::Data<bool, D>,
+        _device: &<ADBackendDecorator<B> as Backend>::Device,
     ) -> BoolTensor<B, D> {
         todo!()
     }
 
     fn random<const D: usize>(
-        shape: burn_tensor::Shape<D>,
-        distribution: burn_tensor::Distribution<Elem<B>>,
-        device: &<ADBackendDecorator<B> as Backend>::Device,
+        _shape: burn_tensor::Shape<D>,
+        _distribution: burn_tensor::Distribution<Elem<B>>,
+        _device: &<ADBackendDecorator<B> as Backend>::Device,
     ) -> ADTensor<B, D> {
         todo!()
     }
 
-    fn shape<const D: usize>(tensor: &ADTensor<B, D>) -> burn_tensor::Shape<D> {
+    fn shape<const D: usize>(_tensor: &ADTensor<B, D>) -> burn_tensor::Shape<D> {
         todo!()
     }
 
@@ -43,59 +43,59 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         B::into_data(tensor.primitive)
     }
 
-    fn bool_shape<const D: usize>(tensor: &BoolTensor<B, D>) -> burn_tensor::Shape<D> {
+    fn bool_shape<const D: usize>(_tensor: &BoolTensor<B, D>) -> burn_tensor::Shape<D> {
         todo!()
     }
 
-    fn bool_to_data<const D: usize>(tensor: &BoolTensor<B, D>) -> burn_tensor::Data<bool, D> {
+    fn bool_to_data<const D: usize>(_tensor: &BoolTensor<B, D>) -> burn_tensor::Data<bool, D> {
         todo!()
     }
 
-    fn bool_into_data<const D: usize>(tensor: BoolTensor<B, D>) -> burn_tensor::Data<bool, D> {
+    fn bool_into_data<const D: usize>(_tensor: BoolTensor<B, D>) -> burn_tensor::Data<bool, D> {
         todo!()
     }
 
-    fn bool_into_int<const D: usize>(tensor: BoolTensor<B, D>) -> IntTensor<B, D> {
+    fn bool_into_int<const D: usize>(_tensor: BoolTensor<B, D>) -> IntTensor<B, D> {
         todo!()
     }
 
     fn bool_to_device<const D: usize>(
-        tensor: BoolTensor<B, D>,
-        device: &<ADBackendDecorator<B> as Backend>::Device,
+        _tensor: BoolTensor<B, D>,
+        _device: &<ADBackendDecorator<B> as Backend>::Device,
     ) -> BoolTensor<B, D> {
         todo!()
     }
 
     fn bool_reshape<const D1: usize, const D2: usize>(
-        tensor: BoolTensor<B, D1>,
-        shape: burn_tensor::Shape<D2>,
+        _tensor: BoolTensor<B, D1>,
+        _shape: burn_tensor::Shape<D2>,
     ) -> BoolTensor<B, D2> {
         todo!()
     }
 
     fn bool_index<const D1: usize, const D2: usize>(
-        tensor: BoolTensor<B, D1>,
-        indexes: [std::ops::Range<usize>; D2],
+        _tensor: BoolTensor<B, D1>,
+        _indexes: [std::ops::Range<usize>; D2],
     ) -> BoolTensor<B, D1> {
         todo!()
     }
 
     fn device<const D: usize>(
-        tensor: &ADTensor<B, D>,
+        _tensor: &ADTensor<B, D>,
     ) -> <ADBackendDecorator<B> as Backend>::Device {
         todo!()
     }
 
     fn to_device<const D: usize>(
-        tensor: ADTensor<B, D>,
-        device: &<ADBackendDecorator<B> as Backend>::Device,
+        _tensor: ADTensor<B, D>,
+        _device: &<ADBackendDecorator<B> as Backend>::Device,
     ) -> ADTensor<B, D> {
         todo!()
     }
 
     fn empty<const D: usize>(
-        shape: burn_tensor::Shape<D>,
-        device: &<ADBackendDecorator<B> as Backend>::Device,
+        _shape: burn_tensor::Shape<D>,
+        _device: &<ADBackendDecorator<B> as Backend>::Device,
     ) -> ADTensor<B, D> {
         todo!()
     }
@@ -122,10 +122,12 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 let grad_output = grads.consume(&output);
                 let (grad_output_lhs, grad_output_rhs) = clone_if_shared(&lhs, &rhs, grad_output);
 
-                lhs.zip(grad_output_lhs)
-                    .map(|(lhs, grad)| grads.update(lhs, grad));
-                rhs.zip(grad_output_rhs)
-                    .map(|(rhs, grad)| grads.update(rhs, grad));
+                if let Some((lhs, grad)) = lhs.zip(grad_output_lhs) {
+                    grads.update(lhs, grad)
+                }
+                if let Some((rhs, grad)) = rhs.zip(grad_output_rhs) {
+                    grads.update(rhs, grad)
+                }
             }
         }
 
@@ -133,221 +135,228 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn add_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: Elem<B>) -> ADTensor<B, D> {
-        #[derive(new, Debug)]
-        struct AddScalar<B: Backend> {
-            rhs: Elem<B>,
-        }
+        #[derive(Debug)]
+        struct AddScalar;
 
-        impl<B: Backend, const D: usize> UnaryOpsNoCapture<B, D, D> for AddScalar<B> {
-            fn forward(&self, tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D> {
-                B::add_scalar(tensor, self.rhs)
+        impl<B: Backend, const D: usize> UnaryOpsNoCapture<B, Elem<B>, D, D> for AddScalar {
+            fn forward(&self, lhs: B::TensorPrimitive<D>, rhs: Elem<B>) -> B::TensorPrimitive<D> {
+                B::add_scalar(lhs, rhs)
             }
             fn backward(
                 self,
                 tensor: Option<MetadataRef>,
                 output: BackwardTensor<B, D>,
                 grads: &mut Gradients<B>,
+                _rhs: Elem<B>,
             ) {
                 let grad_output = grads.consume(&output);
 
-                tensor.map(|tensor| grads.update(tensor, grad_output));
+                if let Some(tensor) = tensor {
+                    grads.update(tensor, grad_output)
+                }
             }
         }
 
-        AddScalar::new(rhs).execute(lhs)
+        AddScalar.execute(lhs, rhs)
     }
 
-    fn sub<const D: usize>(lhs: ADTensor<B, D>, rhs: ADTensor<B, D>) -> ADTensor<B, D> {
+    fn sub<const D: usize>(_lhs: ADTensor<B, D>, _rhs: ADTensor<B, D>) -> ADTensor<B, D> {
         todo!()
     }
 
-    fn sub_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: Elem<B>) -> ADTensor<B, D> {
+    fn sub_scalar<const D: usize>(_lhs: ADTensor<B, D>, _rhs: Elem<B>) -> ADTensor<B, D> {
         todo!()
     }
 
-    fn mul<const D: usize>(lhs: ADTensor<B, D>, rhs: ADTensor<B, D>) -> ADTensor<B, D> {
+    fn mul<const D: usize>(_lhs: ADTensor<B, D>, _rhs: ADTensor<B, D>) -> ADTensor<B, D> {
         todo!()
     }
 
-    fn mul_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: Elem<B>) -> ADTensor<B, D> {
+    fn mul_scalar<const D: usize>(_lhs: ADTensor<B, D>, _rhs: Elem<B>) -> ADTensor<B, D> {
         todo!()
     }
 
-    fn div<const D: usize>(lhs: ADTensor<B, D>, rhs: ADTensor<B, D>) -> ADTensor<B, D> {
+    fn div<const D: usize>(_lhs: ADTensor<B, D>, _rhs: ADTensor<B, D>) -> ADTensor<B, D> {
         todo!()
     }
 
-    fn div_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: Elem<B>) -> ADTensor<B, D> {
+    fn div_scalar<const D: usize>(_lhs: ADTensor<B, D>, _rhs: Elem<B>) -> ADTensor<B, D> {
         todo!()
     }
 
-    fn matmul<const D: usize>(lhs: ADTensor<B, D>, rhs: ADTensor<B, D>) -> ADTensor<B, D> {
+    fn matmul<const D: usize>(_lhs: ADTensor<B, D>, _rhs: ADTensor<B, D>) -> ADTensor<B, D> {
         todo!()
     }
 
-    fn neg<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {
+    fn neg<const D: usize>(_tensor: ADTensor<B, D>) -> ADTensor<B, D> {
         todo!()
     }
 
     fn swap_dims<const D: usize>(
-        tensor: ADTensor<B, D>,
-        dim1: usize,
-        dim2: usize,
+        _tensor: ADTensor<B, D>,
+        _dim1: usize,
+        _dim2: usize,
     ) -> ADTensor<B, D> {
         todo!()
     }
 
     fn reshape<const D1: usize, const D2: usize>(
-        tensor: ADTensor<B, D1>,
-        shape: burn_tensor::Shape<D2>,
+        _tensor: ADTensor<B, D1>,
+        _shape: burn_tensor::Shape<D2>,
     ) -> ADTensor<B, D2> {
         todo!()
     }
 
     fn index<const D1: usize, const D2: usize>(
-        tensor: ADTensor<B, D1>,
-        indexes: [std::ops::Range<usize>; D2],
+        _tensor: ADTensor<B, D1>,
+        _indexes: [std::ops::Range<usize>; D2],
     ) -> ADTensor<B, D1> {
         todo!()
     }
 
     fn index_assign<const D1: usize, const D2: usize>(
-        tensor: ADTensor<B, D1>,
-        indexes: [std::ops::Range<usize>; D2],
-        value: ADTensor<B, D1>,
+        _tensor: ADTensor<B, D1>,
+        _indexes: [std::ops::Range<usize>; D2],
+        _value: ADTensor<B, D1>,
     ) -> ADTensor<B, D1> {
         todo!()
     }
 
     fn mask_fill<const D: usize>(
-        tensor: ADTensor<B, D>,
-        mask: BoolTensor<B, D>,
-        value: Elem<B>,
+        _tensor: ADTensor<B, D>,
+        _mask: BoolTensor<B, D>,
+        _value: Elem<B>,
     ) -> ADTensor<B, D> {
         todo!()
     }
 
-    fn equal<const D: usize>(lhs: ADTensor<B, D>, rhs: ADTensor<B, D>) -> BoolTensor<B, D> {
+    fn equal<const D: usize>(_lhs: ADTensor<B, D>, _rhs: ADTensor<B, D>) -> BoolTensor<B, D> {
         todo!()
     }
 
-    fn equal_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: Elem<B>) -> BoolTensor<B, D> {
+    fn equal_scalar<const D: usize>(_lhs: ADTensor<B, D>, _rhs: Elem<B>) -> BoolTensor<B, D> {
         todo!()
     }
 
-    fn greater<const D: usize>(lhs: ADTensor<B, D>, rhs: ADTensor<B, D>) -> BoolTensor<B, D> {
+    fn greater<const D: usize>(_lhs: ADTensor<B, D>, _rhs: ADTensor<B, D>) -> BoolTensor<B, D> {
         todo!()
     }
 
-    fn greater_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: Elem<B>) -> BoolTensor<B, D> {
+    fn greater_scalar<const D: usize>(_lhs: ADTensor<B, D>, _rhs: Elem<B>) -> BoolTensor<B, D> {
         todo!()
     }
 
-    fn greater_equal<const D: usize>(lhs: ADTensor<B, D>, rhs: ADTensor<B, D>) -> BoolTensor<B, D> {
+    fn greater_equal<const D: usize>(
+        _lhs: ADTensor<B, D>,
+        _rhs: ADTensor<B, D>,
+    ) -> BoolTensor<B, D> {
         todo!()
     }
 
-    fn greater_equal_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: Elem<B>) -> BoolTensor<B, D> {
+    fn greater_equal_scalar<const D: usize>(
+        _lhs: ADTensor<B, D>,
+        _rhs: Elem<B>,
+    ) -> BoolTensor<B, D> {
         todo!()
     }
 
-    fn lower<const D: usize>(lhs: ADTensor<B, D>, rhs: ADTensor<B, D>) -> BoolTensor<B, D> {
+    fn lower<const D: usize>(_lhs: ADTensor<B, D>, _rhs: ADTensor<B, D>) -> BoolTensor<B, D> {
         todo!()
     }
 
-    fn lower_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: Elem<B>) -> BoolTensor<B, D> {
+    fn lower_scalar<const D: usize>(_lhs: ADTensor<B, D>, _rhs: Elem<B>) -> BoolTensor<B, D> {
         todo!()
     }
 
-    fn lower_equal<const D: usize>(lhs: ADTensor<B, D>, rhs: ADTensor<B, D>) -> BoolTensor<B, D> {
+    fn lower_equal<const D: usize>(_lhs: ADTensor<B, D>, _rhs: ADTensor<B, D>) -> BoolTensor<B, D> {
         todo!()
     }
 
-    fn lower_equal_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: Elem<B>) -> BoolTensor<B, D> {
+    fn lower_equal_scalar<const D: usize>(_lhs: ADTensor<B, D>, _rhs: Elem<B>) -> BoolTensor<B, D> {
         todo!()
     }
 
-    fn detach<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {
+    fn detach<const D: usize>(_tensor: ADTensor<B, D>) -> ADTensor<B, D> {
         todo!()
     }
 
-    fn mean<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, 1> {
+    fn mean<const D: usize>(_tensor: ADTensor<B, D>) -> ADTensor<B, 1> {
         todo!()
     }
 
-    fn sum<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, 1> {
+    fn sum<const D: usize>(_tensor: ADTensor<B, D>) -> ADTensor<B, 1> {
         todo!()
     }
 
-    fn mean_dim<const D: usize>(tensor: ADTensor<B, D>, dim: usize) -> ADTensor<B, D> {
+    fn mean_dim<const D: usize>(_tensor: ADTensor<B, D>, _dim: usize) -> ADTensor<B, D> {
         todo!()
     }
 
-    fn sum_dim<const D: usize>(tensor: ADTensor<B, D>, dim: usize) -> ADTensor<B, D> {
+    fn sum_dim<const D: usize>(_tensor: ADTensor<B, D>, _dim: usize) -> ADTensor<B, D> {
         todo!()
     }
 
     fn to_full_precision<const D: usize>(
-        tensor: &ADTensor<B, D>,
+        _tensor: &ADTensor<B, D>,
     ) -> ADTensor<B::FullPrecisionBackend, D> {
         todo!()
     }
 
     fn from_full_precision<const D: usize>(
-        tensor: ADTensor<B::FullPrecisionBackend, D>,
+        _tensor: ADTensor<B::FullPrecisionBackend, D>,
     ) -> ADTensor<B, D> {
         todo!()
     }
 
-    fn argmax<const D: usize>(tensor: ADTensor<B, D>, dim: usize) -> IntTensor<B, D> {
+    fn argmax<const D: usize>(_tensor: ADTensor<B, D>, _dim: usize) -> IntTensor<B, D> {
         todo!()
     }
 
-    fn argmin<const D: usize>(tensor: ADTensor<B, D>, dim: usize) -> IntTensor<B, D> {
+    fn argmin<const D: usize>(_tensor: ADTensor<B, D>, _dim: usize) -> IntTensor<B, D> {
         todo!()
     }
 
-    fn exp<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {
+    fn exp<const D: usize>(_tensor: ADTensor<B, D>) -> ADTensor<B, D> {
         todo!()
     }
 
-    fn log<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {
+    fn log<const D: usize>(_tensor: ADTensor<B, D>) -> ADTensor<B, D> {
         todo!()
     }
 
-    fn log1p<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {
+    fn log1p<const D: usize>(_tensor: ADTensor<B, D>) -> ADTensor<B, D> {
         todo!()
     }
 
-    fn powf<const D: usize>(tensor: ADTensor<B, D>, value: f32) -> ADTensor<B, D> {
+    fn powf<const D: usize>(_tensor: ADTensor<B, D>, _value: f32) -> ADTensor<B, D> {
         todo!()
     }
 
-    fn sqrt<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {
+    fn sqrt<const D: usize>(_tensor: ADTensor<B, D>) -> ADTensor<B, D> {
         todo!()
     }
 
-    fn cos<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {
+    fn cos<const D: usize>(_tensor: ADTensor<B, D>) -> ADTensor<B, D> {
         todo!()
     }
 
-    fn sin<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {
+    fn sin<const D: usize>(_tensor: ADTensor<B, D>) -> ADTensor<B, D> {
         todo!()
     }
 
-    fn tanh<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {
+    fn tanh<const D: usize>(_tensor: ADTensor<B, D>) -> ADTensor<B, D> {
         todo!()
     }
 
-    fn erf<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {
+    fn erf<const D: usize>(_tensor: ADTensor<B, D>) -> ADTensor<B, D> {
         todo!()
     }
 
-    fn cat<const D: usize>(tensors: Vec<ADTensor<B, D>>, dim: usize) -> ADTensor<B, D> {
+    fn cat<const D: usize>(_tensors: Vec<ADTensor<B, D>>, _dim: usize) -> ADTensor<B, D> {
         todo!()
     }
 
-    fn relu<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {
+    fn relu<const D: usize>(_tensor: ADTensor<B, D>) -> ADTensor<B, D> {
         todo!()
     }
 
@@ -366,8 +375,8 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn arange(
-        range: std::ops::Range<usize>,
-        device: &<ADBackendDecorator<B> as Backend>::Device,
+        _range: std::ops::Range<usize>,
+        _device: &<ADBackendDecorator<B> as Backend>::Device,
     ) -> IntTensor<B, 1> {
         todo!()
     }

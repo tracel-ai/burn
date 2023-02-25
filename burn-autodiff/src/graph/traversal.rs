@@ -21,23 +21,18 @@ impl<'a, B: Backend> GraphTraversal<B> for BreadthFirstSearch<'a> {
         visited.insert(self.node.id.clone());
         parents.append(&mut self.node.parents.clone());
 
-        loop {
-            let node = match parents.pop() {
-                Some(node) => node,
-                None => break,
-            };
-
+        while let Some(node) = parents.pop() {
             let node = ops.get(&node).map(|node| node.metadata()).unwrap();
 
             let id = &node.id;
-            if visited.contains(&id) {
+            if visited.contains(id) {
                 continue;
             }
 
             visited.insert(id.clone());
 
             for id in node.parents.iter() {
-                if !visited.contains(&id) {
+                if !visited.contains(id) {
                     parents.push(id.clone());
                 }
             }
