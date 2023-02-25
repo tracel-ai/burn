@@ -1,21 +1,20 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use burn_tensor::backend::Backend;
 
-use super::ops::{OpsMap, OpsMetadataRef};
+use super::ops::{MetadataRef, Node, OpsID};
 
 pub trait GraphTraversal<B: Backend> {
-    fn traverse<F: FnMut(OpsMetadataRef)>(&self, callback: F);
+    fn traverse<F: FnMut(MetadataRef)>(&self, callback: F, ops: &HashMap<OpsID, Node<B>>);
 }
 
 #[derive(new)]
-pub struct BreadthFirstSearch<'a, B: Backend> {
-    node: &'a OpsMetadataRef,
-    ops: OpsMap<B>,
+pub struct BreadthFirstSearch<'a> {
+    node: &'a MetadataRef,
 }
 
-impl<'a, B: Backend> GraphTraversal<B> for BreadthFirstSearch<'a, B> {
-    fn traverse<F: FnMut(OpsMetadataRef)>(&self, mut callback: F) {
+impl<'a, B: Backend> GraphTraversal<B> for BreadthFirstSearch<'a> {
+    fn traverse<F: FnMut(MetadataRef)>(&self, mut callback: F, ops: &HashMap<OpsID, Node<B>>) {
         let mut visited = HashSet::with_capacity(self.node.order);
         let mut parents = Vec::with_capacity(self.node.order);
 
@@ -28,7 +27,7 @@ impl<'a, B: Backend> GraphTraversal<B> for BreadthFirstSearch<'a, B> {
                 None => break,
             };
 
-            let node = self.ops.metadata(&node).unwrap();
+            let node = ops.get(&node).map(|node| node.metadata()).unwrap();
 
             let id = &node.id;
             if visited.contains(&id) {

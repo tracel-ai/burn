@@ -1,7 +1,8 @@
 use crate::{
     grads::Gradients,
-    graph::ops::{Ops, OpsMetadataRef},
-    tensor::{ADTensor, BoolTensor, Elem, IntTensor},
+    graph::ops::MetadataRef,
+    ops::{binary::BinaryOpsNoCapture, unary::UnaryOpsNoCapture},
+    tensor::{clone_if_shared, ADTensor, BackwardTensor, BoolTensor, Elem, IntTensor},
     ADBackendDecorator,
 };
 
@@ -100,57 +101,60 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn add<const D: usize>(lhs: ADTensor<B, D>, rhs: ADTensor<B, D>) -> ADTensor<B, D> {
-        #[derive(new, Debug)]
-        struct Add<B: Backend, const D: usize> {
-            lhs: ADTensor<B, D>,
-            rhs: ADTensor<B, D>,
-            output: ADTensor<B, D>,
+        #[derive(Debug)]
+        struct Add;
+
+        impl<B: Backend, const D: usize> BinaryOpsNoCapture<B, D> for Add {
+            fn forward(
+                &self,
+                lhs: B::TensorPrimitive<D>,
+                rhs: B::TensorPrimitive<D>,
+            ) -> B::TensorPrimitive<D> {
+                B::add(lhs, rhs)
+            }
+            fn backward(
+                self,
+                lhs: Option<MetadataRef>,
+                rhs: Option<MetadataRef>,
+                output: BackwardTensor<B, D>,
+                grads: &mut Gradients<B>,
+            ) {
+                let grad_output = grads.consume(&output);
+                let (grad_output_lhs, grad_output_rhs) = clone_if_shared(&lhs, &rhs, grad_output);
+
+                lhs.zip(grad_output_lhs)
+                    .map(|(lhs, grad)| grads.update(lhs, grad));
+                rhs.zip(grad_output_rhs)
+                    .map(|(rhs, grad)| grads.update(rhs, grad));
+            }
         }
 
-        impl<B: Backend, const D: usize> Ops<B> for Add<B, D> {
-            fn backward(self: Box<Self>, grads: &mut Gradients<B>) {
-                let grad_output = grads.consume(&self.output);
-
-                grads.update(self.lhs, grad_output.clone());
-                grads.update(self.rhs, grad_output);
-            }
-
-            fn metadata(&self) -> OpsMetadataRef {
-                self.output.metadata.clone()
-            }
-        }
-
-        let output = B::add(lhs.primitive.clone(), rhs.primitive.clone());
-        let output = ADTensor::from_binary_ops(lhs.clone(), rhs.clone(), output);
-        let ops = Add::new(lhs, rhs, output.clone());
-
-        output.register_ops(ops)
+        Add.execute(lhs, rhs)
     }
 
     fn add_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: Elem<B>) -> ADTensor<B, D> {
         #[derive(new, Debug)]
-        struct AddScalar<B: Backend, const D: usize> {
-            lhs: ADTensor<B, D>,
-            output: ADTensor<B, D>,
+        struct AddScalar<B: Backend> {
+            rhs: Elem<B>,
         }
 
-        impl<B: Backend, const D: usize> Ops<B> for AddScalar<B, D> {
-            fn backward(self: Box<Self>, grads: &mut Gradients<B>) {
-                let grad_output = grads.consume(&self.output);
-
-                grads.update(self.lhs, grad_output.clone());
+        impl<B: Backend, const D: usize> UnaryOpsNoCapture<B, D, D> for AddScalar<B> {
+            fn forward(&self, tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D> {
+                B::add_scalar(tensor, self.rhs)
             }
+            fn backward(
+                self,
+                tensor: Option<MetadataRef>,
+                output: BackwardTensor<B, D>,
+                grads: &mut Gradients<B>,
+            ) {
+                let grad_output = grads.consume(&output);
 
-            fn metadata(&self) -> OpsMetadataRef {
-                self.output.metadata.clone()
+                tensor.map(|tensor| grads.update(tensor, grad_output));
             }
         }
 
-        let output = B::add_scalar(lhs.primitive.clone(), rhs.clone());
-        let output = ADTensor::from_unary_ops(lhs.clone(), output);
-        let ops = AddScalar::new(lhs, output.clone());
-
-        output.register_ops(ops)
+        AddScalar::new(rhs).execute(lhs)
     }
 
     fn sub<const D: usize>(lhs: ADTensor<B, D>, rhs: ADTensor<B, D>) -> ADTensor<B, D> {

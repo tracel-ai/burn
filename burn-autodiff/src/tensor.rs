@@ -4,7 +4,7 @@ use burn_tensor::backend::Backend;
 
 use crate::{
     grads::Gradients,
-    graph::ops::{Ops, OpsID, OpsMap, OpsMetadata, OpsMetadataRef, Requirement},
+    graph::ops::{Backward, Graph, Metadata, MetadataRef, OpsID, Requirement},
     ADBackendDecorator,
 };
 
@@ -13,8 +13,14 @@ use burn_tensor::ops::*;
 #[derive(Debug, Clone)]
 pub struct ADTensor<B: Backend, const D: usize> {
     pub primitive: B::TensorPrimitive<D>,
-    pub metadata: OpsMetadataRef,
-    pub(crate) map: OpsMap<B>,
+    pub metadata: MetadataRef,
+    pub(crate) graph: Graph<B>,
+}
+
+#[derive(new, Debug, Clone)]
+pub struct BackwardTensor<B: Backend, const D: usize> {
+    pub primitive: B::TensorPrimitive<D>,
+    pub metadata: MetadataRef,
 }
 
 pub type Elem<B> = <ADBackendDecorator<B> as Backend>::Elem;
@@ -47,14 +53,14 @@ impl<B: Backend, const D: usize> Ones for ADTensor<B, D> {
 
 #[derive(new, Debug)]
 struct NewTensor<B: Backend> {
-    metadata: OpsMetadataRef,
+    metadata: MetadataRef,
     phantom: PhantomData<B>,
 }
 
-impl<B: Backend> Ops<B> for NewTensor<B> {
+impl<B: Backend> Backward<B> for NewTensor<B> {
     fn backward(self: Box<Self>, _grads: &mut Gradients<B>) {}
 
-    fn metadata(&self) -> OpsMetadataRef {
+    fn metadata(&self) -> MetadataRef {
         self.metadata.clone()
     }
 }
@@ -62,60 +68,113 @@ impl<B: Backend> Ops<B> for NewTensor<B> {
 impl<B: Backend, const D: usize> ADTensor<B, D> {
     pub fn new(primitive: B::TensorPrimitive<D>) -> Self {
         let id = OpsID::new();
-        let metadata = OpsMetadata::new(vec![], 0, id.clone(), Requirement::Grad);
+        let metadata = Metadata::new(vec![], 0, id.clone(), Requirement::Grad);
         let tensor = Self {
             primitive,
             metadata: metadata.into(),
-            map: OpsMap::new(),
+            graph: Graph::new(),
         };
         let ops = NewTensor::new(tensor.metadata.clone());
 
         tensor.register_ops(ops)
     }
-    pub fn from_binary_ops<const DLHS: usize, const DRHS: usize>(
-        lhs: ADTensor<B, DLHS>,
-        rhs: ADTensor<B, DRHS>,
+    pub fn from_binary_ops(
+        lhs: MetadataRef,
+        rhs: MetadataRef,
         output: B::TensorPrimitive<D>,
+        lhs_graph: Graph<B>,
+        rhs_graph: Graph<B>,
     ) -> Self {
-        let order = usize::max(lhs.metadata.order, rhs.metadata.order) + 1;
+        let order = usize::max(lhs.order, rhs.order) + 1;
         let id = OpsID::new();
-        let map = lhs.map.merge(&rhs.map);
-        let parents = vec![lhs.metadata.id.clone(), rhs.metadata.id.clone()];
-        let metadata = OpsMetadata::new(
+        let map = lhs_graph.merge(&rhs_graph);
+        let parents = vec![lhs.id.clone(), rhs.id.clone()];
+        let metadata = Metadata::new(parents, order, id, lhs.infer_requirement(&rhs));
+
+        Self {
+            primitive: output,
+            metadata: metadata.into(),
+            graph: map,
+        }
+    }
+    pub fn from_unary_ops(
+        tensor: MetadataRef,
+        output: B::TensorPrimitive<D>,
+        graph: Graph<B>,
+    ) -> Self {
+        let order = tensor.order + 1;
+        let id = OpsID::new();
+        let parents = vec![tensor.id.clone()];
+        let metadata = Metadata::new(
             parents,
             order,
             id,
-            lhs.metadata.infer_requirement(&rhs.metadata),
+            tensor.requirement.infer(&Requirement::None),
         );
 
         Self {
             primitive: output,
             metadata: metadata.into(),
-            map,
+            graph,
         }
     }
-    pub fn from_unary_ops<const DLHS: usize>(
-        lhs: ADTensor<B, DLHS>,
-        output: B::TensorPrimitive<D>,
-    ) -> Self {
-        let order = lhs.metadata.order + 1;
-        let id = OpsID::new();
-        let parents = vec![lhs.metadata.id.clone()];
-        let metadata = OpsMetadata::new(
-            parents,
-            order,
-            id,
-            lhs.metadata.requirement.infer(&Requirement::None),
-        );
 
-        Self {
-            primitive: output,
-            metadata: metadata.into(),
-            map: lhs.map,
+    pub fn to_backward(&self) -> BackwardTensor<B, D> {
+        BackwardTensor::new(self.primitive.clone(), self.metadata.clone())
+    }
+
+    pub fn to_backward_if_required(&self) -> Option<BackwardTensor<B, D>> {
+        match self.metadata.requirement {
+            Requirement::None => None,
+            _ => Some(self.to_backward()),
         }
     }
-    pub fn register_ops<O: Ops<B> + 'static>(self, ops: O) -> Self {
-        self.map.register(&self.metadata.id, Box::new(ops));
+
+    pub fn to_metadata_if_required(&self) -> Option<MetadataRef> {
+        match self.metadata.requirement {
+            Requirement::None => None,
+            _ => Some(self.metadata.clone()),
+        }
+    }
+
+    pub fn register_ops<O: Backward<B> + 'static>(self, ops: O) -> Self {
+        self.graph.register(&self.metadata.id, Box::new(ops));
         self
     }
+}
+
+pub trait GetMetadata {
+    fn metadata(&self) -> MetadataRef;
+}
+
+impl<B: Backend, const D: usize> GetMetadata for BackwardTensor<B, D> {
+    fn metadata(&self) -> MetadataRef {
+        self.metadata.clone()
+    }
+}
+
+impl GetMetadata for MetadataRef {
+    fn metadata(&self) -> MetadataRef {
+        self.clone()
+    }
+}
+
+/// May clone the type if necessary.
+pub fn clone_if_shared<T1, T2, T3: Clone>(
+    lhs: &Option<T1>,
+    rhs: &Option<T2>,
+    maybe_cloned: T3,
+) -> (Option<T3>, Option<T3>) {
+    if lhs.is_some() && rhs.is_none() {
+        return (Some(maybe_cloned), None);
+    }
+    if lhs.is_none() && rhs.is_some() {
+        return (None, Some(maybe_cloned));
+    }
+
+    if lhs.is_none() && rhs.is_none() {
+        return (None, None);
+    }
+
+    return (Some(maybe_cloned.clone()), Some(maybe_cloned.clone()));
 }

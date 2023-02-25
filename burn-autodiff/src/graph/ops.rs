@@ -1,7 +1,10 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
+use burn_common::id::IdGenerator;
 use burn_tensor::backend::Backend;
-use dashmap::DashMap;
 
 use crate::grads::Gradients;
 
@@ -27,9 +30,16 @@ impl Requirement {
         }
     }
 }
-impl OpsMetadata {
+
+impl Metadata {
     pub fn infer_requirement(&self, other: &Self) -> Requirement {
         self.requirement.infer(&other.requirement)
+    }
+    pub fn clone_if_require_grad(self: &Arc<Self>) -> Option<MetadataRef> {
+        match self.requirement {
+            Requirement::None => None,
+            _ => Some(self.clone()),
+        }
     }
 }
 
@@ -41,66 +51,59 @@ pub struct OpsID {
 impl OpsID {
     pub fn new() -> Self {
         Self {
-            value: nanoid::nanoid!(5).to_string(),
+            value: IdGenerator::generate(),
         }
     }
 }
 
-pub type OpsMetadataRef = Arc<OpsMetadata>;
+pub type MetadataRef = Arc<Metadata>;
 
 #[derive(new, Debug)]
-pub struct OpsMetadata {
+pub struct Metadata {
     pub parents: Vec<OpsID>,
     pub order: usize,
     pub id: OpsID,
     pub requirement: Requirement,
 }
 
-pub type OpsBoxed<B> = Box<dyn Ops<B>>;
-pub trait Ops<B: Backend>: Send + Sync + std::fmt::Debug {
+pub trait Backward<B: Backend>: Send + Sync + std::fmt::Debug {
     fn backward(self: Box<Self>, grads: &mut Gradients<B>);
-    fn metadata(&self) -> OpsMetadataRef;
+    fn metadata(&self) -> MetadataRef;
 }
 
-type SharedMap<B> = Arc<DashMap<OpsID, OpsBoxed<B>>>;
-
+pub type Node<B> = Box<dyn Backward<B>>;
 #[derive(Default, Clone)]
-pub struct OpsMap<B: Backend> {
-    map: Arc<Mutex<SharedMap<B>>>,
+pub struct Graph<B: Backend> {
+    ops: Arc<Mutex<HashMap<OpsID, Node<B>>>>,
 }
 
-impl<B: Backend> std::fmt::Debug for OpsMap<B> {
+impl<B: Backend> std::fmt::Debug for Graph<B> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(format!("OpsMap<{:?}>", B::name()).as_str())
     }
 }
 
-impl<B: Backend> OpsMap<B> {
+impl<B: Backend> Graph<B> {
     pub fn new() -> Self {
         Self::default()
     }
 
-    pub fn metadata(&self, id: &OpsID) -> Option<OpsMetadataRef> {
-        let map = self.map.lock().unwrap();
+    pub fn extract(&self) -> HashMap<OpsID, Node<B>> {
+        let mut map = self.ops.lock().unwrap();
+        let mut map_drain = HashMap::new();
+        std::mem::swap(&mut *map, &mut map_drain);
 
-        map.get(id).map(|ops| ops.metadata())
+        map_drain
     }
 
-    // TODO: Switch type to backward table before executing tons of operations in a row.
-    pub fn pop(&self, id: &OpsID) -> Option<OpsBoxed<B>> {
-        let map = self.map.lock().unwrap();
-
-        map.remove(id).map(|ops| ops.1)
-    }
-
-    pub fn register(&self, id: &OpsID, ops: OpsBoxed<B>) {
-        let map = self.map.lock().unwrap();
+    pub fn register(&self, id: &OpsID, ops: Node<B>) {
+        let mut map = self.ops.lock().unwrap();
 
         map.insert(id.clone(), ops);
     }
 
     pub fn merge(&self, other: &Self) -> Self {
-        if Arc::ptr_eq(&self.map, &other.map) {
+        if Arc::ptr_eq(&self.ops, &other.ops) {
             return self.clone();
         }
 
@@ -110,19 +113,13 @@ impl<B: Backend> OpsMap<B> {
     }
 
     fn merge_different(&self, other: &Self) {
-        let map1 = self.map.lock().unwrap();
-        let mut map2 = other.map.lock().unwrap();
-        let mut map_tmp = Arc::new(DashMap::new());
+        let mut map1 = self.ops.lock().unwrap();
+        let mut map2 = other.ops.lock().unwrap();
+        let mut map_drain = HashMap::new();
 
-        std::mem::swap(&mut *map2, &mut map_tmp);
-        Arc::try_unwrap(map_tmp)
-            .unwrap()
-            .into_iter()
-            .for_each(|item| {
-                map1.insert(item.0, item.1);
-            });
-
-        // Map1 and Map2 point to the same location.
-        std::mem::swap(&mut *map2, &mut map1.clone());
+        std::mem::swap(&mut *map2, &mut map_drain);
+        map_drain.into_iter().for_each(|item| {
+            map1.insert(item.0, item.1);
+        });
     }
 }

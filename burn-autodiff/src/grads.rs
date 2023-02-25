@@ -1,6 +1,9 @@
 use burn_tensor::{backend::Backend, container::TensorContainer, Tensor};
 
-use crate::tensor::ADTensor;
+use crate::{
+    graph::ops::MetadataRef,
+    tensor::{ADTensor, BackwardTensor},
+};
 
 pub type GradID = String;
 #[derive(Default)]
@@ -12,7 +15,10 @@ impl<B: Backend> Gradients<B> {
     pub fn new() -> Self {
         Self::default()
     }
-    pub fn consume<const D: usize>(&mut self, tensor: &ADTensor<B, D>) -> B::TensorPrimitive<D> {
+    pub fn consume<const D: usize>(
+        &mut self,
+        tensor: &BackwardTensor<B, D>,
+    ) -> B::TensorPrimitive<D> {
         self.container
             .get(&tensor.metadata.id.value)
             .map(|tensor| tensor.into_primitive())
@@ -24,12 +30,15 @@ impl<B: Backend> Gradients<B> {
             .map(|tensor| tensor.into_primitive())
     }
 
-    pub fn update<const D: usize>(&mut self, tensor: ADTensor<B, D>, value: B::TensorPrimitive<D>) {
-        println!("Register tensor {:?}", tensor.metadata.id);
-        // TODO: Check if exists first and add it
-        self.container.register(
-            tensor.metadata.id.value.clone(),
-            Tensor::from_primitive(value),
-        )
+    pub fn update<const D: usize>(&mut self, metadata: MetadataRef, value: B::TensorPrimitive<D>) {
+        if let Some(tensor_old) = self.container.remove(&metadata.id.value) {
+            self.container.register(
+                metadata.id.value.clone(),
+                Tensor::from_primitive(value).add(tensor_old),
+            );
+        } else {
+            self.container
+                .register(metadata.id.value.clone(), Tensor::from_primitive(value));
+        }
     }
 }

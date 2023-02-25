@@ -15,7 +15,9 @@ default = ["export_tests"]
 export_tests = ["burn-tensor-testgen"]
 
 [dependencies]
-burn-tensor-testgen = { version = "0.5.0", path = "../burn-tensor-testgen", optional = true }
-burn-tensor = { version = "0.5.0", path = "../burn-tensor" }
-derive-new = "0.5.9"
-nanoid = "0.4.0"
+burn-common = {path = "../burn-common"}
+burn-tensor = {path = "../burn-tensor"}
+burn-tensor-testgen = {path = "../burn-tensor-testgen", optional = true}
+
+derive-new = {workspace = true, features = ["std"]}# Default enables std
+
