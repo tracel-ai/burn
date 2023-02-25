@@ -38,7 +38,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn bool_shape<const D: usize>(tensor: &BoolTensor<B, D>) -> Shape<D> {
-        B::bool_shape(&tensor)
+        B::bool_shape(tensor)
     }
 
     fn bool_to_data<const D: usize>(tensor: &BoolTensor<B, D>) -> Data<bool, D> {
@@ -230,7 +230,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 lhs: B::TensorPrimitive<D>,
                 rhs: B::TensorPrimitive<D>,
             ) -> B::TensorPrimitive<D> {
-                B::sub(lhs, rhs)
+                B::mul(lhs, rhs)
             }
             fn backward(
                 self,
@@ -274,7 +274,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             type StateBackward = Elem<B>;
 
             fn forward(&self, lhs: B::TensorPrimitive<D>, rhs: Elem<B>) -> B::TensorPrimitive<D> {
-                B::sub_scalar(lhs, rhs)
+                B::mul_scalar(lhs, rhs)
             }
             fn backward(
                 self,
@@ -315,7 +315,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 lhs: B::TensorPrimitive<D>,
                 rhs: B::TensorPrimitive<D>,
             ) -> B::TensorPrimitive<D> {
-                B::sub(lhs, rhs)
+                B::matmul(lhs, rhs)
             }
             fn backward(
                 self,
@@ -331,13 +331,15 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 if let Some(((lhs, grad_output), state_rhs)) =
                     lhs.zip(grad_output_lhs).zip(state_rhs)
                 {
-                    let grad_lhs = B::matmul(grad_output, B::transpose(state_rhs));
+                    let rhs = B::transpose(state_rhs);
+                    let grad_lhs = B::matmul(grad_output, rhs);
                     grads.update(lhs, grad_lhs)
                 }
                 if let Some(((rhs, grad_output), state_lhs)) =
                     rhs.zip(grad_output_rhs).zip(state_lhs)
                 {
-                    let grad_rhs = B::matmul(grad_output, B::transpose(state_lhs));
+                    let lhs = B::transpose(state_lhs);
+                    let grad_rhs = B::matmul(lhs, grad_output);
                     grads.update(rhs, grad_rhs)
                 }
             }
