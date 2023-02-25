@@ -16,6 +16,12 @@ on:
       args-clippy:
         required: false
         type: string
+      test-no-default-feature:
+        required: false
+        type: boolean
+      no-std-build-targets:
+        required: false
+        type: boolean
 
 jobs:
   test-crate:
@@ -52,6 +58,30 @@ jobs:
         run: |
           cd ${CRATE}
           cargo test --tests ${ARGS_TEST}
+
+      - name: check test with no default features
+        if: ${{ inputs.test-no-default-feature }}
+        run: |
+          cd ${CRATE}
+          cargo test --no-default-features --tests ${ARGS_TEST}
+
+      - name: install wasm32 and arm-cortex-m3 targets
+        if: ${{ inputs.no-std-build-targets }}
+        run: |
+          rustup target add wasm32-unknown-unknown
+          rustup target add thumbv7m-none-eabi
+
+      - name: check build for wasm32
+        if: ${{ inputs.no-std-build-targets }}
+        run: |
+          cd ${CRATE}
+          cargo test --no-default-features --target wasm32-unknown-unknown
+
+      - name: check build for arm cortex-m3
+        if: ${{ inputs.no-std-build-targets }}
+        run: |
+          cd ${CRATE}
+          cargo test --no-default-features --target thumbv7m-none-eabi
 
       - name: check clippy
         run: |
