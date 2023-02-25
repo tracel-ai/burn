@@ -1,3 +1,5 @@
+use alloc::{format, vec::Vec};
+
 use crate as burn;
 
 use crate::nn::cache::TensorCache;
@@ -7,6 +9,8 @@ use crate::{
     nn,
     tensor::{activation, backend::Backend, BoolTensor, Tensor},
 };
+
+use libm::sqrtf;
 
 /// Configuration to create a [Multi Head Attention](MultiHeadAttention) layer.
 #[derive(Config)]
@@ -200,7 +204,7 @@ impl<B: Backend> MultiHeadAttention<B> {
     fn attn_scores(&self, query: Tensor<B, 4>, key: Tensor<B, 4>) -> Tensor<B, 4> {
         let attn_scores = query
             .matmul(key.transpose())
-            .div_scalar((self.d_k as f32).sqrt());
+            .div_scalar(sqrtf(self.d_k as f32));
 
         self.dropout.forward(attn_scores)
     }

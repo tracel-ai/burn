@@ -6,12 +6,14 @@
 [![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](https://github.com/burn-rs/burn-ndarray/blob/master/README.md)
 
 
-## Features
+## Feature Flags
 
-This crate can be used without the standard library (`#![no_std]`) by disabling
+This crate can be used without the standard library (`#![no_std]`) with `alloc` by disabling
 the default `std` feature.
 
 The following flags support various BLAS options:
 * `blas-netlib` 
 * `blas-openblas`
 * `blas-openblas-system`
+
+Note, under the `no_std` mode, a random seed is generated during the build time if the seed is not initialized by by `Backend::seed` method.

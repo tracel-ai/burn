@@ -1,21 +1,22 @@
 [package]
-name = "burn-autodiff"
-version = "0.5.0"
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
-description = "Autodiff backend for burn"
-repository = "https://github.com/burn-rs/burn/tree/main/burn-autodiff"
-readme = "README.md"
-keywords = ["deep-learning", "machine-learning", "data"]
 categories = ["science"]
-license = "MIT/Apache-2.0"
+description = "Autodiff backend for burn"
 edition = "2021"
+keywords = ["deep-learning", "machine-learning", "data"]
+license = "MIT/Apache-2.0"
+name = "burn-autodiff"
+readme = "README.md"
+repository = "https://github.com/burn-rs/burn/tree/main/burn-autodiff"
+version = "0.5.0"
 
 [features]
 default = ["export_tests"]
 export_tests = ["burn-tensor-testgen"]
 
 [dependencies]
-burn-tensor-testgen = { version = "0.5.0", path = "../burn-tensor-testgen", optional = true }
-burn-tensor = { version = "0.5.0", path = "../burn-tensor" }
-derive-new = "0.5.9"
-nanoid = "0.4.0"
+burn-common = {path = "../burn-common"}
+burn-tensor = {path = "../burn-tensor"}
+burn-tensor-testgen = {path = "../burn-tensor-testgen", optional = true}
+
+derive-new = {workspace = true, features = ["std"]}# Default enables std

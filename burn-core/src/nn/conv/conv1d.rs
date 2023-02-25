@@ -1,3 +1,6 @@
+use alloc::format;
+use alloc::vec::Vec;
+
 use crate as burn;
 
 use crate::config::Config;
@@ -8,6 +11,8 @@ use crate::tensor::ElementConversion;
 use crate::tensor::{Distribution, Tensor};
 use burn_tensor::module::conv1d;
 use burn_tensor::ops::conv::calculate_padding;
+
+use libm::sqrt;
 
 /// Configuration to create an [1D convolution](Conv1d) layer.
 #[derive(Config)]
@@ -57,7 +62,7 @@ impl<B: Backend> Conv1d<B> {
     /// Create the module from the given configuration.
     pub fn new(config: &Conv1dConfig) -> Self {
         let k = (config.channels_in * config.kernel_size) as f64;
-        let k = f64::sqrt(1.0 / k);
+        let k = sqrt(1.0 / k);
 
         let k1: B::Elem = (-k).to_elem();
         let k2: B::Elem = k.to_elem();

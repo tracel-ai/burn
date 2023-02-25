@@ -1,14 +1,37 @@
+use alloc::{string::ToString, sync::Arc, vec, vec::Vec};
+
 use super::{load_with_id, state_with_id};
 use crate::module::{LoadingError, Module, ModuleVisitor, ModuleVisitorMut, Param, State};
 use burn_tensor::{
     backend::{ADBackend, Backend},
     Data, Tensor,
 };
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex, RwLock},
-    thread::ThreadId,
-};
+
+#[cfg(feature = "std")]
+mod threading {
+    pub(super) use std::collections::HashMap;
+    pub(super) use std::sync::{Mutex, RwLock};
+    pub(super) use std::thread::ThreadId;
+
+    #[inline(always)]
+    pub(super) fn get_thread_current_id() -> ThreadId {
+        std::thread::current().id()
+    }
+}
+
+#[cfg(not(feature = "std"))]
+mod threading {
+    pub(super) use burn_common::stub::{Mutex, RwLock, ThreadId};
+    pub(super) use hashbrown::HashMap;
+
+    #[inline(always)]
+    pub(super) fn get_thread_current_id() -> ThreadId {
+        panic!("Current thread id is not available")
+    }
+}
+
+// Re-export items from the disabled/enabled blocks
+use threading::*;
 
 /// A state that can be updated during the forward pass while being thread safe.
 ///
@@ -104,7 +127,7 @@ impl<const D: usize, B: Backend> RunningState<Tensor<B, D>> {
 
     /// Update the value on the current thread.
     pub fn update(&self, value: Tensor<B, D>) {
-        let thread_id = std::thread::current().id();
+        let thread_id = get_thread_current_id();
         let mut map = self.values.lock().unwrap();
 
         if map.contains_key(&thread_id) {
@@ -131,7 +154,7 @@ impl<const D: usize, B: Backend> RunningState<Tensor<B, D>> {
     /// Don't use this function after an update on the same thread where other threads might have to
     /// register their update before the actual synchonization needs to happen.
     pub fn value_sync(&self) -> Tensor<B, D> {
-        let thread_id = std::thread::current().id();
+        let thread_id = get_thread_current_id();
         let mut map = self.values.lock().unwrap();
 
         if map.contains_key(&thread_id) {

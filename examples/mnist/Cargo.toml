@@ -1,6 +1,6 @@
 [package]
 name = "mnist"
-version = "0.1.0"
+version = "0.5.0"
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 license = "MIT/Apache-2.0"
 edition = "2021"
@@ -21,4 +21,4 @@ burn-tch = { path = "../../burn-tch", optional = true }
 burn-ndarray = { path = "../../burn-ndarray", optional = true }
 
 # Serialization
-serde = { version = "1.0.151", features = ["derive"] }
+serde = { workspace = true, features = ["std", "derive"]}

@@ -3,7 +3,8 @@ name = "burn-train"
 version = "0.5.0"
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 description = "Training crate for burn"
-repository = "https://github.com/burn-rs/burn"
+repository = "https://github.com/burn-rs/burn/tree/main/burn-train"
+
 readme = "README.md"
 keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
 categories = ["science"]
@@ -11,12 +12,12 @@ license = "MIT/Apache-2.0"
 edition = "2021"
 
 [dependencies]
-burn-core = { version = "0.5.0", path = "../burn-core" }
+burn-core = { path = "../burn-core" }
 
 # Console
 indicatif = "0.17.2"
-log4rs = "1.2.0"
-log = "0.4.17"
+log4rs = { workspace = true }
+log = { workspace = true }
 
 # Metrics
 nvml-wrapper = "0.8.0"
@@ -25,5 +26,5 @@ rgb = "0.8.34"
 terminal_size = "0.2.3"
 
 # Utilities
-derive-new = "0.5.9"
-serde = { version = "1.0.151", features = ["derive"] }
+derive-new = { workspace = true }
+serde = { workspace = true, features = ["std", "derive"] }

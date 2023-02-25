@@ -140,8 +140,8 @@ impl ConfigAnalyzer for ConfigEnumAnalyzer {
         let name = &self.name;
 
         quote! {
-            impl std::fmt::Display for #name {
-                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            impl core::fmt::Display for #name {
+                fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
                     f.write_str(&burn::config::config_to_json(self))
                 }
             }

@@ -1,3 +1,4 @@
+use alloc::{format, string::String, string::ToString};
 pub use burn_derive::Config;
 
 #[derive(Debug)]
@@ -6,8 +7,8 @@ pub enum ConfigError {
     FileNotFound(String),
 }
 
-impl std::fmt::Display for ConfigError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for ConfigError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let mut message = "Config error => ".to_string();
 
         match self {
@@ -22,13 +23,18 @@ impl std::fmt::Display for ConfigError {
         f.write_str(message.as_str())
     }
 }
+
+// TODO: Move from std to core after Error is core (see https://github.com/rust-lang/rust/issues/103765)
+#[cfg(feature = "std")]
 impl std::error::Error for ConfigError {}
 
 pub trait Config: serde::Serialize + serde::de::DeserializeOwned {
+    #[cfg(feature = "std")]
     fn save(&self, file: &str) -> std::io::Result<()> {
         std::fs::write(file, config_to_json(self))
     }
 
+    #[cfg(feature = "std")]
     fn load(file: &str) -> Result<Self, ConfigError> {
         let content = std::fs::read_to_string(file)
             .map_err(|_| ConfigError::FileNotFound(file.to_string()))?;
@@ -36,7 +42,7 @@ pub trait Config: serde::Serialize + serde::de::DeserializeOwned {
     }
 
     fn load_binary(data: &[u8]) -> Result<Self, ConfigError> {
-        let content = std::str::from_utf8(data).map_err(|_| {
+        let content = core::str::from_utf8(data).map_err(|_| {
             ConfigError::InvalidFormat("Could not parse data as utf-8.".to_string())
         })?;
         config_from_str(content)

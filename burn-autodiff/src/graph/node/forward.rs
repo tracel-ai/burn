@@ -1,6 +1,9 @@
+use std::sync::Arc;
+
 use super::ForwardNodeState;
 use crate::graph::ops::ForwardRecordedOpsBoxed;
-use std::sync::Arc;
+
+use burn_common::id::IdGenerator;
 
 #[derive(Debug)]
 pub struct ForwardNode<Out> {
@@ -41,7 +44,7 @@ impl<Out> ForwardNode<Out> {
         state: ForwardNodeState<Out>,
         ops: ForwardRecordedOpsBoxed<Out>,
     ) -> Self {
-        let id = nanoid::nanoid!();
+        let id = IdGenerator::generate();
         Self {
             id,
             order,

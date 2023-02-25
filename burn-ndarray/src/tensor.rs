@@ -229,15 +229,15 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use burn_common::rand::get_seeded_rng;
     use burn_tensor::Distribution;
-    use rand::{rngs::StdRng, SeedableRng};
 
     #[test]
     fn should_support_into_and_from_data_1d() {
         let data_expected = Data::<f32, 1>::random(
             Shape::new([3]),
             Distribution::Standard,
-            &mut StdRng::from_entropy(),
+            &mut get_seeded_rng(),
         );
         let tensor = NdArrayTensor::from_data(data_expected.clone());
 
@@ -251,7 +251,7 @@ mod tests {
         let data_expected = Data::<f32, 2>::random(
             Shape::new([2, 3]),
             Distribution::Standard,
-            &mut StdRng::from_entropy(),
+            &mut get_seeded_rng(),
         );
         let tensor = NdArrayTensor::from_data(data_expected.clone());
 
@@ -265,7 +265,7 @@ mod tests {
         let data_expected = Data::<f32, 3>::random(
             Shape::new([2, 3, 4]),
             Distribution::Standard,
-            &mut StdRng::from_entropy(),
+            &mut get_seeded_rng(),
         );
         let tensor = NdArrayTensor::from_data(data_expected.clone());
 
@@ -279,7 +279,7 @@ mod tests {
         let data_expected = Data::<f32, 4>::random(
             Shape::new([2, 3, 4, 2]),
             Distribution::Standard,
-            &mut StdRng::from_entropy(),
+            &mut get_seeded_rng(),
         );
         let tensor = NdArrayTensor::from_data(data_expected.clone());
 

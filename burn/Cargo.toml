@@ -1,20 +1,27 @@
 [package]
-name = "burn"
-version = "0.5.0"
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
+categories = ["science", "no-std", "embedded", "wasm"]
 description = "BURN: Burn Unstoppable Rusty Neurons"
-repository = "https://github.com/burn-rs/burn"
-readme = "README.md"
-keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
-categories = ["science"]
-license = "MIT/Apache-2.0"
 edition = "2021"
+keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
+license = "MIT/Apache-2.0"
+name = "burn"
+readme = "README.md"
+repository = "https://github.com/burn-rs/burn/tree/main/burn"
+
+version = "0.5.0"
 
 [features]
-default = ["train"]
-train = ["burn-train"]
+default = ["std", "train"]
+std = [
+  "burn-core/std",
+]
 experimental-named-tensor = ["burn-core/experimental-named-tensor"]
+train = ["std", "burn-train"] # Training requires std
 
 [dependencies]
-burn-core = { version = "0.5.0", path = "../burn-core" }
-burn-train = { version = "0.5.0", path = "../burn-train", optional = true }
+
+# ** Please make sure all dependencies support no_std when std is disabled **
+
+burn-core = {path = "../burn-core", default-features = false}
+burn-train = {path = "../burn-train", optional = true}

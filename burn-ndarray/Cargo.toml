@@ -1,20 +1,23 @@
 [package]
-name = "burn-ndarray"
-version = "0.5.0"
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
-
+categories = ["science", "no-std", "embedded", "wasm"]
 description = "NdArray backend for burn"
-repository = "https://github.com/burn-rs/burn/tree/main/burn-ndarray"
-readme = "README.md"
+edition = "2021"
 keywords = ["deep-learning", "machine-learning", "data"]
 license = "MIT/Apache-2.0"
-edition = "2021"
+name = "burn-ndarray"
+readme = "README.md"
+repository = "https://github.com/burn-rs/burn/tree/main/burn-ndarray"
+version = "0.5.0"
 
 [features]
 default = ["std"]
 
 std = [
   "rand/std",
+  "burn-tensor/std",
+  "burn-common/std",
+  "burn-autodiff",
   "ndarray/std",
   "ndarray/rayon",
   "ndarray/matrixmultiply-threading",
@@ -23,30 +26,24 @@ std = [
 blas-netlib = ["ndarray/blas", "blas-src/netlib"]
 blas-openblas = ["ndarray/blas", "blas-src/openblas", "openblas-src"]
 blas-openblas-system = [
-  "ndarray/blas",
-  "blas-src/openblas",
-  "openblas-src/system",
+    "ndarray/blas",
+    "blas-src/openblas",
+    "openblas-src/system",
 ]
 
 [dependencies]
-burn-tensor = {version = "0.5.0", path = "../burn-tensor", default-features = false}
 
-blas-src = {version = "0.8.0", default-features = false, optional = true}# no-std compatible 
-derive-new = {version = "0.5.9", default-features = false}# Default enables std   
-libm = "0.2.6" # no-std compatible
-ndarray = {version = "0.15.6", default-features = false}# Default enables std  
-num-traits = {version = "0.2.15", default-features = false, features = ["libm"]}# Default enables std  
-openblas-src = {version = "0.10.8", optional = true} 
-rand = {version = "0.8.5", default-features = false, features = ["std_rng"]}# Default enables std  
-spin = {version = "0.9.5", features = ["mutex", "spin_mutex"]}# using in place of use std::sync::Mutex;  
+# ** Please make sure all dependencies support no_std when std is disabled **
 
-# Used to generate a seed for random at build time
-const-random = "0.1.15"
+burn-autodiff = {path = "../burn-autodiff", features = ["export_tests"], optional = true}
+burn-common = {path = "../burn-common", default-features = false}
+burn-tensor = {path = "../burn-tensor", default-features = false, features = ["export_tests"]}
 
-[dev-dependencies]
-burn-autodiff = {version = "0.5.0", path = "../burn-autodiff", features = [
-  "export_tests",
-]}
-burn-tensor = {version = "0.5.0", path = "../burn-tensor", features = [
-  "export_tests",
-]}
+blas-src = {version = "0.8.0", default-features = false, optional = true}# no-std compatible         
+derive-new = {workspace = true}
+libm = {workspace = true}
+ndarray = {workspace = true}
+num-traits = {workspace = true}
+openblas-src = {version = "0.10.8", optional = true}
+rand = {workspace = true}
+spin = {workspace = true}# using in place of use std::sync::Mutex;

@@ -1,3 +1,5 @@
+use alloc::{format, vec::Vec};
+
 use crate as burn;
 
 use crate::config::Config;
@@ -126,6 +128,9 @@ impl<B: Backend> BatchNorm2d<B> {
     }
 }
 
+// TODO test with regular TestBackend
+
+#[cfg(feature = "std")]
 #[cfg(test)]
 mod tests {
     use super::*;

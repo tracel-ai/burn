@@ -1,4 +1,4 @@
-#![cfg_attr(not(any(feature = "std", test)), no_std)]
+#![cfg_attr(not(feature = "std"), no_std)]
 
 #[macro_use]
 extern crate derive_new;
@@ -18,15 +18,15 @@ mod tensor;
 pub use backend::*;
 pub(crate) use tensor::*;
 
-#[cfg(not(feature = "std"))]
-mod stubs;
-
 extern crate alloc;
 
 #[cfg(test)]
 mod tests {
     type TestBackend = crate::NdArrayBackend<f32>;
+    type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
 
     burn_tensor::testgen_all!();
+
+    #[cfg(feature = "std")]
     burn_autodiff::testgen_all!();
 }

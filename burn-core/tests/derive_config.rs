@@ -23,6 +23,7 @@ pub enum TestEnumConfig {
     Multiple(f32, String),
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn struct_config_should_impl_serde() {
     let config = TestStructConfig::new(2, 3.0, "Allo".to_string(), TestEmptyStructConfig::new());
@@ -46,6 +47,7 @@ fn struct_config_should_impl_display() {
     assert_eq!(burn::config::config_to_json(&config), config.to_string());
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn enum_config_no_value_should_impl_serde() {
     let config = TestEnumConfig::None;
@@ -57,6 +59,7 @@ fn enum_config_no_value_should_impl_serde() {
     assert_eq!(config, config_loaded);
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn enum_config_one_value_should_impl_serde() {
     let config = TestEnumConfig::Single(42.0);
@@ -68,6 +71,7 @@ fn enum_config_one_value_should_impl_serde() {
     assert_eq!(config, config_loaded);
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn enum_config_multiple_values_should_impl_serde() {
     let config = TestEnumConfig::Multiple(42.0, "Allo".to_string());
