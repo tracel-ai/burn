@@ -26,6 +26,7 @@ __Sections__
         * [Module](#module)
         * [Config](#config)
         * [Learner](#learner)
+* [no_std support](#no_std-support)
 * [License](#license)
 
 ## Features
@@ -173,6 +174,12 @@ fn main() {
 ```
 
 See this [example](https://github.com/burn-rs/burn/tree/main/examples/mnist) for a real usage.
+
+## no_std support
+
+Burn supports `no_std` with `alloc` for the inference mode with the NDArray backend. Simply disable the default features of the `burn` and `burn-ndarray` packages (minimum required to run the inference mode). See the [burn-no-std-tests](https://github.com/burn-rs/burn/tree/main/examples/burn-no-std-tests) package as a reference implementation. Additionally `burn-core` and `burn-tensor` packages support `no_std` with `alloc` if needed to direclty include them as dependencies (the `burn` package reexports `burn-core` and `burn-tensor`).
+
+Note, under the `no_std` mode, a random seed is generated during the build time if the seed is not initialized by `Backend::seed` method. Additionally, [spin::mutex::Mutex](https://docs.rs/spin/latest/spin/mutex/struct.Mutex.html) is used in place of [std::sync::Mutex](https://doc.rust-lang.org/std/sync/struct.Mutex.html) under the `no_std` mode.
 
 ## License
 

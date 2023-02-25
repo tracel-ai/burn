@@ -1,3 +1,5 @@
+use alloc::vec::Vec;
+
 use super::ParamId;
 use crate::module::{Module, ModuleVisitor};
 use burn_tensor::{backend::Backend, Tensor};

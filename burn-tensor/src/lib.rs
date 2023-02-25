@@ -1,4 +1,4 @@
-#![cfg_attr(not(any(feature = "std", test)), no_std)]
+#![cfg_attr(not(feature = "std"), no_std)]
 
 #[macro_use]
 extern crate derive_new;

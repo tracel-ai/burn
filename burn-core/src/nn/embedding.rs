@@ -1,3 +1,5 @@
+use alloc::{format, vec::Vec};
+
 use crate as burn;
 
 use crate::config::Config;

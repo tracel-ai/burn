@@ -1,3 +1,5 @@
+use alloc::{format, string::String, vec::Vec};
+
 use super::{ParamId, State};
 use crate::tensor::backend::{ADBackend, Backend};
 pub use burn_derive::Module;
@@ -35,7 +37,7 @@ use burn_tensor::Tensor;
 ///   my_other_field: usize,
 /// }
 /// ```
-pub trait Module: Send + Sync + std::fmt::Debug + std::fmt::Display {
+pub trait Module: Send + Sync + core::fmt::Debug + core::fmt::Display {
     type Backend: Backend;
 
     /// Get the device list of the module and all of its sub-modules.
@@ -69,7 +71,7 @@ pub trait ModuleVisitorMut<B: Backend> {
 
 /// Module with auto-differentiation backend.
 pub trait ADModule:
-    Module<Backend = Self::ADBackend> + Send + Sync + std::fmt::Debug + std::fmt::Display
+    Module<Backend = Self::ADBackend> + Send + Sync + core::fmt::Debug + core::fmt::Display
 {
     type ADBackend: ADBackend;
     type InnerModule: Module<Backend = <Self::ADBackend as ADBackend>::InnerBackend>;
@@ -83,10 +85,12 @@ pub struct LoadingError {
     message: String,
 }
 
-impl std::fmt::Display for LoadingError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for LoadingError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(format!("Loading error: {}", self.message).as_str())
     }
 }
 
+// TODO: Move from std to core after Error is core (see https://github.com/rust-lang/rust/issues/103765)
+#[cfg(feature = "std")]
 impl std::error::Error for LoadingError {}

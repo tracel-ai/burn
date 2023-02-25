@@ -1,3 +1,7 @@
+use alloc::string::{String, ToString};
+
+use burn_common::id::IdGenerator;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Serialize, Deserialize)]
@@ -22,13 +26,13 @@ impl Default for ParamId {
 impl ParamId {
     pub fn new() -> Self {
         Self {
-            value: nanoid::nanoid!(),
+            value: IdGenerator::generate(),
         }
     }
 }
 
-impl std::fmt::Display for ParamId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for ParamId {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(self.value.as_str())
     }
 }

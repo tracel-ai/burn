@@ -1,29 +1,28 @@
 [package]
-name = "burn-dataset"
-version = "0.5.0"
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
-
+categories = ["science"]
 description = """
 This library provides an easy to use dataset API with many manipulations
 to easily create your ML data pipeline.
 """
-repository = "https://github.com/burn-rs/burn/tree/main/burn-dataset"
-readme = "README.md"
-keywords = ["deep-learning", "machine-learning", "data"]
-categories = ["science"]
-license = "MIT"
 edition = "2021"
+keywords = ["deep-learning", "machine-learning", "data"]
+license = "MIT"
+name = "burn-dataset"
+readme = "README.md"
+repository = "https://github.com/burn-rs/burn/tree/main/burn-dataset"
+version = "0.5.0"
 
 [features]
 default = ["fake"]
 fake = ["dep:fake"]
 
 [dependencies]
-dirs = "4.0.0"
-rand = "0.8.5"
-serde = { version = "1.0.151", features = ["derive"] }
-serde_json = "1.0.91"
-fake = { version = "2.5.0", optional = true }
-thiserror = "1.0.38"
+dirs = {workspace = true}
+fake = {workspace = true, optional = true}
+rand = {workspace = true, features = ["std"]}
+serde = {workspace = true, features = ["std", "derive"]}
+serde_json = {workspace = true, features = ["std"]}
+thiserror = {workspace = true}
 
 [dev-dependencies]

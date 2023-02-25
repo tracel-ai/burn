@@ -1,3 +1,5 @@
+use alloc::{format, string::ToString};
+
 use super::ParamId;
 use crate::module::{LoadingError, State, StateNamed};
 use crate::tensor::Element;
@@ -9,8 +11,8 @@ pub struct Param<T> {
     pub(super) value: T,
 }
 
-impl<T> std::fmt::Display for Param<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl<T> core::fmt::Display for Param<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(format!("Param: {}", self.id).as_str())
     }
 }
@@ -30,7 +32,7 @@ impl<T: Clone> Param<T> {
     }
 }
 
-impl<T> std::ops::Deref for Param<T> {
+impl<T> core::ops::Deref for Param<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {

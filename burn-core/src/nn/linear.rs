@@ -1,3 +1,5 @@
+use alloc::{format, vec::Vec};
+
 use crate as burn;
 
 use crate::config::Config;
@@ -5,6 +7,8 @@ use crate::module::Module;
 use crate::module::Param;
 use crate::tensor::backend::Backend;
 use crate::tensor::{Distribution, ElementConversion, Tensor};
+
+use libm::sqrt;
 
 /// Configuration to create a [Linear](Linear) layer.
 #[derive(Config)]
@@ -38,7 +42,7 @@ pub struct Linear<B: Backend> {
 impl<B: Backend> Linear<B> {
     /// Create the module from the given configuration.
     pub fn new(config: &LinearConfig) -> Self {
-        let k = f64::sqrt(1.0 / config.d_input as f64);
+        let k = sqrt(1.0 / config.d_input as f64);
         let distribution = Distribution::Uniform((-1.0 * k).to_elem(), k.to_elem());
 
         let weight = Tensor::random([config.d_input, config.d_output], distribution);

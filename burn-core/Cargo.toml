@@ -1,43 +1,61 @@
 [package]
-name = "burn-core"
-version = "0.5.0"
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
+categories = ["science", "no-std", "embedded", "wasm"]
 description = "BURN: Burn Unstoppable Rusty Neurons"
-repository = "https://github.com/burn-rs/burn-core"
-readme = "README.md"
-keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
-categories = ["science"]
-license = "MIT/Apache-2.0"
 edition = "2021"
+keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
+license = "MIT/Apache-2.0"
+name = "burn-core"
+readme = "README.md"
+repository = "https://github.com/burn-rs/burn/tree/main/burn-core"
+
+version = "0.5.0"
 
 [features]
-default = []
+default = ["std"]
 experimental-named-tensor = ["burn-tensor/experimental-named-tensor"]
+std = [
+  "burn-autodiff",
+  "burn-common/std",
+  "burn-dataset",
+  "burn-tensor/std",
+  "derive-new/std",
+  "burn-ndarray/std",
+  "flate2",
+  "log",
+  "rand/std",
+  "serde_json/std",
+  "serde/std",
+]
 
 [dependencies]
-burn-tensor = { version = "0.5.0", path = "../burn-tensor" }
-burn-autodiff = { version = "0.5.0", path = "../burn-autodiff" }
-burn-dataset = { version = "0.5.0", path = "../burn-dataset", default-features = false }
-burn-derive = { version = "0.5.0", path = "../burn-derive" }
 
-# Utilities
-derive-new = "0.5.9"
-rand = "0.8.5"
-log = "0.4.17"
+# ** Please make sure all dependencies support no_std when std is disabled **
+
+burn-autodiff = {path = "../burn-autodiff", optional = true, features = ["export_tests"]}
+burn-common = {path = "../burn-common", default-features = false}
+burn-dataset = {path = "../burn-dataset", default-features = false, optional = true}
+burn-derive = {path = "../burn-derive"}
+burn-tensor = {path = "../burn-tensor", default-features = false}
+
+derive-new = {workspace = true}# Default enables std   
+libm = {workspace = true}
+log = {workspace = true, optional = true}
+rand = {workspace = true, features = ["std_rng"]}# Default enables std  
+# Using in place of use std::sync::Mutex when std is disabled
+spin = {workspace = true, features = ["mutex", "spin_mutex"]}#
+
+# The same implementation of HashMap in std but with no_std support (only alloc crate is needed)
+hashbrown = {workspace = true, features = ["serde"]}# no_std compatible
 
 # Serialize Deserialize
-serde = { version = "1.0.151", features = ["derive"] }
-serde_json = "1.0.91"
-flate2 = "1.0.25"
-
-# Parameter & Optimization
-nanoid = "0.4.0"
+flate2 = {workspace = true, optional = true}
+serde = {workspace = true, features = ["derive"]}
+serde_json = {workspace = true, features = ["alloc"]}#Default enables std 
 
 [dev-dependencies]
-burn-dataset = { version = "0.5.0", path = "../burn-dataset", features = [
-    "fake",
-] }
+burn-dataset = {path = "../burn-dataset", features = [
+  "fake",
+]}
 
-burn-ndarray = { version = "0.5.0", path = "../burn-ndarray", features = [ 
-    "std"
-] }
+burn-ndarray = {path = "../burn-ndarray", default-features = false}

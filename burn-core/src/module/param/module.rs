@@ -1,3 +1,5 @@
+use alloc::{format, vec::Vec};
+
 use super::{load_with_id, state_with_id, Param};
 use crate::module::{
     ADModule, LoadingError, Module, ModuleVisitor, ModuleVisitorMut, State, StateNamed,

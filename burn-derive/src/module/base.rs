@@ -46,7 +46,7 @@ pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
             #inner_fn
         }
 
-        impl #generics std::fmt::Display for #name #generics_ty #generics_where {
+        impl #generics core::fmt::Display for #name #generics_ty #generics_where {
             #display_fn
         }
 

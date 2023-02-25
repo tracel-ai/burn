@@ -36,7 +36,7 @@ impl<B: ADBackend> GradientsAccumulator<B> {
     /// Return the accumulated gradients and reset the accumulator state.
     pub fn grads(&mut self) -> GradientsParams<B> {
         let mut grads = GradientsParams::<B>::new();
-        std::mem::swap(&mut self.grads, &mut grads);
+        core::mem::swap(&mut self.grads, &mut grads);
 
         grads
     }

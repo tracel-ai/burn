@@ -1,10 +1,21 @@
+use alloc::{
+    format,
+    string::{String, ToString},
+};
+
 use super::ParamId;
 use crate::tensor::{DataSerialize, Element};
-use flate2::read::GzDecoder;
-use flate2::write::GzEncoder;
-use flate2::Compression;
+
 use serde::{Deserialize, Serialize};
+
+#[cfg(feature = "std")]
 use std::{collections::HashMap, fs::File, path::Path};
+
+#[cfg(feature = "std")]
+use flate2::{read::GzDecoder, write::GzEncoder, Compression};
+
+#[cfg(not(feature = "std"))]
+use hashbrown::HashMap;
 
 #[derive(Debug, PartialEq, Eq, Clone, Default, Serialize, Deserialize)]
 pub struct StateNamed<E> {
@@ -24,8 +35,8 @@ pub enum StateError {
     FileNotFound(String),
 }
 
-impl std::fmt::Display for StateError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for StateError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let mut message = "State error => ".to_string();
 
         match self {
@@ -41,6 +52,8 @@ impl std::fmt::Display for StateError {
     }
 }
 
+// TODO: Move from std to core after Error is core (see https://github.com/rust-lang/rust/issues/103765)
+#[cfg(feature = "std")]
 impl std::error::Error for StateError {}
 
 impl<E: Element> StateNamed<E> {
@@ -100,6 +113,7 @@ impl<E: Element> State<E> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<E: Element> State<E>
 where
     E: serde::de::DeserializeOwned,
@@ -156,6 +170,7 @@ mod tests {
         assert_eq!(state, state_from);
     }
 
+    #[cfg(feature = "std")]
     #[test]
     fn test_can_save_and_load_from_file() {
         let model_before = create_model();
@@ -186,6 +201,7 @@ mod tests {
         assert_eq!(params_before_1, params_after_2);
     }
 
+    #[cfg(feature = "std")]
     #[test]
     fn test_load_binary() {
         let model_1 = create_model();

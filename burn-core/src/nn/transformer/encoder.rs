@@ -1,3 +1,5 @@
+use alloc::{format, vec::Vec};
+
 use crate::{
     self as burn,
     nn::{attention::MHAAutoregressiveCache, cache::TensorCache},

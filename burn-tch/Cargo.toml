@@ -1,32 +1,29 @@
 [package]
-name = "burn-tch"
-version = "0.5.0"
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
-
-description = "Tch backend for burn"
-repository = "https://github.com/burn-rs/burn/tree/main/burn-tch"
-readme = "README.md"
-keywords = ["deep-learning", "machine-learning", "data"]
 categories = ["science"]
-license = "MIT/Apache-2.0"
+description = "Tch backend for burn"
 edition = "2021"
+keywords = ["deep-learning", "machine-learning", "data"]
+license = "MIT/Apache-2.0"
+name = "burn-tch"
+readme = "README.md"
+repository = "https://github.com/burn-rs/burn/tree/main/burn-tch"
+version = "0.5.0"
 
 [features]
 doc = ["tch/doc-only"]
 
 [dependencies]
-burn-tensor = { version = "0.5.0", path = "../burn-tensor", default-features = false }
-rand = "0.8.5"
-tch = { version = "0.10.1" }
-lazy_static = "1.4.0"
-half = { version = "1.6.0", features = [
-    "num-traits",
-] } # needs to be 1.6 to work with tch
+burn-tensor = {path = "../burn-tensor"}
+half = {workspace = true}
+lazy_static = {workspace = true}
+rand = {workspace = true, features = ["std"]}
+tch = {version = "0.10.1"}
 
 [dev-dependencies]
-burn-tensor = { version = "0.5.0", path = "../burn-tensor", default-features = false, features = [
-    "export_tests",
-] }
-burn-autodiff = { version = "0.5.0", path = "../burn-autodiff", default-features = false, features = [
-    "export_tests",
-] }
+burn-autodiff = {path = "../burn-autodiff", default-features = false, features = [
+  "export_tests",
+]}
+burn-tensor = {path = "../burn-tensor", default-features = false, features = [
+  "export_tests",
+]}

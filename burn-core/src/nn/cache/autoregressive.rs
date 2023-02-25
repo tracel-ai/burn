@@ -1,3 +1,5 @@
+use alloc::vec;
+
 use super::TensorCache;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
@@ -13,7 +15,7 @@ impl<B: Backend, const D: usize> TensorCache<B, D> {
         F: Fn(Tensor<B, 3>) -> Tensor<B, D>,
     {
         let mut tensor_old = None;
-        std::mem::swap(&mut self.state, &mut tensor_old);
+        core::mem::swap(&mut self.state, &mut tensor_old);
 
         let tensor_new = match tensor_old {
             Some(tensor_old) => {
