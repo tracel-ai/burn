@@ -4,22 +4,20 @@ use burn_tensor::backend::Backend;
 
 use super::ops::{MetadataRef, Node, OpsID};
 
-pub trait GraphTraversal<B: Backend> {
-    fn traverse<F: FnMut(MetadataRef)>(&self, callback: F, ops: &HashMap<OpsID, Node<B>>);
-}
+pub struct BreadthFirstSearch;
 
-#[derive(new)]
-pub struct BreadthFirstSearch<'a> {
-    node: &'a MetadataRef,
-}
+impl BreadthFirstSearch {
+    pub fn traverse<B: Backend, F: FnMut(MetadataRef)>(
+        &self,
+        root: MetadataRef,
+        ops: &HashMap<OpsID, Node<B>>,
+        mut callback: F,
+    ) {
+        let mut visited = HashSet::with_capacity(root.order);
+        let mut parents = Vec::with_capacity(root.order);
 
-impl<'a, B: Backend> GraphTraversal<B> for BreadthFirstSearch<'a> {
-    fn traverse<F: FnMut(MetadataRef)>(&self, mut callback: F, ops: &HashMap<OpsID, Node<B>>) {
-        let mut visited = HashSet::with_capacity(self.node.order);
-        let mut parents = Vec::with_capacity(self.node.order);
-
-        visited.insert(self.node.id.clone());
-        parents.append(&mut self.node.parents.clone());
+        visited.insert(root.id.clone());
+        parents.append(&mut root.parents.clone());
 
         while let Some(node) = parents.pop() {
             let node = ops.get(&node).map(|node| node.metadata()).unwrap();

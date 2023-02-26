@@ -4,7 +4,10 @@ use burn_tensor::backend::Backend;
 
 use crate::{
     grads::Gradients,
-    graph::ops::{Backward, Graph, Metadata, MetadataRef, OpsID, Requirement},
+    graph::{
+        ops::{Backward, Graph, Metadata, MetadataRef, OpsID},
+        Requirement,
+    },
     ADBackendDecorator,
 };
 
@@ -101,7 +104,7 @@ impl<B: Backend, const D: usize> ADTensor<B, D> {
     ) -> Self {
         let graph = graphs
             .into_iter()
-            .reduce(|acc, graph| graph.merge(&acc))
+            .reduce(|acc, graph| graph.merge(acc))
             .unwrap_or(Graph::new());
 
         let order = nodes
@@ -129,8 +132,8 @@ impl<B: Backend, const D: usize> ADTensor<B, D> {
         BackwardTensor::new(self.primitive.clone(), self.metadata.clone())
     }
 
-    pub fn register_ops<O: Backward<B> + 'static>(self, ops: O) -> Self {
-        self.graph.register(&self.metadata.id, Box::new(ops));
+    pub fn register_ops<O: Backward<B> + 'static>(mut self, ops: O) -> Self {
+        self.graph = self.graph.register(&self.metadata.id, Box::new(ops));
         self
     }
 }

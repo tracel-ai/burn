@@ -7,37 +7,7 @@ use burn_common::id::IdGenerator;
 use burn_tensor::backend::Backend;
 
 use crate::grads::Gradients;
-
-#[derive(Debug, Clone, Copy)]
-pub enum Requirement {
-    Grad,
-    GradInBackward,
-    None,
-}
-
-impl Requirement {
-    pub fn infer(&self, other: &Self) -> Self {
-        match self {
-            Self::Grad => return Self::GradInBackward,
-            Self::GradInBackward => return Self::GradInBackward,
-            Self::None => (),
-        }
-
-        match other {
-            Self::Grad => Self::GradInBackward,
-            Self::GradInBackward => Self::GradInBackward,
-            Self::None => Self::None,
-        }
-    }
-
-    pub fn from_metadata(metadata: &[MetadataRef]) -> Self {
-        metadata
-            .iter()
-            .map(|metadata| metadata.requirement)
-            .reduce(|acc, requirement| requirement.infer(&acc))
-            .unwrap_or(Requirement::None)
-    }
-}
+use crate::graph::Requirement;
 
 impl Metadata {
     pub fn clone_if_require_grad(self: &Arc<Self>) -> Option<MetadataRef> {
@@ -99,38 +69,57 @@ impl<B: Backend> Graph<B> {
         Self::default()
     }
 
-    pub fn extract(&self) -> HashMap<OpsID, Node<B>> {
-        let mut map = self.ops.lock().unwrap();
+    pub fn extract(self) -> HashMap<OpsID, Node<B>> {
         let mut map_drain = HashMap::new();
-        std::mem::swap(&mut *map, &mut map_drain);
+        self.execute_mut(|map| {
+            std::mem::swap(&mut *map, &mut map_drain);
+        });
 
         map_drain
     }
 
-    pub fn register(&self, id: &OpsID, ops: Node<B>) {
-        let mut map = self.ops.lock().unwrap();
-
-        map.insert(id.clone(), ops);
+    pub fn register(self, id: &OpsID, ops: Node<B>) -> Self {
+        self.execute_mut(|map| {
+            map.insert(id.clone(), ops);
+        })
     }
 
-    pub fn merge(&self, other: &Self) -> Self {
+    pub fn merge(self, other: Self) -> Self {
         if Arc::ptr_eq(&self.ops, &other.ops) {
             return self.clone();
         }
 
-        self.merge_different(other);
-
-        self.clone()
+        self.merge_different(other)
     }
 
-    fn merge_different(&self, other: &Self) {
-        let mut map1 = self.ops.lock().unwrap();
-        let mut map2 = other.ops.lock().unwrap();
-        let mut map_drain = HashMap::new();
+    fn execute_mut<F: FnOnce(&mut HashMap<OpsID, Node<B>>)>(mut self, func: F) -> Self {
+        match Arc::get_mut(&mut self.ops) {
+            Some(mutex) => {
+                let map = mutex.get_mut().unwrap();
+                func(map);
+            }
+            None => {
+                // Only lock where there are multiple references to the graph.
+                let mut map = self.ops.lock().unwrap();
+                func(&mut map);
+            }
+        };
 
-        std::mem::swap(&mut *map2, &mut map_drain);
-        map_drain.into_iter().for_each(|item| {
-            map1.insert(item.0, item.1);
-        });
+        self
+    }
+
+    fn merge_different(self, other: Self) -> Self {
+        let mut map2 = other.extract();
+
+        self.execute_mut(|map1| {
+            if map1.len() > map2.len() {
+                map1.extend(map2.into_iter());
+            } else {
+                let mut map_drain = HashMap::new();
+                std::mem::swap(map1, &mut map_drain);
+                map2.extend(map_drain.into_iter());
+                std::mem::swap(map1, &mut map2);
+            }
+        })
     }
 }

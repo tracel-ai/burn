@@ -2,7 +2,10 @@ use burn_tensor::backend::Backend;
 
 use crate::{
     grads::Gradients,
-    graph::ops::{Backward, Graph, MetadataRef, Requirement},
+    graph::{
+        ops::{Backward, Graph, MetadataRef},
+        Requirement,
+    },
     tensor::{ADTensor, BackwardTensor},
 };
 

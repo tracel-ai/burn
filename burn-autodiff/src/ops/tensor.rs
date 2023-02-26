@@ -1,6 +1,6 @@
 use crate::{
     grads::Gradients,
-    graph::ops::{MetadataRef, Requirement},
+    graph::{ops::MetadataRef, Requirement},
     ops::Ops,
     tensor::{ADTensor, BackwardTensor, BoolTensor, Elem, IntTensor},
     utils::duplicate,
