@@ -29,12 +29,17 @@ impl Requirement {
             Self::None => Self::None,
         }
     }
+
+    pub fn from_metadata(metadata: &[MetadataRef]) -> Self {
+        metadata
+            .iter()
+            .map(|metadata| metadata.requirement)
+            .reduce(|acc, requirement| requirement.infer(&acc))
+            .unwrap_or(Requirement::None)
+    }
 }
 
 impl Metadata {
-    pub fn infer_requirement(&self, other: &Self) -> Requirement {
-        self.requirement.infer(&other.requirement)
-    }
     pub fn clone_if_require_grad(self: &Arc<Self>) -> Option<MetadataRef> {
         match self.requirement {
             Requirement::None => None,

@@ -5,6 +5,7 @@ pub(crate) mod grads;
 pub(crate) mod graph;
 pub(crate) mod ops;
 pub(crate) mod tensor;
+pub(crate) mod utils;
 
 mod backend;
 pub use backend::*;

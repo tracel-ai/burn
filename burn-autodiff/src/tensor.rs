@@ -94,67 +94,28 @@ impl<B: Backend, const D: usize> ADTensor<B, D> {
     }
 
     pub fn from_ops<const N: usize>(
-        ops: &[MetadataRef; N],
+        nodes: &[MetadataRef; N],
         output: B::TensorPrimitive<D>,
         graphs: [Graph<B>; N],
+        requirement: Requirement,
     ) -> Self {
-        let id = OpsID::new();
-        let mut graph = graphs.get(0).unwrap().clone();
-        for i in 1..N {
-            graph = graph.merge(&graphs[i]);
-        }
+        let graph = graphs
+            .into_iter()
+            .reduce(|acc, graph| graph.merge(&acc))
+            .unwrap_or(Graph::new());
 
-        let parents = ops.iter().map(|metadata| metadata.id.clone()).collect();
-        let mut order = 0;
-        let mut requirement = Requirement::None;
+        let order = nodes
+            .iter()
+            .map(|metadata| metadata.order)
+            .reduce(|acc, order| usize::max(acc, order))
+            .unwrap_or(0)
+            + 1;
 
-        ops.iter().for_each(|metadata| {
-            requirement = metadata.requirement.infer(&requirement);
-            order = usize::max(metadata.order, order);
-        });
-        order += 1;
-
-        let metadata = Metadata::new(parents, order, id, requirement);
-
-        Self {
-            primitive: output,
-            metadata: metadata.into(),
-            graph,
-        }
-    }
-
-    pub fn from_binary_ops(
-        lhs: MetadataRef,
-        rhs: MetadataRef,
-        output: B::TensorPrimitive<D>,
-        lhs_graph: Graph<B>,
-        rhs_graph: Graph<B>,
-    ) -> Self {
-        let order = usize::max(lhs.order, rhs.order) + 1;
-        let id = OpsID::new();
-        let map = lhs_graph.merge(&rhs_graph);
-        let parents = vec![lhs.id.clone(), rhs.id.clone()];
-        let metadata = Metadata::new(parents, order, id, lhs.infer_requirement(&rhs));
-
-        Self {
-            primitive: output,
-            metadata: metadata.into(),
-            graph: map,
-        }
-    }
-    pub fn from_unary_ops(
-        tensor: MetadataRef,
-        output: B::TensorPrimitive<D>,
-        graph: Graph<B>,
-    ) -> Self {
-        let order = tensor.order + 1;
-        let id = OpsID::new();
-        let parents = vec![tensor.id.clone()];
         let metadata = Metadata::new(
-            parents,
+            nodes.iter().map(|metadata| metadata.id.clone()).collect(),
             order,
-            id,
-            tensor.requirement.infer(&Requirement::None),
+            OpsID::new(),
+            requirement,
         );
 
         Self {
@@ -168,58 +129,8 @@ impl<B: Backend, const D: usize> ADTensor<B, D> {
         BackwardTensor::new(self.primitive.clone(), self.metadata.clone())
     }
 
-    pub fn to_backward_if_required(&self) -> Option<BackwardTensor<B, D>> {
-        match self.metadata.requirement {
-            Requirement::None => None,
-            _ => Some(self.to_backward()),
-        }
-    }
-
-    pub fn to_metadata_if_required(&self) -> Option<MetadataRef> {
-        match self.metadata.requirement {
-            Requirement::None => None,
-            _ => Some(self.metadata.clone()),
-        }
-    }
-
     pub fn register_ops<O: Backward<B> + 'static>(self, ops: O) -> Self {
         self.graph.register(&self.metadata.id, Box::new(ops));
         self
     }
-}
-
-pub trait GetMetadata {
-    fn metadata(&self) -> MetadataRef;
-}
-
-impl<B: Backend, const D: usize> GetMetadata for BackwardTensor<B, D> {
-    fn metadata(&self) -> MetadataRef {
-        self.metadata.clone()
-    }
-}
-
-impl GetMetadata for MetadataRef {
-    fn metadata(&self) -> MetadataRef {
-        self.clone()
-    }
-}
-
-/// May clone the type if necessary.
-pub fn clone_if_shared<T1, T2, T3: Clone>(
-    lhs: &Option<T1>,
-    rhs: &Option<T2>,
-    maybe_cloned: T3,
-) -> (Option<T3>, Option<T3>) {
-    if lhs.is_some() && rhs.is_none() {
-        return (Some(maybe_cloned), None);
-    }
-    if lhs.is_none() && rhs.is_some() {
-        return (None, Some(maybe_cloned));
-    }
-
-    if lhs.is_none() && rhs.is_none() {
-        return (None, None);
-    }
-
-    (Some(maybe_cloned.clone()), Some(maybe_cloned))
 }

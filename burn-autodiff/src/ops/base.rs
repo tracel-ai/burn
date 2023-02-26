@@ -6,10 +6,10 @@ use crate::{
     tensor::{ADTensor, BackwardTensor},
 };
 
-pub trait Ops<B: Backend, const D: usize, const NUM_INPUTS: usize>:
-    Send + Sync + std::fmt::Debug
+pub trait Ops<B, const D: usize, const N: usize>: Send + Sync + std::fmt::Debug
 where
     Self: Sized + 'static,
+    B: Backend,
 {
     type StateForward: Clone + Send + Sync + std::fmt::Debug + 'static;
     type StateBackward: Clone + Send + Sync + std::fmt::Debug + 'static;
@@ -17,23 +17,30 @@ where
     fn forward(&self, state: Self::StateForward) -> B::TensorPrimitive<D>;
     fn backward(
         self,
-        nodes: [Option<MetadataRef>; NUM_INPUTS],
+        nodes: [Option<MetadataRef>; N],
         output: BackwardTensor<B, D>,
         grads: &mut Gradients<B>,
         state: Self::StateBackward,
     );
     fn run(
         self,
-        nodes: [MetadataRef; NUM_INPUTS],
-        graphs: [Graph<B>; NUM_INPUTS],
+        nodes: [MetadataRef; N],
+        graphs: [Graph<B>; N],
         state_forward: Self::StateForward,
         state_backward: Self::StateBackward,
     ) -> ADTensor<B, D> {
-        let output = ADTensor::from_ops(&nodes, self.forward(state_forward), graphs);
+        let requirement = Requirement::from_metadata(&nodes);
 
-        if let Requirement::None = output.metadata.requirement {
-            return output;
+        if let Requirement::None = requirement {
+            // Free the backward state, so if there are any reference
+            // to the same tensors used in the forward pass, inplace
+            // operations could be used.
+            std::mem::drop(state_backward);
+
+            return ADTensor::from_ops(&nodes, self.forward(state_forward), graphs, requirement);
         }
+
+        let output = ADTensor::from_ops(&nodes, self.forward(state_forward), graphs, requirement);
 
         let nodes = nodes.map(|metadata| metadata.clone_if_require_grad());
         let ops = OpsBackward::new(nodes, output.to_backward(), self, state_backward);

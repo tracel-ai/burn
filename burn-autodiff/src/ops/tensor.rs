@@ -2,7 +2,8 @@ use crate::{
     grads::Gradients,
     graph::ops::{MetadataRef, Requirement},
     ops::Ops,
-    tensor::{clone_if_shared, ADTensor, BackwardTensor, BoolTensor, Elem, IntTensor},
+    tensor::{ADTensor, BackwardTensor, BoolTensor, Elem, IntTensor},
+    utils::duplicate,
     ADBackendDecorator,
 };
 
@@ -108,12 +109,13 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 _state: Self::StateBackward,
             ) {
                 let grad_output = grads.consume(&output);
-                let (grad_output_lhs, grad_output_rhs) = clone_if_shared(&lhs, &rhs, grad_output);
+                let [grad_out_lhs, grad_out_rhs] =
+                    duplicate([lhs.is_some(), rhs.is_some()], grad_output);
 
-                if let Some((lhs, grad)) = lhs.zip(grad_output_lhs) {
+                if let Some((lhs, grad)) = lhs.zip(grad_out_lhs) {
                     grads.update(lhs, grad)
                 }
-                if let Some((rhs, grad)) = rhs.zip(grad_output_rhs) {
+                if let Some((rhs, grad)) = rhs.zip(grad_out_rhs) {
                     grads.update(rhs, grad)
                 }
             }
@@ -175,12 +177,13 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 _state: (),
             ) {
                 let grad_output = grads.consume(&output);
-                let (grad_output_lhs, grad_output_rhs) = clone_if_shared(&lhs, &rhs, grad_output);
+                let [grad_out_lhs, grad_out_rhs] =
+                    duplicate([lhs.is_some(), rhs.is_some()], grad_output);
 
-                if let Some((lhs, grad)) = lhs.zip(grad_output_lhs) {
+                if let Some((lhs, grad)) = lhs.zip(grad_out_lhs) {
                     grads.update(lhs, grad)
                 }
-                if let Some((rhs, grad)) = rhs.zip(grad_output_rhs) {
+                if let Some((rhs, grad)) = rhs.zip(grad_out_rhs) {
                     grads.update(rhs, B::neg(grad))
                 }
             }
@@ -242,14 +245,15 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 (state_lhs, state_rhs): Self::StateBackward,
             ) {
                 let grad_output = grads.consume(&output);
-                let (grad_output_lhs, grad_output_rhs) = clone_if_shared(&lhs, &rhs, grad_output);
+                let [grad_out_lhs, grad_out_rhs] =
+                    duplicate([lhs.is_some(), rhs.is_some()], grad_output);
 
-                if let Some((lhs, grad_output)) = lhs.zip(grad_output_lhs) {
+                if let Some((lhs, grad_output)) = lhs.zip(grad_out_lhs) {
                     let grad_lhs = B::mul(grad_output, state_rhs.unwrap());
                     grads.update(lhs, grad_lhs)
                 }
 
-                if let Some((rhs, grad_output)) = rhs.zip(grad_output_rhs) {
+                if let Some((rhs, grad_output)) = rhs.zip(grad_out_rhs) {
                     let grad_rhs = B::mul(grad_output, state_lhs.unwrap());
                     grads.update(rhs, grad_rhs)
                 }
@@ -329,14 +333,15 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 (state_lhs, state_rhs): Self::StateBackward,
             ) {
                 let grad_output = grads.consume(&output);
-                let (grad_output_lhs, grad_output_rhs) = clone_if_shared(&lhs, &rhs, grad_output);
+                let [grad_out_lhs, grad_out_rhs] =
+                    duplicate([lhs.is_some(), rhs.is_some()], grad_output);
 
-                if let Some((lhs, grad_output)) = lhs.zip(grad_output_lhs) {
+                if let Some((lhs, grad_output)) = lhs.zip(grad_out_lhs) {
                     let rhs = B::transpose(state_rhs.unwrap());
                     let grad_lhs = B::matmul(grad_output, rhs);
                     grads.update(lhs, grad_lhs)
                 }
-                if let Some((rhs, grad_output)) = rhs.zip(grad_output_rhs) {
+                if let Some((rhs, grad_output)) = rhs.zip(grad_out_rhs) {
                     let lhs = B::transpose(state_lhs.unwrap());
                     let grad_rhs = B::matmul(lhs, grad_output);
                     grads.update(rhs, grad_rhs)
