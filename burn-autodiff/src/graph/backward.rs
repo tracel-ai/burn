@@ -2,43 +2,58 @@ use burn_tensor::backend::Backend;
 
 use crate::{grads::Gradients, tensor::ADTensor};
 
-use super::traversal::BreadthFirstSearch;
+use super::{traversal::BreadthFirstSearch, Graph, NodeRef, StepBoxed};
 
 pub fn backward<B: Backend, const D: usize>(root: ADTensor<B, D>) -> Gradients<B> {
-    let mut grads = Gradients::<B>::new();
-    let root_order = root.node.order;
-    let root_node = root.node;
-    // let root_primitive = root.primitive;
-    let root_graph = root.graph;
+    let grads = init_grads(root.node.clone(), root.primitive);
+    let tape = build_tape(root.node, root.graph);
 
-    let mut tape = Vec::with_capacity(root_order);
-    for _ in 0..root_order {
+    execute_steps(tape, grads)
+}
+
+fn init_grads<B: Backend, const D: usize>(
+    root_node: NodeRef,
+    root_tensor: B::TensorPrimitive<D>,
+) -> Gradients<B> {
+    let mut grads = Gradients::<B>::new();
+    grads.update(
+        root_node.clone(),
+        B::ones(B::shape(&root_tensor), &B::device(&root_tensor)),
+    );
+
+    grads
+}
+
+fn build_tape<B: Backend>(root: NodeRef, graph: Graph<B>) -> Vec<Vec<StepBoxed<B>>> {
+    let mut tape = Vec::with_capacity(root.order);
+    for _ in 0..root.order {
         tape.push(Vec::with_capacity(1));
     }
 
-    // if let Some(ops) = ops_map.remove(&root_node.id) {
-    //     grads.update(
-    //         root_node.clone(),
-    //         B::ones(B::shape(&root_primitive), &B::device(&root_primitive)),
-    //     );
-    //     ops.step(&mut grads);
-    // }
-
-    BreadthFirstSearch.traverse(root_node, root_graph, |node, step| {
+    BreadthFirstSearch.traverse(root, graph, |node, step| {
         if node.order == 0 {
             return;
         }
 
-        if let Some(steps) = tape.get_mut(node.order) {
+        if let Some(steps) = tape.get_mut(node.order - 1) {
             steps.push(step)
         };
     });
 
-    for i in (1..root_order).rev() {
+    tape
+}
+
+fn execute_steps<B: Backend>(
+    mut tape: Vec<Vec<StepBoxed<B>>>,
+    mut grads: Gradients<B>,
+) -> Gradients<B> {
+    for i in (0..tape.len()).rev() {
         let steps = match tape.get_mut(i) {
             Some(val) => val,
             None => continue,
         };
+
+        // Take ownership of steps.
         let mut empty = Vec::new();
         std::mem::swap(steps, &mut empty);
 

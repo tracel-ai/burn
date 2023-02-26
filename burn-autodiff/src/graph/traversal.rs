@@ -24,16 +24,13 @@ impl BreadthFirstSearch {
         let mut steps = graph.steps();
         let root_step = steps.remove(&root.id).unwrap();
         callback(root, root_step);
-        //          if let Some(ops) = ops_map.remove(&root_node.id) {
-        //         grads.update(
-        //             root_node.clone(),
-        //             B::ones(B::shape(&root_primitive), &B::device(&root_primitive)),
-        //         );
-        //         ops.step(&mut grads);
-        //     }
 
         while let Some(id) = parents.pop() {
-            let step = steps.remove(&id).unwrap();
+            let step = match steps.remove(&id) {
+                Some(step) => step,
+                None => continue,
+            };
+
             let node = step.node();
 
             let id = &node.id;
