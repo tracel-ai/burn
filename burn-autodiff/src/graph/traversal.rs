@@ -1,16 +1,18 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use burn_tensor::backend::Backend;
 
-use super::ops::{MetadataRef, Node, OpsID};
+use super::{Graph, NodeRef, StepBoxed};
 
+/// Breadth for search algorithm.
 pub struct BreadthFirstSearch;
 
 impl BreadthFirstSearch {
-    pub fn traverse<B: Backend, F: FnMut(MetadataRef)>(
+    /// Traverse the graph of backward steps from a root node.
+    pub fn traverse<B: Backend, F: FnMut(NodeRef, StepBoxed<B>)>(
         &self,
-        root: MetadataRef,
-        ops: &HashMap<OpsID, Node<B>>,
+        root: NodeRef,
+        graph: Graph<B>,
         mut callback: F,
     ) {
         let mut visited = HashSet::with_capacity(root.order);
@@ -19,8 +21,20 @@ impl BreadthFirstSearch {
         visited.insert(root.id.clone());
         parents.append(&mut root.parents.clone());
 
-        while let Some(node) = parents.pop() {
-            let node = ops.get(&node).map(|node| node.metadata()).unwrap();
+        let mut steps = graph.steps();
+        let root_step = steps.remove(&root.id).unwrap();
+        callback(root, root_step);
+        //          if let Some(ops) = ops_map.remove(&root_node.id) {
+        //         grads.update(
+        //             root_node.clone(),
+        //             B::ones(B::shape(&root_primitive), &B::device(&root_primitive)),
+        //         );
+        //         ops.step(&mut grads);
+        //     }
+
+        while let Some(id) = parents.pop() {
+            let step = steps.remove(&id).unwrap();
+            let node = step.node();
 
             let id = &node.id;
             if visited.contains(id) {
@@ -35,7 +49,7 @@ impl BreadthFirstSearch {
                 }
             }
 
-            callback(node);
+            callback(node, step);
         }
     }
 }

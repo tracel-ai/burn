@@ -6,46 +6,44 @@ use super::traversal::BreadthFirstSearch;
 
 pub fn backward<B: Backend, const D: usize>(root: ADTensor<B, D>) -> Gradients<B> {
     let mut grads = Gradients::<B>::new();
-    let root_order = root.metadata.order;
-    let root_metadata = root.metadata;
-    let root_primitive = root.primitive;
+    let root_order = root.node.order;
+    let root_node = root.node;
+    // let root_primitive = root.primitive;
     let root_graph = root.graph;
-
-    let mut ops_map = root_graph.extract();
 
     let mut tape = Vec::with_capacity(root_order);
     for _ in 0..root_order {
         tape.push(Vec::with_capacity(1));
     }
 
-    if let Some(ops) = ops_map.remove(&root_metadata.id) {
-        grads.update(
-            root_metadata.clone(),
-            B::ones(B::shape(&root_primitive), &B::device(&root_primitive)),
-        );
-        ops.backward(&mut grads);
-    }
+    // if let Some(ops) = ops_map.remove(&root_node.id) {
+    //     grads.update(
+    //         root_node.clone(),
+    //         B::ones(B::shape(&root_primitive), &B::device(&root_primitive)),
+    //     );
+    //     ops.step(&mut grads);
+    // }
 
-    BreadthFirstSearch.traverse(root_metadata, &ops_map, |node| {
+    BreadthFirstSearch.traverse(root_node, root_graph, |node, step| {
         if node.order == 0 {
             return;
         }
 
-        if let Some(nodes) = tape.get_mut(node.order) {
-            nodes.push(node)
+        if let Some(steps) = tape.get_mut(node.order) {
+            steps.push(step)
         };
     });
 
     for i in (1..root_order).rev() {
-        let nodes = match tape.get(i) {
-            Some(nodes) => nodes,
+        let steps = match tape.get_mut(i) {
+            Some(val) => val,
             None => continue,
         };
+        let mut empty = Vec::new();
+        std::mem::swap(steps, &mut empty);
 
-        for node in nodes {
-            if let Some(ops) = ops_map.remove(&node.id) {
-                ops.backward(&mut grads);
-            }
+        for step in empty {
+            step.step(&mut grads);
         }
     }
 
