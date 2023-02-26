@@ -1,7 +1,7 @@
 use crate::{
     grads::Gradients,
     graph::ops::{MetadataRef, Requirement},
-    ops::{binary::BinaryOps, unary::UnaryOpsNoCapture},
+    ops::Ops,
     tensor::{clone_if_shared, ADTensor, BackwardTensor, BoolTensor, Elem, IntTensor},
     ADBackendDecorator,
 };
@@ -90,23 +90,22 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         #[derive(Debug)]
         struct Add;
 
-        impl<B: Backend, const D: usize> BinaryOps<B, D> for Add {
-            type BackwardState = ();
+        impl<B: Backend, const D: usize> Ops<B, D, 2> for Add {
+            type StateForward = (B::TensorPrimitive<D>, B::TensorPrimitive<D>);
+            type StateBackward = ();
 
             fn forward(
                 &self,
-                lhs: B::TensorPrimitive<D>,
-                rhs: B::TensorPrimitive<D>,
-            ) -> B::TensorPrimitive<D> {
+                (lhs, rhs): Self::StateForward,
+            ) -> <B as Backend>::TensorPrimitive<D> {
                 B::add(lhs, rhs)
             }
             fn backward(
                 self,
-                lhs: Option<MetadataRef>,
-                rhs: Option<MetadataRef>,
+                [lhs, rhs]: [Option<MetadataRef>; 2],
                 output: BackwardTensor<B, D>,
                 grads: &mut Gradients<B>,
-                _state: (),
+                _state: Self::StateBackward,
             ) {
                 let grad_output = grads.consume(&output);
                 let (grad_output_lhs, grad_output_rhs) = clone_if_shared(&lhs, &rhs, grad_output);
@@ -120,23 +119,28 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        Add.execute(lhs, rhs, ())
+        Add.run(
+            [lhs.metadata, rhs.metadata],
+            [lhs.graph, rhs.graph],
+            (lhs.primitive, rhs.primitive),
+            (),
+        )
     }
 
     fn add_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: Elem<B>) -> ADTensor<B, D> {
         #[derive(Debug)]
         struct AddScalar;
 
-        impl<B: Backend, const D: usize> UnaryOpsNoCapture<B, D, D> for AddScalar {
-            type StateForward = Elem<B>;
+        impl<B: Backend, const D: usize> Ops<B, D, 1> for AddScalar {
+            type StateForward = (B::TensorPrimitive<D>, Elem<B>);
             type StateBackward = ();
 
-            fn forward(&self, lhs: B::TensorPrimitive<D>, rhs: Elem<B>) -> B::TensorPrimitive<D> {
+            fn forward(&self, (lhs, rhs): Self::StateForward) -> B::TensorPrimitive<D> {
                 B::add_scalar(lhs, rhs)
             }
             fn backward(
                 self,
-                tensor: Option<MetadataRef>,
+                [tensor]: [Option<MetadataRef>; 1],
                 output: BackwardTensor<B, D>,
                 grads: &mut Gradients<B>,
                 _rhs: (),
@@ -149,27 +153,23 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        AddScalar.execute(lhs, rhs, ())
+        AddScalar.run([lhs.metadata], [lhs.graph], (lhs.primitive, rhs), ())
     }
 
     fn sub<const D: usize>(lhs: ADTensor<B, D>, rhs: ADTensor<B, D>) -> ADTensor<B, D> {
         #[derive(Debug)]
         struct Sub;
 
-        impl<B: Backend, const D: usize> BinaryOps<B, D> for Sub {
-            type BackwardState = ();
+        impl<B: Backend, const D: usize> Ops<B, D, 2> for Sub {
+            type StateForward = (B::TensorPrimitive<D>, B::TensorPrimitive<D>);
+            type StateBackward = ();
 
-            fn forward(
-                &self,
-                lhs: B::TensorPrimitive<D>,
-                rhs: B::TensorPrimitive<D>,
-            ) -> B::TensorPrimitive<D> {
+            fn forward(&self, (lhs, rhs): Self::StateForward) -> B::TensorPrimitive<D> {
                 B::sub(lhs, rhs)
             }
             fn backward(
                 self,
-                lhs: Option<MetadataRef>,
-                rhs: Option<MetadataRef>,
+                [lhs, rhs]: [Option<MetadataRef>; 2],
                 output: BackwardTensor<B, D>,
                 grads: &mut Gradients<B>,
                 _state: (),
@@ -186,23 +186,28 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        Sub.execute(lhs, rhs, ())
+        Sub.run(
+            [lhs.metadata, rhs.metadata],
+            [lhs.graph, rhs.graph],
+            (lhs.primitive, rhs.primitive),
+            (),
+        )
     }
 
     fn sub_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: Elem<B>) -> ADTensor<B, D> {
         #[derive(Debug)]
         struct SubScalar;
 
-        impl<B: Backend, const D: usize> UnaryOpsNoCapture<B, D, D> for SubScalar {
-            type StateForward = Elem<B>;
+        impl<B: Backend, const D: usize> Ops<B, D, 1> for SubScalar {
+            type StateForward = (B::TensorPrimitive<D>, Elem<B>);
             type StateBackward = ();
 
-            fn forward(&self, lhs: B::TensorPrimitive<D>, rhs: Elem<B>) -> B::TensorPrimitive<D> {
+            fn forward(&self, (lhs, rhs): Self::StateForward) -> B::TensorPrimitive<D> {
                 B::sub_scalar(lhs, rhs)
             }
             fn backward(
                 self,
-                tensor: Option<MetadataRef>,
+                [tensor]: [Option<MetadataRef>; 1],
                 output: BackwardTensor<B, D>,
                 grads: &mut Gradients<B>,
                 _rhs: (),
@@ -215,30 +220,26 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        SubScalar.execute(lhs, rhs, ())
+        SubScalar.run([lhs.metadata], [lhs.graph], (lhs.primitive, rhs), ())
     }
 
     fn mul<const D: usize>(lhs: ADTensor<B, D>, rhs: ADTensor<B, D>) -> ADTensor<B, D> {
         #[derive(Debug)]
         struct Mul;
 
-        impl<B: Backend, const D: usize> BinaryOps<B, D> for Mul {
-            type BackwardState = (Option<B::TensorPrimitive<D>>, Option<B::TensorPrimitive<D>>);
+        impl<B: Backend, const D: usize> Ops<B, D, 2> for Mul {
+            type StateForward = (B::TensorPrimitive<D>, B::TensorPrimitive<D>);
+            type StateBackward = (Option<B::TensorPrimitive<D>>, Option<B::TensorPrimitive<D>>);
 
-            fn forward(
-                &self,
-                lhs: B::TensorPrimitive<D>,
-                rhs: B::TensorPrimitive<D>,
-            ) -> B::TensorPrimitive<D> {
+            fn forward(&self, (lhs, rhs): Self::StateForward) -> B::TensorPrimitive<D> {
                 B::mul(lhs, rhs)
             }
             fn backward(
                 self,
-                lhs: Option<MetadataRef>,
-                rhs: Option<MetadataRef>,
+                [lhs, rhs]: [Option<MetadataRef>; 2],
                 output: BackwardTensor<B, D>,
                 grads: &mut Gradients<B>,
-                (state_lhs, state_rhs): Self::BackwardState,
+                (state_lhs, state_rhs): Self::StateBackward,
             ) {
                 let grad_output = grads.consume(&output);
                 let (grad_output_lhs, grad_output_rhs) = clone_if_shared(&lhs, &rhs, grad_output);
@@ -247,6 +248,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     let grad_lhs = B::mul(grad_output, state_rhs.unwrap());
                     grads.update(lhs, grad_lhs)
                 }
+
                 if let Some((rhs, grad_output)) = rhs.zip(grad_output_rhs) {
                     let grad_rhs = B::mul(grad_output, state_lhs.unwrap());
                     grads.update(rhs, grad_rhs)
@@ -262,23 +264,28 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             Requirement::None => None,
             _ => Some(rhs.primitive.clone()),
         };
-        Mul.execute(lhs, rhs, (state_lhs, state_rhs))
+        Mul.run(
+            [lhs.metadata, rhs.metadata],
+            [lhs.graph, rhs.graph],
+            (lhs.primitive, rhs.primitive),
+            (state_lhs, state_rhs),
+        )
     }
 
     fn mul_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: Elem<B>) -> ADTensor<B, D> {
         #[derive(Debug)]
         struct MulScalar;
 
-        impl<B: Backend, const D: usize> UnaryOpsNoCapture<B, D, D> for MulScalar {
-            type StateForward = Elem<B>;
+        impl<B: Backend, const D: usize> Ops<B, D, 1> for MulScalar {
+            type StateForward = (B::TensorPrimitive<D>, Elem<B>);
             type StateBackward = Elem<B>;
 
-            fn forward(&self, lhs: B::TensorPrimitive<D>, rhs: Elem<B>) -> B::TensorPrimitive<D> {
+            fn forward(&self, (lhs, rhs): Self::StateForward) -> B::TensorPrimitive<D> {
                 B::mul_scalar(lhs, rhs)
             }
             fn backward(
                 self,
-                tensor: Option<MetadataRef>,
+                [tensor]: [Option<MetadataRef>; 1],
                 output: BackwardTensor<B, D>,
                 grads: &mut Gradients<B>,
                 rhs: Elem<B>,
@@ -292,7 +299,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        MulScalar.execute(lhs, rhs, rhs)
+        MulScalar.run([lhs.metadata], [lhs.graph], (lhs.primitive, rhs), rhs)
     }
 
     fn div<const D: usize>(_lhs: ADTensor<B, D>, _rhs: ADTensor<B, D>) -> ADTensor<B, D> {
@@ -307,38 +314,30 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         #[derive(Debug)]
         struct Matmul;
 
-        impl<B: Backend, const D: usize> BinaryOps<B, D> for Matmul {
-            type BackwardState = (Option<B::TensorPrimitive<D>>, Option<B::TensorPrimitive<D>>);
+        impl<B: Backend, const D: usize> Ops<B, D, 2> for Matmul {
+            type StateForward = (B::TensorPrimitive<D>, B::TensorPrimitive<D>);
+            type StateBackward = (Option<B::TensorPrimitive<D>>, Option<B::TensorPrimitive<D>>);
 
-            fn forward(
-                &self,
-                lhs: B::TensorPrimitive<D>,
-                rhs: B::TensorPrimitive<D>,
-            ) -> B::TensorPrimitive<D> {
+            fn forward(&self, (lhs, rhs): Self::StateForward) -> B::TensorPrimitive<D> {
                 B::matmul(lhs, rhs)
             }
             fn backward(
                 self,
-                lhs: Option<MetadataRef>,
-                rhs: Option<MetadataRef>,
+                [lhs, rhs]: [Option<MetadataRef>; 2],
                 output: BackwardTensor<B, D>,
                 grads: &mut Gradients<B>,
-                (state_lhs, state_rhs): Self::BackwardState,
+                (state_lhs, state_rhs): Self::StateBackward,
             ) {
                 let grad_output = grads.consume(&output);
                 let (grad_output_lhs, grad_output_rhs) = clone_if_shared(&lhs, &rhs, grad_output);
 
-                if let Some(((lhs, grad_output), state_rhs)) =
-                    lhs.zip(grad_output_lhs).zip(state_rhs)
-                {
-                    let rhs = B::transpose(state_rhs);
+                if let Some((lhs, grad_output)) = lhs.zip(grad_output_lhs) {
+                    let rhs = B::transpose(state_rhs.unwrap());
                     let grad_lhs = B::matmul(grad_output, rhs);
                     grads.update(lhs, grad_lhs)
                 }
-                if let Some(((rhs, grad_output), state_lhs)) =
-                    rhs.zip(grad_output_rhs).zip(state_lhs)
-                {
-                    let lhs = B::transpose(state_lhs);
+                if let Some((rhs, grad_output)) = rhs.zip(grad_output_rhs) {
+                    let lhs = B::transpose(state_lhs.unwrap());
                     let grad_rhs = B::matmul(lhs, grad_output);
                     grads.update(rhs, grad_rhs)
                 }
@@ -354,7 +353,12 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             _ => Some(rhs.primitive.clone()),
         };
 
-        Matmul.execute(lhs, rhs, (state_lhs, state_rhs))
+        Matmul.run(
+            [lhs.metadata, rhs.metadata],
+            [lhs.graph, rhs.graph],
+            (lhs.primitive, rhs.primitive),
+            (state_lhs, state_rhs),
+        )
     }
 
     fn neg<const D: usize>(_tensor: ADTensor<B, D>) -> ADTensor<B, D> {

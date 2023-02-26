@@ -68,16 +68,61 @@ impl<B: Backend> Backward<B> for NewTensor<B> {
 impl<B: Backend, const D: usize> ADTensor<B, D> {
     pub fn new(primitive: B::TensorPrimitive<D>) -> Self {
         let id = OpsID::new();
-        let metadata = Metadata::new(vec![], 0, id, Requirement::Grad);
+        let metadata = Metadata::new(vec![], 0, id, Requirement::None);
         let tensor = Self {
             primitive,
             metadata: metadata.into(),
             graph: Graph::new(),
         };
-        let ops = NewTensor::new(tensor.metadata.clone());
-
-        tensor.register_ops(ops)
+        tensor.require_grad()
     }
+
+    pub fn require_grad(mut self) -> Self {
+        match self.metadata.requirement {
+            Requirement::Grad => self,
+            Requirement::GradInBackward => {
+                panic!("Can't require grad to a non leaf tensor")
+            }
+            Requirement::None => {
+                let metadata =
+                    Metadata::new(vec![], 0, self.metadata.id.clone(), Requirement::Grad);
+                self.metadata = metadata.into();
+                let ops = NewTensor::new(self.metadata.clone());
+                self.register_ops(ops)
+            }
+        }
+    }
+
+    pub fn from_ops<const N: usize>(
+        ops: &[MetadataRef; N],
+        output: B::TensorPrimitive<D>,
+        graphs: [Graph<B>; N],
+    ) -> Self {
+        let id = OpsID::new();
+        let mut graph = graphs.get(0).unwrap().clone();
+        for i in 1..N {
+            graph = graph.merge(&graphs[i]);
+        }
+
+        let parents = ops.iter().map(|metadata| metadata.id.clone()).collect();
+        let mut order = 0;
+        let mut requirement = Requirement::None;
+
+        ops.iter().for_each(|metadata| {
+            requirement = metadata.requirement.infer(&requirement);
+            order = usize::max(metadata.order, order);
+        });
+        order += 1;
+
+        let metadata = Metadata::new(parents, order, id, requirement);
+
+        Self {
+            primitive: output,
+            metadata: metadata.into(),
+            graph,
+        }
+    }
+
     pub fn from_binary_ops(
         lhs: MetadataRef,
         rhs: MetadataRef,

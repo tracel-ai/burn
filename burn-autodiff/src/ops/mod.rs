@@ -1,5 +1,5 @@
-pub mod binary;
-pub mod unary;
-
+mod base;
 mod module;
 mod tensor;
+
+pub use base::*;
