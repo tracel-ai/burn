@@ -75,13 +75,13 @@ jobs:
         if: ${{ inputs.no-std-build-targets }}
         run: |
           cd ${CRATE}
-          cargo test --no-default-features --target wasm32-unknown-unknown
+          cargo build --no-default-features --target wasm32-unknown-unknown
 
       - name: check build for arm cortex-m3
         if: ${{ inputs.no-std-build-targets }}
         run: |
           cd ${CRATE}
-          cargo test --no-default-features --target thumbv7m-none-eabi
+          cargo build --no-default-features --target thumbv7m-none-eabi
 
       - name: check clippy
         run: |
