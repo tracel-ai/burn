@@ -22,6 +22,13 @@ impl Requirement {
         }
     }
 
+    pub fn is_none(&self) -> bool {
+        match self {
+            Requirement::None => true,
+            _ => false,
+        }
+    }
+
     pub fn from_metadata(metadata: &[MetadataRef]) -> Self {
         metadata
             .iter()
