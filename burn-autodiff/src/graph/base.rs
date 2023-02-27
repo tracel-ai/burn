@@ -11,7 +11,7 @@ use super::{NodeID, NodeRef};
 
 /// Backward step for reverse mode autodiff.
 pub trait Step<B: Backend>: Send + Sync + std::fmt::Debug {
-    /// Execute the step and consume it.
+    /// Executes the step and consumes it.
     fn step(self: Box<Self>, grads: &mut Gradients<B>);
     /// The node associated to the step.
     fn node(&self) -> NodeRef;

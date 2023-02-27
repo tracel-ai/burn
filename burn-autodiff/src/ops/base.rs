@@ -54,7 +54,7 @@ where
         }
 
         let nodes = nodes.map(|node| match node.clone_if_require_grad() {
-            Some(node) => OpsNode::Node(node, []),
+            Some(node) => OpsNode::Tracked(node, []),
             None => OpsNode::Untrack,
         });
         let ops = OpsStep::new(nodes, output.to_backward(), self, state);
@@ -65,29 +65,36 @@ where
 
 pub type OpsNodes<const N: usize> = [OpsNode<(), 0>; N];
 
+/// Node operation.
 #[derive(Debug)]
 pub enum OpsNode<T, const D: usize> {
-    Node(NodeRef, [T; D]),
+    Tracked(NodeRef, [T; D]),
     Untrack,
 }
 
 impl<T, const D: usize> OpsNode<T, D> {
+    /// Run the backward pass.
+    ///
+    /// The function should update the node gradient using the [gradients](crate::grads::Gradients) struct.
     pub fn run<F>(self, func: F)
     where
         F: FnOnce(NodeRef, [T; D]),
     {
         match self {
-            Self::Node(node, args) => func(node, args),
+            Self::Tracked(node, args) => func(node, args),
             Self::Untrack => (),
         }
     }
 }
 
 impl OpsNode<(), 0> {
-    /// Set the requirements for the operation to be executed.
+    /// Set the required objects for the operation to be executed.
+    ///
+    /// This is usefull in combination with [duplicate](crate::utils::duplicate) to maximize
+    /// inplace tensor operations when possible.
     pub fn requirements<T, const D: usize>(self, items: [Option<T>; D]) -> OpsNode<T, D> {
         match self {
-            Self::Node(node, _) => OpsNode::Node(node, items.map(|item| item.unwrap())),
+            Self::Tracked(node, _) => OpsNode::Tracked(node, items.map(|item| item.unwrap())),
             Self::Untrack => OpsNode::Untrack,
         }
     }

@@ -25,6 +25,14 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         ADTensor::new(B::random(shape, distribution, device))
     }
 
+    fn zeros<const D: usize>(shape: Shape<D>, device: &B::Device) -> ADTensor<B, D> {
+        Self::from_data(Data::zeros(shape), device)
+    }
+
+    fn ones<const D: usize>(shape: Shape<D>, device: &B::Device) -> ADTensor<B, D> {
+        Self::from_data(Data::ones(shape), device)
+    }
+
     fn shape<const D: usize>(tensor: &ADTensor<B, D>) -> Shape<D> {
         B::shape(&tensor.primitive)
     }
@@ -80,6 +88,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
     fn to_device<const D: usize>(tensor: ADTensor<B, D>, device: &B::Device) -> ADTensor<B, D> {
         ADTensor::new(B::to_device(tensor.primitive, device))
+    }
+
+    fn arange(range: std::ops::Range<usize>, device: &B::Device) -> IntTensor<B, 1> {
+        B::arange(range, device)
     }
 
     fn empty<const D: usize>(shape: Shape<D>, device: &B::Device) -> ADTensor<B, D> {
@@ -241,11 +253,11 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        let state_lhs = rhs.is_tracked().then(|| lhs.primitive.clone());
-        let state_rhs = lhs.is_tracked().then(|| rhs.primitive.clone());
-
         Mul.run(
-            (state_lhs, state_rhs),
+            (
+                rhs.is_tracked().then(|| lhs.primitive.clone()),
+                lhs.is_tracked().then(|| rhs.primitive.clone()),
+            ),
             B::mul(lhs.primitive, rhs.primitive),
             [lhs.node, rhs.node],
             [lhs.graph, rhs.graph],
@@ -297,11 +309,16 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 grads: &mut Gradients<B>,
                 (lhs, rhs): Self::State,
             ) {
-                let rhs =
-                    rhs.expect("Always needed, but set as optional when backward is not required.");
+                let rhs = match rhs {
+                    Some(rhs) => rhs,
+                    None => panic!(
+                        "Always needed, but set as optional when backward step is not required. {}",
+                        "This avoids an uncessary clone, but if this panic, there is a bug!"
+                    ),
+                };
 
-                let [grad_4lhs, grad_4rhs] =
-                    duplicate([&node_lhs, &node_rhs], grads.consume(&output));
+                let grad = grads.consume(&output);
+                let [grad_4lhs, grad_4rhs] = duplicate([&node_lhs, &node_rhs], grad);
                 let [rhs_4lhs, rhs_4rhs] = duplicate([&node_lhs, &node_rhs], rhs);
 
                 node_lhs
@@ -327,11 +344,11 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        let state_lhs = rhs.is_tracked().then(|| lhs.primitive.clone());
-        let state_rhs = (lhs.is_tracked() || rhs.is_tracked()).then(|| rhs.primitive.clone());
-
         Div.run(
-            (state_lhs, state_rhs),
+            (
+                rhs.is_tracked().then(|| lhs.primitive.clone()),
+                (lhs.is_tracked() || rhs.is_tracked()).then(|| rhs.primitive.clone()),
+            ),
             B::div(lhs.primitive, rhs.primitive),
             [lhs.node, rhs.node],
             [lhs.graph, rhs.graph],
@@ -364,11 +381,8 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        let device = B::device(&lhs.primitive);
-        let shape = B::shape(&lhs.primitive);
-
         DivScalar.run(
-            (shape, device, rhs),
+            (B::shape(&lhs.primitive), B::device(&lhs.primitive), rhs),
             B::div_scalar(lhs.primitive, rhs),
             [lhs.node],
             [lhs.graph],
@@ -410,11 +424,11 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        let state_lhs = rhs.is_tracked().then(|| lhs.primitive.clone());
-        let state_rhs = lhs.is_tracked().then(|| rhs.primitive.clone());
-
         Matmul.run(
-            (state_lhs, state_rhs),
+            (
+                rhs.is_tracked().then(|| lhs.primitive.clone()),
+                lhs.is_tracked().then(|| rhs.primitive.clone()),
+            ),
             B::matmul(lhs.primitive, rhs.primitive),
             [lhs.node, rhs.node],
             [lhs.graph, rhs.graph],
@@ -513,10 +527,8 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        let shape_original = B::shape(&tensor.primitive);
-
         ReshapeDim.run(
-            (shape_original, shape.clone()),
+            (B::shape(&tensor.primitive), shape.clone()),
             B::reshape(tensor.primitive, shape),
             [tensor.node],
             [tensor.graph],
@@ -550,11 +562,12 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        let shape = B::shape(&tensor.primitive);
-        let device = B::device(&tensor.primitive);
-
         Index.run(
-            (indexes.clone(), shape, device),
+            (
+                indexes.clone(),
+                B::shape(&tensor.primitive),
+                B::device(&tensor.primitive),
+            ),
             B::index(tensor.primitive, indexes),
             [tensor.node],
             [tensor.graph],
@@ -705,17 +718,5 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
     fn relu<const D: usize>(_tensor: ADTensor<B, D>) -> ADTensor<B, D> {
         todo!()
-    }
-
-    fn zeros<const D: usize>(shape: Shape<D>, device: &B::Device) -> ADTensor<B, D> {
-        Self::from_data(Data::zeros(shape), device)
-    }
-
-    fn ones<const D: usize>(shape: Shape<D>, device: &B::Device) -> ADTensor<B, D> {
-        Self::from_data(Data::ones(shape), device)
-    }
-
-    fn arange(range: std::ops::Range<usize>, device: &B::Device) -> IntTensor<B, 1> {
-        B::arange(range, device)
     }
 }
