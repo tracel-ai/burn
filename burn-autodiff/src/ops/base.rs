@@ -33,7 +33,7 @@ where
     /// The backward pass.
     fn backward(
         self,
-        nodes: [Option<NodeRef>; N],
+        nodes: OpsNodes<N>,
         output: BackwardTensor<B, D>,
         grads: &mut Gradients<B>,
         state: Self::Backward,
@@ -65,22 +65,45 @@ where
 
         let output = ADTensor::from_ops(&nodes, self.forward(state_forward), graphs, requirement);
 
-        let nodes = nodes.map(|node| node.clone_if_require_grad());
+        let nodes = nodes.map(|node| match node.clone_if_require_grad() {
+            Some(node) => OpsNode::Node(node),
+            None => OpsNode::Untrack,
+        });
         let ops = OpsBackward::new(nodes, output.to_backward(), self, state_backward);
 
         output.register_ops(ops)
     }
 }
 
+pub type OpsNodes<const N: usize> = [OpsNode; N];
+
+#[derive(Debug)]
+pub enum OpsNode {
+    Node(NodeRef),
+    Untrack,
+}
+
+impl OpsNode {
+    pub fn run<F>(self, func: F)
+    where
+        F: FnOnce(NodeRef),
+    {
+        match self {
+            Self::Node(node) => func(node),
+            Self::Untrack => (),
+        }
+    }
+}
+
 #[derive(new, Debug)]
-struct OpsBackward<B, T, SF, SB, const D: usize, const NUM_INPUTS: usize>
+struct OpsBackward<B, T, SF, SB, const D: usize, const N: usize>
 where
     B: Backend,
-    T: Ops<B, D, NUM_INPUTS, Forward = SF, Backward = SB>,
+    T: Ops<B, D, N, Forward = SF, Backward = SB>,
     SF: Clone + Send + Sync + std::fmt::Debug + 'static,
     SB: Clone + Send + Sync + std::fmt::Debug + 'static,
 {
-    nodes: [Option<NodeRef>; NUM_INPUTS],
+    nodes: OpsNodes<N>,
     output: BackwardTensor<B, D>,
     ops: T,
     state: SB,

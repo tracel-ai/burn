@@ -1,7 +1,7 @@
 use crate::{
     grads::Gradients,
-    graph::{NodeRef, Requirement},
-    ops::Ops,
+    graph::Requirement,
+    ops::{Ops, OpsNodes},
     tensor::{ADTensor, BackwardTensor, BoolTensor, Elem, IntTensor},
     utils::duplicate,
     ADBackendDecorator,
@@ -100,21 +100,16 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
             fn backward(
                 self,
-                [node_lhs, node_rhs]: [Option<NodeRef>; 2],
+                [node_lhs, node_rhs]: OpsNodes<2>,
                 output: BackwardTensor<B, D>,
                 grads: &mut Gradients<B>,
                 _: Self::Backward,
             ) {
-                let grad_out = grads.consume(&output);
-                let [grad_out_lhs, grad_out_rhs] =
-                    duplicate([node_lhs.is_some(), node_rhs.is_some()], grad_out);
+                let [grad_4lhs, grad_4rhs] =
+                    duplicate([&node_lhs, &node_rhs], grads.consume(&output));
 
-                if let Some((node_lhs, grad)) = node_lhs.zip(grad_out_lhs) {
-                    grads.update(node_lhs, grad)
-                }
-                if let Some((node_rhs, grad)) = node_rhs.zip(grad_out_rhs) {
-                    grads.update(node_rhs, grad)
-                }
+                node_lhs.run(|node_lhs| grads.update(node_lhs, grad_4lhs.unwrap()));
+                node_rhs.run(|node_rhs| grads.update(node_rhs, grad_4rhs.unwrap()));
             }
         }
 
@@ -139,16 +134,13 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
             fn backward(
                 self,
-                [node]: [Option<NodeRef>; 1],
+                [node]: OpsNodes<1>,
                 output: BackwardTensor<B, D>,
                 grads: &mut Gradients<B>,
                 _: (),
             ) {
-                let grad_out = grads.consume(&output);
-
-                if let Some(node) = node {
-                    grads.update(node, grad_out)
-                }
+                let grad = grads.consume(&output);
+                node.run(|node| grads.update(node, grad));
             }
         }
 
@@ -168,21 +160,16 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
             fn backward(
                 self,
-                [node_lhs, node_rhs]: [Option<NodeRef>; 2],
+                [node_lhs, node_rhs]: OpsNodes<2>,
                 output: BackwardTensor<B, D>,
                 grads: &mut Gradients<B>,
                 _: (),
             ) {
-                let grad_out = grads.consume(&output);
-                let [grad_out_lhs, grad_out_rhs] =
-                    duplicate([node_lhs.is_some(), node_rhs.is_some()], grad_out);
+                let [grad_4lhs, grad_4rhs] =
+                    duplicate([&node_lhs, &node_rhs], grads.consume(&output));
 
-                if let Some((node_lhs, grad)) = node_lhs.zip(grad_out_lhs) {
-                    grads.update(node_lhs, grad)
-                }
-                if let Some((node_rhs, grad)) = node_rhs.zip(grad_out_rhs) {
-                    grads.update(node_rhs, B::neg(grad))
-                }
+                node_lhs.run(|node_lhs| grads.update(node_lhs, grad_4lhs.unwrap()));
+                node_rhs.run(|node_rhs| grads.update(node_rhs, B::neg(grad_4rhs.unwrap())))
             }
         }
 
@@ -207,16 +194,13 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
             fn backward(
                 self,
-                [node]: [Option<NodeRef>; 1],
+                [node]: OpsNodes<1>,
                 output: BackwardTensor<B, D>,
                 grads: &mut Gradients<B>,
                 _: (),
             ) {
-                let grad_out = grads.consume(&output);
-
-                if let Some(node) = node {
-                    grads.update(node, grad_out)
-                }
+                let grad = grads.consume(&output);
+                node.run(|node| grads.update(node, grad));
             }
         }
 
@@ -236,24 +220,22 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
             fn backward(
                 self,
-                [node_lhs, node_rhs]: [Option<NodeRef>; 2],
+                [node_lhs, node_rhs]: OpsNodes<2>,
                 output: BackwardTensor<B, D>,
                 grads: &mut Gradients<B>,
                 (lhs, rhs): Self::Backward,
             ) {
-                let grad_out = grads.consume(&output);
-                let [grad_out_lhs, grad_out_rhs] =
-                    duplicate([node_lhs.is_some(), node_rhs.is_some()], grad_out);
+                let [grad_4lhs, grad_4rhs] =
+                    duplicate([&node_lhs, &node_rhs], grads.consume(&output));
 
-                if let Some((node_lhs, grad_out)) = node_lhs.zip(grad_out_lhs) {
-                    let grad_lhs = B::mul(grad_out, rhs.unwrap());
-                    grads.update(node_lhs, grad_lhs)
-                }
-
-                if let Some((node_rhs, grad_out)) = node_rhs.zip(grad_out_rhs) {
-                    let grad_rhs = B::mul(grad_out, lhs.unwrap());
-                    grads.update(node_rhs, grad_rhs)
-                }
+                node_lhs.run(|node| {
+                    let grad_lhs = B::mul(grad_4lhs.unwrap(), rhs.unwrap());
+                    grads.update(node, grad_lhs);
+                });
+                node_rhs.run(|node| {
+                    let grad_rhs = B::mul(grad_4rhs.unwrap(), lhs.unwrap());
+                    grads.update(node, grad_rhs)
+                });
             }
         }
 
@@ -286,17 +268,17 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
             fn backward(
                 self,
-                [node]: [Option<NodeRef>; 1],
+                [node]: OpsNodes<1>,
                 output: BackwardTensor<B, D>,
                 grads: &mut Gradients<B>,
                 rhs: Elem<B>,
             ) {
-                let grad_out = grads.consume(&output);
+                let grad = grads.consume(&output);
 
-                if let Some(node) = node {
-                    let grad = B::mul_scalar(grad_out, rhs);
+                node.run(|node| {
+                    let grad = B::mul_scalar(grad, rhs);
                     grads.update(node, grad)
-                }
+                });
             }
         }
 
@@ -316,36 +298,35 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
             fn backward(
                 self,
-                [node_lhs, node_rhs]: [Option<NodeRef>; 2],
+                [node_lhs, node_rhs]: OpsNodes<2>,
                 output: BackwardTensor<B, D>,
                 grads: &mut Gradients<B>,
                 (lhs, rhs): Self::Backward,
             ) {
-                let grad_out = grads.consume(&output);
+                let [grad_4lhs, grad_4rhs] =
+                    duplicate([&node_lhs, &node_rhs], grads.consume(&output));
+                let [rhs_4lhs, rhs_4rhs] = duplicate([&node_lhs, &node_rhs], rhs.unwrap());
 
-                let [grad_out_lhs, grad_out_rhs] =
-                    duplicate([node_lhs.is_some(), node_rhs.is_some()], grad_out);
-                let [rhs_lhs, rhs_rhs] =
-                    duplicate([node_lhs.is_some(), node_rhs.is_some()], rhs.unwrap());
+                node_lhs.run(|node| {
+                    let rhs = rhs_4lhs.unwrap();
+                    let grad_out = grad_4lhs.unwrap();
 
-                if let Some((node_lhs, grad_out)) = node_lhs.zip(grad_out_lhs) {
-                    let rhs = rhs_lhs.unwrap();
                     let device = B::device(&rhs);
                     let shape = B::shape(&rhs);
                     let ones = B::ones(shape, &device);
                     let value = B::div(ones, rhs);
-                    let grad = B::mul(grad_out, value);
+                    let grad_lhs = B::mul(grad_out, value);
 
-                    grads.update(node_lhs, grad)
-                }
+                    grads.update(node, grad_lhs)
+                });
 
-                if let Some((node_rhs, grad_out)) = node_rhs.zip(grad_out_rhs) {
-                    let rhs = rhs_rhs.unwrap();
+                node_rhs.run(|node| {
+                    let rhs = rhs_4rhs.unwrap();
                     let value = B::div(B::neg(lhs.unwrap()), B::powf(rhs, 2.0));
-                    let grad = B::mul(grad_out, value);
+                    let grad = B::mul(grad_4rhs.unwrap(), value);
 
-                    grads.update(node_rhs, grad)
-                }
+                    grads.update(node, grad)
+                });
             }
         }
 
@@ -379,20 +360,20 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
             fn backward(
                 self,
-                [node]: [Option<NodeRef>; 1],
+                [node]: OpsNodes<1>,
                 output: BackwardTensor<B, D>,
                 grads: &mut Gradients<B>,
                 (shape, device, rhs): Self::Backward,
             ) {
-                let grad_out = grads.consume(&output);
+                let grad = grads.consume(&output);
 
-                if let Some(node) = node {
+                node.run(|node| {
                     let ones = B::ones(shape, &device);
                     let tmp = B::div_scalar(ones, rhs);
-                    let grad = B::mul(grad_out, tmp);
+                    let grad = B::mul(grad, tmp);
 
                     grads.update(node, grad)
-                }
+                });
             }
         }
 
@@ -420,26 +401,25 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
             fn backward(
                 self,
-                [node_lhs, node_rhs]: [Option<NodeRef>; 2],
+                [node_lhs, node_rhs]: OpsNodes<2>,
                 output: BackwardTensor<B, D>,
                 grads: &mut Gradients<B>,
                 (lhs, rhs): Self::Backward,
             ) {
-                let grad_out = grads.consume(&output);
+                let [grad_4lhs, grad_4rhs] =
+                    duplicate([&node_lhs, &node_rhs], grads.consume(&output));
 
-                let [grad_out_lhs, grad_out_rhs] =
-                    duplicate([node_lhs.is_some(), node_rhs.is_some()], grad_out);
-
-                if let Some((node_lhs, grad_out)) = node_lhs.zip(grad_out_lhs) {
+                node_lhs.run(|node| {
                     let rhs = B::transpose(rhs.unwrap());
-                    let grad_lhs = B::matmul(grad_out, rhs);
-                    grads.update(node_lhs, grad_lhs)
-                }
-                if let Some((node_rhs, grad_out)) = node_rhs.zip(grad_out_rhs) {
+                    let grad_lhs = B::matmul(grad_4lhs.unwrap(), rhs);
+                    grads.update(node, grad_lhs)
+                });
+
+                node_rhs.run(|node| {
                     let lhs = B::transpose(lhs.unwrap());
-                    let grad_rhs = B::matmul(lhs, grad_out);
-                    grads.update(node_rhs, grad_rhs)
-                }
+                    let grad_rhs = B::matmul(lhs, grad_4rhs.unwrap());
+                    grads.update(node, grad_rhs)
+                });
             }
         }
 
@@ -473,17 +453,13 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
             fn backward(
                 self,
-                [node]: [Option<NodeRef>; 1],
+                [node]: OpsNodes<1>,
                 output: BackwardTensor<B, D>,
                 grads: &mut Gradients<B>,
                 (): Self::Backward,
             ) {
                 let grad_out = grads.consume(&output);
-
-                if let Some(node) = node {
-                    let grad = B::neg(grad_out);
-                    grads.update(node, grad)
-                }
+                node.run(|node| grads.update(node, B::neg(grad_out)));
             }
         }
 
@@ -507,17 +483,17 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
             fn backward(
                 self,
-                [node]: [Option<NodeRef>; 1],
+                [node]: OpsNodes<1>,
                 output: BackwardTensor<B, D>,
                 grads: &mut Gradients<B>,
                 (dim1, dim2): Self::Backward,
             ) {
-                let grad_out = grads.consume(&output);
+                let grad = grads.consume(&output);
 
-                if let Some(node) = node {
-                    let grad = B::swap_dims(grad_out, dim2, dim1);
+                node.run(|node| {
+                    let grad = B::swap_dims(grad, dim2, dim1);
                     grads.update(node, grad)
-                }
+                });
             }
         }
 

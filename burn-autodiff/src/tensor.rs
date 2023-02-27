@@ -110,7 +110,7 @@ impl<B: Backend, const D: usize> ADTensor<B, D> {
         let order = nodes
             .iter()
             .map(|node| node.order)
-            .reduce(|acc, order| usize::max(acc, order))
+            .reduce(usize::max)
             .unwrap_or(0)
             + 1;
 

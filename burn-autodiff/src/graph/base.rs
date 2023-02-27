@@ -60,7 +60,7 @@ impl<B: Backend> Graph<B> {
     /// Merge two graphs.
     pub fn merge(self, other: Self) -> Self {
         if Arc::ptr_eq(&self.steps, &other.steps) {
-            return self.clone();
+            return self;
         }
 
         self.merge_different(other)
@@ -73,7 +73,7 @@ impl<B: Backend> Graph<B> {
                 func(map);
             }
             None => {
-                // Only lock where there are multiple references to the graph.
+                // Only lock when there are multiple references to the graph.
                 let mut map = self.steps.lock().unwrap();
                 func(&mut map);
             }

@@ -14,10 +14,7 @@ pub enum Requirement {
 impl Requirement {
     /// Returns true if gradients are not required.
     pub fn is_none(&self) -> bool {
-        match self {
-            Requirement::None => true,
-            _ => false,
-        }
+        matches!(self, Self::None)
     }
 
     /// Returns the right requirement from a list of nodes.

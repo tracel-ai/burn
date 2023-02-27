@@ -1,7 +1,17 @@
-/// Duplicate the struct for each entry in the array that is true.
-pub fn duplicate<T: Clone, const N: usize>(entries: [bool; N], obj: T) -> [Option<T>; N] {
-    entries.map(|entry| match entry {
-        true => Some(obj.clone()),
-        false => None,
+use crate::ops::OpsNode;
+
+/// Duplicate the given object for each node that requires gradients.
+///
+/// # Notes
+///
+/// This is usefull since you don't have to keep N cloned references alive event if just 1 node
+/// will be updated.
+///
+/// If the object is a tensor and if one reference exist to a tensor at one time, it can be
+/// updated inplace.
+pub fn duplicate<T: Clone, const N: usize>(nodes: [&OpsNode; N], obj: T) -> [Option<T>; N] {
+    nodes.map(|node| match node {
+        OpsNode::Node(_) => Some(obj.clone()),
+        OpsNode::Untrack => None,
     })
 }

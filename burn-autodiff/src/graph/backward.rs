@@ -17,7 +17,7 @@ fn init_grads<B: Backend, const D: usize>(
 ) -> Gradients<B> {
     let mut grads = Gradients::<B>::new();
     grads.update(
-        root_node.clone(),
+        root_node,
         B::ones(B::shape(&root_tensor), &B::device(&root_tensor)),
     );
 
