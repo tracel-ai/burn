@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use burn_tensor::backend::Backend;
 
 use crate::{
@@ -29,7 +31,7 @@ where
     fn backward(
         self,
         nodes: OpsNodes<N>,
-        output: BackwardTensor<B, D>,
+        output: NodeRef,
         grads: &mut Gradients,
         state: Self::State,
     );
@@ -57,7 +59,7 @@ where
             Some(node) => OpsNode::Tracked(node, []),
             None => OpsNode::Untrack,
         });
-        let ops = OpsStep::new(nodes, output.to_backward(), self, state);
+        let ops = OpsStep::new(nodes, output.node.clone(), self, state);
 
         output.register_ops(ops)
     }
@@ -108,9 +110,10 @@ where
     SB: Clone + Send + Sync + std::fmt::Debug + 'static,
 {
     nodes: OpsNodes<N>,
-    output: BackwardTensor<B, D>,
+    output: NodeRef,
     ops: T,
     state: SB,
+    phantom: PhantomData<B>,
 }
 
 impl<B, T, SB, const D: usize, const N: usize> Step for OpsStep<B, T, SB, D, N>
@@ -125,6 +128,6 @@ where
     }
 
     fn node(&self) -> NodeRef {
-        self.output.node.clone()
+        self.output.clone()
     }
 }

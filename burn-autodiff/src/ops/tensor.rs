@@ -2,6 +2,7 @@ use std::marker::PhantomData;
 
 use crate::{
     grads::Gradients,
+    graph::NodeRef,
     ops::{Backward, OpsNodes},
     tensor::{ADTensor, BackwardTensor, BoolTensor, Elem, IntTensor},
     utils::duplicate,
@@ -110,12 +111,12 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             fn backward(
                 self,
                 [node_lhs, node_rhs]: OpsNodes<2>,
-                output: BackwardTensor<B, D>,
+                output: NodeRef,
                 grads: &mut Gradients,
                 _: Self::State,
             ) {
                 let [grad_4lhs, grad_4rhs] =
-                    duplicate([&node_lhs, &node_rhs], grads.consume(&output));
+                    duplicate([&node_lhs, &node_rhs], grads.consume::<B, D>(&output));
 
                 node_lhs
                     .requirements([grad_4lhs])
@@ -141,14 +142,8 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         impl<B: Backend, const D: usize> Backward<B, D, 1> for AddScalar {
             type State = ();
 
-            fn backward(
-                self,
-                [node]: OpsNodes<1>,
-                output: BackwardTensor<B, D>,
-                grads: &mut Gradients,
-                _: (),
-            ) {
-                let grad = grads.consume(&output);
+            fn backward(self, [node]: OpsNodes<1>, output: NodeRef, grads: &mut Gradients, _: ()) {
+                let grad = grads.consume::<B, D>(&output);
                 node.run(|node, _| grads.register::<B, D>(node, grad));
             }
         }
@@ -171,12 +166,12 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             fn backward(
                 self,
                 [node_lhs, node_rhs]: OpsNodes<2>,
-                output: BackwardTensor<B, D>,
+                output: NodeRef,
                 grads: &mut Gradients,
                 _: (),
             ) {
                 let [grad_4lhs, grad_4rhs] =
-                    duplicate([&node_lhs, &node_rhs], grads.consume(&output));
+                    duplicate([&node_lhs, &node_rhs], grads.consume::<B, D>(&output));
 
                 node_lhs
                     .requirements([grad_4lhs])
@@ -202,14 +197,8 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         impl<B: Backend, const D: usize> Backward<B, D, 1> for SubScalar {
             type State = ();
 
-            fn backward(
-                self,
-                [node]: OpsNodes<1>,
-                output: BackwardTensor<B, D>,
-                grads: &mut Gradients,
-                _: (),
-            ) {
-                let grad = grads.consume(&output);
+            fn backward(self, [node]: OpsNodes<1>, output: NodeRef, grads: &mut Gradients, _: ()) {
+                let grad = grads.consume::<B, D>(&output);
                 node.run(|node, _| grads.register::<B, D>(node, grad));
             }
         }
@@ -232,12 +221,12 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             fn backward(
                 self,
                 [node_lhs, node_rhs]: OpsNodes<2>,
-                output: BackwardTensor<B, D>,
+                output: NodeRef,
                 grads: &mut Gradients,
                 (lhs, rhs): Self::State,
             ) {
                 let [grad_4lhs, grad_4rhs] =
-                    duplicate([&node_lhs, &node_rhs], grads.consume(&output));
+                    duplicate([&node_lhs, &node_rhs], grads.consume::<B, D>(&output));
 
                 node_lhs
                     .requirements([grad_4lhs, rhs])
@@ -276,11 +265,11 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             fn backward(
                 self,
                 [node]: OpsNodes<1>,
-                output: BackwardTensor<B, D>,
+                output: NodeRef,
                 grads: &mut Gradients,
                 rhs: Elem<B>,
             ) {
-                let grad = grads.consume(&output);
+                let grad = grads.consume::<B, D>(&output);
 
                 node.run(|node, _| {
                     let grad = B::mul_scalar(grad, rhs);
@@ -307,7 +296,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             fn backward(
                 self,
                 [node_lhs, node_rhs]: OpsNodes<2>,
-                output: BackwardTensor<B, D>,
+                output: NodeRef,
                 grads: &mut Gradients,
                 (lhs, rhs): Self::State,
             ) {
@@ -319,7 +308,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     ),
                 };
 
-                let grad = grads.consume(&output);
+                let grad = grads.consume::<B, D>(&output);
                 let [grad_4lhs, grad_4rhs] = duplicate([&node_lhs, &node_rhs], grad);
                 let [rhs_4lhs, rhs_4rhs] = duplicate([&node_lhs, &node_rhs], rhs);
 
@@ -367,11 +356,11 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             fn backward(
                 self,
                 [node]: OpsNodes<1>,
-                output: BackwardTensor<B, D>,
+                output: NodeRef,
                 grads: &mut Gradients,
                 (shape, device, rhs): Self::State,
             ) {
-                let grad = grads.consume(&output);
+                let grad = grads.consume::<B, D>(&output);
 
                 node.run(|node, _| {
                     let ones = B::ones(shape, &device);
@@ -401,12 +390,12 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             fn backward(
                 self,
                 [node_lhs, node_rhs]: OpsNodes<2>,
-                output: BackwardTensor<B, D>,
+                output: NodeRef,
                 grads: &mut Gradients,
                 (lhs, rhs): Self::State,
             ) {
                 let [grad_4lhs, grad_4rhs] =
-                    duplicate([&node_lhs, &node_rhs], grads.consume(&output));
+                    duplicate([&node_lhs, &node_rhs], grads.consume::<B, D>(&output));
 
                 node_lhs
                     .requirements([grad_4lhs, rhs])
@@ -447,11 +436,11 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             fn backward(
                 self,
                 [node]: OpsNodes<1>,
-                output: BackwardTensor<B, D>,
+                output: NodeRef,
                 grads: &mut Gradients,
                 (): Self::State,
             ) {
-                let grad_out = grads.consume(&output);
+                let grad_out = grads.consume::<B, D>(&output);
                 node.run(|node, _| grads.register::<B, D>(node, B::neg(grad_out)));
             }
         }
@@ -473,11 +462,11 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             fn backward(
                 self,
                 [node]: OpsNodes<1>,
-                output: BackwardTensor<B, D>,
+                output: NodeRef,
                 grads: &mut Gradients,
                 (dim1, dim2): Self::State,
             ) {
-                let grad = grads.consume(&output);
+                let grad = grads.consume::<B, D>(&output);
 
                 node.run(|node, _| {
                     let grad = B::swap_dims(grad, dim2, dim1);
@@ -507,11 +496,11 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             fn backward(
                 self,
                 [node]: OpsNodes<1>,
-                output: BackwardTensor<B, D2>,
+                output: NodeRef,
                 grads: &mut Gradients,
                 (shape_original, shape): Self::State,
             ) {
-                let grad = grads.consume(&output);
+                let grad = grads.consume::<B, D2>(&output);
 
                 node.run(|node, _| {
                     let shape_grad = B::shape(&grad);
@@ -550,11 +539,11 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             fn backward(
                 self,
                 [node]: OpsNodes<1>,
-                output: BackwardTensor<B, D1>,
+                output: NodeRef,
                 grads: &mut Gradients,
                 (indexes, shape, device): Self::State,
             ) {
-                let grad = grads.consume(&output);
+                let grad = grads.consume::<B, D1>(&output);
 
                 node.run(|node, _| {
                     let zeros = B::zeros(shape, &device);
@@ -590,12 +579,12 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             fn backward(
                 self,
                 [node_lhs, node_rhs]: OpsNodes<2>,
-                output: BackwardTensor<B, D1>,
+                output: NodeRef,
                 grads: &mut Gradients,
                 (indexes, shape_rhs, device): Self::State,
             ) {
                 let [grad_4lhs, grad_4rhs] =
-                    duplicate([&node_lhs, &node_rhs], grads.consume(&output));
+                    duplicate([&node_lhs, &node_rhs], grads.consume::<B, D1>(&output));
 
                 node_lhs.requirements([grad_4lhs]).run(|node, [grad]| {
                     let zeros = B::zeros(shape_rhs, &device);
@@ -636,11 +625,11 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             fn backward(
                 self,
                 [node]: OpsNodes<1>,
-                output: BackwardTensor<B, D>,
+                output: NodeRef,
                 grads: &mut Gradients,
                 mask: Self::State,
             ) {
-                let grad = grads.consume(&output);
+                let grad = grads.consume::<B, D>(&output);
 
                 node.requirements([mask]).run(|node, [mask]| {
                     let grad = B::mask_fill(grad, mask, 0.to_elem());
@@ -711,11 +700,11 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             fn backward(
                 self,
                 [node]: OpsNodes<1>,
-                output: BackwardTensor<B, 1>,
+                output: NodeRef,
                 grads: &mut Gradients,
                 shape: Self::State,
             ) {
-                let grad = grads.consume(&output);
+                let grad = grads.consume::<B, 1>(&output);
 
                 node.run(|node, _| {
                     let val = 1_f64 / shape.num_elements() as f64;
@@ -749,11 +738,11 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             fn backward(
                 self,
                 [node]: OpsNodes<1>,
-                output: BackwardTensor<B, 1>,
+                output: NodeRef,
                 grads: &mut Gradients,
                 shape: Self::State,
             ) {
-                let grad = grads.consume(&output);
+                let grad = grads.consume::<B, 1>(&output);
 
                 node.run(|node, _| {
                     let val = B::ones(shape, &B::device(&grad));
@@ -785,11 +774,11 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             fn backward(
                 self,
                 [node]: OpsNodes<1>,
-                output: BackwardTensor<B, D>,
+                output: NodeRef,
                 grads: &mut Gradients,
                 (shape, dim): Self::State,
             ) {
-                let grad = grads.consume(&output);
+                let grad = grads.consume::<B, D>(&output);
 
                 node.run(|node, _| {
                     let val = 1_f64 / shape.dims[dim] as f64;
@@ -822,11 +811,11 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             fn backward(
                 self,
                 [node]: OpsNodes<1>,
-                output: BackwardTensor<B, D>,
+                output: NodeRef,
                 grads: &mut Gradients,
                 (shape, dim): Self::State,
             ) {
-                let grad = grads.consume(&output);
+                let grad = grads.consume::<B, D>(&output);
 
                 node.run(|node, _| {
                     let ones = B::ones(shape, &B::device(&grad));
@@ -861,7 +850,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             fn backward(
                 self,
                 [node]: OpsNodes<1>,
-                output: BackwardTensor<B::FullPrecisionBackend, D>,
+                output: NodeRef,
                 grads: &mut Gradients,
                 _: Self::State,
             ) {
@@ -886,21 +875,77 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn from_full_precision<const D: usize>(
-        _tensor: ADTensor<B::FullPrecisionBackend, D>,
+        tensor: ADTensor<B::FullPrecisionBackend, D>,
     ) -> ADTensor<B, D> {
-        todo!()
+        #[derive(Debug)]
+        struct FromFullPrecision<B: Backend> {
+            phantom: PhantomData<B>,
+        }
+
+        impl<B: Backend, const D: usize> Backward<B, D, 1> for FromFullPrecision<B::FullPrecisionBackend> {
+            type State = ();
+
+            fn backward(
+                self,
+                [node]: OpsNodes<1>,
+                output: NodeRef,
+                grads: &mut Gradients,
+                _: Self::State,
+            ) {
+                let grad = grads.consume::<B, D>(&output);
+
+                node.run(|node, _| {
+                    let grad = B::to_full_precision(&grad);
+                    grads.register::<B::FullPrecisionBackend, D>(node, grad)
+                });
+            }
+        }
+
+        let ops = FromFullPrecision::<B::FullPrecisionBackend> {
+            phantom: PhantomData::default(),
+        };
+
+        ops.run(
+            (),
+            B::from_full_precision(tensor.primitive),
+            [tensor.node.clone()],
+            [tensor.graph.clone()],
+        )
     }
 
-    fn argmax<const D: usize>(_tensor: ADTensor<B, D>, _dim: usize) -> IntTensor<B, D> {
-        todo!()
+    fn argmax<const D: usize>(tensor: ADTensor<B, D>, dim: usize) -> IntTensor<B, D> {
+        B::argmax(tensor.primitive, dim)
     }
 
-    fn argmin<const D: usize>(_tensor: ADTensor<B, D>, _dim: usize) -> IntTensor<B, D> {
-        todo!()
+    fn argmin<const D: usize>(tensor: ADTensor<B, D>, dim: usize) -> IntTensor<B, D> {
+        B::argmin(tensor.primitive, dim)
     }
 
-    fn exp<const D: usize>(_tensor: ADTensor<B, D>) -> ADTensor<B, D> {
-        todo!()
+    fn exp<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {
+        #[derive(Debug)]
+        struct Exp;
+
+        impl<B: Backend, const D: usize> Backward<B, D, 1> for Exp {
+            type State = ();
+
+            fn backward(
+                self,
+                [node]: OpsNodes<1>,
+                output: NodeRef,
+                grads: &mut Gradients,
+                _: Self::State,
+            ) {
+                let grad = grads.consume::<B, D>(&output);
+
+                todo!();
+                // node.run(|node, _| {
+                //     let grad = B::mul(grad, output.primitive);
+                //     grads.register::<B, D>(node, grad)
+                // });
+            }
+        }
+
+        Exp.run((), B::exp(tensor.primitive), [tensor.node], [tensor.graph])
     }
 
     fn log<const D: usize>(_tensor: ADTensor<B, D>) -> ADTensor<B, D> {

@@ -1,6 +1,7 @@
 use crate::grads::Gradients;
+use crate::graph::NodeRef;
 use crate::ops::{Backward, OpsNodes};
-use crate::tensor::{ADTensor, BackwardTensor, IntTensor};
+use crate::tensor::{ADTensor, IntTensor};
 use crate::ADBackendDecorator;
 
 use burn_tensor::backend::Backend;
@@ -17,11 +18,11 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             fn backward(
                 self,
                 [node]: OpsNodes<1>,
-                output: BackwardTensor<B, 3>,
+                output: NodeRef,
                 grads: &mut Gradients,
                 state: Self::State,
             ) {
-                let grad = grads.consume(&output);
+                let grad = grads.consume::<B, 3>(&output);
 
                 node.requirements([state])
                     .run(|node, [(weights, indexes)]| {
@@ -73,11 +74,11 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             fn backward(
                 self,
                 [node_x, node_weight, node_bias]: OpsNodes<3>,
-                output: BackwardTensor<B, 4>,
+                output: NodeRef,
                 grads: &mut Gradients,
                 state: Self::State,
             ) {
-                let grad = grads.consume(&output);
+                let grad = grads.consume::<B, 4>(&output);
 
                 let (x, weight, bias, stride) = state.unwrap();
                 let backward = B::conv2d_backward(x, weight, Some(bias), stride, grad);
@@ -94,11 +95,11 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             fn backward(
                 self,
                 [node_x, node_weight]: OpsNodes<2>,
-                output: BackwardTensor<B, 4>,
+                output: NodeRef,
                 grads: &mut Gradients,
                 state: Self::State,
             ) {
-                let grad = grads.consume(&output);
+                let grad = grads.consume::<B, 4>(&output);
 
                 let (x, weight, stride) = state.unwrap();
                 let backward = B::conv2d_backward(x, weight, None, stride, grad);
@@ -161,11 +162,11 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             fn backward(
                 self,
                 [node_x, node_weight, node_bias]: OpsNodes<3>,
-                output: BackwardTensor<B, 3>,
+                output: NodeRef,
                 grads: &mut Gradients,
                 state: Self::State,
             ) {
-                let grad = grads.consume(&output);
+                let grad = grads.consume::<B, 3>(&output);
 
                 let (x, weight, bias, stride) = state.unwrap();
                 let backward = B::conv1d_backward(x, weight, Some(bias), stride, grad);
@@ -182,11 +183,11 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             fn backward(
                 self,
                 [node_x, node_weight]: OpsNodes<2>,
-                output: BackwardTensor<B, 3>,
+                output: NodeRef,
                 grads: &mut Gradients,
                 state: Self::State,
             ) {
-                let grad = grads.consume(&output);
+                let grad = grads.consume::<B, 3>(&output);
 
                 let (x, weight, stride) = state.unwrap();
                 let backward = B::conv1d_backward(x, weight, None, stride, grad);
@@ -297,11 +298,11 @@ impl<B: Backend> Backward<B, 4, 1> for MaxPool2D {
     fn backward(
         self,
         [node]: OpsNodes<1>,
-        output: BackwardTensor<B, 4>,
+        output: NodeRef,
         grads: &mut Gradients,
         (x, indexes, kernel_size, stride, padding): Self::State,
     ) {
-        let grad = grads.consume(&output);
+        let grad = grads.consume::<B, 4>(&output);
 
         node.run(|node, _| {
             let grad =

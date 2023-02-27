@@ -32,19 +32,16 @@ impl Gradients {
     ///
     /// Each tensor should be consumed exactly 1 time if its gradient is only required during the
     /// backward pass.
-    pub fn consume<B: Backend, const D: usize>(
-        &mut self,
-        tensor: &BackwardTensor<B, D>,
-    ) -> TensorPrimitive<B, D> {
-        match tensor.node.requirement {
+    pub fn consume<B: Backend, const D: usize>(&mut self, node: &NodeRef) -> TensorPrimitive<B, D> {
+        match node.requirement {
             Requirement::Grad => self
                 .container
-                .get::<B, D>(&tensor.node.id.value)
+                .get::<B, D>(&node.id.value)
                 .map(|tensor| tensor.into_primitive())
                 .expect("Can't consume the gradients before they are registered at least once."),
             Requirement::GradInBackward => self
                 .container
-                .remove::<B, D>(&tensor.node.id.value)
+                .remove::<B, D>(&node.id.value)
                 .map(|tensor| tensor.into_primitive())
                 .expect("Can't consume the gradients before they are registered at least once."),
             Requirement::None => panic!("Trying to consume the gradients for an untracked tensor"),
