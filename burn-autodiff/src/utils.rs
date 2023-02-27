@@ -9,9 +9,9 @@ use crate::ops::OpsNode;
 ///
 /// If the object is a tensor and if one reference exist to a tensor at one time, it can be
 /// updated inplace.
-pub fn duplicate<T: Clone, const N: usize>(nodes: [&OpsNode; N], obj: T) -> [Option<T>; N] {
+pub fn duplicate<T: Clone, const N: usize>(nodes: [&OpsNode<(), 0>; N], obj: T) -> [Option<T>; N] {
     nodes.map(|node| match node {
-        OpsNode::Node(_) => Some(obj.clone()),
+        OpsNode::Node(_, _) => Some(obj.clone()),
         OpsNode::Untrack => None,
     })
 }

@@ -8,99 +8,96 @@ use crate::{
     tensor::{ADTensor, BackwardTensor},
 };
 
-/// Trait for all operations.
-///
-/// An operation have a forward and a backward associated type to specify what data are necessary
-/// during those steps.
+/// Trait for all operatiors.
 ///
 /// # Notes
 ///
 /// Concrete types implementing this trait should not have any state, they are only used to dispatch
-/// the right function implementation. If data is necessary during the foward or backward pass,
+/// the right function implementation.
+///
+/// If a state is necessary during the backward pass,
 /// they should be declared with the associated types.
-pub trait Ops<B, const D: usize, const N: usize>: Send + Sync + std::fmt::Debug
+pub trait Backward<B, const D: usize, const N: usize>: Send + Sync + std::fmt::Debug
 where
     Self: Sized + 'static,
     B: Backend,
 {
-    /// Associated type to compute the forward pass.
-    type Forward: Clone + Send + Sync + std::fmt::Debug + 'static;
     /// Associated type to compute the backward pass.
-    type Backward: Clone + Send + Sync + std::fmt::Debug + 'static;
+    type State: Clone + Send + Sync + std::fmt::Debug + 'static;
 
-    /// The forward pass.
-    fn forward(&self, state: Self::Forward) -> B::TensorPrimitive<D>;
     /// The backward pass.
     fn backward(
         self,
         nodes: OpsNodes<N>,
         output: BackwardTensor<B, D>,
         grads: &mut Gradients<B>,
-        state: Self::Backward,
+        state: Self::State,
     );
     /// Run the operation:
     ///
     /// 1. Determine the right grad requirement.
-    /// 2. Execute the forward pass.
-    /// 3. Create the backward step (if required)
-    /// 4. Register the step into the graph (if required)
-    /// 5. Returns the tensor.
+    /// 2. Create the backward step (if required)
+    /// 3. Register the step into the graph (if required)
+    /// 4. Returns the tensor.
     fn run(
         self,
+        state: Self::State,
+        output: B::TensorPrimitive<D>,
         nodes: [NodeRef; N],
         graphs: [Graph<B>; N],
-        state_forward: Self::Forward,
-        state_backward: Self::Backward,
     ) -> ADTensor<B, D> {
         let requirement = Requirement::from_nodes(&nodes);
+        let output = ADTensor::from_ops(&nodes, output, graphs, requirement);
 
         if let Requirement::None = requirement {
-            // Free the backward state, so if there are any reference
-            // to the same tensors used in the forward pass, inplace
-            // operations could be used.
-            std::mem::drop(state_backward);
-
-            return ADTensor::from_ops(&nodes, self.forward(state_forward), graphs, requirement);
+            return output;
         }
 
-        let output = ADTensor::from_ops(&nodes, self.forward(state_forward), graphs, requirement);
-
         let nodes = nodes.map(|node| match node.clone_if_require_grad() {
-            Some(node) => OpsNode::Node(node),
+            Some(node) => OpsNode::Node(node, []),
             None => OpsNode::Untrack,
         });
-        let ops = OpsBackward::new(nodes, output.to_backward(), self, state_backward);
+        let ops = OpsStep::new(nodes, output.to_backward(), self, state);
 
         output.register_ops(ops)
     }
 }
 
-pub type OpsNodes<const N: usize> = [OpsNode; N];
+pub type OpsNodes<const N: usize> = [OpsNode<(), 0>; N];
 
 #[derive(Debug)]
-pub enum OpsNode {
-    Node(NodeRef),
+pub enum OpsNode<T, const D: usize> {
+    Node(NodeRef, [T; D]),
     Untrack,
 }
 
-impl OpsNode {
+impl<T, const D: usize> OpsNode<T, D> {
     pub fn run<F>(self, func: F)
     where
-        F: FnOnce(NodeRef),
+        F: FnOnce(NodeRef, [T; D]),
     {
         match self {
-            Self::Node(node) => func(node),
+            Self::Node(node, args) => func(node, args),
             Self::Untrack => (),
         }
     }
 }
 
+impl OpsNode<(), 0> {
+    /// Set the requirements for the operation to be executed.
+    pub fn requirements<T, const D: usize>(self, items: [Option<T>; D]) -> OpsNode<T, D> {
+        match self {
+            Self::Node(node, _) => OpsNode::Node(node, items.map(|item| item.unwrap())),
+            Self::Untrack => OpsNode::Untrack,
+        }
+    }
+}
+
 #[derive(new, Debug)]
-struct OpsBackward<B, T, SF, SB, const D: usize, const N: usize>
+struct OpsStep<B, T, SB, const D: usize, const N: usize>
 where
     B: Backend,
-    T: Ops<B, D, N, Forward = SF, Backward = SB>,
-    SF: Clone + Send + Sync + std::fmt::Debug + 'static,
+    T: Backward<B, D, N, State = SB>,
     SB: Clone + Send + Sync + std::fmt::Debug + 'static,
 {
     nodes: OpsNodes<N>,
@@ -109,12 +106,10 @@ where
     state: SB,
 }
 
-impl<B, T, SF, SB, const D: usize, const NUM_INPUTS: usize> Step<B>
-    for OpsBackward<B, T, SF, SB, D, NUM_INPUTS>
+impl<B, T, SB, const D: usize, const N: usize> Step<B> for OpsStep<B, T, SB, D, N>
 where
     B: Backend,
-    T: Ops<B, D, NUM_INPUTS, Forward = SF, Backward = SB>,
-    SF: Clone + Send + Sync + std::fmt::Debug + 'static,
+    T: Backward<B, D, N, State = SB>,
     SB: Clone + Send + Sync + std::fmt::Debug + 'static,
 {
     fn step(self: Box<Self>, grads: &mut Gradients<B>) {

@@ -16,7 +16,6 @@ impl Requirement {
     pub fn is_none(&self) -> bool {
         matches!(self, Self::None)
     }
-
     /// Returns the right requirement from a list of nodes.
     pub fn from_nodes(nodes: &[NodeRef]) -> Self {
         nodes

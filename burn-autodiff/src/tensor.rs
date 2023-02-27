@@ -80,12 +80,15 @@ impl<B: Backend, const D: usize> ADTensor<B, D> {
         };
         tensor.require_grad()
     }
+    pub fn is_tracked(&self) -> bool {
+        !self.node.requirement.is_none()
+    }
 
     pub fn require_grad(mut self) -> Self {
         match self.node.requirement {
             Requirement::Grad => self,
             Requirement::GradInBackward => {
-                panic!("Can't require grad to a non leaf tensor")
+                panic!("Can't convert a non leaf tensor into a tracked tensor")
             }
             Requirement::None => {
                 let node = Node::new(vec![], 0, self.node.id.clone(), Requirement::Grad);
