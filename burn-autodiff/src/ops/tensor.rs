@@ -1251,7 +1251,6 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     node.run(|node, _| {
                         let mut indexes = indexes.clone();
                         indexes[self.dim] = i..i + 1;
-                        println!("Registering grad for node {:?}", node);
                         grads.register::<B, D>(node, B::index(grad.clone(), indexes));
                     });
                 });
@@ -1279,7 +1278,6 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         });
 
         let requirement = Requirement::from_nodes(&nodes);
-        println!("{:?}", requirement);
         let output = B::cat(primitives, dim);
         let output = ADTensor::from_ops(&nodes, output, graphs.into_iter(), requirement);
 

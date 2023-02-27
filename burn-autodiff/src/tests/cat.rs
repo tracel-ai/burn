@@ -12,13 +12,10 @@ mod tests {
         let tensor_2 = TestADTensor::from_data(data_2);
 
         let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
-        println!("Ixi");
         let grads = tensor_3.backward();
-        println!("Nop");
 
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
-        println!("Never");
 
         let mut tensor_1_list = Vec::new();
         let mut tensor_2_list = Vec::new();
