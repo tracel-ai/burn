@@ -5,23 +5,10 @@ use crate::{grads::Gradients, tensor::ADTensor};
 use super::{traversal::BreadthFirstSearch, Graph, NodeRef, StepBoxed};
 
 pub fn backward<B: Backend, const D: usize>(root: ADTensor<B, D>) -> Gradients<B> {
-    let grads = init_grads(root.node.clone(), root.primitive);
+    let grads = Gradients::new(root.node.clone(), root.primitive);
     let tape = build_tape(root.node, root.graph);
 
     execute_steps(tape, grads)
-}
-
-fn init_grads<B: Backend, const D: usize>(
-    root_node: NodeRef,
-    root_tensor: B::TensorPrimitive<D>,
-) -> Gradients<B> {
-    let mut grads = Gradients::<B>::new();
-    grads.update(
-        root_node,
-        B::ones(B::shape(&root_tensor), &B::device(&root_tensor)),
-    );
-
-    grads
 }
 
 fn build_tape<B: Backend>(root: NodeRef, graph: Graph<B>) -> Vec<Vec<StepBoxed<B>>> {
