@@ -7,7 +7,7 @@ use crate::{
     graph::{
         NodeRef, Requirement, {Graph, Step},
     },
-    tensor::{ADTensor, BackwardTensor},
+    tensor::ADTensor,
 };
 
 /// Trait for all operatiors.

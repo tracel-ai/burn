@@ -17,12 +17,6 @@ pub struct ADTensor<B: Backend, const D: usize> {
     pub(crate) graph: Graph,
 }
 
-#[derive(new, Debug, Clone)]
-pub struct BackwardTensor<B: Backend, const D: usize> {
-    pub primitive: B::TensorPrimitive<D>,
-    pub node: NodeRef,
-}
-
 pub type Elem<B> = <ADBackendDecorator<B> as Backend>::Elem;
 pub type BoolTensor<B, const D: usize> = <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D>;
 pub type IntTensor<B, const D: usize> =
@@ -126,10 +120,6 @@ impl<B: Backend, const D: usize> ADTensor<B, D> {
             node: node.into(),
             graph,
         }
-    }
-
-    pub fn to_backward(&self) -> BackwardTensor<B, D> {
-        BackwardTensor::new(self.primitive.clone(), self.node.clone())
     }
 
     pub fn register_ops<O: Step + 'static>(mut self, ops: O) -> Self {

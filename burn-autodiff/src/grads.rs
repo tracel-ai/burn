@@ -2,7 +2,7 @@ use burn_tensor::{backend::Backend, container::TensorContainer, Tensor};
 
 use crate::{
     graph::{NodeRef, Requirement},
-    tensor::{ADTensor, BackwardTensor},
+    tensor::ADTensor,
 };
 
 pub type GradID = String;
