@@ -26,7 +26,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
                 node.requirements([state])
                     .run(|node, [(weights, indexes)]| {
-                        let grad = B::embedding_backward(weights, grad, indexes.clone());
+                        let grad = B::embedding_backward(weights, grad, indexes);
                         grads.register::<B, 2>(node, grad);
                     });
             }
@@ -260,7 +260,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let state = (x.primitive, indexes.clone(), kernel_size, stride, padding);
 
         let output = MaxPool2D.run(state, output.output, [x.node], [x.graph]);
-        return MaxPool2dWithIndexes::new(output, indexes);
+        MaxPool2dWithIndexes::new(output, indexes)
     }
 
     fn max_pool2d_with_indexes_backward(

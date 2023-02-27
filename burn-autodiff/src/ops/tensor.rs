@@ -2,8 +2,8 @@ use std::marker::PhantomData;
 
 use crate::{
     grads::Gradients,
-    graph::NodeRef,
-    ops::{Backward, OpsNodes},
+    graph::{NodeRef, Requirement, Step},
+    ops::{Backward, OpsNode, OpsNodes},
     tensor::{ADTensor, BoolTensor, Elem, IntTensor},
     utils::duplicate,
     ADBackendDecorator,
@@ -921,7 +921,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             (),
             B::from_full_precision(tensor.primitive),
             [tensor.node.clone()],
-            [tensor.graph.clone()],
+            [tensor.graph],
         )
     }
 
@@ -1232,8 +1232,71 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         )
     }
 
-    fn cat<const D: usize>(_tensors: Vec<ADTensor<B, D>>, _dim: usize) -> ADTensor<B, D> {
-        todo!()
+    fn cat<const D: usize>(tensors: Vec<ADTensor<B, D>>, dim: usize) -> ADTensor<B, D> {
+        #[derive(new, Debug)]
+        struct CatStep<B: Backend, const D: usize> {
+            nodes: Vec<OpsNode<(), 0>>,
+            output: NodeRef,
+            phantom: PhantomData<B>,
+            dim: usize,
+        }
+
+        impl<B: Backend, const D: usize> Step for CatStep<B, D> {
+            fn step(self: Box<Self>, grads: &mut Gradients) {
+                let grad = grads.consume::<B, D>(&self.output);
+                let indexes: Vec<_> = B::shape(&grad).dims.iter().map(|v| 0..*v).collect();
+                let indexes: [std::ops::Range<usize>; D] = indexes.try_into().unwrap();
+
+                self.nodes.into_iter().enumerate().for_each(|(i, node)| {
+                    node.run(|node, _| {
+                        let mut indexes = indexes.clone();
+                        indexes[self.dim] = i..i + 1;
+                        println!("Registering grad for node {:?}", node);
+                        grads.register::<B, D>(node, B::index(grad.clone(), indexes));
+                    });
+                });
+            }
+
+            fn node(&self) -> NodeRef {
+                self.output.clone()
+            }
+        }
+
+        let is_tracked = tensors
+            .iter()
+            .map(|tensor| tensor.is_tracked())
+            .reduce(|acc, is_tracked| is_tracked || acc)
+            .unwrap_or(false);
+
+        let mut nodes = Vec::with_capacity(tensors.len());
+        let mut graphs = Vec::with_capacity(tensors.len());
+        let mut primitives = Vec::with_capacity(tensors.len());
+
+        tensors.into_iter().for_each(|tensor| {
+            nodes.push(tensor.node);
+            primitives.push(tensor.primitive);
+            graphs.push(tensor.graph);
+        });
+
+        let requirement = Requirement::from_nodes(&nodes);
+        println!("{:?}", requirement);
+        let output = B::cat(primitives, dim);
+        let output = ADTensor::from_ops(&nodes, output, graphs.into_iter(), requirement);
+
+        let nodes = nodes
+            .into_iter()
+            .map(|node| match node.clone_if_require_grad() {
+                Some(node) => OpsNode::Tracked(node, []),
+                None => OpsNode::Untrack,
+            })
+            .collect::<Vec<_>>();
+
+        if !is_tracked {
+            return output;
+        }
+
+        let ops = CatStep::<B, D>::new(nodes, output.node.clone(), dim);
+        output.register_ops(ops)
     }
 
     fn relu<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {

@@ -90,14 +90,13 @@ impl<B: Backend, const D: usize> ADTensor<B, D> {
         }
     }
 
-    pub fn from_ops<const N: usize>(
-        nodes: &[NodeRef; N],
+    pub fn from_ops<I: Iterator<Item = Graph>>(
+        nodes: &[NodeRef],
         output: B::TensorPrimitive<D>,
-        graphs: [Graph; N],
+        graphs: I,
         requirement: Requirement,
     ) -> Self {
         let graph = graphs
-            .into_iter()
             .reduce(|acc, graph| graph.merge(acc))
             .unwrap_or(Graph::new());
 

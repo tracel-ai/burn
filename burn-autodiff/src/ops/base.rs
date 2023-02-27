@@ -49,7 +49,7 @@ where
         graphs: [Graph; N],
     ) -> ADTensor<B, D> {
         let requirement = Requirement::from_nodes(&nodes);
-        let output = ADTensor::from_ops(&nodes, output, graphs, requirement);
+        let output = ADTensor::from_ops(&nodes, output, graphs.into_iter(), requirement);
 
         if let Requirement::None = requirement {
             return output;
