@@ -1,7 +1,5 @@
 use std::collections::HashSet;
 
-use burn_tensor::backend::Backend;
-
 use super::{Graph, NodeRef, StepBoxed};
 
 /// Breadth for search algorithm.
@@ -9,10 +7,10 @@ pub struct BreadthFirstSearch;
 
 impl BreadthFirstSearch {
     /// Traverse the graph of backward steps from a root node.
-    pub fn traverse<B: Backend, F: FnMut(NodeRef, StepBoxed<B>)>(
+    pub fn traverse<F: FnMut(NodeRef, StepBoxed)>(
         &self,
         root: NodeRef,
-        graph: Graph<B>,
+        graph: Graph,
         mut callback: F,
     ) {
         let mut visited = HashSet::with_capacity(root.order);

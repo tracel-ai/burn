@@ -30,7 +30,7 @@ where
         self,
         nodes: OpsNodes<N>,
         output: BackwardTensor<B, D>,
-        grads: &mut Gradients<B>,
+        grads: &mut Gradients,
         state: Self::State,
     );
     /// Run the operation:
@@ -44,7 +44,7 @@ where
         state: Self::State,
         output: B::TensorPrimitive<D>,
         nodes: [NodeRef; N],
-        graphs: [Graph<B>; N],
+        graphs: [Graph; N],
     ) -> ADTensor<B, D> {
         let requirement = Requirement::from_nodes(&nodes);
         let output = ADTensor::from_ops(&nodes, output, graphs, requirement);
@@ -113,13 +113,13 @@ where
     state: SB,
 }
 
-impl<B, T, SB, const D: usize, const N: usize> Step<B> for OpsStep<B, T, SB, D, N>
+impl<B, T, SB, const D: usize, const N: usize> Step for OpsStep<B, T, SB, D, N>
 where
     B: Backend,
     T: Backward<B, D, N, State = SB>,
     SB: Clone + Send + Sync + std::fmt::Debug + 'static,
 {
-    fn step(self: Box<Self>, grads: &mut Gradients<B>) {
+    fn step(self: Box<Self>, grads: &mut Gradients) {
         self.ops
             .backward(self.nodes, self.output, grads, self.state);
     }

@@ -8,16 +8,21 @@ use crate::{
 pub type GradID = String;
 
 /// Gradients container used during the backward pass.
-pub struct Gradients<B: Backend> {
-    container: TensorContainer<B, GradID>,
+pub struct Gradients {
+    container: TensorContainer<GradID>,
 }
 
-impl<B: Backend> Gradients<B> {
-    pub fn new<const D: usize>(root_node: NodeRef, root_tensor: B::TensorPrimitive<D>) -> Self {
+type TensorPrimitive<B, const D: usize> = <B as Backend>::TensorPrimitive<D>;
+
+impl Gradients {
+    pub fn new<B: Backend, const D: usize>(
+        root_node: NodeRef,
+        root_tensor: TensorPrimitive<B, D>,
+    ) -> Self {
         let mut gradients = Self {
             container: TensorContainer::new(),
         };
-        gradients.register(
+        gradients.register::<B, D>(
             root_node,
             B::ones(B::shape(&root_tensor), &B::device(&root_tensor)),
         );
@@ -27,40 +32,47 @@ impl<B: Backend> Gradients<B> {
     ///
     /// Each tensor should be consumed exactly 1 time if its gradient is only required during the
     /// backward pass.
-    pub fn consume<const D: usize>(
+    pub fn consume<B: Backend, const D: usize>(
         &mut self,
         tensor: &BackwardTensor<B, D>,
-    ) -> B::TensorPrimitive<D> {
+    ) -> TensorPrimitive<B, D> {
         match tensor.node.requirement {
             Requirement::Grad => self
                 .container
-                .get(&tensor.node.id.value)
+                .get::<B, D>(&tensor.node.id.value)
                 .map(|tensor| tensor.into_primitive())
                 .expect("Can't consume the gradients before they are registered at least once."),
             Requirement::GradInBackward => self
                 .container
-                .remove(&tensor.node.id.value)
+                .remove::<B, D>(&tensor.node.id.value)
                 .map(|tensor| tensor.into_primitive())
                 .expect("Can't consume the gradients before they are registered at least once."),
             Requirement::None => panic!("Trying to consume the gradients for an untracked tensor"),
         }
     }
 
-    pub fn get<const D: usize>(&self, tensor: &ADTensor<B, D>) -> Option<B::TensorPrimitive<D>> {
+    pub fn get<B: Backend, const D: usize>(
+        &self,
+        tensor: &ADTensor<B, D>,
+    ) -> Option<TensorPrimitive<B, D>> {
         self.container
-            .get(&tensor.node.id.value)
+            .get::<B, D>(&tensor.node.id.value)
             .map(|tensor| tensor.into_primitive())
     }
 
-    pub fn register<const D: usize>(&mut self, node: NodeRef, value: B::TensorPrimitive<D>) {
-        if let Some(tensor_old) = self.container.remove(&node.id.value) {
+    pub fn register<B: Backend, const D: usize>(
+        &mut self,
+        node: NodeRef,
+        value: TensorPrimitive<B, D>,
+    ) {
+        if let Some(tensor_old) = self.container.remove::<B, D>(&node.id.value) {
             self.container.register(
                 node.id.value.clone(),
                 Tensor::from_primitive(value).add(tensor_old),
             );
         } else {
             self.container
-                .register(node.id.value.clone(), Tensor::from_primitive(value));
+                .register::<B, D>(node.id.value.clone(), Tensor::from_primitive(value));
         }
     }
 }

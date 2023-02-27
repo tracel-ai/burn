@@ -3,45 +3,37 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use burn_tensor::backend::Backend;
-
 use crate::grads::Gradients;
 
 use super::{NodeID, NodeRef};
 
 /// Backward step for reverse mode autodiff.
-pub trait Step<B: Backend>: Send + Sync + std::fmt::Debug {
+pub trait Step: Send + Sync + std::fmt::Debug {
     /// Executes the step and consumes it.
-    fn step(self: Box<Self>, grads: &mut Gradients<B>);
+    fn step(self: Box<Self>, grads: &mut Gradients);
     /// The node associated to the step.
     fn node(&self) -> NodeRef;
 }
 
-pub type StepBoxed<B> = Box<dyn Step<B>>;
-pub type NodeSteps<B> = HashMap<NodeID, Box<dyn Step<B>>>;
+pub type StepBoxed = Box<dyn Step>;
+pub type NodeSteps = HashMap<NodeID, StepBoxed>;
 
 /// Graph data structure.
 ///
 /// The graph contains the [node steps](Step), which can be access by [node id](NodeID).
-#[derive(Default, Clone)]
-pub struct Graph<B: Backend> {
-    steps: Arc<Mutex<NodeSteps<B>>>,
+#[derive(Default, Clone, Debug)]
+pub struct Graph {
+    steps: Arc<Mutex<NodeSteps>>,
 }
 
-impl<B: Backend> std::fmt::Debug for Graph<B> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(format!("OpsMap<{:?}>", B::name()).as_str())
-    }
-}
-
-impl<B: Backend> Graph<B> {
+impl Graph {
     /// Create a new graph.
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Get all the steps for the graph.
-    pub fn steps(self) -> NodeSteps<B> {
+    pub fn steps(self) -> NodeSteps {
         let mut map_drain = HashMap::new();
         self.execute_mut(|map| {
             std::mem::swap(&mut *map, &mut map_drain);
@@ -51,7 +43,7 @@ impl<B: Backend> Graph<B> {
     }
 
     /// Register a new step into the graph.
-    pub fn register(self, id: &NodeID, ops: StepBoxed<B>) -> Self {
+    pub fn register(self, id: &NodeID, ops: StepBoxed) -> Self {
         self.execute_mut(|map| {
             map.insert(id.clone(), ops);
         })
@@ -66,7 +58,7 @@ impl<B: Backend> Graph<B> {
         self.merge_different(other)
     }
 
-    fn execute_mut<F: FnOnce(&mut NodeSteps<B>)>(mut self, func: F) -> Self {
+    fn execute_mut<F: FnOnce(&mut NodeSteps)>(mut self, func: F) -> Self {
         match Arc::get_mut(&mut self.steps) {
             Some(mutex) => {
                 let map = mutex.get_mut().unwrap();

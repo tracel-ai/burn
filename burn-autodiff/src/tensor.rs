@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use burn_tensor::backend::Backend;
 
 use crate::{
@@ -16,7 +14,7 @@ use burn_tensor::ops::*;
 pub struct ADTensor<B: Backend, const D: usize> {
     pub primitive: B::TensorPrimitive<D>,
     pub node: NodeRef,
-    pub(crate) graph: Graph<B>,
+    pub(crate) graph: Graph,
 }
 
 #[derive(new, Debug, Clone)]
@@ -54,13 +52,12 @@ impl<B: Backend, const D: usize> Ones for ADTensor<B, D> {
 }
 
 #[derive(new, Debug)]
-struct RootStep<B: Backend> {
+struct RootStep {
     node: NodeRef,
-    phantom: PhantomData<B>,
 }
 
-impl<B: Backend> Step<B> for RootStep<B> {
-    fn step(self: Box<Self>, _grads: &mut Gradients<B>) {
+impl Step for RootStep {
+    fn step(self: Box<Self>, _grads: &mut Gradients) {
         // Nothing to do
     }
 
@@ -102,7 +99,7 @@ impl<B: Backend, const D: usize> ADTensor<B, D> {
     pub fn from_ops<const N: usize>(
         nodes: &[NodeRef; N],
         output: B::TensorPrimitive<D>,
-        graphs: [Graph<B>; N],
+        graphs: [Graph; N],
         requirement: Requirement,
     ) -> Self {
         let graph = graphs
@@ -135,7 +132,7 @@ impl<B: Backend, const D: usize> ADTensor<B, D> {
         BackwardTensor::new(self.primitive.clone(), self.node.clone())
     }
 
-    pub fn register_ops<O: Step<B> + 'static>(mut self, ops: O) -> Self {
+    pub fn register_ops<O: Step + 'static>(mut self, ops: O) -> Self {
         self.graph = self.graph.register(&self.node.id, Box::new(ops));
         self
     }

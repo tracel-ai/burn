@@ -4,38 +4,39 @@ use burn_tensor::{backend::ADBackend, Tensor};
 use super::visitor::GradientsParams;
 
 /// Accumulate gradients into a single [Gradients](ADBackend::Gradients) object.
-pub struct GradientsAccumulator<B: ADBackend> {
-    grads: GradientsParams<B>,
+pub struct GradientsAccumulator {
+    grads: GradientsParams,
 }
 
-impl<B: ADBackend> Default for GradientsAccumulator<B> {
+impl Default for GradientsAccumulator {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<B: ADBackend> GradientsAccumulator<B> {
+impl GradientsAccumulator {
     /// Create a new gradients accumulator.
     pub fn new() -> Self {
         Self {
-            grads: GradientsParams::<B>::new(),
+            grads: GradientsParams::new(),
         }
     }
 }
 
-impl<B: ADBackend> GradientsAccumulator<B> {
+impl GradientsAccumulator {
     /// Accumulate the given gradients for each parameter in the given module.
-    pub fn accumulate<M>(&mut self, module: &M, grads: GradientsParams<B>)
+    pub fn accumulate<M>(&mut self, module: &M, grads: GradientsParams)
     where
-        M: Module<Backend = B>,
+        M: Module,
+        M::Backend: ADBackend,
     {
         let mut visitor = ModuleGradsAccumulator::new(&mut self.grads, grads);
         module.visit(&mut visitor);
     }
 
     /// Return the accumulated gradients and reset the accumulator state.
-    pub fn grads(&mut self) -> GradientsParams<B> {
-        let mut grads = GradientsParams::<B>::new();
+    pub fn grads(&mut self) -> GradientsParams {
+        let mut grads = GradientsParams::new();
         core::mem::swap(&mut self.grads, &mut grads);
 
         grads
@@ -43,19 +44,19 @@ impl<B: ADBackend> GradientsAccumulator<B> {
 }
 
 #[derive(new)]
-struct ModuleGradsAccumulator<'a, B: ADBackend> {
-    grads: &'a mut GradientsParams<B>,
-    grads_new: GradientsParams<B>,
+struct ModuleGradsAccumulator<'a> {
+    grads: &'a mut GradientsParams,
+    grads_new: GradientsParams,
 }
 
-impl<'a, B: ADBackend> ModuleVisitor<B> for ModuleGradsAccumulator<'a, B> {
+impl<'a, B: ADBackend> ModuleVisitor<B> for ModuleGradsAccumulator<'a> {
     fn visit<const D: usize>(&mut self, id: &ParamId, _tensor: &Tensor<B, D>) {
-        let grad_updated = match self.grads_new.get::<D>(id) {
-            Some(new) => match self.grads.get::<D>(id) {
+        let grad_updated = match self.grads_new.get::<B, D>(id) {
+            Some(new) => match self.grads.get::<B, D>(id) {
                 Some(grad) => grad.add(new),
                 None => new,
             },
-            None => match self.grads.get::<D>(id) {
+            None => match self.grads.get::<B, D>(id) {
                 Some(grad) => grad,
                 None => return,
             },
@@ -77,7 +78,7 @@ mod tests {
 
     #[test]
     fn test_accumulate_gradients_one_step() {
-        let mut accumulator = GradientsAccumulator::<TestADBackend>::new();
+        let mut accumulator = GradientsAccumulator::new();
         let layer = layer();
         let loss = layer.forward(random_tensor());
         let grads = convert_grads(loss.backward(), &layer);
@@ -90,7 +91,7 @@ mod tests {
 
     #[test]
     fn test_accumulate_gradients_two_steps() {
-        let mut accumulator = GradientsAccumulator::<TestADBackend>::new();
+        let mut accumulator = GradientsAccumulator::new();
         let layer = layer();
         let loss_1 = layer.forward(random_tensor());
         let loss_2 = layer.forward(random_tensor());
