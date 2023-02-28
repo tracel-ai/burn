@@ -8,9 +8,17 @@ use crate::ops::OpsNode;
 /// will be updated.
 ///
 /// If the object is a tensor and if one reference exists, it can be updated inplace.
-pub fn duplicate<T: Clone, const N: usize>(nodes: [&OpsNode<(), 0>; N], obj: T) -> [Option<T>; N] {
-    nodes.map(|node| match node {
-        OpsNode::Tracked(_, _) => Some(obj.clone()),
-        OpsNode::Untrack => None,
-    })
+pub fn duplicate<T: Clone + std::fmt::Debug, const N: usize>(
+    nodes: &[OpsNode<(), 0>; N],
+    obj: Option<T>,
+) -> [Option<T>; N] {
+    nodes
+        .iter()
+        .map(|node| match node {
+            OpsNode::Tracked(_, _) => obj.clone(),
+            OpsNode::Untrack => None,
+        })
+        .collect::<Vec<_>>()
+        .try_into()
+        .unwrap()
 }

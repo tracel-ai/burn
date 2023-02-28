@@ -8,6 +8,7 @@ use crate::{
         NodeRef, Requirement, {Graph, Step},
     },
     tensor::ADTensor,
+    utils::duplicate,
 };
 
 /// Trait for all operatiors.
@@ -149,6 +150,49 @@ pub struct Ops<S, const N: usize> {
 }
 
 pub type OpsNodes<const N: usize> = [OpsNode<(), 0>; N];
+
+pub fn binary<B, const D_OUT: usize, const D_LHS: usize, const D_RHS: usize, FLhs, FRhs>(
+    parents: OpsNodes<2>,
+    node: NodeRef,
+    grads: &mut Gradients,
+    func_lhs: FLhs,
+    func_rhs: FRhs,
+) where
+    B: Backend,
+    FLhs: FnOnce(B::TensorPrimitive<D_OUT>) -> B::TensorPrimitive<D_LHS>,
+    FRhs: FnOnce(B::TensorPrimitive<D_OUT>) -> B::TensorPrimitive<D_RHS>,
+{
+    let [grad_4lhs, grad_4rhs] = duplicate(&parents, Some(grads.consume::<B, D_OUT>(&node)));
+    let [node_lhs, node_rhs] = parents;
+
+    node_lhs.requirements([grad_4lhs]).run(|node, [grad]| {
+        let grad = func_lhs(grad);
+        grads.register::<B, D_LHS>(node, grad)
+    });
+
+    node_rhs.requirements([grad_4rhs]).run(|node, [grad]| {
+        let grad = func_rhs(grad);
+        grads.register::<B, D_RHS>(node, grad)
+    });
+}
+
+pub fn unary<B, const D_OUT: usize, const D_IN: usize, F>(
+    parents: OpsNodes<1>,
+    node: NodeRef,
+    grads: &mut Gradients,
+    func: F,
+) where
+    B: Backend,
+    F: FnOnce(B::TensorPrimitive<D_OUT>) -> B::TensorPrimitive<D_IN>,
+{
+    let [parent_node] = parents;
+    let grad = grads.consume::<B, D_OUT>(&node);
+
+    parent_node.run(|node, _| {
+        let grad = func(grad);
+        grads.register::<B, D_IN>(node, grad)
+    });
+}
 
 /// Node operation.
 #[derive(Debug)]
