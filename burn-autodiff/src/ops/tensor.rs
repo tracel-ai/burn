@@ -1023,12 +1023,6 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        let is_tracked = tensors
-            .iter()
-            .map(|tensor| tensor.is_tracked())
-            .reduce(|acc, is_tracked| is_tracked || acc)
-            .unwrap_or(false);
-
         let mut nodes = Vec::with_capacity(tensors.len());
         let mut graphs = Vec::with_capacity(tensors.len());
         let mut primitives = Vec::with_capacity(tensors.len());
@@ -1040,17 +1034,17 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         });
 
         let requirement = Requirement::from_nodes(&nodes);
-        let output = B::cat(primitives, dim);
-        let output = ADTensor::from_ops(&nodes, output, graphs.into_iter(), requirement);
 
+        let output = B::cat(primitives, dim);
+        if requirement.is_none() {
+            return ADTensor::from_ops(&nodes, output, graphs.into_iter(), requirement);
+        }
+
+        let output = ADTensor::from_ops(&nodes, output, graphs.into_iter(), requirement);
         let nodes = nodes
             .into_iter()
             .map(|node| node.clone_if_require_grad())
             .collect::<Vec<_>>();
-
-        if !is_tracked {
-            return output;
-        }
 
         let ops = CatStep::<B, D>::new(nodes, output.node.clone(), dim);
         output.register_step(ops)
