@@ -14,7 +14,6 @@ members = [
   "burn-tch",
   "burn-ndarray",
   "burn-autodiff",
-  "burn-autodiff-old",
   "burn-common",
   "burn-no-std-tests",
   "examples/*",
