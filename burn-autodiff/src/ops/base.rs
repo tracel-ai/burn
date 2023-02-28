@@ -35,7 +35,7 @@ where
         self,
         nodes: [NodeRef; N],
         graphs: [Graph; N],
-    ) -> PrepareStep<Self, B, Self::State, D, N, Init> {
+    ) -> PrepareStep<Self, B, Self::State, D, N> {
         let requirement = Requirement::from_nodes(&nodes);
         PrepareStep::new(nodes, graphs, requirement, self)
     }
@@ -48,14 +48,14 @@ pub struct Tracked;
 pub struct Untracked;
 
 #[derive(new)]
-pub struct PrepareStep<BO, B, S, const D: usize, const N: usize, Marker> {
+pub struct PrepareStep<Backward, B, S, const D: usize, const N: usize, Mode = Init> {
     nodes: [NodeRef; N],
     graphs: [Graph; N],
     requirement: Requirement,
-    backward: BO,
+    backward: Backward,
     phantom_backend: PhantomData<B>,
     phantom_state: PhantomData<S>,
-    marker: PhantomData<Marker>,
+    marker: PhantomData<Mode>,
 }
 
 impl<BO, B, S, const D: usize, const N: usize> PrepareStep<BO, B, S, D, N, Init>
@@ -191,6 +191,25 @@ pub fn unary<B, const D_OUT: usize, const D_IN: usize, F>(
     parent_node.run(|node, _| {
         let grad = func(grad);
         grads.register::<B, D_IN>(node, grad)
+    });
+}
+
+pub fn unary_different_backend<BIn, BOut, const D_OUT: usize, const D_IN: usize, F>(
+    parents: OpsNodes<1>,
+    node: NodeRef,
+    grads: &mut Gradients,
+    func: F,
+) where
+    BIn: Backend,
+    BOut: Backend,
+    F: FnOnce(BOut::TensorPrimitive<D_OUT>) -> BIn::TensorPrimitive<D_IN>,
+{
+    let [parent_node] = parents;
+    let grad = grads.consume::<BOut, D_OUT>(&node);
+
+    parent_node.run(|node, _| {
+        let grad = func(grad);
+        grads.register::<BIn, D_IN>(node, grad)
     });
 }
 
