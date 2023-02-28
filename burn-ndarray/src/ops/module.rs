@@ -1,7 +1,6 @@
 use alloc::vec::Vec;
-use core::ops::Add;
 
-use crate::{element::NdArrayElement, tensor::NdArrayTensor, NdArrayBackend};
+use crate::{element::NdArrayElement, tensor::NdArrayTensor, NdArrayBackend, NdArrayDevice};
 
 use burn_tensor::{ops::*, Shape};
 
@@ -42,7 +41,7 @@ impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         let [batch_size, seq_length] = indexes.shape().dims;
         let [_n_embedding, d_model] = weights.shape().dims;
 
-        let mut weights_grad = weights.zeros();
+        let mut weights_grad = NdArrayBackend::zeros(weights.shape(), &NdArrayDevice::Cpu);
         let output =
             NdArrayBackend::reshape(output, Shape::new([batch_size * seq_length, d_model]));
 
@@ -62,7 +61,7 @@ impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
             weights_grad = NdArrayBackend::index_assign(
                 weights_grad,
                 [index..index + 1, 0..d_model],
-                output_grad.add(weights_grad_current),
+                NdArrayBackend::add(output_grad, weights_grad_current),
             );
         }
 

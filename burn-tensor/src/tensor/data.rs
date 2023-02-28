@@ -1,7 +1,6 @@
 use alloc::format;
 use alloc::vec::Vec;
 
-use super::ops::{Ones, Zeros};
 use crate::{tensor::Shape, Element, ElementConversion};
 
 use libm::{pow, round};
@@ -62,9 +61,9 @@ where
             DistributionSamplerKind::Uniform(distribution) => self.rng.sample(distribution),
             DistributionSamplerKind::Bernoulli(distribution) => {
                 if self.rng.sample(distribution) {
-                    P::ones(&P::default())
+                    1.to_elem()
                 } else {
-                    P::zeros(&P::default())
+                    0.to_elem()
                 }
             }
             DistributionSamplerKind::Normal(distribution) => {
@@ -163,16 +162,15 @@ impl<P: Element, const D: usize> Data<P, D> {
 }
 impl<P: core::fmt::Debug, const D: usize> Data<P, D>
 where
-    P: Zeros + Default,
+    P: Element,
 {
     pub fn zeros<S: Into<Shape<D>>>(shape: S) -> Data<P, D> {
         let shape = shape.into();
-        let elem = P::default();
         let num_elements = shape.num_elements();
         let mut data = Vec::with_capacity(num_elements);
 
         for _ in 0..num_elements {
-            data.push(elem.zeros());
+            data.push(0.to_elem());
         }
 
         Data::new(data, shape)
@@ -184,15 +182,14 @@ where
 
 impl<P: core::fmt::Debug, const D: usize> Data<P, D>
 where
-    P: Ones + Default,
+    P: Element,
 {
     pub fn ones(shape: Shape<D>) -> Data<P, D> {
-        let elem = P::default();
         let num_elements = shape.num_elements();
         let mut data = Vec::with_capacity(num_elements);
 
         for _ in 0..num_elements {
-            data.push(elem.ones());
+            data.push(1.to_elem());
         }
 
         Data::new(data, shape)
