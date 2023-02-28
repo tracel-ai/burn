@@ -30,36 +30,114 @@ where
     /// The backward pass.
     fn backward(self, ops: Ops<Self::State, N>, grads: &mut Gradients);
 
-    /// Run the operation:
-    ///
-    /// 1. Determine the right grad requirement.
-    /// 2. Create the backward step (if required)
-    /// 3. Register the step into the graph (if required)
-    /// 4. Returns the tensor.
-    fn run(
+    fn prepare(
         self,
-        state: Self::State,
-        output: B::TensorPrimitive<D>,
         nodes: [NodeRef; N],
         graphs: [Graph; N],
-    ) -> ADTensor<B, D> {
+    ) -> PrepareStep<Self, B, Self::State, D, N, Init> {
         let requirement = Requirement::from_nodes(&nodes);
-        let output = ADTensor::from_ops(&nodes, output, graphs.into_iter(), requirement);
+        PrepareStep::new(nodes, graphs, requirement, self)
+    }
+}
 
-        if let Requirement::None = requirement {
-            return output;
+type TensorPrimitive<B, const D: usize> = <B as Backend>::TensorPrimitive<D>;
+
+pub struct Init;
+pub struct Tracked;
+pub struct Untracked;
+
+#[derive(new)]
+pub struct PrepareStep<BO, B, S, const D: usize, const N: usize, Marker> {
+    nodes: [NodeRef; N],
+    graphs: [Graph; N],
+    requirement: Requirement,
+    backward: BO,
+    phantom_backend: PhantomData<B>,
+    phantom_state: PhantomData<S>,
+    marker: PhantomData<Marker>,
+}
+
+impl<BO, B, S, const D: usize, const N: usize> PrepareStep<BO, B, S, D, N, Init>
+where
+    B: Backend,
+    S: Clone + Send + Sync + std::fmt::Debug + 'static,
+    BO: Backward<B, D, N, State = S>,
+{
+    fn is_tracked(&self) -> bool {
+        !self.requirement.is_none()
+    }
+    pub fn statefull(self) -> PrepKind<BO, B, S, D, N> {
+        match self.is_tracked() {
+            true => PrepKind::Tracked(PrepareStep::new(
+                self.nodes,
+                self.graphs,
+                self.requirement,
+                self.backward,
+            )),
+            false => PrepKind::Untracked(PrepareStep::new(
+                self.nodes,
+                self.graphs,
+                self.requirement,
+                self.backward,
+            )),
         }
+    }
+}
 
-        let ops = Ops::new(
-            nodes.map(|node| match node.clone_if_require_grad() {
-                Some(node) => OpsNode::Tracked(node, []),
-                None => OpsNode::Untrack,
-            }),
-            output.node.clone(),
-            state,
+impl<BO, B, S, const D: usize, const N: usize> PrepareStep<BO, B, S, D, N, Untracked>
+where
+    B: Backend,
+    S: Clone + Send + Sync + std::fmt::Debug + 'static,
+    BO: Backward<B, D, N, State = S>,
+{
+    pub fn finish(self, output: TensorPrimitive<B, D>) -> ADTensor<B, D> {
+        ADTensor::from_ops(
+            &self.nodes,
+            output,
+            self.graphs.into_iter(),
+            self.requirement,
+        )
+    }
+}
+
+impl<BO, B, S, const D: usize, const N: usize> PrepareStep<BO, B, S, D, N, Tracked>
+where
+    B: Backend,
+    S: Clone + Send + Sync + std::fmt::Debug + 'static,
+    BO: Backward<B, D, N, State = S>,
+{
+    pub fn finish(self, state: S, output: TensorPrimitive<B, D>) -> ADTensor<B, D> {
+        let output = ADTensor::from_ops(
+            &self.nodes,
+            output,
+            self.graphs.into_iter(),
+            self.requirement,
         );
+        let parents = self.nodes.map(|node| match node.clone_if_require_grad() {
+            Some(node) => OpsNode::Tracked(node, []),
+            None => OpsNode::Untrack,
+        });
+        let ops = Ops::new(parents, output.node.clone(), state);
 
-        output.register_step(OpsStep::new(ops, self))
+        output.register_step(OpsStep::new(ops, self.backward))
+    }
+}
+
+pub enum PrepKind<BO, B, S, const D: usize, const N: usize> {
+    Tracked(PrepareStep<BO, B, S, D, N, Tracked>),
+    Untracked(PrepareStep<BO, B, S, D, N, Untracked>),
+}
+
+impl<BO, B, const D: usize, const N: usize> PrepareStep<BO, B, (), D, N, Init>
+where
+    B: Backend,
+    BO: Backward<B, D, N, State = ()>,
+{
+    pub fn stateless(self, output: TensorPrimitive<B, D>) -> ADTensor<B, D> {
+        match self.statefull() {
+            PrepKind::Tracked(prep) => prep.finish((), output),
+            PrepKind::Untracked(prep) => prep.finish(output),
+        }
     }
 }
 

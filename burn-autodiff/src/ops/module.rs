@@ -6,6 +6,8 @@ use crate::ADBackendDecorator;
 use burn_tensor::backend::Backend;
 use burn_tensor::ops::*;
 
+use super::PrepKind;
+
 impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     fn embedding(weights: ADTensor<B, 2>, indexes: IntTensor<B, 2>) -> ADTensor<B, 3> {
         #[derive(Debug)]
@@ -26,12 +28,16 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        Embedding.run(
-            (weights.primitive.clone(), indexes.clone()),
-            B::embedding(weights.primitive, indexes),
-            [weights.node],
-            [weights.graph],
-        )
+        match Embedding
+            .prepare([weights.node], [weights.graph])
+            .statefull()
+        {
+            PrepKind::Tracked(prep) => prep.finish(
+                (weights.primitive.clone(), indexes.clone()),
+                B::embedding(weights.primitive, indexes),
+            ),
+            PrepKind::Untracked(prep) => prep.finish(B::embedding(weights.primitive, indexes)),
+        }
     }
 
     fn embedding_backward(
@@ -92,31 +98,59 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
 
         match bias {
-            Some(bias) => Conv2DWithBias.run(
-                (
-                    x.primitive.clone(),
-                    weight.primitive.clone(),
-                    bias.primitive.clone(),
-                    stride,
-                ),
-                B::conv2d(
-                    x.primitive,
-                    weight.primitive,
-                    Some(bias.primitive),
-                    stride,
-                    padding,
-                ),
-                [x.node, weight.node, bias.node],
-                [x.graph, weight.graph, bias.graph],
-            ),
-            None => Conv2DNoBias.run(
-                (x.primitive.clone(), weight.primitive.clone(), stride),
-                B::conv2d(x.primitive, weight.primitive, None, stride, padding),
-                [x.node, weight.node],
-                [x.graph, weight.graph],
-            ),
+            Some(bias) => {
+                match Conv2DWithBias
+                    .prepare(
+                        [x.node, weight.node, bias.node],
+                        [x.graph, weight.graph, bias.graph],
+                    )
+                    .statefull()
+                {
+                    PrepKind::Tracked(prep) => prep.finish(
+                        (
+                            x.primitive.clone(),
+                            weight.primitive.clone(),
+                            bias.primitive.clone(),
+                            stride,
+                        ),
+                        B::conv2d(
+                            x.primitive,
+                            weight.primitive,
+                            Some(bias.primitive),
+                            stride,
+                            padding,
+                        ),
+                    ),
+                    PrepKind::Untracked(prep) => prep.finish(B::conv2d(
+                        x.primitive,
+                        weight.primitive,
+                        Some(bias.primitive),
+                        stride,
+                        padding,
+                    )),
+                }
+            }
+            None => {
+                match Conv2DNoBias
+                    .prepare([x.node, weight.node], [x.graph, weight.graph])
+                    .statefull()
+                {
+                    PrepKind::Tracked(prep) => prep.finish(
+                        (x.primitive.clone(), weight.primitive.clone(), stride),
+                        B::conv2d(x.primitive, weight.primitive, None, stride, padding),
+                    ),
+                    PrepKind::Untracked(prep) => prep.finish(B::conv2d(
+                        x.primitive,
+                        weight.primitive,
+                        None,
+                        stride,
+                        padding,
+                    )),
+                }
+            }
         }
     }
+
     fn conv1d(
         x: ADTensor<B, 3>,
         weight: ADTensor<B, 3>,
@@ -164,33 +198,57 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 node_weight.run(|node, _| grads.register::<B, 3>(node, backward.weights_grad));
             }
         }
-
         match bias {
-            Some(bias) => Conv1DWithBias.run(
-                {
-                    (
-                        x.primitive.clone(),
-                        weight.primitive.clone(),
-                        bias.primitive.clone(),
-                        stride,
+            Some(bias) => {
+                match Conv1DWithBias
+                    .prepare(
+                        [x.node, weight.node, bias.node],
+                        [x.graph, weight.graph, bias.graph],
                     )
-                },
-                B::conv1d(
-                    x.primitive,
-                    weight.primitive,
-                    Some(bias.primitive),
-                    stride,
-                    padding,
-                ),
-                [x.node, weight.node, bias.node],
-                [x.graph, weight.graph, bias.graph],
-            ),
-            None => Conv1DNoBias.run(
-                (x.primitive.clone(), weight.primitive.clone(), stride),
-                B::conv1d(x.primitive, weight.primitive, None, stride, padding),
-                [x.node, weight.node],
-                [x.graph, weight.graph],
-            ),
+                    .statefull()
+                {
+                    PrepKind::Tracked(prep) => prep.finish(
+                        (
+                            x.primitive.clone(),
+                            weight.primitive.clone(),
+                            bias.primitive.clone(),
+                            stride,
+                        ),
+                        B::conv1d(
+                            x.primitive,
+                            weight.primitive,
+                            Some(bias.primitive),
+                            stride,
+                            padding,
+                        ),
+                    ),
+                    PrepKind::Untracked(prep) => prep.finish(B::conv1d(
+                        x.primitive,
+                        weight.primitive,
+                        Some(bias.primitive),
+                        stride,
+                        padding,
+                    )),
+                }
+            }
+            None => {
+                match Conv1DNoBias
+                    .prepare([x.node, weight.node], [x.graph, weight.graph])
+                    .statefull()
+                {
+                    PrepKind::Tracked(prep) => prep.finish(
+                        (x.primitive.clone(), weight.primitive.clone(), stride),
+                        B::conv1d(x.primitive, weight.primitive, None, stride, padding),
+                    ),
+                    PrepKind::Untracked(prep) => prep.finish(B::conv1d(
+                        x.primitive,
+                        weight.primitive,
+                        None,
+                        stride,
+                        padding,
+                    )),
+                }
+            }
         }
     }
 
@@ -200,14 +258,19 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         stride: [usize; 2],
         padding: [usize; 2],
     ) -> ADTensor<B, 4> {
-        if !x.is_tracked() {
-            return ADTensor::new(B::max_pool2d(x.primitive, kernel_size, stride, padding));
+        match MaxPool2D.prepare([x.node], [x.graph]).statefull() {
+            PrepKind::Tracked(prep) => {
+                let output =
+                    B::max_pool2d_with_indexes(x.primitive.clone(), kernel_size, stride, padding);
+                prep.finish(
+                    (x.primitive, output.indexes, kernel_size, stride, padding),
+                    output.output,
+                )
+            }
+            PrepKind::Untracked(prep) => {
+                prep.finish(B::max_pool2d(x.primitive, kernel_size, stride, padding))
+            }
         }
-
-        let output = B::max_pool2d_with_indexes(x.primitive.clone(), kernel_size, stride, padding);
-        let state = (x.primitive, output.indexes, kernel_size, stride, padding);
-
-        MaxPool2D.run(state, output.output, [x.node], [x.graph])
     }
 
     fn max_pool2d_with_indexes(
@@ -216,17 +279,31 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         stride: [usize; 2],
         padding: [usize; 2],
     ) -> MaxPool2dWithIndexes<ADBackendDecorator<B>> {
-        if !x.is_tracked() {
-            let output = B::max_pool2d_with_indexes(x.primitive, kernel_size, stride, padding);
-            return MaxPool2dWithIndexes::new(ADTensor::new(output.output), output.indexes);
+        match MaxPool2D.prepare([x.node], [x.graph]).statefull() {
+            PrepKind::Tracked(prep) => {
+                let output =
+                    B::max_pool2d_with_indexes(x.primitive.clone(), kernel_size, stride, padding);
+
+                let output_tensor = prep.finish(
+                    (
+                        x.primitive,
+                        output.indexes.clone(),
+                        kernel_size,
+                        stride,
+                        padding,
+                    ),
+                    output.output,
+                );
+
+                return MaxPool2dWithIndexes::new(output_tensor, output.indexes);
+            }
+            PrepKind::Untracked(prep) => {
+                let output = B::max_pool2d_with_indexes(x.primitive, kernel_size, stride, padding);
+                let output_tensor = prep.finish(output.output);
+
+                return MaxPool2dWithIndexes::new(output_tensor, output.indexes);
+            }
         }
-
-        let output = B::max_pool2d_with_indexes(x.primitive.clone(), kernel_size, stride, padding);
-        let indexes = output.indexes;
-        let state = (x.primitive, indexes.clone(), kernel_size, stride, padding);
-
-        let output = MaxPool2D.run(state, output.output, [x.node], [x.graph]);
-        MaxPool2dWithIndexes::new(output, indexes)
     }
 
     fn max_pool2d_with_indexes_backward(
