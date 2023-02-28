@@ -4,6 +4,8 @@ use std::fs;
 use std::process::Command;
 use thiserror::Error;
 
+const PYTHON: &str = "python3";
+
 #[derive(Error, Debug)]
 pub enum DownloaderError {
     #[error("unknown: `{0}`")]
@@ -115,7 +117,7 @@ fn download(
 ) -> Result<(), DownloaderError> {
     download_python_deps(deps)?;
 
-    let mut command = Command::new("python");
+    let mut command = Command::new(PYTHON);
 
     command.arg(dataset_downloader_file_path());
 
@@ -193,7 +195,7 @@ fn dataset_downloader_file_path() -> String {
 }
 
 fn download_python_deps(deps: &[String]) -> Result<(), DownloaderError> {
-    let mut command = Command::new("python");
+    let mut command = Command::new(PYTHON);
 
     command
         .args(["-m", "pip", "install", "datasets"])
