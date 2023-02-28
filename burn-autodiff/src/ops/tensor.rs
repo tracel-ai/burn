@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use crate::{
     grads::Gradients,
     graph::{NodeRef, Requirement, Step},
-    ops::{binary, unary, unary_different_backend, Backward, Ops, OpsNode, PrepKind},
+    ops::{binary, unary, unary_different_backend, Backward, Ops, PrepKind},
     tensor::{ADTensor, BoolTensor, Elem, IntTensor},
     utils::duplicate,
     ADBackendDecorator,
@@ -226,7 +226,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
 
         match MulScalar.prepare([lhs.node], [lhs.graph]).statefull() {
-            PrepKind::Tracked(prep) => prep.finish(rhs, B::mul_scalar(lhs.primitive, rhs.clone())),
+            PrepKind::Tracked(prep) => prep.finish(rhs, B::mul_scalar(lhs.primitive, rhs)),
             PrepKind::Untracked(prep) => prep.finish(B::mul_scalar(lhs.primitive, rhs)),
         }
     }
@@ -995,7 +995,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     fn cat<const D: usize>(tensors: Vec<ADTensor<B, D>>, dim: usize) -> ADTensor<B, D> {
         #[derive(new, Debug)]
         struct CatStep<B: Backend, const D: usize> {
-            nodes: Vec<OpsNode<(), 0>>,
+            nodes: Vec<Option<NodeRef>>,
             output: NodeRef,
             phantom: PhantomData<B>,
             dim: usize,
@@ -1007,13 +1007,18 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 let indexes: Vec<_> = B::shape(&grad).dims.iter().map(|v| 0..*v).collect();
                 let indexes: [std::ops::Range<usize>; D] = indexes.try_into().unwrap();
 
-                self.nodes.into_iter().enumerate().for_each(|(i, node)| {
-                    node.run(|node, _| {
+                self.nodes
+                    .into_iter()
+                    .enumerate()
+                    .filter_map(|(i, node)| match node {
+                        Some(node) => Some((i, node)),
+                        None => None,
+                    })
+                    .for_each(|(i, node)| {
                         let mut indexes = indexes.clone();
                         indexes[self.dim] = i..i + 1;
                         grads.register::<B, D>(node, B::index(grad.clone(), indexes));
                     });
-                });
             }
 
             fn node(&self) -> NodeRef {
@@ -1043,10 +1048,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
         let nodes = nodes
             .into_iter()
-            .map(|node| match node.clone_if_require_grad() {
-                Some(node) => OpsNode::Tracked(node, []),
-                None => OpsNode::Untrack,
-            })
+            .map(|node| node.clone_if_require_grad())
             .collect::<Vec<_>>();
 
         if !is_tracked {

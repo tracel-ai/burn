@@ -64,18 +64,15 @@ where
     S: Clone + Send + Sync + std::fmt::Debug + 'static,
     BO: Backward<B, D, N, State = S>,
 {
-    fn is_tracked(&self) -> bool {
-        !self.requirement.is_none()
-    }
     pub fn statefull(self) -> PrepKind<BO, B, S, D, N> {
-        match self.is_tracked() {
-            true => PrepKind::Tracked(PrepareStep::new(
+        match self.requirement.is_none() {
+            false => PrepKind::Tracked(PrepareStep::new(
                 self.nodes,
                 self.graphs,
                 self.requirement,
                 self.backward,
             )),
-            false => PrepKind::Untracked(PrepareStep::new(
+            true => PrepKind::Untracked(PrepareStep::new(
                 self.nodes,
                 self.graphs,
                 self.requirement,
@@ -114,10 +111,7 @@ where
             self.graphs.into_iter(),
             self.requirement,
         );
-        let parents = self.nodes.map(|node| match node.clone_if_require_grad() {
-            Some(node) => OpsNode::Tracked(node, []),
-            None => OpsNode::Untrack,
-        });
+        let parents = self.nodes.map(|node| node.clone_if_require_grad());
         let ops = Ops::new(parents, output.node.clone(), state);
 
         output.register_step(OpsStep::new(ops, self.backward))
@@ -149,7 +143,7 @@ pub struct Ops<S, const N: usize> {
     pub state: S,
 }
 
-pub type OpsNodes<const N: usize> = [OpsNode<(), 0>; N];
+pub type OpsNodes<const N: usize> = [Option<NodeRef>; N];
 
 pub fn binary<B, const D_OUT: usize, const D_LHS: usize, const D_RHS: usize, FLhs, FRhs>(
     parents: OpsNodes<2>,
@@ -165,13 +159,13 @@ pub fn binary<B, const D_OUT: usize, const D_LHS: usize, const D_RHS: usize, FLh
     let [grad_4lhs, grad_4rhs] = duplicate(&parents, Some(grads.consume::<B, D_OUT>(&node)));
     let [node_lhs, node_rhs] = parents;
 
-    node_lhs.requirements([grad_4lhs]).run(|node, [grad]| {
-        let grad = func_lhs(grad);
+    node_lhs.map(|node| {
+        let grad = func_lhs(grad_4lhs.unwrap());
         grads.register::<B, D_LHS>(node, grad)
     });
 
-    node_rhs.requirements([grad_4rhs]).run(|node, [grad]| {
-        let grad = func_rhs(grad);
+    node_rhs.map(|node| {
+        let grad = func_rhs(grad_4rhs.unwrap());
         grads.register::<B, D_RHS>(node, grad)
     });
 }
@@ -188,7 +182,7 @@ pub fn unary<B, const D_OUT: usize, const D_IN: usize, F>(
     let [parent_node] = parents;
     let grad = grads.consume::<B, D_OUT>(&node);
 
-    parent_node.run(|node, _| {
+    parent_node.map(|node| {
         let grad = func(grad);
         grads.register::<B, D_IN>(node, grad)
     });
@@ -207,45 +201,10 @@ pub fn unary_different_backend<BIn, BOut, const D_OUT: usize, const D_IN: usize,
     let [parent_node] = parents;
     let grad = grads.consume::<BOut, D_OUT>(&node);
 
-    parent_node.run(|node, _| {
+    parent_node.map(|node| {
         let grad = func(grad);
         grads.register::<BIn, D_IN>(node, grad)
     });
-}
-
-/// Node operation.
-#[derive(Debug)]
-pub enum OpsNode<T, const D: usize> {
-    Tracked(NodeRef, [T; D]),
-    Untrack,
-}
-
-impl<T, const D: usize> OpsNode<T, D> {
-    /// Run the backward pass.
-    ///
-    /// The function should update the node gradient using the [gradients](crate::grads::Gradients) struct.
-    pub fn run<F>(self, func: F)
-    where
-        F: FnOnce(NodeRef, [T; D]),
-    {
-        match self {
-            Self::Tracked(node, args) => func(node, args),
-            Self::Untrack => (),
-        }
-    }
-}
-
-impl OpsNode<(), 0> {
-    /// Set the required objects for the operation to be executed.
-    ///
-    /// This is usefull in combination with [duplicate](crate::utils::duplicate) to maximize
-    /// inplace tensor operations when possible.
-    pub fn requirements<T, const D: usize>(self, items: [Option<T>; D]) -> OpsNode<T, D> {
-        match self {
-            Self::Tracked(node, _) => OpsNode::Tracked(node, items.map(|item| item.unwrap())),
-            Self::Untrack => OpsNode::Untrack,
-        }
-    }
 }
 
 #[derive(new, Debug)]

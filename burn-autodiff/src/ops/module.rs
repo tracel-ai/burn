@@ -1,5 +1,5 @@
 use crate::grads::Gradients;
-use crate::ops::{Backward, Ops};
+use crate::ops::{unary, Backward, Ops};
 use crate::tensor::{ADTensor, IntTensor};
 use crate::ADBackendDecorator;
 
@@ -17,13 +17,10 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             type State = (B::TensorPrimitive<2>, IntTensor<B, 2>);
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
-                let [node_parent] = ops.parents;
-                let grad = grads.consume::<B, 3>(&ops.node);
                 let (weights, indexes) = ops.state;
 
-                node_parent.run(|node, _| {
-                    let grad = B::embedding_backward(weights, grad, indexes);
-                    grads.register::<B, 2>(node, grad);
+                unary::<B, 3, 2, _>(ops.parents, ops.node, grads, |grad| {
+                    B::embedding_backward(weights, grad, indexes)
                 });
             }
         }
@@ -76,9 +73,15 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 let (x, weight, bias, stride) = ops.state;
                 let backward = B::conv2d_backward(x, weight, Some(bias), stride, grad);
 
-                node_x.run(|node, _| grads.register::<B, 4>(node, backward.x_grad));
-                node_weight.run(|node, _| grads.register::<B, 4>(node, backward.weights_grad));
-                node_bias.run(|node, _| grads.register::<B, 1>(node, backward.bias_grad.unwrap()));
+                if let Some(node) = node_x {
+                    grads.register::<B, 4>(node, backward.x_grad)
+                }
+                if let Some(node) = node_weight {
+                    grads.register::<B, 4>(node, backward.weights_grad)
+                }
+                if let Some(node) = node_bias {
+                    grads.register::<B, 1>(node, backward.bias_grad.unwrap())
+                }
             }
         }
 
@@ -92,8 +95,12 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 let (x, weight, stride) = ops.state;
                 let backward = B::conv2d_backward(x, weight, None, stride, grad);
 
-                node_x.run(|node, _| grads.register::<B, 4>(node, backward.x_grad));
-                node_weight.run(|node, _| grads.register::<B, 4>(node, backward.weights_grad));
+                if let Some(node) = node_x {
+                    grads.register::<B, 4>(node, backward.x_grad)
+                }
+                if let Some(node) = node_weight {
+                    grads.register::<B, 4>(node, backward.weights_grad)
+                }
             }
         }
 
@@ -178,9 +185,15 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 let (x, weight, bias, stride) = ops.state;
                 let backward = B::conv1d_backward(x, weight, Some(bias), stride, grad);
 
-                node_x.run(|node, _| grads.register::<B, 3>(node, backward.x_grad));
-                node_weight.run(|node, _| grads.register::<B, 3>(node, backward.weights_grad));
-                node_bias.run(|node, _| grads.register::<B, 1>(node, backward.bias_grad.unwrap()));
+                if let Some(node) = node_x {
+                    grads.register::<B, 3>(node, backward.x_grad)
+                }
+                if let Some(node) = node_weight {
+                    grads.register::<B, 3>(node, backward.weights_grad)
+                }
+                if let Some(node) = node_bias {
+                    grads.register::<B, 1>(node, backward.bias_grad.unwrap())
+                }
             }
         }
 
@@ -194,8 +207,12 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 let (x, weight, stride) = ops.state;
                 let backward = B::conv1d_backward(x, weight, None, stride, grad);
 
-                node_x.run(|node, _| grads.register::<B, 3>(node, backward.x_grad));
-                node_weight.run(|node, _| grads.register::<B, 3>(node, backward.weights_grad));
+                if let Some(node) = node_x {
+                    grads.register::<B, 3>(node, backward.x_grad)
+                }
+                if let Some(node) = node_weight {
+                    grads.register::<B, 3>(node, backward.weights_grad)
+                }
             }
         }
         match bias {
@@ -295,13 +312,13 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     output.output,
                 );
 
-                return MaxPool2dWithIndexes::new(output_tensor, output.indexes);
+                MaxPool2dWithIndexes::new(output_tensor, output.indexes)
             }
             PrepKind::Untracked(prep) => {
                 let output = B::max_pool2d_with_indexes(x.primitive, kernel_size, stride, padding);
                 let output_tensor = prep.finish(output.output);
 
-                return MaxPool2dWithIndexes::new(output_tensor, output.indexes);
+                MaxPool2dWithIndexes::new(output_tensor, output.indexes)
             }
         }
     }
@@ -343,7 +360,7 @@ impl<B: Backend> Backward<B, 4, 1> for MaxPool2D {
         let grad = grads.consume::<B, 4>(&ops.node);
         let (x, indexes, kernel_size, stride, padding) = ops.state;
 
-        node_parent.run(|node, _| {
+        node_parent.map(|node| {
             let grad =
                 B::max_pool2d_with_indexes_backward(x, kernel_size, stride, padding, grad, indexes);
             grads.register::<B, 4>(node, grad.x_grad);

@@ -1,4 +1,4 @@
-use crate::ops::OpsNode;
+use crate::graph::NodeRef;
 
 /// Duplicate the given object for each node that requires gradients.
 ///
@@ -9,14 +9,14 @@ use crate::ops::OpsNode;
 ///
 /// If the object is a tensor and if one reference exists, it can be updated inplace.
 pub fn duplicate<T: Clone + std::fmt::Debug, const N: usize>(
-    nodes: &[OpsNode<(), 0>; N],
+    nodes: &[Option<NodeRef>; N],
     obj: Option<T>,
 ) -> [Option<T>; N] {
     nodes
         .iter()
         .map(|node| match node {
-            OpsNode::Tracked(_, _) => obj.clone(),
-            OpsNode::Untrack => None,
+            Some(_) => obj.clone(),
+            None => None,
         })
         .collect::<Vec<_>>()
         .try_into()
