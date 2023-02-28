@@ -85,7 +85,7 @@ impl<B: Backend, const D: usize> ADTensor<B, D> {
                 let node = Node::new(vec![], 0, self.node.id.clone(), Requirement::Grad);
                 self.node = node.into();
                 let ops = RootStep::new(self.node.clone());
-                self.register_ops(ops)
+                self.register_step(ops)
             }
         }
     }
@@ -121,7 +121,7 @@ impl<B: Backend, const D: usize> ADTensor<B, D> {
         }
     }
 
-    pub fn register_ops<O: Step + 'static>(mut self, ops: O) -> Self {
+    pub fn register_step<O: Step + 'static>(mut self, ops: O) -> Self {
         self.graph = self.graph.register(&self.node.id, Box::new(ops));
         self
     }

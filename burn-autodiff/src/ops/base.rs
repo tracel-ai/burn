@@ -28,13 +28,8 @@ where
     type State: Clone + Send + Sync + std::fmt::Debug + 'static;
 
     /// The backward pass.
-    fn backward(
-        self,
-        nodes: OpsNodes<N>,
-        output: NodeRef,
-        grads: &mut Gradients,
-        state: Self::State,
-    );
+    fn backward(self, ops: Ops<Self::State, N>, grads: &mut Gradients);
+
     /// Run the operation:
     ///
     /// 1. Determine the right grad requirement.
@@ -55,14 +50,24 @@ where
             return output;
         }
 
-        let nodes = nodes.map(|node| match node.clone_if_require_grad() {
-            Some(node) => OpsNode::Tracked(node, []),
-            None => OpsNode::Untrack,
-        });
-        let ops = OpsStep::new(nodes, output.node.clone(), self, state);
+        let ops = Ops::new(
+            nodes.map(|node| match node.clone_if_require_grad() {
+                Some(node) => OpsNode::Tracked(node, []),
+                None => OpsNode::Untrack,
+            }),
+            output.node.clone(),
+            state,
+        );
 
-        output.register_ops(ops)
+        output.register_step(OpsStep::new(ops, self))
     }
+}
+
+#[derive(new, Debug)]
+pub struct Ops<S, const N: usize> {
+    pub parents: OpsNodes<N>,
+    pub node: NodeRef,
+    pub state: S,
 }
 
 pub type OpsNodes<const N: usize> = [OpsNode<(), 0>; N];
@@ -109,10 +114,8 @@ where
     T: Backward<B, D, N, State = SB>,
     SB: Clone + Send + Sync + std::fmt::Debug + 'static,
 {
-    nodes: OpsNodes<N>,
-    output: NodeRef,
-    ops: T,
-    state: SB,
+    ops: Ops<SB, N>,
+    backward: T,
     phantom: PhantomData<B>,
 }
 
@@ -123,11 +126,10 @@ where
     SB: Clone + Send + Sync + std::fmt::Debug + 'static,
 {
     fn step(self: Box<Self>, grads: &mut Gradients) {
-        self.ops
-            .backward(self.nodes, self.output, grads, self.state);
+        self.backward.backward(self.ops, grads);
     }
 
     fn node(&self) -> NodeRef {
-        self.output.clone()
+        self.ops.node.clone()
     }
 }

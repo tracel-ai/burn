@@ -1,6 +1,5 @@
 use crate::grads::Gradients;
-use crate::graph::NodeRef;
-use crate::ops::{Backward, OpsNodes};
+use crate::ops::{Backward, Ops};
 use crate::tensor::{ADTensor, IntTensor};
 use crate::ADBackendDecorator;
 
@@ -13,29 +12,22 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         struct Embedding;
 
         impl<B: Backend> Backward<B, 3, 1> for Embedding {
-            type State = Option<(B::TensorPrimitive<2>, IntTensor<B, 2>)>;
+            type State = (B::TensorPrimitive<2>, IntTensor<B, 2>);
 
-            fn backward(
-                self,
-                [node]: OpsNodes<1>,
-                output: NodeRef,
-                grads: &mut Gradients,
-                state: Self::State,
-            ) {
-                let grad = grads.consume::<B, 3>(&output);
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+                let [node_parent] = ops.parents;
+                let grad = grads.consume::<B, 3>(&ops.node);
+                let (weights, indexes) = ops.state;
 
-                node.requirements([state])
-                    .run(|node, [(weights, indexes)]| {
-                        let grad = B::embedding_backward(weights, grad, indexes);
-                        grads.register::<B, 2>(node, grad);
-                    });
+                node_parent.run(|node, _| {
+                    let grad = B::embedding_backward(weights, grad, indexes);
+                    grads.register::<B, 2>(node, grad);
+                });
             }
         }
 
         Embedding.run(
-            weights
-                .is_tracked()
-                .then(|| (weights.primitive.clone(), indexes.clone())),
+            (weights.primitive.clone(), indexes.clone()),
             B::embedding(weights.primitive, indexes),
             [weights.node],
             [weights.graph],
@@ -64,23 +56,18 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         struct Conv2DNoBias;
 
         impl<B: Backend> Backward<B, 4, 3> for Conv2DWithBias {
-            type State = Option<(
+            type State = (
                 B::TensorPrimitive<4>,
                 B::TensorPrimitive<4>,
                 B::TensorPrimitive<1>,
                 [usize; 2],
-            )>;
+            );
 
-            fn backward(
-                self,
-                [node_x, node_weight, node_bias]: OpsNodes<3>,
-                output: NodeRef,
-                grads: &mut Gradients,
-                state: Self::State,
-            ) {
-                let grad = grads.consume::<B, 4>(&output);
+            fn backward(self, ops: Ops<Self::State, 3>, grads: &mut Gradients) {
+                let [node_x, node_weight, node_bias] = ops.parents;
+                let grad = grads.consume::<B, 4>(&ops.node);
 
-                let (x, weight, bias, stride) = state.unwrap();
+                let (x, weight, bias, stride) = ops.state;
                 let backward = B::conv2d_backward(x, weight, Some(bias), stride, grad);
 
                 node_x.run(|node, _| grads.register::<B, 4>(node, backward.x_grad));
@@ -90,18 +77,13 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
 
         impl<B: Backend> Backward<B, 4, 2> for Conv2DNoBias {
-            type State = Option<(B::TensorPrimitive<4>, B::TensorPrimitive<4>, [usize; 2])>;
+            type State = (B::TensorPrimitive<4>, B::TensorPrimitive<4>, [usize; 2]);
 
-            fn backward(
-                self,
-                [node_x, node_weight]: OpsNodes<2>,
-                output: NodeRef,
-                grads: &mut Gradients,
-                state: Self::State,
-            ) {
-                let grad = grads.consume::<B, 4>(&output);
+            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
+                let [node_x, node_weight] = ops.parents;
+                let grad = grads.consume::<B, 4>(&ops.node);
 
-                let (x, weight, stride) = state.unwrap();
+                let (x, weight, stride) = ops.state;
                 let backward = B::conv2d_backward(x, weight, None, stride, grad);
 
                 node_x.run(|node, _| grads.register::<B, 4>(node, backward.x_grad));
@@ -111,14 +93,12 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
         match bias {
             Some(bias) => Conv2DWithBias.run(
-                weight.is_tracked().then(|| {
-                    (
-                        x.primitive.clone(),
-                        weight.primitive.clone(),
-                        bias.primitive.clone(),
-                        stride,
-                    )
-                }),
+                (
+                    x.primitive.clone(),
+                    weight.primitive.clone(),
+                    bias.primitive.clone(),
+                    stride,
+                ),
                 B::conv2d(
                     x.primitive,
                     weight.primitive,
@@ -130,9 +110,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 [x.graph, weight.graph, bias.graph],
             ),
             None => Conv2DNoBias.run(
-                weight
-                    .is_tracked()
-                    .then(|| (x.primitive.clone(), weight.primitive.clone(), stride)),
+                (x.primitive.clone(), weight.primitive.clone(), stride),
                 B::conv2d(x.primitive, weight.primitive, None, stride, padding),
                 [x.node, weight.node],
                 [x.graph, weight.graph],
@@ -152,23 +130,18 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         struct Conv1DNoBias;
 
         impl<B: Backend> Backward<B, 3, 3> for Conv1DWithBias {
-            type State = Option<(
+            type State = (
                 B::TensorPrimitive<3>,
                 B::TensorPrimitive<3>,
                 B::TensorPrimitive<1>,
                 usize,
-            )>;
+            );
 
-            fn backward(
-                self,
-                [node_x, node_weight, node_bias]: OpsNodes<3>,
-                output: NodeRef,
-                grads: &mut Gradients,
-                state: Self::State,
-            ) {
-                let grad = grads.consume::<B, 3>(&output);
+            fn backward(self, ops: Ops<Self::State, 3>, grads: &mut Gradients) {
+                let [node_x, node_weight, node_bias] = ops.parents;
+                let grad = grads.consume::<B, 3>(&ops.node);
 
-                let (x, weight, bias, stride) = state.unwrap();
+                let (x, weight, bias, stride) = ops.state;
                 let backward = B::conv1d_backward(x, weight, Some(bias), stride, grad);
 
                 node_x.run(|node, _| grads.register::<B, 3>(node, backward.x_grad));
@@ -178,18 +151,13 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
 
         impl<B: Backend> Backward<B, 3, 2> for Conv1DNoBias {
-            type State = Option<(B::TensorPrimitive<3>, B::TensorPrimitive<3>, usize)>;
+            type State = (B::TensorPrimitive<3>, B::TensorPrimitive<3>, usize);
 
-            fn backward(
-                self,
-                [node_x, node_weight]: OpsNodes<2>,
-                output: NodeRef,
-                grads: &mut Gradients,
-                state: Self::State,
-            ) {
-                let grad = grads.consume::<B, 3>(&output);
+            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
+                let [node_x, node_weight] = ops.parents;
+                let grad = grads.consume::<B, 3>(&ops.node);
 
-                let (x, weight, stride) = state.unwrap();
+                let (x, weight, stride) = ops.state;
                 let backward = B::conv1d_backward(x, weight, None, stride, grad);
 
                 node_x.run(|node, _| grads.register::<B, 3>(node, backward.x_grad));
@@ -199,14 +167,14 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
         match bias {
             Some(bias) => Conv1DWithBias.run(
-                weight.is_tracked().then(|| {
+                {
                     (
                         x.primitive.clone(),
                         weight.primitive.clone(),
                         bias.primitive.clone(),
                         stride,
                     )
-                }),
+                },
                 B::conv1d(
                     x.primitive,
                     weight.primitive,
@@ -218,9 +186,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 [x.graph, weight.graph, bias.graph],
             ),
             None => Conv1DNoBias.run(
-                weight
-                    .is_tracked()
-                    .then(|| (x.primitive.clone(), weight.primitive.clone(), stride)),
+                (x.primitive.clone(), weight.primitive.clone(), stride),
                 B::conv1d(x.primitive, weight.primitive, None, stride, padding),
                 [x.node, weight.node],
                 [x.graph, weight.graph],
@@ -295,16 +261,12 @@ impl<B: Backend> Backward<B, 4, 1> for MaxPool2D {
         [usize; 2],
     );
 
-    fn backward(
-        self,
-        [node]: OpsNodes<1>,
-        output: NodeRef,
-        grads: &mut Gradients,
-        (x, indexes, kernel_size, stride, padding): Self::State,
-    ) {
-        let grad = grads.consume::<B, 4>(&output);
+    fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+        let [node_parent] = ops.parents;
+        let grad = grads.consume::<B, 4>(&ops.node);
+        let (x, indexes, kernel_size, stride, padding) = ops.state;
 
-        node.run(|node, _| {
+        node_parent.run(|node, _| {
             let grad =
                 B::max_pool2d_with_indexes_backward(x, kernel_size, stride, padding, grad, indexes);
             grads.register::<B, 4>(node, grad.x_grad);
