@@ -96,12 +96,14 @@ impl<B: Backend> BatchNorm2d<B> {
 
         let running_mean = running_mean.mul_scalar(1.0 - self.momentum).add(
             mean.clone()
+                .detach()
                 .mean_dim(0)
                 .mul_scalar(self.momentum)
                 .reshape([channels]),
         );
         let running_var = running_var.mul_scalar(1.0 - self.momentum).add(
             var.clone()
+                .detach()
                 .mean_dim(0)
                 .mul_scalar(self.momentum)
                 .reshape([channels]),
