@@ -150,7 +150,7 @@ impl AdaptiveMomentum {
     ) {
         register_state_gradients::<D, B, _>(id, state, &self.moment_1, Self::state_key_1);
         register_state_gradients::<D, B, _>(id, state, &self.moment_2, Self::state_key_2);
-        register_state_gradients::<D, B, _>(id, state, &self.time, Self::state_key_time);
+        register_state_gradients::<1, B, _>(id, state, &self.time, Self::state_key_time);
     }
 
     pub fn load_state<B: ADBackend, const D: usize>(
@@ -161,7 +161,7 @@ impl AdaptiveMomentum {
     ) {
         load_state_gradients::<D, B, _>(id, state, &mut self.moment_1, Self::state_key_1, device);
         load_state_gradients::<D, B, _>(id, state, &mut self.moment_2, Self::state_key_2, device);
-        load_state_gradients::<D, B, _>(id, state, &mut self.time, Self::state_key_time, device);
+        load_state_gradients::<1, B, _>(id, state, &mut self.time, Self::state_key_time, device);
     }
 
     fn state_key_1(id: &ParamId) -> String {

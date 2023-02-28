@@ -97,8 +97,8 @@ impl<B: Backend, const D: usize> ADTensor<B, D> {
         requirement: Requirement,
     ) -> Self {
         let graph = graphs
-            .reduce(|acc, graph| graph.merge(acc))
-            .unwrap_or(Graph::new());
+            .reduce(|acc, graph| acc.merge(graph))
+            .unwrap_or_else(Graph::new);
 
         let order = nodes
             .iter()

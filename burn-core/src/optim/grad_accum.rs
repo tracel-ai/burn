@@ -25,10 +25,9 @@ impl GradientsAccumulator {
 
 impl GradientsAccumulator {
     /// Accumulate the given gradients for each parameter in the given module.
-    pub fn accumulate<M>(&mut self, module: &M, grads: GradientsParams)
+    pub fn accumulate<B: ADBackend, M>(&mut self, module: &M, grads: GradientsParams)
     where
-        M: Module,
-        M::Backend: ADBackend,
+        M: Module<Backend = B>,
     {
         let mut visitor = ModuleGradsAccumulator::new(&mut self.grads, grads);
         module.visit(&mut visitor);
@@ -51,18 +50,19 @@ struct ModuleGradsAccumulator<'a> {
 
 impl<'a, B: ADBackend> ModuleVisitor<B> for ModuleGradsAccumulator<'a> {
     fn visit<const D: usize>(&mut self, id: &ParamId, _tensor: &Tensor<B, D>) {
-        let grad_updated = match self.grads_new.get::<B, D>(id) {
-            Some(new) => match self.grads.get::<B, D>(id) {
+        let grad_updated = match self.grads_new.get::<B::InnerBackend, D>(id) {
+            Some(new) => match self.grads.get::<B::InnerBackend, D>(id) {
                 Some(grad) => grad.add(new),
                 None => new,
             },
-            None => match self.grads.get::<B, D>(id) {
+            None => match self.grads.get::<B::InnerBackend, D>(id) {
                 Some(grad) => grad,
                 None => return,
             },
         };
 
-        self.grads.register(id.clone(), grad_updated);
+        self.grads
+            .register::<B::InnerBackend, D>(id.clone(), grad_updated);
     }
 }
 

@@ -112,6 +112,6 @@ pub(super) fn load_state_gradients<const D: usize, B: ADBackend, F: Fn(&ParamId)
 ) {
     if let Some(State::Data(data)) = state.get(id_to_key(id).as_str()) {
         let tensor = Tensor::<B::InnerBackend, D>::from_data_device(Data::from(data), device);
-        grads.register(id.clone(), tensor);
+        grads.register::<B::InnerBackend, D>(id.clone(), tensor);
     };
 }

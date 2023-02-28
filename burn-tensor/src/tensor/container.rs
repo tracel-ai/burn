@@ -17,7 +17,7 @@ pub struct TensorContainer<ID> {
 
 impl<ID> Default for TensorContainer<ID>
 where
-    ID: core::hash::Hash + PartialEq + Eq,
+    ID: core::hash::Hash + PartialEq + Eq + core::fmt::Debug,
 {
     fn default() -> Self {
         Self::new()
@@ -28,7 +28,7 @@ type TensorPrimitive<B, const D: usize> = <B as Backend>::TensorPrimitive<D>;
 
 impl<ID> TensorContainer<ID>
 where
-    ID: core::hash::Hash + PartialEq + Eq,
+    ID: core::hash::Hash + PartialEq + Eq + core::fmt::Debug,
 {
     /// Create an empty container.
     pub fn new() -> Self {
@@ -49,8 +49,10 @@ where
 
         let tensor = grad
             .downcast_ref::<TensorPrimitive<B, D>>()
-            .map(|primitive| Tensor::from_primitive(primitive.clone()));
-        tensor
+            .map(|primitive| Tensor::from_primitive(primitive.clone()))
+            .unwrap();
+
+        Some(tensor)
     }
 
     /// Register a new tensor for the given ID.
