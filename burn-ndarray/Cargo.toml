@@ -23,6 +23,7 @@ std = [
   "ndarray/matrixmultiply-threading",
 ]
 
+blas-accelerate = ["ndarray/blas", "blas-src/accelerate"] # Accelerate framework (macOS only)
 blas-netlib = ["ndarray/blas", "blas-src/netlib"]
 blas-openblas = ["ndarray/blas", "blas-src/openblas", "openblas-src"]
 blas-openblas-system = [
