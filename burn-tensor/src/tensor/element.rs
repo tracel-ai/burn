@@ -1,16 +1,14 @@
-use crate::{tensor::ops::*, Distribution};
+use crate::Distribution;
 use half::f16;
 use num_traits::ToPrimitive;
 use rand::RngCore;
 
 pub trait Element:
-    Zeros
-    + ToPrimitive
+    ToPrimitive
     + ElementRandom
     + ElementConversion
     + ElementPrecision
     + ElementValue
-    + Ones
     + core::ops::Mul<Self, Output = Self>
     + core::fmt::Debug
     + Default
@@ -64,18 +62,6 @@ macro_rules! make_element {
 
     ) => {
         impl Element for $type {}
-
-        impl Zeros for $type {
-            fn zeros(&self) -> $type {
-                $zero
-            }
-        }
-
-        impl Ones for $type {
-            fn ones(&self) -> $type {
-                $one
-            }
-        }
 
         impl ElementConversion for $type {
             fn from_elem<E: ToPrimitive>(elem: E) -> Self {

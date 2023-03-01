@@ -2,12 +2,11 @@ use alloc::{format, vec::Vec};
 
 use crate as burn;
 
-use crate::config::Config;
-use crate::module::Module;
-use crate::module::Param;
-use crate::module::RunningState;
-use crate::tensor::backend::Backend;
-use crate::tensor::Tensor;
+use crate::{
+    config::Config,
+    module::{Module, Param, RunningState},
+    tensor::{backend::Backend, Tensor},
+};
 
 /// Configuration to create a [BatchNorm2d](BatchNorm2d) layer.
 #[derive(Config)]
@@ -96,12 +95,14 @@ impl<B: Backend> BatchNorm2d<B> {
 
         let running_mean = running_mean.mul_scalar(1.0 - self.momentum).add(
             mean.clone()
+                .detach()
                 .mean_dim(0)
                 .mul_scalar(self.momentum)
                 .reshape([channels]),
         );
         let running_var = running_var.mul_scalar(1.0 - self.momentum).add(
             var.clone()
+                .detach()
                 .mean_dim(0)
                 .mul_scalar(self.momentum)
                 .reshape([channels]),

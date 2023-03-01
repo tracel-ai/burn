@@ -19,10 +19,7 @@ pub trait Backend:
     type FullPrecisionElem: Element;
     type FullPrecisionBackend: Backend<Elem = Self::FullPrecisionElem, Device = Self::Device>;
     type IntegerBackend: Backend<Elem = i64, Device = Self::Device>;
-    type TensorPrimitive<const D: usize>: core::ops::Add<Self::TensorPrimitive<D>, Output = Self::TensorPrimitive<D>>
-        + Zeros
-        + Ones
-        + Clone
+    type TensorPrimitive<const D: usize>: Clone
         + Send
         + Sync
         + Send

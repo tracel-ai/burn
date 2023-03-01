@@ -17,14 +17,14 @@ pub struct WeightDecayConfig {
 /// Weight decay implementation that transforms gradients.
 pub struct WeightDecay<B: ADBackend> {
     penalty: B::Elem,
-    gradients: GradientsParams<B>,
+    gradients: GradientsParams,
 }
 
 impl<B: ADBackend> WeightDecay<B> {
     pub fn new(config: &WeightDecayConfig) -> Self {
         Self {
             penalty: config.penalty.to_elem(),
-            gradients: GradientsParams::<B>::new(),
+            gradients: GradientsParams::new(),
         }
     }
 
@@ -33,7 +33,7 @@ impl<B: ADBackend> WeightDecay<B> {
         id: &ParamId,
         grad: Tensor<B::InnerBackend, D>,
     ) -> Tensor<B::InnerBackend, D> {
-        let grad = match self.gradients.get::<D>(id) {
+        let grad = match self.gradients.get::<B::InnerBackend, D>(id) {
             Some(grad_last_step) => grad_last_step.mul_scalar(self.penalty).add(grad),
             None => grad,
         };

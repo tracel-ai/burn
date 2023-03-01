@@ -1,6 +1,5 @@
 use alloc::boxed::Box;
 use core::any::Any;
-use core::marker::PhantomData;
 
 #[cfg(not(feature = "std"))]
 use hashbrown::HashMap;
@@ -12,45 +11,48 @@ use crate::{backend::Backend, Tensor};
 
 /// Contains tensor of arbitrary dimension.
 #[derive(Debug)]
-pub struct TensorContainer<B: Backend, ID> {
+pub struct TensorContainer<ID> {
     tensors: HashMap<ID, Box<dyn Any + Send + Sync>>,
-    phantom: PhantomData<B>,
 }
 
-impl<B, ID> Default for TensorContainer<B, ID>
+impl<ID> Default for TensorContainer<ID>
 where
-    B: Backend,
-    ID: core::hash::Hash + PartialEq + Eq,
+    ID: core::hash::Hash + PartialEq + Eq + core::fmt::Debug,
 {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<B, ID> TensorContainer<B, ID>
+type TensorPrimitive<B, const D: usize> = <B as Backend>::TensorPrimitive<D>;
+
+impl<ID> TensorContainer<ID>
 where
-    B: Backend,
-    ID: core::hash::Hash + PartialEq + Eq,
+    ID: core::hash::Hash + PartialEq + Eq + core::fmt::Debug,
 {
     /// Create an empty container.
     pub fn new() -> Self {
         Self {
             tensors: HashMap::new(),
-            phantom: PhantomData::default(),
         }
     }
 
     /// Get a tensor with the given ID.
-    pub fn get<const D: usize>(&self, id: &ID) -> Option<Tensor<B, D>> {
+    pub fn get<B, const D: usize>(&self, id: &ID) -> Option<Tensor<B, D>>
+    where
+        B: Backend,
+    {
         let grad = match self.tensors.get(id) {
             Some(grad) => grad,
             None => return None,
         };
 
         let tensor = grad
-            .downcast_ref()
-            .map(|primitive: &B::TensorPrimitive<D>| Tensor::from_primitive(primitive.clone()));
-        tensor
+            .downcast_ref::<TensorPrimitive<B, D>>()
+            .map(|primitive| Tensor::from_primitive(primitive.clone()))
+            .unwrap();
+
+        Some(tensor)
     }
 
     /// Register a new tensor for the given ID.
@@ -58,15 +60,21 @@ where
     /// # Notes
     ///
     /// If a tensor is already registered for the given ID, it will be replaced.
-    pub fn register<const D: usize>(&mut self, id: ID, value: Tensor<B, D>) {
+    pub fn register<B, const D: usize>(&mut self, id: ID, value: Tensor<B, D>)
+    where
+        B: Backend,
+    {
         self.tensors.insert(id, Box::new(value.into_primitive()));
     }
 
     /// Remove a tensor for the given ID and returns it.
-    pub fn remove<const D: usize>(&mut self, id: &ID) -> Option<Tensor<B, D>> {
+    pub fn remove<B, const D: usize>(&mut self, id: &ID) -> Option<Tensor<B, D>>
+    where
+        B: Backend,
+    {
         self.tensors
             .remove(id)
-            .map(|item| item.downcast::<B::TensorPrimitive<D>>().unwrap())
+            .map(|item| item.downcast::<TensorPrimitive<B, D>>().unwrap())
             .map(|primitive| Tensor::from_primitive(*primitive))
     }
 

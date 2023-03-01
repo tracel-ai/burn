@@ -7,7 +7,7 @@ use burn_tensor::{
 };
 
 /// Data type that contains gradients for a given backend.
-pub type GradientsParams<B> = TensorContainer<<B as ADBackend>::InnerBackend, ParamId>;
+pub type GradientsParams = TensorContainer<ParamId>;
 
 #[derive(new)]
 pub(crate) struct GradientsRegister<'a, B: ADBackend, O> {
@@ -24,19 +24,19 @@ pub(crate) struct GradientsLoader<'a, B: ADBackend, O> {
 #[derive(new)]
 pub(crate) struct GradientsParamsConverter<'a, B: ADBackend> {
     grads: B::Gradients,
-    grads_params: &'a mut TensorContainer<B::InnerBackend, ParamId>,
+    grads_params: &'a mut TensorContainer<ParamId>,
 }
 
 #[derive(new)]
-pub(crate) struct ModuleTensorUpdater<'a, B: ADBackend, O> {
+pub(crate) struct ModuleTensorUpdater<'a, O> {
     optimizer: &'a mut O,
-    grads: GradientsParams<B>,
+    grads: GradientsParams,
 }
 
 #[derive(new)]
 pub(crate) struct GradientsParamsChangeDevice<'a, B: ADBackend> {
     device: B::Device,
-    grads: &'a mut GradientsParams<B>,
+    grads: &'a mut GradientsParams,
 }
 
 impl<'a, B: ADBackend, O: Optimizer<Backend = B>> ModuleVisitor<B> for GradientsRegister<'a, B, O> {
@@ -46,10 +46,10 @@ impl<'a, B: ADBackend, O: Optimizer<Backend = B>> ModuleVisitor<B> for Gradients
 }
 
 impl<'a, B: ADBackend, O: Optimizer<Backend = B>> ModuleVisitorMut<B>
-    for ModuleTensorUpdater<'a, B, O>
+    for ModuleTensorUpdater<'a, O>
 {
     fn visit_mut<const D: usize>(&mut self, id: &ParamId, tensor: &mut Tensor<B, D>) {
-        if let Some(grad) = self.grads.get(id) {
+        if let Some(grad) = self.grads.get::<B::InnerBackend, D>(id) {
             self.optimizer.update_tensor(id, tensor, grad);
         }
     }
@@ -65,23 +65,24 @@ impl<'a, B: ADBackend, O: Optimizer<Backend = B>> ModuleVisitor<B> for Gradients
 impl<'a, B: ADBackend> ModuleVisitor<B> for GradientsParamsConverter<'a, B> {
     fn visit<const D: usize>(&mut self, id: &ParamId, tensor: &Tensor<B, D>) {
         if let Some(grad) = tensor.grad(&self.grads) {
-            self.grads_params.register(id.clone(), grad);
+            self.grads_params
+                .register::<B::InnerBackend, D>(id.clone(), grad);
         }
     }
 }
 
 impl<'a, B: ADBackend> ModuleVisitor<B> for GradientsParamsChangeDevice<'a, B> {
     fn visit<const D: usize>(&mut self, id: &ParamId, _tensor: &Tensor<B, D>) {
-        if let Some(grad) = self.grads.remove::<D>(id) {
+        if let Some(grad) = self.grads.remove::<B::InnerBackend, D>(id) {
             self.grads
-                .register(id.clone(), grad.to_device(&self.device));
+                .register::<B::InnerBackend, D>(id.clone(), grad.to_device(&self.device));
         }
     }
 }
 
 /// Update the device of each tensor gradients.
 pub fn to_device_grads<M: ADModule>(
-    grads: &mut GradientsParams<M::ADBackend>,
+    grads: &mut GradientsParams,
     device: <M::Backend as Backend>::Device,
     module: &M,
 ) {
@@ -94,7 +95,7 @@ pub fn to_device_grads<M: ADModule>(
 pub fn convert_grads<M: ADModule>(
     grads: <M::ADBackend as ADBackend>::Gradients,
     module: &M,
-) -> GradientsParams<M::ADBackend> {
+) -> GradientsParams {
     let mut grads_params = TensorContainer::new();
     let mut visitor = GradientsParamsConverter::new(grads, &mut grads_params);
     module.visit(&mut visitor);

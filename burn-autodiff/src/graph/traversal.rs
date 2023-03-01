@@ -1,45 +1,48 @@
-use crate::graph::{node::BackwardNode, ops::RecordedOpsParentRef};
 use std::collections::HashSet;
 
-pub trait GraphTraversal {
-    fn traverse<F: FnMut(RecordedOpsParentRef)>(&self, callback: F);
-}
+use super::{Graph, NodeRef, StepBoxed};
 
-#[derive(new)]
-pub struct BreadthFirstSearch<'a, T> {
-    node: &'a BackwardNode<T>,
-}
+/// Breadth for search algorithm.
+pub struct BreadthFirstSearch;
 
-impl<'a, T> GraphTraversal for BreadthFirstSearch<'a, T> {
-    fn traverse<F: FnMut(RecordedOpsParentRef)>(&self, mut callback: F) {
-        let mut visited = HashSet::with_capacity(self.node.order);
-        let mut parents = Vec::with_capacity(self.node.order);
+impl BreadthFirstSearch {
+    /// Traverse the graph of backward steps from a root node.
+    pub fn traverse<F: FnMut(NodeRef, StepBoxed)>(
+        &self,
+        root: NodeRef,
+        graph: Graph,
+        mut callback: F,
+    ) {
+        let mut visited = HashSet::with_capacity(root.order);
+        let mut parents = Vec::with_capacity(root.order);
+        let mut steps = graph.steps();
+        let root_step = steps.remove(&root.id).unwrap();
 
-        visited.insert(self.node.id.clone());
-        parents.append(&mut self.node.ops.backward_parents());
+        visited.insert(root.id.clone());
+        parents.append(&mut root.parents.clone());
+        callback(root, root_step);
 
-        loop {
-            let node = match parents.pop() {
-                Some(node) => node,
-                None => break,
+        while let Some(id) = parents.pop() {
+            let step = match steps.remove(&id) {
+                Some(step) => step,
+                None => continue,
             };
 
-            let id = node.id();
-            if visited.contains(id) {
+            let node = step.node();
+
+            if visited.contains(&node.id) {
                 continue;
             }
 
-            visited.insert(id.clone());
+            visited.insert(node.id.clone());
 
-            for parent in node.backward_parents() {
-                let id = parent.id();
-
+            for id in node.parents.iter() {
                 if !visited.contains(id) {
-                    parents.push(parent);
+                    parents.push(id.clone());
                 }
             }
 
-            callback(node);
+            callback(node, step);
         }
     }
 }

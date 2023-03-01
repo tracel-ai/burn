@@ -7,7 +7,7 @@ use std::thread::spawn;
 
 pub struct MultiDevicesTrainStep<B: ADBackend, M, TI, TO> {
     workers: Vec<Worker<B, M, TI>>,
-    receiver: Receiver<TrainOutput<B, TO>>,
+    receiver: Receiver<TrainOutput<TO>>,
 }
 
 struct Message<M, TI> {
@@ -34,12 +34,12 @@ where
 
     fn start<TO>(
         &self,
-        sender_output: Sender<TrainOutput<B, TO>>,
+        sender_output: Sender<TrainOutput<TO>>,
         receiver_input: Receiver<Message<M, TI>>,
     ) where
         TI: Send + 'static,
         TO: Send + 'static,
-        M: TrainStep<B, TI, TO> + Send + 'static,
+        M: TrainStep<TI, TO> + Send + 'static,
     {
         let device = self.device.clone();
 
@@ -67,7 +67,7 @@ where
     B: ADBackend,
     TI: Send + 'static,
     TO: Send + 'static,
-    M: ADModule<ADBackend = B> + TrainStep<B, TI, TO> + Send + Clone + 'static,
+    M: ADModule<ADBackend = B> + TrainStep<TI, TO> + Send + Clone + 'static,
 {
     pub fn new(devices: &[B::Device]) -> Self
     where
@@ -98,7 +98,7 @@ where
         &self,
         dataloader: &mut Box<dyn DataLoaderIterator<TI> + 'a>,
         model: &M,
-    ) -> Vec<TrainOutput<B, TO>> {
+    ) -> Vec<TrainOutput<TO>> {
         let mut num_send = 0;
 
         for worker in self.workers.iter() {

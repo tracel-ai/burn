@@ -31,7 +31,7 @@ pub struct AdamConfig {
 /// Adam optimizer as described in the paper [Adam: A Method for Stochastic Optimization](https://arxiv.org/pdf/1412.6980.pdf).
 pub struct Adam<B: ADBackend> {
     learning_rate: B::Elem,
-    momentum: AdaptiveMomentum<B>,
+    momentum: AdaptiveMomentum,
     weight_decay: Option<WeightDecay<B>>,
 }
 
@@ -43,9 +43,9 @@ impl<B: ADBackend> Adam<B> {
                 beta_1: config.beta_1,
                 beta_2: config.beta_2,
                 epsilon: config.epsilon,
-                time: GradientsParams::<B>::new(),
-                moment_1: GradientsParams::<B>::new(),
-                moment_2: GradientsParams::<B>::new(),
+                time: GradientsParams::new(),
+                moment_1: GradientsParams::new(),
+                moment_2: GradientsParams::new(),
             },
             weight_decay: config
                 .weight_decay
@@ -68,14 +68,14 @@ impl<B: ADBackend> Optimizer for Adam<B> {
             Some(weight_decay) => weight_decay.transform(id, grad),
             None => grad,
         };
-        let grad = self.momentum.transform(id, grad);
+        let grad = self.momentum.transform::<B, D>(id, grad);
 
         let delta = grad.mul_scalar(self.learning_rate);
         tensor.update(tensor.inner() - delta);
     }
 
     fn register_param_state<const D: usize>(&self, id: &ParamId, state: &mut StateNamed<B::Elem>) {
-        self.momentum.register_state::<D>(id, state);
+        self.momentum.register_state::<B, D>(id, state);
 
         if let Some(weight_decay) = &self.weight_decay {
             weight_decay.register_state::<D>(id, state);
@@ -88,7 +88,7 @@ impl<B: ADBackend> Optimizer for Adam<B> {
         state: &StateNamed<B::Elem>,
         device: &B::Device,
     ) {
-        self.momentum.load_state::<D>(id, state, device);
+        self.momentum.load_state::<B, D>(id, state, device);
 
         if let Some(weight_decay) = &mut self.weight_decay {
             weight_decay.load_state::<D>(id, state, device);
@@ -96,23 +96,23 @@ impl<B: ADBackend> Optimizer for Adam<B> {
     }
 }
 
-struct AdaptiveMomentum<B: ADBackend> {
+struct AdaptiveMomentum {
     beta_1: f32,
     beta_2: f32,
     epsilon: f32,
-    time: GradientsParams<B>,
-    moment_1: GradientsParams<B>,
-    moment_2: GradientsParams<B>,
+    time: GradientsParams,
+    moment_1: GradientsParams,
+    moment_2: GradientsParams,
 }
 
-impl<B: ADBackend> AdaptiveMomentum<B> {
-    pub fn transform<const D: usize>(
+impl AdaptiveMomentum {
+    pub fn transform<B: ADBackend, const D: usize>(
         &mut self,
         id: &ParamId,
         grad: Tensor<B::InnerBackend, D>,
     ) -> Tensor<B::InnerBackend, D> {
         let factor = 1.0 - self.beta_1;
-        let moment_1 = match self.moment_1.get::<D>(id) {
+        let moment_1 = match self.moment_1.get::<B::InnerBackend, D>(id) {
             Some(moment_last_step) => moment_last_step
                 .mul_scalar(self.beta_1)
                 .add(grad.clone().mul_scalar(factor)),
@@ -120,14 +120,14 @@ impl<B: ADBackend> AdaptiveMomentum<B> {
         };
 
         let factor = 1.0 - self.beta_2;
-        let moment_2 = match self.moment_2.get::<D>(id) {
+        let moment_2 = match self.moment_2.get::<B::InnerBackend, D>(id) {
             Some(moment_last_step) => moment_last_step
                 .mul_scalar(self.beta_2)
                 .add(grad.powf(2.0).mul_scalar(factor)),
             None => grad.powf(2.0).mul_scalar(factor),
         };
 
-        let time = match self.time.get::<1>(id) {
+        let time = match self.time.get::<B::InnerBackend, 1>(id) {
             Some(time) => time.add_scalar(1),
             None => Tensor::ones([1]),
         };
@@ -143,13 +143,17 @@ impl<B: ADBackend> AdaptiveMomentum<B> {
         moment_1_corrected.div(moment_2_corrected.sqrt().add_scalar(self.epsilon))
     }
 
-    pub fn register_state<const D: usize>(&self, id: &ParamId, state: &mut StateNamed<B::Elem>) {
+    pub fn register_state<B: ADBackend, const D: usize>(
+        &self,
+        id: &ParamId,
+        state: &mut StateNamed<B::Elem>,
+    ) {
         register_state_gradients::<D, B, _>(id, state, &self.moment_1, Self::state_key_1);
         register_state_gradients::<D, B, _>(id, state, &self.moment_2, Self::state_key_2);
-        register_state_gradients::<D, B, _>(id, state, &self.time, Self::state_key_time);
+        register_state_gradients::<1, B, _>(id, state, &self.time, Self::state_key_time);
     }
 
-    pub fn load_state<const D: usize>(
+    pub fn load_state<B: ADBackend, const D: usize>(
         &mut self,
         id: &ParamId,
         state: &StateNamed<B::Elem>,
@@ -157,7 +161,7 @@ impl<B: ADBackend> AdaptiveMomentum<B> {
     ) {
         load_state_gradients::<D, B, _>(id, state, &mut self.moment_1, Self::state_key_1, device);
         load_state_gradients::<D, B, _>(id, state, &mut self.moment_2, Self::state_key_2, device);
-        load_state_gradients::<D, B, _>(id, state, &mut self.time, Self::state_key_time, device);
+        load_state_gradients::<1, B, _>(id, state, &mut self.time, Self::state_key_time, device);
     }
 
     fn state_key_1(id: &ParamId) -> String {
