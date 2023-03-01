@@ -1,7 +1,9 @@
 use alloc::{string::ToString, vec, vec::Vec};
 
 use super::{load_with_id, state_with_id, Param};
-use crate::module::{LoadingError, Module, ModuleVisitor, ModuleVisitorMut, State, StateNamed};
+use crate::module::{
+    ADModule, LoadingError, Module, ModuleVisitor, ModuleVisitorMut, State, StateNamed,
+};
 use crate::tensor::{
     backend::{ADBackend, Backend},
     Data, Tensor,
@@ -126,23 +128,42 @@ impl<const D: usize, B: Backend> Module for Param<Option<Tensor<B, D>>> {
     }
 }
 
-impl<const D: usize, B: Backend> Param<Tensor<B, D>> {
-    pub fn inner(&self) -> Param<Tensor<B::InnerBackend, D>>
-    where
-        B: ADBackend,
-    {
-        Param::new(self.value.inner())
+impl<const D: usize, B: ADBackend> ADModule for Param<Tensor<B, D>> {
+    type ADBackend = B;
+
+    type InnerModule = Param<Tensor<B::InnerBackend, D>>;
+
+    fn inner(self) -> Self::InnerModule {
+        Param {
+            id: self.id,
+            value: self.value.inner(),
+        }
+    }
+
+    fn from_inner(module: Self::InnerModule) -> Self {
+        Param {
+            id: module.id,
+            value: Tensor::from_inner(module.value),
+        }
     }
 }
 
-impl<const D: usize, B: Backend> Param<Option<Tensor<B, D>>> {
-    pub fn inner(&self) -> Param<Option<Tensor<B::InnerBackend, D>>>
-    where
-        B: ADBackend,
-    {
-        match &self.value {
-            Some(tensor) => Param::new(Some(tensor.inner())),
-            None => Param::new(None),
+impl<const D: usize, B: ADBackend> ADModule for Param<Option<Tensor<B, D>>> {
+    type ADBackend = B;
+
+    type InnerModule = Param<Option<Tensor<B::InnerBackend, D>>>;
+
+    fn inner(self) -> Self::InnerModule {
+        Param {
+            id: self.id,
+            value: self.value.map(|val| val.inner()),
+        }
+    }
+
+    fn from_inner(module: Self::InnerModule) -> Self {
+        Param {
+            id: module.id,
+            value: module.value.map(Tensor::from_inner),
         }
     }
 }

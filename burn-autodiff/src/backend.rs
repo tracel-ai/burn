@@ -49,7 +49,7 @@ impl<B: Backend> ADBackend for ADBackendDecorator<B> {
     ) -> Option<B::TensorPrimitive<D>> {
         grads.remove(tensor)
     }
-    fn inner<const D: usize>(tensor: &ADTensor<B, D>) -> B::TensorPrimitive<D> {
+    fn inner<const D: usize>(tensor: ADTensor<B, D>) -> B::TensorPrimitive<D> {
         tensor.primitive.clone()
     }
 

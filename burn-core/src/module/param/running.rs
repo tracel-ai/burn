@@ -1,7 +1,9 @@
 use alloc::{string::ToString, sync::Arc, vec, vec::Vec};
 
 use super::{load_with_id, state_with_id};
-use crate::module::{LoadingError, Module, ModuleVisitor, ModuleVisitorMut, Param, State};
+use crate::module::{
+    ADModule, LoadingError, Module, ModuleVisitor, ModuleVisitorMut, Param, State,
+};
 use burn_tensor::{
     backend::{ADBackend, Backend},
     Data, Tensor,
@@ -194,14 +196,28 @@ impl<const D: usize, B: Backend> RunningState<Tensor<B, D>> {
     }
 }
 
-impl<const D: usize, B: Backend> RunningState<Tensor<B, D>> {
-    pub fn inner(&self) -> Param<RunningState<Tensor<B::InnerBackend, D>>>
-    where
-        B: ADBackend,
-    {
-        self.sync();
+impl<const D: usize, B: ADBackend> ADModule for Param<RunningState<Tensor<B, D>>> {
+    type ADBackend = B;
 
-        let value = self.value.read().unwrap();
-        Param::new(RunningState::new(value.inner()))
+    type InnerModule = Param<RunningState<Tensor<B::InnerBackend, D>>>;
+
+    fn inner(self) -> Self::InnerModule {
+        self.sync();
+        let value = self.value.value();
+
+        Param {
+            id: self.id,
+            value: RunningState::new(value.inner()),
+        }
+    }
+
+    fn from_inner(module: Self::InnerModule) -> Self {
+        module.sync();
+        let value = module.value.value();
+
+        Param {
+            id: module.id,
+            value: RunningState::new(Tensor::from_inner(value)),
+        }
     }
 }

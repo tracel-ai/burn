@@ -18,6 +18,7 @@ pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
     let state_fn = param.gen_state_fn();
     let load_fn = param.gen_load_fn();
     let inner_fn = param.gen_inner_fn();
+    let from_inner_fn = param.gen_from_inner_fn();
     let detach_fn = param.gen_detach_fn();
     let clone_fn = param.gen_clone_fn();
     let generics_names_except_backend = generics_names_except_backend(&ast.generics);
@@ -44,6 +45,7 @@ pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
             type InnerModule=#name<B::InnerBackend, #generics_names_except_backend>;
 
             #inner_fn
+            #from_inner_fn
         }
 
         impl #generics core::fmt::Display for #name #generics_ty #generics_where {

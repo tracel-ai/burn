@@ -154,10 +154,41 @@ impl Param {
         }
 
         quote! {
-            fn inner(&self) -> Self::InnerModule {
+            fn inner(self) -> Self::InnerModule {
                 #body
 
                 Self::InnerModule {
+                    #(#names),*
+                }
+            }
+        }
+    }
+
+    pub fn gen_from_inner_fn(&self) -> TokenStream {
+        let mut body = quote! {};
+        let mut names = Vec::new();
+        for field in self.fields_param.iter() {
+            let name = field.ident();
+            names.push(name.clone());
+
+            body.extend(quote! {
+                let #name = burn::module::ADModule::from_inner(module.#name);
+            });
+        }
+        for field in self.fields_other.iter() {
+            let name = field.ident();
+            names.push(name.clone());
+
+            body.extend(quote! {
+                let #name = module.#name.clone();
+            });
+        }
+
+        quote! {
+            fn from_inner(module: Self::InnerModule) -> Self {
+                #body
+
+                Self {
                     #(#names),*
                 }
             }

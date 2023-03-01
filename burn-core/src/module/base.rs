@@ -77,7 +77,8 @@ pub trait ADModule:
     type InnerModule: Module<Backend = <Self::ADBackend as ADBackend>::InnerBackend>;
 
     /// Get the same module, but on the inner backend without auto-differentiation.
-    fn inner(&self) -> Self::InnerModule;
+    fn inner(self) -> Self::InnerModule;
+    fn from_inner(module: Self::InnerModule) -> Self;
 }
 
 #[derive(new, Debug)]
