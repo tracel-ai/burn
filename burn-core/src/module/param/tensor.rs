@@ -33,18 +33,16 @@ impl<const D: usize, B: Backend> Module for Param<Tensor<B, D>> {
         state_with_id(self.id.clone(), state)
     }
 
-    fn load(&mut self, state: &State<B::Elem>) -> Result<(), LoadingError> {
+    fn load(self, state: &State<B::Elem>) -> Result<Self, LoadingError> {
         let (id, state) = load_with_id(state)?;
-        self.id = id.clone();
+        let id = id.clone();
 
-        match state {
-            State::Data(data) => {
-                self.value = Tensor::from_data_device(Data::from(data), &self.value.device());
-            }
+        let tensor = match state {
+            State::Data(data) => Tensor::from_data_device(Data::from(data), &self.value.device()),
             _ => return Err(LoadingError::new("Can't load tensor".to_string())),
         };
 
-        Ok(())
+        Ok(Self { id, value: tensor })
     }
 
     fn detach(self) -> Self {
@@ -98,9 +96,9 @@ impl<const D: usize, B: Backend> Module for Param<Option<Tensor<B, D>>> {
         state_with_id(self.id.clone(), state)
     }
 
-    fn load(&mut self, state: &State<B::Elem>) -> Result<(), LoadingError> {
+    fn load(self, state: &State<B::Elem>) -> Result<Self, LoadingError> {
         let (id, state) = load_with_id(state)?;
-        self.id = id.clone();
+        let id = id.clone();
 
         let data = match state {
             State::Data(data) => data,
@@ -111,11 +109,11 @@ impl<const D: usize, B: Backend> Module for Param<Option<Tensor<B, D>>> {
             }
         };
 
-        if let Some(value) = &self.value {
-            self.value = Some(Tensor::from_data_device(Data::from(data), &value.device()));
-        }
+        let tensor = self
+            .value
+            .map(|tensor| Tensor::from_data_device(Data::from(data), &tensor.device()));
 
-        Ok(())
+        Ok(Self { id, value: tensor })
     }
 
     fn detach(self) -> Self {

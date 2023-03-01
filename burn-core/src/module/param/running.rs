@@ -78,22 +78,24 @@ impl<const D: usize, B: Backend> Module for Param<RunningState<Tensor<B, D>>> {
         state_with_id(self.id.clone(), state)
     }
 
-    fn load(&mut self, state: &State<B::Elem>) -> Result<(), LoadingError> {
+    fn load(self, state: &State<B::Elem>) -> Result<Self, LoadingError> {
         let (id, state) = load_with_id(state)?;
-        self.id = id.clone();
+        let id = id.clone();
 
-        match state {
+        self.sync();
+
+        let tensor = match state {
             State::Data(data) => {
-                let mut tensor = self.value.value.write().unwrap();
-                *tensor = Tensor::from_data_device(Data::from(data), &tensor.device());
-
-                let mut tensors = self.value.values.lock().unwrap();
-                tensors.clear();
+                let tensor = self.value.value.read().unwrap();
+                Tensor::from_data_device(Data::from(data), &tensor.device())
             }
             _ => return Err(LoadingError::new("Can't load tensor".to_string())),
         };
 
-        Ok(())
+        Ok(Self {
+            id,
+            value: RunningState::new(tensor),
+        })
     }
 
     fn detach(self) -> Self {

@@ -54,7 +54,7 @@ where
 
         let starting_epoch = match self.checkpoint {
             Some(checkpoint) => {
-                self.load_checkpoint(checkpoint);
+                self = self.load_checkpoint(checkpoint);
                 checkpoint
             }
             None => 1,
@@ -89,6 +89,7 @@ where
 
             let epoch_valid = ValidEpoch::new(dataloader_valid.clone(), epoch, self.num_epochs);
             model = epoch_valid.run(model, &mut self.callback);
+
             Self::checkpoint(
                 &model,
                 &optim,

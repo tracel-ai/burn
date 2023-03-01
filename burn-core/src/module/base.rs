@@ -37,7 +37,7 @@ use burn_tensor::Tensor;
 ///   my_other_field: usize,
 /// }
 /// ```
-pub trait Module: Send + Sync + core::fmt::Debug + core::fmt::Display {
+pub trait Module: Clone + Send + Sync + core::fmt::Debug + core::fmt::Display {
     type Backend: Backend;
 
     /// Get the device list of the module and all of its sub-modules.
@@ -45,8 +45,7 @@ pub trait Module: Send + Sync + core::fmt::Debug + core::fmt::Display {
     /// Move the module and all of its sub-modules to the given device.
     fn to_device(self, device: &<Self::Backend as Backend>::Device) -> Self;
     /// Load the module state.
-    fn load(&mut self, state: &State<<Self::Backend as Backend>::Elem>)
-        -> Result<(), LoadingError>;
+    fn load(self, state: &State<<Self::Backend as Backend>::Elem>) -> Result<Self, LoadingError>;
     /// Get the module state.
     fn state(&self) -> State<<Self::Backend as Backend>::Elem>;
     /// Detach the module from the graph.

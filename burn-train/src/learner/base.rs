@@ -47,15 +47,17 @@ where
         }
     }
 
-    pub(super) fn load_checkpoint(&mut self, epoch: usize) {
+    pub(super) fn load_checkpoint(mut self, epoch: usize) -> Self {
         if let Some(checkpointer) = &self.checkpointer_model {
             let state = checkpointer.restore(epoch).unwrap();
-            self.model.load(&state).unwrap();
+            self.model = self.model.load(&state).unwrap();
         }
 
         if let Some(checkpointer) = &self.checkpointer_optimizer {
             let state = checkpointer.restore(epoch).unwrap();
             self.optim.load(&self.model, &state).unwrap();
         }
+
+        self
     }
 }

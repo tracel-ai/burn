@@ -66,6 +66,8 @@ impl<TI> TrainEpoch<TI> {
         O: Optimizer<Backend = M::ADBackend>,
         M: TrainStep<TI, TO>,
     {
+        log::info!("Executing training step for epoch {}", self.epoch,);
+
         let mut iterator = self.dataloader.iter();
         let mut iteration = 0;
         let mut accumulator = GradientsAccumulator::new();
@@ -116,7 +118,7 @@ impl<TI> TrainEpoch<TI> {
     where
         O: Optimizer<Backend = M::ADBackend>,
         M: TrainStep<TI, TO>,
-        M: ADModule + Clone + 'static,
+        M: ADModule + 'static,
         TI: Send + 'static,
         TO: Send + 'static,
     {

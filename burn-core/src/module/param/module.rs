@@ -30,11 +30,13 @@ impl<M: Module> Module for Param<M> {
         state_with_id(self.id.clone(), state)
     }
 
-    fn load(&mut self, state: &State<<M::Backend as Backend>::Elem>) -> Result<(), LoadingError> {
+    fn load(self, state: &State<<M::Backend as Backend>::Elem>) -> Result<Self, LoadingError> {
         let (id, state) = load_with_id(state)?;
-        self.id = id.clone();
 
-        self.value.load(state)
+        Ok(Self {
+            id: id.clone(),
+            value: self.value.load(state)?,
+        })
     }
 
     fn detach(self) -> Self {
@@ -96,22 +98,26 @@ impl<M: Module> Module for Param<Vec<M>> {
         state_with_id(self.id.clone(), state)
     }
 
-    fn load(&mut self, state: &State<<M::Backend as Backend>::Elem>) -> Result<(), LoadingError> {
+    fn load(self, state: &State<<M::Backend as Backend>::Elem>) -> Result<Self, LoadingError> {
         let (id, state) = load_with_id(state)?;
-        self.id = id.clone();
+        let id = id.clone();
 
         let num = self.value.len();
-        for (i, module) in self.value.iter_mut().enumerate() {
-            module
+        let mut modules = Vec::with_capacity(num);
+
+        for (i, module) in self.value.into_iter().enumerate() {
+            let module = module
                 .load(state.get(format!("mod-{i}").as_str()).ok_or_else(|| {
                     LoadingError::new(format!(
                         "Invalid number of modules, expected {num} modules missing #{i}"
                     ))
                 })?)
                 .map_err(|err| LoadingError::new(format!("Can't load modules mod-{i}: {err}")))?;
+
+            modules.push(module);
         }
 
-        Ok(())
+        Ok(Self { id, value: modules })
     }
 
     fn detach(self) -> Self {
