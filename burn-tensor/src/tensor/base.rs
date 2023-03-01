@@ -55,6 +55,24 @@ where
         Self { value: tensor }
     }
 
+    /// Executes an operation on the tensor and modifies its value.
+    ///
+    /// # Notes
+    ///
+    /// This won't necessary reuse the same tensor data/buffer, but it should if there is
+    /// no other reference pointing to the same tensor.
+    ///
+    /// Wrapping operations with inplace is not an optimization, it's mainly there if you
+    /// want to mutate a tensor by using owned operations. A plausible usage would be to
+    /// update the weights of a mutable model reference.
+    pub fn inplace<F: FnOnce(Self) -> Self>(&mut self, func: F) {
+        let mut tensor_owned = Tensor::empty([0; D]);
+        core::mem::swap(&mut tensor_owned, self);
+
+        let mut tensor_new = func(tensor_owned);
+        core::mem::swap(&mut tensor_new, self);
+    }
+
     /// Reshape the tensor to have the given shape.
     ///
     /// # Panics
@@ -755,24 +773,6 @@ impl<const D: usize, B: ADBackend> Tensor<B, D> {
 
     pub fn inner(self) -> Tensor<B::InnerBackend, D> {
         Tensor::new(B::inner(self.value))
-    }
-
-    /// Executes an operation on the tensor and modifies its value.
-    ///
-    /// # Notes
-    ///
-    /// This won't necessary reuse the same tensor data/buffer, but it should if there is
-    /// no other reference pointing to the same tensor.
-    ///
-    /// Wrapping operations with inplace is not an optimization, it's mainly there if you
-    /// want to mutate a tensor by using owned operations. A plausible usage would be to
-    /// update the weights of a mutable model reference.
-    pub fn inplace<F: FnOnce(Self, Args) -> Self, Args>(&mut self, args: Args, func: F) {
-        let mut tensor_owned = Tensor::empty([0; D]);
-        core::mem::swap(&mut tensor_owned, self);
-
-        let mut tensor_new = func(tensor_owned, args);
-        core::mem::swap(&mut tensor_new, self);
     }
 
     pub fn from_inner(inner: Tensor<B::InnerBackend, D>) -> Self {
