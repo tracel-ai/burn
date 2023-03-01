@@ -4,7 +4,7 @@ use super::{load_with_id, state_with_id, Param};
 use crate::module::{
     ADModule, LoadingError, Module, ModuleVisitor, ModuleVisitorMut, State, StateNamed,
 };
-use crate::tensor::backend::{ADBackend, Backend};
+use crate::tensor::backend::Backend;
 
 impl<M: Module> Module for Param<M> {
     type Backend = M::Backend;
@@ -17,8 +17,11 @@ impl<M: Module> Module for Param<M> {
         self.value.devices()
     }
 
-    fn to_device(&mut self, device: &<Self::Backend as Backend>::Device) {
-        self.value.to_device(device)
+    fn to_device(self, device: &<Self::Backend as Backend>::Device) -> Self {
+        Param {
+            id: self.id,
+            value: self.value.to_device(device),
+        }
     }
 
     fn state(&self) -> State<<M::Backend as Backend>::Elem> {
@@ -27,15 +30,20 @@ impl<M: Module> Module for Param<M> {
         state_with_id(self.id.clone(), state)
     }
 
-    fn load(&mut self, state: &State<<M::Backend as Backend>::Elem>) -> Result<(), LoadingError> {
+    fn load(self, state: &State<<M::Backend as Backend>::Elem>) -> Result<Self, LoadingError> {
         let (id, state) = load_with_id(state)?;
-        self.id = id.clone();
 
-        self.value.load(state)
+        Ok(Self {
+            id: id.clone(),
+            value: self.value.load(state)?,
+        })
     }
 
-    fn detach(&mut self) {
-        self.value.detach()
+    fn detach(self) -> Self {
+        Param {
+            id: self.id,
+            value: self.value.detach(),
+        }
     }
 
     fn visit<V: ModuleVisitor<Self::Backend>>(&self, visitor: &mut V) {
@@ -67,9 +75,14 @@ impl<M: Module> Module for Param<Vec<M>> {
         devices
     }
 
-    fn to_device(&mut self, device: &<M::Backend as Backend>::Device) {
-        for module in self.value.iter_mut() {
-            module.to_device(device);
+    fn to_device(self, device: &<M::Backend as Backend>::Device) -> Self {
+        Param {
+            id: self.id,
+            value: self
+                .value
+                .into_iter()
+                .map(|val| val.to_device(device))
+                .collect(),
         }
     }
 
@@ -85,27 +98,32 @@ impl<M: Module> Module for Param<Vec<M>> {
         state_with_id(self.id.clone(), state)
     }
 
-    fn load(&mut self, state: &State<<M::Backend as Backend>::Elem>) -> Result<(), LoadingError> {
+    fn load(self, state: &State<<M::Backend as Backend>::Elem>) -> Result<Self, LoadingError> {
         let (id, state) = load_with_id(state)?;
-        self.id = id.clone();
+        let id = id.clone();
 
         let num = self.value.len();
-        for (i, module) in self.value.iter_mut().enumerate() {
-            module
+        let mut modules = Vec::with_capacity(num);
+
+        for (i, module) in self.value.into_iter().enumerate() {
+            let module = module
                 .load(state.get(format!("mod-{i}").as_str()).ok_or_else(|| {
                     LoadingError::new(format!(
                         "Invalid number of modules, expected {num} modules missing #{i}"
                     ))
                 })?)
                 .map_err(|err| LoadingError::new(format!("Can't load modules mod-{i}: {err}")))?;
+
+            modules.push(module);
         }
 
-        Ok(())
+        Ok(Self { id, value: modules })
     }
 
-    fn detach(&mut self) {
-        for value in self.value.iter_mut() {
-            value.detach();
+    fn detach(self) -> Self {
+        Param {
+            id: self.id,
+            value: self.value.into_iter().map(|val| val.detach()).collect(),
         }
     }
 
@@ -122,22 +140,36 @@ impl<M: Module> Module for Param<Vec<M>> {
     }
 }
 
-impl<M: Module> Param<Vec<M>> {
-    pub fn inner(&self) -> Param<Vec<M::InnerModule>>
-    where
-        M: ADModule,
-        M::Backend: ADBackend,
-    {
-        Param::new(self.value.iter().map(|v| v.inner()).collect())
+impl<M: ADModule> ADModule for Param<Vec<M>> {
+    type ADBackend = M::ADBackend;
+
+    type InnerModule = Param<Vec<M::InnerModule>>;
+
+    fn inner(self) -> Self::InnerModule {
+        Param::new(self.value.into_iter().map(|v| v.inner()).collect())
+    }
+
+    fn from_inner(module: Self::InnerModule) -> Self {
+        Param {
+            id: module.id,
+            value: module.value.into_iter().map(ADModule::from_inner).collect(),
+        }
     }
 }
 
-impl<M: Module> Param<M> {
-    pub fn inner(&self) -> Param<M::InnerModule>
-    where
-        M: ADModule,
-        M::Backend: ADBackend,
-    {
+impl<M: ADModule> ADModule for Param<M> {
+    type ADBackend = M::ADBackend;
+
+    type InnerModule = Param<M::InnerModule>;
+
+    fn inner(self) -> Self::InnerModule {
         Param::new(self.value.inner())
+    }
+
+    fn from_inner(module: Self::InnerModule) -> Self {
+        Param {
+            id: module.id,
+            value: ADModule::from_inner(module.value),
+        }
     }
 }

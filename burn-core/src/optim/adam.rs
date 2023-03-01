@@ -260,10 +260,10 @@ mod tests {
     }
 
     fn given_linear_layer(weight: Data<f32, 2>, bias: Data<f32, 1>) -> nn::Linear<TestADBackend> {
-        let mut linear = nn::Linear::new(&nn::LinearConfig::new(6, 6));
+        let linear = nn::Linear::new(&nn::LinearConfig::new(6, 6));
         let state = given_linear_state(weight, bias);
-        linear.load(&state).unwrap();
-        linear
+
+        linear.load(&state).unwrap()
     }
 
     fn given_linear_state(weight: Data<f32, 2>, bias: Data<f32, 1>) -> State<f32> {

@@ -54,7 +54,8 @@ mod state {
             module_2.weight_basic.to_data()
         );
 
-        module_2.load(&state_1).unwrap();
+        module_2 = module_2.load(&state_1).unwrap();
+
         assert_eq!(
             module_1.weight_basic.to_data(),
             module_2.weight_basic.to_data()
@@ -72,7 +73,7 @@ mod state {
         );
 
         let state_1 = module_1.state();
-        module_2.load(&state_1).unwrap();
+        module_2 = module_2.load(&state_1).unwrap();
 
         assert_eq!(module_1.weight.to_data(), module_2.weight.to_data());
         assert_eq!(

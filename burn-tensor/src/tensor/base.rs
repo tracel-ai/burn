@@ -753,8 +753,8 @@ impl<const D: usize, B: ADBackend> Tensor<B, D> {
         B::grad_remove(&self.value, grads).map(Tensor::new)
     }
 
-    pub fn inner(&self) -> Tensor<B::InnerBackend, D> {
-        Tensor::new(B::inner(&self.value))
+    pub fn inner(self) -> Tensor<B::InnerBackend, D> {
+        Tensor::new(B::inner(self.value))
     }
 
     /// Executes an operation on the tensor and modifies its value.

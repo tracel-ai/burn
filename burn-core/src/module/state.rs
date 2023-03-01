@@ -177,8 +177,7 @@ mod tests {
         let state_before = model_before.state();
         state_before.clone().save("/tmp/test.json").unwrap();
 
-        let mut model_after = create_model();
-        model_after
+        let model_after = create_model()
             .load(&State::load("/tmp/test.json").unwrap())
             .unwrap();
 
@@ -194,7 +193,7 @@ mod tests {
         let params_before_2 = list_param_ids(&model_2);
 
         let state = model_1.state();
-        model_2.load(&state).unwrap();
+        model_2 = model_2.load(&state).unwrap();
         let params_after_2 = list_param_ids(&model_2);
 
         assert_ne!(params_before_1, params_before_2);
@@ -218,7 +217,7 @@ mod tests {
 
         // Load.
 
-        model_2.load(&State::load_binary(&binary).unwrap()).unwrap();
+        model_2 = model_2.load(&State::load_binary(&binary).unwrap()).unwrap();
         let params_after_2 = list_param_ids(&model_2);
 
         // Verify.

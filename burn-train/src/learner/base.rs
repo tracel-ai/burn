@@ -1,6 +1,6 @@
 use crate::checkpoint::Checkpointer;
 use crate::LearnerCallback;
-use burn_core::module::ADModule;
+use burn_core::module::{ADModule, Module};
 use burn_core::optim::Optimizer;
 use burn_core::tensor::backend::Backend;
 
@@ -16,11 +16,14 @@ where
     pub(super) num_epochs: usize,
     pub(super) callback: Box<dyn LearnerCallback<TO, VO>>,
     pub(super) checkpoint: Option<usize>,
-    pub(super) checkpointer_model: Option<Box<dyn Checkpointer<<M::Backend as Backend>::Elem>>>,
-    pub(super) checkpointer_optimizer: Option<Box<dyn Checkpointer<<M::Backend as Backend>::Elem>>>,
+    pub(super) checkpointer_model: CheckpointModel<M>,
+    pub(super) checkpointer_optimizer: CheckpointOptim<M>,
     pub(super) grad_accumulation: Option<usize>,
     pub(super) devices: Vec<<M::Backend as Backend>::Device>,
 }
+
+type CheckpointModel<M> = Option<Box<dyn Checkpointer<<<M as Module>::Backend as Backend>::Elem>>>;
+type CheckpointOptim<M> = Option<Box<dyn Checkpointer<<<M as Module>::Backend as Backend>::Elem>>>;
 
 impl<M, O, TO, VO> Learner<M, O, TO, VO>
 where
@@ -29,26 +32,32 @@ where
     M: ADModule,
     O: Optimizer<Backend = M::Backend>,
 {
-    pub(super) fn checkpoint(&self, epoch: usize) {
-        if let Some(checkpointer) = &self.checkpointer_model {
-            checkpointer.save(epoch, self.model.state()).unwrap();
+    pub(super) fn checkpoint(
+        model: &M,
+        optim: &O,
+        checkpointer_model: &CheckpointModel<M>,
+        checkpointer_optimizer: &CheckpointOptim<M>,
+        epoch: usize,
+    ) {
+        if let Some(checkpointer) = &checkpointer_model {
+            checkpointer.save(epoch, model.state()).unwrap();
         }
-        if let Some(checkpointer) = &self.checkpointer_optimizer {
-            checkpointer
-                .save(epoch, self.optim.state(&self.model))
-                .unwrap();
+        if let Some(checkpointer) = &checkpointer_optimizer {
+            checkpointer.save(epoch, optim.state(model)).unwrap();
         }
     }
 
-    pub(super) fn load_checkpoint(&mut self, epoch: usize) {
+    pub(super) fn load_checkpoint(mut self, epoch: usize) -> Self {
         if let Some(checkpointer) = &self.checkpointer_model {
             let state = checkpointer.restore(epoch).unwrap();
-            self.model.load(&state).unwrap();
+            self.model = self.model.load(&state).unwrap();
         }
 
         if let Some(checkpointer) = &self.checkpointer_optimizer {
             let state = checkpointer.restore(epoch).unwrap();
             self.optim.load(&self.model, &state).unwrap();
         }
+
+        self
     }
 }

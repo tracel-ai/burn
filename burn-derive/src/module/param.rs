@@ -1,5 +1,5 @@
 use crate::shared::field::{parse_fields, FieldTypeAnalyzer};
-use proc_macro2::TokenStream;
+use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 
 pub struct Param {
@@ -102,62 +102,100 @@ impl Param {
     }
 
     pub fn gen_to_device_fn(&self) -> TokenStream {
-        let mut body = quote! {};
-        for field in self.fields_param.iter() {
-            let name = field.ident();
-            body.extend(quote! {
-                self.#name.to_device(device);
-            });
-        }
+        let (names, body) = self.gen_params_others_fn(
+            |name| {
+                quote! {
+                    let #name = self.#name.to_device(device);
+                }
+            },
+            |name| {
+                quote! {
+                    let #name = self.#name.clone();
+                }
+            },
+        );
 
         quote! {
-            fn to_device(&mut self, device: &B::Device) {
+            fn to_device(self, device: &B::Device) -> Self {
                 #body
+
+                Self {
+                    #(#names),*
+                }
             }
         }
     }
 
     pub fn gen_detach_fn(&self) -> TokenStream {
-        let mut body = quote! {};
-        for field in self.fields_param.iter() {
-            let name = field.ident();
-            body.extend(quote! {
-                self.#name.detach();
-            });
-        }
+        let (names, body) = self.gen_params_others_fn(
+            |name| {
+                quote! {
+                    let #name = self.#name.detach();
+                }
+            },
+            |name| {
+                quote! {
+                    let #name = self.#name.clone();
+                }
+            },
+        );
 
         quote! {
-            fn detach(&mut self) {
+            fn detach(self) -> Self {
                 #body
+
+                Self {
+                    #(#names),*
+                }
+
             }
         }
     }
 
     pub fn gen_inner_fn(&self) -> TokenStream {
-        let mut body = quote! {};
-        let mut names = Vec::new();
-        for field in self.fields_param.iter() {
-            let name = field.ident();
-            names.push(name.clone());
-
-            body.extend(quote! {
-                let #name = self.#name.inner();
-            });
-        }
-        for field in self.fields_other.iter() {
-            let name = field.ident();
-            names.push(name.clone());
-
-            body.extend(quote! {
-                let #name = self.#name.clone();
-            });
-        }
+        let (names, body) = self.gen_params_others_fn(
+            |name| {
+                quote! {
+                    let #name = self.#name.inner();
+                }
+            },
+            |name| {
+                quote! {
+                    let #name = self.#name.clone();
+                }
+            },
+        );
 
         quote! {
-            fn inner(&self) -> Self::InnerModule {
+            fn inner(self) -> Self::InnerModule {
                 #body
 
                 Self::InnerModule {
+                    #(#names),*
+                }
+            }
+        }
+    }
+
+    pub fn gen_from_inner_fn(&self) -> TokenStream {
+        let (names, body) = self.gen_params_others_fn(
+            |name| {
+                quote! {
+                    let #name = burn::module::ADModule::from_inner(module.#name);
+                }
+            },
+            |name| {
+                quote! {
+                    let #name = module.#name.clone();
+                }
+            },
+        );
+
+        quote! {
+            fn from_inner(module: Self::InnerModule) -> Self {
+                #body
+
+                Self {
                     #(#names),*
                 }
             }
@@ -212,26 +250,61 @@ impl Param {
     }
 
     pub fn gen_load_fn(&self) -> TokenStream {
-        let mut body = quote! {};
-        for field in self.fields_param.iter() {
-            let name = field.ident();
-            body.extend(quote! {
+        let (names, body) = self.gen_params_others_fn(|name| {
+            quote! {
                 let state_mod = state.get(stringify!(#name)).ok_or(
                     burn::module::LoadingError::new(format!(
                         "Missing module '{}' from state",
                         stringify!(#name),
                     )))?;
-                self.#name.load(state_mod).map_err(|err| {
+                let #name = self.#name.load(state_mod).map_err(|err| {
                     burn::module::LoadingError::new(format!("Can't load module {}: {}", stringify!(#name), err))
                 })?;
-            });
-        }
+            }
+        }, |name| {
+            quote! {
+                let #name = self.#name.clone();
+            }
+        });
+
         quote! {
-            fn load(&mut self, state: &burn::module::State<<Self::Backend as burn::tensor::backend::Backend>::Elem>) -> Result<(), burn::module::LoadingError>
+            fn load(self, state: &burn::module::State<<Self::Backend as burn::tensor::backend::Backend>::Elem>) -> Result<Self, burn::module::LoadingError>
             {
                 #body
-                Ok(())
+
+                Ok(Self {
+                    #(#names),*
+                })
             }
         }
+    }
+
+    pub fn gen_params_others_fn<FP, FO>(
+        &self,
+        func_params: FP,
+        func_others: FO,
+    ) -> (Vec<Ident>, TokenStream)
+    where
+        FP: Fn(Ident) -> TokenStream,
+        FO: Fn(Ident) -> TokenStream,
+    {
+        let mut body = quote! {};
+        let mut names = Vec::new();
+
+        for field in self.fields_param.iter() {
+            let name = field.ident();
+
+            names.push(name.clone());
+            body.extend(func_params(field.ident()));
+        }
+
+        for field in self.fields_other.iter() {
+            let name = field.ident();
+
+            names.push(name.clone());
+            body.extend(func_others(field.ident()));
+        }
+
+        (names, body)
     }
 }
