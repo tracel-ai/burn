@@ -64,7 +64,7 @@ impl<B: ADBackend> Optimizer for Adam<B> {
         tensor: &mut Tensor<B, D>,
         grad: Tensor<B::InnerBackend, D>,
     ) {
-        tensor.inplace(grad, |tensor, grad| {
+        tensor.inplace(|tensor| {
             let grad = match &mut self.weight_decay {
                 Some(weight_decay) => weight_decay.transform(id, grad),
                 None => grad,

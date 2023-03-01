@@ -62,49 +62,46 @@ impl<const D: usize, B: Backend> Module for Param<RunningState<Tensor<B, D>>> {
     fn to_device(self, device: &B::Device) -> Self {
         self.value.sync();
 
-        let tensor = self.value.value.read().unwrap();
+        let mut tensor = self.value.value.write().unwrap();
+        tensor.inplace(|tensor| tensor.to_device(device));
+        core::mem::drop(tensor);
 
-        Param {
-            id: self.id,
-            value: RunningState::new(tensor.clone().to_device(device)),
-        }
+        self
     }
 
     fn state(&self) -> State<B::Elem> {
         self.sync();
+
         let tensor = self.value.value.read().unwrap();
         let state = State::Data(tensor.to_data().serialize());
 
         state_with_id(self.id.clone(), state)
     }
 
-    fn load(self, state: &State<B::Elem>) -> Result<Self, LoadingError> {
+    fn load(mut self, state: &State<B::Elem>) -> Result<Self, LoadingError> {
         let (id, state) = load_with_id(state)?;
-        let id = id.clone();
-
         self.sync();
 
-        let tensor = match state {
+        match state {
             State::Data(data) => {
-                let tensor = self.value.value.read().unwrap();
-                Tensor::from_data_device(Data::from(data), &tensor.device())
+                let mut tensor = self.value.value.write().unwrap();
+                *tensor = Tensor::from_data_device(Data::from(data), &tensor.device())
             }
             _ => return Err(LoadingError::new("Can't load tensor".to_string())),
         };
 
-        Ok(Self {
-            id,
-            value: RunningState::new(tensor),
-        })
+        self.id = id.clone();
+        Ok(self)
     }
 
     fn detach(self) -> Self {
-        let tensor = self.value.value.read().unwrap();
+        self.sync();
 
-        Param {
-            id: self.id,
-            value: RunningState::new(tensor.clone().detach()),
-        }
+        let mut tensor = self.value.value.write().unwrap();
+        tensor.inplace(|tensor| tensor.detach());
+        core::mem::drop(tensor);
+
+        self
     }
 
     fn visit<V: ModuleVisitor<Self::Backend>>(&self, visitor: &mut V) {
@@ -215,6 +212,7 @@ impl<const D: usize, B: ADBackend> ADModule for Param<RunningState<Tensor<B, D>>
 
     fn from_inner(module: Self::InnerModule) -> Self {
         module.sync();
+
         let value = module.value.value();
 
         Param {
