@@ -765,7 +765,7 @@ impl<const D: usize, B: ADBackend> Tensor<B, D> {
     /// no other reference pointing to the same tensor.
     ///
     /// Wrapping operations with inplace is not an optimization, it's mainly there if you
-    /// want to mutate a tensor by using owned operations. An plausible usage would be to
+    /// want to mutate a tensor by using owned operations. A plausible usage would be to
     /// update the weights of a mutable model reference.
     pub fn inplace<F: FnOnce(Self, Args) -> Self, Args>(&mut self, args: Args, func: F) {
         let mut tensor_owned = Tensor::empty([0; D]);
