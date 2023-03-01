@@ -8,7 +8,7 @@ It's a temporary workaround for https://github.com/burn-rs/burn/issues/180
 till tch-rs starts using Torch 2.0 libraries.
 
 This script installs torch via pip3 and creates environment variables in 
-burn-tch/.cargo/config.toml for tch-rs to link cc libs properly.
+.cargo/config.toml for tch-rs to link cc libs properly.
 
 
 """
@@ -27,7 +27,7 @@ def update_toml_config():
     import tomli_w
 
     cargo_cfg_dir = pathlib.Path(__file__).parent.parent.joinpath(
-        "burn-tch/.cargo").resolve()
+        ".cargo").resolve()
     cargo_cfg_dir.exists()
     if not cargo_cfg_dir.exists():
         os.makedirs(cargo_cfg_dir)
