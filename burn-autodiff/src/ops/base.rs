@@ -12,8 +12,7 @@ use std::marker::PhantomData;
 /// Operation in preparation.
 ///
 /// There are 3 diffent modes: 'Init', 'Tracked' and 'UnTracked'.
-/// Each mode has its own set of function to make sure there are the minimum amount of cloning
-/// happening.
+/// Each mode has its own set of functions to minimize cloning for unused backward states.
 #[derive(new)]
 pub struct OpsPrep<Backward, B, S, const D: usize, const N: usize, Mode = Init> {
     nodes: [NodeRef; N],
@@ -34,7 +33,7 @@ where
     B: Backend,
     BO: Backward<B, D, N, State = ()>,
 {
-    /// Prepare an operation without any state necessary during the backward pass.
+    /// Prepare an stateless operation.
     pub fn stateless(self, output: <B as Backend>::TensorPrimitive<D>) -> ADTensor<B, D> {
         match self.statefull() {
             OpsKind::Tracked(prep) => prep.finish((), output),
@@ -74,11 +73,11 @@ where
     S: Clone + Send + Sync + std::fmt::Debug + 'static,
     BO: Backward<B, D, N, State = S>,
 {
-    /// Finish the preparation of an untrack operation and returns the output tensor.
+    /// Finish the preparation of an untracked operation and returns the output tensor.
     pub fn finish(self, output: <B as Backend>::TensorPrimitive<D>) -> ADTensor<B, D> {
-        ADTensor::from_ops(
-            &self.nodes,
+        ADTensor::from_parents(
             output,
+            &self.nodes,
             self.graphs.into_iter(),
             self.requirement,
         )
@@ -93,9 +92,9 @@ where
 {
     /// Finish the preparation of a tracked operation and returns the output tensor.
     pub fn finish(self, state: S, output: <B as Backend>::TensorPrimitive<D>) -> ADTensor<B, D> {
-        let output = ADTensor::from_ops(
-            &self.nodes,
+        let output = ADTensor::from_parents(
             output,
+            &self.nodes,
             self.graphs.into_iter(),
             self.requirement,
         );
@@ -106,7 +105,7 @@ where
     }
 }
 
-/// Enum used to prepare tracked and untrack operations.
+/// Enum used before finishing tracked and untracked operations.
 pub enum OpsKind<BO, B, S, const D: usize, const N: usize> {
     Tracked(OpsPrep<BO, B, S, D, N, Tracked>),
     UnTracked(OpsPrep<BO, B, S, D, N, UnTracked>),
@@ -120,7 +119,7 @@ pub struct Ops<S, const N: usize> {
     pub state: S,
 }
 
-/// The operation step.
+/// Operation implementing backward [step](Step) with type erasing.
 #[derive(new, Debug)]
 struct OpsStep<B, T, SB, const D: usize, const N: usize>
 where

@@ -21,7 +21,7 @@ members = [
 
 [workspace.dependencies]
 const-random = "0.1.15"
-dashmap = "4.0.0"
+dashmap = "5.4.0"
 dirs = "4.0.0"
 fake = "2.5.0"
 flate2 = "1.0.25"

@@ -12,7 +12,7 @@ use crate::{
 pub struct ADTensor<B: Backend, const D: usize> {
     pub primitive: B::TensorPrimitive<D>,
     pub node: NodeRef,
-    pub(crate) graph: Graph,
+    pub graph: Graph,
 }
 
 pub type Elem<B> = <ADBackendDecorator<B> as Backend>::Elem;
@@ -36,6 +36,7 @@ impl Step for RootStep {
 }
 
 impl<B: Backend, const D: usize> ADTensor<B, D> {
+    /// Create a new leaf tensor.
     pub fn new(primitive: B::TensorPrimitive<D>) -> Self {
         let id = NodeID::new();
         let node = Node::new(vec![], 0, id, Requirement::None);
@@ -46,10 +47,16 @@ impl<B: Backend, const D: usize> ADTensor<B, D> {
         };
         tensor.require_grad()
     }
+
     pub fn is_tracked(&self) -> bool {
         !self.node.requirement.is_none()
     }
 
+    /// Mark the tensor as requirering gradients.
+    ///
+    /// # Panics
+    ///
+    /// It panics if the tensor is non a leaf.
     pub fn require_grad(mut self) -> Self {
         match self.node.requirement {
             Requirement::Grad => self,
@@ -65,17 +72,18 @@ impl<B: Backend, const D: usize> ADTensor<B, D> {
         }
     }
 
-    pub fn from_ops<I: Iterator<Item = Graph>>(
-        nodes: &[NodeRef],
+    /// Create a tensor from parent infos.
+    pub fn from_parents<I: Iterator<Item = Graph>>(
         output: B::TensorPrimitive<D>,
-        graphs: I,
+        parent_nodes: &[NodeRef],
+        parent_graphs: I,
         requirement: Requirement,
     ) -> Self {
-        let graph = graphs
+        let graph = parent_graphs
             .reduce(|acc, graph| acc.merge(graph))
             .unwrap_or_else(Graph::new);
 
-        let order = nodes
+        let order = parent_nodes
             .iter()
             .map(|node| node.order)
             .reduce(usize::max)
@@ -83,7 +91,7 @@ impl<B: Backend, const D: usize> ADTensor<B, D> {
             + 1;
 
         let node = Node::new(
-            nodes.iter().map(|node| node.id.clone()).collect(),
+            parent_nodes.iter().map(|node| node.id.clone()).collect(),
             order,
             NodeID::new(),
             requirement,
@@ -96,6 +104,7 @@ impl<B: Backend, const D: usize> ADTensor<B, D> {
         }
     }
 
+    /// Register a step into a graph for that tensor.
     pub fn register_step<O: Step + 'static>(mut self, ops: O) -> Self {
         self.graph = self.graph.register(&self.node.id, Box::new(ops));
         self

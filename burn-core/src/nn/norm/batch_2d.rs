@@ -2,12 +2,11 @@ use alloc::{format, vec::Vec};
 
 use crate as burn;
 
-use crate::config::Config;
-use crate::module::Module;
-use crate::module::Param;
-use crate::module::RunningState;
-use crate::tensor::backend::Backend;
-use crate::tensor::Tensor;
+use crate::{
+    config::Config,
+    module::{Module, Param, RunningState},
+    tensor::{backend::Backend, Tensor},
+};
 
 /// Configuration to create a [BatchNorm2d](BatchNorm2d) layer.
 #[derive(Config)]

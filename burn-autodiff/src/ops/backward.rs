@@ -31,7 +31,6 @@ where
         graphs: [Graph; N],
     ) -> OpsPrep<Self, B, Self::State, D, N> {
         let requirement = Requirement::from_nodes(&nodes);
-
         OpsPrep::new(nodes, graphs, requirement, self)
     }
 }

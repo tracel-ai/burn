@@ -4,11 +4,7 @@ use burn_common::id::IdGenerator;
 
 use super::Requirement;
 
-/// Node in the autodiff graph.
-///
-/// # Notes
-///
-/// Nodes contain graph metadata and should be used wrapped in an Arc for cheap cloning.
+/// A node contains graph metadata and should be used wrapped in an Arc for cheap cloning.
 #[derive(new, Debug)]
 pub struct Node {
     pub parents: Vec<NodeID>,
@@ -16,24 +12,22 @@ pub struct Node {
     pub id: NodeID,
     pub requirement: Requirement,
 }
-/// Read only [node](Node) reference cheap to clone.
 pub type NodeRef = Arc<Node>;
 
 impl Node {
     /// Returns the [node](Node) only if gradients are required.
     pub fn clone_if_require_grad(self: &Arc<Self>) -> Option<NodeRef> {
-        if self.requirement.is_none() {
-            return None;
+        match self.requirement.is_none() {
+            true => None,
+            false => Some(self.clone()),
         }
-
-        Some(self.clone())
     }
 }
 
 /// Unique identifier generated for each [node](Node).
 #[derive(Clone, Hash, PartialEq, Eq, Debug)]
 pub struct NodeID {
-    pub(crate) value: String,
+    pub value: String,
 }
 
 impl NodeID {

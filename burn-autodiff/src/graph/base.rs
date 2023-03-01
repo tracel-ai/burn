@@ -33,12 +33,19 @@ impl Graph {
     }
 
     /// Get all the steps for the graph.
+    ///
+    /// # Notes
+    ///
+    /// This is a owned method, so the current graph will be freed. However, the steps can
+    /// be shared with other graphs, therefore they are going to be cleared.
+    ///
+    /// This is usefull, since the graph is supposed to be consumed only once for backprop, and
+    /// keeping all the tensors alive for multiple backward call is a heavy waste of ressources.
     pub fn steps(self) -> NodeSteps {
         let mut map_drain = HashMap::new();
         self.execute_mut(|map| {
             std::mem::swap(&mut *map, &mut map_drain);
         });
-
         map_drain
     }
 

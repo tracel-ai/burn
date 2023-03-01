@@ -28,10 +28,10 @@ impl Gradients {
         );
         gradients
     }
-    /// Consume the gradient for a given tensor.
+    /// Consume the gradients for a given tensor.
     ///
-    /// Each tensor should be consumed exactly 1 time if its gradient is only required during the
-    /// backward pass.
+    /// Each tensor should be consumed exactly 1 time if its gradients are only required during the
+    /// backward pass, otherwise, it may be consume multiple times.
     pub fn consume<B: Backend, const D: usize>(&mut self, node: &NodeRef) -> TensorPrimitive<B, D> {
         match node.requirement {
             Requirement::Grad => self

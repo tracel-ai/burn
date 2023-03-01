@@ -1037,10 +1037,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
         let output = B::cat(primitives, dim);
         if requirement.is_none() {
-            return ADTensor::from_ops(&nodes, output, graphs.into_iter(), requirement);
+            return ADTensor::from_parents(output, &nodes, graphs.into_iter(), requirement);
         }
 
-        let output = ADTensor::from_ops(&nodes, output, graphs.into_iter(), requirement);
+        let output = ADTensor::from_parents(output, &nodes, graphs.into_iter(), requirement);
         let nodes = nodes
             .into_iter()
             .map(|node| node.clone_if_require_grad())

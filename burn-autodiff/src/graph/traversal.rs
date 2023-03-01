@@ -15,12 +15,11 @@ impl BreadthFirstSearch {
     ) {
         let mut visited = HashSet::with_capacity(root.order);
         let mut parents = Vec::with_capacity(root.order);
+        let mut steps = graph.steps();
+        let root_step = steps.remove(&root.id).unwrap();
 
         visited.insert(root.id.clone());
         parents.append(&mut root.parents.clone());
-
-        let mut steps = graph.steps();
-        let root_step = steps.remove(&root.id).unwrap();
         callback(root, root_step);
 
         while let Some(id) = parents.pop() {
@@ -31,12 +30,11 @@ impl BreadthFirstSearch {
 
             let node = step.node();
 
-            let id = &node.id;
-            if visited.contains(id) {
+            if visited.contains(&node.id) {
                 continue;
             }
 
-            visited.insert(id.clone());
+            visited.insert(node.id.clone());
 
             for id in node.parents.iter() {
                 if !visited.contains(id) {

@@ -1,6 +1,6 @@
 use super::NodeRef;
 
-/// Requirement enum for operations.
+/// Requirement for each tensor in the graph.
 #[derive(Debug, Clone, Copy)]
 pub enum Requirement {
     /// Operations that require gradients.
@@ -26,16 +26,9 @@ impl Requirement {
     }
 
     fn infer(&self, other: &Self) -> Self {
-        match self {
-            Self::Grad => return Self::GradInBackward,
-            Self::GradInBackward => return Self::GradInBackward,
-            Self::None => (),
-        }
-
-        match other {
-            Self::Grad => Self::GradInBackward,
-            Self::GradInBackward => Self::GradInBackward,
-            Self::None => Self::None,
+        match self.is_none() && other.is_none() {
+            true => Self::None,
+            false => Self::GradInBackward,
         }
     }
 }

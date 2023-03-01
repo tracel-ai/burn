@@ -12,10 +12,10 @@ pub fn backward<B: Backend, const D: usize>(root: ADTensor<B, D>) -> Gradients {
 }
 
 fn build_tape(root: NodeRef, graph: Graph) -> Vec<Vec<StepBoxed>> {
-    let mut tape = Vec::with_capacity(root.order);
-    for _ in 0..root.order {
-        tape.push(Vec::with_capacity(1));
-    }
+    let mut tape = (0..root.order)
+        .into_iter()
+        .map(|_| Vec::with_capacity(1))
+        .collect::<Vec<_>>();
 
     BreadthFirstSearch.traverse(root, graph, |node, step| {
         if node.order == 0 {
@@ -30,21 +30,9 @@ fn build_tape(root: NodeRef, graph: Graph) -> Vec<Vec<StepBoxed>> {
     tape
 }
 
-fn execute_steps(mut tape: Vec<Vec<StepBoxed>>, mut grads: Gradients) -> Gradients {
-    for i in (0..tape.len()).rev() {
-        let steps = match tape.get_mut(i) {
-            Some(val) => val,
-            None => continue,
-        };
-
-        // Take ownership of steps.
-        let mut empty = Vec::new();
-        std::mem::swap(steps, &mut empty);
-
-        for step in empty {
-            step.step(&mut grads);
-        }
-    }
-
+fn execute_steps(tape: Vec<Vec<StepBoxed>>, mut grads: Gradients) -> Gradients {
+    tape.into_iter()
+        .rev()
+        .for_each(|steps| steps.into_iter().for_each(|step| step.step(&mut grads)));
     grads
 }
