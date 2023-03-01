@@ -1,63 +1,148 @@
-use crate::graph::{
-    node::{ForwardNode, ForwardNodeRef, ForwardNodeState},
-    ops::{BinaryOps, ForwardBinaryRecordedOps, ForwardUnaryRecordedOps, UnaryOps},
+use super::Backward;
+use crate::{
+    grads::Gradients,
+    graph::{
+        NodeRef, Requirement, {Graph, Step},
+    },
+    tensor::ADTensor,
 };
-use crate::tensor::ADTensor;
 use burn_tensor::backend::Backend;
-use std::sync::Arc;
+use std::marker::PhantomData;
 
-pub fn unary_ops_wrapper_explicit<B1, B2, O, const D1: usize, const D2: usize>(
-    input: ForwardNodeRef<B1::TensorPrimitive<D1>>,
-    output: B2::TensorPrimitive<D2>,
-    ops: O,
-) -> ADTensor<D2, B2>
-where
-    B1: Backend,
-    B2: Backend,
-    O: UnaryOps<B1::TensorPrimitive<D1>, B2::TensorPrimitive<D2>> + 'static,
-{
-    let state = ForwardNodeState::new(output);
-
-    let ops = Arc::new(ops);
-    let ops = ForwardUnaryRecordedOps::new(input.clone(), ops);
-    let ops = Box::new(ops);
-
-    let node = ForwardNode::from_unary(&input, state, ops);
-    let node = Arc::new(node);
-
-    ADTensor { node }
+/// Operation in preparation.
+///
+/// There are 3 diffent modes: 'Init', 'Tracked' and 'UnTracked'.
+/// Each mode has its own set of functions to minimize cloning for unused backward states.
+#[derive(new)]
+pub struct OpsPrep<Backward, B, S, const D: usize, const N: usize, Mode = Init> {
+    nodes: [NodeRef; N],
+    graphs: [Graph; N],
+    requirement: Requirement,
+    backward: Backward,
+    phantom_backend: PhantomData<B>,
+    phantom_state: PhantomData<S>,
+    marker: PhantomData<Mode>,
 }
 
-pub fn unary_ops_wrapper<B, O, const D1: usize, const D2: usize>(
-    input: ForwardNodeRef<B::TensorPrimitive<D1>>,
-    output: B::TensorPrimitive<D2>,
-    ops: O,
-) -> ADTensor<D2, B>
+pub struct Init;
+pub struct Tracked;
+pub struct UnTracked;
+
+impl<BO, B, const D: usize, const N: usize> OpsPrep<BO, B, (), D, N, Init>
 where
     B: Backend,
-    O: UnaryOps<B::TensorPrimitive<D1>, B::TensorPrimitive<D2>> + 'static,
+    BO: Backward<B, D, N, State = ()>,
 {
-    unary_ops_wrapper_explicit::<B, B, O, D1, D2>(input, output, ops)
+    /// Prepare an stateless operation.
+    pub fn stateless(self, output: <B as Backend>::TensorPrimitive<D>) -> ADTensor<B, D> {
+        match self.statefull() {
+            OpsKind::Tracked(prep) => prep.finish((), output),
+            OpsKind::UnTracked(prep) => prep.finish(output),
+        }
+    }
 }
 
-pub fn binary_ops_wrapper<B, O, const D1: usize, const D2: usize, const D3: usize>(
-    lhs: ForwardNodeRef<B::TensorPrimitive<D1>>,
-    rhs: ForwardNodeRef<B::TensorPrimitive<D2>>,
-    output: B::TensorPrimitive<D3>,
-    ops: O,
-) -> ADTensor<D3, B>
+impl<BO, B, S, const D: usize, const N: usize> OpsPrep<BO, B, S, D, N, Init>
 where
     B: Backend,
-    O: BinaryOps<B::TensorPrimitive<D1>, B::TensorPrimitive<D2>, B::TensorPrimitive<D3>> + 'static,
+    S: Clone + Send + Sync + std::fmt::Debug + 'static,
+    BO: Backward<B, D, N, State = S>,
 {
-    let state = ForwardNodeState::new(output);
+    /// Prepare an operation that requires a state during the backward pass.
+    pub fn statefull(self) -> OpsKind<BO, B, S, D, N> {
+        match self.requirement.is_none() {
+            false => OpsKind::Tracked(OpsPrep::new(
+                self.nodes,
+                self.graphs,
+                self.requirement,
+                self.backward,
+            )),
+            true => OpsKind::UnTracked(OpsPrep::new(
+                self.nodes,
+                self.graphs,
+                self.requirement,
+                self.backward,
+            )),
+        }
+    }
+}
 
-    let ops = Arc::new(ops);
-    let ops = ForwardBinaryRecordedOps::new(lhs.clone(), rhs.clone(), ops);
-    let ops = Box::new(ops);
+impl<BO, B, S, const D: usize, const N: usize> OpsPrep<BO, B, S, D, N, UnTracked>
+where
+    B: Backend,
+    S: Clone + Send + Sync + std::fmt::Debug + 'static,
+    BO: Backward<B, D, N, State = S>,
+{
+    /// Finish the preparation of an untracked operation and returns the output tensor.
+    pub fn finish(self, output: <B as Backend>::TensorPrimitive<D>) -> ADTensor<B, D> {
+        ADTensor::from_parents(
+            output,
+            &self.nodes,
+            self.graphs.into_iter(),
+            self.requirement,
+        )
+    }
+}
 
-    let node = ForwardNode::from_binary(&lhs, &rhs, state, ops);
-    let node = Arc::new(node);
+impl<BO, B, S, const D: usize, const N: usize> OpsPrep<BO, B, S, D, N, Tracked>
+where
+    B: Backend,
+    S: Clone + Send + Sync + std::fmt::Debug + 'static,
+    BO: Backward<B, D, N, State = S>,
+{
+    /// Finish the preparation of a tracked operation and returns the output tensor.
+    pub fn finish(self, state: S, output: <B as Backend>::TensorPrimitive<D>) -> ADTensor<B, D> {
+        let output = ADTensor::from_parents(
+            output,
+            &self.nodes,
+            self.graphs.into_iter(),
+            self.requirement,
+        );
+        let parents = self.nodes.map(|node| node.clone_if_require_grad());
+        let ops = Ops::new(parents, output.node.clone(), state);
 
-    ADTensor { node }
+        output.register_step(OpsStep::new(ops, self.backward))
+    }
+}
+
+/// Enum used before finishing tracked and untracked operations.
+pub enum OpsKind<BO, B, S, const D: usize, const N: usize> {
+    Tracked(OpsPrep<BO, B, S, D, N, Tracked>),
+    UnTracked(OpsPrep<BO, B, S, D, N, UnTracked>),
+}
+
+/// Operation containing its parent nodes, its own node and the backward step state.
+#[derive(new, Debug)]
+pub struct Ops<S, const N: usize> {
+    pub parents: [Option<NodeRef>; N],
+    pub node: NodeRef,
+    pub state: S,
+}
+
+/// Operation implementing backward [step](Step) with type erasing.
+#[derive(new, Debug)]
+struct OpsStep<B, T, SB, const D: usize, const N: usize>
+where
+    B: Backend,
+    T: Backward<B, D, N, State = SB>,
+    SB: Clone + Send + Sync + std::fmt::Debug + 'static,
+{
+    ops: Ops<SB, N>,
+    backward: T,
+    phantom: PhantomData<B>,
+}
+
+impl<B, T, SB, const D: usize, const N: usize> Step for OpsStep<B, T, SB, D, N>
+where
+    B: Backend,
+    T: Backward<B, D, N, State = SB>,
+    SB: Clone + Send + Sync + std::fmt::Debug + 'static,
+{
+    fn step(self: Box<Self>, grads: &mut Gradients) {
+        self.backward.backward(self.ops, grads);
+    }
+
+    fn node(&self) -> NodeRef {
+        self.ops.node.clone()
+    }
 }

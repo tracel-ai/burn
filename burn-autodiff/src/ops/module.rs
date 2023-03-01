@@ -1,350 +1,370 @@
-use super::unary_ops_wrapper;
-use crate::graph::converter::Forward2BackwardGraphConverter;
-use crate::graph::node::{
-    BackwardNode, BackwardNodeRef, BackwardNodeState, ForwardNode, ForwardNodeRef, ForwardNodeState,
-};
-use crate::graph::ops::{
-    BackwardRecordedOps, BackwardRecordedOpsBoxed, ForwardRecordedOps, RecordedOpsParentRef,
-    UnaryOps, UnaryOpsNodeState,
-};
-use crate::tensor::ADTensor;
+use crate::grads::Gradients;
+use crate::ops::{unary, Backward, Ops};
+use crate::tensor::{ADTensor, IntTensor};
 use crate::ADBackendDecorator;
+
 use burn_tensor::backend::Backend;
 use burn_tensor::ops::*;
-use std::sync::Arc;
 
-#[derive(new, Debug)]
-struct EmbeddingBackward<B: Backend> {
-    indexes: <B::IntegerBackend as Backend>::TensorPrimitive<2>,
-}
-
-impl<B: Backend> UnaryOps<B::TensorPrimitive<2>, B::TensorPrimitive<3>> for EmbeddingBackward<B> {
-    fn partial(
-        &self,
-        state: &UnaryOpsNodeState<B::TensorPrimitive<2>, B::TensorPrimitive<3>>,
-    ) -> B::TensorPrimitive<2> {
-        B::embedding_backward(
-            state.input.value.clone(),
-            state.output.grad(),
-            self.indexes.clone(),
-        )
-    }
-}
+use super::OpsKind;
 
 impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
-    fn embedding(
-        weights: <ADBackendDecorator<B> as Backend>::TensorPrimitive<2>,
-        indexes: <<ADBackendDecorator<B> as Backend>::IntegerBackend as Backend>::TensorPrimitive<
-            2,
-        >,
-    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<3> {
-        let input = weights.node.clone();
-        let output = B::embedding(weights.tensor(), indexes.clone());
-        let ops = EmbeddingBackward::<B>::new(indexes);
+    fn embedding(weights: ADTensor<B, 2>, indexes: IntTensor<B, 2>) -> ADTensor<B, 3> {
+        #[derive(Debug)]
+        struct Embedding;
 
-        unary_ops_wrapper(input, output, ops)
+        impl<B: Backend> Backward<B, 3, 1> for Embedding {
+            type State = (B::TensorPrimitive<2>, IntTensor<B, 2>);
+
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+                let (weights, indexes) = ops.state;
+
+                unary::<B, 3, 2, _>(ops.parents, ops.node, grads, |grad| {
+                    B::embedding_backward(weights, grad, indexes)
+                });
+            }
+        }
+
+        match Embedding
+            .prepare([weights.node], [weights.graph])
+            .statefull()
+        {
+            OpsKind::Tracked(prep) => prep.finish(
+                (weights.primitive.clone(), indexes.clone()),
+                B::embedding(weights.primitive, indexes),
+            ),
+            OpsKind::UnTracked(prep) => prep.finish(B::embedding(weights.primitive, indexes)),
+        }
     }
 
     fn embedding_backward(
-        weights: <ADBackendDecorator<B> as Backend>::TensorPrimitive<2>,
-        output: <ADBackendDecorator<B> as Backend>::TensorPrimitive<3>,
-        indexes: <<ADBackendDecorator<B> as Backend>::IntegerBackend as Backend>::TensorPrimitive<
-            2,
-        >,
-    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<2> {
-        let tensor = B::embedding_backward(weights.tensor(), output.tensor(), indexes);
-        ADTensor::from_tensor(tensor)
+        weights: ADTensor<B, 2>,
+        output: ADTensor<B, 3>,
+        indexes: IntTensor<B, 2>,
+    ) -> ADTensor<B, 2> {
+        let tensor = B::embedding_backward(weights.primitive, output.primitive, indexes);
+        ADTensor::new(tensor)
     }
 
     fn conv2d(
-        x: <ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
-        weight: <ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
-        bias: Option<<ADBackendDecorator<B> as Backend>::TensorPrimitive<1>>,
+        x: ADTensor<B, 4>,
+        weight: ADTensor<B, 4>,
+        bias: Option<ADTensor<B, 1>>,
         stride: [usize; 2],
         padding: [usize; 2],
-    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<4> {
-        let out = B::conv2d(
-            x.tensor(),
-            weight.tensor(),
-            bias.clone().map(|b| b.tensor()),
-            stride,
-            padding,
-        );
-        let mut order = usize::max(weight.node.order, x.node.order);
-        if let Some(bias) = &bias {
-            order = usize::max(order, bias.node.order);
+    ) -> ADTensor<B, 4> {
+        #[derive(Debug)]
+        struct Conv2DWithBias;
+        #[derive(Debug)]
+        struct Conv2DNoBias;
+
+        impl<B: Backend> Backward<B, 4, 3> for Conv2DWithBias {
+            type State = (
+                B::TensorPrimitive<4>,
+                B::TensorPrimitive<4>,
+                B::TensorPrimitive<1>,
+                [usize; 2],
+            );
+
+            fn backward(self, ops: Ops<Self::State, 3>, grads: &mut Gradients) {
+                let [node_x, node_weight, node_bias] = ops.parents;
+                let grad = grads.consume::<B, 4>(&ops.node);
+
+                let (x, weight, bias, stride) = ops.state;
+                let backward = B::conv2d_backward(x, weight, Some(bias), stride, grad);
+
+                if let Some(node) = node_x {
+                    grads.register::<B, 4>(node, backward.x_grad)
+                }
+                if let Some(node) = node_weight {
+                    grads.register::<B, 4>(node, backward.weights_grad)
+                }
+                if let Some(node) = node_bias {
+                    grads.register::<B, 1>(node, backward.bias_grad.unwrap())
+                }
+            }
         }
 
-        let ops = ForwardConv::<B, 2, 4>::new(x.node, weight.node, bias.map(|b| b.node), stride);
-        let ops = Box::new(ops);
-        let state = ForwardNodeState::new(out);
-        let node = ForwardNode::new(order, state, ops);
-        let node = std::sync::Arc::new(node);
+        impl<B: Backend> Backward<B, 4, 2> for Conv2DNoBias {
+            type State = (B::TensorPrimitive<4>, B::TensorPrimitive<4>, [usize; 2]);
 
-        ADTensor { node }
+            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
+                let [node_x, node_weight] = ops.parents;
+                let grad = grads.consume::<B, 4>(&ops.node);
+
+                let (x, weight, stride) = ops.state;
+                let backward = B::conv2d_backward(x, weight, None, stride, grad);
+
+                if let Some(node) = node_x {
+                    grads.register::<B, 4>(node, backward.x_grad)
+                }
+                if let Some(node) = node_weight {
+                    grads.register::<B, 4>(node, backward.weights_grad)
+                }
+            }
+        }
+
+        match bias {
+            Some(bias) => {
+                match Conv2DWithBias
+                    .prepare(
+                        [x.node, weight.node, bias.node],
+                        [x.graph, weight.graph, bias.graph],
+                    )
+                    .statefull()
+                {
+                    OpsKind::Tracked(prep) => prep.finish(
+                        (
+                            x.primitive.clone(),
+                            weight.primitive.clone(),
+                            bias.primitive.clone(),
+                            stride,
+                        ),
+                        B::conv2d(
+                            x.primitive,
+                            weight.primitive,
+                            Some(bias.primitive),
+                            stride,
+                            padding,
+                        ),
+                    ),
+                    OpsKind::UnTracked(prep) => prep.finish(B::conv2d(
+                        x.primitive,
+                        weight.primitive,
+                        Some(bias.primitive),
+                        stride,
+                        padding,
+                    )),
+                }
+            }
+            None => {
+                match Conv2DNoBias
+                    .prepare([x.node, weight.node], [x.graph, weight.graph])
+                    .statefull()
+                {
+                    OpsKind::Tracked(prep) => prep.finish(
+                        (x.primitive.clone(), weight.primitive.clone(), stride),
+                        B::conv2d(x.primitive, weight.primitive, None, stride, padding),
+                    ),
+                    OpsKind::UnTracked(prep) => prep.finish(B::conv2d(
+                        x.primitive,
+                        weight.primitive,
+                        None,
+                        stride,
+                        padding,
+                    )),
+                }
+            }
+        }
     }
+
     fn conv1d(
-        x: <ADBackendDecorator<B> as Backend>::TensorPrimitive<3>,
-        weight: <ADBackendDecorator<B> as Backend>::TensorPrimitive<3>,
-        bias: Option<<ADBackendDecorator<B> as Backend>::TensorPrimitive<1>>,
+        x: ADTensor<B, 3>,
+        weight: ADTensor<B, 3>,
+        bias: Option<ADTensor<B, 1>>,
         stride: usize,
         padding: usize,
-    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<3> {
-        let out = B::conv1d(
-            x.tensor(),
-            weight.tensor(),
-            bias.clone().map(|b| b.tensor()),
-            stride,
-            padding,
-        );
-        let mut order = usize::max(weight.node.order, x.node.order);
-        if let Some(bias) = &bias {
-            order = usize::max(order, bias.node.order);
+    ) -> ADTensor<B, 3> {
+        #[derive(Debug)]
+        struct Conv1DWithBias;
+        #[derive(Debug)]
+        struct Conv1DNoBias;
+
+        impl<B: Backend> Backward<B, 3, 3> for Conv1DWithBias {
+            type State = (
+                B::TensorPrimitive<3>,
+                B::TensorPrimitive<3>,
+                B::TensorPrimitive<1>,
+                usize,
+            );
+
+            fn backward(self, ops: Ops<Self::State, 3>, grads: &mut Gradients) {
+                let [node_x, node_weight, node_bias] = ops.parents;
+                let grad = grads.consume::<B, 3>(&ops.node);
+
+                let (x, weight, bias, stride) = ops.state;
+                let backward = B::conv1d_backward(x, weight, Some(bias), stride, grad);
+
+                if let Some(node) = node_x {
+                    grads.register::<B, 3>(node, backward.x_grad)
+                }
+                if let Some(node) = node_weight {
+                    grads.register::<B, 3>(node, backward.weights_grad)
+                }
+                if let Some(node) = node_bias {
+                    grads.register::<B, 1>(node, backward.bias_grad.unwrap())
+                }
+            }
         }
-        order += 1;
 
-        let ops = ForwardConv::<B, 1, 3>::new(x.node, weight.node, bias.map(|b| b.node), [stride]);
-        let ops = Box::new(ops);
-        let state = ForwardNodeState::new(out);
-        let node = ForwardNode::new(order, state, ops);
-        let node = std::sync::Arc::new(node);
+        impl<B: Backend> Backward<B, 3, 2> for Conv1DNoBias {
+            type State = (B::TensorPrimitive<3>, B::TensorPrimitive<3>, usize);
 
-        ADTensor { node }
+            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
+                let [node_x, node_weight] = ops.parents;
+                let grad = grads.consume::<B, 3>(&ops.node);
+
+                let (x, weight, stride) = ops.state;
+                let backward = B::conv1d_backward(x, weight, None, stride, grad);
+
+                if let Some(node) = node_x {
+                    grads.register::<B, 3>(node, backward.x_grad)
+                }
+                if let Some(node) = node_weight {
+                    grads.register::<B, 3>(node, backward.weights_grad)
+                }
+            }
+        }
+        match bias {
+            Some(bias) => {
+                match Conv1DWithBias
+                    .prepare(
+                        [x.node, weight.node, bias.node],
+                        [x.graph, weight.graph, bias.graph],
+                    )
+                    .statefull()
+                {
+                    OpsKind::Tracked(prep) => prep.finish(
+                        (
+                            x.primitive.clone(),
+                            weight.primitive.clone(),
+                            bias.primitive.clone(),
+                            stride,
+                        ),
+                        B::conv1d(
+                            x.primitive,
+                            weight.primitive,
+                            Some(bias.primitive),
+                            stride,
+                            padding,
+                        ),
+                    ),
+                    OpsKind::UnTracked(prep) => prep.finish(B::conv1d(
+                        x.primitive,
+                        weight.primitive,
+                        Some(bias.primitive),
+                        stride,
+                        padding,
+                    )),
+                }
+            }
+            None => {
+                match Conv1DNoBias
+                    .prepare([x.node, weight.node], [x.graph, weight.graph])
+                    .statefull()
+                {
+                    OpsKind::Tracked(prep) => prep.finish(
+                        (x.primitive.clone(), weight.primitive.clone(), stride),
+                        B::conv1d(x.primitive, weight.primitive, None, stride, padding),
+                    ),
+                    OpsKind::UnTracked(prep) => prep.finish(B::conv1d(
+                        x.primitive,
+                        weight.primitive,
+                        None,
+                        stride,
+                        padding,
+                    )),
+                }
+            }
+        }
     }
 
     fn max_pool2d(
-        x: <ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
+        x: ADTensor<B, 4>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
-    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<4> {
-        let output = B::max_pool2d_with_indexes(x.tensor(), kernel_size, stride, padding);
-        let order = x.node.order + 1;
-
-        let ops = ForwardMaxPool::<B, 2, 4>::new(
-            x.node,
-            Arc::new(output.indexes),
-            kernel_size,
-            stride,
-            padding,
-        );
-        let ops = Box::new(ops);
-        let state = ForwardNodeState::new(output.output);
-        let node = ForwardNode::new(order, state, ops);
-        let node = std::sync::Arc::new(node);
-
-        ADTensor { node }
+    ) -> ADTensor<B, 4> {
+        match MaxPool2D.prepare([x.node], [x.graph]).statefull() {
+            OpsKind::Tracked(prep) => {
+                let output =
+                    B::max_pool2d_with_indexes(x.primitive.clone(), kernel_size, stride, padding);
+                prep.finish(
+                    (x.primitive, output.indexes, kernel_size, stride, padding),
+                    output.output,
+                )
+            }
+            OpsKind::UnTracked(prep) => {
+                prep.finish(B::max_pool2d(x.primitive, kernel_size, stride, padding))
+            }
+        }
     }
 
     fn max_pool2d_with_indexes(
-        x: <ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
+        x: ADTensor<B, 4>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
     ) -> MaxPool2dWithIndexes<ADBackendDecorator<B>> {
-        let output = B::max_pool2d_with_indexes(x.tensor(), kernel_size, stride, padding);
-        let order = x.node.order + 1;
+        match MaxPool2D.prepare([x.node], [x.graph]).statefull() {
+            OpsKind::Tracked(prep) => {
+                let output =
+                    B::max_pool2d_with_indexes(x.primitive.clone(), kernel_size, stride, padding);
 
-        let ops = ForwardMaxPool::<B, 2, 4>::new(
-            x.node,
-            Arc::new(output.indexes.clone()),
-            kernel_size,
-            stride,
-            padding,
-        );
-        let ops = Box::new(ops);
-        let state = ForwardNodeState::new(output.output);
-        let node = ForwardNode::new(order, state, ops);
-        let node = std::sync::Arc::new(node);
+                let output_tensor = prep.finish(
+                    (
+                        x.primitive,
+                        output.indexes.clone(),
+                        kernel_size,
+                        stride,
+                        padding,
+                    ),
+                    output.output,
+                );
 
-        MaxPool2dWithIndexes::new(ADTensor { node }, output.indexes)
+                MaxPool2dWithIndexes::new(output_tensor, output.indexes)
+            }
+            OpsKind::UnTracked(prep) => {
+                let output = B::max_pool2d_with_indexes(x.primitive, kernel_size, stride, padding);
+                let output_tensor = prep.finish(output.output);
+
+                MaxPool2dWithIndexes::new(output_tensor, output.indexes)
+            }
+        }
     }
 
     fn max_pool2d_with_indexes_backward(
-        x: <ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
+        x: ADTensor<B, 4>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
-        output_grad: <ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
-        indexes: <<ADBackendDecorator<B> as Backend>::IntegerBackend as Backend>::TensorPrimitive<
-            4,
-        >,
+        output_grad: ADTensor<B, 4>,
+        indexes: IntTensor<B, 4>,
     ) -> MaxPool2dBackward<ADBackendDecorator<B>> {
-        let tensor = B::max_pool2d_with_indexes_backward(
-            x.tensor(),
+        let output = B::max_pool2d_with_indexes_backward(
+            x.primitive,
             kernel_size,
             stride,
             padding,
-            output_grad.tensor(),
+            output_grad.primitive,
             indexes,
         );
-
-        MaxPool2dBackward::new(ADTensor::from_tensor(tensor.x_grad))
+        MaxPool2dBackward::new(ADTensor::new(output.x_grad))
     }
 }
 
-#[derive(new, Debug)]
-pub struct ForwardConv<B: Backend, const D: usize, const S: usize> {
-    x: ForwardNodeRef<B::TensorPrimitive<S>>,
-    weights: ForwardNodeRef<B::TensorPrimitive<S>>,
-    bias: Option<ForwardNodeRef<B::TensorPrimitive<1>>>,
-    stride: [usize; D],
-}
+#[derive(Debug)]
+struct MaxPool2D;
 
-#[derive(new, Debug)]
-pub struct BackwardConv<B: Backend, const D: usize, const S: usize> {
-    x: BackwardNodeRef<B::TensorPrimitive<S>>,
-    weights: BackwardNodeRef<B::TensorPrimitive<S>>,
-    bias: Option<BackwardNodeRef<B::TensorPrimitive<1>>>,
-    stride: [usize; D],
-}
+impl<B: Backend> Backward<B, 4, 1> for MaxPool2D {
+    type State = (
+        B::TensorPrimitive<4>,
+        IntTensor<B, 4>,
+        [usize; 2],
+        [usize; 2],
+        [usize; 2],
+    );
 
-impl<B: Backend> ForwardRecordedOps<B::TensorPrimitive<4>> for ForwardConv<B, 2, 4> {
-    fn to_backward(
-        &self,
-        graph: &mut Forward2BackwardGraphConverter,
-    ) -> BackwardRecordedOpsBoxed<B::TensorPrimitive<4>> {
-        let bias = self
-            .bias
-            .as_ref()
-            .map(|bias| Arc::new(BackwardNode::from_node(bias, graph)));
-        let ops = BackwardConv::<B, 2, 4>::new(
-            Arc::new(BackwardNode::from_node(&self.x, graph)),
-            Arc::new(BackwardNode::from_node(&self.weights, graph)),
-            bias,
-            self.stride,
-        );
+    fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+        let [node_parent] = ops.parents;
+        let grad = grads.consume::<B, 4>(&ops.node);
+        let (x, indexes, kernel_size, stride, padding) = ops.state;
 
-        Box::new(ops)
-    }
-}
+        if let Some(node) = node_parent {
+            let grad =
+                B::max_pool2d_with_indexes_backward(x, kernel_size, stride, padding, grad, indexes);
 
-impl<B: Backend> BackwardRecordedOps<B::TensorPrimitive<4>> for BackwardConv<B, 2, 4> {
-    fn backward_step(&self, state: &BackwardNodeState<B::TensorPrimitive<4>>) {
-        let grads = B::conv2d_backward(
-            self.x.state.value.clone(),
-            self.weights.state.value.clone(),
-            self.bias.as_ref().map(|b| b.state.value.clone()),
-            self.stride,
-            state.grad.borrow().clone(),
-        );
-
-        self.weights.state.update_grad(grads.weights_grad);
-        self.x.state.update_grad(grads.x_grad);
-
-        if let Some(bias) = &self.bias {
-            if let Some(bias_grad) = grads.bias_grad {
-                bias.state.update_grad(bias_grad);
-            }
+            grads.register::<B, 4>(node, grad.x_grad);
         }
-    }
-
-    fn backward_parents(&self) -> Vec<RecordedOpsParentRef> {
-        match &self.bias {
-            Some(bias) => vec![self.x.clone(), self.weights.clone(), bias.clone()],
-            None => vec![self.x.clone(), self.weights.clone()],
-        }
-    }
-}
-
-impl<B: Backend> ForwardRecordedOps<B::TensorPrimitive<3>> for ForwardConv<B, 1, 3> {
-    fn to_backward(
-        &self,
-        graph: &mut Forward2BackwardGraphConverter,
-    ) -> BackwardRecordedOpsBoxed<B::TensorPrimitive<3>> {
-        let bias = self
-            .bias
-            .as_ref()
-            .map(|bias| Arc::new(BackwardNode::from_node(bias, graph)));
-        let ops = BackwardConv::<B, 1, 3>::new(
-            Arc::new(BackwardNode::from_node(&self.x, graph)),
-            Arc::new(BackwardNode::from_node(&self.weights, graph)),
-            bias,
-            self.stride,
-        );
-
-        Box::new(ops)
-    }
-}
-
-impl<B: Backend> BackwardRecordedOps<B::TensorPrimitive<3>> for BackwardConv<B, 1, 3> {
-    fn backward_step(&self, state: &BackwardNodeState<B::TensorPrimitive<3>>) {
-        let grads = B::conv1d_backward(
-            self.x.state.value.clone(),
-            self.weights.state.value.clone(),
-            self.bias.as_ref().map(|b| b.state.value.clone()),
-            self.stride[0],
-            state.grad.borrow().clone(),
-        );
-
-        self.weights.state.update_grad(grads.weights_grad);
-        self.x.state.update_grad(grads.x_grad);
-
-        if let Some(bias) = &self.bias {
-            if let Some(bias_grad) = grads.bias_grad {
-                bias.state.update_grad(bias_grad);
-            }
-        }
-    }
-
-    fn backward_parents(&self) -> Vec<RecordedOpsParentRef> {
-        match &self.bias {
-            Some(bias) => vec![self.x.clone(), self.weights.clone(), bias.clone()],
-            None => vec![self.x.clone(), self.weights.clone()],
-        }
-    }
-}
-
-#[derive(new, Debug)]
-pub struct ForwardMaxPool<B: Backend, const D: usize, const S: usize> {
-    x: ForwardNodeRef<B::TensorPrimitive<S>>,
-    indexes: Arc<<B::IntegerBackend as Backend>::TensorPrimitive<S>>,
-    kernel_size: [usize; D],
-    stride: [usize; D],
-    padding: [usize; D],
-}
-
-#[derive(new, Debug)]
-pub struct BackwardMaxPool<B: Backend, const D: usize, const S: usize> {
-    x: BackwardNodeRef<B::TensorPrimitive<S>>,
-    indexes: Arc<<B::IntegerBackend as Backend>::TensorPrimitive<S>>,
-    kernel_size: [usize; D],
-    stride: [usize; D],
-    padding: [usize; D],
-}
-
-impl<B: Backend> ForwardRecordedOps<B::TensorPrimitive<4>> for ForwardMaxPool<B, 2, 4> {
-    fn to_backward(
-        &self,
-        graph: &mut Forward2BackwardGraphConverter,
-    ) -> BackwardRecordedOpsBoxed<B::TensorPrimitive<4>> {
-        let ops = BackwardMaxPool::<B, 2, 4>::new(
-            Arc::new(BackwardNode::from_node(&self.x, graph)),
-            self.indexes.clone(),
-            self.kernel_size,
-            self.stride,
-            self.padding,
-        );
-
-        Box::new(ops)
-    }
-}
-
-impl<B: Backend> BackwardRecordedOps<B::TensorPrimitive<4>> for BackwardMaxPool<B, 2, 4> {
-    fn backward_step(&self, state: &BackwardNodeState<B::TensorPrimitive<4>>) {
-        let grads = B::max_pool2d_with_indexes_backward(
-            self.x.state.value.clone(),
-            self.kernel_size,
-            self.stride,
-            self.padding,
-            state.grad.borrow().clone(),
-            self.indexes.as_ref().clone(),
-        );
-
-        self.x.state.update_grad(grads.x_grad);
-    }
-
-    fn backward_parents(&self) -> Vec<RecordedOpsParentRef> {
-        vec![self.x.clone()]
     }
 }

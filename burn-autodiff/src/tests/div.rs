@@ -75,7 +75,7 @@ mod tests {
         let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
         let tensor_4 = tensor_3.div(tensor_2.clone());
 
-        let grads = tensor_4.sum().backward();
+        let grads = tensor_4.backward();
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 

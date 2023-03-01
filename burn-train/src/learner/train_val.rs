@@ -9,21 +9,25 @@ use burn_core::optim::{
 use burn_core::tensor::backend::ADBackend;
 use std::sync::Arc;
 
-pub struct TrainOutput<B: ADBackend, TO> {
-    pub grads: GradientsParams<B>,
+pub struct TrainOutput<TO> {
+    pub grads: GradientsParams,
     pub item: TO,
 }
 
-impl<B: ADBackend, TO> TrainOutput<B, TO> {
-    pub fn new<M: ADModule<ADBackend = B>>(module: &M, grads: B::Gradients, item: TO) -> Self {
+impl<TO> TrainOutput<TO> {
+    pub fn new<M: ADModule>(
+        module: &M,
+        grads: <M::ADBackend as ADBackend>::Gradients,
+        item: TO,
+    ) -> Self {
         let grads = convert_grads(grads, module);
 
         Self { grads, item }
     }
 }
 
-pub trait TrainStep<B: ADBackend, TI, TO> {
-    fn step(&self, item: TI) -> TrainOutput<B, TO>;
+pub trait TrainStep<TI, TO> {
+    fn step(&self, item: TI) -> TrainOutput<TO>;
 }
 
 pub trait ValidStep<VI, VO> {
@@ -45,7 +49,7 @@ where
     where
         TI: Send + 'static,
         TO: Send + 'static,
-        M: TrainStep<M::ADBackend, TI, TO> + Send + Clone + 'static,
+        M: TrainStep<TI, TO> + Send + Clone + 'static,
         M::InnerModule: ValidStep<VI, VO>,
     {
         log::info!("Fitting {}", self.model.to_string());
@@ -85,7 +89,7 @@ where
     ) where
         TI: Send + 'static,
         TO: Send + 'static,
-        M: TrainStep<M::ADBackend, TI, TO> + Send + Clone + 'static,
+        M: TrainStep<TI, TO> + Send + Clone + 'static,
     {
         log::info!(
             "Executing training step for epoch {} on devices {:?}",
@@ -142,7 +146,7 @@ where
     where
         TI: Send + 'static,
         TO: Send + 'static,
-        M: TrainStep<M::ADBackend, TI, TO> + Send + Clone + 'static,
+        M: TrainStep<TI, TO> + Send + Clone + 'static,
     {
         log::info!("Executing training step for epoch {}", epoch);
 

@@ -312,14 +312,13 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         mask: NdArrayTensor<bool, D>,
         value: E,
     ) -> NdArrayTensor<E, D> {
-        let elem = E::default();
         let mask_mul = mask.array.mapv(|x| match x {
-            true => E::zeros(&elem),
-            false => E::ones(&elem),
+            true => 0.to_elem(),
+            false => 1.to_elem(),
         });
         let mask_add = mask.array.mapv(|x| match x {
             true => value,
-            false => E::zeros(&elem),
+            false => 0.to_elem(),
         });
         let array = (tensor.array * mask_mul) + mask_add;
 
@@ -331,7 +330,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
         let tensor = NdArrayBackend::<E>::sub(lhs, rhs);
-        let zero = E::zeros(&E::default());
+        let zero = 0.to_elem();
 
         Self::equal_scalar(tensor, zero)
     }
@@ -347,7 +346,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
         let tensor = NdArrayBackend::<E>::sub(lhs, rhs);
-        let zero = E::zeros(&E::default());
+        let zero = 0.to_elem();
         Self::greater_scalar(tensor, zero)
     }
 
@@ -362,7 +361,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
         let tensor = NdArrayBackend::<E>::sub(lhs, rhs);
-        let zero = E::zeros(&E::default());
+        let zero = 0.to_elem();
         Self::greater_equal_scalar(tensor, zero)
     }
 
@@ -380,7 +379,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
         let tensor = NdArrayBackend::<E>::sub(lhs, rhs);
-        let zero = E::zeros(&E::default());
+        let zero = 0.to_elem();
         Self::lower_scalar(tensor, zero)
     }
 
@@ -395,7 +394,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
         let tensor = NdArrayBackend::<E>::sub(lhs, rhs);
-        let zero = E::zeros(&E::default());
+        let zero = 0.to_elem();
         Self::lower_equal_scalar(tensor, zero)
     }
 

@@ -460,6 +460,11 @@ where
         Self::new(tensor)
     }
 
+    /// Create an empty tensor of the given shape.
+    pub fn empty<S: Into<Shape<D>>>(shape: S) -> Self {
+        Tensor::new(B::empty(shape.into(), &B::Device::default()))
+    }
+
     /// Create a tensor of the given shape where each element is one.
     pub fn ones_device<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
         let tensor = B::ones(shape.into(), device);
@@ -731,19 +736,43 @@ where
 
 impl<const D: usize, B: ADBackend> Tensor<B, D> {
     pub fn backward(&self) -> B::Gradients {
-        B::backward::<D>(&self.value)
+        B::backward::<D>(self.value.clone())
     }
 
+    /// Get the gradients of a tensor if it exist.
+    ///
+    /// Returns a new reference to the same tensor. Therefore the same grad tensor can
+    /// be accessed multiple times. If you only need to get the gradients one time,
+    /// consider using [grad_remove](Tensor::grad_remove) for better performance.
     pub fn grad(&self, grads: &B::Gradients) -> Option<Tensor<B::InnerBackend, D>> {
         B::grad(&self.value, grads).map(Tensor::new)
+    }
+
+    /// Remove the grad tensor from the [grads](ADBackend::Gradients) struct returning the result.
+    pub fn grad_remove(&self, grads: &mut B::Gradients) -> Option<Tensor<B::InnerBackend, D>> {
+        B::grad_remove(&self.value, grads).map(Tensor::new)
     }
 
     pub fn inner(&self) -> Tensor<B::InnerBackend, D> {
         Tensor::new(B::inner(&self.value))
     }
 
-    pub fn update(&mut self, other_inner: Tensor<B::InnerBackend, D>) {
-        self.value = B::from_inner(other_inner.value);
+    /// Executes an operation on the tensor and modifies its value.
+    ///
+    /// # Notes
+    ///
+    /// This won't necessary reuse the same tensor data/buffer, but it should if there is
+    /// no other reference pointing to the same tensor.
+    ///
+    /// Wrapping operations with inplace is not an optimization, it's mainly there if you
+    /// want to mutate a tensor by using owned operations. A plausible usage would be to
+    /// update the weights of a mutable model reference.
+    pub fn inplace<F: FnOnce(Self, Args) -> Self, Args>(&mut self, args: Args, func: F) {
+        let mut tensor_owned = Tensor::empty([0; D]);
+        core::mem::swap(&mut tensor_owned, self);
+
+        let mut tensor_new = func(tensor_owned, args);
+        core::mem::swap(&mut tensor_new, self);
     }
 
     pub fn from_inner(inner: Tensor<B::InnerBackend, D>) -> Self {

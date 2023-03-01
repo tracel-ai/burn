@@ -2,6 +2,7 @@
     feature = "ndarray",
     feature = "ndarray-blas-netlib",
     feature = "ndarray-blas-openblas",
+    feature = "ndarray-blas-accelerate",
 ))]
 mod ndarray {
     use burn_autodiff::ADBackendDecorator;
@@ -46,6 +47,7 @@ fn main() {
         feature = "ndarray",
         feature = "ndarray-blas-netlib",
         feature = "ndarray-blas-openblas",
+        feature = "ndarray-blas-accelerate",
     ))]
     ndarray::run();
     #[cfg(feature = "tch-gpu")]

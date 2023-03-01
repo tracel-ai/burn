@@ -15,7 +15,7 @@ pub trait Optimizer: Send + Sync {
     );
 
     /// Update the parameters of the given module using the given the gradients.
-    fn update_module<M>(&mut self, module: &mut M, grads: GradientsParams<M::ADBackend>)
+    fn update_module<M>(&mut self, module: &mut M, grads: GradientsParams)
     where
         M: ADModule<ADBackend = Self::Backend>,
         Self: Sized,
@@ -94,10 +94,10 @@ pub trait Optimizer: Send + Sync {
 pub(super) fn register_state_gradients<const D: usize, B: ADBackend, F: Fn(&ParamId) -> String>(
     id: &ParamId,
     state: &mut StateNamed<B::Elem>,
-    grads: &GradientsParams<B>,
+    grads: &GradientsParams,
     id_to_key: F,
 ) {
-    if let Some(grad) = grads.get::<D>(id) {
+    if let Some(grad) = grads.get::<B::InnerBackend, D>(id) {
         let data = State::Data(grad.to_data().serialize());
         state.register_state(id_to_key(id).as_str(), data);
     };
@@ -106,12 +106,12 @@ pub(super) fn register_state_gradients<const D: usize, B: ADBackend, F: Fn(&Para
 pub(super) fn load_state_gradients<const D: usize, B: ADBackend, F: Fn(&ParamId) -> String>(
     id: &ParamId,
     state: &StateNamed<B::Elem>,
-    grads: &mut GradientsParams<B>,
+    grads: &mut GradientsParams,
     id_to_key: F,
     device: &B::Device,
 ) {
     if let Some(State::Data(data)) = state.get(id_to_key(id).as_str()) {
         let tensor = Tensor::<B::InnerBackend, D>::from_data_device(Data::from(data), device);
-        grads.register(id.clone(), tensor);
+        grads.register::<B::InnerBackend, D>(id.clone(), tensor);
     };
 }

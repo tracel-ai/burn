@@ -26,7 +26,7 @@ pub struct Momentum<B: ADBackend> {
     momentum: B::Elem,
     dampening: f64,
     nesterov: bool,
-    velocity: GradientsParams<B>,
+    velocity: GradientsParams,
 }
 
 impl<B: ADBackend> Momentum<B> {
@@ -34,7 +34,7 @@ impl<B: ADBackend> Momentum<B> {
         Self {
             momentum: config.momentum.to_elem(),
             dampening: config.dampening,
-            velocity: GradientsParams::<B>::new(),
+            velocity: GradientsParams::new(),
             nesterov: config.nesterov,
         }
     }
@@ -44,7 +44,7 @@ impl<B: ADBackend> Momentum<B> {
         id: &ParamId,
         grad: Tensor<B::InnerBackend, D>,
     ) -> Tensor<B::InnerBackend, D> {
-        let velocity = match self.velocity.get::<D>(id) {
+        let velocity = match self.velocity.get::<B::InnerBackend, D>(id) {
             Some(grad_last_step) => grad
                 .clone()
                 .mul_scalar(1.0 - self.dampening)
