@@ -32,8 +32,8 @@ impl<B: Backend> ADBackend for ADBackendDecorator<B> {
     type InnerBackend = B;
     type Gradients = Gradients;
 
-    fn backward<const D: usize>(tensor: &ADTensor<B, D>) -> Gradients {
-        backward(tensor.clone())
+    fn backward<const D: usize>(tensor: ADTensor<B, D>) -> Gradients {
+        backward(tensor)
     }
 
     fn grad<const D: usize>(
@@ -43,6 +43,12 @@ impl<B: Backend> ADBackend for ADBackendDecorator<B> {
         grads.get(tensor)
     }
 
+    fn grad_remove<const D: usize>(
+        tensor: &ADTensor<B, D>,
+        grads: &mut Gradients,
+    ) -> Option<B::TensorPrimitive<D>> {
+        grads.remove(tensor)
+    }
     fn inner<const D: usize>(tensor: &ADTensor<B, D>) -> B::TensorPrimitive<D> {
         tensor.primitive.clone()
     }

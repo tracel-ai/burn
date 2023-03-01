@@ -37,7 +37,7 @@ mod tests {
 
     #[test]
     fn not_empty_test() {
-        assert_eq!(IdGenerator::generate().is_empty(), false);
+        assert!(!IdGenerator::generate().is_empty());
     }
 
     #[test]
@@ -47,7 +47,7 @@ mod tests {
         let mut set: BTreeSet<String> = BTreeSet::new();
 
         for _i in 0..IDS_CNT {
-            assert_eq!(set.insert(IdGenerator::generate()), true);
+            assert!(set.insert(IdGenerator::generate()));
         }
 
         assert_eq!(set.len(), IDS_CNT);
@@ -69,7 +69,7 @@ mod tests {
 
             let handle = thread::spawn(move || {
                 for _i in 0..NUM_REPEATS {
-                    assert_eq!(set.insert(IdGenerator::generate()), true);
+                    assert!(set.insert(IdGenerator::generate()));
                 }
             });
             handles.push(handle);

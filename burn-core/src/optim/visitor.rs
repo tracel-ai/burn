@@ -49,7 +49,7 @@ impl<'a, B: ADBackend, O: Optimizer<Backend = B>> ModuleVisitorMut<B>
     for ModuleTensorUpdater<'a, O>
 {
     fn visit_mut<const D: usize>(&mut self, id: &ParamId, tensor: &mut Tensor<B, D>) {
-        if let Some(grad) = self.grads.get::<B::InnerBackend, D>(id) {
+        if let Some(grad) = self.grads.remove::<B::InnerBackend, D>(id) {
             self.optimizer.update_tensor(id, tensor, grad);
         }
     }
@@ -64,7 +64,7 @@ impl<'a, B: ADBackend, O: Optimizer<Backend = B>> ModuleVisitor<B> for Gradients
 
 impl<'a, B: ADBackend> ModuleVisitor<B> for GradientsParamsConverter<'a, B> {
     fn visit<const D: usize>(&mut self, id: &ParamId, tensor: &Tensor<B, D>) {
-        if let Some(grad) = tensor.grad(&self.grads) {
+        if let Some(grad) = tensor.grad_remove(&mut self.grads) {
             self.grads_params
                 .register::<B::InnerBackend, D>(id.clone(), grad);
         }

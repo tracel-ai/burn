@@ -48,6 +48,16 @@ impl Gradients {
         }
     }
 
+    /// Remove a grad tensor from the container.
+    pub fn remove<B: Backend, const D: usize>(
+        &mut self,
+        tensor: &ADTensor<B, D>,
+    ) -> Option<TensorPrimitive<B, D>> {
+        self.container
+            .remove::<B, D>(&tensor.node.id.value)
+            .map(|tensor| tensor.into_primitive())
+    }
+
     pub fn get<B: Backend, const D: usize>(
         &self,
         tensor: &ADTensor<B, D>,
