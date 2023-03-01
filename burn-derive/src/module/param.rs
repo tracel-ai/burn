@@ -103,32 +103,67 @@ impl Param {
 
     pub fn gen_to_device_fn(&self) -> TokenStream {
         let mut body = quote! {};
+        let mut names = Vec::new();
+
         for field in self.fields_param.iter() {
             let name = field.ident();
+            names.push(name.clone());
+
             body.extend(quote! {
-                self.#name.to_device(device);
+                let #name = self.#name.to_device(device);
+            });
+        }
+
+        for field in self.fields_other.iter() {
+            let name = field.ident();
+            names.push(name.clone());
+
+            body.extend(quote! {
+                let #name = self.#name.clone();
             });
         }
 
         quote! {
-            fn to_device(&mut self, device: &B::Device) {
+            fn to_device(self, device: &B::Device) -> Self {
                 #body
+
+                Self {
+                    #(#names),*
+                }
             }
         }
     }
 
     pub fn gen_detach_fn(&self) -> TokenStream {
         let mut body = quote! {};
+        let mut names = Vec::new();
+
         for field in self.fields_param.iter() {
             let name = field.ident();
+            names.push(name.clone());
+
             body.extend(quote! {
-                self.#name.detach();
+                let #name = self.#name.detach();
+            });
+        }
+
+        for field in self.fields_other.iter() {
+            let name = field.ident();
+            names.push(name.clone());
+
+            body.extend(quote! {
+                let #name = self.#name.clone();
             });
         }
 
         quote! {
-            fn detach(&mut self) {
+            fn detach(self) -> Self {
                 #body
+
+                Self {
+                    #(#names),*
+                }
+
             }
         }
     }

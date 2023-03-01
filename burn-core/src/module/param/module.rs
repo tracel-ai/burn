@@ -17,8 +17,11 @@ impl<M: Module> Module for Param<M> {
         self.value.devices()
     }
 
-    fn to_device(&mut self, device: &<Self::Backend as Backend>::Device) {
-        self.value.to_device(device)
+    fn to_device(self, device: &<Self::Backend as Backend>::Device) -> Self {
+        Param {
+            id: self.id,
+            value: self.value.to_device(device),
+        }
     }
 
     fn state(&self) -> State<<M::Backend as Backend>::Elem> {
@@ -34,8 +37,11 @@ impl<M: Module> Module for Param<M> {
         self.value.load(state)
     }
 
-    fn detach(&mut self) {
-        self.value.detach()
+    fn detach(self) -> Self {
+        Param {
+            id: self.id,
+            value: self.value.detach(),
+        }
     }
 
     fn visit<V: ModuleVisitor<Self::Backend>>(&self, visitor: &mut V) {
@@ -67,9 +73,14 @@ impl<M: Module> Module for Param<Vec<M>> {
         devices
     }
 
-    fn to_device(&mut self, device: &<M::Backend as Backend>::Device) {
-        for module in self.value.iter_mut() {
-            module.to_device(device);
+    fn to_device(self, device: &<M::Backend as Backend>::Device) -> Self {
+        Param {
+            id: self.id,
+            value: self
+                .value
+                .into_iter()
+                .map(|val| val.to_device(device))
+                .collect(),
         }
     }
 
@@ -103,9 +114,10 @@ impl<M: Module> Module for Param<Vec<M>> {
         Ok(())
     }
 
-    fn detach(&mut self) {
-        for value in self.value.iter_mut() {
-            value.detach();
+    fn detach(self) -> Self {
+        Param {
+            id: self.id,
+            value: self.value.into_iter().map(|val| val.detach()).collect(),
         }
     }
 

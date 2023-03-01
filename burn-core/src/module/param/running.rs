@@ -59,13 +59,14 @@ impl<const D: usize, B: Backend> Module for Param<RunningState<Tensor<B, D>>> {
         vec![tensor.device()]
     }
 
-    fn to_device(&mut self, device: &B::Device) {
-        let mut tensor = self.value.value.write().unwrap();
-        *tensor = tensor.clone().to_device(device);
+    fn to_device(self, device: &B::Device) -> Self {
+        self.value.sync();
 
-        let mut tensors = self.value.values.lock().unwrap();
-        for tensor in tensors.values_mut() {
-            *tensor = tensor.clone().to_device(device);
+        let tensor = self.value.value.read().unwrap();
+
+        Param {
+            id: self.id,
+            value: RunningState::new(tensor.clone().to_device(device)),
         }
     }
 
@@ -95,13 +96,12 @@ impl<const D: usize, B: Backend> Module for Param<RunningState<Tensor<B, D>>> {
         Ok(())
     }
 
-    fn detach(&mut self) {
-        let mut tensor = self.value.value.write().unwrap();
-        *tensor = tensor.clone().detach();
+    fn detach(self) -> Self {
+        let tensor = self.value.value.read().unwrap();
 
-        let mut tensors = self.value.values.lock().unwrap();
-        for tensor in tensors.values_mut() {
-            *tensor = tensor.clone().detach();
+        Param {
+            id: self.id,
+            value: RunningState::new(tensor.clone().detach()),
         }
     }
 

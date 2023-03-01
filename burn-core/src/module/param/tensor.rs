@@ -20,8 +20,11 @@ impl<const D: usize, B: Backend> Module for Param<Tensor<B, D>> {
         vec![self.value.device()]
     }
 
-    fn to_device(&mut self, device: &B::Device) {
-        self.value = self.value.clone().to_device(device);
+    fn to_device(self, device: &B::Device) -> Self {
+        Self {
+            id: self.id,
+            value: self.value.to_device(device),
+        }
     }
 
     fn state(&self) -> State<B::Elem> {
@@ -44,8 +47,11 @@ impl<const D: usize, B: Backend> Module for Param<Tensor<B, D>> {
         Ok(())
     }
 
-    fn detach(&mut self) {
-        self.value = self.value.clone().detach()
+    fn detach(self) -> Self {
+        Self {
+            id: self.id,
+            value: self.value.detach(),
+        }
     }
 
     fn visit<V: ModuleVisitor<Self::Backend>>(&self, visitor: &mut V) {
@@ -76,9 +82,10 @@ impl<const D: usize, B: Backend> Module for Param<Option<Tensor<B, D>>> {
         vec![]
     }
 
-    fn to_device(&mut self, device: &B::Device) {
-        if let Some(value) = &self.value {
-            self.value = Some(value.clone().to_device(device));
+    fn to_device(self, device: &B::Device) -> Self {
+        Self {
+            id: self.id,
+            value: self.value.map(|value| value.to_device(device)),
         }
     }
 
@@ -111,8 +118,11 @@ impl<const D: usize, B: Backend> Module for Param<Option<Tensor<B, D>>> {
         Ok(())
     }
 
-    fn detach(&mut self) {
-        self.value = self.value.clone().map(|tensor| tensor.detach());
+    fn detach(self) -> Self {
+        Self {
+            id: self.id,
+            value: self.value.map(|value| value.detach()),
+        }
     }
 
     fn visit<V: ModuleVisitor<Self::Backend>>(&self, visitor: &mut V) {

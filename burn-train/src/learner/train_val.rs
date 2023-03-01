@@ -60,14 +60,13 @@ where
             None => 1,
         };
 
-        // The reference model is always on the first device provided.
-        if let Some(device) = self.devices.get(0) {
-            self.model.to_device(device);
-            self.model.detach();
-        }
-
         let mut model = self.model;
         let mut optim = self.optim;
+
+        // The reference model is always on the first device provided.
+        if let Some(device) = self.devices.get(0) {
+            model = model.to_device(device).detach();
+        }
 
         for epoch in starting_epoch..self.num_epochs + 1 {
             let epoch_train = TrainEpoch::new(
@@ -77,7 +76,7 @@ where
                 self.grad_accumulation,
             );
 
-            if self.devices.len() < 1 {
+            if self.devices.is_empty() {
                 (model, optim) = epoch_train.run(model, optim, &mut self.callback);
             } else {
                 (model, optim) = epoch_train.run_multi_device(

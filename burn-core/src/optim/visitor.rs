@@ -117,8 +117,9 @@ mod tests {
     fn test_convert_grads() {
         let layer_1 = layer();
         let mut layer_2 = layer_1.clone();
-        layer_2.to_device(&<TestADBackend as Backend>::Device::default());
-        layer_2.detach();
+        layer_2 = layer_2
+            .to_device(&<TestADBackend as Backend>::Device::default())
+            .detach();
         let loss_1 = layer_1.forward(random_tensor());
         let loss_2 = layer_2.forward(random_tensor());
         let grads_1 = loss_1.backward();

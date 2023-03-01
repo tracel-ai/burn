@@ -175,8 +175,7 @@ where
             }
             None => None,
         };
-        let mut model = model;
-        model.detach();
+        let model = model.detach();
 
         Learner {
             model,

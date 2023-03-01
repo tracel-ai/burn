@@ -43,14 +43,14 @@ pub trait Module: Send + Sync + core::fmt::Debug + core::fmt::Display {
     /// Get the device list of the module and all of its sub-modules.
     fn devices(&self) -> Vec<<Self::Backend as Backend>::Device>;
     /// Move the module and all of its sub-modules to the given device.
-    fn to_device(&mut self, device: &<Self::Backend as Backend>::Device);
+    fn to_device(self, device: &<Self::Backend as Backend>::Device) -> Self;
     /// Load the module state.
     fn load(&mut self, state: &State<<Self::Backend as Backend>::Elem>)
         -> Result<(), LoadingError>;
     /// Get the module state.
     fn state(&self) -> State<<Self::Backend as Backend>::Elem>;
     /// Detach the module from the graph.
-    fn detach(&mut self);
+    fn detach(self) -> Self;
     /// Get the number of parameters the module has, including all of its sub-modules.
     fn num_params(&self) -> usize;
     /// Visit each tensor in the module with a [visitor](ModuleVisitor).
