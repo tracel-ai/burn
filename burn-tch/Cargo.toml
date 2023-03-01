@@ -18,7 +18,14 @@ burn-tensor = {path = "../burn-tensor"}
 half = {workspace = true}
 lazy_static = {workspace = true}
 rand = {workspace = true, features = ["std"]}
-tch = {version = "0.10.1"}
+
+[target.'cfg(not(target_arch = "aarch64"))'.dependencies]
+tch = {version = "0.10.3"}
+
+# Temporary workaround for https://github.com/burn-rs/burn/issues/180
+# Remove this and build.rs once tch-rs upgrades to Torch 2.0 at least
+[target.'cfg(target_arch = "aarch64")'.dependencies]
+tch = {version = "0.10.3", default-features = false} # Disables torch downloading
 
 [dev-dependencies]
 burn-autodiff = {path = "../burn-autodiff", default-features = false, features = [
