@@ -46,10 +46,14 @@ pub trait ADBackend: Backend {
     type InnerBackend: Backend<Device = Self::Device, Elem = Self::Elem>;
     type Gradients: Send + Sync;
 
-    fn backward<const D: usize>(tensor: &Self::TensorPrimitive<D>) -> Self::Gradients;
+    fn backward<const D: usize>(tensor: Self::TensorPrimitive<D>) -> Self::Gradients;
     fn grad<const D: usize>(
         tensor: &Self::TensorPrimitive<D>,
         grads: &Self::Gradients,
+    ) -> Option<ADBackendTensorPrimitive<D, Self>>;
+    fn grad_remove<const D: usize>(
+        tensor: &Self::TensorPrimitive<D>,
+        grads: &mut Self::Gradients,
     ) -> Option<ADBackendTensorPrimitive<D, Self>>;
     fn inner<const D: usize>(
         tensor: &Self::TensorPrimitive<D>,
