@@ -78,14 +78,14 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
 
     fn to_data<const D: usize>(
         tensor: &<NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
-    ) -> Data<<NdArrayBackend<E> as Backend>::Elem, D> {
+    ) -> Data<<NdArrayBackend<E> as Backend>::FloatElem, D> {
         let values = tensor.array.iter().map(Clone::clone).collect();
         Data::new(values, tensor.shape())
     }
 
     fn into_data<const D: usize>(
         tensor: <NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
-    ) -> Data<<NdArrayBackend<E> as Backend>::Elem, D> {
+    ) -> Data<<NdArrayBackend<E> as Backend>::FloatElem, D> {
         let shape = tensor.shape();
         let values = tensor.array.into_iter().collect();
         Data::new(values, shape)

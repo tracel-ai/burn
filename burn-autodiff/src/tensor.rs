@@ -15,7 +15,7 @@ pub struct ADTensor<B: Backend, const D: usize> {
     pub graph: Graph,
 }
 
-pub type Elem<B> = <ADBackendDecorator<B> as Backend>::Elem;
+pub type FloatElem<B> = <ADBackendDecorator<B> as Backend>::FloatElem;
 pub type BoolTensor<B, const D: usize> = <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D>;
 pub type IntTensor<B, const D: usize> =
     <<ADBackendDecorator<B> as Backend>::IntegerBackend as Backend>::TensorPrimitive<D>;

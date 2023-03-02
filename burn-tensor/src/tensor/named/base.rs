@@ -49,7 +49,7 @@ where
 
     /// Create a random named tensor of the given shape where each element is sampled from
     /// the given distribution.
-    pub fn random<S: Into<Shape<D>>>(shape: S, distribution: Distribution<B::Elem>) -> Self {
+    pub fn random<S: Into<Shape<D>>>(shape: S, distribution: Distribution<B::FloatElem>) -> Self {
         Self::from_tensor(Tensor::random(shape, distribution))
     }
 

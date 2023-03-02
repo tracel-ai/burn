@@ -24,13 +24,13 @@ impl<M: Module> Module for Param<M> {
         }
     }
 
-    fn state(&self) -> State<<M::Backend as Backend>::Elem> {
+    fn state(&self) -> State<<M::Backend as Backend>::FloatElem> {
         let state = self.value.state();
 
         state_with_id(self.id.clone(), state)
     }
 
-    fn load(self, state: &State<<M::Backend as Backend>::Elem>) -> Result<Self, LoadingError> {
+    fn load(self, state: &State<<M::Backend as Backend>::FloatElem>) -> Result<Self, LoadingError> {
         let (id, state) = load_with_id(state)?;
 
         Ok(Self {
@@ -86,7 +86,7 @@ impl<M: Module> Module for Param<Vec<M>> {
         }
     }
 
-    fn state(&self) -> State<<M::Backend as Backend>::Elem> {
+    fn state(&self) -> State<<M::Backend as Backend>::FloatElem> {
         let mut state = StateNamed::new();
 
         for (i, module) in self.value.iter().enumerate() {
@@ -98,7 +98,7 @@ impl<M: Module> Module for Param<Vec<M>> {
         state_with_id(self.id.clone(), state)
     }
 
-    fn load(self, state: &State<<M::Backend as Backend>::Elem>) -> Result<Self, LoadingError> {
+    fn load(self, state: &State<<M::Backend as Backend>::FloatElem>) -> Result<Self, LoadingError> {
         let (id, state) = load_with_id(state)?;
         let id = id.clone();
 

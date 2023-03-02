@@ -69,7 +69,7 @@ impl<const D: usize, B: Backend> Module for Param<RunningState<Tensor<B, D>>> {
         self
     }
 
-    fn state(&self) -> State<B::Elem> {
+    fn state(&self) -> State<B::FloatElem> {
         self.sync();
 
         let tensor = self.value.value.read().unwrap();
@@ -78,7 +78,7 @@ impl<const D: usize, B: Backend> Module for Param<RunningState<Tensor<B, D>>> {
         state_with_id(self.id.clone(), state)
     }
 
-    fn load(mut self, state: &State<B::Elem>) -> Result<Self, LoadingError> {
+    fn load(mut self, state: &State<B::FloatElem>) -> Result<Self, LoadingError> {
         let (id, state) = load_with_id(state)?;
         self.sync();
 

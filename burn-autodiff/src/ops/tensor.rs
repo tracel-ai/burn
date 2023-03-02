@@ -4,7 +4,7 @@ use crate::{
     grads::Gradients,
     graph::{NodeRef, Requirement, Step},
     ops::{binary, unary, unary_different_backend, Backward, Ops, OpsKind},
-    tensor::{ADTensor, BoolTensor, Elem, IntTensor},
+    tensor::{ADTensor, BoolTensor, FloatElem, IntTensor},
     utils::duplicate,
     ADBackendDecorator,
 };
@@ -12,7 +12,10 @@ use crate::{
 use burn_tensor::{backend::Backend, ops::TensorOps, Data, ElementConversion, Shape, Tensor};
 
 impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
-    fn from_data<const D: usize>(data: Data<Elem<B>, D>, device: &B::Device) -> ADTensor<B, D> {
+    fn from_data<const D: usize>(
+        data: Data<FloatElem<B>, D>,
+        device: &B::Device,
+    ) -> ADTensor<B, D> {
         ADTensor::new(B::from_data(data, device))
     }
 
@@ -22,7 +25,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
     fn random<const D: usize>(
         shape: Shape<D>,
-        distribution: burn_tensor::Distribution<Elem<B>>,
+        distribution: burn_tensor::Distribution<FloatElem<B>>,
         device: &B::Device,
     ) -> ADTensor<B, D> {
         ADTensor::new(B::random(shape, distribution, device))
@@ -40,11 +43,11 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         B::shape(&tensor.primitive)
     }
 
-    fn to_data<const D: usize>(tensor: &ADTensor<B, D>) -> Data<Elem<B>, D> {
+    fn to_data<const D: usize>(tensor: &ADTensor<B, D>) -> Data<FloatElem<B>, D> {
         B::to_data(&tensor.primitive)
     }
 
-    fn into_data<const D: usize>(tensor: ADTensor<B, D>) -> Data<Elem<B>, D> {
+    fn into_data<const D: usize>(tensor: ADTensor<B, D>) -> Data<FloatElem<B>, D> {
         B::into_data(tensor.primitive)
     }
 
@@ -117,7 +120,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             .stateless(B::add(lhs.primitive, rhs.primitive))
     }
 
-    fn add_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: Elem<B>) -> ADTensor<B, D> {
+    fn add_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: FloatElem<B>) -> ADTensor<B, D> {
         #[derive(Debug)]
         struct AddScalar;
 
@@ -156,7 +159,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             .stateless(B::sub(lhs.primitive, rhs.primitive))
     }
 
-    fn sub_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: Elem<B>) -> ADTensor<B, D> {
+    fn sub_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: FloatElem<B>) -> ADTensor<B, D> {
         #[derive(Debug)]
         struct SubScalar;
 
@@ -211,12 +214,12 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
-    fn mul_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: Elem<B>) -> ADTensor<B, D> {
+    fn mul_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: FloatElem<B>) -> ADTensor<B, D> {
         #[derive(Debug)]
         struct MulScalar;
 
         impl<B: Backend, const D: usize> Backward<B, D, 1> for MulScalar {
-            type State = Elem<B>;
+            type State = FloatElem<B>;
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
@@ -283,12 +286,12 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
-    fn div_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: Elem<B>) -> ADTensor<B, D> {
+    fn div_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: FloatElem<B>) -> ADTensor<B, D> {
         #[derive(Debug)]
         struct DivScalar;
 
         impl<B: Backend, const D: usize> Backward<B, D, 1> for DivScalar {
-            type State = (Shape<D>, B::Device, Elem<B>);
+            type State = (Shape<D>, B::Device, FloatElem<B>);
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 let (shape, device, rhs) = ops.state;
@@ -521,7 +524,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     fn mask_fill<const D: usize>(
         tensor: ADTensor<B, D>,
         mask: BoolTensor<B, D>,
-        value: Elem<B>,
+        value: FloatElem<B>,
     ) -> ADTensor<B, D> {
         #[derive(Debug)]
         struct MaskFill;
@@ -548,7 +551,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         B::equal(lhs.primitive, rhs.primitive)
     }
 
-    fn equal_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: Elem<B>) -> BoolTensor<B, D> {
+    fn equal_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: FloatElem<B>) -> BoolTensor<B, D> {
         B::equal_scalar(lhs.primitive, rhs)
     }
 
@@ -556,7 +559,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         B::greater(lhs.primitive, rhs.primitive)
     }
 
-    fn greater_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: Elem<B>) -> BoolTensor<B, D> {
+    fn greater_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: FloatElem<B>) -> BoolTensor<B, D> {
         B::greater_scalar(lhs.primitive, rhs)
     }
 
@@ -564,7 +567,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         B::greater_equal(lhs.primitive, rhs.primitive)
     }
 
-    fn greater_equal_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: Elem<B>) -> BoolTensor<B, D> {
+    fn greater_equal_scalar<const D: usize>(
+        lhs: ADTensor<B, D>,
+        rhs: FloatElem<B>,
+    ) -> BoolTensor<B, D> {
         B::greater_equal_scalar(lhs.primitive, rhs)
     }
 
@@ -572,7 +578,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         B::lower(lhs.primitive, rhs.primitive)
     }
 
-    fn lower_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: Elem<B>) -> BoolTensor<B, D> {
+    fn lower_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: FloatElem<B>) -> BoolTensor<B, D> {
         B::lower_scalar(lhs.primitive, rhs)
     }
 
@@ -580,7 +586,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         B::lower_equal(lhs.primitive, rhs.primitive)
     }
 
-    fn lower_equal_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: Elem<B>) -> BoolTensor<B, D> {
+    fn lower_equal_scalar<const D: usize>(
+        lhs: ADTensor<B, D>,
+        rhs: FloatElem<B>,
+    ) -> BoolTensor<B, D> {
         B::lower_equal_scalar(lhs.primitive, rhs)
     }
 
@@ -658,7 +667,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
                     let val = 1_f64 / shape.dims[dim] as f64;
                     let ones = B::ones(shape, &B::device(&grad));
-                    let val = B::mul_scalar(ones, B::Elem::from_elem(val));
+                    let val = B::mul_scalar(ones, B::FloatElem::from_elem(val));
 
                     let grad = B::sum_dim(grad, dim);
                     B::mul(val, grad)

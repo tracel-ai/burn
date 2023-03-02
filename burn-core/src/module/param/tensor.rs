@@ -27,13 +27,13 @@ impl<const D: usize, B: Backend> Module for Param<Tensor<B, D>> {
         }
     }
 
-    fn state(&self) -> State<B::Elem> {
+    fn state(&self) -> State<B::FloatElem> {
         let state = State::Data(self.value.to_data().serialize());
 
         state_with_id(self.id.clone(), state)
     }
 
-    fn load(self, state: &State<B::Elem>) -> Result<Self, LoadingError> {
+    fn load(self, state: &State<B::FloatElem>) -> Result<Self, LoadingError> {
         let (id, state) = load_with_id(state)?;
         let id = id.clone();
 
@@ -87,7 +87,7 @@ impl<const D: usize, B: Backend> Module for Param<Option<Tensor<B, D>>> {
         }
     }
 
-    fn state(&self) -> State<B::Elem> {
+    fn state(&self) -> State<B::FloatElem> {
         let state = match &self.value {
             Some(value) => State::Data(value.to_data().serialize()),
             None => State::StateNamed(StateNamed::new()),
@@ -96,7 +96,7 @@ impl<const D: usize, B: Backend> Module for Param<Option<Tensor<B, D>>> {
         state_with_id(self.id.clone(), state)
     }
 
-    fn load(self, state: &State<B::Elem>) -> Result<Self, LoadingError> {
+    fn load(self, state: &State<B::FloatElem>) -> Result<Self, LoadingError> {
         let (id, state) = load_with_id(state)?;
         let id = id.clone();
 

@@ -30,7 +30,7 @@ pub struct AdamConfig {
 
 /// Adam optimizer as described in the paper [Adam: A Method for Stochastic Optimization](https://arxiv.org/pdf/1412.6980.pdf).
 pub struct Adam<B: ADBackend> {
-    learning_rate: B::Elem,
+    learning_rate: B::FloatElem,
     momentum: AdaptiveMomentum,
     weight_decay: Option<WeightDecay<B>>,
 }
@@ -76,7 +76,11 @@ impl<B: ADBackend> Optimizer for Adam<B> {
         })
     }
 
-    fn register_param_state<const D: usize>(&self, id: &ParamId, state: &mut StateNamed<B::Elem>) {
+    fn register_param_state<const D: usize>(
+        &self,
+        id: &ParamId,
+        state: &mut StateNamed<B::FloatElem>,
+    ) {
         self.momentum.register_state::<B, D>(id, state);
 
         if let Some(weight_decay) = &self.weight_decay {
@@ -87,7 +91,7 @@ impl<B: ADBackend> Optimizer for Adam<B> {
     fn load_param_state<const D: usize>(
         &mut self,
         id: &ParamId,
-        state: &StateNamed<B::Elem>,
+        state: &StateNamed<B::FloatElem>,
         device: &B::Device,
     ) {
         self.momentum.load_state::<B, D>(id, state, device);
@@ -148,7 +152,7 @@ impl AdaptiveMomentum {
     pub fn register_state<B: ADBackend, const D: usize>(
         &self,
         id: &ParamId,
-        state: &mut StateNamed<B::Elem>,
+        state: &mut StateNamed<B::FloatElem>,
     ) {
         register_state_gradients::<D, B, _>(id, state, &self.moment_1, Self::state_key_1);
         register_state_gradients::<D, B, _>(id, state, &self.moment_2, Self::state_key_2);
@@ -158,7 +162,7 @@ impl AdaptiveMomentum {
     pub fn load_state<B: ADBackend, const D: usize>(
         &mut self,
         id: &ParamId,
-        state: &StateNamed<B::Elem>,
+        state: &StateNamed<B::FloatElem>,
         device: &B::Device,
     ) {
         load_state_gradients::<D, B, _>(id, state, &mut self.moment_1, Self::state_key_1, device);

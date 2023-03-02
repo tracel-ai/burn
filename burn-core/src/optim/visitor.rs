@@ -12,13 +12,13 @@ pub type GradientsParams = TensorContainer<ParamId>;
 #[derive(new)]
 pub(crate) struct GradientsRegister<'a, B: ADBackend, O> {
     optimizer: &'a O,
-    state: &'a mut StateNamed<B::Elem>,
+    state: &'a mut StateNamed<B::FloatElem>,
 }
 
 #[derive(new)]
 pub(crate) struct GradientsLoader<'a, B: ADBackend, O> {
     optimizer: &'a mut O,
-    state: &'a StateNamed<B::Elem>,
+    state: &'a StateNamed<B::FloatElem>,
 }
 
 #[derive(new)]

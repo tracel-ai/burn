@@ -34,7 +34,7 @@ where
     B: Backend,
 {
     /// Returns the first value of the tensor.
-    pub fn single_value(&self) -> B::Elem {
+    pub fn single_value(&self) -> B::FloatElem {
         self.to_data().value[0]
     }
 }
@@ -160,23 +160,23 @@ where
     }
 
     /// Returns the data of the current tensor.
-    pub fn into_data(self) -> Data<B::Elem, D> {
+    pub fn into_data(self) -> Data<B::FloatElem, D> {
         B::into_data(self.value)
     }
 
     /// Returns the data of the current tensor without taking ownership.
-    pub fn to_data(&self) -> Data<B::Elem, D> {
+    pub fn to_data(&self) -> Data<B::FloatElem, D> {
         B::to_data(&self.value)
     }
 
     /// Create a tensor from the given data.
-    pub fn from_data(data: Data<B::Elem, D>) -> Self {
+    pub fn from_data(data: Data<B::FloatElem, D>) -> Self {
         let tensor = B::from_data(data, &B::Device::default());
         Tensor::new(tensor)
     }
 
     /// Create a tensor from the given data on the given device.
-    pub fn from_data_device(data: Data<B::Elem, D>, device: &B::Device) -> Self {
+    pub fn from_data_device(data: Data<B::FloatElem, D>, device: &B::Device) -> Self {
         let tensor = B::from_data(data, device);
         Tensor::new(tensor)
     }
@@ -210,7 +210,7 @@ where
 
     /// Returns a new tensor with the same shape and device as the current tensor filled random
     /// values sampled from the given distribution.
-    pub fn random_like(&self, distribution: Distribution<B::Elem>) -> Self {
+    pub fn random_like(&self, distribution: Distribution<B::FloatElem>) -> Self {
         Tensor::new(B::random(self.shape(), distribution, &self.device()))
     }
 
@@ -455,7 +455,7 @@ where
 
     /// Create a random tensor of the given shape where each element is sampled from the given
     /// distribution.
-    pub fn random<S: Into<Shape<D>>>(shape: S, distribution: Distribution<B::Elem>) -> Self {
+    pub fn random<S: Into<Shape<D>>>(shape: S, distribution: Distribution<B::FloatElem>) -> Self {
         let tensor = B::random(shape.into(), distribution, &B::Device::default());
         Self::new(tensor)
     }
