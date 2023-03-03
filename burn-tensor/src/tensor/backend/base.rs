@@ -16,6 +16,7 @@ pub trait Backend:
 {
     type Device: Clone + Default + core::fmt::Debug + Send + Sync;
     type FloatElem: Element;
+    type IntElem: Element;
     type FullPrecisionElem: Element;
     type FullPrecisionBackend: Backend<FloatElem = Self::FullPrecisionElem, Device = Self::Device>;
     type IntegerBackend: Backend<FloatElem = i64, Device = Self::Device>;
@@ -33,8 +34,6 @@ pub trait Backend:
         + 'static
         + core::fmt::Debug
         + From<<Self::IntegerBackend as Backend>::BoolTensorPrimitive<D>>;
-
-    // type IntTensorPrimitive<const D: usize>: Clone + Send + Sync + 'static + core::fmt::Debug;
 
     fn ad_enabled() -> bool;
     fn name() -> String;

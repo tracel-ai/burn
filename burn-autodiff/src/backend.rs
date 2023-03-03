@@ -9,6 +9,7 @@ pub struct ADBackendDecorator<B> {
 impl<B: Backend> Backend for ADBackendDecorator<B> {
     type Device = B::Device;
     type FloatElem = B::FloatElem;
+    type IntElem = B::IntElem;
     type FullPrecisionElem = B::FullPrecisionElem;
     type IntegerBackend = B::IntegerBackend;
     type FullPrecisionBackend = ADBackendDecorator<B::FullPrecisionBackend>;

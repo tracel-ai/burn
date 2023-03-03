@@ -57,6 +57,7 @@ pub struct TchBackend<E> {
 impl<E: TchElement> Backend for TchBackend<E> {
     type Device = TchDevice;
     type FloatElem = E;
+    type IntElem = i64;
     type FullPrecisionElem = f32;
     type FullPrecisionBackend = TchBackend<f32>;
     type IntegerBackend = TchBackend<i64>;

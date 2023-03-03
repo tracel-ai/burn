@@ -21,7 +21,7 @@ mod tests {
 
         let grad = weights.grad(&grads).unwrap();
         let expected =
-            Data::<<TestADBackend as Backend>::Elem, 2>::from([[3., 9., 7.], [21., 35., 27.]]);
+            Data::<<TestADBackend as Backend>::FloatElem, 2>::from([[3., 9., 7.], [21., 35., 27.]]);
         assert_eq!(grad.to_data(), expected);
     }
 }
