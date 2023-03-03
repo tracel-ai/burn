@@ -79,9 +79,9 @@ impl NumericMetricState {
 
         let formatted = match format.unit {
             Some(unit) => {
-                format!("Running {formatted_running} {unit} - Current {formatted_current} {unit}")
+                format!("epoch {formatted_running} {unit} - batch {formatted_current} {unit}")
             }
-            None => format!("Running {formatted_running} - Current {formatted_current}"),
+            None => format!("epoch {formatted_running} - batch {formatted_current}"),
         };
 
         MetricEntry::new(format.name, formatted, serialized)
