@@ -2,7 +2,7 @@ use core::ops::Range;
 
 use crate::{backend::Backend, ops::TensorOps, Bool, Float, Int, Shape, TensorKind};
 
-#[derive(new)]
+#[derive(new, Clone, Debug)]
 pub struct TensorNew<B, const D: usize, K = Float>
 where
     B: Backend,

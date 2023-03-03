@@ -1,11 +1,14 @@
 use crate::backend::Backend;
 
+#[derive(Clone, Debug)]
 pub struct Float;
+#[derive(Clone, Debug)]
 pub struct Int;
+#[derive(Clone, Debug)]
 pub struct Bool;
 
 pub trait TensorKind<B: Backend> {
-    type Primitive<const D: usize>;
+    type Primitive<const D: usize>: Clone + core::fmt::Debug;
 }
 
 impl<B: Backend> TensorKind<B> for Float {

@@ -1,0 +1,571 @@
+use alloc::vec::Vec;
+use core::convert::TryInto;
+use core::ops::Range;
+
+use crate::backend::ADBackend;
+use crate::tensor::backend::Backend;
+use crate::tensor::stats;
+use crate::tensor::ElementConversion;
+use crate::tensor::{Data, Distribution, Shape};
+use crate::Bool;
+use crate::TensorNew;
+
+impl<B> TensorNew<B, 1>
+where
+    B: Backend,
+{
+    /// Returns a new integer tensor on the default device which values are generated from the given range.
+    pub fn arange(range: Range<usize>) -> TensorNew<B::IntegerBackend, 1> {
+        TensorNew::new(B::arange(range, &B::Device::default()))
+    }
+    /// Returns a new integer tensor on the specified device which values are generated from the given range.
+    pub fn arange_device(
+        range: Range<usize>,
+        device: &B::Device,
+    ) -> TensorNew<B::IntegerBackend, 1> {
+        TensorNew::new(B::arange(range, device))
+    }
+}
+
+impl<B> TensorNew<B, 1>
+where
+    B: Backend,
+{
+    /// Returns the first value of the tensor.
+    pub fn single_value(&self) -> B::FloatElem {
+        self.to_data().value[0]
+    }
+}
+
+impl<const D: usize, B> TensorNew<B, D>
+where
+    B: Backend,
+{
+    pub fn from_primitive(tensor: B::TensorPrimitive<D>) -> Self {
+        Self::new(tensor)
+    }
+
+    /// Executes an operation on the tensor and modifies its value.
+    ///
+    /// # Notes
+    ///
+    /// This won't necessary reuse the same tensor data/buffer, but it should if there is
+    /// no other reference pointing to the same tensor.
+    ///
+    /// Wrapping operations with inplace is not an optimization, it's mainly there if you
+    /// want to mutate a tensor by using owned operations. A plausible usage would be to
+    /// update the weights of a mutable model reference.
+    pub fn inplace<F: FnOnce(Self) -> Self>(&mut self, func: F) {
+        let mut tensor_owned = TensorNew::empty([0; D]);
+        core::mem::swap(&mut tensor_owned, self);
+
+        let mut tensor_new = func(tensor_owned);
+        core::mem::swap(&mut tensor_new, self);
+    }
+
+    /// Applies element wise exponential operation.
+    ///
+    /// `y = e^x`
+    pub fn exp(self) -> Self {
+        Self::new(B::exp(self.primitive))
+    }
+
+    /// Applies element wise natural log operation *ln*.
+    ///
+    /// `y = log(x)`
+    pub fn log(self) -> Self {
+        Self::new(B::log(self.primitive))
+    }
+
+    /// Applies the natural logarithm of one plus the input tensor, element-wise.
+    ///
+    /// `y = log(x+1)`
+    pub fn log1p(self) -> Self {
+        Self::new(B::log1p(self.primitive))
+    }
+
+    /// Applies the [error function](https://en.wikipedia.org/wiki/Error_function) element wise.
+    ///
+    /// `y = erf(x)`
+    pub fn erf(self) -> Self {
+        Self::new(B::erf(self.primitive))
+    }
+
+    /// Applies element wise power operation.
+    ///
+    /// `y = x^a`
+    pub fn powf(self, value: f32) -> Self {
+        Self::new(B::powf(self.primitive, value))
+    }
+
+    /// Applies element wise root square operation.
+    pub fn sqrt(self) -> Self {
+        Self::new(B::sqrt(self.primitive))
+    }
+
+    /// Applies element wise cosine operation.
+    pub fn cos(self) -> Self {
+        Self::new(B::cos(self.primitive))
+    }
+
+    /// Applies element wise sine operation.
+    pub fn sin(self) -> Self {
+        Self::new(B::sin(self.primitive))
+    }
+
+    /// Applies element wise hyperbolic tangent operation.
+    pub fn tanh(self) -> Self {
+        Self::new(B::tanh(self.primitive))
+    }
+
+    /// Returns the dimensions of the current tensor.
+    ///
+    /// Equivalent to `tensor.shape().dims`.
+    pub fn dims(&self) -> [usize; D] {
+        B::shape(&self.primitive).dims
+    }
+
+    /// Returns the data of the current tensor.
+    pub fn into_data(self) -> Data<B::FloatElem, D> {
+        B::into_data(self.primitive)
+    }
+
+    /// Returns the data of the current tensor without taking ownership.
+    pub fn to_data(&self) -> Data<B::FloatElem, D> {
+        B::to_data(&self.primitive)
+    }
+
+    /// Create a tensor from the given data.
+    pub fn from_data(data: Data<B::FloatElem, D>) -> Self {
+        let tensor = B::from_data(data, &B::Device::default());
+        TensorNew::new(tensor)
+    }
+
+    /// Create a tensor from the given data on the given device.
+    pub fn from_data_device(data: Data<B::FloatElem, D>, device: &B::Device) -> Self {
+        let tensor = B::from_data(data, device);
+        TensorNew::new(tensor)
+    }
+
+    /// Create a tensor from floats (f32).
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::TensorNew;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let _ = TensorNew::<B, 1>::from_floats([1.0, 2.0]);
+    ///     let _ = TensorNew::<B, 2>::from_floats([[1.0, 2.0], [3.0, 4.0]]);
+    /// }
+    /// ```
+    pub fn from_floats<A: Into<Data<f32, D>>>(floats: A) -> Self {
+        Self::from_data(floats.into().convert())
+    }
+
+    /// Returns a new tensor with the same shape and device as the current tensor filled with zeros.
+    pub fn zeros_like(&self) -> Self {
+        TensorNew::new(B::zeros(self.shape(), &self.device()))
+    }
+
+    /// Returns a new tensor with the same shape and device as the current tensor filled with ones.
+    pub fn ones_like(&self) -> Self {
+        TensorNew::new(B::ones(self.shape(), &self.device()))
+    }
+
+    /// Returns a new tensor with the same shape and device as the current tensor filled random
+    /// values sampled from the given distribution.
+    pub fn random_like(&self, distribution: Distribution<B::FloatElem>) -> Self {
+        TensorNew::new(B::random(self.shape(), distribution, &self.device()))
+    }
+
+    /// Create a one hot tensor.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::TensorNew;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let one_hot = TensorNew::<B, 1>::one_hot(2, 10);
+    ///     println!("{}", one_hot.to_data());
+    ///     // [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    /// }
+    /// ```
+    pub fn one_hot(index: usize, num_classes: usize) -> Self {
+        let mut dims = [1; D];
+        dims[D - 1] = num_classes;
+        let shape = Shape::new(dims);
+        let ranges: Vec<_> = shape.dims.iter().map(|dim| 0..*dim).collect();
+        let tensor = TensorNew::zeros(shape);
+        let mut ranges: [core::ops::Range<usize>; D] = ranges.try_into().unwrap();
+        ranges[D - 1] = index..index + 1;
+
+        tensor.index_assign(ranges, TensorNew::ones(Shape::new([1; D])))
+    }
+
+    /// Applies the transpose operation.
+    ///
+    /// On matrix and higher dimension tensor, it swap the last two dimensions.
+    ///
+    /// # Panics
+    ///
+    /// If the tensor is of 1 dimension or less.
+    pub fn transpose(self) -> Self {
+        Self::new(B::transpose(self.primitive))
+    }
+
+    /// Swap two dimensions.
+    ///
+    /// # Panics
+    ///
+    /// If the dimensions exceed the shape of than the tensor.
+    pub fn swap_dims(self, dim1: usize, dim2: usize) -> Self {
+        Self::new(B::swap_dims(self.primitive, dim1, dim2))
+    }
+
+    /// Applies the matrix multiplication operation.
+    ///
+    /// `C = AB`
+    ///
+    /// # Panics
+    ///
+    /// If the two tensors dont' have a compatible shape.
+    pub fn matmul(self, other: Self) -> Self {
+        Self::new(B::matmul(self.primitive, other.primitive))
+    }
+
+    /// Aggregate all elements in the tensor with the mean operation.
+    pub fn mean(self) -> TensorNew<B, 1> {
+        TensorNew::new(B::mean(self.primitive))
+    }
+
+    /// Aggregate all elements in the tensor with the sum operation.
+    pub fn sum(self) -> TensorNew<B, 1> {
+        TensorNew::new(B::sum(self.primitive))
+    }
+
+    /// Aggregate all elements along the given *dimension* or *axis* in the tensor with the mean operation.
+    pub fn mean_dim(self, dim: usize) -> Self {
+        Self::new(B::mean_dim(self.primitive, dim))
+    }
+
+    /// Aggregate all elements along the given *dimension* or *axis* in the tensor with the sum operation.
+    pub fn sum_dim(self, dim: usize) -> Self {
+        Self::new(B::sum_dim(self.primitive, dim))
+    }
+
+    /// Calculate the variance along the given dimension.
+    pub fn var(self, dim: usize) -> Self {
+        stats::var(self, dim)
+    }
+
+    /// Calculate the variance along the given dimension without applying the Bessel’s correction.
+    pub fn var_bias(self, dim: usize) -> Self {
+        stats::var_bias(self, dim)
+    }
+
+    /// Calculate the variance along the given dimension and also returns the mean.
+    pub fn var_mean(self, dim: usize) -> (Self, Self) {
+        let mean = self.clone().mean_dim(dim);
+        let var = stats::var_with_mean(self, mean.clone(), dim);
+        (var, mean)
+    }
+
+    /// Calculate the variance along the given dimension without applying the Bessel’s correction and also returns the mean.
+    pub fn var_mean_bias(self, dim: usize) -> (Self, Self) {
+        let mean = self.clone().mean_dim(dim);
+        let var = stats::var_with_mean_bias(self, mean.clone(), dim);
+        (var, mean)
+    }
+
+    /// Applies element wise equal comparison and returns a boolean tensor.
+    ///
+    /// # Panics
+    ///
+    /// If the two tensors don't have the same shape.
+    pub fn equal(self, other: Self) -> TensorNew<B, D, Bool> {
+        TensorNew::new(B::equal(self.primitive, other.primitive))
+    }
+
+    /// Applies element wise greater comparison and returns a boolean tensor.
+    ///
+    /// # Panics
+    ///
+    /// If the two tensors don't have the same shape.
+    pub fn greater(self, other: Self) -> TensorNew<B, D, Bool> {
+        TensorNew::new(B::greater(self.primitive, other.primitive))
+    }
+
+    /// Applies element wise greater-equal comparison and returns a boolean tensor.
+    ///
+    /// # Panics
+    ///
+    /// If the two tensors don't have the same shape.
+    pub fn greater_equal(self, other: Self) -> TensorNew<B, D, Bool> {
+        TensorNew::new(B::greater_equal(self.primitive, other.primitive))
+    }
+
+    /// Applies element wise lower comparison and returns a boolean tensor.
+    ///
+    /// # Panics
+    ///
+    /// If the two tensors don't have the same shape.
+    pub fn lower(self, other: Self) -> TensorNew<B, D, Bool> {
+        TensorNew::new(B::lower(self.primitive, other.primitive))
+    }
+
+    /// Applies element wise lower-equal comparison and returns a boolean tensor.
+    ///
+    /// # Panics
+    ///
+    /// If the two tensors don't have the same shape.
+    pub fn lower_equal(self, other: Self) -> TensorNew<B, D, Bool> {
+        TensorNew::new(B::lower_equal(self.primitive, other.primitive))
+    }
+
+    /// Applies element wise equal comparison and returns a boolean tensor.
+    pub fn equal_scalar<E: ElementConversion>(self, other: E) -> TensorNew<B, D, Bool> {
+        TensorNew::new(B::equal_scalar(self.primitive, other.to_elem()))
+    }
+
+    /// Applies element wise greater comparison and returns a boolean tensor.
+    pub fn greater_scalar<E: ElementConversion>(self, other: E) -> TensorNew<B, D, Bool> {
+        TensorNew::new(B::greater_scalar(self.primitive, other.to_elem()))
+    }
+
+    /// Applies element wise greater-equal comparison and returns a boolean tensor.
+    pub fn greater_equal_scalar<E: ElementConversion>(self, other: E) -> TensorNew<B, D, Bool> {
+        TensorNew::new(B::greater_equal_scalar(self.primitive, other.to_elem()))
+    }
+
+    /// Applies element wise lower comparison and returns a boolean tensor.
+    pub fn lower_scalar<E: ElementConversion>(self, other: E) -> TensorNew<B, D, Bool> {
+        TensorNew::new(B::lower_scalar(self.primitive, other.to_elem()))
+    }
+
+    /// Applies element wise lower-equal comparison and returns a boolean tensor.
+    pub fn lower_equal_scalar<E: ElementConversion>(self, other: E) -> TensorNew<B, D, Bool> {
+        TensorNew::new(B::lower_equal_scalar(self.primitive, other.to_elem()))
+    }
+
+    /// Create a random tensor of the given shape where each element is sampled from the given
+    /// distribution.
+    pub fn random<S: Into<Shape<D>>>(shape: S, distribution: Distribution<B::FloatElem>) -> Self {
+        let tensor = B::random(shape.into(), distribution, &B::Device::default());
+        Self::new(tensor)
+    }
+
+    /// Create a tensor of the given shape where each element is zero.
+    pub fn zeros<S: Into<Shape<D>>>(shape: S) -> Self {
+        let tensor = B::zeros(shape.into(), &B::Device::default());
+        Self::new(tensor)
+    }
+
+    /// Create a tensor of the given shape where each element is zero.
+    pub fn zeros_device<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
+        let tensor = B::zeros(shape.into(), device);
+        Self::new(tensor)
+    }
+
+    /// Create a tensor of the given shape where each element is one.
+    pub fn ones<S: Into<Shape<D>>>(shape: S) -> Self {
+        let tensor = B::ones(shape.into(), &B::Device::default());
+        Self::new(tensor)
+    }
+
+    /// Create an empty tensor of the given shape.
+    pub fn empty<S: Into<Shape<D>>>(shape: S) -> Self {
+        TensorNew::new(B::empty(shape.into(), &B::Device::default()))
+    }
+
+    /// Create a tensor of the given shape where each element is one.
+    pub fn ones_device<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
+        let tensor = B::ones(shape.into(), device);
+        Self::new(tensor)
+    }
+
+    /// Returns a copy of the current tensor with the selected elements changed to the new ones at
+    /// the selected indexes.
+    ///
+    /// # Panics
+    ///
+    /// - If a range exceeds the number of elements on a dimension.
+    /// - If the given values don't match the given ranges.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::TensorNew;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let tensor = TensorNew::<B, 3>::ones([2, 3, 3]);
+    ///     let values = TensorNew::<B, 3>::zeros([1, 1, 1]);
+    ///     let tensor_indexed = tensor.index_assign([0..1, 0..1, 0..1], values);
+    ///     println!("{:?}", tensor_indexed.shape());
+    ///     // Shape { dims: [2, 3, 3] }
+    /// }
+    /// ```
+    pub fn index_assign<const D2: usize>(
+        self,
+        indexes: [core::ops::Range<usize>; D2],
+        values: Self,
+    ) -> Self {
+        Self::new(B::index_assign(self.primitive, indexes, values.primitive))
+    }
+
+    /// Fill each element with the given value based on the given mask.
+    pub fn mask_fill<E: ElementConversion>(self, mask: TensorNew<B, D, Bool>, value: E) -> Self {
+        Self::new(B::mask_fill(
+            self.primitive,
+            mask.primitive,
+            value.to_elem(),
+        ))
+    }
+
+    /// Returns a tensor with full precision based on the selected backend.
+    pub fn to_full_precision(&self) -> TensorNew<B::FullPrecisionBackend, D> {
+        TensorNew::new(B::to_full_precision(&self.primitive))
+    }
+
+    /// Returns a tensor on the selected backend from a full precision tensor.
+    pub fn from_full_precision(tensor: TensorNew<B::FullPrecisionBackend, D>) -> Self {
+        Self::new(B::from_full_precision(tensor.primitive))
+    }
+
+    /// Applies the argmax function along the given dimension and returns an integer tensor.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{TensorNew, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let tensor = TensorNew::<B, 3>::ones(Shape::new([2, 3, 3]));
+    ///     let tensor = tensor.argmax(1);
+    ///     println!("{:?}", tensor.shape());
+    ///     // Shape { dims: [2, 1, 3] }
+    /// }
+    /// ```
+    pub fn argmax(self, dim: usize) -> TensorNew<B::IntegerBackend, D> {
+        TensorNew::new(B::argmax(self.primitive, dim))
+    }
+
+    /// Applies the argmin function along the given dimension and returns an integer tensor.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{TensorNew, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let tensor = TensorNew::<B, 3>::ones(Shape::new([2, 3, 3]));
+    ///     let tensor = tensor.argmin(1);
+    ///     println!("{:?}", tensor.shape());
+    ///     // Shape { dims: [2, 1, 3] }
+    /// }
+    /// ```
+    pub fn argmin(self, dim: usize) -> TensorNew<B::IntegerBackend, D> {
+        TensorNew::new(B::argmin(self.primitive, dim))
+    }
+
+    /// Concatenates all tensors into a new one along the given dimension.
+    ///
+    /// # Panics
+    ///
+    /// If all tensors don't have the same shape.
+    pub fn cat(tensors: Vec<Self>, dim: usize) -> Self {
+        Self::new(B::cat(
+            tensors.into_iter().map(|t| t.primitive).collect(),
+            dim,
+        ))
+    }
+
+    /// Detach the current tensor from the autodiff graph.
+    /// This function does nothing when autodiff is not enabled.
+    /// This can be used in batchers or elsewere to ensure that previous operations are not
+    /// considered in the autodiff graph.
+    pub fn detach(self) -> Self {
+        Self::new(B::detach(self.primitive))
+    }
+
+    /// Unsqueeze the current tensor. Create new dimensions to fit the given size.
+    ///
+    /// # Panics
+    ///
+    /// If the output size is higher than the current tensor.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{TensorNew, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let tensor = TensorNew::<B, 2>::ones(Shape::new([3, 3]));
+    ///     let tensor = tensor.unsqueeze::<4>();
+    ///     println!("{:?}", tensor.shape());
+    ///     // Shape { dims: [1, 1, 3, 3] }
+    /// }
+    /// ```
+    pub fn unsqueeze<const D2: usize>(self) -> TensorNew<B, D2> {
+        if D2 < D {
+            panic!("Can't unsqueeze smaller tensor, got dim {D2}, expected > {D}")
+        }
+
+        let mut dims = [1; D2];
+        let num_ones = D2 - D;
+        let shape = self.shape();
+
+        dims[num_ones..(D + num_ones)].copy_from_slice(&shape.dims[..D]);
+
+        let shape = Shape::new(dims);
+        self.reshape(shape)
+    }
+
+    /// Repeat the tensor along the given dimension.
+    ///
+    /// # Panics
+    ///
+    /// If the selected dimension more than one item.
+    pub fn repeat(self, dim: usize, times: usize) -> Self {
+        Self::new(B::repeat(self.primitive, dim, times))
+    }
+
+    pub(crate) fn relu(self) -> Self {
+        Self::new(B::relu(self.primitive))
+    }
+}
+
+impl<const D: usize, B: ADBackend> TensorNew<B, D> {
+    pub fn backward(&self) -> B::Gradients {
+        B::backward::<D>(self.primitive.clone())
+    }
+
+    /// Get the gradients of a tensor if it exist.
+    ///
+    /// Returns a new reference to the same tensor. Therefore the same grad tensor can
+    /// be accessed multiple times. If you only need to get the gradients one time,
+    /// consider using [grad_remove](TensorNew::grad_remove) for better performance.
+    pub fn grad(&self, grads: &B::Gradients) -> Option<TensorNew<B::InnerBackend, D>> {
+        B::grad(&self.primitive, grads).map(TensorNew::new)
+    }
+
+    /// Remove the grad tensor from the [grads](ADBackend::Gradients) struct returning the result.
+    pub fn grad_remove(&self, grads: &mut B::Gradients) -> Option<TensorNew<B::InnerBackend, D>> {
+        B::grad_remove(&self.primitive, grads).map(TensorNew::new)
+    }
+
+    pub fn inner(self) -> TensorNew<B::InnerBackend, D> {
+        TensorNew::new(B::inner(self.primitive))
+    }
+
+    pub fn from_inner(inner: TensorNew<B::InnerBackend, D>) -> Self {
+        Self::new(B::from_inner(inner.primitive))
+    }
+}
