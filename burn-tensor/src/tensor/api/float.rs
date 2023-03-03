@@ -119,28 +119,6 @@ where
         Self::new(B::tanh(self.primitive))
     }
 
-    /// Returns the data of the current tensor.
-    pub fn into_data(self) -> Data<B::FloatElem, D> {
-        B::into_data(self.primitive)
-    }
-
-    /// Returns the data of the current tensor without taking ownership.
-    pub fn to_data(&self) -> Data<B::FloatElem, D> {
-        B::to_data(&self.primitive)
-    }
-
-    /// Create a tensor from the given data.
-    pub fn from_data(data: Data<B::FloatElem, D>) -> Self {
-        let tensor = B::from_data(data, &B::Device::default());
-        Tensor::new(tensor)
-    }
-
-    /// Create a tensor from the given data on the given device.
-    pub fn from_data_device(data: Data<B::FloatElem, D>, device: &B::Device) -> Self {
-        let tensor = B::from_data(data, device);
-        Tensor::new(tensor)
-    }
-
     /// Create a tensor from floats (f32).
     ///
     /// # Example
@@ -349,35 +327,6 @@ where
     /// distribution.
     pub fn random<S: Into<Shape<D>>>(shape: S, distribution: Distribution<B::FloatElem>) -> Self {
         let tensor = B::random(shape.into(), distribution, &B::Device::default());
-        Self::new(tensor)
-    }
-
-    /// Create a tensor of the given shape where each element is zero.
-    pub fn zeros<S: Into<Shape<D>>>(shape: S) -> Self {
-        let tensor = B::zeros(shape.into(), &B::Device::default());
-        Self::new(tensor)
-    }
-
-    /// Create a tensor of the given shape where each element is zero.
-    pub fn zeros_device<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
-        let tensor = B::zeros(shape.into(), device);
-        Self::new(tensor)
-    }
-
-    /// Create a tensor of the given shape where each element is one.
-    pub fn ones<S: Into<Shape<D>>>(shape: S) -> Self {
-        let tensor = B::ones(shape.into(), &B::Device::default());
-        Self::new(tensor)
-    }
-
-    /// Create an empty tensor of the given shape.
-    pub fn empty<S: Into<Shape<D>>>(shape: S) -> Self {
-        Tensor::new(B::empty(shape.into(), &B::Device::default()))
-    }
-
-    /// Create a tensor of the given shape where each element is one.
-    pub fn ones_device<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
-        let tensor = B::ones(shape.into(), device);
         Self::new(tensor)
     }
 

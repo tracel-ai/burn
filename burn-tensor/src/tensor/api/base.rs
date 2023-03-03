@@ -1,6 +1,6 @@
 use core::ops::Range;
 
-use crate::{backend::Backend, ops::TensorOps, Bool, Float, Int, Shape, TensorKind};
+use crate::{backend::Backend, ops::TensorOps, Bool, Data, Float, Int, Shape, TensorKind};
 
 #[derive(new, Clone, Debug)]
 pub struct Tensor<B, const D: usize, K = Float>
@@ -69,6 +69,26 @@ where
     pub fn to_device(self, device: &B::Device) -> Self {
         Self::new(K::to_device(self.primitive, device))
     }
+
+    /// Returns the data of the current tensor.
+    pub fn into_data(self) -> Data<K::Elem, D> {
+        K::into_data(self.primitive)
+    }
+
+    /// Returns the data of the current tensor without taking ownership.
+    pub fn to_data(&self) -> Data<K::Elem, D> {
+        Self::into_data(self.clone())
+    }
+
+    /// Create a tensor from the given data.
+    pub fn from_data(data: Data<K::Elem, D>) -> Self {
+        Self::from_data_device(data, &B::Device::default())
+    }
+
+    /// Create a tensor from the given data on the given device.
+    pub fn from_data_device(data: Data<K::Elem, D>, device: &B::Device) -> Self {
+        Self::new(K::from_data(data, device))
+    }
 }
 
 /// Trait that list all operations that can be applied on all tensors.
@@ -77,6 +97,8 @@ where
 ///
 /// This is an internal trait, use the public API provided by [tensor struct](TensorNew).
 pub trait BasicOps<B: Backend>: TensorKind<B> {
+    type Elem;
+
     fn shape<const D: usize>(tensor: &Self::Primitive<D>) -> Shape<D>;
     fn reshape<const D1: usize, const D2: usize>(
         tensor: Self::Primitive<D1>,
@@ -91,9 +113,16 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         tensor: Self::Primitive<D>,
         device: &B::Device,
     ) -> Self::Primitive<D>;
+    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Data<Self::Elem, D>;
+    fn from_data<const D: usize>(
+        data: Data<Self::Elem, D>,
+        device: &B::Device,
+    ) -> Self::Primitive<D>;
 }
 
 impl<B: Backend> BasicOps<B> for Float {
+    type Elem = B::FloatElem;
+
     fn shape<const D: usize>(tensor: &Self::Primitive<D>) -> Shape<D> {
         B::shape(tensor)
     }
@@ -122,9 +151,22 @@ impl<B: Backend> BasicOps<B> for Float {
     ) -> Self::Primitive<D> {
         B::to_device(tensor, device)
     }
+
+    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Data<Self::Elem, D> {
+        B::into_data(tensor)
+    }
+
+    fn from_data<const D: usize>(
+        data: Data<Self::Elem, D>,
+        device: &B::Device,
+    ) -> Self::Primitive<D> {
+        B::from_data(data, device)
+    }
 }
 
 impl<B: Backend> BasicOps<B> for Int {
+    type Elem = <B::IntegerBackend as Backend>::FloatElem;
+
     fn shape<const D: usize>(tensor: &Self::Primitive<D>) -> Shape<D> {
         B::IntegerBackend::shape(tensor)
     }
@@ -153,9 +195,22 @@ impl<B: Backend> BasicOps<B> for Int {
     ) -> Self::Primitive<D> {
         B::IntegerBackend::to_device(tensor, device)
     }
+
+    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Data<Self::Elem, D> {
+        B::IntegerBackend::into_data(tensor)
+    }
+
+    fn from_data<const D: usize>(
+        data: Data<Self::Elem, D>,
+        device: &B::Device,
+    ) -> Self::Primitive<D> {
+        B::IntegerBackend::from_data(data, device)
+    }
 }
 
 impl<B: Backend> BasicOps<B> for Bool {
+    type Elem = bool;
+
     fn shape<const D: usize>(tensor: &Self::Primitive<D>) -> Shape<D> {
         B::bool_shape(tensor)
     }
@@ -183,5 +238,16 @@ impl<B: Backend> BasicOps<B> for Bool {
         device: &<B as Backend>::Device,
     ) -> Self::Primitive<D> {
         B::bool_to_device(tensor, device)
+    }
+
+    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Data<Self::Elem, D> {
+        B::bool_into_data(tensor)
+    }
+
+    fn from_data<const D: usize>(
+        data: Data<Self::Elem, D>,
+        device: &B::Device,
+    ) -> Self::Primitive<D> {
+        B::from_data_bool(data, device)
     }
 }

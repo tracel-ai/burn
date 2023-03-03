@@ -7,7 +7,7 @@ pub struct Int;
 #[derive(Clone, Debug)]
 pub struct Bool;
 
-pub trait TensorKind<B: Backend> {
+pub trait TensorKind<B: Backend>: Clone {
     type Primitive<const D: usize>: Clone + core::fmt::Debug;
 }
 

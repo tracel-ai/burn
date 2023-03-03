@@ -13,7 +13,7 @@ use crate::{
         attention::{MhaInput, MultiHeadAttention, MultiHeadAttentionConfig},
         Dropout, DropoutConfig, LayerNorm, LayerNormConfig,
     },
-    tensor::{backend::Backend, , Tensor},
+    tensor::{backend::Backend, Tensor},
 };
 
 /// Configuration to create a [Transformer Encoder](TransformerEncoder) layer.

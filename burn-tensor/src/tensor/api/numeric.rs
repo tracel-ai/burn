@@ -1,4 +1,6 @@
-use crate::{backend::Backend, ops::TensorOps, ElementConversion, Float, Int, Tensor, TensorKind};
+use crate::{
+    backend::Backend, ops::TensorOps, ElementConversion, Float, Int, Shape, Tensor, TensorKind,
+};
 
 impl<B, const D: usize, K> Tensor<B, D, K>
 where
@@ -71,6 +73,36 @@ where
     pub fn neg(self) -> Self {
         Self::new(K::neg(self.primitive))
     }
+
+    /// Create a tensor of the given shape where each element is zero.
+    pub fn zeros<S: Into<Shape<D>>>(shape: S) -> Self {
+        Self::zeros_device(shape, &B::Device::default())
+    }
+
+    /// Create a tensor of the given shape where each element is zero.
+    pub fn zeros_device<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
+        Self::new(K::zeros(shape.into(), device))
+    }
+
+    /// Create a tensor of the given shape where each element is one.
+    pub fn ones<S: Into<Shape<D>>>(shape: S) -> Self {
+        Self::ones_device(shape, &B::Device::default())
+    }
+
+    /// Create a tensor of the given shape where each element is zero.
+    pub fn ones_device<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
+        Self::new(K::ones(shape.into(), device))
+    }
+
+    /// Create an empty tensor of the given shape.
+    pub fn empty<S: Into<Shape<D>>>(shape: S) -> Self {
+        Self::empty_device(shape, &B::Device::default())
+    }
+
+    /// Create an empty tensor of the given shape.
+    pub fn empty_device<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
+        Self::new(K::empty(shape.into(), device))
+    }
 }
 
 /// Trait that list all operations that can be applied on all numerical tensors.
@@ -100,6 +132,9 @@ pub trait Numeric<B: Backend>: TensorKind<B> {
         rhs: E,
     ) -> Self::Primitive<D>;
     fn neg<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D>;
+    fn zeros<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D>;
+    fn ones<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D>;
+    fn empty<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D>;
 }
 
 impl<B: Backend> Numeric<B> for Int {
@@ -154,6 +189,15 @@ impl<B: Backend> Numeric<B> for Int {
     fn neg<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
         B::IntegerBackend::neg(tensor)
     }
+    fn zeros<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D> {
+        B::IntegerBackend::zeros(shape, device)
+    }
+    fn ones<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D> {
+        B::IntegerBackend::ones(shape, device)
+    }
+    fn empty<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D> {
+        B::IntegerBackend::empty(shape, device)
+    }
 }
 
 impl<B: Backend> Numeric<B> for Float {
@@ -207,6 +251,15 @@ impl<B: Backend> Numeric<B> for Float {
     }
     fn neg<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
         B::neg(tensor)
+    }
+    fn zeros<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D> {
+        B::zeros(shape, device)
+    }
+    fn ones<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D> {
+        B::ones(shape, device)
+    }
+    fn empty<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D> {
+        B::empty(shape, device)
     }
 }
 
