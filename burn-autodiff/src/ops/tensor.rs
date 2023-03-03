@@ -598,7 +598,12 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn detach<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {
-        ADTensor::new(tensor.primitive)
+        let tensor = ADTensor::new(tensor.primitive);
+
+        match tensor.node.requirement {
+            Requirement::Grad => tensor.require_grad(),
+            _ => tensor,
+        }
     }
 
     fn require_grad<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {

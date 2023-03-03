@@ -23,7 +23,7 @@ impl<const D: usize, B: Backend> Module for Param<Tensor<B, D>> {
     fn to_device(self, device: &B::Device) -> Self {
         Self {
             id: self.id,
-            value: self.value.to_device(device),
+            value: self.value.to_device(device).require_grad(),
         }
     }
 
@@ -59,7 +59,8 @@ impl<const D: usize, B: Backend> Module for Param<Tensor<B, D>> {
     }
 
     fn visit_mut<V: ModuleVisitorMut<Self::Backend>>(&mut self, visitor: &mut V) {
-        visitor.visit_mut(&self.id, &mut self.value)
+        visitor.visit_mut(&self.id, &mut self.value);
+        self.value.inplace(|value| value.require_grad());
     }
 }
 
@@ -85,7 +86,9 @@ impl<const D: usize, B: Backend> Module for Param<Option<Tensor<B, D>>> {
     fn to_device(self, device: &B::Device) -> Self {
         Self {
             id: self.id,
-            value: self.value.map(|value| value.to_device(device)),
+            value: self
+                .value
+                .map(|value| value.to_device(device).require_grad()),
         }
     }
 
@@ -133,7 +136,8 @@ impl<const D: usize, B: Backend> Module for Param<Option<Tensor<B, D>>> {
 
     fn visit_mut<V: ModuleVisitorMut<Self::Backend>>(&mut self, visitor: &mut V) {
         if let Some(value) = &mut self.value {
-            visitor.visit_mut(&self.id, value)
+            visitor.visit_mut(&self.id, value);
+            value.inplace(|value| value.require_grad());
         }
     }
 }

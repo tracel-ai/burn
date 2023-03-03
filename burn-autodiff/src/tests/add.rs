@@ -10,7 +10,6 @@ mod tests {
 
         let tensor_1 = Tensor::<TestADBackend, 1>::from_data(data_1).require_grad();
         let tensor_2 = Tensor::<TestADBackend, 1>::from_data(data_2).require_grad();
-        println!("{:?}", tensor_1);
 
         let tensor_3 = tensor_1.clone() + tensor_2.clone();
         let grads = tensor_3.backward();
