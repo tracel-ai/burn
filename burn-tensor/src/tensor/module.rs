@@ -1,7 +1,7 @@
-use crate::{backend::Backend, Tensor};
+use crate::{backend::Backend, Int, Tensor};
 
 /// Applies the [embedding module](crate::ops::ModuleOps::embedding).
-pub fn embedding<B>(weights: Tensor<B, 2>, indexes: Tensor<B::IntegerBackend, 2>) -> Tensor<B, 3>
+pub fn embedding<B>(weights: Tensor<B, 2>, indexes: Tensor<B, 2, Int>) -> Tensor<B, 3>
 where
     B: Backend,
 {

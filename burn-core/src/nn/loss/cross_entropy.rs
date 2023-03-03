@@ -1,4 +1,4 @@
-use burn_tensor::{backend::Backend, loss::cross_entropy_with_logits, Tensor};
+use burn_tensor::{backend::Backend, loss::cross_entropy_with_logits, Int, Tensor};
 
 /// Calculate the cross entropy loss from the input logits and the targets.
 pub struct CrossEntropyLoss<B: Backend> {
@@ -28,11 +28,7 @@ impl<B: Backend> CrossEntropyLoss<B> {
     ///
     /// - logits: [batch_size, num_targets]
     /// - targets: [batch_size]
-    pub fn forward(
-        &self,
-        logits: Tensor<B, 2>,
-        targets: Tensor<B::IntegerBackend, 1>,
-    ) -> Tensor<B, 1> {
+    pub fn forward(&self, logits: Tensor<B, 2>, targets: Tensor<B, 1, Int>) -> Tensor<B, 1> {
         let device = logits.device();
         let [batch_size] = targets.dims();
         let indexes = targets.to_data();
@@ -71,10 +67,7 @@ mod tests {
             [batch_size, num_targets],
             Distribution::Normal(0., 1.0),
         );
-        let targets =
-            Tensor::<<TestBackend as Backend>::IntegerBackend, 1>::from_data(Data::from([
-                2, 0, 4, 1_i64,
-            ]));
+        let targets = Tensor::<TestBackend, 1, Int>::from_data(Data::from([2, 0, 4, 1_i64]));
         let targets_logits = Tensor::<TestBackend, 2>::from_data(Data::from([
             [0.0, 0.0, 1.0, 0.0, 0.0],
             [1.0, 0.0, 0.0, 0.0, 0.0],

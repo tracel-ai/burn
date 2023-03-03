@@ -1,13 +1,13 @@
 use crate::metric::{AccuracyInput, Adaptor, LossInput};
 use burn_core::tensor::backend::Backend;
-use burn_core::tensor::Tensor;
+use burn_core::tensor::{Int, Tensor};
 
 /// Simple classification output adapted for multiple metrics.
 #[derive(new)]
 pub struct ClassificationOutput<B: Backend> {
     pub loss: Tensor<B, 1>,
     pub output: Tensor<B, 2>,
-    pub targets: Tensor<B::IntegerBackend, 1>,
+    pub targets: Tensor<B, 1, Int>,
 }
 
 impl<B: Backend> Adaptor<AccuracyInput<B>> for ClassificationOutput<B> {

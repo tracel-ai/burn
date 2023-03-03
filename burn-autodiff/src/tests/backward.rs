@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(module_backward)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, module::embedding, Data, Tensor};
+    use burn_tensor::{backend::Backend, module::embedding, Data, Int, Tensor};
 
     #[test]
     fn test_embedding_backward() {
@@ -12,7 +12,7 @@ mod tests {
             [[4.0, 5.0], [8.0, 5.0], [1.0, 9.0]],
         ]);
         let weights = Tensor::<TestADBackend, 2>::from_data(weights);
-        let indexes = Tensor::<<TestADBackend as Backend>::IntegerBackend, 2>::from_data(indexes);
+        let indexes = Tensor::<TestADBackend, 2, Int>::from_data(indexes);
         let x = Tensor::<TestADBackend, 3>::from_data(x);
 
         let output = embedding(weights.clone(), indexes);

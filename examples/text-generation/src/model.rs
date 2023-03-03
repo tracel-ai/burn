@@ -63,13 +63,12 @@ impl<B: Backend> TextGenerationModel<B> {
         let [batch_size, seq_length] = item.tokens_inputs.dims();
         let device = &self.embedding_token.devices()[0];
 
-        let inputs = item.tokens_inputs.to_device(device).detach();
+        let inputs = item.tokens_inputs.to_device(device);
         let mask_pad = item.mask_pad.to_device(device);
 
         let index_positions = Tensor::<B, 1>::arange_device(0..seq_length, device)
             .reshape([1, seq_length])
-            .repeat(0, batch_size)
-            .detach();
+            .repeat(0, batch_size);
         let embedding_positions = self.embedding_pos.forward(index_positions);
         let embedding_tokens = self.embedding_token.forward(inputs);
         let embedding = (embedding_positions + embedding_tokens) / 2;

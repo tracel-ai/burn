@@ -1,4 +1,5 @@
 use alloc::{format, vec::Vec};
+use burn_tensor::Bool;
 
 use crate::{
     self as burn,

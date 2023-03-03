@@ -70,6 +70,7 @@ where
     /// Switch sign of each element in the tensor.
     ///
     /// `y = -x`
+    #[allow(clippy::should_implement_trait)]
     pub fn neg(self) -> Self {
         Self::new(K::neg(self.primitive))
     }
@@ -103,6 +104,26 @@ where
     pub fn empty_device<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
         Self::new(K::empty(shape.into(), device))
     }
+
+    /// Aggregate all elements in the tensor with the mean operation.
+    pub fn mean(self) -> Tensor<B, 1, K> {
+        Tensor::new(K::mean(self.primitive))
+    }
+
+    /// Aggregate all elements in the tensor with the sum operation.
+    pub fn sum(self) -> Tensor<B, 1, K> {
+        Tensor::new(K::sum(self.primitive))
+    }
+
+    /// Aggregate all elements along the given *dimension* or *axis* in the tensor with the mean operation.
+    pub fn mean_dim(self, dim: usize) -> Self {
+        Self::new(K::mean_dim(self.primitive, dim))
+    }
+
+    /// Aggregate all elements along the given *dimension* or *axis* in the tensor with the sum operation.
+    pub fn sum_dim(self, dim: usize) -> Self {
+        Self::new(K::sum_dim(self.primitive, dim))
+    }
 }
 
 /// Trait that list all operations that can be applied on all numerical tensors.
@@ -135,6 +156,10 @@ pub trait Numeric<B: Backend>: TensorKind<B> {
     fn zeros<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D>;
     fn ones<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D>;
     fn empty<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D>;
+    fn sum<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1>;
+    fn sum_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D>;
+    fn mean<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1>;
+    fn mean_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D>;
 }
 
 impl<B: Backend> Numeric<B> for Int {
@@ -198,6 +223,18 @@ impl<B: Backend> Numeric<B> for Int {
     fn empty<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D> {
         B::IntegerBackend::empty(shape, device)
     }
+    fn sum<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
+        B::IntegerBackend::sum(tensor)
+    }
+    fn sum_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
+        B::IntegerBackend::sum_dim(tensor, dim)
+    }
+    fn mean<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
+        B::IntegerBackend::mean(tensor)
+    }
+    fn mean_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
+        B::IntegerBackend::mean_dim(tensor, dim)
+    }
 }
 
 impl<B: Backend> Numeric<B> for Float {
@@ -260,6 +297,18 @@ impl<B: Backend> Numeric<B> for Float {
     }
     fn empty<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D> {
         B::empty(shape, device)
+    }
+    fn sum<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
+        B::sum(tensor)
+    }
+    fn sum_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
+        B::sum_dim(tensor, dim)
+    }
+    fn mean<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
+        B::mean(tensor)
+    }
+    fn mean_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
+        B::mean_dim(tensor, dim)
     }
 }
 

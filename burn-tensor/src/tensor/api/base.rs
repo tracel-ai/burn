@@ -60,6 +60,36 @@ where
         Self::new(K::index(self.primitive, indexes))
     }
 
+    /// Returns a copy of the current tensor with the selected elements changed to the new ones at
+    /// the selected indexes.
+    ///
+    /// # Panics
+    ///
+    /// - If a range exceeds the number of elements on a dimension.
+    /// - If the given values don't match the given ranges.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::TensorNew;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let tensor = TensorNew::<B, 3>::ones([2, 3, 3]);
+    ///     let values = TensorNew::<B, 3>::zeros([1, 1, 1]);
+    ///     let tensor_indexed = tensor.index_assign([0..1, 0..1, 0..1], values);
+    ///     println!("{:?}", tensor_indexed.shape());
+    ///     // Shape { dims: [2, 3, 3] }
+    /// }
+    /// ```
+    pub fn index_assign<const D2: usize>(
+        self,
+        indexes: [core::ops::Range<usize>; D2],
+        values: Self,
+    ) -> Self {
+        Self::new(K::index_assign(self.primitive, indexes, values.primitive))
+    }
+
     /// Returns the device of the current tensor.
     pub fn device(&self) -> B::Device {
         K::device(&self.primitive)
@@ -89,6 +119,42 @@ where
     pub fn from_data_device(data: Data<K::Elem, D>, device: &B::Device) -> Self {
         Self::new(K::from_data(data, device))
     }
+
+    /// Repeat the tensor along the given dimension.
+    ///
+    /// # Panics
+    ///
+    /// If the selected dimension more than one item.
+    pub fn repeat(self, dim: usize, times: usize) -> Self {
+        Self::new(K::repeat(self.primitive, dim, times))
+    }
+
+    /// Applies element wise equal comparison and returns a boolean tensor.
+    ///
+    /// # Panics
+    ///
+    /// If the two tensors don't have the same shape.
+    pub fn equal(self, other: Self) -> Tensor<B, D, Bool> {
+        K::equal(self.primitive, other.primitive)
+    }
+
+    /// Applies element wise equal comparison and returns a boolean tensor.
+    pub fn equal_scalar<E: Into<K::Elem>>(self, other: E) -> Tensor<B, D, Bool> {
+        let elem: K::Elem = other.into();
+        K::equal_scalar::<D>(self.primitive, elem)
+    }
+
+    /// Concatenates all tensors into a new one along the given dimension.
+    ///
+    /// # Panics
+    ///
+    /// If all tensors don't have the same shape.
+    pub fn cat(tensors: Vec<Self>, dim: usize) -> Self {
+        Self::new(K::cat(
+            tensors.into_iter().map(|vector| vector.primitive).collect(),
+            dim,
+        ))
+    }
 }
 
 /// Trait that list all operations that can be applied on all tensors.
@@ -108,6 +174,11 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         tensor: Self::Primitive<D1>,
         indexes: [Range<usize>; D2],
     ) -> Self::Primitive<D1>;
+    fn index_assign<const D1: usize, const D2: usize>(
+        tensor: Self::Primitive<D1>,
+        indexes: [Range<usize>; D2],
+        value: Self::Primitive<D1>,
+    ) -> Self::Primitive<D1>;
     fn device<const D: usize>(tensor: &Self::Primitive<D>) -> B::Device;
     fn to_device<const D: usize>(
         tensor: Self::Primitive<D>,
@@ -118,6 +189,18 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         data: Data<Self::Elem, D>,
         device: &B::Device,
     ) -> Self::Primitive<D>;
+    fn repeat<const D: usize>(
+        tensor: Self::Primitive<D>,
+        dim: usize,
+        times: usize,
+    ) -> Self::Primitive<D>;
+    fn equal<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
+    ) -> Tensor<B, D, Bool>;
+    fn equal_scalar<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem)
+        -> Tensor<B, D, Bool>;
+    fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D>;
 }
 
 impl<B: Backend> BasicOps<B> for Float {
@@ -141,6 +224,14 @@ impl<B: Backend> BasicOps<B> for Float {
         B::index(tensor, indexes)
     }
 
+    fn index_assign<const D1: usize, const D2: usize>(
+        tensor: Self::Primitive<D1>,
+        indexes: [Range<usize>; D2],
+        value: Self::Primitive<D1>,
+    ) -> Self::Primitive<D1> {
+        B::index_assign(tensor, indexes, value)
+    }
+
     fn device<const D: usize>(tensor: &Self::Primitive<D>) -> <B as Backend>::Device {
         B::device(tensor)
     }
@@ -161,6 +252,32 @@ impl<B: Backend> BasicOps<B> for Float {
         device: &B::Device,
     ) -> Self::Primitive<D> {
         B::from_data(data, device)
+    }
+
+    fn repeat<const D: usize>(
+        tensor: Self::Primitive<D>,
+        dim: usize,
+        times: usize,
+    ) -> Self::Primitive<D> {
+        B::repeat(tensor, dim, times)
+    }
+
+    fn equal<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
+    ) -> Tensor<B, D, Bool> {
+        Tensor::new(B::equal(lhs, rhs))
+    }
+
+    fn equal_scalar<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Elem,
+    ) -> Tensor<B, D, Bool> {
+        Tensor::new(B::equal_scalar(lhs, rhs))
+    }
+
+    fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D> {
+        B::cat(vectors, dim)
     }
 }
 
@@ -185,6 +302,14 @@ impl<B: Backend> BasicOps<B> for Int {
         B::IntegerBackend::index(tensor, indexes)
     }
 
+    fn index_assign<const D1: usize, const D2: usize>(
+        tensor: Self::Primitive<D1>,
+        indexes: [Range<usize>; D2],
+        value: Self::Primitive<D1>,
+    ) -> Self::Primitive<D1> {
+        B::IntegerBackend::index_assign(tensor, indexes, value)
+    }
+
     fn device<const D: usize>(tensor: &Self::Primitive<D>) -> <B as Backend>::Device {
         B::IntegerBackend::device(tensor)
     }
@@ -205,6 +330,32 @@ impl<B: Backend> BasicOps<B> for Int {
         device: &B::Device,
     ) -> Self::Primitive<D> {
         B::IntegerBackend::from_data(data, device)
+    }
+
+    fn repeat<const D: usize>(
+        tensor: Self::Primitive<D>,
+        dim: usize,
+        times: usize,
+    ) -> Self::Primitive<D> {
+        B::IntegerBackend::repeat(tensor, dim, times)
+    }
+
+    fn equal<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
+    ) -> Tensor<B, D, Bool> {
+        Tensor::new(B::IntegerBackend::equal(lhs, rhs).into())
+    }
+
+    fn equal_scalar<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Elem,
+    ) -> Tensor<B, D, Bool> {
+        Tensor::new(B::IntegerBackend::equal_scalar(lhs, rhs).into())
+    }
+
+    fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D> {
+        B::IntegerBackend::cat(vectors, dim)
     }
 }
 
@@ -229,6 +380,14 @@ impl<B: Backend> BasicOps<B> for Bool {
         B::bool_index(tensor, indexes)
     }
 
+    fn index_assign<const D1: usize, const D2: usize>(
+        _tensor: Self::Primitive<D1>,
+        _indexes: [Range<usize>; D2],
+        _value: Self::Primitive<D1>,
+    ) -> Self::Primitive<D1> {
+        todo!("Index assigned is not yet implemented for bool tensor")
+    }
+
     fn device<const D: usize>(tensor: &Self::Primitive<D>) -> <B as Backend>::Device {
         B::bool_device(tensor)
     }
@@ -249,5 +408,30 @@ impl<B: Backend> BasicOps<B> for Bool {
         device: &B::Device,
     ) -> Self::Primitive<D> {
         B::from_data_bool(data, device)
+    }
+
+    fn repeat<const D: usize>(
+        _tensor: Self::Primitive<D>,
+        _dim: usize,
+        _times: usize,
+    ) -> Self::Primitive<D> {
+        todo!("Repeat operation is not yet implemented for bool tensor");
+    }
+
+    fn equal<const D: usize>(
+        _lhs: Self::Primitive<D>,
+        _rhs: Self::Primitive<D>,
+    ) -> Tensor<B, D, Bool> {
+        todo!("Equal operation is not yet implemented for bool tensor");
+    }
+
+    fn equal_scalar<const D: usize>(
+        _lhs: Self::Primitive<D>,
+        _rhs: Self::Elem,
+    ) -> Tensor<B, D, Bool> {
+        todo!("Equal scalar operation is not yet implemented for bool tensor");
+    }
+    fn cat<const D: usize>(_vectors: Vec<Self::Primitive<D>>, _dim: usize) -> Self::Primitive<D> {
+        todo!("Cat vectors operation is not yet implemented for bool tensor");
     }
 }

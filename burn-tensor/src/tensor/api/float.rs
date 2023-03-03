@@ -8,6 +8,7 @@ use crate::tensor::stats;
 use crate::tensor::ElementConversion;
 use crate::tensor::{Data, Distribution, Shape};
 use crate::Bool;
+use crate::Int;
 use crate::Tensor;
 
 impl<B> Tensor<B, 1>
@@ -15,11 +16,11 @@ where
     B: Backend,
 {
     /// Returns a new integer tensor on the default device which values are generated from the given range.
-    pub fn arange(range: Range<usize>) -> Tensor<B::IntegerBackend, 1> {
+    pub fn arange(range: Range<usize>) -> Tensor<B, 1, Int> {
         Tensor::new(B::arange(range, &B::Device::default()))
     }
     /// Returns a new integer tensor on the specified device which values are generated from the given range.
-    pub fn arange_device(range: Range<usize>, device: &B::Device) -> Tensor<B::IntegerBackend, 1> {
+    pub fn arange_device(range: Range<usize>, device: &B::Device) -> Tensor<B, 1, Int> {
         Tensor::new(B::arange(range, device))
     }
 }
@@ -209,26 +210,6 @@ where
         Self::new(B::matmul(self.primitive, other.primitive))
     }
 
-    /// Aggregate all elements in the tensor with the mean operation.
-    pub fn mean(self) -> Tensor<B, 1> {
-        Tensor::new(B::mean(self.primitive))
-    }
-
-    /// Aggregate all elements in the tensor with the sum operation.
-    pub fn sum(self) -> Tensor<B, 1> {
-        Tensor::new(B::sum(self.primitive))
-    }
-
-    /// Aggregate all elements along the given *dimension* or *axis* in the tensor with the mean operation.
-    pub fn mean_dim(self, dim: usize) -> Self {
-        Self::new(B::mean_dim(self.primitive, dim))
-    }
-
-    /// Aggregate all elements along the given *dimension* or *axis* in the tensor with the sum operation.
-    pub fn sum_dim(self, dim: usize) -> Self {
-        Self::new(B::sum_dim(self.primitive, dim))
-    }
-
     /// Calculate the variance along the given dimension.
     pub fn var(self, dim: usize) -> Self {
         stats::var(self, dim)
@@ -251,15 +232,6 @@ where
         let mean = self.clone().mean_dim(dim);
         let var = stats::var_with_mean_bias(self, mean.clone(), dim);
         (var, mean)
-    }
-
-    /// Applies element wise equal comparison and returns a boolean tensor.
-    ///
-    /// # Panics
-    ///
-    /// If the two tensors don't have the same shape.
-    pub fn equal(self, other: Self) -> Tensor<B, D, Bool> {
-        Tensor::new(B::equal(self.primitive, other.primitive))
     }
 
     /// Applies element wise greater comparison and returns a boolean tensor.
@@ -298,11 +270,6 @@ where
         Tensor::new(B::lower_equal(self.primitive, other.primitive))
     }
 
-    /// Applies element wise equal comparison and returns a boolean tensor.
-    pub fn equal_scalar<E: ElementConversion>(self, other: E) -> Tensor<B, D, Bool> {
-        Tensor::new(B::equal_scalar(self.primitive, other.to_elem()))
-    }
-
     /// Applies element wise greater comparison and returns a boolean tensor.
     pub fn greater_scalar<E: ElementConversion>(self, other: E) -> Tensor<B, D, Bool> {
         Tensor::new(B::greater_scalar(self.primitive, other.to_elem()))
@@ -328,36 +295,6 @@ where
     pub fn random<S: Into<Shape<D>>>(shape: S, distribution: Distribution<B::FloatElem>) -> Self {
         let tensor = B::random(shape.into(), distribution, &B::Device::default());
         Self::new(tensor)
-    }
-
-    /// Returns a copy of the current tensor with the selected elements changed to the new ones at
-    /// the selected indexes.
-    ///
-    /// # Panics
-    ///
-    /// - If a range exceeds the number of elements on a dimension.
-    /// - If the given values don't match the given ranges.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::TensorNew;
-    ///
-    /// fn example<B: Backend>() {
-    ///     let tensor = TensorNew::<B, 3>::ones([2, 3, 3]);
-    ///     let values = TensorNew::<B, 3>::zeros([1, 1, 1]);
-    ///     let tensor_indexed = tensor.index_assign([0..1, 0..1, 0..1], values);
-    ///     println!("{:?}", tensor_indexed.shape());
-    ///     // Shape { dims: [2, 3, 3] }
-    /// }
-    /// ```
-    pub fn index_assign<const D2: usize>(
-        self,
-        indexes: [core::ops::Range<usize>; D2],
-        values: Self,
-    ) -> Self {
-        Self::new(B::index_assign(self.primitive, indexes, values.primitive))
     }
 
     /// Fill each element with the given value based on the given mask.
@@ -394,7 +331,7 @@ where
     ///     // Shape { dims: [2, 1, 3] }
     /// }
     /// ```
-    pub fn argmax(self, dim: usize) -> Tensor<B::IntegerBackend, D> {
+    pub fn argmax(self, dim: usize) -> Tensor<B, D, Int> {
         Tensor::new(B::argmax(self.primitive, dim))
     }
 
@@ -413,20 +350,8 @@ where
     ///     // Shape { dims: [2, 1, 3] }
     /// }
     /// ```
-    pub fn argmin(self, dim: usize) -> Tensor<B::IntegerBackend, D> {
+    pub fn argmin(self, dim: usize) -> Tensor<B, D, Int> {
         Tensor::new(B::argmin(self.primitive, dim))
-    }
-
-    /// Concatenates all tensors into a new one along the given dimension.
-    ///
-    /// # Panics
-    ///
-    /// If all tensors don't have the same shape.
-    pub fn cat(tensors: Vec<Self>, dim: usize) -> Self {
-        Self::new(B::cat(
-            tensors.into_iter().map(|t| t.primitive).collect(),
-            dim,
-        ))
     }
 
     /// Detach the current tensor from the autodiff graph.
@@ -469,15 +394,6 @@ where
 
         let shape = Shape::new(dims);
         self.reshape(shape)
-    }
-
-    /// Repeat the tensor along the given dimension.
-    ///
-    /// # Panics
-    ///
-    /// If the selected dimension more than one item.
-    pub fn repeat(self, dim: usize, times: usize) -> Self {
-        Self::new(B::repeat(self.primitive, dim, times))
     }
 
     pub(crate) fn relu(self) -> Self {

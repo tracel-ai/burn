@@ -261,6 +261,7 @@ mod tests {
     use super::*;
     use crate::{nn::attention::generate_autoregressive_mask, TestBackend};
     use burn::tensor::{Distribution, Shape};
+    use burn_tensor::Int;
 
     #[test]
     fn test_self_attention_shapes() {
@@ -319,7 +320,7 @@ mod tests {
         let mha = MultiHeadAttention::new(&MultiHeadAttentionConfig::new(d_model, n_heads));
 
         // Create a padding mask
-        let mask_pad = Tensor::zeros([batch_size, seq_length]);
+        let mask_pad: Tensor<TestBackend, 2, Int> = Tensor::zeros([batch_size, seq_length]);
         let mask_pad = mask_pad.index_assign(
             [0..batch_size, seq_length - num_padded..seq_length],
             Tensor::ones([batch_size, num_padded]),
