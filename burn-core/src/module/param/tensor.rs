@@ -38,7 +38,9 @@ impl<const D: usize, B: Backend> Module for Param<Tensor<B, D>> {
         let id = id.clone();
 
         let tensor = match state {
-            State::Data(data) => Tensor::from_data_device(Data::from(data), &self.value.device()),
+            State::Data(data) => {
+                Tensor::from_data_device(Data::from(data), &self.value.device()).require_grad()
+            }
             _ => return Err(LoadingError::new("Can't load tensor".to_string())),
         };
 
@@ -48,7 +50,7 @@ impl<const D: usize, B: Backend> Module for Param<Tensor<B, D>> {
     fn detach(self) -> Self {
         Self {
             id: self.id,
-            value: self.value.detach(),
+            value: self.value.detach().require_grad(),
         }
     }
 
@@ -109,9 +111,9 @@ impl<const D: usize, B: Backend> Module for Param<Option<Tensor<B, D>>> {
             }
         };
 
-        let tensor = self
-            .value
-            .map(|tensor| Tensor::from_data_device(Data::from(data), &tensor.device()));
+        let tensor = self.value.map(|tensor| {
+            Tensor::from_data_device(Data::from(data), &tensor.device()).require_grad()
+        });
 
         Ok(Self { id, value: tensor })
     }
@@ -119,7 +121,7 @@ impl<const D: usize, B: Backend> Module for Param<Option<Tensor<B, D>>> {
     fn detach(self) -> Self {
         Self {
             id: self.id,
-            value: self.value.map(|value| value.detach()),
+            value: self.value.map(|value| value.detach().require_grad()),
         }
     }
 

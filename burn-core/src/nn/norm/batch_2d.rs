@@ -37,8 +37,8 @@ pub struct BatchNorm2d<B: Backend> {
 impl<B: Backend> BatchNorm2d<B> {
     /// Create the module from the given configuration.
     pub fn new(config: &BatchNorm2dConfig) -> Self {
-        let gamma = Tensor::ones([config.num_features]);
-        let beta = Tensor::zeros([config.num_features]);
+        let gamma = Tensor::ones([config.num_features]).require_grad();
+        let beta = Tensor::zeros([config.num_features]).require_grad();
 
         let running_mean = Tensor::zeros([config.num_features]);
         let running_var = Tensor::ones([config.num_features]);
@@ -207,7 +207,7 @@ mod tests {
     fn batch_norm_2d_grads() {
         let config = BatchNorm2dConfig::new(3);
         let module = BatchNorm2d::<TestADBackend>::new(&config);
-        let input = input_tensor();
+        let input = input_tensor().require_grad();
 
         let output = module.forward(input.clone());
 

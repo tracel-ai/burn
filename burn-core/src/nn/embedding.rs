@@ -35,7 +35,8 @@ impl<B: Backend> Embedding<B> {
         let weight = Tensor::random(
             [config.n_embedding, config.d_model],
             Distribution::Normal(0.0, 1.0),
-        );
+        )
+        .require_grad();
 
         Self {
             weight: Param::new(weight),

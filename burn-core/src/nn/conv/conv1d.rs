@@ -70,13 +70,13 @@ impl<B: Backend> Conv1d<B> {
         let weight = Tensor::random(
             [config.channels_out, config.channels_in, config.kernel_size],
             Distribution::Uniform(k1, k2),
-        );
+        )
+        .require_grad();
 
         let bias = if config.bias {
-            Some(Tensor::random(
-                [config.channels_out],
-                Distribution::Uniform(k1, k2),
-            ))
+            Some(
+                Tensor::random([config.channels_out], Distribution::Uniform(k1, k2)).require_grad(),
+            )
         } else {
             None
         };

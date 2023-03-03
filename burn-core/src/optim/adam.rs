@@ -224,11 +224,13 @@ mod tests {
         let x_1 = Tensor::from_floats([
             [0.6294, 0.0940, 0.8176, 0.8824, 0.5228, 0.4310],
             [0.7152, 0.9559, 0.7893, 0.5684, 0.5939, 0.8883],
-        ]);
+        ])
+        .require_grad();
         let x_2 = Tensor::from_floats([
             [0.8491, 0.2108, 0.8939, 0.4433, 0.5527, 0.2528],
             [0.3270, 0.0412, 0.5538, 0.9605, 0.3195, 0.9085],
-        ]);
+        ])
+        .require_grad();
         let mut optimizer = Adam::new(
             &AdamConfig::new(0.01)
                 .with_epsilon(1e-8)

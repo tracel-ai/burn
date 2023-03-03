@@ -75,13 +75,11 @@ impl<B: Backend> Conv2d<B> {
                 config.kernel_size[1],
             ],
             Distribution::Uniform(k1, k2),
-        );
+        )
+        .require_grad();
 
         let bias = if config.bias {
-            Some(Tensor::random(
-                [config.channels[1]],
-                Distribution::Uniform(k1, k2),
-            ))
+            Some(Tensor::random([config.channels[1]], Distribution::Uniform(k1, k2)).require_grad())
         } else {
             None
         };

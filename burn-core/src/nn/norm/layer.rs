@@ -31,8 +31,8 @@ pub struct LayerNorm<B: Backend> {
 impl<B: Backend> LayerNorm<B> {
     /// Create the module from the given configuration.
     pub fn new(config: &LayerNormConfig) -> Self {
-        let gamma = Tensor::ones([config.d_model]);
-        let beta = Tensor::zeros([config.d_model]);
+        let gamma = Tensor::ones([config.d_model]).require_grad();
+        let beta = Tensor::zeros([config.d_model]).require_grad();
 
         Self {
             gamma: Param::new(gamma),
@@ -92,8 +92,10 @@ mod tests {
     fn layer_norm_backward() {
         let config = LayerNormConfig::new(2);
         let module = LayerNorm::<TestADBackend>::new(&config);
-        let tensor_1 = Tensor::<TestADBackend, 2>::from_data(Data::from([[0.0, 1.0], [3.0, 4.0]]));
-        let tensor_2 = Tensor::<TestADBackend, 2>::from_data(Data::from([[6.0, 7.0], [9.0, 10.0]]));
+        let tensor_1 = Tensor::<TestADBackend, 2>::from_data(Data::from([[0.0, 1.0], [3.0, 4.0]]))
+            .require_grad();
+        let tensor_2 = Tensor::<TestADBackend, 2>::from_data(Data::from([[6.0, 7.0], [9.0, 10.0]]))
+            .require_grad();
 
         let x = tensor_1.clone().matmul(tensor_2.clone());
 

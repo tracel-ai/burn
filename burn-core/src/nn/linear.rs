@@ -45,9 +45,9 @@ impl<B: Backend> Linear<B> {
         let k = sqrt(1.0 / config.d_input as f64);
         let distribution = Distribution::Uniform((-1.0 * k).to_elem(), k.to_elem());
 
-        let weight = Tensor::random([config.d_input, config.d_output], distribution);
+        let weight = Tensor::random([config.d_input, config.d_output], distribution).require_grad();
         let bias = match config.bias {
-            true => Some(Tensor::random([config.d_output], distribution)),
+            true => Some(Tensor::random([config.d_output], distribution).require_grad()),
             false => None,
         };
 
