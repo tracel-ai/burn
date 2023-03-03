@@ -7,7 +7,7 @@ use crate::{
     config::Config,
     module::{Module, Param},
     nn,
-    tensor::{activation, backend::Backend, BoolTensor, Tensor},
+    tensor::{activation, backend::Backend, Bool, Tensor},
 };
 
 use libm::sqrtf;
@@ -56,8 +56,8 @@ pub struct MhaInput<B: Backend> {
     query: Tensor<B, 3>,
     key: Tensor<B, 3>,
     value: Tensor<B, 3>,
-    mask_pad: Option<BoolTensor<B, 2>>,
-    mask_attn: Option<BoolTensor<B, 3>>,
+    mask_pad: Option<Tensor<B, 2, Bool>>,
+    mask_attn: Option<Tensor<B, 3, Bool>>,
 }
 
 impl<B: Backend> MhaInput<B> {
@@ -85,13 +85,13 @@ impl<B: Backend> MhaInput<B> {
     }
 
     /// Register the padding mask.
-    pub fn mask_pad(mut self, mask_pad: BoolTensor<B, 2>) -> Self {
+    pub fn mask_pad(mut self, mask_pad: Tensor<B, 2, Bool>) -> Self {
         self.mask_pad = Some(mask_pad);
         self
     }
 
     /// Register the attention mask.
-    pub fn mask_attn(mut self, mask_attn: BoolTensor<B, 3>) -> Self {
+    pub fn mask_attn(mut self, mask_attn: Tensor<B, 3, Bool>) -> Self {
         self.mask_attn = Some(mask_attn);
         self
     }
@@ -212,8 +212,8 @@ impl<B: Backend> MultiHeadAttention<B> {
     fn attn_weights(
         &self,
         mut attn_scores: Tensor<B, 4>,
-        mask_pad: Option<BoolTensor<B, 2>>,
-        mask_attn: Option<BoolTensor<B, 3>>,
+        mask_pad: Option<Tensor<B, 2, Bool>>,
+        mask_attn: Option<Tensor<B, 3, Bool>>,
     ) -> Tensor<B, 4> {
         if let Some(mask_pad) = mask_pad {
             let [batch_size, seq_length] = mask_pad.dims();

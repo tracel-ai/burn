@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_mask)]
 mod tests {
     use super::*;
-    use burn_tensor::{BoolTensor, Data};
+    use burn_tensor::Data;
 
     #[test]
     fn should_diff_mask() {
@@ -11,7 +11,7 @@ mod tests {
 
         let tensor_1 = TestADTensor::from_data(data_1);
         let tensor_2 = TestADTensor::from_data(data_2);
-        let mask = BoolTensor::from_data(mask);
+        let mask = TestADTensor::from_bool(mask);
 
         let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
         let tensor_4 = tensor_3.mask_fill(mask, 2.0);

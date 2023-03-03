@@ -2,7 +2,7 @@ use super::{dataset::TextGenerationItem, tokenizer::Tokenizer};
 use burn::{
     data::dataloader::batcher::Batcher,
     nn::attention::generate_padding_mask,
-    tensor::{backend::Backend, BoolTensor, Tensor},
+    tensor::{backend::Backend, , Tensor},
 };
 use std::sync::Arc;
 
@@ -15,14 +15,14 @@ pub struct TextGenerationBatcher {
 #[derive(Debug, Clone, new)]
 pub struct TextGenerationBatch<B: Backend> {
     pub tokens: Tensor<B::IntegerBackend, 2>,
-    pub mask_pad: BoolTensor<B, 2>,
+    pub mask_pad: Tensor<B, 2, Bool>,
 }
 
 #[derive(Debug, Clone, new)]
 pub struct TrainingTextGenerationBatch<B: Backend> {
     pub tokens_inputs: Tensor<B::IntegerBackend, 2>,
     pub targets: Tensor<B::IntegerBackend, 2>,
-    pub mask_pad: BoolTensor<B, 2>,
+    pub mask_pad: Tensor<B, 2, Bool>,
 }
 
 impl<B: Backend> Batcher<TextGenerationItem, TextGenerationBatch<B>> for TextGenerationBatcher {

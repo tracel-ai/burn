@@ -1,8 +1,6 @@
-use crate::{
-    backend::Backend, ops::TensorOps, ElementConversion, Float, Int, TensorKind, TensorNew,
-};
+use crate::{backend::Backend, ops::TensorOps, ElementConversion, Float, Int, Tensor, TensorKind};
 
-impl<B, const D: usize, K> TensorNew<B, D, K>
+impl<B, const D: usize, K> Tensor<B, D, K>
 where
     B: Backend,
     K: Numeric<B>,
@@ -212,19 +210,19 @@ impl<B: Backend> Numeric<B> for Float {
     }
 }
 
-impl<B, const D: usize, K> core::ops::Add<Self> for TensorNew<B, D, K>
+impl<B, const D: usize, K> core::ops::Add<Self> for Tensor<B, D, K>
 where
     B: Backend,
     K: Numeric<B>,
 {
     type Output = Self;
 
-    fn add(self, rhs: TensorNew<B, D, K>) -> Self {
+    fn add(self, rhs: Tensor<B, D, K>) -> Self {
         Self::add(self, rhs)
     }
 }
 
-impl<E, const D: usize, B, K> core::ops::Add<E> for TensorNew<B, D, K>
+impl<E, const D: usize, B, K> core::ops::Add<E> for Tensor<B, D, K>
 where
     E: ElementConversion,
     B: Backend,
@@ -233,23 +231,23 @@ where
     type Output = Self;
 
     fn add(self, other: E) -> Self {
-        TensorNew::add_scalar(self, other)
+        Tensor::add_scalar(self, other)
     }
 }
 
-impl<B, const D: usize, K> core::ops::Sub<TensorNew<B, D, K>> for TensorNew<B, D, K>
+impl<B, const D: usize, K> core::ops::Sub<Tensor<B, D, K>> for Tensor<B, D, K>
 where
     B: Backend,
     K: Numeric<B>,
 {
     type Output = Self;
 
-    fn sub(self, rhs: TensorNew<B, D, K>) -> Self {
-        TensorNew::sub(self, rhs)
+    fn sub(self, rhs: Tensor<B, D, K>) -> Self {
+        Tensor::sub(self, rhs)
     }
 }
 
-impl<E, const D: usize, B, K> core::ops::Sub<E> for TensorNew<B, D, K>
+impl<E, const D: usize, B, K> core::ops::Sub<E> for Tensor<B, D, K>
 where
     E: ElementConversion,
     B: Backend,
@@ -258,23 +256,23 @@ where
     type Output = Self;
 
     fn sub(self, other: E) -> Self {
-        TensorNew::sub_scalar(self, other)
+        Tensor::sub_scalar(self, other)
     }
 }
 
-impl<B, const D: usize, K> core::ops::Div<TensorNew<B, D, K>> for TensorNew<B, D, K>
+impl<B, const D: usize, K> core::ops::Div<Tensor<B, D, K>> for Tensor<B, D, K>
 where
     B: Backend,
     K: Numeric<B>,
 {
     type Output = Self;
 
-    fn div(self, rhs: TensorNew<B, D, K>) -> Self {
-        TensorNew::div(self, rhs)
+    fn div(self, rhs: Tensor<B, D, K>) -> Self {
+        Tensor::div(self, rhs)
     }
 }
 
-impl<E, const D: usize, B, K> core::ops::Div<E> for TensorNew<B, D, K>
+impl<E, const D: usize, B, K> core::ops::Div<E> for Tensor<B, D, K>
 where
     E: ElementConversion,
     B: Backend,
@@ -283,23 +281,23 @@ where
     type Output = Self;
 
     fn div(self, other: E) -> Self {
-        TensorNew::div_scalar(self, other)
+        Tensor::div_scalar(self, other)
     }
 }
 
-impl<B, const D: usize, K> core::ops::Mul<TensorNew<B, D, K>> for TensorNew<B, D, K>
+impl<B, const D: usize, K> core::ops::Mul<Tensor<B, D, K>> for Tensor<B, D, K>
 where
     B: Backend,
     K: Numeric<B>,
 {
     type Output = Self;
 
-    fn mul(self, rhs: TensorNew<B, D, K>) -> Self {
-        TensorNew::mul(self, rhs)
+    fn mul(self, rhs: Tensor<B, D, K>) -> Self {
+        Tensor::mul(self, rhs)
     }
 }
 
-impl<E, const D: usize, B, K> core::ops::Mul<E> for TensorNew<B, D, K>
+impl<E, const D: usize, B, K> core::ops::Mul<E> for Tensor<B, D, K>
 where
     E: ElementConversion,
     B: Backend,
@@ -308,11 +306,11 @@ where
     type Output = Self;
 
     fn mul(self, other: E) -> Self {
-        TensorNew::mul_scalar(self, other)
+        Tensor::mul_scalar(self, other)
     }
 }
 
-impl<B, const D: usize, K> core::ops::Neg for TensorNew<B, D, K>
+impl<B, const D: usize, K> core::ops::Neg for Tensor<B, D, K>
 where
     B: Backend,
     K: Numeric<B>,
@@ -320,6 +318,6 @@ where
     type Output = Self;
 
     fn neg(self) -> Self {
-        TensorNew::neg(self)
+        Tensor::neg(self)
     }
 }

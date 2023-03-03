@@ -1,4 +1,5 @@
 mod base;
+mod bool;
 mod float;
 mod kind;
 mod numeric;

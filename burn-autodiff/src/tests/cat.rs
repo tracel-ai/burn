@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_cat)]
 mod tests {
     use super::*;
-    use burn_tensor::Data;
+    use burn_tensor::{Data, Float};
 
     #[test]
     fn should_diff_cat() {
@@ -31,7 +31,7 @@ mod tests {
         let tensor_3_cat = tensor_1_cat.clone().matmul(tensor_2_cat.clone());
         let grads_cat = tensor_3_cat.backward();
 
-        let grad = |tensor: Option<&TestADTensor<2>>| {
+        let grad = |tensor: Option<&TestADTensor<2, Float>>| {
             tensor
                 .map(|tensor| tensor.grad(&grads_cat).unwrap())
                 .unwrap()

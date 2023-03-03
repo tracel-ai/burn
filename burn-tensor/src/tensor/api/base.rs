@@ -3,7 +3,7 @@ use core::ops::Range;
 use crate::{backend::Backend, ops::TensorOps, Bool, Float, Int, Shape, TensorKind};
 
 #[derive(new, Clone, Debug)]
-pub struct TensorNew<B, const D: usize, K = Float>
+pub struct Tensor<B, const D: usize, K = Float>
 where
     B: Backend,
     K: TensorKind<B>,
@@ -11,11 +11,18 @@ where
     pub(crate) primitive: K::Primitive<D>,
 }
 
-impl<B, const D: usize, K> TensorNew<B, D, K>
+impl<B, const D: usize, K> Tensor<B, D, K>
 where
     B: Backend,
     K: BasicOps<B>,
 {
+    /// Returns the dimensions of the current tensor.
+    ///
+    /// Equivalent to `tensor.shape().dims`.
+    pub fn dims(&self) -> [usize; D] {
+        Self::shape(self).dims
+    }
+
     /// Returns the shape of the current tensor.
     pub fn shape(&self) -> Shape<D> {
         K::shape(&self.primitive)
@@ -26,8 +33,8 @@ where
     /// # Panics
     ///
     /// If the tensor can not be reshape to the given shape.
-    pub fn reshape<const D2: usize, S: Into<Shape<D2>>>(self, shape: S) -> TensorNew<B, D2, K> {
-        TensorNew::new(K::reshape::<D, D2>(self.primitive, shape.into()))
+    pub fn reshape<const D2: usize, S: Into<Shape<D2>>>(self, shape: S) -> Tensor<B, D2, K> {
+        Tensor::new(K::reshape::<D, D2>(self.primitive, shape.into()))
     }
 
     /// Returns a tensor containing the elements selected from the given ranges.
