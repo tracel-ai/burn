@@ -194,7 +194,14 @@ pub trait TensorOps<B: Backend> {
         lhs: B::TensorPrimitive<D>,
         rhs: B::FloatElem,
     ) -> B::BoolTensorPrimitive<D>;
-    fn detach<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D>;
+    fn detach<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D> {
+        // Should only be overriden by autodiff backends.
+        tensor
+    }
+    fn require_grad<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D> {
+        // Should only be overriden by autodiff backends.
+        tensor
+    }
     fn mean<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<1>;
     fn sum<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<1>;
     fn mean_dim<const D: usize>(tensor: B::TensorPrimitive<D>, dim: usize)

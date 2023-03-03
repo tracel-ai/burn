@@ -601,6 +601,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         ADTensor::new(tensor.primitive)
     }
 
+    fn require_grad<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {
+        tensor.require_grad()
+    }
+
     fn mean<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, 1> {
         #[derive(Debug)]
         struct Mean<const D: usize>;

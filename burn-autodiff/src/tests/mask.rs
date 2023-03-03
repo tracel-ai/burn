@@ -9,8 +9,8 @@ mod tests {
         let data_2 = Data::<f32, 2>::from([[4.0, 7.0], [2.0, 3.0]]);
         let mask = Data::<bool, 2>::from([[true, false], [false, true]]);
 
-        let tensor_1 = TestADTensor::from_data(data_1);
-        let tensor_2 = TestADTensor::from_data(data_2);
+        let tensor_1 = TestADTensor::from_data(data_1).require_grad();
+        let tensor_2 = TestADTensor::from_data(data_2).require_grad();
         let mask = TestADTensor::from_bool(mask);
 
         let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());

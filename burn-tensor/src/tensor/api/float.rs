@@ -362,6 +362,12 @@ where
         Self::new(B::detach(self.primitive))
     }
 
+    /// Mark the tensor to keep gradients during the backward pass.
+    /// This function does nothing when autodiff is not enabled.
+    pub fn require_grad(self) -> Self {
+        Self::new(B::require_grad(self.primitive))
+    }
+
     /// Unsqueeze the current tensor. Create new dimensions to fit the given size.
     ///
     /// # Panics

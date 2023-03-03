@@ -496,10 +496,12 @@ mod tests {
                 self.channels_in,
                 self.kernel_size_1,
                 self.kernel_size_2,
-            ]);
-            let bias = TestADTensor::ones([self.channels_out]);
+            ])
+            .require_grad();
+            let bias = TestADTensor::ones([self.channels_out]).require_grad();
             let x =
-                TestADTensor::ones([self.batch_size, self.channels_in, self.height, self.width]);
+                TestADTensor::ones([self.batch_size, self.channels_in, self.height, self.width])
+                    .require_grad();
             let output = conv2d(
                 x.clone(),
                 weight.clone(),
