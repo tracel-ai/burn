@@ -164,6 +164,10 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         }
     }
 
+    fn bool_device<const D: usize>(tensor: &TchTensor<bool, D>) -> TchDevice {
+        tensor.tensor.device().into()
+    }
+
     fn device<const D: usize>(tensor: &TchTensor<E, D>) -> TchDevice {
         tensor.tensor.device().into()
     }

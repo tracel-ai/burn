@@ -560,6 +560,12 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         let data = Self::bool_into_data(tensor);
         NdArrayBackend::<i64>::from_data(data.convert(), &NdArrayDevice::Cpu)
     }
+
+    fn bool_device<const D: usize>(
+        _tensor: &<NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D>,
+    ) -> <NdArrayBackend<E> as Backend>::Device {
+        NdArrayDevice::Cpu
+    }
 }
 
 fn to_slice_args<const D1: usize, const D2: usize>(

@@ -32,6 +32,7 @@ pub trait TensorOps<B: Backend> {
     fn bool_into_int<const D: usize>(
         tensor: B::BoolTensorPrimitive<D>,
     ) -> <B::IntegerBackend as Backend>::TensorPrimitive<D>;
+    fn bool_device<const D: usize>(tensor: &B::BoolTensorPrimitive<D>) -> B::Device;
     fn bool_to_device<const D: usize>(
         tensor: B::BoolTensorPrimitive<D>,
         device: &B::Device,
