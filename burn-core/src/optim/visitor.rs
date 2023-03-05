@@ -52,7 +52,7 @@ impl<'a, B: ADBackend> ModuleVisitor<B> for GradientsParamsChangeDevice<'a, B> {
     fn visit<const D: usize>(&mut self, id: &ParamId, _tensor: &Tensor<B, D>) {
         if let Some(grad) = self.grads.remove::<B::InnerBackend, D>(id) {
             self.grads
-                .register::<B::InnerBackend, D>(id.clone(), grad.to_device(&self.device));
+                .register::<B::InnerBackend, D>(id.clone(), grad.to_device(self.device));
         }
     }
 }
