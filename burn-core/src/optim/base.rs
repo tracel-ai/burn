@@ -10,18 +10,18 @@ pub trait Optimizer: Send + Sync {
     fn update_tensor<const D: usize>(
         &mut self,
         id: &ParamId,
-        tensor: &mut Tensor<Self::Backend, D>,
+        tensor: Tensor<Self::Backend, D>,
         grad: Tensor<<Self::Backend as ADBackend>::InnerBackend, D>,
-    );
+    ) -> Tensor<Self::Backend, D>;
 
     /// Update the parameters of the given module using the given the gradients.
-    fn update_module<M>(&mut self, module: &mut M, grads: GradientsParams)
+    fn update_module<M>(&mut self, module: M, grads: GradientsParams) -> M
     where
         M: ADModule<ADBackend = Self::Backend>,
         Self: Sized,
     {
-        let mut visitor = ModuleTensorUpdater::new(self, grads);
-        module.visit_mut(&mut visitor);
+        let mut mapper = ModuleTensorUpdater::new(self, grads);
+        module.map(&mut mapper)
     }
 
     /// Register the optimizer state for a given parameter.

@@ -1,5 +1,5 @@
 use super::Optimizer;
-use crate::module::{ADModule, ModuleVisitor, ModuleVisitorMut, ParamId, StateNamed};
+use crate::module::{ADModule, ModuleMapper, ModuleVisitor, ParamId, StateNamed};
 use burn_tensor::{
     backend::{ADBackend, Backend},
     container::TensorContainer,
@@ -45,12 +45,12 @@ impl<'a, B: ADBackend, O: Optimizer<Backend = B>> ModuleVisitor<B> for Gradients
     }
 }
 
-impl<'a, B: ADBackend, O: Optimizer<Backend = B>> ModuleVisitorMut<B>
-    for ModuleTensorUpdater<'a, O>
-{
-    fn visit_mut<const D: usize>(&mut self, id: &ParamId, tensor: &mut Tensor<B, D>) {
+impl<'a, B: ADBackend, O: Optimizer<Backend = B>> ModuleMapper<B> for ModuleTensorUpdater<'a, O> {
+    fn map<const D: usize>(&mut self, id: &ParamId, tensor: Tensor<B, D>) -> Tensor<B, D> {
         if let Some(grad) = self.grads.remove::<B::InnerBackend, D>(id) {
-            self.optimizer.update_tensor(id, tensor, grad);
+            self.optimizer.update_tensor(id, tensor, grad)
+        } else {
+            tensor
         }
     }
 }

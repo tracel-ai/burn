@@ -1,9 +1,7 @@
 use alloc::{string::ToString, sync::Arc, vec, vec::Vec};
 
 use super::{load_with_id, state_with_id, ParamId};
-use crate::module::{
-    ADModule, LoadingError, Module, ModuleVisitor, ModuleVisitorMut, Param, State,
-};
+use crate::module::{ADModule, LoadingError, Module, ModuleMapper, ModuleVisitor, Param, State};
 use burn_tensor::{
     backend::{ADBackend, Backend},
     Data, Tensor,
@@ -121,10 +119,14 @@ impl<const D: usize, B: Backend> Module for Param<RunningState<Tensor<B, D>>> {
         visitor.visit(&self.id, &tensor)
     }
 
-    fn visit_mut<V: ModuleVisitorMut<Self::Backend>>(&mut self, visitor: &mut V) {
+    fn map<M: ModuleMapper<Self::Backend>>(self, mapper: &mut M) -> Self {
         let mut tensor = self.value.value.write().unwrap();
+        let tensor_out = mapper.map(&self.id, tensor.clone());
 
-        visitor.visit_mut(&self.id, &mut tensor)
+        *tensor = tensor_out;
+        core::mem::drop(tensor);
+
+        self
     }
 }
 

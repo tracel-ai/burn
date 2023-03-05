@@ -61,19 +61,17 @@ impl<B: ADBackend> Optimizer for Adam<B> {
     fn update_tensor<const D: usize>(
         &mut self,
         id: &ParamId,
-        tensor: &mut Tensor<B, D>,
+        tensor: Tensor<B, D>,
         grad: Tensor<B::InnerBackend, D>,
-    ) {
-        tensor.inplace(|tensor| {
-            let grad = match &mut self.weight_decay {
-                Some(weight_decay) => weight_decay.transform(id, grad),
-                None => grad,
-            };
-            let grad = self.momentum.transform::<B, D>(id, grad);
-            let delta = grad.mul_scalar(self.learning_rate);
+    ) -> Tensor<B, D> {
+        let grad = match &mut self.weight_decay {
+            Some(weight_decay) => weight_decay.transform(id, grad),
+            None => grad,
+        };
+        let grad = self.momentum.transform::<B, D>(id, grad);
+        let delta = grad.mul_scalar(self.learning_rate);
 
-            Tensor::from_inner(tensor.inner() - delta)
-        })
+        Tensor::from_inner(tensor.inner() - delta)
     }
 
     fn register_param_state<const D: usize>(
@@ -193,12 +191,12 @@ mod tests {
 
     #[test]
     fn test_adam_optimizer_save_load_state() {
-        let mut linear = nn::Linear::new(&nn::LinearConfig::new(6, 6));
+        let linear = nn::Linear::new(&nn::LinearConfig::new(6, 6));
         let x = Tensor::<TestADBackend, 2>::random([2, 6], Distribution::Standard);
         let mut optimizer = Adam::new(&AdamConfig::new(0.01));
         let grads = linear.forward(x).backward();
         let grads = convert_grads(grads, &linear);
-        optimizer.update_module(&mut linear, grads);
+        let linear = optimizer.update_module(linear, grads);
 
         let state_optim_before = optimizer.state(&linear);
         let mut optimizer = Adam::new(&AdamConfig::new(0.01));
@@ -210,7 +208,7 @@ mod tests {
 
     #[test]
     fn test_adam_optimizer_with_numbers() {
-        let mut linear = given_linear_layer(
+        let linear = given_linear_layer(
             Data::from([
                 [-0.3206, 0.1374, 0.4043, 0.3200, 0.0859, 0.0671],
                 [0.0777, -0.0185, -0.3667, 0.2550, 0.1955, -0.2922],
@@ -240,11 +238,11 @@ mod tests {
 
         let grads = linear.forward(x_1).backward();
         let grads = convert_grads(grads, &linear);
-        optimizer.update_module(&mut linear, grads);
+        let linear = optimizer.update_module(linear, grads);
 
         let grads = linear.forward(x_2).backward();
         let grads = convert_grads(grads, &linear);
-        optimizer.update_module(&mut linear, grads);
+        let linear = optimizer.update_module(linear, grads);
 
         let state_updated = linear.state();
         let state_expected = given_linear_state(
