@@ -57,18 +57,16 @@ pub trait Module: Clone + Send + Sync + core::fmt::Debug + core::fmt::Display {
     fn num_params(&self) -> usize;
     /// Visit each tensor in the module with a [visitor](ModuleVisitor).
     fn visit<V: ModuleVisitor<Self::Backend>>(&self, visitor: &mut V);
-    /// Visit each tensor in the module with a [visitor](ModuleVisitorMut).
-    ///
-    /// Note that each tensor is mutable and may be updated by the visitor.
-    fn visit_mut<V: ModuleVisitorMut<Self::Backend>>(&mut self, visitor: &mut V);
+    /// Map each tensor in the module with a [mapper](ModuleMapper).
+    fn map<M: ModuleMapper<Self::Backend>>(self, mapper: &mut M) -> Self;
 }
 
 pub trait ModuleVisitor<B: Backend> {
     fn visit<const D: usize>(&mut self, id: &ParamId, tensor: &Tensor<B, D>);
 }
 
-pub trait ModuleVisitorMut<B: Backend> {
-    fn visit_mut<const D: usize>(&mut self, id: &ParamId, tensor: &mut Tensor<B, D>);
+pub trait ModuleMapper<B: Backend> {
+    fn map<const D: usize>(&mut self, id: &ParamId, tensor: Tensor<B, D>) -> Tensor<B, D>;
 }
 
 /// Module with auto-differentiation backend.

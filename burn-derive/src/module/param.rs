@@ -63,18 +63,27 @@ impl Param {
         }
     }
 
-    pub fn gen_visit_mut_fn(&self) -> TokenStream {
-        let mut body = quote! {};
-        for field in self.fields_param.iter() {
-            let name = field.ident();
-            body.extend(quote! {
-                self.#name.visit_mut(visitor);
-            });
-        }
+    pub fn gen_map_fn(&self) -> TokenStream {
+        let (names, body) = self.gen_params_others_fn(
+            |name| {
+                quote! {
+                    let #name = self.#name.map(mapper);
+                }
+            },
+            |name| {
+                quote! {
+                    let #name = self.#name;
+                }
+            },
+        );
 
         quote! {
-            fn visit_mut<V: burn::module::ModuleVisitorMut<Self::Backend>>(&mut self, visitor: &mut V) {
+            fn map<M: burn::module::ModuleMapper<Self::Backend>>(self, mapper: &mut M) -> Self {
                 #body
+
+                Self {
+                    #(#names),*
+                }
             }
         }
     }

@@ -2,7 +2,7 @@ use alloc::{string::ToString, vec, vec::Vec};
 
 use super::{load_with_id, state_with_id, Param, ParamId};
 use crate::module::{
-    ADModule, LoadingError, Module, ModuleVisitor, ModuleVisitorMut, State, StateNamed,
+    ADModule, LoadingError, Module, ModuleMapper, ModuleVisitor, State, StateNamed,
 };
 use crate::tensor::{
     backend::{ADBackend, Backend},
@@ -76,9 +76,9 @@ impl<const D: usize, B: Backend> Module for Param<Tensor<B, D>> {
         visitor.visit(&self.id, &self.value)
     }
 
-    fn visit_mut<V: ModuleVisitorMut<Self::Backend>>(&mut self, visitor: &mut V) {
-        visitor.visit_mut(&self.id, &mut self.value);
-        self.value.inplace(|value| value.require_grad());
+    fn map<M: ModuleMapper<Self::Backend>>(self, mapper: &mut M) -> Self {
+        let value = mapper.map(&self.id, self.value).require_grad();
+        Self { id: self.id, value }
     }
 }
 
@@ -152,11 +152,11 @@ impl<const D: usize, B: Backend> Module for Param<Option<Tensor<B, D>>> {
         }
     }
 
-    fn visit_mut<V: ModuleVisitorMut<Self::Backend>>(&mut self, visitor: &mut V) {
-        if let Some(value) = &mut self.value {
-            visitor.visit_mut(&self.id, value);
-            value.inplace(|value| value.require_grad());
-        }
+    fn map<M: ModuleMapper<Self::Backend>>(self, mapper: &mut M) -> Self {
+        let value = self
+            .value
+            .map(|value| mapper.map(&self.id, value).require_grad());
+        Self { id: self.id, value }
     }
 }
 

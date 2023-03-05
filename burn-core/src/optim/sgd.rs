@@ -51,22 +51,20 @@ impl<B: ADBackend> Optimizer for Sgd<B> {
     fn update_tensor<const D: usize>(
         &mut self,
         id: &ParamId,
-        tensor: &mut Tensor<B, D>,
+        tensor: Tensor<B, D>,
         grad: Tensor<B::InnerBackend, D>,
-    ) {
-        tensor.inplace(|tensor| {
-            let grad = match &mut self.weight_decay {
-                Some(weight_decay) => weight_decay.transform(id, grad),
-                None => grad,
-            };
-            let grad = match &mut self.momentum {
-                Some(momentum) => momentum.transform(id, grad),
-                None => grad,
-            };
-            let delta = grad.mul_scalar(self.learning_rate);
+    ) -> Tensor<B, D> {
+        let grad = match &mut self.weight_decay {
+            Some(weight_decay) => weight_decay.transform(id, grad),
+            None => grad,
+        };
+        let grad = match &mut self.momentum {
+            Some(momentum) => momentum.transform(id, grad),
+            None => grad,
+        };
+        let delta = grad.mul_scalar(self.learning_rate);
 
-            Tensor::from_inner(tensor.inner() - delta)
-        })
+        Tensor::from_inner(tensor.inner() - delta)
     }
 
     fn register_param_state<const D: usize>(
@@ -104,19 +102,19 @@ mod tests {
     use super::*;
     use crate::{
         nn::{Linear, LinearConfig},
-        optim::visitor::convert_grads,
+        optim::GradientsParams,
         tensor::{Distribution, Shape},
         TestADBackend,
     };
 
     #[test]
     fn with_updated_params_should_have_state() {
-        let mut layer = layer();
+        let layer = layer();
         let mut optim = sgd_with_all();
         let loss = layer.forward(random_tensor());
         let grads = loss.backward();
-        let grads = convert_grads(grads, &layer);
-        optim.update_module(&mut layer, grads);
+        let grads = GradientsParams::from_grads(grads, &layer);
+        let layer = optim.update_module(layer, grads);
 
         let state = optim.state(&layer);
 
@@ -135,13 +133,13 @@ mod tests {
 
     #[test]
     fn without_momentum_and_weights_decay_should_not_have_state() {
-        let mut layer = layer();
+        let layer = layer();
         let mut optim = sgd_with_nothing();
         let loss = layer.forward(random_tensor());
         let grads = loss.backward();
-        let grads = convert_grads(grads, &layer);
+        let grads = GradientsParams::from_grads(grads, &layer);
 
-        optim.update_module(&mut layer, grads);
+        let layer = optim.update_module(layer, grads);
 
         let state = optim.state(&layer);
 
@@ -150,12 +148,12 @@ mod tests {
 
     #[test]
     fn should_load_state() {
-        let mut layer = layer();
+        let layer = layer();
         let mut optim = sgd_with_all();
         let loss = layer.forward(random_tensor());
         let grads = loss.backward();
-        let grads = convert_grads(grads, &layer);
-        optim.update_module(&mut layer, grads);
+        let grads = GradientsParams::from_grads(grads, &layer);
+        let layer = optim.update_module(layer, grads);
 
         let state = optim.state(&layer);
         let mut optim_new = sgd_with_all();

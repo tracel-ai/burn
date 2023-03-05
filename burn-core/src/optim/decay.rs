@@ -1,7 +1,7 @@
 use crate as burn;
 
-use super::visitor::GradientsParams;
-use super::{load_state_gradients, register_state_gradients};
+use super::{load_state_gradients, register_state_gradients, GradientsParams};
+
 use crate::config::Config;
 use crate::module::{ParamId, StateNamed};
 use crate::tensor::backend::ADBackend;
@@ -33,7 +33,7 @@ impl<B: ADBackend> WeightDecay<B> {
         id: &ParamId,
         grad: Tensor<B::InnerBackend, D>,
     ) -> Tensor<B::InnerBackend, D> {
-        let grad = match self.gradients.get::<B::InnerBackend, D>(id) {
+        let grad = match self.gradients.remove::<B::InnerBackend, D>(id) {
             Some(grad_last_step) => grad_last_step.mul_scalar(self.penalty).add(grad),
             None => grad,
         };

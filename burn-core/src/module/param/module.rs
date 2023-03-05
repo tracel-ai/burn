@@ -2,7 +2,7 @@ use alloc::{format, vec::Vec};
 
 use super::{load_with_id, state_with_id, Param, ParamId};
 use crate::module::{
-    ADModule, LoadingError, Module, ModuleVisitor, ModuleVisitorMut, State, StateNamed,
+    ADModule, LoadingError, Module, ModuleMapper, ModuleVisitor, State, StateNamed,
 };
 use crate::tensor::backend::Backend;
 
@@ -67,8 +67,11 @@ impl<M: Module> Module for Param<M> {
         self.value.visit(visitor);
     }
 
-    fn visit_mut<V: ModuleVisitorMut<Self::Backend>>(&mut self, visitor: &mut V) {
-        self.value.visit_mut(visitor);
+    fn map<V: ModuleMapper<Self::Backend>>(self, mapper: &mut V) -> Self {
+        Self {
+            id: self.id,
+            value: self.value.map(mapper),
+        }
     }
 }
 
@@ -150,9 +153,10 @@ impl<M: Module> Module for Param<Vec<M>> {
         }
     }
 
-    fn visit_mut<V: ModuleVisitorMut<Self::Backend>>(&mut self, visitor: &mut V) {
-        for module in self.value.iter_mut() {
-            module.visit_mut(visitor);
+    fn map<V: ModuleMapper<Self::Backend>>(self, mapper: &mut V) -> Self {
+        Self {
+            id: self.id,
+            value: self.value.into_iter().map(|val| val.map(mapper)).collect(),
         }
     }
 }

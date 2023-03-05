@@ -1,4 +1,7 @@
-use super::visitor::{GradientsLoader, GradientsParams, GradientsRegister, ModuleTensorUpdater};
+use super::mapper::ModuleTensorUpdater;
+use super::visitor::{GradientsLoader, GradientsRegister};
+use super::GradientsParams;
+
 use crate::module::{ADModule, LoadingError, Module, ParamId, State, StateNamed};
 use crate::tensor::backend::{ADBackend, Backend};
 use crate::tensor::{Data, Tensor};
@@ -10,18 +13,18 @@ pub trait Optimizer: Send + Sync {
     fn update_tensor<const D: usize>(
         &mut self,
         id: &ParamId,
-        tensor: &mut Tensor<Self::Backend, D>,
+        tensor: Tensor<Self::Backend, D>,
         grad: Tensor<<Self::Backend as ADBackend>::InnerBackend, D>,
-    );
+    ) -> Tensor<Self::Backend, D>;
 
     /// Update the parameters of the given module using the given the gradients.
-    fn update_module<M>(&mut self, module: &mut M, grads: GradientsParams)
+    fn update_module<M>(&mut self, module: M, grads: GradientsParams) -> M
     where
         M: ADModule<ADBackend = Self::Backend>,
         Self: Sized,
     {
-        let mut visitor = ModuleTensorUpdater::new(self, grads);
-        module.visit_mut(&mut visitor);
+        let mut mapper = ModuleTensorUpdater::new(self, grads);
+        module.map(&mut mapper)
     }
 
     /// Register the optimizer state for a given parameter.
@@ -98,7 +101,7 @@ pub(super) fn register_state_gradients<const D: usize, B: ADBackend, F: Fn(&Para
     id_to_key: F,
 ) {
     if let Some(grad) = grads.get::<B::InnerBackend, D>(id) {
-        let data = State::Data(grad.to_data().serialize());
+        let data = State::Data(grad.into_data().serialize());
         state.register_state(id_to_key(id).as_str(), data);
     };
 }
