@@ -2,6 +2,8 @@ use crate::{element::TchElement, to_tensor, TchBackend, TchDevice, TchKind, TchS
 use burn_tensor::{backend::Backend, ops::TensorOps, Data, Distribution, ElementConversion, Shape};
 use std::{ops::Range, sync::Arc};
 
+use super::TchOps;
+
 macro_rules! run_scalar {
     (
         $scalar:ident,
@@ -23,13 +25,6 @@ macro_rules! run_scalar {
 
 impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     fn from_data<const D: usize>(data: Data<E, D>, device: &TchDevice) -> TchTensor<E, D> {
-        TchTensor::from_data(data, (*device).into())
-    }
-
-    fn from_data_bool<const D: usize>(
-        data: Data<bool, D>,
-        device: &TchDevice,
-    ) -> TchTensor<bool, D> {
         TchTensor::from_data(data, (*device).into())
     }
 
@@ -112,60 +107,6 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
             Err(tensor) => tensor.shallow_clone().into(),
         };
         Data::new(values, shape)
-    }
-
-    fn bool_shape<const D: usize>(
-        tensor: &<TchBackend<E> as Backend>::BoolTensorPrimitive<D>,
-    ) -> Shape<D> {
-        tensor.shape()
-    }
-
-    fn bool_to_data<const D: usize>(
-        tensor: &<TchBackend<E> as Backend>::BoolTensorPrimitive<D>,
-    ) -> Data<bool, D> {
-        let values: Vec<bool> = tensor.tensor.shallow_clone().into();
-        Data::new(values, tensor.shape())
-    }
-
-    fn bool_into_data<const D: usize>(
-        tensor: <TchBackend<E> as Backend>::BoolTensorPrimitive<D>,
-    ) -> Data<bool, D> {
-        let shape = tensor.shape();
-        let values: Vec<bool> = tensor.unary_ops(
-            |tensor| tensor.into(),
-            |tensor| tensor.shallow_clone().into(),
-        );
-        Data::new(values, shape)
-    }
-
-    fn bool_to_device<const D: usize>(
-        tensor: TchTensor<bool, D>,
-        device: &TchDevice,
-    ) -> TchTensor<bool, D> {
-        TchTensor {
-            kind: tensor.kind,
-            tensor: Arc::new(tensor.tensor.to((*device).into())),
-        }
-    }
-
-    fn bool_reshape<const D1: usize, const D2: usize>(
-        tensor: TchTensor<bool, D1>,
-        shape: Shape<D2>,
-    ) -> TchTensor<bool, D2> {
-        let shape_tch: TchShape<D2> = shape.into();
-        let tensor = tensor.unary_ops(
-            |mut tensor| tensor.resize_(&shape_tch.dims),
-            |tensor| tensor.reshape(&shape_tch.dims),
-        );
-
-        TchTensor {
-            tensor: Arc::new(tensor),
-            kind: TchKind::new(),
-        }
-    }
-
-    fn bool_device<const D: usize>(tensor: &TchTensor<bool, D>) -> TchDevice {
-        tensor.tensor.device().into()
     }
 
     fn device<const D: usize>(tensor: &TchTensor<E, D>) -> TchDevice {
@@ -315,18 +256,11 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         to_tensor(tensor)
     }
 
-    fn bool_index<const D1: usize, const D2: usize>(
-        tensor: TchTensor<bool, D1>,
-        indexes: [Range<usize>; D2],
-    ) -> TchTensor<bool, D1> {
-        index(&tensor, indexes)
-    }
-
     fn index<const D1: usize, const D2: usize>(
         tensor: TchTensor<E, D1>,
         indexes: [Range<usize>; D2],
     ) -> TchTensor<E, D1> {
-        index(&tensor, indexes)
+        TchOps::index(tensor, indexes)
     }
 
     fn index_assign<const D1: usize, const D2: usize>(
@@ -334,25 +268,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         indexes: [Range<usize>; D2],
         value: TchTensor<E, D1>,
     ) -> <TchBackend<E> as Backend>::TensorPrimitive<D1> {
-        let kind = tensor.kind;
-        let tensor_original = tensor.tensor.copy();
-        let tch_shape = TchShape::from(tensor.shape());
-
-        let mut tensor = tensor_original.view_(&tch_shape.dims);
-
-        for (i, index) in indexes.into_iter().enumerate().take(D2) {
-            let start = index.start as i64;
-            let length = (index.end - index.start) as i64;
-
-            tensor = tensor.narrow(i as i64, start, length);
-        }
-
-        tensor.copy_(&value.tensor);
-
-        TchTensor {
-            kind,
-            tensor: Arc::new(tensor_original),
-        }
+        TchOps::index_assign(tensor, indexes, value)
     }
 
     fn mask_fill<const D: usize>(
@@ -370,15 +286,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     }
 
     fn equal<const D: usize>(lhs: TchTensor<E, D>, rhs: TchTensor<E, D>) -> TchTensor<bool, D> {
-        let tensor = TchTensor::binary_ops_tensor(
-            lhs,
-            rhs,
-            |lhs, rhs| lhs.eq_tensor_(rhs).to_kind(tch::Kind::Bool),
-            |lhs, rhs| rhs.eq_tensor_(lhs).to_kind(tch::Kind::Bool),
-            |lhs, rhs| lhs.eq_tensor(rhs),
-        );
-
-        to_tensor(tensor)
+        TchOps::equal(lhs, rhs)
     }
 
     fn equal_scalar<const D: usize>(lhs: TchTensor<E, D>, rhs: E) -> TchTensor<bool, D> {
@@ -570,40 +478,10 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     }
 
     fn cat<const D: usize>(tensors: Vec<TchTensor<E, D>>, dim: usize) -> TchTensor<E, D> {
-        let tensors: Vec<tch::Tensor> = tensors
-            .into_iter()
-            .map(|t| t.tensor.shallow_clone())
-            .collect();
-        let tensor = tch::Tensor::cat(&tensors, dim as i64);
-        to_tensor(tensor)
+        TchOps::cat(tensors, dim)
     }
 
     fn relu<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
         to_tensor(tensor.unary_ops(|mut tensor| tensor.relu_(), |tensor| tensor.relu()))
     }
-
-    fn bool_into_int<const D: usize>(
-        tensor: <TchBackend<E> as Backend>::BoolTensorPrimitive<D>,
-    ) -> <<TchBackend<E> as Backend>::IntegerBackend as Backend>::TensorPrimitive<D> {
-        let tensor = tensor.tensor.to_kind(TchKind::<i64>::new().kind());
-        to_tensor(tensor)
-    }
-}
-
-fn index<const D1: usize, const D2: usize, E: tch::kind::Element + Copy>(
-    tensor: &TchTensor<E, D1>,
-    indexes: [Range<usize>; D2],
-) -> TchTensor<E, D1> {
-    let kind = tensor.kind;
-
-    let mut tensor = tensor.tensor.shallow_clone();
-
-    for (i, index) in indexes.iter().enumerate().take(D2) {
-        let start = index.start as i64;
-        let length = (index.end - index.start) as i64;
-        tensor = tensor.narrow(i as i64, start, length);
-    }
-    let tensor = Arc::new(tensor);
-
-    TchTensor { kind, tensor }
 }
