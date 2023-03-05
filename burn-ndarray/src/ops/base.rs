@@ -1,3 +1,4 @@
+use alloc::vec::Vec;
 use core::{marker::PhantomData, ops::Range};
 
 use burn_tensor::Shape;
