@@ -186,7 +186,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
             lhs,
             rhs,
             |lhs, rhs| lhs.f_mul_(rhs).unwrap(),
-            |lhs, rhs| lhs.f_mul(rhs).unwrap(),
+            |lhs, rhs| rhs.f_mul_(lhs).unwrap(),
             |lhs, rhs| lhs.f_mul(rhs).unwrap(),
         );
         to_tensor(tensor)
