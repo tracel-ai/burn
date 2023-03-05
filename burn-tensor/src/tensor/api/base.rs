@@ -408,7 +408,7 @@ impl<B: Backend> BasicOps<B> for Bool {
         data: Data<Self::Elem, D>,
         device: &B::Device,
     ) -> Self::Primitive<D> {
-        B::from_data_bool(data, device)
+        B::bool_from_data(data, device)
     }
 
     fn repeat<const D: usize>(

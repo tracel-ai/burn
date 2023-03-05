@@ -6,12 +6,12 @@ where
 {
     /// Create a boolean tensor from data.
     pub fn from_bool(data: Data<bool, D>) -> Self {
-        Self::new(B::from_data_bool(data, &B::Device::default()))
+        Self::new(B::bool_from_data(data, &B::Device::default()))
     }
 
     /// Create a boolean tensor from data on the given device.
     pub fn from_bool_device(data: Data<bool, D>, device: &B::Device) -> Self {
-        Self::new(B::from_data_bool(data, device))
+        Self::new(B::bool_from_data(data, device))
     }
 
     /// Convert the bool tensor into an int tensor.
