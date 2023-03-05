@@ -37,17 +37,17 @@ pub struct BatchNorm2d<B: Backend> {
 impl<B: Backend> BatchNorm2d<B> {
     /// Create the module from the given configuration.
     pub fn new(config: &BatchNorm2dConfig) -> Self {
-        let gamma = Tensor::ones([config.num_features]).require_grad();
-        let beta = Tensor::zeros([config.num_features]).require_grad();
+        let gamma = Tensor::ones([config.num_features]);
+        let beta = Tensor::zeros([config.num_features]);
 
         let running_mean = Tensor::zeros([config.num_features]);
         let running_var = Tensor::ones([config.num_features]);
 
         Self {
-            gamma: Param::new(gamma),
-            beta: Param::new(beta),
-            running_mean: Param::new(RunningState::new(running_mean)),
-            running_var: Param::new(RunningState::new(running_var)),
+            gamma: Param::from(gamma),
+            beta: Param::from(beta),
+            running_mean: Param::from(RunningState::new(running_mean)),
+            running_var: Param::from(RunningState::new(running_var)),
             momentum: config.momentum,
             epsilon: config.epsilon,
         }

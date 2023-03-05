@@ -79,10 +79,10 @@ impl<B: Backend> TransformerEncoder<B> {
     pub fn new(config: &TransformerEncoderConfig) -> Self {
         let layers = (0..config.n_layers)
             .map(|_| TransformerEncoderLayer::new(config))
-            .collect();
+            .collect::<Vec<_>>();
 
         Self {
-            layers: Param::new(layers),
+            layers: Param::from(layers),
         }
     }
 
@@ -160,10 +160,10 @@ impl<B: Backend> TransformerEncoderLayer<B> {
         let pwff = PositionWiseFeedForward::new(&config_pwff);
 
         Self {
-            mha: Param::new(mha),
-            norm_1: Param::new(norm_1),
-            norm_2: Param::new(norm_2),
-            pwff: Param::new(pwff),
+            mha: Param::from(mha),
+            norm_1: Param::from(norm_1),
+            norm_2: Param::from(norm_2),
+            pwff: Param::from(pwff),
             dropout,
         }
     }

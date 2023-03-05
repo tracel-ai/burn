@@ -39,8 +39,8 @@ impl<B: Backend> PositionWiseFeedForward<B> {
     /// Create the module from the given configuration.
     pub fn new(config: &PositionWiseFeedForwardConfig) -> Self {
         Self {
-            linear_inner: Param::new(Linear::new(&LinearConfig::new(config.d_model, config.d_ff))),
-            linear_outer: Param::new(Linear::new(&LinearConfig::new(config.d_ff, config.d_model))),
+            linear_inner: Param::from(Linear::new(&LinearConfig::new(config.d_model, config.d_ff))),
+            linear_outer: Param::from(Linear::new(&LinearConfig::new(config.d_ff, config.d_model))),
             dropout: Dropout::new(&DropoutConfig::new(config.dropout)),
             gelu: GELU::new(),
         }

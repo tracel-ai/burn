@@ -39,7 +39,7 @@ impl<B: Backend> Embedding<B> {
         .require_grad();
 
         Self {
-            weight: Param::new(weight),
+            weight: Param::from(weight),
         }
     }
 

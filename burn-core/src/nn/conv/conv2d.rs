@@ -75,18 +75,20 @@ impl<B: Backend> Conv2d<B> {
                 config.kernel_size[1],
             ],
             Distribution::Uniform(k1, k2),
-        )
-        .require_grad();
+        );
 
         let bias = if config.bias {
-            Some(Tensor::random([config.channels[1]], Distribution::Uniform(k1, k2)).require_grad())
+            Some(Tensor::random(
+                [config.channels[1]],
+                Distribution::Uniform(k1, k2),
+            ))
         } else {
             None
         };
 
         Self {
-            weight: Param::new(weight),
-            bias: Param::new(bias),
+            weight: Param::from(weight),
+            bias: Param::from(bias),
             stride: [1, 1], // TODO: Add the stride to the configuration when properly supported.
             kernel_size: config.kernel_size,
             padding: config.padding.clone(),

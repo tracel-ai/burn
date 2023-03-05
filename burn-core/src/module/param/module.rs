@@ -1,11 +1,28 @@
 use alloc::{format, vec::Vec};
 
-use super::{load_with_id, state_with_id, Param};
+use super::{load_with_id, state_with_id, Param, ParamId};
 use crate::module::{
     ADModule, LoadingError, Module, ModuleVisitor, ModuleVisitorMut, State, StateNamed,
 };
 use crate::tensor::backend::Backend;
 
+impl<M: Module> From<M> for Param<M> {
+    fn from(value: M) -> Self {
+        Param {
+            id: ParamId::new(),
+            value,
+        }
+    }
+}
+
+impl<M: Module> From<Vec<M>> for Param<Vec<M>> {
+    fn from(value: Vec<M>) -> Self {
+        Param {
+            id: ParamId::new(),
+            value,
+        }
+    }
+}
 impl<M: Module> Module for Param<M> {
     type Backend = M::Backend;
 
@@ -146,7 +163,12 @@ impl<M: ADModule> ADModule for Param<Vec<M>> {
     type InnerModule = Param<Vec<M::InnerModule>>;
 
     fn inner(self) -> Self::InnerModule {
-        Param::new(self.value.into_iter().map(|v| v.inner()).collect())
+        Param::from(
+            self.value
+                .into_iter()
+                .map(|v| v.inner())
+                .collect::<Vec<_>>(),
+        )
     }
 
     fn from_inner(module: Self::InnerModule) -> Self {
@@ -163,7 +185,7 @@ impl<M: ADModule> ADModule for Param<M> {
     type InnerModule = Param<M::InnerModule>;
 
     fn inner(self) -> Self::InnerModule {
-        Param::new(self.value.inner())
+        Param::from(self.value.inner())
     }
 
     fn from_inner(module: Self::InnerModule) -> Self {

@@ -1,6 +1,6 @@
 use alloc::{string::ToString, vec, vec::Vec};
 
-use super::{load_with_id, state_with_id, Param};
+use super::{load_with_id, state_with_id, Param, ParamId};
 use crate::module::{
     ADModule, LoadingError, Module, ModuleVisitor, ModuleVisitorMut, State, StateNamed,
 };
@@ -8,6 +8,24 @@ use crate::tensor::{
     backend::{ADBackend, Backend},
     Data, Tensor,
 };
+
+impl<B: Backend, const D: usize> From<Tensor<B, D>> for Param<Tensor<B, D>> {
+    fn from(value: Tensor<B, D>) -> Self {
+        Param {
+            id: ParamId::new(),
+            value: value.require_grad(),
+        }
+    }
+}
+
+impl<B: Backend, const D: usize> From<Option<Tensor<B, D>>> for Param<Option<Tensor<B, D>>> {
+    fn from(value: Option<Tensor<B, D>>) -> Self {
+        Param {
+            id: ParamId::new(),
+            value: value.map(|tensor| tensor.require_grad()),
+        }
+    }
+}
 
 impl<const D: usize, B: Backend> Module for Param<Tensor<B, D>> {
     type Backend = B;

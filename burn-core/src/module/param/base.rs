@@ -17,15 +17,6 @@ impl<T> core::fmt::Display for Param<T> {
     }
 }
 
-impl<T> Param<T> {
-    pub fn new(value: T) -> Self {
-        Self {
-            id: ParamId::new(),
-            value,
-        }
-    }
-}
-
 impl<T: Clone> Param<T> {
     pub fn val(&self) -> T {
         self.value.clone()

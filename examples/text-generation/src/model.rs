@@ -46,10 +46,10 @@ impl<B: Backend> TextGenerationModel<B> {
         let output = Linear::new(&config_output);
 
         Self {
-            transformer: Param::new(transformer),
-            embedding_token: Param::new(embedding_token),
-            embedding_pos: Param::new(embedding_pos),
-            output: Param::new(output),
+            transformer: Param::from(transformer),
+            embedding_token: Param::from(embedding_token),
+            embedding_pos: Param::from(embedding_pos),
+            output: Param::from(output),
             vocab_size: config.vocab_size,
             pad_token: config.pad_token,
             max_seq_length: config.max_seq_length,

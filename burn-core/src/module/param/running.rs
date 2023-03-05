@@ -1,6 +1,6 @@
 use alloc::{string::ToString, sync::Arc, vec, vec::Vec};
 
-use super::{load_with_id, state_with_id};
+use super::{load_with_id, state_with_id, ParamId};
 use crate::module::{
     ADModule, LoadingError, Module, ModuleVisitor, ModuleVisitorMut, Param, State,
 };
@@ -44,6 +44,17 @@ use threading::*;
 pub struct RunningState<V> {
     values: Arc<Mutex<HashMap<ThreadId, V>>>,
     value: Arc<RwLock<V>>,
+}
+
+impl<B: Backend, const D: usize> From<RunningState<Tensor<B, D>>>
+    for Param<RunningState<Tensor<B, D>>>
+{
+    fn from(value: RunningState<Tensor<B, D>>) -> Self {
+        Param {
+            id: ParamId::new(),
+            value,
+        }
+    }
 }
 
 impl<const D: usize, B: Backend> Module for Param<RunningState<Tensor<B, D>>> {

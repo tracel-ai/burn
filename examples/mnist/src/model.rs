@@ -46,10 +46,10 @@ impl<B: Backend> Model<B> {
         let conv = ConvBlock::new(&ConvBlockConfig::new([1, 1]));
 
         Self {
-            mlp: Param::new(mlp),
-            conv: Param::new(conv),
-            output: Param::new(output),
-            input: Param::new(input),
+            mlp: Param::from(mlp),
+            conv: Param::from(conv),
+            output: Param::from(output),
+            input: Param::from(input),
             num_classes,
         }
     }

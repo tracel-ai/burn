@@ -45,15 +45,15 @@ impl<B: Backend> Linear<B> {
         let k = sqrt(1.0 / config.d_input as f64);
         let distribution = Distribution::Uniform((-1.0 * k).to_elem(), k.to_elem());
 
-        let weight = Tensor::random([config.d_input, config.d_output], distribution).require_grad();
+        let weight = Tensor::random([config.d_input, config.d_output], distribution);
         let bias = match config.bias {
-            true => Some(Tensor::random([config.d_output], distribution).require_grad()),
+            true => Some(Tensor::random([config.d_output], distribution)),
             false => None,
         };
 
         Self {
-            weight: Param::new(weight),
-            bias: Param::new(bias),
+            weight: Param::from(weight),
+            bias: Param::from(bias),
         }
     }
 

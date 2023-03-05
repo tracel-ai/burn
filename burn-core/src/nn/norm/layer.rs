@@ -31,12 +31,12 @@ pub struct LayerNorm<B: Backend> {
 impl<B: Backend> LayerNorm<B> {
     /// Create the module from the given configuration.
     pub fn new(config: &LayerNormConfig) -> Self {
-        let gamma = Tensor::ones([config.d_model]).require_grad();
-        let beta = Tensor::zeros([config.d_model]).require_grad();
+        let gamma = Tensor::ones([config.d_model]);
+        let beta = Tensor::zeros([config.d_model]);
 
         Self {
-            gamma: Param::new(gamma),
-            beta: Param::new(beta),
+            gamma: Param::from(gamma),
+            beta: Param::from(beta),
             epsilon: config.epsilon,
         }
     }
