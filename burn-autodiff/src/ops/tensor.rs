@@ -52,7 +52,26 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn to_device<const D: usize>(tensor: ADTensor<B, D>, device: &B::Device) -> ADTensor<B, D> {
-        ADTensor::new(B::to_device(tensor.primitive, device))
+        #[derive(Debug)]
+        struct ToDevice;
+
+        impl<B: Backend, const D: usize> Backward<B, D, 1> for ToDevice {
+            type State = B::Device;
+
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+                unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
+                    B::to_device(grad, &ops.state)
+                });
+            }
+        }
+
+        match ToDevice.prepare([tensor.node], [tensor.graph]).statefull() {
+            OpsKind::Tracked(prep) => {
+                let device_old = B::device(&tensor.primitive);
+                prep.finish(device_old, B::to_device(tensor.primitive, device))
+            }
+            OpsKind::UnTracked(prep) => prep.finish(B::to_device(tensor.primitive, device)),
+        }
     }
 
     fn arange(range: std::ops::Range<usize>, device: &B::Device) -> IntTensor<B, 1> {
