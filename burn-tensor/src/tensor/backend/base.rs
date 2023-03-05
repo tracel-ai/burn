@@ -5,6 +5,7 @@ use crate::tensor::Element;
 
 pub trait Backend:
     TensorOps<Self>
+    + BoolTensorOps<Self>
     + ModuleOps<Self>
     + Clone
     + Sized

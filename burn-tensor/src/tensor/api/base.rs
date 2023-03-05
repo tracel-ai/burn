@@ -382,11 +382,11 @@ impl<B: Backend> BasicOps<B> for Bool {
     }
 
     fn index_assign<const D1: usize, const D2: usize>(
-        _tensor: Self::Primitive<D1>,
-        _indexes: [Range<usize>; D2],
-        _value: Self::Primitive<D1>,
+        tensor: Self::Primitive<D1>,
+        indexes: [Range<usize>; D2],
+        value: Self::Primitive<D1>,
     ) -> Self::Primitive<D1> {
-        todo!("Index assigned is not yet implemented for bool tensor")
+        B::bool_index_assign(tensor, indexes, value)
     }
 
     fn device<const D: usize>(tensor: &Self::Primitive<D>) -> <B as Backend>::Device {
@@ -408,31 +408,32 @@ impl<B: Backend> BasicOps<B> for Bool {
         data: Data<Self::Elem, D>,
         device: &B::Device,
     ) -> Self::Primitive<D> {
-        B::from_data_bool(data, device)
+        B::bool_from_data(data, device)
     }
 
     fn repeat<const D: usize>(
-        _tensor: Self::Primitive<D>,
-        _dim: usize,
-        _times: usize,
+        tensor: Self::Primitive<D>,
+        dim: usize,
+        times: usize,
     ) -> Self::Primitive<D> {
-        todo!("Repeat operation is not yet implemented for bool tensor");
+        B::bool_repeat(tensor, dim, times)
     }
 
     fn equal<const D: usize>(
-        _lhs: Self::Primitive<D>,
-        _rhs: Self::Primitive<D>,
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, Bool> {
-        todo!("Equal operation is not yet implemented for bool tensor");
+        Tensor::new(B::bool_equal(lhs, rhs))
     }
 
     fn equal_scalar<const D: usize>(
-        _lhs: Self::Primitive<D>,
-        _rhs: Self::Elem,
+        lhs: Self::Primitive<D>,
+        rhs: Self::Elem,
     ) -> Tensor<B, D, Bool> {
-        todo!("Equal scalar operation is not yet implemented for bool tensor");
+        Tensor::new(B::bool_equal_elem(lhs, rhs))
     }
-    fn cat<const D: usize>(_vectors: Vec<Self::Primitive<D>>, _dim: usize) -> Self::Primitive<D> {
-        todo!("Cat vectors operation is not yet implemented for bool tensor");
+
+    fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D> {
+        B::bool_cat(vectors, dim)
     }
 }

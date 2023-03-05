@@ -8,10 +8,6 @@ pub trait TensorOps<B: Backend> {
         data: Data<B::FloatElem, D>,
         device: &B::Device,
     ) -> B::TensorPrimitive<D>;
-    fn from_data_bool<const D: usize>(
-        data: Data<bool, D>,
-        device: &B::Device,
-    ) -> B::BoolTensorPrimitive<D>;
     fn random<const D: usize>(
         shape: Shape<D>,
         distribution: Distribution<B::FloatElem>,
@@ -26,25 +22,6 @@ pub trait TensorOps<B: Backend> {
     fn shape<const D: usize>(tensor: &B::TensorPrimitive<D>) -> Shape<D>;
     fn to_data<const D: usize>(tensor: &B::TensorPrimitive<D>) -> Data<B::FloatElem, D>;
     fn into_data<const D: usize>(tensor: B::TensorPrimitive<D>) -> Data<B::FloatElem, D>;
-    fn bool_shape<const D: usize>(tensor: &B::BoolTensorPrimitive<D>) -> Shape<D>;
-    fn bool_to_data<const D: usize>(tensor: &B::BoolTensorPrimitive<D>) -> Data<bool, D>;
-    fn bool_into_data<const D: usize>(tensor: B::BoolTensorPrimitive<D>) -> Data<bool, D>;
-    fn bool_into_int<const D: usize>(
-        tensor: B::BoolTensorPrimitive<D>,
-    ) -> <B::IntegerBackend as Backend>::TensorPrimitive<D>;
-    fn bool_device<const D: usize>(tensor: &B::BoolTensorPrimitive<D>) -> B::Device;
-    fn bool_to_device<const D: usize>(
-        tensor: B::BoolTensorPrimitive<D>,
-        device: &B::Device,
-    ) -> B::BoolTensorPrimitive<D>;
-    fn bool_reshape<const D1: usize, const D2: usize>(
-        tensor: B::BoolTensorPrimitive<D1>,
-        shape: Shape<D2>,
-    ) -> B::BoolTensorPrimitive<D2>;
-    fn bool_index<const D1: usize, const D2: usize>(
-        tensor: B::BoolTensorPrimitive<D1>,
-        indexes: [Range<usize>; D2],
-    ) -> B::BoolTensorPrimitive<D1>;
     fn device<const D: usize>(tensor: &B::TensorPrimitive<D>) -> B::Device;
     fn to_device<const D: usize>(
         tensor: B::TensorPrimitive<D>,
