@@ -22,7 +22,7 @@ pub struct GradientsParamsConverter<'a, B: ADBackend> {
 
 #[derive(new)]
 pub struct GradientsParamsChangeDevice<'a, B: ADBackend> {
-    device: B::Device,
+    device: &'a B::Device,
     grads: &'a mut GradientsParams,
 }
 

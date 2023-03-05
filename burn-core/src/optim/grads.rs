@@ -65,7 +65,7 @@ impl GradientsParams {
     /// Change the device of each tensor gradients registered for the given [module](ADModule).
     pub fn to_device<M: ADModule>(
         mut self,
-        device: <M::Backend as Backend>::Device,
+        device: &<M::Backend as Backend>::Device,
         module: &M,
     ) -> Self {
         let mut visitor = GradientsParamsChangeDevice::new(device, &mut self);

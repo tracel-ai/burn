@@ -149,7 +149,7 @@ impl<TI> TrainEpoch<TI> {
                 iteration += 1;
                 let progress = iterator.progress();
 
-                let grads = item.grads.to_device(device_main.clone(), &model);
+                let grads = item.grads.to_device(&device_main, &model);
 
                 log::info!("Updated device");
                 accumulator.accumulate(&model, grads);
