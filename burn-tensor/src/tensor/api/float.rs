@@ -126,11 +126,11 @@ where
     ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::TensorNew;
+    /// use burn_tensor::Tensor;
     ///
     /// fn example<B: Backend>() {
-    ///     let _ = TensorNew::<B, 1>::from_floats([1.0, 2.0]);
-    ///     let _ = TensorNew::<B, 2>::from_floats([[1.0, 2.0], [3.0, 4.0]]);
+    ///     let _ = Tensor::<B, 1>::from_floats([1.0, 2.0]);
+    ///     let _ = Tensor::<B, 2>::from_floats([[1.0, 2.0], [3.0, 4.0]]);
     /// }
     /// ```
     pub fn from_floats<A: Into<Data<f32, D>>>(floats: A) -> Self {
@@ -159,10 +159,10 @@ where
     ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::TensorNew;
+    /// use burn_tensor::Tensor;
     ///
     /// fn example<B: Backend>() {
-    ///     let one_hot = TensorNew::<B, 1>::one_hot(2, 10);
+    ///     let one_hot = Tensor::<B, 1>::one_hot(2, 10);
     ///     println!("{}", one_hot.to_data());
     ///     // [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     /// }
@@ -322,10 +322,10 @@ where
     ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{TensorNew, Shape};
+    /// use burn_tensor::{Tensor, Shape};
     ///
     /// fn example<B: Backend>() {
-    ///     let tensor = TensorNew::<B, 3>::ones(Shape::new([2, 3, 3]));
+    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 3]));
     ///     let tensor = tensor.argmax(1);
     ///     println!("{:?}", tensor.shape());
     ///     // Shape { dims: [2, 1, 3] }
@@ -341,10 +341,10 @@ where
     ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{TensorNew, Shape};
+    /// use burn_tensor::{Tensor, Shape};
     ///
     /// fn example<B: Backend>() {
-    ///     let tensor = TensorNew::<B, 3>::ones(Shape::new([2, 3, 3]));
+    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 3]));
     ///     let tensor = tensor.argmin(1);
     ///     println!("{:?}", tensor.shape());
     ///     // Shape { dims: [2, 1, 3] }
@@ -378,10 +378,10 @@ where
     ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{TensorNew, Shape};
+    /// use burn_tensor::{Tensor, Shape};
     ///
     /// fn example<B: Backend>() {
-    ///     let tensor = TensorNew::<B, 2>::ones(Shape::new([3, 3]));
+    ///     let tensor = Tensor::<B, 2>::ones(Shape::new([3, 3]));
     ///     let tensor = tensor.unsqueeze::<4>();
     ///     println!("{:?}", tensor.shape());
     ///     // Shape { dims: [1, 1, 3, 3] }
@@ -416,7 +416,7 @@ impl<const D: usize, B: ADBackend> Tensor<B, D> {
     ///
     /// Returns a new reference to the same tensor. Therefore the same grad tensor can
     /// be accessed multiple times. If you only need to get the gradients one time,
-    /// consider using [grad_remove](TensorNew::grad_remove) for better performance.
+    /// consider using [grad_remove](Tensor::grad_remove) for better performance.
     pub fn grad(&self, grads: &B::Gradients) -> Option<Tensor<B::InnerBackend, D>> {
         B::grad(&self.primitive, grads).map(Tensor::new)
     }

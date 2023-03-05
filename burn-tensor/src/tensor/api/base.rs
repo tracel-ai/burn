@@ -1,3 +1,4 @@
+use alloc::vec::Vec;
 use core::ops::Range;
 
 use crate::{backend::Backend, ops::TensorOps, Bool, Data, Float, Int, Shape, TensorKind};
@@ -72,11 +73,11 @@ where
     ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::TensorNew;
+    /// use burn_tensor::Tensor;
     ///
     /// fn example<B: Backend>() {
-    ///     let tensor = TensorNew::<B, 3>::ones([2, 3, 3]);
-    ///     let values = TensorNew::<B, 3>::zeros([1, 1, 1]);
+    ///     let tensor = Tensor::<B, 3>::ones([2, 3, 3]);
+    ///     let values = Tensor::<B, 3>::zeros([1, 1, 1]);
     ///     let tensor_indexed = tensor.index_assign([0..1, 0..1, 0..1], values);
     ///     println!("{:?}", tensor_indexed.shape());
     ///     // Shape { dims: [2, 3, 3] }
@@ -161,7 +162,7 @@ where
 ///
 /// # Warnings
 ///
-/// This is an internal trait, use the public API provided by [tensor struct](TensorNew).
+/// This is an internal trait, use the public API provided by [tensor struct](Tensor).
 pub trait BasicOps<B: Backend>: TensorKind<B> {
     type Elem;
 

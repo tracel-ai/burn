@@ -130,7 +130,7 @@ where
 ///
 /// # Warnings
 ///
-/// This is an internal trait, use the public API provided by [tensor struct](TensorNew).
+/// This is an internal trait, use the public API provided by [tensor struct](Tensor).
 pub trait Numeric<B: Backend>: TensorKind<B> {
     fn add<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Primitive<D>) -> Self::Primitive<D>;
     fn add_scalar<const D: usize, E: ElementConversion>(
