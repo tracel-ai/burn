@@ -78,11 +78,22 @@ impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
         FRMut: Fn(&tch::Tensor, &mut tch::Tensor) -> O,
         FRef: Fn(&tch::Tensor, &tch::Tensor) -> O,
     {
-        if let Some(output) = lhs.mut_ops(|lhs| flmut(lhs, &rhs.tensor)) {
-            return output;
+        let lhs_num_elems = lhs.shape().num_elements();
+        let rhs_num_elems = rhs.shape().num_elements();
+
+        let safe_mut_lhs = lhs_num_elems > rhs_num_elems;
+        let safe_mut_rhs = rhs_num_elems > lhs_num_elems;
+
+        if safe_mut_lhs {
+            if let Some(output) = lhs.mut_ops(|lhs| flmut(lhs, &rhs.tensor)) {
+                return output;
+            }
         }
-        if let Some(output) = rhs.mut_ops(|rhs| frmut(&lhs.tensor, rhs)) {
-            return output;
+
+        if safe_mut_rhs {
+            if let Some(output) = rhs.mut_ops(|rhs| frmut(&lhs.tensor, rhs)) {
+                return output;
+            }
         }
 
         fref(&lhs.tensor, &rhs.tensor)
