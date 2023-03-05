@@ -1,4 +1,5 @@
 // Language
+use alloc::vec;
 use alloc::vec::Vec;
 use burn_tensor::ops::BoolTensorOps;
 use core::ops::Range;
