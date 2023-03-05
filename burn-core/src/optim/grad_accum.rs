@@ -51,12 +51,12 @@ struct ModuleGradsAccumulator<'a> {
 
 impl<'a, B: ADBackend> ModuleVisitor<B> for ModuleGradsAccumulator<'a> {
     fn visit<const D: usize>(&mut self, id: &ParamId, _tensor: &Tensor<B, D>) {
-        let grad_updated = match self.grads_new.get::<B::InnerBackend, D>(id) {
-            Some(new) => match self.grads.get::<B::InnerBackend, D>(id) {
+        let grad_updated = match self.grads_new.remove::<B::InnerBackend, D>(id) {
+            Some(new) => match self.grads.remove::<B::InnerBackend, D>(id) {
                 Some(grad) => grad.add(new),
                 None => new,
             },
-            None => match self.grads.get::<B::InnerBackend, D>(id) {
+            None => match self.grads.remove::<B::InnerBackend, D>(id) {
                 Some(grad) => grad,
                 None => return,
             },
@@ -72,7 +72,6 @@ mod tests {
     use super::*;
     use crate::{
         nn::{Linear, LinearConfig},
-        optim::convert_grads,
         TestADBackend,
     };
     use burn_tensor::Distribution;
@@ -82,7 +81,7 @@ mod tests {
         let mut accumulator = GradientsAccumulator::new();
         let layer = layer();
         let loss = layer.forward(random_tensor());
-        let grads = convert_grads(loss.backward(), &layer);
+        let grads = GradientsParams::from_grads(loss.backward(), &layer);
 
         accumulator.accumulate(&layer, grads);
 
@@ -96,8 +95,8 @@ mod tests {
         let layer = layer();
         let loss_1 = layer.forward(random_tensor());
         let loss_2 = layer.forward(random_tensor());
-        let grads_1 = convert_grads(loss_1.backward(), &layer);
-        let grads_2 = convert_grads(loss_2.backward(), &layer);
+        let grads_1 = GradientsParams::from_grads(loss_1.backward(), &layer);
+        let grads_2 = GradientsParams::from_grads(loss_2.backward(), &layer);
 
         accumulator.accumulate(&layer, grads_1);
         accumulator.accumulate(&layer, grads_2);

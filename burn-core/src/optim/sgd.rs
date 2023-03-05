@@ -102,7 +102,7 @@ mod tests {
     use super::*;
     use crate::{
         nn::{Linear, LinearConfig},
-        optim::convert_grads,
+        optim::GradientsParams,
         tensor::{Distribution, Shape},
         TestADBackend,
     };
@@ -113,7 +113,7 @@ mod tests {
         let mut optim = sgd_with_all();
         let loss = layer.forward(random_tensor());
         let grads = loss.backward();
-        let grads = convert_grads(grads, &layer);
+        let grads = GradientsParams::from_grads(grads, &layer);
         let layer = optim.update_module(layer, grads);
 
         let state = optim.state(&layer);
@@ -137,7 +137,7 @@ mod tests {
         let mut optim = sgd_with_nothing();
         let loss = layer.forward(random_tensor());
         let grads = loss.backward();
-        let grads = convert_grads(grads, &layer);
+        let grads = GradientsParams::from_grads(grads, &layer);
 
         let layer = optim.update_module(layer, grads);
 
@@ -152,7 +152,7 @@ mod tests {
         let mut optim = sgd_with_all();
         let loss = layer.forward(random_tensor());
         let grads = loss.backward();
-        let grads = convert_grads(grads, &layer);
+        let grads = GradientsParams::from_grads(grads, &layer);
         let layer = optim.update_module(layer, grads);
 
         let state = optim.state(&layer);

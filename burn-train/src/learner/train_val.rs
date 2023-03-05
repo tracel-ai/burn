@@ -3,7 +3,7 @@ use super::Learner;
 use crate::{TrainEpoch, ValidEpoch};
 use burn_core::data::dataloader::DataLoader;
 use burn_core::module::ADModule;
-use burn_core::optim::{convert_grads, GradientsParams, Optimizer};
+use burn_core::optim::{GradientsParams, Optimizer};
 use burn_core::tensor::backend::ADBackend;
 use std::sync::Arc;
 
@@ -18,7 +18,7 @@ impl<TO> TrainOutput<TO> {
         grads: <M::ADBackend as ADBackend>::Gradients,
         item: TO,
     ) -> Self {
-        let grads = convert_grads(grads, module);
+        let grads = GradientsParams::from_grads(grads, module);
 
         Self { grads, item }
     }

@@ -1,6 +1,6 @@
 use super::{GradientsParams, Optimizer};
 use crate::module::{ModuleVisitor, ParamId, StateNamed};
-use burn_tensor::{backend::ADBackend, container::TensorContainer, Tensor};
+use burn_tensor::{backend::ADBackend, Tensor};
 
 #[derive(new)]
 pub struct GradientsRegister<'a, B: ADBackend, O> {
@@ -17,7 +17,7 @@ pub struct GradientsLoader<'a, B: ADBackend, O> {
 #[derive(new)]
 pub struct GradientsParamsConverter<'a, B: ADBackend> {
     grads: B::Gradients,
-    grads_params: &'a mut TensorContainer<ParamId>,
+    grads_params: &'a mut GradientsParams,
 }
 
 #[derive(new)]

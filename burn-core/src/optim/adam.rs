@@ -115,7 +115,7 @@ impl AdaptiveMomentum {
         grad: Tensor<B::InnerBackend, D>,
     ) -> Tensor<B::InnerBackend, D> {
         let factor = 1.0 - self.beta_1;
-        let moment_1 = match self.moment_1.get::<B::InnerBackend, D>(id) {
+        let moment_1 = match self.moment_1.remove::<B::InnerBackend, D>(id) {
             Some(moment_last_step) => moment_last_step
                 .mul_scalar(self.beta_1)
                 .add(grad.clone().mul_scalar(factor)),
@@ -123,14 +123,14 @@ impl AdaptiveMomentum {
         };
 
         let factor = 1.0 - self.beta_2;
-        let moment_2 = match self.moment_2.get::<B::InnerBackend, D>(id) {
+        let moment_2 = match self.moment_2.remove::<B::InnerBackend, D>(id) {
             Some(moment_last_step) => moment_last_step
                 .mul_scalar(self.beta_2)
                 .add(grad.powf(2.0).mul_scalar(factor)),
             None => grad.powf(2.0).mul_scalar(factor),
         };
 
-        let time = match self.time.get::<B::InnerBackend, 1>(id) {
+        let time = match self.time.remove::<B::InnerBackend, 1>(id) {
             Some(time) => time.add_scalar(1),
             None => Tensor::ones([1]),
         };
@@ -184,7 +184,6 @@ impl AdaptiveMomentum {
 mod tests {
     use super::*;
     use crate::module::{Module, State};
-    use crate::optim::convert_grads;
     use crate::tensor::{Data, Distribution, Tensor};
     use crate::{nn, TestADBackend};
 
@@ -194,7 +193,7 @@ mod tests {
         let x = Tensor::<TestADBackend, 2>::random([2, 6], Distribution::Standard);
         let mut optimizer = Adam::new(&AdamConfig::new(0.01));
         let grads = linear.forward(x).backward();
-        let grads = convert_grads(grads, &linear);
+        let grads = GradientsParams::from_grads(grads, &linear);
         let linear = optimizer.update_module(linear, grads);
 
         let state_optim_before = optimizer.state(&linear);
@@ -236,11 +235,11 @@ mod tests {
         );
 
         let grads = linear.forward(x_1).backward();
-        let grads = convert_grads(grads, &linear);
+        let grads = GradientsParams::from_grads(grads, &linear);
         let linear = optimizer.update_module(linear, grads);
 
         let grads = linear.forward(x_2).backward();
-        let grads = convert_grads(grads, &linear);
+        let grads = GradientsParams::from_grads(grads, &linear);
         let linear = optimizer.update_module(linear, grads);
 
         let state_updated = linear.state();

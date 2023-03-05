@@ -1,7 +1,7 @@
 use burn_core::{
     data::dataloader::DataLoader,
     module::ADModule,
-    optim::{to_device_grads, GradientsAccumulator, Optimizer},
+    optim::{GradientsAccumulator, Optimizer},
     tensor::backend::Backend,
 };
 use std::sync::Arc;
@@ -145,13 +145,14 @@ impl<TI> TrainEpoch<TI> {
                 break;
             }
 
-            for mut item in items {
+            for item in items {
                 iteration += 1;
                 let progress = iterator.progress();
 
-                to_device_grads(&mut item.grads, device_main.clone(), &model);
+                let grads = item.grads.to_device(device_main.clone(), &model);
+
                 log::info!("Updated device");
-                accumulator.accumulate(&model, item.grads);
+                accumulator.accumulate(&model, grads);
                 accumulation_current += 1;
 
                 if accumulation <= accumulation_current {
