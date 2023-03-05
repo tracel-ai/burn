@@ -1,13 +1,11 @@
 pub(crate) mod stats;
 
-mod base;
-mod bool_tensor;
+mod api;
 mod data;
 mod element;
 mod shape;
 
-pub use base::*;
-pub use bool_tensor::*;
+pub use api::*;
 pub use data::*;
 pub use element::*;
 pub use shape::*;

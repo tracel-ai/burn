@@ -2,7 +2,7 @@ use super::state::{FormatOptions, NumericMetricState};
 use super::MetricEntry;
 use crate::metric::{Metric, Numeric};
 use burn_core::tensor::backend::Backend;
-use burn_core::tensor::Tensor;
+use burn_core::tensor::{Int, Tensor};
 
 /// The accuracy metric.
 #[derive(Default)]
@@ -15,7 +15,7 @@ pub struct AccuracyMetric<B: Backend> {
 #[derive(new)]
 pub struct AccuracyInput<B: Backend> {
     outputs: Tensor<B, 2>,
-    targets: Tensor<B::IntegerBackend, 1>,
+    targets: Tensor<B, 1, Int>,
 }
 
 impl<B: Backend> AccuracyMetric<B> {

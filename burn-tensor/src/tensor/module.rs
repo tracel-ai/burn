@@ -1,11 +1,11 @@
-use crate::{backend::Backend, Tensor};
+use crate::{backend::Backend, Int, Tensor};
 
 /// Applies the [embedding module](crate::ops::ModuleOps::embedding).
-pub fn embedding<B>(weights: Tensor<B, 2>, indexes: Tensor<B::IntegerBackend, 2>) -> Tensor<B, 3>
+pub fn embedding<B>(weights: Tensor<B, 2>, indexes: Tensor<B, 2, Int>) -> Tensor<B, 3>
 where
     B: Backend,
 {
-    Tensor::new(B::embedding(weights.value, indexes.value))
+    Tensor::new(B::embedding(weights.primitive, indexes.primitive))
 }
 
 /// Applies a [1D convolution](crate::ops::ModuleOps::conv2d).
@@ -20,9 +20,9 @@ where
     B: Backend,
 {
     Tensor::new(B::conv1d(
-        x.value,
-        weight.value,
-        bias.map(|b| b.value),
+        x.primitive,
+        weight.primitive,
+        bias.map(|b| b.primitive),
         stride,
         padding,
     ))
@@ -40,9 +40,9 @@ where
     B: Backend,
 {
     Tensor::new(B::conv2d(
-        x.value,
-        weight.value,
-        bias.map(|b| b.value),
+        x.primitive,
+        weight.primitive,
+        bias.map(|b| b.primitive),
         stride,
         padding,
     ))
@@ -58,7 +58,7 @@ pub fn max_pool2d<B>(
 where
     B: Backend,
 {
-    Tensor::new(B::max_pool2d(x.value, kernel_size, stride, padding))
+    Tensor::new(B::max_pool2d(x.primitive, kernel_size, stride, padding))
 }
 
 /// Applies a [2D max pooling with indexes](crate::ops::ModuleOps::max_pool2d_with_indexes).
@@ -71,7 +71,7 @@ pub fn max_pool2d_with_indexes<B>(
 where
     B: Backend,
 {
-    let output = B::max_pool2d_with_indexes(x.value, kernel_size, stride, padding);
+    let output = B::max_pool2d_with_indexes(x.primitive, kernel_size, stride, padding);
 
     (Tensor::new(output.output), Tensor::new(output.indexes))
 }

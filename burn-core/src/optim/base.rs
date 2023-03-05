@@ -32,7 +32,7 @@ pub trait Optimizer: Send + Sync {
     fn register_param_state<const D: usize>(
         &self,
         _id: &ParamId,
-        _state: &mut StateNamed<<Self::Backend as Backend>::Elem>,
+        _state: &mut StateNamed<<Self::Backend as Backend>::FloatElem>,
     ) {
         // By default there is no state to register
     }
@@ -45,7 +45,7 @@ pub trait Optimizer: Send + Sync {
     fn load_param_state<const D: usize>(
         &mut self,
         _id: &ParamId,
-        _state: &StateNamed<<Self::Backend as Backend>::Elem>,
+        _state: &StateNamed<<Self::Backend as Backend>::FloatElem>,
         _device: &<Self::Backend as Backend>::Device,
     ) {
         // By default there is no state to load
@@ -55,7 +55,7 @@ pub trait Optimizer: Send + Sync {
     fn state<M: Module<Backend = Self::Backend>>(
         &self,
         module: &M,
-    ) -> State<<Self::Backend as Backend>::Elem>
+    ) -> State<<Self::Backend as Backend>::FloatElem>
     where
         Self: Sized,
     {
@@ -70,7 +70,7 @@ pub trait Optimizer: Send + Sync {
     fn load<M: Module<Backend = Self::Backend>>(
         &mut self,
         module: &M,
-        state: &State<<Self::Backend as Backend>::Elem>,
+        state: &State<<Self::Backend as Backend>::FloatElem>,
     ) -> Result<(), LoadingError>
     where
         Self: Sized,
@@ -93,7 +93,7 @@ pub trait Optimizer: Send + Sync {
 
 pub(super) fn register_state_gradients<const D: usize, B: ADBackend, F: Fn(&ParamId) -> String>(
     id: &ParamId,
-    state: &mut StateNamed<B::Elem>,
+    state: &mut StateNamed<B::FloatElem>,
     grads: &GradientsParams,
     id_to_key: F,
 ) {
@@ -105,7 +105,7 @@ pub(super) fn register_state_gradients<const D: usize, B: ADBackend, F: Fn(&Para
 
 pub(super) fn load_state_gradients<const D: usize, B: ADBackend, F: Fn(&ParamId) -> String>(
     id: &ParamId,
-    state: &StateNamed<B::Elem>,
+    state: &StateNamed<B::FloatElem>,
     grads: &mut GradientsParams,
     id_to_key: F,
     device: &B::Device,

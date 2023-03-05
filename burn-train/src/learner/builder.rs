@@ -20,8 +20,8 @@ where
     B: ADBackend,
 {
     dashboard: Dashboard<T, V>,
-    checkpointer_model: Option<Arc<dyn Checkpointer<B::Elem> + Send + Sync>>,
-    checkpointer_optimizer: Option<Arc<dyn Checkpointer<B::Elem> + Send + Sync>>,
+    checkpointer_model: Option<Arc<dyn Checkpointer<B::FloatElem> + Send + Sync>>,
+    checkpointer_optimizer: Option<Arc<dyn Checkpointer<B::FloatElem> + Send + Sync>>,
     num_epochs: usize,
     checkpoint: Option<usize>,
     directory: String,
@@ -169,7 +169,7 @@ where
 
         let create_checkpointer = |checkpointer| match checkpointer {
             Some(checkpointer) => {
-                let checkpointer: Box<dyn Checkpointer<B::Elem>> =
+                let checkpointer: Box<dyn Checkpointer<B::FloatElem>> =
                     Box::new(AsyncCheckpointer::new(checkpointer));
                 Some(checkpointer)
             }

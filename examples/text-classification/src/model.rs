@@ -44,10 +44,10 @@ impl<B: Backend> TextClassificationModel<B> {
         let output = Linear::new(&config_output);
 
         Self {
-            transformer: Param::new(transformer),
-            embedding_token: Param::new(embedding_token),
-            embedding_pos: Param::new(embedding_pos),
-            output: Param::new(output),
+            transformer: Param::from(transformer),
+            embedding_token: Param::from(embedding_token),
+            embedding_pos: Param::from(embedding_pos),
+            output: Param::from(output),
             n_classes: config.n_classes,
             max_seq_length: config.max_seq_length,
         }
@@ -57,15 +57,15 @@ impl<B: Backend> TextClassificationModel<B> {
         let [batch_size, seq_length] = item.tokens.dims();
         let device = &self.embedding_token.devices()[0];
 
-        let tokens = item.tokens.to_device(device).detach();
-        let labels = item.labels.to_device(device).detach();
+        let tokens = item.tokens.to_device(device);
+        let labels = item.labels.to_device(device);
         let mask_pad = item.mask_pad.to_device(device);
 
         let index_positions = Tensor::<B, 1>::arange_device(0..seq_length, device)
             .reshape([1, seq_length])
             .repeat(0, batch_size);
-        let embedding_positions = self.embedding_pos.forward(index_positions.detach());
-        let embedding_tokens = self.embedding_token.forward(tokens.detach());
+        let embedding_positions = self.embedding_pos.forward(index_positions);
+        let embedding_tokens = self.embedding_token.forward(tokens);
         let embedding = (embedding_positions + embedding_tokens) / 2;
 
         let encoded = self

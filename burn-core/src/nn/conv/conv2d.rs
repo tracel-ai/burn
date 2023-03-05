@@ -64,8 +64,8 @@ impl<B: Backend> Conv2d<B> {
         let k = (config.channels[0] * config.kernel_size[0] * config.kernel_size[1]) as f64;
         let k = sqrt(1.0 / k);
 
-        let k1: B::Elem = (-k).to_elem();
-        let k2: B::Elem = k.to_elem();
+        let k1: B::FloatElem = (-k).to_elem();
+        let k2: B::FloatElem = k.to_elem();
 
         let weight = Tensor::random(
             [
@@ -87,8 +87,8 @@ impl<B: Backend> Conv2d<B> {
         };
 
         Self {
-            weight: Param::new(weight),
-            bias: Param::new(bias),
+            weight: Param::from(weight),
+            bias: Param::from(bias),
             stride: [1, 1], // TODO: Add the stride to the configuration when properly supported.
             kernel_size: config.kernel_size,
             padding: config.padding.clone(),

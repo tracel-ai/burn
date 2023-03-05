@@ -133,9 +133,11 @@ mod tests {
     impl Conv1dTestCase {
         fn assert_grads(self, expected_grads: Grads) {
             let weight =
-                TestADTensor::ones([self.channels_out, self.channels_in, self.kernel_size]);
-            let bias = TestADTensor::ones([self.channels_out]);
-            let x = TestADTensor::ones([self.batch_size, self.channels_in, self.length]);
+                TestADTensor::ones([self.channels_out, self.channels_in, self.kernel_size])
+                    .require_grad();
+            let bias = TestADTensor::ones([self.channels_out]).require_grad();
+            let x =
+                TestADTensor::ones([self.batch_size, self.channels_in, self.length]).require_grad();
             let output = conv1d(
                 x.clone(),
                 weight.clone(),

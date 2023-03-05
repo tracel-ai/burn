@@ -34,7 +34,8 @@ pub struct NdArrayBackend<E> {
 
 impl<E: NdArrayElement> Backend for NdArrayBackend<E> {
     type Device = NdArrayDevice;
-    type Elem = E;
+    type FloatElem = E;
+    type IntElem = i64;
     type FullPrecisionElem = f32;
     type FullPrecisionBackend = NdArrayBackend<f32>;
     type IntegerBackend = NdArrayBackend<i64>;

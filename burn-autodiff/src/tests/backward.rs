@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(module_backward)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, module::embedding, Data, Tensor};
+    use burn_tensor::{backend::Backend, module::embedding, Data, Int, Tensor};
 
     #[test]
     fn test_embedding_backward() {
@@ -11,9 +11,9 @@ mod tests {
             [[1.0, 2.0], [4.0, 5.0], [3.0, 4.0]],
             [[4.0, 5.0], [8.0, 5.0], [1.0, 9.0]],
         ]);
-        let weights = Tensor::<TestADBackend, 2>::from_data(weights);
-        let indexes = Tensor::<<TestADBackend as Backend>::IntegerBackend, 2>::from_data(indexes);
-        let x = Tensor::<TestADBackend, 3>::from_data(x);
+        let weights = Tensor::<TestADBackend, 2>::from_data(weights).require_grad();
+        let indexes = Tensor::<TestADBackend, 2, Int>::from_data(indexes);
+        let x = Tensor::<TestADBackend, 3>::from_data(x).require_grad();
 
         let output = embedding(weights.clone(), indexes);
         let output = output.matmul(x);
@@ -21,7 +21,7 @@ mod tests {
 
         let grad = weights.grad(&grads).unwrap();
         let expected =
-            Data::<<TestADBackend as Backend>::Elem, 2>::from([[3., 9., 7.], [21., 35., 27.]]);
+            Data::<<TestADBackend as Backend>::FloatElem, 2>::from([[3., 9., 7.], [21., 35., 27.]]);
         assert_eq!(grad.to_data(), expected);
     }
 }

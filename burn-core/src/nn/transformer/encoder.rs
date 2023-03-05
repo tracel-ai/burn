@@ -1,4 +1,5 @@
 use alloc::{format, vec::Vec};
+use burn_tensor::Bool;
 
 use crate::{
     self as burn,
@@ -13,7 +14,7 @@ use crate::{
         attention::{MhaInput, MultiHeadAttention, MultiHeadAttentionConfig},
         Dropout, DropoutConfig, LayerNorm, LayerNormConfig,
     },
-    tensor::{backend::Backend, BoolTensor, Tensor},
+    tensor::{backend::Backend, Tensor},
 };
 
 /// Configuration to create a [Transformer Encoder](TransformerEncoder) layer.
@@ -46,8 +47,8 @@ pub struct TransformerEncoder<B: Backend> {
 #[derive(Debug)]
 pub struct TransformerEncoderInput<B: Backend> {
     tensor: Tensor<B, 3>,
-    mask_pad: Option<BoolTensor<B, 2>>,
-    mask_attn: Option<BoolTensor<B, 3>>,
+    mask_pad: Option<Tensor<B, 2, Bool>>,
+    mask_attn: Option<Tensor<B, 3, Bool>>,
 }
 
 impl<B: Backend> TransformerEncoderInput<B> {
@@ -61,13 +62,13 @@ impl<B: Backend> TransformerEncoderInput<B> {
     }
 
     /// Register the padding mask.
-    pub fn mask_pad(mut self, mask_pad: BoolTensor<B, 2>) -> Self {
+    pub fn mask_pad(mut self, mask_pad: Tensor<B, 2, Bool>) -> Self {
         self.mask_pad = Some(mask_pad);
         self
     }
 
     /// Register the attention mask.
-    pub fn mask_attn(mut self, mask_attn: BoolTensor<B, 3>) -> Self {
+    pub fn mask_attn(mut self, mask_attn: Tensor<B, 3, Bool>) -> Self {
         self.mask_attn = Some(mask_attn);
         self
     }
@@ -78,10 +79,10 @@ impl<B: Backend> TransformerEncoder<B> {
     pub fn new(config: &TransformerEncoderConfig) -> Self {
         let layers = (0..config.n_layers)
             .map(|_| TransformerEncoderLayer::new(config))
-            .collect();
+            .collect::<Vec<_>>();
 
         Self {
-            layers: Param::new(layers),
+            layers: Param::from(layers),
         }
     }
 
@@ -159,10 +160,10 @@ impl<B: Backend> TransformerEncoderLayer<B> {
         let pwff = PositionWiseFeedForward::new(&config_pwff);
 
         Self {
-            mha: Param::new(mha),
-            norm_1: Param::new(norm_1),
-            norm_2: Param::new(norm_2),
-            pwff: Param::new(pwff),
+            mha: Param::from(mha),
+            norm_1: Param::from(norm_1),
+            norm_2: Param::from(norm_2),
+            pwff: Param::from(pwff),
             dropout,
         }
     }
@@ -170,8 +171,8 @@ impl<B: Backend> TransformerEncoderLayer<B> {
     fn forward(
         &self,
         input: Tensor<B, 3>,
-        mask_pad: Option<BoolTensor<B, 2>>,
-        mask_attn: Option<BoolTensor<B, 3>>,
+        mask_pad: Option<Tensor<B, 2, Bool>>,
+        mask_attn: Option<Tensor<B, 3, Bool>>,
     ) -> Tensor<B, 3> {
         let mut input_mhs = MhaInput::self_attn(input.clone());
 
@@ -196,8 +197,8 @@ impl<B: Backend> TransformerEncoderLayer<B> {
     fn forward_autoregressive_inference(
         &self,
         input: Tensor<B, 3>,
-        mask_pad: Option<BoolTensor<B, 2>>,
-        mask_attn: Option<BoolTensor<B, 3>>,
+        mask_pad: Option<Tensor<B, 2, Bool>>,
+        mask_attn: Option<Tensor<B, 3, Bool>>,
         cache: &mut TransformerEncoderLayerAutoregressiveCache<B>,
     ) -> Tensor<B, 3> {
         let mut input_mhs = MhaInput::self_attn(input.clone());

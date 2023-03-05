@@ -1,7 +1,5 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
+use spin::Mutex;
+use std::{collections::HashMap, sync::Arc};
 
 use crate::grads::Gradients;
 
@@ -68,12 +66,12 @@ impl Graph {
     fn execute_mut<F: FnOnce(&mut NodeSteps)>(mut self, func: F) -> Self {
         match Arc::get_mut(&mut self.steps) {
             Some(mutex) => {
-                let map = mutex.get_mut().unwrap();
+                let map = mutex.get_mut();
                 func(map);
             }
             None => {
                 // Only lock when there are multiple references to the graph.
-                let mut map = self.steps.lock().unwrap();
+                let mut map = self.steps.lock();
                 func(&mut map);
             }
         };

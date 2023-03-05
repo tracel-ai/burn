@@ -44,10 +44,10 @@ impl<B: Backend> BatchNorm2d<B> {
         let running_var = Tensor::ones([config.num_features]);
 
         Self {
-            gamma: Param::new(gamma),
-            beta: Param::new(beta),
-            running_mean: Param::new(RunningState::new(running_mean)),
-            running_var: Param::new(RunningState::new(running_var)),
+            gamma: Param::from(gamma),
+            beta: Param::from(beta),
+            running_mean: Param::from(RunningState::new(running_mean)),
+            running_var: Param::from(RunningState::new(running_var)),
             momentum: config.momentum,
             epsilon: config.epsilon,
         }
@@ -207,7 +207,7 @@ mod tests {
     fn batch_norm_2d_grads() {
         let config = BatchNorm2dConfig::new(3);
         let module = BatchNorm2d::<TestADBackend>::new(&config);
-        let input = input_tensor();
+        let input = input_tensor().require_grad();
 
         let output = module.forward(input.clone());
 

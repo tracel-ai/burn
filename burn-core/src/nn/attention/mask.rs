@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 
-use burn_tensor::{backend::Backend, BoolTensor, Data, ElementConversion, Shape, Tensor};
+use burn_tensor::{backend::Backend, Bool, Data, ElementConversion, Int, Shape, Tensor};
 
 /// Generate an autoregressive attention mask.
 ///
@@ -9,22 +9,22 @@ pub fn generate_autoregressive_mask<B: Backend>(
     batch_size: usize,
     seq_length: usize,
     device: &B::Device,
-) -> BoolTensor<B, 3> {
-    let mut mask = Tensor::<B::IntegerBackend, 3>::zeros([1, seq_length, seq_length]);
+) -> Tensor<B, 3, Bool> {
+    let mut mask = Tensor::<B, 3, Int>::zeros([1, seq_length, seq_length]);
 
     for i in 0..seq_length {
-        let values = Tensor::<B::IntegerBackend, 3>::ones([1, 1, seq_length - (i + 1)]);
+        let values = Tensor::<B, 3, Int>::ones([1, 1, seq_length - (i + 1)]);
         mask = mask.index_assign([0..1, i..i + 1, i + 1..seq_length], values);
     }
 
     mask = mask.to_device(device).repeat(0, batch_size);
 
-    BoolTensor::from_int_backend(mask.equal_scalar(1_i64.to_elem::<i64>()))
+    mask.equal_scalar(1_i64.to_elem::<i64>())
 }
 
 pub struct GeneratePaddingMask<B: Backend> {
-    pub tensor: Tensor<B::IntegerBackend, 2>,
-    pub mask: BoolTensor<B, 2>,
+    pub tensor: Tensor<B, 2, Int>,
+    pub mask: Tensor<B, 2, Bool>,
 }
 
 /// Generation padding attention mask.
@@ -73,7 +73,9 @@ pub fn generate_padding_mask<B: Backend>(
         );
     }
 
-    let mask = BoolTensor::from_int_backend(tensor.clone().equal_scalar(pad_token as i64))
+    let mask = tensor
+        .clone()
+        .equal_scalar(pad_token as i64)
         .to_device(device);
     let tensor = tensor.to_device(device);
 

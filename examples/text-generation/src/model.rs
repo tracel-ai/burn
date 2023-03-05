@@ -46,10 +46,10 @@ impl<B: Backend> TextGenerationModel<B> {
         let output = Linear::new(&config_output);
 
         Self {
-            transformer: Param::new(transformer),
-            embedding_token: Param::new(embedding_token),
-            embedding_pos: Param::new(embedding_pos),
-            output: Param::new(output),
+            transformer: Param::from(transformer),
+            embedding_token: Param::from(embedding_token),
+            embedding_pos: Param::from(embedding_pos),
+            output: Param::from(output),
             vocab_size: config.vocab_size,
             pad_token: config.pad_token,
             max_seq_length: config.max_seq_length,
@@ -63,13 +63,12 @@ impl<B: Backend> TextGenerationModel<B> {
         let [batch_size, seq_length] = item.tokens_inputs.dims();
         let device = &self.embedding_token.devices()[0];
 
-        let inputs = item.tokens_inputs.to_device(device).detach();
+        let inputs = item.tokens_inputs.to_device(device);
         let mask_pad = item.mask_pad.to_device(device);
 
         let index_positions = Tensor::<B, 1>::arange_device(0..seq_length, device)
             .reshape([1, seq_length])
-            .repeat(0, batch_size)
-            .detach();
+            .repeat(0, batch_size);
         let embedding_positions = self.embedding_pos.forward(index_positions);
         let embedding_tokens = self.embedding_token.forward(inputs);
         let embedding = (embedding_positions + embedding_tokens) / 2;

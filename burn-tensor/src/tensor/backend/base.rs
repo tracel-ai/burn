@@ -15,10 +15,11 @@ pub trait Backend:
     + 'static
 {
     type Device: Clone + Default + core::fmt::Debug + Send + Sync;
-    type Elem: Element;
+    type FloatElem: Element;
+    type IntElem: Element;
     type FullPrecisionElem: Element;
-    type FullPrecisionBackend: Backend<Elem = Self::FullPrecisionElem, Device = Self::Device>;
-    type IntegerBackend: Backend<Elem = i64, Device = Self::Device>;
+    type FullPrecisionBackend: Backend<FloatElem = Self::FullPrecisionElem, Device = Self::Device>;
+    type IntegerBackend: Backend<FloatElem = i64, Device = Self::Device>;
     type TensorPrimitive<const D: usize>: Clone
         + Send
         + Sync
@@ -43,7 +44,7 @@ pub(crate) type ADBackendTensorPrimitive<const D: usize, B> =
     <<B as ADBackend>::InnerBackend as Backend>::TensorPrimitive<D>;
 
 pub trait ADBackend: Backend {
-    type InnerBackend: Backend<Device = Self::Device, Elem = Self::Elem>;
+    type InnerBackend: Backend<Device = Self::Device, FloatElem = Self::FloatElem>;
     type Gradients: Send + Sync;
 
     fn backward<const D: usize>(tensor: Self::TensorPrimitive<D>) -> Self::Gradients;

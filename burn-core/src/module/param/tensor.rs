@@ -1,6 +1,6 @@
 use alloc::{string::ToString, vec, vec::Vec};
 
-use super::{load_with_id, state_with_id, Param};
+use super::{load_with_id, state_with_id, Param, ParamId};
 use crate::module::{
     ADModule, LoadingError, Module, ModuleVisitor, ModuleVisitorMut, State, StateNamed,
 };
@@ -8,6 +8,24 @@ use crate::tensor::{
     backend::{ADBackend, Backend},
     Data, Tensor,
 };
+
+impl<B: Backend, const D: usize> From<Tensor<B, D>> for Param<Tensor<B, D>> {
+    fn from(value: Tensor<B, D>) -> Self {
+        Param {
+            id: ParamId::new(),
+            value: value.require_grad(),
+        }
+    }
+}
+
+impl<B: Backend, const D: usize> From<Option<Tensor<B, D>>> for Param<Option<Tensor<B, D>>> {
+    fn from(value: Option<Tensor<B, D>>) -> Self {
+        Param {
+            id: ParamId::new(),
+            value: value.map(|tensor| tensor.require_grad()),
+        }
+    }
+}
 
 impl<const D: usize, B: Backend> Module for Param<Tensor<B, D>> {
     type Backend = B;
@@ -23,22 +41,24 @@ impl<const D: usize, B: Backend> Module for Param<Tensor<B, D>> {
     fn to_device(self, device: &B::Device) -> Self {
         Self {
             id: self.id,
-            value: self.value.to_device(device),
+            value: self.value.to_device(device).require_grad(),
         }
     }
 
-    fn state(&self) -> State<B::Elem> {
+    fn state(&self) -> State<B::FloatElem> {
         let state = State::Data(self.value.to_data().serialize());
 
         state_with_id(self.id.clone(), state)
     }
 
-    fn load(self, state: &State<B::Elem>) -> Result<Self, LoadingError> {
+    fn load(self, state: &State<B::FloatElem>) -> Result<Self, LoadingError> {
         let (id, state) = load_with_id(state)?;
         let id = id.clone();
 
         let tensor = match state {
-            State::Data(data) => Tensor::from_data_device(Data::from(data), &self.value.device()),
+            State::Data(data) => {
+                Tensor::from_data_device(Data::from(data), &self.value.device()).require_grad()
+            }
             _ => return Err(LoadingError::new("Can't load tensor".to_string())),
         };
 
@@ -48,7 +68,7 @@ impl<const D: usize, B: Backend> Module for Param<Tensor<B, D>> {
     fn detach(self) -> Self {
         Self {
             id: self.id,
-            value: self.value.detach(),
+            value: self.value.detach().require_grad(),
         }
     }
 
@@ -57,7 +77,8 @@ impl<const D: usize, B: Backend> Module for Param<Tensor<B, D>> {
     }
 
     fn visit_mut<V: ModuleVisitorMut<Self::Backend>>(&mut self, visitor: &mut V) {
-        visitor.visit_mut(&self.id, &mut self.value)
+        visitor.visit_mut(&self.id, &mut self.value);
+        self.value.inplace(|value| value.require_grad());
     }
 }
 
@@ -83,11 +104,13 @@ impl<const D: usize, B: Backend> Module for Param<Option<Tensor<B, D>>> {
     fn to_device(self, device: &B::Device) -> Self {
         Self {
             id: self.id,
-            value: self.value.map(|value| value.to_device(device)),
+            value: self
+                .value
+                .map(|value| value.to_device(device).require_grad()),
         }
     }
 
-    fn state(&self) -> State<B::Elem> {
+    fn state(&self) -> State<B::FloatElem> {
         let state = match &self.value {
             Some(value) => State::Data(value.to_data().serialize()),
             None => State::StateNamed(StateNamed::new()),
@@ -96,7 +119,7 @@ impl<const D: usize, B: Backend> Module for Param<Option<Tensor<B, D>>> {
         state_with_id(self.id.clone(), state)
     }
 
-    fn load(self, state: &State<B::Elem>) -> Result<Self, LoadingError> {
+    fn load(self, state: &State<B::FloatElem>) -> Result<Self, LoadingError> {
         let (id, state) = load_with_id(state)?;
         let id = id.clone();
 
@@ -109,9 +132,9 @@ impl<const D: usize, B: Backend> Module for Param<Option<Tensor<B, D>>> {
             }
         };
 
-        let tensor = self
-            .value
-            .map(|tensor| Tensor::from_data_device(Data::from(data), &tensor.device()));
+        let tensor = self.value.map(|tensor| {
+            Tensor::from_data_device(Data::from(data), &tensor.device()).require_grad()
+        });
 
         Ok(Self { id, value: tensor })
     }
@@ -119,7 +142,7 @@ impl<const D: usize, B: Backend> Module for Param<Option<Tensor<B, D>>> {
     fn detach(self) -> Self {
         Self {
             id: self.id,
-            value: self.value.map(|value| value.detach()),
+            value: self.value.map(|value| value.detach().require_grad()),
         }
     }
 
@@ -131,7 +154,8 @@ impl<const D: usize, B: Backend> Module for Param<Option<Tensor<B, D>>> {
 
     fn visit_mut<V: ModuleVisitorMut<Self::Backend>>(&mut self, visitor: &mut V) {
         if let Some(value) = &mut self.value {
-            visitor.visit_mut(&self.id, value)
+            visitor.visit_mut(&self.id, value);
+            value.inplace(|value| value.require_grad());
         }
     }
 }

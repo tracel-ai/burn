@@ -5,7 +5,7 @@ use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversi
 
 pub trait TensorOps<B: Backend> {
     fn from_data<const D: usize>(
-        data: Data<B::Elem, D>,
+        data: Data<B::FloatElem, D>,
         device: &B::Device,
     ) -> B::TensorPrimitive<D>;
     fn from_data_bool<const D: usize>(
@@ -14,7 +14,7 @@ pub trait TensorOps<B: Backend> {
     ) -> B::BoolTensorPrimitive<D>;
     fn random<const D: usize>(
         shape: Shape<D>,
-        distribution: Distribution<B::Elem>,
+        distribution: Distribution<B::FloatElem>,
         device: &B::Device,
     ) -> B::TensorPrimitive<D>;
     fn zeros<const D: usize>(shape: Shape<D>, device: &B::Device) -> B::TensorPrimitive<D> {
@@ -24,14 +24,15 @@ pub trait TensorOps<B: Backend> {
         Self::from_data(Data::ones(shape), device)
     }
     fn shape<const D: usize>(tensor: &B::TensorPrimitive<D>) -> Shape<D>;
-    fn to_data<const D: usize>(tensor: &B::TensorPrimitive<D>) -> Data<B::Elem, D>;
-    fn into_data<const D: usize>(tensor: B::TensorPrimitive<D>) -> Data<B::Elem, D>;
+    fn to_data<const D: usize>(tensor: &B::TensorPrimitive<D>) -> Data<B::FloatElem, D>;
+    fn into_data<const D: usize>(tensor: B::TensorPrimitive<D>) -> Data<B::FloatElem, D>;
     fn bool_shape<const D: usize>(tensor: &B::BoolTensorPrimitive<D>) -> Shape<D>;
     fn bool_to_data<const D: usize>(tensor: &B::BoolTensorPrimitive<D>) -> Data<bool, D>;
     fn bool_into_data<const D: usize>(tensor: B::BoolTensorPrimitive<D>) -> Data<bool, D>;
     fn bool_into_int<const D: usize>(
         tensor: B::BoolTensorPrimitive<D>,
     ) -> <B::IntegerBackend as Backend>::TensorPrimitive<D>;
+    fn bool_device<const D: usize>(tensor: &B::BoolTensorPrimitive<D>) -> B::Device;
     fn bool_to_device<const D: usize>(
         tensor: B::BoolTensorPrimitive<D>,
         device: &B::Device,
@@ -57,7 +58,7 @@ pub trait TensorOps<B: Backend> {
         let value = range
             .into_iter()
             .map(|i| (i as i64).to_elem())
-            .collect::<Vec<<B::IntegerBackend as Backend>::Elem>>();
+            .collect::<Vec<<B::IntegerBackend as Backend>::FloatElem>>();
         let data = Data::new(value, shape);
         <B::IntegerBackend as TensorOps<B::IntegerBackend>>::from_data(data, device)
     }
@@ -96,7 +97,7 @@ pub trait TensorOps<B: Backend> {
     ) -> B::TensorPrimitive<D>;
     fn add_scalar<const D: usize>(
         lhs: B::TensorPrimitive<D>,
-        rhs: B::Elem,
+        rhs: B::FloatElem,
     ) -> B::TensorPrimitive<D>;
     fn sub<const D: usize>(
         lhs: B::TensorPrimitive<D>,
@@ -104,7 +105,7 @@ pub trait TensorOps<B: Backend> {
     ) -> B::TensorPrimitive<D>;
     fn sub_scalar<const D: usize>(
         lhs: B::TensorPrimitive<D>,
-        rhs: B::Elem,
+        rhs: B::FloatElem,
     ) -> B::TensorPrimitive<D>;
     fn mul<const D: usize>(
         lhs: B::TensorPrimitive<D>,
@@ -112,7 +113,7 @@ pub trait TensorOps<B: Backend> {
     ) -> B::TensorPrimitive<D>;
     fn mul_scalar<const D: usize>(
         lhs: B::TensorPrimitive<D>,
-        rhs: B::Elem,
+        rhs: B::FloatElem,
     ) -> B::TensorPrimitive<D>;
     fn div<const D: usize>(
         lhs: B::TensorPrimitive<D>,
@@ -120,7 +121,7 @@ pub trait TensorOps<B: Backend> {
     ) -> B::TensorPrimitive<D>;
     fn div_scalar<const D: usize>(
         lhs: B::TensorPrimitive<D>,
-        rhs: B::Elem,
+        rhs: B::FloatElem,
     ) -> B::TensorPrimitive<D>;
     fn matmul<const D: usize>(
         lhs: B::TensorPrimitive<D>,
@@ -151,7 +152,7 @@ pub trait TensorOps<B: Backend> {
     fn mask_fill<const D: usize>(
         tensor: B::TensorPrimitive<D>,
         mask: B::BoolTensorPrimitive<D>,
-        value: B::Elem,
+        value: B::FloatElem,
     ) -> B::TensorPrimitive<D>;
     fn equal<const D: usize>(
         lhs: B::TensorPrimitive<D>,
@@ -159,7 +160,7 @@ pub trait TensorOps<B: Backend> {
     ) -> B::BoolTensorPrimitive<D>;
     fn equal_scalar<const D: usize>(
         lhs: B::TensorPrimitive<D>,
-        rhs: B::Elem,
+        rhs: B::FloatElem,
     ) -> B::BoolTensorPrimitive<D>;
     fn greater<const D: usize>(
         lhs: B::TensorPrimitive<D>,
@@ -167,7 +168,7 @@ pub trait TensorOps<B: Backend> {
     ) -> B::BoolTensorPrimitive<D>;
     fn greater_scalar<const D: usize>(
         lhs: B::TensorPrimitive<D>,
-        rhs: B::Elem,
+        rhs: B::FloatElem,
     ) -> B::BoolTensorPrimitive<D>;
     fn greater_equal<const D: usize>(
         lhs: B::TensorPrimitive<D>,
@@ -175,7 +176,7 @@ pub trait TensorOps<B: Backend> {
     ) -> B::BoolTensorPrimitive<D>;
     fn greater_equal_scalar<const D: usize>(
         lhs: B::TensorPrimitive<D>,
-        rhs: B::Elem,
+        rhs: B::FloatElem,
     ) -> B::BoolTensorPrimitive<D>;
     fn lower<const D: usize>(
         lhs: B::TensorPrimitive<D>,
@@ -183,7 +184,7 @@ pub trait TensorOps<B: Backend> {
     ) -> B::BoolTensorPrimitive<D>;
     fn lower_scalar<const D: usize>(
         lhs: B::TensorPrimitive<D>,
-        rhs: B::Elem,
+        rhs: B::FloatElem,
     ) -> B::BoolTensorPrimitive<D>;
     fn lower_equal<const D: usize>(
         lhs: B::TensorPrimitive<D>,
@@ -191,9 +192,16 @@ pub trait TensorOps<B: Backend> {
     ) -> B::BoolTensorPrimitive<D>;
     fn lower_equal_scalar<const D: usize>(
         lhs: B::TensorPrimitive<D>,
-        rhs: B::Elem,
+        rhs: B::FloatElem,
     ) -> B::BoolTensorPrimitive<D>;
-    fn detach<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D>;
+    fn detach<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D> {
+        // Should only be overriden by autodiff backends.
+        tensor
+    }
+    fn require_grad<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D> {
+        // Should only be overriden by autodiff backends.
+        tensor
+    }
     fn mean<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<1>;
     fn sum<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<1>;
     fn mean_dim<const D: usize>(tensor: B::TensorPrimitive<D>, dim: usize)

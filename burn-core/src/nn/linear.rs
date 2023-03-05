@@ -52,8 +52,8 @@ impl<B: Backend> Linear<B> {
         };
 
         Self {
-            weight: Param::new(weight),
-            bias: Param::new(bias),
+            weight: Param::from(weight),
+            bias: Param::from(bias),
         }
     }
 

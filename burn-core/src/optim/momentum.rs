@@ -23,7 +23,7 @@ pub struct MomentumConfig {
 
 /// Momemtum implementation that transforms gradients.
 pub struct Momentum<B: ADBackend> {
-    momentum: B::Elem,
+    momentum: B::FloatElem,
     dampening: f64,
     nesterov: bool,
     velocity: GradientsParams,
@@ -63,14 +63,18 @@ impl<B: ADBackend> Momentum<B> {
         output
     }
 
-    pub fn register_state<const D: usize>(&self, id: &ParamId, state: &mut StateNamed<B::Elem>) {
+    pub fn register_state<const D: usize>(
+        &self,
+        id: &ParamId,
+        state: &mut StateNamed<B::FloatElem>,
+    ) {
         register_state_gradients::<D, B, _>(id, state, &self.velocity, Self::state_key);
     }
 
     pub fn load_state<const D: usize>(
         &mut self,
         id: &ParamId,
-        state: &StateNamed<B::Elem>,
+        state: &StateNamed<B::FloatElem>,
         device: &B::Device,
     ) {
         load_state_gradients::<D, B, _>(id, state, &mut self.velocity, Self::state_key, device);

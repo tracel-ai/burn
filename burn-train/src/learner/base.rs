@@ -22,8 +22,10 @@ where
     pub(super) devices: Vec<<M::Backend as Backend>::Device>,
 }
 
-type CheckpointModel<M> = Option<Box<dyn Checkpointer<<<M as Module>::Backend as Backend>::Elem>>>;
-type CheckpointOptim<M> = Option<Box<dyn Checkpointer<<<M as Module>::Backend as Backend>::Elem>>>;
+type CheckpointModel<M> =
+    Option<Box<dyn Checkpointer<<<M as Module>::Backend as Backend>::FloatElem>>>;
+type CheckpointOptim<M> =
+    Option<Box<dyn Checkpointer<<<M as Module>::Backend as Backend>::FloatElem>>>;
 
 impl<M, O, TO, VO> Learner<M, O, TO, VO>
 where

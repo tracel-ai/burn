@@ -16,7 +16,7 @@ pub struct WeightDecayConfig {
 
 /// Weight decay implementation that transforms gradients.
 pub struct WeightDecay<B: ADBackend> {
-    penalty: B::Elem,
+    penalty: B::FloatElem,
     gradients: GradientsParams,
 }
 
@@ -43,14 +43,18 @@ impl<B: ADBackend> WeightDecay<B> {
 
         grad
     }
-    pub fn register_state<const D: usize>(&self, id: &ParamId, state: &mut StateNamed<B::Elem>) {
+    pub fn register_state<const D: usize>(
+        &self,
+        id: &ParamId,
+        state: &mut StateNamed<B::FloatElem>,
+    ) {
         register_state_gradients::<D, B, _>(id, state, &self.gradients, Self::state_key);
     }
 
     pub fn load_state<const D: usize>(
         &mut self,
         id: &ParamId,
-        state: &StateNamed<B::Elem>,
+        state: &StateNamed<B::FloatElem>,
         device: &B::Device,
     ) {
         load_state_gradients::<D, B, _>(id, state, &mut self.gradients, Self::state_key, device);

@@ -32,7 +32,7 @@ impl<B: Backend> ConvBlock<B> {
         let activation = nn::GELU::new();
 
         Self {
-            conv: Param::new(conv),
+            conv: Param::from(conv),
             pool,
             activation,
         }

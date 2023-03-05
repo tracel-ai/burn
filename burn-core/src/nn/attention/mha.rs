@@ -7,7 +7,7 @@ use crate::{
     config::Config,
     module::{Module, Param},
     nn,
-    tensor::{activation, backend::Backend, BoolTensor, Tensor},
+    tensor::{activation, backend::Backend, Bool, Tensor},
 };
 
 use libm::sqrtf;
@@ -56,8 +56,8 @@ pub struct MhaInput<B: Backend> {
     query: Tensor<B, 3>,
     key: Tensor<B, 3>,
     value: Tensor<B, 3>,
-    mask_pad: Option<BoolTensor<B, 2>>,
-    mask_attn: Option<BoolTensor<B, 3>>,
+    mask_pad: Option<Tensor<B, 2, Bool>>,
+    mask_attn: Option<Tensor<B, 3, Bool>>,
 }
 
 impl<B: Backend> MhaInput<B> {
@@ -85,13 +85,13 @@ impl<B: Backend> MhaInput<B> {
     }
 
     /// Register the padding mask.
-    pub fn mask_pad(mut self, mask_pad: BoolTensor<B, 2>) -> Self {
+    pub fn mask_pad(mut self, mask_pad: Tensor<B, 2, Bool>) -> Self {
         self.mask_pad = Some(mask_pad);
         self
     }
 
     /// Register the attention mask.
-    pub fn mask_attn(mut self, mask_attn: BoolTensor<B, 3>) -> Self {
+    pub fn mask_attn(mut self, mask_attn: Tensor<B, 3, Bool>) -> Self {
         self.mask_attn = Some(mask_attn);
         self
     }
@@ -110,7 +110,7 @@ impl<B: Backend> MultiHeadAttention<B> {
     /// Create the module from the given configuration.
     pub fn new(config: &MultiHeadAttentionConfig) -> Self {
         let linear = |config: &MultiHeadAttentionConfig| {
-            Param::new(nn::Linear::new(&nn::LinearConfig::new(
+            Param::from(nn::Linear::new(&nn::LinearConfig::new(
                 config.d_model,
                 config.d_model,
             )))
@@ -212,8 +212,8 @@ impl<B: Backend> MultiHeadAttention<B> {
     fn attn_weights(
         &self,
         mut attn_scores: Tensor<B, 4>,
-        mask_pad: Option<BoolTensor<B, 2>>,
-        mask_attn: Option<BoolTensor<B, 3>>,
+        mask_pad: Option<Tensor<B, 2, Bool>>,
+        mask_attn: Option<Tensor<B, 3, Bool>>,
     ) -> Tensor<B, 4> {
         if let Some(mask_pad) = mask_pad {
             let [batch_size, seq_length] = mask_pad.dims();
@@ -261,6 +261,7 @@ mod tests {
     use super::*;
     use crate::{nn::attention::generate_autoregressive_mask, TestBackend};
     use burn::tensor::{Distribution, Shape};
+    use burn_tensor::Int;
 
     #[test]
     fn test_self_attention_shapes() {
@@ -319,7 +320,7 @@ mod tests {
         let mha = MultiHeadAttention::new(&MultiHeadAttentionConfig::new(d_model, n_heads));
 
         // Create a padding mask
-        let mask_pad = Tensor::zeros([batch_size, seq_length]);
+        let mask_pad: Tensor<TestBackend, 2, Int> = Tensor::zeros([batch_size, seq_length]);
         let mask_pad = mask_pad.index_assign(
             [0..batch_size, seq_length - num_padded..seq_length],
             Tensor::ones([batch_size, num_padded]),

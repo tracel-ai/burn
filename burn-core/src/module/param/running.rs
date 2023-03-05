@@ -1,6 +1,6 @@
 use alloc::{string::ToString, sync::Arc, vec, vec::Vec};
 
-use super::{load_with_id, state_with_id};
+use super::{load_with_id, state_with_id, ParamId};
 use crate::module::{
     ADModule, LoadingError, Module, ModuleVisitor, ModuleVisitorMut, Param, State,
 };
@@ -46,6 +46,17 @@ pub struct RunningState<V> {
     value: Arc<RwLock<V>>,
 }
 
+impl<B: Backend, const D: usize> From<RunningState<Tensor<B, D>>>
+    for Param<RunningState<Tensor<B, D>>>
+{
+    fn from(value: RunningState<Tensor<B, D>>) -> Self {
+        Param {
+            id: ParamId::new(),
+            value,
+        }
+    }
+}
+
 impl<const D: usize, B: Backend> Module for Param<RunningState<Tensor<B, D>>> {
     type Backend = B;
 
@@ -69,7 +80,7 @@ impl<const D: usize, B: Backend> Module for Param<RunningState<Tensor<B, D>>> {
         self
     }
 
-    fn state(&self) -> State<B::Elem> {
+    fn state(&self) -> State<B::FloatElem> {
         self.sync();
 
         let tensor = self.value.value.read().unwrap();
@@ -78,7 +89,7 @@ impl<const D: usize, B: Backend> Module for Param<RunningState<Tensor<B, D>>> {
         state_with_id(self.id.clone(), state)
     }
 
-    fn load(mut self, state: &State<B::Elem>) -> Result<Self, LoadingError> {
+    fn load(mut self, state: &State<B::FloatElem>) -> Result<Self, LoadingError> {
         let (id, state) = load_with_id(state)?;
         self.sync();
 

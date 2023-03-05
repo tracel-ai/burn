@@ -23,7 +23,7 @@ pub struct SgdConfig {
 ///
 /// Momentum is optinal and can be [configured](SgdConfig::momentum).
 pub struct Sgd<B: ADBackend> {
-    learning_rate: B::Elem,
+    learning_rate: B::FloatElem,
     momentum: Option<Momentum<B>>,
     weight_decay: Option<WeightDecay<B>>,
 }
@@ -69,7 +69,11 @@ impl<B: ADBackend> Optimizer for Sgd<B> {
         })
     }
 
-    fn register_param_state<const D: usize>(&self, id: &ParamId, state: &mut StateNamed<B::Elem>) {
+    fn register_param_state<const D: usize>(
+        &self,
+        id: &ParamId,
+        state: &mut StateNamed<B::FloatElem>,
+    ) {
         if let Some(momentum) = &self.momentum {
             momentum.register_state::<D>(id, state);
         }
@@ -82,7 +86,7 @@ impl<B: ADBackend> Optimizer for Sgd<B> {
     fn load_param_state<const D: usize>(
         &mut self,
         id: &ParamId,
-        state: &StateNamed<B::Elem>,
+        state: &StateNamed<B::FloatElem>,
         device: &B::Device,
     ) {
         if let Some(momentum) = &mut self.momentum {

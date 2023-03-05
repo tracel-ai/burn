@@ -1,6 +1,6 @@
 use burn::{
     data::{dataloader::batcher::Batcher, dataset::source::huggingface::MNISTItem},
-    tensor::{backend::Backend, Data, Tensor},
+    tensor::{backend::Backend, Data, Int, Tensor},
 };
 
 pub struct MNISTBatcher<B: Backend> {
@@ -10,7 +10,7 @@ pub struct MNISTBatcher<B: Backend> {
 #[derive(Clone, Debug)]
 pub struct MNISTBatch<B: Backend> {
     pub images: Tensor<B, 3>,
-    pub targets: Tensor<B::IntegerBackend, 1>,
+    pub targets: Tensor<B, 1, Int>,
 }
 
 impl<B: Backend> MNISTBatcher<B> {
@@ -31,11 +31,11 @@ impl<B: Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
 
         let targets = items
             .iter()
-            .map(|item| Tensor::<B::IntegerBackend, 1>::from_data(Data::from([item.label as i64])))
+            .map(|item| Tensor::<B, 1, Int>::from_data(Data::from([item.label as i64])))
             .collect();
 
-        let images = Tensor::cat(images, 0).to_device(&self.device).detach();
-        let targets = Tensor::cat(targets, 0).to_device(&self.device).detach();
+        let images = Tensor::cat(images, 0).to_device(&self.device);
+        let targets = Tensor::cat(targets, 0).to_device(&self.device);
 
         MNISTBatch { images, targets }
     }

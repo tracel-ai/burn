@@ -1,15 +1,15 @@
 #[burn_tensor_testgen::testgen(ad_cat)]
 mod tests {
     use super::*;
-    use burn_tensor::Data;
+    use burn_tensor::{Data, Float};
 
     #[test]
     fn should_diff_cat() {
         let data_1 = Data::<_, 2>::from([[2.0, -1.0], [5.0, 2.0]]);
         let data_2 = Data::<_, 2>::from([[5.0, 4.0], [-1.0, 4.0]]);
 
-        let tensor_1 = TestADTensor::from_data(data_1);
-        let tensor_2 = TestADTensor::from_data(data_2);
+        let tensor_1 = TestADTensor::from_data(data_1).require_grad();
+        let tensor_2 = TestADTensor::from_data(data_2).require_grad();
 
         let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
         let grads = tensor_3.backward();
@@ -21,8 +21,8 @@ mod tests {
         let mut tensor_2_list = Vec::new();
 
         for i in 0..2 {
-            tensor_1_list.push(tensor_1.clone().index([i..i + 1]).detach());
-            tensor_2_list.push(tensor_2.clone().index([i..i + 1]).detach());
+            tensor_1_list.push(tensor_1.clone().index([i..i + 1]).detach().require_grad());
+            tensor_2_list.push(tensor_2.clone().index([i..i + 1]).detach().require_grad());
         }
 
         let tensor_1_cat = TestADTensor::cat(tensor_1_list.clone(), 0);
@@ -31,7 +31,7 @@ mod tests {
         let tensor_3_cat = tensor_1_cat.clone().matmul(tensor_2_cat.clone());
         let grads_cat = tensor_3_cat.backward();
 
-        let grad = |tensor: Option<&TestADTensor<2>>| {
+        let grad = |tensor: Option<&TestADTensor<2, Float>>| {
             tensor
                 .map(|tensor| tensor.grad(&grads_cat).unwrap())
                 .unwrap()

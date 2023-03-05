@@ -15,7 +15,7 @@ pub struct ADTensor<B: Backend, const D: usize> {
     pub graph: Graph,
 }
 
-pub type Elem<B> = <ADBackendDecorator<B> as Backend>::Elem;
+pub type FloatElem<B> = <ADBackendDecorator<B> as Backend>::FloatElem;
 pub type BoolTensor<B, const D: usize> = <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D>;
 pub type IntTensor<B, const D: usize> =
     <<ADBackendDecorator<B> as Backend>::IntegerBackend as Backend>::TensorPrimitive<D>;
@@ -40,12 +40,12 @@ impl<B: Backend, const D: usize> ADTensor<B, D> {
     pub fn new(primitive: B::TensorPrimitive<D>) -> Self {
         let id = NodeID::new();
         let node = Node::new(vec![], 0, id, Requirement::None);
-        let tensor = Self {
+
+        Self {
             primitive,
             node: node.into(),
             graph: Graph::new(),
-        };
-        tensor.require_grad()
+        }
     }
 
     pub fn is_tracked(&self) -> bool {
@@ -64,9 +64,9 @@ impl<B: Backend, const D: usize> ADTensor<B, D> {
                 panic!("Can't convert a non leaf tensor into a tracked tensor")
             }
             Requirement::None => {
-                let node = Node::new(vec![], 0, self.node.id.clone(), Requirement::Grad);
-                self.node = node.into();
+                self.node = Node::new(vec![], 0, self.node.id.clone(), Requirement::Grad).into();
                 let ops = RootStep::new(self.node.clone());
+
                 self.register_step(ops)
             }
         }

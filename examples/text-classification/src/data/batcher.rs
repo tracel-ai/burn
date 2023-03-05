@@ -2,7 +2,7 @@ use super::{dataset::TextClassificationItem, tokenizer::Tokenizer};
 use burn::{
     data::dataloader::batcher::Batcher,
     nn::attention::generate_padding_mask,
-    tensor::{backend::Backend, BoolTensor, Data, Tensor},
+    tensor::{backend::Backend, Bool, Data, Int, Tensor},
 };
 use std::sync::Arc;
 
@@ -15,9 +15,9 @@ pub struct TextClassificationBatcher<B: Backend> {
 
 #[derive(Debug, Clone, new)]
 pub struct TextClassificationBatch<B: Backend> {
-    pub tokens: Tensor<B::IntegerBackend, 2>,
-    pub labels: Tensor<B::IntegerBackend, 1>,
-    pub mask_pad: BoolTensor<B, 2>,
+    pub tokens: Tensor<B, 2, Int>,
+    pub labels: Tensor<B, 1, Int>,
+    pub mask_pad: Tensor<B, 2, Bool>,
 }
 
 impl<B: Backend> Batcher<TextClassificationItem, TextClassificationBatch<B>>
@@ -40,8 +40,8 @@ impl<B: Backend> Batcher<TextClassificationItem, TextClassificationBatch<B>>
         );
 
         TextClassificationBatch {
-            tokens: mask.tensor.to_device(&self.device).detach(),
-            labels: Tensor::cat(labels_list, 0).to_device(&self.device).detach(),
+            tokens: mask.tensor.to_device(&self.device),
+            labels: Tensor::cat(labels_list, 0).to_device(&self.device),
             mask_pad: mask.mask.to_device(&self.device),
         }
     }

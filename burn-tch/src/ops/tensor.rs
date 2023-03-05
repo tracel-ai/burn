@@ -98,14 +98,14 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
 
     fn to_data<const D: usize>(
         tensor: &<TchBackend<E> as Backend>::TensorPrimitive<D>,
-    ) -> Data<<TchBackend<E> as Backend>::Elem, D> {
+    ) -> Data<<TchBackend<E> as Backend>::FloatElem, D> {
         let values: Vec<E> = tensor.tensor.shallow_clone().into();
         Data::new(values, tensor.shape())
     }
 
     fn into_data<const D: usize>(
         tensor: <TchBackend<E> as Backend>::TensorPrimitive<D>,
-    ) -> Data<<TchBackend<E> as Backend>::Elem, D> {
+    ) -> Data<<TchBackend<E> as Backend>::FloatElem, D> {
         let shape = tensor.shape();
         let values: Vec<E> = match Arc::try_unwrap(tensor.tensor) {
             Ok(tensor) => tensor.into(),
@@ -162,6 +162,10 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
             tensor: Arc::new(tensor),
             kind: TchKind::new(),
         }
+    }
+
+    fn bool_device<const D: usize>(tensor: &TchTensor<bool, D>) -> TchDevice {
+        tensor.tensor.device().into()
     }
 
     fn device<const D: usize>(tensor: &TchTensor<E, D>) -> TchDevice {

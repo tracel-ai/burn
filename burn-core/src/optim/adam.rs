@@ -30,7 +30,7 @@ pub struct AdamConfig {
 
 /// Adam optimizer as described in the paper [Adam: A Method for Stochastic Optimization](https://arxiv.org/pdf/1412.6980.pdf).
 pub struct Adam<B: ADBackend> {
-    learning_rate: B::Elem,
+    learning_rate: B::FloatElem,
     momentum: AdaptiveMomentum,
     weight_decay: Option<WeightDecay<B>>,
 }
@@ -76,7 +76,11 @@ impl<B: ADBackend> Optimizer for Adam<B> {
         })
     }
 
-    fn register_param_state<const D: usize>(&self, id: &ParamId, state: &mut StateNamed<B::Elem>) {
+    fn register_param_state<const D: usize>(
+        &self,
+        id: &ParamId,
+        state: &mut StateNamed<B::FloatElem>,
+    ) {
         self.momentum.register_state::<B, D>(id, state);
 
         if let Some(weight_decay) = &self.weight_decay {
@@ -87,7 +91,7 @@ impl<B: ADBackend> Optimizer for Adam<B> {
     fn load_param_state<const D: usize>(
         &mut self,
         id: &ParamId,
-        state: &StateNamed<B::Elem>,
+        state: &StateNamed<B::FloatElem>,
         device: &B::Device,
     ) {
         self.momentum.load_state::<B, D>(id, state, device);
@@ -148,7 +152,7 @@ impl AdaptiveMomentum {
     pub fn register_state<B: ADBackend, const D: usize>(
         &self,
         id: &ParamId,
-        state: &mut StateNamed<B::Elem>,
+        state: &mut StateNamed<B::FloatElem>,
     ) {
         register_state_gradients::<D, B, _>(id, state, &self.moment_1, Self::state_key_1);
         register_state_gradients::<D, B, _>(id, state, &self.moment_2, Self::state_key_2);
@@ -158,7 +162,7 @@ impl AdaptiveMomentum {
     pub fn load_state<B: ADBackend, const D: usize>(
         &mut self,
         id: &ParamId,
-        state: &StateNamed<B::Elem>,
+        state: &StateNamed<B::FloatElem>,
         device: &B::Device,
     ) {
         load_state_gradients::<D, B, _>(id, state, &mut self.moment_1, Self::state_key_1, device);
@@ -220,11 +224,13 @@ mod tests {
         let x_1 = Tensor::from_floats([
             [0.6294, 0.0940, 0.8176, 0.8824, 0.5228, 0.4310],
             [0.7152, 0.9559, 0.7893, 0.5684, 0.5939, 0.8883],
-        ]);
+        ])
+        .require_grad();
         let x_2 = Tensor::from_floats([
             [0.8491, 0.2108, 0.8939, 0.4433, 0.5527, 0.2528],
             [0.3270, 0.0412, 0.5538, 0.9605, 0.3195, 0.9085],
-        ]);
+        ])
+        .require_grad();
         let mut optimizer = Adam::new(
             &AdamConfig::new(0.01)
                 .with_epsilon(1e-8)

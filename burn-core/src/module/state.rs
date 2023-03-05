@@ -164,7 +164,7 @@ mod tests {
         let state = model.state();
         let bytes = serde_json::to_vec(&state).unwrap();
 
-        let state_from: State<<crate::TestBackend as Backend>::Elem> =
+        let state_from: State<<crate::TestBackend as Backend>::FloatElem> =
             serde_json::from_slice(&bytes).unwrap();
 
         assert_eq!(state, state_from);

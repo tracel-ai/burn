@@ -20,3 +20,4 @@ burn-tensor = {path = "../burn-tensor"}
 burn-tensor-testgen = {path = "../burn-tensor-testgen", optional = true}
 
 derive-new = {workspace = true, features = ["std"]}# Default enables std
+spin = {workspace = true}
