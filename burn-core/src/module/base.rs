@@ -57,9 +57,7 @@ pub trait Module: Clone + Send + Sync + core::fmt::Debug + core::fmt::Display {
     fn num_params(&self) -> usize;
     /// Visit each tensor in the module with a [visitor](ModuleVisitor).
     fn visit<V: ModuleVisitor<Self::Backend>>(&self, visitor: &mut V);
-    /// Visit each tensor in the module with a [visitor](ModuleVisitorMut).
-    ///
-    /// Note that each tensor is mutable and may be updated by the visitor.
+    /// Map each tensor in the module with a [mapper](ModuleMapper).
     fn map<M: ModuleMapper<Self::Backend>>(self, mapper: &mut M) -> Self;
 }
 

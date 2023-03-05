@@ -1,7 +1,7 @@
 use crate as burn;
 
-use super::visitor::GradientsParams;
-use super::{load_state_gradients, register_state_gradients};
+use super::{load_state_gradients, register_state_gradients, GradientsParams};
+
 use crate::config::Config;
 use crate::module::{ParamId, StateNamed};
 use crate::tensor::backend::ADBackend;

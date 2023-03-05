@@ -2,8 +2,7 @@ use crate as burn;
 
 use super::{
     decay::{WeightDecay, WeightDecayConfig},
-    load_state_gradients, register_state_gradients,
-    visitor::GradientsParams,
+    load_state_gradients, register_state_gradients, GradientsParams,
 };
 use crate::config::Config;
 use crate::module::{ParamId, StateNamed};
@@ -185,7 +184,7 @@ impl AdaptiveMomentum {
 mod tests {
     use super::*;
     use crate::module::{Module, State};
-    use crate::optim::visitor::convert_grads;
+    use crate::optim::convert_grads;
     use crate::tensor::{Data, Distribution, Tensor};
     use crate::{nn, TestADBackend};
 

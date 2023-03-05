@@ -102,7 +102,7 @@ mod tests {
     use super::*;
     use crate::{
         nn::{Linear, LinearConfig},
-        optim::visitor::convert_grads,
+        optim::convert_grads,
         tensor::{Distribution, Shape},
         TestADBackend,
     };

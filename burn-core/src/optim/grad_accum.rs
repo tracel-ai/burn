@@ -1,7 +1,8 @@
 use crate::module::{Module, ModuleVisitor, ParamId};
+
 use burn_tensor::{backend::ADBackend, Tensor};
 
-use super::visitor::GradientsParams;
+use super::GradientsParams;
 
 /// Accumulate gradients into a single [Gradients](ADBackend::Gradients) object.
 pub struct GradientsAccumulator {
@@ -71,7 +72,7 @@ mod tests {
     use super::*;
     use crate::{
         nn::{Linear, LinearConfig},
-        optim::visitor::convert_grads,
+        optim::convert_grads,
         TestADBackend,
     };
     use burn_tensor::Distribution;
