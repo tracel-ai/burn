@@ -54,14 +54,14 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
 
     fn zeros<const D: usize>(shape: Shape<D>, device: &TchDevice) -> TchTensor<E, D> {
         let shape = TchShape::from(shape);
-        let device: tch::Device = device.clone().into();
+        let device: tch::Device = (*device).into();
 
         to_tensor(tch::Tensor::zeros(&shape.dims, (E::KIND, device)))
     }
 
     fn ones<const D: usize>(shape: Shape<D>, device: &TchDevice) -> TchTensor<E, D> {
         let shape = TchShape::from(shape);
-        let device: tch::Device = device.clone().into();
+        let device: tch::Device = (*device).into();
 
         to_tensor(tch::Tensor::ones(&shape.dims, (E::KIND, device)))
     }

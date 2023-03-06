@@ -174,7 +174,7 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
         device: &<TchBackend<E> as Backend>::Device,
     ) -> TchTensor<i64, D> {
         let shape = TchShape::from(shape);
-        let device: tch::Device = device.clone().into();
+        let device: tch::Device = (*device).into();
 
         to_tensor(tch::Tensor::zeros(&shape.dims, (tch::Kind::Int64, device)))
     }
@@ -184,7 +184,7 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
         device: &<TchBackend<E> as Backend>::Device,
     ) -> TchTensor<i64, D> {
         let shape = TchShape::from(shape);
-        let device: tch::Device = device.clone().into();
+        let device: tch::Device = (*device).into();
 
         to_tensor(tch::Tensor::ones(&shape.dims, (tch::Kind::Int64, device)))
     }
