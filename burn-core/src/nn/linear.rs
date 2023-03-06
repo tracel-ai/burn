@@ -43,7 +43,7 @@ impl<B: Backend> Linear<B> {
     /// Create the module from the given configuration.
     pub fn new(config: &LinearConfig) -> Self {
         let k = sqrt(1.0 / config.d_input as f64);
-        let distribution = Distribution::Uniform((-1.0 * k).to_elem(), k.to_elem());
+        let distribution = Distribution::Uniform((-1.0 * k).elem(), k.elem());
 
         let weight = Tensor::random([config.d_input, config.d_output], distribution);
         let bias = match config.bias {

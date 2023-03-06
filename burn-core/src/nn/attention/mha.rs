@@ -325,7 +325,7 @@ mod tests {
             [0..batch_size, seq_length - num_padded..seq_length],
             Tensor::ones([batch_size, num_padded]),
         );
-        let mask_pad = mask_pad.equal_scalar(1);
+        let mask_pad = mask_pad.equal_elem(1);
 
         let tensor_1 = Tensor::<TestBackend, 3>::random(
             [batch_size, seq_length, d_model],

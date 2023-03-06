@@ -31,7 +31,7 @@ impl<B: Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
 
         let targets = items
             .iter()
-            .map(|item| Tensor::<B, 1, Int>::from_data(Data::from([(item.label as i64).to_elem()])))
+            .map(|item| Tensor::<B, 1, Int>::from_data(Data::from([(item.label as i64).elem()])))
             .collect();
 
         let images = Tensor::cat(images, 0).to_device(&self.device);

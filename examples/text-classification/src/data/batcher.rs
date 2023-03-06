@@ -29,9 +29,7 @@ impl<B: Backend> Batcher<TextClassificationItem, TextClassificationBatch<B>>
 
         for item in items {
             tokens_list.push(self.tokenizer.encode(&item.text));
-            labels_list.push(Tensor::from_data(Data::from([
-                (item.label as i64).to_elem()
-            ])));
+            labels_list.push(Tensor::from_data(Data::from([(item.label as i64).elem()])));
         }
 
         let mask = generate_padding_mask(

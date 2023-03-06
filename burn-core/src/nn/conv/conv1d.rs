@@ -64,8 +64,8 @@ impl<B: Backend> Conv1d<B> {
         let k = (config.channels_in * config.kernel_size) as f64;
         let k = sqrt(1.0 / k);
 
-        let k1: B::FloatElem = (-k).to_elem();
-        let k2: B::FloatElem = k.to_elem();
+        let k1: B::FloatElem = (-k).elem();
+        let k2: B::FloatElem = k.elem();
 
         let weight = Tensor::random(
             [config.channels_out, config.channels_in, config.kernel_size],

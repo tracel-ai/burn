@@ -160,7 +160,7 @@ impl<B: Backend> Numeric<B> for Int {
         lhs: Self::Primitive<D>,
         rhs: E,
     ) -> Self::Primitive<D> {
-        B::int_add_scalar(lhs, rhs.to_elem())
+        B::int_add_scalar(lhs, rhs.elem())
     }
     fn sub<const D: usize>(
         lhs: Self::Primitive<D>,
@@ -172,7 +172,7 @@ impl<B: Backend> Numeric<B> for Int {
         lhs: Self::Primitive<D>,
         rhs: E,
     ) -> Self::Primitive<D> {
-        B::int_sub_scalar(lhs, rhs.to_elem())
+        B::int_sub_scalar(lhs, rhs.elem())
     }
     fn div<const D: usize>(
         lhs: Self::Primitive<D>,
@@ -184,7 +184,7 @@ impl<B: Backend> Numeric<B> for Int {
         lhs: Self::Primitive<D>,
         rhs: E,
     ) -> Self::Primitive<D> {
-        B::int_div_scalar(lhs, rhs.to_elem())
+        B::int_div_scalar(lhs, rhs.elem())
     }
     fn mul<const D: usize>(
         lhs: Self::Primitive<D>,
@@ -196,7 +196,7 @@ impl<B: Backend> Numeric<B> for Int {
         lhs: Self::Primitive<D>,
         rhs: E,
     ) -> Self::Primitive<D> {
-        B::int_mul_scalar(lhs, rhs.to_elem())
+        B::int_mul_scalar(lhs, rhs.elem())
     }
     fn neg<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
         B::int_neg(tensor)
@@ -232,7 +232,7 @@ impl<B: Backend> Numeric<B> for Float {
         lhs: Self::Primitive<D>,
         rhs: E,
     ) -> Self::Primitive<D> {
-        B::add_scalar(lhs, rhs.to_elem())
+        B::add_scalar(lhs, rhs.elem())
     }
     fn sub<const D: usize>(
         lhs: Self::Primitive<D>,
@@ -244,7 +244,7 @@ impl<B: Backend> Numeric<B> for Float {
         lhs: Self::Primitive<D>,
         rhs: E,
     ) -> Self::Primitive<D> {
-        B::sub_scalar(lhs, rhs.to_elem())
+        B::sub_scalar(lhs, rhs.elem())
     }
     fn div<const D: usize>(
         lhs: Self::Primitive<D>,
@@ -256,7 +256,7 @@ impl<B: Backend> Numeric<B> for Float {
         lhs: Self::Primitive<D>,
         rhs: E,
     ) -> Self::Primitive<D> {
-        B::div_scalar(lhs, rhs.to_elem())
+        B::div_scalar(lhs, rhs.elem())
     }
     fn mul<const D: usize>(
         lhs: Self::Primitive<D>,
@@ -268,7 +268,7 @@ impl<B: Backend> Numeric<B> for Float {
         lhs: Self::Primitive<D>,
         rhs: E,
     ) -> Self::Primitive<D> {
-        B::mul_scalar(lhs, rhs.to_elem())
+        B::mul_scalar(lhs, rhs.elem())
     }
     fn neg<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
         B::neg(tensor)

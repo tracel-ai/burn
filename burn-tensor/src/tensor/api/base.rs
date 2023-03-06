@@ -150,9 +150,9 @@ where
     }
 
     /// Applies element wise equal comparison and returns a boolean tensor.
-    pub fn equal_scalar<E: Into<K::Elem>>(self, other: E) -> Tensor<B, D, Bool> {
+    pub fn equal_elem<E: Into<K::Elem>>(self, other: E) -> Tensor<B, D, Bool> {
         let elem: K::Elem = other.into();
-        K::equal_scalar::<D>(self.primitive, elem)
+        K::equal_elem::<D>(self.primitive, elem)
     }
 
     /// Concatenates all tensors into a new one along the given dimension.
@@ -206,13 +206,12 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         dim: usize,
         times: usize,
     ) -> Self::Primitive<D>;
+    fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D>;
     fn equal<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, Bool>;
-    fn equal_scalar<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem)
-        -> Tensor<B, D, Bool>;
-    fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D>;
+    fn equal_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool>;
 }
 
 impl<B: Backend> BasicOps<B> for Float {
@@ -277,6 +276,10 @@ impl<B: Backend> BasicOps<B> for Float {
         B::repeat(tensor, dim, times)
     }
 
+    fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D> {
+        B::cat(vectors, dim)
+    }
+
     fn equal<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
@@ -284,15 +287,8 @@ impl<B: Backend> BasicOps<B> for Float {
         Tensor::new(B::equal(lhs, rhs))
     }
 
-    fn equal_scalar<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Elem,
-    ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::equal_scalar(lhs, rhs))
-    }
-
-    fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D> {
-        B::cat(vectors, dim)
+    fn equal_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool> {
+        Tensor::new(B::equal_elem(lhs, rhs))
     }
 }
 
@@ -365,10 +361,7 @@ impl<B: Backend> BasicOps<B> for Int {
         Tensor::new(B::int_equal(lhs, rhs))
     }
 
-    fn equal_scalar<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Elem,
-    ) -> Tensor<B, D, Bool> {
+    fn equal_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool> {
         Tensor::new(B::int_equal_elem(lhs, rhs))
     }
 
@@ -446,10 +439,7 @@ impl<B: Backend> BasicOps<B> for Bool {
         Tensor::new(B::bool_equal(lhs, rhs))
     }
 
-    fn equal_scalar<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Elem,
-    ) -> Tensor<B, D, Bool> {
+    fn equal_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool> {
         Tensor::new(B::bool_equal_elem(lhs, rhs))
     }
 

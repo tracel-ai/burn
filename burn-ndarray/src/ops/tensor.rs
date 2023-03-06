@@ -132,7 +132,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     }
 
     fn neg<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
-        Self::mul_scalar(tensor, (-1f32).to_elem::<E>())
+        Self::mul_scalar(tensor, (-1f32).elem::<E>())
     }
 
     fn swap_dims<const D: usize>(
@@ -174,12 +174,12 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         value: E,
     ) -> NdArrayTensor<E, D> {
         let mask_mul = mask.array.mapv(|x| match x {
-            true => 0.to_elem(),
-            false => 1.to_elem(),
+            true => 0.elem(),
+            false => 1.elem(),
         });
         let mask_add = mask.array.mapv(|x| match x {
             true => value,
-            false => 0.to_elem(),
+            false => 0.elem(),
         });
         let array = (tensor.array * mask_mul) + mask_add;
 
@@ -191,12 +191,12 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
         let tensor = NdArrayBackend::<E>::sub(lhs, rhs);
-        let zero = 0.to_elem();
+        let zero = 0.elem();
 
-        Self::equal_scalar(tensor, zero)
+        Self::equal_elem(tensor, zero)
     }
 
-    fn equal_scalar<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<bool, D> {
+    fn equal_elem<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<bool, D> {
         let array = lhs.array.mapv(|a| a == rhs).into_shared();
 
         NdArrayTensor { array }
@@ -207,7 +207,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
         let tensor = NdArrayBackend::<E>::sub(lhs, rhs);
-        let zero = 0.to_elem();
+        let zero = 0.elem();
         Self::greater_scalar(tensor, zero)
     }
 
@@ -222,7 +222,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
         let tensor = NdArrayBackend::<E>::sub(lhs, rhs);
-        let zero = 0.to_elem();
+        let zero = 0.elem();
         Self::greater_equal_scalar(tensor, zero)
     }
 
@@ -240,7 +240,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
         let tensor = NdArrayBackend::<E>::sub(lhs, rhs);
-        let zero = 0.to_elem();
+        let zero = 0.elem();
         Self::lower_scalar(tensor, zero)
     }
 
@@ -255,7 +255,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
         let tensor = NdArrayBackend::<E>::sub(lhs, rhs);
-        let zero = 0.to_elem();
+        let zero = 0.elem();
         Self::lower_equal_scalar(tensor, zero)
     }
 
@@ -289,13 +289,13 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     }
 
     fn to_full_precision<const D: usize>(tensor: &NdArrayTensor<E, D>) -> NdArrayTensor<f32, D> {
-        let array = tensor.array.mapv(|a| a.to_elem()).into_shared();
+        let array = tensor.array.mapv(|a| a.elem()).into_shared();
 
         NdArrayTensor { array }
     }
 
     fn from_full_precision<const D: usize>(tensor: NdArrayTensor<f32, D>) -> NdArrayTensor<E, D> {
-        let array = tensor.array.mapv(|a| a.to_elem()).into_shared();
+        let array = tensor.array.mapv(|a| a.elem()).into_shared();
 
         NdArrayTensor { array }
     }
@@ -341,7 +341,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     fn cos<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor
             .array
-            .mapv_into(|a| cos(a.to_f64().unwrap()).to_elem())
+            .mapv_into(|a| cos(a.to_f64().unwrap()).elem())
             .into_shared();
 
         NdArrayTensor { array }
@@ -350,7 +350,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     fn sin<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor
             .array
-            .mapv_into(|a| sin(a.to_f64().unwrap()).to_elem())
+            .mapv_into(|a| sin(a.to_f64().unwrap()).elem())
             .into_shared();
 
         NdArrayTensor { array }
@@ -359,7 +359,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     fn tanh<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor
             .array
-            .mapv_into(|a| tanh(a.to_f64().unwrap()).to_elem())
+            .mapv_into(|a| tanh(a.to_f64().unwrap()).elem())
             .into_shared();
 
         NdArrayTensor { array }
@@ -368,7 +368,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     fn erf<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor
             .array
-            .mapv_into(|a| erf(a.to_f64().unwrap()).to_elem())
+            .mapv_into(|a| erf(a.to_f64().unwrap()).elem())
             .into_shared();
 
         NdArrayTensor { array }
@@ -379,11 +379,11 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     }
 
     fn relu<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
-        let zero = 0.to_elem();
+        let zero = 0.elem();
         let array = tensor
             .array
             .mapv_into(|elem| match elem < zero {
-                true => 0.0.to_elem(),
+                true => 0.0.elem(),
                 false => elem,
             })
             .into_shared();
@@ -409,7 +409,7 @@ where
 
     while end <= data.value.len() {
         let data_dim = &mut data.value[start..end];
-        let mut sorted: Vec<f64> = data_dim.iter().map(|a| a.to_elem()).collect();
+        let mut sorted: Vec<f64> = data_dim.iter().map(|a| a.elem()).collect();
         sorted.sort_by(&cmp);
 
         let max = sorted[0];
@@ -417,7 +417,7 @@ where
         let data_dim = &mut data.value[start..end];
         let mut index: i64 = 0;
         for elem in data_dim {
-            let as_float: f64 = elem.to_elem();
+            let as_float: f64 = elem.elem();
             if as_float == max {
                 break;
             }

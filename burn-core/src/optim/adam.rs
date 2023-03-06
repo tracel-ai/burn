@@ -37,7 +37,7 @@ pub struct Adam<B: ADBackend> {
 impl<B: ADBackend> Adam<B> {
     pub fn new(config: &AdamConfig) -> Self {
         Self {
-            learning_rate: config.learning_rate.to_elem(),
+            learning_rate: config.learning_rate.elem(),
             momentum: AdaptiveMomentum {
                 beta_1: config.beta_1,
                 beta_2: config.beta_2,
@@ -139,7 +139,7 @@ impl AdaptiveMomentum {
         self.moment_2.register(id.clone(), moment_2.clone());
         self.time.register(id.clone(), time.clone());
 
-        let time = time.single_value().to_elem();
+        let time = time.single_value().elem();
         let moment_1_corrected = moment_1.div_scalar(1f32 - self.beta_1.powf(time));
         let moment_2_corrected = moment_2.div_scalar(1f32 - self.beta_2.powf(time));
 
