@@ -1,6 +1,4 @@
-use crate::{
-    backend::Backend, ops::TensorOps, ElementConversion, Float, Int, Shape, Tensor, TensorKind,
-};
+use crate::{backend::Backend, ElementConversion, Float, Int, Shape, Tensor, TensorKind};
 
 impl<B, const D: usize, K> Tensor<B, D, K>
 where
@@ -95,16 +93,6 @@ where
         Self::new(K::ones(shape.into(), device))
     }
 
-    /// Create an empty tensor of the given shape.
-    pub fn empty<S: Into<Shape<D>>>(shape: S) -> Self {
-        Self::empty_device(shape, &B::Device::default())
-    }
-
-    /// Create an empty tensor of the given shape.
-    pub fn empty_device<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
-        Self::new(K::empty(shape.into(), device))
-    }
-
     /// Aggregate all elements in the tensor with the mean operation.
     pub fn mean(self) -> Tensor<B, 1, K> {
         Tensor::new(K::mean(self.primitive))
@@ -155,7 +143,6 @@ pub trait Numeric<B: Backend>: TensorKind<B> {
     fn neg<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D>;
     fn zeros<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D>;
     fn ones<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D>;
-    fn empty<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D>;
     fn sum<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1>;
     fn sum_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D>;
     fn mean<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1>;
@@ -167,73 +154,70 @@ impl<B: Backend> Numeric<B> for Int {
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> <Int as TensorKind<B>>::Primitive<D> {
-        B::IntegerBackend::add(lhs, rhs)
+        B::int_add(lhs, rhs)
     }
     fn add_scalar<const D: usize, E: ElementConversion>(
         lhs: Self::Primitive<D>,
         rhs: E,
     ) -> Self::Primitive<D> {
-        B::IntegerBackend::add_scalar(lhs, rhs.to_elem())
+        B::int_add_scalar(lhs, rhs.to_elem())
     }
     fn sub<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> <Int as TensorKind<B>>::Primitive<D> {
-        B::IntegerBackend::sub(lhs, rhs)
+        B::int_sub(lhs, rhs)
     }
     fn sub_scalar<const D: usize, E: ElementConversion>(
         lhs: Self::Primitive<D>,
         rhs: E,
     ) -> Self::Primitive<D> {
-        B::IntegerBackend::sub_scalar(lhs, rhs.to_elem())
+        B::int_sub_scalar(lhs, rhs.to_elem())
     }
     fn div<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> <Int as TensorKind<B>>::Primitive<D> {
-        B::IntegerBackend::div(lhs, rhs)
+        B::int_div(lhs, rhs)
     }
     fn div_scalar<const D: usize, E: ElementConversion>(
         lhs: Self::Primitive<D>,
         rhs: E,
     ) -> Self::Primitive<D> {
-        B::IntegerBackend::div_scalar(lhs, rhs.to_elem())
+        B::int_div_scalar(lhs, rhs.to_elem())
     }
     fn mul<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> <Int as TensorKind<B>>::Primitive<D> {
-        B::IntegerBackend::mul(lhs, rhs)
+        B::int_mul(lhs, rhs)
     }
     fn mul_scalar<const D: usize, E: ElementConversion>(
         lhs: Self::Primitive<D>,
         rhs: E,
     ) -> Self::Primitive<D> {
-        B::IntegerBackend::mul_scalar(lhs, rhs.to_elem())
+        B::int_mul_scalar(lhs, rhs.to_elem())
     }
     fn neg<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
-        B::IntegerBackend::neg(tensor)
+        B::int_neg(tensor)
     }
     fn zeros<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D> {
-        B::IntegerBackend::zeros(shape, device)
+        B::int_zeros(shape, device)
     }
     fn ones<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D> {
-        B::IntegerBackend::ones(shape, device)
-    }
-    fn empty<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D> {
-        B::IntegerBackend::empty(shape, device)
+        B::int_ones(shape, device)
     }
     fn sum<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
-        B::IntegerBackend::sum(tensor)
+        B::int_sum(tensor)
     }
     fn sum_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
-        B::IntegerBackend::sum_dim(tensor, dim)
+        B::int_sum_dim(tensor, dim)
     }
     fn mean<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
-        B::IntegerBackend::mean(tensor)
+        B::int_mean(tensor)
     }
     fn mean_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
-        B::IntegerBackend::mean_dim(tensor, dim)
+        B::int_mean_dim(tensor, dim)
     }
 }
 
@@ -294,9 +278,6 @@ impl<B: Backend> Numeric<B> for Float {
     }
     fn ones<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D> {
         B::ones(shape, device)
-    }
-    fn empty<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D> {
-        B::empty(shape, device)
     }
     fn sum<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
         B::sum(tensor)

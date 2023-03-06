@@ -6,6 +6,7 @@ use crate::tensor::Element;
 pub trait Backend:
     TensorOps<Self>
     + BoolTensorOps<Self>
+    + IntTensorOps<Self>
     + ModuleOps<Self>
     + Clone
     + Sized
@@ -15,26 +16,26 @@ pub trait Backend:
     + core::fmt::Debug
     + 'static
 {
+    /// Device type.
     type Device: Clone + Default + core::fmt::Debug + Send + Sync;
-    type FloatElem: Element;
-    type IntElem: Element;
-    type FullPrecisionElem: Element;
-    type FullPrecisionBackend: Backend<FloatElem = Self::FullPrecisionElem, Device = Self::Device>;
-    type IntegerBackend: Backend<FloatElem = i64, Device = Self::Device>;
-    type TensorPrimitive<const D: usize>: Clone
-        + Send
-        + Sync
-        + Send
-        + Sync
-        + 'static
-        + core::fmt::Debug;
 
-    type BoolTensorPrimitive<const D: usize>: Clone
-        + Send
-        + Sync
-        + 'static
-        + core::fmt::Debug
-        + From<<Self::IntegerBackend as Backend>::BoolTensorPrimitive<D>>;
+    /// Pointer to another backend that have a full precision float element type
+    type FullPrecisionBackend: Backend<FloatElem = Self::FullPrecisionElem, Device = Self::Device>;
+    /// Full precision float element type.
+    type FullPrecisionElem: Element;
+
+    /// Tensor primitive to be used for all float operations.
+    type TensorPrimitive<const D: usize>: Clone + Send + Sync + 'static + core::fmt::Debug;
+    /// Float element type.
+    type FloatElem: Element;
+
+    /// Tensor primitive to be used for all int operations.
+    type IntTensorPrimitive<const D: usize>: Clone + Send + Sync + 'static + core::fmt::Debug;
+    /// Int element type.
+    type IntElem: Element;
+
+    /// Tensor primitive to be used for all bool operations.
+    type BoolTensorPrimitive<const D: usize>: Clone + Send + Sync + 'static + core::fmt::Debug;
 
     fn ad_enabled() -> bool;
     fn name() -> String;

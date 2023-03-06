@@ -27,17 +27,14 @@ pub trait TensorOps<B: Backend> {
         tensor: B::TensorPrimitive<D>,
         device: &B::Device,
     ) -> B::TensorPrimitive<D>;
-    fn arange(
-        range: Range<usize>,
-        device: &B::Device,
-    ) -> <B::IntegerBackend as Backend>::TensorPrimitive<1> {
+    fn arange(range: Range<usize>, device: &B::Device) -> B::IntTensorPrimitive<1> {
         let shape = Shape::new([range.end - range.start]);
         let value = range
             .into_iter()
             .map(|i| (i as i64).to_elem())
-            .collect::<Vec<<B::IntegerBackend as Backend>::FloatElem>>();
+            .collect::<Vec<B::IntElem>>();
         let data = Data::new(value, shape);
-        <B::IntegerBackend as TensorOps<B::IntegerBackend>>::from_data(data, device)
+        B::int_from_data(data, device)
     }
     fn empty<const D: usize>(shape: Shape<D>, device: &B::Device) -> B::TensorPrimitive<D>;
     fn repeat<const D: usize>(
@@ -179,11 +176,11 @@ pub trait TensorOps<B: Backend> {
         // Should only be overriden by autodiff backends.
         tensor
     }
-    fn mean<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<1>;
     fn sum<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<1>;
+    fn sum_dim<const D: usize>(tensor: B::TensorPrimitive<D>, dim: usize) -> B::TensorPrimitive<D>;
+    fn mean<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<1>;
     fn mean_dim<const D: usize>(tensor: B::TensorPrimitive<D>, dim: usize)
         -> B::TensorPrimitive<D>;
-    fn sum_dim<const D: usize>(tensor: B::TensorPrimitive<D>, dim: usize) -> B::TensorPrimitive<D>;
     fn to_full_precision<const D: usize>(
         tensor: &B::TensorPrimitive<D>,
     ) -> <B::FullPrecisionBackend as Backend>::TensorPrimitive<D>;
@@ -193,11 +190,11 @@ pub trait TensorOps<B: Backend> {
     fn argmax<const D: usize>(
         tensor: B::TensorPrimitive<D>,
         dim: usize,
-    ) -> <B::IntegerBackend as Backend>::TensorPrimitive<D>;
+    ) -> B::IntTensorPrimitive<D>;
     fn argmin<const D: usize>(
         tensor: B::TensorPrimitive<D>,
         dim: usize,
-    ) -> <B::IntegerBackend as Backend>::TensorPrimitive<D>;
+    ) -> B::IntTensorPrimitive<D>;
     fn exp<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D>;
     fn log<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D>;
     fn log1p<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D>;

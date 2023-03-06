@@ -16,7 +16,7 @@ impl<B: Backend> TensorKind<B> for Float {
 }
 
 impl<B: Backend> TensorKind<B> for Int {
-    type Primitive<const D: usize> = <B::IntegerBackend as Backend>::TensorPrimitive<D>;
+    type Primitive<const D: usize> = B::IntTensorPrimitive<D>;
 }
 
 impl<B: Backend> TensorKind<B> for Bool {

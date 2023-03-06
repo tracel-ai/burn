@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 use core::ops::Range;
 
-use crate::{backend::Backend, ops::TensorOps, Bool, Data, Float, Int, Shape, TensorKind};
+use crate::{backend::Backend, Bool, Data, Float, Int, Shape, TensorKind};
 
 #[derive(new, Clone, Debug)]
 pub struct Tensor<B, const D: usize, K = Float>
@@ -17,6 +17,16 @@ where
     B: Backend,
     K: BasicOps<B>,
 {
+    /// Create an empty tensor of the given shape.
+    pub fn empty<S: Into<Shape<D>>>(shape: S) -> Self {
+        Self::empty_device(shape, &B::Device::default())
+    }
+
+    /// Create an empty tensor of the given shape.
+    pub fn empty_device<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
+        Self::new(K::empty(shape.into(), device))
+    }
+
     /// Returns the dimensions of the current tensor.
     ///
     /// Equivalent to `tensor.shape().dims`.
@@ -166,6 +176,7 @@ where
 pub trait BasicOps<B: Backend>: TensorKind<B> {
     type Elem;
 
+    fn empty<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D>;
     fn shape<const D: usize>(tensor: &Self::Primitive<D>) -> Shape<D>;
     fn reshape<const D1: usize, const D2: usize>(
         tensor: Self::Primitive<D1>,
@@ -207,6 +218,9 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
 impl<B: Backend> BasicOps<B> for Float {
     type Elem = B::FloatElem;
 
+    fn empty<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D> {
+        B::empty(shape, device)
+    }
     fn shape<const D: usize>(tensor: &Self::Primitive<D>) -> Shape<D> {
         B::shape(tensor)
     }
@@ -283,24 +297,27 @@ impl<B: Backend> BasicOps<B> for Float {
 }
 
 impl<B: Backend> BasicOps<B> for Int {
-    type Elem = <B::IntegerBackend as Backend>::FloatElem;
+    type Elem = B::IntElem;
 
+    fn empty<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D> {
+        B::int_empty(shape, device)
+    }
     fn shape<const D: usize>(tensor: &Self::Primitive<D>) -> Shape<D> {
-        B::IntegerBackend::shape(tensor)
+        B::int_shape(tensor)
     }
 
     fn reshape<const D1: usize, const D2: usize>(
         tensor: Self::Primitive<D1>,
         shape: Shape<D2>,
     ) -> Self::Primitive<D2> {
-        B::IntegerBackend::reshape(tensor, shape)
+        B::int_reshape(tensor, shape)
     }
 
     fn index<const D1: usize, const D2: usize>(
         tensor: Self::Primitive<D1>,
         indexes: [Range<usize>; D2],
     ) -> Self::Primitive<D1> {
-        B::IntegerBackend::index(tensor, indexes)
+        B::int_index(tensor, indexes)
     }
 
     fn index_assign<const D1: usize, const D2: usize>(
@@ -308,29 +325,29 @@ impl<B: Backend> BasicOps<B> for Int {
         indexes: [Range<usize>; D2],
         value: Self::Primitive<D1>,
     ) -> Self::Primitive<D1> {
-        B::IntegerBackend::index_assign(tensor, indexes, value)
+        B::int_index_assign(tensor, indexes, value)
     }
 
     fn device<const D: usize>(tensor: &Self::Primitive<D>) -> <B as Backend>::Device {
-        B::IntegerBackend::device(tensor)
+        B::int_device(tensor)
     }
 
     fn to_device<const D: usize>(
         tensor: Self::Primitive<D>,
         device: &<B as Backend>::Device,
     ) -> Self::Primitive<D> {
-        B::IntegerBackend::to_device(tensor, device)
+        B::int_to_device(tensor, device)
     }
 
     fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Data<Self::Elem, D> {
-        B::IntegerBackend::into_data(tensor)
+        B::int_into_data(tensor)
     }
 
     fn from_data<const D: usize>(
         data: Data<Self::Elem, D>,
         device: &B::Device,
     ) -> Self::Primitive<D> {
-        B::IntegerBackend::from_data(data, device)
+        B::int_from_data(data, device)
     }
 
     fn repeat<const D: usize>(
@@ -338,31 +355,34 @@ impl<B: Backend> BasicOps<B> for Int {
         dim: usize,
         times: usize,
     ) -> Self::Primitive<D> {
-        B::IntegerBackend::repeat(tensor, dim, times)
+        B::int_repeat(tensor, dim, times)
     }
 
     fn equal<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::IntegerBackend::equal(lhs, rhs).into())
+        Tensor::new(B::int_equal(lhs, rhs))
     }
 
     fn equal_scalar<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Elem,
     ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::IntegerBackend::equal_scalar(lhs, rhs).into())
+        Tensor::new(B::int_equal_elem(lhs, rhs))
     }
 
     fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D> {
-        B::IntegerBackend::cat(vectors, dim)
+        B::int_cat(vectors, dim)
     }
 }
 
 impl<B: Backend> BasicOps<B> for Bool {
     type Elem = bool;
 
+    fn empty<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D> {
+        B::bool_empty(shape, device)
+    }
     fn shape<const D: usize>(tensor: &Self::Primitive<D>) -> Shape<D> {
         B::bool_shape(tensor)
     }

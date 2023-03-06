@@ -19,7 +19,7 @@ pub struct MaxPool2dBackward<B: Backend> {
 #[derive(new)]
 pub struct MaxPool2dWithIndexes<B: Backend> {
     pub output: B::TensorPrimitive<4>,
-    pub indexes: <B::IntegerBackend as Backend>::TensorPrimitive<4>,
+    pub indexes: B::IntTensorPrimitive<4>,
 }
 
 /// Gradient computed during the backward pass for each tensor used by [conv1d](ModuleOps::conv1d).
@@ -33,12 +33,12 @@ pub struct Conv1dBackward<B: Backend> {
 pub trait ModuleOps<B: Backend> {
     fn embedding(
         weights: B::TensorPrimitive<2>,
-        indexes: <B::IntegerBackend as Backend>::TensorPrimitive<2>,
+        indexes: B::IntTensorPrimitive<2>,
     ) -> B::TensorPrimitive<3>;
     fn embedding_backward(
         weights: B::TensorPrimitive<2>,
         output: B::TensorPrimitive<3>,
-        indexes: <B::IntegerBackend as Backend>::TensorPrimitive<2>,
+        indexes: B::IntTensorPrimitive<2>,
     ) -> B::TensorPrimitive<2>;
     /// Two dimensional convolution.
     ///
@@ -119,6 +119,6 @@ pub trait ModuleOps<B: Backend> {
         stride: [usize; 2],
         padding: [usize; 2],
         output_grad: B::TensorPrimitive<4>,
-        indexes: <B::IntegerBackend as Backend>::TensorPrimitive<4>,
+        indexes: B::IntTensorPrimitive<4>,
     ) -> MaxPool2dBackward<B>;
 }

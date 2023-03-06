@@ -67,7 +67,7 @@ pub fn max_pool2d_with_indexes<B>(
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
-) -> (Tensor<B, 4>, Tensor<B::IntegerBackend, 4>)
+) -> (Tensor<B, 4>, Tensor<B, 4, Int>)
 where
     B: Backend,
 {
