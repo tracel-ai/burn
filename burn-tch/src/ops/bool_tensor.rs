@@ -1,8 +1,8 @@
-use std::{ops::Range, sync::Arc};
+use std::{marker::PhantomData, ops::Range, sync::Arc};
 
 use burn_tensor::{backend::Backend, ops::BoolTensorOps, Data, Shape};
 
-use crate::{element::TchElement, to_tensor, TchBackend, TchDevice, TchKind, TchShape, TchTensor};
+use crate::{element::TchElement, to_tensor, TchBackend, TchDevice, TchShape, TchTensor};
 
 use super::TchOps;
 
@@ -37,8 +37,8 @@ impl<E: TchElement> BoolTensorOps<TchBackend<E>> for TchBackend<E> {
         device: &TchDevice,
     ) -> TchTensor<bool, D> {
         TchTensor {
-            kind: tensor.kind,
             tensor: Arc::new(tensor.tensor.to((*device).into())),
+            phantom: PhantomData::default(),
         }
     }
 
@@ -54,7 +54,7 @@ impl<E: TchElement> BoolTensorOps<TchBackend<E>> for TchBackend<E> {
 
         TchTensor {
             tensor: Arc::new(tensor),
-            kind: TchKind::new(),
+            phantom: PhantomData::default(),
         }
     }
 
@@ -114,10 +114,8 @@ impl<E: TchElement> BoolTensorOps<TchBackend<E>> for TchBackend<E> {
         to_tensor(tensor)
     }
 
-    fn bool_into_int<const D: usize>(
-        tensor: TchTensor<bool, D>,
-    ) -> <<TchBackend<E> as Backend>::IntegerBackend as Backend>::TensorPrimitive<D> {
-        let tensor = tensor.tensor.to_kind(TchKind::<i64>::new().kind());
+    fn bool_into_int<const D: usize>(tensor: TchTensor<bool, D>) -> TchTensor<i64, D> {
+        let tensor = tensor.tensor.to_kind(E::KIND);
         to_tensor(tensor)
     }
 }
