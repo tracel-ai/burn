@@ -37,7 +37,7 @@ impl<B: Backend> CrossEntropyLoss<B> {
             Tensor::<B, 2>::zeros_device([batch_size, self.num_targets], &device);
 
         for b in 0..batch_size {
-            let index = indexes.value[b] as usize;
+            let index = Into::<i64>::into(indexes.value[b]) as usize;
             if let Some(pad_index) = self.pad_index {
                 if index == pad_index {
                     continue;
