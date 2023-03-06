@@ -2,7 +2,7 @@ use super::{dataset::TextClassificationItem, tokenizer::Tokenizer};
 use burn::{
     data::dataloader::batcher::Batcher,
     nn::attention::generate_padding_mask,
-    tensor::{backend::Backend, Bool, Data, Int, Tensor},
+    tensor::{backend::Backend, Bool, Data, ElementConversion, Int, Tensor},
 };
 use std::sync::Arc;
 
@@ -29,7 +29,9 @@ impl<B: Backend> Batcher<TextClassificationItem, TextClassificationBatch<B>>
 
         for item in items {
             tokens_list.push(self.tokenizer.encode(&item.text));
-            labels_list.push(Tensor::from_data(Data::from([item.label as i64])));
+            labels_list.push(Tensor::from_data(Data::from([
+                (item.label as i64).to_elem()
+            ])));
         }
 
         let mask = generate_padding_mask(

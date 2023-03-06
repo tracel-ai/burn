@@ -1,11 +1,11 @@
-use crate::{element::TchElement, to_tensor, TchBackend, TchTensor};
+use crate::{element::TchElement, TchBackend, TchTensor};
 use burn_tensor::ops::{MaxPool2dBackward, MaxPool2dWithIndexes, ModuleOps};
 
 impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
     fn embedding(weights: TchTensor<E, 2>, indexes: TchTensor<i64, 2>) -> TchTensor<E, 3> {
         let tensor = tch::Tensor::embedding(&weights.tensor, &indexes.tensor, -1, false, false);
 
-        to_tensor(tensor)
+        TchTensor::new(tensor)
     }
 
     fn embedding_backward(
@@ -23,7 +23,7 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
             false,
         );
 
-        to_tensor(tensor)
+        TchTensor::new(tensor)
     }
 
     fn conv1d(
@@ -43,7 +43,7 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
             1,
         );
 
-        to_tensor(tensor)
+        TchTensor::new(tensor)
     }
 
     fn conv2d(
@@ -63,7 +63,7 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
             1,
         );
 
-        to_tensor(tensor)
+        TchTensor::new(tensor)
     }
 
     fn max_pool2d(
@@ -81,7 +81,7 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
             false,
         );
 
-        to_tensor(tensor)
+        TchTensor::new(tensor)
     }
 
     fn max_pool2d_with_indexes(
@@ -99,7 +99,7 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
             false,
         );
 
-        MaxPool2dWithIndexes::new(to_tensor(tensor), to_tensor(indexes))
+        MaxPool2dWithIndexes::new(TchTensor::new(tensor), TchTensor::new(indexes))
     }
 
     fn max_pool2d_with_indexes_backward(
@@ -121,6 +121,6 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
             &indexes.tensor,
         );
 
-        MaxPool2dBackward::new(to_tensor(grad))
+        MaxPool2dBackward::new(TchTensor::new(grad))
     }
 }

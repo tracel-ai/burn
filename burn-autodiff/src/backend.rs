@@ -8,12 +8,16 @@ pub struct ADBackendDecorator<B> {
 
 impl<B: Backend> Backend for ADBackendDecorator<B> {
     type Device = B::Device;
-    type FloatElem = B::FloatElem;
-    type IntElem = B::IntElem;
+
     type FullPrecisionElem = B::FullPrecisionElem;
-    type IntegerBackend = B::IntegerBackend;
     type FullPrecisionBackend = ADBackendDecorator<B::FullPrecisionBackend>;
+
     type TensorPrimitive<const D: usize> = ADTensor<B, D>;
+    type FloatElem = B::FloatElem;
+
+    type IntTensorPrimitive<const D: usize> = B::IntTensorPrimitive<D>;
+    type IntElem = B::IntElem;
+
     type BoolTensorPrimitive<const D: usize> = B::BoolTensorPrimitive<D>;
 
     fn ad_enabled() -> bool {

@@ -34,12 +34,15 @@ pub struct NdArrayBackend<E> {
 
 impl<E: NdArrayElement> Backend for NdArrayBackend<E> {
     type Device = NdArrayDevice;
-    type FloatElem = E;
-    type IntElem = i64;
     type FullPrecisionElem = f32;
     type FullPrecisionBackend = NdArrayBackend<f32>;
-    type IntegerBackend = NdArrayBackend<i64>;
+
     type TensorPrimitive<const D: usize> = NdArrayTensor<E, D>;
+    type FloatElem = E;
+
+    type IntTensorPrimitive<const D: usize> = NdArrayTensor<i64, D>;
+    type IntElem = i64;
+
     type BoolTensorPrimitive<const D: usize> = NdArrayTensor<bool, D>;
 
     fn ad_enabled() -> bool {

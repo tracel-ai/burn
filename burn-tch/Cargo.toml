@@ -16,7 +16,6 @@ doc = ["tch/doc-only"]
 [dependencies]
 burn-tensor = {path = "../burn-tensor"}
 half = {workspace = true}
-lazy_static = {workspace = true}
 rand = {workspace = true, features = ["std"]}
 
 [target.'cfg(not(target_arch = "aarch64"))'.dependencies]

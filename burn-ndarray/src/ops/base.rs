@@ -1,4 +1,5 @@
 use alloc::vec::Vec;
+use burn_tensor::Data;
 use core::{marker::PhantomData, ops::Range};
 
 use burn_tensor::Shape;
@@ -7,9 +8,15 @@ use ndarray::Dim;
 use ndarray::IxDyn;
 use ndarray::SliceInfoElem;
 
+use crate::element::NdArrayElement;
+use crate::ops::macros::{keepdim, mean_dim, sum_dim};
 use crate::{tensor::NdArrayTensor, to_nd_array_tensor};
 
 pub struct NdArrayOps<E> {
+    e: PhantomData<E>,
+}
+
+pub(crate) struct NdArrayMathOps<E> {
     e: PhantomData<E>,
 }
 
@@ -88,5 +95,115 @@ where
             }
         }
         slices
+    }
+}
+
+impl<E> NdArrayMathOps<E>
+where
+    E: Copy + NdArrayElement,
+{
+    pub fn add<const D: usize>(
+        lhs: NdArrayTensor<E, D>,
+        rhs: NdArrayTensor<E, D>,
+    ) -> NdArrayTensor<E, D> {
+        let array = &lhs.array + &rhs.array;
+        let array = array.into_shared();
+
+        NdArrayTensor { array }
+    }
+
+    pub fn add_scalar<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<E, D> {
+        let array = lhs.array + rhs;
+        let array = array.into_shared();
+
+        NdArrayTensor { array }
+    }
+
+    pub fn sub<const D: usize>(
+        lhs: NdArrayTensor<E, D>,
+        rhs: NdArrayTensor<E, D>,
+    ) -> NdArrayTensor<E, D> {
+        let array = lhs.array - rhs.array;
+        let array = array.into_shared();
+
+        NdArrayTensor { array }
+    }
+
+    pub fn sub_scalar<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<E, D> {
+        let array = lhs.array - rhs;
+        let array = array.into_shared();
+
+        NdArrayTensor { array }
+    }
+
+    pub fn mul<const D: usize>(
+        lhs: NdArrayTensor<E, D>,
+        rhs: NdArrayTensor<E, D>,
+    ) -> NdArrayTensor<E, D> {
+        let array = lhs.array * rhs.array;
+        let array = array.into_shared();
+
+        NdArrayTensor { array }
+    }
+
+    pub fn mul_scalar<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<E, D> {
+        let array = lhs.array * rhs;
+        let array = array.into_shared();
+
+        NdArrayTensor { array }
+    }
+
+    pub fn div<const D: usize>(
+        lhs: NdArrayTensor<E, D>,
+        rhs: NdArrayTensor<E, D>,
+    ) -> NdArrayTensor<E, D> {
+        let array = lhs.array / rhs.array;
+        let array = array.into_shared();
+
+        NdArrayTensor { array }
+    }
+
+    pub fn div_scalar<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<E, D> {
+        let array = lhs.array / rhs;
+        let array = array.into_shared();
+
+        NdArrayTensor { array }
+    }
+
+    pub fn mean<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, 1> {
+        let data = Data::from([tensor.array.mean().unwrap()]);
+        NdArrayTensor::from_data(data)
+    }
+
+    pub fn sum<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, 1> {
+        let data = Data::from([tensor.array.sum()]);
+        NdArrayTensor::from_data(data)
+    }
+
+    pub fn mean_dim<const D: usize>(
+        tensor: NdArrayTensor<E, D>,
+        dim: usize,
+    ) -> NdArrayTensor<E, D> {
+        match D {
+            1 => keepdim!(0, dim, tensor, mean),
+            2 => keepdim!(1, dim, tensor, mean),
+            3 => keepdim!(2, dim, tensor, mean),
+            4 => keepdim!(3, dim, tensor, mean),
+            5 => keepdim!(4, dim, tensor, mean),
+            6 => keepdim!(5, dim, tensor, mean),
+            _ => panic!("Dim not supported {D}"),
+        }
+    }
+
+    pub fn sum_dim<const D: usize>(tensor: NdArrayTensor<E, D>, dim: usize) -> NdArrayTensor<E, D> {
+        match D {
+            1 => keepdim!(0, dim, tensor, sum),
+            2 => keepdim!(1, dim, tensor, sum),
+            3 => keepdim!(2, dim, tensor, sum),
+            4 => keepdim!(3, dim, tensor, sum),
+            5 => keepdim!(4, dim, tensor, sum),
+            6 => keepdim!(5, dim, tensor, sum),
+            _ => panic!("Dim not supported {D}"),
+        }
     }
 }

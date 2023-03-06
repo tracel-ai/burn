@@ -3,8 +3,9 @@ use core::ops::Range;
 
 use crate::{backend::Backend, tensor::Shape, Data};
 
+/// Bool Tensor API for basic operations, see [tensor](crate::Tensor)
+/// for documentation on each function.
 pub trait BoolTensorOps<B: Backend> {
-    /// Bool version of empty, see [tensor](crate::Tensor).
     fn bool_empty<const D: usize>(shape: Shape<D>, device: &B::Device)
         -> B::BoolTensorPrimitive<D>;
     fn bool_shape<const D: usize>(tensor: &B::BoolTensorPrimitive<D>) -> Shape<D>;
@@ -16,9 +17,8 @@ pub trait BoolTensorOps<B: Backend> {
         data: Data<bool, D>,
         device: &B::Device,
     ) -> B::BoolTensorPrimitive<D>;
-    fn bool_into_int<const D: usize>(
-        tensor: B::BoolTensorPrimitive<D>,
-    ) -> <B::IntegerBackend as Backend>::TensorPrimitive<D>;
+    fn bool_into_int<const D: usize>(tensor: B::BoolTensorPrimitive<D>)
+        -> B::IntTensorPrimitive<D>;
     fn bool_device<const D: usize>(tensor: &B::BoolTensorPrimitive<D>) -> B::Device;
     fn bool_to_device<const D: usize>(
         tensor: B::BoolTensorPrimitive<D>,

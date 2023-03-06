@@ -1,25 +1,19 @@
 use crate::{element::TchElement, TchBackend, TchDevice};
 use burn_tensor::{ops::TensorOps, Data, Shape};
-use std::sync::Arc;
-
-lazy_static::lazy_static! {
-    static ref NO_GRAD: tch::NoGradGuard = {
-        tch::no_grad_guard()
-    };
-}
+use std::{marker::PhantomData, sync::Arc};
 
 #[derive(Debug, PartialEq)]
 pub struct TchTensor<E: tch::kind::Element, const D: usize> {
-    pub kind: TchKind<E>,
     pub tensor: Arc<tch::Tensor>,
+    phantom: PhantomData<E>,
 }
 
-pub(crate) fn to_tensor<const D: usize, E: tch::kind::Element + Default>(
-    tensor: tch::Tensor,
-) -> TchTensor<E, D> {
-    TchTensor {
-        tensor: Arc::new(tensor),
-        kind: TchKind::new(),
+impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
+    pub fn new(tensor: tch::Tensor) -> Self {
+        Self {
+            tensor: Arc::new(tensor),
+            phantom: PhantomData::default(),
+        }
     }
 }
 
@@ -103,8 +97,8 @@ impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
 impl<P: tch::kind::Element, const D: usize> Clone for TchTensor<P, D> {
     fn clone(&self) -> Self {
         Self {
-            kind: self.kind.clone(),
             tensor: self.tensor.clone(),
+            phantom: PhantomData::default(),
         }
     }
 }
@@ -123,32 +117,13 @@ impl<const D: usize> From<Shape<D>> for TchShape<D> {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
-pub struct TchKind<P: tch::kind::Element> {
-    _p: P,
-}
-
-impl<P: tch::kind::Element + Default> TchKind<P> {
-    pub fn new() -> Self {
-        Self { _p: P::default() }
-    }
-    pub fn kind(&self) -> tch::Kind {
-        P::KIND
-    }
-}
-
-impl<P: tch::kind::Element + Default, const D: usize> TchTensor<P, D> {
-    pub fn from_data(data: Data<P, D>, device: tch::Device) -> Self {
+impl<E: tch::kind::Element + Default, const D: usize> TchTensor<E, D> {
+    pub fn from_data(data: Data<E, D>, device: tch::Device) -> Self {
         let tensor = tch::Tensor::of_slice(data.value.as_slice()).to(device);
         let shape_tch = TchShape::from(data.shape);
-        let kind = TchKind::new();
-        let tensor = tensor.reshape(&shape_tch.dims).to_kind(kind.kind());
+        let tensor = tensor.reshape(&shape_tch.dims).to_kind(E::KIND);
 
-        lazy_static::initialize(&NO_GRAD);
-        let tensor = tensor.set_requires_grad(false);
-        let tensor = Arc::new(tensor);
-
-        Self { kind, tensor }
+        Self::new(tensor)
     }
 }
 
@@ -167,17 +142,12 @@ mod utils {
     }
 }
 
-impl<P: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> TchTensor<P, D> {
+impl<E: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> TchTensor<E, D> {
     pub fn empty(shape: Shape<D>, device: TchDevice) -> Self {
         let shape_tch = TchShape::from(shape);
-        let kind = TchKind::new();
-        let tensor = tch::Tensor::empty(&shape_tch.dims, (kind.kind(), device.into()));
+        let tensor = tch::Tensor::empty(&shape_tch.dims, (E::KIND, device.into()));
 
-        lazy_static::initialize(&NO_GRAD);
-        let tensor = tensor.set_requires_grad(false);
-        let tensor = Arc::new(tensor);
-
-        Self { kind, tensor }
+        Self::new(tensor)
     }
 }
 

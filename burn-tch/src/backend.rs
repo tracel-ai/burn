@@ -56,12 +56,15 @@ pub struct TchBackend<E> {
 
 impl<E: TchElement> Backend for TchBackend<E> {
     type Device = TchDevice;
-    type FloatElem = E;
-    type IntElem = i64;
     type FullPrecisionElem = f32;
     type FullPrecisionBackend = TchBackend<f32>;
-    type IntegerBackend = TchBackend<i64>;
+
     type TensorPrimitive<const D: usize> = TchTensor<E, D>;
+    type FloatElem = E;
+
+    type IntTensorPrimitive<const D: usize> = TchTensor<i64, D>;
+    type IntElem = i64;
+
     type BoolTensorPrimitive<const D: usize> = TchTensor<bool, D>;
 
     fn seed(seed: u64) {

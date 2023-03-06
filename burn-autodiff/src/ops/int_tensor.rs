@@ -1,0 +1,165 @@
+use crate::{
+    tensor::{BoolTensor, IntTensor},
+    ADBackendDecorator,
+};
+
+use burn_tensor::{backend::Backend, ops::IntTensorOps, Data, Shape};
+
+impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
+    fn int_from_data<const D: usize>(
+        data: Data<B::IntElem, D>,
+        device: &B::Device,
+    ) -> IntTensor<B, D> {
+        B::int_from_data(data, device)
+    }
+
+    fn int_shape<const D: usize>(tensor: &IntTensor<B, D>) -> Shape<D> {
+        B::int_shape(tensor)
+    }
+
+    fn int_to_data<const D: usize>(tensor: &IntTensor<B, D>) -> Data<B::IntElem, D> {
+        B::int_to_data(tensor)
+    }
+
+    fn int_into_data<const D: usize>(tensor: IntTensor<B, D>) -> Data<B::IntElem, D> {
+        B::int_into_data(tensor)
+    }
+
+    fn int_to_device<const D: usize>(
+        tensor: IntTensor<B, D>,
+        device: &B::Device,
+    ) -> IntTensor<B, D> {
+        B::int_to_device(tensor, device)
+    }
+
+    fn int_device<const D: usize>(tensor: &IntTensor<B, D>) -> B::Device {
+        B::int_device(tensor)
+    }
+
+    fn int_reshape<const D1: usize, const D2: usize>(
+        tensor: IntTensor<B, D1>,
+        shape: Shape<D2>,
+    ) -> IntTensor<B, D2> {
+        B::int_reshape(tensor, shape)
+    }
+
+    fn int_index<const D1: usize, const D2: usize>(
+        tensor: IntTensor<B, D1>,
+        indexes: [std::ops::Range<usize>; D2],
+    ) -> IntTensor<B, D1> {
+        B::int_index(tensor, indexes)
+    }
+
+    fn int_empty<const D: usize>(
+        shape: Shape<D>,
+        device: &<ADBackendDecorator<B> as Backend>::Device,
+    ) -> IntTensor<B, D> {
+        B::int_empty(shape, device)
+    }
+
+    fn int_index_assign<const D1: usize, const D2: usize>(
+        tensor: IntTensor<B, D1>,
+        indexes: [std::ops::Range<usize>; D2],
+        value: IntTensor<B, D1>,
+    ) -> IntTensor<B, D1> {
+        B::int_index_assign(tensor, indexes, value)
+    }
+
+    fn int_cat<const D: usize>(tensors: Vec<IntTensor<B, D>>, dim: usize) -> IntTensor<B, D> {
+        B::int_cat(tensors, dim)
+    }
+
+    fn int_equal<const D: usize>(lhs: IntTensor<B, D>, rhs: IntTensor<B, D>) -> BoolTensor<B, D> {
+        B::int_equal(lhs, rhs)
+    }
+
+    fn int_equal_elem<const D: usize>(lhs: IntTensor<B, D>, rhs: B::IntElem) -> BoolTensor<B, D> {
+        B::int_equal_elem(lhs, rhs)
+    }
+
+    fn int_add<const D: usize>(lhs: IntTensor<B, D>, rhs: IntTensor<B, D>) -> IntTensor<B, D> {
+        B::int_add(lhs, rhs)
+    }
+
+    fn int_add_scalar<const D: usize>(
+        lhs: IntTensor<B, D>,
+        rhs: <ADBackendDecorator<B> as Backend>::IntElem,
+    ) -> IntTensor<B, D> {
+        B::int_sub_scalar(lhs, rhs)
+    }
+
+    fn int_sub<const D: usize>(lhs: IntTensor<B, D>, rhs: IntTensor<B, D>) -> IntTensor<B, D> {
+        B::int_sub(lhs, rhs)
+    }
+
+    fn int_sub_scalar<const D: usize>(
+        lhs: IntTensor<B, D>,
+        rhs: <ADBackendDecorator<B> as Backend>::IntElem,
+    ) -> IntTensor<B, D> {
+        B::int_sub_scalar(lhs, rhs)
+    }
+
+    fn int_mul<const D: usize>(lhs: IntTensor<B, D>, rhs: IntTensor<B, D>) -> IntTensor<B, D> {
+        B::int_mul(lhs, rhs)
+    }
+
+    fn int_mul_scalar<const D: usize>(
+        lhs: IntTensor<B, D>,
+        rhs: <ADBackendDecorator<B> as Backend>::IntElem,
+    ) -> IntTensor<B, D> {
+        B::int_mul_scalar(lhs, rhs)
+    }
+
+    fn int_div<const D: usize>(lhs: IntTensor<B, D>, rhs: IntTensor<B, D>) -> IntTensor<B, D> {
+        B::int_div(lhs, rhs)
+    }
+
+    fn int_div_scalar<const D: usize>(
+        lhs: IntTensor<B, D>,
+        rhs: <ADBackendDecorator<B> as Backend>::IntElem,
+    ) -> IntTensor<B, D> {
+        B::int_div_scalar(lhs, rhs)
+    }
+
+    fn int_neg<const D: usize>(tensor: IntTensor<B, D>) -> IntTensor<B, D> {
+        B::int_neg(tensor)
+    }
+
+    fn int_zeros<const D: usize>(
+        shape: Shape<D>,
+        device: &<ADBackendDecorator<B> as Backend>::Device,
+    ) -> IntTensor<B, D> {
+        B::int_zeros(shape, device)
+    }
+
+    fn int_ones<const D: usize>(
+        shape: Shape<D>,
+        device: &<ADBackendDecorator<B> as Backend>::Device,
+    ) -> IntTensor<B, D> {
+        B::int_ones(shape, device)
+    }
+
+    fn int_sum<const D: usize>(tensor: IntTensor<B, D>) -> IntTensor<B, 1> {
+        B::int_sum(tensor)
+    }
+
+    fn int_sum_dim<const D: usize>(tensor: IntTensor<B, D>, dim: usize) -> IntTensor<B, D> {
+        B::int_sum_dim(tensor, dim)
+    }
+
+    fn int_mean<const D: usize>(tensor: IntTensor<B, D>) -> IntTensor<B, 1> {
+        B::int_mean(tensor)
+    }
+
+    fn int_mean_dim<const D: usize>(tensor: IntTensor<B, D>, dim: usize) -> IntTensor<B, D> {
+        B::int_mean_dim(tensor, dim)
+    }
+
+    fn int_repeat<const D: usize>(
+        tensor: IntTensor<B, D>,
+        dim: usize,
+        times: usize,
+    ) -> IntTensor<B, D> {
+        B::int_repeat(tensor, dim, times)
+    }
+}

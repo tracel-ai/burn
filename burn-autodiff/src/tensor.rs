@@ -17,8 +17,7 @@ pub struct ADTensor<B: Backend, const D: usize> {
 
 pub type FloatElem<B> = <ADBackendDecorator<B> as Backend>::FloatElem;
 pub type BoolTensor<B, const D: usize> = <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D>;
-pub type IntTensor<B, const D: usize> =
-    <<ADBackendDecorator<B> as Backend>::IntegerBackend as Backend>::TensorPrimitive<D>;
+pub type IntTensor<B, const D: usize> = <ADBackendDecorator<B> as Backend>::IntTensorPrimitive<D>;
 
 #[derive(new, Debug)]
 struct RootStep {

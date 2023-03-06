@@ -19,7 +19,7 @@ pub fn generate_autoregressive_mask<B: Backend>(
 
     mask = mask.to_device(device).repeat(0, batch_size);
 
-    mask.equal_scalar(1_i64.to_elem::<i64>())
+    mask.equal_scalar(1_i64)
 }
 
 pub struct GeneratePaddingMask<B: Backend> {
@@ -67,7 +67,7 @@ pub fn generate_padding_mask<B: Backend>(
         tensor = tensor.index_assign(
             [index..index + 1, 0..tokens.len()],
             Tensor::from_data(Data::new(
-                tokens.into_iter().map(|e| e as i64).collect(),
+                tokens.into_iter().map(|e| (e as i64).to_elem()).collect(),
                 Shape::new([1, seq_length]),
             )),
         );
