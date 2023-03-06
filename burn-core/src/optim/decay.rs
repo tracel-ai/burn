@@ -23,7 +23,7 @@ pub struct WeightDecay<B: ADBackend> {
 impl<B: ADBackend> WeightDecay<B> {
     pub fn new(config: &WeightDecayConfig) -> Self {
         Self {
-            penalty: config.penalty.to_elem(),
+            penalty: config.penalty.elem(),
             gradients: GradientsParams::new(),
         }
     }

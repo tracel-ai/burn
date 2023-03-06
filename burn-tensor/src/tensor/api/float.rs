@@ -272,22 +272,22 @@ where
 
     /// Applies element wise greater comparison and returns a boolean tensor.
     pub fn greater_scalar<E: ElementConversion>(self, other: E) -> Tensor<B, D, Bool> {
-        Tensor::new(B::greater_scalar(self.primitive, other.to_elem()))
+        Tensor::new(B::greater_scalar(self.primitive, other.elem()))
     }
 
     /// Applies element wise greater-equal comparison and returns a boolean tensor.
     pub fn greater_equal_scalar<E: ElementConversion>(self, other: E) -> Tensor<B, D, Bool> {
-        Tensor::new(B::greater_equal_scalar(self.primitive, other.to_elem()))
+        Tensor::new(B::greater_equal_scalar(self.primitive, other.elem()))
     }
 
     /// Applies element wise lower comparison and returns a boolean tensor.
     pub fn lower_scalar<E: ElementConversion>(self, other: E) -> Tensor<B, D, Bool> {
-        Tensor::new(B::lower_scalar(self.primitive, other.to_elem()))
+        Tensor::new(B::lower_scalar(self.primitive, other.elem()))
     }
 
     /// Applies element wise lower-equal comparison and returns a boolean tensor.
     pub fn lower_equal_scalar<E: ElementConversion>(self, other: E) -> Tensor<B, D, Bool> {
-        Tensor::new(B::lower_equal_scalar(self.primitive, other.to_elem()))
+        Tensor::new(B::lower_equal_scalar(self.primitive, other.elem()))
     }
 
     /// Create a random tensor of the given shape where each element is sampled from the given
@@ -299,11 +299,7 @@ where
 
     /// Fill each element with the given value based on the given mask.
     pub fn mask_fill<E: ElementConversion>(self, mask: Tensor<B, D, Bool>, value: E) -> Self {
-        Self::new(B::mask_fill(
-            self.primitive,
-            mask.primitive,
-            value.to_elem(),
-        ))
+        Self::new(B::mask_fill(self.primitive, mask.primitive, value.elem()))
     }
 
     /// Returns a tensor with full precision based on the selected backend.

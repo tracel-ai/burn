@@ -72,7 +72,7 @@ pub(crate) fn conv1d_backward<B: Backend>(
         weight_grad,
         bias.map(|b| {
             let elem = batch_size * length_out;
-            let elem = (elem as i32).to_elem();
+            let elem = (elem as i32).elem();
 
             let b = B::zeros(B::shape(&b), &B::device(&b));
 
@@ -127,7 +127,7 @@ pub(crate) fn conv2d_backward<B: Backend>(
         weight_grad,
         bias.map(|b| {
             let elem = batch_size * width_out * height_out;
-            let elem = (elem as i32).to_elem();
+            let elem = (elem as i32).elem();
 
             let b = B::zeros(B::shape(&b), &B::device(&b));
 

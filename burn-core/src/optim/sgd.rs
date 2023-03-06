@@ -30,7 +30,7 @@ pub struct Sgd<B: ADBackend> {
 
 impl<B: ADBackend> Sgd<B> {
     pub fn new(config: &SgdConfig) -> Self {
-        let learning_rate = config.learning_rate.to_elem();
+        let learning_rate = config.learning_rate.elem();
         let momentum = config.momentum.as_ref().map(|config| Momentum::new(config));
         let weight_decay = config
             .weight_decay

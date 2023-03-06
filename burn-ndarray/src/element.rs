@@ -3,7 +3,13 @@ use libm::{exp, log, log1p, pow, sqrt};
 use libm::{expf, log1pf, logf, powf, sqrtf};
 
 pub(crate) trait NdArrayElement:
-    Element + ndarray::LinalgScalar + ndarray::ScalarOperand + ExpElement + num_traits::FromPrimitive
+    Element
+    + ndarray::LinalgScalar
+    + ndarray::ScalarOperand
+    + ExpElement
+    + num_traits::FromPrimitive
+    + core::cmp::PartialEq
+    + core::cmp::PartialOrd<Self>
 {
 }
 

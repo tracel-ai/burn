@@ -8,35 +8,24 @@ pub trait Element:
     + ElementRandom
     + ElementConversion
     + ElementPrecision
-    + ElementValue
-    + core::ops::Mul<Self, Output = Self>
     + core::fmt::Debug
     + Default
     + Send
     + Sync
     + Copy
-    + core::cmp::PartialOrd<Self>
     + 'static
 {
 }
 
 pub trait ElementConversion {
     fn from_elem<E: ToPrimitive>(elem: E) -> Self;
-    fn to_elem<E: Element>(&self) -> E;
+    fn elem<E: Element>(self) -> E;
 }
 
 pub trait ElementRandom {
     fn random<R: RngCore>(distribution: Distribution<Self>, rng: &mut R) -> Self
     where
         Self: Sized;
-}
-
-pub trait ElementValue {
-    fn inf() -> Self;
-    fn inf_neg() -> Self;
-    fn nan() -> Self;
-    fn zero() -> Self;
-    fn one() -> Self;
 }
 
 #[derive(Clone, PartialEq, Eq, Copy, Debug)]
@@ -55,8 +44,6 @@ pub trait ElementPrecision {
 macro_rules! make_element {
     (
         ty $type:ident $precision:expr,
-        zero $zero:expr,
-        one $one:expr,
         convert $convert:expr,
         random $random:expr
 
@@ -67,26 +54,8 @@ macro_rules! make_element {
             fn from_elem<E: ToPrimitive>(elem: E) -> Self {
                 $convert(&elem)
             }
-            fn to_elem<E: Element>(&self) -> E {
-                E::from_elem(*self)
-            }
-        }
-
-        impl ElementValue for $type {
-            fn inf() -> Self {
-                Self::from_elem(f64::INFINITY)
-            }
-            fn inf_neg() -> Self {
-                Self::from_elem(core::ops::Neg::neg(f64::INFINITY))
-            }
-            fn nan() -> Self {
-                Self::from_elem(f64::NAN)
-            }
-            fn zero() -> Self {
-                $zero
-            }
-            fn one() -> Self {
-                $one
+            fn elem<E: Element>(self) -> E {
+                E::from_elem(self)
             }
         }
 
@@ -101,78 +70,53 @@ macro_rules! make_element {
                 $random(distribution, rng)
             }
         }
-
-            };
-    (
-        float $float:ident $precision:expr,
-        convert $convert:expr,
-        random $random:expr
-    ) => {
-        make_element!(
-            ty $float $precision,
-            zero 0.0,
-            one 1.0,
-            convert $convert,
-            random $random
-        );
-    };
-    (
-        int $int:ident $precision:expr,
-        convert $convert:expr,
-        random $random:expr
-    ) => {
-        make_element!(
-            ty $int $precision,
-            zero 0,
-            one 1,
-            convert $convert,
-            random $random
-        );
     };
 }
 
 make_element!(
-    float f64 Precision::Double,
+    ty f64 Precision::Double,
     convert |elem: &dyn ToPrimitive| elem.to_f64().unwrap(),
     random |distribution: Distribution<f64>, rng: &mut R| distribution.sampler(rng).sample()
 );
 
 make_element!(
-    float f32 Precision::Full,
+    ty f32 Precision::Full,
     convert |elem: &dyn ToPrimitive| elem.to_f32().unwrap(),
     random |distribution: Distribution<f32>, rng: &mut R| distribution.sampler(rng).sample()
 );
 
 make_element!(
-    int i64 Precision::Double,
+    ty i64 Precision::Double,
     convert |elem: &dyn ToPrimitive| elem.to_i64().unwrap(),
     random |distribution: Distribution<i64>, rng: &mut R| distribution.sampler(rng).sample()
 );
+
 make_element!(
-    int i32 Precision::Full,
+    ty i32 Precision::Full,
     convert |elem: &dyn ToPrimitive| elem.to_i32().unwrap(),
     random |distribution: Distribution<i32>, rng: &mut R| distribution.sampler(rng).sample()
 );
+
 make_element!(
-    int i16 Precision::Half,
+    ty i16 Precision::Half,
     convert |elem: &dyn ToPrimitive| elem.to_i16().unwrap(),
     random |distribution: Distribution<i16>, rng: &mut R| distribution.sampler(rng).sample()
 );
+
 make_element!(
-    int i8 Precision::Other,
+    ty i8 Precision::Other,
     convert |elem: &dyn ToPrimitive| elem.to_i8().unwrap(),
     random |distribution: Distribution<i8>, rng: &mut R| distribution.sampler(rng).sample()
 );
 
 make_element!(
-    int u8 Precision::Other,
+    ty u8 Precision::Other,
     convert |elem: &dyn ToPrimitive| elem.to_u8().unwrap(),
     random |distribution: Distribution<u8>, rng: &mut R| distribution.sampler(rng).sample()
 );
+
 make_element!(
     ty f16 Precision::Half,
-    zero <f16 as num_traits::Zero>::zero(),
-    one <f16 as num_traits::One>::one(),
     convert |elem: &dyn ToPrimitive| f16::from_f32(elem.to_f32().unwrap()),
     random |distribution: Distribution<f16>, rng: &mut R| {
         let distribution: Distribution<f32> = distribution.convert();

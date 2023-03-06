@@ -31,7 +31,7 @@ pub trait TensorOps<B: Backend> {
         let shape = Shape::new([range.end - range.start]);
         let value = range
             .into_iter()
-            .map(|i| (i as i64).to_elem())
+            .map(|i| (i as i64).elem())
             .collect::<Vec<B::IntElem>>();
         let data = Data::new(value, shape);
         B::int_from_data(data, device)
@@ -132,7 +132,7 @@ pub trait TensorOps<B: Backend> {
         lhs: B::TensorPrimitive<D>,
         rhs: B::TensorPrimitive<D>,
     ) -> B::BoolTensorPrimitive<D>;
-    fn equal_scalar<const D: usize>(
+    fn equal_elem<const D: usize>(
         lhs: B::TensorPrimitive<D>,
         rhs: B::FloatElem,
     ) -> B::BoolTensorPrimitive<D>;

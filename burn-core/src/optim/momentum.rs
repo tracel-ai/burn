@@ -31,7 +31,7 @@ pub struct Momentum<B: ADBackend> {
 impl<B: ADBackend> Momentum<B> {
     pub fn new(config: &MomentumConfig) -> Self {
         Self {
-            momentum: config.momentum.to_elem(),
+            momentum: config.momentum.elem(),
             dampening: config.dampening,
             velocity: GradientsParams::new(),
             nesterov: config.nesterov,

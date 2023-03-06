@@ -512,7 +512,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
-                    B::mask_fill(grad, ops.state, 0.to_elem())
+                    B::mask_fill(grad, ops.state, 0.elem())
                 });
             }
         }
@@ -529,8 +529,8 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         B::equal(lhs.primitive, rhs.primitive)
     }
 
-    fn equal_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: FloatElem<B>) -> BoolTensor<B, D> {
-        B::equal_scalar(lhs.primitive, rhs)
+    fn equal_elem<const D: usize>(lhs: ADTensor<B, D>, rhs: FloatElem<B>) -> BoolTensor<B, D> {
+        B::equal_elem(lhs.primitive, rhs)
     }
 
     fn greater<const D: usize>(lhs: ADTensor<B, D>, rhs: ADTensor<B, D>) -> BoolTensor<B, D> {
@@ -596,7 +596,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     let shape = ops.state;
                     let val = 1_f64 / shape.num_elements() as f64;
                     let ones = B::ones(shape, &B::device(&grad));
-                    let val = B::mul_scalar(ones, val.to_elem());
+                    let val = B::mul_scalar(ones, val.elem());
 
                     let grad: Tensor<B, 1> = Tensor::from_primitive(grad);
                     let val: Tensor<B, D> = Tensor::from_primitive(val);
@@ -821,7 +821,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
                     let input = ops.state;
                     let ones = B::ones(B::shape(&input), &B::device(&input));
-                    let value = B::div(ones, B::add_scalar(input, 1.to_elem()));
+                    let value = B::div(ones, B::add_scalar(input, 1.elem()));
 
                     B::mul(grad, value)
                 });
@@ -848,7 +848,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
                     let tmp = B::powf(tensor, value - 1.0);
-                    let value = B::mul_scalar(tmp, value.to_elem());
+                    let value = B::mul_scalar(tmp, value.elem());
 
                     B::mul(grad, value)
                 });
@@ -874,7 +874,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
                     let input = ops.state;
-                    let value = B::div_scalar(B::powf(input, -0.5), 2.to_elem());
+                    let value = B::div_scalar(B::powf(input, -0.5), 2.elem());
 
                     B::mul(grad, value)
                 });
@@ -946,7 +946,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
-                    let value = B::add_scalar(B::neg(B::powf(ops.state, 2.0)), 1.to_elem());
+                    let value = B::add_scalar(B::neg(B::powf(ops.state, 2.0)), 1.elem());
                     B::mul(grad, value)
                 });
             }
@@ -971,8 +971,8 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
                     let exponent = B::neg(B::powf(ops.state, 2.0));
-                    let numerator = B::mul_scalar(B::exp(exponent), 2.0.to_elem());
-                    let denominator = std::f64::consts::PI.sqrt().to_elem();
+                    let numerator = B::mul_scalar(B::exp(exponent), 2.0.elem());
+                    let denominator = std::f64::consts::PI.sqrt().elem();
                     let value = B::div_scalar(numerator, denominator);
 
                     B::mul(grad, value)
@@ -1055,7 +1055,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
-                    let zero = 0.to_elem();
+                    let zero = 0.elem();
                     let mask = B::lower_equal_scalar(ops.state, zero);
                     B::mask_fill(grad, mask, zero)
                 });

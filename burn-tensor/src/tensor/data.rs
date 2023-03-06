@@ -61,14 +61,12 @@ where
             DistributionSamplerKind::Uniform(distribution) => self.rng.sample(distribution),
             DistributionSamplerKind::Bernoulli(distribution) => {
                 if self.rng.sample(distribution) {
-                    1.to_elem()
+                    1.elem()
                 } else {
-                    0.to_elem()
+                    0.elem()
                 }
             }
-            DistributionSamplerKind::Normal(distribution) => {
-                self.rng.sample(distribution).to_elem()
-            }
+            DistributionSamplerKind::Normal(distribution) => self.rng.sample(distribution).elem(),
         }
     }
 }
@@ -114,7 +112,7 @@ where
 
 impl<const D: usize, P: Element> Data<P, D> {
     pub fn convert<E: Element>(self) -> Data<E, D> {
-        let value: Vec<E> = self.value.into_iter().map(|a| a.to_elem()).collect();
+        let value: Vec<E> = self.value.into_iter().map(|a| a.elem()).collect();
 
         Data {
             value,
@@ -125,7 +123,7 @@ impl<const D: usize, P: Element> Data<P, D> {
 
 impl<P: Element> DataSerialize<P> {
     pub fn convert<E: Element>(self) -> DataSerialize<E> {
-        let value: Vec<E> = self.value.into_iter().map(|a| a.to_elem()).collect();
+        let value: Vec<E> = self.value.into_iter().map(|a| a.elem()).collect();
 
         DataSerialize {
             value,
@@ -136,11 +134,7 @@ impl<P: Element> DataSerialize<P> {
 
 impl<const D: usize> Data<bool, D> {
     pub fn convert<E: Element>(self) -> Data<E, D> {
-        let value: Vec<E> = self
-            .value
-            .into_iter()
-            .map(|a| (a as i64).to_elem())
-            .collect();
+        let value: Vec<E> = self.value.into_iter().map(|a| (a as i64).elem()).collect();
 
         Data {
             value,
@@ -170,7 +164,7 @@ where
         let mut data = Vec::with_capacity(num_elements);
 
         for _ in 0..num_elements {
-            data.push(0.to_elem());
+            data.push(0.elem());
         }
 
         Data::new(data, shape)
@@ -189,7 +183,7 @@ where
         let mut data = Vec::with_capacity(num_elements);
 
         for _ in 0..num_elements {
-            data.push(1.to_elem());
+            data.push(1.elem());
         }
 
         Data::new(data, shape)
