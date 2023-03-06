@@ -66,7 +66,7 @@ impl<E: NdArrayElement> BoolTensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
 
     fn bool_into_int<const D: usize>(
         tensor: <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D>,
-    ) -> <<NdArrayBackend<E> as Backend>::IntegerBackend as Backend>::TensorPrimitive<D> {
+    ) -> NdArrayTensor<i64, D> {
         let data = Self::bool_into_data(tensor);
         NdArrayBackend::<i64>::from_data(data.convert(), &NdArrayDevice::Cpu)
     }
