@@ -1,5 +1,5 @@
-use crate::{to_tensor, TchShape, TchTensor};
-use std::{marker::PhantomData, ops::Range, sync::Arc};
+use crate::{TchShape, TchTensor};
+use std::{marker::PhantomData, ops::Range};
 
 pub struct TchOps<E: tch::kind::Element + Copy + Default> {
     e: PhantomData<E>,
@@ -17,12 +17,8 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
             let length = (index.end - index.start) as i64;
             tensor = tensor.narrow(i as i64, start, length);
         }
-        let tensor = Arc::new(tensor);
 
-        TchTensor {
-            tensor,
-            phantom: PhantomData::default(),
-        }
+        TchTensor::new(tensor)
     }
 
     pub fn index_assign<const D1: usize, const D2: usize>(
@@ -44,10 +40,7 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
 
         tensor.copy_(&value.tensor);
 
-        TchTensor {
-            tensor: Arc::new(tensor_original),
-            phantom: PhantomData::default(),
-        }
+        TchTensor::new(tensor_original)
     }
 
     pub fn cat<const D: usize>(tensors: Vec<TchTensor<E, D>>, dim: usize) -> TchTensor<E, D> {
@@ -57,7 +50,7 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
             .collect();
         let tensor = tch::Tensor::cat(&tensors, dim as i64);
 
-        to_tensor(tensor)
+        TchTensor::new(tensor)
     }
 
     pub fn equal<const D: usize>(lhs: TchTensor<E, D>, rhs: TchTensor<E, D>) -> TchTensor<bool, D> {
@@ -69,7 +62,7 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
             |lhs, rhs| lhs.eq_tensor(rhs),
         );
 
-        to_tensor(tensor)
+        TchTensor::new(tensor)
     }
 
     pub fn add<const D: usize>(lhs: TchTensor<E, D>, rhs: TchTensor<E, D>) -> TchTensor<E, D> {
@@ -81,7 +74,7 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
             |lhs, rhs| lhs.f_add(rhs).unwrap(),
         );
 
-        to_tensor(tensor)
+        TchTensor::new(tensor)
     }
 
     pub fn sub<const D: usize>(lhs: TchTensor<E, D>, rhs: TchTensor<E, D>) -> TchTensor<E, D> {
@@ -93,7 +86,7 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
             |lhs, rhs| lhs.f_sub(rhs).unwrap(),
         );
 
-        to_tensor(tensor)
+        TchTensor::new(tensor)
     }
 
     pub fn mul<const D: usize>(lhs: TchTensor<E, D>, rhs: TchTensor<E, D>) -> TchTensor<E, D> {
@@ -104,7 +97,7 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
             |lhs, rhs| rhs.f_mul_(lhs).unwrap(),
             |lhs, rhs| lhs.f_mul(rhs).unwrap(),
         );
-        to_tensor(tensor)
+        TchTensor::new(tensor)
     }
 
     pub fn div<const D: usize>(lhs: TchTensor<E, D>, rhs: TchTensor<E, D>) -> TchTensor<E, D> {
@@ -116,30 +109,30 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
             |lhs, rhs| lhs.f_div(rhs).unwrap(),
         );
 
-        to_tensor(tensor)
+        TchTensor::new(tensor)
     }
 
     pub fn mean<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, 1> {
         let tensor = tensor.tensor.mean(E::KIND);
-        to_tensor(tensor)
+        TchTensor::new(tensor)
     }
 
     pub fn sum<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, 1> {
         let tensor = tensor.tensor.sum(E::KIND);
-        to_tensor(tensor)
+        TchTensor::new(tensor)
     }
 
     pub fn mean_dim<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<E, D> {
         let tensor = tensor
             .tensor
             .mean_dim(Some([dim as i64].as_slice()), true, E::KIND);
-        to_tensor(tensor)
+        TchTensor::new(tensor)
     }
 
     pub fn sum_dim<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<E, D> {
         let tensor = tensor
             .tensor
             .sum_dim_intlist(Some([dim as i64].as_slice()), true, E::KIND);
-        to_tensor(tensor)
+        TchTensor::new(tensor)
     }
 }

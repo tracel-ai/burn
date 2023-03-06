@@ -1,8 +1,8 @@
-use std::{marker::PhantomData, ops::Range, sync::Arc};
+use std::ops::Range;
 
 use burn_tensor::{backend::Backend, ops::IntTensorOps, Data, Shape};
 
-use crate::{element::TchElement, to_tensor, TchBackend, TchDevice, TchShape, TchTensor};
+use crate::{element::TchElement, TchBackend, TchDevice, TchShape, TchTensor};
 
 use super::TchOps;
 
@@ -33,10 +33,7 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
         tensor: TchTensor<i64, D>,
         device: &TchDevice,
     ) -> TchTensor<i64, D> {
-        TchTensor {
-            tensor: Arc::new(tensor.tensor.to((*device).into())),
-            phantom: PhantomData::default(),
-        }
+        TchTensor::new(tensor.tensor.to((*device).into()))
     }
 
     fn int_reshape<const D1: usize, const D2: usize>(
@@ -49,10 +46,7 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
             |tensor| tensor.reshape(&shape_tch.dims),
         );
 
-        TchTensor {
-            tensor: Arc::new(tensor),
-            phantom: PhantomData::default(),
-        }
+        TchTensor::new(tensor)
     }
 
     fn int_device<const D: usize>(tensor: &TchTensor<i64, D>) -> TchDevice {
@@ -65,10 +59,10 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
     ) -> TchTensor<i64, D> {
         let tensor = tch::Tensor::empty(
             &shape.dims.map(|a| a as i64),
-            (tch::Kind::Bool, (*device).into()),
+            (tch::Kind::Int64, (*device).into()),
         );
 
-        to_tensor(tensor)
+        TchTensor::new(tensor)
     }
 
     fn int_index<const D1: usize, const D2: usize>(
@@ -102,7 +96,7 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
             |tensor| tensor.eq(rhs),
         );
 
-        to_tensor(tensor)
+        TchTensor::new(tensor)
     }
 
     fn int_add<const D: usize>(
@@ -117,7 +111,7 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
             |mut tensor| tensor.f_add_scalar_(rhs).unwrap(),
             |tensor| tensor.f_add_scalar(rhs).unwrap(),
         );
-        to_tensor(tensor)
+        TchTensor::new(tensor)
     }
 
     fn int_sub<const D: usize>(
@@ -132,7 +126,7 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
             |mut tensor| tensor.f_sub_scalar_(rhs).unwrap(),
             |tensor| tensor.f_sub_scalar(rhs).unwrap(),
         );
-        to_tensor(tensor)
+        TchTensor::new(tensor)
     }
 
     fn int_mul<const D: usize>(
@@ -147,7 +141,7 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
             |mut tensor| tensor.f_mul_scalar_(rhs).unwrap(),
             |tensor| tensor.f_mul_scalar(rhs).unwrap(),
         );
-        to_tensor(tensor)
+        TchTensor::new(tensor)
     }
 
     fn int_div<const D: usize>(
@@ -162,7 +156,7 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
             |mut tensor| tensor.f_div_scalar_(rhs).unwrap(),
             |tensor| tensor.f_div_scalar(rhs).unwrap(),
         );
-        to_tensor(tensor)
+        TchTensor::new(tensor)
     }
 
     fn int_neg<const D: usize>(tensor: TchTensor<i64, D>) -> TchTensor<i64, D> {
@@ -176,7 +170,7 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
         let shape = TchShape::from(shape);
         let device: tch::Device = (*device).into();
 
-        to_tensor(tch::Tensor::zeros(&shape.dims, (tch::Kind::Int64, device)))
+        TchTensor::new(tch::Tensor::zeros(&shape.dims, (tch::Kind::Int64, device)))
     }
 
     fn int_ones<const D: usize>(
@@ -186,7 +180,7 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
         let shape = TchShape::from(shape);
         let device: tch::Device = (*device).into();
 
-        to_tensor(tch::Tensor::ones(&shape.dims, (tch::Kind::Int64, device)))
+        TchTensor::new(tch::Tensor::ones(&shape.dims, (tch::Kind::Int64, device)))
     }
 
     fn int_sum<const D: usize>(tensor: TchTensor<i64, D>) -> TchTensor<i64, 1> {

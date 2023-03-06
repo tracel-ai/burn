@@ -2,24 +2,18 @@ use crate::{element::TchElement, TchBackend, TchDevice};
 use burn_tensor::{ops::TensorOps, Data, Shape};
 use std::{marker::PhantomData, sync::Arc};
 
-lazy_static::lazy_static! {
-    static ref NO_GRAD: tch::NoGradGuard = {
-        tch::no_grad_guard()
-    };
-}
-
 #[derive(Debug, PartialEq)]
 pub struct TchTensor<E: tch::kind::Element, const D: usize> {
     pub tensor: Arc<tch::Tensor>,
-    pub phantom: PhantomData<E>,
+    phantom: PhantomData<E>,
 }
 
-pub(crate) fn to_tensor<const D: usize, E: tch::kind::Element + Default>(
-    tensor: tch::Tensor,
-) -> TchTensor<E, D> {
-    TchTensor {
-        tensor: Arc::new(tensor),
-        phantom: PhantomData::default(),
+impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
+    pub fn new(tensor: tch::Tensor) -> Self {
+        Self {
+            tensor: Arc::new(tensor),
+            phantom: PhantomData::default(),
+        }
     }
 }
 
@@ -129,14 +123,7 @@ impl<E: tch::kind::Element + Default, const D: usize> TchTensor<E, D> {
         let shape_tch = TchShape::from(data.shape);
         let tensor = tensor.reshape(&shape_tch.dims).to_kind(E::KIND);
 
-        lazy_static::initialize(&NO_GRAD);
-        let tensor = tensor.set_requires_grad(false);
-        let tensor = Arc::new(tensor);
-
-        Self {
-            tensor,
-            phantom: PhantomData::default(),
-        }
+        Self::new(tensor)
     }
 }
 
@@ -160,14 +147,7 @@ impl<E: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> T
         let shape_tch = TchShape::from(shape);
         let tensor = tch::Tensor::empty(&shape_tch.dims, (E::KIND, device.into()));
 
-        lazy_static::initialize(&NO_GRAD);
-        let tensor = tensor.set_requires_grad(false);
-        let tensor = Arc::new(tensor);
-
-        Self {
-            tensor,
-            phantom: PhantomData::default(),
-        }
+        Self::new(tensor)
     }
 }
 

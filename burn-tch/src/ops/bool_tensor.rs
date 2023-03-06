@@ -1,8 +1,8 @@
-use std::{marker::PhantomData, ops::Range, sync::Arc};
+use std::ops::Range;
 
 use burn_tensor::{backend::Backend, ops::BoolTensorOps, Data, Shape};
 
-use crate::{element::TchElement, to_tensor, TchBackend, TchDevice, TchShape, TchTensor};
+use crate::{element::TchElement, TchBackend, TchDevice, TchShape, TchTensor};
 
 use super::TchOps;
 
@@ -36,10 +36,7 @@ impl<E: TchElement> BoolTensorOps<TchBackend<E>> for TchBackend<E> {
         tensor: TchTensor<bool, D>,
         device: &TchDevice,
     ) -> TchTensor<bool, D> {
-        TchTensor {
-            tensor: Arc::new(tensor.tensor.to((*device).into())),
-            phantom: PhantomData::default(),
-        }
+        TchTensor::new(tensor.tensor.to((*device).into()))
     }
 
     fn bool_reshape<const D1: usize, const D2: usize>(
@@ -52,10 +49,7 @@ impl<E: TchElement> BoolTensorOps<TchBackend<E>> for TchBackend<E> {
             |tensor| tensor.reshape(&shape_tch.dims),
         );
 
-        TchTensor {
-            tensor: Arc::new(tensor),
-            phantom: PhantomData::default(),
-        }
+        TchTensor::new(tensor)
     }
 
     fn bool_device<const D: usize>(tensor: &TchTensor<bool, D>) -> TchDevice {
@@ -71,7 +65,7 @@ impl<E: TchElement> BoolTensorOps<TchBackend<E>> for TchBackend<E> {
             (tch::Kind::Bool, (*device).into()),
         );
 
-        to_tensor(tensor)
+        TchTensor::new(tensor)
     }
 
     fn bool_index<const D1: usize, const D2: usize>(
@@ -111,11 +105,11 @@ impl<E: TchElement> BoolTensorOps<TchBackend<E>> for TchBackend<E> {
             |mut tensor| tensor.eq_(rhs).to_kind(tch::Kind::Bool),
             |tensor| tensor.eq(rhs),
         );
-        to_tensor(tensor)
+        TchTensor::new(tensor)
     }
 
     fn bool_into_int<const D: usize>(tensor: TchTensor<bool, D>) -> TchTensor<i64, D> {
         let tensor = tensor.tensor.to_kind(E::KIND);
-        to_tensor(tensor)
+        TchTensor::new(tensor)
     }
 }
