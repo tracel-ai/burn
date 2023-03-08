@@ -1,5 +1,3 @@
-use core::mem::transmute;
-
 use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArrayBackend, NdArrayDevice};
 use burn_tensor::{ops::TensorOps, Shape};
 use ndarray::s;
@@ -46,11 +44,11 @@ impl Matmul<f32> for f32 {
             k,
             n,
             lhs,
-            &lhs_strides,
+            lhs_strides,
             rhs,
-            &rhs_strides,
+            rhs_strides,
             out,
-            &out_strides,
+            out_strides,
         );
 
         let mut shape_out = match batch_size_lhs > batch_size_rhs {
@@ -76,7 +74,7 @@ impl<'a> SharedBuffer<'a> {
             cell: core::cell::UnsafeCell::new(data),
         }
     }
-    fn get(&self) -> &'a mut [f32] {
+    unsafe fn get(&self) -> &'a mut [f32] {
         unsafe { core::ptr::read(self.cell.get()) }
     }
 }
@@ -86,11 +84,11 @@ fn matrixmultiply_sgemm(
     k: usize,
     n: usize,
     lhs: NdArrayTensor<f32, 3>,
-    lhs_strides: &[isize],
+    lhs_strides: Vec<isize>,
     rhs: NdArrayTensor<f32, 3>,
-    rhs_strides: &[isize],
+    rhs_strides: Vec<isize>,
     mut out: NdArrayTensor<f32, 3>,
-    out_strides: &[isize],
+    out_strides: Vec<isize>,
 ) -> NdArrayTensor<f32, 3> {
     let [batch_size_lhs, _, _] = lhs.shape().dims;
     let [batch_size_rhs, _, _] = rhs.shape().dims;
@@ -121,9 +119,9 @@ fn matrixmultiply_sgemm(
             false => rhs.array.slice(s!(b, .., ..)),
         };
 
-        let out_buffer = buffer.get();
-
         unsafe {
+            let buffer = buffer.get();
+
             matrixmultiply::sgemm(
                 m,
                 k,
@@ -136,7 +134,7 @@ fn matrixmultiply_sgemm(
                 rhs_strides[1],
                 rhs_strides[2],
                 beta,
-                &mut out_buffer[b * (m * n)],
+                &mut buffer[b * (m * n)],
                 out_strides[1],
                 out_strides[2],
             );
