@@ -1,20 +1,20 @@
 // Language
 use alloc::vec;
 use alloc::vec::Vec;
-use burn_tensor::ops::BoolTensorOps;
+use burn_tensor::ops::{BoolTensorOps, IntTensorOps};
 use core::ops::Range;
 
 // Current crate
-use crate::element::NdArrayElement;
+use crate::element::FloatNdArrayElement;
 use crate::NdArrayDevice;
 use crate::{tensor::NdArrayTensor, NdArrayBackend};
 
 // Workspace crates
-use burn_tensor::{backend::Backend, ops::TensorOps, Data, Shape};
+use burn_tensor::{backend::Backend, Data, Shape};
 
 use super::NdArrayOps;
 
-impl<E: NdArrayElement> BoolTensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
+impl<E: FloatNdArrayElement> BoolTensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     fn bool_from_data<const D: usize>(
         data: Data<bool, D>,
         _device: &NdArrayDevice,
@@ -68,7 +68,7 @@ impl<E: NdArrayElement> BoolTensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         tensor: <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D>,
     ) -> NdArrayTensor<i64, D> {
         let data = Self::bool_into_data(tensor);
-        NdArrayBackend::<i64>::from_data(data.convert(), &NdArrayDevice::Cpu)
+        NdArrayBackend::<E>::int_from_data(data.convert(), &NdArrayDevice::Cpu)
     }
 
     fn bool_device<const D: usize>(

@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 
-use crate::{element::NdArrayElement, tensor::NdArrayTensor, NdArrayBackend, NdArrayDevice};
+use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArrayBackend, NdArrayDevice};
 
 use burn_tensor::{ops::*, Shape};
 
@@ -9,7 +9,7 @@ use super::{
     maxpool::{max_pool2d_backward_naive, max_pool2d_with_indexes_naive},
 };
 
-impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
+impl<E: FloatNdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     fn embedding(
         weights: NdArrayTensor<E, 2>,
         indexes: NdArrayTensor<i64, 2>,
@@ -19,9 +19,10 @@ impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
 
         let mut tensors = Vec::with_capacity(batch_size * seq_length);
 
-        for index in NdArrayBackend::reshape(indexes, Shape::new([batch_size * seq_length]))
-            .array
-            .iter()
+        for index in
+            NdArrayBackend::<E>::int_reshape(indexes, Shape::new([batch_size * seq_length]))
+                .array
+                .iter()
         {
             let index = *index as usize;
             tensors.push(NdArrayBackend::index(
@@ -46,7 +47,7 @@ impl<E: NdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
             NdArrayBackend::reshape(output, Shape::new([batch_size * seq_length, d_model]));
 
         for (index_output, index) in
-            NdArrayBackend::reshape(indexes, Shape::new([batch_size * seq_length]))
+            NdArrayBackend::<E>::int_reshape(indexes, Shape::new([batch_size * seq_length]))
                 .array
                 .iter()
                 .enumerate()

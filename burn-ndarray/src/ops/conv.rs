@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 
 use super::padding::apply_padding2d;
-use crate::{element::NdArrayElement, tensor::NdArrayTensor, NdArrayBackend, NdArrayDevice};
+use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArrayBackend, NdArrayDevice};
 
 use burn_tensor::{ops::TensorOps, Shape};
 
@@ -9,7 +9,7 @@ use libm::ceilf;
 
 /// This method is not the most efficient, but it serves as a basic implementation that is easy to understand.
 /// A more optimized version should be used in its place.
-pub(crate) fn conv2d_naive<E: NdArrayElement>(
+pub(crate) fn conv2d_naive<E: FloatNdArrayElement>(
     x: NdArrayTensor<E, 4>,
     weight: NdArrayTensor<E, 4>,
     bias: Option<NdArrayTensor<E, 1>>,
@@ -35,7 +35,7 @@ pub(crate) fn conv2d_naive<E: NdArrayElement>(
     NdArrayBackend::cat(results, 0)
 }
 
-pub(crate) fn conv2d_naive_no_batch_size<E: NdArrayElement>(
+pub(crate) fn conv2d_naive_no_batch_size<E: FloatNdArrayElement>(
     x: NdArrayTensor<E, 3>,
     weight: NdArrayTensor<E, 4>,
     bias: Option<NdArrayTensor<E, 1>>,
@@ -81,7 +81,7 @@ pub(crate) fn conv2d_naive_no_batch_size<E: NdArrayElement>(
     result
 }
 
-fn conv2d_with_kernel<E: NdArrayElement>(
+fn conv2d_with_kernel<E: FloatNdArrayElement>(
     x: NdArrayTensor<E, 2>,
     kernel: NdArrayTensor<E, 2>,
     stride: [usize; 2],

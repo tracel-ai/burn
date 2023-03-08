@@ -20,7 +20,7 @@ impl<E, const D: usize> NdArrayTensor<E, D> {
 #[cfg(test)]
 mod utils {
     use super::*;
-    use crate::NdArrayBackend;
+    use crate::{element::FloatNdArrayElement, NdArrayBackend};
     use burn_tensor::ops::TensorOps;
 
     impl<E, const D: usize> NdArrayTensor<E, D>
@@ -29,7 +29,7 @@ mod utils {
     {
         pub(crate) fn into_data(self) -> Data<E, D>
         where
-            E: NdArrayElement,
+            E: FloatNdArrayElement,
         {
             <NdArrayBackend<E> as TensorOps<NdArrayBackend<E>>>::into_data::<D>(self)
         }
