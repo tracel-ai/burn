@@ -175,7 +175,7 @@ impl<const D: usize, B: ADBackend> ADModule for Param<Tensor<B, D>> {
     fn from_inner(module: Self::InnerModule) -> Self {
         Param {
             id: module.id,
-            value: Tensor::from_inner(module.value),
+            value: Tensor::from_inner(module.value).require_grad(),
         }
     }
 }
@@ -195,7 +195,9 @@ impl<const D: usize, B: ADBackend> ADModule for Param<Option<Tensor<B, D>>> {
     fn from_inner(module: Self::InnerModule) -> Self {
         Param {
             id: module.id,
-            value: module.value.map(Tensor::from_inner),
+            value: module
+                .value
+                .map(|val| Tensor::from_inner(val).require_grad()),
         }
     }
 }

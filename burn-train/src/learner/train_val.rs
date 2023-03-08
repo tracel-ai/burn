@@ -76,15 +76,15 @@ where
                 self.grad_accumulation,
             );
 
-            if self.devices.is_empty() {
-                (model, optim) = epoch_train.run(model, optim, &mut self.callback);
-            } else {
+            if self.devices.len() > 1 {
                 (model, optim) = epoch_train.run_multi_device(
                     model,
                     optim,
                     &mut self.callback,
                     self.devices.clone(),
-                );
+                )
+            } else {
+                (model, optim) = epoch_train.run(model, optim, &mut self.callback);
             }
 
             let epoch_valid = ValidEpoch::new(dataloader_valid.clone(), epoch, self.num_epochs);
