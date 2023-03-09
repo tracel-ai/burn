@@ -11,7 +11,7 @@ repository = "https://github.com/burn-rs/burn/tree/main/burn-ndarray"
 version = "0.5.0"
 
 [features]
-default = ["std"]
+default = ["std", "blas-openblas"]
 
 std = [
   "rand/std",
@@ -22,13 +22,15 @@ std = [
   "ndarray/std",
   "ndarray/rayon",
   "matrixmultiply/std",
+  "matrixmultiply/threading",
 ]
 
-blas-accelerate = ["ndarray/blas", "blas-src/accelerate"] # Accelerate framework (macOS only)
-blas-netlib = ["ndarray/blas", "blas-src/netlib"]
-blas-openblas = ["ndarray/blas", "blas-src/openblas", "openblas-src"]
+blas-accelerate = ["ndarray/blas", "cblas-sys", "blas-src/accelerate"] # Accelerate framework (macOS only)
+blas-netlib = ["ndarray/blas", "cblas-sys", "blas-src/netlib"]
+blas-openblas = ["ndarray/blas", "cblas-sys", "blas-src/openblas", "openblas-src"]
 blas-openblas-system = [
     "ndarray/blas",
+    "cblas-sys", 
     "blas-src/openblas",
     "openblas-src/system",
 ]
@@ -46,6 +48,7 @@ matrixmultiply = {version = "0.3.2", default-features = false}
 rayon = {version= "1.6", optional = true}
 
 blas-src = {version = "0.8.0", default-features = false, optional = true}# no-std compatible         
+cblas-sys = {version = "0.1.4", optional = true, default-features = false}
 
 derive-new = {workspace = true}
 libm = {workspace = true}

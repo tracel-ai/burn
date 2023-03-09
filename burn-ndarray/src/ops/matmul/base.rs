@@ -1,9 +1,13 @@
 use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArrayBackend, NdArrayDevice};
+use burn_tensor::ElementConversion;
 use burn_tensor::{ops::TensorOps, Shape};
 use ndarray::s;
 
 #[cfg(feature = "std")]
 use rayon::prelude::*;
+
+use super::blas::BlasGemm;
+use super::matrixmultiply::MatrixmultiplyGemm;
 
 pub(crate) trait Matmul<E> {
     fn matmul<const D: usize>(
@@ -24,70 +28,107 @@ impl Matmul<f32> for f32 {
         lhs: NdArrayTensor<f32, D>,
         rhs: NdArrayTensor<f32, D>,
     ) -> NdArrayTensor<f32, D> {
-        let shape_ori_lhs = lhs.shape();
-        let shape_ori_rhs = rhs.shape();
-
-        let lhs = reshape::<f32, D>(lhs);
-        let rhs = reshape::<f32, D>(rhs);
-
-        let [batch_size_lhs, m, _] = lhs.shape().dims;
-        let [batch_size_rhs, k, n] = rhs.shape().dims;
-
-        let mut shape_out = match batch_size_lhs > batch_size_rhs {
-            true => shape_ori_lhs,
-            false => shape_ori_rhs,
-        };
-        shape_out.dims[D - 2] = m;
-        shape_out.dims[D - 1] = n;
-
-        let out = NdArrayBackend::<f32>::empty(shape_out, &NdArrayDevice::Cpu);
-
-        let lhs_strides = lhs.array.strides().to_vec();
-        let rhs_strides = rhs.array.strides().to_vec();
-        let out_strides = out.array.strides().to_vec();
-
-        matrixmultiply_sgemm(
-            m,
-            k,
-            n,
-            lhs,
-            lhs_strides,
-            rhs,
-            rhs_strides,
-            out,
-            out_strides,
-        )
+        // matmul_root::<f32, D, MatrixmultiplyGemm>(lhs, rhs)
+        matmul_root::<f32, D, BlasGemm>(lhs, rhs)
     }
 }
 
-pub struct SharedBuffer<'a> {
-    cell: core::cell::UnsafeCell<&'a mut [f32]>,
+pub struct SharedBuffer<'a, E> {
+    cell: core::cell::UnsafeCell<&'a mut [E]>,
 }
 
-unsafe impl<'a> Sync for SharedBuffer<'a> {}
+unsafe impl<'a, E> Sync for SharedBuffer<'a, E> {}
 
-impl<'a> SharedBuffer<'a> {
-    pub fn new(data: &'a mut [f32]) -> Self {
+impl<'a, E> SharedBuffer<'a, E> {
+    pub fn new(data: &'a mut [E]) -> Self {
         Self {
             cell: core::cell::UnsafeCell::new(data),
         }
     }
-    pub unsafe fn get(&self) -> &'a mut [f32] {
+    pub unsafe fn get(&self) -> &'a mut [E] {
         unsafe { core::ptr::read(self.cell.get()) }
     }
 }
 
-fn matrixmultiply_sgemm<const D: usize>(
+fn matmul_root<E, const D: usize, F>(
+    lhs: NdArrayTensor<E, D>,
+    rhs: NdArrayTensor<E, D>,
+) -> NdArrayTensor<E, D>
+where
+    E: FloatNdArrayElement,
+    F: Gemm<E>,
+{
+    let shape_ori_lhs = lhs.shape();
+    let shape_ori_rhs = rhs.shape();
+
+    let lhs = reshape::<E, D>(lhs);
+    let rhs = reshape::<E, D>(rhs);
+
+    let [batch_size_lhs, m, _] = lhs.shape().dims;
+    let [batch_size_rhs, k, n] = rhs.shape().dims;
+
+    let mut shape_out = match batch_size_lhs > batch_size_rhs {
+        true => shape_ori_lhs,
+        false => shape_ori_rhs,
+    };
+    shape_out.dims[D - 2] = m;
+    shape_out.dims[D - 1] = n;
+
+    let out = NdArrayBackend::<E>::empty(shape_out, &NdArrayDevice::Cpu);
+
+    let lhs_strides = lhs.array.strides().to_vec();
+    let rhs_strides = rhs.array.strides().to_vec();
+    let out_strides = out.array.strides().to_vec();
+
+    run::<E, D, F>(
+        m,
+        k,
+        n,
+        lhs,
+        lhs_strides,
+        rhs,
+        rhs_strides,
+        out,
+        out_strides,
+    )
+}
+
+pub(crate) trait Gemm<E: FloatNdArrayElement> {
+    fn run(
+        m: usize,
+        k: usize,
+        n: usize,
+        alpha: E,
+        a: *const E,
+        rsa: isize,
+        csa: isize,
+        b: *const E,
+        rsb: isize,
+        csb: isize,
+        beta: E,
+        c: *mut E,
+        rsc: isize,
+        csc: isize,
+    );
+}
+
+fn run<E: FloatNdArrayElement, const D: usize, Kernel>(
     m: usize,
     k: usize,
     n: usize,
-    lhs: NdArrayTensor<f32, 3>,
+    lhs: NdArrayTensor<E, 3>,
     lhs_strides: Vec<isize>,
-    rhs: NdArrayTensor<f32, 3>,
+    rhs: NdArrayTensor<E, 3>,
     rhs_strides: Vec<isize>,
-    mut out: NdArrayTensor<f32, D>,
+    mut out: NdArrayTensor<E, D>,
     out_strides: Vec<isize>,
-) -> NdArrayTensor<f32, D> {
+) -> NdArrayTensor<E, D>
+where
+    Kernel: Gemm<E>,
+{
+    println!("Lhs {:?}", lhs.shape().dims);
+    println!("Rhs {:?}", rhs.shape().dims);
+
     let run = || {
         let [batch_size_lhs, _, _] = lhs.shape().dims;
         let [batch_size_rhs, _, _] = rhs.shape().dims;
@@ -101,8 +142,8 @@ fn matrixmultiply_sgemm<const D: usize>(
             panic!("Broadcast on multiple dimensions is not yet supported");
         }
 
-        let alpha = 1.0;
-        let beta = 0.0;
+        let alpha: E = 1.0.elem();
+        let beta: E = 0.0.elem();
 
         let out_slices = out
             .array
@@ -111,9 +152,9 @@ fn matrixmultiply_sgemm<const D: usize>(
 
         let buffer = SharedBuffer::new(out_slices);
 
-        #[cfg(feature = "std")]
-        let iter = (0..batch_size).into_par_iter();
-        #[cfg(not(feature = "std"))]
+        // #[cfg(feature = "std")]
+        // let iter = (0..batch_size).into_par_iter();
+        // #[cfg(not(feature = "std"))]
         let iter = (0..batch_size).into_iter();
 
         iter.for_each(|b| {
@@ -129,7 +170,7 @@ fn matrixmultiply_sgemm<const D: usize>(
             unsafe {
                 let buffer = buffer.get();
 
-                matrixmultiply::sgemm(
+                Kernel::run(
                     m,
                     k,
                     n,
@@ -150,9 +191,9 @@ fn matrixmultiply_sgemm<const D: usize>(
 
         out
     };
-    #[cfg(feature = "std")]
-    let output = rayon::scope(|_| run());
-    #[cfg(not(feature = "std"))]
+    // #[cfg(feature = "std")]
+    // let output = rayon::scope(|_| run());
+    // #[cfg(not(feature = "std"))]
     let output = run();
 
     output
@@ -163,7 +204,7 @@ impl Matmul<f64> for f64 {
         lhs: NdArrayTensor<f64, D>,
         rhs: NdArrayTensor<f64, D>,
     ) -> NdArrayTensor<f64, D> {
-        todo!()
+        matmul_root::<f64, D, MatrixmultiplyGemm>(lhs, rhs)
     }
 }
 
