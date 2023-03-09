@@ -66,7 +66,7 @@ macro_rules! make_elem {
                 let val = f64::powi(self as f64, value) as $ty;
 
                 #[cfg(not(feature = "std"))]
-                let val = Self::powf_elem(value as f32);
+                let val = Self::powf_elem(self, value as f32);
 
                 val
             }
@@ -110,7 +110,7 @@ macro_rules! make_elem {
                 let val = f32::powi(self as f32, value) as $ty;
 
                 #[cfg(not(feature = "std"))]
-                let val = Self::powf_elem(value as f32);
+                let val = Self::powf_elem(self, value as f32);
 
                 val
             }

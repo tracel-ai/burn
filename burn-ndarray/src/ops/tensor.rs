@@ -15,6 +15,8 @@ use burn_tensor::{backend::Backend, ops::TensorOps, Data, ElementConversion, Sha
 
 // External crates
 use libm::{cos, erf, sin, tanh};
+#[cfg(not(feature = "std"))]
+use num_traits::Float; // Can't compare two floats with no_std.
 
 use super::{matmul::matmul, NdArrayMathOps, NdArrayOps};
 
