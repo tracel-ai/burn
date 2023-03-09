@@ -123,18 +123,20 @@ impl<const D: usize, B: Backend> Module for Param<Option<Tensor<B, D>>> {
         let (id, state) = load_with_id(state)?;
         let id = id.clone();
 
-        let data = match state {
-            State::Data(data) => data,
-            _ => {
-                return Err(LoadingError::new(
-                    "Can't load Option<Tensor> from NamedState".to_string(),
-                ))
-            }
-        };
+        let tensor = if let Some(tensor) = self.value {
+            let data = match state {
+                State::Data(data) => data,
+                _ => {
+                    return Err(LoadingError::new(
+                        "Can't load Option<Tensor> from NamedState".to_string(),
+                    ))
+                }
+            };
 
-        let tensor = self.value.map(|tensor| {
-            Tensor::from_data_device(Data::from(data), &tensor.device()).require_grad()
-        });
+            Some(Tensor::from_data_device(Data::from(data), &tensor.device()).require_grad())
+        } else {
+            None
+        };
 
         Ok(Self { id, value: tensor })
     }
