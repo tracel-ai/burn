@@ -21,7 +21,8 @@ std = [
   "rayon",
   "ndarray/std",
   "ndarray/rayon",
-  "ndarray/matrixmultiply-threading"
+  "matrixmultiply/std",
+  "matrixmultiply/threading",
 ]
 
 blas-accelerate = ["ndarray/blas", "blas-src/accelerate"] # Accelerate framework (macOS only)
