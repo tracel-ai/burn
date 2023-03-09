@@ -64,7 +64,7 @@ fn general_matmul<E: FloatNdArrayElement>(
         #[cfg(feature = "std")]
         let iter = (0..batch_size).into_par_iter();
         #[cfg(not(feature = "std"))]
-        let iter = (0..batch_size).into_iter();
+        let iter = 0..batch_size;
 
         iter.for_each(|b| {
             let lhs_slice = match batch_size_lhs == 1 {
