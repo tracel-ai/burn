@@ -2,7 +2,7 @@ use burn_tensor::{Data, Shape};
 
 use ndarray::{ArcArray, Array, Dim, IxDyn};
 
-#[derive(Debug, Clone)]
+#[derive(new, Debug, Clone)]
 pub struct NdArrayTensor<E, const D: usize> {
     pub array: ArcArray<E, IxDyn>,
 }

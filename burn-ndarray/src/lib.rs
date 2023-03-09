@@ -13,9 +13,11 @@ extern crate blas_src;
 mod backend;
 mod element;
 mod ops;
+mod sharing;
 mod tensor;
 
 pub use backend::*;
+pub(crate) use sharing::*;
 pub(crate) use tensor::*;
 
 extern crate alloc;

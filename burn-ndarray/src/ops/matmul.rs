@@ -1,7 +1,8 @@
+use crate::UnsafeSharedRef;
 use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArrayBackend};
 use burn_tensor::ElementConversion;
 use burn_tensor::{ops::TensorOps, Shape};
-use ndarray::{s, ArrayBase, Dim, OwnedRepr};
+use ndarray::s;
 
 #[cfg(feature = "std")]
 use rayon::prelude::*;
@@ -16,8 +17,8 @@ where
     let shape_ori_lhs = lhs.shape();
     let shape_ori_rhs = rhs.shape();
 
-    let lhs = reshape::<E, D>(lhs);
-    let rhs = reshape::<E, D>(rhs);
+    let lhs = reshape(lhs);
+    let rhs = reshape(rhs);
 
     let [batch_size_lhs, m, _] = lhs.shape().dims;
     let [batch_size_rhs, _, n] = rhs.shape().dims;
@@ -29,26 +30,9 @@ where
     shape_out.dims[D - 2] = m;
     shape_out.dims[D - 1] = n;
 
-    let out = general_matmul::<E>(lhs, rhs);
+    let out = general_matmul(lhs, rhs);
 
     NdArrayBackend::<E>::reshape(out, shape_out)
-}
-
-struct UnsafeSharedArray<'a, E> {
-    cell: core::cell::UnsafeCell<&'a mut ArrayBase<OwnedRepr<E>, Dim<[usize; 3]>>>,
-}
-
-unsafe impl<'a, E> Sync for UnsafeSharedArray<'a, E> {}
-
-impl<'a, E> UnsafeSharedArray<'a, E> {
-    pub fn new(data: &'a mut ArrayBase<OwnedRepr<E>, Dim<[usize; 3]>>) -> Self {
-        Self {
-            cell: core::cell::UnsafeCell::new(data),
-        }
-    }
-    pub unsafe fn get(&self) -> &'a mut ArrayBase<OwnedRepr<E>, Dim<[usize; 3]>> {
-        unsafe { core::ptr::read(self.cell.get()) }
-    }
 }
 
 fn general_matmul<E: FloatNdArrayElement>(
@@ -72,7 +56,7 @@ fn general_matmul<E: FloatNdArrayElement>(
         let beta: E = 0.0.elem();
 
         let mut out_array = ndarray::Array3::<E>::zeros((batch_size, m, n));
-        let shared = UnsafeSharedArray::new(&mut out_array);
+        let unsafe_shared_out_array = UnsafeSharedRef::new(&mut out_array);
 
         let lhs_array = lhs.array.into_shape((batch_size_lhs, m, k)).unwrap();
         let rhs_array = rhs.array.into_shape((batch_size_rhs, k, n)).unwrap();
@@ -93,8 +77,7 @@ fn general_matmul<E: FloatNdArrayElement>(
             };
 
             unsafe {
-                let shared = shared.get();
-                let mut out_slice = shared.slice_mut(s!(b, .., ..));
+                let mut out_slice = unsafe_shared_out_array.get().slice_mut(s!(b, .., ..));
 
                 ndarray::linalg::general_mat_mul(
                     alpha,
@@ -106,10 +89,9 @@ fn general_matmul<E: FloatNdArrayElement>(
             }
         });
 
-        NdArrayTensor {
-            array: out_array.into_shared().into_dyn(),
-        }
+        NdArrayTensor::new(out_array.into_shared().into_dyn())
     };
+
     #[cfg(feature = "std")]
     let output = rayon::scope(|_| run());
     #[cfg(not(feature = "std"))]
