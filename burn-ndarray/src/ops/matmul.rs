@@ -1,7 +1,7 @@
 use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArrayBackend};
 use burn_tensor::ElementConversion;
 use burn_tensor::{ops::TensorOps, Shape};
-use ndarray::s;
+use ndarray::{s, ArrayBase, Dim, OwnedRepr};
 
 #[cfg(feature = "std")]
 use rayon::prelude::*;
@@ -29,12 +29,29 @@ where
     shape_out.dims[D - 2] = m;
     shape_out.dims[D - 1] = n;
 
-    let out = matmul_generic::<E>(lhs, rhs);
+    let out = general_matmul::<E>(lhs, rhs);
 
     NdArrayBackend::<E>::reshape(out, shape_out)
 }
 
-fn matmul_generic<E: FloatNdArrayElement>(
+struct UnsafeSharedArray<'a, E> {
+    cell: core::cell::UnsafeCell<&'a mut ArrayBase<OwnedRepr<E>, Dim<[usize; 3]>>>,
+}
+
+unsafe impl<'a, E> Sync for UnsafeSharedArray<'a, E> {}
+
+impl<'a, E> UnsafeSharedArray<'a, E> {
+    pub fn new(data: &'a mut ArrayBase<OwnedRepr<E>, Dim<[usize; 3]>>) -> Self {
+        Self {
+            cell: core::cell::UnsafeCell::new(data),
+        }
+    }
+    pub unsafe fn get(&self) -> &'a mut ArrayBase<OwnedRepr<E>, Dim<[usize; 3]>> {
+        unsafe { core::ptr::read(self.cell.get()) }
+    }
+}
+
+fn general_matmul<E: FloatNdArrayElement>(
     lhs: NdArrayTensor<E, 3>,
     rhs: NdArrayTensor<E, 3>,
 ) -> NdArrayTensor<E, 3> {
@@ -55,6 +72,8 @@ fn matmul_generic<E: FloatNdArrayElement>(
         let beta: E = 0.0.elem();
 
         let mut out_array = ndarray::Array3::<E>::zeros((batch_size, m, n));
+        let shared = UnsafeSharedArray::new(&mut out_array);
+
         let lhs_array = lhs.array.into_shape((batch_size_lhs, m, k)).unwrap();
         let rhs_array = rhs.array.into_shape((batch_size_rhs, k, n)).unwrap();
 
@@ -73,9 +92,18 @@ fn matmul_generic<E: FloatNdArrayElement>(
                 false => rhs_array.slice(s!(b, .., ..)),
             };
 
-            let mut out_slice = out_array.slice_mut(s!(b, .., ..));
+            unsafe {
+                let shared = shared.get();
+                let mut out_slice = shared.slice_mut(s!(b, .., ..));
 
-            ndarray::linalg::general_mat_mul(alpha, &lhs_slice, &rhs_slice, beta, &mut out_slice);
+                ndarray::linalg::general_mat_mul(
+                    alpha,
+                    &lhs_slice,
+                    &rhs_slice,
+                    beta,
+                    &mut out_slice,
+                );
+            }
         });
 
         NdArrayTensor {
