@@ -323,7 +323,14 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
     }
 
     fn powf<const D: usize>(tensor: NdArrayTensor<E, D>, value: f32) -> NdArrayTensor<E, D> {
-        let array = tensor.array.mapv_into(|a| a.pow_elem(value)).into_shared();
+        let array = if value.floor() == value {
+            tensor.array.mapv_into(|a| a.powf_elem(value)).into_shared()
+        } else {
+            tensor
+                .array
+                .mapv_into(|a| a.powi_elem(value as i32))
+                .into_shared()
+        };
 
         NdArrayTensor { array }
     }
