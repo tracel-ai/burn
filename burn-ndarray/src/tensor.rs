@@ -49,16 +49,17 @@ macro_rules! to_typed_dims {
 }
 
 #[macro_export(local_inner_macros)]
-macro_rules! to_nd_array_tensor {
+macro_rules! reshape {
     (
-        $n:expr,
-        $shape:expr,
-        $array:expr
+        ty $ty:ty,
+        n $n:expr,
+        shape $shape:expr,
+        array $array:expr
     ) => {{
         let dim = $crate::to_typed_dims!($n, $shape.dims, justdim);
         let safe_into_shape =
             $array.is_standard_layout() || $array.raw_view().reversed_axes().is_standard_layout();
-        let array: ndarray::ArcArray<E, Dim<[usize; $n]>> = match safe_into_shape {
+        let array: ndarray::ArcArray<$ty, Dim<[usize; $n]>> = match safe_into_shape {
             true => $array
                 .into_shape(dim)
                 .expect("Safe to change shape without relayout")
@@ -67,19 +68,23 @@ macro_rules! to_nd_array_tensor {
         };
         let array = array.into_dyn();
 
-        NdArrayTensor { array }
+        NdArrayTensor::new(array)
     }};
     (
-        bool,
-        $n:expr,
-        $shape:expr,
-        $array:expr
+        ty $ty:ty,
+        shape $shape:expr,
+        array $array:expr,
+        d $D:expr
     ) => {{
-        let dim = $crate::to_typed_dims!($n, $shape.dims, justdim);
-        let array: ndarray::ArcArray<bool, Dim<[usize; $n]>> = $array.reshape(dim);
-        let array = array.into_dyn();
-
-        NdArrayTensor { array }
+        match $D {
+            1 => reshape!(ty $ty, n 1, shape $shape, array $array),
+            2 => reshape!(ty $ty, n 2, shape $shape, array $array),
+            3 => reshape!(ty $ty, n 3, shape $shape, array $array),
+            4 => reshape!(ty $ty, n 4, shape $shape, array $array),
+            5 => reshape!(ty $ty, n 5, shape $shape, array $array),
+            6 => reshape!(ty $ty, n 6, shape $shape, array $array),
+            _ => core::panic!("NdArray supports arrays up to 6 dimensions, received: {}", $D),
+        }
     }};
 }
 
@@ -92,15 +97,12 @@ where
         let to_array = |data: Data<E, D>| Array::from_iter(data.value.into_iter()).into_shared();
         let array = to_array(data);
 
-        match D {
-            1 => to_nd_array_tensor!(1, shape, array),
-            2 => to_nd_array_tensor!(2, shape, array),
-            3 => to_nd_array_tensor!(3, shape, array),
-            4 => to_nd_array_tensor!(4, shape, array),
-            5 => to_nd_array_tensor!(5, shape, array),
-            6 => to_nd_array_tensor!(6, shape, array),
-            _ => panic!(""),
-        }
+        reshape!(
+            ty E,
+            shape shape,
+            array array,
+            d D
+        )
     }
 }
 

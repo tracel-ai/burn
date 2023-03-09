@@ -10,7 +10,7 @@ use ndarray::SliceInfoElem;
 
 use crate::element::NdArrayElement;
 use crate::ops::macros::{keepdim, mean_dim, sum_dim};
-use crate::{tensor::NdArrayTensor, to_nd_array_tensor};
+use crate::{reshape, tensor::NdArrayTensor};
 
 pub struct NdArrayOps<E> {
     e: PhantomData<E>,
@@ -51,15 +51,12 @@ where
         tensor: NdArrayTensor<E, D1>,
         shape: Shape<D2>,
     ) -> NdArrayTensor<E, D2> {
-        match D2 {
-            1 => to_nd_array_tensor!(1, shape, tensor.array),
-            2 => to_nd_array_tensor!(2, shape, tensor.array),
-            3 => to_nd_array_tensor!(3, shape, tensor.array),
-            4 => to_nd_array_tensor!(4, shape, tensor.array),
-            5 => to_nd_array_tensor!(5, shape, tensor.array),
-            6 => to_nd_array_tensor!(6, shape, tensor.array),
-            _ => panic!("NdArrayTensor support only 6 dimensions."),
-        }
+        reshape!(
+            ty E,
+            shape shape,
+            array tensor.array,
+            d D2
+        )
     }
 
     pub fn cat<const D: usize>(

@@ -125,11 +125,6 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<E, D> {
         matmul(lhs, rhs)
-        // let batch_self = BatchMatrix::from_ndarray(lhs.array.clone(), lhs.shape());
-        // let batch_other = BatchMatrix::from_ndarray(rhs.array.clone(), rhs.shape());
-        // let output = batch_self.matmul(batch_other);
-
-        // NdArrayTensor::from_bmatrix(output)
     }
 
     fn neg<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
