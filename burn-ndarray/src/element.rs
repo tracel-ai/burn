@@ -1,10 +1,9 @@
 use burn_tensor::Element;
 use libm::{exp, log, log1p, pow, sqrt};
 use libm::{expf, log1pf, logf, powf, sqrtf};
+use ndarray::LinalgScalar;
 
-use crate::ops::matmul::Matmul;
-
-pub(crate) trait FloatNdArrayElement: Matmul<Self> + NdArrayElement
+pub(crate) trait FloatNdArrayElement: NdArrayElement + LinalgScalar
 where
     Self: Sized,
 {

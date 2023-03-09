@@ -1,4 +1,4 @@
-use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArrayBackend, NdArrayDevice};
+use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArrayBackend};
 use burn_tensor::ElementConversion;
 use burn_tensor::{ops::TensorOps, Shape};
 use ndarray::s;
@@ -6,57 +6,12 @@ use ndarray::s;
 #[cfg(feature = "std")]
 use rayon::prelude::*;
 
-use super::blas::BlasGemm;
-use super::matrixmultiply::MatrixmultiplyGemm;
-
-pub(crate) trait Matmul<E> {
-    fn matmul<const D: usize>(
-        lhs: NdArrayTensor<E, D>,
-        rhs: NdArrayTensor<E, D>,
-    ) -> NdArrayTensor<E, D>;
-}
-
-pub(crate) fn matmul<const D: usize, E: FloatNdArrayElement>(
-    lhs: NdArrayTensor<E, D>,
-    rhs: NdArrayTensor<E, D>,
-) -> NdArrayTensor<E, D> {
-    E::matmul(lhs, rhs)
-}
-
-impl Matmul<f32> for f32 {
-    fn matmul<const D: usize>(
-        lhs: NdArrayTensor<f32, D>,
-        rhs: NdArrayTensor<f32, D>,
-    ) -> NdArrayTensor<f32, D> {
-        // matmul_root::<f32, D, MatrixmultiplyGemm>(lhs, rhs)
-        matmul_root::<f32, D, BlasGemm>(lhs, rhs)
-    }
-}
-
-pub struct SharedBuffer<'a, E> {
-    cell: core::cell::UnsafeCell<&'a mut [E]>,
-}
-
-unsafe impl<'a, E> Sync for SharedBuffer<'a, E> {}
-
-impl<'a, E> SharedBuffer<'a, E> {
-    pub fn new(data: &'a mut [E]) -> Self {
-        Self {
-            cell: core::cell::UnsafeCell::new(data),
-        }
-    }
-    pub unsafe fn get(&self) -> &'a mut [E] {
-        unsafe { core::ptr::read(self.cell.get()) }
-    }
-}
-
-fn matmul_root<E, const D: usize, F>(
+pub(crate) fn matmul<E, const D: usize>(
     lhs: NdArrayTensor<E, D>,
     rhs: NdArrayTensor<E, D>,
 ) -> NdArrayTensor<E, D>
 where
     E: FloatNdArrayElement,
-    F: Gemm<E>,
 {
     let shape_ori_lhs = lhs.shape();
     let shape_ori_rhs = rhs.shape();
@@ -65,7 +20,7 @@ where
     let rhs = reshape::<E, D>(rhs);
 
     let [batch_size_lhs, m, _] = lhs.shape().dims;
-    let [batch_size_rhs, k, n] = rhs.shape().dims;
+    let [batch_size_rhs, _, n] = rhs.shape().dims;
 
     let mut shape_out = match batch_size_lhs > batch_size_rhs {
         true => shape_ori_lhs,
@@ -74,64 +29,18 @@ where
     shape_out.dims[D - 2] = m;
     shape_out.dims[D - 1] = n;
 
-    let out = NdArrayBackend::<E>::empty(shape_out, &NdArrayDevice::Cpu);
+    let out = matmul_generic::<E>(lhs, rhs);
 
-    let lhs_strides = lhs.array.strides().to_vec();
-    let rhs_strides = rhs.array.strides().to_vec();
-    let out_strides = out.array.strides().to_vec();
-
-    run::<E, D, F>(
-        m,
-        k,
-        n,
-        lhs,
-        lhs_strides,
-        rhs,
-        rhs_strides,
-        out,
-        out_strides,
-    )
+    NdArrayBackend::<E>::reshape(out, shape_out)
 }
 
-pub(crate) trait Gemm<E: FloatNdArrayElement> {
-    fn run(
-        m: usize,
-        k: usize,
-        n: usize,
-        alpha: E,
-        a: *const E,
-        rsa: isize,
-        csa: isize,
-        b: *const E,
-        rsb: isize,
-        csb: isize,
-        beta: E,
-        c: *mut E,
-        rsc: isize,
-        csc: isize,
-    );
-}
-
-fn run<E: FloatNdArrayElement, const D: usize, Kernel>(
-    m: usize,
-    k: usize,
-    n: usize,
+fn matmul_generic<E: FloatNdArrayElement>(
     lhs: NdArrayTensor<E, 3>,
-    lhs_strides: Vec<isize>,
     rhs: NdArrayTensor<E, 3>,
-    rhs_strides: Vec<isize>,
-    mut out: NdArrayTensor<E, D>,
-    out_strides: Vec<isize>,
-) -> NdArrayTensor<E, D>
-where
-    Kernel: Gemm<E>,
-{
-    println!("Lhs {:?}", lhs.shape().dims);
-    println!("Rhs {:?}", rhs.shape().dims);
-
+) -> NdArrayTensor<E, 3> {
     let run = || {
-        let [batch_size_lhs, _, _] = lhs.shape().dims;
-        let [batch_size_rhs, _, _] = rhs.shape().dims;
+        let [batch_size_lhs, m, _] = lhs.shape().dims;
+        let [batch_size_rhs, k, n] = rhs.shape().dims;
         let batch_size = usize::max(batch_size_rhs, batch_size_lhs);
 
         if batch_size_lhs > batch_size && batch_size_lhs != 1 {
@@ -145,67 +54,40 @@ where
         let alpha: E = 1.0.elem();
         let beta: E = 0.0.elem();
 
-        let out_slices = out
-            .array
-            .as_slice_mut()
-            .expect("Data is contiguous and in standard order");
+        let mut out_array = ndarray::Array3::<E>::zeros((batch_size, m, n));
+        let lhs_array = lhs.array.into_shape((batch_size_lhs, m, k)).unwrap();
+        let rhs_array = rhs.array.into_shape((batch_size_rhs, k, n)).unwrap();
 
-        let buffer = SharedBuffer::new(out_slices);
-
-        // #[cfg(feature = "std")]
-        // let iter = (0..batch_size).into_par_iter();
-        // #[cfg(not(feature = "std"))]
+        #[cfg(feature = "std")]
+        let iter = (0..batch_size).into_par_iter();
+        #[cfg(not(feature = "std"))]
         let iter = (0..batch_size).into_iter();
 
         iter.for_each(|b| {
             let lhs_slice = match batch_size_lhs == 1 {
-                true => lhs.array.slice(s!(0, .., ..)),
-                false => lhs.array.slice(s!(b, .., ..)),
+                true => lhs_array.slice(s!(0, .., ..)),
+                false => lhs_array.slice(s!(b, .., ..)),
             };
             let rhs_slice = match batch_size_rhs == 1 {
-                true => rhs.array.slice(s!(0, .., ..)),
-                false => rhs.array.slice(s!(b, .., ..)),
+                true => rhs_array.slice(s!(0, .., ..)),
+                false => rhs_array.slice(s!(b, .., ..)),
             };
 
-            unsafe {
-                let buffer = buffer.get();
+            let mut out_slice = out_array.slice_mut(s!(b, .., ..));
 
-                Kernel::run(
-                    m,
-                    k,
-                    n,
-                    alpha,
-                    lhs_slice.as_ptr(),
-                    lhs_strides[1],
-                    lhs_strides[2],
-                    rhs_slice.as_ptr(),
-                    rhs_strides[1],
-                    rhs_strides[2],
-                    beta,
-                    &mut buffer[b * (m * n)],
-                    out_strides[D - 2],
-                    out_strides[D - 1],
-                );
-            }
+            ndarray::linalg::general_mat_mul(alpha, &lhs_slice, &rhs_slice, beta, &mut out_slice);
         });
 
-        out
+        NdArrayTensor {
+            array: out_array.into_shared().into_dyn(),
+        }
     };
-    // #[cfg(feature = "std")]
-    // let output = rayon::scope(|_| run());
-    // #[cfg(not(feature = "std"))]
+    #[cfg(feature = "std")]
+    let output = rayon::scope(|_| run());
+    #[cfg(not(feature = "std"))]
     let output = run();
 
     output
-}
-
-impl Matmul<f64> for f64 {
-    fn matmul<const D: usize>(
-        lhs: NdArrayTensor<f64, D>,
-        rhs: NdArrayTensor<f64, D>,
-    ) -> NdArrayTensor<f64, D> {
-        matmul_root::<f64, D, MatrixmultiplyGemm>(lhs, rhs)
-    }
 }
 
 fn reshape<E: FloatNdArrayElement, const D: usize>(
