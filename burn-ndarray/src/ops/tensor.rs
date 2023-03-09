@@ -323,13 +323,18 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
     }
 
     fn powf<const D: usize>(tensor: NdArrayTensor<E, D>, value: f32) -> NdArrayTensor<E, D> {
-        let array = if value.floor() == value {
-            tensor.array.mapv_into(|a| a.powf_elem(value)).into_shared()
-        } else {
+        let array = if value == 2.0 {
+            // Happens often and is faster.
+            tensor.array.mapv_into(|a| a * a).into_shared()
+        } else if value.floor() == value {
+            // Is faster then powf
             tensor
                 .array
                 .mapv_into(|a| a.powi_elem(value as i32))
                 .into_shared()
+        } else {
+            // Default
+            tensor.array.mapv_into(|a| a.powf_elem(value)).into_shared()
         };
 
         NdArrayTensor { array }
