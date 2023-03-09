@@ -170,11 +170,7 @@ mod tests {
     }
 
     fn layer() -> Linear<TestADBackend> {
-        Linear::<TestADBackend>::new(&LinearConfig {
-            d_input: 20,
-            d_output: 20,
-            bias: true,
-        })
+        Linear::<TestADBackend>::new(&LinearConfig::new(20, 20).with_bias(true))
     }
 
     fn sgd_with_all() -> Sgd<TestADBackend> {

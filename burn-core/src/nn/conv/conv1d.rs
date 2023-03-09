@@ -6,9 +6,9 @@ use crate as burn;
 use crate::config::Config;
 use crate::module::Module;
 use crate::module::Param;
+use crate::nn::Initializer;
 use crate::tensor::backend::Backend;
-use crate::tensor::ElementConversion;
-use crate::tensor::{Distribution, Tensor};
+use crate::tensor::Tensor;
 use burn_tensor::module::conv1d;
 use burn_tensor::ops::conv::calculate_padding;
 
@@ -28,6 +28,9 @@ pub struct Conv1dConfig {
     /// If bias should be added to the output.
     #[config(default = true)]
     pub bias: bool,
+    /// The type of function used to initialize neural network parameters
+    #[config(default = "Initializer::UniformDefault")]
+    pub initializer: Initializer,
 }
 
 /// Padding configuration for 1D convolution [config](Conv1dConfig).
@@ -64,19 +67,17 @@ impl<B: Backend> Conv1d<B> {
         let k = (config.channels_in * config.kernel_size) as f64;
         let k = sqrt(1.0 / k);
 
-        let k1: B::FloatElem = (-k).elem();
-        let k2: B::FloatElem = k.elem();
+        let initializer = if let Initializer::UniformDefault = config.initializer {
+            Initializer::Uniform(-k, k)
+        } else {
+            config.initializer.clone()
+        };
 
-        let weight = Tensor::random(
-            [config.channels_out, config.channels_in, config.kernel_size],
-            Distribution::Uniform(k1, k2),
-        );
+        let weight =
+            initializer.init([config.channels_out, config.channels_in, config.kernel_size]);
 
         let bias = if config.bias {
-            Some(Tensor::random(
-                [config.channels_out],
-                Distribution::Uniform(k1, k2),
-            ))
+            Some(initializer.init([config.channels_out]))
         } else {
             None
         };
@@ -117,5 +118,37 @@ impl<B: Backend> Conv1d<B> {
             self.stride,
             padding,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    pub type TB = burn_ndarray::NdArrayBackend<f32>;
+
+    #[test]
+    fn initializer_default() {
+        TB::seed(0);
+        let config = Conv1dConfig::new(5, 5, 5);
+        let k = (config.channels_in * config.kernel_size) as f64;
+        let k = sqrt(1.0 / k);
+        assert_eq!(config.initializer, Initializer::UniformDefault);
+        let conv: Conv1d<TB> = Conv1d::new(&config);
+        for item in conv.weight.to_data().value.iter() {
+            if *item < -k as f32 || *item > k as f32 {
+                panic!("Element ({item}) is not within the range of (-{k},{k})");
+            }
+        }
+    }
+
+    #[test]
+    fn initializer_zeros() {
+        TB::seed(0);
+        let config = Conv1dConfig::new(5, 5, 5).with_initializer(Initializer::Zeros);
+        assert_eq!(config.initializer, Initializer::Zeros);
+        let conv: Conv1d<TB> = Conv1d::new(&config);
+        for item in conv.weight.to_data().value.iter() {
+            assert_eq!(*item, 0.0f32);
+        }
     }
 }
