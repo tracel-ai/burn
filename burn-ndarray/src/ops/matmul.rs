@@ -88,66 +88,74 @@ fn matrixmultiply_sgemm<const D: usize>(
     mut out: NdArrayTensor<f32, D>,
     out_strides: Vec<isize>,
 ) -> NdArrayTensor<f32, D> {
-    let [batch_size_lhs, _, _] = lhs.shape().dims;
-    let [batch_size_rhs, _, _] = rhs.shape().dims;
-    let batch_size = usize::max(batch_size_rhs, batch_size_lhs);
+    let run = || {
+        let [batch_size_lhs, _, _] = lhs.shape().dims;
+        let [batch_size_rhs, _, _] = rhs.shape().dims;
+        let batch_size = usize::max(batch_size_rhs, batch_size_lhs);
 
-    if batch_size_lhs > batch_size && batch_size_lhs != 1 {
-        panic!("Broadcast on multiple dimensions is not yet supported");
-    }
-
-    if batch_size_rhs > batch_size && batch_size_rhs != 1 {
-        panic!("Broadcast on multiple dimensions is not yet supported");
-    }
-
-    let alpha = 1.0;
-    let beta = 0.0;
-
-    let out_slices = out
-        .array
-        .as_slice_mut()
-        .expect("Data is contiguous and in standard order");
-
-    let buffer = SharedBuffer::new(out_slices);
-
-    #[cfg(feature = "std")]
-    let iter = (0..batch_size).into_par_iter();
-    #[cfg(not(feature = "std"))]
-    let iter = (0..batch_size).into_iter();
-
-    iter.for_each(|b| {
-        let lhs_slice = match batch_size_lhs == 1 {
-            true => lhs.array.slice(s!(0, .., ..)),
-            false => lhs.array.slice(s!(b, .., ..)),
-        };
-        let rhs_slice = match batch_size_rhs == 1 {
-            true => rhs.array.slice(s!(0, .., ..)),
-            false => rhs.array.slice(s!(b, .., ..)),
-        };
-
-        unsafe {
-            let buffer = buffer.get();
-
-            matrixmultiply::sgemm(
-                m,
-                k,
-                n,
-                alpha,
-                lhs_slice.as_ptr(),
-                lhs_strides[1],
-                lhs_strides[2],
-                rhs_slice.as_ptr(),
-                rhs_strides[1],
-                rhs_strides[2],
-                beta,
-                &mut buffer[b * (m * n)],
-                out_strides[D - 2],
-                out_strides[D - 1],
-            );
+        if batch_size_lhs > batch_size && batch_size_lhs != 1 {
+            panic!("Broadcast on multiple dimensions is not yet supported");
         }
-    });
 
-    out
+        if batch_size_rhs > batch_size && batch_size_rhs != 1 {
+            panic!("Broadcast on multiple dimensions is not yet supported");
+        }
+
+        let alpha = 1.0;
+        let beta = 0.0;
+
+        let out_slices = out
+            .array
+            .as_slice_mut()
+            .expect("Data is contiguous and in standard order");
+
+        let buffer = SharedBuffer::new(out_slices);
+
+        #[cfg(feature = "std")]
+        let iter = (0..batch_size).into_par_iter();
+        #[cfg(not(feature = "std"))]
+        let iter = (0..batch_size).into_iter();
+
+        iter.for_each(|b| {
+            let lhs_slice = match batch_size_lhs == 1 {
+                true => lhs.array.slice(s!(0, .., ..)),
+                false => lhs.array.slice(s!(b, .., ..)),
+            };
+            let rhs_slice = match batch_size_rhs == 1 {
+                true => rhs.array.slice(s!(0, .., ..)),
+                false => rhs.array.slice(s!(b, .., ..)),
+            };
+
+            unsafe {
+                let buffer = buffer.get();
+
+                matrixmultiply::sgemm(
+                    m,
+                    k,
+                    n,
+                    alpha,
+                    lhs_slice.as_ptr(),
+                    lhs_strides[1],
+                    lhs_strides[2],
+                    rhs_slice.as_ptr(),
+                    rhs_strides[1],
+                    rhs_strides[2],
+                    beta,
+                    &mut buffer[b * (m * n)],
+                    out_strides[D - 2],
+                    out_strides[D - 1],
+                );
+            }
+        });
+
+        out
+    };
+    #[cfg(feature = "std")]
+    let output = rayon::scope(|_| run());
+    #[cfg(not(feature = "std"))]
+    let output = run();
+
+    output
 }
 
 impl Matmul<f64> for f64 {
