@@ -3,9 +3,9 @@ use alloc::vec::Vec;
 use core::cmp::Ordering;
 use core::ops::Range;
 
+use crate::element::FloatNdArrayElement;
 // Current crate
-use crate::tensor::BatchMatrix;
-use crate::{element::NdArrayElement, tensor::NdArrayTensor, NdArrayBackend};
+use crate::{tensor::NdArrayTensor, NdArrayBackend};
 use crate::{NdArrayDevice, SEED};
 
 // Workspace crates
@@ -16,9 +16,9 @@ use burn_tensor::{backend::Backend, ops::TensorOps, Data, ElementConversion, Sha
 // External crates
 use libm::{cos, erf, sin, tanh};
 
-use super::{NdArrayMathOps, NdArrayOps};
+use super::{matmul::matmul, NdArrayMathOps, NdArrayOps};
 
-impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
+impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     fn from_data<const D: usize>(data: Data<E, D>, _device: &NdArrayDevice) -> NdArrayTensor<E, D> {
         NdArrayTensor::from_data(data)
     }
@@ -124,11 +124,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
         lhs: NdArrayTensor<E, D>,
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<E, D> {
-        let batch_self = BatchMatrix::from_ndarray(lhs.array.clone(), lhs.shape());
-        let batch_other = BatchMatrix::from_ndarray(rhs.array.clone(), rhs.shape());
-        let output = batch_self.matmul(batch_other);
-
-        NdArrayTensor::from_bmatrix(output)
+        matmul(lhs, rhs)
     }
 
     fn neg<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
@@ -392,7 +388,7 @@ impl<E: NdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     }
 }
 
-fn arg<E: NdArrayElement, F, const D: usize>(
+fn arg<E: FloatNdArrayElement, F, const D: usize>(
     tensor: NdArrayTensor<E, D>,
     dim: usize,
     cmp: F,

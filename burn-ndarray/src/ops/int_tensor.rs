@@ -5,7 +5,7 @@ use burn_tensor::ops::IntTensorOps;
 use core::ops::Range;
 
 // Current crate
-use crate::element::NdArrayElement;
+use crate::element::FloatNdArrayElement;
 use crate::NdArrayDevice;
 use crate::{tensor::NdArrayTensor, NdArrayBackend};
 
@@ -14,7 +14,7 @@ use burn_tensor::{backend::Backend, Data, Shape};
 
 use super::{NdArrayMathOps, NdArrayOps};
 
-impl<E: NdArrayElement> IntTensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
+impl<E: FloatNdArrayElement> IntTensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     fn int_from_data<const D: usize>(
         data: Data<i64, D>,
         _device: &NdArrayDevice,

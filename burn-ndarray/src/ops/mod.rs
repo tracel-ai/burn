@@ -6,6 +6,7 @@ mod tensor;
 
 pub(crate) mod conv;
 pub(crate) mod macros;
+pub(crate) mod matmul;
 pub(crate) mod maxpool;
 pub(crate) mod padding;
 

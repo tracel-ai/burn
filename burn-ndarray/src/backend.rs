@@ -1,7 +1,7 @@
 use alloc::string::String;
 use core::marker::PhantomData;
 
-use crate::element::NdArrayElement;
+use crate::element::FloatNdArrayElement;
 use crate::NdArrayTensor;
 
 use burn_tensor::backend::Backend;
@@ -32,7 +32,7 @@ pub struct NdArrayBackend<E> {
     phantom: PhantomData<E>,
 }
 
-impl<E: NdArrayElement> Backend for NdArrayBackend<E> {
+impl<E: FloatNdArrayElement> Backend for NdArrayBackend<E> {
     type Device = NdArrayDevice;
     type FullPrecisionElem = f32;
     type FullPrecisionBackend = NdArrayBackend<f32>;

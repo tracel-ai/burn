@@ -13,7 +13,6 @@ pub fn backward<B: Backend, const D: usize>(root: ADTensor<B, D>) -> Gradients {
 
 fn build_tape(root: NodeRef, graph: Graph) -> Vec<Vec<StepBoxed>> {
     let mut tape = (0..root.order)
-        .into_iter()
         .map(|_| Vec::with_capacity(1))
         .collect::<Vec<_>>();
 

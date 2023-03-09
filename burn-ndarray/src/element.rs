@@ -1,6 +1,13 @@
 use burn_tensor::Element;
 use libm::{exp, log, log1p, pow, sqrt};
 use libm::{expf, log1pf, logf, powf, sqrtf};
+use ndarray::LinalgScalar;
+
+pub(crate) trait FloatNdArrayElement: NdArrayElement + LinalgScalar
+where
+    Self: Sized,
+{
+}
 
 pub(crate) trait NdArrayElement:
     Element
@@ -21,6 +28,7 @@ pub(crate) trait ExpElement {
     fn sqrt_elem(self) -> Self;
 }
 
+impl FloatNdArrayElement for f64 {}
 impl NdArrayElement for f64 {}
 impl ExpElement for f64 {
     fn exp_elem(self) -> Self {
@@ -44,24 +52,30 @@ impl ExpElement for f64 {
     }
 }
 
+impl FloatNdArrayElement for f32 {}
 impl NdArrayElement for f32 {}
 impl ExpElement for f32 {
+    #[inline(always)]
     fn exp_elem(self) -> Self {
         expf(self)
     }
 
+    #[inline(always)]
     fn log_elem(self) -> Self {
         logf(self)
     }
 
+    #[inline(always)]
     fn log1p_elem(self) -> Self {
         log1pf(self)
     }
 
+    #[inline(always)]
     fn pow_elem(self, value: f32) -> Self {
         powf(self, value)
     }
 
+    #[inline(always)]
     fn sqrt_elem(self) -> Self {
         sqrtf(self)
     }

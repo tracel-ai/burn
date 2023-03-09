@@ -18,9 +18,11 @@ std = [
   "burn-tensor/std",
   "burn-common/std",
   "burn-autodiff",
+  "rayon",
   "ndarray/std",
   "ndarray/rayon",
-  "ndarray/matrixmultiply-threading",
+  "matrixmultiply/std",
+  "matrixmultiply/threading",
 ]
 
 blas-accelerate = ["ndarray/blas", "blas-src/accelerate"] # Accelerate framework (macOS only)
@@ -40,7 +42,12 @@ burn-autodiff = {path = "../burn-autodiff", features = ["export_tests"], optiona
 burn-common = {path = "../burn-common", default-features = false}
 burn-tensor = {path = "../burn-tensor", default-features = false, features = ["export_tests"]}
 
+
+matrixmultiply = {version = "0.3.2", default-features = false}
+rayon = {version= "1.6", optional = true}
+
 blas-src = {version = "0.8.0", default-features = false, optional = true}# no-std compatible         
+
 derive-new = {workspace = true}
 libm = {workspace = true}
 ndarray = {workspace = true}

@@ -1,7 +1,7 @@
-use crate::{element::NdArrayElement, tensor::NdArrayTensor, NdArrayBackend, NdArrayDevice};
+use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArrayBackend, NdArrayDevice};
 use burn_tensor::{ops::TensorOps, Shape};
 
-pub(crate) fn apply_padding2d<E: NdArrayElement>(
+pub(crate) fn apply_padding2d<E: FloatNdArrayElement>(
     x: NdArrayTensor<E, 2>,
     padding: [usize; 2],
 ) -> NdArrayTensor<E, 2> {
