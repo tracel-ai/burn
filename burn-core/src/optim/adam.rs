@@ -140,8 +140,8 @@ impl AdaptiveMomentum {
         self.time.register(id.clone(), time.clone());
 
         let time = time.single_value().elem();
-        let moment_1_corrected = moment_1.div_scalar(1f32 - self.beta_1.powf(time));
-        let moment_2_corrected = moment_2.div_scalar(1f32 - self.beta_2.powf(time));
+        let moment_1_corrected = moment_1.div_scalar(1f32 - self.beta_1.powi(time));
+        let moment_2_corrected = moment_2.div_scalar(1f32 - self.beta_2.powi(time));
 
         moment_1_corrected.div(moment_2_corrected.sqrt().add_scalar(self.epsilon))
     }

@@ -24,151 +24,109 @@ pub(crate) trait ExpElement {
     fn exp_elem(self) -> Self;
     fn log_elem(self) -> Self;
     fn log1p_elem(self) -> Self;
-    fn pow_elem(self, value: f32) -> Self;
+    fn powf_elem(self, value: f32) -> Self;
+    fn powi_elem(self, value: i32) -> Self;
     fn sqrt_elem(self) -> Self;
 }
 
 impl FloatNdArrayElement for f64 {}
-impl NdArrayElement for f64 {}
-impl ExpElement for f64 {
-    fn exp_elem(self) -> Self {
-        exp(self)
-    }
-
-    fn log_elem(self) -> Self {
-        log(self)
-    }
-
-    fn log1p_elem(self) -> Self {
-        log1p(self)
-    }
-
-    fn pow_elem(self, value: f32) -> Self {
-        pow(self, value.into())
-    }
-
-    fn sqrt_elem(self) -> Self {
-        sqrt(self)
-    }
-}
-
 impl FloatNdArrayElement for f32 {}
-impl NdArrayElement for f32 {}
-impl ExpElement for f32 {
-    #[inline(always)]
-    fn exp_elem(self) -> Self {
-        expf(self)
-    }
 
-    #[inline(always)]
-    fn log_elem(self) -> Self {
-        logf(self)
-    }
+macro_rules! make_elem {
+    (
+        double
+        $ty:ty
+    ) => {
+        impl NdArrayElement for $ty {}
 
-    #[inline(always)]
-    fn log1p_elem(self) -> Self {
-        log1pf(self)
-    }
+        impl ExpElement for $ty {
+            #[inline(always)]
+            fn exp_elem(self) -> Self {
+                exp(self as f64) as $ty
+            }
 
-    #[inline(always)]
-    fn pow_elem(self, value: f32) -> Self {
-        powf(self, value)
-    }
+            #[inline(always)]
+            fn log_elem(self) -> Self {
+                log(self as f64) as $ty
+            }
 
-    #[inline(always)]
-    fn sqrt_elem(self) -> Self {
-        sqrtf(self)
-    }
+            #[inline(always)]
+            fn log1p_elem(self) -> Self {
+                log1p(self as f64) as $ty
+            }
+
+            #[inline(always)]
+            fn powf_elem(self, value: f32) -> Self {
+                pow(self as f64, value.into()) as $ty
+            }
+
+            #[inline(always)]
+            fn powi_elem(self, value: i32) -> Self {
+                #[cfg(feature = "std")]
+                let val = f64::powi(self as f64, value) as $ty;
+
+                #[cfg(not(feature = "std"))]
+                let val = Self::powf_elem(self, value as f32);
+
+                val
+            }
+
+            #[inline(always)]
+            fn sqrt_elem(self) -> Self {
+                sqrt(self as f64) as $ty
+            }
+        }
+    };
+    (
+        single
+        $ty:ty
+    ) => {
+        impl NdArrayElement for $ty {}
+
+        impl ExpElement for $ty {
+            #[inline(always)]
+            fn exp_elem(self) -> Self {
+                expf(self as f32) as $ty
+            }
+
+            #[inline(always)]
+            fn log_elem(self) -> Self {
+                logf(self as f32) as $ty
+            }
+
+            #[inline(always)]
+            fn log1p_elem(self) -> Self {
+                log1pf(self as f32) as $ty
+            }
+
+            #[inline(always)]
+            fn powf_elem(self, value: f32) -> Self {
+                powf(self as f32, value.into()) as $ty
+            }
+
+            #[inline(always)]
+            fn powi_elem(self, value: i32) -> Self {
+                #[cfg(feature = "std")]
+                let val = f32::powi(self as f32, value) as $ty;
+
+                #[cfg(not(feature = "std"))]
+                let val = Self::powf_elem(self, value as f32);
+
+                val
+            }
+
+            #[inline(always)]
+            fn sqrt_elem(self) -> Self {
+                sqrtf(self as f32) as $ty
+            }
+        }
+    };
 }
 
-impl NdArrayElement for i64 {}
-impl ExpElement for i64 {
-    fn exp_elem(self) -> Self {
-        exp(self as f64) as i64
-    }
+make_elem!(double f64);
+make_elem!(double i64);
 
-    fn log_elem(self) -> Self {
-        log(self as f64) as i64
-    }
-
-    fn log1p_elem(self) -> Self {
-        log1p(self as f64) as i64
-    }
-
-    fn pow_elem(self, value: f32) -> Self {
-        pow(self as f64, value.into()) as i64
-    }
-
-    fn sqrt_elem(self) -> Self {
-        sqrt(self as f64) as i64
-    }
-}
-
-impl NdArrayElement for i32 {}
-impl ExpElement for i32 {
-    fn exp_elem(self) -> Self {
-        expf(self as f32) as i32
-    }
-
-    fn log_elem(self) -> Self {
-        logf(self as f32) as i32
-    }
-
-    fn log1p_elem(self) -> Self {
-        log1pf(self as f32) as i32
-    }
-
-    fn pow_elem(self, value: f32) -> Self {
-        powf(self as f32, value) as i32
-    }
-
-    fn sqrt_elem(self) -> Self {
-        sqrtf(self as f32) as i32
-    }
-}
-
-impl NdArrayElement for i16 {}
-impl ExpElement for i16 {
-    fn exp_elem(self) -> Self {
-        expf(self as f32) as i16
-    }
-
-    fn log_elem(self) -> Self {
-        logf(self as f32) as i16
-    }
-
-    fn log1p_elem(self) -> Self {
-        log1pf(self as f32) as i16
-    }
-
-    fn pow_elem(self, value: f32) -> Self {
-        powf(self as f32, value) as i16
-    }
-
-    fn sqrt_elem(self) -> Self {
-        sqrtf(self as f32) as i16
-    }
-}
-
-impl NdArrayElement for u8 {}
-impl ExpElement for u8 {
-    fn exp_elem(self) -> Self {
-        expf(self as f32) as u8
-    }
-
-    fn log_elem(self) -> Self {
-        logf(self as f32) as u8
-    }
-
-    fn log1p_elem(self) -> Self {
-        log1pf(self as f32) as u8
-    }
-
-    fn pow_elem(self, value: f32) -> Self {
-        powf(self as f32, value) as u8
-    }
-
-    fn sqrt_elem(self) -> Self {
-        sqrtf(self as f32) as u8
-    }
-}
+make_elem!(single f32);
+make_elem!(single i32);
+make_elem!(single i16);
+make_elem!(single u8);
