@@ -56,22 +56,27 @@ impl ExpElement for f64 {
 impl FloatNdArrayElement for f32 {}
 impl NdArrayElement for f32 {}
 impl ExpElement for f32 {
+    #[inline(always)]
     fn exp_elem(self) -> Self {
         expf(self)
     }
 
+    #[inline(always)]
     fn log_elem(self) -> Self {
         logf(self)
     }
 
+    #[inline(always)]
     fn log1p_elem(self) -> Self {
         log1pf(self)
     }
 
+    #[inline(always)]
     fn pow_elem(self, value: f32) -> Self {
         powf(self, value)
     }
 
+    #[inline(always)]
     fn sqrt_elem(self) -> Self {
         sqrtf(self)
     }

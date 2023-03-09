@@ -18,10 +18,10 @@ std = [
   "burn-tensor/std",
   "burn-common/std",
   "burn-autodiff",
+  "rayon",
   "ndarray/std",
   "ndarray/rayon",
-  "ndarray/matrixmultiply-threading",
-  "rayon",
+  "ndarray/matrixmultiply-threading"
 ]
 
 blas-accelerate = ["ndarray/blas", "blas-src/accelerate"] # Accelerate framework (macOS only)

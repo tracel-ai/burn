@@ -1,6 +1,8 @@
 use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArrayBackend, NdArrayDevice};
 use burn_tensor::{ops::TensorOps, Shape};
 use ndarray::s;
+
+#[cfg(feature = "std")]
 use rayon::prelude::*;
 
 pub(crate) trait Matmul<E> {
@@ -31,15 +33,20 @@ impl Matmul<f32> for f32 {
         let [batch_size_lhs, m, _] = lhs.shape().dims;
         let [batch_size_rhs, k, n] = rhs.shape().dims;
 
-        let batch_size = usize::max(batch_size_lhs, batch_size_rhs);
+        let mut shape_out = match batch_size_lhs > batch_size_rhs {
+            true => shape_ori_lhs,
+            false => shape_ori_rhs,
+        };
+        shape_out.dims[D - 2] = m;
+        shape_out.dims[D - 1] = n;
 
-        let out = NdArrayBackend::<f32>::empty(Shape::new([batch_size, m, n]), &NdArrayDevice::Cpu);
+        let out = NdArrayBackend::<f32>::empty(shape_out, &NdArrayDevice::Cpu);
 
         let lhs_strides = lhs.array.strides().to_vec();
         let rhs_strides = rhs.array.strides().to_vec();
         let out_strides = out.array.strides().to_vec();
 
-        let out = matrixmultiply_sgemm(
+        matrixmultiply_sgemm(
             m,
             k,
             n,
@@ -49,37 +56,28 @@ impl Matmul<f32> for f32 {
             rhs_strides,
             out,
             out_strides,
-        );
-
-        let mut shape_out = match batch_size_lhs > batch_size_rhs {
-            true => shape_ori_lhs,
-            false => shape_ori_rhs,
-        };
-        shape_out.dims[D - 2] = m;
-        shape_out.dims[D - 1] = n;
-
-        NdArrayBackend::<f32>::reshape(out, shape_out)
+        )
     }
 }
 
-struct SharedBuffer<'a> {
+pub struct SharedBuffer<'a> {
     cell: core::cell::UnsafeCell<&'a mut [f32]>,
 }
 
 unsafe impl<'a> Sync for SharedBuffer<'a> {}
 
 impl<'a> SharedBuffer<'a> {
-    fn new(data: &'a mut [f32]) -> Self {
+    pub fn new(data: &'a mut [f32]) -> Self {
         Self {
             cell: core::cell::UnsafeCell::new(data),
         }
     }
-    unsafe fn get(&self) -> &'a mut [f32] {
+    pub unsafe fn get(&self) -> &'a mut [f32] {
         unsafe { core::ptr::read(self.cell.get()) }
     }
 }
 
-fn matrixmultiply_sgemm(
+fn matrixmultiply_sgemm<const D: usize>(
     m: usize,
     k: usize,
     n: usize,
@@ -87,12 +85,12 @@ fn matrixmultiply_sgemm(
     lhs_strides: Vec<isize>,
     rhs: NdArrayTensor<f32, 3>,
     rhs_strides: Vec<isize>,
-    mut out: NdArrayTensor<f32, 3>,
+    mut out: NdArrayTensor<f32, D>,
     out_strides: Vec<isize>,
-) -> NdArrayTensor<f32, 3> {
+) -> NdArrayTensor<f32, D> {
     let [batch_size_lhs, _, _] = lhs.shape().dims;
     let [batch_size_rhs, _, _] = rhs.shape().dims;
-    let [batch_size, _, _] = out.shape().dims;
+    let batch_size = usize::max(batch_size_rhs, batch_size_lhs);
 
     if batch_size_lhs > batch_size && batch_size_lhs != 1 {
         panic!("Broadcast on multiple dimensions is not yet supported");
@@ -105,11 +103,19 @@ fn matrixmultiply_sgemm(
     let alpha = 1.0;
     let beta = 0.0;
 
-    let out_slices = out.array.as_slice_mut().unwrap();
+    let out_slices = out
+        .array
+        .as_slice_mut()
+        .expect("Data is contiguous and in standard order");
 
     let buffer = SharedBuffer::new(out_slices);
 
-    (0..batch_size).into_par_iter().for_each(|b| {
+    #[cfg(feature = "std")]
+    let iter = (0..batch_size).into_par_iter();
+    #[cfg(not(feature = "std"))]
+    let iter = (0..batch_size).into_iter();
+
+    iter.for_each(|b| {
         let lhs_slice = match batch_size_lhs == 1 {
             true => lhs.array.slice(s!(0, .., ..)),
             false => lhs.array.slice(s!(b, .., ..)),
@@ -135,8 +141,8 @@ fn matrixmultiply_sgemm(
                 rhs_strides[2],
                 beta,
                 &mut buffer[b * (m * n)],
-                out_strides[1],
-                out_strides[2],
+                out_strides[D - 2],
+                out_strides[D - 1],
             );
         }
     });

@@ -56,7 +56,15 @@ macro_rules! to_nd_array_tensor {
         $array:expr
     ) => {{
         let dim = $crate::to_typed_dims!($n, $shape.dims, justdim);
-        let array: ndarray::ArcArray<E, Dim<[usize; $n]>> = $array.reshape(dim);
+        let safe_into_shape =
+            $array.is_standard_layout() || $array.raw_view().reversed_axes().is_standard_layout();
+        let array: ndarray::ArcArray<E, Dim<[usize; $n]>> = match safe_into_shape {
+            true => $array
+                .into_shape(dim)
+                .expect("Safe to change shape without relayout")
+                .into_shared(),
+            false => $array.reshape(dim),
+        };
         let array = array.into_dyn();
 
         NdArrayTensor { array }
@@ -82,14 +90,15 @@ where
     pub fn from_data(data: Data<E, D>) -> NdArrayTensor<E, D> {
         let shape = data.shape.clone();
         let to_array = |data: Data<E, D>| Array::from_iter(data.value.into_iter()).into_shared();
+        let array = to_array(data);
 
         match D {
-            1 => to_nd_array_tensor!(1, shape, to_array(data)),
-            2 => to_nd_array_tensor!(2, shape, to_array(data)),
-            3 => to_nd_array_tensor!(3, shape, to_array(data)),
-            4 => to_nd_array_tensor!(4, shape, to_array(data)),
-            5 => to_nd_array_tensor!(5, shape, to_array(data)),
-            6 => to_nd_array_tensor!(6, shape, to_array(data)),
+            1 => to_nd_array_tensor!(1, shape, array),
+            2 => to_nd_array_tensor!(2, shape, array),
+            3 => to_nd_array_tensor!(3, shape, array),
+            4 => to_nd_array_tensor!(4, shape, array),
+            5 => to_nd_array_tensor!(5, shape, array),
+            6 => to_nd_array_tensor!(6, shape, array),
             _ => panic!(""),
         }
     }
