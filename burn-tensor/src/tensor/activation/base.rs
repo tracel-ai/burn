@@ -34,12 +34,12 @@ pub fn log_softmax<const D: usize, B: Backend>(tensor: Tensor<B, D>, dim: usize)
     tensor.sub(tensor_tmp)
 }
 
-/// Applies the softmax function.
+/// Applies the sigmoid function.
 pub fn sigmoid<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
     log_sigmoid(tensor).exp()
 }
 
-/// Applies the log softmax function.
+/// Applies the log sigmoid function.
 pub fn log_sigmoid<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
     match B::FloatElem::precision() {
         Precision::Half => {
