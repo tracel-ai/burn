@@ -537,38 +537,38 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         B::greater(lhs.primitive, rhs.primitive)
     }
 
-    fn greater_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: FloatElem<B>) -> BoolTensor<B, D> {
-        B::greater_scalar(lhs.primitive, rhs)
+    fn greater_elem<const D: usize>(lhs: ADTensor<B, D>, rhs: FloatElem<B>) -> BoolTensor<B, D> {
+        B::greater_elem(lhs.primitive, rhs)
     }
 
     fn greater_equal<const D: usize>(lhs: ADTensor<B, D>, rhs: ADTensor<B, D>) -> BoolTensor<B, D> {
         B::greater_equal(lhs.primitive, rhs.primitive)
     }
 
-    fn greater_equal_scalar<const D: usize>(
+    fn greater_equal_elem<const D: usize>(
         lhs: ADTensor<B, D>,
         rhs: FloatElem<B>,
     ) -> BoolTensor<B, D> {
-        B::greater_equal_scalar(lhs.primitive, rhs)
+        B::greater_equal_elem(lhs.primitive, rhs)
     }
 
     fn lower<const D: usize>(lhs: ADTensor<B, D>, rhs: ADTensor<B, D>) -> BoolTensor<B, D> {
         B::lower(lhs.primitive, rhs.primitive)
     }
 
-    fn lower_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: FloatElem<B>) -> BoolTensor<B, D> {
-        B::lower_scalar(lhs.primitive, rhs)
+    fn lower_elem<const D: usize>(lhs: ADTensor<B, D>, rhs: FloatElem<B>) -> BoolTensor<B, D> {
+        B::lower_elem(lhs.primitive, rhs)
     }
 
     fn lower_equal<const D: usize>(lhs: ADTensor<B, D>, rhs: ADTensor<B, D>) -> BoolTensor<B, D> {
         B::lower_equal(lhs.primitive, rhs.primitive)
     }
 
-    fn lower_equal_scalar<const D: usize>(
+    fn lower_equal_elem<const D: usize>(
         lhs: ADTensor<B, D>,
         rhs: FloatElem<B>,
     ) -> BoolTensor<B, D> {
-        B::lower_equal_scalar(lhs.primitive, rhs)
+        B::lower_equal_elem(lhs.primitive, rhs)
     }
 
     fn detach<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {
@@ -1056,7 +1056,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
                     let zero = 0.elem();
-                    let mask = B::lower_equal_scalar(ops.state, zero);
+                    let mask = B::lower_equal_elem(ops.state, zero);
                     B::mask_fill(grad, mask, zero)
                 });
             }

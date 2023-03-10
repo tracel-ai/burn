@@ -206,10 +206,10 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
     ) -> NdArrayTensor<bool, D> {
         let tensor = NdArrayBackend::<E>::sub(lhs, rhs);
         let zero = 0.elem();
-        Self::greater_scalar(tensor, zero)
+        Self::greater_elem(tensor, zero)
     }
 
-    fn greater_scalar<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<bool, D> {
+    fn greater_elem<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<bool, D> {
         let array = lhs.array.mapv(|a| a > rhs).into_shared();
 
         NdArrayTensor { array }
@@ -221,10 +221,10 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
     ) -> NdArrayTensor<bool, D> {
         let tensor = NdArrayBackend::<E>::sub(lhs, rhs);
         let zero = 0.elem();
-        Self::greater_equal_scalar(tensor, zero)
+        Self::greater_equal_elem(tensor, zero)
     }
 
-    fn greater_equal_scalar<const D: usize>(
+    fn greater_equal_elem<const D: usize>(
         lhs: NdArrayTensor<E, D>,
         rhs: E,
     ) -> NdArrayTensor<bool, D> {
@@ -239,10 +239,10 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
     ) -> NdArrayTensor<bool, D> {
         let tensor = NdArrayBackend::<E>::sub(lhs, rhs);
         let zero = 0.elem();
-        Self::lower_scalar(tensor, zero)
+        Self::lower_elem(tensor, zero)
     }
 
-    fn lower_scalar<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<bool, D> {
+    fn lower_elem<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<bool, D> {
         let array = lhs.array.mapv(|a| a < rhs).into_shared();
 
         NdArrayTensor { array }
@@ -254,10 +254,10 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
     ) -> NdArrayTensor<bool, D> {
         let tensor = NdArrayBackend::<E>::sub(lhs, rhs);
         let zero = 0.elem();
-        Self::lower_equal_scalar(tensor, zero)
+        Self::lower_equal_elem(tensor, zero)
     }
 
-    fn lower_equal_scalar<const D: usize>(
+    fn lower_equal_elem<const D: usize>(
         lhs: NdArrayTensor<E, D>,
         rhs: E,
     ) -> NdArrayTensor<bool, D> {

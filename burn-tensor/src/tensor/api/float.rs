@@ -234,62 +234,6 @@ where
         (var, mean)
     }
 
-    /// Applies element wise greater comparison and returns a boolean tensor.
-    ///
-    /// # Panics
-    ///
-    /// If the two tensors don't have the same shape.
-    pub fn greater(self, other: Self) -> Tensor<B, D, Bool> {
-        Tensor::new(B::greater(self.primitive, other.primitive))
-    }
-
-    /// Applies element wise greater-equal comparison and returns a boolean tensor.
-    ///
-    /// # Panics
-    ///
-    /// If the two tensors don't have the same shape.
-    pub fn greater_equal(self, other: Self) -> Tensor<B, D, Bool> {
-        Tensor::new(B::greater_equal(self.primitive, other.primitive))
-    }
-
-    /// Applies element wise lower comparison and returns a boolean tensor.
-    ///
-    /// # Panics
-    ///
-    /// If the two tensors don't have the same shape.
-    pub fn lower(self, other: Self) -> Tensor<B, D, Bool> {
-        Tensor::new(B::lower(self.primitive, other.primitive))
-    }
-
-    /// Applies element wise lower-equal comparison and returns a boolean tensor.
-    ///
-    /// # Panics
-    ///
-    /// If the two tensors don't have the same shape.
-    pub fn lower_equal(self, other: Self) -> Tensor<B, D, Bool> {
-        Tensor::new(B::lower_equal(self.primitive, other.primitive))
-    }
-
-    /// Applies element wise greater comparison and returns a boolean tensor.
-    pub fn greater_scalar<E: ElementConversion>(self, other: E) -> Tensor<B, D, Bool> {
-        Tensor::new(B::greater_scalar(self.primitive, other.elem()))
-    }
-
-    /// Applies element wise greater-equal comparison and returns a boolean tensor.
-    pub fn greater_equal_scalar<E: ElementConversion>(self, other: E) -> Tensor<B, D, Bool> {
-        Tensor::new(B::greater_equal_scalar(self.primitive, other.elem()))
-    }
-
-    /// Applies element wise lower comparison and returns a boolean tensor.
-    pub fn lower_scalar<E: ElementConversion>(self, other: E) -> Tensor<B, D, Bool> {
-        Tensor::new(B::lower_scalar(self.primitive, other.elem()))
-    }
-
-    /// Applies element wise lower-equal comparison and returns a boolean tensor.
-    pub fn lower_equal_scalar<E: ElementConversion>(self, other: E) -> Tensor<B, D, Bool> {
-        Tensor::new(B::lower_equal_scalar(self.primitive, other.elem()))
-    }
-
     /// Create a random tensor of the given shape where each element is sampled from the given
     /// distribution.
     pub fn random<S: Into<Shape<D>>>(shape: S, distribution: Distribution<B::FloatElem>) -> Self {

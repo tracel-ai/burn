@@ -74,6 +74,38 @@ pub trait IntTensorOps<B: Backend> {
         lhs: B::IntTensorPrimitive<D>,
         rhs: B::IntElem,
     ) -> B::BoolTensorPrimitive<D>;
+    fn int_greater<const D: usize>(
+        lhs: B::IntTensorPrimitive<D>,
+        rhs: B::IntTensorPrimitive<D>,
+    ) -> B::BoolTensorPrimitive<D>;
+    fn int_greater_elem<const D: usize>(
+        lhs: B::IntTensorPrimitive<D>,
+        rhs: B::IntElem,
+    ) -> B::BoolTensorPrimitive<D>;
+    fn int_greater_equal<const D: usize>(
+        lhs: B::IntTensorPrimitive<D>,
+        rhs: B::IntTensorPrimitive<D>,
+    ) -> B::BoolTensorPrimitive<D>;
+    fn int_greater_equal_elem<const D: usize>(
+        lhs: B::IntTensorPrimitive<D>,
+        rhs: B::IntElem,
+    ) -> B::BoolTensorPrimitive<D>;
+    fn int_lower<const D: usize>(
+        lhs: B::IntTensorPrimitive<D>,
+        rhs: B::IntTensorPrimitive<D>,
+    ) -> B::BoolTensorPrimitive<D>;
+    fn int_lower_elem<const D: usize>(
+        lhs: B::IntTensorPrimitive<D>,
+        rhs: B::IntElem,
+    ) -> B::BoolTensorPrimitive<D>;
+    fn int_lower_equal<const D: usize>(
+        lhs: B::IntTensorPrimitive<D>,
+        rhs: B::IntTensorPrimitive<D>,
+    ) -> B::BoolTensorPrimitive<D>;
+    fn int_lower_equal_elem<const D: usize>(
+        lhs: B::IntTensorPrimitive<D>,
+        rhs: B::IntElem,
+    ) -> B::BoolTensorPrimitive<D>;
 
     // ====  NUMERIC ==== //
     fn int_add<const D: usize>(

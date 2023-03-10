@@ -44,6 +44,11 @@ use crate::tensor::Element;
 /// [get_mut](alloc::sync::Arc::get_mut) allows backends to have access to an owned or mutable
 /// reference to their tensor buffer data structure if the tensor is not shared. In that case,
 /// backends can dispatch to their owned inplace operations for better performance.
+///
+/// ## Documentation
+///
+/// Most of the documentation for each function can be found on the user API [tensor struct](crate::Tensor).
+/// For modules, public functions are often created, which can be used by `burn-core` modules.
 pub trait Backend:
     TensorOps<Self>
     + BoolTensorOps<Self>
@@ -78,8 +83,15 @@ pub trait Backend:
     /// Tensor primitive to be used for all bool operations.
     type BoolTensorPrimitive<const D: usize>: Clone + Send + Sync + 'static + core::fmt::Debug;
 
-    fn ad_enabled() -> bool;
+    /// If autodiff is enabled.
+    fn ad_enabled() -> bool {
+        false
+    }
+
+    /// Name of the backend.
     fn name() -> String;
+
+    /// Seed the backend.
     fn seed(seed: u64);
 }
 

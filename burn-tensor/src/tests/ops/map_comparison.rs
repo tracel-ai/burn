@@ -4,22 +4,22 @@ mod tests {
     use burn_tensor::{Data, Tensor};
 
     #[test]
-    fn test_greater_scalar() {
+    fn test_greater_elem() {
         let data_1 = Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
         let tensor_1 = Tensor::<TestBackend, 2>::from_data(data_1);
 
-        let data_actual = tensor_1.greater_scalar(4.0);
+        let data_actual = tensor_1.greater_elem(4.0);
 
         let data_expected = Data::from([[false, false, false], [false, false, true]]);
         assert_eq!(data_expected, data_actual.to_data());
     }
 
     #[test]
-    fn test_greater_equal_scalar() {
+    fn test_greater_equal_elem() {
         let data_1 = Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
         let tensor_1 = Tensor::<TestBackend, 2>::from_data(data_1);
 
-        let data_actual = tensor_1.greater_equal_scalar(4.0);
+        let data_actual = tensor_1.greater_equal_elem(4.0);
 
         let data_expected = Data::from([[false, false, false], [false, true, true]]);
         assert_eq!(data_expected, data_actual.to_data());
@@ -52,22 +52,22 @@ mod tests {
     }
 
     #[test]
-    fn test_lower_scalar() {
+    fn test_lower_elem() {
         let data_1 = Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
         let tensor_1 = Tensor::<TestBackend, 2>::from_data(data_1);
 
-        let data_actual = tensor_1.lower_scalar(4.0);
+        let data_actual = tensor_1.lower_elem(4.0);
 
         let data_expected = Data::from([[true, true, true], [true, false, false]]);
         assert_eq!(data_expected, data_actual.to_data());
     }
 
     #[test]
-    fn test_lower_equal_scalar() {
+    fn test_lower_equal_elem() {
         let data_1 = Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
         let tensor_1 = Tensor::<TestBackend, 2>::from_data(data_1);
 
-        let data_actual = tensor_1.lower_equal_scalar(4.0);
+        let data_actual = tensor_1.lower_equal_elem(4.0);
 
         let data_expected = Data::from([[true, true, true], [true, true, false]]);
         assert_eq!(data_expected, data_actual.to_data());
