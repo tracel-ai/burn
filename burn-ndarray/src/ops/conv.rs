@@ -34,34 +34,35 @@ pub(crate) fn conv2d<E: FloatNdArrayElement>(
     let unsafe_shared_out = UnsafeSharedRef::new(&mut output);
 
     run_par!(|| {
-        iter_par!(0, batch_size).for_each(|b| {
-            iter_par!(0, out_channels).for_each(|oc| unsafe {
-                let output = unsafe_shared_out.get();
+        iter_par!(0, batch_size * out_channels).for_each(|k| unsafe {
+            let b = k / out_channels;
+            let oc = k % out_channels;
 
-                for ic in 0..in_channels {
-                    for kh in 0..kernel_height {
-                        for kw in 0..kernel_width {
-                            for oh in 0..out_height {
-                                for ow in 0..out_width {
-                                    let ih = oh * stride_height + kh * dilatation_height;
-                                    let iw = ow * stride_width + kw * dilatation_width;
+            let output = unsafe_shared_out.get();
 
-                                    output[[b, oc, oh, ow]] = output[[b, oc, oh, ow]]
-                                        + x[[b, ic, ih, iw]] * weight.array[[oc, ic, kh, kw]];
-                                }
+            for ic in 0..in_channels {
+                for kh in 0..kernel_height {
+                    for kw in 0..kernel_width {
+                        for oh in 0..out_height {
+                            for ow in 0..out_width {
+                                let ih = oh * stride_height + kh * dilatation_height;
+                                let iw = ow * stride_width + kw * dilatation_width;
+
+                                output[[b, oc, oh, ow]] = output[[b, oc, oh, ow]]
+                                    + x[[b, ic, ih, iw]] * weight.array[[oc, ic, kh, kw]];
                             }
                         }
                     }
                 }
+            }
 
-                if let Some(bias) = &bias {
-                    for oh in 0..out_height {
-                        for ow in 0..out_width {
-                            output[[b, oc, oh, ow]] = output[[b, oc, oh, ow]] + bias.array[oc];
-                        }
+            if let Some(bias) = &bias {
+                for oh in 0..out_height {
+                    for ow in 0..out_width {
+                        output[[b, oc, oh, ow]] = output[[b, oc, oh, ow]] + bias.array[oc];
                     }
                 }
-            });
+            }
         });
     });
 
