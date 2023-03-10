@@ -1,14 +1,73 @@
 use alloc::{vec, vec::Vec};
+use ndarray::Array4;
 
-use super::padding::apply_padding2d;
+use super::padding::{apply_padding2d, apply_padding_4d};
 use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArrayBackend, NdArrayDevice};
 
 use burn_tensor::{
     ops::{IntTensorOps, TensorOps},
-    Data, Shape,
+    Data, ElementConversion, Shape,
 };
 
 use libm::ceilf;
+
+pub(crate) fn max_pool2d<E: FloatNdArrayElement>(
+    x: NdArrayTensor<E, 4>,
+    kernel_size: [usize; 2],
+    stride: [usize; 2],
+    padding: [usize; 2],
+) -> (NdArrayTensor<E, 4>, NdArrayTensor<i64, 4>) {
+    let [kernel_height, kernel_width] = kernel_size;
+    let [padding_height, padding_width] = padding;
+    let [stride_height, stride_width] = stride;
+    let [batch_size, in_channels, in_height, in_width] = x.shape().dims;
+
+    let out_height = ((in_height + 2 * padding_height - kernel_height) / stride_height) + 1;
+    let out_width = ((in_width + 2 * padding_width - kernel_width) / stride_width) + 1;
+
+    let x = apply_padding_4d(x, padding).array;
+
+    let mut output = Array4::zeros((batch_size, in_channels, out_height, out_width));
+    let mut indexes = Array4::<i64>::zeros((batch_size, in_channels, out_height, out_width));
+
+    for b in 0..batch_size {
+        for ic in 0..in_channels {
+            for oh in 0..out_height {
+                for ow in 0..out_width {
+                    let mut max_val = (-f32::INFINITY).elem::<E>();
+                    let mut index = 0;
+
+                    for kh in 0..kernel_height {
+                        for kw in 0..kernel_width {
+                            let ih = oh * stride_height + kh;
+                            let iw = ow * stride_width + kw;
+
+                            let val = x[[b, ic, ih, iw]];
+
+                            if val > max_val {
+                                max_val = val;
+
+                                let ih = ih as i64 - padding_height as i64;
+                                let iw = iw as i64 - padding_width as i64;
+
+                                index = ih * in_height as i64 + iw;
+                            }
+                        }
+                    }
+
+                    output[[b, ic, oh, ow]] = max_val;
+                    indexes[[b, ic, oh, ow]] = index;
+                }
+            }
+        }
+    }
+
+    println!("out {:?}", output);
+    let output = NdArrayTensor::new(output.into_dyn().into_shared());
+    let indexes = NdArrayTensor::new(indexes.into_dyn().into_shared());
+
+    (output, indexes)
+}
 
 /// This method is not the most efficient, but it serves as a basic implementation that is easy to understand.
 /// A more optimized version should be used in its place.
@@ -21,23 +80,23 @@ pub(crate) fn max_pool2d_with_indexes_naive<E: FloatNdArrayElement>(
     let mut batches = Vec::new();
     let mut batches_indexes = Vec::new();
 
-    let [batch_size, channels, heigth, width] = x.shape().dims;
+    let [batch_size, channels, height, width] = x.shape().dims;
 
     for b in 0..batch_size {
         let mut batch = Vec::new();
         let mut batch_indexes = Vec::new();
 
         for c in 0..channels {
-            let x = NdArrayBackend::index(x.clone(), [b..b + 1, c..c + 1, 0..heigth, 0..width]);
-            let x = NdArrayBackend::reshape(x.clone(), Shape::new([heigth, width]));
+            let x = NdArrayBackend::index(x.clone(), [b..b + 1, c..c + 1, 0..height, 0..width]);
+            let x = NdArrayBackend::reshape(x.clone(), Shape::new([height, width]));
             let x = apply_padding2d(x.clone(), padding);
 
             let (matrix, indexes) = max_pool2d_with_kernel(x, kernel_size, stride, padding);
-            let [heigth, width] = matrix.shape().dims;
+            let [height, width] = matrix.shape().dims;
 
-            let matrix = NdArrayBackend::reshape(matrix, Shape::new([1, 1, heigth, width]));
+            let matrix = NdArrayBackend::reshape(matrix, Shape::new([1, 1, height, width]));
             let indexes =
-                NdArrayBackend::<E>::int_reshape(indexes, Shape::new([1, 1, heigth, width]));
+                NdArrayBackend::<E>::int_reshape(indexes, Shape::new([1, 1, height, width]));
 
             batch.push(matrix);
             batch_indexes.push(indexes);
@@ -63,25 +122,25 @@ pub(crate) fn max_pool2d_backward_naive<E: FloatNdArrayElement>(
     output_grad: NdArrayTensor<E, 4>,
     indexes: NdArrayTensor<i64, 4>,
 ) -> NdArrayTensor<E, 4> {
-    let [_batch_size, _channels, heigth, width] = output_grad.shape().dims;
-    let [batch_size, channels, heigth_x, width_x] = x.shape().dims;
+    let [_batch_size, _channels, height, width] = output_grad.shape().dims;
+    let [batch_size, channels, height_x, width_x] = x.shape().dims;
 
     let output_grad_flatten = NdArrayBackend::reshape(
         output_grad,
-        Shape::new([batch_size, channels, heigth * width]),
+        Shape::new([batch_size, channels, height * width]),
     );
     let indexes_flatten = NdArrayBackend::<E>::int_reshape(
         indexes,
-        Shape::new([batch_size, channels, heigth * width]),
+        Shape::new([batch_size, channels, height * width]),
     );
     let mut output_flatten = NdArrayBackend::zeros(
-        Shape::new([batch_size, channels, heigth_x * width_x]),
+        Shape::new([batch_size, channels, height_x * width_x]),
         &NdArrayDevice::Cpu,
     );
 
     for b in 0..batch_size {
         for c in 0..channels {
-            for i in 0..(heigth * width) {
+            for i in 0..(height * width) {
                 let index = NdArrayBackend::<E>::int_index(
                     indexes_flatten.clone(),
                     [b..b + 1, c..c + 1, i..i + 1],
@@ -118,16 +177,16 @@ fn max_pool2d_with_kernel<E: FloatNdArrayElement>(
 ) -> (NdArrayTensor<E, 2>, NdArrayTensor<i64, 2>) {
     let [k1, k2] = kernel_size;
     let [p1, p2] = padding;
-    let [heigth, width] = x.shape().dims;
+    let [height, width] = x.shape().dims;
 
-    let heigth_new = ceilf((heigth - k1 + 1) as f32 / stride[0] as f32) as usize;
+    let height_new = ceilf((height - k1 + 1) as f32 / stride[0] as f32) as usize;
     let width_new = ceilf((width - k2 + 1) as f32 / stride[1] as f32) as usize;
     let mut output =
-        NdArrayBackend::empty(Shape::new([heigth_new, width_new]), &NdArrayDevice::Cpu);
+        NdArrayBackend::empty(Shape::new([height_new, width_new]), &NdArrayDevice::Cpu);
     let mut indexes =
-        NdArrayBackend::<E>::int_empty(Shape::new([heigth_new, width_new]), &NdArrayDevice::Cpu);
+        NdArrayBackend::<E>::int_empty(Shape::new([height_new, width_new]), &NdArrayDevice::Cpu);
 
-    for i in 0..heigth_new {
+    for i in 0..height_new {
         for j in 0..width_new {
             let i_x = i * stride[0];
             let j_x = j * stride[1];
@@ -146,7 +205,7 @@ fn max_pool2d_with_kernel<E: FloatNdArrayElement>(
             let index_j = index - (index_i * k2 as i64);
             let ii = i64::max(0, i_x as i64 - p1 as i64 + index_i);
             let jj = i64::max(0, j_x as i64 - p2 as i64 + index_j);
-            let h = (heigth - (2 * p1)) as i64;
+            let h = (height - (2 * p1)) as i64;
             let index = ii * h + jj;
 
             let index = NdArrayBackend::<E>::int_from_data(
