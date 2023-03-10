@@ -81,10 +81,7 @@ impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         B::int_add(lhs, rhs)
     }
 
-    fn int_add_scalar<const D: usize>(
-        lhs: IntTensor<B, D>,
-        rhs: <ADBackendDecorator<B> as Backend>::IntElem,
-    ) -> IntTensor<B, D> {
+    fn int_add_scalar<const D: usize>(lhs: IntTensor<B, D>, rhs: B::IntElem) -> IntTensor<B, D> {
         B::int_sub_scalar(lhs, rhs)
     }
 
@@ -92,10 +89,7 @@ impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         B::int_sub(lhs, rhs)
     }
 
-    fn int_sub_scalar<const D: usize>(
-        lhs: IntTensor<B, D>,
-        rhs: <ADBackendDecorator<B> as Backend>::IntElem,
-    ) -> IntTensor<B, D> {
+    fn int_sub_scalar<const D: usize>(lhs: IntTensor<B, D>, rhs: B::IntElem) -> IntTensor<B, D> {
         B::int_sub_scalar(lhs, rhs)
     }
 
@@ -103,10 +97,7 @@ impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         B::int_mul(lhs, rhs)
     }
 
-    fn int_mul_scalar<const D: usize>(
-        lhs: IntTensor<B, D>,
-        rhs: <ADBackendDecorator<B> as Backend>::IntElem,
-    ) -> IntTensor<B, D> {
+    fn int_mul_scalar<const D: usize>(lhs: IntTensor<B, D>, rhs: B::IntElem) -> IntTensor<B, D> {
         B::int_mul_scalar(lhs, rhs)
     }
 
@@ -114,10 +105,7 @@ impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         B::int_div(lhs, rhs)
     }
 
-    fn int_div_scalar<const D: usize>(
-        lhs: IntTensor<B, D>,
-        rhs: <ADBackendDecorator<B> as Backend>::IntElem,
-    ) -> IntTensor<B, D> {
+    fn int_div_scalar<const D: usize>(lhs: IntTensor<B, D>, rhs: B::IntElem) -> IntTensor<B, D> {
         B::int_div_scalar(lhs, rhs)
     }
 
@@ -161,5 +149,49 @@ impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         times: usize,
     ) -> IntTensor<B, D> {
         B::int_repeat(tensor, dim, times)
+    }
+
+    fn int_greater<const D: usize>(lhs: IntTensor<B, D>, rhs: IntTensor<B, D>) -> BoolTensor<B, D> {
+        B::int_greater(lhs, rhs)
+    }
+
+    fn int_greater_elem<const D: usize>(lhs: IntTensor<B, D>, rhs: B::IntElem) -> BoolTensor<B, D> {
+        B::int_greater_elem(lhs, rhs)
+    }
+
+    fn int_greater_equal<const D: usize>(
+        lhs: IntTensor<B, D>,
+        rhs: IntTensor<B, D>,
+    ) -> BoolTensor<B, D> {
+        B::int_greater_equal(lhs, rhs)
+    }
+
+    fn int_greater_equal_elem<const D: usize>(
+        lhs: IntTensor<B, D>,
+        rhs: B::IntElem,
+    ) -> BoolTensor<B, D> {
+        B::int_greater_equal_elem(lhs, rhs)
+    }
+
+    fn int_lower<const D: usize>(lhs: IntTensor<B, D>, rhs: IntTensor<B, D>) -> BoolTensor<B, D> {
+        B::int_lower(lhs, rhs)
+    }
+
+    fn int_lower_elem<const D: usize>(lhs: IntTensor<B, D>, rhs: B::IntElem) -> BoolTensor<B, D> {
+        B::int_lower_elem(lhs, rhs)
+    }
+
+    fn int_lower_equal<const D: usize>(
+        lhs: IntTensor<B, D>,
+        rhs: IntTensor<B, D>,
+    ) -> BoolTensor<B, D> {
+        B::int_lower_equal(lhs, rhs)
+    }
+
+    fn int_lower_equal_elem<const D: usize>(
+        lhs: IntTensor<B, D>,
+        rhs: B::IntElem,
+    ) -> BoolTensor<B, D> {
+        B::int_lower_equal_elem(lhs, rhs)
     }
 }
