@@ -40,9 +40,9 @@ where
         value: NdArrayTensor<E, D1>,
     ) -> NdArrayTensor<E, D1> {
         let slices = Self::to_slice_args::<D1, D2>(indexes);
-        let mut array = tensor.array.to_owned();
+        let mut array = tensor.array.into_owned();
         array.slice_mut(slices.as_slice()).assign(&value.array);
-        let array = array.into_owned().into_shared();
+        let array = array.into_shared();
 
         NdArrayTensor { array }
     }

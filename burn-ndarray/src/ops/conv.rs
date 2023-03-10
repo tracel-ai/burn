@@ -1,112 +1,69 @@
-use alloc::vec::Vec;
+use ndarray::{Array4, Dim};
 
-use super::padding::apply_padding2d;
-use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArrayBackend, NdArrayDevice};
+use crate::{
+    element::FloatNdArrayElement, iter_par, ops::padding::apply_padding_4d, run_par,
+    sharing::UnsafeSharedRef, tensor::NdArrayTensor,
+};
 
-use burn_tensor::{ops::TensorOps, Shape};
-
-use libm::ceilf;
-
-/// This method is not the most efficient, but it serves as a basic implementation that is easy to understand.
-/// A more optimized version should be used in its place.
-pub(crate) fn conv2d_naive<E: FloatNdArrayElement>(
+pub(crate) fn conv2d<E: FloatNdArrayElement>(
     x: NdArrayTensor<E, 4>,
     weight: NdArrayTensor<E, 4>,
     bias: Option<NdArrayTensor<E, 1>>,
     stride: [usize; 2],
     padding: [usize; 2],
+    dilatation: [usize; 2],
 ) -> NdArrayTensor<E, 4> {
-    let [batch_size, channels_in, heigth, width] = x.shape().dims;
-    let mut results = Vec::with_capacity(batch_size);
+    let [dilatation_height, dilatation_width] = dilatation;
+    let [padding_height, padding_width] = padding;
+    let [stride_height, stride_width] = stride;
+    let [batch_size, _in_channels, in_height, in_width] = x.shape().dims;
+    let [out_channels, in_channels, kernel_height, kernel_width] = weight.shape().dims;
 
-    for b in 0..batch_size {
-        let x = NdArrayBackend::index(x.clone(), [b..b + 1, 0..channels_in, 0..heigth, 0..width]);
-        let x = NdArrayBackend::reshape(x.clone(), Shape::new([channels_in, heigth, width]));
+    let out_height = (in_height + 2 * padding_height - dilatation_height * (kernel_height - 1) - 1)
+        / stride_height
+        + 1;
 
-        results.push(conv2d_naive_no_batch_size(
-            x,
-            weight.clone(),
-            bias.clone(),
-            stride,
-            padding,
-        ));
-    }
+    let out_width = (in_width + 2 * padding_width - dilatation_width * (kernel_width - 1) - 1)
+        / stride_width
+        + 1;
 
-    NdArrayBackend::cat(results, 0)
-}
+    let x = apply_padding_4d(x, padding).array;
 
-pub(crate) fn conv2d_naive_no_batch_size<E: FloatNdArrayElement>(
-    x: NdArrayTensor<E, 3>,
-    weight: NdArrayTensor<E, 4>,
-    bias: Option<NdArrayTensor<E, 1>>,
-    stride: [usize; 2],
-    padding: [usize; 2],
-) -> NdArrayTensor<E, 4> {
-    let [channels_out, channels_in, k1, k2] = weight.shape().dims;
-    let [_, heigth, width] = x.shape().dims;
-    let mut results = Vec::new();
+    let mut output = Array4::zeros(Dim([batch_size, out_channels, out_height, out_width]));
 
-    for co in 0..channels_out {
-        let mut matrices = Vec::new();
+    let unsafe_shared_out = UnsafeSharedRef::new(&mut output);
 
-        for ci in 0..channels_in {
-            let kernel =
-                NdArrayBackend::index(weight.clone(), [co..co + 1, ci..ci + 1, 0..k1, 0..k2]);
-            let kernel = NdArrayBackend::reshape(kernel.clone(), Shape::new([k1, k2]));
+    run_par!(|| {
+        iter_par!(0, batch_size).for_each(|b| {
+            iter_par!(0, out_channels).for_each(|oc| unsafe {
+                let output = unsafe_shared_out.get();
 
-            let x = NdArrayBackend::index(x.clone(), [ci..ci + 1, 0..heigth, 0..width]);
-            let x = NdArrayBackend::reshape(x.clone(), Shape::new([heigth, width]));
-            let x = apply_padding2d(x, padding);
+                for ic in 0..in_channels {
+                    for kh in 0..kernel_height {
+                        for kw in 0..kernel_width {
+                            for oh in 0..out_height {
+                                for ow in 0..out_width {
+                                    let ih = oh * stride_height + kh * dilatation_height;
+                                    let iw = ow * stride_width + kw * dilatation_width;
 
-            let matrix = conv2d_with_kernel(x, kernel, stride);
-            let [heigth, width] = matrix.shape().dims;
-            let matrix = NdArrayBackend::reshape(matrix.clone(), Shape::new([1, 1, heigth, width]));
+                                    output[[b, oc, oh, ow]] = output[[b, oc, oh, ow]]
+                                        + x[[b, ic, ih, iw]] * weight.array[[oc, ic, kh, kw]];
+                                }
+                            }
+                        }
+                    }
+                }
 
-            matrices.push(matrix);
-        }
-        let matrices = NdArrayBackend::cat(matrices, 1);
-        let matrices = NdArrayBackend::sum_dim(matrices.clone(), 1);
+                if let Some(bias) = &bias {
+                    for oh in 0..out_height {
+                        for ow in 0..out_width {
+                            output[[b, oc, oh, ow]] = output[[b, oc, oh, ow]] + bias.array[oc];
+                        }
+                    }
+                }
+            });
+        });
+    });
 
-        results.push(matrices);
-    }
-
-    let mut result = NdArrayBackend::cat(results, 1);
-
-    if let Some(bias) = bias {
-        let [size] = bias.shape().dims;
-        let bias = NdArrayBackend::reshape(bias, Shape::new([1, size, 1, 1]));
-        result = NdArrayBackend::add(result, bias);
-    }
-
-    result
-}
-
-fn conv2d_with_kernel<E: FloatNdArrayElement>(
-    x: NdArrayTensor<E, 2>,
-    kernel: NdArrayTensor<E, 2>,
-    stride: [usize; 2],
-) -> NdArrayTensor<E, 2> {
-    let [k1, k2] = kernel.shape().dims;
-    let [heigth, width] = x.shape().dims;
-
-    let heigth_new = ceilf((heigth - k1 + 1) as f32 / stride[0] as f32) as usize;
-    let width_new = ceilf((width - k2 + 1) as f32 / stride[1] as f32) as usize;
-    let mut output =
-        NdArrayBackend::empty(Shape::new([heigth_new, width_new]), &NdArrayDevice::Cpu);
-
-    for i in 0..heigth_new {
-        for j in 0..width_new {
-            let i_x = i * stride[0];
-            let j_x = j * stride[1];
-
-            let x_ij = NdArrayBackend::index(x.clone(), [i_x..i_x + k1, j_x..j_x + k2]);
-            let value = NdArrayBackend::mul(x_ij, kernel.clone());
-            let value = NdArrayBackend::sum(value);
-            let value = NdArrayBackend::reshape(value, Shape::new([1, 1]));
-
-            output = NdArrayBackend::index_assign(output, [i..i + 1, j..j + 1], value);
-        }
-    }
-
-    output
+    NdArrayTensor::new(output.into_dyn().into_shared())
 }

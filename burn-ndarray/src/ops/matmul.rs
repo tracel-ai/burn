@@ -1,11 +1,8 @@
-use crate::UnsafeSharedRef;
 use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArrayBackend};
+use crate::{iter_par, run_par, UnsafeSharedRef};
 use burn_tensor::ElementConversion;
 use burn_tensor::{ops::TensorOps, Shape};
 use ndarray::s;
-
-#[cfg(feature = "std")]
-use rayon::prelude::*;
 
 pub(crate) fn matmul<E, const D: usize>(
     lhs: NdArrayTensor<E, D>,
@@ -39,7 +36,7 @@ fn general_matmul<E: FloatNdArrayElement>(
     lhs: NdArrayTensor<E, 3>,
     rhs: NdArrayTensor<E, 3>,
 ) -> NdArrayTensor<E, 3> {
-    let run = || {
+    run_par!(|| {
         let [batch_size_lhs, m, _] = lhs.shape().dims;
         let [batch_size_rhs, k, n] = rhs.shape().dims;
         let batch_size = usize::max(batch_size_rhs, batch_size_lhs);
@@ -61,12 +58,7 @@ fn general_matmul<E: FloatNdArrayElement>(
         let lhs_array = lhs.array.into_shape((batch_size_lhs, m, k)).unwrap();
         let rhs_array = rhs.array.into_shape((batch_size_rhs, k, n)).unwrap();
 
-        #[cfg(feature = "std")]
-        let iter = (0..batch_size).into_par_iter();
-        #[cfg(not(feature = "std"))]
-        let iter = 0..batch_size;
-
-        iter.for_each(|b| {
+        iter_par!(0, batch_size).for_each(|b| {
             let lhs_slice = match batch_size_lhs == 1 {
                 true => lhs_array.slice(s!(0, .., ..)),
                 false => lhs_array.slice(s!(b, .., ..)),
@@ -90,14 +82,7 @@ fn general_matmul<E: FloatNdArrayElement>(
         });
 
         NdArrayTensor::new(out_array.into_shared().into_dyn())
-    };
-
-    #[cfg(feature = "std")]
-    let output = rayon::scope(|_| run());
-    #[cfg(not(feature = "std"))]
-    let output = run();
-
-    output
+    })
 }
 
 fn reshape<E: FloatNdArrayElement, const D: usize>(
