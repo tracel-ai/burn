@@ -141,7 +141,7 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         let mut array = tensor.array;
         array.swap_axes(dim1, dim2);
 
-        NdArrayTensor { array }
+        NdArrayTensor::new(array)
     }
 
     fn reshape<const D1: usize, const D2: usize>(
@@ -181,7 +181,7 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         });
         let array = (tensor.array * mask_mul) + mask_add;
 
-        NdArrayTensor { array }
+        NdArrayTensor::new(array)
     }
 
     fn equal<const D: usize>(
@@ -197,7 +197,7 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
     fn equal_elem<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<bool, D> {
         let array = lhs.array.mapv(|a| a == rhs).into_shared();
 
-        NdArrayTensor { array }
+        NdArrayTensor::new(array)
     }
 
     fn greater<const D: usize>(
@@ -212,7 +212,7 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
     fn greater_elem<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<bool, D> {
         let array = lhs.array.mapv(|a| a > rhs).into_shared();
 
-        NdArrayTensor { array }
+        NdArrayTensor::new(array)
     }
 
     fn greater_equal<const D: usize>(
@@ -230,7 +230,7 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
     ) -> NdArrayTensor<bool, D> {
         let array = lhs.array.mapv(|a| a >= rhs).into_shared();
 
-        NdArrayTensor { array }
+        NdArrayTensor::new(array)
     }
 
     fn lower<const D: usize>(
@@ -245,7 +245,7 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
     fn lower_elem<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<bool, D> {
         let array = lhs.array.mapv(|a| a < rhs).into_shared();
 
-        NdArrayTensor { array }
+        NdArrayTensor::new(array)
     }
 
     fn lower_equal<const D: usize>(
@@ -263,7 +263,7 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
     ) -> NdArrayTensor<bool, D> {
         let array = lhs.array.mapv(|a| a <= rhs).into_shared();
 
-        NdArrayTensor { array }
+        NdArrayTensor::new(array)
     }
 
     fn detach<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
@@ -289,13 +289,13 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
     fn to_full_precision<const D: usize>(tensor: &NdArrayTensor<E, D>) -> NdArrayTensor<f32, D> {
         let array = tensor.array.mapv(|a| a.elem()).into_shared();
 
-        NdArrayTensor { array }
+        NdArrayTensor::new(array)
     }
 
     fn from_full_precision<const D: usize>(tensor: NdArrayTensor<f32, D>) -> NdArrayTensor<E, D> {
         let array = tensor.array.mapv(|a| a.elem()).into_shared();
 
-        NdArrayTensor { array }
+        NdArrayTensor::new(array)
     }
 
     fn argmax<const D: usize>(tensor: NdArrayTensor<E, D>, dim: usize) -> NdArrayTensor<i64, D> {
@@ -309,19 +309,19 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
     fn exp<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor.array.mapv_into(|a| a.exp_elem()).into_shared();
 
-        NdArrayTensor { array }
+        NdArrayTensor::new(array)
     }
 
     fn log<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor.array.mapv_into(|a| a.log_elem()).into_shared();
 
-        NdArrayTensor { array }
+        NdArrayTensor::new(array)
     }
 
     fn log1p<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor.array.mapv_into(|a| a.log1p_elem()).into_shared();
 
-        NdArrayTensor { array }
+        NdArrayTensor::new(array)
     }
 
     fn powf<const D: usize>(tensor: NdArrayTensor<E, D>, value: f32) -> NdArrayTensor<E, D> {
@@ -339,13 +339,13 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
             tensor.array.mapv_into(|a| a.powf_elem(value)).into_shared()
         };
 
-        NdArrayTensor { array }
+        NdArrayTensor::new(array)
     }
 
     fn sqrt<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor.array.mapv_into(|a| a.sqrt_elem()).into_shared();
 
-        NdArrayTensor { array }
+        NdArrayTensor::new(array)
     }
 
     fn cos<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
@@ -354,7 +354,7 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
             .mapv_into(|a| cos(a.to_f64().unwrap()).elem())
             .into_shared();
 
-        NdArrayTensor { array }
+        NdArrayTensor::new(array)
     }
 
     fn sin<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
@@ -363,7 +363,7 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
             .mapv_into(|a| sin(a.to_f64().unwrap()).elem())
             .into_shared();
 
-        NdArrayTensor { array }
+        NdArrayTensor::new(array)
     }
 
     fn tanh<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
@@ -372,7 +372,7 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
             .mapv_into(|a| tanh(a.to_f64().unwrap()).elem())
             .into_shared();
 
-        NdArrayTensor { array }
+        NdArrayTensor::new(array)
     }
 
     fn erf<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
@@ -381,7 +381,7 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
             .mapv_into(|a| erf(a.to_f64().unwrap()).elem())
             .into_shared();
 
-        NdArrayTensor { array }
+        NdArrayTensor::new(array)
     }
 
     fn cat<const D: usize>(tensors: Vec<NdArrayTensor<E, D>>, dim: usize) -> NdArrayTensor<E, D> {
@@ -398,7 +398,7 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
             })
             .into_shared();
 
-        NdArrayTensor { array }
+        NdArrayTensor::new(array)
     }
 }
 

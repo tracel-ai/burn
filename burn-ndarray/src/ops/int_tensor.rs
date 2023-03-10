@@ -104,6 +104,70 @@ impl<E: FloatNdArrayElement> IntTensorOps<NdArrayBackend<E>> for NdArrayBackend<
         NdArrayTensor { array }
     }
 
+    fn int_greater<const D: usize>(
+        lhs: NdArrayTensor<i64, D>,
+        rhs: NdArrayTensor<i64, D>,
+    ) -> NdArrayTensor<bool, D> {
+        let tensor = Self::int_sub(lhs, rhs);
+        Self::int_greater_elem(tensor, 0)
+    }
+
+    fn int_greater_elem<const D: usize>(
+        lhs: NdArrayTensor<i64, D>,
+        rhs: i64,
+    ) -> NdArrayTensor<bool, D> {
+        let array = lhs.array.mapv(|a| a > rhs).into_shared();
+        NdArrayTensor::new(array)
+    }
+
+    fn int_greater_equal<const D: usize>(
+        lhs: NdArrayTensor<i64, D>,
+        rhs: NdArrayTensor<i64, D>,
+    ) -> NdArrayTensor<bool, D> {
+        let tensor = Self::int_sub(lhs, rhs);
+        Self::int_greater_equal_elem(tensor, 0)
+    }
+
+    fn int_greater_equal_elem<const D: usize>(
+        lhs: NdArrayTensor<i64, D>,
+        rhs: i64,
+    ) -> NdArrayTensor<bool, D> {
+        let array = lhs.array.mapv(|a| a >= rhs).into_shared();
+        NdArrayTensor::new(array)
+    }
+
+    fn int_lower<const D: usize>(
+        lhs: NdArrayTensor<i64, D>,
+        rhs: NdArrayTensor<i64, D>,
+    ) -> NdArrayTensor<bool, D> {
+        let tensor = Self::int_sub(lhs, rhs);
+        Self::int_lower_elem(tensor, 0)
+    }
+
+    fn int_lower_elem<const D: usize>(
+        lhs: NdArrayTensor<i64, D>,
+        rhs: i64,
+    ) -> NdArrayTensor<bool, D> {
+        let array = lhs.array.mapv(|a| a < rhs).into_shared();
+        NdArrayTensor::new(array)
+    }
+
+    fn int_lower_equal<const D: usize>(
+        lhs: NdArrayTensor<i64, D>,
+        rhs: NdArrayTensor<i64, D>,
+    ) -> NdArrayTensor<bool, D> {
+        let tensor = Self::int_sub(lhs, rhs);
+        Self::int_lower_equal_elem(tensor, 0)
+    }
+
+    fn int_lower_equal_elem<const D: usize>(
+        lhs: NdArrayTensor<i64, D>,
+        rhs: i64,
+    ) -> NdArrayTensor<bool, D> {
+        let array = lhs.array.mapv(|a| a <= rhs).into_shared();
+        NdArrayTensor::new(array)
+    }
+
     fn int_add<const D: usize>(
         lhs: NdArrayTensor<i64, D>,
         rhs: NdArrayTensor<i64, D>,
