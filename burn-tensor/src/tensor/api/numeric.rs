@@ -1,4 +1,6 @@
-use crate::{backend::Backend, ElementConversion, Float, Int, Shape, Tensor, TensorKind};
+use crate::{
+    backend::Backend, Bool, Element, ElementConversion, Float, Int, Shape, Tensor, TensorKind,
+};
 
 impl<B, const D: usize, K> Tensor<B, D, K>
 where
@@ -112,6 +114,62 @@ where
     pub fn sum_dim(self, dim: usize) -> Self {
         Self::new(K::sum_dim(self.primitive, dim))
     }
+
+    /// Applies element wise greater comparison and returns a boolean tensor.
+    ///
+    /// # Panics
+    ///
+    /// If the two tensors don't have the same shape.
+    pub fn greater(self, other: Self) -> Tensor<B, D, Bool> {
+        K::greater(self.primitive, other.primitive)
+    }
+
+    /// Applies element wise greater-equal comparison and returns a boolean tensor.
+    ///
+    /// # Panics
+    ///
+    /// If the two tensors don't have the same shape.
+    pub fn greater_equal(self, other: Self) -> Tensor<B, D, Bool> {
+        K::greater_equal(self.primitive, other.primitive)
+    }
+
+    /// Applies element wise lower comparison and returns a boolean tensor.
+    ///
+    /// # Panics
+    ///
+    /// If the two tensors don't have the same shape.
+    pub fn lower(self, other: Self) -> Tensor<B, D, Bool> {
+        K::lower(self.primitive, other.primitive)
+    }
+
+    /// Applies element wise lower-equal comparison and returns a boolean tensor.
+    ///
+    /// # Panics
+    ///
+    /// If the two tensors don't have the same shape.
+    pub fn lower_equal(self, other: Self) -> Tensor<B, D, Bool> {
+        K::lower_equal(self.primitive, other.primitive)
+    }
+
+    /// Applies element wise greater comparison and returns a boolean tensor.
+    pub fn greater_elem<E: ElementConversion>(self, other: E) -> Tensor<B, D, Bool> {
+        K::greater_elem(self.primitive, other.elem())
+    }
+
+    /// Applies element wise greater-equal comparison and returns a boolean tensor.
+    pub fn greater_equal_elem<E: ElementConversion>(self, other: E) -> Tensor<B, D, Bool> {
+        K::greater_equal_elem(self.primitive, other.elem())
+    }
+
+    /// Applies element wise lower comparison and returns a boolean tensor.
+    pub fn lower_elem<E: ElementConversion>(self, other: E) -> Tensor<B, D, Bool> {
+        K::lower_elem(self.primitive, other.elem())
+    }
+
+    /// Applies element wise lower-equal comparison and returns a boolean tensor.
+    pub fn lower_equal_elem<E: ElementConversion>(self, other: E) -> Tensor<B, D, Bool> {
+        K::lower_equal_elem(self.primitive, other.elem())
+    }
 }
 
 /// Trait that list all operations that can be applied on all numerical tensors.
@@ -120,6 +178,8 @@ where
 ///
 /// This is an internal trait, use the public API provided by [tensor struct](Tensor).
 pub trait Numeric<B: Backend>: TensorKind<B> {
+    type Elem: Element;
+
     fn add<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Primitive<D>) -> Self::Primitive<D>;
     fn add_scalar<const D: usize, E: ElementConversion>(
         lhs: Self::Primitive<D>,
@@ -147,9 +207,38 @@ pub trait Numeric<B: Backend>: TensorKind<B> {
     fn sum_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D>;
     fn mean<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1>;
     fn mean_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D>;
+    fn greater<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
+    ) -> Tensor<B, D, Bool>;
+    fn greater_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem)
+        -> Tensor<B, D, Bool>;
+    fn greater_equal<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
+    ) -> Tensor<B, D, Bool>;
+    fn greater_equal_elem<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Elem,
+    ) -> Tensor<B, D, Bool>;
+    fn lower<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
+    ) -> Tensor<B, D, Bool>;
+    fn lower_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool>;
+    fn lower_equal<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
+    ) -> Tensor<B, D, Bool>;
+    fn lower_equal_elem<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Elem,
+    ) -> Tensor<B, D, Bool>;
 }
 
 impl<B: Backend> Numeric<B> for Int {
+    type Elem = B::IntElem;
+
     fn add<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
@@ -219,9 +308,64 @@ impl<B: Backend> Numeric<B> for Int {
     fn mean_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
         B::int_mean_dim(tensor, dim)
     }
+
+    fn greater<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
+    ) -> Tensor<B, D, Bool> {
+        Tensor::new(B::int_greater(lhs, rhs))
+    }
+
+    fn greater_elem<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Elem,
+    ) -> Tensor<B, D, Bool> {
+        Tensor::new(B::int_greater_elem(lhs, rhs))
+    }
+
+    fn greater_equal<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
+    ) -> Tensor<B, D, Bool> {
+        Tensor::new(B::int_greater_equal(lhs, rhs))
+    }
+
+    fn greater_equal_elem<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Elem,
+    ) -> Tensor<B, D, Bool> {
+        Tensor::new(B::int_greater_equal_elem(lhs, rhs))
+    }
+
+    fn lower<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
+    ) -> Tensor<B, D, Bool> {
+        Tensor::new(B::int_lower(lhs, rhs))
+    }
+
+    fn lower_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool> {
+        Tensor::new(B::int_lower_elem(lhs, rhs))
+    }
+
+    fn lower_equal<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
+    ) -> Tensor<B, D, Bool> {
+        Tensor::new(B::int_lower_equal(lhs, rhs))
+    }
+
+    fn lower_equal_elem<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Elem,
+    ) -> Tensor<B, D, Bool> {
+        Tensor::new(B::int_lower_equal_elem(lhs, rhs))
+    }
 }
 
 impl<B: Backend> Numeric<B> for Float {
+    type Elem = B::FloatElem;
+
     fn add<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
@@ -290,6 +434,59 @@ impl<B: Backend> Numeric<B> for Float {
     }
     fn mean_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
         B::mean_dim(tensor, dim)
+    }
+
+    fn greater<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
+    ) -> Tensor<B, D, Bool> {
+        Tensor::new(B::greater(lhs, rhs))
+    }
+
+    fn greater_elem<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Elem,
+    ) -> Tensor<B, D, Bool> {
+        Tensor::new(B::greater_elem(lhs, rhs))
+    }
+
+    fn greater_equal<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
+    ) -> Tensor<B, D, Bool> {
+        Tensor::new(B::greater_equal(lhs, rhs))
+    }
+
+    fn greater_equal_elem<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Elem,
+    ) -> Tensor<B, D, Bool> {
+        Tensor::new(B::greater_equal_elem(lhs, rhs))
+    }
+
+    fn lower<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
+    ) -> Tensor<B, D, Bool> {
+        Tensor::new(B::lower(lhs, rhs))
+    }
+
+    fn lower_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool> {
+        Tensor::new(B::lower_elem(lhs, rhs))
+    }
+
+    fn lower_equal<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
+    ) -> Tensor<B, D, Bool> {
+        Tensor::new(B::lower_equal(lhs, rhs))
+    }
+
+    fn lower_equal_elem<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Elem,
+    ) -> Tensor<B, D, Bool> {
+        Tensor::new(B::lower_equal_elem(lhs, rhs))
     }
 }
 

@@ -6,3 +6,4 @@ mod numeric;
 
 pub use base::*;
 pub use kind::*;
+pub use numeric::*;

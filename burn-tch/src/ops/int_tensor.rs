@@ -91,12 +91,57 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
     }
 
     fn int_equal_elem<const D: usize>(lhs: TchTensor<i64, D>, rhs: i64) -> TchTensor<bool, D> {
-        let tensor = lhs.unary_ops(
-            |mut tensor| tensor.eq_(rhs).to_kind(tch::Kind::Bool),
-            |tensor| tensor.eq(rhs),
-        );
+        TchOps::equal_elem(lhs, rhs)
+    }
 
-        TchTensor::new(tensor)
+    fn int_greater<const D: usize>(
+        lhs: TchTensor<i64, D>,
+        rhs: TchTensor<i64, D>,
+    ) -> TchTensor<bool, D> {
+        TchOps::greater(lhs, rhs)
+    }
+
+    fn int_greater_elem<const D: usize>(lhs: TchTensor<i64, D>, rhs: i64) -> TchTensor<bool, D> {
+        TchOps::greater_elem(lhs, rhs)
+    }
+
+    fn int_greater_equal<const D: usize>(
+        lhs: TchTensor<i64, D>,
+        rhs: TchTensor<i64, D>,
+    ) -> TchTensor<bool, D> {
+        TchOps::greater_equal(lhs, rhs)
+    }
+
+    fn int_greater_equal_elem<const D: usize>(
+        lhs: TchTensor<i64, D>,
+        rhs: i64,
+    ) -> TchTensor<bool, D> {
+        TchOps::greater_equal_elem(lhs, rhs)
+    }
+
+    fn int_lower<const D: usize>(
+        lhs: TchTensor<i64, D>,
+        rhs: TchTensor<i64, D>,
+    ) -> TchTensor<bool, D> {
+        TchOps::lower(lhs, rhs)
+    }
+
+    fn int_lower_elem<const D: usize>(lhs: TchTensor<i64, D>, rhs: i64) -> TchTensor<bool, D> {
+        TchOps::lower_elem(lhs, rhs)
+    }
+
+    fn int_lower_equal<const D: usize>(
+        lhs: TchTensor<i64, D>,
+        rhs: TchTensor<i64, D>,
+    ) -> TchTensor<bool, D> {
+        TchOps::lower_equal(lhs, rhs)
+    }
+
+    fn int_lower_equal_elem<const D: usize>(
+        lhs: TchTensor<i64, D>,
+        rhs: i64,
+    ) -> TchTensor<bool, D> {
+        TchOps::lower_equal_elem(lhs, rhs)
     }
 
     fn int_add<const D: usize>(

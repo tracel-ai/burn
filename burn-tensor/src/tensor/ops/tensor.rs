@@ -3,6 +3,7 @@ use core::ops::Range;
 
 use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion};
 
+/// Operations on float tensors.
 pub trait TensorOps<B: Backend> {
     fn from_data<const D: usize>(
         data: Data<B::FloatElem, D>,
@@ -140,7 +141,7 @@ pub trait TensorOps<B: Backend> {
         lhs: B::TensorPrimitive<D>,
         rhs: B::TensorPrimitive<D>,
     ) -> B::BoolTensorPrimitive<D>;
-    fn greater_scalar<const D: usize>(
+    fn greater_elem<const D: usize>(
         lhs: B::TensorPrimitive<D>,
         rhs: B::FloatElem,
     ) -> B::BoolTensorPrimitive<D>;
@@ -148,7 +149,7 @@ pub trait TensorOps<B: Backend> {
         lhs: B::TensorPrimitive<D>,
         rhs: B::TensorPrimitive<D>,
     ) -> B::BoolTensorPrimitive<D>;
-    fn greater_equal_scalar<const D: usize>(
+    fn greater_equal_elem<const D: usize>(
         lhs: B::TensorPrimitive<D>,
         rhs: B::FloatElem,
     ) -> B::BoolTensorPrimitive<D>;
@@ -156,7 +157,7 @@ pub trait TensorOps<B: Backend> {
         lhs: B::TensorPrimitive<D>,
         rhs: B::TensorPrimitive<D>,
     ) -> B::BoolTensorPrimitive<D>;
-    fn lower_scalar<const D: usize>(
+    fn lower_elem<const D: usize>(
         lhs: B::TensorPrimitive<D>,
         rhs: B::FloatElem,
     ) -> B::BoolTensorPrimitive<D>;
@@ -164,7 +165,7 @@ pub trait TensorOps<B: Backend> {
         lhs: B::TensorPrimitive<D>,
         rhs: B::TensorPrimitive<D>,
     ) -> B::BoolTensorPrimitive<D>;
-    fn lower_equal_scalar<const D: usize>(
+    fn lower_equal_elem<const D: usize>(
         lhs: B::TensorPrimitive<D>,
         rhs: B::FloatElem,
     ) -> B::BoolTensorPrimitive<D>;
