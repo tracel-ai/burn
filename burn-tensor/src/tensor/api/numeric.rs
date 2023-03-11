@@ -234,6 +234,17 @@ pub trait Numeric<B: Backend>: TensorKind<B> {
         lhs: Self::Primitive<D>,
         rhs: Self::Elem,
     ) -> Tensor<B, D, Bool>;
+    fn index_select_dim<const D: usize>(
+        tensor: Self::Primitive<D>,
+        dim: usize,
+        indexes: Tensor<B, 1, Int>,
+    ) -> Self::Primitive<D>;
+    fn index_select_dim_assign<const D1: usize, const D2: usize>(
+        tensor: Self::Primitive<D1>,
+        dim: usize,
+        indexes: Tensor<B, 1, Int>,
+        values: Self::Primitive<D2>,
+    ) -> Self::Primitive<D1>;
 }
 
 impl<B: Backend> Numeric<B> for Int {
@@ -361,6 +372,23 @@ impl<B: Backend> Numeric<B> for Int {
     ) -> Tensor<B, D, Bool> {
         Tensor::new(B::int_lower_equal_elem(lhs, rhs))
     }
+
+    fn index_select_dim<const D: usize>(
+        tensor: Self::Primitive<D>,
+        dim: usize,
+        indexes: Tensor<B, 1, Int>,
+    ) -> Self::Primitive<D> {
+        B::int_index_select_dim(tensor, dim, indexes.primitive)
+    }
+
+    fn index_select_dim_assign<const D1: usize, const D2: usize>(
+        tensor: Self::Primitive<D1>,
+        dim: usize,
+        indexes: Tensor<B, 1, Int>,
+        values: Self::Primitive<D2>,
+    ) -> Self::Primitive<D1> {
+        B::int_index_select_dim_assign(tensor, dim, indexes.primitive, values)
+    }
 }
 
 impl<B: Backend> Numeric<B> for Float {
@@ -487,6 +515,23 @@ impl<B: Backend> Numeric<B> for Float {
         rhs: Self::Elem,
     ) -> Tensor<B, D, Bool> {
         Tensor::new(B::lower_equal_elem(lhs, rhs))
+    }
+
+    fn index_select_dim<const D: usize>(
+        tensor: Self::Primitive<D>,
+        dim: usize,
+        indexes: Tensor<B, 1, Int>,
+    ) -> Self::Primitive<D> {
+        B::index_select_dim(tensor, dim, indexes.primitive)
+    }
+
+    fn index_select_dim_assign<const D1: usize, const D2: usize>(
+        tensor: Self::Primitive<D1>,
+        dim: usize,
+        indexes: Tensor<B, 1, Int>,
+        values: Self::Primitive<D2>,
+    ) -> Self::Primitive<D1> {
+        B::index_select_dim_assign(tensor, dim, indexes.primitive, values)
     }
 }
 

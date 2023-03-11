@@ -203,4 +203,39 @@ where
             _ => panic!("Dim not supported {D}"),
         }
     }
+
+    pub fn index_select_dim<const D: usize>(
+        tensor: NdArrayTensor<E, D>,
+        dim: usize,
+        indexes: NdArrayTensor<i64, 1>,
+    ) -> NdArrayTensor<E, D> {
+        let array = tensor.array.select(
+            Axis(dim),
+            &indexes
+                .array
+                .into_iter()
+                .map(|i| i as usize)
+                .collect::<Vec<_>>(),
+        );
+
+        NdArrayTensor::new(array.into_shared())
+    }
+
+    pub fn index_select_dim_assign<const D1: usize, const D2: usize>(
+        tensor: NdArrayTensor<E, D1>,
+        dim: usize,
+        indexes: NdArrayTensor<i64, 1>,
+        value: NdArrayTensor<E, D2>,
+    ) -> NdArrayTensor<E, D1> {
+        let mut output_array = tensor.array.into_owned();
+
+        for (index_value, index) in indexes.array.into_iter().enumerate() {
+            let mut view = output_array.index_axis_mut(Axis(dim), index as usize);
+            let value = value.array.index_axis(Axis(0), index_value);
+
+            view.zip_mut_with(&value, |a, b| *a = *a + *b);
+        }
+
+        NdArrayTensor::new(output_array.into_shared())
+    }
 }

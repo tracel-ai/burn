@@ -34,6 +34,17 @@ pub trait IntTensorOps<B: Backend> {
         indexes: [Range<usize>; D2],
         value: B::IntTensorPrimitive<D1>,
     ) -> B::IntTensorPrimitive<D1>;
+    fn int_index_select_dim<const D: usize>(
+        tensor: B::IntTensorPrimitive<D>,
+        dim: usize,
+        indexes: B::IntTensorPrimitive<1>,
+    ) -> B::IntTensorPrimitive<D>;
+    fn int_index_select_dim_assign<const D1: usize, const D2: usize>(
+        tensor: B::IntTensorPrimitive<D1>,
+        dim: usize,
+        indexes: B::IntTensorPrimitive<1>,
+        value: B::IntTensorPrimitive<D2>,
+    ) -> B::IntTensorPrimitive<D1>;
     fn int_repeat<const D: usize>(
         tensor: B::IntTensorPrimitive<D>,
         dim: usize,

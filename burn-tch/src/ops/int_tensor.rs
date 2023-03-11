@@ -243,4 +243,50 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
     fn int_mean_dim<const D: usize>(tensor: TchTensor<i64, D>, dim: usize) -> TchTensor<i64, D> {
         TchOps::mean_dim(tensor, dim)
     }
+
+    fn int_index_select_dim<const D: usize>(
+        tensor: TchTensor<i64, D>,
+        dim: usize,
+        indexes: TchTensor<i64, 1>,
+    ) -> TchTensor<i64, D> {
+        TchOps::index_select_dim(tensor, dim, indexes)
+    }
+
+    fn int_index_select_dim_assign<const D1: usize, const D2: usize>(
+        tensor: TchTensor<i64, D1>,
+        dim: usize,
+        indexes: TchTensor<i64, 1>,
+        value: TchTensor<i64, D2>,
+    ) -> TchTensor<i64, D1> {
+        TchOps::index_select_dim_assign(tensor, dim, indexes, value)
+    }
+
+    fn int_repeat<const D: usize>(
+        tensor: <TchBackend<E> as Backend>::IntTensorPrimitive<D>,
+        dim: usize,
+        times: usize,
+    ) -> <TchBackend<E> as Backend>::IntTensorPrimitive<D> {
+        let mut shape = Self::int_shape(&tensor);
+        if shape.dims[dim] != 1 {
+            panic!("Can only repeat dimension with dim=1");
+        }
+        shape.dims[dim] = times;
+
+        let mut i = 0;
+        let indexes_select_all = [0; D].map(|_| {
+            let start = 0;
+            let end = shape.dims[i];
+            i += 1;
+            start..end
+        });
+
+        let mut tensor_output = Self::int_empty(shape, &Self::int_device(&tensor));
+        for i in 0..times {
+            let mut indexes = indexes_select_all.clone();
+            indexes[dim] = i..i + 1;
+            tensor_output = Self::int_index_assign(tensor_output, indexes, tensor.clone());
+        }
+
+        tensor_output
+    }
 }

@@ -426,9 +426,9 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         indexes: IntTensor<B, 1>,
     ) -> ADTensor<B, D> {
         #[derive(Debug)]
-        struct Select;
+        struct IndexSelectDim;
 
-        impl<B: Backend, const D: usize> Backward<B, D, 1> for Select {
+        impl<B: Backend, const D: usize> Backward<B, D, 1> for IndexSelectDim {
             type State = (usize, IntTensor<B, 1>, Shape<D>, B::Device);
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
@@ -441,7 +441,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        match Select.prepare([tensor.node], [tensor.graph]).statefull() {
+        match IndexSelectDim
+            .prepare([tensor.node], [tensor.graph])
+            .statefull()
+        {
             OpsKind::Tracked(prep) => prep.finish(
                 (
                     dim,
@@ -464,9 +467,9 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         value: ADTensor<B, D2>,
     ) -> ADTensor<B, D1> {
         #[derive(Debug)]
-        struct SelectAssign<const D2: usize>;
+        struct IndexSelectDimAssign<const D2: usize>;
 
-        impl<B: Backend, const D1: usize, const D2: usize> Backward<B, D1, 2> for SelectAssign<D2> {
+        impl<B: Backend, const D1: usize, const D2: usize> Backward<B, D1, 2> for IndexSelectDimAssign<D2> {
             type State = (usize, IntTensor<B, 1>, Shape<D1>, Shape<D2>, B::Device);
 
             fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
@@ -489,7 +492,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        match SelectAssign::<D2>
+        match IndexSelectDimAssign::<D2>
             .prepare([tensor.node, value.node], [tensor.graph, value.graph])
             .statefull()
         {

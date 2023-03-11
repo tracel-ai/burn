@@ -2,7 +2,6 @@
 use alloc::vec::Vec;
 use core::cmp::Ordering;
 use core::ops::Range;
-use ndarray::Axis;
 
 use crate::element::FloatNdArrayElement;
 // Current crate
@@ -157,16 +156,7 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         dim: usize,
         indexes: NdArrayTensor<i64, 1>,
     ) -> NdArrayTensor<E, D> {
-        let array = tensor.array.select(
-            Axis(dim),
-            &indexes
-                .array
-                .into_iter()
-                .map(|i| i as usize)
-                .collect::<Vec<_>>(),
-        );
-
-        NdArrayTensor::new(array.into_shared())
+        NdArrayMathOps::index_select_dim(tensor, dim, indexes)
     }
 
     fn index_select_dim_assign<const D1: usize, const D2: usize>(
@@ -175,16 +165,7 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         indexes: NdArrayTensor<i64, 1>,
         value: NdArrayTensor<E, D2>,
     ) -> NdArrayTensor<E, D1> {
-        let mut output_array = tensor.array.into_owned();
-
-        for (index_value, index) in indexes.array.into_iter().enumerate() {
-            let mut view = output_array.index_axis_mut(Axis(dim), index as usize);
-            let value = value.array.index_axis(Axis(0), index_value);
-
-            view.zip_mut_with(&value, |a, b| *a = *a + *b);
-        }
-
-        NdArrayTensor::new(output_array.into_shared())
+        NdArrayMathOps::index_select_dim_assign(tensor, dim, indexes, value)
     }
 
     fn index<const D1: usize, const D2: usize>(
