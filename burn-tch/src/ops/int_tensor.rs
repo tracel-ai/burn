@@ -260,33 +260,4 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
     ) -> TchTensor<i64, D1> {
         TchOps::index_select_dim_assign(tensor, dim, indexes, value)
     }
-
-    fn int_repeat<const D: usize>(
-        tensor: <TchBackend<E> as Backend>::IntTensorPrimitive<D>,
-        dim: usize,
-        times: usize,
-    ) -> <TchBackend<E> as Backend>::IntTensorPrimitive<D> {
-        let mut shape = Self::int_shape(&tensor);
-        if shape.dims[dim] != 1 {
-            panic!("Can only repeat dimension with dim=1");
-        }
-        shape.dims[dim] = times;
-
-        let mut i = 0;
-        let indexes_select_all = [0; D].map(|_| {
-            let start = 0;
-            let end = shape.dims[i];
-            i += 1;
-            start..end
-        });
-
-        let mut tensor_output = Self::int_empty(shape, &Self::int_device(&tensor));
-        for i in 0..times {
-            let mut indexes = indexes_select_all.clone();
-            indexes[dim] = i..i + 1;
-            tensor_output = Self::int_index_assign(tensor_output, indexes, tensor.clone());
-        }
-
-        tensor_output
-    }
 }
