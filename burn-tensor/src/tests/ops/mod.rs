@@ -16,6 +16,7 @@ mod neg;
 mod powf;
 mod repeat;
 mod reshape;
+mod select;
 mod sin;
 mod sub;
 mod tanh;

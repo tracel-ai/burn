@@ -2,6 +2,7 @@
 use alloc::vec::Vec;
 use core::cmp::Ordering;
 use core::ops::Range;
+use ndarray::Axis;
 
 use crate::element::FloatNdArrayElement;
 // Current crate
@@ -149,6 +150,35 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         shape: Shape<D2>,
     ) -> NdArrayTensor<E, D2> {
         NdArrayOps::reshape(tensor, shape)
+    }
+
+    fn select<const D: usize>(
+        tensor: NdArrayTensor<E, D>,
+        dim: usize,
+        indexes: NdArrayTensor<i64, 1>,
+    ) -> NdArrayTensor<E, D> {
+        let array = tensor.array.select(
+            Axis(dim),
+            &indexes
+                .array
+                .into_iter()
+                .map(|i| i as usize)
+                .collect::<Vec<_>>(),
+        );
+
+        NdArrayTensor::new(array.into_shared())
+    }
+
+    fn select_assign<const D1: usize, const D2: usize>(
+        tensor: NdArrayTensor<E, D1>,
+        dim: usize,
+        indexes: NdArrayTensor<i64, 1>,
+        value: NdArrayTensor<E, D2>,
+    ) -> NdArrayTensor<E, D1> {
+        todo!();
+        // tensor.array.as_standard_layout
+
+        // NdArrayTensor::new(array.into_shared())
     }
 
     fn index<const D1: usize, const D2: usize>(

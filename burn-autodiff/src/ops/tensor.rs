@@ -420,6 +420,23 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
+    fn select<const D: usize>(
+        tensor: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        dim: usize,
+        indexes: <ADBackendDecorator<B> as Backend>::IntTensorPrimitive<1>,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
+        todo!();
+    }
+
+    fn select_assign<const D1: usize, const D2: usize>(
+        tensor: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D1>,
+        dim: usize,
+        indexes: <ADBackendDecorator<B> as Backend>::IntTensorPrimitive<1>,
+        value: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D2>,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D1> {
+        todo!();
+    }
+
     fn index<const D1: usize, const D2: usize>(
         tensor: ADTensor<B, D1>,
         indexes: [std::ops::Range<usize>; D2],

@@ -190,6 +190,27 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         TchTensor::new(tensor)
     }
 
+    fn select<const D: usize>(
+        tensor: TchTensor<E, D>,
+        dim: usize,
+        indexes: TchTensor<i64, 1>,
+    ) -> TchTensor<E, D> {
+        let tensor = tensor.tensor.index_select(dim as i64, &indexes.tensor);
+        TchTensor::new(tensor)
+    }
+
+    fn select_assign<const D1: usize, const D2: usize>(
+        tensor: TchTensor<E, D1>,
+        dim: usize,
+        indexes: TchTensor<i64, 1>,
+        value: TchTensor<E, D2>,
+    ) -> TchTensor<E, D1> {
+        let mut indices = vec![None; D1];
+        indices[dim] = Some(indexes.tensor);
+        let tensor = tensor.tensor.index_put(&indices, &value.tensor, true);
+        TchTensor::new(tensor)
+    }
+
     fn index<const D1: usize, const D2: usize>(
         tensor: TchTensor<E, D1>,
         indexes: [Range<usize>; D2],

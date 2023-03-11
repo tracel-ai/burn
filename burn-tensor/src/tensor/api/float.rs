@@ -342,6 +342,24 @@ where
         self.reshape(shape)
     }
 
+    pub fn select(self, dim: usize, indexes: Tensor<B, 1, Int>) -> Self {
+        Self::new(B::select(self.primitive, dim, indexes.primitive))
+    }
+
+    pub fn select_assign<const D2: usize>(
+        self,
+        dim: usize,
+        indexes: Tensor<B, 1, Int>,
+        values: Tensor<B, D2>,
+    ) -> Self {
+        Self::new(B::select_assign(
+            self.primitive,
+            dim,
+            indexes.primitive,
+            values.primitive,
+        ))
+    }
+
     pub(crate) fn relu(self) -> Self {
         Self::new(B::relu(self.primitive))
     }
