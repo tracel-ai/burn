@@ -141,6 +141,45 @@ mod tests {
     }
 
     #[test]
+    fn test_max_pool2d_with_neg() {
+        let batch_size = 1;
+        let channels_in = 1;
+        let kernel_size_1 = 3;
+        let kernel_size_2 = 3;
+        let padding_1 = 1;
+        let padding_2 = 1;
+        let stride_1 = 1;
+        let stride_2 = 1;
+
+        let x = TestTensor::from_floats([[[
+            [0.6309, 0.6112, 0.6998],
+            [0.4708, 0.9161, 0.5402],
+            [0.4577, 0.7397, 0.9870],
+            [0.6380, 0.4352, 0.5884],
+            [0.6277, 0.5139, 0.4525],
+            [0.9333, 0.9846, 0.5006],
+        ]]])
+        .neg();
+        let y = TestTensor::from_floats([[[
+            [-0.4708, -0.4708, -0.5402],
+            [-0.4577, -0.4577, -0.5402],
+            [-0.4352, -0.4352, -0.4352],
+            [-0.4352, -0.4352, -0.4352],
+            [-0.4352, -0.4352, -0.4352],
+            [-0.5139, -0.4525, -0.4525],
+        ]]]);
+
+        let output = max_pool2d(
+            x,
+            [kernel_size_1, kernel_size_2],
+            [stride_1, stride_2],
+            [padding_1, padding_2],
+        );
+
+        y.to_data().assert_approx_eq(&output.into_data(), 3);
+    }
+
+    #[test]
     fn test_max_pool2d_with_indexes() {
         let batch_size = 1;
         let channels_in = 1;

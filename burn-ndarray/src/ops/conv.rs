@@ -1,3 +1,4 @@
+use burn_tensor::ElementConversion;
 use ndarray::{Array4, Dim};
 
 use crate::{
@@ -27,7 +28,7 @@ pub(crate) fn conv2d<E: FloatNdArrayElement>(
         / stride_width
         + 1;
 
-    let x = apply_padding_4d(x, padding).array;
+    let x = apply_padding_4d(x, padding, 0i32.elem()).array;
 
     let mut output = Array4::zeros(Dim([batch_size, out_channels, out_height, out_width]));
 

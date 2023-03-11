@@ -6,7 +6,7 @@ use burn_tensor::{ops::*, Shape};
 
 use super::{
     conv::conv2d,
-    maxpool::{max_pool2d_backward_naive, max_pool2d_with_indexes_naive},
+    maxpool::{max_pool2d, max_pool2d_backward, max_pool2d_with_indexes},
 };
 
 impl<E: FloatNdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
@@ -85,7 +85,7 @@ impl<E: FloatNdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         stride: [usize; 2],
         padding: [usize; 2],
     ) -> NdArrayTensor<E, 4> {
-        max_pool2d_with_indexes_naive(x, kernel_size, stride, padding).0
+        max_pool2d(x, kernel_size, stride, padding)
     }
 
     fn max_pool2d_with_indexes(
@@ -94,7 +94,7 @@ impl<E: FloatNdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         stride: [usize; 2],
         padding: [usize; 2],
     ) -> MaxPool2dWithIndexes<NdArrayBackend<E>> {
-        let (output, indexes) = max_pool2d_with_indexes_naive(x, kernel_size, stride, padding);
+        let (output, indexes) = max_pool2d_with_indexes(x, kernel_size, stride, padding);
 
         MaxPool2dWithIndexes::new(output, indexes)
     }
@@ -107,7 +107,7 @@ impl<E: FloatNdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         output_grad: NdArrayTensor<E, 4>,
         indexes: NdArrayTensor<i64, 4>,
     ) -> MaxPool2dBackward<NdArrayBackend<E>> {
-        MaxPool2dBackward::new(max_pool2d_backward_naive(
+        MaxPool2dBackward::new(max_pool2d_backward(
             x,
             kernel_size,
             stride,
