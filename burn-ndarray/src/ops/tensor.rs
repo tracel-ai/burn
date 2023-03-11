@@ -151,6 +151,23 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         NdArrayOps::reshape(tensor, shape)
     }
 
+    fn index_select_dim<const D: usize>(
+        tensor: NdArrayTensor<E, D>,
+        dim: usize,
+        indexes: NdArrayTensor<i64, 1>,
+    ) -> NdArrayTensor<E, D> {
+        NdArrayMathOps::index_select_dim(tensor, dim, indexes)
+    }
+
+    fn index_select_dim_assign<const D1: usize, const D2: usize>(
+        tensor: NdArrayTensor<E, D1>,
+        dim: usize,
+        indexes: NdArrayTensor<i64, 1>,
+        value: NdArrayTensor<E, D2>,
+    ) -> NdArrayTensor<E, D1> {
+        NdArrayMathOps::index_select_dim_assign(tensor, dim, indexes, value)
+    }
+
     fn index<const D1: usize, const D2: usize>(
         tensor: NdArrayTensor<E, D1>,
         indexes: [Range<usize>; D2],
