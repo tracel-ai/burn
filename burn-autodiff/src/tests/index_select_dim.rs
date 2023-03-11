@@ -1,4 +1,4 @@
-#[burn_tensor_testgen::testgen(ad_select)]
+#[burn_tensor_testgen::testgen(ad_index_select_dim)]
 mod tests {
     use super::*;
     use burn_tensor::Data;
@@ -12,7 +12,9 @@ mod tests {
         let indexes = TestADTensor::from_data(Data::from([1, 0]));
 
         let tensor_2 = tensor_1.clone().matmul(tensor_1.clone().transpose());
-        let tensor_3 = tensor_1.clone().select_assign(0, indexes, values.clone());
+        let tensor_3 = tensor_1
+            .clone()
+            .index_select_dim_assign(0, indexes, values.clone());
         let tensor_4 = tensor_2.matmul(tensor_3);
 
         let grads = tensor_4.backward();

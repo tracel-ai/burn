@@ -342,17 +342,20 @@ where
         self.reshape(shape)
     }
 
-    pub fn select(self, dim: usize, indexes: Tensor<B, 1, Int>) -> Self {
-        Self::new(B::select(self.primitive, dim, indexes.primitive))
+    /// Index the tensor along the given dimension using the given indexes.
+    pub fn index_select_dim(self, dim: usize, indexes: Tensor<B, 1, Int>) -> Self {
+        Self::new(B::index_select_dim(self.primitive, dim, indexes.primitive))
     }
 
-    pub fn select_assign<const D2: usize>(
+    /// Return a new tensor with the same dimension, but with the values added to
+    /// the original tensor using the corresponding indexes provided along the given dimension.
+    pub fn index_select_dim_assign<const D2: usize>(
         self,
         dim: usize,
         indexes: Tensor<B, 1, Int>,
         values: Tensor<B, D2>,
     ) -> Self {
-        Self::new(B::select_assign(
+        Self::new(B::index_select_dim_assign(
             self.primitive,
             dim,
             indexes.primitive,

@@ -190,7 +190,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         TchTensor::new(tensor)
     }
 
-    fn select<const D: usize>(
+    fn index_select_dim<const D: usize>(
         tensor: TchTensor<E, D>,
         dim: usize,
         indexes: TchTensor<i64, 1>,
@@ -199,7 +199,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         TchTensor::new(tensor)
     }
 
-    fn select_assign<const D1: usize, const D2: usize>(
+    fn index_select_dim_assign<const D1: usize, const D2: usize>(
         tensor: TchTensor<E, D1>,
         dim: usize,
         indexes: TchTensor<i64, 1>,
