@@ -22,6 +22,7 @@ mod neg;
 mod pow;
 mod relu;
 mod reshape;
+mod select;
 mod sin;
 mod softmax;
 mod sqrt;
@@ -52,6 +53,7 @@ macro_rules! testgen_all {
         burn_autodiff::testgen_ad_div!();
         burn_autodiff::testgen_ad_erf!();
         burn_autodiff::testgen_ad_exp!();
+        burn_autodiff::testgen_ad_select!();
         burn_autodiff::testgen_ad_index!();
         burn_autodiff::testgen_ad_log!();
         burn_autodiff::testgen_ad_log1p!();
