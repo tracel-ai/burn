@@ -171,13 +171,38 @@ where
         K::lower_equal_elem(self.primitive, other.elem())
     }
 
-    /// Index the tensor along the given dimension using the given indexes.
+    /// Select the tensor elements corresponding to the given indexes.
+    ///
+    /// # Notes
+    ///
+    /// The index tensor shoud have the same shape as the original tensor except for the last
+    /// dimension.
+    pub fn index_select(self, indexes: Tensor<B, D, Int>) -> Self {
+        Self::new(K::index_select(self.primitive, indexes))
+    }
+
+    /// Assign the selected elements corresponding to the given indexes from the value tensor
+    /// to the original tensor using sum reduction.
+    ///
+    /// # Notes
+    ///
+    /// The index tensor shoud have the same shape as the original tensor except for the last
+    /// dimension. The value and index tensors should have the same shape.
+    pub fn index_select_assign(self, indexes: Tensor<B, D, Int>, values: Self) -> Self {
+        Self::new(K::index_select_assign(
+            self.primitive,
+            indexes,
+            values.primitive,
+        ))
+    }
+
+    /// Select the tensor elements along the given dimension corresponding to the given indexes.
     pub fn index_select_dim(self, dim: usize, indexes: Tensor<B, 1, Int>) -> Self {
         Self::new(K::index_select_dim(self.primitive, dim, indexes))
     }
 
-    /// Return a new tensor with the same dimension, but with the values added to
-    /// the original tensor using the corresponding indexes provided along the given dimension.
+    /// Assign the selected elements along the given dimension corresponding to the given indexes
+    /// from the value tensor to the original tensor using sum reduction.
     pub fn index_select_dim_assign<const D2: usize>(
         self,
         dim: usize,
@@ -255,6 +280,15 @@ pub trait Numeric<B: Backend>: TensorKind<B> {
         lhs: Self::Primitive<D>,
         rhs: Self::Elem,
     ) -> Tensor<B, D, Bool>;
+    fn index_select<const D: usize>(
+        tensor: Self::Primitive<D>,
+        indexes: Tensor<B, D, Int>,
+    ) -> Self::Primitive<D>;
+    fn index_select_assign<const D: usize>(
+        tensor: Self::Primitive<D>,
+        indexes: Tensor<B, D, Int>,
+        values: Self::Primitive<D>,
+    ) -> Self::Primitive<D>;
     fn index_select_dim<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
@@ -410,6 +444,20 @@ impl<B: Backend> Numeric<B> for Int {
     ) -> Self::Primitive<D1> {
         B::int_index_select_dim_assign(tensor, dim, indexes.primitive, values)
     }
+    fn index_select<const D: usize>(
+        tensor: Self::Primitive<D>,
+        indexes: Tensor<B, D, Int>,
+    ) -> Self::Primitive<D> {
+        B::int_index_select(tensor, indexes.primitive)
+    }
+
+    fn index_select_assign<const D: usize>(
+        tensor: Self::Primitive<D>,
+        indexes: Tensor<B, D, Int>,
+        values: Self::Primitive<D>,
+    ) -> Self::Primitive<D> {
+        B::int_index_select_assign(tensor, indexes.primitive, values)
+    }
 }
 
 impl<B: Backend> Numeric<B> for Float {
@@ -553,6 +601,21 @@ impl<B: Backend> Numeric<B> for Float {
         values: Self::Primitive<D2>,
     ) -> Self::Primitive<D1> {
         B::index_select_dim_assign(tensor, dim, indexes.primitive, values)
+    }
+
+    fn index_select<const D: usize>(
+        tensor: Self::Primitive<D>,
+        indexes: Tensor<B, D, Int>,
+    ) -> Self::Primitive<D> {
+        B::index_select(tensor, indexes.primitive)
+    }
+
+    fn index_select_assign<const D: usize>(
+        tensor: Self::Primitive<D>,
+        indexes: Tensor<B, D, Int>,
+        values: Self::Primitive<D>,
+    ) -> Self::Primitive<D> {
+        B::index_select_assign(tensor, indexes.primitive, values)
     }
 }
 

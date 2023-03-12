@@ -342,20 +342,6 @@ where
         self.reshape(shape)
     }
 
-    /// Index the tensor along the given dimension using the given indexes.
-    pub fn index_select(self, indexes: Tensor<B, D, Int>) -> Self {
-        Self::new(B::index_select(self.primitive, indexes.primitive))
-    }
-
-    /// Index the tensor along the given dimension using the given indexes.
-    pub fn index_select_assign(self, indexes: Tensor<B, D, Int>, value: Tensor<B, D>) -> Self {
-        Self::new(B::index_select_assign(
-            self.primitive,
-            indexes.primitive,
-            value.primitive,
-        ))
-    }
-
     pub(crate) fn relu(self) -> Self {
         Self::new(B::relu(self.primitive))
     }

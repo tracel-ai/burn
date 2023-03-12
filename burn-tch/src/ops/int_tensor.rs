@@ -243,6 +243,20 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
     fn int_mean_dim<const D: usize>(tensor: TchTensor<i64, D>, dim: usize) -> TchTensor<i64, D> {
         TchOps::mean_dim(tensor, dim)
     }
+    fn int_index_select<const D: usize>(
+        tensor: TchTensor<i64, D>,
+        indexes: TchTensor<i64, D>,
+    ) -> TchTensor<i64, D> {
+        TchOps::index_select(tensor, indexes)
+    }
+
+    fn int_index_select_assign<const D: usize>(
+        tensor: TchTensor<i64, D>,
+        indexes: TchTensor<i64, D>,
+        value: TchTensor<i64, D>,
+    ) -> TchTensor<i64, D> {
+        TchOps::index_select_assign(tensor, indexes, value)
+    }
 
     fn int_index_select_dim<const D: usize>(
         tensor: TchTensor<i64, D>,
