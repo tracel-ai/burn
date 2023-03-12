@@ -265,7 +265,7 @@ where
 
         NdArrayOps::reshape(
             NdArrayTensor::<E, 2>::new(tensor.into_shared().into_dyn()),
-            shape_indexes,
+            shape_tensor,
         )
     }
 

@@ -58,7 +58,12 @@ macro_rules! reshape {
     ) => {{
         let dim = $crate::to_typed_dims!($n, $shape.dims, justdim);
         let safe_into_shape =
-            $array.is_standard_layout() || $array.raw_view().reversed_axes().is_standard_layout();
+            $array.is_standard_layout() ||
+            (
+                $array.ndim() > 1 &&
+                $array.raw_view().reversed_axes().is_standard_layout()
+            );
+
         let array: ndarray::ArcArray<$ty, Dim<[usize; $n]>> = match safe_into_shape {
             true => $array
                 .into_shape(dim)
