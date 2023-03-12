@@ -170,6 +170,27 @@ where
     pub fn lower_equal_elem<E: ElementConversion>(self, other: E) -> Tensor<B, D, Bool> {
         K::lower_equal_elem(self.primitive, other.elem())
     }
+
+    /// Index the tensor along the given dimension using the given indexes.
+    pub fn index_select_dim(self, dim: usize, indexes: Tensor<B, 1, Int>) -> Self {
+        Self::new(K::index_select_dim(self.primitive, dim, indexes))
+    }
+
+    /// Return a new tensor with the same dimension, but with the values added to
+    /// the original tensor using the corresponding indexes provided along the given dimension.
+    pub fn index_select_dim_assign<const D2: usize>(
+        self,
+        dim: usize,
+        indexes: Tensor<B, 1, Int>,
+        values: Tensor<B, D2, K>,
+    ) -> Self {
+        Self::new(K::index_select_dim_assign(
+            self.primitive,
+            dim,
+            indexes,
+            values.primitive,
+        ))
+    }
 }
 
 /// Trait that list all operations that can be applied on all numerical tensors.

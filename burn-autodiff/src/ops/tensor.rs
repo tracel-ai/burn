@@ -1163,4 +1163,19 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             OpsKind::UnTracked(prep) => prep.finish(output),
         }
     }
+
+    fn index_select<const D: usize>(
+        tensor: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        indexes: <ADBackendDecorator<B> as Backend>::IntTensorPrimitive<D>,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
+        todo!()
+    }
+
+    fn index_select_assign<const D: usize>(
+        tensor: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        indexes: <ADBackendDecorator<B> as Backend>::IntTensorPrimitive<D>,
+        value: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
+        todo!()
+    }
 }

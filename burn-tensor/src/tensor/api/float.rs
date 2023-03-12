@@ -343,23 +343,16 @@ where
     }
 
     /// Index the tensor along the given dimension using the given indexes.
-    pub fn index_select_dim(self, dim: usize, indexes: Tensor<B, 1, Int>) -> Self {
-        Self::new(B::index_select_dim(self.primitive, dim, indexes.primitive))
+    pub fn index_select(self, indexes: Tensor<B, D, Int>) -> Self {
+        Self::new(B::index_select(self.primitive, indexes.primitive))
     }
 
-    /// Return a new tensor with the same dimension, but with the values added to
-    /// the original tensor using the corresponding indexes provided along the given dimension.
-    pub fn index_select_dim_assign<const D2: usize>(
-        self,
-        dim: usize,
-        indexes: Tensor<B, 1, Int>,
-        values: Tensor<B, D2>,
-    ) -> Self {
-        Self::new(B::index_select_dim_assign(
+    /// Index the tensor along the given dimension using the given indexes.
+    pub fn index_select_assign(self, indexes: Tensor<B, D, Int>, value: Tensor<B, D>) -> Self {
+        Self::new(B::index_select_assign(
             self.primitive,
-            dim,
             indexes.primitive,
-            values.primitive,
+            value.primitive,
         ))
     }
 

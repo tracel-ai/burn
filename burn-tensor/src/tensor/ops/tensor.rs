@@ -115,6 +115,15 @@ pub trait TensorOps<B: Backend> {
         tensor: B::TensorPrimitive<D1>,
         shape: Shape<D2>,
     ) -> B::TensorPrimitive<D2>;
+    fn index_select<const D: usize>(
+        tensor: B::TensorPrimitive<D>,
+        indexes: B::IntTensorPrimitive<D>,
+    ) -> B::TensorPrimitive<D>;
+    fn index_select_assign<const D: usize>(
+        tensor: B::TensorPrimitive<D>,
+        indexes: B::IntTensorPrimitive<D>,
+        value: B::TensorPrimitive<D>,
+    ) -> B::TensorPrimitive<D>;
     fn index_select_dim<const D: usize>(
         tensor: B::TensorPrimitive<D>,
         dim: usize,
