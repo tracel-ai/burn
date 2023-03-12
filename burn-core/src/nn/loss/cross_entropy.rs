@@ -1,24 +1,20 @@
-use burn_tensor::{backend::Backend, loss::cross_entropy_with_logits, Int, Tensor};
+use core::marker::PhantomData;
+
+use burn_tensor::{activation, backend::Backend, Bool, Int, Tensor};
 
 /// Calculate the cross entropy loss from the input logits and the targets.
+#[derive(Clone, Debug)]
 pub struct CrossEntropyLoss<B: Backend> {
-    num_targets: usize,
     pad_index: Option<usize>,
-    _b: B,
+    backend: PhantomData<B>,
 }
 
 impl<B: Backend> CrossEntropyLoss<B> {
     /// Create the criterion.
-    ///
-    /// # Notes
-    ///
-    /// The number of targets must be specified, this correspond to the number of classes in a
-    /// classification task. A padding index can also be specified.
-    pub fn new(num_targets: usize, pad_index: Option<usize>) -> Self {
+    pub fn new(pad_index: Option<usize>) -> Self {
         Self {
-            num_targets,
             pad_index,
-            _b: B::default(),
+            backend: PhantomData::default(),
         }
     }
 
@@ -29,28 +25,35 @@ impl<B: Backend> CrossEntropyLoss<B> {
     /// - logits: [batch_size, num_targets]
     /// - targets: [batch_size]
     pub fn forward(&self, logits: Tensor<B, 2>, targets: Tensor<B, 1, Int>) -> Tensor<B, 1> {
-        let device = logits.device();
         let [batch_size] = targets.dims();
-        let indexes = targets.to_data();
 
-        let mut targets_logits =
-            Tensor::<B, 2>::zeros_device([batch_size, self.num_targets], &device);
+        let mask = self.padding_mask(&targets);
+        let tensor = activation::log_softmax(logits, 1);
+        let tensor = tensor.index_select(targets.reshape([batch_size, 1]));
+        let tensor = self.apply_mask(tensor.reshape([batch_size]), mask);
 
-        for b in 0..batch_size {
-            let index = Into::<i64>::into(indexes.value[b]) as usize;
-            if let Some(pad_index) = self.pad_index {
-                if index == pad_index {
-                    continue;
-                }
-            }
+        tensor.mean().neg()
+    }
 
-            targets_logits = targets_logits.index_assign(
-                [b..b + 1, index..index + 1],
-                Tensor::ones_device([1, 1], &device),
-            );
+    fn padding_mask(&self, targets: &Tensor<B, 1, Int>) -> Option<Tensor<B, 1, Bool>> {
+        let mut mask = None;
+        if let Some(pad_index) = self.pad_index {
+            mask = Some(targets.clone().equal_elem(pad_index as i64));
         }
 
-        cross_entropy_with_logits(logits, targets_logits.detach())
+        mask
+    }
+
+    fn apply_mask(
+        &self,
+        mut tensor: Tensor<B, 1>,
+        mask: Option<Tensor<B, 1, Bool>>,
+    ) -> Tensor<B, 1> {
+        if let Some(mask) = mask {
+            tensor = tensor.mask_fill(mask, 0);
+        }
+
+        tensor
     }
 }
 
@@ -58,7 +61,7 @@ impl<B: Backend> CrossEntropyLoss<B> {
 mod tests {
     use super::*;
     use crate::TestBackend;
-    use burn_tensor::{Data, Distribution};
+    use burn_tensor::{loss::cross_entropy_with_logits, Data, Distribution};
 
     #[test]
     fn test_cross_entropy_loss() {
@@ -67,7 +70,7 @@ mod tests {
             [batch_size, num_targets],
             Distribution::Normal(0., 1.0),
         );
-        let targets = Tensor::<TestBackend, 1, Int>::from_data(Data::from([2, 0, 4, 1_i64]));
+        let targets = Tensor::<TestBackend, 1, Int>::from_data(Data::from([2, 0, 4, 1]));
         let targets_logits = Tensor::<TestBackend, 2>::from_data(Data::from([
             [0.0, 0.0, 1.0, 0.0, 0.0],
             [1.0, 0.0, 0.0, 0.0, 0.0],
@@ -75,7 +78,29 @@ mod tests {
             [0.0, 1.0, 0.0, 0.0, 0.0],
         ]));
 
-        let loss_1 = CrossEntropyLoss::new(5, None).forward(logits.clone(), targets);
+        let loss_1 = CrossEntropyLoss::new(None).forward(logits.clone(), targets);
+        let loss_2 = cross_entropy_with_logits(logits, targets_logits);
+
+        loss_1.into_data().assert_approx_eq(&loss_2.into_data(), 3);
+    }
+
+    #[test]
+    fn test_cross_entropy_loss_with_pad_token() {
+        let [batch_size, num_targets, pad_index] = [4, 5, 1];
+        let logits = Tensor::<TestBackend, 2>::random(
+            [batch_size, num_targets],
+            Distribution::Normal(0., 1.0),
+        );
+        let targets =
+            Tensor::<TestBackend, 1, Int>::from_data(Data::from([2, 0, 4, pad_index as i64]));
+        let targets_logits = Tensor::<TestBackend, 2>::from_data(Data::from([
+            [0.0, 0.0, 1.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 1.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0],
+        ]));
+
+        let loss_1 = CrossEntropyLoss::new(Some(pad_index)).forward(logits.clone(), targets);
         let loss_2 = cross_entropy_with_logits(logits, targets_logits);
 
         loss_1.into_data().assert_approx_eq(&loss_2.into_data(), 3);

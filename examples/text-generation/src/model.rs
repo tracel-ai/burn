@@ -61,21 +61,21 @@ impl<B: Backend> TextGenerationModel<B> {
         item: TrainingTextGenerationBatch<B>,
     ) -> ClassificationOutput<B> {
         let [batch_size, seq_length] = item.tokens_inputs.dims();
-        let device = &self.embedding_token.devices()[0];
+        let device = &self.devices()[0];
 
         let inputs = item.tokens_inputs.to_device(device);
+        let targets = item.targets.to_device(device);
         let mask_pad = item.mask_pad.to_device(device);
 
         let index_positions = Tensor::<B, 1>::arange_device(0..seq_length, device)
             .reshape([1, seq_length])
             .repeat(0, batch_size);
+
         let embedding_positions = self.embedding_pos.forward(index_positions);
         let embedding_tokens = self.embedding_token.forward(inputs);
         let embedding = (embedding_positions + embedding_tokens) / 2;
 
-        let mask_attn =
-            generate_autoregressive_mask::<B>(batch_size, seq_length, &embedding.device());
-
+        let mask_attn = generate_autoregressive_mask::<B>(batch_size, seq_length, &device);
         let encoded = self.transformer.forward(
             TransformerEncoderInput::new(embedding)
                 .mask_pad(mask_pad)
@@ -84,9 +84,9 @@ impl<B: Backend> TextGenerationModel<B> {
 
         let output = self.output.forward(encoded);
         let output_flatten = output.reshape([batch_size * seq_length, self.vocab_size]);
-        let targets_flatten = item.targets.reshape([batch_size * seq_length]);
+        let targets_flatten = targets.reshape([batch_size * seq_length]);
 
-        let loss = CrossEntropyLoss::new(self.vocab_size, Some(self.pad_token));
+        let loss = CrossEntropyLoss::new(Some(self.pad_token));
         let loss = loss.forward(output_flatten.clone(), targets_flatten.clone());
 
         ClassificationOutput {
