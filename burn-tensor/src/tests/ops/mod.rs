@@ -6,6 +6,7 @@ mod div;
 mod erf;
 mod exp;
 mod index;
+mod index_select;
 mod index_select_dim;
 mod log;
 mod log1p;

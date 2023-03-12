@@ -420,6 +420,94 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
+    fn index_select<const D: usize>(
+        tensor: ADTensor<B, D>,
+        indexes: IntTensor<B, D>,
+    ) -> ADTensor<B, D> {
+        #[derive(Debug)]
+        struct IndexSelect;
+
+        impl<B: Backend, const D: usize> Backward<B, D, 1> for IndexSelect {
+            type State = (IntTensor<B, D>, Shape<D>, B::Device);
+
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+                let (indexes, shape, device) = ops.state;
+
+                unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
+                    let zeros = B::zeros(shape, &device);
+                    B::index_select_assign(zeros, indexes, grad)
+                });
+            }
+        }
+
+        match IndexSelect
+            .prepare([tensor.node], [tensor.graph])
+            .statefull()
+        {
+            OpsKind::Tracked(prep) => prep.finish(
+                (
+                    indexes.clone(),
+                    B::shape(&tensor.primitive),
+                    B::device(&tensor.primitive),
+                ),
+                B::index_select(tensor.primitive, indexes),
+            ),
+            OpsKind::UnTracked(prep) => prep.finish(B::index_select(tensor.primitive, indexes)),
+        }
+    }
+
+    fn index_select_assign<const D: usize>(
+        tensor: ADTensor<B, D>,
+        indexes: IntTensor<B, D>,
+        value: ADTensor<B, D>,
+    ) -> ADTensor<B, D> {
+        #[derive(Debug)]
+        struct IndexSelectAssign;
+
+        impl<B: Backend, const D: usize> Backward<B, D, 2> for IndexSelectAssign {
+            type State = (IntTensor<B, D>, Shape<D>, Shape<D>, B::Device);
+
+            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
+                let (indexes, shape_lhs, shape_rhs, device) = ops.state;
+                let [indexes_4lhs, indexes_4rhs] = duplicate(&ops.parents, Some(indexes));
+
+                binary::<B, D, D, D, _, _>(
+                    ops.parents,
+                    ops.node,
+                    grads,
+                    |grad| {
+                        let zeros = B::zeros(shape_lhs, &device);
+                        B::index_select_assign(grad, indexes_4lhs.unwrap(), zeros)
+                    },
+                    |grad| {
+                        let zeros = B::zeros(shape_rhs, &device);
+                        B::index_select_assign(zeros, indexes_4rhs.unwrap(), grad)
+                    },
+                );
+            }
+        }
+
+        match IndexSelectAssign
+            .prepare([tensor.node, value.node], [tensor.graph, value.graph])
+            .statefull()
+        {
+            OpsKind::Tracked(prep) => prep.finish(
+                (
+                    indexes.clone(),
+                    B::shape(&tensor.primitive),
+                    B::shape(&value.primitive),
+                    B::device(&value.primitive),
+                ),
+                B::index_select_assign(tensor.primitive, indexes, value.primitive),
+            ),
+            OpsKind::UnTracked(prep) => prep.finish(B::index_select_assign(
+                tensor.primitive,
+                indexes,
+                value.primitive,
+            )),
+        }
+    }
+
     fn index_select_dim<const D: usize>(
         tensor: ADTensor<B, D>,
         dim: usize,

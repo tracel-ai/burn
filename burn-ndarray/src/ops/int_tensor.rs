@@ -264,6 +264,21 @@ impl<E: FloatNdArrayElement> IntTensorOps<NdArrayBackend<E>> for NdArrayBackend<
         NdArrayMathOps::mean_dim(tensor, dim)
     }
 
+    fn int_index_select<const D: usize>(
+        tensor: NdArrayTensor<i64, D>,
+        indexes: NdArrayTensor<i64, D>,
+    ) -> NdArrayTensor<i64, D> {
+        NdArrayMathOps::index_select(tensor, indexes)
+    }
+
+    fn int_index_select_assign<const D: usize>(
+        tensor: NdArrayTensor<i64, D>,
+        indexes: NdArrayTensor<i64, D>,
+        value: NdArrayTensor<i64, D>,
+    ) -> NdArrayTensor<i64, D> {
+        NdArrayMathOps::index_select_assign(tensor, indexes, value)
+    }
+
     fn int_index_select_dim<const D: usize>(
         tensor: NdArrayTensor<i64, D>,
         dim: usize,

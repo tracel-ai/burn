@@ -45,6 +45,25 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         TchTensor::new(tensor_original)
     }
 
+    pub fn index_select<const D: usize>(
+        tensor: TchTensor<E, D>,
+        indexes: TchTensor<i64, D>,
+    ) -> TchTensor<E, D> {
+        let tensor = tensor.tensor.gather((D - 1) as i64, &indexes.tensor, false);
+        TchTensor::new(tensor)
+    }
+
+    pub fn index_select_assign<const D: usize>(
+        tensor: TchTensor<E, D>,
+        indexes: TchTensor<i64, D>,
+        value: TchTensor<E, D>,
+    ) -> TchTensor<E, D> {
+        let tensor = tensor
+            .tensor
+            .scatter_add((D - 1) as i64, &indexes.tensor, &value.tensor);
+        TchTensor::new(tensor)
+    }
+
     pub fn index_select_dim<const D: usize>(
         tensor: TchTensor<E, D>,
         dim: usize,

@@ -1,6 +1,8 @@
 use alloc::vec::Vec;
 use burn_tensor::Data;
 use core::{marker::PhantomData, ops::Range};
+use ndarray::s;
+use ndarray::Array2;
 
 use burn_tensor::Shape;
 use ndarray::Axis;
@@ -202,6 +204,85 @@ where
             6 => keepdim!(5, dim, tensor, sum),
             _ => panic!("Dim not supported {D}"),
         }
+    }
+
+    pub fn index_select<const D: usize>(
+        tensor: NdArrayTensor<E, D>,
+        indexes: NdArrayTensor<i64, D>,
+    ) -> NdArrayTensor<E, D> {
+        let (shape_tensor, shape_indexes) = (tensor.shape(), indexes.shape());
+        let (size_tensor, size_index) = (shape_tensor.dims[D - 1], shape_indexes.dims[D - 1]);
+        let batch_size = Self::index_select_batch_size(&shape_tensor, &shape_indexes);
+
+        let indexes = NdArrayOps::reshape(indexes, Shape::new([batch_size, size_index])).array;
+        let tensor = NdArrayOps::reshape(tensor, Shape::new([batch_size, size_tensor])).array;
+        let mut output = Array2::zeros((batch_size, size_index));
+
+        for b in 0..batch_size {
+            let indexes = indexes.slice(s!(b, ..));
+
+            for (i, index) in indexes.iter().enumerate() {
+                output[[b, i]] = tensor[[b, *index as usize]];
+            }
+        }
+
+        NdArrayOps::reshape(
+            NdArrayTensor::<E, 2>::new(output.into_shared().into_dyn()),
+            shape_indexes,
+        )
+    }
+
+    pub fn index_select_assign<const D: usize>(
+        tensor: NdArrayTensor<E, D>,
+        indexes: NdArrayTensor<i64, D>,
+        value: NdArrayTensor<E, D>,
+    ) -> NdArrayTensor<E, D> {
+        let (shape_tensor, shape_indexes, shape_value) =
+            (tensor.shape(), indexes.shape(), value.shape());
+        let (size_tensor, size_index, size_value) = (
+            shape_tensor.dims[D - 1],
+            shape_indexes.dims[D - 1],
+            shape_value.dims[D - 1],
+        );
+        let batch_size = Self::index_select_batch_size(&shape_tensor, &shape_indexes);
+
+        if shape_value != shape_indexes {
+            panic!("Invalid dimension: the shape of the index tensor should be the same as the value tensor: Index {:?} value {:?}", shape_indexes.dims, shape_value.dims);
+        }
+
+        let indexes = NdArrayOps::reshape(indexes, Shape::new([batch_size, size_index])).array;
+        let value = NdArrayOps::reshape(value, Shape::new([batch_size, size_value])).array;
+        let mut tensor = NdArrayOps::reshape(tensor, Shape::new([batch_size, size_tensor])).array;
+
+        for b in 0..batch_size {
+            let indexes = indexes.slice(s!(b, ..));
+
+            for (i, index) in indexes.iter().enumerate() {
+                let index = *index as usize;
+                tensor[[b, index]] = tensor[[b, index]] + value[[b, i]];
+            }
+        }
+
+        NdArrayOps::reshape(
+            NdArrayTensor::<E, 2>::new(tensor.into_shared().into_dyn()),
+            shape_tensor,
+        )
+    }
+
+    fn index_select_batch_size<const D: usize>(
+        shape_tensor: &Shape<D>,
+        shape_indexes: &Shape<D>,
+    ) -> usize {
+        let mut batch_size = 1;
+
+        for i in 0..D - 1 {
+            if shape_tensor.dims[i] != shape_indexes.dims[i] {
+                panic!("Unsupported dimension, only the last dimension can differ: Tensor {:?} Index {:?}", shape_tensor.dims, shape_indexes.dims);
+            }
+            batch_size *= shape_indexes.dims[i];
+        }
+
+        batch_size
     }
 
     pub fn index_select_dim<const D: usize>(
