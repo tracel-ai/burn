@@ -31,6 +31,9 @@ pub struct TransformerEncoderConfig {
     /// The dropout rate. Default: 0.1
     #[config(default = 0.1)]
     pub dropout: f64,
+    /// Layer norm will be applied first instead of after the other modules.
+    #[config(default = false)]
+    pub norm_first: bool,
 }
 
 /// The transformer encoder module as describe in the paper [Attention Is All You Need](https://arxiv.org/abs/1706.03762).
@@ -142,6 +145,7 @@ struct TransformerEncoderLayer<B: Backend> {
     norm_1: Param<LayerNorm<B>>,
     norm_2: Param<LayerNorm<B>>,
     dropout: Dropout,
+    norm_first: bool,
 }
 
 impl<B: Backend> TransformerEncoderLayer<B> {
@@ -165,15 +169,20 @@ impl<B: Backend> TransformerEncoderLayer<B> {
             norm_2: Param::from(norm_2),
             pwff: Param::from(pwff),
             dropout,
+            norm_first: config.norm_first,
         }
     }
 
     fn forward(
         &self,
-        input: Tensor<B, 3>,
+        mut input: Tensor<B, 3>,
         mask_pad: Option<Tensor<B, 2, Bool>>,
         mask_attn: Option<Tensor<B, 3, Bool>>,
     ) -> Tensor<B, 3> {
+        if self.norm_first {
+            input = self.norm_2.forward(input)
+        }
+
         let mut input_mhs = MhaInput::self_attn(input.clone());
 
         if let Some(mask_pad) = mask_pad {
@@ -189,18 +198,28 @@ impl<B: Backend> TransformerEncoderLayer<B> {
         let x_1 = self.norm_1.forward(x_1);
 
         let x_2 = self.pwff.forward(x_1.clone());
-        let x_2 = self.dropout.forward(x_2) + x_1;
+        let mut x_2 = self.dropout.forward(x_2) + x_1;
 
-        self.norm_2.forward(x_2)
+        if !self.norm_first {
+            x_2 = self.norm_2.forward(x_2)
+        }
+
+        x_2
     }
 
     fn forward_autoregressive_inference(
         &self,
-        input: Tensor<B, 3>,
+        mut input: Tensor<B, 3>,
         mask_pad: Option<Tensor<B, 2, Bool>>,
         mask_attn: Option<Tensor<B, 3, Bool>>,
         cache: &mut TransformerEncoderLayerAutoregressiveCache<B>,
     ) -> Tensor<B, 3> {
+        if self.norm_first {
+            input = cache
+                .norm_2
+                .forward_autoregressive(input, 1, |input| self.norm_2.forward(input));
+        }
+
         let mut input_mhs = MhaInput::self_attn(input.clone());
 
         if let Some(mask_pad) = mask_pad {
@@ -222,11 +241,15 @@ impl<B: Backend> TransformerEncoderLayer<B> {
         let x_2 = cache
             .pwff
             .forward_autoregressive(x_1.clone(), 1, |x_1| self.pwff.forward(x_1));
-        let x_2 = self.dropout.forward(x_2) + x_1;
+        let mut x_2 = self.dropout.forward(x_2) + x_1;
 
-        cache
-            .norm_2
-            .forward_autoregressive(x_2, 1, |x_2| self.norm_2.forward(x_2))
+        if !self.norm_first {
+            x_2 = cache
+                .norm_2
+                .forward_autoregressive(x_2, 1, |x_2| self.norm_2.forward(x_2));
+        }
+
+        x_2
     }
 }
 
@@ -268,11 +291,25 @@ mod tests {
     use burn_tensor::Distribution;
 
     #[test]
-    fn test_autoregressive_mask_should_have_same_output_as_autoregressive_decoding() {
-        let [batch_size, seq_length, d_model, d_ff, n_heads, num_layers] = [3, 4, 12, 24, 2, 3];
-        let transformer = TransformerEncoder::new(&TransformerEncoderConfig::new(
-            d_model, d_ff, n_heads, num_layers,
-        ));
+    fn test_autoregressive_norm_last() {
+        let [d_model, d_ff, n_heads, num_layers] = [12, 24, 2, 3];
+        test_autoregressive(
+            TransformerEncoderConfig::new(d_model, d_ff, n_heads, num_layers)
+                .with_norm_first(false),
+        )
+    }
+
+    #[test]
+    fn test_autoregressive_norm_first() {
+        let [d_model, d_ff, n_heads, num_layers] = [12, 24, 2, 3];
+        test_autoregressive(
+            TransformerEncoderConfig::new(d_model, d_ff, n_heads, num_layers).with_norm_first(true),
+        )
+    }
+
+    fn test_autoregressive(config: TransformerEncoderConfig) {
+        let [batch_size, seq_length, d_model] = [3, 4, config.d_model];
+        let transformer = TransformerEncoder::new(&config);
 
         let tensor = Tensor::<TestBackend, 3>::random(
             [batch_size, seq_length, d_model],

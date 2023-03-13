@@ -23,7 +23,7 @@ pub struct ExperimentConfig {
     optimizer: AdamConfig,
     #[config(default = 512)]
     max_seq_length: usize,
-    #[config(default = 8)]
+    #[config(default = 2)]
     batch_size: usize,
     #[config(default = 50)]
     num_epochs: usize,
@@ -77,7 +77,7 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
         .metric_valid_plot(LossMetric::new())
         .with_file_checkpointer::<f32>(2)
         .devices(vec![device])
-        .grads_accumulation(4)
+        .grads_accumulation(16)
         .num_epochs(config.num_epochs)
         .build(model, optim);
 
