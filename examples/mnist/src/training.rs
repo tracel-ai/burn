@@ -1,6 +1,8 @@
+use std::sync::Arc;
+
 use crate::data::MNISTBatcher;
-use crate::mlp::MlpConfig;
-use crate::model::{MnistConfig, Model};
+use crate::model::Model;
+
 use burn::optim::decay::WeightDecayConfig;
 use burn::optim::{Adam, AdamConfig};
 use burn::{
@@ -12,16 +14,31 @@ use burn::{
         LearnerBuilder,
     },
 };
-use std::sync::Arc;
 
 static ARTIFACT_DIR: &str = "/tmp/burn-example-mnist";
+
+#[derive(Config)]
+pub struct MnistTrainingConfig {
+    #[config(default = 6)]
+    pub num_epochs: usize,
+
+    #[config(default = 60)]
+    pub batch_size: usize,
+
+    #[config(default = 8)]
+    pub num_workers: usize,
+
+    #[config(default = 42)]
+    pub seed: u64,
+
+    pub optimizer: AdamConfig,
+}
 
 pub fn run<B: ADBackend>(device: B::Device) {
     // Config
     let config_optimizer =
         AdamConfig::new(1e-4).with_weight_decay(Some(WeightDecayConfig::new(5e-5)));
-    let config_mlp = MlpConfig::new();
-    let config = MnistConfig::new(config_optimizer, config_mlp);
+    let config = MnistTrainingConfig::new(config_optimizer);
     B::seed(config.seed);
 
     // Data
@@ -39,7 +56,7 @@ pub fn run<B: ADBackend>(device: B::Device) {
 
     // Model
     let optim = Adam::new(&config.optimizer);
-    let model = Model::new(&config, 784, 10);
+    let model = Model::new();
 
     let learner = LearnerBuilder::new(ARTIFACT_DIR)
         .metric_train_plot(AccuracyMetric::new())

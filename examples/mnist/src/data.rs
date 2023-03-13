@@ -26,7 +26,8 @@ impl<B: Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
             .map(|item| Data::<f32, 2>::from(item.image))
             .map(|data| Tensor::<B, 2>::from_data(data.convert()))
             .map(|tensor| tensor.reshape([1, 28, 28]))
-            .map(|tensor| tensor / 255)
+            // normalize: make between [0,1] and make the mean =  0.1307 and std = 0.3081
+            .map(|tensor| ((tensor / 255) - 0.1307) / 0.3081)
             .collect();
 
         let targets = items

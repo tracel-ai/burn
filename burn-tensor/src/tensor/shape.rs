@@ -32,6 +32,16 @@ impl<const D: usize> From<Vec<i64>> for Shape<D> {
     }
 }
 
+impl<const D: usize> From<Vec<u64>> for Shape<D> {
+    fn from(shape: Vec<u64>) -> Self {
+        let mut dims = [1; D];
+        for (i, dim) in shape.into_iter().enumerate() {
+            dims[i] = dim as usize;
+        }
+        Self::new(dims)
+    }
+}
+
 impl<const D: usize> From<Vec<usize>> for Shape<D> {
     fn from(shape: Vec<usize>) -> Self {
         let mut dims = [1; D];

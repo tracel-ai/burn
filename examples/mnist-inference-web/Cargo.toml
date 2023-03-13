@@ -1,0 +1,32 @@
+[package]
+authors = ["Dilshod Tadjibaev (@antimora)"]
+edition = "2021"
+license = "MIT/Apache-2.0"
+name = "mnist-inference-web"
+publish = false
+version = "0.5.0"
+
+[lib]
+crate-type = ["cdylib"]
+
+[features]
+default = []
+
+[dependencies]
+burn = {path = "../../burn", default-features = false}
+burn-ndarray = {path = "../../burn-ndarray", default-features = false}
+
+# 2.0 supports no_std and serder
+bincode = {version = "2.0.0-rc.2", git = "https://github.com/bincode-org/bincode.git", default-features = false, features = ["alloc", "serde"]}
+
+serde = {workspace = true}
+wasm-bindgen = "0.2.84"
+wee_alloc = "0.4.5"
+
+[dev-dependencies]
+burn-dataset = {path = "../../burn-dataset"}
+
+[build-dependencies]
+bincode = {version = "2.0.0-rc.2", git = "https://github.com/bincode-org/bincode.git", default-features = false, features = ["alloc", "serde"]}
+burn = {path = "../../burn"}
+serde = {workspace = true}
