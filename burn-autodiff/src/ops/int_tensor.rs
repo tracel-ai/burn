@@ -82,7 +82,7 @@ impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn int_add_scalar<const D: usize>(lhs: IntTensor<B, D>, rhs: B::IntElem) -> IntTensor<B, D> {
-        B::int_sub_scalar(lhs, rhs)
+        B::int_add_scalar(lhs, rhs)
     }
 
     fn int_sub<const D: usize>(lhs: IntTensor<B, D>, rhs: IntTensor<B, D>) -> IntTensor<B, D> {
