@@ -265,11 +265,22 @@ impl<P, const D: usize> From<DataSerialize<P>> for Data<P, D> {
 impl<P: core::fmt::Debug + Copy, const A: usize> From<[P; A]> for Data<P, 1> {
     fn from(elems: [P; A]) -> Self {
         let mut data = Vec::with_capacity(2 * A);
-        for elem in elems.into_iter().take(A) {
+        for elem in elems.into_iter() {
             data.push(elem);
         }
 
         Data::new(data, Shape::new([A]))
+    }
+}
+
+impl<P: core::fmt::Debug + Copy> From<&[P]> for Data<P, 1> {
+    fn from(elems: &[P]) -> Self {
+        let mut data = Vec::with_capacity(elems.len());
+        for elem in elems.iter() {
+            data.push(*elem);
+        }
+
+        Data::new(data, Shape::new([elems.len()]))
     }
 }
 

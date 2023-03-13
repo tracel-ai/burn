@@ -26,7 +26,7 @@ mod tch_gpu {
         let device = TchDevice::Cuda(0);
         #[cfg(target_os = "macos")]
         let device = TchDevice::Mps;
-        training::run::<ADBackendDecorator<TchBackend<burn::tensor::f16>>>(device);
+        training::run::<ADBackendDecorator<TchBackend<f32>>>(device);
     }
 }
 

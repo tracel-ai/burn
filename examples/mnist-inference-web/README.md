@@ -1,0 +1,3 @@
+# MNIST Inference Demo
+
+... work in progress ...
