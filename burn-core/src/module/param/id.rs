@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct ParamId {
-    pub value: String,
+    value: String,
 }
 
 impl From<&str> for ParamId {

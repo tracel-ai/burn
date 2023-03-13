@@ -9,6 +9,8 @@ const MODEL_STATE_FILE_NAME: &str = "model-6.json.gz";
 
 /// This build step is responsible for converting JSON serialized to Bincode serilization
 /// in order to make the file small and efficient for bundling the binary into wasm code.
+///
+/// This will be removed once https://github.com/burn-rs/burn/issues/201 is resolved.
 fn main() {
     println!("cargo:rerun-if-changed={MODEL_STATE_FILE_NAME}");
     let config = config::standard();
