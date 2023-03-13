@@ -21,9 +21,9 @@ use std::sync::Arc;
 pub struct ExperimentConfig {
     transformer: TransformerEncoderConfig,
     optimizer: AdamConfig,
-    #[config(default = 192)]
+    #[config(default = 512)]
     max_seq_length: usize,
-    #[config(default = 1)]
+    #[config(default = 8)]
     batch_size: usize,
     #[config(default = 50)]
     num_epochs: usize,
@@ -36,8 +36,8 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
     config: ExperimentConfig,
     artifact_dir: &str,
 ) {
-    let dataset_train = Arc::new(SamplerDataset::new(Box::new(dataset_train), 2_000));
-    let dataset_test = Arc::new(SamplerDataset::new(Box::new(dataset_test), 500));
+    let dataset_train = Arc::new(SamplerDataset::new(Box::new(dataset_train), 10_000));
+    let dataset_test = Arc::new(SamplerDataset::new(Box::new(dataset_test), 1000));
 
     let tokenizer = Arc::new(Gpt2Tokenizer::default());
     let batcher_train = Arc::new(TextGenerationBatcher::new(
@@ -77,7 +77,7 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
         .metric_valid_plot(LossMetric::new())
         .with_file_checkpointer::<f32>(2)
         .devices(vec![device])
-        .grads_accumulation(16)
+        .grads_accumulation(4)
         .num_epochs(config.num_epochs)
         .build(model, optim);
 

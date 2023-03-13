@@ -77,7 +77,7 @@ impl<B: Backend> TextClassificationModel<B> {
             .index([0..batch_size, 0..1])
             .reshape([batch_size, self.n_classes]);
 
-        let loss = CrossEntropyLoss::new(self.n_classes, None);
+        let loss = CrossEntropyLoss::new(None);
         let loss = loss.forward(output_classification.clone(), labels.clone());
 
         ClassificationOutput {

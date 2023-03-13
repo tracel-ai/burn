@@ -70,7 +70,7 @@ impl<B: Backend> Model<B> {
     pub fn forward_classification(&self, item: MNISTBatch<B>) -> ClassificationOutput<B> {
         let targets = item.targets;
         let output = self.forward(item.images);
-        let loss = CrossEntropyLoss::new(self.num_classes, None);
+        let loss = CrossEntropyLoss::new(None);
         let loss = loss.forward(output.clone(), targets.clone());
 
         ClassificationOutput {
