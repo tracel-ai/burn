@@ -229,10 +229,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     grads,
                     |grad| {
                         let rhs = rhs_4lhs.unwrap();
-                        let device = B::device(&rhs);
-                        let shape = B::shape(&rhs);
-                        let ones = B::ones(shape, &device);
-                        let value = B::div(ones, rhs);
+                        let value = B::powf(rhs, -1.0);
 
                         B::mul(grad, value)
                     },
@@ -269,25 +266,18 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         struct DivScalar;
 
         impl<B: Backend, const D: usize> Backward<B, D, 1> for DivScalar {
-            type State = (Shape<D>, B::Device, FloatElem<B>);
+            type State = FloatElem<B>;
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
-                let (shape, device, rhs) = ops.state;
-
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
-                    let ones = B::ones(shape, &device);
-                    let tmp = B::div_scalar(ones, rhs);
-
-                    B::mul(grad, tmp)
+                    let tmp = 1.0 / ops.state.elem::<f32>();
+                    B::mul_scalar(grad, tmp.elem())
                 });
             }
         }
 
         match DivScalar.prepare([lhs.node], [lhs.graph]).statefull() {
-            OpsKind::Tracked(prep) => prep.finish(
-                (B::shape(&lhs.primitive), B::device(&lhs.primitive), rhs),
-                B::div_scalar(lhs.primitive, rhs),
-            ),
+            OpsKind::Tracked(prep) => prep.finish(rhs, B::div_scalar(lhs.primitive, rhs)),
             OpsKind::UnTracked(prep) => prep.finish(B::div_scalar(lhs.primitive, rhs)),
         }
     }
@@ -976,10 +966,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
-                    let input = ops.state;
-                    let ones = B::ones(B::shape(&input), &B::device(&input));
-                    let value = B::div(ones, input);
-
+                    let value = B::powf(ops.state, -1.0);
                     B::mul(grad, value)
                 });
             }
@@ -1002,9 +989,8 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
-                    let input = ops.state;
-                    let ones = B::ones(B::shape(&input), &B::device(&input));
-                    let value = B::div(ones, B::add_scalar(input, 1.elem()));
+                    let value = B::add_scalar(ops.state, 1.elem());
+                    let value = B::powf(value, -1.0);
 
                     B::mul(grad, value)
                 });

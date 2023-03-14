@@ -75,7 +75,7 @@ impl<B: Backend> TextGenerationModel<B> {
         let embedding_tokens = self.embedding_token.forward(inputs);
         let embedding = (embedding_positions + embedding_tokens) / 2;
 
-        let mask_attn = generate_autoregressive_mask::<B>(batch_size, seq_length, &device);
+        let mask_attn = generate_autoregressive_mask::<B>(batch_size, seq_length, device);
         let encoded = self.transformer.forward(
             TransformerEncoderInput::new(embedding)
                 .mask_pad(mask_pad)
