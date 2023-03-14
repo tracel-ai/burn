@@ -47,6 +47,7 @@ This may also be a good idea to take a look the main [components](#components) o
 ### Examples
 
 * [MNIST](https://github.com/burn-rs/burn/tree/main/examples/mnist) train a model on CPU/GPU using different backends.
+* [MNIST Inference Web](https://github.com/burn-rs/burn/tree/main/examples/mnist-inference-web) run trained model in the browser for inference.
 * [Text Classification](https://github.com/burn-rs/burn/tree/main/examples/text-classification) train a transformer encoder from scratch on GPU.
 
 ### Components
