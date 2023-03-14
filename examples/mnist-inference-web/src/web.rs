@@ -71,12 +71,7 @@ mod tests {
         let dataset = MNISTDataset::test();
         let item = dataset.get(2).unwrap();
         let mnist = Mnist::new();
-        let input = item
-            .image
-            .to_vec()
-            .into_iter()
-            .flatten()
-            .collect::<Vec<f32>>();
+        let input = item.image.iter().copied().flatten().collect::<Vec<f32>>();
         let output = mnist.inference(input.as_slice()).unwrap();
 
         assert!(output[item.label] > 0.9);
