@@ -9,12 +9,6 @@ use burn::tensor::Tensor;
 
 use wasm_bindgen::prelude::*;
 
-#[allow(unused_imports)]
-use wee_alloc::WeeAlloc;
-
-#[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-
 /// Mnist structure that corresponds to JavaScript class.
 /// See: https://rustwasm.github.io/wasm-bindgen/contributing/design/exporting-rust-struct.html
 #[wasm_bindgen]

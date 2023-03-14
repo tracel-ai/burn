@@ -21,7 +21,6 @@ bincode = {version = "2.0.0-rc.2", git = "https://github.com/bincode-org/bincode
 
 serde = {workspace = true}
 wasm-bindgen = "0.2.84"
-wee_alloc = "0.4.5"
 
 [dev-dependencies]
 burn-dataset = {path = "../../burn-dataset"}
