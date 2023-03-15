@@ -22,7 +22,7 @@ pub struct MnistTrainingConfig {
     #[config(default = 6)]
     pub num_epochs: usize,
 
-    #[config(default = 60)]
+    #[config(default = 256)]
     pub batch_size: usize,
 
     #[config(default = 8)]
@@ -51,8 +51,9 @@ pub fn run<B: ADBackend>(device: B::Device) {
         .build(Arc::new(MNISTDataset::train()));
     let dataloader_test = DataLoaderBuilder::new(batcher_valid)
         .batch_size(config.batch_size)
+        .shuffle(config.seed)
         .num_workers(config.num_workers)
-        .build(Arc::new(MNISTDataset::test()));
+        .build(Arc::new(MNISTDataset::train()));
 
     // Model
     let optim = Adam::new(&config.optimizer);
