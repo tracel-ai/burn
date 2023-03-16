@@ -126,10 +126,10 @@ impl<B: Backend> BatchNorm2d<B> {
         var: Tensor<B, 4>,
     ) -> Tensor<B, 4> {
         let channels = x.dims()[1];
-        let var = var.add_scalar(self.epsilon).sqrt();
+        let std = var.add_scalar(self.epsilon).sqrt();
 
         let x = x.sub(mean);
-        let x = x.div(var);
+        let x = x.div(std);
 
         let x = x.mul(self.gamma.val().reshape([1, channels, 1, 1]));
 
