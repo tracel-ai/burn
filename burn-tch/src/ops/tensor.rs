@@ -77,7 +77,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         tensor: <TchBackend<E> as Backend>::TensorPrimitive<D>,
     ) -> Data<<TchBackend<E> as Backend>::FloatElem, D> {
         let shape = tensor.shape();
-        Data::new(tensor.tensor.shallow_clone().into(), shape)
+        Data::new(tensor.tensor.into(), shape)
     }
 
     fn device<const D: usize>(tensor: &TchTensor<E, D>) -> TchDevice {

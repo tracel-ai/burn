@@ -22,7 +22,7 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
 
     fn int_into_data<const D: usize>(tensor: TchTensor<i64, D>) -> Data<i64, D> {
         let shape = tensor.shape();
-        Data::new(tensor.tensor.shallow_clone().into(), shape)
+        Data::new(tensor.tensor.into(), shape)
     }
 
     fn int_to_device<const D: usize>(

@@ -5,7 +5,7 @@ use std::{marker::PhantomData, sync::Arc};
 
 #[derive(Debug, PartialEq)]
 pub struct TchTensor<E: tch::kind::Element, const D: usize> {
-    pub(crate) tensor: Arc<tch::Tensor>,
+    pub(crate) tensor: tch::Tensor,
     pub(crate) data: Arc<*mut c_void>,
     pub phantom: PhantomData<E>,
 }
@@ -15,7 +15,7 @@ impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
         let data = Arc::new(tensor.data_ptr());
 
         Self {
-            tensor: Arc::new(tensor),
+            tensor,
             phantom: PhantomData::default(),
             data,
         }
@@ -30,7 +30,7 @@ impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
         };
 
         Self {
-            tensor: Arc::new(tensor),
+            tensor,
             data,
             phantom: PhantomData::default(),
         }
@@ -72,12 +72,7 @@ impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
         }
 
         let data = self.data.clone();
-        if let Some(tensor) = Arc::get_mut(&mut self.tensor) {
-            let tensor = func(tensor);
-            return Some(TchTensor::with_data_ptr(tensor, data));
-        }
-
-        None
+        Some(TchTensor::with_data_ptr(func(&mut self.tensor), data))
     }
     /// Execute a unary ops reusing the tensor data if possible.
     pub fn unary_ops<FOwn, FRef, EOut: tch::kind::Element, const D_OUT: usize>(
@@ -93,13 +88,7 @@ impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
             return TchTensor::with_data_ptr(fref(&self.tensor), self.data);
         }
 
-        let data = self.data.clone();
-        let tensor = match Arc::try_unwrap(self.tensor) {
-            Ok(tensor) => fown(tensor),
-            Err(tensor) => fref(tensor.as_ref()),
-        };
-
-        TchTensor::with_data_ptr(tensor, data)
+        TchTensor::with_data_ptr(fown(self.tensor), self.data)
     }
 
     /// Execute a binary ops reusing the tensor data if possible.
@@ -143,7 +132,7 @@ impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
 impl<P: tch::kind::Element, const D: usize> Clone for TchTensor<P, D> {
     fn clone(&self) -> Self {
         Self {
-            tensor: self.tensor.clone(),
+            tensor: self.tensor.shallow_clone(),
             phantom: PhantomData::default(),
             data: self.data.clone(),
         }
