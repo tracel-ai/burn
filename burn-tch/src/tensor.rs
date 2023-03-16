@@ -5,7 +5,7 @@ use std::{marker::PhantomData, sync::Arc};
 
 #[derive(Debug, PartialEq)]
 pub struct TchTensor<E: tch::kind::Element, const D: usize> {
-    pub(crate) tensor: tch::Tensor,
+    pub(crate) tensor: Arc<tch::Tensor>,
     pub(crate) data: Arc<*mut c_void>,
     pub phantom: PhantomData<E>,
 }
@@ -15,7 +15,7 @@ impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
         let data = Arc::new(tensor.data_ptr());
 
         Self {
-            tensor,
+            tensor: Arc::new(tensor),
             phantom: PhantomData::default(),
             data,
         }
@@ -30,7 +30,7 @@ impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
         };
 
         Self {
-            tensor,
+            tensor: Arc::new(tensor),
             data,
             phantom: PhantomData::default(),
         }
@@ -59,9 +59,22 @@ unsafe impl<E: tch::kind::Element, const D: usize> Sync for TchTensor<E, D> {}
 
 impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
     // Execute an operation on a tensor if the data can be reused.
-    pub fn mut_ops<F: Fn(&mut tch::Tensor) -> O, O>(&mut self, func: F) -> Option<O> {
-        if Arc::strong_count(&self.data) == 1 {
-            return Some(func(&mut self.tensor));
+    pub fn mut_ops<
+        F: Fn(&mut tch::Tensor) -> tch::Tensor,
+        EOut: tch::kind::Element,
+        const D_OUT: usize,
+    >(
+        &mut self,
+        func: F,
+    ) -> Option<TchTensor<EOut, D_OUT>> {
+        if Arc::strong_count(&self.data) > 1 {
+            return None;
+        }
+
+        let data = self.data.clone();
+        if let Some(tensor) = Arc::get_mut(&mut self.tensor) {
+            let tensor = func(tensor);
+            return Some(TchTensor::with_data_ptr(tensor, data));
         }
 
         None
@@ -76,11 +89,14 @@ impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
         FOwn: Fn(tch::Tensor) -> tch::Tensor,
         FRef: Fn(&tch::Tensor) -> tch::Tensor,
     {
-        let data = self.data;
+        if Arc::strong_count(&self.data) > 1 {
+            return TchTensor::with_data_ptr(fref(&self.tensor), self.data);
+        }
 
-        let tensor = match Arc::strong_count(&data) == 1 {
-            true => fown(self.tensor),
-            false => fref(&self.tensor),
+        let data = self.data.clone();
+        let tensor = match Arc::try_unwrap(self.tensor) {
+            Ok(tensor) => fown(tensor),
+            Err(tensor) => fref(tensor.as_ref()),
         };
 
         TchTensor::with_data_ptr(tensor, data)
@@ -102,21 +118,19 @@ impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
         let lhs_num_elems = lhs.shape().num_elements();
         let rhs_num_elems = rhs.shape().num_elements();
 
-        let safe_mut_lhs = lhs_num_elems > rhs_num_elems && Arc::strong_count(&lhs.data) == 1;
-        let safe_mut_rhs = rhs_num_elems > lhs_num_elems && Arc::strong_count(&rhs.data) == 1;
+        let safe_mut_lhs = lhs_num_elems > rhs_num_elems;
+        let safe_mut_rhs = rhs_num_elems > lhs_num_elems;
 
         if safe_mut_lhs {
-            let data = lhs.data;
-            let tensor = flmut(&mut lhs.tensor, &rhs.tensor);
-
-            return TchTensor::with_data_ptr(tensor, data);
+            if let Some(output) = lhs.mut_ops(|lhs| flmut(lhs, &rhs.tensor)) {
+                return output;
+            }
         }
 
         if safe_mut_rhs {
-            let data = rhs.data;
-            let tensor = frmut(&lhs.tensor, &mut rhs.tensor);
-
-            return TchTensor::with_data_ptr(tensor, data);
+            if let Some(output) = rhs.mut_ops(|rhs| frmut(&lhs.tensor, rhs)) {
+                return output;
+            }
         }
 
         let data = lhs.data;
@@ -129,7 +143,7 @@ impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
 impl<P: tch::kind::Element, const D: usize> Clone for TchTensor<P, D> {
     fn clone(&self) -> Self {
         Self {
-            tensor: self.tensor.shallow_clone(),
+            tensor: self.tensor.clone(),
             phantom: PhantomData::default(),
             data: self.data.clone(),
         }

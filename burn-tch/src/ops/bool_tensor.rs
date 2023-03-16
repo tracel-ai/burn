@@ -25,7 +25,7 @@ impl<E: TchElement> BoolTensorOps<TchBackend<E>> for TchBackend<E> {
 
     fn bool_into_data<const D: usize>(tensor: TchTensor<bool, D>) -> Data<bool, D> {
         let shape = tensor.shape();
-        Data::new(tensor.tensor.into(), shape)
+        Data::new(tensor.tensor.shallow_clone().into(), shape)
     }
 
     fn bool_to_device<const D: usize>(

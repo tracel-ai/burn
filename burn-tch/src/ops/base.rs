@@ -15,10 +15,7 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
     ) -> TchTensor<E, D2> {
         let shape_tch: TchShape<D2> = shape.into();
 
-        tensor.unary_ops(
-            |mut tensor| tensor.resize_(&shape_tch.dims),
-            |tensor| tensor.reshape(&shape_tch.dims),
-        )
+        TchTensor::with_data_ptr(tensor.tensor.reshape(&shape_tch.dims), tensor.data)
     }
 
     pub fn index<const D1: usize, const D2: usize>(
@@ -104,8 +101,11 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
             indices.push(None);
         }
         indices[dim] = Some(indexes.tensor);
-        let tensor = tensor.tensor.index_put(&indices, &value.tensor, true);
-        TchTensor::new(tensor)
+
+        tensor.unary_ops(
+            |tensor| tensor.index_put(&indices, &value.tensor, true),
+            |tensor| tensor.copy().index_put(&indices, &value.tensor, true),
+        )
     }
 
     pub fn cat<const D: usize>(tensors: Vec<TchTensor<E, D>>, dim: usize) -> TchTensor<E, D> {
@@ -286,16 +286,20 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
     }
 
     pub fn mean_dim<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<E, D> {
-        let tensor = tensor
-            .tensor
-            .mean_dim(Some([dim as i64].as_slice()), true, E::KIND);
-        TchTensor::new(tensor)
+        TchTensor::with_data_ptr(
+            tensor
+                .tensor
+                .mean_dim(Some([dim as i64].as_slice()), true, E::KIND),
+            tensor.data,
+        )
     }
 
     pub fn sum_dim<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<E, D> {
-        let tensor = tensor
-            .tensor
-            .sum_dim_intlist(Some([dim as i64].as_slice()), true, E::KIND);
-        TchTensor::new(tensor)
+        TchTensor::with_data_ptr(
+            tensor
+                .tensor
+                .sum_dim_intlist(Some([dim as i64].as_slice()), true, E::KIND),
+            tensor.data,
+        )
     }
 }

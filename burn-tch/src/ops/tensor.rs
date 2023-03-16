@@ -16,27 +16,23 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         match distribution {
             Distribution::Standard => {
                 let mut tensor = TchTensor::<E, D>::empty(shape, *device);
-                let _ = tensor.mut_ops(|tensor| tensor.normal_(0.0, 1.0)).unwrap();
-                tensor
+                tensor.mut_ops(|tensor| tensor.normal_(0.0, 1.0)).unwrap()
             }
             Distribution::Bernoulli(prob) => {
                 let mut tensor = TchTensor::<E, D>::empty(shape, *device);
-                let _ = tensor
-                    .mut_ops(|tensor| tensor.f_bernoulli_float_(prob).unwrap())
-                    .unwrap();
                 tensor
+                    .mut_ops(|tensor| tensor.f_bernoulli_float_(prob).unwrap())
+                    .unwrap()
             }
             Distribution::Uniform(from, to) => {
                 let mut tensor = TchTensor::<E, D>::empty(shape, *device);
-                let _ = tensor
-                    .mut_ops(|tensor| tensor.uniform_(from.to_f64().unwrap(), to.to_f64().unwrap()))
-                    .unwrap();
                 tensor
+                    .mut_ops(|tensor| tensor.uniform_(from.to_f64().unwrap(), to.to_f64().unwrap()))
+                    .unwrap()
             }
             Distribution::Normal(mean, std) => {
                 let mut tensor = TchTensor::<E, D>::empty(shape, *device);
-                let _ = tensor.mut_ops(|tensor| tensor.normal_(mean, std)).unwrap();
-                tensor
+                tensor.mut_ops(|tensor| tensor.normal_(mean, std)).unwrap()
             }
         }
     }
@@ -81,7 +77,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         tensor: <TchBackend<E> as Backend>::TensorPrimitive<D>,
     ) -> Data<<TchBackend<E> as Backend>::FloatElem, D> {
         let shape = tensor.shape();
-        Data::new(tensor.tensor.into(), shape)
+        Data::new(tensor.tensor.shallow_clone().into(), shape)
     }
 
     fn device<const D: usize>(tensor: &TchTensor<E, D>) -> TchDevice {
@@ -284,10 +280,6 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         TchOps::lower_equal_elem(lhs, rhs.elem::<f64>())
     }
 
-    fn detach<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
-        tensor
-    }
-
     fn mean<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, 1> {
         TchOps::mean(tensor)
     }
@@ -305,23 +297,31 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     }
 
     fn to_full_precision<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<f32, D> {
+        let data = tensor.data.clone();
         let tensor = tensor.tensor.to_kind(tch::Kind::Float);
-        TchTensor::new(tensor)
+
+        TchTensor::with_data_ptr(tensor, data)
     }
 
     fn from_full_precision<const D: usize>(tensor: TchTensor<f32, D>) -> TchTensor<E, D> {
+        let data = tensor.data.clone();
         let tensor = tensor.tensor.to_kind(E::KIND);
-        TchTensor::new(tensor)
+
+        TchTensor::with_data_ptr(tensor, data)
     }
 
     fn argmax<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<i64, D> {
+        let data = tensor.data.clone();
         let tensor = tensor.tensor.argmax(dim as i64, true);
-        TchTensor::new(tensor)
+
+        TchTensor::with_data_ptr(tensor, data)
     }
 
     fn argmin<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<i64, D> {
+        let data = tensor.data.clone();
         let tensor = tensor.tensor.argmin(dim as i64, true);
-        TchTensor::new(tensor)
+
+        TchTensor::with_data_ptr(tensor, data)
     }
 
     fn exp<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
