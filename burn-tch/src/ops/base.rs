@@ -103,8 +103,8 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         indices[dim] = Some(indexes.tensor);
 
         tensor.unary_ops(
+            |mut tensor| tensor.index_put_(&indices, &value.tensor, true),
             |tensor| tensor.index_put(&indices, &value.tensor, true),
-            |tensor| tensor.copy().index_put(&indices, &value.tensor, true),
         )
     }
 
