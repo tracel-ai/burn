@@ -297,31 +297,31 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     }
 
     fn to_full_precision<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<f32, D> {
-        let data = tensor.data.clone();
+        let storage = tensor.storage.clone();
         let tensor = tensor.tensor.to_kind(tch::Kind::Float);
 
-        TchTensor::with_data_ptr(tensor, data)
+        TchTensor::from_existing(tensor, storage)
     }
 
     fn from_full_precision<const D: usize>(tensor: TchTensor<f32, D>) -> TchTensor<E, D> {
-        let data = tensor.data.clone();
+        let storage = tensor.storage.clone();
         let tensor = tensor.tensor.to_kind(E::KIND);
 
-        TchTensor::with_data_ptr(tensor, data)
+        TchTensor::from_existing(tensor, storage)
     }
 
     fn argmax<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<i64, D> {
-        let data = tensor.data.clone();
+        let storage = tensor.storage.clone();
         let tensor = tensor.tensor.argmax(dim as i64, true);
 
-        TchTensor::with_data_ptr(tensor, data)
+        TchTensor::from_existing(tensor, storage)
     }
 
     fn argmin<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<i64, D> {
-        let data = tensor.data.clone();
+        let storage = tensor.storage.clone();
         let tensor = tensor.tensor.argmin(dim as i64, true);
 
-        TchTensor::with_data_ptr(tensor, data)
+        TchTensor::from_existing(tensor, storage)
     }
 
     fn exp<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {

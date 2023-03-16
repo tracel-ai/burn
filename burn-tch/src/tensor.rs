@@ -3,35 +3,46 @@ use burn_tensor::{ops::TensorOps, Data, Shape};
 use libc::c_void;
 use std::{marker::PhantomData, sync::Arc};
 
+pub type StorageRef = Arc<*mut c_void>;
+
 #[derive(Debug, PartialEq)]
 pub struct TchTensor<E: tch::kind::Element, const D: usize> {
     pub(crate) tensor: tch::Tensor,
-    pub(crate) data: Arc<*mut c_void>,
-    pub phantom: PhantomData<E>,
+    pub(crate) storage: StorageRef,
+    phantom: PhantomData<E>,
 }
 
 impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
+    /// Create a new tensor.
+    ///
+    /// Note that if the tensor was created from an operation that may reuse the same tensor
+    /// storage as the parent, you should use [from_existing](TchTensor::from_existing)
+    /// instead.
     pub fn new(tensor: tch::Tensor) -> Self {
         let data = Arc::new(tensor.data_ptr());
 
         Self {
             tensor,
             phantom: PhantomData::default(),
-            data,
+            storage: data,
         }
     }
 
-    pub fn with_data_ptr(tensor: tch::Tensor, data: Arc<*mut c_void>) -> Self {
-        let data_tensor = tensor.data_ptr();
+    /// Create a tensor that was created from an operation executed on a parent tensor.
+    ///
+    /// If the child tensor shared the same storage as its parent, it will be cloned, effectivly
+    /// tracking how much tensors point to the same memory space.
+    pub fn from_existing(tensor: tch::Tensor, storage_parent: StorageRef) -> Self {
+        let storage_child = tensor.data_ptr();
 
-        let data = match data_tensor == *data {
-            true => data.clone(),
-            false => Arc::new(data_tensor),
+        let storage = match storage_child == *storage_parent {
+            true => storage_parent.clone(),
+            false => Arc::new(storage_child),
         };
 
         Self {
             tensor,
-            data,
+            storage,
             phantom: PhantomData::default(),
         }
     }
@@ -58,7 +69,7 @@ unsafe impl<E: tch::kind::Element, const D: usize> Send for TchTensor<E, D> {}
 unsafe impl<E: tch::kind::Element, const D: usize> Sync for TchTensor<E, D> {}
 
 impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
-    // Execute an operation on a tensor if the data can be reused.
+    /// Execute an operation on a tensor if the data can be reused.
     pub fn mut_ops<
         F: Fn(&mut tch::Tensor) -> tch::Tensor,
         EOut: tch::kind::Element,
@@ -67,12 +78,12 @@ impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
         &mut self,
         func: F,
     ) -> Option<TchTensor<EOut, D_OUT>> {
-        if Arc::strong_count(&self.data) > 1 {
+        if Arc::strong_count(&self.storage) > 1 {
             return None;
         }
 
-        let data = self.data.clone();
-        Some(TchTensor::with_data_ptr(func(&mut self.tensor), data))
+        let data = self.storage.clone();
+        Some(TchTensor::from_existing(func(&mut self.tensor), data))
     }
     /// Execute a unary ops reusing the tensor data if possible.
     pub fn unary_ops<FOwn, FRef, EOut: tch::kind::Element, const D_OUT: usize>(
@@ -84,11 +95,11 @@ impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
         FOwn: Fn(tch::Tensor) -> tch::Tensor,
         FRef: Fn(&tch::Tensor) -> tch::Tensor,
     {
-        if Arc::strong_count(&self.data) > 1 {
-            return TchTensor::with_data_ptr(fref(&self.tensor), self.data);
+        if Arc::strong_count(&self.storage) > 1 {
+            return TchTensor::from_existing(fref(&self.tensor), self.storage);
         }
 
-        TchTensor::with_data_ptr(fown(self.tensor), self.data)
+        TchTensor::from_existing(fown(self.tensor), self.storage)
     }
 
     /// Execute a binary ops reusing the tensor data if possible.
@@ -122,10 +133,10 @@ impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
             }
         }
 
-        let data = lhs.data;
+        let storage = lhs.storage;
         let tensor = fref(&lhs.tensor, &rhs.tensor);
 
-        TchTensor::with_data_ptr(tensor, data)
+        TchTensor::from_existing(tensor, storage)
     }
 }
 
@@ -134,7 +145,7 @@ impl<P: tch::kind::Element, const D: usize> Clone for TchTensor<P, D> {
         Self {
             tensor: self.tensor.shallow_clone(),
             phantom: PhantomData::default(),
-            data: self.data.clone(),
+            storage: self.storage.clone(),
         }
     }
 }
