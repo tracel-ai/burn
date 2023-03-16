@@ -27,6 +27,7 @@ std = [
   "serde_json/std",
   "serde/std",
 ]
+test-tch = [] # To use tch during testing, default uses ndarray.
 
 [dependencies]
 
