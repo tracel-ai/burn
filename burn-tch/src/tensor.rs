@@ -1,20 +1,38 @@
 use crate::{element::TchElement, TchBackend, TchDevice};
 use burn_tensor::{ops::TensorOps, Data, Shape};
+use libc::c_void;
 use std::{marker::PhantomData, sync::Arc};
 
 #[derive(Debug, PartialEq)]
 pub struct TchTensor<E: tch::kind::Element, const D: usize> {
-    pub tensor: Arc<tch::Tensor>,
-    pub(crate) phantom: PhantomData<E>,
-    pub(crate) safe_2_mut: bool,
+    pub(crate) tensor: tch::Tensor,
+    pub(crate) data: Arc<*mut c_void>,
+    pub phantom: PhantomData<E>,
 }
 
 impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
     pub fn new(tensor: tch::Tensor) -> Self {
+        let data = Arc::new(tensor.data_ptr());
+
         Self {
-            tensor: Arc::new(tensor),
+            tensor,
             phantom: PhantomData::default(),
-            safe_2_mut: true,
+            data,
+        }
+    }
+
+    pub fn with_data_ptr(tensor: tch::Tensor, data: Arc<*mut c_void>) -> Self {
+        let data_tensor = tensor.data_ptr();
+
+        let data = match data_tensor == *data {
+            true => data.clone(),
+            false => Arc::new(data_tensor),
+        };
+
+        Self {
+            tensor,
+            data,
+            phantom: PhantomData::default(),
         }
     }
 }
@@ -42,74 +60,78 @@ unsafe impl<E: tch::kind::Element, const D: usize> Sync for TchTensor<E, D> {}
 impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
     // Execute an operation on a tensor if the data can be reused.
     pub fn mut_ops<F: Fn(&mut tch::Tensor) -> O, O>(&mut self, func: F) -> Option<O> {
-        if !self.safe_2_mut {
-            return None;
+        if Arc::strong_count(&self.data) == 1 {
+            return Some(func(&mut self.tensor));
         }
 
-        let output = match Arc::get_mut(&mut self.tensor) {
-            Some(tensor) => func(tensor),
-            None => return None,
-        };
-
-        Some(output)
+        None
     }
     /// Execute a unary ops reusing the tensor data if possible.
-    pub fn unary_ops<FOwn, FRef, O>(self, fown: FOwn, fref: FRef) -> O
+    pub fn unary_ops<FOwn, FRef, EOut: tch::kind::Element, const D_OUT: usize>(
+        self,
+        fown: FOwn,
+        fref: FRef,
+    ) -> TchTensor<EOut, D_OUT>
     where
-        FOwn: Fn(tch::Tensor) -> O,
-        FRef: Fn(&tch::Tensor) -> O,
+        FOwn: Fn(tch::Tensor) -> tch::Tensor,
+        FRef: Fn(&tch::Tensor) -> tch::Tensor,
     {
-        if !self.safe_2_mut {
-            return fref(self.tensor.as_ref());
-        }
+        let data = self.data;
 
-        match Arc::try_unwrap(self.tensor) {
-            Ok(tensor) => fown(tensor),
-            Err(tensor) => fref(tensor.as_ref()),
-        }
+        let tensor = match Arc::strong_count(&data) == 1 {
+            true => fown(self.tensor),
+            false => fref(&self.tensor),
+        };
+
+        TchTensor::with_data_ptr(tensor, data)
     }
 
     /// Execute a binary ops reusing the tensor data if possible.
-    pub fn binary_ops_tensor<FLMut, FRMut, FRef, O>(
+    pub fn binary_ops_tensor<FLMut, FRMut, FRef, EOut: tch::kind::Element, const D_OUT: usize>(
         mut lhs: Self,
         mut rhs: Self,
         flmut: FLMut,
         frmut: FRMut,
         fref: FRef,
-    ) -> O
+    ) -> TchTensor<EOut, D_OUT>
     where
-        FLMut: Fn(&mut tch::Tensor, &tch::Tensor) -> O,
-        FRMut: Fn(&tch::Tensor, &mut tch::Tensor) -> O,
-        FRef: Fn(&tch::Tensor, &tch::Tensor) -> O,
+        FLMut: Fn(&mut tch::Tensor, &tch::Tensor) -> tch::Tensor,
+        FRMut: Fn(&tch::Tensor, &mut tch::Tensor) -> tch::Tensor,
+        FRef: Fn(&tch::Tensor, &tch::Tensor) -> tch::Tensor,
     {
         let lhs_num_elems = lhs.shape().num_elements();
         let rhs_num_elems = rhs.shape().num_elements();
 
-        let safe_mut_lhs = lhs_num_elems > rhs_num_elems && lhs.safe_2_mut;
-        let safe_mut_rhs = rhs_num_elems > lhs_num_elems && rhs.safe_2_mut;
+        let safe_mut_lhs = lhs_num_elems > rhs_num_elems && Arc::strong_count(&lhs.data) == 1;
+        let safe_mut_rhs = rhs_num_elems > lhs_num_elems && Arc::strong_count(&rhs.data) == 1;
 
         if safe_mut_lhs {
-            if let Some(output) = lhs.mut_ops(|lhs| flmut(lhs, &rhs.tensor)) {
-                return output;
-            }
+            let data = lhs.data;
+            let tensor = flmut(&mut lhs.tensor, &rhs.tensor);
+
+            return TchTensor::with_data_ptr(tensor, data);
         }
 
         if safe_mut_rhs {
-            if let Some(output) = rhs.mut_ops(|rhs| frmut(&lhs.tensor, rhs)) {
-                return output;
-            }
+            let data = rhs.data;
+            let tensor = frmut(&lhs.tensor, &mut rhs.tensor);
+
+            return TchTensor::with_data_ptr(tensor, data);
         }
 
-        fref(&lhs.tensor, &rhs.tensor)
+        let data = lhs.data;
+        let tensor = fref(&lhs.tensor, &rhs.tensor);
+
+        TchTensor::with_data_ptr(tensor, data)
     }
 }
 
 impl<P: tch::kind::Element, const D: usize> Clone for TchTensor<P, D> {
     fn clone(&self) -> Self {
         Self {
-            tensor: self.tensor.clone(),
+            tensor: self.tensor.shallow_clone(),
             phantom: PhantomData::default(),
-            safe_2_mut: self.safe_2_mut,
+            data: self.data.clone(),
         }
     }
 }

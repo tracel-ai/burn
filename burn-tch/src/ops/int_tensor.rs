@@ -22,11 +22,7 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
 
     fn int_into_data<const D: usize>(tensor: TchTensor<i64, D>) -> Data<i64, D> {
         let shape = tensor.shape();
-        let values: Vec<i64> = tensor.unary_ops(
-            |tensor| tensor.into(),
-            |tensor| tensor.shallow_clone().into(),
-        );
-        Data::new(values, shape)
+        Data::new(tensor.tensor.into(), shape)
     }
 
     fn int_to_device<const D: usize>(
@@ -146,11 +142,10 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
     }
 
     fn int_add_scalar<const D: usize>(lhs: TchTensor<i64, D>, rhs: i64) -> TchTensor<i64, D> {
-        let tensor = lhs.unary_ops(
+        lhs.unary_ops(
             |mut tensor| tensor.f_add_scalar_(rhs).unwrap(),
             |tensor| tensor.f_add_scalar(rhs).unwrap(),
-        );
-        TchTensor::new(tensor)
+        )
     }
 
     fn int_sub<const D: usize>(
@@ -161,11 +156,10 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
     }
 
     fn int_sub_scalar<const D: usize>(lhs: TchTensor<i64, D>, rhs: i64) -> TchTensor<i64, D> {
-        let tensor = lhs.unary_ops(
+        lhs.unary_ops(
             |mut tensor| tensor.f_sub_scalar_(rhs).unwrap(),
             |tensor| tensor.f_sub_scalar(rhs).unwrap(),
-        );
-        TchTensor::new(tensor)
+        )
     }
 
     fn int_mul<const D: usize>(
@@ -176,11 +170,10 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
     }
 
     fn int_mul_scalar<const D: usize>(lhs: TchTensor<i64, D>, rhs: i64) -> TchTensor<i64, D> {
-        let tensor = lhs.unary_ops(
+        lhs.unary_ops(
             |mut tensor| tensor.f_mul_scalar_(rhs).unwrap(),
             |tensor| tensor.f_mul_scalar(rhs).unwrap(),
-        );
-        TchTensor::new(tensor)
+        )
     }
 
     fn int_div<const D: usize>(
@@ -191,11 +184,10 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
     }
 
     fn int_div_scalar<const D: usize>(lhs: TchTensor<i64, D>, rhs: i64) -> TchTensor<i64, D> {
-        let tensor = lhs.unary_ops(
+        lhs.unary_ops(
             |mut tensor| tensor.f_div_scalar_(rhs).unwrap(),
             |tensor| tensor.f_div_scalar(rhs).unwrap(),
-        );
-        TchTensor::new(tensor)
+        )
     }
 
     fn int_neg<const D: usize>(tensor: TchTensor<i64, D>) -> TchTensor<i64, D> {
