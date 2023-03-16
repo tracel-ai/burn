@@ -5,7 +5,7 @@ use std::{marker::PhantomData, sync::Arc};
 #[derive(Debug, PartialEq)]
 pub struct TchTensor<E: tch::kind::Element, const D: usize> {
     pub tensor: Arc<tch::Tensor>,
-    phantom: PhantomData<E>,
+    pub(crate) phantom: PhantomData<E>,
 }
 
 impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
@@ -96,10 +96,13 @@ impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
 
 impl<P: tch::kind::Element, const D: usize> Clone for TchTensor<P, D> {
     fn clone(&self) -> Self {
-        Self {
+        log::info!("Cloning {:?}", Arc::strong_count(&self.tensor));
+        let s = Self {
             tensor: self.tensor.clone(),
             phantom: PhantomData::default(),
-        }
+        };
+        log::info!("Now {:?}", Arc::strong_count(&s.tensor));
+        return s;
     }
 }
 

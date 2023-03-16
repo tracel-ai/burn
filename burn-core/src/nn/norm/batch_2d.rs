@@ -26,10 +26,10 @@ pub struct BatchNorm2dConfig {
 /// `Y = norm(X) * γ + β`
 #[derive(Module, Debug)]
 pub struct BatchNorm2d<B: Backend> {
-    gamma: Param<Tensor<B, 1>>,
-    beta: Param<Tensor<B, 1>>,
-    running_mean: Param<RunningState<Tensor<B, 1>>>,
-    running_var: Param<RunningState<Tensor<B, 1>>>,
+    gamma: Param<Tensor<B, 4>>,
+    beta: Param<Tensor<B, 4>>,
+    running_mean: Param<RunningState<Tensor<B, 4>>>,
+    running_var: Param<RunningState<Tensor<B, 4>>>,
     momentum: f64,
     epsilon: f64,
 }
@@ -37,11 +37,11 @@ pub struct BatchNorm2d<B: Backend> {
 impl<B: Backend> BatchNorm2d<B> {
     /// Create the module from the given configuration.
     pub fn new(config: &BatchNorm2dConfig) -> Self {
-        let gamma = Tensor::ones([config.num_features]);
-        let beta = Tensor::zeros([config.num_features]);
+        let gamma = Tensor::ones([1, config.num_features, 1, 1]);
+        let beta = Tensor::zeros([1, config.num_features, 1, 1]);
 
-        let running_mean = Tensor::zeros([config.num_features]);
-        let running_var = Tensor::ones([config.num_features]);
+        let running_mean = Tensor::zeros([1, config.num_features, 1, 1]);
+        let running_var = Tensor::ones([1, config.num_features, 1, 1]);
 
         Self {
             gamma: Param::from(gamma),
@@ -67,16 +67,10 @@ impl<B: Backend> BatchNorm2d<B> {
     }
 
     fn forward_inference(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
-        let [_batch_size, channels, _height, _width] = input.dims();
+        let mean = self.running_mean.val().value();
+        let var = self.running_var.val().value();
 
-        let mean = self.running_mean.value();
-        let var = self.running_var.value();
-
-        self.forward_shared(
-            input,
-            mean.reshape([1, channels, 1, 1]),
-            var.reshape([1, channels, 1, 1]),
-        )
+        self.forward_shared(input, mean, var)
     }
 
     fn forward_train(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
@@ -101,18 +95,12 @@ impl<B: Backend> BatchNorm2d<B> {
         let running_mean = self.running_mean.value_sync();
         let running_var = self.running_var.value_sync();
 
-        let running_mean = running_mean.mul_scalar(1.0 - self.momentum).add(
-            mean.clone()
-                .detach()
-                .mul_scalar(self.momentum)
-                .reshape([channels]),
-        );
-        let running_var = running_var.mul_scalar(1.0 - self.momentum).add(
-            var.clone()
-                .detach()
-                .mul_scalar(self.momentum)
-                .reshape([channels]),
-        );
+        let running_mean = running_mean
+            .mul_scalar(1.0 - self.momentum)
+            .add(mean.clone().detach().mul_scalar(self.momentum));
+        let running_var = running_var
+            .mul_scalar(1.0 - self.momentum)
+            .add(var.clone().detach().mul_scalar(self.momentum));
 
         self.running_mean.update(running_mean.detach());
         self.running_var.update(running_var.detach());
@@ -126,15 +114,13 @@ impl<B: Backend> BatchNorm2d<B> {
         mean: Tensor<B, 4>,
         var: Tensor<B, 4>,
     ) -> Tensor<B, 4> {
-        let [_batch_size, channels, _, _] = x.dims();
-
-        let var = (var + self.epsilon).sqrt();
+        let var = var.add_scalar(self.epsilon).sqrt();
 
         let x = x.sub(mean);
         let x = x.div(var);
 
-        let x = x.mul(self.gamma.val().reshape([1, channels, 1, 1]));
-        let x = x.add(self.beta.val().reshape([1, channels, 1, 1]));
+        let x = x.mul(self.gamma.val());
+        let x = x.add(self.beta.val());
 
         x
     }
@@ -179,8 +165,6 @@ mod tests {
         module.forward(input_tensor());
         let module = module.inner();
         let output = module.forward(input_tensor());
-        let output = module.forward(input_tensor());
-        let output = module.forward(input_tensor());
 
         output.to_data().assert_approx_eq(
             &Data::from([
@@ -209,7 +193,8 @@ mod tests {
         let running_mean = module.running_mean.value_sync();
 
         running_mean
-            .to_data()
+            .reshape([3])
+            .into_data()
             .assert_approx_eq(&Data::from([0.0499, 0.0532, 0.0656]), 2);
     }
 
@@ -223,7 +208,8 @@ mod tests {
         let running_var = module.running_var.value_sync();
 
         running_var
-            .to_data()
+            .reshape([3])
+            .into_data()
             .assert_approx_eq(&Data::from([0.9106, 0.9105, 0.9045]), 2);
     }
 
@@ -259,6 +245,7 @@ mod tests {
             .gamma
             .grad(&grads)
             .unwrap()
+            .reshape([3])
             .into_data()
             .assert_approx_eq(&Data::from([0.0000e+00, -5.9035e-07, -6.0011e-07]), 3);
 
@@ -266,6 +253,7 @@ mod tests {
             .beta
             .grad(&grads)
             .unwrap()
+            .reshape([3])
             .into_data()
             .assert_approx_eq(&Data::from([8., 8., 8.]), 3);
 

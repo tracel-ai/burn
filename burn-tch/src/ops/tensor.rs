@@ -112,6 +112,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     fn add_scalar<const D: usize>(lhs: TchTensor<E, D>, rhs: E) -> TchTensor<E, D> {
         let rhs: f64 = rhs.elem();
 
+        log::info!("Add scalar {:?}", Arc::strong_count(&lhs.tensor));
         let tensor = lhs.unary_ops(
             |mut tensor| tensor.f_add_scalar_(rhs).unwrap(),
             |tensor| tensor.f_add_scalar(rhs).unwrap(),
@@ -181,13 +182,30 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     }
 
     fn reshape<const D1: usize, const D2: usize>(
-        tensor: TchTensor<E, D1>,
+        mut tensor: TchTensor<E, D1>,
         shape: Shape<D2>,
     ) -> TchTensor<E, D2> {
         let shape_tch: TchShape<D2> = shape.into();
-        let tensor = tensor.tensor.reshape(&shape_tch.dims);
 
-        TchTensor::new(tensor)
+        match Arc::get_mut(&mut tensor.tensor) {
+            Some(tensor) => *tensor = tensor.reshape(&shape_tch.dims),
+            None => {
+                log::info!("HERE");
+                tensor.tensor = Arc::new(tensor.tensor.reshape(&shape_tch.dims));
+
+                // Needed since the reshape function of pytorch can reuse the same data, which
+                // makes in unsafe to it as potential readonly.
+                unsafe {
+                    Arc::increment_strong_count(&tensor.tensor);
+                    Arc::increment_strong_count(&tensor.tensor);
+                }
+            }
+        };
+
+        TchTensor {
+            tensor: tensor.tensor,
+            phantom: std::marker::PhantomData::default(),
+        }
     }
 
     fn index_select<const D: usize>(

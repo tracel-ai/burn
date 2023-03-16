@@ -157,7 +157,10 @@ impl<const D: usize, B: Backend> RunningState<Tensor<B, D>> {
     ///
     /// The current value might be outdated by one update.
     pub fn value(&self) -> Tensor<B, D> {
-        let value = self.value.write().unwrap();
+        let value = self.value.read().unwrap();
+        log::info!("VALUE");
+        let _v = value.clone();
+        log::info!("VALUE");
         value.clone()
     }
 

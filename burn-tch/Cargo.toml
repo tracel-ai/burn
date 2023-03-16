@@ -17,6 +17,7 @@ doc = ["tch/doc-only"]
 burn-tensor = {path = "../burn-tensor"}
 half = {workspace = true}
 rand = {workspace = true, features = ["std"]}
+log = {workspace = true}
 
 [target.'cfg(not(target_arch = "aarch64"))'.dependencies]
 tch = {version = "0.10.3"}
