@@ -132,9 +132,8 @@ impl<B: Backend> BatchNorm2d<B> {
         let x = x.div(var);
 
         let x = x.mul(self.gamma.val().reshape([1, channels, 1, 1]));
-        let x = x.add(self.beta.val().reshape([1, channels, 1, 1]));
 
-        x
+        x.add(self.beta.val().reshape([1, channels, 1, 1]))
     }
 }
 

@@ -2,12 +2,7 @@ use crate::data::MNISTBatch;
 
 use burn::{
     module::{Module, Param},
-    nn::{
-        self,
-        loss::CrossEntropyLoss,
-        pool::{MaxPool2d, MaxPool2dConfig},
-        BatchNorm2d,
-    },
+    nn::{self, conv::Conv2dPaddingConfig, loss::CrossEntropyLoss, BatchNorm2d},
     tensor::{
         backend::{ADBackend, Backend},
         Tensor,
@@ -23,7 +18,6 @@ pub struct Model<B: Backend> {
     dropout: nn::Dropout,
     fc1: Param<nn::Linear<B>>,
     fc2: Param<nn::Linear<B>>,
-    norm: Param<BatchNorm2d<B>>,
     activation: nn::GELU,
 }
 
@@ -31,13 +25,13 @@ const NUM_CLASSES: usize = 10;
 
 impl<B: Backend> Model<B> {
     pub fn new() -> Self {
-        let conv1 = ConvBlock::new([1, 4], [3, 3]); // out: [Batch,1,24,24]
-        let conv2 = ConvBlock::new([4, 4], [3, 3]); // out: [Batch,1,20x20]
-        let conv3 = ConvBlock::new([4, 4], [3, 3]); // out: [Batch,1,16x16]
-        let norm = nn::BatchNorm2d::new(&nn::BatchNorm2dConfig::new(4));
+        let conv1 = ConvBlock::new([1, 32], [3, 3]); // out: [Batch,32,28,28]
+        let conv2 = ConvBlock::new([32, 32], [3, 3]); // out: [Batch,32,28x28]
+        let conv3 = ConvBlock::new([32, 1], [3, 3]); // out: [Batch,1,28x28]
 
-        let fc1 = nn::Linear::new(&nn::LinearConfig::new(4 * 16 * 16, 32));
-        let fc2 = nn::Linear::new(&nn::LinearConfig::new(32, NUM_CLASSES));
+        let hidden_size = 28 * 28;
+        let fc1 = nn::Linear::new(&nn::LinearConfig::new(hidden_size, hidden_size));
+        let fc2 = nn::Linear::new(&nn::LinearConfig::new(hidden_size, NUM_CLASSES));
 
         let dropout = nn::Dropout::new(&nn::DropoutConfig::new(0.3));
 
@@ -45,7 +39,6 @@ impl<B: Backend> Model<B> {
             conv1: Param::from(conv1),
             conv2: Param::from(conv2),
             conv3: Param::from(conv3),
-            norm: Param::from(norm),
             fc1: Param::from(fc1),
             fc2: Param::from(fc2),
             dropout,
@@ -60,7 +53,6 @@ impl<B: Backend> Model<B> {
         let x = self.conv1.forward(x);
         let x = self.conv2.forward(x);
         let x = self.conv3.forward(x);
-        let x = self.norm.forward(x);
 
         let [batch_size, channels, heigth, width] = x.dims();
         let x = x.reshape([batch_size, channels * heigth * width]);
@@ -89,24 +81,28 @@ impl<B: Backend> Model<B> {
 #[derive(Module, Debug)]
 pub struct ConvBlock<B: Backend> {
     conv: Param<nn::conv::Conv2d<B>>,
-    pool: MaxPool2d,
+    norm: Param<BatchNorm2d<B>>,
     activation: nn::GELU,
 }
 
 impl<B: Backend> ConvBlock<B> {
     pub fn new(channels: [usize; 2], kernel_size: [usize; 2]) -> Self {
-        let conv = nn::conv::Conv2d::new(&nn::conv::Conv2dConfig::new(channels, kernel_size));
+        let conv = nn::conv::Conv2d::new(
+            &nn::conv::Conv2dConfig::new(channels, kernel_size)
+                .with_padding(Conv2dPaddingConfig::Same),
+        );
+        let norm = nn::BatchNorm2d::new(&nn::BatchNorm2dConfig::new(channels[1]));
 
         Self {
             conv: Param::from(conv),
-            pool: MaxPool2d::new(&MaxPool2dConfig::new(channels[1], kernel_size)),
+            norm: Param::from(norm),
             activation: nn::GELU::new(),
         }
     }
 
     pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
         let x = self.conv.forward(input);
-        let x = self.pool.forward(x);
+        let x = self.norm.forward(x);
 
         self.activation.forward(x)
     }

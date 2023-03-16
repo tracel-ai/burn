@@ -24,9 +24,15 @@ mod tch_gpu {
     pub fn run() {
         #[cfg(not(target_os = "macos"))]
         let device = TchDevice::Cuda(0);
+        #[cfg(not(target_os = "macos"))]
+        type FloatElement = burn::tensor::f16;
+
         #[cfg(target_os = "macos")]
         let device = TchDevice::Mps;
-        training::run::<ADBackendDecorator<TchBackend<f32>>>(device);
+        #[cfg(target_os = "macos")]
+        type FloatElement = f32;
+
+        training::run::<ADBackendDecorator<TchBackend<FloatElement>>>(device);
     }
 }
 

@@ -19,7 +19,6 @@ libc = "0.2.0"
 
 half = {workspace = true}
 rand = {workspace = true, features = ["std"]}
-log = {workspace = true}
 
 [target.'cfg(not(target_arch = "aarch64"))'.dependencies]
 tch = {version = "0.10.3"}
