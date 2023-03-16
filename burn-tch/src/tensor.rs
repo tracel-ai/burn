@@ -6,6 +6,7 @@ use std::{marker::PhantomData, sync::Arc};
 pub struct TchTensor<E: tch::kind::Element, const D: usize> {
     pub tensor: Arc<tch::Tensor>,
     pub(crate) phantom: PhantomData<E>,
+    pub(crate) safe_2_mut: bool,
 }
 
 impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
@@ -13,6 +14,7 @@ impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
         Self {
             tensor: Arc::new(tensor),
             phantom: PhantomData::default(),
+            safe_2_mut: true,
         }
     }
 }
@@ -40,6 +42,10 @@ unsafe impl<E: tch::kind::Element, const D: usize> Sync for TchTensor<E, D> {}
 impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
     // Execute an operation on a tensor if the data can be reused.
     pub fn mut_ops<F: Fn(&mut tch::Tensor) -> O, O>(&mut self, func: F) -> Option<O> {
+        if !self.safe_2_mut {
+            return None;
+        }
+
         let output = match Arc::get_mut(&mut self.tensor) {
             Some(tensor) => func(tensor),
             None => return None,
@@ -53,6 +59,10 @@ impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
         FOwn: Fn(tch::Tensor) -> O,
         FRef: Fn(&tch::Tensor) -> O,
     {
+        if !self.safe_2_mut {
+            return fref(self.tensor.as_ref());
+        }
+
         match Arc::try_unwrap(self.tensor) {
             Ok(tensor) => fown(tensor),
             Err(tensor) => fref(tensor.as_ref()),
@@ -75,8 +85,8 @@ impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
         let lhs_num_elems = lhs.shape().num_elements();
         let rhs_num_elems = rhs.shape().num_elements();
 
-        let safe_mut_lhs = lhs_num_elems > rhs_num_elems;
-        let safe_mut_rhs = rhs_num_elems > lhs_num_elems;
+        let safe_mut_lhs = lhs_num_elems > rhs_num_elems && lhs.safe_2_mut;
+        let safe_mut_rhs = rhs_num_elems > lhs_num_elems && rhs.safe_2_mut;
 
         if safe_mut_lhs {
             if let Some(output) = lhs.mut_ops(|lhs| flmut(lhs, &rhs.tensor)) {
@@ -96,13 +106,11 @@ impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
 
 impl<P: tch::kind::Element, const D: usize> Clone for TchTensor<P, D> {
     fn clone(&self) -> Self {
-        log::info!("Cloning {:?}", Arc::strong_count(&self.tensor));
-        let s = Self {
+        Self {
             tensor: self.tensor.clone(),
             phantom: PhantomData::default(),
-        };
-        log::info!("Now {:?}", Arc::strong_count(&s.tensor));
-        return s;
+            safe_2_mut: self.safe_2_mut,
+        }
     }
 }
 
@@ -157,7 +165,7 @@ impl<E: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> T
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_tensor::Distribution;
+    use burn_tensor::{Distribution, Tensor};
     use rand::prelude::StdRng;
     use rand::SeedableRng;
 
@@ -187,5 +195,25 @@ mod tests {
         let data_actual = tensor.into_data();
 
         assert_eq!(data_expected, data_actual);
+    }
+
+    #[test]
+    fn should_not_update_inplace_after_reshape() {
+        let tensor_1 = Tensor::<TchBackend<f32>, 1>::from_floats([4.0, 4.0]);
+        let tensor_2 = tensor_1.clone();
+
+        let tensor_3 = tensor_2.reshape([1, 2]).add_scalar(2.0);
+
+        assert_ne!(tensor_3.to_data().value, tensor_1.to_data().value);
+    }
+
+    #[test]
+    fn should_not_update_inplace_after_index() {
+        let tensor_1 = Tensor::<TchBackend<f32>, 1>::from_floats([4.0, 4.0]);
+        let tensor_2 = tensor_1.clone();
+
+        let tensor_3 = tensor_2.index([0..2]).add_scalar(2.0);
+
+        assert_ne!(tensor_3.to_data().value, tensor_1.to_data().value);
     }
 }

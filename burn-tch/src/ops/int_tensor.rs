@@ -40,13 +40,7 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
         tensor: TchTensor<i64, D1>,
         shape: Shape<D2>,
     ) -> TchTensor<i64, D2> {
-        let shape_tch: TchShape<D2> = shape.into();
-        let tensor = tensor.unary_ops(
-            |mut tensor| tensor.resize_(&shape_tch.dims),
-            |tensor| tensor.reshape(&shape_tch.dims),
-        );
-
-        TchTensor::new(tensor)
+        TchOps::reshape(tensor, shape)
     }
 
     fn int_device<const D: usize>(tensor: &TchTensor<i64, D>) -> TchDevice {

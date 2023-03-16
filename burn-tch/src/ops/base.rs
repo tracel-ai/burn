@@ -1,26 +1,54 @@
+use burn_tensor::Shape;
 use tch::Scalar;
 
 use crate::{TchShape, TchTensor};
-use std::{marker::PhantomData, ops::Range};
+use std::{marker::PhantomData, ops::Range, sync::Arc};
 
 pub struct TchOps<E: tch::kind::Element + Copy + Default> {
     e: PhantomData<E>,
 }
 
 impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
+    pub fn reshape<const D1: usize, const D2: usize>(
+        tensor: TchTensor<E, D1>,
+        shape: Shape<D2>,
+    ) -> TchTensor<E, D2> {
+        let shape_tch: TchShape<D2> = shape.into();
+        let safe_2_mut = Arc::strong_count(&tensor.tensor) == 1 && tensor.safe_2_mut;
+        let data_ptr = tensor.tensor.data_ptr();
+
+        let result = tensor.unary_ops(
+            |tensor| tensor.view_(&shape_tch.dims),
+            |tensor| tensor.reshape(&shape_tch.dims),
+        );
+
+        let safe_2_mut = result.data_ptr() != data_ptr || safe_2_mut;
+
+        TchTensor {
+            tensor: Arc::new(result),
+            phantom: std::marker::PhantomData::default(),
+            safe_2_mut,
+        }
+    }
+
     pub fn index<const D1: usize, const D2: usize>(
         tensor: TchTensor<E, D1>,
         indexes: [Range<usize>; D2],
     ) -> TchTensor<E, D1> {
-        let mut tensor = tensor.tensor.shallow_clone();
+        let mut result = tensor.tensor.shallow_clone();
 
         for (i, index) in indexes.iter().enumerate().take(D2) {
             let start = index.start as i64;
             let length = (index.end - index.start) as i64;
-            tensor = tensor.narrow(i as i64, start, length);
+            result = result.narrow(i as i64, start, length);
         }
 
-        TchTensor::new(tensor)
+        let safe_2_mut = result.data_ptr() != tensor.tensor.data_ptr()
+            || Arc::strong_count(&tensor.tensor) == 1 && tensor.safe_2_mut;
+
+        let mut tensor = TchTensor::new(result);
+        tensor.safe_2_mut = safe_2_mut;
+        tensor
     }
 
     pub fn index_assign<const D1: usize, const D2: usize>(

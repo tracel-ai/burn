@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use burn_tensor::{backend::Backend, ops::BoolTensorOps, Data, Shape};
 
-use crate::{element::TchElement, TchBackend, TchDevice, TchShape, TchTensor};
+use crate::{element::TchElement, TchBackend, TchDevice, TchTensor};
 
 use super::TchOps;
 
@@ -43,13 +43,7 @@ impl<E: TchElement> BoolTensorOps<TchBackend<E>> for TchBackend<E> {
         tensor: TchTensor<bool, D1>,
         shape: Shape<D2>,
     ) -> TchTensor<bool, D2> {
-        let shape_tch: TchShape<D2> = shape.into();
-        let tensor = tensor.unary_ops(
-            |mut tensor| tensor.resize_(&shape_tch.dims),
-            |tensor| tensor.reshape(&shape_tch.dims),
-        );
-
-        TchTensor::new(tensor)
+        TchOps::reshape(tensor, shape)
     }
 
     fn bool_device<const D: usize>(tensor: &TchTensor<bool, D>) -> TchDevice {
