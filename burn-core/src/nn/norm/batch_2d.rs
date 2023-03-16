@@ -249,12 +249,9 @@ mod tests {
         let module = BatchNorm2d::<TestADBackend>::new(&config);
         let input = input_tensor().require_grad();
 
-        println!("Forward");
         let output = module.forward(input.clone());
-        println!("Backward");
 
         let grads = output.backward();
-        println!("Grads Gamma");
 
         module
             .gamma
@@ -264,7 +261,6 @@ mod tests {
             .into_data()
             .assert_approx_eq(&Data::from([0.0000e+00, -5.9035e-07, -6.0011e-07]), 3);
 
-        println!("Grads Beta");
         module
             .beta
             .grad(&grads)

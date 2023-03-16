@@ -53,7 +53,6 @@ where
         tensor: NdArrayTensor<E, D1>,
         shape: Shape<D2>,
     ) -> NdArrayTensor<E, D2> {
-        println!("reshape {:?} => {:?}", tensor.shape().dims, shape.dims);
         reshape!(
             ty E,
             shape shape,
