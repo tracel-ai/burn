@@ -2,7 +2,7 @@ use crate::data::MNISTBatch;
 
 use burn::{
     module::{Module, Param},
-    nn::{self, loss::CrossEntropyLoss},
+    nn::{self, conv::Conv2dPaddingConfig, loss::CrossEntropyLoss, BatchNorm2d},
     tensor::{
         backend::{ADBackend, Backend},
         Tensor,
@@ -25,12 +25,13 @@ const NUM_CLASSES: usize = 10;
 
 impl<B: Backend> Model<B> {
     pub fn new() -> Self {
-        let conv1 = ConvBlock::new([1, 8], [3, 3]); // out: [Batch,1,26,26]
-        let conv2 = ConvBlock::new([8, 16], [3, 3]); // out: [Batch,1,24x24]
-        let conv3 = ConvBlock::new([16, 24], [3, 3]); // out: [Batch,1,22x22]
+        let conv1 = ConvBlock::new([1, 32], [3, 3]); // out: [Batch,32,28,28]
+        let conv2 = ConvBlock::new([32, 32], [3, 3]); // out: [Batch,32,28x28]
+        let conv3 = ConvBlock::new([32, 1], [3, 3]); // out: [Batch,1,28x28]
 
-        let fc1 = nn::Linear::new(&nn::LinearConfig::new(24 * 22 * 22, 32).with_bias(false));
-        let fc2 = nn::Linear::new(&nn::LinearConfig::new(32, NUM_CLASSES).with_bias(false));
+        let hidden_size = 28 * 28;
+        let fc1 = nn::Linear::new(&nn::LinearConfig::new(hidden_size, hidden_size));
+        let fc2 = nn::Linear::new(&nn::LinearConfig::new(hidden_size, NUM_CLASSES));
 
         let dropout = nn::Dropout::new(&nn::DropoutConfig::new(0.3));
 
@@ -53,7 +54,8 @@ impl<B: Backend> Model<B> {
         let x = self.conv2.forward(x);
         let x = self.conv3.forward(x);
 
-        let x = x.reshape([batch_size, 24 * 22 * 22]);
+        let [batch_size, channels, heigth, width] = x.dims();
+        let x = x.reshape([batch_size, channels * heigth * width]);
 
         let x = self.fc1.forward(x);
         let x = self.activation.forward(x);
@@ -79,23 +81,29 @@ impl<B: Backend> Model<B> {
 #[derive(Module, Debug)]
 pub struct ConvBlock<B: Backend> {
     conv: Param<nn::conv::Conv2d<B>>,
+    norm: Param<BatchNorm2d<B>>,
     activation: nn::GELU,
 }
 
 impl<B: Backend> ConvBlock<B> {
     pub fn new(channels: [usize; 2], kernel_size: [usize; 2]) -> Self {
         let conv = nn::conv::Conv2d::new(
-            &nn::conv::Conv2dConfig::new(channels, kernel_size).with_bias(false),
+            &nn::conv::Conv2dConfig::new(channels, kernel_size)
+                .with_padding(Conv2dPaddingConfig::Same),
         );
+        let norm = nn::BatchNorm2d::new(&nn::BatchNorm2dConfig::new(channels[1]));
 
         Self {
             conv: Param::from(conv),
+            norm: Param::from(norm),
             activation: nn::GELU::new(),
         }
     }
 
     pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
         let x = self.conv.forward(input);
+        let x = self.norm.forward(x);
+
         self.activation.forward(x)
     }
 }
@@ -103,6 +111,7 @@ impl<B: Backend> ConvBlock<B> {
 impl<B: ADBackend> TrainStep<MNISTBatch<B>, ClassificationOutput<B>> for Model<B> {
     fn step(&self, item: MNISTBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
         let item = self.forward_classification(item);
+
         TrainOutput::new(self, item.loss.backward(), item)
     }
 }

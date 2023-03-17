@@ -27,6 +27,7 @@ std = [
   "serde_json/std",
   "serde/std",
 ]
+test-tch = [] # To use tch during testing, default uses ndarray.
 
 [dependencies]
 
@@ -59,3 +60,4 @@ burn-dataset = {path = "../burn-dataset", features = [
 ]}
 
 burn-ndarray = {path = "../burn-ndarray", default-features = false}
+burn-tch = {path = "../burn-tch"}

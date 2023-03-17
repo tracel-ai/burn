@@ -68,6 +68,12 @@ jobs:
       test-no-default-feature: true
       no-std-build-targets: true
 
+  test-burn-core-backend-tch:
+    uses: burn-rs/burn/.github/workflows/test-template.yml@main
+    with:
+      crate: burn-core
+      args-doc: --features test-tch
+
   test-burn-train:
     uses: burn-rs/burn/.github/workflows/test-template.yml@main
     with:

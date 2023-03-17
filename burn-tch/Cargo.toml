@@ -15,6 +15,8 @@ doc = ["tch/doc-only"]
 
 [dependencies]
 burn-tensor = {path = "../burn-tensor"}
+libc = "0.2.0"
+
 half = {workspace = true}
 rand = {workspace = true, features = ["std"]}
 

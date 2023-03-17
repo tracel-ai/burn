@@ -19,13 +19,13 @@ static ARTIFACT_DIR: &str = "/tmp/burn-example-mnist";
 
 #[derive(Config)]
 pub struct MnistTrainingConfig {
-    #[config(default = 6)]
+    #[config(default = 10)]
     pub num_epochs: usize,
 
-    #[config(default = 60)]
+    #[config(default = 64)]
     pub batch_size: usize,
 
-    #[config(default = 8)]
+    #[config(default = 4)]
     pub num_workers: usize,
 
     #[config(default = 42)]
@@ -51,6 +51,7 @@ pub fn run<B: ADBackend>(device: B::Device) {
         .build(Arc::new(MNISTDataset::train()));
     let dataloader_test = DataLoaderBuilder::new(batcher_valid)
         .batch_size(config.batch_size)
+        .shuffle(config.seed)
         .num_workers(config.num_workers)
         .build(Arc::new(MNISTDataset::test()));
 
