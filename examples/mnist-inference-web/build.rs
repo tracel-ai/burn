@@ -5,7 +5,7 @@ use burn::module::State;
 use bincode::config;
 
 const GENERATED_FILE_NAME: &str = "mnist_model_state.bincode";
-const MODEL_STATE_FILE_NAME: &str = "model-6.json.gz";
+const MODEL_STATE_FILE_NAME: &str = "model-4.json.gz";
 
 /// This build step is responsible for converting JSON serialized to Bincode serilization
 /// in order to make the file small and efficient for bundling the binary into wasm code.

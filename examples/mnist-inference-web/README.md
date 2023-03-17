@@ -48,16 +48,16 @@ values.
 Layers:
 
 1. Input Image (28,28, 1ch)
-2. `Conv2d`(3x3, 8ch), `GELU`
-3. `Conv2d`(3x3, 16ch), `GELU`
-4. `Conv2d`(3x3, 24ch), `GELU`
+2. `Conv2d`(3x3, 8ch), `BatchNorm2d`, `GELU`
+3. `Conv2d`(3x3, 16ch), `BatchNorm2d`, `GELU`
+4. `Conv2d`(3x3, 24ch), `BatchNorm2d`, `GELU`
 5. `Linear`(11616, 32), `GELU`
 6. `Linear`(32, 10)
 7. Softmax Output
 
-The total number of parameters is 376,712.
+The total number of parameters is 376,952.
 
-The model is trained with 6 epochs and the final test accuracy is 98.03%.
+The model is trained with 4 epochs and the final test accuracy is 98.67%.
 
 The training and hyper parameter information in can be found in
 [`burn` MNIST example](https://github.com/burn-rs/burn/tree/main/examples/mnist).
@@ -68,8 +68,8 @@ The main differentiating factor of this example's approach (compiling rust model
 other popular tools, such as [TensorFlow.js](https://www.tensorflow.org/js),
 [ONNX Runtime JS](https://onnxruntime.ai/docs/tutorials/web/) and
 [TVM Web](https://github.com/apache/tvm/tree/main/web) is the absence of runtime code. The rust
-compiler optimizes and includes only used `burn` routines. 1,507,884 bytes out of Wasm's 1,831,094
-byte file is the model's parameters. The rest of 323,210 bytes contain all the code (including
+compiler optimizes and includes only used `burn` routines. 1,509,747 bytes out of Wasm's 1,866,491
+byte file is the model's parameters. The rest of 356,744 bytes contain all the code (including
 `burn`'s `nn` components, the data deserialization library, and math operations).
 
 ## Future Improvements
