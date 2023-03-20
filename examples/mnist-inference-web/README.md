@@ -18,8 +18,7 @@ This crate demonstrates how to run an MNIST-trained model in the browser for inf
    ./run-server.sh
    ```
 
-3. Open the [`http://[::]:8000/`](http://[::]:8000/) or
-   [`http://localhost:8000/`](http://localhost:8000/) link in the browser.
+3. Open the [`http://localhost:8000/`](http://localhost:8000/) in the browser.
 
 ## Design
 
@@ -28,10 +27,10 @@ makes it possible to build and run the model with the `wasm32-unknown-unknown` t
 special system library, such as [WASI](https://wasi.dev/). (See [Cargo.toml](./Cargo.toml) on how to
 include burn dependencies without `std`).
 
-For this demo, we use trained parameters (`model-6.json.gz`) and model (`model.rs`) from the
+For this demo, we use trained parameters (`model-4.json.gz`) and model (`model.rs`) from the
 [`burn` MNIST example](https://github.com/burn-rs/burn/tree/main/examples/mnist).
 
-During the build time `model-6.json.gz` is converted to
+During the build time `model-4.json.gz` is converted to
 [`bincode`](https://github.com/bincode-org/bincode) (for compactness) and included as part of the
 final wasm output. The MNIST model is initialized with trained weights from memory during the
 runtime.
@@ -74,20 +73,19 @@ byte file is the model's parameters. The rest of 356,744 bytes contain all the c
 
 ## Future Improvements
 
-There are two planned enhancements in place to `burn` :
+There are several planned enhancements in place:
 
 - [#201](https://github.com/burn-rs/burn/issues/201) - Saving model's params in binary format. This
   will simplify the inference code.
 - [#202](https://github.com/burn-rs/burn/issues/202) - Saving model's params in half-precision and
   loading back in full. This can be half the size of the wasm file.
+- [#243](https://github.com/burn-rs/burn/issues/243) - New WebGPU backend would allow computation
+  using GPU in the browser.
+- [#1271](https://github.com/rust-ndarray/ndarray/issues/1271) -
+  [WASM SIMD](https://github.com/WebAssembly/simd/blob/master/proposals/simd/SIMD.md) support in
+  NDArray that can speed up computation on CPU.
 
-Worth mentioning two future technological developments that can speed up inference in the browser.
-[WebGPU](https://github.com/gfx-rs/wgpu) backend could be developed to speed up the computation.
-Also, if NDArray at some point adds
-[WASM SIMD](https://github.com/WebAssembly/simd/blob/master/proposals/simd/SIMD.md) support,
-potentially CPU computation can improve as well.
-
-## Acknowledgement
+## Acknowledgements
 
 Two online MNIST demos inspired and helped build this demo:
 [MNIST Draw](https://mco-mnist-draw-rwpxka3zaa-ue.a.run.app/) by Marc (@mco-gh) and
