@@ -25,7 +25,7 @@ dashmap = "5.4.0"
 dirs = "4.0.0"
 fake = "2.5.0"
 flate2 = "1.0.25"
-half = {version = "2", features = ["num-traits"]}
+half = {version = "2", features = ["alloc", "num-traits"], default-features = false}
 hashbrown = "0.13.2"
 indicatif = "0.17.3"
 libm = "0.2.6"
