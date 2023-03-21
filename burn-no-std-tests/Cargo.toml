@@ -15,7 +15,7 @@ version = "0.6.0"
 
 # ** Please make sure all dependencies support no_std **
 
-burn = {path = "../burn", default-features = false}
-burn-ndarray = {path = "../burn-ndarray", default-features = false}
+burn = {path = "../burn", version = "0.6.0", default-features = false}
+burn-ndarray = {path = "../burn-ndarray", version = "0.6.0", default-features = false}
 
 serde = {workspace = true}

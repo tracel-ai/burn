@@ -14,7 +14,7 @@ version = "0.6.0"
 doc = ["tch/doc-only"]
 
 [dependencies]
-burn-tensor = {path = "../burn-tensor"}
+burn-tensor = {path = "../burn-tensor", version = "0.6.0"}
 libc = "0.2.0"
 
 half = {workspace = true}
@@ -29,9 +29,9 @@ tch = {version = "0.11.0"}
 tch = {version = "0.11.0", default-features = false} # Disables torch downloading
 
 [dev-dependencies]
-burn-autodiff = {path = "../burn-autodiff", default-features = false, features = [
+burn-autodiff = {path = "../burn-autodiff", version = "0.6.0", default-features = false, features = [
   "export_tests",
 ]}
-burn-tensor = {path = "../burn-tensor", default-features = false, features = [
+burn-tensor = {path = "../burn-tensor", version = "0.6.0", default-features = false, features = [
   "export_tests",
 ]}

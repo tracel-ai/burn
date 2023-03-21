@@ -12,7 +12,7 @@ license = "MIT/Apache-2.0"
 edition = "2021"
 
 [dependencies]
-burn-core = { path = "../burn-core" }
+burn-core = { path = "../burn-core", version = "0.6.0" }
 
 # Console
 indicatif = "0.17.2"
