@@ -18,6 +18,12 @@ jobs:
       crate: burn-dataset
     secrets: inherit
 
+  publish-burn-common:
+    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
+    with:
+      crate: burn-common
+    secrets: inherit
+
   publish-burn-tensor-testgen:
     uses: burn-rs/burn/.github/workflows/publish-template.yml@main
     with:
@@ -37,6 +43,7 @@ jobs:
     needs:
       - publish-burn-tensor
       - publish-burn-tensor-testgen
+      - publish-burn-common
     with:
       crate: burn-autodiff
     secrets: inherit
@@ -55,6 +62,7 @@ jobs:
     needs:
       - publish-burn-tensor
       - publish-burn-autodiff
+      - publish-burn-common
     with:
       crate: burn-ndarray
     secrets: inherit
@@ -68,6 +76,7 @@ jobs:
       - publish-burn-dataset
       - publish-burn-derive
       - publish-burn-ndarray
+      - publish-burn-common
     with:
       crate: burn-core
     secrets: inherit
