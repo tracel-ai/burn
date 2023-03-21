@@ -4,7 +4,7 @@ edition = "2021"
 license = "MIT/Apache-2.0"
 name = "mnist-inference-web"
 publish = false
-version = "0.5.0"
+version = "0.6.0"
 
 [lib]
 crate-type = ["cdylib"]

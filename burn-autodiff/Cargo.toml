@@ -8,7 +8,7 @@ license = "MIT/Apache-2.0"
 name = "burn-autodiff"
 readme = "README.md"
 repository = "https://github.com/burn-rs/burn/tree/main/burn-autodiff"
-version = "0.5.0"
+version = "0.6.0"
 
 [features]
 default = ["export_tests"]
