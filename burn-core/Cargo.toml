@@ -63,7 +63,7 @@ serde = {workspace = true, features = ["derive"]}
 
 serde_json = {workspace = true, features = ["alloc"]}#Default enables std 
 rmp-serde = {workspace = true, optional = true}
-bincode = {workspace = true, features=["alloc", "derive", "serde"]}
+bincode = {workspace = true}
 half = {workspace = true}
 
 [dev-dependencies]
