@@ -2,9 +2,10 @@ use alloc::string::{String, ToString};
 
 use burn_common::id::IdGenerator;
 
+use bincode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Encode, Decode, Serialize, Deserialize)]
 pub struct ParamId {
     value: String,
 }
