@@ -120,13 +120,7 @@ where
     E: serde::Serialize,
 {
     pub fn save(self, file: &str) -> std::io::Result<()> {
-        let path = Path::new(file);
-        if path.exists() {
-            log::info!("File exists, replacing");
-            std::fs::remove_file(path).unwrap();
-        }
-
-        let writer = File::create(path)?;
+        let writer = Self::str2writer(file)?;
         let writer = GzEncoder::new(writer, Compression::default());
         serde_json::to_writer(writer, &self).unwrap();
 
@@ -134,11 +128,25 @@ where
     }
 
     pub fn load(file: &str) -> Result<Self, StateError> {
-        let path = Path::new(file);
-        let reader =
-            File::open(path).map_err(|err| StateError::FileNotFound(format!("{err:?}")))?;
+        let reader = Self::str2reader(file)?;
         let reader = GzDecoder::new(reader);
         let state = serde_json::from_reader(reader).unwrap();
+
+        Ok(state)
+    }
+
+    pub fn save_msgpack(self, file: &str) -> std::io::Result<()> {
+        let writer = Self::str2writer(file)?;
+        let mut writer = GzEncoder::new(writer, Compression::default());
+        rmp_serde::encode::write(&mut writer, &self).unwrap();
+
+        Ok(())
+    }
+
+    pub fn load_msgpack(file: &str) -> Result<Self, StateError> {
+        let reader = Self::str2reader(file)?;
+        let reader = GzDecoder::new(reader);
+        let state = rmp_serde::decode::from_read(reader).unwrap();
 
         Ok(state)
     }
@@ -148,6 +156,22 @@ where
         let state = serde_json::from_reader(reader).unwrap();
 
         Ok(state)
+    }
+
+    fn str2reader(file: &str) -> Result<File, StateError> {
+        let path = Path::new(file);
+
+        File::open(path).map_err(|err| StateError::FileNotFound(format!("{err:?}")))
+    }
+
+    fn str2writer(file: &str) -> std::io::Result<File> {
+        let path = Path::new(file);
+        if path.exists() {
+            log::info!("File exists, replacing");
+            std::fs::remove_file(path).unwrap();
+        }
+
+        File::create(path)
     }
 }
 
@@ -179,6 +203,21 @@ mod tests {
 
         let model_after = create_model()
             .load(&State::load("/tmp/test.json").unwrap())
+            .unwrap();
+
+        let state_after = model_after.state();
+        assert_eq!(state_before, state_after);
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn test_can_save_and_load_from_file_using_msgpack_format() {
+        let model_before = create_model();
+        let state_before = model_before.state();
+        state_before.clone().save_msgpack("/tmp/test.mpk.gz").unwrap();
+
+        let model_after = create_model()
+            .load(&State::load_msgpack("/tmp/test.mpk.gz").unwrap())
             .unwrap();
 
         let state_after = model_after.state();

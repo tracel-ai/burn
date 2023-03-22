@@ -26,6 +26,7 @@ std = [
   "rand/std",
   "serde_json/std",
   "serde/std",
+  "rmp-serde",
 ]
 test-tch = [] # To use tch during testing, default uses ndarray.
 
@@ -52,7 +53,9 @@ hashbrown = {workspace = true, features = ["serde"]}# no_std compatible
 # Serialize Deserialize
 flate2 = {workspace = true, optional = true}
 serde = {workspace = true, features = ["derive"]}
+
 serde_json = {workspace = true, features = ["alloc"]}#Default enables std 
+rmp-serde = {workspace = true, optional = true}
 
 [dev-dependencies]
 burn-dataset = {path = "../burn-dataset", version = "0.6.0", features = [
