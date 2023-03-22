@@ -26,6 +26,7 @@ std = [
   "serde/std",
   "serde_json/std",
   "bincode/std",
+  "half/std",
 ]
 
 # Serialization formats
