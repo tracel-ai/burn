@@ -76,10 +76,10 @@ pub fn run<B: ADBackend>(device: B::Device) {
         .save(format!("{ARTIFACT_DIR}/config.json").as_str())
         .unwrap();
 
-    // We save a bin version of the model to be loaded with no_std environement.
+    // We save a bin  ersion of the model to be loaded with no_std environement.
     model_trained
         .state()
-        .convert::<burn::tensor::f16>()
+        .convert::<f32>()
         .save(&format!("{ARTIFACT_DIR}/model"), &StateFormat::Bin)
         .expect("Failed to save trained model");
 }

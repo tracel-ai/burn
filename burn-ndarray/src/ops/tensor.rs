@@ -17,6 +17,9 @@ use burn_tensor::{backend::Backend, ops::TensorOps, Data, ElementConversion, Sha
 // External crates
 use libm::{cos, erf, sin, tanh};
 
+#[cfg(not(feature = "std"))]
+use num_traits::Float;
+
 impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     fn from_data<const D: usize>(data: Data<E, D>, _device: &NdArrayDevice) -> NdArrayTensor<E, D> {
         NdArrayTensor::from_data(data)
