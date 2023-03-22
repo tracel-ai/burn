@@ -269,7 +269,6 @@ mod std_enabled {
             let buf = bincode::serde::encode_to_vec(&self, Self::bin_config()).unwrap();
 
             let mut writer = str2writer!(file, "bin")?;
-            println!("{:?}", writer);
             std::io::Write::write_all(&mut writer, &buf).unwrap();
 
             Ok(())

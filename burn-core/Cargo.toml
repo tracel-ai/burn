@@ -62,7 +62,7 @@ serde = {workspace = true, features = ["derive"]}
 serde_json = {workspace = true, features = ["alloc"]}#Default enables std 
 rmp-serde = {workspace = true, optional = true}
 bincode = {workspace = true, features=["alloc", "derive", "serde"]}
-half = {workspace = true, features=["std"]}
+half = {workspace = true}
 
 [dev-dependencies]
 burn-dataset = {path = "../burn-dataset", version = "0.6.0", features = [
