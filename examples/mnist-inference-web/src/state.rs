@@ -15,8 +15,7 @@ const BINCODE_CONF: Configuration = config::standard();
 
 // Bundled bincode serialized model state object
 // see https://github.com/bincode-org/bincode and https://doc.rust-lang.org/std/macro.include_bytes.html
-static STATE_ENCODED: &[u8] =
-    include_bytes!(concat!(env!("OUT_DIR"), "/mnist_model_state.bincode"));
+static STATE_ENCODED: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/mnist_model_state.bin"));
 
 /// Builds and loads trained parameters into the model.
 pub fn build_and_load_model() -> Model<Backend> {

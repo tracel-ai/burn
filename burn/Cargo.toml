@@ -19,6 +19,8 @@ std = [
 experimental-named-tensor = ["burn-core/experimental-named-tensor"]
 train = ["std", "burn-train"] # Training requires std
 
+msgpack = ["burn-core/msgpack"]
+
 [dependencies]
 
 # ** Please make sure all dependencies support no_std when std is disabled **

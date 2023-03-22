@@ -3,6 +3,7 @@ use std::sync::Arc;
 use crate::data::MNISTBatcher;
 use crate::model::Model;
 
+use burn::module::StateFormat;
 use burn::optim::decay::WeightDecayConfig;
 use burn::optim::{Adam, AdamConfig};
 use burn::{
@@ -64,7 +65,7 @@ pub fn run<B: ADBackend>(device: B::Device) {
         .metric_valid_plot(AccuracyMetric::new())
         .metric_train_plot(LossMetric::new())
         .metric_valid_plot(LossMetric::new())
-        .with_file_checkpointer::<f32>(2)
+        .with_file_checkpointer::<f32>(2, StateFormat::default())
         .devices(vec![device])
         .num_epochs(config.num_epochs)
         .build(model, optim);

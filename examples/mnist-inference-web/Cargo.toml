@@ -26,6 +26,5 @@ wasm-bindgen = "0.2.84"
 burn-dataset = {path = "../../burn-dataset"}
 
 [build-dependencies]
-bincode = {version = "2.0.0-rc.2", git = "https://github.com/bincode-org/bincode.git", default-features = false, features = ["alloc", "serde"]}
 burn = {path = "../../burn"}
 serde = {workspace = true}

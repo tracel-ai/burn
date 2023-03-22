@@ -29,7 +29,6 @@ std = [
 ]
 
 # Serialization formats
-json = ["serde_json/std"] # Assumes std
 msgpack = ["rmp-serde"] # Assumes std
 
 test-tch = [] # To use tch during testing, default uses ndarray.
@@ -60,7 +59,7 @@ hashbrown = {workspace = true, features = ["serde"]}# no_std compatible
 flate2 = {workspace = true, optional = true}
 serde = {workspace = true, features = ["derive"]}
 
-serde_json = {workspace = true, features = ["alloc"], optional = true}#Default enables std 
+serde_json = {workspace = true, features = ["alloc"]}#Default enables std 
 rmp-serde = {workspace = true, optional = true}
 bincode = {workspace = true, features=["alloc", "derive", "serde"]}
 half = {workspace = true, features=["std"]}

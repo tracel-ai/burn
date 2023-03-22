@@ -1,21 +1,17 @@
 use alloc::{
     format,
     string::{String, ToString},
+    vec::Vec,
 };
 
 use super::ParamId;
 use crate::tensor::{DataSerialize, Element};
-
 use serde::{Deserialize, Serialize};
-
-#[cfg(feature = "std")]
-use std::{collections::HashMap, fs::File, path::Path};
-
-#[cfg(feature = "std")]
-use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 
 #[cfg(not(feature = "std"))]
 use hashbrown::HashMap;
+#[cfg(feature = "std")]
+use std::collections::HashMap;
 
 #[derive(Debug, PartialEq, Eq, Clone, Default, Serialize, Deserialize)]
 pub struct StateNamed<E> {
@@ -35,6 +31,16 @@ pub enum StateError {
     FileNotFound(String),
 }
 
+#[derive(Default, Clone)]
+pub enum StateFormat {
+    #[default]
+    BinGz,
+    Bin,
+    JsonGz,
+    #[cfg(feature = "msgpack")]
+    MpkGz,
+}
+
 impl core::fmt::Display for StateError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let mut message = "State error => ".to_string();
@@ -51,10 +57,6 @@ impl core::fmt::Display for StateError {
         f.write_str(message.as_str())
     }
 }
-
-// TODO: Move from std to core after Error is core (see https://github.com/rust-lang/rust/issues/103765)
-#[cfg(feature = "std")]
-impl std::error::Error for StateError {}
 
 impl<E: Element> StateNamed<E> {
     pub fn new() -> Self {
@@ -113,34 +115,6 @@ impl<E: Element> State<E> {
     }
 }
 
-macro_rules! str2reader {
-    (
-        $file:expr,
-        $ext:expr
-    ) => {{
-        let path_ref = &format!("{}.{}", $file, $ext);
-        let path = Path::new(path_ref);
-
-        File::open(path).map_err(|err| StateError::FileNotFound(format!("{err:?}")))
-    }};
-}
-
-macro_rules! str2writer {
-    (
-        $file:expr,
-        $ext:expr
-    ) => {{
-        let path_ref = &format!("{}.{}", $file, $ext);
-        let path = Path::new(path_ref);
-        if path.exists() {
-            log::info!("File exists, replacing");
-            std::fs::remove_file(path).unwrap();
-        }
-
-        File::create(path)
-    }};
-}
-
 impl<E: Element> State<E>
 where
     E: serde::de::DeserializeOwned,
@@ -161,90 +135,138 @@ where
 }
 
 #[cfg(feature = "std")]
-impl<E: Element> State<E>
-where
-    E: serde::de::DeserializeOwned,
-    E: serde::Serialize,
-{
-    pub fn save(self, file: &str) -> std::io::Result<()> {
-        self.save_bingz(file)
+mod std_enabled {
+    use super::*;
+    use flate2::{read::GzDecoder, write::GzEncoder, Compression};
+    use std::{fs::File, path::Path};
+
+    // TODO: Move from std to core after Error is core (see https://github.com/rust-lang/rust/issues/103765)
+    impl std::error::Error for StateError {}
+
+    macro_rules! str2reader {
+        (
+        $file:expr,
+        $ext:expr
+    ) => {{
+            let path_ref = &format!("{}.{}", $file, $ext);
+            let path = Path::new(path_ref);
+
+            File::open(path).map_err(|err| StateError::FileNotFound(format!("{err:?}")))
+        }};
     }
 
-    pub fn load(file: &str) -> Result<Self, StateError> {
-        Self::load_bingz(file)
+    macro_rules! str2writer {
+        (
+        $file:expr,
+        $ext:expr
+    ) => {{
+            let path_ref = &format!("{}.{}", $file, $ext);
+            let path = Path::new(path_ref);
+            if path.exists() {
+                log::info!("File exists, replacing");
+                std::fs::remove_file(path).unwrap();
+            }
+
+            File::create(path)
+        }};
     }
+    impl<E: Element> State<E>
+    where
+        E: serde::de::DeserializeOwned,
+        E: serde::Serialize,
+    {
+        pub fn save(self, file: &str, format: &StateFormat) -> std::io::Result<()> {
+            match format {
+                StateFormat::BinGz => self.save_bingz(file),
+                StateFormat::Bin => self.save_bin(file),
+                StateFormat::JsonGz => self.save_jsongz(file),
+                #[cfg(feature = "msgpack")]
+                StateFormat::MpkGz => self.save_mpkgz(file),
+            }
+        }
 
-    #[cfg(feature = "json")]
-    pub fn save_jsongz(self, file: &str) -> std::io::Result<()> {
-        let writer = str2writer!(file, "json.gz")?;
-        let writer = GzEncoder::new(writer, Compression::default());
-        serde_json::to_writer(writer, &self).unwrap();
+        pub fn load(file: &str, format: &StateFormat) -> Result<Self, StateError> {
+            match format {
+                StateFormat::BinGz => Self::load_bingz(file),
+                StateFormat::Bin => Self::load_bin(file),
+                StateFormat::JsonGz => Self::load_jsongz(file),
+                #[cfg(feature = "msgpack")]
+                StateFormat::MpkGz => Self::load_mpkgz(file),
+            }
+        }
 
-        Ok(())
-    }
+        pub fn save_jsongz(self, file: &str) -> std::io::Result<()> {
+            let writer = str2writer!(file, "json.gz")?;
+            let writer = GzEncoder::new(writer, Compression::default());
+            serde_json::to_writer(writer, &self).unwrap();
 
-    #[cfg(feature = "json")]
-    pub fn load_jsongz(file: &str) -> Result<Self, StateError> {
-        let reader = str2reader!(file, "json.gz")?;
-        let reader = GzDecoder::new(reader);
-        let state = serde_json::from_reader(reader).unwrap();
+            Ok(())
+        }
 
-        Ok(state)
-    }
+        pub fn load_jsongz(file: &str) -> Result<Self, StateError> {
+            let reader = str2reader!(file, "json.gz")?;
+            let reader = GzDecoder::new(reader);
+            let state = serde_json::from_reader(reader).unwrap();
 
-    #[cfg(feature = "msgpack")]
-    pub fn save_mpkgz(self, file: &str) -> std::io::Result<()> {
-        let writer = str2writer!(file, "mpk.gz")?;
-        let mut writer = GzEncoder::new(writer, Compression::default());
-        rmp_serde::encode::write(&mut writer, &self).unwrap();
+            Ok(state)
+        }
 
-        Ok(())
-    }
+        #[cfg(feature = "msgpack")]
+        pub fn save_mpkgz(self, file: &str) -> std::io::Result<()> {
+            let writer = str2writer!(file, "mpk.gz")?;
+            let mut writer = GzEncoder::new(writer, Compression::default());
+            rmp_serde::encode::write(&mut writer, &self).unwrap();
 
-    #[cfg(feature = "msgpack")]
-    pub fn load_mpkgz(file: &str) -> Result<Self, StateError> {
-        let reader = str2reader!(file, "mpk.gz")?;
-        let reader = GzDecoder::new(reader);
-        let state = rmp_serde::decode::from_read(reader).unwrap();
+            Ok(())
+        }
 
-        Ok(state)
-    }
+        #[cfg(feature = "msgpack")]
+        pub fn load_mpkgz(file: &str) -> Result<Self, StateError> {
+            let reader = str2reader!(file, "mpk.gz")?;
+            let reader = GzDecoder::new(reader);
+            let state = rmp_serde::decode::from_read(reader).unwrap();
 
-    pub fn save_bingz(self, file: &str) -> std::io::Result<()> {
-        let config = Self::bin_config();
-        let writer = str2writer!(file, "bin.gz")?;
-        let mut writer = GzEncoder::new(writer, Compression::default());
+            Ok(state)
+        }
 
-        bincode::serde::encode_into_std_write(&self, &mut writer, config).unwrap();
+        pub fn save_bingz(self, file: &str) -> std::io::Result<()> {
+            let config = Self::bin_config();
+            let writer = str2writer!(file, "bin.gz")?;
+            let mut writer = GzEncoder::new(writer, Compression::default());
 
-        Ok(())
-    }
+            bincode::serde::encode_into_std_write(&self, &mut writer, config).unwrap();
 
-    pub fn load_bingz(file: &str) -> Result<Self, StateError> {
-        let reader = str2reader!(file, "bin.gz")?;
-        let mut reader = GzDecoder::new(reader);
-        let state = bincode::serde::decode_from_std_read(&mut reader, Self::bin_config()).unwrap();
+            Ok(())
+        }
 
-        Ok(state)
-    }
+        pub fn load_bingz(file: &str) -> Result<Self, StateError> {
+            let reader = str2reader!(file, "bin.gz")?;
+            let mut reader = GzDecoder::new(reader);
+            let state =
+                bincode::serde::decode_from_std_read(&mut reader, Self::bin_config()).unwrap();
 
-    pub fn save_bin(self, file: &str) -> std::io::Result<()> {
-        let buf = bincode::serde::encode_to_vec(&self, Self::bin_config()).unwrap();
+            Ok(state)
+        }
 
-        let mut writer = str2writer!(file, "bin")?;
-        println!("{:?}", writer);
-        std::io::Write::write_all(&mut writer, &buf).unwrap();
+        pub fn save_bin(self, file: &str) -> std::io::Result<()> {
+            let buf = bincode::serde::encode_to_vec(&self, Self::bin_config()).unwrap();
 
-        Ok(())
-    }
+            let mut writer = str2writer!(file, "bin")?;
+            println!("{:?}", writer);
+            std::io::Write::write_all(&mut writer, &buf).unwrap();
 
-    pub fn load_bin(file: &str) -> Result<Self, StateError> {
-        let mut reader = str2reader!(file, "bin")?;
-        let mut buf = Vec::new();
-        std::io::Read::read_to_end(&mut reader, &mut buf).unwrap();
-        let state = bincode::serde::decode_borrowed_from_slice(&buf, Self::bin_config()).unwrap();
+            Ok(())
+        }
 
-        Ok(state)
+        pub fn load_bin(file: &str) -> Result<Self, StateError> {
+            let mut reader = str2reader!(file, "bin")?;
+            let mut buf = Vec::new();
+            std::io::Read::read_to_end(&mut reader, &mut buf).unwrap();
+            let state =
+                bincode::serde::decode_borrowed_from_slice(&buf, Self::bin_config()).unwrap();
+
+            Ok(state)
+        }
     }
 }
 
@@ -312,7 +334,6 @@ mod tests_save_load {
 
     static FILE_PATH: &str = "/tmp/test_state";
 
-    #[cfg(feature = "json")]
     #[test]
     fn test_can_save_and_load_from_file_jsongz_format() {
         let model_before = create_model();
