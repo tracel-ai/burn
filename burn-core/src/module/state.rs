@@ -31,6 +31,13 @@ pub enum StateError {
     FileNotFound(String),
 }
 
+/// All supported format.
+///
+/// # Notes
+///
+/// The default file format is compressed bincode for the smallest file size possible.
+/// For `no_std` environments, you should use (StateFormat::Bin)[StateFormat::Bin] since compression isn't supported.
+/// However, the bincode format alone is smaller than compressed `json` or `msgpack`.
 #[derive(Default, Clone)]
 pub enum StateFormat {
     #[default]
@@ -175,6 +182,11 @@ mod std_enabled {
         E: serde::de::DeserializeOwned,
         E: serde::Serialize,
     {
+        /// Save the state to the provided file path using the given [StateFormat](StateFormat).
+        ///
+        /// # Notes
+        ///
+        /// The file extension will be added automatically depending on the state format.
         pub fn save(self, file: &str, format: &StateFormat) -> std::io::Result<()> {
             match format {
                 StateFormat::BinGz => self.save_bingz(file),
@@ -185,6 +197,11 @@ mod std_enabled {
             }
         }
 
+        /// Load the state from the provided file path using the given [StateFormat](StateFormat).
+        ///
+        /// # Notes
+        ///
+        /// The file extension will be added automatically depending on the state format.
         pub fn load(file: &str, format: &StateFormat) -> Result<Self, StateError> {
             match format {
                 StateFormat::BinGz => Self::load_bingz(file),
@@ -195,7 +212,7 @@ mod std_enabled {
             }
         }
 
-        pub fn save_jsongz(self, file: &str) -> std::io::Result<()> {
+        fn save_jsongz(self, file: &str) -> std::io::Result<()> {
             let writer = str2writer!(file, "json.gz")?;
             let writer = GzEncoder::new(writer, Compression::default());
             serde_json::to_writer(writer, &self).unwrap();
@@ -203,7 +220,7 @@ mod std_enabled {
             Ok(())
         }
 
-        pub fn load_jsongz(file: &str) -> Result<Self, StateError> {
+        fn load_jsongz(file: &str) -> Result<Self, StateError> {
             let reader = str2reader!(file, "json.gz")?;
             let reader = GzDecoder::new(reader);
             let state = serde_json::from_reader(reader).unwrap();
@@ -212,7 +229,7 @@ mod std_enabled {
         }
 
         #[cfg(feature = "msgpack")]
-        pub fn save_mpkgz(self, file: &str) -> std::io::Result<()> {
+        fn save_mpkgz(self, file: &str) -> std::io::Result<()> {
             let writer = str2writer!(file, "mpk.gz")?;
             let mut writer = GzEncoder::new(writer, Compression::default());
             rmp_serde::encode::write(&mut writer, &self).unwrap();
@@ -221,7 +238,7 @@ mod std_enabled {
         }
 
         #[cfg(feature = "msgpack")]
-        pub fn load_mpkgz(file: &str) -> Result<Self, StateError> {
+        fn load_mpkgz(file: &str) -> Result<Self, StateError> {
             let reader = str2reader!(file, "mpk.gz")?;
             let reader = GzDecoder::new(reader);
             let state = rmp_serde::decode::from_read(reader).unwrap();
@@ -229,7 +246,7 @@ mod std_enabled {
             Ok(state)
         }
 
-        pub fn save_bingz(self, file: &str) -> std::io::Result<()> {
+        fn save_bingz(self, file: &str) -> std::io::Result<()> {
             let config = Self::bin_config();
             let writer = str2writer!(file, "bin.gz")?;
             let mut writer = GzEncoder::new(writer, Compression::default());
@@ -239,7 +256,7 @@ mod std_enabled {
             Ok(())
         }
 
-        pub fn load_bingz(file: &str) -> Result<Self, StateError> {
+        fn load_bingz(file: &str) -> Result<Self, StateError> {
             let reader = str2reader!(file, "bin.gz")?;
             let mut reader = GzDecoder::new(reader);
             let state =
@@ -248,7 +265,7 @@ mod std_enabled {
             Ok(state)
         }
 
-        pub fn save_bin(self, file: &str) -> std::io::Result<()> {
+        fn save_bin(self, file: &str) -> std::io::Result<()> {
             let buf = bincode::serde::encode_to_vec(&self, Self::bin_config()).unwrap();
 
             let mut writer = str2writer!(file, "bin")?;
@@ -258,7 +275,7 @@ mod std_enabled {
             Ok(())
         }
 
-        pub fn load_bin(file: &str) -> Result<Self, StateError> {
+        fn load_bin(file: &str) -> Result<Self, StateError> {
             let mut reader = str2reader!(file, "bin")?;
             let mut buf = Vec::new();
             std::io::Read::read_to_end(&mut reader, &mut buf).unwrap();
@@ -336,68 +353,48 @@ mod tests_save_load {
 
     #[test]
     fn test_can_save_and_load_from_file_jsongz_format() {
-        let model_before = create_model();
-        let state_before = model_before.state();
-        state_before.clone().save_jsongz(FILE_PATH).unwrap();
+        test_can_save_and_load_from_file(StateFormat::JsonGz)
+    }
 
-        let model_after = create_model()
-            .load(&State::load_jsongz(FILE_PATH).unwrap())
-            .unwrap();
+    #[test]
+    fn test_can_save_and_load_from_file_bin_format() {
+        test_can_save_and_load_from_file(StateFormat::Bin)
+    }
 
-        let state_after = model_after.state();
-        assert_eq!(state_before, state_after);
+    #[test]
+    fn test_can_save_and_load_from_file_bingz_format() {
+        test_can_save_and_load_from_file(StateFormat::BinGz)
     }
 
     #[cfg(feature = "msgpack")]
     #[test]
     fn test_can_save_and_load_from_file_mpkgz_format() {
-        let model_before = create_model();
-        let state_before = model_before.state();
-        state_before.clone().save_mpkgz(FILE_PATH).unwrap();
-
-        let model_after = create_model()
-            .load(&State::load_mpkgz(FILE_PATH).unwrap())
-            .unwrap();
-
-        let state_after = model_after.state();
-        assert_eq!(state_before, state_after);
-    }
-
-    #[test]
-    fn test_can_save_and_load_from_file_bin_format() {
-        let model_before = create_model();
-        let state_before = model_before.state();
-        state_before.clone().save_bin(FILE_PATH).unwrap();
-
-        let model_after = create_model()
-            .load(&State::load_bin(FILE_PATH).unwrap())
-            .unwrap();
-
-        let state_after = model_after.state();
-        assert_eq!(state_before, state_after);
-    }
-
-    #[test]
-    fn test_can_save_and_load_from_file_bingz_format() {
-        let model_before = create_model();
-        let state_before = model_before.state();
-        state_before.clone().save_bingz(FILE_PATH).unwrap();
-
-        let model_after = create_model()
-            .load(&State::load_bingz(FILE_PATH).unwrap())
-            .unwrap();
-
-        let state_after = model_after.state();
-        assert_eq!(state_before, state_after);
+        test_can_save_and_load_from_file(StateFormat::MpkGz)
     }
 
     #[test]
     fn test_from_bin_on_disk() {
         let model = create_model();
-        model.state().save_bin("/tmp/model_compare").unwrap();
+        model
+            .state()
+            .save("/tmp/model_compare", &StateFormat::Bin)
+            .unwrap();
         let bytes = std::fs::read("/tmp/model_compare.bin").unwrap();
         let state = State::from_bin(&bytes).unwrap();
 
         assert_eq!(state, model.state());
+    }
+
+    fn test_can_save_and_load_from_file(format: StateFormat) {
+        let model_before = create_model();
+        let state_before = model_before.state();
+        state_before.clone().save(FILE_PATH, &format).unwrap();
+
+        let model_after = create_model()
+            .load(&State::load(FILE_PATH, &format).unwrap())
+            .unwrap();
+
+        let state_after = model_after.state();
+        assert_eq!(state_before, state_after);
     }
 }

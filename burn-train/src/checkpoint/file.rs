@@ -23,7 +23,7 @@ impl<P: Element> FileCheckpointer<P> {
         }
     }
     fn path_for_epoch(&self, epoch: usize) -> String {
-        format!("{}/{}-{}.json.gz", self.directory, self.name, epoch)
+        format!("{}/{}-{}", self.directory, self.name, epoch)
     }
 }
 
