@@ -66,6 +66,27 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
         TchTensor::new(tensor)
     }
 
+    fn conv_transpose2d(
+        x: TchTensor<E, 4>,
+        weight: TchTensor<E, 4>,
+        bias: Option<TchTensor<E, 1>>,
+        stride: [usize; 2],
+        padding: [usize; 2],
+        out_padding: [usize; 2],
+    ) -> TchTensor<E, 4> {
+        let tensor = tch::Tensor::conv_transpose2d(
+            &x.tensor,
+            &weight.tensor,
+            bias.map(|t| t.tensor),
+            &[stride[0] as i64, stride[1] as i64],
+            &[padding[0] as i64, padding[1] as i64],
+            &[out_padding[0] as i64, out_padding[1] as i64],
+            1,
+            &[1, 1],
+        );
+
+        TchTensor::new(tensor)
+    }
     fn max_pool2d(
         x: TchTensor<E, 4>,
         kernel_size: [usize; 2],

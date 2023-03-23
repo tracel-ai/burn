@@ -158,6 +158,17 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
+    fn conv_transpose2d(
+        x: <ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
+        weight: <ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
+        bias: Option<<ADBackendDecorator<B> as Backend>::TensorPrimitive<1>>,
+        stride: [usize; 2],
+        padding: [usize; 2],
+        out_padding: [usize; 2],
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<4> {
+        todo!()
+    }
+
     fn conv1d(
         x: ADTensor<B, 3>,
         weight: ADTensor<B, 3>,

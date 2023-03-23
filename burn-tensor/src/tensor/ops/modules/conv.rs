@@ -40,6 +40,21 @@ pub fn calculate_output_size(
     size_out as usize
 }
 
+fn calculate_padding_out(
+    kernel_size: usize,
+    stride: usize,
+    padding: usize,
+    size_in: usize,
+    size_out: usize,
+) -> usize {
+    if stride <= 1 {
+        return 0;
+    }
+
+    let out = calculate_output_size(kernel_size, stride, padding, size_out) as i64;
+    i64::max(0, out - size_in as i64) as usize
+}
+
 /// Calculate the [1D convolution](crate::ops::ModuleOps::conv1d) backward pass using convolutions.
 pub(crate) fn conv1d_backward<B: Backend>(
     x: B::TensorPrimitive<3>,
@@ -88,31 +103,36 @@ pub(crate) fn conv2d_backward<B: Backend>(
     stride: [usize; 2],
     output_grad: B::TensorPrimitive<4>,
 ) -> Conv2dBackward<B> {
-    // TODO: Fix the backward pass when using stride > 1.
     let [batch_size, _channels_in, height_in, width_in] = B::shape(&x).dims;
-    let [_batch_size, _channels_out, height_out, width_out] = B::shape(&output_grad).dims;
+    let [_batch_size, channels_out, height_out, width_out] = B::shape(&output_grad).dims;
     let [_, _, kernel_size_1, kernel_size_2] = B::shape(&weight).dims;
     let [stride_1, stride_2] = stride;
 
     let output_grad_tmp = output_grad.clone();
-    let weight_tmp = B::swap_dims(weight, 0, 1);
-    let padding_1 = calculate_padding(height_out, stride_1, kernel_size_1, height_in);
-    let padding_2 = calculate_padding(width_out, stride_2, kernel_size_2, width_in);
+    let weight_tmp = weight.clone();
 
-    let x_grad = B::conv2d(
-        weight_tmp,
+    let padding_1 = calculate_padding(kernel_size_1, stride_1, height_in, height_out);
+    let padding_2 = calculate_padding(kernel_size_2, stride_2, width_in, width_out);
+
+    let padding_1_out =
+        calculate_padding_out(kernel_size_1, stride_1, padding_1, height_out, height_in);
+    let padding_2_out =
+        calculate_padding_out(kernel_size_2, stride_2, padding_2, width_out, width_in);
+
+    let x_grad = B::conv_transpose2d(
         output_grad_tmp,
+        weight_tmp,
         None,
         [stride_1, stride_2],
         [padding_1, padding_2],
+        [padding_1_out, padding_2_out],
     );
-    let x_grad = B::swap_dims(x_grad, 0, 1);
 
     let padding_1 = calculate_padding(height_out, stride_1, height_in, kernel_size_1);
     let padding_2 = calculate_padding(width_out, stride_2, width_in, kernel_size_2);
 
     let x_tmp = B::swap_dims(x, 0, 1);
-    let output_grad_tmp = B::swap_dims(output_grad, 0, 1);
+    let output_grad_tmp = B::swap_dims(output_grad.clone(), 0, 1);
     let weight_grad = B::conv2d(
         x_tmp,
         output_grad_tmp,
@@ -126,12 +146,14 @@ pub(crate) fn conv2d_backward<B: Backend>(
         x_grad,
         weight_grad,
         bias.map(|b| {
-            let elem = batch_size * width_out * height_out;
-            let elem = (elem as i32).elem();
+            let grad = B::swap_dims(output_grad, 0, 1);
+            let grad = B::reshape(
+                grad,
+                Shape::new([channels_out, batch_size * height_out * width_out]),
+            );
+            let grad = B::sum_dim(grad, 1);
 
-            let b = B::zeros(B::shape(&b), &B::device(&b));
-
-            B::add_scalar(b, elem)
+            B::reshape(grad, B::shape(&b))
         }),
     )
 }
