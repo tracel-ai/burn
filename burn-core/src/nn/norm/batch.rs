@@ -80,7 +80,7 @@ impl<const D: usize, B: Backend> BatchNorm<B, D> {
         let mut shape = [1; DI];
         shape[1] = channels;
 
-        self.forward_shared(input, mean.reshape(shape.clone()), var.reshape(shape))
+        self.forward_shared(input, mean.reshape(shape), var.reshape(shape))
     }
 
     fn forward_train<const DI: usize>(&self, input: Tensor<B, DI>) -> Tensor<B, DI> {
@@ -88,12 +88,13 @@ impl<const D: usize, B: Backend> BatchNorm<B, D> {
         let batch_size = dims[0];
         let channels = dims[1];
 
-        let mut flatten_size = batch_size;
-        for i in 2..DI {
-            flatten_size *= dims[i];
-        }
         let mut shape_unsqueeze = [1; DI];
+        let mut flatten_size = batch_size;
         shape_unsqueeze[1] = channels;
+
+        for dim in dims.iter().take(DI).skip(2) {
+            flatten_size *= dim;
+        }
 
         let mean = input
             .clone()
@@ -148,7 +149,7 @@ impl<const D: usize, B: Backend> BatchNorm<B, D> {
         let x = x.sub(mean);
         let x = x.div(std);
 
-        let x = x.mul(self.gamma.val().reshape(shape.clone()));
+        let x = x.mul(self.gamma.val().reshape(shape));
 
         x.add(self.beta.val().reshape(shape))
     }
