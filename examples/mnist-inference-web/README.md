@@ -70,8 +70,6 @@ byte file is the model's parameters. The rest of 356,744 bytes contain all the c
 
 There are several planned enhancements in place:
 
-- [#201](https://github.com/burn-rs/burn/issues/201) - Saving model's params in binary format. This
-  will simplify the inference code.
 - [#202](https://github.com/burn-rs/burn/issues/202) - Saving model's params in half-precision and
   loading back in full. This can be half the size of the wasm file.
 - [#243](https://github.com/burn-rs/burn/issues/243) - New WebGPU backend would allow computation
