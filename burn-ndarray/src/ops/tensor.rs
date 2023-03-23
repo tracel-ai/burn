@@ -3,8 +3,9 @@ use alloc::vec::Vec;
 use core::cmp::Ordering;
 use core::ops::Range;
 
-use crate::element::FloatNdArrayElement;
 // Current crate
+use super::{matmul::matmul, NdArrayMathOps, NdArrayOps};
+use crate::element::FloatNdArrayElement;
 use crate::{tensor::NdArrayTensor, NdArrayBackend};
 use crate::{NdArrayDevice, SEED};
 
@@ -15,10 +16,9 @@ use burn_tensor::{backend::Backend, ops::TensorOps, Data, ElementConversion, Sha
 
 // External crates
 use libm::{cos, erf, sin, tanh};
-#[cfg(not(feature = "std"))]
-use num_traits::Float; // Can't compare two floats with no_std.
 
-use super::{matmul::matmul, NdArrayMathOps, NdArrayOps};
+#[cfg(not(feature = "std"))]
+use num_traits::Float;
 
 impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     fn from_data<const D: usize>(data: Data<E, D>, _device: &NdArrayDevice) -> NdArrayTensor<E, D> {

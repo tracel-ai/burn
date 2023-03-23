@@ -7,55 +7,55 @@ use libm::{pow, round};
 use rand::{distributions::Standard, Rng, RngCore};
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Clone)]
-pub struct DataSerialize<P> {
-    pub value: Vec<P>,
+pub struct DataSerialize<E> {
+    pub value: Vec<E>,
     pub shape: Vec<usize>,
 }
 
 #[derive(new, Debug, Clone, PartialEq, Eq)]
-pub struct Data<P, const D: usize> {
-    pub value: Vec<P>,
+pub struct Data<E, const D: usize> {
+    pub value: Vec<E>,
     pub shape: Shape<D>,
 }
 
 #[derive(Clone, Copy)]
-pub enum Distribution<P> {
+pub enum Distribution<E> {
     Standard,
     Bernoulli(f64),
-    Uniform(P, P),
+    Uniform(E, E),
     Normal(f64, f64),
 }
 
 #[derive(new)]
-pub struct DistributionSampler<'a, P, R>
+pub struct DistributionSampler<'a, E, R>
 where
-    Standard: rand::distributions::Distribution<P>,
-    P: rand::distributions::uniform::SampleUniform,
+    Standard: rand::distributions::Distribution<E>,
+    E: rand::distributions::uniform::SampleUniform,
     R: RngCore,
 {
-    kind: DistributionSamplerKind<P>,
+    kind: DistributionSamplerKind<E>,
     rng: &'a mut R,
 }
 
-pub enum DistributionSamplerKind<P>
+pub enum DistributionSamplerKind<E>
 where
-    Standard: rand::distributions::Distribution<P>,
-    P: rand::distributions::uniform::SampleUniform,
+    Standard: rand::distributions::Distribution<E>,
+    E: rand::distributions::uniform::SampleUniform,
 {
     Standard(rand::distributions::Standard),
-    Uniform(rand::distributions::Uniform<P>),
+    Uniform(rand::distributions::Uniform<E>),
     Bernoulli(rand::distributions::Bernoulli),
     Normal(rand_distr::Normal<f64>),
 }
 
-impl<'a, P, R> DistributionSampler<'a, P, R>
+impl<'a, E, R> DistributionSampler<'a, E, R>
 where
-    Standard: rand::distributions::Distribution<P>,
-    P: rand::distributions::uniform::SampleUniform,
-    P: Element,
+    Standard: rand::distributions::Distribution<E>,
+    E: rand::distributions::uniform::SampleUniform,
+    E: Element,
     R: RngCore,
 {
-    pub fn sample(&mut self) -> P {
+    pub fn sample(&mut self) -> E {
         match &self.kind {
             DistributionSamplerKind::Standard(distribution) => self.rng.sample(distribution),
             DistributionSamplerKind::Uniform(distribution) => self.rng.sample(distribution),
@@ -71,12 +71,12 @@ where
     }
 }
 
-impl<P> Distribution<P>
+impl<E> Distribution<E>
 where
-    Standard: rand::distributions::Distribution<P>,
-    P: rand::distributions::uniform::SampleUniform,
+    Standard: rand::distributions::Distribution<E>,
+    E: rand::distributions::uniform::SampleUniform,
 {
-    pub fn sampler<R: RngCore>(self, rng: &'_ mut R) -> DistributionSampler<'_, P, R> {
+    pub fn sampler<R: RngCore>(self, rng: &'_ mut R) -> DistributionSampler<'_, E, R> {
         let kind = match self {
             Distribution::Standard => {
                 DistributionSamplerKind::Standard(rand::distributions::Standard {})
@@ -96,23 +96,25 @@ where
     }
 }
 
-impl<P> Distribution<P>
+impl<E> Distribution<E>
 where
-    P: Element,
+    E: Element,
 {
-    pub fn convert<E: Element>(self) -> Distribution<E> {
+    pub fn convert<EOther: Element>(self) -> Distribution<EOther> {
         match self {
             Distribution::Standard => Distribution::Standard,
-            Distribution::Uniform(a, b) => Distribution::Uniform(E::from_elem(a), E::from_elem(b)),
+            Distribution::Uniform(a, b) => {
+                Distribution::Uniform(EOther::from_elem(a), EOther::from_elem(b))
+            }
             Distribution::Bernoulli(prob) => Distribution::Bernoulli(prob),
             Distribution::Normal(mean, std) => Distribution::Normal(mean, std),
         }
     }
 }
 
-impl<const D: usize, P: Element> Data<P, D> {
-    pub fn convert<E: Element>(self) -> Data<E, D> {
-        let value: Vec<E> = self.value.into_iter().map(|a| a.elem()).collect();
+impl<const D: usize, E: Element> Data<E, D> {
+    pub fn convert<EOther: Element>(self) -> Data<EOther, D> {
+        let value: Vec<EOther> = self.value.into_iter().map(|a| a.elem()).collect();
 
         Data {
             value,
@@ -121,9 +123,9 @@ impl<const D: usize, P: Element> Data<P, D> {
     }
 }
 
-impl<P: Element> DataSerialize<P> {
-    pub fn convert<E: Element>(self) -> DataSerialize<E> {
-        let value: Vec<E> = self.value.into_iter().map(|a| a.elem()).collect();
+impl<E: Element> DataSerialize<E> {
+    pub fn convert<EOther: Element>(self) -> DataSerialize<EOther> {
+        let value: Vec<EOther> = self.value.into_iter().map(|a| a.elem()).collect();
 
         DataSerialize {
             value,
@@ -142,23 +144,23 @@ impl<const D: usize> Data<bool, D> {
         }
     }
 }
-impl<P: Element, const D: usize> Data<P, D> {
-    pub fn random<R: RngCore>(shape: Shape<D>, distribution: Distribution<P>, rng: &mut R) -> Self {
+impl<E: Element, const D: usize> Data<E, D> {
+    pub fn random<R: RngCore>(shape: Shape<D>, distribution: Distribution<E>, rng: &mut R) -> Self {
         let num_elements = shape.num_elements();
         let mut data = Vec::with_capacity(num_elements);
 
         for _ in 0..num_elements {
-            data.push(P::random(distribution, rng));
+            data.push(E::random(distribution, rng));
         }
 
         Data::new(data, shape)
     }
 }
-impl<P: core::fmt::Debug, const D: usize> Data<P, D>
+impl<E: core::fmt::Debug, const D: usize> Data<E, D>
 where
-    P: Element,
+    E: Element,
 {
-    pub fn zeros<S: Into<Shape<D>>>(shape: S) -> Data<P, D> {
+    pub fn zeros<S: Into<Shape<D>>>(shape: S) -> Data<E, D> {
         let shape = shape.into();
         let num_elements = shape.num_elements();
         let mut data = Vec::with_capacity(num_elements);
@@ -169,16 +171,16 @@ where
 
         Data::new(data, shape)
     }
-    pub fn zeros_(shape: Shape<D>, _kind: P) -> Data<P, D> {
+    pub fn zeros_(shape: Shape<D>, _kind: E) -> Data<E, D> {
         Self::zeros(shape)
     }
 }
 
-impl<P: core::fmt::Debug, const D: usize> Data<P, D>
+impl<E: core::fmt::Debug, const D: usize> Data<E, D>
 where
-    P: Element,
+    E: Element,
 {
-    pub fn ones(shape: Shape<D>) -> Data<P, D> {
+    pub fn ones(shape: Shape<D>) -> Data<E, D> {
         let num_elements = shape.num_elements();
         let mut data = Vec::with_capacity(num_elements);
 
@@ -188,13 +190,13 @@ where
 
         Data::new(data, shape)
     }
-    pub fn ones_(shape: Shape<D>, _kind: P) -> Data<P, D> {
+    pub fn ones_(shape: Shape<D>, _kind: E) -> Data<E, D> {
         Self::ones(shape)
     }
 }
 
-impl<P: core::fmt::Debug + Copy, const D: usize> Data<P, D> {
-    pub fn serialize(&self) -> DataSerialize<P> {
+impl<E: core::fmt::Debug + Copy, const D: usize> Data<E, D> {
+    pub fn serialize(&self) -> DataSerialize<E> {
         DataSerialize {
             value: self.value.clone(),
             shape: self.shape.dims.to_vec(),
@@ -202,7 +204,7 @@ impl<P: core::fmt::Debug + Copy, const D: usize> Data<P, D> {
     }
 }
 
-impl<P: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<P, D> {
+impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E, D> {
     pub fn assert_approx_eq(&self, other: &Self, precision: usize) {
         assert_eq!(self.shape, other.shape);
 
@@ -246,24 +248,24 @@ impl<const D: usize> Data<usize, D> {
     }
 }
 
-impl<P: Clone, const D: usize> From<&DataSerialize<P>> for Data<P, D> {
-    fn from(data: &DataSerialize<P>) -> Self {
+impl<E: Clone, const D: usize> From<&DataSerialize<E>> for Data<E, D> {
+    fn from(data: &DataSerialize<E>) -> Self {
         let mut dims = [0; D];
         dims[..D].copy_from_slice(&data.shape[..D]);
         Data::new(data.value.clone(), Shape::new(dims))
     }
 }
 
-impl<P, const D: usize> From<DataSerialize<P>> for Data<P, D> {
-    fn from(data: DataSerialize<P>) -> Self {
+impl<E, const D: usize> From<DataSerialize<E>> for Data<E, D> {
+    fn from(data: DataSerialize<E>) -> Self {
         let mut dims = [0; D];
         dims[..D].copy_from_slice(&data.shape[..D]);
         Data::new(data.value, Shape::new(dims))
     }
 }
 
-impl<P: core::fmt::Debug + Copy, const A: usize> From<[P; A]> for Data<P, 1> {
-    fn from(elems: [P; A]) -> Self {
+impl<E: core::fmt::Debug + Copy, const A: usize> From<[E; A]> for Data<E, 1> {
+    fn from(elems: [E; A]) -> Self {
         let mut data = Vec::with_capacity(2 * A);
         for elem in elems.into_iter() {
             data.push(elem);
@@ -273,8 +275,8 @@ impl<P: core::fmt::Debug + Copy, const A: usize> From<[P; A]> for Data<P, 1> {
     }
 }
 
-impl<P: core::fmt::Debug + Copy> From<&[P]> for Data<P, 1> {
-    fn from(elems: &[P]) -> Self {
+impl<E: core::fmt::Debug + Copy> From<&[E]> for Data<E, 1> {
+    fn from(elems: &[E]) -> Self {
         let mut data = Vec::with_capacity(elems.len());
         for elem in elems.iter() {
             data.push(*elem);
@@ -284,8 +286,8 @@ impl<P: core::fmt::Debug + Copy> From<&[P]> for Data<P, 1> {
     }
 }
 
-impl<P: core::fmt::Debug + Copy, const A: usize, const B: usize> From<[[P; B]; A]> for Data<P, 2> {
-    fn from(elems: [[P; B]; A]) -> Self {
+impl<E: core::fmt::Debug + Copy, const A: usize, const B: usize> From<[[E; B]; A]> for Data<E, 2> {
+    fn from(elems: [[E; B]; A]) -> Self {
         let mut data = Vec::with_capacity(A * B);
         for elem in elems.into_iter().take(A) {
             for elem in elem.into_iter().take(B) {
@@ -297,10 +299,10 @@ impl<P: core::fmt::Debug + Copy, const A: usize, const B: usize> From<[[P; B]; A
     }
 }
 
-impl<P: core::fmt::Debug + Copy, const A: usize, const B: usize, const C: usize>
-    From<[[[P; C]; B]; A]> for Data<P, 3>
+impl<E: core::fmt::Debug + Copy, const A: usize, const B: usize, const C: usize>
+    From<[[[E; C]; B]; A]> for Data<E, 3>
 {
-    fn from(elems: [[[P; C]; B]; A]) -> Self {
+    fn from(elems: [[[E; C]; B]; A]) -> Self {
         let mut data = Vec::with_capacity(A * B * C);
 
         for elem in elems.into_iter().take(A) {
@@ -316,14 +318,14 @@ impl<P: core::fmt::Debug + Copy, const A: usize, const B: usize, const C: usize>
 }
 
 impl<
-        P: core::fmt::Debug + Copy,
+        E: core::fmt::Debug + Copy,
         const A: usize,
         const B: usize,
         const C: usize,
         const D: usize,
-    > From<[[[[P; D]; C]; B]; A]> for Data<P, 4>
+    > From<[[[[E; D]; C]; B]; A]> for Data<E, 4>
 {
-    fn from(elems: [[[[P; D]; C]; B]; A]) -> Self {
+    fn from(elems: [[[[E; D]; C]; B]; A]) -> Self {
         let mut data = Vec::with_capacity(A * B * C * D);
 
         for elem in elems.into_iter().take(A) {
@@ -340,11 +342,12 @@ impl<
     }
 }
 
-impl<P: core::fmt::Debug, const D: usize> core::fmt::Display for Data<P, D> {
+impl<E: core::fmt::Debug, const D: usize> core::fmt::Display for Data<E, D> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(format!("{:?}", &self.value).as_str())
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;

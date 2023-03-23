@@ -6,7 +6,7 @@ use crate::metric::dashboard::cli::CLIDashboardRenderer;
 use crate::metric::dashboard::Dashboard;
 use crate::metric::{Adaptor, Metric, Numeric};
 use crate::AsyncTrainerCallback;
-use burn_core::module::ADModule;
+use burn_core::module::{ADModule, StateFormat};
 use burn_core::optim::Optimizer;
 use burn_core::tensor::backend::ADBackend;
 use burn_core::tensor::Element;
@@ -143,16 +143,19 @@ where
     pub fn with_file_checkpointer<P: Element + serde::de::DeserializeOwned + serde::Serialize>(
         mut self,
         num_keep: usize,
+        format: StateFormat,
     ) -> Self {
         self.checkpointer_model = Some(Arc::new(FileCheckpointer::<P>::new(
             format!("{}/checkpoint", self.directory).as_str(),
             "model",
             num_keep,
+            format.clone(),
         )));
         self.checkpointer_optimizer = Some(Arc::new(FileCheckpointer::<P>::new(
             format!("{}/checkpoint", self.directory).as_str(),
             "optim",
             num_keep,
+            format,
         )));
         self
     }

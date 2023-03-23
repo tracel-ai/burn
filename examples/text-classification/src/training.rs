@@ -5,7 +5,7 @@ use crate::{
 use burn::{
     config::Config,
     data::dataloader::DataLoaderBuilder,
-    module::Module,
+    module::{Module, StateFormat},
     nn::transformer::TransformerEncoderConfig,
     optim::{Sgd, SgdConfig},
     tensor::backend::ADBackend,
@@ -78,7 +78,7 @@ pub fn train<B: ADBackend, D: TextClassificationDataset + 'static>(
         .metric_valid(AccuracyMetric::new())
         .metric_train_plot(LossMetric::new())
         .metric_valid_plot(LossMetric::new())
-        .with_file_checkpointer::<f32>(2)
+        .with_file_checkpointer::<burn::tensor::f16>(2, StateFormat::default())
         .devices(vec![device])
         .num_epochs(config.num_epochs)
         .build(model, optim);
@@ -86,9 +86,10 @@ pub fn train<B: ADBackend, D: TextClassificationDataset + 'static>(
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 
     config.save(&format!("{artifact_dir}/config.json")).unwrap();
+
     model_trained
         .state()
-        .convert::<f32>()
-        .save(&format!("{artifact_dir}/model.json.gz"))
+        .convert::<burn::tensor::f16>()
+        .save(&format!("{artifact_dir}/model"), &StateFormat::default())
         .unwrap();
 }

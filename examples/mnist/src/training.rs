@@ -3,6 +3,7 @@ use std::sync::Arc;
 use crate::data::MNISTBatcher;
 use crate::model::Model;
 
+use burn::module::{Module, StateFormat};
 use burn::optim::decay::WeightDecayConfig;
 use burn::optim::{Adam, AdamConfig};
 use burn::{
@@ -64,14 +65,21 @@ pub fn run<B: ADBackend>(device: B::Device) {
         .metric_valid_plot(AccuracyMetric::new())
         .metric_train_plot(LossMetric::new())
         .metric_valid_plot(LossMetric::new())
-        .with_file_checkpointer::<f32>(2)
+        .with_file_checkpointer::<burn::tensor::f16>(2, StateFormat::default())
         .devices(vec![device])
         .num_epochs(config.num_epochs)
         .build(model, optim);
 
-    let _model_trained = learner.fit(dataloader_train, dataloader_test);
+    let model_trained = learner.fit(dataloader_train, dataloader_test);
 
     config
         .save(format!("{ARTIFACT_DIR}/config.json").as_str())
         .unwrap();
+
+    // We save a bin version of the model to be loaded with no_std environement.
+    model_trained
+        .state()
+        .convert::<f32>()
+        .save(&format!("{ARTIFACT_DIR}/model"), &StateFormat::Bin)
+        .expect("Failed to save trained model");
 }

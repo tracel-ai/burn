@@ -1,27 +1,29 @@
 use super::{Checkpointer, CheckpointerError};
-use burn_core::module::State;
+use burn_core::module::{State, StateFormat};
 use burn_core::tensor::Element;
 
 pub struct FileCheckpointer<P> {
     directory: String,
     name: String,
     num_keep: usize,
+    format: StateFormat,
     _precision: P,
 }
 
 impl<P: Element> FileCheckpointer<P> {
-    pub fn new(directory: &str, name: &str, num_keep: usize) -> Self {
+    pub fn new(directory: &str, name: &str, num_keep: usize, format: StateFormat) -> Self {
         std::fs::create_dir_all(directory).ok();
 
         Self {
             directory: directory.to_string(),
             name: name.to_string(),
             num_keep,
+            format,
             _precision: P::default(),
         }
     }
     fn path_for_epoch(&self, epoch: usize) -> String {
-        format!("{}/{}-{}.json.gz", self.directory, self.name, epoch)
+        format!("{}/{}-{}", self.directory, self.name, epoch)
     }
 }
 
@@ -36,7 +38,7 @@ where
 
         state
             .convert::<P>()
-            .save(&file_path)
+            .save(&file_path, &self.format)
             .map_err(CheckpointerError::IOError)?;
 
         if self.num_keep > epoch {
@@ -57,7 +59,8 @@ where
         let file_path = self.path_for_epoch(epoch);
         log::info!("Restoring checkpoint {} from {}", epoch, file_path);
 
-        let state = State::<P>::load(&file_path).map_err(CheckpointerError::StateError)?;
+        let state =
+            State::<P>::load(&file_path, &self.format).map_err(CheckpointerError::StateError)?;
 
         Ok(state.convert())
     }

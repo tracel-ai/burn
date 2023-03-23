@@ -13,7 +13,6 @@ version = "0.6.0"
 
 [features]
 default = ["std"]
-experimental-named-tensor = ["burn-tensor/experimental-named-tensor"]
 std = [
   "burn-autodiff",
   "burn-common/std",
@@ -24,10 +23,19 @@ std = [
   "flate2",
   "log",
   "rand/std",
-  "serde_json/std",
   "serde/std",
+  "serde_json/std",
+  "bincode/std",
+  "half/std",
+  "half/serde", # TODO: set default when https://github.com/starkat99/half-rs/issues/84 is fixed
 ]
+
+# Serialization formats
+msgpack = ["rmp-serde"] # Assumes std
+
 test-tch = [] # To use tch during testing, default uses ndarray.
+experimental-named-tensor = ["burn-tensor/experimental-named-tensor"]
+
 
 [dependencies]
 
@@ -52,7 +60,11 @@ hashbrown = {workspace = true, features = ["serde"]}# no_std compatible
 # Serialize Deserialize
 flate2 = {workspace = true, optional = true}
 serde = {workspace = true, features = ["derive"]}
+
 serde_json = {workspace = true, features = ["alloc"]}#Default enables std 
+rmp-serde = {workspace = true, optional = true}
+bincode = {workspace = true}
+half = {workspace = true}
 
 [dev-dependencies]
 burn-dataset = {path = "../burn-dataset", version = "0.6.0", features = [

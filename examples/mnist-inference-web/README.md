@@ -27,13 +27,8 @@ makes it possible to build and run the model with the `wasm32-unknown-unknown` t
 special system library, such as [WASI](https://wasi.dev/). (See [Cargo.toml](./Cargo.toml) on how to
 include burn dependencies without `std`).
 
-For this demo, we use trained parameters (`model-4.json.gz`) and model (`model.rs`) from the
+For this demo, we use trained parameters (`model.bin`) and model (`model.rs`) from the
 [`burn` MNIST example](https://github.com/burn-rs/burn/tree/main/examples/mnist).
-
-During the build time `model-4.json.gz` is converted to
-[`bincode`](https://github.com/bincode-org/bincode) (for compactness) and included as part of the
-final wasm output. The MNIST model is initialized with trained weights from memory during the
-runtime.
 
 The inference API for JavaScript is exposed with the help of
 [`wasm-bindgen`](https://github.com/rustwasm/wasm-bindgen)'s library and tools.
@@ -75,8 +70,6 @@ byte file is the model's parameters. The rest of 356,744 bytes contain all the c
 
 There are several planned enhancements in place:
 
-- [#201](https://github.com/burn-rs/burn/issues/201) - Saving model's params in binary format. This
-  will simplify the inference code.
 - [#202](https://github.com/burn-rs/burn/issues/202) - Saving model's params in half-precision and
   loading back in full. This can be half the size of the wasm file.
 - [#243](https://github.com/burn-rs/burn/issues/243) - New WebGPU backend would allow computation
