@@ -57,8 +57,8 @@ impl<const D: usize, B: Backend> BatchNorm<B, D> {
     ///
     /// # Shapes
     ///
-    /// - input: `[batch_size, channels, height, width]`
-    /// - output: `[batch_size, channels, height, width]`
+    /// - input: `[batch_size, channels, ...]`
+    /// - output: `[batch_size, channels, ...]`
     pub fn forward<const DI: usize>(&self, input: Tensor<B, DI>) -> Tensor<B, DI> {
         // Should be move to a compilation error when const generic support that kind of
         // validation. https://github.com/rust-lang/rust/issues/76560
@@ -156,13 +156,70 @@ impl<const D: usize, B: Backend> BatchNorm<B, D> {
 
 #[cfg(feature = "std")]
 #[cfg(test)]
-mod tests {
+mod tests_1d {
     use super::*;
     use crate::{module::ADModule, TestADBackend};
     use burn_tensor::Data;
 
     #[test]
-    fn batch_norm_2d_forward_train() {
+    fn batch_norm_forward_train() {
+        let config = BatchNormConfig::new(3);
+        let module = BatchNorm::<TestADBackend, 1>::new(&config);
+
+        let output = module.forward(input_tensor());
+
+        output.to_data().assert_approx_eq(
+            &Data::from([
+                [
+                    [1.1483e+00, 3.7521e-01],
+                    [1.6272e-03, 7.5067e-01],
+                    [1.6204e+00, -4.5168e-02],
+                ],
+                [
+                    [6.8856e-02, -1.5923e+00],
+                    [-1.6318e+00, 8.7949e-01],
+                    [-5.3368e-01, -1.0416e+00],
+                ],
+            ]),
+            2,
+        );
+    }
+
+    #[test]
+    fn batch_norm_forward_inference() {
+        let config = BatchNormConfig::new(3);
+        let module = BatchNorm::<TestADBackend, 1>::new(&config);
+
+        module.forward(input_tensor());
+        let module = module.inner();
+        let output = module.forward(input_tensor());
+
+        output.to_data().assert_approx_eq(
+            &Data::from([
+                [[0.9409, 0.6976], [0.5892, 0.8774], [0.9106, 0.6844]],
+                [[0.6012, 0.0782], [-0.0394, 0.9270], [0.6181, 0.5492]],
+            ]),
+            2,
+        );
+    }
+
+    fn input_tensor<B: Backend>() -> Tensor<B, 3> {
+        Tensor::<B, 3>::from_floats([
+            [[0.9601, 0.7277], [0.6272, 0.9034], [0.9378, 0.7230]],
+            [[0.6356, 0.1362], [0.0249, 0.9509], [0.6600, 0.5945]],
+        ])
+    }
+}
+
+#[cfg(feature = "std")]
+#[cfg(test)]
+mod tests_2d {
+    use super::*;
+    use crate::{module::ADModule, TestADBackend};
+    use burn_tensor::Data;
+
+    #[test]
+    fn batch_norm_forward_train() {
         let config = BatchNormConfig::new(3);
         let module = BatchNorm::<TestADBackend, 2>::new(&config);
 
@@ -186,7 +243,7 @@ mod tests {
     }
 
     #[test]
-    fn batch_norm_2d_forward_inference() {
+    fn batch_norm_forward_inference() {
         let config = BatchNormConfig::new(3);
         let module = BatchNorm::<TestADBackend, 2>::new(&config);
 
@@ -212,7 +269,7 @@ mod tests {
     }
 
     #[test]
-    fn batch_norm_2d_running_mean() {
+    fn batch_norm_running_mean() {
         let config = BatchNormConfig::new(3);
         let module = BatchNorm::<TestADBackend, 2>::new(&config);
 
@@ -227,7 +284,7 @@ mod tests {
     }
 
     #[test]
-    fn batch_norm_2d_running_var() {
+    fn batch_norm_running_var() {
         let config = BatchNormConfig::new(3);
         let module = BatchNorm::<TestADBackend, 2>::new(&config);
 
@@ -242,7 +299,7 @@ mod tests {
     }
 
     #[test]
-    fn batch_norm_2d_running_mean_inner_module() {
+    fn batch_norm_running_mean_inner_module() {
         let config = BatchNormConfig::new(3);
         let module = BatchNorm::<TestADBackend, 2>::new(&config);
 
@@ -260,7 +317,7 @@ mod tests {
     }
 
     #[test]
-    fn batch_norm_2d_grads() {
+    fn batch_norm_grads() {
         let config = BatchNormConfig::new(3);
         let module = BatchNorm::<TestADBackend, 2>::new(&config);
         let input = input_tensor().require_grad();

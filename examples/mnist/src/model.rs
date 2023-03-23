@@ -2,7 +2,7 @@ use crate::data::MNISTBatch;
 
 use burn::{
     module::{Module, Param},
-    nn::{self, conv::Conv2dPaddingConfig, loss::CrossEntropyLoss},
+    nn::{self, conv::Conv2dPaddingConfig, loss::CrossEntropyLoss, BatchNorm},
     tensor::{
         backend::{ADBackend, Backend},
         Tensor,
@@ -90,7 +90,7 @@ impl<B: Backend> ConvBlock<B> {
             &nn::conv::Conv2dConfig::new(channels, kernel_size)
                 .with_padding(Conv2dPaddingConfig::Valid),
         );
-        let norm = nn::BatchNorm2d::new(&nn::BatchNormConfig::new(channels[1]));
+        let norm = nn::BatchNorm::new(&nn::BatchNormConfig::new(channels[1]));
 
         Self {
             conv: Param::from(conv),
