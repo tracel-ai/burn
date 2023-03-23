@@ -1,5 +1,5 @@
-mod batch_2d;
+mod batch;
 mod layer;
 
-pub use batch_2d::*;
+pub use batch::*;
 pub use layer::*;

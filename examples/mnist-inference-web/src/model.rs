@@ -6,7 +6,7 @@ use alloc::{format, vec::Vec};
 
 use burn::{
     module::{Module, Param},
-    nn::{self, conv::Conv2dPaddingConfig, BatchNorm2d},
+    nn::{self, conv::Conv2dPaddingConfig, BatchNorm},
     tensor::{backend::Backend, Tensor},
 };
 
@@ -63,7 +63,7 @@ impl<B: Backend> Model<B> {
 #[derive(Module, Debug)]
 pub struct ConvBlock<B: Backend> {
     conv: Param<nn::conv::Conv2d<B>>,
-    norm: Param<BatchNorm2d<B>>,
+    norm: Param<BatchNorm<B, 2>>,
     activation: nn::GELU,
 }
 
@@ -73,7 +73,7 @@ impl<B: Backend> ConvBlock<B> {
             &nn::conv::Conv2dConfig::new(channels, kernel_size)
                 .with_padding(Conv2dPaddingConfig::Valid),
         );
-        let norm = nn::BatchNorm2d::new(&nn::BatchNorm2dConfig::new(channels[1]));
+        let norm = nn::BatchNorm::new(&nn::BatchNormConfig::new(channels[1]));
 
         Self {
             conv: Param::from(conv),
