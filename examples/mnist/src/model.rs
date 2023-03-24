@@ -36,7 +36,7 @@ impl<B: Backend> Model<B> {
             .with_bias(false)
             .init();
 
-        let dropout = nn::Dropout::new(&nn::DropoutConfig::new(0.3));
+        let dropout = nn::DropoutConfig::new(0.3).init();
 
         Self {
             conv1: Param::from(conv1),

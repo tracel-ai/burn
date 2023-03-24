@@ -42,7 +42,7 @@ impl<B: Backend> Mlp<B> {
 
         Self {
             linears: Param::from(linears),
-            dropout: nn::Dropout::new(&nn::DropoutConfig::new(0.3)),
+            dropout: nn::DropoutConfig::new(0.3).init(),
             activation: nn::ReLU::new(),
         }
     }

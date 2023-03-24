@@ -118,7 +118,7 @@ impl<B: Backend> MultiHeadAttention<B> {
             key: linear(config),
             value: linear(config),
             output: linear(config),
-            dropout: nn::Dropout::new(&nn::DropoutConfig::new(config.dropout)),
+            dropout: nn::DropoutConfig::new(config.dropout).init(),
             activation: nn::GELU::new(),
             n_heads: config.n_heads,
             d_k: config.d_model / config.n_heads,

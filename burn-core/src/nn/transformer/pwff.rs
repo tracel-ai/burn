@@ -41,7 +41,7 @@ impl<B: Backend> PositionWiseFeedForward<B> {
         Self {
             linear_inner: Param::from(LinearConfig::new(config.d_model, config.d_ff).init()),
             linear_outer: Param::from(LinearConfig::new(config.d_ff, config.d_model).init()),
-            dropout: Dropout::new(&DropoutConfig::new(config.dropout)),
+            dropout: DropoutConfig::new(config.dropout).init(),
             gelu: GELU::new(),
         }
     }

@@ -21,12 +21,14 @@ pub struct Dropout {
     prob: f64,
 }
 
-impl Dropout {
-    /// Create the module from the given configuration.
-    pub fn new(config: &DropoutConfig) -> Self {
-        Self { prob: config.prob }
+impl DropoutConfig {
+    /// Initialize a new [dropout](Dropout) module.
+    pub fn init(&self) -> Dropout {
+        Dropout { prob: self.prob }
     }
+}
 
+impl Dropout {
     /// Applies the forward pass on the input tensor.
     ///
     /// # Shapes
@@ -61,7 +63,7 @@ mod tests {
     #[test]
     fn with_ad_backend_should_mark_input() {
         let tensor = Tensor::<TestADBackend, 2>::ones(Shape::new([100, 100]));
-        let dropout = Dropout::new(&DropoutConfig { prob: 0.5 });
+        let dropout = DropoutConfig::new(0.5).init();
 
         let output = dropout.forward(tensor.clone());
 
@@ -71,7 +73,7 @@ mod tests {
     #[test]
     fn without_ad_backend_should_not_change_input() {
         let tensor = Tensor::<TestBackend, 2>::ones(Shape::new([100, 100]));
-        let dropout = Dropout::new(&DropoutConfig { prob: 0.5 });
+        let dropout = DropoutConfig::new(0.5).init();
 
         let output = dropout.forward(tensor.clone());
 

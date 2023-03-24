@@ -151,7 +151,6 @@ struct TransformerEncoderLayer<B: Backend> {
 impl<B: Backend> TransformerEncoderLayer<B> {
     fn new(config: &TransformerEncoderConfig) -> Self {
         let config_norm = LayerNormConfig::new(config.d_model);
-        let config_dropout = DropoutConfig::new(config.dropout);
         let config_mha = MultiHeadAttentionConfig::new(config.d_model, config.n_heads)
             .with_dropout(config.dropout);
         let config_pwff = PositionWiseFeedForwardConfig::new(config.d_model, config.d_ff)
@@ -160,7 +159,7 @@ impl<B: Backend> TransformerEncoderLayer<B> {
         let mha = MultiHeadAttention::new(&config_mha);
         let norm_1 = LayerNorm::new(&config_norm);
         let norm_2 = LayerNorm::new(&config_norm);
-        let dropout = Dropout::new(&config_dropout);
+        let dropout = DropoutConfig::new(config.dropout).init();
         let pwff = PositionWiseFeedForward::new(&config_pwff);
 
         Self {

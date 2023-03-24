@@ -95,6 +95,7 @@ mod tests {
     #[test]
     fn initializer_default() {
         TestBackend::seed(0);
+
         let config = LinearConfig::new(5, 5);
         let k = sqrt(1.0 / config.d_input as f64) as f32;
         let linear = config.init::<TestBackend>();
@@ -106,6 +107,7 @@ mod tests {
     #[test]
     fn initializer_zeros() {
         TestBackend::seed(0);
+
         let config = LinearConfig::new(5, 5).with_initializer(Initializer::Zeros);
         let linear = config.init::<TestBackend>();
 
