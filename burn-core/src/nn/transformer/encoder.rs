@@ -151,10 +151,9 @@ struct TransformerEncoderLayer<B: Backend> {
 
 impl<B: Backend> TransformerEncoderLayer<B> {
     fn new(config: &TransformerEncoderConfig) -> Self {
-        let config_mha = MultiHeadAttentionConfig::new(config.d_model, config.n_heads)
-            .with_dropout(config.dropout);
-
-        let mha = MultiHeadAttention::new(&config_mha);
+        let mha = MultiHeadAttentionConfig::new(config.d_model, config.n_heads)
+            .with_dropout(config.dropout)
+            .init();
         let norm_1 = LayerNormConfig::new(config.d_model).init();
         let norm_2 = LayerNormConfig::new(config.d_model).init();
         let dropout = DropoutConfig::new(config.dropout).init();

@@ -73,10 +73,9 @@ pub struct ConvBlock<B: Backend> {
 
 impl<B: Backend> ConvBlock<B> {
     pub fn new(channels: [usize; 2], kernel_size: [usize; 2]) -> Self {
-        let conv = nn::conv::Conv2d::new(
-            &nn::conv::Conv2dConfig::new(channels, kernel_size)
-                .with_padding(Conv2dPaddingConfig::Valid),
-        );
+        let conv = nn::conv::Conv2dConfig::new(channels, kernel_size)
+            .with_padding(Conv2dPaddingConfig::Valid)
+            .init();
         let norm = nn::BatchNormConfig::new(channels[1]).init();
 
         Self {
