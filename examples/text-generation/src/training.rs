@@ -1,6 +1,6 @@
 use crate::{
     data::{Gpt2Tokenizer, TextGenerationBatcher, TextGenerationItem, Tokenizer},
-    model::{TextGenerationModel, TextGenerationModelConfig},
+    model::TextGenerationModelConfig,
 };
 use burn::{
     config::Config,
@@ -49,12 +49,13 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
         config.max_seq_length,
     ));
 
-    let model = TextGenerationModel::<B>::new(&TextGenerationModelConfig::new(
+    let model = TextGenerationModelConfig::new(
         config.transformer.clone(),
         tokenizer.vocab_size(),
         tokenizer.pad_token(),
         config.max_seq_length,
-    ));
+    )
+    .init::<B>();
 
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
         .batch_size(config.batch_size)

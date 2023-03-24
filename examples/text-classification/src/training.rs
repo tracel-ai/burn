@@ -1,6 +1,6 @@
 use crate::{
     data::{BertCasedTokenizer, TextClassificationBatcher, TextClassificationDataset, Tokenizer},
-    model::{TextClassificationModel, TextClassificationModelConfig},
+    model::TextClassificationModelConfig,
 };
 use burn::{
     config::Config,
@@ -51,12 +51,13 @@ pub fn train<B: ADBackend, D: TextClassificationDataset + 'static>(
         config.max_seq_length,
     ));
 
-    let model = TextClassificationModel::new(&TextClassificationModelConfig::new(
+    let model = TextClassificationModelConfig::new(
         config.transformer.clone(),
         n_classes,
         tokenizer.vocab_size(),
         config.max_seq_length,
-    ));
+    )
+    .init();
 
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
         .batch_size(config.batch_size)

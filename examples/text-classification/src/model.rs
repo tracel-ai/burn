@@ -30,25 +30,27 @@ pub struct TextClassificationModel<B: Backend> {
     max_seq_length: usize,
 }
 
-impl<B: Backend> TextClassificationModel<B> {
-    pub fn new(config: &TextClassificationModelConfig) -> Self {
-        let output = LinearConfig::new(config.transformer.d_model, config.n_classes).init();
-        let transformer = config.transformer.init();
+impl TextClassificationModelConfig {
+    pub fn init<B: Backend>(&self) -> TextClassificationModel<B> {
+        let output = LinearConfig::new(self.transformer.d_model, self.n_classes).init();
+        let transformer = self.transformer.init();
         let embedding_token =
-            EmbeddingConfig::new(config.vocab_size, config.transformer.d_model).init();
+            EmbeddingConfig::new(self.vocab_size, self.transformer.d_model).init();
         let embedding_pos =
-            EmbeddingConfig::new(config.max_seq_length, config.transformer.d_model).init();
+            EmbeddingConfig::new(self.max_seq_length, self.transformer.d_model).init();
 
-        Self {
+        TextClassificationModel {
             transformer: Param::from(transformer),
             embedding_token: Param::from(embedding_token),
             embedding_pos: Param::from(embedding_pos),
             output: Param::from(output),
-            n_classes: config.n_classes,
-            max_seq_length: config.max_seq_length,
+            n_classes: self.n_classes,
+            max_seq_length: self.max_seq_length,
         }
     }
+}
 
+impl<B: Backend> TextClassificationModel<B> {
     pub fn forward(&self, item: TextClassificationBatch<B>) -> ClassificationOutput<B> {
         let [batch_size, seq_length] = item.tokens.dims();
         let device = &self.embedding_token.devices()[0];
