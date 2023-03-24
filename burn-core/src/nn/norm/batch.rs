@@ -34,25 +34,27 @@ pub struct BatchNorm<B: Backend, const D: usize> {
     epsilon: f64,
 }
 
-impl<const D: usize, B: Backend> BatchNorm<B, D> {
-    /// Create the module from the given configuration.
-    pub fn new(config: &BatchNormConfig) -> Self {
-        let gamma = Tensor::ones([config.num_features]);
-        let beta = Tensor::zeros([config.num_features]);
+impl BatchNormConfig {
+    /// Initialize a new [batch norm](BatchNorm) module.
+    pub fn init<B: Backend, const D: usize>(&self) -> BatchNorm<B, D> {
+        let gamma = Tensor::ones([self.num_features]);
+        let beta = Tensor::zeros([self.num_features]);
 
-        let running_mean = Tensor::zeros([config.num_features]);
-        let running_var = Tensor::ones([config.num_features]);
+        let running_mean = Tensor::zeros([self.num_features]);
+        let running_var = Tensor::ones([self.num_features]);
 
-        Self {
+        BatchNorm {
             gamma: Param::from(gamma),
             beta: Param::from(beta),
             running_mean: Param::from(RunningState::new(running_mean)),
             running_var: Param::from(RunningState::new(running_var)),
-            momentum: config.momentum,
-            epsilon: config.epsilon,
+            momentum: self.momentum,
+            epsilon: self.epsilon,
         }
     }
+}
 
+impl<const D: usize, B: Backend> BatchNorm<B, D> {
     /// Applies the forward pass on the input tensor.
     ///
     /// # Shapes
@@ -164,8 +166,7 @@ mod tests_1d {
 
     #[test]
     fn batch_norm_forward_train() {
-        let config = BatchNormConfig::new(3);
-        let module = BatchNorm::<TestADBackend, 1>::new(&config);
+        let module = BatchNormConfig::new(3).init::<TestADBackend, 1>();
 
         let output = module.forward(input_tensor());
 
@@ -188,8 +189,7 @@ mod tests_1d {
 
     #[test]
     fn batch_norm_forward_inference() {
-        let config = BatchNormConfig::new(3);
-        let module = BatchNorm::<TestADBackend, 1>::new(&config);
+        let module = BatchNormConfig::new(3).init::<TestADBackend, 1>();
 
         module.forward(input_tensor());
         let module = module.inner();
@@ -221,8 +221,7 @@ mod tests_2d {
 
     #[test]
     fn batch_norm_forward_train() {
-        let config = BatchNormConfig::new(3);
-        let module = BatchNorm::<TestADBackend, 2>::new(&config);
+        let module = BatchNormConfig::new(3).init::<TestADBackend, 2>();
 
         let output = module.forward(input_tensor());
 
@@ -245,8 +244,7 @@ mod tests_2d {
 
     #[test]
     fn batch_norm_forward_inference() {
-        let config = BatchNormConfig::new(3);
-        let module = BatchNorm::<TestADBackend, 2>::new(&config);
+        let module = BatchNormConfig::new(3).init::<TestADBackend, 2>();
 
         module.forward(input_tensor());
         let module = module.inner();
@@ -271,8 +269,7 @@ mod tests_2d {
 
     #[test]
     fn batch_norm_running_mean() {
-        let config = BatchNormConfig::new(3);
-        let module = BatchNorm::<TestADBackend, 2>::new(&config);
+        let module = BatchNormConfig::new(3).init::<TestADBackend, 2>();
 
         let _output = module.forward(input_tensor());
 
@@ -286,8 +283,7 @@ mod tests_2d {
 
     #[test]
     fn batch_norm_running_var() {
-        let config = BatchNormConfig::new(3);
-        let module = BatchNorm::<TestADBackend, 2>::new(&config);
+        let module = BatchNormConfig::new(3).init::<TestADBackend, 2>();
 
         let _output = module.forward(input_tensor());
 
@@ -301,8 +297,7 @@ mod tests_2d {
 
     #[test]
     fn batch_norm_running_mean_inner_module() {
-        let config = BatchNormConfig::new(3);
-        let module = BatchNorm::<TestADBackend, 2>::new(&config);
+        let module = BatchNormConfig::new(3).init::<TestADBackend, 2>();
 
         let _output = module.forward(input_tensor());
 
@@ -319,8 +314,7 @@ mod tests_2d {
 
     #[test]
     fn batch_norm_grads() {
-        let config = BatchNormConfig::new(3);
-        let module = BatchNorm::<TestADBackend, 2>::new(&config);
+        let module = BatchNormConfig::new(3).init::<TestADBackend, 2>();
         let input = input_tensor().require_grad();
 
         let output = module.forward(input.clone());

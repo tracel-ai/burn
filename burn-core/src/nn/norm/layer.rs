@@ -28,19 +28,21 @@ pub struct LayerNorm<B: Backend> {
     epsilon: f64,
 }
 
-impl<B: Backend> LayerNorm<B> {
-    /// Create the module from the given configuration.
-    pub fn new(config: &LayerNormConfig) -> Self {
-        let gamma = Tensor::ones([config.d_model]);
-        let beta = Tensor::zeros([config.d_model]);
+impl LayerNormConfig {
+    /// Initialize a new [layer norm](LayerNorm) module.
+    pub fn init<B: Backend>(&self) -> LayerNorm<B> {
+        let gamma = Tensor::ones([self.d_model]);
+        let beta = Tensor::zeros([self.d_model]);
 
-        Self {
+        LayerNorm {
             gamma: Param::from(gamma),
             beta: Param::from(beta),
-            epsilon: config.epsilon,
+            epsilon: self.epsilon,
         }
     }
+}
 
+impl<B: Backend> LayerNorm<B> {
     /// Applies the forward pass on the input tensor.
     ///
     /// # Shapes
@@ -71,8 +73,7 @@ mod tests {
 
     #[test]
     fn layer_norm_forward() {
-        let config = LayerNormConfig::new(10);
-        let module = LayerNorm::<TestBackend>::new(&config);
+        let module = LayerNormConfig::new(10).init::<TestBackend>();
         let input = Tensor::from_data(Data::from([[
             -0.6897, -2.7106, 2.2222, -1.0330, -0.8933, 1.1765, 0.0601, 1.5252, -0.3630, 0.6728,
         ]]));
@@ -90,8 +91,7 @@ mod tests {
     #[cfg(feature = "std")]
     #[test]
     fn layer_norm_backward() {
-        let config = LayerNormConfig::new(2);
-        let module = LayerNorm::<TestADBackend>::new(&config);
+        let module = LayerNormConfig::new(2).init::<TestADBackend>();
         let tensor_1 = Tensor::<TestADBackend, 2>::from_data(Data::from([[0.0, 1.0], [3.0, 4.0]]))
             .require_grad();
         let tensor_2 = Tensor::<TestADBackend, 2>::from_data(Data::from([[6.0, 7.0], [9.0, 10.0]]))

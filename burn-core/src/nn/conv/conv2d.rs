@@ -61,40 +61,42 @@ pub struct Conv2d<B: Backend> {
     padding: Conv2dPaddingConfig,
 }
 
-impl<B: Backend> Conv2d<B> {
-    /// Create the module from the given configuration.
-    pub fn new(config: &Conv2dConfig) -> Self {
-        let k = (config.channels[0] * config.kernel_size[0] * config.kernel_size[1]) as f64;
+impl Conv2dConfig {
+    /// Initialize a new [conv2d](Conv2d) module.
+    pub fn init<B: Backend>(&self) -> Conv2d<B> {
+        let k = (self.channels[0] * self.kernel_size[0] * self.kernel_size[1]) as f64;
         let k = sqrt(1.0 / k);
 
-        let initializer = if let Initializer::UniformDefault = config.initializer {
+        let initializer = if let Initializer::UniformDefault = self.initializer {
             Initializer::Uniform(-k, k)
         } else {
-            config.initializer.clone()
+            self.initializer.clone()
         };
 
         let weight = initializer.init([
-            config.channels[1],
-            config.channels[0],
-            config.kernel_size[0],
-            config.kernel_size[1],
+            self.channels[1],
+            self.channels[0],
+            self.kernel_size[0],
+            self.kernel_size[1],
         ]);
 
-        let bias = if config.bias {
-            Some(initializer.init([config.channels[1]]))
+        let bias = if self.bias {
+            Some(initializer.init([self.channels[1]]))
         } else {
             None
         };
 
-        Self {
+        Conv2d {
             weight: Param::from(weight),
             bias: Param::from(bias),
-            stride: [1, 1], // TODO: Add the stride to the configuration when properly supported.
-            kernel_size: config.kernel_size,
-            padding: config.padding.clone(),
+            stride: [1, 1], // TODO: Add the stride to the config when properly supported.
+            kernel_size: self.kernel_size,
+            padding: self.padding.clone(),
         }
     }
+}
 
+impl<B: Backend> Conv2d<B> {
     /// Applies the forward pass on the input tensor.
     ///
     /// # Shapes
@@ -141,32 +143,34 @@ impl Conv2dPaddingConfig {
 
 #[cfg(test)]
 mod tests {
+    use burn_tensor::Data;
+
     use super::*;
-    pub type TB = burn_ndarray::NdArrayBackend<f32>;
+    use crate::TestBackend;
 
     #[test]
     fn initializer_default() {
-        TB::seed(0);
+        TestBackend::seed(0);
+
         let config = Conv2dConfig::new([5, 1], [5, 5]);
         let k = (config.channels[0] * config.kernel_size[0] * config.kernel_size[1]) as f64;
-        let k = sqrt(1.0 / k);
+        let k = sqrt(1.0 / k) as f32;
+        let conv = config.init::<TestBackend>();
+
         assert_eq!(config.initializer, Initializer::UniformDefault);
-        let conv: Conv2d<TB> = Conv2d::new(&config);
-        for item in conv.weight.to_data().value.iter() {
-            if *item < -k as f32 || *item > k as f32 {
-                panic!("Element ({item}) is not within the range of (-{k},{k})");
-            }
-        }
+        conv.weight.to_data().assert_in_range(-k, k);
     }
 
     #[test]
     fn initializer_zeros() {
-        TB::seed(0);
+        TestBackend::seed(0);
+
         let config = Conv2dConfig::new([5, 2], [5, 5]).with_initializer(Initializer::Zeros);
+        let conv = config.init::<TestBackend>();
+
         assert_eq!(config.initializer, Initializer::Zeros);
-        let conv: Conv2d<TB> = Conv2d::new(&config);
-        for item in conv.weight.to_data().value.iter() {
-            assert_eq!(*item, 0.0f32);
-        }
+        conv.weight
+            .to_data()
+            .assert_approx_eq(&Data::zeros(conv.weight.shape()), 3);
     }
 }

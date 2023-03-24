@@ -60,6 +60,27 @@ pub struct MhaInput<B: Backend> {
     mask_attn: Option<Tensor<B, 3, Bool>>,
 }
 
+impl MultiHeadAttentionConfig {
+    /// Initialize a new [multihead attention](MultiHeadAttention) module.
+    pub fn init<B: Backend>(&self) -> MultiHeadAttention<B> {
+        let linear = |config: &Self| {
+            Param::from(nn::LinearConfig::new(config.d_model, config.d_model).init())
+        };
+
+        MultiHeadAttention {
+            query: linear(self),
+            key: linear(self),
+            value: linear(self),
+            output: linear(self),
+            dropout: nn::DropoutConfig::new(self.dropout).init(),
+            activation: nn::GELU::new(),
+            n_heads: self.n_heads,
+            d_k: self.d_model / self.n_heads,
+            min_float: self.min_float,
+        }
+    }
+}
+
 impl<B: Backend> MhaInput<B> {
     /// Create a [multihead attention](MultiHeadAttention) input argument
     /// by setting the query, key and value to the given tensor.
@@ -107,28 +128,6 @@ pub struct MhaOutput<B: Backend> {
 }
 
 impl<B: Backend> MultiHeadAttention<B> {
-    /// Create the module from the given configuration.
-    pub fn new(config: &MultiHeadAttentionConfig) -> Self {
-        let linear = |config: &MultiHeadAttentionConfig| {
-            Param::from(nn::Linear::new(&nn::LinearConfig::new(
-                config.d_model,
-                config.d_model,
-            )))
-        };
-
-        Self {
-            query: linear(config),
-            key: linear(config),
-            value: linear(config),
-            output: linear(config),
-            dropout: nn::Dropout::new(&nn::DropoutConfig::new(config.dropout)),
-            activation: nn::GELU::new(),
-            n_heads: config.n_heads,
-            d_k: config.d_model / config.n_heads,
-            min_float: config.min_float,
-        }
-    }
-
     /// Applies the forward pass on the input tensors.
     ///
     /// # Shapes
@@ -266,9 +265,7 @@ mod tests {
     #[test]
     fn test_self_attention_shapes() {
         let [batch_size, seq_length, d_model, n_heads] = [7, 13, 32, 4];
-        let mha = MultiHeadAttention::<TestBackend>::new(&MultiHeadAttentionConfig::new(
-            d_model, n_heads,
-        ));
+        let mha = MultiHeadAttentionConfig::new(d_model, n_heads).init::<TestBackend>();
         let input = MhaInput::self_attn(Tensor::random(
             [batch_size, seq_length, d_model],
             Distribution::Standard,
@@ -291,9 +288,7 @@ mod tests {
     #[test]
     fn test_generic_mha_shapes() {
         let [batch_size, seq_length_1, seq_length_2, d_model, n_heads] = [7, 13, 15, 32, 4];
-        let mha = MultiHeadAttention::<TestBackend>::new(&MultiHeadAttentionConfig::new(
-            d_model, n_heads,
-        ));
+        let mha = MultiHeadAttentionConfig::new(d_model, n_heads).init::<TestBackend>();
         let input = MhaInput::new(
             Tensor::random([batch_size, seq_length_1, d_model], Distribution::Standard),
             Tensor::random([batch_size, seq_length_2, d_model], Distribution::Standard),
@@ -317,7 +312,7 @@ mod tests {
     #[test]
     fn test_self_attention_mask_pad() {
         let [batch_size, seq_length, d_model, n_heads, num_padded] = [3, 6, 32, 2, 2];
-        let mha = MultiHeadAttention::new(&MultiHeadAttentionConfig::new(d_model, n_heads));
+        let mha = MultiHeadAttentionConfig::new(d_model, n_heads).init::<TestBackend>();
 
         // Create a padding mask
         let mask_pad: Tensor<TestBackend, 2, Int> = Tensor::zeros([batch_size, seq_length]);
@@ -364,7 +359,7 @@ mod tests {
     #[test]
     fn test_autoregressive_mask_should_have_same_output_as_autoregressive_decoding() {
         let [batch_size, seq_length, d_model, n_heads] = [3, 4, 12, 2];
-        let mha = MultiHeadAttention::new(&MultiHeadAttentionConfig::new(d_model, n_heads));
+        let mha = MultiHeadAttentionConfig::new(d_model, n_heads).init::<TestBackend>();
 
         let tensor = Tensor::<TestBackend, 3>::random(
             [batch_size, seq_length, d_model],

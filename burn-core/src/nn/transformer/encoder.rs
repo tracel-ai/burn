@@ -76,19 +76,20 @@ impl<B: Backend> TransformerEncoderInput<B> {
         self
     }
 }
-
-impl<B: Backend> TransformerEncoder<B> {
-    /// Create the module from the given configuration.
-    pub fn new(config: &TransformerEncoderConfig) -> Self {
-        let layers = (0..config.n_layers)
-            .map(|_| TransformerEncoderLayer::new(config))
+impl TransformerEncoderConfig {
+    /// Initialize a new [transformer encoder](TransformerEncoder) module.
+    pub fn init<B: Backend>(&self) -> TransformerEncoder<B> {
+        let layers = (0..self.n_layers)
+            .map(|_| TransformerEncoderLayer::new(self))
             .collect::<Vec<_>>();
 
-        Self {
+        TransformerEncoder {
             layers: Param::from(layers),
         }
     }
+}
 
+impl<B: Backend> TransformerEncoder<B> {
     /// Applies the forward pass on the input tensor.
     ///
     /// # Shapes
@@ -150,18 +151,15 @@ struct TransformerEncoderLayer<B: Backend> {
 
 impl<B: Backend> TransformerEncoderLayer<B> {
     fn new(config: &TransformerEncoderConfig) -> Self {
-        let config_norm = LayerNormConfig::new(config.d_model);
-        let config_dropout = DropoutConfig::new(config.dropout);
-        let config_mha = MultiHeadAttentionConfig::new(config.d_model, config.n_heads)
-            .with_dropout(config.dropout);
-        let config_pwff = PositionWiseFeedForwardConfig::new(config.d_model, config.d_ff)
-            .with_dropout(config.dropout);
-
-        let mha = MultiHeadAttention::new(&config_mha);
-        let norm_1 = LayerNorm::new(&config_norm);
-        let norm_2 = LayerNorm::new(&config_norm);
-        let dropout = Dropout::new(&config_dropout);
-        let pwff = PositionWiseFeedForward::new(&config_pwff);
+        let mha = MultiHeadAttentionConfig::new(config.d_model, config.n_heads)
+            .with_dropout(config.dropout)
+            .init();
+        let norm_1 = LayerNormConfig::new(config.d_model).init();
+        let norm_2 = LayerNormConfig::new(config.d_model).init();
+        let dropout = DropoutConfig::new(config.dropout).init();
+        let pwff = PositionWiseFeedForwardConfig::new(config.d_model, config.d_ff)
+            .with_dropout(config.dropout)
+            .init();
 
         Self {
             mha: Param::from(mha),
@@ -309,7 +307,7 @@ mod tests {
 
     fn test_autoregressive(config: TransformerEncoderConfig) {
         let [batch_size, seq_length, d_model] = [3, 4, config.d_model];
-        let transformer = TransformerEncoder::new(&config);
+        let transformer = config.init();
 
         let tensor = Tensor::<TestBackend, 3>::random(
             [batch_size, seq_length, d_model],

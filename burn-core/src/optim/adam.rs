@@ -189,7 +189,7 @@ mod tests {
 
     #[test]
     fn test_adam_optimizer_save_load_state() {
-        let linear = nn::Linear::new(&nn::LinearConfig::new(6, 6));
+        let linear = nn::LinearConfig::new(6, 6).init();
         let x = Tensor::<TestADBackend, 2>::random([2, 6], Distribution::Standard);
         let mut optimizer = Adam::new(&AdamConfig::new(0.01));
         let grads = linear.forward(x).backward();
@@ -262,7 +262,7 @@ mod tests {
     }
 
     fn given_linear_layer(weight: Data<f32, 2>, bias: Data<f32, 1>) -> nn::Linear<TestADBackend> {
-        let linear = nn::Linear::new(&nn::LinearConfig::new(6, 6));
+        let linear = nn::LinearConfig::new(6, 6).init();
         let state = given_linear_state(weight, bias);
 
         linear.load(&state).unwrap()

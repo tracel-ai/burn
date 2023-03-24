@@ -8,7 +8,7 @@ use crate::tensor::Tensor;
 pub struct ReLU {}
 
 impl ReLU {
-    /// Create the module from the given configuration.
+    /// Create the module.
     pub fn new() -> Self {
         Self {}
     }

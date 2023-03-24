@@ -35,17 +35,19 @@ pub struct PositionWiseFeedForward<B: Backend> {
     gelu: GELU,
 }
 
-impl<B: Backend> PositionWiseFeedForward<B> {
-    /// Create the module from the given configuration.
-    pub fn new(config: &PositionWiseFeedForwardConfig) -> Self {
-        Self {
-            linear_inner: Param::from(Linear::new(&LinearConfig::new(config.d_model, config.d_ff))),
-            linear_outer: Param::from(Linear::new(&LinearConfig::new(config.d_ff, config.d_model))),
-            dropout: Dropout::new(&DropoutConfig::new(config.dropout)),
+impl PositionWiseFeedForwardConfig {
+    /// Initialize a new [position-wise feed-forward](PositionWiseFeedForward) module.
+    pub fn init<B: Backend>(&self) -> PositionWiseFeedForward<B> {
+        PositionWiseFeedForward {
+            linear_inner: Param::from(LinearConfig::new(self.d_model, self.d_ff).init()),
+            linear_outer: Param::from(LinearConfig::new(self.d_ff, self.d_model).init()),
+            dropout: DropoutConfig::new(self.dropout).init(),
             gelu: GELU::new(),
         }
     }
+}
 
+impl<B: Backend> PositionWiseFeedForward<B> {
     /// Applies the forward pass on the input tensor.
     ///
     /// # Shapes

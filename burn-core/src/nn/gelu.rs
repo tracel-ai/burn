@@ -6,7 +6,7 @@ use crate::tensor::Tensor;
 pub struct GELU {}
 
 impl GELU {
-    /// Create the module from the given configuration.
+    /// Create the module.
     pub fn new() -> Self {
         Self {}
     }

@@ -29,10 +29,14 @@ impl<B: Backend> Model<B> {
         let conv2 = ConvBlock::new([8, 16], [3, 3]); // out: [Batch,16,24x24]
         let conv3 = ConvBlock::new([16, 24], [3, 3]); // out: [Batch,24,22x22]
         let hidden_size = 24 * 22 * 22;
-        let fc1 = nn::Linear::new(&nn::LinearConfig::new(hidden_size, 32).with_bias(false));
-        let fc2 = nn::Linear::new(&nn::LinearConfig::new(32, NUM_CLASSES).with_bias(false));
+        let fc1 = nn::LinearConfig::new(hidden_size, 32)
+            .with_bias(false)
+            .init();
+        let fc2 = nn::LinearConfig::new(32, NUM_CLASSES)
+            .with_bias(false)
+            .init();
 
-        let dropout = nn::Dropout::new(&nn::DropoutConfig::new(0.3));
+        let dropout = nn::DropoutConfig::new(0.3).init();
 
         Self {
             conv1: Param::from(conv1),
@@ -86,11 +90,10 @@ pub struct ConvBlock<B: Backend> {
 
 impl<B: Backend> ConvBlock<B> {
     pub fn new(channels: [usize; 2], kernel_size: [usize; 2]) -> Self {
-        let conv = nn::conv::Conv2d::new(
-            &nn::conv::Conv2dConfig::new(channels, kernel_size)
-                .with_padding(Conv2dPaddingConfig::Valid),
-        );
-        let norm = nn::BatchNorm::new(&nn::BatchNormConfig::new(channels[1]));
+        let conv = nn::conv::Conv2dConfig::new(channels, kernel_size)
+            .with_padding(Conv2dPaddingConfig::Valid)
+            .init();
+        let norm = nn::BatchNormConfig::new(channels[1]).init();
 
         Self {
             conv: Param::from(conv),
