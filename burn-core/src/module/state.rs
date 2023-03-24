@@ -338,7 +338,7 @@ mod tests {
     }
 
     pub fn create_model() -> nn::Linear<TestBackend> {
-        nn::Linear::<crate::TestBackend>::new(&nn::LinearConfig::new(32, 32).with_bias(true))
+        nn::LinearConfig::new(32, 32).with_bias(true).init()
     }
 }
 

@@ -37,8 +37,7 @@ impl<B: Backend> Mlp<B> {
         let mut linears = Vec::with_capacity(config.num_layers);
 
         for _ in 0..config.num_layers {
-            let linear = nn::Linear::new(&nn::LinearConfig::new(config.d_model, config.d_model));
-            linears.push(linear);
+            linears.push(nn::LinearConfig::new(config.d_model, config.d_model).init());
         }
 
         Self {

@@ -38,12 +38,11 @@ impl<B: Backend> TextGenerationModel<B> {
             EmbeddingConfig::new(config.vocab_size, config.transformer.d_model);
         let config_embedding_pos =
             EmbeddingConfig::new(config.max_seq_length, config.transformer.d_model);
-        let config_output = LinearConfig::new(config.transformer.d_model, config.vocab_size);
+        let output = LinearConfig::new(config.transformer.d_model, config.vocab_size).init();
 
         let transformer = TransformerEncoder::new(&config.transformer);
         let embedding_token = Embedding::new(&config_embedding_token);
         let embedding_pos = Embedding::new(&config_embedding_pos);
-        let output = Linear::new(&config_output);
 
         Self {
             transformer: Param::from(transformer),

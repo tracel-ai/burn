@@ -110,10 +110,7 @@ impl<B: Backend> MultiHeadAttention<B> {
     /// Create the module from the given configuration.
     pub fn new(config: &MultiHeadAttentionConfig) -> Self {
         let linear = |config: &MultiHeadAttentionConfig| {
-            Param::from(nn::Linear::new(&nn::LinearConfig::new(
-                config.d_model,
-                config.d_model,
-            )))
+            Param::from(nn::LinearConfig::new(config.d_model, config.d_model).init())
         };
 
         Self {

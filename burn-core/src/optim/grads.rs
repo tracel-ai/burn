@@ -117,7 +117,7 @@ mod tests {
     }
 
     fn layer() -> Linear<TestADBackend> {
-        Linear::<TestADBackend>::new(&LinearConfig::new(20, 20).with_bias(true))
+        LinearConfig::new(20, 20).with_bias(true).init()
     }
 
     fn random_tensor() -> Tensor<TestADBackend, 2> {

@@ -29,8 +29,12 @@ impl<B: Backend> Model<B> {
         let conv2 = ConvBlock::new([8, 16], [3, 3]); // out: [Batch,16,24x24]
         let conv3 = ConvBlock::new([16, 24], [3, 3]); // out: [Batch,24,22x22]
         let hidden_size = 24 * 22 * 22;
-        let fc1 = nn::Linear::new(&nn::LinearConfig::new(hidden_size, 32).with_bias(false));
-        let fc2 = nn::Linear::new(&nn::LinearConfig::new(32, NUM_CLASSES).with_bias(false));
+        let fc1 = nn::LinearConfig::new(hidden_size, 32)
+            .with_bias(false)
+            .init();
+        let fc2 = nn::LinearConfig::new(32, NUM_CLASSES)
+            .with_bias(false)
+            .init();
 
         let dropout = nn::Dropout::new(&nn::DropoutConfig::new(0.3));
 

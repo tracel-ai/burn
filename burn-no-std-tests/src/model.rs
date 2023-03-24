@@ -41,16 +41,8 @@ impl<B: Backend> Model<B> {
     pub fn new(config: &MnistConfig) -> Self {
         let mlp = Mlp::new(&config.mlp);
 
-        let input = nn::Linear::new(&nn::LinearConfig::new(
-            config.input_size,
-            config.mlp.d_model,
-        ));
-
-        let output = nn::Linear::new(&nn::LinearConfig::new(
-            config.mlp.d_model,
-            config.output_size,
-        ));
-
+        let input = nn::LinearConfig::new(config.input_size, config.mlp.d_model).init();
+        let output = nn::LinearConfig::new(config.mlp.d_model, config.output_size).init();
         let conv = ConvBlock::new(&ConvBlockConfig::new([1, 1]));
 
         Self {
