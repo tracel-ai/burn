@@ -72,19 +72,27 @@ impl ConfigStructAnalyzer {
         Ident::new(&format!("{}Serde", self.name), self.name.span())
     }
 
-    fn gen_serialize_fn(&self, names: &[FieldTypeAnalyzer]) -> TokenStream {
-        let struct_name = self.serde_struct_ident();
+    fn gen_serialize_fn(
+        &self,
+        struct_name: &Ident,
+        struct_gen: &TokenStream,
+        names: &[FieldTypeAnalyzer],
+    ) -> TokenStream {
+        let name = &self.name;
         let names = names.iter().map(|name| {
             let name = name.ident();
             quote! { #name: self.#name.clone() }
         });
-        let name = &self.name;
 
         quote! {
             impl serde::Serialize for #name {
+
                 fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
                 where
                     S: serde::Serializer {
+                    #[derive(serde::Serialize)]
+                    #struct_gen
+
                     let serde_state = #struct_name {
                         #(#names),*
                     };
@@ -95,19 +103,26 @@ impl ConfigStructAnalyzer {
         }
     }
 
-    fn gen_deserialize_fn(&self, names: &[FieldTypeAnalyzer]) -> TokenStream {
-        let struct_name = self.serde_struct_ident();
+    fn gen_deserialize_fn(
+        &self,
+        struct_name: &Ident,
+        struct_gen: &TokenStream,
+        names: &[FieldTypeAnalyzer],
+    ) -> TokenStream {
+        let name = &self.name;
         let names = names.iter().map(|name| {
             let name = name.ident();
             quote! { #name: serde_state.#name }
         });
-        let name = &self.name;
 
         quote! {
             impl<'de> serde::Deserialize<'de> for #name {
                 fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
                 where
                     D: serde::Deserializer<'de> {
+                    #[derive(serde::Deserialize)]
+                    #struct_gen
+
                     let serde_state = #struct_name::deserialize(deserializer)?;
                     Ok(#name {
                         #(#names),*
@@ -120,8 +135,8 @@ impl ConfigStructAnalyzer {
 
     fn gen_serde_struct(&self, names: &[TokenStream]) -> TokenStream {
         let struct_name = self.serde_struct_ident();
+
         quote! {
-            #[derive(serde::Serialize, serde::Deserialize)]
             struct #struct_name {
                 #(#names),*
             }
@@ -218,14 +233,15 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
 
     fn gen_serde_impl(&self) -> TokenStream {
         let names = self.names();
-        let name_types = self.name_types(&names);
 
+        let struct_name = self.serde_struct_ident();
+        let name_types = self.name_types(&names);
         let struct_gen = self.gen_serde_struct(&name_types);
-        let serialize_gen = self.gen_serialize_fn(&names);
-        let deserialize_gen = self.gen_deserialize_fn(&names);
+
+        let serialize_gen = self.gen_serialize_fn(&struct_name, &struct_gen, &names);
+        let deserialize_gen = self.gen_deserialize_fn(&struct_name, &struct_gen, &names);
 
         quote! {
-            #struct_gen
             #serialize_gen
             #deserialize_gen
         }
