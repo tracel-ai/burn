@@ -33,7 +33,7 @@ pub struct TextClassificationModel<B: Backend> {
 impl<B: Backend> TextClassificationModel<B> {
     pub fn new(config: &TextClassificationModelConfig) -> Self {
         let output = LinearConfig::new(config.transformer.d_model, config.n_classes).init();
-        let transformer = TransformerEncoder::new(&config.transformer);
+        let transformer = config.transformer.init();
         let embedding_token =
             EmbeddingConfig::new(config.vocab_size, config.transformer.d_model).init();
         let embedding_pos =

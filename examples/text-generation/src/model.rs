@@ -35,7 +35,7 @@ pub struct TextGenerationModel<B: Backend> {
 impl<B: Backend> TextGenerationModel<B> {
     pub fn new(config: &TextGenerationModelConfig) -> Self {
         let output = LinearConfig::new(config.transformer.d_model, config.vocab_size).init();
-        let transformer = TransformerEncoder::new(&config.transformer);
+        let transformer = config.transformer.init();
         let embedding_token =
             EmbeddingConfig::new(config.vocab_size, config.transformer.d_model).init();
         let embedding_pos =

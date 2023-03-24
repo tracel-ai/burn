@@ -94,7 +94,7 @@ impl<B: Backend> ConvBlock<B> {
             &nn::conv::Conv2dConfig::new(channels, kernel_size)
                 .with_padding(Conv2dPaddingConfig::Valid),
         );
-        let norm = nn::BatchNorm::new(&nn::BatchNormConfig::new(channels[1]));
+        let norm = nn::BatchNormConfig::new(channels[1]).init();
 
         Self {
             conv: Param::from(conv),
