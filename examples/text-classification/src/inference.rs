@@ -30,7 +30,7 @@ pub fn infer<B: Backend, D: TextClassificationDataset + 'static>(
 
     println!("Creating model ...");
     let model = TextClassificationModelConfig::new(
-        config.transformer.clone(),
+        config.transformer,
         n_classes,
         tokenizer.vocab_size(),
         config.max_seq_length,
