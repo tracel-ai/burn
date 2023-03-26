@@ -4,7 +4,7 @@ use crate::{
 };
 use burn::{
     config::Config,
-    data::dataloader::DataLoaderBuilder,
+    data::{dataloader::DataLoaderBuilder, dataset::transform::SamplerDataset},
     module::{Module, StateFormat},
     nn::transformer::TransformerEncoderConfig,
     optim::{Sgd, SgdConfig},
@@ -18,14 +18,14 @@ use std::sync::Arc;
 
 #[derive(Config)]
 pub struct ExperimentConfig {
-    transformer: TransformerEncoderConfig,
-    optimizer: SgdConfig,
+    pub transformer: TransformerEncoderConfig,
+    pub optimizer: SgdConfig,
     #[config(default = 256)]
-    max_seq_length: usize,
-    #[config(default = 16)]
-    batch_size: usize,
-    #[config(default = 10)]
-    num_epochs: usize,
+    pub max_seq_length: usize,
+    #[config(default = 32)]
+    pub batch_size: usize,
+    #[config(default = 5)]
+    pub num_epochs: usize,
 }
 
 pub fn train<B: ADBackend, D: TextClassificationDataset + 'static>(
@@ -35,8 +35,8 @@ pub fn train<B: ADBackend, D: TextClassificationDataset + 'static>(
     config: ExperimentConfig,
     artifact_dir: &str,
 ) {
-    let dataset_train = Arc::new(dataset_train);
-    let dataset_test = Arc::new(dataset_test);
+    let dataset_train = Arc::new(SamplerDataset::new(Box::new(dataset_train), 50_000));
+    let dataset_test = Arc::new(SamplerDataset::new(Box::new(dataset_test), 5_000));
     let n_classes = D::num_classes();
 
     let tokenizer = Arc::new(BertCasedTokenizer::default());
@@ -61,13 +61,12 @@ pub fn train<B: ADBackend, D: TextClassificationDataset + 'static>(
 
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
         .batch_size(config.batch_size)
-        .num_workers(8)
-        .shuffle(42)
+        .num_workers(4)
         .build(dataset_train);
 
     let dataloader_test = DataLoaderBuilder::new(batcher_test)
         .batch_size(config.batch_size)
-        .num_workers(8)
+        .num_workers(4)
         .build(dataset_test);
 
     let optim = Sgd::new(&config.optimizer);
