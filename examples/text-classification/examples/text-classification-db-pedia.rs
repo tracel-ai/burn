@@ -3,7 +3,12 @@ fn training() {
     use burn::optim::{decay::WeightDecayConfig, momentum::MomentumConfig};
     use text_classification::{training::ExperimentConfig, DbPediaDataset};
 
-    type Backend = burn_autodiff::ADBackendDecorator<burn_tch::TchBackend<burn::tensor::f16>>;
+    #[cfg(not(feature = "f16"))]
+    type ElemType = f32;
+    #[cfg(feature = "f16")]
+    type ElemType = burn::tensor::f16;
+
+    type Backend = burn_autodiff::ADBackendDecorator<burn_tch::TchBackend<ElemType>>;
 
     let config = ExperimentConfig::new(
         burn::nn::transformer::TransformerEncoderConfig::new(256, 1024, 8, 4).with_norm_first(true),
