@@ -13,4 +13,14 @@ mod tests {
         let data_expected = Data::from([[2.4892], [15.3333]]);
         data_expected.assert_approx_eq(&data_actual, 3);
     }
+
+    #[test]
+    fn test_display_2d_tensor() {
+        let data = Data::from([[1, 2, 3], [4, 5, 6], [7, 8, 9]]);
+        let tensor = Tensor::<TestBackend, 2>::from_data(data);
+
+        let output = format!("{}", tensor);
+        let expected = "Tensor {\n  data: [[1, 2, 3], [4, 5, 6], [7, 8, 9]],\n  shape:   [3, 3],\n  device:  Cpu,\n  backend: ndarray,\n  dtype:   int,\n}";
+        assert_eq!(output, expected);
+    }
 }

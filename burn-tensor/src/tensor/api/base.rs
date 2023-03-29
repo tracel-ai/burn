@@ -1,5 +1,5 @@
 use alloc::vec::Vec;
-use core::ops::Range;
+use core::{ops::Range, fmt::Debug};
 
 use crate::{backend::Backend, Bool, Data, Float, Int, Shape, TensorKind};
 
@@ -165,6 +165,43 @@ where
             tensors.into_iter().map(|vector| vector.primitive).collect(),
             dim,
         ))
+    }
+}
+
+impl<B> Tensor<B, 2, Int>
+where
+    B: Backend,
+{
+    fn to_nested_vec(&self) -> Vec<Vec<B::IntElem>> {
+        let data = self.to_data();
+        let mut result = vec![vec![B::IntElem::default(); self.dims()[1]]; self.dims()[0]];
+        for (i, val) in data.value.iter().enumerate() {
+            let row = i / self.dims()[1];
+            let col = i % self.dims()[1];
+            result[row][col] = *val;
+        }
+        result
+    }  
+}
+
+/// Pretty print 2D tensors
+impl<B> std::fmt::Display for Tensor<B, 2, Int>
+where
+    B: Backend,
+    B::IntElem: std::fmt::Display,
+{   
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Tensor {{")?;
+        writeln!(
+            f,
+            " data: {:?},",
+            self.to_nested_vec()
+        )?;
+        writeln!(f, "  shape:   {:?},", self.dims())?;
+        writeln!(f, "  device:  {:?},", self.device())?;
+        writeln!(f, "  backend: {:?},", B::name())?;
+        writeln!(f, "  dtype:   {:?},", "int")?;
+        write!(f, "}}")
     }
 }
 
