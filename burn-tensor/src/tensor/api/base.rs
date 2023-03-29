@@ -184,7 +184,7 @@ where
     }  
 }
 
-/// Pretty print 2D tensors
+/// Pretty print 2D Int tensors
 impl<B> std::fmt::Display for Tensor<B, 2, Int>
 where
     B: Backend,
