@@ -200,7 +200,7 @@ where
         writeln!(f, "  shape:   {:?},", self.dims())?;
         writeln!(f, "  device:  {:?},", self.device())?;
         writeln!(f, "  backend: {:?},", B::name())?;
-        writeln!(f, "  dtype:   {:?},", "int")?;
+        writeln!(f, "  dtype:   {:?},", "int")?; // this is probably cheating 
         write!(f, "}}")
     }
 }
