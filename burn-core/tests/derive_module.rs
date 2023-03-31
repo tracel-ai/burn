@@ -28,7 +28,7 @@ where
     B: Backend,
 {
     weight: Param<Tensor<B, 2>>,
-    basic: Param<ModuleBasic<B>>,
+    basic: ModuleBasic<B>,
 }
 
 impl<B: Backend> ModuleComposed<B> {
@@ -36,7 +36,7 @@ impl<B: Backend> ModuleComposed<B> {
         let weight = Tensor::random(Shape::new([20, 20]), Distribution::Standard);
         Self {
             weight: Param::from(weight),
-            basic: Param::from(ModuleBasic::new()),
+            basic: ModuleBasic::new(),
         }
     }
 }

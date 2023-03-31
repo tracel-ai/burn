@@ -2,59 +2,66 @@ use crate as burn;
 
 #[macro_export]
 macro_rules! constant {
+    (module) => {
+        fn devices(&self) -> Vec<<B as burn_tensor::backend::Backend>::Device> {
+            vec![]
+        }
+
+        fn to_device(self, _device: &<B as burn_tensor::backend::Backend>::Device) -> Self {
+            self
+        }
+
+        fn load(
+            self,
+            _state: &burn::module::State<<B as burn_tensor::backend::Backend>::FloatElem>,
+        ) -> Result<Self, burn::module::LoadingError> {
+            Ok(self)
+        }
+
+        fn state(&self) -> burn::module::State<<B as burn_tensor::backend::Backend>::FloatElem> {
+            burn::module::State::StateNamed(burn::module::StateNamed::new())
+        }
+
+        fn detach(self) -> Self {
+            self
+        }
+
+        fn num_params(&self) -> usize {
+            0
+        }
+
+        fn visit<V: burn::module::ModuleVisitor<B>>(&self, _visitor: &mut V) {
+            // Nothing to do
+        }
+
+        fn map<M: burn::module::ModuleMapper<B>>(self, _mapper: &mut M) -> Self {
+            self
+        }
+    };
+
+    (ad_module, $type:ty) => {
+        type InnerModule = $type;
+
+        fn inner(self) -> Self::InnerModule {
+            self
+        }
+
+        fn from_inner(module: Self::InnerModule) -> Self {
+            module
+        }
+    };
+
     ($type:ty) => {
         impl<B: burn::tensor::backend::Backend> burn::module::Module<B> for $type {
-            fn devices(&self) -> Vec<<B as burn_tensor::backend::Backend>::Device> {
-                vec![]
-            }
-
-            fn to_device(self, device: &<B as burn_tensor::backend::Backend>::Device) -> Self {
-                self
-            }
-
-            fn load(
-                self,
-                state: &burn::module::State<<B as burn_tensor::backend::Backend>::FloatElem>,
-            ) -> Result<Self, crate::module::LoadingError> {
-                Ok(self)
-            }
-
-            fn state(
-                &self,
-            ) -> burn::module::State<<B as burn_tensor::backend::Backend>::FloatElem> {
-                burn::module::State::StateNamed(burn::module::StateNamed::new())
-            }
-
-            fn detach(self) -> Self {
-                self
-            }
-
-            fn num_params(&self) -> usize {
-                0
-            }
-
-            fn visit<V: crate::module::ModuleVisitor<B>>(&self, visitor: &mut V) {
-                // Nothing to do
-            }
-
-            fn map<M: crate::module::ModuleMapper<B>>(self, mapper: &mut M) -> Self {
-                self
-            }
+            constant!(module);
         }
 
         impl<B: burn::tensor::backend::ADBackend> burn::module::ADModule<B> for $type {
-            type InnerModule = $type;
-
-            fn inner(self) -> Self::InnerModule {
-                self
-            }
-
-            fn from_inner(module: Self::InnerModule) -> Self {
-                module
-            }
+            constant!(ad_module, $type);
         }
     };
 }
 
 constant!(usize);
+constant!(bool);
 constant!(f64);

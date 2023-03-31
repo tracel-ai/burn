@@ -2,6 +2,7 @@ mod base;
 mod constant;
 mod id;
 mod module;
+mod primitive;
 mod running;
 mod tensor;
 mod visitor;

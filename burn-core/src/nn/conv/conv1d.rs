@@ -4,6 +4,7 @@ use alloc::vec::Vec;
 use crate as burn;
 
 use crate::config::Config;
+use crate::constant;
 use crate::module::Module;
 use crate::module::Param;
 use crate::nn::Initializer;
@@ -42,6 +43,8 @@ pub enum Conv1dPaddingConfig {
     /// Applies the specified amount of padding to all inputs.
     Explicit(usize),
 }
+
+constant!(Conv1dPaddingConfig);
 
 /// Applies a 1D convolution over input tensors.
 ///

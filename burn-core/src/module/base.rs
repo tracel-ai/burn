@@ -37,7 +37,7 @@ use burn_tensor::Tensor;
 ///   my_other_field: usize,
 /// }
 /// ```
-pub trait Module<B: Backend>: Clone + Send + Sync + core::fmt::Debug + core::fmt::Display {
+pub trait Module<B: Backend>: Clone + Send + Sync + core::fmt::Debug {
     /// Get the device list of the module and all of its sub-modules.
     fn devices(&self) -> Vec<B::Device>;
     /// Move the module and all of its sub-modules to the given device.
@@ -65,9 +65,7 @@ pub trait ModuleMapper<B: Backend> {
 }
 
 /// Module with auto-differentiation backend.
-pub trait ADModule<B: ADBackend>:
-    Module<B> + Send + Sync + core::fmt::Debug + core::fmt::Display
-{
+pub trait ADModule<B: ADBackend>: Module<B> + Send + Sync + core::fmt::Debug {
     type InnerModule: Module<B::InnerBackend>;
 
     /// Get the same module, but on the inner backend without auto-differentiation.

@@ -33,7 +33,7 @@ impl Param {
         for field in self.fields_param.iter() {
             let name = field.ident();
             body.extend(quote! {
-                num_params += self.#name.num_params();
+                num_params += burn::module::Module::<B>::num_params(&self.#name);
             });
         }
         body.extend(quote! {
@@ -52,7 +52,7 @@ impl Param {
         for field in self.fields_param.iter() {
             let name = field.ident();
             body.extend(quote! {
-                self.#name.visit(visitor);
+                burn::module::Module::visit(&self.#name, visitor);
             });
         }
 
@@ -67,7 +67,7 @@ impl Param {
         let (names, body) = self.gen_params_others_fn(
             |name| {
                 quote! {
-                    let #name = self.#name.map(mapper);
+                    let #name = burn::module::Module::map(self.#name, mapper);
                 }
             },
             |name| {
@@ -95,7 +95,7 @@ impl Param {
         for field in self.fields_param.iter() {
             let name = field.ident();
             body.extend(quote! {
-                devices.append(&mut self.#name.devices());
+                devices.append(&mut burn::module::Module::<B>::devices(&self.#name));
             });
         }
 
@@ -114,7 +114,7 @@ impl Param {
         let (names, body) = self.gen_params_others_fn(
             |name| {
                 quote! {
-                    let #name = self.#name.to_device(device);
+                    let #name = burn::module::Module::<B>::to_device(self.#name, device);
                 }
             },
             |name| {
@@ -139,7 +139,7 @@ impl Param {
         let (names, body) = self.gen_params_others_fn(
             |name| {
                 quote! {
-                    let #name = self.#name.detach();
+                    let #name = burn::module::Module::<B>::detach(self.#name);
                 }
             },
             |name| {
@@ -165,7 +165,7 @@ impl Param {
         let (names, body) = self.gen_params_others_fn(
             |name| {
                 quote! {
-                    let #name = self.#name.inner();
+                    let #name = burn::module::ADModule::<B>::inner(self.#name);
                 }
             },
             |name| {
@@ -190,7 +190,7 @@ impl Param {
         let (names, body) = self.gen_params_others_fn(
             |name| {
                 quote! {
-                    let #name = burn::module::ADModule::from_inner(module.#name);
+                    let #name = burn::module::ADModule::<B>::from_inner(module.#name);
                 }
             },
             |name| {
@@ -245,7 +245,7 @@ impl Param {
         for field in self.fields_param.iter() {
             let name = field.ident();
             body.extend(quote! {
-                state.register_state(stringify!(#name), self.#name.state());
+                state.register_state(stringify!(#name), burn::module::Module::<B>::state(&self.#name));
             });
         }
 
@@ -266,7 +266,7 @@ impl Param {
                         "Missing module '{}' from state",
                         stringify!(#name),
                     )))?;
-                let #name = self.#name.load(state_mod).map_err(|err| {
+                let #name = burn::module::Module::<B>::load(self.#name, state_mod).map_err(|err| {
                     burn::module::LoadingError::new(format!("Can't load module {}: {}", stringify!(#name), err))
                 })?;
             }
