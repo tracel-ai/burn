@@ -5,7 +5,7 @@ use crate as burn;
 use crate::nn::cache::TensorCache;
 use crate::{
     config::Config,
-    module::{Module, Param},
+    module::Module,
     nn,
     tensor::{activation, backend::Backend, Bool, Tensor},
 };
@@ -39,10 +39,10 @@ pub struct MultiHeadAttentionConfig {
 /// - output: [Linear](nn::Linear) layer with `d_model` input and output features.
 #[derive(Module, Debug)]
 pub struct MultiHeadAttention<B: Backend> {
-    query: Param<nn::Linear<B>>,
-    key: Param<nn::Linear<B>>,
-    value: Param<nn::Linear<B>>,
-    output: Param<nn::Linear<B>>,
+    query: nn::Linear<B>,
+    key: nn::Linear<B>,
+    value: nn::Linear<B>,
+    output: nn::Linear<B>,
     dropout: nn::Dropout,
     activation: nn::GELU,
     n_heads: usize,
@@ -63,9 +63,7 @@ pub struct MhaInput<B: Backend> {
 impl MultiHeadAttentionConfig {
     /// Initialize a new [multihead attention](MultiHeadAttention) module.
     pub fn init<B: Backend>(&self) -> MultiHeadAttention<B> {
-        let linear = |config: &Self| {
-            Param::from(nn::LinearConfig::new(config.d_model, config.d_model).init())
-        };
+        let linear = |config: &Self| nn::LinearConfig::new(config.d_model, config.d_model).init();
 
         MultiHeadAttention {
             query: linear(self),
@@ -172,7 +170,7 @@ impl<B: Backend> MultiHeadAttention<B> {
 
         let attention_linear = |cache: &mut TensorCache<B, 4>,
                                 tensor: Tensor<B, 3>,
-                                param: &Param<nn::Linear<B>>| {
+                                param: &nn::Linear<B>| {
             cache.forward_autoregressive(tensor, 2, |tensor| self.attention_linear(tensor, param))
         };
 
@@ -235,7 +233,7 @@ impl<B: Backend> MultiHeadAttention<B> {
         activation::softmax(attn_scores, 3)
     }
 
-    fn attention_linear(&self, x: Tensor<B, 3>, linear: &Param<nn::Linear<B>>) -> Tensor<B, 4> {
+    fn attention_linear(&self, x: Tensor<B, 3>, linear: &nn::Linear<B>) -> Tensor<B, 4> {
         let [batch_size, seq_length, _d_model] = x.dims();
         linear
             .forward(x)

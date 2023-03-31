@@ -2,25 +2,26 @@ use super::mapper::ModuleTensorUpdater;
 use super::visitor::{GradientsLoader, GradientsRegister};
 use super::GradientsParams;
 
-use crate::module::{ADModule, LoadingError, Module, ParamId, State, StateNamed};
-use crate::tensor::backend::{ADBackend, Backend};
+use crate::module::{ADModule, LoadingError, ParamId, State, StateNamed};
+use crate::tensor::backend::ADBackend;
 use crate::tensor::{Data, Tensor};
 
-pub trait Optimizer: Send + Sync {
-    type Backend: ADBackend;
-
+pub trait Optimizer<M, B>: Send + Sync
+where
+    M: ADModule<B>,
+    B: ADBackend,
+{
     /// Update the tensor parameter using the given the gradients.
     fn update_tensor<const D: usize>(
         &mut self,
         id: &ParamId,
-        tensor: Tensor<Self::Backend, D>,
-        grad: Tensor<<Self::Backend as ADBackend>::InnerBackend, D>,
-    ) -> Tensor<Self::Backend, D>;
+        tensor: Tensor<B, D>,
+        grad: Tensor<B::InnerBackend, D>,
+    ) -> Tensor<B, D>;
 
     /// Update the parameters of the given module using the given the gradients.
-    fn update_module<M>(&mut self, module: M, grads: GradientsParams) -> M
+    fn update_module(&mut self, module: M, grads: GradientsParams) -> M
     where
-        M: ADModule<ADBackend = Self::Backend>,
         Self: Sized,
     {
         let mut mapper = ModuleTensorUpdater::new(self, grads);
@@ -35,7 +36,7 @@ pub trait Optimizer: Send + Sync {
     fn register_param_state<const D: usize>(
         &self,
         _id: &ParamId,
-        _state: &mut StateNamed<<Self::Backend as Backend>::FloatElem>,
+        _state: &mut StateNamed<B::FloatElem>,
     ) {
         // By default there is no state to register
     }
@@ -48,17 +49,14 @@ pub trait Optimizer: Send + Sync {
     fn load_param_state<const D: usize>(
         &mut self,
         _id: &ParamId,
-        _state: &StateNamed<<Self::Backend as Backend>::FloatElem>,
-        _device: &<Self::Backend as Backend>::Device,
+        _state: &StateNamed<B::FloatElem>,
+        _device: &B::Device,
     ) {
         // By default there is no state to load
     }
 
     /// Get the optimizer state for a given module.
-    fn state<M: Module<Backend = Self::Backend>>(
-        &self,
-        module: &M,
-    ) -> State<<Self::Backend as Backend>::FloatElem>
+    fn state(&self, module: &M) -> State<B::FloatElem>
     where
         Self: Sized,
     {
@@ -70,11 +68,7 @@ pub trait Optimizer: Send + Sync {
     }
 
     /// Load the optimizer state for a given module.
-    fn load<M: Module<Backend = Self::Backend>>(
-        &mut self,
-        module: &M,
-        state: &State<<Self::Backend as Backend>::FloatElem>,
-    ) -> Result<(), LoadingError>
+    fn load(&mut self, module: &M, state: &State<B::FloatElem>) -> Result<(), LoadingError>
     where
         Self: Sized,
     {

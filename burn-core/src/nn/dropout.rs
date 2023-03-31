@@ -1,5 +1,7 @@
 use crate as burn;
+
 use crate::config::Config;
+use crate::constant;
 use crate::tensor::backend::Backend;
 use crate::tensor::{Distribution, Tensor};
 
@@ -20,6 +22,8 @@ pub struct DropoutConfig {
 pub struct Dropout {
     prob: f64,
 }
+
+constant!(Dropout);
 
 impl DropoutConfig {
     /// Initialize a new [dropout](Dropout) module.

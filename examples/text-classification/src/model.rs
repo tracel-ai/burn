@@ -1,7 +1,7 @@
 use crate::data::{TextClassificationInferenceBatch, TextClassificationTrainingBatch};
 use burn::{
     config::Config,
-    module::{Module, Param},
+    module::Module,
     nn::{
         loss::CrossEntropyLoss,
         transformer::{TransformerEncoder, TransformerEncoderConfig, TransformerEncoderInput},
@@ -22,10 +22,10 @@ pub struct TextClassificationModelConfig {
 
 #[derive(Module, Debug)]
 pub struct TextClassificationModel<B: Backend> {
-    transformer: Param<TransformerEncoder<B>>,
-    embedding_token: Param<Embedding<B>>,
-    embedding_pos: Param<Embedding<B>>,
-    output: Param<Linear<B>>,
+    transformer: TransformerEncoder<B>,
+    embedding_token: Embedding<B>,
+    embedding_pos: Embedding<B>,
+    output: Linear<B>,
     n_classes: usize,
     max_seq_length: usize,
 }
@@ -40,10 +40,10 @@ impl TextClassificationModelConfig {
             EmbeddingConfig::new(self.max_seq_length, self.transformer.d_model).init();
 
         TextClassificationModel {
-            transformer: Param::from(transformer),
-            embedding_token: Param::from(embedding_token),
-            embedding_pos: Param::from(embedding_pos),
-            output: Param::from(output),
+            transformer,
+            embedding_token,
+            embedding_pos,
+            output,
             n_classes: self.n_classes,
             max_seq_length: self.max_seq_length,
         }

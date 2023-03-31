@@ -1,4 +1,4 @@
-use crate as burn;
+use crate::{self as burn, module::ADModule};
 
 use super::{
     decay::{WeightDecay, WeightDecayConfig},
@@ -54,9 +54,7 @@ impl<B: ADBackend> Adam<B> {
     }
 }
 
-impl<B: ADBackend> Optimizer for Adam<B> {
-    type Backend = B;
-
+impl<M: ADModule<B>, B: ADBackend> Optimizer<M, B> for Adam<B> {
     fn update_tensor<const D: usize>(
         &mut self,
         id: &ParamId,

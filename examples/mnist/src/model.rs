@@ -1,7 +1,7 @@
 use crate::data::MNISTBatch;
 
 use burn::{
-    module::{Module, Param},
+    module::Module,
     nn::{self, conv::Conv2dPaddingConfig, loss::CrossEntropyLoss, BatchNorm},
     tensor::{
         backend::{ADBackend, Backend},
@@ -12,12 +12,12 @@ use burn::{
 
 #[derive(Module, Debug)]
 pub struct Model<B: Backend> {
-    conv1: Param<ConvBlock<B>>,
-    conv2: Param<ConvBlock<B>>,
-    conv3: Param<ConvBlock<B>>,
+    conv1: ConvBlock<B>,
+    conv2: ConvBlock<B>,
+    conv3: ConvBlock<B>,
     dropout: nn::Dropout,
-    fc1: Param<nn::Linear<B>>,
-    fc2: Param<nn::Linear<B>>,
+    fc1: nn::Linear<B>,
+    fc2: nn::Linear<B>,
     activation: nn::GELU,
 }
 
@@ -39,11 +39,11 @@ impl<B: Backend> Model<B> {
         let dropout = nn::DropoutConfig::new(0.3).init();
 
         Self {
-            conv1: Param::from(conv1),
-            conv2: Param::from(conv2),
-            conv3: Param::from(conv3),
-            fc1: Param::from(fc1),
-            fc2: Param::from(fc2),
+            conv1,
+            conv2,
+            conv3,
+            fc1,
+            fc2,
             dropout,
             activation: nn::GELU::new(),
         }
@@ -83,8 +83,8 @@ impl<B: Backend> Model<B> {
 
 #[derive(Module, Debug)]
 pub struct ConvBlock<B: Backend> {
-    conv: Param<nn::conv::Conv2d<B>>,
-    norm: Param<BatchNorm<B, 2>>,
+    conv: nn::conv::Conv2d<B>,
+    norm: BatchNorm<B, 2>,
     activation: nn::GELU,
 }
 
@@ -96,8 +96,8 @@ impl<B: Backend> ConvBlock<B> {
         let norm = nn::BatchNormConfig::new(channels[1]).init();
 
         Self {
-            conv: Param::from(conv),
-            norm: Param::from(norm),
+            conv,
+            norm,
             activation: nn::GELU::new(),
         }
     }

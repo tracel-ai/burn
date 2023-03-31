@@ -40,7 +40,7 @@ pub struct LinearConfig {
 #[derive(Module, Debug)]
 pub struct Linear<B: Backend> {
     weight: Param<Tensor<B, 2>>,
-    bias: Param<Option<Tensor<B, 1>>>,
+    bias: Option<Param<Tensor<B, 1>>>,
 }
 
 impl LinearConfig {
@@ -64,7 +64,7 @@ impl LinearConfig {
 
         Linear {
             weight: Param::from(weight),
-            bias: Param::from(bias),
+            bias: bias.map(Param::from),
         }
     }
 }
@@ -79,8 +79,8 @@ impl<B: Backend> Linear<B> {
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
         let output = input.matmul(self.weight.val().unsqueeze());
 
-        match self.bias.val() {
-            Some(bias) => output + bias.unsqueeze(),
+        match &self.bias {
+            Some(bias) => output + bias.val().unsqueeze(),
             None => output,
         }
     }

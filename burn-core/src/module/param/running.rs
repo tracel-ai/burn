@@ -55,9 +55,7 @@ impl<B: Backend, const D: usize> From<RunningState<Tensor<B, D>>>
     }
 }
 
-impl<const D: usize, B: Backend> Module for Param<RunningState<Tensor<B, D>>> {
-    type Backend = B;
-
+impl<const D: usize, B: Backend> Module<B> for Param<RunningState<Tensor<B, D>>> {
     fn num_params(&self) -> usize {
         let tensor = self.value.value.read().unwrap();
         tensor.shape().num_elements()
@@ -113,13 +111,13 @@ impl<const D: usize, B: Backend> Module for Param<RunningState<Tensor<B, D>>> {
         self
     }
 
-    fn visit<V: ModuleVisitor<Self::Backend>>(&self, visitor: &mut V) {
+    fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
         let tensor = self.value.value.read().unwrap();
 
         visitor.visit(&self.id, &tensor)
     }
 
-    fn map<M: ModuleMapper<Self::Backend>>(self, mapper: &mut M) -> Self {
+    fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
         let mut tensor = self.value.value.write().unwrap();
         let tensor_out = mapper.map(&self.id, tensor.clone());
 
@@ -208,9 +206,7 @@ impl<const D: usize, B: Backend> RunningState<Tensor<B, D>> {
     }
 }
 
-impl<const D: usize, B: ADBackend> ADModule for Param<RunningState<Tensor<B, D>>> {
-    type ADBackend = B;
-
+impl<const D: usize, B: ADBackend> ADModule<B> for Param<RunningState<Tensor<B, D>>> {
     type InnerModule = Param<RunningState<Tensor<B::InnerBackend, D>>>;
 
     fn inner(self) -> Self::InnerModule {

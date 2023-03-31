@@ -2,7 +2,7 @@ use burn_core::{
     data::dataloader::DataLoader,
     module::ADModule,
     optim::{GradientsAccumulator, Optimizer},
-    tensor::backend::Backend,
+    tensor::backend::ADBackend,
 };
 use std::sync::Arc;
 
@@ -24,9 +24,10 @@ pub struct TrainEpoch<TI> {
 }
 
 impl<I> ValidEpoch<I> {
-    pub fn run<M, TO, VO>(&self, model: M, callback: &mut Box<dyn LearnerCallback<TO, VO>>) -> M
+    pub fn run<B, M, TO, VO>(&self, model: M, callback: &mut Box<dyn LearnerCallback<TO, VO>>) -> M
     where
-        M: ADModule,
+        B: ADBackend,
+        M: ADModule<B>,
         M::InnerModule: ValidStep<I, VO>,
     {
         log::info!("Executing validation step for epoch {}", self.epoch);
@@ -55,15 +56,16 @@ impl<I> ValidEpoch<I> {
 }
 
 impl<TI> TrainEpoch<TI> {
-    pub fn run<M, O, TO, VO>(
+    pub fn run<B, M, O, TO, VO>(
         &self,
         mut model: M,
         mut optim: O,
         callback: &mut Box<dyn LearnerCallback<TO, VO>>,
     ) -> (M, O)
     where
-        M: ADModule,
-        O: Optimizer<Backend = M::ADBackend>,
+        B: ADBackend,
+        M: ADModule<B>,
+        O: Optimizer<M, B>,
         M: TrainStep<TI, TO>,
     {
         log::info!("Executing training step for epoch {}", self.epoch,);
@@ -108,17 +110,18 @@ impl<TI> TrainEpoch<TI> {
 }
 
 impl<TI> TrainEpoch<TI> {
-    pub fn run_multi_device<M, O, TO, VO>(
+    pub fn run_multi_device<B, M, O, TO, VO>(
         &self,
         mut model: M,
         mut optim: O,
         callback: &mut Box<dyn LearnerCallback<TO, VO>>,
-        devices: Vec<<M::Backend as Backend>::Device>,
+        devices: Vec<B::Device>,
     ) -> (M, O)
     where
-        O: Optimizer<Backend = M::ADBackend>,
+        B: ADBackend,
+        M: ADModule<B> + 'static,
+        O: Optimizer<M, B>,
         M: TrainStep<TI, TO>,
-        M: ADModule + 'static,
         TI: Send + 'static,
         TO: Send + 'static,
     {

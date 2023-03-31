@@ -4,7 +4,7 @@ use crate as burn;
 
 use crate::{
     config::Config,
-    module::{Module, Param},
+    module::Module,
     nn::{Dropout, DropoutConfig, Linear, LinearConfig, GELU},
     tensor::{backend::Backend, Tensor},
 };
@@ -29,8 +29,8 @@ pub struct PositionWiseFeedForwardConfig {
 /// - linear outer: Linear layer with `d_ff` input features and `d_model` output features.
 #[derive(Module, Debug)]
 pub struct PositionWiseFeedForward<B: Backend> {
-    linear_inner: Param<Linear<B>>,
-    linear_outer: Param<Linear<B>>,
+    linear_inner: Linear<B>,
+    linear_outer: Linear<B>,
     dropout: Dropout,
     gelu: GELU,
 }
@@ -39,8 +39,8 @@ impl PositionWiseFeedForwardConfig {
     /// Initialize a new [position-wise feed-forward](PositionWiseFeedForward) module.
     pub fn init<B: Backend>(&self) -> PositionWiseFeedForward<B> {
         PositionWiseFeedForward {
-            linear_inner: Param::from(LinearConfig::new(self.d_model, self.d_ff).init()),
-            linear_outer: Param::from(LinearConfig::new(self.d_ff, self.d_model).init()),
+            linear_inner: LinearConfig::new(self.d_model, self.d_ff).init(),
+            linear_outer: LinearConfig::new(self.d_ff, self.d_model).init(),
             dropout: DropoutConfig::new(self.dropout).init(),
             gelu: GELU::new(),
         }

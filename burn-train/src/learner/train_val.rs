@@ -13,13 +13,8 @@ pub struct TrainOutput<TO> {
 }
 
 impl<TO> TrainOutput<TO> {
-    pub fn new<M: ADModule>(
-        module: &M,
-        grads: <M::ADBackend as ADBackend>::Gradients,
-        item: TO,
-    ) -> Self {
+    pub fn new<B: ADBackend, M: ADModule<B>>(module: &M, grads: B::Gradients, item: TO) -> Self {
         let grads = GradientsParams::from_grads(grads, module);
-
         Self { grads, item }
     }
 }
@@ -32,12 +27,13 @@ pub trait ValidStep<VI, VO> {
     fn step(&self, item: VI) -> VO;
 }
 
-impl<M, O, TO, VO> Learner<M, O, TO, VO>
+impl<B, M, O, TO, VO> Learner<B, M, O, TO, VO>
 where
     VO: Send + Sync + 'static,
     TO: Send + Sync + 'static,
-    M: ADModule,
-    O: Optimizer<Backend = M::Backend>,
+    B: ADBackend,
+    M: ADModule<B> + core::fmt::Display,
+    O: Optimizer<M, B>,
 {
     pub fn fit<TI, VI>(
         mut self,

@@ -4,6 +4,7 @@ use alloc::vec::Vec;
 use crate as burn;
 
 use crate::config::Config;
+use crate::constant;
 use crate::module::Module;
 use crate::module::Param;
 use crate::nn::Initializer;
@@ -43,6 +44,8 @@ pub enum Conv1dPaddingConfig {
     Explicit(usize),
 }
 
+constant!(Conv1dPaddingConfig);
+
 /// Applies a 1D convolution over input tensors.
 ///
 /// # Params
@@ -55,7 +58,7 @@ pub enum Conv1dPaddingConfig {
 #[derive(Module, Debug)]
 pub struct Conv1d<B: Backend> {
     weight: Param<Tensor<B, 3>>,
-    bias: Param<Option<Tensor<B, 1>>>,
+    bias: Option<Param<Tensor<B, 1>>>,
     stride: usize,
     kernel_size: usize,
     padding: Option<Conv1dPaddingConfig>,
@@ -76,14 +79,14 @@ impl Conv1dConfig {
         let weight = initializer.init([self.channels_out, self.channels_in, self.kernel_size]);
 
         let bias = if self.bias {
-            Some(initializer.init([self.channels_out]))
+            Some(Param::from(initializer.init([self.channels_out])))
         } else {
             None
         };
 
         Conv1d {
             weight: Param::from(weight),
-            bias: Param::from(bias),
+            bias,
             stride: 1, // TODO: Add the stride to the config when properly supported.
             kernel_size: self.kernel_size,
             padding: self.padding.clone(),
@@ -115,7 +118,7 @@ impl<B: Backend> Conv1d<B> {
         conv1d(
             input,
             self.weight.val(),
-            self.bias.val(),
+            self.bias.as_ref().map(|bias| bias.val()),
             self.stride,
             padding,
         )

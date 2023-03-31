@@ -3,6 +3,7 @@ use alloc::{format, vec::Vec};
 use crate as burn;
 
 use crate::config::Config;
+use crate::constant;
 use crate::module::Module;
 use crate::module::Param;
 use crate::nn::Initializer;
@@ -43,6 +44,8 @@ pub enum Conv2dPaddingConfig {
     Explicit(usize, usize),
 }
 
+constant!(Conv2dPaddingConfig);
+
 /// Applies a 2D convolution over input tensors.
 ///
 /// # Params
@@ -55,7 +58,7 @@ pub enum Conv2dPaddingConfig {
 #[derive(Module, Debug)]
 pub struct Conv2d<B: Backend> {
     weight: Param<Tensor<B, 4>>,
-    bias: Param<Option<Tensor<B, 1>>>,
+    bias: Option<Param<Tensor<B, 1>>>,
     stride: [usize; 2],
     kernel_size: [usize; 2],
     padding: Conv2dPaddingConfig,
@@ -88,7 +91,7 @@ impl Conv2dConfig {
 
         Conv2d {
             weight: Param::from(weight),
-            bias: Param::from(bias),
+            bias: bias.map(Param::from),
             stride: [1, 1], // TODO: Add the stride to the config when properly supported.
             kernel_size: self.kernel_size,
             padding: self.padding.clone(),
@@ -111,7 +114,7 @@ impl<B: Backend> Conv2d<B> {
         conv2d(
             input,
             self.weight.val(),
-            self.bias.val(),
+            self.bias.as_ref().map(|bias| bias.val()),
             self.stride,
             padding,
         )

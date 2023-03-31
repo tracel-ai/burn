@@ -9,7 +9,7 @@ use crate::{
 use super::{PositionWiseFeedForward, PositionWiseFeedForwardConfig};
 use crate::{
     config::Config,
-    module::{Module, Param},
+    module::Module,
     nn::{
         attention::{MhaInput, MultiHeadAttention, MultiHeadAttentionConfig},
         Dropout, DropoutConfig, LayerNorm, LayerNormConfig,
@@ -43,7 +43,7 @@ pub struct TransformerEncoderConfig {
 /// - layers: transformer encoder layers with `d_model` input and output features.
 #[derive(Module, Debug)]
 pub struct TransformerEncoder<B: Backend> {
-    layers: Param<Vec<TransformerEncoderLayer<B>>>,
+    layers: Vec<TransformerEncoderLayer<B>>,
 }
 
 /// [Transformer Encoder](TransformerEncoder) forward pass input argument.
@@ -83,9 +83,7 @@ impl TransformerEncoderConfig {
             .map(|_| TransformerEncoderLayer::new(self))
             .collect::<Vec<_>>();
 
-        TransformerEncoder {
-            layers: Param::from(layers),
-        }
+        TransformerEncoder { layers }
     }
 }
 
@@ -141,10 +139,10 @@ impl<B: Backend> TransformerEncoder<B> {
 
 #[derive(Module, Debug)]
 struct TransformerEncoderLayer<B: Backend> {
-    mha: Param<MultiHeadAttention<B>>,
-    pwff: Param<PositionWiseFeedForward<B>>,
-    norm_1: Param<LayerNorm<B>>,
-    norm_2: Param<LayerNorm<B>>,
+    mha: MultiHeadAttention<B>,
+    pwff: PositionWiseFeedForward<B>,
+    norm_1: LayerNorm<B>,
+    norm_2: LayerNorm<B>,
     dropout: Dropout,
     norm_first: bool,
 }
@@ -162,10 +160,10 @@ impl<B: Backend> TransformerEncoderLayer<B> {
             .init();
 
         Self {
-            mha: Param::from(mha),
-            norm_1: Param::from(norm_1),
-            norm_2: Param::from(norm_2),
-            pwff: Param::from(pwff),
+            mha,
+            norm_1,
+            norm_2,
+            pwff,
             dropout,
             norm_first: config.norm_first,
         }

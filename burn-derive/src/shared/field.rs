@@ -73,10 +73,6 @@ impl FieldTypeAnalyzer {
             .into_iter()
             .map(AttributeAnalyzer::new)
     }
-
-    pub fn is_param(&self) -> bool {
-        self.is_of_type(&["Param", "burn::Param"])
-    }
 }
 
 pub(crate) fn parse_fields(ast: &syn::DeriveInput) -> Vec<Field> {

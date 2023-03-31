@@ -4,7 +4,7 @@ use alloc::{format, vec::Vec};
 
 use burn::{
     config::Config,
-    module::{Module, Param},
+    module::Module,
     nn,
     tensor::{backend::Backend, Tensor},
 };
@@ -26,7 +26,7 @@ pub struct MlpConfig {
 /// Multilayer Perceptron module.
 #[derive(Module, Debug)]
 pub struct Mlp<B: Backend> {
-    linears: Param<Vec<nn::Linear<B>>>,
+    linears: Vec<nn::Linear<B>>,
     dropout: nn::Dropout,
     activation: nn::ReLU,
 }
@@ -41,7 +41,7 @@ impl<B: Backend> Mlp<B> {
         }
 
         Self {
-            linears: Param::from(linears),
+            linears,
             dropout: nn::DropoutConfig::new(0.3).init(),
             activation: nn::ReLU::new(),
         }
