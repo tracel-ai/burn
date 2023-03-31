@@ -161,10 +161,10 @@ where
     }
 
     /// Create the [learner](Learner) from a [module](ADModule) and an
-    pub fn build<M, O>(self, model: M, optim: O) -> Learner<M, O, T, V>
+    pub fn build<M, O>(self, model: M, optim: O) -> Learner<B, M, O, T, V>
     where
-        M: ADModule<ADBackend = B>,
-        O: Optimizer<Backend = B>,
+        M: ADModule<B>,
+        O: Optimizer<M, B>,
     {
         self.init_logger();
         let callack = Box::new(self.dashboard);

@@ -9,7 +9,7 @@ use crate::{
 
 use burn::{
     config::Config,
-    module::{Module, Param},
+    module::Module,
     nn,
     tensor::{backend::Backend, Tensor},
 };
@@ -30,26 +30,25 @@ pub struct MnistConfig {
 
 #[derive(Module, Debug)]
 pub struct Model<B: Backend> {
-    mlp: Param<Mlp<B>>,
-    conv: Param<ConvBlock<B>>,
-    input: Param<nn::Linear<B>>,
-    output: Param<nn::Linear<B>>,
+    mlp: Mlp<B>,
+    conv: ConvBlock<B>,
+    input: nn::Linear<B>,
+    output: nn::Linear<B>,
     num_classes: usize,
 }
 
 impl<B: Backend> Model<B> {
     pub fn new(config: &MnistConfig) -> Self {
         let mlp = Mlp::new(&config.mlp);
-
         let input = nn::LinearConfig::new(config.input_size, config.mlp.d_model).init();
         let output = nn::LinearConfig::new(config.mlp.d_model, config.output_size).init();
         let conv = ConvBlock::new(&ConvBlockConfig::new([1, 1]));
 
         Self {
-            mlp: Param::from(mlp),
-            conv: Param::from(conv),
-            output: Param::from(output),
-            input: Param::from(input),
+            mlp,
+            conv,
+            output,
+            input,
             num_classes: config.output_size,
         }
     }

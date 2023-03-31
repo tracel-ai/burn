@@ -20,9 +20,10 @@ struct Worker<B: ADBackend, M, TI> {
     device: B::Device,
 }
 
-impl<B: ADBackend, M, TI> Worker<B, M, TI>
+impl<B, M, TI> Worker<B, M, TI>
 where
-    M: ADModule<ADBackend = B> + Clone,
+    B: ADBackend,
+    M: ADModule<B>,
 {
     fn register(&self, item: TI, model: &M) {
         let message = Message {
@@ -63,9 +64,9 @@ where
 impl<B, M, TI, TO> MultiDevicesTrainStep<B, M, TI, TO>
 where
     B: ADBackend,
+    M: ADModule<B> + TrainStep<TI, TO> + Send + Clone + 'static,
     TI: Send + 'static,
     TO: Send + 'static,
-    M: ADModule<ADBackend = B> + TrainStep<TI, TO> + Send + Clone + 'static,
 {
     pub fn new(devices: &[B::Device]) -> Self
     where

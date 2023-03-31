@@ -1,3 +1,6 @@
+use crate as burn;
+
+use crate::constant;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 
@@ -6,6 +9,8 @@ use crate::tensor::Tensor;
 /// `y = max(0, x)`
 #[derive(Clone, Debug, Default)]
 pub struct ReLU {}
+
+constant!(ReLU);
 
 impl ReLU {
     /// Create the module.

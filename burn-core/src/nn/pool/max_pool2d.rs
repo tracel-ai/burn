@@ -1,4 +1,4 @@
-use crate as burn;
+use crate::{self as burn, constant};
 
 use crate::config::Config;
 use crate::nn::conv::Conv2dPaddingConfig;
@@ -31,6 +31,8 @@ pub struct MaxPool2d {
     kernel_size: [usize; 2],
     padding: MaxPool2dPaddingConfig,
 }
+
+constant!(MaxPool2d);
 
 impl MaxPool2dConfig {
     /// Initialize a new [max pool 2d](MaxPool2d) module.
