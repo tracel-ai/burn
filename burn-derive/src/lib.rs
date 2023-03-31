@@ -10,9 +10,9 @@ use module::module_derive_impl;
 #[proc_macro_derive(Module)]
 pub fn module_derive(input: TokenStream) -> TokenStream {
     let input = syn::parse(input).unwrap();
-    let gen = module_derive_impl(&input);
+
     // panic!("{}", gen);
-    gen
+    module_derive_impl(&input)
 }
 
 #[proc_macro_derive(Config, attributes(config))]

@@ -31,7 +31,7 @@ where
             return module.state();
         }
 
-        return State::StateNamed(StateNamed::new());
+        State::StateNamed(StateNamed::new())
     }
 
     fn detach(self) -> Self {
@@ -180,8 +180,9 @@ where
 
     fn load(mut self, state: &State<B::FloatElem>) -> Result<Self, LoadingError> {
         let num = self.len();
-        for i in 0..N {
-            self[i] = self[i]
+
+        for (i, module) in self.into_iter().enumerate().take(N) {
+            self[i] = module
                 .load(state.get(format!("mod-{i}").as_str()).ok_or_else(|| {
                     LoadingError::new(format!(
                         "Invalid number of modules, expected {num} modules missing #{i}"

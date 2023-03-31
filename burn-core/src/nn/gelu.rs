@@ -1,7 +1,5 @@
 use crate as burn;
 
-use core::fmt::Display;
-
 use crate::constant;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
@@ -11,12 +9,6 @@ use crate::tensor::Tensor;
 pub struct GELU {}
 
 constant!(GELU);
-
-impl Display for GELU {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str("GELU")
-    }
-}
 
 impl GELU {
     /// Create the module.

@@ -62,6 +62,25 @@ macro_rules! constant {
     };
 }
 
-constant!(usize);
+// General Types
+constant!(String);
 constant!(bool);
+
+// Float Types
 constant!(f64);
+constant!(f32);
+constant!(half::bf16);
+constant!(half::f16);
+
+// Unsigned Integer Types
+constant!(usize);
+constant!(u64);
+constant!(u32);
+constant!(u16);
+constant!(u8);
+
+// Signed Integer Types
+constant!(i64);
+constant!(i32);
+constant!(i16);
+constant!(i8);
