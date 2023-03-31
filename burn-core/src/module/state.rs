@@ -38,7 +38,7 @@ pub enum StateError {
 /// The default file format is compressed bincode for the smallest file size possible.
 /// For `no_std` environments, you should use (StateFormat::Bin)[StateFormat::Bin] since compression isn't supported.
 /// However, the bincode format alone is smaller than compressed `json` or `msgpack`.
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Serialize, Deserialize)]
 pub enum StateFormat {
     #[default]
     BinGz,

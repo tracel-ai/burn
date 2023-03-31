@@ -13,6 +13,7 @@ pub mod optim;
 
 pub mod module;
 pub mod nn;
+pub mod record;
 pub mod tensor;
 
 extern crate alloc;
