@@ -1,9 +1,22 @@
+use crate as burn;
+
+use core::fmt::Display;
+
+use crate::constant;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 
 /// Applies the Gaussian Error Linear Units function element-wise.
 #[derive(Clone, Debug, Default)]
 pub struct GELU {}
+
+constant!(GELU);
+
+impl Display for GELU {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("GELU")
+    }
+}
 
 impl GELU {
     /// Create the module.

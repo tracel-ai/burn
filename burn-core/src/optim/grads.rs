@@ -63,23 +63,20 @@ impl GradientsParams {
     }
 
     /// Change the device of each tensor gradients registered for the given [module](ADModule).
-    pub fn to_device<M: ADModule>(
+    pub fn to_device<B: ADBackend, M: ADModule<B>>(
         mut self,
-        device: &<M::Backend as Backend>::Device,
+        device: &B::Device,
         module: &M,
     ) -> Self {
-        let mut visitor = GradientsParamsChangeDevice::new(device, &mut self);
+        let mut visitor = GradientsParamsChangeDevice::<M, B>::new(device, &mut self);
         module.visit(&mut visitor);
         self
     }
 
     /// Extract each tensor gradients for the given [module](ADModule).
-    pub fn from_grads<M: ADModule>(
-        grads: <M::ADBackend as ADBackend>::Gradients,
-        module: &M,
-    ) -> Self {
+    pub fn from_grads<B: ADBackend, M: ADModule<B>>(grads: B::Gradients, module: &M) -> Self {
         let mut grads_params = GradientsParams::new();
-        let mut visitor = GradientsParamsConverter::new(grads, &mut grads_params);
+        let mut visitor = GradientsParamsConverter::<M, B>::new(grads, &mut grads_params);
 
         module.visit(&mut visitor);
         grads_params

@@ -3,7 +3,7 @@ use crate as burn;
 use super::decay::{WeightDecay, WeightDecayConfig};
 use super::momentum::{Momentum, MomentumConfig};
 use crate::config::Config;
-use crate::module::{ParamId, StateNamed};
+use crate::module::{ADModule, ParamId, StateNamed};
 use crate::optim::Optimizer;
 use crate::tensor::backend::ADBackend;
 use crate::tensor::{ElementConversion, Tensor};
@@ -45,9 +45,7 @@ impl<B: ADBackend> Sgd<B> {
     }
 }
 
-impl<B: ADBackend> Optimizer for Sgd<B> {
-    type Backend = B;
-
+impl<M: ADModule<B>, B: ADBackend> Optimizer<M, B> for Sgd<B> {
     fn update_tensor<const D: usize>(
         &mut self,
         id: &ParamId,

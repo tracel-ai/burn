@@ -37,28 +37,23 @@ use burn_tensor::Tensor;
 ///   my_other_field: usize,
 /// }
 /// ```
-pub trait Module: Clone + Send + Sync + core::fmt::Debug + core::fmt::Display {
-    type Backend: Backend;
-
+pub trait Module<B: Backend>: Clone + Send + Sync + core::fmt::Debug + core::fmt::Display {
     /// Get the device list of the module and all of its sub-modules.
-    fn devices(&self) -> Vec<<Self::Backend as Backend>::Device>;
+    fn devices(&self) -> Vec<B::Device>;
     /// Move the module and all of its sub-modules to the given device.
-    fn to_device(self, device: &<Self::Backend as Backend>::Device) -> Self;
+    fn to_device(self, device: &B::Device) -> Self;
     /// Load the module state.
-    fn load(
-        self,
-        state: &State<<Self::Backend as Backend>::FloatElem>,
-    ) -> Result<Self, LoadingError>;
+    fn load(self, state: &State<B::FloatElem>) -> Result<Self, LoadingError>;
     /// Get the module state.
-    fn state(&self) -> State<<Self::Backend as Backend>::FloatElem>;
+    fn state(&self) -> State<B::FloatElem>;
     /// Detach the module from the graph.
     fn detach(self) -> Self;
     /// Get the number of parameters the module has, including all of its sub-modules.
     fn num_params(&self) -> usize;
     /// Visit each tensor in the module with a [visitor](ModuleVisitor).
-    fn visit<V: ModuleVisitor<Self::Backend>>(&self, visitor: &mut V);
+    fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V);
     /// Map each tensor in the module with a [mapper](ModuleMapper).
-    fn map<M: ModuleMapper<Self::Backend>>(self, mapper: &mut M) -> Self;
+    fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self;
 }
 
 pub trait ModuleVisitor<B: Backend> {
@@ -70,11 +65,10 @@ pub trait ModuleMapper<B: Backend> {
 }
 
 /// Module with auto-differentiation backend.
-pub trait ADModule:
-    Module<Backend = Self::ADBackend> + Send + Sync + core::fmt::Debug + core::fmt::Display
+pub trait ADModule<B: ADBackend>:
+    Module<B> + Send + Sync + core::fmt::Debug + core::fmt::Display
 {
-    type ADBackend: ADBackend;
-    type InnerModule: Module<Backend = <Self::ADBackend as ADBackend>::InnerBackend>;
+    type InnerModule: Module<B::InnerBackend>;
 
     /// Get the same module, but on the inner backend without auto-differentiation.
     fn inner(self) -> Self::InnerModule;

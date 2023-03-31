@@ -1,5 +1,9 @@
 use crate as burn;
+
+use core::fmt::Display;
+
 use crate::config::Config;
+use crate::constant;
 use crate::tensor::backend::Backend;
 use crate::tensor::{Distribution, Tensor};
 
@@ -20,6 +24,14 @@ pub struct DropoutConfig {
 pub struct Dropout {
     prob: f64,
 }
+
+impl Display for Dropout {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(format!("Dropout(prob = {}", self.prob).as_str())
+    }
+}
+
+constant!(Dropout);
 
 impl DropoutConfig {
     /// Initialize a new [dropout](Dropout) module.

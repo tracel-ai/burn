@@ -27,9 +27,7 @@ impl<B: Backend, const D: usize> From<Option<Tensor<B, D>>> for Param<Option<Ten
     }
 }
 
-impl<const D: usize, B: Backend> Module for Param<Tensor<B, D>> {
-    type Backend = B;
-
+impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
     fn num_params(&self) -> usize {
         self.value.shape().num_elements()
     }
@@ -72,19 +70,17 @@ impl<const D: usize, B: Backend> Module for Param<Tensor<B, D>> {
         }
     }
 
-    fn visit<V: ModuleVisitor<Self::Backend>>(&self, visitor: &mut V) {
+    fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
         visitor.visit(&self.id, &self.value)
     }
 
-    fn map<M: ModuleMapper<Self::Backend>>(self, mapper: &mut M) -> Self {
+    fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
         let value = mapper.map(&self.id, self.value).require_grad();
         Self { id: self.id, value }
     }
 }
 
-impl<const D: usize, B: Backend> Module for Param<Option<Tensor<B, D>>> {
-    type Backend = B;
-
+impl<const D: usize, B: Backend> Module<B> for Param<Option<Tensor<B, D>>> {
     fn num_params(&self) -> usize {
         if let Some(value) = &self.value {
             return value.shape().num_elements();
@@ -148,13 +144,13 @@ impl<const D: usize, B: Backend> Module for Param<Option<Tensor<B, D>>> {
         }
     }
 
-    fn visit<V: ModuleVisitor<Self::Backend>>(&self, visitor: &mut V) {
+    fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
         if let Some(value) = &self.value {
             visitor.visit(&self.id, value)
         }
     }
 
-    fn map<M: ModuleMapper<Self::Backend>>(self, mapper: &mut M) -> Self {
+    fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
         let value = self
             .value
             .map(|value| mapper.map(&self.id, value).require_grad());
@@ -162,9 +158,7 @@ impl<const D: usize, B: Backend> Module for Param<Option<Tensor<B, D>>> {
     }
 }
 
-impl<const D: usize, B: ADBackend> ADModule for Param<Tensor<B, D>> {
-    type ADBackend = B;
-
+impl<const D: usize, B: ADBackend> ADModule<B> for Param<Tensor<B, D>> {
     type InnerModule = Param<Tensor<B::InnerBackend, D>>;
 
     fn inner(self) -> Self::InnerModule {
@@ -182,9 +176,7 @@ impl<const D: usize, B: ADBackend> ADModule for Param<Tensor<B, D>> {
     }
 }
 
-impl<const D: usize, B: ADBackend> ADModule for Param<Option<Tensor<B, D>>> {
-    type ADBackend = B;
-
+impl<const D: usize, B: ADBackend> ADModule<B> for Param<Option<Tensor<B, D>>> {
     type InnerModule = Param<Option<Tensor<B::InnerBackend, D>>>;
 
     fn inner(self) -> Self::InnerModule {

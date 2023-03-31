@@ -12,17 +12,17 @@ impl Param {
         let fields_param = parse_fields(ast)
             .into_iter()
             .map(FieldTypeAnalyzer::new)
-            .filter(FieldTypeAnalyzer::is_param)
+            // .filter(FieldTypeAnalyzer::is_param)
             .collect();
-        let fields_other = parse_fields(ast)
-            .into_iter()
-            .map(FieldTypeAnalyzer::new)
-            .filter(|val| !FieldTypeAnalyzer::is_param(val))
-            .collect();
+        // let fields_other = parse_fields(ast)
+        //     .into_iter()
+        //     .map(FieldTypeAnalyzer::new)
+        //     .filter(|val| !FieldTypeAnalyzer::is_param(val))
+        //     .collect();
 
         Self {
             fields_param,
-            fields_other,
+            fields_other: Vec::new(),
         }
     }
 
@@ -57,7 +57,7 @@ impl Param {
         }
 
         quote! {
-            fn visit<V: burn::module::ModuleVisitor<Self::Backend>>(&self, visitor: &mut V) {
+            fn visit<V: burn::module::ModuleVisitor<B>>(&self, visitor: &mut V) {
                 #body
             }
         }
@@ -78,7 +78,7 @@ impl Param {
         );
 
         quote! {
-            fn map<M: burn::module::ModuleMapper<Self::Backend>>(self, mapper: &mut M) -> Self {
+            fn map<M: burn::module::ModuleMapper<B>>(self, mapper: &mut M) -> Self {
                 #body
 
                 Self {
@@ -250,7 +250,7 @@ impl Param {
         }
 
         quote! {
-            fn state(&self) -> burn::module::State<<Self::Backend as burn::tensor::backend::Backend>::FloatElem>
+            fn state(&self) -> burn::module::State<B::FloatElem>
             {
                 #body
                 burn::module::State::StateNamed(state)
@@ -277,7 +277,7 @@ impl Param {
         });
 
         quote! {
-            fn load(self, state: &burn::module::State<<Self::Backend as burn::tensor::backend::Backend>::FloatElem>) -> Result<Self, burn::module::LoadingError>
+            fn load(self, state: &burn::module::State<B::FloatElem>) -> Result<Self, burn::module::LoadingError>
             {
                 #body
 

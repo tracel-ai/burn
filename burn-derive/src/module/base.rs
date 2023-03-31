@@ -24,9 +24,7 @@ pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
     let generics_names_except_backend = generics_names_except_backend(&ast.generics);
 
     let gen = quote! {
-        impl #generics burn::module::Module for #name #generics_ty #generics_where {
-            type Backend=B;
-
+        impl #generics burn::module::Module<B> for #name #generics_ty #generics_where {
             #devices_fn
             #to_device_fn
 
@@ -40,8 +38,7 @@ pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
             #map_mut
         }
 
-        impl #generics burn::module::ADModule for #name #generics_ty where B: burn::tensor::backend::ADBackend, {
-            type ADBackend=B;
+        impl #generics burn::module::ADModule<B> for #name #generics_ty where B: burn::tensor::backend::ADBackend, {
             type InnerModule=#name<B::InnerBackend, #generics_names_except_backend>;
 
             #inner_fn
