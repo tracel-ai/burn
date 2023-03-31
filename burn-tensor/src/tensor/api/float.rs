@@ -327,6 +327,7 @@ where
     ///     // Shape { dims: [1, 1, 3, 3] }
     /// }
     /// ```
+    /// TODO move this function to the base.
     pub fn unsqueeze<const D2: usize>(self) -> Tensor<B, D2> {
         if D2 < D {
             panic!("Can't unsqueeze smaller tensor, got dim {D2}, expected > {D}")

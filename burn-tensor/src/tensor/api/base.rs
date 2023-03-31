@@ -48,6 +48,70 @@ where
         Tensor::new(K::reshape::<D, D2>(self.primitive, shape.into()))
     }
 
+    /// Flatten the tensor along a given range of dimensions.
+    ///
+    /// This function collapses the specified range of dimensions into a single dimension,
+    /// effectively flattening the tensor in that range.
+    ///
+    /// # Arguments
+    ///
+    /// - `start_dim`: The starting dimension of the range to be flattened.
+    /// - `end_dim`: The ending dimension of the range to be flattened (inclusive).
+    ///
+    /// # Type Parameters
+    ///
+    /// - `D2`: The resulting number of dimensions in the flattened tensor.
+    ///
+    /// # Returns
+    ///
+    /// A new `Tensor<B, D2, K>` instance with the specified range of dimensions flattened.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    ///
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 4]));
+    ///
+    ///     // Given a 3D tensor with dimensions (2, 3, 4), flatten the dimensions between indices 1 and 2:
+    ///     let flattened_tensor: Tensor::<B, 2> = tensor.flatten(1, 2);
+    ///
+    ///     // The resulting tensor will have dimensions (2, 12).
+    ///    println!("{:?}", flattened_tensor.shape());
+    /// }
+    ///
+    /// ```
+    pub fn flatten<const D2: usize>(self, start_dim: usize, end_dim: usize) -> Tensor<B, D2, K> {
+        if start_dim > end_dim {
+            panic!("The start dim ({start_dim}) must be smaller than the end dim ({end_dim})")
+        }
+
+        if D2 > D {
+            panic!("Result dim ({D2}) must be smaller than ({D})")
+        }
+
+        if D < end_dim + 1 {
+            panic!("The end dim ({end_dim}) must be greater than the tensor dim ({D2})")
+        }
+
+        let current_dims = self.shape().dims;
+        let mut new_dims: [usize; D2] = [0; D2];
+        let mut flatten_dims = 1;
+
+        for i in current_dims[start_dim..=end_dim].iter() {
+            flatten_dims *= i;
+        }
+
+        new_dims[..start_dim].copy_from_slice(&current_dims[..start_dim]);
+        new_dims[start_dim] = flatten_dims;
+        new_dims[start_dim + 1..].copy_from_slice(&current_dims[end_dim + 1..]);
+
+        Tensor::new(K::reshape::<D, D2>(self.primitive, new_dims.into()))
+    }
+
     /// Returns a tensor containing the elements selected from the given ranges.
     ///
     /// # Panics
