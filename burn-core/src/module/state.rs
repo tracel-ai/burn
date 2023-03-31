@@ -251,7 +251,7 @@ mod std_enabled {
             let writer = str2writer!(file, "bin.gz")?;
             let mut writer = GzEncoder::new(writer, Compression::default());
 
-            bincode::serde::encode_into_std_write(&self, &mut writer, config).unwrap();
+            bincode::serde::encode_into_std_write(self, &mut writer, config).unwrap();
 
             Ok(())
         }
