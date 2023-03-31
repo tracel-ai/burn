@@ -168,39 +168,70 @@ where
     }
 }
 
-impl<B> Tensor<B, 2, Int>
+impl<B, const D: usize> Tensor<B, D, Int>
 where
     B: Backend,
 {
     fn to_nested_vec(&self) -> Vec<Vec<B::IntElem>> {
         let data = self.to_data();
-        let mut result = vec![vec![B::IntElem::default(); self.dims()[1]]; self.dims()[0]];
+        let shape = self.shape().dims;
+        let mut result = vec![vec![B::IntElem::default(); shape[D - 1]]; shape[..D - 1].iter().product()];
         for (i, val) in data.value.iter().enumerate() {
-            let row = i / self.dims()[1];
-            let col = i % self.dims()[1];
+            let row = i / shape[D - 1];
+            let col = i % shape[D - 1];
             result[row][col] = *val;
         }
         result
-    }  
+    }
+}
+
+impl<B, const D: usize> Tensor<B, D, Int>
+where
+    B: Backend,
+{
+    fn display_recursive(&self, acc: &mut Vec<String>, dim: usize) {
+        let dim_size = self.dims()[dim];
+        let is_last_dim = dim == D - 1;
+
+        acc.push(format!("{:indent$}", "", indent = dim * 2));
+        if is_last_dim {
+            acc.push(format!("{:?}", self.to_nested_vec()));
+        } else {
+            acc.push(format!("["));
+            for i in 0..dim_size {
+                if i > 0 {
+                    acc.push(format!(","));
+                }
+                self.clone().index([0..i]).display_recursive(acc, dim + 1);
+            }
+            acc.push(format!("{:indent$}", "", indent = dim * 2));
+            acc.push(format!("]"));
+        }
+    }
 }
 
 /// Pretty print 2D Int tensors
-impl<B> std::fmt::Display for Tensor<B, 2, Int>
+impl<B, const D: usize> std::fmt::Display for Tensor<B, D, Int>
 where
     B: Backend,
     B::IntElem: std::fmt::Display,
 {   
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Tensor {{")?;
-        writeln!(
-            f,
-            " data: {:?},",
-            self.to_nested_vec()
-        )?;
+        writeln!(f, "  data: ")?;
+        if D == 2 {
+            writeln!(f, "{:?},", self.to_nested_vec())?;
+        } else {
+            let mut data = Vec::new();
+            self.display_recursive(&mut data, 0);
+            for line in data {
+                writeln!(f, "{}", line)?;
+            }
+        }
         writeln!(f, "  shape:   {:?},", self.dims())?;
         writeln!(f, "  device:  {:?},", self.device())?;
         writeln!(f, "  backend: {:?},", B::name())?;
-        writeln!(f, "  dtype:   {:?},", "int")?; // this is probably cheating 
+        writeln!(f, "  dtype:   {:?},", "int")?; // this is probably cheating
         write!(f, "}}")
     }
 }
