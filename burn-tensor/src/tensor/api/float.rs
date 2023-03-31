@@ -241,6 +241,15 @@ where
         Self::new(tensor)
     }
 
+    /// Fill elements from the given tensor based where the mask is true.
+    pub fn mask_scatter(self, mask: Tensor<B, D, Bool>, source: Tensor<B, D>) -> Self {
+        Self::new(B::mask_scatter(
+            self.primitive,
+            mask.primitive,
+            source.primitive,
+        ))
+    }
+
     /// Fill each element with the given value based on the given mask.
     pub fn mask_fill<E: ElementConversion>(self, mask: Tensor<B, D, Bool>, value: E) -> Self {
         Self::new(B::mask_fill(self.primitive, mask.primitive, value.elem()))
