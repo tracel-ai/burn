@@ -3,8 +3,8 @@ use crate as burn;
 #[macro_export]
 macro_rules! constant {
     (module) => {
-        fn devices(&self) -> Vec<<B as burn_tensor::backend::Backend>::Device> {
-            vec![]
+        fn devices(&self) -> alloc::vec::Vec<<B as burn_tensor::backend::Backend>::Device> {
+            alloc::vec::Vec::new()
         }
 
         fn to_device(self, _device: &<B as burn_tensor::backend::Backend>::Device) -> Self {
@@ -63,7 +63,7 @@ macro_rules! constant {
 }
 
 // General Types
-constant!(String);
+constant!(alloc::string::String);
 constant!(bool);
 
 // Float Types

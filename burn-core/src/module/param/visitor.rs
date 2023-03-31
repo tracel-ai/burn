@@ -1,12 +1,9 @@
-use core::marker::PhantomData;
-
-use alloc::vec::Vec;
-
 use super::ParamId;
 use crate::module::{Module, ModuleVisitor};
+use alloc::vec::Vec;
 use burn_tensor::{backend::Backend, Tensor};
+use core::marker::PhantomData;
 
-#[derive(new)]
 struct ParamIdCollector<'a, M> {
     param_ids: &'a mut Vec<ParamId>,
     phantom: PhantomData<M>,
@@ -25,7 +22,10 @@ where
 /// List all the parameter ids in a module.
 pub fn list_param_ids<M: Module<B>, B: Backend>(module: &M) -> Vec<ParamId> {
     let mut params_ids = Vec::new();
-    let mut visitor = ParamIdCollector::<M>::new(&mut params_ids);
+    let mut visitor = ParamIdCollector {
+        param_ids: &mut params_ids,
+        phantom: PhantomData::<M>::default(),
+    };
     module.visit(&mut visitor);
 
     params_ids

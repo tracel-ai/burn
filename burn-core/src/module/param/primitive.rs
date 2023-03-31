@@ -1,6 +1,8 @@
 use crate::module::{
     ADModule, LoadingError, Module, ModuleMapper, ModuleVisitor, State, StateNamed,
 };
+use alloc::format;
+use alloc::vec::Vec;
 use burn_tensor::backend::{ADBackend, Backend};
 use core::fmt::Debug;
 
@@ -14,7 +16,7 @@ where
             return Module::<B>::devices(module);
         }
 
-        vec![]
+        Vec::new()
     }
 
     fn to_device(self, device: &<B as burn_tensor::backend::Backend>::Device) -> Self {
