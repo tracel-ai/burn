@@ -11,9 +11,6 @@ use burn_tensor::Tensor;
 /// This will make your module trainable, savable and loadable via
 /// [state](Module::state) and [load](Module::load).
 ///
-/// Module concrete types should define their parameters via the [Param](crate::module::Param)
-/// struct.
-///
 /// # Example
 ///
 /// A module should have a [backend](crate::tensor::backend::Backend) defined as a generic
@@ -26,14 +23,14 @@ use burn_tensor::Tensor;
 ///
 /// use burn::{
 ///     nn,
-///     module::{Param, Module},
+///     module::Module,
 ///     tensor::Tensor,
 ///     tensor::backend::Backend,
 /// };
 ///
 /// #[derive(Module, Debug)]
 /// struct MyModule<B: Backend> {
-///   my_param: Param<nn::Linear<B>>,
+///   my_param: nn::Linear<B>,
 ///   my_other_field: usize,
 /// }
 /// ```
