@@ -5,6 +5,7 @@ mod cos;
 mod div;
 mod erf;
 mod exp;
+mod flatten;
 mod index;
 mod index_select;
 mod index_select_dim;
