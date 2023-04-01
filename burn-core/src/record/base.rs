@@ -3,7 +3,7 @@ use alloc::string::String;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 /// Trait to define a family of types which can be recorded using any [settings](RecordSettings).
-pub trait Record {
+pub trait Record: Send + Sync {
     type Item<S: RecordSettings>;
 
     /// Convert the current record into the corresponding item that follows the given [settings](RecordSettings).

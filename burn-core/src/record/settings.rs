@@ -5,7 +5,7 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use super::Recorder;
 
-pub trait RecordSettings {
+pub trait RecordSettings: Default + Send + Sync {
     type FloatElem: Element + Serialize + DeserializeOwned;
     type IntElem: Element + Serialize + DeserializeOwned;
     type Recorder: Recorder;
@@ -22,6 +22,16 @@ pub struct Settings<Float = half::f16, Int = i16, Recorder = crate::record::InMe
     float: PhantomData<Float>,
     int: PhantomData<Int>,
     recorder: PhantomData<Recorder>,
+}
+
+impl<Float, Int, Recorder> Default for Settings<Float, Int, Recorder> {
+    fn default() -> Self {
+        Self {
+            float: PhantomData::default(),
+            int: PhantomData::default(),
+            recorder: PhantomData::default(),
+        }
+    }
 }
 
 impl<Float, Int, Recorder> RecordSettings for Settings<Float, Int, Recorder>
