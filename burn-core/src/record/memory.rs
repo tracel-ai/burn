@@ -1,4 +1,4 @@
-use super::{bin_config, RecordError, Recorder};
+use super::{bin_config, Recorder, RecorderError};
 use alloc::vec::Vec;
 use serde::{de::DeserializeOwned, Serialize};
 
@@ -26,11 +26,11 @@ impl Recorder for InMemoryBinRecorder {
     fn record<Obj: Serialize + DeserializeOwned>(
         obj: Obj,
         _args: Self::RecordArgs,
-    ) -> Result<Vec<u8>, RecordError> {
+    ) -> Result<Vec<u8>, RecorderError> {
         Ok(bincode::serde::encode_to_vec(obj, bin_config()).unwrap())
     }
 
-    fn load<Obj: Serialize + DeserializeOwned>(args: Self::LoadArgs) -> Result<Obj, RecordError> {
+    fn load<Obj: Serialize + DeserializeOwned>(args: Self::LoadArgs) -> Result<Obj, RecorderError> {
         let state = bincode::serde::decode_borrowed_from_slice(&args, bin_config()).unwrap();
         Ok(state)
     }
