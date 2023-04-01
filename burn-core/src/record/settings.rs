@@ -19,7 +19,10 @@ pub struct NoStdTrainingRecordSettings;
 pub struct NoStdInferenceRecordSettings;
 
 impl RecordSettings for DefaultRecordSettings {
+    #[cfg(feature = "std")]
     type FloatElem = half::f16;
+    #[cfg(not(feature = "std"))]
+    type FloatElem = f32;
     type IntElem = i16;
     #[cfg(feature = "std")]
     type Recorder = crate::record::FileBinGzRecorder;

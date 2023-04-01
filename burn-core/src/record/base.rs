@@ -1,4 +1,6 @@
 use super::{RecordSettings, Recorder, RecorderError};
+use crate::alloc::string::ToString;
+use alloc::format;
 use alloc::string::String;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
@@ -92,7 +94,7 @@ struct BurnRecordNoItem {
     metadata: BurnMetadata,
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "srd"))]
 mod tests {
     static FILE_PATH: &str = "/tmp/burn_test_record";
 
