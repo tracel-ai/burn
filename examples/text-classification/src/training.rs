@@ -8,7 +8,7 @@ use burn::{
     module::Module,
     nn::transformer::TransformerEncoderConfig,
     optim::{Sgd, SgdConfig},
-    record::{Record, Settings},
+    record::{DefaultRecordSettings, Record},
     tensor::backend::ADBackend,
     train::{
         metric::{AccuracyMetric, CUDAMetric, LossMetric},
@@ -79,7 +79,7 @@ pub fn train<B: ADBackend, D: TextClassificationDataset + 'static>(
         .metric_valid(AccuracyMetric::new())
         .metric_train_plot(LossMetric::new())
         .metric_valid_plot(LossMetric::new())
-        .with_file_checkpointer::<Settings>(2)
+        .with_file_checkpointer::<DefaultRecordSettings>(2)
         .devices(vec![device])
         .num_epochs(config.num_epochs)
         .build(model, optim);
@@ -90,6 +90,6 @@ pub fn train<B: ADBackend, D: TextClassificationDataset + 'static>(
 
     model_trained
         .state()
-        .record::<Settings>(format!("{artifact_dir}/model").into())
+        .record::<DefaultRecordSettings>(format!("{artifact_dir}/model").into())
         .unwrap();
 }

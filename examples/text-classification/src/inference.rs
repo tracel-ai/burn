@@ -4,7 +4,7 @@ use burn::{
     config::Config,
     data::dataloader::batcher::Batcher,
     module::{Module, State},
-    record::{Record, Settings},
+    record::{DefaultRecordSettings, Record},
     tensor::{backend::Backend, f16},
 };
 
@@ -39,8 +39,9 @@ pub fn infer<B: Backend, D: TextClassificationDataset + 'static>(
     .init::<B>();
 
     println!("Loading weights ...");
-    let state: State<f16> = Record::load::<Settings>(format!("{artifact_dir}/model").into())
-        .expect("Trained model weights");
+    let state: State<f16> =
+        Record::load::<DefaultRecordSettings>(format!("{artifact_dir}/model").into())
+            .expect("Trained model weights");
     let model = model.load(&state.convert()).expect("Can load weights");
     let model = model.to_device(&device);
 

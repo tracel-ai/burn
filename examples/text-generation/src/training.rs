@@ -16,7 +16,7 @@ use burn::{
 };
 use burn::{
     data::dataset::transform::SamplerDataset,
-    record::{Record, Settings},
+    record::{DefaultRecordSettings, Record},
 };
 use std::sync::Arc;
 
@@ -79,7 +79,7 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
         .metric_valid(AccuracyMetric::new())
         .metric_train_plot(LossMetric::new())
         .metric_valid_plot(LossMetric::new())
-        .with_file_checkpointer::<Settings>(2)
+        .with_file_checkpointer::<DefaultRecordSettings>(2)
         .devices(vec![device])
         .grads_accumulation(16)
         .num_epochs(config.num_epochs)
@@ -91,6 +91,6 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
 
     model_trained
         .state()
-        .record::<Settings>(format!("{artifact_dir}/model").into())
+        .record::<DefaultRecordSettings>(format!("{artifact_dir}/model").into())
         .unwrap();
 }

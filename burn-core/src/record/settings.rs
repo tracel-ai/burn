@@ -1,46 +1,38 @@
-use core::marker::PhantomData;
-
+use super::Recorder;
 use burn_tensor::Element;
 use serde::{de::DeserializeOwned, Serialize};
 
-use super::Recorder;
-
-pub trait RecordSettings: Default + Send + Sync {
+pub trait RecordSettings: Send + Sync {
     type FloatElem: Element + Serialize + DeserializeOwned;
     type IntElem: Element + Serialize + DeserializeOwned;
     type Recorder: Recorder;
 }
 
+/// Default record settings.
+pub struct DefaultRecordSettings;
+/// Traniing settings compatible with no-std inference.
+pub struct NoStdTrainingRecordSettings;
+/// Inference settings compatible with no-std.
+pub struct NoStdInferenceRecordSettings;
+
+impl RecordSettings for DefaultRecordSettings {
+    type FloatElem = half::f16;
+    type IntElem = i16;
+    #[cfg(feature = "std")]
+    type Recorder = crate::record::FileBinGzRecorder;
+    #[cfg(not(feature = "std"))]
+    type Recorder = crate::record::InMemoryBinRecorder;
+}
+
 #[cfg(feature = "std")]
-pub struct Settings<Float = half::f16, Int = i16, Recorder = crate::record::FileBinGzRecorder> {
-    float: PhantomData<Float>,
-    int: PhantomData<Int>,
-    recorder: PhantomData<Recorder>,
-}
-#[cfg(not(feature = "std"))]
-pub struct Settings<Float = half::f16, Int = i16, Recorder = crate::record::InMemoryBinRecorder> {
-    float: PhantomData<Float>,
-    int: PhantomData<Int>,
-    recorder: PhantomData<Recorder>,
+impl RecordSettings for NoStdTrainingRecordSettings {
+    type FloatElem = f32;
+    type IntElem = i32;
+    type Recorder = crate::record::FileBinRecorder;
 }
 
-impl<Float, Int, Recorder> Default for Settings<Float, Int, Recorder> {
-    fn default() -> Self {
-        Self {
-            float: PhantomData::default(),
-            int: PhantomData::default(),
-            recorder: PhantomData::default(),
-        }
-    }
-}
-
-impl<Float, Int, Recorder> RecordSettings for Settings<Float, Int, Recorder>
-where
-    Float: Element + Serialize + DeserializeOwned,
-    Int: Element + Serialize + DeserializeOwned,
-    Recorder: crate::record::Recorder,
-{
-    type FloatElem = Float;
-    type IntElem = Int;
-    type Recorder = Recorder;
+impl RecordSettings for NoStdInferenceRecordSettings {
+    type FloatElem = f32;
+    type IntElem = i32;
+    type Recorder = crate::record::InMemoryBinRecorder;
 }

@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use super::{Checkpointer, CheckpointerError};
 use burn_core::record::{FileRecorder, Record, RecordSettings};
 use serde::{de::DeserializeOwned, Serialize};
@@ -10,7 +12,7 @@ where
     directory: String,
     name: String,
     num_keep: usize,
-    _settings: S,
+    settings: PhantomData<S>,
 }
 
 impl<S> FileCheckpointer<S>
@@ -25,7 +27,7 @@ where
             directory: directory.to_string(),
             name: name.to_string(),
             num_keep,
-            _settings: S::default(),
+            settings: PhantomData::default(),
         }
     }
     fn path_for_epoch(&self, epoch: usize) -> String {
