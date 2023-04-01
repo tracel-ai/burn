@@ -313,6 +313,7 @@ mod tests {
         let params_before_2 = list_param_ids(&model_2);
 
         let state = model_1.state();
+
         model_2 = model_2.load(&state).unwrap();
         let params_after_2 = list_param_ids(&model_2);
 
