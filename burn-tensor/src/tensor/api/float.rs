@@ -308,41 +308,7 @@ where
         Self::new(B::require_grad(self.primitive))
     }
 
-    /// Unsqueeze the current tensor. Create new dimensions to fit the given size.
-    ///
-    /// # Panics
-    ///
-    /// If the output size is higher than the current tensor.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Shape};
-    ///
-    /// fn example<B: Backend>() {
-    ///     let tensor = Tensor::<B, 2>::ones(Shape::new([3, 3]));
-    ///     let tensor = tensor.unsqueeze::<4>();
-    ///     println!("{:?}", tensor.shape());
-    ///     // Shape { dims: [1, 1, 3, 3] }
-    /// }
-    /// ```
-    /// TODO move this function to the base.
-    pub fn unsqueeze<const D2: usize>(self) -> Tensor<B, D2> {
-        if D2 < D {
-            panic!("Can't unsqueeze smaller tensor, got dim {D2}, expected > {D}")
-        }
-
-        let mut dims = [1; D2];
-        let num_ones = D2 - D;
-        let shape = self.shape();
-
-        dims[num_ones..(D + num_ones)].copy_from_slice(&shape.dims[..D]);
-
-        let shape = Shape::new(dims);
-        self.reshape(shape)
-    }
-
+    /// Applies the relu function to the tensor.
     pub(crate) fn relu(self) -> Self {
         Self::new(B::relu(self.primitive))
     }
