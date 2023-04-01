@@ -2,17 +2,20 @@ use super::Recorder;
 use burn_tensor::Element;
 use serde::{de::DeserializeOwned, Serialize};
 
-pub trait RecordSettings: Send + Sync {
+pub trait RecordSettings: Send + Sync + core::fmt::Debug + core::default::Default {
     type FloatElem: Element + Serialize + DeserializeOwned;
     type IntElem: Element + Serialize + DeserializeOwned;
     type Recorder: Recorder;
 }
 
 /// Default record settings.
+#[derive(Debug, Default)]
 pub struct DefaultRecordSettings;
 /// Traniing settings compatible with no-std inference.
+#[derive(Debug, Default)]
 pub struct NoStdTrainingRecordSettings;
 /// Inference settings compatible with no-std.
+#[derive(Debug, Default)]
 pub struct NoStdInferenceRecordSettings;
 
 impl RecordSettings for DefaultRecordSettings {

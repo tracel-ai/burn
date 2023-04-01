@@ -23,11 +23,12 @@ pub trait Record: Send + Sync {
             core::any::type_name::<S::IntElem>().to_string(),
             core::any::type_name::<S::Recorder>().to_string(),
             env!("CARGO_PKG_VERSION").to_string(),
+            format!("{:?}", S::default()),
         );
         let item = self.into_item::<S>();
         let record = BurnRecord::new(item, metadata);
 
-        <S::Recorder as Recorder>::record(record, args)
+        RecorderType::<S>::record(record, args)
     }
 
     /// Load the record using the given [settings](RecordSettings).
@@ -37,7 +38,25 @@ pub trait Record: Send + Sync {
         S: RecordSettings,
         Self::Item<S>: Serialize + DeserializeOwned,
     {
-        let record: BurnRecord<Self::Item<S>> = <S::Recorder as Recorder>::load(args)?;
+        let record: BurnRecord<Self::Item<S>> =
+            RecorderType::<S>::load(args.clone()).map_err(|err| {
+                let message = match err {
+                    RecorderError::FileNotFound(_) => return err,
+                    RecorderError::Unknown(message) => message,
+                };
+                let record = RecorderType::<S>::load::<BurnRecordNoItem>(args);
+
+                let message = match record {
+                    Ok(record) => format!(
+                        "Unable to load record with settings {:?}, found metadata {:?}, err: {:?}",
+                        S::default(),
+                        record.metadata,
+                        message
+                    ),
+                    Err(_err) => message,
+                };
+                RecorderError::Unknown(message)
+            })?;
 
         Ok(Self::from_item(record.item))
     }
@@ -50,17 +69,79 @@ pub type LoadArgs<S> = <<S as RecordSettings>::Recorder as Recorder>::LoadArgs;
 /// Record output result for the given settings.
 pub type RecordOutputResult<S> =
     Result<<<S as RecordSettings>::Recorder as Recorder>::RecordOutput, RecorderError>;
+/// Recorder for the given settings.
+pub type RecorderType<S> = <S as RecordSettings>::Recorder;
 
-#[derive(new, Serialize, Deserialize)]
+#[derive(new, Debug, Serialize, Deserialize)]
 struct BurnMetadata {
     float: String,
     int: String,
     format: String,
     version: String,
+    settings: String,
 }
 
 #[derive(new, Serialize, Deserialize)]
 struct BurnRecord<I> {
     item: I,
     metadata: BurnMetadata,
+}
+
+#[derive(new, Serialize, Deserialize)]
+struct BurnRecordNoItem {
+    metadata: BurnMetadata,
+}
+
+#[cfg(test)]
+mod tests {
+    static FILE_PATH: &str = "/tmp/burn_test_record";
+
+    use core::marker::PhantomData;
+
+    use super::*;
+    use crate::record::FileJsonGzRecorder;
+    use burn_tensor::{Element, ElementConversion};
+
+    #[test]
+    #[should_panic]
+    fn err_when_invalid_object() {
+        #[derive(Debug, Default)]
+        pub struct TestSettings<F> {
+            float: PhantomData<F>,
+        }
+
+        impl<F: Element + Serialize + DeserializeOwned> RecordSettings for TestSettings<F> {
+            type FloatElem = F;
+            type IntElem = i32;
+            type Recorder = FileJsonGzRecorder;
+        }
+
+        #[derive(new, Serialize, Deserialize)]
+        struct Item<S: RecordSettings> {
+            value: S::FloatElem,
+        }
+
+        impl<D: RecordSettings> Record for Item<D> {
+            type Item<S: RecordSettings> = Item<S>;
+
+            fn into_item<S: RecordSettings>(self) -> Self::Item<S> {
+                Item {
+                    value: self.value.elem(),
+                }
+            }
+
+            fn from_item<S: RecordSettings>(item: Self::Item<S>) -> Self {
+                Item {
+                    value: item.value.elem(),
+                }
+            }
+        }
+
+        let item = Item::<TestSettings<f32>>::new(16.elem());
+
+        // Serialize in f32.
+        item.record::<TestSettings<f32>>(FILE_PATH.into()).unwrap();
+        // Can't deserialize u8 into f32.
+        Item::<TestSettings<f32>>::load::<TestSettings<u8>>(FILE_PATH.into()).unwrap();
+    }
 }

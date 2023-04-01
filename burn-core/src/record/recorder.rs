@@ -4,11 +4,11 @@ use serde::{de::DeserializeOwned, Serialize};
 /// Record any item implementing [Serialize](Serialize) and [DeserializeOwned](DeserializeOwned).
 pub trait Recorder: Send + Sync {
     /// Arguments used to record objects.
-    type RecordArgs;
+    type RecordArgs: Clone;
     /// Record output type.
     type RecordOutput;
     /// Arguments used to load recorded objects.
-    type LoadArgs;
+    type LoadArgs: Clone;
 
     fn record<Item: Serialize + DeserializeOwned>(
         item: Item,

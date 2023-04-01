@@ -52,7 +52,7 @@ macro_rules! str2writer {
 
         if path.exists() {
             log::info!("File exists, replacing");
-            std::fs::remove_file(path).unwrap();
+            std::fs::remove_file(path).map_err(|err| RecorderError::Unknown(err.to_string()))?;
         }
 
         File::create(path).map_err(|err| match err.kind() {
@@ -75,7 +75,8 @@ impl Recorder for FileBinGzRecorder {
         let writer = str2writer!(file, "bin.gz")?;
         let mut writer = GzEncoder::new(writer, Compression::default());
 
-        bincode::serde::encode_into_std_write(&obj, &mut writer, config).unwrap();
+        bincode::serde::encode_into_std_write(&obj, &mut writer, config)
+            .map_err(|err| RecorderError::Unknown(err.to_string()))?;
 
         Ok(())
     }
@@ -83,7 +84,8 @@ impl Recorder for FileBinGzRecorder {
     fn load<Obj: Serialize + DeserializeOwned>(mut file: PathBuf) -> Result<Obj, RecorderError> {
         let reader = str2reader!(file, "bin.gz")?;
         let mut reader = GzDecoder::new(reader);
-        let state = bincode::serde::decode_from_std_read(&mut reader, bin_config()).unwrap();
+        let state = bincode::serde::decode_from_std_read(&mut reader, bin_config())
+            .map_err(|err| RecorderError::Unknown(err.to_string()))?;
 
         Ok(state)
     }
@@ -100,13 +102,15 @@ impl Recorder for FileBinRecorder {
     ) -> Result<(), RecorderError> {
         let config = bin_config();
         let mut writer = str2writer!(file, "bin")?;
-        bincode::serde::encode_into_std_write(&obj, &mut writer, config).unwrap();
+        bincode::serde::encode_into_std_write(&obj, &mut writer, config)
+            .map_err(|err| RecorderError::Unknown(err.to_string()))?;
         Ok(())
     }
 
     fn load<Obj: Serialize + DeserializeOwned>(mut file: PathBuf) -> Result<Obj, RecorderError> {
         let mut reader = str2reader!(file, "bin")?;
-        let state = bincode::serde::decode_from_std_read(&mut reader, bin_config()).unwrap();
+        let state = bincode::serde::decode_from_std_read(&mut reader, bin_config())
+            .map_err(|err| RecorderError::Unknown(err.to_string()))?;
         Ok(state)
     }
 }
@@ -122,7 +126,8 @@ impl Recorder for FileJsonGzRecorder {
     ) -> Result<(), RecorderError> {
         let writer = str2writer!(file, "json.gz")?;
         let writer = GzEncoder::new(writer, Compression::default());
-        serde_json::to_writer(writer, &obj).unwrap();
+        serde_json::to_writer(writer, &obj)
+            .map_err(|err| RecorderError::Unknown(err.to_string()))?;
 
         Ok(())
     }
@@ -130,7 +135,8 @@ impl Recorder for FileJsonGzRecorder {
     fn load<Obj: Serialize + DeserializeOwned>(mut file: PathBuf) -> Result<Obj, RecorderError> {
         let reader = str2reader!(file, "json.gz")?;
         let reader = GzDecoder::new(reader);
-        let state = serde_json::from_reader(reader).unwrap();
+        let state = serde_json::from_reader(reader)
+            .map_err(|err| RecorderError::Unknown(err.to_string()))?;
 
         Ok(state)
     }
@@ -148,7 +154,8 @@ impl Recorder for FileMpkGzRecorder {
     ) -> Result<(), RecorderError> {
         let writer = str2writer!(file, "mpk.gz")?;
         let mut writer = GzEncoder::new(writer, Compression::default());
-        rmp_serde::encode::write(&mut writer, &obj).unwrap();
+        rmp_serde::encode::write(&mut writer, &obj)
+            .map_err(|err| RecorderError::Unknown(err.to_string()))?;
 
         Ok(())
     }
@@ -156,7 +163,8 @@ impl Recorder for FileMpkGzRecorder {
     fn load<Obj: Serialize + DeserializeOwned>(mut file: PathBuf) -> Result<Obj, RecorderError> {
         let reader = str2reader!(file, "mpk.gz")?;
         let reader = GzDecoder::new(reader);
-        let state = rmp_serde::decode::from_read(reader).unwrap();
+        let state = rmp_serde::decode::from_read(reader)
+            .map_err(|err| RecorderError::Unknown(err.to_string()))?;
 
         Ok(state)
     }
@@ -167,7 +175,7 @@ mod tests {
     use super::*;
     use crate::{module::Module, nn, TestBackend};
 
-    static FILE_PATH: &str = "/tmp/test_state";
+    static FILE_PATH: &str = "/tmp/burn_test_file_recorder";
 
     #[test]
     fn test_can_save_and_load_jsongz_format() {
