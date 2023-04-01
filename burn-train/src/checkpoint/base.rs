@@ -5,7 +5,7 @@ use burn_core::{
 
 #[derive(Debug)]
 pub enum CheckpointerError {
-    IoError(std::io::Error),
+    IOError(std::io::Error),
     RecorderError(RecorderError),
     StateError(StateError),
     Unknown(String),

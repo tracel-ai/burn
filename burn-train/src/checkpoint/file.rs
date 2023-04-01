@@ -58,7 +58,7 @@ where
 
         if std::path::Path::new(&file_path_old_checkpoint).exists() {
             log::info!("Removing checkpoint {}", file_path_old_checkpoint);
-            std::fs::remove_file(file_path_old_checkpoint).map_err(CheckpointerError::IoError)?;
+            std::fs::remove_file(file_path_old_checkpoint).map_err(CheckpointerError::IOError)?;
         }
 
         Ok(())

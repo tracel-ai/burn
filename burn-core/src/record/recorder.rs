@@ -14,7 +14,7 @@ pub trait Recorder: Send + Sync {
         item: Item,
         args: Self::RecordArgs,
     ) -> Result<Self::RecordOutput, RecorderError>;
-    /// Load an object from the given arguments.
+    /// Load an item from the given arguments.
     fn load<Item: Serialize + DeserializeOwned>(
         args: Self::LoadArgs,
     ) -> Result<Item, RecorderError>;

@@ -11,7 +11,7 @@ pub trait RecordSettings: Send + Sync + core::fmt::Debug + core::default::Defaul
 /// Default record settings.
 #[derive(Debug, Default)]
 pub struct DefaultRecordSettings;
-/// Traniing settings compatible with no-std inference.
+/// Training settings compatible with no-std inference.
 #[derive(Debug, Default)]
 pub struct NoStdTrainingRecordSettings;
 /// Inference settings compatible with no-std.
