@@ -1,16 +1,14 @@
 use crate as burn;
 
-use crate::constant;
+use crate::module::Module;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 
 /// Applies the rectified linear unit function element-wise:
 ///
 /// `y = max(0, x)`
-#[derive(Clone, Debug, Default)]
+#[derive(Module, Clone, Debug, Default)]
 pub struct ReLU {}
-
-constant!(ReLU);
 
 impl ReLU {
     /// Create the module.
