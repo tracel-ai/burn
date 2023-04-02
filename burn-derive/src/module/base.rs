@@ -41,8 +41,7 @@ pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
     let has_backend = ast
         .generics
         .type_params()
-        .into_iter()
-        .map(|param| param.ident.to_string() == "B")
+        .map(|param| param.ident == "B")
         .reduce(|accum, is_backend| is_backend || accum)
         .unwrap_or(false);
 
