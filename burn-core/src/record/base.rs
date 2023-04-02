@@ -94,7 +94,7 @@ struct BurnRecordNoItem {
     metadata: BurnMetadata,
 }
 
-#[cfg(all(test, feature = "srd"))]
+#[cfg(all(test, feature = "std"))]
 mod tests {
     static FILE_PATH: &str = "/tmp/burn_test_record";
 
