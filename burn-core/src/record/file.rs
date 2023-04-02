@@ -18,6 +18,9 @@ pub struct FileBinGzRecorder;
 /// File recorder using the json format compressed with gzip.
 #[derive(Debug, Default)]
 pub struct FileJsonGzRecorder;
+/// File recorder using pretty json for easy redability.
+#[derive(Debug, Default)]
+pub struct FilePrettyJsonRecorder;
 
 #[cfg(feature = "msgpack")]
 /// File recorder using the [message pack](rmp_serde) format compressed with gzip.
@@ -26,6 +29,7 @@ pub struct FileMpkGzRecorder;
 impl FileRecorder for FileBinGzRecorder {}
 impl FileRecorder for FileBinRecorder {}
 impl FileRecorder for FileJsonGzRecorder {}
+impl FileRecorder for FilePrettyJsonRecorder {}
 
 #[cfg(feature = "msgpack")]
 impl FileRecorder for FileMpkGzRecorder {}
@@ -145,6 +149,30 @@ impl Recorder for FileJsonGzRecorder {
     }
 }
 
+impl Recorder for FilePrettyJsonRecorder {
+    type RecordArgs = PathBuf;
+    type RecordOutput = ();
+    type LoadArgs = PathBuf;
+
+    fn record<Obj: Serialize + DeserializeOwned>(
+        obj: Obj,
+        mut file: PathBuf,
+    ) -> Result<(), RecorderError> {
+        let writer = str2writer!(file, "json")?;
+        serde_json::to_writer_pretty(writer, &obj)
+            .map_err(|err| RecorderError::Unknown(err.to_string()))?;
+        Ok(())
+    }
+
+    fn load<Obj: Serialize + DeserializeOwned>(mut file: PathBuf) -> Result<Obj, RecorderError> {
+        let reader = str2reader!(file, "json")?;
+        let state = serde_json::from_reader(reader)
+            .map_err(|err| RecorderError::Unknown(err.to_string()))?;
+
+        Ok(state)
+    }
+}
+
 #[cfg(feature = "msgpack")]
 impl Recorder for FileMpkGzRecorder {
     type SaveArgs = PathBuf;
@@ -200,6 +228,11 @@ mod tests {
     #[test]
     fn test_can_save_and_load_bingz_format() {
         test_can_save_and_load::<FileBinGzRecorder>()
+    }
+
+    #[test]
+    fn test_can_save_and_load_pretty_json_format() {
+        test_can_save_and_load::<FilePrettyJsonRecorder>()
     }
 
     #[cfg(feature = "msgpack")]
