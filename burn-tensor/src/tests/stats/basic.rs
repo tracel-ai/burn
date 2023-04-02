@@ -20,7 +20,7 @@ mod tests {
         let tensor: burn_tensor::Tensor<TestBackend, 2, burn_tensor::Int> = Tensor::from_data(data);
 
         let output = format!("{}", tensor);
-        let expected = "Tensor {\n  data: \n[[1, 2, 3], [4, 5, 6], [7, 8, 9]],\n  shape:   [3, 3],\n  device:  Cpu,\n  backend: \"ndarray\",\n  dtype:   \"int\",\n}";
+        let expected = "Tensor {\n  data: [[1, 2, 3], [4, 5, 6], [7, 8, 9]],\n  shape:   [3, 3],\n  device:  Cpu,\n  backend: \"ndarray\",\n  dtype:   \"int\",\n}";
         assert_eq!(output, expected);
     }
 
@@ -31,14 +31,40 @@ mod tests {
         let tensor: burn_tensor::Tensor<TestBackend, 3, burn_tensor::Int> = Tensor::from_data(data);
 
         let output = format!("{}", tensor);
-        let expected = "Tensor {\n
-         data: [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]],\
-                [[13, 14, 15, 16], [17, 18, 19, 20], [21, 22, 23, 24]],\n
-          shape:   [2, 3, 4], \n
-          device:  CPU, \n
-          backend: \"tch\", \n
-          dtype:   \"int\", \n
-        }";
+        let expected = "Tensor {\n  data: [[[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]], \
+                [[13, 14, 15, 16], [17, 18, 19, 20], [21, 22, 23, 24]]],\n  shape:   [2, 3, 4],\n  device:  Cpu,\n  backend: \"ndarray\",\n  dtype:   \"int\",\n}";
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_display_4d_tensor() {
+        let data = Data::from([
+            [
+                [
+                    [1, 2, 3],
+                    [4, 5, 6],
+                ],
+                [
+                    [7, 8, 9],
+                    [10, 11, 12],
+                ],
+            ],
+            [
+                [
+                    [13, 14, 15],
+                    [16, 17, 18],
+                ],
+                [
+                    [19, 20, 21],
+                    [22, 23, 24],
+                ],
+            ],
+        ]);
+
+        let tensor: burn_tensor::Tensor<TestBackend, 4, burn_tensor::Int> = Tensor::from_data(data);
+
+        let output = format!("{}", tensor);
+        let expected = "Tensor {\n  data: [[[[1, 2, 3], [4, 5, 6]], [[7, 8, 9], [10, 11, 12]]], [[[13, 14, 15], [16, 17, 18]], [[19, 20, 21], [22, 23, 24]]]],\n  shape:   [2, 2, 2, 3],\n  device:  Cpu,\n  backend: \"ndarray\",\n  dtype:   \"int\",\n}";
         assert_eq!(output, expected);
     }
 }
