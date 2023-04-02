@@ -1,5 +1,6 @@
 use super::{Record, RecordSettings};
 use crate::module::{Param, State};
+use alloc::vec::Vec;
 use burn_tensor::{DataSerialize, Element};
 
 impl Record for () {
