@@ -39,6 +39,11 @@ where
         K::shape(&self.primitive)
     }
 
+    /// Returns size of the current tensor.
+    pub fn size(&self) -> usize {
+        self.dims().iter().fold(1, |acc, &dim| acc * dim)
+    }
+
     /// Reshape the tensor to have the given shape.
     ///
     /// # Panics
@@ -172,45 +177,67 @@ impl<B, const D: usize> Tensor<B, D, Int>
 where
     B: Backend,
 {
-    fn to_nested_vec(&self) -> Vec<Vec<B::IntElem>> {
-        let data = self.to_data();
-        let shape = self.shape().dims;
-        let mut result = vec![vec![B::IntElem::default(); shape[D - 1]]; shape[..D - 1].iter().product()];
-        for (i, val) in data.value.iter().enumerate() {
-            let row = i / shape[D - 1];
-            let col = i % shape[D - 1];
-            result[row][col] = *val;
+    /// Recursively formats the tensor data for display and appends it to the provided accumulator string.
+    ///
+    /// This function is designed to work with tensors of any dimensionality.
+    /// It traverses the tensor dimensions recursively, converting the elements
+    /// to strings and appending them to the accumulator string with the
+    /// appropriate formatting.
+    ///
+    /// # Arguments
+    ///
+    /// * `acc` - A mutable reference to a `String` used as an accumulator for the formatted output.
+    /// * `depth` - The current depth of the tensor dimensions being processed.
+    /// * `multi_index` - A mutable slice of `usize` representing the current indices in each dimension.
+    /// 
+    /// # Example
+    /// 
+    /// ```rust
+    /// let data = Data::from([[[1, 2, 3], [4, 5, 6]], [[7, 8, 9], [10, 11, 12]]]);
+    /// let tensor: burn_tensor::Tensor<TestBackend, 3, burn_tensor::Int> = Tensor::from_data(data);
+    /// let mut acc = String::new();
+    /// let mut multi_index = vec![0; 3];
+    /// tensor.display_recursive(&mut acc, 0, &mut multi_index);
+    /// assert_e!(acc, "[[[1, 2, 3], [4, 5, 6]], [[7, 8, 9], [10, 11, 12]]]");
+    /// ```
+    fn display_recursive(&self, acc: &mut String, depth: usize, multi_index: &mut [usize]) {
+        if depth == 0 {
+            acc.push('[');
         }
-        result
-    }
-}
-
-impl<B, const D: usize> Tensor<B, D, Int>
-where
-    B: Backend,
-{
-    fn display_recursive(&self, acc: &mut Vec<String>, dim: usize) {
-        let dim_size = self.dims()[dim];
-        let is_last_dim = dim == D - 1;
-
-        acc.push(format!("{:indent$}", "", indent = dim * 2));
-        if is_last_dim {
-            acc.push(format!("{:?}", self.to_nested_vec()));
-        } else {
-            acc.push(format!("["));
-            for i in 0..dim_size {
+    
+        if depth == self.dims().len() - 1 {
+            // if we are at the innermost dimension, just push its elements into the accumulator
+            for i in 0..self.dims()[depth] {
                 if i > 0 {
-                    acc.push(format!(","));
+                    acc.push_str(", ");
                 }
-                self.clone().index([0..i]).display_recursive(acc, dim + 1);
+                multi_index[depth] = i;
+                let range: [std::ops::Range<usize>; D] = core::array::from_fn(|i| {
+                    multi_index[i].clone()..multi_index[i].clone() + 1
+                });
+                let elem = self.clone().index(range).to_data().value[0];
+                acc.push_str(&format!("{:?}", elem));
             }
-            acc.push(format!("{:indent$}", "", indent = dim * 2));
-            acc.push(format!("]"));
+        } else {
+            // otherwise, iterate through the current dimension and recursively display the inner tensors
+            for i in 0..self.dims()[depth] {
+                if i > 0 {
+                    acc.push_str(", ");
+                }
+                acc.push('[');
+                multi_index[depth] = i;
+                self.display_recursive(acc, depth + 1, multi_index);
+                acc.push(']');
+            }
+        }
+    
+        if depth == 0 {
+            acc.push(']');
         }
     }
 }
 
-/// Pretty print 2D Int tensors
+/// Pretty print Int tensors
 impl<B, const D: usize> std::fmt::Display for Tensor<B, D, Int>
 where
     B: Backend,
@@ -218,16 +245,13 @@ where
 {   
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Tensor {{")?;
-        writeln!(f, "  data: ")?;
-        if D == 2 {
-            writeln!(f, "{:?},", self.to_nested_vec())?;
-        } else {
-            let mut data = Vec::new();
-            self.display_recursive(&mut data, 0);
-            for line in data {
-                writeln!(f, "{}", line)?;
-            }
-        }
+        write!(f, "  data: ")?;
+        
+        let mut acc = String::new();
+        let mut multi_index = vec![0; D];
+        self.display_recursive(&mut acc, 0, &mut multi_index);
+        write!(f, "{}", acc)?;
+        writeln!(f, ",")?;
         writeln!(f, "  shape:   {:?},", self.dims())?;
         writeln!(f, "  device:  {:?},", self.device())?;
         writeln!(f, "  backend: {:?},", B::name())?;
