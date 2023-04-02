@@ -227,9 +227,7 @@ mod tests {
             .record::<TestRecordSettings<Recorder>>(FILE_PATH.into())
             .unwrap();
 
-        let model_after = create_model()
-            .load(&Recorder::load(FILE_PATH.into()).unwrap())
-            .unwrap();
+        let model_after = create_model().load_record(Recorder::load(FILE_PATH.into()).unwrap());
 
         let model_bytes_before = model_before
             .into_record()

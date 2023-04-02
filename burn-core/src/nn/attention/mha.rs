@@ -1,4 +1,4 @@
-use alloc::{format, vec::Vec};
+use alloc::vec::Vec;
 
 use crate as burn;
 

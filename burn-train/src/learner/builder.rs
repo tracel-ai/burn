@@ -8,19 +8,22 @@ use crate::metric::{Adaptor, Metric, Numeric};
 use crate::AsyncTrainerCallback;
 use burn_core::module::{ADModule, State};
 use burn_core::optim::Optimizer;
-use burn_core::record::{FileRecorder, RecordSettings};
+use burn_core::record::{FileRecorder, Record, RecordSettings};
 use burn_core::tensor::backend::ADBackend;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use std::sync::Arc;
 
 /// Struct to configure and create a [learner](Learner).
-pub struct LearnerBuilder<B, T, V>
+pub struct LearnerBuilder<B, T, V, M>
 where
     T: Send + Sync + 'static,
     V: Send + Sync + 'static,
     B: ADBackend,
+    M: ADModule<B>,
 {
     dashboard: Dashboard<T, V>,
-    checkpointer_model: Option<Arc<dyn Checkpointer<State<B::FloatElem>> + Send + Sync>>,
+    checkpointer_model: Option<Arc<dyn Checkpointer<M::Record> + Send + Sync>>,
     checkpointer_optimizer: Option<Arc<dyn Checkpointer<State<B::FloatElem>> + Send + Sync>>,
     num_epochs: usize,
     checkpoint: Option<usize>,
@@ -29,11 +32,12 @@ where
     devices: Vec<B::Device>,
 }
 
-impl<B, T, V> LearnerBuilder<B, T, V>
+impl<B, T, V, Model> LearnerBuilder<B, T, V, Model>
 where
     T: Send + Sync + 'static,
     V: Send + Sync + 'static,
     B: ADBackend,
+    Model: ADModule<B>,
 {
     pub fn new(directory: &str) -> Self {
         let renderer = Box::new(CLIDashboardRenderer::new());
@@ -143,6 +147,7 @@ where
     pub fn with_file_checkpointer<S>(mut self, num_keep: usize) -> Self
     where
         S: RecordSettings + 'static,
+        <Model::Record as Record>::Item<S>: Serialize + DeserializeOwned,
         S::Recorder: FileRecorder,
     {
         self.checkpointer_model = Some(Arc::new(FileCheckpointer::<S>::new(
@@ -159,10 +164,10 @@ where
     }
 
     /// Create the [learner](Learner) from a [module](ADModule) and an
-    pub fn build<M, O>(self, model: M, optim: O) -> Learner<B, M, O, T, V>
+    pub fn build<O>(self, model: Model, optim: O) -> Learner<B, Model, O, T, V>
     where
-        M: ADModule<B>,
-        O: Optimizer<M, B>,
+        Model::Record: 'static,
+        O: Optimizer<Model, B>,
     {
         self.init_logger();
         let callack = Box::new(self.dashboard);
@@ -176,6 +181,14 @@ where
             }
             None => None,
         };
+        let create_checkpointer_model = |checkpointer| match checkpointer {
+            Some(checkpointer) => {
+                let checkpointer: Box<dyn Checkpointer<Model::Record>> =
+                    Box::new(AsyncCheckpointer::new(checkpointer));
+                Some(checkpointer)
+            }
+            None => None,
+        };
         let model = model.detach();
 
         Learner {
@@ -184,7 +197,7 @@ where
             num_epochs: self.num_epochs,
             callback,
             checkpoint: self.checkpoint,
-            checkpointer_model: create_checkpointer(self.checkpointer_model),
+            checkpointer_model: create_checkpointer_model(self.checkpointer_model),
             checkpointer_optimizer: create_checkpointer(self.checkpointer_optimizer),
             grad_accumulation: self.grad_accumulation,
             devices: self.devices,

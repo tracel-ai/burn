@@ -1,4 +1,4 @@
-use alloc::{format, vec::Vec};
+use alloc::vec::Vec;
 use burn_tensor::Bool;
 
 use crate::{
