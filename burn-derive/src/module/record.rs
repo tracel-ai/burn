@@ -26,7 +26,7 @@ impl RecordGenerator {
             let name = &field.field.ident;
 
             fields.extend(quote! {
-                #name: <#ty as burn::module::Module<B>>::Record,
+                pub #name: <#ty as burn::module::Module<B>>::Record,
             });
         }
         let name = self.record_name();
@@ -49,7 +49,7 @@ impl RecordGenerator {
             let name = &field.field.ident;
 
             fields.extend(quote! {
-                #name: <<#ty as burn::module::Module<B>>::Record as burn::record::Record>::Item<S>,
+                pub #name: <<#ty as burn::module::Module<B>>::Record as burn::record::Record>::Item<S>,
             });
             bounds.extend(quote!{
                 <<#ty as burn::module::Module<B>>::Record as burn::record::Record>::Item<S>: serde::Serialize + serde::de::DeserializeOwned,

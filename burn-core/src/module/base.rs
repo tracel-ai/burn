@@ -55,7 +55,7 @@ pub trait Module<B: Backend>: Clone + Send + Sync + core::fmt::Debug {
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self;
     /// Load the module state from a record.
     fn load_record(self, record: Self::Record) -> Self;
-    /// Convert the model into a record containing the state.
+    /// Convert the module into a record containing the state.
     fn into_record(self) -> Self::Record;
 }
 
