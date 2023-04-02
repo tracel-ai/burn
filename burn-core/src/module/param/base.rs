@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use super::ParamId;
 
 /// Define a trainable parameter.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(new, Debug, Clone, Serialize, Deserialize)]
 pub struct Param<T> {
     pub(crate) id: ParamId,
     pub(crate) value: T,
