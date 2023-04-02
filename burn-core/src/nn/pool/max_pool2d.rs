@@ -1,6 +1,7 @@
-use crate::{self as burn, constant};
+use crate as burn;
 
 use crate::config::Config;
+use crate::module::Module;
 use crate::nn::conv::Conv2dPaddingConfig;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
@@ -25,14 +26,12 @@ pub struct MaxPool2dConfig {
 pub type MaxPool2dPaddingConfig = Conv2dPaddingConfig;
 
 /// Applies a 2D max pooling over input tensors.
-#[derive(Debug, Clone)]
+#[derive(Module, Debug, Clone)]
 pub struct MaxPool2d {
     stride: [usize; 2],
     kernel_size: [usize; 2],
     padding: MaxPool2dPaddingConfig,
 }
-
-constant!(MaxPool2d);
 
 impl MaxPool2dConfig {
     /// Initialize a new [max pool 2d](MaxPool2d) module.

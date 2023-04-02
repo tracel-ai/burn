@@ -2,9 +2,53 @@ use super::{fn_generator::FnGenerator, record::RecordGenerator};
 use crate::module::display;
 use proc_macro::TokenStream;
 use quote::quote;
+use syn::parse_quote;
+
+pub(crate) fn constant_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
+    let name = &ast.ident;
+    let (_, generics_ty, generics_where) = ast.generics.split_for_impl();
+
+    let backend: syn::Generics = parse_quote! { <B: burn::tensor::backend::Backend >};
+    let backend_ad: syn::Generics = parse_quote! { <B: burn::tensor::backend::ADBackend >};
+
+    let mut generics_module = ast.generics.clone();
+    let mut generics_module_ad = ast.generics.clone();
+
+    for param in backend.params.into_iter() {
+        generics_module.params.push(param);
+    }
+    for param in backend_ad.params.into_iter() {
+        generics_module_ad.params.push(param);
+    }
+    let (generics_module, _, _) = generics_module.split_for_impl();
+    let (generics_module_ad, _, _) = generics_module_ad.split_for_impl();
+
+    let gen = quote! {
+        impl #generics_module burn::module::Module<B> for #name #generics_ty #generics_where {
+            burn::constant!(module);
+        }
+
+        impl #generics_module_ad burn::module::ADModule<B> for #name #generics_ty #generics_where {
+            burn::constant!(ad_module, #name #generics_ty);
+        }
+    };
+
+    gen.into()
+}
 
 pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
     let name = &ast.ident;
+    let has_backend = ast
+        .generics
+        .type_params()
+        .map(|param| param.ident == "B")
+        .reduce(|accum, is_backend| is_backend || accum)
+        .unwrap_or(false);
+
+    if !has_backend {
+        return constant_derive_impl(ast);
+    }
+
     let (generics, generics_ty, generics_where) = ast.generics.split_for_impl();
 
     let display_fn = display::display_fn(name);
