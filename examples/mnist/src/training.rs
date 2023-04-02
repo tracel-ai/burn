@@ -77,9 +77,8 @@ pub fn run<B: ADBackend>(device: B::Device) {
         .save(format!("{ARTIFACT_DIR}/config.json").as_str())
         .unwrap();
 
-    // We save a bin version of the model to be loaded with no_std environement.
     model_trained
-        .state()
+        .into_record()
         .record::<NoStdTrainingRecordSettings>(format!("{ARTIFACT_DIR}/model").into())
         .expect("Failed to save trained model");
 }

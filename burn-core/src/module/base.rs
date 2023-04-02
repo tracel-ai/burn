@@ -1,7 +1,10 @@
 use alloc::{format, string::String, vec::Vec};
 
-use super::{ParamId, State};
-use crate::tensor::backend::{ADBackend, Backend};
+use super::ParamId;
+use crate::{
+    record::Record,
+    tensor::backend::{ADBackend, Backend},
+};
 pub use burn_derive::Module;
 use burn_tensor::Tensor;
 
@@ -35,14 +38,13 @@ use burn_tensor::Tensor;
 /// }
 /// ```
 pub trait Module<B: Backend>: Clone + Send + Sync + core::fmt::Debug {
+    /// Type to save and load the module.
+    type Record: Record;
+
     /// Get the device list of the module and all of its sub-modules.
     fn devices(&self) -> Vec<B::Device>;
     /// Move the module and all of its sub-modules to the given device.
     fn to_device(self, device: &B::Device) -> Self;
-    /// Load the module state.
-    fn load(self, state: &State<B::FloatElem>) -> Result<Self, LoadingError>;
-    /// Get the module state.
-    fn state(&self) -> State<B::FloatElem>;
     /// Detach the module from the graph.
     fn detach(self) -> Self;
     /// Get the number of parameters the module has, including all of its sub-modules.
@@ -51,6 +53,10 @@ pub trait Module<B: Backend>: Clone + Send + Sync + core::fmt::Debug {
     fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V);
     /// Map each tensor in the module with a [mapper](ModuleMapper).
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self;
+    /// Load the module state from a record.
+    fn load_record(self, record: Self::Record) -> Self;
+    /// Convert the module into a record containing the state.
+    fn into_record(self) -> Self::Record;
 }
 
 pub trait ModuleVisitor<B: Backend> {

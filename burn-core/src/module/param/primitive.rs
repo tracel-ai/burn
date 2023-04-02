@@ -1,7 +1,4 @@
-use crate::module::{
-    ADModule, LoadingError, Module, ModuleMapper, ModuleVisitor, State, StateNamed,
-};
-use alloc::format;
+use crate::module::{ADModule, Module, ModuleMapper, ModuleVisitor};
 use alloc::vec::Vec;
 use burn_tensor::backend::{ADBackend, Backend};
 use core::fmt::Debug;
@@ -11,6 +8,8 @@ where
     T: Module<B> + Debug + Send + Sync + Clone,
     B: Backend,
 {
+    type Record = Option<T::Record>;
+
     fn devices(&self) -> Vec<<B as burn_tensor::backend::Backend>::Device> {
         if let Some(module) = self {
             return Module::<B>::devices(module);
@@ -21,19 +20,6 @@ where
 
     fn to_device(self, device: &<B as burn_tensor::backend::Backend>::Device) -> Self {
         self.map(|module| module.to_device(device))
-    }
-
-    fn load(self, state: &State<B::FloatElem>) -> Result<Self, LoadingError> {
-        self.map(|module| module.load(state).map(|val| Some(val)))
-            .unwrap_or(Ok(None))
-    }
-
-    fn state(&self) -> State<B::FloatElem> {
-        if let Some(module) = self {
-            return module.state();
-        }
-
-        State::StateNamed(StateNamed::new())
     }
 
     fn detach(self) -> Self {
@@ -55,6 +41,15 @@ where
 
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
         self.map(|module| module.map(mapper))
+    }
+
+    fn load_record(self, record: Self::Record) -> Self {
+        self.zip(record)
+            .map(|(module, record)| module.load_record(record))
+    }
+
+    fn into_record(self) -> Self::Record {
+        self.map(Module::into_record)
     }
 }
 
@@ -79,6 +74,8 @@ where
     T: Module<B> + Debug + Send + Sync + Clone,
     B: Backend,
 {
+    type Record = Vec<T::Record>;
+
     fn devices(&self) -> Vec<<B as burn_tensor::backend::Backend>::Device> {
         let mut devices = Vec::new();
         for module in self.iter() {
@@ -89,35 +86,6 @@ where
 
     fn to_device(self, device: &<B as burn_tensor::backend::Backend>::Device) -> Self {
         self.into_iter().map(|val| val.to_device(device)).collect()
-    }
-
-    fn load(self, state: &State<B::FloatElem>) -> Result<Self, LoadingError> {
-        let num = self.len();
-        let mut modules = Vec::with_capacity(num);
-
-        for (i, module) in self.into_iter().enumerate() {
-            let module = module
-                .load(state.get(format!("mod-{i}").as_str()).ok_or_else(|| {
-                    LoadingError::new(format!(
-                        "Invalid number of modules, expected {num} modules missing #{i}"
-                    ))
-                })?)
-                .map_err(|err| LoadingError::new(format!("Can't load modules mod-{i}: {err}")))?;
-
-            modules.push(module);
-        }
-
-        Ok(modules)
-    }
-
-    fn state(&self) -> State<B::FloatElem> {
-        let mut state = StateNamed::new();
-
-        for (i, module) in self.iter().enumerate() {
-            state.register_state(format!("mod-{i}").as_str(), module.state());
-        }
-
-        State::StateNamed(state)
     }
 
     fn detach(self) -> Self {
@@ -141,6 +109,17 @@ where
 
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
         self.into_iter().map(|module| module.map(mapper)).collect()
+    }
+
+    fn into_record(self) -> Self::Record {
+        self.into_iter().map(Module::into_record).collect()
+    }
+
+    fn load_record(self, record: Self::Record) -> Self {
+        self.into_iter()
+            .zip(record.into_iter())
+            .map(|(module, record)| module.load_record(record))
+            .collect()
     }
 }
 
@@ -168,6 +147,8 @@ where
     T: Module<B> + Debug + Send + Sync + Clone + Copy,
     B: Backend,
 {
+    type Record = [T::Record; N];
+
     fn devices(&self) -> Vec<<B as burn_tensor::backend::Backend>::Device> {
         let mut devices = Vec::new();
         for module in self.iter() {
@@ -178,32 +159,6 @@ where
 
     fn to_device(self, device: &<B as burn_tensor::backend::Backend>::Device) -> Self {
         self.map(|val| val.to_device(device))
-    }
-
-    fn load(mut self, state: &State<B::FloatElem>) -> Result<Self, LoadingError> {
-        let num = self.len();
-
-        for (i, module) in self.into_iter().enumerate().take(N) {
-            self[i] = module
-                .load(state.get(format!("mod-{i}").as_str()).ok_or_else(|| {
-                    LoadingError::new(format!(
-                        "Invalid number of modules, expected {num} modules missing #{i}"
-                    ))
-                })?)
-                .map_err(|err| LoadingError::new(format!("Can't load modules mod-{i}: {err}")))?;
-        }
-
-        Ok(self)
-    }
-
-    fn state(&self) -> State<B::FloatElem> {
-        let mut state = StateNamed::new();
-
-        for (i, module) in self.iter().enumerate() {
-            state.register_state(format!("mod-{i}").as_str(), module.state());
-        }
-
-        State::StateNamed(state)
     }
 
     fn detach(self) -> Self {
@@ -227,6 +182,19 @@ where
 
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
         self.map(|module| module.map(mapper))
+    }
+
+    fn load_record(self, record: Self::Record) -> Self {
+        self.into_iter()
+            .zip(record)
+            .map(|(module, record)| module.load_record(record))
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap()
+    }
+
+    fn into_record(self) -> Self::Record {
+        self.map(Module::into_record)
     }
 }
 

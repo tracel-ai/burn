@@ -1,4 +1,4 @@
-use alloc::{format, vec::Vec};
+use alloc::vec::Vec;
 use burn_tensor::Bool;
 
 use crate::{
@@ -138,7 +138,7 @@ impl<B: Backend> TransformerEncoder<B> {
 }
 
 #[derive(Module, Debug)]
-struct TransformerEncoderLayer<B: Backend> {
+pub struct TransformerEncoderLayer<B: Backend> {
     mha: MultiHeadAttention<B>,
     pwff: PositionWiseFeedForward<B>,
     norm_1: LayerNorm<B>,

@@ -1,10 +1,10 @@
-use alloc::{string::ToString, sync::Arc, vec, vec::Vec};
+use alloc::{sync::Arc, vec, vec::Vec};
 
-use super::{load_with_id, state_with_id, ParamId};
-use crate::module::{ADModule, LoadingError, Module, ModuleMapper, ModuleVisitor, Param, State};
+use super::ParamId;
+use crate::module::{ADModule, Module, ModuleMapper, ModuleVisitor, Param};
 use burn_tensor::{
     backend::{ADBackend, Backend},
-    Data, Tensor,
+    Tensor,
 };
 
 #[cfg(feature = "std")]
@@ -56,6 +56,8 @@ impl<B: Backend, const D: usize> From<RunningState<Tensor<B, D>>>
 }
 
 impl<const D: usize, B: Backend> Module<B> for Param<RunningState<Tensor<B, D>>> {
+    type Record = Param<Tensor<B, D>>;
+
     fn num_params(&self) -> usize {
         let tensor = self.value.value.read().unwrap();
         tensor.shape().num_elements()
@@ -74,31 +76,6 @@ impl<const D: usize, B: Backend> Module<B> for Param<RunningState<Tensor<B, D>>>
         core::mem::drop(tensor);
 
         self
-    }
-
-    fn state(&self) -> State<B::FloatElem> {
-        self.sync();
-
-        let tensor = self.value.value.read().unwrap();
-        let state = State::Data(tensor.to_data().serialize());
-
-        state_with_id(self.id.clone(), state)
-    }
-
-    fn load(mut self, state: &State<B::FloatElem>) -> Result<Self, LoadingError> {
-        let (id, state) = load_with_id(state)?;
-        self.sync();
-
-        match state {
-            State::Data(data) => {
-                let mut tensor = self.value.value.write().unwrap();
-                *tensor = Tensor::from_data_device(Data::from(data), &tensor.device())
-            }
-            _ => return Err(LoadingError::new("Can't load tensor".to_string())),
-        };
-
-        self.id = id.clone();
-        Ok(self)
     }
 
     fn detach(self) -> Self {
@@ -122,6 +99,23 @@ impl<const D: usize, B: Backend> Module<B> for Param<RunningState<Tensor<B, D>>>
         let tensor_out = mapper.map(&self.id, tensor.clone());
 
         *tensor = tensor_out;
+        core::mem::drop(tensor);
+
+        self
+    }
+
+    fn into_record(self) -> Self::Record {
+        self.sync();
+        let tensor = self.value.value.read().unwrap();
+
+        Param::new(self.id, tensor.clone())
+    }
+
+    fn load_record(mut self, record: Self::Record) -> Self {
+        let mut tensor = self.value.value.write().unwrap();
+        *tensor = record.value;
+        self.id = record.id;
+
         core::mem::drop(tensor);
 
         self

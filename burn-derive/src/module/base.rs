@@ -1,4 +1,4 @@
-use super::fn_generator::FnGenerator;
+use super::{fn_generator::FnGenerator, record::RecordGenerator};
 use crate::module::display;
 use proc_macro::TokenStream;
 use quote::quote;
@@ -15,21 +15,30 @@ pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
     let map_mut = generator.gen_map_fn();
     let devices_fn = generator.gen_devices_fn();
     let to_device_fn = generator.gen_to_device_fn();
-    let state_fn = generator.gen_state_fn();
-    let load_fn = generator.gen_load_fn();
     let inner_fn = generator.gen_inner_fn();
     let from_inner_fn = generator.gen_from_inner_fn();
+    let into_record_fn = generator.gen_into_record_fn();
+    let load_record_fn = generator.gen_load_record_fn();
     let detach_fn = generator.gen_detach_fn();
     let clone_fn = generator.gen_clone_fn();
     let generics_names_except_backend = generics_names_except_backend(&ast.generics);
 
+    let record_gen = RecordGenerator::new(name.clone(), generator.fields, ast.generics.clone());
+
+    let record_name = record_gen.record_name();
+    let record_struct = record_gen.gen_record_struct();
+    let record_item_struct = record_gen.gen_record_item_struct();
+    let record_impl = record_gen.gen_impl_record();
+
     let gen = quote! {
         impl #generics burn::module::Module<B> for #name #generics_ty #generics_where {
+            type Record = #record_name #generics_ty;
+
             #devices_fn
             #to_device_fn
 
-            #state_fn
-            #load_fn
+            #load_record_fn
+            #into_record_fn
 
             #num_params_fn
             #detach_fn
@@ -52,6 +61,10 @@ pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
         impl #generics Clone for #name #generics_ty #generics_where {
             #clone_fn
         }
+
+        #record_struct
+        #record_item_struct
+        #record_impl
     };
 
     gen.into()

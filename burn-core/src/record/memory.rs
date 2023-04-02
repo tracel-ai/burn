@@ -14,6 +14,7 @@ pub trait InMemoryRecorder:
 }
 
 /// In memory recorder using the [bincode format](bincode).
+#[derive(Debug, Default)]
 pub struct InMemoryBinRecorder;
 
 impl InMemoryRecorder for InMemoryBinRecorder {}
@@ -38,8 +39,15 @@ impl Recorder for InMemoryBinRecorder {
 
 #[cfg(test)]
 mod tests {
+    use core::marker::PhantomData;
+
     use super::*;
-    use crate::{module::Module, nn, TestBackend};
+    use crate::{
+        module::Module,
+        nn,
+        record::{Record, RecordSettings},
+        TestBackend,
+    };
 
     #[test]
     fn test_can_save_and_load_bin_format() {
@@ -47,16 +55,39 @@ mod tests {
     }
 
     fn test_can_save_and_load<Recorder: InMemoryRecorder>() {
-        let model_before = create_model();
-        let state_before = model_before.state();
-        let bytes = Recorder::record(state_before.clone(), ()).unwrap();
+        #[derive(Debug, Default)]
+        struct TestRecordSettings<R> {
+            phantom: PhantomData<R>,
+        }
 
-        let model_after = create_model()
-            .load(&Recorder::load(bytes).unwrap())
+        impl<R: crate::record::Recorder> RecordSettings for TestRecordSettings<R> {
+            type FloatElem = f32;
+            type IntElem = i32;
+            type Recorder = R;
+        }
+
+        let model1 = create_model();
+        let model2 = create_model();
+        let bytes1 = model1
+            .into_record()
+            .record::<TestRecordSettings<Recorder>>(())
+            .unwrap();
+        let bytes2 = model2
+            .clone()
+            .into_record()
+            .record::<TestRecordSettings<Recorder>>(())
             .unwrap();
 
-        let state_after = model_after.state();
-        assert_eq!(state_before, state_after);
+        let model2_after = model2.load_record(
+            nn::LinearRecord::load::<TestRecordSettings<Recorder>>(bytes1.clone()).unwrap(),
+        );
+        let bytes2_after = model2_after
+            .into_record()
+            .record::<TestRecordSettings<Recorder>>(())
+            .unwrap();
+
+        assert_ne!(bytes1, bytes2);
+        assert_eq!(bytes1, bytes2_after);
     }
 
     pub fn create_model() -> nn::Linear<TestBackend> {

@@ -181,7 +181,7 @@ impl AdaptiveMomentum {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::module::{Module, State};
+    use crate::module::{Module, Param};
     use crate::tensor::{Data, Distribution, Tensor};
     use crate::{nn, TestADBackend};
 
@@ -240,8 +240,8 @@ mod tests {
         let grads = GradientsParams::from_grads(grads, &linear);
         let linear = optimizer.update_module(linear, grads);
 
-        let state_updated = linear.state();
-        let state_expected = given_linear_state(
+        let state_updated = linear.into_record();
+        let state_expected = given_linear_record(
             Data::from([
                 [-0.3405, 0.1191, 0.3843, 0.3000, 0.0661, 0.0471],
                 [0.0577, -0.0367, -0.3846, 0.2360, 0.1756, -0.3122],
@@ -252,8 +252,14 @@ mod tests {
             ]),
             Data::from([-0.4105, 0.0684, -0.1170, 0.0976, 0.1166, -0.0070]),
         );
-        let (weight_updated, bias_updated) = extract_tensor(state_updated);
-        let (weight_expected, bias_expected) = extract_tensor(state_expected);
+        let (weight_updated, bias_updated) = (
+            state_updated.weight.to_data(),
+            state_updated.bias.unwrap().to_data(),
+        );
+        let (weight_expected, bias_expected) = (
+            state_expected.weight.to_data(),
+            state_expected.bias.unwrap().to_data(),
+        );
 
         bias_updated.assert_approx_eq(&bias_expected, 2);
         weight_updated.assert_approx_eq(&weight_expected, 2);
@@ -261,53 +267,18 @@ mod tests {
 
     fn given_linear_layer(weight: Data<f32, 2>, bias: Data<f32, 1>) -> nn::Linear<TestADBackend> {
         let linear = nn::LinearConfig::new(6, 6).init();
-        let state = given_linear_state(weight, bias);
+        let record = given_linear_record(weight, bias);
 
-        linear.load(&state).unwrap()
+        linear.load_record(record)
     }
 
-    fn given_linear_state(weight: Data<f32, 2>, bias: Data<f32, 1>) -> State<f32> {
-        let mut state = StateNamed::<f32>::new();
-        let mut state_weight = StateNamed::<f32>::new();
-        state_weight.register_state("data", State::Data(weight.serialize()));
-        state_weight.register_state("id", State::ParamId(ParamId::from("weight_param_id")));
-
-        let mut state_bias = StateNamed::<f32>::new();
-        state_bias.register_state("data", State::Data(bias.serialize()));
-        state_bias.register_state("id", State::ParamId(ParamId::from("bias_param_id")));
-
-        state.register_state("weight", State::StateNamed(state_weight));
-        state.register_state("bias", State::StateNamed(state_bias));
-
-        State::StateNamed(state)
-    }
-
-    fn extract_tensor(state: State<f32>) -> (Data<f32, 2>, Data<f32, 1>) {
-        let mut state = match state {
-            State::StateNamed(val) => val.values,
-            _ => panic!("Should be state name with key 'weight' and 'bias'"),
-        };
-        let state_weight = state.remove("weight").expect("Contains weight key");
-        let state_bias = state.remove("bias").expect("Contains weight key");
-
-        let weights = match state_weight {
-            State::StateNamed(mut val) => val.values.remove("data").expect("Should contains data"),
-            _ => panic!("Should be state name with key 'value' and 'id'"),
-        };
-        let bias = match state_bias {
-            State::StateNamed(mut val) => val.values.remove("data").expect("Should contains data"),
-            _ => panic!("Should be state name with key 'value' and 'id'"),
-        };
-
-        let weights = match weights {
-            State::Data(data) => Data::from(data),
-            _ => panic!("Should be data"),
-        };
-        let bias = match bias {
-            State::Data(data) => Data::from(data),
-            _ => panic!("Should be data"),
-        };
-
-        (weights, bias)
+    fn given_linear_record(
+        weight: Data<f32, 2>,
+        bias: Data<f32, 1>,
+    ) -> nn::LinearRecord<TestADBackend> {
+        nn::LinearRecord {
+            weight: Param::from(Tensor::from_data(weight)),
+            bias: Some(Param::from(Tensor::from_data(bias))),
+        }
     }
 }

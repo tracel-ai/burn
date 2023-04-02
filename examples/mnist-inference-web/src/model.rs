@@ -2,7 +2,7 @@
 
 // Orginally copied from the burn/examples/mnist package
 
-use alloc::{format, vec::Vec};
+use alloc::vec::Vec;
 
 use burn::{
     module::Module,

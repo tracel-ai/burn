@@ -28,7 +28,7 @@ pub trait Record: Send + Sync {
             format!("{:?}", S::default()),
         );
         let item = self.into_item::<S>();
-        let record = BurnRecord::new(item, metadata);
+        let record = BurnRecord::new(metadata, item);
 
         RecorderType::<S>::record(record, args)
     }
@@ -85,8 +85,8 @@ struct BurnMetadata {
 
 #[derive(new, Serialize, Deserialize)]
 struct BurnRecord<I> {
-    item: I,
     metadata: BurnMetadata,
+    item: I,
 }
 
 #[derive(new, Serialize, Deserialize)]

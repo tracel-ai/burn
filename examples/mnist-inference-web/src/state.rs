@@ -11,10 +11,8 @@ static STATE_ENCODED: &[u8] = include_bytes!("../model.bin");
 /// Builds and loads trained parameters into the model.
 pub fn build_and_load_model() -> Model<Backend> {
     let model: Model<Backend> = Model::new();
-    let state = Record::load::<NoStdInferenceRecordSettings>(STATE_ENCODED.to_vec())
+    let record = Record::load::<NoStdInferenceRecordSettings>(STATE_ENCODED.to_vec())
         .expect("Failed to decode state");
 
-    model
-        .load(&state)
-        .expect("State could not be loaded into model")
+    model.load_record(record)
 }

@@ -17,6 +17,13 @@ pub struct NoStdTrainingRecordSettings;
 /// Inference settings compatible with no-std.
 #[derive(Debug, Default)]
 pub struct NoStdInferenceRecordSettings;
+/// Debug record settings.
+///
+/// # Notes
+///
+/// The recorder used in this settings is human readable.
+#[derive(Debug, Default)]
+pub struct DebugRecordSettings;
 
 impl RecordSettings for DefaultRecordSettings {
     #[cfg(feature = "std")]
@@ -41,4 +48,11 @@ impl RecordSettings for NoStdInferenceRecordSettings {
     type FloatElem = f32;
     type IntElem = i32;
     type Recorder = crate::record::InMemoryBinRecorder;
+}
+
+#[cfg(feature = "std")]
+impl RecordSettings for DebugRecordSettings {
+    type FloatElem = f32;
+    type IntElem = i32;
+    type Recorder = crate::record::FilePrettyJsonRecorder;
 }

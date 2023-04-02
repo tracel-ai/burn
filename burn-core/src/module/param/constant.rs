@@ -3,23 +3,14 @@ use crate as burn;
 #[macro_export]
 macro_rules! constant {
     (module) => {
+        type Record = ();
+
         fn devices(&self) -> alloc::vec::Vec<<B as burn_tensor::backend::Backend>::Device> {
             alloc::vec::Vec::new()
         }
 
         fn to_device(self, _device: &<B as burn_tensor::backend::Backend>::Device) -> Self {
             self
-        }
-
-        fn load(
-            self,
-            _state: &burn::module::State<<B as burn_tensor::backend::Backend>::FloatElem>,
-        ) -> Result<Self, burn::module::LoadingError> {
-            Ok(self)
-        }
-
-        fn state(&self) -> burn::module::State<<B as burn_tensor::backend::Backend>::FloatElem> {
-            burn::module::State::StateNamed(burn::module::StateNamed::new())
         }
 
         fn detach(self) -> Self {
@@ -37,6 +28,12 @@ macro_rules! constant {
         fn map<M: burn::module::ModuleMapper<B>>(self, _mapper: &mut M) -> Self {
             self
         }
+
+        fn load_record(self, _record: Self::Record) -> Self {
+            self
+        }
+
+        fn into_record(self) -> Self::Record {}
     };
 
     (ad_module, $type:ty) => {

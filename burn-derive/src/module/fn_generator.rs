@@ -3,7 +3,7 @@ use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 
 pub struct FnGenerator {
-    fields: Vec<FieldTypeAnalyzer>,
+    pub fields: Vec<FieldTypeAnalyzer>,
 }
 
 impl FnGenerator {
@@ -28,6 +28,38 @@ impl FnGenerator {
                 let mut num_params = 0;
                 #body
                 num_params
+            }
+        }
+    }
+
+    pub fn gen_into_record_fn(&self) -> TokenStream {
+        let body = self.gen_fields_fn(|name| {
+            quote! {
+                #name: burn::module::Module::<B>::into_record(self.#name),
+            }
+        });
+
+        quote! {
+            fn into_record(self) -> Self::Record {
+                Self::Record {
+                    #body
+                }
+            }
+        }
+    }
+
+    pub fn gen_load_record_fn(&self) -> TokenStream {
+        let body = self.gen_fields_fn(|name| {
+            quote! {
+                #name: burn::module::Module::<B>::load_record(self.#name, record.#name),
+            }
+        });
+
+        quote! {
+            fn load_record(self, record: Self::Record) -> Self {
+                Self {
+                    #body
+                }
             }
         }
     }
@@ -167,49 +199,6 @@ impl FnGenerator {
                 Self {
                     #(#names),*
                 }
-            }
-        }
-    }
-
-    pub fn gen_state_fn(&self) -> TokenStream {
-        let body = self.gen_fields_fn(|name| {
-            quote! {
-                state.register_state(stringify!(#name), burn::module::Module::<B>::state(&self.#name));
-            }
-        });
-
-        quote! {
-            fn state(&self) -> burn::module::State<B::FloatElem>
-            {
-                let mut state = burn::module::StateNamed::new();
-                #body
-                burn::module::State::StateNamed(state)
-            }
-        }
-    }
-
-    pub fn gen_load_fn(&self) -> TokenStream {
-        let (names, body) = self.gen_fields_fn_names(|name| {
-            quote! {
-                let state_mod = state.get(stringify!(#name)).ok_or(
-                    burn::module::LoadingError::new(format!(
-                        "Missing module '{}' from state",
-                        stringify!(#name),
-                    )))?;
-                let #name = burn::module::Module::<B>::load(self.#name, state_mod).map_err(|err| {
-                    burn::module::LoadingError::new(format!("Can't load module {}: {}", stringify!(#name), err))
-                })?;
-            }
-        });
-
-        quote! {
-            fn load(self, state: &burn::module::State<B::FloatElem>) -> Result<Self, burn::module::LoadingError>
-            {
-                #body
-
-                Ok(Self {
-                    #(#names),*
-                })
             }
         }
     }

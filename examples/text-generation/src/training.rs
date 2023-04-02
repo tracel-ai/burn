@@ -90,7 +90,7 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
     config.save(&format!("{artifact_dir}/config.json")).unwrap();
 
     model_trained
-        .state()
+        .into_record()
         .record::<DefaultRecordSettings>(format!("{artifact_dir}/model").into())
         .unwrap();
 }
