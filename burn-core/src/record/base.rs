@@ -1,7 +1,8 @@
 use super::{RecordSettings, Recorder, RecorderError};
-use crate::alloc::string::ToString;
+use crate::{alloc::string::ToString, module::Param};
 use alloc::format;
 use alloc::string::String;
+use burn_tensor::{backend::Backend, Bool, Data, DataSerialize, Element, Int, Tensor};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 /// Trait to define a family of types which can be recorded using any [settings](RecordSettings).
@@ -92,6 +93,120 @@ struct BurnRecord<I> {
 #[derive(new, Serialize, Deserialize)]
 struct BurnRecordNoItem {
     metadata: BurnMetadata,
+}
+
+impl Record for () {
+    type Item<S: RecordSettings> = ();
+
+    fn into_item<S: RecordSettings>(self) -> Self::Item<S> {
+        ()
+    }
+
+    fn from_item<S: RecordSettings>(_item: Self::Item<S>) -> Self {
+        ()
+    }
+}
+
+impl<T: Record> Record for Vec<T> {
+    type Item<S: RecordSettings> = Vec<T::Item<S>>;
+
+    fn into_item<S: RecordSettings>(self) -> Self::Item<S> {
+        self.into_iter().map(Record::into_item).collect()
+    }
+
+    fn from_item<S: RecordSettings>(item: Self::Item<S>) -> Self {
+        item.into_iter().map(Record::from_item).collect()
+    }
+}
+
+impl<T: Record> Record for Option<T> {
+    type Item<S: RecordSettings> = Option<T::Item<S>>;
+
+    fn into_item<S: RecordSettings>(self) -> Self::Item<S> {
+        self.map(Record::into_item)
+    }
+
+    fn from_item<S: RecordSettings>(item: Self::Item<S>) -> Self {
+        item.map(Record::from_item)
+    }
+}
+
+impl<const N: usize, T: Record> Record for [T; N] {
+    type Item<S: RecordSettings> = [T::Item<S>; N];
+
+    fn into_item<S: RecordSettings>(self) -> Self::Item<S> {
+        self.map(Record::into_item)
+    }
+
+    fn from_item<S: RecordSettings>(item: Self::Item<S>) -> Self {
+        item.map(Record::from_item)
+    }
+}
+
+impl<E: Element> Record for DataSerialize<E> {
+    type Item<S: RecordSettings> = DataSerialize<S::FloatElem>;
+
+    fn into_item<S: RecordSettings>(self) -> Self::Item<S> {
+        self.convert()
+    }
+
+    fn from_item<S: RecordSettings>(item: Self::Item<S>) -> Self {
+        item.convert()
+    }
+}
+
+impl<B: Backend, const D: usize> Record for Tensor<B, D> {
+    type Item<S: RecordSettings> = DataSerialize<S::FloatElem>;
+
+    fn into_item<S: RecordSettings>(self) -> Self::Item<S> {
+        self.into_data().serialize().convert()
+    }
+
+    fn from_item<S: RecordSettings>(item: Self::Item<S>) -> Self {
+        Tensor::from_data(Data::<S::FloatElem, D>::from(item).convert::<B::FloatElem>())
+    }
+}
+
+impl<B: Backend, const D: usize> Record for Tensor<B, D, Int> {
+    type Item<S: RecordSettings> = DataSerialize<S::IntElem>;
+
+    fn into_item<S: RecordSettings>(self) -> Self::Item<S> {
+        self.into_data().serialize().convert()
+    }
+
+    fn from_item<S: RecordSettings>(item: Self::Item<S>) -> Self {
+        Tensor::from_data(Data::<S::IntElem, D>::from(item).convert::<B::IntElem>())
+    }
+}
+
+impl<B: Backend, const D: usize> Record for Tensor<B, D, Bool> {
+    type Item<S: RecordSettings> = DataSerialize<bool>;
+
+    fn into_item<S: RecordSettings>(self) -> Self::Item<S> {
+        self.into_data().serialize()
+    }
+
+    fn from_item<S: RecordSettings>(item: Self::Item<S>) -> Self {
+        Tensor::from_data(Data::from(item))
+    }
+}
+
+impl<T: Record> Record for Param<T> {
+    type Item<S: RecordSettings> = Param<T::Item<S>>;
+
+    fn into_item<S: RecordSettings>(self) -> Self::Item<S> {
+        Param {
+            id: self.id,
+            value: self.value.into_item(),
+        }
+    }
+
+    fn from_item<S: RecordSettings>(item: Self::Item<S>) -> Self {
+        Param {
+            id: item.id,
+            value: T::from_item(item.value),
+        }
+    }
 }
 
 #[cfg(all(test, feature = "std"))]

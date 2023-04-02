@@ -56,6 +56,8 @@ impl<B: Backend, const D: usize> From<RunningState<Tensor<B, D>>>
 }
 
 impl<const D: usize, B: Backend> Module<B> for Param<RunningState<Tensor<B, D>>> {
+    type Record = Tensor<B, D>;
+
     fn num_params(&self) -> usize {
         let tensor = self.value.value.read().unwrap();
         tensor.shape().num_elements()
@@ -125,6 +127,13 @@ impl<const D: usize, B: Backend> Module<B> for Param<RunningState<Tensor<B, D>>>
         core::mem::drop(tensor);
 
         self
+    }
+
+    fn record(self) -> Self::Record {
+        self.sync();
+
+        let tensor = self.value.value.read().unwrap();
+        tensor.clone()
     }
 }
 

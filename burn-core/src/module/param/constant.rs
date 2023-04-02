@@ -3,6 +3,8 @@ use crate as burn;
 #[macro_export]
 macro_rules! constant {
     (module) => {
+        type Record = ();
+
         fn devices(&self) -> alloc::vec::Vec<<B as burn_tensor::backend::Backend>::Device> {
             alloc::vec::Vec::new()
         }
@@ -36,6 +38,10 @@ macro_rules! constant {
 
         fn map<M: burn::module::ModuleMapper<B>>(self, _mapper: &mut M) -> Self {
             self
+        }
+
+        fn record(self) -> Self::Record {
+            ()
         }
     };
 

@@ -3,7 +3,7 @@ use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 
 pub struct FnGenerator {
-    fields: Vec<FieldTypeAnalyzer>,
+    pub fields: Vec<FieldTypeAnalyzer>,
 }
 
 impl FnGenerator {
@@ -28,6 +28,22 @@ impl FnGenerator {
                 let mut num_params = 0;
                 #body
                 num_params
+            }
+        }
+    }
+
+    pub fn gen_record_fn(&self) -> TokenStream {
+        let body = self.gen_fields_fn(|name| {
+            quote! {
+                #name: burn::module::Module::<B>::record(self.#name),
+            }
+        });
+
+        quote! {
+            fn record(self) -> Self::Record {
+                Self::Record {
+                    #body
+                }
             }
         }
     }

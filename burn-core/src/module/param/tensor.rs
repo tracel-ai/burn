@@ -17,6 +17,8 @@ impl<B: Backend, const D: usize> From<Tensor<B, D>> for Param<Tensor<B, D>> {
 }
 
 impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
+    type Record = Param<Tensor<B, D>>;
+
     fn num_params(&self) -> usize {
         self.value.shape().num_elements()
     }
@@ -66,6 +68,10 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
         let value = mapper.map(&self.id, self.value).require_grad();
         Self { id: self.id, value }
+    }
+
+    fn record(self) -> Self::Record {
+        self
     }
 }
 

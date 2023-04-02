@@ -1,14 +1,15 @@
 use alloc::{format, string::ToString};
+use serde::{Deserialize, Serialize};
 
 use super::ParamId;
 use crate::module::{LoadingError, State, StateNamed};
 use crate::tensor::Element;
 
 /// Define a trainable parameter.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Param<T> {
-    pub(super) id: ParamId,
-    pub(super) value: T,
+    pub(crate) id: ParamId,
+    pub(crate) value: T,
 }
 
 impl<T> core::fmt::Display for Param<T> {

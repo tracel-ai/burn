@@ -6,10 +6,7 @@ use burn_core as burn;
 pub type TestBackend = burn_ndarray::NdArrayBackend<f32>;
 
 #[derive(Module, Debug)]
-struct ModuleBasic<B>
-where
-    B: Backend,
-{
+struct ModuleBasic<B: Backend> {
     weight_basic: Param<Tensor<B, 2>>,
 }
 
@@ -23,10 +20,7 @@ impl<B: Backend> ModuleBasic<B> {
 }
 
 #[derive(Module, Debug)]
-struct ModuleComposed<B>
-where
-    B: Backend,
-{
+struct ModuleComposed<B: Backend> {
     weight: Param<Tensor<B, 2>>,
     basic: ModuleBasic<B>,
 }

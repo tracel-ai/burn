@@ -1,7 +1,10 @@
 use alloc::{format, string::String, vec::Vec};
 
 use super::{ParamId, State};
-use crate::tensor::backend::{ADBackend, Backend};
+use crate::{
+    record::Record,
+    tensor::backend::{ADBackend, Backend},
+};
 pub use burn_derive::Module;
 use burn_tensor::Tensor;
 
@@ -35,6 +38,9 @@ use burn_tensor::Tensor;
 /// }
 /// ```
 pub trait Module<B: Backend>: Clone + Send + Sync + core::fmt::Debug {
+    /// Type to save and load the module.
+    type Record: Record;
+
     /// Get the device list of the module and all of its sub-modules.
     fn devices(&self) -> Vec<B::Device>;
     /// Move the module and all of its sub-modules to the given device.
@@ -51,6 +57,7 @@ pub trait Module<B: Backend>: Clone + Send + Sync + core::fmt::Debug {
     fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V);
     /// Map each tensor in the module with a [mapper](ModuleMapper).
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self;
+    fn record(self) -> Self::Record;
 }
 
 pub trait ModuleVisitor<B: Backend> {

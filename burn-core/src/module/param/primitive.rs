@@ -11,6 +11,8 @@ where
     T: Module<B> + Debug + Send + Sync + Clone,
     B: Backend,
 {
+    type Record = Option<T::Record>;
+
     fn devices(&self) -> Vec<<B as burn_tensor::backend::Backend>::Device> {
         if let Some(module) = self {
             return Module::<B>::devices(module);
@@ -56,6 +58,10 @@ where
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
         self.map(|module| module.map(mapper))
     }
+
+    fn record(self) -> Self::Record {
+        self.map(Module::record)
+    }
 }
 
 impl<T, B> ADModule<B> for Option<T>
@@ -79,6 +85,8 @@ where
     T: Module<B> + Debug + Send + Sync + Clone,
     B: Backend,
 {
+    type Record = Vec<T::Record>;
+
     fn devices(&self) -> Vec<<B as burn_tensor::backend::Backend>::Device> {
         let mut devices = Vec::new();
         for module in self.iter() {
@@ -142,6 +150,10 @@ where
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
         self.into_iter().map(|module| module.map(mapper)).collect()
     }
+
+    fn record(self) -> Self::Record {
+        self.into_iter().map(Module::record).collect()
+    }
 }
 
 impl<T, B> ADModule<B> for Vec<T>
@@ -168,6 +180,8 @@ where
     T: Module<B> + Debug + Send + Sync + Clone + Copy,
     B: Backend,
 {
+    type Record = [T::Record; N];
+
     fn devices(&self) -> Vec<<B as burn_tensor::backend::Backend>::Device> {
         let mut devices = Vec::new();
         for module in self.iter() {
@@ -227,6 +241,10 @@ where
 
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
         self.map(|module| module.map(mapper))
+    }
+
+    fn record(self) -> Self::Record {
+        self.map(Module::record)
     }
 }
 
