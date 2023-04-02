@@ -1,10 +1,10 @@
-use alloc::{string::ToString, vec, vec::Vec};
+use alloc::{vec, vec::Vec};
 
-use super::{load_with_id, state_with_id, Param, ParamId};
-use crate::module::{ADModule, LoadingError, Module, ModuleMapper, ModuleVisitor, State};
+use super::{Param, ParamId};
+use crate::module::{ADModule, Module, ModuleMapper, ModuleVisitor};
 use crate::tensor::{
     backend::{ADBackend, Backend},
-    Data, Tensor,
+    Tensor,
 };
 
 impl<B: Backend, const D: usize> From<Tensor<B, D>> for Param<Tensor<B, D>> {
@@ -34,26 +34,6 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
         }
     }
 
-    fn state(&self) -> State<B::FloatElem> {
-        let state = State::Data(self.value.to_data().serialize());
-
-        state_with_id(self.id.clone(), state)
-    }
-
-    fn load(self, state: &State<B::FloatElem>) -> Result<Self, LoadingError> {
-        let (id, state) = load_with_id(state)?;
-        let id = id.clone();
-
-        let tensor = match state {
-            State::Data(data) => {
-                Tensor::from_data_device(Data::from(data), &self.value.device()).require_grad()
-            }
-            _ => return Err(LoadingError::new("Can't load tensor".to_string())),
-        };
-
-        Ok(Self { id, value: tensor })
-    }
-
     fn detach(self) -> Self {
         Self {
             id: self.id,
@@ -72,6 +52,10 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
 
     fn into_record(self) -> Self::Record {
         self
+    }
+
+    fn load_record(self, record: Self::Record) -> Self {
+        record
     }
 }
 

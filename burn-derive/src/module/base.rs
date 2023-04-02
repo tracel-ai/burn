@@ -15,11 +15,10 @@ pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
     let map_mut = generator.gen_map_fn();
     let devices_fn = generator.gen_devices_fn();
     let to_device_fn = generator.gen_to_device_fn();
-    let state_fn = generator.gen_state_fn();
-    let load_fn = generator.gen_load_fn();
     let inner_fn = generator.gen_inner_fn();
     let from_inner_fn = generator.gen_from_inner_fn();
-    let record_fn = generator.gen_into_record_fn();
+    let into_record_fn = generator.gen_into_record_fn();
+    let load_record_fn = generator.gen_load_record_fn();
     let detach_fn = generator.gen_detach_fn();
     let clone_fn = generator.gen_clone_fn();
     let generics_names_except_backend = generics_names_except_backend(&ast.generics);
@@ -38,9 +37,8 @@ pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
             #devices_fn
             #to_device_fn
 
-            #state_fn
-            #load_fn
-            #record_fn
+            #load_record_fn
+            #into_record_fn
 
             #num_params_fn
             #detach_fn

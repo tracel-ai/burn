@@ -14,6 +14,7 @@ pub trait InMemoryRecorder:
 }
 
 /// In memory recorder using the [bincode format](bincode).
+#[derive(Debug, Default)]
 pub struct InMemoryBinRecorder;
 
 impl InMemoryRecorder for InMemoryBinRecorder {}

@@ -13,17 +13,6 @@ macro_rules! constant {
             self
         }
 
-        fn load(
-            self,
-            _state: &burn::module::State<<B as burn_tensor::backend::Backend>::FloatElem>,
-        ) -> Result<Self, burn::module::LoadingError> {
-            Ok(self)
-        }
-
-        fn state(&self) -> burn::module::State<<B as burn_tensor::backend::Backend>::FloatElem> {
-            burn::module::State::StateNamed(burn::module::StateNamed::new())
-        }
-
         fn detach(self) -> Self {
             self
         }
@@ -40,7 +29,11 @@ macro_rules! constant {
             self
         }
 
-        fn record(self) -> Self::Record {
+        fn load_record(self, _record: Self::Record) -> Self {
+            self
+        }
+
+        fn into_record(self) -> Self::Record {
             ()
         }
     };

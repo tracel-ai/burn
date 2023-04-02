@@ -10,10 +10,13 @@ pub trait FileRecorder:
 }
 
 /// File recorder using the [bincode format](bincode).
+#[derive(Debug, Default)]
 pub struct FileBinRecorder;
 /// File recorder using the [bincode format](bincode) compressed with gzip.
+#[derive(Debug, Default)]
 pub struct FileBinGzRecorder;
 /// File recorder using the json format compressed with gzip.
+#[derive(Debug, Default)]
 pub struct FileJsonGzRecorder;
 
 #[cfg(feature = "msgpack")]
@@ -172,8 +175,15 @@ impl Recorder for FileMpkGzRecorder {
 
 #[cfg(test)]
 mod tests {
+    use core::marker::PhantomData;
+
     use super::*;
-    use crate::{module::Module, nn, TestBackend};
+    use crate::{
+        module::Module,
+        nn,
+        record::{InMemoryBinRecorder, Record, RecordSettings},
+        TestBackend,
+    };
 
     static FILE_PATH: &str = "/tmp/burn_test_file_recorder";
 
@@ -199,16 +209,38 @@ mod tests {
     }
 
     fn test_can_save_and_load<Recorder: FileRecorder>() {
+        #[derive(Debug, Default)]
+        struct TestRecordSettings<R> {
+            phantom: PhantomData<R>,
+        }
+
+        impl<R: crate::record::Recorder> RecordSettings for TestRecordSettings<R> {
+            type FloatElem = f32;
+            type IntElem = i32;
+            type Recorder = R;
+        }
+
         let model_before = create_model();
-        let state_before = model_before.state();
-        Recorder::record(state_before.clone(), FILE_PATH.into()).unwrap();
+        model_before
+            .clone()
+            .into_record()
+            .record::<TestRecordSettings<Recorder>>(FILE_PATH.into())
+            .unwrap();
 
         let model_after = create_model()
             .load(&Recorder::load(FILE_PATH.into()).unwrap())
             .unwrap();
 
-        let state_after = model_after.state();
-        assert_eq!(state_before, state_after);
+        let model_bytes_before = model_before
+            .into_record()
+            .record::<TestRecordSettings<InMemoryBinRecorder>>(())
+            .unwrap();
+        let model_bytes_after = model_after
+            .into_record()
+            .record::<TestRecordSettings<InMemoryBinRecorder>>(())
+            .unwrap();
+
+        assert_eq!(model_bytes_after, model_bytes_before);
     }
 
     pub fn create_model() -> nn::Linear<TestBackend> {

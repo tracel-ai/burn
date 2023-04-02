@@ -33,6 +33,7 @@ impl RecordGenerator {
         let generics = &self.generics;
 
         quote! {
+            #[derive(Debug, Clone)]
             pub struct #name #generics {
                 #fields
             }
@@ -59,7 +60,7 @@ impl RecordGenerator {
         let bound = bounds.to_string();
 
         quote! {
-            #[derive(Debug, serde::Serialize, serde::Deserialize)]
+            #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
             #[serde(bound = #bound)]
             pub struct #name #generics {
                 #fields

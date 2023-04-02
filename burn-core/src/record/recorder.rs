@@ -3,7 +3,7 @@ use alloc::string::String;
 use serde::{de::DeserializeOwned, Serialize};
 
 /// Record any item implementing [Serialize](Serialize) and [DeserializeOwned](DeserializeOwned).
-pub trait Recorder: Send + Sync {
+pub trait Recorder: Send + Sync + core::default::Default + core::fmt::Debug {
     /// Arguments used to record objects.
     type RecordArgs: Clone;
     /// Record output type.
