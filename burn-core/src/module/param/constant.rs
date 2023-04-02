@@ -33,9 +33,7 @@ macro_rules! constant {
             self
         }
 
-        fn into_record(self) -> Self::Record {
-            ()
-        }
+        fn into_record(self) -> Self::Record {}
     };
 
     (ad_module, $type:ty) => {

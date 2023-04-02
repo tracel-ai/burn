@@ -98,13 +98,9 @@ struct BurnRecordNoItem {
 impl Record for () {
     type Item<S: RecordSettings> = ();
 
-    fn into_item<S: RecordSettings>(self) -> Self::Item<S> {
-        ()
-    }
+    fn into_item<S: RecordSettings>(self) -> Self::Item<S> {}
 
-    fn from_item<S: RecordSettings>(_item: Self::Item<S>) -> Self {
-        ()
-    }
+    fn from_item<S: RecordSettings>(_item: Self::Item<S>) -> Self {}
 }
 
 impl<T: Record> Record for Vec<T> {
