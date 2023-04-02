@@ -70,7 +70,7 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
         Self { id: self.id, value }
     }
 
-    fn record(self) -> Self::Record {
+    fn into_record(self) -> Self::Record {
         self
     }
 }

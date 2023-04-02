@@ -41,6 +41,7 @@ impl RecordGenerator {
 
     pub fn gen_record_item_struct(&self) -> TokenStream {
         let mut fields = quote! {};
+        let mut bounds = quote! {};
 
         for field in self.fields.iter() {
             let ty = &field.field.ty;
@@ -49,11 +50,17 @@ impl RecordGenerator {
             fields.extend(quote! {
                 #name: <<#ty as burn::module::Module<B>>::Record as burn::record::Record>::Item<S>,
             });
+            bounds.extend(quote!{
+                <<#ty as burn::module::Module<B>>::Record as burn::record::Record>::Item<S>: serde::Serialize + serde::de::DeserializeOwned,
+            });
         }
         let name = self.record_item_name();
         let generics = self.record_item_generics();
+        let bound = bounds.to_string();
 
         quote! {
+            #[derive(Debug, serde::Serialize, serde::Deserialize)]
+            #[serde(bound = #bound)]
             pub struct #name #generics {
                 #fields
             }

@@ -57,7 +57,7 @@ pub trait Module<B: Backend>: Clone + Send + Sync + core::fmt::Debug {
     fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V);
     /// Map each tensor in the module with a [mapper](ModuleMapper).
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self;
-    fn record(self) -> Self::Record;
+    fn into_record(self) -> Self::Record;
 }
 
 pub trait ModuleVisitor<B: Backend> {

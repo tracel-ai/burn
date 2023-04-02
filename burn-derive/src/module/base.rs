@@ -19,7 +19,7 @@ pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
     let load_fn = generator.gen_load_fn();
     let inner_fn = generator.gen_inner_fn();
     let from_inner_fn = generator.gen_from_inner_fn();
-    let record_fn = generator.gen_record_fn();
+    let record_fn = generator.gen_into_record_fn();
     let detach_fn = generator.gen_detach_fn();
     let clone_fn = generator.gen_clone_fn();
     let generics_names_except_backend = generics_names_except_backend(&ast.generics);

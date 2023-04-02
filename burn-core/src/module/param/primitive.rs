@@ -59,8 +59,8 @@ where
         self.map(|module| module.map(mapper))
     }
 
-    fn record(self) -> Self::Record {
-        self.map(Module::record)
+    fn into_record(self) -> Self::Record {
+        self.map(Module::into_record)
     }
 }
 
@@ -151,8 +151,8 @@ where
         self.into_iter().map(|module| module.map(mapper)).collect()
     }
 
-    fn record(self) -> Self::Record {
-        self.into_iter().map(Module::record).collect()
+    fn into_record(self) -> Self::Record {
+        self.into_iter().map(Module::into_record).collect()
     }
 }
 
@@ -243,8 +243,8 @@ where
         self.map(|module| module.map(mapper))
     }
 
-    fn record(self) -> Self::Record {
-        self.map(Module::record)
+    fn into_record(self) -> Self::Record {
+        self.map(Module::into_record)
     }
 }
 

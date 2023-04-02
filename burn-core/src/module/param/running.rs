@@ -129,7 +129,7 @@ impl<const D: usize, B: Backend> Module<B> for Param<RunningState<Tensor<B, D>>>
         self
     }
 
-    fn record(self) -> Self::Record {
+    fn into_record(self) -> Self::Record {
         self.sync();
 
         let tensor = self.value.value.read().unwrap();

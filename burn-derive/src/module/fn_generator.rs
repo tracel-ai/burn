@@ -32,15 +32,15 @@ impl FnGenerator {
         }
     }
 
-    pub fn gen_record_fn(&self) -> TokenStream {
+    pub fn gen_into_record_fn(&self) -> TokenStream {
         let body = self.gen_fields_fn(|name| {
             quote! {
-                #name: burn::module::Module::<B>::record(self.#name),
+                #name: burn::module::Module::<B>::into_record(self.#name),
             }
         });
 
         quote! {
-            fn record(self) -> Self::Record {
+            fn into_record(self) -> Self::Record {
                 Self::Record {
                     #body
                 }
