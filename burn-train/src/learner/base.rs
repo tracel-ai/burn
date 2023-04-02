@@ -1,6 +1,6 @@
 use crate::checkpoint::Checkpointer;
 use crate::LearnerCallback;
-use burn_core::module::ADModule;
+use burn_core::module::{ADModule, State};
 use burn_core::optim::Optimizer;
 use burn_core::tensor::backend::{ADBackend, Backend};
 
@@ -24,8 +24,8 @@ where
     pub(super) devices: Vec<B::Device>,
 }
 
-type CheckpointModel<B> = Option<Box<dyn Checkpointer<<B as Backend>::FloatElem>>>;
-type CheckpointOptim<B> = Option<Box<dyn Checkpointer<<B as Backend>::FloatElem>>>;
+type CheckpointModel<B> = Option<Box<dyn Checkpointer<State<<B as Backend>::FloatElem>>>>;
+type CheckpointOptim<B> = Option<Box<dyn Checkpointer<State<<B as Backend>::FloatElem>>>>;
 
 impl<B, M, O, TO, VO> Learner<B, M, O, TO, VO>
 where

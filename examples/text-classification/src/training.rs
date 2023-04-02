@@ -5,9 +5,10 @@ use crate::{
 use burn::{
     config::Config,
     data::{dataloader::DataLoaderBuilder, dataset::transform::SamplerDataset},
-    module::{Module, StateFormat},
+    module::Module,
     nn::transformer::TransformerEncoderConfig,
     optim::{Sgd, SgdConfig},
+    record::{DefaultRecordSettings, Record},
     tensor::backend::ADBackend,
     train::{
         metric::{AccuracyMetric, CUDAMetric, LossMetric},
@@ -78,7 +79,7 @@ pub fn train<B: ADBackend, D: TextClassificationDataset + 'static>(
         .metric_valid(AccuracyMetric::new())
         .metric_train_plot(LossMetric::new())
         .metric_valid_plot(LossMetric::new())
-        .with_file_checkpointer::<burn::tensor::f16>(2, StateFormat::default())
+        .with_file_checkpointer::<DefaultRecordSettings>(2)
         .devices(vec![device])
         .num_epochs(config.num_epochs)
         .build(model, optim);
@@ -89,7 +90,6 @@ pub fn train<B: ADBackend, D: TextClassificationDataset + 'static>(
 
     model_trained
         .state()
-        .convert::<burn::tensor::f16>()
-        .save(&format!("{artifact_dir}/model"), &StateFormat::default())
+        .record::<DefaultRecordSettings>(format!("{artifact_dir}/model").into())
         .unwrap();
 }

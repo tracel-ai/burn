@@ -6,10 +6,10 @@ use crate::metric::dashboard::cli::CLIDashboardRenderer;
 use crate::metric::dashboard::Dashboard;
 use crate::metric::{Adaptor, Metric, Numeric};
 use crate::AsyncTrainerCallback;
-use burn_core::module::{ADModule, StateFormat};
+use burn_core::module::{ADModule, State};
 use burn_core::optim::Optimizer;
+use burn_core::record::{FileRecorder, RecordSettings};
 use burn_core::tensor::backend::ADBackend;
-use burn_core::tensor::Element;
 use std::sync::Arc;
 
 /// Struct to configure and create a [learner](Learner).
@@ -20,8 +20,8 @@ where
     B: ADBackend,
 {
     dashboard: Dashboard<T, V>,
-    checkpointer_model: Option<Arc<dyn Checkpointer<B::FloatElem> + Send + Sync>>,
-    checkpointer_optimizer: Option<Arc<dyn Checkpointer<B::FloatElem> + Send + Sync>>,
+    checkpointer_model: Option<Arc<dyn Checkpointer<State<B::FloatElem>> + Send + Sync>>,
+    checkpointer_optimizer: Option<Arc<dyn Checkpointer<State<B::FloatElem>> + Send + Sync>>,
     num_epochs: usize,
     checkpoint: Option<usize>,
     directory: String,
@@ -140,22 +140,20 @@ where
     /// The number of checkpoints to be keep should be set to a minimum of two to be safe, since
     /// they are saved and deleted asynchronously and a crash during training might make a
     /// checkpoint non-usable.
-    pub fn with_file_checkpointer<P: Element + serde::de::DeserializeOwned + serde::Serialize>(
-        mut self,
-        num_keep: usize,
-        format: StateFormat,
-    ) -> Self {
-        self.checkpointer_model = Some(Arc::new(FileCheckpointer::<P>::new(
+    pub fn with_file_checkpointer<S>(mut self, num_keep: usize) -> Self
+    where
+        S: RecordSettings + 'static,
+        S::Recorder: FileRecorder,
+    {
+        self.checkpointer_model = Some(Arc::new(FileCheckpointer::<S>::new(
             format!("{}/checkpoint", self.directory).as_str(),
             "model",
             num_keep,
-            format.clone(),
         )));
-        self.checkpointer_optimizer = Some(Arc::new(FileCheckpointer::<P>::new(
+        self.checkpointer_optimizer = Some(Arc::new(FileCheckpointer::<S>::new(
             format!("{}/checkpoint", self.directory).as_str(),
             "optim",
             num_keep,
-            format,
         )));
         self
     }
@@ -172,7 +170,7 @@ where
 
         let create_checkpointer = |checkpointer| match checkpointer {
             Some(checkpointer) => {
-                let checkpointer: Box<dyn Checkpointer<B::FloatElem>> =
+                let checkpointer: Box<dyn Checkpointer<State<B::FloatElem>>> =
                     Box::new(AsyncCheckpointer::new(checkpointer));
                 Some(checkpointer)
             }
