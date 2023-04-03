@@ -44,7 +44,11 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        grad_1.to_data().assert_approx_eq(&Data::from([[42.2, 20.6], [65.6, 28.4]]), 3);
-        grad_2.to_data().assert_approx_eq(&Data::from([[10.8, 18.6], [64.6, 33.4]]), 3);
+        grad_1
+            .to_data()
+            .assert_approx_eq(&Data::from([[42.2, 20.6], [65.6, 28.4]]), 3);
+        grad_2
+            .to_data()
+            .assert_approx_eq(&Data::from([[10.8, 18.6], [64.6, 33.4]]), 3);
     }
 }
