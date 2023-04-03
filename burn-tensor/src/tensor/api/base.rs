@@ -276,6 +276,46 @@ where
     }
 }
 
+impl<B, const D: usize> Tensor<B, D, Bool>
+where
+    B: Backend,
+{
+    fn display_recursive(&self, acc: &mut String, depth: usize, multi_index: &mut [usize]) {
+        if depth == 0 {
+            acc.push('[');
+        }
+
+        if depth == self.dims().len() - 1 {
+            // if we are at the innermost dimension, just push its elements into the accumulator
+            for i in 0..self.dims()[depth] {
+                if i > 0 {
+                    acc.push_str(", ");
+                }
+                multi_index[depth] = i;
+                let range: [std::ops::Range<usize>; D] =
+                    core::array::from_fn(|i| multi_index[i].clone()..multi_index[i].clone() + 1);
+                let elem = self.clone().index(range).to_data().value[0];
+                acc.push_str(&format!("{:?}", elem));
+            }
+        } else {
+            // otherwise, iterate through the current dimension and recursively display the inner tensors
+            for i in 0..self.dims()[depth] {
+                if i > 0 {
+                    acc.push_str(", ");
+                }
+                acc.push('[');
+                multi_index[depth] = i;
+                self.display_recursive(acc, depth + 1, multi_index);
+                acc.push(']');
+            }
+        }
+
+        if depth == 0 {
+            acc.push(']');
+        }
+    }
+}
+
 /// Pretty print Int tensors
 impl<B, const D: usize> std::fmt::Display for Tensor<B, D, Int>
 where
@@ -294,11 +334,12 @@ where
         writeln!(f, "  shape:   {:?},", self.dims())?;
         writeln!(f, "  device:  {:?},", self.device())?;
         writeln!(f, "  backend: {:?},", B::name())?;
-        writeln!(f, "  dtype:   {:?},", "int")?; // this is probably cheating
+        writeln!(f, "  dtype:   {:?},", "int")?;
         write!(f, "}}")
     }
 }
 
+/// Pretty print Float tensors
 impl<B, const D: usize> std::fmt::Display for Tensor<B, D, Float>
 where
     B: Backend,
@@ -316,7 +357,29 @@ where
         writeln!(f, "  shape:   {:?},", self.dims())?;
         writeln!(f, "  device:  {:?},", self.device())?;
         writeln!(f, "  backend: {:?},", B::name())?;
-        writeln!(f, "  dtype:   {:?},", "float")?; // this is probably cheating
+        writeln!(f, "  dtype:   {:?},", "float")?;
+        write!(f, "}}")
+    }
+}
+
+/// Pretty print Bool tensors
+impl<B, const D: usize> std::fmt::Display for Tensor<B, D, Bool>
+where
+    B: Backend,
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Tensor {{")?;
+        write!(f, "  data: ")?;
+
+        let mut acc = String::new();
+        let mut multi_index = vec![0; D];
+        self.display_recursive(&mut acc, 0, &mut multi_index);
+        write!(f, "{}", acc)?;
+        writeln!(f, ",")?;
+        writeln!(f, "  shape:   {:?},", self.dims())?;
+        writeln!(f, "  device:  {:?},", self.device())?;
+        writeln!(f, "  backend: {:?},", B::name())?;
+        writeln!(f, "  dtype:   {:?},", "bool")?;
         write!(f, "}}")
     }
 }

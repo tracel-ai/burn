@@ -30,6 +30,14 @@ mod tests {
         output = format!("{}", tensor_float);
         expected = "Tensor {\n  data: [[1.1, 2.2, 3.3], [4.4, 5.5, 6.6], [7.7, 8.8, 9.9]],\n  shape:   [3, 3],\n  device:  Cpu,\n  backend: \"ndarray\",\n  dtype:   \"float\",\n}";
         assert_eq!(output, expected);
+
+        let data_bool = Data::from([[true, false, true], [false, true, false], [false, true, true]]);
+        let tensor_bool: burn_tensor::Tensor<TestBackend, 2, burn_tensor::Bool> =
+            Tensor::from_data(data_bool);
+
+        output = format!("{}", tensor_bool);
+        expected = "Tensor {\n  data: [[true, false, true], [false, true, false], [false, true, true]],\n  shape:   [3, 3],\n  device:  Cpu,\n  backend: \"ndarray\",\n  dtype:   \"bool\",\n}";
+        assert_eq!(output, expected);
     }
 
     #[test]
