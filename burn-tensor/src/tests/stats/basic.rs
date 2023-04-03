@@ -16,7 +16,7 @@ mod tests {
 
     #[test]
     fn test_display_2d_tensor() {
-        let data = Data::from([[1, 2, 3], [4, 5, 6], [7, 8, 9]]); 
+        let data = Data::from([[1, 2, 3], [4, 5, 6], [7, 8, 9]]);
         let tensor: burn_tensor::Tensor<TestBackend, 2, burn_tensor::Int> = Tensor::from_data(data);
 
         let output = format!("{}", tensor);
@@ -26,8 +26,10 @@ mod tests {
 
     #[test]
     fn test_display_3d_tensor() {
-        let data = Data::from([[[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]],
-            [[13, 14, 15, 16], [17, 18, 19, 20], [21, 22, 23, 24]]]);
+        let data = Data::from([
+            [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]],
+            [[13, 14, 15, 16], [17, 18, 19, 20], [21, 22, 23, 24]],
+        ]);
         let tensor: burn_tensor::Tensor<TestBackend, 3, burn_tensor::Int> = Tensor::from_data(data);
 
         let output = format!("{}", tensor);
@@ -39,26 +41,8 @@ mod tests {
     #[test]
     fn test_display_4d_tensor() {
         let data = Data::from([
-            [
-                [
-                    [1, 2, 3],
-                    [4, 5, 6],
-                ],
-                [
-                    [7, 8, 9],
-                    [10, 11, 12],
-                ],
-            ],
-            [
-                [
-                    [13, 14, 15],
-                    [16, 17, 18],
-                ],
-                [
-                    [19, 20, 21],
-                    [22, 23, 24],
-                ],
-            ],
+            [[[1, 2, 3], [4, 5, 6]], [[7, 8, 9], [10, 11, 12]]],
+            [[[13, 14, 15], [16, 17, 18]], [[19, 20, 21], [22, 23, 24]]],
         ]);
 
         let tensor: burn_tensor::Tensor<TestBackend, 4, burn_tensor::Int> = Tensor::from_data(data);
