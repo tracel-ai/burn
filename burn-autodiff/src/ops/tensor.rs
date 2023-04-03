@@ -681,10 +681,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         struct MaskScatter;
 
         impl<B: Backend, const D: usize> Backward<B, D, 2> for MaskScatter {
-            type State = (BoolTensor<B, D>, Shape<D>, Shape<D>, B::Device);
+            type State = (B::TensorPrimitive<D>, BoolTensor<B, D>, B::TensorPrimitive<D>);
 
             fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
-                let (mask, shape_lhs, shape_rhs, device) = ops.state;
+                let (tensor, mask, source) = ops.state;
                 let [mask_4lhs, mask_4rhs] = duplicate(&ops.parents, Some(mask));
 
                 binary::<B, D, D, D, _, _>(
@@ -692,12 +692,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     ops.node,
                     grads,
                     |grad| {
-                        let zeros = B::zeros(shape_lhs, &device);
-                        B::mask_scatter(grad, mask_4lhs.unwrap(), zeros)
+                        B::mask_scatter(grad, mask_4lhs.unwrap(), source)
                     },
                     |grad| {
-                        let zeros = B::zeros(shape_rhs, &device);
-                        B::mask_scatter(zeros, mask_4rhs.unwrap(), grad)
+                        B::mask_scatter(grad, mask_4rhs.unwrap(), tensor)
                     },
                 );
             }
@@ -708,12 +706,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             .statefull()
         {
             OpsKind::Tracked(prep) => prep.finish(
-                (
-                    mask.clone(),
-                    B::shape(&tensor.primitive),
-                    B::shape(&source.primitive),
-                    B::device(&source.primitive),
-                ),
+                (tensor.primitive.clone(), mask.clone(), source.primitive.clone()),
                 B::mask_scatter(tensor.primitive, mask, source.primitive),
             ),
             OpsKind::UnTracked(prep) => {
