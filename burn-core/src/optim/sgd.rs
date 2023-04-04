@@ -92,99 +92,75 @@ impl<B: Backend> SimpleOptimizer<B> for Sgd<B> {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use crate::{
-//         nn::{Linear, LinearConfig},
-//         optim::GradientsParams,
-//         tensor::{Distribution, Shape},
-//         TestADBackend,
-//     };
-//
-//     #[test]
-//     fn with_updated_params_should_have_state() {
-//         let layer = layer();
-//         let mut optim = sgd_with_all();
-//         let loss = layer.forward(random_tensor());
-//         let grads = loss.backward();
-//         let grads = GradientsParams::from_grads(grads, &layer);
-//         let layer = optim.update_module(layer, grads);
-//
-//         let state = optim.state(&layer);
-//
-//         assert!(!state.is_empty());
-//     }
-//
-//     #[test]
-//     fn without_updated_params_should_not_have_state() {
-//         let layer = layer();
-//         let optim = sgd_with_all();
-//
-//         let state = optim.state(&layer);
-//
-//         assert!(state.is_empty());
-//     }
-//
-//     #[test]
-//     fn without_momentum_and_weights_decay_should_not_have_state() {
-//         let layer = layer();
-//         let mut optim = sgd_with_nothing();
-//         let loss = layer.forward(random_tensor());
-//         let grads = loss.backward();
-//         let grads = GradientsParams::from_grads(grads, &layer);
-//
-//         let layer = optim.update_module(layer, grads);
-//
-//         let state = optim.state(&layer);
-//
-//         assert!(state.is_empty());
-//     }
-//
-//     #[test]
-//     fn should_load_state() {
-//         let layer = layer();
-//         let mut optim = sgd_with_all();
-//         let loss = layer.forward(random_tensor());
-//         let grads = loss.backward();
-//         let grads = GradientsParams::from_grads(grads, &layer);
-//         let layer = optim.update_module(layer, grads);
-//
-//         let state = optim.state(&layer);
-//         let mut optim_new = sgd_with_all();
-//         let state_new = optim_new.state(&layer);
-//         optim_new.load(&layer, &state).unwrap();
-//         let state_restored = optim_new.state(&layer);
-//
-//         assert_ne!(state, state_new);
-//         assert_eq!(state, state_restored);
-//     }
-//
-//     fn random_tensor() -> Tensor<TestADBackend, 2> {
-//         Tensor::<TestADBackend, 2>::random(Shape::new([2, 20]), Distribution::Standard)
-//     }
-//
-//     fn layer() -> Linear<TestADBackend> {
-//         LinearConfig::new(20, 20).with_bias(true).init()
-//     }
-//
-//     fn sgd_with_all() -> Sgd<TestADBackend> {
-//         Sgd::new(&SgdConfig {
-//             learning_rate: 0.02,
-//             weight_decay: Some(WeightDecayConfig { penalty: 0.05 }),
-//             momentum: Some(MomentumConfig {
-//                 momentum: 0.9,
-//                 dampening: 0.1,
-//                 nesterov: true,
-//             }),
-//         })
-//     }
-//
-//     fn sgd_with_nothing() -> Sgd<TestADBackend> {
-//         Sgd::new(&SgdConfig {
-//             learning_rate: 0.02,
-//             weight_decay: None,
-//             momentum: None,
-//         })
-//     }
-// }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        nn::{Linear, LinearConfig},
+        optim::{GradientsParams, Optimizer},
+        tensor::{Distribution, Shape},
+        TestADBackend, TestBackend,
+    };
+
+    #[test]
+    fn with_updated_params_should_have_state() {
+        let layer = layer();
+        let mut optim = sgd_with_all();
+        let loss = layer.forward(random_tensor());
+        let grads = loss.backward();
+        let grads = GradientsParams::from_grads(grads, &layer);
+        let _layer = optim.step(layer, grads);
+
+        let record = optim.to_record();
+
+        assert!(!record.is_empty());
+    }
+
+    #[test]
+    fn without_updated_params_should_not_have_state() {
+        let optim = sgd_with_all();
+        let record = optim.to_record();
+        assert!(record.is_empty());
+    }
+
+    #[test]
+    fn should_load_state() {
+        let layer = layer();
+        let mut optim = sgd_with_all();
+        let loss = layer.forward(random_tensor());
+        let grads = loss.backward();
+        let grads = GradientsParams::from_grads(grads, &layer);
+        let _layer = optim.step(layer, grads);
+
+        let record = optim.to_record();
+        let optim_new = sgd_with_all();
+        let record_new = optim_new.to_record();
+        let optim_new = optim_new.load_record(record.clone());
+        let state_restored = optim_new.to_record();
+
+        assert_ne!(record.len(), record_new.len());
+        assert_eq!(record.len(), state_restored.len());
+    }
+
+    fn random_tensor() -> Tensor<TestADBackend, 2> {
+        Tensor::<TestADBackend, 2>::random(Shape::new([2, 20]), Distribution::Standard)
+    }
+
+    fn layer() -> Linear<TestADBackend> {
+        LinearConfig::new(20, 20).with_bias(true).init()
+    }
+
+    fn sgd_with_all(
+    ) -> SimpleModuleOptimizer<Sgd<TestBackend>, Linear<TestADBackend>, TestADBackend> {
+        SgdConfig {
+            learning_rate: 0.02,
+            weight_decay: Some(WeightDecayConfig { penalty: 0.05 }),
+            momentum: Some(MomentumConfig {
+                momentum: 0.9,
+                dampening: 0.1,
+                nesterov: true,
+            }),
+        }
+        .init()
+    }
+}

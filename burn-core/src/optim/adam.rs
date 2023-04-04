@@ -153,107 +153,113 @@ impl AdaptiveMomentum {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use crate::module::{Module, Param};
-//     use crate::tensor::{Data, Distribution, Tensor};
-//     use crate::{nn, TestADBackend};
-//
-//     #[test]
-//     fn test_adam_optimizer_save_load_state() {
-//         let linear = nn::LinearConfig::new(6, 6).init();
-//         let x = Tensor::<TestADBackend, 2>::random([2, 6], Distribution::Standard);
-//         let mut optimizer = Adam::new(&AdamConfig::new(0.01));
-//         let grads = linear.forward(x).backward();
-//         let grads = GradientsParams::from_grads(grads, &linear);
-//         let linear = optimizer.update_module(linear, grads);
-//
-//         let state_optim_before = optimizer.state(&linear);
-//         let mut optimizer = Adam::new(&AdamConfig::new(0.01));
-//         optimizer.load(&linear, &state_optim_before).unwrap();
-//         let state_optim_after = optimizer.state(&linear);
-//
-//         assert_eq!(state_optim_before, state_optim_after);
-//     }
-//
-//     #[test]
-//     fn test_adam_optimizer_with_numbers() {
-//         let linear = given_linear_layer(
-//             Data::from([
-//                 [-0.3206, 0.1374, 0.4043, 0.3200, 0.0859, 0.0671],
-//                 [0.0777, -0.0185, -0.3667, 0.2550, 0.1955, -0.2922],
-//                 [-0.0190, 0.0346, -0.2962, 0.2484, -0.2780, 0.3130],
-//                 [-0.2980, -0.2214, -0.3715, -0.2981, -0.0761, 0.1626],
-//                 [0.3300, -0.2182, 0.3717, -0.1729, 0.3796, -0.0304],
-//                 [-0.0159, -0.0120, 0.1258, 0.1921, 0.0293, 0.3833],
-//             ]),
-//             Data::from([-0.3905, 0.0884, -0.0970, 0.1176, 0.1366, 0.0130]),
-//         );
-//         let x_1 = Tensor::from_floats([
-//             [0.6294, 0.0940, 0.8176, 0.8824, 0.5228, 0.4310],
-//             [0.7152, 0.9559, 0.7893, 0.5684, 0.5939, 0.8883],
-//         ])
-//         .require_grad();
-//         let x_2 = Tensor::from_floats([
-//             [0.8491, 0.2108, 0.8939, 0.4433, 0.5527, 0.2528],
-//             [0.3270, 0.0412, 0.5538, 0.9605, 0.3195, 0.9085],
-//         ])
-//         .require_grad();
-//         let mut optimizer = Adam::new(
-//             &AdamConfig::new(0.01)
-//                 .with_epsilon(1e-8)
-//                 .with_beta_1(0.9)
-//                 .with_beta_2(0.999),
-//         );
-//
-//         let grads = linear.forward(x_1).backward();
-//         let grads = GradientsParams::from_grads(grads, &linear);
-//         let linear = optimizer.update_module(linear, grads);
-//
-//         let grads = linear.forward(x_2).backward();
-//         let grads = GradientsParams::from_grads(grads, &linear);
-//         let linear = optimizer.update_module(linear, grads);
-//
-//         let state_updated = linear.into_record();
-//         let state_expected = given_linear_record(
-//             Data::from([
-//                 [-0.3405, 0.1191, 0.3843, 0.3000, 0.0661, 0.0471],
-//                 [0.0577, -0.0367, -0.3846, 0.2360, 0.1756, -0.3122],
-//                 [-0.0389, 0.0150, -0.3161, 0.2284, -0.2978, 0.2930],
-//                 [-0.3180, -0.2396, -0.3915, -0.3181, -0.0960, 0.1427],
-//                 [0.3100, -0.2365, 0.3517, -0.1929, 0.3597, -0.0504],
-//                 [-0.0358, -0.0303, 0.1059, 0.1721, 0.0095, 0.3634],
-//             ]),
-//             Data::from([-0.4105, 0.0684, -0.1170, 0.0976, 0.1166, -0.0070]),
-//         );
-//         let (weight_updated, bias_updated) = (
-//             state_updated.weight.to_data(),
-//             state_updated.bias.unwrap().to_data(),
-//         );
-//         let (weight_expected, bias_expected) = (
-//             state_expected.weight.to_data(),
-//             state_expected.bias.unwrap().to_data(),
-//         );
-//
-//         bias_updated.assert_approx_eq(&bias_expected, 2);
-//         weight_updated.assert_approx_eq(&weight_expected, 2);
-//     }
-//
-//     fn given_linear_layer(weight: Data<f32, 2>, bias: Data<f32, 1>) -> nn::Linear<TestADBackend> {
-//         let linear = nn::LinearConfig::new(6, 6).init();
-//         let record = given_linear_record(weight, bias);
-//
-//         linear.load_record(record)
-//     }
-//
-//     fn given_linear_record(
-//         weight: Data<f32, 2>,
-//         bias: Data<f32, 1>,
-//     ) -> nn::LinearRecord<TestADBackend> {
-//         nn::LinearRecord {
-//             weight: Param::from(Tensor::from_data(weight)),
-//             bias: Some(Param::from(Tensor::from_data(bias))),
-//         }
-//     }
-// }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::module::{Module, Param};
+    use crate::optim::{GradientsParams, Optimizer};
+    use crate::record::DebugRecordSettings;
+    use crate::tensor::{Data, Distribution, Tensor};
+    use crate::{nn, TestADBackend};
+
+    #[test]
+    fn test_adam_optimizer_save_load_state() {
+        let linear = nn::LinearConfig::new(6, 6).init();
+        let x = Tensor::<TestADBackend, 2>::random([2, 6], Distribution::Standard);
+        let mut optimizer = AdamConfig::new(0.01).init();
+        let grads = linear.forward(x).backward();
+        let grads = GradientsParams::from_grads(grads, &linear);
+        let _linear = optimizer.step(linear, grads);
+        optimizer
+            .to_record()
+            .record::<DebugRecordSettings>("/tmp/test_optim".into())
+            .unwrap();
+
+        let state_optim_before = optimizer.to_record();
+        let state_optim_before_copy = optimizer.to_record();
+        let optimizer = AdamConfig::new(0.01).init::<TestADBackend, nn::Linear<TestADBackend>>();
+        let optimizer = optimizer.load_record(state_optim_before_copy);
+        let state_optim_after = optimizer.to_record();
+        assert_eq!(state_optim_before.len(), state_optim_after.len());
+    }
+
+    #[test]
+    fn test_adam_optimizer_with_numbers() {
+        let linear = given_linear_layer(
+            Data::from([
+                [-0.3206, 0.1374, 0.4043, 0.3200, 0.0859, 0.0671],
+                [0.0777, -0.0185, -0.3667, 0.2550, 0.1955, -0.2922],
+                [-0.0190, 0.0346, -0.2962, 0.2484, -0.2780, 0.3130],
+                [-0.2980, -0.2214, -0.3715, -0.2981, -0.0761, 0.1626],
+                [0.3300, -0.2182, 0.3717, -0.1729, 0.3796, -0.0304],
+                [-0.0159, -0.0120, 0.1258, 0.1921, 0.0293, 0.3833],
+            ]),
+            Data::from([-0.3905, 0.0884, -0.0970, 0.1176, 0.1366, 0.0130]),
+        );
+        let x_1 = Tensor::from_floats([
+            [0.6294, 0.0940, 0.8176, 0.8824, 0.5228, 0.4310],
+            [0.7152, 0.9559, 0.7893, 0.5684, 0.5939, 0.8883],
+        ])
+        .require_grad();
+        let x_2 = Tensor::from_floats([
+            [0.8491, 0.2108, 0.8939, 0.4433, 0.5527, 0.2528],
+            [0.3270, 0.0412, 0.5538, 0.9605, 0.3195, 0.9085],
+        ])
+        .require_grad();
+
+        let mut optimizer = AdamConfig::new(0.01)
+            .with_epsilon(1e-8)
+            .with_beta_1(0.9)
+            .with_beta_2(0.999)
+            .init();
+
+        let grads = linear.forward(x_1).backward();
+        let grads = GradientsParams::from_grads(grads, &linear);
+        let linear = optimizer.step(linear, grads);
+
+        let grads = linear.forward(x_2).backward();
+        let grads = GradientsParams::from_grads(grads, &linear);
+        let linear = optimizer.step(linear, grads);
+
+        let state_updated = linear.into_record();
+        let state_expected = given_linear_record(
+            Data::from([
+                [-0.3405, 0.1191, 0.3843, 0.3000, 0.0661, 0.0471],
+                [0.0577, -0.0367, -0.3846, 0.2360, 0.1756, -0.3122],
+                [-0.0389, 0.0150, -0.3161, 0.2284, -0.2978, 0.2930],
+                [-0.3180, -0.2396, -0.3915, -0.3181, -0.0960, 0.1427],
+                [0.3100, -0.2365, 0.3517, -0.1929, 0.3597, -0.0504],
+                [-0.0358, -0.0303, 0.1059, 0.1721, 0.0095, 0.3634],
+            ]),
+            Data::from([-0.4105, 0.0684, -0.1170, 0.0976, 0.1166, -0.0070]),
+        );
+        let (weight_updated, bias_updated) = (
+            state_updated.weight.to_data(),
+            state_updated.bias.unwrap().to_data(),
+        );
+        let (weight_expected, bias_expected) = (
+            state_expected.weight.to_data(),
+            state_expected.bias.unwrap().to_data(),
+        );
+
+        bias_updated.assert_approx_eq(&bias_expected, 2);
+        weight_updated.assert_approx_eq(&weight_expected, 2);
+    }
+
+    fn given_linear_layer(weight: Data<f32, 2>, bias: Data<f32, 1>) -> nn::Linear<TestADBackend> {
+        let linear = nn::LinearConfig::new(6, 6).init();
+        let record = given_linear_record(weight, bias);
+
+        linear.load_record(record)
+    }
+
+    fn given_linear_record(
+        weight: Data<f32, 2>,
+        bias: Data<f32, 1>,
+    ) -> nn::LinearRecord<TestADBackend> {
+        nn::LinearRecord {
+            weight: Param::from(Tensor::from_data(weight)),
+            bias: Some(Param::from(Tensor::from_data(bias))),
+        }
+    }
+}

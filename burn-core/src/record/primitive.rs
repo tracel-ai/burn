@@ -53,12 +53,12 @@ impl<const N: usize, T: Record + core::fmt::Debug> Record for [T; N] {
 }
 
 impl<T: Record> Record for HashMap<ParamId, T> {
-    type Item<S: RecordSettings> = HashMap<ParamId, T::Item<S>>;
+    type Item<S: RecordSettings> = HashMap<String, T::Item<S>>;
 
     fn into_item<S: RecordSettings>(self) -> Self::Item<S> {
         let mut items = HashMap::with_capacity(self.len());
         self.into_iter().for_each(|(id, record)| {
-            items.insert(id, record.into_item());
+            items.insert(id.to_string(), record.into_item());
         });
         items
     }
@@ -66,7 +66,7 @@ impl<T: Record> Record for HashMap<ParamId, T> {
     fn from_item<S: RecordSettings>(item: Self::Item<S>) -> Self {
         let mut record = HashMap::with_capacity(item.len());
         item.into_iter().for_each(|(id, item)| {
-            record.insert(id, T::from_item(item));
+            record.insert(ParamId::from(id), T::from_item(item));
         });
         record
     }
