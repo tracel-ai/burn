@@ -1,5 +1,5 @@
 use alloc::vec::Vec;
-use core::{fmt::Debug, ops::Range};
+use core::{any::TypeId, fmt::Debug, ops::Range};
 
 use crate::{backend::Backend, Bool, Data, Float, Int, Shape, TensorKind};
 
@@ -173,9 +173,11 @@ where
     }
 }
 
-impl<B, const D: usize> Tensor<B, D, Int>
+impl<B, const D: usize, K> Tensor<B, D, K>
 where
     B: Backend,
+    K: BasicOps<B>,
+    <K as BasicOps<B>>::Elem: Debug,
 {
     /// Recursively formats the tensor data for display and appends it to the provided accumulator string.
     ///
@@ -214,7 +216,7 @@ where
                 multi_index[depth] = i;
                 let range: [std::ops::Range<usize>; D] =
                     core::array::from_fn(|i| multi_index[i].clone()..multi_index[i].clone() + 1);
-                let elem = self.clone().index(range).to_data().value[0];
+                let elem = &self.clone().index(range).to_data().value[0];
                 acc.push_str(&format!("{:?}", elem));
             }
         } else {
@@ -236,91 +238,13 @@ where
     }
 }
 
-impl<B, const D: usize> Tensor<B, D, Float>
-where
-    B: Backend,
-{
-    fn display_recursive(&self, acc: &mut String, depth: usize, multi_index: &mut [usize]) {
-        if depth == 0 {
-            acc.push('[');
-        }
-
-        if depth == self.dims().len() - 1 {
-            // if we are at the innermost dimension, just push its elements into the accumulator
-            for i in 0..self.dims()[depth] {
-                if i > 0 {
-                    acc.push_str(", ");
-                }
-                multi_index[depth] = i;
-                let range: [std::ops::Range<usize>; D] =
-                    core::array::from_fn(|i| multi_index[i].clone()..multi_index[i].clone() + 1);
-                let elem = self.clone().index(range).to_data().value[0];
-                acc.push_str(&format!("{:?}", elem));
-            }
-        } else {
-            // otherwise, iterate through the current dimension and recursively display the inner tensors
-            for i in 0..self.dims()[depth] {
-                if i > 0 {
-                    acc.push_str(", ");
-                }
-                acc.push('[');
-                multi_index[depth] = i;
-                self.display_recursive(acc, depth + 1, multi_index);
-                acc.push(']');
-            }
-        }
-
-        if depth == 0 {
-            acc.push(']');
-        }
-    }
-}
-
-impl<B, const D: usize> Tensor<B, D, Bool>
-where
-    B: Backend,
-{
-    fn display_recursive(&self, acc: &mut String, depth: usize, multi_index: &mut [usize]) {
-        if depth == 0 {
-            acc.push('[');
-        }
-
-        if depth == self.dims().len() - 1 {
-            // if we are at the innermost dimension, just push its elements into the accumulator
-            for i in 0..self.dims()[depth] {
-                if i > 0 {
-                    acc.push_str(", ");
-                }
-                multi_index[depth] = i;
-                let range: [std::ops::Range<usize>; D] =
-                    core::array::from_fn(|i| multi_index[i].clone()..multi_index[i].clone() + 1);
-                let elem = self.clone().index(range).to_data().value[0];
-                acc.push_str(&format!("{:?}", elem));
-            }
-        } else {
-            // otherwise, iterate through the current dimension and recursively display the inner tensors
-            for i in 0..self.dims()[depth] {
-                if i > 0 {
-                    acc.push_str(", ");
-                }
-                acc.push('[');
-                multi_index[depth] = i;
-                self.display_recursive(acc, depth + 1, multi_index);
-                acc.push(']');
-            }
-        }
-
-        if depth == 0 {
-            acc.push(']');
-        }
-    }
-}
-
-/// Pretty print Int tensors
-impl<B, const D: usize> std::fmt::Display for Tensor<B, D, Int>
+/// Pretty print tensors
+impl<B, const D: usize, K> std::fmt::Display for Tensor<B, D, K>
 where
     B: Backend,
     B::IntElem: std::fmt::Display,
+    K: BasicOps<B>,
+    <K as BasicOps<B>>::Elem: Debug,
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Tensor {{")?;
@@ -334,52 +258,7 @@ where
         writeln!(f, "  shape:   {:?},", self.dims())?;
         writeln!(f, "  device:  {:?},", self.device())?;
         writeln!(f, "  backend: {:?},", B::name())?;
-        writeln!(f, "  dtype:   {:?},", "int")?;
-        write!(f, "}}")
-    }
-}
-
-/// Pretty print Float tensors
-impl<B, const D: usize> std::fmt::Display for Tensor<B, D, Float>
-where
-    B: Backend,
-    B::FloatElem: std::fmt::Display,
-{
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "Tensor {{")?;
-        write!(f, "  data: ")?;
-
-        let mut acc = String::new();
-        let mut multi_index = vec![0; D];
-        self.display_recursive(&mut acc, 0, &mut multi_index);
-        write!(f, "{}", acc)?;
-        writeln!(f, ",")?;
-        writeln!(f, "  shape:   {:?},", self.dims())?;
-        writeln!(f, "  device:  {:?},", self.device())?;
-        writeln!(f, "  backend: {:?},", B::name())?;
-        writeln!(f, "  dtype:   {:?},", "float")?;
-        write!(f, "}}")
-    }
-}
-
-/// Pretty print Bool tensors
-impl<B, const D: usize> std::fmt::Display for Tensor<B, D, Bool>
-where
-    B: Backend,
-{
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "Tensor {{")?;
-        write!(f, "  data: ")?;
-
-        let mut acc = String::new();
-        let mut multi_index = vec![0; D];
-        self.display_recursive(&mut acc, 0, &mut multi_index);
-        write!(f, "{}", acc)?;
-        writeln!(f, ",")?;
-        writeln!(f, "  shape:   {:?},", self.dims())?;
-        writeln!(f, "  device:  {:?},", self.device())?;
-        writeln!(f, "  backend: {:?},", B::name())?;
-        writeln!(f, "  dtype:   {:?},", "bool")?;
+        writeln!(f, "  dtype:   {:?},", K::elem_type())?;
         write!(f, "}}")
     }
 }
@@ -390,7 +269,7 @@ where
 ///
 /// This is an internal trait, use the public API provided by [tensor struct](Tensor).
 pub trait BasicOps<B: Backend>: TensorKind<B> {
-    type Elem;
+    type Elem: 'static;
 
     fn empty<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D>;
     fn shape<const D: usize>(tensor: &Self::Primitive<D>) -> Shape<D>;
@@ -428,6 +307,19 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, Bool>;
     fn equal_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool>;
+    fn elem_type() -> &'static str {
+        if TypeId::of::<Self::Elem>() == TypeId::of::<f32>() {
+            "float"
+        } else if TypeId::of::<Self::Elem>() == TypeId::of::<i32>()
+            || TypeId::of::<Self::Elem>() == TypeId::of::<i64>()
+        {
+            "int"
+        } else if TypeId::of::<Self::Elem>() == TypeId::of::<bool>() {
+            "bool"
+        } else {
+            "unknown"
+        }
+    }
 }
 
 impl<B: Backend> BasicOps<B> for Float {
