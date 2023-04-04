@@ -1,40 +1,8 @@
-use super::{fn_generator::FnGenerator, record::RecordGenerator};
+use super::{generator::FnGenerator, record::ModuleRecordGenerator};
 use crate::module::display;
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::parse_quote;
-
-pub(crate) fn constant_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
-    let name = &ast.ident;
-    let (_, generics_ty, generics_where) = ast.generics.split_for_impl();
-
-    let backend: syn::Generics = parse_quote! { <B: burn::tensor::backend::Backend >};
-    let backend_ad: syn::Generics = parse_quote! { <B: burn::tensor::backend::ADBackend >};
-
-    let mut generics_module = ast.generics.clone();
-    let mut generics_module_ad = ast.generics.clone();
-
-    for param in backend.params.into_iter() {
-        generics_module.params.push(param);
-    }
-    for param in backend_ad.params.into_iter() {
-        generics_module_ad.params.push(param);
-    }
-    let (generics_module, _, _) = generics_module.split_for_impl();
-    let (generics_module_ad, _, _) = generics_module_ad.split_for_impl();
-
-    let gen = quote! {
-        impl #generics_module burn::module::Module<B> for #name #generics_ty #generics_where {
-            burn::constant!(module);
-        }
-
-        impl #generics_module_ad burn::module::ADModule<B> for #name #generics_ty #generics_where {
-            burn::constant!(ad_module, #name #generics_ty);
-        }
-    };
-
-    gen.into()
-}
 
 pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
     let name = &ast.ident;
@@ -46,7 +14,7 @@ pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
         .unwrap_or(false);
 
     if !has_backend {
-        return constant_derive_impl(ast);
+        return constant_impl(ast);
     }
 
     let (generics, generics_ty, generics_where) = ast.generics.split_for_impl();
@@ -67,12 +35,11 @@ pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
     let clone_fn = generator.gen_clone_fn();
     let generics_names_except_backend = generics_names_except_backend(&ast.generics);
 
-    let record_gen = RecordGenerator::new(name.clone(), generator.fields, ast.generics.clone());
+    let record_gen =
+        ModuleRecordGenerator::new(name.clone(), generator.fields, ast.generics.clone());
 
     let record_name = record_gen.record_name();
     let record_struct = record_gen.gen_record_struct();
-    let record_item_struct = record_gen.gen_record_item_struct();
-    let record_impl = record_gen.gen_impl_record();
 
     let gen = quote! {
         impl #generics burn::module::Module<B> for #name #generics_ty #generics_where {
@@ -107,8 +74,39 @@ pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
         }
 
         #record_struct
-        #record_item_struct
-        #record_impl
+    };
+
+    gen.into()
+}
+
+// When there is no backend in the generic parameter, the struct is considered as a constant.
+fn constant_impl(ast: &syn::DeriveInput) -> TokenStream {
+    let name = &ast.ident;
+    let (_, generics_ty, generics_where) = ast.generics.split_for_impl();
+
+    let backend: syn::Generics = parse_quote! { <B: burn::tensor::backend::Backend >};
+    let backend_ad: syn::Generics = parse_quote! { <B: burn::tensor::backend::ADBackend >};
+
+    let mut generics_module = ast.generics.clone();
+    let mut generics_module_ad = ast.generics.clone();
+
+    for param in backend.params.into_iter() {
+        generics_module.params.push(param);
+    }
+    for param in backend_ad.params.into_iter() {
+        generics_module_ad.params.push(param);
+    }
+    let (generics_module, _, _) = generics_module.split_for_impl();
+    let (generics_module_ad, _, _) = generics_module_ad.split_for_impl();
+
+    let gen = quote! {
+        impl #generics_module burn::module::Module<B> for #name #generics_ty #generics_where {
+            burn::constant!(module);
+        }
+
+        impl #generics_module_ad burn::module::ADModule<B> for #name #generics_ty #generics_where {
+            burn::constant!(ad_module, #name #generics_ty);
+        }
     };
 
     gen.into()

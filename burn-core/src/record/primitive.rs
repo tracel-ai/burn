@@ -58,6 +58,7 @@ impl<T: Element> Record for State<T> {
         item.convert()
     }
 }
+
 impl<E: Element> Record for DataSerialize<E> {
     type Item<S: RecordSettings> = DataSerialize<S::FloatElem>;
 
@@ -87,3 +88,43 @@ impl<T: Record> Record for Param<T> {
         }
     }
 }
+
+// Type that can be serialized as is without any convertion.
+macro_rules! primitive {
+    ($type:ty) => {
+        impl Record for $type {
+            type Item<S: RecordSettings> = $type;
+
+            fn into_item<S: RecordSettings>(self) -> Self::Item<S> {
+                self
+            }
+
+            fn from_item<S: RecordSettings>(item: Self::Item<S>) -> Self {
+                item
+            }
+        }
+    };
+}
+
+// General Types
+primitive!(alloc::string::String);
+primitive!(bool);
+
+// Float Types
+primitive!(f64);
+primitive!(f32);
+primitive!(half::bf16);
+primitive!(half::f16);
+
+// Unsigned Integer Types
+primitive!(usize);
+primitive!(u64);
+primitive!(u32);
+primitive!(u16);
+primitive!(u8);
+
+// Signed Integer Types
+primitive!(i64);
+primitive!(i32);
+primitive!(i16);
+primitive!(i8);
