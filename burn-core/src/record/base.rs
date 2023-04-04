@@ -1,3 +1,5 @@
+pub use burn_derive::Record;
+
 use super::{RecordSettings, Recorder, RecorderError};
 use crate::alloc::string::ToString;
 use alloc::format;
