@@ -1,12 +1,13 @@
 use crate as burn;
+use crate::module::ADModule;
 
 use super::decay::{WeightDecay, WeightDecayConfig, WeightDecayState};
 use super::momentum::{MomemtumState, Momentum, MomentumConfig};
-use super::SimpleOptimizer;
+use super::{SimpleModuleOptimizer, SimpleOptimizer};
 use crate::config::Config;
 use crate::record::Record;
 use crate::tensor::{ElementConversion, Tensor};
-use burn_tensor::backend::Backend;
+use burn_tensor::backend::{ADBackend, Backend};
 
 /// Configuration to create the [Sgd](Sgd) optimizer.
 #[derive(Config)]
@@ -34,20 +35,24 @@ pub struct SgdState<B: Backend, const D: usize> {
     momentum: Option<MomemtumState<B, D>>,
 }
 
-impl<B: Backend> Sgd<B> {
-    pub fn new(config: &SgdConfig) -> Self {
-        let learning_rate = config.learning_rate.elem();
-        let momentum = config.momentum.as_ref().map(|config| Momentum::new(config));
-        let weight_decay = config
+impl SgdConfig {
+    pub fn init<B: ADBackend, M: ADModule<B>>(
+        &self,
+    ) -> SimpleModuleOptimizer<Sgd<B::InnerBackend>, M, B> {
+        let learning_rate = self.learning_rate.elem();
+        let momentum = self.momentum.as_ref().map(|config| Momentum::new(config));
+        let weight_decay = self
             .weight_decay
             .as_ref()
             .map(|config| WeightDecay::new(config));
 
-        Self {
+        let optim = Sgd {
             learning_rate,
             momentum,
             weight_decay,
-        }
+        };
+
+        SimpleModuleOptimizer::new(optim)
     }
 }
 

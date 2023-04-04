@@ -2,7 +2,7 @@ use super::{Record, RecordSettings};
 use crate::module::{Param, ParamId, State};
 use alloc::vec::Vec;
 use burn_tensor::{DataSerialize, Element};
-use hashbrown::HashMap;
+use std::collections::HashMap;
 
 impl Record for () {
     type Item<S: RecordSettings> = ();
@@ -36,15 +36,19 @@ impl<T: Record> Record for Option<T> {
     }
 }
 
-impl<const N: usize, T: Record> Record for [T; N] {
-    type Item<S: RecordSettings> = [T::Item<S>; N];
+impl<const N: usize, T: Record + core::fmt::Debug> Record for [T; N] {
+    type Item<S: RecordSettings> = Vec<T::Item<S>>;
 
     fn into_item<S: RecordSettings>(self) -> Self::Item<S> {
-        self.map(Record::into_item)
+        self.map(Record::into_item).into_iter().collect()
     }
 
     fn from_item<S: RecordSettings>(item: Self::Item<S>) -> Self {
-        item.map(Record::from_item)
+        item.into_iter()
+            .map(Record::from_item)
+            .collect::<Vec<_>>()
+            .try_into()
+            .expect(format!("An arrar of size {N}").as_str())
     }
 }
 

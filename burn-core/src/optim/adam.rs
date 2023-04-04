@@ -1,10 +1,11 @@
-use crate::{self as burn, record::Record};
+use crate::{self as burn, module::ADModule, record::Record};
 
 use super::{
     decay::{WeightDecay, WeightDecayConfig, WeightDecayState},
     SimpleOptimizer,
 };
 use crate::config::Config;
+use crate::optim::SimpleModuleOptimizer;
 use crate::tensor::{backend::ADBackend, Tensor};
 use burn_tensor::{backend::Backend, ElementConversion};
 
@@ -70,20 +71,24 @@ impl<B: Backend> SimpleOptimizer<B> for Adam<B> {
     }
 }
 
-impl<B: ADBackend> Adam<B> {
-    pub fn new(config: &AdamConfig) -> Self {
-        Self {
-            learning_rate: config.learning_rate.elem(),
+impl AdamConfig {
+    pub fn init<B: ADBackend, M: ADModule<B>>(
+        &self,
+    ) -> SimpleModuleOptimizer<Adam<B::InnerBackend>, M, B> {
+        let adam = Adam {
+            learning_rate: self.learning_rate.elem(),
             momentum: AdaptiveMomentum {
-                beta_1: config.beta_1,
-                beta_2: config.beta_2,
-                epsilon: config.epsilon,
+                beta_1: self.beta_1,
+                beta_2: self.beta_2,
+                epsilon: self.epsilon,
             },
-            weight_decay: config
+            weight_decay: self
                 .weight_decay
                 .as_ref()
                 .map(|config| WeightDecay::new(config)),
-        }
+        };
+
+        SimpleModuleOptimizer::new(adam)
     }
 }
 

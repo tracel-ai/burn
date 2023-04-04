@@ -1,8 +1,8 @@
 use crate::checkpoint::Checkpointer;
 use crate::LearnerCallback;
-use burn_core::module::{ADModule, Module, State};
+use burn_core::module::{ADModule, Module};
 use burn_core::optim::Optimizer;
-use burn_core::tensor::backend::{ADBackend, Backend};
+use burn_core::tensor::backend::ADBackend;
 
 /// Learner struct encapsulating all components necessary to train a Neural Network model.
 ///
@@ -19,13 +19,13 @@ where
     pub(super) callback: Box<dyn LearnerCallback<TO, VO>>,
     pub(super) checkpoint: Option<usize>,
     pub(super) checkpointer_model: CheckpointModel<M, B>,
-    pub(super) checkpointer_optimizer: CheckpointOptim<B>,
+    pub(super) checkpointer_optimizer: CheckpointOptim<O, M, B>,
     pub(super) grad_accumulation: Option<usize>,
     pub(super) devices: Vec<B::Device>,
 }
 
 type CheckpointModel<M, B> = Option<Box<dyn Checkpointer<<M as Module<B>>::Record>>>;
-type CheckpointOptim<B> = Option<Box<dyn Checkpointer<State<<B as Backend>::FloatElem>>>>;
+type CheckpointOptim<O, M, B> = Option<Box<dyn Checkpointer<<O as Optimizer<M, B>>::Record>>>;
 
 impl<B, M, O, TO, VO> Learner<B, M, O, TO, VO>
 where
@@ -39,7 +39,7 @@ where
         model: &M,
         optim: &O,
         checkpointer_model: &CheckpointModel<M, B>,
-        checkpointer_optimizer: &CheckpointOptim<B>,
+        checkpointer_optimizer: &CheckpointOptim<O, M, B>,
         epoch: usize,
     ) {
         if let Some(checkpointer) = &checkpointer_model {
@@ -48,7 +48,7 @@ where
                 .unwrap();
         }
         if let Some(checkpointer) = &checkpointer_optimizer {
-            checkpointer.save(epoch, optim.state(model)).unwrap();
+            checkpointer.save(epoch, optim.to_record()).unwrap();
         }
     }
 
@@ -59,8 +59,8 @@ where
         }
 
         if let Some(checkpointer) = &self.checkpointer_optimizer {
-            let state = checkpointer.restore(epoch).unwrap();
-            self.optim.load(&self.model, &state).unwrap();
+            let record = checkpointer.restore(epoch).unwrap();
+            self.optim = self.optim.load_record(record);
         }
 
         self

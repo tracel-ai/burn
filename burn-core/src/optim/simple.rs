@@ -1,6 +1,6 @@
 use core::{any::Any, marker::PhantomData};
 
-use super::Optimizer;
+use super::{GradientsParams, Optimizer};
 use crate::{
     module::{ADModule, ModuleMapper, ParamId},
     record::{Record, RecordSettings},
@@ -9,7 +9,8 @@ use burn_tensor::{
     backend::{ADBackend, Backend},
     Tensor,
 };
-use hashbrown::HashMap;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Simple optimizer is a more opinionated trait where the state can be generic over the
 /// dimension D and implements Record. This allows for simpler optimizer implementations where they
@@ -40,6 +41,21 @@ where
     module: PhantomData<M>,
 }
 
+impl<O, B, M> SimpleModuleOptimizer<O, M, B>
+where
+    B: ADBackend,
+    M: ADModule<B>,
+    O: SimpleOptimizer<B::InnerBackend>,
+{
+    pub fn new(optim: O) -> Self {
+        Self {
+            optim,
+            records: HashMap::new(),
+            module: PhantomData::default(),
+        }
+    }
+}
+
 impl<O, B, M> Optimizer<M, B> for SimpleModuleOptimizer<O, M, B>
 where
     B: ADBackend,
@@ -48,7 +64,7 @@ where
 {
     type Record = HashMap<ParamId, SimpleOptimizerRecord<O, B::InnerBackend>>;
 
-    fn step(&mut self, module: M, mut grads: <B as ADBackend>::Gradients) -> M {
+    fn step(&mut self, module: M, mut grads: GradientsParams) -> M {
         let mut mapper =
             SimpleModuleOptimizerMapper::<M, B, O>::new(&self.optim, &mut self.records, &mut grads);
         module.map(&mut mapper)
@@ -73,7 +89,7 @@ where
 {
     optimizer: &'a O,
     records: &'a mut HashMap<ParamId, SimpleOptimizerRecord<O, B::InnerBackend>>,
-    grads: &'a mut B::Gradients,
+    grads: &'a mut GradientsParams,
     phatom: PhantomData<M>,
 }
 
@@ -84,7 +100,7 @@ where
     O: SimpleOptimizer<B::InnerBackend>,
 {
     fn map<const D: usize>(&mut self, id: &ParamId, tensor: Tensor<B, D>) -> Tensor<B, D> {
-        let grad = tensor.grad(self.grads);
+        let grad = self.grads.remove(id);
 
         if let Some(grad) = grad {
             let (key, record) = self.records.remove_entry(id).unzip();
@@ -134,6 +150,8 @@ impl<O: SimpleOptimizer<B>, B: Backend> Clone for SimpleOptimizerRecord<O, B> {
     }
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(bound = "<O::State<1> as Record>::Item<S>: Serialize + serde::de::DeserializeOwned")]
 pub enum SimpleOptimizerRecordItem<O: SimpleOptimizer<B>, B: Backend, S: RecordSettings> {
     Rank1(<O::State<1> as Record>::Item<S>),
     Rank2(<O::State<2> as Record>::Item<S>),

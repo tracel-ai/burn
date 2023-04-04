@@ -5,7 +5,7 @@ use crate::model::Model;
 
 use burn::module::Module;
 use burn::optim::decay::WeightDecayConfig;
-use burn::optim::{Adam, AdamConfig};
+use burn::optim::AdamConfig;
 use burn::record::{DefaultRecordSettings, NoStdTrainingRecordSettings, Record};
 use burn::{
     config::Config,
@@ -58,7 +58,7 @@ pub fn run<B: ADBackend>(device: B::Device) {
         .build(Arc::new(MNISTDataset::test()));
 
     // Model
-    let optim = Adam::new(&config.optimizer);
+    let optim = config.optimizer.init();
     let model = Model::new();
 
     let learner = LearnerBuilder::new(ARTIFACT_DIR)

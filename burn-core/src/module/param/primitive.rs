@@ -145,6 +145,7 @@ where
 impl<const N: usize, T, B> Module<B> for [T; N]
 where
     T: Module<B> + Debug + Send + Sync + Clone + Copy,
+    T::Record: Debug,
     B: Backend,
 {
     type Record = [T::Record; N];
@@ -201,7 +202,9 @@ where
 impl<const N: usize, T, B> ADModule<B> for [T; N]
 where
     T: ADModule<B> + Debug + Send + Sync + Clone + Copy,
-    T::InnerModule: Copy,
+    T::InnerModule: Copy + Debug,
+    <T::InnerModule as Module<B::InnerBackend>>::Record: Debug,
+    <T as Module<B>>::Record: Debug,
     B: ADBackend,
 {
     type InnerModule = [T::InnerModule; N];

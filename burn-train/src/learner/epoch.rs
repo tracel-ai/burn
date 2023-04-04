@@ -88,11 +88,11 @@ impl<TI> TrainEpoch<TI> {
 
                     if accumulation <= accumulation_current {
                         let grads = accumulator.grads();
-                        model = optim.update_module(model, grads);
+                        model = optim.step(model, grads);
                         accumulation_current = 0;
                     }
                 }
-                None => model = optim.update_module(model, item.grads),
+                None => model = optim.step(model, item.grads),
             }
 
             callback.on_train_item(LearnerItem::new(
@@ -160,7 +160,7 @@ impl<TI> TrainEpoch<TI> {
 
                 if accumulation <= accumulation_current {
                     let grads = accumulator.grads();
-                    model = optim.update_module(model, grads);
+                    model = optim.step(model, grads);
                     accumulation_current = 0;
                 }
 
