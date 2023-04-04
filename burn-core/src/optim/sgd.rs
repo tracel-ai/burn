@@ -90,6 +90,12 @@ impl<B: Backend> SimpleOptimizer<B> for Sgd<B> {
 
         (tensor - delta, Some(state))
     }
+
+    fn to_device<const D: usize>(mut state: Self::State<D>, device: &B::Device) -> Self::State<D> {
+        state.weight_decay = state.weight_decay.map(|state| state.to_device(device));
+        state.momentum = state.momentum.map(|state| state.to_device(device));
+        state
+    }
 }
 
 #[cfg(test)]

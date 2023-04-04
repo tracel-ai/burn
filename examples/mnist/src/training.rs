@@ -66,7 +66,7 @@ pub fn run<B: ADBackend>(device: B::Device) {
         .metric_valid_plot(AccuracyMetric::new())
         .metric_train_plot(LossMetric::new())
         .metric_valid_plot(LossMetric::new())
-        .with_file_checkpointer::<DefaultRecordSettings>(2)
+        .with_file_checkpointer::<DefaultRecordSettings>(1)
         .devices(vec![device])
         .num_epochs(config.num_epochs)
         .build(model, optim);

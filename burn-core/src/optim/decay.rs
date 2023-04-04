@@ -45,3 +45,10 @@ impl<B: Backend> WeightDecay<B> {
         (grad, WeightDecayState::new(grad_last_step))
     }
 }
+
+impl<B: Backend, const D: usize> WeightDecayState<B, D> {
+    pub fn to_device(mut self, device: &B::Device) -> Self {
+        self.grad_last_step = self.grad_last_step.to_device(device);
+        self
+    }
+}

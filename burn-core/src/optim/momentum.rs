@@ -61,3 +61,10 @@ impl<B: Backend> Momentum<B> {
         (grad, MomemtumState::new(velocity))
     }
 }
+
+impl<B: Backend, const D: usize> MomemtumState<B, D> {
+    pub fn to_device(mut self, device: &B::Device) -> Self {
+        self.velocity = self.velocity.to_device(device);
+        self
+    }
+}

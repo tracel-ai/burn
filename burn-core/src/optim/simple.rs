@@ -28,6 +28,8 @@ where
         grad: Tensor<B, D>,
         state: Option<Self::State<D>>,
     ) -> (Tensor<B, D>, Option<Self::State<D>>);
+
+    fn to_device<const D: usize>(state: Self::State<D>, device: &B::Device) -> Self::State<D>;
 }
 
 pub struct SimpleModuleOptimizer<O, M, B>
@@ -103,11 +105,12 @@ where
         let grad = self.grads.remove(id);
 
         if let Some(grad) = grad {
+            let device = grad.device();
             let (key, record) = self.records.remove_entry(id).unzip();
             let (tensor, state) = self.optimizer.step(
                 tensor.inner(),
                 grad,
-                record.map(|record| record.into_state()),
+                record.map(|record| O::to_device(record.into_state(), &device)),
             );
 
             if let Some(state) = state {

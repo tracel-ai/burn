@@ -69,6 +69,15 @@ impl<B: Backend> SimpleOptimizer<B> for Adam<B> {
 
         (tensor - delta, Some(state))
     }
+
+    fn to_device<const D: usize>(
+        mut state: Self::State<D>,
+        device: &<B as Backend>::Device,
+    ) -> Self::State<D> {
+        state.weight_decay = state.weight_decay.map(|state| state.to_device(device));
+        state.momentum = state.momentum.to_device(device);
+        state
+    }
 }
 
 impl AdamConfig {
@@ -150,6 +159,14 @@ impl AdaptiveMomentum {
         let grad = moment_1_corrected.div(moment_2_corrected.sqrt().add_scalar(self.epsilon));
 
         (grad, state)
+    }
+}
+
+impl<B: Backend, const D: usize> AdaptiveMomentumState<B, D> {
+    pub fn to_device(mut self, device: &B::Device) -> Self {
+        self.moment_1 = self.moment_1.to_device(device);
+        self.moment_2 = self.moment_2.to_device(device);
+        self
     }
 }
 
