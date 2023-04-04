@@ -1,14 +1,14 @@
-use crate::{self as burn, module::ADModule};
+use crate::{self as burn, module::ADModule, record::Record};
 
 use super::{
     decay::{WeightDecay, WeightDecayConfig},
-    load_state_gradients, register_state_gradients, GradientsParams,
+    load_state_gradients, register_state_gradients, GradientsParams, SimpleOptimizer,
 };
 use crate::config::Config;
 use crate::module::{ParamId, StateNamed};
 use crate::optim::Optimizer;
 use crate::tensor::{backend::ADBackend, Tensor};
-use burn_tensor::ElementConversion;
+use burn_tensor::{backend::Backend, ElementConversion};
 
 #[derive(Config)]
 pub struct AdamConfig {
@@ -32,6 +32,20 @@ pub struct Adam<B: ADBackend> {
     learning_rate: B::FloatElem,
     momentum: AdaptiveMomentum,
     weight_decay: Option<WeightDecay<B>>,
+}
+
+impl<B: Backend> SimpleOptimizer<B> for usize {
+    type State<const D: usize> = Tensor<B, D>;
+
+    fn step<const D: usize>(
+        &self,
+        id: &ParamId,
+        tensor: Tensor<B, D>,
+        grad: Tensor<B, D>,
+        state: Option<Self::State<D>>,
+    ) -> (Tensor<B, D>, Option<Self::State<D>>) {
+        todo!()
+    }
 }
 
 impl<B: ADBackend> Adam<B> {
@@ -96,6 +110,24 @@ impl<M: ADModule<B>, B: ADBackend> Optimizer<M, B> for Adam<B> {
         }
     }
 }
+
+struct AdaptiveMomentumState<B: Backend, const D: usize> {
+    time: usize,
+    moment_1: Tensor<B, D>,
+    moment_2: Tensor<B, D>,
+}
+
+// impl<B: Backend, const D: usize> Record for AdaptiveMomentumState<B, D> {
+//     type Item<S: burn::record::RecordSettings>;
+//
+//     fn into_item<S: burn::record::RecordSettings>(self) -> Self::Item<S> {
+//         todo!()
+//     }
+//
+//     fn from_item<S: burn::record::RecordSettings>(item: Self::Item<S>) -> Self {
+//         todo!()
+//     }
+// }
 
 struct AdaptiveMomentum {
     beta_1: f32,

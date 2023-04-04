@@ -3,8 +3,21 @@ use super::visitor::{GradientsLoader, GradientsRegister};
 use super::GradientsParams;
 
 use crate::module::{ADModule, LoadingError, ParamId, State, StateNamed};
+use crate::record::Record;
 use crate::tensor::backend::ADBackend;
 use crate::tensor::{Data, Tensor};
+
+pub trait ModuleOptimizer<M, B>: Send + Sync
+where
+    M: ADModule<B>,
+    B: ADBackend,
+{
+    type Record: Record;
+
+    fn step(&mut self, module: M, grads: B::Gradients) -> M;
+    fn to_record(&self) -> Self::Record;
+    fn load_record(self, record: Self::Record) -> Self;
+}
 
 pub trait Optimizer<M, B>: Send + Sync
 where

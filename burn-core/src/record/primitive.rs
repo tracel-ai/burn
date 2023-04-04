@@ -1,7 +1,8 @@
 use super::{Record, RecordSettings};
-use crate::module::{Param, State};
+use crate::module::{Param, ParamId, State};
 use alloc::vec::Vec;
 use burn_tensor::{DataSerialize, Element};
+use hashbrown::HashMap;
 
 impl Record for () {
     type Item<S: RecordSettings> = ();
@@ -44,6 +45,26 @@ impl<const N: usize, T: Record> Record for [T; N] {
 
     fn from_item<S: RecordSettings>(item: Self::Item<S>) -> Self {
         item.map(Record::from_item)
+    }
+}
+
+impl<T: Record> Record for HashMap<ParamId, T> {
+    type Item<S: RecordSettings> = HashMap<ParamId, T::Item<S>>;
+
+    fn into_item<S: RecordSettings>(self) -> Self::Item<S> {
+        let mut items = HashMap::with_capacity(self.len());
+        self.into_iter().for_each(|(id, record)| {
+            items.insert(id, record.into_item());
+        });
+        items
+    }
+
+    fn from_item<S: RecordSettings>(item: Self::Item<S>) -> Self {
+        let mut record = HashMap::with_capacity(item.len());
+        item.into_iter().for_each(|(id, item)| {
+            record.insert(id, T::from_item(item));
+        });
+        record
     }
 }
 
