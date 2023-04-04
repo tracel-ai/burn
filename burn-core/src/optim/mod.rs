@@ -5,7 +5,6 @@ mod adam;
 mod base;
 mod grad_accum;
 mod grads;
-mod mapper;
 mod sgd;
 mod simple;
 mod visitor;

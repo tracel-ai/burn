@@ -1,5 +1,6 @@
 use core::{any::Any, marker::PhantomData};
 
+use super::Optimizer;
 use crate::{
     module::{ADModule, ModuleMapper, ParamId},
     record::{Record, RecordSettings},
@@ -10,8 +11,6 @@ use burn_tensor::{
 };
 use hashbrown::HashMap;
 
-use super::ModuleOptimizer;
-
 /// Simple optimizer is a more opinionated trait where the state can be generic over the
 /// dimension D and implements Record. This allows for simpler optimizer implementations where they
 /// don't have to handle missing gradients, loading and exporting records, and navigate the
@@ -20,11 +19,10 @@ pub trait SimpleOptimizer<B>: Send + Sync
 where
     B: Backend,
 {
-    type State<const D: usize>: Record + Clone;
+    type State<const D: usize>: Record + Clone + 'static;
 
     fn step<const D: usize>(
         &self,
-        id: &ParamId,
         tensor: Tensor<B, D>,
         grad: Tensor<B, D>,
         state: Option<Self::State<D>>,
@@ -42,7 +40,7 @@ where
     module: PhantomData<M>,
 }
 
-impl<O, B, M> ModuleOptimizer<M, B> for SimpleModuleOptimizer<O, M, B>
+impl<O, B, M> Optimizer<M, B> for SimpleModuleOptimizer<O, M, B>
 where
     B: ADBackend,
     M: ADModule<B>,
@@ -91,7 +89,6 @@ where
         if let Some(grad) = grad {
             let (key, record) = self.records.remove_entry(id).unzip();
             let (tensor, state) = self.optimizer.step(
-                id,
                 tensor.inner(),
                 grad,
                 record.map(|record| record.into_state()),
