@@ -47,6 +47,10 @@ where
         M::InnerModule: ValidStep<VI, VO>,
     {
         log::info!("Fitting {}", self.model.to_string());
+        // The reference model is always on the first device provided.
+        if let Some(device) = self.devices.get(0) {
+            self.model = self.model.to_device(device).detach();
+        }
 
         let starting_epoch = match self.checkpoint {
             Some(checkpoint) => {
@@ -58,11 +62,6 @@ where
 
         let mut model = self.model;
         let mut optim = self.optim;
-
-        // The reference model is always on the first device provided.
-        if let Some(device) = self.devices.get(0) {
-            model = model.to_device(device).detach();
-        }
 
         for epoch in starting_epoch..self.num_epochs + 1 {
             let epoch_train = TrainEpoch::new(

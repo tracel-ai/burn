@@ -55,7 +55,7 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
     }
 
     fn load_record(self, record: Self::Record) -> Self {
-        record
+        record.to_device(&self.device())
     }
 }
 
