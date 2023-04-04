@@ -113,7 +113,7 @@ impl<const D: usize, B: Backend> Module<B> for Param<RunningState<Tensor<B, D>>>
 
     fn load_record(mut self, record: Self::Record) -> Self {
         let mut tensor = self.value.value.write().unwrap();
-        *tensor = record.value;
+        *tensor = record.value.to_device(&tensor.device());
         self.id = record.id;
 
         core::mem::drop(tensor);
