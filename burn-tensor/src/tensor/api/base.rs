@@ -255,10 +255,11 @@ where
         self.display_recursive(&mut acc, 0, &mut multi_index);
         write!(f, "{}", acc)?;
         writeln!(f, ",")?;
-        writeln!(f, "  shape:   {:?},", self.dims())?;
+        writeln!(f, "  shape:  {:?},", self.dims())?;
         writeln!(f, "  device:  {:?},", self.device())?;
-        writeln!(f, "  backend: {:?},", B::name())?;
-        writeln!(f, "  dtype:   {:?},", K::elem_type_name())?;
+        writeln!(f, "  backend:  {:?},", B::name())?;
+        writeln!(f, "  kind:  {:?},", K::name())?;
+        writeln!(f, "  dtype:  {:?},", K::elem_type_name())?;
         write!(f, "}}")
     }
 }
