@@ -3,8 +3,9 @@ use crate::module::ADModule;
 
 use super::decay::{WeightDecay, WeightDecayConfig, WeightDecayState};
 use super::momentum::{MomemtumState, Momentum, MomentumConfig};
-use super::{SimpleModuleOptimizer, SimpleOptimizer};
+use super::SimpleOptimizer;
 use crate::config::Config;
+use crate::optim::adaptor::OptimizerAdaptor;
 use crate::record::Record;
 use crate::tensor::{ElementConversion, Tensor};
 use burn_tensor::backend::{ADBackend, Backend};
@@ -38,7 +39,7 @@ pub struct SgdState<B: Backend, const D: usize> {
 impl SgdConfig {
     pub fn init<B: ADBackend, M: ADModule<B>>(
         &self,
-    ) -> SimpleModuleOptimizer<Sgd<B::InnerBackend>, M, B> {
+    ) -> OptimizerAdaptor<Sgd<B::InnerBackend>, M, B> {
         let learning_rate = self.learning_rate.elem();
         let momentum = self.momentum.as_ref().map(|config| Momentum::new(config));
         let weight_decay = self
@@ -46,13 +47,12 @@ impl SgdConfig {
             .as_ref()
             .map(|config| WeightDecay::new(config));
 
-        let optim = Sgd {
+        Sgd {
             learning_rate,
             momentum,
             weight_decay,
-        };
-
-        SimpleModuleOptimizer::new(optim)
+        }
+        .into()
     }
 }
 
@@ -156,8 +156,7 @@ mod tests {
         LinearConfig::new(20, 20).with_bias(true).init()
     }
 
-    fn sgd_with_all(
-    ) -> SimpleModuleOptimizer<Sgd<TestBackend>, Linear<TestADBackend>, TestADBackend> {
+    fn sgd_with_all() -> OptimizerAdaptor<Sgd<TestBackend>, Linear<TestADBackend>, TestADBackend> {
         SgdConfig {
             learning_rate: 0.02,
             weight_decay: Some(WeightDecayConfig { penalty: 0.05 }),

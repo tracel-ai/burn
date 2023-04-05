@@ -2,7 +2,7 @@ use super::{Record, RecordSettings};
 use crate::module::{Param, ParamId, State};
 use alloc::vec::Vec;
 use burn_tensor::{DataSerialize, Element};
-use std::collections::HashMap;
+use hashbrown::HashMap;
 
 impl Record for () {
     type Item<S: RecordSettings> = ();

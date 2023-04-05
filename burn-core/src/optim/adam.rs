@@ -2,10 +2,10 @@ use crate::{self as burn, module::ADModule, record::Record};
 
 use super::{
     decay::{WeightDecay, WeightDecayConfig, WeightDecayState},
-    SimpleOptimizer,
+    Optimizer, SimpleOptimizer,
 };
 use crate::config::Config;
-use crate::optim::SimpleModuleOptimizer;
+use crate::optim::adaptor::OptimizerAdaptor;
 use crate::tensor::{backend::ADBackend, Tensor};
 use burn_tensor::{backend::Backend, ElementConversion};
 
@@ -81,10 +81,8 @@ impl<B: Backend> SimpleOptimizer<B> for Adam<B> {
 }
 
 impl AdamConfig {
-    pub fn init<B: ADBackend, M: ADModule<B>>(
-        &self,
-    ) -> SimpleModuleOptimizer<Adam<B::InnerBackend>, M, B> {
-        let adam = Adam {
+    pub fn init<B: ADBackend, M: ADModule<B>>(&self) -> impl Optimizer<M, B> {
+        let optim = Adam {
             learning_rate: self.learning_rate.elem(),
             momentum: AdaptiveMomentum {
                 beta_1: self.beta_1,
@@ -96,8 +94,7 @@ impl AdamConfig {
                 .as_ref()
                 .map(|config| WeightDecay::new(config)),
         };
-
-        SimpleModuleOptimizer::new(adam)
+        OptimizerAdaptor::from(optim)
     }
 }
 
@@ -177,13 +174,13 @@ mod tests {
     use crate::optim::{GradientsParams, Optimizer};
     use crate::record::DebugRecordSettings;
     use crate::tensor::{Data, Distribution, Tensor};
-    use crate::{nn, TestADBackend};
+    use crate::{nn, TestADBackend, TestBackend};
 
     #[test]
     fn test_adam_optimizer_save_load_state() {
         let linear = nn::LinearConfig::new(6, 6).init();
         let x = Tensor::<TestADBackend, 2>::random([2, 6], Distribution::Standard);
-        let mut optimizer = AdamConfig::new(0.01).init();
+        let mut optimizer = create_adam();
         let grads = linear.forward(x).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
         let _linear = optimizer.step(linear, grads);
@@ -194,9 +191,10 @@ mod tests {
 
         let state_optim_before = optimizer.to_record();
         let state_optim_before_copy = optimizer.to_record();
-        let optimizer = AdamConfig::new(0.01).init::<TestADBackend, nn::Linear<TestADBackend>>();
+        let optimizer = create_adam();
         let optimizer = optimizer.load_record(state_optim_before_copy);
         let state_optim_after = optimizer.to_record();
+
         assert_eq!(state_optim_before.len(), state_optim_after.len());
     }
 
@@ -278,5 +276,23 @@ mod tests {
             weight: Param::from(Tensor::from_data(weight)),
             bias: Some(Param::from(Tensor::from_data(bias))),
         }
+    }
+
+    fn create_adam() -> OptimizerAdaptor<Adam<TestBackend>, nn::Linear<TestADBackend>, TestADBackend>
+    {
+        let config = AdamConfig::new(0.01);
+        Adam {
+            learning_rate: config.learning_rate.elem(),
+            momentum: AdaptiveMomentum {
+                beta_1: config.beta_1,
+                beta_2: config.beta_2,
+                epsilon: config.epsilon,
+            },
+            weight_decay: config
+                .weight_decay
+                .as_ref()
+                .map(|config| WeightDecay::new(config)),
+        }
+        .into()
     }
 }
