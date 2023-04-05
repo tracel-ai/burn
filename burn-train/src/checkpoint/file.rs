@@ -54,21 +54,15 @@ where
             return Ok(());
         }
 
-        let file_path_old_checkpoint = self.path_for_epoch(epoch - self.num_keep);
         let file_to_remove = format!(
             "{}.{}",
-            file_path_old_checkpoint,
+            self.path_for_epoch(epoch - self.num_keep),
             <S::Recorder as FileRecorder>::file_extension()
         );
 
-        match std::fs::remove_file(file_to_remove) {
-            Ok(_) => log::info!("Removed checkpoint {}", file_path_old_checkpoint),
-            Err(err) => {
-                match err.kind() {
-                    std::io::ErrorKind::NotFound => (), // Ignoring missing old checkpoints,
-                    _ => return Err(CheckpointerError::IOError(err)),
-                }
-            }
+        if std::path::Path::new(&file_to_remove).exists() {
+            log::info!("Removing checkpoint {}", file_to_remove);
+            std::fs::remove_file(file_to_remove).map_err(CheckpointerError::IOError)?;
         }
 
         Ok(())

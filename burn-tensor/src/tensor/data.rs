@@ -223,7 +223,6 @@ impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E
             let b = round(pow(10.0_f64, precision as f64) * b);
 
             if a != b {
-                println!("{a:?} != {b:?}");
                 eq = false;
             }
         }
