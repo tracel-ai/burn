@@ -1,5 +1,5 @@
 use alloc::vec::Vec;
-use core::{any::TypeId, fmt::Debug, ops::Range};
+use core::{fmt::Debug, ops::Range};
 
 use crate::{backend::Backend, Bool, Data, Float, Int, Shape, TensorKind};
 
@@ -258,7 +258,7 @@ where
         writeln!(f, "  shape:   {:?},", self.dims())?;
         writeln!(f, "  device:  {:?},", self.device())?;
         writeln!(f, "  backend: {:?},", B::name())?;
-        writeln!(f, "  dtype:   {:?},", K::elem_type())?;
+        writeln!(f, "  dtype:   {:?},", K::elem_type_name())?;
         write!(f, "}}")
     }
 }
@@ -307,18 +307,8 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, Bool>;
     fn equal_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool>;
-    fn elem_type() -> &'static str {
-        if TypeId::of::<Self::Elem>() == TypeId::of::<f32>() {
-            "float"
-        } else if TypeId::of::<Self::Elem>() == TypeId::of::<i32>()
-            || TypeId::of::<Self::Elem>() == TypeId::of::<i64>()
-        {
-            "int"
-        } else if TypeId::of::<Self::Elem>() == TypeId::of::<bool>() {
-            "bool"
-        } else {
-            "unknown"
-        }
+    fn elem_type_name() -> &'static str {
+        core::any::type_name::<Self::Elem>()
     }
 }
 
