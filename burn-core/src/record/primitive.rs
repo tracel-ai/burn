@@ -1,5 +1,5 @@
 use super::{Record, RecordSettings};
-use crate::module::{Param, ParamId, State};
+use crate::module::{Param, ParamId};
 use alloc::vec::Vec;
 use burn_tensor::{DataSerialize, Element};
 use hashbrown::HashMap;
@@ -69,18 +69,6 @@ impl<T: Record> Record for HashMap<ParamId, T> {
             record.insert(ParamId::from(id), T::from_item(item));
         });
         record
-    }
-}
-
-impl<T: Element> Record for State<T> {
-    type Item<S: RecordSettings> = State<S::FloatElem>;
-
-    fn into_item<S: RecordSettings>(self) -> Self::Item<S> {
-        self.convert::<S::FloatElem>()
-    }
-
-    fn from_item<S: RecordSettings>(item: Self::Item<S>) -> Self {
-        item.convert()
     }
 }
 
