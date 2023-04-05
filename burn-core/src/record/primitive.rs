@@ -1,6 +1,8 @@
+use alloc::string::ToString;
+use alloc::vec::Vec;
+
 use super::{Record, RecordSettings};
 use crate::module::{Param, ParamId};
-use alloc::vec::Vec;
 use burn_tensor::{DataSerialize, Element};
 use hashbrown::HashMap;
 
@@ -126,7 +128,10 @@ primitive!(bool);
 // Float Types
 primitive!(f64);
 primitive!(f32);
+
+#[cfg(feature = "std")]
 primitive!(half::bf16);
+#[cfg(feature = "std")]
 primitive!(half::f16);
 
 // Unsigned Integer Types
