@@ -47,18 +47,22 @@ where
         log::info!("Saving checkpoint {} to {}", epoch, file_path);
 
         record
-            .record(file_path.into())
+            .record::<S>(file_path.into())
             .map_err(CheckpointerError::RecorderError)?;
 
         if self.num_keep > epoch {
             return Ok(());
         }
 
-        let file_path_old_checkpoint = self.path_for_epoch(epoch - self.num_keep);
+        let file_to_remove = format!(
+            "{}.{}",
+            self.path_for_epoch(epoch - self.num_keep),
+            <S::Recorder as FileRecorder>::file_extension()
+        );
 
-        if std::path::Path::new(&file_path_old_checkpoint).exists() {
-            log::info!("Removing checkpoint {}", file_path_old_checkpoint);
-            std::fs::remove_file(file_path_old_checkpoint).map_err(CheckpointerError::IOError)?;
+        if std::path::Path::new(&file_to_remove).exists() {
+            log::info!("Removing checkpoint {}", file_to_remove);
+            std::fs::remove_file(file_to_remove).map_err(CheckpointerError::IOError)?;
         }
 
         Ok(())
@@ -67,7 +71,7 @@ where
     fn restore(&self, epoch: usize) -> Result<R, CheckpointerError> {
         let file_path = self.path_for_epoch(epoch);
         log::info!("Restoring checkpoint {} from {}", epoch, file_path);
-        let record = R::load(file_path.into()).map_err(CheckpointerError::RecorderError)?;
+        let record = R::load::<S>(file_path.into()).map_err(CheckpointerError::RecorderError)?;
 
         Ok(record)
     }

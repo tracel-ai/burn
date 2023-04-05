@@ -1,7 +1,11 @@
-use super::{Record, RecordSettings};
-use crate::module::{Param, State};
+use alloc::string::String;
+use alloc::string::ToString;
 use alloc::vec::Vec;
+
+use super::{Record, RecordSettings};
+use crate::module::{Param, ParamId};
 use burn_tensor::{DataSerialize, Element};
+use hashbrown::HashMap;
 
 impl Record for () {
     type Item<S: RecordSettings> = ();
@@ -35,27 +39,39 @@ impl<T: Record> Record for Option<T> {
     }
 }
 
-impl<const N: usize, T: Record> Record for [T; N] {
-    type Item<S: RecordSettings> = [T::Item<S>; N];
+impl<const N: usize, T: Record + core::fmt::Debug> Record for [T; N] {
+    type Item<S: RecordSettings> = Vec<T::Item<S>>;
 
     fn into_item<S: RecordSettings>(self) -> Self::Item<S> {
-        self.map(Record::into_item)
+        self.map(Record::into_item).into_iter().collect()
     }
 
     fn from_item<S: RecordSettings>(item: Self::Item<S>) -> Self {
-        item.map(Record::from_item)
+        item.into_iter()
+            .map(Record::from_item)
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap_or_else(|_| panic!("An arrar of size {N}"))
     }
 }
 
-impl<T: Element> Record for State<T> {
-    type Item<S: RecordSettings> = State<S::FloatElem>;
+impl<T: Record> Record for HashMap<ParamId, T> {
+    type Item<S: RecordSettings> = HashMap<String, T::Item<S>>;
 
     fn into_item<S: RecordSettings>(self) -> Self::Item<S> {
-        self.convert::<S::FloatElem>()
+        let mut items = HashMap::with_capacity(self.len());
+        self.into_iter().for_each(|(id, record)| {
+            items.insert(id.to_string(), record.into_item());
+        });
+        items
     }
 
     fn from_item<S: RecordSettings>(item: Self::Item<S>) -> Self {
-        item.convert()
+        let mut record = HashMap::with_capacity(item.len());
+        item.into_iter().for_each(|(id, item)| {
+            record.insert(ParamId::from(id), T::from_item(item));
+        });
+        record
     }
 }
 
@@ -113,7 +129,11 @@ primitive!(bool);
 // Float Types
 primitive!(f64);
 primitive!(f32);
+
+// TODO: Remove the feature flag when half supports serde with no_std
+#[cfg(feature = "std")]
 primitive!(half::bf16);
+#[cfg(feature = "std")]
 primitive!(half::f16);
 
 // Unsigned Integer Types

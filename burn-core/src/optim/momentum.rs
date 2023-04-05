@@ -1,10 +1,9 @@
 use crate as burn;
 
-use super::{load_state_gradients, register_state_gradients, GradientsParams};
 use crate::config::Config;
-use crate::module::{ParamId, StateNamed};
-use crate::tensor::backend::ADBackend;
+use crate::record::Record;
 use crate::tensor::{ElementConversion, Tensor};
+use burn_tensor::backend::Backend;
 
 /// Configuration to create momentum [Momentum](Momentum).
 #[derive(Config)]
@@ -20,66 +19,52 @@ pub struct MomentumConfig {
     pub nesterov: bool,
 }
 
+#[derive(Record, Clone, new)]
+pub struct MomemtumState<B: Backend, const D: usize> {
+    velocity: Tensor<B, D>,
+}
+
 /// Momemtum implementation that transforms gradients.
-pub struct Momentum<B: ADBackend> {
+pub struct Momentum<B: Backend> {
     momentum: B::FloatElem,
     dampening: f64,
     nesterov: bool,
-    velocity: GradientsParams,
 }
 
-impl<B: ADBackend> Momentum<B> {
+impl<B: Backend> Momentum<B> {
     pub fn new(config: &MomentumConfig) -> Self {
         Self {
             momentum: config.momentum.elem(),
             dampening: config.dampening,
-            velocity: GradientsParams::new(),
             nesterov: config.nesterov,
         }
     }
 
     pub fn transform<const D: usize>(
-        &mut self,
-        id: &ParamId,
-        grad: Tensor<B::InnerBackend, D>,
-    ) -> Tensor<B::InnerBackend, D> {
-        let velocity = match self.velocity.remove::<B::InnerBackend, D>(id) {
-            Some(grad_last_step) => grad
-                .clone()
+        &self,
+        grad: Tensor<B, D>,
+        state: Option<MomemtumState<B, D>>,
+    ) -> (Tensor<B, D>, MomemtumState<B, D>) {
+        let velocity = if let Some(state) = state {
+            grad.clone()
                 .mul_scalar(1.0 - self.dampening)
-                .add(grad_last_step.mul_scalar(self.momentum)),
-            None => grad.clone(),
+                .add(state.velocity.mul_scalar(self.momentum))
+        } else {
+            grad.clone()
         };
 
-        let output = match self.nesterov {
+        let grad = match self.nesterov {
             true => velocity.clone().mul_scalar(self.momentum).add(grad),
             false => velocity.clone(),
         };
 
-        // Update velocity
-        self.velocity.register(id.clone(), velocity);
-
-        output
+        (grad, MomemtumState::new(velocity))
     }
+}
 
-    pub fn register_state<const D: usize>(
-        &self,
-        id: &ParamId,
-        state: &mut StateNamed<B::FloatElem>,
-    ) {
-        register_state_gradients::<D, B, _>(id, state, &self.velocity, Self::state_key);
-    }
-
-    pub fn load_state<const D: usize>(
-        &mut self,
-        id: &ParamId,
-        state: &StateNamed<B::FloatElem>,
-        device: &B::Device,
-    ) {
-        load_state_gradients::<D, B, _>(id, state, &mut self.velocity, Self::state_key, device);
-    }
-
-    fn state_key(id: &ParamId) -> String {
-        format!("momentum-{id}")
+impl<B: Backend, const D: usize> MomemtumState<B, D> {
+    pub fn to_device(mut self, device: &B::Device) -> Self {
+        self.velocity = self.velocity.to_device(device);
+        self
     }
 }

@@ -7,7 +7,7 @@ use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::transform::SamplerDataset},
     module::Module,
     nn::transformer::TransformerEncoderConfig,
-    optim::{Sgd, SgdConfig},
+    optim::SgdConfig,
     record::{DefaultRecordSettings, Record},
     tensor::backend::ADBackend,
     train::{
@@ -70,7 +70,7 @@ pub fn train<B: ADBackend, D: TextClassificationDataset + 'static>(
         .num_workers(4)
         .build(dataset_test);
 
-    let optim = Sgd::new(&config.optimizer);
+    let optim = config.optimizer.init();
 
     let learner = LearnerBuilder::new(artifact_dir)
         .metric_train(CUDAMetric::new())

@@ -7,6 +7,7 @@ use std::{fs::File, path::PathBuf};
 pub trait FileRecorder:
     Recorder<RecordArgs = PathBuf, RecordOutput = (), LoadArgs = PathBuf>
 {
+    fn file_extension() -> &'static str;
 }
 
 /// File recorder using the [bincode format](bincode).
@@ -26,13 +27,33 @@ pub struct FilePrettyJsonRecorder;
 /// File recorder using the [message pack](rmp_serde) format compressed with gzip.
 pub struct FileMpkGzRecorder;
 
-impl FileRecorder for FileBinGzRecorder {}
-impl FileRecorder for FileBinRecorder {}
-impl FileRecorder for FileJsonGzRecorder {}
-impl FileRecorder for FilePrettyJsonRecorder {}
+impl FileRecorder for FileBinGzRecorder {
+    fn file_extension() -> &'static str {
+        "bin.gz"
+    }
+}
+impl FileRecorder for FileBinRecorder {
+    fn file_extension() -> &'static str {
+        "bin"
+    }
+}
+impl FileRecorder for FileJsonGzRecorder {
+    fn file_extension() -> &'static str {
+        "json.gz"
+    }
+}
+impl FileRecorder for FilePrettyJsonRecorder {
+    fn file_extension() -> &'static str {
+        "json"
+    }
+}
 
 #[cfg(feature = "msgpack")]
-impl FileRecorder for FileMpkGzRecorder {}
+impl FileRecorder for FileMpkGzRecorder {
+    fn file_extension() -> &'static str {
+        "mpk.gz"
+    }
+}
 
 macro_rules! str2reader {
     (
@@ -79,7 +100,7 @@ impl Recorder for FileBinGzRecorder {
         mut file: PathBuf,
     ) -> Result<(), RecorderError> {
         let config = bin_config();
-        let writer = str2writer!(file, "bin.gz")?;
+        let writer = str2writer!(file, Self::file_extension())?;
         let mut writer = GzEncoder::new(writer, Compression::default());
 
         bincode::serde::encode_into_std_write(&obj, &mut writer, config)
@@ -89,7 +110,7 @@ impl Recorder for FileBinGzRecorder {
     }
 
     fn load<Obj: Serialize + DeserializeOwned>(mut file: PathBuf) -> Result<Obj, RecorderError> {
-        let reader = str2reader!(file, "bin.gz")?;
+        let reader = str2reader!(file, Self::file_extension())?;
         let mut reader = GzDecoder::new(reader);
         let state = bincode::serde::decode_from_std_read(&mut reader, bin_config())
             .map_err(|err| RecorderError::Unknown(err.to_string()))?;
@@ -131,7 +152,7 @@ impl Recorder for FileJsonGzRecorder {
         obj: Obj,
         mut file: PathBuf,
     ) -> Result<(), RecorderError> {
-        let writer = str2writer!(file, "json.gz")?;
+        let writer = str2writer!(file, Self::file_extension())?;
         let writer = GzEncoder::new(writer, Compression::default());
         serde_json::to_writer(writer, &obj)
             .map_err(|err| RecorderError::Unknown(err.to_string()))?;
@@ -140,7 +161,7 @@ impl Recorder for FileJsonGzRecorder {
     }
 
     fn load<Obj: Serialize + DeserializeOwned>(mut file: PathBuf) -> Result<Obj, RecorderError> {
-        let reader = str2reader!(file, "json.gz")?;
+        let reader = str2reader!(file, Self::file_extension())?;
         let reader = GzDecoder::new(reader);
         let state = serde_json::from_reader(reader)
             .map_err(|err| RecorderError::Unknown(err.to_string()))?;
@@ -158,14 +179,14 @@ impl Recorder for FilePrettyJsonRecorder {
         obj: Obj,
         mut file: PathBuf,
     ) -> Result<(), RecorderError> {
-        let writer = str2writer!(file, "json")?;
+        let writer = str2writer!(file, Self::file_extension())?;
         serde_json::to_writer_pretty(writer, &obj)
             .map_err(|err| RecorderError::Unknown(err.to_string()))?;
         Ok(())
     }
 
     fn load<Obj: Serialize + DeserializeOwned>(mut file: PathBuf) -> Result<Obj, RecorderError> {
-        let reader = str2reader!(file, "json")?;
+        let reader = str2reader!(file, Self::file_extension())?;
         let state = serde_json::from_reader(reader)
             .map_err(|err| RecorderError::Unknown(err.to_string()))?;
 
@@ -183,7 +204,7 @@ impl Recorder for FileMpkGzRecorder {
         obj: Obj,
         mut file: PathBuf,
     ) -> Result<(), RecorderError> {
-        let writer = str2writer!(file, "mpk.gz")?;
+        let writer = str2writer!(file, Self::file_extension())?;
         let mut writer = GzEncoder::new(writer, Compression::default());
         rmp_serde::encode::write(&mut writer, &obj)
             .map_err(|err| RecorderError::Unknown(err.to_string()))?;
@@ -192,7 +213,7 @@ impl Recorder for FileMpkGzRecorder {
     }
 
     fn load<Obj: Serialize + DeserializeOwned>(mut file: PathBuf) -> Result<Obj, RecorderError> {
-        let reader = str2reader!(file, "mpk.gz")?;
+        let reader = str2reader!(file, Self::file_extension())?;
         let reader = GzDecoder::new(reader);
         let state = rmp_serde::decode::from_read(reader)
             .map_err(|err| RecorderError::Unknown(err.to_string()))?;

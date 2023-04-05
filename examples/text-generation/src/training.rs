@@ -7,7 +7,7 @@ use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::Dataset},
     module::Module,
     nn::transformer::TransformerEncoderConfig,
-    optim::{Adam, AdamConfig},
+    optim::AdamConfig,
     tensor::backend::ADBackend,
     train::{
         metric::{AccuracyMetric, CUDAMetric, LossMetric},
@@ -70,7 +70,7 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
         .num_workers(4)
         .build(dataset_test);
 
-    let optim = Adam::new(&config.optimizer);
+    let optim = config.optimizer.init();
 
     let learner = LearnerBuilder::new(artifact_dir)
         .metric_train(CUDAMetric::new())

@@ -1,13 +1,9 @@
-use burn_core::{
-    module::StateError,
-    record::{Record, RecorderError},
-};
+use burn_core::record::{Record, RecorderError};
 
 #[derive(Debug)]
 pub enum CheckpointerError {
     IOError(std::io::Error),
     RecorderError(RecorderError),
-    StateError(StateError),
     Unknown(String),
 }
 

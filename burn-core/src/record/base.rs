@@ -8,7 +8,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 /// Trait to define a family of types which can be recorded using any [settings](RecordSettings).
 pub trait Record: Send + Sync {
-    type Item<S: RecordSettings>;
+    type Item<S: RecordSettings>: Serialize + DeserializeOwned;
 
     /// Convert the current record into the corresponding item that follows the given [settings](RecordSettings).
     fn into_item<S: RecordSettings>(self) -> Self::Item<S>;
@@ -20,7 +20,6 @@ pub trait Record: Send + Sync {
     where
         Self: Sized,
         S: RecordSettings,
-        Self::Item<S>: Serialize + DeserializeOwned,
     {
         let metadata = BurnMetadata::new(
             core::any::type_name::<S::FloatElem>().to_string(),
@@ -40,7 +39,6 @@ pub trait Record: Send + Sync {
     where
         Self: Sized,
         S: RecordSettings,
-        Self::Item<S>: Serialize + DeserializeOwned,
     {
         let record: BurnRecord<Self::Item<S>> =
             RecorderType::<S>::load(args.clone()).map_err(|err| {
