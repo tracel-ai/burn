@@ -18,10 +18,9 @@ pub fn module_derive(input: TokenStream) -> TokenStream {
 #[proc_macro_derive(Record)]
 pub fn record_derive(input: TokenStream) -> TokenStream {
     let input = syn::parse(input).unwrap();
-    let gen = record_derive_impl(&input);
 
     // panic!("{}", gen);
-    gen
+    record_derive_impl(&input)
 }
 
 #[proc_macro_derive(Config, attributes(config))]

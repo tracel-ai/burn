@@ -89,10 +89,7 @@ impl AdamConfig {
                 beta_2: self.beta_2,
                 epsilon: self.epsilon,
             },
-            weight_decay: self
-                .weight_decay
-                .as_ref()
-                .map(|config| WeightDecay::new(config)),
+            weight_decay: self.weight_decay.as_ref().map(WeightDecay::new),
         };
         OptimizerAdaptor::from(optim)
     }
@@ -130,7 +127,7 @@ impl AdaptiveMomentum {
                 .mul_scalar(self.beta_2)
                 .add(grad.powf(2.0).mul_scalar(factor));
 
-            state.time = state.time + 1;
+            state.time += 1;
 
             state
         } else {
@@ -288,10 +285,7 @@ mod tests {
                 beta_2: config.beta_2,
                 epsilon: config.epsilon,
             },
-            weight_decay: config
-                .weight_decay
-                .as_ref()
-                .map(|config| WeightDecay::new(config)),
+            weight_decay: config.weight_decay.as_ref().map(WeightDecay::new),
         }
         .into()
     }

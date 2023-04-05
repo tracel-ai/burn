@@ -48,7 +48,7 @@ impl<const N: usize, T: Record + core::fmt::Debug> Record for [T; N] {
             .map(Record::from_item)
             .collect::<Vec<_>>()
             .try_into()
-            .expect(format!("An arrar of size {N}").as_str())
+            .unwrap_or_else(|_| panic!("An arrar of size {N}"))
     }
 }
 

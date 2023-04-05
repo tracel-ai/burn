@@ -41,11 +41,8 @@ impl SgdConfig {
         &self,
     ) -> OptimizerAdaptor<Sgd<B::InnerBackend>, M, B> {
         let learning_rate = self.learning_rate.elem();
-        let momentum = self.momentum.as_ref().map(|config| Momentum::new(config));
-        let weight_decay = self
-            .weight_decay
-            .as_ref()
-            .map(|config| WeightDecay::new(config));
+        let momentum = self.momentum.as_ref().map(Momentum::new);
+        let weight_decay = self.weight_decay.as_ref().map(WeightDecay::new);
 
         Sgd {
             learning_rate,
