@@ -1,4 +1,5 @@
 use alloc::vec::Vec;
+use alloc::string::String;
 use core::{fmt::Debug, ops::Range};
 
 use crate::{backend::Backend, Bool, Data, Float, Int, Shape, TensorKind};
@@ -37,11 +38,6 @@ where
     /// Returns the shape of the current tensor.
     pub fn shape(&self) -> Shape<D> {
         K::shape(&self.primitive)
-    }
-
-    /// Returns size of the current tensor.
-    pub fn size(&self) -> usize {
-        self.dims().iter().fold(1, |acc, &dim| acc * dim)
     }
 
     /// Reshape the tensor to have the given shape.
@@ -214,7 +210,7 @@ where
                     acc.push_str(", ");
                 }
                 multi_index[depth] = i;
-                let range: [std::ops::Range<usize>; D] =
+                let range: [core::ops::Range<usize>; D] =
                     core::array::from_fn(|i| multi_index[i].clone()..multi_index[i].clone() + 1);
                 let elem = &self.clone().index(range).to_data().value[0];
                 acc.push_str(&format!("{:?}", elem));
@@ -239,14 +235,14 @@ where
 }
 
 /// Pretty print tensors
-impl<B, const D: usize, K> std::fmt::Display for Tensor<B, D, K>
+impl<B, const D: usize, K> core::fmt::Display for Tensor<B, D, K>
 where
     B: Backend,
-    B::IntElem: std::fmt::Display,
+    B::IntElem: core::fmt::Display,
     K: BasicOps<B>,
     <K as BasicOps<B>>::Elem: Debug,
 {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         writeln!(f, "Tensor {{")?;
         write!(f, "  data: ")?;
 
