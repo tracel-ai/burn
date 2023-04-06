@@ -1,6 +1,7 @@
 #[burn_tensor_testgen::testgen(stats)]
 mod tests {
     use super::*;
+    use burn_tensor::backend::Backend;
     use burn_tensor::{Data, Tensor};
 
     #[test]
@@ -21,7 +22,10 @@ mod tests {
             Tensor::from_data(int_data);
 
         let output = format!("{}", tensor_int);
-        let expected = "Tensor {\n  data: [[1, 2, 3], [4, 5, 6], [7, 8, 9]],\n  shape:  [3, 3],\n  device:  Cpu,\n  backend:  \"tch\",\n  kind:  \"Int\",\n  dtype:  \"i64\",\n}";
+        let expected = format!(
+            "Tensor {{\n  data: [[1, 2, 3], [4, 5, 6], [7, 8, 9]],\n  shape:  [3, 3],\n  device:  Cpu,\n  backend:  \"{}\",\n  kind:  \"Int\",\n  dtype:  \"i64\",\n}}",
+            TestBackend::name()
+        );
         assert_eq!(output, expected);
     }
 
@@ -32,7 +36,10 @@ mod tests {
             Tensor::from_data(float_data);
 
         let output = format!("{}", tensor_float);
-        let expected = "Tensor {\n  data: [[1.1, 2.2, 3.3], [4.4, 5.5, 6.6], [7.7, 8.8, 9.9]],\n  shape:  [3, 3],\n  device:  Cpu,\n  backend:  \"tch\",\n  kind:  \"Float\",\n  dtype:  \"f32\",\n}";
+        let expected = format!(
+            "Tensor {{\n  data: [[1.1, 2.2, 3.3], [4.4, 5.5, 6.6], [7.7, 8.8, 9.9]],\n  shape:  [3, 3],\n  device:  Cpu,\n  backend:  \"{}\",\n  kind:  \"Float\",\n  dtype:  \"f32\",\n}}",
+            TestBackend::name()
+        );
         assert_eq!(output, expected);
     }
 
@@ -47,7 +54,10 @@ mod tests {
             Tensor::from_data(bool_data);
 
         let output = format!("{}", tensor_bool);
-        let expected = "Tensor {\n  data: [[true, false, true], [false, true, false], [false, true, true]],\n  shape:  [3, 3],\n  device:  Cpu,\n  backend:  \"tch\",\n  kind:  \"Bool\",\n  dtype:  \"bool\",\n}";
+        let expected = format!(
+            "Tensor {{\n  data: [[true, false, true], [false, true, false], [false, true, true]],\n  shape:  [3, 3],\n  device:  Cpu,\n  backend:  \"{}\",\n  kind:  \"Bool\",\n  dtype:  \"bool\",\n}}",
+            TestBackend::name()
+        );
         assert_eq!(output, expected);
     }
 
@@ -60,8 +70,11 @@ mod tests {
         let tensor: burn_tensor::Tensor<TestBackend, 3, burn_tensor::Int> = Tensor::from_data(data);
 
         let output = format!("{}", tensor);
-        let expected = "Tensor {\n  data: [[[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]], \
-                [[13, 14, 15, 16], [17, 18, 19, 20], [21, 22, 23, 24]]],\n  shape:  [2, 3, 4],\n  device:  Cpu,\n  backend:  \"tch\",\n  kind:  \"Int\",\n  dtype:  \"i64\",\n}";
+        let expected = format!(
+            "Tensor {{\n  data: [[[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]], \
+                [[13, 14, 15, 16], [17, 18, 19, 20], [21, 22, 23, 24]]],\n  shape:  [2, 3, 4],\n  device:  Cpu,\n  backend:  \"{}\",\n  kind:  \"Int\",\n  dtype:  \"i64\",\n}}",
+                TestBackend::name()
+            );
         assert_eq!(output, expected);
     }
 
@@ -75,7 +88,10 @@ mod tests {
         let tensor: burn_tensor::Tensor<TestBackend, 4, burn_tensor::Int> = Tensor::from_data(data);
 
         let output = format!("{}", tensor);
-        let expected = "Tensor {\n  data: [[[[1, 2, 3], [4, 5, 6]], [[7, 8, 9], [10, 11, 12]]], [[[13, 14, 15], [16, 17, 18]], [[19, 20, 21], [22, 23, 24]]]],\n  shape:  [2, 2, 2, 3],\n  device:  Cpu,\n  backend:  \"tch\",\n  kind:  \"Int\",\n  dtype:  \"i64\",\n}";
+        let expected = format!(
+            "Tensor {{\n  data: [[[[1, 2, 3], [4, 5, 6]], [[7, 8, 9], [10, 11, 12]]], [[[13, 14, 15], [16, 17, 18]], [[19, 20, 21], [22, 23, 24]]]],\n  shape:  [2, 2, 2, 3],\n  device:  Cpu,\n  backend:  \"{}\",\n  kind:  \"Int\",\n  dtype:  \"i64\",\n}}",
+            TestBackend::name()
+        );
         assert_eq!(output, expected);
     }
 }
