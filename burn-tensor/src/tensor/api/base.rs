@@ -311,7 +311,7 @@ where
                 }
                 multi_index[depth] = i;
                 let range: [core::ops::Range<usize>; D] =
-                    core::array::from_fn(|i| multi_index[i].clone()..multi_index[i].clone() + 1);
+                    core::array::from_fn(|i| multi_index[i]..multi_index[i] + 1);
                 let elem = &self.clone().index(range).to_data().value[0];
                 acc.push_str(&format!("{:?}", elem));
             }
