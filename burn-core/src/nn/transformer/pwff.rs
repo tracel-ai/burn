@@ -1,5 +1,3 @@
-use alloc::vec::Vec;
-
 use crate as burn;
 
 use crate::{

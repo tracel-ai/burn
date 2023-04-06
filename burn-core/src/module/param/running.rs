@@ -1,6 +1,6 @@
 use alloc::sync::Arc;
 
-use super::ParamId;
+use super::{ParamId, Untracked};
 use crate::module::{ADModule, Module, ModuleMapper, ModuleVisitor, Param};
 use burn_tensor::{
     backend::{ADBackend, Backend},
@@ -40,23 +40,13 @@ use threading::*;
 /// The state value is the average of all updates on all threads.
 #[derive(Clone, Debug)]
 pub struct RunningState<V> {
+    id: ParamId,
     values: Arc<Mutex<HashMap<ThreadId, V>>>,
     value: Arc<RwLock<V>>,
 }
 
-impl<B: Backend, const D: usize> From<RunningState<Tensor<B, D>>>
-    for Param<RunningState<Tensor<B, D>>>
-{
-    fn from(value: RunningState<Tensor<B, D>>) -> Self {
-        Param {
-            id: ParamId::new(),
-            value,
-        }
-    }
-}
-
-impl<const D: usize, B: Backend> Module<B> for Param<RunningState<Tensor<B, D>>> {
-    type Record = Param<Tensor<B, D>>;
+impl<const D: usize, B: Backend> Module<B> for RunningState<Tensor<B, D>> {
+    type Record = Param<Tensor<B, D>, Untracked>;
 
     fn require_grad(self) -> Self {
         // Never require grad for running state tensors
@@ -64,13 +54,13 @@ impl<const D: usize, B: Backend> Module<B> for Param<RunningState<Tensor<B, D>>>
     }
 
     fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
-        let tensor = self.value.value.read().unwrap();
+        let tensor = self.value.read().unwrap();
 
         visitor.visit(&self.id, &tensor)
     }
 
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
-        let mut tensor = self.value.value.write().unwrap();
+        let mut tensor = self.value.write().unwrap();
         let tensor_out = mapper.map(&self.id, tensor.clone());
 
         *tensor = tensor_out;
@@ -81,13 +71,13 @@ impl<const D: usize, B: Backend> Module<B> for Param<RunningState<Tensor<B, D>>>
 
     fn into_record(self) -> Self::Record {
         self.sync();
-        let tensor = self.value.value.read().unwrap();
+        let tensor = self.value.read().unwrap();
 
         Param::new(self.id, tensor.clone())
     }
 
     fn load_record(mut self, record: Self::Record) -> Self {
-        let mut tensor = self.value.value.write().unwrap();
+        let mut tensor = self.value.write().unwrap();
         *tensor = record.value.to_device(&tensor.device());
         self.id = record.id;
 
@@ -101,6 +91,16 @@ impl<const D: usize, B: Backend> RunningState<Tensor<B, D>> {
     /// Create a new running state.
     pub fn new(value: Tensor<B, D>) -> Self {
         Self {
+            id: ParamId::new(),
+            values: Arc::new(Mutex::new(HashMap::new())),
+            value: Arc::new(RwLock::new(value)),
+        }
+    }
+
+    /// Create a new running state.
+    pub fn with_id(id: ParamId, value: Tensor<B, D>) -> Self {
+        Self {
+            id,
             values: Arc::new(Mutex::new(HashMap::new())),
             value: Arc::new(RwLock::new(value)),
         }
@@ -175,27 +175,21 @@ impl<const D: usize, B: Backend> RunningState<Tensor<B, D>> {
     }
 }
 
-impl<const D: usize, B: ADBackend> ADModule<B> for Param<RunningState<Tensor<B, D>>> {
-    type InnerModule = Param<RunningState<Tensor<B::InnerBackend, D>>>;
+impl<const D: usize, B: ADBackend> ADModule<B> for RunningState<Tensor<B, D>> {
+    type InnerModule = RunningState<Tensor<B::InnerBackend, D>>;
 
     fn inner(self) -> Self::InnerModule {
         self.sync();
-        let value = self.value.value();
+        let value = self.value();
 
-        Param {
-            id: self.id,
-            value: RunningState::new(value.inner()),
-        }
+        RunningState::with_id(self.id, value.inner())
     }
 
     fn from_inner(module: Self::InnerModule) -> Self {
         module.sync();
 
-        let value = module.value.value();
+        let value = module.value();
 
-        Param {
-            id: module.id,
-            value: RunningState::new(Tensor::from_inner(value)),
-        }
+        RunningState::with_id(module.id, Tensor::from_inner(value))
     }
 }

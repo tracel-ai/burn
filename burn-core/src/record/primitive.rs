@@ -1,6 +1,8 @@
 use alloc::string::String;
 use alloc::string::ToString;
 use alloc::vec::Vec;
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::{Record, RecordSettings};
 use crate::module::{Param, ParamId};
@@ -87,21 +89,21 @@ impl<E: Element> Record for DataSerialize<E> {
     }
 }
 
-impl<T: Record> Record for Param<T> {
-    type Item<S: RecordSettings> = Param<T::Item<S>>;
+#[derive(new, Debug, Clone, Serialize, Deserialize)]
+pub struct ParamSerde<I> {
+    id: String,
+    param: I,
+}
+
+impl<T: Record, K: Send + Sync> Record for Param<T, K> {
+    type Item<S: RecordSettings> = ParamSerde<T::Item<S>>;
 
     fn into_item<S: RecordSettings>(self) -> Self::Item<S> {
-        Param {
-            id: self.id,
-            value: self.value.into_item(),
-        }
+        ParamSerde::new(self.id.to_string(), self.value.into_item())
     }
 
     fn from_item<S: RecordSettings>(item: Self::Item<S>) -> Self {
-        Param {
-            id: item.id,
-            value: T::from_item(item.value),
-        }
+        Param::new(ParamId::from(item.id), T::from_item(item.param))
     }
 }
 
