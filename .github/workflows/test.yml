@@ -11,70 +11,70 @@ on:
 
 jobs:
   test-burn:
-    uses: burn-rs/burn/.github/workflows/test-template.yml@main
+    uses: burn-rs/burn/.github/workflows/test-template.yml
     with:
       crate: burn
       test-no-default-feature: true
       no-std-build-targets: true
 
   test-burn-common:
-    uses: burn-rs/burn/.github/workflows/test-template.yml@main
+    uses: burn-rs/burn/.github/workflows/test-template.yml
     with:
       crate: burn-common
       test-no-default-feature: true
       no-std-build-targets: true
 
   test-burn-dataset:
-    uses: burn-rs/burn/.github/workflows/test-template.yml@main
+    uses: burn-rs/burn/.github/workflows/test-template.yml
     with:
       crate: burn-dataset
 
   test-burn-tensor:
-    uses: burn-rs/burn/.github/workflows/test-template.yml@main
+    uses: burn-rs/burn/.github/workflows/test-template.yml
     with:
       crate: burn-tensor
       test-no-default-feature: true
       no-std-build-targets: true
 
   test-burn-tch:
-    uses: burn-rs/burn/.github/workflows/test-template.yml@main
+    uses: burn-rs/burn/.github/workflows/test-template.yml
     with:
       crate: burn-tch
       args-doc: --features doc
 
   test-burn-ndarray:
-    uses: burn-rs/burn/.github/workflows/test-template.yml@main
+    uses: burn-rs/burn/.github/workflows/test-template.yml
     with:
       crate: burn-ndarray
       test-no-default-feature: true
       no-std-build-targets: true
 
   test-burn-no-std-tests:
-    uses: burn-rs/burn/.github/workflows/test-template.yml@main
+    uses: burn-rs/burn/.github/workflows/test-template.yml
     with:
       crate: burn-no-std-tests
       test-no-default-feature: true
       no-std-build-targets: true
 
   test-burn-autodiff:
-    uses: burn-rs/burn/.github/workflows/test-template.yml@main
+    uses: burn-rs/burn/.github/workflows/test-template.yml
     with:
       crate: burn-autodiff
 
   test-burn-core:
-    uses: burn-rs/burn/.github/workflows/test-template.yml@main
+    uses: burn-rs/burn/.github/workflows/test-template.yml
     with:
       crate: burn-core
       test-no-default-feature: true
       no-std-build-targets: true
 
   test-burn-core-backend-tch:
-    uses: burn-rs/burn/.github/workflows/test-template.yml@main
+    uses: burn-rs/burn/.github/workflows/test-template.yml
     with:
       crate: burn-core
       args-doc: --features test-tch
 
   test-burn-train:
-    uses: burn-rs/burn/.github/workflows/test-template.yml@main
+    uses: burn-rs/burn/.github/workflows/test-template.yml
     with:
       crate: burn-train
