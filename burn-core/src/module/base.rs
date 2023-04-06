@@ -8,6 +8,8 @@ use crate::{
 pub use burn_derive::Module;
 use burn_tensor::Tensor;
 
+// At the moment, our plan is to continue experimenting with the macro internally and monitor its development.
+// We may consider making it public in the future.
 macro_rules! module {
     (map=$module:ident, ops=$item:expr) => {{
         struct Mapper;
@@ -105,24 +107,56 @@ pub trait Module<B: Backend>: Clone + Send + Sync + core::fmt::Debug {
             init = Vec::new
         )
     }
-    /// Move the module and all of its sub-modules to the given device.
-    fn to_device(self, device: &B::Device) -> Self {
-        println!("To device");
+    /// Fork the module and all of its sub-modules to the given device.
+    ///
+    /// # Notes
+    ///
+    /// This is similar to [to_device](Module::to_device), but it ensures that the graph won't
+    /// register the device change operations, allowing you to call backward multiple times.
+    fn fork(self, device: &B::Device) -> Self {
         module!(
             map = self,
-            ops =
-                |tensor: Tensor<B, D>, device: &B::Device| tensor.to_device(device).require_grad(),
+            ops = |tensor: Tensor<B, D>, device: &B::Device| {
+                let is_require_grad = tensor.is_require_grad();
+                let mut tensor = tensor.to_device(device).detach();
+
+                if is_require_grad {
+                    tensor = tensor.require_grad();
+                }
+
+                tensor
+            },
             capture = { device: B::Device }
         )
     }
-    /// Detach the module from the graph.
-    fn detach(self) -> Self {
-        module!(map = self, ops = Tensor::detach)
+    /// Move the module and all of its sub-modules to the given device.
+    ///
+    /// # Warnings
+    ///
+    /// The device operations will be registered in the autodiff graph. Therefore, be sure to call
+    /// backward only one time even if you have the same module on multiple devices. If you want to
+    /// call backward multiple times, look into using [fork](Module::fork) instead.
+    fn to_device(self, device: &B::Device) -> Self {
+        module!(
+            map = self,
+            ops = |tensor: Tensor<B, D>, device: &B::Device| tensor.to_device(device),
+            capture = { device: B::Device }
+        )
     }
-    /// Mark each tensor in the module tree as tracked.
-    fn require_grad(self) -> Self {
-        module!(map = self, ops = Tensor::require_grad)
+    /// Each tensor in the module tree will not require grad.
+    ///
+    /// # Warnings
+    ///
+    /// This should not be used for inference, use [inner](ADModule::inner) when using
+    /// AD modules. This is mostly useful when performing partial finetuning, which is updating only
+    /// a small fraction of the parameters instead of finetuning all parameters of a model.
+    fn no_grad(self) -> Self {
+        module!(
+            map = self,
+            ops = |tensor: Tensor<B, D>| tensor.set_require_grad(false)
+        )
     }
+
     /// Get the number of parameters the module has, including all of its sub-modules.
     fn num_params(&self) -> usize {
         module!(

@@ -48,11 +48,6 @@ pub struct RunningState<V> {
 impl<const D: usize, B: Backend> Module<B> for RunningState<Tensor<B, D>> {
     type Record = Param<Tensor<B, D>>;
 
-    fn require_grad(self) -> Self {
-        // Never require grad for running state tensors
-        self
-    }
-
     fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
         let tensor = self.value.read().unwrap();
 
@@ -73,7 +68,7 @@ impl<const D: usize, B: Backend> Module<B> for RunningState<Tensor<B, D>> {
         self.sync();
         let tensor = self.value.read().unwrap();
 
-        Param::new(self.id, tensor.clone(), false)
+        Param::new(self.id, tensor.clone())
     }
 
     fn load_record(mut self, record: Self::Record) -> Self {

@@ -119,14 +119,6 @@ where
         devices
     }
 
-    fn to_device(self, device: &<B as burn_tensor::backend::Backend>::Device) -> Self {
-        self.map(|val| val.to_device(device))
-    }
-
-    fn detach(self) -> Self {
-        self.map(|module| module.detach())
-    }
-
     fn num_params(&self) -> usize {
         let mut num_params = 0;
         for module in self.iter() {

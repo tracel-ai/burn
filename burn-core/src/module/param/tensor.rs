@@ -7,16 +7,7 @@ use crate::tensor::{
 
 impl<B: Backend, const D: usize> From<Tensor<B, D>> for Param<Tensor<B, D>> {
     fn from(value: Tensor<B, D>) -> Self {
-        Param::new(ParamId::new(), value.require_grad(), true)
-    }
-}
-
-impl<B: Backend, const D: usize> Param<Tensor<B, D>> {
-    /// The tensor won't have gradient when the backward pass is calculated.
-    pub fn no_grad(mut self) -> Self {
-        self.require_grad = false;
-        self.value = self.value.set_require_grad(false);
-        self
+        Param::new(ParamId::new(), value.require_grad())
     }
 }
 
@@ -29,7 +20,7 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
 
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
         let value = mapper.map(&self.id, self.value);
-        Self::new(self.id, value, self.require_grad)
+        Self::new(self.id, value)
     }
 
     fn into_record(self) -> Self::Record {
@@ -37,7 +28,21 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
     }
 
     fn load_record(self, record: Self::Record) -> Self {
-        record.to_device(&self.device())
+        let mut tensor = record.value;
+        let device = self.device();
+
+        if tensor.device() != device {
+            tensor = tensor.to_device(&device);
+        }
+
+        if self.is_require_grad() {
+            tensor = tensor.detach().require_grad();
+        }
+
+        Self {
+            value: tensor,
+            id: record.id,
+        }
     }
 }
 
@@ -45,14 +50,10 @@ impl<const D: usize, B: ADBackend> ADModule<B> for Param<Tensor<B, D>> {
     type InnerModule = Param<Tensor<B::InnerBackend, D>>;
 
     fn inner(self) -> Self::InnerModule {
-        Param::new(self.id, self.value.inner(), self.require_grad)
+        Param::new(self.id, self.value.inner())
     }
 
     fn from_inner(module: Self::InnerModule) -> Self {
-        let mut value = module.value;
-        if module.require_grad {
-            value = value.require_grad();
-        }
-        Param::new(module.id, Tensor::from_inner(value), module.require_grad)
+        Param::new(module.id, Tensor::from_inner(module.value))
     }
 }

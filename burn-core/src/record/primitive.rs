@@ -1,8 +1,6 @@
 use alloc::string::String;
 use alloc::string::ToString;
 use alloc::vec::Vec;
-use burn_tensor::backend::Backend;
-use burn_tensor::Tensor;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -92,29 +90,20 @@ impl<E: Element> Record for DataSerialize<E> {
 }
 
 #[derive(new, Debug, Clone, Serialize, Deserialize)]
-pub struct ParamSerde<I> {
+pub struct ParamSerde<T> {
     id: String,
-    param: I,
-    require_grad: bool,
+    param: T,
 }
 
-impl<B: Backend, const D: usize> Record for Param<Tensor<B, D>> {
-    type Item<S: RecordSettings> = ParamSerde<<Tensor<B, D> as Record>::Item<S>>;
+impl<T: Record> Record for Param<T> {
+    type Item<S: RecordSettings> = ParamSerde<T::Item<S>>;
 
     fn into_item<S: RecordSettings>(self) -> Self::Item<S> {
-        ParamSerde::new(
-            self.id.to_string(),
-            self.value.into_item(),
-            self.require_grad,
-        )
+        ParamSerde::new(self.id.to_string(), self.value.into_item())
     }
 
     fn from_item<S: RecordSettings>(item: Self::Item<S>) -> Self {
-        let mut tensor = <Tensor<B, D> as Record>::from_item(item.param);
-        if item.require_grad {
-            tensor = tensor.require_grad();
-        }
-        Param::new(ParamId::from(item.id), tensor, item.require_grad)
+        Param::new(ParamId::from(item.id), T::from_item(item.param))
     }
 }
 

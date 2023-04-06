@@ -112,8 +112,7 @@ mod require_grad {
 
     #[test]
     fn should_have_no_grad_after_no_grad() {
-        let mut module = ModuleBasic::<TestADBackend>::new();
-        module.weight_basic = module.weight_basic.no_grad();
+        let module = ModuleBasic::<TestADBackend>::new().no_grad();
         let mut grads = calculate_grads(&module);
 
         let grad_x = module.weight_basic.grad_remove(&mut grads);

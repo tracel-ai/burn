@@ -97,7 +97,7 @@ where
                 );
             }
 
-            return Tensor::from_inner(tensor);
+            return Tensor::from_inner(tensor).require_grad();
         }
 
         tensor

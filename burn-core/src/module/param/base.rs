@@ -6,7 +6,6 @@ use alloc::format;
 pub struct Param<T> {
     pub(crate) id: ParamId,
     pub(crate) value: T,
-    pub(crate) require_grad: bool,
 }
 
 impl<T> core::fmt::Display for Param<T> {
