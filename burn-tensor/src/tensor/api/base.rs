@@ -1,5 +1,5 @@
-use alloc::vec::Vec;
 use alloc::string::String;
+use alloc::vec::Vec;
 use core::{fmt::Debug, ops::Range};
 
 use crate::{backend::Backend, Bool, Data, Float, Int, Shape, TensorKind};
