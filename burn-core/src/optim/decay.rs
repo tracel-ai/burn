@@ -1,10 +1,9 @@
-use crate as burn;
+use burn_tensor::backend::Backend;
 
-use super::{load_state_gradients, register_state_gradients, GradientsParams};
+use crate as burn;
+use crate::record::Record;
 
 use crate::config::Config;
-use crate::module::{ParamId, StateNamed};
-use crate::tensor::backend::ADBackend;
 use crate::tensor::{ElementConversion, Tensor};
 
 /// Configuration to create [WeightDecay](WeightDecay).
@@ -14,53 +13,42 @@ pub struct WeightDecayConfig {
     pub penalty: f64,
 }
 
-/// Weight decay implementation that transforms gradients.
-pub struct WeightDecay<B: ADBackend> {
-    penalty: B::FloatElem,
-    gradients: GradientsParams,
+#[derive(Record, Clone, new)]
+pub struct WeightDecayState<B: Backend, const D: usize> {
+    grad_last_step: Tensor<B, D>,
 }
 
-impl<B: ADBackend> WeightDecay<B> {
+/// Weight decay implementation that transforms gradients.
+pub struct WeightDecay<B: Backend> {
+    penalty: B::FloatElem,
+}
+
+impl<B: Backend> WeightDecay<B> {
     pub fn new(config: &WeightDecayConfig) -> Self {
         Self {
             penalty: config.penalty.elem(),
-            gradients: GradientsParams::new(),
         }
     }
 
     pub fn transform<const D: usize>(
-        &mut self,
-        id: &ParamId,
-        grad: Tensor<B::InnerBackend, D>,
-    ) -> Tensor<B::InnerBackend, D> {
-        let grad = match self.gradients.remove::<B::InnerBackend, D>(id) {
-            Some(grad_last_step) => grad_last_step.mul_scalar(self.penalty).add(grad),
+        &self,
+        grad: Tensor<B, D>,
+        state: Option<WeightDecayState<B, D>>,
+    ) -> (Tensor<B, D>, WeightDecayState<B, D>) {
+        let grad_last_step = grad.clone();
+
+        let grad = match state {
+            Some(state) => state.grad_last_step.mul_scalar(self.penalty).add(grad),
             None => grad,
         };
 
-        // Update gradients
-        self.gradients.register(id.clone(), grad.clone());
-
-        grad
+        (grad, WeightDecayState::new(grad_last_step))
     }
-    pub fn register_state<const D: usize>(
-        &self,
-        id: &ParamId,
-        state: &mut StateNamed<B::FloatElem>,
-    ) {
-        register_state_gradients::<D, B, _>(id, state, &self.gradients, Self::state_key);
-    }
+}
 
-    pub fn load_state<const D: usize>(
-        &mut self,
-        id: &ParamId,
-        state: &StateNamed<B::FloatElem>,
-        device: &B::Device,
-    ) {
-        load_state_gradients::<D, B, _>(id, state, &mut self.gradients, Self::state_key, device);
-    }
-
-    fn state_key(id: &ParamId) -> String {
-        format!("weight-decay-{id}")
+impl<B: Backend, const D: usize> WeightDecayState<B, D> {
+    pub fn to_device(mut self, device: &B::Device) -> Self {
+        self.grad_last_step = self.grad_last_step.to_device(device);
+        self
     }
 }

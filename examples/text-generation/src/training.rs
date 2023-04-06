@@ -7,14 +7,17 @@ use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::Dataset},
     module::Module,
     nn::transformer::TransformerEncoderConfig,
-    optim::{Adam, AdamConfig},
+    optim::AdamConfig,
     tensor::backend::ADBackend,
     train::{
         metric::{AccuracyMetric, CUDAMetric, LossMetric},
         LearnerBuilder,
     },
 };
-use burn::{data::dataset::transform::SamplerDataset, module::StateFormat};
+use burn::{
+    data::dataset::transform::SamplerDataset,
+    record::{DefaultRecordSettings, Record},
+};
 use std::sync::Arc;
 
 #[derive(Config)]
@@ -67,7 +70,7 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
         .num_workers(4)
         .build(dataset_test);
 
-    let optim = Adam::new(&config.optimizer);
+    let optim = config.optimizer.init();
 
     let learner = LearnerBuilder::new(artifact_dir)
         .metric_train(CUDAMetric::new())
@@ -76,7 +79,7 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
         .metric_valid(AccuracyMetric::new())
         .metric_train_plot(LossMetric::new())
         .metric_valid_plot(LossMetric::new())
-        .with_file_checkpointer::<burn::tensor::f16>(2, StateFormat::default())
+        .with_file_checkpointer::<DefaultRecordSettings>(2)
         .devices(vec![device])
         .grads_accumulation(16)
         .num_epochs(config.num_epochs)
@@ -87,8 +90,7 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
     config.save(&format!("{artifact_dir}/config.json")).unwrap();
 
     model_trained
-        .state()
-        .convert::<burn::tensor::f16>()
-        .save(&format!("{artifact_dir}/model"), &StateFormat::default())
+        .into_record()
+        .record::<DefaultRecordSettings>(format!("{artifact_dir}/model").into())
         .unwrap();
 }

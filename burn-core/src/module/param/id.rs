@@ -17,6 +17,12 @@ impl From<&str> for ParamId {
     }
 }
 
+impl From<String> for ParamId {
+    fn from(value: String) -> Self {
+        Self { value }
+    }
+}
+
 impl Default for ParamId {
     fn default() -> Self {
         Self::new()

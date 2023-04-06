@@ -1,7 +1,7 @@
 use crate::data::TrainingTextGenerationBatch;
 use burn::{
     config::Config,
-    module::{Module, Param},
+    module::Module,
     nn::{
         attention::generate_autoregressive_mask,
         loss::CrossEntropyLoss,
@@ -23,10 +23,10 @@ pub struct TextGenerationModelConfig {
 
 #[derive(Module, Debug)]
 pub struct TextGenerationModel<B: Backend> {
-    transformer: Param<TransformerEncoder<B>>,
-    embedding_token: Param<Embedding<B>>,
-    embedding_pos: Param<Embedding<B>>,
-    output: Param<Linear<B>>,
+    transformer: TransformerEncoder<B>,
+    embedding_token: Embedding<B>,
+    embedding_pos: Embedding<B>,
+    output: Linear<B>,
     vocab_size: usize,
     pad_token: usize,
     max_seq_length: usize,
@@ -42,10 +42,10 @@ impl TextGenerationModelConfig {
             EmbeddingConfig::new(self.max_seq_length, self.transformer.d_model).init();
 
         TextGenerationModel {
-            transformer: Param::from(transformer),
-            embedding_token: Param::from(embedding_token),
-            embedding_pos: Param::from(embedding_pos),
-            output: Param::from(output),
+            transformer,
+            embedding_token,
+            embedding_pos,
+            output,
             vocab_size: self.vocab_size,
             pad_token: self.pad_token,
             max_seq_length: self.max_seq_length,

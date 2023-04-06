@@ -1,10 +1,10 @@
-use alloc::{string::ToString, sync::Arc, vec, vec::Vec};
+use alloc::{sync::Arc, vec, vec::Vec};
 
-use super::{load_with_id, state_with_id, ParamId};
-use crate::module::{ADModule, LoadingError, Module, ModuleMapper, ModuleVisitor, Param, State};
+use super::ParamId;
+use crate::module::{ADModule, Module, ModuleMapper, ModuleVisitor, Param};
 use burn_tensor::{
     backend::{ADBackend, Backend},
-    Data, Tensor,
+    Tensor,
 };
 
 #[cfg(feature = "std")]
@@ -55,8 +55,8 @@ impl<B: Backend, const D: usize> From<RunningState<Tensor<B, D>>>
     }
 }
 
-impl<const D: usize, B: Backend> Module for Param<RunningState<Tensor<B, D>>> {
-    type Backend = B;
+impl<const D: usize, B: Backend> Module<B> for Param<RunningState<Tensor<B, D>>> {
+    type Record = Param<Tensor<B, D>>;
 
     fn num_params(&self) -> usize {
         let tensor = self.value.value.read().unwrap();
@@ -78,31 +78,6 @@ impl<const D: usize, B: Backend> Module for Param<RunningState<Tensor<B, D>>> {
         self
     }
 
-    fn state(&self) -> State<B::FloatElem> {
-        self.sync();
-
-        let tensor = self.value.value.read().unwrap();
-        let state = State::Data(tensor.to_data().serialize());
-
-        state_with_id(self.id.clone(), state)
-    }
-
-    fn load(mut self, state: &State<B::FloatElem>) -> Result<Self, LoadingError> {
-        let (id, state) = load_with_id(state)?;
-        self.sync();
-
-        match state {
-            State::Data(data) => {
-                let mut tensor = self.value.value.write().unwrap();
-                *tensor = Tensor::from_data_device(Data::from(data), &tensor.device())
-            }
-            _ => return Err(LoadingError::new("Can't load tensor".to_string())),
-        };
-
-        self.id = id.clone();
-        Ok(self)
-    }
-
     fn detach(self) -> Self {
         self.sync();
 
@@ -113,17 +88,34 @@ impl<const D: usize, B: Backend> Module for Param<RunningState<Tensor<B, D>>> {
         self
     }
 
-    fn visit<V: ModuleVisitor<Self::Backend>>(&self, visitor: &mut V) {
+    fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
         let tensor = self.value.value.read().unwrap();
 
         visitor.visit(&self.id, &tensor)
     }
 
-    fn map<M: ModuleMapper<Self::Backend>>(self, mapper: &mut M) -> Self {
+    fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
         let mut tensor = self.value.value.write().unwrap();
         let tensor_out = mapper.map(&self.id, tensor.clone());
 
         *tensor = tensor_out;
+        core::mem::drop(tensor);
+
+        self
+    }
+
+    fn into_record(self) -> Self::Record {
+        self.sync();
+        let tensor = self.value.value.read().unwrap();
+
+        Param::new(self.id, tensor.clone())
+    }
+
+    fn load_record(mut self, record: Self::Record) -> Self {
+        let mut tensor = self.value.value.write().unwrap();
+        *tensor = record.value.to_device(&tensor.device());
+        self.id = record.id;
+
         core::mem::drop(tensor);
 
         self
@@ -208,9 +200,7 @@ impl<const D: usize, B: Backend> RunningState<Tensor<B, D>> {
     }
 }
 
-impl<const D: usize, B: ADBackend> ADModule for Param<RunningState<Tensor<B, D>>> {
-    type ADBackend = B;
-
+impl<const D: usize, B: ADBackend> ADModule<B> for Param<RunningState<Tensor<B, D>>> {
     type InnerModule = Param<RunningState<Tensor<B::InnerBackend, D>>>;
 
     fn inner(self) -> Self::InnerModule {

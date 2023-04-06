@@ -3,7 +3,8 @@ use std::sync::Arc;
 use burn::{
     config::Config,
     data::dataloader::batcher::Batcher,
-    module::{Module, State, StateFormat},
+    module::Module,
+    record::{DefaultRecordSettings, Record},
     tensor::backend::Backend,
 };
 
@@ -38,12 +39,9 @@ pub fn infer<B: Backend, D: TextClassificationDataset + 'static>(
     .init::<B>();
 
     println!("Loading weights ...");
-    let state = State::<burn::tensor::f16>::load(
-        format!("{artifact_dir}/model").as_str(),
-        &StateFormat::default(),
-    )
-    .expect("Trained model weights");
-    let model = model.load(&state.convert()).expect("Can load weights");
+    let record = Record::load::<DefaultRecordSettings>(format!("{artifact_dir}/model").into())
+        .expect("Trained model weights");
+    let model = model.load_record(record);
     let model = model.to_device(&device);
 
     println!("Running inference ...");
