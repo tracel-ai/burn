@@ -7,7 +7,6 @@ use crate::{
     nn,
     tensor::{activation, backend::Backend, Bool, Tensor},
 };
-
 use libm::sqrtf;
 
 /// Configuration to create a [Multi Head Attention](MultiHeadAttention) layer.
@@ -255,6 +254,7 @@ pub struct MHAAutoregressiveCache<B: Backend> {
 mod tests {
     use super::*;
     use crate::{nn::attention::generate_autoregressive_mask, TestBackend};
+    use alloc::vec::Vec;
     use burn::tensor::{Distribution, Shape};
     use burn_tensor::Int;
 

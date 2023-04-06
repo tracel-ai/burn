@@ -56,7 +56,7 @@ impl<const D: usize, B: ADBackend> ADModule<B> for Param<Tensor<B, D>> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "std"))]
 mod tests {
     use crate::{
         record::{NoStdInferenceRecordSettings, Record},

@@ -4,6 +4,7 @@ use burn::tensor::{Distribution, Shape, Tensor};
 use burn_core as burn;
 
 pub type TestBackend = burn_ndarray::NdArrayBackend<f32>;
+#[cfg(feature = "std")]
 pub type TestADBackend = burn_autodiff::ADBackendDecorator<TestBackend>;
 
 #[derive(Module, Debug)]
@@ -95,6 +96,7 @@ mod num_params {
     }
 }
 
+#[cfg(feature = "std")]
 mod require_grad {
     use burn_tensor::backend::ADBackend;
 
