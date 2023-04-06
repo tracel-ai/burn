@@ -107,9 +107,11 @@ pub trait Module<B: Backend>: Clone + Send + Sync + core::fmt::Debug {
     }
     /// Move the module and all of its sub-modules to the given device.
     fn to_device(self, device: &B::Device) -> Self {
+        println!("To device");
         module!(
             map = self,
-            ops = |tensor: Tensor<B, D>, device: &B::Device| tensor.to_device(device),
+            ops =
+                |tensor: Tensor<B, D>, device: &B::Device| tensor.to_device(device).require_grad(),
             capture = { device: B::Device }
         )
     }

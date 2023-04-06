@@ -1,6 +1,6 @@
 use alloc::sync::Arc;
 
-use super::{ParamId, Untracked};
+use super::ParamId;
 use crate::module::{ADModule, Module, ModuleMapper, ModuleVisitor, Param};
 use burn_tensor::{
     backend::{ADBackend, Backend},
@@ -46,7 +46,7 @@ pub struct RunningState<V> {
 }
 
 impl<const D: usize, B: Backend> Module<B> for RunningState<Tensor<B, D>> {
-    type Record = Param<Tensor<B, D>, Untracked>;
+    type Record = Param<Tensor<B, D>>;
 
     fn require_grad(self) -> Self {
         // Never require grad for running state tensors
@@ -73,7 +73,7 @@ impl<const D: usize, B: Backend> Module<B> for RunningState<Tensor<B, D>> {
         self.sync();
         let tensor = self.value.read().unwrap();
 
-        Param::new(self.id, tensor.clone())
+        Param::new(self.id, tensor.clone(), false)
     }
 
     fn load_record(mut self, record: Self::Record) -> Self {

@@ -1,21 +1,12 @@
 use super::ParamId;
 use alloc::format;
-use core::marker::PhantomData;
-
-/// Type flag for tracked parameters.
-#[derive(new, Debug, Clone)]
-pub struct Tracked;
-
-/// Type flag for untracked parameters.
-#[derive(new, Debug, Clone)]
-pub struct Untracked;
 
 /// Define a parameter.
 #[derive(new, Debug, Clone)]
-pub struct Param<T, K = Tracked> {
+pub struct Param<T> {
     pub(crate) id: ParamId,
     pub(crate) value: T,
-    phantom: PhantomData<K>,
+    pub(crate) require_grad: bool,
 }
 
 impl<T> core::fmt::Display for Param<T> {
@@ -24,13 +15,13 @@ impl<T> core::fmt::Display for Param<T> {
     }
 }
 
-impl<T: Clone, K> Param<T, K> {
+impl<T: Clone> Param<T> {
     pub fn val(&self) -> T {
         self.value.clone()
     }
 }
 
-impl<T, K> core::ops::Deref for Param<T, K> {
+impl<T> core::ops::Deref for Param<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
