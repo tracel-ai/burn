@@ -48,8 +48,11 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
 impl<const D: usize, B: ADBackend> ADModule<B> for Param<Tensor<B, D>> {
     type InnerModule = Param<Tensor<B::InnerBackend, D>>;
 
-    fn inner(&self) -> Self::InnerModule {
-        Param::new(self.id.clone(), self.value.clone().inner())
+    fn valid(&self) -> Self::InnerModule {
+        Param::new(
+            self.id.clone(),
+            self.value.clone().inner().set_require_grad(false),
+        )
     }
 }
 
@@ -66,7 +69,6 @@ mod tests {
     fn test_load_record_setting() {
         let tensor = Tensor::<TestADBackend, 2>::ones([3, 3]);
         let bytes = Param::from(tensor.clone())
-            .clone()
             .into_record()
             .record::<NoStdInferenceRecordSettings>(())
             .unwrap();
@@ -77,7 +79,7 @@ mod tests {
             .value
             .is_require_grad();
 
-        let with_default_is_require_grad = Param::from(tensor.clone())
+        let with_default_is_require_grad = Param::from(tensor)
             .load_record(Param::load::<NoStdInferenceRecordSettings>(bytes).unwrap())
             .value
             .is_require_grad();

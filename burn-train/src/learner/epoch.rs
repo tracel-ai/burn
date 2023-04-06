@@ -31,7 +31,7 @@ impl<I> ValidEpoch<I> {
         M::InnerModule: ValidStep<I, VO>,
     {
         log::info!("Executing validation step for epoch {}", self.epoch);
-        let model = model.inner();
+        let model = model.valid();
 
         let mut iterator = self.dataloader.iter();
         let mut iteration = 0;

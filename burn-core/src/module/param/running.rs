@@ -173,7 +173,7 @@ impl<const D: usize, B: Backend> RunningState<Tensor<B, D>> {
 impl<const D: usize, B: ADBackend> ADModule<B> for RunningState<Tensor<B, D>> {
     type InnerModule = RunningState<Tensor<B::InnerBackend, D>>;
 
-    fn inner(&self) -> Self::InnerModule {
+    fn valid(&self) -> Self::InnerModule {
         self.sync();
         let value = self.value();
 

@@ -190,7 +190,7 @@ mod tests_1d {
         let module = BatchNormConfig::new(3).init::<TestADBackend, 1>();
 
         module.forward(input_tensor());
-        let module = module.inner();
+        let module = module.valid();
         let output = module.forward(input_tensor());
 
         output.to_data().assert_approx_eq(
@@ -245,7 +245,7 @@ mod tests_2d {
         let module = BatchNormConfig::new(3).init::<TestADBackend, 2>();
 
         module.forward(input_tensor());
-        let module = module.inner();
+        let module = module.valid();
         let output = module.forward(input_tensor());
 
         output.to_data().assert_approx_eq(
@@ -299,7 +299,7 @@ mod tests_2d {
 
         let _output = module.forward(input_tensor());
 
-        let module_valid = module.inner();
+        let module_valid = module.valid();
         let running_mean = module_valid.running_mean.value();
         let running_mean_after = module.running_mean.value();
 

@@ -147,7 +147,7 @@ pub trait Module<B: Backend>: Clone + Send + Sync + core::fmt::Debug {
     ///
     /// # Warnings
     ///
-    /// This should not be used for inference, use [inner](ADModule::inner) when using
+    /// This should not be used for inference, use [valid](ADModule::valid) when using
     /// AD modules. This is mostly useful when performing partial finetuning, which is updating only
     /// a small fraction of the parameters instead of finetuning all of them.
     fn no_grad(self) -> Self {
@@ -191,5 +191,5 @@ pub trait ADModule<B: ADBackend>: Module<B> + Send + Sync + core::fmt::Debug {
     type InnerModule: Module<B::InnerBackend>;
 
     /// Get the same module, but on the inner backend without auto-differentiation.
-    fn inner(&self) -> Self::InnerModule;
+    fn valid(&self) -> Self::InnerModule;
 }

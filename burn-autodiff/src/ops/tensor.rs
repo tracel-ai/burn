@@ -768,10 +768,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn is_require_grad<const D: usize>(tensor: &ADTensor<B, D>) -> bool {
-        match tensor.node.requirement {
-            Requirement::Grad => true,
-            _ => false,
-        }
+        matches!(tensor.node.requirement, Requirement::Grad)
     }
 
     fn mean<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, 1> {

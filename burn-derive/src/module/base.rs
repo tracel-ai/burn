@@ -25,7 +25,7 @@ pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
     let num_params_fn = generator.gen_num_params_fn();
     let visit = generator.gen_visit_fn();
     let map_mut = generator.gen_map_fn();
-    let inner_fn = generator.gen_inner_fn();
+    let valid_fn = generator.gen_valid_fn();
     let into_record_fn = generator.gen_into_record_fn();
     let load_record_fn = generator.gen_load_record_fn();
     let clone_fn = generator.gen_clone_fn();
@@ -53,7 +53,7 @@ pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
         impl #generics burn::module::ADModule<B> for #name #generics_ty where B: burn::tensor::backend::ADBackend, {
             type InnerModule=#name<B::InnerBackend, #generics_names_except_backend>;
 
-            #inner_fn
+            #valid_fn
         }
 
         impl #generics core::fmt::Display for #name #generics_ty #generics_where {

@@ -37,11 +37,8 @@ where
 {
     type InnerModule = Option<T::InnerModule>;
 
-    fn inner(&self) -> Self::InnerModule {
-        match &self {
-            Some(module) => Some(module.inner()),
-            None => None,
-        }
+    fn valid(&self) -> Self::InnerModule {
+        self.as_ref().map(|module| module.valid())
     }
 }
 
@@ -90,8 +87,8 @@ where
 {
     type InnerModule = Vec<T::InnerModule>;
 
-    fn inner(&self) -> Self::InnerModule {
-        self.into_iter().map(|module| module.inner()).collect()
+    fn valid(&self) -> Self::InnerModule {
+        self.iter().map(|module| module.valid()).collect()
     }
 }
 
@@ -154,7 +151,7 @@ where
 {
     type InnerModule = [T::InnerModule; N];
 
-    fn inner(&self) -> Self::InnerModule {
-        self.map(|module| module.inner())
+    fn valid(&self) -> Self::InnerModule {
+        self.map(|module| module.valid())
     }
 }
