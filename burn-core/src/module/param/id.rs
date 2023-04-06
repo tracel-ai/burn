@@ -1,10 +1,7 @@
 use alloc::string::{String, ToString};
-
 use burn_common::id::IdGenerator;
 
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone)]
 pub struct ParamId {
     value: String,
 }
@@ -34,6 +31,9 @@ impl ParamId {
         Self {
             value: IdGenerator::generate(),
         }
+    }
+    pub fn into_string(self) -> String {
+        self.value
     }
 }
 

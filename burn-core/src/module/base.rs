@@ -111,8 +111,8 @@ pub trait Module<B: Backend>: Clone + Send + Sync + core::fmt::Debug {
     ///
     /// # Notes
     ///
-    /// This is similar to [to_device](Module::to_device), but it ensures that the graph won't
-    /// register the device change operations, allowing you to call backward multiple times.
+    /// This is similar to [to_device](Module::to_device), but it ensures the module will
+    /// have its own autodiff graph.
     fn fork(self, device: &B::Device) -> Self {
         module!(
             map = self,
@@ -149,7 +149,7 @@ pub trait Module<B: Backend>: Clone + Send + Sync + core::fmt::Debug {
     ///
     /// This should not be used for inference, use [inner](ADModule::inner) when using
     /// AD modules. This is mostly useful when performing partial finetuning, which is updating only
-    /// a small fraction of the parameters instead of finetuning all parameters of a model.
+    /// a small fraction of the parameters instead of finetuning all of them.
     fn no_grad(self) -> Self {
         module!(
             map = self,

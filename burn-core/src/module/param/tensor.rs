@@ -28,21 +28,20 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
     }
 
     fn load_record(self, record: Self::Record) -> Self {
-        let mut tensor = record.value;
+        let mut tensor = record.value.detach();
         let device = self.device();
 
+        // Make sure we load the record into the same module device.
         if tensor.device() != device {
-            tensor = tensor.to_device(&device);
+            tensor = tensor.to_device(&device).detach();
         }
 
+        // Make sure we load the record with the same autodiff setting.
         if self.is_require_grad() {
-            tensor = tensor.detach().require_grad();
+            tensor = tensor.require_grad();
         }
 
-        Self {
-            value: tensor,
-            id: record.id,
-        }
+        Self::new(record.id, tensor)
     }
 }
 
@@ -55,5 +54,39 @@ impl<const D: usize, B: ADBackend> ADModule<B> for Param<Tensor<B, D>> {
 
     fn from_inner(module: Self::InnerModule) -> Self {
         Param::new(module.id, Tensor::from_inner(module.value))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        record::{NoStdInferenceRecordSettings, Record},
+        TestADBackend,
+    };
+
+    use super::*;
+
+    #[test]
+    fn test_load_record_setting() {
+        let tensor = Tensor::<TestADBackend, 2>::ones([3, 3]);
+        let bytes = Param::from(tensor.clone())
+            .clone()
+            .into_record()
+            .record::<NoStdInferenceRecordSettings>(())
+            .unwrap();
+
+        let no_grad_is_require_grad = Param::from(tensor.clone())
+            .no_grad()
+            .load_record(Param::load::<NoStdInferenceRecordSettings>(bytes.clone()).unwrap())
+            .value
+            .is_require_grad();
+
+        let with_default_is_require_grad = Param::from(tensor.clone())
+            .load_record(Param::load::<NoStdInferenceRecordSettings>(bytes).unwrap())
+            .value
+            .is_require_grad();
+
+        assert!(!no_grad_is_require_grad);
+        assert!(with_default_is_require_grad);
     }
 }

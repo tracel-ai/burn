@@ -89,6 +89,7 @@ impl<E: Element> Record for DataSerialize<E> {
     }
 }
 
+/// (De)serialize parameters into a clean format.
 #[derive(new, Debug, Clone, Serialize, Deserialize)]
 pub struct ParamSerde<T> {
     id: String,
@@ -99,7 +100,7 @@ impl<T: Record> Record for Param<T> {
     type Item<S: RecordSettings> = ParamSerde<T::Item<S>>;
 
     fn into_item<S: RecordSettings>(self) -> Self::Item<S> {
-        ParamSerde::new(self.id.to_string(), self.value.into_item())
+        ParamSerde::new(self.id.into_string(), self.value.into_item())
     }
 
     fn from_item<S: RecordSettings>(item: Self::Item<S>) -> Self {
