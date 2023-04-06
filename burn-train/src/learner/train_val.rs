@@ -49,7 +49,7 @@ where
         log::info!("Fitting {}", self.model.to_string());
         // The reference model is always on the first device provided.
         if let Some(device) = self.devices.get(0) {
-            self.model = self.model.to_device(device).detach();
+            self.model = self.model.to_device(device).detach().require_grad();
         }
 
         let starting_epoch = match self.checkpoint {
