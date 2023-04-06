@@ -270,8 +270,8 @@ mod tests {
         bias: Data<f32, 1>,
     ) -> nn::LinearRecord<TestADBackend> {
         nn::LinearRecord {
-            weight: Param::from(Tensor::from_data(weight)),
-            bias: Some(Param::from(Tensor::from_data(bias))),
+            weight: Param::from(Tensor::from_data(weight).require_grad()),
+            bias: Some(Param::from(Tensor::from_data(bias).require_grad())),
         }
     }
 

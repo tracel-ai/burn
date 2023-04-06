@@ -96,59 +96,6 @@ impl FnGenerator {
         }
     }
 
-    pub fn gen_devices_fn(&self) -> TokenStream {
-        let body = self.gen_fields_fn(|name| {
-            quote! {
-                devices.append(&mut burn::module::Module::<B>::devices(&self.#name));
-            }
-        });
-
-        quote! {
-            fn devices(&self) -> Vec<B::Device> {
-                let mut devices = Vec::new();
-                #body
-                devices
-            }
-        }
-    }
-
-    pub fn gen_to_device_fn(&self) -> TokenStream {
-        let (names, body) = self.gen_fields_fn_names(|name| {
-            quote! {
-                let #name = burn::module::Module::<B>::to_device(self.#name, device);
-            }
-        });
-
-        quote! {
-            fn to_device(self, device: &B::Device) -> Self {
-                #body
-
-                Self {
-                    #(#names),*
-                }
-            }
-        }
-    }
-
-    pub fn gen_detach_fn(&self) -> TokenStream {
-        let (names, body) = self.gen_fields_fn_names(|name| {
-            quote! {
-                let #name = burn::module::Module::<B>::detach(self.#name);
-            }
-        });
-
-        quote! {
-            fn detach(self) -> Self {
-                #body
-
-                Self {
-                    #(#names),*
-                }
-
-            }
-        }
-    }
-
     pub fn gen_inner_fn(&self) -> TokenStream {
         let (names, body) = self.gen_fields_fn_names(|name| {
             quote! {

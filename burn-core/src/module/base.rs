@@ -1,4 +1,4 @@
-use alloc::{format, string::String, vec::Vec};
+use alloc::vec::Vec;
 
 use super::ParamId;
 use crate::{
@@ -7,6 +7,56 @@ use crate::{
 };
 pub use burn_derive::Module;
 use burn_tensor::Tensor;
+
+macro_rules! module {
+    (map=$module:ident, ops=$item:expr) => {{
+        struct Mapper;
+        impl<B: Backend> ModuleMapper<B> for Mapper {
+            fn map<const D: usize>(&mut self, _id: &ParamId, tensor: Tensor<B, D>) -> Tensor<B, D> {
+                let func = $item;
+                func(tensor)
+            }
+        }
+        let mut mapper = Mapper;
+        $module.map(&mut mapper)
+    }};
+    (map=$module:ident, ops=$item:expr, capture={$capture:ident: $ty:ty}) => {{
+        struct Mapper<'a, B: Backend> {
+            capture: &'a $ty,
+            backend: core::marker::PhantomData<B>,
+        }
+        impl<'a, B: Backend> ModuleMapper<B> for Mapper<'a, B> {
+            fn map<const D: usize>(&mut self, _id: &ParamId, tensor: Tensor<B, D>) -> Tensor<B, D> {
+                let func = $item;
+                func(tensor, self.capture)
+            }
+        }
+        let mut mapper = Mapper {
+            capture: $capture,
+            backend: core::marker::PhantomData::default(),
+        };
+        $module.map(&mut mapper)
+    }};
+    (visit=$module:ident, ops=$item:expr, state=$state_ty:ty, init=$init:expr) => {{
+        struct Visitor<'a, B: Backend> {
+            state: &'a mut $state_ty,
+            backend: core::marker::PhantomData<B>,
+        }
+        impl<'a, B: Backend> ModuleVisitor<B> for Visitor<'a, B> {
+            fn visit<const D: usize>(&mut self, _id: &ParamId, tensor: &Tensor<B, D>) {
+                let func = $item;
+                func(tensor, &mut self.state)
+            }
+        }
+        let mut state = $init();
+        let mut visitor = Visitor {
+            state: &mut state,
+            backend: core::marker::PhantomData::default(),
+        };
+        $module.visit(&mut visitor);
+        state
+    }};
+}
 
 /// Trait for all neural network modules.
 ///
@@ -42,13 +92,46 @@ pub trait Module<B: Backend>: Clone + Send + Sync + core::fmt::Debug {
     type Record: Record;
 
     /// Get the device list of the module and all of its sub-modules.
-    fn devices(&self) -> Vec<B::Device>;
+    fn devices(&self) -> Vec<B::Device> {
+        module!(
+            visit = self,
+            ops = |tensor: &Tensor<B, D>, state: &mut Vec<B::Device>| {
+                let device = tensor.device();
+                if !state.contains(&device) {
+                    state.push(device);
+                }
+            },
+            state = Vec<B::Device>,
+            init = Vec::new
+        )
+    }
     /// Move the module and all of its sub-modules to the given device.
-    fn to_device(self, device: &B::Device) -> Self;
+    fn to_device(self, device: &B::Device) -> Self {
+        module!(
+            map = self,
+            ops = |tensor: Tensor<B, D>, device: &B::Device| tensor.to_device(device),
+            capture = { device: B::Device }
+        )
+    }
     /// Detach the module from the graph.
-    fn detach(self) -> Self;
+    fn detach(self) -> Self {
+        module!(map = self, ops = Tensor::detach)
+    }
+    /// Mark each tensor in the module tree as tracked.
+    fn require_grad(self) -> Self {
+        module!(map = self, ops = Tensor::require_grad)
+    }
     /// Get the number of parameters the module has, including all of its sub-modules.
-    fn num_params(&self) -> usize;
+    fn num_params(&self) -> usize {
+        module!(
+            visit = self,
+            ops = |tensor: &Tensor<B, D>, state: &mut usize| {
+                *state += tensor.shape().num_elements();
+            },
+            state = usize,
+            init = || 0
+        )
+    }
     /// Visit each tensor in the module with a [visitor](ModuleVisitor).
     fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V);
     /// Map each tensor in the module with a [mapper](ModuleMapper).
@@ -75,18 +158,3 @@ pub trait ADModule<B: ADBackend>: Module<B> + Send + Sync + core::fmt::Debug {
     fn inner(self) -> Self::InnerModule;
     fn from_inner(module: Self::InnerModule) -> Self;
 }
-
-#[derive(new, Debug)]
-pub struct LoadingError {
-    message: String,
-}
-
-impl core::fmt::Display for LoadingError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(format!("Loading error: {}", self.message).as_str())
-    }
-}
-
-// TODO: Move from std to core after Error is core (see https://github.com/rust-lang/rust/issues/103765)
-#[cfg(feature = "std")]
-impl std::error::Error for LoadingError {}

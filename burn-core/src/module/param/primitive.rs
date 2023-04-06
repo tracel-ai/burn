@@ -10,29 +10,6 @@ where
 {
     type Record = Option<T::Record>;
 
-    fn devices(&self) -> Vec<<B as burn_tensor::backend::Backend>::Device> {
-        if let Some(module) = self {
-            return Module::<B>::devices(module);
-        }
-
-        Vec::new()
-    }
-
-    fn to_device(self, device: &<B as burn_tensor::backend::Backend>::Device) -> Self {
-        self.map(|module| module.to_device(device))
-    }
-
-    fn detach(self) -> Self {
-        self.map(|module| module.detach())
-    }
-
-    fn num_params(&self) -> usize {
-        match &self {
-            Some(module) => module.num_params(),
-            None => 0,
-        }
-    }
-
     fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
         if let Some(module) = self {
             module.visit(visitor)
@@ -75,22 +52,6 @@ where
     B: Backend,
 {
     type Record = Vec<T::Record>;
-
-    fn devices(&self) -> Vec<<B as burn_tensor::backend::Backend>::Device> {
-        let mut devices = Vec::new();
-        for module in self.iter() {
-            devices.append(&mut module.devices());
-        }
-        devices
-    }
-
-    fn to_device(self, device: &<B as burn_tensor::backend::Backend>::Device) -> Self {
-        self.into_iter().map(|val| val.to_device(device)).collect()
-    }
-
-    fn detach(self) -> Self {
-        self.into_iter().map(|module| module.detach()).collect()
-    }
 
     fn num_params(&self) -> usize {
         let mut num_params = 0;

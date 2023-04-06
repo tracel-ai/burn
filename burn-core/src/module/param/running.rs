@@ -1,4 +1,4 @@
-use alloc::{sync::Arc, vec, vec::Vec};
+use alloc::sync::Arc;
 
 use super::ParamId;
 use crate::module::{ADModule, Module, ModuleMapper, ModuleVisitor, Param};
@@ -58,33 +58,8 @@ impl<B: Backend, const D: usize> From<RunningState<Tensor<B, D>>>
 impl<const D: usize, B: Backend> Module<B> for Param<RunningState<Tensor<B, D>>> {
     type Record = Param<Tensor<B, D>>;
 
-    fn num_params(&self) -> usize {
-        let tensor = self.value.value.read().unwrap();
-        tensor.shape().num_elements()
-    }
-
-    fn devices(&self) -> Vec<B::Device> {
-        let tensor = self.value.value.read().unwrap();
-        vec![tensor.device()]
-    }
-
-    fn to_device(self, device: &B::Device) -> Self {
-        self.value.sync();
-
-        let mut tensor = self.value.value.write().unwrap();
-        tensor.inplace(|tensor| tensor.to_device(device));
-        core::mem::drop(tensor);
-
-        self
-    }
-
-    fn detach(self) -> Self {
-        self.sync();
-
-        let mut tensor = self.value.value.write().unwrap();
-        tensor.inplace(|tensor| tensor.detach());
-        core::mem::drop(tensor);
-
+    fn require_grad(self) -> Self {
+        // Never require grad for running state tensors
         self
     }
 

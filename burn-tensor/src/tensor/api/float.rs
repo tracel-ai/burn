@@ -305,7 +305,20 @@ where
     /// Mark the tensor to keep gradients during the backward pass.
     /// This function does nothing when autodiff is not enabled.
     pub fn require_grad(self) -> Self {
-        Self::new(B::require_grad(self.primitive))
+        self.set_require_grad(true)
+    }
+
+    /// Returns true if the tensor requires gradients during the backward pass.
+    pub fn is_require_grad(&self) -> bool {
+        B::is_require_grad(&self.primitive)
+    }
+
+    /// Mark the tensor as tracked or untracked depending on the require grad argument.
+    /// When tracked, the gradients will be available after the backward pass.
+    ///
+    /// This function does nothing when autodiff is not enabled.
+    pub fn set_require_grad(self, require_grad: bool) -> Self {
+        Self::new(B::set_require_grad(self.primitive, require_grad))
     }
 
     /// Applies the relu function to the tensor.

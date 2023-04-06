@@ -2,7 +2,7 @@ use super::element::TchElement;
 use super::TchTensor;
 use burn_tensor::backend::Backend;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 /// The device struct when using the `tch` backend.
 ///
 /// Note that you need to provide the device index when using Cuda.
