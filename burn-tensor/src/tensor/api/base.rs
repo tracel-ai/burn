@@ -287,17 +287,6 @@ where
     /// * `acc` - A mutable reference to a `String` used as an accumulator for the formatted output.
     /// * `depth` - The current depth of the tensor dimensions being processed.
     /// * `multi_index` - A mutable slice of `usize` representing the current indices in each dimension.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// let data = Data::from([[[1, 2, 3], [4, 5, 6]], [[7, 8, 9], [10, 11, 12]]]);
-    /// let tensor: burn_tensor::Tensor<TestBackend, 3, burn_tensor::Int> = Tensor::from_data(data);
-    /// let mut acc = String::new();
-    /// let mut multi_index = vec![0; 3];
-    /// tensor.display_recursive(&mut acc, 0, &mut multi_index);
-    /// assert_e!(acc, "[[[1, 2, 3], [4, 5, 6]], [[7, 8, 9], [10, 11, 12]]]");
-    /// ```
     fn display_recursive(&self, acc: &mut String, depth: usize, multi_index: &mut [usize]) {
         if depth == 0 {
             acc.push('[');
