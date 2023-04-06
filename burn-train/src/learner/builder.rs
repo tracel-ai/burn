@@ -6,22 +6,26 @@ use crate::metric::dashboard::cli::CLIDashboardRenderer;
 use crate::metric::dashboard::Dashboard;
 use crate::metric::{Adaptor, Metric, Numeric};
 use crate::AsyncTrainerCallback;
-use burn_core::module::{ADModule, StateFormat};
+use burn_core::module::ADModule;
 use burn_core::optim::Optimizer;
+use burn_core::record::{FileRecorder, Record, RecordSettings};
 use burn_core::tensor::backend::ADBackend;
-use burn_core::tensor::Element;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use std::sync::Arc;
 
 /// Struct to configure and create a [learner](Learner).
-pub struct LearnerBuilder<B, T, V>
+pub struct LearnerBuilder<B, T, V, M, O>
 where
     T: Send + Sync + 'static,
     V: Send + Sync + 'static,
     B: ADBackend,
+    M: ADModule<B>,
+    O: Optimizer<M, B>,
 {
     dashboard: Dashboard<T, V>,
-    checkpointer_model: Option<Arc<dyn Checkpointer<B::FloatElem> + Send + Sync>>,
-    checkpointer_optimizer: Option<Arc<dyn Checkpointer<B::FloatElem> + Send + Sync>>,
+    checkpointer_model: Option<Arc<dyn Checkpointer<M::Record> + Send + Sync>>,
+    checkpointer_optimizer: Option<Arc<dyn Checkpointer<O::Record> + Send + Sync>>,
     num_epochs: usize,
     checkpoint: Option<usize>,
     directory: String,
@@ -29,11 +33,13 @@ where
     devices: Vec<B::Device>,
 }
 
-impl<B, T, V> LearnerBuilder<B, T, V>
+impl<B, T, V, Model, O> LearnerBuilder<B, T, V, Model, O>
 where
     T: Send + Sync + 'static,
     V: Send + Sync + 'static,
     B: ADBackend,
+    Model: ADModule<B>,
+    O: Optimizer<Model, B>,
 {
     pub fn new(directory: &str) -> Self {
         let renderer = Box::new(CLIDashboardRenderer::new());
@@ -140,39 +146,47 @@ where
     /// The number of checkpoints to be keep should be set to a minimum of two to be safe, since
     /// they are saved and deleted asynchronously and a crash during training might make a
     /// checkpoint non-usable.
-    pub fn with_file_checkpointer<P: Element + serde::de::DeserializeOwned + serde::Serialize>(
-        mut self,
-        num_keep: usize,
-        format: StateFormat,
-    ) -> Self {
-        self.checkpointer_model = Some(Arc::new(FileCheckpointer::<P>::new(
+    pub fn with_file_checkpointer<S>(mut self, num_keep: usize) -> Self
+    where
+        S: RecordSettings + 'static,
+        <Model::Record as Record>::Item<S>: Serialize + DeserializeOwned,
+        <O::Record as Record>::Item<S>: Serialize + DeserializeOwned,
+        S::Recorder: FileRecorder,
+    {
+        self.checkpointer_model = Some(Arc::new(FileCheckpointer::<S>::new(
             format!("{}/checkpoint", self.directory).as_str(),
             "model",
             num_keep,
-            format.clone(),
         )));
-        self.checkpointer_optimizer = Some(Arc::new(FileCheckpointer::<P>::new(
+        self.checkpointer_optimizer = Some(Arc::new(FileCheckpointer::<S>::new(
             format!("{}/checkpoint", self.directory).as_str(),
             "optim",
             num_keep,
-            format,
         )));
         self
     }
 
     /// Create the [learner](Learner) from a [module](ADModule) and an
-    pub fn build<M, O>(self, model: M, optim: O) -> Learner<M, O, T, V>
+    pub fn build(self, model: Model, optim: O) -> Learner<B, Model, O, T, V>
     where
-        M: ADModule<ADBackend = B>,
-        O: Optimizer<Backend = B>,
+        Model::Record: 'static,
+        O::Record: 'static,
     {
         self.init_logger();
         let callack = Box::new(self.dashboard);
         let callback = Box::new(AsyncTrainerCallback::new(callack));
 
-        let create_checkpointer = |checkpointer| match checkpointer {
+        let create_checkpointer_optim = |checkpointer| match checkpointer {
             Some(checkpointer) => {
-                let checkpointer: Box<dyn Checkpointer<B::FloatElem>> =
+                let checkpointer: Box<dyn Checkpointer<O::Record>> =
+                    Box::new(AsyncCheckpointer::new(checkpointer));
+                Some(checkpointer)
+            }
+            None => None,
+        };
+        let create_checkpointer_model = |checkpointer| match checkpointer {
+            Some(checkpointer) => {
+                let checkpointer: Box<dyn Checkpointer<Model::Record>> =
                     Box::new(AsyncCheckpointer::new(checkpointer));
                 Some(checkpointer)
             }
@@ -186,8 +200,8 @@ where
             num_epochs: self.num_epochs,
             callback,
             checkpoint: self.checkpoint,
-            checkpointer_model: create_checkpointer(self.checkpointer_model),
-            checkpointer_optimizer: create_checkpointer(self.checkpointer_optimizer),
+            checkpointer_model: create_checkpointer_model(self.checkpointer_model),
+            checkpointer_optimizer: create_checkpointer_optim(self.checkpointer_optimizer),
             grad_accumulation: self.grad_accumulation,
             devices: self.devices,
         }

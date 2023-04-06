@@ -1,20 +1,19 @@
 use super::{Checkpointer, CheckpointerError};
-use burn_core::module::State;
-use burn_core::tensor::Element;
+use burn_core::record::Record;
 use std::sync::{mpsc, Arc};
 
-enum Message<E> {
-    Save(usize, State<E>),
+enum Message<R> {
+    Save(usize, R),
     End,
 }
 
 #[derive(new)]
-struct CheckpointerThread<T> {
-    checkpointer: Arc<dyn Checkpointer<T> + Send + Sync>,
-    receiver: mpsc::Receiver<Message<T>>,
+struct CheckpointerThread<R> {
+    checkpointer: Arc<dyn Checkpointer<R> + Send + Sync>,
+    receiver: mpsc::Receiver<Message<R>>,
 }
 
-impl<T> CheckpointerThread<T> {
+impl<R: Record> CheckpointerThread<R> {
     fn run(self) {
         for item in self.receiver.iter() {
             match item {
@@ -33,8 +32,8 @@ pub struct AsyncCheckpointer<E> {
     handler: Option<std::thread::JoinHandle<()>>,
 }
 
-impl<E: Element + 'static> AsyncCheckpointer<E> {
-    pub fn new(checkpointer: Arc<dyn Checkpointer<E> + Send + Sync>) -> Self {
+impl<R: Record + 'static> AsyncCheckpointer<R> {
+    pub fn new(checkpointer: Arc<dyn Checkpointer<R> + Send + Sync>) -> Self {
         // Only on checkpoint can be done in advance.
         let (sender, receiver) = mpsc::sync_channel(0);
         let thread = CheckpointerThread::new(checkpointer.clone(), receiver);
@@ -48,17 +47,17 @@ impl<E: Element + 'static> AsyncCheckpointer<E> {
     }
 }
 
-impl<E> Checkpointer<E> for AsyncCheckpointer<E>
+impl<R> Checkpointer<R> for AsyncCheckpointer<R>
 where
-    E: Element + Sync + 'static,
+    R: Record + 'static,
 {
-    fn save(&self, epoch: usize, state: State<E>) -> Result<(), CheckpointerError> {
-        self.sender.send(Message::Save(epoch, state)).unwrap();
+    fn save(&self, epoch: usize, record: R) -> Result<(), CheckpointerError> {
+        self.sender.send(Message::Save(epoch, record)).unwrap();
 
         Ok(())
     }
 
-    fn restore(&self, epoch: usize) -> Result<State<E>, CheckpointerError> {
+    fn restore(&self, epoch: usize) -> Result<R, CheckpointerError> {
         self.checkpointer.restore(epoch)
     }
 }
