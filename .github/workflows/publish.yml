@@ -7,31 +7,31 @@ on:
 
 jobs:
   publish-burn-derive:
-    uses: burn-rs/burn/.github/workflows/publish-template.yml
+    uses: ./.github/workflows/publish-template.yml
     with:
       crate: burn-derive
     secrets: inherit
 
   publish-burn-dataset:
-    uses: burn-rs/burn/.github/workflows/publish-template.yml
+    uses: ./.github/workflows/publish-template.yml
     with:
       crate: burn-dataset
     secrets: inherit
 
   publish-burn-common:
-    uses: burn-rs/burn/.github/workflows/publish-template.yml
+    uses: ./.github/workflows/publish-template.yml
     with:
       crate: burn-common
     secrets: inherit
 
   publish-burn-tensor-testgen:
-    uses: burn-rs/burn/.github/workflows/publish-template.yml
+    uses: ./.github/workflows/publish-template.yml
     with:
       crate: burn-tensor-testgen
     secrets: inherit
 
   publish-burn-tensor:
-    uses: burn-rs/burn/.github/workflows/publish-template.yml
+    uses: ./.github/workflows/publish-template.yml
     needs:
       - publish-burn-tensor-testgen
     with:
@@ -39,7 +39,7 @@ jobs:
     secrets: inherit
 
   publish-burn-autodiff:
-    uses: burn-rs/burn/.github/workflows/publish-template.yml
+    uses: ./.github/workflows/publish-template.yml
     needs:
       - publish-burn-tensor
       - publish-burn-tensor-testgen
@@ -49,7 +49,7 @@ jobs:
     secrets: inherit
 
   publish-burn-tch:
-    uses: burn-rs/burn/.github/workflows/publish-template.yml
+    uses: ./.github/workflows/publish-template.yml
     needs:
       - publish-burn-tensor
       - publish-burn-autodiff
@@ -58,7 +58,7 @@ jobs:
     secrets: inherit
 
   publish-burn-ndarray:
-    uses: burn-rs/burn/.github/workflows/publish-template.yml
+    uses: ./.github/workflows/publish-template.yml
     needs:
       - publish-burn-tensor
       - publish-burn-autodiff
@@ -69,7 +69,7 @@ jobs:
 
 
   publish-burn-core:
-    uses: burn-rs/burn/.github/workflows/publish-template.yml
+    uses: ./.github/workflows/publish-template.yml
     needs:
       - publish-burn-tensor
       - publish-burn-autodiff
@@ -82,7 +82,7 @@ jobs:
     secrets: inherit
 
   publish-burn-train:
-    uses: burn-rs/burn/.github/workflows/publish-template.yml
+    uses: ./.github/workflows/publish-template.yml
     needs:
       - publish-burn-core
     with:
@@ -90,7 +90,7 @@ jobs:
     secrets: inherit
 
   publish-burn:
-    uses: burn-rs/burn/.github/workflows/publish-template.yml
+    uses: ./.github/workflows/publish-template.yml
     needs:
       - publish-burn-core
       - publish-burn-train
