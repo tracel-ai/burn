@@ -48,12 +48,8 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
 impl<const D: usize, B: ADBackend> ADModule<B> for Param<Tensor<B, D>> {
     type InnerModule = Param<Tensor<B::InnerBackend, D>>;
 
-    fn inner(self) -> Self::InnerModule {
-        Param::new(self.id, self.value.inner())
-    }
-
-    fn from_inner(module: Self::InnerModule) -> Self {
-        Param::new(module.id, Tensor::from_inner(module.value))
+    fn inner(&self) -> Self::InnerModule {
+        Param::new(self.id.clone(), self.value.clone().inner())
     }
 }
 

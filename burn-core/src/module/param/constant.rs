@@ -23,12 +23,8 @@ macro_rules! constant {
     (ad_module, $type:ty) => {
         type InnerModule = $type;
 
-        fn inner(self) -> Self::InnerModule {
-            self
-        }
-
-        fn from_inner(module: Self::InnerModule) -> Self {
-            module
+        fn inner(&self) -> Self::InnerModule {
+            self.clone()
         }
     };
 

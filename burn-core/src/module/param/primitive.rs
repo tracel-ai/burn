@@ -37,12 +37,11 @@ where
 {
     type InnerModule = Option<T::InnerModule>;
 
-    fn inner(self) -> Self::InnerModule {
-        self.map(|module| module.inner())
-    }
-
-    fn from_inner(module: Self::InnerModule) -> Self {
-        module.map(|module| T::from_inner(module))
+    fn inner(&self) -> Self::InnerModule {
+        match &self {
+            Some(module) => Some(module.inner()),
+            None => None,
+        }
     }
 }
 
@@ -91,15 +90,8 @@ where
 {
     type InnerModule = Vec<T::InnerModule>;
 
-    fn inner(self) -> Self::InnerModule {
+    fn inner(&self) -> Self::InnerModule {
         self.into_iter().map(|module| module.inner()).collect()
-    }
-
-    fn from_inner(module: Self::InnerModule) -> Self {
-        module
-            .into_iter()
-            .map(|module| T::from_inner(module))
-            .collect()
     }
 }
 
@@ -162,11 +154,7 @@ where
 {
     type InnerModule = [T::InnerModule; N];
 
-    fn inner(self) -> Self::InnerModule {
+    fn inner(&self) -> Self::InnerModule {
         self.map(|module| module.inner())
-    }
-
-    fn from_inner(module: Self::InnerModule) -> Self {
-        module.map(|module| T::from_inner(module))
     }
 }

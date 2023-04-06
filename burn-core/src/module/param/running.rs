@@ -173,18 +173,10 @@ impl<const D: usize, B: Backend> RunningState<Tensor<B, D>> {
 impl<const D: usize, B: ADBackend> ADModule<B> for RunningState<Tensor<B, D>> {
     type InnerModule = RunningState<Tensor<B::InnerBackend, D>>;
 
-    fn inner(self) -> Self::InnerModule {
+    fn inner(&self) -> Self::InnerModule {
         self.sync();
         let value = self.value();
 
-        RunningState::with_id(self.id, value.inner())
-    }
-
-    fn from_inner(module: Self::InnerModule) -> Self {
-        module.sync();
-
-        let value = module.value();
-
-        RunningState::with_id(module.id, Tensor::from_inner(value))
+        RunningState::with_id(self.id.clone(), value.inner())
     }
 }

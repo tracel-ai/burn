@@ -99,33 +99,15 @@ impl FnGenerator {
     pub fn gen_inner_fn(&self) -> TokenStream {
         let (names, body) = self.gen_fields_fn_names(|name| {
             quote! {
-                let #name = burn::module::ADModule::<B>::inner(self.#name);
+                let #name = burn::module::ADModule::<B>::inner(&self.#name);
             }
         });
 
         quote! {
-            fn inner(self) -> Self::InnerModule {
+            fn inner(&self) -> Self::InnerModule {
                 #body
 
                 Self::InnerModule {
-                    #(#names),*
-                }
-            }
-        }
-    }
-
-    pub fn gen_from_inner_fn(&self) -> TokenStream {
-        let (names, body) = self.gen_fields_fn_names(|name| {
-            quote! {
-                let #name = burn::module::ADModule::<B>::from_inner(module.#name);
-            }
-        });
-
-        quote! {
-            fn from_inner(module: Self::InnerModule) -> Self {
-                #body
-
-                Self {
                     #(#names),*
                 }
             }

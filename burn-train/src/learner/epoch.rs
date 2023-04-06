@@ -24,7 +24,7 @@ pub struct TrainEpoch<TI> {
 }
 
 impl<I> ValidEpoch<I> {
-    pub fn run<B, M, TO, VO>(&self, model: M, callback: &mut Box<dyn LearnerCallback<TO, VO>>) -> M
+    pub fn run<B, M, TO, VO>(&self, model: &M, callback: &mut Box<dyn LearnerCallback<TO, VO>>)
     where
         B: ADBackend,
         M: ADModule<B>,
@@ -50,8 +50,6 @@ impl<I> ValidEpoch<I> {
             ));
         }
         callback.on_valid_end_epoch(self.epoch);
-
-        ADModule::from_inner(model)
     }
 }
 
@@ -77,6 +75,7 @@ impl<TI> TrainEpoch<TI> {
 
         while let Some(item) = iterator.next() {
             iteration += 1;
+            log::info!("Iteration {}", iteration);
 
             let progress = iterator.progress();
             let item = model.step(item);
@@ -154,7 +153,6 @@ impl<TI> TrainEpoch<TI> {
 
                 let grads = item.grads.to_device(&device_main, &model);
 
-                log::info!("Updated device");
                 accumulator.accumulate(&model, grads);
                 accumulation_current += 1;
 

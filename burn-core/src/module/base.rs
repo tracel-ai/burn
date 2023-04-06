@@ -191,6 +191,5 @@ pub trait ADModule<B: ADBackend>: Module<B> + Send + Sync + core::fmt::Debug {
     type InnerModule: Module<B::InnerBackend>;
 
     /// Get the same module, but on the inner backend without auto-differentiation.
-    fn inner(self) -> Self::InnerModule;
-    fn from_inner(module: Self::InnerModule) -> Self;
+    fn inner(&self) -> Self::InnerModule;
 }

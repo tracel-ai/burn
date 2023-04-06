@@ -83,7 +83,7 @@ where
             }
 
             let epoch_valid = ValidEpoch::new(dataloader_valid.clone(), epoch, self.num_epochs);
-            model = epoch_valid.run(model, &mut self.callback);
+            epoch_valid.run(&model, &mut self.callback);
 
             Self::checkpoint(
                 &model,

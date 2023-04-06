@@ -301,9 +301,7 @@ mod tests_2d {
 
         let module_valid = module.inner();
         let running_mean = module_valid.running_mean.value();
-
-        let module_train = BatchNorm::<TestADBackend, 2>::from_inner(module_valid);
-        let running_mean_after = module_train.running_mean.value();
+        let running_mean_after = module.running_mean.value();
 
         running_mean_after
             .into_data()
