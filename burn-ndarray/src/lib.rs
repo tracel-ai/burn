@@ -28,7 +28,7 @@ mod tests {
     type TestBackend = crate::NdArrayBackend<f32>;
     type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
     type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
-
+    use alloc::format;
     burn_tensor::testgen_all!();
 
     #[cfg(feature = "std")]
