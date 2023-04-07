@@ -14,9 +14,7 @@ impl LearningRateScheduler for ConstantLearningRate {
         self.learning_rate
     }
 
-    fn to_record(&self) -> Self::Record {
-        ()
-    }
+    fn to_record(&self) -> Self::Record {}
 
     fn load_record(self, _record: Self::Record) -> Self {
         self
