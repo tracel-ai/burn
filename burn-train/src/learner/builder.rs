@@ -192,7 +192,6 @@ where
             }
             None => None,
         };
-        let model = model.detach();
 
         Learner {
             model,

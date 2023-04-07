@@ -193,9 +193,16 @@ pub trait TensorOps<B: Backend> {
         // Should only be overriden by autodiff backends.
         tensor
     }
-    fn require_grad<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D> {
+    fn set_require_grad<const D: usize>(
+        tensor: B::TensorPrimitive<D>,
+        _require_grad: bool,
+    ) -> B::TensorPrimitive<D> {
         // Should only be overriden by autodiff backends.
         tensor
+    }
+    fn is_require_grad<const D: usize>(_tensor: &B::TensorPrimitive<D>) -> bool {
+        // Should only be overriden by autodiff backends.
+        false
     }
     fn sum<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<1>;
     fn sum_dim<const D: usize>(tensor: B::TensorPrimitive<D>, dim: usize) -> B::TensorPrimitive<D>;

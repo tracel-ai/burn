@@ -4,6 +4,8 @@ use burn::tensor::{Distribution, Shape, Tensor};
 use burn_core as burn;
 
 pub type TestBackend = burn_ndarray::NdArrayBackend<f32>;
+#[cfg(feature = "std")]
+pub type TestADBackend = burn_autodiff::ADBackendDecorator<TestBackend>;
 
 #[derive(Module, Debug)]
 pub struct ModuleBasic<B: Backend> {
@@ -91,5 +93,55 @@ mod num_params {
     fn should_output_state_composed() {
         let module = ModuleComposed::<TestBackend>::new();
         assert_eq!(2 * 20 * 20, module.num_params());
+    }
+}
+
+#[cfg(feature = "std")]
+mod require_grad {
+    use burn_tensor::backend::ADBackend;
+
+    use super::*;
+
+    #[test]
+    fn should_have_grad_by_default() {
+        let module = ModuleBasic::<TestADBackend>::new();
+        let mut grads = calculate_grads(&module);
+
+        let grad_x = module.weight_basic.grad_remove(&mut grads);
+
+        assert!(grad_x.is_some());
+    }
+
+    #[test]
+    fn should_have_no_grad_after_no_grad() {
+        let module = ModuleBasic::<TestADBackend>::new().no_grad();
+        let mut grads = calculate_grads(&module);
+
+        let grad_x = module.weight_basic.grad_remove(&mut grads);
+
+        assert!(grad_x.is_none());
+    }
+
+    #[test]
+    fn should_have_grad_when_from_record() {
+        let module = ModuleBasic::<TestADBackend>::new();
+        let record = ModuleBasicRecord {
+            weight_basic: module.weight_basic.clone(), // Even when param is no_grad,
+        };
+        let module = module.load_record(record);
+        let mut grads = calculate_grads(&module);
+
+        let grad_x = module.weight_basic.grad_remove(&mut grads);
+
+        assert!(grad_x.is_some());
+    }
+
+    fn calculate_grads(
+        module: &ModuleBasic<TestADBackend>,
+    ) -> <TestADBackend as ADBackend>::Gradients {
+        let x = Tensor::ones([20, 20]).require_grad();
+        let y = module.weight_basic.val().matmul(x);
+
+        y.backward()
     }
 }

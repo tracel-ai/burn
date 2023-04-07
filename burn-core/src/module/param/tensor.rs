@@ -1,5 +1,3 @@
-use alloc::{vec, vec::Vec};
-
 use super::{Param, ParamId};
 use crate::module::{ADModule, Module, ModuleMapper, ModuleVisitor};
 use crate::tensor::{
@@ -9,45 +7,20 @@ use crate::tensor::{
 
 impl<B: Backend, const D: usize> From<Tensor<B, D>> for Param<Tensor<B, D>> {
     fn from(value: Tensor<B, D>) -> Self {
-        Param {
-            id: ParamId::new(),
-            value: value.require_grad(),
-        }
+        Param::new(ParamId::new(), value.require_grad())
     }
 }
 
 impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
     type Record = Param<Tensor<B, D>>;
 
-    fn num_params(&self) -> usize {
-        self.value.shape().num_elements()
-    }
-
-    fn devices(&self) -> Vec<B::Device> {
-        vec![self.value.device()]
-    }
-
-    fn to_device(self, device: &B::Device) -> Self {
-        Self {
-            id: self.id,
-            value: self.value.to_device(device).require_grad(),
-        }
-    }
-
-    fn detach(self) -> Self {
-        Self {
-            id: self.id,
-            value: self.value.detach().require_grad(),
-        }
-    }
-
     fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
         visitor.visit(&self.id, &self.value)
     }
 
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
-        let value = mapper.map(&self.id, self.value).require_grad();
-        Self { id: self.id, value }
+        let value = mapper.map(&self.id, self.value);
+        Self::new(self.id, value)
     }
 
     fn into_record(self) -> Self::Record {
@@ -55,24 +28,63 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
     }
 
     fn load_record(self, record: Self::Record) -> Self {
-        record.to_device(&self.device())
+        let mut tensor = record.value.detach();
+        let device = self.device();
+
+        // Make sure we load the record into the same module device.
+        if tensor.device() != device {
+            tensor = tensor.to_device(&device).detach();
+        }
+
+        // Make sure we load the record with the same autodiff setting.
+        if self.is_require_grad() {
+            tensor = tensor.require_grad();
+        }
+
+        Self::new(record.id, tensor)
     }
 }
 
 impl<const D: usize, B: ADBackend> ADModule<B> for Param<Tensor<B, D>> {
     type InnerModule = Param<Tensor<B::InnerBackend, D>>;
 
-    fn inner(self) -> Self::InnerModule {
-        Param {
-            id: self.id,
-            value: self.value.inner(),
-        }
+    fn valid(&self) -> Self::InnerModule {
+        Param::new(
+            self.id.clone(),
+            self.value.clone().inner().set_require_grad(false),
+        )
     }
+}
 
-    fn from_inner(module: Self::InnerModule) -> Self {
-        Param {
-            id: module.id,
-            value: Tensor::from_inner(module.value).require_grad(),
-        }
+#[cfg(all(test, feature = "std"))]
+mod tests {
+    use crate::{
+        record::{NoStdInferenceRecordSettings, Record},
+        TestADBackend,
+    };
+
+    use super::*;
+
+    #[test]
+    fn test_load_record_setting() {
+        let tensor = Tensor::<TestADBackend, 2>::ones([3, 3]);
+        let bytes = Param::from(tensor.clone())
+            .into_record()
+            .record::<NoStdInferenceRecordSettings>(())
+            .unwrap();
+
+        let no_grad_is_require_grad = Param::from(tensor.clone())
+            .no_grad()
+            .load_record(Param::load::<NoStdInferenceRecordSettings>(bytes.clone()).unwrap())
+            .value
+            .is_require_grad();
+
+        let with_default_is_require_grad = Param::from(tensor)
+            .load_record(Param::load::<NoStdInferenceRecordSettings>(bytes).unwrap())
+            .value
+            .is_require_grad();
+
+        assert!(!no_grad_is_require_grad);
+        assert!(with_default_is_require_grad);
     }
 }

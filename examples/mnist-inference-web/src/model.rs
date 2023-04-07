@@ -2,8 +2,6 @@
 
 // Orginally copied from the burn/examples/mnist package
 
-use alloc::vec::Vec;
-
 use burn::{
     module::Module,
     nn::{self, conv::Conv2dPaddingConfig, BatchNorm},
@@ -15,6 +13,7 @@ pub struct Model<B: Backend> {
     conv1: ConvBlock<B>,
     conv2: ConvBlock<B>,
     conv3: ConvBlock<B>,
+    dropout: nn::Dropout,
     fc1: nn::Linear<B>,
     fc2: nn::Linear<B>,
     activation: nn::GELU,
@@ -27,7 +26,6 @@ impl<B: Backend> Model<B> {
         let conv1 = ConvBlock::new([1, 8], [3, 3]); // out: [Batch,8,26,26]
         let conv2 = ConvBlock::new([8, 16], [3, 3]); // out: [Batch,16,24x24]
         let conv3 = ConvBlock::new([16, 24], [3, 3]); // out: [Batch,24,22x22]
-
         let hidden_size = 24 * 22 * 22;
         let fc1 = nn::LinearConfig::new(hidden_size, 32)
             .with_bias(false)
@@ -36,12 +34,15 @@ impl<B: Backend> Model<B> {
             .with_bias(false)
             .init();
 
+        let dropout = nn::DropoutConfig::new(0.5).init();
+
         Self {
             conv1,
             conv2,
             conv3,
             fc1,
             fc2,
+            dropout,
             activation: nn::GELU::new(),
         }
     }
@@ -57,6 +58,7 @@ impl<B: Backend> Model<B> {
         let [batch_size, channels, heigth, width] = x.dims();
         let x = x.reshape([batch_size, channels * heigth * width]);
 
+        let x = self.dropout.forward(x);
         let x = self.fc1.forward(x);
         let x = self.activation.forward(x);
 

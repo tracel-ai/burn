@@ -1,5 +1,3 @@
-use alloc::vec::Vec;
-
 use crate as burn;
 
 use crate::{
@@ -28,8 +26,8 @@ pub struct BatchNormConfig {
 pub struct BatchNorm<B: Backend, const D: usize> {
     gamma: Param<Tensor<B, 1>>,
     beta: Param<Tensor<B, 1>>,
-    running_mean: Param<RunningState<Tensor<B, 1>>>,
-    running_var: Param<RunningState<Tensor<B, 1>>>,
+    running_mean: RunningState<Tensor<B, 1>>,
+    running_var: RunningState<Tensor<B, 1>>,
     momentum: f64,
     epsilon: f64,
 }
@@ -46,8 +44,8 @@ impl BatchNormConfig {
         BatchNorm {
             gamma: Param::from(gamma),
             beta: Param::from(beta),
-            running_mean: Param::from(RunningState::new(running_mean)),
-            running_var: Param::from(RunningState::new(running_var)),
+            running_mean: RunningState::new(running_mean),
+            running_var: RunningState::new(running_var),
             momentum: self.momentum,
             epsilon: self.epsilon,
         }
@@ -76,8 +74,8 @@ impl<const D: usize, B: Backend> BatchNorm<B, D> {
 
     fn forward_inference<const DI: usize>(&self, input: Tensor<B, DI>) -> Tensor<B, DI> {
         let channels = input.dims()[1];
-        let mean = self.running_mean.val().value();
-        let var = self.running_var.val().value();
+        let mean = self.running_mean.value();
+        let var = self.running_var.value();
 
         let mut shape = [1; DI];
         shape[1] = channels;
@@ -192,7 +190,7 @@ mod tests_1d {
         let module = BatchNormConfig::new(3).init::<TestADBackend, 1>();
 
         module.forward(input_tensor());
-        let module = module.inner();
+        let module = module.valid();
         let output = module.forward(input_tensor());
 
         output.to_data().assert_approx_eq(
@@ -247,7 +245,7 @@ mod tests_2d {
         let module = BatchNormConfig::new(3).init::<TestADBackend, 2>();
 
         module.forward(input_tensor());
-        let module = module.inner();
+        let module = module.valid();
         let output = module.forward(input_tensor());
 
         output.to_data().assert_approx_eq(
@@ -301,11 +299,9 @@ mod tests_2d {
 
         let _output = module.forward(input_tensor());
 
-        let module_valid = module.inner();
+        let module_valid = module.valid();
         let running_mean = module_valid.running_mean.value();
-
-        let module_train = BatchNorm::<TestADBackend, 2>::from_inner(module_valid);
-        let running_mean_after = module_train.running_mean.value();
+        let running_mean_after = module.running_mean.value();
 
         running_mean_after
             .into_data()

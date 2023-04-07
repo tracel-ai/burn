@@ -47,7 +47,7 @@ where
         spawn(move || loop {
             match receiver_input.recv() {
                 Ok(item) => {
-                    let step = item.model.to_device(&device).detach();
+                    let step = item.model.fork(&device);
                     let output = step.step(item.item);
 
                     sender_output.send(output).unwrap();

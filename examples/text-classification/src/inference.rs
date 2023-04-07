@@ -42,7 +42,7 @@ pub fn infer<B: Backend, D: TextClassificationDataset + 'static>(
     let record = Record::load::<DefaultRecordSettings>(format!("{artifact_dir}/model").into())
         .expect("Trained model weights");
     let model = model.load_record(record);
-    let model = model.to_device(&device);
+    let model = model.fork(&device);
 
     println!("Running inference ...");
     let item = batcher.batch(samples.clone());

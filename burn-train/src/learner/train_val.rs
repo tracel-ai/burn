@@ -49,7 +49,7 @@ where
         log::info!("Fitting {}", self.model.to_string());
         // The reference model is always on the first device provided.
         if let Some(device) = self.devices.get(0) {
-            self.model = self.model.to_device(device).detach();
+            self.model = self.model.fork(device);
         }
 
         let starting_epoch = match self.checkpoint {
@@ -83,7 +83,7 @@ where
             }
 
             let epoch_valid = ValidEpoch::new(dataloader_valid.clone(), epoch, self.num_epochs);
-            model = epoch_valid.run(model, &mut self.callback);
+            epoch_valid.run(&model, &mut self.callback);
 
             Self::checkpoint(
                 &model,

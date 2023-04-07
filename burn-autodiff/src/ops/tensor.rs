@@ -745,16 +745,30 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn detach<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {
+        // When we detach a tensor, we remove it from the graph, but we still want to keep the
+        // `require_grad` setting.
+        let is_require_grad = Self::is_require_grad(&tensor);
         let tensor = ADTensor::new(tensor.primitive);
 
-        match tensor.node.requirement {
-            Requirement::Grad => tensor.require_grad(),
-            _ => tensor,
+        match is_require_grad {
+            true => tensor.require_grad(),
+            false => tensor,
         }
     }
 
-    fn require_grad<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {
-        tensor.require_grad()
+    fn set_require_grad<const D: usize>(
+        tensor: ADTensor<B, D>,
+        require_grad: bool,
+    ) -> ADTensor<B, D> {
+        if require_grad {
+            return tensor.require_grad();
+        }
+
+        ADTensor::new(tensor.primitive)
+    }
+
+    fn is_require_grad<const D: usize>(tensor: &ADTensor<B, D>) -> bool {
+        matches!(tensor.node.requirement, Requirement::Grad)
     }
 
     fn mean<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, 1> {

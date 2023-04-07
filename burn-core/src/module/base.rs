@@ -1,4 +1,4 @@
-use alloc::{format, string::String, vec::Vec};
+use alloc::vec::Vec;
 
 use super::ParamId;
 use crate::{
@@ -7,6 +7,58 @@ use crate::{
 };
 pub use burn_derive::Module;
 use burn_tensor::Tensor;
+
+// At the moment, our plan is to continue experimenting with the macro internally and monitor its development.
+// We may consider making it public in the future.
+macro_rules! module {
+    (map=$module:ident, ops=$item:expr) => {{
+        struct Mapper;
+        impl<B: Backend> ModuleMapper<B> for Mapper {
+            fn map<const D: usize>(&mut self, _id: &ParamId, tensor: Tensor<B, D>) -> Tensor<B, D> {
+                let func = $item;
+                func(tensor)
+            }
+        }
+        let mut mapper = Mapper;
+        $module.map(&mut mapper)
+    }};
+    (map=$module:ident, ops=$item:expr, capture={$capture:ident: $ty:ty}) => {{
+        struct Mapper<'a, B: Backend> {
+            capture: &'a $ty,
+            backend: core::marker::PhantomData<B>,
+        }
+        impl<'a, B: Backend> ModuleMapper<B> for Mapper<'a, B> {
+            fn map<const D: usize>(&mut self, _id: &ParamId, tensor: Tensor<B, D>) -> Tensor<B, D> {
+                let func = $item;
+                func(tensor, self.capture)
+            }
+        }
+        let mut mapper = Mapper {
+            capture: $capture,
+            backend: core::marker::PhantomData::default(),
+        };
+        $module.map(&mut mapper)
+    }};
+    (visit=$module:ident, ops=$item:expr, state=$state_ty:ty, init=$init:expr) => {{
+        struct Visitor<'a, B: Backend> {
+            state: &'a mut $state_ty,
+            backend: core::marker::PhantomData<B>,
+        }
+        impl<'a, B: Backend> ModuleVisitor<B> for Visitor<'a, B> {
+            fn visit<const D: usize>(&mut self, _id: &ParamId, tensor: &Tensor<B, D>) {
+                let func = $item;
+                func(tensor, &mut self.state)
+            }
+        }
+        let mut state = $init();
+        let mut visitor = Visitor {
+            state: &mut state,
+            backend: core::marker::PhantomData::default(),
+        };
+        $module.visit(&mut visitor);
+        state
+    }};
+}
 
 /// Trait for all neural network modules.
 ///
@@ -42,13 +94,80 @@ pub trait Module<B: Backend>: Clone + Send + Sync + core::fmt::Debug {
     type Record: Record;
 
     /// Get the device list of the module and all of its sub-modules.
-    fn devices(&self) -> Vec<B::Device>;
+    fn devices(&self) -> Vec<B::Device> {
+        module!(
+            visit = self,
+            ops = |tensor: &Tensor<B, D>, state: &mut Vec<B::Device>| {
+                let device = tensor.device();
+                if !state.contains(&device) {
+                    state.push(device);
+                }
+            },
+            state = Vec<B::Device>,
+            init = Vec::new
+        )
+    }
+    /// Fork the module and all of its sub-modules to the given device.
+    ///
+    /// # Notes
+    ///
+    /// This is similar to [to_device](Module::to_device), but it ensures the module will
+    /// have its own autodiff graph.
+    fn fork(self, device: &B::Device) -> Self {
+        module!(
+            map = self,
+            ops = |tensor: Tensor<B, D>, device: &B::Device| {
+                let is_require_grad = tensor.is_require_grad();
+                let mut tensor = tensor.to_device(device).detach();
+
+                if is_require_grad {
+                    tensor = tensor.require_grad();
+                }
+
+                tensor
+            },
+            capture = { device: B::Device }
+        )
+    }
     /// Move the module and all of its sub-modules to the given device.
-    fn to_device(self, device: &B::Device) -> Self;
-    /// Detach the module from the graph.
-    fn detach(self) -> Self;
+    ///
+    /// # Warnings
+    ///
+    /// The device operations will be registered in the autodiff graph. Therefore, be sure to call
+    /// backward only one time even if you have the same module on multiple devices. If you want to
+    /// call backward multiple times, look into using [fork](Module::fork) instead.
+    fn to_device(self, device: &B::Device) -> Self {
+        module!(
+            map = self,
+            ops = |tensor: Tensor<B, D>, device: &B::Device| tensor.to_device(device),
+            capture = { device: B::Device }
+        )
+    }
+    /// Each tensor in the module tree will not require grad.
+    ///
+    /// # Warnings
+    ///
+    /// This should not be used for inference, use [valid](ADModule::valid) when using
+    /// AD modules. This is mostly useful when performing partial finetuning, which is updating only
+    /// a small fraction of the parameters instead of finetuning all of them.
+    fn no_grad(self) -> Self {
+        module!(
+            map = self,
+            ops = |tensor: Tensor<B, D>| tensor.set_require_grad(false)
+        )
+    }
+
     /// Get the number of parameters the module has, including all of its sub-modules.
-    fn num_params(&self) -> usize;
+    fn num_params(&self) -> usize {
+        module!(
+            visit = self,
+            ops = |tensor: &Tensor<B, D>, state: &mut usize| {
+                *state += tensor.shape().num_elements();
+            },
+            state = usize,
+            init = || 0
+        )
+    }
     /// Visit each tensor in the module with a [visitor](ModuleVisitor).
     fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V);
     /// Map each tensor in the module with a [mapper](ModuleMapper).
@@ -72,21 +191,5 @@ pub trait ADModule<B: ADBackend>: Module<B> + Send + Sync + core::fmt::Debug {
     type InnerModule: Module<B::InnerBackend>;
 
     /// Get the same module, but on the inner backend without auto-differentiation.
-    fn inner(self) -> Self::InnerModule;
-    fn from_inner(module: Self::InnerModule) -> Self;
+    fn valid(&self) -> Self::InnerModule;
 }
-
-#[derive(new, Debug)]
-pub struct LoadingError {
-    message: String,
-}
-
-impl core::fmt::Display for LoadingError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(format!("Loading error: {}", self.message).as_str())
-    }
-}
-
-// TODO: Move from std to core after Error is core (see https://github.com/rust-lang/rust/issues/103765)
-#[cfg(feature = "std")]
-impl std::error::Error for LoadingError {}

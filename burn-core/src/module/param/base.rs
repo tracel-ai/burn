@@ -1,10 +1,8 @@
-use alloc::format;
-use serde::{Deserialize, Serialize};
-
 use super::ParamId;
+use alloc::format;
 
-/// Define a trainable parameter.
-#[derive(new, Debug, Clone, Serialize, Deserialize)]
+/// Define a parameter.
+#[derive(new, Debug, Clone)]
 pub struct Param<T> {
     pub(crate) id: ParamId,
     pub(crate) value: T,

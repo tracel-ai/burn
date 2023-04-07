@@ -5,22 +5,6 @@ macro_rules! constant {
     (module) => {
         type Record = ();
 
-        fn devices(&self) -> alloc::vec::Vec<<B as burn_tensor::backend::Backend>::Device> {
-            alloc::vec::Vec::new()
-        }
-
-        fn to_device(self, _device: &<B as burn_tensor::backend::Backend>::Device) -> Self {
-            self
-        }
-
-        fn detach(self) -> Self {
-            self
-        }
-
-        fn num_params(&self) -> usize {
-            0
-        }
-
         fn visit<V: burn::module::ModuleVisitor<B>>(&self, _visitor: &mut V) {
             // Nothing to do
         }
@@ -39,12 +23,8 @@ macro_rules! constant {
     (ad_module, $type:ty) => {
         type InnerModule = $type;
 
-        fn inner(self) -> Self::InnerModule {
-            self
-        }
-
-        fn from_inner(module: Self::InnerModule) -> Self {
-            module
+        fn valid(&self) -> Self::InnerModule {
+            self.clone()
         }
     };
 

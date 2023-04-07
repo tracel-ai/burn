@@ -63,7 +63,7 @@ pub trait Backend:
     + 'static
 {
     /// Device type.
-    type Device: Clone + Default + core::fmt::Debug + Send + Sync;
+    type Device: Clone + Default + PartialEq + core::fmt::Debug + Send + Sync;
 
     /// Pointer to another backend that have a full precision float element type
     type FullPrecisionBackend: Backend<FloatElem = Self::FullPrecisionElem, Device = Self::Device>;

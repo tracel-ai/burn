@@ -83,7 +83,9 @@ where
 
         if let Some(grad) = grad {
             let device = grad.device();
+            let is_require_grad = tensor.is_require_grad();
             let (key, record) = self.records.remove_entry(id).unzip();
+
             let (tensor, state) = self.optimizer.step(
                 tensor.inner(),
                 grad,
@@ -97,7 +99,11 @@ where
                 );
             }
 
-            return Tensor::from_inner(tensor);
+            let mut tensor = Tensor::from_inner(tensor);
+            if is_require_grad {
+                tensor = tensor.require_grad();
+            }
+            return tensor;
         }
 
         tensor

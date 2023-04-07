@@ -36,7 +36,7 @@ impl<B: Backend> Model<B> {
             .with_bias(false)
             .init();
 
-        let dropout = nn::DropoutConfig::new(0.3).init();
+        let dropout = nn::DropoutConfig::new(0.5).init();
 
         Self {
             conv1,
@@ -60,9 +60,9 @@ impl<B: Backend> Model<B> {
         let [batch_size, channels, heigth, width] = x.dims();
         let x = x.reshape([batch_size, channels * heigth * width]);
 
+        let x = self.dropout.forward(x);
         let x = self.fc1.forward(x);
         let x = self.activation.forward(x);
-        let x = self.dropout.forward(x);
 
         self.fc2.forward(x)
     }

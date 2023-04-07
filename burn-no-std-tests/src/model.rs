@@ -1,7 +1,5 @@
 // Orginally copied from the burn/examples/mnist package
 
-use alloc::vec::Vec;
-
 use crate::{
     conv::{ConvBlock, ConvBlockConfig},
     mlp::{Mlp, MlpConfig},

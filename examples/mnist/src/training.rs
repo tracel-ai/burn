@@ -21,7 +21,7 @@ static ARTIFACT_DIR: &str = "/tmp/burn-example-mnist";
 
 #[derive(Config)]
 pub struct MnistTrainingConfig {
-    #[config(default = 4)]
+    #[config(default = 10)]
     pub num_epochs: usize,
 
     #[config(default = 64)]
