@@ -5,6 +5,7 @@ use crate::{
 use burn::{
     config::Config,
     data::{dataloader::DataLoaderBuilder, dataset::transform::SamplerDataset},
+    lr_scheduler::constant::ConstantLearningRate,
     module::Module,
     nn::transformer::TransformerEncoderConfig,
     optim::SgdConfig,
@@ -71,6 +72,7 @@ pub fn train<B: ADBackend, D: TextClassificationDataset + 'static>(
         .build(dataset_test);
 
     let optim = config.optimizer.init();
+    let lr_scheduler = ConstantLearningRate::new(5.0e-3);
 
     let learner = LearnerBuilder::new(artifact_dir)
         .metric_train(CUDAMetric::new())
@@ -82,7 +84,7 @@ pub fn train<B: ADBackend, D: TextClassificationDataset + 'static>(
         .with_file_checkpointer::<DefaultRecordSettings>(2)
         .devices(vec![device])
         .num_epochs(config.num_epochs)
-        .build(model, optim);
+        .build(model, optim, lr_scheduler);
 
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 

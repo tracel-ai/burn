@@ -19,6 +19,7 @@ where
     /// the saving and loading of recorded states.
     fn step<const D: usize>(
         &self,
+        learning_rate: f64,
         tensor: Tensor<B, D>,
         grad: Tensor<B, D>,
         state: Option<Self::State<D>>,

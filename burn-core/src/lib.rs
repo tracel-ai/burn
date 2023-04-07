@@ -11,6 +11,9 @@ pub mod data;
 #[cfg(feature = "std")]
 pub mod optim;
 
+#[cfg(feature = "std")]
+pub mod lr_scheduler;
+
 pub mod module;
 pub mod nn;
 pub mod record;

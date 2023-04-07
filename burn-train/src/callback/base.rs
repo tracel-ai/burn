@@ -14,4 +14,5 @@ pub struct LearnerItem<T> {
     pub epoch: usize,
     pub epoch_total: usize,
     pub iteration: usize,
+    pub learning_rate: Option<f64>,
 }

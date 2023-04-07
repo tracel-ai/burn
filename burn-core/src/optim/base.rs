@@ -13,7 +13,7 @@ where
     type Record: Record;
 
     /// Perform the optimizer step using the given gradients. The updated module will be returned.
-    fn step(&mut self, module: M, grads: GradientsParams) -> M;
+    fn step(&mut self, learning_rate: f64, module: M, grads: GradientsParams) -> M;
 
     /// Get the current state of the optimizer as a [record](Record).
     fn to_record(&self) -> Self::Record;
