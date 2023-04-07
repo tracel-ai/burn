@@ -30,3 +30,6 @@ pub type TestBackend = burn_tch::TchBackend<f32>;
 #[cfg(feature = "std")]
 #[cfg(test)]
 pub type TestADBackend = burn_autodiff::ADBackendDecorator<TestBackend>;
+
+/// Type alias for the learning rate.
+pub type LearningRate = f64; // We could potentially change the type.

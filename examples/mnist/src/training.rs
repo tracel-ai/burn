@@ -4,12 +4,10 @@ use crate::data::MNISTBatcher;
 use crate::model::Model;
 
 use burn::lr_scheduler::constant::ConstantLearningRate;
-use burn::lr_scheduler::noam::NoamScheduler;
 use burn::module::Module;
 use burn::optim::decay::WeightDecayConfig;
 use burn::optim::AdamConfig;
 use burn::record::{DefaultRecordSettings, NoStdTrainingRecordSettings, Record};
-use burn::train::metric::LearningRateMetric;
 use burn::{
     config::Config,
     data::{dataloader::DataLoaderBuilder, dataset::source::huggingface::MNISTDataset},
@@ -60,21 +58,19 @@ pub fn run<B: ADBackend>(device: B::Device) {
         .build(Arc::new(MNISTDataset::test()));
 
     // Model
-    let optim = config.optimizer.init();
-    let model = Model::new();
-    let lr_scheduler = ConstantLearningRate::new(1e-4);
-    let lr_scheduler = NoamScheduler::new(500, 256, 0.1, 0);
-
     let learner = LearnerBuilder::new(ARTIFACT_DIR)
         .metric_train_plot(AccuracyMetric::new())
         .metric_valid_plot(AccuracyMetric::new())
         .metric_train_plot(LossMetric::new())
         .metric_valid_plot(LossMetric::new())
-        .metric_train_plot(LearningRateMetric::new())
         .with_file_checkpointer::<DefaultRecordSettings>(1)
         .devices(vec![device])
         .num_epochs(config.num_epochs)
-        .build(model, optim, lr_scheduler);
+        .build(
+            Model::new(),
+            config.optimizer.init(),
+            ConstantLearningRate::new(1e-4),
+        );
 
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 

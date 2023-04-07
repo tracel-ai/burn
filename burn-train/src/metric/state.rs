@@ -72,17 +72,17 @@ impl NumericMetricState {
         let (formatted_current, formatted_running) = match format.precision {
             Some(precision) => {
                 let scientific_notation_threshold = 0.1_f64.powf(precision as f64 - 1.0);
-                if scientific_notation_threshold >= value_current {
-                    (
-                        format!("{value_current:.precision$e}"),
-                        format!("{value_running:.precision$e}"),
-                    )
-                } else {
-                    (
-                        format!("{value_current:.precision$}"),
-                        format!("{value_running:.precision$}"),
-                    )
-                }
+
+                (
+                    match scientific_notation_threshold >= value_current {
+                        true => format!("{value_current:.precision$e}"),
+                        false => format!("{value_current:.precision$}"),
+                    },
+                    match scientific_notation_threshold >= value_running {
+                        true => format!("{value_running:.precision$e}"),
+                        false => format!("{value_running:.precision$}"),
+                    },
+                )
             }
             None => (format!("{value_current}"), format!("{value_running}")),
         };

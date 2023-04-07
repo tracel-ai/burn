@@ -55,9 +55,11 @@ where
                 .save(epoch, model.clone().into_record())
                 .unwrap();
         }
+
         if let Some(checkpointer) = &checkpointer_optimizer {
             checkpointer.save(epoch, optim.to_record()).unwrap();
         }
+
         if let Some(checkpointer) = &checkpointer_scheduler {
             checkpointer.save(epoch, scheduler.to_record()).unwrap();
         }
@@ -72,6 +74,11 @@ where
         if let Some(checkpointer) = &self.checkpointer_optimizer {
             let record = checkpointer.restore(epoch).unwrap();
             self.optim = self.optim.load_record(record);
+        }
+
+        if let Some(checkpointer) = &self.checkpointer_scheduler {
+            let record = checkpointer.restore(epoch).unwrap();
+            self.scheduler = self.scheduler.load_record(record);
         }
 
         self
