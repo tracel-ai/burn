@@ -1,5 +1,8 @@
+use alloc::format;
+use alloc::string::String;
+use alloc::vec;
 use alloc::vec::Vec;
-use core::ops::Range;
+use core::{fmt::Debug, ops::Range};
 
 use crate::{backend::Backend, Bool, Data, Float, Int, Shape, TensorKind};
 
@@ -266,13 +269,93 @@ where
     }
 }
 
+impl<B, const D: usize, K> Tensor<B, D, K>
+where
+    B: Backend,
+    K: BasicOps<B>,
+    <K as BasicOps<B>>::Elem: Debug,
+{
+    /// Recursively formats the tensor data for display and appends it to the provided accumulator string.
+    ///
+    /// This function is designed to work with tensors of any dimensionality.
+    /// It traverses the tensor dimensions recursively, converting the elements
+    /// to strings and appending them to the accumulator string with the
+    /// appropriate formatting.
+    ///
+    /// # Arguments
+    ///
+    /// * `acc` - A mutable reference to a `String` used as an accumulator for the formatted output.
+    /// * `depth` - The current depth of the tensor dimensions being processed.
+    /// * `multi_index` - A mutable slice of `usize` representing the current indices in each dimension.
+    fn display_recursive(&self, acc: &mut String, depth: usize, multi_index: &mut [usize]) {
+        if depth == 0 {
+            acc.push('[');
+        }
+
+        if depth == self.dims().len() - 1 {
+            // if we are at the innermost dimension, just push its elements into the accumulator
+            for i in 0..self.dims()[depth] {
+                if i > 0 {
+                    acc.push_str(", ");
+                }
+                multi_index[depth] = i;
+                let range: [core::ops::Range<usize>; D] =
+                    core::array::from_fn(|i| multi_index[i]..multi_index[i] + 1);
+                let elem = &self.clone().index(range).to_data().value[0];
+                acc.push_str(&format!("{:?}", elem));
+            }
+        } else {
+            // otherwise, iterate through the current dimension and recursively display the inner tensors
+            for i in 0..self.dims()[depth] {
+                if i > 0 {
+                    acc.push_str(", ");
+                }
+                acc.push('[');
+                multi_index[depth] = i;
+                self.display_recursive(acc, depth + 1, multi_index);
+                acc.push(']');
+            }
+        }
+
+        if depth == 0 {
+            acc.push(']');
+        }
+    }
+}
+
+/// Pretty print tensors
+impl<B, const D: usize, K> core::fmt::Display for Tensor<B, D, K>
+where
+    B: Backend,
+    B::IntElem: core::fmt::Display,
+    K: BasicOps<B>,
+    <K as BasicOps<B>>::Elem: Debug,
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        writeln!(f, "Tensor {{")?;
+        write!(f, "  data: ")?;
+
+        let mut acc = String::new();
+        let mut multi_index = vec![0; D];
+        self.display_recursive(&mut acc, 0, &mut multi_index);
+        write!(f, "{}", acc)?;
+        writeln!(f, ",")?;
+        writeln!(f, "  shape:  {:?},", self.dims())?;
+        writeln!(f, "  device:  {:?},", self.device())?;
+        writeln!(f, "  backend:  {:?},", B::name())?;
+        writeln!(f, "  kind:  {:?},", K::name())?;
+        writeln!(f, "  dtype:  {:?},", K::elem_type_name())?;
+        write!(f, "}}")
+    }
+}
+
 /// Trait that list all operations that can be applied on all tensors.
 ///
 /// # Warnings
 ///
 /// This is an internal trait, use the public API provided by [tensor struct](Tensor).
 pub trait BasicOps<B: Backend>: TensorKind<B> {
-    type Elem;
+    type Elem: 'static;
 
     fn empty<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D>;
     fn shape<const D: usize>(tensor: &Self::Primitive<D>) -> Shape<D>;
@@ -310,6 +393,9 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, Bool>;
     fn equal_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool>;
+    fn elem_type_name() -> &'static str {
+        core::any::type_name::<Self::Elem>()
+    }
 }
 
 impl<B: Backend> BasicOps<B> for Float {
