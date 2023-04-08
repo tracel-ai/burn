@@ -6,7 +6,7 @@ use crate::metric::dashboard::cli::CLIDashboardRenderer;
 use crate::metric::dashboard::Dashboard;
 use crate::metric::{Adaptor, Metric, Numeric};
 use crate::AsyncTrainerCallback;
-use burn_core::lr_scheduler::LearningRateScheduler;
+use burn_core::lr_scheduler::LRScheduler;
 use burn_core::module::ADModule;
 use burn_core::optim::Optimizer;
 use burn_core::record::{FileRecorder, Record, RecordSettings};
@@ -23,7 +23,7 @@ where
     B: ADBackend,
     M: ADModule<B>,
     O: Optimizer<M, B>,
-    S: LearningRateScheduler,
+    S: LRScheduler,
 {
     dashboard: Dashboard<T, V>,
     checkpointer_model: Option<Arc<dyn Checkpointer<M::Record> + Send + Sync>>,
@@ -36,14 +36,14 @@ where
     devices: Vec<B::Device>,
 }
 
-impl<B, T, V, Model, O, LrSch> LearnerBuilder<B, T, V, Model, O, LrSch>
+impl<B, T, V, Model, Optim, LR> LearnerBuilder<B, T, V, Model, Optim, LR>
 where
     T: Send + Sync + 'static,
     V: Send + Sync + 'static,
     B: ADBackend,
     Model: ADModule<B>,
-    O: Optimizer<Model, B>,
-    LrSch: LearningRateScheduler,
+    Optim: Optimizer<Model, B>,
+    LR: LRScheduler,
 {
     pub fn new(directory: &str) -> Self {
         let renderer = Box::new(CLIDashboardRenderer::new());
@@ -155,7 +155,7 @@ where
     where
         S: RecordSettings + 'static,
         <Model::Record as Record>::Item<S>: Serialize + DeserializeOwned,
-        <O::Record as Record>::Item<S>: Serialize + DeserializeOwned,
+        <Optim::Record as Record>::Item<S>: Serialize + DeserializeOwned,
         S::Recorder: FileRecorder,
     {
         self.checkpointer_model = Some(Arc::new(FileCheckpointer::<S>::new(
@@ -176,17 +176,19 @@ where
         self
     }
 
-    /// Create the [learner](Learner) from a [module](ADModule) and an
+    /// Create the [learner](Learner) from a [model](ADModule) and an [optimizer](Optimizer).
+    /// The [learning rate scheduler](LRScheduler) can also be a simple
+    /// [learning rate](burn_core::LearningRate).
     pub fn build(
         self,
         model: Model,
-        optim: O,
-        scheduler: LrSch,
-    ) -> Learner<B, Model, O, LrSch, T, V>
+        optim: Optim,
+        lr_scheduler: LR,
+    ) -> Learner<B, Model, Optim, LR, T, V>
     where
         Model::Record: 'static,
-        O::Record: 'static,
-        LrSch::Record: 'static,
+        Optim::Record: 'static,
+        LR::Record: 'static,
     {
         self.init_logger();
         let callack = Box::new(self.dashboard);
@@ -194,7 +196,7 @@ where
 
         let checkpointer_optimizer = match self.checkpointer_optimizer {
             Some(checkpointer) => {
-                let checkpointer: Box<dyn Checkpointer<O::Record>> =
+                let checkpointer: Box<dyn Checkpointer<Optim::Record>> =
                     Box::new(AsyncCheckpointer::new(checkpointer));
                 Some(checkpointer)
             }
@@ -210,7 +212,7 @@ where
         };
         let checkpointer_scheduler = match self.checkpointer_scheduler {
             Some(checkpointer) => {
-                let checkpointer: Box<dyn Checkpointer<LrSch::Record>> =
+                let checkpointer: Box<dyn Checkpointer<LR::Record>> =
                     Box::new(AsyncCheckpointer::new(checkpointer));
                 Some(checkpointer)
             }
@@ -220,7 +222,7 @@ where
         Learner {
             model,
             optim,
-            scheduler,
+            lr_scheduler,
             num_epochs: self.num_epochs,
             callback,
             checkpoint: self.checkpoint,

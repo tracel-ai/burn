@@ -32,4 +32,7 @@ pub type TestBackend = burn_tch::TchBackend<f32>;
 pub type TestADBackend = burn_autodiff::ADBackendDecorator<TestBackend>;
 
 /// Type alias for the learning rate.
+///
+/// LearningRate also implements [learning rate scheduler](crate::lr_scheduler::LRScheduler) so it
+/// can be used for constant learning rate.
 pub type LearningRate = f64; // We could potentially change the type.

@@ -1,5 +1,5 @@
-use crate as burn;
 use crate::module::ADModule;
+use crate::{self as burn, LearningRate};
 
 use super::decay::{WeightDecay, WeightDecayConfig, WeightDecayState};
 use super::momentum::{MomemtumState, Momentum, MomentumConfig};
@@ -53,7 +53,7 @@ impl<B: Backend> SimpleOptimizer<B> for Sgd<B> {
 
     fn step<const D: usize>(
         &self,
-        learning_rate: f64,
+        lr: LearningRate,
         tensor: Tensor<B, D>,
         mut grad: Tensor<B, D>,
         state: Option<Self::State<D>>,
@@ -79,7 +79,7 @@ impl<B: Backend> SimpleOptimizer<B> for Sgd<B> {
         }
 
         let state = SgdState::new(state_weight_decay, state_momemtum);
-        let delta = grad.mul_scalar(learning_rate);
+        let delta = grad.mul_scalar(lr);
 
         (tensor - delta, Some(state))
     }
@@ -101,7 +101,7 @@ mod tests {
         TestADBackend, TestBackend,
     };
 
-    static LEARNING_RATE: f64 = 0.02;
+    const LEARNING_RATE: LearningRate = 0.02;
 
     #[test]
     fn with_updated_params_should_have_state() {

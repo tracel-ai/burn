@@ -27,13 +27,10 @@ impl Metric for LearningRateMetric {
     type Input = ();
 
     fn update(&mut self, _item: &(), metadata: &MetricMetadata) -> MetricEntry {
-        let learning_rate = metadata.learning_rate.unwrap_or(0.0);
+        let lr = metadata.lr.unwrap_or(0.0);
 
-        self.state.update(
-            learning_rate,
-            1,
-            FormatOptions::new("Learning Rate").precision(2),
-        )
+        self.state
+            .update(lr, 1, FormatOptions::new("Learning Rate").precision(2))
     }
 
     fn clear(&mut self) {

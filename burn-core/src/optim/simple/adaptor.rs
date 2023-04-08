@@ -2,6 +2,7 @@ use super::{record::AdaptorRecord, SimpleOptimizer};
 use crate::{
     module::{ADModule, ModuleMapper, ParamId},
     optim::{GradientsParams, Optimizer},
+    LearningRate,
 };
 use burn_tensor::{backend::ADBackend, Tensor};
 use core::marker::PhantomData;
@@ -43,13 +44,9 @@ where
 {
     type Record = HashMap<ParamId, AdaptorRecord<O, B::InnerBackend>>;
 
-    fn step(&mut self, learning_rate: f64, module: M, mut grads: GradientsParams) -> M {
-        let mut mapper = SimpleOptimizerMapper::<M, B, O>::new(
-            &self.optim,
-            &mut self.records,
-            &mut grads,
-            learning_rate,
-        );
+    fn step(&mut self, lr: LearningRate, module: M, mut grads: GradientsParams) -> M {
+        let mut mapper =
+            SimpleOptimizerMapper::<M, B, O>::new(&self.optim, &mut self.records, &mut grads, lr);
         module.map(&mut mapper)
     }
 
@@ -73,7 +70,7 @@ where
     optimizer: &'a O,
     records: &'a mut HashMap<ParamId, AdaptorRecord<O, B::InnerBackend>>,
     grads: &'a mut GradientsParams,
-    learning_rate: f64,
+    lr: LearningRate,
     phatom: PhantomData<M>,
 }
 
@@ -92,7 +89,7 @@ where
             let (key, record) = self.records.remove_entry(id).unzip();
 
             let (tensor, state) = self.optimizer.step(
-                self.learning_rate,
+                self.lr,
                 tensor.inner(),
                 grad,
                 record.map(|record| O::to_device(record.into_state(), &device)),

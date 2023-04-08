@@ -123,7 +123,7 @@ impl<T> From<&LearnerItem<T>> for MetricMetadata {
             epoch: item.epoch,
             epoch_total: item.epoch_total,
             iteration: item.iteration,
-            learning_rate: item.learning_rate,
+            lr: item.lr,
         }
     }
 }

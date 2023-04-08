@@ -1,6 +1,6 @@
 use burn_core::{
     data::dataloader::DataLoader,
-    lr_scheduler::LearningRateScheduler,
+    lr_scheduler::LRScheduler,
     module::ADModule,
     optim::{GradientsAccumulator, Optimizer},
     tensor::backend::ADBackend,
@@ -58,11 +58,11 @@ impl<I> ValidEpoch<I> {
 }
 
 impl<TI> TrainEpoch<TI> {
-    pub fn run<B, M, O, S, TO, VO>(
+    pub fn run<B, M, O, LR, TO, VO>(
         &self,
         mut model: M,
         mut optim: O,
-        scheduler: &mut S,
+        scheduler: &mut LR,
         callback: &mut Box<dyn LearnerCallback<TO, VO>>,
     ) -> (M, O)
     where
@@ -70,7 +70,7 @@ impl<TI> TrainEpoch<TI> {
         M: ADModule<B>,
         O: Optimizer<M, B>,
         M: TrainStep<TI, TO>,
-        S: LearningRateScheduler,
+        LR: LRScheduler,
     {
         log::info!("Executing training step for epoch {}", self.epoch,);
 
@@ -81,7 +81,7 @@ impl<TI> TrainEpoch<TI> {
 
         while let Some(item) = iterator.next() {
             iteration += 1;
-            let learning_rate = scheduler.step();
+            let lr = scheduler.step();
             log::info!("Iteration {}", iteration);
 
             let progress = iterator.progress();
@@ -94,11 +94,11 @@ impl<TI> TrainEpoch<TI> {
 
                     if accumulation <= accumulation_current {
                         let grads = accumulator.grads();
-                        model = optim.step(learning_rate, model, grads);
+                        model = optim.step(lr, model, grads);
                         accumulation_current = 0;
                     }
                 }
-                None => model = optim.step(learning_rate, model, item.grads),
+                None => model = optim.step(lr, model, item.grads),
             }
 
             let item = LearnerItem::new(
@@ -107,7 +107,7 @@ impl<TI> TrainEpoch<TI> {
                 self.epoch,
                 self.epoch_total,
                 iteration,
-                Some(learning_rate),
+                Some(lr),
             );
 
             callback.on_train_item(item);
@@ -123,7 +123,7 @@ impl<TI> TrainEpoch<TI> {
         &self,
         mut model: M,
         mut optim: O,
-        scheduler: &mut S,
+        lr_scheduler: &mut S,
         callback: &mut Box<dyn LearnerCallback<TO, VO>>,
         devices: Vec<B::Device>,
     ) -> (M, O)
@@ -132,7 +132,7 @@ impl<TI> TrainEpoch<TI> {
         M: ADModule<B> + 'static,
         O: Optimizer<M, B>,
         M: TrainStep<TI, TO>,
-        S: LearningRateScheduler,
+        S: LRScheduler,
         TI: Send + 'static,
         TO: Send + 'static,
     {
@@ -161,7 +161,7 @@ impl<TI> TrainEpoch<TI> {
 
             for item in items {
                 iteration += 1;
-                let learning_rate = scheduler.step();
+                let lr = lr_scheduler.step();
                 let progress = iterator.progress();
 
                 let grads = item.grads.to_device(&device_main, &model);
@@ -171,7 +171,7 @@ impl<TI> TrainEpoch<TI> {
 
                 if accumulation <= accumulation_current {
                     let grads = accumulator.grads();
-                    model = optim.step(learning_rate, model, grads);
+                    model = optim.step(lr, model, grads);
                     accumulation_current = 0;
                 }
 
@@ -181,7 +181,7 @@ impl<TI> TrainEpoch<TI> {
                     self.epoch,
                     self.epoch_total,
                     iteration,
-                    Some(learning_rate),
+                    Some(lr),
                 );
 
                 callback.on_train_item(item);

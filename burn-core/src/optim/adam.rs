@@ -1,4 +1,4 @@
-use crate::{self as burn, module::ADModule, record::Record};
+use crate::{self as burn, module::ADModule, record::Record, LearningRate};
 
 use super::{
     decay::{WeightDecay, WeightDecayConfig, WeightDecayState},
@@ -41,7 +41,7 @@ impl<B: Backend> SimpleOptimizer<B> for Adam<B> {
 
     fn step<const D: usize>(
         &self,
-        learning_rate: f64,
+        lr: LearningRate,
         tensor: Tensor<B, D>,
         mut grad: Tensor<B, D>,
         state: Option<Self::State<D>>,
@@ -63,7 +63,7 @@ impl<B: Backend> SimpleOptimizer<B> for Adam<B> {
         let (grad, state_momemtum) = self.momentum.transform(grad, state_momemtum);
 
         let state = AdamState::new(state_weight_decay, state_momemtum);
-        let delta = grad.mul_scalar(learning_rate);
+        let delta = grad.mul_scalar(lr);
 
         (tensor - delta, Some(state))
     }
@@ -170,7 +170,7 @@ mod tests {
     use crate::tensor::{Data, Distribution, Tensor};
     use crate::{nn, TestADBackend, TestBackend};
 
-    static LEARNING_RATE: f64 = 0.01;
+    const LEARNING_RATE: LearningRate = 0.01;
 
     #[test]
     fn test_adam_optimizer_save_load_state() {

@@ -3,7 +3,6 @@ use std::sync::Arc;
 use crate::data::MNISTBatcher;
 use crate::model::Model;
 
-use burn::lr_scheduler::constant::ConstantLearningRate;
 use burn::module::Module;
 use burn::optim::decay::WeightDecayConfig;
 use burn::optim::AdamConfig;
@@ -66,11 +65,7 @@ pub fn run<B: ADBackend>(device: B::Device) {
         .with_file_checkpointer::<DefaultRecordSettings>(1)
         .devices(vec![device])
         .num_epochs(config.num_epochs)
-        .build(
-            Model::new(),
-            config.optimizer.init(),
-            ConstantLearningRate::new(1e-4),
-        );
+        .build(Model::new(), config.optimizer.init(), 1e-4);
 
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 
