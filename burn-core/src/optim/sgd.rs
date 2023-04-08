@@ -1,5 +1,5 @@
-use crate as burn;
 use crate::module::ADModule;
+use crate::{self as burn, LearningRate};
 
 use super::decay::{WeightDecay, WeightDecayConfig, WeightDecayState};
 use super::momentum::{MomemtumState, Momentum, MomentumConfig};
@@ -7,14 +7,12 @@ use super::SimpleOptimizer;
 use crate::config::Config;
 use crate::optim::adaptor::OptimizerAdaptor;
 use crate::record::Record;
-use crate::tensor::{ElementConversion, Tensor};
+use crate::tensor::Tensor;
 use burn_tensor::backend::{ADBackend, Backend};
 
 /// Configuration to create the [Sgd](Sgd) optimizer.
 #[derive(Config)]
 pub struct SgdConfig {
-    /// Learning rate for the optimizer.
-    pub learning_rate: f64,
     /// [Weight decay](WeightDecayConfig) config.
     pub weight_decay: Option<WeightDecayConfig>,
     /// [Momentum](MomentumConfig) config.
@@ -25,7 +23,6 @@ pub struct SgdConfig {
 ///
 /// Momentum is optinal and can be [configured](SgdConfig::momentum).
 pub struct Sgd<B: Backend> {
-    learning_rate: B::FloatElem,
     momentum: Option<Momentum<B>>,
     weight_decay: Option<WeightDecay<B>>,
 }
@@ -40,12 +37,10 @@ impl SgdConfig {
     pub fn init<B: ADBackend, M: ADModule<B>>(
         &self,
     ) -> OptimizerAdaptor<Sgd<B::InnerBackend>, M, B> {
-        let learning_rate = self.learning_rate.elem();
         let momentum = self.momentum.as_ref().map(Momentum::new);
         let weight_decay = self.weight_decay.as_ref().map(WeightDecay::new);
 
         Sgd {
-            learning_rate,
             momentum,
             weight_decay,
         }
@@ -58,6 +53,7 @@ impl<B: Backend> SimpleOptimizer<B> for Sgd<B> {
 
     fn step<const D: usize>(
         &self,
+        lr: LearningRate,
         tensor: Tensor<B, D>,
         mut grad: Tensor<B, D>,
         state: Option<Self::State<D>>,
@@ -83,7 +79,7 @@ impl<B: Backend> SimpleOptimizer<B> for Sgd<B> {
         }
 
         let state = SgdState::new(state_weight_decay, state_momemtum);
-        let delta = grad.mul_scalar(self.learning_rate);
+        let delta = grad.mul_scalar(lr);
 
         (tensor - delta, Some(state))
     }
@@ -105,6 +101,8 @@ mod tests {
         TestADBackend, TestBackend,
     };
 
+    const LEARNING_RATE: LearningRate = 0.02;
+
     #[test]
     fn with_updated_params_should_have_state() {
         let layer = layer();
@@ -112,7 +110,7 @@ mod tests {
         let loss = layer.forward(random_tensor());
         let grads = loss.backward();
         let grads = GradientsParams::from_grads(grads, &layer);
-        let _layer = optim.step(layer, grads);
+        let _layer = optim.step(LEARNING_RATE, layer, grads);
 
         let record = optim.to_record();
 
@@ -133,7 +131,7 @@ mod tests {
         let loss = layer.forward(random_tensor());
         let grads = loss.backward();
         let grads = GradientsParams::from_grads(grads, &layer);
-        let _layer = optim.step(layer, grads);
+        let _layer = optim.step(LEARNING_RATE, layer, grads);
 
         let record = optim.to_record();
         let optim_new = sgd_with_all();
@@ -155,7 +153,6 @@ mod tests {
 
     fn sgd_with_all() -> OptimizerAdaptor<Sgd<TestBackend>, Linear<TestADBackend>, TestADBackend> {
         SgdConfig {
-            learning_rate: 0.02,
             weight_decay: Some(WeightDecayConfig { penalty: 0.05 }),
             momentum: Some(MomentumConfig {
                 momentum: 0.9,

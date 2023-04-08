@@ -38,8 +38,7 @@ pub struct MnistTrainingConfig {
 
 pub fn run<B: ADBackend>(device: B::Device) {
     // Config
-    let config_optimizer =
-        AdamConfig::new(1e-4).with_weight_decay(Some(WeightDecayConfig::new(5e-5)));
+    let config_optimizer = AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5)));
     let config = MnistTrainingConfig::new(config_optimizer);
     B::seed(config.seed);
 
@@ -58,9 +57,6 @@ pub fn run<B: ADBackend>(device: B::Device) {
         .build(Arc::new(MNISTDataset::test()));
 
     // Model
-    let optim = config.optimizer.init();
-    let model = Model::new();
-
     let learner = LearnerBuilder::new(ARTIFACT_DIR)
         .metric_train_plot(AccuracyMetric::new())
         .metric_valid_plot(AccuracyMetric::new())
@@ -69,7 +65,7 @@ pub fn run<B: ADBackend>(device: B::Device) {
         .with_file_checkpointer::<DefaultRecordSettings>(1)
         .devices(vec![device])
         .num_epochs(config.num_epochs)
-        .build(model, optim);
+        .build(Model::new(), config.optimizer.init(), 1e-4);
 
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 

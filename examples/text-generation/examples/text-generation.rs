@@ -7,7 +7,7 @@ fn main() {
     let config = ExperimentConfig::new(
         burn::nn::transformer::TransformerEncoderConfig::new(512, 2048, 16, 8)
             .with_norm_first(true),
-        burn::optim::AdamConfig::new(2.5e-5)
+        burn::optim::AdamConfig::new()
             .with_epsilon(1e-4)
             .with_weight_decay(Some(WeightDecayConfig::new(1.0e-5))),
     );

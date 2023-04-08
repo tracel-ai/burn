@@ -5,6 +5,7 @@ use crate::{
 use burn::{
     config::Config,
     data::{dataloader::DataLoaderBuilder, dataset::Dataset},
+    lr_scheduler::constant::ConstantLR,
     module::Module,
     nn::transformer::TransformerEncoderConfig,
     optim::AdamConfig,
@@ -71,6 +72,7 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
         .build(dataset_test);
 
     let optim = config.optimizer.init();
+    let lr_scheduler = ConstantLR::new(2.5e-5);
 
     let learner = LearnerBuilder::new(artifact_dir)
         .metric_train(CUDAMetric::new())
@@ -83,7 +85,7 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
         .devices(vec![device])
         .grads_accumulation(16)
         .num_epochs(config.num_epochs)
-        .build(model, optim);
+        .build(model, optim, lr_scheduler);
 
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 

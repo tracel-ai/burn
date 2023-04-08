@@ -1,5 +1,5 @@
 use super::state::{FormatOptions, NumericMetricState};
-use super::MetricEntry;
+use super::{MetricEntry, MetricMetadata};
 use crate::metric::{Metric, Numeric};
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{Int, Tensor};
@@ -28,7 +28,7 @@ impl<B: Backend> AccuracyMetric<B> {
 impl<B: Backend> Metric for AccuracyMetric<B> {
     type Input = AccuracyInput<B>;
 
-    fn update(&mut self, input: &AccuracyInput<B>) -> MetricEntry {
+    fn update(&mut self, input: &AccuracyInput<B>, _metadata: &MetricMetadata) -> MetricEntry {
         let [batch_size, _n_classes] = input.outputs.dims();
 
         let targets = input.targets.clone().to_device(&B::Device::default());

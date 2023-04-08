@@ -2,6 +2,7 @@ use super::Learner;
 
 use crate::{TrainEpoch, ValidEpoch};
 use burn_core::data::dataloader::DataLoader;
+use burn_core::lr_scheduler::LRScheduler;
 use burn_core::module::ADModule;
 use burn_core::optim::{GradientsParams, Optimizer};
 use burn_core::tensor::backend::ADBackend;
@@ -27,13 +28,14 @@ pub trait ValidStep<VI, VO> {
     fn step(&self, item: VI) -> VO;
 }
 
-impl<B, M, O, TO, VO> Learner<B, M, O, TO, VO>
+impl<B, M, O, LR, TO, VO> Learner<B, M, O, LR, TO, VO>
 where
     VO: Send + Sync + 'static,
     TO: Send + Sync + 'static,
     B: ADBackend,
     M: ADModule<B> + core::fmt::Display,
     O: Optimizer<M, B>,
+    LR: LRScheduler,
 {
     pub fn fit<TI, VI>(
         mut self,
@@ -75,11 +77,13 @@ where
                 (model, optim) = epoch_train.run_multi_device(
                     model,
                     optim,
+                    &mut self.lr_scheduler,
                     &mut self.callback,
                     self.devices.clone(),
                 )
             } else {
-                (model, optim) = epoch_train.run(model, optim, &mut self.callback);
+                (model, optim) =
+                    epoch_train.run(model, optim, &mut self.lr_scheduler, &mut self.callback);
             }
 
             let epoch_valid = ValidEpoch::new(dataloader_valid.clone(), epoch, self.num_epochs);
@@ -88,8 +92,10 @@ where
             Self::checkpoint(
                 &model,
                 &optim,
+                &self.lr_scheduler,
                 &self.checkpointer_model,
                 &self.checkpointer_optimizer,
+                &self.checkpointer_scheduler,
                 epoch,
             );
         }

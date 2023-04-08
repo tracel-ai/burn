@@ -1,3 +1,14 @@
+use burn_core::{data::dataloader::Progress, LearningRate};
+
+/// Metric metadata that can be used when computing metrics.
+pub struct MetricMetadata {
+    pub progress: Progress,
+    pub epoch: usize,
+    pub epoch_total: usize,
+    pub iteration: usize,
+    pub lr: Option<LearningRate>,
+}
+
 /// Metric trait.
 ///
 /// # Notes
@@ -9,7 +20,7 @@ pub trait Metric: Send + Sync {
     type Input;
 
     /// Update the metric state and returns the current metric entry.
-    fn update(&mut self, item: &Self::Input) -> MetricEntry;
+    fn update(&mut self, item: &Self::Input, metadata: &MetricMetadata) -> MetricEntry;
     /// Clear the metric state.
     fn clear(&mut self);
 }

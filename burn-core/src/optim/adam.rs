@@ -1,4 +1,4 @@
-use crate::{self as burn, module::ADModule, record::Record};
+use crate::{self as burn, module::ADModule, record::Record, LearningRate};
 
 use super::{
     decay::{WeightDecay, WeightDecayConfig, WeightDecayState},
@@ -11,8 +11,6 @@ use burn_tensor::{backend::Backend, ElementConversion};
 
 #[derive(Config)]
 pub struct AdamConfig {
-    /// Learning rate for the optimizer.
-    learning_rate: f64,
     /// Parameter for Adam.
     #[config(default = 0.9)]
     beta_1: f32,
@@ -28,7 +26,6 @@ pub struct AdamConfig {
 
 /// Adam optimizer as described in the paper [Adam: A Method for Stochastic Optimization](https://arxiv.org/pdf/1412.6980.pdf).
 pub struct Adam<B: Backend> {
-    learning_rate: B::FloatElem,
     momentum: AdaptiveMomentum,
     weight_decay: Option<WeightDecay<B>>,
 }
@@ -44,6 +41,7 @@ impl<B: Backend> SimpleOptimizer<B> for Adam<B> {
 
     fn step<const D: usize>(
         &self,
+        lr: LearningRate,
         tensor: Tensor<B, D>,
         mut grad: Tensor<B, D>,
         state: Option<Self::State<D>>,
@@ -65,7 +63,7 @@ impl<B: Backend> SimpleOptimizer<B> for Adam<B> {
         let (grad, state_momemtum) = self.momentum.transform(grad, state_momemtum);
 
         let state = AdamState::new(state_weight_decay, state_momemtum);
-        let delta = grad.mul_scalar(self.learning_rate);
+        let delta = grad.mul_scalar(lr);
 
         (tensor - delta, Some(state))
     }
@@ -83,7 +81,6 @@ impl<B: Backend> SimpleOptimizer<B> for Adam<B> {
 impl AdamConfig {
     pub fn init<B: ADBackend, M: ADModule<B>>(&self) -> impl Optimizer<M, B> {
         let optim = Adam {
-            learning_rate: self.learning_rate.elem(),
             momentum: AdaptiveMomentum {
                 beta_1: self.beta_1,
                 beta_2: self.beta_2,
@@ -173,6 +170,8 @@ mod tests {
     use crate::tensor::{Data, Distribution, Tensor};
     use crate::{nn, TestADBackend, TestBackend};
 
+    const LEARNING_RATE: LearningRate = 0.01;
+
     #[test]
     fn test_adam_optimizer_save_load_state() {
         let linear = nn::LinearConfig::new(6, 6).init();
@@ -180,7 +179,7 @@ mod tests {
         let mut optimizer = create_adam();
         let grads = linear.forward(x).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let _linear = optimizer.step(linear, grads);
+        let _linear = optimizer.step(LEARNING_RATE, linear, grads);
         optimizer
             .to_record()
             .record::<DebugRecordSettings>("/tmp/test_optim".into())
@@ -219,7 +218,7 @@ mod tests {
         ])
         .require_grad();
 
-        let mut optimizer = AdamConfig::new(0.01)
+        let mut optimizer = AdamConfig::new()
             .with_epsilon(1e-8)
             .with_beta_1(0.9)
             .with_beta_2(0.999)
@@ -227,11 +226,11 @@ mod tests {
 
         let grads = linear.forward(x_1).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let linear = optimizer.step(linear, grads);
+        let linear = optimizer.step(LEARNING_RATE, linear, grads);
 
         let grads = linear.forward(x_2).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let linear = optimizer.step(linear, grads);
+        let linear = optimizer.step(LEARNING_RATE, linear, grads);
 
         let state_updated = linear.into_record();
         let state_expected = given_linear_record(
@@ -277,9 +276,8 @@ mod tests {
 
     fn create_adam() -> OptimizerAdaptor<Adam<TestBackend>, nn::Linear<TestADBackend>, TestADBackend>
     {
-        let config = AdamConfig::new(0.01);
+        let config = AdamConfig::new();
         Adam {
-            learning_rate: config.learning_rate.elem(),
             momentum: AdaptiveMomentum {
                 beta_1: config.beta_1,
                 beta_2: config.beta_2,

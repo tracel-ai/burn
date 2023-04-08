@@ -1,4 +1,4 @@
-use crate::record::Record;
+use crate::{record::Record, LearningRate};
 use burn_tensor::{backend::Backend, Tensor};
 
 /// Simple optimizer is an opinionated trait to simplify the process of implementing an
@@ -19,6 +19,7 @@ where
     /// the saving and loading of recorded states.
     fn step<const D: usize>(
         &self,
+        lr: LearningRate,
         tensor: Tensor<B, D>,
         grad: Tensor<B, D>,
         state: Option<Self::State<D>>,

@@ -11,6 +11,9 @@ pub mod data;
 #[cfg(feature = "std")]
 pub mod optim;
 
+#[cfg(feature = "std")]
+pub mod lr_scheduler;
+
 pub mod module;
 pub mod nn;
 pub mod record;
@@ -27,3 +30,9 @@ pub type TestBackend = burn_tch::TchBackend<f32>;
 #[cfg(feature = "std")]
 #[cfg(test)]
 pub type TestADBackend = burn_autodiff::ADBackendDecorator<TestBackend>;
+
+/// Type alias for the learning rate.
+///
+/// LearningRate also implements [learning rate scheduler](crate::lr_scheduler::LRScheduler) so it
+/// can be used for constant learning rate.
+pub type LearningRate = f64; // We could potentially change the type.

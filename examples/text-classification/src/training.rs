@@ -5,13 +5,14 @@ use crate::{
 use burn::{
     config::Config,
     data::{dataloader::DataLoaderBuilder, dataset::transform::SamplerDataset},
+    lr_scheduler::noam::NoamLRSchedulerConfig,
     module::Module,
     nn::transformer::TransformerEncoderConfig,
-    optim::SgdConfig,
+    optim::AdamConfig,
     record::{DefaultRecordSettings, Record},
     tensor::backend::ADBackend,
     train::{
-        metric::{AccuracyMetric, CUDAMetric, LossMetric},
+        metric::{AccuracyMetric, CUDAMetric, LearningRateMetric, LossMetric},
         LearnerBuilder,
     },
 };
@@ -20,7 +21,7 @@ use std::sync::Arc;
 #[derive(Config)]
 pub struct ExperimentConfig {
     pub transformer: TransformerEncoderConfig,
-    pub optimizer: SgdConfig,
+    pub optimizer: AdamConfig,
     #[config(default = 256)]
     pub max_seq_length: usize,
     #[config(default = 32)]
@@ -71,6 +72,10 @@ pub fn train<B: ADBackend, D: TextClassificationDataset + 'static>(
         .build(dataset_test);
 
     let optim = config.optimizer.init();
+    let lr_scheduler = NoamLRSchedulerConfig::new(0.25)
+        .with_warmup_steps(1000)
+        .with_model_size(config.transformer.d_model)
+        .init();
 
     let learner = LearnerBuilder::new(artifact_dir)
         .metric_train(CUDAMetric::new())
@@ -79,10 +84,11 @@ pub fn train<B: ADBackend, D: TextClassificationDataset + 'static>(
         .metric_valid(AccuracyMetric::new())
         .metric_train_plot(LossMetric::new())
         .metric_valid_plot(LossMetric::new())
+        .metric_train_plot(LearningRateMetric::new())
         .with_file_checkpointer::<DefaultRecordSettings>(2)
         .devices(vec![device])
         .num_epochs(config.num_epochs)
-        .build(model, optim);
+        .build(model, optim, lr_scheduler);
 
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 

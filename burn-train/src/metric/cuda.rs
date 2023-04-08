@@ -1,4 +1,4 @@
-use super::Adaptor;
+use super::{Adaptor, MetricMetadata};
 use crate::metric::{Metric, MetricEntry};
 use nvml_wrapper::Nvml;
 
@@ -28,7 +28,7 @@ impl<T> Adaptor<()> for T {
 impl Metric for CUDAMetric {
     type Input = ();
 
-    fn update(&mut self, _item: &()) -> MetricEntry {
+    fn update(&mut self, _item: &(), _metadata: &MetricMetadata) -> MetricEntry {
         let name = String::from("Cuda");
 
         let mut formatted = String::new();
