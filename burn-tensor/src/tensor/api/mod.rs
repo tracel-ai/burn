@@ -1,3 +1,5 @@
+pub(crate) mod error;
+
 mod base;
 mod bool;
 mod float;

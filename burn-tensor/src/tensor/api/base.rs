@@ -4,7 +4,7 @@ use alloc::vec;
 use alloc::vec::Vec;
 use core::{fmt::Debug, ops::Range};
 
-use crate::{backend::Backend, Bool, Data, Float, Int, Shape, TensorKind};
+use crate::{backend::Backend, tensor_check, Bool, Data, Float, Int, Shape, TensorKind};
 
 #[derive(new, Clone, Debug)]
 pub struct Tensor<B, const D: usize, K = Float>
@@ -48,7 +48,13 @@ where
     ///
     /// If the tensor can not be reshape to the given shape.
     pub fn reshape<const D2: usize, S: Into<Shape<D2>>>(self, shape: S) -> Tensor<B, D2, K> {
-        Tensor::new(K::reshape::<D, D2>(self.primitive, shape.into()))
+        let shape = shape.into();
+        tensor_check!(
+            ops: reshape,
+            shape_original: &self.shape(),
+            shape_target: &shape
+        );
+        Tensor::new(K::reshape::<D, D2>(self.primitive, shape))
     }
 
     /// Flatten the tensor along a given range of dimensions.
@@ -169,6 +175,11 @@ where
     /// }
     /// ```
     pub fn index<const D2: usize>(self, indexes: [core::ops::Range<usize>; D2]) -> Self {
+        tensor_check!(
+            ops: index,
+            shape: &self.shape(),
+            indexes: &indexes
+        );
         Self::new(K::index(self.primitive, indexes))
     }
 
