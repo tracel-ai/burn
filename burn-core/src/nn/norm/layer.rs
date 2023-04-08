@@ -38,6 +38,15 @@ impl LayerNormConfig {
             epsilon: self.epsilon,
         }
     }
+
+    /// Initialize a new [layer norm](LayerNorm) module with a [record](LayerNormRecord).
+    pub fn init_with<B: Backend>(&self, record: LayerNormRecord<B>) -> LayerNorm<B> {
+        LayerNorm {
+            gamma: record.gamma,
+            beta: record.beta,
+            epsilon: self.epsilon,
+        }
+    }
 }
 
 impl<B: Backend> LayerNorm<B> {

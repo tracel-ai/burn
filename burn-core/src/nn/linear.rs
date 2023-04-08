@@ -65,6 +65,14 @@ impl LinearConfig {
             bias: bias.map(Param::from),
         }
     }
+
+    /// Initialize a new [linear](Linear) module with a [record](LinearRecord).
+    pub fn init_with<B: Backend>(&self, record: LinearRecord<B>) -> Linear<B> {
+        Linear {
+            weight: record.weight,
+            bias: record.bias,
+        }
+    }
 }
 
 impl<B: Backend> Linear<B> {

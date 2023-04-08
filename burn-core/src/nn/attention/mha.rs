@@ -74,6 +74,29 @@ impl MultiHeadAttentionConfig {
             min_float: self.min_float,
         }
     }
+
+    /// Initialize a new [multihead attention](MultiHeadAttention) module with a
+    /// [record](MultiHeadAttentionRecord).
+    pub fn init_with<B: Backend>(
+        &self,
+        record: MultiHeadAttentionRecord<B>,
+    ) -> MultiHeadAttention<B> {
+        let linear = |config: &Self, record| {
+            nn::LinearConfig::new(config.d_model, config.d_model).init_with(record)
+        };
+
+        MultiHeadAttention {
+            query: linear(self, record.query),
+            key: linear(self, record.key),
+            value: linear(self, record.value),
+            output: linear(self, record.output),
+            dropout: nn::DropoutConfig::new(self.dropout).init(),
+            activation: nn::GELU::new(),
+            n_heads: self.n_heads,
+            d_k: self.d_model / self.n_heads,
+            min_float: self.min_float,
+        }
+    }
 }
 
 impl<B: Backend> MhaInput<B> {

@@ -101,6 +101,15 @@ impl<const D: usize, B: Backend> RunningState<Tensor<B, D>> {
         }
     }
 
+    /// Create a new running state from a record.
+    pub fn from_record(record: Param<Tensor<B, D>>) -> Self {
+        Self {
+            id: record.id,
+            values: Arc::new(Mutex::new(HashMap::new())),
+            value: Arc::new(RwLock::new(record.value)),
+        }
+    }
+
     /// Update the value on the current thread.
     pub fn update(&self, value: Tensor<B, D>) {
         let thread_id = get_thread_current_id();
