@@ -29,6 +29,10 @@ pub fn infer<B: Backend, D: TextClassificationDataset + 'static>(
         config.max_seq_length,
     ));
 
+    println!("Loading weights ...");
+    let record = Record::load::<DefaultRecordSettings>(format!("{artifact_dir}/model").into())
+        .expect("Trained model weights");
+
     println!("Creating model ...");
     let model = TextClassificationModelConfig::new(
         config.transformer,
@@ -36,13 +40,8 @@ pub fn infer<B: Backend, D: TextClassificationDataset + 'static>(
         tokenizer.vocab_size(),
         config.max_seq_length,
     )
-    .init::<B>();
-
-    println!("Loading weights ...");
-    let record = Record::load::<DefaultRecordSettings>(format!("{artifact_dir}/model").into())
-        .expect("Trained model weights");
-    let model = model.load_record(record);
-    let model = model.fork(&device);
+    .init_with::<B>(record)
+    .to_device(&device);
 
     println!("Running inference ...");
     let item = batcher.batch(samples.clone());

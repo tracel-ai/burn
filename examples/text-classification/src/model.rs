@@ -48,6 +48,27 @@ impl TextClassificationModelConfig {
             max_seq_length: self.max_seq_length,
         }
     }
+    pub fn init_with<B: Backend>(
+        &self,
+        record: TextClassificationModelRecord<B>,
+    ) -> TextClassificationModel<B> {
+        let output =
+            LinearConfig::new(self.transformer.d_model, self.n_classes).init_with(record.output);
+        let transformer = self.transformer.init_with(record.transformer);
+        let embedding_token = EmbeddingConfig::new(self.vocab_size, self.transformer.d_model)
+            .init_with(record.embedding_token);
+        let embedding_pos = EmbeddingConfig::new(self.max_seq_length, self.transformer.d_model)
+            .init_with(record.embedding_pos);
+
+        TextClassificationModel {
+            transformer,
+            embedding_token,
+            embedding_pos,
+            output,
+            n_classes: self.n_classes,
+            max_seq_length: self.max_seq_length,
+        }
+    }
 }
 
 impl<B: Backend> TextClassificationModel<B> {
