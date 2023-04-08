@@ -43,6 +43,19 @@ impl PositionWiseFeedForwardConfig {
             gelu: GELU::new(),
         }
     }
+    /// Initialize a new [position-wise feed-forward](PositionWiseFeedForward) module with a
+    /// [record](PositionWiseFeedForwardRecord).
+    pub fn init_with<B: Backend>(
+        &self,
+        record: PositionWiseFeedForwardRecord<B>,
+    ) -> PositionWiseFeedForward<B> {
+        PositionWiseFeedForward {
+            linear_inner: LinearConfig::new(self.d_model, self.d_ff).init_with(record.linear_inner),
+            linear_outer: LinearConfig::new(self.d_ff, self.d_model).init_with(record.linear_outer),
+            dropout: DropoutConfig::new(self.dropout).init(),
+            gelu: GELU::new(),
+        }
+    }
 }
 
 impl<B: Backend> PositionWiseFeedForward<B> {

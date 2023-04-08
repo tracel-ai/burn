@@ -86,6 +86,16 @@ impl Conv1dConfig {
             padding: self.padding.clone(),
         }
     }
+    /// Initialize a new [conv1d](Conv1d) module with a [record](Conv1dRecord).
+    pub fn init_with<B: Backend>(&self, record: Conv1dRecord<B>) -> Conv1d<B> {
+        Conv1d {
+            weight: record.weight,
+            bias: record.bias,
+            stride: 1, // TODO: Add the stride to the config when properly supported.
+            kernel_size: self.kernel_size,
+            padding: self.padding.clone(),
+        }
+    }
 }
 
 impl<B: Backend> Conv1d<B> {

@@ -43,6 +43,12 @@ impl EmbeddingConfig {
             weight: Param::from(weight),
         }
     }
+    /// Initialize a new [embedding](Embedding) module with a [record](EmbeddingRecord).
+    pub fn init_with<B: Backend>(&self, record: EmbeddingRecord<B>) -> Embedding<B> {
+        Embedding {
+            weight: record.weight,
+        }
+    }
 }
 
 impl<B: Backend> Embedding<B> {

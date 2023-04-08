@@ -50,6 +50,21 @@ impl BatchNormConfig {
             epsilon: self.epsilon,
         }
     }
+
+    /// Initialize a new [batch norm](BatchNorm) module with a [record](BatchNormRecord).
+    pub fn init_with<B: Backend, const D: usize>(
+        &self,
+        record: BatchNormRecord<B, D>,
+    ) -> BatchNorm<B, D> {
+        BatchNorm {
+            gamma: record.gamma,
+            beta: record.beta,
+            running_mean: RunningState::from_record(record.running_mean),
+            running_var: RunningState::from_record(record.running_var),
+            momentum: self.momentum,
+            epsilon: self.epsilon,
+        }
+    }
 }
 
 impl<const D: usize, B: Backend> BatchNorm<B, D> {
