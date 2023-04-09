@@ -1,5 +1,5 @@
 use crate::{
-    backend::Backend, check, error::TensorCheck, BasicOps, Bool, Element, ElementConversion, Float,
+    backend::Backend, check, check::TensorCheck, BasicOps, Bool, Element, ElementConversion, Float,
     Int, Shape, Tensor, TensorKind,
 };
 
@@ -112,11 +112,13 @@ where
 
     /// Aggregate all elements along the given *dimension* or *axis* in the tensor with the mean operation.
     pub fn mean_dim(self, dim: usize) -> Self {
+        check!(TensorCheck::aggregate_dim::<D>("Mean", dim));
         Self::new(K::mean_dim(self.primitive, dim))
     }
 
     /// Aggregate all elements along the given *dimension* or *axis* in the tensor with the sum operation.
     pub fn sum_dim(self, dim: usize) -> Self {
+        check!(TensorCheck::aggregate_dim::<D>("Sum", dim));
         Self::new(K::sum_dim(self.primitive, dim))
     }
 

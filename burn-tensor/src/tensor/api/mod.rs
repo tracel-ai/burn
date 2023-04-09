@@ -1,4 +1,4 @@
-pub(crate) mod error;
+pub(crate) mod check;
 
 mod base;
 mod bool;
