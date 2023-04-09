@@ -1,6 +1,6 @@
 use crate::{
-    backend::Backend, tensor_check, BasicOps, Bool, Element, ElementConversion, Float, Int, Shape,
-    Tensor, TensorKind,
+    backend::Backend, check, error::TensorCheck, BasicOps, Bool, Element, ElementConversion, Float,
+    Int, Shape, Tensor, TensorKind,
 };
 
 impl<B, const D: usize, K> Tensor<B, D, K>
@@ -13,11 +13,7 @@ where
     /// `y = x2 + x1`
     #[allow(clippy::should_implement_trait)]
     pub fn add(self, other: Self) -> Self {
-        tensor_check!(
-            ops: add,
-            shape_lhs: &self.shape(),
-            shape_rhs: &other.shape()
-        );
+        check!(TensorCheck::binary_ops_ew("Add", &self, &other));
         Self::new(K::add(self.primitive, other.primitive))
     }
 
@@ -33,11 +29,7 @@ where
     /// `y = x2 - x1`
     #[allow(clippy::should_implement_trait)]
     pub fn sub(self, other: Self) -> Self {
-        tensor_check!(
-            ops: sub,
-            shape_lhs: &self.shape(),
-            shape_rhs: &other.shape()
-        );
+        check!(TensorCheck::binary_ops_ew("Sub", &self, &other));
         Self::new(K::sub(self.primitive, other.primitive))
     }
 
@@ -53,11 +45,7 @@ where
     /// `y = x2 / x1`
     #[allow(clippy::should_implement_trait)]
     pub fn div(self, other: Self) -> Self {
-        tensor_check!(
-            ops: div,
-            shape_lhs: &self.shape(),
-            shape_rhs: &other.shape()
-        );
+        check!(TensorCheck::binary_ops_ew("Div", &self, &other));
         Self::new(K::div(self.primitive, other.primitive))
     }
 
@@ -73,11 +61,7 @@ where
     /// `y = x2 * x1`
     #[allow(clippy::should_implement_trait)]
     pub fn mul(self, other: Self) -> Self {
-        tensor_check!(
-            ops: mul,
-            shape_lhs: &self.shape(),
-            shape_rhs: &other.shape()
-        );
+        check!(TensorCheck::binary_ops_ew("Mul", &self, &other));
         Self::new(K::mul(self.primitive, other.primitive))
     }
 
@@ -142,11 +126,7 @@ where
     ///
     /// If the two tensors don't have the same shape.
     pub fn greater(self, other: Self) -> Tensor<B, D, Bool> {
-        tensor_check!(
-            ops: greater,
-            shape_lhs: &self.shape(),
-            shape_rhs: &other.shape()
-        );
+        check!(TensorCheck::binary_ops_ew("Greater", &self, &other));
         K::greater(self.primitive, other.primitive)
     }
 
@@ -156,11 +136,7 @@ where
     ///
     /// If the two tensors don't have the same shape.
     pub fn greater_equal(self, other: Self) -> Tensor<B, D, Bool> {
-        tensor_check!(
-            ops: greater_equal,
-            shape_lhs: &self.shape(),
-            shape_rhs: &other.shape()
-        );
+        check!(TensorCheck::binary_ops_ew("Greater_equal", &self, &other));
         K::greater_equal(self.primitive, other.primitive)
     }
 
@@ -170,11 +146,7 @@ where
     ///
     /// If the two tensors don't have the same shape.
     pub fn lower(self, other: Self) -> Tensor<B, D, Bool> {
-        tensor_check!(
-            ops: lower,
-            shape_lhs: &self.shape(),
-            shape_rhs: &other.shape()
-        );
+        check!(TensorCheck::binary_ops_ew("Lower", &self, &other));
         K::lower(self.primitive, other.primitive)
     }
 
@@ -184,11 +156,7 @@ where
     ///
     /// If the two tensors don't have the same shape.
     pub fn lower_equal(self, other: Self) -> Tensor<B, D, Bool> {
-        tensor_check!(
-            ops: lower_equal,
-            shape_lhs: &self.shape(),
-            shape_rhs: &other.shape()
-        );
+        check!(TensorCheck::binary_ops_ew("Lower_equal", &self, &other));
         K::lower_equal(self.primitive, other.primitive)
     }
 
