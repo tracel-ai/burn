@@ -490,7 +490,7 @@ impl TensorError {
 #[macro_export(local_inner_macros)]
 macro_rules! check {
     ($check:expr) => {
-        if let crate::tensor::api::check::TensorCheck::Failed(check) = $check {
+        if let TensorCheck::Failed(check) = $check {
             core::panic!("{}", check.format());
         }
     };
