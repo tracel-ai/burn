@@ -1,5 +1,8 @@
 use crate::{backend::Backend, BasicOps, Shape, Tensor};
 use alloc::format;
+use alloc::string::{String, ToString};
+use alloc::vec;
+use alloc::vec::Vec;
 use core::ops::Range;
 
 /// The struct should always be used with the [check](crate::check) macro.
