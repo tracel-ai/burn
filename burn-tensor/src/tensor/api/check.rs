@@ -179,7 +179,7 @@ impl TensorCheck {
             );
         }
 
-        if tensors.len() == 0 {
+        if tensors.is_empty() {
             return check.register(
                 "Cat",
                 TensorError::new("Can't concatenate an empty list of tensors."),
