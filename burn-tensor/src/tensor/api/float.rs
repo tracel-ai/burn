@@ -3,6 +3,8 @@ use core::convert::TryInto;
 use core::ops::Range;
 
 use crate::backend::ADBackend;
+use crate::check;
+use crate::check::TensorCheck;
 use crate::tensor::backend::Backend;
 use crate::tensor::stats;
 use crate::tensor::ElementConversion;
@@ -196,6 +198,7 @@ where
     ///
     /// If the dimensions exceed the shape of than the tensor.
     pub fn swap_dims(self, dim1: usize, dim2: usize) -> Self {
+        check!(TensorCheck::swap_dims::<D>(dim1, dim2));
         Self::new(B::swap_dims(self.primitive, dim1, dim2))
     }
 
@@ -207,6 +210,7 @@ where
     ///
     /// If the two tensors dont' have a compatible shape.
     pub fn matmul(self, other: Self) -> Self {
+        check!(TensorCheck::matmul(&self, &other));
         Self::new(B::matmul(self.primitive, other.primitive))
     }
 

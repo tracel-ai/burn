@@ -1,5 +1,6 @@
 use crate::{
-    backend::Backend, Bool, Element, ElementConversion, Float, Int, Shape, Tensor, TensorKind,
+    backend::Backend, check, check::TensorCheck, BasicOps, Bool, Element, ElementConversion, Float,
+    Int, Shape, Tensor, TensorKind,
 };
 
 impl<B, const D: usize, K> Tensor<B, D, K>
@@ -12,6 +13,7 @@ where
     /// `y = x2 + x1`
     #[allow(clippy::should_implement_trait)]
     pub fn add(self, other: Self) -> Self {
+        check!(TensorCheck::binary_ops_ew("Add", &self, &other));
         Self::new(K::add(self.primitive, other.primitive))
     }
 
@@ -27,6 +29,7 @@ where
     /// `y = x2 - x1`
     #[allow(clippy::should_implement_trait)]
     pub fn sub(self, other: Self) -> Self {
+        check!(TensorCheck::binary_ops_ew("Sub", &self, &other));
         Self::new(K::sub(self.primitive, other.primitive))
     }
 
@@ -42,6 +45,7 @@ where
     /// `y = x2 / x1`
     #[allow(clippy::should_implement_trait)]
     pub fn div(self, other: Self) -> Self {
+        check!(TensorCheck::binary_ops_ew("Div", &self, &other));
         Self::new(K::div(self.primitive, other.primitive))
     }
 
@@ -57,6 +61,7 @@ where
     /// `y = x2 * x1`
     #[allow(clippy::should_implement_trait)]
     pub fn mul(self, other: Self) -> Self {
+        check!(TensorCheck::binary_ops_ew("Mul", &self, &other));
         Self::new(K::mul(self.primitive, other.primitive))
     }
 
@@ -107,11 +112,13 @@ where
 
     /// Aggregate all elements along the given *dimension* or *axis* in the tensor with the mean operation.
     pub fn mean_dim(self, dim: usize) -> Self {
+        check!(TensorCheck::aggregate_dim::<D>("Mean", dim));
         Self::new(K::mean_dim(self.primitive, dim))
     }
 
     /// Aggregate all elements along the given *dimension* or *axis* in the tensor with the sum operation.
     pub fn sum_dim(self, dim: usize) -> Self {
+        check!(TensorCheck::aggregate_dim::<D>("Sum", dim));
         Self::new(K::sum_dim(self.primitive, dim))
     }
 
@@ -121,6 +128,7 @@ where
     ///
     /// If the two tensors don't have the same shape.
     pub fn greater(self, other: Self) -> Tensor<B, D, Bool> {
+        check!(TensorCheck::binary_ops_ew("Greater", &self, &other));
         K::greater(self.primitive, other.primitive)
     }
 
@@ -130,6 +138,7 @@ where
     ///
     /// If the two tensors don't have the same shape.
     pub fn greater_equal(self, other: Self) -> Tensor<B, D, Bool> {
+        check!(TensorCheck::binary_ops_ew("Greater_equal", &self, &other));
         K::greater_equal(self.primitive, other.primitive)
     }
 
@@ -139,6 +148,7 @@ where
     ///
     /// If the two tensors don't have the same shape.
     pub fn lower(self, other: Self) -> Tensor<B, D, Bool> {
+        check!(TensorCheck::binary_ops_ew("Lower", &self, &other));
         K::lower(self.primitive, other.primitive)
     }
 
@@ -148,6 +158,7 @@ where
     ///
     /// If the two tensors don't have the same shape.
     pub fn lower_equal(self, other: Self) -> Tensor<B, D, Bool> {
+        check!(TensorCheck::binary_ops_ew("Lower_equal", &self, &other));
         K::lower_equal(self.primitive, other.primitive)
     }
 
@@ -223,8 +234,8 @@ where
 /// # Warnings
 ///
 /// This is an internal trait, use the public API provided by [tensor struct](Tensor).
-pub trait Numeric<B: Backend>: TensorKind<B> {
-    type Elem: Element;
+pub trait Numeric<B: Backend>: BasicOps<B> {
+    type NumElem: Element;
 
     fn add<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Primitive<D>) -> Self::Primitive<D>;
     fn add_scalar<const D: usize, E: ElementConversion>(
@@ -257,28 +268,33 @@ pub trait Numeric<B: Backend>: TensorKind<B> {
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, Bool>;
-    fn greater_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem)
-        -> Tensor<B, D, Bool>;
+    fn greater_elem<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::NumElem,
+    ) -> Tensor<B, D, Bool>;
     fn greater_equal<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, Bool>;
     fn greater_equal_elem<const D: usize>(
         lhs: Self::Primitive<D>,
-        rhs: Self::Elem,
+        rhs: Self::NumElem,
     ) -> Tensor<B, D, Bool>;
     fn lower<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, Bool>;
-    fn lower_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool>;
+    fn lower_elem<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::NumElem,
+    ) -> Tensor<B, D, Bool>;
     fn lower_equal<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, Bool>;
     fn lower_equal_elem<const D: usize>(
         lhs: Self::Primitive<D>,
-        rhs: Self::Elem,
+        rhs: Self::NumElem,
     ) -> Tensor<B, D, Bool>;
     fn index_select<const D: usize>(
         tensor: Self::Primitive<D>,
@@ -303,7 +319,7 @@ pub trait Numeric<B: Backend>: TensorKind<B> {
 }
 
 impl<B: Backend> Numeric<B> for Int {
-    type Elem = B::IntElem;
+    type NumElem = B::IntElem;
 
     fn add<const D: usize>(
         lhs: Self::Primitive<D>,
@@ -384,7 +400,7 @@ impl<B: Backend> Numeric<B> for Int {
 
     fn greater_elem<const D: usize>(
         lhs: Self::Primitive<D>,
-        rhs: Self::Elem,
+        rhs: Self::NumElem,
     ) -> Tensor<B, D, Bool> {
         Tensor::new(B::int_greater_elem(lhs, rhs))
     }
@@ -398,7 +414,7 @@ impl<B: Backend> Numeric<B> for Int {
 
     fn greater_equal_elem<const D: usize>(
         lhs: Self::Primitive<D>,
-        rhs: Self::Elem,
+        rhs: Self::NumElem,
     ) -> Tensor<B, D, Bool> {
         Tensor::new(B::int_greater_equal_elem(lhs, rhs))
     }
@@ -410,7 +426,10 @@ impl<B: Backend> Numeric<B> for Int {
         Tensor::new(B::int_lower(lhs, rhs))
     }
 
-    fn lower_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool> {
+    fn lower_elem<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::NumElem,
+    ) -> Tensor<B, D, Bool> {
         Tensor::new(B::int_lower_elem(lhs, rhs))
     }
 
@@ -423,7 +442,7 @@ impl<B: Backend> Numeric<B> for Int {
 
     fn lower_equal_elem<const D: usize>(
         lhs: Self::Primitive<D>,
-        rhs: Self::Elem,
+        rhs: Self::NumElem,
     ) -> Tensor<B, D, Bool> {
         Tensor::new(B::int_lower_equal_elem(lhs, rhs))
     }
@@ -461,7 +480,7 @@ impl<B: Backend> Numeric<B> for Int {
 }
 
 impl<B: Backend> Numeric<B> for Float {
-    type Elem = B::FloatElem;
+    type NumElem = B::FloatElem;
 
     fn add<const D: usize>(
         lhs: Self::Primitive<D>,
@@ -542,7 +561,7 @@ impl<B: Backend> Numeric<B> for Float {
 
     fn greater_elem<const D: usize>(
         lhs: Self::Primitive<D>,
-        rhs: Self::Elem,
+        rhs: Self::NumElem,
     ) -> Tensor<B, D, Bool> {
         Tensor::new(B::greater_elem(lhs, rhs))
     }
@@ -556,7 +575,7 @@ impl<B: Backend> Numeric<B> for Float {
 
     fn greater_equal_elem<const D: usize>(
         lhs: Self::Primitive<D>,
-        rhs: Self::Elem,
+        rhs: Self::NumElem,
     ) -> Tensor<B, D, Bool> {
         Tensor::new(B::greater_equal_elem(lhs, rhs))
     }
@@ -568,7 +587,10 @@ impl<B: Backend> Numeric<B> for Float {
         Tensor::new(B::lower(lhs, rhs))
     }
 
-    fn lower_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool> {
+    fn lower_elem<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::NumElem,
+    ) -> Tensor<B, D, Bool> {
         Tensor::new(B::lower_elem(lhs, rhs))
     }
 
@@ -581,7 +603,7 @@ impl<B: Backend> Numeric<B> for Float {
 
     fn lower_equal_elem<const D: usize>(
         lhs: Self::Primitive<D>,
-        rhs: Self::Elem,
+        rhs: Self::NumElem,
     ) -> Tensor<B, D, Bool> {
         Tensor::new(B::lower_equal_elem(lhs, rhs))
     }

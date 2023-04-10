@@ -4,7 +4,9 @@ use alloc::vec;
 use alloc::vec::Vec;
 use core::{fmt::Debug, ops::Range};
 
-use crate::{backend::Backend, Bool, Data, Float, Int, Shape, TensorKind};
+use crate::{
+    backend::Backend, check, check::TensorCheck, Bool, Data, Float, Int, Shape, TensorKind,
+};
 
 #[derive(new, Clone, Debug)]
 pub struct Tensor<B, const D: usize, K = Float>
@@ -48,7 +50,10 @@ where
     ///
     /// If the tensor can not be reshape to the given shape.
     pub fn reshape<const D2: usize, S: Into<Shape<D2>>>(self, shape: S) -> Tensor<B, D2, K> {
-        Tensor::new(K::reshape::<D, D2>(self.primitive, shape.into()))
+        let shape = shape.into();
+        check!(TensorCheck::reshape(&self.shape(), &shape));
+
+        Tensor::new(K::reshape::<D, D2>(self.primitive, shape))
     }
 
     /// Flatten the tensor along a given range of dimensions.
@@ -88,17 +93,7 @@ where
     ///
     /// ```
     pub fn flatten<const D2: usize>(self, start_dim: usize, end_dim: usize) -> Tensor<B, D2, K> {
-        if start_dim > end_dim {
-            panic!("The start dim ({start_dim}) must be smaller than the end dim ({end_dim})")
-        }
-
-        if D2 > D {
-            panic!("Result dim ({D2}) must be smaller than ({D})")
-        }
-
-        if D < end_dim + 1 {
-            panic!("The end dim ({end_dim}) must be greater than the tensor dim ({D2})")
-        }
+        check!(TensorCheck::flatten::<D, D2>(start_dim, end_dim));
 
         let current_dims = self.shape().dims;
         let mut new_dims: [usize; D2] = [0; D2];
@@ -135,9 +130,7 @@ where
     /// }
     /// ```
     pub fn unsqueeze<const D2: usize>(self) -> Tensor<B, D2, K> {
-        if D2 < D {
-            panic!("Can't unsqueeze smaller tensor, got dim {D2}, expected > {D}")
-        }
+        check!(TensorCheck::unsqueeze::<D, D2>());
 
         let mut dims = [1; D2];
         let num_ones = D2 - D;
@@ -169,6 +162,7 @@ where
     /// }
     /// ```
     pub fn index<const D2: usize>(self, indexes: [core::ops::Range<usize>; D2]) -> Self {
+        check!(TensorCheck::index(&self.shape(), &indexes));
         Self::new(K::index(self.primitive, indexes))
     }
 
@@ -199,6 +193,11 @@ where
         indexes: [core::ops::Range<usize>; D2],
         values: Self,
     ) -> Self {
+        check!(TensorCheck::index_assign(
+            &self.shape(),
+            &values.shape(),
+            &indexes
+        ));
         Self::new(K::index_assign(self.primitive, indexes, values.primitive))
     }
 
@@ -247,6 +246,7 @@ where
     ///
     /// If the two tensors don't have the same shape.
     pub fn equal(self, other: Self) -> Tensor<B, D, Bool> {
+        check!(TensorCheck::binary_ops_ew("Equal", &self, &other));
         K::equal(self.primitive, other.primitive)
     }
 
@@ -262,6 +262,8 @@ where
     ///
     /// If all tensors don't have the same shape.
     pub fn cat(tensors: Vec<Self>, dim: usize) -> Self {
+        check!(TensorCheck::cat(&tensors, dim));
+
         Self::new(K::cat(
             tensors.into_iter().map(|vector| vector.primitive).collect(),
             dim,
