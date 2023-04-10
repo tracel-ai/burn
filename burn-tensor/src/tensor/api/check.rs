@@ -6,44 +6,32 @@ use core::ops::Range;
 ///
 /// It's a simple public crate data structure to efficiently check tensor operations and format
 /// clear error messages.
-pub struct TensorCheck {
-    ops: String,
-    errors: Vec<TensorError>,
+pub enum TensorCheck {
+    Ok,
+    Failed(FailedTensorCheck),
 }
 
 impl TensorCheck {
-    /// Format all the checks into a single message ready to be printed by a [panic](core::panic).
-    pub fn format(self) -> String {
-        self.errors.into_iter().enumerate().fold(
-            format!(
-                "=== Tensor Operation Error ===\n  Operation: '{}'\n  Reason:",
-                self.ops
-            ),
-            |accum, (number, error)| accum + error.format(number + 1).as_str(),
-        ) + "\n"
-    }
-
     /// Checks device and shape compatibility for element wise binary operations.
     pub fn binary_ops_ew<B: Backend, const D: usize, K: BasicOps<B>>(
         ops: &str,
         lhs: &Tensor<B, D, K>,
         rhs: &Tensor<B, D, K>,
-    ) -> Option<TensorCheck> {
-        let mut check = None;
-        check = Self::binary_ops_device(ops, check, &lhs.device(), &rhs.device());
-        check = Self::binary_ops_ew_shape(ops, check, &lhs.shape(), &rhs.shape());
-        check
+    ) -> Self {
+        Self::Ok
+            .binary_ops_device(ops, &lhs.device(), &rhs.device())
+            .binary_ops_ew_shape(ops, &lhs.shape(), &rhs.shape())
     }
 
     /// Checks if the original shape can be reshape to the target one.
     pub fn reshape<const D1: usize, const D2: usize>(
         original: &Shape<D1>,
         target: &Shape<D2>,
-    ) -> Option<TensorCheck> {
-        let mut check = None;
+    ) -> Self {
+        let mut check = Self::Ok;
 
         if original.num_elements() != target.num_elements() {
-            check = TensorCheck::register("Reshape", check, TensorError::new(
+            check = check.register("Reshape", TensorError::new(
                 "The given shape doesn't have the same number of elements as the current tensor.",
             )
             .details(format!(
@@ -56,16 +44,12 @@ impl TensorCheck {
     }
 
     /// Checks is a tensor can be flatten.
-    pub fn flatten<const D1: usize, const D2: usize>(
-        start_dim: usize,
-        end_dim: usize,
-    ) -> Option<TensorCheck> {
-        let mut check = None;
+    pub fn flatten<const D1: usize, const D2: usize>(start_dim: usize, end_dim: usize) -> Self {
+        let mut check = Self::Ok;
 
         if start_dim > end_dim {
-            check = TensorCheck::register(
+            check = check.register(
                 "Flatten",
-                check,
                 TensorError::new(format!(
                     "The start dim ({start_dim}) must be smaller than the end dim ({end_dim})"
                 )),
@@ -73,17 +57,15 @@ impl TensorCheck {
         }
 
         if D2 > D1 {
-            check = TensorCheck::register(
+            check = check.register(
                 "Flatten",
-                check,
                 TensorError::new(format!("Result dim ({D2}) must be smaller than ({D1})")),
             );
         }
 
         if D1 < end_dim + 1 {
-            check = TensorCheck::register(
+            check = check.register(
                 "Flatten",
-                check,
                 TensorError::new(format!(
                     "The end dim ({end_dim}) must be greater than the tensor dim ({D2})"
                 )),
@@ -94,12 +76,11 @@ impl TensorCheck {
     }
 
     /// Checks is a tensor can be unsqueeze.
-    pub fn unsqueeze<const D1: usize, const D2: usize>() -> Option<TensorCheck> {
-        let mut check = None;
+    pub fn unsqueeze<const D1: usize, const D2: usize>() -> Self {
+        let mut check = Self::Ok;
         if D2 < D1 {
-            check = TensorCheck::register(
+            check = check.register(
                 "Unsqueeze",
-                check,
                 TensorError::new(format!(
                     "Can't unsqueeze smaller tensor, got dim {D2}, expected > {D1}"
                 )),
@@ -110,13 +91,12 @@ impl TensorCheck {
     }
 
     /// Checks that swap dims are smaller than D.
-    pub fn swap_dims<const D: usize>(dim1: usize, dim2: usize) -> Option<TensorCheck> {
-        let mut check = None;
+    pub fn swap_dims<const D: usize>(dim1: usize, dim2: usize) -> Self {
+        let mut check = Self::Ok;
 
         if dim1 > D || dim2 > D {
-            check = TensorCheck::register(
+            check = check.register(
                 "Swap Dims",
-                check,
                 TensorError::new("The swap dimensions must be smaller than the tensor dimension")
                     .details(format!(
                         "Swap dims ({dim1}, {dim2}) on tensor with ({D}) dimensions."
@@ -128,13 +108,10 @@ impl TensorCheck {
     }
 
     /// Checks matmul.
-    pub fn matmul<B: Backend, const D: usize>(
-        lhs: &Tensor<B, D>,
-        rhs: &Tensor<B, D>,
-    ) -> Option<TensorCheck> {
-        let mut check = None;
+    pub fn matmul<B: Backend, const D: usize>(lhs: &Tensor<B, D>, rhs: &Tensor<B, D>) -> Self {
+        let mut check = Self::Ok;
 
-        check = TensorCheck::binary_ops_device("Matmul", check, &lhs.device(), &rhs.device());
+        check = check.binary_ops_device("Matmul", &lhs.device(), &rhs.device());
 
         if D < 2 {
             return check;
@@ -147,9 +124,8 @@ impl TensorCheck {
         let dim_rhs = shape_rhs.dims[D - 2];
 
         if dim_lhs != dim_rhs {
-            check = TensorCheck::register(
+            check = check.register(
                 "Matmul",
-                check,
                 TensorError::new(format!(
                     "The inner dimension of matmul should be the same, but got {} and {}.",
                     dim_lhs, dim_rhs
@@ -168,12 +144,12 @@ impl TensorCheck {
     pub fn cat<B: Backend, const D: usize, K: BasicOps<B>>(
         tensors: &[Tensor<B, D, K>],
         dim: usize,
-    ) -> Option<TensorCheck> {
-        let mut check = None;
+    ) -> Self {
+        let mut check = Self::Ok;
+
         if dim >= D {
-            check = TensorCheck::register(
+            check = check.register(
                 "Cat",
-                check,
                 TensorError::new(
                     "Can't concatenate tensors on a dim that exceeds the tensors dimension",
                 )
@@ -184,9 +160,8 @@ impl TensorCheck {
         }
 
         if tensors.len() == 0 {
-            return TensorCheck::register(
+            return check.register(
                 "Cat",
-                check,
                 TensorError::new("Can't concatenate an empty list of tensors."),
             );
         }
@@ -200,9 +175,8 @@ impl TensorCheck {
             shape.dims[dim] = 1; // Ignore the concatenate dim.
 
             if shape_reference != shape {
-                return TensorCheck::register(
+                return check.register(
                     "Cat",
-                    check,
                     TensorError::new("Can't concatenate tensors with different shapes, except for the provided dimension").details(
                         format!(
                             "Provided dimension ({}), tensors shapes: {:?}",
@@ -221,13 +195,13 @@ impl TensorCheck {
     pub fn index<const D1: usize, const D2: usize>(
         shape: &Shape<D1>,
         indexes: &[Range<usize>; D2],
-    ) -> Option<TensorCheck> {
-        let mut check = None;
+    ) -> Self {
+        let mut check = Self::Ok;
         let n_dims_tensor = D1;
         let n_dims_indexes = D2;
 
         if n_dims_tensor < n_dims_indexes {
-            check = TensorCheck::register("Index", check,
+            check = check.register("Index", 
                 TensorError::new ("The provided indexes array has a higher number of dimensions than the current tensor.")
                 .details(
                     format!(
@@ -241,11 +215,10 @@ impl TensorCheck {
             let index = indexes.get(i).unwrap();
 
             if index.end > d_tensor {
-                check = TensorCheck::register(
+                check = check.register(
                     "Index",
-                    check,
                     TensorError::new("The provided indexes array has a range that exceeds the current tensor size.")
-                .details(alloc::format!(
+                    .details(alloc::format!(
                         "The range ({}..{}) exceeds the size of the tensor ({}) at dimension {}. \
                         Tensor shape {:?}, provided indexes {:?}.",
                         index.start,
@@ -258,9 +231,8 @@ impl TensorCheck {
             }
 
             if index.start >= index.end {
-                check = TensorCheck::register(
+                check = check.register(
                     "Index",
-                    check,
                     TensorError::new("The provided indexes array has a range where the start index is bigger or equal to its end.")
                     .details(alloc::format!(
                         "The range at dimension '{}' starts at '{}' and is greater or equal to its end '{}'. \
@@ -282,11 +254,11 @@ impl TensorCheck {
         shape: &Shape<D1>,
         shape_value: &Shape<D1>,
         indexes: &[Range<usize>; D2],
-    ) -> Option<TensorCheck> {
-        let mut check = None;
+    ) -> Self {
+        let mut check = Self::Ok;
 
         if D1 < D2 {
-            check = TensorCheck::register("Index Assign", check,
+            check = check.register("Index Assign",
                 TensorError::new ("The provided indexes array has a higher number of dimensions than the current tensor.")
                 .details(
                     format!(
@@ -301,9 +273,8 @@ impl TensorCheck {
             let index = indexes.get(i).unwrap();
 
             if index.end > d_tensor {
-                check = TensorCheck::register(
+                check = check.register(
                     "Index Assign",
-                    check,
                     TensorError::new("The provided indexes array has a range that exceeds the current tensor size.")
                     .details(alloc::format!(
                         "The range ({}..{}) exceeds the size of the tensor ({}) at dimension {}. \
@@ -319,9 +290,8 @@ impl TensorCheck {
             }
 
             if index.end - index.start != d_tensor_value {
-                check = TensorCheck::register(
+                check = check.register(
                     "Index Assign",
-                    check,
                     TensorError::new("The value tensor must match the amount of elements selected with the indexes array")
                     .details(alloc::format!(
                         "The range ({}..{}) doesn't match the number of elements of the value tensor ({}) at dimension {}. \
@@ -337,9 +307,8 @@ impl TensorCheck {
             }
 
             if index.start >= index.end {
-                check = TensorCheck::register(
+                check = check.register(
                     "Index Assign",
-                    check,
                     TensorError::new("The provided indexes array has a range where the start index is bigger or equal to its end.")
                     .details(alloc::format!(
                         "The range at dimension '{}' starts at '{}' and is greater or equal to its end '{}'. \
@@ -358,13 +327,12 @@ impl TensorCheck {
     }
 
     /// Checks aggregate dimension.
-    pub fn aggregate_dim<const D: usize>(ops: &str, dim: usize) -> Option<TensorCheck> {
-        let mut check = None;
+    pub fn aggregate_dim<const D: usize>(ops: &str, dim: usize) -> Self {
+        let mut check = Self::Ok;
 
         if dim > D {
-            check = TensorCheck::register(
+            check = check.register(
                 ops,
-                check,
                 TensorError::new(format!(
                     "Can't aggregate a tensor with ({D}) dimensions on axis ({dim})"
                 )),
@@ -377,27 +345,28 @@ impl TensorCheck {
     /// The goal is to minimize the cost of checks when there are no error, but it's way less
     /// important when an error occured, crafting a comprehensive error message is more important
     /// than optimizing string manipulation.
-    fn register(ops: &str, check: Option<TensorCheck>, error: TensorError) -> Option<TensorCheck> {
-        let mut check = match check {
-            Some(check) => check,
-            None => TensorCheck {
-                ops: ops.to_string(),
-                errors: vec![],
-            },
+    fn register(self, ops: &str, error: TensorError) -> Self {
+        let errors = match self {
+            Self::Ok => vec![error],
+            Self::Failed(mut failed) => {
+                failed.errors.push(error);
+                failed.errors
+            }
         };
 
-        check.errors.push(error);
-
-        return Some(check);
+        Self::Failed(FailedTensorCheck {
+            ops: ops.to_string(),
+            errors,
+        })
     }
 
     /// Checks if shapes are compatible for element wise operations supporting broadcasting.
     pub fn binary_ops_ew_shape<const D: usize>(
+        mut self,
         ops: &str,
-        mut check: Option<TensorCheck>,
         lhs: &Shape<D>,
         rhs: &Shape<D>,
-    ) -> Option<TensorCheck> {
+    ) -> Self {
         for i in 0..D {
             let d_lhs = lhs.dims[i];
             let d_rhs = rhs.dims[i];
@@ -409,8 +378,8 @@ impl TensorCheck {
                     continue;
                 }
 
-                check =
-                 TensorCheck::register(ops, check, 
+                self =
+                 self.register(ops, 
                  TensorError::new("The provided tensors have incompatible shapes.")
                  .details(format!(
                      "Incompatible size at dimension '{}' => '{} != {}', which can't be broadcasted. \
@@ -424,27 +393,44 @@ impl TensorCheck {
             }
         }
 
-        check
+        self
     }
 
     /// Checks if tensor devices are equal.
     fn binary_ops_device<Device: PartialEq + core::fmt::Debug>(
+        mut self,
         ops: &str,
-        mut check: Option<TensorCheck>,
         lhs: &Device,
         rhs: &Device,
-    ) -> Option<TensorCheck> {
+    ) -> Self {
         if lhs != rhs {
-            check = TensorCheck::register(
+            self = self.register(
                 ops,
-                check,
                 TensorError::new("The provided tensors are not on the same device.").details(
                     format!("Lhs tensor device {:?}, Rhs tensor device {:?}.", lhs, rhs,),
                 ),
             );
         }
 
-        check
+        self
+    }
+}
+
+pub struct FailedTensorCheck {
+    ops: String,
+    errors: Vec<TensorError>,
+}
+
+impl FailedTensorCheck {
+    /// Format all the checks into a single message ready to be printed by a [panic](core::panic).
+    pub fn format(self) -> String {
+        self.errors.into_iter().enumerate().fold(
+            format!(
+                "=== Tensor Operation Error ===\n  Operation: '{}'\n  Reason:",
+                self.ops
+            ),
+            |accum, (number, error)| accum + error.format(number + 1).as_str(),
+        ) + "\n"
     }
 }
 
@@ -486,7 +472,7 @@ impl TensorError {
 #[macro_export(local_inner_macros)]
 macro_rules! check {
     ($check:expr) => {
-        if let Some(check) = $check {
+        if let crate::tensor::api::check::TensorCheck::Failed(check) = $check {
             core::panic!("{}", check.format());
         }
     };
@@ -532,8 +518,8 @@ mod tests {
     #[should_panic]
     fn binary_ops_shapes_no_broadcast() {
         check!(TensorCheck::binary_ops_ew_shape(
+            TensorCheck::Ok,
             "TestOps",
-            None,
             &Shape::new([3, 5]),
             &Shape::new([3, 6])
         ));
@@ -542,8 +528,8 @@ mod tests {
     #[test]
     fn binary_ops_shapes_with_broadcast() {
         check!(TensorCheck::binary_ops_ew_shape(
+            TensorCheck::Ok,
             "Test",
-            None,
             &Shape::new([3, 5]),
             &Shape::new([1, 5])
         ));
@@ -553,7 +539,9 @@ mod tests {
     #[should_panic]
     fn binary_ops_devices() {
         check!(TensorCheck::binary_ops_device(
-            "Test", None, &5, // We can pass anything that implements PartialEq as device
+            TensorCheck::Ok,
+            "Test",
+            &5, // We can pass anything that implements PartialEq as device
             &8
         ));
     }
