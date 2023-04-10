@@ -4,8 +4,31 @@ use core::ops::Range;
 
 /// The struct should always be used with the [check](crate::check) macro.
 ///
-/// It's a simple public crate data structure to efficiently check tensor operations and format
-/// clear error messages.
+/// This is a simple public crate data structure that efficiently checks tensor operations and
+/// formats clear error messages. It's crucial that the checks are really fast, but it doesn't matter
+/// when a failed check is discovered since the program will panic.
+///
+/// # Notes
+///
+/// Failing tensor checks will always result in a panic.
+/// As mentioned in [The Rust Programming Language book](https://doc.rust-lang.org/book/ch09-03-to-panic-or-not-to-panic.html),
+/// when there is no way to recover, panic should be used instead of a result.
+///
+/// Most users will unwrap the results anyway, which will worsen the clarity of the code. Almost
+/// all checks highlight programming errors, which means invalid programs that should be fixed.
+/// Checks are not the ideal way to help users write correct programs, but they are still better
+/// than backend errors. Other forms of compile-time validation could be developed, such as named
+/// tensors, but we have to carefully evaluate the ease of use of the Tensor API. Adding overly
+/// complex type validation checks might drastically worsen the API and result in harder-to-maintain
+/// programs.
+///
+/// # Design
+///
+/// Maybe the Backend API should return a result for each operation, which would allow handling
+/// all checks, even the ones that can't be efficiently checked before performing an operation,
+/// such as the `index_select` operation. The downside of that approach is that all backend
+/// implementation might re-implement the same checks, which may result in uncessary code
+/// duplication. Maybe a combination of both strategies could help to cover all usecases.
 pub enum TensorCheck {
     Ok,
     Failed(FailedTensorCheck),
@@ -23,7 +46,6 @@ impl TensorCheck {
             .binary_ops_ew_shape(ops, &lhs.shape(), &rhs.shape())
     }
 
-    /// Checks if the original shape can be reshape to the target one.
     pub fn reshape<const D1: usize, const D2: usize>(
         original: &Shape<D1>,
         target: &Shape<D2>,
@@ -43,7 +65,6 @@ impl TensorCheck {
         check
     }
 
-    /// Checks is a tensor can be flatten.
     pub fn flatten<const D1: usize, const D2: usize>(start_dim: usize, end_dim: usize) -> Self {
         let mut check = Self::Ok;
 
@@ -75,7 +96,6 @@ impl TensorCheck {
         check
     }
 
-    /// Checks is a tensor can be unsqueeze.
     pub fn unsqueeze<const D1: usize, const D2: usize>() -> Self {
         let mut check = Self::Ok;
         if D2 < D1 {
@@ -90,7 +110,6 @@ impl TensorCheck {
         check
     }
 
-    /// Checks that swap dims are smaller than D.
     pub fn swap_dims<const D: usize>(dim1: usize, dim2: usize) -> Self {
         let mut check = Self::Ok;
 
@@ -107,7 +126,6 @@ impl TensorCheck {
         check
     }
 
-    /// Checks matmul.
     pub fn matmul<B: Backend, const D: usize>(lhs: &Tensor<B, D>, rhs: &Tensor<B, D>) -> Self {
         let mut check = Self::Ok;
 
@@ -140,7 +158,6 @@ impl TensorCheck {
         check
     }
 
-    /// Checks is a tensor can be concatenated.
     pub fn cat<B: Backend, const D: usize, K: BasicOps<B>>(
         tensors: &[Tensor<B, D, K>],
         dim: usize,
@@ -191,7 +208,6 @@ impl TensorCheck {
         check
     }
 
-    /// Checks if the current tensor shape can be indexed with the given indexes.
     pub fn index<const D1: usize, const D2: usize>(
         shape: &Shape<D1>,
         indexes: &[Range<usize>; D2],
@@ -218,7 +234,7 @@ impl TensorCheck {
                 check = check.register(
                     "Index",
                     TensorError::new("The provided indexes array has a range that exceeds the current tensor size.")
-                    .details(alloc::format!(
+                    .details(format!(
                         "The range ({}..{}) exceeds the size of the tensor ({}) at dimension {}. \
                         Tensor shape {:?}, provided indexes {:?}.",
                         index.start,
@@ -234,7 +250,7 @@ impl TensorCheck {
                 check = check.register(
                     "Index",
                     TensorError::new("The provided indexes array has a range where the start index is bigger or equal to its end.")
-                    .details(alloc::format!(
+                    .details(format!(
                         "The range at dimension '{}' starts at '{}' and is greater or equal to its end '{}'. \
                         Tensor shape {:?}, provided indexes {:?}.",
                         i,
@@ -249,7 +265,6 @@ impl TensorCheck {
         check
     }
 
-    /// Checks if the current tensor shape can be assigned the target tensor values indexed with the given indexes.
     pub fn index_assign<const D1: usize, const D2: usize>(
         shape: &Shape<D1>,
         shape_value: &Shape<D1>,
@@ -276,7 +291,7 @@ impl TensorCheck {
                 check = check.register(
                     "Index Assign",
                     TensorError::new("The provided indexes array has a range that exceeds the current tensor size.")
-                    .details(alloc::format!(
+                    .details(format!(
                         "The range ({}..{}) exceeds the size of the tensor ({}) at dimension {}. \
                         Current tensor shape {:?}, value tensor shape {:?}, provided indexes {:?}.",
                         index.start,
@@ -293,7 +308,7 @@ impl TensorCheck {
                 check = check.register(
                     "Index Assign",
                     TensorError::new("The value tensor must match the amount of elements selected with the indexes array")
-                    .details(alloc::format!(
+                    .details(format!(
                         "The range ({}..{}) doesn't match the number of elements of the value tensor ({}) at dimension {}. \
                         Current tensor shape {:?}, value tensor shape {:?}, provided indexes {:?}.",
                         index.start,
@@ -310,7 +325,7 @@ impl TensorCheck {
                 check = check.register(
                     "Index Assign",
                     TensorError::new("The provided indexes array has a range where the start index is bigger or equal to its end.")
-                    .details(alloc::format!(
+                    .details(format!(
                         "The range at dimension '{}' starts at '{}' and is greater or equal to its end '{}'. \
                         Current tensor shape {:?}, value tensor shape {:?}, provided indexes {:?}.",
                         i,
@@ -326,7 +341,7 @@ impl TensorCheck {
         check
     }
 
-    /// Checks aggregate dimension.
+    /// Checks aggregate dimension such as mean and sum.
     pub fn aggregate_dim<const D: usize>(ops: &str, dim: usize) -> Self {
         let mut check = Self::Ok;
 
@@ -362,11 +377,13 @@ impl TensorCheck {
 
     /// Checks if shapes are compatible for element wise operations supporting broadcasting.
     pub fn binary_ops_ew_shape<const D: usize>(
-        mut self,
+        self,
         ops: &str,
         lhs: &Shape<D>,
         rhs: &Shape<D>,
     ) -> Self {
+        let mut check = self;
+
         for i in 0..D {
             let d_lhs = lhs.dims[i];
             let d_rhs = rhs.dims[i];
@@ -378,41 +395,39 @@ impl TensorCheck {
                     continue;
                 }
 
-                self =
-                 self.register(ops, 
-                 TensorError::new("The provided tensors have incompatible shapes.")
-                 .details(format!(
-                     "Incompatible size at dimension '{}' => '{} != {}', which can't be broadcasted. \
-                     Lhs tensor shape {:?}, Rhs tensor shape {:?}.",
-                     i,
-                     d_lhs,
-                     d_rhs,
-                     lhs.dims,
-                     rhs.dims,
+                check = check.register(ops,
+                    TensorError::new("The provided tensors have incompatible shapes.")
+                    .details(format!(
+                    "Incompatible size at dimension '{}' => '{} != {}', which can't be broadcasted. \
+                    Lhs tensor shape {:?}, Rhs tensor shape {:?}.",
+                    i,
+                    d_lhs,
+                    d_rhs,
+                    lhs.dims,
+                    rhs.dims,
                  )));
             }
         }
 
-        self
+        check
     }
 
     /// Checks if tensor devices are equal.
     fn binary_ops_device<Device: PartialEq + core::fmt::Debug>(
-        mut self,
+        self,
         ops: &str,
         lhs: &Device,
         rhs: &Device,
     ) -> Self {
-        if lhs != rhs {
-            self = self.register(
+        match lhs != rhs {
+            true => self.register(
                 ops,
                 TensorError::new("The provided tensors are not on the same device.").details(
                     format!("Lhs tensor device {:?}, Rhs tensor device {:?}.", lhs, rhs,),
                 ),
-            );
+            ),
+            false => self,
         }
-
-        self
     }
 }
 
