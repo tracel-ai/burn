@@ -22,6 +22,10 @@ on:
       no-std-build-targets:
         required: false
         type: boolean
+      run-doc-test:
+        required: false
+        type: boolean
+        default: true
 
 jobs:
   test-crate:
@@ -42,6 +46,7 @@ jobs:
           components: rustfmt, clippy
 
       - name: check doc
+        if: ${{ run-doc-test }}
         run: |
           cd ${CRATE}
           cargo test --doc ${ARGS_DOC}
