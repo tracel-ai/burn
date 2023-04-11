@@ -49,7 +49,6 @@ impl TensorCheck {
             .binary_ops_ew_shape(ops, &lhs.shape(), &rhs.shape())
     }
 
-    /// Checks device and shape compatibility for element wise binary operations.
     pub fn into_scalar<const D: usize>(shape: &Shape<D>) -> Self {
         let mut check = Self::Ok;
 

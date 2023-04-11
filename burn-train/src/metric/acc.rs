@@ -48,17 +48,19 @@ impl<B: Backend> Metric for AccuracyMetric<B> {
         let accuracy = match self.pad_token {
             Some(pad_token) => {
                 let mask = targets.clone().equal_elem(pad_token as i64);
-                let sames = outputs.equal(targets).into_int();
-                let sames = sames.mask_fill(mask.clone(), 0);
+                let matches = outputs.equal(targets).into_int().mask_fill(mask.clone(), 0);
                 let num_pad = mask.into_int().sum().into_scalar().elem::<f64>();
 
-                sames.sum().into_scalar().elem::<f64>() / (batch_size as f64 - num_pad)
+                matches.sum().into_scalar().elem::<f64>() / (batch_size as f64 - num_pad)
             }
             None => {
-                let total_current =
-                    Into::<i64>::into(outputs.equal(targets).into_int().sum().to_data().value[0])
-                        as usize;
-                total_current as f64 / batch_size as f64
+                outputs
+                    .equal(targets)
+                    .into_int()
+                    .sum()
+                    .into_scalar()
+                    .elem::<f64>()
+                    / batch_size as f64
             }
         };
 
