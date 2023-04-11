@@ -49,6 +49,23 @@ impl TensorCheck {
             .binary_ops_ew_shape(ops, &lhs.shape(), &rhs.shape())
     }
 
+    pub fn into_scalar<const D: usize>(shape: &Shape<D>) -> Self {
+        let mut check = Self::Ok;
+
+        if shape.num_elements() != 1 {
+            check = check.register(
+                "Into Scalar",
+                TensorError::new("Only tensors with 1 element can be converted into scalar.")
+                    .details(format!(
+                        "Current tensor has {} elements",
+                        shape.num_elements()
+                    )),
+            );
+        }
+
+        check
+    }
+
     pub fn reshape<const D1: usize, const D2: usize>(
         original: &Shape<D1>,
         target: &Shape<D2>,

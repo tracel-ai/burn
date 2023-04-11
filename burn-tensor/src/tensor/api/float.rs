@@ -7,9 +7,7 @@ use crate::check;
 use crate::check::TensorCheck;
 use crate::tensor::backend::Backend;
 use crate::tensor::stats;
-use crate::tensor::ElementConversion;
 use crate::tensor::{Data, Distribution, Shape};
-use crate::Bool;
 use crate::Int;
 use crate::Tensor;
 
@@ -24,16 +22,6 @@ where
     /// Returns a new integer tensor on the specified device which values are generated from the given range.
     pub fn arange_device(range: Range<usize>, device: &B::Device) -> Tensor<B, 1, Int> {
         Tensor::new(B::arange(range, device))
-    }
-}
-
-impl<B> Tensor<B, 1>
-where
-    B: Backend,
-{
-    /// Returns the first value of the tensor.
-    pub fn single_value(&self) -> B::FloatElem {
-        self.to_data().value[0]
     }
 }
 
@@ -243,11 +231,6 @@ where
     pub fn random<S: Into<Shape<D>>>(shape: S, distribution: Distribution<B::FloatElem>) -> Self {
         let tensor = B::random(shape.into(), distribution, &B::Device::default());
         Self::new(tensor)
-    }
-
-    /// Fill each element with the given value based on the given mask.
-    pub fn mask_fill<E: ElementConversion>(self, mask: Tensor<B, D, Bool>, value: E) -> Self {
-        Self::new(B::mask_fill(self.primitive, mask.primitive, value.elem()))
     }
 
     /// Returns a tensor with full precision based on the selected backend.

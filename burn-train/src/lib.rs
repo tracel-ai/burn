@@ -10,3 +10,6 @@ mod learner;
 
 pub use callback::*;
 pub use learner::*;
+
+#[cfg(test)]
+pub(crate) type TestBackend = burn_ndarray::NdArrayBackend<f32>;

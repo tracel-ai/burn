@@ -8,6 +8,7 @@ publish = false
 
 [features]
 default = []
+f16 = []
 
 [dependencies]
 # Burn

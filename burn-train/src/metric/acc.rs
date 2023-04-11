@@ -2,12 +2,13 @@ use super::state::{FormatOptions, NumericMetricState};
 use super::{MetricEntry, MetricMetadata};
 use crate::metric::{Metric, Numeric};
 use burn_core::tensor::backend::Backend;
-use burn_core::tensor::{Int, Tensor};
+use burn_core::tensor::{ElementConversion, Int, Tensor};
 
 /// The accuracy metric.
 #[derive(Default)]
 pub struct AccuracyMetric<B: Backend> {
     state: NumericMetricState,
+    pad_token: Option<usize>,
     _b: B,
 }
 
@@ -22,6 +23,11 @@ impl<B: Backend> AccuracyMetric<B> {
     /// Create the metric.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn with_pad_token(mut self, index: usize) -> Self {
+        self.pad_token = Some(index);
+        self
     }
 }
 
@@ -39,12 +45,27 @@ impl<B: Backend> Metric for AccuracyMetric<B> {
             .to_device(&B::Device::default())
             .reshape([batch_size]);
 
-        let total_current =
-            Into::<i64>::into(outputs.equal(targets).into_int().sum().to_data().value[0]) as usize;
-        let accuracy = 100.0 * total_current as f64 / batch_size as f64;
+        let accuracy = match self.pad_token {
+            Some(pad_token) => {
+                let mask = targets.clone().equal_elem(pad_token as i64);
+                let matches = outputs.equal(targets).into_int().mask_fill(mask.clone(), 0);
+                let num_pad = mask.into_int().sum().into_scalar().elem::<f64>();
+
+                matches.sum().into_scalar().elem::<f64>() / (batch_size as f64 - num_pad)
+            }
+            None => {
+                outputs
+                    .equal(targets)
+                    .into_int()
+                    .sum()
+                    .into_scalar()
+                    .elem::<f64>()
+                    / batch_size as f64
+            }
+        };
 
         self.state.update(
-            accuracy,
+            100.0 * accuracy,
             batch_size,
             FormatOptions::new("Accuracy").unit("%").precision(2),
         )
@@ -58,5 +79,48 @@ impl<B: Backend> Metric for AccuracyMetric<B> {
 impl<B: Backend> Numeric for AccuracyMetric<B> {
     fn value(&self) -> f64 {
         self.state.value()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::TestBackend;
+
+    #[test]
+    fn test_accuracy_without_padding() {
+        let mut metric = AccuracyMetric::<TestBackend>::new();
+        let input = AccuracyInput::new(
+            Tensor::from_data([
+                [0.0, 0.2, 0.8], // 2
+                [1.0, 2.0, 0.5], // 1
+                [0.4, 0.1, 0.2], // 0
+                [0.6, 0.7, 0.2], // 1
+            ]),
+            Tensor::from_data([2, 2, 1, 1]),
+        );
+
+        let _entry = metric.update(&input, &MetricMetadata::fake());
+        assert_eq!(50.0, metric.value());
+    }
+
+    #[test]
+    fn test_accuracy_with_padding() {
+        let mut metric = AccuracyMetric::<TestBackend>::new().with_pad_token(3);
+        let input = AccuracyInput::new(
+            Tensor::from_data([
+                [0.0, 0.2, 0.8, 0.0], // 2
+                [1.0, 2.0, 0.5, 0.0], // 1
+                [0.4, 0.1, 0.2, 0.0], // 0
+                [0.6, 0.7, 0.2, 0.0], // 1
+                [0.0, 0.1, 0.2, 5.0], // Predicted padding should not count
+                [0.0, 0.1, 0.2, 0.0], // Error on padding should not count
+                [0.6, 0.0, 0.2, 0.0], // Error on padding should not count
+            ]),
+            Tensor::from_data([2, 2, 1, 1, 3, 3, 3]),
+        );
+
+        let _entry = metric.update(&input, &MetricMetadata::fake());
+        assert_eq!(50.0, metric.value());
     }
 }

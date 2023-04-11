@@ -9,6 +9,22 @@ pub struct MetricMetadata {
     pub lr: Option<LearningRate>,
 }
 
+impl MetricMetadata {
+    #[cfg(test)]
+    pub fn fake() -> Self {
+        Self {
+            progress: Progress {
+                items_processed: 1,
+                items_total: 1,
+            },
+            epoch: 0,
+            epoch_total: 1,
+            iteration: 0,
+            lr: None,
+        }
+    }
+}
+
 /// Metric trait.
 ///
 /// # Notes
