@@ -50,22 +50,20 @@ impl<B: Backend> Metric for AccuracyMetric<B> {
                 let mask = targets.clone().equal_elem(pad_token as i64);
                 let sames = outputs.equal(targets).into_int();
                 let sames = sames.mask_fill(mask.clone(), 0);
-                let num_pad = mask.into_int().sum().into_data().value[0].elem::<f64>();
+                let num_pad = mask.into_int().sum().into_scalar().elem::<f64>();
 
-                100.0
-                    * (sames.sum().into_data().value[0].elem::<f64>()
-                        / (batch_size as f64 - num_pad))
+                sames.sum().into_scalar().elem::<f64>() / (batch_size as f64 - num_pad)
             }
             None => {
                 let total_current =
                     Into::<i64>::into(outputs.equal(targets).into_int().sum().to_data().value[0])
                         as usize;
-                100.0 * total_current as f64 / batch_size as f64
+                total_current as f64 / batch_size as f64
             }
         };
 
         self.state.update(
-            accuracy,
+            accuracy * 100.0,
             batch_size,
             FormatOptions::new("Accuracy").unit("%").precision(2),
         )
@@ -79,5 +77,48 @@ impl<B: Backend> Metric for AccuracyMetric<B> {
 impl<B: Backend> Numeric for AccuracyMetric<B> {
     fn value(&self) -> f64 {
         self.state.value()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::TestBackend;
+
+    #[test]
+    fn test_accuracy_without_padding() {
+        let mut metric = AccuracyMetric::<TestBackend>::new();
+        let input = AccuracyInput::new(
+            Tensor::from_data([
+                [0.0, 0.2, 0.8], // 2
+                [1.0, 2.0, 0.5], // 1
+                [0.4, 0.1, 0.2], // 0
+                [0.6, 0.7, 0.2], // 1
+            ]),
+            Tensor::from_data([2, 2, 1, 1]),
+        );
+
+        let _entry = metric.update(&input, &MetricMetadata::fake());
+        assert_eq!(50.0, metric.value());
+    }
+
+    #[test]
+    fn test_accuracy_with_padding() {
+        let mut metric = AccuracyMetric::<TestBackend>::new().with_pad_token(3);
+        let input = AccuracyInput::new(
+            Tensor::from_data([
+                [0.0, 0.2, 0.8, 0.0], // 2
+                [1.0, 2.0, 0.5, 0.0], // 1
+                [0.4, 0.1, 0.2, 0.0], // 0
+                [0.6, 0.7, 0.2, 0.0], // 1
+                [0.0, 0.1, 0.2, 5.0], // Predicted padding should not count
+                [0.0, 0.1, 0.2, 0.0], // Error on padding should not count
+                [0.6, 0.0, 0.2, 0.0], // Error on padding should not count
+            ]),
+            Tensor::from_data([2, 2, 1, 1, 3, 3, 3]),
+        );
+
+        let _entry = metric.update(&input, &MetricMetadata::fake());
+        assert_eq!(50.0, metric.value());
     }
 }

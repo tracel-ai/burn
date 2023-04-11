@@ -48,7 +48,7 @@ impl<'de, B: Backend, const D: usize, S: RecordSettings> Deserialize<'de>
         De: serde::Deserializer<'de>,
     {
         let data = DataSerialize::<S::FloatElem>::deserialize(deserializer)?;
-        let tensor = Tensor::from_data(data.convert::<B::FloatElem>().into());
+        let tensor = Tensor::from_data(data.convert::<B::FloatElem>());
 
         Ok(Self::new(tensor))
     }
@@ -75,7 +75,7 @@ impl<'de, B: Backend, const D: usize, S: RecordSettings> Deserialize<'de>
         De: serde::Deserializer<'de>,
     {
         let data = DataSerialize::<S::IntElem>::deserialize(deserializer)?;
-        let tensor = Tensor::from_data(data.convert::<B::IntElem>().into());
+        let tensor = Tensor::from_data(data.convert::<B::IntElem>());
 
         Ok(Self::new(tensor))
     }
@@ -96,7 +96,7 @@ impl<'de, B: Backend, const D: usize> Deserialize<'de> for BoolTensorSerde<B, D>
         De: serde::Deserializer<'de>,
     {
         let data = DataSerialize::<bool>::deserialize(deserializer)?;
-        let tensor = Tensor::from_data(data.into());
+        let tensor = Tensor::from_data(data);
 
         Ok(Self::new(tensor))
     }

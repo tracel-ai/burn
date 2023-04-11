@@ -222,13 +222,19 @@ where
     }
 
     /// Create a tensor from the given data.
-    pub fn from_data(data: Data<K::Elem, D>) -> Self {
+    pub fn from_data<T>(data: T) -> Self
+    where
+        T: Into<Data<K::Elem, D>>,
+    {
         Self::from_data_device(data, &B::Device::default())
     }
 
     /// Create a tensor from the given data on the given device.
-    pub fn from_data_device(data: Data<K::Elem, D>, device: &B::Device) -> Self {
-        Self::new(K::from_data(data, device))
+    pub fn from_data_device<T>(data: T, device: &B::Device) -> Self
+    where
+        T: Into<Data<K::Elem, D>>,
+    {
+        Self::new(K::from_data(data.into(), device))
     }
 
     /// Repeat the tensor along the given dimension.

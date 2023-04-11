@@ -25,16 +25,6 @@ where
     }
 }
 
-impl<B> Tensor<B, 1>
-where
-    B: Backend,
-{
-    /// Returns the first value of the tensor.
-    pub fn single_value(&self) -> B::FloatElem {
-        self.to_data().value[0]
-    }
-}
-
 impl<const D: usize, B> Tensor<B, D>
 where
     B: Backend,
