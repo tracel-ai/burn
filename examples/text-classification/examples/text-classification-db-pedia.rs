@@ -1,6 +1,6 @@
 #[cfg(feature = "training")]
 fn training() {
-    use burn::optim::{decay::WeightDecayConfig, momentum::MomentumConfig};
+    use burn::optim::decay::WeightDecayConfig;
     use text_classification::{training::ExperimentConfig, DbPediaDataset};
 
     #[cfg(not(feature = "f16"))]
@@ -12,9 +12,7 @@ fn training() {
 
     let config = ExperimentConfig::new(
         burn::nn::transformer::TransformerEncoderConfig::new(256, 1024, 8, 4).with_norm_first(true),
-        burn::optim::SgdConfig::new(5.0e-3)
-            .with_momentum(Some(MomentumConfig::new().with_nesterov(true)))
-            .with_weight_decay(Some(WeightDecayConfig::new(5e-5))),
+        burn::optim::AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5))),
     );
 
     text_classification::training::train::<Backend, DbPediaDataset>(

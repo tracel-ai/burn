@@ -1,6 +1,6 @@
 #[cfg(feature = "training")]
 fn training() {
-    use burn::optim::{decay::WeightDecayConfig, momentum::MomentumConfig};
+    use burn::optim::decay::WeightDecayConfig;
     use text_classification::{training::ExperimentConfig, AgNewsDataset};
 
     #[cfg(not(feature = "f16"))]
