@@ -27,7 +27,7 @@ pub struct ExperimentConfig {
     optimizer: AdamConfig,
     #[config(default = 512)]
     max_seq_length: usize,
-    #[config(default = 4)]
+    #[config(default = 6)]
     batch_size: usize,
     #[config(default = 50)]
     num_epochs: usize,
@@ -71,9 +71,9 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
         .num_workers(4)
         .build(dataset_test);
 
-    let accum = 16; // Effective batch size = 4 * 16 = 64.
+    let accum = 6; // Effective batch size = 6 * 6 = 32.
     let optim = config.optimizer.init();
-    let lr_scheduler = NoamLRSchedulerConfig::new(5e-1 / accum as f64)
+    let lr_scheduler = NoamLRSchedulerConfig::new(0.01 / accum as f64)
         .with_warmup_steps(6000)
         .with_model_size(config.transformer.d_model)
         .init();
@@ -81,10 +81,10 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
     let learner = LearnerBuilder::new(artifact_dir)
         .metric_train(CUDAMetric::new())
         .metric_valid(CUDAMetric::new())
-        .metric_train(AccuracyMetric::new().with_pad_token(tokenizer.pad_token()))
-        .metric_valid(AccuracyMetric::new().with_pad_token(tokenizer.pad_token()))
-        .metric_train_plot(LossMetric::new())
-        .metric_valid_plot(LossMetric::new())
+        .metric_train_plot(AccuracyMetric::new().with_pad_token(tokenizer.pad_token()))
+        .metric_valid_plot(AccuracyMetric::new().with_pad_token(tokenizer.pad_token()))
+        .metric_train(LossMetric::new())
+        .metric_valid(LossMetric::new())
         .metric_train_plot(LearningRateMetric::new())
         .with_file_checkpointer::<DefaultRecordSettings>(2)
         .devices(vec![device])
