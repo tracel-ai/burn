@@ -43,6 +43,7 @@ pub fn run<B: ADBackend>(device: B::Device) {
     // Data
     let batcher_train = MNISTBatcher::<B>::new(device.clone());
     let batcher_valid = MNISTBatcher::<B::InnerBackend>::new(device.clone());
+
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
         .batch_size(config.batch_size)
         .shuffle(config.seed)
