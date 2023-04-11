@@ -46,7 +46,7 @@ jobs:
           components: rustfmt, clippy
 
       - name: check doc
-        if: ${{ run-doc-test }}
+        if: ${{ inputs.run-doc-test }}
         run: |
           cd ${CRATE}
           cargo test --doc ${ARGS_DOC}
