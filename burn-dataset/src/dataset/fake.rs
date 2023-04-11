@@ -1,6 +1,7 @@
 use crate::{Dataset, DatasetIterator, InMemDataset};
 use fake::{Dummy, Fake, Faker};
 
+/// Dataset filled with fake items generated from the [fake](fake) crate.
 pub struct FakeDataset<I> {
     dataset: InMemDataset<I>,
 }

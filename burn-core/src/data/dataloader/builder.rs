@@ -14,9 +14,12 @@ where
     I: Send + Sync + Clone + std::fmt::Debug + 'static,
     O: Send + Sync + Clone + std::fmt::Debug + 'static,
 {
-    pub fn new(batcher: Arc<dyn Batcher<I, O>>) -> Self {
+    pub fn new<B>(batcher: B) -> Self
+    where
+        B: Batcher<I, O> + 'static,
+    {
         Self {
-            batcher,
+            batcher: Arc::new(batcher),
             strategy: None,
             num_threads: None,
             shuffle: None,
@@ -38,10 +41,13 @@ where
         self
     }
 
-    pub fn build(self, dataset: Arc<dyn Dataset<I>>) -> Arc<dyn DataLoader<O>> {
-        let dataset = match self.shuffle {
+    pub fn build<D>(self, dataset: D) -> Arc<dyn DataLoader<O>>
+    where
+        D: Dataset<I> + 'static,
+    {
+        let dataset: Arc<dyn Dataset<I>> = match self.shuffle {
             Some(seed) => Arc::new(ShuffledDataset::with_seed(dataset, seed)),
-            None => dataset,
+            None => Arc::new(dataset),
         };
         let strategy = match self.strategy {
             Some(strategy) => strategy,

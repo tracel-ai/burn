@@ -5,6 +5,7 @@ use std::{
 
 use crate::Dataset;
 
+/// Dataset where all items are stored in RAM.
 pub struct InMemDataset<I> {
     items: Vec<I>,
 }

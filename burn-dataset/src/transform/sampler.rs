@@ -1,32 +1,44 @@
 use crate::Dataset;
 use rand::{distributions::Uniform, rngs::StdRng, Rng, SeedableRng};
-use std::sync::Mutex;
+use std::{marker::PhantomData, sync::Mutex};
 
-pub struct SamplerDataset<I> {
-    dataset: Box<dyn Dataset<I>>,
+/// Sample items from a dataset with replacement.
+///
+/// This is an efficient way of modeling a dataset as a probability distribution of a fixed size.
+pub struct SamplerDataset<D, I> {
+    dataset: D,
     size: usize,
     rng: Mutex<StdRng>,
+    input: PhantomData<I>,
 }
 
-impl<I> SamplerDataset<I> {
-    pub fn from_dataset<D: Dataset<I> + 'static>(dataset: D, size: usize) -> Self {
-        Self::new(Box::new(dataset), size)
-    }
-
-    pub fn new(dataset: Box<dyn Dataset<I>>, size: usize) -> Self {
+impl<D, I> SamplerDataset<D, I>
+where
+    D: Dataset<I>,
+    I: Send + Sync,
+{
+    pub fn new(dataset: D, size: usize) -> Self {
         let rng = Mutex::new(StdRng::from_entropy());
 
-        Self { dataset, size, rng }
+        Self {
+            dataset,
+            size,
+            rng,
+            input: PhantomData::default(),
+        }
     }
 
     fn index(&self) -> usize {
-        let distribution = Uniform::new(0, self.dataset.len());
         let mut rng = self.rng.lock().unwrap();
-        rng.sample(distribution)
+        rng.sample(Uniform::new(0, self.dataset.len()))
     }
 }
 
-impl<I> Dataset<I> for SamplerDataset<I> {
+impl<D, I> Dataset<I> for SamplerDataset<D, I>
+where
+    D: Dataset<I>,
+    I: Send + Sync,
+{
     fn get(&self, _index: usize) -> Option<I> {
         self.dataset.get(self.index())
     }

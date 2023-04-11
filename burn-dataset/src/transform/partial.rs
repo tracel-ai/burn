@@ -1,21 +1,22 @@
 use crate::Dataset;
-use std::sync::Arc;
+use std::{marker::PhantomData, sync::Arc};
 
-pub struct PartialDataset<I> {
-    dataset: Arc<dyn Dataset<I>>,
+/// Only use a fraction of an existing dataset lazily.
+#[derive(new)]
+pub struct PartialDataset<D, I> {
+    dataset: D,
     start_index: usize,
     end_index: usize,
+    input: PhantomData<I>,
 }
 
-impl<I> PartialDataset<I> {
-    pub fn new(dataset: Arc<dyn Dataset<I>>, start_index: usize, end_index: usize) -> Self {
-        Self {
-            dataset,
-            start_index,
-            end_index,
-        }
-    }
-    pub fn split(dataset: Arc<dyn Dataset<I>>, num: usize) -> Vec<PartialDataset<I>> {
+impl<D, I> PartialDataset<D, I>
+where
+    D: Dataset<I>,
+{
+    pub fn split(dataset: D, num: usize) -> Vec<PartialDataset<Arc<D>, I>> {
+        let dataset = Arc::new(dataset); // cheap cloning.
+
         let mut current = 0;
         let mut datasets = Vec::with_capacity(num);
 
@@ -39,8 +40,9 @@ impl<I> PartialDataset<I> {
     }
 }
 
-impl<I> Dataset<I> for PartialDataset<I>
+impl<D, I> Dataset<I> for PartialDataset<D, I>
 where
+    D: Dataset<I>,
     I: Clone + Send + Sync,
 {
     fn get(&self, index: usize) -> Option<I> {
@@ -64,20 +66,18 @@ mod tests {
 
     #[test]
     fn test_start_from_beginning() {
-        let dataset_original = Arc::new(FakeDataset::<String>::new(27));
-        let dataset_partial = PartialDataset::new(dataset_original.clone(), 0, 10);
-
+        let dataset_original = FakeDataset::<String>::new(27);
         let mut items_original_1 = HashSet::new();
         let mut items_original_2 = HashSet::new();
         let mut items_partial = HashSet::new();
+        dataset_original.iter().enumerate().for_each(|(i, item)| {
+            match i >= 10 {
+                true => items_original_2.insert(item),
+                false => items_original_1.insert(item),
+            };
+        });
 
-        for (i, item) in dataset_original.iter().enumerate() {
-            if i >= 10 {
-                items_original_2.insert(item);
-            } else {
-                items_original_1.insert(item);
-            }
-        }
+        let dataset_partial = PartialDataset::new(dataset_original, 0, 10);
 
         for item in dataset_partial.iter() {
             items_partial.insert(item);
@@ -92,21 +92,19 @@ mod tests {
 
     #[test]
     fn test_start_inside() {
-        let dataset_original = Arc::new(FakeDataset::<String>::new(27));
-        let dataset_partial = PartialDataset::new(dataset_original.clone(), 10, 20);
-
+        let dataset_original = FakeDataset::<String>::new(27);
         let mut items_original_1 = HashSet::new();
         let mut items_original_2 = HashSet::new();
         let mut items_partial = HashSet::new();
 
-        for (i, item) in dataset_original.iter().enumerate() {
-            if !(10..20).contains(&i) {
-                items_original_2.insert(item);
-            } else {
-                items_original_1.insert(item);
-            }
-        }
+        dataset_original.iter().enumerate().for_each(|(i, item)| {
+            match !(10..20).contains(&i) {
+                true => items_original_2.insert(item),
+                false => items_original_1.insert(item),
+            };
+        });
 
+        let dataset_partial = PartialDataset::new(dataset_original, 10, 20);
         for item in dataset_partial.iter() {
             items_partial.insert(item);
         }
@@ -120,15 +118,14 @@ mod tests {
 
     #[test]
     fn test_split_contains_all_items_without_duplicates() {
-        let dataset_original = Arc::new(FakeDataset::<String>::new(27));
-        let dataset_partials = PartialDataset::split(dataset_original.clone(), 4);
-
+        let dataset_original = FakeDataset::<String>::new(27);
         let mut items_original = Vec::new();
         let mut items_partial = Vec::new();
-
         for item in dataset_original.iter() {
             items_original.push(item);
         }
+
+        let dataset_partials = PartialDataset::split(dataset_original, 4);
 
         for dataset in dataset_partials {
             for item in dataset.iter() {
