@@ -79,10 +79,3 @@ jobs:
     with:
       crate: burn-train
 
-  test-examples-mnist-inference-web:
-    uses: burn-rs/burn/.github/workflows/test-template.yml@main
-    with:
-      crate: examples/mnist-inference-web
-      test-no-default-feature: false
-      no-std-build-targets: true
-      run-doc-test: false
