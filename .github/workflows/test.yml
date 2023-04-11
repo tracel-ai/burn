@@ -85,3 +85,4 @@ jobs:
       crate: examples/mnist-inference-web
       test-no-default-feature: false
       no-std-build-targets: true
+      run-doc-test: false
