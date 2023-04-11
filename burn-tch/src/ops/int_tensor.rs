@@ -260,4 +260,15 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
     ) -> TchTensor<i64, D1> {
         TchOps::index_select_dim_assign(tensor, dim, indexes, value)
     }
+
+    fn int_mask_fill<const D: usize>(
+        tensor: TchTensor<i64, D>,
+        mask: TchTensor<bool, D>,
+        value: i64,
+    ) -> TchTensor<i64, D> {
+        tensor.unary_ops(
+            |mut tensor| tensor.f_masked_fill_(&mask.tensor, value).unwrap(),
+            |tensor| tensor.f_masked_fill(&mask.tensor, value).unwrap(),
+        )
+    }
 }

@@ -72,6 +72,14 @@ impl<E: FloatNdArrayElement> IntTensorOps<NdArrayBackend<E>> for NdArrayBackend<
         NdArrayTensor::from_data(Data::new(values, shape))
     }
 
+    fn int_mask_fill<const D: usize>(
+        tensor: NdArrayTensor<i64, D>,
+        mask: NdArrayTensor<bool, D>,
+        value: i64,
+    ) -> NdArrayTensor<i64, D> {
+        NdArrayMathOps::mask_fill(tensor, mask, value)
+    }
+
     fn int_index_assign<const D1: usize, const D2: usize>(
         tensor: NdArrayTensor<i64, D1>,
         indexes: [Range<usize>; D2],

@@ -7,9 +7,7 @@ use crate::check;
 use crate::check::TensorCheck;
 use crate::tensor::backend::Backend;
 use crate::tensor::stats;
-use crate::tensor::ElementConversion;
 use crate::tensor::{Data, Distribution, Shape};
-use crate::Bool;
 use crate::Int;
 use crate::Tensor;
 
@@ -243,11 +241,6 @@ where
     pub fn random<S: Into<Shape<D>>>(shape: S, distribution: Distribution<B::FloatElem>) -> Self {
         let tensor = B::random(shape.into(), distribution, &B::Device::default());
         Self::new(tensor)
-    }
-
-    /// Fill each element with the given value based on the given mask.
-    pub fn mask_fill<E: ElementConversion>(self, mask: Tensor<B, D, Bool>, value: E) -> Self {
-        Self::new(B::mask_fill(self.primitive, mask.primitive, value.elem()))
     }
 
     /// Returns a tensor with full precision based on the selected backend.
