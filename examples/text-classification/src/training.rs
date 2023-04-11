@@ -37,25 +37,21 @@ pub fn train<B: ADBackend, D: TextClassificationDataset + 'static>(
     config: ExperimentConfig,
     artifact_dir: &str,
 ) {
-    let dataset_train = Arc::new(SamplerDataset::new(Box::new(dataset_train), 50_000));
-    let dataset_test = Arc::new(SamplerDataset::new(Box::new(dataset_test), 5_000));
-    let n_classes = D::num_classes();
-
     let tokenizer = Arc::new(BertCasedTokenizer::default());
-    let batcher_train = Arc::new(TextClassificationBatcher::<B>::new(
+    let batcher_train = TextClassificationBatcher::<B>::new(
         tokenizer.clone(),
         device.clone(),
         config.max_seq_length,
-    ));
-    let batcher_test = Arc::new(TextClassificationBatcher::<B::InnerBackend>::new(
+    );
+    let batcher_test = TextClassificationBatcher::<B::InnerBackend>::new(
         tokenizer.clone(),
         device.clone(),
         config.max_seq_length,
-    ));
+    );
 
     let model = TextClassificationModelConfig::new(
         config.transformer.clone(),
-        n_classes,
+        D::num_classes(),
         tokenizer.vocab_size(),
         config.max_seq_length,
     )
@@ -64,12 +60,12 @@ pub fn train<B: ADBackend, D: TextClassificationDataset + 'static>(
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
         .batch_size(config.batch_size)
         .num_workers(4)
-        .build(dataset_train);
+        .build(SamplerDataset::new(dataset_train, 50_000));
 
     let dataloader_test = DataLoaderBuilder::new(batcher_test)
         .batch_size(config.batch_size)
         .num_workers(4)
-        .build(dataset_test);
+        .build(SamplerDataset::new(dataset_test, 5_000));
 
     let optim = config.optimizer.init();
     let lr_scheduler = NoamLRSchedulerConfig::new(0.25)

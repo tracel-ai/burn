@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::data::MNISTBatcher;
 use crate::model::Model;
 
@@ -43,18 +41,19 @@ pub fn run<B: ADBackend>(device: B::Device) {
     B::seed(config.seed);
 
     // Data
-    let batcher_train = Arc::new(MNISTBatcher::<B>::new(device.clone()));
-    let batcher_valid = Arc::new(MNISTBatcher::<B::InnerBackend>::new(device.clone()));
+    let batcher_train = MNISTBatcher::<B>::new(device.clone());
+    let batcher_valid = MNISTBatcher::<B::InnerBackend>::new(device.clone());
+
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
         .batch_size(config.batch_size)
         .shuffle(config.seed)
         .num_workers(config.num_workers)
-        .build(Arc::new(MNISTDataset::train()));
+        .build(MNISTDataset::train());
     let dataloader_test = DataLoaderBuilder::new(batcher_valid)
         .batch_size(config.batch_size)
         .shuffle(config.seed)
         .num_workers(config.num_workers)
-        .build(Arc::new(MNISTDataset::test()));
+        .build(MNISTDataset::test());
 
     // Model
     let learner = LearnerBuilder::new(ARTIFACT_DIR)

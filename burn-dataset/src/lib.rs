@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate derive_new;
+
 extern crate dirs;
 
 pub mod source;

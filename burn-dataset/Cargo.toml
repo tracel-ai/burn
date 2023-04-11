@@ -24,5 +24,6 @@ rand = {workspace = true, features = ["std"]}
 serde = {workspace = true, features = ["std", "derive"]}
 serde_json = {workspace = true, features = ["std"]}
 thiserror = {workspace = true}
+derive-new = {workspace = true}
 
 [dev-dependencies]

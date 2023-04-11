@@ -40,18 +40,9 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
     config: ExperimentConfig,
     artifact_dir: &str,
 ) {
-    let dataset_train = Arc::new(SamplerDataset::new(Box::new(dataset_train), 10_000));
-    let dataset_test = Arc::new(SamplerDataset::new(Box::new(dataset_test), 1000));
-
     let tokenizer = Arc::new(Gpt2Tokenizer::default());
-    let batcher_train = Arc::new(TextGenerationBatcher::new(
-        tokenizer.clone(),
-        config.max_seq_length,
-    ));
-    let batcher_test = Arc::new(TextGenerationBatcher::new(
-        tokenizer.clone(),
-        config.max_seq_length,
-    ));
+    let batcher_train = TextGenerationBatcher::new(tokenizer.clone(), config.max_seq_length);
+    let batcher_test = TextGenerationBatcher::new(tokenizer.clone(), config.max_seq_length);
 
     let model = TextGenerationModelConfig::new(
         config.transformer.clone(),
@@ -64,12 +55,12 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
         .batch_size(config.batch_size)
         .num_workers(4)
-        .build(dataset_train);
+        .build(SamplerDataset::new(dataset_train, 10_000));
 
     let dataloader_test = DataLoaderBuilder::new(batcher_test)
         .batch_size(config.batch_size)
         .num_workers(4)
-        .build(dataset_test);
+        .build(SamplerDataset::new(dataset_test, 1000));
 
     let accum = 6; // Effective batch size = 6 * 6 = 32.
     let optim = config.optimizer.init();
