@@ -72,6 +72,14 @@ impl<E: FloatNdArrayElement> IntTensorOps<NdArrayBackend<E>> for NdArrayBackend<
         NdArrayTensor::from_data(Data::new(values, shape))
     }
 
+    fn int_mask_scatter<const D: usize>(
+        tensor: NdArrayTensor<i64, D>,
+        mask: NdArrayTensor<bool, D>,
+        source: NdArrayTensor<i64, D>,
+    ) -> NdArrayTensor<i64, D> {
+        NdArrayMathOps::mask_scatter(tensor, mask, source)
+    }
+
     fn int_mask_fill<const D: usize>(
         tensor: NdArrayTensor<i64, D>,
         mask: NdArrayTensor<bool, D>,
