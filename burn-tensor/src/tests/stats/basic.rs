@@ -1,6 +1,7 @@
 #[burn_tensor_testgen::testgen(stats)]
 mod tests {
     use super::*;
+    use burn_tensor::backend::Backend;
     use burn_tensor::{Data, Tensor};
 
     #[test]
@@ -12,5 +13,85 @@ mod tests {
 
         let data_expected = Data::from([[2.4892], [15.3333]]);
         data_expected.assert_approx_eq(&data_actual, 3);
+    }
+
+    #[test]
+    fn test_display_2d_int_tensor() {
+        let int_data = Data::from([[1, 2, 3], [4, 5, 6], [7, 8, 9]]);
+        let tensor_int: burn_tensor::Tensor<TestBackend, 2, burn_tensor::Int> =
+            Tensor::from_data(int_data);
+
+        let output = format!("{}", tensor_int);
+        let expected = format!(
+            "Tensor {{\n  data: [[1, 2, 3], [4, 5, 6], [7, 8, 9]],\n  shape:  [3, 3],\n  device:  Cpu,\n  backend:  \"{}\",\n  kind:  \"Int\",\n  dtype:  \"i64\",\n}}",
+            TestBackend::name()
+        );
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_display_2d_float_tensor() {
+        let float_data = Data::from([[1.1, 2.2, 3.3], [4.4, 5.5, 6.6], [7.7, 8.8, 9.9]]);
+        let tensor_float: burn_tensor::Tensor<TestBackend, 2, burn_tensor::Float> =
+            Tensor::from_data(float_data);
+
+        let output = format!("{}", tensor_float);
+        let expected = format!(
+            "Tensor {{\n  data: [[1.1, 2.2, 3.3], [4.4, 5.5, 6.6], [7.7, 8.8, 9.9]],\n  shape:  [3, 3],\n  device:  Cpu,\n  backend:  \"{}\",\n  kind:  \"Float\",\n  dtype:  \"f32\",\n}}",
+            TestBackend::name()
+        );
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_display_2d_bool_tensor() {
+        let bool_data = Data::from([
+            [true, false, true],
+            [false, true, false],
+            [false, true, true],
+        ]);
+        let tensor_bool: burn_tensor::Tensor<TestBackend, 2, burn_tensor::Bool> =
+            Tensor::from_data(bool_data);
+
+        let output = format!("{}", tensor_bool);
+        let expected = format!(
+            "Tensor {{\n  data: [[true, false, true], [false, true, false], [false, true, true]],\n  shape:  [3, 3],\n  device:  Cpu,\n  backend:  \"{}\",\n  kind:  \"Bool\",\n  dtype:  \"bool\",\n}}",
+            TestBackend::name()
+        );
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_display_3d_tensor() {
+        let data = Data::from([
+            [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]],
+            [[13, 14, 15, 16], [17, 18, 19, 20], [21, 22, 23, 24]],
+        ]);
+        let tensor: burn_tensor::Tensor<TestBackend, 3, burn_tensor::Int> = Tensor::from_data(data);
+
+        let output = format!("{}", tensor);
+        let expected = format!(
+            "Tensor {{\n  data: [[[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]], \
+                [[13, 14, 15, 16], [17, 18, 19, 20], [21, 22, 23, 24]]],\n  shape:  [2, 3, 4],\n  device:  Cpu,\n  backend:  \"{}\",\n  kind:  \"Int\",\n  dtype:  \"i64\",\n}}",
+                TestBackend::name()
+            );
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_display_4d_tensor() {
+        let data = Data::from([
+            [[[1, 2, 3], [4, 5, 6]], [[7, 8, 9], [10, 11, 12]]],
+            [[[13, 14, 15], [16, 17, 18]], [[19, 20, 21], [22, 23, 24]]],
+        ]);
+
+        let tensor: burn_tensor::Tensor<TestBackend, 4, burn_tensor::Int> = Tensor::from_data(data);
+
+        let output = format!("{}", tensor);
+        let expected = format!(
+            "Tensor {{\n  data: [[[[1, 2, 3], [4, 5, 6]], [[7, 8, 9], [10, 11, 12]]], [[[13, 14, 15], [16, 17, 18]], [[19, 20, 21], [22, 23, 24]]]],\n  shape:  [2, 2, 2, 3],\n  device:  Cpu,\n  backend:  \"{}\",\n  kind:  \"Int\",\n  dtype:  \"i64\",\n}}",
+            TestBackend::name()
+        );
+        assert_eq!(output, expected);
     }
 }

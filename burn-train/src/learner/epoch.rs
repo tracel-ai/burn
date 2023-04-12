@@ -1,8 +1,9 @@
 use burn_core::{
     data::dataloader::DataLoader,
+    lr_scheduler::LRScheduler,
     module::ADModule,
     optim::{GradientsAccumulator, Optimizer},
-    tensor::backend::Backend,
+    tensor::backend::ADBackend,
 };
 use std::sync::Arc;
 
@@ -24,13 +25,14 @@ pub struct TrainEpoch<TI> {
 }
 
 impl<I> ValidEpoch<I> {
-    pub fn run<M, TO, VO>(&self, model: M, callback: &mut Box<dyn LearnerCallback<TO, VO>>) -> M
+    pub fn run<B, M, TO, VO>(&self, model: &M, callback: &mut Box<dyn LearnerCallback<TO, VO>>)
     where
-        M: ADModule,
+        B: ADBackend,
+        M: ADModule<B>,
         M::InnerModule: ValidStep<I, VO>,
     {
         log::info!("Executing validation step for epoch {}", self.epoch);
-        let model = model.inner();
+        let model = model.valid();
 
         let mut iterator = self.dataloader.iter();
         let mut iteration = 0;
@@ -40,31 +42,35 @@ impl<I> ValidEpoch<I> {
             iteration += 1;
 
             let item = model.step(item);
-            callback.on_valid_item(LearnerItem::new(
+            let item = LearnerItem::new(
                 item,
                 progress,
                 self.epoch,
                 self.epoch_total,
                 iteration,
-            ));
+                None,
+            );
+
+            callback.on_valid_item(item);
         }
         callback.on_valid_end_epoch(self.epoch);
-
-        ADModule::from_inner(model)
     }
 }
 
 impl<TI> TrainEpoch<TI> {
-    pub fn run<M, O, TO, VO>(
+    pub fn run<B, M, O, LR, TO, VO>(
         &self,
         mut model: M,
         mut optim: O,
+        scheduler: &mut LR,
         callback: &mut Box<dyn LearnerCallback<TO, VO>>,
     ) -> (M, O)
     where
-        M: ADModule,
-        O: Optimizer<Backend = M::ADBackend>,
+        B: ADBackend,
+        M: ADModule<B>,
+        O: Optimizer<M, B>,
         M: TrainStep<TI, TO>,
+        LR: LRScheduler,
     {
         log::info!("Executing training step for epoch {}", self.epoch,);
 
@@ -75,6 +81,8 @@ impl<TI> TrainEpoch<TI> {
 
         while let Some(item) = iterator.next() {
             iteration += 1;
+            let lr = scheduler.step();
+            log::info!("Iteration {}", iteration);
 
             let progress = iterator.progress();
             let item = model.step(item);
@@ -86,20 +94,23 @@ impl<TI> TrainEpoch<TI> {
 
                     if accumulation <= accumulation_current {
                         let grads = accumulator.grads();
-                        model = optim.update_module(model, grads);
+                        model = optim.step(lr, model, grads);
                         accumulation_current = 0;
                     }
                 }
-                None => model = optim.update_module(model, item.grads),
+                None => model = optim.step(lr, model, item.grads),
             }
 
-            callback.on_train_item(LearnerItem::new(
+            let item = LearnerItem::new(
                 item.item,
                 progress,
                 self.epoch,
                 self.epoch_total,
                 iteration,
-            ));
+                Some(lr),
+            );
+
+            callback.on_train_item(item);
         }
         callback.on_train_end_epoch(self.epoch);
 
@@ -108,17 +119,20 @@ impl<TI> TrainEpoch<TI> {
 }
 
 impl<TI> TrainEpoch<TI> {
-    pub fn run_multi_device<M, O, TO, VO>(
+    pub fn run_multi_device<B, M, O, S, TO, VO>(
         &self,
         mut model: M,
         mut optim: O,
+        lr_scheduler: &mut S,
         callback: &mut Box<dyn LearnerCallback<TO, VO>>,
-        devices: Vec<<M::Backend as Backend>::Device>,
+        devices: Vec<B::Device>,
     ) -> (M, O)
     where
-        O: Optimizer<Backend = M::ADBackend>,
+        B: ADBackend,
+        M: ADModule<B> + 'static,
+        O: Optimizer<M, B>,
         M: TrainStep<TI, TO>,
-        M: ADModule + 'static,
+        S: LRScheduler,
         TI: Send + 'static,
         TO: Send + 'static,
     {
@@ -147,27 +161,30 @@ impl<TI> TrainEpoch<TI> {
 
             for item in items {
                 iteration += 1;
+                let lr = lr_scheduler.step();
                 let progress = iterator.progress();
 
                 let grads = item.grads.to_device(&device_main, &model);
 
-                log::info!("Updated device");
                 accumulator.accumulate(&model, grads);
                 accumulation_current += 1;
 
                 if accumulation <= accumulation_current {
                     let grads = accumulator.grads();
-                    model = optim.update_module(model, grads);
+                    model = optim.step(lr, model, grads);
                     accumulation_current = 0;
                 }
 
-                callback.on_train_item(LearnerItem::new(
+                let item = LearnerItem::new(
                     item.item,
                     progress,
                     self.epoch,
                     self.epoch_total,
                     iteration,
-                ));
+                    Some(lr),
+                );
+
+                callback.on_train_item(item);
             }
         }
 

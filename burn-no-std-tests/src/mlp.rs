@@ -1,10 +1,10 @@
 // Orginally copied from the burn/examples/mnist package
 
-use alloc::{format, vec::Vec};
+use alloc::vec::Vec;
 
 use burn::{
     config::Config,
-    module::{Module, Param},
+    module::Module,
     nn,
     tensor::{backend::Backend, Tensor},
 };
@@ -26,7 +26,7 @@ pub struct MlpConfig {
 /// Multilayer Perceptron module.
 #[derive(Module, Debug)]
 pub struct Mlp<B: Backend> {
-    linears: Param<Vec<nn::Linear<B>>>,
+    linears: Vec<nn::Linear<B>>,
     dropout: nn::Dropout,
     activation: nn::ReLU,
 }
@@ -37,13 +37,12 @@ impl<B: Backend> Mlp<B> {
         let mut linears = Vec::with_capacity(config.num_layers);
 
         for _ in 0..config.num_layers {
-            let linear = nn::Linear::new(&nn::LinearConfig::new(config.d_model, config.d_model));
-            linears.push(linear);
+            linears.push(nn::LinearConfig::new(config.d_model, config.d_model).init());
         }
 
         Self {
-            linears: Param::from(linears),
-            dropout: nn::Dropout::new(&nn::DropoutConfig::new(0.3)),
+            linears,
+            dropout: nn::DropoutConfig::new(0.3).init(),
             activation: nn::ReLU::new(),
         }
     }

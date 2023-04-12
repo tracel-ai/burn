@@ -2,6 +2,7 @@ use super::Learner;
 
 use crate::{TrainEpoch, ValidEpoch};
 use burn_core::data::dataloader::DataLoader;
+use burn_core::lr_scheduler::LRScheduler;
 use burn_core::module::ADModule;
 use burn_core::optim::{GradientsParams, Optimizer};
 use burn_core::tensor::backend::ADBackend;
@@ -13,13 +14,8 @@ pub struct TrainOutput<TO> {
 }
 
 impl<TO> TrainOutput<TO> {
-    pub fn new<M: ADModule>(
-        module: &M,
-        grads: <M::ADBackend as ADBackend>::Gradients,
-        item: TO,
-    ) -> Self {
+    pub fn new<B: ADBackend, M: ADModule<B>>(module: &M, grads: B::Gradients, item: TO) -> Self {
         let grads = GradientsParams::from_grads(grads, module);
-
         Self { grads, item }
     }
 }
@@ -32,12 +28,14 @@ pub trait ValidStep<VI, VO> {
     fn step(&self, item: VI) -> VO;
 }
 
-impl<M, O, TO, VO> Learner<M, O, TO, VO>
+impl<B, M, O, LR, TO, VO> Learner<B, M, O, LR, TO, VO>
 where
     VO: Send + Sync + 'static,
     TO: Send + Sync + 'static,
-    M: ADModule,
-    O: Optimizer<Backend = M::Backend>,
+    B: ADBackend,
+    M: ADModule<B> + core::fmt::Display,
+    O: Optimizer<M, B>,
+    LR: LRScheduler,
 {
     pub fn fit<TI, VI>(
         mut self,
@@ -51,6 +49,10 @@ where
         M::InnerModule: ValidStep<VI, VO>,
     {
         log::info!("Fitting {}", self.model.to_string());
+        // The reference model is always on the first device provided.
+        if let Some(device) = self.devices.get(0) {
+            self.model = self.model.fork(device);
+        }
 
         let starting_epoch = match self.checkpoint {
             Some(checkpoint) => {
@@ -62,11 +64,6 @@ where
 
         let mut model = self.model;
         let mut optim = self.optim;
-
-        // The reference model is always on the first device provided.
-        if let Some(device) = self.devices.get(0) {
-            model = model.to_device(device).detach();
-        }
 
         for epoch in starting_epoch..self.num_epochs + 1 {
             let epoch_train = TrainEpoch::new(
@@ -80,21 +77,25 @@ where
                 (model, optim) = epoch_train.run_multi_device(
                     model,
                     optim,
+                    &mut self.lr_scheduler,
                     &mut self.callback,
                     self.devices.clone(),
                 )
             } else {
-                (model, optim) = epoch_train.run(model, optim, &mut self.callback);
+                (model, optim) =
+                    epoch_train.run(model, optim, &mut self.lr_scheduler, &mut self.callback);
             }
 
             let epoch_valid = ValidEpoch::new(dataloader_valid.clone(), epoch, self.num_epochs);
-            model = epoch_valid.run(model, &mut self.callback);
+            epoch_valid.run(&model, &mut self.callback);
 
             Self::checkpoint(
                 &model,
                 &optim,
+                &self.lr_scheduler,
                 &self.checkpointer_model,
                 &self.checkpointer_optimizer,
+                &self.checkpointer_scheduler,
                 epoch,
             );
         }

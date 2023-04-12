@@ -1,17 +1,14 @@
 use crate::Dataset;
 
-pub struct ComposedDataset<I> {
-    datasets: Vec<Box<dyn Dataset<I>>>,
+/// Compose multiple datasets together to create a bigger one.
+#[derive(new)]
+pub struct ComposedDataset<D> {
+    datasets: Vec<D>,
 }
 
-impl<I> ComposedDataset<I> {
-    pub fn new(datasets: Vec<Box<dyn Dataset<I>>>) -> Self {
-        Self { datasets }
-    }
-}
-
-impl<I> Dataset<I> for ComposedDataset<I>
+impl<D, I> Dataset<I> for ComposedDataset<D>
 where
+    D: Dataset<I>,
     I: Clone,
 {
     fn get(&self, index: usize) -> Option<I> {

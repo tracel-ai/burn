@@ -1,7 +1,12 @@
+use alloc::format;
+use alloc::string::String;
+use alloc::vec;
 use alloc::vec::Vec;
-use core::ops::Range;
+use core::{fmt::Debug, ops::Range};
 
-use crate::{backend::Backend, Bool, Data, Float, Int, Shape, TensorKind};
+use crate::{
+    backend::Backend, check, check::TensorCheck, Bool, Data, Float, Int, Shape, TensorKind,
+};
 
 #[derive(new, Clone, Debug)]
 pub struct Tensor<B, const D: usize, K = Float>
@@ -45,7 +50,96 @@ where
     ///
     /// If the tensor can not be reshape to the given shape.
     pub fn reshape<const D2: usize, S: Into<Shape<D2>>>(self, shape: S) -> Tensor<B, D2, K> {
-        Tensor::new(K::reshape::<D, D2>(self.primitive, shape.into()))
+        let shape = shape.into();
+        check!(TensorCheck::reshape(&self.shape(), &shape));
+
+        Tensor::new(K::reshape::<D, D2>(self.primitive, shape))
+    }
+
+    /// Flatten the tensor along a given range of dimensions.
+    ///
+    /// This function collapses the specified range of dimensions into a single dimension,
+    /// effectively flattening the tensor in that range.
+    ///
+    /// # Arguments
+    ///
+    /// - `start_dim`: The starting dimension of the range to be flattened.
+    /// - `end_dim`: The ending dimension of the range to be flattened (inclusive).
+    ///
+    /// # Type Parameters
+    ///
+    /// - `D2`: The resulting number of dimensions in the flattened tensor.
+    ///
+    /// # Returns
+    ///
+    /// A new `Tensor<B, D2, K>` instance with the specified range of dimensions flattened.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    ///
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 4]));
+    ///
+    ///     // Given a 3D tensor with dimensions (2, 3, 4), flatten the dimensions between indices 1 and 2:
+    ///     let flattened_tensor: Tensor::<B, 2> = tensor.flatten(1, 2);
+    ///
+    ///     // The resulting tensor will have dimensions (2, 12).
+    ///    println!("{:?}", flattened_tensor.shape());
+    /// }
+    ///
+    /// ```
+    pub fn flatten<const D2: usize>(self, start_dim: usize, end_dim: usize) -> Tensor<B, D2, K> {
+        check!(TensorCheck::flatten::<D, D2>(start_dim, end_dim));
+
+        let current_dims = self.shape().dims;
+        let mut new_dims: [usize; D2] = [0; D2];
+        let mut flatten_dims = 1;
+
+        for i in current_dims[start_dim..=end_dim].iter() {
+            flatten_dims *= i;
+        }
+
+        new_dims[..start_dim].copy_from_slice(&current_dims[..start_dim]);
+        new_dims[start_dim] = flatten_dims;
+        new_dims[start_dim + 1..].copy_from_slice(&current_dims[end_dim + 1..]);
+
+        Tensor::new(K::reshape::<D, D2>(self.primitive, new_dims.into()))
+    }
+
+    /// Unsqueeze the current tensor. Create new dimensions to fit the given size.
+    ///
+    /// # Panics
+    ///
+    /// If the output size is higher than the current tensor.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let tensor = Tensor::<B, 2>::ones(Shape::new([3, 3]));
+    ///     let tensor = tensor.unsqueeze::<4>();
+    ///     println!("{:?}", tensor.shape());
+    ///     // Shape { dims: [1, 1, 3, 3] }
+    /// }
+    /// ```
+    pub fn unsqueeze<const D2: usize>(self) -> Tensor<B, D2, K> {
+        check!(TensorCheck::unsqueeze::<D, D2>());
+
+        let mut dims = [1; D2];
+        let num_ones = D2 - D;
+        let shape = self.shape();
+
+        dims[num_ones..(D + num_ones)].copy_from_slice(&shape.dims[..D]);
+
+        let shape = Shape::new(dims);
+        self.reshape(shape)
     }
 
     /// Returns a tensor containing the elements selected from the given ranges.
@@ -68,6 +162,7 @@ where
     /// }
     /// ```
     pub fn index<const D2: usize>(self, indexes: [core::ops::Range<usize>; D2]) -> Self {
+        check!(TensorCheck::index(&self.shape(), &indexes));
         Self::new(K::index(self.primitive, indexes))
     }
 
@@ -98,6 +193,11 @@ where
         indexes: [core::ops::Range<usize>; D2],
         values: Self,
     ) -> Self {
+        check!(TensorCheck::index_assign(
+            &self.shape(),
+            &values.shape(),
+            &indexes
+        ));
         Self::new(K::index_assign(self.primitive, indexes, values.primitive))
     }
 
@@ -122,13 +222,19 @@ where
     }
 
     /// Create a tensor from the given data.
-    pub fn from_data(data: Data<K::Elem, D>) -> Self {
+    pub fn from_data<T>(data: T) -> Self
+    where
+        T: Into<Data<K::Elem, D>>,
+    {
         Self::from_data_device(data, &B::Device::default())
     }
 
     /// Create a tensor from the given data on the given device.
-    pub fn from_data_device(data: Data<K::Elem, D>, device: &B::Device) -> Self {
-        Self::new(K::from_data(data, device))
+    pub fn from_data_device<T>(data: T, device: &B::Device) -> Self
+    where
+        T: Into<Data<K::Elem, D>>,
+    {
+        Self::new(K::from_data(data.into(), device))
     }
 
     /// Repeat the tensor along the given dimension.
@@ -146,6 +252,7 @@ where
     ///
     /// If the two tensors don't have the same shape.
     pub fn equal(self, other: Self) -> Tensor<B, D, Bool> {
+        check!(TensorCheck::binary_ops_ew("Equal", &self, &other));
         K::equal(self.primitive, other.primitive)
     }
 
@@ -161,10 +268,92 @@ where
     ///
     /// If all tensors don't have the same shape.
     pub fn cat(tensors: Vec<Self>, dim: usize) -> Self {
+        check!(TensorCheck::cat(&tensors, dim));
+
         Self::new(K::cat(
             tensors.into_iter().map(|vector| vector.primitive).collect(),
             dim,
         ))
+    }
+}
+
+impl<B, const D: usize, K> Tensor<B, D, K>
+where
+    B: Backend,
+    K: BasicOps<B>,
+    <K as BasicOps<B>>::Elem: Debug,
+{
+    /// Recursively formats the tensor data for display and appends it to the provided accumulator string.
+    ///
+    /// This function is designed to work with tensors of any dimensionality.
+    /// It traverses the tensor dimensions recursively, converting the elements
+    /// to strings and appending them to the accumulator string with the
+    /// appropriate formatting.
+    ///
+    /// # Arguments
+    ///
+    /// * `acc` - A mutable reference to a `String` used as an accumulator for the formatted output.
+    /// * `depth` - The current depth of the tensor dimensions being processed.
+    /// * `multi_index` - A mutable slice of `usize` representing the current indices in each dimension.
+    fn display_recursive(&self, acc: &mut String, depth: usize, multi_index: &mut [usize]) {
+        if depth == 0 {
+            acc.push('[');
+        }
+
+        if depth == self.dims().len() - 1 {
+            // if we are at the innermost dimension, just push its elements into the accumulator
+            for i in 0..self.dims()[depth] {
+                if i > 0 {
+                    acc.push_str(", ");
+                }
+                multi_index[depth] = i;
+                let range: [core::ops::Range<usize>; D] =
+                    core::array::from_fn(|i| multi_index[i]..multi_index[i] + 1);
+                let elem = &self.clone().index(range).to_data().value[0];
+                acc.push_str(&format!("{:?}", elem));
+            }
+        } else {
+            // otherwise, iterate through the current dimension and recursively display the inner tensors
+            for i in 0..self.dims()[depth] {
+                if i > 0 {
+                    acc.push_str(", ");
+                }
+                acc.push('[');
+                multi_index[depth] = i;
+                self.display_recursive(acc, depth + 1, multi_index);
+                acc.push(']');
+            }
+        }
+
+        if depth == 0 {
+            acc.push(']');
+        }
+    }
+}
+
+/// Pretty print tensors
+impl<B, const D: usize, K> core::fmt::Display for Tensor<B, D, K>
+where
+    B: Backend,
+    B::IntElem: core::fmt::Display,
+    K: BasicOps<B>,
+    <K as BasicOps<B>>::Elem: Debug,
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        writeln!(f, "Tensor {{")?;
+        write!(f, "  data: ")?;
+
+        let mut acc = String::new();
+        let mut multi_index = vec![0; D];
+        self.display_recursive(&mut acc, 0, &mut multi_index);
+        write!(f, "{}", acc)?;
+        writeln!(f, ",")?;
+        writeln!(f, "  shape:  {:?},", self.dims())?;
+        writeln!(f, "  device:  {:?},", self.device())?;
+        writeln!(f, "  backend:  {:?},", B::name())?;
+        writeln!(f, "  kind:  {:?},", K::name())?;
+        writeln!(f, "  dtype:  {:?},", K::elem_type_name())?;
+        write!(f, "}}")
     }
 }
 
@@ -174,7 +363,7 @@ where
 ///
 /// This is an internal trait, use the public API provided by [tensor struct](Tensor).
 pub trait BasicOps<B: Backend>: TensorKind<B> {
-    type Elem;
+    type Elem: 'static;
 
     fn empty<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D>;
     fn shape<const D: usize>(tensor: &Self::Primitive<D>) -> Shape<D>;
@@ -212,6 +401,9 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, Bool>;
     fn equal_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool>;
+    fn elem_type_name() -> &'static str {
+        core::any::type_name::<Self::Elem>()
+    }
 }
 
 impl<B: Backend> BasicOps<B> for Float {

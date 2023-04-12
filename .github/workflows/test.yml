@@ -78,3 +78,4 @@ jobs:
     uses: burn-rs/burn/.github/workflows/test-template.yml@main
     with:
       crate: burn-train
+

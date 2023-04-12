@@ -231,6 +231,19 @@ impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E
             assert_eq!(self.value, other.value);
         }
     }
+
+    pub fn assert_in_range(&self, min: E, max: E) {
+        let min: f64 = min.into();
+        let max: f64 = max.into();
+
+        for item in self.value.iter() {
+            let item: f64 = item.clone().into();
+
+            if item < min || item > max {
+                panic!("Element ({item}) is not within the range of ({min},{max})");
+            }
+        }
+    }
 }
 
 impl<const D: usize> Data<usize, D> {

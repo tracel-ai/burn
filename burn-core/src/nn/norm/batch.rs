@@ -1,5 +1,3 @@
-use alloc::{format, vec::Vec};
-
 use crate as burn;
 
 use crate::{
@@ -8,9 +6,9 @@ use crate::{
     tensor::{backend::Backend, Tensor},
 };
 
-/// Configuration to create a [BatchNorm2d](BatchNorm2d) layer.
+/// Configuration to create a [BatchNorm](BatchNorm) layer.
 #[derive(Config)]
-pub struct BatchNorm2dConfig {
+pub struct BatchNormConfig {
     /// The number of features.
     pub num_features: usize,
     /// A value required for numerical stability. Default: 1e-5
@@ -21,81 +19,113 @@ pub struct BatchNorm2dConfig {
     pub momentum: f64,
 }
 
-/// Applies Batch Normalization over a 4D tensor as described in the paper [Batch Normalization](https://arxiv.org/abs/1502.03167)
+/// Applies Batch Normalization over a tensor as described in the paper [Batch Normalization](https://arxiv.org/abs/1502.03167)
 ///
 /// `Y = norm(X) * γ + β`
 #[derive(Module, Debug)]
-pub struct BatchNorm2d<B: Backend> {
+pub struct BatchNorm<B: Backend, const D: usize> {
     gamma: Param<Tensor<B, 1>>,
     beta: Param<Tensor<B, 1>>,
-    running_mean: Param<RunningState<Tensor<B, 1>>>,
-    running_var: Param<RunningState<Tensor<B, 1>>>,
+    running_mean: RunningState<Tensor<B, 1>>,
+    running_var: RunningState<Tensor<B, 1>>,
     momentum: f64,
     epsilon: f64,
 }
 
-impl<B: Backend> BatchNorm2d<B> {
-    /// Create the module from the given configuration.
-    pub fn new(config: &BatchNorm2dConfig) -> Self {
-        let gamma = Tensor::ones([config.num_features]);
-        let beta = Tensor::zeros([config.num_features]);
+impl BatchNormConfig {
+    /// Initialize a new [batch norm](BatchNorm) module.
+    pub fn init<B: Backend, const D: usize>(&self) -> BatchNorm<B, D> {
+        let gamma = Tensor::ones([self.num_features]);
+        let beta = Tensor::zeros([self.num_features]);
 
-        let running_mean = Tensor::zeros([config.num_features]);
-        let running_var = Tensor::ones([config.num_features]);
+        let running_mean = Tensor::zeros([self.num_features]);
+        let running_var = Tensor::ones([self.num_features]);
 
-        Self {
+        BatchNorm {
             gamma: Param::from(gamma),
             beta: Param::from(beta),
-            running_mean: Param::from(RunningState::new(running_mean)),
-            running_var: Param::from(RunningState::new(running_var)),
-            momentum: config.momentum,
-            epsilon: config.epsilon,
+            running_mean: RunningState::new(running_mean),
+            running_var: RunningState::new(running_var),
+            momentum: self.momentum,
+            epsilon: self.epsilon,
         }
     }
 
+    /// Initialize a new [batch norm](BatchNorm) module with a [record](BatchNormRecord).
+    pub fn init_with<B: Backend, const D: usize>(
+        &self,
+        record: BatchNormRecord<B, D>,
+    ) -> BatchNorm<B, D> {
+        BatchNorm {
+            gamma: record.gamma,
+            beta: record.beta,
+            running_mean: RunningState::from_record(record.running_mean),
+            running_var: RunningState::from_record(record.running_var),
+            momentum: self.momentum,
+            epsilon: self.epsilon,
+        }
+    }
+}
+
+impl<const D: usize, B: Backend> BatchNorm<B, D> {
     /// Applies the forward pass on the input tensor.
     ///
     /// # Shapes
     ///
-    /// - input: `[batch_size, channels, height, width]`
-    /// - output: `[batch_size, channels, height, width]`
-    pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
+    /// - input: `[batch_size, channels, ...]`
+    /// - output: `[batch_size, channels, ...]`
+    pub fn forward<const DI: usize>(&self, input: Tensor<B, DI>) -> Tensor<B, DI> {
+        // Should be move to a compilation error when const generic support that kind of
+        // validation. https://github.com/rust-lang/rust/issues/76560
+        if D + 2 != DI {
+            panic!("BatchNorm{}D can only be applied on tensors of size {} with the following shape [batch_size, channels, ...], received {}D tensor", D, D+2, DI);
+        }
+
         match B::ad_enabled() {
             true => self.forward_train(input),
             false => self.forward_inference(input),
         }
     }
 
-    fn forward_inference(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
+    fn forward_inference<const DI: usize>(&self, input: Tensor<B, DI>) -> Tensor<B, DI> {
         let channels = input.dims()[1];
-        let mean = self.running_mean.val().value();
-        let var = self.running_var.val().value();
+        let mean = self.running_mean.value();
+        let var = self.running_var.value();
 
-        self.forward_shared(
-            input,
-            mean.reshape([1, channels, 1, 1]),
-            var.reshape([1, channels, 1, 1]),
-        )
+        let mut shape = [1; DI];
+        shape[1] = channels;
+
+        self.forward_shared(input, mean.reshape(shape), var.reshape(shape))
     }
 
-    fn forward_train(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
-        let [batch_size, channels, height, width] = input.dims();
+    fn forward_train<const DI: usize>(&self, input: Tensor<B, DI>) -> Tensor<B, DI> {
+        let dims = input.dims();
+        let batch_size = dims[0];
+        let channels = dims[1];
+
+        let mut shape_unsqueeze = [1; DI];
+        let mut flatten_size = batch_size;
+        shape_unsqueeze[1] = channels;
+
+        for dim in dims.iter().take(DI).skip(2) {
+            flatten_size *= dim;
+        }
 
         let mean = input
             .clone()
             .swap_dims(0, 1)
-            .reshape([channels, batch_size * height * width])
+            .reshape([channels, flatten_size])
             .mean_dim(1)
-            .reshape([1, channels, 1, 1]);
+            .reshape(shape_unsqueeze);
 
         let var = input
             .clone()
             .sub(mean.clone())
             .powf(2.0)
             .swap_dims(0, 1)
-            .reshape([channels, batch_size * height * width])
+            .reshape([channels, flatten_size])
             .mean_dim(1)
-            .reshape([1, channels, 1, 1]);
+            .reshape(shape_unsqueeze);
 
         let running_mean = self.running_mean.value_sync();
         let running_var = self.running_var.value_sync();
@@ -119,35 +149,92 @@ impl<B: Backend> BatchNorm2d<B> {
         self.forward_shared(input, mean, var)
     }
 
-    fn forward_shared(
+    fn forward_shared<const DI: usize>(
         &self,
-        x: Tensor<B, 4>,
-        mean: Tensor<B, 4>,
-        var: Tensor<B, 4>,
-    ) -> Tensor<B, 4> {
+        x: Tensor<B, DI>,
+        mean: Tensor<B, DI>,
+        var: Tensor<B, DI>,
+    ) -> Tensor<B, DI> {
         let channels = x.dims()[1];
+        let mut shape = [1; DI];
+        shape[1] = channels;
+
         let std = var.add_scalar(self.epsilon).sqrt();
 
         let x = x.sub(mean);
         let x = x.div(std);
 
-        let x = x.mul(self.gamma.val().reshape([1, channels, 1, 1]));
+        let x = x.mul(self.gamma.val().reshape(shape));
 
-        x.add(self.beta.val().reshape([1, channels, 1, 1]))
+        x.add(self.beta.val().reshape(shape))
     }
 }
 
 #[cfg(feature = "std")]
 #[cfg(test)]
-mod tests {
+mod tests_1d {
     use super::*;
     use crate::{module::ADModule, TestADBackend};
     use burn_tensor::Data;
 
     #[test]
-    fn batch_norm_2d_forward_train() {
-        let config = BatchNorm2dConfig::new(3);
-        let module = BatchNorm2d::<TestADBackend>::new(&config);
+    fn batch_norm_forward_train() {
+        let module = BatchNormConfig::new(3).init::<TestADBackend, 1>();
+
+        let output = module.forward(input_tensor());
+
+        output.to_data().assert_approx_eq(
+            &Data::from([
+                [
+                    [1.1483e+00, 3.7521e-01],
+                    [1.6272e-03, 7.5067e-01],
+                    [1.6204e+00, -4.5168e-02],
+                ],
+                [
+                    [6.8856e-02, -1.5923e+00],
+                    [-1.6318e+00, 8.7949e-01],
+                    [-5.3368e-01, -1.0416e+00],
+                ],
+            ]),
+            2,
+        );
+    }
+
+    #[test]
+    fn batch_norm_forward_inference() {
+        let module = BatchNormConfig::new(3).init::<TestADBackend, 1>();
+
+        module.forward(input_tensor());
+        let module = module.valid();
+        let output = module.forward(input_tensor());
+
+        output.to_data().assert_approx_eq(
+            &Data::from([
+                [[0.9409, 0.6976], [0.5892, 0.8774], [0.9106, 0.6844]],
+                [[0.6012, 0.0782], [-0.0394, 0.9270], [0.6181, 0.5492]],
+            ]),
+            2,
+        );
+    }
+
+    fn input_tensor<B: Backend>() -> Tensor<B, 3> {
+        Tensor::<B, 3>::from_floats([
+            [[0.9601, 0.7277], [0.6272, 0.9034], [0.9378, 0.7230]],
+            [[0.6356, 0.1362], [0.0249, 0.9509], [0.6600, 0.5945]],
+        ])
+    }
+}
+
+#[cfg(feature = "std")]
+#[cfg(test)]
+mod tests_2d {
+    use super::*;
+    use crate::{module::ADModule, TestADBackend};
+    use burn_tensor::Data;
+
+    #[test]
+    fn batch_norm_forward_train() {
+        let module = BatchNormConfig::new(3).init::<TestADBackend, 2>();
 
         let output = module.forward(input_tensor());
 
@@ -169,12 +256,11 @@ mod tests {
     }
 
     #[test]
-    fn batch_norm_2d_forward_inference() {
-        let config = BatchNorm2dConfig::new(3);
-        let module = BatchNorm2d::<TestADBackend>::new(&config);
+    fn batch_norm_forward_inference() {
+        let module = BatchNormConfig::new(3).init::<TestADBackend, 2>();
 
         module.forward(input_tensor());
-        let module = module.inner();
+        let module = module.valid();
         let output = module.forward(input_tensor());
 
         output.to_data().assert_approx_eq(
@@ -195,9 +281,8 @@ mod tests {
     }
 
     #[test]
-    fn batch_norm_2d_running_mean() {
-        let config = BatchNorm2dConfig::new(3);
-        let module = BatchNorm2d::<TestADBackend>::new(&config);
+    fn batch_norm_running_mean() {
+        let module = BatchNormConfig::new(3).init::<TestADBackend, 2>();
 
         let _output = module.forward(input_tensor());
 
@@ -210,9 +295,8 @@ mod tests {
     }
 
     #[test]
-    fn batch_norm_2d_running_var() {
-        let config = BatchNorm2dConfig::new(3);
-        let module = BatchNorm2d::<TestADBackend>::new(&config);
+    fn batch_norm_running_var() {
+        let module = BatchNormConfig::new(3).init::<TestADBackend, 2>();
 
         let _output = module.forward(input_tensor());
 
@@ -225,17 +309,14 @@ mod tests {
     }
 
     #[test]
-    fn batch_norm_2d_running_mean_inner_module() {
-        let config = BatchNorm2dConfig::new(3);
-        let module = BatchNorm2d::<TestADBackend>::new(&config);
+    fn batch_norm_running_mean_inner_module() {
+        let module = BatchNormConfig::new(3).init::<TestADBackend, 2>();
 
         let _output = module.forward(input_tensor());
 
-        let module_valid = module.inner();
+        let module_valid = module.valid();
         let running_mean = module_valid.running_mean.value();
-
-        let module_train = BatchNorm2d::<TestADBackend>::from_inner(module_valid);
-        let running_mean_after = module_train.running_mean.value();
+        let running_mean_after = module.running_mean.value();
 
         running_mean_after
             .into_data()
@@ -243,9 +324,8 @@ mod tests {
     }
 
     #[test]
-    fn batch_norm_2d_grads() {
-        let config = BatchNorm2dConfig::new(3);
-        let module = BatchNorm2d::<TestADBackend>::new(&config);
+    fn batch_norm_grads() {
+        let module = BatchNormConfig::new(3).init::<TestADBackend, 2>();
         let input = input_tensor().require_grad();
 
         let output = module.forward(input.clone());

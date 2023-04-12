@@ -63,23 +63,20 @@ impl GradientsParams {
     }
 
     /// Change the device of each tensor gradients registered for the given [module](ADModule).
-    pub fn to_device<M: ADModule>(
+    pub fn to_device<B: ADBackend, M: ADModule<B>>(
         mut self,
-        device: &<M::Backend as Backend>::Device,
+        device: &B::Device,
         module: &M,
     ) -> Self {
-        let mut visitor = GradientsParamsChangeDevice::new(device, &mut self);
+        let mut visitor = GradientsParamsChangeDevice::<M, B>::new(device, &mut self);
         module.visit(&mut visitor);
         self
     }
 
     /// Extract each tensor gradients for the given [module](ADModule).
-    pub fn from_grads<M: ADModule>(
-        grads: <M::ADBackend as ADBackend>::Gradients,
-        module: &M,
-    ) -> Self {
+    pub fn from_grads<B: ADBackend, M: ADModule<B>>(grads: B::Gradients, module: &M) -> Self {
         let mut grads_params = GradientsParams::new();
-        let mut visitor = GradientsParamsConverter::new(grads, &mut grads_params);
+        let mut visitor = GradientsParamsConverter::<M, B>::new(grads, &mut grads_params);
 
         module.visit(&mut visitor);
         grads_params
@@ -100,9 +97,7 @@ mod tests {
     fn test_convert_grads() {
         let layer_1 = layer();
         let mut layer_2 = layer_1.clone();
-        layer_2 = layer_2
-            .to_device(&<TestADBackend as Backend>::Device::default())
-            .detach();
+        layer_2 = layer_2.fork(&<TestADBackend as Backend>::Device::default());
         let loss_1 = layer_1.forward(random_tensor());
         let loss_2 = layer_2.forward(random_tensor());
         let grads_1 = GradientsParams::from_grads(loss_1.backward(), &layer_1);
@@ -117,7 +112,7 @@ mod tests {
     }
 
     fn layer() -> Linear<TestADBackend> {
-        Linear::<TestADBackend>::new(&LinearConfig::new(20, 20).with_bias(true))
+        LinearConfig::new(20, 20).with_bias(true).init()
     }
 
     fn random_tensor() -> Tensor<TestADBackend, 2> {

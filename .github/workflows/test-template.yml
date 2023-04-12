@@ -22,6 +22,10 @@ on:
       no-std-build-targets:
         required: false
         type: boolean
+      run-doc-test:
+        required: false
+        type: boolean
+        default: true
 
 jobs:
   test-crate:
@@ -34,17 +38,15 @@ jobs:
       ARGS_CLIPPY: ${{ inputs.args-clippy }}
     steps:
       - name: checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: install rust
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
-          toolchain: stable
           components: rustfmt, clippy
-          override: true
 
       - name: check doc
+        if: ${{ inputs.run-doc-test }}
         run: |
           cd ${CRATE}
           cargo test --doc ${ARGS_DOC}

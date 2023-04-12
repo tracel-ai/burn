@@ -1,16 +1,18 @@
 use crate::{
     data::{BertCasedTokenizer, TextClassificationBatcher, TextClassificationDataset, Tokenizer},
-    model::{TextClassificationModel, TextClassificationModelConfig},
+    model::TextClassificationModelConfig,
 };
 use burn::{
     config::Config,
-    data::dataloader::DataLoaderBuilder,
-    module::{Module, StateFormat},
+    data::{dataloader::DataLoaderBuilder, dataset::transform::SamplerDataset},
+    lr_scheduler::noam::NoamLRSchedulerConfig,
+    module::Module,
     nn::transformer::TransformerEncoderConfig,
-    optim::{Sgd, SgdConfig},
+    optim::AdamConfig,
+    record::{DefaultRecordSettings, Record},
     tensor::backend::ADBackend,
     train::{
-        metric::{AccuracyMetric, CUDAMetric, LossMetric},
+        metric::{AccuracyMetric, CUDAMetric, LearningRateMetric, LossMetric},
         LearnerBuilder,
     },
 };
@@ -18,14 +20,14 @@ use std::sync::Arc;
 
 #[derive(Config)]
 pub struct ExperimentConfig {
-    transformer: TransformerEncoderConfig,
-    optimizer: SgdConfig,
+    pub transformer: TransformerEncoderConfig,
+    pub optimizer: AdamConfig,
     #[config(default = 256)]
-    max_seq_length: usize,
-    #[config(default = 16)]
-    batch_size: usize,
-    #[config(default = 10)]
-    num_epochs: usize,
+    pub max_seq_length: usize,
+    #[config(default = 32)]
+    pub batch_size: usize,
+    #[config(default = 5)]
+    pub num_epochs: usize,
 }
 
 pub fn train<B: ADBackend, D: TextClassificationDataset + 'static>(
@@ -35,41 +37,41 @@ pub fn train<B: ADBackend, D: TextClassificationDataset + 'static>(
     config: ExperimentConfig,
     artifact_dir: &str,
 ) {
-    let dataset_train = Arc::new(dataset_train);
-    let dataset_test = Arc::new(dataset_test);
-    let n_classes = D::num_classes();
-
     let tokenizer = Arc::new(BertCasedTokenizer::default());
-    let batcher_train = Arc::new(TextClassificationBatcher::<B>::new(
+    let batcher_train = TextClassificationBatcher::<B>::new(
         tokenizer.clone(),
         device.clone(),
         config.max_seq_length,
-    ));
-    let batcher_test = Arc::new(TextClassificationBatcher::<B::InnerBackend>::new(
+    );
+    let batcher_test = TextClassificationBatcher::<B::InnerBackend>::new(
         tokenizer.clone(),
         device.clone(),
         config.max_seq_length,
-    ));
+    );
 
-    let model = TextClassificationModel::new(&TextClassificationModelConfig::new(
+    let model = TextClassificationModelConfig::new(
         config.transformer.clone(),
-        n_classes,
+        D::num_classes(),
         tokenizer.vocab_size(),
         config.max_seq_length,
-    ));
+    )
+    .init();
 
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
         .batch_size(config.batch_size)
-        .num_workers(8)
-        .shuffle(42)
-        .build(dataset_train);
+        .num_workers(4)
+        .build(SamplerDataset::new(dataset_train, 50_000));
 
     let dataloader_test = DataLoaderBuilder::new(batcher_test)
         .batch_size(config.batch_size)
-        .num_workers(8)
-        .build(dataset_test);
+        .num_workers(4)
+        .build(SamplerDataset::new(dataset_test, 5_000));
 
-    let optim = Sgd::new(&config.optimizer);
+    let optim = config.optimizer.init();
+    let lr_scheduler = NoamLRSchedulerConfig::new(0.25)
+        .with_warmup_steps(1000)
+        .with_model_size(config.transformer.d_model)
+        .init();
 
     let learner = LearnerBuilder::new(artifact_dir)
         .metric_train(CUDAMetric::new())
@@ -78,18 +80,18 @@ pub fn train<B: ADBackend, D: TextClassificationDataset + 'static>(
         .metric_valid(AccuracyMetric::new())
         .metric_train_plot(LossMetric::new())
         .metric_valid_plot(LossMetric::new())
-        .with_file_checkpointer::<burn::tensor::f16>(2, StateFormat::default())
+        .metric_train_plot(LearningRateMetric::new())
+        .with_file_checkpointer::<DefaultRecordSettings>(2)
         .devices(vec![device])
         .num_epochs(config.num_epochs)
-        .build(model, optim);
+        .build(model, optim, lr_scheduler);
 
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 
     config.save(&format!("{artifact_dir}/config.json")).unwrap();
 
     model_trained
-        .state()
-        .convert::<burn::tensor::f16>()
-        .save(&format!("{artifact_dir}/model"), &StateFormat::default())
+        .into_record()
+        .record::<DefaultRecordSettings>(format!("{artifact_dir}/model").into())
         .unwrap();
 }

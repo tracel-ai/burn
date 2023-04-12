@@ -1,5 +1,7 @@
 use crate as burn;
+
 use crate::config::Config;
+use crate::module::Module;
 use crate::tensor::backend::Backend;
 use crate::tensor::{Distribution, Tensor};
 
@@ -16,17 +18,19 @@ pub struct DropoutConfig {
 /// [Improving neural networks by preventing co-adaptation of feature detectors](https://arxiv.org/abs/1207.0580).
 ///
 /// The input is also scaled during training to `1 / (1 - prob_keep)`.
-#[derive(Clone, Debug)]
+#[derive(Module, Clone, Debug)]
 pub struct Dropout {
     prob: f64,
 }
 
-impl Dropout {
-    /// Create the module from the given configuration.
-    pub fn new(config: &DropoutConfig) -> Self {
-        Self { prob: config.prob }
+impl DropoutConfig {
+    /// Initialize a new [dropout](Dropout) module.
+    pub fn init(&self) -> Dropout {
+        Dropout { prob: self.prob }
     }
+}
 
+impl Dropout {
     /// Applies the forward pass on the input tensor.
     ///
     /// # Shapes
@@ -61,7 +65,7 @@ mod tests {
     #[test]
     fn with_ad_backend_should_mark_input() {
         let tensor = Tensor::<TestADBackend, 2>::ones(Shape::new([100, 100]));
-        let dropout = Dropout::new(&DropoutConfig { prob: 0.5 });
+        let dropout = DropoutConfig::new(0.5).init();
 
         let output = dropout.forward(tensor.clone());
 
@@ -71,7 +75,7 @@ mod tests {
     #[test]
     fn without_ad_backend_should_not_change_input() {
         let tensor = Tensor::<TestBackend, 2>::ones(Shape::new([100, 100]));
-        let dropout = Dropout::new(&DropoutConfig { prob: 0.5 });
+        let dropout = DropoutConfig::new(0.5).init();
 
         let output = dropout.forward(tensor.clone());
 

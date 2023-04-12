@@ -1,12 +1,13 @@
-use burn_core::module::{State, StateError};
+use burn_core::record::{Record, RecorderError};
 
 #[derive(Debug)]
 pub enum CheckpointerError {
     IOError(std::io::Error),
-    StateError(StateError),
+    RecorderError(RecorderError),
+    Unknown(String),
 }
 
-pub trait Checkpointer<E> {
-    fn save(&self, epoch: usize, state: State<E>) -> Result<(), CheckpointerError>;
-    fn restore(&self, epoch: usize) -> Result<State<E>, CheckpointerError>;
+pub trait Checkpointer<R: Record> {
+    fn save(&self, epoch: usize, record: R) -> Result<(), CheckpointerError>;
+    fn restore(&self, epoch: usize) -> Result<R, CheckpointerError>;
 }

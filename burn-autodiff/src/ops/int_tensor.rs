@@ -226,4 +226,12 @@ impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     ) -> IntTensor<B, D1> {
         B::int_index_select_dim_assign(tensor, dim, indexes, value)
     }
+
+    fn int_mask_fill<const D: usize>(
+        tensor: IntTensor<B, D>,
+        mask: BoolTensor<B, D>,
+        value: B::IntElem,
+    ) -> <ADBackendDecorator<B> as Backend>::IntTensorPrimitive<D> {
+        B::int_mask_fill(tensor, mask, value)
+    }
 }

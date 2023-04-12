@@ -1,12 +1,15 @@
+use crate as burn;
+
+use crate::module::Module;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 
 /// Applies the Gaussian Error Linear Units function element-wise.
-#[derive(Clone, Debug, Default)]
+#[derive(Module, Clone, Debug, Default)]
 pub struct GELU {}
 
 impl GELU {
-    /// Create the module from the given configuration.
+    /// Create the module.
     pub fn new() -> Self {
         Self {}
     }

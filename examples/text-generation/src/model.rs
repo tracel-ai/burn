@@ -1,7 +1,7 @@
 use crate::data::TrainingTextGenerationBatch;
 use burn::{
     config::Config,
-    module::{Module, Param},
+    module::Module,
     nn::{
         attention::generate_autoregressive_mask,
         loss::CrossEntropyLoss,
@@ -23,39 +23,36 @@ pub struct TextGenerationModelConfig {
 
 #[derive(Module, Debug)]
 pub struct TextGenerationModel<B: Backend> {
-    transformer: Param<TransformerEncoder<B>>,
-    embedding_token: Param<Embedding<B>>,
-    embedding_pos: Param<Embedding<B>>,
-    output: Param<Linear<B>>,
+    transformer: TransformerEncoder<B>,
+    embedding_token: Embedding<B>,
+    embedding_pos: Embedding<B>,
+    output: Linear<B>,
     vocab_size: usize,
     pad_token: usize,
     max_seq_length: usize,
 }
 
-impl<B: Backend> TextGenerationModel<B> {
-    pub fn new(config: &TextGenerationModelConfig) -> Self {
-        let config_embedding_token =
-            EmbeddingConfig::new(config.vocab_size, config.transformer.d_model);
-        let config_embedding_pos =
-            EmbeddingConfig::new(config.max_seq_length, config.transformer.d_model);
-        let config_output = LinearConfig::new(config.transformer.d_model, config.vocab_size);
+impl TextGenerationModelConfig {
+    pub fn init<B: Backend>(&self) -> TextGenerationModel<B> {
+        let output = LinearConfig::new(self.transformer.d_model, self.vocab_size).init();
+        let transformer = self.transformer.init();
+        let embedding_token =
+            EmbeddingConfig::new(self.vocab_size, self.transformer.d_model).init();
+        let embedding_pos =
+            EmbeddingConfig::new(self.max_seq_length, self.transformer.d_model).init();
 
-        let transformer = TransformerEncoder::new(&config.transformer);
-        let embedding_token = Embedding::new(&config_embedding_token);
-        let embedding_pos = Embedding::new(&config_embedding_pos);
-        let output = Linear::new(&config_output);
-
-        Self {
-            transformer: Param::from(transformer),
-            embedding_token: Param::from(embedding_token),
-            embedding_pos: Param::from(embedding_pos),
-            output: Param::from(output),
-            vocab_size: config.vocab_size,
-            pad_token: config.pad_token,
-            max_seq_length: config.max_seq_length,
+        TextGenerationModel {
+            transformer,
+            embedding_token,
+            embedding_pos,
+            output,
+            vocab_size: self.vocab_size,
+            pad_token: self.pad_token,
+            max_seq_length: self.max_seq_length,
         }
     }
-
+}
+impl<B: Backend> TextGenerationModel<B> {
     pub fn forward_training(
         &self,
         item: TrainingTextGenerationBatch<B>,

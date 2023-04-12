@@ -1,6 +1,3 @@
-use alloc::{format, vec::Vec};
-use burn_tensor::Int;
-
 use crate as burn;
 
 use super::Initializer;
@@ -9,6 +6,7 @@ use crate::module::Module;
 use crate::module::Param;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
+use burn_tensor::Int;
 
 /// Configuration to create an [Embedding](Embedding) layer.
 #[derive(Config)]
@@ -33,19 +31,27 @@ pub struct Embedding<B: Backend> {
     weight: Param<Tensor<B, 2>>,
 }
 
-impl<B: Backend> Embedding<B> {
-    /// Create the module from the given configuration.
-    pub fn new(config: &EmbeddingConfig) -> Self {
-        let weight = config
+impl EmbeddingConfig {
+    /// Initialize a new [embedding](Embedding) module.
+    pub fn init<B: Backend>(&self) -> Embedding<B> {
+        let weight = self
             .initializer
-            .init([config.n_embedding, config.d_model])
+            .init([self.n_embedding, self.d_model])
             .require_grad();
 
-        Self {
+        Embedding {
             weight: Param::from(weight),
         }
     }
+    /// Initialize a new [embedding](Embedding) module with a [record](EmbeddingRecord).
+    pub fn init_with<B: Backend>(&self, record: EmbeddingRecord<B>) -> Embedding<B> {
+        Embedding {
+            weight: record.weight,
+        }
+    }
+}
 
+impl<B: Backend> Embedding<B> {
     /// Applies the forward pass on the input tensor.
     ///
     /// # Shapes
@@ -59,19 +65,20 @@ impl<B: Backend> Embedding<B> {
 
 #[cfg(test)]
 mod tests {
-    use burn_tensor::Data;
-
     use super::*;
-    pub type TB = burn_ndarray::NdArrayBackend<f32>;
+    use crate::TestBackend;
+    use burn_tensor::Data;
 
     #[test]
     fn initializer_default() {
-        TB::seed(0);
+        TestBackend::seed(0);
+
         let config = EmbeddingConfig::new(100, 10);
-        assert_eq!(config.initializer, Initializer::Normal(0.0, 1.0));
-        let embed: Embedding<TB> = Embedding::new(&config);
+        let embed = config.init::<TestBackend>();
         let weights = embed.weight.val().reshape([1000]);
         let (var_act, mean_act) = weights.var_mean(0);
+
+        assert_eq!(config.initializer, Initializer::Normal(0.0, 1.0));
         var_act.to_data().assert_approx_eq(&Data::from([1.0f32]), 1);
         mean_act
             .to_data()
@@ -80,12 +87,15 @@ mod tests {
 
     #[test]
     fn initializer_zeros() {
-        TB::seed(0);
+        TestBackend::seed(0);
+
         let config = EmbeddingConfig::new(5, 5).with_initializer(Initializer::Zeros);
+        let embed = config.init::<TestBackend>();
+
         assert_eq!(config.initializer, Initializer::Zeros);
-        let conv: Embedding<TB> = Embedding::new(&config);
-        for item in conv.weight.to_data().value.iter() {
-            assert_eq!(*item, 0.0f32);
-        }
+        embed
+            .weight
+            .to_data()
+            .assert_approx_eq(&Data::zeros(embed.weight.shape()), 3);
     }
 }
