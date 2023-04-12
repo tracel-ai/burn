@@ -34,7 +34,7 @@ mod tests {
 
         let tensor_1 = TestADTensor::from_data(data_1).require_grad();
         let tensor_2 = TestADTensor::from_data(data_2).require_grad();
-        let tensor_source = TestADTensor::from_data(data_source);
+        let tensor_source = TestADTensor::from_data(data_source).require_grad();
         let mask = TestADTensor::from_bool(mask);
 
         let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
@@ -44,11 +44,7 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        grad_1
-            .to_data()
-            .assert_approx_eq(&Data::from([[42.2, 20.6], [65.6, 28.4]]), 3);
-        grad_2
-            .to_data()
-            .assert_approx_eq(&Data::from([[10.8, 18.6], [64.6, 33.4]]), 3);
+        assert_eq!(grad_1.to_data(), Data::from([[7.0, 3.0], [4.0, 2.0]]));
+        assert_eq!(grad_2.to_data(), Data::from([[2.0, 1.0], [3.0, 7.0]]));
     }
 }

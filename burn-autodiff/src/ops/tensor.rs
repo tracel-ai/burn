@@ -681,21 +681,24 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         struct MaskScatter;
 
         impl<B: Backend, const D: usize> Backward<B, D, 2> for MaskScatter {
-            type State = (
-                B::TensorPrimitive<D>,
-                BoolTensor<B, D>,
-                B::TensorPrimitive<D>,
-            );
+            type State = (BoolTensor<B, D>, Shape<D>, Shape<D>, B::Device);
 
             fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
-                let (tensor, mask, source) = ops.state;
+                let (mask, shape_lhs, shape_rhs, device) = ops.state;
+                let [mask_4lhs, mask_4rhs] = duplicate(&ops.parents, Some(mask));
 
                 binary::<B, D, D, D, _, _>(
                     ops.parents,
                     ops.node,
                     grads,
-                    |grad| B::mask_scatter(grad, mask.clone(), source),
-                    |grad| B::mask_scatter(grad, mask.clone(), tensor),
+                    |grad| {
+                        let zeros = B::zeros(shape_lhs, &device);
+                        B::mask_scatter(grad, mask_4lhs.unwrap(), zeros)
+                    },
+                    |grad| {
+                        let zeros = B::zeros(shape_rhs, &device);
+                        B::mask_scatter(zeros, mask_4rhs.unwrap(), grad)
+                    },
                 );
             }
         }
@@ -706,9 +709,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         {
             OpsKind::Tracked(prep) => prep.finish(
                 (
-                    tensor.primitive.clone(),
                     mask.clone(),
-                    source.primitive.clone(),
+                    B::shape(&tensor.primitive),
+                    B::shape(&source.primitive),
+                    B::device(&source.primitive),
                 ),
                 B::mask_scatter(tensor.primitive, mask, source.primitive),
             ),
