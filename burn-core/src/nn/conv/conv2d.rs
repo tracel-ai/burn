@@ -1,5 +1,3 @@
-use alloc::{format, vec::Vec};
-
 use crate as burn;
 
 use crate::config::Config;
@@ -32,7 +30,7 @@ pub struct Conv2dConfig {
 }
 
 /// Padding configuration for 2D convolution [config](Conv2dConfig).
-#[derive(Config, Debug)]
+#[derive(Module, Config, Debug)]
 pub enum Conv2dPaddingConfig {
     /// Dynamicaly calculate the amount of padding necessary to ensure that the output size will be
     /// the same as the input.
@@ -55,7 +53,7 @@ pub enum Conv2dPaddingConfig {
 #[derive(Module, Debug)]
 pub struct Conv2d<B: Backend> {
     weight: Param<Tensor<B, 4>>,
-    bias: Param<Option<Tensor<B, 1>>>,
+    bias: Option<Param<Tensor<B, 1>>>,
     stride: [usize; 2],
     kernel_size: [usize; 2],
     padding: Conv2dPaddingConfig,
@@ -88,7 +86,18 @@ impl Conv2dConfig {
 
         Conv2d {
             weight: Param::from(weight),
-            bias: Param::from(bias),
+            bias: bias.map(Param::from),
+            stride: [1, 1], // TODO: Add the stride to the config when properly supported.
+            kernel_size: self.kernel_size,
+            padding: self.padding.clone(),
+        }
+    }
+
+    /// Initialize a new [conv2d](Conv2d) module with a [record](Conv2dRecord).
+    pub fn init_with<B: Backend>(&self, record: Conv2dRecord<B>) -> Conv2d<B> {
+        Conv2d {
+            weight: record.weight,
+            bias: record.bias,
             stride: [1, 1], // TODO: Add the stride to the config when properly supported.
             kernel_size: self.kernel_size,
             padding: self.padding.clone(),
@@ -111,7 +120,7 @@ impl<B: Backend> Conv2d<B> {
         conv2d(
             input,
             self.weight.val(),
-            self.bias.val(),
+            self.bias.as_ref().map(|bias| bias.val()),
             self.stride,
             padding,
         )

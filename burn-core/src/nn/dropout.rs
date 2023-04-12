@@ -1,5 +1,7 @@
 use crate as burn;
+
 use crate::config::Config;
+use crate::module::Module;
 use crate::tensor::backend::Backend;
 use crate::tensor::{Distribution, Tensor};
 
@@ -16,7 +18,7 @@ pub struct DropoutConfig {
 /// [Improving neural networks by preventing co-adaptation of feature detectors](https://arxiv.org/abs/1207.0580).
 ///
 /// The input is also scaled during training to `1 / (1 - prob_keep)`.
-#[derive(Clone, Debug)]
+#[derive(Module, Clone, Debug)]
 pub struct Dropout {
     prob: f64,
 }

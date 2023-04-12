@@ -28,3 +28,6 @@ terminal_size = "0.2.3"
 # Utilities
 derive-new = { workspace = true }
 serde = { workspace = true, features = ["std", "derive"] }
+
+[dev-dependencies]
+burn-ndarray = { path ="../burn-ndarray", version = "0.6.0" }

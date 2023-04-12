@@ -12,7 +12,7 @@ pub fn generate_autoregressive_mask<B: Backend>(
 ) -> Tensor<B, 3, Bool> {
     let mut mask = Tensor::<B, 3, Int>::zeros([1, seq_length, seq_length]);
 
-    for i in 0..seq_length {
+    for i in 0..(seq_length - 1) {
         let values = Tensor::<B, 3, Int>::ones([1, 1, seq_length - (i + 1)]);
         mask = mask.index_assign([0..1, i..i + 1, i + 1..seq_length], values);
     }

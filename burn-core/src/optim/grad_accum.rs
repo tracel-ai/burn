@@ -1,36 +1,40 @@
-use crate::module::{Module, ModuleVisitor, ParamId};
+use core::marker::PhantomData;
+
+use crate::module::{ADModule, ModuleVisitor, ParamId};
 
 use burn_tensor::{backend::ADBackend, Tensor};
 
 use super::GradientsParams;
 
 /// Accumulate gradients into a single [Gradients](ADBackend::Gradients) object.
-pub struct GradientsAccumulator {
+pub struct GradientsAccumulator<M> {
     grads: GradientsParams,
+    phantom: PhantomData<M>,
 }
 
-impl Default for GradientsAccumulator {
+impl<M> Default for GradientsAccumulator<M> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl GradientsAccumulator {
+impl<M> GradientsAccumulator<M> {
     /// Create a new gradients accumulator.
     pub fn new() -> Self {
         Self {
             grads: GradientsParams::new(),
+            phantom: PhantomData::default(),
         }
     }
 }
 
-impl GradientsAccumulator {
+impl<M> GradientsAccumulator<M> {
     /// Accumulate the given gradients for each parameter in the given module.
-    pub fn accumulate<B: ADBackend, M>(&mut self, module: &M, grads: GradientsParams)
+    pub fn accumulate<B: ADBackend>(&mut self, module: &M, grads: GradientsParams)
     where
-        M: Module<Backend = B>,
+        M: ADModule<B>,
     {
-        let mut visitor = ModuleGradsAccumulator::new(&mut self.grads, grads);
+        let mut visitor = ModuleGradsAccumulator::<M>::new(&mut self.grads, grads);
         module.visit(&mut visitor);
     }
 
@@ -44,12 +48,13 @@ impl GradientsAccumulator {
 }
 
 #[derive(new)]
-struct ModuleGradsAccumulator<'a> {
+struct ModuleGradsAccumulator<'a, M> {
     grads: &'a mut GradientsParams,
     grads_new: GradientsParams,
+    phantom: PhantomData<M>,
 }
 
-impl<'a, B: ADBackend> ModuleVisitor<B> for ModuleGradsAccumulator<'a> {
+impl<'a, B: ADBackend, M: ADModule<B>> ModuleVisitor<B> for ModuleGradsAccumulator<'a, M> {
     fn visit<const D: usize>(&mut self, id: &ParamId, _tensor: &Tensor<B, D>) {
         let grad_updated = match self.grads_new.remove::<B::InnerBackend, D>(id) {
             Some(new) => match self.grads.remove::<B::InnerBackend, D>(id) {

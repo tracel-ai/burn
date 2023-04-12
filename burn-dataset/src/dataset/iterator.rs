@@ -1,6 +1,7 @@
 use crate::dataset::Dataset;
 use std::iter::Iterator;
 
+/// Dataset iterator.
 pub struct DatasetIterator<'a, I> {
     current: usize,
     dataset: &'a dyn Dataset<I>,

@@ -1,17 +1,15 @@
 // Orginally copied from the burn/examples/mnist package
 
-use alloc::{format, vec::Vec};
-
 use burn::{
     config::Config,
-    module::{Module, Param},
+    module::Module,
     nn,
     tensor::{backend::Backend, Tensor},
 };
 
 #[derive(Module, Debug)]
 pub struct ConvBlock<B: Backend> {
-    conv: Param<nn::conv::Conv2d<B>>,
+    conv: nn::conv::Conv2d<B>,
     pool: nn::pool::MaxPool2d,
     activation: nn::GELU,
 }
@@ -34,7 +32,7 @@ impl<B: Backend> ConvBlock<B> {
         let activation = nn::GELU::new();
 
         Self {
-            conv: Param::from(conv),
+            conv,
             pool,
             activation,
         }

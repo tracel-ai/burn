@@ -1,17 +1,30 @@
 use crate::{
-    backend::Backend, Bool, Element, ElementConversion, Float, Int, Shape, Tensor, TensorKind,
+    backend::Backend, check, check::TensorCheck, BasicOps, Bool, Element, ElementConversion, Float,
+    Int, Shape, Tensor, TensorKind,
 };
 
 impl<B, const D: usize, K> Tensor<B, D, K>
 where
     B: Backend,
     K: Numeric<B>,
+    K::Elem: Element,
 {
+    /// Convert the tensor into a scalar.
+    ///
+    /// # Panics
+    ///
+    /// If the tensor doesn't have one element.
+    pub fn into_scalar(self) -> K::Elem {
+        check!(TensorCheck::into_scalar(&self.shape()));
+        let data = self.into_data();
+        data.value[0]
+    }
     /// Applies element wise addition operation.
     ///
     /// `y = x2 + x1`
     #[allow(clippy::should_implement_trait)]
     pub fn add(self, other: Self) -> Self {
+        check!(TensorCheck::binary_ops_ew("Add", &self, &other));
         Self::new(K::add(self.primitive, other.primitive))
     }
 
@@ -27,6 +40,7 @@ where
     /// `y = x2 - x1`
     #[allow(clippy::should_implement_trait)]
     pub fn sub(self, other: Self) -> Self {
+        check!(TensorCheck::binary_ops_ew("Sub", &self, &other));
         Self::new(K::sub(self.primitive, other.primitive))
     }
 
@@ -42,6 +56,7 @@ where
     /// `y = x2 / x1`
     #[allow(clippy::should_implement_trait)]
     pub fn div(self, other: Self) -> Self {
+        check!(TensorCheck::binary_ops_ew("Div", &self, &other));
         Self::new(K::div(self.primitive, other.primitive))
     }
 
@@ -57,6 +72,7 @@ where
     /// `y = x2 * x1`
     #[allow(clippy::should_implement_trait)]
     pub fn mul(self, other: Self) -> Self {
+        check!(TensorCheck::binary_ops_ew("Mul", &self, &other));
         Self::new(K::mul(self.primitive, other.primitive))
     }
 
@@ -107,11 +123,13 @@ where
 
     /// Aggregate all elements along the given *dimension* or *axis* in the tensor with the mean operation.
     pub fn mean_dim(self, dim: usize) -> Self {
+        check!(TensorCheck::aggregate_dim::<D>("Mean", dim));
         Self::new(K::mean_dim(self.primitive, dim))
     }
 
     /// Aggregate all elements along the given *dimension* or *axis* in the tensor with the sum operation.
     pub fn sum_dim(self, dim: usize) -> Self {
+        check!(TensorCheck::aggregate_dim::<D>("Sum", dim));
         Self::new(K::sum_dim(self.primitive, dim))
     }
 
@@ -121,6 +139,7 @@ where
     ///
     /// If the two tensors don't have the same shape.
     pub fn greater(self, other: Self) -> Tensor<B, D, Bool> {
+        check!(TensorCheck::binary_ops_ew("Greater", &self, &other));
         K::greater(self.primitive, other.primitive)
     }
 
@@ -130,6 +149,7 @@ where
     ///
     /// If the two tensors don't have the same shape.
     pub fn greater_equal(self, other: Self) -> Tensor<B, D, Bool> {
+        check!(TensorCheck::binary_ops_ew("Greater_equal", &self, &other));
         K::greater_equal(self.primitive, other.primitive)
     }
 
@@ -139,6 +159,7 @@ where
     ///
     /// If the two tensors don't have the same shape.
     pub fn lower(self, other: Self) -> Tensor<B, D, Bool> {
+        check!(TensorCheck::binary_ops_ew("Lower", &self, &other));
         K::lower(self.primitive, other.primitive)
     }
 
@@ -148,6 +169,7 @@ where
     ///
     /// If the two tensors don't have the same shape.
     pub fn lower_equal(self, other: Self) -> Tensor<B, D, Bool> {
+        check!(TensorCheck::binary_ops_ew("Lower_equal", &self, &other));
         K::lower_equal(self.primitive, other.primitive)
     }
 
@@ -169,6 +191,20 @@ where
     /// Applies element wise lower-equal comparison and returns a boolean tensor.
     pub fn lower_equal_elem<E: ElementConversion>(self, other: E) -> Tensor<B, D, Bool> {
         K::lower_equal_elem(self.primitive, other.elem())
+    }
+
+     /// Fill elements from the given tensor based where the mask is true.
+    pub fn mask_scatter(self, mask: Tensor<B, D, Bool>, source: Self) -> Self {
+        Self::new(K::mask_scatter(
+            self.primitive,
+            mask,
+            source.primitive,
+        ))
+    }
+
+    /// Fill each element with the given value based on the given mask.
+    pub fn mask_fill<E: ElementConversion>(self, mask: Tensor<B, D, Bool>, value: E) -> Self {
+        Self::new(K::mask_fill(self.primitive, mask, value.elem()))
     }
 
     /// Select the tensor elements corresponding to the given indexes.
@@ -223,9 +259,10 @@ where
 /// # Warnings
 ///
 /// This is an internal trait, use the public API provided by [tensor struct](Tensor).
-pub trait Numeric<B: Backend>: TensorKind<B> {
-    type Elem: Element;
-
+pub trait Numeric<B: Backend>: BasicOps<B>
+where
+    Self::Elem: Element,
+{
     fn add<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Primitive<D>) -> Self::Primitive<D>;
     fn add_scalar<const D: usize, E: ElementConversion>(
         lhs: Self::Primitive<D>,
@@ -280,6 +317,16 @@ pub trait Numeric<B: Backend>: TensorKind<B> {
         lhs: Self::Primitive<D>,
         rhs: Self::Elem,
     ) -> Tensor<B, D, Bool>;
+    fn mask_scatter<const D: usize>(
+        tensor: Self::Primitive<D>,
+        mask: Tensor<B, D, Bool>,
+        source: Self::Primitive<D>,
+    ) -> Self::Primitive<D>;
+    fn mask_fill<const D: usize>(
+        tensor: Self::Primitive<D>,
+        mask: Tensor<B, D, Bool>,
+        value: Self::Elem,
+    ) -> Self::Primitive<D>;
     fn index_select<const D: usize>(
         tensor: Self::Primitive<D>,
         indexes: Tensor<B, D, Int>,
@@ -303,8 +350,6 @@ pub trait Numeric<B: Backend>: TensorKind<B> {
 }
 
 impl<B: Backend> Numeric<B> for Int {
-    type Elem = B::IntElem;
-
     fn add<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
@@ -428,6 +473,22 @@ impl<B: Backend> Numeric<B> for Int {
         Tensor::new(B::int_lower_equal_elem(lhs, rhs))
     }
 
+    fn mask_scatter<const D: usize>(
+        tensor: Self::Primitive<D>,
+        mask: Tensor<B, D, Bool>,
+        source: Self::Primitive<D>,
+    ) -> Self::Primitive<D> {
+        B::int_mask_scatter(tensor, mask.primitive, source)
+    }
+
+    fn mask_fill<const D: usize>(
+        tensor: Self::Primitive<D>,
+        mask: Tensor<B, D, Bool>,
+        value: Self::Elem,
+    ) -> Self::Primitive<D> {
+        B::int_mask_fill(tensor, mask.primitive, value)
+    }
+
     fn index_select_dim<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
@@ -461,8 +522,6 @@ impl<B: Backend> Numeric<B> for Int {
 }
 
 impl<B: Backend> Numeric<B> for Float {
-    type Elem = B::FloatElem;
-
     fn add<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
@@ -586,6 +645,22 @@ impl<B: Backend> Numeric<B> for Float {
         Tensor::new(B::lower_equal_elem(lhs, rhs))
     }
 
+    fn mask_scatter<const D: usize>(
+        tensor: Self::Primitive<D>,
+        mask: Tensor<B, D, Bool>,
+        source: Self::Primitive<D>,
+    ) -> Self::Primitive<D> {
+        B::mask_scatter(tensor, mask.primitive, source)
+    }
+
+    fn mask_fill<const D: usize>(
+        tensor: Self::Primitive<D>,
+        mask: Tensor<B, D, Bool>,
+        value: Self::Elem,
+    ) -> Self::Primitive<D> {
+        B::mask_fill(tensor, mask.primitive, value)
+    }
+
     fn index_select_dim<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
@@ -623,6 +698,7 @@ impl<B, const D: usize, K> core::ops::Add<Self> for Tensor<B, D, K>
 where
     B: Backend,
     K: Numeric<B>,
+    K::Elem: Element,
 {
     type Output = Self;
 
@@ -636,6 +712,7 @@ where
     E: ElementConversion,
     B: Backend,
     K: Numeric<B>,
+    K::Elem: Element,
 {
     type Output = Self;
 
@@ -648,6 +725,7 @@ impl<B, const D: usize, K> core::ops::Sub<Tensor<B, D, K>> for Tensor<B, D, K>
 where
     B: Backend,
     K: Numeric<B>,
+    K::Elem: Element,
 {
     type Output = Self;
 
@@ -661,6 +739,7 @@ where
     E: ElementConversion,
     B: Backend,
     K: Numeric<B>,
+    K::Elem: Element,
 {
     type Output = Self;
 
@@ -673,6 +752,7 @@ impl<B, const D: usize, K> core::ops::Div<Tensor<B, D, K>> for Tensor<B, D, K>
 where
     B: Backend,
     K: Numeric<B>,
+    K::Elem: Element,
 {
     type Output = Self;
 
@@ -686,6 +766,7 @@ where
     E: ElementConversion,
     B: Backend,
     K: Numeric<B>,
+    K::Elem: Element,
 {
     type Output = Self;
 
@@ -698,6 +779,7 @@ impl<B, const D: usize, K> core::ops::Mul<Tensor<B, D, K>> for Tensor<B, D, K>
 where
     B: Backend,
     K: Numeric<B>,
+    K::Elem: Element,
 {
     type Output = Self;
 
@@ -711,6 +793,7 @@ where
     E: ElementConversion,
     B: Backend,
     K: Numeric<B>,
+    K::Elem: Element,
 {
     type Output = Self;
 
@@ -723,6 +806,7 @@ impl<B, const D: usize, K> core::ops::Neg for Tensor<B, D, K>
 where
     B: Backend,
     K: Numeric<B>,
+    K::Elem: Element,
 {
     type Output = Self;
 

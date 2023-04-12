@@ -21,6 +21,3 @@ wasm-bindgen = "0.2.84"
 [dev-dependencies]
 burn-dataset = {path = "../../burn-dataset"}
 
-[build-dependencies]
-burn = {path = "../../burn"}
-serde = {workspace = true}

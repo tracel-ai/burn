@@ -1,6 +1,3 @@
-use alloc::{format, vec::Vec};
-use burn_tensor::Int;
-
 use crate as burn;
 
 use super::Initializer;
@@ -9,6 +6,7 @@ use crate::module::Module;
 use crate::module::Param;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
+use burn_tensor::Int;
 
 /// Configuration to create an [Embedding](Embedding) layer.
 #[derive(Config)]
@@ -43,6 +41,12 @@ impl EmbeddingConfig {
 
         Embedding {
             weight: Param::from(weight),
+        }
+    }
+    /// Initialize a new [embedding](Embedding) module with a [record](EmbeddingRecord).
+    pub fn init_with<B: Backend>(&self, record: EmbeddingRecord<B>) -> Embedding<B> {
+        Embedding {
+            weight: record.weight,
         }
     }
 }

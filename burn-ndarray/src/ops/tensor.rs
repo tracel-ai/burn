@@ -203,17 +203,7 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         mask: NdArrayTensor<bool, D>,
         source: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<E, D> {
-        let mask_mul_4tensor = mask.array.mapv(|x| match x {
-            true => 0.elem(),
-            false => 1.elem(),
-        });
-        let mask_mul_4source = mask.array.mapv(|x| match x {
-            true => 1.elem(),
-            false => 0.elem(),
-        });
-        let array = (tensor.array * mask_mul_4tensor) + (source.array * mask_mul_4source);
-
-        NdArrayTensor::new(array)
+        NdArrayMathOps::mask_scatter(tensor, mask, source)
     }
 
     fn mask_fill<const D: usize>(
@@ -221,17 +211,7 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         mask: NdArrayTensor<bool, D>,
         value: E,
     ) -> NdArrayTensor<E, D> {
-        let mask_mul = mask.array.mapv(|x| match x {
-            true => 0.elem(),
-            false => 1.elem(),
-        });
-        let mask_add = mask.array.mapv(|x| match x {
-            true => value,
-            false => 0.elem(),
-        });
-        let array = (tensor.array * mask_mul) + mask_add;
-
-        NdArrayTensor::new(array)
+        NdArrayMathOps::mask_fill(tensor, mask, value)
     }
 
     fn equal<const D: usize>(

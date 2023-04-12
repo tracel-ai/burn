@@ -1,4 +1,4 @@
-use burn_core::data::dataloader::Progress;
+use burn_core::{data::dataloader::Progress, LearningRate};
 
 pub trait LearnerCallback<T, V>: Send {
     fn on_train_item(&mut self, _item: LearnerItem<T>) {}
@@ -14,4 +14,5 @@ pub struct LearnerItem<T> {
     pub epoch: usize,
     pub epoch_total: usize,
     pub iteration: usize,
+    pub lr: Option<LearningRate>,
 }

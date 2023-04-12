@@ -28,6 +28,7 @@ __Sections__
         * [Config](#config)
         * [Learner](#learner)
 * [no_std support](#no_std-support)
+* [Sponsors](#sponsors)
 * [License](#license)
 
 ## Features
@@ -123,18 +124,17 @@ fn main() {
 #### Module
 
 The `Module` derive allows you to create your own neural network modules, similar to PyTorch.
-Note that the `Module` derive generates all the necessary methods to make your type essentially a parameter container.
-It makes no assumptions about how the forward function is declared.
+The derive function only generates the necessary methods to essentially act as a parameter container for your type, it makes no assumptions about how the forward pass is declared.
 
 ```rust
 use burn::nn;
-use burn::module::{Param, Module};
+use burn::module::Module;
 use burn::tensor::backend::Backend;
 
 #[derive(Module, Debug)]
 pub struct PositionWiseFeedForward<B: Backend> {
-    linear_inner: Param<Linear<B>>,
-    linear_outer: Param<Linear<B>>,
+    linear_inner: Linear<B>,
+    linear_outer: Linear<B>,
     dropout: Dropout,
     gelu: GELU,
 }
@@ -150,7 +150,8 @@ impl<B: Backend> PositionWiseFeedForward<B> {
 }
 ```
 
-Note that only the fields wrapped inside `Param` are updated during training, and the other fields should implement the `Clone` trait.
+Note that all fields declared in the struct must also implement the `Module` trait.
+The `Tensor` struct doesn't implement `Module`, but `Param<Tensor<B, D>>` does.
 
 #### Config
 
@@ -189,6 +190,7 @@ In order to create a learner, you must use the `LearnerBuilder`.
 ```rust
 use burn::train::LearnerBuilder;
 use burn::train::metric::{AccuracyMetric, LossMetric};
+use burn::record::DefaultRecordSettings;
 
 fn main() {
     let dataloader_train = ...;
@@ -202,7 +204,7 @@ fn main() {
         .metric_valid_plot(AccuracyMetric::new())
         .metric_train(LossMetric::new())
         .metric_valid(LossMetric::new())
-        .with_file_checkpointer::<f32>(2)
+        .with_file_checkpointer::<DefaultRecordSettings>(2)
         .num_epochs(10)
         .build(model, optim);
 
@@ -221,6 +223,15 @@ See the [burn-no-std-tests](https://github.com/burn-rs/burn/tree/main/examples/b
 Additionally `burn-core` and `burn-tensor` crates support `no_std` with `alloc` if needed to direclty include them as dependencies (the `burn` crates reexports `burn-core` and `burn-tensor`).
 Note, under the `no_std` mode, a random seed is generated during the build time if the seed is not initialized by `Backend::seed` method.
 Additionally, [spin::mutex::Mutex](https://docs.rs/spin/latest/spin/mutex/struct.Mutex.html) is used in place of [std::sync::Mutex](https://doc.rust-lang.org/std/sync/struct.Mutex.html) under the `no_std` mode.
+
+## Sponsors
+
+You can sponsor the founder of Burn from his [GitHub Sponsors profile](https://github.com/sponsors/nathanielsimard).
+The Burn-rs organization doesn't yet have a fiscal entity, but other sponsor methods might become available as the project grows.
+
+Thanks to all current sponsors 🙏.
+
+<a href="https://github.com/smallstepman"><img src="https://github.com/smallstepman.png" width="60px" style="border-radius: 50%;" alt="nathanielsimard" /></a>
 
 ## License
 

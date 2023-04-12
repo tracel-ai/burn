@@ -1,6 +1,6 @@
 use crate::{
     logger::MetricLogger,
-    metric::{Adaptor, Metric, MetricEntry, Numeric},
+    metric::{Adaptor, Metric, MetricEntry, MetricMetadata, Numeric},
     LearnerCallback, LearnerItem,
 };
 use burn_core::data::dataloader::Progress;
@@ -116,21 +116,34 @@ impl<T> From<LearnerItem<T>> for TrainingProgress {
     }
 }
 
+impl<T> From<&LearnerItem<T>> for MetricMetadata {
+    fn from(item: &LearnerItem<T>) -> Self {
+        Self {
+            progress: item.progress.clone(),
+            epoch: item.epoch,
+            epoch_total: item.epoch_total,
+            iteration: item.iteration,
+            lr: item.lr,
+        }
+    }
+}
+
 impl<T, V> LearnerCallback<T, V> for Dashboard<T, V>
 where
     T: Send + Sync + 'static,
     V: Send + Sync + 'static,
 {
     fn on_train_item(&mut self, item: LearnerItem<T>) {
+        let metadata = (&item).into();
         for metric in self.metrics_train.iter_mut() {
-            let state = metric.update(&item);
+            let state = metric.update(&item, &metadata);
             self.logger_train.log(&state);
 
             self.renderer
                 .update_train(DashboardMetricState::Generic(state));
         }
         for metric in self.metrics_train_numeric.iter_mut() {
-            let (state, value) = metric.update(&item);
+            let (state, value) = metric.update(&item, &metadata);
             self.logger_train.log(&state);
 
             self.renderer
@@ -140,15 +153,16 @@ where
     }
 
     fn on_valid_item(&mut self, item: LearnerItem<V>) {
+        let metadata = (&item).into();
         for metric in self.metrics_valid.iter_mut() {
-            let state = metric.update(&item);
+            let state = metric.update(&item, &metadata);
             self.logger_valid.log(&state);
 
             self.renderer
                 .update_valid(DashboardMetricState::Generic(state));
         }
         for metric in self.metrics_valid_numeric.iter_mut() {
-            let (state, value) = metric.update(&item);
+            let (state, value) = metric.update(&item, &metadata);
             self.logger_valid.log(&state);
 
             self.renderer
@@ -179,12 +193,12 @@ where
 }
 
 trait DashboardNumericMetric<T>: Send + Sync {
-    fn update(&mut self, item: &LearnerItem<T>) -> (MetricEntry, f64);
+    fn update(&mut self, item: &LearnerItem<T>, metadata: &MetricMetadata) -> (MetricEntry, f64);
     fn clear(&mut self);
 }
 
 trait DashboardMetric<T>: Send + Sync {
-    fn update(&mut self, item: &LearnerItem<T>) -> MetricEntry;
+    fn update(&mut self, item: &LearnerItem<T>, metadata: &MetricMetadata) -> MetricEntry;
     fn clear(&mut self);
 }
 
@@ -199,8 +213,8 @@ where
     M: Metric + Numeric + 'static,
     T: Adaptor<M::Input>,
 {
-    fn update(&mut self, item: &LearnerItem<T>) -> (MetricEntry, f64) {
-        let update = self.metric.update(&item.item.adapt());
+    fn update(&mut self, item: &LearnerItem<T>, metadata: &MetricMetadata) -> (MetricEntry, f64) {
+        let update = self.metric.update(&item.item.adapt(), metadata);
         let numeric = self.metric.value();
 
         (update, numeric)
@@ -217,8 +231,8 @@ where
     M: Metric + 'static,
     T: Adaptor<M::Input>,
 {
-    fn update(&mut self, item: &LearnerItem<T>) -> MetricEntry {
-        self.metric.update(&item.item.adapt())
+    fn update(&mut self, item: &LearnerItem<T>, metadata: &MetricMetadata) -> MetricEntry {
+        self.metric.update(&item.item.adapt(), metadata)
     }
 
     fn clear(&mut self) {

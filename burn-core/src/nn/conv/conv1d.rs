@@ -1,6 +1,3 @@
-use alloc::format;
-use alloc::vec::Vec;
-
 use crate as burn;
 
 use crate::config::Config;
@@ -34,7 +31,7 @@ pub struct Conv1dConfig {
 }
 
 /// Padding configuration for 1D convolution [config](Conv1dConfig).
-#[derive(Config, Debug)]
+#[derive(Module, Config, Debug)]
 pub enum Conv1dPaddingConfig {
     /// Dynamicaly calculate the amount of padding necessary to ensure that the output size will be
     /// the same as the input.
@@ -55,7 +52,7 @@ pub enum Conv1dPaddingConfig {
 #[derive(Module, Debug)]
 pub struct Conv1d<B: Backend> {
     weight: Param<Tensor<B, 3>>,
-    bias: Param<Option<Tensor<B, 1>>>,
+    bias: Option<Param<Tensor<B, 1>>>,
     stride: usize,
     kernel_size: usize,
     padding: Option<Conv1dPaddingConfig>,
@@ -76,14 +73,24 @@ impl Conv1dConfig {
         let weight = initializer.init([self.channels_out, self.channels_in, self.kernel_size]);
 
         let bias = if self.bias {
-            Some(initializer.init([self.channels_out]))
+            Some(Param::from(initializer.init([self.channels_out])))
         } else {
             None
         };
 
         Conv1d {
             weight: Param::from(weight),
-            bias: Param::from(bias),
+            bias,
+            stride: 1, // TODO: Add the stride to the config when properly supported.
+            kernel_size: self.kernel_size,
+            padding: self.padding.clone(),
+        }
+    }
+    /// Initialize a new [conv1d](Conv1d) module with a [record](Conv1dRecord).
+    pub fn init_with<B: Backend>(&self, record: Conv1dRecord<B>) -> Conv1d<B> {
+        Conv1d {
+            weight: record.weight,
+            bias: record.bias,
             stride: 1, // TODO: Add the stride to the config when properly supported.
             kernel_size: self.kernel_size,
             padding: self.padding.clone(),
@@ -115,7 +122,7 @@ impl<B: Backend> Conv1d<B> {
         conv1d(
             input,
             self.weight.val(),
-            self.bias.val(),
+            self.bias.as_ref().map(|bias| bias.val()),
             self.stride,
             padding,
         )

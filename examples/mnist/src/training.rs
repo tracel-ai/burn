@@ -1,11 +1,10 @@
-use std::sync::Arc;
-
 use crate::data::MNISTBatcher;
 use crate::model::Model;
 
-use burn::module::{Module, StateFormat};
+use burn::module::Module;
 use burn::optim::decay::WeightDecayConfig;
-use burn::optim::{Adam, AdamConfig};
+use burn::optim::AdamConfig;
+use burn::record::{DefaultRecordSettings, NoStdTrainingRecordSettings, Record};
 use burn::{
     config::Config,
     data::{dataloader::DataLoaderBuilder, dataset::source::huggingface::MNISTDataset},
@@ -20,7 +19,7 @@ static ARTIFACT_DIR: &str = "/tmp/burn-example-mnist";
 
 #[derive(Config)]
 pub struct MnistTrainingConfig {
-    #[config(default = 4)]
+    #[config(default = 10)]
     pub num_epochs: usize,
 
     #[config(default = 64)]
@@ -37,38 +36,35 @@ pub struct MnistTrainingConfig {
 
 pub fn run<B: ADBackend>(device: B::Device) {
     // Config
-    let config_optimizer =
-        AdamConfig::new(1e-4).with_weight_decay(Some(WeightDecayConfig::new(5e-5)));
+    let config_optimizer = AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5)));
     let config = MnistTrainingConfig::new(config_optimizer);
     B::seed(config.seed);
 
     // Data
-    let batcher_train = Arc::new(MNISTBatcher::<B>::new(device.clone()));
-    let batcher_valid = Arc::new(MNISTBatcher::<B::InnerBackend>::new(device.clone()));
+    let batcher_train = MNISTBatcher::<B>::new(device.clone());
+    let batcher_valid = MNISTBatcher::<B::InnerBackend>::new(device.clone());
+
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
         .batch_size(config.batch_size)
         .shuffle(config.seed)
         .num_workers(config.num_workers)
-        .build(Arc::new(MNISTDataset::train()));
+        .build(MNISTDataset::train());
     let dataloader_test = DataLoaderBuilder::new(batcher_valid)
         .batch_size(config.batch_size)
         .shuffle(config.seed)
         .num_workers(config.num_workers)
-        .build(Arc::new(MNISTDataset::test()));
+        .build(MNISTDataset::test());
 
     // Model
-    let optim = Adam::new(&config.optimizer);
-    let model = Model::new();
-
     let learner = LearnerBuilder::new(ARTIFACT_DIR)
         .metric_train_plot(AccuracyMetric::new())
         .metric_valid_plot(AccuracyMetric::new())
         .metric_train_plot(LossMetric::new())
         .metric_valid_plot(LossMetric::new())
-        .with_file_checkpointer::<burn::tensor::f16>(2, StateFormat::default())
+        .with_file_checkpointer::<DefaultRecordSettings>(1)
         .devices(vec![device])
         .num_epochs(config.num_epochs)
-        .build(model, optim);
+        .build(Model::new(), config.optimizer.init(), 1e-4);
 
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 
@@ -76,10 +72,8 @@ pub fn run<B: ADBackend>(device: B::Device) {
         .save(format!("{ARTIFACT_DIR}/config.json").as_str())
         .unwrap();
 
-    // We save a bin version of the model to be loaded with no_std environement.
     model_trained
-        .state()
-        .convert::<f32>()
-        .save(&format!("{ARTIFACT_DIR}/model"), &StateFormat::Bin)
+        .into_record()
+        .record::<NoStdTrainingRecordSettings>(format!("{ARTIFACT_DIR}/model").into())
         .expect("Failed to save trained model");
 }

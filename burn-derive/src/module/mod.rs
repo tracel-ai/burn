@@ -1,5 +1,6 @@
 pub(crate) mod display;
-pub(crate) mod param;
+pub(crate) mod generator;
+pub(crate) mod record;
 
 mod base;
 

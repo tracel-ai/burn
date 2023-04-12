@@ -1,4 +1,4 @@
-use alloc::{format, vec::Vec};
+use alloc::vec::Vec;
 use burn_tensor::Bool;
 
 use crate::{
@@ -9,7 +9,7 @@ use crate::{
 use super::{PositionWiseFeedForward, PositionWiseFeedForwardConfig};
 use crate::{
     config::Config,
-    module::{Module, Param},
+    module::Module,
     nn::{
         attention::{MhaInput, MultiHeadAttention, MultiHeadAttentionConfig},
         Dropout, DropoutConfig, LayerNorm, LayerNormConfig,
@@ -43,7 +43,7 @@ pub struct TransformerEncoderConfig {
 /// - layers: transformer encoder layers with `d_model` input and output features.
 #[derive(Module, Debug)]
 pub struct TransformerEncoder<B: Backend> {
-    layers: Param<Vec<TransformerEncoderLayer<B>>>,
+    layers: Vec<TransformerEncoderLayer<B>>,
 }
 
 /// [Transformer Encoder](TransformerEncoder) forward pass input argument.
@@ -83,8 +83,20 @@ impl TransformerEncoderConfig {
             .map(|_| TransformerEncoderLayer::new(self))
             .collect::<Vec<_>>();
 
+        TransformerEncoder { layers }
+    }
+    /// Initialize a new [transformer encoder](TransformerEncoder) module with a
+    /// [record](TransformerEncoderRecord).
+    pub fn init_with<B: Backend>(
+        &self,
+        record: TransformerEncoderRecord<B>,
+    ) -> TransformerEncoder<B> {
         TransformerEncoder {
-            layers: Param::from(layers),
+            layers: record
+                .layers
+                .into_iter()
+                .map(|record| TransformerEncoderLayer::new_with(self, record))
+                .collect(),
         }
     }
 }
@@ -140,16 +152,39 @@ impl<B: Backend> TransformerEncoder<B> {
 }
 
 #[derive(Module, Debug)]
-struct TransformerEncoderLayer<B: Backend> {
-    mha: Param<MultiHeadAttention<B>>,
-    pwff: Param<PositionWiseFeedForward<B>>,
-    norm_1: Param<LayerNorm<B>>,
-    norm_2: Param<LayerNorm<B>>,
+pub struct TransformerEncoderLayer<B: Backend> {
+    mha: MultiHeadAttention<B>,
+    pwff: PositionWiseFeedForward<B>,
+    norm_1: LayerNorm<B>,
+    norm_2: LayerNorm<B>,
     dropout: Dropout,
     norm_first: bool,
 }
 
 impl<B: Backend> TransformerEncoderLayer<B> {
+    fn new_with(
+        config: &TransformerEncoderConfig,
+        record: TransformerEncoderLayerRecord<B>,
+    ) -> Self {
+        let mha = MultiHeadAttentionConfig::new(config.d_model, config.n_heads)
+            .with_dropout(config.dropout)
+            .init_with(record.mha);
+        let norm_1 = LayerNormConfig::new(config.d_model).init_with(record.norm_1);
+        let norm_2 = LayerNormConfig::new(config.d_model).init_with(record.norm_2);
+        let dropout = DropoutConfig::new(config.dropout).init();
+        let pwff = PositionWiseFeedForwardConfig::new(config.d_model, config.d_ff)
+            .with_dropout(config.dropout)
+            .init_with(record.pwff);
+
+        Self {
+            mha,
+            norm_1,
+            norm_2,
+            pwff,
+            dropout,
+            norm_first: config.norm_first,
+        }
+    }
     fn new(config: &TransformerEncoderConfig) -> Self {
         let mha = MultiHeadAttentionConfig::new(config.d_model, config.n_heads)
             .with_dropout(config.dropout)
@@ -162,10 +197,10 @@ impl<B: Backend> TransformerEncoderLayer<B> {
             .init();
 
         Self {
-            mha: Param::from(mha),
-            norm_1: Param::from(norm_1),
-            norm_2: Param::from(norm_2),
-            pwff: Param::from(pwff),
+            mha,
+            norm_1,
+            norm_2,
+            pwff,
             dropout,
             norm_first: config.norm_first,
         }

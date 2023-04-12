@@ -1,22 +1,22 @@
 use crate::Dataset;
+use std::marker::PhantomData;
 
-pub trait Mapper<I, O> {
+/// Basic mapper trait to be used with the [mapper dataset](MapperDataset).
+pub trait Mapper<I, O>: Send + Sync {
     fn map(&self, item: &I) -> O;
 }
 
-pub struct MapperDataset<M, I> {
-    dataset: Box<dyn Dataset<I>>,
+/// Dataset mapping each element in an inner dataset to another element type lazily.
+#[derive(new)]
+pub struct MapperDataset<D, M, I> {
+    dataset: D,
     mapper: M,
+    input: PhantomData<I>,
 }
 
-impl<M, I> MapperDataset<M, I> {
-    pub fn new(dataset: Box<dyn Dataset<I>>, mapper: M) -> Self {
-        Self { dataset, mapper }
-    }
-}
-
-impl<M, I, O> Dataset<O> for MapperDataset<M, I>
+impl<D, M, I, O> Dataset<O> for MapperDataset<D, M, I>
 where
+    D: Dataset<I>,
     M: Mapper<I, O> + Send + Sync,
     I: Send + Sync,
     O: Send + Sync,
@@ -38,7 +38,8 @@ mod tests {
 
     #[test]
     pub fn given_mapper_dataset_when_iterate_should_iterate_though_all_map_items() {
-        struct StringToFirstChar {}
+        struct StringToFirstChar;
+
         impl Mapper<String, String> for StringToFirstChar {
             fn map(&self, item: &String) -> String {
                 let mut item = item.clone();
@@ -46,9 +47,10 @@ mod tests {
                 item
             }
         }
+
         let items_original = test_data::string_items();
         let dataset = InMemDataset::new(items_original);
-        let dataset = MapperDataset::new(Box::new(dataset), StringToFirstChar {});
+        let dataset = MapperDataset::new(dataset, StringToFirstChar);
 
         let items: Vec<String> = dataset.iter().collect();
 

@@ -16,7 +16,7 @@ use burn_common::stub::Mutex;
 
 pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NdArrayDevice {
     Cpu,
 }

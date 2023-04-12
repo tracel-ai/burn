@@ -1,6 +1,7 @@
 use super::state::FormatOptions;
 use super::state::NumericMetricState;
 use super::MetricEntry;
+use super::MetricMetadata;
 use crate::metric::{Metric, Numeric};
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::ElementConversion;
@@ -29,11 +30,11 @@ impl<B: Backend> LossMetric<B> {
 impl<B: Backend> Metric for LossMetric<B> {
     type Input = LossInput<B>;
 
-    fn update(&mut self, loss: &Self::Input) -> MetricEntry {
+    fn update(&mut self, loss: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
         let loss = f64::from_elem(loss.tensor.clone().mean().into_data().value[0]);
 
         self.state
-            .update(loss, 1, FormatOptions::new("Loss").precision(4))
+            .update(loss, 1, FormatOptions::new("Loss").precision(2))
     }
 
     fn clear(&mut self) {

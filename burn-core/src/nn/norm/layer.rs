@@ -1,5 +1,3 @@
-use alloc::{format, vec::Vec};
-
 use crate as burn;
 
 use crate::config::Config;
@@ -37,6 +35,15 @@ impl LayerNormConfig {
         LayerNorm {
             gamma: Param::from(gamma),
             beta: Param::from(beta),
+            epsilon: self.epsilon,
+        }
+    }
+
+    /// Initialize a new [layer norm](LayerNorm) module with a [record](LayerNormRecord).
+    pub fn init_with<B: Backend>(&self, record: LayerNormRecord<B>) -> LayerNorm<B> {
+        LayerNorm {
+            gamma: record.gamma,
+            beta: record.beta,
             epsilon: self.epsilon,
         }
     }

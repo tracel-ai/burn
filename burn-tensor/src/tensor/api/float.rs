@@ -3,11 +3,11 @@ use core::convert::TryInto;
 use core::ops::Range;
 
 use crate::backend::ADBackend;
+use crate::check;
+use crate::check::TensorCheck;
 use crate::tensor::backend::Backend;
 use crate::tensor::stats;
-use crate::tensor::ElementConversion;
 use crate::tensor::{Data, Distribution, Shape};
-use crate::Bool;
 use crate::Int;
 use crate::Tensor;
 
@@ -22,16 +22,6 @@ where
     /// Returns a new integer tensor on the specified device which values are generated from the given range.
     pub fn arange_device(range: Range<usize>, device: &B::Device) -> Tensor<B, 1, Int> {
         Tensor::new(B::arange(range, device))
-    }
-}
-
-impl<B> Tensor<B, 1>
-where
-    B: Backend,
-{
-    /// Returns the first value of the tensor.
-    pub fn single_value(&self) -> B::FloatElem {
-        self.to_data().value[0]
     }
 }
 
@@ -196,6 +186,7 @@ where
     ///
     /// If the dimensions exceed the shape of than the tensor.
     pub fn swap_dims(self, dim1: usize, dim2: usize) -> Self {
+        check!(TensorCheck::swap_dims::<D>(dim1, dim2));
         Self::new(B::swap_dims(self.primitive, dim1, dim2))
     }
 
@@ -207,6 +198,7 @@ where
     ///
     /// If the two tensors dont' have a compatible shape.
     pub fn matmul(self, other: Self) -> Self {
+        check!(TensorCheck::matmul(&self, &other));
         Self::new(B::matmul(self.primitive, other.primitive))
     }
 
@@ -239,20 +231,6 @@ where
     pub fn random<S: Into<Shape<D>>>(shape: S, distribution: Distribution<B::FloatElem>) -> Self {
         let tensor = B::random(shape.into(), distribution, &B::Device::default());
         Self::new(tensor)
-    }
-
-    /// Fill elements from the given tensor based where the mask is true.
-    pub fn mask_scatter(self, mask: Tensor<B, D, Bool>, source: Tensor<B, D>) -> Self {
-        Self::new(B::mask_scatter(
-            self.primitive,
-            mask.primitive,
-            source.primitive,
-        ))
-    }
-
-    /// Fill each element with the given value based on the given mask.
-    pub fn mask_fill<E: ElementConversion>(self, mask: Tensor<B, D, Bool>, value: E) -> Self {
-        Self::new(B::mask_fill(self.primitive, mask.primitive, value.elem()))
     }
 
     /// Returns a tensor with full precision based on the selected backend.
@@ -314,43 +292,23 @@ where
     /// Mark the tensor to keep gradients during the backward pass.
     /// This function does nothing when autodiff is not enabled.
     pub fn require_grad(self) -> Self {
-        Self::new(B::require_grad(self.primitive))
+        self.set_require_grad(true)
     }
 
-    /// Unsqueeze the current tensor. Create new dimensions to fit the given size.
-    ///
-    /// # Panics
-    ///
-    /// If the output size is higher than the current tensor.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Shape};
-    ///
-    /// fn example<B: Backend>() {
-    ///     let tensor = Tensor::<B, 2>::ones(Shape::new([3, 3]));
-    ///     let tensor = tensor.unsqueeze::<4>();
-    ///     println!("{:?}", tensor.shape());
-    ///     // Shape { dims: [1, 1, 3, 3] }
-    /// }
-    /// ```
-    pub fn unsqueeze<const D2: usize>(self) -> Tensor<B, D2> {
-        if D2 < D {
-            panic!("Can't unsqueeze smaller tensor, got dim {D2}, expected > {D}")
-        }
-
-        let mut dims = [1; D2];
-        let num_ones = D2 - D;
-        let shape = self.shape();
-
-        dims[num_ones..(D + num_ones)].copy_from_slice(&shape.dims[..D]);
-
-        let shape = Shape::new(dims);
-        self.reshape(shape)
+    /// Returns true if the tensor requires gradients during the backward pass.
+    pub fn is_require_grad(&self) -> bool {
+        B::is_require_grad(&self.primitive)
     }
 
+    /// Mark the tensor as tracked or untracked depending on the require grad argument.
+    /// When tracked, the gradients will be available after the backward pass.
+    ///
+    /// This function does nothing when autodiff is not enabled.
+    pub fn set_require_grad(self, require_grad: bool) -> Self {
+        Self::new(B::set_require_grad(self.primitive, require_grad))
+    }
+
+    /// Applies the relu function to the tensor.
     pub(crate) fn relu(self) -> Self {
         Self::new(B::relu(self.primitive))
     }

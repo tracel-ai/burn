@@ -39,6 +39,7 @@ macro_rules! testgen_all {
         burn_tensor::testgen_powf!();
         burn_tensor::testgen_repeat!();
         burn_tensor::testgen_reshape!();
+        burn_tensor::testgen_flatten!();
         burn_tensor::testgen_sin!();
         burn_tensor::testgen_tanh!();
         burn_tensor::testgen_sub!();

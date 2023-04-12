@@ -1,5 +1,6 @@
 use alloc::vec::Vec;
 use burn_tensor::Data;
+use burn_tensor::ElementConversion;
 use core::{marker::PhantomData, ops::Range};
 use ndarray::s;
 use ndarray::Array2;
@@ -267,6 +268,42 @@ where
             NdArrayTensor::<E, 2>::new(tensor.into_shared().into_dyn()),
             shape_tensor,
         )
+    }
+
+    pub fn mask_scatter<const D: usize>(
+        tensor: NdArrayTensor<E, D>,
+        mask: NdArrayTensor<bool, D>,
+        source: NdArrayTensor<E, D>,
+    ) -> NdArrayTensor<E, D> {
+        let mask_mul_4tensor = mask.array.mapv(|x| match x {
+            true => 0.elem(),
+            false => 1.elem(),
+        });
+        let mask_mul_4source = mask.array.mapv(|x| match x {
+            true => 1.elem(),
+            false => 0.elem(),
+        });
+        let array = (tensor.array * mask_mul_4tensor) + (source.array * mask_mul_4source);
+
+        NdArrayTensor::new(array)
+    }
+
+    pub fn mask_fill<const D: usize>(
+        tensor: NdArrayTensor<E, D>,
+        mask: NdArrayTensor<bool, D>,
+        value: E,
+    ) -> NdArrayTensor<E, D> {
+        let mask_mul = mask.array.mapv(|x| match x {
+            true => 0.elem(),
+            false => 1.elem(),
+        });
+        let mask_add = mask.array.mapv(|x| match x {
+            true => value,
+            false => 0.elem(),
+        });
+        let array = (tensor.array * mask_mul) + mask_add;
+
+        NdArrayTensor::new(array)
     }
 
     fn index_select_batch_size<const D: usize>(
