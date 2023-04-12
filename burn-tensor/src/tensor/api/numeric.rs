@@ -193,13 +193,9 @@ where
         K::lower_equal_elem(self.primitive, other.elem())
     }
 
-     /// Fill elements from the given tensor based where the mask is true.
+    /// Fill elements from the given tensor based where the mask is true.
     pub fn mask_scatter(self, mask: Tensor<B, D, Bool>, source: Self) -> Self {
-        Self::new(K::mask_scatter(
-            self.primitive,
-            mask,
-            source.primitive,
-        ))
+        Self::new(K::mask_scatter(self.primitive, mask, source.primitive))
     }
 
     /// Fill each element with the given value based on the given mask.
