@@ -5,7 +5,7 @@ use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArrayBackend,
 use burn_tensor::{ops::*, Shape};
 
 use super::{
-    conv::conv2d,
+    conv::{conv2d, conv_transpose2d},
     maxpool::{max_pool2d, max_pool2d_backward, max_pool2d_with_indexes},
 };
 
@@ -87,7 +87,7 @@ impl<E: FloatNdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         padding: [usize; 2],
         out_padding: [usize; 2],
     ) -> NdArrayTensor<E, 4> {
-        todo!()
+        conv_transpose2d(x, weight, bias, stride, padding, out_padding, [1, 1])
     }
 
     fn max_pool2d(
