@@ -8,12 +8,18 @@
 [![Rust Version](https://img.shields.io/badge/Rust-1.65.0+-blue)](https://releases.rs/docs/1.65.0)
 ![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)
 
-> This library aims to be a complete deep learning framework with extreme flexibility written in Rust.
-> The goal would be to satisfy researchers as well as practitioners making it easier to experiment, train and deploy your models.
+----
+
+This library strives to serve as a comprehensive **deep learning framework**, offering exceptional flexibility and written in Rust. Our objective is to cater to both researchers and practitioners by simplifying the process of experimenting, training, and deploying models.
+
+
+
+
+
 
 <div align="left">
 
-*__Disclamer__* _Burn is currently in active development, and there will be breaking changes. While any resulting issues are likely to be easy to fix, there are no guarantees at this stage._
+> *__Disclamer__* _Burn is currently in active development, and there will be breaking changes. While any resulting issues are likely to be easy to fix, there are no guarantees at this stage._
 
 __Sections__
 
@@ -33,13 +39,13 @@ __Sections__
 
 ## Features
 
- * Flexible and intuitive custom neural network [module](#module) 🔥
- * [Training](#learner) with full support for `metric`, `logging` and `checkpointing` 📈
- * [Tensor](#tensor) crate with backends as pluging 🔧
-   * [Tch](https://github.com/burn-rs/burn/tree/main/burn-tch) backend with CPU/GPU support 🚀
-   * [NdArray](https://github.com/burn-rs/burn/tree/main/burn-ndarray) backend with [`no_std`](#no_std-support) support, running on any platform 👌
-   * [Autodiff](https://github.com/burn-rs/burn/tree/main/burn-autodiff) backend making any backend differentiable 🌟
- * [Dataset](https://github.com/burn-rs/burn/tree/main/burn-dataset) crate with multiple utilities and sources 📚
+* Customizable and user-friendly neural network [module](#module) 🔥
+* Comprehensive [training](#learner) capabilities, including `metrics`, `logging`, and `checkpointing` 📈
+* Versatile [Tensor](#tensor) crate with pluggable backends 🔧
+  * [Torch](https://github.com/burn-rs/burn/tree/main/burn-tch) backend offering CPU/GPU support 🚀
+  * [NdArray](https://github.com/burn-rs/burn/tree/main/burn-ndarray) backend featuring [`no_std`](#no_std-support) compatibility for any platform 👌
+  * [Autodiff](https://github.com/burn-rs/burn/tree/main/burn-autodiff) backend enabling differentiability for all backends 🌟
+* [Dataset](https://github.com/burn-rs/burn/tree/main/burn-dataset) crate with a variety of utilities and sources 📚
 
 ## Get Started
 
