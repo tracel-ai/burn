@@ -19,6 +19,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: publish to crates.io
-        run: ./ci/publish.sh ${{ inputs.crate }}
+        run: ./scripts/publish.sh ${{ inputs.crate }}
         env:
           CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
