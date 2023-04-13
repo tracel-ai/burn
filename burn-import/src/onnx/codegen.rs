@@ -19,8 +19,8 @@ use super::{convert::parse_onnx, ir::Graph};
 
 use rust_format::{Config, Edition, Formatter, PostProcess, RustFmt};
 
-#[derive(Debug, Default)]
 /// Code generation for onnx files.
+#[derive(Debug, Default)]
 pub struct ModelCodeGen {
     out_dir: Option<PathBuf>,
 
@@ -83,8 +83,8 @@ impl ModelCodeGen {
     }
 }
 
-#[derive(Debug, Clone)]
 /// A model that can be used to generate code
+#[derive(Debug, Clone)]
 pub struct ModelSourceCode {
     onnx_path: PathBuf,
     pub graph: Graph,
@@ -317,8 +317,6 @@ impl ModelSourceCode {
             panic!("Node must be stateless");
         }
 
-        // let name = Ident::new(&node.name, Span::call_site());
-
         let mut inputs = vec![];
 
         for input in node.inputs.iter() {
@@ -336,8 +334,6 @@ impl ModelSourceCode {
                 #name
             });
         }
-
-        // let input = inputs.pop().unwrap();
 
         let rhs = Self::node_call_stateless_rhs(node, imports);
 
@@ -417,7 +413,7 @@ impl ModelSourceCode {
                 ArgType::Tensor(tensor) => {
                     let d = &tensor.shape.len();
                     syn::parse_str::<Type>(format!("Tensor<B, {d}>").as_str()).unwrap()
-                } // _ => panic!("Only tensor variable is supported in model return"),
+                }
             };
 
             field_types.push(ty);

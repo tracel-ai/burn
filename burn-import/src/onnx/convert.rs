@@ -27,14 +27,15 @@ const STATEFUL_NODE_TYPES: [NodeType; 4] = [
     NodeType::Linear,
 ];
 
-#[derive(Debug)]
 /// Error type for parsing ONNX model
+#[derive(Debug)]
 pub enum ParseError {
     VariantNotFound,
 }
 
 /// Open an onnx file and convert it to a Graph (intermediate representation)
 pub fn parse_onnx(onnx_path: &Path) -> Graph {
+    // Open the file
     let mut file = File::open(onnx_path).expect("Unable to open file");
     let onnx_model: ModelProto =
         Message::parse_from_reader(&mut file).expect("Unable to parse ONNX file");
@@ -53,72 +54,19 @@ pub fn parse_onnx(onnx_path: &Path) -> Graph {
         .map(|x| x.name.clone())
         .collect();
 
-    // Move nodes's inputs and outputs to initializers if they are in the initializer list
-    for node in nodes.iter_mut() {
-        node.initializers = node
-            .inputs
-            .iter()
-            .filter(|x| check_if_initializer.contains(&x.name))
-            .cloned()
-            .collect();
+    // Move inputs to initializers
+    move_inputs_to_initializer(&mut nodes, &check_if_initializer);
 
-        // Remove the initializers from the inputs and outputs
-        node.inputs
-            .retain(|x| !check_if_initializer.contains(&x.name));
-        node.outputs
-            .retain(|x| !check_if_initializer.contains(&x.name));
-    }
+    // Get the topological sort of the nodes and the top nodes
+    let (ts, top_nodes) = get_top_nodes(&nodes);
 
-    // Get the names of the top nodes (first nodes in the graph to receive the input)
-    // Sometimes onnx will pass inputs to be used as weights and biases but they are not truly inputs
-    let mut ts = topsort(&nodes);
-    let mut top_nodes: HashSet<String> = HashSet::new();
+    // Sort the nodes
+    top_sort_nodes(&mut nodes, ts);
 
-    for node in ts.peek_all() {
-        for input in node.inputs.iter() {
-            top_nodes.insert(input.name.clone());
-        }
-    }
-
-    // Sort the nodes in topological order
-    nodes = vec![];
-    while let Some(node) = ts.pop() {
-        nodes.push(node);
-    }
-
-    // Collect inputs
-    let mut inputs: Vec<Argument> = onnx_model
-        .graph
-        .input
-        .iter()
-        .filter(|x| !check_if_initializer.contains(x.name.as_str()))
-        .filter(|x| top_nodes.contains(&x.name))
-        .map(|x| Argument::try_from(x.clone()).unwrap())
-        .collect();
-
-    // Collect outputs
-    // TODO: filter out the outputs that are not used in the graph
-    let mut outputs: Vec<Argument> = onnx_model
-        .graph
-        .output
-        .iter()
-        .filter(|x| !check_if_initializer.contains(x.name.as_str()))
-        .map(|i| Argument::try_from(i.clone()).unwrap())
-        .collect();
-
-    // Collect initializers
-    let mut initializers: Vec<Argument> = vec![];
-    for initializer in onnx_model.graph.initializer.iter() {
-        let tensor_proto = initializer.clone();
-
-        let name = tensor_proto.name.clone();
-
-        // FIXME data conversion for the tensor is incorrect
-        let tensor: Tensor = tensor_proto.try_into().unwrap();
-        let arg_type = Some(ArgType::Tensor(tensor));
-        let arg = Argument { name, arg_type };
-        initializers.push(arg);
-    }
+    // Collect inputs, outputs and initializers
+    let mut inputs = collect_inputs(&onnx_model, &check_if_initializer, top_nodes);
+    let mut outputs = collect_outputs(&onnx_model, check_if_initializer);
+    let initializers = collect_initializers(onnx_model);
 
     // Coalesce and transform nodes
     coalesce(&mut nodes);
@@ -126,6 +74,7 @@ pub fn parse_onnx(onnx_path: &Path) -> Graph {
     // Copy the initializers to the nodes
     copy_initializer_info_to_nodes_level(&mut nodes, &initializers);
 
+    // Rename nodes and inputs, save the mapping for later
     let old_node_names = rename_nodes(&mut nodes);
     let old_input_names = rename_inputs(&mut nodes, &mut inputs, &mut outputs);
 
@@ -139,6 +88,97 @@ pub fn parse_onnx(onnx_path: &Path) -> Graph {
         initializers,
         old_node_names,
         old_input_names,
+    }
+}
+
+/// Collect initializers
+fn collect_initializers(onnx_model: ModelProto) -> Vec<Argument> {
+    let mut initializers: Vec<Argument> = vec![];
+    for initializer in onnx_model.graph.initializer.iter() {
+        let tensor_proto = initializer.clone();
+
+        let name = tensor_proto.name.clone();
+
+        // FIXME data conversion for the tensor is incorrect
+        let tensor: Tensor = tensor_proto.try_into().unwrap();
+        let arg_type = Some(ArgType::Tensor(tensor));
+        let arg = Argument { name, arg_type };
+        initializers.push(arg);
+    }
+    initializers
+}
+
+/// Collect outputs
+fn collect_outputs(
+    onnx_model: &ModelProto,
+    check_if_initializer: HashSet<String>,
+) -> Vec<Argument> {
+    // TODO: filter out the outputs that are not used in the graph
+    let outputs: Vec<Argument> = onnx_model
+        .graph
+        .output
+        .iter()
+        .filter(|x| !check_if_initializer.contains(x.name.as_str()))
+        .map(|i| Argument::try_from(i.clone()).unwrap())
+        .collect();
+    outputs
+}
+
+/// Collect inputs
+fn collect_inputs(
+    onnx_model: &ModelProto,
+    check_if_initializer: &HashSet<String>,
+    top_nodes: HashSet<String>,
+) -> Vec<Argument> {
+    let inputs: Vec<Argument> = onnx_model
+        .graph
+        .input
+        .iter()
+        .filter(|x| !check_if_initializer.contains(x.name.as_str()))
+        .filter(|x| top_nodes.contains(&x.name))
+        .map(|x| Argument::try_from(x.clone()).unwrap())
+        .collect();
+    inputs
+}
+
+/// Sort the nodes in topological order
+fn top_sort_nodes(nodes: &mut Vec<Node>, mut ts: TopologicalSort<Node>) {
+    *nodes = vec![];
+    while let Some(node) = ts.pop() {
+        nodes.push(node);
+    }
+}
+
+/// Get the top nodes in the graph
+fn get_top_nodes(nodes: &Vec<Node>) -> (TopologicalSort<Node>, HashSet<String>) {
+    // Get the names of the top nodes (first nodes in the graph to receive the input)
+    // Sometimes onnx will pass inputs to be used as weights and biases but they are not truly inputs
+    let ts = topsort(nodes);
+    let mut top_nodes: HashSet<String> = HashSet::new();
+
+    for node in ts.peek_all() {
+        for input in node.inputs.iter() {
+            top_nodes.insert(input.name.clone());
+        }
+    }
+    (ts, top_nodes)
+}
+
+/// Move nodes's inputs and outputs to initializers if they are in the initializer list
+fn move_inputs_to_initializer(nodes: &mut Vec<Node>, check_if_initializer: &HashSet<String>) {
+    for node in nodes.iter_mut() {
+        node.initializers = node
+            .inputs
+            .iter()
+            .filter(|x| check_if_initializer.contains(&x.name))
+            .cloned()
+            .collect();
+
+        // Remove the initializers from the inputs and outputs
+        node.inputs
+            .retain(|x| !check_if_initializer.contains(&x.name));
+        node.outputs
+            .retain(|x| !check_if_initializer.contains(&x.name));
     }
 }
 
@@ -403,7 +443,6 @@ fn rename_nodes(nodes: &mut Vec<Node>) -> HashMap<String, String> {
 ///
 /// The inputs are renamed to be unique and to be in the format of conv2_in1, conv2_in2, etc.
 /// This is done to be consistent with the naming convention of the nodes and allow to be used as rust identifiers.
-///
 fn rename_inputs(
     nodes: &mut Vec<Node>,
     inputs: &mut Vec<Argument>,
