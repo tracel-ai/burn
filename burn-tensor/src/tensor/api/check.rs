@@ -165,8 +165,7 @@ impl TensorCheck {
             check = check.register(
                 "Matmul",
                 TensorError::new(format!(
-                    "The inner dimension of matmul should be the same, but got {} and {}.",
-                    dim_lhs, dim_rhs
+                    "The inner dimension of matmul should be the same, but got {dim_lhs} and {dim_rhs}."
                 ))
                 .details(format!(
                     "Lhs shape {:?}, rhs shape {:?}.",
@@ -443,7 +442,7 @@ impl TensorCheck {
             true => self.register(
                 ops,
                 TensorError::new("The provided tensors are not on the same device.").details(
-                    format!("Lhs tensor device {:?}, Rhs tensor device {:?}.", lhs, rhs,),
+                    format!("Lhs tensor device {lhs:?}, Rhs tensor device {rhs:?}.",),
                 ),
             ),
             false => self,

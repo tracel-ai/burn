@@ -193,6 +193,11 @@ where
         K::lower_equal_elem(self.primitive, other.elem())
     }
 
+    /// Fill elements from the given tensor based where the mask is true.
+    pub fn mask_scatter(self, mask: Tensor<B, D, Bool>, source: Self) -> Self {
+        Self::new(K::mask_scatter(self.primitive, mask, source.primitive))
+    }
+
     /// Fill each element with the given value based on the given mask.
     pub fn mask_fill<E: ElementConversion>(self, mask: Tensor<B, D, Bool>, value: E) -> Self {
         Self::new(K::mask_fill(self.primitive, mask, value.elem()))
@@ -308,6 +313,11 @@ where
         lhs: Self::Primitive<D>,
         rhs: Self::Elem,
     ) -> Tensor<B, D, Bool>;
+    fn mask_scatter<const D: usize>(
+        tensor: Self::Primitive<D>,
+        mask: Tensor<B, D, Bool>,
+        source: Self::Primitive<D>,
+    ) -> Self::Primitive<D>;
     fn mask_fill<const D: usize>(
         tensor: Self::Primitive<D>,
         mask: Tensor<B, D, Bool>,
@@ -457,6 +467,14 @@ impl<B: Backend> Numeric<B> for Int {
         rhs: Self::Elem,
     ) -> Tensor<B, D, Bool> {
         Tensor::new(B::int_lower_equal_elem(lhs, rhs))
+    }
+
+    fn mask_scatter<const D: usize>(
+        tensor: Self::Primitive<D>,
+        mask: Tensor<B, D, Bool>,
+        source: Self::Primitive<D>,
+    ) -> Self::Primitive<D> {
+        B::int_mask_scatter(tensor, mask.primitive, source)
     }
 
     fn mask_fill<const D: usize>(
@@ -621,6 +639,14 @@ impl<B: Backend> Numeric<B> for Float {
         rhs: Self::Elem,
     ) -> Tensor<B, D, Bool> {
         Tensor::new(B::lower_equal_elem(lhs, rhs))
+    }
+
+    fn mask_scatter<const D: usize>(
+        tensor: Self::Primitive<D>,
+        mask: Tensor<B, D, Bool>,
+        source: Self::Primitive<D>,
+    ) -> Self::Primitive<D> {
+        B::mask_scatter(tensor, mask.primitive, source)
     }
 
     fn mask_fill<const D: usize>(

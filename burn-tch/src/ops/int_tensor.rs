@@ -261,6 +261,20 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
         TchOps::index_select_dim_assign(tensor, dim, indexes, value)
     }
 
+    fn int_mask_scatter<const D: usize>(
+        tensor: TchTensor<i64, D>,
+        mask: TchTensor<bool, D>,
+        source: TchTensor<i64, D>,
+    ) -> TchTensor<i64, D> {
+        TchTensor::binary_ops_tensor(
+            tensor,
+            source,
+            |tensor, source| tensor.f_masked_scatter_(&mask.tensor, source).unwrap(),
+            |tensor, source| tensor.f_masked_scatter(&mask.tensor, source).unwrap(),
+            |tensor, source| tensor.f_masked_scatter(&mask.tensor, source).unwrap(),
+        )
+    }
+
     fn int_mask_fill<const D: usize>(
         tensor: TchTensor<i64, D>,
         mask: TchTensor<bool, D>,

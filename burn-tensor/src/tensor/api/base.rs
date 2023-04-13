@@ -310,7 +310,7 @@ where
                 let range: [core::ops::Range<usize>; D] =
                     core::array::from_fn(|i| multi_index[i]..multi_index[i] + 1);
                 let elem = &self.clone().index(range).to_data().value[0];
-                acc.push_str(&format!("{:?}", elem));
+                acc.push_str(&format!("{elem:?}"));
             }
         } else {
             // otherwise, iterate through the current dimension and recursively display the inner tensors
@@ -346,7 +346,7 @@ where
         let mut acc = String::new();
         let mut multi_index = vec![0; D];
         self.display_recursive(&mut acc, 0, &mut multi_index);
-        write!(f, "{}", acc)?;
+        write!(f, "{acc}")?;
         writeln!(f, ",")?;
         writeln!(f, "  shape:  {:?},", self.dims())?;
         writeln!(f, "  device:  {:?},", self.device())?;
