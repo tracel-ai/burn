@@ -77,9 +77,9 @@ pub(crate) fn conv_transpose2d<E: FloatNdArrayElement>(
     stride: [usize; 2],
     padding: [usize; 2],
     out_padding: [usize; 2],
-    dilatation: [usize; 2],
+    dilation: [usize; 2],
 ) -> NdArrayTensor<E, 4> {
-    let [dilatation_height, dilatation_width] = dilatation;
+    let [dilation_height, dilation_width] = dilation;
     let [padding_height, padding_width] = padding;
     let [stride_height, stride_width] = stride;
     let [out_padding_height, out_padding_width] = out_padding;
@@ -93,14 +93,14 @@ pub(crate) fn conv_transpose2d<E: FloatNdArrayElement>(
 
     let padding_height = i32::max(
         0,
-        (out_height as i32 - in_height as i32 + kernel_height as i32) * stride_height as i32 / 2,
+        (out_height as i32 - in_height as i32 + kernel_height as i32) / 2,
     ) as usize;
     let padding_width = i32::max(
         0,
-        (out_width as i32 - in_width as i32 + kernel_width as i32) * stride_width as i32 / 2,
+        (out_width as i32 - in_width as i32 + kernel_width as i32) / 2,
     ) as usize;
-    let x = apply_padding_4d(x, [padding_height, padding_width], 0i32.elem()).array;
 
+    let x = apply_padding_4d(x, [padding_height, padding_width], 0i32.elem()).array;
     let mut output = Array4::zeros(Dim([batch_size, in_channels, out_height, out_width]));
 
     let unsafe_shared_out = UnsafeSharedRef::new(&mut output);
@@ -116,13 +116,15 @@ pub(crate) fn conv_transpose2d<E: FloatNdArrayElement>(
                 for kw in 0..kernel_width {
                     for oh in 0..out_height {
                         for ow in 0..out_width {
-                            let ih = oh * stride_height + kh * dilatation_height;
-                            let iw = ow * stride_width + kw * dilatation_width;
+                            let ih = oh * dilation_height + kh * stride_height;
+                            let iw = ow * dilation_width + kw * stride_width;
+
+                            if ih >= in_height + padding_height || iw >= in_width + padding_width {
+                                continue;
+                            }
 
                             output[[b, ic, oh, ow]] = output[[b, ic, oh, ow]]
-                                + x[[b, ic, ih, iw]]
-                                    * weight.array
-                                        [[oc, ic, kernel_height - kh - 1, kernel_width - kw - 1]];
+                                + x[[b, ic, ih, iw]] * weight.array[[oc, ic, kh, kw]];
                         }
                     }
                 }
