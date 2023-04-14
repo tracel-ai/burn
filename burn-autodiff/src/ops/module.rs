@@ -159,14 +159,14 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn conv_transpose2d(
-        x: <ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
-        weight: <ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
-        bias: Option<<ADBackendDecorator<B> as Backend>::TensorPrimitive<1>>,
-        stride: [usize; 2],
-        padding: [usize; 2],
-        out_padding: [usize; 2],
+        _x: <ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
+        _weight: <ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
+        _bias: Option<<ADBackendDecorator<B> as Backend>::TensorPrimitive<1>>,
+        _stride: [usize; 2],
+        _padding: [usize; 2],
+        _out_padding: [usize; 2],
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<4> {
-        todo!()
+        panic!("Transposed 2D convolution doesn't yet support backward.");
     }
 
     fn conv1d(
