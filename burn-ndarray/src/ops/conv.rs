@@ -84,47 +84,45 @@ pub(crate) fn conv_transpose2d<E: FloatNdArrayElement>(
     let [stride_height, stride_width] = stride;
     let [out_padding_height, out_padding_width] = out_padding;
     let [batch_size, _in_channels, in_height, in_width] = x.shape().dims;
-    let [out_channels, in_channels, kernel_height, kernel_width] = weight.shape().dims;
+    let [in_channels, out_channels, kernel_height, kernel_width] = weight.shape().dims;
 
     let out_height =
         (in_height - 1) * stride_height + kernel_height + out_padding_height - 2 * padding_height;
     let out_width =
         (in_width - 1) * stride_width + kernel_width + out_padding_width - 2 * padding_width;
 
-    let padding_height = i32::max(
-        0,
-        (out_height as i32 - in_height as i32 + kernel_height as i32) / 2,
-    ) as usize;
-    let padding_width = i32::max(
-        0,
-        (out_width as i32 - in_width as i32 + kernel_width as i32) / 2,
-    ) as usize;
-
-    let x = apply_padding_4d(x, [padding_height, padding_width], 0i32.elem()).array;
-    let mut output = Array4::zeros(Dim([batch_size, in_channels, out_height, out_width]));
+    let x = x.array;
+    let mut output = Array4::zeros(Dim([batch_size, out_channels, out_height, out_width]));
 
     let unsafe_shared_out = UnsafeSharedRef::new(&mut output);
 
-    (0..batch_size * in_channels).for_each(|k| unsafe {
-        let b = k / in_channels;
-        let ic = k % in_channels;
+    (0..batch_size * out_channels).for_each(|k| unsafe {
+        let b = k / out_channels;
+        let oc = k % out_channels;
 
         let output = unsafe_shared_out.get();
 
-        for oc in 0..out_channels {
-            for kh in 0..kernel_height {
-                for kw in 0..kernel_width {
-                    for oh in 0..out_height {
-                        for ow in 0..out_width {
-                            let ih = oh * dilation_height + kh * stride_height;
-                            let iw = ow * dilation_width + kw * stride_width;
+        for ic in 0..in_channels {
+            for ih in 0..in_height {
+                for iw in 0..in_width {
+                    for kh in 0..kernel_height {
+                        for kw in 0..kernel_width {
+                            let oh = ih * stride_height + kh * dilation_height;
+                            let ow = iw * stride_width + kw * dilation_width;
 
-                            if ih >= in_height + padding_height || iw >= in_width + padding_width {
+                            if oh >= out_height + padding_height
+                                || ow >= out_width + padding_width
+                                || oh < padding_height
+                                || ow < padding_width
+                            {
                                 continue;
                             }
 
-                            output[[b, ic, oh, ow]] = output[[b, ic, oh, ow]]
-                                + x[[b, ic, ih, iw]] * weight.array[[oc, ic, kh, kw]];
+                            let oh = oh - padding_height;
+                            let ow = ow - padding_width;
+
+                            output[[b, oc, oh, ow]] = output[[b, oc, oh, ow]]
+                                + x[[b, ic, ih, iw]] * weight.array[[ic, oc, kh, kw]];
                         }
                     }
                 }
@@ -134,7 +132,7 @@ pub(crate) fn conv_transpose2d<E: FloatNdArrayElement>(
         if let Some(bias) = &bias {
             for oh in 0..out_height {
                 for ow in 0..out_width {
-                    output[[b, ic, oh, ow]] = output[[b, ic, oh, ow]] + bias.array[ic];
+                    output[[b, oc, oh, ow]] = output[[b, oc, oh, ow]] + bias.array[oc];
                 }
             }
         }
