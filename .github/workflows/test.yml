@@ -79,3 +79,8 @@ jobs:
     with:
       crate: burn-train
 
+  test-burn-import:
+    uses: burn-rs/burn/.github/workflows/test-template.yml@main
+    with:
+      crate: burn-import
+
