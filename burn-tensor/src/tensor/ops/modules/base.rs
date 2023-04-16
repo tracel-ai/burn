@@ -59,7 +59,7 @@ pub trait ModuleOps<B: Backend> {
     /// # Shapes
     ///
     /// x:      [batch_size, channels_in, height, width],
-    /// weight: [channels_out, channels_in, kernel_size_1, kernel_size_2],
+    /// weight: [channels_in, channels_out, kernel_size_1, kernel_size_2],
     /// bias:   [channels_out],
     fn conv_transpose2d(
         x: B::TensorPrimitive<4>,
@@ -95,6 +95,30 @@ pub trait ModuleOps<B: Backend> {
         padding: usize,
     ) -> B::TensorPrimitive<3> {
         conv::conv1d_from_conv2d::<B>(x, weight, bias, stride, padding)
+    }
+    /// One dimensional transposed convolution.
+    ///
+    /// # Shapes
+    ///
+    /// x:      [batch_size, channels_in, length],
+    /// weight: [channels_in, channels_out, length],
+    /// bias:   [channels_out],
+    fn conv_transpose1d(
+        x: B::TensorPrimitive<3>,
+        weight: B::TensorPrimitive<3>,
+        bias: Option<B::TensorPrimitive<1>>,
+        stride: usize,
+        padding: usize,
+        padding_out: usize,
+    ) -> B::TensorPrimitive<3> {
+        conv::conv_transpose1d_from_conv_transpose2d::<B>(
+            x,
+            weight,
+            bias,
+            stride,
+            padding,
+            padding_out,
+        )
     }
     /// Backward pass for the [conv1d](ModuleOps::conv1d) operation.
     fn conv1d_backward(
