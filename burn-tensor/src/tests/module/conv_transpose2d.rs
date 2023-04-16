@@ -25,7 +25,7 @@ mod tests {
         test.assert_output(TestTensor::from_floats([[[[5.0, 11.0], [23.0, 29.0]]]]));
     }
     #[test]
-    fn test_conv_transpose2d_simple() {
+    fn test_conv_transpose2d_simple_2() {
         let test = ConvTranspose2dTestCase {
             batch_size: 1,
             channels_in: 3,
@@ -182,7 +182,6 @@ mod tests {
                 [self.padding_1, self.padding_2],
                 [self.padding_out_1, self.padding_out_2],
             );
-            println!("{output}");
 
             y.to_data().assert_approx_eq(&output.into_data(), 3);
         }

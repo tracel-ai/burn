@@ -48,6 +48,28 @@ where
     ))
 }
 
+/// Applies a [1D transposed convolution](crate::ops::ModuleOps::conv_transpose1d).
+pub fn conv_transpose1d<B>(
+    x: Tensor<B, 3>,
+    weight: Tensor<B, 3>,
+    bias: Option<Tensor<B, 1>>,
+    stride: usize,
+    padding: usize,
+    padding_out: usize,
+) -> Tensor<B, 3>
+where
+    B: Backend,
+{
+    Tensor::new(B::conv_transpose1d(
+        x.primitive,
+        weight.primitive,
+        bias.map(|b| b.primitive),
+        stride,
+        padding,
+        padding_out,
+    ))
+}
+
 /// Applies a [2D transposed convolution](crate::ops::ModuleOps::conv_transpose2d).
 pub fn conv_transpose2d<B>(
     x: Tensor<B, 4>,

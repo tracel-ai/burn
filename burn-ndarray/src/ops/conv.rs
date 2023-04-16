@@ -96,46 +96,48 @@ pub(crate) fn conv_transpose2d<E: FloatNdArrayElement>(
 
     let unsafe_shared_out = UnsafeSharedRef::new(&mut output);
 
-    (0..batch_size * out_channels).for_each(|k| unsafe {
-        let b = k / out_channels;
-        let oc = k % out_channels;
+    run_par!(|| {
+        iter_par!(0, batch_size * out_channels).for_each(|k| unsafe {
+            let b = k / out_channels;
+            let oc = k % out_channels;
 
-        let output = unsafe_shared_out.get();
+            let output = unsafe_shared_out.get();
 
-        for ic in 0..in_channels {
-            for ih in 0..in_height {
-                for iw in 0..in_width {
-                    for kh in 0..kernel_height {
-                        for kw in 0..kernel_width {
-                            let oh = ih * stride_height + kh * dilation_height;
-                            let ow = iw * stride_width + kw * dilation_width;
+            for ic in 0..in_channels {
+                for ih in 0..in_height {
+                    for iw in 0..in_width {
+                        for kh in 0..kernel_height {
+                            for kw in 0..kernel_width {
+                                let oh = ih * stride_height + kh * dilation_height;
+                                let ow = iw * stride_width + kw * dilation_width;
 
-                            if oh >= out_height + padding_height
-                                || ow >= out_width + padding_width
-                                || oh < padding_height
-                                || ow < padding_width
-                            {
-                                continue;
+                                if oh >= out_height + padding_height
+                                    || ow >= out_width + padding_width
+                                    || oh < padding_height
+                                    || ow < padding_width
+                                {
+                                    continue;
+                                }
+
+                                let oh = oh - padding_height;
+                                let ow = ow - padding_width;
+
+                                output[[b, oc, oh, ow]] = output[[b, oc, oh, ow]]
+                                    + x[[b, ic, ih, iw]] * weight.array[[ic, oc, kh, kw]];
                             }
-
-                            let oh = oh - padding_height;
-                            let ow = ow - padding_width;
-
-                            output[[b, oc, oh, ow]] = output[[b, oc, oh, ow]]
-                                + x[[b, ic, ih, iw]] * weight.array[[ic, oc, kh, kw]];
                         }
                     }
                 }
             }
-        }
 
-        if let Some(bias) = &bias {
-            for oh in 0..out_height {
-                for ow in 0..out_width {
-                    output[[b, oc, oh, ow]] = output[[b, oc, oh, ow]] + bias.array[oc];
+            if let Some(bias) = &bias {
+                for oh in 0..out_height {
+                    for ow in 0..out_width {
+                        output[[b, oc, oh, ow]] = output[[b, oc, oh, ow]] + bias.array[oc];
+                    }
                 }
             }
-        }
+        });
     });
 
     NdArrayTensor::new(output.into_dyn().into_shared())
