@@ -23,6 +23,9 @@ pub struct Conv1dConfig {
     /// The stride of the convolution.
     #[config(default = "1")]
     pub stride: usize,
+    /// Spacing between kernel elements.
+    #[config(default = "1")]
+    pub dilation: usize,
     /// The padding configuration.
     #[config(default = "Conv1dPaddingConfig::Valid")]
     pub padding: Conv1dPaddingConfig,
@@ -61,6 +64,7 @@ pub struct Conv1d<B: Backend> {
     bias: Option<Param<Tensor<B, 1>>>,
     stride: usize,
     kernel_size: usize,
+    dilation: usize,
     padding: Conv1dPaddingConfig,
 }
 
@@ -90,6 +94,7 @@ impl Conv1dConfig {
             stride: 1, // TODO: Add the stride to the config when properly supported.
             kernel_size: self.kernel_size,
             padding: self.padding.clone(),
+            dilation: self.dilation.clone(),
         }
     }
     /// Initialize a new [conv1d](Conv1d) module with a [record](Conv1dRecord).
@@ -100,6 +105,7 @@ impl Conv1dConfig {
             stride: 1, // TODO: Add the stride to the config when properly supported.
             kernel_size: self.kernel_size,
             padding: self.padding.clone(),
+            dilation: self.dilation.clone(),
         }
     }
 }
@@ -129,6 +135,7 @@ impl<B: Backend> Conv1d<B> {
             self.bias.as_ref().map(|bias| bias.val()),
             self.stride,
             padding,
+            self.dilation,
         )
     }
 }

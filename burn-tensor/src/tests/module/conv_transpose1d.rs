@@ -14,6 +14,7 @@ mod tests {
             padding: 1,
             padding_out: 0,
             stride: 1,
+            dilation: 1,
             length: 4,
         };
 
@@ -33,6 +34,7 @@ mod tests {
             padding: 1,
             padding_out: 1,
             stride: 2,
+            dilation: 1,
             length: 4,
         };
 
@@ -50,6 +52,7 @@ mod tests {
         padding: usize,
         padding_out: usize,
         stride: usize,
+        dilation: usize,
         length: usize,
     }
 
@@ -81,6 +84,7 @@ mod tests {
                 self.stride,
                 self.padding,
                 self.padding_out,
+                self.dilation,
             );
 
             y.to_data().assert_approx_eq(&output.into_data(), 3);

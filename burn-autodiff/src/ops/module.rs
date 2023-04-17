@@ -52,6 +52,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         bias: Option<ADTensor<B, 1>>,
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
     ) -> ADTensor<B, 4> {
         #[derive(Debug)]
         struct Conv2DWithBias;
@@ -64,14 +65,17 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 B::TensorPrimitive<4>,
                 B::TensorPrimitive<1>,
                 [usize; 2],
+                [usize; 2],
+                [usize; 2],
             );
 
             fn backward(self, ops: Ops<Self::State, 3>, grads: &mut Gradients) {
                 let [node_x, node_weight, node_bias] = ops.parents;
                 let grad = grads.consume::<B, 4>(&ops.node);
 
-                let (x, weight, bias, stride) = ops.state;
-                let backward = B::conv2d_backward(x, weight, Some(bias), stride, grad);
+                let (x, weight, bias, stride, padding, dilation) = ops.state;
+                let backward =
+                    B::conv2d_backward(x, weight, Some(bias), stride, padding, dilation, grad);
 
                 if let Some(node) = node_x {
                     grads.register::<B, 4>(node, backward.x_grad)
@@ -86,14 +90,20 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
 
         impl<B: Backend> Backward<B, 4, 2> for Conv2DNoBias {
-            type State = (B::TensorPrimitive<4>, B::TensorPrimitive<4>, [usize; 2]);
+            type State = (
+                B::TensorPrimitive<4>,
+                B::TensorPrimitive<4>,
+                [usize; 2],
+                [usize; 2],
+                [usize; 2],
+            );
 
             fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
                 let [node_x, node_weight] = ops.parents;
                 let grad = grads.consume::<B, 4>(&ops.node);
 
-                let (x, weight, stride) = ops.state;
-                let backward = B::conv2d_backward(x, weight, None, stride, grad);
+                let (x, weight, stride, padding, dilation) = ops.state;
+                let backward = B::conv2d_backward(x, weight, None, stride, padding, dilation, grad);
 
                 if let Some(node) = node_x {
                     grads.register::<B, 4>(node, backward.x_grad)
@@ -119,6 +129,8 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                             weight.primitive.clone(),
                             bias.primitive.clone(),
                             stride,
+                            padding,
+                            dilation,
                         ),
                         B::conv2d(
                             x.primitive,
@@ -126,6 +138,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                             Some(bias.primitive),
                             stride,
                             padding,
+                            dilation,
                         ),
                     ),
                     OpsKind::UnTracked(prep) => prep.finish(B::conv2d(
@@ -134,6 +147,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                         Some(bias.primitive),
                         stride,
                         padding,
+                        dilation,
                     )),
                 }
             }
@@ -143,8 +157,21 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     .statefull()
                 {
                     OpsKind::Tracked(prep) => prep.finish(
-                        (x.primitive.clone(), weight.primitive.clone(), stride),
-                        B::conv2d(x.primitive, weight.primitive, None, stride, padding),
+                        (
+                            x.primitive.clone(),
+                            weight.primitive.clone(),
+                            stride,
+                            padding,
+                            dilation,
+                        ),
+                        B::conv2d(
+                            x.primitive,
+                            weight.primitive,
+                            None,
+                            stride,
+                            padding,
+                            dilation,
+                        ),
                     ),
                     OpsKind::UnTracked(prep) => prep.finish(B::conv2d(
                         x.primitive,
@@ -152,6 +179,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                         None,
                         stride,
                         padding,
+                        dilation,
                     )),
                 }
             }
@@ -164,7 +192,8 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         _bias: Option<ADTensor<B, 1>>,
         _stride: [usize; 2],
         _padding: [usize; 2],
-        _out_padding: [usize; 2],
+        _padding_out: [usize; 2],
+        _dilation: [usize; 2],
     ) -> ADTensor<B, 4> {
         todo!("Transposed 2D convolution doesn't yet support backward.");
     }
@@ -175,7 +204,8 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         _bias: Option<ADTensor<B, 1>>,
         _stride: usize,
         _padding: usize,
-        _out_padding: usize,
+        _padding_out: usize,
+        _dilation: usize,
     ) -> ADTensor<B, 3> {
         todo!("Transposed 1D convolution doesn't yet support backward.");
     }
@@ -186,6 +216,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         bias: Option<ADTensor<B, 1>>,
         stride: usize,
         padding: usize,
+        dilation: usize,
     ) -> ADTensor<B, 3> {
         #[derive(Debug)]
         struct Conv1DWithBias;
@@ -198,14 +229,17 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 B::TensorPrimitive<3>,
                 B::TensorPrimitive<1>,
                 usize,
+                usize,
+                usize,
             );
 
             fn backward(self, ops: Ops<Self::State, 3>, grads: &mut Gradients) {
                 let [node_x, node_weight, node_bias] = ops.parents;
                 let grad = grads.consume::<B, 3>(&ops.node);
 
-                let (x, weight, bias, stride) = ops.state;
-                let backward = B::conv1d_backward(x, weight, Some(bias), stride, grad);
+                let (x, weight, bias, stride, padding, dilation) = ops.state;
+                let backward =
+                    B::conv1d_backward(x, weight, Some(bias), stride, padding, dilation, grad);
 
                 if let Some(node) = node_x {
                     grads.register::<B, 3>(node, backward.x_grad)
@@ -220,14 +254,20 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
 
         impl<B: Backend> Backward<B, 3, 2> for Conv1DNoBias {
-            type State = (B::TensorPrimitive<3>, B::TensorPrimitive<3>, usize);
+            type State = (
+                B::TensorPrimitive<3>,
+                B::TensorPrimitive<3>,
+                usize,
+                usize,
+                usize,
+            );
 
             fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
                 let [node_x, node_weight] = ops.parents;
                 let grad = grads.consume::<B, 3>(&ops.node);
 
-                let (x, weight, stride) = ops.state;
-                let backward = B::conv1d_backward(x, weight, None, stride, grad);
+                let (x, weight, stride, padding, dilation) = ops.state;
+                let backward = B::conv1d_backward(x, weight, None, stride, padding, dilation, grad);
 
                 if let Some(node) = node_x {
                     grads.register::<B, 3>(node, backward.x_grad)
@@ -252,6 +292,8 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                             weight.primitive.clone(),
                             bias.primitive.clone(),
                             stride,
+                            padding,
+                            dilation,
                         ),
                         B::conv1d(
                             x.primitive,
@@ -259,6 +301,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                             Some(bias.primitive),
                             stride,
                             padding,
+                            dilation,
                         ),
                     ),
                     OpsKind::UnTracked(prep) => prep.finish(B::conv1d(
@@ -267,6 +310,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                         Some(bias.primitive),
                         stride,
                         padding,
+                        dilation,
                     )),
                 }
             }
@@ -276,8 +320,21 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     .statefull()
                 {
                     OpsKind::Tracked(prep) => prep.finish(
-                        (x.primitive.clone(), weight.primitive.clone(), stride),
-                        B::conv1d(x.primitive, weight.primitive, None, stride, padding),
+                        (
+                            x.primitive.clone(),
+                            weight.primitive.clone(),
+                            stride,
+                            padding,
+                            dilation,
+                        ),
+                        B::conv1d(
+                            x.primitive,
+                            weight.primitive,
+                            None,
+                            stride,
+                            padding,
+                            dilation,
+                        ),
                     ),
                     OpsKind::UnTracked(prep) => prep.finish(B::conv1d(
                         x.primitive,
@@ -285,6 +342,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                         None,
                         stride,
                         padding,
+                        dilation,
                     )),
                 }
             }

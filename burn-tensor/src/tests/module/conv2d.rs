@@ -16,6 +16,8 @@ mod tests {
             padding_2: 1,
             stride_1: 1,
             stride_2: 1,
+            dilation_1: 1,
+            dilation_2: 1,
             height: 6,
             width: 6,
         };
@@ -88,6 +90,8 @@ mod tests {
             padding_2: 2,
             stride_1: 2,
             stride_2: 3,
+            dilation_1: 1,
+            dilation_2: 1,
             height: 7,
             width: 9,
         };
@@ -158,6 +162,8 @@ mod tests {
         padding_2: usize,
         stride_1: usize,
         stride_2: usize,
+        dilation_1: usize,
+        dilation_2: usize,
         height: usize,
         width: usize,
     }
@@ -178,6 +184,7 @@ mod tests {
                 Some(bias),
                 [self.stride_1, self.stride_2],
                 [self.padding_1, self.padding_2],
+                [self.dilation_1, self.dilation_2],
             );
 
             y.to_data().assert_approx_eq(&output.into_data(), 3);
