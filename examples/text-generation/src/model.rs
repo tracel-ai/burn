@@ -64,7 +64,7 @@ impl<B: Backend> TextGenerationModel<B> {
         let targets = item.targets.to_device(device);
         let mask_pad = item.mask_pad.to_device(device);
 
-        let index_positions = Tensor::<B, 1>::arange_device(0..seq_length, device)
+        let index_positions = Tensor::arange_device(0..seq_length, device)
             .reshape([1, seq_length])
             .repeat(0, batch_size);
 

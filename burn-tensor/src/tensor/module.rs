@@ -48,6 +48,50 @@ where
     ))
 }
 
+/// Applies a [1D transposed convolution](crate::ops::ModuleOps::conv_transpose1d).
+pub fn conv_transpose1d<B>(
+    x: Tensor<B, 3>,
+    weight: Tensor<B, 3>,
+    bias: Option<Tensor<B, 1>>,
+    stride: usize,
+    padding: usize,
+    padding_out: usize,
+) -> Tensor<B, 3>
+where
+    B: Backend,
+{
+    Tensor::new(B::conv_transpose1d(
+        x.primitive,
+        weight.primitive,
+        bias.map(|b| b.primitive),
+        stride,
+        padding,
+        padding_out,
+    ))
+}
+
+/// Applies a [2D transposed convolution](crate::ops::ModuleOps::conv_transpose2d).
+pub fn conv_transpose2d<B>(
+    x: Tensor<B, 4>,
+    weight: Tensor<B, 4>,
+    bias: Option<Tensor<B, 1>>,
+    stride: [usize; 2],
+    padding: [usize; 2],
+    out_padding: [usize; 2],
+) -> Tensor<B, 4>
+where
+    B: Backend,
+{
+    Tensor::new(B::conv_transpose2d(
+        x.primitive,
+        weight.primitive,
+        bias.map(|b| b.primitive),
+        stride,
+        padding,
+        out_padding,
+    ))
+}
+
 /// Applies a [2D max pooling](crate::ops::ModuleOps::max_pool2d).
 pub fn max_pool2d<B>(
     x: Tensor<B, 4>,

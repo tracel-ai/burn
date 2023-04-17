@@ -3,6 +3,7 @@ pub(crate) mod check;
 mod base;
 mod bool;
 mod float;
+mod int;
 mod kind;
 mod numeric;
 

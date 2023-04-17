@@ -88,7 +88,6 @@ mod tests {
         test.assert_grads(grads);
     }
 
-    #[ignore = "Stride different than 1 is not supported yet."]
     #[test]
     fn test_conv1d_with_stride() {
         let test = Conv1dTestCase {
@@ -98,18 +97,18 @@ mod tests {
             kernel_size: 3,
             padding: 1,
             stride: 2,
-            length: 8,
+            length: 4,
         };
         let grads = Grads {
             x: TestTensor::from_floats([
-                [[2., 4., 2., 4., 2., 2.], [2., 4., 2., 4., 2., 2.]],
-                [[2., 4., 2., 4., 2., 2.], [2., 4., 2., 4., 2., 2.]],
+                [[2., 4., 2., 2.], [2., 4., 2., 2.]],
+                [[2., 4., 2., 2.], [2., 4., 2., 2.]],
             ]),
             weight: TestTensor::from_floats([
-                [[4., 6., 6.], [4., 6., 6.]],
-                [[4., 6., 6.], [4., 6., 6.]],
+                [[2., 4., 4.], [2., 4., 4.]],
+                [[2., 4., 4.], [2., 4., 4.]],
             ]),
-            bias: TestTensor::from_floats([6., 6.]),
+            bias: TestTensor::from_floats([4., 4.]),
         };
         test.assert_grads(grads);
     }

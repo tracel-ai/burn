@@ -18,6 +18,9 @@ pub struct Conv2dConfig {
     pub channels: [usize; 2],
     /// The size of the kernel.
     pub kernel_size: [usize; 2],
+    /// The stride of the convolution.
+    #[config(default = "[1, 1]")]
+    pub stride: [usize; 2],
     /// The padding configuration.
     #[config(default = "Conv2dPaddingConfig::Valid")]
     pub padding: Conv2dPaddingConfig,
@@ -98,7 +101,7 @@ impl Conv2dConfig {
         Conv2d {
             weight: record.weight,
             bias: record.bias,
-            stride: [1, 1], // TODO: Add the stride to the config when properly supported.
+            stride: self.stride,
             kernel_size: self.kernel_size,
             padding: self.padding.clone(),
         }
