@@ -32,6 +32,25 @@ mod tests {
     }
 
     #[test]
+    fn test_conv1d_dilation() {
+        let test = Conv1dTestCase {
+            batch_size: 2,
+            channels_in: 2,
+            channels_out: 2,
+            kernel_size: 3,
+            padding: 1,
+            stride: 1,
+            dilation: 2,
+            length: 4,
+        };
+
+        test.assert_output(TestTensor::from_floats([
+            [[5., 5.], [5., 5.]],
+            [[5., 5.], [5., 5.]],
+        ]));
+    }
+
+    #[test]
     fn test_conv1d_complex() {
         let test = Conv1dTestCase {
             batch_size: 2,

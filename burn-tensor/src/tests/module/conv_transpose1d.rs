@@ -44,6 +44,26 @@ mod tests {
         ]]));
     }
 
+    #[test]
+    fn test_conv_transpose1d_dilation() {
+        let test = ConvTranspose1dTestCase {
+            batch_size: 1,
+            channels_in: 2,
+            channels_out: 2,
+            kernel_size: 3,
+            padding: 1,
+            padding_out: 0,
+            stride: 1,
+            dilation: 2,
+            length: 4,
+        };
+
+        test.assert_output(TestTensor::from_floats([[
+            [30., 64., 78., 76., 94., 52.],
+            [49., 101., 127., 113., 143., 77.],
+        ]]));
+    }
+
     struct ConvTranspose1dTestCase {
         batch_size: usize,
         channels_in: usize,

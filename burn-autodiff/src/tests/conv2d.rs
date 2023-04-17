@@ -559,6 +559,48 @@ mod tests {
         test.assert_grads(grads);
     }
 
+    #[test]
+    fn test_conv2d_complex() {
+        let test = Conv2dTestCase {
+            batch_size: 1,
+            channels_in: 2,
+            channels_out: 3,
+            kernel_size_1: 2,
+            kernel_size_2: 3,
+            padding_1: 1,
+            padding_2: 2,
+            stride_1: 1,
+            stride_2: 2,
+            dilation_1: 2,
+            dilation_2: 3,
+            height: 4,
+            width: 5,
+        };
+        let grads = Grads {
+            x: TestTensor::from_floats([[
+                [
+                    [3., 3., 0., 3., 3.],
+                    [6., 6., 0., 6., 6.],
+                    [6., 6., 0., 6., 6.],
+                    [3., 3., 0., 3., 3.],
+                ],
+                [
+                    [3., 3., 0., 3., 3.],
+                    [6., 6., 0., 6., 6.],
+                    [6., 6., 0., 6., 6.],
+                    [3., 3., 0., 3., 3.],
+                ],
+            ]]),
+            weight: TestTensor::from_floats([
+                [[[3., 6., 3.], [3., 6., 3.]], [[3., 6., 3.], [3., 6., 3.]]],
+                [[[3., 6., 3.], [3., 6., 3.]], [[3., 6., 3.], [3., 6., 3.]]],
+                [[[3., 6., 3.], [3., 6., 3.]], [[3., 6., 3.], [3., 6., 3.]]],
+            ]),
+            bias: TestTensor::from_floats([8., 8., 8.]),
+        };
+        test.assert_grads(grads);
+    }
+
     struct Conv2dTestCase {
         batch_size: usize,
         channels_in: usize,

@@ -7,7 +7,7 @@ use crate::nn::Initializer;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 use burn_tensor::module::conv2d;
-use burn_tensor::ops::conv::calculate_padding;
+use burn_tensor::ops::conv::calculate_conv_padding;
 
 use libm::sqrt;
 
@@ -146,8 +146,8 @@ impl Conv2dPaddingConfig {
         stride: &[usize; 2],
     ) -> [usize; 2] {
         let same_padding = || {
-            let p1 = calculate_padding(kernel_size[0], stride[0], height, height);
-            let p2 = calculate_padding(kernel_size[1], stride[1], width, width);
+            let p1 = calculate_conv_padding(kernel_size[0], stride[0], height, height);
+            let p2 = calculate_conv_padding(kernel_size[1], stride[1], width, width);
 
             [p1, p2]
         };
