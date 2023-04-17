@@ -166,7 +166,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         _padding: [usize; 2],
         _out_padding: [usize; 2],
     ) -> ADTensor<B, 4> {
-        panic!("Transposed 2D convolution doesn't yet support backward.");
+        todo!("Transposed 2D convolution doesn't yet support backward.");
     }
 
     fn conv_transpose1d(
@@ -177,7 +177,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         _padding: usize,
         _out_padding: usize,
     ) -> ADTensor<B, 3> {
-        panic!("Transposed 1D convolution doesn't yet support backward.");
+        todo!("Transposed 1D convolution doesn't yet support backward.");
     }
 
     fn conv1d(
