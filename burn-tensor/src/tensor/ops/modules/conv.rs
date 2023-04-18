@@ -28,16 +28,7 @@ pub fn calculate_conv_output_size(
     dilation: usize,
     size_in: usize,
 ) -> usize {
-    let kernel_size = kernel_size as f32;
-    let stride = stride as f32;
-    let padding = padding as f32;
-    let dilation = dilation as f32;
-    let size_in = size_in as f32;
-
-    let size_out = (size_in + (2. * padding) - dilation * (kernel_size - 1.) - 1.) / stride;
-    let size_out = ceilf(size_out + 1.);
-
-    size_out as usize
+    (size_in + 2 * padding - dilation * (kernel_size - 1) - 1) / stride + 1
 }
 
 fn calculate_padding_out(
@@ -52,8 +43,10 @@ fn calculate_padding_out(
         return 0;
     }
 
-    let out = calculate_conv_output_size(kernel_size, stride, padding, dilation, size_out) as i64;
-    i64::max(0, out - size_in as i64) as usize
+    let out = 1 + libm::ceil(
+        (size_in + 2 * padding - dilation * (kernel_size - 1) - 1) as f64 / stride as f64,
+    ) as usize;
+    i64::max(0, out as i64 - size_out as i64) as usize
 }
 
 /// Calculate the [1D convolution](crate::ops::ModuleOps::conv1d) backward pass using convolutions.
@@ -75,8 +68,8 @@ pub(crate) fn conv1d_backward<B: Backend>(
         stride,
         padding,
         dilation,
-        length_out,
         length_in,
+        length_out,
     );
 
     let x_grad = B::conv_transpose1d(
@@ -140,16 +133,16 @@ pub(crate) fn conv2d_backward<B: Backend>(
         stride[0],
         padding[0],
         dilation[0],
-        height_out,
         height_in,
+        height_out,
     );
     let padding_2_out = calculate_padding_out(
         kernel_size_2,
         stride[1],
         padding[1],
         dilation[1],
-        width_out,
         width_in,
+        width_out,
     );
 
     let x_grad = B::conv_transpose2d(

@@ -97,6 +97,44 @@ mod tests {
     }
 
     #[test]
+    fn test_conv_transpose2d_dilation_2() {
+        let test = ConvTranspose2dTestCase {
+            batch_size: 1,
+            channels_in: 2,
+            channels_out: 2,
+            kernel_size_1: 3,
+            kernel_size_2: 3,
+            padding_1: 1,
+            padding_2: 1,
+            padding_out_1: 1,
+            padding_out_2: 1,
+            stride_1: 1,
+            stride_2: 1,
+            dilation_1: 2,
+            dilation_2: 2,
+            height: 2,
+            width: 2,
+        };
+
+        test.assert_output(TestTensor::from_floats([[
+            [
+                [126., 116., 136., 124., 146.],
+                [108., 88., 114., 92., 120.],
+                [156., 140., 166., 148., 176.],
+                [126., 100., 132., 104., 138.],
+                [186., 164., 196., 172., 206.],
+            ],
+            [
+                [217., 189., 227., 197., 237.],
+                [163., 125., 169., 129., 175.],
+                [247., 213., 257., 221., 267.],
+                [181., 137., 187., 141., 193.],
+                [277., 237., 287., 245., 297.],
+            ],
+        ]]));
+    }
+
+    #[test]
     fn test_conv_transpose2d_stride2_out_padding() {
         let test = ConvTranspose2dTestCase {
             batch_size: 1,
