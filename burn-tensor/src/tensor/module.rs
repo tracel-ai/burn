@@ -16,6 +16,7 @@ pub fn conv1d<B>(
     stride: usize,
     padding: usize,
     dilation: usize,
+    groups: usize,
 ) -> Tensor<B, 3>
 where
     B: Backend,
@@ -27,6 +28,7 @@ where
         stride,
         padding,
         dilation,
+        groups,
     ))
 }
 
@@ -38,6 +40,7 @@ pub fn conv2d<B>(
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
+    groups: usize,
 ) -> Tensor<B, 4>
 where
     B: Backend,
@@ -49,6 +52,7 @@ where
         stride,
         padding,
         dilation,
+        groups,
     ))
 }
 
@@ -61,6 +65,7 @@ pub fn conv_transpose1d<B>(
     padding: usize,
     padding_out: usize,
     dilation: usize,
+    groups: usize,
 ) -> Tensor<B, 3>
 where
     B: Backend,
@@ -73,6 +78,7 @@ where
         padding,
         padding_out,
         dilation,
+        groups,
     ))
 }
 
@@ -85,6 +91,7 @@ pub fn conv_transpose2d<B>(
     padding: [usize; 2],
     padding_out: [usize; 2],
     dilation: [usize; 2],
+    groups: usize,
 ) -> Tensor<B, 4>
 where
     B: Backend,
@@ -97,6 +104,7 @@ where
         padding,
         padding_out,
         dilation,
+        groups,
     ))
 }
 

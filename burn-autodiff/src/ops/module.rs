@@ -53,6 +53,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        groups: usize,
     ) -> ADTensor<B, 4> {
         #[derive(Debug)]
         struct Conv2DWithBias;
@@ -67,15 +68,24 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 [usize; 2],
                 [usize; 2],
                 [usize; 2],
+                usize,
             );
 
             fn backward(self, ops: Ops<Self::State, 3>, grads: &mut Gradients) {
                 let [node_x, node_weight, node_bias] = ops.parents;
                 let grad = grads.consume::<B, 4>(&ops.node);
 
-                let (x, weight, bias, stride, padding, dilation) = ops.state;
-                let backward =
-                    B::conv2d_backward(x, weight, Some(bias), stride, padding, dilation, grad);
+                let (x, weight, bias, stride, padding, dilation, groups) = ops.state;
+                let backward = B::conv2d_backward(
+                    x,
+                    weight,
+                    Some(bias),
+                    stride,
+                    padding,
+                    dilation,
+                    groups,
+                    grad,
+                );
 
                 if let Some(node) = node_x {
                     grads.register::<B, 4>(node, backward.x_grad)
@@ -96,14 +106,16 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 [usize; 2],
                 [usize; 2],
                 [usize; 2],
+                usize,
             );
 
             fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
                 let [node_x, node_weight] = ops.parents;
                 let grad = grads.consume::<B, 4>(&ops.node);
 
-                let (x, weight, stride, padding, dilation) = ops.state;
-                let backward = B::conv2d_backward(x, weight, None, stride, padding, dilation, grad);
+                let (x, weight, stride, padding, dilation, groups) = ops.state;
+                let backward =
+                    B::conv2d_backward(x, weight, None, stride, padding, dilation, groups, grad);
 
                 if let Some(node) = node_x {
                     grads.register::<B, 4>(node, backward.x_grad)
@@ -131,6 +143,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                             stride,
                             padding,
                             dilation,
+                            groups,
                         ),
                         B::conv2d(
                             x.primitive,
@@ -139,6 +152,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                             stride,
                             padding,
                             dilation,
+                            groups,
                         ),
                     ),
                     OpsKind::UnTracked(prep) => prep.finish(B::conv2d(
@@ -148,6 +162,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                         stride,
                         padding,
                         dilation,
+                        groups,
                     )),
                 }
             }
@@ -163,6 +178,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                             stride,
                             padding,
                             dilation,
+                            groups,
                         ),
                         B::conv2d(
                             x.primitive,
@@ -171,6 +187,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                             stride,
                             padding,
                             dilation,
+                            groups,
                         ),
                     ),
                     OpsKind::UnTracked(prep) => prep.finish(B::conv2d(
@@ -180,6 +197,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                         stride,
                         padding,
                         dilation,
+                        groups,
                     )),
                 }
             }
@@ -194,6 +212,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         _padding: [usize; 2],
         _padding_out: [usize; 2],
         _dilation: [usize; 2],
+        _groups: usize,
     ) -> ADTensor<B, 4> {
         todo!("Transposed 2D convolution doesn't yet support backward.");
     }
@@ -206,6 +225,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         _padding: usize,
         _padding_out: usize,
         _dilation: usize,
+        _groups: usize,
     ) -> ADTensor<B, 3> {
         todo!("Transposed 1D convolution doesn't yet support backward.");
     }
@@ -217,6 +237,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         stride: usize,
         padding: usize,
         dilation: usize,
+        groups: usize,
     ) -> ADTensor<B, 3> {
         #[derive(Debug)]
         struct Conv1DWithBias;
@@ -231,15 +252,24 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 usize,
                 usize,
                 usize,
+                usize,
             );
 
             fn backward(self, ops: Ops<Self::State, 3>, grads: &mut Gradients) {
                 let [node_x, node_weight, node_bias] = ops.parents;
                 let grad = grads.consume::<B, 3>(&ops.node);
 
-                let (x, weight, bias, stride, padding, dilation) = ops.state;
-                let backward =
-                    B::conv1d_backward(x, weight, Some(bias), stride, padding, dilation, grad);
+                let (x, weight, bias, stride, padding, dilation, groups) = ops.state;
+                let backward = B::conv1d_backward(
+                    x,
+                    weight,
+                    Some(bias),
+                    stride,
+                    padding,
+                    dilation,
+                    groups,
+                    grad,
+                );
 
                 if let Some(node) = node_x {
                     grads.register::<B, 3>(node, backward.x_grad)
@@ -260,14 +290,16 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 usize,
                 usize,
                 usize,
+                usize,
             );
 
             fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
                 let [node_x, node_weight] = ops.parents;
                 let grad = grads.consume::<B, 3>(&ops.node);
 
-                let (x, weight, stride, padding, dilation) = ops.state;
-                let backward = B::conv1d_backward(x, weight, None, stride, padding, dilation, grad);
+                let (x, weight, stride, padding, dilation, groups) = ops.state;
+                let backward =
+                    B::conv1d_backward(x, weight, None, stride, padding, dilation, groups, grad);
 
                 if let Some(node) = node_x {
                     grads.register::<B, 3>(node, backward.x_grad)
@@ -294,6 +326,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                             stride,
                             padding,
                             dilation,
+                            groups,
                         ),
                         B::conv1d(
                             x.primitive,
@@ -302,6 +335,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                             stride,
                             padding,
                             dilation,
+                            groups,
                         ),
                     ),
                     OpsKind::UnTracked(prep) => prep.finish(B::conv1d(
@@ -311,6 +345,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                         stride,
                         padding,
                         dilation,
+                        groups,
                     )),
                 }
             }
@@ -326,6 +361,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                             stride,
                             padding,
                             dilation,
+                            groups,
                         ),
                         B::conv1d(
                             x.primitive,
@@ -334,6 +370,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                             stride,
                             padding,
                             dilation,
+                            groups,
                         ),
                     ),
                     OpsKind::UnTracked(prep) => prep.finish(B::conv1d(
@@ -343,6 +380,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                         stride,
                         padding,
                         dilation,
+                        groups,
                     )),
                 }
             }

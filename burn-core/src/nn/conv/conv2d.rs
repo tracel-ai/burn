@@ -24,6 +24,9 @@ pub struct Conv2dConfig {
     /// Spacing between kernel elements.
     #[config(default = "[1, 1]")]
     pub dilation: [usize; 2],
+    /// Groups.
+    #[config(default = "1")]
+    pub groups: usize,
     /// The padding configuration.
     #[config(default = "Conv2dPaddingConfig::Valid")]
     pub padding: Conv2dPaddingConfig,
@@ -63,6 +66,7 @@ pub struct Conv2d<B: Backend> {
     stride: [usize; 2],
     kernel_size: [usize; 2],
     dilation: [usize; 2],
+    groups: usize,
     padding: Conv2dPaddingConfig,
 }
 
@@ -98,6 +102,7 @@ impl Conv2dConfig {
             kernel_size: self.kernel_size,
             dilation: self.dilation,
             padding: self.padding.clone(),
+            groups: self.groups,
         }
     }
 
@@ -110,6 +115,7 @@ impl Conv2dConfig {
             dilation: self.dilation,
             kernel_size: self.kernel_size,
             padding: self.padding.clone(),
+            groups: self.groups,
         }
     }
 }
@@ -133,6 +139,7 @@ impl<B: Backend> Conv2d<B> {
             self.stride,
             padding,
             self.dilation,
+            self.groups,
         )
     }
 }

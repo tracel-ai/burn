@@ -26,6 +26,9 @@ pub struct Conv1dConfig {
     /// Spacing between kernel elements.
     #[config(default = "1")]
     pub dilation: usize,
+    /// Groups.
+    #[config(default = "1")]
+    pub groups: usize,
     /// The padding configuration.
     #[config(default = "Conv1dPaddingConfig::Valid")]
     pub padding: Conv1dPaddingConfig,
@@ -65,6 +68,7 @@ pub struct Conv1d<B: Backend> {
     stride: usize,
     kernel_size: usize,
     dilation: usize,
+    groups: usize,
     padding: Conv1dPaddingConfig,
 }
 
@@ -95,6 +99,7 @@ impl Conv1dConfig {
             kernel_size: self.kernel_size,
             padding: self.padding.clone(),
             dilation: self.dilation,
+            groups: self.groups,
         }
     }
     /// Initialize a new [conv1d](Conv1d) module with a [record](Conv1dRecord).
@@ -106,6 +111,7 @@ impl Conv1dConfig {
             kernel_size: self.kernel_size,
             padding: self.padding.clone(),
             dilation: self.dilation,
+            groups: self.groups,
         }
     }
 }
@@ -136,6 +142,7 @@ impl<B: Backend> Conv1d<B> {
             self.stride,
             padding,
             self.dilation,
+            self.groups,
         )
     }
 }

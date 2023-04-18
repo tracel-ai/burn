@@ -13,6 +13,7 @@ mod tests {
             padding: 1,
             stride: 1,
             dilation: 1,
+            groups: 1,
             length: 6,
         };
         let grads = Grads {
@@ -48,6 +49,7 @@ mod tests {
             padding: 1,
             stride: 1,
             dilation: 1,
+            groups: 1,
             length: 6,
         };
         let grads = Grads {
@@ -75,6 +77,7 @@ mod tests {
             padding: 2,
             stride: 1,
             dilation: 1,
+            groups: 1,
             length: 6,
         };
         let grads = Grads {
@@ -101,6 +104,7 @@ mod tests {
             padding: 1,
             stride: 2,
             dilation: 1,
+            groups: 1,
             length: 4,
         };
         let grads = Grads {
@@ -127,6 +131,7 @@ mod tests {
             padding: 1,
             stride: 1,
             dilation: 2,
+            groups: 1,
             length: 4,
         };
         let grads = Grads {
@@ -151,6 +156,7 @@ mod tests {
         padding: usize,
         stride: usize,
         dilation: usize,
+        groups: usize,
         length: usize,
     }
 
@@ -175,6 +181,7 @@ mod tests {
                 self.stride,
                 self.padding,
                 self.dilation,
+                self.groups,
             );
             let grads = output.backward();
 

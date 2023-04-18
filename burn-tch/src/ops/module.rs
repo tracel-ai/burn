@@ -33,6 +33,7 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
         stride: usize,
         padding: usize,
         dilation: usize,
+        groups: usize,
     ) -> TchTensor<E, 3> {
         let tensor = tch::Tensor::conv1d(
             &x.tensor,
@@ -41,7 +42,7 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
             &[stride as i64],
             &[padding as i64],
             &[dilation as i64],
-            1,
+            groups as i64,
         );
 
         TchTensor::new(tensor)
@@ -54,6 +55,7 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        groups: usize,
     ) -> TchTensor<E, 4> {
         let tensor = tch::Tensor::conv2d(
             &x.tensor,
@@ -62,7 +64,7 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
             &[stride[0] as i64, stride[1] as i64],
             &[padding[0] as i64, padding[1] as i64],
             &[dilation[0] as i64, dilation[1] as i64],
-            1,
+            groups as i64,
         );
 
         TchTensor::new(tensor)
@@ -76,6 +78,7 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
         padding: [usize; 2],
         padding_out: [usize; 2],
         dilation: [usize; 2],
+        groups: usize,
     ) -> TchTensor<E, 4> {
         let tensor = tch::Tensor::conv_transpose2d(
             &x.tensor,
@@ -84,7 +87,7 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
             &[stride[0] as i64, stride[1] as i64],
             &[padding[0] as i64, padding[1] as i64],
             &[padding_out[0] as i64, padding_out[1] as i64],
-            1,
+            groups as i64,
             &[dilation[0] as i64, dilation[1] as i64],
         );
 
@@ -99,6 +102,7 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
         padding: usize,
         padding_out: usize,
         dilation: usize,
+        groups: usize,
     ) -> TchTensor<E, 3> {
         let tensor = tch::Tensor::conv_transpose1d(
             &x.tensor,
@@ -107,7 +111,7 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
             &[stride as i64],
             &[padding as i64],
             &[padding_out as i64],
-            1,
+            groups as i64,
             &[dilation as i64],
         );
 

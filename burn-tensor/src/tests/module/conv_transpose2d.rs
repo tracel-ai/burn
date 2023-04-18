@@ -20,6 +20,7 @@ mod tests {
             stride_2: 1,
             dilation_1: 1,
             dilation_2: 1,
+            groups: 1,
             height: 2,
             width: 2,
         };
@@ -42,6 +43,7 @@ mod tests {
             stride_2: 1,
             dilation_1: 1,
             dilation_2: 1,
+            groups: 1,
             height: 4,
             width: 4,
         };
@@ -84,6 +86,7 @@ mod tests {
             stride_2: 2,
             dilation_1: 1,
             dilation_2: 1,
+            groups: 1,
             height: 2,
             width: 2,
         };
@@ -112,6 +115,7 @@ mod tests {
             stride_2: 1,
             dilation_1: 2,
             dilation_2: 2,
+            groups: 1,
             height: 2,
             width: 2,
         };
@@ -150,6 +154,7 @@ mod tests {
             stride_2: 2,
             dilation_1: 1,
             dilation_2: 1,
+            groups: 1,
             height: 4,
             width: 4,
         };
@@ -192,6 +197,7 @@ mod tests {
         stride_2: usize,
         dilation_1: usize,
         dilation_2: usize,
+        groups: usize,
         height: usize,
         width: usize,
     }
@@ -230,6 +236,7 @@ mod tests {
                 [self.padding_1, self.padding_2],
                 [self.padding_out_1, self.padding_out_2],
                 [self.dilation_1, self.dilation_2],
+                self.groups,
             );
 
             y.to_data().assert_approx_eq(&output.into_data(), 3);

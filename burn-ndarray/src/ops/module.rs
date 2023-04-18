@@ -76,6 +76,7 @@ impl<E: FloatNdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        groups: usize,
     ) -> NdArrayTensor<E, 4> {
         conv2d(x, weight, bias, stride, padding, dilation)
     }
@@ -88,6 +89,7 @@ impl<E: FloatNdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         padding: [usize; 2],
         padding_out: [usize; 2],
         dilation: [usize; 2],
+        groups: usize,
     ) -> NdArrayTensor<E, 4> {
         conv_transpose2d(x, weight, bias, stride, padding, padding_out, dilation)
     }

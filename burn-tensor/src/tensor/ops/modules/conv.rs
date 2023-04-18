@@ -57,6 +57,7 @@ pub(crate) fn conv1d_backward<B: Backend>(
     stride: usize,
     padding: usize,
     dilation: usize,
+    groups: usize,
     output_grad: B::TensorPrimitive<3>,
 ) -> Conv1dBackward<B> {
     let [batch_size, channels_in, length_in] = B::shape(&x).dims;
@@ -80,6 +81,7 @@ pub(crate) fn conv1d_backward<B: Backend>(
         padding,
         padding_out,
         dilation,
+        groups,
     );
 
     let x_swapped = B::swap_dims(x, 0, 1);
@@ -91,6 +93,7 @@ pub(crate) fn conv1d_backward<B: Backend>(
         dilation,
         padding,
         stride,
+        groups,
     );
     let mut weight_grad = B::swap_dims(weight_grad_swapped, 0, 1);
 
@@ -122,6 +125,7 @@ pub(crate) fn conv2d_backward<B: Backend>(
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
+    groups: usize,
     output_grad: B::TensorPrimitive<4>,
 ) -> Conv2dBackward<B> {
     let [batch_size, channels_in, height_in, width_in] = B::shape(&x).dims;
@@ -153,6 +157,7 @@ pub(crate) fn conv2d_backward<B: Backend>(
         padding,
         [padding_1_out, padding_2_out],
         dilation,
+        groups,
     );
 
     let x_swapped = B::swap_dims(x, 0, 1);
@@ -164,6 +169,7 @@ pub(crate) fn conv2d_backward<B: Backend>(
         dilation,
         padding,
         stride,
+        groups,
     );
     let mut weight_grad = B::swap_dims(weight_grad_swapped, 0, 1);
 
@@ -205,6 +211,7 @@ pub(crate) fn conv1d_from_conv2d<B: Backend>(
     stride: usize,
     padding: usize,
     dilation: usize,
+    groups: usize,
 ) -> B::TensorPrimitive<3> {
     let [channels_out, _channels_in, kernel_size] = B::shape(&weight).dims;
     let [batch_size, channels_in, length_in] = B::shape(&x).dims;
@@ -215,7 +222,15 @@ pub(crate) fn conv1d_from_conv2d<B: Backend>(
     );
     let x = B::reshape(x, Shape::new([batch_size, channels_in, length_in, 1]));
 
-    let tensor = B::conv2d(x, weight, bias, [stride, 1], [padding, 0], [dilation, 1]);
+    let tensor = B::conv2d(
+        x,
+        weight,
+        bias,
+        [stride, 1],
+        [padding, 0],
+        [dilation, 1],
+        groups,
+    );
     let [batch_size, channels_out, height_out, _weight_out] = B::shape(&tensor).dims;
     B::reshape(tensor, Shape::from([batch_size, channels_out, height_out]))
 }
@@ -229,6 +244,7 @@ pub(crate) fn conv_transpose1d_from_conv_transpose2d<B: Backend>(
     padding: usize,
     padding_out: usize,
     dilation: usize,
+    groups: usize,
 ) -> B::TensorPrimitive<3> {
     let [channels_in, channels_out, kernel_size] = B::shape(&weight).dims;
     let [batch_size, _channels_in, length_in] = B::shape(&x).dims;
@@ -247,6 +263,7 @@ pub(crate) fn conv_transpose1d_from_conv_transpose2d<B: Backend>(
         [padding, 0],
         [padding_out, 0],
         [dilation, 1],
+        groups,
     );
     let [batch_size, channels_out, height_out, _weight_out] = B::shape(&tensor).dims;
     B::reshape(tensor, Shape::from([batch_size, channels_out, height_out]))
