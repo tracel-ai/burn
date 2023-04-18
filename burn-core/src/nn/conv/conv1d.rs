@@ -94,7 +94,7 @@ impl Conv1dConfig {
             stride: 1, // TODO: Add the stride to the config when properly supported.
             kernel_size: self.kernel_size,
             padding: self.padding.clone(),
-            dilation: self.dilation.clone(),
+            dilation: self.dilation,
         }
     }
     /// Initialize a new [conv1d](Conv1d) module with a [record](Conv1dRecord).
@@ -105,7 +105,7 @@ impl Conv1dConfig {
             stride: 1, // TODO: Add the stride to the config when properly supported.
             kernel_size: self.kernel_size,
             padding: self.padding.clone(),
-            dilation: self.dilation.clone(),
+            dilation: self.dilation,
         }
     }
 }
