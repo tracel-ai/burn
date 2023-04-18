@@ -14,6 +14,7 @@ mod tests {
             padding: 1,
             padding_out: 0,
             stride: 1,
+            dilation: 1,
             length: 4,
         };
 
@@ -33,12 +34,33 @@ mod tests {
             padding: 1,
             padding_out: 1,
             stride: 2,
+            dilation: 1,
             length: 4,
         };
 
         test.assert_output(TestTensor::from_floats([[
             [28., 62., 36., 78., 44., 94., 52., 62.],
             [41., 93., 55., 121., 69., 149., 83., 93.],
+        ]]));
+    }
+
+    #[test]
+    fn test_conv_transpose1d_dilation() {
+        let test = ConvTranspose1dTestCase {
+            batch_size: 1,
+            channels_in: 2,
+            channels_out: 2,
+            kernel_size: 3,
+            padding: 1,
+            padding_out: 0,
+            stride: 1,
+            dilation: 2,
+            length: 4,
+        };
+
+        test.assert_output(TestTensor::from_floats([[
+            [30., 64., 78., 76., 94., 52.],
+            [49., 101., 127., 113., 143., 77.],
         ]]));
     }
 
@@ -50,6 +72,7 @@ mod tests {
         padding: usize,
         padding_out: usize,
         stride: usize,
+        dilation: usize,
         length: usize,
     }
 
@@ -81,6 +104,7 @@ mod tests {
                 self.stride,
                 self.padding,
                 self.padding_out,
+                self.dilation,
             );
 
             y.to_data().assert_approx_eq(&output.into_data(), 3);

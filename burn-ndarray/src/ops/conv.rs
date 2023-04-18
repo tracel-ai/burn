@@ -1,4 +1,4 @@
-use burn_tensor::ElementConversion;
+use burn_tensor::{ops::conv::calculate_conv_output_size, ElementConversion};
 use ndarray::{Array4, Dim};
 
 use crate::{
@@ -20,13 +20,20 @@ pub(crate) fn conv2d<E: FloatNdArrayElement>(
     let [batch_size, _in_channels, in_height, in_width] = x.shape().dims;
     let [out_channels, in_channels, kernel_height, kernel_width] = weight.shape().dims;
 
-    let out_height = (in_height + 2 * padding_height - dilatation_height * (kernel_height - 1) - 1)
-        / stride_height
-        + 1;
-
-    let out_width = (in_width + 2 * padding_width - dilatation_width * (kernel_width - 1) - 1)
-        / stride_width
-        + 1;
+    let out_height = calculate_conv_output_size(
+        kernel_height,
+        stride_height,
+        padding_height,
+        dilatation_height,
+        in_height,
+    );
+    let out_width = calculate_conv_output_size(
+        kernel_width,
+        stride_width,
+        padding_width,
+        dilatation_width,
+        in_width,
+    );
 
     let x = apply_padding_4d(x, padding, 0i32.elem()).array;
 
@@ -86,10 +93,15 @@ pub(crate) fn conv_transpose2d<E: FloatNdArrayElement>(
     let [batch_size, _in_channels, in_height, in_width] = x.shape().dims;
     let [in_channels, out_channels, kernel_height, kernel_width] = weight.shape().dims;
 
-    let out_height =
-        (in_height - 1) * stride_height + kernel_height + out_padding_height - 2 * padding_height;
+    let out_height = (in_height - 1) * stride_height
+        + dilation_height * (kernel_height - 1)
+        + out_padding_height
+        - 2 * padding_height
+        + 1;
     let out_width =
-        (in_width - 1) * stride_width + kernel_width + out_padding_width - 2 * padding_width;
+        (in_width - 1) * stride_width + dilation_width * (kernel_width - 1) + out_padding_width
+            - 2 * padding_width
+            + 1;
 
     let x = x.array;
     let mut output = Array4::zeros(Dim([batch_size, out_channels, out_height, out_width]));

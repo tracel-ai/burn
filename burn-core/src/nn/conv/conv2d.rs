@@ -7,7 +7,7 @@ use crate::nn::Initializer;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 use burn_tensor::module::conv2d;
-use burn_tensor::ops::conv::calculate_padding;
+use burn_tensor::ops::conv::calculate_conv_padding;
 
 use libm::sqrt;
 
@@ -21,6 +21,9 @@ pub struct Conv2dConfig {
     /// The stride of the convolution.
     #[config(default = "[1, 1]")]
     pub stride: [usize; 2],
+    /// Spacing between kernel elements.
+    #[config(default = "[1, 1]")]
+    pub dilation: [usize; 2],
     /// The padding configuration.
     #[config(default = "Conv2dPaddingConfig::Valid")]
     pub padding: Conv2dPaddingConfig,
@@ -59,6 +62,7 @@ pub struct Conv2d<B: Backend> {
     bias: Option<Param<Tensor<B, 1>>>,
     stride: [usize; 2],
     kernel_size: [usize; 2],
+    dilation: [usize; 2],
     padding: Conv2dPaddingConfig,
 }
 
@@ -90,8 +94,9 @@ impl Conv2dConfig {
         Conv2d {
             weight: Param::from(weight),
             bias: bias.map(Param::from),
-            stride: [1, 1], // TODO: Add the stride to the config when properly supported.
+            stride: self.stride,
             kernel_size: self.kernel_size,
+            dilation: self.dilation,
             padding: self.padding.clone(),
         }
     }
@@ -102,6 +107,7 @@ impl Conv2dConfig {
             weight: record.weight,
             bias: record.bias,
             stride: self.stride,
+            dilation: self.dilation,
             kernel_size: self.kernel_size,
             padding: self.padding.clone(),
         }
@@ -126,6 +132,7 @@ impl<B: Backend> Conv2d<B> {
             self.bias.as_ref().map(|bias| bias.val()),
             self.stride,
             padding,
+            self.dilation,
         )
     }
 }
@@ -139,8 +146,8 @@ impl Conv2dPaddingConfig {
         stride: &[usize; 2],
     ) -> [usize; 2] {
         let same_padding = || {
-            let p1 = calculate_padding(kernel_size[0], stride[0], height, height);
-            let p2 = calculate_padding(kernel_size[1], stride[1], width, width);
+            let p1 = calculate_conv_padding(kernel_size[0], stride[0], height, height);
+            let p2 = calculate_conv_padding(kernel_size[1], stride[1], width, width);
 
             [p1, p2]
         };

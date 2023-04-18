@@ -13,6 +13,7 @@ mod tests {
             kernel_size: 3,
             padding: 1,
             stride: 1,
+            dilation: 1,
             length: 6,
         };
 
@@ -31,6 +32,25 @@ mod tests {
     }
 
     #[test]
+    fn test_conv1d_dilation() {
+        let test = Conv1dTestCase {
+            batch_size: 2,
+            channels_in: 2,
+            channels_out: 2,
+            kernel_size: 3,
+            padding: 1,
+            stride: 1,
+            dilation: 2,
+            length: 4,
+        };
+
+        test.assert_output(TestTensor::from_floats([
+            [[5., 5.], [5., 5.]],
+            [[5., 5.], [5., 5.]],
+        ]));
+    }
+
+    #[test]
     fn test_conv1d_complex() {
         let test = Conv1dTestCase {
             batch_size: 2,
@@ -39,6 +59,7 @@ mod tests {
             kernel_size: 3,
             padding: 1,
             stride: 2,
+            dilation: 1,
             length: 9,
         };
 
@@ -65,6 +86,7 @@ mod tests {
         kernel_size: usize,
         padding: usize,
         stride: usize,
+        dilation: usize,
         length: usize,
     }
 
@@ -73,7 +95,14 @@ mod tests {
             let weights = TestTensor::ones([self.channels_out, self.channels_in, self.kernel_size]);
             let bias = TestTensor::ones([self.channels_out]);
             let x = TestTensor::ones([self.batch_size, self.channels_in, self.length]);
-            let output = conv1d(x, weights, Some(bias), self.stride, self.padding);
+            let output = conv1d(
+                x,
+                weights,
+                Some(bias),
+                self.stride,
+                self.padding,
+                self.dilation,
+            );
 
             y.to_data().assert_approx_eq(&output.into_data(), 3);
         }

@@ -75,8 +75,9 @@ impl<E: FloatNdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         bias: Option<NdArrayTensor<E, 1>>,
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
     ) -> NdArrayTensor<E, 4> {
-        conv2d(x, weight, bias, stride, padding, [1, 1])
+        conv2d(x, weight, bias, stride, padding, dilation)
     }
 
     fn conv_transpose2d(
@@ -85,9 +86,10 @@ impl<E: FloatNdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         bias: Option<NdArrayTensor<E, 1>>,
         stride: [usize; 2],
         padding: [usize; 2],
-        out_padding: [usize; 2],
+        padding_out: [usize; 2],
+        dilation: [usize; 2],
     ) -> NdArrayTensor<E, 4> {
-        conv_transpose2d(x, weight, bias, stride, padding, out_padding, [1, 1])
+        conv_transpose2d(x, weight, bias, stride, padding, padding_out, dilation)
     }
 
     fn max_pool2d(
