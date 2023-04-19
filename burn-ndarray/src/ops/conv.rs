@@ -13,6 +13,7 @@ pub(crate) fn conv2d<E: FloatNdArrayElement>(
     stride: [usize; 2],
     padding: [usize; 2],
     dilatation: [usize; 2],
+    groups: usize,
 ) -> NdArrayTensor<E, 4> {
     let [dilatation_height, dilatation_width] = dilatation;
     let [padding_height, padding_width] = padding;
@@ -45,10 +46,11 @@ pub(crate) fn conv2d<E: FloatNdArrayElement>(
         iter_par!(0, batch_size * out_channels).for_each(|k| unsafe {
             let b = k / out_channels;
             let oc = k % out_channels;
+            let g = k % groups;
 
             let output = unsafe_shared_out.get();
 
-            for ic in 0..in_channels {
+            for ic in (in_channels * g)..(in_channels * (g + 1)) {
                 for kh in 0..kernel_height {
                     for kw in 0..kernel_width {
                         for oh in 0..out_height {
@@ -56,8 +58,9 @@ pub(crate) fn conv2d<E: FloatNdArrayElement>(
                                 let ih = oh * stride_height + kh * dilatation_height;
                                 let iw = ow * stride_width + kw * dilatation_width;
 
+                                let weight_ic = ic - (g * in_channels);
                                 output[[b, oc, oh, ow]] = output[[b, oc, oh, ow]]
-                                    + x[[b, ic, ih, iw]] * weight.array[[oc, ic, kh, kw]];
+                                    + x[[b, ic, ih, iw]] * weight.array[[oc, weight_ic, kh, kw]];
                             }
                         }
                     }
@@ -85,6 +88,7 @@ pub(crate) fn conv_transpose2d<E: FloatNdArrayElement>(
     padding: [usize; 2],
     out_padding: [usize; 2],
     dilation: [usize; 2],
+    groups: usize,
 ) -> NdArrayTensor<E, 4> {
     let [dilation_height, dilation_width] = dilation;
     let [padding_height, padding_width] = padding;

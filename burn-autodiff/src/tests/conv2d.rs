@@ -99,6 +99,68 @@ mod tests {
     }
 
     #[test]
+    fn test_conv2d_groups() {
+        let test = Conv2dTestCase {
+            batch_size: 1,
+            channels_in: 2,
+            channels_out: 2,
+            kernel_size_1: 3,
+            kernel_size_2: 3,
+            padding_1: 0,
+            padding_2: 0,
+            stride_1: 1,
+            stride_2: 1,
+            dilation_1: 1,
+            dilation_2: 1,
+            groups: 2,
+            height: 5,
+            width: 5,
+        };
+        let grads = Grads {
+            x: TestTensor::from_floats([
+                [
+                    [
+                        [1., 2., 3., 2., 1.],
+                        [2., 4., 6., 4., 2.],
+                        [3., 6., 9., 6., 3.],
+                        [2., 4., 6., 4., 2.],
+                        [1., 2., 3., 2., 1.],
+                    ],
+                    [
+                        [1., 2., 3., 2., 1.],
+                        [2., 4., 6., 4., 2.],
+                        [3., 6., 9., 6., 3.],
+                        [2., 4., 6., 4., 2.],
+                        [1., 2., 3., 2., 1.],
+                    ],
+                ],
+                [
+                    [
+                        [1., 2., 3., 2., 1.],
+                        [2., 4., 6., 4., 2.],
+                        [3., 6., 9., 6., 3.],
+                        [2., 4., 6., 4., 2.],
+                        [1., 2., 3., 2., 1.],
+                    ],
+                    [
+                        [1., 2., 3., 2., 1.],
+                        [2., 4., 6., 4., 2.],
+                        [3., 6., 9., 6., 3.],
+                        [2., 4., 6., 4., 2.],
+                        [1., 2., 3., 2., 1.],
+                    ],
+                ],
+            ]),
+            weight: TestTensor::from_floats([
+                [[[18., 18., 18.], [18., 18., 18.], [18., 18., 18.]]],
+                [[[18., 18., 18.], [18., 18., 18.], [18., 18., 18.]]],
+            ]),
+            bias: TestTensor::from_floats([18., 18.]),
+        };
+        test.assert_grads(grads);
+    }
+
+    #[test]
     fn test_conv2d_different_channels() {
         let test = Conv2dTestCase {
             batch_size: 2,
@@ -636,7 +698,7 @@ mod tests {
         fn assert_grads(self, expected_grads: Grads) {
             let weight = TestADTensor::ones([
                 self.channels_out,
-                self.channels_in,
+                self.channels_in / self.groups,
                 self.kernel_size_1,
                 self.kernel_size_2,
             ])

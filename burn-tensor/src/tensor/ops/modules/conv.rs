@@ -129,8 +129,8 @@ pub(crate) fn conv2d_backward<B: Backend>(
     output_grad: B::TensorPrimitive<4>,
 ) -> Conv2dBackward<B> {
     let [batch_size, channels_in, height_in, width_in] = B::shape(&x).dims;
-    let [_batch_size, channels_out, height_out, width_out] = B::shape(&output_grad).dims;
-    let [_, _, kernel_size_1, kernel_size_2] = B::shape(&weight).dims;
+    let [_, _, height_out, width_out] = B::shape(&output_grad).dims;
+    let [channels_out, _, kernel_size_1, kernel_size_2] = B::shape(&weight).dims;
 
     let padding_1_out = calculate_padding_out(
         kernel_size_1,
@@ -157,11 +157,14 @@ pub(crate) fn conv2d_backward<B: Backend>(
         padding,
         [padding_1_out, padding_2_out],
         dilation,
-        groups,
+        1,
     );
 
     let x_swapped = B::swap_dims(x, 0, 1);
+    println!();
+    println!("X Shape {:?}", B::shape(&x_swapped));
     let output_grad_swapped = B::swap_dims(output_grad, 0, 1);
+    println!("Output Shape {:?}", B::shape(&output_grad_swapped));
     let weight_grad_swapped = B::conv2d(
         x_swapped,
         output_grad_swapped.clone(),
@@ -169,18 +172,23 @@ pub(crate) fn conv2d_backward<B: Backend>(
         dilation,
         padding,
         stride,
-        groups,
+        1,
     );
     let mut weight_grad = B::swap_dims(weight_grad_swapped, 0, 1);
 
     if B::shape(&weight_grad)
-        != Shape::new([channels_out, channels_in, kernel_size_1, kernel_size_2])
+        != Shape::new([
+            channels_out,
+            channels_in / groups,
+            kernel_size_1,
+            kernel_size_2,
+        ])
     {
         weight_grad = B::index(
             weight_grad,
             [
                 0..channels_out,
-                0..channels_in,
+                0..channels_in / groups,
                 0..kernel_size_1,
                 0..kernel_size_2,
             ],
