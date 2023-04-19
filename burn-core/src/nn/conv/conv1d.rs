@@ -7,7 +7,7 @@ use crate::nn::Initializer;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 use burn_tensor::module::conv1d;
-use burn_tensor::ops::conv::calculate_padding;
+use burn_tensor::ops::conv::calculate_conv_padding;
 
 use libm::sqrt;
 
@@ -20,8 +20,15 @@ pub struct Conv1dConfig {
     pub channels_out: usize,
     /// The size of the kernel.
     pub kernel_size: usize,
+    /// The stride of the convolution.
+    #[config(default = "1")]
+    pub stride: usize,
+    /// Spacing between kernel elements.
+    #[config(default = "1")]
+    pub dilation: usize,
     /// The padding configuration.
-    pub padding: Option<Conv1dPaddingConfig>,
+    #[config(default = "Conv1dPaddingConfig::Valid")]
+    pub padding: Conv1dPaddingConfig,
     /// If bias should be added to the output.
     #[config(default = true)]
     pub bias: bool,
@@ -36,6 +43,8 @@ pub enum Conv1dPaddingConfig {
     /// Dynamicaly calculate the amount of padding necessary to ensure that the output size will be
     /// the same as the input.
     Same,
+    /// Same as no padding.
+    Valid,
     /// Applies the specified amount of padding to all inputs.
     Explicit(usize),
 }
@@ -55,7 +64,8 @@ pub struct Conv1d<B: Backend> {
     bias: Option<Param<Tensor<B, 1>>>,
     stride: usize,
     kernel_size: usize,
-    padding: Option<Conv1dPaddingConfig>,
+    dilation: usize,
+    padding: Conv1dPaddingConfig,
 }
 
 impl Conv1dConfig {
@@ -84,6 +94,7 @@ impl Conv1dConfig {
             stride: 1, // TODO: Add the stride to the config when properly supported.
             kernel_size: self.kernel_size,
             padding: self.padding.clone(),
+            dilation: self.dilation,
         }
     }
     /// Initialize a new [conv1d](Conv1d) module with a [record](Conv1dRecord).
@@ -94,6 +105,7 @@ impl Conv1dConfig {
             stride: 1, // TODO: Add the stride to the config when properly supported.
             kernel_size: self.kernel_size,
             padding: self.padding.clone(),
+            dilation: self.dilation,
         }
     }
 }
@@ -108,15 +120,13 @@ impl<B: Backend> Conv1d<B> {
     pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
         let same_padding = || {
             let [_batch_size, _channels_in, length] = input.dims();
-            calculate_padding(self.kernel_size, self.stride, length, length)
+            calculate_conv_padding(self.kernel_size, self.stride, length, length)
         };
 
         let padding = match &self.padding {
-            Some(config) => match config {
-                Conv1dPaddingConfig::Same => same_padding(),
-                Conv1dPaddingConfig::Explicit(value) => *value,
-            },
-            None => 0,
+            Conv1dPaddingConfig::Valid => 0,
+            Conv1dPaddingConfig::Same => same_padding(),
+            Conv1dPaddingConfig::Explicit(value) => *value,
         };
 
         conv1d(
@@ -125,6 +135,7 @@ impl<B: Backend> Conv1d<B> {
             self.bias.as_ref().map(|bias| bias.val()),
             self.stride,
             padding,
+            self.dilation,
         )
     }
 }

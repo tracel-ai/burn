@@ -12,6 +12,7 @@ mod tests {
             kernel_size: 3,
             padding: 1,
             stride: 1,
+            dilation: 1,
             length: 6,
         };
         let grads = Grads {
@@ -46,6 +47,7 @@ mod tests {
             kernel_size: 3,
             padding: 1,
             stride: 1,
+            dilation: 1,
             length: 6,
         };
         let grads = Grads {
@@ -72,6 +74,7 @@ mod tests {
             kernel_size: 3,
             padding: 2,
             stride: 1,
+            dilation: 1,
             length: 6,
         };
         let grads = Grads {
@@ -88,7 +91,6 @@ mod tests {
         test.assert_grads(grads);
     }
 
-    #[ignore = "Stride different than 1 is not supported yet."]
     #[test]
     fn test_conv1d_with_stride() {
         let test = Conv1dTestCase {
@@ -98,18 +100,45 @@ mod tests {
             kernel_size: 3,
             padding: 1,
             stride: 2,
-            length: 8,
+            dilation: 1,
+            length: 4,
         };
         let grads = Grads {
             x: TestTensor::from_floats([
-                [[2., 4., 2., 4., 2., 2.], [2., 4., 2., 4., 2., 2.]],
-                [[2., 4., 2., 4., 2., 2.], [2., 4., 2., 4., 2., 2.]],
+                [[2., 4., 2., 2.], [2., 4., 2., 2.]],
+                [[2., 4., 2., 2.], [2., 4., 2., 2.]],
             ]),
             weight: TestTensor::from_floats([
-                [[4., 6., 6.], [4., 6., 6.]],
-                [[4., 6., 6.], [4., 6., 6.]],
+                [[2., 4., 4.], [2., 4., 4.]],
+                [[2., 4., 4.], [2., 4., 4.]],
             ]),
-            bias: TestTensor::from_floats([6., 6.]),
+            bias: TestTensor::from_floats([4., 4.]),
+        };
+        test.assert_grads(grads);
+    }
+
+    #[test]
+    fn test_conv1d_dilation() {
+        let test = Conv1dTestCase {
+            batch_size: 2,
+            channels_in: 2,
+            channels_out: 2,
+            kernel_size: 3,
+            padding: 1,
+            stride: 1,
+            dilation: 2,
+            length: 4,
+        };
+        let grads = Grads {
+            x: TestTensor::from_floats([
+                [[2., 2., 2., 2.], [2., 2., 2., 2.]],
+                [[2., 2., 2., 2.], [2., 2., 2., 2.]],
+            ]),
+            weight: TestTensor::from_floats([
+                [[2., 4., 2.], [2., 4., 2.]],
+                [[2., 4., 2.], [2., 4., 2.]],
+            ]),
+            bias: TestTensor::from_floats([4., 4.]),
         };
         test.assert_grads(grads);
     }
@@ -121,6 +150,7 @@ mod tests {
         kernel_size: usize,
         padding: usize,
         stride: usize,
+        dilation: usize,
         length: usize,
     }
 
@@ -144,6 +174,7 @@ mod tests {
                 Some(bias.clone()),
                 self.stride,
                 self.padding,
+                self.dilation,
             );
             let grads = output.backward();
 
