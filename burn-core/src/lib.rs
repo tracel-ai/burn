@@ -18,6 +18,7 @@ pub mod module;
 pub mod nn;
 pub mod record;
 pub mod tensor;
+pub mod grad_clipper;
 
 extern crate alloc;
 
