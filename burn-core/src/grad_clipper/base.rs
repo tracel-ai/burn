@@ -33,9 +33,11 @@ impl GradientClipper {
 
     fn clip_by_value<B: Backend, const D: usize>(&self, grad: Tensor<B, D>, threshold: f64) -> Tensor<B, D> {
         todo!()
+        // Need something like a clamp() function
     }
 
     fn clip_by_norm<B: Backend, const D: usize>(&self, grad: Tensor<B, D>, threshold: f64) -> Tensor<B, D> {
         todo!()
+        // Does Tensor have a norm() function?
     }
 }
