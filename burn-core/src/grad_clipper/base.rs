@@ -1,4 +1,5 @@
-use burn_tensor::{backend::Backend, Tensor, Numeric, Element, TensorKind, Float, BasicOps};
+use burn_tensor::{backend::Backend};
+use crate::tensor::Tensor;
 /// Gradient Clipper provides a way to mitigate the exploding gradients
 /// problem by clipping every component of the gradient to a value during 
 /// backpropagation.
@@ -46,8 +47,23 @@ impl GradientClipper {
         Tensor::from_data_device(grad_data, &grad.device())
     }
 
+    /// Should this be implemented on all tensors? Feel like this could be useful in other contexts.
+    fn l2_norm<B: Backend, const D: usize>(tensor: &Tensor<B, D>) -> Tensor<B, 1> {
+        let squared = tensor.clone().powf(2.0);
+        let sum = squared.sum();
+        let norm = sum.sqrt();
+        norm
+    }
+
     fn clip_by_norm<B: Backend, const D: usize>(&self, grad: Tensor<B, D>, threshold: f32) -> Tensor<B, D> {
-        todo!()
-        // Does Tensor have a norm() function?
+        let norm = Self::l2_norm(&grad);
+        let norm_float = norm.to_full_precision();
+        if norm_float > threshold {
+            let scale = threshold / norm_float;
+            let scaled_grad = grad.mul_scalar(scale);
+            scaled_grad
+        } else {
+            grad
+        }
     }
 }
