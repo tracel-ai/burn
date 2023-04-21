@@ -33,7 +33,7 @@ impl GradientClipper {
 
     fn clip_by_value<B: Backend, const D: usize>(&self, grad: Tensor<B, D>, threshold: f32) -> Tensor<B, D> 
     where
-        B::FloatElem: core::cmp::PartialOrd<f32> + From<f32>,
+        B::FloatElem: core::cmp::PartialOrd<f32> + From<f32>, // this doesn't feel right
     {
         let mut grad_data = grad.to_data();
         grad_data.value.iter_mut().for_each(|val| {
@@ -57,8 +57,8 @@ impl GradientClipper {
 
     fn clip_by_norm<B: Backend, const D: usize>(&self, grad: Tensor<B, D>, threshold: f32) -> Tensor<B, D> {
         let norm = Self::l2_norm(&grad);
-        let norm_float = norm.to_full_precision();
-        if norm_float > threshold {
+        let norm_float = norm.into_scalar();
+        if norm_float > threshold { // FloatElem can't be compared to f32?
             let scale = threshold / norm_float;
             let scaled_grad = grad.mul_scalar(scale);
             scaled_grad
