@@ -294,6 +294,10 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         TchOps::lower_equal_elem(lhs, rhs.elem::<f64>())
     }
 
+    fn maximum<const D: usize>(lhs: TchTensor<E, D>, rhs: TchTensor<E, D>) -> TchTensor<E, D> {
+        TchOps::max(lhs, rhs)
+    }
+
     fn mean<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, 1> {
         TchOps::mean(tensor)
     }

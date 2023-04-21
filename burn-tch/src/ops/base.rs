@@ -275,6 +275,11 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         )
     }
 
+    fn maximum<const D: usize>(lhs: TchTensor<D>, rhs: TchTensor<D>) -> TchTensor<D> {
+        let tensor = lhs.tensor.maximum(&rhs.tensor);
+        TchTensor::new(tensor)
+    }
+
     pub fn mean<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, 1> {
         let tensor = tensor.tensor.mean(E::KIND);
         TchTensor::new(tensor)

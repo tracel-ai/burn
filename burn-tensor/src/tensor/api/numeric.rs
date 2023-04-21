@@ -111,6 +111,11 @@ where
         Self::new(K::ones(shape.into(), device))
     }
 
+    pub fn maximum(self, other: Self) -> Self {
+        check!(TensorCheck::binary_ops_ew("Maximum", &self, &other));
+        Self::new(K::maximum(self.primitive, other.primitive))
+    }
+
     /// Aggregate all elements in the tensor with the mean operation.
     pub fn mean(self) -> Tensor<B, 1, K> {
         Tensor::new(K::mean(self.primitive))
@@ -284,6 +289,10 @@ where
     fn ones<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D>;
     fn sum<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1>;
     fn sum_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D>;
+    fn maximum<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
+    ) -> Self::Primitive<D>;
     fn mean<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1>;
     fn mean_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D>;
     fn greater<const D: usize>(

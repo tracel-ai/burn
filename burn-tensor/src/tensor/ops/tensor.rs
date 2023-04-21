@@ -211,6 +211,10 @@ pub trait TensorOps<B: Backend> {
     }
     fn sum<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<1>;
     fn sum_dim<const D: usize>(tensor: B::TensorPrimitive<D>, dim: usize) -> B::TensorPrimitive<D>;
+    fn maximum<const D: usize>(
+        lhs: B::TensorPrimitive<D>,
+        rhs: B::TensorPrimitive<D>,
+    ) -> B::TensorPrimitive<D>;
     fn mean<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<1>;
     fn mean_dim<const D: usize>(tensor: B::TensorPrimitive<D>, dim: usize)
         -> B::TensorPrimitive<D>;
