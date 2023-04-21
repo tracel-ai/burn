@@ -295,7 +295,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     }
 
     fn maximum<const D: usize>(lhs: TchTensor<E, D>, rhs: TchTensor<E, D>) -> TchTensor<E, D> {
-        TchOps::max(lhs, rhs)
+        TchOps::maximum(lhs, rhs)
     }
 
     fn mean<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, 1> {

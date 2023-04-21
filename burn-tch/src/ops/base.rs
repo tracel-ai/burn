@@ -275,7 +275,7 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         )
     }
 
-    fn maximum<const D: usize>(lhs: TchTensor<D>, rhs: TchTensor<D>) -> TchTensor<D> {
+    pub fn maximum<const D: usize>(lhs: TchTensor<E, D>, rhs: TchTensor<E, D>) -> TchTensor<E, D> {
         let tensor = lhs.tensor.maximum(&rhs.tensor);
         TchTensor::new(tensor)
     }
