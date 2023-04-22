@@ -183,6 +183,94 @@ mod tests {
         ]]));
     }
 
+    #[test]
+    fn test_conv_transpose2d_groups_2() {
+        let test = ConvTranspose2dTestCase {
+            batch_size: 1,
+            channels_in: 2,
+            channels_out: 2,
+            kernel_size_1: 3,
+            kernel_size_2: 3,
+            padding_1: 1,
+            padding_2: 1,
+            padding_out_1: 0,
+            padding_out_2: 0,
+            stride_1: 1,
+            stride_2: 1,
+            dilation_1: 1,
+            dilation_2: 1,
+            groups: 2,
+            height: 2,
+            width: 2,
+        };
+
+        test.assert_output(TestTensor::from_floats([[
+            [[5., 11.], [23., 29.]],
+            [[236., 258.], [302., 324.]],
+        ]]));
+    }
+
+    #[test]
+    fn test_conv_transpose2d_groups_different_channels() {
+        let test = ConvTranspose2dTestCase {
+            batch_size: 1,
+            channels_in: 2,
+            channels_out: 6,
+            kernel_size_1: 3,
+            kernel_size_2: 3,
+            padding_1: 0,
+            padding_2: 0,
+            padding_out_1: 0,
+            padding_out_2: 0,
+            stride_1: 1,
+            stride_2: 1,
+            dilation_1: 1,
+            dilation_2: 1,
+            groups: 2,
+            height: 2,
+            width: 2,
+        };
+
+        test.assert_output(TestTensor::from_floats([[
+            [
+                [0.0000e+00, 0.0000e+00, 1.0000e+00, 2.0000e+00],
+                [0.0000e+00, 5.0000e+00, 1.1000e+01, 1.1000e+01],
+                [6.0000e+00, 2.3000e+01, 2.9000e+01, 2.3000e+01],
+                [1.2000e+01, 3.2000e+01, 3.7000e+01, 2.4000e+01],
+            ],
+            [
+                [1.0000e+00, 1.0000e+01, 1.1000e+01, 1.2000e+01],
+                [1.9000e+01, 6.0000e+01, 6.6000e+01, 4.8000e+01],
+                [2.5000e+01, 7.8000e+01, 8.4000e+01, 6.0000e+01],
+                [3.1000e+01, 7.8000e+01, 8.3000e+01, 5.2000e+01],
+            ],
+            [
+                [2.0000e+00, 2.0000e+01, 2.1000e+01, 2.2000e+01],
+                [3.8000e+01, 1.1500e+02, 1.2100e+02, 8.5000e+01],
+                [4.4000e+01, 1.3300e+02, 1.3900e+02, 9.7000e+01],
+                [5.0000e+01, 1.2400e+02, 1.2900e+02, 8.0000e+01],
+            ],
+            [
+                [1.1100e+02, 2.5000e+02, 2.5900e+02, 1.4800e+02],
+                [2.8500e+02, 6.3400e+02, 6.5600e+02, 3.6600e+02],
+                [3.1500e+02, 7.0000e+02, 7.2200e+02, 4.0200e+02],
+                [2.0100e+02, 4.3800e+02, 4.5100e+02, 2.4800e+02],
+            ],
+            [
+                [1.4800e+02, 3.3200e+02, 3.4100e+02, 1.9400e+02],
+                [3.7600e+02, 8.3300e+02, 8.5500e+02, 4.7500e+02],
+                [4.0600e+02, 8.9900e+02, 9.2100e+02, 5.1100e+02],
+                [2.5600e+02, 5.5600e+02, 5.6900e+02, 3.1200e+02],
+            ],
+            [
+                [1.8500e+02, 4.1400e+02, 4.2300e+02, 2.4000e+02],
+                [4.6700e+02, 1.0320e+03, 1.0540e+03, 5.8400e+02],
+                [4.9700e+02, 1.0980e+03, 1.1200e+03, 6.2000e+02],
+                [3.1100e+02, 6.7400e+02, 6.8700e+02, 3.7600e+02],
+            ],
+        ]]));
+    }
+
     struct ConvTranspose2dTestCase {
         batch_size: usize,
         channels_in: usize,
@@ -207,7 +295,7 @@ mod tests {
             let shape_x = Shape::new([self.batch_size, self.channels_in, self.height, self.width]);
             let shape_weights = Shape::new([
                 self.channels_in,
-                self.channels_out,
+                self.channels_out / self.groups,
                 self.kernel_size_1,
                 self.kernel_size_2,
             ]);

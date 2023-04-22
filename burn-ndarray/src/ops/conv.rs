@@ -108,18 +108,28 @@ pub(crate) fn conv_transpose2d<E: FloatNdArrayElement>(
             + 1;
 
     let x = x.array;
-    let mut output = Array4::zeros(Dim([batch_size, out_channels, out_height, out_width]));
+    let mut output = Array4::zeros(Dim([
+        batch_size,
+        out_channels * groups,
+        out_height,
+        out_width,
+    ]));
 
     let unsafe_shared_out = UnsafeSharedRef::new(&mut output);
 
     run_par!(|| {
-        iter_par!(0, batch_size * out_channels).for_each(|k| unsafe {
-            let b = k / out_channels;
+        iter_par!(0, batch_size * out_channels * groups).for_each(|k| unsafe {
+            let b = k / (out_channels * groups);
             let oc = k % out_channels;
+            let g = k % groups;
 
             let output = unsafe_shared_out.get();
 
-            for ic in 0..in_channels {
+            let oc_out = oc + (out_channels * g);
+            let ic_start = g * (in_channels / groups);
+            let ic_end = ic_start + in_channels / groups;
+
+            for ic in ic_start..ic_end {
                 for ih in 0..in_height {
                     for iw in 0..in_width {
                         for kh in 0..kernel_height {
@@ -138,7 +148,7 @@ pub(crate) fn conv_transpose2d<E: FloatNdArrayElement>(
                                 let oh = oh - padding_height;
                                 let ow = ow - padding_width;
 
-                                output[[b, oc, oh, ow]] = output[[b, oc, oh, ow]]
+                                output[[b, oc_out, oh, ow]] = output[[b, oc_out, oh, ow]]
                                     + x[[b, ic, ih, iw]] * weight.array[[ic, oc, kh, kw]];
                             }
                         }
@@ -149,7 +159,8 @@ pub(crate) fn conv_transpose2d<E: FloatNdArrayElement>(
             if let Some(bias) = &bias {
                 for oh in 0..out_height {
                     for ow in 0..out_width {
-                        output[[b, oc, oh, ow]] = output[[b, oc, oh, ow]] + bias.array[oc];
+                        output[[b, oc_out, oh, ow]] =
+                            output[[b, oc_out, oh, ow]] + bias.array[oc_out];
                     }
                 }
             }
