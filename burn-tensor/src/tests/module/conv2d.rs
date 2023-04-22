@@ -123,15 +123,15 @@ mod tests {
     impl Conv2dTestCase {
         fn assert_output(self, y: TestTensor<4>) {
             let shape_x = Shape::new([self.batch_size, self.channels_in, self.height, self.width]);
-            let shape_weights = Shape::new([
+            let shape_weight = Shape::new([
                 self.channels_out,
                 self.channels_in / self.groups,
                 self.kernel_size_1,
                 self.kernel_size_2,
             ]);
-            let weights = TestTensor::from_data(
-                TestTensorInt::arange(0..shape_weights.num_elements())
-                    .reshape(shape_weights)
+            let weight = TestTensor::from_data(
+                TestTensorInt::arange(0..shape_weight.num_elements())
+                    .reshape(shape_weight)
                     .into_data()
                     .convert(),
             );
@@ -148,7 +148,7 @@ mod tests {
             );
             let output = conv2d(
                 x,
-                weights,
+                weight,
                 Some(bias),
                 [self.stride_1, self.stride_2],
                 [self.padding_1, self.padding_2],
