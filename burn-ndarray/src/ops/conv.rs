@@ -148,8 +148,8 @@ pub(crate) fn conv_transpose2d<E: FloatNdArrayElement>(
                                 let oh = oh - padding_height;
                                 let ow = ow - padding_width;
 
-                                output[[b, oc_out, oh, ow]] = output[[b, oc_out, oh, ow]]
-                                    + x[[b, ic, ih, iw]] * weight.array[[ic, oc, kh, kw]];
+                                output[[b, oc_out, oh, ow]] +=
+                                    x[[b, ic, ih, iw]] * weight.array[[ic, oc, kh, kw]];
                             }
                         }
                     }
@@ -159,8 +159,7 @@ pub(crate) fn conv_transpose2d<E: FloatNdArrayElement>(
             if let Some(bias) = &bias {
                 for oh in 0..out_height {
                     for ow in 0..out_width {
-                        output[[b, oc_out, oh, ow]] =
-                            output[[b, oc_out, oh, ow]] + bias.array[oc_out];
+                        output[[b, oc_out, oh, ow]] += bias.array[oc_out];
                     }
                 }
             }

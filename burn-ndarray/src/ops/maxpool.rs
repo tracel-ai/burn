@@ -160,7 +160,7 @@ pub(crate) fn max_pool2d_backward<E: FloatNdArrayElement>(
                     let index_h = index as usize / width_x;
                     let index_w = index as usize % width_x;
 
-                    output[[b, c, index_h, index_w]] = output[[b, c, index_h, index_w]] + grad;
+                    output[[b, c, index_h, index_w]] += grad;
                 }
             }
         });

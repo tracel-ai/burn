@@ -24,7 +24,7 @@ pub struct Conv2dConfig {
     /// Spacing between kernel elements.
     #[config(default = "[1, 1]")]
     pub dilation: [usize; 2],
-    /// Groups.
+    /// Controls the connections between input and output channels.
     #[config(default = "1")]
     pub groups: usize,
     /// The padding configuration.

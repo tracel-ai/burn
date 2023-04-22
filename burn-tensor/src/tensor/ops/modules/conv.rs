@@ -337,7 +337,7 @@ fn conv1d_weight_grad_no_groups<B: Backend>(
     let output_grad_swapped = B::swap_dims(output_grad, 0, 1);
     let weight_grad_swapped = B::conv1d(
         x_swapped,
-        output_grad_swapped.clone(),
+        output_grad_swapped,
         None,
         dilation,
         padding,
@@ -371,7 +371,7 @@ fn conv2d_weight_grad_no_groups<B: Backend>(
     let output_grad_swapped = B::swap_dims(output_grad, 0, 1);
     let weight_grad_swapped = B::conv2d(
         x_swapped,
-        output_grad_swapped.clone(),
+        output_grad_swapped,
         None,
         dilation,
         padding,
