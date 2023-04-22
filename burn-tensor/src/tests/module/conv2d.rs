@@ -2,6 +2,7 @@
 mod tests {
     use super::*;
     use burn_tensor::module::conv2d;
+    use burn_tensor::ops::ConvOptions;
     use burn_tensor::{Data, Shape, Tensor};
 
     #[test]
@@ -150,10 +151,12 @@ mod tests {
                 x,
                 weight,
                 Some(bias),
-                [self.stride_1, self.stride_2],
-                [self.padding_1, self.padding_2],
-                [self.dilation_1, self.dilation_2],
-                self.groups,
+                ConvOptions::new(
+                    [self.stride_1, self.stride_2],
+                    [self.padding_1, self.padding_2],
+                    [self.dilation_1, self.dilation_2],
+                    self.groups,
+                ),
             );
 
             y.to_data().assert_approx_eq(&output.into_data(), 3);

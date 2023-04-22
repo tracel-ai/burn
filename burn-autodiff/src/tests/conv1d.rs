@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_conv1d)]
 mod tests {
     use super::*;
-    use burn_tensor::{module::conv1d, Data, Shape};
+    use burn_tensor::{module::conv1d, ops::ConvOptions, Data, Shape};
 
     #[test]
     fn test_conv1d_basic() {
@@ -214,10 +214,7 @@ mod tests {
                 x.clone(),
                 weight.clone(),
                 Some(bias.clone()),
-                self.stride,
-                self.padding,
-                self.dilation,
-                self.groups,
+                ConvOptions::new([self.stride], [self.padding], [self.dilation], self.groups),
             );
             let grads = output.backward();
 

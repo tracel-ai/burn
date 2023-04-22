@@ -1,4 +1,8 @@
-use crate::{backend::Backend, Int, Tensor};
+use crate::{
+    backend::Backend,
+    ops::{ConvOptions, ConvTransposeOptions},
+    Int, Tensor,
+};
 
 /// Applies the [embedding module](crate::ops::ModuleOps::embedding).
 pub fn embedding<B>(weights: Tensor<B, 2>, indexes: Tensor<B, 2, Int>) -> Tensor<B, 3>
@@ -13,10 +17,7 @@ pub fn conv1d<B>(
     x: Tensor<B, 3>,
     weight: Tensor<B, 3>,
     bias: Option<Tensor<B, 1>>,
-    stride: usize,
-    padding: usize,
-    dilation: usize,
-    groups: usize,
+    options: ConvOptions<1>,
 ) -> Tensor<B, 3>
 where
     B: Backend,
@@ -25,10 +26,7 @@ where
         x.primitive,
         weight.primitive,
         bias.map(|b| b.primitive),
-        stride,
-        padding,
-        dilation,
-        groups,
+        options,
     ))
 }
 
@@ -37,10 +35,7 @@ pub fn conv2d<B>(
     x: Tensor<B, 4>,
     weight: Tensor<B, 4>,
     bias: Option<Tensor<B, 1>>,
-    stride: [usize; 2],
-    padding: [usize; 2],
-    dilation: [usize; 2],
-    groups: usize,
+    options: ConvOptions<2>,
 ) -> Tensor<B, 4>
 where
     B: Backend,
@@ -49,10 +44,7 @@ where
         x.primitive,
         weight.primitive,
         bias.map(|b| b.primitive),
-        stride,
-        padding,
-        dilation,
-        groups,
+        options,
     ))
 }
 
@@ -61,11 +53,7 @@ pub fn conv_transpose1d<B>(
     x: Tensor<B, 3>,
     weight: Tensor<B, 3>,
     bias: Option<Tensor<B, 1>>,
-    stride: usize,
-    padding: usize,
-    padding_out: usize,
-    dilation: usize,
-    groups: usize,
+    options: ConvTransposeOptions<1>,
 ) -> Tensor<B, 3>
 where
     B: Backend,
@@ -74,11 +62,7 @@ where
         x.primitive,
         weight.primitive,
         bias.map(|b| b.primitive),
-        stride,
-        padding,
-        padding_out,
-        dilation,
-        groups,
+        options,
     ))
 }
 
@@ -87,11 +71,7 @@ pub fn conv_transpose2d<B>(
     x: Tensor<B, 4>,
     weight: Tensor<B, 4>,
     bias: Option<Tensor<B, 1>>,
-    stride: [usize; 2],
-    padding: [usize; 2],
-    padding_out: [usize; 2],
-    dilation: [usize; 2],
-    groups: usize,
+    options: ConvTransposeOptions<2>,
 ) -> Tensor<B, 4>
 where
     B: Backend,
@@ -100,11 +80,7 @@ where
         x.primitive,
         weight.primitive,
         bias.map(|b| b.primitive),
-        stride,
-        padding,
-        padding_out,
-        dilation,
-        groups,
+        options,
     ))
 }
 

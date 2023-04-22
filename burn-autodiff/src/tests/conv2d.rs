@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_conv2d)]
 mod tests {
     use super::*;
-    use burn_tensor::{module::conv2d, Data, Shape};
+    use burn_tensor::{module::conv2d, ops::ConvOptions, Data, Shape};
 
     #[test]
     fn test_conv2d_basic() {
@@ -719,10 +719,12 @@ mod tests {
                 x.clone(),
                 weight.clone(),
                 Some(bias.clone()),
-                [self.stride_1, self.stride_2],
-                [self.padding_1, self.padding_2],
-                [self.dilation_1, self.dilation_2],
-                self.groups,
+                ConvOptions::new(
+                    [self.stride_1, self.stride_2],
+                    [self.padding_1, self.padding_2],
+                    [self.dilation_1, self.dilation_2],
+                    self.groups,
+                ),
             );
             let grads = output.backward();
 

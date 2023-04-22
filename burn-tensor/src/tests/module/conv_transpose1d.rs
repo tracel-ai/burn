@@ -2,6 +2,7 @@
 mod tests {
     use super::*;
     use burn_tensor::module::conv_transpose1d;
+    use burn_tensor::ops::ConvTransposeOptions;
     use burn_tensor::{Data, Shape, Tensor};
 
     #[test]
@@ -130,11 +131,13 @@ mod tests {
                 x,
                 weights,
                 Some(bias),
-                self.stride,
-                self.padding,
-                self.padding_out,
-                self.dilation,
-                self.groups,
+                ConvTransposeOptions::new(
+                    [self.stride],
+                    [self.padding],
+                    [self.padding_out],
+                    [self.dilation],
+                    self.groups,
+                ),
             );
 
             y.to_data().assert_approx_eq(&output.into_data(), 3);

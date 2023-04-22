@@ -8,6 +8,7 @@ use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 use burn_tensor::module::conv2d;
 use burn_tensor::ops::conv::calculate_conv_padding;
+use burn_tensor::ops::ConvOptions;
 
 use libm::sqrt;
 
@@ -136,10 +137,7 @@ impl<B: Backend> Conv2d<B> {
             input,
             self.weight.val(),
             self.bias.as_ref().map(|bias| bias.val()),
-            self.stride,
-            padding,
-            self.dilation,
-            self.groups,
+            ConvOptions::new(self.stride, padding, self.dilation, self.groups),
         )
     }
 }
