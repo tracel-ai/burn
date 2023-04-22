@@ -67,6 +67,27 @@ mod tests {
         ]]));
     }
 
+    #[test]
+    fn test_conv_transpose1d_groups() {
+        let test = ConvTranspose1dTestCase {
+            batch_size: 1,
+            channels_in: 2,
+            channels_out: 2,
+            kernel_size: 3,
+            padding: 1,
+            padding_out: 0,
+            stride: 1,
+            dilation: 1,
+            groups: 2,
+            length: 4,
+        };
+
+        test.assert_output(TestTensor::from_floats([[
+            [0., 1., 4., 7.],
+            [32., 59., 71., 59.],
+        ]]));
+    }
+
     struct ConvTranspose1dTestCase {
         batch_size: usize,
         channels_in: usize,
@@ -83,7 +104,11 @@ mod tests {
     impl ConvTranspose1dTestCase {
         fn assert_output(self, y: TestTensor<3>) {
             let shape_x = Shape::new([self.batch_size, self.channels_in, self.length]);
-            let shape_weights = Shape::new([self.channels_in, self.channels_out, self.kernel_size]);
+            let shape_weights = Shape::new([
+                self.channels_in,
+                self.channels_out / self.groups,
+                self.kernel_size,
+            ]);
             let weights = TestTensor::from_data(
                 TestTensorInt::arange(0..shape_weights.num_elements())
                     .reshape(shape_weights)

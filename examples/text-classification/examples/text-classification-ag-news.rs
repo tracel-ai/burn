@@ -1,3 +1,4 @@
+#[cfg(feature = "training")]
 fn training() {
     use burn::optim::decay::WeightDecayConfig;
     use text_classification::{training::ExperimentConfig, AgNewsDataset};

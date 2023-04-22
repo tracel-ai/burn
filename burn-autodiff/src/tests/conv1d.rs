@@ -1,40 +1,31 @@
 #[burn_tensor_testgen::testgen(ad_conv1d)]
 mod tests {
     use super::*;
-    use burn_tensor::{module::conv1d, Data};
+    use burn_tensor::{module::conv1d, Data, Shape};
 
     #[test]
     fn test_conv1d_basic() {
         let test = Conv1dTestCase {
             batch_size: 2,
-            channels_in: 3,
-            channels_out: 3,
+            channels_in: 2,
+            channels_out: 2,
             kernel_size: 3,
             padding: 1,
             stride: 1,
             dilation: 1,
             groups: 1,
-            length: 6,
+            length: 4,
         };
         let grads = Grads {
             x: TestTensor::from_floats([
-                [
-                    [6., 9., 9., 9., 9., 6.],
-                    [6., 9., 9., 9., 9., 6.],
-                    [6., 9., 9., 9., 9., 6.],
-                ],
-                [
-                    [6., 9., 9., 9., 9., 6.],
-                    [6., 9., 9., 9., 9., 6.],
-                    [6., 9., 9., 9., 9., 6.],
-                ],
+                [[14., 24., 24., 18.], [26., 42., 42., 30.]],
+                [[14., 24., 24., 18.], [26., 42., 42., 30.]],
             ]),
             weight: TestTensor::from_floats([
-                [[10., 12., 10.], [10., 12., 10.], [10., 12., 10.]],
-                [[10., 12., 10.], [10., 12., 10.], [10., 12., 10.]],
-                [[10., 12., 10.], [10., 12., 10.], [10., 12., 10.]],
+                [[30., 44., 36.], [54., 76., 60.]],
+                [[30., 44., 36.], [54., 76., 60.]],
             ]),
-            bias: TestTensor::from_floats([12., 12., 12.]),
+            bias: TestTensor::from_floats([8., 8.]),
         };
         test.assert_grads(grads);
     }
@@ -50,19 +41,19 @@ mod tests {
             stride: 1,
             dilation: 1,
             groups: 1,
-            length: 6,
+            length: 4,
         };
         let grads = Grads {
             x: TestTensor::from_floats([
-                [[6., 9., 9., 9., 9., 6.], [6., 9., 9., 9., 9., 6.]],
-                [[6., 9., 9., 9., 9., 6.], [6., 9., 9., 9., 9., 6.]],
+                [[39., 63., 63., 45.], [57., 90., 90., 63.]],
+                [[39., 63., 63., 45.], [57., 90., 90., 63.]],
             ]),
             weight: TestTensor::from_floats([
-                [[10., 12., 10.], [10., 12., 10.]],
-                [[10., 12., 10.], [10., 12., 10.]],
-                [[10., 12., 10.], [10., 12., 10.]],
+                [[30., 44., 36.], [54., 76., 60.]],
+                [[30., 44., 36.], [54., 76., 60.]],
+                [[30., 44., 36.], [54., 76., 60.]],
             ]),
-            bias: TestTensor::from_floats([12., 12., 12.]),
+            bias: TestTensor::from_floats([8., 8., 8.]),
         };
         test.assert_grads(grads);
     }
@@ -78,18 +69,18 @@ mod tests {
             stride: 1,
             dilation: 1,
             groups: 1,
-            length: 6,
+            length: 4,
         };
         let grads = Grads {
             x: TestTensor::from_floats([
-                [[6., 6., 6., 6., 6., 6.], [6., 6., 6., 6., 6., 6.]],
-                [[6., 6., 6., 6., 6., 6.], [6., 6., 6., 6., 6., 6.]],
+                [[24., 24., 24., 24.], [42., 42., 42., 42.]],
+                [[24., 24., 24., 24.], [42., 42., 42., 42.]],
             ]),
             weight: TestTensor::from_floats([
-                [[12., 12., 12.], [12., 12., 12.]],
-                [[12., 12., 12.], [12., 12., 12.]],
+                [[44., 44., 44.], [76., 76., 76.]],
+                [[44., 44., 44.], [76., 76., 76.]],
             ]),
-            bias: TestTensor::from_floats([16., 16.]),
+            bias: TestTensor::from_floats([12., 12.]),
         };
         test.assert_grads(grads);
     }
@@ -109,12 +100,12 @@ mod tests {
         };
         let grads = Grads {
             x: TestTensor::from_floats([
-                [[2., 4., 2., 2.], [2., 4., 2., 2.]],
-                [[2., 4., 2., 2.], [2., 4., 2., 2.]],
+                [[8., 16., 8., 10.], [14., 28., 14., 16.]],
+                [[8., 16., 8., 10.], [14., 28., 14., 16.]],
             ]),
             weight: TestTensor::from_floats([
-                [[2., 4., 4.], [2., 4., 4.]],
-                [[2., 4., 4.], [2., 4., 4.]],
+                [[10., 20., 24.], [18., 36., 40.]],
+                [[10., 20., 24.], [18., 36., 40.]],
             ]),
             bias: TestTensor::from_floats([4., 4.]),
         };
@@ -136,14 +127,38 @@ mod tests {
         };
         let grads = Grads {
             x: TestTensor::from_floats([
-                [[2., 2., 2., 2.], [2., 2., 2., 2.]],
-                [[2., 2., 2., 2.], [2., 2., 2., 2.]],
+                [[6., 8., 8., 10.], [12., 14., 14., 16.]],
+                [[6., 8., 8., 10.], [12., 14., 14., 16.]],
             ]),
             weight: TestTensor::from_floats([
-                [[2., 4., 2.], [2., 4., 2.]],
-                [[2., 4., 2.], [2., 4., 2.]],
+                [[8., 22., 14.], [16., 38., 22.]],
+                [[8., 22., 14.], [16., 38., 22.]],
             ]),
             bias: TestTensor::from_floats([4., 4.]),
+        };
+        test.assert_grads(grads);
+    }
+
+    #[test]
+    fn test_conv1d_groups() {
+        let test = Conv1dTestCase {
+            batch_size: 2,
+            channels_in: 2,
+            channels_out: 2,
+            kernel_size: 3,
+            padding: 1,
+            stride: 1,
+            dilation: 1,
+            groups: 2,
+            length: 4,
+        };
+        let grads = Grads {
+            x: TestTensor::from_floats([
+                [[1., 3., 3., 3.], [7., 12., 12., 9.]],
+                [[1., 3., 3., 3.], [7., 12., 12., 9.]],
+            ]),
+            weight: TestTensor::from_floats([[[30., 44., 36.]], [[54., 76., 60.]]]),
+            bias: TestTensor::from_floats([8., 8.]),
         };
         test.assert_grads(grads);
     }
@@ -168,12 +183,33 @@ mod tests {
 
     impl Conv1dTestCase {
         fn assert_grads(self, expected_grads: Grads) {
-            let weight =
-                TestADTensor::ones([self.channels_out, self.channels_in, self.kernel_size])
-                    .require_grad();
-            let bias = TestADTensor::ones([self.channels_out]).require_grad();
-            let x =
-                TestADTensor::ones([self.batch_size, self.channels_in, self.length]).require_grad();
+            let shape_x = Shape::new([self.batch_size, self.channels_in, self.length]);
+            let shape_weight = Shape::new([
+                self.channels_out,
+                self.channels_in / self.groups,
+                self.kernel_size,
+            ]);
+            let weight = TestADTensor::from_data(
+                TestTensorInt::arange(0..shape_weight.num_elements())
+                    .reshape(shape_weight)
+                    .into_data()
+                    .convert(),
+            )
+            .require_grad();
+            let bias = TestADTensor::from_data(
+                TestTensorInt::arange(0..self.channels_out)
+                    .into_data()
+                    .convert(),
+            )
+            .require_grad();
+            let x = TestADTensor::from_data(
+                TestTensorInt::arange(0..shape_x.num_elements())
+                    .reshape(shape_x)
+                    .into_data()
+                    .convert(),
+            )
+            .require_grad();
+
             let output = conv1d(
                 x.clone(),
                 weight.clone(),

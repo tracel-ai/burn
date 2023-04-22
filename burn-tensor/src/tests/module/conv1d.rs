@@ -2,33 +2,25 @@
 mod tests {
     use super::*;
     use burn_tensor::module::conv1d;
-    use burn_tensor::{Data, Tensor};
+    use burn_tensor::{Data, Shape, Tensor};
 
     #[test]
     fn test_conv1d_simple() {
         let test = Conv1dTestCase {
             batch_size: 2,
-            channels_in: 3,
-            channels_out: 3,
+            channels_in: 2,
+            channels_out: 2,
             kernel_size: 3,
             padding: 1,
             stride: 1,
             dilation: 1,
             groups: 1,
-            length: 6,
+            length: 4,
         };
 
         test.assert_output(TestTensor::from_floats([
-            [
-                [7., 10., 10., 10., 10., 7.],
-                [7., 10., 10., 10., 10., 7.],
-                [7., 10., 10., 10., 10., 7.],
-            ],
-            [
-                [7., 10., 10., 10., 10., 7.],
-                [7., 10., 10., 10., 10., 7.],
-                [7., 10., 10., 10., 10., 7.],
-            ],
+            [[43., 67., 82., 49.], [104., 176., 227., 158.]],
+            [[139., 187., 202., 113.], [392., 584., 635., 414.]],
         ]));
     }
 
@@ -47,8 +39,28 @@ mod tests {
         };
 
         test.assert_output(TestTensor::from_floats([
-            [[5., 5.], [5., 5.]],
-            [[5., 5.], [5., 5.]],
+            [[62., 38.], [159., 111.]],
+            [[158., 102.], [447., 367.]],
+        ]));
+    }
+
+    #[test]
+    fn test_conv1d_groups() {
+        let test = Conv1dTestCase {
+            batch_size: 2,
+            channels_in: 2,
+            channels_out: 2,
+            kernel_size: 3,
+            padding: 1,
+            stride: 1,
+            dilation: 1,
+            groups: 2,
+            length: 4,
+        };
+
+        test.assert_output(TestTensor::from_floats([
+            [[2., 5., 8., 3.], [42., 63., 75., 47.]],
+            [[26., 29., 32., 11.], [114., 159., 171., 103.]],
         ]));
     }
 
@@ -63,22 +75,12 @@ mod tests {
             stride: 2,
             dilation: 1,
             groups: 1,
-            length: 9,
+            length: 4,
         };
 
         test.assert_output(TestTensor::from_floats([
-            [
-                [7., 10., 10., 10., 7.],
-                [7., 10., 10., 10., 7.],
-                [7., 10., 10., 10., 7.],
-                [7., 10., 10., 10., 7.],
-            ],
-            [
-                [7., 10., 10., 10., 7.],
-                [7., 10., 10., 10., 7.],
-                [7., 10., 10., 10., 7.],
-                [7., 10., 10., 10., 7.],
-            ],
+            [[171., 294.], [415., 781.], [659., 1268.], [903., 1755.]],
+            [[495., 726.], [1387., 2185.], [2279., 3644.], [3171., 5103.]],
         ]));
     }
 
@@ -96,12 +98,32 @@ mod tests {
 
     impl Conv1dTestCase {
         fn assert_output(self, y: TestTensor<3>) {
-            let weights = TestTensor::ones([self.channels_out, self.channels_in, self.kernel_size]);
-            let bias = TestTensor::ones([self.channels_out]);
-            let x = TestTensor::ones([self.batch_size, self.channels_in, self.length]);
+            let shape_x = Shape::new([self.batch_size, self.channels_in, self.length]);
+            let shape_weight = Shape::new([
+                self.channels_out,
+                self.channels_in / self.groups,
+                self.kernel_size,
+            ]);
+            let weight = TestTensor::from_data(
+                TestTensorInt::arange(0..shape_weight.num_elements())
+                    .reshape(shape_weight)
+                    .into_data()
+                    .convert(),
+            );
+            let bias = TestTensor::from_data(
+                TestTensorInt::arange(0..self.channels_out)
+                    .into_data()
+                    .convert(),
+            );
+            let x = TestTensor::from_data(
+                TestTensorInt::arange(0..shape_x.num_elements())
+                    .reshape(shape_x)
+                    .into_data()
+                    .convert(),
+            );
             let output = conv1d(
                 x,
-                weights,
+                weight,
                 Some(bias),
                 self.stride,
                 self.padding,

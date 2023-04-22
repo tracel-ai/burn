@@ -59,8 +59,8 @@ pub(crate) fn conv2d<E: FloatNdArrayElement>(
                                 let iw = ow * stride_width + kw * dilatation_width;
 
                                 let weight_ic = ic - (g * in_channels);
-                                output[[b, oc, oh, ow]] = output[[b, oc, oh, ow]]
-                                    + x[[b, ic, ih, iw]] * weight.array[[oc, weight_ic, kh, kw]];
+                                output[[b, oc, oh, ow]] +=
+                                    x[[b, ic, ih, iw]] * weight.array[[oc, weight_ic, kh, kw]];
                             }
                         }
                     }
@@ -70,7 +70,7 @@ pub(crate) fn conv2d<E: FloatNdArrayElement>(
             if let Some(bias) = &bias {
                 for oh in 0..out_height {
                     for ow in 0..out_width {
-                        output[[b, oc, oh, ow]] = output[[b, oc, oh, ow]] + bias.array[oc];
+                        output[[b, oc, oh, ow]] += bias.array[oc];
                     }
                 }
             }

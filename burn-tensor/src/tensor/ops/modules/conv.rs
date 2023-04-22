@@ -31,24 +31,6 @@ pub fn calculate_conv_output_size(
     (size_in + 2 * padding - dilation * (kernel_size - 1) - 1) / stride + 1
 }
 
-fn calculate_padding_out(
-    kernel_size: usize,
-    stride: usize,
-    padding: usize,
-    dilation: usize,
-    size_in: usize,
-    size_out: usize,
-) -> usize {
-    if stride <= 1 {
-        return 0;
-    }
-
-    let out = 1 + libm::ceil(
-        (size_in + 2 * padding - dilation * (kernel_size - 1) - 1) as f64 / stride as f64,
-    ) as usize;
-    i64::max(0, out as i64 - size_out as i64) as usize
-}
-
 /// Calculate the [1D convolution](crate::ops::ModuleOps::conv1d) backward pass using convolutions.
 pub(crate) fn conv1d_backward<B: Backend>(
     x: B::TensorPrimitive<3>,
@@ -60,9 +42,12 @@ pub(crate) fn conv1d_backward<B: Backend>(
     groups: usize,
     output_grad: B::TensorPrimitive<3>,
 ) -> Conv1dBackward<B> {
-    let [batch_size, channels_in, length_in] = B::shape(&x).dims;
+    let weight_shape = B::shape(&weight);
+    let weight_device = B::device(&weight);
+
+    let [batch_size, _, length_in] = B::shape(&x).dims;
     let [_batch_size, channels_out, length_out] = B::shape(&output_grad).dims;
-    let [_, _, kernel_size] = B::shape(&weight).dims;
+    let [_, _, kernel_size] = weight_shape.dims;
 
     let padding_out = calculate_padding_out(
         kernel_size,
@@ -84,31 +69,31 @@ pub(crate) fn conv1d_backward<B: Backend>(
         groups,
     );
 
-    let x_swapped = B::swap_dims(x, 0, 1);
-    let output_grad_swapped = B::swap_dims(output_grad, 0, 1);
-    let weight_grad_swapped = B::conv1d(
-        x_swapped,
-        output_grad_swapped.clone(),
-        None,
-        dilation,
-        padding,
-        stride,
-        groups,
-    );
-    let mut weight_grad = B::swap_dims(weight_grad_swapped, 0, 1);
-
-    if B::shape(&weight_grad) != Shape::new([channels_out, channels_in, kernel_size]) {
-        weight_grad = B::index(
-            weight_grad,
-            [0..channels_out, 0..channels_in, 0..kernel_size],
-        );
-    }
+    let weight_grad = match groups == 1 {
+        true => conv1d_weight_grad_no_groups::<B>(
+            x,
+            output_grad.clone(),
+            weight_shape,
+            dilation,
+            padding,
+            stride,
+        ),
+        false => conv1d_weight_grad_groups::<B>(
+            x,
+            B::zeros(weight_shape, &weight_device),
+            output_grad.clone(),
+            groups,
+            dilation,
+            padding,
+            stride,
+        ),
+    };
 
     Conv1dBackward::new(
         x_grad,
         weight_grad,
         bias.map(|b| {
-            let grad = output_grad_swapped;
+            let grad = B::swap_dims(output_grad, 0, 1);
             let grad = B::reshape(grad, Shape::new([channels_out, batch_size * length_out]));
             let grad = B::sum_dim(grad, 1);
 
@@ -164,7 +149,7 @@ pub(crate) fn conv2d_backward<B: Backend>(
     );
 
     let weight_grad = match groups == 1 {
-        true => group_conv2d_weight_grad_no_groups::<B>(
+        true => conv2d_weight_grad_no_groups::<B>(
             x,
             output_grad.clone(),
             weight_shape,
@@ -172,7 +157,7 @@ pub(crate) fn conv2d_backward<B: Backend>(
             padding,
             stride,
         ),
-        false => group_conv2d_weight_grad_groups::<B>(
+        false => conv2d_weight_grad_groups::<B>(
             x,
             B::zeros(weight_shape, &weight_device),
             output_grad.clone(),
@@ -199,81 +184,6 @@ pub(crate) fn conv2d_backward<B: Backend>(
     )
 }
 
-fn group_conv2d_weight_grad_groups<B: Backend>(
-    x: B::TensorPrimitive<4>,
-    mut weight_grad: B::TensorPrimitive<4>,
-    output_grad: B::TensorPrimitive<4>,
-    groups: usize,
-    dilation: [usize; 2],
-    padding: [usize; 2],
-    stride: [usize; 2],
-) -> B::TensorPrimitive<4> {
-    let [channels_out, increment_ci, kernel_size_1, kernel_size_2] = B::shape(&weight_grad).dims;
-    let increment_co = channels_out / groups;
-
-    let x_swapped = B::swap_dims(x, 0, 1);
-    let output_grad_swapped = B::swap_dims(output_grad, 0, 1);
-
-    for g in 0..groups {
-        let start_idx_ci = g * increment_ci;
-        let end_idx_ci = (g + 1) * increment_ci;
-        let start_idx_co = g * increment_co;
-        let end_idx_co = (g + 1) * increment_co;
-
-        let x = B::index(x_swapped.clone(), [start_idx_ci..end_idx_ci]);
-        let grad = B::index(output_grad_swapped.clone(), [start_idx_co..end_idx_co]);
-        let mut weight_grad_tmp = B::conv2d(x, grad, None, dilation, padding, stride, 1);
-        weight_grad_tmp = B::swap_dims(weight_grad_tmp, 0, 1);
-        weight_grad = B::index_assign(
-            weight_grad,
-            [
-                start_idx_co..end_idx_co,
-                0..increment_ci,
-                0..kernel_size_1,
-                0..kernel_size_2,
-            ],
-            weight_grad_tmp,
-        );
-    }
-
-    weight_grad
-}
-
-fn group_conv2d_weight_grad_no_groups<B: Backend>(
-    x: B::TensorPrimitive<4>,
-    output_grad: B::TensorPrimitive<4>,
-    weight_shape: Shape<4>,
-    dilation: [usize; 2],
-    padding: [usize; 2],
-    stride: [usize; 2],
-) -> B::TensorPrimitive<4> {
-    let x_swapped = B::swap_dims(x, 0, 1);
-    let output_grad_swapped = B::swap_dims(output_grad, 0, 1);
-    let weight_grad_swapped = B::conv2d(
-        x_swapped,
-        output_grad_swapped.clone(),
-        None,
-        dilation,
-        padding,
-        stride,
-        1,
-    );
-    let mut weight_grad = B::swap_dims(weight_grad_swapped, 0, 1);
-
-    if B::shape(&weight_grad) != weight_shape {
-        weight_grad = B::index(
-            weight_grad,
-            [
-                0..weight_shape.dims[0],
-                0..weight_shape.dims[1],
-                0..weight_shape.dims[2],
-                0..weight_shape.dims[3],
-            ],
-        );
-    }
-    weight_grad
-}
-
 /// Execute a 1D convolution using a 2D convolution.
 pub(crate) fn conv1d_from_conv2d<B: Backend>(
     x: B::TensorPrimitive<3>,
@@ -289,7 +199,7 @@ pub(crate) fn conv1d_from_conv2d<B: Backend>(
 
     let weight = B::reshape(
         weight,
-        Shape::new([channels_out, channels_in, kernel_size, 1]),
+        Shape::new([channels_out, channels_in / groups, kernel_size, 1]),
     );
     let x = B::reshape(x, Shape::new([batch_size, channels_in, length_in, 1]));
 
@@ -338,6 +248,168 @@ pub(crate) fn conv_transpose1d_from_conv_transpose2d<B: Backend>(
     );
     let [batch_size, channels_out, height_out, _weight_out] = B::shape(&tensor).dims;
     B::reshape(tensor, Shape::from([batch_size, channels_out, height_out]))
+}
+
+fn conv1d_weight_grad_groups<B: Backend>(
+    x: B::TensorPrimitive<3>,
+    mut weight_grad: B::TensorPrimitive<3>,
+    output_grad: B::TensorPrimitive<3>,
+    groups: usize,
+    dilation: usize,
+    padding: usize,
+    stride: usize,
+) -> B::TensorPrimitive<3> {
+    let [channels_out, increment_ci, kernel_size] = B::shape(&weight_grad).dims;
+    let increment_co = channels_out / groups;
+
+    let x_swapped = B::swap_dims(x, 0, 1);
+    let output_grad_swapped = B::swap_dims(output_grad, 0, 1);
+
+    for g in 0..groups {
+        let start_idx_ci = g * increment_ci;
+        let end_idx_ci = (g + 1) * increment_ci;
+        let start_idx_co = g * increment_co;
+        let end_idx_co = (g + 1) * increment_co;
+
+        let x = B::index(x_swapped.clone(), [start_idx_ci..end_idx_ci]);
+        let grad = B::index(output_grad_swapped.clone(), [start_idx_co..end_idx_co]);
+        let mut weight_grad_tmp = B::conv1d(x, grad, None, dilation, padding, stride, 1);
+        weight_grad_tmp = B::swap_dims(weight_grad_tmp, 0, 1);
+        weight_grad = B::index_assign(
+            weight_grad,
+            [start_idx_co..end_idx_co, 0..increment_ci, 0..kernel_size],
+            weight_grad_tmp,
+        );
+    }
+
+    weight_grad
+}
+
+fn conv2d_weight_grad_groups<B: Backend>(
+    x: B::TensorPrimitive<4>,
+    mut weight_grad: B::TensorPrimitive<4>,
+    output_grad: B::TensorPrimitive<4>,
+    groups: usize,
+    dilation: [usize; 2],
+    padding: [usize; 2],
+    stride: [usize; 2],
+) -> B::TensorPrimitive<4> {
+    let [channels_out, increment_ci, kernel_size_1, kernel_size_2] = B::shape(&weight_grad).dims;
+    let increment_co = channels_out / groups;
+
+    let x_swapped = B::swap_dims(x, 0, 1);
+    let output_grad_swapped = B::swap_dims(output_grad, 0, 1);
+
+    for g in 0..groups {
+        let start_idx_ci = g * increment_ci;
+        let end_idx_ci = (g + 1) * increment_ci;
+        let start_idx_co = g * increment_co;
+        let end_idx_co = (g + 1) * increment_co;
+
+        let x = B::index(x_swapped.clone(), [start_idx_ci..end_idx_ci]);
+        let grad = B::index(output_grad_swapped.clone(), [start_idx_co..end_idx_co]);
+        let mut weight_grad_tmp = B::conv2d(x, grad, None, dilation, padding, stride, 1);
+        weight_grad_tmp = B::swap_dims(weight_grad_tmp, 0, 1);
+        weight_grad = B::index_assign(
+            weight_grad,
+            [
+                start_idx_co..end_idx_co,
+                0..increment_ci,
+                0..kernel_size_1,
+                0..kernel_size_2,
+            ],
+            weight_grad_tmp,
+        );
+    }
+
+    weight_grad
+}
+
+fn conv1d_weight_grad_no_groups<B: Backend>(
+    x: B::TensorPrimitive<3>,
+    output_grad: B::TensorPrimitive<3>,
+    weight_shape: Shape<3>,
+    dilation: usize,
+    padding: usize,
+    stride: usize,
+) -> B::TensorPrimitive<3> {
+    let x_swapped = B::swap_dims(x, 0, 1);
+    let output_grad_swapped = B::swap_dims(output_grad, 0, 1);
+    let weight_grad_swapped = B::conv1d(
+        x_swapped,
+        output_grad_swapped.clone(),
+        None,
+        dilation,
+        padding,
+        stride,
+        1,
+    );
+    let mut weight_grad = B::swap_dims(weight_grad_swapped, 0, 1);
+
+    if B::shape(&weight_grad) != weight_shape {
+        weight_grad = B::index(
+            weight_grad,
+            [
+                0..weight_shape.dims[0],
+                0..weight_shape.dims[1],
+                0..weight_shape.dims[2],
+            ],
+        );
+    }
+    weight_grad
+}
+
+fn conv2d_weight_grad_no_groups<B: Backend>(
+    x: B::TensorPrimitive<4>,
+    output_grad: B::TensorPrimitive<4>,
+    weight_shape: Shape<4>,
+    dilation: [usize; 2],
+    padding: [usize; 2],
+    stride: [usize; 2],
+) -> B::TensorPrimitive<4> {
+    let x_swapped = B::swap_dims(x, 0, 1);
+    let output_grad_swapped = B::swap_dims(output_grad, 0, 1);
+    let weight_grad_swapped = B::conv2d(
+        x_swapped,
+        output_grad_swapped.clone(),
+        None,
+        dilation,
+        padding,
+        stride,
+        1,
+    );
+    let mut weight_grad = B::swap_dims(weight_grad_swapped, 0, 1);
+
+    if B::shape(&weight_grad) != weight_shape {
+        weight_grad = B::index(
+            weight_grad,
+            [
+                0..weight_shape.dims[0],
+                0..weight_shape.dims[1],
+                0..weight_shape.dims[2],
+                0..weight_shape.dims[3],
+            ],
+        );
+    }
+    weight_grad
+}
+
+fn calculate_padding_out(
+    kernel_size: usize,
+    stride: usize,
+    padding: usize,
+    dilation: usize,
+    size_in: usize,
+    size_out: usize,
+) -> usize {
+    if stride <= 1 {
+        return 0;
+    }
+
+    let out = 1 + libm::ceil(
+        (size_in + 2 * padding - dilation * (kernel_size - 1) - 1) as f64 / stride as f64,
+    ) as usize;
+    i64::max(0, out as i64 - size_out as i64) as usize
 }
 
 #[cfg(test)]
