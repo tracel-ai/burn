@@ -249,12 +249,7 @@ fn conv1d_weight_grad_groups<B: Backend>(
             x,
             grad,
             None,
-            ConvOptions::new(
-                options.dilation,
-                options.padding,
-                options.stride,
-                options.groups,
-            ),
+            ConvOptions::new(options.dilation, options.padding, options.stride, 1),
         );
         weight_grad_tmp = B::swap_dims(weight_grad_tmp, 0, 1);
         weight_grad = B::index_assign(
