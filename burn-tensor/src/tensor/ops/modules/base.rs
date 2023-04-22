@@ -30,6 +30,25 @@ pub struct Conv1dBackward<B: Backend> {
     pub bias_grad: Option<B::TensorPrimitive<1>>,
 }
 
+/// Convolution options.
+#[derive(new, Debug, Clone)]
+pub struct ConvOptions<const N: usize> {
+    pub stride: [usize; N],
+    pub padding: [usize; N],
+    pub dilation: [usize; N],
+    pub groups: usize,
+}
+
+/// Transposed convolution options.
+#[derive(new, Debug, Clone)]
+pub struct ConvTransposeOptions<const N: usize> {
+    pub stride: [usize; N],
+    pub padding: [usize; N],
+    pub padding_out: [usize; N],
+    pub dilation: [usize; N],
+    pub groups: usize,
+}
+
 pub trait ModuleOps<B: Backend> {
     fn embedding(
         weights: B::TensorPrimitive<2>,
@@ -51,9 +70,7 @@ pub trait ModuleOps<B: Backend> {
         x: B::TensorPrimitive<4>,
         weight: B::TensorPrimitive<4>,
         bias: Option<B::TensorPrimitive<1>>,
-        stride: [usize; 2],
-        padding: [usize; 2],
-        dilation: [usize; 2],
+        options: ConvOptions<2>,
     ) -> B::TensorPrimitive<4>;
     /// Two dimensional transposed convolution.
     ///
@@ -66,10 +83,7 @@ pub trait ModuleOps<B: Backend> {
         x: B::TensorPrimitive<4>,
         weight: B::TensorPrimitive<4>,
         bias: Option<B::TensorPrimitive<1>>,
-        stride: [usize; 2],
-        padding: [usize; 2],
-        padding_out: [usize; 2],
-        dilation: [usize; 2],
+        options: ConvTransposeOptions<2>,
     ) -> B::TensorPrimitive<4>;
 
     /// Backward pass for the [conv2d](ModuleOps::conv2d) operation.
@@ -77,12 +91,10 @@ pub trait ModuleOps<B: Backend> {
         x: B::TensorPrimitive<4>,
         weight: B::TensorPrimitive<4>,
         bias: Option<B::TensorPrimitive<1>>,
-        stride: [usize; 2],
-        padding: [usize; 2],
-        dilation: [usize; 2],
         output_grad: B::TensorPrimitive<4>,
+        options: ConvOptions<2>,
     ) -> Conv2dBackward<B> {
-        conv::conv2d_backward(x, weight, bias, stride, padding, dilation, output_grad)
+        conv::conv2d_backward(x, weight, bias, output_grad, options)
     }
     /// One dimensional convolution.
     ///
@@ -95,11 +107,9 @@ pub trait ModuleOps<B: Backend> {
         x: B::TensorPrimitive<3>,
         weight: B::TensorPrimitive<3>,
         bias: Option<B::TensorPrimitive<1>>,
-        stride: usize,
-        padding: usize,
-        dilation: usize,
+        options: ConvOptions<1>,
     ) -> B::TensorPrimitive<3> {
-        conv::conv1d_from_conv2d::<B>(x, weight, bias, stride, padding, dilation)
+        conv::conv1d_from_conv2d::<B>(x, weight, bias, options)
     }
     /// One dimensional transposed convolution.
     ///
@@ -112,32 +122,19 @@ pub trait ModuleOps<B: Backend> {
         x: B::TensorPrimitive<3>,
         weight: B::TensorPrimitive<3>,
         bias: Option<B::TensorPrimitive<1>>,
-        stride: usize,
-        padding: usize,
-        padding_out: usize,
-        dilation: usize,
+        options: ConvTransposeOptions<1>,
     ) -> B::TensorPrimitive<3> {
-        conv::conv_transpose1d_from_conv_transpose2d::<B>(
-            x,
-            weight,
-            bias,
-            stride,
-            padding,
-            padding_out,
-            dilation,
-        )
+        conv::conv_transpose1d_from_conv_transpose2d::<B>(x, weight, bias, options)
     }
     /// Backward pass for the [conv1d](ModuleOps::conv1d) operation.
     fn conv1d_backward(
         x: B::TensorPrimitive<3>,
         weight: B::TensorPrimitive<3>,
         bias: Option<B::TensorPrimitive<1>>,
-        stride: usize,
-        padding: usize,
-        dilation: usize,
         output_grad: B::TensorPrimitive<3>,
+        options: ConvOptions<1>,
     ) -> Conv1dBackward<B> {
-        conv::conv1d_backward(x, weight, bias, stride, padding, dilation, output_grad)
+        conv::conv1d_backward(x, weight, bias, output_grad, options)
     }
     /// Two dimensional max pooling.
     ///

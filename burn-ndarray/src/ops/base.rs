@@ -260,7 +260,7 @@ where
 
             for (i, index) in indexes.iter().enumerate() {
                 let index = *index as usize;
-                tensor[[b, index]] = tensor[[b, index]] + value[[b, i]];
+                tensor[[b, index]] += value[[b, i]];
             }
         }
 
@@ -351,7 +351,7 @@ where
             let mut view = output_array.index_axis_mut(Axis(dim), index as usize);
             let value = value.array.index_axis(Axis(0), index_value);
 
-            view.zip_mut_with(&value, |a, b| *a = *a + *b);
+            view.zip_mut_with(&value, |a, b| *a += *b);
         }
 
         NdArrayTensor::new(output_array.into_shared())

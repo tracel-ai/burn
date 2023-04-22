@@ -1,5 +1,7 @@
 use crate::{element::TchElement, TchBackend, TchTensor};
-use burn_tensor::ops::{MaxPool2dBackward, MaxPool2dWithIndexes, ModuleOps};
+use burn_tensor::ops::{
+    ConvOptions, ConvTransposeOptions, MaxPool2dBackward, MaxPool2dWithIndexes, ModuleOps,
+};
 
 impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
     fn embedding(weights: TchTensor<E, 2>, indexes: TchTensor<i64, 2>) -> TchTensor<E, 3> {
@@ -30,18 +32,16 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
         x: TchTensor<E, 3>,
         weight: TchTensor<E, 3>,
         bias: Option<TchTensor<E, 1>>,
-        stride: usize,
-        padding: usize,
-        dilation: usize,
+        options: ConvOptions<1>,
     ) -> TchTensor<E, 3> {
         let tensor = tch::Tensor::conv1d(
             &x.tensor,
             &weight.tensor,
             bias.map(|t| t.tensor),
-            &[stride as i64],
-            &[padding as i64],
-            &[dilation as i64],
-            1,
+            &options.stride.map(|i| i as i64),
+            &options.padding.map(|i| i as i64),
+            &options.dilation.map(|i| i as i64),
+            options.groups as i64,
         );
 
         TchTensor::new(tensor)
@@ -51,18 +51,16 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
         x: TchTensor<E, 4>,
         weight: TchTensor<E, 4>,
         bias: Option<TchTensor<E, 1>>,
-        stride: [usize; 2],
-        padding: [usize; 2],
-        dilation: [usize; 2],
+        options: ConvOptions<2>,
     ) -> TchTensor<E, 4> {
         let tensor = tch::Tensor::conv2d(
             &x.tensor,
             &weight.tensor,
             bias.map(|t| t.tensor),
-            &[stride[0] as i64, stride[1] as i64],
-            &[padding[0] as i64, padding[1] as i64],
-            &[dilation[0] as i64, dilation[1] as i64],
-            1,
+            &options.stride.map(|i| i as i64),
+            &options.padding.map(|i| i as i64),
+            &options.dilation.map(|i| i as i64),
+            options.groups as i64,
         );
 
         TchTensor::new(tensor)
@@ -72,20 +70,17 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
         x: TchTensor<E, 4>,
         weight: TchTensor<E, 4>,
         bias: Option<TchTensor<E, 1>>,
-        stride: [usize; 2],
-        padding: [usize; 2],
-        padding_out: [usize; 2],
-        dilation: [usize; 2],
+        options: ConvTransposeOptions<2>,
     ) -> TchTensor<E, 4> {
         let tensor = tch::Tensor::conv_transpose2d(
             &x.tensor,
             &weight.tensor,
             bias.map(|t| t.tensor),
-            &[stride[0] as i64, stride[1] as i64],
-            &[padding[0] as i64, padding[1] as i64],
-            &[padding_out[0] as i64, padding_out[1] as i64],
-            1,
-            &[dilation[0] as i64, dilation[1] as i64],
+            &options.stride.map(|i| i as i64),
+            &options.padding.map(|i| i as i64),
+            &options.padding_out.map(|i| i as i64),
+            options.groups as i64,
+            &options.dilation.map(|i| i as i64),
         );
 
         TchTensor::new(tensor)
@@ -95,20 +90,17 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
         x: TchTensor<E, 3>,
         weight: TchTensor<E, 3>,
         bias: Option<TchTensor<E, 1>>,
-        stride: usize,
-        padding: usize,
-        padding_out: usize,
-        dilation: usize,
+        options: ConvTransposeOptions<1>,
     ) -> TchTensor<E, 3> {
         let tensor = tch::Tensor::conv_transpose1d(
             &x.tensor,
             &weight.tensor,
             bias.map(|t| t.tensor),
-            &[stride as i64],
-            &[padding as i64],
-            &[padding_out as i64],
-            1,
-            &[dilation as i64],
+            &options.stride.map(|i| i as i64),
+            &options.padding.map(|i| i as i64),
+            &options.padding_out.map(|i| i as i64),
+            options.groups as i64,
+            &options.dilation.map(|i| i as i64),
         );
 
         TchTensor::new(tensor)
