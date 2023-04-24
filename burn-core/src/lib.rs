@@ -14,11 +14,11 @@ pub mod optim;
 #[cfg(feature = "std")]
 pub mod lr_scheduler;
 
+pub mod grad_clipper;
 pub mod module;
 pub mod nn;
 pub mod record;
 pub mod tensor;
-pub mod grad_clipper;
 
 extern crate alloc;
 

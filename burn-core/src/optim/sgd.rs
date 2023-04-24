@@ -1,4 +1,3 @@
-use crate::grad_clipper::GradientClipper;
 use crate::module::ADModule;
 use crate::{self as burn, LearningRate};
 
@@ -6,6 +5,7 @@ use super::decay::{WeightDecay, WeightDecayConfig, WeightDecayState};
 use super::momentum::{MomemtumState, Momentum, MomentumConfig};
 use super::SimpleOptimizer;
 use crate::config::Config;
+use crate::grad_clipper::GradientClipper;
 use crate::optim::adaptor::OptimizerAdaptor;
 use crate::record::Record;
 use crate::tensor::Tensor;
@@ -18,14 +18,18 @@ pub struct SgdConfig {
     pub weight_decay: Option<WeightDecayConfig>,
     /// [Momentum](MomentumConfig) config.
     pub momentum: Option<MomentumConfig>,
+    /// GradientClipper
+    pub gradient_clipper: Option<GradientClipper>,
 }
 
 /// Optimizer that implements stochastic gradient descent with momentum.
 ///
-/// Momentum is optinal and can be [configured](SgdConfig::momentum).
+/// Momentum is optional and can be [configured](SgdConfig::momentum).
+/// Using a gradient clipper is optional.
 pub struct Sgd<B: Backend> {
     momentum: Option<Momentum<B>>,
     weight_decay: Option<WeightDecay<B>>,
+    gradient_clipper: Option<GradientClipper>,
 }
 
 #[derive(Record, Clone, new)]
@@ -40,10 +44,12 @@ impl SgdConfig {
     ) -> OptimizerAdaptor<Sgd<B::InnerBackend>, M, B> {
         let momentum = self.momentum.as_ref().map(Momentum::new);
         let weight_decay = self.weight_decay.as_ref().map(WeightDecay::new);
+        let gradient_clipper = self.gradient_clipper.as_ref().map(GradientClipper::new);
 
         Sgd {
             momentum,
             weight_decay,
+            gradient_clipper,
         }
         .into()
     }
@@ -83,7 +89,7 @@ impl<B: Backend> SimpleOptimizer<B> for Sgd<B> {
             state_momemtum = Some(state);
             grad = grad_out;
         }
-
+        // problemo belowo
         let state = SgdState::new(state_weight_decay, state_momemtum);
         let delta = grad.mul_scalar(lr);
 
@@ -164,6 +170,10 @@ mod tests {
                 momentum: 0.9,
                 dampening: 0.1,
                 nesterov: true,
+            }),
+            gradient_clipper: Some(GradientClipper {
+                clip_value: Some(1.0),
+                clip_norm: None,
             }),
         }
         .init()

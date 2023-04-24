@@ -1,4 +1,6 @@
-use crate::{self as burn, module::ADModule, record::Record, LearningRate, grad_clipper::GradientClipper};
+use crate::{
+    self as burn, grad_clipper::GradientClipper, module::ADModule, record::Record, LearningRate,
+};
 
 use super::{
     decay::{WeightDecay, WeightDecayConfig, WeightDecayState},

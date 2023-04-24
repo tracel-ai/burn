@@ -1,4 +1,4 @@
-use crate::{record::Record, LearningRate, grad_clipper::GradientClipper};
+use crate::{grad_clipper::GradientClipper, record::Record, LearningRate};
 use burn_tensor::{backend::Backend, Tensor};
 
 /// Simple optimizer is an opinionated trait to simplify the process of implementing an
