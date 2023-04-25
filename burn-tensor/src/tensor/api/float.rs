@@ -355,9 +355,9 @@ where
     pub fn flip(&self, dims: Vec<usize>) -> Self {
         Self::new(B::flip(self.primitive.clone(), dims))
     }
-    pub fn permute(&self, dims: Shape<D>) -> Self {
+    pub fn permute(&self, dims: [usize; D]) -> Self {
         let mut tensor = self.clone();
-        for (current, new) in dims.dims.iter().enumerate() {
+        for (current, new) in dims.iter().enumerate() {
             tensor = tensor.swap_dims(current, *new)
         }
         tensor
