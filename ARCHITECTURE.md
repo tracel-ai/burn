@@ -214,3 +214,4 @@ Note that Burn is a dynamic graph deep learning framework, so backends may have 
 As of now, there is only one backend decorator that supports autodiff.
 It follows the decorator pattern, making any backend differentiable.
 However, the `ADBackend` trait abstracts how gradients are calculated, and other approaches to autodiff might be added later.
+For more information about how the current autodiff backend works, you can read this [blog post](https://burn-rs.github.io/blog/burn-rusty-approach-to-tensor-handling).
