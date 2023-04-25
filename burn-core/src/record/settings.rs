@@ -10,6 +10,9 @@ pub trait RecordSettings: Send + Sync + core::fmt::Debug + core::default::Defaul
 
 /// Default record settings.
 #[derive(Debug, Default)]
+pub struct CompactRecordSettings;
+/// Default record settings.
+#[derive(Debug, Default)]
 pub struct DefaultRecordSettings;
 /// Training settings compatible with no-std inference.
 #[derive(Debug, Default)]
@@ -26,6 +29,14 @@ pub struct NoStdInferenceRecordSettings;
 pub struct DebugRecordSettings;
 
 impl RecordSettings for DefaultRecordSettings {
+    type FloatElem = f32;
+    type IntElem = f32;
+    type Recorder = crate::record::FileMpkGzRecorder;
+    #[cfg(not(feature = "std"))]
+    type Recorder = crate::record::InMemoryBinRecorder;
+}
+
+impl RecordSettings for CompactRecordSettings {
     #[cfg(feature = "std")]
     type FloatElem = half::f16;
     #[cfg(not(feature = "std"))]

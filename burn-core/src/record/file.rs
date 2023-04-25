@@ -1,7 +1,7 @@
 use super::{bin_config, Recorder, RecorderError};
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use serde::{de::DeserializeOwned, Serialize};
-use std::{fs::File, path::PathBuf};
+use std::{fs::File, io::Write, path::PathBuf};
 
 /// Recorder trait specialized to save and load data to and from files.
 pub trait FileRecorder:
@@ -22,9 +22,13 @@ pub struct FileJsonGzRecorder;
 /// File recorder using pretty json for easy redability.
 #[derive(Debug, Default)]
 pub struct FilePrettyJsonRecorder;
+/// File recorder using the bson format compressed with gzip.
+#[derive(Debug, Default)]
+pub struct FileBsonGzRecorder;
 
 #[cfg(feature = "msgpack")]
 /// File recorder using the [message pack](rmp_serde) format compressed with gzip.
+#[derive(Debug, Default)]
 pub struct FileMpkGzRecorder;
 
 impl FileRecorder for FileBinGzRecorder {
@@ -47,7 +51,11 @@ impl FileRecorder for FilePrettyJsonRecorder {
         "json"
     }
 }
-
+impl FileRecorder for FileBsonGzRecorder {
+    fn file_extension() -> &'static str {
+        "bson.gz"
+    }
+}
 #[cfg(feature = "msgpack")]
 impl FileRecorder for FileMpkGzRecorder {
     fn file_extension() -> &'static str {
@@ -196,17 +204,17 @@ impl Recorder for FilePrettyJsonRecorder {
 
 #[cfg(feature = "msgpack")]
 impl Recorder for FileMpkGzRecorder {
-    type SaveArgs = PathBuf;
-    type SaveOutput = ();
+    type RecordArgs = PathBuf;
+    type RecordOutput = ();
     type LoadArgs = PathBuf;
 
-    fn save<Obj: Serialize + DeserializeOwned>(
+    fn record<Obj: Serialize + DeserializeOwned>(
         obj: Obj,
         mut file: PathBuf,
     ) -> Result<(), RecorderError> {
         let writer = str2writer!(file, Self::file_extension())?;
         let mut writer = GzEncoder::new(writer, Compression::default());
-        rmp_serde::encode::write(&mut writer, &obj)
+        rmp_serde::encode::write_named(&mut writer, &obj)
             .map_err(|err| RecorderError::Unknown(err.to_string()))?;
 
         Ok(())
@@ -217,6 +225,34 @@ impl Recorder for FileMpkGzRecorder {
         let reader = GzDecoder::new(reader);
         let state = rmp_serde::decode::from_read(reader)
             .map_err(|err| RecorderError::Unknown(err.to_string()))?;
+
+        Ok(state)
+    }
+}
+
+impl Recorder for FileBsonGzRecorder {
+    type RecordArgs = PathBuf;
+    type RecordOutput = ();
+    type LoadArgs = PathBuf;
+
+    fn record<Obj: Serialize + DeserializeOwned>(
+        obj: Obj,
+        mut file: PathBuf,
+    ) -> Result<(), RecorderError> {
+        let writer = str2writer!(file, Self::file_extension())?;
+        let mut writer = GzEncoder::new(writer, Compression::default());
+        let bytes = bson::to_vec(&obj).unwrap();
+        writer.write(&bytes).unwrap();
+        writer.finish().unwrap();
+
+        Ok(())
+    }
+
+    fn load<Obj: Serialize + DeserializeOwned>(mut file: PathBuf) -> Result<Obj, RecorderError> {
+        let reader = str2reader!(file, Self::file_extension())?;
+        let reader = GzDecoder::new(reader);
+        let state =
+            bson::from_reader(reader).map_err(|err| RecorderError::Unknown(err.to_string()))?;
 
         Ok(state)
     }
@@ -254,6 +290,11 @@ mod tests {
     #[test]
     fn test_can_save_and_load_pretty_json_format() {
         test_can_save_and_load::<FilePrettyJsonRecorder>()
+    }
+
+    #[test]
+    fn test_can_save_and_load_bjongz_format() {
+        test_can_save_and_load::<FileBsonGzRecorder>()
     }
 
     #[cfg(feature = "msgpack")]

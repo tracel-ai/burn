@@ -12,7 +12,7 @@ repository = "https://github.com/burn-rs/burn/tree/main/burn-core"
 version = "0.6.0"
 
 [features]
-default = ["std"]
+default = ["std", "msgpack"]
 std = [
   "burn-autodiff",
   "burn-common/std",
@@ -64,6 +64,7 @@ serde_json = {workspace = true, features = ["alloc"]}#Default enables std
 rmp-serde = {workspace = true, optional = true}
 bincode = {workspace = true}
 half = {workspace = true}
+bson = "2.6.0"
 
 [dev-dependencies]
 burn-dataset = {path = "../burn-dataset", version = "0.6.0", features = [
