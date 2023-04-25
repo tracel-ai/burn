@@ -297,6 +297,61 @@ where
     pub(crate) fn relu(self) -> Self {
         Self::new(B::relu(self.primitive))
     }
+    pub fn unbind<const D2: usize>(&self, dim: usize) -> Self {
+        Self::new(B::unbind(self.primitive.clone(), dim))
+    }
+    pub fn cumsum(&self, dim: usize) -> Tensor<B, D> {
+        Self::new(B::cumsum(self.primitive.clone(), dim))
+    }
+    pub fn stack<const D2: usize>(tensors: Vec<Self>, dim: usize) -> Tensor<B, D2> {
+        Tensor::new(B::stack(
+            tensors.iter().map(|t| t.primitive.clone()).collect(),
+            dim,
+        ))
+    }
+    pub fn narrow(&self, dim: usize, start: usize, length: usize) -> Self {
+        Self::new(B::narrow(self.primitive.clone(), dim, start, length))
+    }
+    pub fn upsample_linear1d<const D2: usize>(
+        &self,
+        output_size: &[usize],
+        align_corners: bool,
+        scales: impl Into<Option<f64>>,
+    ) -> Tensor<B, D2> {
+        Tensor::new(B::upsample_linear1d(
+            self.primitive.clone(),
+            output_size,
+            align_corners,
+            scales,
+        ))
+    }
+    pub fn pad(&self, pad: &[usize], mode: &str, value: impl Into<Option<f64>>) -> Self {
+        Self::new(B::pad(self.primitive.clone(), pad, mode, value))
+    }
+    pub fn expand(&self, size: Vec<usize>, implicit: bool) -> Self {
+        Self::new(B::expand(self.primitive.clone(), size, implicit))
+    }
+    pub fn upsample_bilinear2d<const D2: usize>(
+        &self,
+        output_size: Vec<usize>,
+        align_corners: bool,
+        scales_h: impl Into<Option<f64>>,
+        scales_w: impl Into<Option<f64>>,
+    ) -> Tensor<B, D2> {
+        Tensor::new(B::upsample_bilinear2d(
+            self.primitive.clone(),
+            output_size,
+            align_corners,
+            scales_h,
+            scales_w,
+        ))
+    }
+    pub fn select<const D2: usize>(&self, dim: i64, index: i64) -> Tensor<B, D2> {
+        Tensor::new(B::select(self.primitive.clone(), dim, index))
+    }
+    pub fn flip(&self, dims: Vec<usize>) -> Self {
+        Self::new(B::flip(self.primitive.clone(), dims))
+    }
 }
 
 impl<const D: usize, B: ADBackend> Tensor<B, D> {
