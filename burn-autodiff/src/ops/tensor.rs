@@ -1329,6 +1329,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 }
 
+/// Make sure the grad tensor has the given shape.
+///
+/// If broadcasting happened during the forward pass, the gradients will be sum along the
+/// broadcasted dimension.
 fn broadcast_shape<B: Backend, const D: usize>(
     mut grad: B::TensorPrimitive<D>,
     shape: Shape<D>,
@@ -1339,8 +1343,8 @@ fn broadcast_shape<B: Backend, const D: usize>(
         if shape_grad.dims[i] > shape.dims[i] {
             if shape.dims[i] != 1 {
                 panic!(
-                    "Invalid broadcast shapes: Next grad shape {:?}, Previous grad shape {:?}",
-                    shape.dims, shape_grad.dims
+                    "Invalid broadcast shapes: Next grad shape {:?}, Previous grad shape {:?}. {}",
+                    shape.dims, shape_grad.dims, "Expected the shape of the next grad to be 1."
                 );
             }
             grad = B::sum_dim(grad, i);
