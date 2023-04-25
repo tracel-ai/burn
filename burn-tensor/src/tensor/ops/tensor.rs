@@ -245,7 +245,7 @@ pub trait TensorOps<B: Backend> {
     fn unbind<const D: usize, const D2: usize>(
         tensor: B::TensorPrimitive<D>,
         dim: usize,
-    ) -> B::TensorPrimitive<D2>;
+    ) -> Vec<B::TensorPrimitive<D2>>;
     fn cumsum<const D: usize>(tensor: B::TensorPrimitive<D>, dim: usize) -> B::TensorPrimitive<D>;
     fn stack<const D: usize, const D2: usize>(
         tensors: Vec<B::TensorPrimitive<D>>,

@@ -297,8 +297,11 @@ where
     pub(crate) fn relu(self) -> Self {
         Self::new(B::relu(self.primitive))
     }
-    pub fn unbind<const D2: usize>(&self, dim: usize) -> Self {
-        Self::new(B::unbind(self.primitive.clone(), dim))
+    pub fn unbind<const D2: usize>(&self, dim: usize) -> Vec<Tensor<B, D2>> {
+        B::unbind(self.primitive.clone(), dim)
+            .iter()
+            .map(|t| Tensor::new(t.clone()))
+            .collect()
     }
     pub fn cumsum(&self, dim: usize) -> Tensor<B, D> {
         Self::new(B::cumsum(self.primitive.clone(), dim))

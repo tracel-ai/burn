@@ -387,7 +387,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     fn unbind<const D: usize, const D2: usize>(
         tensor: TchTensor<E, D>,
         dim: usize,
-    ) -> TchTensor<E, D2> {
+    ) -> Vec<TchTensor<E, D2>> {
         unimplemented!()
     }
     fn cumsum<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<E, D> {

@@ -433,7 +433,7 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
     fn unbind<const D: usize, const D2: usize>(
         tensor: NdArrayTensor<E, D>,
         dim: usize,
-    ) -> NdArrayTensor<E, D2> {
+    ) -> Vec<NdArrayTensor<E, D2>> {
         unimplemented!()
     }
     fn cumsum<const D: usize>(tensor: NdArrayTensor<E, D>, dim: usize) -> NdArrayTensor<E, D> {

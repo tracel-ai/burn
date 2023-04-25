@@ -1304,7 +1304,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     fn unbind<const D: usize, const D2: usize>(
         tensor: ADTensor<B, D>,
         dim: usize,
-    ) -> ADTensor<B, D2> {
+    ) -> Vec<ADTensor<B, D2>> {
         unimplemented!()
     }
     fn cumsum<const D: usize>(tensor: ADTensor<B, D>, dim: usize) -> ADTensor<B, D> {
