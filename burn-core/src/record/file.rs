@@ -13,23 +13,26 @@ pub trait FileRecorder:
 /// File recorder using the [bincode format](bincode).
 #[derive(Debug, Default)]
 pub struct FileBinRecorder;
+
 /// File recorder using the [bincode format](bincode) compressed with gzip.
 #[derive(Debug, Default)]
 pub struct FileBinGzRecorder;
+
 /// File recorder using the json format compressed with gzip.
 #[derive(Debug, Default)]
 pub struct FileJsonGzRecorder;
+
 /// File recorder using pretty json for easy redability.
 #[derive(Debug, Default)]
 pub struct FilePrettyJsonRecorder;
+
 /// File recorder using the bson format compressed with gzip.
 #[derive(Debug, Default)]
 pub struct FileBsonGzRecorder;
 
-#[cfg(feature = "msgpack")]
-/// File recorder using the [message pack](rmp_serde) format compressed with gzip.
+/// File recorder using the [named msgpack](rmp_serde) format compressed with gzip.
 #[derive(Debug, Default)]
-pub struct FileMpkGzRecorder;
+pub struct FileNamedMpkGzRecorder;
 
 impl FileRecorder for FileBinGzRecorder {
     fn file_extension() -> &'static str {
@@ -56,8 +59,7 @@ impl FileRecorder for FileBsonGzRecorder {
         "bson.gz"
     }
 }
-#[cfg(feature = "msgpack")]
-impl FileRecorder for FileMpkGzRecorder {
+impl FileRecorder for FileNamedMpkGzRecorder {
     fn file_extension() -> &'static str {
         "mpk.gz"
     }
@@ -202,8 +204,7 @@ impl Recorder for FilePrettyJsonRecorder {
     }
 }
 
-#[cfg(feature = "msgpack")]
-impl Recorder for FileMpkGzRecorder {
+impl Recorder for FileNamedMpkGzRecorder {
     type RecordArgs = PathBuf;
     type RecordOutput = ();
     type LoadArgs = PathBuf;
@@ -297,10 +298,9 @@ mod tests {
         test_can_save_and_load::<FileBsonGzRecorder>()
     }
 
-    #[cfg(feature = "msgpack")]
     #[test]
     fn test_can_save_and_load_mpkgz_format() {
-        test_can_save_and_load::<FileMpkGzRecorder>()
+        test_can_save_and_load::<FileNamedMpkGzRecorder>()
     }
 
     fn test_can_save_and_load<Recorder: FileRecorder>() {

@@ -30,13 +30,6 @@ impl RecordGenerator {
             let ty = &field.field.ty;
             let name = &field.field.ident;
 
-            if field.is_of_type(&["Option"]) {
-                fields.extend(quote! {
-                    #[serde(skip_serializing_if = "Option::is_none")]
-                    #[serde(default)]
-                });
-            }
-
             fields.extend(quote! {
                 pub #name: <#ty as burn::record::Record>::Item<S>,
             });
