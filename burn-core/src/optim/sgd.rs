@@ -5,7 +5,7 @@ use super::decay::{WeightDecay, WeightDecayConfig, WeightDecayState};
 use super::momentum::{MomemtumState, Momentum, MomentumConfig};
 use super::SimpleOptimizer;
 use crate::config::Config;
-use crate::grad_clipper::GradientClipper;
+use crate::grad_clipper::{GradientClipper, GradientClipperConfig};
 use crate::optim::adaptor::OptimizerAdaptor;
 use crate::record::Record;
 use crate::tensor::Tensor;
@@ -19,7 +19,7 @@ pub struct SgdConfig {
     /// [Momentum](MomentumConfig) config.
     pub momentum: Option<MomentumConfig>,
     /// GradientClipper
-    pub gradient_clipper: Option<GradientClipper>,
+    pub gradient_clipper: Option<GradientClipperConfig>,
 }
 
 /// Optimizer that implements stochastic gradient descent with momentum.
@@ -171,7 +171,7 @@ mod tests {
                 dampening: 0.1,
                 nesterov: true,
             }),
-            gradient_clipper: Some(GradientClipper {
+            gradient_clipper: Some(GradientClipperConfig {
                 clip_value: Some(1.0),
                 clip_norm: None,
             }),
