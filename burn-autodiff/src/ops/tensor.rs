@@ -1301,4 +1301,87 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             OpsKind::UnTracked(prep) => prep.finish(output),
         }
     }
+    fn permute<const D: usize>(tensor: ADTensor<B, D>, dims: Shape<D>) -> ADTensor<B, D> {
+        unimplemented!()
+    }
+    fn unbind<const D: usize, const D2: usize>(
+        tensor: ADTensor<B, D>,
+        dim: usize,
+    ) -> ADTensor<B, D> {
+        unimplemented!()
+    }
+    fn cumsum<const D: usize>(tensor: ADTensor<B, D>, dim: usize) -> ADTensor<B, D> {
+        unimplemented!()
+    }
+    fn stack<const D: usize, const D2: usize>(
+        tensors: Vec<ADTensor<B, D>>,
+        dim: usize,
+    ) -> ADTensor<B, D2> {
+        unimplemented!()
+    }
+    fn narrow<const D: usize>(
+        tensor: ADTensor<B, D>,
+        dim: usize,
+        start: usize,
+        length: usize,
+    ) -> ADTensor<B, D> {
+        unimplemented!()
+    }
+    fn upsample_linear1d<const D: usize, const D2: usize>(
+        tensor: ADTensor<B, D>,
+        output_size: &[usize],
+        align_corners: bool,
+        scales: impl Into<Option<f64>>,
+    ) -> ADTensor<B, D2> {
+        unimplemented!()
+    }
+    fn squeeze_dim<const D: usize, const D2: usize>(
+        tensor: ADTensor<B, D>,
+        dim: usize,
+    ) -> ADTensor<B, D2> {
+        unimplemented!()
+    }
+    fn slice<const D: usize>(
+        tensor: ADTensor<B, D>,
+        dim: usize,
+        start: impl Into<Option<usize>>,
+        end: impl Into<Option<usize>>,
+        step: usize,
+    ) -> ADTensor<B, D> {
+        unimplemented!()
+    }
+    fn pad<const D: usize>(
+        tensor: ADTensor<B, D>,
+        pad: &[usize],
+        mode: &str,
+        value: impl Into<Option<f64>>,
+    ) -> ADTensor<B, D> {
+        unimplemented!()
+    }
+    fn expand<const D: usize>(
+        tensor: ADTensor<B, D>,
+        size: Vec<usize>,
+        implicit: bool,
+    ) -> ADTensor<B, D> {
+        unimplemented!()
+    }
+    fn upsample_bilinear2d<const D: usize, const D2: usize>(
+        tensor: ADTensor<B, D>,
+        output_size: Vec<usize>,
+        align_corners: bool,
+        scales_h: impl Into<Option<f64>>,
+        scales_w: impl Into<Option<f64>>,
+    ) -> ADTensor<B, D2> {
+        unimplemented!()
+    }
+    fn select<const D: usize, const D2: usize>(
+        tensor: ADTensor<B, D>,
+        dim: i64,
+        index: i64,
+    ) -> ADTensor<B, D2> {
+        unimplemented!()
+    }
+    fn flip<const D: usize>(tensor: ADTensor<B, D>, dims: Vec<usize>) -> ADTensor<B, D> {
+        unimplemented!()
+    }
 }

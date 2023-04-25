@@ -242,4 +242,68 @@ pub trait TensorOps<B: Backend> {
         dim: usize,
     ) -> B::TensorPrimitive<D>;
     fn relu<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D>;
+    //Karel addons
+    fn permute<const D: usize>(
+        tensor: B::TensorPrimitive<D>,
+        dims: Shape<D>,
+    ) -> B::TensorPrimitive<D>;
+    fn unbind<const D: usize, const D2: usize>(
+        tensor: B::TensorPrimitive<D>,
+        dim: usize,
+    ) -> B::TensorPrimitive<D>;
+    fn cumsum<const D: usize>(tensor: B::TensorPrimitive<D>, dim: usize) -> B::TensorPrimitive<D>;
+    fn stack<const D: usize, const D2: usize>(
+        tensors: Vec<B::TensorPrimitive<D>>,
+        dim: usize,
+    ) -> B::TensorPrimitive<D2>;
+    fn narrow<const D: usize>(
+        tensor: B::TensorPrimitive<D>,
+        dim: usize,
+        start: usize,
+        length: usize,
+    ) -> B::TensorPrimitive<D>;
+    fn upsample_linear1d<const D: usize, const D2: usize>(
+        tensor: B::TensorPrimitive<D>,
+        output_size: &[usize],
+        align_corners: bool,
+        scales: impl Into<Option<f64>>,
+    ) -> B::TensorPrimitive<D2>;
+    fn squeeze_dim<const D: usize, const D2: usize>(
+        tensor: B::TensorPrimitive<D>,
+        dim: usize,
+    ) -> B::TensorPrimitive<D2>;
+    fn slice<const D: usize>(
+        tensor: B::TensorPrimitive<D>,
+        dim: usize,
+        start: impl Into<Option<usize>>,
+        end: impl Into<Option<usize>>,
+        step: usize,
+    ) -> B::TensorPrimitive<D>;
+    fn pad<const D: usize>(
+        tensor: B::TensorPrimitive<D>,
+        pad: &[usize],
+        mode: &str,
+        value: impl Into<Option<f64>>,
+    ) -> B::TensorPrimitive<D>;
+    fn expand<const D: usize>(
+        tensor: B::TensorPrimitive<D>,
+        size: Vec<usize>,
+        implicit: bool,
+    ) -> B::TensorPrimitive<D>;
+    fn upsample_bilinear2d<const D: usize, const D2: usize>(
+        tensor: B::TensorPrimitive<D>,
+        output_size: Vec<usize>,
+        align_corners: bool,
+        scales_h: impl Into<Option<f64>>,
+        scales_w: impl Into<Option<f64>>,
+    ) -> B::TensorPrimitive<D2>;
+    fn select<const D: usize, const D2: usize>(
+        tensor: B::TensorPrimitive<D>,
+        dim: i64,
+        index: i64,
+    ) -> B::TensorPrimitive<D2>;
+    fn flip<const D: usize>(
+        tensor: B::TensorPrimitive<D>,
+        dims: Vec<usize>,
+    ) -> B::TensorPrimitive<D>;
 }

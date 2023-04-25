@@ -430,6 +430,89 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
 
         NdArrayTensor::new(array)
     }
+    fn permute<const D: usize>(tensor: NdArrayTensor<E, D>, dims: Shape<D>) -> NdArrayTensor<E, D> {
+        unimplemented!()
+    }
+    fn unbind<const D: usize, const D2: usize>(
+        tensor: NdArrayTensor<E, D>,
+        dim: usize,
+    ) -> NdArrayTensor<E, D> {
+        unimplemented!()
+    }
+    fn cumsum<const D: usize>(tensor: NdArrayTensor<E, D>, dim: usize) -> NdArrayTensor<E, D> {
+        unimplemented!()
+    }
+    fn stack<const D: usize, const D2: usize>(
+        tensors: Vec<NdArrayTensor<E, D>>,
+        dim: usize,
+    ) -> NdArrayTensor<E, D2> {
+        unimplemented!()
+    }
+    fn narrow<const D: usize>(
+        tensor: NdArrayTensor<E, D>,
+        dim: usize,
+        start: usize,
+        length: usize,
+    ) -> NdArrayTensor<E, D> {
+        unimplemented!()
+    }
+    fn upsample_linear1d<const D: usize, const D2: usize>(
+        tensor: NdArrayTensor<E, D>,
+        output_size: &[usize],
+        align_corners: bool,
+        scales: impl Into<Option<f64>>,
+    ) -> NdArrayTensor<E, D2> {
+        unimplemented!()
+    }
+    fn squeeze_dim<const D: usize, const D2: usize>(
+        tensor: NdArrayTensor<E, D>,
+        dim: usize,
+    ) -> NdArrayTensor<E, D2> {
+        unimplemented!()
+    }
+    fn slice<const D: usize>(
+        tensor: NdArrayTensor<E, D>,
+        dim: usize,
+        start: impl Into<Option<usize>>,
+        end: impl Into<Option<usize>>,
+        step: usize,
+    ) -> NdArrayTensor<E, D> {
+        unimplemented!()
+    }
+    fn pad<const D: usize>(
+        tensor: NdArrayTensor<E, D>,
+        pad: &[usize],
+        mode: &str,
+        value: impl Into<Option<f64>>,
+    ) -> NdArrayTensor<E, D> {
+        unimplemented!()
+    }
+    fn expand<const D: usize>(
+        tensor: NdArrayTensor<E, D>,
+        size: Vec<usize>,
+        implicit: bool,
+    ) -> NdArrayTensor<E, D> {
+        unimplemented!()
+    }
+    fn upsample_bilinear2d<const D: usize, const D2: usize>(
+        tensor: NdArrayTensor<E, D>,
+        output_size: Vec<usize>,
+        align_corners: bool,
+        scales_h: impl Into<Option<f64>>,
+        scales_w: impl Into<Option<f64>>,
+    ) -> NdArrayTensor<E, D2> {
+        unimplemented!()
+    }
+    fn select<const D: usize, const D2: usize>(
+        tensor: NdArrayTensor<E, D>,
+        dim: i64,
+        index: i64,
+    ) -> NdArrayTensor<E, D2> {
+        unimplemented!()
+    }
+    fn flip<const D: usize>(tensor: NdArrayTensor<E, D>, dims: Vec<usize>) -> NdArrayTensor<E, D> {
+        unimplemented!()
+    }
 }
 
 fn arg<E: FloatNdArrayElement, F, const D: usize>(

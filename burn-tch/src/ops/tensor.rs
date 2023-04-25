@@ -384,4 +384,87 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     fn relu<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
         tensor.unary_ops(|mut tensor| tensor.relu_(), |tensor| tensor.relu())
     }
+    fn permute<const D: usize>(tensor: TchTensor<E, D>, dims: Shape<D>) -> TchTensor<E, D> {
+        unimplemented!()
+    }
+    fn unbind<const D: usize, const D2: usize>(
+        tensor: TchTensor<E, D>,
+        dim: usize,
+    ) -> TchTensor<E, D> {
+        unimplemented!()
+    }
+    fn cumsum<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<E, D> {
+        unimplemented!()
+    }
+    fn stack<const D: usize, const D2: usize>(
+        tensors: Vec<TchTensor<E, D>>,
+        dim: usize,
+    ) -> TchTensor<E, D2> {
+        unimplemented!()
+    }
+    fn narrow<const D: usize>(
+        tensor: TchTensor<E, D>,
+        dim: usize,
+        start: usize,
+        length: usize,
+    ) -> TchTensor<E, D> {
+        unimplemented!()
+    }
+    fn upsample_linear1d<const D: usize, const D2: usize>(
+        tensor: TchTensor<E, D>,
+        output_size: &[usize],
+        align_corners: bool,
+        scales: impl Into<Option<f64>>,
+    ) -> TchTensor<E, D2> {
+        unimplemented!()
+    }
+    fn squeeze_dim<const D: usize, const D2: usize>(
+        tensor: TchTensor<E, D>,
+        dim: usize,
+    ) -> TchTensor<E, D2> {
+        unimplemented!()
+    }
+    fn slice<const D: usize>(
+        tensor: TchTensor<E, D>,
+        dim: usize,
+        start: impl Into<Option<usize>>,
+        end: impl Into<Option<usize>>,
+        step: usize,
+    ) -> TchTensor<E, D> {
+        unimplemented!()
+    }
+    fn pad<const D: usize>(
+        tensor: TchTensor<E, D>,
+        pad: &[usize],
+        mode: &str,
+        value: impl Into<Option<f64>>,
+    ) -> TchTensor<E, D> {
+        unimplemented!()
+    }
+    fn expand<const D: usize>(
+        tensor: TchTensor<E, D>,
+        size: Vec<usize>,
+        implicit: bool,
+    ) -> TchTensor<E, D> {
+        unimplemented!()
+    }
+    fn upsample_bilinear2d<const D: usize, const D2: usize>(
+        tensor: TchTensor<E, D>,
+        output_size: Vec<usize>,
+        align_corners: bool,
+        scales_h: impl Into<Option<f64>>,
+        scales_w: impl Into<Option<f64>>,
+    ) -> TchTensor<E, D2> {
+        unimplemented!()
+    }
+    fn select<const D: usize, const D2: usize>(
+        tensor: TchTensor<E, D>,
+        dim: i64,
+        index: i64,
+    ) -> TchTensor<E, D2> {
+        unimplemented!()
+    }
+    fn flip<const D: usize>(tensor: TchTensor<E, D>, dims: Vec<usize>) -> TchTensor<E, D> {
+        unimplemented!()
+    }
 }
