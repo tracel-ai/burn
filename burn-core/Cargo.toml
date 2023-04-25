@@ -22,6 +22,7 @@ std = [
   "flate2",
   "log",
   "rand/std",
+  "rmp-serde",
   "serde/std",
   "serde_json/std",
   "bincode/std",
@@ -30,8 +31,6 @@ std = [
 ]
 
 # Serialization formats
-msgpack = ["rmp-serde"] # Assumes std
-
 test-tch = [] # To use tch during testing, default uses ndarray.
 experimental-named-tensor = ["burn-tensor/experimental-named-tensor"]
 

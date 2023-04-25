@@ -13,19 +13,22 @@ pub trait FileRecorder:
 /// File recorder using the [bincode format](bincode).
 #[derive(Debug, Default)]
 pub struct FileBinRecorder;
+
 /// File recorder using the [bincode format](bincode) compressed with gzip.
 #[derive(Debug, Default)]
 pub struct FileBinGzRecorder;
+
 /// File recorder using the json format compressed with gzip.
 #[derive(Debug, Default)]
 pub struct FileJsonGzRecorder;
+
 /// File recorder using pretty json for easy redability.
 #[derive(Debug, Default)]
 pub struct FilePrettyJsonRecorder;
 
-#[cfg(feature = "msgpack")]
-/// File recorder using the [message pack](rmp_serde) format compressed with gzip.
-pub struct FileMpkGzRecorder;
+/// File recorder using the [named msgpack](rmp_serde) format compressed with gzip.
+#[derive(Debug, Default)]
+pub struct FileNamedMpkGzRecorder;
 
 impl FileRecorder for FileBinGzRecorder {
     fn file_extension() -> &'static str {
@@ -48,8 +51,7 @@ impl FileRecorder for FilePrettyJsonRecorder {
     }
 }
 
-#[cfg(feature = "msgpack")]
-impl FileRecorder for FileMpkGzRecorder {
+impl FileRecorder for FileNamedMpkGzRecorder {
     fn file_extension() -> &'static str {
         "mpk.gz"
     }
@@ -194,19 +196,18 @@ impl Recorder for FilePrettyJsonRecorder {
     }
 }
 
-#[cfg(feature = "msgpack")]
-impl Recorder for FileMpkGzRecorder {
-    type SaveArgs = PathBuf;
-    type SaveOutput = ();
+impl Recorder for FileNamedMpkGzRecorder {
+    type RecordArgs = PathBuf;
+    type RecordOutput = ();
     type LoadArgs = PathBuf;
 
-    fn save<Obj: Serialize + DeserializeOwned>(
+    fn record<Obj: Serialize + DeserializeOwned>(
         obj: Obj,
         mut file: PathBuf,
     ) -> Result<(), RecorderError> {
         let writer = str2writer!(file, Self::file_extension())?;
         let mut writer = GzEncoder::new(writer, Compression::default());
-        rmp_serde::encode::write(&mut writer, &obj)
+        rmp_serde::encode::write_named(&mut writer, &obj)
             .map_err(|err| RecorderError::Unknown(err.to_string()))?;
 
         Ok(())
@@ -256,10 +257,9 @@ mod tests {
         test_can_save_and_load::<FilePrettyJsonRecorder>()
     }
 
-    #[cfg(feature = "msgpack")]
     #[test]
     fn test_can_save_and_load_mpkgz_format() {
-        test_can_save_and_load::<FileMpkGzRecorder>()
+        test_can_save_and_load::<FileNamedMpkGzRecorder>()
     }
 
     fn test_can_save_and_load<Recorder: FileRecorder>() {
