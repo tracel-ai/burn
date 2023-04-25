@@ -6,19 +6,28 @@ use burn_tensor::{backend::Backend, ElementConversion};
 /// Gradient Clipper provides a way to mitigate exploding gradients
 /// by clipping every component of the gradient to a value during
 /// backpropagation.
+
+/// Configuration to create gradient clipper, note that a gradient clipper
+/// can be invoked as a standalone struct in a custom training loop that
+/// accepts gradients, so you can avoid making it as a config to an optimizer.
 #[derive(Config)]
-pub struct GradientClipper {
+pub struct GradientClipperConfig {
     #[config(default = "Some(1.0)")] // ngl this is confusing
     pub clip_value: Option<f32>,
     #[config(default = "Some(1.0)")]
     pub clip_norm: Option<f32>,
 }
 
+pub struct GradientClipper {
+    clip_value: Option<f32>,
+    clip_norm: Option<f32>,
+}
+
 impl GradientClipper {
-    pub fn new() -> Self {
+    pub fn new(config: &GradientClipperConfig) -> Self {
         Self {
-            clip_value: None,
-            clip_norm: None,
+            clip_value: config.clip_value,
+            clip_norm: config.clip_norm,
         }
     }
     pub fn by_value(threshold: f32) -> Self {
