@@ -1340,7 +1340,7 @@ fn broadcast_shape<B: Backend, const D: usize>(
     let shape_grad = B::shape(&grad);
 
     for i in 0..D {
-        if shape_grad.dims[i] > shape.dims[i] {
+        if shape_grad.dims[i] != shape.dims[i] {
             if shape.dims[i] != 1 {
                 panic!(
                     "Invalid broadcast shapes: Next grad shape {:?}, Previous grad shape {:?}. {}",
