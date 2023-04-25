@@ -15,6 +15,7 @@ pub(crate) trait NdArrayElement:
     + ndarray::ScalarOperand
     + ExpElement
     + num_traits::FromPrimitive
+    + core::ops::AddAssign
     + core::cmp::PartialEq
     + core::cmp::PartialOrd<Self>
 {

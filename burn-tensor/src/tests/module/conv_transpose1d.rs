@@ -2,6 +2,7 @@
 mod tests {
     use super::*;
     use burn_tensor::module::conv_transpose1d;
+    use burn_tensor::ops::ConvTransposeOptions;
     use burn_tensor::{Data, Shape, Tensor};
 
     #[test]
@@ -15,6 +16,7 @@ mod tests {
             padding_out: 0,
             stride: 1,
             dilation: 1,
+            groups: 1,
             length: 4,
         };
 
@@ -35,6 +37,7 @@ mod tests {
             padding_out: 1,
             stride: 2,
             dilation: 1,
+            groups: 1,
             length: 4,
         };
 
@@ -55,12 +58,34 @@ mod tests {
             padding_out: 0,
             stride: 1,
             dilation: 2,
+            groups: 1,
             length: 4,
         };
 
         test.assert_output(TestTensor::from_floats([[
             [30., 64., 78., 76., 94., 52.],
             [49., 101., 127., 113., 143., 77.],
+        ]]));
+    }
+
+    #[test]
+    fn test_conv_transpose1d_groups() {
+        let test = ConvTranspose1dTestCase {
+            batch_size: 1,
+            channels_in: 2,
+            channels_out: 2,
+            kernel_size: 3,
+            padding: 1,
+            padding_out: 0,
+            stride: 1,
+            dilation: 1,
+            groups: 2,
+            length: 4,
+        };
+
+        test.assert_output(TestTensor::from_floats([[
+            [0., 1., 4., 7.],
+            [32., 59., 71., 59.],
         ]]));
     }
 
@@ -73,13 +98,18 @@ mod tests {
         padding_out: usize,
         stride: usize,
         dilation: usize,
+        groups: usize,
         length: usize,
     }
 
     impl ConvTranspose1dTestCase {
         fn assert_output(self, y: TestTensor<3>) {
             let shape_x = Shape::new([self.batch_size, self.channels_in, self.length]);
-            let shape_weights = Shape::new([self.channels_in, self.channels_out, self.kernel_size]);
+            let shape_weights = Shape::new([
+                self.channels_in,
+                self.channels_out / self.groups,
+                self.kernel_size,
+            ]);
             let weights = TestTensor::from_data(
                 TestTensorInt::arange(0..shape_weights.num_elements())
                     .reshape(shape_weights)
@@ -101,10 +131,13 @@ mod tests {
                 x,
                 weights,
                 Some(bias),
-                self.stride,
-                self.padding,
-                self.padding_out,
-                self.dilation,
+                ConvTransposeOptions::new(
+                    [self.stride],
+                    [self.padding],
+                    [self.padding_out],
+                    [self.dilation],
+                    self.groups,
+                ),
             );
 
             y.to_data().assert_approx_eq(&output.into_data(), 3);

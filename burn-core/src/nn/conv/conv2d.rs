@@ -8,6 +8,7 @@ use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 use burn_tensor::module::conv2d;
 use burn_tensor::ops::conv::calculate_conv_padding;
+use burn_tensor::ops::ConvOptions;
 
 use libm::sqrt;
 
@@ -24,6 +25,9 @@ pub struct Conv2dConfig {
     /// Spacing between kernel elements.
     #[config(default = "[1, 1]")]
     pub dilation: [usize; 2],
+    /// Controls the connections between input and output channels.
+    #[config(default = "1")]
+    pub groups: usize,
     /// The padding configuration.
     #[config(default = "Conv2dPaddingConfig::Valid")]
     pub padding: Conv2dPaddingConfig,
@@ -63,6 +67,7 @@ pub struct Conv2d<B: Backend> {
     stride: [usize; 2],
     kernel_size: [usize; 2],
     dilation: [usize; 2],
+    groups: usize,
     padding: Conv2dPaddingConfig,
 }
 
@@ -98,6 +103,7 @@ impl Conv2dConfig {
             kernel_size: self.kernel_size,
             dilation: self.dilation,
             padding: self.padding.clone(),
+            groups: self.groups,
         }
     }
 
@@ -110,6 +116,7 @@ impl Conv2dConfig {
             dilation: self.dilation,
             kernel_size: self.kernel_size,
             padding: self.padding.clone(),
+            groups: self.groups,
         }
     }
 }
@@ -130,9 +137,7 @@ impl<B: Backend> Conv2d<B> {
             input,
             self.weight.val(),
             self.bias.as_ref().map(|bias| bias.val()),
-            self.stride,
-            padding,
-            self.dilation,
+            ConvOptions::new(self.stride, padding, self.dilation, self.groups),
         )
     }
 }
