@@ -4,8 +4,8 @@ use burn::{
     module::Module,
     nn,
     record::{
-        DefaultRecordSettings, FileRecorder, Record, RecordSettings, RecorderError,
-        SentitiveCompactRecordSettings,
+        CompactRecordSettings, DefaultRecordSettings, FileRecorder, Record, RecordSettings,
+        RecorderError, SentitiveCompactRecordSettings,
     },
 };
 use burn_tensor::backend::Backend;
@@ -34,59 +34,71 @@ pub struct ModelNewFieldOrders<B: Backend> {
 
 #[test]
 fn deserialize_with_new_optional_field_works_with_default_settings() {
-    deserialize_with_new_optional_field::<DefaultRecordSettings>().unwrap();
+    deserialize_with_new_optional_field::<DefaultRecordSettings>("default").unwrap();
 }
 
 #[test]
 fn deserialize_with_new_field_order_works_with_default_settings() {
-    deserialize_with_new_field_order::<DefaultRecordSettings>().unwrap();
+    deserialize_with_new_field_order::<DefaultRecordSettings>("default").unwrap();
 }
 
 #[test]
-#[should_panic]
-fn deserialize_with_new_optional_field_fails_with_compact_settings() {
-    deserialize_with_new_optional_field::<SentitiveCompactRecordSettings>().unwrap();
+fn deserialize_with_new_optional_field_works_with_compact_settings() {
+    deserialize_with_new_optional_field::<CompactRecordSettings>("compact").unwrap();
 }
 
 #[test]
 fn deserialize_with_new_field_order_works_with_compact_settings() {
-    deserialize_with_new_field_order::<SentitiveCompactRecordSettings>().unwrap();
+    deserialize_with_new_field_order::<CompactRecordSettings>("compact").unwrap();
 }
 
-fn deserialize_with_new_optional_field<S>() -> Result<(), RecorderError>
+#[test]
+#[should_panic]
+fn deserialize_with_new_optional_field_fails_with_sentitive_compact_settings() {
+    deserialize_with_new_optional_field::<SentitiveCompactRecordSettings>("sensitive").unwrap();
+}
+
+#[test]
+fn deserialize_with_new_field_order_works_with_sensitive_compact_settings() {
+    deserialize_with_new_field_order::<SentitiveCompactRecordSettings>("sensitive").unwrap();
+}
+
+fn deserialize_with_new_optional_field<S>(name: &str) -> Result<(), RecorderError>
 where
     S: RecordSettings,
     S::Recorder: FileRecorder,
 {
-    let file_path: PathBuf = "/tmp/deserialize_with_new_optional_field".into();
-    let model1 = Model {
+    let file_path: PathBuf = format!("/tmp/deserialize_with_new_optional_field-{name}").into();
+    let model = Model {
         linear1: nn::LinearConfig::new(20, 20).init::<TestBackend>(),
         linear2: nn::LinearConfig::new(20, 20).init::<TestBackend>(),
     };
 
-    let record = model1.into_record();
+    let record = model.into_record();
     record.record::<S>(file_path.clone()).unwrap();
+    let result = ModelNewOptionalFieldRecord::<TestBackend>::load::<S>(file_path.clone());
+    std::fs::remove_file(file_path).ok();
 
-    let _record = ModelNewOptionalFieldRecord::<TestBackend>::load::<S>(file_path.clone())?;
-
+    result?;
     Ok(())
 }
 
-fn deserialize_with_new_field_order<S>() -> Result<(), RecorderError>
+fn deserialize_with_new_field_order<S>(name: &str) -> Result<(), RecorderError>
 where
     S: RecordSettings,
     S::Recorder: FileRecorder,
 {
-    let file_path: PathBuf = "/tmp/deserialize_with_new_field_order".into();
-    let model1 = Model {
+    let file_path: PathBuf = format!("/tmp/deserialize_with_new_field_order-{name}").into();
+    let model = Model {
         linear1: nn::LinearConfig::new(20, 20).init::<TestBackend>(),
         linear2: nn::LinearConfig::new(20, 20).init::<TestBackend>(),
     };
 
-    let record = model1.into_record();
+    let record = model.into_record();
     record.record::<S>(file_path.clone()).unwrap();
+    let result = ModelNewFieldOrdersRecord::<TestBackend>::load::<S>(file_path.clone());
+    std::fs::remove_file(file_path).ok();
 
-    let _record = ModelNewFieldOrdersRecord::<TestBackend>::load::<S>(file_path)?;
-
+    result?;
     Ok(())
 }
