@@ -242,15 +242,10 @@ pub trait TensorOps<B: Backend> {
         dim: usize,
     ) -> B::TensorPrimitive<D>;
     fn relu<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D>;
-    //Karel addons
-    fn permute<const D: usize>(
-        tensor: B::TensorPrimitive<D>,
-        dims: Shape<D>,
-    ) -> B::TensorPrimitive<D>;
     fn unbind<const D: usize, const D2: usize>(
         tensor: B::TensorPrimitive<D>,
         dim: usize,
-    ) -> B::TensorPrimitive<D>;
+    ) -> B::TensorPrimitive<D2>;
     fn cumsum<const D: usize>(tensor: B::TensorPrimitive<D>, dim: usize) -> B::TensorPrimitive<D>;
     fn stack<const D: usize, const D2: usize>(
         tensors: Vec<B::TensorPrimitive<D>>,
@@ -268,17 +263,6 @@ pub trait TensorOps<B: Backend> {
         align_corners: bool,
         scales: impl Into<Option<f64>>,
     ) -> B::TensorPrimitive<D2>;
-    fn squeeze_dim<const D: usize, const D2: usize>(
-        tensor: B::TensorPrimitive<D>,
-        dim: usize,
-    ) -> B::TensorPrimitive<D2>;
-    fn slice<const D: usize>(
-        tensor: B::TensorPrimitive<D>,
-        dim: usize,
-        start: impl Into<Option<usize>>,
-        end: impl Into<Option<usize>>,
-        step: usize,
-    ) -> B::TensorPrimitive<D>;
     fn pad<const D: usize>(
         tensor: B::TensorPrimitive<D>,
         pad: &[usize],

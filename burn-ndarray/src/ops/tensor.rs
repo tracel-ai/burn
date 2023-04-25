@@ -430,13 +430,10 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
 
         NdArrayTensor::new(array)
     }
-    fn permute<const D: usize>(tensor: NdArrayTensor<E, D>, dims: Shape<D>) -> NdArrayTensor<E, D> {
-        unimplemented!()
-    }
     fn unbind<const D: usize, const D2: usize>(
         tensor: NdArrayTensor<E, D>,
         dim: usize,
-    ) -> NdArrayTensor<E, D> {
+    ) -> NdArrayTensor<E, D2> {
         unimplemented!()
     }
     fn cumsum<const D: usize>(tensor: NdArrayTensor<E, D>, dim: usize) -> NdArrayTensor<E, D> {
@@ -462,21 +459,6 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         align_corners: bool,
         scales: impl Into<Option<f64>>,
     ) -> NdArrayTensor<E, D2> {
-        unimplemented!()
-    }
-    fn squeeze_dim<const D: usize, const D2: usize>(
-        tensor: NdArrayTensor<E, D>,
-        dim: usize,
-    ) -> NdArrayTensor<E, D2> {
-        unimplemented!()
-    }
-    fn slice<const D: usize>(
-        tensor: NdArrayTensor<E, D>,
-        dim: usize,
-        start: impl Into<Option<usize>>,
-        end: impl Into<Option<usize>>,
-        step: usize,
-    ) -> NdArrayTensor<E, D> {
         unimplemented!()
     }
     fn pad<const D: usize>(

@@ -1301,13 +1301,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             OpsKind::UnTracked(prep) => prep.finish(output),
         }
     }
-    fn permute<const D: usize>(tensor: ADTensor<B, D>, dims: Shape<D>) -> ADTensor<B, D> {
-        unimplemented!()
-    }
     fn unbind<const D: usize, const D2: usize>(
         tensor: ADTensor<B, D>,
         dim: usize,
-    ) -> ADTensor<B, D> {
+    ) -> ADTensor<B, D2> {
         unimplemented!()
     }
     fn cumsum<const D: usize>(tensor: ADTensor<B, D>, dim: usize) -> ADTensor<B, D> {
@@ -1333,21 +1330,6 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         align_corners: bool,
         scales: impl Into<Option<f64>>,
     ) -> ADTensor<B, D2> {
-        unimplemented!()
-    }
-    fn squeeze_dim<const D: usize, const D2: usize>(
-        tensor: ADTensor<B, D>,
-        dim: usize,
-    ) -> ADTensor<B, D2> {
-        unimplemented!()
-    }
-    fn slice<const D: usize>(
-        tensor: ADTensor<B, D>,
-        dim: usize,
-        start: impl Into<Option<usize>>,
-        end: impl Into<Option<usize>>,
-        step: usize,
-    ) -> ADTensor<B, D> {
         unimplemented!()
     }
     fn pad<const D: usize>(
