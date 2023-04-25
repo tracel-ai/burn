@@ -1,7 +1,7 @@
 use super::{bin_config, Recorder, RecorderError};
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use serde::{de::DeserializeOwned, Serialize};
-use std::{fs::File, io::Write, path::PathBuf};
+use std::{fs::File, path::PathBuf};
 
 /// Recorder trait specialized to save and load data to and from files.
 pub trait FileRecorder:
@@ -25,10 +25,6 @@ pub struct FileJsonGzRecorder;
 /// File recorder using pretty json for easy redability.
 #[derive(Debug, Default)]
 pub struct FilePrettyJsonRecorder;
-
-/// File recorder using the bson format compressed with gzip.
-#[derive(Debug, Default)]
-pub struct FileBsonGzRecorder;
 
 /// File recorder using the [named msgpack](rmp_serde) format compressed with gzip.
 #[derive(Debug, Default)]
@@ -54,11 +50,7 @@ impl FileRecorder for FilePrettyJsonRecorder {
         "json"
     }
 }
-impl FileRecorder for FileBsonGzRecorder {
-    fn file_extension() -> &'static str {
-        "bson.gz"
-    }
-}
+
 impl FileRecorder for FileNamedMpkGzRecorder {
     fn file_extension() -> &'static str {
         "mpk.gz"
@@ -231,34 +223,6 @@ impl Recorder for FileNamedMpkGzRecorder {
     }
 }
 
-impl Recorder for FileBsonGzRecorder {
-    type RecordArgs = PathBuf;
-    type RecordOutput = ();
-    type LoadArgs = PathBuf;
-
-    fn record<Obj: Serialize + DeserializeOwned>(
-        obj: Obj,
-        mut file: PathBuf,
-    ) -> Result<(), RecorderError> {
-        let writer = str2writer!(file, Self::file_extension())?;
-        let mut writer = GzEncoder::new(writer, Compression::default());
-        let bytes = bson::to_vec(&obj).unwrap();
-        writer.write(&bytes).unwrap();
-        writer.finish().unwrap();
-
-        Ok(())
-    }
-
-    fn load<Obj: Serialize + DeserializeOwned>(mut file: PathBuf) -> Result<Obj, RecorderError> {
-        let reader = str2reader!(file, Self::file_extension())?;
-        let reader = GzDecoder::new(reader);
-        let state =
-            bson::from_reader(reader).map_err(|err| RecorderError::Unknown(err.to_string()))?;
-
-        Ok(state)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use core::marker::PhantomData;
@@ -291,11 +255,6 @@ mod tests {
     #[test]
     fn test_can_save_and_load_pretty_json_format() {
         test_can_save_and_load::<FilePrettyJsonRecorder>()
-    }
-
-    #[test]
-    fn test_can_save_and_load_bjongz_format() {
-        test_can_save_and_load::<FileBsonGzRecorder>()
     }
 
     #[test]
