@@ -65,7 +65,9 @@ impl TensorCheck {
 
         check
     }
-
+    pub fn permute<const D: usize>(shape: &Shape<D>, permutation: [usize; D]) -> Self {
+        Self::Ok
+    }
     pub fn reshape<const D1: usize, const D2: usize>(
         original: &Shape<D1>,
         target: &Shape<D2>,

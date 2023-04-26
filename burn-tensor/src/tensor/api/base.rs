@@ -275,6 +275,10 @@ where
             dim,
         ))
     }
+    pub fn permute(self, dims: [usize; D]) -> Self {
+        check!(TensorCheck::permute(&self.shape(), dims));
+        Self::new(K::permute(self.primitive, dims))
+    }
 }
 
 impl<B, const D: usize, K> Tensor<B, D, K>
