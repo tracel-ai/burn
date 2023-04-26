@@ -61,9 +61,12 @@ where
 
     fn step(&mut self, lr: LearningRate, module: M, mut grads: GradientsParams) -> M {
         if let Some(ref g_clipper) = self.gradient_clipper {
-            grads.from_grads.iter_mut().for_each(|(_, grad)| {
-                *grad = g_clipper.clip_gradient(grad.clone());
-            });
+            grads.iter_mut().for_each(|(id, grad)| {
+                let grad_tensor: Tensor<B, D> =
+                    grad.downcast().expect("Failed to downcast gradient");
+                let clipped_grad = g_clipper.clip_gradient(grad_tensor);
+                grads.register(id.clone(), clipped_grad);
+            })
         }
 
         let mut mapper = SimpleOptimizerMapper::<M, B, O>::new(
