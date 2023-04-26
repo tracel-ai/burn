@@ -173,7 +173,7 @@ impl<B: Backend> MultiHeadAttention<B> {
         MhaOutput { weights, context }
     }
 
-    /// Applies the forward pass on the input tensors using an autoregressive cache.
+    /// Applies the forward pass using an autoregressive cache.
     ///
     /// # Shapes
     ///
@@ -181,18 +181,62 @@ impl<B: Backend> MultiHeadAttention<B> {
     /// - key: `[batch_size, seq_length_2, d_model]`
     /// - value: `[batch_size, seq_length_2, d_model]`
     /// - output: `[batch_size, seq_length_1, d_model]`
-    pub fn forward_autoregressive_inference(
+    pub fn forward_autoregressive_cache(
         &self,
         input: MhaInput<B>,
-        cache: &mut MHAAutoregressiveCache<B>,
+        cache: &mut MhaCache<B>,
     ) -> MhaOutput<B> {
-        let [batch_size, seq_length_1, d_model] = input.query.dims();
+        self.forward_inference_cache(
+            input,
+            cache,
+            |cache, tensor, param| {
+                cache.forward_autoregressive(tensor, 2, |tensor| {
+                    self.attention_linear(tensor, param)
+                })
+            },
+            |cache, tensor| {
+                cache.forward_autoregressive(tensor, 1, |tensor| self.output.forward(tensor))
+            },
+        )
+    }
 
-        let attention_linear = |cache: &mut TensorCache<B, 4>,
-                                tensor: Tensor<B, 3>,
-                                param: &nn::Linear<B>| {
-            cache.forward_autoregressive(tensor, 2, |tensor| self.attention_linear(tensor, param))
-        };
+    /// Applies the forward pass using a memory cache to compute cross-attention.
+    ///
+    /// # Shapes
+    ///
+    /// - query: `[batch_size, seq_length_1, d_model]`
+    /// - key: `[batch_size, seq_length_2, d_model]`
+    /// - value: `[batch_size, seq_length_2, d_model]`
+    /// - output: `[batch_size, seq_length_1, d_model]`
+    pub fn forward_cross_attention_cache(
+        &self,
+        input: MhaInput<B>,
+        cache: &mut MhaCache<B>,
+    ) -> MhaOutput<B> {
+        self.forward_inference_cache(
+            input,
+            cache,
+            |cache, tensor, param| {
+                cache.forward_full(tensor, |tensor| self.attention_linear(tensor, param))
+            },
+            |cache, tensor| {
+                cache.forward_autoregressive(tensor, 1, |tensor| self.output.forward(tensor))
+            },
+        )
+    }
+
+    fn forward_inference_cache<FAttn, FOut>(
+        &self,
+        input: MhaInput<B>,
+        cache: &mut MhaCache<B>,
+        mut attention_linear: FAttn,
+        mut output_linear: FOut,
+    ) -> MhaOutput<B>
+    where
+        FAttn: FnMut(&mut TensorCache<B, 4>, Tensor<B, 3>, &nn::Linear<B>) -> Tensor<B, 4>,
+        FOut: FnMut(&mut TensorCache<B, 3>, Tensor<B, 3>) -> Tensor<B, 3>,
+    {
+        let [batch_size, seq_length_1, d_model] = input.query.dims();
 
         let query = attention_linear(&mut cache.query, input.query, &self.query);
         let key = attention_linear(&mut cache.key, input.key, &self.key);
@@ -206,16 +250,9 @@ impl<B: Backend> MultiHeadAttention<B> {
             .swap_dims(1, 2)
             .reshape([batch_size, seq_length_1, d_model]);
 
-        let context = cache
-            .output
-            .forward_autoregressive(context, 1, |context| self.output.forward(context));
+        let context = output_linear(&mut cache.output, context);
 
         MhaOutput { weights, context }
-    }
-
-    /// Create an empty autoregressive cache.
-    pub fn new_autoregressive_cache(&self) -> MHAAutoregressiveCache<B> {
-        MHAAutoregressiveCache::default()
     }
 
     fn attn_scores(&self, query: Tensor<B, 4>, key: Tensor<B, 4>) -> Tensor<B, 4> {
@@ -262,15 +299,25 @@ impl<B: Backend> MultiHeadAttention<B> {
     }
 }
 
-/// Autoregressive cache for the [Multi Head Attention](MultiHeadAttention) layer.
+/// Cache for the [Multi Head Attention](MultiHeadAttention) layer.
 ///
 /// To be used during inference when decoding tokens.
-#[derive(Default)]
-pub struct MHAAutoregressiveCache<B: Backend> {
-    query: TensorCache<B, 4>,
-    key: TensorCache<B, 4>,
-    value: TensorCache<B, 4>,
-    output: TensorCache<B, 3>,
+pub struct MhaCache<B: Backend> {
+    pub query: TensorCache<B, 4>,
+    pub key: TensorCache<B, 4>,
+    pub value: TensorCache<B, 4>,
+    pub output: TensorCache<B, 3>,
+}
+
+impl<B: Backend> MhaCache<B> {
+    pub fn empty() -> Self {
+        Self {
+            query: TensorCache::empty(),
+            key: TensorCache::empty(),
+            value: TensorCache::empty(),
+            output: TensorCache::empty(),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -389,13 +436,13 @@ mod tests {
 
         let output_1 = mha.forward(input);
         let mut output_2 = Vec::new();
-        let mut cache = mha.new_autoregressive_cache();
+        let mut cache = MhaCache::empty();
 
         for i in 1..seq_length + 1 {
             let tensor = tensor.clone().index([0..batch_size, 0..i, 0..d_model]);
             let input = MhaInput::self_attn(tensor);
             let next_tok = mha
-                .forward_autoregressive_inference(input, &mut cache)
+                .forward_autoregressive_cache(input, &mut cache)
                 .context
                 .index([0..batch_size, i - 1..i, 0..d_model]);
             output_2.push(next_tok);
