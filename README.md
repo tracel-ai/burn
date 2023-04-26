@@ -12,11 +12,6 @@
 
 This library strives to serve as a comprehensive **deep learning framework**, offering exceptional flexibility and written in Rust. Our objective is to cater to both researchers and practitioners by simplifying the process of experimenting, training, and deploying models.
 
-
-
-
-
-
 <div align="left">
 
 > *__Disclamer__* _Burn is currently in active development, and there will be breaking changes. While any resulting issues are likely to be easy to fix, there are no guarantees at this stage._
@@ -34,6 +29,7 @@ __Sections__
         * [Config](#config)
         * [Learner](#learner)
 * [no_std support](#no_std-support)
+* [Contributing](#contributing)
 * [Sponsors](#sponsors)
 * [License](#license)
 
@@ -51,6 +47,7 @@ __Sections__
 
 The best way to get started with `burn` is to clone the repo and play with the [examples](#examples).
 This may also be a good idea to take a look the main [components](#components) of `burn` to get a quick overview of the fundamental building blocks.
+If you're interested in how the framework works, you can read our [architecture document](https://github.com/burn-rs/burn/tree/main/ARCHITECTURE.md).
 
 ### Examples
 
@@ -229,6 +226,11 @@ See the [burn-no-std-tests](https://github.com/burn-rs/burn/tree/main/examples/b
 Additionally `burn-core` and `burn-tensor` crates support `no_std` with `alloc` if needed to direclty include them as dependencies (the `burn` crates reexports `burn-core` and `burn-tensor`).
 Note, under the `no_std` mode, a random seed is generated during the build time if the seed is not initialized by `Backend::seed` method.
 Additionally, [spin::mutex::Mutex](https://docs.rs/spin/latest/spin/mutex/struct.Mutex.html) is used in place of [std::sync::Mutex](https://doc.rust-lang.org/std/sync/struct.Mutex.html) under the `no_std` mode.
+
+## Contributing
+
+Before contributing, please take a moment to review our [code of conduct](https://github.com/burn-rs/burn/tree/main/CODE-OF-CONDUCT.md).
+It's also highly recommended to read our [architecture document](https://github.com/burn-rs/burn/tree/main/ARCHITECTURE.md), which explains our architectural decisions.
 
 ## Sponsors
 
