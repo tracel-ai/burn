@@ -141,13 +141,8 @@ struct TransformerDecoderLayerAutoregressiveCache<B: Backend> {
 impl<B: Backend> TransformerDecoderLayerAutoregressiveCache<B> {
     fn empty() -> Self {
         Self {
-            cross_attn: MhaCache {
-                query: TensorCache::disabled(), // We don't cache the query
-                key: TensorCache::empty(),
-                value: TensorCache::empty(),
-                output: TensorCache::empty(),
-            },
-            self_attn: MhaCache::empty(),
+            cross_attn: MhaCache::autoregressive_cross_attention(),
+            self_attn: MhaCache::autoregressive(),
             pwff: TensorCache::empty(),
             norm_1: TensorCache::empty(),
             norm_2: TensorCache::empty(),
@@ -298,7 +293,7 @@ impl<B: Backend> TransformerDecoderLayer<B> {
 
         let x_1 = self
             .self_attn
-            .forward_autoregressive_cache(self_attn_input, &mut cache.self_attn);
+            .forward_cache(self_attn_input, &mut cache.self_attn);
         let x_1 = self.dropout.forward(x_1.context) + x_0;
         let x_1 = cache
             .norm_1
@@ -314,7 +309,7 @@ impl<B: Backend> TransformerDecoderLayer<B> {
 
         let x_2 = self
             .cross_attn
-            .forward_cross_attention_cache(mha_input, &mut cache.cross_attn);
+            .forward_cache(mha_input, &mut cache.cross_attn);
         let x_2 = self.dropout.forward(x_2.context) + x_1;
         let x_2 = cache
             .norm_2

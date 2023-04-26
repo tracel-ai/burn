@@ -14,10 +14,6 @@ impl<B: Backend, const D: usize> TensorCache<B, D> {
     where
         F: Fn(Tensor<B, 3>) -> Tensor<B, D>,
     {
-        if let CacheState::Disabled = self.state {
-            return func(tensor);
-        }
-
         let mut tensor_old = CacheState::Empty;
         core::mem::swap(&mut self.state, &mut tensor_old);
 
@@ -37,18 +33,10 @@ impl<B: Backend, const D: usize> TensorCache<B, D> {
         tensor_new
     }
 
-    pub(crate) fn forward_full<F, const DI: usize>(
-        &mut self,
-        tensor: Tensor<B, DI>,
-        func: F,
-    ) -> Tensor<B, D>
+    pub(crate) fn forward_full<F>(&mut self, tensor: Tensor<B, 3>, func: F) -> Tensor<B, D>
     where
-        F: Fn(Tensor<B, DI>) -> Tensor<B, D>,
+        F: Fn(Tensor<B, 3>) -> Tensor<B, D>,
     {
-        if let CacheState::Disabled = self.state {
-            return func(tensor);
-        }
-
         let mut tensor_old = CacheState::Empty;
         core::mem::swap(&mut self.state, &mut tensor_old);
 

@@ -4,7 +4,6 @@ use crate::tensor::Tensor;
 pub(crate) enum CacheState<T> {
     Value(T),
     Empty,
-    Disabled,
 }
 
 pub struct TensorCache<B: Backend, const D: usize> {
@@ -15,11 +14,6 @@ impl<B: Backend, const D: usize> TensorCache<B, D> {
     pub fn empty() -> Self {
         Self {
             state: CacheState::Empty,
-        }
-    }
-    pub fn disabled() -> Self {
-        Self {
-            state: CacheState::Disabled,
         }
     }
 }

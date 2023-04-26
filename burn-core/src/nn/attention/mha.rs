@@ -173,7 +173,7 @@ impl<B: Backend> MultiHeadAttention<B> {
         MhaOutput { weights, context }
     }
 
-    /// Applies the forward pass using an autoregressive cache.
+    /// Applies the forward pass using a cache.
     ///
     /// # Shapes
     ///
@@ -181,66 +181,18 @@ impl<B: Backend> MultiHeadAttention<B> {
     /// - key: `[batch_size, seq_length_2, d_model]`
     /// - value: `[batch_size, seq_length_2, d_model]`
     /// - output: `[batch_size, seq_length_1, d_model]`
-    pub fn forward_autoregressive_cache(
-        &self,
-        input: MhaInput<B>,
-        cache: &mut MhaCache<B>,
-    ) -> MhaOutput<B> {
-        self.forward_inference_cache(
-            input,
-            cache,
-            |cache, tensor, param| {
-                cache.forward_autoregressive(tensor, 2, |tensor| {
-                    self.attention_linear(tensor, param)
-                })
-            },
-            |cache, tensor| {
-                cache.forward_autoregressive(tensor, 1, |tensor| self.output.forward(tensor))
-            },
-        )
-    }
-
-    /// Applies the forward pass using a memory cache to compute cross-attention.
-    ///
-    /// # Shapes
-    ///
-    /// - query: `[batch_size, seq_length_1, d_model]`
-    /// - key: `[batch_size, seq_length_2, d_model]`
-    /// - value: `[batch_size, seq_length_2, d_model]`
-    /// - output: `[batch_size, seq_length_1, d_model]`
-    pub fn forward_cross_attention_cache(
-        &self,
-        input: MhaInput<B>,
-        cache: &mut MhaCache<B>,
-    ) -> MhaOutput<B> {
-        self.forward_inference_cache(
-            input,
-            cache,
-            |cache, tensor, param| {
-                cache.forward_full(tensor, |tensor| self.attention_linear(tensor, param))
-            },
-            |cache, tensor| {
-                cache.forward_autoregressive(tensor, 1, |tensor| self.output.forward(tensor))
-            },
-        )
-    }
-
-    fn forward_inference_cache<FAttn, FOut>(
-        &self,
-        input: MhaInput<B>,
-        cache: &mut MhaCache<B>,
-        mut attention_linear: FAttn,
-        mut output_linear: FOut,
-    ) -> MhaOutput<B>
-    where
-        FAttn: FnMut(&mut TensorCache<B, 4>, Tensor<B, 3>, &nn::Linear<B>) -> Tensor<B, 4>,
-        FOut: FnMut(&mut TensorCache<B, 3>, Tensor<B, 3>) -> Tensor<B, 3>,
-    {
+    pub fn forward_cache(&self, input: MhaInput<B>, cache: &mut MhaCache<B>) -> MhaOutput<B> {
         let [batch_size, seq_length_1, d_model] = input.query.dims();
 
-        let query = attention_linear(&mut cache.query, input.query, &self.query);
-        let key = attention_linear(&mut cache.key, input.key, &self.key);
-        let value = attention_linear(&mut cache.value, input.value, &self.value);
+        let query = cache
+            .query
+            .forward(input.query, |t| self.attention_linear(t, &self.query));
+        let key = cache
+            .key
+            .forward(input.key, |t| self.attention_linear(t, &self.key));
+        let value = cache
+            .value
+            .forward(input.value, |t| self.attention_linear(t, &self.value));
 
         let attn_scores = self.attn_scores(query, key);
         let weights = self.attn_weights(attn_scores, input.mask_pad, input.mask_attn);
@@ -250,7 +202,7 @@ impl<B: Backend> MultiHeadAttention<B> {
             .swap_dims(1, 2)
             .reshape([batch_size, seq_length_1, d_model]);
 
-        let context = output_linear(&mut cache.output, context);
+        let context = cache.output.forward(context, |t| self.output.forward(t));
 
         MhaOutput { weights, context }
     }
@@ -303,19 +255,51 @@ impl<B: Backend> MultiHeadAttention<B> {
 ///
 /// To be used during inference when decoding tokens.
 pub struct MhaCache<B: Backend> {
-    pub query: TensorCache<B, 4>,
-    pub key: TensorCache<B, 4>,
-    pub value: TensorCache<B, 4>,
-    pub output: TensorCache<B, 3>,
+    query: MhaLinearCache<B, 4>,
+    key: MhaLinearCache<B, 4>,
+    value: MhaLinearCache<B, 4>,
+    output: MhaLinearCache<B, 3>,
+}
+
+enum MhaLinearCache<B: Backend, const D: usize> {
+    Autoregressive(TensorCache<B, D>, usize),
+    Full(TensorCache<B, D>),
 }
 
 impl<B: Backend> MhaCache<B> {
-    pub fn empty() -> Self {
+    /// Initialize a cache for autoregressive inference.
+    pub fn autoregressive() -> Self {
         Self {
-            query: TensorCache::empty(),
-            key: TensorCache::empty(),
-            value: TensorCache::empty(),
-            output: TensorCache::empty(),
+            query: MhaLinearCache::Autoregressive(TensorCache::empty(), 2),
+            key: MhaLinearCache::Autoregressive(TensorCache::empty(), 2),
+            value: MhaLinearCache::Autoregressive(TensorCache::empty(), 2),
+            output: MhaLinearCache::Autoregressive(TensorCache::empty(), 1),
+        }
+    }
+
+    /// Initialize a cache for autoregressive inference, but with a fixed memory used for keys and
+    /// values (cross-attention).
+    pub fn autoregressive_cross_attention() -> Self {
+        Self {
+            query: MhaLinearCache::Autoregressive(TensorCache::empty(), 2),
+            key: MhaLinearCache::Full(TensorCache::empty()),
+            value: MhaLinearCache::Full(TensorCache::empty()),
+            output: MhaLinearCache::Autoregressive(TensorCache::empty(), 1),
+        }
+    }
+}
+
+impl<B: Backend, const D: usize> MhaLinearCache<B, D> {
+    pub fn forward<F: Fn(Tensor<B, 3>) -> Tensor<B, D>>(
+        &mut self,
+        tensor: Tensor<B, 3>,
+        func: F,
+    ) -> Tensor<B, D> {
+        match self {
+            MhaLinearCache::Autoregressive(cache, dim) => {
+                cache.forward_autoregressive(tensor, *dim, func)
+            }
+            MhaLinearCache::Full(cache) => cache.forward_full(tensor, func),
         }
     }
 }
@@ -436,15 +420,16 @@ mod tests {
 
         let output_1 = mha.forward(input);
         let mut output_2 = Vec::new();
-        let mut cache = MhaCache::empty();
+        let mut cache = MhaCache::autoregressive();
 
         for i in 1..seq_length + 1 {
             let tensor = tensor.clone().index([0..batch_size, 0..i, 0..d_model]);
             let input = MhaInput::self_attn(tensor);
-            let next_tok = mha
-                .forward_autoregressive_cache(input, &mut cache)
-                .context
-                .index([0..batch_size, i - 1..i, 0..d_model]);
+            let next_tok = mha.forward_cache(input, &mut cache).context.index([
+                0..batch_size,
+                i - 1..i,
+                0..d_model,
+            ]);
             output_2.push(next_tok);
         }
 

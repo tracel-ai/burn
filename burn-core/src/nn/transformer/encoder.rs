@@ -263,9 +263,7 @@ impl<B: Backend> TransformerEncoderLayer<B> {
             input_mhs = input_mhs.mask_attn(mask_attn);
         }
 
-        let x_1 = self
-            .mha
-            .forward_autoregressive_cache(input_mhs, &mut cache.mha);
+        let x_1 = self.mha.forward_cache(input_mhs, &mut cache.mha);
         let x_1 = self.dropout.forward(x_1.context) + input;
         let x_1 = cache
             .norm_1
@@ -296,7 +294,7 @@ struct TransformerEncoderLayerAutoregressiveCache<B: Backend> {
 impl<B: Backend> TransformerEncoderLayerAutoregressiveCache<B> {
     fn empty() -> Self {
         Self {
-            mha: MhaCache::empty(),
+            mha: MhaCache::autoregressive(),
             pwff: TensorCache::empty(),
             norm_1: TensorCache::empty(),
             norm_2: TensorCache::empty(),
