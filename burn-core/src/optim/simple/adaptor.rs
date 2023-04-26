@@ -1,5 +1,6 @@
 use super::{record::AdaptorRecord, SimpleOptimizer};
 use crate::{
+    grad_clipper::GradientClipper,
     module::{ADModule, ModuleMapper, ParamId},
     optim::{GradientsParams, Optimizer},
     LearningRate,
@@ -19,6 +20,7 @@ where
     optim: O,
     records: HashMap<ParamId, AdaptorRecord<O, B::InnerBackend>>,
     module: PhantomData<M>,
+    gradient_clipper: Option<GradientClipper>,
 }
 
 impl<O, B, M> From<O> for OptimizerAdaptor<O, M, B>
@@ -32,7 +34,20 @@ where
             optim,
             records: HashMap::new(),
             module: PhantomData::default(),
+            gradient_clipper: None,
         }
+    }
+}
+
+impl<O, M, B> OptimizerAdaptor<O, M, B>
+where
+    O: SimpleOptimizer<B::InnerBackend>,
+    M: ADModule<B>,
+    B: ADBackend,
+{
+    pub fn with_gradient_clipper(mut self, gradient_clipper: GradientClipper) -> Self {
+        self.gradient_clipper = Some(gradient_clipper);
+        self
     }
 }
 
@@ -45,8 +60,19 @@ where
     type Record = HashMap<ParamId, AdaptorRecord<O, B::InnerBackend>>;
 
     fn step(&mut self, lr: LearningRate, module: M, mut grads: GradientsParams) -> M {
-        let mut mapper =
-            SimpleOptimizerMapper::<M, B, O>::new(&self.optim, &mut self.records, &mut grads, lr);
+        if let Some(ref g_clipper) = self.gradient_clipper {
+            grads.from_grads.iter_mut().for_each(|(_, grad)| {
+                *grad = g_clipper.clip_gradient(grad.clone());
+            });
+        }
+
+        let mut mapper = SimpleOptimizerMapper::<M, B, O>::new(
+            &self.optim,
+            &mut self.records,
+            &mut grads,
+            lr,
+            self.gradient_clipper,
+        );
         module.map(&mut mapper)
     }
 
@@ -71,7 +97,8 @@ where
     records: &'a mut HashMap<ParamId, AdaptorRecord<O, B::InnerBackend>>,
     grads: &'a mut GradientsParams,
     lr: LearningRate,
-    phatom: PhantomData<M>,
+    phantom: PhantomData<M>,
+    gradient_clipper: Option<GradientClipper>,
 }
 
 impl<'a, M, B, O> ModuleMapper<B> for SimpleOptimizerMapper<'a, M, B, O>
@@ -93,6 +120,7 @@ where
                 tensor.inner(),
                 grad,
                 record.map(|record| O::to_device(record.into_state(), &device)),
+                self.gradient_clipper,
             );
 
             if let Some(state) = state {
