@@ -290,4 +290,8 @@ pub trait TensorOps<B: Backend> {
         tensor: B::TensorPrimitive<D>,
         dims: Vec<usize>,
     ) -> B::TensorPrimitive<D>;
+    fn permute<const D: usize>(
+        tensor: B::TensorPrimitive<D>,
+        dims: [usize;D],
+    ) -> B::TensorPrimitive<D>;
 }

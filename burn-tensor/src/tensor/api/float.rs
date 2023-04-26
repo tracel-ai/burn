@@ -356,11 +356,7 @@ where
         Self::new(B::flip(self.primitive.clone(), dims))
     }
     pub fn permute(&self, dims: [usize; D]) -> Self {
-        let mut tensor = self.clone();
-        for (current, new) in dims.iter().enumerate() {
-            tensor = tensor.swap_dims(current, *new)
-        }
-        tensor
+        Self::new(B::permute(self.primitive.clone(), dims))
     }
 }
 

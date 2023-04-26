@@ -446,7 +446,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     ) -> TchTensor<E, D> {
         let size = size.iter().map(|x| *x as i64).collect::<Vec<_>>();
         tensor.unary_ops(
-            | tensor| tensor.expand(&size, implicit),
+            |tensor| tensor.expand(&size, implicit),
             |tensor| tensor.expand(&size, implicit),
         )
     }
@@ -478,5 +478,15 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     fn flip<const D: usize>(tensor: TchTensor<E, D>, dims: Vec<usize>) -> TchTensor<E, D> {
         let dims = dims.iter().map(|x| *x as i64).collect::<Vec<_>>();
         tensor.unary_ops(|tensor| tensor.flip(&dims), |tensor| tensor.flip(&dims))
+    }
+    fn permute<const D: usize>(
+        tensor: <TchBackend<E> as Backend>::TensorPrimitive<D>,
+        dims: [usize; D],
+    ) -> <TchBackend<E> as Backend>::TensorPrimitive<D> {
+        let dims = dims.iter().map(|x| *x as i64).collect::<Vec<_>>();
+        tensor.unary_ops(
+            |tensor| tensor.permute(&dims),
+            |tensor| tensor.permute(&dims),
+        )
     }
 }

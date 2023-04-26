@@ -495,6 +495,12 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
     fn flip<const D: usize>(tensor: NdArrayTensor<E, D>, dims: Vec<usize>) -> NdArrayTensor<E, D> {
         unimplemented!()
     }
+    fn permute<const D: usize>(
+        tensor: <NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
+        dims: [usize; D],
+    ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D> {
+        unimplemented!()
+    }
 }
 
 fn arg<E: FloatNdArrayElement, F, const D: usize>(

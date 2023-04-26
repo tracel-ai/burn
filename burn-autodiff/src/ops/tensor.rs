@@ -1366,4 +1366,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     fn flip<const D: usize>(tensor: ADTensor<B, D>, dims: Vec<usize>) -> ADTensor<B, D> {
         unimplemented!()
     }
+    fn permute<const D: usize>(
+        tensor: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        dims: [usize; D],
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
+        unimplemented!()
+    }
 }
