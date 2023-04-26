@@ -388,16 +388,19 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         tensor: TchTensor<E, D>,
         dim: usize,
     ) -> Vec<TchTensor<E, D2>> {
-        unimplemented!()
+        TchOps::unbind(tensor, dim)
     }
     fn cumsum<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<E, D> {
-        unimplemented!()
+        tensor.unary_ops(
+            |mut tensor| tensor.cumsum_(dim as i64, E::KIND),
+            |tensor| tensor.cumsum(dim as i64, E::KIND),
+        )
     }
     fn stack<const D: usize, const D2: usize>(
         tensors: Vec<TchTensor<E, D>>,
         dim: usize,
     ) -> TchTensor<E, D2> {
-        unimplemented!()
+        TchOps::stack(tensors, dim)
     }
     fn narrow<const D: usize>(
         tensor: TchTensor<E, D>,
@@ -405,7 +408,10 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         start: usize,
         length: usize,
     ) -> TchTensor<E, D> {
-        unimplemented!()
+        tensor.unary_ops(
+            |tensor| tensor.narrow(dim as i64, start as i64, length as i64),
+            |tensor| tensor.narrow(dim as i64, start as i64, length as i64),
+        )
     }
     fn upsample_linear1d<const D: usize, const D2: usize>(
         tensor: TchTensor<E, D>,
@@ -413,7 +419,12 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         align_corners: bool,
         scales: impl Into<Option<f64>>,
     ) -> TchTensor<E, D2> {
-        unimplemented!()
+        let out_i64 = output_size.iter().map(|x| *x as i64).collect::<Vec<_>>();
+        let scales = scales.into();
+        tensor.unary_ops(
+            |tensor| tensor.upsample_linear1d(&out_i64, align_corners, scales),
+            |tensor| tensor.upsample_linear1d(&out_i64, align_corners, scales),
+        )
     }
     fn pad<const D: usize>(
         tensor: TchTensor<E, D>,
@@ -421,14 +432,23 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         mode: &str,
         value: impl Into<Option<f64>>,
     ) -> TchTensor<E, D> {
-        unimplemented!()
+        let pad = pad.iter().map(|x| *x as i64).collect::<Vec<_>>();
+        let value = value.into();
+        tensor.unary_ops(
+            |tensor| tensor.pad(&pad, mode, value),
+            |tensor| tensor.pad(&pad, mode, value),
+        )
     }
     fn expand<const D: usize>(
         tensor: TchTensor<E, D>,
         size: Vec<usize>,
         implicit: bool,
     ) -> TchTensor<E, D> {
-        unimplemented!()
+        let size = size.iter().map(|x| *x as i64).collect::<Vec<_>>();
+        tensor.unary_ops(
+            | tensor| tensor.expand(&size, implicit),
+            |tensor| tensor.expand(&size, implicit),
+        )
     }
     fn upsample_bilinear2d<const D: usize, const D2: usize>(
         tensor: TchTensor<E, D>,
@@ -437,16 +457,26 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         scales_h: impl Into<Option<f64>>,
         scales_w: impl Into<Option<f64>>,
     ) -> TchTensor<E, D2> {
-        unimplemented!()
+        let output_size = output_size.iter().map(|x| *x as i64).collect::<Vec<_>>();
+        let scales_h = scales_h.into();
+        let scales_w = scales_w.into();
+        tensor.unary_ops(
+            |tensor| tensor.upsample_bilinear2d(&output_size, align_corners, scales_h, scales_w),
+            |tensor| tensor.upsample_bilinear2d(&output_size, align_corners, scales_h, scales_w),
+        )
     }
     fn select<const D: usize, const D2: usize>(
         tensor: TchTensor<E, D>,
         dim: i64,
         index: i64,
     ) -> TchTensor<E, D2> {
-        unimplemented!()
+        tensor.unary_ops(
+            |tensor| tensor.select(dim as i64, index as i64),
+            |tensor| tensor.select(dim as i64, index as i64),
+        )
     }
     fn flip<const D: usize>(tensor: TchTensor<E, D>, dims: Vec<usize>) -> TchTensor<E, D> {
-        unimplemented!()
+        let dims = dims.iter().map(|x| *x as i64).collect::<Vec<_>>();
+        tensor.unary_ops(|tensor| tensor.flip(&dims), |tensor| tensor.flip(&dims))
     }
 }

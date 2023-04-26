@@ -117,6 +117,26 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
 
         TchTensor::new(tensor)
     }
+    pub fn stack<const D: usize, const D2: usize>(
+        tensors: Vec<TchTensor<E, D>>,
+        dim: usize,
+    ) -> TchTensor<E, D2> {
+        let tensors: Vec<tch::Tensor> = tensors
+            .into_iter()
+            .map(|t| t.tensor.shallow_clone())
+            .collect();
+        let tensor = tch::Tensor::stack(&tensors, dim as i64);
+
+        TchTensor::new(tensor)
+    }
+    pub fn unbind<const D: usize, const D2: usize>(
+        tensor: TchTensor<E, D>,
+        dim: usize,
+    ) -> Vec<TchTensor<E, D2>> {
+        let tensor = tensor.tensor.shallow_clone();
+        let tensors = tensor.unbind(dim as i64);
+        tensors.iter().map(|t| TchTensor::new(t.copy())).collect()
+    }
 
     pub fn equal<const D: usize>(lhs: TchTensor<E, D>, rhs: TchTensor<E, D>) -> TchTensor<bool, D> {
         TchTensor::binary_ops_tensor(
