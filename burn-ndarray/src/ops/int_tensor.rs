@@ -311,4 +311,10 @@ impl<E: FloatNdArrayElement> IntTensorOps<NdArrayBackend<E>> for NdArrayBackend<
     ) -> NdArrayTensor<i64, D1> {
         NdArrayMathOps::index_select_dim_assign(tensor, dim, indexes, value)
     }
+    fn int_permute<const D: usize>(
+            tensor: <NdArrayBackend<E> as Backend>::IntTensorPrimitive<D>,
+            dims: [usize;D],
+        ) -> <NdArrayBackend<E> as Backend>::IntTensorPrimitive<D> {
+        unimplemented!()
+    }
 }

@@ -117,4 +117,10 @@ impl<E: FloatNdArrayElement> BoolTensorOps<NdArrayBackend<E>> for NdArrayBackend
         let array = lhs.array.mapv(|a| a == rhs).into_shared();
         NdArrayTensor { array }
     }
+    fn bool_permute<const D: usize>(
+        tensor: <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D>,
+        dims: [usize; D],
+    ) -> <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D> {
+        unimplemented!()
+    }
 }

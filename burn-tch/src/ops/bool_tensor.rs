@@ -102,4 +102,14 @@ impl<E: TchElement> BoolTensorOps<TchBackend<E>> for TchBackend<E> {
         let tensor = tensor.tensor.to_kind(E::KIND);
         TchTensor::new(tensor)
     }
+    fn bool_permute<const D: usize>(
+        tensor: <TchBackend<E> as Backend>::BoolTensorPrimitive<D>,
+        dims: [usize; D],
+    ) -> <TchBackend<E> as Backend>::BoolTensorPrimitive<D> {
+        let dims = dims.iter().map(|x| *x as i64).collect::<Vec<_>>();
+        tensor.unary_ops(
+            |tensor| tensor.permute(&dims),
+            |tensor| tensor.permute(&dims),
+        )
+    }
 }

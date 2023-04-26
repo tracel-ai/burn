@@ -80,4 +80,10 @@ impl<B: Backend> BoolTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> 
     fn bool_equal_elem<const D: usize>(lhs: BoolTensor<B, D>, rhs: bool) -> BoolTensor<B, D> {
         B::bool_equal_elem(lhs, rhs)
     }
+    fn bool_permute<const D: usize>(
+            tensor: <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D>,
+            dims: [usize; D],
+        ) -> <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D> {
+        unimplemented!()
+    }
 }

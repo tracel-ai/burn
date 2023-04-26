@@ -355,9 +355,7 @@ where
     pub fn flip(&self, dims: Vec<usize>) -> Self {
         Self::new(B::flip(self.primitive.clone(), dims))
     }
-    pub fn permute(&self, dims: [usize; D]) -> Self {
-        Self::new(B::permute(self.primitive.clone(), dims))
-    }
+    
 }
 
 impl<const D: usize, B: ADBackend> Tensor<B, D> {

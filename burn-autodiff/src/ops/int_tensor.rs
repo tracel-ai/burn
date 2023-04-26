@@ -242,4 +242,10 @@ impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     ) -> <ADBackendDecorator<B> as Backend>::IntTensorPrimitive<D> {
         B::int_mask_fill(tensor, mask, value)
     }
+    fn int_permute<const D: usize>(
+            tensor: <ADBackendDecorator<B> as Backend>::IntTensorPrimitive<D>,
+            dims: [usize;D],
+        ) -> <ADBackendDecorator<B> as Backend>::IntTensorPrimitive<D> {
+        unimplemented!()
+    }
 }

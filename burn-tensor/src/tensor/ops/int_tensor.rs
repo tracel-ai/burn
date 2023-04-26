@@ -183,4 +183,8 @@ pub trait IntTensorOps<B: Backend> {
         tensor: B::IntTensorPrimitive<D>,
         dim: usize,
     ) -> B::IntTensorPrimitive<D>;
+    fn int_permute<const D: usize>(
+        tensor: B::IntTensorPrimitive<D>,
+        dims: [usize;D],
+    ) -> B::IntTensorPrimitive<D>;
 }

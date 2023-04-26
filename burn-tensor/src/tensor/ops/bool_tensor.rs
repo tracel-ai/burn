@@ -77,4 +77,8 @@ pub trait BoolTensorOps<B: Backend> {
         lhs: B::BoolTensorPrimitive<D>,
         rhs: bool,
     ) -> B::BoolTensorPrimitive<D>;
+    fn bool_permute<const D: usize>(
+        tensor: B::BoolTensorPrimitive<D>,
+        dims: [usize; D],
+    ) -> B::BoolTensorPrimitive<D>;
 }

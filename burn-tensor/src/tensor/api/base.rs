@@ -404,6 +404,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     fn elem_type_name() -> &'static str {
         core::any::type_name::<Self::Elem>()
     }
+    fn permute<const D: usize>(tensor: Self::Primitive<D>, dims: [usize; D]) -> Self::Primitive<D>;
 }
 
 impl<B: Backend> BasicOps<B> for Float {
@@ -481,6 +482,9 @@ impl<B: Backend> BasicOps<B> for Float {
 
     fn equal_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool> {
         Tensor::new(B::equal_elem(lhs, rhs))
+    }
+    fn permute<const D: usize>(tensor: Self::Primitive<D>, dims: [usize; D]) -> Self::Primitive<D> {
+        B::permute(tensor, dims)
     }
 }
 
@@ -560,6 +564,9 @@ impl<B: Backend> BasicOps<B> for Int {
     fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D> {
         B::int_cat(vectors, dim)
     }
+    fn permute<const D: usize>(tensor: Self::Primitive<D>, dims: [usize; D]) -> Self::Primitive<D> {
+        B::int_permute(tensor, dims)
+    }
 }
 
 impl<B: Backend> BasicOps<B> for Bool {
@@ -637,5 +644,8 @@ impl<B: Backend> BasicOps<B> for Bool {
 
     fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D> {
         B::bool_cat(vectors, dim)
+    }
+    fn permute<const D: usize>(tensor: Self::Primitive<D>, dims: [usize; D]) -> Self::Primitive<D> {
+        B::bool_permute(tensor, dims)
     }
 }
