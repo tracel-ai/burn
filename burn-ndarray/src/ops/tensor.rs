@@ -2,6 +2,7 @@
 use alloc::vec::Vec;
 use core::cmp::Ordering;
 use core::ops::Range;
+use ndarray::{Array, Axis};
 
 // Current crate
 use super::{matmul::matmul, NdArrayMathOps, NdArrayOps};
@@ -434,16 +435,24 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         tensor: NdArrayTensor<E, D>,
         dim: usize,
     ) -> Vec<NdArrayTensor<E, D2>> {
-        unimplemented!()
+        let array: Vec<_> = tensor
+            .array
+            .axis_chunks_iter(Axis(dim), 1)
+            .map(|a| NdArrayTensor::new(a.to_owned().into()))
+            .collect();
+        array
     }
     fn cumsum<const D: usize>(tensor: NdArrayTensor<E, D>, dim: usize) -> NdArrayTensor<E, D> {
-        unimplemented!()
+        let mut array = tensor.array.to_owned();
+        array.accumulate_axis_inplace(Axis(dim), |x, sum| *sum += *x);
+        tensor
     }
     fn stack<const D: usize, const D2: usize>(
         tensors: Vec<NdArrayTensor<E, D>>,
         dim: usize,
     ) -> NdArrayTensor<E, D2> {
-        unimplemented!()
+        let arrays: Vec<_> = tensors.iter().map(|t| t.array.view()).collect();
+        NdArrayTensor::new(ndarray::stack(Axis(dim), &arrays).unwrap().into())
     }
     fn narrow<const D: usize>(
         tensor: NdArrayTensor<E, D>,
@@ -459,7 +468,33 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         align_corners: bool,
         scales: impl Into<Option<f64>>,
     ) -> NdArrayTensor<E, D2> {
-        unimplemented!()
+        let tensor = tensor.array;
+        let input_size = tensor.len();
+        let scale = scales
+            .into()
+            .unwrap_or(output_size[0] as f64 / input_size as f64);
+        let mut output = Array::zeros(output_size);
+
+        for i in 0..output_size[0] {
+            let x = if align_corners {
+                i as f64 * (input_size - 1) as f64 / (output_size[0] - 1) as f64
+            } else {
+                i as f64 / scale
+            };
+
+            let idx = x.floor() as usize;
+            let w = x.fract();
+
+            if idx >= input_size - 1 {
+                output[i] = tensor[input_size - 1];
+            } else {
+                output[i] = E::from_elem(
+                    tensor[idx].elem::<f64>() * (1.0 - w) + tensor[idx + 1].elem::<f64>() * w,
+                )
+            }
+        }
+
+        NdArrayTensor::new(output.into_shared())
     }
     fn pad<const D: usize>(
         tensor: NdArrayTensor<E, D>,
@@ -493,13 +528,14 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         unimplemented!()
     }
     fn flip<const D: usize>(tensor: NdArrayTensor<E, D>, dims: Vec<usize>) -> NdArrayTensor<E, D> {
-        unimplemented!()
+        NdArrayTensor::new(tensor.array.reversed_axes())
     }
     fn permute<const D: usize>(
         tensor: <NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
         dims: [usize; D],
     ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D> {
-        unimplemented!()
+        let array = tensor.array.permuted_axes(dims.to_vec());
+        NdArrayTensor::new(array)
     }
 }
 

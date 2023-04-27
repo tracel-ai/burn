@@ -315,6 +315,7 @@ impl<E: FloatNdArrayElement> IntTensorOps<NdArrayBackend<E>> for NdArrayBackend<
             tensor: <NdArrayBackend<E> as Backend>::IntTensorPrimitive<D>,
             dims: [usize;D],
         ) -> <NdArrayBackend<E> as Backend>::IntTensorPrimitive<D> {
-        unimplemented!()
+        let array = tensor.array.permuted_axes(dims.to_vec());
+        NdArrayTensor::new(array)
     }
 }

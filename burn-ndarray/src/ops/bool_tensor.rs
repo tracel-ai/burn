@@ -121,6 +121,7 @@ impl<E: FloatNdArrayElement> BoolTensorOps<NdArrayBackend<E>> for NdArrayBackend
         tensor: <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D>,
         dims: [usize; D],
     ) -> <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D> {
-        unimplemented!()
+        let array = tensor.array.permuted_axes(dims.to_vec());
+        NdArrayTensor::new(array)
     }
 }
