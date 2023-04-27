@@ -355,7 +355,14 @@ where
     pub fn flip(&self, dims: Vec<usize>) -> Self {
         Self::new(B::flip(self.primitive.clone(), dims))
     }
-    
+    pub fn einsum<const D2: usize>(equation: &str, tensors: Vec<Tensor<B, D>>) -> Tensor<B, D2> {
+        let tensors = tensors.iter().map(|t| t.primitive.clone()).collect();
+        Tensor::new(B::einsum(equation, tensors))
+    }
+    pub fn index_tch<const D2: usize>(&self, indices: Vec<Tensor<B, D>>) -> Tensor<B, D2> {
+        let indices = indices.iter().map(|t| t.primitive.clone()).collect();
+        Tensor::new(B::index_tch(self.primitive.clone(), indices))
+    }
 }
 
 impl<const D: usize, B: ADBackend> Tensor<B, D> {

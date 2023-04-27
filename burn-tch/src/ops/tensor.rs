@@ -489,4 +489,25 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
             |tensor| tensor.permute(&dims),
         )
     }
+    fn einsum<const D: usize, const D2: usize>(
+        equation: &str,
+        tensors: Vec<<TchBackend<E> as Backend>::TensorPrimitive<D>>,
+    ) -> <TchBackend<E> as Backend>::TensorPrimitive<D2> {
+        let tensors = tensors
+            .into_iter()
+            .map(|tensor| tensor.tensor)
+            .collect::<Vec<_>>();
+        let res = tch::Tensor::einsum(equation, tensors.as_slice(), None);
+        TchTensor::new(res)
+    }
+    fn index_tch<const D: usize, const D2: usize>(
+        tensor: <TchBackend<E> as Backend>::TensorPrimitive<D>,
+        indices: Vec<<TchBackend<E> as Backend>::TensorPrimitive<D>>,
+    ) -> <TchBackend<E> as Backend>::TensorPrimitive<D2> {
+        let indices: Vec<_> = indices.iter().map(|x| Some(x.tensor.copy())).collect();
+        tensor.unary_ops(
+            |tensor| tensor.index(&indices),
+            |tensor| tensor.index(&indices),
+        )
+    }
 }

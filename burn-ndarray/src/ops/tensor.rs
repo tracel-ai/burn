@@ -537,6 +537,18 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         let array = tensor.array.permuted_axes(dims.to_vec());
         NdArrayTensor::new(array)
     }
+    fn einsum<const D: usize, const D2: usize>(
+            equation: &str,
+            tensors: Vec<<NdArrayBackend<E> as Backend>::TensorPrimitive<D>>,
+        ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D2> {
+        unimplemented!()
+    }
+    fn index_tch<const D: usize, const D2: usize>(
+            tensor: <NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
+            indices: Vec<<NdArrayBackend<E> as Backend>::TensorPrimitive<D>>,
+        ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D2> {
+        unimplemented!()
+    }
 }
 
 fn arg<E: FloatNdArrayElement, F, const D: usize>(

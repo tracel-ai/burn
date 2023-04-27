@@ -1398,6 +1398,18 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
         unimplemented!()
     }
+    fn einsum<const D: usize, const D2: usize>(
+        equation: &str,
+        tensors: Vec<<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>>,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D2> {
+        unimplemented!()
+    }
+    fn index_tch<const D: usize, const D2: usize>(
+        tensor: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        indices: Vec<<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>>,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D2> {
+        unimplemented!()
+    }
 }
 
 /// Make sure the grad tensor has the given shape.

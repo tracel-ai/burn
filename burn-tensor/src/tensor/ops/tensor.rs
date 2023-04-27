@@ -292,6 +292,14 @@ pub trait TensorOps<B: Backend> {
     ) -> B::TensorPrimitive<D>;
     fn permute<const D: usize>(
         tensor: B::TensorPrimitive<D>,
-        dims: [usize;D],
+        dims: [usize; D],
     ) -> B::TensorPrimitive<D>;
+    fn einsum<const D: usize, const D2: usize>(
+        equation: &str,
+        tensors: Vec<B::TensorPrimitive<D>>,
+    ) -> B::TensorPrimitive<D2>;
+    fn index_tch<const D: usize, const D2: usize>(
+        tensor: B::TensorPrimitive<D>,
+        indices: Vec<B::TensorPrimitive<D>>,
+    ) -> B::TensorPrimitive<D2>;
 }
