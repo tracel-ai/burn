@@ -294,10 +294,11 @@ pub trait TensorOps<B: Backend> {
         tensor: B::TensorPrimitive<D>,
         dims: [usize; D],
     ) -> B::TensorPrimitive<D>;
-    fn einsum<const D: usize, const D2: usize>(
+    fn einsum<const D: usize, const D2: usize, const D3: usize>(
         equation: &str,
-        tensors: Vec<B::TensorPrimitive<D>>,
-    ) -> B::TensorPrimitive<D2>;
+        tensor1: B::TensorPrimitive<D>,
+        tensor2: B::TensorPrimitive<D2>,
+    ) -> B::TensorPrimitive<D3>;
     fn index_tch<const D: usize, const D2: usize>(
         tensor: B::TensorPrimitive<D>,
         indices: Vec<B::IntTensorPrimitive<D>>,

@@ -1398,10 +1398,11 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
         unimplemented!()
     }
-    fn einsum<const D: usize, const D2: usize>(
+    fn einsum<const D: usize, const D2: usize, const D3: usize>(
         equation: &str,
-        tensors: Vec<<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>>,
-    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D2> {
+        tensor1: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        tensor2: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D2>,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D3> {
         unimplemented!()
     }
     fn index_tch<const D: usize, const D2: usize>(
