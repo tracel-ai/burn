@@ -3,7 +3,7 @@ use burn_tensor::Bool;
 
 use crate::{
     self as burn,
-    nn::{attention::MHAAutoregressiveCache, cache::TensorCache},
+    nn::{attention::MhaCache, cache::TensorCache},
 };
 
 use super::{PositionWiseFeedForward, PositionWiseFeedForwardConfig};
@@ -263,9 +263,7 @@ impl<B: Backend> TransformerEncoderLayer<B> {
             input_mhs = input_mhs.mask_attn(mask_attn);
         }
 
-        let x_1 = self
-            .mha
-            .forward_autoregressive_inference(input_mhs, &mut cache.mha);
+        let x_1 = self.mha.forward_cache(input_mhs, &mut cache.mha);
         let x_1 = self.dropout.forward(x_1.context) + input;
         let x_1 = cache
             .norm_1
@@ -286,17 +284,21 @@ impl<B: Backend> TransformerEncoderLayer<B> {
     }
 }
 
-#[derive(Default)]
 struct TransformerEncoderLayerAutoregressiveCache<B: Backend> {
-    mha: MHAAutoregressiveCache<B>,
+    mha: MhaCache<B>,
     pwff: TensorCache<B, 3>,
     norm_1: TensorCache<B, 3>,
     norm_2: TensorCache<B, 3>,
 }
 
 impl<B: Backend> TransformerEncoderLayerAutoregressiveCache<B> {
-    fn new() -> Self {
-        Self::default()
+    fn empty() -> Self {
+        Self {
+            mha: MhaCache::autoregressive(),
+            pwff: TensorCache::empty(),
+            norm_1: TensorCache::empty(),
+            norm_2: TensorCache::empty(),
+        }
     }
 }
 
@@ -311,7 +313,7 @@ impl<B: Backend> TransformerEncoderAutoregressiveCache<B> {
     fn empty(num_layers: usize) -> Self {
         Self {
             layers: (0..num_layers)
-                .map(|_| TransformerEncoderLayerAutoregressiveCache::new())
+                .map(|_| TransformerEncoderLayerAutoregressiveCache::empty())
                 .collect(),
         }
     }
