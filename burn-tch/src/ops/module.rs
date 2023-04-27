@@ -106,6 +106,46 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
         TchTensor::new(tensor)
     }
 
+    fn avg_pool2d(
+        x: TchTensor<E, 4>,
+        kernel_size: [usize; 2],
+        stride: [usize; 2],
+        padding: [usize; 2],
+    ) -> TchTensor<E, 4> {
+        let tensor = tch::Tensor::avg_pool2d(
+            &x.tensor,
+            &[kernel_size[0] as i64, kernel_size[1] as i64],
+            &[stride[0] as i64, stride[1] as i64],
+            &[padding[0] as i64, padding[1] as i64],
+            false,
+            true,
+            None,
+        );
+
+        TchTensor::new(tensor)
+    }
+
+    fn avg_pool2d_backward(
+        x: TchTensor<E, 4>,
+        grad: TchTensor<E, 4>,
+        kernel_size: [usize; 2],
+        stride: [usize; 2],
+        padding: [usize; 2],
+    ) -> TchTensor<E, 4> {
+        let tensor = tch::Tensor::avg_pool2d_backward(
+            &x.tensor,
+            &grad.tensor,
+            &[kernel_size[0] as i64, kernel_size[1] as i64],
+            &[stride[0] as i64, stride[1] as i64],
+            &[padding[0] as i64, padding[1] as i64],
+            false,
+            true,
+            None,
+        );
+
+        TchTensor::new(tensor)
+    }
+
     fn max_pool2d(
         x: TchTensor<E, 4>,
         kernel_size: [usize; 2],
