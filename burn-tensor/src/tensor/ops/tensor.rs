@@ -300,6 +300,6 @@ pub trait TensorOps<B: Backend> {
     ) -> B::TensorPrimitive<D2>;
     fn index_tch<const D: usize, const D2: usize>(
         tensor: B::TensorPrimitive<D>,
-        indices: Vec<B::TensorPrimitive<D>>,
+        indices: Vec<B::IntTensorPrimitive<D>>,
     ) -> B::TensorPrimitive<D2>;
 }

@@ -502,7 +502,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     }
     fn index_tch<const D: usize, const D2: usize>(
         tensor: <TchBackend<E> as Backend>::TensorPrimitive<D>,
-        indices: Vec<<TchBackend<E> as Backend>::TensorPrimitive<D>>,
+        indices: Vec<<TchBackend<E> as Backend>::IntTensorPrimitive<D>>,
     ) -> <TchBackend<E> as Backend>::TensorPrimitive<D2> {
         let indices: Vec<_> = indices.iter().map(|x| Some(x.tensor.copy())).collect();
         tensor.unary_ops(

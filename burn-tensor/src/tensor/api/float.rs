@@ -359,7 +359,7 @@ where
         let tensors = tensors.iter().map(|t| t.primitive.clone()).collect();
         Tensor::new(B::einsum(equation, tensors))
     }
-    pub fn index_tch<const D2: usize>(&self, indices: Vec<Tensor<B, D>>) -> Tensor<B, D2> {
+    pub fn index_tch<const D2: usize>(&self, indices: Vec<Tensor<B, D, Int>>) -> Tensor<B, D2> {
         let indices = indices.iter().map(|t| t.primitive.clone()).collect();
         Tensor::new(B::index_tch(self.primitive.clone(), indices))
     }

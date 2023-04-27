@@ -1406,7 +1406,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
     fn index_tch<const D: usize, const D2: usize>(
         tensor: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
-        indices: Vec<<ADBackendDecorator<B> as Backend>::TensorPrimitive<D>>,
+        indices: Vec<<ADBackendDecorator<B> as Backend>::IntTensorPrimitive<D>>,
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D2> {
         unimplemented!()
     }
