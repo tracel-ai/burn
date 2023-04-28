@@ -60,21 +60,13 @@ where
     type Record = HashMap<ParamId, AdaptorRecord<O, B::InnerBackend>>;
 
     fn step(&mut self, lr: LearningRate, module: M, mut grads: GradientsParams) -> M {
-        if let Some(ref g_clipper) = self.gradient_clipper {
-            grads.iter_mut().for_each(|(id, grad)| {
-                let grad_tensor: Tensor<B, D> =
-                    grad.downcast().expect("Failed to downcast gradient");
-                let clipped_grad = g_clipper.clip_gradient(grad_tensor);
-                grads.register(id.clone(), clipped_grad);
-            })
-        }
 
         let mut mapper = SimpleOptimizerMapper::<M, B, O>::new(
             &self.optim,
             &mut self.records,
             &mut grads,
             lr,
-            self.gradient_clipper,
+            self.gradient_clipper.as_ref(),
         );
         module.map(&mut mapper)
     }
@@ -101,7 +93,7 @@ where
     grads: &'a mut GradientsParams,
     lr: LearningRate,
     phantom: PhantomData<M>,
-    gradient_clipper: Option<GradientClipper>,
+    gradient_clipper: Option<&'a GradientClipper>,
 }
 
 impl<'a, M, B, O> ModuleMapper<B> for SimpleOptimizerMapper<'a, M, B, O>
@@ -118,10 +110,16 @@ where
             let is_require_grad = tensor.is_require_grad();
             let (key, record) = self.records.remove_entry(id).unzip();
 
+            let clipped_grad = if let Some(ref g_clipper) = self.gradient_clipper {
+                g_clipper.clip_gradient(grad)
+            } else {
+                grad
+            };
+
             let (tensor, state) = self.optimizer.step(
                 self.lr,
                 tensor.inner(),
-                grad,
+                clipped_grad,
                 record.map(|record| O::to_device(record.into_state(), &device)),
                 self.gradient_clipper,
             );

@@ -23,7 +23,7 @@ where
         tensor: Tensor<B, D>,
         grad: Tensor<B, D>,
         state: Option<Self::State<D>>,
-        gradient_clip: Option<GradientClipper>,
+        gradient_clip: Option<&GradientClipper>,
     ) -> (Tensor<B, D>, Option<Self::State<D>>);
 
     /// Change the device of the state.
