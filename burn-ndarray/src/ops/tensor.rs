@@ -550,6 +550,14 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
     ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D2> {
         unimplemented!()
     }
+    fn repeat_interleave_self_int<const D: usize, const D2: usize>(
+        tensor: <NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
+        repeats: usize,
+        dim: Option<usize>,
+        output_size: Option<usize>,
+    ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D2> {
+        unimplemented!()
+    }
 }
 
 fn arg<E: FloatNdArrayElement, F, const D: usize>(

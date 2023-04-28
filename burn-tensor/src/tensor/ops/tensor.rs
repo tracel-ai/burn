@@ -303,4 +303,10 @@ pub trait TensorOps<B: Backend> {
         tensor: B::TensorPrimitive<D>,
         indices: Vec<B::IntTensorPrimitive<D>>,
     ) -> B::TensorPrimitive<D2>;
+    fn repeat_interleave_self_int<const D: usize, const D2: usize>(
+        tensor: B::TensorPrimitive<D>,
+        repeats: usize,
+        dim: Option<usize>,
+        output_size: Option<usize>,
+    ) -> B::TensorPrimitive<D2>;
 }

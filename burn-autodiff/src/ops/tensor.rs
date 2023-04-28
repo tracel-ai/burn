@@ -1411,6 +1411,14 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D2> {
         unimplemented!()
     }
+    fn repeat_interleave_self_int<const D: usize, const D2: usize>(
+        tensor: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        repeats: usize,
+        dim: Option<usize>,
+        output_size: Option<usize>,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D2> {
+        unimplemented!()
+    }
 }
 
 /// Make sure the grad tensor has the given shape.

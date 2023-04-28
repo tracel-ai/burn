@@ -366,6 +366,16 @@ where
         let indices = indices.iter().map(|t| t.primitive.clone()).collect();
         Tensor::new(B::index_tch(self.primitive.clone(), indices))
     }
+    pub fn repeat_interleave_self_int<const D2: usize>(
+        &self,
+        repeats: usize,
+        dim: Option<usize>,
+        output_size: Option<usize>,
+    ) -> Tensor<B, D2> {
+        let tensor =
+            B::repeat_interleave_self_int(self.primitive.clone(), repeats, dim, output_size);
+        Tensor::new(tensor)
+    }
 }
 
 impl<const D: usize, B: ADBackend> Tensor<B, D> {

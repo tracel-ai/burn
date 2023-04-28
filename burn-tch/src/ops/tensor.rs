@@ -513,4 +513,20 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
             |tensor| tensor.index(&indices),
         )
     }
+    fn repeat_interleave_self_int<const D: usize, const D2: usize>(
+        tensor: <TchBackend<E> as Backend>::TensorPrimitive<D>,
+        repeats: usize,
+        dim: Option<usize>,
+        output_size: Option<usize>,
+    ) -> <TchBackend<E> as Backend>::TensorPrimitive<D2> {
+        let dim = match dim {
+            Some(x) => Some(x as i64),
+            None => None,
+        };
+        let output_size = output_size.map(|x| x as i64);
+        tensor.unary_ops(
+            |tensor| tensor.repeat_interleave_self_int(repeats as i64, dim, output_size),
+            |tensor| tensor.repeat_interleave_self_int(repeats as i64, dim, output_size),
+        )
+    }
 }
