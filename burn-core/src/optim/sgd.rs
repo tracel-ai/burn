@@ -86,7 +86,7 @@ impl<B: Backend> SimpleOptimizer<B> for Sgd<B> {
             state_momemtum = Some(state);
             grad = grad_out;
         }
-        
+
         let state = SgdState::new(state_weight_decay, state_momemtum);
         let delta = grad.mul_scalar(lr);
 

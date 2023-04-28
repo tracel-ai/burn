@@ -60,7 +60,6 @@ where
     type Record = HashMap<ParamId, AdaptorRecord<O, B::InnerBackend>>;
 
     fn step(&mut self, lr: LearningRate, module: M, mut grads: GradientsParams) -> M {
-
         let mut mapper = SimpleOptimizerMapper::<M, B, O>::new(
             &self.optim,
             &mut self.records,
