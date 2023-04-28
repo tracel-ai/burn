@@ -47,7 +47,7 @@ impl<B: Backend> SimpleOptimizer<B> for Adam<B> {
         tensor: Tensor<B, D>,
         mut grad: Tensor<B, D>,
         state: Option<Self::State<D>>,
-        gradient_clip: Option<GradientClipper>,
+        gradient_clip: Option<&GradientClipper>,
     ) -> (Tensor<B, D>, Option<Self::State<D>>) {
         let mut state_weight_decay = None;
         let mut state_momemtum = None;

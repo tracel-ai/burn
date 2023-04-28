@@ -29,7 +29,6 @@ pub struct SgdConfig {
 pub struct Sgd<B: Backend> {
     momentum: Option<Momentum<B>>,
     weight_decay: Option<WeightDecay<B>>,
-    gradient_clipper: Option<GradientClipper>,
 }
 
 #[derive(Record, Clone, new)]
@@ -44,12 +43,10 @@ impl SgdConfig {
     ) -> OptimizerAdaptor<Sgd<B::InnerBackend>, M, B> {
         let momentum = self.momentum.as_ref().map(Momentum::new);
         let weight_decay = self.weight_decay.as_ref().map(WeightDecay::new);
-        let gradient_clipper = self.gradient_clipper.as_ref().map(GradientClipper::new);
 
         Sgd {
             momentum,
             weight_decay,
-            gradient_clipper,
         }
         .into()
     }
@@ -64,7 +61,7 @@ impl<B: Backend> SimpleOptimizer<B> for Sgd<B> {
         tensor: Tensor<B, D>,
         mut grad: Tensor<B, D>,
         state: Option<Self::State<D>>,
-        gradient_clip: Option<GradientClipper>,
+        gradient_clip: Option<&GradientClipper>,
     ) -> (Tensor<B, D>, Option<Self::State<D>>) {
         let mut state_weight_decay = None;
         let mut state_momemtum = None;
@@ -89,7 +86,7 @@ impl<B: Backend> SimpleOptimizer<B> for Sgd<B> {
             state_momemtum = Some(state);
             grad = grad_out;
         }
-        // problemo belowo
+        
         let state = SgdState::new(state_weight_decay, state_momemtum);
         let delta = grad.mul_scalar(lr);
 
