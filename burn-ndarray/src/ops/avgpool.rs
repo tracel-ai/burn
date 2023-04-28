@@ -65,6 +65,7 @@ pub(crate) fn avg_pool2d_backward<E: FloatNdArrayElement>(
 ) -> NdArrayTensor<E, 4> {
     let [kernel_height, kernel_width] = kernel_size;
     let [stride_height, stride_width] = stride;
+    let [padding_height, padding_width] = padding;
     let [batch_size, channels, x_height, x_width] = x.shape().dims;
     let [_batch_size, _channels, out_height, out_width] = grad.shape().dims;
 
@@ -79,20 +80,22 @@ pub(crate) fn avg_pool2d_backward<E: FloatNdArrayElement>(
             let c = k % channels;
 
             let output_grad = unsafe_shared_grad.get();
-
             for oh in 0..out_height {
                 for ow in 0..out_width {
                     for kh in 0..kernel_height {
-                        let ih = oh * stride_height + kh;
-                        if ih >= x_height {
-                            continue;
-                        }
-
                         for kw in 0..kernel_width {
+                            let ih = oh * stride_height + kh;
                             let iw = ow * stride_width + kw;
-                            if iw >= x_width {
+
+                            if ih >= x_height + padding_height
+                                || iw >= x_width + padding_width
+                                || ih < padding_height
+                                || iw < padding_width
+                            {
                                 continue;
                             }
+                            let ih = ih - padding_height;
+                            let iw = iw - padding_width;
 
                             output_grad[[b, c, ih, iw]] += grad[[b, c, oh, ow]]
                                 / ((kernel_height * kernel_width) as i32).elem();
@@ -103,6 +106,5 @@ pub(crate) fn avg_pool2d_backward<E: FloatNdArrayElement>(
         })
     });
 
-    println!("Grad {:?}", output_grad);
     NdArrayTensor::new(output_grad.into_dyn().into_shared())
 }
