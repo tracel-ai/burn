@@ -109,7 +109,7 @@ where
             let is_require_grad = tensor.is_require_grad();
             let (key, record) = self.records.remove_entry(id).unzip();
 
-            let clipped_grad = if let Some(ref g_clipper) = self.gradient_clipper {
+            let clipped_grad = if let Some(g_clipper) = self.gradient_clipper {
                 g_clipper.clip_gradient(grad)
             } else {
                 grad
