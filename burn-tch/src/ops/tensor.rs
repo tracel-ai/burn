@@ -444,7 +444,13 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         size: Vec<usize>,
         implicit: bool,
     ) -> TchTensor<E, D> {
-        let size = size.iter().map(|x| *x as i64).collect::<Vec<_>>();
+        let size = size
+            .iter()
+            .map(|x| match x {
+                &usize::MAX => -1_i64,
+                _ => *x as i64,
+            })
+            .collect::<Vec<_>>();
         tensor.unary_ops(
             |tensor| tensor.expand(&size, implicit),
             |tensor| tensor.expand(&size, implicit),
