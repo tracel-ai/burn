@@ -1419,6 +1419,13 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D2> {
         unimplemented!()
     }
+    fn where_self<const D: usize>(
+            tensor: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+            condition: <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D>,
+            other: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
+        unimplemented!()
+    }
 }
 
 /// Make sure the grad tensor has the given shape.

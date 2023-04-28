@@ -558,6 +558,13 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
     ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D2> {
         unimplemented!()
     }
+    fn where_self<const D: usize>(
+        tensor: <NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
+        condition: <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D>,
+        other: <NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
+    ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D> {
+        unimplemented!()
+    }
 }
 
 fn arg<E: FloatNdArrayElement, F, const D: usize>(

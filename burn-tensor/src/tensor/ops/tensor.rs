@@ -309,4 +309,9 @@ pub trait TensorOps<B: Backend> {
         dim: Option<usize>,
         output_size: Option<usize>,
     ) -> B::TensorPrimitive<D2>;
+    fn where_self<const D: usize>(
+        tensor: B::TensorPrimitive<D>,
+        condition: B::BoolTensorPrimitive<D>,
+        other: B::TensorPrimitive<D>,
+    ) -> B::TensorPrimitive<D>;
 }

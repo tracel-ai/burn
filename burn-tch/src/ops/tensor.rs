@@ -529,4 +529,14 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
             |tensor| tensor.repeat_interleave_self_int(repeats as i64, dim, output_size),
         )
     }
+    fn where_self<const D: usize>(
+        tensor: <TchBackend<E> as Backend>::TensorPrimitive<D>,
+        condition: <TchBackend<E> as Backend>::BoolTensorPrimitive<D>,
+        other: <TchBackend<E> as Backend>::TensorPrimitive<D>,
+    ) -> <TchBackend<E> as Backend>::TensorPrimitive<D> {
+        tensor.unary_ops(
+            |tensor| tensor.where_self(&condition.tensor, &other.tensor),
+            |tensor| tensor.where_self(&condition.tensor, &other.tensor),
+        )
+    }
 }

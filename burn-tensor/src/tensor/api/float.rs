@@ -2,13 +2,13 @@ use alloc::vec::Vec;
 use core::convert::TryInto;
 
 use crate::backend::ADBackend;
-use crate::check;
 use crate::check::TensorCheck;
 use crate::tensor::backend::Backend;
 use crate::tensor::stats;
 use crate::tensor::{Data, Distribution, Shape};
 use crate::Int;
 use crate::Tensor;
+use crate::{check, Bool};
 
 impl<const D: usize, B> Tensor<B, D>
 where
@@ -374,6 +374,10 @@ where
     ) -> Tensor<B, D2> {
         let tensor =
             B::repeat_interleave_self_int(self.primitive.clone(), repeats, dim, output_size);
+        Tensor::new(tensor)
+    }
+    pub fn where_self(self, condition: Tensor<B, D, Bool>, other: Tensor<B, D>) -> Tensor<B, D> {
+        let tensor = B::where_self(self.primitive, condition.primitive, other.primitive);
         Tensor::new(tensor)
     }
 }
