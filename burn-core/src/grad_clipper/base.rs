@@ -74,7 +74,7 @@ impl GradientClipper {
     fn l2_norm<B: Backend, const D: usize>(tensor: &Tensor<B, D>) -> Tensor<B, 1> {
         let squared = tensor.clone().powf(2.0);
         let sum = squared.sum();
-        
+
         sum.sqrt()
     }
 
@@ -87,7 +87,7 @@ impl GradientClipper {
         let norm_float = norm.into_scalar().elem::<f32>();
         if norm_float > threshold {
             let scale = threshold / norm_float;
-            
+
             grad.mul_scalar(scale)
         } else {
             grad
