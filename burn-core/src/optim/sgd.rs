@@ -5,7 +5,6 @@ use super::decay::{WeightDecay, WeightDecayConfig, WeightDecayState};
 use super::momentum::{MomemtumState, Momentum, MomentumConfig};
 use super::SimpleOptimizer;
 use crate::config::Config;
-use crate::grad_clipper::{GradientClipper, GradientClipperConfig};
 use crate::optim::adaptor::OptimizerAdaptor;
 use crate::record::Record;
 use crate::tensor::Tensor;
@@ -18,8 +17,6 @@ pub struct SgdConfig {
     pub weight_decay: Option<WeightDecayConfig>,
     /// [Momentum](MomentumConfig) config.
     pub momentum: Option<MomentumConfig>,
-    /// GradientClipper
-    pub gradient_clipper: Option<GradientClipperConfig>,
 }
 
 /// Optimizer that implements stochastic gradient descent with momentum.
@@ -61,7 +58,6 @@ impl<B: Backend> SimpleOptimizer<B> for Sgd<B> {
         tensor: Tensor<B, D>,
         mut grad: Tensor<B, D>,
         state: Option<Self::State<D>>,
-        gradient_clip: Option<&GradientClipper>,
     ) -> (Tensor<B, D>, Option<Self::State<D>>) {
         let mut state_weight_decay = None;
         let mut state_momemtum = None;
@@ -75,10 +71,6 @@ impl<B: Backend> SimpleOptimizer<B> for Sgd<B> {
             let (grad_out, state) = weight_decay.transform(grad, state_weight_decay);
             state_weight_decay = Some(state);
             grad = grad_out;
-        }
-
-        if let Some(clip) = gradient_clip {
-            grad = clip.clip_gradient(grad);
         }
 
         if let Some(momentum) = &self.momentum {
@@ -167,10 +159,6 @@ mod tests {
                 momentum: 0.9,
                 dampening: 0.1,
                 nesterov: true,
-            }),
-            gradient_clipper: Some(GradientClipperConfig {
-                clip_value: Some(1.0),
-                clip_norm: None,
             }),
         }
         .init()

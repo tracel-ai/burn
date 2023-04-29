@@ -1,4 +1,4 @@
-use crate::{grad_clipper::GradientClipper, record::Record, LearningRate};
+use crate::{record::Record, LearningRate};
 use burn_tensor::{backend::Backend, Tensor};
 
 /// Simple optimizer is an opinionated trait to simplify the process of implementing an
@@ -23,7 +23,6 @@ where
         tensor: Tensor<B, D>,
         grad: Tensor<B, D>,
         state: Option<Self::State<D>>,
-        gradient_clip: Option<&GradientClipper>,
     ) -> (Tensor<B, D>, Option<Self::State<D>>);
 
     /// Change the device of the state.

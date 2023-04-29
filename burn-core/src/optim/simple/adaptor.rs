@@ -120,7 +120,6 @@ where
                 tensor.inner(),
                 clipped_grad,
                 record.map(|record| O::to_device(record.into_state(), &device)),
-                self.gradient_clipper,
             );
 
             if let Some(state) = state {

@@ -1,6 +1,4 @@
-use crate::{
-    self as burn, grad_clipper::GradientClipper, module::ADModule, record::Record, LearningRate,
-};
+use crate::{self as burn, module::ADModule, record::Record, LearningRate};
 
 use super::{
     decay::{WeightDecay, WeightDecayConfig, WeightDecayState},
@@ -47,7 +45,6 @@ impl<B: Backend> SimpleOptimizer<B> for Adam<B> {
         tensor: Tensor<B, D>,
         mut grad: Tensor<B, D>,
         state: Option<Self::State<D>>,
-        gradient_clip: Option<&GradientClipper>,
     ) -> (Tensor<B, D>, Option<Self::State<D>>) {
         let mut state_weight_decay = None;
         let mut state_momemtum = None;
@@ -61,10 +58,6 @@ impl<B: Backend> SimpleOptimizer<B> for Adam<B> {
             let (grad_out, state) = weight_decay.transform(grad, state_weight_decay);
             state_weight_decay = Some(state);
             grad = grad_out;
-        }
-
-        if let Some(clip) = gradient_clip {
-            grad = clip.clip_gradient(grad);
         }
 
         let (grad, state_momemtum) = self.momentum.transform(grad, state_momemtum);
