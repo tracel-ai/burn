@@ -1,5 +1,6 @@
+use core::fmt;
 use half::f16;
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Formatter};
 use strum_macros::{Display, EnumString};
 
 pub type Shape = Vec<usize>;
@@ -51,7 +52,7 @@ pub struct Tensor {
     pub data: Option<TensorData>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum TensorData {
     Float16s(Vec<f16>),
     Float32s(Vec<f32>),
@@ -302,4 +303,36 @@ pub enum NodeType {
     Upsample,
     Where,
     Xor,
+}
+
+/// Truncate the vector display for debug display
+fn trunc<T: fmt::Display>(v: &Vec<T>) -> String {
+    let mut s = String::new();
+    s.push('[');
+    for (i, item) in v.iter().enumerate() {
+        if i > 0 {
+            s.push_str(", ");
+        }
+        s.push_str(&format!("{}", item));
+        if i > 5 {
+            s.push_str(", ...");
+            break;
+        }
+    }
+    s.push(']');
+    s
+}
+
+/// Shorten the tensor data for debug display
+impl fmt::Debug for TensorData {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            TensorData::Float16s(v) => write!(f, "Float16s({})", trunc(v)),
+            TensorData::Float32s(v) => write!(f, "Float32s({})", trunc(v)),
+            TensorData::Float64s(v) => write!(f, "Float64s({})", trunc(v)),
+            TensorData::Int32s(v) => write!(f, "Int32s({})", trunc(v)),
+            TensorData::Int64s(v) => write!(f, "Int64s({})", trunc(v)),
+            TensorData::Strings(v) => write!(f, "Strings({})", trunc(v)),
+        }
+    }
 }
