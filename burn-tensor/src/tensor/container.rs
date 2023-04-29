@@ -87,8 +87,4 @@ where
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
-
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = (&ID, &mut Box<dyn Any + Send + Sync>)> {
-        self.tensors.iter_mut()
-    }
 }

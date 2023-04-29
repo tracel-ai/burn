@@ -8,10 +8,6 @@ use crate::module::{ADModule, ParamId};
 
 use super::visitor::{GradientsParamsChangeDevice, GradientsParamsConverter};
 
-use core::any::Any;
-
-/// Type alias for handling tensors from container
-type TensorValue = Box<dyn Any + Send + Sync>;
 /// Data type that contains gradients for parameters.
 #[derive(Default)]
 pub struct GradientsParams {
@@ -84,11 +80,6 @@ impl GradientsParams {
 
         module.visit(&mut visitor);
         grads_params
-    }
-
-    /// Provide an iterator over the gradient tensors.
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = (&ParamId, &mut TensorValue)> {
-        self.container.iter_mut()
     }
 }
 
