@@ -54,12 +54,12 @@ pub struct Tensor {
 
 #[derive(Clone)]
 pub enum TensorData {
-    Float16s(Vec<f16>),
-    Float32s(Vec<f32>),
-    Float64s(Vec<f64>),
-    Int32s(Vec<i32>),
-    Int64s(Vec<i64>),
-    Strings(Vec<String>),
+    Float16(Vec<f16>),
+    Float32(Vec<f32>),
+    Float64(Vec<f64>),
+    Int32(Vec<i32>),
+    Int64(Vec<i64>),
+    String(Vec<String>),
 }
 
 #[derive(Debug, Clone)]
@@ -327,12 +327,12 @@ fn trunc<T: fmt::Display>(v: &Vec<T>) -> String {
 impl fmt::Debug for TensorData {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            TensorData::Float16s(v) => write!(f, "Float16s({})", trunc(v)),
-            TensorData::Float32s(v) => write!(f, "Float32s({})", trunc(v)),
-            TensorData::Float64s(v) => write!(f, "Float64s({})", trunc(v)),
-            TensorData::Int32s(v) => write!(f, "Int32s({})", trunc(v)),
-            TensorData::Int64s(v) => write!(f, "Int64s({})", trunc(v)),
-            TensorData::Strings(v) => write!(f, "Strings({})", trunc(v)),
+            TensorData::Float16(v) => write!(f, "Float16({})", trunc(v)),
+            TensorData::Float32(v) => write!(f, "Float32({})", trunc(v)),
+            TensorData::Float64(v) => write!(f, "Float64({})", trunc(v)),
+            TensorData::Int32(v) => write!(f, "Int32({})", trunc(v)),
+            TensorData::Int64(v) => write!(f, "Int64({})", trunc(v)),
+            TensorData::String(v) => write!(f, "String({})", trunc(v)),
         }
     }
 }

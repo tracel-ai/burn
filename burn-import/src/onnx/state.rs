@@ -139,7 +139,7 @@ impl<const D: usize> TryFrom<&ir::Tensor> for Tensor<B, D> {
 
     fn try_from(value: &ir::Tensor) -> Result<Self, Self::Error> {
         let shape: [usize; D] = value.shape.clone().try_into().unwrap();
-        let TensorData::Float32s(floats) = value.data.clone().unwrap() else {
+        let TensorData::Float32(floats) = value.data.clone().unwrap() else {
             todo!("Tensor data must be float32s");
         };
         let tensor: Tensor<B, D> = Tensor::from_data(floats.as_slice()).reshape(shape);

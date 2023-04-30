@@ -206,36 +206,36 @@ impl TryFrom<TensorProto> for Tensor {
                 ElementType::Float32,
                 // Convert the raw data to a vector of floats
                 if !tensor.raw_data.is_empty() {
-                    TensorData::Float32s(cast_slice(&tensor.raw_data[..]).to_vec())
+                    TensorData::Float32(cast_slice(&tensor.raw_data[..]).to_vec())
                 } else {
-                    TensorData::Float32s(tensor.float_data)
+                    TensorData::Float32(tensor.float_data)
                 },
             ),
             DataType::INT32 => (
                 ElementType::Int32,
                 // Convert the raw data to a vector of ints
                 if !tensor.raw_data.is_empty() {
-                    TensorData::Int32s(cast_slice(&tensor.raw_data[..]).to_vec())
+                    TensorData::Int32(cast_slice(&tensor.raw_data[..]).to_vec())
                 } else {
-                    TensorData::Int32s(tensor.int32_data)
+                    TensorData::Int32(tensor.int32_data)
                 },
             ),
             DataType::INT64 => (
                 ElementType::Int64,
                 // Convert the raw data to a vector of ints
                 if !tensor.raw_data.is_empty() {
-                    TensorData::Int64s(cast_slice(&tensor.raw_data[..]).to_vec())
+                    TensorData::Int64(cast_slice(&tensor.raw_data[..]).to_vec())
                 } else {
-                    TensorData::Int64s(tensor.int64_data)
+                    TensorData::Int64(tensor.int64_data)
                 },
             ),
             DataType::DOUBLE => (
                 ElementType::Float64,
                 // Convert the raw data to a vector of floats
                 if !tensor.raw_data.is_empty() {
-                    TensorData::Float64s(cast_slice(&tensor.raw_data[..]).to_vec())
+                    TensorData::Float64(cast_slice(&tensor.raw_data[..]).to_vec())
                 } else {
-                    TensorData::Float64s(tensor.double_data)
+                    TensorData::Float64(tensor.double_data)
                 },
             ),
             // TODO : Add more types
