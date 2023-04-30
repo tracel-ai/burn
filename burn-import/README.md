@@ -69,20 +69,22 @@ You can view the working example in the `examples/onnx-inference` directory.
 
 This section explains how to add support for new operators to `burn-import`.
 
-1. Use [Netron](https://github.com/lutzroeder/netron) app to visualize the ONNX model.
-2. Generate artifact files to help to see what the ONNX model (`my-model.onnx) looks like and its
+1. Optimize the ONNX model using [onnxoptimizer](https://github.com/onnx/optimizer). It will remove
+   uncessary operator/constants and make the model easier to understand.
+2. Use [Netron](https://github.com/lutzroeder/netron) app to visualize the ONNX model.
+3. Generate artifact files to help to see what the ONNX model (`my-model.onnx) looks like and its
    components.
    ```bash
    cargo r -- ./my-model.onnx ./
    ```
-3. You will run into an error saying that the operator is not supported. Implement missing
+4. You will run into an error saying that the operator is not supported. Implement missing
    operators. Hopefully, at least `my-model.graph.txt` is generated before the error occurs. This
    file contains information about the ONNX model.
-4. The newly generated `my-model.graph.txt` file will contain IR information about the model. This
+5. The newly generated `my-model.graph.txt` file will contain IR information about the model. This
    file is useful for understanding the structure of the model and the operators it uses. The
    `my-model.rs` file will contain an actual Burn model in rust code. `my-model.json` will contain
    the data of the model.
-5. The following is the explaination of onnx modules (under `srs/onnx`):
+6. The following is the explaination of onnx modules (under `srs/onnx`):
    - `from_onnx.rs`: This module contains logic for converting ONNX data objects into IR
      (Intermediate Representation) objects. This module must contain anything that deals with ONNX
      directly.
@@ -97,7 +99,7 @@ This section explains how to add support for new operators to `burn-import`.
      from operator nodes.
    - `shape_inference.rs` - This module contains helper functions for inferring shapes of tensors
      for inputs and outputs of operators.
-6. Add unit tests for the new operator in `burn-import/tests/onnx_tests.rs` file. Add the ONNX file
+7. Add unit tests for the new operator in `burn-import/tests/onnx_tests.rs` file. Add the ONNX file
    and expected output to `tests/data` directory. Please be sure the ONNX file is small. If the ONNX
    file is too large, the repository size will grow too large and will be difficult to maintain and
    clone. See the existing unit tests for examples.
