@@ -12,7 +12,7 @@ use burn_tensor::{backend::Backend, ElementConversion};
 /// accepts gradients, so you can avoid making it as a config to an optimizer.
 #[derive(Config)]
 pub struct GradientClipperConfig {
-    #[config(default = "Some(1.0)")] // ngl this is confusing
+    #[config(default = "Some(1.0)")]
     pub clip_value: Option<f32>,
     #[config(default = "Some(1.0)")]
     pub clip_norm: Option<f32>,
@@ -87,10 +87,50 @@ impl GradientClipper {
         let norm_float = norm.into_scalar().elem::<f32>();
         if norm_float > threshold {
             let scale = threshold / norm_float;
-
             grad.mul_scalar(scale)
         } else {
             grad
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tensor::Tensor;
+    use crate::TestBackend;
+
+    #[test]
+    fn test_clip_by_value() {
+        let gradient_clipper = GradientClipper::by_value(0.5);
+
+        let gradient: Tensor<TestBackend, 2> = Tensor::from_floats([
+            [0.6294, 0.0940, 0.8176, 0.8824, 0.5228, 0.4310],
+            [0.7152, 0.9559, 0.7893, 0.5684, 0.5939, 0.8883],
+        ]);
+
+        let clipped_gradient = gradient_clipper.clip_gradient(gradient);
+        let clipped_gradient_data = clipped_gradient.into_data();
+
+        for value in clipped_gradient_data.value {
+            assert!(value <= 0.5);
+        }
+    }
+
+    #[test]
+    fn test_clip_by_norm() {
+        let gradient_clipper = GradientClipper::by_norm(2.2);
+
+        let gradient: Tensor<TestBackend, 2> = Tensor::from_floats([
+            [0.6294, 0.0940, 0.8176, 0.8824, 0.5228, 0.4310],
+            [0.7152, 0.9559, 0.7893, 0.5684, 0.5939, 0.8883],
+        ]);
+
+        let clipped_gradient = gradient_clipper.clip_gradient(gradient);
+        let clipped_gradient_data = clipped_gradient.into_data();
+
+        for value in clipped_gradient_data.value {
+            assert!(value <= 0.88);
         }
     }
 }
