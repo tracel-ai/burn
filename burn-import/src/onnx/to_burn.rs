@@ -52,7 +52,7 @@ impl ModelGen {
     }
 
     /// Set development mode.
-    /// 
+    ///
     /// If this is set to true, the generated model will be saved as `.graph.txt` files and model
     /// states will be saved as `.json` file.
     pub fn development(&mut self, development: bool) -> &mut Self {
@@ -104,31 +104,41 @@ impl ModelGen {
             let file_name = input.file_stem().unwrap();
             let out_file: PathBuf = out_dir.join(file_name);
 
-            if self.development {
-                let graph = parse_onnx(input.as_ref());
-                // export the graph
-                let debug_graph = format!("{:#?}", graph);
-                fs::write(out_file.with_extension("graph.txt"), debug_graph).unwrap();
-            }
+            Self::generate_model(self.development, input, out_file, &rust_formatter);
+        }
+    }
 
-            // export the source code
-            let model = ModelSourceCode::new(input, &out_file);
-            let code_str = rust_formatter.format_tokens(model.body()).unwrap();
-            fs::write(out_file.with_extension("rs"), code_str).unwrap();
+    /// Generate model source code and model state.
+    fn generate_model(
+        development: bool,
+        input: &PathBuf,
+        out_file: PathBuf,
+        rust_formatter: &RustFmt,
+    ) {
+        if development {
+            let graph = parse_onnx(input.as_ref());
+            // export the graph
+            let debug_graph = format!("{:#?}", graph);
+            fs::write(out_file.with_extension("graph.txt"), debug_graph).unwrap();
+        }
 
-            // export the model state
-            if self.development {
-                // export the model state in debug mode
-                let model_state = ModelState::<DebugRecordSettings>::new_from_graph(model.graph);
-                model_state
-                    .record::<DebugRecordSettings>(out_file.clone())
-                    .unwrap()
-            } else {
-                let model_state = ModelState::<DefaultRecordSettings>::new_from_graph(model.graph);
-                model_state
-                    .record::<DefaultRecordSettings>(out_file)
-                    .unwrap();
-            }
+        // export the source code
+        let model = ModelSourceCode::new(input, &out_file);
+        let code_str = rust_formatter.format_tokens(model.body()).unwrap();
+        fs::write(out_file.with_extension("rs"), code_str).unwrap();
+
+        // export the model state
+        if development {
+            // export the model state in debug mode
+            let model_state = ModelState::<DebugRecordSettings>::new_from_graph(model.graph);
+            model_state
+                .record::<DebugRecordSettings>(out_file.clone())
+                .unwrap()
+        } else {
+            let model_state = ModelState::<DefaultRecordSettings>::new_from_graph(model.graph);
+            model_state
+                .record::<DefaultRecordSettings>(out_file)
+                .unwrap();
         }
     }
 }
