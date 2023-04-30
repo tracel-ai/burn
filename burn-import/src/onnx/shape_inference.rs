@@ -202,7 +202,7 @@ fn conv2d(curr: &mut Node, prev_outpus: &HashMap<String, Argument>) {
 }
 
 /// The dimension of the first input tensor of the node,
-/// which is used to determin return the dimension of the output tensor.
+/// which is used to determine return the dimension of the output tensor.
 pub fn first_input_dim(node: &Node) -> Option<usize> {
     let arg = node.inputs.get(0).unwrap();
     if let Some(input) = arg.arg_type.as_ref() {

@@ -34,7 +34,7 @@ https://datasets-server.huggingface.co/assets/mnist/--/mnist/test/15/image/image
        include!(concat!(env!("OUT_DIR"), "/model/mnist.rs"));
    }
    ```
-4. Add the modul to lib.rs:
+4. Add the module to lib.rs:
 
    ```rust
    pub mod model;
