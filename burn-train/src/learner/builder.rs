@@ -151,12 +151,10 @@ where
     /// The number of checkpoints to be keep should be set to a minimum of two to be safe, since
     /// they are saved and deleted asynchronously and a crash during training might make a
     /// checkpoint non-usable.
-    pub fn with_file_checkpointer<S>(mut self, num_keep: usize) -> Self
+    pub fn with_file_checkpointer<FR>(mut self, num_keep: usize) -> Self
     where
-        S: RecordSettings + 'static,
         <Model::Record as Record>::Item<S>: Serialize + DeserializeOwned,
         <Optim::Record as Record>::Item<S>: Serialize + DeserializeOwned,
-        S::Recorder: FileRecorder,
     {
         self.checkpointer_model = Some(Arc::new(FileCheckpointer::<S>::new(
             format!("{}/checkpoint", self.directory).as_str(),

@@ -1,11 +1,9 @@
-use super::Recorder;
 use burn_tensor::Element;
 use serde::{de::DeserializeOwned, Serialize};
 
 pub trait RecordSettings: Send + Sync + core::fmt::Debug + core::default::Default {
     type FloatElem: Element + Serialize + DeserializeOwned;
     type IntElem: Element + Serialize + DeserializeOwned;
-    type Recorder: Recorder;
 }
 
 /// Default record settings.
@@ -56,39 +54,33 @@ pub struct DebugRecordSettings;
 impl RecordSettings for DefaultRecordSettings {
     type FloatElem = f32;
     type IntElem = f32;
-    type Recorder = crate::record::FileNamedMpkGzRecorder;
 }
 
 #[cfg(feature = "std")]
 impl RecordSettings for CompactRecordSettings {
     type FloatElem = half::f16;
     type IntElem = i16;
-    type Recorder = crate::record::FileNamedMpkGzRecorder;
 }
 
 #[cfg(feature = "std")]
 impl RecordSettings for SentitiveCompactRecordSettings {
     type FloatElem = half::f16;
     type IntElem = i16;
-    type Recorder = crate::record::FileBinGzRecorder;
 }
 
 #[cfg(feature = "std")]
 impl RecordSettings for NoStdTrainingRecordSettings {
     type FloatElem = f32;
     type IntElem = i32;
-    type Recorder = crate::record::FileBinRecorder;
 }
 
 impl RecordSettings for NoStdInferenceRecordSettings {
     type FloatElem = f32;
     type IntElem = i32;
-    type Recorder = crate::record::InMemoryBinRecorder;
 }
 
 #[cfg(feature = "std")]
 impl RecordSettings for DebugRecordSettings {
     type FloatElem = f32;
     type IntElem = i32;
-    type Recorder = crate::record::FilePrettyJsonRecorder;
 }

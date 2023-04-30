@@ -1,6 +1,5 @@
-use super::{bin_config, Recorder, RecorderError};
+use super::{bin_config, BurnRecord, Record, RecordSettings, Recorder, RecorderError};
 use alloc::vec::Vec;
-use serde::{de::DeserializeOwned, Serialize};
 
 /// Recorder trait specialized to save and load data to and from bytes.
 ///
@@ -8,83 +7,69 @@ use serde::{de::DeserializeOwned, Serialize};
 ///
 /// This is especialy useful in no_std environment where weights are stored directly in
 /// compiled binaries.
-pub trait InMemoryRecorder:
-    Recorder<RecordArgs = (), RecordOutput = Vec<u8>, LoadArgs = Vec<u8>>
+pub trait BytesRecorder<R: Record, S: RecordSettings>:
+    Recorder<R, S, RecordArgs = (), RecordOutput = Vec<u8>, LoadArgs = Vec<u8>>
 {
 }
 
 /// In memory recorder using the [bincode format](bincode).
 #[derive(Debug, Default)]
-pub struct InMemoryBinRecorder;
+pub struct BytesBinRecorder;
 
-impl InMemoryRecorder for InMemoryBinRecorder {}
+impl<R: Record, S: RecordSettings> BytesRecorder<R, S> for BytesBinRecorder {}
 
-impl Recorder for InMemoryBinRecorder {
+impl<R: Record, S: RecordSettings> Recorder<R, S> for BytesBinRecorder {
     type RecordArgs = ();
     type RecordOutput = Vec<u8>;
     type LoadArgs = Vec<u8>;
 
-    fn record<Obj: Serialize + DeserializeOwned>(
-        obj: Obj,
+    fn save_item(
+        &self,
+        item: BurnRecord<<R as Record>::Item<S>>,
         _args: Self::RecordArgs,
-    ) -> Result<Vec<u8>, RecorderError> {
-        Ok(bincode::serde::encode_to_vec(obj, bin_config()).unwrap())
+    ) -> Result<Self::RecordOutput, RecorderError> {
+        Ok(bincode::serde::encode_to_vec(item, bin_config()).unwrap())
     }
-
-    fn load<Obj: Serialize + DeserializeOwned>(args: Self::LoadArgs) -> Result<Obj, RecorderError> {
+    fn load_item(
+        &self,
+        args: Self::LoadArgs,
+    ) -> Result<BurnRecord<<R as Record>::Item<S>>, RecorderError> {
         let state = bincode::serde::decode_borrowed_from_slice(&args, bin_config()).unwrap();
         Ok(state)
     }
 }
 
+impl BytesBinRecorder {
+    pub fn into_bytes<R: Record, S: RecordSettings>(record: R) -> Result<Vec<u8>, RecorderError> {
+        Recorder::<R, S>::record(&BytesBinRecorder, record, ())
+    }
+    pub fn from_bytes<R: Record, S: RecordSettings>(bytes: Vec<u8>) -> Result<R, RecorderError> {
+        Recorder::<R, S>::load(&BytesBinRecorder, bytes)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use core::marker::PhantomData;
-
     use super::*;
-    use crate::{
-        module::Module,
-        nn,
-        record::{Record, RecordSettings},
-        TestBackend,
-    };
+    use crate::{module::Module, nn, record::DefaultRecordSettings, TestBackend};
 
     #[test]
     fn test_can_save_and_load_bin_format() {
-        test_can_save_and_load::<InMemoryBinRecorder>()
+        test_can_save_and_load(BytesBinRecorder)
     }
 
-    fn test_can_save_and_load<Recorder: InMemoryRecorder>() {
-        #[derive(Debug, Default)]
-        struct TestRecordSettings<R> {
-            phantom: PhantomData<R>,
-        }
-
-        impl<R: crate::record::Recorder> RecordSettings for TestRecordSettings<R> {
-            type FloatElem = f32;
-            type IntElem = i32;
-            type Recorder = R;
-        }
-
+    fn test_can_save_and_load<
+        Recorder: BytesRecorder<nn::LinearRecord<TestBackend>, DefaultRecordSettings>,
+    >(
+        recorder: Recorder,
+    ) {
         let model1 = create_model();
         let model2 = create_model();
-        let bytes1 = model1
-            .into_record()
-            .record::<TestRecordSettings<Recorder>>(())
-            .unwrap();
-        let bytes2 = model2
-            .clone()
-            .into_record()
-            .record::<TestRecordSettings<Recorder>>(())
-            .unwrap();
+        let bytes1 = recorder.record(model1.into_record(), ()).unwrap();
+        let bytes2 = recorder.record(model2.clone().into_record(), ()).unwrap();
 
-        let model2_after = model2.load_record(
-            nn::LinearRecord::load::<TestRecordSettings<Recorder>>(bytes1.clone()).unwrap(),
-        );
-        let bytes2_after = model2_after
-            .into_record()
-            .record::<TestRecordSettings<Recorder>>(())
-            .unwrap();
+        let model2_after = model2.load_record(recorder.load(bytes1.clone()).unwrap());
+        let bytes2_after = recorder.record(model2_after.into_record(), ()).unwrap();
 
         assert_ne!(bytes1, bytes2);
         assert_eq!(bytes1, bytes2_after);

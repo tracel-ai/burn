@@ -1,33 +1,23 @@
-use std::marker::PhantomData;
-
 use super::{Checkpointer, CheckpointerError};
 use burn_core::record::{FileRecorder, Record, RecordSettings};
 use serde::{de::DeserializeOwned, Serialize};
 
-pub struct FileCheckpointer<S>
-where
-    S: RecordSettings,
-    S::Recorder: FileRecorder,
-{
+pub struct FileCheckpointer<FR> {
     directory: String,
     name: String,
     num_keep: usize,
-    settings: PhantomData<S>,
+    recorder: FR,
 }
 
-impl<S> FileCheckpointer<S>
-where
-    S: RecordSettings,
-    S::Recorder: FileRecorder,
-{
-    pub fn new(directory: &str, name: &str, num_keep: usize) -> Self {
+impl<FR> FileCheckpointer<FR> {
+    pub fn new(recorder: FR, directory: &str, name: &str, num_keep: usize) -> Self {
         std::fs::create_dir_all(directory).ok();
 
         Self {
             directory: directory.to_string(),
             name: name.to_string(),
             num_keep,
-            settings: PhantomData::default(),
+            recorder,
         }
     }
     fn path_for_epoch(&self, epoch: usize) -> String {
@@ -35,12 +25,11 @@ where
     }
 }
 
-impl<R, S> Checkpointer<R> for FileCheckpointer<S>
+impl<FR, R, S> Checkpointer<R> for FileCheckpointer<FR>
 where
     R: Record,
     S: RecordSettings,
-    S::Recorder: FileRecorder,
-    R::Item<S>: Serialize + DeserializeOwned,
+    FR: FileRecorder<R, S>,
 {
     fn save(&self, epoch: usize, record: R) -> Result<(), CheckpointerError> {
         let file_path = self.path_for_epoch(epoch);
