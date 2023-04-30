@@ -1,14 +1,11 @@
-use alloc::vec::Vec;
-
-use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArrayBackend, NdArrayDevice};
-
-use burn_tensor::{ops::*, Shape};
-
 use super::{
     avgpool::{avg_pool2d, avg_pool2d_backward},
     conv::{conv2d, conv_transpose2d},
     maxpool::{max_pool2d, max_pool2d_backward, max_pool2d_with_indexes},
 };
+use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArrayBackend, NdArrayDevice};
+use alloc::vec::Vec;
+use burn_tensor::{ops::*, Shape};
 
 impl<E: FloatNdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     fn embedding(
