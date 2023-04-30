@@ -5,6 +5,7 @@ use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArrayBackend,
 use burn_tensor::{ops::*, Shape};
 
 use super::{
+    avgpool::{avg_pool2d, avg_pool2d_backward},
     conv::{conv2d, conv_transpose2d},
     maxpool::{max_pool2d, max_pool2d_backward, max_pool2d_with_indexes},
 };
@@ -85,6 +86,25 @@ impl<E: FloatNdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         options: ConvTransposeOptions<2>,
     ) -> NdArrayTensor<E, 4> {
         conv_transpose2d(x, weight, bias, options)
+    }
+
+    fn avg_pool2d(
+        x: NdArrayTensor<E, 4>,
+        kernel_size: [usize; 2],
+        stride: [usize; 2],
+        padding: [usize; 2],
+    ) -> NdArrayTensor<E, 4> {
+        avg_pool2d(x, kernel_size, stride, padding)
+    }
+
+    fn avg_pool2d_backward(
+        x: NdArrayTensor<E, 4>,
+        grad: NdArrayTensor<E, 4>,
+        kernel_size: [usize; 2],
+        stride: [usize; 2],
+        padding: [usize; 2],
+    ) -> NdArrayTensor<E, 4> {
+        avg_pool2d_backward(x, grad, kernel_size, stride, padding)
     }
 
     fn max_pool2d(
