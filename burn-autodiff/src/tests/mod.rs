@@ -1,6 +1,8 @@
 mod add;
 mod aggregation;
+mod avgpool2d;
 mod backward;
+mod broadcast;
 mod cat;
 mod complex;
 mod conv1d;
@@ -37,10 +39,14 @@ macro_rules! testgen_all {
         type TestADBackend = burn_autodiff::ADBackendDecorator<TestBackend>;
         type TestADTensor<const D: usize, K> = burn_tensor::Tensor<TestADBackend, D, K>;
 
+        // Behavior
+        burn_autodiff::testgen_ad_broadcast!();
+
         // Modules
         burn_autodiff::testgen_ad_conv1d!();
         burn_autodiff::testgen_ad_conv2d!();
         burn_autodiff::testgen_ad_max_pool2d!();
+        burn_autodiff::testgen_ad_avg_pool2d!();
         burn_autodiff::testgen_module_backward!();
 
         // Tensor

@@ -87,15 +87,31 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         struct Add;
 
         impl<B: Backend, const D: usize> Backward<B, D, 2> for Add {
-            type State = ();
+            type State = (Shape<D>, Shape<D>);
 
             fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
-                binary::<B, D, D, D, _, _>(ops.parents, ops.node, grads, |grad| grad, |grad| grad);
+                let (shape_lhs, shape_rhs) = ops.state;
+
+                binary::<B, D, D, D, _, _>(
+                    ops.parents,
+                    ops.node,
+                    grads,
+                    |grad| broadcast_shape::<B, D>(grad, shape_lhs),
+                    |grad| broadcast_shape::<B, D>(grad, shape_rhs),
+                );
             }
         }
 
-        Add.prepare([lhs.node, rhs.node], [lhs.graph, rhs.graph])
-            .stateless(B::add(lhs.primitive, rhs.primitive))
+        match Add
+            .prepare([lhs.node, rhs.node], [lhs.graph, rhs.graph])
+            .statefull()
+        {
+            OpsKind::Tracked(preps) => preps.finish(
+                (B::shape(&lhs.primitive), B::shape(&rhs.primitive)),
+                B::add(lhs.primitive, rhs.primitive),
+            ),
+            OpsKind::UnTracked(preps) => preps.finish(B::add(lhs.primitive, rhs.primitive)),
+        }
     }
 
     fn add_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: FloatElem<B>) -> ADTensor<B, D> {
@@ -120,21 +136,31 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         struct Sub;
 
         impl<B: Backend, const D: usize> Backward<B, D, 2> for Sub {
-            type State = ();
+            type State = (Shape<D>, Shape<D>);
 
             fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
+                let (shape_lhs, shape_rhs) = ops.state;
+
                 binary::<B, D, D, D, _, _>(
                     ops.parents,
                     ops.node,
                     grads,
-                    |grad| grad,
-                    |grad| B::neg(grad),
+                    |grad| broadcast_shape::<B, D>(grad, shape_lhs),
+                    |grad| broadcast_shape::<B, D>(B::neg(grad), shape_rhs),
                 );
             }
         }
 
-        Sub.prepare([lhs.node, rhs.node], [lhs.graph, rhs.graph])
-            .stateless(B::sub(lhs.primitive, rhs.primitive))
+        match Sub
+            .prepare([lhs.node, rhs.node], [lhs.graph, rhs.graph])
+            .statefull()
+        {
+            OpsKind::Tracked(preps) => preps.finish(
+                (B::shape(&lhs.primitive), B::shape(&rhs.primitive)),
+                B::sub(lhs.primitive, rhs.primitive),
+            ),
+            OpsKind::UnTracked(preps) => preps.finish(B::sub(lhs.primitive, rhs.primitive)),
+        }
     }
 
     fn sub_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: FloatElem<B>) -> ADTensor<B, D> {
@@ -1301,4 +1327,29 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             OpsKind::UnTracked(prep) => prep.finish(output),
         }
     }
+}
+
+/// Make sure the grad tensor has the given shape.
+///
+/// If broadcasting happened during the forward pass, the gradients will be sum along the
+/// broadcasted dimension.
+fn broadcast_shape<B: Backend, const D: usize>(
+    mut grad: B::TensorPrimitive<D>,
+    shape: Shape<D>,
+) -> B::TensorPrimitive<D> {
+    let shape_grad = B::shape(&grad);
+
+    for i in 0..D {
+        if shape_grad.dims[i] != shape.dims[i] {
+            if shape.dims[i] != 1 {
+                panic!(
+                    "Invalid broadcast shapes: Next grad shape {:?}, Previous grad shape {:?}. {}",
+                    shape.dims, shape_grad.dims, "Expected the shape of the next grad to be 1."
+                );
+            }
+            grad = B::sum_dim(grad, i);
+        }
+    }
+
+    grad
 }

@@ -1,13 +1,19 @@
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 
-#[derive(Default)]
+pub(crate) enum CacheState<T> {
+    Value(T),
+    Empty,
+}
+
 pub struct TensorCache<B: Backend, const D: usize> {
-    pub(crate) state: Option<Tensor<B, D>>,
+    pub(crate) state: CacheState<Tensor<B, D>>,
 }
 
 impl<B: Backend, const D: usize> TensorCache<B, D> {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn empty() -> Self {
+        Self {
+            state: CacheState::Empty,
+        }
     }
 }
