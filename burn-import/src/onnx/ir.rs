@@ -307,14 +307,16 @@ pub enum NodeType {
 
 /// Truncate the vector display for debug display
 fn trunc<T: fmt::Display>(v: &Vec<T>) -> String {
+    const BEGIN_INDEX: usize = 0;
+    const MAX_LEN: usize = 5;
     let mut s = String::new();
     s.push('[');
     for (i, item) in v.iter().enumerate() {
-        if i > 0 {
+        if i > BEGIN_INDEX {
             s.push_str(", ");
         }
         s.push_str(&format!("{}", item));
-        if i > 5 {
+        if i > MAX_LEN {
             s.push_str(", ...");
             break;
         }
