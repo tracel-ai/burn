@@ -82,6 +82,7 @@ impl<RS: RecordSettings> Serialize for ModelState<RS> {
 
         // Serialize each stateful node into a map entry
         for node in stateful_nodes.into_iter() {
+            // TODO - Refactor this match statement so there is less logic in the match arms (see https://github.com/burn-rs/burn/pull/319#discussion_r1181253274)
             match node.node_type {
                 NodeType::Conv2d => {
                     let (name, record_item) = conv2d_state::<RS>(node);
