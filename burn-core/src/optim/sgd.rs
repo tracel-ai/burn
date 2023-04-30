@@ -96,6 +96,7 @@ impl<B: Backend> SimpleOptimizer<B> for Sgd<B> {
 mod tests {
     use super::*;
     use crate::{
+        grad_clipper::GradientClipper,
         nn::{Linear, LinearConfig},
         optim::{GradientsParams, Optimizer},
         tensor::{Distribution, Shape},
@@ -121,6 +122,14 @@ mod tests {
     #[test]
     fn without_updated_params_should_not_have_state() {
         let optim = sgd_with_all();
+        let record = optim.to_record();
+        assert!(record.is_empty());
+    }
+
+    #[test]
+    fn can_attach_gradient_clipper() {
+        let grad_clipper = GradientClipper::by_value(1.0);
+        let optim = sgd_with_all().with_gradient_clipper(grad_clipper);
         let record = optim.to_record();
         assert!(record.is_empty());
     }
