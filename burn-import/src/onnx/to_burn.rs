@@ -52,6 +52,9 @@ impl ModelGen {
     }
 
     /// Set development mode.
+    /// 
+    /// If this is set to true, the generated model will be saved as `.graph.txt` files and model
+    /// states will be saved as `.json` file.
     pub fn development(&mut self, development: bool) -> &mut Self {
         self.development = development;
         self
