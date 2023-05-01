@@ -151,22 +151,24 @@ where
     /// The number of checkpoints to be keep should be set to a minimum of two to be safe, since
     /// they are saved and deleted asynchronously and a crash during training might make a
     /// checkpoint non-usable.
-    pub fn with_file_checkpointer<FR>(mut self, num_keep: usize) -> Self
+    pub fn with_file_checkpointer<FR>(mut self, num_keep: usize, recorder: FR) -> Self
     where
-        <Model::Record as Record>::Item<S>: Serialize + DeserializeOwned,
-        <Optim::Record as Record>::Item<S>: Serialize + DeserializeOwned,
+        FR: FileRecorder + 'static,
     {
-        self.checkpointer_model = Some(Arc::new(FileCheckpointer::<S>::new(
+        self.checkpointer_model = Some(Arc::new(FileCheckpointer::new(
+            recorder.clone(),
             format!("{}/checkpoint", self.directory).as_str(),
             "model",
             num_keep,
         )));
-        self.checkpointer_optimizer = Some(Arc::new(FileCheckpointer::<S>::new(
+        self.checkpointer_optimizer = Some(Arc::new(FileCheckpointer::new(
+            recorder.clone(),
             format!("{}/checkpoint", self.directory).as_str(),
             "optim",
             num_keep,
         )));
-        self.checkpointer_scheduler = Some(Arc::new(FileCheckpointer::<S>::new(
+        self.checkpointer_scheduler = Some(Arc::new(FileCheckpointer::new(
+            recorder,
             format!("{}/checkpoint", self.directory).as_str(),
             "scheduler",
             num_keep,

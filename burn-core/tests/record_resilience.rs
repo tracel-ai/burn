@@ -2,14 +2,7 @@
 mod tests {
     use burn_core as burn;
 
-    use burn::{
-        module::Module,
-        nn,
-        record::{
-            CompactRecordSettings, DefaultRecordSettings, FileRecorder, Record, RecordSettings,
-            RecorderError, SentitiveCompactRecordSettings,
-        },
-    };
+    use burn::{module::Module, nn};
     use burn_tensor::backend::Backend;
     use std::path::PathBuf;
 

@@ -1,56 +1,69 @@
 use super::{bin_config, BurnRecord, Record, RecordSettings, Recorder, RecorderError};
+use core::marker::PhantomData;
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use std::{fs::File, path::PathBuf};
 
 /// Recorder trait specialized to save and load data to and from files.
-pub trait FileRecorder<R: Record, S: RecordSettings>:
-    Recorder<R, S, RecordArgs = PathBuf, RecordOutput = (), LoadArgs = PathBuf>
+pub trait FileRecorder:
+    Recorder<RecordArgs = PathBuf, RecordOutput = (), LoadArgs = PathBuf>
 {
     fn file_extension() -> &'static str;
 }
 
+pub type DefaultFileRecorder<S> = FileNamedMpkGzRecorder<S>;
+
 /// File recorder using the [bincode format](bincode).
-#[derive(Debug, Default)]
-pub struct FileBinRecorder;
+#[derive(new, Debug, Default, Clone)]
+pub struct FileBinRecorder<S: RecordSettings> {
+    _settings: PhantomData<S>,
+}
 
 /// File recorder using the [bincode format](bincode) compressed with gzip.
-#[derive(Debug, Default)]
-pub struct FileBinGzRecorder;
+#[derive(new, Debug, Default, Clone)]
+pub struct FileBinGzRecorder<S: RecordSettings> {
+    _settings: PhantomData<S>,
+}
 
 /// File recorder using the json format compressed with gzip.
-#[derive(Debug, Default)]
-pub struct FileJsonGzRecorder;
+#[derive(new, Debug, Default, Clone)]
+pub struct FileJsonGzRecorder<S: RecordSettings> {
+    _settings: PhantomData<S>,
+}
 
 /// File recorder using pretty json for easy redability.
-#[derive(Debug, Default)]
-pub struct FilePrettyJsonRecorder;
+#[derive(new, Debug, Default, Clone)]
+pub struct FilePrettyJsonRecorder<S: RecordSettings> {
+    _settings: PhantomData<S>,
+}
 
 /// File recorder using the [named msgpack](rmp_serde) format compressed with gzip.
-#[derive(Debug, Default)]
-pub struct FileNamedMpkGzRecorder;
+#[derive(new, Debug, Default, Clone)]
+pub struct FileNamedMpkGzRecorder<S: RecordSettings> {
+    _settings: PhantomData<S>,
+}
 
-impl<R: Record, S: RecordSettings> FileRecorder<R, S> for FileBinGzRecorder {
+impl<S: RecordSettings> FileRecorder for FileBinGzRecorder<S> {
     fn file_extension() -> &'static str {
         "bin.gz"
     }
 }
-impl<R: Record, S: RecordSettings> FileRecorder<R, S> for FileBinRecorder {
+impl<S: RecordSettings> FileRecorder for FileBinRecorder<S> {
     fn file_extension() -> &'static str {
         "bin"
     }
 }
-impl<R: Record, S: RecordSettings> FileRecorder<R, S> for FileJsonGzRecorder {
+impl<S: RecordSettings> FileRecorder for FileJsonGzRecorder<S> {
     fn file_extension() -> &'static str {
         "json.gz"
     }
 }
-impl<R: Record, S: RecordSettings> FileRecorder<R, S> for FilePrettyJsonRecorder {
+impl<S: RecordSettings> FileRecorder for FilePrettyJsonRecorder<S> {
     fn file_extension() -> &'static str {
         "json"
     }
 }
 
-impl<R: Record, S: RecordSettings> FileRecorder<R, S> for FileNamedMpkGzRecorder {
+impl<S: RecordSettings> FileRecorder for FileNamedMpkGzRecorder<S> {
     fn file_extension() -> &'static str {
         "mpk.gz"
     }
@@ -60,7 +73,7 @@ macro_rules! str2reader {
     (
         $file:expr
     ) => {{
-        $file.set_extension(<Self as FileRecorder<R, S>>::file_extension());
+        $file.set_extension(<Self as FileRecorder>::file_extension());
         let path = $file.as_path();
 
         File::open(path).map_err(|err| match err.kind() {
@@ -74,7 +87,7 @@ macro_rules! str2writer {
     (
         $file:expr
     ) => {{
-        $file.set_extension(<Self as FileRecorder<R, S>>::file_extension());
+        $file.set_extension(<Self as FileRecorder>::file_extension());
         let path = $file.as_path();
 
         if path.exists() {
@@ -89,12 +102,13 @@ macro_rules! str2writer {
     }};
 }
 
-impl<R: Record, S: RecordSettings> Recorder<R, S> for FileBinGzRecorder {
+impl<S: RecordSettings> Recorder for FileBinGzRecorder<S> {
+    type Settings = S;
     type RecordArgs = PathBuf;
     type RecordOutput = ();
     type LoadArgs = PathBuf;
 
-    fn save_item(
+    fn save_item<R: Record>(
         &self,
         item: BurnRecord<R::Item<S>>,
         mut file: Self::RecordArgs,
@@ -109,7 +123,10 @@ impl<R: Record, S: RecordSettings> Recorder<R, S> for FileBinGzRecorder {
         Ok(())
     }
 
-    fn load_item(&self, mut file: Self::LoadArgs) -> Result<BurnRecord<R::Item<S>>, RecorderError> {
+    fn load_item<R: Record>(
+        &self,
+        mut file: Self::LoadArgs,
+    ) -> Result<BurnRecord<R::Item<S>>, RecorderError> {
         let reader = str2reader!(file)?;
         let mut reader = GzDecoder::new(reader);
         let state = bincode::serde::decode_from_std_read(&mut reader, bin_config())
@@ -119,12 +136,13 @@ impl<R: Record, S: RecordSettings> Recorder<R, S> for FileBinGzRecorder {
     }
 }
 
-impl<R: Record, S: RecordSettings> Recorder<R, S> for FileBinRecorder {
+impl<S: RecordSettings> Recorder for FileBinRecorder<S> {
+    type Settings = S;
     type RecordArgs = PathBuf;
     type RecordOutput = ();
     type LoadArgs = PathBuf;
 
-    fn save_item(
+    fn save_item<R: Record>(
         &self,
         item: BurnRecord<R::Item<S>>,
         mut file: Self::RecordArgs,
@@ -136,7 +154,10 @@ impl<R: Record, S: RecordSettings> Recorder<R, S> for FileBinRecorder {
         Ok(())
     }
 
-    fn load_item(&self, mut file: Self::LoadArgs) -> Result<BurnRecord<R::Item<S>>, RecorderError> {
+    fn load_item<R: Record>(
+        &self,
+        mut file: Self::LoadArgs,
+    ) -> Result<BurnRecord<R::Item<S>>, RecorderError> {
         let mut reader = str2reader!(file)?;
         let state = bincode::serde::decode_from_std_read(&mut reader, bin_config())
             .map_err(|err| RecorderError::Unknown(err.to_string()))?;
@@ -144,12 +165,13 @@ impl<R: Record, S: RecordSettings> Recorder<R, S> for FileBinRecorder {
     }
 }
 
-impl<R: Record, S: RecordSettings> Recorder<R, S> for FileJsonGzRecorder {
+impl<S: RecordSettings> Recorder for FileJsonGzRecorder<S> {
+    type Settings = S;
     type RecordArgs = PathBuf;
     type RecordOutput = ();
     type LoadArgs = PathBuf;
 
-    fn save_item(
+    fn save_item<R: Record>(
         &self,
         item: BurnRecord<R::Item<S>>,
         mut file: Self::RecordArgs,
@@ -162,7 +184,10 @@ impl<R: Record, S: RecordSettings> Recorder<R, S> for FileJsonGzRecorder {
         Ok(())
     }
 
-    fn load_item(&self, mut file: Self::LoadArgs) -> Result<BurnRecord<R::Item<S>>, RecorderError> {
+    fn load_item<R: Record>(
+        &self,
+        mut file: Self::LoadArgs,
+    ) -> Result<BurnRecord<R::Item<S>>, RecorderError> {
         let reader = str2reader!(file)?;
         let reader = GzDecoder::new(reader);
         let state = serde_json::from_reader(reader)
@@ -172,12 +197,13 @@ impl<R: Record, S: RecordSettings> Recorder<R, S> for FileJsonGzRecorder {
     }
 }
 
-impl<R: Record, S: RecordSettings> Recorder<R, S> for FilePrettyJsonRecorder {
+impl<S: RecordSettings> Recorder for FilePrettyJsonRecorder<S> {
+    type Settings = S;
     type RecordArgs = PathBuf;
     type RecordOutput = ();
     type LoadArgs = PathBuf;
 
-    fn save_item(
+    fn save_item<R: Record>(
         &self,
         item: BurnRecord<R::Item<S>>,
         mut file: Self::RecordArgs,
@@ -188,7 +214,10 @@ impl<R: Record, S: RecordSettings> Recorder<R, S> for FilePrettyJsonRecorder {
         Ok(())
     }
 
-    fn load_item(&self, mut file: Self::LoadArgs) -> Result<BurnRecord<R::Item<S>>, RecorderError> {
+    fn load_item<R: Record>(
+        &self,
+        mut file: Self::LoadArgs,
+    ) -> Result<BurnRecord<R::Item<S>>, RecorderError> {
         let reader = str2reader!(file)?;
         let state = serde_json::from_reader(reader)
             .map_err(|err| RecorderError::Unknown(err.to_string()))?;
@@ -197,12 +226,13 @@ impl<R: Record, S: RecordSettings> Recorder<R, S> for FilePrettyJsonRecorder {
     }
 }
 
-impl<R: Record, S: RecordSettings> Recorder<R, S> for FileNamedMpkGzRecorder {
+impl<S: RecordSettings> Recorder for FileNamedMpkGzRecorder<S> {
+    type Settings = S;
     type RecordArgs = PathBuf;
     type RecordOutput = ();
     type LoadArgs = PathBuf;
 
-    fn save_item(
+    fn save_item<R: Record>(
         &self,
         item: BurnRecord<R::Item<S>>,
         mut file: Self::RecordArgs,
@@ -215,7 +245,10 @@ impl<R: Record, S: RecordSettings> Recorder<R, S> for FileNamedMpkGzRecorder {
         Ok(())
     }
 
-    fn load_item(&self, mut file: Self::LoadArgs) -> Result<BurnRecord<R::Item<S>>, RecorderError> {
+    fn load_item<R: Record>(
+        &self,
+        mut file: Self::LoadArgs,
+    ) -> Result<BurnRecord<R::Item<S>>, RecorderError> {
         let reader = str2reader!(file)?;
         let reader = GzDecoder::new(reader);
         let state = rmp_serde::decode::from_read(reader)
@@ -232,7 +265,7 @@ mod tests {
     use crate::{
         module::Module,
         nn,
-        record::{BytesBinRecorder, DefaultRecordSettings},
+        record::{BytesBinRecorder, FullPrecisionSettings},
         TestBackend,
     };
 
@@ -240,34 +273,30 @@ mod tests {
 
     #[test]
     fn test_can_save_and_load_jsongz_format() {
-        test_can_save_and_load(FileJsonGzRecorder)
+        test_can_save_and_load(FileJsonGzRecorder::<FullPrecisionSettings>::default())
     }
 
     #[test]
     fn test_can_save_and_load_bin_format() {
-        test_can_save_and_load(FileBinRecorder)
+        test_can_save_and_load(FileBinRecorder::<FullPrecisionSettings>::default())
     }
 
     #[test]
     fn test_can_save_and_load_bingz_format() {
-        test_can_save_and_load(FileBinGzRecorder)
+        test_can_save_and_load(FileBinGzRecorder::<FullPrecisionSettings>::default())
     }
 
     #[test]
     fn test_can_save_and_load_pretty_json_format() {
-        test_can_save_and_load(FilePrettyJsonRecorder)
+        test_can_save_and_load(FilePrettyJsonRecorder::<FullPrecisionSettings>::default())
     }
 
     #[test]
     fn test_can_save_and_load_mpkgz_format() {
-        test_can_save_and_load(FileNamedMpkGzRecorder)
+        test_can_save_and_load(FileNamedMpkGzRecorder::<FullPrecisionSettings>::default())
     }
 
-    fn test_can_save_and_load<
-        Recorder: FileRecorder<nn::LinearRecord<TestBackend>, DefaultRecordSettings>,
-    >(
-        recorder: Recorder,
-    ) {
+    fn test_can_save_and_load<Recorder: FileRecorder>(recorder: Recorder) {
         let model_before = create_model();
         recorder
             .record(model_before.clone().into_record(), FILE_PATH.into())
@@ -275,12 +304,11 @@ mod tests {
 
         let model_after = create_model().load_record(recorder.load(FILE_PATH.into()).unwrap());
 
-        let model_bytes_before =
-            BytesBinRecorder::into_bytes::<_, DefaultRecordSettings>(model_before.into_record())
-                .unwrap();
-        let model_bytes_after =
-            BytesBinRecorder::into_bytes::<_, DefaultRecordSettings>(model_after.into_record())
-                .unwrap();
+        let byte_recorder = BytesBinRecorder::<FullPrecisionSettings>::default();
+        let model_bytes_before = byte_recorder
+            .record(model_before.into_record(), ())
+            .unwrap();
+        let model_bytes_after = byte_recorder.record(model_after.into_record(), ()).unwrap();
 
         assert_eq!(model_bytes_after, model_bytes_before);
     }

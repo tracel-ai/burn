@@ -5,9 +5,8 @@ use serde::{Deserialize, Serialize};
 use super::{Record, RecordSettings};
 
 /// Record any item implementing [Serialize](Serialize) and [DeserializeOwned](DeserializeOwned).
-pub trait Recorder<S: RecordSettings>:
-    Send + Sync + core::default::Default + core::fmt::Debug
-{
+pub trait Recorder: Send + Sync + core::default::Default + core::fmt::Debug + Clone {
+    type Settings: RecordSettings;
     /// Arguments used to record objects.
     type RecordArgs: Clone;
     /// Record output type.
@@ -22,34 +21,34 @@ pub trait Recorder<S: RecordSettings>:
         args: Self::RecordArgs,
     ) -> Result<Self::RecordOutput, RecorderError> {
         let metadata = BurnMetadata::new(
-            core::any::type_name::<S::FloatElem>().to_string(),
-            core::any::type_name::<S::IntElem>().to_string(),
+            core::any::type_name::<<Self::Settings as RecordSettings>::FloatElem>().to_string(),
+            core::any::type_name::<<Self::Settings as RecordSettings>::IntElem>().to_string(),
             core::any::type_name::<Self>().to_string(),
             env!("CARGO_PKG_VERSION").to_string(),
-            format!("{:?}", S::default()),
+            format!("{:?}", Self::Settings::default()),
         );
-        let item = record.into_item::<S>();
+        let item = record.into_item::<Self::Settings>();
         let item = BurnRecord::new(metadata, item);
 
-        self.save_item(item, args)
+        self.save_item::<R>(item, args)
     }
 
     /// Load an item from the given arguments.
     fn load<R: Record>(&self, args: Self::LoadArgs) -> Result<R, RecorderError> {
-        let item = self.load_item(args.clone())?;
+        let item = self.load_item::<R>(args.clone())?;
 
         Ok(R::from_item(item.item))
     }
 
     fn save_item<R: Record>(
         &self,
-        item: BurnRecord<R::Item<S>>,
+        item: BurnRecord<R::Item<Self::Settings>>,
         args: Self::RecordArgs,
     ) -> Result<Self::RecordOutput, RecorderError>;
     fn load_item<R: Record>(
         &self,
         args: Self::LoadArgs,
-    ) -> Result<BurnRecord<R::Item<S>>, RecorderError>;
+    ) -> Result<BurnRecord<R::Item<Self::Settings>>, RecorderError>;
 }
 
 #[derive(Debug)]

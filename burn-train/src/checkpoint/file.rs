@@ -1,6 +1,5 @@
 use super::{Checkpointer, CheckpointerError};
-use burn_core::record::{FileRecorder, Record, RecordSettings};
-use serde::{de::DeserializeOwned, Serialize};
+use burn_core::record::{FileRecorder, Record};
 
 pub struct FileCheckpointer<FR> {
     directory: String,
@@ -25,18 +24,17 @@ impl<FR> FileCheckpointer<FR> {
     }
 }
 
-impl<FR, R, S> Checkpointer<R> for FileCheckpointer<FR>
+impl<FR, R> Checkpointer<R> for FileCheckpointer<FR>
 where
     R: Record,
-    S: RecordSettings,
-    FR: FileRecorder<R, S>,
+    FR: FileRecorder,
 {
     fn save(&self, epoch: usize, record: R) -> Result<(), CheckpointerError> {
         let file_path = self.path_for_epoch(epoch);
         log::info!("Saving checkpoint {} to {}", epoch, file_path);
 
-        record
-            .record::<S>(file_path.into())
+        self.recorder
+            .record(record, file_path.into())
             .map_err(CheckpointerError::RecorderError)?;
 
         if self.num_keep > epoch {
@@ -46,7 +44,7 @@ where
         let file_to_remove = format!(
             "{}.{}",
             self.path_for_epoch(epoch - self.num_keep),
-            <S::Recorder as FileRecorder>::file_extension()
+            FR::file_extension(),
         );
 
         if std::path::Path::new(&file_to_remove).exists() {
@@ -60,7 +58,10 @@ where
     fn restore(&self, epoch: usize) -> Result<R, CheckpointerError> {
         let file_path = self.path_for_epoch(epoch);
         log::info!("Restoring checkpoint {} from {}", epoch, file_path);
-        let record = R::load::<S>(file_path.into()).map_err(CheckpointerError::RecorderError)?;
+        let record = self
+            .recorder
+            .load(file_path.into())
+            .map_err(CheckpointerError::RecorderError)?;
 
         Ok(record)
     }

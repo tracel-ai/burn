@@ -9,6 +9,7 @@ use burn::{
     module::Module,
     nn::transformer::TransformerEncoderConfig,
     optim::AdamConfig,
+    record::{DefaultFileRecorder, Recorder},
     tensor::backend::ADBackend,
     train::{
         metric::{AccuracyMetric, CUDAMetric, LearningRateMetric, LossMetric},
@@ -17,7 +18,7 @@ use burn::{
 };
 use burn::{
     data::dataset::transform::SamplerDataset,
-    record::{DefaultRecordSettings, Record},
+    record::{FullPrecisionSettings, Record},
 };
 use std::sync::Arc;
 
@@ -77,7 +78,7 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
         .metric_train(LossMetric::new())
         .metric_valid(LossMetric::new())
         .metric_train_plot(LearningRateMetric::new())
-        .with_file_checkpointer::<DefaultRecordSettings>(2)
+        .with_file_checkpointer(2, DefaultFileRecorder::<FullPrecisionSettings>::default())
         .devices(vec![device])
         .grads_accumulation(accum)
         .num_epochs(config.num_epochs)
@@ -87,8 +88,10 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
 
     config.save(&format!("{artifact_dir}/config.json")).unwrap();
 
-    model_trained
-        .into_record()
-        .record::<DefaultRecordSettings>(format!("{artifact_dir}/model").into())
+    DefaultFileRecorder::<FullPrecisionSettings>::default()
+        .record(
+            model_trained.into_record(),
+            format!("{artifact_dir}/model").into(),
+        )
         .unwrap();
 }
