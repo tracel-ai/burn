@@ -136,6 +136,26 @@ pub trait ModuleOps<B: Backend> {
     ) -> Conv1dBackward<B> {
         conv::conv1d_backward(x, weight, bias, output_grad, options)
     }
+    /// Two dimensional avg pooling.
+    ///
+    /// # Shapes
+    ///
+    /// x: [batch_size, channels, height, width],
+    fn avg_pool2d(
+        x: B::TensorPrimitive<4>,
+        kernel_size: [usize; 2],
+        stride: [usize; 2],
+        padding: [usize; 2],
+    ) -> B::TensorPrimitive<4>;
+    /// Backward pass for the [avg pooling 2d](ModuleOps::avg_pool2d) operation.
+    fn avg_pool2d_backward(
+        x: B::TensorPrimitive<4>,
+        grad: B::TensorPrimitive<4>,
+        kernel_size: [usize; 2],
+        stride: [usize; 2],
+        padding: [usize; 2],
+    ) -> B::TensorPrimitive<4>;
+
     /// Two dimensional max pooling.
     ///
     /// # Shapes
@@ -147,6 +167,7 @@ pub trait ModuleOps<B: Backend> {
         stride: [usize; 2],
         padding: [usize; 2],
     ) -> B::TensorPrimitive<4>;
+
     /// Two dimensional max pooling with indexes.
     ///
     /// # Shapes
