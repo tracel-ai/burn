@@ -132,7 +132,7 @@ impl ModelGen {
             // export the model state in debug mode
             let model_state = ModelState::<DebugRecordSettings>::new_from_graph(model.graph);
             model_state
-                .record::<DebugRecordSettings>(out_file.clone())
+                .record::<DebugRecordSettings>(out_file)
                 .unwrap()
         } else {
             let model_state = ModelState::<DefaultRecordSettings>::new_from_graph(model.graph);
