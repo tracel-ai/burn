@@ -60,7 +60,7 @@ impl<const D: usize, B: ADBackend> ADModule<B> for Param<Tensor<B, D>> {
 mod tests {
     use super::*;
     use crate::{
-        record::{BytesBinRecorder, FullPrecisionSettings, Recorder},
+        record::{BinBytesRecorder, FullPrecisionSettings, Recorder},
         TestADBackend,
     };
 
@@ -68,7 +68,7 @@ mod tests {
     fn test_load_record_setting() {
         let tensor = Tensor::<TestADBackend, 2>::ones([3, 3]);
 
-        let byte_recorder = BytesBinRecorder::<FullPrecisionSettings>::default();
+        let byte_recorder = BinBytesRecorder::<FullPrecisionSettings>::default();
         let bytes = byte_recorder
             .record(Param::from(tensor.clone()).into_record(), ())
             .unwrap();

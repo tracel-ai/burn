@@ -1,6 +1,6 @@
 use crate::{
     optim::SimpleOptimizer,
-    record::{Record, RecordSettings},
+    record::{PrecisionSettings, Record},
 };
 use burn_tensor::backend::Backend;
 use core::any::Any;
@@ -34,7 +34,7 @@ impl<O: SimpleOptimizer<B>, B: Backend> Clone for AdaptorRecordV1<O, B> {
 
 #[derive(Serialize, Deserialize)]
 #[serde(bound = "")]
-pub enum AdaptorRecordItemV1<O: SimpleOptimizer<B>, B: Backend, S: RecordSettings> {
+pub enum AdaptorRecordItemV1<O: SimpleOptimizer<B>, B: Backend, S: PrecisionSettings> {
     Rank1(<O::State<1> as Record>::Item<S>),
     Rank2(<O::State<2> as Record>::Item<S>),
     Rank3(<O::State<3> as Record>::Item<S>),
@@ -88,9 +88,9 @@ where
     O: SimpleOptimizer<B>,
     B: Backend,
 {
-    type Item<S: RecordSettings> = AdaptorRecordItemV1<O, B, S>;
+    type Item<S: PrecisionSettings> = AdaptorRecordItemV1<O, B, S>;
 
-    fn into_item<S: RecordSettings>(self) -> Self::Item<S> {
+    fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
         match self {
             AdaptorRecordV1::Rank1(record) => AdaptorRecordItemV1::Rank1(record.into_item()),
             AdaptorRecordV1::Rank2(record) => AdaptorRecordItemV1::Rank2(record.into_item()),
@@ -103,7 +103,7 @@ where
         }
     }
 
-    fn from_item<S: RecordSettings>(item: Self::Item<S>) -> Self {
+    fn from_item<S: PrecisionSettings>(item: Self::Item<S>) -> Self {
         match item {
             AdaptorRecordItemV1::Rank1(item) => {
                 AdaptorRecordV1::Rank1(<O::State<1> as Record>::from_item(item))

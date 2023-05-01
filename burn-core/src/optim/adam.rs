@@ -166,7 +166,7 @@ mod tests {
     use super::*;
     use crate::module::{Module, Param};
     use crate::optim::{GradientsParams, Optimizer};
-    use crate::record::{FileBinRecorder, FullPrecisionSettings, Recorder};
+    use crate::record::{BinFileRecorder, FullPrecisionSettings, Recorder};
     use crate::tensor::{Data, Distribution, Tensor};
     use crate::{nn, TestADBackend, TestBackend};
 
@@ -180,7 +180,7 @@ mod tests {
         let grads = linear.forward(x).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
         let _linear = optimizer.step(LEARNING_RATE, linear, grads);
-        FileBinRecorder::<FullPrecisionSettings>::default()
+        BinFileRecorder::<FullPrecisionSettings>::default()
             .record(optimizer.to_record(), "/tmp/test_optim".into())
             .unwrap();
 

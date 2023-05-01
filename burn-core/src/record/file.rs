@@ -1,4 +1,4 @@
-use super::{bin_config, BurnRecord, Record, RecordSettings, Recorder, RecorderError};
+use super::{bin_config, BurnRecord, PrecisionSettings, Record, Recorder, RecorderError};
 use core::marker::PhantomData;
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use std::{fs::File, path::PathBuf};
@@ -10,60 +10,61 @@ pub trait FileRecorder:
     fn file_extension() -> &'static str;
 }
 
-pub type DefaultFileRecorder<S> = FileNamedMpkGzRecorder<S>;
+/// Default [file recorder](FileRecorder).
+pub type DefaultFileRecorder<S> = NamedMpkGzFileRecorder<S>;
 
 /// File recorder using the [bincode format](bincode).
 #[derive(new, Debug, Default, Clone)]
-pub struct FileBinRecorder<S: RecordSettings> {
+pub struct BinFileRecorder<S: PrecisionSettings> {
     _settings: PhantomData<S>,
 }
 
 /// File recorder using the [bincode format](bincode) compressed with gzip.
 #[derive(new, Debug, Default, Clone)]
-pub struct FileBinGzRecorder<S: RecordSettings> {
+pub struct BinGzFileRecorder<S: PrecisionSettings> {
     _settings: PhantomData<S>,
 }
 
-/// File recorder using the json format compressed with gzip.
+/// File recorder using the [json format](serde_json) compressed with gzip.
 #[derive(new, Debug, Default, Clone)]
-pub struct FileJsonGzRecorder<S: RecordSettings> {
+pub struct JsonGzFileRecorder<S: PrecisionSettings> {
     _settings: PhantomData<S>,
 }
 
-/// File recorder using pretty json for easy redability.
+/// File recorder using [pretty json format](serde_json) for easy redability.
 #[derive(new, Debug, Default, Clone)]
-pub struct FilePrettyJsonRecorder<S: RecordSettings> {
+pub struct PrettyJsonFileRecorder<S: PrecisionSettings> {
     _settings: PhantomData<S>,
 }
 
 /// File recorder using the [named msgpack](rmp_serde) format compressed with gzip.
 #[derive(new, Debug, Default, Clone)]
-pub struct FileNamedMpkGzRecorder<S: RecordSettings> {
+pub struct NamedMpkGzFileRecorder<S: PrecisionSettings> {
     _settings: PhantomData<S>,
 }
 
-impl<S: RecordSettings> FileRecorder for FileBinGzRecorder<S> {
+impl<S: PrecisionSettings> FileRecorder for BinGzFileRecorder<S> {
     fn file_extension() -> &'static str {
         "bin.gz"
     }
 }
-impl<S: RecordSettings> FileRecorder for FileBinRecorder<S> {
+impl<S: PrecisionSettings> FileRecorder for BinFileRecorder<S> {
     fn file_extension() -> &'static str {
         "bin"
     }
 }
-impl<S: RecordSettings> FileRecorder for FileJsonGzRecorder<S> {
+impl<S: PrecisionSettings> FileRecorder for JsonGzFileRecorder<S> {
     fn file_extension() -> &'static str {
         "json.gz"
     }
 }
-impl<S: RecordSettings> FileRecorder for FilePrettyJsonRecorder<S> {
+impl<S: PrecisionSettings> FileRecorder for PrettyJsonFileRecorder<S> {
     fn file_extension() -> &'static str {
         "json"
     }
 }
 
-impl<S: RecordSettings> FileRecorder for FileNamedMpkGzRecorder<S> {
+impl<S: PrecisionSettings> FileRecorder for NamedMpkGzFileRecorder<S> {
     fn file_extension() -> &'static str {
         "mpk.gz"
     }
@@ -102,7 +103,7 @@ macro_rules! str2writer {
     }};
 }
 
-impl<S: RecordSettings> Recorder for FileBinGzRecorder<S> {
+impl<S: PrecisionSettings> Recorder for BinGzFileRecorder<S> {
     type Settings = S;
     type RecordArgs = PathBuf;
     type RecordOutput = ();
@@ -136,7 +137,7 @@ impl<S: RecordSettings> Recorder for FileBinGzRecorder<S> {
     }
 }
 
-impl<S: RecordSettings> Recorder for FileBinRecorder<S> {
+impl<S: PrecisionSettings> Recorder for BinFileRecorder<S> {
     type Settings = S;
     type RecordArgs = PathBuf;
     type RecordOutput = ();
@@ -165,7 +166,7 @@ impl<S: RecordSettings> Recorder for FileBinRecorder<S> {
     }
 }
 
-impl<S: RecordSettings> Recorder for FileJsonGzRecorder<S> {
+impl<S: PrecisionSettings> Recorder for JsonGzFileRecorder<S> {
     type Settings = S;
     type RecordArgs = PathBuf;
     type RecordOutput = ();
@@ -197,7 +198,7 @@ impl<S: RecordSettings> Recorder for FileJsonGzRecorder<S> {
     }
 }
 
-impl<S: RecordSettings> Recorder for FilePrettyJsonRecorder<S> {
+impl<S: PrecisionSettings> Recorder for PrettyJsonFileRecorder<S> {
     type Settings = S;
     type RecordArgs = PathBuf;
     type RecordOutput = ();
@@ -226,7 +227,7 @@ impl<S: RecordSettings> Recorder for FilePrettyJsonRecorder<S> {
     }
 }
 
-impl<S: RecordSettings> Recorder for FileNamedMpkGzRecorder<S> {
+impl<S: PrecisionSettings> Recorder for NamedMpkGzFileRecorder<S> {
     type Settings = S;
     type RecordArgs = PathBuf;
     type RecordOutput = ();
@@ -265,7 +266,7 @@ mod tests {
     use crate::{
         module::Module,
         nn,
-        record::{BytesBinRecorder, FullPrecisionSettings},
+        record::{BinBytesRecorder, FullPrecisionSettings},
         TestBackend,
     };
 
@@ -273,27 +274,27 @@ mod tests {
 
     #[test]
     fn test_can_save_and_load_jsongz_format() {
-        test_can_save_and_load(FileJsonGzRecorder::<FullPrecisionSettings>::default())
+        test_can_save_and_load(JsonGzFileRecorder::<FullPrecisionSettings>::default())
     }
 
     #[test]
     fn test_can_save_and_load_bin_format() {
-        test_can_save_and_load(FileBinRecorder::<FullPrecisionSettings>::default())
+        test_can_save_and_load(BinFileRecorder::<FullPrecisionSettings>::default())
     }
 
     #[test]
     fn test_can_save_and_load_bingz_format() {
-        test_can_save_and_load(FileBinGzRecorder::<FullPrecisionSettings>::default())
+        test_can_save_and_load(BinGzFileRecorder::<FullPrecisionSettings>::default())
     }
 
     #[test]
     fn test_can_save_and_load_pretty_json_format() {
-        test_can_save_and_load(FilePrettyJsonRecorder::<FullPrecisionSettings>::default())
+        test_can_save_and_load(PrettyJsonFileRecorder::<FullPrecisionSettings>::default())
     }
 
     #[test]
     fn test_can_save_and_load_mpkgz_format() {
-        test_can_save_and_load(FileNamedMpkGzRecorder::<FullPrecisionSettings>::default())
+        test_can_save_and_load(NamedMpkGzFileRecorder::<FullPrecisionSettings>::default())
     }
 
     fn test_can_save_and_load<Recorder: FileRecorder>(recorder: Recorder) {
@@ -304,7 +305,7 @@ mod tests {
 
         let model_after = create_model().load_record(recorder.load(FILE_PATH.into()).unwrap());
 
-        let byte_recorder = BytesBinRecorder::<FullPrecisionSettings>::default();
+        let byte_recorder = BinBytesRecorder::<FullPrecisionSettings>::default();
         let model_bytes_before = byte_recorder
             .record(model_before.into_record(), ())
             .unwrap();

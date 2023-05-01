@@ -2,11 +2,15 @@ use alloc::format;
 use alloc::string::String;
 use serde::{Deserialize, Serialize};
 
-use super::{Record, RecordSettings};
+use super::{
+    BinBytesRecorder, BinFileRecorder, BinGzFileRecorder, DefaultFileRecorder,
+    FullPrecisionSettings, HalfPrecisionSettings, PrecisionSettings, PrettyJsonFileRecorder,
+    Record,
+};
 
 /// Record any item implementing [Serialize](Serialize) and [DeserializeOwned](DeserializeOwned).
 pub trait Recorder: Send + Sync + core::default::Default + core::fmt::Debug + Clone {
-    type Settings: RecordSettings;
+    type Settings: PrecisionSettings;
     /// Arguments used to record objects.
     type RecordArgs: Clone;
     /// Record output type.
@@ -21,8 +25,8 @@ pub trait Recorder: Send + Sync + core::default::Default + core::fmt::Debug + Cl
         args: Self::RecordArgs,
     ) -> Result<Self::RecordOutput, RecorderError> {
         let metadata = BurnMetadata::new(
-            core::any::type_name::<<Self::Settings as RecordSettings>::FloatElem>().to_string(),
-            core::any::type_name::<<Self::Settings as RecordSettings>::IntElem>().to_string(),
+            core::any::type_name::<<Self::Settings as PrecisionSettings>::FloatElem>().to_string(),
+            core::any::type_name::<<Self::Settings as PrecisionSettings>::IntElem>().to_string(),
             core::any::type_name::<Self>().to_string(),
             env!("CARGO_PKG_VERSION").to_string(),
             format!("{:?}", Self::Settings::default()),
@@ -91,56 +95,83 @@ struct BurnRecordNoItem {
     metadata: BurnMetadata,
 }
 
-// #[cfg(all(test, feature = "std"))]
-// mod tests {
-//     static FILE_PATH: &str = "/tmp/burn_test_record";
-//
-//     use core::marker::PhantomData;
-//
-//     use super::*;
-//     use crate::record::FileJsonGzRecorder;
-//     use burn_tensor::{Element, ElementConversion};
-//
-//     #[test]
-//     #[should_panic]
-//     fn err_when_invalid_object() {
-//         #[derive(Debug, Default)]
-//         pub struct TestSettings<F> {
-//             float: PhantomData<F>,
-//         }
-//
-//         impl<F: Element + Serialize + DeserializeOwned> RecordSettings for TestSettings<F> {
-//             type FloatElem = F;
-//             type IntElem = i32;
-//             type Recorder = FileJsonGzRecorder;
-//         }
-//
-//         #[derive(new, Serialize, Deserialize)]
-//         struct Item<S: RecordSettings> {
-//             value: S::FloatElem,
-//         }
-//
-//         impl<D: RecordSettings> Record for Item<D> {
-//             type Item<S: RecordSettings> = Item<S>;
-//
-//             fn into_item<S: RecordSettings>(self) -> Self::Item<S> {
-//                 Item {
-//                     value: self.value.elem(),
-//                 }
-//             }
-//
-//             fn from_item<S: RecordSettings>(item: Self::Item<S>) -> Self {
-//                 Item {
-//                     value: item.value.elem(),
-//                 }
-//             }
-//         }
-//
-//         let item = Item::<TestSettings<f32>>::new(16.elem());
-//
-//         // Serialize in f32.
-//         item.record::<TestSettings<f32>>(FILE_PATH.into()).unwrap();
-//         // Can't deserialize u8 into f32.
-//         Item::<TestSettings<f32>>::load::<TestSettings<u8>>(FILE_PATH.into()).unwrap();
-//     }
-// }
+/// Default recorder.
+///
+/// It uses the [named msgpack](rmp_serde) format for serialization with full precision.
+pub type DefaultRecorder = DefaultFileRecorder<FullPrecisionSettings>;
+
+/// Recorder optimized for compactness.
+///
+/// It uses the [named msgpack](rmp_serde) format for serialization with half precision.
+/// If you are looking for the recorder that offers the smallest file size, have a look at
+/// [sensitive compact recorder](SensitiveCompactRecorder).
+pub type CompactRecorder = DefaultFileRecorder<HalfPrecisionSettings>;
+
+/// Recorder optimized for compactness making it a good choice for model deployment.
+///
+/// It uses the [bincode](bincode) format for serialization and half precision.
+/// This format is not resilient to type changes since no metadata is encoded.
+/// Favor [default recorder](DefaultRecorder) or [compact recorder](CompactRecorder)
+/// for long term data storage.
+pub type SensitiveCompactRecorder = BinGzFileRecorder<HalfPrecisionSettings>;
+
+/// Training recorder compatible with no-std inference.
+pub type NoStdTrainingRecorder = BinFileRecorder<FullPrecisionSettings>;
+
+/// Inference recorder compatible with no-std.
+pub type NoStdInferenceRecorder = BinBytesRecorder<FullPrecisionSettings>;
+
+/// Debug recorder.
+///
+/// It uses the [pretty json](serde_json) format for serialization with full precision making it
+/// human readable.
+pub type DebugRecordSettings = PrettyJsonFileRecorder<FullPrecisionSettings>;
+
+#[cfg(all(test, feature = "std"))]
+mod tests {
+    static FILE_PATH: &str = "/tmp/burn_test_record";
+
+    use core::marker::PhantomData;
+
+    use super::*;
+    use crate::record::JsonGzFileRecorder;
+    use burn_tensor::{Element, ElementConversion};
+    use serde::de::DeserializeOwned;
+
+    #[test]
+    #[should_panic]
+    fn err_when_invalid_object() {
+        #[derive(Debug, Default)]
+        pub struct TestSettings<F> {
+            float: PhantomData<F>,
+        }
+
+        #[derive(new, Serialize, Deserialize)]
+        struct Item<S: PrecisionSettings> {
+            value: S::FloatElem,
+        }
+
+        impl<D: PrecisionSettings> Record for Item<D> {
+            type Item<S: PrecisionSettings> = Item<S>;
+
+            fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
+                Item {
+                    value: self.value.elem(),
+                }
+            }
+
+            fn from_item<S: PrecisionSettings>(item: Self::Item<S>) -> Self {
+                Item {
+                    value: item.value.elem(),
+                }
+            }
+        }
+
+        let item = Item::<TestSettings<f32>>::new(16.elem());
+
+        // Serialize in f32.
+        item.record::<TestSettings<f32>>(FILE_PATH.into()).unwrap();
+        // Can't deserialize u8 into f32.
+        Item::<TestSettings<f32>>::load::<TestSettings<u8>>(FILE_PATH.into()).unwrap();
+    }
+}

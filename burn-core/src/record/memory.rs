@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
 
-use super::{bin_config, BurnRecord, Record, RecordSettings, Recorder, RecorderError};
+use super::{bin_config, BurnRecord, PrecisionSettings, Record, Recorder, RecorderError};
 use alloc::vec::Vec;
 
 /// Recorder trait specialized to save and load data to and from bytes.
@@ -16,13 +16,13 @@ pub trait BytesRecorder:
 
 /// In memory recorder using the [bincode format](bincode).
 #[derive(new, Debug, Default, Clone)]
-pub struct BytesBinRecorder<S: RecordSettings> {
+pub struct BinBytesRecorder<S: PrecisionSettings> {
     _settings: PhantomData<S>,
 }
 
-impl<S: RecordSettings> BytesRecorder for BytesBinRecorder<S> {}
+impl<S: PrecisionSettings> BytesRecorder for BinBytesRecorder<S> {}
 
-impl<S: RecordSettings> Recorder for BytesBinRecorder<S> {
+impl<S: PrecisionSettings> Recorder for BinBytesRecorder<S> {
     type Settings = S;
     type RecordArgs = ();
     type RecordOutput = Vec<u8>;
@@ -51,7 +51,7 @@ mod tests {
 
     #[test]
     fn test_can_save_and_load_bin_format() {
-        test_can_save_and_load(BytesBinRecorder::<FullPrecisionSettings>::default())
+        test_can_save_and_load(BinBytesRecorder::<FullPrecisionSettings>::default())
     }
 
     fn test_can_save_and_load<Recorder: BytesRecorder>(recorder: Recorder) {

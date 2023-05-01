@@ -9,7 +9,7 @@ use crate::AsyncTrainerCallback;
 use burn_core::lr_scheduler::LRScheduler;
 use burn_core::module::ADModule;
 use burn_core::optim::Optimizer;
-use burn_core::record::{FileRecorder, Record, RecordSettings};
+use burn_core::record::{FileRecorder, PrecisionSettings, Record};
 use burn_core::tensor::backend::ADBackend;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
