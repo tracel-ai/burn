@@ -539,4 +539,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
             |tensor| tensor.where_self(&condition.tensor, &other.tensor),
         )
     }
+    fn copy_<const D:usize>(tensor: &mut <TchBackend<E> as Backend>::TensorPrimitive<D>, src: <TchBackend<E> as Backend>::TensorPrimitive<D>) {
+        tensor.tensor.copy_(&src.tensor);
+    }
 }

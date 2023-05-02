@@ -380,6 +380,9 @@ where
         let tensor = B::where_self(self.primitive, condition.primitive, other.primitive);
         Tensor::new(tensor)
     }
+    pub fn copy_(&mut self, src: Tensor<B, D>) {
+        B::copy_(&mut self.primitive, src.primitive);
+    }
 }
 
 impl<const D: usize, B: ADBackend> Tensor<B, D> {

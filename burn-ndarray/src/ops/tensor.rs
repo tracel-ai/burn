@@ -565,6 +565,12 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
     ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D> {
         unimplemented!()
     }
+    fn copy_<const D: usize>(
+        tensor: &mut <NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
+        src: <NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
+    ) {
+        unimplemented!()
+    }
 }
 
 fn arg<E: FloatNdArrayElement, F, const D: usize>(

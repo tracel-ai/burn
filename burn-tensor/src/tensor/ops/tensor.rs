@@ -314,4 +314,5 @@ pub trait TensorOps<B: Backend> {
         condition: B::BoolTensorPrimitive<D>,
         other: B::TensorPrimitive<D>,
     ) -> B::TensorPrimitive<D>;
+    fn copy_<const D:usize>(tensor: &mut B::TensorPrimitive<D>, src: B::TensorPrimitive<D>);
 }

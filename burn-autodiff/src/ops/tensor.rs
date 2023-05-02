@@ -1426,6 +1426,9 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
         unimplemented!()
     }
+    fn copy_<const D:usize>(tensor: &mut <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>, src: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>) {
+        unimplemented!()
+    }
 }
 
 /// Make sure the grad tensor has the given shape.
