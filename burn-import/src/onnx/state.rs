@@ -145,11 +145,7 @@ impl<const D: usize> TryFrom<&ir::Tensor> for Tensor<B, D> {
     }
 }
 
-// let (name, record) = conv2d_state(node);
-// let item = Record::into_item::<RS>(record);
-// map.serialize_entry(&name, &item)?;
-
-/// Convert a Conv2d node into a Name, Conv2dRecordItem pair
+/// Convert a Conv2d node into a Name, Conv2dRecord pair
 pub fn conv2d_state(node: &Node) -> (String, Conv2dRecord<B>) {
     if node.initializers.is_empty() {
         panic!("Conv2d node must have at least 1 initializer");
@@ -177,7 +173,7 @@ pub fn conv2d_state(node: &Node) -> (String, Conv2dRecord<B>) {
     (node.name.clone(), record)
 }
 
-/// Convert a Linear node into a Name, LinearRecordItem pair
+/// Convert a Linear node into a Name, LinearRecord pair
 ///
 /// TODO: implement for all tensor element types
 fn linear_state(node: &Node) -> (String, LinearRecord<B>) {
@@ -206,7 +202,7 @@ fn linear_state(node: &Node) -> (String, LinearRecord<B>) {
     (node.name.clone(), record)
 }
 
-/// Convert a BatchNorm node into a Name, BatchNormRecordItem pair
+/// Convert a BatchNorm node into a Name, BatchNormRecord pair
 fn batch_norm_state<const D: usize>(node: &Node) -> (String, BatchNormRecord<B, D>) {
     let config = batch_norm_config(node);
     let norm: burn::nn::BatchNorm<B, D> = config.init();
