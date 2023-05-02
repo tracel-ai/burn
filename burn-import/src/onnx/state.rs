@@ -11,10 +11,7 @@ use super::{
 
 use burn::{
     module::{Module, Param},
-    nn::{
-        conv::{Conv2dRecord, Conv2dRecordItem},
-        BatchNormRecordItem, LinearRecord, LinearRecordItem,
-    },
+    nn::{conv::Conv2dRecord, BatchNormRecord, LinearRecord},
     record::{Record, RecordSettings},
     tensor::Tensor,
 };
@@ -85,29 +82,29 @@ impl<RS: RecordSettings> Serialize for ModelState<RS> {
             // TODO - Refactor this match statement so there is less logic in the match arms (see https://github.com/burn-rs/burn/pull/319#discussion_r1181253274)
             match node.node_type {
                 NodeType::Conv2d => {
-                    let (name, record_item) = conv2d_state::<RS>(node);
-                    map.serialize_entry(&name, &record_item)?;
+                    let (name, record) = conv2d_state(node);
+                    map.serialize_entry(&name, &Record::into_item::<RS>(record))?;
                 }
                 NodeType::Linear => {
-                    let (name, record_item) = linear_state::<RS>(node);
-                    map.serialize_entry(&name, &record_item)?;
+                    let (name, record) = linear_state(node);
+                    map.serialize_entry(&name, &Record::into_item::<RS>(record))?;
                 }
                 NodeType::BatchNormalization => match first_input_dim(node).unwrap() {
                     2 => {
-                        let (name, record_item) = batch_norm_state::<0, RS>(node);
-                        map.serialize_entry(&name, &record_item)?;
+                        let (name, record) = batch_norm_state::<0>(node);
+                        map.serialize_entry(&name, &Record::into_item::<RS>(record))?;
                     }
                     3 => {
-                        let (name, record_item) = batch_norm_state::<1, RS>(node);
-                        map.serialize_entry(&name, &record_item)?;
+                        let (name, record) = batch_norm_state::<1>(node);
+                        map.serialize_entry(&name, &Record::into_item::<RS>(record))?;
                     }
                     4 => {
-                        let (name, record_item) = batch_norm_state::<2, RS>(node);
-                        map.serialize_entry(&name, &record_item)?;
+                        let (name, record) = batch_norm_state::<2>(node);
+                        map.serialize_entry(&name, &Record::into_item::<RS>(record))?;
                     }
                     5 => {
-                        let (name, record_item) = batch_norm_state::<3, RS>(node);
-                        map.serialize_entry(&name, &record_item)?;
+                        let (name, record) = batch_norm_state::<3>(node);
+                        map.serialize_entry(&name, &Record::into_item::<RS>(record))?;
                     }
                     dim => todo!("BatchNorm for dim = {dim} is not implemented yet"),
                 },
@@ -148,8 +145,12 @@ impl<const D: usize> TryFrom<&ir::Tensor> for Tensor<B, D> {
     }
 }
 
+// let (name, record) = conv2d_state(node);
+// let item = Record::into_item::<RS>(record);
+// map.serialize_entry(&name, &item)?;
+
 /// Convert a Conv2d node into a Name, Conv2dRecordItem pair
-pub fn conv2d_state<RS: RecordSettings>(node: &Node) -> (String, Conv2dRecordItem<B, RS>) {
+pub fn conv2d_state(node: &Node) -> (String, Conv2dRecord<B>) {
     if node.initializers.is_empty() {
         panic!("Conv2d node must have at least 1 initializer");
     }
@@ -173,15 +174,13 @@ pub fn conv2d_state<RS: RecordSettings>(node: &Node) -> (String, Conv2dRecordIte
     record.weight = Param::from(weight);
     record.bias = bias;
 
-    let item = Record::into_item::<RS>(record);
-
-    (node.name.clone(), item)
+    (node.name.clone(), record)
 }
 
 /// Convert a Linear node into a Name, LinearRecordItem pair
 ///
 /// TODO: implement for all tensor element types
-fn linear_state<RS: RecordSettings>(node: &Node) -> (String, LinearRecordItem<B, RS>) {
+fn linear_state(node: &Node) -> (String, LinearRecord<B>) {
     if node.initializers.is_empty() {
         panic!("Linear node must have at least 1 initializer");
     }
@@ -204,14 +203,11 @@ fn linear_state<RS: RecordSettings>(node: &Node) -> (String, LinearRecordItem<B,
     record.weight = Param::from(weight);
     record.bias = bias;
 
-    let item = Record::into_item::<RS>(record);
-    (node.name.clone(), item)
+    (node.name.clone(), record)
 }
 
 /// Convert a BatchNorm node into a Name, BatchNormRecordItem pair
-fn batch_norm_state<const D: usize, RS: RecordSettings>(
-    node: &Node,
-) -> (String, BatchNormRecordItem<B, D, RS>) {
+fn batch_norm_state<const D: usize>(node: &Node) -> (String, BatchNormRecord<B, D>) {
     let config = batch_norm_config(node);
     let norm: burn::nn::BatchNorm<B, D> = config.init();
     let mut record = norm.into_record();
@@ -242,6 +238,5 @@ fn batch_norm_state<const D: usize, RS: RecordSettings>(
         Param::from(var)
     };
 
-    let item = Record::into_item::<RS>(record);
-    (node.name.clone(), item)
+    (node.name.clone(), record)
 }
