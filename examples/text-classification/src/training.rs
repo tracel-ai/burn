@@ -9,7 +9,7 @@ use burn::{
     module::Module,
     nn::transformer::TransformerEncoderConfig,
     optim::AdamConfig,
-    record::{DefaultFileRecorder, FullPrecisionSettings, Record, Recorder},
+    record::{DefaultFileRecorder, FullPrecisionSettings, Recorder},
     tensor::backend::ADBackend,
     train::{
         metric::{AccuracyMetric, CUDAMetric, LearningRateMetric, LossMetric},

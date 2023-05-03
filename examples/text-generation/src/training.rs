@@ -18,7 +18,7 @@ use burn::{
 };
 use burn::{
     data::dataset::transform::SamplerDataset,
-    record::{FullPrecisionSettings, Record},
+    record::{FullPrecisionSettings},
 };
 use std::sync::Arc;
 

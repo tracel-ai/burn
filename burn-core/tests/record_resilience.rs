@@ -4,7 +4,7 @@ mod tests {
 
     use burn::{module::Module, nn};
     use burn_tensor::backend::Backend;
-    use std::path::PathBuf;
+    
 
     type TestBackend = burn_ndarray::NdArrayBackend<f32>;
 

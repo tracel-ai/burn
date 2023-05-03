@@ -80,7 +80,7 @@ mod tests {
             .is_require_grad();
 
         let with_default_is_require_grad = Param::from(tensor)
-            .load_record(byte_recorder.load(bytes.clone()).unwrap())
+            .load_record(byte_recorder.load(bytes).unwrap())
             .value
             .is_require_grad();
 
