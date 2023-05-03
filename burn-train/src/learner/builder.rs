@@ -9,9 +9,8 @@ use crate::AsyncTrainerCallback;
 use burn_core::lr_scheduler::LRScheduler;
 use burn_core::module::ADModule;
 use burn_core::optim::Optimizer;
-use burn_core::record::{FileRecorder};
+use burn_core::record::FileRecorder;
 use burn_core::tensor::backend::ADBackend;
-
 
 use std::sync::Arc;
 
