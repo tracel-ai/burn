@@ -1,7 +1,7 @@
 use core::any::type_name;
 
 use alloc::format;
-use alloc::string::String;
+use alloc::string::{String, ToString};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use super::{
