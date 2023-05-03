@@ -6,7 +6,7 @@ use burn::tensor::activation::relu;
 use burn::{
     module::Module,
     nn,
-    record::{DefaultRecordSettings, Record},
+    record::{DefaultRecorder, Recorder},
     tensor::{backend::Backend, Tensor},
 };
 
@@ -60,7 +60,8 @@ impl<B: Backend> Model<B> {
         logsoftmax1_out1
     }
     pub fn load_state(self) -> Self {
-        let record = Record::load::<DefaultRecordSettings>("./model1".into()).unwrap();
+        let recorder = DefaultRecorder::new();
+        let record = recorder.load("./model1".into()).unwrap();
         self.load_record(record)
     }
 }
