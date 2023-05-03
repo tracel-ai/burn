@@ -187,4 +187,15 @@ pub trait IntTensorOps<B: Backend> {
         tensor: B::IntTensorPrimitive<D>,
         dims: [usize;D],
     ) -> B::IntTensorPrimitive<D>;
+    fn int_flip<const D: usize>(
+        tensor: B::IntTensorPrimitive<D>,
+        dims: Vec<usize>,
+    ) -> B::IntTensorPrimitive<D>;
+    fn int_upsample_bilinear2d<const D: usize, const D2: usize>(
+        tensor: B::IntTensorPrimitive<D>,
+        output_size: Vec<usize>,
+        align_corners: bool,
+        scales_h: impl Into<Option<f64>>,
+        scales_w: impl Into<Option<f64>>,
+    ) -> B::IntTensorPrimitive<D2>;
 }

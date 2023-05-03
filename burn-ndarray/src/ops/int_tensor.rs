@@ -312,10 +312,25 @@ impl<E: FloatNdArrayElement> IntTensorOps<NdArrayBackend<E>> for NdArrayBackend<
         NdArrayMathOps::index_select_dim_assign(tensor, dim, indexes, value)
     }
     fn int_permute<const D: usize>(
-            tensor: <NdArrayBackend<E> as Backend>::IntTensorPrimitive<D>,
-            dims: [usize;D],
-        ) -> <NdArrayBackend<E> as Backend>::IntTensorPrimitive<D> {
+        tensor: <NdArrayBackend<E> as Backend>::IntTensorPrimitive<D>,
+        dims: [usize; D],
+    ) -> <NdArrayBackend<E> as Backend>::IntTensorPrimitive<D> {
         let array = tensor.array.permuted_axes(dims.to_vec());
         NdArrayTensor::new(array)
+    }
+    fn int_flip<const D: usize>(
+        tensor: <NdArrayBackend<E> as Backend>::IntTensorPrimitive<D>,
+        dims: Vec<usize>,
+    ) -> <NdArrayBackend<E> as Backend>::IntTensorPrimitive<D> {
+        unimplemented!()
+    }
+    fn int_upsample_bilinear2d<const D: usize, const D2: usize>(
+        tensor: <NdArrayBackend<E> as Backend>::IntTensorPrimitive<D>,
+        output_size: Vec<usize>,
+        align_corners: bool,
+        scales_h: impl Into<Option<f64>>,
+        scales_w: impl Into<Option<f64>>,
+    ) -> <NdArrayBackend<E> as Backend>::IntTensorPrimitive<D2> {
+        unimplemented!()
     }
 }

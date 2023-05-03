@@ -81,4 +81,15 @@ pub trait BoolTensorOps<B: Backend> {
         tensor: B::BoolTensorPrimitive<D>,
         dims: [usize; D],
     ) -> B::BoolTensorPrimitive<D>;
+    fn bool_flip<const D: usize>(
+        tensor: B::BoolTensorPrimitive<D>,
+        dims: Vec<usize>,
+    ) -> B::BoolTensorPrimitive<D>;
+    fn bool_upsample_bilinear2d<const D: usize, const D2: usize>(
+        tensor: B::BoolTensorPrimitive<D>,
+        output_size: Vec<usize>,
+        align_corners: bool,
+        scales_h: impl Into<Option<f64>>,
+        scales_w: impl Into<Option<f64>>,
+    ) -> B::BoolTensorPrimitive<D2>;
 }

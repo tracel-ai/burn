@@ -81,9 +81,24 @@ impl<B: Backend> BoolTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> 
         B::bool_equal_elem(lhs, rhs)
     }
     fn bool_permute<const D: usize>(
-            tensor: <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D>,
-            dims: [usize; D],
-        ) -> <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D> {
+        tensor: <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D>,
+        dims: [usize; D],
+    ) -> <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D> {
+        unimplemented!()
+    }
+    fn bool_flip<const D: usize>(
+        tensor: <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D>,
+        dims: Vec<usize>,
+    ) -> <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D> {
+        unimplemented!()
+    }
+    fn bool_upsample_bilinear2d<const D: usize, const D2: usize>(
+        tensor: <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D>,
+        output_size: Vec<usize>,
+        align_corners: bool,
+        scales_h: impl Into<Option<f64>>,
+        scales_w: impl Into<Option<f64>>,
+    ) -> <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D2> {
         unimplemented!()
     }
 }

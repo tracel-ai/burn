@@ -112,4 +112,27 @@ impl<E: TchElement> BoolTensorOps<TchBackend<E>> for TchBackend<E> {
             |tensor| tensor.permute(&dims),
         )
     }
+    fn bool_upsample_bilinear2d<const D: usize, const D2: usize>(
+        tensor: TchTensor<bool, D>,
+        output_size: Vec<usize>,
+        align_corners: bool,
+        scales_h: impl Into<Option<f64>>,
+        scales_w: impl Into<Option<f64>>,
+    ) -> TchTensor<bool, D2> {
+        let output_size = output_size.iter().map(|x| *x as i64).collect::<Vec<_>>();
+        let scales_h = scales_h.into();
+        let scales_w = scales_w.into();
+        tensor.unary_ops(
+            |tensor| tensor.upsample_bilinear2d(&output_size, align_corners, scales_h, scales_w),
+            |tensor| tensor.upsample_bilinear2d(&output_size, align_corners, scales_h, scales_w),
+        )
+    }
+
+    fn bool_flip<const D: usize>(
+        tensor: TchTensor<bool, D>,
+        dims: Vec<usize>,
+    ) -> TchTensor<bool, D> {
+        let dims = dims.iter().map(|x| *x as i64).collect::<Vec<_>>();
+        tensor.unary_ops(|tensor| tensor.flip(&dims), |tensor| tensor.flip(&dims))
+    }
 }
