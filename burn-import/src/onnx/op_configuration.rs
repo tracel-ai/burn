@@ -1,6 +1,6 @@
 use burn::nn::{
     conv::{Conv2dConfig, Conv2dPaddingConfig},
-    LinearConfig,
+    BatchNormConfig, LinearConfig,
 };
 
 use super::ir::{ArgType, AttributeValue, Node};
@@ -15,6 +15,13 @@ pub fn attr_value_vec_i64(value: &AttributeValue, target: &mut Vec<i64>) {
 #[inline(always)]
 pub fn attr_value_i64(value: &AttributeValue, target: &mut i64) {
     if let AttributeValue::Int64(val) = value {
+        *target = *val;
+    }
+}
+
+#[inline(always)]
+pub fn attr_value_f32(value: &AttributeValue, target: &mut f32) {
+    if let AttributeValue::Float32(val) = value {
         *target = *val;
     }
 }
@@ -140,7 +147,7 @@ pub fn linear_config(node: &Node) -> LinearConfig {
             tensor.shape.len()
         );
     }
-    let (out_size, in_size) = (tensor.shape[0], tensor.shape[1]);
+    let (in_size, out_size) = (tensor.shape[0], tensor.shape[1]);
 
     // check if the bias is present
     let bias = node.initializers.len() == 2;
@@ -178,4 +185,27 @@ pub fn log_softmax_config(node: &Node) -> usize {
     }
 
     axis as usize
+}
+
+/// Create a BatchNormConfig from the attributes of the node
+pub fn batch_norm_config(node: &Node) -> BatchNormConfig {
+    // extract the shape of the weight tensor
+    let ArgType::Tensor(tensor) = node.initializers.get(0).unwrap().clone().arg_type.unwrap();
+
+    let num_features: usize = tensor.shape[0];
+
+    let mut epsilon = 0f32;
+    let mut momentum = 0f32;
+
+    for (key, value) in node.attrs.iter() {
+        match key.as_str() {
+            "momentum" => attr_value_f32(value, &mut momentum),
+            "epsilon" => attr_value_f32(value, &mut epsilon),
+            _ => {}
+        }
+    }
+
+    BatchNormConfig::new(num_features)
+        .with_epsilon(epsilon as f64)
+        .with_momentum(momentum as f64)
 }

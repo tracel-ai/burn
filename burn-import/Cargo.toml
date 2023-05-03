@@ -18,19 +18,23 @@ onnx = []
 burn = {path = "../burn", version = "0.6.0"}
 burn-ndarray = {path = "../burn-ndarray", version = "0.6.0"}
 
+bytemuck = {workspace = true}
+derive-new = {workspace = true}
 half = {workspace = true}
 proc-macro2 = {workspace = true}
 protobuf = {version = "3.2", features = ["with-bytes"]}
 quote = {workspace = true}
 rust-format = {version = "0.3", features = ["token_stream", "post_process"]}
 serde = {workspace = true}
+serde_json = {workspace = true, features = ["std"]}
 strum = {workspace = true}
 strum_macros = {workspace = true}
 syn = {workspace = true, features = ["parsing"]}
-topological-sort = {version = "0.2.2"}
+topological-sort = {workspace = true}
 
 [build-dependencies]
-protobuf-codegen = {version = "3.2"}
+protobuf-codegen = {workspace = true}
 
 [dev-dependencies]
-rstest = "0.17.0"
+pretty_assertions = {workspace = true}
+rstest = {workspace = true}

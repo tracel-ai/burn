@@ -5,44 +5,43 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use burn::nn::conv::Conv2dPaddingConfig;
+use burn::{
+    nn::conv::Conv2dPaddingConfig,
+    record::{DebugRecordSettings, DefaultRecordSettings, Record},
+};
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use syn::{Ident, Type};
 
 use crate::onnx::{
     ir::{ArgType, Node, NodeType},
-    op_configuration::{conv2d_config, flatten_config, linear_config, log_softmax_config},
+    op_configuration::{
+        batch_norm_config, conv2d_config, flatten_config, linear_config, log_softmax_config,
+    },
+    shape_inference::first_input_dim,
 };
 
-use super::{convert::parse_onnx, ir::Graph};
+use super::{from_onnx::parse_onnx, ir::Graph, ModelState};
 
 use rust_format::{Config, Edition, Formatter, PostProcess, RustFmt};
 
-/// Code generation for onnx files.
+/// Generate code and states from `.onnx` files and save them to the `out_dir`.
 #[derive(Debug, Default)]
-pub struct ModelCodeGen {
+pub struct ModelGen {
     out_dir: Option<PathBuf>,
-
     /// List of onnx files to generate source code from.
     inputs: Vec<PathBuf>,
+    development: bool,
 }
 
-/// Generate code from `.onnx` files and save it to the `out_dir`.
-impl ModelCodeGen {
+impl ModelGen {
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Set output directory.
     pub fn out_dir(&mut self, out_dir: &str) -> &mut Self {
-        let cargo_out_dir = env::var("OUT_DIR").expect("OUT_DIR env is not set");
-        let mut path = PathBuf::from(cargo_out_dir);
-
-        // Append the out_dir to the cargo_out_dir
-        path.push(Path::new(out_dir));
-
-        self.out_dir = Some(path);
+        self.out_dir = Some(Path::new(out_dir).into());
         self
     }
 
@@ -52,33 +51,92 @@ impl ModelCodeGen {
         self
     }
 
+    /// Set development mode.
+    ///
+    /// If this is set to true, the generated model will be saved as `.graph.txt` files and model
+    /// states will be saved as `.json` file.
+    pub fn development(&mut self, development: bool) -> &mut Self {
+        self.development = development;
+        self
+    }
+
     /// Run code generation.
     ///
     /// This function is intended to be called from `build.rs` script.
     pub fn run_from_script(&self) {
-        self.run();
+        self.run(true);
     }
 
     /// Run code generation.
-    pub fn run(&self) {
+    ///
+    /// This function is intended to be called from CLI.
+    pub fn run_from_cli(&self) {
+        self.run(false);
+    }
+
+    pub fn code_formatter() -> RustFmt {
         let config = Config::new_str()
             .post_proc(PostProcess::ReplaceMarkersAndDocBlocks)
             .edition(Edition::Rust2021);
 
-        let rust_formatter = RustFmt::from_config(config);
+        RustFmt::from_config(config)
+    }
 
-        let out_dir = self.out_dir.as_ref().expect("out_dir is not set");
-        create_dir_all(out_dir).unwrap();
+    /// Run code generation.
+    fn run(&self, is_build_script: bool) {
+        // prepend the out_dir to the cargo_out_dir if this is a build script
+        let out_dir = if is_build_script {
+            let cargo_out_dir = env::var("OUT_DIR").expect("OUT_DIR env is not set");
+            let mut path = PathBuf::from(cargo_out_dir);
+
+            // // Append the out_dir to the cargo_out_dir
+            path.push(self.out_dir.clone().unwrap());
+            path
+        } else {
+            self.out_dir.as_ref().expect("out_dir is not set").clone()
+        };
+
+        let rust_formatter = Self::code_formatter();
+
+        create_dir_all(&out_dir).unwrap();
 
         for input in self.inputs.iter() {
             let file_name = input.file_stem().unwrap();
-            let out_file = out_dir.join(file_name);
-            let out_file = out_file.with_extension("rs");
+            let out_file: PathBuf = out_dir.join(file_name);
 
-            let model = ModelSourceCode::new(input);
-            let code_str = rust_formatter.format_tokens(model.body()).unwrap();
+            Self::generate_model(self.development, input, out_file, &rust_formatter);
+        }
+    }
 
-            fs::write(out_file, code_str).unwrap();
+    /// Generate model source code and model state.
+    fn generate_model(
+        development: bool,
+        input: &PathBuf,
+        out_file: PathBuf,
+        rust_formatter: &RustFmt,
+    ) {
+        if development {
+            let graph = parse_onnx(input.as_ref());
+            // export the graph
+            let debug_graph = format!("{:#?}", graph);
+            fs::write(out_file.with_extension("graph.txt"), debug_graph).unwrap();
+        }
+
+        // export the source code
+        let model = ModelSourceCode::new(input, &out_file);
+        let code_str = rust_formatter.format_tokens(model.body()).unwrap();
+        fs::write(out_file.with_extension("rs"), code_str).unwrap();
+
+        // export the model state
+        if development {
+            // export the model state in debug mode
+            let model_state = ModelState::<DebugRecordSettings>::new_from_graph(model.graph);
+            model_state.record::<DebugRecordSettings>(out_file).unwrap()
+        } else {
+            let model_state = ModelState::<DefaultRecordSettings>::new_from_graph(model.graph);
+            model_state
+                .record::<DefaultRecordSettings>(out_file)
+                .unwrap();
         }
     }
 }
@@ -87,15 +145,17 @@ impl ModelCodeGen {
 #[derive(Debug, Clone)]
 pub struct ModelSourceCode {
     onnx_path: PathBuf,
+    record_path: PathBuf,
     pub graph: Graph,
 }
 
 impl ModelSourceCode {
     /// Create a new model from the onnx file
-    pub fn new<P: AsRef<Path>>(onnx_path: P) -> Self {
+    pub fn new<P: AsRef<Path>>(onnx_path: P, record_path: P) -> Self {
         let graph = parse_onnx(onnx_path.as_ref());
         Self {
             onnx_path: onnx_path.as_ref().to_path_buf(),
+            record_path: record_path.as_ref().to_path_buf(),
             graph,
         }
     }
@@ -183,6 +243,7 @@ impl ModelSourceCode {
                 module::Module,
                 nn,
                 tensor::{backend::Backend, Tensor},
+                record::{Record, DefaultRecordSettings}
             };
 
             #(use #import_tokens;)*
@@ -219,11 +280,23 @@ impl ModelSourceCode {
         let forward_method = self.forward_method(imports);
 
         let new_method = self.new_method();
+        let load_state = self.load_state();
 
         quote! {
             impl<B: Backend> Model<B> {
                 #new_method
                 #forward_method
+                #load_state
+            }
+        }
+    }
+
+    fn load_state(&self) -> TokenStream {
+        let file_path = self.record_path.to_str().unwrap().replace('\\', "\\\\");
+        quote! {
+            pub fn load_state(self) -> Self {
+                let record = Record::load::<DefaultRecordSettings>(#file_path.into()).unwrap();
+                self.load_record(record)
             }
         }
     }
@@ -471,6 +544,8 @@ impl ModelSourceCode {
                 NodeType::Conv1d => syn::parse_str::<Type>("nn::conv::Conv1d<B>").unwrap(),
                 NodeType::Conv2d => syn::parse_str::<Type>("nn::conv::Conv2d<B>").unwrap(),
                 NodeType::Linear => syn::parse_str::<Type>("nn::Linear<B>").unwrap(),
+
+                NodeType::BatchNormalization => batch_norm_type(node),
                 _ => {
                     todo!("Node type not implemented: {:?}", node.node_type)
                 }
@@ -492,6 +567,7 @@ impl ModelSourceCode {
             let init_code = match node.node_type {
                 NodeType::Conv2d => conv2d_init(node),
                 NodeType::Linear => linear_init(node),
+                NodeType::BatchNormalization => batch_norm_init(node),
                 _ => {
                     todo!("Node type not implemented: {:?}", node.node_type)
                 }
@@ -548,27 +624,31 @@ fn linear_init(node: &Node) -> TokenStream {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use rstest::*;
-    use rust_format::{Config, Edition, Formatter, PostProcess, RustFmt};
+/// Generates source code for the initialization of a BatchNorm node
+fn batch_norm_init(node: &Node) -> TokenStream {
+    let node_name = Ident::new(&node.name, Span::call_site());
+    let config = batch_norm_config(node);
 
-    #[fixture]
-    pub fn model() -> ModelSourceCode {
-        ModelSourceCode::new("tests/onnx/mnist.onnx")
+    let num_features = config.num_features;
+    let epsilon = config.epsilon;
+    let momentum = config.momentum;
+
+    quote! {
+        let #node_name = nn::BatchNormConfig::new(#num_features)
+            .with_epsilon(#epsilon)
+            .with_momentum(#momentum)
+            .init();
     }
+}
 
-    #[rstest]
-    fn print(model: ModelSourceCode) {
-        let config = Config::new_str()
-            .post_proc(PostProcess::ReplaceMarkersAndDocBlocks)
-            .edition(Edition::Rust2021);
+/// Figure out the BatchNorm type.
+///
+/// We need to figure out the dimensionality of the input to BatchNorm
+fn batch_norm_type(node: &Node) -> Type {
+    // Infer the dimensionality of BatchNorm the input (if 4, then 2D, if 5, then 3D)
+    let dim = first_input_dim(node).unwrap() - 2;
 
-        let rustfmt = RustFmt::from_config(config);
+    let ty = format!("nn::BatchNorm<B,{}>", dim);
 
-        let _gen_str = rustfmt.format_tokens(model.body()).unwrap();
-
-        // TODO compare the result with the expected output
-    }
+    syn::parse_str::<Type>(ty.as_str()).unwrap()
 }

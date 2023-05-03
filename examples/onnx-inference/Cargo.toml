@@ -11,12 +11,9 @@ default = []
 
 [dependencies]
 burn = {path = "../../burn"}
+burn-dataset = {path = "../../burn-dataset"}
 burn-ndarray = {path = "../../burn-ndarray"}
 serde = {workspace = true}
-
-
-[dev-dependencies]
-burn-dataset = {path = "../../burn-dataset"}
 
 [build-dependencies]
 burn-import = {path = "../../burn-import"}

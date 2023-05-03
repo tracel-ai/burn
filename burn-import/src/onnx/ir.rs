@@ -1,5 +1,6 @@
+use core::fmt;
 use half::f16;
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Formatter};
 use strum_macros::{Display, EnumString};
 
 pub type Shape = Vec<usize>;
@@ -51,14 +52,14 @@ pub struct Tensor {
     pub data: Option<TensorData>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum TensorData {
-    Float16s(Vec<f16>),
-    Float32s(Vec<f32>),
-    Float64s(Vec<f64>),
-    Int32s(Vec<i32>),
-    Int64s(Vec<i64>),
-    Strings(Vec<String>),
+    Float16(Vec<f16>),
+    Float32(Vec<f32>),
+    Float64(Vec<f64>),
+    Int32(Vec<i32>),
+    Int64(Vec<i64>),
+    String(Vec<String>),
 }
 
 #[derive(Debug, Clone)]
@@ -302,4 +303,38 @@ pub enum NodeType {
     Upsample,
     Where,
     Xor,
+}
+
+/// Truncate the vector display for debug display
+fn trunc<T: fmt::Display>(v: &Vec<T>) -> String {
+    const BEGIN_INDEX: usize = 0;
+    const MAX_LEN: usize = 5;
+    let mut s = String::new();
+    s.push('[');
+    for (i, item) in v.iter().enumerate() {
+        if i > BEGIN_INDEX {
+            s.push_str(", ");
+        }
+        s.push_str(&format!("{}", item));
+        if i > MAX_LEN {
+            s.push_str(", ...");
+            break;
+        }
+    }
+    s.push(']');
+    s
+}
+
+/// Shorten the tensor data for debug display
+impl fmt::Debug for TensorData {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            TensorData::Float16(v) => write!(f, "Float16({})", trunc(v)),
+            TensorData::Float32(v) => write!(f, "Float32({})", trunc(v)),
+            TensorData::Float64(v) => write!(f, "Float64({})", trunc(v)),
+            TensorData::Int32(v) => write!(f, "Int32({})", trunc(v)),
+            TensorData::Int64(v) => write!(f, "Int64({})", trunc(v)),
+            TensorData::String(v) => write!(f, "String({})", trunc(v)),
+        }
+    }
 }

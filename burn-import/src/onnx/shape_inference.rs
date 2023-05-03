@@ -28,6 +28,7 @@ pub fn shape_inference(
             NodeType::Relu => relu(node, &prev_outputs),
             NodeType::Flatten => flatten(node, &prev_outputs),
             NodeType::LogSoftmax => log_softmax(node, &prev_outputs),
+            NodeType::BatchNormalization => batch_norm(node, &prev_outputs),
             _ => todo!(
                 "shape inference for {:?} is not implemented",
                 node.node_type
@@ -44,6 +45,20 @@ pub fn shape_inference(
         let arg = prev_outputs.get(output.name.as_str()).unwrap();
         output.arg_type = arg.arg_type.clone();
     }
+}
+
+/// Infer the shape of the output tensor of a BatchNormalization node
+fn batch_norm(curr: &mut Node, prev_outpus: &HashMap<String, Argument>) {
+    if curr.inputs.len() != 1 {
+        panic!("BatchNorm: multiple inputs are not supported");
+    }
+
+    // Fill in the missing information about the input tensor from the previous outputs
+    let prev_node_output = prev_outpus.get(curr.inputs[0].name.as_str()).unwrap();
+
+    curr.inputs[0].arg_type = prev_node_output.arg_type.clone();
+
+    curr.outputs[0].arg_type = prev_node_output.arg_type.clone();
 }
 
 /// Infer the shape of the output tensor of a Conv2d node
@@ -184,4 +199,16 @@ fn conv2d(curr: &mut Node, prev_outpus: &HashMap<String, Argument>) {
         data: None,
         elem_type,
     }));
+}
+
+/// The dimension of the first input tensor of the node,
+/// which is used to determine return the dimension of the output tensor.
+pub fn first_input_dim(node: &Node) -> Option<usize> {
+    let arg = node.inputs.get(0).unwrap();
+    if let Some(input) = arg.arg_type.as_ref() {
+        match input {
+            ArgType::Tensor(tensor) => return Some(tensor.shape.len()),
+        }
+    }
+    None
 }

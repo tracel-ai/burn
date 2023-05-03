@@ -9,9 +9,10 @@ operators.
 
 ## Supported ONNX Operators
 
+- BatchNorm
 - Conv2d
-- Gemm (Linear layer)
 - Flatten
+- Gemm (Linear layer)
 - LogSoftmax
 
 ## Usage
@@ -63,3 +64,47 @@ fn main() {
 ```
 
 You can view the working example in the `examples/onnx-inference` directory.
+
+### Adding new operators
+
+This section explains how to add support for new operators to `burn-import`.
+
+1. Optimize the ONNX model using [onnxoptimizer](https://github.com/onnx/optimizer). It will remove
+   uncessary operator/constants and make the model easier to understand.
+2. Use [Netron](https://github.com/lutzroeder/netron) app to visualize the ONNX model.
+3. Generate artifact files to help to see what the ONNX model (`my-model.onnx) looks like and its
+   components.
+   ```bash
+   cargo r -- ./my-model.onnx ./
+   ```
+4. You will run into an error saying that the operator is not supported. Implement missing
+   operators. Hopefully, at least `my-model.graph.txt` is generated before the error occurs. This
+   file contains information about the ONNX model.
+5. The newly generated `my-model.graph.txt` file will contain IR information about the model. This
+   file is useful for understanding the structure of the model and the operators it uses. The
+   `my-model.rs` file will contain an actual Burn model in rust code. `my-model.json` will contain
+   the data of the model.
+6. The following is the explaination of onnx modules (under `srs/onnx`):
+   - `from_onnx.rs`: This module contains logic for converting ONNX data objects into IR
+     (Intermediate Representation) objects. This module must contain anything that deals with ONNX
+     directly.
+   - `ir.rs`: This module contains the IR objects that are used to represent the ONNX model. These
+     objects are used to generate the Burn model.
+   - `to_burn.rs` - This module contains logic for converting IR objects into Burn model source code
+     and data. Nothing in this module should deal with ONNX directly.
+   - `coalesce.rs`: This module contains the logic to coalesce multiple ONNX operators into a single
+     Burn operator. This is useful for operators that are not supported by Burn, but can be
+     represented by a combination of supported operators.
+   - `op_configuration.rs` - This module contains helper functions for configuring burn operators
+     from operator nodes.
+   - `shape_inference.rs` - This module contains helper functions for inferring shapes of tensors
+     for inputs and outputs of operators.
+7. Add unit tests for the new operator in `burn-import/tests/onnx_tests.rs` file. Add the ONNX file
+   and expected output to `tests/data` directory. Please be sure the ONNX file is small. If the ONNX
+   file is too large, the repository size will grow too large and will be difficult to maintain and
+   clone. See the existing unit tests for examples.
+
+## Resources
+
+1. [PyTorch ONNX](https://pytorch.org/docs/stable/onnx.html)
+2. [ONNX Intro](https://onnx.ai/onnx/intro/)

@@ -1,0 +1,828 @@
+Graph {
+    nodes: [
+        Node {
+            node_type: Conv2d,
+            name: "conv2d1",
+            inputs: [
+                Argument {
+                    name: "input1",
+                    arg_type: Some(
+                        Tensor(
+                            Tensor {
+                                name: None,
+                                elem_type: Float32,
+                                shape: [
+                                    1,
+                                    1,
+                                    8,
+                                    8,
+                                ],
+                                data: None,
+                            },
+                        ),
+                    ),
+                },
+            ],
+            outputs: [
+                Argument {
+                    name: "conv2d1_out1",
+                    arg_type: Some(
+                        Tensor(
+                            Tensor {
+                                name: None,
+                                elem_type: Float32,
+                                shape: [
+                                    1,
+                                    8,
+                                    6,
+                                    6,
+                                ],
+                                data: None,
+                            },
+                        ),
+                    ),
+                },
+            ],
+            initializers: [
+                Argument {
+                    name: "conv1.weight",
+                    arg_type: Some(
+                        Tensor(
+                            Tensor {
+                                name: Some(
+                                    "conv1.weight",
+                                ),
+                                elem_type: Float32,
+                                shape: [
+                                    8,
+                                    1,
+                                    3,
+                                    3,
+                                ],
+                                data: Some(
+                                    Float32([0.22541335, -0.20405039, 0.18121246, 0.31164733, -0.024617434, 0.08908978, 0.00018176436, ...]),
+                                ),
+                            },
+                        ),
+                    ),
+                },
+                Argument {
+                    name: "conv1.bias",
+                    arg_type: Some(
+                        Tensor(
+                            Tensor {
+                                name: Some(
+                                    "conv1.bias",
+                                ),
+                                elem_type: Float32,
+                                shape: [
+                                    8,
+                                ],
+                                data: Some(
+                                    Float32([0.3159285, -0.2008805, -0.020416021, 0.24163994, 0.22403291, -0.25060636, -0.071956486, ...]),
+                                ),
+                            },
+                        ),
+                    ),
+                },
+            ],
+            attrs: {
+                "strides": Int64s(
+                    [
+                        1,
+                        1,
+                    ],
+                ),
+                "dilations": Int64s(
+                    [
+                        1,
+                        1,
+                    ],
+                ),
+                "pads": Int64s(
+                    [
+                        0,
+                        0,
+                        0,
+                        0,
+                    ],
+                ),
+                "group": Int64(
+                    1,
+                ),
+                "kernel_shape": Int64s(
+                    [
+                        3,
+                        3,
+                    ],
+                ),
+            },
+            is_stateful: true,
+        },
+        Node {
+            node_type: Relu,
+            name: "relu1",
+            inputs: [
+                Argument {
+                    name: "conv2d1_out1",
+                    arg_type: Some(
+                        Tensor(
+                            Tensor {
+                                name: None,
+                                elem_type: Float32,
+                                shape: [
+                                    1,
+                                    8,
+                                    6,
+                                    6,
+                                ],
+                                data: None,
+                            },
+                        ),
+                    ),
+                },
+            ],
+            outputs: [
+                Argument {
+                    name: "relu1_out1",
+                    arg_type: Some(
+                        Tensor(
+                            Tensor {
+                                name: None,
+                                elem_type: Float32,
+                                shape: [
+                                    1,
+                                    8,
+                                    6,
+                                    6,
+                                ],
+                                data: None,
+                            },
+                        ),
+                    ),
+                },
+            ],
+            initializers: [],
+            attrs: {},
+            is_stateful: false,
+        },
+        Node {
+            node_type: BatchNormalization,
+            name: "batchnormalization1",
+            inputs: [
+                Argument {
+                    name: "relu1_out1",
+                    arg_type: Some(
+                        Tensor(
+                            Tensor {
+                                name: None,
+                                elem_type: Float32,
+                                shape: [
+                                    1,
+                                    8,
+                                    6,
+                                    6,
+                                ],
+                                data: None,
+                            },
+                        ),
+                    ),
+                },
+            ],
+            outputs: [
+                Argument {
+                    name: "batchnormalization1_out1",
+                    arg_type: Some(
+                        Tensor(
+                            Tensor {
+                                name: None,
+                                elem_type: Float32,
+                                shape: [
+                                    1,
+                                    8,
+                                    6,
+                                    6,
+                                ],
+                                data: None,
+                            },
+                        ),
+                    ),
+                },
+            ],
+            initializers: [
+                Argument {
+                    name: "norm1.weight",
+                    arg_type: Some(
+                        Tensor(
+                            Tensor {
+                                name: Some(
+                                    "norm1.weight",
+                                ),
+                                elem_type: Float32,
+                                shape: [
+                                    8,
+                                ],
+                                data: Some(
+                                    Float32([1, 1, 1, 1, 1, 1, 1, ...]),
+                                ),
+                            },
+                        ),
+                    ),
+                },
+                Argument {
+                    name: "norm1.bias",
+                    arg_type: Some(
+                        Tensor(
+                            Tensor {
+                                name: Some(
+                                    "norm1.bias",
+                                ),
+                                elem_type: Float32,
+                                shape: [
+                                    8,
+                                ],
+                                data: Some(
+                                    Float32([0, 0, 0, 0, 0, 0, 0, ...]),
+                                ),
+                            },
+                        ),
+                    ),
+                },
+                Argument {
+                    name: "norm1.bias",
+                    arg_type: Some(
+                        Tensor(
+                            Tensor {
+                                name: Some(
+                                    "norm1.bias",
+                                ),
+                                elem_type: Float32,
+                                shape: [
+                                    8,
+                                ],
+                                data: Some(
+                                    Float32([0, 0, 0, 0, 0, 0, 0, ...]),
+                                ),
+                            },
+                        ),
+                    ),
+                },
+                Argument {
+                    name: "norm1.weight",
+                    arg_type: Some(
+                        Tensor(
+                            Tensor {
+                                name: Some(
+                                    "norm1.weight",
+                                ),
+                                elem_type: Float32,
+                                shape: [
+                                    8,
+                                ],
+                                data: Some(
+                                    Float32([1, 1, 1, 1, 1, 1, 1, ...]),
+                                ),
+                            },
+                        ),
+                    ),
+                },
+            ],
+            attrs: {
+                "momentum": Float32(
+                    0.9,
+                ),
+                "epsilon": Float32(
+                    1e-5,
+                ),
+                "training_mode": Int64(
+                    0,
+                ),
+            },
+            is_stateful: true,
+        },
+        Node {
+            node_type: Flatten,
+            name: "flatten1",
+            inputs: [
+                Argument {
+                    name: "batchnormalization1_out1",
+                    arg_type: Some(
+                        Tensor(
+                            Tensor {
+                                name: None,
+                                elem_type: Float32,
+                                shape: [
+                                    1,
+                                    8,
+                                    6,
+                                    6,
+                                ],
+                                data: None,
+                            },
+                        ),
+                    ),
+                },
+            ],
+            outputs: [
+                Argument {
+                    name: "flatten1_out1",
+                    arg_type: Some(
+                        Tensor(
+                            Tensor {
+                                name: None,
+                                elem_type: Float32,
+                                shape: [
+                                    1,
+                                    288,
+                                ],
+                                data: None,
+                            },
+                        ),
+                    ),
+                },
+            ],
+            initializers: [],
+            attrs: {
+                "axis": Int64(
+                    1,
+                ),
+            },
+            is_stateful: false,
+        },
+        Node {
+            node_type: Linear,
+            name: "linear1",
+            inputs: [
+                Argument {
+                    name: "flatten1_out1",
+                    arg_type: Some(
+                        Tensor(
+                            Tensor {
+                                name: None,
+                                elem_type: Float32,
+                                shape: [
+                                    1,
+                                    288,
+                                ],
+                                data: None,
+                            },
+                        ),
+                    ),
+                },
+            ],
+            outputs: [
+                Argument {
+                    name: "linear1_out1",
+                    arg_type: Some(
+                        Tensor(
+                            Tensor {
+                                name: None,
+                                elem_type: Float32,
+                                shape: [
+                                    1,
+                                    288,
+                                ],
+                                data: None,
+                            },
+                        ),
+                    ),
+                },
+            ],
+            initializers: [
+                Argument {
+                    name: "fc1.weight",
+                    arg_type: Some(
+                        Tensor(
+                            Tensor {
+                                name: Some(
+                                    "fc1.weight",
+                                ),
+                                elem_type: Float32,
+                                shape: [
+                                    288,
+                                    10,
+                                ],
+                                data: Some(
+                                    Float32([-0.058228794, 0.030148413, 0.037404258, -0.05562811, -0.044782594, -0.0065338723, 0.012673449, ...]),
+                                ),
+                            },
+                        ),
+                    ),
+                },
+                Argument {
+                    name: "fc1.bias",
+                    arg_type: Some(
+                        Tensor(
+                            Tensor {
+                                name: Some(
+                                    "fc1.bias",
+                                ),
+                                elem_type: Float32,
+                                shape: [
+                                    10,
+                                ],
+                                data: Some(
+                                    Float32([0.045273703, -0.01882654, -0.029553954, 0.025498573, 0.042998467, -0.041441843, 0.0046678744, ...]),
+                                ),
+                            },
+                        ),
+                    ),
+                },
+            ],
+            attrs: {},
+            is_stateful: true,
+        },
+        Node {
+            node_type: BatchNormalization,
+            name: "batchnormalization2",
+            inputs: [
+                Argument {
+                    name: "linear1_out1",
+                    arg_type: Some(
+                        Tensor(
+                            Tensor {
+                                name: None,
+                                elem_type: Float32,
+                                shape: [
+                                    1,
+                                    288,
+                                ],
+                                data: None,
+                            },
+                        ),
+                    ),
+                },
+            ],
+            outputs: [
+                Argument {
+                    name: "batchnormalization2_out1",
+                    arg_type: Some(
+                        Tensor(
+                            Tensor {
+                                name: None,
+                                elem_type: Float32,
+                                shape: [
+                                    1,
+                                    288,
+                                ],
+                                data: None,
+                            },
+                        ),
+                    ),
+                },
+            ],
+            initializers: [
+                Argument {
+                    name: "norm2.weight",
+                    arg_type: Some(
+                        Tensor(
+                            Tensor {
+                                name: Some(
+                                    "norm2.weight",
+                                ),
+                                elem_type: Float32,
+                                shape: [
+                                    10,
+                                ],
+                                data: Some(
+                                    Float32([1, 1, 1, 1, 1, 1, 1, ...]),
+                                ),
+                            },
+                        ),
+                    ),
+                },
+                Argument {
+                    name: "norm2.bias",
+                    arg_type: Some(
+                        Tensor(
+                            Tensor {
+                                name: Some(
+                                    "norm2.bias",
+                                ),
+                                elem_type: Float32,
+                                shape: [
+                                    10,
+                                ],
+                                data: Some(
+                                    Float32([0, 0, 0, 0, 0, 0, 0, ...]),
+                                ),
+                            },
+                        ),
+                    ),
+                },
+                Argument {
+                    name: "norm2.bias",
+                    arg_type: Some(
+                        Tensor(
+                            Tensor {
+                                name: Some(
+                                    "norm2.bias",
+                                ),
+                                elem_type: Float32,
+                                shape: [
+                                    10,
+                                ],
+                                data: Some(
+                                    Float32([0, 0, 0, 0, 0, 0, 0, ...]),
+                                ),
+                            },
+                        ),
+                    ),
+                },
+                Argument {
+                    name: "norm2.weight",
+                    arg_type: Some(
+                        Tensor(
+                            Tensor {
+                                name: Some(
+                                    "norm2.weight",
+                                ),
+                                elem_type: Float32,
+                                shape: [
+                                    10,
+                                ],
+                                data: Some(
+                                    Float32([1, 1, 1, 1, 1, 1, 1, ...]),
+                                ),
+                            },
+                        ),
+                    ),
+                },
+            ],
+            attrs: {
+                "epsilon": Float32(
+                    1e-5,
+                ),
+                "momentum": Float32(
+                    0.9,
+                ),
+                "training_mode": Int64(
+                    0,
+                ),
+            },
+            is_stateful: true,
+        },
+        Node {
+            node_type: LogSoftmax,
+            name: "logsoftmax1",
+            inputs: [
+                Argument {
+                    name: "batchnormalization2_out1",
+                    arg_type: Some(
+                        Tensor(
+                            Tensor {
+                                name: None,
+                                elem_type: Float32,
+                                shape: [
+                                    1,
+                                    288,
+                                ],
+                                data: None,
+                            },
+                        ),
+                    ),
+                },
+            ],
+            outputs: [
+                Argument {
+                    name: "logsoftmax1_out1",
+                    arg_type: Some(
+                        Tensor(
+                            Tensor {
+                                name: None,
+                                elem_type: Float32,
+                                shape: [
+                                    1,
+                                    288,
+                                ],
+                                data: None,
+                            },
+                        ),
+                    ),
+                },
+            ],
+            initializers: [],
+            attrs: {
+                "axis": Int64(
+                    1,
+                ),
+            },
+            is_stateful: false,
+        },
+    ],
+    inputs: [
+        Argument {
+            name: "input1",
+            arg_type: Some(
+                Tensor(
+                    Tensor {
+                        name: None,
+                        elem_type: Float32,
+                        shape: [
+                            1,
+                            1,
+                            8,
+                            8,
+                        ],
+                        data: None,
+                    },
+                ),
+            ),
+        },
+    ],
+    outputs: [
+        Argument {
+            name: "logsoftmax1_out1",
+            arg_type: Some(
+                Tensor(
+                    Tensor {
+                        name: None,
+                        elem_type: Float32,
+                        shape: [
+                            1,
+                            288,
+                        ],
+                        data: None,
+                    },
+                ),
+            ),
+        },
+    ],
+    initializers: [
+        Argument {
+            name: "conv1.weight",
+            arg_type: Some(
+                Tensor(
+                    Tensor {
+                        name: Some(
+                            "conv1.weight",
+                        ),
+                        elem_type: Float32,
+                        shape: [
+                            8,
+                            1,
+                            3,
+                            3,
+                        ],
+                        data: Some(
+                            Float32([0.22541335, -0.20405039, 0.18121246, 0.31164733, -0.024617434, 0.08908978, 0.00018176436, ...]),
+                        ),
+                    },
+                ),
+            ),
+        },
+        Argument {
+            name: "conv1.bias",
+            arg_type: Some(
+                Tensor(
+                    Tensor {
+                        name: Some(
+                            "conv1.bias",
+                        ),
+                        elem_type: Float32,
+                        shape: [
+                            8,
+                        ],
+                        data: Some(
+                            Float32([0.3159285, -0.2008805, -0.020416021, 0.24163994, 0.22403291, -0.25060636, -0.071956486, ...]),
+                        ),
+                    },
+                ),
+            ),
+        },
+        Argument {
+            name: "norm1.weight",
+            arg_type: Some(
+                Tensor(
+                    Tensor {
+                        name: Some(
+                            "norm1.weight",
+                        ),
+                        elem_type: Float32,
+                        shape: [
+                            8,
+                        ],
+                        data: Some(
+                            Float32([1, 1, 1, 1, 1, 1, 1, ...]),
+                        ),
+                    },
+                ),
+            ),
+        },
+        Argument {
+            name: "norm1.bias",
+            arg_type: Some(
+                Tensor(
+                    Tensor {
+                        name: Some(
+                            "norm1.bias",
+                        ),
+                        elem_type: Float32,
+                        shape: [
+                            8,
+                        ],
+                        data: Some(
+                            Float32([0, 0, 0, 0, 0, 0, 0, ...]),
+                        ),
+                    },
+                ),
+            ),
+        },
+        Argument {
+            name: "fc1.weight",
+            arg_type: Some(
+                Tensor(
+                    Tensor {
+                        name: Some(
+                            "fc1.weight",
+                        ),
+                        elem_type: Float32,
+                        shape: [
+                            10,
+                            288,
+                        ],
+                        data: Some(
+                            Float32([-0.058228794, 0.003672216, 0.0022913478, -0.03635239, -0.053470142, 0.002926536, -0.042952105, ...]),
+                        ),
+                    },
+                ),
+            ),
+        },
+        Argument {
+            name: "fc1.bias",
+            arg_type: Some(
+                Tensor(
+                    Tensor {
+                        name: Some(
+                            "fc1.bias",
+                        ),
+                        elem_type: Float32,
+                        shape: [
+                            10,
+                        ],
+                        data: Some(
+                            Float32([0.045273703, -0.01882654, -0.029553954, 0.025498573, 0.042998467, -0.041441843, 0.0046678744, ...]),
+                        ),
+                    },
+                ),
+            ),
+        },
+        Argument {
+            name: "norm2.weight",
+            arg_type: Some(
+                Tensor(
+                    Tensor {
+                        name: Some(
+                            "norm2.weight",
+                        ),
+                        elem_type: Float32,
+                        shape: [
+                            10,
+                        ],
+                        data: Some(
+                            Float32([1, 1, 1, 1, 1, 1, 1, ...]),
+                        ),
+                    },
+                ),
+            ),
+        },
+        Argument {
+            name: "norm2.bias",
+            arg_type: Some(
+                Tensor(
+                    Tensor {
+                        name: Some(
+                            "norm2.bias",
+                        ),
+                        elem_type: Float32,
+                        shape: [
+                            10,
+                        ],
+                        data: Some(
+                            Float32([0, 0, 0, 0, 0, 0, 0, ...]),
+                        ),
+                    },
+                ),
+            ),
+        },
+    ],
+    old_node_names: {
+        "/Relu": "relu1",
+        "/conv1/Conv": "conv2d1",
+        "/norm2/BatchNormalization": "batchnormalization2",
+        "/norm1/BatchNormalization": "batchnormalization1",
+        "/Flatten": "flatten1",
+        "/LogSoftmax": "logsoftmax1",
+        "/fc1/Gemm": "linear1",
+    },
+    old_input_names: {
+        "/norm1/BatchNormalization_output_0": "batchnormalization1_out1",
+        "/norm2/BatchNormalization_output_0": "batchnormalization2_out1",
+        "/conv1/Conv_output_0": "conv2d1_out1",
+        "21": "logsoftmax1_out1",
+        "/Relu_output_0": "relu1_out1",
+        "/Flatten_output_0": "flatten1_out1",
+        "input.1": "input1",
+        "/fc1/Gemm_output_0": "linear1_out1",
+    },
+}
