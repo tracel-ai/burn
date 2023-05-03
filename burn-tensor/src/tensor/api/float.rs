@@ -334,27 +334,10 @@ where
     pub fn expand(&self, size: Vec<usize>, implicit: bool) -> Self {
         Self::new(B::expand(self.primitive.clone(), size, implicit))
     }
-    pub fn upsample_bilinear2d<const D2: usize>(
-        &self,
-        output_size: Vec<usize>,
-        align_corners: bool,
-        scales_h: impl Into<Option<f64>>,
-        scales_w: impl Into<Option<f64>>,
-    ) -> Tensor<B, D2> {
-        Tensor::new(B::upsample_bilinear2d(
-            self.primitive.clone(),
-            output_size,
-            align_corners,
-            scales_h,
-            scales_w,
-        ))
-    }
     pub fn select<const D2: usize>(&self, dim: i64, index: i64) -> Tensor<B, D2> {
         Tensor::new(B::select(self.primitive.clone(), dim, index))
     }
-    pub fn flip(&self, dims: Vec<usize>) -> Self {
-        Self::new(B::flip(self.primitive.clone(), dims))
-    }
+    
     pub fn einsum<const D2: usize, const D3: usize>(
         equation: &str,
         tensor1: Tensor<B, D>,

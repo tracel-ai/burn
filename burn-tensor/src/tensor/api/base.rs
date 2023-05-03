@@ -279,6 +279,25 @@ where
         check!(TensorCheck::permute(&self.shape(), dims));
         Self::new(K::permute(self.primitive, dims))
     }
+    pub fn flip(&self, dims: Vec<usize>) -> Self {
+        Self::new(K::flip(self.primitive.clone(), dims))
+    }
+    pub fn upsample_bilinear2d<const D2: usize>(
+        &self,
+        output_size: Vec<usize>,
+        align_corners: bool,
+        scales_h: impl Into<Option<f64>>,
+        scales_w: impl Into<Option<f64>>,
+    ) -> Tensor<B, D2, K> {
+        let tensor = K::upsample_bilinear2d(
+            self.primitive.clone(),
+            output_size,
+            align_corners,
+            scales_h,
+            scales_w,
+        );
+        Tensor::new(tensor)
+    }
 }
 
 impl<B, const D: usize, K> Tensor<B, D, K>
