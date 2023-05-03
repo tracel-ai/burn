@@ -26,7 +26,7 @@ impl GradientClipper {
         let lower_mask = B::lower_elem(grad.clone().into_primitive(), (-threshold).elem());
 
         let clipped_grad = B::mask_fill(
-            grad.clone().into_primitive(),
+            grad.into_primitive(),
             greater_mask,
             threshold.elem(),
         );
@@ -36,7 +36,7 @@ impl GradientClipper {
     }
 
     fn l2_norm<B: Backend, const D: usize>(tensor: Tensor<B, D>) -> Tensor<B, 1> {
-        let squared = tensor.clone().powf(2.0);
+        let squared = tensor.powf(2.0);
         let sum = squared.sum();
 
         sum.sqrt()
