@@ -17,11 +17,14 @@ use super::protos::{
 };
 use super::shape_inference::shape_inference;
 
+use bytemuck::cast_slice;
 use protobuf::{Enum, Message};
 use topological_sort::TopologicalSort;
 
-const STATEFUL_NODE_TYPES: [NodeType; 4] = [
+const STATEFUL_NODE_TYPES: [NodeType; 6] = [
     NodeType::Conv,
+    NodeType::Conv1d,
+    NodeType::Conv2d,
     NodeType::BatchNormalization,
     NodeType::Dropout,
     NodeType::Linear,
@@ -68,11 +71,11 @@ pub fn parse_onnx(onnx_path: &Path) -> Graph {
     let mut outputs = collect_outputs(&onnx_model, check_if_initializer);
     let initializers = collect_initializers(onnx_model);
 
-    // Coalesce and transform nodes
-    coalesce(&mut nodes);
-
     // Copy the initializers to the nodes
     copy_initializer_info_to_nodes_level(&mut nodes, &initializers);
+
+    // Coalesce and transform nodes
+    coalesce(&mut nodes);
 
     // Rename nodes and inputs, save the mapping for later
     let old_node_names = rename_nodes(&mut nodes);
@@ -199,18 +202,42 @@ impl TryFrom<TensorProto> for Tensor {
     type Error = ParseError;
     fn try_from(tensor: TensorProto) -> Result<Tensor, Self::Error> {
         let (elem_type, data) = match DataType::from_i32(tensor.data_type).unwrap() {
-            // TODO: check if float is empty and use raw_data instead
             DataType::FLOAT => (
                 ElementType::Float32,
-                TensorData::Float32s(tensor.float_data),
+                // Convert the raw data to a vector of floats
+                if !tensor.raw_data.is_empty() {
+                    TensorData::Float32(cast_slice(&tensor.raw_data[..]).to_vec())
+                } else {
+                    TensorData::Float32(tensor.float_data)
+                },
             ),
-            DataType::INT32 => (ElementType::Int32, TensorData::Int32s(tensor.int32_data)),
-            DataType::INT64 => (ElementType::Int64, TensorData::Int64s(tensor.int64_data)),
+            DataType::INT32 => (
+                ElementType::Int32,
+                // Convert the raw data to a vector of ints
+                if !tensor.raw_data.is_empty() {
+                    TensorData::Int32(cast_slice(&tensor.raw_data[..]).to_vec())
+                } else {
+                    TensorData::Int32(tensor.int32_data)
+                },
+            ),
+            DataType::INT64 => (
+                ElementType::Int64,
+                // Convert the raw data to a vector of ints
+                if !tensor.raw_data.is_empty() {
+                    TensorData::Int64(cast_slice(&tensor.raw_data[..]).to_vec())
+                } else {
+                    TensorData::Int64(tensor.int64_data)
+                },
+            ),
             DataType::DOUBLE => (
                 ElementType::Float64,
-                TensorData::Float64s(tensor.double_data),
+                // Convert the raw data to a vector of floats
+                if !tensor.raw_data.is_empty() {
+                    TensorData::Float64(cast_slice(&tensor.raw_data[..]).to_vec())
+                } else {
+                    TensorData::Float64(tensor.double_data)
+                },
             ),
-
             // TODO : Add more types
             _ => {
                 return Err(ParseError::VariantNotFound);
