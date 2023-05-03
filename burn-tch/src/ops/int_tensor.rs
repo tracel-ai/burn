@@ -315,4 +315,14 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
         let dims = dims.iter().map(|x| *x as i64).collect::<Vec<_>>();
         tensor.unary_ops(|tensor| tensor.flip(&dims), |tensor| tensor.flip(&dims))
     }
+    fn int_select<const D: usize, const D2: usize>(
+        tensor: <TchBackend<E> as Backend>::IntTensorPrimitive<D>,
+        dim: i64,
+        index: i64,
+    ) -> <TchBackend<E> as Backend>::IntTensorPrimitive<D2> {
+        tensor.unary_ops(
+            |tensor| tensor.select(dim as i64, index as i64),
+            |tensor| tensor.select(dim as i64, index as i64),
+        )
+    }
 }

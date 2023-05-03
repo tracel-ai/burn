@@ -92,4 +92,9 @@ pub trait BoolTensorOps<B: Backend> {
         scales_h: impl Into<Option<f64>>,
         scales_w: impl Into<Option<f64>>,
     ) -> B::BoolTensorPrimitive<D2>;
+    fn bool_select<const D: usize, const D2: usize>(
+        tensor: B::BoolTensorPrimitive<D>,
+        dim: i64,
+        index: i64,
+    ) -> B::BoolTensorPrimitive<D2>;
 }

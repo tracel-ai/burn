@@ -334,10 +334,6 @@ where
     pub fn expand(&self, size: Vec<usize>, implicit: bool) -> Self {
         Self::new(B::expand(self.primitive.clone(), size, implicit))
     }
-    pub fn select<const D2: usize>(&self, dim: i64, index: i64) -> Tensor<B, D2> {
-        Tensor::new(B::select(self.primitive.clone(), dim, index))
-    }
-    
     pub fn einsum<const D2: usize, const D3: usize>(
         equation: &str,
         tensor1: Tensor<B, D>,

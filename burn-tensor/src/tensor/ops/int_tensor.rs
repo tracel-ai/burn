@@ -185,7 +185,7 @@ pub trait IntTensorOps<B: Backend> {
     ) -> B::IntTensorPrimitive<D>;
     fn int_permute<const D: usize>(
         tensor: B::IntTensorPrimitive<D>,
-        dims: [usize;D],
+        dims: [usize; D],
     ) -> B::IntTensorPrimitive<D>;
     fn int_flip<const D: usize>(
         tensor: B::IntTensorPrimitive<D>,
@@ -197,5 +197,10 @@ pub trait IntTensorOps<B: Backend> {
         align_corners: bool,
         scales_h: impl Into<Option<f64>>,
         scales_w: impl Into<Option<f64>>,
+    ) -> B::IntTensorPrimitive<D2>;
+    fn int_select<const D: usize, const D2: usize>(
+        tensor: B::IntTensorPrimitive<D>,
+        dim: i64,
+        index: i64,
     ) -> B::IntTensorPrimitive<D2>;
 }

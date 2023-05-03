@@ -101,4 +101,11 @@ impl<B: Backend> BoolTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> 
     ) -> <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D2> {
         unimplemented!()
     }
+    fn bool_select<const D: usize, const D2: usize>(
+            tensor: <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D>,
+            dim: i64,
+            index: i64,
+        ) -> <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D2> {
+        unimplemented!()
+    }
 }

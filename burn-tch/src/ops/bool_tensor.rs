@@ -135,4 +135,14 @@ impl<E: TchElement> BoolTensorOps<TchBackend<E>> for TchBackend<E> {
         let dims = dims.iter().map(|x| *x as i64).collect::<Vec<_>>();
         tensor.unary_ops(|tensor| tensor.flip(&dims), |tensor| tensor.flip(&dims))
     }
+    fn bool_select<const D: usize, const D2: usize>(
+            tensor: <TchBackend<E> as Backend>::BoolTensorPrimitive<D>,
+            dim: i64,
+            index: i64,
+        ) -> <TchBackend<E> as Backend>::BoolTensorPrimitive<D2> {
+            tensor.unary_ops(
+                |tensor| tensor.select(dim as i64, index as i64),
+                |tensor| tensor.select(dim as i64, index as i64),
+            )
+    }
 }

@@ -139,4 +139,11 @@ impl<E: FloatNdArrayElement> BoolTensorOps<NdArrayBackend<E>> for NdArrayBackend
     ) -> <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D2> {
         unimplemented!()
     }
+    fn bool_select<const D: usize, const D2: usize>(
+            tensor: <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D>,
+            dim: i64,
+            index: i64,
+        ) -> <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D2> {
+        unimplemented!()
+    }
 }

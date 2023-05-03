@@ -263,4 +263,11 @@ impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     ) -> <ADBackendDecorator<B> as Backend>::IntTensorPrimitive<D2> {
         unimplemented!()
     }
+    fn int_select<const D: usize, const D2: usize>(
+        tensor: <ADBackendDecorator<B> as Backend>::IntTensorPrimitive<D>,
+        dim: i64,
+        index: i64,
+    ) -> <ADBackendDecorator<B> as Backend>::IntTensorPrimitive<D2> {
+        unimplemented!()
+    }
 }

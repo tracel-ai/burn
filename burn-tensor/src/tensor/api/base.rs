@@ -298,6 +298,10 @@ where
         );
         Tensor::new(tensor)
     }
+    pub fn select<const D2: usize>(&self, dim: i64, index: i64) -> Tensor<B, D2, K> {
+        let tensor = K::select(self.primitive.clone(), dim, index);
+        Tensor::new(tensor)
+    }
 }
 
 impl<B, const D: usize, K> Tensor<B, D, K>
@@ -436,6 +440,11 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         scales_h: impl Into<Option<f64>>,
         scales_w: impl Into<Option<f64>>,
     ) -> Self::Primitive<D2>;
+    fn select<const D: usize, const D2: usize>(
+        tensor: Self::Primitive<D>,
+        dim: i64,
+        index: i64,
+    ) -> Self::Primitive<D2>;
 }
 
 impl<B: Backend> BasicOps<B> for Float {
@@ -528,6 +537,13 @@ impl<B: Backend> BasicOps<B> for Float {
         scales_w: impl Into<Option<f64>>,
     ) -> Self::Primitive<D2> {
         B::upsample_bilinear2d(tensor, output_size, align_corners, scales_h, scales_w)
+    }
+    fn select<const D: usize, const D2: usize>(
+        tensor: Self::Primitive<D>,
+        dim: i64,
+        index: i64,
+    ) -> Self::Primitive<D2> {
+        B::select(tensor, dim, index)
     }
 }
 
@@ -622,6 +638,13 @@ impl<B: Backend> BasicOps<B> for Int {
     ) -> Self::Primitive<D2> {
         B::int_upsample_bilinear2d(tensor, output_size, align_corners, scales_h, scales_w)
     }
+    fn select<const D: usize, const D2: usize>(
+        tensor: Self::Primitive<D>,
+        dim: i64,
+        index: i64,
+    ) -> Self::Primitive<D2> {
+        B::int_select(tensor, dim, index)
+    }
 }
 
 impl<B: Backend> BasicOps<B> for Bool {
@@ -714,5 +737,12 @@ impl<B: Backend> BasicOps<B> for Bool {
         scales_w: impl Into<Option<f64>>,
     ) -> Self::Primitive<D2> {
         B::bool_upsample_bilinear2d(tensor, output_size, align_corners, scales_h, scales_w)
+    }
+    fn select<const D: usize, const D2: usize>(
+        tensor: Self::Primitive<D>,
+        dim: i64,
+        index: i64,
+    ) -> Self::Primitive<D2> {
+        B::bool_select(tensor, dim, index)
     }
 }

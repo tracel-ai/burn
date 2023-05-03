@@ -333,4 +333,11 @@ impl<E: FloatNdArrayElement> IntTensorOps<NdArrayBackend<E>> for NdArrayBackend<
     ) -> <NdArrayBackend<E> as Backend>::IntTensorPrimitive<D2> {
         unimplemented!()
     }
+    fn int_select<const D: usize, const D2: usize>(
+        tensor: <NdArrayBackend<E> as Backend>::IntTensorPrimitive<D>,
+        dim: i64,
+        index: i64,
+    ) -> <NdArrayBackend<E> as Backend>::IntTensorPrimitive<D2> {
+        unimplemented!()
+    }
 }
