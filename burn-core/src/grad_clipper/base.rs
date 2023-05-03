@@ -25,11 +25,7 @@ impl GradientClipper {
         let greater_mask = B::greater_elem(grad.clone().into_primitive(), threshold.elem());
         let lower_mask = B::lower_elem(grad.clone().into_primitive(), (-threshold).elem());
 
-        let clipped_grad = B::mask_fill(
-            grad.into_primitive(),
-            greater_mask,
-            threshold.elem(),
-        );
+        let clipped_grad = B::mask_fill(grad.into_primitive(), greater_mask, threshold.elem());
         let clipped_grad = B::mask_fill(clipped_grad, lower_mask, (-threshold).elem());
 
         Tensor::from_primitive(clipped_grad)
