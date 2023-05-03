@@ -22,20 +22,20 @@ impl GradientClipper {
         grad: Tensor<B, D>,
         threshold: f32,
     ) -> Tensor<B, D> {
-        let mut grad_data = grad.to_data();
-        grad_data.value.iter_mut().for_each(|val| {
-            let f_val: f32 = val.elem();
-            if f_val > threshold {
-                *val = threshold.elem();
-            } else if f_val < -threshold {
-                *val = (-threshold).elem();
-            }
-        });
+        let greater_mask = B::greater_elem(grad.clone().into_primitive(), threshold.elem());
+        let lower_mask = B::lower_elem(grad.clone().into_primitive(), (-threshold).elem());
 
-        Tensor::from_data_device(grad_data, &grad.device())
+        let clipped_grad = B::mask_fill(
+            grad.clone().into_primitive(),
+            greater_mask,
+            threshold.elem(),
+        );
+        let clipped_grad = B::mask_fill(clipped_grad, lower_mask, (-threshold).elem());
+
+        Tensor::from_primitive(clipped_grad)
     }
 
-    fn l2_norm<B: Backend, const D: usize>(tensor: &Tensor<B, D>) -> Tensor<B, 1> {
+    fn l2_norm<B: Backend, const D: usize>(tensor: Tensor<B, D>) -> Tensor<B, 1> {
         let squared = tensor.clone().powf(2.0);
         let sum = squared.sum();
 
@@ -47,7 +47,7 @@ impl GradientClipper {
         grad: Tensor<B, D>,
         threshold: f32,
     ) -> Tensor<B, D> {
-        let norm = Self::l2_norm(&grad);
+        let norm = Self::l2_norm(grad.clone());
         let norm_float = norm.into_scalar().elem::<f32>();
         if norm_float > threshold {
             let scale = threshold / norm_float;
