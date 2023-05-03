@@ -129,8 +129,7 @@ mod tests {
     #[test]
     fn can_attach_gradient_clipper() {
         let optim = sgd_with_all().with_gradient_clipper(GradientClipper::ClipByValue(0.5));
-        let record = optim.to_record();
-        assert!(record.is_empty());
+        assert!(optim.has_gradient_clipper());
     }
 
     #[test]

@@ -49,6 +49,10 @@ where
         self.gradient_clipper = Some(gradient_clipper);
         self
     }
+
+    pub fn has_gradient_clipper(&self) -> bool {
+        self.gradient_clipper.is_some()
+    }
 }
 
 impl<O, B, M> Optimizer<M, B> for OptimizerAdaptor<O, M, B>
