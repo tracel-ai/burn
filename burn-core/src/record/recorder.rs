@@ -4,10 +4,11 @@ use alloc::format;
 use alloc::string::{String, ToString};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
+use super::{BinBytesRecorder, FullPrecisionSettings, PrecisionSettings, Record};
+#[cfg(feature = "std")]
 use super::{
-    BinBytesRecorder, BinFileRecorder, BinGzFileRecorder, DefaultFileRecorder,
-    FullPrecisionSettings, HalfPrecisionSettings, PrecisionSettings, PrettyJsonFileRecorder,
-    Record,
+    BinFileRecorder, BinGzFileRecorder, DefaultFileRecorder, HalfPrecisionSettings,
+    PrettyJsonFileRecorder,
 };
 
 /// Record any item implementing [Serialize](Serialize) and [DeserializeOwned](DeserializeOwned).
@@ -141,6 +142,7 @@ pub struct BurnRecordNoItem {
 /// Default recorder.
 ///
 /// It uses the [named msgpack](rmp_serde) format for serialization with full precision.
+#[cfg(feature = "std")]
 pub type DefaultRecorder = DefaultFileRecorder<FullPrecisionSettings>;
 
 /// Recorder optimized for compactness.
@@ -148,6 +150,7 @@ pub type DefaultRecorder = DefaultFileRecorder<FullPrecisionSettings>;
 /// It uses the [named msgpack](rmp_serde) format for serialization with half precision.
 /// If you are looking for the recorder that offers the smallest file size, have a look at
 /// [sensitive compact recorder](SensitiveCompactRecorder).
+#[cfg(feature = "std")]
 pub type CompactRecorder = DefaultFileRecorder<HalfPrecisionSettings>;
 
 /// Recorder optimized for compactness making it a good choice for model deployment.
@@ -156,9 +159,11 @@ pub type CompactRecorder = DefaultFileRecorder<HalfPrecisionSettings>;
 /// This format is not resilient to type changes since no metadata is encoded.
 /// Favor [default recorder](DefaultRecorder) or [compact recorder](CompactRecorder)
 /// for long term data storage.
+#[cfg(feature = "std")]
 pub type SensitiveCompactRecorder = BinGzFileRecorder<HalfPrecisionSettings>;
 
 /// Training recorder compatible with no-std inference.
+#[cfg(feature = "std")]
 pub type NoStdTrainingRecorder = BinFileRecorder<FullPrecisionSettings>;
 
 /// Inference recorder compatible with no-std.
@@ -168,6 +173,7 @@ pub type NoStdInferenceRecorder = BinBytesRecorder<FullPrecisionSettings>;
 ///
 /// It uses the [pretty json](serde_json) format for serialization with full precision making it
 /// human readable.
+#[cfg(feature = "std")]
 pub type DebugRecordSettings = PrettyJsonFileRecorder<FullPrecisionSettings>;
 
 #[cfg(all(test, feature = "std"))]
