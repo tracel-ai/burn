@@ -1,7 +1,7 @@
-use core::marker::PhantomData;
-
-use super::{bin_config, BurnRecord, PrecisionSettings, Record, Recorder, RecorderError};
+use super::{bin_config, PrecisionSettings, Recorder, RecorderError};
 use alloc::vec::Vec;
+use core::marker::PhantomData;
+use serde::{de::DeserializeOwned, Serialize};
 
 /// Recorder trait specialized to save and load data to and from bytes.
 ///
@@ -28,17 +28,14 @@ impl<S: PrecisionSettings> Recorder for BinBytesRecorder<S> {
     type RecordOutput = Vec<u8>;
     type LoadArgs = Vec<u8>;
 
-    fn save_item<R: Record>(
+    fn save_item<I: Serialize>(
         &self,
-        item: BurnRecord<<R as Record>::Item<S>>,
+        item: I,
         _args: Self::RecordArgs,
     ) -> Result<Self::RecordOutput, RecorderError> {
         Ok(bincode::serde::encode_to_vec(item, bin_config()).unwrap())
     }
-    fn load_item<R: Record>(
-        &self,
-        args: Self::LoadArgs,
-    ) -> Result<BurnRecord<<R as Record>::Item<S>>, RecorderError> {
+    fn load_item<I: DeserializeOwned>(&self, args: Self::LoadArgs) -> Result<I, RecorderError> {
         let state = bincode::serde::decode_borrowed_from_slice(&args, bin_config()).unwrap();
         Ok(state)
     }

@@ -1,6 +1,8 @@
+use core::any::type_name;
+
 use alloc::format;
 use alloc::string::String;
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use super::{
     BinBytesRecorder, BinFileRecorder, BinGzFileRecorder, DefaultFileRecorder,
@@ -24,35 +26,76 @@ pub trait Recorder: Send + Sync + core::default::Default + core::fmt::Debug + Cl
         record: R,
         args: Self::RecordArgs,
     ) -> Result<Self::RecordOutput, RecorderError> {
-        let metadata = BurnMetadata::new(
-            core::any::type_name::<<Self::Settings as PrecisionSettings>::FloatElem>().to_string(),
-            core::any::type_name::<<Self::Settings as PrecisionSettings>::IntElem>().to_string(),
-            core::any::type_name::<Self>().to_string(),
-            env!("CARGO_PKG_VERSION").to_string(),
-            format!("{:?}", Self::Settings::default()),
-        );
+        let metadata = recorder_metadata::<Self>();
         let item = record.into_item::<Self::Settings>();
         let item = BurnRecord::new(metadata, item);
 
-        self.save_item::<R>(item, args)
+        self.save_item(item, args)
     }
 
     /// Load an item from the given arguments.
     fn load<R: Record>(&self, args: Self::LoadArgs) -> Result<R, RecorderError> {
-        let item = self.load_item::<R>(args.clone())?;
+        let item: BurnRecord<R::Item<Self::Settings>> =
+            self.load_item(args.clone()).map_err(|err| {
+                if let Ok(record) = self.load_item::<BurnRecordNoItem>(args.clone()) {
+                    let mut message = "Unable to load record.".to_string();
+                    let metadata = recorder_metadata::<Self>();
+                    if metadata.float != record.metadata.float {
+                        message += format!(
+                            "\nMetadata has a different float type: Actual {:?}, Expected {:?}",
+                            record.metadata.float, metadata.float
+                        )
+                        .as_str();
+                    }
+                    if metadata.int != record.metadata.int {
+                        message += format!(
+                            "\nMetadata has a different int type: Actual {:?}, Expected {:?}",
+                            record.metadata.int, metadata.int
+                        )
+                        .as_str();
+                    }
+                    if metadata.format != record.metadata.format {
+                        message += format!(
+                            "\nMetadata has a different format: Actual {:?}, Expected {:?}",
+                            record.metadata.format, metadata.format
+                        )
+                        .as_str();
+                    }
+                    if metadata.version != record.metadata.version {
+                        message += format!(
+                            "\nMetadata has a different Burn version: Actual {:?}, Expected {:?}",
+                            record.metadata.version, metadata.version
+                        )
+                        .as_str();
+                    }
+
+                    message += format!("\nError: {:?}", err).as_str();
+
+                    return RecorderError::Unknown(message);
+                }
+
+                err
+            })?;
 
         Ok(R::from_item(item.item))
     }
 
-    fn save_item<R: Record>(
+    fn save_item<I: Serialize>(
         &self,
-        item: BurnRecord<R::Item<Self::Settings>>,
+        item: I,
         args: Self::RecordArgs,
     ) -> Result<Self::RecordOutput, RecorderError>;
-    fn load_item<R: Record>(
-        &self,
-        args: Self::LoadArgs,
-    ) -> Result<BurnRecord<R::Item<Self::Settings>>, RecorderError>;
+    fn load_item<I: DeserializeOwned>(&self, args: Self::LoadArgs) -> Result<I, RecorderError>;
+}
+
+fn recorder_metadata<R: Recorder>() -> BurnMetadata {
+    BurnMetadata::new(
+        type_name::<<R::Settings as PrecisionSettings>::FloatElem>().to_string(),
+        type_name::<<R::Settings as PrecisionSettings>::IntElem>().to_string(),
+        type_name::<R>().to_string(),
+        env!("CARGO_PKG_VERSION").to_string(),
+        format!("{:?}", R::Settings::default()),
+    )
 }
 
 #[derive(Debug)]
@@ -75,13 +118,13 @@ pub(crate) fn bin_config() -> bincode::config::Configuration {
     bincode::config::standard()
 }
 
-#[derive(new, Debug, Serialize, Deserialize)]
+#[derive(new, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct BurnMetadata {
-    float: String,
-    int: String,
-    format: String,
-    version: String,
-    settings: String,
+    pub float: String,
+    pub int: String,
+    pub format: String,
+    pub version: String,
+    pub settings: String,
 }
 
 #[derive(new, Serialize, Deserialize)]
@@ -90,9 +133,9 @@ pub struct BurnRecord<I> {
     pub item: I,
 }
 
-#[derive(new, Serialize, Deserialize)]
-struct BurnRecordNoItem {
-    metadata: BurnMetadata,
+#[derive(new, Debug, Serialize, Deserialize)]
+pub struct BurnRecordNoItem {
+    pub metadata: BurnMetadata,
 }
 
 /// Default recorder.
@@ -131,21 +174,12 @@ pub type DebugRecordSettings = PrettyJsonFileRecorder<FullPrecisionSettings>;
 mod tests {
     static FILE_PATH: &str = "/tmp/burn_test_record";
 
-    use core::marker::PhantomData;
-
     use super::*;
-    use crate::record::JsonGzFileRecorder;
-    use burn_tensor::{Element, ElementConversion};
-    use serde::de::DeserializeOwned;
+    use burn_tensor::ElementConversion;
 
     #[test]
     #[should_panic]
-    fn err_when_invalid_object() {
-        #[derive(Debug, Default)]
-        pub struct TestSettings<F> {
-            float: PhantomData<F>,
-        }
-
+    fn err_when_invalid_item() {
         #[derive(new, Serialize, Deserialize)]
         struct Item<S: PrecisionSettings> {
             value: S::FloatElem,
@@ -167,11 +201,16 @@ mod tests {
             }
         }
 
-        let item = Item::<TestSettings<f32>>::new(16.elem());
+        let item = Item::<FullPrecisionSettings>::new(16.elem());
 
         // Serialize in f32.
-        item.record::<TestSettings<f32>>(FILE_PATH.into()).unwrap();
-        // Can't deserialize u8 into f32.
-        Item::<TestSettings<f32>>::load::<TestSettings<u8>>(FILE_PATH.into()).unwrap();
+        let recorder = DefaultFileRecorder::<FullPrecisionSettings>::new();
+        recorder.record(item, FILE_PATH.into()).unwrap();
+
+        // Can't deserialize f32 into f16.
+        let recorder = DefaultFileRecorder::<HalfPrecisionSettings>::new();
+        recorder
+            .load::<Item<FullPrecisionSettings>>(FILE_PATH.into())
+            .unwrap();
     }
 }

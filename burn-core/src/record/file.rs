@@ -1,6 +1,7 @@
-use super::{bin_config, BurnRecord, PrecisionSettings, Record, Recorder, RecorderError};
+use super::{bin_config, PrecisionSettings, Recorder, RecorderError};
 use core::marker::PhantomData;
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
+use serde::{de::DeserializeOwned, Serialize};
 use std::{fs::File, path::PathBuf};
 
 /// Recorder trait specialized to save and load data to and from files.
@@ -109,9 +110,9 @@ impl<S: PrecisionSettings> Recorder for BinGzFileRecorder<S> {
     type RecordOutput = ();
     type LoadArgs = PathBuf;
 
-    fn save_item<R: Record>(
+    fn save_item<I: Serialize>(
         &self,
-        item: BurnRecord<R::Item<S>>,
+        item: I,
         mut file: Self::RecordArgs,
     ) -> Result<(), RecorderError> {
         let config = bin_config();
@@ -124,10 +125,7 @@ impl<S: PrecisionSettings> Recorder for BinGzFileRecorder<S> {
         Ok(())
     }
 
-    fn load_item<R: Record>(
-        &self,
-        mut file: Self::LoadArgs,
-    ) -> Result<BurnRecord<R::Item<S>>, RecorderError> {
+    fn load_item<I: DeserializeOwned>(&self, mut file: Self::LoadArgs) -> Result<I, RecorderError> {
         let reader = str2reader!(file)?;
         let mut reader = GzDecoder::new(reader);
         let state = bincode::serde::decode_from_std_read(&mut reader, bin_config())
@@ -143,9 +141,9 @@ impl<S: PrecisionSettings> Recorder for BinFileRecorder<S> {
     type RecordOutput = ();
     type LoadArgs = PathBuf;
 
-    fn save_item<R: Record>(
+    fn save_item<I: Serialize>(
         &self,
-        item: BurnRecord<R::Item<S>>,
+        item: I,
         mut file: Self::RecordArgs,
     ) -> Result<(), RecorderError> {
         let config = bin_config();
@@ -155,10 +153,7 @@ impl<S: PrecisionSettings> Recorder for BinFileRecorder<S> {
         Ok(())
     }
 
-    fn load_item<R: Record>(
-        &self,
-        mut file: Self::LoadArgs,
-    ) -> Result<BurnRecord<R::Item<S>>, RecorderError> {
+    fn load_item<I: DeserializeOwned>(&self, mut file: Self::LoadArgs) -> Result<I, RecorderError> {
         let mut reader = str2reader!(file)?;
         let state = bincode::serde::decode_from_std_read(&mut reader, bin_config())
             .map_err(|err| RecorderError::Unknown(err.to_string()))?;
@@ -172,9 +167,9 @@ impl<S: PrecisionSettings> Recorder for JsonGzFileRecorder<S> {
     type RecordOutput = ();
     type LoadArgs = PathBuf;
 
-    fn save_item<R: Record>(
+    fn save_item<I: Serialize>(
         &self,
-        item: BurnRecord<R::Item<S>>,
+        item: I,
         mut file: Self::RecordArgs,
     ) -> Result<(), RecorderError> {
         let writer = str2writer!(file)?;
@@ -185,10 +180,7 @@ impl<S: PrecisionSettings> Recorder for JsonGzFileRecorder<S> {
         Ok(())
     }
 
-    fn load_item<R: Record>(
-        &self,
-        mut file: Self::LoadArgs,
-    ) -> Result<BurnRecord<R::Item<S>>, RecorderError> {
+    fn load_item<I: DeserializeOwned>(&self, mut file: Self::LoadArgs) -> Result<I, RecorderError> {
         let reader = str2reader!(file)?;
         let reader = GzDecoder::new(reader);
         let state = serde_json::from_reader(reader)
@@ -204,9 +196,9 @@ impl<S: PrecisionSettings> Recorder for PrettyJsonFileRecorder<S> {
     type RecordOutput = ();
     type LoadArgs = PathBuf;
 
-    fn save_item<R: Record>(
+    fn save_item<I: Serialize>(
         &self,
-        item: BurnRecord<R::Item<S>>,
+        item: I,
         mut file: Self::RecordArgs,
     ) -> Result<(), RecorderError> {
         let writer = str2writer!(file)?;
@@ -215,10 +207,7 @@ impl<S: PrecisionSettings> Recorder for PrettyJsonFileRecorder<S> {
         Ok(())
     }
 
-    fn load_item<R: Record>(
-        &self,
-        mut file: Self::LoadArgs,
-    ) -> Result<BurnRecord<R::Item<S>>, RecorderError> {
+    fn load_item<I: DeserializeOwned>(&self, mut file: Self::LoadArgs) -> Result<I, RecorderError> {
         let reader = str2reader!(file)?;
         let state = serde_json::from_reader(reader)
             .map_err(|err| RecorderError::Unknown(err.to_string()))?;
@@ -233,9 +222,9 @@ impl<S: PrecisionSettings> Recorder for NamedMpkGzFileRecorder<S> {
     type RecordOutput = ();
     type LoadArgs = PathBuf;
 
-    fn save_item<R: Record>(
+    fn save_item<I: Serialize>(
         &self,
-        item: BurnRecord<R::Item<S>>,
+        item: I,
         mut file: Self::RecordArgs,
     ) -> Result<(), RecorderError> {
         let writer = str2writer!(file)?;
@@ -246,10 +235,7 @@ impl<S: PrecisionSettings> Recorder for NamedMpkGzFileRecorder<S> {
         Ok(())
     }
 
-    fn load_item<R: Record>(
-        &self,
-        mut file: Self::LoadArgs,
-    ) -> Result<BurnRecord<R::Item<S>>, RecorderError> {
+    fn load_item<I: DeserializeOwned>(&self, mut file: Self::LoadArgs) -> Result<I, RecorderError> {
         let reader = str2reader!(file)?;
         let reader = GzDecoder::new(reader);
         let state = rmp_serde::decode::from_read(reader)
