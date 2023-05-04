@@ -42,6 +42,7 @@ __Sections__
   * [NdArray](https://github.com/burn-rs/burn/tree/main/burn-ndarray) backend featuring [`no_std`](#no_std-support) compatibility for any platform 👌
   * [Autodiff](https://github.com/burn-rs/burn/tree/main/burn-autodiff) backend enabling differentiability for all backends 🌟
 * [Dataset](https://github.com/burn-rs/burn/tree/main/burn-dataset) crate with a variety of utilities and sources 📚
+* [Import](https://github.com/burn-rs/burn/tree/main/burn-import) crate for seamless integration of pretrained models 📦
 
 ## Get Started
 
