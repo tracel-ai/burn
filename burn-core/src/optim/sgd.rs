@@ -132,9 +132,9 @@ mod tests {
     }
 
     #[test]
-    fn can_attach_gradient_clipper() {
+    fn can_attach_gradient_clipping() {
         let optim = sgd_with_all().with_grad_clipping(GradientClipping::Value(0.5));
-        assert!(optim.has_gradient_clipper());
+        assert!(optim.has_gradient_clipping());
     }
 
     #[test]
