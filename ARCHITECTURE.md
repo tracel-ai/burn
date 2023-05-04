@@ -122,19 +122,18 @@ The way the types interact with each other is pretty straightforward.
 First, a module can be converted into a record using `into_record()`.
 Note that tensors can be cloned, but it won't actually copy any data; it will create another reference to the same data.
 
-Then, you can call `record()`, which takes a `RecordSettings` as a parameter.
-The function is automatically implemented for each record.
-It calls `into_item::<RecordSettings>()` on the record, which creates a serializable item following the given settings.
+Then, a `Recorder` instance can be used to serialize any record.
+The `Recorder` has the `PrecisionSettings` type as associate type, so any record will be serialized using the settings provided at the creation of the `Recorder` instance.
 Note that tensors implement record, and their item is just a wrapper struct that contains information about the precision in which the tensor should be saved or loaded.
 No actual copy of the tensor is made until this point.
 The tensor is converted to the `Data` struct and then converted into the specified precision only when `serialize()` or `deserialize()` are called, which makes the whole process lazy.
 
 To recapitulate, the `Module` trait has an associated type that implements `Record`, which only contains the parameters of the model.
-The `Record` trait has a generic associated type (GAT) that specifies a family of types that can be (de)serialized given any `RecordSettings`.
+The `Record` trait has a generic associated type (GAT) that specifies a family of types that can be (de)serialized given any `PrecisionSettings`.
 Records are therefore decoupled from the backend in use, and the saved items can be loaded on any backend with any precision, since the conversion is type-safe and done when `serialize()` and `deserialize()` are called.
 All of the types are generated using simple derive macros without any conditional statements or complex syntax, as `Record` and `Module` are implemented for all primitive types.
 This makes the code simple and easy to maintain.
-In addition, you can extend the current system with your own `Recorder` and `RecordSettings` to control how your modules should be saved and loaded.
+In addition, you can extend the current system with your own `Recorder` and `PrecisionSettings` to control how your modules should be saved and loaded.
 
 ##### Pros
 
