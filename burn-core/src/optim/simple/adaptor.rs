@@ -1,6 +1,6 @@
 use super::{record::AdaptorRecord, SimpleOptimizer};
 use crate::{
-    grad_clipper::GradientClipper,
+    grad_clipping::GradientClipping,
     module::{ADModule, ModuleMapper, ParamId},
     optim::{GradientsParams, Optimizer},
     LearningRate,
@@ -20,7 +20,7 @@ where
     optim: O,
     records: HashMap<ParamId, AdaptorRecord<O, B::InnerBackend>>,
     module: PhantomData<M>,
-    gradient_clipper: Option<GradientClipper>,
+    gradient_clipper: Option<GradientClipping>,
 }
 
 impl<O, B, M> From<O> for OptimizerAdaptor<O, M, B>
@@ -45,13 +45,13 @@ where
     M: ADModule<B>,
     B: ADBackend,
 {
-    pub fn with_gradient_clipper(mut self, gradient_clipper: GradientClipper) -> Self {
-        self.gradient_clipper = Some(gradient_clipper);
-        self
-    }
-
+    #[cfg(test)]
     pub fn has_gradient_clipper(&self) -> bool {
         self.gradient_clipper.is_some()
+    }
+    pub fn with_grad_clipping(mut self, gradient_clipper: GradientClipping) -> Self {
+        self.gradient_clipper = Some(gradient_clipper);
+        self
     }
 }
 
@@ -96,7 +96,7 @@ where
     grads: &'a mut GradientsParams,
     lr: LearningRate,
     phantom: PhantomData<M>,
-    gradient_clipper: Option<&'a GradientClipper>,
+    gradient_clipper: Option<&'a GradientClipping>,
 }
 
 impl<'a, M, B, O> ModuleMapper<B> for SimpleOptimizerMapper<'a, M, B, O>

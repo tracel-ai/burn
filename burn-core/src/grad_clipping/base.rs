@@ -1,19 +1,36 @@
-use crate::tensor::Tensor;
+use crate as burn;
+
+use crate::{config::Config, tensor::Tensor};
 use burn_tensor::{backend::Backend, ElementConversion};
 
-/// Gradient Clipper provides a way to mitigate exploding gradients
-/// by clipping every component of the gradient to a value during
-/// backpropagation.
-pub enum GradientClipper {
-    ClipByValue(f32),
-    ClipByNorm(f32),
+#[derive(Config)]
+pub enum GradientClippingConfig {
+    Value(f32),
+    Norm(f32),
 }
 
-impl GradientClipper {
+impl GradientClippingConfig {
+    pub fn init(&self) -> GradientClipping {
+        match self {
+            GradientClippingConfig::Value(val) => GradientClipping::Value(*val),
+            GradientClippingConfig::Norm(val) => GradientClipping::Norm(*val),
+        }
+    }
+}
+
+/// Gradient Clipping provides a way to mitigate exploding gradients
+/// by clipping every component of the gradient by value or by norm during
+/// backpropagation.
+pub enum GradientClipping {
+    Value(f32),
+    Norm(f32),
+}
+
+impl GradientClipping {
     pub fn clip_gradient<B: Backend, const D: usize>(&self, grad: Tensor<B, D>) -> Tensor<B, D> {
         match self {
-            GradientClipper::ClipByValue(threshold) => self.clip_by_value(grad, *threshold),
-            GradientClipper::ClipByNorm(max_norm) => self.clip_by_norm(grad, *max_norm),
+            GradientClipping::Value(threshold) => self.clip_by_value(grad, *threshold),
+            GradientClipping::Norm(max_norm) => self.clip_by_norm(grad, *max_norm),
         }
     }
 
@@ -22,13 +39,12 @@ impl GradientClipper {
         grad: Tensor<B, D>,
         threshold: f32,
     ) -> Tensor<B, D> {
-        let greater_mask = B::greater_elem(grad.clone().into_primitive(), threshold.elem());
-        let lower_mask = B::lower_elem(grad.clone().into_primitive(), (-threshold).elem());
+        let greater_mask = grad.clone().greater_elem(threshold);
+        let lower_mask = grad.clone().lower_elem(-threshold);
 
-        let clipped_grad = B::mask_fill(grad.into_primitive(), greater_mask, threshold.elem());
-        let clipped_grad = B::mask_fill(clipped_grad, lower_mask, (-threshold).elem());
+        let clipped_grad = grad.mask_fill(greater_mask, threshold);
 
-        Tensor::from_primitive(clipped_grad)
+        clipped_grad.mask_fill(lower_mask, -threshold)
     }
 
     fn l2_norm<B: Backend, const D: usize>(tensor: Tensor<B, D>) -> Tensor<B, 1> {
@@ -67,7 +83,7 @@ mod tests {
             [0.7152, 0.9559, 0.7893, 0.5684, 0.5939, 0.8883],
         ]);
 
-        let clipped_gradient = GradientClipper::ClipByValue(0.5).clip_gradient(gradient);
+        let clipped_gradient = GradientClipping::Value(0.5).clip_gradient(gradient);
         let clipped_gradient_data = clipped_gradient.into_data();
 
         for value in clipped_gradient_data.value {
@@ -82,7 +98,7 @@ mod tests {
             [0.7152, 0.9559, 0.7893, 0.5684, 0.5939, 0.8883],
         ]);
 
-        let clipped_gradient = GradientClipper::ClipByNorm(2.2).clip_gradient(gradient);
+        let clipped_gradient = GradientClipping::Norm(2.2).clip_gradient(gradient);
         let clipped_gradient_data = clipped_gradient.into_data();
 
         for value in clipped_gradient_data.value {
