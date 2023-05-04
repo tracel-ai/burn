@@ -12,7 +12,7 @@ use super::{
 use burn::{
     module::{Module, Param},
     nn::{conv::Conv2dRecord, BatchNormRecord, LinearRecord},
-    record::{Record, RecordSettings},
+    record::{PrecisionSettings, Record},
     tensor::Tensor,
 };
 
@@ -26,42 +26,43 @@ use serde::{
 
 type B = NdArrayBackend<f32>;
 
-pub struct ModelState<RS: RecordSettings> {
+/// Serializable ONNX model state.
+pub struct ModelState<PS: PrecisionSettings> {
     pub graph: Graph,
-    _record_settings: PhantomData<RS>,
+    _settings: PhantomData<PS>,
 }
 
-impl<RS: RecordSettings> ModelState<RS> {
+impl<PS: PrecisionSettings> ModelState<PS> {
     /// Create a new model state from the onnx file
     pub fn new<P: AsRef<Path>>(onnx_path: P) -> Self {
         let graph = parse_onnx(onnx_path.as_ref());
         Self {
             graph,
-            _record_settings: PhantomData::default(),
+            _settings: PhantomData::default(),
         }
     }
 
-    pub fn new_from_graph(graph: Graph) -> Self {
+    pub fn from_graph(graph: Graph) -> Self {
         Self {
             graph,
-            _record_settings: PhantomData::default(),
+            _settings: PhantomData::default(),
         }
     }
 }
 
-impl<RS: RecordSettings> Record for ModelState<RS> {
-    type Item<S: RecordSettings> = ModelState<RS>;
+impl Record for Graph {
+    type Item<S: PrecisionSettings> = ModelState<S>;
 
-    fn into_item<S: RecordSettings>(self) -> Self::Item<S> {
-        self
+    fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
+        ModelState::from_graph(self)
     }
 
-    fn from_item<S: RecordSettings>(_item: Self::Item<S>) -> Self {
+    fn from_item<S: PrecisionSettings>(_item: Self::Item<S>) -> Self {
         unimplemented!()
     }
 }
 
-impl<RS: RecordSettings> Serialize for ModelState<RS> {
+impl<PS: PrecisionSettings> Serialize for ModelState<PS> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -83,28 +84,28 @@ impl<RS: RecordSettings> Serialize for ModelState<RS> {
             match node.node_type {
                 NodeType::Conv2d => {
                     let (name, record) = conv2d_state(node);
-                    map.serialize_entry(&name, &Record::into_item::<RS>(record))?;
+                    map.serialize_entry(&name, &Record::into_item::<PS>(record))?;
                 }
                 NodeType::Linear => {
                     let (name, record) = linear_state(node);
-                    map.serialize_entry(&name, &Record::into_item::<RS>(record))?;
+                    map.serialize_entry(&name, &Record::into_item::<PS>(record))?;
                 }
                 NodeType::BatchNormalization => match first_input_dim(node).unwrap() {
                     2 => {
                         let (name, record) = batch_norm_state::<0>(node);
-                        map.serialize_entry(&name, &Record::into_item::<RS>(record))?;
+                        map.serialize_entry(&name, &Record::into_item::<PS>(record))?;
                     }
                     3 => {
                         let (name, record) = batch_norm_state::<1>(node);
-                        map.serialize_entry(&name, &Record::into_item::<RS>(record))?;
+                        map.serialize_entry(&name, &Record::into_item::<PS>(record))?;
                     }
                     4 => {
                         let (name, record) = batch_norm_state::<2>(node);
-                        map.serialize_entry(&name, &Record::into_item::<RS>(record))?;
+                        map.serialize_entry(&name, &Record::into_item::<PS>(record))?;
                     }
                     5 => {
                         let (name, record) = batch_norm_state::<3>(node);
-                        map.serialize_entry(&name, &Record::into_item::<RS>(record))?;
+                        map.serialize_entry(&name, &Record::into_item::<PS>(record))?;
                     }
                     dim => todo!("BatchNorm for dim = {dim} is not implemented yet"),
                 },
@@ -120,7 +121,7 @@ impl<RS: RecordSettings> Serialize for ModelState<RS> {
 }
 
 /// Dummy implementation of Deserialize for ModelState
-impl<'de, RS: RecordSettings> Deserialize<'de> for ModelState<RS> {
+impl<'de, PS: PrecisionSettings> Deserialize<'de> for ModelState<PS> {
     fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,

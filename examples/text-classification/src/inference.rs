@@ -4,7 +4,7 @@ use burn::{
     config::Config,
     data::dataloader::batcher::Batcher,
     module::Module,
-    record::{DefaultRecordSettings, Record},
+    record::{CompactRecorder, Recorder},
     tensor::backend::Backend,
 };
 
@@ -30,7 +30,8 @@ pub fn infer<B: Backend, D: TextClassificationDataset + 'static>(
     ));
 
     println!("Loading weights ...");
-    let record = Record::load::<DefaultRecordSettings>(format!("{artifact_dir}/model").into())
+    let record = CompactRecorder::new()
+        .load(format!("{artifact_dir}/model").into())
         .expect("Trained model weights");
 
     println!("Creating model ...");

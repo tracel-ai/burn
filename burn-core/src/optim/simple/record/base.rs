@@ -1,7 +1,7 @@
 use super::{AdaptorRecordItemV1, AdaptorRecordV1};
 use crate::{
     optim::SimpleOptimizer,
-    record::{Record, RecordSettings},
+    record::{PrecisionSettings, Record},
 };
 use burn_tensor::backend::Backend;
 use serde::{Deserialize, Serialize};
@@ -15,7 +15,7 @@ pub enum AdaptorRecord<O: SimpleOptimizer<B>, B: Backend> {
 
 #[derive(Serialize, Deserialize)]
 #[serde(bound = "")]
-pub enum AdaptorRecordItem<O: SimpleOptimizer<B>, B: Backend, S: RecordSettings> {
+pub enum AdaptorRecordItem<O: SimpleOptimizer<B>, B: Backend, S: PrecisionSettings> {
     V1(AdaptorRecordItemV1<O, B, S>),
 }
 
@@ -24,15 +24,15 @@ where
     O: SimpleOptimizer<B>,
     B: Backend,
 {
-    type Item<S: RecordSettings> = AdaptorRecordItem<O, B, S>;
+    type Item<S: PrecisionSettings> = AdaptorRecordItem<O, B, S>;
 
-    fn into_item<S: RecordSettings>(self) -> Self::Item<S> {
+    fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
         match self {
             AdaptorRecord::V1(record) => AdaptorRecordItem::V1(record.into_item()),
         }
     }
 
-    fn from_item<S: RecordSettings>(item: Self::Item<S>) -> Self {
+    fn from_item<S: PrecisionSettings>(item: Self::Item<S>) -> Self {
         match item {
             AdaptorRecordItem::V1(item) => Self::V1(AdaptorRecordV1::from_item(item)),
         }

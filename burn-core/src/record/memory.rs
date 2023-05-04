@@ -1,5 +1,6 @@
-use super::{bin_config, Recorder, RecorderError};
+use super::{bin_config, PrecisionSettings, Recorder, RecorderError};
 use alloc::vec::Vec;
+use core::marker::PhantomData;
 use serde::{de::DeserializeOwned, Serialize};
 
 /// Recorder trait specialized to save and load data to and from bytes.
@@ -8,30 +9,33 @@ use serde::{de::DeserializeOwned, Serialize};
 ///
 /// This is especialy useful in no_std environment where weights are stored directly in
 /// compiled binaries.
-pub trait InMemoryRecorder:
+pub trait BytesRecorder:
     Recorder<RecordArgs = (), RecordOutput = Vec<u8>, LoadArgs = Vec<u8>>
 {
 }
 
 /// In memory recorder using the [bincode format](bincode).
-#[derive(Debug, Default)]
-pub struct InMemoryBinRecorder;
+#[derive(new, Debug, Default, Clone)]
+pub struct BinBytesRecorder<S: PrecisionSettings> {
+    _settings: PhantomData<S>,
+}
 
-impl InMemoryRecorder for InMemoryBinRecorder {}
+impl<S: PrecisionSettings> BytesRecorder for BinBytesRecorder<S> {}
 
-impl Recorder for InMemoryBinRecorder {
+impl<S: PrecisionSettings> Recorder for BinBytesRecorder<S> {
+    type Settings = S;
     type RecordArgs = ();
     type RecordOutput = Vec<u8>;
     type LoadArgs = Vec<u8>;
 
-    fn record<Obj: Serialize + DeserializeOwned>(
-        obj: Obj,
+    fn save_item<I: Serialize>(
+        &self,
+        item: I,
         _args: Self::RecordArgs,
-    ) -> Result<Vec<u8>, RecorderError> {
-        Ok(bincode::serde::encode_to_vec(obj, bin_config()).unwrap())
+    ) -> Result<Self::RecordOutput, RecorderError> {
+        Ok(bincode::serde::encode_to_vec(item, bin_config()).unwrap())
     }
-
-    fn load<Obj: Serialize + DeserializeOwned>(args: Self::LoadArgs) -> Result<Obj, RecorderError> {
+    fn load_item<I: DeserializeOwned>(&self, args: Self::LoadArgs) -> Result<I, RecorderError> {
         let state = bincode::serde::decode_borrowed_from_slice(&args, bin_config()).unwrap();
         Ok(state)
     }
@@ -39,52 +43,22 @@ impl Recorder for InMemoryBinRecorder {
 
 #[cfg(test)]
 mod tests {
-    use core::marker::PhantomData;
-
     use super::*;
-    use crate::{
-        module::Module,
-        nn,
-        record::{Record, RecordSettings},
-        TestBackend,
-    };
+    use crate::{module::Module, nn, record::FullPrecisionSettings, TestBackend};
 
     #[test]
     fn test_can_save_and_load_bin_format() {
-        test_can_save_and_load::<InMemoryBinRecorder>()
+        test_can_save_and_load(BinBytesRecorder::<FullPrecisionSettings>::default())
     }
 
-    fn test_can_save_and_load<Recorder: InMemoryRecorder>() {
-        #[derive(Debug, Default)]
-        struct TestRecordSettings<R> {
-            phantom: PhantomData<R>,
-        }
-
-        impl<R: crate::record::Recorder> RecordSettings for TestRecordSettings<R> {
-            type FloatElem = f32;
-            type IntElem = i32;
-            type Recorder = R;
-        }
-
+    fn test_can_save_and_load<Recorder: BytesRecorder>(recorder: Recorder) {
         let model1 = create_model();
         let model2 = create_model();
-        let bytes1 = model1
-            .into_record()
-            .record::<TestRecordSettings<Recorder>>(())
-            .unwrap();
-        let bytes2 = model2
-            .clone()
-            .into_record()
-            .record::<TestRecordSettings<Recorder>>(())
-            .unwrap();
+        let bytes1 = recorder.record(model1.into_record(), ()).unwrap();
+        let bytes2 = recorder.record(model2.clone().into_record(), ()).unwrap();
 
-        let model2_after = model2.load_record(
-            nn::LinearRecord::load::<TestRecordSettings<Recorder>>(bytes1.clone()).unwrap(),
-        );
-        let bytes2_after = model2_after
-            .into_record()
-            .record::<TestRecordSettings<Recorder>>(())
-            .unwrap();
+        let model2_after = model2.load_record(recorder.load(bytes1.clone()).unwrap());
+        let bytes2_after = recorder.record(model2_after.into_record(), ()).unwrap();
 
         assert_ne!(bytes1, bytes2);
         assert_eq!(bytes1, bytes2_after);

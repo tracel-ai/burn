@@ -4,7 +4,7 @@ use crate::model::Model;
 use burn::module::Module;
 use burn::optim::decay::WeightDecayConfig;
 use burn::optim::AdamConfig;
-use burn::record::{DefaultRecordSettings, NoStdTrainingRecordSettings, Record};
+use burn::record::{CompactRecorder, NoStdTrainingRecorder, Recorder};
 use burn::{
     config::Config,
     data::{dataloader::DataLoaderBuilder, dataset::source::huggingface::MNISTDataset},
@@ -61,7 +61,7 @@ pub fn run<B: ADBackend>(device: B::Device) {
         .metric_valid_plot(AccuracyMetric::new())
         .metric_train_plot(LossMetric::new())
         .metric_valid_plot(LossMetric::new())
-        .with_file_checkpointer::<DefaultRecordSettings>(1)
+        .with_file_checkpointer(1, CompactRecorder::new())
         .devices(vec![device])
         .num_epochs(config.num_epochs)
         .build(Model::new(), config.optimizer.init(), 1e-4);
@@ -72,8 +72,10 @@ pub fn run<B: ADBackend>(device: B::Device) {
         .save(format!("{ARTIFACT_DIR}/config.json").as_str())
         .unwrap();
 
-    model_trained
-        .into_record()
-        .record::<NoStdTrainingRecordSettings>(format!("{ARTIFACT_DIR}/model").into())
+    NoStdTrainingRecorder::new()
+        .record(
+            model_trained.into_record(),
+            format!("{ARTIFACT_DIR}/model").into(),
+        )
         .expect("Failed to save trained model");
 }

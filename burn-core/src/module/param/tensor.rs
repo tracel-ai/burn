@@ -58,29 +58,29 @@ impl<const D: usize, B: ADBackend> ADModule<B> for Param<Tensor<B, D>> {
 
 #[cfg(all(test, feature = "std"))]
 mod tests {
+    use super::*;
     use crate::{
-        record::{NoStdInferenceRecordSettings, Record},
+        record::{BinBytesRecorder, FullPrecisionSettings, Recorder},
         TestADBackend,
     };
-
-    use super::*;
 
     #[test]
     fn test_load_record_setting() {
         let tensor = Tensor::<TestADBackend, 2>::ones([3, 3]);
-        let bytes = Param::from(tensor.clone())
-            .into_record()
-            .record::<NoStdInferenceRecordSettings>(())
+
+        let byte_recorder = BinBytesRecorder::<FullPrecisionSettings>::default();
+        let bytes = byte_recorder
+            .record(Param::from(tensor.clone()).into_record(), ())
             .unwrap();
 
         let no_grad_is_require_grad = Param::from(tensor.clone())
             .no_grad()
-            .load_record(Param::load::<NoStdInferenceRecordSettings>(bytes.clone()).unwrap())
+            .load_record(byte_recorder.load(bytes.clone()).unwrap())
             .value
             .is_require_grad();
 
         let with_default_is_require_grad = Param::from(tensor)
-            .load_record(Param::load::<NoStdInferenceRecordSettings>(bytes).unwrap())
+            .load_record(byte_recorder.load(bytes).unwrap())
             .value
             .is_require_grad();
 

@@ -7,7 +7,7 @@ use std::{
 
 use burn::{
     nn::conv::Conv2dPaddingConfig,
-    record::{DebugRecordSettings, DefaultRecordSettings, Record},
+    record::{DefaultFileRecorder, FullPrecisionSettings, PrettyJsonFileRecorder, Recorder},
 };
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
@@ -21,7 +21,7 @@ use crate::onnx::{
     shape_inference::first_input_dim,
 };
 
-use super::{from_onnx::parse_onnx, ir::Graph, ModelState};
+use super::{from_onnx::parse_onnx, ir::Graph};
 
 use rust_format::{Config, Edition, Formatter, PostProcess, RustFmt};
 
@@ -129,14 +129,11 @@ impl ModelGen {
 
         // export the model state
         if development {
-            // export the model state in debug mode
-            let model_state = ModelState::<DebugRecordSettings>::new_from_graph(model.graph);
-            model_state.record::<DebugRecordSettings>(out_file).unwrap()
+            let recorder = PrettyJsonFileRecorder::<FullPrecisionSettings>::new();
+            recorder.record(model.graph, out_file).unwrap();
         } else {
-            let model_state = ModelState::<DefaultRecordSettings>::new_from_graph(model.graph);
-            model_state
-                .record::<DefaultRecordSettings>(out_file)
-                .unwrap();
+            let recorder = DefaultFileRecorder::<FullPrecisionSettings>::new();
+            recorder.record(model.graph, out_file).unwrap();
         }
     }
 }
@@ -243,7 +240,7 @@ impl ModelSourceCode {
                 module::Module,
                 nn,
                 tensor::{backend::Backend, Tensor},
-                record::{Record, DefaultRecordSettings}
+                record::{Recorder, DefaultRecorder}
             };
 
             #(use #import_tokens;)*
@@ -295,7 +292,9 @@ impl ModelSourceCode {
         let file_path = self.record_path.to_str().unwrap().replace('\\', "\\\\");
         quote! {
             pub fn load_state(self) -> Self {
-                let record = Record::load::<DefaultRecordSettings>(#file_path.into()).unwrap();
+                let recorder = DefaultRecorder::new();
+                let record = recorder.load(#file_path.into()).unwrap();
+
                 self.load_record(record)
             }
         }

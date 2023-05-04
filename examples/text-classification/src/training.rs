@@ -9,7 +9,7 @@ use burn::{
     module::Module,
     nn::transformer::TransformerEncoderConfig,
     optim::AdamConfig,
-    record::{DefaultRecordSettings, Record},
+    record::{CompactRecorder, Recorder},
     tensor::backend::ADBackend,
     train::{
         metric::{AccuracyMetric, CUDAMetric, LearningRateMetric, LossMetric},
@@ -81,7 +81,7 @@ pub fn train<B: ADBackend, D: TextClassificationDataset + 'static>(
         .metric_train_plot(LossMetric::new())
         .metric_valid_plot(LossMetric::new())
         .metric_train_plot(LearningRateMetric::new())
-        .with_file_checkpointer::<DefaultRecordSettings>(2)
+        .with_file_checkpointer(2, CompactRecorder::new())
         .devices(vec![device])
         .num_epochs(config.num_epochs)
         .build(model, optim, lr_scheduler);
@@ -89,9 +89,10 @@ pub fn train<B: ADBackend, D: TextClassificationDataset + 'static>(
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 
     config.save(&format!("{artifact_dir}/config.json")).unwrap();
-
-    model_trained
-        .into_record()
-        .record::<DefaultRecordSettings>(format!("{artifact_dir}/model").into())
+    CompactRecorder::new()
+        .record(
+            model_trained.into_record(),
+            format!("{artifact_dir}/model").into(),
+        )
         .unwrap();
 }

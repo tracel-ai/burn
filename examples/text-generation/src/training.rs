@@ -2,6 +2,7 @@ use crate::{
     data::{Gpt2Tokenizer, TextGenerationBatcher, TextGenerationItem, Tokenizer},
     model::TextGenerationModelConfig,
 };
+use burn::data::dataset::transform::SamplerDataset;
 use burn::{
     config::Config,
     data::{dataloader::DataLoaderBuilder, dataset::Dataset},
@@ -9,15 +10,12 @@ use burn::{
     module::Module,
     nn::transformer::TransformerEncoderConfig,
     optim::AdamConfig,
+    record::{CompactRecorder, DefaultRecorder, Recorder},
     tensor::backend::ADBackend,
     train::{
         metric::{AccuracyMetric, CUDAMetric, LearningRateMetric, LossMetric},
         LearnerBuilder,
     },
-};
-use burn::{
-    data::dataset::transform::SamplerDataset,
-    record::{DefaultRecordSettings, Record},
 };
 use std::sync::Arc;
 
@@ -77,7 +75,7 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
         .metric_train(LossMetric::new())
         .metric_valid(LossMetric::new())
         .metric_train_plot(LearningRateMetric::new())
-        .with_file_checkpointer::<DefaultRecordSettings>(2)
+        .with_file_checkpointer(2, CompactRecorder::new())
         .devices(vec![device])
         .grads_accumulation(accum)
         .num_epochs(config.num_epochs)
@@ -87,8 +85,10 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
 
     config.save(&format!("{artifact_dir}/config.json")).unwrap();
 
-    model_trained
-        .into_record()
-        .record::<DefaultRecordSettings>(format!("{artifact_dir}/model").into())
+    DefaultRecorder::new()
+        .record(
+            model_trained.into_record(),
+            format!("{artifact_dir}/model").into(),
+        )
         .unwrap();
 }
