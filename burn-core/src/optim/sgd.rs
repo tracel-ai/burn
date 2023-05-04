@@ -21,7 +21,8 @@ pub struct SgdConfig {
 
 /// Optimizer that implements stochastic gradient descent with momentum.
 ///
-/// Momentum is optinal and can be [configured](SgdConfig::momentum).
+/// Momentum is optional and can be [configured](SgdConfig::momentum).
+/// Using a gradient clipper is optional.
 pub struct Sgd<B: Backend> {
     momentum: Option<Momentum<B>>,
     weight_decay: Option<WeightDecay<B>>,
@@ -95,6 +96,7 @@ impl<B: Backend> SimpleOptimizer<B> for Sgd<B> {
 mod tests {
     use super::*;
     use crate::{
+        grad_clipper::GradientClipper,
         nn::{Linear, LinearConfig},
         optim::{GradientsParams, Optimizer},
         tensor::{Distribution, Shape},
@@ -122,6 +124,12 @@ mod tests {
         let optim = sgd_with_all();
         let record = optim.to_record();
         assert!(record.is_empty());
+    }
+
+    #[test]
+    fn can_attach_gradient_clipper() {
+        let optim = sgd_with_all().with_gradient_clipper(GradientClipper::ClipByValue(0.5));
+        assert!(optim.has_gradient_clipper());
     }
 
     #[test]
