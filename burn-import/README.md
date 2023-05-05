@@ -15,6 +15,7 @@ still under development.
 - Flatten
 - Gemm (Linear layer)
 - LogSoftmax
+- Relu
 
 ## Usage
 
@@ -25,12 +26,12 @@ To import ONNX models, follow these steps:
 1. Add the following code to your `build.rs` file:
 
    ```rust
-   use burn_import::onnx::ModelCodeGen;
-
+   use burn_import::onnx::ModelGen;
    fn main() {
-       ModelCodeGen::new()
-           .input("src/model/mnist.onnx") // Path to the ONNX model
-           .out_dir("model/")            // Directory for the generated Rust source file (under target/)
+        // Generate the model code and state file from the ONNX file.
+       ModelGen::new()
+           .input("src/model/mnist.onnx")   // Path to the ONNX model
+           .out_dir("model/")               // Directory for the generated Rust source file (under target/)
            .run_from_script();
    }
    ```
@@ -66,7 +67,9 @@ To import ONNX models, follow these steps:
    }
    ```
 
-A working example can be found in the [`examples/onnx-inference`](https://github.com/burn-rs/burn/tree/main/examples/onnx-inference) directory.
+A working example can be found in the
+[`examples/onnx-inference`](https://github.com/burn-rs/burn/tree/main/examples/onnx-inference)
+directory.
 
 ### Adding new operators
 
