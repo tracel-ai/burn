@@ -15,6 +15,7 @@ still under development.
 - Flatten
 - Gemm (Linear layer)
 - LogSoftmax
+- Relu
 
 ## Usage
 
