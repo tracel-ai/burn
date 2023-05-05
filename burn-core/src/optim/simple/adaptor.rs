@@ -1,6 +1,6 @@
 use super::{record::AdaptorRecord, SimpleOptimizer};
 use crate::{
-    grad_clipper::GradientClipper,
+    grad_clipping::GradientClipping,
     module::{ADModule, ModuleMapper, ParamId},
     optim::{GradientsParams, Optimizer},
     LearningRate,
@@ -20,7 +20,7 @@ where
     optim: O,
     records: HashMap<ParamId, AdaptorRecord<O, B::InnerBackend>>,
     module: PhantomData<M>,
-    gradient_clipper: Option<GradientClipper>,
+    grad_clipping: Option<GradientClipping>,
 }
 
 impl<O, B, M> From<O> for OptimizerAdaptor<O, M, B>
@@ -34,7 +34,7 @@ where
             optim,
             records: HashMap::new(),
             module: PhantomData::default(),
-            gradient_clipper: None,
+            grad_clipping: None,
         }
     }
 }
@@ -45,13 +45,14 @@ where
     M: ADModule<B>,
     B: ADBackend,
 {
-    pub fn with_gradient_clipper(mut self, gradient_clipper: GradientClipper) -> Self {
-        self.gradient_clipper = Some(gradient_clipper);
+    pub fn with_grad_clipping(mut self, gradient_clipping: GradientClipping) -> Self {
+        self.grad_clipping = Some(gradient_clipping);
         self
     }
 
-    pub fn has_gradient_clipper(&self) -> bool {
-        self.gradient_clipper.is_some()
+    #[cfg(test)]
+    pub fn has_gradient_clipping(&self) -> bool {
+        self.grad_clipping.is_some()
     }
 }
 
@@ -69,7 +70,7 @@ where
             &mut self.records,
             &mut grads,
             lr,
-            self.gradient_clipper.as_ref(),
+            self.grad_clipping.as_ref(),
         );
         module.map(&mut mapper)
     }
@@ -96,7 +97,7 @@ where
     grads: &'a mut GradientsParams,
     lr: LearningRate,
     phantom: PhantomData<M>,
-    gradient_clipper: Option<&'a GradientClipper>,
+    grad_clipping: Option<&'a GradientClipping>,
 }
 
 impl<'a, M, B, O> ModuleMapper<B> for SimpleOptimizerMapper<'a, M, B, O>
@@ -113,8 +114,8 @@ where
             let is_require_grad = tensor.is_require_grad();
             let (key, record) = self.records.remove_entry(id).unzip();
 
-            let clipped_grad = if let Some(g_clipper) = self.gradient_clipper {
-                g_clipper.clip_gradient(grad)
+            let clipped_grad = if let Some(g_clipping) = self.grad_clipping {
+                g_clipping.clip_gradient(grad)
             } else {
                 grad
             };
