@@ -97,3 +97,11 @@ jobs:
     with:
       crate: burn
     secrets: inherit
+
+  publish-burn-import:
+    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
+    needs:
+      - publish-burn
+    with:
+      crate: burn-import
+    secrets: inherit

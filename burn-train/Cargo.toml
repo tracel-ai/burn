@@ -1,6 +1,6 @@
 [package]
 name = "burn-train"
-version = "0.6.0"
+version = "0.7.0"
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 description = "Training crate for burn"
 repository = "https://github.com/burn-rs/burn/tree/main/burn-train"
@@ -12,7 +12,7 @@ license = "MIT/Apache-2.0"
 edition = "2021"
 
 [dependencies]
-burn-core = { path = "../burn-core", version = "0.6.0" }
+burn-core = { path = "../burn-core", version = "0.7.0" }
 
 # Console
 indicatif = "0.17.2"
@@ -30,4 +30,4 @@ derive-new = { workspace = true }
 serde = { workspace = true, features = ["std", "derive"] }
 
 [dev-dependencies]
-burn-ndarray = { path ="../burn-ndarray", version = "0.6.0" }
+burn-ndarray = { path ="../burn-ndarray", version = "0.7.0" }
