@@ -54,6 +54,7 @@ pub trait Backend:
     + BoolTensorOps<Self>
     + IntTensorOps<Self>
     + ModuleOps<Self>
+    + ActivationOps<Self>
     + Clone
     + Sized
     + Default
