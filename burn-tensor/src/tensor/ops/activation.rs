@@ -7,9 +7,8 @@ pub trait ActivationOps<B: Backend> {
         let x = B::erf(x);
         let x = B::add_scalar(x, 1i32.elem());
         let x = B::mul(tensor, x);
-        let x = B::div_scalar(x, 2i32.elem());
 
-        x
+        B::div_scalar(x, 2i32.elem())
     }
 
     fn gelu_backward<const D: usize>(
@@ -28,15 +27,15 @@ pub trait ActivationOps<B: Backend> {
         let c1 = B::mul_scalar(x3.clone(), constant_1.elem());
         let c2 = B::mul_scalar(x.clone(), constant_2.elem());
         let c3 = B::mul_scalar(x3, constant_3.elem());
-        let c4 = B::mul_scalar(x.clone(), constant_4.elem());
+        let c4 = B::mul_scalar(x, constant_4.elem());
 
         let inner1 = B::add(c1, c2);
         let inner2 = B::add(c3, c4);
 
-        let tanh = B::tanh(inner1.clone());
+        let tanh = B::tanh(inner1);
 
         let sech = B::powf(tanh.clone(), 2.0);
-        let sech = B::neg(sech.clone());
+        let sech = B::neg(sech);
         let sech = B::add_scalar(sech, 1.elem());
 
         let y1 = B::mul_scalar(tanh, 0.5.elem());
