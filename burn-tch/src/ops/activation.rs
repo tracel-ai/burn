@@ -8,4 +8,10 @@ impl<E: TchElement> ActivationOps<TchBackend<E>> for TchBackend<E> {
             |tensor| tensor.gelu("tanh"),
         )
     }
+    fn gelu_backward<const D: usize>(
+        tensor: TchTensor<E, D>,
+        grad: TchTensor<E, D>,
+    ) -> TchTensor<E, D> {
+        TchTensor::new(tensor.tensor.gelu_backward(&grad.tensor, "tanh"))
+    }
 }
