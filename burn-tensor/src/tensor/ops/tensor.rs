@@ -249,9 +249,8 @@ pub trait TensorOps<B: Backend> {
     }
     fn max_dim<const D: usize>(tensor: B::TensorPrimitive<D>, dim: usize) -> B::TensorPrimitive<D> {
         let index = B::argmax(tensor.clone(), dim);
-        let values = B::index_select(tensor, index);
 
-        values
+        B::index_select(tensor, index)
     }
     fn max_dim_with_indexes<const D: usize>(
         tensor: B::TensorPrimitive<D>,
@@ -270,9 +269,8 @@ pub trait TensorOps<B: Backend> {
     }
     fn min_dim<const D: usize>(tensor: B::TensorPrimitive<D>, dim: usize) -> B::TensorPrimitive<D> {
         let index = B::argmin(tensor.clone(), dim);
-        let values = B::index_select(tensor, index);
 
-        values
+        B::index_select(tensor, index)
     }
     fn min_dim_with_indexes<const D: usize>(
         tensor: B::TensorPrimitive<D>,
