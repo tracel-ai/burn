@@ -1304,29 +1304,6 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let ops = CatStep::<B, D>::new(nodes, output.node.clone(), dim);
         output.register_step(ops)
     }
-
-    fn relu<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {
-        #[derive(Debug)]
-        struct Relu;
-
-        impl<B: Backend, const D: usize> Backward<B, D, 1> for Relu {
-            type State = B::TensorPrimitive<D>;
-
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
-                unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
-                    let zero = 0.elem();
-                    let mask = B::lower_equal_elem(ops.state, zero);
-                    B::mask_fill(grad, mask, zero)
-                });
-            }
-        }
-        let output = B::relu(tensor.primitive);
-
-        match Relu.prepare([tensor.node], [tensor.graph]).statefull() {
-            OpsKind::Tracked(prep) => prep.finish(output.clone(), output),
-            OpsKind::UnTracked(prep) => prep.finish(output),
-        }
-    }
 }
 
 /// Make sure the grad tensor has the given shape.

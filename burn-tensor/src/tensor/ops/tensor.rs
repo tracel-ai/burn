@@ -241,5 +241,4 @@ pub trait TensorOps<B: Backend> {
         tensors: Vec<B::TensorPrimitive<D>>,
         dim: usize,
     ) -> B::TensorPrimitive<D>;
-    fn relu<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D>;
 }

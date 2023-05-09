@@ -380,8 +380,4 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     fn cat<const D: usize>(tensors: Vec<TchTensor<E, D>>, dim: usize) -> TchTensor<E, D> {
         TchOps::cat(tensors, dim)
     }
-
-    fn relu<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
-        tensor.unary_ops(|mut tensor| tensor.relu_(), |tensor| tensor.relu())
-    }
 }

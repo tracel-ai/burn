@@ -1,3 +1,4 @@
+mod activations;
 mod base;
 mod bool_tensor;
 mod int_tensor;

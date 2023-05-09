@@ -1,7 +1,6 @@
 use crate::backend::Backend;
 use crate::Tensor;
 use crate::{ElementPrecision, Precision};
-use core::f64::consts::SQRT_2;
 
 /// Applies the rectified linear unit function.
 pub fn relu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
@@ -10,9 +9,7 @@ pub fn relu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
 
 /// Applies the Gaussian Error Linear Units function as described in the paper in [Gaussian Error Linear Units (GELUs)](https://arxiv.org/pdf/1606.08415v3.pdf).
 pub fn gelu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
-    let x = tensor.clone().div_scalar(SQRT_2).erf().add_scalar(1.0_f32);
-
-    tensor.mul(x) / 2
+    Tensor::from_primitive(B::gelu(tensor.primitive))
 }
 
 /// Applies the softmax function.

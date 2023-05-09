@@ -15,6 +15,7 @@ mod tests {
         let data_expected = Data::from([[
             0.3851, 0.8207, 0.2714, 0.0777, 0.6351, 0.2704, 0.1419, 0.3687, 0.4993, 0.5051,
         ]]);
-        data_expected.assert_approx_eq(&data_actual, 3);
+        data_expected.assert_approx_eq(&data_actual, 2); // Low precision to allow approximation
+                                                         // implementation using tanh
     }
 }
