@@ -285,4 +285,33 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
             |tensor| tensor.f_masked_fill(&mask.tensor, value).unwrap(),
         )
     }
+    fn int_argmax<const D: usize>(tensor: TchTensor<i64, D>, dim: usize) -> TchTensor<i64, D> {
+        TchOps::argmax(tensor, dim)
+    }
+
+    fn int_argmin<const D: usize>(tensor: TchTensor<i64, D>, dim: usize) -> TchTensor<i64, D> {
+        TchOps::argmin(tensor, dim)
+    }
+
+    fn int_max_dim<const D: usize>(tensor: TchTensor<i64, D>, dim: usize) -> TchTensor<i64, D> {
+        TchOps::max_dim(tensor, dim)
+    }
+
+    fn int_max_dim_with_indexes<const D: usize>(
+        tensor: TchTensor<i64, D>,
+        dim: usize,
+    ) -> (TchTensor<i64, D>, TchTensor<i64, D>) {
+        TchOps::max_dim_with_indexes(tensor, dim)
+    }
+
+    fn int_min_dim<const D: usize>(tensor: TchTensor<i64, D>, dim: usize) -> TchTensor<i64, D> {
+        TchOps::min_dim(tensor, dim)
+    }
+
+    fn int_min_dim_with_indexes<const D: usize>(
+        tensor: TchTensor<i64, D>,
+        dim: usize,
+    ) -> (TchTensor<i64, D>, TchTensor<i64, D>) {
+        TchOps::min_dim_with_indexes(tensor, dim)
+    }
 }

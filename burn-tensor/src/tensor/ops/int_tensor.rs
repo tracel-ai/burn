@@ -183,4 +183,59 @@ pub trait IntTensorOps<B: Backend> {
         tensor: B::IntTensorPrimitive<D>,
         dim: usize,
     ) -> B::IntTensorPrimitive<D>;
+    fn int_argmax<const D: usize>(
+        tensor: B::IntTensorPrimitive<D>,
+        dim: usize,
+    ) -> B::IntTensorPrimitive<D>;
+    fn int_argmin<const D: usize>(
+        tensor: B::IntTensorPrimitive<D>,
+        dim: usize,
+    ) -> B::IntTensorPrimitive<D>;
+
+    fn int_max<const D: usize>(tensor: B::IntTensorPrimitive<D>) -> B::IntTensorPrimitive<1> {
+        let shape = B::int_shape(&tensor);
+        let tensor = B::int_reshape(tensor, Shape::new([shape.num_elements()]));
+
+        B::int_max_dim(tensor, 0)
+    }
+    fn int_max_dim<const D: usize>(
+        tensor: B::IntTensorPrimitive<D>,
+        dim: usize,
+    ) -> B::IntTensorPrimitive<D> {
+        let index = B::int_argmax(tensor.clone(), dim);
+
+        B::int_index_select(tensor, index)
+    }
+    fn int_max_dim_with_indexes<const D: usize>(
+        tensor: B::IntTensorPrimitive<D>,
+        dim: usize,
+    ) -> (B::IntTensorPrimitive<D>, B::IntTensorPrimitive<D>) {
+        let index = B::int_argmax(tensor.clone(), dim);
+        let values = B::int_index_select(tensor, index.clone());
+
+        (values, index)
+    }
+    fn int_min<const D: usize>(tensor: B::IntTensorPrimitive<D>) -> B::IntTensorPrimitive<1> {
+        let shape = B::int_shape(&tensor);
+        let tensor = B::int_reshape(tensor, Shape::new([shape.num_elements()]));
+
+        B::int_min_dim(tensor, 0)
+    }
+    fn int_min_dim<const D: usize>(
+        tensor: B::IntTensorPrimitive<D>,
+        dim: usize,
+    ) -> B::IntTensorPrimitive<D> {
+        let index = B::int_argmin(tensor.clone(), dim);
+
+        B::int_index_select(tensor, index)
+    }
+    fn int_min_dim_with_indexes<const D: usize>(
+        tensor: B::IntTensorPrimitive<D>,
+        dim: usize,
+    ) -> (B::IntTensorPrimitive<D>, B::IntTensorPrimitive<D>) {
+        let index = B::int_argmin(tensor.clone(), dim);
+        let values = B::int_index_select(tensor, index.clone());
+
+        (values, index)
+    }
 }

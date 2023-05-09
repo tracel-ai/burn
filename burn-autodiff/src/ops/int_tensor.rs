@@ -242,4 +242,41 @@ impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     ) -> <ADBackendDecorator<B> as Backend>::IntTensorPrimitive<D> {
         B::int_mask_fill(tensor, mask, value)
     }
+
+    fn int_argmax<const D: usize>(tensor: IntTensor<B, D>, dim: usize) -> IntTensor<B, D> {
+        B::int_argmax(tensor, dim)
+    }
+    fn int_argmin<const D: usize>(tensor: IntTensor<B, D>, dim: usize) -> IntTensor<B, D> {
+        B::int_argmin(tensor, dim)
+    }
+    fn int_max<const D: usize>(tensor: B::IntTensorPrimitive<D>) -> B::IntTensorPrimitive<1> {
+        B::int_max(tensor)
+    }
+    fn int_max_dim<const D: usize>(
+        tensor: B::IntTensorPrimitive<D>,
+        dim: usize,
+    ) -> B::IntTensorPrimitive<D> {
+        B::int_max_dim(tensor, dim)
+    }
+    fn int_max_dim_with_indexes<const D: usize>(
+        tensor: B::IntTensorPrimitive<D>,
+        dim: usize,
+    ) -> (B::IntTensorPrimitive<D>, B::IntTensorPrimitive<D>) {
+        B::int_max_dim_with_indexes(tensor, dim)
+    }
+    fn int_min<const D: usize>(tensor: B::IntTensorPrimitive<D>) -> B::IntTensorPrimitive<1> {
+        B::int_min(tensor)
+    }
+    fn int_min_dim<const D: usize>(
+        tensor: B::IntTensorPrimitive<D>,
+        dim: usize,
+    ) -> B::IntTensorPrimitive<D> {
+        B::int_min_dim(tensor, dim)
+    }
+    fn int_min_dim_with_indexes<const D: usize>(
+        tensor: B::IntTensorPrimitive<D>,
+        dim: usize,
+    ) -> (B::IntTensorPrimitive<D>, B::IntTensorPrimitive<D>) {
+        B::int_min_dim_with_indexes(tensor, dim)
+    }
 }

@@ -1,6 +1,7 @@
 use alloc::vec::Vec;
 use burn_tensor::Data;
 use burn_tensor::ElementConversion;
+use core::cmp::Ordering;
 use core::{marker::PhantomData, ops::Range};
 use ndarray::s;
 use ndarray::Array2;
@@ -356,4 +357,75 @@ where
 
         NdArrayTensor::new(output_array.into_shared())
     }
+    pub fn argmax<const D: usize>(
+        tensor: NdArrayTensor<E, D>,
+        dim: usize,
+    ) -> NdArrayTensor<i64, D> {
+        arg(tensor, dim, cmp_min)
+    }
+
+    pub fn argmin<const D: usize>(
+        tensor: NdArrayTensor<E, D>,
+        dim: usize,
+    ) -> NdArrayTensor<i64, D> {
+        arg(tensor, dim, cmp_max)
+    }
+}
+
+fn arg<E: NdArrayElement, F, const D: usize>(
+    tensor: NdArrayTensor<E, D>,
+    dim: usize,
+    cmp: F,
+) -> NdArrayTensor<i64, D>
+where
+    F: Fn(&f64, &f64) -> Ordering,
+{
+    let mut shape = tensor.shape();
+    let batch_size = shape.dims[dim];
+    let mut end = shape.dims[dim];
+
+    let mut values = tensor.array.into_iter().collect::<Vec<_>>();
+    let mut start = 0;
+    let mut output = Vec::new();
+
+    while end <= values.len() {
+        let data_dim = &mut values[start..end];
+        let mut sorted: Vec<f64> = data_dim.iter().map(|a| a.elem()).collect();
+        sorted.sort_by(&cmp);
+
+        let max = sorted[0];
+
+        let data_dim = &mut values[start..end];
+        let mut index: i64 = 0;
+        for elem in data_dim {
+            let as_float: f64 = elem.elem();
+            if as_float == max {
+                break;
+            }
+            index += 1;
+        }
+        output.push(index);
+        start += batch_size;
+        end += batch_size;
+    }
+    shape.dims[dim] = 1;
+    NdArrayTensor::from_data(Data::new(output, shape))
+}
+
+fn cmp_max(a: &f64, b: &f64) -> Ordering {
+    if a < b {
+        return Ordering::Less;
+    } else if a > b {
+        return Ordering::Greater;
+    }
+    Ordering::Equal
+}
+
+fn cmp_min(a: &f64, b: &f64) -> Ordering {
+    if a > b {
+        return Ordering::Less;
+    } else if a < b {
+        return Ordering::Greater;
+    }
+    Ordering::Equal
 }
