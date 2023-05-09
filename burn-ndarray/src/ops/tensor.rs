@@ -417,19 +417,6 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
     fn cat<const D: usize>(tensors: Vec<NdArrayTensor<E, D>>, dim: usize) -> NdArrayTensor<E, D> {
         NdArrayOps::cat(tensors, dim)
     }
-
-    fn relu<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
-        let zero = 0.elem();
-        let array = tensor
-            .array
-            .mapv_into(|elem| match elem < zero {
-                true => 0.0.elem(),
-                false => elem,
-            })
-            .into_shared();
-
-        NdArrayTensor::new(array)
-    }
 }
 
 fn arg<E: FloatNdArrayElement, F, const D: usize>(

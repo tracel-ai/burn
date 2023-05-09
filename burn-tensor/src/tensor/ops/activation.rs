@@ -1,7 +1,23 @@
 use crate::{backend::Backend, ElementConversion};
 use core::f64::consts::SQRT_2;
 
+/// Activation function operations.
+///
+/// This trait let backend implementations override activation functions for better performance.
 pub trait ActivationOps<B: Backend> {
+    fn relu<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D> {
+        let mask = B::lower_equal_elem(tensor.clone(), 0.elem());
+
+        B::mask_fill(tensor, mask, 0.elem())
+    }
+    fn relu_backward<const D: usize>(
+        output: B::TensorPrimitive<D>,
+        grad: B::TensorPrimitive<D>,
+    ) -> B::TensorPrimitive<D> {
+        let mask = B::lower_equal_elem(output, 0.elem());
+
+        B::mask_fill(grad, mask, 0.elem())
+    }
     fn gelu<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D> {
         let x = B::div_scalar(tensor.clone(), SQRT_2.elem());
         let x = B::erf(x);

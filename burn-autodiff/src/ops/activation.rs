@@ -31,4 +31,25 @@ impl<B: Backend> ActivationOps<ADBackendDecorator<B>> for ADBackendDecorator<B> 
             OpsKind::UnTracked(prep) => prep.finish(B::gelu(tensor.primitive)),
         }
     }
+
+    fn relu<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {
+        #[derive(Debug)]
+        struct Relu;
+
+        impl<B: Backend, const D: usize> Backward<B, D, 1> for Relu {
+            type State = B::TensorPrimitive<D>;
+
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+                unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
+                    B::relu_backward(ops.state, grad)
+                });
+            }
+        }
+        let output = B::relu(tensor.primitive);
+
+        match Relu.prepare([tensor.node], [tensor.graph]).statefull() {
+            OpsKind::Tracked(prep) => prep.finish(output.clone(), output),
+            OpsKind::UnTracked(prep) => prep.finish(output),
+        }
+    }
 }

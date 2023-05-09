@@ -10,13 +10,13 @@ members = [
   "burn-core",
   "burn-dataset",
   "burn-derive",
-  "burn-import",
   "burn-ndarray",
   "burn-no-std-tests",
   "burn-tch",
   "burn-tensor-testgen",
   "burn-tensor",
   "burn-train",
+  "burn-import",
   "examples/*",
 ]
 
