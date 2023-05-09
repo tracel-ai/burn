@@ -241,4 +241,44 @@ pub trait TensorOps<B: Backend> {
         tensors: Vec<B::TensorPrimitive<D>>,
         dim: usize,
     ) -> B::TensorPrimitive<D>;
+    fn max<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<1> {
+        let shape = B::shape(&tensor);
+        let tensor = B::reshape(tensor, Shape::new([shape.num_elements()]));
+
+        B::max_dim(tensor, 0)
+    }
+    fn max_dim<const D: usize>(tensor: B::TensorPrimitive<D>, dim: usize) -> B::TensorPrimitive<D> {
+        let index = B::argmax(tensor.clone(), dim);
+
+        B::index_select(tensor, index)
+    }
+    fn max_dim_with_indexes<const D: usize>(
+        tensor: B::TensorPrimitive<D>,
+        dim: usize,
+    ) -> (B::TensorPrimitive<D>, B::IntTensorPrimitive<D>) {
+        let index = B::argmax(tensor.clone(), dim);
+        let values = B::index_select(tensor, index.clone());
+
+        (values, index)
+    }
+    fn min<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<1> {
+        let shape = B::shape(&tensor);
+        let tensor = B::reshape(tensor, Shape::new([shape.num_elements()]));
+
+        B::min_dim(tensor, 0)
+    }
+    fn min_dim<const D: usize>(tensor: B::TensorPrimitive<D>, dim: usize) -> B::TensorPrimitive<D> {
+        let index = B::argmin(tensor.clone(), dim);
+
+        B::index_select(tensor, index)
+    }
+    fn min_dim_with_indexes<const D: usize>(
+        tensor: B::TensorPrimitive<D>,
+        dim: usize,
+    ) -> (B::TensorPrimitive<D>, B::IntTensorPrimitive<D>) {
+        let index = B::argmin(tensor.clone(), dim);
+        let values = B::index_select(tensor, index.clone());
+
+        (values, index)
+    }
 }

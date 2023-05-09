@@ -14,6 +14,7 @@ mod log1p;
 mod map_comparison;
 mod mask;
 mod matmul;
+mod maxmin;
 mod mul;
 mod neg;
 mod powf;

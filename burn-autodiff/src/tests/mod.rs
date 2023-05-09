@@ -20,6 +20,7 @@ mod log;
 mod log1p;
 mod mask;
 mod matmul;
+mod maxmin;
 mod maxpool2d;
 mod mul;
 mod multithread;
@@ -59,6 +60,7 @@ macro_rules! testgen_all {
         burn_autodiff::testgen_ad_multithread!();
         burn_autodiff::testgen_ad_add!();
         burn_autodiff::testgen_ad_aggregation!();
+        burn_autodiff::testgen_ad_maxmin!();
         burn_autodiff::testgen_ad_cat!();
         burn_autodiff::testgen_ad_cos!();
         burn_autodiff::testgen_ad_cross_entropy_loss!();

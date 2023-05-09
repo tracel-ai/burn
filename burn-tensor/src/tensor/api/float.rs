@@ -247,6 +247,57 @@ where
         Tensor::new(B::argmax(self.primitive, dim))
     }
 
+    /// Find the maximum value.
+    pub fn max(self) -> Tensor<B, 1> {
+        Tensor::new(B::max(self.primitive))
+    }
+
+    /// Find the maximum value along the given dimension.
+    pub fn max_dim(self, dim: usize) -> Tensor<B, D> {
+        check!(TensorCheck::aggregate_dim::<D>("Max", dim));
+
+        Tensor::new(B::max_dim(self.primitive, dim))
+    }
+
+    /// Find the maximum value along the given dimension.
+    ///
+    /// Also returns the indexes.
+    pub fn max_dim_with_indexes(self, dim: usize) -> (Tensor<B, D>, Tensor<B, D, Int>) {
+        check!(TensorCheck::aggregate_dim::<D>("Max", dim));
+
+        let (tensor, index) = B::max_dim_with_indexes(self.primitive, dim);
+
+        let tensor = Tensor::new(tensor);
+        let index = Tensor::new(index);
+
+        (tensor, index)
+    }
+
+    /// Find the minimum value.
+    pub fn min(self) -> Tensor<B, 1> {
+        Tensor::new(B::min(self.primitive))
+    }
+
+    /// Find the minimum value along the given dimension.
+    pub fn min_dim(self, dim: usize) -> Tensor<B, D> {
+        check!(TensorCheck::aggregate_dim::<D>("Min", dim));
+        Tensor::new(B::min_dim(self.primitive, dim))
+    }
+
+    /// Find the minimum value along the given dimension.
+    ///
+    /// Also returns the indexes.
+    pub fn min_dim_with_indexes(self, dim: usize) -> (Tensor<B, D>, Tensor<B, D, Int>) {
+        check!(TensorCheck::aggregate_dim::<D>("Min", dim));
+
+        let (tensor, index) = B::min_dim_with_indexes(self.primitive, dim);
+
+        let tensor = Tensor::new(tensor);
+        let index = Tensor::new(index);
+
+        (tensor, index)
+    }
+
     /// Applies the argmin function along the given dimension and returns an integer tensor.
     ///
     /// # Example

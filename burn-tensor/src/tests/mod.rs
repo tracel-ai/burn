@@ -25,6 +25,7 @@ macro_rules! testgen_all {
         burn_tensor::testgen_add!();
         burn_tensor::testgen_aggregation!();
         burn_tensor::testgen_arg!();
+        burn_tensor::testgen_maxmin!();
         burn_tensor::testgen_cos!();
         burn_tensor::testgen_div!();
         burn_tensor::testgen_erf!();

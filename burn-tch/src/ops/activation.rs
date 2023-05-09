@@ -15,6 +15,9 @@ impl<E: TchElement> ActivationOps<TchBackend<E>> for TchBackend<E> {
         tensor: TchTensor<E, D>,
         grad: TchTensor<E, D>,
     ) -> TchTensor<E, D> {
-        TchTensor::new(tensor.tensor.gelu_backward(&grad.tensor, "none"))
+        let storage = tensor.storage.clone();
+        let tensor = tensor.tensor.gelu_backward(&grad.tensor, "none");
+
+        TchTensor::from_existing(tensor, storage)
     }
 }
