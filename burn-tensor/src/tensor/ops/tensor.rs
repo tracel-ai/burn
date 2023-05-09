@@ -220,14 +220,6 @@ pub trait TensorOps<B: Backend> {
     fn from_full_precision<const D: usize>(
         tensor: <B::FullPrecisionBackend as Backend>::TensorPrimitive<D>,
     ) -> B::TensorPrimitive<D>;
-    fn argmax<const D: usize>(
-        tensor: B::TensorPrimitive<D>,
-        dim: usize,
-    ) -> B::IntTensorPrimitive<D>;
-    fn argmin<const D: usize>(
-        tensor: B::TensorPrimitive<D>,
-        dim: usize,
-    ) -> B::IntTensorPrimitive<D>;
     fn exp<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D>;
     fn log<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D>;
     fn log1p<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D>;
@@ -241,6 +233,15 @@ pub trait TensorOps<B: Backend> {
         tensors: Vec<B::TensorPrimitive<D>>,
         dim: usize,
     ) -> B::TensorPrimitive<D>;
+    fn argmax<const D: usize>(
+        tensor: B::TensorPrimitive<D>,
+        dim: usize,
+    ) -> B::IntTensorPrimitive<D>;
+    fn argmin<const D: usize>(
+        tensor: B::TensorPrimitive<D>,
+        dim: usize,
+    ) -> B::IntTensorPrimitive<D>;
+
     fn max<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<1> {
         let shape = B::shape(&tensor);
         let tensor = B::reshape(tensor, Shape::new([shape.num_elements()]));

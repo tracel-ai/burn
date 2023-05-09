@@ -1,6 +1,5 @@
 // Language
 use alloc::vec::Vec;
-use core::cmp::Ordering;
 use core::ops::Range;
 
 // Current crate
@@ -329,11 +328,11 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
     }
 
     fn argmax<const D: usize>(tensor: NdArrayTensor<E, D>, dim: usize) -> NdArrayTensor<i64, D> {
-        arg(tensor, dim, cmp_min)
+        NdArrayMathOps::argmax(tensor, dim)
     }
 
     fn argmin<const D: usize>(tensor: NdArrayTensor<E, D>, dim: usize) -> NdArrayTensor<i64, D> {
-        arg(tensor, dim, cmp_max)
+        NdArrayMathOps::argmin(tensor, dim)
     }
 
     fn exp<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
@@ -417,62 +416,4 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
     fn cat<const D: usize>(tensors: Vec<NdArrayTensor<E, D>>, dim: usize) -> NdArrayTensor<E, D> {
         NdArrayOps::cat(tensors, dim)
     }
-}
-
-fn arg<E: FloatNdArrayElement, F, const D: usize>(
-    tensor: NdArrayTensor<E, D>,
-    dim: usize,
-    cmp: F,
-) -> NdArrayTensor<i64, D>
-where
-    F: Fn(&f64, &f64) -> Ordering,
-{
-    let batch_size = tensor.shape().dims[dim];
-
-    let mut data = NdArrayBackend::into_data::<D>(tensor.clone());
-    let mut start = 0;
-    let mut end = tensor.shape().dims[dim];
-    let mut output = Vec::new();
-
-    while end <= data.value.len() {
-        let data_dim = &mut data.value[start..end];
-        let mut sorted: Vec<f64> = data_dim.iter().map(|a| a.elem()).collect();
-        sorted.sort_by(&cmp);
-
-        let max = sorted[0];
-
-        let data_dim = &mut data.value[start..end];
-        let mut index: i64 = 0;
-        for elem in data_dim {
-            let as_float: f64 = elem.elem();
-            if as_float == max {
-                break;
-            }
-            index += 1;
-        }
-        output.push(index);
-        start += batch_size;
-        end += batch_size;
-    }
-    let mut shape = tensor.shape();
-    shape.dims[dim] = 1;
-    NdArrayTensor::from_data(Data::new(output, shape))
-}
-
-fn cmp_max(a: &f64, b: &f64) -> Ordering {
-    if a < b {
-        return Ordering::Less;
-    } else if a > b {
-        return Ordering::Greater;
-    }
-    Ordering::Equal
-}
-
-fn cmp_min(a: &f64, b: &f64) -> Ordering {
-    if a > b {
-        return Ordering::Less;
-    } else if a < b {
-        return Ordering::Greater;
-    }
-    Ordering::Equal
 }

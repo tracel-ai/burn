@@ -248,6 +248,95 @@ where
             values.primitive,
         ))
     }
+
+    /// Applies the argmax function along the given dimension and returns an integer tensor.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 3]));
+    ///     let tensor = tensor.argmax(1);
+    ///     println!("{:?}", tensor.shape());
+    ///     // Shape { dims: [2, 1, 3] }
+    /// }
+    /// ```
+    pub fn argmax(self, dim: usize) -> Tensor<B, D, Int> {
+        Tensor::new(K::argmax(self.primitive, dim))
+    }
+
+    /// Find the maximum value.
+    pub fn max(self) -> Tensor<B, 1, K> {
+        Tensor::new(K::max(self.primitive))
+    }
+
+    /// Find the maximum value along the given dimension.
+    pub fn max_dim(self, dim: usize) -> Tensor<B, D, K> {
+        check!(TensorCheck::aggregate_dim::<D>("Max", dim));
+
+        Tensor::new(K::max_dim(self.primitive, dim))
+    }
+
+    /// Find the maximum value along the given dimension.
+    ///
+    /// Also returns the indexes.
+    pub fn max_dim_with_indexes(self, dim: usize) -> (Tensor<B, D, K>, Tensor<B, D, Int>) {
+        check!(TensorCheck::aggregate_dim::<D>("Max", dim));
+
+        let (tensor, index) = K::max_dim_with_indexes(self.primitive, dim);
+
+        let tensor = Tensor::new(tensor);
+        let index = Tensor::new(index);
+
+        (tensor, index)
+    }
+
+    /// Applies the argmin function along the given dimension and returns an integer tensor.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 3]));
+    ///     let tensor = tensor.argmin(1);
+    ///     println!("{:?}", tensor.shape());
+    ///     // Shape { dims: [2, 1, 3] }
+    /// }
+    /// ```
+    pub fn argmin(self, dim: usize) -> Tensor<B, D, Int> {
+        Tensor::new(K::argmin(self.primitive, dim))
+    }
+
+    /// Find the minimum value.
+    pub fn min(self) -> Tensor<B, 1, K> {
+        Tensor::new(K::min(self.primitive))
+    }
+
+    /// Find the minimum value along the given dimension.
+    pub fn min_dim(self, dim: usize) -> Tensor<B, D, K> {
+        check!(TensorCheck::aggregate_dim::<D>("Min", dim));
+        Tensor::new(K::min_dim(self.primitive, dim))
+    }
+
+    /// Find the minimum value along the given dimension.
+    ///
+    /// Also returns the indexes.
+    pub fn min_dim_with_indexes(self, dim: usize) -> (Tensor<B, D, K>, Tensor<B, D, Int>) {
+        check!(TensorCheck::aggregate_dim::<D>("Min", dim));
+
+        let (tensor, index) = K::min_dim_with_indexes(self.primitive, dim);
+
+        let tensor = Tensor::new(tensor);
+        let index = Tensor::new(index);
+
+        (tensor, index)
+    }
 }
 
 /// Trait that list all operations that can be applied on all numerical tensors.
@@ -343,6 +432,20 @@ where
         indexes: Tensor<B, 1, Int>,
         values: Self::Primitive<D2>,
     ) -> Self::Primitive<D1>;
+    fn argmax<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> B::IntTensorPrimitive<D>;
+    fn argmin<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> B::IntTensorPrimitive<D>;
+    fn max<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1>;
+    fn max_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D>;
+    fn max_dim_with_indexes<const D: usize>(
+        tensor: Self::Primitive<D>,
+        dim: usize,
+    ) -> (Self::Primitive<D>, B::IntTensorPrimitive<D>);
+    fn min<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1>;
+    fn min_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D>;
+    fn min_dim_with_indexes<const D: usize>(
+        tensor: Self::Primitive<D>,
+        dim: usize,
+    ) -> (Self::Primitive<D>, B::IntTensorPrimitive<D>);
 }
 
 impl<B: Backend> Numeric<B> for Int {
@@ -514,6 +617,50 @@ impl<B: Backend> Numeric<B> for Int {
         values: Self::Primitive<D>,
     ) -> Self::Primitive<D> {
         B::int_index_select_assign(tensor, indexes.primitive, values)
+    }
+
+    fn argmax<const D: usize>(
+        tensor: Self::Primitive<D>,
+        dim: usize,
+    ) -> <B as Backend>::IntTensorPrimitive<D> {
+        B::int_argmax(tensor, dim)
+    }
+
+    fn argmin<const D: usize>(
+        tensor: Self::Primitive<D>,
+        dim: usize,
+    ) -> <B as Backend>::IntTensorPrimitive<D> {
+        B::int_argmin(tensor, dim)
+    }
+
+    fn max<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
+        B::int_max(tensor)
+    }
+
+    fn max_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
+        B::int_max_dim(tensor, dim)
+    }
+
+    fn max_dim_with_indexes<const D: usize>(
+        tensor: Self::Primitive<D>,
+        dim: usize,
+    ) -> (Self::Primitive<D>, <B as Backend>::IntTensorPrimitive<D>) {
+        B::int_max_dim_with_indexes(tensor, dim)
+    }
+
+    fn min<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
+        B::int_min(tensor)
+    }
+
+    fn min_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
+        B::int_min_dim(tensor, dim)
+    }
+
+    fn min_dim_with_indexes<const D: usize>(
+        tensor: Self::Primitive<D>,
+        dim: usize,
+    ) -> (Self::Primitive<D>, <B as Backend>::IntTensorPrimitive<D>) {
+        B::int_min_dim_with_indexes(tensor, dim)
     }
 }
 
@@ -687,6 +834,50 @@ impl<B: Backend> Numeric<B> for Float {
         values: Self::Primitive<D>,
     ) -> Self::Primitive<D> {
         B::index_select_assign(tensor, indexes.primitive, values)
+    }
+
+    fn argmax<const D: usize>(
+        tensor: Self::Primitive<D>,
+        dim: usize,
+    ) -> <B as Backend>::IntTensorPrimitive<D> {
+        B::argmax(tensor, dim)
+    }
+
+    fn argmin<const D: usize>(
+        tensor: Self::Primitive<D>,
+        dim: usize,
+    ) -> <B as Backend>::IntTensorPrimitive<D> {
+        B::argmin(tensor, dim)
+    }
+
+    fn max<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
+        B::max(tensor)
+    }
+
+    fn max_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
+        B::max_dim(tensor, dim)
+    }
+
+    fn max_dim_with_indexes<const D: usize>(
+        tensor: Self::Primitive<D>,
+        dim: usize,
+    ) -> (Self::Primitive<D>, <B as Backend>::IntTensorPrimitive<D>) {
+        B::max_dim_with_indexes(tensor, dim)
+    }
+
+    fn min<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
+        B::min(tensor)
+    }
+
+    fn min_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
+        B::min_dim(tensor, dim)
+    }
+
+    fn min_dim_with_indexes<const D: usize>(
+        tensor: Self::Primitive<D>,
+        dim: usize,
+    ) -> (Self::Primitive<D>, <B as Backend>::IntTensorPrimitive<D>) {
+        B::min_dim_with_indexes(tensor, dim)
     }
 }
 
