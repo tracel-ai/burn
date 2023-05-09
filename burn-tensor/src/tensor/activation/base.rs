@@ -14,19 +14,17 @@ pub fn gelu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
 
 /// Applies the softmax function.
 pub fn softmax<const D: usize, B: Backend>(tensor: Tensor<B, D>, dim: usize) -> Tensor<B, D> {
-    log_softmax(tensor, dim).exp()
+    let tensor = tensor.clone() - tensor.detach().max_dim(dim);
+    let tensor = tensor.exp();
+    let tensor_tmp = tensor.clone().sum_dim(dim);
+
+    tensor.div(tensor_tmp)
 }
 
 /// Applies the log softmax function.
 pub fn log_softmax<const D: usize, B: Backend>(tensor: Tensor<B, D>, dim: usize) -> Tensor<B, D> {
-    let tensor_tmp = match B::FloatElem::precision() {
-        Precision::Half => {
-            let tensor_full = tensor.to_full_precision();
-            let tensor_tmp = tensor_full.exp().sum_dim(dim).log();
-            Tensor::from_full_precision(tensor_tmp)
-        }
-        _ => tensor.clone().exp().sum_dim(dim).log(),
-    };
+    let tensor = tensor.clone() - tensor.detach().max_dim(dim);
+    let tensor_tmp = tensor.clone().exp().sum_dim(dim).log();
 
     tensor.sub(tensor_tmp)
 }
