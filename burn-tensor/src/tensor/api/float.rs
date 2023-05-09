@@ -7,7 +7,6 @@ use crate::check::TensorCheck;
 use crate::tensor::backend::Backend;
 use crate::tensor::stats;
 use crate::tensor::{Data, Distribution, Shape};
-use crate::Int;
 use crate::Tensor;
 
 impl<const D: usize, B> Tensor<B, D>
@@ -226,95 +225,6 @@ where
     /// Returns a tensor on the selected backend from a full precision tensor.
     pub fn from_full_precision(tensor: Tensor<B::FullPrecisionBackend, D>) -> Self {
         Self::new(B::from_full_precision(tensor.primitive))
-    }
-
-    /// Applies the argmax function along the given dimension and returns an integer tensor.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Shape};
-    ///
-    /// fn example<B: Backend>() {
-    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 3]));
-    ///     let tensor = tensor.argmax(1);
-    ///     println!("{:?}", tensor.shape());
-    ///     // Shape { dims: [2, 1, 3] }
-    /// }
-    /// ```
-    pub fn argmax(self, dim: usize) -> Tensor<B, D, Int> {
-        Tensor::new(B::argmax(self.primitive, dim))
-    }
-
-    /// Find the maximum value.
-    pub fn max(self) -> Tensor<B, 1> {
-        Tensor::new(B::max(self.primitive))
-    }
-
-    /// Find the maximum value along the given dimension.
-    pub fn max_dim(self, dim: usize) -> Tensor<B, D> {
-        check!(TensorCheck::aggregate_dim::<D>("Max", dim));
-
-        Tensor::new(B::max_dim(self.primitive, dim))
-    }
-
-    /// Find the maximum value along the given dimension.
-    ///
-    /// Also returns the indexes.
-    pub fn max_dim_with_indexes(self, dim: usize) -> (Tensor<B, D>, Tensor<B, D, Int>) {
-        check!(TensorCheck::aggregate_dim::<D>("Max", dim));
-
-        let (tensor, index) = B::max_dim_with_indexes(self.primitive, dim);
-
-        let tensor = Tensor::new(tensor);
-        let index = Tensor::new(index);
-
-        (tensor, index)
-    }
-
-    /// Find the minimum value.
-    pub fn min(self) -> Tensor<B, 1> {
-        Tensor::new(B::min(self.primitive))
-    }
-
-    /// Find the minimum value along the given dimension.
-    pub fn min_dim(self, dim: usize) -> Tensor<B, D> {
-        check!(TensorCheck::aggregate_dim::<D>("Min", dim));
-        Tensor::new(B::min_dim(self.primitive, dim))
-    }
-
-    /// Find the minimum value along the given dimension.
-    ///
-    /// Also returns the indexes.
-    pub fn min_dim_with_indexes(self, dim: usize) -> (Tensor<B, D>, Tensor<B, D, Int>) {
-        check!(TensorCheck::aggregate_dim::<D>("Min", dim));
-
-        let (tensor, index) = B::min_dim_with_indexes(self.primitive, dim);
-
-        let tensor = Tensor::new(tensor);
-        let index = Tensor::new(index);
-
-        (tensor, index)
-    }
-
-    /// Applies the argmin function along the given dimension and returns an integer tensor.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Shape};
-    ///
-    /// fn example<B: Backend>() {
-    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 3]));
-    ///     let tensor = tensor.argmin(1);
-    ///     println!("{:?}", tensor.shape());
-    ///     // Shape { dims: [2, 1, 3] }
-    /// }
-    /// ```
-    pub fn argmin(self, dim: usize) -> Tensor<B, D, Int> {
-        Tensor::new(B::argmin(self.primitive, dim))
     }
 
     /// Detach the current tensor from the autodiff graph.
