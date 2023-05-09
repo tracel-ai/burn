@@ -10,9 +10,6 @@ pub fn relu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
 /// Applies the Gaussian Error Linear Units function as described in the paper in [Gaussian Error Linear Units (GELUs)](https://arxiv.org/pdf/1606.08415v3.pdf).
 pub fn gelu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
     Tensor::from_primitive(B::gelu(tensor.primitive))
-    // let x = tensor.clone().div_scalar(SQRT_2).erf().add_scalar(1.0_f32);
-
-    // tensor.mul(x) / 2
 }
 
 /// Applies the softmax function.
