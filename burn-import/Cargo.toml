@@ -11,15 +11,15 @@ Burn import crate.
 readme = "README.md"
 repository = "https://github.com/burn-rs/burn/tree/main/burn-import"
 
-version = "0.7.0"
+version = "0.8.0"
 
 [features]
 default = ["onnx"]
 onnx = []
 
 [dependencies]
-burn = {path = "../burn", version = "0.7.0"}
-burn-ndarray = {path = "../burn-ndarray", version = "0.7.0"}
+burn = {path = "../burn", version = "0.8.0" }
+burn-ndarray = {path = "../burn-ndarray", version = "0.8.0" }
 
 bytemuck = {workspace = true}
 derive-new = {workspace = true}

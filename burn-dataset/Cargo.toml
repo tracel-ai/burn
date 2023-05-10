@@ -11,7 +11,7 @@ license = "MIT"
 name = "burn-dataset"
 readme = "README.md"
 repository = "https://github.com/burn-rs/burn/tree/main/burn-dataset"
-version = "0.7.0"
+version = "0.8.0"
 
 [features]
 default = ["fake"]

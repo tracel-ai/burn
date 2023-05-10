@@ -1,6 +1,6 @@
 [package]
 name = "text-generation"
-version = "0.6.0"
+version = "0.8.0"
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 license = "MIT/Apache-2.0"
 edition = "2021"
