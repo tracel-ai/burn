@@ -9,13 +9,13 @@ name = "burn-no-std-tests"
 readme = "README.md"
 repository = "https://github.com/burn-rs/burn/tree/main/burn-no-std-tests"
 
-version = "0.7.0"
+version = "0.8.0"
 
 [dependencies]
 
 # ** Please make sure all dependencies support no_std **
 
-burn = {path = "../burn", version = "0.7.0", default-features = false}
-burn-ndarray = {path = "../burn-ndarray", version = "0.7.0", default-features = false}
+burn = {path = "../burn", version = "0.8.0", default-features = false}
+burn-ndarray = {path = "../burn-ndarray", version = "0.8.0", default-features = false}
 
 serde = {workspace = true}

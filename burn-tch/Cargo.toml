@@ -8,13 +8,13 @@ license = "MIT/Apache-2.0"
 name = "burn-tch"
 readme = "README.md"
 repository = "https://github.com/burn-rs/burn/tree/main/burn-tch"
-version = "0.7.0"
+version = "0.8.0"
 
 [features]
 doc = ["tch/doc-only"]
 
 [dependencies]
-burn-tensor = {path = "../burn-tensor", version = "0.7.0"}
+burn-tensor = {path = "../burn-tensor", version = "0.8.0" }
 libc = "0.2.0"
 
 half = {workspace = true, features = ["std"]}
@@ -29,9 +29,9 @@ tch = {version = "0.11.0"}
 tch = {version = "0.11.0", default-features = false} # Disables torch downloading
 
 [dev-dependencies]
-burn-autodiff = {path = "../burn-autodiff", version = "0.7.0", default-features = false, features = [
+burn-autodiff = {path = "../burn-autodiff", version = "0.8.0", default-features = false, features = [
   "export_tests",
 ]}
-burn-tensor = {path = "../burn-tensor", version = "0.7.0", default-features = false, features = [
+burn-tensor = {path = "../burn-tensor", version = "0.8.0", default-features = false, features = [
   "export_tests",
 ]}
