@@ -19,13 +19,15 @@ impl<E: TchElement> BoolTensorOps<TchBackend<E>> for TchBackend<E> {
     }
 
     fn bool_to_data<const D: usize>(tensor: &TchTensor<bool, D>) -> Data<bool, D> {
-        let values: Vec<bool> = tensor.tensor.shallow_clone().into();
-        Data::new(values, tensor.shape())
+        let shape = Self::bool_shape(tensor);
+        let tensor = Self::bool_reshape(tensor.clone(), Shape::new([shape.num_elements()]));
+        let values: Result<Vec<bool>, tch::TchError> = tensor.tensor.shallow_clone().try_into();
+
+        Data::new(values.unwrap(), shape)
     }
 
     fn bool_into_data<const D: usize>(tensor: TchTensor<bool, D>) -> Data<bool, D> {
-        let shape = tensor.shape();
-        Data::new(tensor.tensor.into(), shape)
+        Self::bool_to_data(&tensor)
     }
 
     fn bool_to_device<const D: usize>(
@@ -51,7 +53,7 @@ impl<E: TchElement> BoolTensorOps<TchBackend<E>> for TchBackend<E> {
         device: &<TchBackend<E> as Backend>::Device,
     ) -> TchTensor<bool, D> {
         let tensor = tch::Tensor::empty(
-            &shape.dims.map(|a| a as i64),
+            shape.dims.map(|a| a as i64),
             (tch::Kind::Bool, (*device).into()),
         );
 

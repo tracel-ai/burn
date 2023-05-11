@@ -21,12 +21,12 @@ half = {workspace = true, features = ["std"]}
 rand = {workspace = true, features = ["std"]}
 
 [target.'cfg(not(target_arch = "aarch64"))'.dependencies]
-tch = {version = "0.11.0"}
+tch = {version = "0.12.0"}
 
 # Temporary workaround for https://github.com/burn-rs/burn/issues/180
 # Remove this and build.rs once tch-rs upgrades to Torch 2.0 at least
 [target.'cfg(target_arch = "aarch64")'.dependencies]
-tch = {version = "0.11.0", default-features = false} # Disables torch downloading
+tch = {version = "0.12.0", default-features = false} # Disables torch downloading
 
 [dev-dependencies]
 burn-autodiff = {path = "../burn-autodiff", version = "0.8.0", default-features = false, features = [

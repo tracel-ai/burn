@@ -15,7 +15,7 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
     ) -> TchTensor<E, D2> {
         let shape_tch: TchShape<D2> = shape.into();
 
-        TchTensor::from_existing(tensor.tensor.reshape(&shape_tch.dims), tensor.storage)
+        TchTensor::from_existing(tensor.tensor.reshape(shape_tch.dims), tensor.storage)
     }
 
     pub fn index<const D1: usize, const D2: usize>(
@@ -42,7 +42,7 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         let tensor_original = tensor.tensor.copy();
         let tch_shape = TchShape::from(tensor.shape());
 
-        let mut tensor = tensor_original.view_(&tch_shape.dims);
+        let mut tensor = tensor_original.view_(tch_shape.dims);
 
         for (i, index) in indexes.into_iter().enumerate().take(D2) {
             let start = index.start as i64;
