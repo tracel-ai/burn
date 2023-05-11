@@ -168,7 +168,7 @@ impl<E: tch::kind::Element + Default, const D: usize> TchTensor<E, D> {
     pub fn from_data(data: Data<E, D>, device: tch::Device) -> Self {
         let tensor = tch::Tensor::of_slice(data.value.as_slice()).to(device);
         let shape_tch = TchShape::from(data.shape);
-        let tensor = tensor.reshape(&shape_tch.dims).to_kind(E::KIND);
+        let tensor = tensor.reshape(shape_tch.dims).to_kind(E::KIND);
 
         Self::new(tensor)
     }
@@ -192,7 +192,7 @@ mod utils {
 impl<E: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> TchTensor<E, D> {
     pub fn empty(shape: Shape<D>, device: TchDevice) -> Self {
         let shape_tch = TchShape::from(shape);
-        let tensor = tch::Tensor::empty(&shape_tch.dims, (E::KIND, device.into()));
+        let tensor = tch::Tensor::empty(shape_tch.dims, (E::KIND, device.into()));
 
         Self::new(tensor)
     }

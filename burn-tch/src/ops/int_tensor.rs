@@ -16,7 +16,7 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
     }
 
     fn int_to_data<const D: usize>(tensor: &TchTensor<i64, D>) -> Data<i64, D> {
-        let shape = Self::int_shape(&tensor);
+        let shape = Self::int_shape(tensor);
         let tensor = Self::int_reshape(tensor.clone(), Shape::new([shape.num_elements()]));
         let values: Result<Vec<i64>, tch::TchError> = tensor.tensor.shallow_clone().try_into();
 
@@ -50,7 +50,7 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
         device: &<TchBackend<E> as Backend>::Device,
     ) -> TchTensor<i64, D> {
         let tensor = tch::Tensor::empty(
-            &shape.dims.map(|a| a as i64),
+            shape.dims.map(|a| a as i64),
             (tch::Kind::Int64, (*device).into()),
         );
 
@@ -203,7 +203,7 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
         let shape = TchShape::from(shape);
         let device: tch::Device = (*device).into();
 
-        TchTensor::new(tch::Tensor::zeros(&shape.dims, (tch::Kind::Int64, device)))
+        TchTensor::new(tch::Tensor::zeros(shape.dims, (tch::Kind::Int64, device)))
     }
 
     fn int_ones<const D: usize>(
@@ -213,7 +213,7 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
         let shape = TchShape::from(shape);
         let device: tch::Device = (*device).into();
 
-        TchTensor::new(tch::Tensor::ones(&shape.dims, (tch::Kind::Int64, device)))
+        TchTensor::new(tch::Tensor::ones(shape.dims, (tch::Kind::Int64, device)))
     }
 
     fn int_sum<const D: usize>(tensor: TchTensor<i64, D>) -> TchTensor<i64, 1> {

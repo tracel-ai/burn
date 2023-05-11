@@ -38,9 +38,9 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
             &x.tensor,
             &weight.tensor,
             bias.map(|t| t.tensor),
-            &options.stride.map(|i| i as i64),
-            &options.padding.map(|i| i as i64),
-            &options.dilation.map(|i| i as i64),
+            options.stride.map(|i| i as i64),
+            options.padding.map(|i| i as i64),
+            options.dilation.map(|i| i as i64),
             options.groups as i64,
         );
 
@@ -57,9 +57,9 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
             &x.tensor,
             &weight.tensor,
             bias.map(|t| t.tensor),
-            &options.stride.map(|i| i as i64),
-            &options.padding.map(|i| i as i64),
-            &options.dilation.map(|i| i as i64),
+            options.stride.map(|i| i as i64),
+            options.padding.map(|i| i as i64),
+            options.dilation.map(|i| i as i64),
             options.groups as i64,
         );
 
@@ -76,11 +76,11 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
             &x.tensor,
             &weight.tensor,
             bias.map(|t| t.tensor),
-            &options.stride.map(|i| i as i64),
-            &options.padding.map(|i| i as i64),
-            &options.padding_out.map(|i| i as i64),
+            options.stride.map(|i| i as i64),
+            options.padding.map(|i| i as i64),
+            options.padding_out.map(|i| i as i64),
             options.groups as i64,
-            &options.dilation.map(|i| i as i64),
+            options.dilation.map(|i| i as i64),
         );
 
         TchTensor::new(tensor)
@@ -96,11 +96,11 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
             &x.tensor,
             &weight.tensor,
             bias.map(|t| t.tensor),
-            &options.stride.map(|i| i as i64),
-            &options.padding.map(|i| i as i64),
-            &options.padding_out.map(|i| i as i64),
+            options.stride.map(|i| i as i64),
+            options.padding.map(|i| i as i64),
+            options.padding_out.map(|i| i as i64),
             options.groups as i64,
-            &options.dilation.map(|i| i as i64),
+            options.dilation.map(|i| i as i64),
         );
 
         TchTensor::new(tensor)
@@ -114,9 +114,9 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
     ) -> TchTensor<E, 4> {
         let tensor = tch::Tensor::avg_pool2d(
             &x.tensor,
-            &[kernel_size[0] as i64, kernel_size[1] as i64],
-            &[stride[0] as i64, stride[1] as i64],
-            &[padding[0] as i64, padding[1] as i64],
+            [kernel_size[0] as i64, kernel_size[1] as i64],
+            [stride[0] as i64, stride[1] as i64],
+            [padding[0] as i64, padding[1] as i64],
             false,
             true,
             None,
@@ -135,9 +135,9 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
         let tensor = tch::Tensor::avg_pool2d_backward(
             &x.tensor,
             &grad.tensor,
-            &[kernel_size[0] as i64, kernel_size[1] as i64],
-            &[stride[0] as i64, stride[1] as i64],
-            &[padding[0] as i64, padding[1] as i64],
+            [kernel_size[0] as i64, kernel_size[1] as i64],
+            [stride[0] as i64, stride[1] as i64],
+            [padding[0] as i64, padding[1] as i64],
             false,
             true,
             None,
@@ -154,10 +154,10 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
     ) -> TchTensor<E, 4> {
         let tensor = tch::Tensor::max_pool2d(
             &x.tensor,
-            &[kernel_size[0] as i64, kernel_size[1] as i64],
-            &[stride[0] as i64, stride[1] as i64],
-            &[padding[0] as i64, padding[1] as i64],
-            &[1, 1],
+            [kernel_size[0] as i64, kernel_size[1] as i64],
+            [stride[0] as i64, stride[1] as i64],
+            [padding[0] as i64, padding[1] as i64],
+            [1, 1],
             false,
         );
 
@@ -172,10 +172,10 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
     ) -> MaxPool2dWithIndexes<TchBackend<E>> {
         let (tensor, indexes) = tch::Tensor::max_pool2d_with_indices(
             &x.tensor,
-            &[kernel_size[0] as i64, kernel_size[1] as i64],
-            &[stride[0] as i64, stride[1] as i64],
-            &[padding[0] as i64, padding[1] as i64],
-            &[1, 1],
+            [kernel_size[0] as i64, kernel_size[1] as i64],
+            [stride[0] as i64, stride[1] as i64],
+            [padding[0] as i64, padding[1] as i64],
+            [1, 1],
             false,
         );
 
@@ -193,10 +193,10 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
         let grad = tch::Tensor::max_pool2d_with_indices_backward(
             &x.tensor,
             &output_grad.tensor,
-            &[kernel_size[0] as i64, kernel_size[1] as i64],
-            &[stride[0] as i64, stride[1] as i64],
-            &[padding[0] as i64, padding[1] as i64],
-            &[1, 1],
+            [kernel_size[0] as i64, kernel_size[1] as i64],
+            [stride[0] as i64, stride[1] as i64],
+            [padding[0] as i64, padding[1] as i64],
+            [1, 1],
             false,
             &indexes.tensor,
         );
