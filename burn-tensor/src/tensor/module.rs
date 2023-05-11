@@ -110,6 +110,19 @@ where
     Tensor::new(B::avg_pool2d(x.primitive, kernel_size, stride, padding))
 }
 
+/// Applies a [1D avg pooling](crate::ops::ModuleOps::avg_pool1d).
+pub fn avg_pool1d<B>(
+    x: Tensor<B, 3>,
+    kernel_size: usize,
+    stride: usize,
+    padding: usize,
+) -> Tensor<B, 3>
+where
+    B: Backend,
+{
+    Tensor::new(B::avg_pool1d(x.primitive, kernel_size, stride, padding))
+}
+
 /// Applies a [2D max pooling with indexes](crate::ops::ModuleOps::max_pool2d_with_indexes).
 pub fn max_pool2d_with_indexes<B>(
     x: Tensor<B, 4>,
