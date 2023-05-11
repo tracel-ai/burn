@@ -1,5 +1,6 @@
 mod add;
 mod aggregation;
+mod avgpool1d;
 mod avgpool2d;
 mod backward;
 mod broadcast;
@@ -52,6 +53,7 @@ macro_rules! testgen_all {
         burn_autodiff::testgen_ad_conv1d!();
         burn_autodiff::testgen_ad_conv2d!();
         burn_autodiff::testgen_ad_max_pool2d!();
+        burn_autodiff::testgen_ad_avg_pool1d!();
         burn_autodiff::testgen_ad_avg_pool2d!();
         burn_autodiff::testgen_module_backward!();
 

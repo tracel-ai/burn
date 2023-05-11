@@ -24,14 +24,14 @@ pub(crate) fn avg_pool1d_backward_from_avg_pool2d<B: Backend>(
     stride: usize,
     padding: usize,
 ) -> B::TensorPrimitive<3> {
-    let [batch_size, channels, length] = B::shape(&x).dims;
+    let [batch_size, channels, length_in] = B::shape(&x).dims;
+    let [_, _, length_out] = B::shape(&grad).dims;
 
-    let x = B::reshape(x, Shape::from([batch_size, channels, length, 1]));
-    let grad = B::reshape(grad, Shape::from([batch_size, channels, length, 1]));
-    let grad = B::avg_pool2d_backward(x, grad, [kernel_size, 1], [stride, 1], [padding, 0]);
+    let x = B::reshape(x, Shape::from([batch_size, channels, length_in, 1]));
+    let grad_x = B::reshape(grad, Shape::from([batch_size, channels, length_out, 1]));
 
-    let [batch_size, channels, length, _] = B::shape(&grad).dims;
-    let grad = B::reshape(grad, Shape::from([batch_size, channels, length]));
+    let grad_x = B::avg_pool2d_backward(x, grad_x, [kernel_size, 1], [stride, 1], [padding, 0]);
+    let grad_x = B::reshape(grad_x, Shape::from([batch_size, channels, length_in]));
 
-    grad
+    grad_x
 }

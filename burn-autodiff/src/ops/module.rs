@@ -270,6 +270,40 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     ) -> ADTensor<B, 3> {
         todo!("Transposed 1D convolution doesn't yet support backward.");
     }
+    fn avg_pool1d(
+        x: ADTensor<B, 3>,
+        kernel_size: usize,
+        stride: usize,
+        padding: usize,
+    ) -> ADTensor<B, 3> {
+        #[derive(Debug)]
+        struct AvgPool1D;
+
+        impl<B: Backend> Backward<B, 3, 1> for AvgPool1D {
+            type State = (B::TensorPrimitive<3>, usize, usize, usize);
+
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+                let [node_parent] = ops.parents;
+                let grad = grads.consume::<B, 3>(&ops.node);
+                let (x, kernel_size, stride, padding) = ops.state;
+
+                if let Some(node) = node_parent {
+                    let grad = B::avg_pool1d_backward(x, grad, kernel_size, stride, padding);
+                    grads.register::<B, 3>(node, grad);
+                }
+            }
+        }
+
+        match AvgPool1D.prepare([x.node], [x.graph]).statefull() {
+            OpsKind::Tracked(prep) => {
+                let output = B::avg_pool1d(x.primitive.clone(), kernel_size, stride, padding);
+                prep.finish((x.primitive, kernel_size, stride, padding), output)
+            }
+            OpsKind::UnTracked(prep) => {
+                prep.finish(B::avg_pool1d(x.primitive, kernel_size, stride, padding))
+            }
+        }
+    }
 
     fn avg_pool2d(
         x: ADTensor<B, 4>,
