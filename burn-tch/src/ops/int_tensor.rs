@@ -16,13 +16,15 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
     }
 
     fn int_to_data<const D: usize>(tensor: &TchTensor<i64, D>) -> Data<i64, D> {
-        let values: Vec<i64> = tensor.tensor.shallow_clone().into();
-        Data::new(values, tensor.shape())
+        let shape = Self::int_shape(&tensor);
+        let tensor = Self::int_reshape(tensor.clone(), Shape::new([shape.num_elements()]));
+        let values: Result<Vec<i64>, tch::TchError> = tensor.tensor.shallow_clone().try_into();
+
+        Data::new(values.unwrap(), shape)
     }
 
     fn int_into_data<const D: usize>(tensor: TchTensor<i64, D>) -> Data<i64, D> {
-        let shape = tensor.shape();
-        Data::new(tensor.tensor.into(), shape)
+        Self::int_to_data(&tensor)
     }
 
     fn int_to_device<const D: usize>(
