@@ -7,7 +7,7 @@ use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 use burn_tensor::module::avg_pool1d;
 
-/// Configuration to create an [1D avg pooling](AvgPool1d) layer.
+/// Configuration to create a [1D avg pooling](AvgPool1d) layer.
 #[derive(Config)]
 pub struct AvgPool1dConfig {
     /// The number of channels.
