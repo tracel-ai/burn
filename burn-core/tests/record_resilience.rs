@@ -28,6 +28,13 @@ mod tests {
     }
 
     #[derive(Module, Debug)]
+    pub struct ModelNewConstantField<B: Backend> {
+        linear1: nn::Linear<B>,
+        linear2: nn::Linear<B>,
+        new_field: usize,
+    }
+
+    #[derive(Module, Debug)]
     pub struct ModelNewFieldOrders<B: Backend> {
         linear2: nn::Linear<B>,
         linear1: nn::Linear<B>,
@@ -36,6 +43,33 @@ mod tests {
     #[test]
     fn deserialize_with_new_optional_field_works_with_default_file_recorder() {
         deserialize_with_new_optional_field(
+            "default",
+            DefaultFileRecorder::<FullPrecisionSettings>::new(),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn deserialize_with_removed_optional_field_works_with_default_file_recorder() {
+        deserialize_with_removed_optional_field(
+            "default",
+            DefaultFileRecorder::<FullPrecisionSettings>::new(),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn deserialize_with_new_constant_field_works_with_default_file_recorder() {
+        deserialize_with_new_constant_field(
+            "default",
+            DefaultFileRecorder::<FullPrecisionSettings>::new(),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn deserialize_with_removed_constant_field_works_with_default_file_recorder() {
+        deserialize_with_removed_constant_field(
             "default",
             DefaultFileRecorder::<FullPrecisionSettings>::new(),
         )
@@ -60,6 +94,33 @@ mod tests {
     }
 
     #[test]
+    fn deserialize_with_removed_optional_field_works_with_pretty_json() {
+        deserialize_with_removed_optional_field(
+            "pretty-json",
+            PrettyJsonFileRecorder::<FullPrecisionSettings>::new(),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn deserialize_with_new_constant_field_works_with_pretty_json() {
+        deserialize_with_new_constant_field(
+            "pretty-json",
+            PrettyJsonFileRecorder::<FullPrecisionSettings>::new(),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn deserialize_with_removed_constant_field_works_with_pretty_json() {
+        deserialize_with_removed_constant_field(
+            "pretty-json",
+            PrettyJsonFileRecorder::<FullPrecisionSettings>::new(),
+        )
+        .unwrap();
+    }
+
+    #[test]
     fn deserialize_with_new_field_order_works_with_pretty_json() {
         deserialize_with_new_field_order(
             "pretty-json",
@@ -73,6 +134,30 @@ mod tests {
     fn deserialize_with_new_optional_field_doesnt_works_with_bin_file_recorder() {
         deserialize_with_new_optional_field("bin", BinFileRecorder::<FullPrecisionSettings>::new())
             .unwrap();
+    }
+
+    #[test]
+    fn deserialize_with_removed_optional_field_works_with_bin_file_recorder() {
+        deserialize_with_removed_optional_field(
+            "bin",
+            BinFileRecorder::<FullPrecisionSettings>::new(),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn deserialize_with_new_constant_field_works_with_bin_file_recorder() {
+        deserialize_with_new_constant_field("bin", BinFileRecorder::<FullPrecisionSettings>::new())
+            .unwrap();
+    }
+
+    #[test]
+    fn deserialize_with_removed_constant_field_works_with_bin_file_recorder() {
+        deserialize_with_removed_constant_field(
+            "bin",
+            BinFileRecorder::<FullPrecisionSettings>::new(),
+        )
+        .unwrap();
     }
 
     #[test]
@@ -95,6 +180,76 @@ mod tests {
             .record(model.into_record(), file_path.clone())
             .unwrap();
         let result = recorder.load::<ModelNewOptionalFieldRecord<TestBackend>>(file_path.clone());
+        std::fs::remove_file(file_path).ok();
+
+        result?;
+        Ok(())
+    }
+
+    fn deserialize_with_removed_optional_field<R>(
+        name: &str,
+        recorder: R,
+    ) -> Result<(), RecorderError>
+    where
+        R: FileRecorder,
+    {
+        let file_path: PathBuf =
+            format!("/tmp/deserialize_with_removed_optional_field-{name}").into();
+        let model = ModelNewOptionalField {
+            linear1: nn::LinearConfig::new(20, 20).init::<TestBackend>(),
+            linear2: nn::LinearConfig::new(20, 20).init::<TestBackend>(),
+            new_field: None,
+        };
+
+        recorder
+            .record(model.into_record(), file_path.clone())
+            .unwrap();
+        let result = recorder.load::<ModelRecord<TestBackend>>(file_path.clone());
+        std::fs::remove_file(file_path).ok();
+
+        result?;
+        Ok(())
+    }
+
+    fn deserialize_with_new_constant_field<R>(name: &str, recorder: R) -> Result<(), RecorderError>
+    where
+        R: FileRecorder,
+    {
+        let file_path: PathBuf = format!("/tmp/deserialize_with_new_constant_field-{name}").into();
+        let model = Model {
+            linear1: nn::LinearConfig::new(20, 20).init::<TestBackend>(),
+            linear2: nn::LinearConfig::new(20, 20).init::<TestBackend>(),
+        };
+
+        recorder
+            .record(model.into_record(), file_path.clone())
+            .unwrap();
+        let result = recorder.load::<ModelNewConstantFieldRecord<TestBackend>>(file_path.clone());
+        std::fs::remove_file(file_path).ok();
+
+        result?;
+        Ok(())
+    }
+
+    fn deserialize_with_removed_constant_field<R>(
+        name: &str,
+        recorder: R,
+    ) -> Result<(), RecorderError>
+    where
+        R: FileRecorder,
+    {
+        let file_path: PathBuf =
+            format!("/tmp/deserialize_with_removed_constant_field-{name}").into();
+        let model = ModelNewConstantField {
+            linear1: nn::LinearConfig::new(20, 20).init::<TestBackend>(),
+            linear2: nn::LinearConfig::new(20, 20).init::<TestBackend>(),
+            new_field: 0,
+        };
+
+        recorder
+            .record(model.into_record(), file_path.clone())
+            .unwrap();
+        let result = recorder.load::<ModelRecord<TestBackend>>(file_path.clone());
         std::fs::remove_file(file_path).ok();
 
         result?;
