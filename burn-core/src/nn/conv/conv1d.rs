@@ -125,16 +125,10 @@ impl<B: Backend> Conv1d<B> {
     /// - input: [batch_size, channels_in, length_in],
     /// - output: [batch_size, channels_out, length_out],
     pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
-        let same_padding = || {
-            let [_batch_size, _channels_in, length] = input.dims();
-            calculate_conv_padding(self.kernel_size, self.stride, length, length)
-        };
-
-        let padding = match &self.padding {
-            Conv1dPaddingConfig::Valid => 0,
-            Conv1dPaddingConfig::Same => same_padding(),
-            Conv1dPaddingConfig::Explicit(value) => *value,
-        };
+        let [_batch_size, _channels, length] = input.dims();
+        let padding = self
+            .padding
+            .calculate_padding_1d(length, self.kernel_size, self.stride);
 
         conv1d(
             input,
@@ -142,6 +136,23 @@ impl<B: Backend> Conv1d<B> {
             self.bias.as_ref().map(|bias| bias.val()),
             ConvOptions::new([self.stride], [padding], [self.dilation], self.groups),
         )
+    }
+}
+
+impl Conv1dPaddingConfig {
+    pub(crate) fn calculate_padding_1d(
+        &self,
+        length: usize,
+        kernel_size: usize,
+        stride: usize,
+    ) -> usize {
+        let same_padding = || calculate_conv_padding(kernel_size, stride, length, length);
+
+        match self {
+            Conv1dPaddingConfig::Valid => 0,
+            Conv1dPaddingConfig::Same => same_padding(),
+            Conv1dPaddingConfig::Explicit(value) => *value,
+        }
     }
 }
 

@@ -1,4 +1,4 @@
-use super::conv;
+use super::{conv, pool};
 use crate::backend::Backend;
 
 /// Gradient computed during the backward pass for each tensor used by [conv2d](ModuleOps::conv2d).
@@ -135,6 +135,29 @@ pub trait ModuleOps<B: Backend> {
         options: ConvOptions<1>,
     ) -> Conv1dBackward<B> {
         conv::conv1d_backward(x, weight, bias, output_grad, options)
+    }
+    /// One dimensional avg pooling.
+    ///
+    /// # Shapes
+    ///
+    /// x: [batch_size, channels, length],
+    fn avg_pool1d(
+        x: B::TensorPrimitive<3>,
+        kernel_size: usize,
+        stride: usize,
+        padding: usize,
+    ) -> B::TensorPrimitive<3> {
+        pool::avg_pool1d_from_avg_pool2d::<B>(x, kernel_size, stride, padding)
+    }
+    /// Backward pass for the [avg pooling 1d](ModuleOps::avg_pool1d) operation.
+    fn avg_pool1d_backward(
+        x: B::TensorPrimitive<3>,
+        grad: B::TensorPrimitive<3>,
+        kernel_size: usize,
+        stride: usize,
+        padding: usize,
+    ) -> B::TensorPrimitive<3> {
+        pool::avg_pool1d_backward_from_avg_pool2d::<B>(x, grad, kernel_size, stride, padding)
     }
     /// Two dimensional avg pooling.
     ///
