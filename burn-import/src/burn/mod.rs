@@ -1,8 +1,10 @@
-pub(crate) mod graph;
+pub mod graph;
 pub(crate) mod node;
 
 mod codegen;
-mod ir;
+mod scope;
+mod tensor;
 
 pub use codegen::*;
-pub use ir::*;
+pub use scope::*;
+pub use tensor::*;
