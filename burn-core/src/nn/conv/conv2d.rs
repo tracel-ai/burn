@@ -13,7 +13,7 @@ use burn_tensor::ops::ConvOptions;
 use libm::sqrt;
 
 /// Configuration to create an [2D convolution](Conv2d) layer.
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct Conv2dConfig {
     /// The number of channels.
     pub channels: [usize; 2],
