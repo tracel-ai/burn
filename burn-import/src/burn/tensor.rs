@@ -1,5 +1,4 @@
 use proc_macro2::Ident;
-#[cfg(test)] // For now
 use proc_macro2::Span;
 
 #[derive(Debug, Clone)]
@@ -8,7 +7,6 @@ pub struct TensorDescription {
     pub dim: usize,
 }
 
-#[cfg(test)] // For now
 impl TensorDescription {
     pub fn new<S: AsRef<str>>(name: S, dim: usize) -> Self {
         Self {

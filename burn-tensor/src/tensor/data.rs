@@ -6,7 +6,7 @@ use crate::{tensor::Shape, Element, ElementConversion};
 use libm::{pow, round};
 use rand::{distributions::Standard, Rng, RngCore};
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Clone, new)]
 pub struct DataSerialize<E> {
     pub value: Vec<E>,
     pub shape: Vec<usize>,

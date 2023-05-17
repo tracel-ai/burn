@@ -7,21 +7,31 @@ use std::{
 
 use burn::{
     nn::conv::Conv2dPaddingConfig,
-    record::{DefaultFileRecorder, FullPrecisionSettings, PrettyJsonFileRecorder, Recorder},
+    record::{
+        DefaultFileRecorder, FullPrecisionSettings, PrecisionSettings, PrettyJsonFileRecorder,
+        Recorder,
+    },
 };
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use syn::{Ident, Type};
 
-use crate::onnx::{
-    ir::{ArgType, Node, NodeType},
-    op_configuration::{
-        batch_norm_config, conv2d_config, flatten_config, linear_config, log_softmax_config,
+use crate::{
+    burn::{
+        graph::Graph,
+        node::{conv2d::Conv2dNode, linear::LinearNode, matmul::MatmulNode},
+        TensorDescription,
     },
-    shape_inference::first_input_dim,
+    onnx::{
+        ir::{ArgType, Node, NodeType},
+        op_configuration::{
+            batch_norm_config, conv2d_config, flatten_config, linear_config, log_softmax_config,
+        },
+        shape_inference::first_input_dim,
+    },
 };
 
-use super::{from_onnx::parse_onnx, ir::Graph};
+use super::{from_onnx::parse_onnx, ir::ONNXGraph};
 
 use rust_format::{Config, Edition, Formatter, PostProcess, RustFmt};
 
@@ -143,7 +153,7 @@ impl ModelGen {
 pub struct ModelSourceCode {
     onnx_path: PathBuf,
     record_path: PathBuf,
-    pub graph: Graph,
+    pub graph: ONNXGraph,
 }
 
 impl ModelSourceCode {
@@ -577,6 +587,88 @@ impl ModelSourceCode {
 
         fields
     }
+}
+
+impl ONNXGraph {
+    pub fn into_burn<PS: PrecisionSettings + 'static>(self) -> Graph<PS> {
+        let mut graph = Graph::<PS>::default();
+
+        for node in self.nodes {
+            match node.node_type {
+                NodeType::Conv2d => graph.register(conv2d_conversion::<PS>(node)),
+                NodeType::MatMul => graph.register(matmul_conversion(node)),
+                NodeType::Linear => graph.register(linear_conversion::<PS>(node)),
+                _ => panic!(),
+            }
+        }
+
+        graph
+    }
+}
+
+fn matmul_conversion(node: Node) -> MatmulNode {
+    let lhs = TensorDescription::new(&node.inputs.get(0).unwrap().name, 4);
+    let rhs = TensorDescription::new(&node.inputs.get(1).unwrap().name, 4);
+    let output = TensorDescription::new(&node.outputs.get(0).unwrap().name, 4);
+
+    MatmulNode::new(lhs, rhs, output)
+}
+
+fn linear_conversion<PS: PrecisionSettings>(mut node: Node) -> LinearNode<PS> {
+    let name = Ident::new(&node.name, Span::call_site());
+    let input = TensorDescription::new(&node.inputs.get(0).unwrap().name, 4);
+    let output = TensorDescription::new(&node.outputs.get(0).unwrap().name, 4);
+    let config = linear_config(&node);
+
+    let bias = node.initializers.len() == 2;
+    let weight = node
+        .initializers
+        .remove(0)
+        .arg_type
+        .unwrap()
+        .into_data_serialize::<PS::FloatElem>();
+
+    let bias = match bias {
+        true => Some(
+            node.initializers
+                .remove(0)
+                .arg_type
+                .unwrap()
+                .into_data_serialize::<PS::FloatElem>(),
+        ),
+        false => None,
+    };
+
+    LinearNode::new(name, input, output, weight, bias, config)
+}
+
+fn conv2d_conversion<PS: PrecisionSettings>(mut node: Node) -> Conv2dNode<PS> {
+    let name = Ident::new(&node.name, Span::call_site());
+    let input = TensorDescription::new(&node.inputs.get(0).unwrap().name, 4);
+    let output = TensorDescription::new(&node.outputs.get(0).unwrap().name, 4);
+    let config = conv2d_config(&node);
+
+    let bias = node.initializers.len() == 2;
+
+    let weight = node
+        .initializers
+        .remove(0)
+        .arg_type
+        .unwrap()
+        .into_data_serialize::<PS::FloatElem>();
+
+    let bias = match bias {
+        true => Some(
+            node.initializers
+                .remove(0)
+                .arg_type
+                .unwrap()
+                .into_data_serialize::<PS::FloatElem>(),
+        ),
+        false => None,
+    };
+
+    Conv2dNode::<PS>::new(name, input, output, weight, bias, config)
 }
 
 /// Generates source code for the initialization of a Conv2d node
