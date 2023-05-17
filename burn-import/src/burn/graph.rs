@@ -1,12 +1,10 @@
 use super::{BurnImports, Scope};
 use crate::burn::node::{Node, NodeCodegen};
-use burn::record::PrecisionSettings;
+use burn::record::{BurnRecord, FileRecorder, PrecisionSettings};
 use proc_macro2::TokenStream;
 use quote::quote;
 use serde::{ser::SerializeMap, Serialize};
-
-#[derive(Debug, Clone, Hash)]
-pub struct NodeId(String);
+use std::path::PathBuf;
 
 #[derive(Default, Debug)]
 pub struct Graph<PS: PrecisionSettings> {
@@ -71,7 +69,12 @@ impl<PS: PrecisionSettings> Graph<PS> {
                     .iter()
                     .for_each(|tensor| self.scope.register_use_owned_tensor(tensor, node_position))
             });
-        println!("{:?}", self.scope);
+    }
+
+    pub fn save_record<FR: FileRecorder>(&self, recorder: FR, file: PathBuf) {
+        recorder
+            .save_item(BurnRecord::new::<FR>(self), file)
+            .unwrap();
     }
 
     pub fn codegen(mut self) -> TokenStream {
