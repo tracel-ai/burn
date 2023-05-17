@@ -1,21 +1,52 @@
-use super::Node;
+use super::{Node, NodeCodegen, SerializationBackend};
 use crate::burn::{BurnImports, Scope, TensorDescription, ToTokens};
-use burn::{nn::conv::Conv2dConfig, tensor::DataSerialize};
+use burn::{
+    module::{Module, Param, ParamId},
+    nn::conv::{Conv2d, Conv2dConfig},
+    record::{PrecisionSettings, Record},
+    tensor::{Data, DataSerialize, Tensor},
+};
 use proc_macro2::TokenStream;
 use quote::quote;
+use serde::Serialize;
 use syn::Ident;
 
 #[derive(Debug, Clone, new)]
-pub struct Conv2dNode {
+pub struct Conv2dNode<PS: PrecisionSettings> {
     pub name_field: Ident,
     pub input: TensorDescription,
     pub output: TensorDescription,
-    pub data_weights: DataSerialize<f32>,
-    pub data_bias: Option<DataSerialize<f32>>,
+    pub data_weights: DataSerialize<PS::FloatElem>,
+    pub data_bias: Option<DataSerialize<PS::FloatElem>>,
     pub config: Conv2dConfig,
 }
 
-impl Node for Conv2dNode {
+impl<PS: PrecisionSettings> Serialize for Conv2dNode<PS> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let module: Conv2d<SerializationBackend> = self.config.init();
+        let mut record = module.into_record();
+
+        record.weight = Param::new(
+            ParamId::new(),
+            Tensor::from_data(Data::from(self.data_weights.clone().convert())),
+        );
+
+        if let Some(bias) = &self.data_bias {
+            record.bias = Some(Param::new(
+                ParamId::new(),
+                Tensor::from_data(Data::from(bias.clone().convert())),
+            ));
+        }
+
+        let item = Record::into_item::<PS>(record);
+        item.serialize(serializer)
+    }
+}
+
+impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv2dNode<PS> {
     fn output_type(&self) -> TokenStream {
         quote! {
             Tensor<B, 4>
@@ -86,6 +117,10 @@ impl Node for Conv2dNode {
         imports.register("burn::nn::conv::Conv2d");
         imports.register("burn::nn::conv::Conv2dConfig");
     }
+
+    fn into_node(self) -> Node<PS> {
+        Node::Conv2d(self)
+    }
 }
 
 #[cfg(test)]
@@ -96,12 +131,12 @@ mod tests {
         node::{conv2d::Conv2dNode, test::assert_tokens},
         TensorDescription,
     };
-    use burn::{nn::conv::Conv2dConfig, tensor::Data};
+    use burn::{nn::conv::Conv2dConfig, record::FullPrecisionSettings, tensor::Data};
     use proc_macro2::Span;
 
     #[test]
     fn test_codegen() {
-        let mut graph = Graph::default();
+        let mut graph = Graph::<FullPrecisionSettings>::default();
 
         graph.register(Conv2dNode::new(
             Ident::new("conv2d", Span::call_site()),

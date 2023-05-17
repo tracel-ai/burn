@@ -1,21 +1,52 @@
-use super::Node;
+use super::{Node, NodeCodegen, SerializationBackend};
 use crate::burn::{BurnImports, Scope, TensorDescription, ToTokens};
-use burn::{nn::LinearConfig, tensor::DataSerialize};
+use burn::{
+    module::{Module, Param, ParamId},
+    nn::{Linear, LinearConfig},
+    record::{PrecisionSettings, Record},
+    tensor::{Data, DataSerialize, Tensor},
+};
 use proc_macro2::TokenStream;
 use quote::quote;
+use serde::Serialize;
 use syn::Ident;
 
 #[derive(Debug, Clone, new)]
-pub struct LinearNode {
+pub struct LinearNode<PS: PrecisionSettings> {
     pub name_field: Ident,
     pub input: TensorDescription,
     pub output: TensorDescription,
-    pub data_weights: DataSerialize<f32>,
-    pub data_bias: Option<DataSerialize<f32>>,
+    pub data_weights: DataSerialize<PS::FloatElem>,
+    pub data_bias: Option<DataSerialize<PS::FloatElem>>,
     pub config: LinearConfig,
 }
 
-impl Node for LinearNode {
+impl<PS: PrecisionSettings> Serialize for LinearNode<PS> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let module: Linear<SerializationBackend> = self.config.init();
+        let mut record = module.into_record();
+
+        record.weight = Param::new(
+            ParamId::new(),
+            Tensor::from_data(Data::from(self.data_weights.clone().convert())),
+        );
+
+        if let Some(bias) = &self.data_bias {
+            record.bias = Some(Param::new(
+                ParamId::new(),
+                Tensor::from_data(Data::from(bias.clone().convert())),
+            ));
+        }
+
+        let item = Record::into_item::<PS>(record);
+        item.serialize(serializer)
+    }
+}
+
+impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode<PS> {
     fn output_type(&self) -> TokenStream {
         let dim = self.output.dim.to_tokens();
 
@@ -82,18 +113,22 @@ impl Node for LinearNode {
         imports.register("burn::nn::Linear");
         imports.register("burn::nn::LinearConfig");
     }
+
+    fn into_node(self) -> Node<PS> {
+        Node::Linear(self)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::burn::{graph::Graph, node::test::assert_tokens, TensorDescription};
-    use burn::tensor::Data;
+    use burn::{record::FullPrecisionSettings, tensor::Data};
     use proc_macro2::Span;
 
     #[test]
     fn test_codegen() {
-        let mut graph = Graph::default();
+        let mut graph = Graph::<FullPrecisionSettings>::default();
 
         graph.register(LinearNode::new(
             Ident::new("linear", Span::call_site()),

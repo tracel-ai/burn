@@ -1,7 +1,9 @@
-use super::Node;
+use super::{Node, NodeCodegen};
 use crate::burn::{Scope, TensorDescription, ToTokens};
+use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
+use serde::Serialize;
 use syn::Ident;
 
 #[derive(Debug, Clone, new)]
@@ -11,7 +13,16 @@ pub struct MatmulNode {
     pub output: TensorDescription,
 }
 
-impl Node for MatmulNode {
+impl Serialize for MatmulNode {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_none()
+    }
+}
+
+impl<PS: PrecisionSettings> NodeCodegen<PS> for MatmulNode {
     fn output_type(&self) -> TokenStream {
         let dim = self.output.dim.to_tokens();
 
@@ -52,10 +63,16 @@ impl Node for MatmulNode {
     fn output_tensors(&self) -> Vec<Ident> {
         vec![self.output.name.clone()]
     }
+
+    fn into_node(self) -> Node<PS> {
+        Node::Matmul(self)
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use burn::record::FullPrecisionSettings;
+
     use super::*;
     use crate::burn::{
         graph::Graph,
@@ -65,7 +82,7 @@ mod tests {
 
     #[test]
     fn test_codegen_two_nodes() {
-        let mut graph = Graph::default();
+        let mut graph = Graph::<FullPrecisionSettings>::default();
 
         graph.register(MatmulNode::new(
             TensorDescription::new("tensor1", 4),

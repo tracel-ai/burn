@@ -1,22 +1,50 @@
 use super::{BurnImports, Scope};
-use crate::burn::node::Node;
+use crate::burn::node::{Node, NodeCodegen};
+use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
+use serde::{ser::SerializeMap, Serialize};
 
 #[derive(Debug, Clone, Hash)]
 pub struct NodeId(String);
 
 #[derive(Default, Debug)]
-pub struct Graph {
+pub struct Graph<PS: PrecisionSettings> {
     scope: Scope,
     imports: BurnImports,
-    nodes: Vec<Box<dyn Node>>,
+    nodes: Vec<Node<PS>>,
 }
 
-impl Graph {
+impl<PS: PrecisionSettings> Serialize for Graph<PS> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let nodes_with_names = self
+            .nodes
+            .iter()
+            .filter_map(|node| {
+                if let Some(name) = node.field_name() {
+                    Some((node, name))
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        let mut map = serializer.serialize_map(Some(nodes_with_names.len()))?;
+
+        for (node, name) in nodes_with_names.iter() {
+            map.serialize_entry(&name.to_string(), &node)?;
+        }
+
+        map.end()
+    }
+}
+
+impl<PS: PrecisionSettings> Graph<PS> {
     /// The node must be registered in the same order they will be executed in the forward pass.
-    pub fn register<N: Node + 'static>(&mut self, node: N) {
-        self.nodes.push(Box::new(node));
+    pub fn register<N: NodeCodegen<PS> + 'static>(&mut self, node: N) {
+        self.nodes.push(node.into_node());
     }
 
     fn build_scope(&mut self) {

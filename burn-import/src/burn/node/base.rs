@@ -1,8 +1,14 @@
+use super::{conv2d::Conv2dNode, linear::LinearNode, matmul::MatmulNode};
 use crate::burn::{BurnImports, Scope};
+use burn::record::PrecisionSettings;
+use burn_ndarray::NdArrayBackend;
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
+use serde::Serialize;
 
-pub trait Node: std::fmt::Debug {
+pub type SerializationBackend = NdArrayBackend<f32>;
+
+pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug + Serialize {
     fn output_type(&self) -> TokenStream;
     fn output_name(&self) -> Ident;
     fn input_def(&self) -> TokenStream;
@@ -24,6 +30,85 @@ pub trait Node: std::fmt::Debug {
         vec![]
     }
     fn register_imports(&self, _imports: &mut BurnImports) {}
+    fn into_node(self) -> Node<PS>;
+}
+
+#[derive(Debug)]
+pub enum Node<PS: PrecisionSettings> {
+    Matmul(MatmulNode),
+    Conv2d(Conv2dNode<PS>),
+    Linear(LinearNode<PS>),
+}
+
+macro_rules! match_all {
+    ($self:expr, $func:expr) => {{
+        match $self {
+            Node::Matmul(node) => $func(node),
+            Node::Conv2d(node) => $func(node),
+            Node::Linear(node) => $func(node),
+        }
+    }};
+}
+
+impl<PS: PrecisionSettings> Serialize for Node<PS> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match_all!(self, |node| Serialize::serialize::<S>(node, serializer))
+    }
+}
+
+impl<PS: PrecisionSettings> NodeCodegen<PS> for Node<PS> {
+    fn output_type(&self) -> TokenStream {
+        match_all!(self, NodeCodegen::<PS>::output_type)
+    }
+
+    fn output_name(&self) -> Ident {
+        match_all!(self, NodeCodegen::<PS>::output_name)
+    }
+
+    fn input_def(&self) -> TokenStream {
+        match_all!(self, NodeCodegen::<PS>::input_def)
+    }
+
+    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
+        match_all!(self, |node| NodeCodegen::<PS>::forward(
+            node,
+            scope,
+            node_position
+        ))
+    }
+
+    fn field_name(&self) -> Option<Ident> {
+        match_all!(self, NodeCodegen::<PS>::field_name)
+    }
+
+    fn new_body(&self) -> TokenStream {
+        match_all!(self, NodeCodegen::<PS>::new_body)
+    }
+
+    fn new_field(&self) -> TokenStream {
+        match_all!(self, NodeCodegen::<PS>::new_field)
+    }
+
+    fn input_tensors(&self) -> Vec<Ident> {
+        match_all!(self, NodeCodegen::<PS>::input_tensors)
+    }
+
+    fn output_tensors(&self) -> Vec<Ident> {
+        match_all!(self, NodeCodegen::<PS>::output_tensors)
+    }
+
+    fn register_imports(&self, imports: &mut BurnImports) {
+        match_all!(self, |node| NodeCodegen::<PS>::register_imports(
+            node, imports
+        ))
+    }
+
+    fn into_node(self) -> Node<PS> {
+        self
+    }
 }
 
 #[cfg(test)]
@@ -34,12 +119,12 @@ mod tests {
         node::{conv2d::Conv2dNode, matmul::MatmulNode, test::assert_tokens},
         TensorDescription,
     };
-    use burn::{nn::conv::Conv2dConfig, tensor::Data};
+    use burn::{nn::conv::Conv2dConfig, record::FullPrecisionSettings, tensor::Data};
     use proc_macro2::Span;
 
     #[test]
     fn test_codegen_two_nodes() {
-        let mut graph = Graph::default();
+        let mut graph = Graph::<FullPrecisionSettings>::default();
 
         graph.register(MatmulNode::new(
             TensorDescription::new("tensor1", 4),
@@ -96,7 +181,7 @@ mod tests {
 
     #[test]
     fn test_codegen_clone_tensor() {
-        let mut graph = Graph::default();
+        let mut graph = Graph::<FullPrecisionSettings>::default();
 
         graph.register(MatmulNode::new(
             TensorDescription::new("tensor1", 4),
