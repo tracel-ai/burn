@@ -1,22 +1,21 @@
+use super::Node;
+use crate::burn::{BurnImports, Scope, TensorDescription, ToTokens};
+use burn::{nn::conv::Conv2dConfig, tensor::DataSerialize};
 use proc_macro2::TokenStream;
 use quote::quote;
-
-use burn::{nn::conv::Conv2dConfig, tensor::DataSerialize};
 use syn::Ident;
-
-use crate::burn::{NodeCodegen, Scope, TensorInput, TensorOutput, ToTokens};
 
 #[derive(Debug, Clone, new)]
 pub struct Conv2d {
     pub name_field: Ident,
-    pub input: TensorInput,
-    pub output: TensorOutput,
+    pub input: TensorDescription,
+    pub output: TensorDescription,
     pub data_weights: DataSerialize<f32>,
     pub data_bias: DataSerialize<f32>,
     pub config: Conv2dConfig,
 }
 
-impl NodeCodegen for Conv2d {
+impl Node for Conv2d {
     fn output_type(&self) -> TokenStream {
         quote! {
             Tensor<B, 4>
@@ -46,7 +45,7 @@ impl NodeCodegen for Conv2d {
         let kernel_size = self.config.kernel_size.to_tokens();
         let stride = self.config.stride.to_tokens();
         let dilation = self.config.dilation.to_tokens();
-        let groups = self.config.groups;
+        let groups = self.config.groups.to_tokens();
         let bias = self.config.bias;
 
         quote! {
@@ -81,5 +80,10 @@ impl NodeCodegen for Conv2d {
     }
     fn output_tensors(&self) -> Vec<Ident> {
         vec![self.output.name.clone()]
+    }
+
+    fn register_imports(&self, imports: &mut BurnImports) {
+        imports.register("burn::nn::conv::Conv2d");
+        imports.register("burn::nn::conv::Conv2dConfig");
     }
 }

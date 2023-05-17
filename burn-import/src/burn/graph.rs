@@ -1,5 +1,5 @@
-use super::Scope;
-use crate::burn::NodeCodegen;
+use super::{BurnImports, Scope};
+use crate::burn::node::Node;
 use proc_macro2::TokenStream;
 use quote::quote;
 
@@ -9,12 +9,13 @@ pub struct NodeId(String);
 #[derive(Default, Debug)]
 pub struct Graph {
     scope: Scope,
-    nodes: Vec<Box<dyn NodeCodegen>>,
+    imports: BurnImports,
+    nodes: Vec<Box<dyn Node>>,
 }
 
 impl Graph {
     /// The node must be registered in the same order they will be executed in the forward pass.
-    pub fn register<N: NodeCodegen + 'static>(&mut self, node: N) {
+    pub fn register<N: Node + 'static>(&mut self, node: N) {
         self.nodes.push(Box::new(node));
     }
 
@@ -24,7 +25,6 @@ impl Graph {
             .input_tensors()
             .iter()
             .for_each(|tensor| self.scope.declare_tensor(tensor, 0));
-        println!("{:?}", self.scope);
 
         self.nodes
             .iter()
@@ -43,27 +43,33 @@ impl Graph {
                     .iter()
                     .for_each(|tensor| self.scope.register_use_owned_tensor(tensor, node_position))
             });
+        println!("{:?}", self.scope);
     }
 
     pub fn codegen(mut self) -> TokenStream {
         self.build_scope();
+        self.nodes
+            .iter()
+            .for_each(|node| node.register_imports(&mut self.imports));
 
-        let gen_struct = self.gen_struct();
-        let gen_init = self.gen_init_fn();
-        let gen_forward = self.gen_forward();
+        let codegen_imports = self.imports.codegen();
+        let codegen_struct = self.codegen_struct();
+        let codegen_init = self.codegen_init_fn();
+        let codegen_forward = self.codegen_forward();
 
         quote! {
-            #gen_struct
+            #codegen_imports
+            #codegen_struct
 
             impl<B: Backend> Model<B> {
-                #gen_init
+                #codegen_init
 
-                #gen_forward
+                #codegen_forward
             }
         }
     }
 
-    fn gen_struct(&self) -> TokenStream {
+    fn codegen_struct(&self) -> TokenStream {
         let mut body = quote! {};
         self.nodes
             .iter()
@@ -71,13 +77,14 @@ impl Graph {
             .for_each(|code| body.extend(code));
 
         quote! {
+            #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
                 #body
             }
         }
     }
 
-    fn gen_init_fn(&self) -> TokenStream {
+    fn codegen_init_fn(&self) -> TokenStream {
         let mut body = quote! {};
 
         self.nodes
@@ -102,7 +109,7 @@ impl Graph {
         }
     }
 
-    fn gen_forward(&mut self) -> TokenStream {
+    fn codegen_forward(&mut self) -> TokenStream {
         let inputs = self.nodes.first().unwrap().input_def();
         let output_type = self.nodes.last().unwrap().output_type();
         let output_name = self.nodes.last().unwrap().output_name();

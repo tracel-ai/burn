@@ -36,15 +36,12 @@ impl Scope {
     /// We need to know all variables that are going to be used by the program.
     pub fn register_use_owned_tensor(&mut self, name: &Ident, node_position: usize) {
         if let Some(variables) = self.variables.get_mut(name) {
-            let mut current_position = 0;
-
-            for variable in variables.iter_mut() {
-                if node_position > current_position && node_position < variable.node_position {
+            for variable in variables.iter_mut().rev() {
+                if node_position >= variable.node_position {
+                    println!("YOYO");
                     variable.references += 1;
                     break;
                 }
-
-                current_position = variable.node_position;
             }
         } else {
             panic!("No variable with name {name}");
@@ -55,17 +52,14 @@ impl Scope {
     /// done.
     pub fn use_owned_tensor(&mut self, name: &Ident, node_position: usize) -> TokenStream {
         if let Some(variables) = self.variables.get_mut(name) {
-            let mut current_position = 0;
             let mut count = 0;
 
-            for variable in variables.iter_mut() {
-                if node_position > current_position && node_position < variable.node_position {
+            for variable in variables.iter_mut().rev() {
+                if node_position >= variable.node_position {
                     variable.references -= 1;
                     count = variable.references;
                     break;
                 }
-
-                current_position = variable.node_position;
             }
 
             return if count > 0 {
