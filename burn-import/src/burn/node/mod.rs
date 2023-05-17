@@ -1,9 +1,10 @@
 mod base;
 
 pub(crate) mod conv2d;
+pub(crate) mod linear;
 pub(crate) mod matmul;
 
-pub use base::*;
+pub(crate) use base::*;
 
 #[cfg(test)]
-pub mod test;
+pub(crate) mod test;

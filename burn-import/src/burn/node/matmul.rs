@@ -5,13 +5,13 @@ use quote::quote;
 use syn::Ident;
 
 #[derive(Debug, Clone, new)]
-pub struct Matmul {
+pub struct MatmulNode {
     pub lhs: TensorDescription,
     pub rhs: TensorDescription,
     pub output: TensorDescription,
 }
 
-impl Node for Matmul {
+impl Node for MatmulNode {
     fn output_type(&self) -> TokenStream {
         let dim = self.output.dim.to_tokens();
 
@@ -51,5 +51,50 @@ impl Node for Matmul {
 
     fn output_tensors(&self) -> Vec<Ident> {
         vec![self.output.name.clone()]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::burn::{
+        graph::Graph,
+        node::{matmul::MatmulNode, test::assert_tokens},
+        TensorDescription,
+    };
+
+    #[test]
+    fn test_codegen_two_nodes() {
+        let mut graph = Graph::default();
+
+        graph.register(MatmulNode::new(
+            TensorDescription::new("tensor1", 4),
+            TensorDescription::new("tensor2", 4),
+            TensorDescription::new("tensor3", 4),
+        ));
+
+        let expected = quote! {
+            use burn::{
+                module::Module,
+                tensor::{backend::Backend, Tensor},
+            };
+
+            #[derive(Module, Debug)]
+            pub struct Model <B: Backend>{}
+
+            impl<B: Backend> Model <B> {
+                pub fn init_with(record: ModelRecord<B>) -> Self {
+                    Self { }
+                }
+
+                pub fn forward(&self, tensor1: Tensor<B, 4>, tensor2: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let tensor3 = tensor1.matmul(tensor2);
+
+                    tensor3
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
     }
 }

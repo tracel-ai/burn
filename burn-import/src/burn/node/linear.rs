@@ -1,24 +1,26 @@
 use super::Node;
 use crate::burn::{BurnImports, Scope, TensorDescription, ToTokens};
-use burn::{nn::conv::Conv2dConfig, tensor::DataSerialize};
+use burn::{nn::LinearConfig, tensor::DataSerialize};
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::Ident;
 
 #[derive(Debug, Clone, new)]
-pub struct Conv2dNode {
+pub struct LinearNode {
     pub name_field: Ident,
     pub input: TensorDescription,
     pub output: TensorDescription,
     pub data_weights: DataSerialize<f32>,
     pub data_bias: Option<DataSerialize<f32>>,
-    pub config: Conv2dConfig,
+    pub config: LinearConfig,
 }
 
-impl Node for Conv2dNode {
+impl Node for LinearNode {
     fn output_type(&self) -> TokenStream {
+        let dim = self.output.dim.to_tokens();
+
         quote! {
-            Tensor<B, 4>
+            Tensor<B, #dim>
         }
     }
 
@@ -41,18 +43,12 @@ impl Node for Conv2dNode {
 
     fn new_body(&self) -> TokenStream {
         let name = &self.name_field;
-        let channels = self.config.channels.to_tokens();
-        let kernel_size = self.config.kernel_size.to_tokens();
-        let stride = self.config.stride.to_tokens();
-        let dilation = self.config.dilation.to_tokens();
-        let groups = self.config.groups.to_tokens();
+        let d_input = self.config.d_input.to_tokens();
+        let d_output = self.config.d_output.to_tokens();
         let bias = self.config.bias;
 
         quote! {
-            let #name = Conv2dConfig::new(#channels, #kernel_size)
-                .with_stride(#stride)
-                .with_dilation(#dilation)
-                .with_groups(#groups)
+            let #name = LinearConfig::new(#d_input, #d_output)
                 .with_bias(#bias)
                 .init_with(record.#name);
         }
@@ -62,7 +58,7 @@ impl Node for Conv2dNode {
         let name = &self.name_field;
 
         quote! {
-            #name: Conv2d<B>,
+            #name: Linear<B>,
         }
     }
 
@@ -83,33 +79,29 @@ impl Node for Conv2dNode {
     }
 
     fn register_imports(&self, imports: &mut BurnImports) {
-        imports.register("burn::nn::conv::Conv2d");
-        imports.register("burn::nn::conv::Conv2dConfig");
+        imports.register("burn::nn::Linear");
+        imports.register("burn::nn::LinearConfig");
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::burn::{
-        graph::Graph,
-        node::{conv2d::Conv2dNode, test::assert_tokens},
-        TensorDescription,
-    };
-    use burn::{nn::conv::Conv2dConfig, tensor::Data};
+    use crate::burn::{graph::Graph, node::test::assert_tokens, TensorDescription};
+    use burn::tensor::Data;
     use proc_macro2::Span;
 
     #[test]
     fn test_codegen() {
         let mut graph = Graph::default();
 
-        graph.register(Conv2dNode::new(
-            Ident::new("conv2d", Span::call_site()),
+        graph.register(LinearNode::new(
+            Ident::new("linear", Span::call_site()),
             TensorDescription::new("input", 4),
             TensorDescription::new("output", 4),
             Data::from([2.]).serialize(),
             None,
-            Conv2dConfig::new([3, 3], [3, 3]),
+            LinearConfig::new(128, 128),
         ));
 
         let expected = quote! {
@@ -117,30 +109,27 @@ mod tests {
                 module::Module,
                 tensor::{backend::Backend, Tensor},
             };
-            use burn::nn::conv::Conv2d;
-            use burn::nn::conv::Conv2dConfig;
+            use burn::nn::Linear;
+            use burn::nn::LinearConfig;
 
             #[derive(Module, Debug)]
             pub struct Model <B: Backend> {
-                conv2d: Conv2d<B>,
+                linear: Linear<B>,
             }
 
             impl<B: Backend> Model <B> {
                 pub fn init_with(record: ModelRecord<B>) -> Self {
-                    let conv2d = Conv2dConfig::new([3, 3], [3, 3])
-                        .with_stride([1, 1])
-                        .with_dilation([1, 1])
-                        .with_groups(1)
+                    let linear = LinearConfig::new(128, 128)
                         .with_bias(true)
-                        .init_with(record.conv2d);
+                        .init_with(record.linear);
 
                     Self {
-                        conv2d,
+                        linear,
                     }
                 }
 
                 pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let output = self.conv2d.forward(input);
+                    let output = self.linear.forward(input);
 
                     output
                 }

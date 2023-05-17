@@ -31,7 +31,7 @@ mod tests {
     use super::*;
     use crate::burn::{
         graph::Graph,
-        node::{conv2d::Conv2d, matmul::Matmul, test::assert_tokens},
+        node::{conv2d::Conv2dNode, matmul::MatmulNode, test::assert_tokens},
         TensorDescription,
     };
     use burn::{nn::conv::Conv2dConfig, tensor::Data};
@@ -41,17 +41,17 @@ mod tests {
     fn test_codegen_two_nodes() {
         let mut graph = Graph::default();
 
-        graph.register(Matmul::new(
+        graph.register(MatmulNode::new(
             TensorDescription::new("tensor1", 4),
             TensorDescription::new("tensor2", 4),
             TensorDescription::new("tensor3", 4),
         ));
-        graph.register(Conv2d::new(
+        graph.register(Conv2dNode::new(
             Ident::new("conv2d", Span::call_site()),
             TensorDescription::new("tensor3", 4),
             TensorDescription::new("tensor4", 4),
             Data::from([2.]).serialize(),
-            Data::from([2.]).serialize(),
+            None,
             Conv2dConfig::new([3, 3], [3, 3]),
         ));
 
@@ -64,12 +64,12 @@ mod tests {
             use burn::nn::conv::Conv2dConfig;
 
             #[derive(Module, Debug)]
-            pub struct Model <B : Backend> {
+            pub struct Model <B: Backend> {
                 conv2d: Conv2d<B>,
             }
 
             impl<B: Backend> Model <B> {
-                pub fn init_with (record: ModelRecord<B>) -> Self {
+                pub fn init_with(record: ModelRecord<B>) -> Self {
                     let conv2d = Conv2dConfig::new([3, 3], [3, 3])
                         .with_stride([1, 1])
                         .with_dilation([1, 1])
@@ -82,7 +82,7 @@ mod tests {
                     }
                 }
 
-                pub fn forward(&self, tensor1: Tensor <B, 4>, tensor2: Tensor <B, 4>) -> Tensor <B, 4> {
+                pub fn forward(&self, tensor1: Tensor<B, 4>, tensor2: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor3 = tensor1.matmul(tensor2);
                     let tensor4 = self.conv2d.forward(tensor3);
 
@@ -98,20 +98,20 @@ mod tests {
     fn test_codegen_clone_tensor() {
         let mut graph = Graph::default();
 
-        graph.register(Matmul::new(
+        graph.register(MatmulNode::new(
             TensorDescription::new("tensor1", 4),
             TensorDescription::new("tensor2", 4),
             TensorDescription::new("tensor3", 4),
         ));
-        graph.register(Conv2d::new(
+        graph.register(Conv2dNode::new(
             Ident::new("conv2d", Span::call_site()),
             TensorDescription::new("tensor2", 4),
             TensorDescription::new("tensor4", 4),
             Data::from([2.]).serialize(),
-            Data::from([2.]).serialize(),
+            None,
             Conv2dConfig::new([3, 3], [3, 3]),
         ));
-        graph.register(Matmul::new(
+        graph.register(MatmulNode::new(
             TensorDescription::new("tensor3", 4),
             TensorDescription::new("tensor4", 4),
             TensorDescription::new("output", 4),
@@ -126,12 +126,12 @@ mod tests {
             use burn::nn::conv::Conv2dConfig;
 
             #[derive(Module, Debug)]
-            pub struct Model <B : Backend> {
+            pub struct Model <B: Backend> {
                 conv2d: Conv2d<B>,
             }
 
             impl<B: Backend> Model <B> {
-                pub fn init_with (record: ModelRecord<B>) -> Self {
+                pub fn init_with(record: ModelRecord<B>) -> Self {
                     let conv2d = Conv2dConfig::new([3, 3], [3, 3])
                         .with_stride([1, 1])
                         .with_dilation([1, 1])
@@ -144,7 +144,7 @@ mod tests {
                     }
                 }
 
-                pub fn forward(&self, tensor1: Tensor <B, 4>, tensor2: Tensor <B, 4>) -> Tensor <B, 4> {
+                pub fn forward(&self, tensor1: Tensor<B, 4>, tensor2: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor3 = tensor1.matmul(tensor2.clone());
                     let tensor4 = self.conv2d.forward(tensor2);
                     let output = tensor3.matmul(tensor4);
