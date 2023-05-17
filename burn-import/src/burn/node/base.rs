@@ -69,7 +69,7 @@ mod tests {
             }
 
             impl<B: Backend> Model <B> {
-                pub fn init_with(record: ModelRecord<B>) -> Self {
+                pub fn new_with(record: ModelRecord<B>) -> Self {
                     let conv2d = Conv2dConfig::new([3, 3], [3, 3])
                         .with_stride([1, 1])
                         .with_dilation([1, 1])
@@ -131,7 +131,7 @@ mod tests {
             }
 
             impl<B: Backend> Model <B> {
-                pub fn init_with(record: ModelRecord<B>) -> Self {
+                pub fn new_with(record: ModelRecord<B>) -> Self {
                     let conv2d = Conv2dConfig::new([3, 3], [3, 3])
                         .with_stride([1, 1])
                         .with_dilation([1, 1])

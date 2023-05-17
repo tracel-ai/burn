@@ -83,7 +83,7 @@ mod tests {
             pub struct Model <B: Backend>{}
 
             impl<B: Backend> Model <B> {
-                pub fn init_with(record: ModelRecord<B>) -> Self {
+                pub fn new_with(record: ModelRecord<B>) -> Self {
                     Self { }
                 }
 

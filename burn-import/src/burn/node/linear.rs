@@ -118,7 +118,7 @@ mod tests {
             }
 
             impl<B: Backend> Model <B> {
-                pub fn init_with(record: ModelRecord<B>) -> Self {
+                pub fn new_with(record: ModelRecord<B>) -> Self {
                     let linear = LinearConfig::new(128, 128)
                         .with_bias(true)
                         .init_with(record.linear);

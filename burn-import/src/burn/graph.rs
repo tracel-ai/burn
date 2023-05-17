@@ -54,7 +54,7 @@ impl Graph {
 
         let codegen_imports = self.imports.codegen();
         let codegen_struct = self.codegen_struct();
-        let codegen_init = self.codegen_init_fn();
+        let codegen_init = self.codegen_new_fn();
         let codegen_forward = self.codegen_forward();
 
         quote! {
@@ -84,7 +84,7 @@ impl Graph {
         }
     }
 
-    fn codegen_init_fn(&self) -> TokenStream {
+    fn codegen_new_fn(&self) -> TokenStream {
         let mut body = quote! {};
 
         self.nodes
@@ -99,7 +99,7 @@ impl Graph {
             .collect::<Vec<_>>();
 
         quote! {
-            pub fn init_with(record: ModelRecord<B>) -> Self {
+            pub fn new_with(record: ModelRecord<B>) -> Self {
                 #body
 
                 Self {
