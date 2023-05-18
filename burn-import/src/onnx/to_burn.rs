@@ -11,6 +11,7 @@ use burn::{
         DefaultFileRecorder, FullPrecisionSettings, PrecisionSettings, PrettyJsonFileRecorder,
         Recorder,
     },
+    tensor::{DataSerialize, Element},
 };
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
@@ -19,7 +20,9 @@ use syn::{Ident, Type};
 use crate::{
     burn::{
         graph::Graph,
-        node::{conv2d::Conv2dNode, linear::LinearNode, matmul::MatmulNode},
+        node::{
+            batch_norm::BatchNormNode, conv2d::Conv2dNode, linear::LinearNode, matmul::MatmulNode,
+        },
         TensorType,
     },
     onnx::{
@@ -598,6 +601,7 @@ impl ONNXGraph {
                 NodeType::Conv2d => graph.register(conv2d_conversion::<PS>(node)),
                 NodeType::MatMul => graph.register(matmul_conversion(node)),
                 NodeType::Linear => graph.register(linear_conversion::<PS>(node)),
+                NodeType::BatchNormalization => graph.register(batch_norm_conversion::<PS>(node)),
                 _ => panic!(),
             }
         }
@@ -642,6 +646,43 @@ fn linear_conversion<PS: PrecisionSettings>(mut node: Node) -> LinearNode<PS> {
     LinearNode::new(name, input, output, weight, bias, config)
 }
 
+fn extract_next_data_serialize<E: Element>(node: &mut Node) -> Option<DataSerialize<E>> {
+    if node.initializers.len() == 0 {
+        return None;
+    }
+
+    node.initializers
+        .remove(0)
+        .arg_type
+        .map(|arg| arg.into_data_serialize::<E>())
+}
+
+fn batch_norm_conversion<PS: PrecisionSettings>(mut node: Node) -> BatchNormNode<PS> {
+    let gamma = extract_next_data_serialize::<PS::FloatElem>(&mut node).expect("Gamma is required");
+    let beta = extract_next_data_serialize::<PS::FloatElem>(&mut node).expect("Gamma is required");
+    let running_mean =
+        extract_next_data_serialize::<PS::FloatElem>(&mut node).expect("Running mean is required");
+    let running_var =
+        extract_next_data_serialize::<PS::FloatElem>(&mut node).expect("Running var is required");
+
+    let dim = first_input_dim(&node).unwrap() - 2;
+    let name = &node.name;
+    let input = TensorType::new(&node.inputs.get(0).unwrap().name, dim + 2);
+    let output = TensorType::new(&node.outputs.get(0).unwrap().name, dim + 2);
+    let config = batch_norm_config(&node);
+
+    BatchNormNode::new(
+        dim,
+        name,
+        input,
+        output,
+        gamma,
+        beta,
+        running_mean,
+        running_var,
+        config,
+    )
+}
 fn conv2d_conversion<PS: PrecisionSettings>(mut node: Node) -> Conv2dNode<PS> {
     let name = &node.name;
     let input = TensorType::new(&node.inputs.get(0).unwrap().name, 4);
