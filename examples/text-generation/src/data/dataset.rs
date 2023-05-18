@@ -1,5 +1,5 @@
 use burn::data::dataset::{
-    source::huggingface::downloader::HuggingfaceDatasetLoader, Dataset, InMemDataset,
+    source::huggingface::downloader::HuggingfaceDatasetLoader, Dataset, SqliteDataset,
 };
 
 #[derive(new, Clone, Debug)]
@@ -13,7 +13,7 @@ pub struct DbPediaItem {
 }
 
 pub struct DbPediaDataset {
-    dataset: InMemDataset<DbPediaItem>,
+    dataset: SqliteDataset<DbPediaItem>,
 }
 
 impl Dataset<TextGenerationItem> for DbPediaDataset {
@@ -30,20 +30,16 @@ impl Dataset<TextGenerationItem> for DbPediaDataset {
 
 impl DbPediaDataset {
     pub fn train() -> Self {
-        let dataset: InMemDataset<DbPediaItem> =
-            HuggingfaceDatasetLoader::new("dbpedia_14", "train")
-                .extract_string("content")
-                .load_in_memory()
-                .unwrap();
-        Self { dataset }
+        Self::new("train")
     }
 
     pub fn test() -> Self {
-        let dataset: InMemDataset<DbPediaItem> =
-            HuggingfaceDatasetLoader::new("dbpedia_14", "test")
-                .extract_string("content")
-                .load_in_memory()
-                .unwrap();
+        Self::new("test")
+    }
+    pub fn new(split: &str) -> Self {
+        let dataset: SqliteDataset<DbPediaItem> = HuggingfaceDatasetLoader::new("dbpedia_14")
+            .dataset(split)
+            .unwrap();
         Self { dataset }
     }
 }

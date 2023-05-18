@@ -23,6 +23,7 @@ members = [
 [workspace.dependencies]
 bytemuck = "1.13"
 const-random = "0.1.15"
+csv = "1.2.1"
 dashmap = "5.4.0"
 dirs = "5.0.0"
 fake = "2.5.0"
@@ -36,14 +37,18 @@ pretty_assertions = "1.3"
 proc-macro2 = "1.0.56"
 protobuf-codegen = "3.2"
 quote = "1.0.26"
+r2d2 = "0.8.10"
+r2d2_sqlite = "0.21.0"
+rayon = "1.7.0"
 rstest = "0.17.0"
+sanitize-filename = "0.4.0"
+serde_rusqlite = "0.31.0"
 spin = {version = "0.9.8", features = ["mutex", "spin_mutex"]}
 strum = "0.24"
 strum_macros = "0.24"
 syn = "2.0"
 thiserror = "1.0.40"
 topological-sort = "0.2.2"
-
 #
 # The following packages disable the "std" feature for no_std compatibility
 #

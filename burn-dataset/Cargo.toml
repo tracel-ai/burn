@@ -18,12 +18,20 @@ default = ["fake"]
 fake = ["dep:fake"]
 
 [dependencies]
+derive-new = {workspace = true}
 dirs = {workspace = true}
 fake = {workspace = true, optional = true}
+image = {version = "0.24.6", features = ["png"]}
+r2d2 = {workspace = true}
+r2d2_sqlite = {workspace = true}
 rand = {workspace = true, features = ["std"]}
+sanitize-filename = {workspace = true}
 serde = {workspace = true, features = ["std", "derive"]}
 serde_json = {workspace = true, features = ["std"]}
+serde_rusqlite = {workspace = true}
 thiserror = {workspace = true}
-derive-new = {workspace = true}
+csv = {workspace = true}
 
 [dev-dependencies]
+rayon = {workspace = true}
+rstest = {workspace = true}
