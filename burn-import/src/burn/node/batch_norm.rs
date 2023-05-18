@@ -59,6 +59,7 @@ impl<PS: PrecisionSettings> BatchNormNode<PS> {
 macro_rules! batch_norm_serialize {
     ($self:expr, $serializer:expr) => {{
         match $self.dim {
+            0 => batch_norm_serialize!($self, $serializer, 1),
             1 => batch_norm_serialize!($self, $serializer, 1),
             2 => batch_norm_serialize!($self, $serializer, 2),
             3 => batch_norm_serialize!($self, $serializer, 3),

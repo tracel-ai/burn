@@ -9,7 +9,6 @@ use burn::{
     nn::conv::Conv2dPaddingConfig,
     record::{
         DefaultFileRecorder, FullPrecisionSettings, PrecisionSettings, PrettyJsonFileRecorder,
-        Recorder,
     },
     tensor::{DataSerialize, Element},
 };
@@ -21,9 +20,9 @@ use crate::{
     burn::{
         graph::Graph,
         node::{
-            batch_norm::BatchNormNode, conv2d::Conv2dNode, linear::LinearNode, matmul::MatmulNode,
+            batch_norm::BatchNormNode, conv2d::Conv2dNode, flatten::FlattenNode,
+            linear::LinearNode, log_softmax::LogSoftmaxNode, matmul::MatmulNode, relu::ReLUNode,
         },
-        TensorType,
     },
     onnx::{
         ir::{ArgType, Node, NodeType},
@@ -128,26 +127,37 @@ impl ModelGen {
         out_file: PathBuf,
         rust_formatter: &RustFmt,
     ) {
+        let graph = parse_onnx(input.as_ref());
+
         if development {
-            let graph = parse_onnx(input.as_ref());
             // export the graph
             let debug_graph = format!("{:#?}", graph);
             fs::write(out_file.with_extension("graph.txt"), debug_graph).unwrap();
         }
 
-        // export the source code
-        let model = ModelSourceCode::new(input, &out_file);
-        let code_str = rust_formatter.format_tokens(model.body()).unwrap();
+        let mut graph = graph.into_burn::<FullPrecisionSettings>();
+        graph.save_record(
+            out_file.clone(),
+            development,
+            "burn::record::FullPrecisionSettings",
+        );
+
+        let code_str = rust_formatter.format_tokens(graph.codegen()).unwrap();
         fs::write(out_file.with_extension("rs"), code_str).unwrap();
 
-        // export the model state
-        if development {
-            let recorder = PrettyJsonFileRecorder::<FullPrecisionSettings>::new();
-            recorder.record(model.graph, out_file).unwrap();
-        } else {
-            let recorder = DefaultFileRecorder::<FullPrecisionSettings>::new();
-            recorder.record(model.graph, out_file).unwrap();
-        }
+        // // export the source code
+        // let model = ModelSourceCode::new(input, &out_file);
+        // let code_str = rust_formatter.format_tokens(model.body()).unwrap();
+        // fs::write(out_file.with_extension("rs"), code_str).unwrap();
+
+        // // export the model state
+        // if development {
+        //     let recorder = PrettyJsonFileRecorder::<FullPrecisionSettings>::new();
+        //     recorder.record(model.graph, out_file).unwrap();
+        // } else {
+        //     let recorder = DefaultFileRecorder::<FullPrecisionSettings>::new();
+        //     recorder.record(model.graph, out_file).unwrap();
+        // }
     }
 }
 
@@ -602,7 +612,10 @@ impl ONNXGraph {
                 NodeType::MatMul => graph.register(matmul_conversion(node)),
                 NodeType::Linear => graph.register(linear_conversion::<PS>(node)),
                 NodeType::BatchNormalization => graph.register(batch_norm_conversion::<PS>(node)),
-                _ => panic!(),
+                NodeType::Relu => graph.register(relu_conversion(node)),
+                NodeType::Flatten => graph.register(flatten_conversion(node)),
+                NodeType::LogSoftmax => graph.register(lof_softmax_conversion(node)),
+                _ => panic!("Unsupported node conversion {}", node.node_type),
             }
         }
 
@@ -611,17 +624,42 @@ impl ONNXGraph {
 }
 
 fn matmul_conversion(node: Node) -> MatmulNode {
-    let lhs = TensorType::new(&node.inputs.get(0).unwrap().name, 4);
-    let rhs = TensorType::new(&node.inputs.get(1).unwrap().name, 4);
-    let output = TensorType::new(&node.outputs.get(0).unwrap().name, 4);
+    println!("Matmul Conversion");
+    let lhs = node.inputs.get(0).unwrap().to_tensor_type();
+    let rhs = node.inputs.get(1).unwrap().to_tensor_type();
+    let output = node.outputs.get(0).unwrap().to_tensor_type();
 
     MatmulNode::new(lhs, rhs, output)
 }
 
+fn relu_conversion(node: Node) -> ReLUNode {
+    let input = node.inputs.get(0).unwrap().to_tensor_type();
+    let output = node.outputs.get(0).unwrap().to_tensor_type();
+
+    ReLUNode::new(input, output)
+}
+
+fn flatten_conversion(node: Node) -> FlattenNode {
+    let input = node.inputs.get(0).unwrap().to_tensor_type();
+    let output = node.outputs.get(0).unwrap().to_tensor_type();
+    let (start_dim, end_dim) = flatten_config(&node);
+
+    FlattenNode::new(input, output, start_dim, end_dim)
+}
+
+fn lof_softmax_conversion(node: Node) -> LogSoftmaxNode {
+    let input = node.inputs.get(0).unwrap().to_tensor_type();
+    let output = node.outputs.get(0).unwrap().to_tensor_type();
+    let dim = log_softmax_config(&node);
+
+    LogSoftmaxNode::new(input, output, dim)
+}
+
 fn linear_conversion<PS: PrecisionSettings>(mut node: Node) -> LinearNode<PS> {
+    println!("Linear Conversion");
     let name = &node.name;
-    let input = TensorType::new(&node.inputs.get(0).unwrap().name, 4);
-    let output = TensorType::new(&node.outputs.get(0).unwrap().name, 4);
+    let input = node.inputs.get(0).unwrap().to_tensor_type();
+    let output = node.outputs.get(0).unwrap().to_tensor_type();
     let config = linear_config(&node);
 
     let bias = node.initializers.len() == 2;
@@ -658,6 +696,13 @@ fn extract_next_data_serialize<E: Element>(node: &mut Node) -> Option<DataSerial
 }
 
 fn batch_norm_conversion<PS: PrecisionSettings>(mut node: Node) -> BatchNormNode<PS> {
+    println!("Batch Norm Conversion");
+    let config = batch_norm_config(&node);
+    let input = node.inputs.get(0).unwrap().to_tensor_type();
+    let output = node.outputs.get(0).unwrap().to_tensor_type();
+    println!("Batch Norm dim {}", input.dim);
+    let dim = input.dim - 2;
+
     let gamma = extract_next_data_serialize::<PS::FloatElem>(&mut node).expect("Gamma is required");
     let beta = extract_next_data_serialize::<PS::FloatElem>(&mut node).expect("Gamma is required");
     let running_mean =
@@ -665,11 +710,7 @@ fn batch_norm_conversion<PS: PrecisionSettings>(mut node: Node) -> BatchNormNode
     let running_var =
         extract_next_data_serialize::<PS::FloatElem>(&mut node).expect("Running var is required");
 
-    let dim = first_input_dim(&node).unwrap() - 2;
     let name = &node.name;
-    let input = TensorType::new(&node.inputs.get(0).unwrap().name, dim + 2);
-    let output = TensorType::new(&node.outputs.get(0).unwrap().name, dim + 2);
-    let config = batch_norm_config(&node);
 
     BatchNormNode::new(
         dim,
@@ -684,31 +725,19 @@ fn batch_norm_conversion<PS: PrecisionSettings>(mut node: Node) -> BatchNormNode
     )
 }
 fn conv2d_conversion<PS: PrecisionSettings>(mut node: Node) -> Conv2dNode<PS> {
-    let name = &node.name;
-    let input = TensorType::new(&node.inputs.get(0).unwrap().name, 4);
-    let output = TensorType::new(&node.outputs.get(0).unwrap().name, 4);
+    println!("Conv2d conversion");
+    let input = node.inputs.get(0).unwrap().to_tensor_type();
+    let output = node.outputs.get(0).unwrap().to_tensor_type();
     let config = conv2d_config(&node);
 
     let bias = node.initializers.len() == 2;
-
-    let weight = node
-        .initializers
-        .remove(0)
-        .arg_type
-        .unwrap()
-        .into_data_serialize::<PS::FloatElem>();
-
+    let weight = extract_next_data_serialize::<PS::FloatElem>(&mut node).unwrap();
     let bias = match bias {
-        true => Some(
-            node.initializers
-                .remove(0)
-                .arg_type
-                .unwrap()
-                .into_data_serialize::<PS::FloatElem>(),
-        ),
+        true => Some(extract_next_data_serialize::<PS::FloatElem>(&mut node)).unwrap(),
         false => None,
     };
 
+    let name = &node.name;
     Conv2dNode::<PS>::new(name, input, output, weight, bias, config)
 }
 

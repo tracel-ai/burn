@@ -4,6 +4,8 @@ use half::f16;
 use std::{collections::HashMap, fmt::Formatter};
 use strum_macros::{Display, EnumString};
 
+use crate::burn::TensorType;
+
 pub type Shape = Vec<usize>;
 
 #[derive(Debug, Clone)]
@@ -57,6 +59,15 @@ impl ArgType {
     pub fn into_data_serialize<E: Element>(self) -> DataSerialize<E> {
         match self {
             ArgType::Tensor(tensor) => tensor.into_data_serialize(),
+        }
+    }
+}
+
+impl Argument {
+    pub fn to_tensor_type(&self) -> TensorType {
+        println!("AAAAAAAAAAAA {:?}", self);
+        match self.arg_type.as_ref().expect("Tensor arg type") {
+            ArgType::Tensor(tensor) => TensorType::new(self.name.clone(), tensor.shape.len()),
         }
     }
 }

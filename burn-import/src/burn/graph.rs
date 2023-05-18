@@ -1,6 +1,8 @@
 use super::{BurnImports, Scope, Type};
 use crate::burn::node::{Node, NodeCodegen};
-use burn::record::{BurnRecord, FileRecorder, PrecisionSettings};
+use burn::record::{
+    BurnRecord, DefaultFileRecorder, FileRecorder, PrecisionSettings, PrettyJsonFileRecorder,
+};
 use proc_macro2::TokenStream;
 use quote::quote;
 use serde::{ser::SerializeMap, Serialize};
@@ -11,9 +13,15 @@ pub struct Graph<PS: PrecisionSettings> {
     scope: Scope,
     imports: BurnImports,
     nodes: Vec<Node<PS>>,
+    default: Option<TokenStream>,
 }
 
-impl<PS: PrecisionSettings> Serialize for Graph<PS> {
+#[derive(new)]
+pub struct GraphState<'a, PS: PrecisionSettings> {
+    nodes: &'a Vec<Node<PS>>,
+}
+
+impl<'a, PS: PrecisionSettings> Serialize for GraphState<'a, PS> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -43,6 +51,7 @@ impl<PS: PrecisionSettings> Graph<PS> {
     /// The node must be registered in the same order they will be executed in the forward pass.
     pub fn register<N: NodeCodegen<PS> + 'static>(&mut self, node: N) {
         self.nodes.push(node.into_node());
+        println!("Registered a node");
     }
 
     fn build_scope(&mut self) {
@@ -78,10 +87,45 @@ impl<PS: PrecisionSettings> Graph<PS> {
             });
     }
 
-    pub fn save_record<FR: FileRecorder>(&self, recorder: FR, file: PathBuf) {
+    pub fn save_record(&mut self, out_file: PathBuf, development: bool, precision_ty_str: &str) {
+        if development {
+            let recorder = PrettyJsonFileRecorder::<PS>::new();
+            self.save(
+                recorder,
+                out_file.clone(),
+                &format!("burn::record::PrettyJsonFileRecorder::<{precision_ty_str}>"),
+            );
+        } else {
+            let recorder = DefaultFileRecorder::<PS>::new();
+            self.save(
+                recorder,
+                out_file.clone(),
+                &format!("burn::record::DefaultFileRecorder::<{precision_ty_str}>"),
+            );
+        }
+    }
+
+    fn save<FR: FileRecorder>(&mut self, recorder: FR, file: PathBuf, recorder_str: &str) {
+        self.imports.register("burn::record::Recorder");
+
+        let state = GraphState::new(&self.nodes);
         recorder
-            .save_item(BurnRecord::new::<FR>(self), file)
+            .save_item(BurnRecord::new::<FR>(state), file.clone())
             .unwrap();
+
+        let recorder_ty = syn::parse_str::<syn::Type>(recorder_str).unwrap();
+        let file = file.to_str();
+
+        self.default = Some(quote! {
+            impl<B: Backend> Default for Model<B> {
+                fn default() -> Self {
+                    let record = #recorder_ty::new()
+                        .load(#file.into())
+                        .expect("Record file to exist.");
+                    Self::new_with(record)
+                }
+            }
+        });
     }
 
     pub fn codegen(mut self) -> TokenStream {
@@ -94,10 +138,14 @@ impl<PS: PrecisionSettings> Graph<PS> {
         let codegen_struct = self.codegen_struct();
         let codegen_init = self.codegen_new_fn();
         let codegen_forward = self.codegen_forward();
+        let codegen_default = self.default;
 
         quote! {
             #codegen_imports
+
             #codegen_struct
+
+            #codegen_default
 
             impl<B: Backend> Model<B> {
                 #codegen_init

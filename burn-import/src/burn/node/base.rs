@@ -1,5 +1,6 @@
 use super::{
-    batch_norm::BatchNormNode, conv2d::Conv2dNode, linear::LinearNode, matmul::MatmulNode,
+    batch_norm::BatchNormNode, conv2d::Conv2dNode, flatten::FlattenNode, linear::LinearNode,
+    log_softmax::LogSoftmaxNode, matmul::MatmulNode, relu::ReLUNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::record::PrecisionSettings;
@@ -29,6 +30,9 @@ pub enum Node<PS: PrecisionSettings> {
     Conv2d(Conv2dNode<PS>),
     Linear(LinearNode<PS>),
     BatchNorm(BatchNormNode<PS>),
+    ReLU(ReLUNode),
+    Flatten(FlattenNode),
+    LogSoftmax(LogSoftmaxNode),
 }
 
 macro_rules! match_all {
@@ -38,6 +42,9 @@ macro_rules! match_all {
             Node::Conv2d(node) => $func(node),
             Node::Linear(node) => $func(node),
             Node::BatchNorm(node) => $func(node),
+            Node::ReLU(node) => $func(node),
+            Node::Flatten(node) => $func(node),
+            Node::LogSoftmax(node) => $func(node),
         }
     }};
 }
