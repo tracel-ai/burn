@@ -30,7 +30,6 @@ impl Scope {
             self.variables
                 .insert(name.clone(), vec![TensorVariable::new(0, node_position)]);
         }
-        println!("registered tensor {name}");
     }
 
     /// We need to know all variables that are going to be used by the program.
@@ -38,7 +37,6 @@ impl Scope {
         if let Some(variables) = self.variables.get_mut(name) {
             for variable in variables.iter_mut().rev() {
                 if node_position >= variable.node_position {
-                    println!("YOYO");
                     variable.references += 1;
                     break;
                 }

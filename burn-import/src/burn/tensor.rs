@@ -17,12 +17,12 @@ pub struct OtherType {
     pub ty: TokenStream,
 }
 
-pub enum Type {
-    Tensor(TensorType),
-    Other(OtherType),
+pub enum Type<'a> {
+    Tensor(&'a TensorType),
+    Other(&'a OtherType),
 }
 
-impl Type {
+impl<'a> Type<'a> {
     pub fn name(&self) -> &Ident {
         match self {
             Type::Tensor(tensor) => &tensor.name,

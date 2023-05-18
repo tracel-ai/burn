@@ -23,14 +23,11 @@ impl Serialize for MatmulNode {
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for MatmulNode {
     fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
+        vec![Type::Tensor(&self.output)]
     }
 
     fn input_types(&self) -> Vec<Type> {
-        vec![
-            Type::Tensor(self.lhs.clone()),
-            Type::Tensor(self.rhs.clone()),
-        ]
+        vec![Type::Tensor(&self.lhs), Type::Tensor(&self.rhs)]
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {

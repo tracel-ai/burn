@@ -72,13 +72,13 @@ impl<PS: PrecisionSettings> Serialize for Conv2dNode<PS> {
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv2dNode<PS> {
     fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
+        vec![Type::Tensor(&self.input)]
     }
     fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
+        vec![Type::Tensor(&self.output)]
     }
     fn field_type(&self) -> Option<Type> {
-        Some(Type::Other(self.field.clone()))
+        Some(Type::Other(&self.field))
     }
 
     fn new_body(&self) -> TokenStream {

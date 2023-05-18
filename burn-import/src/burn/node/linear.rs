@@ -71,14 +71,14 @@ impl<PS: PrecisionSettings> Serialize for LinearNode<PS> {
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode<PS> {
     fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
+        vec![Type::Tensor(&self.input)]
     }
     fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
+        vec![Type::Tensor(&self.output)]
     }
 
     fn field_type(&self) -> Option<Type> {
-        Some(Type::Other(self.field.clone()))
+        Some(Type::Other(&self.field))
     }
 
     fn new_body(&self) -> TokenStream {

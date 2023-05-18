@@ -1,8 +1,5 @@
 use super::{BurnImports, Scope, Type};
-use crate::burn::{
-    node::{Node, NodeCodegen},
-    ToTokens,
-};
+use crate::burn::node::{Node, NodeCodegen};
 use burn::record::{BurnRecord, FileRecorder, PrecisionSettings};
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -26,7 +23,7 @@ impl<PS: PrecisionSettings> Serialize for Graph<PS> {
             .iter()
             .filter_map(|node| {
                 if let Some(ty) = node.field_type() {
-                    Some((node, ty.name()))
+                    Some((node, ty.name().clone()))
                 } else {
                     None
                 }
@@ -51,7 +48,7 @@ impl<PS: PrecisionSettings> Graph<PS> {
     fn build_scope(&mut self) {
         let input = self.nodes.first().unwrap();
         let to_tensor_ident = |ty: Type| match ty {
-            super::Type::Tensor(ty) => Some(ty.name),
+            super::Type::Tensor(ty) => Some(ty.name.clone()),
             _ => None,
         };
         input
@@ -116,7 +113,15 @@ impl<PS: PrecisionSettings> Graph<PS> {
             .iter()
             .map(|node| node.field_type())
             .flatten()
-            .for_each(|field| body.extend(field.ty()));
+            .map(|field| {
+                let name = field.name();
+                let ty = field.ty();
+
+                quote! {
+                    #name: #ty,
+                }
+            })
+            .for_each(|code| body.extend(code));
 
         quote! {
             #[derive(Module, Debug)]
@@ -137,16 +142,8 @@ impl<PS: PrecisionSettings> Graph<PS> {
         let fields = self
             .nodes
             .iter()
-            .map(|node| node.field_type())
-            .flatten()
-            .map(|field| {
-                let name = field.name();
-                let ty = field.ty();
-
-                quote! {
-                    #name: #ty,
-                }
-            })
+            .flat_map(|node| node.field_type())
+            .map(|field| field.name().clone())
             .collect::<Vec<_>>();
 
         quote! {
@@ -170,70 +167,38 @@ impl<PS: PrecisionSettings> Graph<PS> {
             .unwrap()
             .input_types()
             .into_iter()
-            .for_each(|ty| match ty {
-                Type::Tensor(tensor) => {
-                    let name = &tensor.name;
-                    let dim = tensor.dim.to_tokens();
-                    input_def.extend(quote! {
-                            #name: Tensor<B, #dim>,
+            .for_each(|input| {
+                let name = input.name();
+                let ty = input.ty();
 
-                    })
-                }
-                Type::Other(other) => {
-                    let name = &other.name;
-                    let ty = &other.ty;
+                input_def.extend(quote! {
+                    #name: #ty,
 
-                    input_def.extend(quote! {
-                        #name: #ty,
-
-                    })
-                }
+                })
             });
 
         let output_types = self.nodes.last().unwrap().output_types();
 
         let multiple_output = output_types.len() > 1;
 
-        output_types.into_iter().for_each(|ty| match ty {
-            Type::Tensor(tensor) => {
-                let name = &tensor.name;
-                let dim = tensor.dim.to_tokens();
+        output_types.into_iter().for_each(|output| {
+            let name = output.name();
+            let ty = output.ty();
 
-                if multiple_output {
-                    output_type_def.extend(quote! {
-                        Tensor<B, #dim>,
-                    });
-                    output_return_def.extend(quote! {
-                        #name,
-                    });
-                } else {
-                    output_type_def.extend(quote! {
-                        Tensor<B, #dim>
-                    });
-                    output_return_def.extend(quote! {
-                        #name
-                    });
-                }
-            }
-            Type::Other(other) => {
-                let name = &other.name;
-                let ty = other.ty;
-
-                if multiple_output {
-                    output_return_def.extend(quote! {
-                        #ty,
-                    });
-                    output_return_def.extend(quote! {
-                        #name,
-                    });
-                } else {
-                    output_return_def.extend(quote! {
-                        #ty
-                    });
-                    output_return_def.extend(quote! {
-                        #name
-                    });
-                }
+            if multiple_output {
+                output_type_def.extend(quote! {
+                    #ty,
+                });
+                output_return_def.extend(quote! {
+                    #name,
+                });
+            } else {
+                output_type_def.extend(quote! {
+                    #ty
+                });
+                output_return_def.extend(quote! {
+                    #name
+                });
             }
         });
 

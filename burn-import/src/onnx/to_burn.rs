@@ -615,7 +615,7 @@ fn matmul_conversion(node: Node) -> MatmulNode {
 }
 
 fn linear_conversion<PS: PrecisionSettings>(mut node: Node) -> LinearNode<PS> {
-    let name = Ident::new(&node.name, Span::call_site());
+    let name = &node.name;
     let input = TensorType::new(&node.inputs.get(0).unwrap().name, 4);
     let output = TensorType::new(&node.outputs.get(0).unwrap().name, 4);
     let config = linear_config(&node);
@@ -643,7 +643,7 @@ fn linear_conversion<PS: PrecisionSettings>(mut node: Node) -> LinearNode<PS> {
 }
 
 fn conv2d_conversion<PS: PrecisionSettings>(mut node: Node) -> Conv2dNode<PS> {
-    let name = Ident::new(&node.name, Span::call_site());
+    let name = &node.name;
     let input = TensorType::new(&node.inputs.get(0).unwrap().name, 4);
     let output = TensorType::new(&node.outputs.get(0).unwrap().name, 4);
     let config = conv2d_config(&node);
