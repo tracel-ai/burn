@@ -1,5 +1,8 @@
-use super::{BurnImports, Scope};
-use crate::burn::node::{Node, NodeCodegen};
+use super::{BurnImports, Scope, Type};
+use crate::burn::{
+    node::{Node, NodeCodegen},
+    ToTokens,
+};
 use burn::record::{BurnRecord, FileRecorder, PrecisionSettings};
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -47,27 +50,34 @@ impl<PS: PrecisionSettings> Graph<PS> {
 
     fn build_scope(&mut self) {
         let input = self.nodes.first().unwrap();
+        let to_tensor_ident = |ty: Type| match ty {
+            super::Type::Tensor(ty) => Some(ty.name),
+            _ => None,
+        };
         input
-            .input_tensors()
-            .iter()
-            .for_each(|tensor| self.scope.declare_tensor(tensor, 0));
+            .input_types()
+            .into_iter()
+            .flat_map(to_tensor_ident)
+            .for_each(|tensor| self.scope.declare_tensor(&tensor, 0));
 
         self.nodes
             .iter()
             .enumerate()
             .for_each(|(node_position, node)| {
-                node.output_tensors()
-                    .iter()
-                    .for_each(|tensor| self.scope.declare_tensor(tensor, node_position + 1))
+                node.output_types()
+                    .into_iter()
+                    .flat_map(to_tensor_ident)
+                    .for_each(|tensor| self.scope.declare_tensor(&tensor, node_position + 1))
             });
 
         self.nodes
             .iter()
             .enumerate()
             .for_each(|(node_position, node)| {
-                node.input_tensors()
-                    .iter()
-                    .for_each(|tensor| self.scope.register_use_owned_tensor(tensor, node_position))
+                node.input_types()
+                    .into_iter()
+                    .flat_map(to_tensor_ident)
+                    .for_each(|tensor| self.scope.register_use_owned_tensor(&tensor, node_position))
             });
     }
 
@@ -141,9 +151,90 @@ impl<PS: PrecisionSettings> Graph<PS> {
     }
 
     fn codegen_forward(&mut self) -> TokenStream {
-        let inputs = self.nodes.first().unwrap().input_def();
-        let output_type = self.nodes.last().unwrap().output_type();
-        let output_name = self.nodes.last().unwrap().output_name();
+        let mut input_def = quote! {};
+        let mut output_type_def = quote! {};
+        let mut output_return_def = quote! {};
+
+        self.nodes
+            .first()
+            .unwrap()
+            .input_types()
+            .into_iter()
+            .for_each(|ty| match ty {
+                Type::Tensor(tensor) => {
+                    let name = &tensor.name;
+                    let dim = tensor.dim.to_tokens();
+                    input_def.extend(quote! {
+                            #name: Tensor<B, #dim>,
+
+                    })
+                }
+                Type::Other(other) => {
+                    let name = &other.name;
+                    let ty = &other.ty;
+
+                    input_def.extend(quote! {
+                        #name: #ty,
+
+                    })
+                }
+            });
+
+        let output_types = self.nodes.last().unwrap().output_types();
+
+        let multiple_output = output_types.len() > 1;
+
+        output_types.into_iter().for_each(|ty| match ty {
+            Type::Tensor(tensor) => {
+                let name = &tensor.name;
+                let dim = tensor.dim.to_tokens();
+
+                if multiple_output {
+                    output_type_def.extend(quote! {
+                        Tensor<B, #dim>,
+                    });
+                    output_return_def.extend(quote! {
+                        #name,
+                    });
+                } else {
+                    output_type_def.extend(quote! {
+                        Tensor<B, #dim>
+                    });
+                    output_return_def.extend(quote! {
+                        #name
+                    });
+                }
+            }
+            Type::Other(other) => {
+                let name = &other.name;
+                let ty = other.ty;
+
+                if multiple_output {
+                    output_return_def.extend(quote! {
+                        #ty,
+                    });
+                    output_return_def.extend(quote! {
+                        #name,
+                    });
+                } else {
+                    output_return_def.extend(quote! {
+                        #ty
+                    });
+                    output_return_def.extend(quote! {
+                        #name
+                    });
+                }
+            }
+        });
+
+        if multiple_output {
+            output_return_def = quote! {
+                (#output_return_def)
+            };
+            output_type_def = quote! {
+                (#output_type_def)
+            };
+        }
 
         let mut body = quote! {};
         self.nodes
@@ -153,10 +244,10 @@ impl<PS: PrecisionSettings> Graph<PS> {
             .for_each(|code| body.extend(code));
 
         quote! {
-            pub fn forward(&self, #inputs) -> #output_type {
+            pub fn forward(&self, #input_def) -> #output_type_def {
                 #body
 
-                #output_name
+                #output_return_def
             }
         }
     }

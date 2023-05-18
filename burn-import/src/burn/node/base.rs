@@ -1,5 +1,5 @@
 use super::{conv2d::Conv2dNode, linear::LinearNode, matmul::MatmulNode};
-use crate::burn::{BurnImports, Scope};
+use crate::burn::{BurnImports, Scope, TensorType, Type};
 use burn::record::PrecisionSettings;
 use burn_ndarray::NdArrayBackend;
 use proc_macro2::{Ident, TokenStream};
@@ -9,9 +9,8 @@ use serde::Serialize;
 pub type SerializationBackend = NdArrayBackend<f32>;
 
 pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug + Serialize {
-    fn output_type(&self) -> TokenStream;
-    fn output_name(&self) -> Ident;
-    fn input_def(&self) -> TokenStream;
+    fn output_types(&self) -> Vec<Type>;
+    fn input_types(&self) -> Vec<Type>;
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream;
 
     fn field_name(&self) -> Option<Ident> {
@@ -22,12 +21,6 @@ pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug + Serialize {
     }
     fn new_field(&self) -> TokenStream {
         quote! {}
-    }
-    fn input_tensors(&self) -> Vec<Ident> {
-        vec![]
-    }
-    fn output_tensors(&self) -> Vec<Ident> {
-        vec![]
     }
     fn register_imports(&self, _imports: &mut BurnImports) {}
     fn into_node(self) -> Node<PS>;
@@ -60,16 +53,12 @@ impl<PS: PrecisionSettings> Serialize for Node<PS> {
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for Node<PS> {
-    fn output_type(&self) -> TokenStream {
-        match_all!(self, NodeCodegen::<PS>::output_type)
+    fn output_types(&self) -> Vec<Type> {
+        match_all!(self, NodeCodegen::<PS>::output_types)
     }
 
-    fn output_name(&self) -> Ident {
-        match_all!(self, NodeCodegen::<PS>::output_name)
-    }
-
-    fn input_def(&self) -> TokenStream {
-        match_all!(self, NodeCodegen::<PS>::input_def)
+    fn input_types(&self) -> Vec<Type> {
+        match_all!(self, NodeCodegen::<PS>::input_types)
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
@@ -92,14 +81,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Node<PS> {
         match_all!(self, NodeCodegen::<PS>::new_field)
     }
 
-    fn input_tensors(&self) -> Vec<Ident> {
-        match_all!(self, NodeCodegen::<PS>::input_tensors)
-    }
-
-    fn output_tensors(&self) -> Vec<Ident> {
-        match_all!(self, NodeCodegen::<PS>::output_tensors)
-    }
-
     fn register_imports(&self, imports: &mut BurnImports) {
         match_all!(self, |node| NodeCodegen::<PS>::register_imports(
             node, imports
@@ -117,7 +98,7 @@ mod tests {
     use crate::burn::{
         graph::Graph,
         node::{conv2d::Conv2dNode, matmul::MatmulNode, test::assert_tokens},
-        TensorDescription,
+        TensorType,
     };
     use burn::{nn::conv::Conv2dConfig, record::FullPrecisionSettings, tensor::Data};
     use proc_macro2::Span;
@@ -127,14 +108,14 @@ mod tests {
         let mut graph = Graph::<FullPrecisionSettings>::default();
 
         graph.register(MatmulNode::new(
-            TensorDescription::new("tensor1", 4),
-            TensorDescription::new("tensor2", 4),
-            TensorDescription::new("tensor3", 4),
+            TensorType::new("tensor1", 4),
+            TensorType::new("tensor2", 4),
+            TensorType::new("tensor3", 4),
         ));
         graph.register(Conv2dNode::new(
             Ident::new("conv2d", Span::call_site()),
-            TensorDescription::new("tensor3", 4),
-            TensorDescription::new("tensor4", 4),
+            TensorType::new("tensor3", 4),
+            TensorType::new("tensor4", 4),
             Data::from([2.]).serialize(),
             None,
             Conv2dConfig::new([3, 3], [3, 3]),
@@ -184,22 +165,22 @@ mod tests {
         let mut graph = Graph::<FullPrecisionSettings>::default();
 
         graph.register(MatmulNode::new(
-            TensorDescription::new("tensor1", 4),
-            TensorDescription::new("tensor2", 4),
-            TensorDescription::new("tensor3", 4),
+            TensorType::new("tensor1", 4),
+            TensorType::new("tensor2", 4),
+            TensorType::new("tensor3", 4),
         ));
         graph.register(Conv2dNode::new(
             Ident::new("conv2d", Span::call_site()),
-            TensorDescription::new("tensor2", 4),
-            TensorDescription::new("tensor4", 4),
+            TensorType::new("tensor2", 4),
+            TensorType::new("tensor4", 4),
             Data::from([2.]).serialize(),
             None,
             Conv2dConfig::new([3, 3], [3, 3]),
         ));
         graph.register(MatmulNode::new(
-            TensorDescription::new("tensor3", 4),
-            TensorDescription::new("tensor4", 4),
-            TensorDescription::new("output", 4),
+            TensorType::new("tensor3", 4),
+            TensorType::new("tensor4", 4),
+            TensorType::new("output", 4),
         ));
 
         let expected = quote! {

@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen, SerializationBackend};
-use crate::burn::{BurnImports, Scope, TensorDescription, ToTokens};
+use crate::burn::{BurnImports, Scope, TensorType, ToTokens, Type};
 use burn::{
     module::{Module, Param, ParamId},
     nn::conv::{Conv2d, Conv2dConfig},
@@ -14,8 +14,8 @@ use syn::Ident;
 #[derive(Debug, Clone, new)]
 pub struct Conv2dNode<PS: PrecisionSettings> {
     pub name_field: Ident,
-    pub input: TensorDescription,
-    pub output: TensorDescription,
+    pub input: TensorType,
+    pub output: TensorType,
     pub data_weights: DataSerialize<PS::FloatElem>,
     pub data_bias: Option<DataSerialize<PS::FloatElem>>,
     pub config: Conv2dConfig,
@@ -47,25 +47,12 @@ impl<PS: PrecisionSettings> Serialize for Conv2dNode<PS> {
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv2dNode<PS> {
-    fn output_type(&self) -> TokenStream {
-        quote! {
-            Tensor<B, 4>
-        }
+    fn input_types(&self) -> Vec<Type> {
+        vec![Type::Tensor(self.input.clone())]
     }
-
-    fn output_name(&self) -> Ident {
-        self.output.name.clone()
+    fn output_types(&self) -> Vec<Type> {
+        vec![Type::Tensor(self.output.clone())]
     }
-
-    fn input_def(&self) -> TokenStream {
-        let name = &self.input.name;
-        let dim = self.output.dim.to_tokens();
-
-        quote! {
-            #name: Tensor<B, #dim>
-        }
-    }
-
     fn field_name(&self) -> Option<Ident> {
         Some(self.name_field.clone())
     }
@@ -106,13 +93,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv2dNode<PS> {
             let #output = self.#field.forward(#input);
         }
     }
-    fn input_tensors(&self) -> Vec<Ident> {
-        vec![self.input.name.clone()]
-    }
-    fn output_tensors(&self) -> Vec<Ident> {
-        vec![self.output.name.clone()]
-    }
-
     fn register_imports(&self, imports: &mut BurnImports) {
         imports.register("burn::nn::conv::Conv2d");
         imports.register("burn::nn::conv::Conv2dConfig");
@@ -129,7 +109,7 @@ mod tests {
     use crate::burn::{
         graph::Graph,
         node::{conv2d::Conv2dNode, test::assert_tokens},
-        TensorDescription,
+        TensorType,
     };
     use burn::{nn::conv::Conv2dConfig, record::FullPrecisionSettings, tensor::Data};
     use proc_macro2::Span;
@@ -140,8 +120,8 @@ mod tests {
 
         graph.register(Conv2dNode::new(
             Ident::new("conv2d", Span::call_site()),
-            TensorDescription::new("input", 4),
-            TensorDescription::new("output", 4),
+            TensorType::new("input", 4),
+            TensorType::new("output", 4),
             Data::from([2.]).serialize(),
             None,
             Conv2dConfig::new([3, 3], [3, 3]),
@@ -161,7 +141,7 @@ mod tests {
             }
 
             impl<B: Backend> Model <B> {
-                pub fn init_with(record: ModelRecord<B>) -> Self {
+                pub fn new_with(record: ModelRecord<B>) -> Self {
                     let conv2d = Conv2dConfig::new([3, 3], [3, 3])
                         .with_stride([1, 1])
                         .with_dilation([1, 1])

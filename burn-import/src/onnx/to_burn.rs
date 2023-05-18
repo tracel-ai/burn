@@ -20,7 +20,7 @@ use crate::{
     burn::{
         graph::Graph,
         node::{conv2d::Conv2dNode, linear::LinearNode, matmul::MatmulNode},
-        TensorDescription,
+        TensorType,
     },
     onnx::{
         ir::{ArgType, Node, NodeType},
@@ -607,17 +607,17 @@ impl ONNXGraph {
 }
 
 fn matmul_conversion(node: Node) -> MatmulNode {
-    let lhs = TensorDescription::new(&node.inputs.get(0).unwrap().name, 4);
-    let rhs = TensorDescription::new(&node.inputs.get(1).unwrap().name, 4);
-    let output = TensorDescription::new(&node.outputs.get(0).unwrap().name, 4);
+    let lhs = TensorType::new(&node.inputs.get(0).unwrap().name, 4);
+    let rhs = TensorType::new(&node.inputs.get(1).unwrap().name, 4);
+    let output = TensorType::new(&node.outputs.get(0).unwrap().name, 4);
 
     MatmulNode::new(lhs, rhs, output)
 }
 
 fn linear_conversion<PS: PrecisionSettings>(mut node: Node) -> LinearNode<PS> {
     let name = Ident::new(&node.name, Span::call_site());
-    let input = TensorDescription::new(&node.inputs.get(0).unwrap().name, 4);
-    let output = TensorDescription::new(&node.outputs.get(0).unwrap().name, 4);
+    let input = TensorType::new(&node.inputs.get(0).unwrap().name, 4);
+    let output = TensorType::new(&node.outputs.get(0).unwrap().name, 4);
     let config = linear_config(&node);
 
     let bias = node.initializers.len() == 2;
@@ -644,8 +644,8 @@ fn linear_conversion<PS: PrecisionSettings>(mut node: Node) -> LinearNode<PS> {
 
 fn conv2d_conversion<PS: PrecisionSettings>(mut node: Node) -> Conv2dNode<PS> {
     let name = Ident::new(&node.name, Span::call_site());
-    let input = TensorDescription::new(&node.inputs.get(0).unwrap().name, 4);
-    let output = TensorDescription::new(&node.outputs.get(0).unwrap().name, 4);
+    let input = TensorType::new(&node.inputs.get(0).unwrap().name, 4);
+    let output = TensorType::new(&node.outputs.get(0).unwrap().name, 4);
     let config = conv2d_config(&node);
 
     let bias = node.initializers.len() == 2;

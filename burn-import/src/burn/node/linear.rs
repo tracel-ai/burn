@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen, SerializationBackend};
-use crate::burn::{BurnImports, Scope, TensorDescription, ToTokens};
+use crate::burn::{BurnImports, Scope, TensorType, ToTokens, Type};
 use burn::{
     module::{Module, Param, ParamId},
     nn::{Linear, LinearConfig},
@@ -14,8 +14,8 @@ use syn::Ident;
 #[derive(Debug, Clone, new)]
 pub struct LinearNode<PS: PrecisionSettings> {
     pub name_field: Ident,
-    pub input: TensorDescription,
-    pub output: TensorDescription,
+    pub input: TensorType,
+    pub output: TensorType,
     pub data_weights: DataSerialize<PS::FloatElem>,
     pub data_bias: Option<DataSerialize<PS::FloatElem>>,
     pub config: LinearConfig,
@@ -47,25 +47,11 @@ impl<PS: PrecisionSettings> Serialize for LinearNode<PS> {
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode<PS> {
-    fn output_type(&self) -> TokenStream {
-        let dim = self.output.dim.to_tokens();
-
-        quote! {
-            Tensor<B, #dim>
-        }
+    fn input_types(&self) -> Vec<Type> {
+        vec![Type::Tensor(self.input.clone())]
     }
-
-    fn output_name(&self) -> Ident {
-        self.output.name.clone()
-    }
-
-    fn input_def(&self) -> TokenStream {
-        let name = &self.input.name;
-        let dim = self.output.dim.to_tokens();
-
-        quote! {
-            #name: Tensor<B, #dim>
-        }
+    fn output_types(&self) -> Vec<Type> {
+        vec![Type::Tensor(self.output.clone())]
     }
 
     fn field_name(&self) -> Option<Ident> {
@@ -102,13 +88,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode<PS> {
             let #output = self.#field.forward(#input);
         }
     }
-    fn input_tensors(&self) -> Vec<Ident> {
-        vec![self.input.name.clone()]
-    }
-    fn output_tensors(&self) -> Vec<Ident> {
-        vec![self.output.name.clone()]
-    }
-
     fn register_imports(&self, imports: &mut BurnImports) {
         imports.register("burn::nn::Linear");
         imports.register("burn::nn::LinearConfig");
@@ -122,7 +101,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode<PS> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::burn::{graph::Graph, node::test::assert_tokens, TensorDescription};
+    use crate::burn::{graph::Graph, node::test::assert_tokens, TensorType};
     use burn::{record::FullPrecisionSettings, tensor::Data};
     use proc_macro2::Span;
 
@@ -132,8 +111,8 @@ mod tests {
 
         graph.register(LinearNode::new(
             Ident::new("linear", Span::call_site()),
-            TensorDescription::new("input", 4),
-            TensorDescription::new("output", 4),
+            TensorType::new("input", 4),
+            TensorType::new("output", 4),
             Data::from([2.]).serialize(),
             None,
             LinearConfig::new(128, 128),

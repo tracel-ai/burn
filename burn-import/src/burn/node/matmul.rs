@@ -1,16 +1,15 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{Scope, TensorDescription, ToTokens};
+use crate::burn::{Scope, TensorType, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
 use serde::Serialize;
-use syn::Ident;
 
 #[derive(Debug, Clone, new)]
 pub struct MatmulNode {
-    pub lhs: TensorDescription,
-    pub rhs: TensorDescription,
-    pub output: TensorDescription,
+    pub lhs: TensorType,
+    pub rhs: TensorType,
+    pub output: TensorType,
 }
 
 impl Serialize for MatmulNode {
@@ -23,27 +22,15 @@ impl Serialize for MatmulNode {
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for MatmulNode {
-    fn output_type(&self) -> TokenStream {
-        let dim = self.output.dim.to_tokens();
-
-        quote! {
-            Tensor<B, #dim>
-        }
+    fn output_types(&self) -> Vec<Type> {
+        vec![Type::Tensor(self.output.clone())]
     }
 
-    fn output_name(&self) -> Ident {
-        self.output.name.clone()
-    }
-
-    fn input_def(&self) -> TokenStream {
-        let name_lhs = &self.lhs.name;
-        let name_rhs = &self.rhs.name;
-        let dim_lhs = self.lhs.dim.to_tokens();
-        let dim_rhs = self.rhs.dim.to_tokens();
-
-        quote! {
-            #name_lhs: Tensor<B, #dim_lhs>, #name_rhs: Tensor<B, #dim_rhs>
-        }
+    fn input_types(&self) -> Vec<Type> {
+        vec![
+            Type::Tensor(self.lhs.clone()),
+            Type::Tensor(self.rhs.clone()),
+        ]
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
@@ -54,14 +41,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatmulNode {
         quote! {
             let #output = #lhs.matmul(#rhs);
         }
-    }
-
-    fn input_tensors(&self) -> Vec<Ident> {
-        vec![self.lhs.name.clone(), self.rhs.name.clone()]
-    }
-
-    fn output_tensors(&self) -> Vec<Ident> {
-        vec![self.output.name.clone()]
     }
 
     fn into_node(self) -> Node<PS> {
@@ -77,7 +56,7 @@ mod tests {
     use crate::burn::{
         graph::Graph,
         node::{matmul::MatmulNode, test::assert_tokens},
-        TensorDescription,
+        TensorType,
     };
 
     #[test]
@@ -85,9 +64,9 @@ mod tests {
         let mut graph = Graph::<FullPrecisionSettings>::default();
 
         graph.register(MatmulNode::new(
-            TensorDescription::new("tensor1", 4),
-            TensorDescription::new("tensor2", 4),
-            TensorDescription::new("tensor3", 4),
+            TensorType::new("tensor1", 4),
+            TensorType::new("tensor2", 4),
+            TensorType::new("tensor3", 4),
         ));
 
         let expected = quote! {
