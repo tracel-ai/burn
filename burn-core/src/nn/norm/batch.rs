@@ -7,7 +7,7 @@ use crate::{
 };
 
 /// Configuration to create a [BatchNorm](BatchNorm) layer.
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct BatchNormConfig {
     /// The number of features.
     pub num_features: usize,

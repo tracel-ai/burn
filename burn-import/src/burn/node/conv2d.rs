@@ -1,10 +1,10 @@
 use super::{Node, NodeCodegen, SerializationBackend};
 use crate::burn::{BurnImports, OtherType, Scope, TensorType, ToTokens, Type};
 use burn::{
-    module::{Module, Param, ParamId},
-    nn::conv::{Conv2d, Conv2dConfig},
+    module::{ConstantRecord, Param, ParamId},
+    nn::conv::{Conv2dConfig, Conv2dRecord},
     record::{PrecisionSettings, Record},
-    tensor::{Data, DataSerialize, Tensor},
+    tensor::{DataSerialize, Tensor},
 };
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -50,20 +50,21 @@ impl<PS: PrecisionSettings> Serialize for Conv2dNode<PS> {
     where
         S: serde::Serializer,
     {
-        let module: Conv2d<SerializationBackend> = self.config.init();
-        let mut record = module.into_record();
-
-        record.weight = Param::new(
-            ParamId::new(),
-            Tensor::from_data(Data::from(self.data_weights.clone().convert())),
-        );
-
-        if let Some(bias) = &self.data_bias {
-            record.bias = Some(Param::new(
+        let record = Conv2dRecord::<SerializationBackend> {
+            weight: Param::new(
                 ParamId::new(),
-                Tensor::from_data(Data::from(bias.clone().convert())),
-            ));
-        }
+                Tensor::from_data(self.data_weights.clone().convert()),
+            ),
+            bias: self
+                .data_bias
+                .as_ref()
+                .map(|bias| Param::new(ParamId::new(), Tensor::from_data(bias.clone().convert()))),
+            stride: [ConstantRecord::new(); 2],
+            kernel_size: [ConstantRecord::new(); 2],
+            dilation: [ConstantRecord::new(); 2],
+            groups: ConstantRecord::new(),
+            padding: ConstantRecord::new(),
+        };
 
         let item = Record::into_item::<PS>(record);
         item.serialize(serializer)
@@ -81,7 +82,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv2dNode<PS> {
         Some(Type::Other(&self.field))
     }
 
-    fn new_body(&self) -> TokenStream {
+    fn field_init(&self) -> Option<TokenStream> {
         let name = &self.field.name;
         let channels = self.config.channels.to_tokens();
         let kernel_size = self.config.kernel_size.to_tokens();
@@ -90,14 +91,16 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv2dNode<PS> {
         let groups = self.config.groups.to_tokens();
         let bias = self.config.bias;
 
-        quote! {
+        let tokens = quote! {
             let #name = Conv2dConfig::new(#channels, #kernel_size)
                 .with_stride(#stride)
                 .with_dilation(#dilation)
                 .with_groups(#groups)
                 .with_bias(#bias)
                 .init_with(record.#name);
-        }
+        };
+
+        Some(tokens)
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {

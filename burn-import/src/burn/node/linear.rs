@@ -1,10 +1,10 @@
 use super::{Node, NodeCodegen, SerializationBackend};
 use crate::burn::{BurnImports, OtherType, Scope, TensorType, ToTokens, Type};
 use burn::{
-    module::{Module, Param, ParamId},
-    nn::{Linear, LinearConfig},
+    module::{Param, ParamId},
+    nn::{LinearConfig, LinearRecord},
     record::{PrecisionSettings, Record},
-    tensor::{Data, DataSerialize, Tensor},
+    tensor::{DataSerialize, Tensor},
 };
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -49,20 +49,16 @@ impl<PS: PrecisionSettings> Serialize for LinearNode<PS> {
     where
         S: serde::Serializer,
     {
-        let module: Linear<SerializationBackend> = self.config.init();
-        let mut record = module.into_record();
-
-        record.weight = Param::new(
-            ParamId::new(),
-            Tensor::from_data(Data::from(self.data_weights.clone().convert())),
-        );
-
-        if let Some(bias) = &self.data_bias {
-            record.bias = Some(Param::new(
+        let record = LinearRecord::<SerializationBackend> {
+            weight: Param::new(
                 ParamId::new(),
-                Tensor::from_data(Data::from(bias.clone().convert())),
-            ));
-        }
+                Tensor::from_data(self.data_weights.clone().convert()),
+            ),
+            bias: self
+                .data_bias
+                .as_ref()
+                .map(|bias| Param::new(ParamId::new(), Tensor::from_data(bias.clone().convert()))),
+        };
 
         let item = Record::into_item::<PS>(record);
         item.serialize(serializer)
@@ -81,17 +77,19 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode<PS> {
         Some(Type::Other(&self.field))
     }
 
-    fn new_body(&self) -> TokenStream {
+    fn field_init(&self) -> Option<TokenStream> {
         let name = &self.field.name;
         let d_input = self.config.d_input.to_tokens();
         let d_output = self.config.d_output.to_tokens();
         let bias = self.config.bias;
 
-        quote! {
+        let tokens = quote! {
             let #name = LinearConfig::new(#d_input, #d_output)
                 .with_bias(#bias)
                 .init_with(record.#name);
-        }
+        };
+
+        Some(tokens)
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {

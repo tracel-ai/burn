@@ -1,26 +1,26 @@
-use super::{conv2d::Conv2dNode, linear::LinearNode, matmul::MatmulNode};
+use super::{
+    batch_norm::BatchNormNode, conv2d::Conv2dNode, linear::LinearNode, matmul::MatmulNode,
+};
 use crate::burn::{BurnImports, Scope, Type};
 use burn::record::PrecisionSettings;
 use burn_ndarray::NdArrayBackend;
 use proc_macro2::TokenStream;
-use quote::quote;
 use serde::Serialize;
 
 pub type SerializationBackend = NdArrayBackend<f32>;
 
 pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug + Serialize {
-    fn output_types(&self) -> Vec<Type>;
     fn input_types(&self) -> Vec<Type>;
+    fn output_types(&self) -> Vec<Type>;
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream;
     fn into_node(self) -> Node<PS>;
-
+    fn register_imports(&self, _imports: &mut BurnImports) {}
     fn field_type(&self) -> Option<Type> {
         None
     }
-    fn new_body(&self) -> TokenStream {
-        quote! {}
+    fn field_init(&self) -> Option<TokenStream> {
+        None
     }
-    fn register_imports(&self, _imports: &mut BurnImports) {}
 }
 
 #[derive(Debug)]
@@ -28,6 +28,7 @@ pub enum Node<PS: PrecisionSettings> {
     Matmul(MatmulNode),
     Conv2d(Conv2dNode<PS>),
     Linear(LinearNode<PS>),
+    BatchNorm(BatchNormNode<PS>),
 }
 
 macro_rules! match_all {
@@ -36,6 +37,7 @@ macro_rules! match_all {
             Node::Matmul(node) => $func(node),
             Node::Conv2d(node) => $func(node),
             Node::Linear(node) => $func(node),
+            Node::BatchNorm(node) => $func(node),
         }
     }};
 }
@@ -70,8 +72,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Node<PS> {
         match_all!(self, NodeCodegen::<PS>::field_type)
     }
 
-    fn new_body(&self) -> TokenStream {
-        match_all!(self, NodeCodegen::<PS>::new_body)
+    fn field_init(&self) -> Option<TokenStream> {
+        match_all!(self, NodeCodegen::<PS>::field_init)
     }
 
     fn register_imports(&self, imports: &mut BurnImports) {
@@ -87,13 +89,13 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Node<PS> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::burn::{
         graph::Graph,
         node::{conv2d::Conv2dNode, matmul::MatmulNode, test::assert_tokens},
         TensorType,
     };
     use burn::{nn::conv::Conv2dConfig, record::FullPrecisionSettings, tensor::Data};
+    use quote::quote;
 
     #[test]
     fn test_codegen_two_nodes() {

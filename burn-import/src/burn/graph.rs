@@ -136,7 +136,7 @@ impl<PS: PrecisionSettings> Graph<PS> {
 
         self.nodes
             .iter()
-            .map(|node| node.new_body())
+            .map(|node| node.field_init())
             .for_each(|code| body.extend(code));
 
         let fields = self
