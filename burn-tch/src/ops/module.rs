@@ -106,6 +106,23 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
         TchTensor::new(tensor)
     }
 
+    fn avg_pool1d(
+        x: TchTensor<E, 3>,
+        kernel_size: usize,
+        stride: usize,
+        padding: usize,
+    ) -> TchTensor<E, 3> {
+        let tensor = tch::Tensor::avg_pool1d(
+            &x.tensor,
+            [kernel_size as i64],
+            [stride as i64],
+            [padding as i64],
+            false,
+            true,
+        );
+
+        TchTensor::new(tensor)
+    }
     fn avg_pool2d(
         x: TchTensor<E, 4>,
         kernel_size: [usize; 2],

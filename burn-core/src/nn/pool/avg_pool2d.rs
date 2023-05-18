@@ -7,7 +7,7 @@ use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 use burn_tensor::module::avg_pool2d;
 
-/// Configuration to create an [2D avg pooling](AvgPool2d) layer.
+/// Configuration to create a [2D avg pooling](AvgPool2d) layer.
 #[derive(Config)]
 pub struct AvgPool2dConfig {
     /// The number of channels.

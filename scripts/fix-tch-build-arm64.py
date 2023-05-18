@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+# TODO - Remove this script once burn 0.8.0 is released
+
 """
 This is a helper script to fix burn-tch build issues on Mac M1/M2 machines.
 

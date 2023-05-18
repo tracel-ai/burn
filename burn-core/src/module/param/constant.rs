@@ -1,9 +1,45 @@
-use crate as burn;
+use crate::{self as burn, record::Record};
+use burn::record::PrecisionSettings;
+
+/// Record used for constant type implementing the [module](crate::module::Module) trait.
+#[derive(Debug, Clone, new)]
+pub struct ConstantRecord;
+
+impl serde::Serialize for ConstantRecord {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        // nothing to serialize
+        S::serialize_none(serializer)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for ConstantRecord {
+    fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Ok(ConstantRecord::new())
+    }
+}
+
+impl Record for ConstantRecord {
+    type Item<S: PrecisionSettings> = ConstantRecord;
+
+    fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
+        self
+    }
+
+    fn from_item<S: PrecisionSettings>(item: Self::Item<S>) -> Self {
+        item
+    }
+}
 
 #[macro_export]
 macro_rules! constant {
     (module) => {
-        type Record = ();
+        type Record = burn::module::ConstantRecord;
 
         fn visit<V: burn::module::ModuleVisitor<B>>(&self, _visitor: &mut V) {
             // Nothing to do
@@ -17,7 +53,9 @@ macro_rules! constant {
             self
         }
 
-        fn into_record(self) -> Self::Record {}
+        fn into_record(self) -> Self::Record {
+            burn::module::ConstantRecord::new()
+        }
     };
 
     (ad_module, $type:ty) => {

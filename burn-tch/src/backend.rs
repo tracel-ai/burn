@@ -9,7 +9,7 @@ use burn_tensor::backend::Backend;
 ///
 /// # Example
 ///
-/// ```rust
+/// ```no_run
 /// use burn_tch::TchDevice;
 ///
 /// let device_gpu_1 = TchDevice::Cuda(0); // First GPU
