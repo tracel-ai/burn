@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen, SerializationBackend};
-use crate::burn::{BurnImports, Scope, TensorType, ToTokens, Type};
+use crate::burn::{BurnImports, OtherType, Scope, TensorType, ToTokens, Type};
 use burn::{
     module::{Module, Param, ParamId},
     nn::{Linear, LinearConfig},
@@ -9,11 +9,10 @@ use burn::{
 use proc_macro2::TokenStream;
 use quote::quote;
 use serde::Serialize;
-use syn::Ident;
 
-#[derive(Debug, Clone, new)]
+#[derive(Debug, Clone)]
 pub struct LinearNode<PS: PrecisionSettings> {
-    pub name_field: Ident,
+    pub field: OtherType,
     pub input: TensorType,
     pub output: TensorType,
     pub data_weights: DataSerialize<PS::FloatElem>,
@@ -21,6 +20,30 @@ pub struct LinearNode<PS: PrecisionSettings> {
     pub config: LinearConfig,
 }
 
+impl<PS: PrecisionSettings> LinearNode<PS> {
+    pub fn new<S: AsRef<str>>(
+        name: S,
+        input: TensorType,
+        output: TensorType,
+        data_weights: DataSerialize<PS::FloatElem>,
+        data_bias: Option<DataSerialize<PS::FloatElem>>,
+        config: LinearConfig,
+    ) -> Self {
+        Self {
+            field: OtherType::new(
+                name,
+                quote! {
+                    Linear<B>
+                },
+            ),
+            input,
+            output,
+            data_weights,
+            data_bias,
+            config,
+        }
+    }
+}
 impl<PS: PrecisionSettings> Serialize for LinearNode<PS> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -54,12 +77,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode<PS> {
         vec![Type::Tensor(self.output.clone())]
     }
 
-    fn field_name(&self) -> Option<Ident> {
-        Some(self.name_field.clone())
+    fn field_type(&self) -> Option<Type> {
+        Some(Type::Other(self.field.clone()))
     }
 
     fn new_body(&self) -> TokenStream {
-        let name = &self.name_field;
+        let name = &self.field.name;
         let d_input = self.config.d_input.to_tokens();
         let d_output = self.config.d_output.to_tokens();
         let bias = self.config.bias;
@@ -71,23 +94,16 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode<PS> {
         }
     }
 
-    fn new_field(&self) -> TokenStream {
-        let name = &self.name_field;
-
-        quote! {
-            #name: Linear<B>,
-        }
-    }
-
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
         let input = scope.use_owned_tensor(&self.input.name, node_position);
         let output = &self.output.name;
-        let field = &self.name_field;
+        let field = &self.field.name;
 
         quote! {
             let #output = self.#field.forward(#input);
         }
     }
+
     fn register_imports(&self, imports: &mut BurnImports) {
         imports.register("burn::nn::Linear");
         imports.register("burn::nn::LinearConfig");
@@ -103,14 +119,13 @@ mod tests {
     use super::*;
     use crate::burn::{graph::Graph, node::test::assert_tokens, TensorType};
     use burn::{record::FullPrecisionSettings, tensor::Data};
-    use proc_macro2::Span;
 
     #[test]
     fn test_codegen() {
         let mut graph = Graph::<FullPrecisionSettings>::default();
 
         graph.register(LinearNode::new(
-            Ident::new("linear", Span::call_site()),
+            "linear",
             TensorType::new("input", 4),
             TensorType::new("output", 4),
             Data::from([2.]).serialize(),

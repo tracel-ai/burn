@@ -1,8 +1,8 @@
 use super::{conv2d::Conv2dNode, linear::LinearNode, matmul::MatmulNode};
-use crate::burn::{BurnImports, Scope, TensorType, Type};
+use crate::burn::{BurnImports, Scope, Type};
 use burn::record::PrecisionSettings;
 use burn_ndarray::NdArrayBackend;
-use proc_macro2::{Ident, TokenStream};
+use proc_macro2::TokenStream;
 use quote::quote;
 use serde::Serialize;
 
@@ -12,18 +12,15 @@ pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug + Serialize {
     fn output_types(&self) -> Vec<Type>;
     fn input_types(&self) -> Vec<Type>;
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream;
+    fn into_node(self) -> Node<PS>;
 
-    fn field_name(&self) -> Option<Ident> {
+    fn field_type(&self) -> Option<Type> {
         None
     }
     fn new_body(&self) -> TokenStream {
         quote! {}
     }
-    fn new_field(&self) -> TokenStream {
-        quote! {}
-    }
     fn register_imports(&self, _imports: &mut BurnImports) {}
-    fn into_node(self) -> Node<PS>;
 }
 
 #[derive(Debug)]
@@ -69,16 +66,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Node<PS> {
         ))
     }
 
-    fn field_name(&self) -> Option<Ident> {
-        match_all!(self, NodeCodegen::<PS>::field_name)
+    fn field_type(&self) -> Option<Type> {
+        match_all!(self, NodeCodegen::<PS>::field_type)
     }
 
     fn new_body(&self) -> TokenStream {
         match_all!(self, NodeCodegen::<PS>::new_body)
-    }
-
-    fn new_field(&self) -> TokenStream {
-        match_all!(self, NodeCodegen::<PS>::new_field)
     }
 
     fn register_imports(&self, imports: &mut BurnImports) {
@@ -101,7 +94,6 @@ mod tests {
         TensorType,
     };
     use burn::{nn::conv::Conv2dConfig, record::FullPrecisionSettings, tensor::Data};
-    use proc_macro2::Span;
 
     #[test]
     fn test_codegen_two_nodes() {
@@ -113,7 +105,7 @@ mod tests {
             TensorType::new("tensor3", 4),
         ));
         graph.register(Conv2dNode::new(
-            Ident::new("conv2d", Span::call_site()),
+            "conv2d",
             TensorType::new("tensor3", 4),
             TensorType::new("tensor4", 4),
             Data::from([2.]).serialize(),
@@ -170,7 +162,7 @@ mod tests {
             TensorType::new("tensor3", 4),
         ));
         graph.register(Conv2dNode::new(
-            Ident::new("conv2d", Span::call_site()),
+            "conv2d",
             TensorType::new("tensor2", 4),
             TensorType::new("tensor4", 4),
             Data::from([2.]).serialize(),

@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen, SerializationBackend};
-use crate::burn::{BurnImports, Scope, TensorType, ToTokens, Type};
+use crate::burn::{BurnImports, OtherType, Scope, TensorType, ToTokens, Type};
 use burn::{
     module::{Module, Param, ParamId},
     nn::conv::{Conv2d, Conv2dConfig},
@@ -9,16 +9,40 @@ use burn::{
 use proc_macro2::TokenStream;
 use quote::quote;
 use serde::Serialize;
-use syn::Ident;
 
-#[derive(Debug, Clone, new)]
+#[derive(Debug, Clone)]
 pub struct Conv2dNode<PS: PrecisionSettings> {
-    pub name_field: Ident,
+    pub field: OtherType,
     pub input: TensorType,
     pub output: TensorType,
     pub data_weights: DataSerialize<PS::FloatElem>,
     pub data_bias: Option<DataSerialize<PS::FloatElem>>,
     pub config: Conv2dConfig,
+}
+
+impl<PS: PrecisionSettings> Conv2dNode<PS> {
+    pub fn new<S: AsRef<str>>(
+        name: S,
+        input: TensorType,
+        output: TensorType,
+        data_weights: DataSerialize<PS::FloatElem>,
+        data_bias: Option<DataSerialize<PS::FloatElem>>,
+        config: Conv2dConfig,
+    ) -> Self {
+        Self {
+            field: OtherType::new(
+                name,
+                quote! {
+                    Conv2d<B>
+                },
+            ),
+            input,
+            output,
+            data_weights,
+            data_bias,
+            config,
+        }
+    }
 }
 
 impl<PS: PrecisionSettings> Serialize for Conv2dNode<PS> {
@@ -53,12 +77,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv2dNode<PS> {
     fn output_types(&self) -> Vec<Type> {
         vec![Type::Tensor(self.output.clone())]
     }
-    fn field_name(&self) -> Option<Ident> {
-        Some(self.name_field.clone())
+    fn field_type(&self) -> Option<Type> {
+        Some(Type::Other(self.field.clone()))
     }
 
     fn new_body(&self) -> TokenStream {
-        let name = &self.name_field;
+        let name = &self.field.name;
         let channels = self.config.channels.to_tokens();
         let kernel_size = self.config.kernel_size.to_tokens();
         let stride = self.config.stride.to_tokens();
@@ -76,18 +100,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv2dNode<PS> {
         }
     }
 
-    fn new_field(&self) -> TokenStream {
-        let name = &self.name_field;
-
-        quote! {
-            #name: Conv2d<B>,
-        }
-    }
-
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
         let input = scope.use_owned_tensor(&self.input.name, node_position);
         let output = &self.output.name;
-        let field = &self.name_field;
+        let field = &self.field.name;
 
         quote! {
             let #output = self.#field.forward(#input);
@@ -112,14 +128,13 @@ mod tests {
         TensorType,
     };
     use burn::{nn::conv::Conv2dConfig, record::FullPrecisionSettings, tensor::Data};
-    use proc_macro2::Span;
 
     #[test]
     fn test_codegen() {
         let mut graph = Graph::<FullPrecisionSettings>::default();
 
         graph.register(Conv2dNode::new(
-            Ident::new("conv2d", Span::call_site()),
+            "conv2d",
             TensorType::new("input", 4),
             TensorType::new("output", 4),
             Data::from([2.]).serialize(),

@@ -25,8 +25,8 @@ impl<PS: PrecisionSettings> Serialize for Graph<PS> {
             .nodes
             .iter()
             .filter_map(|node| {
-                if let Some(name) = node.field_name() {
-                    Some((node, name))
+                if let Some(ty) = node.field_type() {
+                    Some((node, ty.name()))
                 } else {
                     None
                 }
@@ -114,8 +114,9 @@ impl<PS: PrecisionSettings> Graph<PS> {
         let mut body = quote! {};
         self.nodes
             .iter()
-            .map(|node| node.new_field())
-            .for_each(|code| body.extend(code));
+            .map(|node| node.field_type())
+            .flatten()
+            .for_each(|field| body.extend(field.ty()));
 
         quote! {
             #[derive(Module, Debug)]
@@ -136,7 +137,16 @@ impl<PS: PrecisionSettings> Graph<PS> {
         let fields = self
             .nodes
             .iter()
-            .flat_map(|node| node.field_name())
+            .map(|node| node.field_type())
+            .flatten()
+            .map(|field| {
+                let name = field.name();
+                let ty = field.ty();
+
+                quote! {
+                    #name: #ty,
+                }
+            })
             .collect::<Vec<_>>();
 
         quote! {
