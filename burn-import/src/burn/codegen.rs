@@ -20,6 +20,7 @@ impl<const N: usize, T: Copy + ToTokens> ToTokens for [T; N] {
     }
 }
 
+/// Prettier output
 impl ToTokens for usize {
     fn to_tokens(&self) -> TokenStream {
         let value = self.to_string();

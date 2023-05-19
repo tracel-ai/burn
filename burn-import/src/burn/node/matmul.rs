@@ -21,8 +21,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatmulNode {
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let lhs = scope.use_owned_tensor(&self.lhs.name, node_position);
-        let rhs = scope.use_owned_tensor(&self.rhs.name, node_position);
+        let lhs = scope.tensor_use_owned(&self.lhs, node_position);
+        let rhs = scope.tensor_use_owned(&self.rhs, node_position);
         let output = &self.output.name;
 
         quote! {

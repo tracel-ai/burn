@@ -98,7 +98,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode<PS> {
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.use_owned_tensor(&self.input.name, node_position);
+        let input = scope.tensor_use_owned(&self.input, node_position);
         let output = &self.output.name;
         let field = &self.field.name;
 

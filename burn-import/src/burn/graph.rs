@@ -1,5 +1,8 @@
 use super::{BurnImports, Scope, Type};
-use crate::burn::node::{Node, NodeCodegen};
+use crate::burn::{
+    node::{Node, NodeCodegen},
+    TensorType,
+};
 use burn::record::{
     BurnRecord, DefaultFileRecorder, FileRecorder, PrecisionSettings, PrettyJsonFileRecorder,
 };
@@ -8,93 +11,50 @@ use quote::quote;
 use serde::{ser::SerializeMap, Serialize};
 use std::path::PathBuf;
 
+/// Burn graph intermediate representation of modules and tensor operations.
 #[derive(Default, Debug)]
 pub struct BurnGraph<PS: PrecisionSettings> {
+    nodes: Vec<Node<PS>>,
     scope: Scope,
     imports: BurnImports,
-    nodes: Vec<Node<PS>>,
     top_comment: Option<String>,
-    blank_spaces: bool,
     default: Option<TokenStream>,
+    blank_spaces: bool,
     gen_new_fn: bool,
 }
 
-#[derive(new)]
-struct BurnGraphState<'a, PS: PrecisionSettings> {
-    nodes: &'a Vec<Node<PS>>,
-}
-
-impl<'a, PS: PrecisionSettings> Serialize for BurnGraphState<'a, PS> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let nodes_with_names = self
-            .nodes
-            .iter()
-            .filter_map(|node| {
-                if let Some(ty) = node.field_type() {
-                    Some((node, ty.name().clone()))
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
-        let mut map = serializer.serialize_map(Some(nodes_with_names.len()))?;
-
-        for (node, name) in nodes_with_names.iter() {
-            map.serialize_entry(&name.to_string(), &node)?;
-        }
-
-        map.end()
-    }
-}
-
 impl<PS: PrecisionSettings> BurnGraph<PS> {
+    /// Register a new operation node into the graph.
+    ///
+    /// # Notes
+    ///
     /// The node must be registered in the same order they will be executed in the forward pass.
     pub fn register<N: NodeCodegen<PS> + 'static>(&mut self, node: N) {
         self.nodes.push(node.into_node());
         println!("Registered a node");
     }
 
-    fn build_scope(&mut self) {
-        let input = self.nodes.first().unwrap();
-        let to_tensor_ident = |ty: Type| match ty {
-            super::Type::Tensor(ty) => Some(ty.name.clone()),
-            _ => None,
-        };
-        input
-            .input_types()
-            .into_iter()
-            .flat_map(to_tensor_ident)
-            .for_each(|tensor| self.scope.declare_tensor(&tensor, 0));
-
-        self.nodes
-            .iter()
-            .enumerate()
-            .for_each(|(node_position, node)| {
-                node.output_types()
-                    .into_iter()
-                    .flat_map(to_tensor_ident)
-                    .for_each(|tensor| self.scope.declare_tensor(&tensor, node_position + 1))
-            });
-
-        self.nodes
-            .iter()
-            .enumerate()
-            .for_each(|(node_position, node)| {
-                node.input_types()
-                    .into_iter()
-                    .flat_map(to_tensor_ident)
-                    .for_each(|tensor| self.scope.register_use_owned_tensor(&tensor, node_position))
-            });
-    }
-
+    /// Generate a function `Model::new()` without any argument when `gen_new_fn` is `true`.
+    ///
+    /// This is useful if you intend to train the model generated.
     pub fn with_new_fn(mut self, gen_new_fn: bool) -> Self {
         self.gen_new_fn = gen_new_fn;
         self
     }
 
+    /// Save the state of each node in a record file.
+    ///
+    /// The `Default` trait will be implemented for the generated model, which will load the record
+    /// saved at the provided path.
+    ///
+    /// # Notes
+    ///
+    /// The development argument will change the recorder used.
+    /// [pretty json](PrettyJsonFileRecorder) is used when development is true and [default](DefaultFileRecorder) is used otherwise.
+    ///
+    /// The precision type must be passed as `&str` and should be the same type definition as the
+    /// `PS` graph generic argument. [type_name](std::any::type_name) can't be used reliably for
+    /// that purpose.
     pub fn with_record(
         mut self,
         out_file: PathBuf,
@@ -103,14 +63,14 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
     ) -> Self {
         if development {
             let recorder = PrettyJsonFileRecorder::<PS>::new();
-            self.save_record(
+            self.register_record(
                 recorder,
                 out_file.clone(),
                 &format!("burn::record::PrettyJsonFileRecorder::<{precision_ty_str}>"),
             );
         } else {
             let recorder = DefaultFileRecorder::<PS>::new();
-            self.save_record(
+            self.register_record(
                 recorder,
                 out_file.clone(),
                 &format!("burn::record::DefaultFileRecorder::<{precision_ty_str}>"),
@@ -119,39 +79,23 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         self
     }
 
+    /// Add blank spaces in some places
+    ///
+    /// # Notes
+    ///
+    /// It can be problematic when testing.
     pub fn with_blank_space(mut self, blank_spaces: bool) -> Self {
         self.blank_spaces = blank_spaces;
         self
     }
 
+    /// Add a comment at the top of the generated file.
     pub fn with_top_comment(mut self, top_comment: Option<String>) -> Self {
         self.top_comment = top_comment;
         self
     }
 
-    fn save_record<FR: FileRecorder>(&mut self, recorder: FR, file: PathBuf, recorder_str: &str) {
-        self.imports.register("burn::record::Recorder");
-
-        let state = BurnGraphState::new(&self.nodes);
-        recorder
-            .save_item(BurnRecord::new::<FR>(state), file.clone())
-            .unwrap();
-
-        let recorder_ty = syn::parse_str::<syn::Type>(recorder_str).unwrap();
-        let file = file.to_str();
-
-        self.default = Some(quote! {
-            impl<B: Backend> Default for Model<B> {
-                fn default() -> Self {
-                    let record = #recorder_ty::new()
-                        .load(#file.into())
-                        .expect("Record file to exist.");
-                    Self::new_with(record)
-                }
-            }
-        });
-    }
-
+    /// Generate tokens reprensenting the graph with Burn modules and tensor operations.
     pub fn codegen(mut self) -> TokenStream {
         self.build_scope();
         self.nodes
@@ -181,8 +125,8 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         };
         let codegen_default = match self.default {
             Some(default) => quote! {
-            #default
-            #maybe_blank
+                #default
+                #maybe_blank
             },
             None => quote! {},
         };
@@ -213,6 +157,78 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                 #codegen_forward
             }
         }
+    }
+    /// Build the scope state to make sure tensor clones are added where needed.
+    fn build_scope(&mut self) {
+        let input = self.nodes.first().unwrap();
+
+        fn to_tensor<'a>(ty: Type<'a>) -> Option<&'a TensorType> {
+            match ty {
+                Type::Tensor(tensor) => Some(tensor),
+                Type::Other(_) => None,
+            }
+        }
+
+        input
+            .input_types()
+            .into_iter()
+            .flat_map(to_tensor)
+            .for_each(|tensor| self.scope.tensor_register_variable(&tensor, 0));
+
+        self.nodes
+            .iter()
+            .enumerate()
+            .for_each(|(node_position, node)| {
+                node.output_types()
+                    .into_iter()
+                    .flat_map(to_tensor)
+                    .for_each(|tensor| {
+                        self.scope
+                            .tensor_register_variable(&tensor, node_position + 1)
+                    })
+            });
+
+        self.nodes
+            .iter()
+            .enumerate()
+            .for_each(|(node_position, node)| {
+                node.input_types()
+                    .into_iter()
+                    .flat_map(to_tensor)
+                    .for_each(|tensor| {
+                        self.scope
+                            .tensor_register_future_use(&tensor, node_position)
+                    })
+            });
+    }
+
+    fn register_record<FR: FileRecorder>(
+        &mut self,
+        recorder: FR,
+        file: PathBuf,
+        recorder_str: &str,
+    ) {
+        self.imports.register("burn::record::Recorder");
+
+        let state = BurnGraphState::new(&self.nodes);
+        recorder
+            .save_item(BurnRecord::new::<FR>(state), file.clone())
+            .unwrap();
+
+        let recorder_ty = syn::parse_str::<syn::Type>(recorder_str).unwrap();
+        let file = file.to_str();
+
+        // Add default implementation
+        self.default = Some(quote! {
+            impl<B: Backend> Default for Model<B> {
+                fn default() -> Self {
+                    let record = #recorder_ty::new()
+                        .load(#file.into())
+                        .expect("Record file to exist.");
+                    Self::new_with(record)
+                }
+            }
+        });
     }
 
     fn codegen_struct(&self) -> TokenStream {
@@ -358,5 +374,36 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                 #output_return_def
             }
         }
+    }
+}
+
+#[derive(new)]
+struct BurnGraphState<'a, PS: PrecisionSettings> {
+    nodes: &'a Vec<Node<PS>>,
+}
+
+impl<'a, PS: PrecisionSettings> Serialize for BurnGraphState<'a, PS> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let nodes_with_names = self
+            .nodes
+            .iter()
+            .filter_map(|node| {
+                if let Some(ty) = node.field_type() {
+                    Some((node, ty.name().clone()))
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        let mut map = serializer.serialize_map(Some(nodes_with_names.len()))?;
+
+        for (node, name) in nodes_with_names.iter() {
+            map.serialize_entry(&name.to_string(), &node)?;
+        }
+
+        map.end()
     }
 }

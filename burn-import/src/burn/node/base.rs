@@ -46,7 +46,7 @@ pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
     /// Just one field per type is possible, if the node has multiple types for its parameters, a
     /// tuple can be used.
     ///
-    /// Other field functions should be implemented.
+    /// Other field functions should be implemented when this one returns something other than None.
     ///   * [field_init](NodeCodegen::field_init) to initialize parameters.
     ///   * [field_serialize](NodeCodegen::field_serialize) to create the model record.
     fn field_type(&self) -> Option<Type> {
