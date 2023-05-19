@@ -8,14 +8,9 @@ mod tests {
     use pretty_assertions::assert_eq;
     use rstest::*;
 
-    fn code<P: AsRef<Path>>(onnx_path: P, record_path: P) -> String {
+    fn code<P: AsRef<Path>>(onnx_path: P) -> String {
         let graph = burn_import::onnx::parse_onnx(onnx_path.as_ref());
-        let mut graph = graph.into_burn::<FullPrecisionSettings>();
-        graph.with_record(
-            record_path.as_ref().into(),
-            true,
-            "burn::record::FullPrecisionSettings",
-        );
+        let graph = graph.into_burn::<FullPrecisionSettings>();
 
         burn_import::format_tokens(graph.codegen())
     }
@@ -28,7 +23,8 @@ mod tests {
         let source_file = format!("tests/data/{model_name}/{model_name}.rs");
         let source_expected: String =
             read_to_string(source_file).expect("Expected source file is missing");
-        let code = code(input_file, format!("./{model_name}"));
+        let code = code(input_file);
+
         assert_eq!(source_expected, code);
     }
 }

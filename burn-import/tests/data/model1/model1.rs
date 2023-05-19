@@ -4,7 +4,6 @@ use burn::nn::BatchNorm;
 use burn::nn::BatchNormConfig;
 use burn::nn::Linear;
 use burn::nn::LinearConfig;
-use burn::record::Recorder;
 use burn::{
     module::Module,
     tensor::{backend::Backend, Tensor},
@@ -15,15 +14,6 @@ pub struct Model<B: Backend> {
     batchnormalization1: BatchNorm<B, 2>,
     linear1: Linear<B>,
     batchnormalization2: BatchNorm<B, 1>,
-}
-impl<B: Backend> Default for Model<B> {
-    fn default() -> Self {
-        let record =
-            burn::record::PrettyJsonFileRecorder::<burn::record::FullPrecisionSettings>::new()
-                .load("./model1".into())
-                .expect("Record file to exist.");
-        Self::new_with(record)
-    }
 }
 impl<B: Backend> Model<B> {
     pub fn new_with(record: ModelRecord<B>) -> Self {
