@@ -77,16 +77,25 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode<PS> {
         Some(Type::Other(&self.field))
     }
 
-    fn field_init(&self) -> Option<TokenStream> {
+    fn field_init(&self, with_record: bool) -> Option<TokenStream> {
         let name = &self.field.name;
         let d_input = self.config.d_input.to_tokens();
         let d_output = self.config.d_output.to_tokens();
         let bias = self.config.bias;
 
+        let init_line = match with_record {
+            true => quote! {
+                init_with(record.#name);
+            },
+            false => quote! {
+                init();
+            },
+        };
+
         let tokens = quote! {
             let #name = LinearConfig::new(#d_input, #d_output)
                 .with_bias(#bias)
-                .init_with(record.#name);
+                .#init_line
         };
 
         Some(tokens)

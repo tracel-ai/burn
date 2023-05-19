@@ -19,7 +19,7 @@ pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug + Serialize {
     fn field_type(&self) -> Option<Type> {
         None
     }
-    fn field_init(&self) -> Option<TokenStream> {
+    fn field_init(&self, _with_record: bool) -> Option<TokenStream> {
         None
     }
 }
@@ -79,8 +79,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Node<PS> {
         match_all!(self, NodeCodegen::<PS>::field_type)
     }
 
-    fn field_init(&self) -> Option<TokenStream> {
-        match_all!(self, NodeCodegen::<PS>::field_init)
+    fn field_init(&self, with_record: bool) -> Option<TokenStream> {
+        match_all!(self, |node| NodeCodegen::<PS>::field_init(
+            node,
+            with_record
+        ))
     }
 
     fn register_imports(&self, imports: &mut BurnImports) {

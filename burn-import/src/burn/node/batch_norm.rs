@@ -124,17 +124,26 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BatchNormNode<PS> {
         Some(Type::Other(&self.field))
     }
 
-    fn field_init(&self) -> Option<TokenStream> {
+    fn field_init(&self, with_record: bool) -> Option<TokenStream> {
         let name = &self.field.name;
         let num_features = self.config.num_features.to_tokens();
         let epsilon = self.config.epsilon;
         let momentum = self.config.momentum;
 
+        let init_line = match with_record {
+            true => quote! {
+                init_with(record.#name);
+            },
+            false => quote! {
+                init();
+            },
+        };
+
         let tokens = quote! {
             let #name = BatchNormConfig::new(#num_features)
                 .with_epsilon(#epsilon)
                 .with_momentum(#momentum)
-                .init_with(record.#name);
+                .#init_line
         };
 
         Some(tokens)

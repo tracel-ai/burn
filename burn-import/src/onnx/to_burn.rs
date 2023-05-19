@@ -115,11 +115,18 @@ impl ModelGen {
             fs::write(out_file.with_extension("graph.txt"), debug_graph).unwrap();
         }
 
-        let graph = graph.into_burn::<FullPrecisionSettings>().with_record(
-            out_file.clone(),
-            development,
-            "burn::record::FullPrecisionSettings",
-        );
+        let graph = graph
+            .into_burn::<FullPrecisionSettings>()
+            .with_record(
+                out_file.clone(),
+                development,
+                "burn::record::FullPrecisionSettings",
+            )
+            .with_new_fn(true)
+            .with_blank_space(true)
+            .with_top_comment(Some(format!(
+                "Generated from ONNX {input:?} by burn-import"
+            )));
 
         let code_str = format_tokens(graph.codegen());
         fs::write(out_file.with_extension("rs"), code_str).unwrap();

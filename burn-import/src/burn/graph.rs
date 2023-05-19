@@ -16,6 +16,7 @@ pub struct BurnGraph<PS: PrecisionSettings> {
     top_comment: Option<String>,
     blank_spaces: bool,
     default: Option<TokenStream>,
+    gen_new_fn: bool,
 }
 
 #[derive(new)]
@@ -89,6 +90,11 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             });
     }
 
+    pub fn with_new_fn(mut self, gen_new_fn: bool) -> Self {
+        self.gen_new_fn = gen_new_fn;
+        self
+    }
+
     pub fn with_record(
         mut self,
         out_file: PathBuf,
@@ -154,13 +160,23 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
 
         let codegen_imports = self.imports.codegen();
         let codegen_struct = self.codegen_struct();
-        let codegen_init = self.codegen_new_fn();
+        let codegen_new_record = self.codegen_new_record();
         let codegen_forward = self.codegen_forward();
 
         let maybe_blank = match self.blank_spaces {
             true => quote! {
                 _blank_!();
             },
+            false => quote! {},
+        };
+        let codegen_new = match self.gen_new_fn {
+            true => {
+                let new_fn = self.codegen_new();
+                quote! {
+                    #new_fn
+                    #maybe_blank
+                }
+            }
             false => quote! {},
         };
         let codegen_default = match self.default {
@@ -170,6 +186,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             },
             None => quote! {},
         };
+
         let maybe_top_file_comment = match self.top_comment {
             Some(comment) => quote! {
                 _comment_!(#comment);
@@ -189,8 +206,10 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             #codegen_default
 
             impl<B: Backend> Model<B> {
-                #codegen_init
+                #codegen_new_record
                 #maybe_blank
+
+                #codegen_new
                 #codegen_forward
             }
         }
@@ -220,12 +239,37 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         }
     }
 
-    fn codegen_new_fn(&self) -> TokenStream {
+    fn codegen_new(&self) -> TokenStream {
         let mut body = quote! {};
 
         self.nodes
             .iter()
-            .map(|node| node.field_init())
+            .map(|node| node.field_init(false))
+            .for_each(|code| body.extend(code));
+
+        let fields = self
+            .nodes
+            .iter()
+            .flat_map(|node| node.field_type())
+            .map(|field| field.name().clone())
+            .collect::<Vec<_>>();
+
+        quote! {
+            pub fn new() -> Self {
+                #body
+
+                Self {
+                    #(#fields,)*
+                }
+            }
+        }
+    }
+    fn codegen_new_record(&self) -> TokenStream {
+        let mut body = quote! {};
+
+        self.nodes
+            .iter()
+            .map(|node| node.field_init(true))
             .for_each(|code| body.extend(code));
 
         let fields = self
