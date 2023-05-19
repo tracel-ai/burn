@@ -3,7 +3,6 @@ use crate::burn::{Scope, TensorType, ToTokens, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
-use serde::Serialize;
 
 #[derive(Debug, Clone, new)]
 pub struct FlattenNode {
@@ -11,15 +10,6 @@ pub struct FlattenNode {
     pub output: TensorType,
     pub start_dim: usize,
     pub end_dim: usize,
-}
-
-impl Serialize for FlattenNode {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_none()
-    }
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for FlattenNode {

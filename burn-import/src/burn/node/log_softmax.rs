@@ -3,22 +3,12 @@ use crate::burn::{Scope, TensorType, ToTokens, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
-use serde::Serialize;
 
 #[derive(Debug, Clone, new)]
 pub struct LogSoftmaxNode {
     pub input: TensorType,
     pub output: TensorType,
     pub dim: usize,
-}
-
-impl Serialize for LogSoftmaxNode {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_none()
-    }
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for LogSoftmaxNode {

@@ -104,15 +104,6 @@ macro_rules! batch_norm_serialize {
     }};
 }
 
-impl<PS: PrecisionSettings> Serialize for BatchNormNode<PS> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        batch_norm_serialize!(self, serializer)
-    }
-}
-
 impl<PS: PrecisionSettings> NodeCodegen<PS> for BatchNormNode<PS> {
     fn input_types(&self) -> Vec<Type> {
         vec![Type::Tensor(&self.input)]
@@ -147,6 +138,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BatchNormNode<PS> {
         };
 
         Some(tokens)
+    }
+
+    fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        batch_norm_serialize!(self, serializer)
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {

@@ -8,19 +8,63 @@ use burn_ndarray::NdArrayBackend;
 use proc_macro2::TokenStream;
 use serde::Serialize;
 
+/// Backend used for serialization.
 pub type SerializationBackend = NdArrayBackend<f32>;
 
-pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug + Serialize {
+/// Codegen trait that should be implemented by all [node](Node) entries.
+pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
+    /// All types that are used as inputs during the forward pass.
+    ///
+    /// # Notes
+    /// The vec should not include types that are accessible with `self`.
+    /// See [field type](NodeCodegen::field_type).
     fn input_types(&self) -> Vec<Type>;
+
+    /// All types that are produced during the forward pass.
     fn output_types(&self) -> Vec<Type>;
+
+    /// The forward pass implementation of the node.
+    ///
+    /// # Notes
+    ///
+    /// The [Scope](Scope) struct should be used for [input tensor type](Type::Tensor) access.
+    /// The method [use_owned_tensor](Scope::use_owned_tensor) keeps track of tensor reference
+    /// count and insert `clone` with necessary.
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream;
+
+    /// Convert the node implementation into a [node entry](Node).
     fn into_node(self) -> Node<PS>;
+
+    /// Register the necessary imports.
     fn register_imports(&self, _imports: &mut BurnImports) {}
+
+    /// (Optional) Declare the type of the field
+    ///
+    /// # Notes
+    ///
+    /// This should be implemented when the node has some parameters.
+    /// Just one field per type is possible, if the node has multiple types for its parameters, a
+    /// tuple can be used.
+    ///
+    /// Other field functions should be implemented.
+    ///   * [field_init](NodeCodegen::field_init) to initialize parameters.
+    ///   * [field_serialize](NodeCodegen::field_serialize) to create the model record.
     fn field_type(&self) -> Option<Type> {
         None
     }
+
+    /// (Optional) Declare how the parameters are initialized with and without a record.
+    ///
+    /// The function should be implemented along [field_type](NodeCodegen::field_type).
     fn field_init(&self, _with_record: bool) -> Option<TokenStream> {
         None
+    }
+
+    /// (Optional) Declare how the parameters are serialized in a record.
+    ///
+    /// The function should be implemented along [field_type](NodeCodegen::field_type).
+    fn field_serialize<S: serde::Serializer>(&self, _serializer: S) -> Result<S::Ok, S::Error> {
+        panic!("Serialization should be implemented when field_type is not None.");
     }
 }
 
@@ -54,7 +98,7 @@ impl<PS: PrecisionSettings> Serialize for Node<PS> {
     where
         S: serde::Serializer,
     {
-        match_all!(self, |node| Serialize::serialize::<S>(node, serializer))
+        self.field_serialize(serializer)
     }
 }
 
@@ -94,6 +138,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Node<PS> {
 
     fn into_node(self) -> Node<PS> {
         self
+    }
+
+    fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match_all!(self, |node| NodeCodegen::<PS>::field_serialize(
+            node, serializer
+        ))
     }
 }
 

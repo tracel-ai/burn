@@ -44,26 +44,6 @@ impl<PS: PrecisionSettings> LinearNode<PS> {
         }
     }
 }
-impl<PS: PrecisionSettings> Serialize for LinearNode<PS> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let record = LinearRecord::<SerializationBackend> {
-            weight: Param::new(
-                ParamId::new(),
-                Tensor::from_data(self.data_weights.clone().convert()),
-            ),
-            bias: self
-                .data_bias
-                .as_ref()
-                .map(|bias| Param::new(ParamId::new(), Tensor::from_data(bias.clone().convert()))),
-        };
-
-        let item = Record::into_item::<PS>(record);
-        item.serialize(serializer)
-    }
-}
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode<PS> {
     fn input_types(&self) -> Vec<Type> {
@@ -99,6 +79,22 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode<PS> {
         };
 
         Some(tokens)
+    }
+
+    fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let record = LinearRecord::<SerializationBackend> {
+            weight: Param::new(
+                ParamId::new(),
+                Tensor::from_data(self.data_weights.clone().convert()),
+            ),
+            bias: self
+                .data_bias
+                .as_ref()
+                .map(|bias| Param::new(ParamId::new(), Tensor::from_data(bias.clone().convert()))),
+        };
+
+        let item = Record::into_item::<PS>(record);
+        item.serialize(serializer)
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {

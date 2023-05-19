@@ -45,32 +45,6 @@ impl<PS: PrecisionSettings> Conv2dNode<PS> {
     }
 }
 
-impl<PS: PrecisionSettings> Serialize for Conv2dNode<PS> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let record = Conv2dRecord::<SerializationBackend> {
-            weight: Param::new(
-                ParamId::new(),
-                Tensor::from_data(self.data_weights.clone().convert()),
-            ),
-            bias: self
-                .data_bias
-                .as_ref()
-                .map(|bias| Param::new(ParamId::new(), Tensor::from_data(bias.clone().convert()))),
-            stride: [ConstantRecord::new(); 2],
-            kernel_size: [ConstantRecord::new(); 2],
-            dilation: [ConstantRecord::new(); 2],
-            groups: ConstantRecord::new(),
-            padding: ConstantRecord::new(),
-        };
-
-        let item = Record::into_item::<PS>(record);
-        item.serialize(serializer)
-    }
-}
-
 impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv2dNode<PS> {
     fn input_types(&self) -> Vec<Type> {
         vec![Type::Tensor(&self.input)]
@@ -110,6 +84,27 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv2dNode<PS> {
         };
 
         Some(tokens)
+    }
+
+    fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let record = Conv2dRecord::<SerializationBackend> {
+            weight: Param::new(
+                ParamId::new(),
+                Tensor::from_data(self.data_weights.clone().convert()),
+            ),
+            bias: self
+                .data_bias
+                .as_ref()
+                .map(|bias| Param::new(ParamId::new(), Tensor::from_data(bias.clone().convert()))),
+            stride: [ConstantRecord::new(); 2],
+            kernel_size: [ConstantRecord::new(); 2],
+            dilation: [ConstantRecord::new(); 2],
+            groups: ConstantRecord::new(),
+            padding: ConstantRecord::new(),
+        };
+
+        let item = Record::into_item::<PS>(record);
+        item.serialize(serializer)
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
