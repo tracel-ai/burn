@@ -16,7 +16,7 @@ pub struct Model<B: Backend> {
     conv2d1: Conv2d<B>,
     batchnormalization1: BatchNorm<B, 2>,
     linear1: Linear<B>,
-    batchnormalization2: BatchNorm<B, 1>,
+    batchnormalization2: BatchNorm<B, 0>,
 }
 
 impl<B: Backend> Model<B> {
