@@ -9,10 +9,10 @@ impl<const N: usize, T: Copy + ToTokens> ToTokens for [T; N] {
     fn to_tokens(&self) -> TokenStream {
         let mut body = quote! {};
 
-        for i in 0..N {
-            let elem = self[i].to_tokens();
+        self.iter().for_each(|item| {
+            let elem = item.to_tokens();
             body.extend(quote! {#elem,});
-        }
+        });
 
         quote! {
             [#body]

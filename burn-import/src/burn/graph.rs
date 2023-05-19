@@ -65,14 +65,14 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             let recorder = PrettyJsonFileRecorder::<PS>::new();
             self.register_record(
                 recorder,
-                out_file.clone(),
+                out_file,
                 &format!("burn::record::PrettyJsonFileRecorder::<{precision_ty_str}>"),
             );
         } else {
             let recorder = DefaultFileRecorder::<PS>::new();
             self.register_record(
                 recorder,
-                out_file.clone(),
+                out_file,
                 &format!("burn::record::DefaultFileRecorder::<{precision_ty_str}>"),
             );
         }
@@ -162,7 +162,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
     fn build_scope(&mut self) {
         let input = self.nodes.first().unwrap();
 
-        fn to_tensor<'a>(ty: Type<'a>) -> Option<&'a TensorType> {
+        fn to_tensor(ty: Type<'_>) -> Option<&TensorType> {
             match ty {
                 Type::Tensor(tensor) => Some(tensor),
                 Type::Other(_) => None,
@@ -173,7 +173,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             .input_types()
             .into_iter()
             .flat_map(to_tensor)
-            .for_each(|tensor| self.scope.tensor_register_variable(&tensor, 0));
+            .for_each(|tensor| self.scope.tensor_register_variable(tensor, 0));
 
         self.nodes
             .iter()
@@ -184,7 +184,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                     .flat_map(to_tensor)
                     .for_each(|tensor| {
                         self.scope
-                            .tensor_register_variable(&tensor, node_position + 1)
+                            .tensor_register_variable(tensor, node_position + 1)
                     })
             });
 
@@ -195,10 +195,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                 node.input_types()
                     .into_iter()
                     .flat_map(to_tensor)
-                    .for_each(|tensor| {
-                        self.scope
-                            .tensor_register_future_use(&tensor, node_position)
-                    })
+                    .for_each(|tensor| self.scope.tensor_register_future_use(tensor, node_position))
             });
     }
 
@@ -235,8 +232,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         let mut body = quote! {};
         self.nodes
             .iter()
-            .map(|node| node.field_type())
-            .flatten()
+            .filter_map(|node| node.field_type())
             .map(|field| {
                 let name = field.name();
                 let ty = field.ty();
@@ -390,13 +386,7 @@ impl<'a, PS: PrecisionSettings> Serialize for BurnGraphState<'a, PS> {
         let nodes_with_names = self
             .nodes
             .iter()
-            .filter_map(|node| {
-                if let Some(ty) = node.field_type() {
-                    Some((node, ty.name().clone()))
-                } else {
-                    None
-                }
-            })
+            .filter_map(|node| node.field_type().map(|ty| (node, ty.name().clone())))
             .collect::<Vec<_>>();
         let mut map = serializer.serialize_map(Some(nodes_with_names.len()))?;
 

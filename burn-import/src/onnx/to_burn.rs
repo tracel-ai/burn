@@ -265,7 +265,7 @@ impl ONNXGraph {
 }
 
 fn extract_next_data_serialize<E: Element>(node: &mut Node) -> Option<DataSerialize<E>> {
-    if node.initializers.len() == 0 {
+    if node.initializers.is_empty() {
         return None;
     }
 

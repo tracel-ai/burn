@@ -68,7 +68,7 @@ impl Scope {
                 }
             }
 
-            return if count > 0 {
+            if count > 0 {
                 quote! {
                     #name.clone()
                 }
@@ -76,7 +76,7 @@ impl Scope {
                 quote! {
                     #name
                 }
-            };
+            }
         } else {
             panic!("No variable with name {}", &tensor.name);
         }

@@ -24,6 +24,7 @@ pub struct BatchNormNode<PS: PrecisionSettings> {
 }
 
 impl<PS: PrecisionSettings> BatchNormNode<PS> {
+    #[allow(clippy::too_many_arguments)]
     pub fn new<S: AsRef<str>>(
         dim: usize,
         name: S,
