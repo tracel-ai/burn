@@ -115,8 +115,7 @@ impl ModelGen {
             fs::write(out_file.with_extension("graph.txt"), debug_graph).unwrap();
         }
 
-        let mut graph = graph.into_burn::<FullPrecisionSettings>();
-        graph.with_record(
+        let graph = graph.into_burn::<FullPrecisionSettings>().with_record(
             out_file.clone(),
             development,
             "burn::record::FullPrecisionSettings",

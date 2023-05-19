@@ -13,6 +13,8 @@ pub struct BurnGraph<PS: PrecisionSettings> {
     scope: Scope,
     imports: BurnImports,
     nodes: Vec<Node<PS>>,
+    top_comment: Option<String>,
+    blank_spaces: bool,
     default: Option<TokenStream>,
 }
 
@@ -87,7 +89,12 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             });
     }
 
-    pub fn with_record(&mut self, out_file: PathBuf, development: bool, precision_ty_str: &str) {
+    pub fn with_record(
+        mut self,
+        out_file: PathBuf,
+        development: bool,
+        precision_ty_str: &str,
+    ) -> Self {
         if development {
             let recorder = PrettyJsonFileRecorder::<PS>::new();
             self.save_record(
@@ -103,6 +110,17 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                 &format!("burn::record::DefaultFileRecorder::<{precision_ty_str}>"),
             );
         }
+        self
+    }
+
+    pub fn with_blank_space(mut self, blank_spaces: bool) -> Self {
+        self.blank_spaces = blank_spaces;
+        self
+    }
+
+    pub fn with_top_comment(mut self, top_comment: Option<String>) -> Self {
+        self.top_comment = top_comment;
+        self
     }
 
     fn save_record<FR: FileRecorder>(&mut self, recorder: FR, file: PathBuf, recorder_str: &str) {
@@ -138,18 +156,41 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         let codegen_struct = self.codegen_struct();
         let codegen_init = self.codegen_new_fn();
         let codegen_forward = self.codegen_forward();
-        let codegen_default = self.default;
+
+        let maybe_blank = match self.blank_spaces {
+            true => quote! {
+                _blank_!();
+            },
+            false => quote! {},
+        };
+        let codegen_default = match self.default {
+            Some(default) => quote! {
+            #default
+            #maybe_blank
+            },
+            None => quote! {},
+        };
+        let maybe_top_file_comment = match self.top_comment {
+            Some(comment) => quote! {
+                _comment_!(#comment);
+            },
+            None => quote! {},
+        };
 
         quote! {
+            #maybe_top_file_comment
             #codegen_imports
+            #maybe_blank
+            #maybe_blank
 
             #codegen_struct
+            #maybe_blank
 
             #codegen_default
 
             impl<B: Backend> Model<B> {
                 #codegen_init
-
+                #maybe_blank
                 #codegen_forward
             }
         }
