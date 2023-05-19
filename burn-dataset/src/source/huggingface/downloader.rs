@@ -99,7 +99,7 @@ impl HuggingfaceDatasetLoader {
         split: &str,
     ) -> Result<SqliteDataset<I>, ImporterError> {
         let db_file = self.db_file()?;
-        let dataset = SqliteDataset::new(db_file.as_str(), split);
+        let dataset = SqliteDataset::from_db_file(db_file.as_str(), split);
         Ok(dataset)
     }
 
@@ -205,8 +205,21 @@ fn importer_script_path(base_dir: String) -> String {
 
 fn install_python_deps() -> Result<(), ImporterError> {
     let mut command = Command::new(PYTHON);
-    command.args(["-m", "pip", "--quiet", "install", "datasets"]);
-    command.spawn().map_err(|err| {
+    command.args([
+        "-m",
+        "pip",
+        "--quiet",
+        "install",
+        "pyarrow",
+        "sqlalchemy",
+        "Pillow",
+        "soundfile",
+        "datasets",
+    ]);
+
+    // Spawn the process and wait for it to complete.
+    let mut handle = command.spawn().unwrap();
+    handle.wait().map_err(|err| {
         ImporterError::FailToDownloadPythonDependencies(format!(" error: {}", err))
     })?;
 

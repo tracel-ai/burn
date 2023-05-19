@@ -35,7 +35,7 @@ impl<I> InMemDataset<I>
 where
     I: Clone + DeserializeOwned,
 {
-    /// Create from a dataset.
+    /// Create from a dataset. All items are loaded in memory.
     pub fn from_dataset(dataset: &impl Dataset<I>) -> Self {
         let items: Vec<I> = dataset.iter().collect();
         Self::new(items)
@@ -44,7 +44,6 @@ where
     /// Create from a json rows file (one json per line).
     ///
     /// Supported field types: https://docs.rs/serde_json/latest/serde_json/value/enum.Value.html
-    ///
     pub fn from_json_rows<P: AsRef<Path>>(path: P) -> Result<Self, std::io::Error> {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
@@ -67,7 +66,6 @@ where
     /// The supported field types are: String, integer, float, and bool.
     ///
     /// See: https://docs.rs/csv/latest/csv/tutorial/index.html#reading-with-serde
-    ///
     pub fn from_csv<P: AsRef<Path>>(path: P) -> Result<Self, std::io::Error> {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
@@ -120,7 +118,7 @@ mod tests {
 
     #[fixture]
     fn train_dataset() -> SqlDs {
-        SqliteDataset::new(DB_FILE, "train")
+        SqliteDataset::from_db_file(DB_FILE, "train")
     }
 
     #[rstest]

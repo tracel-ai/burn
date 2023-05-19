@@ -97,7 +97,8 @@ def rename_colums(dataset):
 
 def blob_columns(dataset):
     """
-    Make sure all binary columns are blob columns in the database
+    Make sure all binary columns are blob columns in the database because
+    `to_sql` exports binary values as TEXT instead of BLOB.
     """
     type_mapping = {}
     for name, value in dataset.features.items():

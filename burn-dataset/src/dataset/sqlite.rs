@@ -15,7 +15,8 @@ use serde_rusqlite::*;
 /// The column names must match the field names of the <I> struct. However, the field names
 /// can be a subset of column names and can be in any order.
 ///
-/// Supported field types: https://docs.rs/serde_rusqlite/latest/serde_rusqlite
+/// Supported serialization field types: https://docs.rs/serde_rusqlite/latest/serde_rusqlite and
+/// Sqlite3 types: https://www.sqlite.org/datatype3.html
 ///
 /// Item struct example:
 ///
@@ -60,7 +61,7 @@ pub struct SqliteDataset<I> {
 }
 
 impl<I> SqliteDataset<I> {
-    pub fn new(db_file: &str, split: &str) -> Self {
+    pub fn from_db_file(db_file: &str, split: &str) -> Self {
         // Create a connection pool
         let conn_pool = create_conn_pool(db_file);
 
@@ -178,7 +179,7 @@ mod tests {
     }
     #[fixture]
     fn train_dataset() -> SqlDs {
-        SqliteDataset::new("tests/data/sqlite-dataset.db", "train")
+        SqliteDataset::from_db_file("tests/data/sqlite-dataset.db", "train")
     }
 
     #[rstest]
