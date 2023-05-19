@@ -66,6 +66,20 @@ impl TensorCheck {
         check
     }
 
+    pub fn dim_ops<const D: usize>(ops: &str, dim: usize) -> Self {
+        let mut check = Self::Ok;
+
+        if dim >= D {
+            check = check.register(
+                ops,
+                TensorError::new("Given dimension is higher than the tensor rank.")
+                    .details(format!("Tensor rank: '{D}', given dimension: '{dim}'.")),
+            );
+        }
+
+        check
+    }
+
     pub fn reshape<const D1: usize, const D2: usize>(
         original: &Shape<D1>,
         target: &Shape<D2>,

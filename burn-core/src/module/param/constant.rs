@@ -16,10 +16,11 @@ impl serde::Serialize for ConstantRecord {
 }
 
 impl<'de> serde::Deserialize<'de> for ConstantRecord {
-    fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
+        deserializer.deserialize_option(serde::de::IgnoredAny).ok();
         Ok(ConstantRecord::new())
     }
 }

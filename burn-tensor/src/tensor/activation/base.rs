@@ -1,5 +1,6 @@
 use crate::backend::Backend;
-use crate::Tensor;
+use crate::check::TensorCheck;
+use crate::{check, Tensor};
 use crate::{ElementPrecision, Precision};
 
 /// Applies the rectified linear unit function.
@@ -12,8 +13,17 @@ pub fn gelu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
     Tensor::from_primitive(B::gelu(tensor.primitive))
 }
 
-/// Applies the softmax function.
+/// Applies the softmax function on the input tensor along the given dimension.
+///
+/// `softmax(x_i) = exp(x_i) / sum_j(exp(x_j))`
+///
+/// # Notes
+///
+/// The dimension argument `dim` specifies the dimension along which the function will be computed.
+/// It must in the range of `0` and `D-1`.
 pub fn softmax<const D: usize, B: Backend>(tensor: Tensor<B, D>, dim: usize) -> Tensor<B, D> {
+    check!(TensorCheck::dim_ops::<D>("softmax", dim));
+
     let tensor = tensor.clone() - tensor.detach().max_dim(dim);
     let tensor = tensor.exp();
     let tensor_tmp = tensor.clone().sum_dim(dim);
@@ -21,8 +31,17 @@ pub fn softmax<const D: usize, B: Backend>(tensor: Tensor<B, D>, dim: usize) -> 
     tensor.div(tensor_tmp)
 }
 
-/// Applies the log softmax function.
+/// Applies the log softmax function on the input tensor along the given dimension.
+///
+/// `log_softmax(x_i) = log(softmax(x_i)) = log(exp(x_i) / sum_j(exp(x_j)))`
+///
+/// # Notes
+///
+/// The dimension argument `dim` specifies the dimension along which the function will be computed.
+/// It must in the range of `0` and `D-1`.
 pub fn log_softmax<const D: usize, B: Backend>(tensor: Tensor<B, D>, dim: usize) -> Tensor<B, D> {
+    check!(TensorCheck::dim_ops::<D>("log softmax", dim));
+
     let tensor = tensor.clone() - tensor.detach().max_dim(dim);
     let tensor_tmp = tensor.clone().exp().sum_dim(dim).log();
 

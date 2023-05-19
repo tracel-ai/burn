@@ -16,27 +16,35 @@ mod tests {
 
     #[derive(Module, Debug)]
     pub struct Model<B: Backend> {
+        single_const: f32,
         linear1: nn::Linear<B>,
+        array_const: [usize; 2],
         linear2: nn::Linear<B>,
     }
 
     #[derive(Module, Debug)]
     pub struct ModelNewOptionalField<B: Backend> {
+        single_const: f32,
         linear1: nn::Linear<B>,
+        array_const: [usize; 2],
         linear2: nn::Linear<B>,
         new_field: Option<usize>,
     }
 
     #[derive(Module, Debug)]
     pub struct ModelNewConstantField<B: Backend> {
+        single_const: f32,
         linear1: nn::Linear<B>,
+        array_const: [usize; 2],
         linear2: nn::Linear<B>,
         new_field: usize,
     }
 
     #[derive(Module, Debug)]
     pub struct ModelNewFieldOrders<B: Backend> {
+        array_const: [usize; 2],
         linear2: nn::Linear<B>,
+        single_const: f32,
         linear1: nn::Linear<B>,
     }
 
@@ -161,6 +169,7 @@ mod tests {
     }
 
     #[test]
+    #[should_panic]
     fn deserialize_with_new_field_order_works_with_bin_file_recorder() {
         deserialize_with_new_field_order("bin", BinFileRecorder::<FullPrecisionSettings>::new())
             .unwrap();
@@ -172,7 +181,9 @@ mod tests {
     {
         let file_path: PathBuf = format!("/tmp/deserialize_with_new_optional_field-{name}").into();
         let model = Model {
+            single_const: 32.0,
             linear1: nn::LinearConfig::new(20, 20).init::<TestBackend>(),
+            array_const: [2, 2],
             linear2: nn::LinearConfig::new(20, 20).init::<TestBackend>(),
         };
 
@@ -196,7 +207,9 @@ mod tests {
         let file_path: PathBuf =
             format!("/tmp/deserialize_with_removed_optional_field-{name}").into();
         let model = ModelNewOptionalField {
+            single_const: 32.0,
             linear1: nn::LinearConfig::new(20, 20).init::<TestBackend>(),
+            array_const: [2, 2],
             linear2: nn::LinearConfig::new(20, 20).init::<TestBackend>(),
             new_field: None,
         };
@@ -217,6 +230,8 @@ mod tests {
     {
         let file_path: PathBuf = format!("/tmp/deserialize_with_new_constant_field-{name}").into();
         let model = Model {
+            single_const: 32.0,
+            array_const: [2, 2],
             linear1: nn::LinearConfig::new(20, 20).init::<TestBackend>(),
             linear2: nn::LinearConfig::new(20, 20).init::<TestBackend>(),
         };
@@ -241,6 +256,8 @@ mod tests {
         let file_path: PathBuf =
             format!("/tmp/deserialize_with_removed_constant_field-{name}").into();
         let model = ModelNewConstantField {
+            single_const: 32.0,
+            array_const: [2, 2],
             linear1: nn::LinearConfig::new(20, 20).init::<TestBackend>(),
             linear2: nn::LinearConfig::new(20, 20).init::<TestBackend>(),
             new_field: 0,
@@ -262,6 +279,8 @@ mod tests {
     {
         let file_path: PathBuf = format!("/tmp/deserialize_with_new_field_order-{name}").into();
         let model = Model {
+            array_const: [2, 2],
+            single_const: 32.0,
             linear1: nn::LinearConfig::new(20, 20).init::<TestBackend>(),
             linear2: nn::LinearConfig::new(20, 20).init::<TestBackend>(),
         };
