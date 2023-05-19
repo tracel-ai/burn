@@ -51,14 +51,14 @@ mod tests {
 
     use super::*;
     use crate::burn::{
-        graph::Graph,
+        graph::BurnGraph,
         node::{matmul::MatmulNode, test::assert_tokens},
         TensorType,
     };
 
     #[test]
     fn test_codegen_two_nodes() {
-        let mut graph = Graph::<FullPrecisionSettings>::default();
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(MatmulNode::new(
             TensorType::new("tensor1", 4),

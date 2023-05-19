@@ -126,7 +126,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv2dNode<PS> {
 mod tests {
     use super::*;
     use crate::burn::{
-        graph::Graph,
+        graph::BurnGraph,
         node::{conv2d::Conv2dNode, test::assert_tokens},
         TensorType,
     };
@@ -134,7 +134,7 @@ mod tests {
 
     #[test]
     fn test_codegen() {
-        let mut graph = Graph::<FullPrecisionSettings>::default();
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(Conv2dNode::new(
             "conv2d",

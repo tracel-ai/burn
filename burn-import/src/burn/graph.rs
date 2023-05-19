@@ -9,7 +9,7 @@ use serde::{ser::SerializeMap, Serialize};
 use std::path::PathBuf;
 
 #[derive(Default, Debug)]
-pub struct Graph<PS: PrecisionSettings> {
+pub struct BurnGraph<PS: PrecisionSettings> {
     scope: Scope,
     imports: BurnImports,
     nodes: Vec<Node<PS>>,
@@ -17,11 +17,11 @@ pub struct Graph<PS: PrecisionSettings> {
 }
 
 #[derive(new)]
-pub struct GraphState<'a, PS: PrecisionSettings> {
+struct BurnGraphState<'a, PS: PrecisionSettings> {
     nodes: &'a Vec<Node<PS>>,
 }
 
-impl<'a, PS: PrecisionSettings> Serialize for GraphState<'a, PS> {
+impl<'a, PS: PrecisionSettings> Serialize for BurnGraphState<'a, PS> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -47,7 +47,7 @@ impl<'a, PS: PrecisionSettings> Serialize for GraphState<'a, PS> {
     }
 }
 
-impl<PS: PrecisionSettings> Graph<PS> {
+impl<PS: PrecisionSettings> BurnGraph<PS> {
     /// The node must be registered in the same order they will be executed in the forward pass.
     pub fn register<N: NodeCodegen<PS> + 'static>(&mut self, node: N) {
         self.nodes.push(node.into_node());
@@ -87,17 +87,17 @@ impl<PS: PrecisionSettings> Graph<PS> {
             });
     }
 
-    pub fn save_record(&mut self, out_file: PathBuf, development: bool, precision_ty_str: &str) {
+    pub fn with_record(&mut self, out_file: PathBuf, development: bool, precision_ty_str: &str) {
         if development {
             let recorder = PrettyJsonFileRecorder::<PS>::new();
-            self.save(
+            self.save_record(
                 recorder,
                 out_file.clone(),
                 &format!("burn::record::PrettyJsonFileRecorder::<{precision_ty_str}>"),
             );
         } else {
             let recorder = DefaultFileRecorder::<PS>::new();
-            self.save(
+            self.save_record(
                 recorder,
                 out_file.clone(),
                 &format!("burn::record::DefaultFileRecorder::<{precision_ty_str}>"),
@@ -105,10 +105,10 @@ impl<PS: PrecisionSettings> Graph<PS> {
         }
     }
 
-    fn save<FR: FileRecorder>(&mut self, recorder: FR, file: PathBuf, recorder_str: &str) {
+    fn save_record<FR: FileRecorder>(&mut self, recorder: FR, file: PathBuf, recorder_str: &str) {
         self.imports.register("burn::record::Recorder");
 
-        let state = GraphState::new(&self.nodes);
+        let state = BurnGraphState::new(&self.nodes);
         recorder
             .save_item(BurnRecord::new::<FR>(state), file.clone())
             .unwrap();

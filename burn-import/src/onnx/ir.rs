@@ -1,10 +1,7 @@
-use burn::tensor::{DataSerialize, Element};
 use core::fmt;
 use half::f16;
 use std::{collections::HashMap, fmt::Formatter};
 use strum_macros::{Display, EnumString};
-
-use crate::burn::TensorType;
 
 pub type Shape = Vec<usize>;
 
@@ -53,38 +50,6 @@ pub struct Tensor {
     pub elem_type: ElementType,
     pub shape: Shape,
     pub data: Option<TensorData>,
-}
-
-impl ArgType {
-    pub fn into_data_serialize<E: Element>(self) -> DataSerialize<E> {
-        match self {
-            ArgType::Tensor(tensor) => tensor.into_data_serialize(),
-        }
-    }
-}
-
-impl Argument {
-    pub fn to_tensor_type(&self) -> TensorType {
-        println!("AAAAAAAAAAAA {:?}", self);
-        match self.arg_type.as_ref().expect("Tensor arg type") {
-            ArgType::Tensor(tensor) => TensorType::new(self.name.clone(), tensor.shape.len()),
-        }
-    }
-}
-
-impl Tensor {
-    pub fn into_data_serialize<E: Element>(self) -> DataSerialize<E> {
-        let data = self.data.expect("Data to be provided.");
-
-        match data {
-            TensorData::Float16(val) => DataSerialize::new(val, self.shape).convert(),
-            TensorData::Float32(val) => DataSerialize::new(val, self.shape).convert(),
-            TensorData::Float64(val) => DataSerialize::new(val, self.shape).convert(),
-            TensorData::Int32(val) => DataSerialize::new(val, self.shape).convert(),
-            TensorData::Int64(val) => DataSerialize::new(val, self.shape).convert(),
-            TensorData::String(_) => panic!("String tensor unsuported"),
-        }
-    }
 }
 
 #[derive(Clone)]

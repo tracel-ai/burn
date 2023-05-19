@@ -115,12 +115,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode<PS> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::burn::{graph::Graph, node::test::assert_tokens, TensorType};
+    use crate::burn::{graph::BurnGraph, node::test::assert_tokens, TensorType};
     use burn::{record::FullPrecisionSettings, tensor::Data};
 
     #[test]
     fn test_codegen() {
-        let mut graph = Graph::<FullPrecisionSettings>::default();
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(LinearNode::new(
             "linear",

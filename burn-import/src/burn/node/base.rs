@@ -97,7 +97,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Node<PS> {
 #[cfg(test)]
 mod tests {
     use crate::burn::{
-        graph::Graph,
+        graph::BurnGraph,
         node::{conv2d::Conv2dNode, matmul::MatmulNode, test::assert_tokens},
         TensorType,
     };
@@ -106,7 +106,7 @@ mod tests {
 
     #[test]
     fn test_codegen_two_nodes() {
-        let mut graph = Graph::<FullPrecisionSettings>::default();
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(MatmulNode::new(
             TensorType::new("tensor1", 4),
@@ -163,7 +163,7 @@ mod tests {
 
     #[test]
     fn test_codegen_clone_tensor() {
-        let mut graph = Graph::<FullPrecisionSettings>::default();
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(MatmulNode::new(
             TensorType::new("tensor1", 4),

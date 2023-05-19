@@ -1,4 +1,4 @@
-use crate::burn::format_tokens;
+use crate::format_tokens;
 use proc_macro2::TokenStream;
 
 pub fn assert_tokens(tokens1: TokenStream, tokens2: TokenStream) {

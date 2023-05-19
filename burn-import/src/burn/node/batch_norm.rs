@@ -35,7 +35,12 @@ impl<PS: PrecisionSettings> BatchNormNode<PS> {
         running_var: DataSerialize<PS::FloatElem>,
         config: BatchNormConfig,
     ) -> Self {
-        let dim_tokens = dim.to_tokens();
+        let dim_tokens = if dim == 0 {
+            // Is 1 D
+            1.to_tokens()
+        } else {
+            dim.to_tokens()
+        };
 
         Self {
             dim,
@@ -157,12 +162,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BatchNormNode<PS> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::burn::{graph::Graph, node::test::assert_tokens, TensorType};
+    use crate::burn::{graph::BurnGraph, node::test::assert_tokens, TensorType};
     use burn::{record::FullPrecisionSettings, tensor::Data};
 
     #[test]
     fn test_codegen() {
-        let mut graph = Graph::<FullPrecisionSettings>::default();
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(BatchNormNode::new(
             2, // Batch norm 2d
