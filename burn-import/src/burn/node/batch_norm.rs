@@ -36,12 +36,7 @@ impl<PS: PrecisionSettings> BatchNormNode<PS> {
         running_var: DataSerialize<PS::FloatElem>,
         config: BatchNormConfig,
     ) -> Self {
-        let dim_tokens = if dim == 0 {
-            // Is 1 D
-            1.to_tokens()
-        } else {
-            dim.to_tokens()
-        };
+        let dim_tokens = dim.to_tokens();
 
         Self {
             dim,
@@ -65,7 +60,7 @@ impl<PS: PrecisionSettings> BatchNormNode<PS> {
 macro_rules! batch_norm_serialize {
     ($self:expr, $serializer:expr) => {{
         match $self.dim {
-            0 => batch_norm_serialize!($self, $serializer, 1),
+            0 => batch_norm_serialize!($self, $serializer, 0),
             1 => batch_norm_serialize!($self, $serializer, 1),
             2 => batch_norm_serialize!($self, $serializer, 2),
             3 => batch_norm_serialize!($self, $serializer, 3),
