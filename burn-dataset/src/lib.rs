@@ -8,6 +8,7 @@ pub mod transform;
 
 mod dataset;
 pub use dataset::*;
+pub use source::huggingface::downloader::*;
 
 #[cfg(test)]
 mod test_data {
