@@ -15,15 +15,15 @@ edition = "2021"
 burn-core = { path = "../burn-core", version = "0.8.0" }
 
 # Console
-indicatif = "0.17.2"
+indicatif = "0.17.3"
 log4rs = { workspace = true }
 log = { workspace = true }
 
 # Metrics
 nvml-wrapper = "0.8.0"
 textplots = "0.8.0"
-rgb = "0.8.34"
-terminal_size = "0.2.3"
+rgb = "0.8.36"
+terminal_size = "0.2.6"
 
 # Utilities
 derive-new = { workspace = true }

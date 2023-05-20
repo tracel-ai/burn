@@ -21,7 +21,7 @@ burn-tch = {path = "../../burn-tch"}
 burn-ndarray = {path = "../../burn-ndarray"}
 
 # Tokenizer
-tokenizers = {version = "0.13.2", default-features = false, features = [
+tokenizers = {version = "0.13.3", default-features = false, features = [
   "onig",
   "http",
 ]}
