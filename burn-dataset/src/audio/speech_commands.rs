@@ -9,13 +9,12 @@ use strum_macros::{Display, FromRepr};
 
 type MappedDataset = MapperDataset<SqliteDataset<SpeechItemRaw>, ConvertSamples, SpeechItemRaw>;
 
-/// Speech command class.
-///
-/// The class names are taken from the
-/// [Speech Commands dataset](https://huggingface.co/datasets/speech_commands).
+/// Enum representing speech command classes in the Speech Commands dataset.
+/// Class names are based on the Speech Commands dataset from Huggingface.
+/// See: https://huggingface.co/datasets/speech_commands
 #[derive(Debug, Display, Clone, FromRepr, Serialize, Deserialize)]
 pub enum SpeechCommandClass {
-    // The first 10 classes are target command words.
+    // Target command words
     Yes = 0,
     No = 1,
     Up = 2,
@@ -26,8 +25,6 @@ pub enum SpeechCommandClass {
     Off = 7,
     Stop = 8,
     Go = 9,
-
-    // The next 10 classes are digits.
     Zero = 10,
     One = 11,
     Two = 12,
@@ -39,7 +36,7 @@ pub enum SpeechCommandClass {
     Eight = 18,
     Nine = 19,
 
-    // The next 10 classes are non-target words will be grouped into Other.
+    // Non-target words grouped into "Other"
     Bed = 20,
     Bird = 21,
     Cat = 22,
@@ -51,21 +48,21 @@ pub enum SpeechCommandClass {
     Tree = 28,
     Wow = 29,
 
-    // The next 5 are commands of v2 the dataset but will be grouped into Other.
+    // Commands from v2 dataset, grouped into "Other"
     Backward = 30,
     Forward = 31,
     Follow = 32,
     Learn = 33,
     Visual = 34,
 
-    // Silence contains the background noise.
+    // Background noise
     Silence = 35,
 
-    // The last class is other words that we would group noise words into.
+    // Other miscellaneous words
     Other = 36,
 }
 
-/// Raw speech item with audio bytes returned from the database.
+/// Struct containing raw speech data returned from a database.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SpeechItemRaw {
     pub audio_bytes: Vec<u8>,
@@ -100,12 +97,11 @@ pub struct SpeechItem {
 /// See [Speech Commands dataset](https://huggingface.co/datasets/speech_commands).
 ///
 /// The data is downloaded from Huggingface and stored in a SQLite database (3.0 GB).
-///
 /// The dataset contains 99,720 audio samples of 2,607 people saying 35 different words.
 ///
 /// The labels are 20 target words, silence and other (22 classes).
 ///
-/// Note: label class indeces are not continuous because some classes are grouped together.
+/// Note: label class indices are not continuous because some classes are grouped together.
 /// This may create gaps in hot encoded labels (effectively wasting some memory).
 ///
 /// The dataset is split into 3 parts:
@@ -143,7 +139,7 @@ impl SpeechCommandsDataset {
         Self::new("validation")
     }
 
-    /// Get the number of classes in the dataset.
+    /// Returns the number of classes in the dataset
     pub fn num_classes() -> usize {
         22 // 10 command words + 10 digits + 1 silence + 1 other
     }
