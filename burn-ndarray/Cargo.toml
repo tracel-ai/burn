@@ -43,7 +43,7 @@ burn-common = {path = "../burn-common", version = "0.8.0", default-features = fa
 burn-tensor = {path = "../burn-tensor", version = "0.8.0", default-features = false, features = ["export_tests"]}
 
 
-matrixmultiply = {version = "0.3.6", default-features = false}
+matrixmultiply = {version = "0.3.7", default-features = false}
 rayon = {workspace = true, optional = true}
 
 blas-src = {version = "0.8.0", default-features = false, optional = true}# no-std compatible         
