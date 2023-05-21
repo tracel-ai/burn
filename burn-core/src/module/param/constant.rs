@@ -2,7 +2,7 @@ use crate::{self as burn, record::Record};
 use burn::record::PrecisionSettings;
 
 /// Record used for constant type implementing the [module](crate::module::Module) trait.
-#[derive(Debug, Clone, new)]
+#[derive(Debug, Clone, Copy, new)]
 pub struct ConstantRecord;
 
 impl serde::Serialize for ConstantRecord {

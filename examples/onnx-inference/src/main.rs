@@ -2,7 +2,7 @@ use std::env::args;
 
 use burn::tensor::Tensor;
 use burn_ndarray::NdArrayBackend;
-use onnx_inference::model::mnist::{Model, INPUT1_SHAPE};
+use onnx_inference::model::mnist::Model;
 
 use burn_dataset::source::huggingface::MNISTDataset;
 use burn_dataset::Dataset;
@@ -27,7 +27,7 @@ fn main() {
     type Backend = NdArrayBackend<f32>;
 
     // Create a new model and load the state
-    let model: Model<Backend> = Model::new().load_state();
+    let model: Model<Backend> = Model::default();
 
     // Load the MNIST dataset and get an item
     let dataset = MNISTDataset::test();
@@ -36,7 +36,7 @@ fn main() {
     // Create a tensor from the image data
     let image_data = item.image.iter().copied().flatten().collect::<Vec<f32>>();
     let mut input: Tensor<Backend, 4> =
-        Tensor::from_floats(image_data.as_slice()).reshape(INPUT1_SHAPE);
+        Tensor::from_floats(image_data.as_slice()).reshape([1, 1, 28, 28]);
 
     // Normalize the input
     input = ((input / 255) - 0.1307) / 0.3081;

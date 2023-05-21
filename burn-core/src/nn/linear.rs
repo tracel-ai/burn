@@ -10,7 +10,7 @@ use libm::sqrt;
 use super::Initializer;
 
 /// Configuration to create a [Linear](Linear) layer.
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct LinearConfig {
     /// The size of the input features.
     pub d_input: usize,
