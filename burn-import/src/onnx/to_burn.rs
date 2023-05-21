@@ -156,7 +156,6 @@ impl ONNXGraph {
     }
 
     fn matmul_conversion(node: Node) -> MatmulNode {
-        println!("Matmul Conversion");
         let lhs = node.inputs.get(0).unwrap().to_tensor_type();
         let rhs = node.inputs.get(1).unwrap().to_tensor_type();
         let output = node.outputs.get(0).unwrap().to_tensor_type();
@@ -188,7 +187,6 @@ impl ONNXGraph {
     }
 
     fn linear_conversion<PS: PrecisionSettings>(mut node: Node) -> LinearNode<PS> {
-        println!("Linear Conversion");
         let name = &node.name;
         let input = node.inputs.get(0).unwrap().to_tensor_type();
         let output = node.outputs.get(0).unwrap().to_tensor_type();
@@ -247,7 +245,6 @@ impl ONNXGraph {
     }
 
     fn conv2d_conversion<PS: PrecisionSettings>(mut node: Node) -> Conv2dNode<PS> {
-        println!("Conv2d conversion");
         let input = node.inputs.get(0).unwrap().to_tensor_type();
         let output = node.outputs.get(0).unwrap().to_tensor_type();
         let config = conv2d_config(&node);
