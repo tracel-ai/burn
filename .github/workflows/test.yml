@@ -28,6 +28,7 @@ jobs:
     uses: burn-rs/burn/.github/workflows/test-template.yml@main
     with:
       crate: burn-dataset
+      args-test: --all-features
 
   test-burn-tensor:
     uses: burn-rs/burn/.github/workflows/test-template.yml@main
