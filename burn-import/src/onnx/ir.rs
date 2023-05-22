@@ -63,7 +63,7 @@ pub enum TensorData {
 }
 
 #[derive(Debug, Clone)]
-pub struct Graph {
+pub struct ONNXGraph {
     pub nodes: Vec<Node>,
     pub inputs: Vec<Argument>,
     pub outputs: Vec<Argument>,

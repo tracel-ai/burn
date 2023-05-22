@@ -4,7 +4,7 @@ use crate::onnx::{ir::TensorData, op_configuration::linear_config};
 
 use super::{
     from_onnx::parse_onnx,
-    ir::{self, ArgType, Graph, Node, NodeType},
+    ir::{self, ArgType, Node, NodeType, ONNXGraph},
     op_configuration::{batch_norm_config, conv2d_config},
     shape_inference::first_input_dim,
 };
@@ -28,7 +28,7 @@ type B = NdArrayBackend<f32>;
 
 /// Serializable ONNX model state.
 pub struct ModelState<PS: PrecisionSettings> {
-    pub graph: Graph,
+    pub graph: ONNXGraph,
     _settings: PhantomData<PS>,
 }
 
@@ -42,7 +42,7 @@ impl<PS: PrecisionSettings> ModelState<PS> {
         }
     }
 
-    pub fn from_graph(graph: Graph) -> Self {
+    pub fn from_graph(graph: ONNXGraph) -> Self {
         Self {
             graph,
             _settings: PhantomData::default(),
@@ -50,7 +50,7 @@ impl<PS: PrecisionSettings> ModelState<PS> {
     }
 }
 
-impl Record for Graph {
+impl Record for ONNXGraph {
     type Item<S: PrecisionSettings> = ModelState<S>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {

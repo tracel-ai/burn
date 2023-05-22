@@ -9,3 +9,6 @@ mod to_burn;
 
 pub use state::*;
 pub use to_burn::*;
+
+pub use from_onnx::parse_onnx;
+pub use ir::ONNXGraph;

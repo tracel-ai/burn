@@ -7,7 +7,7 @@ use std::{
 
 use super::coalesce::coalesce;
 use super::ir::{
-    ArgType, Argument, AttributeValue, Attributes, ElementType, Graph, Node, NodeType, Tensor,
+    ArgType, Argument, AttributeValue, Attributes, ElementType, Node, NodeType, ONNXGraph, Tensor,
     TensorData,
 };
 use super::protos::{
@@ -37,7 +37,7 @@ pub enum ParseError {
 }
 
 /// Open an onnx file and convert it to a Graph (intermediate representation)
-pub fn parse_onnx(onnx_path: &Path) -> Graph {
+pub fn parse_onnx(onnx_path: &Path) -> ONNXGraph {
     // Open the file
     let mut file = File::open(onnx_path).expect("Unable to open file");
     let onnx_model: ModelProto =
@@ -84,7 +84,7 @@ pub fn parse_onnx(onnx_path: &Path) -> Graph {
     // Infer shapes and update the inputs and outputs
     shape_inference(&mut nodes, &inputs, &mut outputs);
 
-    Graph {
+    ONNXGraph {
         nodes,
         inputs,
         outputs,
