@@ -12,6 +12,7 @@ mod initializer;
 mod linear;
 mod norm;
 mod relu;
+mod lstm;
 
 pub use dropout::*;
 pub use embedding::*;
