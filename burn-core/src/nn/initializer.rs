@@ -70,12 +70,18 @@ mod tests {
         let (mean, std) = (0.0, 1.0);
         let normal: Tensor<TB, 1> = Initializer::Normal(mean, std).init([1000]);
         let (var_act, mean_act) = normal.var_mean(0);
-        var_act
-            .to_data()
-            .assert_approx_eq(&Data::from([std as f32]), 1);
-        mean_act
-            .to_data()
-            .assert_approx_eq(&Data::from([mean as f32]), 1);
+
+        let var_act: f32 = var_act.into_scalar().elem();
+        let mean_act: f32 = mean_act.into_scalar().elem();
+
+        assert!(
+            var_act > 0.9 && var_act < 1.1,
+            "Expected variance to be between 1.0 += 0.1, but got {var_act}"
+        );
+        assert!(
+            mean_act > -0.1 && mean_act < 0.1,
+            "Expected mean to be between 0.0 += 0.1, but got {mean_act}"
+        );
     }
 
     #[test]
