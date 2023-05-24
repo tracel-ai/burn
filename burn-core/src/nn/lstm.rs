@@ -87,21 +87,27 @@ impl<B: Backend> LSTM<B> {
             ),
         };
         
-        let input_product: Tensor<B, 2> = input.matmul(self.forget_gate.get_weight().unsqueeze());
-        let hidden_product: Tensor<B, 2> = hidden_state.matmul(self.forget_gate.get_weight().unsqueeze());
-        
-        match &self.hidden_state {
-            Some(hidden_state) => hidden_state.val().matmul(self.forget_gate.get_weight().unsqueeze()),
-            None => Tensor::zeros([self.batch_size, self.d_hidden]),
-        };
+        // f(orget)g(ate) tensors 
+        let fg_input_product: Tensor<B, 2> = input.clone().matmul(self.forget_gate.get_weight().unsqueeze());
+        let fg_hidden_product: Tensor<B, 2> = hidden_state.clone().matmul(self.forget_gate.get_weight().unsqueeze());
 
-        let biased_input_sum = match &self.forget_gate.get_bias() {
-            Some(bias) => input_product + hidden_product + bias.clone().unsqueeze(),
-            None => input_product + hidden_product,
-        };
-        let forget_values = activation::sigmoid(biased_input_sum);
+        // i(nput)g(ate) tensors
+        let ig_input_product: Tensor<B, 2> = input.clone().matmul(self.input_gate.get_weight().unsqueeze());
+        let ig_hidden_product: Tensor<B, 2> = hidden_state.clone().matmul(self.input_gate.get_weight().unsqueeze());
 
-        (forget_values.clone(), forget_values.clone(), forget_values.clone()) // to match expected return, will update later
+        let biased_fg_input_sum = match &self.forget_gate.get_bias() {
+            Some(bias) => fg_input_product + fg_hidden_product + bias.clone().unsqueeze(),
+            None => fg_input_product + fg_hidden_product,
+        };
+        let forget_values = activation::sigmoid(biased_fg_input_sum); // to multiply with cell state
+
+        let biased_ig_input_sum = match &self.input_gate.get_bias() {
+            Some(bias) => ig_input_product + ig_hidden_product + bias.clone().unsqueeze(),
+            None => ig_input_product + ig_hidden_product,
+        };
+        let add_values = activation::sigmoid(biased_ig_input_sum);
+
+        (forget_values.clone(), add_values.clone(), forget_values.clone()) // to match expected return, will update later
     }
 
     pub fn reset_states(&mut self) {
