@@ -90,6 +90,17 @@ impl<B: Backend> Linear<B> {
             None => output,
         }
     }
+
+    pub fn get_weight(&self) -> Tensor<B, 2> {
+        self.weight.val()
+    }
+
+    pub fn get_bias(&self) -> Option<Tensor<B, 1>> {
+        match &self.bias {
+            Some(bias) => Some(bias.val()),
+            None => None,
+        }
+    }
 }
 
 #[cfg(test)]
