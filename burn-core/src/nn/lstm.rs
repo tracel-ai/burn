@@ -77,8 +77,8 @@ impl<B: Backend> LSTM<B> {
     /// outputs:
     ///     3 tensors, one for the cell state, one for the hidden state,
     ///     and one for the result = hidden state. 
-    pub fn forward<const D: usize>(&self, input: Tensor<B, 2>, state: Option<(Tensor<B, 2>, Tensor<B, 2>)>) -> (Tensor<B, 2>, Tensor<B, 2>, Tensor<B, 2>) {
-        let (cell_state, hidden_state) = match state {
+    pub fn forward<const D: usize>(&mut self, input: Tensor<B, 2>, state: Option<(Tensor<B, 2>, Tensor<B, 2>)>) -> (Tensor<B, 2>, Tensor<B, 2>, Tensor<B, 2>) {
+        let (mut cell_state, mut hidden_state) = match state {
             // If state is provided
             Some((cell_state, hidden_state)) => (cell_state, hidden_state),
             None => (
@@ -95,6 +95,14 @@ impl<B: Backend> LSTM<B> {
         let ig_input_product: Tensor<B, 2> = input.clone().matmul(self.input_gate.get_weight().unsqueeze());
         let ig_hidden_product: Tensor<B, 2> = hidden_state.clone().matmul(self.input_gate.get_weight().unsqueeze());
 
+        // o(utput)g(ate) tensors
+        let og_input_product: Tensor<B, 2> = input.clone().matmul(self.output_gate.get_weight().unsqueeze());
+        let og_hidden_product: Tensor<B, 2> = hidden_state.clone().matmul(self.output_gate.get_weight().unsqueeze());
+
+        // c(ell)g(ate) tensors
+        let cg_input_product: Tensor<B, 2> = input.clone().matmul(self.cell_gate.get_weight().unsqueeze());
+        let cg_hidden_product: Tensor<B, 2> = hidden_state.clone().matmul(self.cell_gate.get_weight().unsqueeze());
+
         let biased_fg_input_sum = match &self.forget_gate.get_bias() {
             Some(bias) => fg_input_product + fg_hidden_product + bias.clone().unsqueeze(),
             None => fg_input_product + fg_hidden_product,
@@ -107,7 +115,26 @@ impl<B: Backend> LSTM<B> {
         };
         let add_values = activation::sigmoid(biased_ig_input_sum);
 
-        (forget_values.clone(), add_values.clone(), forget_values.clone()) // to match expected return, will update later
+        let biased_og_input_sum = match &self.output_gate.get_bias() {
+            Some(bias) => og_input_product + og_hidden_product + bias.clone().unsqueeze(),
+            None => og_input_product + og_hidden_product,
+        };
+        let output_values = activation::sigmoid(biased_og_input_sum);
+
+        let biased_cg_input_sum = match &self.cell_gate.get_bias() {
+            Some(bias) => cg_input_product + cg_hidden_product + bias.clone().unsqueeze(),
+            None => cg_input_product + cg_hidden_product,
+        };
+        let candidate_cell_values = biased_cg_input_sum.tanh();
+        let candidate_cell_values_clone = candidate_cell_values.clone();
+
+        cell_state = forget_values * cell_state + add_values * candidate_cell_values;
+        hidden_state = output_values * candidate_cell_values_clone;
+
+        self.cell_state = Some(Param::from(cell_state.clone()));
+        self.hidden_state = Some(Param::from(hidden_state.clone()));
+
+        (cell_state.clone(), hidden_state.clone(), hidden_state.clone()) // should hidden_state be returned twice?
     }
 
     pub fn reset_states(&mut self) {
