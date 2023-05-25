@@ -49,7 +49,6 @@ impl LSTMConfig {
         let output_gate = LinearConfig{ d_input: self.d_input, d_output, bias: self.bias, initializer: self.initializer.clone() }.init();
         let cell_gate = LinearConfig{ d_input: self.d_input, d_output, bias: self.bias, initializer: self.initializer.clone() }.init();
 
-        /// Do these belong here?
         let hidden_state = Some(Param::from(Tensor::zeros([self.batch_size, self.d_hidden])));
         let cell_state = Some(Param::from(Tensor::zeros([self.batch_size, self.d_hidden])));
 
@@ -86,45 +85,21 @@ impl<B: Backend> LSTM<B> {
                 self.hidden_state.as_ref().unwrap().val().clone(),
             ),
         };
-        
+    
         // f(orget)g(ate) tensors 
-        let fg_input_product: Tensor<B, 2> = input.clone().matmul(self.forget_gate.get_weight().unsqueeze());
-        let fg_hidden_product: Tensor<B, 2> = hidden_state.clone().matmul(self.forget_gate.get_weight().unsqueeze());
-
-        // i(nput)g(ate) tensors
-        let ig_input_product: Tensor<B, 2> = input.clone().matmul(self.input_gate.get_weight().unsqueeze());
-        let ig_hidden_product: Tensor<B, 2> = hidden_state.clone().matmul(self.input_gate.get_weight().unsqueeze());
-
-        // o(utput)g(ate) tensors
-        let og_input_product: Tensor<B, 2> = input.clone().matmul(self.output_gate.get_weight().unsqueeze());
-        let og_hidden_product: Tensor<B, 2> = hidden_state.clone().matmul(self.output_gate.get_weight().unsqueeze());
-
-        // c(ell)g(ate) tensors
-        let cg_input_product: Tensor<B, 2> = input.clone().matmul(self.cell_gate.get_weight().unsqueeze());
-        let cg_hidden_product: Tensor<B, 2> = hidden_state.clone().matmul(self.cell_gate.get_weight().unsqueeze());
-
-        let biased_fg_input_sum = match &self.forget_gate.get_bias() {
-            Some(bias) => fg_input_product + fg_hidden_product + bias.clone().unsqueeze(),
-            None => fg_input_product + fg_hidden_product,
-        };
+        let biased_fg_input_sum = self.gate_product(&input, &hidden_state, &self.forget_gate);
         let forget_values = activation::sigmoid(biased_fg_input_sum); // to multiply with cell state
 
-        let biased_ig_input_sum = match &self.input_gate.get_bias() {
-            Some(bias) => ig_input_product + ig_hidden_product + bias.clone().unsqueeze(),
-            None => ig_input_product + ig_hidden_product,
-        };
+        // i(nput)g(ate) tensors
+        let biased_ig_input_sum = self.gate_product(&input, &hidden_state, &self.input_gate);
         let add_values = activation::sigmoid(biased_ig_input_sum);
 
-        let biased_og_input_sum = match &self.output_gate.get_bias() {
-            Some(bias) => og_input_product + og_hidden_product + bias.clone().unsqueeze(),
-            None => og_input_product + og_hidden_product,
-        };
+        // o(utput)g(ate) tensors
+        let biased_og_input_sum = self.gate_product(&input, &hidden_state, &self.output_gate);
         let output_values = activation::sigmoid(biased_og_input_sum);
 
-        let biased_cg_input_sum = match &self.cell_gate.get_bias() {
-            Some(bias) => cg_input_product + cg_hidden_product + bias.clone().unsqueeze(),
-            None => cg_input_product + cg_hidden_product,
-        };
+         // c(ell)g(ate) tensors
+        let biased_cg_input_sum = self.gate_product(&input, &hidden_state, &self.cell_gate);
         let candidate_cell_values = biased_cg_input_sum.tanh();
         let candidate_cell_values_clone = candidate_cell_values.clone();
 
@@ -137,6 +112,27 @@ impl<B: Backend> LSTM<B> {
         (cell_state.clone(), hidden_state.clone(), hidden_state.clone()) // should hidden_state be returned twice?
     }
 
+    /// Helper function for performing weighted matrix product for a gate and adds
+    /// bias, if any.
+    /// 
+    ///  Mathematically, performs `Wx*X + Wh*H + b`, where:
+    ///     Wx = weight matrix for the connection to input vector X
+    ///     Wh = weight matrix for the connection to hidden state H
+    ///     X = input vector
+    ///     H = hidden state
+    ///     b = bias terms
+    fn gate_product(&self, input: &Tensor<B, 2>, hidden: &Tensor<B, 2>, gate: &Linear<B>) -> Tensor<B, 2> {
+        let input_product = input.clone().matmul(gate.get_weight().unsqueeze());
+        let hidden_product = hidden.clone().matmul(gate.get_weight().unsqueeze());
+
+        match &gate.get_bias() {
+            Some(bias) => input_product + hidden_product + bias.clone().unsqueeze(),
+            None => input_product + hidden_product,
+        }
+    }
+
+    /// Reset the hidden and cell states of the LSTM cell. This should be done
+    /// after each full pass through a sequence.
     pub fn reset_states(&mut self) {
         self.hidden_state = Some(Param::from(Tensor::zeros([self.batch_size, self.d_hidden])));
         self.cell_state = Some(Param::from(Tensor::zeros([self.batch_size, self.d_hidden])));
