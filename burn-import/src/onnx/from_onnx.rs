@@ -372,7 +372,8 @@ pub fn convert_node_proto(node: &NodeProto) -> Node {
         .collect();
     let attrs = convert_vec_attrs_proto(node.attribute.clone());
 
-    let node_type = NodeType::from_str(node.op_type.as_str()).unwrap();
+    log::debug!("Found ONNX node type => {}", node.op_type.as_str());
+    let node_type = NodeType::from_str(node.op_type.as_str()).expect("Unknown node type");
 
     let is_stateful = STATEFUL_NODE_TYPES.contains(&node_type);
 
@@ -399,7 +400,7 @@ fn remap_node_type(node: &mut Node) {
                 node.node_type = match ints.len() {
                     1 => NodeType::Conv1d,
                     2 => NodeType::Conv2d,
-                    _ => todo!(),
+                    _ => panic!("Only conv 1d and 2d are supported"),
                 };
             } else {
                 panic!("kernel_shape is not an int64s");

@@ -19,6 +19,7 @@ use crate::{
         TensorType,
     },
     format_tokens,
+    logger::init_log,
     onnx::{
         ir::{Node, NodeType},
         op_configuration::{
@@ -43,6 +44,7 @@ pub struct ModelGen {
 
 impl ModelGen {
     pub fn new() -> Self {
+        init_log().ok(); // Error when init multiple times are ignored.
         Self::default()
     }
 

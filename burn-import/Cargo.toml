@@ -22,6 +22,8 @@ burn = {path = "../burn", version = "0.8.0" }
 burn-ndarray = {path = "../burn-ndarray", version = "0.8.0" }
 burn-common = {path = "../burn-common", version = "0.8.0" }
 
+log = {workspace = true}
+log4rs = { workspace = true }
 bytemuck = {workspace = true}
 derive-new = {workspace = true}
 half = {workspace = true}

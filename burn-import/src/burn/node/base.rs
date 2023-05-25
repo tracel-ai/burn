@@ -102,6 +102,20 @@ impl<PS: PrecisionSettings> Serialize for Node<PS> {
     }
 }
 
+impl<PS: PrecisionSettings> Node<PS> {
+    pub fn name(&self) -> &str {
+        match self {
+            Node::Matmul(_) => "matmul",
+            Node::Conv2d(_) => "conv2d",
+            Node::Linear(_) => "linear",
+            Node::BatchNorm(_) => "batch_norm",
+            Node::ReLU(_) => "relu",
+            Node::Flatten(_) => "flatten",
+            Node::LogSoftmax(_) => "log_softmax",
+        }
+    }
+}
+
 impl<PS: PrecisionSettings> NodeCodegen<PS> for Node<PS> {
     fn output_types(&self) -> Vec<Type> {
         match_all!(self, NodeCodegen::<PS>::output_types)
