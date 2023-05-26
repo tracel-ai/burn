@@ -281,18 +281,20 @@ impl<E: FloatNdArrayElement> IntTensorOps<NdArrayBackend<E>> for NdArrayBackend<
     }
 
     fn int_gather<const D: usize>(
+        dim: usize,
         tensor: NdArrayTensor<i64, D>,
         indexes: NdArrayTensor<i64, D>,
     ) -> NdArrayTensor<i64, D> {
-        NdArrayMathOps::index_select(tensor, indexes)
+        NdArrayMathOps::gather(dim, tensor, indexes)
     }
 
     fn int_scatter<const D: usize>(
+        dim: usize,
         tensor: NdArrayTensor<i64, D>,
         indexes: NdArrayTensor<i64, D>,
         value: NdArrayTensor<i64, D>,
     ) -> NdArrayTensor<i64, D> {
-        NdArrayMathOps::index_select_assign(tensor, indexes, value)
+        NdArrayMathOps::scatter(dim, tensor, indexes, value)
     }
 
     fn int_index_select_dim<const D: usize>(

@@ -208,10 +208,15 @@ where
         }
     }
 
-    pub fn index_select<const D: usize>(
-        tensor: NdArrayTensor<E, D>,
-        indexes: NdArrayTensor<i64, D>,
+    pub fn gather<const D: usize>(
+        dim: usize,
+        mut tensor: NdArrayTensor<E, D>,
+        mut indexes: NdArrayTensor<i64, D>,
     ) -> NdArrayTensor<E, D> {
+        if dim != D - 1 {
+            tensor.array.swap_axes(D - 1, dim);
+            indexes.array.swap_axes(D - 1, dim);
+        }
         let (shape_tensor, shape_indexes) = (tensor.shape(), indexes.shape());
         let (size_tensor, size_index) = (shape_tensor.dims[D - 1], shape_indexes.dims[D - 1]);
         let batch_size = Self::index_select_batch_size(&shape_tensor, &shape_indexes);
@@ -228,17 +233,30 @@ where
             }
         }
 
-        NdArrayOps::reshape(
+        let mut output = NdArrayOps::reshape(
             NdArrayTensor::<E, 2>::new(output.into_shared().into_dyn()),
             shape_indexes,
-        )
+        );
+
+        if dim != D - 1 {
+            output.array.swap_axes(D - 1, dim);
+        }
+
+        output
     }
 
-    pub fn index_select_assign<const D: usize>(
-        tensor: NdArrayTensor<E, D>,
-        indexes: NdArrayTensor<i64, D>,
-        value: NdArrayTensor<E, D>,
+    pub fn scatter<const D: usize>(
+        dim: usize,
+        mut tensor: NdArrayTensor<E, D>,
+        mut indexes: NdArrayTensor<i64, D>,
+        mut value: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<E, D> {
+        if dim != D - 1 {
+            tensor.array.swap_axes(D - 1, dim);
+            indexes.array.swap_axes(D - 1, dim);
+            value.array.swap_axes(D - 1, dim);
+        }
+
         let (shape_tensor, shape_indexes, shape_value) =
             (tensor.shape(), indexes.shape(), value.shape());
         let (size_tensor, size_index, size_value) = (
@@ -265,10 +283,14 @@ where
             }
         }
 
-        NdArrayOps::reshape(
+        let mut output = NdArrayOps::reshape(
             NdArrayTensor::<E, 2>::new(tensor.into_shared().into_dyn()),
             shape_tensor,
-        )
+        );
+        if dim != D - 1 {
+            output.array.swap_axes(D - 1, dim);
+        }
+        output
     }
 
     pub fn mask_scatter<const D: usize>(
