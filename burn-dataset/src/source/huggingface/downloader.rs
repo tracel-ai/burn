@@ -1,8 +1,8 @@
-use dirs::home_dir;
-use std::fs::{self, create_dir_all};
+use std::fs;
 use std::path::Path;
 use std::process::Command;
 
+use crate::dataset::base_dir;
 use crate::SqliteDataset;
 
 use sanitize_filename::sanitize;
@@ -99,7 +99,7 @@ impl HuggingfaceDatasetLoader {
         split: &str,
     ) -> Result<SqliteDataset<I>, ImporterError> {
         let db_file = self.db_file()?;
-        let dataset = SqliteDataset::from_db_file(db_file.as_str(), split);
+        let dataset = SqliteDataset::from_db_file(db_file.as_str(), split, false);
         Ok(dataset)
     }
 
@@ -178,23 +178,6 @@ fn import(
         .map_err(|err| ImporterError::Unknown(format!("{err:?}")))?;
 
     Ok(())
-}
-
-/// Determine the base directory to store the dataset.
-fn base_dir(base_dir: Option<String>) -> String {
-    let base_dir = if let Some(base_dir) = base_dir {
-        base_dir
-    } else {
-        let home_dir = home_dir().unwrap();
-        let home_dir = home_dir.to_str().map(|s| s.to_string());
-        let home_dir = home_dir.unwrap();
-        let cache_dir = format!("{home_dir}/.cache/burn-dataset");
-        cache_dir
-    };
-
-    create_dir_all(&base_dir).ok();
-
-    base_dir
 }
 
 fn importer_script_path(base_dir: String) -> String {
