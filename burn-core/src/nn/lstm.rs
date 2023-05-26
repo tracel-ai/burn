@@ -153,5 +153,24 @@ mod tests {
         let lstm = config.init::<TestBackend>();
 
         lstm.input_gate.get_weight().to_data().assert_in_range(0.0, 1.0);
+        lstm.forget_gate.get_weight().to_data().assert_in_range(0.0, 1.0);
+        lstm.output_gate.get_weight().to_data().assert_in_range(0.0, 1.0);
+        lstm.cell_gate.get_weight().to_data().assert_in_range(0.0, 1.0);
+    }
+
+    #[test]
+    fn reset_hidden_and_cell_state() {
+        todo!()
+    }
+
+    #[test]
+    fn pass_states() {
+        todo!()
+    }
+
+    #[test]
+    fn test_forward() {
+        // Run same input through PyTorch or TensorFlow and compare?
+        todo!()
     }
 }
