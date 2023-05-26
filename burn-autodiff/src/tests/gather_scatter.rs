@@ -1,16 +1,16 @@
-#[burn_tensor_testgen::testgen(ad_index_select)]
+#[burn_tensor_testgen::testgen(ad_gather_scatter)]
 mod tests {
     use super::*;
     use burn_tensor::Data;
 
     #[test]
-    fn test_index_select_grad() {
+    fn test_gather_grad() {
         let tensor_1 =
             TestADTensor::from_data(Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]])).require_grad();
         let indexes = TestADTensor::from_data(Data::from([[2, 1, 0, 1, 2], [1, 0, 2, 1, 0]]));
 
         let tensor_2 = tensor_1.clone().matmul(tensor_1.clone().transpose());
-        let tensor_3 = tensor_1.clone().index_select(indexes);
+        let tensor_3 = tensor_1.clone().gather(1, indexes);
         let tensor_4 = tensor_2.matmul(tensor_3);
 
         let grads = tensor_4.backward();
@@ -24,7 +24,7 @@ mod tests {
     }
 
     #[test]
-    fn test_index_select_assign_grad() {
+    fn test_scatter_grad() {
         let tensor_1 =
             TestADTensor::from_data(Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]])).require_grad();
         let values =
@@ -32,9 +32,7 @@ mod tests {
         let indexes = TestADTensor::from_data(Data::from([[2, 1, 0], [2, 0, 1]]));
 
         let tensor_2 = tensor_1.clone().matmul(tensor_1.clone().transpose());
-        let tensor_3 = tensor_1
-            .clone()
-            .index_select_assign(indexes, values.clone());
+        let tensor_3 = tensor_1.clone().scatter(1, indexes, values.clone());
         let tensor_4 = tensor_2.matmul(tensor_3);
 
         let grads = tensor_4.backward();

@@ -176,19 +176,21 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         TchOps::reshape(tensor, shape)
     }
 
-    fn index_select<const D: usize>(
+    fn gather<const D: usize>(
+        dim: usize,
         tensor: TchTensor<E, D>,
         indexes: TchTensor<i64, D>,
     ) -> TchTensor<E, D> {
-        TchOps::index_select(tensor, indexes)
+        TchOps::gather(dim, tensor, indexes)
     }
 
-    fn index_select_assign<const D: usize>(
+    fn scatter<const D: usize>(
+        dim: usize,
         tensor: TchTensor<E, D>,
         indexes: TchTensor<i64, D>,
         value: TchTensor<E, D>,
     ) -> TchTensor<E, D> {
-        TchOps::index_select_assign(tensor, indexes, value)
+        TchOps::scatter(dim, tensor, indexes, value)
     }
 
     fn index_select_dim<const D: usize>(

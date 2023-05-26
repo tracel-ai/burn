@@ -1,24 +1,24 @@
-#[burn_tensor_testgen::testgen(index_select)]
+#[burn_tensor_testgen::testgen(gather_scatter)]
 mod tests {
     use super::*;
     use burn_tensor::{Data, Tensor};
 
     #[test]
-    fn should_select_1d() {
+    fn should_gather_1d() {
         let tensor = TestTensor::from_data(Data::from([0.0, 1.0, 2.0]));
         let indexes = TestTensorInt::from_data(Data::from([1, 1, 0, 1, 2]));
 
-        let output = tensor.index_select(indexes);
+        let output = tensor.gather(0, indexes);
 
         assert_eq!(output.into_data(), Data::from([1.0, 1.0, 0.0, 1.0, 2.0]));
     }
 
     #[test]
-    fn should_select_2d() {
+    fn should_gather_2d() {
         let tensor = TestTensor::from_data(Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]));
         let indexes = TestTensorInt::from_data(Data::from([[2, 1, 0, 0], [2, 0, 1, 2]]));
 
-        let output = tensor.index_select(indexes);
+        let output = tensor.gather(1, indexes);
 
         assert_eq!(
             output.into_data(),
@@ -27,33 +27,33 @@ mod tests {
     }
 
     #[test]
-    fn should_select_2d_only_1dim() {
+    fn should_gather_2d_only_1dim() {
         let tensor = TestTensor::from_data(Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]));
         let indexes = TestTensorInt::from_data(Data::from([[1, 2]])).reshape([2, 1]);
 
-        let output = tensor.index_select(indexes);
+        let output = tensor.gather(1, indexes);
 
         assert_eq!(output.into_data(), Data::from([[1.0], [5.0]]));
     }
 
     #[test]
-    fn should_select_assign_1d() {
+    fn should_scatter_1d() {
         let tensor = TestTensor::from_data(Data::from([0.0, 0.0, 0.0]));
         let values = TestTensor::from_data(Data::from([5.0, 4.0, 3.0]));
         let indexes = TestTensorInt::from_data(Data::from([1, 0, 2]));
 
-        let output = tensor.index_select_assign(indexes, values);
+        let output = tensor.scatter(0, indexes, values);
 
         assert_eq!(output.into_data(), Data::from([4.0, 5.0, 3.0]));
     }
 
     #[test]
-    fn should_select_assign_2d() {
+    fn should_scatter_2d() {
         let tensor = TestTensor::from_data(Data::from([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]));
         let values = TestTensor::from_data(Data::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]));
         let indexes = TestTensorInt::from_data(Data::from([[1, 0, 2], [1, 2, 0]]));
 
-        let output = tensor.index_select_assign(indexes, values);
+        let output = tensor.scatter(1, indexes, values);
 
         assert_eq!(
             output.into_data(),

@@ -209,8 +209,8 @@ where
     ///
     /// The index tensor shoud have the same shape as the original tensor except for the last
     /// dimension.
-    pub fn index_select(self, indexes: Tensor<B, D, Int>) -> Self {
-        Self::new(K::index_select(self.primitive, indexes))
+    pub fn gather(self, dim: usize, indexes: Tensor<B, D, Int>) -> Self {
+        Self::new(K::gather(dim, self.primitive, indexes))
     }
 
     /// Assign the selected elements corresponding to the given indexes from the value tensor
@@ -220,12 +220,8 @@ where
     ///
     /// The index tensor shoud have the same shape as the original tensor except for the last
     /// dimension. The value and index tensors should have the same shape.
-    pub fn index_select_assign(self, indexes: Tensor<B, D, Int>, values: Self) -> Self {
-        Self::new(K::index_select_assign(
-            self.primitive,
-            indexes,
-            values.primitive,
-        ))
+    pub fn scatter(self, dim: usize, indexes: Tensor<B, D, Int>, values: Self) -> Self {
+        Self::new(K::scatter(dim, self.primitive, indexes, values.primitive))
     }
 
     /// Select the tensor elements along the given dimension corresponding to the given indexes.
@@ -412,11 +408,13 @@ where
         mask: Tensor<B, D, Bool>,
         value: Self::Elem,
     ) -> Self::Primitive<D>;
-    fn index_select<const D: usize>(
+    fn gather<const D: usize>(
+        dim: usize,
         tensor: Self::Primitive<D>,
         indexes: Tensor<B, D, Int>,
     ) -> Self::Primitive<D>;
-    fn index_select_assign<const D: usize>(
+    fn scatter<const D: usize>(
+        dim: usize,
         tensor: Self::Primitive<D>,
         indexes: Tensor<B, D, Int>,
         values: Self::Primitive<D>,
@@ -604,19 +602,21 @@ impl<B: Backend> Numeric<B> for Int {
     ) -> Self::Primitive<D1> {
         B::int_index_select_dim_assign(tensor, dim, indexes.primitive, values)
     }
-    fn index_select<const D: usize>(
+    fn gather<const D: usize>(
+        dim: usize,
         tensor: Self::Primitive<D>,
         indexes: Tensor<B, D, Int>,
     ) -> Self::Primitive<D> {
-        B::int_index_select(tensor, indexes.primitive)
+        B::int_gather(dim, tensor, indexes.primitive)
     }
 
-    fn index_select_assign<const D: usize>(
+    fn scatter<const D: usize>(
+        dim: usize,
         tensor: Self::Primitive<D>,
         indexes: Tensor<B, D, Int>,
         values: Self::Primitive<D>,
     ) -> Self::Primitive<D> {
-        B::int_index_select_assign(tensor, indexes.primitive, values)
+        B::int_scatter(dim, tensor, indexes.primitive, values)
     }
 
     fn argmax<const D: usize>(
@@ -821,19 +821,21 @@ impl<B: Backend> Numeric<B> for Float {
         B::index_select_dim_assign(tensor, dim, indexes.primitive, values)
     }
 
-    fn index_select<const D: usize>(
+    fn gather<const D: usize>(
+        dim: usize,
         tensor: Self::Primitive<D>,
         indexes: Tensor<B, D, Int>,
     ) -> Self::Primitive<D> {
-        B::index_select(tensor, indexes.primitive)
+        B::gather(dim, tensor, indexes.primitive)
     }
 
-    fn index_select_assign<const D: usize>(
+    fn scatter<const D: usize>(
+        dim: usize,
         tensor: Self::Primitive<D>,
         indexes: Tensor<B, D, Int>,
         values: Self::Primitive<D>,
     ) -> Self::Primitive<D> {
-        B::index_select_assign(tensor, indexes.primitive, values)
+        B::scatter(dim, tensor, indexes.primitive, values)
     }
 
     fn argmax<const D: usize>(
