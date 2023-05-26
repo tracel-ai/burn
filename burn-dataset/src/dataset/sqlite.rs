@@ -79,13 +79,13 @@ impl<I> SqliteDataset<I> {
     ///
     /// * `split`: &str - The name of the table in the database that the dataset is supposed to represent.
     ///
-    /// * `row_serialized`: bool - Indicates the structure of the table. If `true`, each row in the table is expected
-    /// to have its fields MessagePack serialized into a single `item` column. If `false`, each field of the item
-    /// is expected to be stored in its own column. Serialization of the entire item (all fields is needed because
-    /// there are complex fields that cannot be mapped to a SQLite type, e.g. nested structs, vectors, etc. However,
-    /// if the item is a simple struct, e.g. a struct with only primitive fields, then it is possible to store each
-    /// field in its own column, and set `row_serialized` to `false`. This type of sqlite table is easier to work and
-    /// analyze with external tools, e.g. DB Browser for SQLite.
+    /// * `row_serialized`: bool - This argument indicates the structure of the table. If `true`, each row in the table is expected
+    /// to be serialized using the MessagePack format in a single `item` column. If `false`, each field of the item
+    /// is expected to be stored in its own column. Serialization of the entire item, including all fields, is necessary because
+    /// there are complex fields that cannot be mapped to a SQLite type, such as nested structs, vectors, etc. However,
+    /// if the item is a simple struct, e.g., a struct with only primitive fields, then it is possible to store each
+    /// field in its own column, and set `row_serialized` to `false`. This type of SQLite table is easier to work with and
+    /// analyze using external tools, such as DB Browser for SQLite.
     ///
     /// # Returns
     ///
@@ -146,7 +146,7 @@ where
         let mut statement = connection.prepare(self.select_statement.as_str()).unwrap();
 
         if self.row_serialized {
-            // Fetch a with a single column `item` and deserialize it with MessagePack
+            // Fetch with a single column `item` and deserialize it with MessagePack
             statement
                 .query_row([row_id], |row| {
                     // Deserialize item (blob) with MessagePack (rmp-serde)
