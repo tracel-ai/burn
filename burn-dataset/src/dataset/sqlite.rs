@@ -512,7 +512,6 @@ mod tests {
         );
         assert!(ds_saver.conn_pool.is_some());
         assert!(ds_saver.exists());
-
     }
 
     #[rstest]
