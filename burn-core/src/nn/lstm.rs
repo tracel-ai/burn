@@ -18,9 +18,8 @@ pub struct LSTMConfig {
     pub d_hidden: usize,
     /// If a bias should be applied during the LSTM transformation.
     pub bias: bool,
-    /// LSTM bias for gate controllers usually initialized to ones
-    /// to prevent forgetting at the beginning of training.
-    #[config(default = "Initializer::Ones")]
+    /// LSTM initializer, should probably be Xavier or small random numbers
+    #[config(default = "Initializer::Uniform(0.0, 1.0)")]
     pub initializer: Initializer,
     /// The batch size
     pub batch_size: usize,
@@ -136,5 +135,23 @@ impl<B: Backend> LSTM<B> {
     pub fn reset_states(&mut self) {
         self.hidden_state = Some(Param::from(Tensor::zeros([self.batch_size, self.d_hidden])));
         self.cell_state = Some(Param::from(Tensor::zeros([self.batch_size, self.d_hidden])));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::TestBackend;
+    // use burn_tensor::Data;
+    // use libm::sqrt;
+
+    #[test]
+    fn initializer_default() {
+        TestBackend::seed(0);
+
+        let config = LSTMConfig::new(5, 5, false, 2);
+        let lstm = config.init::<TestBackend>();
+
+        lstm.input_gate.get_weight().to_data().assert_in_range(0.0, 1.0);
     }
 }
