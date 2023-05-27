@@ -21,15 +21,6 @@ use bytemuck::cast_slice;
 use protobuf::{Enum, Message};
 use topological_sort::TopologicalSort;
 
-const STATEFUL_NODE_TYPES: [NodeType; 6] = [
-    NodeType::Conv,
-    NodeType::Conv1d,
-    NodeType::Conv2d,
-    NodeType::BatchNormalization,
-    NodeType::Dropout,
-    NodeType::Linear,
-];
-
 /// Error type for parsing ONNX model
 #[derive(Debug)]
 pub enum ParseError {
@@ -375,8 +366,6 @@ pub fn convert_node_proto(node: &NodeProto) -> Node {
     log::debug!("Found ONNX node type => {}", node.op_type.as_str());
     let node_type = NodeType::from_str(node.op_type.as_str()).expect("Unknown node type");
 
-    let is_stateful = STATEFUL_NODE_TYPES.contains(&node_type);
-
     let mut node = Node {
         node_type,
         name,
@@ -384,7 +373,6 @@ pub fn convert_node_proto(node: &NodeProto) -> Node {
         outputs,
         initializers: vec![],
         attrs,
-        is_stateful,
     };
 
     remap_node_type(&mut node);
