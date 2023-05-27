@@ -204,7 +204,7 @@ mod tests {
         let test_hidden_state = Tensor::<TestBackend, 2>::from_floats([[0.1, 0.2, 0.3, 0.4]]);
         let test_cell_state = Tensor::<TestBackend, 2>::from_floats([[0.4, 0.5, 0.6, 0.7]]);
 
-        let config = LSTMConfig::new(4, 4, false, 2);
+        let config = LSTMConfig::new(4, 4, false, 1);
         let mut lstm = config.init_with_states::<TestBackend>(test_hidden_state, test_cell_state);
 
         assert_eq!(lstm.hidden_state.as_ref().unwrap().val().to_data(), Data::from([[0.1, 0.2, 0.3, 0.4]]));
