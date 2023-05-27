@@ -62,6 +62,29 @@ impl LSTMConfig {
             d_hidden: self.d_hidden,
         }
     }
+
+    pub fn init_with_states<B: Backend>(&self, hidden: Tensor<B,2>, cell: Tensor<B, 2>) -> LSTM<B> {
+        let d_output = self.d_hidden;
+
+        let input_gate = LinearConfig{ d_input: self.d_input, d_output, bias: self.bias, initializer: self.initializer.clone() }.init();
+        let forget_gate = LinearConfig{ d_input: self.d_input, d_output, bias: self.bias, initializer: self.initializer.clone() }.init();
+        let output_gate = LinearConfig{ d_input: self.d_input, d_output, bias: self.bias, initializer: self.initializer.clone() }.init();
+        let cell_gate = LinearConfig{ d_input: self.d_input, d_output, bias: self.bias, initializer: self.initializer.clone() }.init();
+
+        let hidden_state = Some(Param::from(hidden));
+        let cell_state = Some(Param::from(cell));
+
+        LSTM {
+            input_gate,
+            forget_gate,
+            output_gate,
+            cell_gate,
+            hidden_state,
+            cell_state,
+            batch_size: self.batch_size,
+            d_hidden: self.d_hidden,
+        }
+    }
 }
 
 impl<B: Backend> LSTM<B> {
@@ -140,6 +163,8 @@ impl<B: Backend> LSTM<B> {
 
 #[cfg(test)]
 mod tests {
+    use burn_tensor::Data;
+
     use super::*;
     use crate::TestBackend;
     // use burn_tensor::Data;
@@ -159,13 +184,36 @@ mod tests {
     }
 
     #[test]
-    fn reset_hidden_and_cell_state() {
-        todo!()
+    fn pass_states() {
+        TestBackend::seed(0);
+
+        let test_hidden_state = Tensor::<TestBackend, 2>::from_floats([[0.1, 0.2, 0.3, 0.4]]);
+        let test_cell_state = Tensor::<TestBackend, 2>::from_floats([[0.4, 0.5, 0.6, 0.7]]);
+
+        let config = LSTMConfig::new(4, 4, false, 2);
+        let lstm = config.init_with_states::<TestBackend>(test_hidden_state, test_cell_state);
+
+        assert_eq!(lstm.hidden_state.as_ref().unwrap().val().to_data(), Data::from([[0.1, 0.2, 0.3, 0.4]]));
+        assert_eq!(lstm.cell_state.as_ref().unwrap().val().to_data(), Data::from([[0.4, 0.5, 0.6, 0.7]]));
     }
 
     #[test]
-    fn pass_states() {
-        todo!()
+    fn reset_hidden_and_cell_state() {
+        TestBackend::seed(0);
+
+        let test_hidden_state = Tensor::<TestBackend, 2>::from_floats([[0.1, 0.2, 0.3, 0.4]]);
+        let test_cell_state = Tensor::<TestBackend, 2>::from_floats([[0.4, 0.5, 0.6, 0.7]]);
+
+        let config = LSTMConfig::new(4, 4, false, 2);
+        let mut lstm = config.init_with_states::<TestBackend>(test_hidden_state, test_cell_state);
+
+        assert_eq!(lstm.hidden_state.as_ref().unwrap().val().to_data(), Data::from([[0.1, 0.2, 0.3, 0.4]]));
+        assert_eq!(lstm.cell_state.as_ref().unwrap().val().to_data(), Data::from([[0.4, 0.5, 0.6, 0.7]]));
+
+        lstm.reset_states();
+
+        assert_eq!(lstm.hidden_state.as_ref().unwrap().val().to_data(), Data::from([[0.0, 0.0, 0.0, 0.0]]));
+        assert_eq!(lstm.cell_state.as_ref().unwrap().val().to_data(), Data::from([[0.0, 0.0, 0.0, 0.0]]));
     }
 
     #[test]
