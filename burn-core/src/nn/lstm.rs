@@ -123,10 +123,9 @@ impl<B: Backend> LSTM<B> {
          // c(ell)g(ate) tensors
         let biased_cg_input_sum = self.gate_product(&input, &hidden_state, &self.cell_gate);
         let candidate_cell_values = biased_cg_input_sum.tanh();
-        let candidate_cell_values_clone = candidate_cell_values.clone();
 
         cell_state = forget_values * cell_state + add_values * candidate_cell_values;
-        hidden_state = output_values * candidate_cell_values_clone;
+        hidden_state = output_values * cell_state.clone().tanh();
 
         self.cell_state = Some(Param::from(cell_state.clone()));
         self.hidden_state = Some(Param::from(hidden_state.clone()));
