@@ -284,7 +284,6 @@ impl ArgType {
 
 impl Argument {
     pub fn to_tensor_type(&self) -> TensorType {
-        log::debug!("Tensor type {:?}", self.arg_type);
         match self.arg_type.as_ref().expect("Tensor arg type") {
             ArgType::Tensor(tensor) => TensorType::new(self.name.clone(), tensor.shape.len()),
         }

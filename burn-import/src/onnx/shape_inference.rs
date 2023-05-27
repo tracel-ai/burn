@@ -68,7 +68,7 @@ pub fn shape_inference(
     graph_inputs: &Vec<Argument>,
     graph_outputs: &mut Vec<Argument>,
 ) {
-    let mut updater = TensorShapeUpdater::new(&graph_inputs);
+    let mut updater = TensorShapeUpdater::new(graph_inputs);
 
     for node in nodes.iter_mut() {
         updater.update_tensor_inputs(node);
