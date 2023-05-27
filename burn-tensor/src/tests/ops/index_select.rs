@@ -8,56 +8,77 @@ mod tests {
         let tensor = TestTensor::from_data(Data::from([0.0, 1.0, 2.0]));
         let indexes = TestTensorInt::from_data(Data::from([1, 1, 0, 1, 2]));
 
-        let output = tensor.index_select(indexes);
+        let output = tensor.index_select(0, indexes);
 
         assert_eq!(output.into_data(), Data::from([1.0, 1.0, 0.0, 1.0, 2.0]));
     }
 
     #[test]
-    fn should_select_2d() {
+    fn should_select_2d_dim0_same_num_dim() {
         let tensor = TestTensor::from_data(Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]));
-        let indexes = TestTensorInt::from_data(Data::from([[2, 1, 0, 0], [2, 0, 1, 2]]));
+        let indexes = TestTensorInt::from_data(Data::from([1, 0]));
 
-        let output = tensor.index_select(indexes);
+        let output = tensor.index_select(0, indexes);
 
         assert_eq!(
             output.into_data(),
-            Data::from([[2.0, 1.0, 0.0, 0.0], [5.0, 3.0, 4.0, 5.0]])
+            Data::from([[3.0, 4.0, 5.0], [0.0, 1.0, 2.0]])
         );
     }
 
     #[test]
-    fn should_select_2d_only_1dim() {
+    fn should_select_2d_dim0_more_num_dim() {
         let tensor = TestTensor::from_data(Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]));
-        let indexes = TestTensorInt::from_data(Data::from([[1, 2]])).reshape([2, 1]);
+        let indexes = TestTensorInt::from_data(Data::from([1, 0, 1, 1]));
 
-        let output = tensor.index_select(indexes);
+        let output = tensor.index_select(0, indexes);
 
-        assert_eq!(output.into_data(), Data::from([[1.0], [5.0]]));
+        assert_eq!(
+            output.into_data(),
+            Data::from([
+                [3.0, 4.0, 5.0],
+                [0.0, 1.0, 2.0],
+                [3.0, 4.0, 5.0],
+                [3.0, 4.0, 5.0]
+            ])
+        );
+    }
+
+    #[test]
+    fn should_select_2d_dim1() {
+        let tensor = TestTensor::from_data(Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]));
+        let indexes = TestTensorInt::from_data(Data::from([1, 1, 0, 1, 2]));
+
+        let output = tensor.index_select(1, indexes);
+
+        assert_eq!(
+            output.into_data(),
+            Data::from([[1.0, 1.0, 0.0, 1.0, 2.0], [4.0, 4.0, 3.0, 4.0, 5.0]])
+        );
     }
 
     #[test]
     fn should_select_assign_1d() {
-        let tensor = TestTensor::from_data(Data::from([0.0, 0.0, 0.0]));
-        let values = TestTensor::from_data(Data::from([5.0, 4.0, 3.0]));
-        let indexes = TestTensorInt::from_data(Data::from([1, 0, 2]));
+        let tensor = TestTensor::from_data(Data::from([0.0, 1.0, 2.0]));
+        let values = TestTensor::from_data(Data::from([5.0, 4.0, 3.0, 2.0, 1.0]));
+        let indexes = TestTensorInt::from_data(Data::from([1, 1, 0, 1, 2]));
 
-        let output = tensor.index_select_assign(indexes, values);
+        let output = tensor.index_select_assign(0, indexes, values);
 
-        assert_eq!(output.into_data(), Data::from([4.0, 5.0, 3.0]));
+        assert_eq!(output.into_data(), Data::from([3.0, 12.0, 3.0]));
     }
 
     #[test]
-    fn should_select_assign_2d() {
-        let tensor = TestTensor::from_data(Data::from([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]));
+    fn should_select_assign_2d_dim0() {
+        let tensor = TestTensor::from_data(Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]));
         let values = TestTensor::from_data(Data::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]));
-        let indexes = TestTensorInt::from_data(Data::from([[1, 0, 2], [1, 2, 0]]));
+        let indexes = TestTensorInt::from_data(Data::from([1, 0]));
 
-        let output = tensor.index_select_assign(indexes, values);
+        let output = tensor.index_select_assign(0, indexes, values);
 
         assert_eq!(
             output.into_data(),
-            Data::from([[2.0, 1.0, 3.0], [6.0, 4.0, 5.0]])
+            Data::from([[4.0, 6.0, 8.0], [4.0, 6.0, 8.0]])
         );
     }
 }

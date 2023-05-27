@@ -115,21 +115,23 @@ pub trait TensorOps<B: Backend> {
         tensor: B::TensorPrimitive<D1>,
         shape: Shape<D2>,
     ) -> B::TensorPrimitive<D2>;
-    fn index_select<const D: usize>(
+    fn gather<const D: usize>(
+        dim: usize,
         tensor: B::TensorPrimitive<D>,
         indexes: B::IntTensorPrimitive<D>,
     ) -> B::TensorPrimitive<D>;
-    fn index_select_assign<const D: usize>(
+    fn scatter<const D: usize>(
+        dim: usize,
         tensor: B::TensorPrimitive<D>,
         indexes: B::IntTensorPrimitive<D>,
         value: B::TensorPrimitive<D>,
     ) -> B::TensorPrimitive<D>;
-    fn index_select_dim<const D: usize>(
+    fn index_select<const D: usize>(
         tensor: B::TensorPrimitive<D>,
         dim: usize,
         indexes: B::IntTensorPrimitive<1>,
     ) -> B::TensorPrimitive<D>;
-    fn index_select_dim_assign<const D1: usize, const D2: usize>(
+    fn index_select_assign<const D1: usize, const D2: usize>(
         tensor: B::TensorPrimitive<D1>,
         dim: usize,
         indexes: B::IntTensorPrimitive<1>,
@@ -251,14 +253,14 @@ pub trait TensorOps<B: Backend> {
     fn max_dim<const D: usize>(tensor: B::TensorPrimitive<D>, dim: usize) -> B::TensorPrimitive<D> {
         let index = B::argmax(tensor.clone(), dim);
 
-        B::index_select(tensor, index)
+        B::gather(D - 1, tensor, index)
     }
     fn max_dim_with_indexes<const D: usize>(
         tensor: B::TensorPrimitive<D>,
         dim: usize,
     ) -> (B::TensorPrimitive<D>, B::IntTensorPrimitive<D>) {
         let index = B::argmax(tensor.clone(), dim);
-        let values = B::index_select(tensor, index.clone());
+        let values = B::gather(D - 1, tensor, index.clone());
 
         (values, index)
     }
@@ -271,14 +273,14 @@ pub trait TensorOps<B: Backend> {
     fn min_dim<const D: usize>(tensor: B::TensorPrimitive<D>, dim: usize) -> B::TensorPrimitive<D> {
         let index = B::argmin(tensor.clone(), dim);
 
-        B::index_select(tensor, index)
+        B::gather(D - 1, tensor, index)
     }
     fn min_dim_with_indexes<const D: usize>(
         tensor: B::TensorPrimitive<D>,
         dim: usize,
     ) -> (B::TensorPrimitive<D>, B::IntTensorPrimitive<D>) {
         let index = B::argmin(tensor.clone(), dim);
-        let values = B::index_select(tensor, index.clone());
+        let values = B::gather(D - 1, tensor, index.clone());
 
         (values, index)
     }

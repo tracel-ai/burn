@@ -150,36 +150,38 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         NdArrayOps::reshape(tensor, shape)
     }
 
-    fn index_select<const D: usize>(
+    fn gather<const D: usize>(
+        dim: usize,
         tensor: NdArrayTensor<E, D>,
         indexes: NdArrayTensor<i64, D>,
     ) -> NdArrayTensor<E, D> {
-        NdArrayMathOps::index_select(tensor, indexes)
+        NdArrayMathOps::gather(dim, tensor, indexes)
     }
 
-    fn index_select_assign<const D: usize>(
+    fn scatter<const D: usize>(
+        dim: usize,
         tensor: NdArrayTensor<E, D>,
         indexes: NdArrayTensor<i64, D>,
         value: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<E, D> {
-        NdArrayMathOps::index_select_assign(tensor, indexes, value)
+        NdArrayMathOps::scatter(dim, tensor, indexes, value)
     }
 
-    fn index_select_dim<const D: usize>(
+    fn index_select<const D: usize>(
         tensor: NdArrayTensor<E, D>,
         dim: usize,
         indexes: NdArrayTensor<i64, 1>,
     ) -> NdArrayTensor<E, D> {
-        NdArrayMathOps::index_select_dim(tensor, dim, indexes)
+        NdArrayMathOps::index_select(tensor, dim, indexes)
     }
 
-    fn index_select_dim_assign<const D1: usize, const D2: usize>(
+    fn index_select_assign<const D1: usize, const D2: usize>(
         tensor: NdArrayTensor<E, D1>,
         dim: usize,
         indexes: NdArrayTensor<i64, 1>,
         value: NdArrayTensor<E, D2>,
     ) -> NdArrayTensor<E, D1> {
-        NdArrayMathOps::index_select_dim_assign(tensor, dim, indexes, value)
+        NdArrayMathOps::index_select_assign(tensor, dim, indexes, value)
     }
 
     fn index<const D1: usize, const D2: usize>(

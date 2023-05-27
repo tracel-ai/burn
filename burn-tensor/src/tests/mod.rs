@@ -34,8 +34,8 @@ macro_rules! testgen_all {
         burn_tensor::testgen_log!();
         burn_tensor::testgen_log1p!();
         burn_tensor::testgen_index!();
+        burn_tensor::testgen_gather_scatter!();
         burn_tensor::testgen_index_select!();
-        burn_tensor::testgen_index_select_dim!();
         burn_tensor::testgen_map_comparison!();
         burn_tensor::testgen_mask!();
         burn_tensor::testgen_matmul!();

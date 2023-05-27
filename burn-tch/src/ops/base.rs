@@ -56,17 +56,19 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         TchTensor::new(tensor_original)
     }
 
-    pub fn index_select<const D: usize>(
+    pub fn gather<const D: usize>(
+        dim: usize,
         tensor: TchTensor<E, D>,
         indexes: TchTensor<i64, D>,
     ) -> TchTensor<E, D> {
         let storage = tensor.storage.clone();
-        let tensor = tensor.tensor.gather((D - 1) as i64, &indexes.tensor, false);
+        let tensor = tensor.tensor.gather(dim as i64, &indexes.tensor, false);
 
         TchTensor::from_existing(tensor, storage)
     }
 
-    pub fn index_select_assign<const D: usize>(
+    pub fn scatter<const D: usize>(
+        dim: usize,
         tensor: TchTensor<E, D>,
         indexes: TchTensor<i64, D>,
         value: TchTensor<E, D>,
@@ -74,7 +76,7 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         let storage = tensor.storage.clone();
         let tensor = tensor
             .tensor
-            .scatter_add((D - 1) as i64, &indexes.tensor, &value.tensor);
+            .scatter_add(dim as i64, &indexes.tensor, &value.tensor);
 
         TchTensor::from_existing(tensor, storage)
     }

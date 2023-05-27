@@ -14,7 +14,7 @@ impl<B: Backend, const D: usize> Backward<B, D, 1> for MaxMinDim {
             let device = B::device(&grad);
             let zeros = B::zeros(shape, &device);
 
-            B::index_select_assign(zeros, indexes, grad)
+            B::scatter(D - 1, zeros, indexes, grad)
         });
     }
 }
