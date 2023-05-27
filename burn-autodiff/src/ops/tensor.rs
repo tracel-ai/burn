@@ -525,7 +525,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
-    fn index_select_dim<const D: usize>(
+    fn index_select<const D: usize>(
         tensor: ADTensor<B, D>,
         dim: usize,
         indexes: IntTensor<B, 1>,
@@ -541,7 +541,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
                     let zeros = B::zeros(shape, &device);
-                    B::index_select_dim_assign(zeros, dim, indexes, grad)
+                    B::index_select_assign(zeros, dim, indexes, grad)
                 });
             }
         }
@@ -557,15 +557,15 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     B::shape(&tensor.primitive),
                     B::device(&tensor.primitive),
                 ),
-                B::index_select_dim(tensor.primitive, dim, indexes),
+                B::index_select(tensor.primitive, dim, indexes),
             ),
             OpsKind::UnTracked(prep) => {
-                prep.finish(B::index_select_dim(tensor.primitive, dim, indexes))
+                prep.finish(B::index_select(tensor.primitive, dim, indexes))
             }
         }
     }
 
-    fn index_select_dim_assign<const D1: usize, const D2: usize>(
+    fn index_select_assign<const D1: usize, const D2: usize>(
         tensor: ADTensor<B, D1>,
         dim: usize,
         indexes: IntTensor<B, 1>,
@@ -587,11 +587,11 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     grads,
                     |grad| {
                         let zeros = B::zeros(shape_lhs, &device);
-                        B::index_select_dim_assign(grad, dim, indexes_4lhs.unwrap(), zeros)
+                        B::index_select_assign(grad, dim, indexes_4lhs.unwrap(), zeros)
                     },
                     |grad| {
                         let zeros = B::zeros(shape_rhs, &device);
-                        B::index_select_dim_assign(zeros, dim, indexes_4rhs.unwrap(), grad)
+                        B::index_select_assign(zeros, dim, indexes_4rhs.unwrap(), grad)
                     },
                 );
             }
@@ -609,9 +609,9 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     B::shape(&value.primitive),
                     B::device(&value.primitive),
                 ),
-                B::index_select_dim_assign(tensor.primitive, dim, indexes, value.primitive),
+                B::index_select_assign(tensor.primitive, dim, indexes, value.primitive),
             ),
-            OpsKind::UnTracked(prep) => prep.finish(B::index_select_dim_assign(
+            OpsKind::UnTracked(prep) => prep.finish(B::index_select_assign(
                 tensor.primitive,
                 dim,
                 indexes,

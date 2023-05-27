@@ -203,41 +203,61 @@ where
         Self::new(K::mask_fill(self.primitive, mask, value.elem()))
     }
 
-    /// Select the tensor elements corresponding to the given indexes.
+    /// Gather tensor elements corresponding to the given indexes from the specified dim.
+    ///
+    /// Example using a 3D tensor:
+    ///
+    /// `output[i, j, k] = input[indexes[i, j, k], j, k]; // dim = 0`
+    /// `output[i, j, k] = input[i, indexes[i, j, k], k]; // dim = 1`
+    /// `output[i, j, k] = input[i, j, indexes[i, j, k]]; // dim = 2`
     ///
     /// # Notes
     ///
-    /// The index tensor shoud have the same shape as the original tensor except for the last
-    /// dimension.
+    /// The index tensor shoud have the same shape as the original tensor except for the dim
+    /// specified.
     pub fn gather(self, dim: usize, indexes: Tensor<B, D, Int>) -> Self {
         Self::new(K::gather(dim, self.primitive, indexes))
     }
 
-    /// Assign the selected elements corresponding to the given indexes from the value tensor
-    /// to the original tensor using sum reduction.
+    /// Assign the gathered elements corresponding to the given indexes along the speficied dimension
+    /// from the value tensor to the original tensor using sum reduction.
+    ///
+    /// Example using a 3D tensor:
+    ///
+    /// `input[indexes[i, j, k], j, k] += values[i, j, k]; // dim = 0`
+    /// `input[i, indexes[i, j, k], k] += values[i, j, k]; // dim = 1`
+    /// `input[i, j, indexes[i, j, k]] += values[i, j, k]; // dim = 2`
     ///
     /// # Notes
     ///
-    /// The index tensor shoud have the same shape as the original tensor except for the last
+    /// The index tensor shoud have the same shape as the original tensor except for the speficied
     /// dimension. The value and index tensors should have the same shape.
+    ///
+    /// Other references to the input tensor will not be modified by this operation.
     pub fn scatter(self, dim: usize, indexes: Tensor<B, D, Int>, values: Self) -> Self {
         Self::new(K::scatter(dim, self.primitive, indexes, values.primitive))
     }
 
     /// Select the tensor elements along the given dimension corresponding to the given indexes.
-    pub fn index_select_dim(self, dim: usize, indexes: Tensor<B, 1, Int>) -> Self {
-        Self::new(K::index_select_dim(self.primitive, dim, indexes))
+    ///
+    /// Example using a 3D tensor:
+    ///
+    /// `output[i, j, k] = input[indexes[i], j, k]; // dim = 0`
+    /// `output[i, j, k] = input[i, indexes[j], k]; // dim = 1`
+    /// `output[i, j, k] = input[i, j, indexes[k]]; // dim = 2`
+    pub fn index_select(self, dim: usize, indexes: Tensor<B, 1, Int>) -> Self {
+        Self::new(K::index_select(self.primitive, dim, indexes))
     }
 
     /// Assign the selected elements along the given dimension corresponding to the given indexes
     /// from the value tensor to the original tensor using sum reduction.
-    pub fn index_select_dim_assign<const D2: usize>(
+    pub fn index_select_assign<const D2: usize>(
         self,
         dim: usize,
         indexes: Tensor<B, 1, Int>,
         values: Tensor<B, D2, K>,
     ) -> Self {
-        Self::new(K::index_select_dim_assign(
+        Self::new(K::index_select_assign(
             self.primitive,
             dim,
             indexes,
@@ -419,12 +439,12 @@ where
         indexes: Tensor<B, D, Int>,
         values: Self::Primitive<D>,
     ) -> Self::Primitive<D>;
-    fn index_select_dim<const D: usize>(
+    fn index_select<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
         indexes: Tensor<B, 1, Int>,
     ) -> Self::Primitive<D>;
-    fn index_select_dim_assign<const D1: usize, const D2: usize>(
+    fn index_select_assign<const D1: usize, const D2: usize>(
         tensor: Self::Primitive<D1>,
         dim: usize,
         indexes: Tensor<B, 1, Int>,
@@ -586,7 +606,7 @@ impl<B: Backend> Numeric<B> for Int {
         B::int_mask_fill(tensor, mask.primitive, value)
     }
 
-    fn index_select_dim<const D: usize>(
+    fn index_select<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
         indexes: Tensor<B, 1, Int>,
@@ -594,7 +614,7 @@ impl<B: Backend> Numeric<B> for Int {
         B::int_index_select_dim(tensor, dim, indexes.primitive)
     }
 
-    fn index_select_dim_assign<const D1: usize, const D2: usize>(
+    fn index_select_assign<const D1: usize, const D2: usize>(
         tensor: Self::Primitive<D1>,
         dim: usize,
         indexes: Tensor<B, 1, Int>,
@@ -804,21 +824,21 @@ impl<B: Backend> Numeric<B> for Float {
         B::mask_fill(tensor, mask.primitive, value)
     }
 
-    fn index_select_dim<const D: usize>(
+    fn index_select<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
         indexes: Tensor<B, 1, Int>,
     ) -> Self::Primitive<D> {
-        B::index_select_dim(tensor, dim, indexes.primitive)
+        B::index_select(tensor, dim, indexes.primitive)
     }
 
-    fn index_select_dim_assign<const D1: usize, const D2: usize>(
+    fn index_select_assign<const D1: usize, const D2: usize>(
         tensor: Self::Primitive<D1>,
         dim: usize,
         indexes: Tensor<B, 1, Int>,
         values: Self::Primitive<D2>,
     ) -> Self::Primitive<D1> {
-        B::index_select_dim_assign(tensor, dim, indexes.primitive, values)
+        B::index_select_assign(tensor, dim, indexes.primitive, values)
     }
 
     fn gather<const D: usize>(
