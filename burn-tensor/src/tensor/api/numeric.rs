@@ -216,6 +216,12 @@ where
     /// The index tensor shoud have the same shape as the original tensor except for the dim
     /// specified.
     pub fn gather(self, dim: usize, indexes: Tensor<B, D, Int>) -> Self {
+        check!(TensorCheck::gather::<D>(
+            dim,
+            &self.shape(),
+            &indexes.shape()
+        ));
+
         Self::new(K::gather(dim, self.primitive, indexes))
     }
 
@@ -235,6 +241,13 @@ where
     ///
     /// Other references to the input tensor will not be modified by this operation.
     pub fn scatter(self, dim: usize, indexes: Tensor<B, D, Int>, values: Self) -> Self {
+        check!(TensorCheck::scatter::<D>(
+            dim,
+            &self.shape(),
+            &indexes.shape(),
+            &values.shape()
+        ));
+
         Self::new(K::scatter(dim, self.primitive, indexes, values.primitive))
     }
 
@@ -246,17 +259,26 @@ where
     /// `output[i, j, k] = input[i, indexes[j], k]; // dim = 1`
     /// `output[i, j, k] = input[i, j, indexes[k]]; // dim = 2`
     pub fn index_select(self, dim: usize, indexes: Tensor<B, 1, Int>) -> Self {
+        check!(TensorCheck::index_select::<D>(dim));
         Self::new(K::index_select(self.primitive, dim, indexes))
     }
 
     /// Assign the selected elements along the given dimension corresponding to the given indexes
     /// from the value tensor to the original tensor using sum reduction.
+    ///
+    /// Example using a 3D tensor:
+    ///
+    /// `input[indexes[i], j, k] += values[i, j, k]; // dim = 0`
+    /// `input[i, indexes[j], k] += values[i, j, k]; // dim = 1`
+    /// `input[i, j, indexes[k]] += values[i, j, k]; // dim = 2`
     pub fn index_select_assign<const D2: usize>(
         self,
         dim: usize,
         indexes: Tensor<B, 1, Int>,
         values: Tensor<B, D2, K>,
     ) -> Self {
+        check!(TensorCheck::index_select_assign::<D>(dim));
+
         Self::new(K::index_select_assign(
             self.primitive,
             dim,

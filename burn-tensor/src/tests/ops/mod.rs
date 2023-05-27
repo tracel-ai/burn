@@ -8,7 +8,7 @@ mod exp;
 mod flatten;
 mod gather_scatter;
 mod index;
-mod index_select_dim;
+mod index_select;
 mod log;
 mod log1p;
 mod map_comparison;

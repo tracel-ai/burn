@@ -16,7 +16,7 @@ mod exp;
 mod gather_scatter;
 mod gelu;
 mod index;
-mod index_select_dim;
+mod index_select;
 mod log;
 mod log1p;
 mod mask;
@@ -71,7 +71,7 @@ macro_rules! testgen_all {
         burn_autodiff::testgen_ad_exp!();
         burn_autodiff::testgen_ad_index!();
         burn_autodiff::testgen_ad_gather_scatter!();
-        burn_autodiff::testgen_ad_index_select_dim!();
+        burn_autodiff::testgen_ad_index_select!();
         burn_autodiff::testgen_ad_log!();
         burn_autodiff::testgen_ad_log1p!();
         burn_autodiff::testgen_ad_mask!();

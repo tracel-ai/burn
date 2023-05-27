@@ -374,6 +374,98 @@ impl TensorCheck {
         check
     }
 
+    pub fn gather<const D: usize>(dim: usize, shape: &Shape<D>, shape_indexes: &Shape<D>) -> Self {
+        Self::check_gather_scatter_indexes(Self::Ok, "Gather", dim, shape, shape_indexes)
+    }
+
+    pub fn scatter<const D: usize>(
+        dim: usize,
+        shape: &Shape<D>,
+        shape_indexes: &Shape<D>,
+        shape_value: &Shape<D>,
+    ) -> Self {
+        let ops = "Scatter";
+        let mut check =
+            Self::check_gather_scatter_indexes(Self::Ok, ops, dim, shape, shape_indexes);
+
+        if shape_indexes != shape_value {
+            check = check.register(
+                ops,
+                TensorError::new(
+                    "Indexes tensor shape should be the same as the value tensor shape."
+                        .to_string(),
+                )
+                .details(format!(
+                    "The shape differs: {:?} != {:?}",
+                    shape_indexes.dims, shape_value.dims
+                )),
+            );
+        }
+
+        check
+    }
+
+    pub fn index_select<const D: usize>(dim: usize) -> Self {
+        Self::check_index_select_basic::<D>(Self::Ok, "index_select", dim)
+    }
+
+    pub fn index_select_assign<const D: usize>(dim: usize) -> Self {
+        Self::check_index_select_basic::<D>(Self::Ok, "index_select_assign", dim)
+    }
+
+    fn check_index_select_basic<const D: usize>(mut check: Self, ops: &str, dim: usize) -> Self {
+        if dim > D {
+            check = check.register(
+                ops,
+                TensorError::new(format!(
+                    "Can't index a tensor with ({D}) dimensions on axis ({dim})"
+                )),
+            );
+        }
+
+        check
+    }
+    fn check_gather_scatter_indexes<const D: usize>(
+        mut check: Self,
+        ops: &str,
+        dim: usize,
+        shape: &Shape<D>,
+        shape_indexes: &Shape<D>,
+    ) -> Self {
+        if dim > D {
+            check = check.register(
+                ops,
+                TensorError::new(format!(
+                    "Can't index a tensor with ({D}) dimensions on axis ({dim})"
+                )),
+            );
+        }
+
+        for i in 0..D {
+            if i == dim {
+                continue;
+            }
+
+            let tensor_dim_i = shape.dims[i];
+            let indexes_dim_i = shape_indexes.dims[i];
+
+            if tensor_dim_i != indexes_dim_i {
+                check = check.register(
+                    ops,
+                    TensorError::new(
+                        "The tensor shape should be the same as the index tensor shape."
+                            .to_string(),
+                    )
+                    .details(format!(
+                        "The shape differs at dimension {i}: {tensor_dim_i} != {indexes_dim_i}"
+                    )),
+                );
+            }
+        }
+
+        check
+    }
+
     /// Checks aggregate dimension such as mean and sum.
     pub fn aggregate_dim<const D: usize>(ops: &str, dim: usize) -> Self {
         let mut check = Self::Ok;
