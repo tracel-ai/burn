@@ -47,10 +47,10 @@ pub enum ElementType {
 
 #[derive(Debug, Clone)]
 pub struct Tensor {
-    pub name: Option<String>,
     pub elem_type: ElementType,
-    pub shape: Shape,
+    pub dim: usize,
     pub data: Option<TensorData>,
+    pub shape: Option<Shape>,
 }
 
 #[derive(Clone)]
@@ -344,7 +344,7 @@ impl<const D: usize> TryFrom<&Tensor> for burn::tensor::Tensor<NdArrayBackend<f3
     type Error = ();
 
     fn try_from(value: &Tensor) -> Result<Self, Self::Error> {
-        let shape: [usize; D] = value.shape.clone().try_into().unwrap();
+        let shape: [usize; D] = value.shape.clone().unwrap().try_into().unwrap();
         let TensorData::Float32(floats) = value.data.clone().unwrap() else {
             todo!("Tensor data must be float32s");
         };

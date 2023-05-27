@@ -68,5 +68,5 @@ fn transpose_linear_node_weights(node: &mut Node) {
     let ArgType::Tensor(node_weight) = node.initializers[0].arg_type.as_mut().unwrap();
 
     node_weight.data = Some(TensorData::Float32(weight.clone().into_data().value));
-    node_weight.shape = weight.shape().dims.to_vec();
+    node_weight.shape = Some(weight.shape().dims.to_vec());
 }

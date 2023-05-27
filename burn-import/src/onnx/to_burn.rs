@@ -285,7 +285,7 @@ impl ArgType {
 impl Argument {
     pub fn to_tensor_type(&self) -> TensorType {
         match self.arg_type.as_ref().expect("Tensor arg type") {
-            ArgType::Tensor(tensor) => TensorType::new(self.name.clone(), tensor.shape.len()),
+            ArgType::Tensor(tensor) => TensorType::new(self.name.clone(), tensor.dim),
         }
     }
 }
@@ -295,11 +295,11 @@ impl Tensor {
         let data = self.data.expect("Data to be provided.");
 
         match data {
-            TensorData::Float16(val) => DataSerialize::new(val, self.shape).convert(),
-            TensorData::Float32(val) => DataSerialize::new(val, self.shape).convert(),
-            TensorData::Float64(val) => DataSerialize::new(val, self.shape).convert(),
-            TensorData::Int32(val) => DataSerialize::new(val, self.shape).convert(),
-            TensorData::Int64(val) => DataSerialize::new(val, self.shape).convert(),
+            TensorData::Float16(val) => DataSerialize::new(val, self.shape.unwrap()).convert(),
+            TensorData::Float32(val) => DataSerialize::new(val, self.shape.unwrap()).convert(),
+            TensorData::Float64(val) => DataSerialize::new(val, self.shape.unwrap()).convert(),
+            TensorData::Int32(val) => DataSerialize::new(val, self.shape.unwrap()).convert(),
+            TensorData::Int64(val) => DataSerialize::new(val, self.shape.unwrap()).convert(),
             TensorData::String(_) => panic!("String tensor unsuported"),
         }
     }

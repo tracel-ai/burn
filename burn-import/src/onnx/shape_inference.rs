@@ -2,11 +2,8 @@ use std::collections::HashMap;
 
 use super::{
     ir::{ArgType, Argument, Node, NodeType, Tensor},
-    op_configuration::{conv2d_config, flatten_config, linear_config},
+    op_configuration::flatten_config,
 };
-
-use burn::tensor;
-use burn_ndarray::NdArrayBackend;
 
 struct TensorShapeUpdater {
     arguments: HashMap<String, Argument>,
@@ -99,19 +96,13 @@ fn linear_update_outputs(curr: &mut Node) {
     }
 
     // Extract the configuration of the linear layer (inputs are known)
-    let config = linear_config(curr);
-
-    // Replace the output tensor
     let curr_input = &mut curr.inputs[0];
     let ArgType::Tensor(tensor) = curr_input.clone().arg_type.unwrap();
-    let mut new_shape = tensor.shape.clone();
-    // Update the last dimension of the shape
-    new_shape[tensor.shape.len() - 1] = config.d_input;
 
     // Update the output tensor
     curr.outputs[0].arg_type = Some(ArgType::Tensor(Tensor {
-        name: None,
-        shape: new_shape,
+        dim: tensor.dim,
+        shape: None,
         data: None,
         elem_type: tensor.elem_type,
     }));
@@ -131,26 +122,11 @@ fn flatten_update_outputs(curr: &mut Node) {
 
     let ArgType::Tensor(tensor) = curr_input.clone().arg_type.unwrap();
 
-    let input_shape = tensor.shape;
-
     let (start_dim, end_dim) = flatten_config(curr);
 
-    // calculate the new shape (code is taken from the flatten op)
-    // use the same logic as in the flatten op
-    // unfortunately the output tensor's dimensions (D2) are not known at compile time
-    // that's why we have to calculate the new shape at runtime
-    let mut new_dims = vec![0; input_shape.len() - (end_dim - start_dim)];
-    let mut flatten_dims = 1;
-    for i in input_shape[start_dim..=end_dim].iter() {
-        flatten_dims *= i;
-    }
-    new_dims[..start_dim].copy_from_slice(&input_shape[..start_dim]);
-    new_dims[start_dim] = flatten_dims;
-    new_dims[start_dim + 1..].copy_from_slice(&input_shape[end_dim + 1..]);
-
     curr.outputs[0].arg_type = Some(ArgType::Tensor(Tensor {
-        name: None,
-        shape: new_dims,
+        dim: end_dim - start_dim,
+        shape: None,
         data: None,
         elem_type: tensor.elem_type,
     }));
@@ -168,26 +144,10 @@ fn conv2d_update_outputs(curr: &mut Node) {
     // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
     let ArgType::Tensor(tensor) = curr.inputs[0].clone().arg_type.unwrap();
 
-    let elem_type = tensor.elem_type;
-    if tensor.shape.len() != 4 {
-        panic!("Conv2d: input tensor must be 4D");
-    }
-
-    // using the real configuration, run through op and calculate an actual shape of the output tensor
-    let config = conv2d_config(curr);
-    let conv2d = config.init();
-
-    let mut input_shape: [usize; 4] = [0; 4];
-    input_shape.copy_from_slice(tensor.shape.as_slice());
-    let input = tensor::Tensor::<NdArrayBackend<f32>, 4>::zeros(input_shape);
-    let output = conv2d.forward(input);
-
-    let output_shape = output.shape().dims.to_vec();
-
     curr.outputs[0].arg_type = Some(ArgType::Tensor(Tensor {
-        name: None,
-        shape: output_shape,
+        dim: tensor.dim,
+        shape: None,
         data: None,
-        elem_type,
+        elem_type: tensor.elem_type,
     }));
 }

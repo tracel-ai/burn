@@ -235,12 +235,11 @@ impl TryFrom<TensorProto> for Tensor {
             }
         };
         let shape = convert_shape(tensor.dims);
-        let name = tensor.name;
 
         Ok(Tensor {
-            name: Some(name),
             elem_type,
-            shape,
+            dim: shape.len(),
+            shape: Some(shape),
             data: Some(data),
         })
     }
@@ -280,12 +279,10 @@ impl TryFrom<&type_proto::Tensor> for Tensor {
         let shape_proto = tensor.shape.clone().unwrap();
         let shape: Vec<usize> = shape_proto.try_into().unwrap();
 
-        let name = None;
-
         Ok(Tensor {
-            name,
             elem_type,
-            shape,
+            dim: shape.len(),
+            shape: Some(shape),
             data: None,
         })
     }

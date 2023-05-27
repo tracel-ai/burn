@@ -41,7 +41,8 @@ pub fn conv2d_config(curr: &Node) -> Conv2dConfig {
     let bias = curr.initializers.len() == 2;
 
     // the channels are inverted in the weight tensor
-    let channels: [usize; 2] = [tensor.shape[1], tensor.shape[0]];
+    let shape = tensor.shape.unwrap();
+    let channels: [usize; 2] = [shape[1], shape[0]];
 
     for (key, value) in curr.attrs.iter() {
         match key.as_str() {
@@ -97,15 +98,15 @@ pub fn flatten_config(curr: &Node) -> (usize, usize) {
     let ArgType::Tensor(tensor) = curr.inputs.get(0).unwrap().clone().arg_type.unwrap();
 
     // check if the input tensor has at least 2 dimensions
-    if tensor.shape.len() < 2 {
+    if tensor.dim < 2 {
         panic!(
             "Flatten: input tensor must have at least 2 dimensions (got {:?})",
-            tensor.shape.len()
+            tensor.dim
         );
     }
 
     // the end dimension is the last dimension
-    let end_dim = tensor.shape.len() - 1;
+    let end_dim = tensor.dim - 1;
 
     // extract the attributes
     for (key, value) in curr.attrs.iter() {
@@ -117,7 +118,7 @@ pub fn flatten_config(curr: &Node) -> (usize, usize) {
 
     // if beg_dim is negative, it is counted from the end
     if start_dim < 0 {
-        start_dim += tensor.shape.len() as i64;
+        start_dim += tensor.dim as i64;
     }
 
     (start_dim as usize, end_dim)
@@ -141,13 +142,14 @@ pub fn linear_config(node: &Node) -> LinearConfig {
     let ArgType::Tensor(tensor) = node.initializers.get(0).unwrap().clone().arg_type.unwrap();
 
     // check if the weight tensor has at least 2 dimensions
-    if tensor.shape.len() < 2 {
+    if tensor.dim < 2 {
         panic!(
             "Linear: weight tensor must have at least 2 dimensions (got {:?})",
-            tensor.shape.len()
+            tensor.dim
         );
     }
-    let (in_size, out_size) = (tensor.shape[0], tensor.shape[1]);
+    let shape = tensor.shape.unwrap();
+    let (in_size, out_size) = (shape[0], shape[1]);
 
     // check if the bias is present
     let bias = node.initializers.len() == 2;
@@ -181,7 +183,7 @@ pub fn log_softmax_config(node: &Node) -> usize {
 
     // if axis is negative, it is counted from the end
     if axis < 0 {
-        axis += tensor.shape.len() as i64;
+        axis += tensor.dim as i64;
     }
 
     axis as usize
@@ -192,7 +194,7 @@ pub fn batch_norm_config(node: &Node) -> BatchNormConfig {
     // extract the shape of the weight tensor
     let ArgType::Tensor(tensor) = node.initializers.get(0).unwrap().clone().arg_type.unwrap();
 
-    let num_features: usize = tensor.shape[0];
+    let num_features: usize = tensor.shape.unwrap()[0];
 
     let mut epsilon = 0f32;
     let mut momentum = 0f32;
