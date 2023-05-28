@@ -19,7 +19,7 @@ impl<B: Backend> GateController<B> {
     pub fn new(d_input: usize, d_output: usize, bias: bool, initializer: Initializer) -> GateController<B> {
         GateController { 
             input_transform: LinearConfig{ d_input: d_input, d_output: d_output, bias: bias, initializer: initializer.clone() }.init(), 
-            hidden_transform: LinearConfig{ d_input: d_input, d_output: d_output, bias: bias, initializer: initializer.clone() }.init(), 
+            hidden_transform: LinearConfig{ d_input: d_output, d_output: d_output, bias: bias, initializer: initializer.clone() }.init(), 
         }
     }
 
