@@ -8,7 +8,6 @@ type B = NdArrayBackend<f32>;
 /// The function transforms the graph into a new one where the nodes are coalesced into a single node.
 pub fn coalesce(nodes: &mut Vec<Node>) {
     for node in nodes.iter_mut() {
-        log::info!("Node {:?}", node);
         match node.node_type {
             NodeType::Gemm => convert_gemm(node),
             _ => {}

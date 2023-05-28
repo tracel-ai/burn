@@ -58,7 +58,7 @@ pub fn parse_onnx(onnx_path: &Path) -> ONNXGraph {
         .collect();
     let mut inputs = collect_inputs(&onnx_model, &check_if_initializer, top_nodes);
     let mut outputs = collect_outputs(&onnx_model, check_if_initializer);
-    let initializers = collect_initializers(onnx_model);
+    let sates = collect_states(onnx_model);
 
     // Coalesce and transform nodes
     coalesce(&mut nodes);
@@ -74,14 +74,14 @@ pub fn parse_onnx(onnx_path: &Path) -> ONNXGraph {
         nodes,
         inputs,
         outputs,
-        sates: initializers,
+        sates,
         old_node_names,
         old_input_names,
     }
 }
 
 /// Collect initializers
-fn collect_initializers(onnx_model: ModelProto) -> Vec<State> {
+fn collect_states(onnx_model: ModelProto) -> Vec<State> {
     let mut initializers = Vec::new();
 
     for initializer in onnx_model.graph.initializer.iter() {
@@ -154,24 +154,6 @@ fn get_top_nodes(nodes: &Vec<Node>) -> (TopologicalSort<Node>, HashSet<String>) 
     }
     (ts, top_nodes)
 }
-
-/// Move nodes's inputs and outputs to initializers if they are in the initializer list
-// fn move_inputs_to_initializer(nodes: &mut Vec<Node>, check_if_initializer: &HashSet<String>) {
-//     for node in nodes.iter_mut() {
-//         node.initializers = node
-//             .inputs
-//             .iter()
-//             .filter(|x| check_if_initializer.contains(&x.name))
-//             .cloned()
-//             .collect();
-//
-//         // Remove the initializers from the inputs and outputs
-//         node.inputs
-//             .retain(|x| !check_if_initializer.contains(&x.name));
-//         node.outputs
-//             .retain(|x| !check_if_initializer.contains(&x.name));
-//     }
-// }
 
 fn to_string(bytes: Vec<u8>) -> String {
     from_utf8(bytes.as_slice()).unwrap().to_string()
