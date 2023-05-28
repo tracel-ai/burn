@@ -43,8 +43,8 @@ impl TensorDimUpdater {
         arguments
             .iter_mut()
             .filter_map(|input| self.arguments.get(&input.name).map(|arg| (arg, input)))
-            .filter_map(|(arg, input)| match &arg.ty {
-                ArgType::Tensor(tensor) => Some((tensor, input)),
+            .map(|(arg, input)| match &arg.ty {
+                ArgType::Tensor(tensor) => (tensor, input),
             })
             .map(|(tensor, input)| {
                 input.ty = ArgType::Tensor(tensor.clone());

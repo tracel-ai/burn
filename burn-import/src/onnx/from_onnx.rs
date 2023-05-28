@@ -37,7 +37,7 @@ pub fn parse_onnx(onnx_path: &Path) -> ONNXGraph {
     // Convert the nodes
     let mut nodes: Vec<Node> = vec![];
     for onnx_node in onnx_model.graph.node.iter() {
-        nodes.push(convert_node_proto(&onnx_node));
+        nodes.push(convert_node_proto(onnx_node));
     }
 
     // Move inputs to initializers
@@ -386,7 +386,7 @@ impl TryFrom<ValueInfoProto> for Argument {
         }
 
         let tensor_proto = proto_type.tensor_type();
-        let tensor: TensorArg = TensorArg::new(tensor_proto.shape.dim.len() as usize);
+        let tensor: TensorArg = TensorArg::new(tensor_proto.shape.dim.len());
         let ty = ArgType::Tensor(tensor);
 
         Ok(Argument { ty, name })
