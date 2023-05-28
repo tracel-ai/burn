@@ -5,6 +5,7 @@ use std::{
     str::{from_utf8, FromStr},
 };
 
+use super::dim_inference::dim_inference;
 use super::ir::{
     ArgType, Argument, AttributeValue, Attributes, ElementType, Node, NodeType, ONNXGraph, State,
     Tensor, TensorArg, TensorData,
@@ -14,7 +15,6 @@ use super::protos::{
     type_proto, AttributeProto, ModelProto, NodeProto, TensorProto, TensorShapeProto,
     ValueInfoProto,
 };
-use super::shape_inference::shape_inference;
 use super::{coalesce::coalesce, ir::StateType};
 
 use bytemuck::cast_slice;
@@ -68,7 +68,7 @@ pub fn parse_onnx(onnx_path: &Path) -> ONNXGraph {
     let old_input_names = rename_inputs(&mut nodes, &mut inputs, &mut outputs);
 
     // Infer shapes and update the inputs and outputs
-    shape_inference(&mut nodes, &inputs, &mut outputs);
+    dim_inference(&mut nodes, &inputs, &mut outputs);
 
     ONNXGraph {
         nodes,

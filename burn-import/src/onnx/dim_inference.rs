@@ -5,11 +5,11 @@ use super::{
     op_configuration::flatten_config,
 };
 
-struct TensorShapeUpdater {
+struct TensorDimUpdater {
     arguments: HashMap<String, Argument>,
 }
 
-impl TensorShapeUpdater {
+impl TensorDimUpdater {
     fn new(inputs: &[Argument]) -> Self {
         let mut arguments: HashMap<String, Argument> = HashMap::with_capacity(inputs.len());
 
@@ -53,13 +53,13 @@ impl TensorShapeUpdater {
     }
 }
 
-/// Infer the shape of each node and replace the shape of the output tensor
-pub fn shape_inference(
+/// Infer the dimension of each output tensor and update them.
+pub fn dim_inference(
     nodes: &mut Vec<Node>,
     graph_inputs: &Vec<Argument>,
     graph_outputs: &mut Vec<Argument>,
 ) {
-    let mut updater = TensorShapeUpdater::new(graph_inputs);
+    let mut updater = TensorDimUpdater::new(graph_inputs);
 
     for node in nodes.iter_mut() {
         updater.update_tensor_inputs(node);
