@@ -236,6 +236,7 @@ mod tests {
         ));
         
         let (_, output) = lstm.forward(input, None);
+        println!("{:?}", output);
         output.to_data().assert_approx_eq(&Data::from([[-0.06984739, 0.06812251, -0.02153058, 0.1707408 ]]), 3);
     }
 }
