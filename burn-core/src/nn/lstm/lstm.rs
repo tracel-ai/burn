@@ -7,8 +7,10 @@ use crate::config::Config;
 use crate::module::Module;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
+use crate::nn::Initializer;
+use crate::nn::lstm::gate_controller;
 
-use super::{Initializer, Linear, LinearConfig};
+use super::gate_controller::GateController;
 
 #[derive(Config)]
 pub struct LSTMConfig {
@@ -28,10 +30,10 @@ pub struct LSTMConfig {
 /// The LSTM module. This implementation is for a unidirectional, stateful, LSTM.
 #[derive(Module, Debug)]
 pub struct LSTM<B: Backend> {
-    input_gate: Linear<B>,
-    forget_gate: Linear<B>,
-    output_gate: Linear<B>,
-    cell_gate: Linear<B>,
+    input_gate: GateController<B>,
+    forget_gate: GateController<B>,
+    output_gate: GateController<B>,
+    cell_gate: GateController<B>,
     hidden_state: Option<Param<Tensor<B, 2>>>,
     cell_state: Option<Param<Tensor<B, 2>>>,
     batch_size: usize,
@@ -43,10 +45,10 @@ impl LSTMConfig {
     pub fn init<B: Backend>(&self) -> LSTM<B> {
         let d_output = self.d_hidden;
 
-        let input_gate = LinearConfig{ d_input: self.d_input, d_output, bias: self.bias, initializer: self.initializer.clone() }.init();
-        let forget_gate = LinearConfig{ d_input: self.d_input, d_output, bias: self.bias, initializer: self.initializer.clone() }.init();
-        let output_gate = LinearConfig{ d_input: self.d_input, d_output, bias: self.bias, initializer: self.initializer.clone() }.init();
-        let cell_gate = LinearConfig{ d_input: self.d_input, d_output, bias: self.bias, initializer: self.initializer.clone() }.init();
+        let input_gate = gate_controller::GateController::new(self.d_input, d_output, self.bias, self.initializer.clone());
+        let forget_gate = gate_controller::GateController::new(self.d_input, d_output, self.bias, self.initializer.clone());
+        let output_gate = gate_controller::GateController::new(self.d_input, d_output, self.bias, self.initializer.clone());
+        let cell_gate = gate_controller::GateController::new(self.d_input, d_output, self.bias, self.initializer.clone());
 
         let hidden_state = Some(Param::from(Tensor::zeros([self.batch_size, self.d_hidden])));
         let cell_state = Some(Param::from(Tensor::zeros([self.batch_size, self.d_hidden])));
@@ -66,10 +68,10 @@ impl LSTMConfig {
     pub fn init_with_states<B: Backend>(&self, hidden: Tensor<B,2>, cell: Tensor<B, 2>) -> LSTM<B> {
         let d_output = self.d_hidden;
 
-        let input_gate = LinearConfig{ d_input: self.d_input, d_output, bias: self.bias, initializer: self.initializer.clone() }.init();
-        let forget_gate = LinearConfig{ d_input: self.d_input, d_output, bias: self.bias, initializer: self.initializer.clone() }.init();
-        let output_gate = LinearConfig{ d_input: self.d_input, d_output, bias: self.bias, initializer: self.initializer.clone() }.init();
-        let cell_gate = LinearConfig{ d_input: self.d_input, d_output, bias: self.bias, initializer: self.initializer.clone() }.init();
+        let input_gate = gate_controller::GateController::new(self.d_input, d_output, self.bias, self.initializer.clone());
+        let forget_gate = gate_controller::GateController::new(self.d_input, d_output, self.bias, self.initializer.clone());
+        let output_gate = gate_controller::GateController::new(self.d_input, d_output, self.bias, self.initializer.clone());
+        let cell_gate = gate_controller::GateController::new(self.d_input, d_output, self.bias, self.initializer.clone());
 
         let hidden_state = Some(Param::from(hidden));
         let cell_state = Some(Param::from(cell));
@@ -98,7 +100,7 @@ impl<B: Backend> LSTM<B> {
     /// outputs:
     ///     3 tensors, one for the cell state, one for the hidden state,
     ///     and one for the result = hidden state. 
-    pub fn forward(&mut self, input: Tensor<B, 2>, state: Option<(Tensor<B, 2>, Tensor<B, 2>)>) -> (Tensor<B, 2>, Tensor<B, 2>, Tensor<B, 2>) {
+    pub fn forward(&mut self, input: Tensor<B, 2>, state: Option<(Tensor<B, 2>, Tensor<B, 2>)>) -> (Tensor<B, 2>, Tensor<B, 2>) {
         let (mut cell_state, mut hidden_state) = match state {
             // If state is provided
             Some((cell_state, hidden_state)) => (cell_state, hidden_state),
@@ -130,7 +132,7 @@ impl<B: Backend> LSTM<B> {
         self.cell_state = Some(Param::from(cell_state.clone()));
         self.hidden_state = Some(Param::from(hidden_state.clone()));
 
-        (cell_state.clone(), hidden_state.clone(), hidden_state.clone()) // should hidden_state be returned twice?
+        (cell_state.clone(), hidden_state.clone())
     }
 
     /// Helper function for performing weighted matrix product for a gate and adds
@@ -142,13 +144,15 @@ impl<B: Backend> LSTM<B> {
     ///     X = input vector
     ///     H = hidden state
     ///     b = bias terms
-    fn gate_product(&self, input: &Tensor<B, 2>, hidden: &Tensor<B, 2>, gate: &Linear<B>) -> Tensor<B, 2> {
-        let input_product = input.clone().matmul(gate.get_weight().clone().unsqueeze());
-        let hidden_product = hidden.clone().matmul(gate.get_weight().clone().transpose());
+    fn gate_product(&self, input: &Tensor<B, 2>, hidden: &Tensor<B, 2>, gate: &GateController<B>) -> Tensor<B, 2> {
+        let input_product = input.clone().matmul(gate.get_input_weight().clone());
+        let hidden_product = hidden.clone().matmul(gate.get_hidden_weight().clone());
 
-        match &gate.get_bias() {
-            Some(bias) => input_product + hidden_product + bias.clone().unsqueeze(),
-            None => input_product + hidden_product,
+        match (gate.get_input_bias(), gate.get_hidden_bias()) {
+            (Some(input_bias), Some(hidden_bias)) => input_product + input_bias.clone().unsqueeze() + hidden_product + hidden_bias.clone().unsqueeze(),
+            (Some(input_bias), None) => input_product + input_bias.clone().unsqueeze() + hidden_product,
+            (None, Some(hidden_bias)) => input_product + hidden_product + hidden_bias.clone().unsqueeze(),
+            (None, None) => input_product + hidden_product,
         }
     }
 
@@ -176,10 +180,10 @@ mod tests {
         let config = LSTMConfig::new(5, 5, false, 2);
         let lstm = config.init::<TestBackend>();
 
-        lstm.input_gate.get_weight().to_data().assert_in_range(0.0, 1.0);
-        lstm.forget_gate.get_weight().to_data().assert_in_range(0.0, 1.0);
-        lstm.output_gate.get_weight().to_data().assert_in_range(0.0, 1.0);
-        lstm.cell_gate.get_weight().to_data().assert_in_range(0.0, 1.0);
+        lstm.input_gate.get_input_weight().to_data().assert_in_range(0.0, 1.0);
+        lstm.forget_gate.get_input_weight().to_data().assert_in_range(0.0, 1.0);
+        lstm.output_gate.get_input_weight().to_data().assert_in_range(0.0, 1.0);
+        lstm.cell_gate.get_input_weight().to_data().assert_in_range(0.0, 1.0);
     }
 
     #[test]
@@ -231,7 +235,7 @@ mod tests {
             [0.6, 0.7, 0.8, 0.9, 0.1, 0.2, 0.3, 0.4]]
         ));
         
-        let (_, output, _) = lstm.forward(input, None);
+        let (_, output) = lstm.forward(input, None);
         output.to_data().assert_approx_eq(&Data::from([[-0.06984739, 0.06812251, -0.02153058, 0.1707408 ]]), 3);
     }
 }
