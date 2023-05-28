@@ -98,7 +98,7 @@ impl<B: Backend> LSTM<B> {
     /// outputs:
     ///     3 tensors, one for the cell state, one for the hidden state,
     ///     and one for the result = hidden state. 
-    pub fn forward<const D: usize>(&mut self, input: Tensor<B, 2>, state: Option<(Tensor<B, 2>, Tensor<B, 2>)>) -> (Tensor<B, 2>, Tensor<B, 2>, Tensor<B, 2>) {
+    pub fn forward(&mut self, input: Tensor<B, 2>, state: Option<(Tensor<B, 2>, Tensor<B, 2>)>) -> (Tensor<B, 2>, Tensor<B, 2>, Tensor<B, 2>) {
         let (mut cell_state, mut hidden_state) = match state {
             // If state is provided
             Some((cell_state, hidden_state)) => (cell_state, hidden_state),
@@ -143,8 +143,8 @@ impl<B: Backend> LSTM<B> {
     ///     H = hidden state
     ///     b = bias terms
     fn gate_product(&self, input: &Tensor<B, 2>, hidden: &Tensor<B, 2>, gate: &Linear<B>) -> Tensor<B, 2> {
-        let input_product = input.clone().matmul(gate.get_weight().unsqueeze());
-        let hidden_product = hidden.clone().matmul(gate.get_weight().unsqueeze());
+        let input_product = input.clone().matmul(gate.get_weight().clone().unsqueeze());
+        let hidden_product = hidden.clone().matmul(gate.get_weight().clone().transpose());
 
         match &gate.get_bias() {
             Some(bias) => input_product + hidden_product + bias.clone().unsqueeze(),
@@ -218,6 +218,20 @@ mod tests {
     #[test]
     fn test_forward() {
         // Run same input through PyTorch or TensorFlow and compare?
-        todo!()
+        TestBackend::seed(0);
+
+        let config = LSTMConfig::new(8, 4, false, 1);
+        let mut lstm = config.init::<TestBackend>();
+
+        let input = Tensor::<TestBackend, 2>::from_data(Data::from(
+            [[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8],
+            [0.9, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7],
+            [0.8, 0.9, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+            [0.7, 0.8, 0.9, 0.1, 0.2, 0.3, 0.4, 0.5],
+            [0.6, 0.7, 0.8, 0.9, 0.1, 0.2, 0.3, 0.4]]
+        ));
+        
+        let (_, output, _) = lstm.forward(input, None);
+        output.to_data().assert_approx_eq(&Data::from([[-0.06984739, 0.06812251, -0.02153058, 0.1707408 ]]), 3);
     }
 }
