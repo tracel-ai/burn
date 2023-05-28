@@ -5,10 +5,9 @@ use std::{
     str::{from_utf8, FromStr},
 };
 
-use super::coalesce::coalesce;
 use super::ir::{
-    ArgType, Argument, AttributeValue, Attributes, ElementType, Node, NodeType, ONNXGraph, Tensor,
-    TensorData,
+    ArgType, Argument, AttributeValue, Attributes, ElementType, Node, NodeType, ONNXGraph, State,
+    Tensor, TensorArg, TensorData,
 };
 use super::protos::{
     attribute_proto::AttributeType, tensor_proto::DataType, tensor_shape_proto::dimension::Value,
@@ -16,6 +15,7 @@ use super::protos::{
     ValueInfoProto,
 };
 use super::shape_inference::shape_inference;
+use super::{coalesce::coalesce, ir::StateType};
 
 use bytemuck::cast_slice;
 use protobuf::{Enum, Message};
@@ -37,19 +37,11 @@ pub fn parse_onnx(onnx_path: &Path) -> ONNXGraph {
     // Convert the nodes
     let mut nodes: Vec<Node> = vec![];
     for onnx_node in onnx_model.graph.node.iter() {
-        nodes.push(convert_node_proto(onnx_node));
+        nodes.push(convert_node_proto(&onnx_node));
     }
 
-    // Get the names of the initializers
-    let check_if_initializer: HashSet<String> = onnx_model
-        .graph
-        .initializer
-        .iter()
-        .map(|x| x.name.clone())
-        .collect();
-
     // Move inputs to initializers
-    move_inputs_to_initializer(&mut nodes, &check_if_initializer);
+    move_inputs_to_state(&mut nodes, &onnx_model.graph.initializer);
 
     // Get the topological sort of the nodes and the top nodes
     let (ts, top_nodes) = get_top_nodes(&nodes);
@@ -58,12 +50,15 @@ pub fn parse_onnx(onnx_path: &Path) -> ONNXGraph {
     top_sort_nodes(&mut nodes, ts);
 
     // Collect inputs, outputs and initializers
+    let check_if_initializer: HashSet<String> = onnx_model
+        .graph
+        .initializer
+        .iter()
+        .map(|x| x.name.clone())
+        .collect();
     let mut inputs = collect_inputs(&onnx_model, &check_if_initializer, top_nodes);
     let mut outputs = collect_outputs(&onnx_model, check_if_initializer);
     let initializers = collect_initializers(onnx_model);
-
-    // Copy the initializers to the nodes
-    copy_initializer_info_to_nodes_level(&mut nodes, &initializers);
 
     // Coalesce and transform nodes
     coalesce(&mut nodes);
@@ -79,15 +74,16 @@ pub fn parse_onnx(onnx_path: &Path) -> ONNXGraph {
         nodes,
         inputs,
         outputs,
-        initializers,
+        sates: initializers,
         old_node_names,
         old_input_names,
     }
 }
 
 /// Collect initializers
-fn collect_initializers(onnx_model: ModelProto) -> Vec<Argument> {
-    let mut initializers: Vec<Argument> = vec![];
+fn collect_initializers(onnx_model: ModelProto) -> Vec<State> {
+    let mut initializers = Vec::new();
+
     for initializer in onnx_model.graph.initializer.iter() {
         let tensor_proto = initializer.clone();
 
@@ -95,8 +91,9 @@ fn collect_initializers(onnx_model: ModelProto) -> Vec<Argument> {
 
         // FIXME data conversion for the tensor is incorrect
         let tensor: Tensor = tensor_proto.try_into().unwrap();
-        let arg_type = Some(ArgType::Tensor(tensor));
-        let arg = Argument { name, arg_type };
+        let ty = StateType::Tensor(tensor);
+        let arg = State { name, ty };
+
         initializers.push(arg);
     }
     initializers
@@ -159,22 +156,22 @@ fn get_top_nodes(nodes: &Vec<Node>) -> (TopologicalSort<Node>, HashSet<String>) 
 }
 
 /// Move nodes's inputs and outputs to initializers if they are in the initializer list
-fn move_inputs_to_initializer(nodes: &mut Vec<Node>, check_if_initializer: &HashSet<String>) {
-    for node in nodes.iter_mut() {
-        node.initializers = node
-            .inputs
-            .iter()
-            .filter(|x| check_if_initializer.contains(&x.name))
-            .cloned()
-            .collect();
-
-        // Remove the initializers from the inputs and outputs
-        node.inputs
-            .retain(|x| !check_if_initializer.contains(&x.name));
-        node.outputs
-            .retain(|x| !check_if_initializer.contains(&x.name));
-    }
-}
+// fn move_inputs_to_initializer(nodes: &mut Vec<Node>, check_if_initializer: &HashSet<String>) {
+//     for node in nodes.iter_mut() {
+//         node.initializers = node
+//             .inputs
+//             .iter()
+//             .filter(|x| check_if_initializer.contains(&x.name))
+//             .cloned()
+//             .collect();
+//
+//         // Remove the initializers from the inputs and outputs
+//         node.inputs
+//             .retain(|x| !check_if_initializer.contains(&x.name));
+//         node.outputs
+//             .retain(|x| !check_if_initializer.contains(&x.name));
+//     }
+// }
 
 fn to_string(bytes: Vec<u8>) -> String {
     from_utf8(bytes.as_slice()).unwrap().to_string()
@@ -346,7 +343,7 @@ pub fn convert_node_proto(node: &NodeProto) -> Node {
         .into_iter()
         .map(|x| Argument {
             name: x,
-            arg_type: None,
+            ty: ArgType::Tensor(TensorArg::default()),
         })
         .collect();
     let outputs = node
@@ -355,7 +352,7 @@ pub fn convert_node_proto(node: &NodeProto) -> Node {
         .into_iter()
         .map(|x| Argument {
             name: x,
-            arg_type: None,
+            ty: ArgType::Tensor(TensorArg::default()),
         })
         .collect();
     let attrs = convert_vec_attrs_proto(node.attribute.clone());
@@ -368,7 +365,7 @@ pub fn convert_node_proto(node: &NodeProto) -> Node {
         name,
         inputs,
         outputs,
-        initializers: vec![],
+        sates: vec![],
         attrs,
     };
 
@@ -395,7 +392,6 @@ fn remap_node_type(node: &mut Node) {
     }
 }
 
-/// Convert a vector of AttributeProto to a HashMap of AttributeValue
 impl TryFrom<ValueInfoProto> for Argument {
     type Error = ParseError;
 
@@ -403,30 +399,68 @@ impl TryFrom<ValueInfoProto> for Argument {
         let name = value.name.clone();
         let proto_type = value.type_.unwrap();
 
-        let mut arg_type = None;
-
-        if proto_type.has_tensor_type() {
-            let tensor_proto = proto_type.tensor_type();
-
-            let tensor: Tensor = tensor_proto.try_into().unwrap();
-
-            arg_type = Some(ArgType::Tensor(tensor));
+        if !proto_type.has_tensor_type() {
+            panic!("Unsupported argument type {:?}", proto_type);
         }
-        Ok(Argument { name, arg_type })
+
+        let tensor_proto = proto_type.tensor_type();
+        let tensor: TensorArg = TensorArg::new(tensor_proto.shape.dim.len() as usize);
+        let ty = ArgType::Tensor(tensor);
+
+        Ok(Argument { ty, name })
     }
 }
 
-/// Copy the initializers to the nodes
-fn copy_initializer_info_to_nodes_level(nodes: &mut Vec<Node>, initializers: &Vec<Argument>) {
-    for node in nodes.iter_mut() {
-        for node_initializer in node.initializers.iter_mut() {
-            *node_initializer = initializers
-                .iter()
-                .find(|x| x.name == node_initializer.name)
-                .unwrap()
-                .clone();
+impl TryFrom<ValueInfoProto> for State {
+    type Error = ParseError;
+
+    fn try_from(value: ValueInfoProto) -> Result<State, Self::Error> {
+        let name = value.name.clone();
+        let proto_type = value.type_.unwrap();
+
+        if !proto_type.has_tensor_type() {
+            panic!("Unsupported argument type {:?}", proto_type);
         }
+
+        let tensor_proto = proto_type.tensor_type();
+        let tensor: Tensor = tensor_proto.try_into().unwrap();
+        let ty = StateType::Tensor(tensor);
+
+        Ok(State { name, ty })
     }
+}
+
+fn move_inputs_to_state(nodes: &mut Vec<Node>, initializer: &[TensorProto]) {
+    nodes.iter_mut().for_each(|node| {
+        let mut node_sates = Vec::new();
+        let mut inputs = Vec::new();
+
+        for input in node.inputs.iter() {
+            for init in initializer.iter() {
+                if init.name == input.name {
+                    node_sates.push(State {
+                        name: init.name.clone(),
+                        ty: StateType::Tensor(init.clone().try_into().unwrap()),
+                    });
+                }
+            }
+        }
+
+        core::mem::swap(&mut inputs, &mut node.inputs);
+        node.inputs = inputs
+            .into_iter()
+            .filter(|input| {
+                for init in node_sates.iter() {
+                    if init.name == input.name {
+                        return false;
+                    }
+                }
+
+                true
+            })
+            .collect();
+        node.sates = node_sates;
+    });
 }
 
 /// Rename the nodes in the graph to be unique and return a map of the old names to the new names.

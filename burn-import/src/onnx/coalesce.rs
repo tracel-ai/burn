@@ -1,13 +1,14 @@
 use burn::tensor::Tensor;
 use burn_ndarray::NdArrayBackend;
 
-use super::ir::{ArgType, AttributeValue, Node, NodeType, TensorData};
+use super::ir::{AttributeValue, Node, NodeType, StateType, TensorData};
 
 type B = NdArrayBackend<f32>;
 
 /// The function transforms the graph into a new one where the nodes are coalesced into a single node.
 pub fn coalesce(nodes: &mut Vec<Node>) {
     for node in nodes.iter_mut() {
+        log::info!("Node {:?}", node);
         match node.node_type {
             NodeType::Gemm => convert_gemm(node),
             _ => {}
@@ -55,17 +56,17 @@ fn convert_gemm(node: &mut Node) {
 
 // Transpose linear weights (required for Gemm -> Linear conversion)
 fn transpose_linear_node_weights(node: &mut Node) {
-    if node.initializers.is_empty() {
+    if node.sates.is_empty() {
         panic!("Linear node must have at least 1 initializer");
     }
 
-    let ArgType::Tensor(node_weight) = node.initializers[0].arg_type.as_ref().unwrap();
+    let StateType::Tensor(node_weight) = &node.sates[0].ty;
 
     let weight: Tensor<B, 2> = node_weight.try_into().unwrap();
 
     let weight = weight.transpose();
 
-    let ArgType::Tensor(node_weight) = node.initializers[0].arg_type.as_mut().unwrap();
+    let StateType::Tensor(node_weight) = &mut node.sates[0].ty;
 
     node_weight.data = Some(TensorData::Float32(weight.clone().into_data().value));
     node_weight.shape = Some(weight.shape().dims.to_vec());

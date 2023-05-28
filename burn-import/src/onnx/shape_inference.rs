@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use super::{
-    ir::{ArgType, Argument, Node, NodeType, Tensor},
+    ir::{ArgType, Argument, Node, NodeType, TensorArg},
     op_configuration::flatten_config,
 };
 
@@ -30,11 +30,8 @@ impl TensorShapeUpdater {
     fn update_tensor_outputs(&mut self, node: &Node) -> usize {
         node.outputs
             .iter()
-            .filter(|output| match &output.arg_type {
-                Some(ty) => match ty {
-                    ArgType::Tensor(_) => true,
-                },
-                None => false,
+            .filter(|output| match &output.ty {
+                ArgType::Tensor(_) => true,
             })
             .map(|arg| {
                 self.arguments.insert(arg.name.clone(), arg.clone());
@@ -46,14 +43,11 @@ impl TensorShapeUpdater {
         arguments
             .iter_mut()
             .filter_map(|input| self.arguments.get(&input.name).map(|arg| (arg, input)))
-            .filter_map(|(arg, input)| match &arg.arg_type {
-                Some(arg) => match arg {
-                    ArgType::Tensor(tensor) => Some((tensor, input)),
-                },
-                None => None,
+            .filter_map(|(arg, input)| match &arg.ty {
+                ArgType::Tensor(tensor) => Some((tensor, input)),
             })
             .map(|(tensor, input)| {
-                input.arg_type = Some(ArgType::Tensor(tensor.clone()));
+                input.ty = ArgType::Tensor(tensor.clone());
             })
             .count()
     }
@@ -97,19 +91,14 @@ fn linear_update_outputs(curr: &mut Node) {
 
     // Extract the configuration of the linear layer (inputs are known)
     let curr_input = &mut curr.inputs[0];
-    let ArgType::Tensor(tensor) = curr_input.clone().arg_type.unwrap();
+    let ArgType::Tensor(tensor) = curr_input.clone().ty;
 
     // Update the output tensor
-    curr.outputs[0].arg_type = Some(ArgType::Tensor(Tensor {
-        dim: tensor.dim,
-        shape: None,
-        data: None,
-        elem_type: tensor.elem_type,
-    }));
+    curr.outputs[0].ty = ArgType::Tensor(TensorArg { dim: tensor.dim });
 }
 
 fn element_wise_update_outputs(curr: &mut Node) {
-    curr.outputs[0].arg_type = curr.inputs[0].arg_type.clone();
+    curr.outputs[0].ty = curr.inputs[0].ty.clone();
 }
 
 /// Infers the shape of a Flatten node and replaces the shape of the output tensor.
@@ -118,18 +107,11 @@ fn flatten_update_outputs(curr: &mut Node) {
         panic!("Flatten: multiple inputs are not supported");
     }
 
-    let curr_input = &mut curr.inputs[0];
-
-    let ArgType::Tensor(tensor) = curr_input.clone().arg_type.unwrap();
-
     let (start_dim, end_dim) = flatten_config(curr);
 
-    curr.outputs[0].arg_type = Some(ArgType::Tensor(Tensor {
+    curr.outputs[0].ty = ArgType::Tensor(TensorArg {
         dim: end_dim - start_dim,
-        shape: None,
-        data: None,
-        elem_type: tensor.elem_type,
-    }));
+    });
 }
 
 /// Infers the shape of a Conv2d node and replaces the shape of the output tensor.
@@ -142,12 +124,7 @@ fn conv2d_update_outputs(curr: &mut Node) {
     }
 
     // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
-    let ArgType::Tensor(tensor) = curr.inputs[0].clone().arg_type.unwrap();
+    let ArgType::Tensor(tensor) = curr.inputs[0].clone().ty;
 
-    curr.outputs[0].arg_type = Some(ArgType::Tensor(Tensor {
-        dim: tensor.dim,
-        shape: None,
-        data: None,
-        elem_type: tensor.elem_type,
-    }));
+    curr.outputs[0].ty = ArgType::Tensor(TensorArg { dim: tensor.dim });
 }

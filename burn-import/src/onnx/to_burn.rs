@@ -30,7 +30,7 @@ use crate::{
 
 use super::{
     from_onnx::parse_onnx,
-    ir::{ArgType, Argument, ONNXGraph, Tensor, TensorData},
+    ir::{ArgType, Argument, ONNXGraph, State, StateType, Tensor, TensorData},
 };
 
 /// Generate code and states from `.onnx` files and save them to the `out_dir`.
@@ -194,22 +194,11 @@ impl ONNXGraph {
         let output = node.outputs.get(0).unwrap().to_tensor_type();
         let config = linear_config(&node);
 
-        let bias = node.initializers.len() == 2;
-        let weight = node
-            .initializers
-            .remove(0)
-            .arg_type
-            .unwrap()
-            .into_data_serialize::<PS::FloatElem>();
+        let bias = node.sates.len() == 2;
+        let weight = node.sates.remove(0).into_data_serialize::<PS::FloatElem>();
 
         let bias = match bias {
-            true => Some(
-                node.initializers
-                    .remove(0)
-                    .arg_type
-                    .unwrap()
-                    .into_data_serialize::<PS::FloatElem>(),
-            ),
+            true => Some(node.sates.remove(0).into_data_serialize::<PS::FloatElem>()),
             false => None,
         };
 
@@ -251,7 +240,7 @@ impl ONNXGraph {
         let output = node.outputs.get(0).unwrap().to_tensor_type();
         let config = conv2d_config(&node);
 
-        let bias = node.initializers.len() == 2;
+        let bias = node.sates.len() == 2;
         let weight = extract_next_data_serialize::<PS::FloatElem>(&mut node).unwrap();
         let bias = match bias {
             true => Some(extract_next_data_serialize::<PS::FloatElem>(&mut node)).unwrap(),
@@ -264,27 +253,24 @@ impl ONNXGraph {
 }
 
 fn extract_next_data_serialize<E: Element>(node: &mut Node) -> Option<DataSerialize<E>> {
-    if node.initializers.is_empty() {
+    if node.sates.is_empty() {
         return None;
     }
 
-    node.initializers
-        .remove(0)
-        .arg_type
-        .map(|arg| arg.into_data_serialize::<E>())
+    Some(node.sates.remove(0).into_data_serialize::<E>())
 }
 
-impl ArgType {
+impl State {
     pub fn into_data_serialize<E: Element>(self) -> DataSerialize<E> {
-        match self {
-            ArgType::Tensor(tensor) => tensor.into_data_serialize(),
+        match self.ty {
+            StateType::Tensor(tensor) => tensor.into_data_serialize(),
         }
     }
 }
 
 impl Argument {
     pub fn to_tensor_type(&self) -> TensorType {
-        match self.arg_type.as_ref().expect("Tensor arg type") {
+        match &self.ty {
             ArgType::Tensor(tensor) => TensorType::new(self.name.clone(), tensor.dim),
         }
     }

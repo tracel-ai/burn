@@ -9,12 +9,17 @@ pub type Shape = Vec<usize>;
 #[derive(Debug, Clone)]
 pub struct Argument {
     pub name: String,
-    pub arg_type: Option<ArgType>,
+    pub ty: ArgType,
 }
 
 #[derive(Debug, Clone)]
 pub enum ArgType {
-    Tensor(Tensor),
+    Tensor(TensorArg),
+}
+
+#[derive(new, Default, Debug, Clone)]
+pub struct TensorArg {
+    pub dim: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -68,9 +73,20 @@ pub struct ONNXGraph {
     pub nodes: Vec<Node>,
     pub inputs: Vec<Argument>,
     pub outputs: Vec<Argument>,
-    pub initializers: Vec<Argument>,
+    pub sates: Vec<State>,
     pub old_node_names: HashMap<String, String>,
     pub old_input_names: HashMap<String, String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct State {
+    pub name: String,
+    pub ty: StateType,
+}
+
+#[derive(Debug, Clone)]
+pub enum StateType {
+    Tensor(Tensor),
 }
 
 #[derive(Debug, Clone)]
@@ -79,7 +95,7 @@ pub struct Node {
     pub name: String,
     pub inputs: Vec<Argument>,
     pub outputs: Vec<Argument>,
-    pub initializers: Vec<Argument>,
+    pub sates: Vec<State>,
     pub attrs: Attributes,
 }
 

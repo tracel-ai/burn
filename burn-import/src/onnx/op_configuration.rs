@@ -3,7 +3,7 @@ use burn::nn::{
     BatchNormConfig, LinearConfig,
 };
 
-use super::ir::{ArgType, AttributeValue, Node};
+use super::ir::{ArgType, AttributeValue, Node, StateType};
 
 #[inline(always)]
 pub fn attr_value_vec_i64(value: &AttributeValue, target: &mut Vec<i64>) {
@@ -35,10 +35,10 @@ pub fn conv2d_config(curr: &Node) -> Conv2dConfig {
     let mut group: i64 = 0;
 
     // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
-    let ArgType::Tensor(tensor) = curr.initializers.get(0).unwrap().clone().arg_type.unwrap();
+    let StateType::Tensor(tensor) = curr.sates.get(0).unwrap().clone().ty;
 
     // check if the bias is present
-    let bias = curr.initializers.len() == 2;
+    let bias = curr.sates.len() == 2;
 
     // the channels are inverted in the weight tensor
     let shape = tensor.shape.unwrap();
@@ -95,7 +95,7 @@ pub fn flatten_config(curr: &Node) -> (usize, usize) {
     }
 
     // extract the shape of the input tensor
-    let ArgType::Tensor(tensor) = curr.inputs.get(0).unwrap().clone().arg_type.unwrap();
+    let ArgType::Tensor(tensor) = curr.inputs.get(0).unwrap().clone().ty;
 
     // check if the input tensor has at least 2 dimensions
     if tensor.dim < 2 {
@@ -134,12 +134,12 @@ pub fn linear_config(node: &Node) -> LinearConfig {
         );
     }
 
-    if node.initializers.is_empty() {
+    if node.sates.is_empty() {
         panic!("Linear: no initializers found");
     }
 
     // extract the shape of the weight tensor
-    let ArgType::Tensor(tensor) = node.initializers.get(0).unwrap().clone().arg_type.unwrap();
+    let StateType::Tensor(tensor) = node.sates.get(0).unwrap().clone().ty;
 
     // check if the weight tensor has at least 2 dimensions
     if tensor.dim < 2 {
@@ -152,7 +152,7 @@ pub fn linear_config(node: &Node) -> LinearConfig {
     let (in_size, out_size) = (shape[0], shape[1]);
 
     // check if the bias is present
-    let bias = node.initializers.len() == 2;
+    let bias = node.sates.len() == 2;
 
     LinearConfig::new(in_size, out_size).with_bias(bias)
 }
@@ -171,7 +171,7 @@ pub fn log_softmax_config(node: &Node) -> usize {
     }
 
     // extract the shape of the input tensor
-    let ArgType::Tensor(tensor) = node.inputs.get(0).unwrap().clone().arg_type.unwrap();
+    let ArgType::Tensor(tensor) = node.inputs.get(0).unwrap().clone().ty;
 
     // extract the attributes
     for (key, value) in node.attrs.iter() {
@@ -192,7 +192,7 @@ pub fn log_softmax_config(node: &Node) -> usize {
 /// Create a BatchNormConfig from the attributes of the node
 pub fn batch_norm_config(node: &Node) -> BatchNormConfig {
     // extract the shape of the weight tensor
-    let ArgType::Tensor(tensor) = node.initializers.get(0).unwrap().clone().arg_type.unwrap();
+    let StateType::Tensor(tensor) = node.sates.get(0).unwrap().clone().ty;
 
     let num_features: usize = tensor.shape.unwrap()[0];
 
