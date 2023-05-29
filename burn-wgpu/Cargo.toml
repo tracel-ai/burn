@@ -15,6 +15,8 @@ burn-tensor = {path = "../burn-tensor", version = "0.8.0"}
 burn-common = {path = "../burn-common", version = "0.8.0"}
 derive-new = {workspace = true}
 bytemuck = {workspace = true}
+rand = {workspace = true}
+num-traits = {workspace = true}
 
 # WGPU stuff
 wgpu = {workspace = true}

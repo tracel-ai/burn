@@ -1,6 +1,8 @@
 #[macro_use]
 extern crate derive_new;
 
+mod ops;
+
 pub(crate) mod context;
 pub(crate) mod element;
 pub(crate) mod kernel;
@@ -15,3 +17,15 @@ pub use backend::*;
 
 mod graphics;
 pub use graphics::*;
+
+#[cfg(test)]
+mod tests {
+    type TestBackend = crate::WGPUBackend<crate::Vulkan, f32, i64>;
+    type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
+    type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
+
+    burn_tensor::testgen_add!();
+
+    // Once all operations will be implemented.
+    // burn_tensor::testgen_all!();
+}

@@ -133,6 +133,11 @@ where
         Self::new(K::sum_dim(self.primitive, dim))
     }
 
+    /// Applies element wise equal comparison and returns a boolean tensor.
+    pub fn equal_elem<E: Element>(self, other: E) -> Tensor<B, D, Bool> {
+        K::equal_elem::<D>(self.primitive, other.elem())
+    }
+
     /// Applies element wise greater comparison and returns a boolean tensor.
     ///
     /// # Panics
@@ -413,6 +418,7 @@ where
     fn sum_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D>;
     fn mean<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1>;
     fn mean_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D>;
+    fn equal_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool>;
     fn greater<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
@@ -559,6 +565,9 @@ impl<B: Backend> Numeric<B> for Int {
         B::int_mean_dim(tensor, dim)
     }
 
+    fn equal_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool> {
+        Tensor::new(B::int_equal_elem(lhs, rhs))
+    }
     fn greater<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
@@ -777,6 +786,9 @@ impl<B: Backend> Numeric<B> for Float {
         B::mean_dim(tensor, dim)
     }
 
+    fn equal_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool> {
+        Tensor::new(B::equal_elem(lhs, rhs))
+    }
     fn greater<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,

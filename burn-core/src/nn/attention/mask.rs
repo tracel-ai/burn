@@ -19,7 +19,7 @@ pub fn generate_autoregressive_mask<B: Backend>(
 
     mask = mask.to_device(device).repeat(0, batch_size);
 
-    mask.equal_elem(1_i64)
+    mask.equal_elem(1_i64.elem::<i64>())
 }
 
 pub struct GeneratePaddingMask<B: Backend> {

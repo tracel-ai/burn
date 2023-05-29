@@ -79,7 +79,7 @@ pub trait Backend:
     /// Tensor primitive to be used for all int operations.
     type IntTensorPrimitive<const D: usize>: Clone + Send + Sync + 'static + core::fmt::Debug;
     /// Int element type.
-    type IntElem: Element + From<i64> + Into<i64>;
+    type IntElem: Element;
 
     /// Tensor primitive to be used for all bool operations.
     type BoolTensorPrimitive<const D: usize>: Clone + Send + Sync + 'static + core::fmt::Debug;

@@ -4,14 +4,25 @@ use wgpu::Buffer;
 
 use crate::context::Context;
 
+#[derive(Debug, Clone)]
 pub struct WGPUTensor<const D: usize> {
-    context: Arc<Context>,
-    buffer: Arc<Buffer>,
-    shape: Shape<D>,
-    strides: [usize; D],
+    pub(crate) context: Arc<Context>,
+    pub(crate) buffer: Arc<Buffer>,
+    pub(crate) shape: Shape<D>,
+    pub(crate) strides: [usize; D],
 }
 
 impl<const D: usize> WGPUTensor<D> {
+    pub fn new(context: Arc<Context>, shape: Shape<D>, buffer: Arc<Buffer>) -> Self {
+        let strides = [0; D];
+
+        Self {
+            context,
+            buffer,
+            shape,
+            strides,
+        }
+    }
     pub fn to_context(&self, context: Arc<Context>) -> Self {
         let data = self.context.buffer_to_data(&self.buffer);
         let buffer = Arc::new(context.create_buffer_with_data(&data));

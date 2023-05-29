@@ -18,10 +18,12 @@ use crate::{
 
 type CompiledShaders = HashMap<RenderOptions, Arc<ShaderModule>>;
 
+#[derive(Debug)]
 pub struct Context {
     pub(crate) id: String,
     pub(crate) queue: wgpu::Queue,
     pub(crate) device: wgpu::Device,
+    pub(crate) device_wgpu: WGPUDevice,
     pub cache: Mutex<HashMap<String, CompiledShaders>>,
 }
 
@@ -77,6 +79,7 @@ impl Context {
             }
         };
 
+        let device_wgpu = device.clone();
         let (device, queue) = pollster::block_on(adapter.request_device(
             &DeviceDescriptor {
                 label: None,
@@ -91,6 +94,7 @@ impl Context {
             id: IdGenerator::generate(),
             queue,
             device,
+            device_wgpu,
             cache: Mutex::new(HashMap::new()),
         }
     }
@@ -185,17 +189,16 @@ impl Context {
     /// Compile a kernel template if not present in the cache.
     pub fn compile<K: KernelTemplate, F: FloatElement, I: IntElement>(
         &self,
-        size: WorkGroupSize,
         template: &K,
     ) -> Arc<ShaderModule> {
         let mut cache = self.cache.lock().unwrap();
         let template_id = template.id();
 
-        let compiled_shaders = match cache.get_mut(template_id) {
+        let compiled_shaders = match cache.get_mut(&template_id) {
             Some(val) => val,
             None => {
-                cache.insert(template_id.to_string(), HashMap::new());
-                cache.get_mut(template_id).unwrap()
+                cache.insert(template_id.clone(), HashMap::new());
+                cache.get_mut(&template_id).unwrap()
             }
         };
 

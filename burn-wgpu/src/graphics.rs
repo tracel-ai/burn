@@ -1,19 +1,19 @@
-pub trait GraphicsAPI {
+pub trait GraphicsAPI: Send + Sync + core::fmt::Debug + Default + Clone {
     fn id() -> u32;
     fn backend() -> wgpu::Backend;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct Vulkan;
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct Metal;
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct OpenGL;
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct Dx11;
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct Dx12;
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct WebGPU;
 
 impl GraphicsAPI for Vulkan {
