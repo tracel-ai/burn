@@ -1,4 +1,5 @@
 use crate as burn;
+use crate::nn::LinearRecord;
 
 use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
@@ -21,6 +22,15 @@ impl<B: Backend> GateController<B> {
             input_transform: LinearConfig{ d_input: d_input, d_output: d_output, bias: bias, initializer: initializer.clone() }.init(), 
             hidden_transform: LinearConfig{ d_input: d_output, d_output: d_output, bias: bias, initializer: initializer.clone() }.init(), 
         }
+    }
+
+    pub fn create_with_weights(d_input: usize, d_output: usize, bias: bool, initializer: Initializer, input_record: LinearRecord<B>, hidden_record: LinearRecord<B>) -> GateController<B> {
+        let l1 = LinearConfig{ d_input: d_input, d_output: d_output, bias: bias, initializer: initializer.clone() }.init_with(input_record);
+        let l2 = LinearConfig{ d_input: d_input, d_output: d_output, bias: bias, initializer: initializer.clone() }.init_with(hidden_record);
+        GateController {
+            input_transform:  l1,
+            hidden_transform: l2
+        }   
     }
 
     pub fn get_input_weight(&self) -> Tensor<B, 2> {
