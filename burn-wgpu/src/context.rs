@@ -12,11 +12,9 @@ use wgpu::{
 
 use crate::{
     element::{FloatElement, IntElement},
-    kernel::{KernelTemplate, RenderOptions},
+    kernel::KernelTemplate,
     GraphicsAPI, WGPUDevice,
 };
-
-type CompiledShaders = HashMap<RenderOptions, Arc<ShaderModule>>;
 
 #[derive(Debug)]
 pub struct Context {
@@ -24,7 +22,7 @@ pub struct Context {
     pub(crate) queue: wgpu::Queue,
     pub(crate) device: wgpu::Device,
     pub(crate) device_wgpu: WGPUDevice,
-    pub cache: Mutex<HashMap<String, CompiledShaders>>,
+    pub cache: Mutex<HashMap<String, Arc<ShaderModule>>>,
 }
 
 #[derive(new, Debug, PartialEq, Eq, Hash, Clone)]
@@ -187,28 +185,15 @@ impl Context {
     }
 
     /// Compile a kernel template if not present in the cache.
-    pub fn compile<K: KernelTemplate, F: FloatElement, I: IntElement>(
-        &self,
-        template: &K,
-    ) -> Arc<ShaderModule> {
+    pub fn compile<K: KernelTemplate>(&self, template: K) -> Arc<ShaderModule> {
         let mut cache = self.cache.lock().unwrap();
         let template_id = template.id();
 
-        let compiled_shaders = match cache.get_mut(&template_id) {
-            Some(val) => val,
-            None => {
-                cache.insert(template_id.clone(), HashMap::new());
-                cache.get_mut(&template_id).unwrap()
-            }
-        };
-
-        let options = RenderOptions::new(size, F::type_name().into(), I::type_name().into());
-
-        if let Some(module) = compiled_shaders.get(&options) {
+        if let Some(module) = cache.get(&template_id) {
             return module.clone();
         }
 
-        let source = template.render(&options);
+        let source = template.render();
 
         let module = self.device.create_shader_module(ShaderModuleDescriptor {
             label: None,
@@ -216,7 +201,7 @@ impl Context {
         });
         let module = Arc::new(module);
 
-        compiled_shaders.insert(options, module.clone());
+        cache.insert(template_id, module.clone());
 
         module
     }

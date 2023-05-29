@@ -7,6 +7,19 @@ pub struct RenderOptions {
     pub(crate) type_name_int: String,
 }
 
+impl RenderOptions {
+    pub fn id(&self) -> String {
+        format!(
+            "wgz-{}-{}-{}-tf-{}-ti-{}",
+            self.workgroup_size.x,
+            self.workgroup_size.y,
+            self.workgroup_size.z,
+            self.type_name_float,
+            self.type_name_int
+        )
+    }
+}
+
 pub trait KernelTemplate {
     fn id(&self) -> String;
     fn render(&self) -> String;
@@ -25,7 +38,7 @@ macro_rules! kernel_wgsl {
 
         impl KernelTemplate for $struct {
             fn id(&self) -> String {
-                $file.to_string()
+                $file.to_string() + self.options.id().as_str()
             }
 
             fn render(&self) -> String {
@@ -53,16 +66,25 @@ macro_rules! kernel_elemwise {
         $struct:ident,
         $ops:expr
     ) => {
-        pub struct $struct;
+        pub struct $struct {
+            raw: $crate::kernel::ElemwiseRaw,
+        }
 
+        impl $struct {
+            pub fn new(options: $crate::kernel::RenderOptions) -> Self {
+                Self {
+                    raw: $crate::kernel::ElemwiseRaw::new(options),
+                }
+            }
+        }
         impl KernelTemplate for $struct {
             fn id(&self) -> String {
-                let id = $crate::kernel::ElemwiseRaw.id();
+                let id = self.raw.id();
                 id + $ops
             }
 
-            fn render(&self, options: &RenderOptions) -> String {
-                let source = $crate::kernel::ElemwiseRaw.render(options);
+            fn render(&self) -> String {
+                let source = self.raw.render();
                 source.replace("OPS", $ops)
             }
         }

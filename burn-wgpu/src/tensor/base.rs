@@ -14,7 +14,18 @@ pub struct WGPUTensor<const D: usize> {
 
 impl<const D: usize> WGPUTensor<D> {
     pub fn new(context: Arc<Context>, shape: Shape<D>, buffer: Arc<Buffer>) -> Self {
-        let strides = [0; D];
+        let mut strides = [0; D];
+
+        let mut current = 1;
+        shape
+            .dims
+            .iter()
+            .enumerate()
+            .rev()
+            .for_each(|(index, val)| {
+                strides[index] = current;
+                current *= val;
+            });
 
         Self {
             context,

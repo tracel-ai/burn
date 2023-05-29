@@ -11,6 +11,7 @@ use crate::{
 };
 use burn_common::rand::get_seeded_rng;
 use burn_tensor::{backend::Backend, ops::TensorOps, Data, Distribution, Shape};
+use num_traits::ToPrimitive;
 use std::sync::Arc;
 
 impl<G, F, I> TensorOps<WGPUBackend<G, F, I>> for WGPUBackend<G, F, I>
@@ -99,13 +100,38 @@ where
         let empty = Self::empty(rhs.shape.clone(), &lhs.context.device_wgpu);
 
         let num_elements = usize::max(lhs.shape.num_elements(), rhs.shape.num_elements());
-        let kernel = lhs
+        let kernel = lhs.context.compile(Add::new(RenderOptions::new(
+            WorkGroupSize::new(256, 1, 1),
+            F::type_name().into(),
+            I::type_name().into(),
+        )));
+        let mut info: Vec<u32> = vec![D.to_u32().unwrap()];
+        lhs.strides
+            .into_iter()
+            .for_each(|v| info.push(v.to_u32().unwrap()));
+        rhs.strides
+            .into_iter()
+            .for_each(|v| info.push(v.to_u32().unwrap()));
+        lhs.shape
+            .dims
+            .into_iter()
+            .for_each(|v| info.push(v.to_u32().unwrap()));
+        rhs.shape
+            .dims
+            .into_iter()
+            .for_each(|v| info.push(v.to_u32().unwrap()));
+        let info_buffer = lhs
             .context
-            .compile::<Add, F, I>(WorkGroupSize::new(256, 1, 1), &Add);
+            .create_buffer_with_data(bytemuck::cast_slice(&info));
+
+        println!("Info {:?}", info);
+        println!("Stride LHS {:?}", lhs.strides);
+        println!("Stride RHS {:?}", rhs.strides);
+
         lhs.context.execute(
             &WorkGroup::new(f32::ceil(num_elements as f32 / 256 as f32) as u32, 1, 1),
             &kernel,
-            &[&lhs.buffer, &rhs.buffer, &empty.buffer],
+            &[&lhs.buffer, &rhs.buffer, &empty.buffer, &info_buffer],
         );
 
         empty
