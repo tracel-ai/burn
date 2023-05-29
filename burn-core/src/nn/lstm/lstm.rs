@@ -169,7 +169,7 @@ mod tests {
     use burn_tensor::Data;
 
     use super::*;
-    use crate::TestBackend;
+    use crate::{TestBackend, nn::LinearRecord};
     // use burn_tensor::Data;
     // use libm::sqrt;
 
@@ -238,5 +238,73 @@ mod tests {
         let (_, output) = lstm.forward(input, None);
         println!("{:?}", output);
         output.to_data().assert_approx_eq(&Data::from([[-0.06984739, 0.06812251, -0.02153058, 0.1707408 ]]), 3);
+    }
+
+    #[test]
+    fn test_forward_single_input_single_feature() {
+        TestBackend::seed(0);
+        let config = LSTMConfig::new(1, 1, false, 1);
+        let mut lstm = config.init::<TestBackend>();
+
+        let i_gate_input_record = LinearRecord {
+            weight: Param::from(Tensor::from_data(Data::from([[0.5]]))),
+            bias: Some(Param::from(Tensor::from_data(Data::from([0.0]))))
+        };
+        let i_gate_hidden_record = LinearRecord {
+            weight: Param::from(Tensor::from_data(Data::from([[0.6]]))),
+            bias: Some(Param::from(Tensor::from_data(Data::from([0.0]))))
+        };
+
+        let input_gate = gate_controller::GateController::create_with_weights(1, 1, false, Initializer::UniformDefault, i_gate_input_record, i_gate_hidden_record);
+        
+        // forget gate
+        let f_gate_input_record = LinearRecord {
+            weight: Param::from(Tensor::from_data(Data::from([[0.7]]))),
+            bias: Some(Param::from(Tensor::from_data(Data::from([0.0]))))
+        };
+        let f_gate_hidden_record = LinearRecord {
+            weight: Param::from(Tensor::from_data(Data::from([[0.8]]))),
+            bias: Some(Param::from(Tensor::from_data(Data::from([0.0]))))
+        };
+
+        let forget_gate = gate_controller::GateController::create_with_weights(1, 1, false, Initializer::UniformDefault, f_gate_input_record, f_gate_hidden_record);
+
+        // cell gate
+        let c_gate_input_record = LinearRecord {
+            weight: Param::from(Tensor::from_data(Data::from([[0.9]]))),
+            bias: Some(Param::from(Tensor::from_data(Data::from([0.0]))))
+        };
+        let c_gate_hidden_record = LinearRecord {
+            weight: Param::from(Tensor::from_data(Data::from([[1.0]]))),
+            bias: Some(Param::from(Tensor::from_data(Data::from([0.0]))))
+        };
+
+        let cell_gate = gate_controller::GateController::create_with_weights(1, 1, false, Initializer::UniformDefault, c_gate_input_record, c_gate_hidden_record);
+
+        // output gate
+        let o_gate_input_record = LinearRecord {
+            weight: Param::from(Tensor::from_data(Data::from([[1.1]]))),
+            bias: Some(Param::from(Tensor::from_data(Data::from([0.0]))))
+        };
+        let o_gate_hidden_record = LinearRecord {
+            weight: Param::from(Tensor::from_data(Data::from([[1.2]]))),
+            bias: Some(Param::from(Tensor::from_data(Data::from([0.0]))))
+        };
+
+        let ouput_gate = gate_controller::GateController::create_with_weights(1, 1, false, Initializer::UniformDefault, o_gate_input_record, o_gate_hidden_record);
+        
+        lstm.input_gate = input_gate;
+        lstm.forget_gate = forget_gate;
+        lstm.cell_gate = cell_gate;
+        lstm.output_gate = ouput_gate;
+
+        // single timestep with single feature
+        let input = Tensor::<TestBackend, 2>::from_data(Data::from([[0.1]]));
+
+        let (cell_state, hidden_state) = lstm.forward(input, None);
+
+        cell_state.to_data().assert_approx_eq(&Data::from([[0.046]]), 3);
+        hidden_state.to_data().assert_approx_eq(&Data::from([[0.024]]), 3)
+
     }
 }
