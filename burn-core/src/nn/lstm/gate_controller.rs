@@ -8,6 +8,13 @@ use crate::nn::LinearConfig;
 use burn_tensor::backend::Backend;
 use burn_tensor::Tensor;
 
+/// A GateController represents a gate in an LSTM cell. An
+/// LSTM cell generally contains three gates: an input gate, 
+/// forget gate, and cell gate. 
+/// 
+/// An Lstm gate is modeled as two linear transformations.
+/// The results of these transformations are used to calculate
+/// the gate's output. 
 #[derive(Module, Debug)]
 pub struct GateController<B: Backend> {
     /// Represents the affine transformation applied to input vector
@@ -17,27 +24,32 @@ pub struct GateController<B: Backend> {
 }
 
 impl<B: Backend> GateController<B> {
-    pub fn new(
-        d_input: usize,
-        d_output: usize,
-        bias: bool,
-        initializer: Initializer,
-    ) -> GateController<B> {
-        GateController {
+    pub fn new(d_input: usize, d_output: usize, bias: bool, initializer: Initializer) -> Self {
+        Self {
             input_transform: LinearConfig {
-                d_input: d_input,
-                d_output: d_output,
-                bias: bias,
+                d_input,
+                d_output,
+                bias,
                 initializer: initializer.clone(),
             }
             .init(),
             hidden_transform: LinearConfig {
                 d_input: d_output,
-                d_output: d_output,
-                bias: bias,
-                initializer: initializer.clone(),
+                d_output,
+                bias,
+                initializer,
             }
             .init(),
+        }
+    }
+
+    pub fn new_with(linear_config: &LinearConfig, record: GateControllerRecord<B>) -> Self {
+        let l1 = LinearConfig::init_with(linear_config, record.input_transform);
+        let l2 = LinearConfig::init_with(linear_config, record.hidden_transform);
+
+        Self {
+            input_transform: l1,
+            hidden_transform: l2,
         }
     }
 
@@ -65,22 +77,22 @@ impl<B: Backend> GateController<B> {
         initializer: Initializer,
         input_record: LinearRecord<B>,
         hidden_record: LinearRecord<B>,
-    ) -> GateController<B> {
+    ) -> Self {
         let l1 = LinearConfig {
-            d_input: d_input,
-            d_output: d_output,
-            bias: bias,
+            d_input,
+            d_output,
+            bias,
             initializer: initializer.clone(),
         }
         .init_with(input_record);
         let l2 = LinearConfig {
-            d_input: d_input,
-            d_output: d_output,
-            bias: bias,
-            initializer: initializer.clone(),
+            d_input,
+            d_output,
+            bias,
+            initializer,
         }
         .init_with(hidden_record);
-        GateController {
+        Self {
             input_transform: l1,
             hidden_transform: l2,
         }
