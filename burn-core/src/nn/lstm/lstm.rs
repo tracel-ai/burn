@@ -7,6 +7,7 @@ use crate::module::Module;
 use crate::module::Param;
 use crate::nn::lstm::gate_controller;
 use crate::nn::Initializer;
+use crate::nn::LinearConfig;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 
@@ -18,18 +19,18 @@ pub struct LSTMConfig {
     pub d_input: usize,
     /// The size of the hidden state.
     pub d_hidden: usize,
-    /// If a bias should be applied during the LSTM transformation.
+    /// If a bias should be applied during the Lstm transformation.
     pub bias: bool,
-    /// LSTM initializer, should probably be Xavier or small random numbers
+    /// Lstm initializer, should probably be Xavier or small random numbers
     #[config(default = "Initializer::Uniform(0.0, 1.0)")]
     pub initializer: Initializer,
     /// The batch size
     pub batch_size: usize,
 }
 
-/// The LSTM module. This implementation is for a unidirectional, stateful, LSTM.
+/// The Lstm module. This implementation is for a unidirectional, stateful, Lstm.
 #[derive(Module, Debug)]
-pub struct LSTM<B: Backend> {
+pub struct Lstm<B: Backend> {
     input_gate: GateController<B>,
     forget_gate: GateController<B>,
     output_gate: GateController<B>,
@@ -41,8 +42,8 @@ pub struct LSTM<B: Backend> {
 }
 
 impl LSTMConfig {
-    /// Initialize a new [lstm](LSTM) module
-    pub fn init<B: Backend>(&self) -> LSTM<B> {
+    /// Initialize a new [lstm](Lstm) module
+    pub fn init<B: Backend>(&self) -> Lstm<B> {
         let d_output = self.d_hidden;
 
         let input_gate = gate_controller::GateController::new(
@@ -73,7 +74,7 @@ impl LSTMConfig {
         let hidden_state = Some(Param::from(Tensor::zeros([self.batch_size, self.d_hidden])));
         let cell_state = Some(Param::from(Tensor::zeros([self.batch_size, self.d_hidden])));
 
-        LSTM {
+        Lstm {
             input_gate,
             forget_gate,
             output_gate,
@@ -89,7 +90,7 @@ impl LSTMConfig {
         &self,
         hidden: Tensor<B, 2>,
         cell: Tensor<B, 2>,
-    ) -> LSTM<B> {
+    ) -> Lstm<B> {
         let d_output = self.d_hidden;
 
         let input_gate = gate_controller::GateController::new(
@@ -120,7 +121,7 @@ impl LSTMConfig {
         let hidden_state = Some(Param::from(hidden));
         let cell_state = Some(Param::from(cell));
 
-        LSTM {
+        Lstm {
             input_gate,
             forget_gate,
             output_gate,
@@ -131,11 +132,40 @@ impl LSTMConfig {
             d_hidden: self.d_hidden,
         }
     }
+
+    pub fn init_with<B: Backend>(&self, record: LstmRecord<B>) -> Lstm<B> {
+        let linear_config = LinearConfig {
+            d_input: self.d_input,
+            d_output: self.d_hidden,
+            bias: self.bias,
+            initializer: self.initializer.clone(),
+        };
+
+        Lstm {
+            input_gate: gate_controller::GateController::new_with(
+                &linear_config,
+                record.input_gate,
+            ),
+            forget_gate: gate_controller::GateController::new_with(
+                &linear_config,
+                record.forget_gate,
+            ),
+            output_gate: gate_controller::GateController::new_with(
+                &linear_config,
+                record.output_gate,
+            ),
+            cell_gate: gate_controller::GateController::new_with(&linear_config, record.cell_gate),
+            hidden_state: record.hidden_state,
+            cell_state: record.cell_state,
+            batch_size: self.batch_size,
+            d_hidden: self.d_hidden,
+        }
+    }
 }
 
-impl<B: Backend> LSTM<B> {
+impl<B: Backend> Lstm<B> {
     /// Applies the forward pass on the input tensor. In this implementation,
-    /// the LSTM returns only the last time step's output, hence <B, 2> for
+    /// the Lstm returns only the last time step's output, hence <B, 2> for
     /// all output tensors, with dimensions [batch_size, hidden_size]
     ///
     /// inputs:
@@ -152,8 +182,8 @@ impl<B: Backend> LSTM<B> {
             // If state is provided
             Some((cell_state, hidden_state)) => (cell_state, hidden_state),
             None => (
-                self.cell_state.as_ref().unwrap().val().clone(),
-                self.hidden_state.as_ref().unwrap().val().clone(),
+                self.cell_state.as_ref().unwrap().val(),
+                self.hidden_state.as_ref().unwrap().val(),
             ),
         };
 
@@ -179,7 +209,7 @@ impl<B: Backend> LSTM<B> {
         self.cell_state = Some(Param::from(cell_state.clone()));
         self.hidden_state = Some(Param::from(hidden_state.clone()));
 
-        (cell_state.clone(), hidden_state.clone())
+        (cell_state, hidden_state)
     }
 
     /// Helper function for performing weighted matrix product for a gate and adds
@@ -197,27 +227,20 @@ impl<B: Backend> LSTM<B> {
         hidden: &Tensor<B, 2>,
         gate: &GateController<B>,
     ) -> Tensor<B, 2> {
-        let input_product = input.clone().matmul(gate.get_input_weight().clone());
-        let hidden_product = hidden.clone().matmul(gate.get_hidden_weight().clone());
+        let input_product = input.clone().matmul(gate.get_input_weight());
+        let hidden_product = hidden.clone().matmul(gate.get_hidden_weight());
 
         match (gate.get_input_bias(), gate.get_hidden_bias()) {
             (Some(input_bias), Some(hidden_bias)) => {
-                input_product
-                    + input_bias.clone().unsqueeze()
-                    + hidden_product
-                    + hidden_bias.clone().unsqueeze()
+                input_product + input_bias.unsqueeze() + hidden_product + hidden_bias.unsqueeze()
             }
-            (Some(input_bias), None) => {
-                input_product + input_bias.clone().unsqueeze() + hidden_product
-            }
-            (None, Some(hidden_bias)) => {
-                input_product + hidden_product + hidden_bias.clone().unsqueeze()
-            }
+            (Some(input_bias), None) => input_product + input_bias.unsqueeze() + hidden_product,
+            (None, Some(hidden_bias)) => input_product + hidden_product + hidden_bias.unsqueeze(),
             (None, None) => input_product + hidden_product,
         }
     }
 
-    /// Reset the hidden and cell states of the LSTM cell. This should be done
+    /// Reset the hidden and cell states of the Lstm cell. This should be done
     /// after each full pass through a sequence.
     pub fn reset_states(&mut self) {
         self.hidden_state = Some(Param::from(Tensor::zeros([self.batch_size, self.d_hidden])));
@@ -227,12 +250,10 @@ impl<B: Backend> LSTM<B> {
 
 #[cfg(test)]
 mod tests {
-    use burn_tensor::Data;
 
     use super::*;
     use crate::{nn::LinearRecord, TestBackend};
-    // use burn_tensor::Data;
-    // use libm::sqrt;
+    use burn_tensor::Data;
 
     #[test]
     fn initializer_default() {
@@ -311,90 +332,49 @@ mod tests {
     }
 
     #[test]
+    /// Test forward pass with simple input vector
+    ///
+    /// f_t = sigmoid(0.7*0 + 0.8*0) = 0.5
+    /// i_t = sigmoid(0.5*0.1 + 0.6*0) = sigmoid(0.05) = 0.5123725
+    /// o_t = sigmoid(1.1*0.1 + 1.2*0) = sigmoid(0.11) = 0.5274723
+    /// c_t = tanh(0.9*0.1 + 1.0*0) = tanh(0.09) = 0.0892937
+
+    /// C_t = f_t * 0 + i_t * c_t = 0 + 0.5123725 * 0.0892937 = 0.04575243
+    /// h_t = o_t * tanh(C_t) = 0.5274723 * tanh(0.04575243) = 0.5274723 * 0.04568173 = 0.024083648
     fn test_forward_single_input_single_feature() {
         TestBackend::seed(0);
         let config = LSTMConfig::new(1, 1, false, 1);
         let mut lstm = config.init::<TestBackend>();
 
-        let i_gate_input_record = LinearRecord {
-            weight: Param::from(Tensor::from_data(Data::from([[0.5]]))),
-            bias: Some(Param::from(Tensor::from_data(Data::from([0.0])))),
-        };
-        let i_gate_hidden_record = LinearRecord {
-            weight: Param::from(Tensor::from_data(Data::from([[0.6]]))),
-            bias: Some(Param::from(Tensor::from_data(Data::from([0.0])))),
-        };
+        fn create_gate_controller(
+            weights: f32,
+            biases: f32,
+            d_input: usize,
+            d_output: usize,
+            bias: bool,
+            initializer: Initializer,
+        ) -> GateController<TestBackend> {
+            let record = LinearRecord {
+                weight: Param::from(Tensor::from_data(Data::from([[weights]]))),
+                bias: Some(Param::from(Tensor::from_data(Data::from([biases])))),
+            };
+            gate_controller::GateController::create_with_weights(
+                d_input,
+                d_output,
+                bias,
+                initializer,
+                record.clone(),
+                record,
+            )
+        }
 
-        let input_gate = gate_controller::GateController::create_with_weights(
-            1,
-            1,
-            false,
-            Initializer::UniformDefault,
-            i_gate_input_record,
-            i_gate_hidden_record,
-        );
-
-        // forget gate
-        let f_gate_input_record = LinearRecord {
-            weight: Param::from(Tensor::from_data(Data::from([[0.7]]))),
-            bias: Some(Param::from(Tensor::from_data(Data::from([0.0])))),
-        };
-        let f_gate_hidden_record = LinearRecord {
-            weight: Param::from(Tensor::from_data(Data::from([[0.8]]))),
-            bias: Some(Param::from(Tensor::from_data(Data::from([0.0])))),
-        };
-
-        let forget_gate = gate_controller::GateController::create_with_weights(
-            1,
-            1,
-            false,
-            Initializer::UniformDefault,
-            f_gate_input_record,
-            f_gate_hidden_record,
-        );
-
-        // cell gate
-        let c_gate_input_record = LinearRecord {
-            weight: Param::from(Tensor::from_data(Data::from([[0.9]]))),
-            bias: Some(Param::from(Tensor::from_data(Data::from([0.0])))),
-        };
-        let c_gate_hidden_record = LinearRecord {
-            weight: Param::from(Tensor::from_data(Data::from([[1.0]]))),
-            bias: Some(Param::from(Tensor::from_data(Data::from([0.0])))),
-        };
-
-        let cell_gate = gate_controller::GateController::create_with_weights(
-            1,
-            1,
-            false,
-            Initializer::UniformDefault,
-            c_gate_input_record,
-            c_gate_hidden_record,
-        );
-
-        // output gate
-        let o_gate_input_record = LinearRecord {
-            weight: Param::from(Tensor::from_data(Data::from([[1.1]]))),
-            bias: Some(Param::from(Tensor::from_data(Data::from([0.0])))),
-        };
-        let o_gate_hidden_record = LinearRecord {
-            weight: Param::from(Tensor::from_data(Data::from([[1.2]]))),
-            bias: Some(Param::from(Tensor::from_data(Data::from([0.0])))),
-        };
-
-        let ouput_gate = gate_controller::GateController::create_with_weights(
-            1,
-            1,
-            false,
-            Initializer::UniformDefault,
-            o_gate_input_record,
-            o_gate_hidden_record,
-        );
-
-        lstm.input_gate = input_gate;
-        lstm.forget_gate = forget_gate;
-        lstm.cell_gate = cell_gate;
-        lstm.output_gate = ouput_gate;
+        lstm.input_gate =
+            create_gate_controller(0.5, 0.0, 1, 1, false, Initializer::UniformDefault);
+        lstm.forget_gate =
+            create_gate_controller(0.7, 0.0, 1, 1, false, Initializer::UniformDefault);
+        lstm.cell_gate = create_gate_controller(0.9, 0.0, 1, 1, false, Initializer::UniformDefault);
+        lstm.output_gate =
+            create_gate_controller(1.1, 0.0, 1, 1, false, Initializer::UniformDefault);
 
         // single timestep with single feature
         let input = Tensor::<TestBackend, 2>::from_data(Data::from([[0.1]]));
