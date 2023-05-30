@@ -96,10 +96,7 @@ impl<B: Backend> Linear<B> {
     }
 
     pub fn get_bias(&self) -> Option<Tensor<B, 1>> {
-        match &self.bias {
-            Some(bias) => Some(bias.val()),
-            None => None,
-        }
+        self.bias.as_ref().map(|bias| bias.val())
     }
 }
 

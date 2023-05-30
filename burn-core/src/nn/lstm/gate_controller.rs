@@ -9,12 +9,12 @@ use burn_tensor::backend::Backend;
 use burn_tensor::Tensor;
 
 /// A GateController represents a gate in an LSTM cell. An
-/// LSTM cell generally contains three gates: an input gate, 
-/// forget gate, and cell gate. 
-/// 
+/// LSTM cell generally contains three gates: an input gate,
+/// forget gate, and cell gate.
+///
 /// An Lstm gate is modeled as two linear transformations.
 /// The results of these transformations are used to calculate
-/// the gate's output. 
+/// the gate's output.
 #[derive(Module, Debug)]
 pub struct GateController<B: Backend> {
     /// Represents the affine transformation applied to input vector
