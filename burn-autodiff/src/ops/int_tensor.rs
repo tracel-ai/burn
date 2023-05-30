@@ -195,19 +195,21 @@ impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         B::int_lower_equal_elem(lhs, rhs)
     }
 
-    fn int_index_select<const D: usize>(
+    fn int_gather<const D: usize>(
+        dim: usize,
         tensor: IntTensor<B, D>,
         indexes: IntTensor<B, D>,
     ) -> IntTensor<B, D> {
-        B::int_index_select(tensor, indexes)
+        B::int_gather(dim, tensor, indexes)
     }
 
-    fn int_index_select_assign<const D: usize>(
+    fn int_scatter<const D: usize>(
+        dim: usize,
         tensor: IntTensor<B, D>,
         indexes: IntTensor<B, D>,
         value: IntTensor<B, D>,
     ) -> IntTensor<B, D> {
-        B::int_index_select_assign(tensor, indexes, value)
+        B::int_scatter(dim, tensor, indexes, value)
     }
 
     fn int_index_select_dim<const D: usize>(

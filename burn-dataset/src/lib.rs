@@ -6,8 +6,12 @@ extern crate dirs;
 pub mod source;
 pub mod transform;
 
+#[cfg(feature = "audio")]
+pub mod audio;
+
 mod dataset;
 pub use dataset::*;
+pub use source::huggingface::downloader::*;
 
 #[cfg(test)]
 mod test_data {

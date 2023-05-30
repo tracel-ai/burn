@@ -27,9 +27,8 @@ pub trait Recorder: Send + Sync + core::default::Default + core::fmt::Debug + Cl
         record: R,
         args: Self::RecordArgs,
     ) -> Result<Self::RecordOutput, RecorderError> {
-        let metadata = recorder_metadata::<Self>();
         let item = record.into_item::<Self::Settings>();
-        let item = BurnRecord::new(metadata, item);
+        let item = BurnRecord::new::<Self>(item);
 
         self.save_item(item, args)
     }
@@ -128,10 +127,18 @@ pub struct BurnMetadata {
     pub settings: String,
 }
 
-#[derive(new, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct BurnRecord<I> {
     pub metadata: BurnMetadata,
     pub item: I,
+}
+
+impl<I> BurnRecord<I> {
+    pub fn new<R: Recorder>(item: I) -> Self {
+        let metadata = recorder_metadata::<R>();
+
+        Self { metadata, item }
+    }
 }
 
 #[derive(new, Debug, Serialize, Deserialize)]

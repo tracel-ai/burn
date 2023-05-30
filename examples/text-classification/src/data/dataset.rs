@@ -1,5 +1,5 @@
 use burn::data::dataset::{
-    source::huggingface::downloader::HuggingfaceDatasetLoader, Dataset, InMemDataset,
+    source::huggingface::downloader::HuggingfaceDatasetLoader, Dataset, SqliteDataset,
 };
 
 #[derive(new, Clone, Debug)]
@@ -20,7 +20,7 @@ pub struct AgNewsItem {
 }
 
 pub struct AgNewsDataset {
-    dataset: InMemDataset<AgNewsItem>,
+    dataset: SqliteDataset<AgNewsItem>,
 }
 
 impl Dataset<TextClassificationItem> for AgNewsDataset {
@@ -37,19 +37,16 @@ impl Dataset<TextClassificationItem> for AgNewsDataset {
 
 impl AgNewsDataset {
     pub fn train() -> Self {
-        let dataset: InMemDataset<AgNewsItem> = HuggingfaceDatasetLoader::new("ag_news", "train")
-            .extract_string("text")
-            .extract_number("label")
-            .load_in_memory()
-            .unwrap();
-        Self { dataset }
+        Self::new("train")
     }
 
     pub fn test() -> Self {
-        let dataset: InMemDataset<AgNewsItem> = HuggingfaceDatasetLoader::new("ag_news", "test")
-            .extract_string("text")
-            .extract_number("label")
-            .load_in_memory()
+        Self::new("test")
+    }
+
+    pub fn new(split: &str) -> Self {
+        let dataset: SqliteDataset<AgNewsItem> = HuggingfaceDatasetLoader::new("ag_news")
+            .dataset(split)
             .unwrap();
         Self { dataset }
     }
@@ -80,7 +77,7 @@ pub struct DbPediaItem {
 }
 
 pub struct DbPediaDataset {
-    dataset: InMemDataset<DbPediaItem>,
+    dataset: SqliteDataset<DbPediaItem>,
 }
 
 impl Dataset<TextClassificationItem> for DbPediaDataset {
@@ -100,24 +97,16 @@ impl Dataset<TextClassificationItem> for DbPediaDataset {
 
 impl DbPediaDataset {
     pub fn train() -> Self {
-        let dataset: InMemDataset<DbPediaItem> =
-            HuggingfaceDatasetLoader::new("dbpedia_14", "train")
-                .extract_string("title")
-                .extract_string("content")
-                .extract_number("label")
-                .load_in_memory()
-                .unwrap();
-        Self { dataset }
+        Self::new("train")
     }
 
     pub fn test() -> Self {
-        let dataset: InMemDataset<DbPediaItem> =
-            HuggingfaceDatasetLoader::new("dbpedia_14", "test")
-                .extract_string("title")
-                .extract_string("content")
-                .extract_number("label")
-                .load_in_memory()
-                .unwrap();
+        Self::new("test")
+    }
+    pub fn new(split: &str) -> Self {
+        let dataset: SqliteDataset<DbPediaItem> = HuggingfaceDatasetLoader::new("dbpedia_14")
+            .dataset(split)
+            .unwrap();
         Self { dataset }
     }
 }

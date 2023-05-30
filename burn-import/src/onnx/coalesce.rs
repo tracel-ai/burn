@@ -42,7 +42,6 @@ fn convert_gemm(node: &mut Node) {
 
     if straight_linear {
         node.node_type = NodeType::Linear;
-        node.is_stateful = true;
         node.attrs.remove("alpha");
         node.attrs.remove("beta");
         node.attrs.remove("transB");

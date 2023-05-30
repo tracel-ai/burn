@@ -7,7 +7,7 @@ use core::ops::Range;
 
 /// The struct should always be used with the [check](crate::check) macro.
 ///
-/// This is a simple public crate data structure that efficiently checks tensor operations and
+/// This is a simple pub(crate) data structure that efficiently checks tensor operations and
 /// formats clear error messages. It's crucial that the checks are really fast, but it doesn't matter
 /// when a failed check is discovered since the program will panic.
 ///
@@ -32,14 +32,14 @@ use core::ops::Range;
 /// such as the `index_select` operation. The downside of that approach is that all backend
 /// implementation might re-implement the same checks, which may result in uncessary code
 /// duplication. Maybe a combination of both strategies could help to cover all usecases.
-pub enum TensorCheck {
+pub(crate) enum TensorCheck {
     Ok,
     Failed(FailedTensorCheck),
 }
 
 impl TensorCheck {
     /// Checks device and shape compatibility for element wise binary operations.
-    pub fn binary_ops_ew<B: Backend, const D: usize, K: BasicOps<B>>(
+    pub(crate) fn binary_ops_ew<B: Backend, const D: usize, K: BasicOps<B>>(
         ops: &str,
         lhs: &Tensor<B, D, K>,
         rhs: &Tensor<B, D, K>,
@@ -49,7 +49,7 @@ impl TensorCheck {
             .binary_ops_ew_shape(ops, &lhs.shape(), &rhs.shape())
     }
 
-    pub fn into_scalar<const D: usize>(shape: &Shape<D>) -> Self {
+    pub(crate) fn into_scalar<const D: usize>(shape: &Shape<D>) -> Self {
         let mut check = Self::Ok;
 
         if shape.num_elements() != 1 {
@@ -66,7 +66,7 @@ impl TensorCheck {
         check
     }
 
-    pub fn dim_ops<const D: usize>(ops: &str, dim: usize) -> Self {
+    pub(crate) fn dim_ops<const D: usize>(ops: &str, dim: usize) -> Self {
         let mut check = Self::Ok;
 
         if dim >= D {
@@ -80,7 +80,7 @@ impl TensorCheck {
         check
     }
 
-    pub fn reshape<const D1: usize, const D2: usize>(
+    pub(crate) fn reshape<const D1: usize, const D2: usize>(
         original: &Shape<D1>,
         target: &Shape<D2>,
     ) -> Self {
@@ -99,7 +99,10 @@ impl TensorCheck {
         check
     }
 
-    pub fn flatten<const D1: usize, const D2: usize>(start_dim: usize, end_dim: usize) -> Self {
+    pub(crate) fn flatten<const D1: usize, const D2: usize>(
+        start_dim: usize,
+        end_dim: usize,
+    ) -> Self {
         let mut check = Self::Ok;
 
         if start_dim > end_dim {
@@ -130,7 +133,7 @@ impl TensorCheck {
         check
     }
 
-    pub fn unsqueeze<const D1: usize, const D2: usize>() -> Self {
+    pub(crate) fn unsqueeze<const D1: usize, const D2: usize>() -> Self {
         let mut check = Self::Ok;
         if D2 < D1 {
             check = check.register(
@@ -144,7 +147,7 @@ impl TensorCheck {
         check
     }
 
-    pub fn swap_dims<const D: usize>(dim1: usize, dim2: usize) -> Self {
+    pub(crate) fn swap_dims<const D: usize>(dim1: usize, dim2: usize) -> Self {
         let mut check = Self::Ok;
 
         if dim1 > D || dim2 > D {
@@ -160,7 +163,10 @@ impl TensorCheck {
         check
     }
 
-    pub fn matmul<B: Backend, const D: usize>(lhs: &Tensor<B, D>, rhs: &Tensor<B, D>) -> Self {
+    pub(crate) fn matmul<B: Backend, const D: usize>(
+        lhs: &Tensor<B, D>,
+        rhs: &Tensor<B, D>,
+    ) -> Self {
         let mut check = Self::Ok;
 
         check = check.binary_ops_device("Matmul", &lhs.device(), &rhs.device());
@@ -191,7 +197,7 @@ impl TensorCheck {
         check
     }
 
-    pub fn cat<B: Backend, const D: usize, K: BasicOps<B>>(
+    pub(crate) fn cat<B: Backend, const D: usize, K: BasicOps<B>>(
         tensors: &[Tensor<B, D, K>],
         dim: usize,
     ) -> Self {
@@ -241,7 +247,7 @@ impl TensorCheck {
         check
     }
 
-    pub fn index<const D1: usize, const D2: usize>(
+    pub(crate) fn index<const D1: usize, const D2: usize>(
         shape: &Shape<D1>,
         indexes: &[Range<usize>; D2],
     ) -> Self {
@@ -298,7 +304,7 @@ impl TensorCheck {
         check
     }
 
-    pub fn index_assign<const D1: usize, const D2: usize>(
+    pub(crate) fn index_assign<const D1: usize, const D2: usize>(
         shape: &Shape<D1>,
         shape_value: &Shape<D1>,
         indexes: &[Range<usize>; D2],
@@ -374,8 +380,104 @@ impl TensorCheck {
         check
     }
 
+    pub(crate) fn gather<const D: usize>(
+        dim: usize,
+        shape: &Shape<D>,
+        shape_indexes: &Shape<D>,
+    ) -> Self {
+        Self::check_gather_scatter_indexes(Self::Ok, "Gather", dim, shape, shape_indexes)
+    }
+
+    pub(crate) fn scatter<const D: usize>(
+        dim: usize,
+        shape: &Shape<D>,
+        shape_indexes: &Shape<D>,
+        shape_value: &Shape<D>,
+    ) -> Self {
+        let ops = "Scatter";
+        let mut check =
+            Self::check_gather_scatter_indexes(Self::Ok, ops, dim, shape, shape_indexes);
+
+        if shape_indexes != shape_value {
+            check = check.register(
+                ops,
+                TensorError::new(
+                    "Indexes tensor shape should be the same as the value tensor shape."
+                        .to_string(),
+                )
+                .details(format!(
+                    "The shape differs: {:?} != {:?}",
+                    shape_indexes.dims, shape_value.dims
+                )),
+            );
+        }
+
+        check
+    }
+
+    pub(crate) fn index_select<const D: usize>(dim: usize) -> Self {
+        Self::check_index_select_basic::<D>(Self::Ok, "index_select", dim)
+    }
+
+    pub(crate) fn index_select_assign<const D: usize>(dim: usize) -> Self {
+        Self::check_index_select_basic::<D>(Self::Ok, "index_select_assign", dim)
+    }
+
+    fn check_index_select_basic<const D: usize>(mut check: Self, ops: &str, dim: usize) -> Self {
+        if dim > D {
+            check = check.register(
+                ops,
+                TensorError::new(format!(
+                    "Can't index a tensor with ({D}) dimensions on axis ({dim})"
+                )),
+            );
+        }
+
+        check
+    }
+    fn check_gather_scatter_indexes<const D: usize>(
+        mut check: Self,
+        ops: &str,
+        dim: usize,
+        shape: &Shape<D>,
+        shape_indexes: &Shape<D>,
+    ) -> Self {
+        if dim > D {
+            check = check.register(
+                ops,
+                TensorError::new(format!(
+                    "Can't index a tensor with ({D}) dimensions on axis ({dim})"
+                )),
+            );
+        }
+
+        for i in 0..D {
+            if i == dim {
+                continue;
+            }
+
+            let tensor_dim_i = shape.dims[i];
+            let indexes_dim_i = shape_indexes.dims[i];
+
+            if tensor_dim_i != indexes_dim_i {
+                check = check.register(
+                    ops,
+                    TensorError::new(
+                        "The tensor shape should be the same as the index tensor shape."
+                            .to_string(),
+                    )
+                    .details(format!(
+                        "The shape differs at dimension {i}: {tensor_dim_i} != {indexes_dim_i}"
+                    )),
+                );
+            }
+        }
+
+        check
+    }
+
     /// Checks aggregate dimension such as mean and sum.
-    pub fn aggregate_dim<const D: usize>(ops: &str, dim: usize) -> Self {
+    pub(crate) fn aggregate_dim<const D: usize>(ops: &str, dim: usize) -> Self {
         let mut check = Self::Ok;
 
         if dim > D {
@@ -409,7 +511,7 @@ impl TensorCheck {
     }
 
     /// Checks if shapes are compatible for element wise operations supporting broadcasting.
-    pub fn binary_ops_ew_shape<const D: usize>(
+    pub(crate) fn binary_ops_ew_shape<const D: usize>(
         self,
         ops: &str,
         lhs: &Shape<D>,
@@ -464,14 +566,14 @@ impl TensorCheck {
     }
 }
 
-pub struct FailedTensorCheck {
+pub(crate) struct FailedTensorCheck {
     ops: String,
     errors: Vec<TensorError>,
 }
 
 impl FailedTensorCheck {
     /// Format all the checks into a single message ready to be printed by a [panic](core::panic).
-    pub fn format(self) -> String {
+    pub(crate) fn format(self) -> String {
         self.errors.into_iter().enumerate().fold(
             format!(
                 "=== Tensor Operation Error ===\n  Operation: '{}'\n  Reason:",
@@ -488,14 +590,14 @@ struct TensorError {
 }
 
 impl TensorError {
-    pub fn new<S: Into<String>>(description: S) -> Self {
+    pub(crate) fn new<S: Into<String>>(description: S) -> Self {
         TensorError {
             description: description.into(),
             details: None,
         }
     }
 
-    pub fn details<S: Into<String>>(mut self, details: S) -> Self {
+    pub(crate) fn details<S: Into<String>>(mut self, details: S) -> Self {
         self.details = Some(details.into());
         self
     }
