@@ -44,11 +44,13 @@ pub trait IntTensorOps<B: Backend> {
         mask: B::BoolTensorPrimitive<D>,
         value: B::IntElem,
     ) -> B::IntTensorPrimitive<D>;
-    fn int_index_select<const D: usize>(
+    fn int_gather<const D: usize>(
+        dim: usize,
         tensor: B::IntTensorPrimitive<D>,
         indexes: B::IntTensorPrimitive<D>,
     ) -> B::IntTensorPrimitive<D>;
-    fn int_index_select_assign<const D: usize>(
+    fn int_scatter<const D: usize>(
+        dim: usize,
         tensor: B::IntTensorPrimitive<D>,
         indexes: B::IntTensorPrimitive<D>,
         value: B::IntTensorPrimitive<D>,
@@ -204,14 +206,14 @@ pub trait IntTensorOps<B: Backend> {
     ) -> B::IntTensorPrimitive<D> {
         let index = B::int_argmax(tensor.clone(), dim);
 
-        B::int_index_select(tensor, index)
+        B::int_gather(D - 1, tensor, index)
     }
     fn int_max_dim_with_indexes<const D: usize>(
         tensor: B::IntTensorPrimitive<D>,
         dim: usize,
     ) -> (B::IntTensorPrimitive<D>, B::IntTensorPrimitive<D>) {
         let index = B::int_argmax(tensor.clone(), dim);
-        let values = B::int_index_select(tensor, index.clone());
+        let values = B::int_gather(D - 1, tensor, index.clone());
 
         (values, index)
     }
@@ -227,14 +229,14 @@ pub trait IntTensorOps<B: Backend> {
     ) -> B::IntTensorPrimitive<D> {
         let index = B::int_argmin(tensor.clone(), dim);
 
-        B::int_index_select(tensor, index)
+        B::int_gather(D - 1, tensor, index)
     }
     fn int_min_dim_with_indexes<const D: usize>(
         tensor: B::IntTensorPrimitive<D>,
         dim: usize,
     ) -> (B::IntTensorPrimitive<D>, B::IntTensorPrimitive<D>) {
         let index = B::int_argmin(tensor.clone(), dim);
-        let values = B::int_index_select(tensor, index.clone());
+        let values = B::int_gather(D - 1, tensor, index.clone());
 
         (values, index)
     }
