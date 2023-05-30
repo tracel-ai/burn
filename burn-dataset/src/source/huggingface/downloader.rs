@@ -2,7 +2,7 @@ use std::fs::{self, create_dir_all};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use crate::{SqliteDataset, SqliteDatasetStorage, SqliteDatasetError};
+use crate::{SqliteDataset, SqliteDatasetError, SqliteDatasetStorage};
 
 use sanitize_filename::sanitize;
 use serde::de::DeserializeOwned;
