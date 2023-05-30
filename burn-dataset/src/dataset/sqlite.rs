@@ -8,7 +8,7 @@ use std::{
 
 use crate::Dataset;
 
-use r2d2::Pool;
+use r2d2::{Pool, PooledConnection};
 use r2d2_sqlite::{
     rusqlite::{OpenFlags, OptionalExtension},
     SqliteConnectionManager,
@@ -508,7 +508,7 @@ where
 
         // Get a connection from the pool
         let conn_pool = self.conn_pool.as_ref().unwrap();
-        let connection = conn_pool.get()?;
+        let conn = conn_pool.get()?;
 
         // Serialize the item using MessagePack
         let serialized_item = rmp_serde::to_vec(item)?;
@@ -516,15 +516,15 @@ where
         // Turn off the synchronous and journal mode for speed up
         // We are sacrificing durability for speed but it's okay because
         // we always recreate the dataset if it is not completed.
-        connection.pragma_update(None, "synchronous", "OFF")?;
-        connection.pragma_update(None, "journal_mode", "OFF")?;
+        pragma_update_with_error_handling(&conn, "synchronous", "OFF")?;
+        pragma_update_with_error_handling(&conn, "journal_mode", "OFF")?;
 
         // Insert the serialized item into the database
         let insert_statement = format!("insert into {split} (item) values (?)", split = split);
-        connection.execute(insert_statement.as_str(), [serialized_item])?;
+        conn.execute(insert_statement.as_str(), [serialized_item])?;
 
         // Get the primary key of the last inserted row and convert to index (row_id-1)
-        let index = (connection.last_insert_rowid() - 1) as usize;
+        let index = (conn.last_insert_rowid() - 1) as usize;
 
         Ok(index)
     }
@@ -575,6 +575,25 @@ where
 
         Ok(())
     }
+}
+
+/// Runs a pragma update and ignores the `ExecuteReturnedResults` error.
+///
+/// Sometimes ExecuteReturnedResults is returned when running a pragma update. This is not an error
+/// and can be ignored. This function runs the pragma update and ignores the error if it is
+/// `ExecuteReturnedResults`.
+fn pragma_update_with_error_handling(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    setting: &str,
+    value: &str,
+) -> Result<()> {
+    let result = conn.pragma_update(None, setting, value);
+    if let Err(error) = result {
+        if error != rusqlite::Error::ExecuteReturnedResults {
+            return Err(SqliteDatasetError::Sql(error));
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
