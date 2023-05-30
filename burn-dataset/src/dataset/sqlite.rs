@@ -1,63 +1,83 @@
-use dirs::home_dir;
-use std::fs;
-use std::marker::PhantomData;
-use std::{fs::create_dir_all, path::Path};
+use std::{
+    collections::HashSet,
+    fs, io,
+    marker::PhantomData,
+    path::{Path, PathBuf},
+    sync::{Arc, RwLock},
+};
 
 use crate::Dataset;
 
 use r2d2::Pool;
-use r2d2_sqlite::rusqlite::OptionalExtension;
-use r2d2_sqlite::{rusqlite::OpenFlags, SqliteConnectionManager};
+use r2d2_sqlite::{
+    rusqlite::{OpenFlags, OptionalExtension},
+    SqliteConnectionManager,
+};
 use sanitize_filename::sanitize;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-use serde_rusqlite::*;
+use serde::{de::DeserializeOwned, Serialize};
+use serde_rusqlite::{columns_from_statement, from_row_with_columns};
+use tempfile::{NamedTempFile, PersistError};
 
-/// Dataset where all items are stored in a sqlite database.
+pub type Result<T> = core::result::Result<T, SqliteDatasetError>;
+
+#[derive(thiserror::Error, Debug)]
+pub enum SqliteDatasetError {
+    #[error("IO error: {0}")]
+    Io(#[from] io::Error),
+
+    #[error("Sql error: {0}")]
+    Sql(#[from] serde_rusqlite::rusqlite::Error),
+
+    #[error("Serde error: {0}")]
+    Serde(#[from] rmp_serde::encode::Error),
+
+    #[error("Overwrite flag is set to false and the database file already exists: {0}")]
+    FileExists(PathBuf),
+
+    #[error("Failed to create connection pool: {0}")]
+    ConnectionPool(#[from] r2d2::Error),
+
+    #[error("Could not persist the temporary database file: {0}")]
+    PersistDbFile(#[from] PersistError),
+
+    #[error("{0}")]
+    Other(&'static str),
+}
+
+impl From<&'static str> for SqliteDatasetError {
+    fn from(s: &'static str) -> Self {
+        SqliteDatasetError::Other(s)
+    }
+}
+
+/// This struct represents a dataset where all items are stored in an SQLite database.
+/// Each instance of this struct corresponds to a specific table within the SQLite database,
+/// and allows for interaction with the data stored in the table in a structured and typed manner.
 ///
-/// Note: The database must have a table with the same name as the split.
-/// The table must have a primary key column named `row_id` which is used to index the rows.
-/// `row_id` starts with 1 (one) and `index` starts with 0 (zero) (`row_id` = `index` + 1).
-/// The column names must match the field names of the <I> struct. However, the field names
-/// can be a subset of column names and can be in any order.
+/// The SQLite database must contain a table with the same name as the `split` field. This table should
+/// have a primary key column named `row_id`, which is used to index the rows in the table. The `row_id`
+/// should start at 1, while the corresponding dataset `index` should start at 0, i.e., `row_id` = `index` + 1.
 ///
-/// Supported serialization field types: https://docs.rs/serde_rusqlite/latest/serde_rusqlite and
-/// Sqlite3 types: https://www.sqlite.org/datatype3.html
+/// Table columns can be represented in two ways:
 ///
-/// Item struct example:
+/// 1. The table can have a column for each field in the `I` struct. In this case, the column names in the table
+/// should match the field names of the `I` struct. The field names can be a subset of column names and
+/// can be in any order.
 ///
-/// ```rust
+/// For the supported field types, refer to:
+/// - Serialization field types: https://docs.rs/serde_rusqlite/latest/serde_rusqlite
+/// - SQLite data types: https://www.sqlite.org/datatype3.html
 ///
-/// use serde::{Deserialize, Serialize};
+/// 2. The fields in the `I` struct can be serialized into a single column `item` in the table. In this case, the table
+/// should have a single column named `item` of type `BLOB`. This is useful when the `I` struct contains complex fields
+/// that cannot be mapped to a SQLite type, such as nested structs, vectors, etc. The serialization is done using
+/// MessagePack (https://msgpack.org/).
 ///
-/// #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-/// pub struct Sample {
-///    column_str: String,     // column name: column_str with type TEXT
-///    column_bytes: Vec<u8>,  // column name: column_bytes with type BLOB
-///    column_int: i64,        // column name: column_int with type INTEGER
-///    column_bool: bool,      // column name: column_bool with type INTEGER
-///    column_float: f64,      // column name: column_float with type REAL
-/// }
-/// ```
-///
-/// Sqlite table example:
-///
-/// ```sql
-///
-/// CREATE TABLE train (
-///     column_str TEXT,
-///     column_bytes BLOB,
-///     column_int INTEGER,
-///     column_bool BOOLEAN,
-///     column_float FLOAT,
-///     row_id INTEGER NOT NULL,
-///     PRIMARY KEY (row_id)
-/// );
-///
-/// ```
+/// Note: The code automatically figures out which of the above two cases is applicable, and uses the appropriate
+/// method to read the data from the table.
 #[derive(Debug)]
 pub struct SqliteDataset<I> {
-    db_file: String,
+    db_file: PathBuf,
     split: String,
     conn_pool: Pool<SqliteConnectionManager>,
     columns: Vec<String>,
@@ -68,36 +88,13 @@ pub struct SqliteDataset<I> {
 }
 
 impl<I> SqliteDataset<I> {
-    /// Initializes a `SqliteDataset` from a SQLite database file.
-    ///
-    /// This function sets up a `SqliteDataset` to read from a specific table in the SQLite database file.
-    /// The chosen table must share the same name as `split`, and must contain a primary key column named `row_id`.
-    ///
-    /// # Arguments
-    ///
-    /// * `db_file`: &str - The path to the SQLite database file.
-    ///
-    /// * `split`: &str - The name of the table in the database that the dataset is supposed to represent.
-    ///
-    /// * `row_serialized`: bool - This argument indicates the structure of the table. If `true`, each row in the table is expected
-    /// to be serialized using the MessagePack format in a single `item` column. If `false`, each field of the item
-    /// is expected to be stored in its own column. Serialization of the entire item, including all fields, is necessary because
-    /// there are complex fields that cannot be mapped to a SQLite type, such as nested structs, vectors, etc. However,
-    /// if the item is a simple struct, e.g., a struct with only primitive fields, then it is possible to store each
-    /// field in its own column, and set `row_serialized` to `false`. This type of SQLite table is easier to work with and
-    /// analyze using external tools, such as DB Browser for SQLite.
-    ///
-    /// # Returns
-    ///
-    /// Returns a new instance of `SqliteDataset`, configured to read from the specified SQLite database file and table.
-    ///
-    /// # Panics
-    ///
-    /// This function might panic if the database file does not exist, or if the specified table does not exist in the database,
-    /// or does not have the expected structure.
-    pub fn from_db_file(db_file: &str, split: &str, row_serialized: bool) -> Self {
+    /// Initializes a `SqliteDataset` from a SQLite database file and a split name.
+    pub fn from_db_file<P: AsRef<Path>>(db_file: P, split: &str) -> Result<Self> {
         // Create a connection pool
-        let conn_pool = create_conn_pool(db_file, false);
+        let conn_pool = create_conn_pool(&db_file, false)?;
+
+        // Determine how the table is stored
+        let row_serialized = Self::check_if_row_serialized(&conn_pool, split)?;
 
         // Create a select statement and save it
         let select_statement = if row_serialized {
@@ -107,23 +104,74 @@ impl<I> SqliteDataset<I> {
         };
 
         // Save the column names and the number of rows
-        let (columns, len) = fetch_columns_and_len(&conn_pool, &select_statement, split);
+        let (columns, len) = fetch_columns_and_len(&conn_pool, &select_statement, split)?;
 
-        SqliteDataset {
-            db_file: db_file.to_string(),
+        Ok(SqliteDataset {
+            db_file: db_file.as_ref().to_path_buf(),
             split: split.to_string(),
             conn_pool,
             columns,
             len,
             select_statement,
             row_serialized,
-            phantom: PhantomData::default(),
+            phantom: PhantomData,
+        })
+    }
+
+    /// Returns true if table has two columns: row_id (integer) and item (blob).
+    ///
+    /// This is used to determine if the table is row serialized or not.
+    fn check_if_row_serialized(
+        conn_pool: &Pool<SqliteConnectionManager>,
+        split: &str,
+    ) -> Result<bool> {
+        // This struct is used to store the column name and type
+        struct Column {
+            name: String,
+            ty: String,
+        }
+
+        const COLUMN_NAME: usize = 1;
+        const COLUMN_TYPE: usize = 2;
+
+        let sql_statement = format!("PRAGMA table_info({split})");
+
+        let conn = conn_pool.get()?;
+
+        let mut stmt = conn.prepare(sql_statement.as_str())?;
+        let column_iter = stmt.query_map([], |row| {
+            Ok(Column {
+                name: row
+                    .get::<usize, String>(COLUMN_NAME)
+                    .unwrap()
+                    .to_lowercase(),
+                ty: row
+                    .get::<usize, String>(COLUMN_TYPE)
+                    .unwrap()
+                    .to_lowercase(),
+            })
+        })?;
+
+        let mut columns: Vec<Column> = vec![];
+
+        for column in column_iter {
+            columns.push(column?);
+        }
+
+        if columns.len() != 2 {
+            Ok(false)
+        } else {
+            // Check if the column names and types match the expected values
+            Ok(columns[0].name == "row_id"
+                && columns[0].ty == "integer"
+                && columns[1].name == "item"
+                && columns[1].ty == "blob")
         }
     }
 
     /// Get the database file name.
-    pub fn db_file(&self) -> &str {
-        self.db_file.as_str()
+    pub fn db_file(&self) -> PathBuf {
+        self.db_file.clone()
     }
 
     /// Get the split name.
@@ -180,28 +228,27 @@ fn fetch_columns_and_len(
     conn_pool: &Pool<SqliteConnectionManager>,
     select_statement: &str,
     split: &str,
-) -> (Vec<String>, usize) {
+) -> Result<(Vec<String>, usize)> {
     // Save the column names
-    let connection = conn_pool.get().unwrap();
-    let statement = connection.prepare(select_statement).unwrap();
+    let connection = conn_pool.get()?;
+    let statement = connection.prepare(select_statement)?;
     let columns = columns_from_statement(&statement);
 
     // Count the number of rows and save it as len
-    let mut statement = connection
-        .prepare(format!("select count(*) from {split}").as_str())
-        .unwrap();
-    let len = statement
-        .query_row([], |row| {
-            let len: usize = row.get(0)?;
-            Ok(len)
-        })
-        .unwrap();
-    (columns, len)
+    let mut statement = connection.prepare(format!("select count(*) from {split}").as_str())?;
+    let len = statement.query_row([], |row| {
+        let len: usize = row.get(0)?;
+        Ok(len)
+    })?;
+    Ok((columns, len))
 }
 
-/// Create a connection pool and make sure the connections are read only
-fn create_conn_pool(db_file: &str, create_db: bool) -> Pool<SqliteConnectionManager> {
-    let sqlite_flags = if create_db {
+/// Helper function to create a connection pool
+fn create_conn_pool<P: AsRef<Path>>(
+    db_file: P,
+    write: bool,
+) -> Result<Pool<SqliteConnectionManager>> {
+    let sqlite_flags = if write {
         OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE
     } else {
         OpenFlags::SQLITE_OPEN_READ_ONLY
@@ -209,181 +256,333 @@ fn create_conn_pool(db_file: &str, create_db: bool) -> Pool<SqliteConnectionMana
 
     // Create a connection pool and make sure the connections are read only
     let manager = SqliteConnectionManager::file(db_file).with_flags(sqlite_flags);
-    let conn_pool: Pool<SqliteConnectionManager> = Pool::new(manager).unwrap();
-    conn_pool
+
+    Pool::new(manager).map_err(SqliteDatasetError::ConnectionPool)
 }
 
-pub struct SqliteDatasetSaver<I> {
-    name: String,
-    db_file: Option<String>,
-    splits: Option<Vec<String>>,
+/// The `SqliteDatasetStorage` struct represents a SQLite database for storing datasets.
+/// It consists of an optional name, a database file path, and a base directory for storage.
+pub struct SqliteDatasetStorage {
+    name: Option<String>,
+    db_file: Option<PathBuf>,
+    base_dir: Option<PathBuf>,
+}
+
+impl SqliteDatasetStorage {
+    /// Creates a new instance of `SqliteDatasetStorage` using a dataset name.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - A string slice that holds the name of the dataset.
+    pub fn from_name(name: &str) -> Self {
+        SqliteDatasetStorage {
+            name: Some(name.to_string()),
+            db_file: None,
+            base_dir: None,
+        }
+    }
+
+    /// Creates a new instance of `SqliteDatasetStorage` using a database file path.
+    ///
+    /// # Arguments
+    ///
+    /// * `db_file` - A reference to the Path that represents the database file path.
+    pub fn from_file<P: AsRef<Path>>(db_file: P) -> Self {
+        SqliteDatasetStorage {
+            name: None,
+            db_file: Some(db_file.as_ref().to_path_buf()),
+            base_dir: None,
+        }
+    }
+
+    /// Sets the base directory for storing the dataset.
+    ///
+    /// # Arguments
+    ///
+    /// * `base_dir` - A string slice that represents the base directory.
+    pub fn with_base_dir<P: AsRef<Path>>(mut self, base_dir: P) -> Self {
+        self.base_dir = Some(base_dir.as_ref().to_path_buf());
+        self
+    }
+
+    /// Checks if the database file exists in the given path.
+    ///
+    /// # Returns
+    ///
+    /// * A boolean value indicating whether the file exists or not.
+    pub fn exists(&self) -> bool {
+        self.db_file().exists()
+    }
+
+    /// Fetches the database file path.
+    ///
+    /// # Returns
+    ///
+    /// * A `PathBuf` instance representing the file path.
+    pub fn db_file(&self) -> PathBuf {
+        let db_file = match &self.db_file {
+            Some(db_file) => db_file.clone(),
+            None => {
+                let name = sanitize(self.name.as_ref().expect("Name is not set"));
+                Self::base_dir(self.base_dir.to_owned()).join(format!("{name}.db"))
+            }
+        };
+        db_file
+    }
+
+    /// Determines the base directory for storing the dataset.
+    ///
+    /// # Arguments
+    ///
+    /// * `base_dir` - An `Option` that may contain a `PathBuf` instance representing the base directory.
+    ///
+    /// # Returns
+    ///
+    /// * A `PathBuf` instance representing the base directory.
+    pub fn base_dir(base_dir: Option<PathBuf>) -> PathBuf {
+        match base_dir {
+            Some(base_dir) => base_dir,
+            None => {
+                let home_dir = dirs::home_dir().expect("Could not get home directory");
+
+                home_dir.join(".cache").join("burn-dataset")
+            }
+        }
+    }
+
+    /// Provides a writer instance for the SQLite dataset.
+    ///
+    /// # Arguments
+    ///
+    /// * `overwrite` - A boolean indicating if the existing database file should be overwritten.
+    ///
+    /// # Returns
+    ///
+    /// * A `Result` which is `Ok` if the writer could be created, `Err` otherwise.
+    pub fn writer<I>(self, overwrite: bool) -> Result<SqliteDatasetWriter<I>>
+    where
+        I: Clone + Send + Sync + Serialize + DeserializeOwned,
+    {
+        SqliteDatasetWriter::new(self.db_file(), overwrite)
+    }
+
+    /// Provides a reader instance for the SQLite dataset.
+    ///
+    /// # Arguments
+    ///
+    /// * `split` - A string slice that defines the data split for reading (e.g., "train", "test").
+    ///
+    /// # Returns
+    ///
+    /// * A `Result` which is `Ok` if the reader could be created, `Err` otherwise.
+    pub fn reader<I>(self, split: &str) -> Result<SqliteDataset<I>>
+    where
+        I: Clone + Send + Sync + Serialize + DeserializeOwned,
+    {
+        if !self.exists() {
+            panic!("The database file does not exist");
+        }
+
+        SqliteDataset::from_db_file(self.db_file(), split)
+    }
+}
+
+/// This `SqliteDatasetWriter` struct is a SQLite database writer dedicated to storing datasets.
+/// It retains the current writer's state and its database connection.
+///
+/// Being thread-safe, this writer can be concurrently used across multiple threads.
+///
+/// Typical applications include:
+///
+/// - Generation of a new dataset
+/// - Storage of preprocessed data or metadata
+/// - Enlargement of a dataset's item count post preprocessing
+#[derive(Debug)]
+pub struct SqliteDatasetWriter<I> {
+    db_file: PathBuf,
+    db_file_tmp: Option<NamedTempFile>,
+    splits: Arc<RwLock<HashSet<String>>>,
     overwrite: bool,
-    base_dir: Option<String>,
     conn_pool: Option<Pool<SqliteConnectionManager>>,
-    is_initialized: bool,
+    is_completed: Arc<RwLock<bool>>,
     phantom: PhantomData<I>,
 }
 
-impl<I> SqliteDatasetSaver<I>
+impl<I> SqliteDatasetWriter<I>
 where
     I: Clone + Send + Sync + Serialize + DeserializeOwned,
 {
-    /// Create a new SqliteDatasetSaver.
-    pub fn new(name: &str) -> Self {
-        SqliteDatasetSaver {
-            name: name.to_string(),
-            db_file: None,
-            splits: None,
-            base_dir: None,
-            overwrite: false,
-            conn_pool: None,
-            is_initialized: false,
-            phantom: PhantomData::default(),
-        }
-    }
-
-    /// Set the splits.
-    pub fn with_splits(mut self, splits: &[&str]) -> Self {
-        self.splits = Some(splits.iter().map(|s| s.to_string()).collect());
-        self
-    }
-
-    /// Check if the dataset exists.
-    pub fn exists(&self) -> bool {
-        let db_file = self.db_file();
-        Path::new(&db_file).exists()
-    }
-
-    /// Return the SqliteDataset for the given split.
-    pub fn dataset(&self, split: &str) -> SqliteDataset<I> {
-        if !self.exists() {
-            panic!("Dataset does not exist: {}", self.name);
-        }
-
-        SqliteDataset::from_db_file(self.db_file().as_str(), split, true)
-    }
-
-    /// Initialize the dataset saver by creating the database file, tables and connection pool.
-    pub fn init(mut self) -> Self {
-        // Make sure the splits are set
-        if self.splits.is_none() {
-            panic!("Splits not set");
-        }
-
-        // Create the database file
-        let db_file = self.db_file();
-        if Path::new(&db_file).exists() {
-            if self.overwrite {
-                fs::remove_file(&db_file).unwrap();
-            } else {
-                panic!("Database file already exists: {}", db_file);
-            }
-        }
-        self.db_file = Some(db_file.to_string());
-
-        // Create a connection pool
-        let conn_pool = create_conn_pool(&db_file, true);
-        self.conn_pool = Some(conn_pool);
-
-        // Create tables
-        self.create_tables();
-
-        // Set is_initialized to true
-        self.is_initialized = true;
-
-        self
-    }
-
-    /// Serialize and save an item to the database.
+    /// Creates a new instance of `SqliteDatasetWriter`.
+    ///
+    /// # Arguments
+    ///
+    /// * `db_file` - A reference to the Path that represents the database file path.
+    /// * `overwrite` - A boolean indicating if the existing database file should be overwritten.
     ///
     /// # Returns
-    /// The index of the inserted row.
-    pub fn save(&self, split: &str, item: &I) -> usize {
-        // Make sure the dataset saver is initialized
-        if !self.is_initialized {
-            panic!("Dataset saver not initialized");
+    ///
+    /// * A `Result` which is `Ok` if the writer could be created, `Err` otherwise.
+    pub fn new<P: AsRef<Path>>(db_file: P, overwrite: bool) -> Result<Self> {
+        let writer = Self {
+            db_file: db_file.as_ref().to_path_buf(),
+            db_file_tmp: None,
+            splits: Arc::new(RwLock::new(HashSet::new())),
+            overwrite,
+            conn_pool: None,
+            is_completed: Arc::new(RwLock::new(false)),
+            phantom: PhantomData,
+        };
+
+        writer.init()
+    }
+
+    /// Initializes the dataset writer by creating the database file, tables, and connection pool.
+    ///
+    /// # Returns
+    ///
+    /// * A `Result` which is `Ok` if the writer could be initialized, `Err` otherwise.
+    fn init(mut self) -> Result<Self> {
+        // Remove the db file if it already exists
+        if self.db_file.exists() {
+            if self.overwrite {
+                fs::remove_file(&self.db_file)?;
+            } else {
+                return Err(SqliteDatasetError::FileExists(self.db_file));
+            }
         }
 
-        if !self.splits.as_ref().unwrap().contains(&split.to_string()) {
-            panic!("Split not found: {}", split);
+        // Create the database file directory if it does not exist
+        let db_file_dir = self
+            .db_file
+            .parent()
+            .ok_or("Unable to get parent directory")?;
+
+        if !db_file_dir.exists() {
+            fs::create_dir_all(db_file_dir)?;
+        }
+
+        // Create a temporary database file (will be persisted if writes complete or deleted it otherwise)
+        self.db_file_tmp = Some(NamedTempFile::new_in(db_file_dir)?);
+
+        // Create a connection pool
+        let db_file_tmp = self
+            .db_file_tmp
+            .as_ref()
+            .ok_or("Temporary file not found")?
+            .path();
+
+        // Create the connection pool
+        let conn_pool = create_conn_pool(db_file_tmp, true)?;
+        self.conn_pool = Some(conn_pool);
+
+        Ok(self)
+    }
+
+    /// Serializes and writes an item to the database. The item is written to the table for the
+    /// specified split. If the table does not exist, it is created. If the table exists, the item
+    /// is appended to the table. The serialization is done using the MessagePack (https://msgpack.org/)
+    ///
+    /// # Arguments
+    ///
+    /// * `split` - A string slice that defines the data split for writing (e.g., "train", "test").
+    /// * `item` - A reference to the item to be written to the database.
+    ///
+    /// # Returns
+    ///
+    /// * A `Result` containing the index of the inserted row if successful, an error otherwise.
+    pub fn write(&self, split: &str, item: &I) -> Result<usize> {
+        // Acquire the read lock (wont't block other reads)
+        let is_completed = self.is_completed.read().unwrap();
+
+        // If the writer is completed, return an error
+        if *is_completed {
+            return Err(SqliteDatasetError::Other(
+                "Cannot save to a completed dataset writer",
+            ));
+        }
+
+        // create the table for the split if it does not exist
+        if !self.splits.read().unwrap().contains(split) {
+            self.create_table(split)?;
         }
 
         // Get a connection from the pool
         let conn_pool = self.conn_pool.as_ref().unwrap();
-        let connection = conn_pool.get().unwrap();
-        let insert_statement = format!("insert into {split} (item) values (?)", split = split);
+        let connection = conn_pool.get()?;
 
         // Serialize the item using MessagePack
-        let serialized_item = rmp_serde::to_vec(item).unwrap();
+        let serialized_item = rmp_serde::to_vec(item)?;
+
+        // Turn off the synchronous and journal mode for speed up
+        // We are sacrificing durability for speed but it's okay because
+        // we always recreate the dataset if it is not completed.
+        connection.pragma_update(None, "synchronous", "OFF")?;
+        connection.pragma_update(None, "journal_mode", "OFF")?;
 
         // Insert the serialized item into the database
-        connection
-            .execute(insert_statement.as_str(), [serialized_item])
-            .unwrap();
+        let insert_statement = format!("insert into {split} (item) values (?)", split = split);
+        connection.execute(insert_statement.as_str(), [serialized_item])?;
 
         // Get the primary key of the last inserted row and convert to index (row_id-1)
-        (connection.last_insert_rowid() - 1) as usize
+        let index = (connection.last_insert_rowid() - 1) as usize;
+
+        Ok(index)
     }
 
-    /// Create tables for each split.
-    fn create_tables(&self) {
-        let conn_pool = self.conn_pool.as_ref().unwrap();
+    /// Marks the dataset as completed and persists the temporary database file.
+    pub fn set_completed(&mut self) -> Result<()> {
+        let mut is_completed = self.is_completed.write().unwrap();
 
-        for split in &self.splits.as_ref().unwrap().to_vec() {
-            let connection = conn_pool.get().unwrap();
-            let create_table_statement = format!(
-                "create table {split} (row_id integer primary key autoincrement not null, item blob not null)"
-            );
-            connection
-                .execute(create_table_statement.as_str(), [])
-                .unwrap();
+        // Rename the database file from tmp to db
+        self.db_file_tmp
+            .take() // take ownership of the temporary file and set to None
+            .unwrap()
+            .persist_noclobber(&self.db_file)?;
+
+        *is_completed = true;
+        Ok(())
+    }
+
+    /// Creates table for the data split.
+    ///
+    /// Note: call is idempotent and thread-safe.
+    ///
+    /// # Arguments
+    ///
+    /// * `split` - A string slice that defines the data split for the table (e.g., "train", "test").
+    ///
+    /// # Returns
+    ///
+    /// * A `Result` which is `Ok` if the table could be created, `Err` otherwise.
+    ///
+    /// TODO (@antimora): add support creating a table with columns coresponding to the item fields
+    fn create_table(&self, split: &str) -> Result<()> {
+        // Check if the split already exists
+        if self.splits.read().unwrap().contains(split) {
+            return Ok(());
         }
+
+        let conn_pool = self.conn_pool.as_ref().unwrap();
+        let connection = conn_pool.get()?;
+        let create_table_statement = format!(
+                "create table if not exists  {split} (row_id integer primary key autoincrement not null, item blob not null)"
+            );
+
+        connection.execute(create_table_statement.as_str(), [])?;
+
+        // Add the split to the splits
+        self.splits.write().unwrap().insert(split.to_string());
+
+        Ok(())
     }
-
-    /// Set the base directory to store the dataset (default: $HOME/.cache/burn-dataset).
-    pub fn with_base_dir(mut self, base_dir: &str) -> Self {
-        self.base_dir = Some(base_dir.to_string());
-        self
-    }
-
-    /// Overwrite the database file if it already exists.
-    pub fn with_overwrite(mut self, overwrite: bool) -> Self {
-        self.overwrite = overwrite;
-        self
-    }
-
-    /// Get the database file path.
-    pub fn db_file(&self) -> String {
-        let base_dir = base_dir(self.base_dir.clone());
-        let name = sanitize(self.name.clone());
-        format!("{base_dir}/{name}.db")
-    }
-}
-
-/// Determine the base directory to store the dataset.
-pub fn base_dir(base_dir: Option<String>) -> String {
-    let base_dir = if let Some(base_dir) = base_dir {
-        base_dir
-    } else {
-        let home_dir = home_dir().unwrap();
-        let home_dir = home_dir.to_str().unwrap();
-        let cache_dir = format!("{home_dir}/.cache/burn-dataset");
-        cache_dir
-    };
-
-    create_dir_all(&base_dir).ok();
-
-    base_dir
 }
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use rayon::prelude::*;
     use rstest::{fixture, rstest};
     use serde::{Deserialize, Serialize};
-    use tempfile::{tempdir, TempDir};
+    use tempfile::{tempdir, NamedTempFile, TempDir};
 
     use super::*;
 
@@ -400,7 +599,7 @@ mod tests {
 
     #[fixture]
     fn train_dataset() -> SqlDs {
-        SqliteDataset::from_db_file("tests/data/sqlite-dataset.db", "train", false)
+        SqliteDataset::<Sample>::from_db_file("tests/data/sqlite-dataset.db", "train").unwrap()
     }
 
     #[rstest]
@@ -440,6 +639,32 @@ mod tests {
         assert_eq!(match_count, 5);
     }
 
+    #[test]
+    fn sqlite_dataset_storage() {
+        // Test with non-existing file
+        let storage = SqliteDatasetStorage::from_file("non-existing.db");
+        assert!(!storage.exists());
+
+        // Test with non-existing name
+        let storage = SqliteDatasetStorage::from_name("non-existing.db");
+        assert!(!storage.exists());
+
+        // Test with existing file
+        let storage = SqliteDatasetStorage::from_file("tests/data/sqlite-dataset.db");
+        assert!(storage.exists());
+        let result = storage.reader::<Sample>("train");
+        assert!(result.is_ok());
+        let train = result.unwrap();
+        assert_eq!(train.len(), 2);
+
+        // Test get writer
+        let temp_file = NamedTempFile::new().unwrap();
+        let storage = SqliteDatasetStorage::from_file(temp_file.path());
+        assert!(storage.exists());
+        let result = storage.writer::<Sample>(true);
+        assert!(result.is_ok());
+    }
+
     #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
     pub struct Complex {
         column_str: String,
@@ -457,180 +682,102 @@ mod tests {
         // deleted when it goes out of scope.
         tempdir().unwrap()
     }
-    type SqlDsSaver = SqliteDatasetSaver<Complex>;
+    type Writer = SqliteDatasetWriter<Complex>;
 
-    /// Create a SqliteDatasetSaver with a temporary directory.
+    /// Create a SqliteDatasetWriter with a temporary directory.
     /// Make sure to return the temporary directory so that it is not deleted.
     #[fixture]
-    fn dataset_fixture(tmp_dir: TempDir) -> (SqlDsSaver, TempDir) {
-        let temp_dir_str = tmp_dir.path().to_str().unwrap().to_string();
-        (
-            SqliteDatasetSaver::<Complex>::new("preprocessed")
-                .with_base_dir(temp_dir_str.as_str())
-                .with_splits(&["train", "test"])
-                .init(),
-            tmp_dir,
-        )
+    fn writer_fixture(tmp_dir: TempDir) -> (Writer, TempDir) {
+        let temp_dir_str = tmp_dir.path();
+        let storage = SqliteDatasetStorage::from_name("preprocessed").with_base_dir(temp_dir_str);
+        let overwrite = true;
+        let result = storage.writer::<Complex>(overwrite);
+        assert!(result.is_ok());
+        let writer = result.unwrap();
+        (writer, tmp_dir)
     }
 
     #[test]
-    pub fn sqlite_dataset_saver_new() {
-        let random_name = format!("dataset-{}", rand::random::<u32>());
-        let ds_saver = SqliteDatasetSaver::<Complex>::new(random_name.as_str());
+    fn test_new() {
+        // Test that the constructor works with overwrite = true
+        let test_path = NamedTempFile::new().unwrap();
+        let result = SqliteDatasetWriter::<Complex>::new(&test_path, true);
+        assert!(result.is_ok());
+        assert!(!test_path.path().exists());
 
-        assert_eq!(ds_saver.name, random_name.as_str());
-        assert_eq!(ds_saver.base_dir, None);
-        assert!(!ds_saver.overwrite);
-        assert!(!ds_saver.is_initialized);
-        assert_eq!(ds_saver.splits, None);
-        assert!(ds_saver.conn_pool.is_none());
-        assert!(ds_saver
-            .db_file()
-            .ends_with(format!("{}.db", random_name).as_str()));
-        assert!(
-            !ds_saver.exists(),
-            "db file {} should not exist (remove it manually if it does)",
-            ds_saver.db_file()
-        );
+        // Test that the constructor works with overwrite = false
+        let test_path = NamedTempFile::new().unwrap();
+        let result = SqliteDatasetWriter::<Complex>::new(&test_path, false);
+        assert!(result.is_err());
+
+        // Test that the constructor works with no existing file
+        let temp = NamedTempFile::new().unwrap();
+        let test_path = temp.path().to_path_buf();
+        assert!(temp.close().is_ok());
+        assert!(!test_path.exists());
+        let result = SqliteDatasetWriter::<Complex>::new(&test_path, true);
+        assert!(result.is_ok());
+        assert!(!test_path.exists());
     }
 
     #[rstest]
-    pub fn sqlite_dataset_saver_init(tmp_dir: TempDir) {
-        let temp_dir_str = tmp_dir.path().to_str().unwrap().to_string();
-
-        let ds_saver = SqlDsSaver::new("preprocessed")
-            .with_base_dir(temp_dir_str.as_str())
-            .with_splits(&["train", "test"])
-            .init();
-
-        assert_eq!(ds_saver.base_dir, Some(temp_dir_str));
-
-        assert!(ds_saver.is_initialized);
-        assert_eq!(
-            ds_saver.splits,
-            Some(vec!["train".to_string(), "test".to_string()])
-        );
-        assert!(ds_saver.conn_pool.is_some());
-        assert!(ds_saver.exists());
-    }
-
-    #[rstest]
-    #[should_panic]
-    pub fn sqlite_dataset_saver_init_existing(tmp_dir: TempDir) {
-        let temp_dir_str = tmp_dir.path().to_str().unwrap().to_string();
-
-        // Create a file in the temp dir
-        let _ds_saver1 = SqlDsSaver::new("preprocessed")
-            .with_base_dir(temp_dir_str.as_str())
-            .with_splits(&["train", "test"])
-            .init();
-
-        // Again create a file in the temp dir and it should fail
-        let _ds_saver2 = SqlDsSaver::new("preprocessed")
-            .with_base_dir(temp_dir_str.as_str())
-            .with_splits(&["train", "test"])
-            .init();
-    }
-
-    #[rstest]
-    pub fn sqlite_dataset_saver_init_with_overwrite(tmp_dir: TempDir) {
-        let temp_dir_str = tmp_dir.path().to_str().unwrap().to_string();
-
-        // Create a file in the temp dir
-        let _ds_saver1 = SqlDsSaver::new("preprocessed")
-            .with_base_dir(temp_dir_str.as_str())
-            .with_splits(&["train", "test"])
-            .init();
-
-        // Again create a file in the temp dir and it should fail
-        let _ds_saver2 = SqlDsSaver::new("preprocessed")
-            .with_base_dir(temp_dir_str.as_str())
-            .with_splits(&["train", "test"])
-            .with_overwrite(true)
-            .init();
-    }
-
-    #[rstest]
-    pub fn sqlite_dataset_saver_dataset(dataset_fixture: (SqlDsSaver, TempDir)) {
+    pub fn sqlite_writer_write(writer_fixture: (Writer, TempDir)) {
         // Get the dataset_saver from the fixture and tmp_dir (will be deleted after scope)
-        let (dataset_saver, _tmp_dir) = dataset_fixture;
+        let (writer, _tmp_dir) = writer_fixture;
 
-        // Sanity checks of the dataset_saver
-        assert!(dataset_saver.exists());
-        assert_eq!(dataset_saver.name, "preprocessed");
-        assert!(dataset_saver.base_dir.is_some());
-        assert!(dataset_saver.is_initialized);
-        assert_eq!(
-            dataset_saver.splits,
-            Some(vec!["train".to_string(), "test".to_string()])
-        );
-        assert!(dataset_saver.conn_pool.is_some());
+        assert!(writer.overwrite);
+        assert!(!writer.db_file.exists());
 
-        // Make sure that the dataset is empty
-        let dataset = dataset_saver.dataset("train");
-        assert_eq!(dataset.len(), 0);
-
-        // Insert a sample to "train" split table
-        let sample = Complex {
-            column_str: "test".to_string(),
-            column_bytes: vec![1, 2, 3],
-            column_int: 1,
+        let new_item = Complex {
+            column_str: "HI1".to_string(),
+            column_bytes: vec![1_u8, 2, 3],
+            column_int: 0,
             column_bool: true,
             column_float: 1.0,
-            colomn_complex: vec![vec![vec![[1, 2, 3]]]],
+            colomn_complex: vec![vec![vec![[1, 23_u8, 3]]]],
         };
 
-        let index = dataset_saver.save("train", &sample);
+        let result = writer.write("train", &new_item);
 
-        // Make sure that the index returned is 0
+        assert!(result.is_ok());
+
+        let index = result.unwrap();
+
         assert_eq!(index, 0);
 
-        // Make sure that the dataset has one sample
-        let train = dataset_saver.dataset("train");
-        assert_eq!(train.len(), 1);
+        let mut writer = writer;
 
-        // Make sure that the sample is the same as the one we inserted
-        let sample_out = train.get(0).unwrap();
-        assert_eq!(sample, sample_out);
+        let result = writer.set_completed();
 
-        // Make sure that the dataset returns None for non-existing index
-        let non_existing_index = 10;
-        let sample_none = train.get(non_existing_index);
-        assert!(sample_none.is_none());
+        assert!(result.is_ok());
+
+        assert!(writer.db_file.exists());
+        assert!(writer.db_file_tmp.is_none());
+
+        let result = writer.write("train", &new_item);
+
+        // Should fail because the writer is completed
+        assert!(result.is_err());
+
+        let dataset = SqliteDataset::<Complex>::from_db_file(writer.db_file, "train").unwrap();
+
+        let fetched_item = dataset.get(0).unwrap();
+        assert_eq!(fetched_item, new_item);
+        assert_eq!(dataset.len(), 1);
     }
 
     #[rstest]
-    #[should_panic]
-    pub fn sqlite_dataset_saver_insert_to_wrong_split(dataset_fixture: (SqlDsSaver, TempDir)) {
+    pub fn sqlite_writer_write_multi_thread(writer_fixture: (Writer, TempDir)) {
         // Get the dataset_saver from the fixture and tmp_dir (will be deleted after scope)
-        let (dataset_saver, _tmp_dir) = dataset_fixture;
+        let (writer, _tmp_dir) = writer_fixture;
 
-        // Insert a sample to "train" split table
-        let sample = Complex {
-            column_str: "test".to_string(),
-            column_bytes: vec![1, 2, 3],
-            column_int: 1,
-            column_bool: true,
-            column_float: 1.0,
-            colomn_complex: vec![vec![vec![[1, 2, 3]]]],
-        };
-
-        // Insert to a non-existing split
-        dataset_saver.save("non-existing", &sample);
-    }
-
-    #[rstest]
-    pub fn sqlite_dataset_saver_multi_threads(dataset_fixture: (SqlDsSaver, TempDir)) {
-        // Get the dataset_saver from the fixture and tmp_dir (will be deleted after scope)
-        let (dataset_saver, _tmp_dir) = dataset_fixture;
-
-        let dataset_saver = Arc::new(dataset_saver);
-        let record_count = 200;
+        let writer = Arc::new(writer);
+        let record_count = 20;
 
         let splits = ["train", "test"];
 
         (0..record_count).into_par_iter().for_each(|index: i64| {
-            let thread_id = std::thread::current().id();
+            let thread_id: std::thread::ThreadId = std::thread::current().id();
             let sample = Complex {
                 column_str: format!("test_{:?}_{}", thread_id, index),
                 column_bytes: vec![index as u8, 2, 3],
@@ -643,13 +790,20 @@ mod tests {
             // half for train and half for test
             let split = splits[index as usize % 2];
 
-            dataset_saver.save(split, &sample);
+            let _index = writer.write(split, &sample).unwrap();
         });
 
-        let train = dataset_saver.dataset("train");
+        let mut writer = Arc::try_unwrap(writer).unwrap();
 
-        assert_eq!(train.len(), (record_count / 2) as usize);
-        let test = dataset_saver.dataset("train");
-        assert_eq!(test.len(), (record_count / 2) as usize);
+        writer
+            .set_completed()
+            .expect("Should set completed successfully");
+
+        let train =
+            SqliteDataset::<Complex>::from_db_file(writer.db_file.clone(), "train").unwrap();
+        let test = SqliteDataset::<Complex>::from_db_file(writer.db_file, "test").unwrap();
+
+        assert_eq!(train.len(), record_count as usize / 2);
+        assert_eq!(test.len(), record_count as usize / 2);
     }
 }
