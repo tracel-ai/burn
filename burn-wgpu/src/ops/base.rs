@@ -1,7 +1,5 @@
 use burn_tensor::backend::Backend;
 
-use crate::kernel::{KernelTemplate, RenderOptions};
-
 pub type FloatElem<B> = <B as Backend>::FloatElem;
 pub type IntElem<B> = <B as Backend>::IntElem;
 pub type Device<B> = <B as Backend>::Device;

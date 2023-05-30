@@ -68,7 +68,7 @@ impl Context {
                 adapters.remove(*num)
             }
             WGPUDevice::CPU => {
-                assert!(adapters.len() > 0, "No CPU device found");
+                assert!(!adapters.is_empty(), "No CPU device found");
                 adapters.remove(0)
             }
         };
@@ -102,16 +102,14 @@ impl PartialEq for Context {
 
 impl Context {
     pub fn create_buffer(&self, size: usize) -> Buffer {
-        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+        self.device.create_buffer(&wgpu::BufferDescriptor {
             label: None,
             size: size as u64,
             usage: wgpu::BufferUsages::COPY_DST
                 | wgpu::BufferUsages::STORAGE
                 | wgpu::BufferUsages::COPY_SRC,
             mapped_at_creation: false,
-        });
-
-        buffer
+        })
     }
 
     pub fn create_buffer_with_data(&self, data: &[u8]) -> Buffer {
@@ -156,7 +154,7 @@ impl Context {
                 label: Some("Command Encoder"),
             });
 
-        encoder.copy_buffer_to_buffer(&buffer, 0, &buffer_dest, 0, size);
+        encoder.copy_buffer_to_buffer(buffer, 0, &buffer_dest, 0, size);
 
         self.queue.submit(std::iter::once(encoder.finish()));
 
@@ -236,11 +234,7 @@ impl Context {
         compute.set_pipeline(&pipeline);
         compute.set_bind_group(0, &bind_group, &[]);
 
-        compute.dispatch_workgroups(
-            work_group.x as u32,
-            work_group.y as u32,
-            work_group.z as u32,
-        );
+        compute.dispatch_workgroups(work_group.x, work_group.y, work_group.z);
         std::mem::drop(compute);
 
         self.queue.submit(Some(encoder.finish()));

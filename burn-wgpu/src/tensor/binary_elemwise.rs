@@ -9,23 +9,26 @@ use burn_tensor::Shape;
 use num_traits::ToPrimitive;
 use std::sync::Arc;
 
-kernel_wgsl!(ElemwiseRaw, "../template/elemwise.wgsl");
-kernel_wgsl!(ElemwiseInplaceRaw, "../template/elemwise_inplace.wgsl");
+kernel_wgsl!(BinaryElemwiseRaw, "../template/binary_elemwise.wgsl");
+kernel_wgsl!(
+    BinaryElemwiseInplaceRaw,
+    "../template/binary_elemwise_inplace.wgsl"
+);
 
 #[macro_export]
-macro_rules! kernel_elemwise {
+macro_rules! binary_elemwise {
     (
         $struct:ident,
         $ops:expr
     ) => {
         pub struct $struct {
-            raw: $crate::tensor::elemwise::ElemwiseRaw,
+            raw: $crate::tensor::BinaryElemwiseRaw,
         }
 
-        impl $crate::tensor::elemwise::ElemwiseOps for $struct {
+        impl $crate::tensor::BinaryElemwiseOps for $struct {
             fn template(options: $crate::kernel::RenderOptions) -> Self {
                 Self {
-                    raw: $crate::tensor::elemwise::ElemwiseRaw::new(options),
+                    raw: $crate::tensor::BinaryElemwiseRaw::new(options),
                 }
             }
         }
@@ -45,19 +48,19 @@ macro_rules! kernel_elemwise {
 }
 
 #[macro_export]
-macro_rules! kernel_elemwise_inplace {
+macro_rules! binary_elemwise_inplace {
     (
         $struct:ident,
         $ops:expr
     ) => {
         pub struct $struct {
-            raw: $crate::tensor::elemwise::ElemwiseInplaceRaw,
+            raw: $crate::tensor::BinaryElemwiseInplaceRaw,
         }
 
-        impl $crate::tensor::elemwise::ElemwiseOps for $struct {
+        impl $crate::tensor::BinaryElemwiseOps for $struct {
             fn template(options: $crate::kernel::RenderOptions) -> Self {
                 Self {
-                    raw: $crate::tensor::elemwise::ElemwiseInplaceRaw::new(options),
+                    raw: $crate::tensor::BinaryElemwiseInplaceRaw::new(options),
                 }
             }
         }
@@ -76,11 +79,11 @@ macro_rules! kernel_elemwise_inplace {
     };
 }
 
-pub trait ElemwiseOps: KernelTemplate {
+pub trait BinaryElemwiseOps: KernelTemplate {
     fn template(options: RenderOptions) -> Self;
 }
 
-pub fn execute_elemwise<K: ElemwiseOps, E: WGPUElement, const D: usize>(
+pub fn binary_elemwise<K: BinaryElemwiseOps, E: WGPUElement, const D: usize>(
     lhs: WGPUTensor<E, D>,
     rhs: WGPUTensor<E, D>,
 ) -> WGPUTensor<E, D> {
@@ -134,7 +137,7 @@ pub fn execute_elemwise<K: ElemwiseOps, E: WGPUElement, const D: usize>(
 
     lhs.context.execute(
         &WorkGroup::new(
-            f32::ceil(output.shape.num_elements() as f32 / 256 as f32) as u32,
+            f32::ceil(output.shape.num_elements() as f32 / 256_f32) as u32,
             1,
             1,
         ),
@@ -145,7 +148,7 @@ pub fn execute_elemwise<K: ElemwiseOps, E: WGPUElement, const D: usize>(
     output
 }
 
-pub fn execute_elemwise_inplace<K: ElemwiseOps, E: WGPUElement, const D: usize>(
+pub fn binary_elemwise_inplace<K: BinaryElemwiseOps, E: WGPUElement, const D: usize>(
     lhs: WGPUTensor<E, D>,
     rhs: WGPUTensor<E, D>,
 ) -> WGPUTensor<E, D> {
@@ -185,7 +188,7 @@ pub fn execute_elemwise_inplace<K: ElemwiseOps, E: WGPUElement, const D: usize>(
 
     lhs.context.execute(
         &WorkGroup::new(
-            f32::ceil(lhs.shape.num_elements() as f32 / 256 as f32) as u32,
+            f32::ceil(lhs.shape.num_elements() as f32 / 256_f32) as u32,
             1,
             1,
         ),
@@ -193,5 +196,5 @@ pub fn execute_elemwise_inplace<K: ElemwiseOps, E: WGPUElement, const D: usize>(
         &[&lhs.buffer, &rhs.buffer, &info_buffers],
     );
 
-    lhs.clone()
+    lhs
 }

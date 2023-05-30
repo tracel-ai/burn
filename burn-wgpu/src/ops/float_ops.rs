@@ -1,10 +1,9 @@
 use super::{Device, FloatElem, FloatTensor};
-use crate::kernel_elemwise_inplace;
-use crate::tensor::elemwise::{execute_elemwise, execute_elemwise_inplace};
+use crate::tensor::{binary_elemwise, binary_elemwise_inplace, unary_scalar, unary_scalar_inplace};
+use crate::{binary_elemwise, binary_elemwise_inplace, unary_scalar, unary_scalar_inplace};
 use crate::{
     element::{FloatElement, IntElement},
     kernel::KernelTemplate,
-    kernel_elemwise,
     pool::get_context,
     tensor::WGPUTensor,
     GraphicsAPI, WGPUBackend, SEED,
@@ -87,350 +86,364 @@ where
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        kernel_elemwise!(Add, "+");
-        kernel_elemwise_inplace!(AddInplace, "+");
+        binary_elemwise!(Add, "+");
+        binary_elemwise_inplace!(AddInplace, "+");
 
         if lhs.can_mut_broadcast(&rhs) {
-            return execute_elemwise_inplace::<AddInplace, F, D>(lhs, rhs);
+            return binary_elemwise_inplace::<AddInplace, F, D>(lhs, rhs);
         }
 
         if rhs.can_mut_broadcast(&lhs) {
-            return execute_elemwise_inplace::<AddInplace, F, D>(rhs, lhs);
+            return binary_elemwise_inplace::<AddInplace, F, D>(rhs, lhs);
         }
 
-        execute_elemwise::<Add, F, D>(lhs, rhs)
+        binary_elemwise::<Add, F, D>(lhs, rhs)
     }
 
     fn add_scalar<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        unary_scalar!(AddScalar, "+");
+        unary_scalar_inplace!(AddScalarInplace, "+");
+
+        if lhs.can_mut() {
+            return unary_scalar_inplace::<AddScalarInplace, F, D>(lhs, rhs);
+        }
+
+        unary_scalar::<AddScalar, F, D>(lhs, rhs)
     }
 
     fn sub<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        kernel_elemwise!(Sub, "-");
-        kernel_elemwise_inplace!(SubInplace, "-");
+        binary_elemwise!(Sub, "-");
+        binary_elemwise_inplace!(SubInplace, "-");
 
         if lhs.can_mut_broadcast(&rhs) {
-            return execute_elemwise_inplace::<SubInplace, F, D>(lhs, rhs);
+            return binary_elemwise_inplace::<SubInplace, F, D>(lhs, rhs);
         }
 
-        execute_elemwise::<Sub, F, D>(lhs, rhs)
+        binary_elemwise::<Sub, F, D>(lhs, rhs)
     }
 
     fn sub_scalar<const D: usize>(
         lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
         rhs: <WGPUBackend<G, F, I> as Backend>::FloatElem,
     ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
-        todo!()
+        unary_scalar!(SubScalar, "-");
+        unary_scalar_inplace!(SubScalarInplace, "-");
+
+        if lhs.can_mut() {
+            return unary_scalar_inplace::<SubScalarInplace, F, D>(lhs, rhs);
+        }
+
+        unary_scalar::<SubScalar, F, D>(lhs, rhs)
     }
 
     fn mul<const D: usize>(
-        lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        rhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _rhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
     ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
         todo!()
     }
 
     fn mul_scalar<const D: usize>(
-        lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        rhs: <WGPUBackend<G, F, I> as Backend>::FloatElem,
+        _lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _rhs: <WGPUBackend<G, F, I> as Backend>::FloatElem,
     ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
         todo!()
     }
 
     fn div<const D: usize>(
-        lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        rhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _rhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
     ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
         todo!()
     }
 
     fn div_scalar<const D: usize>(
-        lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        rhs: <WGPUBackend<G, F, I> as Backend>::FloatElem,
+        _lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _rhs: <WGPUBackend<G, F, I> as Backend>::FloatElem,
     ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
         todo!()
     }
 
     fn matmul<const D: usize>(
-        lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        rhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _rhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
     ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
         todo!()
     }
 
     fn neg<const D: usize>(
-        tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
     ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
         todo!()
     }
 
     fn swap_dims<const D: usize>(
-        tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        dim1: usize,
-        dim2: usize,
+        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _dim1: usize,
+        _dim2: usize,
     ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
         todo!()
     }
 
     fn reshape<const D1: usize, const D2: usize>(
-        tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D1>,
-        shape: Shape<D2>,
+        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D1>,
+        _shape: Shape<D2>,
     ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D2> {
         todo!()
     }
 
     fn gather<const D: usize>(
-        dim: usize,
-        tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        indexes: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
+        _dim: usize,
+        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _indexes: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
     ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
         todo!()
     }
 
     fn scatter<const D: usize>(
-        dim: usize,
-        tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        indexes: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        value: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _dim: usize,
+        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _indexes: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
+        _value: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
     ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
         todo!()
     }
 
     fn index_select<const D: usize>(
-        tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        dim: usize,
-        indexes: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<1>,
+        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _dim: usize,
+        _indexes: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<1>,
     ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
         todo!()
     }
 
     fn index_select_assign<const D1: usize, const D2: usize>(
-        tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D1>,
-        dim: usize,
-        indexes: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<1>,
-        value: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D2>,
+        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D1>,
+        _dim: usize,
+        _indexes: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<1>,
+        _value: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D2>,
     ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D1> {
         todo!()
     }
 
     fn index<const D1: usize, const D2: usize>(
-        tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D1>,
-        indexes: [std::ops::Range<usize>; D2],
+        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D1>,
+        _indexes: [std::ops::Range<usize>; D2],
     ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D1> {
         todo!()
     }
 
     fn index_assign<const D1: usize, const D2: usize>(
-        tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D1>,
-        indexes: [std::ops::Range<usize>; D2],
-        value: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D1>,
+        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D1>,
+        _indexes: [std::ops::Range<usize>; D2],
+        _value: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D1>,
     ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D1> {
         todo!()
     }
 
     fn mask_scatter<const D: usize>(
-        tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        mask: <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D>,
-        source: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _mask: <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D>,
+        _source: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
     ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
         todo!()
     }
 
     fn mask_fill<const D: usize>(
-        tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        mask: <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D>,
-        value: <WGPUBackend<G, F, I> as Backend>::FloatElem,
+        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _mask: <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D>,
+        _value: <WGPUBackend<G, F, I> as Backend>::FloatElem,
     ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
         todo!()
     }
 
     fn equal<const D: usize>(
-        lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        rhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _rhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
     ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
         todo!()
     }
 
     fn equal_elem<const D: usize>(
-        lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        rhs: <WGPUBackend<G, F, I> as Backend>::FloatElem,
+        _lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _rhs: <WGPUBackend<G, F, I> as Backend>::FloatElem,
     ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
         todo!()
     }
 
     fn greater<const D: usize>(
-        lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        rhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _rhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
     ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
         todo!()
     }
 
     fn greater_elem<const D: usize>(
-        lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        rhs: <WGPUBackend<G, F, I> as Backend>::FloatElem,
+        _lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _rhs: <WGPUBackend<G, F, I> as Backend>::FloatElem,
     ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
         todo!()
     }
 
     fn greater_equal<const D: usize>(
-        lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        rhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _rhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
     ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
         todo!()
     }
 
     fn greater_equal_elem<const D: usize>(
-        lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        rhs: <WGPUBackend<G, F, I> as Backend>::FloatElem,
+        _lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _rhs: <WGPUBackend<G, F, I> as Backend>::FloatElem,
     ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
         todo!()
     }
 
     fn lower<const D: usize>(
-        lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        rhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _rhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
     ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
         todo!()
     }
 
     fn lower_elem<const D: usize>(
-        lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        rhs: <WGPUBackend<G, F, I> as Backend>::FloatElem,
+        _lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _rhs: <WGPUBackend<G, F, I> as Backend>::FloatElem,
     ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
         todo!()
     }
 
     fn lower_equal<const D: usize>(
-        lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        rhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _rhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
     ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
         todo!()
     }
 
     fn lower_equal_elem<const D: usize>(
-        lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        rhs: <WGPUBackend<G, F, I> as Backend>::FloatElem,
+        _lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _rhs: <WGPUBackend<G, F, I> as Backend>::FloatElem,
     ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
         todo!()
     }
 
     fn sum<const D: usize>(
-        tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
     ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<1> {
         todo!()
     }
 
     fn sum_dim<const D: usize>(
-        tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        dim: usize,
+        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _dim: usize,
     ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
         todo!()
     }
 
     fn mean<const D: usize>(
-        tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
     ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<1> {
         todo!()
     }
 
     fn mean_dim<const D: usize>(
-        tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        dim: usize,
+        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _dim: usize,
     ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
         todo!()
     }
 
     fn to_full_precision<const D: usize>(
-        tensor: &<WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _tensor: &<WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
     ) -> <<WGPUBackend<G, F, I> as Backend>::FullPrecisionBackend as Backend>::TensorPrimitive<D>
     {
         todo!()
     }
 
     fn from_full_precision<const D: usize>(
-        tensor: <<WGPUBackend<G, F, I> as Backend>::FullPrecisionBackend as Backend>::TensorPrimitive<D>,
+        _tensor: <<WGPUBackend<G, F, I> as Backend>::FullPrecisionBackend as Backend>::TensorPrimitive<D>,
     ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
         todo!()
     }
 
     fn exp<const D: usize>(
-        tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
     ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
         todo!()
     }
 
     fn log<const D: usize>(
-        tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
     ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
         todo!()
     }
 
     fn log1p<const D: usize>(
-        tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
     ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
         todo!()
     }
 
     fn powf<const D: usize>(
-        tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        value: f32,
+        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _value: f32,
     ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
         todo!()
     }
 
     fn sqrt<const D: usize>(
-        tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
     ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
         todo!()
     }
 
     fn cos<const D: usize>(
-        tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
     ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
         todo!()
     }
 
     fn sin<const D: usize>(
-        tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
     ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
         todo!()
     }
 
     fn tanh<const D: usize>(
-        tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
     ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
         todo!()
     }
 
     fn erf<const D: usize>(
-        tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
     ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
         todo!()
     }
 
     fn cat<const D: usize>(
-        tensors: Vec<<WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>>,
-        dim: usize,
+        _tensors: Vec<<WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>>,
+        _dim: usize,
     ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
         todo!()
     }
 
     fn argmax<const D: usize>(
-        tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        dim: usize,
+        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _dim: usize,
     ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
         todo!()
     }
 
     fn argmin<const D: usize>(
-        tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        dim: usize,
+        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+        _dim: usize,
     ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
         todo!()
     }

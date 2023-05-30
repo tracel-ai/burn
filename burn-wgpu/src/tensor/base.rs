@@ -44,7 +44,7 @@ impl<E: WGPUElement, const D: usize> WGPUTensor<E, D> {
             context,
             buffer,
             shape: self.shape.clone(),
-            strides: self.strides.clone(),
+            strides: self.strides,
             elem: PhantomData::default(),
         }
     }
@@ -58,6 +58,14 @@ impl<E: WGPUElement, const D: usize> WGPUTensor<E, D> {
             if self.shape.dims[i] < tensor_other.shape.dims[i] {
                 return false;
             }
+        }
+
+        true
+    }
+
+    pub fn can_mut(&self) -> bool {
+        if Arc::strong_count(&self.buffer) > 1 {
+            return false;
         }
 
         true

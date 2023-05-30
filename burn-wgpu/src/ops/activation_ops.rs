@@ -1,12 +1,12 @@
 use burn_tensor::{
     backend::Backend,
-    ops::{ActivationOps, BoolTensorOps, ModuleOps, TensorOps},
+    ops::{ActivationOps, TensorOps},
     ElementConversion,
 };
 
 use crate::{
     element::{FloatElement, IntElement},
-    GraphicsAPI, WGPUBackend, WGPUDevice,
+    GraphicsAPI, WGPUBackend,
 };
 
 impl<G, F, I> ActivationOps<WGPUBackend<G, F, I>> for WGPUBackend<G, F, I>

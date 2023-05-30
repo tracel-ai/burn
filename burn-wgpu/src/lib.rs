@@ -21,12 +21,18 @@ pub use graphics::*;
 #[cfg(test)]
 mod tests {
     type TestBackend = crate::WGPUBackend<crate::Vulkan, f32, i64>;
-    type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
-    type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
 
     burn_tensor::testgen_add!();
     burn_tensor::testgen_sub!();
+    burn_tensor::testgen_div!();
+    burn_tensor::testgen_mul!();
+    burn_tensor::testgen_neg!();
+    burn_tensor::testgen_powf!();
+    burn_tensor::testgen_exp!();
+    burn_tensor::testgen_log!();
 
     // Once all operations will be implemented.
+    // type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
+    // type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
     // burn_tensor::testgen_all!();
 }
