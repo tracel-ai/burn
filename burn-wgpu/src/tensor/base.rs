@@ -1,18 +1,19 @@
 use burn_tensor::Shape;
-use std::sync::Arc;
+use std::{marker::PhantomData, sync::Arc};
 use wgpu::Buffer;
 
-use crate::context::Context;
+use crate::{context::Context, element::WGPUElement};
 
 #[derive(Debug, Clone)]
-pub struct WGPUTensor<const D: usize> {
+pub struct WGPUTensor<E: WGPUElement, const D: usize> {
     pub(crate) context: Arc<Context>,
     pub(crate) buffer: Arc<Buffer>,
     pub(crate) shape: Shape<D>,
     pub(crate) strides: [usize; D],
+    elem: PhantomData<E>,
 }
 
-impl<const D: usize> WGPUTensor<D> {
+impl<E: WGPUElement, const D: usize> WGPUTensor<E, D> {
     pub fn new(context: Arc<Context>, shape: Shape<D>, buffer: Arc<Buffer>) -> Self {
         let mut strides = [0; D];
 
@@ -32,6 +33,7 @@ impl<const D: usize> WGPUTensor<D> {
             buffer,
             shape,
             strides,
+            elem: PhantomData::default(),
         }
     }
     pub fn to_context(&self, context: Arc<Context>) -> Self {
@@ -43,6 +45,21 @@ impl<const D: usize> WGPUTensor<D> {
             buffer,
             shape: self.shape.clone(),
             strides: self.strides.clone(),
+            elem: PhantomData::default(),
         }
+    }
+    pub fn can_mut_broadcast(&self, tensor_other: &WGPUTensor<E, D>) -> bool {
+        if Arc::strong_count(&self.buffer) > 1 {
+            return false;
+        }
+
+        for i in 0..D {
+            // Output tensor will be different from the mutable tensor.
+            if self.shape.dims[i] < tensor_other.shape.dims[i] {
+                return false;
+            }
+        }
+
+        true
     }
 }

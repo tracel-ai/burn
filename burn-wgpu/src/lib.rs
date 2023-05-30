@@ -25,6 +25,7 @@ mod tests {
     type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
 
     burn_tensor::testgen_add!();
+    burn_tensor::testgen_sub!();
 
     // Once all operations will be implemented.
     // burn_tensor::testgen_all!();

@@ -1,6 +1,6 @@
 use super::{Device, FloatElem, FloatTensor};
-use crate::context::{WorkGroup, WorkGroupSize};
-use crate::kernel::RenderOptions;
+use crate::kernel_elemwise_inplace;
+use crate::tensor::elemwise::{execute_elemwise, execute_elemwise_inplace};
 use crate::{
     element::{FloatElement, IntElement},
     kernel::KernelTemplate,
@@ -11,7 +11,6 @@ use crate::{
 };
 use burn_common::rand::get_seeded_rng;
 use burn_tensor::{backend::Backend, ops::TensorOps, Data, Distribution, Shape};
-use num_traits::ToPrimitive;
 use std::sync::Arc;
 
 impl<G, F, I> TensorOps<WGPUBackend<G, F, I>> for WGPUBackend<G, F, I>
@@ -89,52 +88,17 @@ where
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
         kernel_elemwise!(Add, "+");
+        kernel_elemwise_inplace!(AddInplace, "+");
 
-        if lhs.context.device_wgpu != rhs.context.device_wgpu {
-            panic!(
-                "Both tensors should be on the same device {:?} != {:?}",
-                lhs.context.device_wgpu, rhs.context.device_wgpu
-            );
+        if lhs.can_mut_broadcast(&rhs) {
+            return execute_elemwise_inplace::<AddInplace, F, D>(lhs, rhs);
         }
 
-        let empty = Self::empty(rhs.shape.clone(), &lhs.context.device_wgpu);
+        if rhs.can_mut_broadcast(&lhs) {
+            return execute_elemwise_inplace::<AddInplace, F, D>(rhs, lhs);
+        }
 
-        let num_elements = usize::max(lhs.shape.num_elements(), rhs.shape.num_elements());
-        let kernel = lhs.context.compile(Add::new(RenderOptions::new(
-            WorkGroupSize::new(256, 1, 1),
-            F::type_name().into(),
-            I::type_name().into(),
-        )));
-        let mut info: Vec<u32> = vec![D.to_u32().unwrap()];
-        lhs.strides
-            .into_iter()
-            .for_each(|v| info.push(v.to_u32().unwrap()));
-        rhs.strides
-            .into_iter()
-            .for_each(|v| info.push(v.to_u32().unwrap()));
-        lhs.shape
-            .dims
-            .into_iter()
-            .for_each(|v| info.push(v.to_u32().unwrap()));
-        rhs.shape
-            .dims
-            .into_iter()
-            .for_each(|v| info.push(v.to_u32().unwrap()));
-        let info_buffer = lhs
-            .context
-            .create_buffer_with_data(bytemuck::cast_slice(&info));
-
-        println!("Info {:?}", info);
-        println!("Stride LHS {:?}", lhs.strides);
-        println!("Stride RHS {:?}", rhs.strides);
-
-        lhs.context.execute(
-            &WorkGroup::new(f32::ceil(num_elements as f32 / 256 as f32) as u32, 1, 1),
-            &kernel,
-            &[&lhs.buffer, &rhs.buffer, &empty.buffer, &info_buffer],
-        );
-
-        empty
+        execute_elemwise::<Add, F, D>(lhs, rhs)
     }
 
     fn add_scalar<const D: usize>(
@@ -145,10 +109,17 @@ where
     }
 
     fn sub<const D: usize>(
-        lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        rhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
-        todo!()
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
+    ) -> FloatTensor<Self, D> {
+        kernel_elemwise!(Sub, "-");
+        kernel_elemwise_inplace!(SubInplace, "-");
+
+        if lhs.can_mut_broadcast(&rhs) {
+            return execute_elemwise_inplace::<SubInplace, F, D>(lhs, rhs);
+        }
+
+        execute_elemwise::<Sub, F, D>(lhs, rhs)
     }
 
     fn sub_scalar<const D: usize>(

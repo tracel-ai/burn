@@ -1,19 +1,14 @@
-struct Info {
-    dim: u32,
-    data: array<u32>,
-}
-
 @group(0)
 @binding(0)
-var<storage, read> lhs: array<float>;
+var<storage, read> lhs: array<elem>;
 
 @group(0)
 @binding(1)
-var<storage, read> rhs: array<float>;
+var<storage, read> rhs: array<elem>;
 
 @group(0)
 @binding(2)
-var<storage, read_write> output: array<float>;
+var<storage, read_write> output: array<elem>;
 
 @group(0)
 @binding(3)

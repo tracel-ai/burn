@@ -10,11 +10,7 @@ use wgpu::{
     Buffer, DeviceDescriptor, DeviceType, ShaderModule, ShaderModuleDescriptor,
 };
 
-use crate::{
-    element::{FloatElement, IntElement},
-    kernel::KernelTemplate,
-    GraphicsAPI, WGPUDevice,
-};
+use crate::{kernel::KernelTemplate, GraphicsAPI, WGPUDevice};
 
 #[derive(Debug)]
 pub struct Context {
