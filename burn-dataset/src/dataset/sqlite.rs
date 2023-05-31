@@ -464,14 +464,12 @@ where
         // Create a temporary database file (will be persisted if writes complete or deleted it otherwise)
         self.db_file_tmp = Some(NamedTempFile::new_in(db_file_dir)?);
 
-        // Create a connection pool
+        // Create a connection pool for the temporary database file
         let db_file_tmp = self
             .db_file_tmp
             .as_ref()
             .ok_or("Temporary file not found")?
             .path();
-
-        // Create the connection pool
         let conn_pool = create_conn_pool(db_file_tmp, true)?;
         self.conn_pool = Some(conn_pool);
 
@@ -691,7 +689,7 @@ mod tests {
         column_int: i64,
         column_bool: bool,
         column_float: f64,
-        colomn_complex: Vec<Vec<Vec<[u8; 3]>>>,
+        column_complex: Vec<Vec<Vec<[u8; 3]>>>,
     }
 
     /// Create a temporary directory.
@@ -720,8 +718,7 @@ mod tests {
     fn test_new() {
         // Test that the constructor works with overwrite = true
         let test_path = NamedTempFile::new().unwrap();
-        let result = SqliteDatasetWriter::<Complex>::new(&test_path, true);
-        assert!(result.is_ok());
+        let _writer = SqliteDatasetWriter::<Complex>::new(&test_path, true).unwrap();
         assert!(!test_path.path().exists());
 
         // Test that the constructor works with overwrite = false
@@ -734,8 +731,7 @@ mod tests {
         let test_path = temp.path().to_path_buf();
         assert!(temp.close().is_ok());
         assert!(!test_path.exists());
-        let result = SqliteDatasetWriter::<Complex>::new(&test_path, true);
-        assert!(result.is_ok());
+        let _writer = SqliteDatasetWriter::<Complex>::new(&test_path, true).unwrap();
         assert!(!test_path.exists());
     }
 
@@ -753,22 +749,15 @@ mod tests {
             column_int: 0,
             column_bool: true,
             column_float: 1.0,
-            colomn_complex: vec![vec![vec![[1, 23_u8, 3]]]],
+            column_complex: vec![vec![vec![[1, 23_u8, 3]]]],
         };
 
-        let result = writer.write("train", &new_item);
-
-        assert!(result.is_ok());
-
-        let index = result.unwrap();
-
+        let index = writer.write("train", &new_item).unwrap();
         assert_eq!(index, 0);
 
         let mut writer = writer;
 
-        let result = writer.set_completed();
-
-        assert!(result.is_ok());
+        writer.set_completed().expect("Failed to set completed");
 
         assert!(writer.db_file.exists());
         assert!(writer.db_file_tmp.is_none());
@@ -803,7 +792,7 @@ mod tests {
                 column_int: index,
                 column_bool: true,
                 column_float: 1.0,
-                colomn_complex: vec![vec![vec![[1, index as u8, 3]]]],
+                column_complex: vec![vec![vec![[1, index as u8, 3]]]],
             };
 
             // half for train and half for test
