@@ -262,6 +262,7 @@ fn create_conn_pool<P: AsRef<Path>>(
 
 /// The `SqliteDatasetStorage` struct represents a SQLite database for storing datasets.
 /// It consists of an optional name, a database file path, and a base directory for storage.
+#[derive(Clone, Debug)]
 pub struct SqliteDatasetStorage {
     name: Option<String>,
     db_file: Option<PathBuf>,
@@ -359,7 +360,7 @@ impl SqliteDatasetStorage {
     /// # Returns
     ///
     /// * A `Result` which is `Ok` if the writer could be created, `Err` otherwise.
-    pub fn writer<I>(self, overwrite: bool) -> Result<SqliteDatasetWriter<I>>
+    pub fn writer<I>(&self, overwrite: bool) -> Result<SqliteDatasetWriter<I>>
     where
         I: Clone + Send + Sync + Serialize + DeserializeOwned,
     {
@@ -375,7 +376,7 @@ impl SqliteDatasetStorage {
     /// # Returns
     ///
     /// * A `Result` which is `Ok` if the reader could be created, `Err` otherwise.
-    pub fn reader<I>(self, split: &str) -> Result<SqliteDataset<I>>
+    pub fn reader<I>(&self, split: &str) -> Result<SqliteDataset<I>>
     where
         I: Clone + Send + Sync + Serialize + DeserializeOwned,
     {
