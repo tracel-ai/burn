@@ -129,9 +129,9 @@ where
     }
 
     fn sub_scalar<const D: usize>(
-        lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        rhs: <WGPUBackend<G, F, I> as Backend>::FloatElem,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> FloatTensor<Self, D> {
         unary_scalar!(SubScalar, "-");
         unary_scalar_inplace!(SubScalarInplace, "-");
 
@@ -143,31 +143,63 @@ where
     }
 
     fn mul<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        _rhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
-        todo!()
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
+    ) -> FloatTensor<Self, D> {
+        binary_elemwise!(Mul, "*");
+        binary_elemwise_inplace!(MulInplace, "*");
+
+        if lhs.can_mut_broadcast(&rhs) {
+            return binary_elemwise_inplace::<MulInplace, F, D>(lhs, rhs);
+        }
+
+        if rhs.can_mut_broadcast(&lhs) {
+            return binary_elemwise_inplace::<MulInplace, F, D>(rhs, lhs);
+        }
+
+        binary_elemwise::<Mul, F, D>(lhs, rhs)
     }
 
     fn mul_scalar<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        _rhs: <WGPUBackend<G, F, I> as Backend>::FloatElem,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
-        todo!()
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> FloatTensor<Self, D> {
+        unary_scalar!(MulScalar, "*");
+        unary_scalar_inplace!(MulScalarInplace, "*");
+
+        if lhs.can_mut() {
+            return unary_scalar_inplace::<MulScalarInplace, F, D>(lhs, rhs);
+        }
+
+        unary_scalar::<MulScalar, F, D>(lhs, rhs)
     }
 
     fn div<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        _rhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
-        todo!()
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
+    ) -> FloatTensor<Self, D> {
+        binary_elemwise!(Div, "/");
+        binary_elemwise_inplace!(DivInplace, "/");
+
+        if lhs.can_mut_broadcast(&rhs) {
+            return binary_elemwise_inplace::<DivInplace, F, D>(lhs, rhs);
+        }
+
+        binary_elemwise::<Div, F, D>(lhs, rhs)
     }
 
     fn div_scalar<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        _rhs: <WGPUBackend<G, F, I> as Backend>::FloatElem,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
-        todo!()
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> FloatTensor<Self, D> {
+        unary_scalar!(DivScalar, "/");
+        unary_scalar_inplace!(DivScalarInplace, "/");
+
+        if lhs.can_mut() {
+            return unary_scalar_inplace::<DivScalarInplace, F, D>(lhs, rhs);
+        }
+
+        unary_scalar::<DivScalar, F, D>(lhs, rhs)
     }
 
     fn matmul<const D: usize>(

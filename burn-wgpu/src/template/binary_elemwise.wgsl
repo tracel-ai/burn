@@ -31,5 +31,5 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         index_rhs += global_id.x / stride_rhs % shape_rhs * stride_rhs;
     }
 
-    output[global_id.x] = lhs[index_lhs] OPS rhs[index_rhs];
+    LINE
 }

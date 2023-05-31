@@ -1,3 +1,6 @@
+mod base;
+pub use base::*;
+
 use crate::context::WorkGroupSize;
 
 #[derive(new, Debug, PartialEq, Eq, Hash)]

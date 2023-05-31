@@ -40,7 +40,8 @@ macro_rules! unary_scalar {
 
             fn render(&self) -> String {
                 let source = self.raw.render();
-                source.replace("OPS", $ops)
+                let line = format!("output[global_id.x] = lhs[global_id.x] {} rhs;", $ops);
+                source.replace("LINE", &line)
             }
         }
     };
@@ -72,7 +73,8 @@ macro_rules! unary_scalar_inplace {
 
             fn render(&self) -> String {
                 let source = self.raw.render();
-                source.replace("OPS", $ops)
+                let line = format!("lhs[global_id.x] = lhs[global_id.x] {} rhs;", $ops);
+                source.replace("LINE", &line)
             }
         }
     };

@@ -41,7 +41,11 @@ macro_rules! binary_elemwise {
 
             fn render(&self) -> String {
                 let source = self.raw.render();
-                source.replace("OPS", $ops)
+                let line = format!(
+                    "output[global_id.x] = lhs[index_lhs] {} rhs[index_rhs]",
+                    $ops
+                );
+                source.replace("LINE", &line)
             }
         }
     };
@@ -73,7 +77,11 @@ macro_rules! binary_elemwise_inplace {
 
             fn render(&self) -> String {
                 let source = self.raw.render();
-                source.replace("OPS", $ops)
+                let line = format!(
+                    "lhs[global_id.x] = lhs[global_id.x] {} rhs[index_rhs];",
+                    $ops
+                );
+                source.replace("LINE", &line)
             }
         }
     };
