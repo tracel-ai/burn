@@ -347,7 +347,7 @@ pub fn convert_node_proto(node: &NodeProto) -> Node {
         name,
         inputs,
         outputs,
-        sates: vec![],
+        states: vec![],
         attrs,
     };
 
@@ -441,7 +441,7 @@ fn move_inputs_to_state(nodes: &mut Vec<Node>, initializer: &[TensorProto]) {
                 true
             })
             .collect();
-        node.sates = node_sates;
+        node.states = node_sates;
     });
 }
 

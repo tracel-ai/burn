@@ -194,11 +194,11 @@ impl ONNXGraph {
         let output = node.outputs.get(0).unwrap().to_tensor_type();
         let config = linear_config(&node);
 
-        let bias = node.sates.len() == 2;
-        let weight = node.sates.remove(0).into_data_serialize::<PS::FloatElem>();
+        let bias = node.states.len() == 2;
+        let weight = node.states.remove(0).into_data_serialize::<PS::FloatElem>();
 
         let bias = match bias {
-            true => Some(node.sates.remove(0).into_data_serialize::<PS::FloatElem>()),
+            true => Some(node.states.remove(0).into_data_serialize::<PS::FloatElem>()),
             false => None,
         };
 
@@ -240,7 +240,7 @@ impl ONNXGraph {
         let output = node.outputs.get(0).unwrap().to_tensor_type();
         let config = conv2d_config(&node);
 
-        let bias = node.sates.len() == 2;
+        let bias = node.states.len() == 2;
         let weight = extract_next_data_serialize::<PS::FloatElem>(&mut node).unwrap();
         let bias = match bias {
             true => Some(extract_next_data_serialize::<PS::FloatElem>(&mut node)).unwrap(),
@@ -253,11 +253,11 @@ impl ONNXGraph {
 }
 
 fn extract_next_data_serialize<E: Element>(node: &mut Node) -> Option<DataSerialize<E>> {
-    if node.sates.is_empty() {
+    if node.states.is_empty() {
         return None;
     }
 
-    Some(node.sates.remove(0).into_data_serialize::<E>())
+    Some(node.states.remove(0).into_data_serialize::<E>())
 }
 
 impl State {

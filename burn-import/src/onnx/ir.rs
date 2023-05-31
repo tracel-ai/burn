@@ -95,7 +95,7 @@ pub struct Node {
     pub name: String,
     pub inputs: Vec<Argument>,
     pub outputs: Vec<Argument>,
-    pub sates: Vec<State>,
+    pub states: Vec<State>,
     pub attrs: Attributes,
 }
 
