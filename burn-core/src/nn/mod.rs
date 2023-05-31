@@ -19,6 +19,6 @@ pub use embedding::*;
 pub use gelu::*;
 pub use initializer::*;
 pub use linear::*;
+pub use lstm::*;
 pub use norm::*;
 pub use relu::*;
-pub use lstm::*;
