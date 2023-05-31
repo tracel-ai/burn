@@ -30,7 +30,9 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
     ///
     /// The node must be registered in the same order they will be executed in the forward pass.
     pub fn register<N: NodeCodegen<PS> + 'static>(&mut self, node: N) {
-        self.nodes.push(node.into_node());
+        let node = node.into_node();
+        log::debug!("Registering node => '{}'", node.name());
+        self.nodes.push(node);
     }
 
     /// Generate a function `Model::new()` without any argument when `gen_new_fn` is `true`.

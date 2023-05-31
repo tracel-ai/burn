@@ -29,7 +29,7 @@ impl<B: Backend> CrossEntropyLoss<B> {
 
         let mask = self.padding_mask(&targets);
         let tensor = activation::log_softmax(logits, 1);
-        let tensor = tensor.index_select(targets.reshape([batch_size, 1]));
+        let tensor = tensor.gather(1, targets.reshape([batch_size, 1]));
         let tensor = self.apply_mask(tensor.reshape([batch_size]), mask);
 
         tensor.mean().neg()

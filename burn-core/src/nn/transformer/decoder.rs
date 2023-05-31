@@ -371,6 +371,8 @@ mod tests {
     #[test]
     fn test_autoregressive_norm_last() {
         let [d_model, d_ff, n_heads, num_layers] = [12, 24, 2, 3];
+        TestBackend::seed(0);
+
         test_autoregressive(
             TransformerDecoderConfig::new(d_model, d_ff, n_heads, num_layers)
                 .with_norm_first(false),
@@ -380,6 +382,8 @@ mod tests {
     #[test]
     fn test_autoregressive_norm_first() {
         let [d_model, d_ff, n_heads, num_layers] = [12, 24, 2, 3];
+        TestBackend::seed(0);
+
         test_autoregressive(
             TransformerDecoderConfig::new(d_model, d_ff, n_heads, num_layers).with_norm_first(true),
         )

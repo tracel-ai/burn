@@ -5,7 +5,7 @@ use crate::Dataset;
 use r2d2::Pool;
 use r2d2_sqlite::{rusqlite::OpenFlags, SqliteConnectionManager};
 use serde::de::DeserializeOwned;
-use serde_rusqlite::*;
+use serde_rusqlite::{columns_from_statement, from_row_with_columns};
 
 /// Dataset where all items are stored in a sqlite database.
 ///

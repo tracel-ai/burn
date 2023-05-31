@@ -21,15 +21,6 @@ use bytemuck::cast_slice;
 use protobuf::{Enum, Message};
 use topological_sort::TopologicalSort;
 
-const STATEFUL_NODE_TYPES: [NodeType; 6] = [
-    NodeType::Conv,
-    NodeType::Conv1d,
-    NodeType::Conv2d,
-    NodeType::BatchNormalization,
-    NodeType::Dropout,
-    NodeType::Linear,
-];
-
 /// Error type for parsing ONNX model
 #[derive(Debug)]
 pub enum ParseError {
@@ -372,9 +363,8 @@ pub fn convert_node_proto(node: &NodeProto) -> Node {
         .collect();
     let attrs = convert_vec_attrs_proto(node.attribute.clone());
 
-    let node_type = NodeType::from_str(node.op_type.as_str()).unwrap();
-
-    let is_stateful = STATEFUL_NODE_TYPES.contains(&node_type);
+    log::debug!("Found ONNX node type => {}", node.op_type.as_str());
+    let node_type = NodeType::from_str(node.op_type.as_str()).expect("Unknown node type");
 
     let mut node = Node {
         node_type,
@@ -383,7 +373,6 @@ pub fn convert_node_proto(node: &NodeProto) -> Node {
         outputs,
         initializers: vec![],
         attrs,
-        is_stateful,
     };
 
     remap_node_type(&mut node);
@@ -399,7 +388,7 @@ fn remap_node_type(node: &mut Node) {
                 node.node_type = match ints.len() {
                     1 => NodeType::Conv1d,
                     2 => NodeType::Conv2d,
-                    _ => todo!(),
+                    _ => panic!("Only conv 1d and 2d are supported"),
                 };
             } else {
                 panic!("kernel_shape is not an int64s");

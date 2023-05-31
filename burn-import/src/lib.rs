@@ -11,4 +11,5 @@ pub mod onnx;
 pub mod burn;
 
 mod formater;
+mod logger;
 pub use formater::*;

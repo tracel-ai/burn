@@ -1,3 +1,4 @@
+use burn_ndarray::NdArrayBackend;
 use core::fmt;
 use half::f16;
 use std::{collections::HashMap, fmt::Formatter};
@@ -80,7 +81,6 @@ pub struct Node {
     pub outputs: Vec<Argument>,
     pub initializers: Vec<Argument>,
     pub attrs: Attributes,
-    pub is_stateful: bool,
 }
 
 // Required by topological sort
@@ -336,5 +336,19 @@ impl fmt::Debug for TensorData {
             TensorData::Int64(v) => write!(f, "Int64({})", trunc(v)),
             TensorData::String(v) => write!(f, "String({})", trunc(v)),
         }
+    }
+}
+
+/// Convert itermediate representation of tensor into a burn tensor
+impl<const D: usize> TryFrom<&Tensor> for burn::tensor::Tensor<NdArrayBackend<f32>, D> {
+    type Error = ();
+
+    fn try_from(value: &Tensor) -> Result<Self, Self::Error> {
+        let shape: [usize; D] = value.shape.clone().try_into().unwrap();
+        let TensorData::Float32(floats) = value.data.clone().unwrap() else {
+            todo!("Tensor data must be float32s");
+        };
+
+        Ok(burn::tensor::Tensor::from_data(floats.as_slice()).reshape(shape))
     }
 }
