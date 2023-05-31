@@ -21,3 +21,4 @@ pub use initializer::*;
 pub use linear::*;
 pub use norm::*;
 pub use relu::*;
+pub use lstm::*;

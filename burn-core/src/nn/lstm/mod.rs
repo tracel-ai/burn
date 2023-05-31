@@ -1,5 +1,6 @@
 mod gate_controller;
 #[allow(clippy::module_inception)]
-mod lstm;
+pub mod lstm;
 
 pub use lstm::*;
+pub use gate_controller::*;
