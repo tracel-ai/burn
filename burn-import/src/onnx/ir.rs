@@ -73,7 +73,7 @@ pub struct ONNXGraph {
     pub nodes: Vec<Node>,
     pub inputs: Vec<Argument>,
     pub outputs: Vec<Argument>,
-    pub sates: Vec<State>,
+    pub states: Vec<State>,
     pub old_node_names: HashMap<String, String>,
     pub old_input_names: HashMap<String, String>,
 }

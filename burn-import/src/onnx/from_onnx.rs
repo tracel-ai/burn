@@ -58,7 +58,7 @@ pub fn parse_onnx(onnx_path: &Path) -> ONNXGraph {
         .collect();
     let mut inputs = collect_inputs(&onnx_model, &check_if_initializer, top_nodes);
     let mut outputs = collect_outputs(&onnx_model, check_if_initializer);
-    let sates = collect_states(onnx_model);
+    let states = collect_states(onnx_model);
 
     // Coalesce and transform nodes
     coalesce(&mut nodes);
@@ -74,7 +74,7 @@ pub fn parse_onnx(onnx_path: &Path) -> ONNXGraph {
         nodes,
         inputs,
         outputs,
-        sates,
+        states,
         old_node_names,
         old_input_names,
     }
@@ -414,13 +414,13 @@ impl TryFrom<ValueInfoProto> for State {
 
 fn move_inputs_to_state(nodes: &mut Vec<Node>, initializer: &[TensorProto]) {
     nodes.iter_mut().for_each(|node| {
-        let mut node_sates = Vec::new();
+        let mut node_states = Vec::new();
         let mut inputs = Vec::new();
 
         for input in node.inputs.iter() {
             for init in initializer.iter() {
                 if init.name == input.name {
-                    node_sates.push(State {
+                    node_states.push(State {
                         name: init.name.clone(),
                         ty: StateType::Tensor(init.clone().try_into().unwrap()),
                     });
@@ -432,7 +432,7 @@ fn move_inputs_to_state(nodes: &mut Vec<Node>, initializer: &[TensorProto]) {
         node.inputs = inputs
             .into_iter()
             .filter(|input| {
-                for init in node_sates.iter() {
+                for init in node_states.iter() {
                     if init.name == input.name {
                         return false;
                     }
@@ -441,7 +441,7 @@ fn move_inputs_to_state(nodes: &mut Vec<Node>, initializer: &[TensorProto]) {
                 true
             })
             .collect();
-        node.states = node_sates;
+        node.states = node_states;
     });
 }
 
