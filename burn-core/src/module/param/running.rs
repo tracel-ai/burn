@@ -1,4 +1,8 @@
+#[cfg(not(use_portable_atomics))]
 use alloc::sync::Arc;
+
+#[cfg(use_portable_atomics)]
+use portable_atomic_util::Arc;
 
 use super::ParamId;
 use crate::module::{ADModule, Module, ModuleMapper, ModuleVisitor, Param};

@@ -23,7 +23,12 @@ std = [
 
 const-random = {workspace = true}
 rand = {workspace = true}
-spin = {workspace = true}# using in place of use std::sync::Mutex;          
+spin = {workspace = true, features = ["mutex", "spin_mutex", "portable_atomic"]}
+portable-atomic = {version = "1.3.3", features = ["critical-section"]}
+portable-atomic-util = {version = "0.1.3", features = ["alloc"]}
+
+
+
 uuid = {workspace = true}
 
 [dev-dependencies]

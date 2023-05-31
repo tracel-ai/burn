@@ -1,12 +1,26 @@
 use alloc::string::{String, ToString};
 
-use crate::rand::{get_seeded_rng, Rng, SEED};
+use rand::Rng;
+
+#[cfg(not(feature = "std"))]
+use crate::rand::{get_seeded_rng, SEED};
 
 use uuid::{Builder, Bytes};
 
 pub struct IdGenerator {}
 
 impl IdGenerator {
+    #[cfg(feature = "std")]
+    #[inline(always)]
+    pub fn generate() -> String {
+        let mut rng = rand::thread_rng();
+        let random_bytes: Bytes = rng.gen();
+        let uuid = Builder::from_random_bytes(random_bytes).into_uuid();
+        uuid.as_hyphenated().to_string()
+    }
+
+    #[cfg(not(feature = "std"))]
+    #[inline(always)]
     pub fn generate() -> String {
         let mut seed = SEED.lock().unwrap();
         let mut rng = if let Some(rng_seeded) = seed.as_ref() {
@@ -19,7 +33,6 @@ impl IdGenerator {
         *seed = Some(rng);
 
         let uuid = Builder::from_random_bytes(random_bytes).into_uuid();
-
         uuid.as_hyphenated().to_string()
     }
 }

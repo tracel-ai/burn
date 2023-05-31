@@ -20,4 +20,3 @@ burn-tensor = {path = "../burn-tensor", version = "0.8.0" }
 burn-tensor-testgen = {path = "../burn-tensor-testgen", version = "0.8.0", optional = true}
 
 derive-new = {workspace = true}
-spin = {workspace = true}

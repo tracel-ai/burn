@@ -8,12 +8,10 @@ use burn_tensor::backend::Backend;
 
 use rand::{rngs::StdRng, SeedableRng};
 
-#[cfg(feature = "std")]
-use std::sync::Mutex;
-
 #[cfg(not(feature = "std"))]
 use burn_common::stub::Mutex;
 
+#[cfg(not(feature = "std"))]
 pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

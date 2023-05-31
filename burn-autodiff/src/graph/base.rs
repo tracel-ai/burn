@@ -1,5 +1,6 @@
-use spin::Mutex;
 use std::{collections::HashMap, sync::Arc};
+
+use burn_common::stub::Mutex;
 
 use crate::grads::Gradients;
 
@@ -19,7 +20,7 @@ pub type NodeSteps = HashMap<NodeID, StepBoxed>;
 /// Graph data structure.
 ///
 /// The graph contains the [node steps](Step), which can be access by [node id](NodeID).
-#[derive(Default, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct Graph {
     steps: Arc<Mutex<NodeSteps>>,
 }
@@ -27,7 +28,9 @@ pub struct Graph {
 impl Graph {
     /// Create a new graph.
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            steps: Arc::new(Mutex::new(HashMap::new())),
+        }
     }
 
     /// Get all the steps for the graph.
@@ -66,12 +69,14 @@ impl Graph {
     fn execute_mut<F: FnOnce(&mut NodeSteps)>(mut self, func: F) -> Self {
         match Arc::get_mut(&mut self.steps) {
             Some(mutex) => {
-                let map = mutex.get_mut();
-                func(map);
+
+                let mut map = mutex.lock().unwrap();
+                func(&mut map);
+                
             }
             None => {
                 // Only lock when there are multiple references to the graph.
-                let mut map = self.steps.lock();
+                let mut map = self.steps.lock().unwrap();
                 func(&mut map);
             }
         };

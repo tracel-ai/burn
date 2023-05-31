@@ -5,8 +5,8 @@ use core::ops::Range;
 // Current crate
 use super::{matmul::matmul, NdArrayMathOps, NdArrayOps};
 use crate::element::FloatNdArrayElement;
+use crate::NdArrayDevice;
 use crate::{tensor::NdArrayTensor, NdArrayBackend};
-use crate::{NdArrayDevice, SEED};
 
 // Workspace crates
 use burn_common::rand::get_seeded_rng;
@@ -19,11 +19,15 @@ use libm::{cos, erf, sin, tanh};
 #[cfg(not(feature = "std"))]
 use num_traits::Float;
 
+#[cfg(not(feature = "std"))]
+use crate::SEED;
+
 impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
     fn from_data<const D: usize>(data: Data<E, D>, _device: &NdArrayDevice) -> NdArrayTensor<E, D> {
         NdArrayTensor::from_data(data)
     }
 
+    #[cfg(not(feature = "std"))]
     fn random<const D: usize>(
         shape: Shape<D>,
         distribution: Distribution<E>,
@@ -37,6 +41,17 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         };
         let tensor = Self::from_data(Data::random(shape, distribution, &mut rng), device);
         *seed = Some(rng);
+        tensor
+    }
+
+    #[cfg(feature = "std")]
+    fn random<const D: usize>(
+        shape: Shape<D>,
+        distribution: Distribution<E>,
+        device: &NdArrayDevice,
+    ) -> NdArrayTensor<E, D> {
+        let mut rng = rand::thread_rng();
+        let tensor = Self::from_data(Data::random(shape, distribution, &mut rng), device);
         tensor
     }
 

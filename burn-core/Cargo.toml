@@ -50,7 +50,12 @@ libm = {workspace = true}
 log = {workspace = true, optional = true}
 rand = {workspace = true, features = ["std_rng"]}# Default enables std  
 # Using in place of use std::sync::Mutex when std is disabled
-spin = {workspace = true, features = ["mutex", "spin_mutex"]}#
+spin = {workspace = true, features = ["mutex", "spin_mutex", "portable_atomic"]}#
+portable-atomic = {version = "1.3.3", features = ["critical-section"]}
+portable-atomic-util = {version = "0.1.3", features = ["alloc"]}
+
+# [target.thumbv6m-none-eabi.dependencies]
+# atomic-polyfill = { version = "1.0.1", optional = true }
 
 # The same implementation of HashMap in std but with no_std support (only alloc crate is needed)
 hashbrown = {workspace = true, features = ["serde"]}# no_std compatible
