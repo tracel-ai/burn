@@ -21,9 +21,9 @@ macro_rules! unary_scalar {
 
             fn generate() -> Self::Source {
                 let source = $crate::kernel::UnaryScalarRaw::generate().to_string();
-                let line = format!("output[global_id.x] = lhs[global_id.x] {} rhs;", $ops);
+                let body = format!("output[global_id.x] = lhs[global_id.x] {} rhs;", $ops);
 
-                source.replace("BODY", &line)
+                source.replace("BODY", &body)
             }
         }
     };
@@ -39,9 +39,9 @@ macro_rules! unary_scalar {
 
             fn generate() -> Self::Source {
                 let source = $crate::kernel::UnaryScalarRaw::generate().to_string();
-                let line = format!("output[global_id.x] = {}(lhs[global_id.x], rhs);", $func);
+                let body = format!("output[global_id.x] = {}(lhs[global_id.x], rhs);", $func);
 
-                source.replace("BODY", &line)
+                source.replace("BODY", &body)
             }
         }
     };
@@ -60,9 +60,9 @@ macro_rules! unary_scalar_inplace {
 
             fn generate() -> Self::Source {
                 let source = $crate::kernel::UnaryScalarInplaceRaw::generate().to_string();
-                let line = format!("lhs[global_id.x] = lhs[global_id.x] {} rhs;", $ops);
+                let body = format!("lhs[global_id.x] = lhs[global_id.x] {} rhs;", $ops);
 
-                source.replace("BODY", &line)
+                source.replace("BODY", &body)
             }
         }
     };
@@ -78,9 +78,9 @@ macro_rules! unary_scalar_inplace {
 
             fn generate() -> Self::Source {
                 let source = $crate::kernel::UnaryScalarInplaceRaw::generate().to_string();
-                let line = format!("lhs[global_id.x] = {}(lhs[global_id.x], rhs);", $func);
+                let body = format!("lhs[global_id.x] = {}(lhs[global_id.x], rhs);", $func);
 
-                source.replace("BODY", &line)
+                source.replace("BODY", &body)
             }
         }
     };

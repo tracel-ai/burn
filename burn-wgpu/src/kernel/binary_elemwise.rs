@@ -23,11 +23,11 @@ macro_rules! binary_elemwise {
 
             fn generate() -> Self::Source {
                 let source = $crate::kernel::BinaryElemwiseRaw::generate().to_string();
-                let line = format!(
+                let body = format!(
                     "output[global_id.x] = lhs[index_lhs] {} rhs[index_rhs]",
                     $ops
                 );
-                source.replace("LINE", &line)
+                source.replace("BODY", &body)
             }
         }
     };
@@ -46,11 +46,11 @@ macro_rules! binary_elemwise_inplace {
 
             fn generate() -> Self::Source {
                 let source = $crate::kernel::BinaryElemwiseInplaceRaw::generate().to_string();
-                let line = format!(
+                let body = format!(
                     "lhs[global_id.x] = lhs[global_id.x] {} rhs[index_rhs];",
                     $ops
                 );
-                source.replace("LINE", &line)
+                source.replace("BODY", &body)
             }
         }
     };

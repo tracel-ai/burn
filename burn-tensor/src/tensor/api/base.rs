@@ -5,7 +5,7 @@ use alloc::vec::Vec;
 use core::{fmt::Debug, ops::Range};
 
 use crate::{
-    backend::Backend, check, check::TensorCheck, Bool, Data, Element, Float, Int, Shape, TensorKind,
+    backend::Backend, check, check::TensorCheck, Bool, Data, Float, Int, Shape, TensorKind,
 };
 
 #[derive(new, Clone, Debug)]

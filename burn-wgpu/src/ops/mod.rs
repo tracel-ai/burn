@@ -6,3 +6,5 @@ mod module_ops;
 
 mod base;
 pub(crate) use base::*;
+
+pub(crate) mod numeric;

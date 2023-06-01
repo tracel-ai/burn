@@ -1,15 +1,13 @@
+use super::numeric::NumericOps;
 use super::{Device, FloatElem, FloatTensor};
-use crate::kernel::{
-    binary_elemwise, binary_elemwise_inplace, unary, unary_inplace, unary_scalar,
-    unary_scalar_inplace,
-};
-use crate::{binary_elemwise, binary_elemwise_inplace, unary_scalar, unary_scalar_inplace};
+use crate::kernel::{unary, unary_inplace, unary_scalar, unary_scalar_inplace};
 use crate::{
     element::{FloatElement, IntElement},
     pool::get_context,
     tensor::WGPUTensor,
     unary, unary_inplace, GraphicsAPI, WGPUBackend, SEED,
 };
+use crate::{unary_scalar, unary_scalar_inplace};
 use burn_common::rand::get_seeded_rng;
 use burn_tensor::ElementConversion;
 use burn_tensor::{backend::Backend, ops::TensorOps, Data, Distribution, Shape};
@@ -89,120 +87,56 @@ where
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        binary_elemwise!(Add, "+");
-        binary_elemwise_inplace!(AddInplace, "+");
-
-        if lhs.can_mut_broadcast(&rhs) {
-            return binary_elemwise_inplace::<AddInplace, F, D>(lhs, rhs);
-        }
-
-        if rhs.can_mut_broadcast(&lhs) {
-            return binary_elemwise_inplace::<AddInplace, F, D>(rhs, lhs);
-        }
-
-        binary_elemwise::<Add, F, D>(lhs, rhs)
+        NumericOps::add(lhs, rhs)
     }
 
     fn add_scalar<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        unary_scalar!(AddScalar, ops "+");
-        unary_scalar_inplace!(AddScalarInplace, ops "+");
-
-        if lhs.can_mut() {
-            return unary_scalar_inplace::<AddScalarInplace, F, D>(lhs, rhs);
-        }
-
-        unary_scalar::<AddScalar, F, D>(lhs, rhs)
+        NumericOps::add_scalar(lhs, rhs)
     }
 
     fn sub<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        binary_elemwise!(Sub, "-");
-        binary_elemwise_inplace!(SubInplace, "-");
-
-        if lhs.can_mut_broadcast(&rhs) {
-            return binary_elemwise_inplace::<SubInplace, F, D>(lhs, rhs);
-        }
-
-        binary_elemwise::<Sub, F, D>(lhs, rhs)
+        NumericOps::sub(lhs, rhs)
     }
 
     fn sub_scalar<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        unary_scalar!(SubScalar, ops "-");
-        unary_scalar_inplace!(SubScalarInplace, ops "-");
-
-        if lhs.can_mut() {
-            return unary_scalar_inplace::<SubScalarInplace, F, D>(lhs, rhs);
-        }
-
-        unary_scalar::<SubScalar, F, D>(lhs, rhs)
+        NumericOps::sub_scalar(lhs, rhs)
     }
 
     fn mul<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        binary_elemwise!(Mul, "*");
-        binary_elemwise_inplace!(MulInplace, "*");
-
-        if lhs.can_mut_broadcast(&rhs) {
-            return binary_elemwise_inplace::<MulInplace, F, D>(lhs, rhs);
-        }
-
-        if rhs.can_mut_broadcast(&lhs) {
-            return binary_elemwise_inplace::<MulInplace, F, D>(rhs, lhs);
-        }
-
-        binary_elemwise::<Mul, F, D>(lhs, rhs)
+        NumericOps::mul(lhs, rhs)
     }
 
     fn mul_scalar<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        unary_scalar!(MulScalar, ops "*");
-        unary_scalar_inplace!(MulScalarInplace, ops "*");
-
-        if lhs.can_mut() {
-            return unary_scalar_inplace::<MulScalarInplace, F, D>(lhs, rhs);
-        }
-
-        unary_scalar::<MulScalar, F, D>(lhs, rhs)
+        NumericOps::mul_scalar(lhs, rhs)
     }
 
     fn div<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        binary_elemwise!(Div, "/");
-        binary_elemwise_inplace!(DivInplace, "/");
-
-        if lhs.can_mut_broadcast(&rhs) {
-            return binary_elemwise_inplace::<DivInplace, F, D>(lhs, rhs);
-        }
-
-        binary_elemwise::<Div, F, D>(lhs, rhs)
+        NumericOps::div(lhs, rhs)
     }
 
     fn div_scalar<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        unary_scalar!(DivScalar, ops "/");
-        unary_scalar_inplace!(DivScalarInplace, ops "/");
-
-        if lhs.can_mut() {
-            return unary_scalar_inplace::<DivScalarInplace, F, D>(lhs, rhs);
-        }
-
-        unary_scalar::<DivScalar, F, D>(lhs, rhs)
+        NumericOps::div_scalar(lhs, rhs)
     }
 
     fn matmul<const D: usize>(

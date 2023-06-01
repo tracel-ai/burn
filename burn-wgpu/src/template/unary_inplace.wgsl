@@ -1,6 +1,6 @@
 @group(0)
 @binding(0)
-var<storage, read_write> lhs: array<elem>;
+var<storage, read_write> input: array<elem>;
 
 @compute
 @workgroup_size(WORKGROUP_SIZE_X, 1, 1)

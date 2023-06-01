@@ -15,8 +15,8 @@ where
     I: IntElement,
 {
     fn relu<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        unary!(Relu, body "output[global_id.x] = max(lhs[global_id.x], 0.0);");
-        unary_inplace!(ReluInplace, body "lhs[global_id.x] = max(lhs[global_id.x], 0.0);");
+        unary!(Relu, body "output[global_id.x] = max(input[global_id.x], 0.0);");
+        unary_inplace!(ReluInplace, body "input[global_id.x] = max(input[global_id.x], 0.0);");
 
         if tensor.can_mut() {
             return unary_inplace::<ReluInplace, F, D>(tensor);

@@ -5,6 +5,8 @@ use crate::{
     GraphicsAPI, WGPUBackend,
 };
 
+use super::{numeric::NumericOps, IntElem, IntTensor};
+
 impl<G, F, I> IntTensorOps<WGPUBackend<G, F, I>> for WGPUBackend<G, F, I>
 where
     G: GraphicsAPI + 'static,
@@ -200,59 +202,59 @@ where
     }
 
     fn int_add<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        _rhs: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
-        todo!()
+        lhs: IntTensor<Self, D>,
+        rhs: IntTensor<Self, D>,
+    ) -> IntTensor<Self, D> {
+        NumericOps::add::<I, D>(lhs, rhs)
     }
 
     fn int_add_scalar<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        _rhs: <WGPUBackend<G, F, I> as Backend>::IntElem,
-    ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
-        todo!()
+        lhs: IntTensor<Self, D>,
+        rhs: IntElem<Self>,
+    ) -> IntTensor<Self, D> {
+        NumericOps::add_scalar(lhs, rhs)
     }
 
     fn int_sub<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        _rhs: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
-        todo!()
+        lhs: IntTensor<Self, D>,
+        rhs: IntTensor<Self, D>,
+    ) -> IntTensor<Self, D> {
+        NumericOps::sub(lhs, rhs)
     }
 
     fn int_sub_scalar<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        _rhs: <WGPUBackend<G, F, I> as Backend>::IntElem,
-    ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
-        todo!()
+        lhs: IntTensor<Self, D>,
+        rhs: IntElem<Self>,
+    ) -> IntTensor<Self, D> {
+        NumericOps::sub_scalar(lhs, rhs)
     }
 
     fn int_mul<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        _rhs: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
-        todo!()
+        lhs: IntTensor<Self, D>,
+        rhs: IntTensor<Self, D>,
+    ) -> IntTensor<Self, D> {
+        NumericOps::mul(lhs, rhs)
     }
 
     fn int_mul_scalar<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        _rhs: <WGPUBackend<G, F, I> as Backend>::IntElem,
-    ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
-        todo!()
+        lhs: IntTensor<Self, D>,
+        rhs: IntElem<Self>,
+    ) -> IntTensor<Self, D> {
+        NumericOps::mul_scalar(lhs, rhs)
     }
 
     fn int_div<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        _rhs: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
-        todo!()
+        lhs: IntTensor<Self, D>,
+        rhs: IntTensor<Self, D>,
+    ) -> IntTensor<Self, D> {
+        NumericOps::div(lhs, rhs)
     }
 
     fn int_div_scalar<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        _rhs: <WGPUBackend<G, F, I> as Backend>::IntElem,
-    ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
-        todo!()
+        lhs: IntTensor<Self, D>,
+        rhs: IntElem<Self>,
+    ) -> IntTensor<Self, D> {
+        NumericOps::div_scalar(lhs, rhs)
     }
 
     fn int_neg<const D: usize>(
