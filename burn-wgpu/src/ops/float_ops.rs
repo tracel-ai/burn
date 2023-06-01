@@ -1,17 +1,14 @@
 use super::numeric::NumericOps;
-use super::{Device, FloatElem, FloatTensor};
+use super::{BaseOps, Device, FloatElem, FloatTensor};
 use crate::kernel::{unary, unary_inplace, unary_scalar, unary_scalar_inplace};
 use crate::{
     element::{FloatElement, IntElement},
-    pool::get_context,
-    tensor::WGPUTensor,
     unary, unary_inplace, GraphicsAPI, WGPUBackend, SEED,
 };
 use crate::{unary_scalar, unary_scalar_inplace};
 use burn_common::rand::get_seeded_rng;
 use burn_tensor::ElementConversion;
 use burn_tensor::{backend::Backend, ops::TensorOps, Data, Distribution, Shape};
-use std::sync::Arc;
 
 impl<G, F, I> TensorOps<WGPUBackend<G, F, I>> for WGPUBackend<G, F, I>
 where
@@ -23,10 +20,7 @@ where
         data: Data<FloatElem<Self>, D>,
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
-        let context = get_context::<G>(device);
-        let buffer = context.create_buffer_with_data(bytemuck::cast_slice(&data.value));
-
-        WGPUTensor::new(context, data.shape, Arc::new(buffer))
+        BaseOps::<G>::from_data(data, device)
     }
 
     fn random<const D: usize>(
@@ -50,14 +44,7 @@ where
     }
 
     fn to_data<const D: usize>(tensor: &FloatTensor<Self, D>) -> Data<FloatElem<Self>, D> {
-        let bytes = tensor.context.buffer_to_data(&tensor.buffer);
-        let values = bytemuck::cast_slice(&bytes);
-
-        Data::new(values.to_vec(), tensor.shape.clone())
-    }
-
-    fn into_data<const D: usize>(tensor: FloatTensor<Self, D>) -> Data<FloatElem<Self>, D> {
-        Self::to_data(&tensor)
+        BaseOps::<G>::to_data(tensor)
     }
 
     fn device<const D: usize>(tensor: &FloatTensor<Self, D>) -> Device<Self> {
@@ -68,19 +55,11 @@ where
         tensor: FloatTensor<Self, D>,
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
-        if &tensor.context.device_wgpu == device {
-            return tensor;
-        }
-
-        let context = get_context::<G>(device);
-        tensor.to_context(context)
+        BaseOps::<G>::to_device(tensor, device)
     }
 
     fn empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
-        let context = get_context::<G>(device);
-        let buffer = context.create_buffer(shape.num_elements() * core::mem::size_of::<F>());
-
-        WGPUTensor::new(context, shape, Arc::new(buffer))
+        BaseOps::<G>::empty(shape, device)
     }
 
     fn add<const D: usize>(

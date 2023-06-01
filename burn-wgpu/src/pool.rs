@@ -1,5 +1,6 @@
 use crate::{context::Context, GraphicsAPI, WGPUDevice};
 use std::{
+    any::TypeId,
     collections::HashMap,
     sync::{Arc, Mutex},
 };
@@ -13,14 +14,14 @@ struct ContextPool {
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 struct Key {
-    api_id: u32,
+    api_id: TypeId,
     device: WGPUDevice,
 }
 
 impl Key {
     fn new<G: GraphicsAPI>(device: &WGPUDevice) -> Self {
         Self {
-            api_id: G::id(),
+            api_id: TypeId::of::<G>(),
             device: device.clone(),
         }
     }

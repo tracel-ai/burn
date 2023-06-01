@@ -1,9 +1,11 @@
-use burn_tensor::{backend::Backend, ops::BoolTensorOps};
+use burn_tensor::{backend::Backend, ops::BoolTensorOps, Data, Shape};
 
 use crate::{
     element::{FloatElement, IntElement},
     GraphicsAPI, WGPUBackend,
 };
+
+use super::{BaseOps, BoolTensor, Device, IntTensor};
 
 impl<G, F, I> BoolTensorOps<WGPUBackend<G, F, I>> for WGPUBackend<G, F, I>
 where
@@ -11,35 +13,38 @@ where
     F: FloatElement,
     I: IntElement,
 {
-    fn bool_empty<const D: usize>(
-        _shape: burn_tensor::Shape<D>,
-        _device: &<WGPUBackend<G, F, I> as Backend>::Device,
-    ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
-        todo!()
+    fn bool_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> BoolTensor<Self, D> {
+        BaseOps::<G>::empty(shape, device)
     }
 
-    fn bool_shape<const D: usize>(
-        _tensor: &<WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D>,
-    ) -> burn_tensor::Shape<D> {
-        todo!()
+    fn bool_shape<const D: usize>(tensor: &BoolTensor<Self, D>) -> Shape<D> {
+        tensor.shape.clone()
     }
 
-    fn bool_into_data<const D: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D>,
-    ) -> burn_tensor::Data<bool, D> {
-        todo!()
+    fn bool_into_data<const D: usize>(tensor: BoolTensor<Self, D>) -> Data<bool, D> {
+        let data = BaseOps::<G>::to_data(&tensor);
+
+        Data::new(data.value.into_iter().map(|i| i != 0).collect(), data.shape)
     }
 
     fn bool_from_data<const D: usize>(
-        _data: burn_tensor::Data<bool, D>,
-        _device: &<WGPUBackend<G, F, I> as Backend>::Device,
-    ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
-        todo!()
+        data: Data<bool, D>,
+        device: &Device<Self>,
+    ) -> BoolTensor<Self, D> {
+        let data: Data<u32, D> = Data::new(
+            data.value
+                .into_iter()
+                .map(|c| match c {
+                    true => 1,
+                    false => 0,
+                })
+                .collect(),
+            data.shape,
+        );
+        BaseOps::<G>::from_data(data, device)
     }
 
-    fn bool_into_int<const D: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
+    fn bool_into_int<const D: usize>(_tensor: BoolTensor<Self, D>) -> IntTensor<Self, D> {
         todo!()
     }
 
@@ -50,15 +55,15 @@ where
     }
 
     fn bool_to_device<const D: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D>,
-        _device: &<WGPUBackend<G, F, I> as Backend>::Device,
-    ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
-        todo!()
+        tensor: BoolTensor<Self, D>,
+        device: &Device<Self>,
+    ) -> BoolTensor<Self, D> {
+        BaseOps::<G>::to_device(tensor, device)
     }
 
     fn bool_reshape<const D1: usize, const D2: usize>(
         _tensor: <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D1>,
-        _shape: burn_tensor::Shape<D2>,
+        _shape: Shape<D2>,
     ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D2> {
         todo!()
     }

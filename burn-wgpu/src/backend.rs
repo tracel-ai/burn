@@ -31,7 +31,7 @@ impl<G: GraphicsAPI + 'static, F: FloatElement, I: IntElement> Backend for WGPUB
 
     type IntElem = I;
 
-    type BoolTensorPrimitive<const D: usize> = WGPUTensor<I, D>;
+    type BoolTensorPrimitive<const D: usize> = WGPUTensor<u32, D>;
 
     fn name() -> String {
         String::from("wgpu")

@@ -1,11 +1,11 @@
-use burn_tensor::{backend::Backend, ops::IntTensorOps};
+use burn_tensor::{backend::Backend, ops::IntTensorOps, Data, Shape};
 
 use crate::{
     element::{FloatElement, IntElement},
     GraphicsAPI, WGPUBackend,
 };
 
-use super::{numeric::NumericOps, IntElem, IntTensor};
+use super::{numeric::NumericOps, BaseOps, Device, IntElem, IntTensor};
 
 impl<G, F, I> IntTensorOps<WGPUBackend<G, F, I>> for WGPUBackend<G, F, I>
 where
@@ -13,30 +13,25 @@ where
     F: FloatElement,
     I: IntElement,
 {
-    fn int_empty<const D: usize>(
-        _shape: burn_tensor::Shape<D>,
-        _device: &<WGPUBackend<G, F, I> as Backend>::Device,
-    ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
-        todo!()
+    fn int_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
+        BaseOps::<G>::empty(shape, device)
     }
 
     fn int_shape<const D: usize>(
         _tensor: &<WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-    ) -> burn_tensor::Shape<D> {
+    ) -> Shape<D> {
         todo!()
     }
 
-    fn int_into_data<const D: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-    ) -> burn_tensor::Data<<WGPUBackend<G, F, I> as Backend>::IntElem, D> {
-        todo!()
+    fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> Data<I, D> {
+        BaseOps::<G>::to_data(&tensor)
     }
 
     fn int_from_data<const D: usize>(
-        _data: burn_tensor::Data<<WGPUBackend<G, F, I> as Backend>::IntElem, D>,
-        _device: &<WGPUBackend<G, F, I> as Backend>::Device,
-    ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
-        todo!()
+        data: Data<I, D>,
+        device: &Device<Self>,
+    ) -> IntTensor<Self, D> {
+        BaseOps::<G>::from_data(data, device)
     }
 
     fn int_device<const D: usize>(
@@ -46,15 +41,15 @@ where
     }
 
     fn int_to_device<const D: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        _device: &<WGPUBackend<G, F, I> as Backend>::Device,
-    ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
-        todo!()
+        tensor: IntTensor<Self, D>,
+        device: &Device<Self>,
+    ) -> IntTensor<Self, D> {
+        BaseOps::<G>::to_device(tensor, device)
     }
 
     fn int_reshape<const D1: usize, const D2: usize>(
         _tensor: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D1>,
-        _shape: burn_tensor::Shape<D2>,
+        _shape: Shape<D2>,
     ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D2> {
         todo!()
     }
@@ -264,14 +259,14 @@ where
     }
 
     fn int_zeros<const D: usize>(
-        _shape: burn_tensor::Shape<D>,
+        _shape: Shape<D>,
         _device: &<WGPUBackend<G, F, I> as Backend>::Device,
     ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
         todo!()
     }
 
     fn int_ones<const D: usize>(
-        _shape: burn_tensor::Shape<D>,
+        _shape: Shape<D>,
         _device: &<WGPUBackend<G, F, I> as Backend>::Device,
     ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
         todo!()

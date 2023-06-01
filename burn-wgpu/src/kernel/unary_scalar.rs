@@ -97,9 +97,7 @@ pub fn unary_scalar<K: KernelGenerator, E: WGPUElement, const D: usize>(
     let kernel = lhs
         .context
         .compile::<KernelSettings<K, E, i32, 256, 1, 1>>();
-    let rhs_buffer = lhs
-        .context
-        .create_buffer_with_data(bytemuck::cast_slice(&[scalar]));
+    let rhs_buffer = lhs.context.create_buffer_with_data(E::as_bytes(&[scalar]));
 
     lhs.context.execute(
         &WorkGroup::new(
@@ -121,9 +119,7 @@ pub fn unary_scalar_inplace<K: KernelGenerator, E: WGPUElement, const D: usize>(
     let kernel = lhs
         .context
         .compile::<KernelSettings<K, E, i32, 256, 1, 1>>();
-    let rhs_buffer = lhs
-        .context
-        .create_buffer_with_data(bytemuck::cast_slice(&[scalar]));
+    let rhs_buffer = lhs.context.create_buffer_with_data(E::as_bytes(&[scalar]));
 
     lhs.context.execute(
         &WorkGroup::new(
