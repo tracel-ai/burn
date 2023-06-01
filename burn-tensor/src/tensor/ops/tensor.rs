@@ -102,7 +102,9 @@ pub trait TensorOps<B: Backend> {
         lhs: B::TensorPrimitive<D>,
         rhs: B::TensorPrimitive<D>,
     ) -> B::TensorPrimitive<D>;
-    fn neg<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D>;
+    fn neg<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D> {
+        Self::mul_scalar(tensor, (-1.0_f32).elem::<B::FloatElem>())
+    }
     fn transpose<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D> {
         Self::swap_dims(tensor, D - 2, D - 1)
     }

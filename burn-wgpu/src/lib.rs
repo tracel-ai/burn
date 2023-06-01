@@ -30,6 +30,7 @@ mod tests {
     burn_tensor::testgen_powf!();
     burn_tensor::testgen_exp!();
     burn_tensor::testgen_log!();
+    burn_tensor::testgen_relu!();
 
     // Once all operations will be implemented.
     // type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;

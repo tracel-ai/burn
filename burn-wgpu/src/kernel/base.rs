@@ -1,15 +1,17 @@
+use crate::element::WGPUElement;
 use std::marker::PhantomData;
 
-use crate::element::WGPUElement;
-
-pub trait KernelGenerator {
+/// Generate wgpu kernel source code to create [compute shader modules](wgpu::ShaderModule).
+pub trait KernelGenerator: 'static {
+    /// Source code concrete type.
     type Source: AsRef<str>;
 
+    /// Generate the source code.
     fn generate() -> Self::Source;
 }
 
 #[macro_export]
-macro_rules! kernel_wgsl_2 {
+macro_rules! kernel_wgsl {
     (
         $struct:ident,
         $file:expr
@@ -17,7 +19,7 @@ macro_rules! kernel_wgsl_2 {
         #[derive(new)]
         pub struct $struct;
 
-        impl KernelGenerator for $struct {
+        impl $crate::kernel::KernelGenerator for $struct {
             type Source = &'static str;
 
             fn generate() -> Self::Source {
@@ -27,9 +29,8 @@ macro_rules! kernel_wgsl_2 {
     };
 }
 
-kernel_wgsl_2!(Test, "../template/binary_elemwise.wgsl");
-
-pub struct KernelTemplate<
+/// Generate kernel source code by replacing some information using templating.
+pub struct KernelSettings<
     K: KernelGenerator,
     E: WGPUElement,
     I: WGPUElement,
@@ -50,7 +51,7 @@ impl<
         const WORKGROUP_Y_SIZE: usize,
         const WORKGROUP_Z_SIZE: usize,
     > KernelGenerator
-    for KernelTemplate<K, E, I, WORKGROUP_X_SIZE, WORKGROUP_Y_SIZE, WORKGROUP_Z_SIZE>
+    for KernelSettings<K, E, I, WORKGROUP_X_SIZE, WORKGROUP_Y_SIZE, WORKGROUP_Z_SIZE>
 {
     type Source = String;
 
@@ -74,11 +75,11 @@ mod tests {
 
     #[test]
     fn test_kernel_type_id() {
-        kernel_wgsl_2!(Add, "../template/binary_elemwise.wgsl");
+        kernel_wgsl!(Add, "../template/binary_elemwise.wgsl");
 
-        let type_id_1 = TypeId::of::<KernelTemplate<Add, f32, i32, 2, 3, 4>>();
-        let type_id_2 = TypeId::of::<KernelTemplate<Add, f32, i32, 2, 3, 5>>();
-        let type_id_3 = TypeId::of::<KernelTemplate<Add, f32, i32, 2, 3, 4>>();
+        let type_id_1 = TypeId::of::<KernelSettings<Add, f32, i32, 2, 3, 4>>();
+        let type_id_2 = TypeId::of::<KernelSettings<Add, f32, i32, 2, 3, 5>>();
+        let type_id_3 = TypeId::of::<KernelSettings<Add, f32, i32, 2, 3, 4>>();
 
         assert_ne!(type_id_1, type_id_2);
         assert_eq!(type_id_1, type_id_3);

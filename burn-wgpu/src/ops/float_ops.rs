@@ -1,14 +1,17 @@
 use super::{Device, FloatElem, FloatTensor};
-use crate::tensor::{binary_elemwise, binary_elemwise_inplace, unary_scalar, unary_scalar_inplace};
+use crate::kernel::{
+    binary_elemwise, binary_elemwise_inplace, unary, unary_inplace, unary_scalar,
+    unary_scalar_inplace,
+};
 use crate::{binary_elemwise, binary_elemwise_inplace, unary_scalar, unary_scalar_inplace};
 use crate::{
     element::{FloatElement, IntElement},
-    kernel::KernelTemplate,
     pool::get_context,
     tensor::WGPUTensor,
-    GraphicsAPI, WGPUBackend, SEED,
+    unary, unary_inplace, GraphicsAPI, WGPUBackend, SEED,
 };
 use burn_common::rand::get_seeded_rng;
+use burn_tensor::ElementConversion;
 use burn_tensor::{backend::Backend, ops::TensorOps, Data, Distribution, Shape};
 use std::sync::Arc;
 
@@ -104,8 +107,8 @@ where
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        unary_scalar!(AddScalar, "+");
-        unary_scalar_inplace!(AddScalarInplace, "+");
+        unary_scalar!(AddScalar, ops "+");
+        unary_scalar_inplace!(AddScalarInplace, ops "+");
 
         if lhs.can_mut() {
             return unary_scalar_inplace::<AddScalarInplace, F, D>(lhs, rhs);
@@ -132,8 +135,8 @@ where
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        unary_scalar!(SubScalar, "-");
-        unary_scalar_inplace!(SubScalarInplace, "-");
+        unary_scalar!(SubScalar, ops "-");
+        unary_scalar_inplace!(SubScalarInplace, ops "-");
 
         if lhs.can_mut() {
             return unary_scalar_inplace::<SubScalarInplace, F, D>(lhs, rhs);
@@ -164,8 +167,8 @@ where
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        unary_scalar!(MulScalar, "*");
-        unary_scalar_inplace!(MulScalarInplace, "*");
+        unary_scalar!(MulScalar, ops "*");
+        unary_scalar_inplace!(MulScalarInplace, ops "*");
 
         if lhs.can_mut() {
             return unary_scalar_inplace::<MulScalarInplace, F, D>(lhs, rhs);
@@ -192,8 +195,8 @@ where
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        unary_scalar!(DivScalar, "/");
-        unary_scalar_inplace!(DivScalarInplace, "/");
+        unary_scalar!(DivScalar, ops "/");
+        unary_scalar_inplace!(DivScalarInplace, ops "/");
 
         if lhs.can_mut() {
             return unary_scalar_inplace::<DivScalarInplace, F, D>(lhs, rhs);
@@ -205,12 +208,6 @@ where
     fn matmul<const D: usize>(
         _lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
         _rhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
-        todo!()
-    }
-
-    fn neg<const D: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
     ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
         todo!()
     }
@@ -404,16 +401,26 @@ where
         todo!()
     }
 
-    fn exp<const D: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
-        todo!()
+    fn exp<const D: usize>(lhs: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+        unary!(Exp, func "exp");
+        unary_inplace!(ExpInplace, func "exp");
+
+        if lhs.can_mut() {
+            return unary_inplace::<ExpInplace, F, D>(lhs);
+        }
+
+        unary::<Exp, F, D>(lhs)
     }
 
-    fn log<const D: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
-        todo!()
+    fn log<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+        unary!(Log, func "log");
+        unary_inplace!(LogInplace, func "log");
+
+        if tensor.can_mut() {
+            return unary_inplace::<LogInplace, F, D>(tensor);
+        }
+
+        unary::<Log, F, D>(tensor)
     }
 
     fn log1p<const D: usize>(
@@ -422,11 +429,15 @@ where
         todo!()
     }
 
-    fn powf<const D: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        _value: f32,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
-        todo!()
+    fn powf<const D: usize>(lhs: FloatTensor<Self, D>, rhs: f32) -> FloatTensor<Self, D> {
+        unary_scalar!(Powf, func "pow");
+        unary_scalar_inplace!(PowfInplace, func "pow");
+
+        if lhs.can_mut() {
+            return unary_scalar_inplace::<PowfInplace, F, D>(lhs, rhs.elem());
+        }
+
+        unary_scalar::<Powf, F, D>(lhs, rhs.elem())
     }
 
     fn sqrt<const D: usize>(

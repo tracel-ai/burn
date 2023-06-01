@@ -1,10 +1,5 @@
-use crate::{
-    context::{WorkGroup, WorkGroupSize},
-    element::WGPUElement,
-    kernel::{KernelTemplate, RenderOptions},
-    kernel_wgsl,
-    tensor::WGPUTensor,
-};
+use super::{KernelGenerator, KernelSettings};
+use crate::{context::WorkGroup, element::WGPUElement, kernel_wgsl, tensor::WGPUTensor};
 use burn_tensor::Shape;
 use num_traits::ToPrimitive;
 use std::sync::Arc;
@@ -21,26 +16,13 @@ macro_rules! binary_elemwise {
         $struct:ident,
         $ops:expr
     ) => {
-        pub struct $struct {
-            raw: $crate::tensor::BinaryElemwiseRaw,
-        }
+        pub struct $struct;
 
-        impl $crate::tensor::BinaryElemwiseOps for $struct {
-            fn template(options: $crate::kernel::RenderOptions) -> Self {
-                Self {
-                    raw: $crate::tensor::BinaryElemwiseRaw::new(options),
-                }
-            }
-        }
+        impl $crate::kernel::KernelGenerator for $struct {
+            type Source = String;
 
-        impl KernelTemplate for $struct {
-            fn id(&self) -> String {
-                let id = self.raw.id();
-                id + $ops
-            }
-
-            fn render(&self) -> String {
-                let source = self.raw.render();
+            fn generate() -> Self::Source {
+                let source = $crate::kernel::BinaryElemwiseRaw::generate().to_string();
                 let line = format!(
                     "output[global_id.x] = lhs[index_lhs] {} rhs[index_rhs]",
                     $ops
@@ -57,26 +39,13 @@ macro_rules! binary_elemwise_inplace {
         $struct:ident,
         $ops:expr
     ) => {
-        pub struct $struct {
-            raw: $crate::tensor::BinaryElemwiseInplaceRaw,
-        }
+        pub struct $struct;
 
-        impl $crate::tensor::BinaryElemwiseOps for $struct {
-            fn template(options: $crate::kernel::RenderOptions) -> Self {
-                Self {
-                    raw: $crate::tensor::BinaryElemwiseInplaceRaw::new(options),
-                }
-            }
-        }
+        impl $crate::kernel::KernelGenerator for $struct {
+            type Source = String;
 
-        impl KernelTemplate for $struct {
-            fn id(&self) -> String {
-                let id = self.raw.id();
-                id + $ops
-            }
-
-            fn render(&self) -> String {
-                let source = self.raw.render();
+            fn generate() -> Self::Source {
+                let source = $crate::kernel::BinaryElemwiseInplaceRaw::generate().to_string();
                 let line = format!(
                     "lhs[global_id.x] = lhs[global_id.x] {} rhs[index_rhs];",
                     $ops
@@ -87,11 +56,7 @@ macro_rules! binary_elemwise_inplace {
     };
 }
 
-pub trait BinaryElemwiseOps: KernelTemplate {
-    fn template(options: RenderOptions) -> Self;
-}
-
-pub fn binary_elemwise<K: BinaryElemwiseOps, E: WGPUElement, const D: usize>(
+pub fn binary_elemwise<K: KernelGenerator, E: WGPUElement, const D: usize>(
     lhs: WGPUTensor<E, D>,
     rhs: WGPUTensor<E, D>,
 ) -> WGPUTensor<E, D> {
@@ -119,12 +84,11 @@ pub fn binary_elemwise<K: BinaryElemwiseOps, E: WGPUElement, const D: usize>(
         .create_buffer(shape_out.num_elements() * core::mem::size_of::<E>());
     let output = WGPUTensor::new(lhs.context.clone(), shape_out, Arc::new(buffer));
 
-    let kernel = lhs.context.compile(K::template(RenderOptions::new(
-        WorkGroupSize::new(256, 1, 1),
-        Some(E::type_name().to_string()),
-        None,
-    )));
+    let kernel = lhs
+        .context
+        .compile::<KernelSettings<K, E, i32, 256, 1, 1>>();
     let mut info: Vec<u32> = vec![D.to_u32().unwrap()];
+
     lhs.strides
         .into_iter()
         .for_each(|v| info.push(v.to_u32().unwrap()));
@@ -155,8 +119,7 @@ pub fn binary_elemwise<K: BinaryElemwiseOps, E: WGPUElement, const D: usize>(
 
     output
 }
-
-pub fn binary_elemwise_inplace<K: BinaryElemwiseOps, E: WGPUElement, const D: usize>(
+pub fn binary_elemwise_inplace<K: KernelGenerator, E: WGPUElement, const D: usize>(
     lhs: WGPUTensor<E, D>,
     rhs: WGPUTensor<E, D>,
 ) -> WGPUTensor<E, D> {
@@ -177,11 +140,9 @@ pub fn binary_elemwise_inplace<K: BinaryElemwiseOps, E: WGPUElement, const D: us
             shape_out[index] = usize::max(*dim_lhs, *dim_rhs);
         });
 
-    let kernel = lhs.context.compile(K::template(RenderOptions::new(
-        WorkGroupSize::new(256, 1, 1),
-        Some(E::type_name().to_string()),
-        None,
-    )));
+    let kernel = lhs
+        .context
+        .compile::<KernelSettings<K, E, i32, 256, 1, 1>>();
     let mut info: Vec<u32> = vec![D.to_u32().unwrap()];
     rhs.strides
         .into_iter()

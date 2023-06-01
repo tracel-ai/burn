@@ -1,5 +1,6 @@
 use burn_common::id::IdGenerator;
 use std::{
+    any::TypeId,
     borrow::Cow,
     collections::HashMap,
     sync::{Arc, Mutex},
@@ -10,7 +11,7 @@ use wgpu::{
     Buffer, DeviceDescriptor, DeviceType, ShaderModule, ShaderModuleDescriptor,
 };
 
-use crate::{kernel::KernelTemplate, GraphicsAPI, WGPUDevice};
+use crate::{kernel::KernelGenerator, GraphicsAPI, WGPUDevice};
 
 #[derive(Debug)]
 pub struct Context {
@@ -18,7 +19,7 @@ pub struct Context {
     pub(crate) queue: wgpu::Queue,
     pub(crate) device: wgpu::Device,
     pub(crate) device_wgpu: WGPUDevice,
-    pub cache: Mutex<HashMap<String, Arc<ShaderModule>>>,
+    pub cache: Mutex<HashMap<TypeId, Arc<ShaderModule>>>,
 }
 
 #[derive(new, Debug, PartialEq, Eq, Hash, Clone)]
@@ -179,19 +180,19 @@ impl Context {
     }
 
     /// Compile a kernel template if not present in the cache.
-    pub fn compile<K: KernelTemplate>(&self, template: K) -> Arc<ShaderModule> {
+    pub fn compile<K: KernelGenerator>(&self) -> Arc<ShaderModule> {
         let mut cache = self.cache.lock().unwrap();
-        let template_id = template.id();
+        let template_id = TypeId::of::<K>();
 
         if let Some(module) = cache.get(&template_id) {
             return module.clone();
         }
 
-        let source = template.render();
+        let source = K::generate();
 
         let module = self.device.create_shader_module(ShaderModuleDescriptor {
             label: None,
-            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(&source)),
+            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(source.as_ref())),
         });
         let module = Arc::new(module);
 
