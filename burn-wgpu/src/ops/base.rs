@@ -39,7 +39,7 @@ impl<G: GraphicsAPI> BaseOps<G> {
         tensor: WGPUTensor<E, D>,
         device: &WGPUDevice,
     ) -> WGPUTensor<E, D> {
-        if &tensor.context.device_wgpu == device {
+        if &tensor.context.device == device {
             return tensor;
         }
 

@@ -1,3 +1,12 @@
+/// The basic trait to specify which graphics API to use as Backend.
+///
+/// Options are:
+///   - [Vulkan](Vulkan)
+///   - [Metal](Metal)
+///   - [OpenGL](OpenGL)
+///   - [DirectX 11](Dx11)
+///   - [DirectX 12](Dx12)
+///   - [WebGPU](WebGPU)
 pub trait GraphicsAPI: Send + Sync + core::fmt::Debug + Default + Clone + 'static {
     fn backend() -> wgpu::Backend;
 }

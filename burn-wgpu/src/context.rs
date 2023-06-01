@@ -13,20 +13,16 @@ use wgpu::{
 
 use crate::{kernel::KernelGenerator, GraphicsAPI, WGPUDevice};
 
+/// The context is the basic struct that allows to execute GPU kernel on devices.
+///
+/// You can access a context for a [wgpu device](WGPUDevice) using [get_context](crate::pool::get_context).
 #[derive(Debug)]
 pub struct Context {
-    pub(crate) id: String,
-    pub(crate) queue: wgpu::Queue,
-    pub(crate) device: wgpu::Device,
-    pub(crate) device_wgpu: WGPUDevice,
-    pub cache: Mutex<HashMap<TypeId, Arc<ShaderModule>>>,
-}
-
-#[derive(new, Debug, PartialEq, Eq, Hash, Clone)]
-pub struct WorkGroupSize {
-    pub x: u32,
-    pub y: u32,
-    pub z: u32,
+    id: String,
+    queue: wgpu::Queue,
+    device_wgpu: wgpu::Device,
+    cache: Mutex<HashMap<TypeId, Arc<ShaderModule>>>,
+    pub(crate) device: WGPUDevice,
 }
 
 #[derive(new, Clone, Debug)]
@@ -37,7 +33,7 @@ pub struct WorkGroup {
 }
 
 impl Context {
-    pub fn new<G: GraphicsAPI>(device: &WGPUDevice) -> Self {
+    pub(crate) fn new<G: GraphicsAPI>(device: &WGPUDevice) -> Self {
         // Instantiates instance of WebGPU
         let instance = wgpu::Instance::default();
 
@@ -88,22 +84,15 @@ impl Context {
         Self {
             id: IdGenerator::generate(),
             queue,
-            device,
-            device_wgpu,
+            device_wgpu: device,
+            device: device_wgpu,
             cache: Mutex::new(HashMap::new()),
         }
     }
-}
 
-impl PartialEq for Context {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
-    }
-}
-
-impl Context {
+    /// Create a new buffer with the provided size.
     pub fn create_buffer(&self, size: usize) -> Buffer {
-        self.device.create_buffer(&wgpu::BufferDescriptor {
+        self.device_wgpu.create_buffer(&wgpu::BufferDescriptor {
             label: None,
             size: size as u64,
             usage: wgpu::BufferUsages::COPY_DST
@@ -113,8 +102,9 @@ impl Context {
         })
     }
 
+    /// Create a new buffer initialized with the provided bytes.
     pub fn create_buffer_with_data(&self, data: &[u8]) -> Buffer {
-        let buffer_src = self.device.create_buffer_init(&BufferInitDescriptor {
+        let buffer_src = self.device_wgpu.create_buffer_init(&BufferInitDescriptor {
             label: Some("Buffer Src"),
             contents: data,
             usage: wgpu::BufferUsages::COPY_SRC,
@@ -123,11 +113,11 @@ impl Context {
         let buffer = self.create_buffer(buffer_src.size() as usize);
 
         // Create a command encoder
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Command Encoder"),
-            });
+        let mut encoder =
+            self.device_wgpu
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("Command Encoder"),
+                });
 
         // Copy data from the staging buffer to the target buffer
         encoder.copy_buffer_to_buffer(&buffer_src, 0, &buffer, 0, buffer_src.size());
@@ -138,10 +128,11 @@ impl Context {
         buffer
     }
 
+    /// Read a buffer from the GPU and return its content as bytes.
     pub fn buffer_to_data(&self, buffer: &Buffer) -> Vec<u8> {
         let size = buffer.size();
 
-        let buffer_dest = self.device.create_buffer(&wgpu::BufferDescriptor {
+        let buffer_dest = self.device_wgpu.create_buffer(&wgpu::BufferDescriptor {
             label: None,
             size,
             usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
@@ -149,11 +140,11 @@ impl Context {
         });
 
         // Create a command encoder
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Command Encoder"),
-            });
+        let mut encoder =
+            self.device_wgpu
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("Command Encoder"),
+                });
 
         encoder.copy_buffer_to_buffer(buffer, 0, &buffer_dest, 0, size);
 
@@ -163,7 +154,7 @@ impl Context {
         let (sender, receiver) = futures_intrusive::channel::shared::oneshot_channel();
         buffer_slice.map_async(wgpu::MapMode::Read, move |v| sender.send(v).unwrap());
 
-        self.device.poll(wgpu::Maintain::Wait);
+        self.device_wgpu.poll(wgpu::Maintain::Wait);
 
         let result = pollster::block_on(receiver.receive());
 
@@ -190,10 +181,12 @@ impl Context {
 
         let source = K::generate();
 
-        let module = self.device.create_shader_module(ShaderModuleDescriptor {
-            label: None,
-            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(source.as_ref())),
-        });
+        let module = self
+            .device_wgpu
+            .create_shader_module(ShaderModuleDescriptor {
+                label: None,
+                source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(source.as_ref())),
+            });
         let module = Arc::new(module);
 
         cache.insert(template_id, module.clone());
@@ -201,9 +194,17 @@ impl Context {
         module
     }
 
+    /// Execute a kernel using the provided buffers.
+    ///
+    /// # Notes
+    ///
+    /// This function isn't safe, buffer can be mutated by the GPU. The users must ensure that a
+    /// buffer can be mutated when lauching a compute shaders with write access to a buffer.
+    ///
+    /// Buffer positions are used as bindings when lauching a compute kernel.
     pub fn execute(&self, work_group: &WorkGroup, kernel: &ShaderModule, buffers: &[&Buffer]) {
         let pipeline = self
-            .device
+            .device_wgpu
             .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
                 label: None,
                 layout: None,
@@ -222,14 +223,16 @@ impl Context {
             })
             .collect::<Vec<_>>();
 
-        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: None,
-            layout: &group_layout,
-            entries: &entries,
-        });
+        let bind_group = self
+            .device_wgpu
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                label: None,
+                layout: &group_layout,
+                entries: &entries,
+            });
 
         let mut encoder = self
-            .device
+            .device_wgpu
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
         let mut compute = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: None });
         compute.set_pipeline(&pipeline);
@@ -239,5 +242,11 @@ impl Context {
         std::mem::drop(compute);
 
         self.queue.submit(Some(encoder.finish()));
+    }
+}
+
+impl PartialEq for Context {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
     }
 }

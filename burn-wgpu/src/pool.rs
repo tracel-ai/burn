@@ -27,6 +27,12 @@ impl Key {
     }
 }
 
+/// Get a [context](Context) for the given [device](WGPUDevice).
+///
+/// # Notes
+///
+/// If a context already exist for the current [device](WGPUDevice), the same instance will be
+/// returned.
 pub fn get_context<G: GraphicsAPI>(device: &WGPUDevice) -> Arc<Context> {
     let mut pool = POOL_CONTEXT.lock().unwrap();
 

@@ -22,15 +22,11 @@ impl<G: GraphicsAPI + 'static, F: FloatElement, I: IntElement> Backend for WGPUB
     type FullPrecisionBackend = WGPUBackend<G, f32, i32>;
 
     type FullPrecisionElem = f32;
-
-    type TensorPrimitive<const D: usize> = WGPUTensor<F, D>;
-
     type FloatElem = F;
-
-    type IntTensorPrimitive<const D: usize> = WGPUTensor<I, D>;
-
     type IntElem = I;
 
+    type TensorPrimitive<const D: usize> = WGPUTensor<F, D>;
+    type IntTensorPrimitive<const D: usize> = WGPUTensor<I, D>;
     type BoolTensorPrimitive<const D: usize> = WGPUTensor<u32, D>;
 
     fn name() -> String {

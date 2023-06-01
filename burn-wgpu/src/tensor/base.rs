@@ -70,4 +70,13 @@ impl<E: WGPUElement, const D: usize> WGPUTensor<E, D> {
 
         true
     }
+
+    pub fn assert_is_on_save_device(&self, other: &Self) {
+        if self.context.device != other.context.device {
+            panic!(
+                "Both tensors should be on the same device {:?} != {:?}",
+                self.context.device, other.context.device
+            );
+        }
+    }
 }

@@ -60,12 +60,7 @@ pub fn binary_elemwise<K: KernelGenerator, E: WGPUElement, const D: usize>(
     lhs: WGPUTensor<E, D>,
     rhs: WGPUTensor<E, D>,
 ) -> WGPUTensor<E, D> {
-    if lhs.context.device_wgpu != rhs.context.device_wgpu {
-        panic!(
-            "Both tensors should be on the same device {:?} != {:?}",
-            lhs.context.device_wgpu, rhs.context.device_wgpu
-        );
-    }
+    lhs.assert_is_on_save_device(&rhs);
 
     let mut shape_out = [0; D];
     lhs.shape
@@ -123,12 +118,7 @@ pub fn binary_elemwise_inplace<K: KernelGenerator, E: WGPUElement, const D: usiz
     lhs: WGPUTensor<E, D>,
     rhs: WGPUTensor<E, D>,
 ) -> WGPUTensor<E, D> {
-    if lhs.context.device_wgpu != rhs.context.device_wgpu {
-        panic!(
-            "Both tensors should be on the same device {:?} != {:?}",
-            lhs.context.device_wgpu, rhs.context.device_wgpu
-        );
-    }
+    lhs.assert_is_on_save_device(&rhs);
 
     let mut shape_out = [0; D];
     lhs.shape
