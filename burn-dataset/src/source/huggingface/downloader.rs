@@ -1,9 +1,8 @@
-use dirs::home_dir;
 use std::fs::{self, create_dir_all};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use crate::SqliteDataset;
+use crate::{SqliteDataset, SqliteDatasetError, SqliteDatasetStorage};
 
 use sanitize_filename::sanitize;
 use serde::de::DeserializeOwned;
@@ -18,6 +17,9 @@ pub enum ImporterError {
     Unknown(String),
     #[error("fail to download python dependencies: `{0}`")]
     FailToDownloadPythonDependencies(String),
+
+    #[error("sqlite dataset: `{0}`")]
+    SqliteDataset(#[from] SqliteDatasetError),
 }
 
 /// Load a dataset from [huggingface datasets](https://huggingface.co/datasets).
@@ -42,7 +44,7 @@ pub enum ImporterError {
 pub struct HuggingfaceDatasetLoader {
     name: String,
     subset: Option<String>,
-    base_dir: Option<String>,
+    base_dir: Option<PathBuf>,
     huggingface_token: Option<String>,
     huggingface_cache_dir: Option<String>,
 }
@@ -73,7 +75,7 @@ impl HuggingfaceDatasetLoader {
     ///
     /// If not specified, the dataset will be stored in `~/.cache/burn-dataset`.
     pub fn with_base_dir(mut self, base_dir: &str) -> Self {
-        self.base_dir = Some(base_dir.to_string());
+        self.base_dir = Some(base_dir.into());
         self
     }
 
@@ -99,26 +101,32 @@ impl HuggingfaceDatasetLoader {
         split: &str,
     ) -> Result<SqliteDataset<I>, ImporterError> {
         let db_file = self.db_file()?;
-        let dataset = SqliteDataset::from_db_file(db_file.as_str(), split);
+        let dataset = SqliteDataset::from_db_file(db_file, split)?;
         Ok(dataset)
     }
 
     /// Get the path to the sqlite database file.
     ///
     /// If the database file does not exist, it will be downloaded and imported.
-    pub fn db_file(self) -> Result<String, ImporterError> {
+    pub fn db_file(self) -> Result<PathBuf, ImporterError> {
         // determine (and create if needed) the base directory
-        let base_dir = base_dir(self.base_dir);
+        let base_dir = SqliteDatasetStorage::base_dir(self.base_dir);
+
+        if !base_dir.exists() {
+            create_dir_all(&base_dir).expect("Failed to create base directory");
+        }
 
         //sanitize the name and subset
         let name = sanitize(self.name.as_str());
 
         // create the db file path
-        let db_file = if let Some(subset) = self.subset.clone() {
-            format!("{}/{}-{}.db", base_dir, name, sanitize(subset.as_str()))
+        let db_file_name = if let Some(subset) = self.subset.clone() {
+            format!("{}-{}.db", name, sanitize(subset.as_str()))
         } else {
-            format!("{}/{}.db", base_dir, name)
+            format!("{}.db", name)
         };
+
+        let db_file = base_dir.join(db_file_name);
 
         // import the dataset if needed
         if !Path::new(&db_file).exists() {
@@ -140,8 +148,8 @@ impl HuggingfaceDatasetLoader {
 fn import(
     name: String,
     subset: Option<String>,
-    base_file: String,
-    base_dir: String,
+    base_file: PathBuf,
+    base_dir: PathBuf,
     huggingface_token: Option<String>,
     huggingface_cache_dir: Option<String>,
 ) -> Result<(), ImporterError> {
@@ -149,7 +157,7 @@ fn import(
 
     let mut command = Command::new(PYTHON);
 
-    command.arg(importer_script_path(base_dir));
+    command.arg(importer_script_path(&base_dir));
 
     command.arg("--name");
     command.arg(name);
@@ -180,26 +188,10 @@ fn import(
     Ok(())
 }
 
-/// Determine the base directory to store the dataset.
-fn base_dir(base_dir: Option<String>) -> String {
-    let base_dir = if let Some(base_dir) = base_dir {
-        base_dir
-    } else {
-        let home_dir = home_dir().unwrap();
-        let home_dir = home_dir.to_str().map(|s| s.to_string());
-        let home_dir = home_dir.unwrap();
-        let cache_dir = format!("{home_dir}/.cache/burn-dataset");
-        cache_dir
-    };
+fn importer_script_path(base_dir: &Path) -> PathBuf {
+    let path_file = base_dir.join("importer.py");
 
-    create_dir_all(&base_dir).ok();
-
-    base_dir
-}
-
-fn importer_script_path(base_dir: String) -> String {
-    let path_file = format!("{base_dir}/importer.py");
-    fs::write(path_file.as_str(), PYTHON_SOURCE).expect("Write python dataset downloader");
+    fs::write(&path_file, PYTHON_SOURCE).expect("Write python dataset downloader");
     path_file
 }
 

@@ -24,7 +24,7 @@ where
         Self {
             dataset,
             indexes,
-            input: PhantomData::default(),
+            input: PhantomData,
         }
     }
 
