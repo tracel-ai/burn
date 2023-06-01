@@ -56,7 +56,7 @@ fn convert_gemm(node: &mut Node) {
 // Transpose linear weights (required for Gemm -> Linear conversion)
 fn transpose_linear_node_weights(node: &mut Node) {
     if node.states.is_empty() {
-        panic!("Linear node must have at least 1 initializer");
+        panic!("Linear node must have at least 1 state.");
     }
 
     let StateType::Tensor(node_weight) = &node.states[0].ty;
