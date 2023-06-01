@@ -65,7 +65,7 @@ where
 impl<E> Drop for AsyncCheckpointer<E> {
     fn drop(&mut self) {
         self.sender.send(Message::End).unwrap();
-        let handler = std::mem::replace(&mut self.handler, None);
+        let handler = self.handler.take();
 
         if let Some(handler) = handler {
             handler.join().unwrap();

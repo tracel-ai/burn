@@ -84,7 +84,7 @@ impl<T: Send, V: Send> LearnerCallback<T, V> for AsyncTrainerCallback<T, V> {
 impl<T, V> Drop for AsyncTrainerCallback<T, V> {
     fn drop(&mut self) {
         self.sender.send(Message::End).unwrap();
-        let handler = std::mem::replace(&mut self.handler, None);
+        let handler = self.handler.take();
 
         if let Some(handler) = handler {
             handler.join().unwrap();
