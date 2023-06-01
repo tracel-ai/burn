@@ -1,9 +1,9 @@
 mod coalesce;
+mod dim_inference;
 mod from_onnx;
 mod ir;
 mod op_configuration;
 mod protos;
-mod shape_inference;
 mod to_burn;
 
 pub use to_burn::*;

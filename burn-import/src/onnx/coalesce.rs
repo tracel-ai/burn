@@ -1,7 +1,7 @@
 use burn::tensor::Tensor;
 use burn_ndarray::NdArrayBackend;
 
-use super::ir::{ArgType, AttributeValue, Node, NodeType, TensorData};
+use super::ir::{AttributeValue, Node, NodeType, StateType, TensorData};
 
 type B = NdArrayBackend<f32>;
 
@@ -55,18 +55,18 @@ fn convert_gemm(node: &mut Node) {
 
 // Transpose linear weights (required for Gemm -> Linear conversion)
 fn transpose_linear_node_weights(node: &mut Node) {
-    if node.initializers.is_empty() {
-        panic!("Linear node must have at least 1 initializer");
+    if node.states.is_empty() {
+        panic!("Linear node must have at least 1 state.");
     }
 
-    let ArgType::Tensor(node_weight) = node.initializers[0].arg_type.as_ref().unwrap();
+    let StateType::Tensor(node_weight) = &node.states[0].ty;
 
     let weight: Tensor<B, 2> = node_weight.try_into().unwrap();
 
     let weight = weight.transpose();
 
-    let ArgType::Tensor(node_weight) = node.initializers[0].arg_type.as_mut().unwrap();
+    let StateType::Tensor(node_weight) = &mut node.states[0].ty;
 
     node_weight.data = Some(TensorData::Float32(weight.clone().into_data().value));
-    node_weight.shape = weight.shape().dims.to_vec();
+    node_weight.shape = Some(weight.shape().dims.to_vec());
 }
