@@ -23,6 +23,7 @@ mod mask;
 mod matmul;
 mod maxmin;
 mod maxpool2d;
+mod mse;
 mod mul;
 mod multithread;
 mod neg;
@@ -66,6 +67,7 @@ macro_rules! testgen_all {
         burn_autodiff::testgen_ad_cat!();
         burn_autodiff::testgen_ad_cos!();
         burn_autodiff::testgen_ad_cross_entropy_loss!();
+        burn_autodiff::testgen_ad_mse_loss!();
         burn_autodiff::testgen_ad_div!();
         burn_autodiff::testgen_ad_erf!();
         burn_autodiff::testgen_ad_exp!();

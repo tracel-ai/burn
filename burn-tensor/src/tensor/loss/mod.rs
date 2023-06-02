@@ -11,3 +11,10 @@ pub fn cross_entropy_with_logits<B: Backend, const D: usize>(
 
     tensor.mean().neg()
 }
+
+pub fn mse<B: Backend, const D: usize>(
+    logits: Tensor<B, D>,
+    targets: Tensor<B, D>,
+) -> Tensor<B, 1> {
+    logits.sub(targets).powf(2.0).mean()
+}
