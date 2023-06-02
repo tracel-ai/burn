@@ -12,7 +12,7 @@ type MappedDataset = MapperDataset<SqliteDataset<SpeechItemRaw>, ConvertSamples,
 /// Enum representing speech command classes in the Speech Commands dataset.
 /// Class names are based on the Speech Commands dataset from Huggingface.
 /// See: https://huggingface.co/datasets/speech_commands
-#[derive(Debug, Display, Clone, FromRepr, Serialize, Deserialize)]
+#[derive(Debug, Display, Clone, Copy, FromRepr, Serialize, Deserialize)]
 pub enum SpeechCommandClass {
     // Target command words
     Yes = 0,
