@@ -79,7 +79,7 @@ impl Context {
             },
             None,
         ))
-        .unwrap();
+        .expect("Unable to request the device with the adapter");
 
         Self {
             id: IdGenerator::generate(),
@@ -152,7 +152,11 @@ impl Context {
 
         let buffer_slice = buffer_dest.slice(..);
         let (sender, receiver) = futures_intrusive::channel::shared::oneshot_channel();
-        buffer_slice.map_async(wgpu::MapMode::Read, move |v| sender.send(v).unwrap());
+        buffer_slice.map_async(wgpu::MapMode::Read, move |v| {
+            sender
+                .send(v)
+                .expect("Unable to send buffer slice result to async channel.")
+        });
 
         self.device_wgpu.poll(wgpu::Maintain::Wait);
 
