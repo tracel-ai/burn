@@ -256,12 +256,6 @@ where
         K::equal(self.primitive, other.primitive)
     }
 
-    /// Applies element wise equal comparison and returns a boolean tensor.
-    pub fn equal_elem<E: Into<K::Elem>>(self, other: E) -> Tensor<B, D, Bool> {
-        let elem: K::Elem = other.into();
-        K::equal_elem::<D>(self.primitive, elem)
-    }
-
     /// Concatenates all tensors into a new one along the given dimension.
     ///
     /// # Panics
@@ -400,7 +394,6 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, Bool>;
-    fn equal_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool>;
     fn elem_type_name() -> &'static str {
         core::any::type_name::<Self::Elem>()
     }
@@ -478,10 +471,6 @@ impl<B: Backend> BasicOps<B> for Float {
     ) -> Tensor<B, D, Bool> {
         Tensor::new(B::equal(lhs, rhs))
     }
-
-    fn equal_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool> {
-        Tensor::new(B::equal_elem(lhs, rhs))
-    }
 }
 
 impl<B: Backend> BasicOps<B> for Int {
@@ -551,10 +540,6 @@ impl<B: Backend> BasicOps<B> for Int {
         rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, Bool> {
         Tensor::new(B::int_equal(lhs, rhs))
-    }
-
-    fn equal_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool> {
-        Tensor::new(B::int_equal_elem(lhs, rhs))
     }
 
     fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D> {
@@ -629,10 +614,6 @@ impl<B: Backend> BasicOps<B> for Bool {
         rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, Bool> {
         Tensor::new(B::bool_equal(lhs, rhs))
-    }
-
-    fn equal_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool> {
-        Tensor::new(B::bool_equal_elem(lhs, rhs))
     }
 
     fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D> {

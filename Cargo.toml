@@ -14,6 +14,7 @@ members = [
   "burn-ndarray",
   "burn-no-std-tests",
   "burn-tch",
+  "burn-wgpu",
   "burn-tensor-testgen",
   "burn-tensor",
   "burn-train",
@@ -53,6 +54,11 @@ syn = "2.0"
 tempfile = "3.5.0"
 thiserror = "1.0.40"
 topological-sort = "0.2.2"
+
+# WGPU stuff
+wgpu = "0.16.0"
+futures-intrusive = "0.5"
+pollster = "0.3"
 #
 # The following packages disable the "std" feature for no_std compatibility
 #
