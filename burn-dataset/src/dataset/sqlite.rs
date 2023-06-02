@@ -8,6 +8,10 @@ use std::{
 
 use crate::Dataset;
 
+use gix_tempfile::{
+    handle::{persist, Writable},
+    AutoRemove, ContainingDirectory, Handle,
+};
 use r2d2::{Pool, PooledConnection};
 use r2d2_sqlite::{
     rusqlite::{OpenFlags, OptionalExtension},
@@ -16,7 +20,6 @@ use r2d2_sqlite::{
 use sanitize_filename::sanitize;
 use serde::{de::DeserializeOwned, Serialize};
 use serde_rusqlite::{columns_from_statement, from_row_with_columns};
-use tempfile::{NamedTempFile, PersistError};
 
 pub type Result<T> = core::result::Result<T, SqliteDatasetError>;
 
@@ -38,7 +41,7 @@ pub enum SqliteDatasetError {
     ConnectionPool(#[from] r2d2::Error),
 
     #[error("Could not persist the temporary database file: {0}")]
-    PersistDbFile(#[from] PersistError),
+    PersistDbFile(#[from] persist::Error<Writable>),
 
     #[error("{0}")]
     Other(&'static str),
@@ -401,7 +404,7 @@ impl SqliteDatasetStorage {
 #[derive(Debug)]
 pub struct SqliteDatasetWriter<I> {
     db_file: PathBuf,
-    db_file_tmp: Option<NamedTempFile>,
+    db_file_tmp: Option<Handle<Writable>>,
     splits: Arc<RwLock<HashSet<String>>>,
     overwrite: bool,
     conn_pool: Option<Pool<SqliteConnectionManager>>,
@@ -462,15 +465,23 @@ where
             fs::create_dir_all(db_file_dir)?;
         }
 
-        // Create a temporary database file (will be persisted if writes complete or deleted it otherwise)
-        self.db_file_tmp = Some(NamedTempFile::new_in(db_file_dir)?);
+        // Create a temp database file name as {base_dir}/{name}.db.tmp
+        let mut db_file_tmp = self.db_file.clone();
+        db_file_tmp.set_extension("db.tmp");
+        if db_file_tmp.exists() {
+            fs::remove_file(&db_file_tmp)?;
+        }
 
-        // Create a connection pool for the temporary database file
-        let db_file_tmp = self
-            .db_file_tmp
-            .as_ref()
-            .ok_or("Temporary file not found")?
-            .path();
+        // Create the temp database file and wrap it with a gix_tempfile::Handle
+        // This will ensure that the temp file is deleted when the writer is dropped
+        // or when process exits with SIGINT or SIGTERM (tempfile crate does not do this)
+        gix_tempfile::signal::setup(Default::default());
+        self.db_file_tmp = Some(gix_tempfile::writable_at(
+            &db_file_tmp,
+            ContainingDirectory::Exists,
+            AutoRemove::Tempfile,
+        )?);
+
         let conn_pool = create_conn_pool(db_file_tmp, true)?;
         self.conn_pool = Some(conn_pool);
 
@@ -533,10 +544,12 @@ where
         let mut is_completed = self.is_completed.write().unwrap();
 
         // Rename the database file from tmp to db
-        self.db_file_tmp
+        let _file_result = self
+            .db_file_tmp
             .take() // take ownership of the temporary file and set to None
-            .unwrap()
-            .persist_noclobber(&self.db_file)?;
+            .unwrap() // unwrap the temporary file
+            .persist(&self.db_file)?
+            .ok_or("Unable to persist the database file")?;
 
         *is_completed = true;
         Ok(())
