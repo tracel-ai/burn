@@ -4,7 +4,6 @@ use crate as burn;
 
 use crate::config::Config;
 use crate::module::Module;
-use crate::module::Param;
 use crate::nn::lstm::gate_controller;
 use crate::nn::Initializer;
 use crate::nn::LinearConfig;
@@ -35,8 +34,6 @@ pub struct Lstm<B: Backend> {
     forget_gate: GateController<B>,
     output_gate: GateController<B>,
     cell_gate: GateController<B>,
-    hidden_state: Option<Param<Tensor<B, 2>>>,
-    cell_state: Option<Param<Tensor<B, 2>>>,
     batch_size: usize,
     d_hidden: usize,
 }
@@ -71,63 +68,11 @@ impl LSTMConfig {
             self.initializer.clone(),
         );
 
-        let hidden_state = Some(Param::from(Tensor::zeros([self.batch_size, self.d_hidden])));
-        let cell_state = Some(Param::from(Tensor::zeros([self.batch_size, self.d_hidden])));
-
         Lstm {
             input_gate,
             forget_gate,
             output_gate,
             cell_gate,
-            hidden_state,
-            cell_state,
-            batch_size: self.batch_size,
-            d_hidden: self.d_hidden,
-        }
-    }
-
-    pub fn init_with_states<B: Backend>(
-        &self,
-        hidden: Tensor<B, 2>,
-        cell: Tensor<B, 2>,
-    ) -> Lstm<B> {
-        let d_output = self.d_hidden;
-
-        let input_gate = gate_controller::GateController::new(
-            self.d_input,
-            d_output,
-            self.bias,
-            self.initializer.clone(),
-        );
-        let forget_gate = gate_controller::GateController::new(
-            self.d_input,
-            d_output,
-            self.bias,
-            self.initializer.clone(),
-        );
-        let output_gate = gate_controller::GateController::new(
-            self.d_input,
-            d_output,
-            self.bias,
-            self.initializer.clone(),
-        );
-        let cell_gate = gate_controller::GateController::new(
-            self.d_input,
-            d_output,
-            self.bias,
-            self.initializer.clone(),
-        );
-
-        let hidden_state = Some(Param::from(hidden));
-        let cell_state = Some(Param::from(cell));
-
-        Lstm {
-            input_gate,
-            forget_gate,
-            output_gate,
-            cell_gate,
-            hidden_state,
-            cell_state,
             batch_size: self.batch_size,
             d_hidden: self.d_hidden,
         }
@@ -155,8 +100,6 @@ impl LSTMConfig {
                 record.output_gate,
             ),
             cell_gate: gate_controller::GateController::new_with(&linear_config, record.cell_gate),
-            hidden_state: record.hidden_state,
-            cell_state: record.cell_state,
             batch_size: self.batch_size,
             d_hidden: self.d_hidden,
         }
@@ -179,11 +122,10 @@ impl<B: Backend> Lstm<B> {
         state: Option<(Tensor<B, 2>, Tensor<B, 2>)>,
     ) -> (Tensor<B, 2>, Tensor<B, 2>) {
         let (mut cell_state, mut hidden_state) = match state {
-            // If state is provided
             Some((cell_state, hidden_state)) => (cell_state, hidden_state),
             None => (
-                self.cell_state.as_ref().unwrap().val(),
-                self.hidden_state.as_ref().unwrap().val(),
+                Tensor::zeros([self.batch_size, self.d_hidden]),
+                Tensor::zeros([self.batch_size, self.d_hidden]),
             ),
         };
 
@@ -205,9 +147,6 @@ impl<B: Backend> Lstm<B> {
 
         cell_state = forget_values * cell_state + add_values * candidate_cell_values;
         hidden_state = output_values * cell_state.clone().tanh();
-
-        self.cell_state = Some(Param::from(cell_state.clone()));
-        self.hidden_state = Some(Param::from(hidden_state.clone()));
 
         (cell_state, hidden_state)
     }
@@ -239,20 +178,13 @@ impl<B: Backend> Lstm<B> {
             (None, None) => input_product + hidden_product,
         }
     }
-
-    /// Reset the hidden and cell states of the Lstm cell. This should be done
-    /// after each full pass through a sequence.
-    pub fn reset_states(&mut self) {
-        self.hidden_state = Some(Param::from(Tensor::zeros([self.batch_size, self.d_hidden])));
-        self.cell_state = Some(Param::from(Tensor::zeros([self.batch_size, self.d_hidden])));
-    }
 }
 
 #[cfg(test)]
 mod tests {
 
     use super::*;
-    use crate::{nn::LinearRecord, TestBackend};
+    use crate::{nn::LinearRecord, TestBackend, module::Param};
     use burn_tensor::Data;
 
     #[test]
@@ -278,57 +210,6 @@ mod tests {
             .get_input_weight()
             .to_data()
             .assert_in_range(0.0, 1.0);
-    }
-
-    #[test]
-    fn pass_states() {
-        TestBackend::seed(0);
-
-        let test_hidden_state = Tensor::<TestBackend, 2>::from_floats([[0.1, 0.2, 0.3, 0.4]]);
-        let test_cell_state = Tensor::<TestBackend, 2>::from_floats([[0.4, 0.5, 0.6, 0.7]]);
-
-        let config = LSTMConfig::new(4, 4, false, 2);
-        let lstm = config.init_with_states::<TestBackend>(test_hidden_state, test_cell_state);
-
-        assert_eq!(
-            lstm.hidden_state.as_ref().unwrap().val().to_data(),
-            Data::from([[0.1, 0.2, 0.3, 0.4]])
-        );
-        assert_eq!(
-            lstm.cell_state.as_ref().unwrap().val().to_data(),
-            Data::from([[0.4, 0.5, 0.6, 0.7]])
-        );
-    }
-
-    #[test]
-    fn reset_hidden_and_cell_state() {
-        TestBackend::seed(0);
-
-        let test_hidden_state = Tensor::<TestBackend, 2>::from_floats([[0.1, 0.2, 0.3, 0.4]]);
-        let test_cell_state = Tensor::<TestBackend, 2>::from_floats([[0.4, 0.5, 0.6, 0.7]]);
-
-        let config = LSTMConfig::new(4, 4, false, 1);
-        let mut lstm = config.init_with_states::<TestBackend>(test_hidden_state, test_cell_state);
-
-        assert_eq!(
-            lstm.hidden_state.as_ref().unwrap().val().to_data(),
-            Data::from([[0.1, 0.2, 0.3, 0.4]])
-        );
-        assert_eq!(
-            lstm.cell_state.as_ref().unwrap().val().to_data(),
-            Data::from([[0.4, 0.5, 0.6, 0.7]])
-        );
-
-        lstm.reset_states();
-
-        assert_eq!(
-            lstm.hidden_state.as_ref().unwrap().val().to_data(),
-            Data::from([[0.0, 0.0, 0.0, 0.0]])
-        );
-        assert_eq!(
-            lstm.cell_state.as_ref().unwrap().val().to_data(),
-            Data::from([[0.0, 0.0, 0.0, 0.0]])
-        );
     }
 
     #[test]
