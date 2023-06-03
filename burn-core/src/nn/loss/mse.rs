@@ -1,3 +1,4 @@
+use crate::nn::loss::reduction::Reduction;
 use core::marker::PhantomData;
 
 use burn_tensor::{backend::Backend, Tensor};
@@ -6,11 +7,6 @@ use burn_tensor::{backend::Backend, Tensor};
 #[derive(Clone, Debug)]
 pub struct MSELoss<B: Backend> {
     backend: PhantomData<B>,
-}
-
-pub enum Reduction {
-    Mean,
-    Sum,
 }
 
 impl<B: Backend> Default for MSELoss<B> {
@@ -41,7 +37,7 @@ impl<B: Backend> MSELoss<B> {
     ) -> Tensor<B, 1> {
         let tensor = self.forward_no_reduction(logits, targets);
         match reduction {
-            Reduction::Mean => tensor.mean(),
+            Reduction::Mean | Reduction::Auto => tensor.mean(),
             Reduction::Sum => tensor.sum(),
         }
     }
@@ -69,7 +65,7 @@ mod tests {
 
         let mse = MSELoss::new();
         let loss_no_reduction = mse.forward_no_reduction(logits.clone(), targets.clone());
-        let loss = mse.forward(logits.clone(), targets.clone(), Reduction::Mean);
+        let loss = mse.forward(logits.clone(), targets.clone(), Reduction::Auto);
         let loss_sum = mse.forward(logits, targets, Reduction::Sum);
 
         assert_eq!(
