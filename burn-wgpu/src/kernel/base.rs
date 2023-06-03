@@ -74,8 +74,8 @@ impl<
 /// |:------------------------:|:-----------:|
 /// |           0..1           | D           |
 /// |           1..D + 1       | lhs strides |
-/// |     (D + 1)..(2 * D + 1) | lhs shape   |
-/// | (2 * D + 1)..(3 * D + 1) | rhs strides |
+/// |     (D + 1)..(2 * D + 1) | rhs strides |
+/// | (2 * D + 1)..(3 * D + 1) | lhs shape   |
 /// | (3 * D + 1)..(4 * D + 1) | rhs shape   |
 pub(crate) fn build_binary_info<E: WGPUElement, const D: usize>(
     lhs: &WGPUTensor<E, D>,
