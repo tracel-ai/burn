@@ -1,7 +1,6 @@
-use super::{KernelGenerator, KernelSettings};
+use super::{build_binary_info, build_unary_info, KernelGenerator, KernelSettings};
 use crate::{context::WorkGroup, element::WGPUElement, kernel_wgsl, tensor::WGPUTensor};
 use burn_tensor::Shape;
-use num_traits::ToPrimitive;
 use std::sync::Arc;
 
 kernel_wgsl!(BinaryElemwiseRaw, "../template/binary_elemwise.wgsl");
@@ -24,7 +23,7 @@ macro_rules! binary_elemwise {
             fn generate() -> Self::Source {
                 let source = $crate::kernel::BinaryElemwiseRaw::generate().to_string();
                 let body = format!(
-                    "output[global_id.x] = lhs[index_lhs] {} rhs[index_rhs]",
+                    "output[global_id.x] = lhs[index_lhs] {} rhs[index_rhs];",
                     $ops
                 );
                 source.replace("BODY", &body)
@@ -82,22 +81,7 @@ pub fn binary_elemwise<K: KernelGenerator, E: WGPUElement, const D: usize>(
     let kernel = lhs
         .context
         .compile::<KernelSettings<K, E, i32, 256, 1, 1>>();
-    let mut info: Vec<u32> = vec![D.to_u32().unwrap()];
-
-    lhs.strides
-        .into_iter()
-        .for_each(|v| info.push(v.to_u32().unwrap()));
-    rhs.strides
-        .into_iter()
-        .for_each(|v| info.push(v.to_u32().unwrap()));
-    lhs.shape
-        .dims
-        .into_iter()
-        .for_each(|v| info.push(v.to_u32().unwrap()));
-    rhs.shape
-        .dims
-        .into_iter()
-        .for_each(|v| info.push(v.to_u32().unwrap()));
+    let info = build_binary_info(&lhs, &rhs);
     let info_buffers = lhs
         .context
         .create_buffer_with_data(bytemuck::cast_slice(&info));
@@ -133,14 +117,7 @@ pub fn binary_elemwise_inplace<K: KernelGenerator, E: WGPUElement, const D: usiz
     let kernel = lhs
         .context
         .compile::<KernelSettings<K, E, i32, 256, 1, 1>>();
-    let mut info: Vec<u32> = vec![D.to_u32().unwrap()];
-    rhs.strides
-        .into_iter()
-        .for_each(|v| info.push(v.to_u32().unwrap()));
-    rhs.shape
-        .dims
-        .into_iter()
-        .for_each(|v| info.push(v.to_u32().unwrap()));
+    let info = build_unary_info(&rhs);
     let info_buffers = lhs
         .context
         .create_buffer_with_data(bytemuck::cast_slice(&info));

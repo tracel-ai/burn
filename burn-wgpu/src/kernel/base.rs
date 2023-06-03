@@ -1,4 +1,4 @@
-use crate::element::WGPUElement;
+use crate::{element::WGPUElement, tensor::WGPUTensor};
 use std::marker::PhantomData;
 
 /// Generate wgpu kernel source code to create [compute shader modules](wgpu::ShaderModule).
@@ -60,12 +60,59 @@ impl<
 
         source = source.replace("WORKGROUP_SIZE_X", &WORKGROUP_X_SIZE.to_string());
         source = source.replace("WORKGROUP_SIZE_Y", &WORKGROUP_Y_SIZE.to_string());
-        source = source.replace("WORKGROUP_SIZE_Z", &WORKGROUP_Y_SIZE.to_string());
+        source = source.replace("WORKGROUP_SIZE_Z", &WORKGROUP_Z_SIZE.to_string());
         source = source.replace("elem", E::type_name());
         source = source.replace("int", I::type_name());
 
         source
     }
+}
+
+/// Create a vector containing the dimension, strides and shape of both tensors.
+///
+/// | Indexes                  | Value       |
+/// |:------------------------:|:-----------:|
+/// |           0..1           | D           |
+/// |           1..D + 1       | lhs strides |
+/// |     (D + 1)..(2 * D + 1) | rhs strides |
+/// | (2 * D + 1)..(3 * D + 1) | lhs shape   |
+/// | (3 * D + 1)..(4 * D + 1) | rhs shape   |
+pub(crate) fn build_binary_info<E: WGPUElement, const D: usize>(
+    lhs: &WGPUTensor<E, D>,
+    rhs: &WGPUTensor<E, D>,
+) -> Vec<u32> {
+    let mut info: Vec<u32> = vec![0; 4 * D + 1];
+    info[0] = D as u32;
+
+    for d in 0..D {
+        info[d + 1] = lhs.strides[d] as u32;
+        info[d + 1 + D] = rhs.strides[d] as u32;
+        info[d + 1 + 2 * D] = lhs.shape.dims[d] as u32;
+        info[d + 1 + 3 * D] = rhs.shape.dims[d] as u32;
+    }
+
+    info
+}
+
+/// Create a vector containing the dimension, strides and shape of the given tensor.
+///
+/// | Indexes              | Value   |
+/// |:--------------------:|:-------:|
+/// |       0..1           | D       |
+/// |       1..D + 1       | strides |
+/// | (D + 1)..(2 * D + 1) | shape   |
+pub(crate) fn build_unary_info<E: WGPUElement, const D: usize>(
+    input: &WGPUTensor<E, D>,
+) -> Vec<u32> {
+    let mut info: Vec<u32> = vec![0; 4 * D + 1];
+    info[0] = D as u32;
+
+    for d in 0..D {
+        info[d + 1] = input.strides[d] as u32;
+        info[d + 1 + D] = input.shape.dims[d] as u32;
+    }
+
+    info
 }
 
 #[cfg(test)]
