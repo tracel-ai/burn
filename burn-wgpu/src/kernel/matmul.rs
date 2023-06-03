@@ -1,7 +1,6 @@
-use super::KernelSettings;
+use super::{build_binary_info, KernelSettings};
 use crate::{context::WorkGroup, element::WGPUElement, kernel_wgsl, tensor::WGPUTensor};
 use burn_tensor::Shape;
-use num_traits::ToPrimitive;
 use std::sync::Arc;
 
 kernel_wgsl!(MatmulRaw, "../template/matmul.wgsl");
@@ -24,11 +23,6 @@ pub fn matmul<E: WGPUElement, const D: usize>(
     shape_out[D - 2] = lhs.shape.dims[D - 2];
     shape_out[D - 1] = rhs.shape.dims[D - 1];
     let shape_out = Shape::new(shape_out);
-    let mut num_iter = 1;
-
-    for i in 0..D - 2 {
-        num_iter *= shape_out.dims[i];
-    }
 
     let buffer = lhs
         .context
@@ -37,39 +31,22 @@ pub fn matmul<E: WGPUElement, const D: usize>(
     let kernel = lhs
         .context
         .compile::<KernelSettings<MatmulRaw, E, i32, 1, 16, 16>>();
-    let mut info: Vec<u32> = vec![D.to_u32().unwrap()];
 
-    lhs.strides
-        .into_iter()
-        .for_each(|v| info.push(v.to_u32().unwrap()));
-    rhs.strides
-        .into_iter()
-        .for_each(|v| info.push(v.to_u32().unwrap()));
-    lhs.shape
-        .dims
-        .into_iter()
-        .for_each(|v| info.push(v.to_u32().unwrap()));
-    rhs.shape
-        .dims
-        .into_iter()
-        .for_each(|v| info.push(v.to_u32().unwrap()));
+    let info = build_binary_info(&lhs, &rhs);
     let info_buffers = lhs
         .context
         .create_buffer_with_data(bytemuck::cast_slice(&info));
+
+    let mut num_iter = 1;
+    for i in 0..D - 2 {
+        num_iter *= output.shape.dims[i];
+    }
 
     let workgroup = WorkGroup::new(
         num_iter as u32,
         f32::ceil((lhs.shape.dims[D - 2] as f32) / 16.) as u32,
         f32::ceil((rhs.shape.dims[D - 1] as f32) / 16.) as u32,
     );
-
-    println!(
-        "AAAAAAAA {:?} % {:?} = {:?}",
-        rhs.strides[0],
-        rhs.shape.dims[0],
-        rhs.shape.dims[0] % rhs.strides[0] * rhs.strides[0]
-    );
-    println!("WorkGroup {:?}", workgroup);
 
     lhs.context.execute(
         &workgroup,

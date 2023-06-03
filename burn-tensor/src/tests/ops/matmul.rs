@@ -35,10 +35,9 @@ mod tests {
 
     #[test]
     fn test_matmul_broadcast_1() {
-        let data_1 = Data::from([[[1.0, 7.0], [2.0, 3.0]]]);
-        let data_2 = Data::from([[[4.0, 7.0], [2.0, 3.0]], [[2.0, 5.0], [6.0, 3.0]]]);
-        let tensor_1 = Tensor::<TestBackend, 3>::from_data(data_1);
-        let tensor_2 = Tensor::<TestBackend, 3>::from_data(data_2);
+        let tensor_1 = TestTensor::from_floats([[[1.0, 7.0], [2.0, 3.0]]]);
+        let tensor_2 =
+            TestTensor::from_floats([[[4.0, 7.0], [2.0, 3.0]], [[2.0, 5.0], [6.0, 3.0]]]);
 
         let tensor_3 = tensor_1.matmul(tensor_2);
 

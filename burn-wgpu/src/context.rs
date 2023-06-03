@@ -184,7 +184,6 @@ impl Context {
         }
 
         let source = K::generate();
-        println!("Compile source {}", source.as_ref());
 
         let module = self
             .device_wgpu

@@ -24,7 +24,7 @@ mod tests {
 
     type TestBackend = WGPUBackend<Vulkan, f32, i64>;
     type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
-    type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
+    // type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
 
     burn_tensor::testgen_add!();
     burn_tensor::testgen_sub!();
