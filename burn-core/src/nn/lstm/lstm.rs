@@ -108,8 +108,8 @@ impl LSTMConfig {
 
 impl<B: Backend> Lstm<B> {
     /// Applies the forward pass on the input tensor. In this implementation,
-    /// the Lstm returns only the last time step's output, hence <B, 2> for
-    /// all output tensors, with dimensions [batch_size, hidden_size]
+    /// the Lstm returns only the last time step's output, hence <B, 3> for
+    /// all output tensors, with dimensions [batch_size, seq_length, hidden_size]
     ///
     /// inputs:
     ///     input - the input tensor
@@ -118,9 +118,13 @@ impl<B: Backend> Lstm<B> {
     ///     2 tensors, one for the cell state and one for the hidden state
     pub fn forward(
         &mut self,
-        input: Tensor<B, 2>,
+        batched_input: Tensor<B, 3>,
         state: Option<(Tensor<B, 2>, Tensor<B, 2>)>,
-    ) -> (Tensor<B, 2>, Tensor<B, 2>) {
+    ) -> (Tensor<B, 3>, Tensor<B, 3>) {
+        let seq_length = batched_input.shape().dims.to_vec()[1];
+        let mut batched_cell_state = Tensor::zeros([self.batch_size, seq_length, self.d_hidden]);
+        let mut batched_hidden_state = Tensor::zeros([self.batch_size, seq_length, self.d_hidden]);
+
         let (mut cell_state, mut hidden_state) = match state {
             Some((cell_state, hidden_state)) => (cell_state, hidden_state),
             None => (
@@ -129,26 +133,40 @@ impl<B: Backend> Lstm<B> {
             ),
         };
 
-        // f(orget)g(ate) tensors
-        let biased_fg_input_sum = self.gate_product(&input, &hidden_state, &self.forget_gate);
-        let forget_values = activation::sigmoid(biased_fg_input_sum); // to multiply with cell state
+        for t in 0..seq_length {
+            let indices = Tensor::arange(t..t + 1);
+            let input_t = batched_input.clone().index_select(1, indices).squeeze(1);
+            // f(orget)g(ate) tensors
+            let biased_fg_input_sum = self.gate_product(&input_t, &hidden_state, &self.forget_gate);
+            let forget_values = activation::sigmoid(biased_fg_input_sum); // to multiply with cell state
 
-        // i(nput)g(ate) tensors
-        let biased_ig_input_sum = self.gate_product(&input, &hidden_state, &self.input_gate);
-        let add_values = activation::sigmoid(biased_ig_input_sum);
+            // i(nput)g(ate) tensors
+            let biased_ig_input_sum = self.gate_product(&input_t, &hidden_state, &self.input_gate);
+            let add_values = activation::sigmoid(biased_ig_input_sum);
 
-        // o(utput)g(ate) tensors
-        let biased_og_input_sum = self.gate_product(&input, &hidden_state, &self.output_gate);
-        let output_values = activation::sigmoid(biased_og_input_sum);
+            // o(utput)g(ate) tensors
+            let biased_og_input_sum = self.gate_product(&input_t, &hidden_state, &self.output_gate);
+            let output_values = activation::sigmoid(biased_og_input_sum);
 
-        // c(ell)g(ate) tensors
-        let biased_cg_input_sum = self.gate_product(&input, &hidden_state, &self.cell_gate);
-        let candidate_cell_values = biased_cg_input_sum.tanh();
+            // c(ell)g(ate) tensors
+            let biased_cg_input_sum = self.gate_product(&input_t, &hidden_state, &self.cell_gate);
+            let candidate_cell_values = biased_cg_input_sum.tanh();
 
-        cell_state = forget_values * cell_state + add_values * candidate_cell_values;
-        hidden_state = output_values * cell_state.clone().tanh();
+            cell_state = forget_values * cell_state.clone() + add_values * candidate_cell_values;
+            hidden_state = output_values * cell_state.clone().tanh();
 
-        (cell_state, hidden_state)
+            // store the state for this timestep
+            batched_cell_state = batched_cell_state.index_assign(
+                [0..self.batch_size, t..(t + 1), 0..self.d_hidden],
+                cell_state.clone().unsqueeze(),
+            );
+            batched_hidden_state = batched_hidden_state.index_assign(
+                [0..self.batch_size, t..(t + 1), 0..self.d_hidden],
+                hidden_state.clone().unsqueeze(),
+            );
+        }
+
+        (batched_cell_state, batched_hidden_state)
     }
 
     /// Helper function for performing weighted matrix product for a gate and adds
@@ -184,7 +202,7 @@ impl<B: Backend> Lstm<B> {
 mod tests {
 
     use super::*;
-    use crate::{nn::LinearRecord, TestBackend, module::Param};
+    use crate::{module::Param, nn::LinearRecord, TestBackend};
     use burn_tensor::Data;
 
     #[test]
@@ -258,10 +276,15 @@ mod tests {
             create_gate_controller(1.1, 0.0, 1, 1, false, Initializer::UniformDefault);
 
         // single timestep with single feature
-        let input = Tensor::<TestBackend, 2>::from_data(Data::from([[0.1]]));
+        let input = Tensor::<TestBackend, 3>::from_data(Data::from([[[0.1]]]));
 
-        let (cell_state, hidden_state) = lstm.forward(input, None);
-
+        let (cell_state_batch, hidden_state_batch) = lstm.forward(input, None);
+        let cell_state = cell_state_batch
+            .index_select(0, Tensor::arange(0..1))
+            .squeeze(0);
+        let hidden_state = hidden_state_batch
+            .index_select(0, Tensor::arange(0..1))
+            .squeeze(0);
         cell_state
             .to_data()
             .assert_approx_eq(&Data::from([[0.046]]), 3);
