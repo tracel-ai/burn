@@ -24,7 +24,7 @@ where
     }
 
     fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> Data<I, D> {
-        BaseOps::<G>::to_data(&tensor)
+        BaseOps::<G>::into_data(tensor)
     }
 
     fn int_from_data<const D: usize>(
@@ -48,10 +48,10 @@ where
     }
 
     fn int_reshape<const D1: usize, const D2: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D1>,
-        _shape: Shape<D2>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D2> {
-        todo!()
+        tensor: IntTensor<Self, D1>,
+        shape: Shape<D2>,
+    ) -> IntTensor<Self, D2> {
+        BaseOps::<G>::reshape(tensor, shape)
     }
 
     fn int_index<const D1: usize, const D2: usize>(

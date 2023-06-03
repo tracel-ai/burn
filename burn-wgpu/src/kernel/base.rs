@@ -104,7 +104,7 @@ pub(crate) fn build_binary_info<E: WGPUElement, const D: usize>(
 pub(crate) fn build_unary_info<E: WGPUElement, const D: usize>(
     input: &WGPUTensor<E, D>,
 ) -> Vec<u32> {
-    let mut info: Vec<u32> = vec![0; 4 * D + 1];
+    let mut info: Vec<u32> = vec![0; 2 * D + 1];
     info[0] = D as u32;
 
     for d in 0..D {

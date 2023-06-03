@@ -81,7 +81,11 @@ pub fn unary<K: KernelGenerator, E: WGPUElement, const D: usize>(
     let buffer = input
         .context
         .create_buffer(input.shape.num_elements() * core::mem::size_of::<E>());
-    let output = WGPUTensor::new(input.context.clone(), input.shape, Arc::new(buffer));
+    let mut output = WGPUTensor::new(input.context.clone(), input.shape, Arc::new(buffer));
+    // Since we don't handle the stride inside the kernel, the output tensor have the same strides
+    // as the input tensor. It might not be in the default format.
+    output.strides = input.strides;
+
     let kernel = input
         .context
         .compile::<KernelSettings<K, E, i32, 256, 1, 1>>();

@@ -79,4 +79,19 @@ impl<E: WGPUElement, const D: usize> WGPUTensor<E, D> {
             );
         }
     }
+
+    pub fn is_continuous(&self) -> bool {
+        let mut current_stride = 0;
+        for d in 0..D {
+            let stride = self.strides[D - 1 - d];
+
+            if stride < current_stride {
+                return false;
+            }
+
+            current_stride = stride;
+        }
+
+        true
+    }
 }
