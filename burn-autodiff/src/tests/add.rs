@@ -5,11 +5,8 @@ mod tests {
 
     #[test]
     fn should_diff_add() {
-        let data_1 = Data::from([2.0, 5.0]);
-        let data_2 = Data::from([4.0, 1.0]);
-
-        let tensor_1 = Tensor::<TestADBackend, 1>::from_data(data_1).require_grad();
-        let tensor_2 = Tensor::<TestADBackend, 1>::from_data(data_2).require_grad();
+        let tensor_1 = TestADTensor::from_floats([2.0, 5.0]).require_grad();
+        let tensor_2 = TestADTensor::from_floats([4.0, 1.0]).require_grad();
 
         let tensor_3 = tensor_1.clone() + tensor_2.clone();
         let grads = tensor_3.backward();

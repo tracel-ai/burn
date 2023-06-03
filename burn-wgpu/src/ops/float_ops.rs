@@ -1,6 +1,6 @@
 use super::numeric::NumericOps;
 use super::{BaseOps, Device, FloatElem, FloatTensor};
-use crate::kernel::{unary, unary_inplace, unary_scalar, unary_scalar_inplace};
+use crate::kernel::{matmul, unary, unary_inplace, unary_scalar, unary_scalar_inplace};
 use crate::{
     element::{FloatElement, IntElement},
     unary, unary_inplace, GraphicsAPI, WGPUBackend, SEED,
@@ -119,10 +119,10 @@ where
     }
 
     fn matmul<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        _rhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
-        todo!()
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
+    ) -> FloatTensor<Self, D> {
+        matmul::<FloatElem<Self>, D>(lhs, rhs)
     }
 
     fn swap_dims<const D: usize>(

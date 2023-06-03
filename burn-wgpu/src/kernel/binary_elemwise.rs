@@ -24,7 +24,7 @@ macro_rules! binary_elemwise {
             fn generate() -> Self::Source {
                 let source = $crate::kernel::BinaryElemwiseRaw::generate().to_string();
                 let body = format!(
-                    "output[global_id.x] = lhs[index_lhs] {} rhs[index_rhs]",
+                    "output[global_id.x] = lhs[index_lhs] {} rhs[index_rhs];",
                     $ops
                 );
                 source.replace("BODY", &body)

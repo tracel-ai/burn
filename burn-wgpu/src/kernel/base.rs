@@ -60,7 +60,7 @@ impl<
 
         source = source.replace("WORKGROUP_SIZE_X", &WORKGROUP_X_SIZE.to_string());
         source = source.replace("WORKGROUP_SIZE_Y", &WORKGROUP_Y_SIZE.to_string());
-        source = source.replace("WORKGROUP_SIZE_Z", &WORKGROUP_Y_SIZE.to_string());
+        source = source.replace("WORKGROUP_SIZE_Z", &WORKGROUP_Z_SIZE.to_string());
         source = source.replace("elem", E::type_name());
         source = source.replace("int", I::type_name());
 

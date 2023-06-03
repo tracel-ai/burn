@@ -36,7 +36,7 @@ mod tests {
     #[test]
     fn test_matmul_broadcast_1() {
         let data_1 = Data::from([[[1.0, 7.0], [2.0, 3.0]]]);
-        let data_2 = Data::from([[[4.0, 7.0], [2.0, 3.0]], [[4.0, 7.0], [2.0, 3.0]]]);
+        let data_2 = Data::from([[[4.0, 7.0], [2.0, 3.0]], [[2.0, 5.0], [6.0, 3.0]]]);
         let tensor_1 = Tensor::<TestBackend, 3>::from_data(data_1);
         let tensor_2 = Tensor::<TestBackend, 3>::from_data(data_2);
 
@@ -44,7 +44,7 @@ mod tests {
 
         assert_eq!(
             tensor_3.into_data(),
-            Data::from([[[18.0, 28.0], [14.0, 23.0]], [[18.0, 28.0], [14.0, 23.0]]])
+            Data::from([[[18.0, 28.0], [14.0, 23.0]], [[44.0, 26.0], [22.0, 19.0]]])
         );
     }
 }
