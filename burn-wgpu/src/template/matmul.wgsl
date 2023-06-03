@@ -34,7 +34,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     }
 
     // Calculate the corresponding offsets with support for broadcasting.
-    let offset_batch = batch * n_rows * n_cols;
+    let offset_output = batch * n_rows * n_cols;
     var offset_lhs: u32 = 0u;
     var offset_rhs: u32 = 0u;
 
@@ -45,8 +45,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         let shape_lhs = info[b + 2u * dim + 1u];
         let shape_rhs = info[b + 3u * dim + 1u];
 
-        offset_lhs += offset_batch / stride_lhs % shape_lhs * stride_lhs;
-        offset_rhs += offset_batch / stride_rhs % shape_rhs * stride_rhs;
+        offset_lhs += offset_output / stride_lhs % shape_lhs * stride_lhs;
+        offset_rhs += offset_output / stride_rhs % shape_rhs * stride_rhs;
     }
 
     // Basic matmul implementation
@@ -59,5 +59,5 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     }
 
     let output_index = row * n_rows + col;
-    output[offset_batch + output_index] = sum;
+    output[offset_output + output_index] = sum;
 }
