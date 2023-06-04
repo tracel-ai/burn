@@ -23,12 +23,13 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     for (var i: u32 = 0u; i < dim; i++) {
         let stride_lhs = info[i + 1u];
-        let stride_rhs = info[i + 1u * dim + 1u];
-        let shape_lhs = info[i + 2u * dim + 1u];
-        let shape_rhs = info[i + 3u * dim + 1u];
+        let stride_rhs = info[i + dim + 1u];
+        let stride_output = info[i + 2u * dim + 1u];
+        let shape_lhs = info[i + 3u * dim + 1u];
+        let shape_rhs = info[i + 4u * dim + 1u];
 
-        index_lhs += global_id.x / stride_lhs % shape_lhs * stride_lhs;
-        index_rhs += global_id.x / stride_rhs % shape_rhs * stride_rhs;
+        index_lhs += global_id.x / stride_output % shape_lhs * stride_lhs;
+        index_rhs += global_id.x / stride_output % shape_rhs * stride_rhs;
     }
 
     BODY

@@ -3,7 +3,7 @@ use rand::{rngs::StdRng, SeedableRng};
 
 use crate::{
     element::{FloatElement, IntElement},
-    tensor::WGPUTensor,
+    tensor::WgpuTensor,
     GraphicsAPI, WGPUDevice,
 };
 use std::{marker::PhantomData, sync::Mutex};
@@ -25,9 +25,9 @@ impl<G: GraphicsAPI + 'static, F: FloatElement, I: IntElement> Backend for WGPUB
     type FloatElem = F;
     type IntElem = I;
 
-    type TensorPrimitive<const D: usize> = WGPUTensor<F, D>;
-    type IntTensorPrimitive<const D: usize> = WGPUTensor<I, D>;
-    type BoolTensorPrimitive<const D: usize> = WGPUTensor<u32, D>;
+    type TensorPrimitive<const D: usize> = WgpuTensor<F, D>;
+    type IntTensorPrimitive<const D: usize> = WgpuTensor<I, D>;
+    type BoolTensorPrimitive<const D: usize> = WgpuTensor<u32, D>;
 
     fn name() -> String {
         String::from("wgpu")

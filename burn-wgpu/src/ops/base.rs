@@ -1,10 +1,10 @@
 use crate::{
     context::WorkGroup,
     element::WGPUElement,
-    kernel::{build_binary_info, KernelSettings},
+    kernel::{build_info, KernelSettings},
     kernel_wgsl,
     pool::get_context,
-    tensor::WGPUTensor,
+    tensor::WgpuTensor,
     GraphicsAPI, WGPUDevice,
 };
 use burn_tensor::{backend::Backend, Data, Shape};
@@ -27,14 +27,14 @@ impl<G: GraphicsAPI> BaseOps<G> {
     pub fn from_data<E: WGPUElement, const D: usize>(
         data: Data<E, D>,
         device: &WGPUDevice,
-    ) -> WGPUTensor<E, D> {
+    ) -> WgpuTensor<E, D> {
         let context = get_context::<G>(device);
         let buffer = context.create_buffer_with_data(E::as_bytes(&data.value));
 
-        WGPUTensor::new(context, data.shape, Arc::new(buffer))
+        WgpuTensor::new(context, data.shape, Arc::new(buffer))
     }
 
-    pub fn into_data<E: WGPUElement, const D: usize>(tensor: WGPUTensor<E, D>) -> Data<E, D> {
+    pub fn into_data<E: WGPUElement, const D: usize>(tensor: WgpuTensor<E, D>) -> Data<E, D> {
         let tensor = Self::into_continuous(tensor);
         let bytes = tensor.context.buffer_to_data(&tensor.buffer);
         let values = E::from_bytes(&bytes);
@@ -43,9 +43,9 @@ impl<G: GraphicsAPI> BaseOps<G> {
     }
 
     pub fn to_device<E: WGPUElement, const D: usize>(
-        tensor: WGPUTensor<E, D>,
+        tensor: WgpuTensor<E, D>,
         device: &WGPUDevice,
-    ) -> WGPUTensor<E, D> {
+    ) -> WgpuTensor<E, D> {
         if &tensor.context.device == device {
             return tensor;
         }
@@ -57,42 +57,38 @@ impl<G: GraphicsAPI> BaseOps<G> {
     pub fn empty<E: WGPUElement, const D: usize>(
         shape: Shape<D>,
         device: &WGPUDevice,
-    ) -> WGPUTensor<E, D> {
+    ) -> WgpuTensor<E, D> {
         let context = get_context::<G>(device);
         let buffer = context.create_buffer(shape.num_elements() * core::mem::size_of::<E>());
 
-        WGPUTensor::new(context, shape, Arc::new(buffer))
+        WgpuTensor::new(context, shape, Arc::new(buffer))
     }
 
     pub fn swap_dims<E: WGPUElement, const D: usize>(
-        mut tensor: WGPUTensor<E, D>,
+        mut tensor: WgpuTensor<E, D>,
         dim1: usize,
         dim2: usize,
-    ) -> WGPUTensor<E, D> {
-        let tmp = tensor.strides[dim1];
-        tensor.strides[dim1] = tensor.strides[dim2];
-        tensor.strides[dim2] = tmp;
+    ) -> WgpuTensor<E, D> {
+        tensor.strides.swap(dim1, dim2);
 
-        let tmp = tensor.shape.dims[dim1];
-        tensor.shape.dims[dim1] = tensor.shape.dims[dim2];
-        tensor.shape.dims[dim2] = tmp;
+        tensor.shape.dims.swap(dim1, dim2);
 
         tensor
     }
 
     pub fn reshape<E: WGPUElement, const D1: usize, const D2: usize>(
-        tensor: WGPUTensor<E, D1>,
+        tensor: WgpuTensor<E, D1>,
         shape: Shape<D2>,
-    ) -> WGPUTensor<E, D2> {
+    ) -> WgpuTensor<E, D2> {
         // TODO: Not force standard layout all the time (improve performance).
         let tensor = Self::into_continuous(tensor);
 
-        WGPUTensor::new(tensor.context, shape, tensor.buffer)
+        WgpuTensor::new(tensor.context, shape, tensor.buffer)
     }
 
     pub fn into_continuous<E: WGPUElement, const D: usize>(
-        tensor: WGPUTensor<E, D>,
-    ) -> WGPUTensor<E, D> {
+        tensor: WgpuTensor<E, D>,
+    ) -> WgpuTensor<E, D> {
         if tensor.is_continuous() {
             return tensor;
         }
@@ -102,12 +98,12 @@ impl<G: GraphicsAPI> BaseOps<G> {
         let buffer = tensor
             .context
             .create_buffer(tensor.shape.num_elements() * core::mem::size_of::<E>());
-        let output = WGPUTensor::new(
+        let output = WgpuTensor::new(
             tensor.context.clone(),
             tensor.shape.clone(),
             Arc::new(buffer),
         );
-        let info = build_binary_info(&tensor, &output);
+        let info = build_info(&[&tensor, &output]);
         let info_buffer = tensor
             .context
             .create_buffer_with_data(bytemuck::cast_slice(&info));
