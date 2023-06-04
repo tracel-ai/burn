@@ -3,7 +3,7 @@ use super::{BaseOps, Device, FloatElem, FloatTensor};
 use crate::kernel::{matmul, unary, unary_inplace, unary_scalar, unary_scalar_inplace};
 use crate::{
     element::{FloatElement, IntElement},
-    unary, unary_inplace, GraphicsAPI, WGPUBackend, SEED,
+    unary, unary_inplace, GraphicsApi, WGPUBackend, SEED,
 };
 use crate::{unary_scalar, unary_scalar_inplace};
 use burn_common::rand::get_seeded_rng;
@@ -12,7 +12,7 @@ use burn_tensor::{backend::Backend, ops::TensorOps, Data, Distribution, Shape};
 
 impl<G, F, I> TensorOps<WGPUBackend<G, F, I>> for WGPUBackend<G, F, I>
 where
-    G: GraphicsAPI + 'static,
+    G: GraphicsApi + 'static,
     F: FloatElement,
     I: IntElement,
 {
@@ -44,7 +44,11 @@ where
     }
 
     fn to_data<const D: usize>(tensor: &FloatTensor<Self, D>) -> Data<FloatElem<Self>, D> {
-        BaseOps::<G>::to_data(tensor)
+        BaseOps::<G>::into_data(tensor.clone())
+    }
+
+    fn into_data<const D: usize>(tensor: FloatTensor<Self, D>) -> Data<FloatElem<Self>, D> {
+        BaseOps::<G>::into_data(tensor)
     }
 
     fn device<const D: usize>(tensor: &FloatTensor<Self, D>) -> Device<Self> {
@@ -122,22 +126,25 @@ where
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
+        let lhs = BaseOps::<G>::into_continuous(lhs);
+        let rhs = BaseOps::<G>::into_continuous(rhs);
+
         matmul::<FloatElem<Self>, D>(lhs, rhs)
     }
 
     fn swap_dims<const D: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        _dim1: usize,
-        _dim2: usize,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
-        todo!()
+        tensor: FloatTensor<Self, D>,
+        dim1: usize,
+        dim2: usize,
+    ) -> FloatTensor<Self, D> {
+        BaseOps::<G>::swap_dims(tensor, dim1, dim2)
     }
 
     fn reshape<const D1: usize, const D2: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D1>,
-        _shape: Shape<D2>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D2> {
-        todo!()
+        tensor: FloatTensor<Self, D1>,
+        shape: Shape<D2>,
+    ) -> FloatTensor<Self, D2> {
+        BaseOps::<G>::reshape(tensor, shape)
     }
 
     fn gather<const D: usize>(

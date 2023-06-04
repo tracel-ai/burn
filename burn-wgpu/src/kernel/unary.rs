@@ -1,5 +1,5 @@
 use super::{KernelGenerator, KernelSettings};
-use crate::{context::WorkGroup, element::WGPUElement, kernel_wgsl, tensor::WGPUTensor};
+use crate::{context::WorkGroup, element::WGPUElement, kernel_wgsl, tensor::WgpuTensor};
 use std::sync::Arc;
 
 kernel_wgsl!(UnaryRaw, "../template/unary.wgsl");
@@ -76,12 +76,16 @@ macro_rules! unary_inplace {
 }
 
 pub fn unary<K: KernelGenerator, E: WGPUElement, const D: usize>(
-    input: WGPUTensor<E, D>,
-) -> WGPUTensor<E, D> {
+    input: WgpuTensor<E, D>,
+) -> WgpuTensor<E, D> {
     let buffer = input
         .context
         .create_buffer(input.shape.num_elements() * core::mem::size_of::<E>());
-    let output = WGPUTensor::new(input.context.clone(), input.shape, Arc::new(buffer));
+    let mut output = WgpuTensor::new(input.context.clone(), input.shape, Arc::new(buffer));
+    // Since we don't handle the stride inside the kernel, the output tensor have the same strides
+    // as the input tensor. It might not be in the default format.
+    output.strides = input.strides;
+
     let kernel = input
         .context
         .compile::<KernelSettings<K, E, i32, 256, 1, 1>>();
@@ -100,8 +104,8 @@ pub fn unary<K: KernelGenerator, E: WGPUElement, const D: usize>(
 }
 
 pub fn unary_inplace<K: KernelGenerator, E: WGPUElement, const D: usize>(
-    input: WGPUTensor<E, D>,
-) -> WGPUTensor<E, D> {
+    input: WgpuTensor<E, D>,
+) -> WgpuTensor<E, D> {
     let kernel = input
         .context
         .compile::<KernelSettings<K, E, i32, 256, 1, 1>>();

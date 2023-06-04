@@ -1,5 +1,5 @@
-use super::{build_binary_info, build_unary_info, KernelGenerator, KernelSettings};
-use crate::{context::WorkGroup, element::WGPUElement, kernel_wgsl, tensor::WGPUTensor};
+use super::{build_info, KernelGenerator, KernelSettings};
+use crate::{context::WorkGroup, element::WGPUElement, kernel_wgsl, tensor::WgpuTensor};
 use burn_tensor::Shape;
 use std::sync::Arc;
 
@@ -56,9 +56,9 @@ macro_rules! binary_elemwise_inplace {
 }
 
 pub fn binary_elemwise<K: KernelGenerator, E: WGPUElement, const D: usize>(
-    lhs: WGPUTensor<E, D>,
-    rhs: WGPUTensor<E, D>,
-) -> WGPUTensor<E, D> {
+    lhs: WgpuTensor<E, D>,
+    rhs: WgpuTensor<E, D>,
+) -> WgpuTensor<E, D> {
     lhs.assert_is_on_save_device(&rhs);
 
     let mut shape_out = [0; D];
@@ -76,12 +76,12 @@ pub fn binary_elemwise<K: KernelGenerator, E: WGPUElement, const D: usize>(
     let buffer = lhs
         .context
         .create_buffer(shape_out.num_elements() * core::mem::size_of::<E>());
-    let output = WGPUTensor::new(lhs.context.clone(), shape_out, Arc::new(buffer));
+    let output = WgpuTensor::new(lhs.context.clone(), shape_out, Arc::new(buffer));
 
     let kernel = lhs
         .context
         .compile::<KernelSettings<K, E, i32, 256, 1, 1>>();
-    let info = build_binary_info(&lhs, &rhs);
+    let info = build_info(&[&lhs, &rhs, &output]);
     let info_buffers = lhs
         .context
         .create_buffer_with_data(bytemuck::cast_slice(&info));
@@ -99,9 +99,9 @@ pub fn binary_elemwise<K: KernelGenerator, E: WGPUElement, const D: usize>(
     output
 }
 pub fn binary_elemwise_inplace<K: KernelGenerator, E: WGPUElement, const D: usize>(
-    lhs: WGPUTensor<E, D>,
-    rhs: WGPUTensor<E, D>,
-) -> WGPUTensor<E, D> {
+    lhs: WgpuTensor<E, D>,
+    rhs: WgpuTensor<E, D>,
+) -> WgpuTensor<E, D> {
     lhs.assert_is_on_save_device(&rhs);
 
     let mut shape_out = [0; D];
@@ -117,7 +117,7 @@ pub fn binary_elemwise_inplace<K: KernelGenerator, E: WGPUElement, const D: usiz
     let kernel = lhs
         .context
         .compile::<KernelSettings<K, E, i32, 256, 1, 1>>();
-    let info = build_unary_info(&rhs);
+    let info = build_info(&[&lhs, &rhs]);
     let info_buffers = lhs
         .context
         .create_buffer_with_data(bytemuck::cast_slice(&info));

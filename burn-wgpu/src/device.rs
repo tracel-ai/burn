@@ -11,15 +11,15 @@
 /// let device_gpu_2 = WGPUDevice::DiscreteGPU(1);  // Second discrete GPU found.
 /// ```
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub enum WGPUDevice {
-    DiscreteGPU(usize),
-    IntegratedGPU(usize),
-    VirtualGPU(usize),
-    CPU,
+pub enum WgpuDevice {
+    DiscreteGpu(usize),
+    IntegratedGpu(usize),
+    VirtualGpu(usize),
+    Cpu,
 }
 
-impl Default for WGPUDevice {
+impl Default for WgpuDevice {
     fn default() -> Self {
-        Self::CPU
+        Self::Cpu
     }
 }

@@ -1,4 +1,4 @@
-use crate::{context::Context, GraphicsAPI, WGPUDevice};
+use crate::{context::Context, GraphicsApi, WgpuDevice};
 use std::{
     any::TypeId,
     collections::HashMap,
@@ -15,11 +15,11 @@ struct ContextPool {
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 struct Key {
     api_id: TypeId,
-    device: WGPUDevice,
+    device: WgpuDevice,
 }
 
 impl Key {
-    fn new<G: GraphicsAPI>(device: &WGPUDevice) -> Self {
+    fn new<G: GraphicsApi>(device: &WgpuDevice) -> Self {
         Self {
             api_id: TypeId::of::<G>(),
             device: device.clone(),
@@ -33,7 +33,7 @@ impl Key {
 ///
 /// If a context already exist for the current [device](WGPUDevice), the same instance will be
 /// returned.
-pub fn get_context<G: GraphicsAPI>(device: &WGPUDevice) -> Arc<Context> {
+pub fn get_context<G: GraphicsApi>(device: &WgpuDevice) -> Arc<Context> {
     let mut pool = POOL_CONTEXT.lock().unwrap();
 
     let context = if let Some(pool) = pool.as_mut() {

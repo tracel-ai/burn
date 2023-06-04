@@ -5,7 +5,7 @@ use wgpu::Buffer;
 use crate::{context::Context, element::WGPUElement};
 
 #[derive(Debug, Clone)]
-pub struct WGPUTensor<E: WGPUElement, const D: usize> {
+pub struct WgpuTensor<E: WGPUElement, const D: usize> {
     pub(crate) context: Arc<Context>,
     pub(crate) buffer: Arc<Buffer>,
     pub(crate) shape: Shape<D>,
@@ -13,7 +13,7 @@ pub struct WGPUTensor<E: WGPUElement, const D: usize> {
     elem: PhantomData<E>,
 }
 
-impl<E: WGPUElement, const D: usize> WGPUTensor<E, D> {
+impl<E: WGPUElement, const D: usize> WgpuTensor<E, D> {
     pub fn new(context: Arc<Context>, shape: Shape<D>, buffer: Arc<Buffer>) -> Self {
         let mut strides = [0; D];
 
@@ -48,7 +48,7 @@ impl<E: WGPUElement, const D: usize> WGPUTensor<E, D> {
             elem: PhantomData::default(),
         }
     }
-    pub fn can_mut_broadcast(&self, tensor_other: &WGPUTensor<E, D>) -> bool {
+    pub fn can_mut_broadcast(&self, tensor_other: &WgpuTensor<E, D>) -> bool {
         if Arc::strong_count(&self.buffer) > 1 {
             return false;
         }
@@ -78,5 +78,20 @@ impl<E: WGPUElement, const D: usize> WGPUTensor<E, D> {
                 self.context.device, other.context.device
             );
         }
+    }
+
+    pub fn is_continuous(&self) -> bool {
+        let mut current_stride = 0;
+        for d in 0..D {
+            let stride = self.strides[D - 1 - d];
+
+            if stride < current_stride {
+                return false;
+            }
+
+            current_stride = stride;
+        }
+
+        true
     }
 }

@@ -1,5 +1,5 @@
 use super::{KernelGenerator, KernelSettings};
-use crate::{context::WorkGroup, element::WGPUElement, kernel_wgsl, tensor::WGPUTensor};
+use crate::{context::WorkGroup, element::WGPUElement, kernel_wgsl, tensor::WgpuTensor};
 use std::sync::Arc;
 
 kernel_wgsl!(UnaryScalarRaw, "../template/unary_scalar.wgsl");
@@ -87,13 +87,13 @@ macro_rules! unary_scalar_inplace {
 }
 
 pub fn unary_scalar<K: KernelGenerator, E: WGPUElement, const D: usize>(
-    lhs: WGPUTensor<E, D>,
+    lhs: WgpuTensor<E, D>,
     scalar: E,
-) -> WGPUTensor<E, D> {
+) -> WgpuTensor<E, D> {
     let buffer = lhs
         .context
         .create_buffer(lhs.shape.num_elements() * core::mem::size_of::<E>());
-    let output = WGPUTensor::new(lhs.context.clone(), lhs.shape, Arc::new(buffer));
+    let output = WgpuTensor::new(lhs.context.clone(), lhs.shape, Arc::new(buffer));
     let kernel = lhs
         .context
         .compile::<KernelSettings<K, E, i32, 256, 1, 1>>();
@@ -113,9 +113,9 @@ pub fn unary_scalar<K: KernelGenerator, E: WGPUElement, const D: usize>(
 }
 
 pub fn unary_scalar_inplace<K: KernelGenerator, E: WGPUElement, const D: usize>(
-    lhs: WGPUTensor<E, D>,
+    lhs: WgpuTensor<E, D>,
     scalar: E,
-) -> WGPUTensor<E, D> {
+) -> WgpuTensor<E, D> {
     let kernel = lhs
         .context
         .compile::<KernelSettings<K, E, i32, 256, 1, 1>>();
