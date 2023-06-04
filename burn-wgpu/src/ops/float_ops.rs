@@ -3,7 +3,7 @@ use super::{BaseOps, Device, FloatElem, FloatTensor};
 use crate::kernel::{matmul, unary, unary_inplace, unary_scalar, unary_scalar_inplace};
 use crate::{
     element::{FloatElement, IntElement},
-    unary, unary_inplace, GraphicsAPI, WGPUBackend, SEED,
+    unary, unary_inplace, GraphicsApi, WGPUBackend, SEED,
 };
 use crate::{unary_scalar, unary_scalar_inplace};
 use burn_common::rand::get_seeded_rng;
@@ -12,7 +12,7 @@ use burn_tensor::{backend::Backend, ops::TensorOps, Data, Distribution, Shape};
 
 impl<G, F, I> TensorOps<WGPUBackend<G, F, I>> for WGPUBackend<G, F, I>
 where
-    G: GraphicsAPI + 'static,
+    G: GraphicsApi + 'static,
     F: FloatElement,
     I: IntElement,
 {

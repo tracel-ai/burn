@@ -2,12 +2,12 @@ use burn_tensor::{backend::Backend, ops::ModuleOps};
 
 use crate::{
     element::{FloatElement, IntElement},
-    GraphicsAPI, WGPUBackend,
+    GraphicsApi, WGPUBackend,
 };
 
 impl<G, F, I> ModuleOps<WGPUBackend<G, F, I>> for WGPUBackend<G, F, I>
 where
-    G: GraphicsAPI + 'static,
+    G: GraphicsApi + 'static,
     F: FloatElement,
     I: IntElement,
 {

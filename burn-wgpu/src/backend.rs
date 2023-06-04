@@ -4,21 +4,21 @@ use rand::{rngs::StdRng, SeedableRng};
 use crate::{
     element::{FloatElement, IntElement},
     tensor::WgpuTensor,
-    GraphicsAPI, WGPUDevice,
+    GraphicsApi, WgpuDevice,
 };
 use std::{marker::PhantomData, sync::Mutex};
 
 pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 
 #[derive(Debug, Default, Clone)]
-pub struct WGPUBackend<G: GraphicsAPI, F: FloatElement, I: IntElement> {
+pub struct WGPUBackend<G: GraphicsApi, F: FloatElement, I: IntElement> {
     _g: PhantomData<G>,
     _f: PhantomData<F>,
     _i: PhantomData<I>,
 }
 
-impl<G: GraphicsAPI + 'static, F: FloatElement, I: IntElement> Backend for WGPUBackend<G, F, I> {
-    type Device = WGPUDevice;
+impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> Backend for WGPUBackend<G, F, I> {
+    type Device = WgpuDevice;
     type FullPrecisionBackend = WGPUBackend<G, f32, i32>;
 
     type FullPrecisionElem = f32;

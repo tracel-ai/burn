@@ -11,7 +11,7 @@ use wgpu::{
     Buffer, DeviceDescriptor, DeviceType, ShaderModule, ShaderModuleDescriptor,
 };
 
-use crate::{kernel::KernelGenerator, GraphicsAPI, WGPUDevice};
+use crate::{kernel::KernelGenerator, GraphicsApi, WgpuDevice};
 
 /// The context is the basic struct that allows to execute GPU kernel on devices.
 ///
@@ -22,7 +22,7 @@ pub struct Context {
     queue: wgpu::Queue,
     device_wgpu: wgpu::Device,
     cache: Mutex<HashMap<TypeId, Arc<ShaderModule>>>,
-    pub(crate) device: WGPUDevice,
+    pub(crate) device: WgpuDevice,
 }
 
 #[derive(new, Clone, Debug)]
@@ -33,7 +33,7 @@ pub struct WorkGroup {
 }
 
 impl Context {
-    pub(crate) fn new<G: GraphicsAPI>(device: &WGPUDevice) -> Self {
+    pub(crate) fn new<G: GraphicsApi>(device: &WgpuDevice) -> Self {
         // Instantiates instance of WebGPU
         let instance = wgpu::Instance::default();
 
@@ -43,28 +43,28 @@ impl Context {
             .filter(|adapter| {
                 let device_type = adapter.get_info().device_type;
                 match device {
-                    WGPUDevice::DiscreteGPU(_) => device_type == DeviceType::DiscreteGpu,
-                    WGPUDevice::IntegratedGPU(_) => device_type == DeviceType::IntegratedGpu,
-                    WGPUDevice::VirtualGPU(_) => device_type == DeviceType::VirtualGpu,
-                    WGPUDevice::CPU => device_type == DeviceType::Cpu,
+                    WgpuDevice::DiscreteGpu(_) => device_type == DeviceType::DiscreteGpu,
+                    WgpuDevice::IntegratedGpu(_) => device_type == DeviceType::IntegratedGpu,
+                    WgpuDevice::VirtualGpu(_) => device_type == DeviceType::VirtualGpu,
+                    WgpuDevice::Cpu => device_type == DeviceType::Cpu,
                 }
             })
             .collect::<Vec<_>>();
 
         let adapter = match device {
-            WGPUDevice::DiscreteGPU(num) => {
+            WgpuDevice::DiscreteGpu(num) => {
                 assert!(adapters.len() > *num, "No Discrete GPU device found");
                 adapters.remove(*num)
             }
-            WGPUDevice::IntegratedGPU(num) => {
+            WgpuDevice::IntegratedGpu(num) => {
                 assert!(adapters.len() > *num, "No Integrated GPU device found");
                 adapters.remove(*num)
             }
-            WGPUDevice::VirtualGPU(num) => {
+            WgpuDevice::VirtualGpu(num) => {
                 assert!(adapters.len() > *num, "No Virtual GPU device found");
                 adapters.remove(*num)
             }
-            WGPUDevice::CPU => {
+            WgpuDevice::Cpu => {
                 assert!(!adapters.is_empty(), "No CPU device found");
                 adapters.remove(0)
             }

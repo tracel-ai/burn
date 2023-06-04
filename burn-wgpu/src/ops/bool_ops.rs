@@ -2,14 +2,14 @@ use burn_tensor::{backend::Backend, ops::BoolTensorOps, Data, Shape};
 
 use crate::{
     element::{FloatElement, IntElement},
-    GraphicsAPI, WGPUBackend,
+    GraphicsApi, WGPUBackend,
 };
 
 use super::{BaseOps, BoolTensor, Device, IntTensor};
 
 impl<G, F, I> BoolTensorOps<WGPUBackend<G, F, I>> for WGPUBackend<G, F, I>
 where
-    G: GraphicsAPI + 'static,
+    G: GraphicsApi + 'static,
     F: FloatElement,
     I: IntElement,
 {
