@@ -69,7 +69,10 @@ impl<B: Backend> GateController<B> {
         self.hidden_transform.get_bias()
     }
 
-    /// Only used for testing in lstm
+    #[cfg(test)]
+    /// Used to initialize a gate controller with known weight layers,
+    /// allowing for predictable behavior. Used only for testing in
+    /// lstm.
     pub fn create_with_weights(
         d_input: usize,
         d_output: usize,
