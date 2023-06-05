@@ -63,6 +63,18 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
         true
     }
 
+    pub fn copy(&self) -> Self {
+        let buffer = Arc::new(self.context.buffer_to_buffer(&self.buffer));
+
+        Self {
+            context: self.context.clone(),
+            buffer,
+            shape: self.shape.clone(),
+            strides: self.strides,
+            elem: PhantomData::default(),
+        }
+    }
+
     pub fn can_mut(&self) -> bool {
         if Arc::strong_count(&self.buffer) > 1 {
             return false;

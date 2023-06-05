@@ -131,7 +131,7 @@ impl<G: GraphicsApi> BaseOps<G> {
     ) -> WgpuTensor<E, D1> {
         kernel_wgsl!(IndexRaw, "../template/index.wgsl");
 
-        let mut dims = tensor.shape.dims.clone();
+        let mut dims = tensor.shape.dims;
 
         for i in 0..D2 {
             dims[i] = indexes[i].end - indexes[i].start;
@@ -180,6 +180,11 @@ impl<G: GraphicsApi> BaseOps<G> {
             IndexAssignInplaceRaw,
             "../template/index_assign_inplace.wgsl"
         );
+
+        let tensor = match tensor.can_mut() {
+            true => tensor,
+            false => tensor.copy(),
+        };
 
         let mut info = build_info(&[&tensor, &value]);
 
