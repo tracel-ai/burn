@@ -20,14 +20,15 @@ pub struct LSTMConfig {
     pub d_hidden: usize,
     /// If a bias should be applied during the Lstm transformation.
     pub bias: bool,
-    /// Lstm initializer, should probably be Xavier or small random numbers
+    /// Lstm initializer
+    /// TODO: Make default Xavier initialization, which should be a better choice
     #[config(default = "Initializer::Uniform(0.0, 1.0)")]
     pub initializer: Initializer,
     /// The batch size
     pub batch_size: usize,
 }
 
-/// The Lstm module. This implementation is for a unidirectional, stateful, Lstm.
+/// The Lstm module. This implementation is for a unidirectional, stateless, Lstm.
 #[derive(Module, Debug)]
 pub struct Lstm<B: Backend> {
     input_gate: GateController<B>,
@@ -39,7 +40,7 @@ pub struct Lstm<B: Backend> {
 }
 
 impl LSTMConfig {
-    /// Initialize a new [lstm](Lstm) module
+    /// Initialize a new [lstm](Lstm) module.
     pub fn init<B: Backend>(&self) -> Lstm<B> {
         let d_output = self.d_hidden;
 
@@ -78,6 +79,7 @@ impl LSTMConfig {
         }
     }
 
+    /// Initialize a new [lstm](lstm) module with a [record](LstmRecord).
     pub fn init_with<B: Backend>(&self, record: LstmRecord<B>) -> Lstm<B> {
         let linear_config = LinearConfig {
             d_input: self.d_input,
