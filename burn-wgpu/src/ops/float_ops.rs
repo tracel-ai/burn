@@ -191,11 +191,11 @@ where
     }
 
     fn index_assign<const D1: usize, const D2: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D1>,
-        _indexes: [Range<usize>; D2],
-        _value: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D1>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D1> {
-        todo!()
+        tensor: FloatTensor<Self, D1>,
+        indexes: [Range<usize>; D2],
+        value: FloatTensor<Self, D1>,
+    ) -> FloatTensor<Self, D1> {
+        BaseOps::<G>::index_assign(tensor, indexes, value)
     }
 
     fn mask_scatter<const D: usize>(

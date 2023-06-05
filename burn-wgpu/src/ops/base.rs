@@ -170,4 +170,42 @@ impl<G: GraphicsApi> BaseOps<G> {
 
         output
     }
+
+    pub fn index_assign<E: WgpuElement, const D1: usize, const D2: usize>(
+        tensor: WgpuTensor<E, D1>,
+        indexes: [Range<usize>; D2],
+        value: WgpuTensor<E, D1>,
+    ) -> WgpuTensor<E, D1> {
+        kernel_wgsl!(
+            IndexAssignInplaceRaw,
+            "../template/index_assign_inplace.wgsl"
+        );
+
+        let mut info = build_info(&[&tensor, &value]);
+
+        for i in 0..D1 {
+            let start = indexes.get(i).map(|index| index.start).unwrap_or(0);
+            info.push(start as u32);
+        }
+
+        let info_buffer = tensor
+            .context
+            .create_buffer_with_data(bytemuck::cast_slice(&info));
+
+        let kernel = tensor
+            .context
+            .compile::<KernelSettings<IndexAssignInplaceRaw, E, i32, 256, 1, 1>>();
+
+        tensor.context.execute(
+            &WorkGroup::new(
+                f32::ceil(value.shape.num_elements() as f32 / 256_f32) as u32,
+                1,
+                1,
+            ),
+            &kernel,
+            &[&tensor.buffer, &value.buffer, &info_buffer],
+        );
+
+        tensor
+    }
 }

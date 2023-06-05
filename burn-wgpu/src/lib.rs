@@ -54,6 +54,7 @@ mod tests {
     burn_autodiff::testgen_ad_matmul!();
     burn_autodiff::testgen_ad_reshape!();
     burn_autodiff::testgen_ad_transpose!();
+    burn_autodiff::testgen_ad_index!();
 
     // Once all operations will be implemented.
     // burn_tensor::testgen_all!();

@@ -5,10 +5,10 @@
 /// # Example
 ///
 /// ```no_run
-/// use burn_wgpu::WGPUDevice;
+/// use burn_wgpu::WgpuDevice;
 ///
-/// let device_gpu_1 = WGPUDevice::DiscreteGPU(0); // First discrete GPU found.
-/// let device_gpu_2 = WGPUDevice::DiscreteGPU(1);  // Second discrete GPU found.
+/// let device_gpu_1 = WgpuDevice::DiscreteGpu(0); // First discrete GPU found.
+/// let device_gpu_2 = WgpuDevice::DiscreteGpu(1);  // Second discrete GPU found.
 /// ```
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum WgpuDevice {
