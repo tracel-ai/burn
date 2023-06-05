@@ -110,15 +110,20 @@ impl LSTMConfig {
 }
 
 impl<B: Backend> Lstm<B> {
-    /// Applies the forward pass on the input tensor. In this implementation,
-    /// the Lstm returns only the last time step's output, hence <B, 3> for
-    /// all output tensors, with dimensions [batch_size, seq_length, hidden_size]
+    /// Applies the forward pass on the input tensor. This LSTM implementation
+    /// returns the cell state and hidden state for each element in a sequence (i.e., across `seq_length`),
+    /// producing 3-dimensional tensors where the dimensions represent [batch_size, seq_length, hidden_size].
     ///
-    /// inputs:
-    ///     input - the input tensor
-    ///     state -  the cell state and hidden state
-    /// outputs:
-    ///     2 tensors, one for the cell state and one for the hidden state
+    /// Parameters:
+    ///     batched_input: The input tensor of shape [batch_size, seq_length, input_size].
+    ///     state: An optional tuple of tensors representing the initial cell state and hidden state.
+    ///            Each state tensor has shape [batch_size, hidden_size].
+    ///            If no initial state is provided, these tensors are initialized to zeros.
+    ///
+    /// Returns:
+    ///     A tuple of tensors, where the first tensor represents the cell states and
+    ///     the second tensor represents the hidden states for each sequence element.
+    ///     Both output tensors have the shape [batch_size, seq_length, hidden_size].
     pub fn forward(
         &mut self,
         batched_input: Tensor<B, 3>,
