@@ -1,4 +1,4 @@
-use crate::{element::WGPUElement, tensor::WgpuTensor};
+use crate::{element::WgpuElement, tensor::WgpuTensor};
 use std::marker::PhantomData;
 
 /// Generate wgpu kernel source code to create [compute shader modules](wgpu::ShaderModule).
@@ -32,8 +32,8 @@ macro_rules! kernel_wgsl {
 /// Generate kernel source code by replacing some information using templating.
 pub struct KernelSettings<
     K: KernelGenerator,
-    E: WGPUElement,
-    I: WGPUElement,
+    E: WgpuElement,
+    I: WgpuElement,
     const WORKGROUP_X_SIZE: usize,
     const WORKGROUP_Y_SIZE: usize,
     const WORKGROUP_Z_SIZE: usize,
@@ -45,8 +45,8 @@ pub struct KernelSettings<
 
 impl<
         K: KernelGenerator,
-        E: WGPUElement,
-        I: WGPUElement,
+        E: WgpuElement,
+        I: WgpuElement,
         const WORKGROUP_X_SIZE: usize,
         const WORKGROUP_Y_SIZE: usize,
         const WORKGROUP_Z_SIZE: usize,
@@ -81,7 +81,7 @@ impl<
 /// |     (D + 1)..(2 * D + 1) | rhs strides |
 /// | (2 * D + 1)..(3 * D + 1) | lhs shape   |
 /// | (3 * D + 1)..(4 * D + 1) | rhs shape   |
-pub(crate) fn build_info<E: WGPUElement, const D: usize>(
+pub(crate) fn build_info<E: WgpuElement, const D: usize>(
     tensors: &[&WgpuTensor<E, D>],
 ) -> Vec<u32> {
     let mut info: Vec<u32> = vec![0; tensors.len() * 2 * D + 1];

@@ -1,13 +1,13 @@
 use crate::kernel::{binary_elemwise, binary_elemwise_inplace, unary_scalar, unary_scalar_inplace};
 use crate::{
-    binary_elemwise, binary_elemwise_inplace, element::WGPUElement, tensor::WgpuTensor,
+    binary_elemwise, binary_elemwise_inplace, element::WgpuElement, tensor::WgpuTensor,
     unary_scalar, unary_scalar_inplace,
 };
 
 pub struct NumericOps;
 
 impl NumericOps {
-    pub fn add<E: WGPUElement, const D: usize>(
+    pub fn add<E: WgpuElement, const D: usize>(
         lhs: WgpuTensor<E, D>,
         rhs: WgpuTensor<E, D>,
     ) -> WgpuTensor<E, D> {
@@ -25,7 +25,7 @@ impl NumericOps {
         binary_elemwise::<Add, E, D>(lhs, rhs)
     }
 
-    pub fn add_scalar<E: WGPUElement, const D: usize>(
+    pub fn add_scalar<E: WgpuElement, const D: usize>(
         lhs: WgpuTensor<E, D>,
         rhs: E,
     ) -> WgpuTensor<E, D> {
@@ -39,7 +39,7 @@ impl NumericOps {
         unary_scalar::<AddScalar, E, D>(lhs, rhs)
     }
 
-    pub fn sub<E: WGPUElement, const D: usize>(
+    pub fn sub<E: WgpuElement, const D: usize>(
         lhs: WgpuTensor<E, D>,
         rhs: WgpuTensor<E, D>,
     ) -> WgpuTensor<E, D> {
@@ -53,7 +53,7 @@ impl NumericOps {
         binary_elemwise::<Sub, E, D>(lhs, rhs)
     }
 
-    pub fn sub_scalar<E: WGPUElement, const D: usize>(
+    pub fn sub_scalar<E: WgpuElement, const D: usize>(
         lhs: WgpuTensor<E, D>,
         rhs: E,
     ) -> WgpuTensor<E, D> {
@@ -67,7 +67,7 @@ impl NumericOps {
         unary_scalar::<SubScalar, E, D>(lhs, rhs)
     }
 
-    pub fn mul<E: WGPUElement, const D: usize>(
+    pub fn mul<E: WgpuElement, const D: usize>(
         lhs: WgpuTensor<E, D>,
         rhs: WgpuTensor<E, D>,
     ) -> WgpuTensor<E, D> {
@@ -85,7 +85,7 @@ impl NumericOps {
         binary_elemwise::<Mul, E, D>(lhs, rhs)
     }
 
-    pub fn mul_scalar<E: WGPUElement, const D: usize>(
+    pub fn mul_scalar<E: WgpuElement, const D: usize>(
         lhs: WgpuTensor<E, D>,
         rhs: E,
     ) -> WgpuTensor<E, D> {
@@ -99,7 +99,7 @@ impl NumericOps {
         unary_scalar::<MulScalar, E, D>(lhs, rhs)
     }
 
-    pub fn div<E: WGPUElement, const D: usize>(
+    pub fn div<E: WgpuElement, const D: usize>(
         lhs: WgpuTensor<E, D>,
         rhs: WgpuTensor<E, D>,
     ) -> WgpuTensor<E, D> {
@@ -113,7 +113,7 @@ impl NumericOps {
         binary_elemwise::<Div, E, D>(lhs, rhs)
     }
 
-    pub fn div_scalar<E: WGPUElement, const D: usize>(
+    pub fn div_scalar<E: WgpuElement, const D: usize>(
         lhs: WgpuTensor<E, D>,
         rhs: E,
     ) -> WgpuTensor<E, D> {

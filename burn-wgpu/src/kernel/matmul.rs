@@ -1,11 +1,11 @@
 use super::{build_info, KernelSettings};
-use crate::{context::WorkGroup, element::WGPUElement, kernel_wgsl, tensor::WgpuTensor};
+use crate::{context::WorkGroup, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 use burn_tensor::Shape;
 use std::sync::Arc;
 
 kernel_wgsl!(MatmulRaw, "../template/matmul.wgsl");
 
-pub fn matmul<E: WGPUElement, const D: usize>(
+pub fn matmul<E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {

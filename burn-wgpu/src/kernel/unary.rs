@@ -1,5 +1,5 @@
 use super::{KernelGenerator, KernelSettings};
-use crate::{context::WorkGroup, element::WGPUElement, kernel_wgsl, tensor::WgpuTensor};
+use crate::{context::WorkGroup, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 use std::sync::Arc;
 
 kernel_wgsl!(UnaryRaw, "../template/unary.wgsl");
@@ -75,7 +75,7 @@ macro_rules! unary_inplace {
     };
 }
 
-pub fn unary<K: KernelGenerator, E: WGPUElement, const D: usize>(
+pub fn unary<K: KernelGenerator, E: WgpuElement, const D: usize>(
     input: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     let buffer = input
@@ -103,7 +103,7 @@ pub fn unary<K: KernelGenerator, E: WGPUElement, const D: usize>(
     output
 }
 
-pub fn unary_inplace<K: KernelGenerator, E: WGPUElement, const D: usize>(
+pub fn unary_inplace<K: KernelGenerator, E: WgpuElement, const D: usize>(
     input: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     let kernel = input

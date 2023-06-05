@@ -2,10 +2,10 @@ use burn_tensor::Shape;
 use std::{marker::PhantomData, sync::Arc};
 use wgpu::Buffer;
 
-use crate::{context::Context, element::WGPUElement};
+use crate::{context::Context, element::WgpuElement};
 
 #[derive(Debug, Clone)]
-pub struct WgpuTensor<E: WGPUElement, const D: usize> {
+pub struct WgpuTensor<E: WgpuElement, const D: usize> {
     pub(crate) context: Arc<Context>,
     pub(crate) buffer: Arc<Buffer>,
     pub(crate) shape: Shape<D>,
@@ -13,7 +13,7 @@ pub struct WgpuTensor<E: WGPUElement, const D: usize> {
     elem: PhantomData<E>,
 }
 
-impl<E: WGPUElement, const D: usize> WgpuTensor<E, D> {
+impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
     pub fn new(context: Arc<Context>, shape: Shape<D>, buffer: Arc<Buffer>) -> Self {
         let mut strides = [0; D];
 

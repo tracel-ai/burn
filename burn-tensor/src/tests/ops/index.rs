@@ -48,6 +48,32 @@ mod tests {
     }
 
     #[test]
+    fn should_support_partial_indexing_3d() {
+        let tensor = TestTensor::from_floats([
+            [[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]],
+            [[6.0, 7.0, 8.0], [9.0, 10.0, 11.0]],
+        ]);
+
+        let data_actual = tensor.index([1..2, 1..2, 0..2]).into_data();
+
+        let data_expected = Data::from([[[9.0, 10.0]]]);
+        assert_eq!(data_expected, data_actual);
+    }
+
+    #[test]
+    fn should_support_partial_indexing_3d_non_continuous() {
+        let tensor = TestTensor::from_floats([
+            [[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]],
+            [[6.0, 7.0, 8.0], [9.0, 10.0, 11.0]],
+        ]);
+
+        let data_actual = tensor.transpose().index([1..2, 1..2, 0..2]).into_data();
+
+        let data_expected = Data::from([[[7.0, 10.0]]]);
+        assert_eq!(data_expected, data_actual);
+    }
+
+    #[test]
     fn should_support_indexe_assign_1d() {
         let data = Data::from([0.0, 1.0, 2.0]);
         let data_assigned = Data::from([10.0, 5.0]);

@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use super::numeric::NumericOps;
 use super::{BaseOps, Device, FloatElem, FloatTensor};
 use crate::kernel::{matmul, unary, unary_inplace, unary_scalar, unary_scalar_inplace};
@@ -182,15 +184,15 @@ where
     }
 
     fn index<const D1: usize, const D2: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D1>,
-        _indexes: [std::ops::Range<usize>; D2],
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D1> {
-        todo!()
+        tensor: FloatTensor<Self, D1>,
+        indexes: [Range<usize>; D2],
+    ) -> FloatTensor<Self, D1> {
+        BaseOps::<G>::index(tensor, indexes)
     }
 
     fn index_assign<const D1: usize, const D2: usize>(
         _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D1>,
-        _indexes: [std::ops::Range<usize>; D2],
+        _indexes: [Range<usize>; D2],
         _value: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D1>,
     ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D1> {
         todo!()

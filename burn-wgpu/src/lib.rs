@@ -38,6 +38,7 @@ mod tests {
     burn_tensor::testgen_matmul!();
     burn_tensor::testgen_reshape!();
     burn_tensor::testgen_transpose!();
+    burn_tensor::testgen_index!();
 
     type TestADBackend = burn_autodiff::ADBackendDecorator<TestBackend>;
     type TestADTensor<const D: usize, K> = burn_tensor::Tensor<TestADBackend, D, K>;
