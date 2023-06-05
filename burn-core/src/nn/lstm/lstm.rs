@@ -21,7 +21,7 @@ pub struct LSTMConfig {
     /// If a bias should be applied during the Lstm transformation.
     pub bias: bool,
     /// Lstm initializer
-    /// TODO: Make default Xavier initialization, which should be 
+    /// TODO: Make default Xavier initialization, which should be
     /// a better choice. https://github.com/burn-rs/burn/issues/371
     #[config(default = "Initializer::Uniform(0.0, 1.0)")]
     pub initializer: Initializer,
