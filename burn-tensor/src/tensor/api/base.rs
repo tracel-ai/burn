@@ -136,7 +136,7 @@ where
     ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 1, 4]));
     ///
     ///     // Given a 3D tensor with dimensions (2, 1, 4), squeeze the dimension 1
-    ///     let squeezed_tensor: Tensor::<B, 2> = tensor.squeeze::<2>(1);
+    ///     let squeezed_tensor: Tensor::<B, 2> = tensor.squeeze(1);
     ///
     ///     // Resulting tensor will have dimensions (2, 4)
     ///     println!("{:?}", squeezed_tensor.shape());
