@@ -17,10 +17,8 @@ where
         BaseOps::<G>::empty(shape, device)
     }
 
-    fn int_shape<const D: usize>(
-        _tensor: &<WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-    ) -> Shape<D> {
-        todo!()
+    fn int_shape<const D: usize>(tensor: &IntTensor<Self, D>) -> Shape<D> {
+        tensor.shape.clone()
     }
 
     fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> Data<I, D> {
@@ -34,10 +32,8 @@ where
         BaseOps::<G>::from_data(data, device)
     }
 
-    fn int_device<const D: usize>(
-        _tensor: &<WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::Device {
-        todo!()
+    fn int_device<const D: usize>(tensor: &IntTensor<Self, D>) -> Device<Self> {
+        tensor.context.device.clone()
     }
 
     fn int_to_device<const D: usize>(
@@ -200,76 +196,64 @@ where
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        NumericOps::add::<I, D>(lhs, rhs)
+        NumericOps::<G>::add::<I, D>(lhs, rhs)
     }
 
     fn int_add_scalar<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> IntTensor<Self, D> {
-        NumericOps::add_scalar(lhs, rhs)
+        NumericOps::<G>::add_scalar(lhs, rhs)
     }
 
     fn int_sub<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        NumericOps::sub(lhs, rhs)
+        NumericOps::<G>::sub(lhs, rhs)
     }
 
     fn int_sub_scalar<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> IntTensor<Self, D> {
-        NumericOps::sub_scalar(lhs, rhs)
+        NumericOps::<G>::sub_scalar(lhs, rhs)
     }
 
     fn int_mul<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        NumericOps::mul(lhs, rhs)
+        NumericOps::<G>::mul(lhs, rhs)
     }
 
     fn int_mul_scalar<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> IntTensor<Self, D> {
-        NumericOps::mul_scalar(lhs, rhs)
+        NumericOps::<G>::mul_scalar(lhs, rhs)
     }
 
     fn int_div<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        NumericOps::div(lhs, rhs)
+        NumericOps::<G>::div(lhs, rhs)
     }
 
     fn int_div_scalar<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> IntTensor<Self, D> {
-        NumericOps::div_scalar(lhs, rhs)
+        NumericOps::<G>::div_scalar(lhs, rhs)
     }
 
-    fn int_neg<const D: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
-        todo!()
+    fn int_zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
+        NumericOps::<G>::zeros(shape, device)
     }
 
-    fn int_zeros<const D: usize>(
-        _shape: Shape<D>,
-        _device: &<WGPUBackend<G, F, I> as Backend>::Device,
-    ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
-        todo!()
-    }
-
-    fn int_ones<const D: usize>(
-        _shape: Shape<D>,
-        _device: &<WGPUBackend<G, F, I> as Backend>::Device,
-    ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
-        todo!()
+    fn int_ones<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
+        NumericOps::<G>::ones(shape, device)
     }
 
     fn int_sum<const D: usize>(

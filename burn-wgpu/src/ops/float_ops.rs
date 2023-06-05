@@ -70,56 +70,64 @@ where
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        NumericOps::add(lhs, rhs)
+        NumericOps::<G>::add(lhs, rhs)
     }
 
     fn add_scalar<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        NumericOps::add_scalar(lhs, rhs)
+        NumericOps::<G>::add_scalar(lhs, rhs)
+    }
+
+    fn zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
+        NumericOps::<G>::zeros(shape, device)
+    }
+
+    fn ones<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
+        NumericOps::<G>::ones(shape, device)
     }
 
     fn sub<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        NumericOps::sub(lhs, rhs)
+        NumericOps::<G>::sub(lhs, rhs)
     }
 
     fn sub_scalar<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        NumericOps::sub_scalar(lhs, rhs)
+        NumericOps::<G>::sub_scalar(lhs, rhs)
     }
 
     fn mul<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        NumericOps::mul(lhs, rhs)
+        NumericOps::<G>::mul(lhs, rhs)
     }
 
     fn mul_scalar<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        NumericOps::mul_scalar(lhs, rhs)
+        NumericOps::<G>::mul_scalar(lhs, rhs)
     }
 
     fn div<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        NumericOps::div(lhs, rhs)
+        NumericOps::<G>::div(lhs, rhs)
     }
 
     fn div_scalar<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        NumericOps::div_scalar(lhs, rhs)
+        NumericOps::<G>::div_scalar(lhs, rhs)
     }
 
     fn matmul<const D: usize>(
@@ -343,10 +351,15 @@ where
         unary::<Log, F, D>(tensor)
     }
 
-    fn log1p<const D: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
-        todo!()
+    fn log1p<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+        unary!(Log1p, body "output[global_id.x] = log(1.0 + input[global_id.x]);");
+        unary_inplace!(Log1pInplace, body "input[global_id.x] = log(1.0 + input[global_id.x]);");
+
+        if tensor.can_mut() {
+            return unary_inplace::<Log1pInplace, F, D>(tensor);
+        }
+
+        unary::<Log1p, F, D>(tensor)
     }
 
     fn powf<const D: usize>(lhs: FloatTensor<Self, D>, rhs: f32) -> FloatTensor<Self, D> {
@@ -360,34 +373,59 @@ where
         unary_scalar::<Powf, F, D>(lhs, rhs.elem())
     }
 
-    fn sqrt<const D: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
-        todo!()
+    fn sqrt<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+        unary!(Sqrt, func "sqrt");
+        unary_inplace!(SqrtInplace, func "sqrt");
+
+        if tensor.can_mut() {
+            return unary_inplace::<SqrtInplace, F, D>(tensor);
+        }
+
+        unary::<Sqrt, F, D>(tensor)
     }
 
-    fn cos<const D: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
-        todo!()
+    fn cos<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+        unary!(Cos, func "cos");
+        unary_inplace!(CosInplace, func "cos");
+
+        if tensor.can_mut() {
+            return unary_inplace::<CosInplace, F, D>(tensor);
+        }
+
+        unary::<Cos, F, D>(tensor)
     }
 
-    fn sin<const D: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
-        todo!()
+    fn sin<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+        unary!(Sin, func "sin");
+        unary_inplace!(SinInplace, func "sin");
+
+        if tensor.can_mut() {
+            return unary_inplace::<SinInplace, F, D>(tensor);
+        }
+
+        unary::<Sin, F, D>(tensor)
     }
 
-    fn tanh<const D: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
-        todo!()
+    fn tanh<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+        unary!(Tanh, func "tanh");
+        unary_inplace!(TanhInplace, func "tanh");
+
+        if tensor.can_mut() {
+            return unary_inplace::<TanhInplace, F, D>(tensor);
+        }
+
+        unary::<Tanh, F, D>(tensor)
     }
 
-    fn erf<const D: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
-        todo!()
+    fn erf<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+        unary!(Erf, func "erf", include "../template/erf.wgsl");
+        unary_inplace!(ErfInplace, func "erf", include "../template/erf.wgsl");
+
+        if tensor.can_mut() {
+            return unary_inplace::<ErfInplace, F, D>(tensor);
+        }
+
+        unary::<Erf, F, D>(tensor)
     }
 
     fn cat<const D: usize>(

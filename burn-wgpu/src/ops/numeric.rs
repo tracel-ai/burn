@@ -1,12 +1,46 @@
+use std::marker::PhantomData;
+use std::sync::Arc;
+
+use burn_tensor::{Element, ElementConversion, Shape};
+
 use crate::kernel::{binary_elemwise, binary_elemwise_inplace, unary_scalar, unary_scalar_inplace};
+use crate::pool::get_context;
 use crate::{
     binary_elemwise, binary_elemwise_inplace, element::WGPUElement, tensor::WgpuTensor,
     unary_scalar, unary_scalar_inplace,
 };
+use crate::{GraphicsApi, WgpuDevice};
 
-pub struct NumericOps;
+pub struct NumericOps<G: GraphicsApi> {
+    _g: PhantomData<G>,
+}
 
-impl NumericOps {
+impl<G: GraphicsApi> NumericOps<G> {
+    pub fn zeros<E: WGPUElement, const D: usize>(
+        shape: Shape<D>,
+        device: &WgpuDevice,
+    ) -> WgpuTensor<E, D> {
+        let context = get_context::<G>(device);
+
+        let buffer = context.create_buffer(shape.num_elements() * core::mem::size_of::<E>());
+
+        WgpuTensor::new(context, shape, Arc::new(buffer))
+    }
+
+    pub fn ones<E: WGPUElement + Element, const D: usize>(
+        shape: Shape<D>,
+        device: &WgpuDevice,
+    ) -> WgpuTensor<E, D> {
+        let context = get_context::<G>(device);
+
+        let buffer = context.create_buffer(shape.num_elements() * core::mem::size_of::<E>());
+
+        Self::add_scalar(
+            WgpuTensor::new(context, shape, Arc::new(buffer)),
+            1i32.elem::<E>(),
+        )
+    }
+
     pub fn add<E: WGPUElement, const D: usize>(
         lhs: WgpuTensor<E, D>,
         rhs: WgpuTensor<E, D>,

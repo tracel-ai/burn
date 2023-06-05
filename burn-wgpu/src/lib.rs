@@ -34,6 +34,12 @@ mod tests {
     burn_tensor::testgen_powf!();
     burn_tensor::testgen_exp!();
     burn_tensor::testgen_log!();
+    burn_tensor::testgen_log1p!();
+    burn_tensor::testgen_sqrt!();
+    burn_tensor::testgen_cos!();
+    burn_tensor::testgen_sin!();
+    burn_tensor::testgen_tanh!();
+    burn_tensor::testgen_erf!();
     burn_tensor::testgen_relu!();
     burn_tensor::testgen_matmul!();
     burn_tensor::testgen_reshape!();
@@ -50,6 +56,11 @@ mod tests {
     burn_autodiff::testgen_ad_powf!();
     burn_autodiff::testgen_ad_exp!();
     burn_autodiff::testgen_ad_log!();
+    burn_autodiff::testgen_ad_log1p!();
+    burn_autodiff::testgen_ad_sqrt!();
+    burn_autodiff::testgen_ad_cos!();
+    burn_autodiff::testgen_ad_sin!();
+    burn_autodiff::testgen_ad_tanh!();
     burn_autodiff::testgen_ad_matmul!();
     burn_autodiff::testgen_ad_reshape!();
     burn_autodiff::testgen_ad_transpose!();
