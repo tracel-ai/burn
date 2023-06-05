@@ -1,5 +1,4 @@
 use crate as burn;
-use crate::nn::LinearRecord;
 
 use crate::module::Module;
 use crate::nn::Initializer;
@@ -78,8 +77,8 @@ impl<B: Backend> GateController<B> {
         d_output: usize,
         bias: bool,
         initializer: Initializer,
-        input_record: LinearRecord<B>,
-        hidden_record: LinearRecord<B>,
+        input_record: crate::nn::LinearRecord<B>,
+        hidden_record: crate::nn::LinearRecord<B>,
     ) -> Self {
         let l1 = LinearConfig {
             d_input,
