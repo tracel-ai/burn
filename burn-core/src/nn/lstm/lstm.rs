@@ -192,10 +192,21 @@ impl<B: Backend> Lstm<B> {
         hidden: &Tensor<B, 2>,
         gate: &GateController<B>,
     ) -> Tensor<B, 2> {
-        let input_product = input.clone().matmul(gate.get_input_weight());
-        let hidden_product = hidden.clone().matmul(gate.get_hidden_weight());
+        let input_product = input.clone().matmul(gate.input_transform.weight.val());
+        let hidden_product = hidden.clone().matmul(gate.hidden_transform.weight.val());
 
-        match (gate.get_input_bias(), gate.get_hidden_bias()) {
+        let input_bias = gate
+            .input_transform
+            .bias
+            .as_ref()
+            .map(|bias_param| bias_param.val());
+        let hidden_bias = gate
+            .hidden_transform
+            .bias
+            .as_ref()
+            .map(|bias_param| bias_param.val());
+
+        match (input_bias, hidden_bias) {
             (Some(input_bias), Some(hidden_bias)) => {
                 input_product + input_bias.unsqueeze() + hidden_product + hidden_bias.unsqueeze()
             }
@@ -221,19 +232,27 @@ mod tests {
         let lstm = config.init::<TestBackend>();
 
         lstm.input_gate
-            .get_input_weight()
+            .input_transform
+            .weight
+            .val()
             .to_data()
             .assert_in_range(0.0, 1.0);
         lstm.forget_gate
-            .get_input_weight()
+            .input_transform
+            .weight
+            .val()
             .to_data()
             .assert_in_range(0.0, 1.0);
         lstm.output_gate
-            .get_input_weight()
+            .input_transform
+            .weight
+            .val()
             .to_data()
             .assert_in_range(0.0, 1.0);
         lstm.cell_gate
-            .get_input_weight()
+            .input_transform
+            .weight
+            .val()
             .to_data()
             .assert_in_range(0.0, 1.0);
     }
