@@ -5,7 +5,6 @@ use crate::nn::Initializer;
 use crate::nn::Linear;
 use crate::nn::LinearConfig;
 use burn_tensor::backend::Backend;
-use burn_tensor::Tensor;
 
 /// A GateController represents a gate in an LSTM cell. An
 /// LSTM cell generally contains three gates: an input gate,
@@ -17,9 +16,9 @@ use burn_tensor::Tensor;
 #[derive(Module, Debug)]
 pub struct GateController<B: Backend> {
     /// Represents the affine transformation applied to input vector
-    input_transform: Linear<B>,
+    pub(crate) input_transform: Linear<B>,
     /// Represents the affine transformation applied to the hidden state
-    hidden_transform: Linear<B>,
+    pub(crate) hidden_transform: Linear<B>,
 }
 
 impl<B: Backend> GateController<B> {
@@ -50,22 +49,6 @@ impl<B: Backend> GateController<B> {
             input_transform: l1,
             hidden_transform: l2,
         }
-    }
-
-    pub fn get_input_weight(&self) -> Tensor<B, 2> {
-        self.input_transform.get_weight()
-    }
-
-    pub fn get_hidden_weight(&self) -> Tensor<B, 2> {
-        self.hidden_transform.get_weight()
-    }
-
-    pub fn get_input_bias(&self) -> Option<Tensor<B, 1>> {
-        self.input_transform.get_bias()
-    }
-
-    pub fn get_hidden_bias(&self) -> Option<Tensor<B, 1>> {
-        self.hidden_transform.get_bias()
     }
 
     #[cfg(test)]
