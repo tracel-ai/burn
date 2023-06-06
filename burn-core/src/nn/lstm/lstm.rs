@@ -13,7 +13,7 @@ use crate::tensor::Tensor;
 use super::gate_controller::GateController;
 
 #[derive(Config)]
-pub struct LSTMConfig {
+pub struct LstmConfig {
     /// The size of the input features.
     pub d_input: usize,
     /// The size of the hidden state.
@@ -40,7 +40,7 @@ pub struct Lstm<B: Backend> {
     d_hidden: usize,
 }
 
-impl LSTMConfig {
+impl LstmConfig {
     /// Initialize a new [lstm](Lstm) module.
     pub fn init<B: Backend>(&self) -> Lstm<B> {
         let d_output = self.d_hidden;
@@ -129,7 +129,7 @@ impl<B: Backend> Lstm<B> {
         batched_input: Tensor<B, 3>,
         state: Option<(Tensor<B, 2>, Tensor<B, 2>)>,
     ) -> (Tensor<B, 3>, Tensor<B, 3>) {
-        let seq_length = batched_input.shape().dims.to_vec()[1];
+        let seq_length = batched_input.shape().dims[1];
         let mut batched_cell_state = Tensor::zeros([self.batch_size, seq_length, self.d_hidden]);
         let mut batched_hidden_state = Tensor::zeros([self.batch_size, seq_length, self.d_hidden]);
 
@@ -228,7 +228,7 @@ mod tests {
     fn initializer_default() {
         TestBackend::seed(0);
 
-        let config = LSTMConfig::new(5, 5, false, 2);
+        let config = LstmConfig::new(5, 5, false, 2);
         let lstm = config.init::<TestBackend>();
 
         lstm.input_gate
@@ -257,7 +257,6 @@ mod tests {
             .assert_in_range(0.0, 1.0);
     }
 
-    #[test]
     /// Test forward pass with simple input vector
     ///
     /// f_t = sigmoid(0.7*0 + 0.8*0) = 0.5
@@ -267,9 +266,10 @@ mod tests {
 
     /// C_t = f_t * 0 + i_t * c_t = 0 + 0.5123725 * 0.0892937 = 0.04575243
     /// h_t = o_t * tanh(C_t) = 0.5274723 * tanh(0.04575243) = 0.5274723 * 0.04568173 = 0.024083648
+    #[test]
     fn test_forward_single_input_single_feature() {
         TestBackend::seed(0);
-        let config = LSTMConfig::new(1, 1, false, 1);
+        let config = LstmConfig::new(1, 1, false, 1);
         let mut lstm = config.init::<TestBackend>();
 
         fn create_gate_controller(
