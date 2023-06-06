@@ -1,9 +1,9 @@
 use alloc::format;
+use alloc::string::String;
 use alloc::vec::Vec;
 
 use crate::{tensor::Shape, Element, ElementConversion};
 
-use libm::{pow, round};
 use rand::{distributions::Standard, Rng, RngCore};
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Clone, new)]
@@ -206,9 +206,14 @@ impl<E: core::fmt::Debug + Copy, const D: usize> Data<E, D> {
 
 impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E, D> {
     pub fn assert_approx_eq(&self, other: &Self, precision: usize) {
-        assert_eq!(self.shape, other.shape);
-
-        let mut eq = true;
+        let mut message = String::new();
+        if self.shape != other.shape {
+            message += format!(
+                "\n  => Shape is different: {:?} != {:?}",
+                self.shape.dims, other.shape.dims
+            )
+            .as_str();
+        }
 
         let iter = self
             .value
@@ -216,19 +221,34 @@ impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E
             .into_iter()
             .zip(other.value.clone().into_iter());
 
-        for (a, b) in iter {
+        let mut num_diff = 0;
+        let max_num_diff = 5;
+
+        for (i, (a, b)) in iter.enumerate() {
             let a: f64 = a.into();
             let b: f64 = b.into();
-            let a = round(pow(10.0_f64, precision as f64) * a);
-            let b = round(pow(10.0_f64, precision as f64) * b);
 
-            if a != b {
-                eq = false;
+            let err = libm::sqrt(libm::pow(a - b, 2.0));
+            let tolerance = libm::pow(0.1, precision as f64);
+
+            if err > tolerance {
+                // Only print the first 5 differents values.
+                if num_diff < max_num_diff {
+                    message += format!(
+                        "\n  => Position {i}: {a} != {b} | difference {err} > tolerance {tolerance}"
+                    )
+                    .as_str();
+                }
+                num_diff += 1;
             }
         }
 
-        if !eq {
-            assert_eq!(self.value, other.value);
+        if num_diff >= max_num_diff {
+            message += format!("\n{} more errors...", num_diff - 5).as_str();
+        }
+
+        if !message.is_empty() {
+            panic!("Tensors are not approx eq:{}", message);
         }
     }
 
@@ -386,5 +406,31 @@ mod tests {
 
         let data = Data::from([3.0, 5.0, 6.0]);
         assert_eq!(data.shape, Shape::new([3]));
+    }
+
+    #[test]
+    fn should_assert_appox_eq_limit() {
+        let data1 = Data::<f32, 2>::from([[3.0, 5.0, 6.0]]);
+        let data2 = Data::<f32, 2>::from([[3.01, 5.0, 6.0]]);
+
+        data1.assert_approx_eq(&data2, 2);
+    }
+
+    #[test]
+    #[should_panic]
+    fn should_assert_appox_eq_above_limit() {
+        let data1 = Data::<f32, 2>::from([[3.0, 5.0, 6.0]]);
+        let data2 = Data::<f32, 2>::from([[3.011, 5.0, 6.0]]);
+
+        data1.assert_approx_eq(&data2, 2);
+    }
+
+    #[test]
+    #[should_panic]
+    fn should_assert_appox_eq_check_shape() {
+        let data1 = Data::<f32, 2>::from([[3.0, 5.0, 6.0, 7.0]]);
+        let data2 = Data::<f32, 2>::from([[3.0, 5.0, 6.0]]);
+
+        data1.assert_approx_eq(&data2, 2);
     }
 }
