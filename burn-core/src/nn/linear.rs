@@ -37,8 +37,8 @@ pub struct LinearConfig {
 ///     `U(-k, k)`, where `k = sqrt(1 / d_input)`
 #[derive(Module, Debug)]
 pub struct Linear<B: Backend> {
-    weight: Param<Tensor<B, 2>>,
-    bias: Option<Param<Tensor<B, 1>>>,
+    pub(crate) weight: Param<Tensor<B, 2>>,
+    pub(crate) bias: Option<Param<Tensor<B, 1>>>,
 }
 
 impl LinearConfig {
@@ -89,14 +89,6 @@ impl<B: Backend> Linear<B> {
             Some(bias) => output + bias.val().unsqueeze(),
             None => output,
         }
-    }
-
-    pub fn get_weight(&self) -> Tensor<B, 2> {
-        self.weight.val()
-    }
-
-    pub fn get_bias(&self) -> Option<Tensor<B, 1>> {
-        self.bias.as_ref().map(|bias| bias.val())
     }
 }
 
