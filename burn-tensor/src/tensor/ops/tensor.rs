@@ -22,7 +22,9 @@ pub trait TensorOps<B: Backend> {
     }
     fn shape<const D: usize>(tensor: &B::TensorPrimitive<D>) -> Shape<D>;
     fn to_data<const D: usize>(tensor: &B::TensorPrimitive<D>) -> Data<B::FloatElem, D>;
-    fn into_data<const D: usize>(tensor: B::TensorPrimitive<D>) -> Data<B::FloatElem, D>;
+    fn into_data<const D: usize>(tensor: B::TensorPrimitive<D>) -> Data<B::FloatElem, D> {
+        Self::to_data(&tensor)
+    }
     fn device<const D: usize>(tensor: &B::TensorPrimitive<D>) -> B::Device;
     fn to_device<const D: usize>(
         tensor: B::TensorPrimitive<D>,
@@ -102,7 +104,9 @@ pub trait TensorOps<B: Backend> {
         lhs: B::TensorPrimitive<D>,
         rhs: B::TensorPrimitive<D>,
     ) -> B::TensorPrimitive<D>;
-    fn neg<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D>;
+    fn neg<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D> {
+        Self::mul_scalar(tensor, (-1.0_f32).elem::<B::FloatElem>())
+    }
     fn transpose<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D> {
         Self::swap_dims(tensor, D - 2, D - 1)
     }

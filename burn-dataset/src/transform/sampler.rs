@@ -24,7 +24,7 @@ where
             dataset,
             size,
             rng,
-            input: PhantomData::default(),
+            input: PhantomData,
         }
     }
 

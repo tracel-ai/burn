@@ -118,7 +118,7 @@ mod tests {
 
     #[fixture]
     fn train_dataset() -> SqlDs {
-        SqliteDataset::from_db_file(DB_FILE, "train")
+        SqliteDataset::from_db_file(DB_FILE, "train").unwrap()
     }
 
     #[rstest]

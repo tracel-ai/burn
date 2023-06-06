@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 use core::ops::Range;
 
-use crate::{backend::Backend, tensor::Shape, Data};
+use crate::{backend::Backend, tensor::Shape, Data, ElementConversion};
 
 /// Int Tensor API for basic and numeric operations, see [tensor](crate::Tensor)
 /// for documentation on each function.
@@ -172,7 +172,9 @@ pub trait IntTensorOps<B: Backend> {
         lhs: B::IntTensorPrimitive<D>,
         rhs: B::IntElem,
     ) -> B::IntTensorPrimitive<D>;
-    fn int_neg<const D: usize>(tensor: B::IntTensorPrimitive<D>) -> B::IntTensorPrimitive<D>;
+    fn int_neg<const D: usize>(tensor: B::IntTensorPrimitive<D>) -> B::IntTensorPrimitive<D> {
+        Self::int_mul_scalar(tensor, (-1.0).elem::<B::IntElem>())
+    }
     fn int_zeros<const D: usize>(shape: Shape<D>, device: &B::Device) -> B::IntTensorPrimitive<D>;
     fn int_ones<const D: usize>(shape: Shape<D>, device: &B::Device) -> B::IntTensorPrimitive<D>;
     fn int_sum<const D: usize>(tensor: B::IntTensorPrimitive<D>) -> B::IntTensorPrimitive<1>;
