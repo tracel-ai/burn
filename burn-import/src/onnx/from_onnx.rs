@@ -208,6 +208,10 @@ impl TryFrom<TensorProto> for Tensor {
                     TensorData::Float64(tensor.double_data)
                 },
             ),
+            DataType::BOOL => (ElementType::Bool, {
+                assert!(!tensor.raw_data.is_empty());
+                TensorData::Bool(cast_slice(&tensor.raw_data[..]).to_vec())
+            }),
             // TODO : Add more types
             _ => {
                 return Err(ParseError::VariantNotFound);
