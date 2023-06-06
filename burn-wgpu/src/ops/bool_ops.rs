@@ -48,10 +48,8 @@ where
         todo!()
     }
 
-    fn bool_device<const D: usize>(
-        _tensor: &<WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::Device {
-        todo!()
+    fn bool_device<const D: usize>(tensor: &BoolTensor<Self, D>) -> Device<Self> {
+        tensor.context.device.clone()
     }
 
     fn bool_to_device<const D: usize>(
