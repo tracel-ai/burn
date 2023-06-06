@@ -37,8 +37,8 @@ pub struct LinearConfig {
 ///     `U(-k, k)`, where `k = sqrt(1 / d_input)`
 #[derive(Module, Debug)]
 pub struct Linear<B: Backend> {
-    weight: Param<Tensor<B, 2>>,
-    bias: Option<Param<Tensor<B, 1>>>,
+    pub(crate) weight: Param<Tensor<B, 2>>,
+    pub(crate) bias: Option<Param<Tensor<B, 1>>>,
 }
 
 impl LinearConfig {

@@ -110,6 +110,50 @@ where
         Tensor::new(K::reshape::<D, D2>(self.primitive, new_dims.into()))
     }
 
+    /// Squeeze the tensor along the given dimension, removing the specified dimension
+    /// of size one, and effectively reducing the rank of the tensor by one.
+    ///
+    /// # Arguments
+    ///
+    /// - `dim`: The dimension to be squeezed.
+    ///
+    /// # Type Parameters
+    ///
+    ///  - 'D2': The resulting number of dimensions in the squeezed tensor.
+    ///
+    /// # Returns
+    ///
+    /// A new `Tensor<B, D2, K>` instance with the specified dimenension removed.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    ///
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 1, 4]));
+    ///
+    ///     // Given a 3D tensor with dimensions (2, 1, 4), squeeze the dimension 1
+    ///     let squeezed_tensor: Tensor::<B, 2> = tensor.squeeze(1);
+    ///
+    ///     // Resulting tensor will have dimensions (2, 4)
+    ///     println!("{:?}", squeezed_tensor.shape());
+    /// }
+    /// ```
+    pub fn squeeze<const D2: usize>(self, dim: usize) -> Tensor<B, D2, K> {
+        check!(TensorCheck::squeeze::<D2>(dim, &self.shape().dims));
+
+        let current_dims = self.shape().dims;
+        let mut new_dims: [usize; D2] = [0; D2];
+
+        new_dims[..dim].copy_from_slice(&current_dims[..dim]);
+        new_dims[dim..].copy_from_slice(&current_dims[dim + 1..]);
+
+        Tensor::new(K::reshape::<D, D2>(self.primitive, new_dims.into()))
+    }
+
     /// Unsqueeze the current tensor. Create new dimensions to fit the given size.
     ///
     /// # Panics

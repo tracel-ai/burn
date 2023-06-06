@@ -10,6 +10,7 @@ mod embedding;
 mod gelu;
 mod initializer;
 mod linear;
+mod lstm;
 mod norm;
 mod relu;
 
@@ -18,5 +19,6 @@ pub use embedding::*;
 pub use gelu::*;
 pub use initializer::*;
 pub use linear::*;
+pub use lstm::*;
 pub use norm::*;
 pub use relu::*;

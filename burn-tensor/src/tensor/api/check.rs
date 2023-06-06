@@ -133,6 +133,23 @@ impl TensorCheck {
         check
     }
 
+    pub(crate) fn squeeze<const D2: usize>(dim: usize, tensor_dims: &[usize]) -> Self {
+        let mut check = Self::Ok;
+        // This should actually be to check that the dimension to squeeze
+        // has a size of 1
+        if tensor_dims[dim] != 1 {
+            check = check.register(
+                "Squeeze",
+                TensorError::new(format!(
+                    "Can't squeeze dimension {} because its size is not 1",
+                    dim
+                )),
+            );
+        }
+
+        check
+    }
+
     pub(crate) fn unsqueeze<const D1: usize, const D2: usize>() -> Self {
         let mut check = Self::Ok;
         if D2 < D1 {
