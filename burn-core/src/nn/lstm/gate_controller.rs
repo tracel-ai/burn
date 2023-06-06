@@ -22,6 +22,7 @@ pub struct GateController<B: Backend> {
 }
 
 impl<B: Backend> GateController<B> {
+    /// Initialize a new [gate_controller](GateController) module.
     pub fn new(d_input: usize, d_output: usize, bias: bool, initializer: Initializer) -> Self {
         Self {
             input_transform: LinearConfig {
@@ -41,6 +42,7 @@ impl<B: Backend> GateController<B> {
         }
     }
 
+    /// Initialize a new [gate_controller](GateController) module with a [record](GateControllerRecord).
     pub fn new_with(linear_config: &LinearConfig, record: GateControllerRecord<B>) -> Self {
         let l1 = LinearConfig::init_with(linear_config, record.input_transform);
         let l2 = LinearConfig::init_with(linear_config, record.hidden_transform);
@@ -51,10 +53,10 @@ impl<B: Backend> GateController<B> {
         }
     }
 
-    #[cfg(test)]
     /// Used to initialize a gate controller with known weight layers,
     /// allowing for predictable behavior. Used only for testing in
     /// lstm.
+    #[cfg(test)]
     pub fn create_with_weights(
         d_input: usize,
         d_output: usize,
