@@ -1,4 +1,7 @@
-// An approximation of the error function: https://en.wikipedia.org/wiki/Error_function#Numerical_approximations
+/// An approximation of the error function: https://en.wikipedia.org/wiki/Error_function#Numerical_approximations
+///
+/// > (maximum error: 1.5×10−7)
+/// > All of these approximations are valid for x ≥ 0. To use these approximations for negative x, use the fact that erf x is an odd function, so erf x = −erf(−x).
 fn erf_positive(x: elem) -> elem {
     let p = 0.3275911;
     let a1 = 0.254829592;
