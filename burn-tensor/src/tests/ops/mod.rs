@@ -21,6 +21,7 @@ mod powf;
 mod repeat;
 mod reshape;
 mod sin;
+mod sqrt;
 mod sub;
 mod tanh;
 mod transpose;
