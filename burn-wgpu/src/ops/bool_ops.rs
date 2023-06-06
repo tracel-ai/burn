@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use burn_tensor::{backend::Backend, ops::BoolTensorOps, Data, Shape};
 
 use crate::{
@@ -67,18 +69,18 @@ where
     }
 
     fn bool_index<const D1: usize, const D2: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D1>,
-        _indexes: [std::ops::Range<usize>; D2],
-    ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D1> {
-        todo!()
+        tensor: BoolTensor<Self, D1>,
+        indexes: [Range<usize>; D2],
+    ) -> BoolTensor<Self, D1> {
+        BaseOps::<G>::index(tensor, indexes)
     }
 
     fn bool_index_assign<const D1: usize, const D2: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D1>,
-        _indexes: [std::ops::Range<usize>; D2],
-        _value: <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D1>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D1> {
-        todo!()
+        tensor: BoolTensor<Self, D1>,
+        indexes: [Range<usize>; D2],
+        value: BoolTensor<Self, D1>,
+    ) -> BoolTensor<Self, D1> {
+        BaseOps::<G>::index_assign(tensor, indexes, value)
     }
 
     fn bool_cat<const D: usize>(

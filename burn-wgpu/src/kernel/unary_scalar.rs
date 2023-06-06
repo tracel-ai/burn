@@ -1,5 +1,5 @@
 use super::{KernelGenerator, KernelSettings};
-use crate::{context::WorkGroup, element::WGPUElement, kernel_wgsl, tensor::WgpuTensor};
+use crate::{context::WorkGroup, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 use std::sync::Arc;
 
 kernel_wgsl!(UnaryScalarRaw, "../template/unary_scalar.wgsl");
@@ -86,7 +86,7 @@ macro_rules! unary_scalar_inplace {
     };
 }
 
-pub fn unary_scalar<K: KernelGenerator, E: WGPUElement, const D: usize>(
+pub fn unary_scalar<K: KernelGenerator, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     scalar: E,
 ) -> WgpuTensor<E, D> {
@@ -112,7 +112,7 @@ pub fn unary_scalar<K: KernelGenerator, E: WGPUElement, const D: usize>(
     output
 }
 
-pub fn unary_scalar_inplace<K: KernelGenerator, E: WGPUElement, const D: usize>(
+pub fn unary_scalar_inplace<K: KernelGenerator, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     scalar: E,
 ) -> WgpuTensor<E, D> {

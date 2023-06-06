@@ -1,5 +1,5 @@
 use super::{build_info, KernelGenerator, KernelSettings};
-use crate::{context::WorkGroup, element::WGPUElement, kernel_wgsl, tensor::WgpuTensor};
+use crate::{context::WorkGroup, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 use burn_tensor::Shape;
 use std::sync::Arc;
 
@@ -55,7 +55,7 @@ macro_rules! binary_elemwise_inplace {
     };
 }
 
-pub fn binary_elemwise<K: KernelGenerator, E: WGPUElement, const D: usize>(
+pub fn binary_elemwise<K: KernelGenerator, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
@@ -98,7 +98,7 @@ pub fn binary_elemwise<K: KernelGenerator, E: WGPUElement, const D: usize>(
 
     output
 }
-pub fn binary_elemwise_inplace<K: KernelGenerator, E: WGPUElement, const D: usize>(
+pub fn binary_elemwise_inplace<K: KernelGenerator, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {

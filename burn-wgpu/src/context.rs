@@ -128,6 +128,24 @@ impl Context {
         buffer
     }
 
+    /// Copy buffer to buffer.
+    pub fn buffer_to_buffer(&self, buffer: &Buffer) -> Buffer {
+        let buffer_out = self.create_buffer(buffer.size() as usize);
+
+        // Create a command encoder
+        let mut encoder =
+            self.device_wgpu
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("Command Encoder"),
+                });
+
+        encoder.copy_buffer_to_buffer(buffer, 0, &buffer_out, 0, buffer.size());
+
+        self.queue.submit(std::iter::once(encoder.finish()));
+
+        buffer_out
+    }
+
     /// Read a buffer from the GPU and return its content as bytes.
     pub fn buffer_to_data(&self, buffer: &Buffer) -> Vec<u8> {
         let size = buffer.size();

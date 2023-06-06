@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use burn_tensor::{backend::Backend, ops::IntTensorOps, Data, Shape};
 
 use crate::{
@@ -51,18 +53,18 @@ where
     }
 
     fn int_index<const D1: usize, const D2: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D1>,
-        _indexes: [std::ops::Range<usize>; D2],
-    ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D1> {
-        todo!()
+        tensor: IntTensor<Self, D1>,
+        indexes: [Range<usize>; D2],
+    ) -> IntTensor<Self, D1> {
+        BaseOps::<G>::index(tensor, indexes)
     }
 
     fn int_index_assign<const D1: usize, const D2: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D1>,
-        _indexes: [std::ops::Range<usize>; D2],
-        _value: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D1>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D1> {
-        todo!()
+        tensor: IntTensor<Self, D1>,
+        indexes: [Range<usize>; D2],
+        value: IntTensor<Self, D1>,
+    ) -> IntTensor<Self, D1> {
+        BaseOps::<G>::index_assign(tensor, indexes, value)
     }
 
     fn int_mask_scatter<const D: usize>(

@@ -1,6 +1,6 @@
 use burn_tensor::Element;
 
-pub trait WGPUElement: core::fmt::Debug + 'static + Clone
+pub trait WgpuElement: core::fmt::Debug + 'static + Clone
 where
     Self: Sized,
 {
@@ -9,11 +9,11 @@ where
     fn from_bytes(bytes: &[u8]) -> &[Self];
 }
 
-pub trait FloatElement: WGPUElement + Element {}
+pub trait FloatElement: WgpuElement + Element {}
 
-pub trait IntElement: WGPUElement + Element {}
+pub trait IntElement: WgpuElement + Element {}
 
-impl WGPUElement for u32 {
+impl WgpuElement for u32 {
     fn type_name() -> &'static str {
         "u32"
     }
@@ -25,7 +25,7 @@ impl WGPUElement for u32 {
     }
 }
 
-impl WGPUElement for i32 {
+impl WgpuElement for i32 {
     fn type_name() -> &'static str {
         "i32"
     }
@@ -37,7 +37,7 @@ impl WGPUElement for i32 {
     }
 }
 
-impl WGPUElement for i64 {
+impl WgpuElement for i64 {
     fn type_name() -> &'static str {
         "i64"
     }
@@ -49,7 +49,7 @@ impl WGPUElement for i64 {
     }
 }
 
-impl WGPUElement for f32 {
+impl WgpuElement for f32 {
     fn type_name() -> &'static str {
         "f32"
     }
