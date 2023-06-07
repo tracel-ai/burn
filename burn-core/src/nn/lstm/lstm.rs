@@ -25,7 +25,7 @@ pub struct LstmConfig {
     /// a better choice. https://github.com/burn-rs/burn/issues/371
     #[config(default = "Initializer::Uniform(0.0, 1.0)")]
     pub initializer: Initializer,
-    /// The batch size
+    /// The batch size.
     pub batch_size: usize,
 }
 
