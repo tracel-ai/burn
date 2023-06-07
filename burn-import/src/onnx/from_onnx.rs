@@ -210,7 +210,7 @@ impl TryFrom<TensorProto> for Tensor {
             ),
             DataType::BOOL => (ElementType::Bool, {
                 assert!(!tensor.raw_data.is_empty());
-                TensorData::Bool(cast_slice(&tensor.raw_data[..]).to_vec())
+                TensorData::Bool(tensor.raw_data.iter().map(|x| *x != 0).collect())
             }),
             // TODO : Add more types
             _ => {

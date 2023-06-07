@@ -67,7 +67,7 @@ pub enum TensorData {
     Int32(Vec<i32>),
     Int64(Vec<i64>),
     String(Vec<String>),
-    Bool(Vec<u8>),
+    Bool(Vec<bool>),
 }
 
 #[derive(Debug, Clone)]

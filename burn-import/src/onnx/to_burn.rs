@@ -287,7 +287,10 @@ impl Tensor {
             TensorData::Int32(val) => DataSerialize::new(val, self.shape.unwrap()).convert(),
             TensorData::Int64(val) => DataSerialize::new(val, self.shape.unwrap()).convert(),
             TensorData::String(_) => panic!("String tensor unsuported"),
-            TensorData::Bool(val) => DataSerialize::new(val, self.shape.unwrap()).convert(),
+            TensorData::Bool(val) => {
+                DataSerialize::new(val.into_iter().map(u8::from).collect(), self.shape.unwrap())
+                    .convert()
+            }
         }
     }
 }
