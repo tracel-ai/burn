@@ -1,7 +1,6 @@
 use crate as burn;
 
 use burn_tensor::activation;
-use burn_tensor::ops::TensorOps;
 
 use crate::config::Config;
 use crate::module::Module;
@@ -98,13 +97,23 @@ impl GruConfig {
 }
 
 impl<B: Backend> Gru<B> {
+    /// Applies the forward pass on the input tensor. This GRU implementation
+    /// returns a single state tensor with dimensions [batch_size, sequence_length, hidden_size].
+    ///
+    /// Parameters:
+    ///     batched_input: The input tensor of shape [batch_size, sequence_length, input_size].
+    ///     state: An optional tensor representing an initial cell state with the same dimensions
+    ///            as batched_input. If none is provided, one will be generated.
+    ///
+    /// Returns:
+    ///     The resulting state tensor, with shape [batch_size, sequence_length, hidden_size].
     pub fn forward(
         &mut self,
         batched_input: Tensor<B, 3>,
         state: Option<Tensor<B, 3>>,
     ) -> Tensor<B, 3> {
         let seq_length = batched_input.shape().dims[1];
-        
+
         let mut hidden_state = match state {
             Some(state) => state,
             None => Tensor::zeros([self.batch_size, seq_length, self.d_hidden]),
@@ -112,8 +121,14 @@ impl<B: Backend> Gru<B> {
 
         for t in 0..seq_length {
             let indices = Tensor::arange(t..t + 1);
-            let input_t = batched_input.clone().index_select(1, indices.clone()).squeeze(1);
-            let hidden_t = hidden_state.clone().index_select(1, indices.clone()).squeeze(1);
+            let input_t = batched_input
+                .clone()
+                .index_select(1, indices.clone())
+                .squeeze(1);
+            let hidden_t = hidden_state
+                .clone()
+                .index_select(1, indices.clone())
+                .squeeze(1);
 
             // u(pdate)g(ate) tensors
             let biased_ug_input_sum = self.gate_product(&input_t, &hidden_t, &self.update_gate);
@@ -128,8 +143,12 @@ impl<B: Backend> Gru<B> {
             let biased_ng_input_sum = self.gate_product(&input_t, &reset_t, &self.new_gate);
             let candidate_state = biased_ng_input_sum.tanh(); // Colloquially referred to as g(t)
 
-            // calculate linear interpolation between previous hidden state and candidate state
-            let state_vector = candidate_state.clone().mul(update_values.clone().add_scalar(-1)) + update_values.clone().mul(hidden_t);
+            // calculate linear interpolation between previous hidden state and candidate state:
+            // g(t) * (1 - z(t)) + z(t) * hidden_t
+            let state_vector = candidate_state
+                .clone()
+                .mul(update_values.clone().sub_scalar(1).mul_scalar(-1)) // (1 - z(t)) = -(z(t) - 1)
+                + update_values.clone().mul(hidden_t);
 
             hidden_state = hidden_state.index_assign(
                 [0..self.batch_size, t..(t + 1), 0..self.d_hidden],
@@ -186,8 +205,52 @@ mod tests {
     use crate::{module::Param, nn::LinearRecord, TestBackend};
     use burn_tensor::Data;
 
+    /// Test forward pass with simple input vector.
+    ///
+    /// z_t = sigmoid(0.5*0.1 + 0.5*0) = 0.5125
+    /// r_t = sigmoid(0.6*0.1 + 0.*0) = 0.5150
+    /// g_t = tanh(0.7*0.1 + 0.7*0) = 0.0699
+    ///
+    /// h_t = z_t * h' + (1 - z_t) * g_t = 0.0341
     #[test]
     fn tests_forward_single_input_single_feature() {
-        todo!()
+        TestBackend::seed(0);
+        let config = GruConfig::new(1, 1, false, 1);
+        let mut gru = config.init::<TestBackend>();
+
+        fn create_gate_controller(
+            weights: f32,
+            biases: f32,
+            d_input: usize,
+            d_output: usize,
+            bias: bool,
+            initializer: Initializer,
+        ) -> GateController<TestBackend> {
+            let record = LinearRecord {
+                weight: Param::from(Tensor::from_data(Data::from([[weights]]))),
+                bias: Some(Param::from(Tensor::from_data(Data::from([biases])))),
+            };
+            gate_controller::GateController::create_with_weights(
+                d_input,
+                d_output,
+                bias,
+                initializer,
+                record.clone(),
+                record,
+            )
+        }
+
+        gru.update_gate =
+            create_gate_controller(0.5, 0.0, 1, 1, false, Initializer::UniformDefault);
+        gru.reset_gate = create_gate_controller(0.6, 0.0, 1, 1, false, Initializer::UniformDefault);
+        gru.new_gate = create_gate_controller(0.7, 0.0, 1, 1, false, Initializer::UniformDefault);
+
+        let input = Tensor::<TestBackend, 3>::from_data(Data::from([[[0.1]]]));
+
+        let state = gru.forward(input, None);
+
+        let output = state.index_select(0, Tensor::arange(0..1)).squeeze(0);
+
+        output.to_data().assert_approx_eq(&Data::from([[0.034]]), 3);
     }
 }
