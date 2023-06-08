@@ -4,7 +4,8 @@ use std::sync::Arc;
 use burn_tensor::{Element, ElementConversion, Shape};
 
 use crate::kernel::{
-    binary_elemwise, binary_elemwise_inplace, reduction_sum, unary_scalar, unary_scalar_inplace,
+    binary_elemwise, binary_elemwise_inplace, reduction_mean_dim, reduction_sum, reduction_sum_dim,
+    unary_scalar, unary_scalar_inplace,
 };
 use crate::pool::get_context;
 use crate::{
@@ -169,10 +170,24 @@ impl<G: GraphicsApi> NumericOps<G> {
         reduction_sum(tensor)
     }
 
+    pub fn sum_dim<E: WgpuElement + Element, const D: usize>(
+        tensor: WgpuTensor<E, D>,
+        dim: usize,
+    ) -> WgpuTensor<E, D> {
+        reduction_sum_dim(tensor, dim)
+    }
+
     pub fn mean<E: WgpuElement + Element, const D: usize>(
         tensor: WgpuTensor<E, D>,
     ) -> WgpuTensor<E, 1> {
         let num_elems = tensor.shape.num_elements();
         Self::div_scalar(reduction_sum(tensor), (num_elems as f32).elem())
+    }
+
+    pub fn mean_dim<E: WgpuElement + Element, const D: usize>(
+        tensor: WgpuTensor<E, D>,
+        dim: usize,
+    ) -> WgpuTensor<E, D> {
+        reduction_mean_dim(tensor, dim)
     }
 }
