@@ -1,9 +1,19 @@
-use super::{build_info, KernelSettings};
+use super::{build_info, KernelGenerator, KernelSettings};
 use crate::{context::WorkGroup, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 use burn_tensor::Shape;
 use std::sync::Arc;
 
-kernel_wgsl!(MatmulRaw, "../template/matmul.wgsl");
+kernel_wgsl!(MatmulTiledRaw, "../template/matmul_tiled.wgsl");
+
+struct MatmulTiled;
+
+impl KernelGenerator for MatmulTiled {
+    type Source = String;
+
+    fn generate() -> Self::Source {
+        MatmulTiledRaw::generate().replace("TILE_SIZE", "16")
+    }
+}
 
 pub fn matmul<E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
@@ -30,7 +40,7 @@ pub fn matmul<E: WgpuElement, const D: usize>(
     let output = WgpuTensor::new(lhs.context.clone(), shape_out, Arc::new(buffer));
     let kernel = lhs
         .context
-        .compile::<KernelSettings<MatmulRaw, E, i32, 1, 16, 16>>();
+        .compile::<KernelSettings<MatmulTiled, E, i32, 1, 16, 16>>();
 
     let info = build_info(&[&lhs, &rhs]);
     let info_buffers = lhs
