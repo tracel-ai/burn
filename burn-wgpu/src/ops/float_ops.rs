@@ -292,10 +292,8 @@ where
         todo!()
     }
 
-    fn sum<const D: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<1> {
-        todo!()
+    fn sum<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
+        NumericOps::<G>::sum(tensor)
     }
 
     fn sum_dim<const D: usize>(
@@ -305,10 +303,8 @@ where
         todo!()
     }
 
-    fn mean<const D: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<1> {
-        todo!()
+    fn mean<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
+        NumericOps::<G>::mean(tensor)
     }
 
     fn mean_dim<const D: usize>(
