@@ -1,17 +1,37 @@
-FROM rust:1.70-alpine3.18
+FROM rust:1.70-slim-bullseye
 
-RUN apk add --no-cache \
-    # To get source code
+RUN apt update \
+    && apt install -y \
+    # To clone our repo
     git \
-    # To get musl header files
-    musl-dev 
+    # Needs for compiling openssl
+    pkg-config \
+    libssl-dev \
+    # Needs for compiling torch-sys
+    g++ \
+    # Needs for downloading libtorch
+    axel \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN rustup toolchain install nightly \
-    && rustup component add clippy rustfmt --toolchain nightly-x86_64-unknown-linux-musl \
-    && rustup default nightly
+RUN axel -qo /opt/libtorch.zip https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-2.0.1%2Bcpu.zip \
+    && cd /opt \
+    && unzip -qq libtorch.zip \
+    && rm /opt/libtorch.zip
 
+ENV LIBTORCH=/opt/libtorch
+ENV LD_LIBRARY_PATH=/opt/libtorch/lib
+
+RUN rustup component add \
+    # Used in `burn-import/src/formater.rs`
+    rustfmt \
+    clippy
+    
 WORKDIR /workspace
 
 RUN git clone https://github.com/burn-rs/burn.git
 
-RUN apk del git
+RUN apt autoremove -y \
+    git \
+    unzip \
+    axel
