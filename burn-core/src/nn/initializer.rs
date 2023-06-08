@@ -1,3 +1,4 @@
+use libm::sqrt;
 use burn_tensor::Shape;
 
 use crate::config::Config;
@@ -14,7 +15,8 @@ pub enum Initializer {
     Constant(f64),
     Ones,
     Zeros,
-    // TODO: add Xavier initialization
+    XavierUniform(f64),
+    XavierNormal(f64),
 }
 
 impl Initializer {
@@ -31,13 +33,36 @@ impl Initializer {
             Self::Constant(value) => Tensor::<B, D>::zeros(shape) + *value, //TODO replace with fill()
             Self::Ones => Tensor::<B, D>::ones(shape),
             Self::Zeros => Tensor::<B, D>::zeros(shape),
+            Self::XavierUniform(gain) => {
+                assert_eq!(D, 2);
+                let shape = shape.into();
+                let fan_sum: usize = shape.dims.iter().sum();
+
+                let bound = gain * sqrt(6 as f64 / fan_sum as f64);
+                Tensor::<B, D>::random(
+                    shape, Distribution::Uniform(
+                        (-bound).elem::<B::FloatElem>(),
+                        bound.elem::<B::FloatElem>()),
+                )
+            }
+            Self::XavierNormal(gain) => {
+                assert_eq!(D, 2);
+                let shape = shape.into();
+                let fan_sum: usize = shape.dims.iter().sum();
+
+                let std = gain * sqrt(2 as f64 / fan_sum as f64);
+                Tensor::<B, D>::random(
+                    shape,
+                    Distribution::Normal(0., std),
+                )
+            }
         }
     }
 }
 
+
 #[cfg(test)]
 mod tests {
-
     use super::*;
 
     use burn_tensor::Data;
@@ -109,5 +134,43 @@ mod tests {
         ones.sum()
             .to_data()
             .assert_approx_eq(&Data::from([16.0]), 3);
+    }
+
+    #[test]
+    fn initializer_xavier_uniform_init() {
+        TB::seed(0);
+        let gain = 2.;
+        let (fan_in, fan_out) = (5, 6);
+        let bound = gain * sqrt(6. / (fan_in as f64 + fan_out as f64));
+        let xavier_uniform: Tensor<TB, 2> = Initializer::XavierUniform(gain).init([fan_in, fan_out]);
+        for item in xavier_uniform.to_data().value.iter() {
+            if *item < -bound as f32 || *item > bound as f32 {
+                panic!("Element ({item}) is not within range (-{bound},{bound})");
+            }
+        }
+    }
+
+    #[test]
+    fn initializer_xavier_normal_init() {
+        TB::seed(0);
+        let gain = 2.;
+        let (fan_in, fan_out) = (1000, 10);
+        let expected_mean = 0. as f64;
+        let expected_var = (gain * sqrt(2. / (fan_in as f64 + fan_out as f64))).powf(2.);
+        let xavier_normal: Tensor<TB, 2> = Initializer::XavierNormal(gain).init([fan_in, fan_out]);
+        let (actual_vars, actual_means) = xavier_normal.var_mean(0);
+        for i in 0..fan_out {
+            let actual_var = actual_vars.to_data().value[i] as f64;
+            let actual_mean = actual_means.to_data().value[i] as f64;
+
+            assert!(
+                (expected_var - actual_var).abs() <= 0.1,
+                "Expected variance to be between {expected_var} += 0.1, but got {actual_var}"
+            );
+            assert!(
+                (expected_mean - actual_mean).abs() <= 0.1,
+                "Expected mean to be between {expected_mean} += 0.1, but got {actual_mean}"
+            );
+        }
     }
 }
