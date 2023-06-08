@@ -112,10 +112,10 @@ impl LstmConfig {
 impl<B: Backend> Lstm<B> {
     /// Applies the forward pass on the input tensor. This LSTM implementation
     /// returns the cell state and hidden state for each element in a sequence (i.e., across `seq_length`),
-    /// producing 3-dimensional tensors where the dimensions represent [batch_size, seq_length, hidden_size].
+    /// producing 3-dimensional tensors where the dimensions represent [batch_size, sequence_length, hidden_size].
     ///
     /// Parameters:
-    ///     batched_input: The input tensor of shape [batch_size, seq_length, input_size].
+    ///     batched_input: The input tensor of shape [batch_size, sequence_length, input_size].
     ///     state: An optional tuple of tensors representing the initial cell state and hidden state.
     ///            Each state tensor has shape [batch_size, hidden_size].
     ///            If no initial state is provided, these tensors are initialized to zeros.
@@ -123,7 +123,7 @@ impl<B: Backend> Lstm<B> {
     /// Returns:
     ///     A tuple of tensors, where the first tensor represents the cell states and
     ///     the second tensor represents the hidden states for each sequence element.
-    ///     Both output tensors have the shape [batch_size, seq_length, hidden_size].
+    ///     Both output tensors have the shape [batch_size, sequence_length, hidden_size].
     pub fn forward(
         &mut self,
         batched_input: Tensor<B, 3>,
@@ -257,7 +257,7 @@ mod tests {
             .assert_in_range(0.0, 1.0);
     }
 
-    /// Test forward pass with simple input vector
+    /// Test forward pass with simple input vector.
     ///
     /// f_t = sigmoid(0.7*0.1 + 0.7*0) = sigmoid(0.07) = 0.5173928
     /// i_t = sigmoid(0.5*0.1 + 0.5*0) = sigmoid(0.05) = 0.5123725
