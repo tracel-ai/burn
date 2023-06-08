@@ -179,3 +179,15 @@ impl<B: Backend> Gru<B> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{module::Param, nn::LinearRecord, TestBackend};
+    use burn_tensor::Data;
+
+    #[test]
+    fn tests_forward_single_input_single_feature() {
+        todo!()
+    }
+}
