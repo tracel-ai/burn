@@ -50,5 +50,5 @@ fn main(
         sum += input[index_input + index_offset];
     }
 
-    output[global_id.x] = sum / elem(shape_dim);
+    ASSIGN
 }

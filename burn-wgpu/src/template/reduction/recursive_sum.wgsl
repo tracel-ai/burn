@@ -21,6 +21,11 @@ fn main(
     workgroupBarrier();
 
     if local_id.x == 0u {
-        BODY
+        var sum = elem(0);
+        for (var i: u32 = 0u; i < WORKGROUP_SIZE_Xu; i++) {
+            sum += data[i];
+        }
+
+        output[workgroup_id.x] = sum;
     }
 }
