@@ -48,6 +48,7 @@ pub enum ElementType {
     Int64,
     String,
     Float16,
+    Bool,
 }
 
 #[derive(Debug, Clone)]
@@ -66,6 +67,7 @@ pub enum TensorData {
     Int32(Vec<i32>),
     Int64(Vec<i64>),
     String(Vec<String>),
+    Bool(Vec<bool>),
 }
 
 #[derive(Debug, Clone)]
@@ -351,6 +353,7 @@ impl fmt::Debug for TensorData {
             TensorData::Int32(v) => write!(f, "Int32({})", trunc(v)),
             TensorData::Int64(v) => write!(f, "Int64({})", trunc(v)),
             TensorData::String(v) => write!(f, "String({})", trunc(v)),
+            TensorData::Bool(v) => write!(f, "Bool({})", trunc(v)),
         }
     }
 }
