@@ -181,7 +181,7 @@ mod tests {
         TB::seed(0);
         let gain = 2.;
         let (fan_in, fan_out) = (1000, 10);
-        let expected_mean = 0. as f64;
+        let expected_mean = 0_f64;
         let expected_var = (gain * sqrt(2. / (fan_in as f64 + fan_out as f64))).powf(2.);
         let xavier_normal: Tensor<TB, 2> = Initializer::XavierNormal(gain).init([fan_in, fan_out]);
         let (actual_vars, actual_means) = xavier_normal.var_mean(0);
