@@ -33,33 +33,37 @@ impl Initializer {
             Self::Constant(value) => Tensor::<B, D>::zeros(shape) + *value, //TODO replace with fill()
             Self::Ones => Tensor::<B, D>::ones(shape),
             Self::Zeros => Tensor::<B, D>::zeros(shape),
-            Self::XavierUniform(gain) => {
-                assert_eq!(D, 2);
-                let shape = shape.into();
-                let fan_sum: usize = shape.dims.iter().sum();
-
-                let bound = gain * sqrt(6 as f64 / fan_sum as f64);
-                Tensor::<B, D>::random(
-                    shape, Distribution::Uniform(
-                        (-bound).elem::<B::FloatElem>(),
-                        bound.elem::<B::FloatElem>()),
-                )
-            }
-            Self::XavierNormal(gain) => {
-                assert_eq!(D, 2);
-                let shape = shape.into();
-                let fan_sum: usize = shape.dims.iter().sum();
-
-                let std = gain * sqrt(2 as f64 / fan_sum as f64);
-                Tensor::<B, D>::random(
-                    shape,
-                    Distribution::Normal(0., std),
-                )
-            }
+            Self::XavierUniform(gain) => xavier_uniform(gain, shape),
+            Self::XavierNormal(gain) => xavier_normal(gain, shape)
         }
     }
 }
 
+fn xavier_uniform<B: Backend, const D: usize, S: Into<Shape<D>>>(gain: &f64, shape: S) -> Tensor<B, D> {
+    let shape = shape.into();
+    let bound = sqrt(3.0) * xavier_std(gain, &shape);
+    Tensor::<B, D>::random(
+        shape, Distribution::Uniform(
+            (-bound).elem::<B::FloatElem>(),
+            bound.elem::<B::FloatElem>()),
+    )
+}
+
+fn xavier_normal<B: Backend, const D: usize, S: Into<Shape<D>>>(gain: &f64, shape: S) -> Tensor<B, D> {
+    let shape = shape.into();
+    let std = xavier_std(gain, &shape);
+    Tensor::<B, D>::random(
+        shape,
+        Distribution::Normal(0.0, std),
+    )
+}
+
+fn xavier_std<const D: usize>(gain: &f64, shape: &Shape<D>) -> f64 {
+    assert!(D >= 2);
+    let fan_sum: usize = shape.dims.iter().take(2).sum();
+    let receptive_field_size: usize = shape.dims.iter().skip(2).product();
+    gain * sqrt(2.0 / (fan_sum * receptive_field_size) as f64)
+}
 
 #[cfg(test)]
 mod tests {
@@ -141,8 +145,24 @@ mod tests {
         TB::seed(0);
         let gain = 2.;
         let (fan_in, fan_out) = (5, 6);
-        let bound = gain * sqrt(6. / (fan_in as f64 + fan_out as f64));
+        let bound = gain * sqrt(6. / (fan_in + fan_out) as f64);
         let xavier_uniform: Tensor<TB, 2> = Initializer::XavierUniform(gain).init([fan_in, fan_out]);
+        for item in xavier_uniform.to_data().value.iter() {
+            if *item < -bound as f32 || *item > bound as f32 {
+                panic!("Element ({item}) is not within range (-{bound},{bound})");
+            }
+        }
+    }
+
+    #[test]
+    fn initializer_xavier_uniform_init_with_receptive_field() {
+        TB::seed(0);
+        let gain = 2.;
+        let (fan_in, fan_out) = (5, 6);
+        let (rec_field_1, rec_field_2) = (3, 4);
+        let bound = gain * sqrt(6. / ((fan_in + fan_out) * rec_field_1 * rec_field_2) as f64);
+        let xavier_uniform: Tensor<TB, 4> = Initializer::XavierUniform(gain)
+            .init([fan_in, fan_out, rec_field_1, rec_field_2]);
         for item in xavier_uniform.to_data().value.iter() {
             if *item < -bound as f32 || *item > bound as f32 {
                 panic!("Element ({item}) is not within range (-{bound},{bound})");

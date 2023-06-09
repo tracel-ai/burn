@@ -21,9 +21,7 @@ pub struct LstmConfig {
     /// If a bias should be applied during the Lstm transformation.
     pub bias: bool,
     /// Lstm initializer
-    /// TODO: Make default Xavier initialization, which should be
-    /// a better choice. https://github.com/burn-rs/burn/issues/371
-    #[config(default = "Initializer::Uniform(0.0, 1.0)")]
+    #[config(default = "Initializer::XavierNormal(1.0)")]
     pub initializer: Initializer,
     /// The batch size
     pub batch_size: usize,
@@ -219,16 +217,16 @@ impl<B: Backend> Lstm<B> {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
     use crate::{module::Param, nn::LinearRecord, TestBackend};
     use burn_tensor::Data;
 
     #[test]
-    fn initializer_default() {
+    fn test_with_uniform_initializer() {
         TestBackend::seed(0);
 
-        let config = LstmConfig::new(5, 5, false, 2);
+        let config = LstmConfig::new(5, 5, false, 2)
+            .with_initializer(Initializer::Uniform(0.0, 1.0));
         let lstm = config.init::<TestBackend>();
 
         lstm.input_gate
