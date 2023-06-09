@@ -3,7 +3,7 @@ use spin::Mutex;
 use std::{any::TypeId, borrow::Cow, collections::HashMap, sync::Arc};
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
-    Buffer, DeviceDescriptor, DeviceType, ShaderModule, ShaderModuleDescriptor,
+    Buffer, ComputePipeline, DeviceDescriptor, DeviceType, ShaderModuleDescriptor,
 };
 
 use crate::{
@@ -19,7 +19,7 @@ pub struct Context {
     id: String,
     queue: wgpu::Queue,
     device_wgpu: wgpu::Device,
-    cache: Mutex<HashMap<Key, Arc<ShaderModule>>>,
+    cache: Mutex<HashMap<Key, Arc<ComputePipeline>>>,
     pub(crate) device: WgpuDevice,
 }
 
@@ -46,6 +46,7 @@ impl Context {
         let mut adapters = adapters
             .filter(|adapter| {
                 let device_type = adapter.get_info().device_type;
+
                 match device {
                     WgpuDevice::DiscreteGpu(_) => device_type == DeviceType::DiscreteGpu,
                     WgpuDevice::IntegratedGpu(_) => device_type == DeviceType::IntegratedGpu,
@@ -73,6 +74,7 @@ impl Context {
                 adapters.remove(0)
             }
         };
+        println!("Device {:?}", adapter.get_info());
 
         let device_wgpu = device.clone();
         let mut limits = wgpu::Limits::default();
@@ -200,7 +202,7 @@ impl Context {
     }
 
     /// Compile a kernel template if not present in the cache.
-    pub fn compile_static<K: StaticKernelGenerator>(&self) -> Arc<ShaderModule> {
+    pub fn compile_static<K: StaticKernelGenerator>(&self) -> Arc<ComputePipeline> {
         let mut cache = self.cache.lock();
         let template_id = Key::Static(TypeId::of::<K>());
 
@@ -216,15 +218,23 @@ impl Context {
                 label: None,
                 source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(source.as_ref())),
             });
-        let module = Arc::new(module);
+        let pipeline = self
+            .device_wgpu
+            .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: None,
+                layout: None,
+                module: &module,
+                entry_point: "main",
+            });
+        let pipeline = Arc::new(pipeline);
 
-        cache.insert(template_id, module.clone());
+        cache.insert(template_id, pipeline.clone());
 
-        module
+        pipeline
     }
 
     /// Compile a dynamic template if not present in the cache.
-    pub fn compile_dynamic<K: DynamicKernelGenerator>(&self, kernel: K) -> Arc<ShaderModule> {
+    pub fn compile_dynamic<K: DynamicKernelGenerator>(&self, kernel: K) -> Arc<ComputePipeline> {
         let mut cache = self.cache.lock();
         let template_id = Key::Dynamic(kernel.id());
 
@@ -240,11 +250,19 @@ impl Context {
                 label: None,
                 source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(source.as_ref())),
             });
-        let module = Arc::new(module);
+        let pipeline = self
+            .device_wgpu
+            .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: None,
+                layout: None,
+                module: &module,
+                entry_point: "main",
+            });
+        let pipeline = Arc::new(pipeline);
 
-        cache.insert(template_id, module.clone());
+        cache.insert(template_id, pipeline.clone());
 
-        module
+        pipeline
     }
 
     /// Execute a kernel using the provided buffers.
@@ -255,16 +273,7 @@ impl Context {
     /// buffer can be mutated when lauching a compute shaders with write access to a buffer.
     ///
     /// Buffer positions are used as bindings when lauching a compute kernel.
-    pub fn execute(&self, work_group: &WorkGroup, kernel: &ShaderModule, buffers: &[&Buffer]) {
-        let pipeline = self
-            .device_wgpu
-            .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                label: None,
-                layout: None,
-                module: kernel,
-                entry_point: "main",
-            });
-
+    pub fn execute(&self, work_group: &WorkGroup, pipeline: &ComputePipeline, buffers: &[&Buffer]) {
         let group_layout = pipeline.get_bind_group_layout(0);
 
         let entries = buffers
@@ -290,7 +299,6 @@ impl Context {
         let mut compute = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: None });
         compute.set_pipeline(&pipeline);
         compute.set_bind_group(0, &bind_group, &[]);
-
         compute.dispatch_workgroups(work_group.x, work_group.y, work_group.z);
         std::mem::drop(compute);
 
