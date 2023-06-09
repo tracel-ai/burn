@@ -1,4 +1,4 @@
-FROM rust:1.70-slim-bullseye
+FROM rust:1.70-slim-bookworm
 
 RUN apt update \
     && apt install -y \
@@ -11,6 +11,8 @@ RUN apt update \
     g++ \
     # Needs for downloading libtorch
     axel \
+    # Needs for decompression
+    unzip \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -23,9 +25,8 @@ ENV LIBTORCH=/opt/libtorch
 ENV LD_LIBRARY_PATH=/opt/libtorch/lib
 
 RUN rustup component add \
-    # Used in `burn-import/src/formater.rs`
-    rustfmt \
-    clippy
+    # Used by formatter in burn-import
+    rustfmt
     
 WORKDIR /workspace
 
@@ -35,3 +36,5 @@ RUN apt autoremove -y \
     git \
     unzip \
     axel
+
+ENTRYPOINT [ "bash" ]
