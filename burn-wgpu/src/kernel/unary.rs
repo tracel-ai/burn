@@ -1,4 +1,4 @@
-use super::{KernelGenerator, KernelSettings};
+use super::{KernelSettings, StaticKernelGenerator};
 use crate::{context::WorkGroup, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 use std::sync::Arc;
 
@@ -13,7 +13,7 @@ macro_rules! unary {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::KernelGenerator for $struct {
+        impl $crate::kernel::StaticKernelGenerator for $struct {
             type Source = String;
 
             fn generate() -> Self::Source {
@@ -29,7 +29,7 @@ macro_rules! unary {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::KernelGenerator for $struct {
+        impl $crate::kernel::StaticKernelGenerator for $struct {
             type Source = String;
 
             fn generate() -> Self::Source {
@@ -45,7 +45,7 @@ macro_rules! unary {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::KernelGenerator for $struct {
+        impl $crate::kernel::StaticKernelGenerator for $struct {
             type Source = String;
 
             fn generate() -> Self::Source {
@@ -70,7 +70,7 @@ macro_rules! unary_inplace {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::KernelGenerator for $struct {
+        impl $crate::kernel::StaticKernelGenerator for $struct {
             type Source = String;
 
             fn generate() -> Self::Source {
@@ -86,7 +86,7 @@ macro_rules! unary_inplace {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::KernelGenerator for $struct {
+        impl $crate::kernel::StaticKernelGenerator for $struct {
             type Source = String;
 
             fn generate() -> Self::Source {
@@ -102,7 +102,7 @@ macro_rules! unary_inplace {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::KernelGenerator for $struct {
+        impl $crate::kernel::StaticKernelGenerator for $struct {
             type Source = String;
 
             fn generate() -> Self::Source {
@@ -119,7 +119,7 @@ macro_rules! unary_inplace {
     };
 }
 
-pub fn unary<K: KernelGenerator, E: WgpuElement, const D: usize>(
+pub fn unary<K: StaticKernelGenerator, E: WgpuElement, const D: usize>(
     input: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     let buffer = input
@@ -132,7 +132,7 @@ pub fn unary<K: KernelGenerator, E: WgpuElement, const D: usize>(
 
     let kernel = input
         .context
-        .compile::<KernelSettings<K, E, i32, 256, 1, 1>>();
+        .compile_static::<KernelSettings<K, E, i32, 256, 1, 1>>();
 
     input.context.execute(
         &WorkGroup::new(
@@ -147,12 +147,12 @@ pub fn unary<K: KernelGenerator, E: WgpuElement, const D: usize>(
     output
 }
 
-pub fn unary_inplace<K: KernelGenerator, E: WgpuElement, const D: usize>(
+pub fn unary_inplace<K: StaticKernelGenerator, E: WgpuElement, const D: usize>(
     input: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     let kernel = input
         .context
-        .compile::<KernelSettings<K, E, i32, 256, 1, 1>>();
+        .compile_static::<KernelSettings<K, E, i32, 256, 1, 1>>();
 
     input.context.execute(
         &WorkGroup::new(

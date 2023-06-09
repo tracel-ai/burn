@@ -1,4 +1,4 @@
-use super::{build_info, KernelGenerator, KernelSettings};
+use super::{build_info, KernelSettings, StaticKernelGenerator};
 use crate::{context::WorkGroup, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 use burn_tensor::Shape;
 use std::sync::Arc;
@@ -17,7 +17,7 @@ macro_rules! binary_elemwise {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::KernelGenerator for $struct {
+        impl $crate::kernel::StaticKernelGenerator for $struct {
             type Source = String;
 
             fn generate() -> Self::Source {
@@ -40,7 +40,7 @@ macro_rules! binary_elemwise_inplace {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::KernelGenerator for $struct {
+        impl $crate::kernel::StaticKernelGenerator for $struct {
             type Source = String;
 
             fn generate() -> Self::Source {
@@ -55,7 +55,7 @@ macro_rules! binary_elemwise_inplace {
     };
 }
 
-pub fn binary_elemwise<K: KernelGenerator, E: WgpuElement, const D: usize>(
+pub fn binary_elemwise<K: StaticKernelGenerator, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
@@ -80,7 +80,7 @@ pub fn binary_elemwise<K: KernelGenerator, E: WgpuElement, const D: usize>(
 
     let kernel = lhs
         .context
-        .compile::<KernelSettings<K, E, i32, 256, 1, 1>>();
+        .compile_static::<KernelSettings<K, E, i32, 256, 1, 1>>();
     let info = build_info(&[&lhs, &rhs, &output]);
     let info_buffers = lhs
         .context
@@ -98,7 +98,7 @@ pub fn binary_elemwise<K: KernelGenerator, E: WgpuElement, const D: usize>(
 
     output
 }
-pub fn binary_elemwise_inplace<K: KernelGenerator, E: WgpuElement, const D: usize>(
+pub fn binary_elemwise_inplace<K: StaticKernelGenerator, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
@@ -116,7 +116,7 @@ pub fn binary_elemwise_inplace<K: KernelGenerator, E: WgpuElement, const D: usiz
 
     let kernel = lhs
         .context
-        .compile::<KernelSettings<K, E, i32, 256, 1, 1>>();
+        .compile_static::<KernelSettings<K, E, i32, 256, 1, 1>>();
     let info = build_info(&[&lhs, &rhs]);
     let info_buffers = lhs
         .context

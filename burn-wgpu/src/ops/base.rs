@@ -110,7 +110,7 @@ impl<G: GraphicsApi> BaseOps<G> {
 
         let kernel = tensor
             .context
-            .compile::<KernelSettings<ContinuousRaw, E, i32, 256, 1, 1>>();
+            .compile_static::<KernelSettings<ContinuousRaw, E, i32, 256, 1, 1>>();
 
         tensor.context.execute(
             &WorkGroup::new(
@@ -156,7 +156,7 @@ impl<G: GraphicsApi> BaseOps<G> {
 
         let kernel = tensor
             .context
-            .compile::<KernelSettings<IndexRaw, E, i32, 256, 1, 1>>();
+            .compile_static::<KernelSettings<IndexRaw, E, i32, 256, 1, 1>>();
 
         tensor.context.execute(
             &WorkGroup::new(
@@ -199,7 +199,7 @@ impl<G: GraphicsApi> BaseOps<G> {
 
         let kernel = tensor
             .context
-            .compile::<KernelSettings<IndexAssignInplaceRaw, E, i32, 256, 1, 1>>();
+            .compile_static::<KernelSettings<IndexAssignInplaceRaw, E, i32, 256, 1, 1>>();
 
         tensor.context.execute(
             &WorkGroup::new(

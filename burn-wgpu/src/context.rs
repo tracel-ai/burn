@@ -11,7 +11,10 @@ use wgpu::{
     Buffer, DeviceDescriptor, DeviceType, ShaderModule, ShaderModuleDescriptor,
 };
 
-use crate::{kernel::KernelGenerator, GraphicsApi, WgpuDevice};
+use crate::{
+    kernel::{DynamicKernelGenerator, StaticKernelGenerator},
+    GraphicsApi, WgpuDevice,
+};
 
 /// The context is the basic struct that allows to execute GPU kernel on devices.
 ///
@@ -21,8 +24,14 @@ pub struct Context {
     id: String,
     queue: wgpu::Queue,
     device_wgpu: wgpu::Device,
-    cache: Mutex<HashMap<TypeId, Arc<ShaderModule>>>,
+    cache: Mutex<HashMap<Key, Arc<ShaderModule>>>,
     pub(crate) device: WgpuDevice,
+}
+
+#[derive(Debug, Hash, PartialOrd, PartialEq, Eq)]
+enum Key {
+    Static(TypeId),
+    Dynamic(String),
 }
 
 #[derive(new, Clone, Debug)]
@@ -193,15 +202,39 @@ impl Context {
     }
 
     /// Compile a kernel template if not present in the cache.
-    pub fn compile<K: KernelGenerator>(&self) -> Arc<ShaderModule> {
+    pub fn compile_static<K: StaticKernelGenerator>(&self) -> Arc<ShaderModule> {
         let mut cache = self.cache.lock().unwrap();
-        let template_id = TypeId::of::<K>();
+        let template_id = Key::Static(TypeId::of::<K>());
 
         if let Some(module) = cache.get(&template_id) {
             return module.clone();
         }
 
         let source = K::generate();
+
+        let module = self
+            .device_wgpu
+            .create_shader_module(ShaderModuleDescriptor {
+                label: None,
+                source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(source.as_ref())),
+            });
+        let module = Arc::new(module);
+
+        cache.insert(template_id, module.clone());
+
+        module
+    }
+
+    /// Compile a dynamic template if not present in the cache.
+    pub fn compile_dynamic<K: DynamicKernelGenerator>(&self, kernel: K) -> Arc<ShaderModule> {
+        let mut cache = self.cache.lock().unwrap();
+        let template_id = Key::Dynamic(kernel.id());
+
+        if let Some(module) = cache.get(&template_id) {
+            return module.clone();
+        }
+
+        let source = kernel.generate();
 
         let module = self
             .device_wgpu

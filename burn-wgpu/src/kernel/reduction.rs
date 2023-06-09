@@ -1,4 +1,4 @@
-use super::{build_info, KernelGenerator, KernelSettings};
+use super::{build_info, KernelSettings, StaticKernelGenerator};
 use crate::{context::WorkGroup, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 use burn_tensor::Shape;
 use std::sync::Arc;
@@ -8,7 +8,7 @@ kernel_wgsl!(ReductionDimRaw, "../template/reduction/reduce_dim.wgsl");
 
 struct SumDimRaw;
 
-impl KernelGenerator for SumDimRaw {
+impl StaticKernelGenerator for SumDimRaw {
     type Source = String;
 
     fn generate() -> Self::Source {
@@ -18,7 +18,7 @@ impl KernelGenerator for SumDimRaw {
 
 struct MeanDimRaw;
 
-impl KernelGenerator for MeanDimRaw {
+impl StaticKernelGenerator for MeanDimRaw {
     type Source = String;
 
     fn generate() -> Self::Source {
@@ -36,7 +36,7 @@ pub fn reduction_sum<E: WgpuElement, const D: usize>(input: WgpuTensor<E, D>) ->
 
     let kernel = input
         .context
-        .compile::<KernelSettings<RecursiveSumRaw, E, i32, WORKGROUP, 1, 1>>();
+        .compile_static::<KernelSettings<RecursiveSumRaw, E, i32, WORKGROUP, 1, 1>>();
 
     loop {
         let buffer = input
@@ -71,7 +71,7 @@ pub fn reduction_mean_dim<E: WgpuElement, const D: usize>(
     reduction_dim::<MeanDimRaw, E, D>(input, dim)
 }
 
-fn reduction_dim<K: KernelGenerator, E: WgpuElement, const D: usize>(
+fn reduction_dim<K: StaticKernelGenerator, E: WgpuElement, const D: usize>(
     input: WgpuTensor<E, D>,
     dim: usize,
 ) -> WgpuTensor<E, D> {
@@ -84,7 +84,7 @@ fn reduction_dim<K: KernelGenerator, E: WgpuElement, const D: usize>(
 
     let kernel = input
         .context
-        .compile::<KernelSettings<K, E, i32, 256, 1, 1>>();
+        .compile_static::<KernelSettings<K, E, i32, 256, 1, 1>>();
     let mut info = build_info(&[&input, &output]);
     info.push(dim as u32);
     let info_buffers = input
