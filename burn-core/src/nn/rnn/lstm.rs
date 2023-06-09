@@ -1,14 +1,13 @@
-use burn_tensor::activation;
-
 use crate as burn;
 
 use crate::config::Config;
 use crate::module::Module;
-use crate::nn::lstm::gate_controller;
+use crate::nn::rnn::gate_controller;
 use crate::nn::Initializer;
 use crate::nn::LinearConfig;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
+use burn_tensor::activation;
 
 use super::gate_controller::GateController;
 
@@ -25,7 +24,7 @@ pub struct LstmConfig {
     /// a better choice. https://github.com/burn-rs/burn/issues/371
     #[config(default = "Initializer::Uniform(0.0, 1.0)")]
     pub initializer: Initializer,
-    /// The batch size
+    /// The batch size.
     pub batch_size: usize,
 }
 
@@ -112,10 +111,10 @@ impl LstmConfig {
 impl<B: Backend> Lstm<B> {
     /// Applies the forward pass on the input tensor. This LSTM implementation
     /// returns the cell state and hidden state for each element in a sequence (i.e., across `seq_length`),
-    /// producing 3-dimensional tensors where the dimensions represent [batch_size, seq_length, hidden_size].
+    /// producing 3-dimensional tensors where the dimensions represent [batch_size, sequence_length, hidden_size].
     ///
     /// Parameters:
-    ///     batched_input: The input tensor of shape [batch_size, seq_length, input_size].
+    ///     batched_input: The input tensor of shape [batch_size, sequence_length, input_size].
     ///     state: An optional tuple of tensors representing the initial cell state and hidden state.
     ///            Each state tensor has shape [batch_size, hidden_size].
     ///            If no initial state is provided, these tensors are initialized to zeros.
@@ -123,7 +122,7 @@ impl<B: Backend> Lstm<B> {
     /// Returns:
     ///     A tuple of tensors, where the first tensor represents the cell states and
     ///     the second tensor represents the hidden states for each sequence element.
-    ///     Both output tensors have the shape [batch_size, seq_length, hidden_size].
+    ///     Both output tensors have the shape [batch_size, sequence_length, hidden_size].
     pub fn forward(
         &mut self,
         batched_input: Tensor<B, 3>,
@@ -257,12 +256,12 @@ mod tests {
             .assert_in_range(0.0, 1.0);
     }
 
-    /// Test forward pass with simple input vector
+    /// Test forward pass with simple input vector.
     ///
-    /// f_t = sigmoid(0.7*0 + 0.8*0) = 0.5
-    /// i_t = sigmoid(0.5*0.1 + 0.6*0) = sigmoid(0.05) = 0.5123725
-    /// o_t = sigmoid(1.1*0.1 + 1.2*0) = sigmoid(0.11) = 0.5274723
-    /// c_t = tanh(0.9*0.1 + 1.0*0) = tanh(0.09) = 0.0892937
+    /// f_t = sigmoid(0.7*0.1 + 0.7*0) = sigmoid(0.07) = 0.5173928
+    /// i_t = sigmoid(0.5*0.1 + 0.5*0) = sigmoid(0.05) = 0.5123725
+    /// o_t = sigmoid(1.1*0.1 + 1.1*0) = sigmoid(0.11) = 0.5274723
+    /// c_t = tanh(0.9*0.1 + 0.9*0) = tanh(0.09) = 0.0892937
 
     /// C_t = f_t * 0 + i_t * c_t = 0 + 0.5123725 * 0.0892937 = 0.04575243
     /// h_t = o_t * tanh(C_t) = 0.5274723 * tanh(0.04575243) = 0.5274723 * 0.04568173 = 0.024083648
