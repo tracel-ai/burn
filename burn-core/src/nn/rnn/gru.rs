@@ -38,7 +38,7 @@ pub struct Gru<B: Backend> {
 }
 
 impl GruConfig {
-    /// Initialize a new [Gru](Gru) module.
+    /// Initialize a new [gru](Gru) module.
     pub fn init<B: Backend>(&self) -> Gru<B> {
         let d_output = self.d_hidden;
 
