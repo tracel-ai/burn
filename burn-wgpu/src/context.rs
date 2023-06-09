@@ -1,11 +1,6 @@
 use burn_common::id::IdGenerator;
-use std::{
-    any::TypeId,
-    borrow::Cow,
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
-
+use spin::Mutex;
+use std::{any::TypeId, borrow::Cow, collections::HashMap, sync::Arc};
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
     Buffer, DeviceDescriptor, DeviceType, ShaderModule, ShaderModuleDescriptor,
@@ -135,7 +130,7 @@ impl Context {
         encoder.copy_buffer_to_buffer(&buffer_src, 0, &buffer, 0, buffer_src.size());
 
         // Submit the command encoder to the queue
-        self.queue.submit(std::iter::once(encoder.finish()));
+        self.queue.submit(Some(encoder.finish()));
 
         buffer
     }
@@ -153,7 +148,7 @@ impl Context {
 
         encoder.copy_buffer_to_buffer(buffer, 0, &buffer_out, 0, buffer.size());
 
-        self.queue.submit(std::iter::once(encoder.finish()));
+        self.queue.submit(Some(encoder.finish()));
 
         buffer_out
     }
@@ -178,7 +173,7 @@ impl Context {
 
         encoder.copy_buffer_to_buffer(buffer, 0, &buffer_dest, 0, size);
 
-        self.queue.submit(std::iter::once(encoder.finish()));
+        self.queue.submit(Some(encoder.finish()));
 
         let buffer_slice = buffer_dest.slice(..);
         let (sender, receiver) = futures_intrusive::channel::shared::oneshot_channel();
@@ -206,7 +201,7 @@ impl Context {
 
     /// Compile a kernel template if not present in the cache.
     pub fn compile_static<K: StaticKernelGenerator>(&self) -> Arc<ShaderModule> {
-        let mut cache = self.cache.lock().unwrap();
+        let mut cache = self.cache.lock();
         let template_id = Key::Static(TypeId::of::<K>());
 
         if let Some(module) = cache.get(&template_id) {
@@ -230,7 +225,7 @@ impl Context {
 
     /// Compile a dynamic template if not present in the cache.
     pub fn compile_dynamic<K: DynamicKernelGenerator>(&self, kernel: K) -> Arc<ShaderModule> {
-        let mut cache = self.cache.lock().unwrap();
+        let mut cache = self.cache.lock();
         let template_id = Key::Dynamic(kernel.id());
 
         if let Some(module) = cache.get(&template_id) {
