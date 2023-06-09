@@ -80,11 +80,14 @@ impl Context {
         };
 
         let device_wgpu = device.clone();
+        let mut limits = wgpu::Limits::default();
+        limits.max_compute_invocations_per_workgroup = 1024;
+
         let (device, queue) = pollster::block_on(adapter.request_device(
             &DeviceDescriptor {
                 label: None,
                 features: wgpu::Features::empty(),
-                limits: wgpu::Limits::downlevel_defaults(),
+                limits,
             },
             None,
         ))

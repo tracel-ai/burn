@@ -18,12 +18,13 @@ var<storage, read> info: array<u32>;
 @workgroup_size(WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y, WORKGROUP_SIZE_Z)
 fn main(
     @builtin(global_invocation_id) global_id: vec3<u32>,
-    @builtin(local_invocation_id) local_id: vec3<u32>,
     @builtin(workgroup_id) workgroup_id: vec3<u32>,
+    @builtin(num_workgroups) num_workgroups: vec3<u32>,
 ) {
     // Indexes
-    let row = workgroup_id.x * TILE_SIZEu + (local_id.x / TILE_SIZEu);
-    let col = workgroup_id.y * TILE_SIZEu + (local_id.x % TILE_SIZEu);
+    let local_id = (global_id.x * global_id.y) % (WORKGROUP_SIZE_Xu * WORKGROUP_SIZE_Yu);
+    let row = workgroup_id.x * TILE_SIZEu + (local_id / TILE_SIZEu);
+    let col = workgroup_id.y * TILE_SIZEu + (local_id % TILE_SIZEu);
     let batch = global_id.z;
 
     // Basic information

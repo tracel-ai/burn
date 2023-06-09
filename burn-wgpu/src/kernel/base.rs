@@ -79,6 +79,7 @@ impl<
 }
 
 /// Generate kernel source code by replacing some information using templating.
+#[derive(new)]
 pub struct DynamicKernelSettings<K: StaticKernelGenerator, E: WgpuElement, I: WgpuElement> {
     workgroup_x_size: usize,
     workgroup_y_size: usize,
