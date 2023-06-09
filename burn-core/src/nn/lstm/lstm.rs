@@ -225,8 +225,8 @@ mod tests {
     fn test_with_uniform_initializer() {
         TestBackend::seed(0);
 
-        let config = LstmConfig::new(5, 5, false, 2)
-            .with_initializer(Initializer::Uniform(0.0, 1.0));
+        let config =
+            LstmConfig::new(5, 5, false, 2).with_initializer(Initializer::Uniform(0.0, 1.0));
         let lstm = config.init::<TestBackend>();
 
         lstm.input_gate
