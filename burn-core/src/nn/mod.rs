@@ -10,15 +10,15 @@ mod embedding;
 mod gelu;
 mod initializer;
 mod linear;
-mod lstm;
 mod norm;
 mod relu;
+mod rnn;
 
 pub use dropout::*;
 pub use embedding::*;
 pub use gelu::*;
 pub use initializer::*;
 pub use linear::*;
-pub use lstm::*;
 pub use norm::*;
 pub use relu::*;
+pub use rnn::*;
