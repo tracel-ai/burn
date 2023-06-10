@@ -28,19 +28,19 @@ pub enum Distribution<E> {
 
 #[derive(new)]
 pub struct DistributionSampler<'a, E, R>
-where
-    Standard: rand::distributions::Distribution<E>,
-    E: rand::distributions::uniform::SampleUniform,
-    R: RngCore,
+    where
+        Standard: rand::distributions::Distribution<E>,
+        E: rand::distributions::uniform::SampleUniform,
+        R: RngCore,
 {
     kind: DistributionSamplerKind<E>,
     rng: &'a mut R,
 }
 
 pub enum DistributionSamplerKind<E>
-where
-    Standard: rand::distributions::Distribution<E>,
-    E: rand::distributions::uniform::SampleUniform,
+    where
+        Standard: rand::distributions::Distribution<E>,
+        E: rand::distributions::uniform::SampleUniform,
 {
     Standard(rand::distributions::Standard),
     Uniform(rand::distributions::Uniform<E>),
@@ -49,11 +49,11 @@ where
 }
 
 impl<'a, E, R> DistributionSampler<'a, E, R>
-where
-    Standard: rand::distributions::Distribution<E>,
-    E: rand::distributions::uniform::SampleUniform,
-    E: Element,
-    R: RngCore,
+    where
+        Standard: rand::distributions::Distribution<E>,
+        E: rand::distributions::uniform::SampleUniform,
+        E: Element,
+        R: RngCore,
 {
     pub fn sample(&mut self) -> E {
         match &self.kind {
@@ -72,9 +72,9 @@ where
 }
 
 impl<E> Distribution<E>
-where
-    Standard: rand::distributions::Distribution<E>,
-    E: rand::distributions::uniform::SampleUniform,
+    where
+        Standard: rand::distributions::Distribution<E>,
+        E: rand::distributions::uniform::SampleUniform,
 {
     pub fn sampler<R: RngCore>(self, rng: &'_ mut R) -> DistributionSampler<'_, E, R> {
         let kind = match self {
@@ -97,8 +97,8 @@ where
 }
 
 impl<E> Distribution<E>
-where
-    E: Element,
+    where
+        E: Element,
 {
     pub fn convert<EOther: Element>(self) -> Distribution<EOther> {
         match self {
@@ -119,6 +119,20 @@ impl<const D: usize, E: Element> Data<E, D> {
         Data {
             value,
             shape: self.shape,
+        }
+    }
+
+    /// Asserts each value is within a given range.
+    /// Bounds are inclusive.
+    pub fn assert_within_range<EOther: Element>(&self, range: core::ops::Range<EOther>) {
+        let start = range.start.elem::<f32>();
+        let end = range.end.elem::<f32>();
+
+        for elem in self.value.iter() {
+            let elem = elem.elem::<f32>();
+            if elem < start || elem > end {
+                panic!("Element ({elem:?}) is not within range {range:?}");
+            }
         }
     }
 }
@@ -144,6 +158,7 @@ impl<const D: usize> Data<bool, D> {
         }
     }
 }
+
 impl<E: Element, const D: usize> Data<E, D> {
     pub fn random<R: RngCore>(shape: Shape<D>, distribution: Distribution<E>, rng: &mut R) -> Self {
         let num_elements = shape.num_elements();
@@ -156,9 +171,10 @@ impl<E: Element, const D: usize> Data<E, D> {
         Data::new(data, shape)
     }
 }
+
 impl<E: core::fmt::Debug, const D: usize> Data<E, D>
-where
-    E: Element,
+    where
+        E: Element,
 {
     pub fn zeros<S: Into<Shape<D>>>(shape: S) -> Data<E, D> {
         let shape = shape.into();
@@ -177,8 +193,8 @@ where
 }
 
 impl<E: core::fmt::Debug, const D: usize> Data<E, D>
-where
-    E: Element,
+    where
+        E: Element,
 {
     pub fn ones(shape: Shape<D>) -> Data<E, D> {
         let num_elements = shape.num_elements();
@@ -212,7 +228,7 @@ impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E
                 "\n  => Shape is different: {:?} != {:?}",
                 self.shape.dims, other.shape.dims
             )
-            .as_str();
+                .as_str();
         }
 
         let iter = self
@@ -237,7 +253,7 @@ impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E
                     message += format!(
                         "\n  => Position {i}: {a} != {b} | difference {err} > tolerance {tolerance}"
                     )
-                    .as_str();
+                        .as_str();
                 }
                 num_diff += 1;
             }
@@ -249,19 +265,6 @@ impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E
 
         if !message.is_empty() {
             panic!("Tensors are not approx eq:{}", message);
-        }
-    }
-
-    pub fn assert_in_range(&self, min: E, max: E) {
-        let min: f64 = min.into();
-        let max: f64 = max.into();
-
-        for item in self.value.iter() {
-            let item: f64 = item.clone().into();
-
-            if item < min || item > max {
-                panic!("Element ({item}) is not within the range of ({min},{max})");
-            }
         }
     }
 }
@@ -333,7 +336,7 @@ impl<E: core::fmt::Debug + Copy, const A: usize, const B: usize> From<[[E; B]; A
 }
 
 impl<E: core::fmt::Debug + Copy, const A: usize, const B: usize, const C: usize>
-    From<[[[E; C]; B]; A]> for Data<E, 3>
+From<[[[E; C]; B]; A]> for Data<E, 3>
 {
     fn from(elems: [[[E; C]; B]; A]) -> Self {
         let mut data = Vec::with_capacity(A * B * C);
@@ -351,12 +354,12 @@ impl<E: core::fmt::Debug + Copy, const A: usize, const B: usize, const C: usize>
 }
 
 impl<
-        E: core::fmt::Debug + Copy,
-        const A: usize,
-        const B: usize,
-        const C: usize,
-        const D: usize,
-    > From<[[[[E; D]; C]; B]; A]> for Data<E, 4>
+    E: core::fmt::Debug + Copy,
+    const A: usize,
+    const B: usize,
+    const C: usize,
+    const D: usize,
+> From<[[[[E; D]; C]; B]; A]> for Data<E, 4>
 {
     fn from(elems: [[[[E; D]; C]; B]; A]) -> Self {
         let mut data = Vec::with_capacity(A * B * C * D);
