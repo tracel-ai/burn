@@ -1,7 +1,6 @@
 use super::{build_info, DynamicKernelSettings, StaticKernelGenerator};
 use crate::{context::WorkGroup, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 use burn_tensor::Shape;
-use std::sync::Arc;
 
 const TILE_SIZE: usize = 16;
 
@@ -39,7 +38,7 @@ pub fn matmul<E: WgpuElement, const D: usize>(
     let buffer = lhs
         .context
         .create_buffer(shape_out.num_elements() * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(lhs.context.clone(), shape_out, Arc::new(buffer));
+    let output = WgpuTensor::new(lhs.context.clone(), shape_out, buffer);
     let num_rows = lhs.shape.dims[D - 2];
     let num_cols = rhs.shape.dims[D - 1];
 
@@ -62,8 +61,8 @@ pub fn matmul<E: WgpuElement, const D: usize>(
     let workgroup = WorkGroup::new(workgroup_x, workgroup_y, num_iter as u32);
 
     lhs.context.execute(
-        &workgroup,
-        &kernel,
+        workgroup,
+        kernel,
         &[&lhs.buffer, &rhs.buffer, &output.buffer, &info_buffers],
     );
 

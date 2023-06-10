@@ -37,8 +37,8 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
         }
     }
     pub fn to_context(&self, context: Arc<Context>) -> Self {
-        let data = self.context.buffer_to_data(&self.buffer);
-        let buffer = Arc::new(context.create_buffer_with_data(&data));
+        let data = self.context.buffer_to_data(self.buffer.clone());
+        let buffer = context.create_buffer_with_data(&data);
 
         Self {
             context,
@@ -64,7 +64,7 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
     }
 
     pub fn copy(&self) -> Self {
-        let buffer = Arc::new(self.context.buffer_to_buffer(&self.buffer));
+        let buffer = self.context.buffer_to_buffer(self.buffer.clone());
 
         Self {
             context: self.context.clone(),

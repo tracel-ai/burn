@@ -1,5 +1,4 @@
 use std::marker::PhantomData;
-use std::sync::Arc;
 
 use burn_tensor::{Element, ElementConversion, Shape};
 
@@ -27,7 +26,7 @@ impl<G: GraphicsApi> NumericOps<G> {
 
         let buffer = context.create_buffer(shape.num_elements() * core::mem::size_of::<E>());
 
-        WgpuTensor::new(context, shape, Arc::new(buffer))
+        WgpuTensor::new(context, shape, buffer)
     }
 
     pub fn ones<E: WgpuElement + Element, const D: usize>(
@@ -38,10 +37,7 @@ impl<G: GraphicsApi> NumericOps<G> {
 
         let buffer = context.create_buffer(shape.num_elements() * core::mem::size_of::<E>());
 
-        Self::add_scalar(
-            WgpuTensor::new(context, shape, Arc::new(buffer)),
-            1i32.elem::<E>(),
-        )
+        Self::add_scalar(WgpuTensor::new(context, shape, buffer), 1i32.elem::<E>())
     }
 
     pub fn add<E: WgpuElement, const D: usize>(

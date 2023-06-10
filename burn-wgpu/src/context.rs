@@ -1,9 +1,15 @@
 use burn_common::id::IdGenerator;
 use spin::Mutex;
-use std::{any::TypeId, borrow::Cow, collections::HashMap, sync::Arc};
+use std::{
+    any::TypeId,
+    borrow::Cow,
+    collections::HashMap,
+    sync::{mpsc, Arc},
+};
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
-    Buffer, ComputePipeline, DeviceDescriptor, DeviceType, ShaderModuleDescriptor,
+    BindGroup, Buffer, CommandEncoder, ComputePipeline, DeviceDescriptor, DeviceType,
+    ShaderModuleDescriptor,
 };
 
 use crate::{
@@ -17,10 +23,141 @@ use crate::{
 #[derive(Debug)]
 pub struct Context {
     id: String,
-    queue: wgpu::Queue,
-    device_wgpu: wgpu::Device,
+    device_wgpu: Arc<wgpu::Device>,
     cache: Mutex<HashMap<Key, Arc<ComputePipeline>>>,
+    sender: mpsc::SyncSender<Message>,
+    _handle: std::thread::JoinHandle<()>,
     pub(crate) device: WgpuDevice,
+}
+
+enum Message {
+    Compute(ComputeTask),
+    ReadBuffer(Arc<Buffer>, mpsc::SyncSender<Vec<u8>>),
+    CopyBuffer(Arc<Buffer>, Arc<Buffer>),
+}
+
+#[derive(new)]
+struct ComputeTask {
+    bind_group: BindGroup,
+    pipeline: Arc<ComputePipeline>,
+    work_group: WorkGroup,
+}
+
+struct ContextThread {
+    device: Arc<wgpu::Device>,
+    queue: Arc<wgpu::Queue>,
+    encoder: CommandEncoder,
+    tasks: Vec<ComputeTask>,
+    receiver: mpsc::Receiver<Message>,
+}
+
+impl ContextThread {
+    pub fn new(
+        device: Arc<wgpu::Device>,
+        queue: Arc<wgpu::Queue>,
+        receiver: mpsc::Receiver<Message>,
+    ) -> std::thread::JoinHandle<()> {
+        let encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Command Encoder"),
+        });
+
+        let context = Self {
+            device,
+            queue,
+            encoder,
+            tasks: Vec::new(),
+            receiver,
+        };
+
+        std::thread::spawn(|| context.run())
+    }
+
+    pub fn run(mut self) {
+        loop {
+            let message = self.receiver.recv().unwrap();
+
+            match message {
+                Message::Compute(task) => self.tasks.push(task),
+                Message::CopyBuffer(src, dest) => self.buffer_to_buffer(src, dest),
+                Message::ReadBuffer(buffer, sender) => {
+                    let bytes = self.read(&buffer);
+                    sender.send(bytes).unwrap();
+                }
+            };
+        }
+    }
+
+    fn compute_tasks(&mut self) {
+        let mut compute = self
+            .encoder
+            .begin_compute_pass(&wgpu::ComputePassDescriptor { label: None });
+        for task in self.tasks.iter() {
+            compute.set_pipeline(&task.pipeline);
+            compute.set_bind_group(0, &task.bind_group, &[]);
+            compute.dispatch_workgroups(task.work_group.x, task.work_group.y, task.work_group.z);
+        }
+        std::mem::drop(compute);
+        self.tasks.clear();
+    }
+
+    fn execute(&mut self) {
+        assert!(
+            self.tasks.is_empty(),
+            "Tasks should be completed before submiting the current encoder."
+        );
+        let mut new_encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+        core::mem::swap(&mut new_encoder, &mut self.encoder);
+
+        self.queue.submit(Some(new_encoder.finish()));
+    }
+
+    fn read(&mut self, buffer: &Buffer) -> Vec<u8> {
+        let size = buffer.size();
+        self.compute_tasks();
+
+        let buffer_dest = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: None,
+            size,
+            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        // Create a command encoder
+        self.encoder
+            .copy_buffer_to_buffer(&buffer, 0, &buffer_dest, 0, size);
+
+        self.execute();
+
+        let buffer_slice = buffer_dest.slice(..);
+        let (sender, receiver) = futures_intrusive::channel::shared::oneshot_channel();
+        buffer_slice.map_async(wgpu::MapMode::Read, move |v| {
+            sender
+                .send(v)
+                .expect("Unable to send buffer slice result to async channel.")
+        });
+
+        self.device.poll(wgpu::Maintain::Wait);
+
+        let result = pollster::block_on(receiver.receive());
+
+        if let Some(Ok(())) = result {
+            let data = buffer_slice.get_mapped_range();
+            let result = bytemuck::cast_slice(&data).to_vec();
+
+            drop(data);
+            buffer_dest.unmap();
+            result
+        } else {
+            panic!("Unable to read buffer {:?}", result)
+        }
+    }
+
+    fn buffer_to_buffer(&mut self, buffer_src: Arc<Buffer>, buffer_dest: Arc<Buffer>) {
+        self.encoder
+            .copy_buffer_to_buffer(&buffer_src, 0, &buffer_dest, 0, buffer_src.size());
+    }
 }
 
 #[derive(Debug, Hash, PartialOrd, PartialEq, Eq)]
@@ -90,29 +227,37 @@ impl Context {
         ))
         .expect("Unable to request the device with the adapter");
 
+        let device = Arc::new(device);
+        let queue = Arc::new(queue);
+
+        let (sender_message, receiver_message) = std::sync::mpsc::sync_channel(50);
+
+        let thread = ContextThread::new(device.clone(), queue.clone(), receiver_message);
+
         Self {
             id: IdGenerator::generate(),
-            queue,
             device_wgpu: device,
             device: device_wgpu,
+            sender: sender_message,
+            _handle: thread,
             cache: Mutex::new(HashMap::new()),
         }
     }
 
     /// Create a new buffer with the provided size.
-    pub fn create_buffer(&self, size: usize) -> Buffer {
-        self.device_wgpu.create_buffer(&wgpu::BufferDescriptor {
+    pub fn create_buffer(&self, size: usize) -> Arc<Buffer> {
+        Arc::new(self.device_wgpu.create_buffer(&wgpu::BufferDescriptor {
             label: None,
             size: size as u64,
             usage: wgpu::BufferUsages::COPY_DST
                 | wgpu::BufferUsages::STORAGE
                 | wgpu::BufferUsages::COPY_SRC,
             mapped_at_creation: false,
-        })
+        }))
     }
 
     /// Create a new buffer initialized with the provided bytes.
-    pub fn create_buffer_with_data(&self, data: &[u8]) -> Buffer {
+    pub fn create_buffer_with_data(&self, data: &[u8]) -> Arc<Buffer> {
         let buffer_src = self.device_wgpu.create_buffer_init(&BufferInitDescriptor {
             label: Some("Buffer Src"),
             contents: data,
@@ -121,83 +266,37 @@ impl Context {
 
         let buffer = self.create_buffer(buffer_src.size() as usize);
 
-        // Create a command encoder
-        let mut encoder =
-            self.device_wgpu
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("Command Encoder"),
-                });
-
-        // Copy data from the staging buffer to the target buffer
-        encoder.copy_buffer_to_buffer(&buffer_src, 0, &buffer, 0, buffer_src.size());
-
-        // Submit the command encoder to the queue
-        self.queue.submit(Some(encoder.finish()));
+        self.sender
+            .send(Message::CopyBuffer(Arc::new(buffer_src), buffer.clone()))
+            .unwrap();
 
         buffer
     }
 
     /// Copy buffer to buffer.
-    pub fn buffer_to_buffer(&self, buffer: &Buffer) -> Buffer {
+    pub fn buffer_to_buffer(&self, buffer: Arc<Buffer>) -> Arc<Buffer> {
         let buffer_out = self.create_buffer(buffer.size() as usize);
 
-        // Create a command encoder
-        let mut encoder =
-            self.device_wgpu
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("Command Encoder"),
-                });
-
-        encoder.copy_buffer_to_buffer(buffer, 0, &buffer_out, 0, buffer.size());
-
-        self.queue.submit(Some(encoder.finish()));
-
+        self.sender
+            .send(Message::CopyBuffer(buffer, buffer_out.clone()))
+            .unwrap();
         buffer_out
     }
 
     /// Read a buffer from the GPU and return its content as bytes.
-    pub fn buffer_to_data(&self, buffer: &Buffer) -> Vec<u8> {
-        let size = buffer.size();
+    pub fn buffer_to_data(&self, buffer: Arc<Buffer>) -> Vec<u8> {
+        let (sender_message, receiver_message) = std::sync::mpsc::sync_channel(1);
 
-        let buffer_dest = self.device_wgpu.create_buffer(&wgpu::BufferDescriptor {
-            label: None,
-            size,
-            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
+        self.sender
+            .send(Message::ReadBuffer(buffer, sender_message))
+            .unwrap();
 
-        // Create a command encoder
-        let mut encoder =
-            self.device_wgpu
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("Command Encoder"),
-                });
+        let mut iter = receiver_message.iter();
 
-        encoder.copy_buffer_to_buffer(buffer, 0, &buffer_dest, 0, size);
-
-        self.queue.submit(Some(encoder.finish()));
-
-        let buffer_slice = buffer_dest.slice(..);
-        let (sender, receiver) = futures_intrusive::channel::shared::oneshot_channel();
-        buffer_slice.map_async(wgpu::MapMode::Read, move |v| {
-            sender
-                .send(v)
-                .expect("Unable to send buffer slice result to async channel.")
-        });
-
-        self.device_wgpu.poll(wgpu::Maintain::Wait);
-
-        let result = pollster::block_on(receiver.receive());
-
-        if let Some(Ok(())) = result {
-            let data = buffer_slice.get_mapped_range();
-            let result = bytemuck::cast_slice(&data).to_vec();
-
-            drop(data);
-            buffer_dest.unmap();
-            result
+        if let Some(data) = iter.next() {
+            return data;
         } else {
-            panic!("Unable to read buffer {:?}", result)
+            panic!("Unable to read buffer")
         }
     }
 
@@ -273,7 +372,12 @@ impl Context {
     /// buffer can be mutated when lauching a compute shaders with write access to a buffer.
     ///
     /// Buffer positions are used as bindings when lauching a compute kernel.
-    pub fn execute(&self, work_group: &WorkGroup, pipeline: &ComputePipeline, buffers: &[&Buffer]) {
+    pub fn execute(
+        &self,
+        work_group: WorkGroup,
+        pipeline: Arc<ComputePipeline>,
+        buffers: &[&Buffer],
+    ) {
         let group_layout = pipeline.get_bind_group_layout(0);
 
         let entries = buffers
@@ -293,16 +397,8 @@ impl Context {
                 entries: &entries,
             });
 
-        let mut encoder = self
-            .device_wgpu
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-        let mut compute = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: None });
-        compute.set_pipeline(&pipeline);
-        compute.set_bind_group(0, &bind_group, &[]);
-        compute.dispatch_workgroups(work_group.x, work_group.y, work_group.z);
-        std::mem::drop(compute);
-
-        self.queue.submit(Some(encoder.finish()));
+        let task = ComputeTask::new(bind_group, pipeline, work_group);
+        self.sender.send(Message::Compute(task)).unwrap();
     }
 }
 

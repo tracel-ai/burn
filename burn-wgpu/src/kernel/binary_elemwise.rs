@@ -1,7 +1,6 @@
 use super::{build_info, KernelSettings, StaticKernelGenerator};
 use crate::{context::WorkGroup, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 use burn_tensor::Shape;
-use std::sync::Arc;
 
 kernel_wgsl!(BinaryElemwiseRaw, "../template/binary_elemwise.wgsl");
 kernel_wgsl!(
@@ -76,7 +75,7 @@ pub fn binary_elemwise<K: StaticKernelGenerator, E: WgpuElement, const D: usize>
     let buffer = lhs
         .context
         .create_buffer(shape_out.num_elements() * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(lhs.context.clone(), shape_out, Arc::new(buffer));
+    let output = WgpuTensor::new(lhs.context.clone(), shape_out, buffer);
 
     let kernel = lhs
         .context
@@ -87,12 +86,12 @@ pub fn binary_elemwise<K: StaticKernelGenerator, E: WgpuElement, const D: usize>
         .create_buffer_with_data(bytemuck::cast_slice(&info));
 
     lhs.context.execute(
-        &WorkGroup::new(
+        WorkGroup::new(
             f32::ceil(output.shape.num_elements() as f32 / 256_f32) as u32,
             1,
             1,
         ),
-        &kernel,
+        kernel,
         &[&lhs.buffer, &rhs.buffer, &output.buffer, &info_buffers],
     );
 
@@ -123,12 +122,12 @@ pub fn binary_elemwise_inplace<K: StaticKernelGenerator, E: WgpuElement, const D
         .create_buffer_with_data(bytemuck::cast_slice(&info));
 
     lhs.context.execute(
-        &WorkGroup::new(
+        WorkGroup::new(
             f32::ceil(lhs.shape.num_elements() as f32 / 256_f32) as u32,
             1,
             1,
         ),
-        &kernel,
+        kernel,
         &[&lhs.buffer, &rhs.buffer, &info_buffers],
     );
 

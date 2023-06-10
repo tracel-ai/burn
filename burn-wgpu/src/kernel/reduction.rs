@@ -1,7 +1,6 @@
 use super::{build_info, KernelSettings, StaticKernelGenerator};
 use crate::{context::WorkGroup, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 use burn_tensor::Shape;
-use std::sync::Arc;
 
 kernel_wgsl!(RecursiveSumRaw, "../template/reduction/recursive_sum.wgsl");
 kernel_wgsl!(ReductionDimRaw, "../template/reduction/reduce_dim.wgsl");
@@ -46,13 +45,13 @@ pub fn reduction_sum<E: WgpuElement, const D: usize>(input: WgpuTensor<E, D>) ->
 
         input
             .context
-            .execute(&workgroup, &kernel, &[&input_buffer, &buffer]);
+            .execute(workgroup, kernel.clone(), &[&input_buffer, &buffer]);
 
         if num_invocations == 1 {
-            return WgpuTensor::new(input.context, Shape::new([1]), Arc::new(buffer));
+            return WgpuTensor::new(input.context, Shape::new([1]), buffer);
         }
 
-        input_buffer = Arc::new(buffer);
+        input_buffer = buffer;
         num_invocations = f32::ceil(num_invocations as f32 / WORKGROUP as f32) as usize;
     }
 }
@@ -80,7 +79,7 @@ fn reduction_dim<K: StaticKernelGenerator, E: WgpuElement, const D: usize>(
     let buffer = input
         .context
         .create_buffer(shape_out.num_elements() * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(input.context.clone(), shape_out, Arc::new(buffer));
+    let output = WgpuTensor::new(input.context.clone(), shape_out, buffer);
 
     let kernel = input
         .context
@@ -92,12 +91,12 @@ fn reduction_dim<K: StaticKernelGenerator, E: WgpuElement, const D: usize>(
         .create_buffer_with_data(bytemuck::cast_slice(&info));
 
     input.context.execute(
-        &WorkGroup::new(
+        WorkGroup::new(
             f32::ceil(output.shape.num_elements() as f32 / 256_f32) as u32,
             1,
             1,
         ),
-        &kernel,
+        kernel,
         &[&input.buffer, &output.buffer, &info_buffers],
     );
 
