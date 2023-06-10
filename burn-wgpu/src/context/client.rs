@@ -1,15 +1,46 @@
+use super::WorkGroup;
+use std::sync::Arc;
+use wgpu::{BindGroup, Buffer, ComputePipeline};
+
 #[cfg(feature = "async")]
 pub use async_client::AsyncContextClient;
-#[cfg(feature = "async")]
-pub type ContextClient = AsyncContextClient;
-
 #[cfg(not(feature = "async"))]
 pub use sync_client::SyncContextClient;
-#[cfg(not(feature = "async"))]
-pub type ContextClient = SyncContextClient;
+
+/// Context client allows to speak with a server to execute tasks on the GPU.
+pub trait ContextClient {
+    /// Copy the source buffer content into the destination buffer.
+    ///
+    /// # Notes
+    ///
+    /// Make sure the source buffer isn't used afterward, since a race condition may happen.
+    ///
+    /// If the source buffer is still used afterward, use [tensor copy](crate::tensor::WgpuTensor::copy)
+    /// instead. This method is still useful to load data from the CPU into a new buffer.
+    fn copy_buffer(
+        &self,
+        buffer_src: Arc<Buffer>,
+        buffer_dest: Arc<Buffer>,
+        wait_for_registered: bool,
+    ) -> Arc<Buffer>;
+    /// Read a [buffer](Buffer).
+    ///
+    /// # Notes
+    ///
+    /// All pending compute tasks will be executed.
+    fn read_buffer(&self, buffer: Arc<Buffer>) -> Vec<u8>;
+    /// Register a new computing task.
+    fn register_compute(
+        &self,
+        bind_group: BindGroup,
+        pipeline: Arc<ComputePipeline>,
+        work_group: WorkGroup,
+    );
+}
 
 #[cfg(feature = "async")]
 mod async_client {
+    use super::ContextClient;
     use crate::context::{
         server::{ComputeTask, ContextTask, CopyBufferTask, ReadBufferTask},
         WorkGroup,
@@ -17,14 +48,15 @@ mod async_client {
     use std::sync::{mpsc, Arc};
     use wgpu::{BindGroup, Buffer, ComputePipeline};
 
+    /// Client returned by
     #[derive(new, Debug)]
     pub struct AsyncContextClient {
         sender: mpsc::SyncSender<ContextTask>,
         _server_handle: std::thread::JoinHandle<()>,
     }
 
-    impl AsyncContextClient {
-        pub fn copy_buffer(
+    impl ContextClient for AsyncContextClient {
+        fn copy_buffer(
             &self,
             buffer_src: Arc<Buffer>,
             buffer_dest: Arc<Buffer>,
@@ -49,18 +81,7 @@ mod async_client {
             }
         }
 
-        pub fn compute(
-            &self,
-            bind_group: BindGroup,
-            pipeline: Arc<ComputePipeline>,
-            work_group: WorkGroup,
-        ) {
-            self.sender
-                .send(ComputeTask::new(bind_group, pipeline, work_group).into())
-                .unwrap();
-        }
-
-        pub fn read(&self, buffer: Arc<Buffer>) -> Vec<u8> {
+        fn read_buffer(&self, buffer: Arc<Buffer>) -> Vec<u8> {
             let (sender, receiver) = std::sync::mpsc::channel();
 
             self.sender
@@ -74,6 +95,16 @@ mod async_client {
                 panic!("Unable to read buffer")
             }
         }
+        fn register_compute(
+            &self,
+            bind_group: BindGroup,
+            pipeline: Arc<ComputePipeline>,
+            work_group: WorkGroup,
+        ) {
+            self.sender
+                .send(ComputeTask::new(bind_group, pipeline, work_group).into())
+                .unwrap();
+        }
     }
 }
 
@@ -86,6 +117,8 @@ mod sync_client {
     use std::sync::Arc;
     use wgpu::{BindGroup, Buffer, ComputePipeline};
 
+    use super::IContextClient;
+
     #[derive(Debug)]
     pub struct SyncContextClient {
         server: spin::Mutex<SyncContextServer>,
@@ -97,8 +130,10 @@ mod sync_client {
                 server: spin::Mutex::new(server),
             }
         }
+    }
 
-        pub fn copy_buffer(
+    impl ContextClient for SyncContextClient {
+        fn copy_buffer(
             &self,
             buffer_src: Arc<Buffer>,
             buffer_dest: Arc<Buffer>,
@@ -109,8 +144,12 @@ mod sync_client {
 
             buffer_dest
         }
+        fn read_buffer(&self, buffer: Arc<Buffer>) -> Vec<u8> {
+            let mut server = self.server.lock();
+            server.read(&buffer)
+        }
 
-        pub fn compute(
+        fn register_compute(
             &self,
             bind_group: BindGroup,
             pipeline: Arc<ComputePipeline>,
@@ -118,11 +157,6 @@ mod sync_client {
         ) {
             let mut server = self.server.lock();
             server.register_compute(ComputeTask::new(bind_group, pipeline, work_group));
-        }
-
-        pub fn read(&self, buffer: Arc<Buffer>) -> Vec<u8> {
-            let mut server = self.server.lock();
-            server.read(&buffer)
         }
     }
 }

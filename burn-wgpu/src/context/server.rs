@@ -1,15 +1,29 @@
-use super::WorkGroup;
+use super::{client::ContextClient, WorkGroup};
 use std::sync::Arc;
 use wgpu::{BindGroup, Buffer, CommandEncoder, ComputePipeline};
 
 #[cfg(feature = "async")]
 pub use async_server::{AsyncContextServer, ContextTask, CopyBufferTask, ReadBufferTask};
-#[cfg(feature = "async")]
-pub type ContextServer = AsyncContextServer;
 
-#[cfg(not(feature = "async"))]
-pub type ContextServer = SyncContextServer;
+/// Context server allow to run tasks on the GPU.
+///
+/// # Notes
+///
+/// There are two implementations of this trait. One is a bit more performant while the other
+/// doesn't require std.
+///
+/// * [Asynchronous server](AsyncContextServer).
+/// * [Synchronous server](SyncContextServer).
+pub trait ContextServer {
+    /// The client where task can be sent to the server for execution.
+    type Client: ContextClient;
 
+    /// Start the server and returns its [client](ContextClient).
+    fn start(device: Arc<wgpu::Device>, queue: wgpu::Queue) -> Self::Client;
+}
+
+/// Context server where each operation is added in a synchonous maner.
+#[derive(Debug)]
 pub struct SyncContextServer {
     device: Arc<wgpu::Device>,
     queue: wgpu::Queue,
@@ -17,27 +31,20 @@ pub struct SyncContextServer {
     tasks: Vec<ComputeTask>,
 }
 
-impl core::fmt::Debug for SyncContextServer {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(
-            format!(
-                "SyncContextServer {{ device: {:?} num_tasks: {:?} }}",
-                self.device,
-                self.tasks.len()
-            )
-            .as_str(),
-        )
-    }
-}
-
-#[derive(new)]
+/// Basic building block to execute computing tasks on the GPU.
+#[derive(new, Debug)]
 pub struct ComputeTask {
     bind_group: BindGroup,
     pipeline: Arc<ComputePipeline>,
     work_group: WorkGroup,
 }
 
+/// Most of the functions are similar to [server client](IContextClient).
+///
+/// The main difference comes from the functions are mutable instead of immutable requirering a
+/// lock by a sync client or using an async channel with the async client/server.
 impl SyncContextServer {
+    /// Create a new sync context server.
     pub fn new(device: Arc<wgpu::Device>, queue: wgpu::Queue) -> Self {
         let encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Command Encoder"),
@@ -52,36 +59,18 @@ impl SyncContextServer {
     }
 
     pub fn register_compute(&mut self, task: ComputeTask) {
-        self.tasks.push(task)
-    }
+        self.tasks.push(task);
 
-    fn register_tasks(&mut self) {
-        let mut compute = self
-            .encoder
-            .begin_compute_pass(&wgpu::ComputePassDescriptor { label: None });
-        for task in self.tasks.iter() {
-            compute.set_pipeline(&task.pipeline);
-            compute.set_bind_group(0, &task.bind_group, &[]);
-            compute.dispatch_workgroups(task.work_group.x, task.work_group.y, task.work_group.z);
+        // Submit the tasks to the GPU when more than 50 tasks are accumulated.
+        const MAX_TASKS: usize = 50;
+
+        if self.tasks.len() > MAX_TASKS {
+            self.register_tasks();
+            self.submit();
         }
-        std::mem::drop(compute);
-        self.tasks.clear();
     }
 
-    fn submit(&mut self) {
-        assert!(
-            self.tasks.is_empty(),
-            "Tasks should be completed before submiting the current encoder."
-        );
-        let mut new_encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-        core::mem::swap(&mut new_encoder, &mut self.encoder);
-
-        self.queue.submit(Some(new_encoder.finish()));
-    }
-
-    pub fn read(&mut self, buffer: &Buffer) -> Vec<u8> {
+    pub fn read_buffer(&mut self, buffer: &Buffer) -> Vec<u8> {
         // Register previous tasks before reading the buffer so that it is up to date.
         self.register_tasks();
 
@@ -126,13 +115,39 @@ impl SyncContextServer {
         self.encoder
             .copy_buffer_to_buffer(&buffer_src, 0, &buffer_dest, 0, buffer_src.size());
     }
+
+    fn register_tasks(&mut self) {
+        let mut compute = self
+            .encoder
+            .begin_compute_pass(&wgpu::ComputePassDescriptor { label: None });
+        for task in self.tasks.iter() {
+            compute.set_pipeline(&task.pipeline);
+            compute.set_bind_group(0, &task.bind_group, &[]);
+            compute.dispatch_workgroups(task.work_group.x, task.work_group.y, task.work_group.z);
+        }
+        std::mem::drop(compute);
+        self.tasks.clear();
+    }
+
+    fn submit(&mut self) {
+        assert!(
+            self.tasks.is_empty(),
+            "Tasks should be completed before submiting the current encoder."
+        );
+        let mut new_encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+        core::mem::swap(&mut new_encoder, &mut self.encoder);
+
+        self.queue.submit(Some(new_encoder.finish()));
+    }
 }
 
 #[cfg(feature = "async")]
 mod async_server {
     use crate::context::client::AsyncContextClient;
 
-    use super::{ComputeTask, SyncContextServer};
+    use super::{ComputeTask, ContextServer, SyncContextServer};
     use std::sync::{mpsc, Arc};
     use wgpu::Buffer;
 
@@ -172,22 +187,18 @@ mod async_server {
         }
     }
 
+    /// Asynchronous context server where [tasks](ContextTask) are sent using a channel.
+    ///
+    /// # Notes
+    ///
+    /// This is pretty useful to avoid blocking the main thread when registering and
+    /// executing [compute tasks](ComputeTask).
     pub struct AsyncContextServer {
         server: SyncContextServer,
         receiver: mpsc::Receiver<ContextTask>,
     }
 
     impl AsyncContextServer {
-        pub fn start(device: Arc<wgpu::Device>, queue: wgpu::Queue) -> AsyncContextClient {
-            let (sender, receiver) = std::sync::mpsc::sync_channel(50);
-            let server = SyncContextServer::new(device, queue);
-            let context = Self { server, receiver };
-
-            let handle = std::thread::spawn(|| context.run());
-
-            AsyncContextClient::new(sender, handle)
-        }
-
         fn run(mut self) {
             loop {
                 let task = self.receiver.recv().unwrap();
@@ -197,31 +208,38 @@ mod async_server {
                         .server
                         .buffer_to_buffer(task.buffer_src, task.buffer_dest),
                     ContextTask::ReadBuffer(task) => {
-                        let bytes = self.server.read(&task.buffer);
+                        let bytes = self.server.read_buffer(&task.buffer);
                         task.sender.send(bytes).unwrap();
                     }
                 };
-
-                // Submit the tasks to the GPU when more than 50 tasks are accumulated.
-                const MAX_TASKS: usize = 50;
-
-                if self.server.tasks.len() > MAX_TASKS {
-                    self.server.register_tasks();
-                    self.server.submit();
-                }
             }
+        }
+    }
+    impl ContextServer for AsyncContextServer {
+        type Client = AsyncContextClient;
+
+        fn start(device: Arc<wgpu::Device>, queue: wgpu::Queue) -> Self::Client {
+            let (sender, receiver) = std::sync::mpsc::sync_channel(50);
+            let server = SyncContextServer::new(device, queue);
+            let context = Self { server, receiver };
+
+            let handle = std::thread::spawn(|| context.run());
+
+            AsyncContextClient::new(sender, handle)
         }
     }
 }
 
 #[cfg(not(feature = "async"))]
 mod sync_server {
-    use super::SyncContextServer;
+    use super::{IContextServer, SyncContextServer};
     use crate::context::client::SyncContextClient;
     use std::sync::Arc;
 
-    impl SyncContextServer {
-        pub fn start(device: Arc<wgpu::Device>, queue: wgpu::Queue) -> SyncContextClient {
+    impl ContextServer for SyncContextServer {
+        type Client = SyncContextClient;
+
+        fn start(device: Arc<wgpu::Device>, queue: wgpu::Queue) -> Self::Client {
             let server = Self::new(device, queue);
 
             SyncContextClient::new(server)

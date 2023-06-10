@@ -1,3 +1,9 @@
+use super::client::ContextClient;
+use crate::{
+    context::server::ContextServer,
+    kernel::{DynamicKernelGenerator, StaticKernelGenerator},
+    GraphicsApi, WgpuDevice,
+};
 use burn_common::id::IdGenerator;
 use spin::Mutex;
 use std::{any::TypeId, borrow::Cow, collections::HashMap, sync::Arc};
@@ -6,11 +12,15 @@ use wgpu::{
     Buffer, ComputePipeline, DeviceDescriptor, DeviceType, ShaderModuleDescriptor,
 };
 
-use crate::{
-    context::{client::ContextClient, server::ContextServer},
-    kernel::{DynamicKernelGenerator, StaticKernelGenerator},
-    GraphicsApi, WgpuDevice,
-};
+#[cfg(feature = "async")]
+pub type ContextClientImpl = super::client::AsyncContextClient;
+#[cfg(not(feature = "async"))]
+pub type ContextClientImpl = super::client::SyncContextClient;
+
+#[cfg(feature = "async")]
+pub type ContextServerImpl = super::server::AsyncContextServer;
+#[cfg(not(feature = "async"))]
+pub type ContextServerImpl = super::server::SyncContextServer;
 
 /// The context is the basic struct that allows to execute GPU kernel on devices.
 ///
@@ -20,7 +30,7 @@ pub struct Context {
     id: String,
     device_wgpu: Arc<wgpu::Device>,
     cache: Mutex<HashMap<Key, Arc<ComputePipeline>>>,
-    client: ContextClient,
+    client: ContextClientImpl,
     pub(crate) device: WgpuDevice,
 }
 
@@ -38,45 +48,10 @@ pub struct WorkGroup {
 }
 
 impl Context {
+    /// Create a new context where computing tasks will be executed on the given
+    /// [device](WgpuDevice).
     pub(crate) fn new<G: GraphicsApi>(device: &WgpuDevice) -> Self {
-        // Instantiates instance of WebGPU
-        let instance = wgpu::Instance::default();
-
-        // `request_adapter` instantiates the general connection to the GPU
-        let adapters = instance.enumerate_adapters(G::backend().into());
-        let mut adapters = adapters
-            .filter(|adapter| {
-                let device_type = adapter.get_info().device_type;
-
-                match device {
-                    WgpuDevice::DiscreteGpu(_) => device_type == DeviceType::DiscreteGpu,
-                    WgpuDevice::IntegratedGpu(_) => device_type == DeviceType::IntegratedGpu,
-                    WgpuDevice::VirtualGpu(_) => device_type == DeviceType::VirtualGpu,
-                    WgpuDevice::Cpu => device_type == DeviceType::Cpu,
-                }
-            })
-            .collect::<Vec<_>>();
-
-        let adapter = match device {
-            WgpuDevice::DiscreteGpu(num) => {
-                assert!(adapters.len() > *num, "No Discrete GPU device found");
-                adapters.remove(*num)
-            }
-            WgpuDevice::IntegratedGpu(num) => {
-                assert!(adapters.len() > *num, "No Integrated GPU device found");
-                adapters.remove(*num)
-            }
-            WgpuDevice::VirtualGpu(num) => {
-                assert!(adapters.len() > *num, "No Virtual GPU device found");
-                adapters.remove(*num)
-            }
-            WgpuDevice::Cpu => {
-                assert!(!adapters.is_empty(), "No CPU device found");
-                adapters.remove(0)
-            }
-        };
-        log::info!("Using adapter {:?}", adapter.get_info());
-
+        let adapter = Self::select_adapter::<G>(device);
         let device_wgpu = device.clone();
         let limits = wgpu::Limits {
             max_compute_workgroup_storage_size: 1024,
@@ -94,7 +69,7 @@ impl Context {
         .expect("Unable to request the device with the adapter");
 
         let device = Arc::new(device);
-        let client = ContextServer::start(device.clone(), queue);
+        let client = ContextServerImpl::start(device.clone(), queue);
 
         Self {
             id: IdGenerator::generate(),
@@ -138,7 +113,8 @@ impl Context {
                 entries: &entries,
             });
 
-        self.client.compute(bind_group, pipeline, work_group)
+        self.client
+            .register_compute(bind_group, pipeline, work_group)
     }
 
     /// Create a new buffer with the provided size.
@@ -181,7 +157,7 @@ impl Context {
 
     /// Read a buffer from the GPU and return its content as bytes.
     pub fn read_buffer(&self, buffer: Arc<Buffer>) -> Vec<u8> {
-        self.client.read(buffer)
+        self.client.read_buffer(buffer)
     }
 
     /// Compile a kernel template if not present in the cache.
@@ -214,6 +190,79 @@ impl Context {
 
         cache.insert(template_id, pipeline.clone());
         pipeline
+    }
+
+    fn select_adapter<G: GraphicsApi>(device: &WgpuDevice) -> wgpu::Adapter {
+        let instance = wgpu::Instance::default();
+
+        let mut adapters_other = Vec::new();
+        let mut adapters = Vec::new();
+
+        instance
+            .enumerate_adapters(G::backend().into())
+            .into_iter()
+            .for_each(|adapter| {
+                let device_type = adapter.get_info().device_type;
+
+                if let DeviceType::Other = device_type {
+                    adapters_other.push(adapter);
+                    return;
+                }
+
+                let is_same_type = match device {
+                    WgpuDevice::DiscreteGpu(_) => device_type == DeviceType::DiscreteGpu,
+                    WgpuDevice::IntegratedGpu(_) => device_type == DeviceType::IntegratedGpu,
+                    WgpuDevice::VirtualGpu(_) => device_type == DeviceType::VirtualGpu,
+                    WgpuDevice::Cpu => device_type == DeviceType::Cpu,
+                };
+
+                if is_same_type {
+                    adapters.push(adapter);
+                }
+            });
+
+        fn select_adapter(
+            num: usize,
+            error: &str,
+            mut adapters: Vec<wgpu::Adapter>,
+            mut adapters_other: Vec<wgpu::Adapter>,
+        ) -> wgpu::Adapter {
+            if adapters.len() <= num {
+                if adapters_other.len() <= num {
+                    panic!("{}", error);
+                } else {
+                    return adapters_other.remove(num);
+                }
+            }
+
+            adapters.remove(num)
+        }
+
+        let adapter = match device {
+            WgpuDevice::DiscreteGpu(num) => select_adapter(
+                *num,
+                "No Discrete GPU device found",
+                adapters,
+                adapters_other,
+            ),
+            WgpuDevice::IntegratedGpu(num) => select_adapter(
+                *num,
+                "No Integrated GPU device found",
+                adapters,
+                adapters_other,
+            ),
+            WgpuDevice::VirtualGpu(num) => select_adapter(
+                *num,
+                "No Virtual GPU device found",
+                adapters,
+                adapters_other,
+            ),
+            WgpuDevice::Cpu => select_adapter(0, "No CPU device found", adapters, adapters_other),
+        };
+
+        log::info!("Using adapter {:?}", adapter.get_info());
+
+        adapter
     }
 
     fn compile_source(&self, source: &str) -> Arc<ComputePipeline> {
