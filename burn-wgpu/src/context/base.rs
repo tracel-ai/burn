@@ -78,8 +78,10 @@ impl Context {
         log::info!("Using adapter {:?}", adapter.get_info());
 
         let device_wgpu = device.clone();
-        let mut limits = wgpu::Limits::default();
-        limits.max_compute_invocations_per_workgroup = 1024;
+        let limits = wgpu::Limits {
+            max_compute_workgroup_storage_size: 1024,
+            ..wgpu::Limits::default()
+        };
 
         let (device, queue) = pollster::block_on(adapter.request_device(
             &DeviceDescriptor {
@@ -219,7 +221,7 @@ impl Context {
             .device_wgpu
             .create_shader_module(ShaderModuleDescriptor {
                 label: None,
-                source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(source.as_ref())),
+                source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(source)),
             });
         let pipeline = self
             .device_wgpu

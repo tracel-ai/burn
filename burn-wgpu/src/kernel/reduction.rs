@@ -41,7 +41,7 @@ pub fn reduction_sum<E: WgpuElement, const D: usize>(input: WgpuTensor<E, D>) ->
         let buffer = input
             .context
             .create_buffer(core::mem::size_of::<E>() * num_invocations);
-        let workgroup = WorkGroup::new((num_invocations as usize) as u32, 1, 1);
+        let workgroup = WorkGroup::new(num_invocations as u32, 1, 1);
 
         input
             .context

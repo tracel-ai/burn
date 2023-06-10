@@ -94,7 +94,7 @@ impl SyncContextServer {
         });
 
         self.encoder
-            .copy_buffer_to_buffer(&buffer, 0, &buffer_dest, 0, size);
+            .copy_buffer_to_buffer(buffer, 0, &buffer_dest, 0, size);
 
         self.submit();
 
@@ -154,21 +154,21 @@ mod async_server {
         CopyBuffer(CopyBufferTask),
     }
 
-    impl Into<ContextTask> for ComputeTask {
-        fn into(self) -> ContextTask {
-            ContextTask::Compute(self)
+    impl From<ComputeTask> for ContextTask {
+        fn from(val: ComputeTask) -> Self {
+            ContextTask::Compute(val)
         }
     }
 
-    impl Into<ContextTask> for ReadBufferTask {
-        fn into(self) -> ContextTask {
-            ContextTask::ReadBuffer(self)
+    impl From<ReadBufferTask> for ContextTask {
+        fn from(val: ReadBufferTask) -> Self {
+            ContextTask::ReadBuffer(val)
         }
     }
 
-    impl Into<ContextTask> for CopyBufferTask {
-        fn into(self) -> ContextTask {
-            ContextTask::CopyBuffer(self)
+    impl From<CopyBufferTask> for ContextTask {
+        fn from(val: CopyBufferTask) -> Self {
+            ContextTask::CopyBuffer(val)
         }
     }
 
@@ -184,9 +184,8 @@ mod async_server {
             let context = Self { server, receiver };
 
             let handle = std::thread::spawn(|| context.run());
-            let client = AsyncContextClient::new(sender, handle);
 
-            client
+            AsyncContextClient::new(sender, handle)
         }
 
         fn run(mut self) {

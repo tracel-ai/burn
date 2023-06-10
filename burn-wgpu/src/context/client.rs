@@ -69,7 +69,7 @@ mod async_client {
 
             let mut iter = receiver.iter();
             if let Some(data) = iter.next() {
-                return data;
+                data
             } else {
                 panic!("Unable to read buffer")
             }
