@@ -56,10 +56,7 @@ fn xavier_uniform<B: Backend, const D: usize, S: Into<Shape<D>>>(
     let a = sqrt(3.0) * xavier_std(gain, &shape);
     Tensor::<B, D>::random(
         shape,
-        Distribution::Uniform(
-            (-a).elem::<B::FloatElem>(),
-            a.elem::<B::FloatElem>(),
-        ),
+        Distribution::Uniform((-a).elem::<B::FloatElem>(), a.elem::<B::FloatElem>()),
     )
 }
 
@@ -73,7 +70,10 @@ fn xavier_normal<B: Backend, const D: usize, S: Into<Shape<D>>>(
 }
 
 fn xavier_std<const D: usize>(gain: &f64, shape: &Shape<D>) -> f64 {
-    assert!(D >= 2, "Can't compute Xavier standard deviation on shapes smaller than 2");
+    assert!(
+        D >= 2,
+        "Can't compute Xavier standard deviation on shapes smaller than 2"
+    );
 
     let fan_sum: usize = shape.dims.iter().take(2).sum();
     let receptive_field_size: usize = shape.dims.iter().skip(2).product();
@@ -162,7 +162,9 @@ mod tests {
         let xavier_uniform: Tensor<TB, 2> =
             Initializer::XavierUniform(gain).init([fan_in, fan_out]);
 
-        xavier_uniform.into_data().assert_within_range(-bound..bound);
+        xavier_uniform
+            .into_data()
+            .assert_within_range(-bound..bound);
     }
 
     #[test]
@@ -177,7 +179,9 @@ mod tests {
         let xavier_uniform: Tensor<TB, 4> =
             Initializer::XavierUniform(gain).init([fan_in, fan_out, rec_field_1, rec_field_2]);
 
-        xavier_uniform.into_data().assert_within_range(-bound..bound);
+        xavier_uniform
+            .into_data()
+            .assert_within_range(-bound..bound);
     }
 
     #[test]

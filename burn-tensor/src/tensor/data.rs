@@ -28,19 +28,19 @@ pub enum Distribution<E> {
 
 #[derive(new)]
 pub struct DistributionSampler<'a, E, R>
-    where
-        Standard: rand::distributions::Distribution<E>,
-        E: rand::distributions::uniform::SampleUniform,
-        R: RngCore,
+where
+    Standard: rand::distributions::Distribution<E>,
+    E: rand::distributions::uniform::SampleUniform,
+    R: RngCore,
 {
     kind: DistributionSamplerKind<E>,
     rng: &'a mut R,
 }
 
 pub enum DistributionSamplerKind<E>
-    where
-        Standard: rand::distributions::Distribution<E>,
-        E: rand::distributions::uniform::SampleUniform,
+where
+    Standard: rand::distributions::Distribution<E>,
+    E: rand::distributions::uniform::SampleUniform,
 {
     Standard(rand::distributions::Standard),
     Uniform(rand::distributions::Uniform<E>),
@@ -49,11 +49,11 @@ pub enum DistributionSamplerKind<E>
 }
 
 impl<'a, E, R> DistributionSampler<'a, E, R>
-    where
-        Standard: rand::distributions::Distribution<E>,
-        E: rand::distributions::uniform::SampleUniform,
-        E: Element,
-        R: RngCore,
+where
+    Standard: rand::distributions::Distribution<E>,
+    E: rand::distributions::uniform::SampleUniform,
+    E: Element,
+    R: RngCore,
 {
     pub fn sample(&mut self) -> E {
         match &self.kind {
@@ -72,9 +72,9 @@ impl<'a, E, R> DistributionSampler<'a, E, R>
 }
 
 impl<E> Distribution<E>
-    where
-        Standard: rand::distributions::Distribution<E>,
-        E: rand::distributions::uniform::SampleUniform,
+where
+    Standard: rand::distributions::Distribution<E>,
+    E: rand::distributions::uniform::SampleUniform,
 {
     pub fn sampler<R: RngCore>(self, rng: &'_ mut R) -> DistributionSampler<'_, E, R> {
         let kind = match self {
@@ -97,8 +97,8 @@ impl<E> Distribution<E>
 }
 
 impl<E> Distribution<E>
-    where
-        E: Element,
+where
+    E: Element,
 {
     pub fn convert<EOther: Element>(self) -> Distribution<EOther> {
         match self {
@@ -173,8 +173,8 @@ impl<E: Element, const D: usize> Data<E, D> {
 }
 
 impl<E: core::fmt::Debug, const D: usize> Data<E, D>
-    where
-        E: Element,
+where
+    E: Element,
 {
     pub fn zeros<S: Into<Shape<D>>>(shape: S) -> Data<E, D> {
         let shape = shape.into();
@@ -193,8 +193,8 @@ impl<E: core::fmt::Debug, const D: usize> Data<E, D>
 }
 
 impl<E: core::fmt::Debug, const D: usize> Data<E, D>
-    where
-        E: Element,
+where
+    E: Element,
 {
     pub fn ones(shape: Shape<D>) -> Data<E, D> {
         let num_elements = shape.num_elements();
@@ -228,7 +228,7 @@ impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E
                 "\n  => Shape is different: {:?} != {:?}",
                 self.shape.dims, other.shape.dims
             )
-                .as_str();
+            .as_str();
         }
 
         let iter = self
@@ -253,7 +253,7 @@ impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E
                     message += format!(
                         "\n  => Position {i}: {a} != {b} | difference {err} > tolerance {tolerance}"
                     )
-                        .as_str();
+                    .as_str();
                 }
                 num_diff += 1;
             }
@@ -336,7 +336,7 @@ impl<E: core::fmt::Debug + Copy, const A: usize, const B: usize> From<[[E; B]; A
 }
 
 impl<E: core::fmt::Debug + Copy, const A: usize, const B: usize, const C: usize>
-From<[[[E; C]; B]; A]> for Data<E, 3>
+    From<[[[E; C]; B]; A]> for Data<E, 3>
 {
     fn from(elems: [[[E; C]; B]; A]) -> Self {
         let mut data = Vec::with_capacity(A * B * C);
@@ -354,12 +354,12 @@ From<[[[E; C]; B]; A]> for Data<E, 3>
 }
 
 impl<
-    E: core::fmt::Debug + Copy,
-    const A: usize,
-    const B: usize,
-    const C: usize,
-    const D: usize,
-> From<[[[[E; D]; C]; B]; A]> for Data<E, 4>
+        E: core::fmt::Debug + Copy,
+        const A: usize,
+        const B: usize,
+        const C: usize,
+        const D: usize,
+    > From<[[[[E; D]; C]; B]; A]> for Data<E, 4>
 {
     fn from(elems: [[[[E; D]; C]; B]; A]) -> Self {
         let mut data = Vec::with_capacity(A * B * C * D);
