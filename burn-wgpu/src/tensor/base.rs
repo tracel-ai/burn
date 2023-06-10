@@ -64,7 +64,7 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
     }
 
     pub fn copy(&self) -> Self {
-        let buffer = self.context.buffer_to_buffer(self.buffer.clone());
+        let buffer = self.context.copy_buffer(self.buffer.clone());
 
         Self {
             context: self.context.clone(),

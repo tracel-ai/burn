@@ -18,6 +18,7 @@ bytemuck = {workspace = true}
 rand = {workspace = true}
 num-traits = {workspace = true}
 spin = {workspace = true}
+log = {workspace = true}
 
 # WGPU stuff
 wgpu = {workspace = true}
