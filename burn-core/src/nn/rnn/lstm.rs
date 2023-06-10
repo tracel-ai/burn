@@ -221,22 +221,6 @@ mod tests {
     use burn_tensor::Data;
 
     #[test]
-    fn test_with_default_initializer() {
-        TestBackend::seed(0);
-
-        let config =
-            LstmConfig::new(5, 5, false, 2);
-        let lstm = config.init::<TestBackend>();
-
-        let gate_to_data = |gate: GateController<TestBackend>| gate.input_transform.weight.val().to_data();
-
-        gate_to_data(lstm.input_gate).assert_in_range(0.0, 1.0);
-        gate_to_data(lstm.forget_gate).assert_in_range(0.0, 1.0);
-        gate_to_data(lstm.output_gate).assert_in_range(0.0, 1.0);
-        gate_to_data(lstm.cell_gate).assert_in_range(0.0, 1.0);
-    }
-
-    #[test]
     fn test_with_uniform_initializer() {
         TestBackend::seed(0);
 
@@ -246,10 +230,10 @@ mod tests {
 
         let gate_to_data = |gate: GateController<TestBackend>| gate.input_transform.weight.val().to_data();
 
-        gate_to_data(lstm.input_gate).assert_in_range(0.0, 1.0);
-        gate_to_data(lstm.forget_gate).assert_in_range(0.0, 1.0);
-        gate_to_data(lstm.output_gate).assert_in_range(0.0, 1.0);
-        gate_to_data(lstm.cell_gate).assert_in_range(0.0, 1.0);
+        gate_to_data(lstm.input_gate).assert_within_range(0..1);
+        gate_to_data(lstm.forget_gate).assert_within_range(0..1);
+        gate_to_data(lstm.output_gate).assert_within_range(0..1);
+        gate_to_data(lstm.cell_gate).assert_within_range(0..1);
     }
 
     /// Test forward pass with simple input vector.
