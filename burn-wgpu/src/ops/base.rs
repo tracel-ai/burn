@@ -29,7 +29,7 @@ impl<G: GraphicsApi> BaseOps<G> {
         device: &WgpuDevice,
     ) -> WgpuTensor<E, D> {
         let context = get_context::<G>(device);
-        let buffer = context.create_buffer_with_data(E::as_bytes(&data.value));
+        let buffer = context.create_buffer_with_data(E::as_bytes(&data.value), true);
 
         WgpuTensor::new(context, data.shape, buffer)
     }
@@ -102,7 +102,7 @@ impl<G: GraphicsApi> BaseOps<G> {
         let info = build_info(&[&tensor, &output]);
         let info_buffer = tensor
             .context
-            .create_buffer_with_data(bytemuck::cast_slice(&info));
+            .create_buffer_with_data(bytemuck::cast_slice(&info), false);
 
         let kernel = tensor
             .context
@@ -148,7 +148,7 @@ impl<G: GraphicsApi> BaseOps<G> {
 
         let info_buffer = tensor
             .context
-            .create_buffer_with_data(bytemuck::cast_slice(&info));
+            .create_buffer_with_data(bytemuck::cast_slice(&info), false);
 
         let kernel = tensor
             .context
@@ -177,6 +177,7 @@ impl<G: GraphicsApi> BaseOps<G> {
             "../template/index_assign_inplace.wgsl"
         );
 
+        println!("Can mut {:?}", tensor.can_mut());
         let tensor = match tensor.can_mut() {
             true => tensor,
             false => tensor.copy(),
@@ -191,7 +192,7 @@ impl<G: GraphicsApi> BaseOps<G> {
 
         let info_buffer = tensor
             .context
-            .create_buffer_with_data(bytemuck::cast_slice(&info));
+            .create_buffer_with_data(bytemuck::cast_slice(&info), false);
 
         let kernel = tensor
             .context

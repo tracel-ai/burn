@@ -43,13 +43,12 @@ pub fn matmul<E: WgpuElement, const D: usize>(
     let num_cols = rhs.shape.dims[D - 1];
 
     let kernel = DynamicKernelSettings::<MatmulTiled, E, i32>::new(TILE_SIZE, TILE_SIZE, 1);
-
     let kernel = lhs.context.compile_dynamic(kernel);
 
     let info = build_info(&[&lhs, &rhs]);
     let info_buffers = lhs
         .context
-        .create_buffer_with_data(bytemuck::cast_slice(&info));
+        .create_buffer_with_data(bytemuck::cast_slice(&info), false);
 
     let mut num_iter = 1;
     for i in 0..D - 2 {

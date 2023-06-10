@@ -83,7 +83,7 @@ pub fn binary_elemwise<K: StaticKernelGenerator, E: WgpuElement, const D: usize>
     let info = build_info(&[&lhs, &rhs, &output]);
     let info_buffers = lhs
         .context
-        .create_buffer_with_data(bytemuck::cast_slice(&info));
+        .create_buffer_with_data(bytemuck::cast_slice(&info), false);
 
     lhs.context.execute(
         WorkGroup::new(
@@ -119,7 +119,7 @@ pub fn binary_elemwise_inplace<K: StaticKernelGenerator, E: WgpuElement, const D
     let info = build_info(&[&lhs, &rhs]);
     let info_buffers = lhs
         .context
-        .create_buffer_with_data(bytemuck::cast_slice(&info));
+        .create_buffer_with_data(bytemuck::cast_slice(&info), false);
 
     lhs.context.execute(
         WorkGroup::new(

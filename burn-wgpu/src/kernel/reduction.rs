@@ -88,7 +88,7 @@ fn reduction_dim<K: StaticKernelGenerator, E: WgpuElement, const D: usize>(
     info.push(dim as u32);
     let info_buffers = input
         .context
-        .create_buffer_with_data(bytemuck::cast_slice(&info));
+        .create_buffer_with_data(bytemuck::cast_slice(&info), false);
 
     input.context.execute(
         WorkGroup::new(

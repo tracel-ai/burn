@@ -166,30 +166,27 @@ impl Context {
     }
 
     /// Create a new buffer initialized with the provided bytes.
-    pub fn create_buffer_with_data(&self, data: &[u8]) -> Arc<Buffer> {
-        let buffer_src = self.device_wgpu.create_buffer_init(&BufferInitDescriptor {
+    ///
+    /// Wait for registered may be useful if you want to allow inplace operations on the created
+    /// buffer. Otherwise, the strong count of the buffer might not be 1 when registering a new
+    /// operation, which makes the buffer readonly.
+    pub fn create_buffer_with_data(&self, data: &[u8], wait_for_registered: bool) -> Arc<Buffer> {
+        let buffer_src = Arc::new(self.device_wgpu.create_buffer_init(&BufferInitDescriptor {
             label: Some("Buffer Src"),
             contents: data,
             usage: wgpu::BufferUsages::COPY_SRC,
-        });
+        }));
 
-        let buffer = self.create_buffer(buffer_src.size() as usize);
+        let buffer_dest = self.create_buffer(buffer_src.size() as usize);
 
-        self.sender
-            .send(CopyBufferTask::new(Arc::new(buffer_src), buffer.clone()).into())
-            .unwrap();
-
-        buffer
+        self.send_copy_buffer(buffer_src, buffer_dest, wait_for_registered)
     }
 
     /// Copy buffer to buffer.
-    pub fn copy_buffer(&self, buffer: Arc<Buffer>) -> Arc<Buffer> {
-        let buffer_out = self.create_buffer(buffer.size() as usize);
+    pub fn copy_buffer(&self, buffer_src: Arc<Buffer>, wait_for_registered: bool) -> Arc<Buffer> {
+        let buffer_dest = self.create_buffer(buffer_src.size() as usize);
 
-        self.sender
-            .send(CopyBufferTask::new(buffer, buffer_out.clone()).into())
-            .unwrap();
-        buffer_out
+        self.send_copy_buffer(buffer_src, buffer_dest, wait_for_registered)
     }
 
     /// Read a buffer from the GPU and return its content as bytes.
@@ -257,6 +254,31 @@ impl Context {
             });
 
         Arc::new(pipeline)
+    }
+
+    fn send_copy_buffer(
+        &self,
+        buffer_src: Arc<Buffer>,
+        buffer_dest: Arc<Buffer>,
+        wait_for_registered: bool,
+    ) -> Arc<Buffer> {
+        self.sender
+            .send(CopyBufferTask::new(buffer_src, buffer_dest.clone()).into())
+            .unwrap();
+
+        if !wait_for_registered {
+            return buffer_dest;
+        }
+
+        // Wait for the buffer to be correctly registered so that inplace operations can be
+        // prioritize.
+        loop {
+            std::thread::sleep(std::time::Duration::from_micros(1));
+
+            if Arc::strong_count(&buffer_dest) == 1 {
+                return buffer_dest;
+            }
+        }
     }
 }
 

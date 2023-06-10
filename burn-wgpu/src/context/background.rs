@@ -81,7 +81,7 @@ impl ContextBackground {
             match message {
                 BackgroundTask::Compute(task) => self.tasks.push(task),
                 BackgroundTask::CopyBuffer(task) => {
-                    self.buffer_to_buffer(task.buffer_src, task.buffer_dest)
+                    self.buffer_to_buffer(task.buffer_src, task.buffer_dest);
                 }
                 BackgroundTask::ReadBuffer(task) => {
                     let bytes = self.read(&task.buffer);
@@ -126,9 +126,10 @@ impl ContextBackground {
     }
 
     fn read(&mut self, buffer: &Buffer) -> Vec<u8> {
-        let size = buffer.size();
+        // Register previous tasks before reading the buffer so that it is up to date.
         self.register_tasks();
 
+        let size = buffer.size();
         let buffer_dest = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: None,
             size,
