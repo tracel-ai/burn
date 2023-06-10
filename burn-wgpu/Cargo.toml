@@ -10,6 +10,10 @@ readme = "README.md"
 repository = "https://github.com/burn-rs/burn/tree/main/burn-wgpu"
 version = "0.8.0"
 
+[features]
+default = ["async"]
+async = []
+
 [dependencies]
 burn-tensor = {path = "../burn-tensor", version = "0.8.0"}
 burn-common = {path = "../burn-common", version = "0.8.0"}

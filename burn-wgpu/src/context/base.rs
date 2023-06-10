@@ -1,23 +1,16 @@
 use burn_common::id::IdGenerator;
 use spin::Mutex;
-use std::{
-    any::TypeId,
-    borrow::Cow,
-    collections::HashMap,
-    sync::{mpsc, Arc},
-};
+use std::{any::TypeId, borrow::Cow, collections::HashMap, sync::Arc};
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
     Buffer, ComputePipeline, DeviceDescriptor, DeviceType, ShaderModuleDescriptor,
 };
 
 use crate::{
-    context::background::ContextBackground,
+    context::{client::ContextClient, server::ContextServer},
     kernel::{DynamicKernelGenerator, StaticKernelGenerator},
     GraphicsApi, WgpuDevice,
 };
-
-use super::background::{BackgroundTask, ComputeTask, CopyBufferTask, ReadBufferTask};
 
 /// The context is the basic struct that allows to execute GPU kernel on devices.
 ///
@@ -27,8 +20,7 @@ pub struct Context {
     id: String,
     device_wgpu: Arc<wgpu::Device>,
     cache: Mutex<HashMap<Key, Arc<ComputePipeline>>>,
-    sender: mpsc::SyncSender<BackgroundTask>,
-    _handle: std::thread::JoinHandle<()>,
+    client: ContextClient,
     pub(crate) device: WgpuDevice,
 }
 
@@ -100,17 +92,13 @@ impl Context {
         .expect("Unable to request the device with the adapter");
 
         let device = Arc::new(device);
-
-        let (sender, receiver) = std::sync::mpsc::sync_channel(50);
-
-        let handle = ContextBackground::start(device.clone(), queue, receiver);
+        let client = ContextServer::start(device.clone(), queue);
 
         Self {
             id: IdGenerator::generate(),
             device_wgpu: device,
             device: device_wgpu,
-            sender,
-            _handle: handle,
+            client,
             cache: Mutex::new(HashMap::new()),
         }
     }
@@ -148,9 +136,7 @@ impl Context {
                 entries: &entries,
             });
 
-        self.sender
-            .send(ComputeTask::new(bind_group, pipeline, work_group).into())
-            .unwrap();
+        self.client.compute(bind_group, pipeline, work_group)
     }
 
     /// Create a new buffer with the provided size.
@@ -179,30 +165,21 @@ impl Context {
 
         let buffer_dest = self.create_buffer(buffer_src.size() as usize);
 
-        self.send_copy_buffer(buffer_src, buffer_dest, wait_for_registered)
+        self.client
+            .copy_buffer(buffer_src, buffer_dest, wait_for_registered)
     }
 
     /// Copy buffer to buffer.
     pub fn copy_buffer(&self, buffer_src: Arc<Buffer>, wait_for_registered: bool) -> Arc<Buffer> {
         let buffer_dest = self.create_buffer(buffer_src.size() as usize);
 
-        self.send_copy_buffer(buffer_src, buffer_dest, wait_for_registered)
+        self.client
+            .copy_buffer(buffer_src, buffer_dest, wait_for_registered)
     }
 
     /// Read a buffer from the GPU and return its content as bytes.
-    pub fn buffer_to_data(&self, buffer: Arc<Buffer>) -> Vec<u8> {
-        let (sender, receiver) = std::sync::mpsc::channel();
-
-        self.sender
-            .send(ReadBufferTask::new(buffer, sender).into())
-            .unwrap();
-
-        let mut iter = receiver.iter();
-        if let Some(data) = iter.next() {
-            return data;
-        } else {
-            panic!("Unable to read buffer")
-        }
+    pub fn read_buffer(&self, buffer: Arc<Buffer>) -> Vec<u8> {
+        self.client.read(buffer)
     }
 
     /// Compile a kernel template if not present in the cache.
@@ -254,31 +231,6 @@ impl Context {
             });
 
         Arc::new(pipeline)
-    }
-
-    fn send_copy_buffer(
-        &self,
-        buffer_src: Arc<Buffer>,
-        buffer_dest: Arc<Buffer>,
-        wait_for_registered: bool,
-    ) -> Arc<Buffer> {
-        self.sender
-            .send(CopyBufferTask::new(buffer_src, buffer_dest.clone()).into())
-            .unwrap();
-
-        if !wait_for_registered {
-            return buffer_dest;
-        }
-
-        // Wait for the buffer to be correctly registered so that inplace operations can be
-        // prioritize.
-        loop {
-            std::thread::sleep(std::time::Duration::from_micros(1));
-
-            if Arc::strong_count(&buffer_dest) == 1 {
-                return buffer_dest;
-            }
-        }
     }
 }
 

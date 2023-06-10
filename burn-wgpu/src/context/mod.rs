@@ -1,5 +1,5 @@
-pub(super) mod background;
-pub(super) mod channel;
+pub(super) mod client;
+pub(super) mod server;
 
 mod base;
 

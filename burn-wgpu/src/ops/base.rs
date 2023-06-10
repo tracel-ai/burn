@@ -36,7 +36,7 @@ impl<G: GraphicsApi> BaseOps<G> {
 
     pub fn into_data<E: WgpuElement, const D: usize>(tensor: WgpuTensor<E, D>) -> Data<E, D> {
         let tensor = Self::into_continuous(tensor);
-        let bytes = tensor.context.buffer_to_data(tensor.buffer);
+        let bytes = tensor.context.read_buffer(tensor.buffer);
         let values = E::from_bytes(&bytes);
 
         Data::new(values.to_vec(), tensor.shape)
