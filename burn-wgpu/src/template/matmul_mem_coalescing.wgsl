@@ -15,15 +15,15 @@ var<storage, read_write> output: array<elem>;
 var<storage, read> info: array<u32>;
 
 @compute
-@workgroup_size(WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y, 1)
+@workgroup_size(BLOCK_SIZE, BLOCK_SIZE, 1)
 fn main(
     @builtin(global_invocation_id) global_id: vec3<u32>,
     @builtin(local_invocation_index) local_idx: u32,
     @builtin(workgroup_id) workgroup_id: vec3<u32>,
 ) {
     // Indexes
-    let row = workgroup_id.x * TILE_SIZEu + (local_idx / TILE_SIZEu);
-    let col = workgroup_id.y * TILE_SIZEu + (local_idx % TILE_SIZEu);
+    let row = workgroup_id.x * BLOCK_SIZEu + (local_idx / BLOCK_SIZEu);
+    let col = workgroup_id.y * BLOCK_SIZEu + (local_idx % BLOCK_SIZEu);
     let batch = global_id.z;
 
     // Basic information
