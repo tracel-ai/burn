@@ -52,6 +52,7 @@ impl Context {
     /// [device](WgpuDevice).
     pub(crate) fn new<G: GraphicsApi>(device: &WgpuDevice) -> Self {
         let adapter = Self::select_adapter::<G>(device);
+
         let device_wgpu = device.clone();
         let limits = wgpu::Limits {
             max_compute_workgroup_storage_size: 1024,
@@ -66,7 +67,14 @@ impl Context {
             },
             None,
         ))
-        .expect("Unable to request the device with the adapter");
+        .map_err(|err| {
+            format!(
+                "Unable to request the device with the adapter {:?}, err {:?}",
+                adapter.get_info(),
+                err
+            )
+        })
+        .unwrap();
 
         let device = Arc::new(device);
         let client = ContextServerImpl::start(device.clone(), queue);
@@ -229,7 +237,18 @@ impl Context {
         ) -> wgpu::Adapter {
             if adapters.len() <= num {
                 if adapters_other.len() <= num {
-                    panic!("{}", error);
+                    panic!(
+                        "{}, adapters {:?}, other adapters {:?}",
+                        error,
+                        adapters
+                            .into_iter()
+                            .map(|adapter| adapter.get_info())
+                            .collect::<Vec<_>>(),
+                        adapters_other
+                            .into_iter()
+                            .map(|adapter| adapter.get_info())
+                            .collect::<Vec<_>>(),
+                    );
                 } else {
                     return adapters_other.remove(num);
                 }
