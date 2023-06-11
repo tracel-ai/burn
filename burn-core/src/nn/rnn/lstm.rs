@@ -20,9 +20,7 @@ pub struct LstmConfig {
     /// If a bias should be applied during the Lstm transformation.
     pub bias: bool,
     /// Lstm initializer
-    /// TODO: Make default Xavier initialization, which should be
-    /// a better choice. https://github.com/burn-rs/burn/issues/371
-    #[config(default = "Initializer::Uniform(0.0, 1.0)")]
+    #[config(default = "Initializer::XavierNormal(1.0)")]
     pub initializer: Initializer,
     /// The batch size.
     pub batch_size: usize,
@@ -218,42 +216,25 @@ impl<B: Backend> Lstm<B> {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
     use crate::{module::Param, nn::LinearRecord, TestBackend};
     use burn_tensor::Data;
 
     #[test]
-    fn initializer_default() {
+    fn test_with_uniform_initializer() {
         TestBackend::seed(0);
 
-        let config = LstmConfig::new(5, 5, false, 2);
+        let config =
+            LstmConfig::new(5, 5, false, 2).with_initializer(Initializer::Uniform(0.0, 1.0));
         let lstm = config.init::<TestBackend>();
 
-        lstm.input_gate
-            .input_transform
-            .weight
-            .val()
-            .to_data()
-            .assert_in_range(0.0, 1.0);
-        lstm.forget_gate
-            .input_transform
-            .weight
-            .val()
-            .to_data()
-            .assert_in_range(0.0, 1.0);
-        lstm.output_gate
-            .input_transform
-            .weight
-            .val()
-            .to_data()
-            .assert_in_range(0.0, 1.0);
-        lstm.cell_gate
-            .input_transform
-            .weight
-            .val()
-            .to_data()
-            .assert_in_range(0.0, 1.0);
+        let gate_to_data =
+            |gate: GateController<TestBackend>| gate.input_transform.weight.val().to_data();
+
+        gate_to_data(lstm.input_gate).assert_within_range(0..1);
+        gate_to_data(lstm.forget_gate).assert_within_range(0..1);
+        gate_to_data(lstm.output_gate).assert_within_range(0..1);
+        gate_to_data(lstm.cell_gate).assert_within_range(0..1);
     }
 
     /// Test forward pass with simple input vector.

@@ -121,6 +121,20 @@ impl<const D: usize, E: Element> Data<E, D> {
             shape: self.shape,
         }
     }
+
+    /// Asserts each value is within a given range.
+    /// Bounds are inclusive.
+    pub fn assert_within_range<EOther: Element>(&self, range: core::ops::Range<EOther>) {
+        let start = range.start.elem::<f32>();
+        let end = range.end.elem::<f32>();
+
+        for elem in self.value.iter() {
+            let elem = elem.elem::<f32>();
+            if elem < start || elem > end {
+                panic!("Element ({elem:?}) is not within range {range:?}");
+            }
+        }
+    }
 }
 
 impl<E: Element> DataSerialize<E> {
@@ -144,6 +158,7 @@ impl<const D: usize> Data<bool, D> {
         }
     }
 }
+
 impl<E: Element, const D: usize> Data<E, D> {
     pub fn random<R: RngCore>(shape: Shape<D>, distribution: Distribution<E>, rng: &mut R) -> Self {
         let num_elements = shape.num_elements();
@@ -156,6 +171,7 @@ impl<E: Element, const D: usize> Data<E, D> {
         Data::new(data, shape)
     }
 }
+
 impl<E: core::fmt::Debug, const D: usize> Data<E, D>
 where
     E: Element,
@@ -249,19 +265,6 @@ impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E
 
         if !message.is_empty() {
             panic!("Tensors are not approx eq:{}", message);
-        }
-    }
-
-    pub fn assert_in_range(&self, min: E, max: E) {
-        let min: f64 = min.into();
-        let max: f64 = max.into();
-
-        for item in self.value.iter() {
-            let item: f64 = item.clone().into();
-
-            if item < min || item > max {
-                panic!("Element ({item}) is not within the range of ({min},{max})");
-            }
         }
     }
 }

@@ -107,7 +107,7 @@ mod tests {
         let linear = config.init::<TestBackend>();
 
         assert_eq!(config.initializer, Initializer::UniformDefault);
-        linear.weight.to_data().assert_in_range(-k, k);
+        linear.weight.to_data().assert_within_range(-k..k);
     }
 
     #[test]

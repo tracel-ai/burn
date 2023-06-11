@@ -182,7 +182,7 @@ mod tests {
         let conv = config.init::<TestBackend>();
 
         assert_eq!(config.initializer, Initializer::UniformDefault);
-        conv.weight.to_data().assert_in_range(-k, k);
+        conv.weight.to_data().assert_within_range(-k..k);
     }
 
     #[test]
