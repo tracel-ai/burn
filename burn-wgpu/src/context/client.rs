@@ -76,6 +76,11 @@ mod async_client {
 
             // Wait for the buffer to be correctly registered so that inplace operations can be
             // prioritize.
+            //
+            // Note that this is unsafe and a channel could have been used to wait for completion.
+            // The loop is there for performance reason.
+            //
+            // TODO: Use a performant one time channel here as callback instead.
             loop {
                 std::thread::sleep(std::time::Duration::from_micros(1));
 
