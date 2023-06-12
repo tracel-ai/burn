@@ -1,3 +1,8 @@
+// This is a basic text classification model implemented in Rust using the Burn framework.
+// It uses a Transformer as the base model and applies Linear and Embedding layers.
+// The model is then trained using Cross-Entropy loss. It contains methods for model initialization
+// (both with and without pre-trained weights), forward pass, inference, training, and validation.
+
 use crate::data::{TextClassificationInferenceBatch, TextClassificationTrainingBatch};
 use burn::{
     config::Config,
@@ -12,6 +17,7 @@ use burn::{
     train::{ClassificationOutput, TrainOutput, TrainStep, ValidStep},
 };
 
+// Define the model configuration
 #[derive(Config)]
 pub struct TextClassificationModelConfig {
     transformer: TransformerEncoderConfig,
@@ -20,6 +26,7 @@ pub struct TextClassificationModelConfig {
     max_seq_length: usize,
 }
 
+// Define the model structure
 #[derive(Module, Debug)]
 pub struct TextClassificationModel<B: Backend> {
     transformer: TransformerEncoder<B>,
@@ -30,7 +37,9 @@ pub struct TextClassificationModel<B: Backend> {
     max_seq_length: usize,
 }
 
+// Define functions for model initialization
 impl TextClassificationModelConfig {
+    /// Initializes a model with default weights
     pub fn init<B: Backend>(&self) -> TextClassificationModel<B> {
         let output = LinearConfig::new(self.transformer.d_model, self.n_classes).init();
         let transformer = self.transformer.init();
@@ -48,6 +57,8 @@ impl TextClassificationModelConfig {
             max_seq_length: self.max_seq_length,
         }
     }
+
+    /// Initializes a model with provided weights
     pub fn init_with<B: Backend>(
         &self,
         record: TextClassificationModelRecord<B>,
@@ -71,15 +82,20 @@ impl TextClassificationModelConfig {
     }
 }
 
+/// Define model behavior
 impl<B: Backend> TextClassificationModel<B> {
+    // Defines forward pass for training
     pub fn forward(&self, item: TextClassificationTrainingBatch<B>) -> ClassificationOutput<B> {
+        // Get batch and sequence length, and the device
         let [batch_size, seq_length] = item.tokens.dims();
         let device = &self.embedding_token.devices()[0];
 
+        // Move tensors to the correct device
         let tokens = item.tokens.to_device(device);
         let labels = item.labels.to_device(device);
         let mask_pad = item.mask_pad.to_device(device);
 
+        // Calculate token and position embeddings, and combine them
         let index_positions = Tensor::arange_device(0..seq_length, device)
             .reshape([1, seq_length])
             .repeat(0, batch_size);
@@ -87,6 +103,7 @@ impl<B: Backend> TextClassificationModel<B> {
         let embedding_tokens = self.embedding_token.forward(tokens);
         let embedding = (embedding_positions + embedding_tokens) / 2;
 
+        // Perform transformer encoding, calculate output and loss
         let encoded = self
             .transformer
             .forward(TransformerEncoderInput::new(embedding).mask_pad(mask_pad));
@@ -99,6 +116,7 @@ impl<B: Backend> TextClassificationModel<B> {
         let loss = CrossEntropyLoss::new(None);
         let loss = loss.forward(output_classification.clone(), labels.clone());
 
+        // Return the output and loss
         ClassificationOutput {
             loss,
             output: output_classification,
@@ -106,13 +124,17 @@ impl<B: Backend> TextClassificationModel<B> {
         }
     }
 
+    /// Defines forward pass for inference
     pub fn infer(&self, item: TextClassificationInferenceBatch<B>) -> Tensor<B, 2> {
+        // Get batch and sequence length, and the device
         let [batch_size, seq_length] = item.tokens.dims();
         let device = &self.embedding_token.devices()[0];
 
+        // Move tensors to the correct device
         let tokens = item.tokens.to_device(device);
         let mask_pad = item.mask_pad.to_device(device);
 
+        // Calculate token and position embeddings, and combine them
         let index_positions = Tensor::arange_device(0..seq_length, device)
             .reshape([1, seq_length])
             .repeat(0, batch_size);
@@ -120,6 +142,7 @@ impl<B: Backend> TextClassificationModel<B> {
         let embedding_tokens = self.embedding_token.forward(tokens);
         let embedding = (embedding_positions + embedding_tokens) / 2;
 
+        // Perform transformer encoding, calculate output and apply softmax for prediction
         let encoded = self
             .transformer
             .forward(TransformerEncoderInput::new(embedding).mask_pad(mask_pad));
@@ -132,6 +155,7 @@ impl<B: Backend> TextClassificationModel<B> {
     }
 }
 
+/// Define training step
 impl<B: ADBackend> TrainStep<TextClassificationTrainingBatch<B>, ClassificationOutput<B>>
     for TextClassificationModel<B>
 {
@@ -139,6 +163,7 @@ impl<B: ADBackend> TrainStep<TextClassificationTrainingBatch<B>, ClassificationO
         &self,
         item: TextClassificationTrainingBatch<B>,
     ) -> TrainOutput<ClassificationOutput<B>> {
+        // Run forward pass, calculate gradients and return them along with the output
         let item = self.forward(item);
         let grads = item.loss.backward();
 
@@ -146,10 +171,12 @@ impl<B: ADBackend> TrainStep<TextClassificationTrainingBatch<B>, ClassificationO
     }
 }
 
+/// Define validation step
 impl<B: Backend> ValidStep<TextClassificationTrainingBatch<B>, ClassificationOutput<B>>
     for TextClassificationModel<B>
 {
     fn step(&self, item: TextClassificationTrainingBatch<B>) -> ClassificationOutput<B> {
+        // Run forward pass and return the output
         self.forward(item)
     }
 }
