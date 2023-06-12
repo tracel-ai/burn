@@ -275,12 +275,12 @@ mod tests {
         }
 
         lstm.input_gate =
-            create_gate_controller(0.5, 0.0, 1, 1, false, Initializer::UniformDefault);
+            create_gate_controller(0.5, 0.0, 1, 1, false, Initializer::NormalizedUniform);
         lstm.forget_gate =
-            create_gate_controller(0.7, 0.0, 1, 1, false, Initializer::UniformDefault);
-        lstm.cell_gate = create_gate_controller(0.9, 0.0, 1, 1, false, Initializer::UniformDefault);
+            create_gate_controller(0.7, 0.0, 1, 1, false, Initializer::NormalizedUniform);
+        lstm.cell_gate = create_gate_controller(0.9, 0.0, 1, 1, false, Initializer::NormalizedUniform);
         lstm.output_gate =
-            create_gate_controller(1.1, 0.0, 1, 1, false, Initializer::UniformDefault);
+            create_gate_controller(1.1, 0.0, 1, 1, false, Initializer::NormalizedUniform);
 
         // single timestep with single feature
         let input = Tensor::<TestBackend, 3>::from_data(Data::from([[[0.1]]]));

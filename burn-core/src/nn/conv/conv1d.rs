@@ -37,7 +37,7 @@ pub struct Conv1dConfig {
     #[config(default = true)]
     pub bias: bool,
     /// The type of function used to initialize neural network parameters
-    #[config(default = "Initializer::UniformDefault")]
+    #[config(default = "Initializer::NormalizedUniform")]
     pub initializer: Initializer,
 }
 
@@ -79,7 +79,7 @@ impl Conv1dConfig {
         let k = (self.channels_in * self.kernel_size) as f64;
         let k = sqrt(1.0 / k);
 
-        let initializer = if let Initializer::UniformDefault = self.initializer {
+        let initializer = if let Initializer::NormalizedUniform = self.initializer {
             Initializer::Uniform(-k, k)
         } else {
             self.initializer.clone()
@@ -172,7 +172,7 @@ mod tests {
         let k = sqrt(1.0 / k) as f32;
         let conv = config.init::<TestBackend>();
 
-        assert_eq!(config.initializer, Initializer::UniformDefault);
+        assert_eq!(config.initializer, Initializer::NormalizedUniform);
         conv.weight.to_data().assert_within_range(-k..k);
     }
 

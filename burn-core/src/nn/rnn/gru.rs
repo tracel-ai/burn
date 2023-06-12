@@ -240,9 +240,9 @@ mod tests {
         }
 
         gru.update_gate =
-            create_gate_controller(0.5, 0.0, 1, 1, false, Initializer::UniformDefault);
-        gru.reset_gate = create_gate_controller(0.6, 0.0, 1, 1, false, Initializer::UniformDefault);
-        gru.new_gate = create_gate_controller(0.7, 0.0, 1, 1, false, Initializer::UniformDefault);
+            create_gate_controller(0.5, 0.0, 1, 1, false, Initializer::NormalizedUniform);
+        gru.reset_gate = create_gate_controller(0.6, 0.0, 1, 1, false, Initializer::NormalizedUniform);
+        gru.new_gate = create_gate_controller(0.7, 0.0, 1, 1, false, Initializer::NormalizedUniform);
 
         let input = Tensor::<TestBackend, 3>::from_data(Data::from([[[0.1]]]));
 

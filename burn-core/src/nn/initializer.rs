@@ -12,8 +12,8 @@ use crate as burn;
 pub enum Initializer {
     /// Fills tensor with values drawn uniformly between specified values
     Uniform(f64, f64),
-    /// Must be implemented by caller. TODO change to NormalizedUniform, fills tensor with values drawn uniformly between -sqrt(1/fan_in) and sqrt(1/fan_in).
-    UniformDefault,
+    /// Fills tensor with values drawn uniformly between -sqrt(1/fan_in) and sqrt(1/fan_in).
+    NormalizedUniform,
     /// Fills tensor with values drawn from normal distribution with specified mean and std
     Normal(f64, f64),
     /// Fills tensor with specified value everywhere
@@ -35,7 +35,7 @@ impl Initializer {
                 shape,
                 Distribution::Uniform((*a).elem::<B::FloatElem>(), (*b).elem::<B::FloatElem>()),
             ),
-            Self::UniformDefault => unimplemented!("The caller should implement the default"),
+            Self::NormalizedUniform => unimplemented!("The caller should implement the default"),
             Self::Normal(mean, std) => {
                 Tensor::<B, D>::random(shape, Distribution::Normal(*mean, *std))
             }
@@ -101,7 +101,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn initializer_uniform_default_init() {
-        let _: Tensor<TB, 4> = Initializer::UniformDefault.init([2, 2, 2, 2]);
+        let _: Tensor<TB, 4> = Initializer::NormalizedUniform.init([2, 2, 2, 2]);
     }
 
     #[test]
