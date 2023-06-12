@@ -55,7 +55,7 @@ impl Context {
 
         let device_wgpu = device.clone();
         let limits = wgpu::Limits {
-            max_compute_workgroup_storage_size: 1024,
+            max_compute_invocations_per_workgroup: 1024,
             ..wgpu::Limits::default()
         };
 

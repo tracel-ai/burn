@@ -2,20 +2,25 @@ use super::{build_info, DynamicKernelSettings, StaticKernelGenerator};
 use crate::{context::WorkGroup, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 use burn_tensor::Shape;
 
-const BLOCK_SIZE: usize = 16;
+const BLOCK_SIZE: usize = 32;
 
 kernel_wgsl!(
     MatmulCoalescingRaw,
     "../template/matmul_mem_coalescing.wgsl"
 );
 
-struct MatmulCoalescing;
+kernel_wgsl!(MatmulCachingRaw, "../template/matmul_caching.wgsl");
 
-impl StaticKernelGenerator for MatmulCoalescing {
+struct MatmulCaching;
+
+impl StaticKernelGenerator for MatmulCaching {
     type Source = String;
 
     fn generate() -> Self::Source {
-        MatmulCoalescingRaw::generate().replace("BLOCK_SIZE", &BLOCK_SIZE.to_string())
+        let source = MatmulCachingRaw::generate();
+        let source = source.replace("BLOCK_SIZE_2X", &(BLOCK_SIZE * BLOCK_SIZE).to_string());
+
+        source.replace("BLOCK_SIZE", &BLOCK_SIZE.to_string())
     }
 }
 
@@ -45,7 +50,7 @@ pub fn matmul<E: WgpuElement, const D: usize>(
     let num_rows = lhs.shape.dims[D - 2];
     let num_cols = rhs.shape.dims[D - 1];
 
-    let kernel = DynamicKernelSettings::<MatmulCoalescing, E, i32>::new(BLOCK_SIZE, BLOCK_SIZE, 1);
+    let kernel = DynamicKernelSettings::<MatmulCaching, E, i32>::new(BLOCK_SIZE, BLOCK_SIZE, 1);
     let kernel = lhs.context.compile_dynamic(kernel);
 
     let info = build_info(&[&lhs, &rhs]);

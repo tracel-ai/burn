@@ -7,6 +7,8 @@ mod tests {
     fn test_matmul_d2() {
         let tensor_1 = TestTensor::from_floats([[1.0, 7.0], [2.0, 3.0], [1.0, 5.0]]);
         let tensor_2 = TestTensor::from_floats([[4.0, 7.0, 5.0], [2.0, 3.0, 5.0]]);
+        // let tensor_1 = TestTensor::ones([2, 2]);
+        // let tensor_2 = TestTensor::ones([2, 2]);
 
         let tensor_3 = tensor_1.matmul(tensor_2);
 
