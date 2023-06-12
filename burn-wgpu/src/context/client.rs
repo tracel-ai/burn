@@ -63,7 +63,7 @@ mod async_client {
             wait_for_registered: bool,
         ) -> Arc<Buffer> {
             if wait_for_registered {
-                assert_eq!(Arc::strong_count(&buffer_dest), 1, "You can wait for the buffer to be registered is multiple reference already points to it");
+                assert_eq!(Arc::strong_count(&buffer_dest), 1, "You can't wait for the buffer to be registered when multiple references already exist.");
             }
 
             self.sender
