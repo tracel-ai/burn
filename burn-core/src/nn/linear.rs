@@ -96,7 +96,7 @@ impl<B: Backend> Linear<B> {
 mod tests {
     use super::*;
     use crate::TestBackend;
-    use burn_tensor::Data;
+    use burn_tensor::{Data, Shape};
 
     #[test]
     fn initializer_default() {
@@ -122,5 +122,38 @@ mod tests {
             .weight
             .to_data()
             .assert_approx_eq(&Data::zeros(linear.weight.shape()), 3);
+    }
+
+    #[test]
+    fn test_linear_forward_no_bias() {
+        TestBackend::seed(0);
+
+        let value = 2.;
+        let config = LinearConfig::new(2, 3)
+            .with_initializer(Initializer::Constant(value))
+            .with_bias(false);
+        let linear = config.init();
+
+        let input = Tensor::<TestBackend, 2>::ones(Shape::new([1, 2]));
+        let result = linear.forward(input);
+        let expected_result = Tensor::<TestBackend, 2>::from_data([[4., 4., 4.]]);
+
+        assert_eq!(result.into_data(), expected_result.into_data());
+    }
+
+    #[test]
+    fn test_linear_forward_with_bias() {
+        TestBackend::seed(0);
+
+        let value = 2.;
+        let config = LinearConfig::new(2, 3)
+            .with_initializer(Initializer::Constant(value));
+        let linear = config.init();
+
+        let input = Tensor::<TestBackend, 2>::ones(Shape::new([1, 2]));
+        let result = linear.forward(input);
+        let expected_result = Tensor::<TestBackend, 2>::from_data([[6., 6., 6.]]);
+
+        assert_eq!(result.into_data(), expected_result.into_data());
     }
 }
