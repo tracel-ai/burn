@@ -30,7 +30,7 @@ pub struct LinearConfig {
 ///
 /// # Params
 ///
-/// - weight: Matrix of shape `[d_input, d_output]` initialized from a uniform distribution:
+/// - weight: Matrix of shape `[d_output, d_input]` initialized from a uniform distribution:
 ///     `U(-k, k)`, where `k = sqrt(1 / d_input)`
 ///
 /// - bias (optional): Vector of size `d_output` initialized from a uniform distribution:
@@ -52,7 +52,7 @@ impl LinearConfig {
             self.initializer.clone()
         };
 
-        let weight = initializer.init([self.d_input, self.d_output]);
+        let weight = initializer.init([self.d_output, self.d_input]);
 
         let bias = if self.bias {
             Some(initializer.init([self.d_output]))
@@ -83,7 +83,7 @@ impl<B: Backend> Linear<B> {
     /// - input: `[..., any, d_input]`
     /// - output: `[..., any, d_output]`
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
-        let output = input.matmul(self.weight.val().unsqueeze());
+        let output = self.weight.val().unsqueeze().matmul(input.transpose()).transpose();
 
         match &self.bias {
             Some(bias) => output + bias.val().unsqueeze(),
