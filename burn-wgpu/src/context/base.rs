@@ -138,11 +138,7 @@ impl Context {
     }
 
     /// Create a new buffer initialized with the provided bytes.
-    ///
-    /// Wait for registered may be useful if you want to allow inplace operations on the created
-    /// buffer. Otherwise, the strong count of the buffer might not be 1 when registering a new
-    /// operation, which makes the buffer readonly.
-    pub fn create_buffer_with_data(&self, data: &[u8], wait_for_registered: bool) -> Arc<Buffer> {
+    pub fn create_buffer_with_data(&self, data: &[u8]) -> Arc<Buffer> {
         let buffer_src = Arc::new(self.device_wgpu.create_buffer_init(&BufferInitDescriptor {
             label: Some("Buffer Src"),
             contents: data,
@@ -151,11 +147,14 @@ impl Context {
 
         let buffer_dest = self.create_buffer(buffer_src.size() as usize);
 
-        self.client
-            .copy_buffer(buffer_src, buffer_dest, wait_for_registered)
+        self.client.copy_buffer(buffer_src, buffer_dest, false)
     }
 
     /// Copy buffer to buffer.
+    ///
+    /// Wait for registered may be useful if you want to allow inplace operations on the created
+    /// buffer. Otherwise, the strong count of the buffer might not be 1 when registering a new
+    /// operation, which makes the buffer readonly.
     pub fn copy_buffer(&self, buffer_src: Arc<Buffer>, wait_for_registered: bool) -> Arc<Buffer> {
         let buffer_dest = self.create_buffer(buffer_src.size() as usize);
 
@@ -208,7 +207,6 @@ impl Context {
 
         instance
             .enumerate_adapters(G::backend().into())
-            .into_iter()
             .for_each(|adapter| {
                 let device_type = adapter.get_info().device_type;
 

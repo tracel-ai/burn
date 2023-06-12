@@ -62,6 +62,10 @@ mod async_client {
             buffer_dest: Arc<Buffer>,
             wait_for_registered: bool,
         ) -> Arc<Buffer> {
+            if wait_for_registered {
+                assert_eq!(Arc::strong_count(&buffer_dest), 1, "You can wait for the buffer to be registered is multiple reference already points to it");
+            }
+
             self.sender
                 .send(CopyBufferTask::new(buffer_src, buffer_dest.clone()).into())
                 .unwrap();

@@ -51,7 +51,7 @@ pub fn matmul<E: WgpuElement, const D: usize>(
     let info = build_info(&[&lhs, &rhs]);
     let info_buffers = lhs
         .context
-        .create_buffer_with_data(bytemuck::cast_slice(&info), false);
+        .create_buffer_with_data(bytemuck::cast_slice(&info));
 
     let mut num_iter = 1;
     for i in 0..D - 2 {

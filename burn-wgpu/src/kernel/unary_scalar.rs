@@ -96,9 +96,7 @@ pub fn unary_scalar<K: StaticKernelGenerator, E: WgpuElement, const D: usize>(
     let kernel = lhs
         .context
         .compile_static::<KernelSettings<K, E, i32, 256, 1, 1>>();
-    let rhs_buffer = lhs
-        .context
-        .create_buffer_with_data(E::as_bytes(&[scalar]), false);
+    let rhs_buffer = lhs.context.create_buffer_with_data(E::as_bytes(&[scalar]));
 
     lhs.context.execute(
         WorkGroup::new(
@@ -120,9 +118,7 @@ pub fn unary_scalar_inplace<K: StaticKernelGenerator, E: WgpuElement, const D: u
     let kernel = lhs
         .context
         .compile_static::<KernelSettings<K, E, i32, 256, 1, 1>>();
-    let rhs_buffer = lhs
-        .context
-        .create_buffer_with_data(E::as_bytes(&[scalar]), false);
+    let rhs_buffer = lhs.context.create_buffer_with_data(E::as_bytes(&[scalar]));
 
     lhs.context.execute(
         WorkGroup::new(
