@@ -18,9 +18,9 @@ var<storage, read> info: array<u32>;
 @workgroup_size(WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y, WORKGROUP_SIZE_Z)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // Indexes
-    let batch = global_id.x;
-    let row = global_id.y;
-    let col = global_id.z;
+    let row = global_id.x;
+    let col = global_id.y;
+    let batch = global_id.z;
 
     // Basic information
     let dim = info[0];

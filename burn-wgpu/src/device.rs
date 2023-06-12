@@ -20,6 +20,6 @@ pub enum WgpuDevice {
 
 impl Default for WgpuDevice {
     fn default() -> Self {
-        Self::Cpu
+        Self::DiscreteGpu(0)
     }
 }

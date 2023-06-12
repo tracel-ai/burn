@@ -2,12 +2,22 @@ use crate::{element::WgpuElement, tensor::WgpuTensor};
 use std::marker::PhantomData;
 
 /// Generate wgpu kernel source code to create [compute shader modules](wgpu::ShaderModule).
-pub trait KernelGenerator: 'static {
+pub trait StaticKernelGenerator: 'static {
     /// Source code concrete type.
     type Source: AsRef<str>;
 
     /// Generate the source code.
     fn generate() -> Self::Source;
+}
+
+/// Generate wgpu kernel source code to create [compute shader modules](wgpu::ShaderModule).
+pub trait DynamicKernelGenerator {
+    /// Source code concrete type.
+    type Source: AsRef<str>;
+
+    /// Generate the source code.
+    fn generate(&self) -> Self::Source;
+    fn id(&self) -> String;
 }
 
 #[macro_export]
@@ -19,7 +29,7 @@ macro_rules! kernel_wgsl {
         #[derive(new)]
         pub struct $struct;
 
-        impl $crate::kernel::KernelGenerator for $struct {
+        impl $crate::kernel::StaticKernelGenerator for $struct {
             type Source = &'static str;
 
             fn generate() -> Self::Source {
@@ -31,7 +41,7 @@ macro_rules! kernel_wgsl {
 
 /// Generate kernel source code by replacing some information using templating.
 pub struct KernelSettings<
-    K: KernelGenerator,
+    K: StaticKernelGenerator,
     E: WgpuElement,
     I: WgpuElement,
     const WORKGROUP_X_SIZE: usize,
@@ -44,13 +54,13 @@ pub struct KernelSettings<
 }
 
 impl<
-        K: KernelGenerator,
+        K: StaticKernelGenerator,
         E: WgpuElement,
         I: WgpuElement,
         const WORKGROUP_X_SIZE: usize,
         const WORKGROUP_Y_SIZE: usize,
         const WORKGROUP_Z_SIZE: usize,
-    > KernelGenerator
+    > StaticKernelGenerator
     for KernelSettings<K, E, I, WORKGROUP_X_SIZE, WORKGROUP_Y_SIZE, WORKGROUP_Z_SIZE>
 {
     type Source = String;
@@ -65,6 +75,44 @@ impl<
         source = source.replace("int", I::type_name());
 
         source
+    }
+}
+
+/// Generate kernel source code by replacing some information using templating.
+#[derive(new)]
+pub struct DynamicKernelSettings<K: StaticKernelGenerator, E: WgpuElement, I: WgpuElement> {
+    workgroup_x_size: usize,
+    workgroup_y_size: usize,
+    workgroup_z_size: usize,
+    _k: PhantomData<K>,
+    _e: PhantomData<E>,
+    _i: PhantomData<I>,
+}
+
+impl<K: StaticKernelGenerator, E: WgpuElement, I: WgpuElement> DynamicKernelGenerator
+    for DynamicKernelSettings<K, E, I>
+{
+    type Source = String;
+
+    fn generate(&self) -> String {
+        let mut source = K::generate().as_ref().to_string();
+
+        source = source.replace("WORKGROUP_SIZE_X", &self.workgroup_x_size.to_string());
+        source = source.replace("WORKGROUP_SIZE_Y", &self.workgroup_y_size.to_string());
+        source = source.replace("WORKGROUP_SIZE_Z", &self.workgroup_z_size.to_string());
+        source = source.replace("elem", E::type_name());
+        source = source.replace("int", I::type_name());
+
+        source
+    }
+
+    fn id(&self) -> String {
+        let id = core::any::TypeId::of::<K>();
+
+        format!(
+            "{:?}-dyn-settings{}-{}-{}",
+            id, self.workgroup_x_size, self.workgroup_y_size, self.workgroup_z_size
+        )
     }
 }
 

@@ -8,7 +8,7 @@ use crate::{
     GraphicsApi, WgpuDevice,
 };
 use burn_tensor::{backend::Backend, Data, Shape};
-use std::{marker::PhantomData, ops::Range, sync::Arc};
+use std::{marker::PhantomData, ops::Range};
 
 pub type FloatElem<B> = <B as Backend>::FloatElem;
 pub type Device<B> = <B as Backend>::Device;
@@ -31,12 +31,12 @@ impl<G: GraphicsApi> BaseOps<G> {
         let context = get_context::<G>(device);
         let buffer = context.create_buffer_with_data(E::as_bytes(&data.value));
 
-        WgpuTensor::new(context, data.shape, Arc::new(buffer))
+        WgpuTensor::new(context, data.shape, buffer)
     }
 
     pub fn into_data<E: WgpuElement, const D: usize>(tensor: WgpuTensor<E, D>) -> Data<E, D> {
         let tensor = Self::into_continuous(tensor);
-        let bytes = tensor.context.buffer_to_data(&tensor.buffer);
+        let bytes = tensor.context.read_buffer(tensor.buffer);
         let values = E::from_bytes(&bytes);
 
         Data::new(values.to_vec(), tensor.shape)
@@ -61,7 +61,7 @@ impl<G: GraphicsApi> BaseOps<G> {
         let context = get_context::<G>(device);
         let buffer = context.create_buffer(shape.num_elements() * core::mem::size_of::<E>());
 
-        WgpuTensor::new(context, shape, Arc::new(buffer))
+        WgpuTensor::new(context, shape, buffer)
     }
 
     pub fn swap_dims<E: WgpuElement, const D: usize>(
@@ -98,11 +98,7 @@ impl<G: GraphicsApi> BaseOps<G> {
         let buffer = tensor
             .context
             .create_buffer(tensor.shape.num_elements() * core::mem::size_of::<E>());
-        let output = WgpuTensor::new(
-            tensor.context.clone(),
-            tensor.shape.clone(),
-            Arc::new(buffer),
-        );
+        let output = WgpuTensor::new(tensor.context.clone(), tensor.shape.clone(), buffer);
         let info = build_info(&[&tensor, &output]);
         let info_buffer = tensor
             .context
@@ -110,15 +106,15 @@ impl<G: GraphicsApi> BaseOps<G> {
 
         let kernel = tensor
             .context
-            .compile::<KernelSettings<ContinuousRaw, E, i32, 256, 1, 1>>();
+            .compile_static::<KernelSettings<ContinuousRaw, E, i32, 256, 1, 1>>();
 
         tensor.context.execute(
-            &WorkGroup::new(
+            WorkGroup::new(
                 f32::ceil(output.shape.num_elements() as f32 / 256_f32) as u32,
                 1,
                 1,
             ),
-            &kernel,
+            kernel,
             &[&tensor.buffer, &output.buffer, &info_buffer],
         );
 
@@ -142,7 +138,7 @@ impl<G: GraphicsApi> BaseOps<G> {
         let buffer = tensor
             .context
             .create_buffer(shape_output.num_elements() * core::mem::size_of::<E>());
-        let output = WgpuTensor::new(tensor.context.clone(), shape_output, Arc::new(buffer));
+        let output = WgpuTensor::new(tensor.context.clone(), shape_output, buffer);
         let mut info = build_info(&[&tensor, &output]);
 
         for i in 0..D1 {
@@ -156,15 +152,15 @@ impl<G: GraphicsApi> BaseOps<G> {
 
         let kernel = tensor
             .context
-            .compile::<KernelSettings<IndexRaw, E, i32, 256, 1, 1>>();
+            .compile_static::<KernelSettings<IndexRaw, E, i32, 256, 1, 1>>();
 
         tensor.context.execute(
-            &WorkGroup::new(
+            WorkGroup::new(
                 f32::ceil(output.shape.num_elements() as f32 / 256_f32) as u32,
                 1,
                 1,
             ),
-            &kernel,
+            kernel,
             &[&tensor.buffer, &output.buffer, &info_buffer],
         );
 
@@ -199,15 +195,15 @@ impl<G: GraphicsApi> BaseOps<G> {
 
         let kernel = tensor
             .context
-            .compile::<KernelSettings<IndexAssignInplaceRaw, E, i32, 256, 1, 1>>();
+            .compile_static::<KernelSettings<IndexAssignInplaceRaw, E, i32, 256, 1, 1>>();
 
         tensor.context.execute(
-            &WorkGroup::new(
+            WorkGroup::new(
                 f32::ceil(value.shape.num_elements() as f32 / 256_f32) as u32,
                 1,
                 1,
             ),
-            &kernel,
+            kernel,
             &[&tensor.buffer, &value.buffer, &info_buffer],
         );
 

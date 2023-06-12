@@ -1,6 +1,5 @@
-use super::{KernelGenerator, KernelSettings};
+use super::{KernelSettings, StaticKernelGenerator};
 use crate::{context::WorkGroup, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
-use std::sync::Arc;
 
 kernel_wgsl!(UnaryScalarRaw, "../template/unary_scalar.wgsl");
 kernel_wgsl!(
@@ -16,7 +15,7 @@ macro_rules! unary_scalar {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::KernelGenerator for $struct {
+        impl $crate::kernel::StaticKernelGenerator for $struct {
             type Source = String;
 
             fn generate() -> Self::Source {
@@ -34,7 +33,7 @@ macro_rules! unary_scalar {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::KernelGenerator for $struct {
+        impl $crate::kernel::StaticKernelGenerator for $struct {
             type Source = String;
 
             fn generate() -> Self::Source {
@@ -55,7 +54,7 @@ macro_rules! unary_scalar_inplace {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::KernelGenerator for $struct {
+        impl $crate::kernel::StaticKernelGenerator for $struct {
             type Source = String;
 
             fn generate() -> Self::Source {
@@ -73,7 +72,7 @@ macro_rules! unary_scalar_inplace {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::KernelGenerator for $struct {
+        impl $crate::kernel::StaticKernelGenerator for $struct {
             type Source = String;
 
             fn generate() -> Self::Source {
@@ -86,48 +85,48 @@ macro_rules! unary_scalar_inplace {
     };
 }
 
-pub fn unary_scalar<K: KernelGenerator, E: WgpuElement, const D: usize>(
+pub fn unary_scalar<K: StaticKernelGenerator, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     scalar: E,
 ) -> WgpuTensor<E, D> {
     let buffer = lhs
         .context
         .create_buffer(lhs.shape.num_elements() * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(lhs.context.clone(), lhs.shape, Arc::new(buffer));
+    let output = WgpuTensor::new(lhs.context.clone(), lhs.shape, buffer);
     let kernel = lhs
         .context
-        .compile::<KernelSettings<K, E, i32, 256, 1, 1>>();
+        .compile_static::<KernelSettings<K, E, i32, 256, 1, 1>>();
     let rhs_buffer = lhs.context.create_buffer_with_data(E::as_bytes(&[scalar]));
 
     lhs.context.execute(
-        &WorkGroup::new(
+        WorkGroup::new(
             f32::ceil(output.shape.num_elements() as f32 / 256_f32) as u32,
             1,
             1,
         ),
-        &kernel,
+        kernel,
         &[&lhs.buffer, &rhs_buffer, &output.buffer],
     );
 
     output
 }
 
-pub fn unary_scalar_inplace<K: KernelGenerator, E: WgpuElement, const D: usize>(
+pub fn unary_scalar_inplace<K: StaticKernelGenerator, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     scalar: E,
 ) -> WgpuTensor<E, D> {
     let kernel = lhs
         .context
-        .compile::<KernelSettings<K, E, i32, 256, 1, 1>>();
+        .compile_static::<KernelSettings<K, E, i32, 256, 1, 1>>();
     let rhs_buffer = lhs.context.create_buffer_with_data(E::as_bytes(&[scalar]));
 
     lhs.context.execute(
-        &WorkGroup::new(
+        WorkGroup::new(
             f32::ceil(lhs.shape.num_elements() as f32 / 256_f32) as u32,
             1,
             1,
         ),
-        &kernel,
+        kernel,
         &[&lhs.buffer, &rhs_buffer],
     );
 
