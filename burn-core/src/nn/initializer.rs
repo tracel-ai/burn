@@ -1,5 +1,6 @@
 use burn_tensor::Shape;
 use libm::sqrt;
+use rand::distributions;
 
 use crate::config::Config;
 use crate::tensor::backend::Backend;
@@ -29,55 +30,94 @@ pub enum Initializer {
 }
 
 impl Initializer {
-    pub fn init<B: Backend, const D: usize, S: Into<Shape<D>>>(&self, shape: S) -> Tensor<B, D> {
+    pub fn init<B: Backend, const D: usize, S: Into<Shape<D>>>(&self, shape: S, with_bias: bool) -> (Tensor<B, D>,
+                                                                                                     Option<Tensor<B, 1>>) {
         match self {
-            Self::Uniform(a, b) => Tensor::<B, D>::random(
-                shape,
-                Distribution::Uniform((*a).elem::<B::FloatElem>(), (*b).elem::<B::FloatElem>()),
-            ),
-            Self::NormalizedUniform => unimplemented!("The caller should implement the default"),
+            Self::Uniform(a, b) => {
+                let distribution = Distribution::Uniform((*a).elem::<B::FloatElem>(), (*b).elem::<B::FloatElem>());
+                random_weight_bias(shape, distribution, with_bias)
+            }
+            Self::NormalizedUniform => {
+                let distribution = normalized_uniform(shape);
+                random_weight_bias(&shape, distribution, with_bias)
+            }
             Self::Normal(mean, std) => {
-                Tensor::<B, D>::random(shape, Distribution::Normal(*mean, *std))
+                let distribution = Distribution::Normal(*mean, *std);
+                random_weight_bias(shape, distribution, with_bias)
             }
             Self::Constant(value) => Tensor::<B, D>::zeros(shape) + *value, //TODO replace with fill()
             Self::Ones => Tensor::<B, D>::ones(shape),
             Self::Zeros => Tensor::<B, D>::zeros(shape),
-            Self::XavierUniform(gain) => xavier_uniform(gain, shape),
-            Self::XavierNormal(gain) => xavier_normal(gain, shape),
+            Self::XavierUniform(gain) => {
+                let distribution = xavier_uniform(gain, shape);
+                random_weight_bias(&shape, distribution, with_bias)
+            }
+            Self::XavierNormal(gain) => {
+                let distribution = xavier_normal(gain, shape);
+                random_weight_bias(&shape, distribution, with_bias)
+            }
         }
     }
 }
 
-fn xavier_uniform<B: Backend, const D: usize, S: Into<Shape<D>>>(
-    gain: &f64,
+fn random_weight_bias<B: Backend, const D: usize, S: Into<Shape<D>>>(
     shape: S,
-) -> Tensor<B, D> {
-    let shape = shape.into();
-    let a = sqrt(3.0) * xavier_std(gain, &shape);
-    Tensor::<B, D>::random(
-        shape,
-        Distribution::Uniform((-a).elem::<B::FloatElem>(), a.elem::<B::FloatElem>()),
-    )
+    distribution: Distribution<<B as Backend>::FloatElem>, with_bias: bool)
+    -> (Tensor<B, D>, Option<Tensor<B, 1>>) {
+    let weight = Tensor::<B, D>::random(shape, distribution);
+    let bias = if with_bias {
+        Some(Tensor::<B, 1>::random(shape.into().dims[0], distribution))
+    } else {
+        None
+    };
+    (weight, bias)
 }
 
-fn xavier_normal<B: Backend, const D: usize, S: Into<Shape<D>>>(
-    gain: &f64,
-    shape: S,
-) -> Tensor<B, D> {
-    let shape = shape.into();
-    let std = xavier_std(gain, &shape);
-    Tensor::<B, D>::random(shape, Distribution::Normal(0.0, std))
+struct Fans {
+    fan_in: usize,
+    fan_out: usize,
 }
 
-fn xavier_std<const D: usize>(gain: &f64, shape: &Shape<D>) -> f64 {
-    assert!(
-        D >= 2,
-        "Can't compute Xavier standard deviation on shapes smaller than 2"
-    );
+impl Fans {
+    pub fn new<const D: usize>(shape: &Shape<D>) -> Self {
+        assert!(
+            D >= 2,
+            "Can't calculate fan_in and fan_out on shapes smaller than 2"
+        );
 
-    let fan_sum: usize = shape.dims.iter().take(2).sum();
-    let receptive_field_size: usize = shape.dims.iter().skip(2).product();
-    gain * sqrt(2.0 / (fan_sum * receptive_field_size) as f64)
+        let receptive_field_size: usize = shape.dims.iter().skip(2).product();
+        let d: Vec<usize> = shape.dims.iter().take(2).map(|fan| fan * receptive_field_size).collect();
+        Fans { fan_in: d[1], fan_out: d[0] }
+    }
+
+    pub fn sum(&self) -> usize {
+        self.fan_in + self.fan_out
+    }
+}
+
+fn normalized_uniform<B: Backend, const D: usize>(shape: &Shape<D>) -> Distribution<<B as Backend>::FloatElem> {
+    let fan_in = Fans::new(shape).fan_in;
+    let k = 1. / sqrt(fan_in as f64);
+    Distribution::Uniform((-k).elem::<B::FloatElem>(), k.elem::<B::FloatElem>())
+}
+
+
+fn xavier_uniform<B: Backend, const D: usize>(
+    gain: &f64,
+    shape: &Shape<D>,
+) -> Distribution<<B as Backxend>::FloatElem> {
+    let fan_sum = Fans::new(shape).sum();
+    let a = gain * sqrt(6.0 / fan_sum as f64);
+    Distribution::Uniform((-a).elem::<B::FloatElem>(), a.elem::<B::FloatElem>())
+}
+
+fn xavier_normal<B: Backend, const D: usize>(
+    gain: &f64,
+    shape: &Shape<D>,
+) -> Distribution<<B as Backend>::FloatElem> {
+    let fan_sum = Fans::new(shape).sum();
+    let std = gain * sqrt(2.0 / fan_sum as f64);
+    Distribution::Normal(0.0, std)
 }
 
 #[cfg(test)]
@@ -93,15 +133,9 @@ mod tests {
         TB::seed(0);
 
         let (a, b) = (0.0, 1.0);
-        let uniform: Tensor<TB, 4> = Initializer::Uniform(a, b).init([2, 2, 2, 2]);
+        let (uniform, _): (Tensor<TB, 4>, _) = Initializer::Uniform(a, b).init([2, 2, 2, 2], false);
 
         uniform.into_data().assert_within_range(a..b);
-    }
-
-    #[test]
-    #[should_panic]
-    fn initializer_uniform_default_init() {
-        let _: Tensor<TB, 4> = Initializer::NormalizedUniform.init([2, 2, 2, 2]);
     }
 
     #[test]
@@ -109,7 +143,7 @@ mod tests {
         // seed random generator
         TB::seed(0);
         let (mean, std) = (0.0, 1.0);
-        let normal: Tensor<TB, 1> = Initializer::Normal(mean, std).init([1000]);
+        let (normal, _): (Tensor<TB, 1>, _) = Initializer::Normal(mean, std).init([1000], false);
         let (var_act, mean_act) = normal.var_mean(0);
 
         let var_act: f32 = var_act.into_scalar().elem();
@@ -128,7 +162,7 @@ mod tests {
     #[test]
     fn initializer_constant_init() {
         let value = 5.0;
-        let constants: Tensor<TB, 4> = Initializer::Constant(value).init([2, 2, 2, 2]);
+        let (constants, _): (Tensor<TB, 4>, _) = Initializer::Constant(value).init([2, 2, 2, 2], false);
         constants
             .sum()
             .to_data()
@@ -137,7 +171,7 @@ mod tests {
 
     #[test]
     fn initializer_zeros_init() {
-        let zeros: Tensor<TB, 4> = Initializer::Zeros.init([2, 2, 2, 2]);
+        let (zeros, _): (Tensor<TB, 4>, _) = Initializer::Zeros.init([2, 2, 2, 2], false);
         zeros
             .sum()
             .to_data()
@@ -146,7 +180,7 @@ mod tests {
 
     #[test]
     fn initializer_ones_init() {
-        let ones: Tensor<TB, 4> = Initializer::Ones.init([2, 2, 2, 2]);
+        let (ones, _): (Tensor<TB, 4>, _) = Initializer::Ones.init([2, 2, 2, 2], false);
         ones.sum()
             .to_data()
             .assert_approx_eq(&Data::from([16.0]), 3);
@@ -159,8 +193,8 @@ mod tests {
         let gain = 2.;
         let (fan_in, fan_out) = (5, 6);
         let bound = gain * sqrt(6. / (fan_in + fan_out) as f64);
-        let xavier_uniform: Tensor<TB, 2> =
-            Initializer::XavierUniform(gain).init([fan_in, fan_out]);
+        let (xavier_uniform, _): (Tensor<TB, 2>, _) =
+            Initializer::XavierUniform(gain).init([fan_in, fan_out], false);
 
         xavier_uniform
             .into_data()
@@ -176,8 +210,8 @@ mod tests {
         let (rec_field_1, rec_field_2) = (3, 4);
 
         let bound = gain * sqrt(6. / ((fan_in + fan_out) * rec_field_1 * rec_field_2) as f64);
-        let xavier_uniform: Tensor<TB, 4> =
-            Initializer::XavierUniform(gain).init([fan_in, fan_out, rec_field_1, rec_field_2]);
+        let (xavier_uniform, _): (Tensor<TB, 4>, _) =
+            Initializer::XavierUniform(gain).init([fan_in, fan_out, rec_field_1, rec_field_2], false);
 
         xavier_uniform
             .into_data()
@@ -193,7 +227,7 @@ mod tests {
         let expected_mean = 0_f64;
 
         let expected_var = (gain * sqrt(2. / (fan_in as f64 + fan_out as f64))).powf(2.);
-        let xavier_normal: Tensor<TB, 2> = Initializer::XavierNormal(gain).init([fan_in, fan_out]);
+        let (xavier_normal, _): (Tensor<TB, 2>, _) = Initializer::XavierNormal(gain).init([fan_in, fan_out], false);
         let (actual_vars, actual_means) = xavier_normal.var_mean(0);
 
         for i in 0..fan_out {
