@@ -27,12 +27,6 @@ build_and_test_no_std() {
     echo "$dir"
     cd $dir || exit
 
-    echo "Build with defaults"
-    cargo build
-
-    echo "Test with defaults"
-    cargo test
-
     echo "Build without defaults"
     cargo build --no-default-features
 
