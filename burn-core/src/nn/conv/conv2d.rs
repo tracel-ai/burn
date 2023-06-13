@@ -10,8 +10,6 @@ use burn_tensor::module::conv2d;
 use burn_tensor::ops::conv::calculate_conv_padding;
 use burn_tensor::ops::ConvOptions;
 
-use libm::sqrt;
-
 /// Configuration to create an [2D convolution](Conv2d) layer.
 #[derive(Config, Debug)]
 pub struct Conv2dConfig {
@@ -74,27 +72,12 @@ pub struct Conv2d<B: Backend> {
 impl Conv2dConfig {
     /// Initialize a new [conv2d](Conv2d) module.
     pub fn init<B: Backend>(&self) -> Conv2d<B> {
-        let k = (self.channels[0] * self.kernel_size[0] * self.kernel_size[1]) as f64;
-        let k = sqrt(1.0 / k);
-
-        let initializer = if let Initializer::NormalizedUniform = self.initializer {
-            Initializer::Uniform(-k, k)
-        } else {
-            self.initializer.clone()
-        };
-
-        let weight = initializer.init([
-            self.channels[1],
-            self.channels[0],
-            self.kernel_size[0],
-            self.kernel_size[1],
-        ]);
-
-        let bias = if self.bias {
-            Some(initializer.init([self.channels[1]]))
-        } else {
-            None
-        };
+        let (weight, bias) = self.initializer.init([
+                                                       self.channels[1],
+                                                       self.channels[0],
+                                                       self.kernel_size[0],
+                                                       self.kernel_size[1],
+                                                   ], self.bias);
 
         Conv2d {
             weight: Param::from(weight),
@@ -171,6 +154,7 @@ mod tests {
 
     use super::*;
     use crate::TestBackend;
+    use libm::sqrt;
 
     #[test]
     fn initializer_default() {

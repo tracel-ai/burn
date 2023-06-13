@@ -36,7 +36,7 @@ impl EmbeddingConfig {
     pub fn init<B: Backend>(&self) -> Embedding<B> {
         let weight = self
             .initializer
-            .init([self.n_embedding, self.d_model])
+            .init_weight([self.n_embedding, self.d_model])
             .require_grad();
 
         Embedding {

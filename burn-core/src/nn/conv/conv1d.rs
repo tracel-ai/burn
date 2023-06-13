@@ -10,8 +10,6 @@ use burn_tensor::module::conv1d;
 use burn_tensor::ops::conv::calculate_conv_padding;
 use burn_tensor::ops::ConvOptions;
 
-use libm::sqrt;
-
 /// Configuration to create an [1D convolution](Conv1d) layer.
 #[derive(Config)]
 pub struct Conv1dConfig {
@@ -76,26 +74,11 @@ pub struct Conv1d<B: Backend> {
 impl Conv1dConfig {
     /// Initialize a new [conv1d](Conv1d) module.
     pub fn init<B: Backend>(&self) -> Conv1d<B> {
-        let k = (self.channels_in * self.kernel_size) as f64;
-        let k = sqrt(1.0 / k);
-
-        let initializer = if let Initializer::NormalizedUniform = self.initializer {
-            Initializer::Uniform(-k, k)
-        } else {
-            self.initializer.clone()
-        };
-
-        let weight = initializer.init([self.channels_out, self.channels_in, self.kernel_size]);
-
-        let bias = if self.bias {
-            Some(Param::from(initializer.init([self.channels_out])))
-        } else {
-            None
-        };
+        let (weight, bias) = self.initializer.init([self.channels_out, self.channels_in, self.kernel_size], self.bias);
 
         Conv1d {
             weight: Param::from(weight),
-            bias,
+            bias: bias.map(Param::from),
             stride: 1, // TODO: Add the stride to the config when properly supported.
             kernel_size: self.kernel_size,
             padding: self.padding.clone(),
@@ -159,6 +142,7 @@ impl Conv1dPaddingConfig {
 #[cfg(test)]
 mod tests {
     use burn_tensor::Data;
+    use libm::sqrt;
 
     use super::*;
     use crate::TestBackend;

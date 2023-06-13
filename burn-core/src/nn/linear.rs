@@ -5,8 +5,6 @@ use crate::module::Module;
 use crate::module::Param;
 use crate::tensor::{backend::Backend, Tensor};
 
-use libm::sqrt;
-
 use super::Initializer;
 
 /// Configuration to create a [Linear](Linear) layer.
@@ -44,21 +42,7 @@ pub struct Linear<B: Backend> {
 impl LinearConfig {
     /// Initialize a new [linear](Linear) module.
     pub fn init<B: Backend>(&self) -> Linear<B> {
-        let k = sqrt(1.0 / self.d_input as f64);
-
-        let initializer = if let Initializer::NormalizedUniform = self.initializer {
-            Initializer::Uniform(-k, k)
-        } else {
-            self.initializer.clone()
-        };
-
-        let weight = initializer.init([self.d_output, self.d_input]);
-
-        let bias = if self.bias {
-            Some(initializer.init([self.d_output]))
-        } else {
-            None
-        };
+        let (weight, bias) = self.initializer.init([self.d_output, self.d_input], self.bias);
 
         Linear {
             weight: Param::from(weight),
@@ -83,7 +67,7 @@ impl<B: Backend> Linear<B> {
     /// - input: `[..., any, d_input]`
     /// - output: `[..., any, d_output]`
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
-        let output = self.weight.val().unsqueeze().matmul(input.transpose()).transpose();
+        let output = input.matmul(self.weight.val().unsqueeze().transpose());
 
         match &self.bias {
             Some(bias) => output + bias.val().unsqueeze(),
@@ -97,6 +81,7 @@ mod tests {
     use super::*;
     use crate::TestBackend;
     use burn_tensor::{Data, Shape};
+    use libm::sqrt;
 
     #[test]
     fn initializer_default() {

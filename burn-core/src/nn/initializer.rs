@@ -1,6 +1,5 @@
 use burn_tensor::Shape;
 use libm::sqrt;
-use rand::distributions;
 
 use crate::config::Config;
 use crate::tensor::backend::Backend;
@@ -11,18 +10,18 @@ use crate as burn;
 /// Enum specifying with what values a tensor should be initialized
 #[derive(Config, Debug, PartialEq)]
 pub enum Initializer {
-    /// Fills tensor with values drawn uniformly between specified values
-    Uniform(f64, f64),
-    /// Fills tensor with values drawn uniformly between -sqrt(1/fan_in) and sqrt(1/fan_in).
-    NormalizedUniform,
-    /// Fills tensor with values drawn from normal distribution with specified mean and std
-    Normal(f64, f64),
     /// Fills tensor with specified value everywhere
     Constant(f64),
     /// Fills tensor with 1s everywhere
     Ones,
     /// Fills tensor with 0s everywhere
     Zeros,
+    /// Fills tensor with values drawn uniformly between specified values
+    Uniform(f64, f64),
+    /// Fills tensor with values drawn uniformly between -sqrt(1/fan_in) and sqrt(1/fan_in).
+    NormalizedUniform,
+    /// Fills tensor with values drawn from normal distribution with specified mean and std
+    Normal(f64, f64),
     /// Fills tensor with values according to the uniform version of Xavier Glorot initialization described in [Understanding the difficulty of training deep feedforward neural networks](https://proceedings.mlr.press/v9/glorot10a/glorot10a.pdf)
     XavierUniform(f64),
     /// Fills tensor with values according to the normal version of Xavier Glorot initialization described in [Understanding the difficulty of training deep feedforward neural networks](https://proceedings.mlr.press/v9/glorot10a/glorot10a.pdf)
@@ -32,72 +31,75 @@ pub enum Initializer {
 impl Initializer {
     pub fn init<B: Backend, const D: usize, S: Into<Shape<D>>>(&self, shape: S, with_bias: bool) -> (Tensor<B, D>,
                                                                                                      Option<Tensor<B, 1>>) {
+        let shape = shape.into();
         match self {
+            Self::Constant(value) => constant_weight_and_bias(shape, with_bias, *value),
+            Self::Ones => constant_weight_and_bias(shape, with_bias, 1.),
+            Self::Zeros => constant_weight_and_bias(shape, with_bias, 0.),
             Self::Uniform(a, b) => {
-                let distribution = Distribution::Uniform((*a).elem::<B::FloatElem>(), (*b).elem::<B::FloatElem>());
-                random_weight_bias(shape, distribution, with_bias)
+                random_weight_and_bias(
+                    Distribution::Uniform((*a).elem::<B::FloatElem>(), (*b).elem::<B::FloatElem>()),
+                    shape, with_bias)
             }
             Self::NormalizedUniform => {
-                let distribution = normalized_uniform(shape);
-                random_weight_bias(&shape, distribution, with_bias)
+                random_weight_and_bias(
+                    normalized_uniform::<B, D>(&shape),
+                    shape, with_bias)
             }
             Self::Normal(mean, std) => {
-                let distribution = Distribution::Normal(*mean, *std);
-                random_weight_bias(shape, distribution, with_bias)
+                random_weight_and_bias(
+                    Distribution::Normal(*mean, *std),
+                    shape, with_bias)
             }
-            Self::Constant(value) => Tensor::<B, D>::zeros(shape) + *value, //TODO replace with fill()
-            Self::Ones => Tensor::<B, D>::ones(shape),
-            Self::Zeros => Tensor::<B, D>::zeros(shape),
             Self::XavierUniform(gain) => {
-                let distribution = xavier_uniform(gain, shape);
-                random_weight_bias(&shape, distribution, with_bias)
+                random_weight_and_bias(
+                    xavier_uniform::<B, D>(gain, &shape),
+                    shape, with_bias)
             }
             Self::XavierNormal(gain) => {
-                let distribution = xavier_normal(gain, shape);
-                random_weight_bias(&shape, distribution, with_bias)
+                random_weight_and_bias(
+                    xavier_normal::<B, D>(gain, &shape),
+                    shape, with_bias)
             }
         }
     }
+
+    pub fn init_weight<B: Backend, const D: usize, S: Into<Shape<D>>>(&self, shape: S) -> Tensor<B, D> {
+        self.init(shape, false).0
+    }
 }
 
-fn random_weight_bias<B: Backend, const D: usize, S: Into<Shape<D>>>(
-    shape: S,
-    distribution: Distribution<<B as Backend>::FloatElem>, with_bias: bool)
-    -> (Tensor<B, D>, Option<Tensor<B, 1>>) {
-    let weight = Tensor::<B, D>::random(shape, distribution);
+fn constant_weight_and_bias<B: Backend, const D: usize>(
+    shape: Shape<D>,
+    with_bias: bool,
+    value: f64) -> (Tensor<B, D>, Option<Tensor<B, 1>>) {
+    let fan_out = shape.fan_out();
+    let weight = Tensor::<B, D>::zeros(shape) + value;
     let bias = if with_bias {
-        Some(Tensor::<B, 1>::random(shape.into().dims[0], distribution))
+        Some(Tensor::<B, 1>::zeros([fan_out]) + value)
     } else {
         None
     };
     (weight, bias)
 }
 
-struct Fans {
-    fan_in: usize,
-    fan_out: usize,
-}
-
-impl Fans {
-    pub fn new<const D: usize>(shape: &Shape<D>) -> Self {
-        assert!(
-            D >= 2,
-            "Can't calculate fan_in and fan_out on shapes smaller than 2"
-        );
-
-        let receptive_field_size: usize = shape.dims.iter().skip(2).product();
-        let d: Vec<usize> = shape.dims.iter().take(2).map(|fan| fan * receptive_field_size).collect();
-        Fans { fan_in: d[1], fan_out: d[0] }
-    }
-
-    pub fn sum(&self) -> usize {
-        self.fan_in + self.fan_out
-    }
+fn random_weight_and_bias<B: Backend, const D: usize>(
+    distribution: Distribution<<B as Backend>::FloatElem>,
+    shape: Shape<D>,
+    with_bias: bool)
+    -> (Tensor<B, D>, Option<Tensor<B, 1>>) {
+    let fan_out = shape.fan_out();
+    let weight = Tensor::<B, D>::random(shape, distribution);
+    let bias = if with_bias {
+        Some(Tensor::<B, 1>::random([fan_out], distribution))
+    } else {
+        None
+    };
+    (weight, bias)
 }
 
 fn normalized_uniform<B: Backend, const D: usize>(shape: &Shape<D>) -> Distribution<<B as Backend>::FloatElem> {
-    let fan_in = Fans::new(shape).fan_in;
-    let k = 1. / sqrt(fan_in as f64);
+    let k = 1. / sqrt(shape.fan_in() as f64);
     Distribution::Uniform((-k).elem::<B::FloatElem>(), k.elem::<B::FloatElem>())
 }
 
@@ -105,8 +107,8 @@ fn normalized_uniform<B: Backend, const D: usize>(shape: &Shape<D>) -> Distribut
 fn xavier_uniform<B: Backend, const D: usize>(
     gain: &f64,
     shape: &Shape<D>,
-) -> Distribution<<B as Backxend>::FloatElem> {
-    let fan_sum = Fans::new(shape).sum();
+) -> Distribution<<B as Backend>::FloatElem> {
+    let fan_sum = shape.fan_in() + shape.fan_out();
     let a = gain * sqrt(6.0 / fan_sum as f64);
     Distribution::Uniform((-a).elem::<B::FloatElem>(), a.elem::<B::FloatElem>())
 }
@@ -115,7 +117,7 @@ fn xavier_normal<B: Backend, const D: usize>(
     gain: &f64,
     shape: &Shape<D>,
 ) -> Distribution<<B as Backend>::FloatElem> {
-    let fan_sum = Fans::new(shape).sum();
+    let fan_sum = shape.fan_in() + shape.fan_out();
     let std = gain * sqrt(2.0 / fan_sum as f64);
     Distribution::Normal(0.0, std)
 }
@@ -127,6 +129,27 @@ mod tests {
     use burn_tensor::Data;
 
     pub type TB = burn_ndarray::NdArrayBackend<f32>;
+
+    #[test]
+    fn initializer_init_without_bias() {
+        TB::seed(0);
+        let with_bias = false;
+
+        let (weight, bias): (Tensor<TB, 4>, Option<Tensor<TB, 1>>) = Initializer::Uniform(0.0, 1.0).init([2, 2, 2, 2], with_bias);
+
+        assert!(bias.is_none());
+    }
+
+    #[test]
+    fn initializer_init_with_bias() {
+        TB::seed(0);
+        let with_bias = true;
+        let (a, b) = (0.0, 1.0);
+
+        let (weight, bias): (Tensor<TB, 4>, Option<Tensor<TB, 1>>) = Initializer::Uniform(a, b).init([2, 2, 2, 2], with_bias);
+
+        bias.unwrap().into_data().assert_within_range(a..b);
+    }
 
     #[test]
     fn initializer_uniform_init() {
@@ -187,6 +210,17 @@ mod tests {
     }
 
     #[test]
+    fn initializer_normalized_uniform_init() {
+        TB::seed(0);
+
+        let (fan_in, fan_out) = (5, 6);
+        let k = sqrt(1.0 / fan_in as f64) as f32;
+
+        let (normalized_uniform, _): (Tensor<TB, 2>, _) = Initializer::NormalizedUniform.init([fan_out, fan_in], false);
+        normalized_uniform.into_data().assert_within_range(-k..k);
+    }
+
+    #[test]
     fn initializer_xavier_uniform_init() {
         TB::seed(0);
 
@@ -194,7 +228,7 @@ mod tests {
         let (fan_in, fan_out) = (5, 6);
         let bound = gain * sqrt(6. / (fan_in + fan_out) as f64);
         let (xavier_uniform, _): (Tensor<TB, 2>, _) =
-            Initializer::XavierUniform(gain).init([fan_in, fan_out], false);
+            Initializer::XavierUniform(gain).init([fan_out, fan_in], false);
 
         xavier_uniform
             .into_data()
@@ -211,7 +245,7 @@ mod tests {
 
         let bound = gain * sqrt(6. / ((fan_in + fan_out) * rec_field_1 * rec_field_2) as f64);
         let (xavier_uniform, _): (Tensor<TB, 4>, _) =
-            Initializer::XavierUniform(gain).init([fan_in, fan_out, rec_field_1, rec_field_2], false);
+            Initializer::XavierUniform(gain).init([fan_out, fan_in, rec_field_1, rec_field_2], false);
 
         xavier_uniform
             .into_data()
@@ -227,7 +261,7 @@ mod tests {
         let expected_mean = 0_f64;
 
         let expected_var = (gain * sqrt(2. / (fan_in as f64 + fan_out as f64))).powf(2.);
-        let (xavier_normal, _): (Tensor<TB, 2>, _) = Initializer::XavierNormal(gain).init([fan_in, fan_out], false);
+        let (xavier_normal, _): (Tensor<TB, 2>, _) = Initializer::XavierNormal(gain).init([fan_out, fan_in], false);
         let (actual_vars, actual_means) = xavier_normal.var_mean(0);
 
         for i in 0..fan_out {
