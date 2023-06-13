@@ -4,7 +4,6 @@ use burn_tch::{TchBackend, TchDevice};
 
 use text_classification::{training::ExperimentConfig, AgNewsDataset};
 
-
 #[cfg(not(feature = "f16"))]
 type ElemType = f32;
 #[cfg(feature = "f16")]

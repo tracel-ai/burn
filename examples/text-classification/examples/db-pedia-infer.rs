@@ -1,5 +1,5 @@
-use text_classification::DbPediaDataset;
 use burn_ndarray::NdArrayDevice;
+use text_classification::DbPediaDataset;
 
 type Backend = burn_ndarray::NdArrayBackend<f32>;
 
