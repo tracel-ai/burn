@@ -1,4 +1,5 @@
 use burn_ndarray::{NdArrayBackend, NdArrayDevice};
+
 use text_classification::AgNewsDataset;
 
 type Backend = NdArrayBackend<f32>;

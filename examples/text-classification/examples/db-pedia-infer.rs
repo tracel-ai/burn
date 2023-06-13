@@ -1,10 +1,11 @@
 use text_classification::DbPediaDataset;
+use burn_ndarray::NdArrayDevice;
 
 type Backend = burn_ndarray::NdArrayBackend<f32>;
 
 fn main() {
     text_classification::inference::infer::<Backend, DbPediaDataset>(
-        burn_ndarray::NdArrayDevice::Cpu,
+        NdArrayDevice::Cpu,
         "/tmp/text-classification-db-pedia",
         // Samples from the test dataset, but you are free to test with your own text.
         vec![
