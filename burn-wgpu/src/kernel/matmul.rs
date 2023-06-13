@@ -1,9 +1,23 @@
-use super::{build_info, KernelSettings};
+use super::{build_info, DynamicKernelSettings, StaticKernelGenerator};
 use crate::{context::WorkGroup, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 use burn_tensor::Shape;
-use std::sync::Arc;
 
-kernel_wgsl!(MatmulRaw, "../template/matmul.wgsl");
+const BLOCK_SIZE: usize = 16;
+
+kernel_wgsl!(
+    MatmulCoalescingRaw,
+    "../template/matmul_mem_coalescing.wgsl"
+);
+
+struct MatmulCoalescing;
+
+impl StaticKernelGenerator for MatmulCoalescing {
+    type Source = String;
+
+    fn generate() -> Self::Source {
+        MatmulCoalescingRaw::generate().replace("BLOCK_SIZE", &BLOCK_SIZE.to_string())
+    }
+}
 
 pub fn matmul<E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
@@ -27,10 +41,12 @@ pub fn matmul<E: WgpuElement, const D: usize>(
     let buffer = lhs
         .context
         .create_buffer(shape_out.num_elements() * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(lhs.context.clone(), shape_out, Arc::new(buffer));
-    let kernel = lhs
-        .context
-        .compile::<KernelSettings<MatmulRaw, E, i32, 1, 16, 16>>();
+    let output = WgpuTensor::new(lhs.context.clone(), shape_out, buffer);
+    let num_rows = lhs.shape.dims[D - 2];
+    let num_cols = rhs.shape.dims[D - 1];
+
+    let kernel = DynamicKernelSettings::<MatmulCoalescing, E, i32>::new(BLOCK_SIZE, BLOCK_SIZE, 1);
+    let kernel = lhs.context.compile_dynamic(kernel);
 
     let info = build_info(&[&lhs, &rhs]);
     let info_buffers = lhs
@@ -42,15 +58,13 @@ pub fn matmul<E: WgpuElement, const D: usize>(
         num_iter *= output.shape.dims[i];
     }
 
-    let workgroup = WorkGroup::new(
-        num_iter as u32,
-        f32::ceil((lhs.shape.dims[D - 2] as f32) / 16.) as u32,
-        f32::ceil((rhs.shape.dims[D - 1] as f32) / 16.) as u32,
-    );
+    let workgroup_x = f32::ceil(num_rows as f32 / BLOCK_SIZE as f32) as u32;
+    let workgroup_y = f32::ceil(num_cols as f32 / BLOCK_SIZE as f32) as u32;
+    let workgroup = WorkGroup::new(workgroup_x, workgroup_y, num_iter as u32);
 
     lhs.context.execute(
-        &workgroup,
-        &kernel,
+        workgroup,
+        kernel,
         &[&lhs.buffer, &rhs.buffer, &output.buffer, &info_buffers],
     );
 

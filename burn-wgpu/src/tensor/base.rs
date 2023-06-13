@@ -1,8 +1,9 @@
+use crate::unary;
 use burn_tensor::Shape;
 use std::{marker::PhantomData, sync::Arc};
 use wgpu::Buffer;
 
-use crate::{context::Context, element::WgpuElement};
+use crate::{context::Context, element::WgpuElement, kernel::unary};
 
 #[derive(Debug, Clone)]
 pub struct WgpuTensor<E: WgpuElement, const D: usize> {
@@ -37,8 +38,8 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
         }
     }
     pub fn to_context(&self, context: Arc<Context>) -> Self {
-        let data = self.context.buffer_to_data(&self.buffer);
-        let buffer = Arc::new(context.create_buffer_with_data(&data));
+        let data = self.context.read_buffer(self.buffer.clone());
+        let buffer = context.create_buffer_with_data(&data);
 
         Self {
             context,
@@ -64,15 +65,15 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
     }
 
     pub fn copy(&self) -> Self {
-        let buffer = Arc::new(self.context.buffer_to_buffer(&self.buffer));
-
-        Self {
-            context: self.context.clone(),
-            buffer,
-            shape: self.shape.clone(),
-            strides: self.strides,
-            elem: PhantomData::default(),
-        }
+        // Seems like using the copy buffer from the `wgpu` API leads to race condition when they
+        // are used inplace afterward.
+        //
+        // To avoid them we need to execute the whole pipeline, which leads to significant
+        // slowdowns.
+        //
+        // The solution is just to use a simple unary compute shader.
+        unary!(CopyBuffer, body "output[global_id.x] = input[global_id.x];");
+        unary::<CopyBuffer, E, D>(self.clone())
     }
 
     pub fn can_mut(&self) -> bool {
