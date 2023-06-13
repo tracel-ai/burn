@@ -17,12 +17,20 @@ impl<const D: usize> Shape<D> {
 
     pub fn fan_in(&self) -> usize {
         let receptive_field_size: usize = self.dims.iter().skip(2).product();
-        *self.dims.get(1).expect("Cannot get fan in of vector with dim < 2") * receptive_field_size
+        *self
+            .dims
+            .get(1)
+            .expect("Cannot get fan in of vector with dim < 2")
+            * receptive_field_size
     }
 
     pub fn fan_out(&self) -> usize {
         let receptive_field_size: usize = self.dims.iter().skip(2).product();
-        *self.dims.get(0).expect("Cannot get fan in of vector with dim < 1") * receptive_field_size
+        *self
+            .dims
+            .get(0)
+            .expect("Cannot get fan in of vector with dim < 1")
+            * receptive_field_size
     }
 }
 
@@ -61,7 +69,6 @@ impl<const D: usize> From<Vec<usize>> for Shape<D> {
         Self::new(dims)
     }
 }
-
 
 #[cfg(test)]
 mod tests {

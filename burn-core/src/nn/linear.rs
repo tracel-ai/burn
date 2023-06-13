@@ -42,7 +42,9 @@ pub struct Linear<B: Backend> {
 impl LinearConfig {
     /// Initialize a new [linear](Linear) module.
     pub fn init<B: Backend>(&self) -> Linear<B> {
-        let (weight, bias) = self.initializer.init([self.d_output, self.d_input], self.bias);
+        let (weight, bias) = self
+            .initializer
+            .init([self.d_output, self.d_input], self.bias);
 
         Linear {
             weight: Param::from(weight),
@@ -131,8 +133,7 @@ mod tests {
         TestBackend::seed(0);
 
         let value = 2.;
-        let config = LinearConfig::new(2, 3)
-            .with_initializer(Initializer::Constant(value));
+        let config = LinearConfig::new(2, 3).with_initializer(Initializer::Constant(value));
         let linear = config.init();
 
         let input = Tensor::<TestBackend, 2>::ones(Shape::new([1, 2]));

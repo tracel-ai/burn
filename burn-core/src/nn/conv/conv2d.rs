@@ -72,12 +72,15 @@ pub struct Conv2d<B: Backend> {
 impl Conv2dConfig {
     /// Initialize a new [conv2d](Conv2d) module.
     pub fn init<B: Backend>(&self) -> Conv2d<B> {
-        let (weight, bias) = self.initializer.init([
-                                                       self.channels[1],
-                                                       self.channels[0],
-                                                       self.kernel_size[0],
-                                                       self.kernel_size[1],
-                                                   ], self.bias);
+        let (weight, bias) = self.initializer.init(
+            [
+                self.channels[1],
+                self.channels[0],
+                self.kernel_size[0],
+                self.kernel_size[1],
+            ],
+            self.bias,
+        );
 
         Conv2d {
             weight: Param::from(weight),

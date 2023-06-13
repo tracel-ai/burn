@@ -74,7 +74,10 @@ pub struct Conv1d<B: Backend> {
 impl Conv1dConfig {
     /// Initialize a new [conv1d](Conv1d) module.
     pub fn init<B: Backend>(&self) -> Conv1d<B> {
-        let (weight, bias) = self.initializer.init([self.channels_out, self.channels_in, self.kernel_size], self.bias);
+        let (weight, bias) = self.initializer.init(
+            [self.channels_out, self.channels_in, self.kernel_size],
+            self.bias,
+        );
 
         Conv1d {
             weight: Param::from(weight),
