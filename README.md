@@ -231,7 +231,7 @@ Additionally, [spin::mutex::Mutex](https://docs.rs/spin/latest/spin/mutex/struct
 ## Contributing
 
 Before contributing, please take a moment to review our [code of conduct](https://github.com/burn-rs/burn/tree/main/CODE-OF-CONDUCT.md).
-It's also highly recommended to read our [architecture document](https://github.com/burn-rs/burn/tree/main/ARCHITECTURE.md), which explains our architectural decisions.
+It's also highly recommended to read our [architecture document](https://github.com/burn-rs/burn/tree/main/ARCHITECTURE.md), which explains our architectural decisions. Please see more details in our [contributing guide](/CONTRIBUTING.md).
 
 ## Sponsors
 
