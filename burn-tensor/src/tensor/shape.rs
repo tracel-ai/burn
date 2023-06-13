@@ -28,7 +28,7 @@ impl<const D: usize> Shape<D> {
         let receptive_field_size: usize = self.dims.iter().skip(2).product();
         *self
             .dims
-            .get(0)
+            .first()
             .expect("Cannot get fan in of vector with dim < 1")
             * receptive_field_size
     }
