@@ -159,7 +159,7 @@ mod tests {
                         linear,
                     }
                 }
-
+                #[allow(clippy::let_and_return)]
                 pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
                     let output = self.linear.forward(input);
 
