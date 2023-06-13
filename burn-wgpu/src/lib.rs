@@ -22,8 +22,8 @@ pub use graphics::*;
 mod tests {
     use super::*;
 
-    type TestBackend = WGPUBackend<Vulkan, f32, i64>;
-    type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
+    pub type TestBackend = WGPUBackend<Vulkan, f32, i64>;
+    pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
     // type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
 
     burn_tensor::testgen_add!();

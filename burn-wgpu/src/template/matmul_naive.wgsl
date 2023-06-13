@@ -24,9 +24,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     // Basic information
     let dim = info[0];
-    let n_rows = info[3u * dim - 1u];
-    let n_cols = info[4u * dim];
-    let K = info[3u * dim];
+    let n_rows = info[6u * dim - 1u];
+    let n_cols = info[6u * dim];
+    let K = info[5u * dim - 1u];
 
     // Returns if outside the output dimension
     if row >= n_rows || col >= n_cols {
@@ -42,11 +42,12 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     for (var b: u32 = 0u; b < batch_dims; b++) {
         let stride_lhs = info[b + 1u];
         let stride_rhs = info[b + 1u * dim + 1u];
-        let shape_lhs = info[b + 2u * dim + 1u];
-        let shape_rhs = info[b + 3u * dim + 1u];
+        let stride_output = info[b + 2u * dim + 1u];
+        let shape_lhs = info[b + 3u * dim + 1u];
+        let shape_rhs = info[b + 4u * dim + 1u];
 
-        offset_lhs += offset_output / stride_lhs % shape_lhs * stride_lhs;
-        offset_rhs += offset_output / stride_rhs % shape_rhs * stride_rhs;
+        offset_lhs += offset_output / stride_output % shape_lhs * stride_lhs;
+        offset_rhs += offset_output / stride_output % shape_rhs * stride_rhs;
     }
 
     // Basic matmul implementation
@@ -58,6 +59,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         sum += lhs[offset_lhs + lhs_index] * rhs[offset_rhs + rhs_index];
     }
 
-    let output_index = row * n_rows + col;
+    let output_index = row * n_cols + col;
     output[offset_output + output_index] = sum;
 }
