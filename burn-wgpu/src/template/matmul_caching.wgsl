@@ -37,8 +37,6 @@ fn main(
     let n_cols = info[6u * dim];
     let K = info[5u * dim - 1u];
 
-
-
     // Calculate the corresponding offsets with support for broadcasting.
     let offset_output = batch * n_rows * n_cols;
     var offset_lhs: u32 = workgroup_id.x * BLOCK_SIZEu * K;
@@ -64,7 +62,7 @@ fn main(
         let index_lhs = thread_row * K + thread_col + block_index;
         let index_rhs = thread_row * n_cols + thread_col + block_index * n_cols;
 
-        if index_lhs < num_elems_lhs {
+        if shared_row_lhs < n_rows && shared_col_lhs + k < K {
             shared_lhs[thread_row * BLOCK_SIZEu + thread_col] = lhs[index_lhs + offset_lhs];
         }
         if index_rhs < num_elems_rhs {

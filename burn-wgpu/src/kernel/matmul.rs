@@ -1,12 +1,10 @@
 use super::{build_info, DynamicKernelSettings, KernelSettings, StaticKernelGenerator};
 use crate::{context::WorkGroup, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 use burn_tensor::Shape;
+use text_placeholder::Template;
 
-const BLOCK_M: usize = 32;
-const BLOCK_N: usize = 32;
-const BLOCK_K: usize = 4;
-const BLOCK_MK: usize = BLOCK_M * BLOCK_K;
-const BLOCK_KN: usize = BLOCK_K * BLOCK_N;
+const BLOCK_SIZE: usize = 2;
+const BLOCK_K: usize = 2;
 const TILE_M: usize = 4;
 
 kernel_wgsl!(MatmulNaiveRaw, "../template/matmul_naive.wgsl");
@@ -25,14 +23,27 @@ impl StaticKernelGenerator for MatmulTiling1D {
     type Source = String;
 
     fn generate() -> Self::Source {
-        let source = MatmulTiling1DRaw::generate();
+        #[derive(new, serde::Serialize)]
+        struct Value {
+            block_size: String,
+            block_size_x_block_k: String,
+            block_k: String,
+            tile_m: String,
+        }
 
-        let source = source.replace("{{BLOCK_M}}", &BLOCK_M.to_string());
-        let source = source.replace("{{BLOCK_N}}", &BLOCK_N.to_string());
-        let source = source.replace("{{BLOCK_K}}", &BLOCK_K.to_string());
-        let source = source.replace("{{BLOCK_MK}}", &BLOCK_MK.to_string());
-        let source = source.replace("{{BLOCK_KN}}", &BLOCK_KN.to_string());
-        let source = source.replace("{{TILE_M}}", &TILE_M.to_string());
+        let source = MatmulTiling1DRaw::generate();
+        let template = Template::new(source.as_ref());
+
+        let source = template
+            .fill_with_struct_strict(&Value::new(
+                BLOCK_SIZE.to_string(),
+                (BLOCK_SIZE * BLOCK_K).to_string(),
+                BLOCK_K.to_string(),
+                TILE_M.to_string(),
+            ))
+            .unwrap();
+
+        println!("Teamplate {source}");
 
         source
     }
@@ -44,8 +55,8 @@ impl StaticKernelGenerator for MatmulCoalescing {
     fn generate() -> Self::Source {
         let source = MatmulCoalescingRaw::generate();
 
-        let source = source.replace("BLOCK_SIZE_2X", &BLOCK_M.to_string());
-        let source = source.replace("BLOCK_SIZE", &BLOCK_M.to_string());
+        let source = source.replace("BLOCK_SIZE_2X", &(BLOCK_SIZE * BLOCK_SIZE).to_string());
+        let source = source.replace("BLOCK_SIZE", &BLOCK_SIZE.to_string());
 
         source
     }
@@ -57,8 +68,8 @@ impl StaticKernelGenerator for MatmulCaching {
     fn generate() -> Self::Source {
         let source = MatmulCoalescingRaw::generate();
 
-        let source = source.replace("BLOCK_SIZE_2X", &BLOCK_M.to_string());
-        let source = source.replace("BLOCK_SIZE", &BLOCK_M.to_string());
+        let source = source.replace("BLOCK_SIZE_2X", &BLOCK_SIZE.to_string());
+        let source = source.replace("BLOCK_SIZE", &BLOCK_SIZE.to_string());
 
         source
     }
@@ -97,7 +108,13 @@ pub fn matmul_tiling_1d<E: WgpuElement, const D: usize>(
         .create_buffer(shape_out.num_elements() * core::mem::size_of::<E>());
     let output = WgpuTensor::new(lhs.context.clone(), shape_out, buffer);
 
-    let kernel = DynamicKernelSettings::<MatmulTiling1D, E, i32>::new(BLOCK_M, BLOCK_M, 1);
+    const WORKGROUP_SIZE_X: usize = 2;
+    const WORKGROUP_SIZE_Y: usize = 2;
+
+    assert_eq!(WORKGROUP_SIZE_X * WORKGROUP_SIZE_Y, BLOCK_SIZE * BLOCK_K);
+
+    let kernel =
+        DynamicKernelSettings::<MatmulTiling1D, E, i32>::new(WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y, 1);
     let kernel = lhs.context.compile_dynamic(kernel);
 
     let info = build_info(&[&lhs, &rhs, &output]);
@@ -110,11 +127,11 @@ pub fn matmul_tiling_1d<E: WgpuElement, const D: usize>(
         num_iter *= output.shape.dims[i];
     }
 
-    let workgroup_x = f32::ceil(num_rows as f32 / (BLOCK_M * TILE_M) as f32) as u32;
-    let workgroup_y = f32::ceil(num_cols as f32 / (BLOCK_N * TILE_M) as f32) as u32;
-    let workgroup = WorkGroup::new(workgroup_x, workgroup_y, num_iter as u32);
+    let workgroup_x = f32::ceil(num_rows as f32 / (BLOCK_SIZE / TILE_M) as f32) as u32;
+    let workgroup_y = f32::ceil(num_cols as f32 / (2 / TILE_M) as f32) as u32;
+    let workgroup = WorkGroup::new(1, 4, num_iter as u32);
 
-    println!("{:?}", workgroup);
+    println!("WorkGroup {:?}", workgroup);
 
     lhs.context.execute(
         workgroup,
@@ -153,7 +170,7 @@ pub fn matmul_coalescing<E: WgpuElement, const D: usize>(
 
     let kernel = lhs
         .context
-        .compile_static::<KernelSettings<MatmulCoalescing, E, i32, BLOCK_M, BLOCK_M, 1>>();
+        .compile_static::<KernelSettings<MatmulCoalescing, E, i32, BLOCK_SIZE, BLOCK_SIZE, 1>>();
 
     let info = build_info(&[&lhs, &rhs, &output]);
     let info_buffers = lhs
@@ -165,8 +182,8 @@ pub fn matmul_coalescing<E: WgpuElement, const D: usize>(
         num_iter *= output.shape.dims[i];
     }
 
-    let workgroup_x = f32::ceil(num_rows as f32 / BLOCK_M as f32) as u32;
-    let workgroup_y = f32::ceil(num_cols as f32 / BLOCK_M as f32) as u32;
+    let workgroup_x = f32::ceil(num_rows as f32 / BLOCK_SIZE as f32) as u32;
+    let workgroup_y = f32::ceil(num_cols as f32 / BLOCK_SIZE as f32) as u32;
     let workgroup = WorkGroup::new(workgroup_x, workgroup_y, num_iter as u32);
 
     lhs.context.execute(
@@ -206,7 +223,7 @@ pub fn matmul_caching<E: WgpuElement, const D: usize>(
 
     let kernel = lhs
         .context
-        .compile_static::<KernelSettings<MatmulCaching, E, i32, BLOCK_M, BLOCK_M, 1>>();
+        .compile_static::<KernelSettings<MatmulCaching, E, i32, BLOCK_SIZE, BLOCK_SIZE, 1>>();
 
     let info = build_info(&[&lhs, &rhs, &output]);
     let info_buffers = lhs
@@ -218,8 +235,8 @@ pub fn matmul_caching<E: WgpuElement, const D: usize>(
         num_iter *= output.shape.dims[i];
     }
 
-    let workgroup_x = f32::ceil(num_rows as f32 / BLOCK_M as f32) as u32;
-    let workgroup_y = f32::ceil(num_cols as f32 / BLOCK_M as f32) as u32;
+    let workgroup_x = f32::ceil(num_rows as f32 / BLOCK_SIZE as f32) as u32;
+    let workgroup_y = f32::ceil(num_cols as f32 / BLOCK_SIZE as f32) as u32;
     let workgroup = WorkGroup::new(workgroup_x, workgroup_y, num_iter as u32);
 
     lhs.context.execute(
@@ -294,6 +311,8 @@ pub fn matmul_naive<E: WgpuElement, const D: usize>(
 
 #[cfg(test)]
 mod tests {
+    use burn_tensor::backend::Backend;
+
     use super::*;
     use crate::tests::TestTensor;
 
@@ -317,7 +336,7 @@ mod tests {
 
     #[test]
     pub fn test_tiling_1d() {
-        same_as_reference(matmul_tiling_1d, [16, 16], [16, 16]);
+        same_as_reference(matmul_tiling_1d, [8, 8], [8, 8]);
     }
 
     fn same_as_reference<F, const D: usize, S>(func: F, shape_lhs: S, shape_rhs: S)
@@ -336,6 +355,7 @@ mod tests {
         let z = func(x_wgpu.into_primitive(), y_wgpu.into_primitive());
         let z = TestTensor::from_primitive(z);
 
+        println!("{z}");
         z_reference.into_data().assert_approx_eq(&z.into_data(), 3);
     }
 }

@@ -14,27 +14,26 @@ var<storage, read_write> output: array<elem>;
 @binding(3)
 var<storage, read> info: array<u32>;
 
-const BLOCK_M = {{BLOCK_M}}u;
-const BLOCK_N = {{BLOCK_N}}u;
-const BLOCK_K = {{BLOCK_K}}u;
-const BLOCK_MK = {{BLOCK_MK}}u;
-const BLOCK_KN = {{BLOCK_KN}}u;
+const BLOCK_SIZE = {{block_size}}u;
+const BLOCK_K = {{block_k}}u;
+const BLOCK_SIZE_X_BLOCK_K = {{block_size_x_block_k}}u;
+const TILE_M = {{tile_m}}u;
 
-const TILE_M = {{TILE_M}}u;
-
-var<workgroup> shared_lhs: array<elem, BLOCK_MK>;
-var<workgroup> shared_rhs: array<elem, BLOCK_KN>;
+var<workgroup> shared_lhs: array<elem, BLOCK_SIZE_X_BLOCK_K>;
+var<workgroup> shared_rhs: array<elem, BLOCK_SIZE_X_BLOCK_K>;
 
 @compute
-@workgroup_size({{BLOCK_M}}, {{BLOCK_N}}, 1)
+@workgroup_size(WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y, 1)
 fn main(
     @builtin(global_invocation_id) global_id: vec3<u32>,
     @builtin(local_invocation_index) local_idx: u32,
     @builtin(workgroup_id) workgroup_id: vec3<u32>,
 ) {
     // Indexes
-    let thread_row = local_idx / BLOCK_N;
-    let thread_col = local_idx % BLOCK_N;
+    let thread_row = local_idx / BLOCK_SIZE;
+    let thread_col = local_idx % BLOCK_SIZE;
+    let workgroup_id_x = workgroup_id.x;
+    let workgroup_id_y = workgroup_id.y;
     let batch = global_id.z;
 
 
@@ -47,8 +46,8 @@ fn main(
 
     // Calculate the corresponding offsets with support for broadcasting.
     let offset_output = batch * n_rows * n_cols;
-    var offset_lhs: u32 = workgroup_id.x * BLOCK_M * K;
-    var offset_rhs: u32 = workgroup_id.y * BLOCK_N;
+    var offset_lhs: u32 = workgroup_id_x * BLOCK_SIZE * K;
+    var offset_rhs: u32 = workgroup_id_y * BLOCK_SIZE;
 
     let batch_dims = dim - 2u;
     for (var b: u32 = 0u; b < batch_dims; b++) {
@@ -64,8 +63,8 @@ fn main(
 
     let shared_row_lhs = local_idx / BLOCK_K;
     let shared_col_lhs = local_idx % BLOCK_K;
-    let shared_row_rhs = local_idx / BLOCK_N;
-    let shared_col_rhs = local_idx % BLOCK_N;
+    let shared_row_rhs = local_idx / BLOCK_SIZE;
+    let shared_col_rhs = local_idx % BLOCK_SIZE;
 
     var results: array<elem, TILE_M>;
 
@@ -73,17 +72,21 @@ fn main(
         if shared_row_lhs < n_rows && shared_col_lhs + k < K {
             let index_lhs = shared_row_lhs * K + shared_col_lhs + k;
             shared_lhs[shared_row_lhs * BLOCK_K + shared_col_lhs] = lhs[index_lhs + offset_lhs];
+        } else {
+            shared_lhs[shared_row_lhs * BLOCK_K + shared_col_lhs] = 0.0;
         }
 
         if shared_row_rhs + k < K && shared_col_lhs < n_cols {
             let index_rhs = (shared_row_rhs + k) * n_cols + shared_col_rhs;
-            shared_rhs[shared_row_rhs * BLOCK_N + shared_col_rhs] = rhs[index_rhs + offset_rhs];
+            shared_rhs[shared_row_rhs * BLOCK_SIZE + shared_col_rhs] = rhs[index_rhs + offset_rhs];
+        } else {
+            shared_rhs[shared_row_rhs * BLOCK_SIZE + shared_col_rhs] = 0.0;
         }
 
         workgroupBarrier();
 
         for (var bk: u32 = 0u; bk < BLOCK_K; bk++) {
-            let tmp_rhs = shared_rhs[bk * BLOCK_N + thread_col];
+            let tmp_rhs = shared_rhs[bk * BLOCK_SIZE + thread_col];
 
             for (var tile_index = 0u; tile_index < TILE_M; tile_index++) {
                 results[tile_index] += shared_lhs[(thread_row * TILE_M + tile_index) * BLOCK_K + bk] * tmp_rhs;
@@ -96,8 +99,8 @@ fn main(
 
     for (var tile_index = 0u; tile_index < TILE_M; tile_index++) {
         let tile_row = thread_row * TILE_M + tile_index;
-        let row = workgroup_id.x * BLOCK_M + tile_row;
-        let col = workgroup_id.y * BLOCK_N + thread_col;
+        let row = workgroup_id_x * BLOCK_SIZE + tile_row;
+        let col = workgroup_id_y * BLOCK_SIZE + thread_col;
 
         if row < n_rows && col < n_cols {
             let output_index = row * n_cols + col;

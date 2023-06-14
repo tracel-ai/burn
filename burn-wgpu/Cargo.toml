@@ -29,6 +29,10 @@ wgpu = {workspace = true}
 futures-intrusive = {workspace = true}
 pollster = {workspace = true}
 
+# Tempalte
+serde = {workspace = true}
+text_placeholder = { version = "0.5.0", features = ["struct_context"] }
+
 [dev-dependencies]
 burn-ndarray = {path = "../burn-ndarray", version = "0.8.0"}
 burn-tch = {path = "../burn-tch", version = "0.8.0"}
