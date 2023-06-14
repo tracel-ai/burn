@@ -1288,10 +1288,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let mut nodes = Vec::with_capacity(tensors.len());
         let mut graphs = Vec::with_capacity(tensors.len());
         let mut primitives = Vec::with_capacity(tensors.len());
-        let mut num_concat = Vec::with_capacity(tensors.len());
+        let mut dim_sizes = Vec::with_capacity(tensors.len());
 
         tensors.into_iter().for_each(|tensor| {
-            num_concat.push(B::shape(&tensor.primitive).dims[dim]);
+            dim_sizes.push(B::shape(&tensor.primitive).dims[dim]);
             nodes.push(tensor.node);
             primitives.push(tensor.primitive);
             graphs.push(tensor.graph);
@@ -1310,7 +1310,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             .map(|node| node.clone_if_require_grad())
             .collect::<Vec<_>>();
 
-        let ops = CatStep::<B, D>::new(nodes, num_concat, output.node.clone(), dim);
+        let ops = CatStep::<B, D>::new(nodes, dim_sizes, output.node.clone(), dim);
         output.register_step(ops)
     }
 

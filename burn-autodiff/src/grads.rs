@@ -62,14 +62,9 @@ impl Gradients {
         &self,
         tensor: &ADTensor<B, D>,
     ) -> Option<TensorPrimitive<B, D>> {
-        let val = self
-            .container
+        self.container
             .get::<B, D>(&tensor.node.id.value)
-            .map(|tensor| tensor.into_primitive());
-        if let Some(val) = &val {
-            println!("Get node {:?} {:?}", tensor.node.id, B::shape(val));
-        }
-        val
+            .map(|tensor| tensor.into_primitive())
     }
 
     pub fn register<B: Backend, const D: usize>(
@@ -77,7 +72,6 @@ impl Gradients {
         node: NodeRef,
         value: TensorPrimitive<B, D>,
     ) {
-        println!("Register node {:?}, {:?}", node.id, B::shape(&value));
         if let Some(tensor_old) = self.container.remove::<B, D>(&node.id.value) {
             self.container.register(
                 node.id.value.clone(),
