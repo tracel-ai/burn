@@ -176,8 +176,8 @@ impl Context {
             return module.clone();
         }
 
-        let source = K::generate();
-        let pipeline = self.compile_source(source.as_ref());
+        let source = K::source();
+        let pipeline = self.compile_source(&source.generate());
 
         cache.insert(template_id, pipeline.clone());
         pipeline
@@ -192,8 +192,8 @@ impl Context {
             return module.clone();
         }
 
-        let source = kernel.generate();
-        let pipeline = self.compile_source(source.as_ref());
+        let source = kernel.source();
+        let pipeline = self.compile_source(&source.generate());
 
         cache.insert(template_id, pipeline.clone());
         pipeline

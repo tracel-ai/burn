@@ -13,12 +13,12 @@ macro_rules! unary {
         pub struct $struct;
 
         impl $crate::kernel::StaticKernelGenerator for $struct {
-            type Source = String;
-
-            fn generate() -> Self::Source {
-                let source = $crate::kernel::UnaryRaw::generate().to_string();
-                let body = format!("output[global_id.x] = {}(input[global_id.x]);", $func);
-                source.replace("BODY", &body)
+            fn source() -> $crate::kernel::Source {
+                let source = $crate::kernel::UnaryRaw::source();
+                source.register(
+                    "body",
+                    format!("output[global_id.x] = {}(input[global_id.x]);", $func),
+                )
             }
         }
     };
@@ -29,11 +29,8 @@ macro_rules! unary {
         pub struct $struct;
 
         impl $crate::kernel::StaticKernelGenerator for $struct {
-            type Source = String;
-
-            fn generate() -> Self::Source {
-                let source = $crate::kernel::UnaryRaw::generate().to_string();
-                source.replace("BODY", $body)
+            fn source() -> $crate::kernel::Source {
+                $crate::kernel::UnaryRaw::source().register("body", $body)
             }
         }
     };
@@ -45,17 +42,13 @@ macro_rules! unary {
         pub struct $struct;
 
         impl $crate::kernel::StaticKernelGenerator for $struct {
-            type Source = String;
-
-            fn generate() -> Self::Source {
-                $crate::kernel_wgsl!(Include, $file);
-
-                let source = $crate::kernel::UnaryRaw::generate().to_string();
-                let body = format!("output[global_id.x] = {}(input[global_id.x]);", $func);
-                let source = source.replace("BODY", &body);
-                let included: &str = Include::generate().as_ref();
-
-                format!("{}\n{}", included, source)
+            fn source() -> $crate::kernel::Source {
+                $crate::kernel::UnaryRaw::source()
+                    .register(
+                        "body",
+                        format!("output[global_id.x] = {}(input[global_id.x]);", $func),
+                    )
+                    .add_source(include_str!($file))
             }
         }
     };
@@ -70,12 +63,11 @@ macro_rules! unary_inplace {
         pub struct $struct;
 
         impl $crate::kernel::StaticKernelGenerator for $struct {
-            type Source = String;
-
-            fn generate() -> Self::Source {
-                let source = $crate::kernel::UnaryInplaceRaw::generate().to_string();
-                let body = format!("input[global_id.x] = {}(input[global_id.x]);", $func);
-                source.replace("BODY", &body)
+            fn source() -> $crate::kernel::Source {
+                $crate::kernel::UnaryInplaceRaw::source().register(
+                    "body",
+                    format!("input[global_id.x] = {}(input[global_id.x]);", $func),
+                )
             }
         }
     };
@@ -86,11 +78,8 @@ macro_rules! unary_inplace {
         pub struct $struct;
 
         impl $crate::kernel::StaticKernelGenerator for $struct {
-            type Source = String;
-
-            fn generate() -> Self::Source {
-                let source = $crate::kernel::UnaryInplaceRaw::generate().to_string();
-                source.replace("BODY", $body)
+            fn source() -> $crate::kernel::Source {
+                $crate::kernel::UnaryInplaceRaw::source().register("body", $body)
             }
         }
     };
@@ -102,17 +91,13 @@ macro_rules! unary_inplace {
         pub struct $struct;
 
         impl $crate::kernel::StaticKernelGenerator for $struct {
-            type Source = String;
-
-            fn generate() -> Self::Source {
-                $crate::kernel_wgsl!(Include, $file);
-
-                let source = $crate::kernel::UnaryInplaceRaw::generate().to_string();
-                let body = format!("input[global_id.x] = {}(input[global_id.x]);", $func);
-                let source = source.replace("BODY", &body);
-                let included: &str = Include::generate().as_ref();
-
-                format!("{}\n{}", included, source)
+            fn source() -> $crate::kernel::Source {
+                $crate::kernel::UnaryInplaceRaw::source()
+                    .register(
+                        "body",
+                        format!("input[global_id.x] = {}(input[global_id.x]);", $func),
+                    )
+                    .add_source(include_str!($file))
             }
         }
     };

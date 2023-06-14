@@ -59,6 +59,8 @@ topological-sort = "0.2.2"
 wgpu = "0.16.1"
 futures-intrusive = "0.5"
 pollster = "0.3"
+text_placeholder = { version = "0.5.0", features = ["struct_context"] }
+
 #
 # The following packages disable the "std" feature for no_std compatibility
 #

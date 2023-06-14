@@ -1,4 +1,4 @@
-use super::{build_info, KernelSettings, StaticKernelGenerator};
+use super::{build_info, KernelSettings, Source, StaticKernelGenerator};
 use crate::{context::WorkGroup, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 use burn_tensor::Shape;
 
@@ -8,21 +8,22 @@ kernel_wgsl!(ReductionDimRaw, "../template/reduction/reduce_dim.wgsl");
 struct SumDimRaw;
 
 impl StaticKernelGenerator for SumDimRaw {
-    type Source = String;
-
-    fn generate() -> Self::Source {
-        ReductionDimRaw::generate().replace("ASSIGN", "output[global_id.x] = sum;")
+    fn source() -> Source {
+        ReductionDimRaw::source().register("assign", "output[global_id.x] = sum;")
     }
 }
 
 struct MeanDimRaw;
 
 impl StaticKernelGenerator for MeanDimRaw {
-    type Source = String;
-
-    fn generate() -> Self::Source {
-        ReductionDimRaw::generate()
-            .replace("ASSIGN", "output[global_id.x] = sum / elem(shape_dim);")
+    fn source() -> Source {
+        ReductionDimRaw::source()
+            .add_source(
+                "fn mean_dim(sum: {{ elem }}, dim: u32) -> {{ elem }} { 
+    return sum / {{ elem }}(dim);
+}",
+            )
+            .register("assign", "output[global_id.x] = mean_dim(sum, shape_dim);")
     }
 }
 

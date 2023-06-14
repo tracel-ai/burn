@@ -1,22 +1,17 @@
+use super::Source;
 use crate::{element::WgpuElement, tensor::WgpuTensor};
 use std::marker::PhantomData;
 
 /// Generate wgpu kernel source code to create [compute shader modules](wgpu::ShaderModule).
 pub trait StaticKernelGenerator: 'static {
-    /// Source code concrete type.
-    type Source: AsRef<str>;
-
     /// Generate the source code.
-    fn generate() -> Self::Source;
+    fn source() -> Source;
 }
 
 /// Generate wgpu kernel source code to create [compute shader modules](wgpu::ShaderModule).
 pub trait DynamicKernelGenerator {
-    /// Source code concrete type.
-    type Source: AsRef<str>;
-
     /// Generate the source code.
-    fn generate(&self) -> Self::Source;
+    fn source(self) -> Source;
     fn id(&self) -> String;
 }
 
@@ -30,10 +25,8 @@ macro_rules! kernel_wgsl {
         pub struct $struct;
 
         impl $crate::kernel::StaticKernelGenerator for $struct {
-            type Source = &'static str;
-
-            fn generate() -> Self::Source {
-                include_str!($file)
+            fn source() -> $crate::kernel::Source {
+                $crate::kernel::Source::new(include_str!($file))
             }
         }
     };
@@ -63,18 +56,13 @@ impl<
     > StaticKernelGenerator
     for KernelSettings<K, E, I, WORKGROUP_X_SIZE, WORKGROUP_Y_SIZE, WORKGROUP_Z_SIZE>
 {
-    type Source = String;
-
-    fn generate() -> String {
-        let mut source = K::generate().as_ref().to_string();
-
-        source = source.replace("WORKGROUP_SIZE_X", &WORKGROUP_X_SIZE.to_string());
-        source = source.replace("WORKGROUP_SIZE_Y", &WORKGROUP_Y_SIZE.to_string());
-        source = source.replace("WORKGROUP_SIZE_Z", &WORKGROUP_Z_SIZE.to_string());
-        source = source.replace("elem", E::type_name());
-        source = source.replace("int", I::type_name());
-
-        source
+    fn source() -> Source {
+        K::source()
+            .register("workgroup_size_x", &WORKGROUP_X_SIZE.to_string())
+            .register("workgroup_size_y", &WORKGROUP_Y_SIZE.to_string())
+            .register("workgroup_size_z", &WORKGROUP_Z_SIZE.to_string())
+            .register("elem", E::type_name())
+            .register("int", I::type_name())
     }
 }
 
@@ -92,18 +80,13 @@ pub struct DynamicKernelSettings<K: StaticKernelGenerator, E: WgpuElement, I: Wg
 impl<K: StaticKernelGenerator, E: WgpuElement, I: WgpuElement> DynamicKernelGenerator
     for DynamicKernelSettings<K, E, I>
 {
-    type Source = String;
-
-    fn generate(&self) -> String {
-        let mut source = K::generate().as_ref().to_string();
-
-        source = source.replace("WORKGROUP_SIZE_X", &self.workgroup_x_size.to_string());
-        source = source.replace("WORKGROUP_SIZE_Y", &self.workgroup_y_size.to_string());
-        source = source.replace("WORKGROUP_SIZE_Z", &self.workgroup_z_size.to_string());
-        source = source.replace("elem", E::type_name());
-        source = source.replace("int", I::type_name());
-
-        source
+    fn source(self) -> Source {
+        K::source()
+            .register("workgroup_size_x", &self.workgroup_x_size.to_string())
+            .register("workgroup_size_y", &self.workgroup_y_size.to_string())
+            .register("workgroup_size_z", &self.workgroup_z_size.to_string())
+            .register("elem", E::type_name())
+            .register("int", I::type_name())
     }
 
     fn id(&self) -> String {
