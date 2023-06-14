@@ -175,7 +175,7 @@ mod tests {
                         conv2d,
                     }
                 }
-
+                #[allow(clippy::let_and_return)]
                 pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
                     let output = self.conv2d.forward(input);
 

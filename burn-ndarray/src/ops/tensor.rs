@@ -17,6 +17,7 @@ use burn_tensor::{backend::Backend, ops::TensorOps, Data, ElementConversion, Sha
 use libm::{cos, erf, sin, tanh};
 
 #[cfg(not(feature = "std"))]
+#[allow(unused_imports)]
 use num_traits::Float;
 
 impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {

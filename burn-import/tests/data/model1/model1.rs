@@ -46,6 +46,7 @@ impl<B: Backend> Model<B> {
         }
     }
 
+    #[allow(clippy::let_and_return)]
     pub fn forward(&self, input1: Tensor<B, 4>) -> Tensor<B, 2> {
         let conv2d1_out1 = self.conv2d1.forward(input1);
         let relu1_out1 = burn::tensor::activation::relu(conv2d1_out1);
