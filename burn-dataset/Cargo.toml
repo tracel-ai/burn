@@ -30,7 +30,7 @@ derive-new = {workspace = true}
 dirs = {workspace = true}
 fake = {workspace = true, optional = true}
 gix-tempfile = {workspace = true}
-hound = {version = "3.4.0", optional = true}
+hound = {version = "3.5.0", optional = true}
 image = {version = "0.24.6", features = ["png"]}
 r2d2 = {workspace = true}
 r2d2_sqlite = {workspace = true}

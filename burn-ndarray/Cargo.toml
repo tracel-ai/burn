@@ -46,7 +46,7 @@ burn-tensor = {path = "../burn-tensor", version = "0.8.0", default-features = fa
 matrixmultiply = {version = "0.3.7", default-features = false}
 rayon = {workspace = true, optional = true}
 
-blas-src = {version = "0.8.0", default-features = false, optional = true}# no-std compatible         
+blas-src = {version = "0.9.0", default-features = false, optional = true}# no-std compatible         
 
 derive-new = {workspace = true}
 libm = {workspace = true}
