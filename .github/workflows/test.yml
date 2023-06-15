@@ -20,4 +20,4 @@ jobs:
           components: rustfmt, clippy
 
       - name: run checks & tests
-          run: ./run-checks.sh
+        run: ./run-checks.sh
