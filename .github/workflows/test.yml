@@ -4,11 +4,8 @@ on:
   push:
     branches:
       - main
-      - ci/faster
   pull_request:
     types: [opened, synchronize]
-    branches:
-      - main
 
 jobs:
   test-burn:
