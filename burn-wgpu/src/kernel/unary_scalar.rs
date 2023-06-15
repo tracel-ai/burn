@@ -16,7 +16,7 @@ macro_rules! unary_scalar {
         pub struct $struct;
 
         impl $crate::kernel::StaticKernelGenerator for $struct {
-            fn source() -> $crate::kernel::Source {
+            fn source() -> $crate::kernel::SourceTemplate {
                 $crate::kernel::UnaryScalarRaw::source().register(
                     "body",
                     format!("output[global_id.x] = lhs[global_id.x] {} rhs;", $ops),
@@ -32,7 +32,7 @@ macro_rules! unary_scalar {
         pub struct $struct;
 
         impl $crate::kernel::StaticKernelGenerator for $struct {
-            fn source() -> $crate::kernel::Source {
+            fn source() -> $crate::kernel::SourceTemplate {
                 $crate::kernel::UnaryScalarRaw::source().register(
                     "body",
                     format!("output[global_id.x] = {}(lhs[global_id.x], rhs);", $func),
@@ -51,7 +51,7 @@ macro_rules! unary_scalar_inplace {
         pub struct $struct;
 
         impl $crate::kernel::StaticKernelGenerator for $struct {
-            fn source() -> $crate::kernel::Source {
+            fn source() -> $crate::kernel::SourceTemplate {
                 $crate::kernel::UnaryScalarInplaceRaw::source().register(
                     "body",
                     format!("lhs[global_id.x] = lhs[global_id.x] {} rhs;", $ops),
@@ -67,7 +67,7 @@ macro_rules! unary_scalar_inplace {
         pub struct $struct;
 
         impl $crate::kernel::StaticKernelGenerator for $struct {
-            fn source() -> $crate::kernel::Source {
+            fn source() -> $crate::kernel::SourceTemplate {
                 $crate::kernel::UnaryScalarInplaceRaw::source().register(
                     "body",
                     format!("lhs[global_id.x] = {}(lhs[global_id.x], rhs);", $func),

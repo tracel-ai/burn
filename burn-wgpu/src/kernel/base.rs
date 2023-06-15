@@ -1,17 +1,17 @@
-use super::Source;
+use super::SourceTemplate;
 use crate::{element::WgpuElement, tensor::WgpuTensor};
 use std::marker::PhantomData;
 
 /// Generate wgpu kernel source code to create [compute shader modules](wgpu::ShaderModule).
 pub trait StaticKernelGenerator: 'static {
     /// Generate the source code.
-    fn source() -> Source;
+    fn source() -> SourceTemplate;
 }
 
 /// Generate wgpu kernel source code to create [compute shader modules](wgpu::ShaderModule).
 pub trait DynamicKernelGenerator {
     /// Generate the source code.
-    fn source(self) -> Source;
+    fn source(self) -> SourceTemplate;
     fn id(&self) -> String;
 }
 
@@ -25,8 +25,8 @@ macro_rules! kernel_wgsl {
         pub struct $struct;
 
         impl $crate::kernel::StaticKernelGenerator for $struct {
-            fn source() -> $crate::kernel::Source {
-                $crate::kernel::Source::new(include_str!($file))
+            fn source() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::SourceTemplate::new(include_str!($file))
             }
         }
     };
@@ -56,11 +56,11 @@ impl<
     > StaticKernelGenerator
     for KernelSettings<K, E, I, WORKGROUP_X_SIZE, WORKGROUP_Y_SIZE, WORKGROUP_Z_SIZE>
 {
-    fn source() -> Source {
+    fn source() -> SourceTemplate {
         K::source()
-            .register("workgroup_size_x", &WORKGROUP_X_SIZE.to_string())
-            .register("workgroup_size_y", &WORKGROUP_Y_SIZE.to_string())
-            .register("workgroup_size_z", &WORKGROUP_Z_SIZE.to_string())
+            .register("workgroup_size_x", WORKGROUP_X_SIZE.to_string())
+            .register("workgroup_size_y", WORKGROUP_Y_SIZE.to_string())
+            .register("workgroup_size_z", WORKGROUP_Z_SIZE.to_string())
             .register("elem", E::type_name())
             .register("int", I::type_name())
     }
@@ -80,11 +80,11 @@ pub struct DynamicKernelSettings<K: StaticKernelGenerator, E: WgpuElement, I: Wg
 impl<K: StaticKernelGenerator, E: WgpuElement, I: WgpuElement> DynamicKernelGenerator
     for DynamicKernelSettings<K, E, I>
 {
-    fn source(self) -> Source {
+    fn source(self) -> SourceTemplate {
         K::source()
-            .register("workgroup_size_x", &self.workgroup_x_size.to_string())
-            .register("workgroup_size_y", &self.workgroup_y_size.to_string())
-            .register("workgroup_size_z", &self.workgroup_z_size.to_string())
+            .register("workgroup_size_x", self.workgroup_x_size.to_string())
+            .register("workgroup_size_y", self.workgroup_y_size.to_string())
+            .register("workgroup_size_z", self.workgroup_z_size.to_string())
             .register("elem", E::type_name())
             .register("int", I::type_name())
     }

@@ -13,7 +13,7 @@ macro_rules! unary {
         pub struct $struct;
 
         impl $crate::kernel::StaticKernelGenerator for $struct {
-            fn source() -> $crate::kernel::Source {
+            fn source() -> $crate::kernel::SourceTemplate {
                 let source = $crate::kernel::UnaryRaw::source();
                 source.register(
                     "body",
@@ -29,7 +29,7 @@ macro_rules! unary {
         pub struct $struct;
 
         impl $crate::kernel::StaticKernelGenerator for $struct {
-            fn source() -> $crate::kernel::Source {
+            fn source() -> $crate::kernel::SourceTemplate {
                 $crate::kernel::UnaryRaw::source().register("body", $body)
             }
         }
@@ -42,13 +42,13 @@ macro_rules! unary {
         pub struct $struct;
 
         impl $crate::kernel::StaticKernelGenerator for $struct {
-            fn source() -> $crate::kernel::Source {
+            fn source() -> $crate::kernel::SourceTemplate {
                 $crate::kernel::UnaryRaw::source()
                     .register(
                         "body",
                         format!("output[global_id.x] = {}(input[global_id.x]);", $func),
                     )
-                    .add_source(include_str!($file))
+                    .add_template(include_str!($file))
             }
         }
     };
@@ -63,7 +63,7 @@ macro_rules! unary_inplace {
         pub struct $struct;
 
         impl $crate::kernel::StaticKernelGenerator for $struct {
-            fn source() -> $crate::kernel::Source {
+            fn source() -> $crate::kernel::SourceTemplate {
                 $crate::kernel::UnaryInplaceRaw::source().register(
                     "body",
                     format!("input[global_id.x] = {}(input[global_id.x]);", $func),
@@ -78,7 +78,7 @@ macro_rules! unary_inplace {
         pub struct $struct;
 
         impl $crate::kernel::StaticKernelGenerator for $struct {
-            fn source() -> $crate::kernel::Source {
+            fn source() -> $crate::kernel::SourceTemplate {
                 $crate::kernel::UnaryInplaceRaw::source().register("body", $body)
             }
         }
@@ -91,13 +91,13 @@ macro_rules! unary_inplace {
         pub struct $struct;
 
         impl $crate::kernel::StaticKernelGenerator for $struct {
-            fn source() -> $crate::kernel::Source {
+            fn source() -> $crate::kernel::SourceTemplate {
                 $crate::kernel::UnaryInplaceRaw::source()
                     .register(
                         "body",
                         format!("input[global_id.x] = {}(input[global_id.x]);", $func),
                     )
-                    .add_source(include_str!($file))
+                    .add_template(include_str!($file))
             }
         }
     };

@@ -17,7 +17,7 @@ macro_rules! binary_elemwise {
         pub struct $struct;
 
         impl $crate::kernel::StaticKernelGenerator for $struct {
-            fn source() -> $crate::kernel::Source {
+            fn source() -> $crate::kernel::SourceTemplate {
                 $crate::kernel::BinaryElemwiseRaw::source().register(
                     "body",
                     format!(
@@ -39,7 +39,7 @@ macro_rules! binary_elemwise_inplace {
         pub struct $struct;
 
         impl $crate::kernel::StaticKernelGenerator for $struct {
-            fn source() -> $crate::kernel::Source {
+            fn source() -> $crate::kernel::SourceTemplate {
                 $crate::kernel::BinaryElemwiseInplaceRaw::source().register(
                     "body",
                     format!(

@@ -1,50 +1,66 @@
 use std::collections::HashMap;
 
+/// Kernel source code abstraction allowing for templating.
+///
+/// The templates can have text placeholders in the form {{ label }}.
+/// They will be updated with their proper value when `generate` is called.
 #[derive(Debug)]
-pub struct Source {
-    map: HashMap<String, String>,
-    sources: Vec<String>,
+pub struct SourceTemplate {
+    items: HashMap<String, String>,
+    templates: Vec<String>,
 }
 
-impl Source {
-    pub fn new<S>(source: S) -> Self
+impl SourceTemplate {
+    /// Create a new source template.
+    pub fn new<S>(template: S) -> Self
     where
         S: Into<String>,
     {
         Self {
-            map: HashMap::new(),
-            sources: vec![source.into()],
+            items: HashMap::new(),
+            templates: vec![template.into()],
         }
     }
 
+    /// Register the value for a placeholder item.
+    ///
+    /// # Notes
+    ///
+    /// The value can't have placeholders, since it would require recursive templating with
+    /// possibly circular dependencies. If you want to add a value that has some
+    /// placeholders, consider adding a new template to the source using
+    /// [add_template](Source::add_template). The added template can be a function, and you can
+    /// register the function call instead.
     pub fn register<Name, Value>(mut self, name: Name, value: Value) -> Self
     where
         Name: Into<String>,
         Value: Into<String>,
     {
-        self.map.insert(name.into(), value.into());
+        self.items.insert(name.into(), value.into());
         self
     }
 
-    pub fn add_source<S>(mut self, source: S) -> Self
+    /// Add a new template.
+    pub fn add_template<S>(mut self, template: S) -> Self
     where
         S: Into<String>,
     {
-        self.sources.push(source.into());
+        self.templates.push(template.into());
         self
     }
 
-    pub fn generate(mut self) -> String {
-        let mut source = self.sources.remove(0);
+    /// Complete the template and returns the source code.
+    pub fn complete(mut self) -> String {
+        let mut source = self.templates.remove(0);
 
-        for s in self.sources.into_iter() {
+        for s in self.templates.into_iter() {
             source.push_str(&s);
         }
 
         let template = text_placeholder::Template::new(&source);
         let mut context = HashMap::new();
 
-        for (key, value) in self.map.iter() {
+        for (key, value) in self.items.iter() {
             context.insert(key.as_str(), value.as_str());
         }
 
