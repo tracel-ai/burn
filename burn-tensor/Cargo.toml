@@ -1,13 +1,10 @@
 [package]
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science", "no-std", "embedded", "wasm"]
-description = """
-This library provides multiple tensor implementations hidden behind
-an easy to use API that supports reverse mode automatic differentiation.
-"""
+description = "Tensor library with user-friendly APIs and automatic differentiation support"
 edition = "2021"
 keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
-license = "MIT/Apache-2.0"
+license = "MIT OR Apache-2.0"
 name = "burn-tensor"
 readme = "README.md"
 repository = "https://github.com/burn-rs/burn/tree/main/burn-tensor"

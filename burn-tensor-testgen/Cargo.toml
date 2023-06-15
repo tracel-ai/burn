@@ -1,17 +1,17 @@
 [package]
-name = "burn-tensor-testgen"
-version = "0.8.0"
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
-description = "Burn tensor test gen crate."
-repository = "https://github.com/burn-rs/burn/tree/main/burn-tensor-testgen"
-readme = "README.md"
-license = "MIT/Apache-2.0"
+description = "Test generation crate for burn-tensor"
 edition = "2021"
+license = "MIT OR Apache-2.0"
+name = "burn-tensor-testgen"
+readme = "README.md"
+repository = "https://github.com/burn-rs/burn/tree/main/burn-tensor-testgen"
+version = "0.8.0"
 
 [lib]
 proc-macro = true
 
 [dependencies]
-syn = {workspace = true}
-quote = {workspace = true}
 proc-macro2 = {workspace = true}
+quote = {workspace = true}
+syn = {workspace = true}
