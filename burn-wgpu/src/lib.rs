@@ -22,7 +22,13 @@ pub use graphics::*;
 mod tests {
     use super::*;
 
-    type TestBackend = WGPUBackend<Vulkan, f32, i64>;
+    #[cfg(target_os = "macos")]
+    type GraphicsApi = Metal;
+
+    #[cfg(not(target_os = "macos"))]
+    type GraphicsApi = Vulkan;
+
+    type TestBackend = WGPUBackend<GraphicsApi, f32, i64>;
     type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
     // type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
 
