@@ -1,10 +1,10 @@
 [package]
-name = "text-generation"
-version = "0.8.0"
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
-license = "MIT/Apache-2.0"
 edition = "2021"
+license = "MIT OR Apache-2.0"
+name = "text-generation"
 publish = false
+version = "0.8.0"
 
 [features]
 default = []
@@ -12,17 +12,17 @@ f16 = []
 
 [dependencies]
 # Burn
-burn = { path = "../../burn" }
-burn-autodiff = { path = "../../burn-autodiff" }
-burn-tch = { path = "../../burn-tch" }
+burn = {path = "../../burn"}
+burn-autodiff = {path = "../../burn-autodiff"}
+burn-tch = {path = "../../burn-tch"}
 
 # Tokenizer
-tokenizers = { version = "0.13.3", default-features = false, features = [
-    "onig",
-    "http",
-] }
+tokenizers = {version = "0.13.3", default-features = false, features = [
+  "onig",
+  "http",
+]}
 
 # Utils
-derive-new = { workspace = true}
-serde = { workspace = true, features = ["std", "derive"] }
-log = { workspace = true }
+derive-new = {workspace = true}
+log = {workspace = true}
+serde = {workspace = true, features = ["std", "derive"]}

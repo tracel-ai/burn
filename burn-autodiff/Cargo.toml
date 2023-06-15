@@ -1,10 +1,10 @@
 [package]
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science"]
-description = "Autodiff backend for burn"
+description = "Automatic differentiation backend for the Burn framework"
 edition = "2021"
 keywords = ["deep-learning", "machine-learning", "data"]
-license = "MIT/Apache-2.0"
+license = "MIT OR Apache-2.0"
 name = "burn-autodiff"
 readme = "README.md"
 repository = "https://github.com/burn-rs/burn/tree/main/burn-autodiff"
@@ -15,8 +15,8 @@ default = ["export_tests"]
 export_tests = ["burn-tensor-testgen"]
 
 [dependencies]
-burn-common = {path = "../burn-common", version = "0.8.0" }
-burn-tensor = {path = "../burn-tensor", version = "0.8.0" }
+burn-common = {path = "../burn-common", version = "0.8.0"}
+burn-tensor = {path = "../burn-tensor", version = "0.8.0"}
 burn-tensor-testgen = {path = "../burn-tensor-testgen", version = "0.8.0", optional = true}
 
 derive-new = {workspace = true}

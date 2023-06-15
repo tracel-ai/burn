@@ -1,7 +1,7 @@
 [package]
 authors = ["Dilshod Tadjibaev (@antimora)"]
 edition = "2021"
-license = "MIT/Apache-2.0"
+license = "MIT OR Apache-2.0"
 name = "mnist-inference-web"
 publish = false
 version = "0.8.0"
@@ -20,4 +20,3 @@ wasm-bindgen = "0.2.87"
 
 [dev-dependencies]
 burn-dataset = {path = "../../burn-dataset"}
-

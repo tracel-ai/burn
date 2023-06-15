@@ -1,12 +1,10 @@
 [package]
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science"]
-description = """
-Burn derive crate.
-"""
+description = "Derive crate for the Burn framework"
 edition = "2021"
 keywords = []
-license = "MIT/Apache-2.0"
+license = "MIT OR Apache-2.0"
 name = "burn-derive"
 readme = "README.md"
 repository = "https://github.com/burn-rs/burn/tree/main/burn-derive"
@@ -16,7 +14,7 @@ version = "0.8.0"
 proc-macro = true
 
 [dependencies]
-proc-macro2  = {workspace = true}
+proc-macro2 = {workspace = true}
 quote = {workspace = true}
 # syn = {workspace = true}
 syn = "1.0.109" # TODO upgrade to 2.0

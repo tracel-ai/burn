@@ -1,14 +1,13 @@
 [package]
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science", "no-std", "embedded", "wasm"]
-description = "BURN: Burn Unstoppable Rusty Neurons"
+description = "Flexible and Comprehensive Deep Learning Framework in Rust"
 edition = "2021"
 keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
-license = "MIT/Apache-2.0"
+license = "MIT OR Apache-2.0"
 name = "burn-core"
 readme = "README.md"
 repository = "https://github.com/burn-rs/burn/tree/main/burn-core"
-
 version = "0.8.0"
 
 [features]
@@ -31,9 +30,8 @@ std = [
 ]
 
 # Serialization formats
-test-tch = [] # To use tch during testing, default uses ndarray.
 experimental-named-tensor = ["burn-tensor/experimental-named-tensor"]
-
+test-tch = [] # To use tch during testing, default uses ndarray.
 
 [dependencies]
 
@@ -42,7 +40,7 @@ experimental-named-tensor = ["burn-tensor/experimental-named-tensor"]
 burn-autodiff = {path = "../burn-autodiff", version = "0.8.0", optional = true, features = ["export_tests"]}
 burn-common = {path = "../burn-common", version = "0.8.0", default-features = false}
 burn-dataset = {path = "../burn-dataset", version = "0.8.0", default-features = false, optional = true}
-burn-derive = {path = "../burn-derive", version = "0.8.0" }
+burn-derive = {path = "../burn-derive", version = "0.8.0"}
 burn-tensor = {path = "../burn-tensor", version = "0.8.0", default-features = false}
 
 derive-new = {workspace = true}
@@ -59,10 +57,10 @@ hashbrown = {workspace = true, features = ["serde"]}# no_std compatible
 flate2 = {workspace = true, optional = true}
 serde = {workspace = true, features = ["derive"]}
 
-serde_json = {workspace = true, features = ["alloc"]}#Default enables std 
-rmp-serde = {workspace = true, optional = true}
 bincode = {workspace = true}
 half = {workspace = true}
+rmp-serde = {workspace = true, optional = true}
+serde_json = {workspace = true, features = ["alloc"]}#Default enables std 
 
 [dev-dependencies]
 burn-dataset = {path = "../burn-dataset", version = "0.8.0", features = [
@@ -70,4 +68,4 @@ burn-dataset = {path = "../burn-dataset", version = "0.8.0", features = [
 ]}
 
 burn-ndarray = {path = "../burn-ndarray", version = "0.8.0", default-features = false}
-burn-tch = {path = "../burn-tch", version = "0.8.0" }
+burn-tch = {path = "../burn-tch", version = "0.8.0"}
