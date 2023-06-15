@@ -1,7 +1,7 @@
 use super::client::ContextClient;
 use crate::{
     context::server::ContextServer,
-    kernel::{DynamicKernelGenerator, StaticKernelGenerator},
+    kernel::{DynamicKernel, StaticKernel},
     GraphicsApi, WgpuDevice,
 };
 use burn_common::id::IdGenerator;
@@ -168,7 +168,7 @@ impl Context {
     }
 
     /// Compile a kernel template if not present in the cache.
-    pub fn compile_static<K: StaticKernelGenerator>(&self) -> Arc<ComputePipeline> {
+    pub fn compile_static<K: StaticKernel>(&self) -> Arc<ComputePipeline> {
         let mut cache = self.cache.lock();
         let template_id = Key::Static(TypeId::of::<K>());
 
@@ -176,7 +176,7 @@ impl Context {
             return module.clone();
         }
 
-        let source = K::source();
+        let source = K::source_template();
         let pipeline = self.compile_source(&source.complete());
 
         cache.insert(template_id, pipeline.clone());
@@ -184,7 +184,7 @@ impl Context {
     }
 
     /// Compile a dynamic template if not present in the cache.
-    pub fn compile_dynamic<K: DynamicKernelGenerator>(&self, kernel: K) -> Arc<ComputePipeline> {
+    pub fn compile_dynamic<K: DynamicKernel>(&self, kernel: K) -> Arc<ComputePipeline> {
         let mut cache = self.cache.lock();
         let template_id = Key::Dynamic(kernel.id());
 
@@ -192,7 +192,7 @@ impl Context {
             return module.clone();
         }
 
-        let source = kernel.source();
+        let source = kernel.source_template();
         let pipeline = self.compile_source(&source.complete());
 
         cache.insert(template_id, pipeline.clone());
