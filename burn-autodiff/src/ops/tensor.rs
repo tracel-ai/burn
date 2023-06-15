@@ -1252,6 +1252,9 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         #[derive(new, Debug)]
         struct CatStep<B: Backend, const D: usize> {
             nodes: Vec<Option<NodeRef>>,
+            // The dimension of each tensor along the dim dimension.
+            // This indicates the number of dimension concatenated for each tensor.
+            dim_sizes: Vec<usize>,
             output: NodeRef,
             phantom: PhantomData<B>,
             dim: usize,
@@ -1263,13 +1266,16 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 let indexes: Vec<_> = B::shape(&grad).dims.iter().map(|v| 0..*v).collect();
                 let indexes: [std::ops::Range<usize>; D] = indexes.try_into().unwrap();
 
+                let mut current_index = 0;
+
                 self.nodes
                     .into_iter()
-                    .enumerate()
-                    .filter_map(|(i, node)| node.map(|node| (i, node)))
-                    .for_each(|(i, node)| {
+                    .zip(self.dim_sizes.into_iter())
+                    .filter_map(|(node, dim_size)| node.map(|node| (node, dim_size)))
+                    .for_each(|(node, dim_size)| {
                         let mut indexes = indexes.clone();
-                        indexes[self.dim] = i..i + 1;
+                        indexes[self.dim] = current_index..dim_size + current_index;
+                        current_index += dim_size;
                         grads.register::<B, D>(node, B::index(grad.clone(), indexes));
                     });
             }
@@ -1282,8 +1288,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         let mut nodes = Vec::with_capacity(tensors.len());
         let mut graphs = Vec::with_capacity(tensors.len());
         let mut primitives = Vec::with_capacity(tensors.len());
+        let mut dim_sizes = Vec::with_capacity(tensors.len());
 
         tensors.into_iter().for_each(|tensor| {
+            dim_sizes.push(B::shape(&tensor.primitive).dims[dim]);
             nodes.push(tensor.node);
             primitives.push(tensor.primitive);
             graphs.push(tensor.graph);
@@ -1302,9 +1310,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             .map(|node| node.clone_if_require_grad())
             .collect::<Vec<_>>();
 
-        let ops = CatStep::<B, D>::new(nodes, output.node.clone(), dim);
+        let ops = CatStep::<B, D>::new(nodes, dim_sizes, output.node.clone(), dim);
         output.register_step(ops)
     }
+
     fn max_dim<const D: usize>(tensor: ADTensor<B, D>, dim: usize) -> ADTensor<B, D> {
         match MaxMinDim.prepare([tensor.node], [tensor.graph]).statefull() {
             OpsKind::Tracked(prep) => {
