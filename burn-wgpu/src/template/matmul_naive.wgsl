@@ -1,21 +1,21 @@
 @group(0)
 @binding(0)
-var<storage, read> lhs: array<elem>;
+var<storage, read> lhs: array<{{ elem }}>;
 
 @group(0)
 @binding(1)
-var<storage, read> rhs: array<elem>;
+var<storage, read> rhs: array<{{ elem }}>;
 
 @group(0)
 @binding(2)
-var<storage, read_write> output: array<elem>;
+var<storage, read_write> output: array<{{ elem }}>;
 
 @group(0)
 @binding(3)
 var<storage, read> info: array<u32>;
 
 @compute
-@workgroup_size(WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y, WORKGROUP_SIZE_Z)
+@workgroup_size({{ workgroup_size_x }}, {{ workgroup_size_x }}, {{ workgroup_size_z }})
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // Indexes
     let row = global_id.x;
