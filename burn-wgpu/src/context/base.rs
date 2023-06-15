@@ -51,31 +51,8 @@ impl Context {
     /// Create a new context where computing tasks will be executed on the given
     /// [device](WgpuDevice).
     pub(crate) fn new<G: GraphicsApi>(device: &WgpuDevice) -> Self {
-        let adapter = Self::select_adapter::<G>(device);
-
         let device_wgpu = device.clone();
-        let limits = wgpu::Limits {
-            max_compute_workgroup_storage_size: 1024,
-            ..wgpu::Limits::default()
-        };
-
-        let (device, queue) = pollster::block_on(adapter.request_device(
-            &DeviceDescriptor {
-                label: None,
-                features: wgpu::Features::all_webgpu_mask(),
-                limits,
-            },
-            None,
-        ))
-        .map_err(|err| {
-            format!(
-                "Unable to request the device with the adapter {:?}, err {:?}",
-                adapter.get_info(),
-                err
-            )
-        })
-        .unwrap();
-
+        let (device, queue) = pollster::block_on(select_device::<G>(device));
         let device = Arc::new(device);
         let client = ContextServerImpl::start(device.clone(), queue);
 
@@ -199,89 +176,6 @@ impl Context {
         pipeline
     }
 
-    fn select_adapter<G: GraphicsApi>(device: &WgpuDevice) -> wgpu::Adapter {
-        let instance = wgpu::Instance::default();
-
-        let mut adapters_other = Vec::new();
-        let mut adapters = Vec::new();
-
-        instance
-            .enumerate_adapters(G::backend().into())
-            .for_each(|adapter| {
-                let device_type = adapter.get_info().device_type;
-
-                if let DeviceType::Other = device_type {
-                    adapters_other.push(adapter);
-                    return;
-                }
-
-                let is_same_type = match device {
-                    WgpuDevice::DiscreteGpu(_) => device_type == DeviceType::DiscreteGpu,
-                    WgpuDevice::IntegratedGpu(_) => device_type == DeviceType::IntegratedGpu,
-                    WgpuDevice::VirtualGpu(_) => device_type == DeviceType::VirtualGpu,
-                    WgpuDevice::Cpu => device_type == DeviceType::Cpu,
-                };
-
-                if is_same_type {
-                    adapters.push(adapter);
-                }
-            });
-
-        fn select_adapter(
-            num: usize,
-            error: &str,
-            mut adapters: Vec<wgpu::Adapter>,
-            mut adapters_other: Vec<wgpu::Adapter>,
-        ) -> wgpu::Adapter {
-            if adapters.len() <= num {
-                if adapters_other.len() <= num {
-                    panic!(
-                        "{}, adapters {:?}, other adapters {:?}",
-                        error,
-                        adapters
-                            .into_iter()
-                            .map(|adapter| adapter.get_info())
-                            .collect::<Vec<_>>(),
-                        adapters_other
-                            .into_iter()
-                            .map(|adapter| adapter.get_info())
-                            .collect::<Vec<_>>(),
-                    );
-                } else {
-                    return adapters_other.remove(num);
-                }
-            }
-
-            adapters.remove(num)
-        }
-
-        let adapter = match device {
-            WgpuDevice::DiscreteGpu(num) => select_adapter(
-                *num,
-                "No Discrete GPU device found",
-                adapters,
-                adapters_other,
-            ),
-            WgpuDevice::IntegratedGpu(num) => select_adapter(
-                *num,
-                "No Integrated GPU device found",
-                adapters,
-                adapters_other,
-            ),
-            WgpuDevice::VirtualGpu(num) => select_adapter(
-                *num,
-                "No Virtual GPU device found",
-                adapters,
-                adapters_other,
-            ),
-            WgpuDevice::Cpu => select_adapter(0, "No CPU device found", adapters, adapters_other),
-        };
-
-        log::info!("Using adapter {:?}", adapter.get_info());
-
-        adapter
-    }
-
     fn compile_source(&self, source: &str) -> Arc<ComputePipeline> {
         let module = self
             .device_wgpu
@@ -306,4 +200,116 @@ impl PartialEq for Context {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id
     }
+}
+
+async fn select_device<G: GraphicsApi>(device: &WgpuDevice) -> (wgpu::Device, wgpu::Queue) {
+    let adapter = select_adapter::<G>(device);
+    let limits = wgpu::Limits {
+        max_compute_workgroup_storage_size: 1024,
+        ..wgpu::Limits::default()
+    };
+
+    let (device, queue) = adapter
+        .request_device(
+            &DeviceDescriptor {
+                label: None,
+                features: wgpu::Features::empty(),
+                limits,
+            },
+            None,
+        )
+        .await
+        .map_err(|err| {
+            format!(
+                "Unable to request the device with the adapter {:?}, err {:?}",
+                adapter.get_info(),
+                err
+            )
+        })
+        .unwrap();
+
+    (device, queue)
+}
+
+fn select_adapter<G: GraphicsApi>(device: &WgpuDevice) -> wgpu::Adapter {
+    let instance = wgpu::Instance::default();
+
+    let mut adapters_other = Vec::new();
+    let mut adapters = Vec::new();
+
+    instance
+        .enumerate_adapters(G::backend().into())
+        .for_each(|adapter| {
+            let device_type = adapter.get_info().device_type;
+
+            if let DeviceType::Other = device_type {
+                adapters_other.push(adapter);
+                return;
+            }
+
+            let is_same_type = match device {
+                WgpuDevice::DiscreteGpu(_) => device_type == DeviceType::DiscreteGpu,
+                WgpuDevice::IntegratedGpu(_) => device_type == DeviceType::IntegratedGpu,
+                WgpuDevice::VirtualGpu(_) => device_type == DeviceType::VirtualGpu,
+                WgpuDevice::Cpu => device_type == DeviceType::Cpu,
+            };
+
+            if is_same_type {
+                adapters.push(adapter);
+            }
+        });
+
+    fn select(
+        num: usize,
+        error: &str,
+        mut adapters: Vec<wgpu::Adapter>,
+        mut adapters_other: Vec<wgpu::Adapter>,
+    ) -> wgpu::Adapter {
+        if adapters.len() <= num {
+            if adapters_other.len() <= num {
+                panic!(
+                    "{}, adapters {:?}, other adapters {:?}",
+                    error,
+                    adapters
+                        .into_iter()
+                        .map(|adapter| adapter.get_info())
+                        .collect::<Vec<_>>(),
+                    adapters_other
+                        .into_iter()
+                        .map(|adapter| adapter.get_info())
+                        .collect::<Vec<_>>(),
+                );
+            } else {
+                return adapters_other.remove(num);
+            }
+        }
+
+        adapters.remove(num)
+    }
+
+    let adapter = match device {
+        WgpuDevice::DiscreteGpu(num) => select(
+            *num,
+            "No Discrete GPU device found",
+            adapters,
+            adapters_other,
+        ),
+        WgpuDevice::IntegratedGpu(num) => select(
+            *num,
+            "No Integrated GPU device found",
+            adapters,
+            adapters_other,
+        ),
+        WgpuDevice::VirtualGpu(num) => select(
+            *num,
+            "No Virtual GPU device found",
+            adapters,
+            adapters_other,
+        ),
+        WgpuDevice::Cpu => select(0, "No CPU device found", adapters, adapters_other),
+    };
+
+    log::info!("Using adapter {:?}", adapter.get_info());
+
+    adapter
 }
