@@ -4,12 +4,11 @@ on:
   push:
     branches:
       - main
-      - ci/simpler
+      - ci/faster
   pull_request:
     types: [opened, synchronize]
     branches:
       - main
-      - ci/simpler
 
 jobs:
   test-burn:
