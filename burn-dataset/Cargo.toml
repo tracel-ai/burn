@@ -1,13 +1,10 @@
 [package]
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science"]
-description = """
-This library provides an easy to use dataset API with many manipulations
-to easily create your ML data pipeline.
-"""
+description = "Library with simple dataset APIs for creating ML data pipelines"
 edition = "2021"
 keywords = ["deep-learning", "machine-learning", "data"]
-license = "MIT"
+license = "MIT OR Apache-2.0"
 name = "burn-dataset"
 readme = "README.md"
 repository = "https://github.com/burn-rs/burn/tree/main/burn-dataset"
