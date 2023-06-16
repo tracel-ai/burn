@@ -29,32 +29,32 @@ pub enum Initializer {
 }
 
 impl Initializer {
-    pub fn init<B: Backend, const D: usize, S: Into<Shape<D>>>(
-        &self,
-        shape: S,
-        with_bias: bool,
-    ) -> (Tensor<B, D>, Option<Tensor<B, 1>>) {
+    pub fn init<B: Backend, const D: usize, S: Into<Shape<D>>>(&self, shape: S) -> Tensor<B, D> {
         let shape = shape.into();
         match self {
-            Self::Constant(value) => constant_weight_and_bias(shape, with_bias, *value),
-            Self::Ones => constant_weight_and_bias(shape, with_bias, 1.),
-            Self::Zeros => constant_weight_and_bias(shape, with_bias, 0.),
-            Self::Uniform(a, b) => random_weight_and_bias(
-                Distribution::Uniform((*a).elem::<B::FloatElem>(), (*b).elem::<B::FloatElem>()),
-                shape,
-                with_bias,
-            ),
+            Self::Constant(value) => Tensor::<B, D>::zeros(shape) + *value,
+            Self::Ones => Tensor::<B, D>::ones(shape),
+            Self::Zeros => Tensor::<B, D>::zeros(shape),
+            Self::Uniform(a, b) => {
+                let distribution =
+                    Distribution::Uniform((*a).elem::<B::FloatElem>(), (*b).elem::<B::FloatElem>());
+                Tensor::<B, D>::random(shape, distribution)
+            }
             Self::NormalizedUniform => {
-                random_weight_and_bias(normalized_uniform::<B, D>(&shape), shape, with_bias)
+                let distribution = normalized_uniform::<B, D>(&shape);
+                Tensor::<B, D>::random(shape, distribution)
             }
             Self::Normal(mean, std) => {
-                random_weight_and_bias(Distribution::Normal(*mean, *std), shape, with_bias)
+                let distribution = Distribution::Normal(*mean, *std);
+                Tensor::<B, D>::random(shape, distribution)
             }
             Self::XavierUniform(gain) => {
-                random_weight_and_bias(xavier_uniform::<B, D>(gain, &shape), shape, with_bias)
+                let distribution = xavier_uniform::<B, D>(gain, &shape);
+                Tensor::<B, D>::random(shape, distribution)
             }
             Self::XavierNormal(gain) => {
-                random_weight_and_bias(xavier_normal::<B, D>(gain, &shape), shape, with_bias)
+                let distribution = xavier_normal::<B, D>(gain, &shape);
+                Tensor::<B, D>::random(shape, distribution)
             }
         }
     }
@@ -135,7 +135,7 @@ mod tests {
         TB::seed(0);
         let with_bias = false;
 
-        let (weight, bias): (Tensor<TB, 4>, Option<Tensor<TB, 1>>) =
+        let (_weight, bias): (Tensor<TB, 4>, Option<Tensor<TB, 1>>) =
             Initializer::Uniform(0.0, 1.0).init([2, 2, 2, 2], with_bias);
 
         assert!(bias.is_none());
@@ -147,7 +147,7 @@ mod tests {
         let with_bias = true;
         let (a, b) = (0.0, 1.0);
 
-        let (weight, bias): (Tensor<TB, 4>, Option<Tensor<TB, 1>>) =
+        let (_weight, bias): (Tensor<TB, 4>, Option<Tensor<TB, 1>>) =
             Initializer::Uniform(a, b).init([2, 2, 2, 2], with_bias);
 
         bias.unwrap().into_data().assert_within_range(a..b);
