@@ -113,6 +113,7 @@ where
 }
 
 impl<const D: usize, E: Element> Data<E, D> {
+    /// Converts the data to a different element type.
     pub fn convert<EOther: Element>(self) -> Data<EOther, D> {
         let value: Vec<EOther> = self.value.into_iter().map(|a| a.elem()).collect();
 
@@ -138,6 +139,7 @@ impl<const D: usize, E: Element> Data<E, D> {
 }
 
 impl<E: Element> DataSerialize<E> {
+    /// Converts the data to a different element type.
     pub fn convert<EOther: Element>(self) -> DataSerialize<EOther> {
         let value: Vec<EOther> = self.value.into_iter().map(|a| a.elem()).collect();
 
@@ -149,6 +151,7 @@ impl<E: Element> DataSerialize<E> {
 }
 
 impl<const D: usize> Data<bool, D> {
+    /// Converts the data to a different element type.
     pub fn convert<E: Element>(self) -> Data<E, D> {
         let value: Vec<E> = self.value.into_iter().map(|a| (a as i64).elem()).collect();
 
@@ -160,6 +163,7 @@ impl<const D: usize> Data<bool, D> {
 }
 
 impl<E: Element, const D: usize> Data<E, D> {
+    /// Populates the data with random values.
     pub fn random<R: RngCore>(shape: Shape<D>, distribution: Distribution<E>, rng: &mut R) -> Self {
         let num_elements = shape.num_elements();
         let mut data = Vec::with_capacity(num_elements);
@@ -175,7 +179,8 @@ impl<E: Element, const D: usize> Data<E, D> {
 impl<E: core::fmt::Debug, const D: usize> Data<E, D>
 where
     E: Element,
-{
+{   
+    /// Populates the data with zeros.
     pub fn zeros<S: Into<Shape<D>>>(shape: S) -> Data<E, D> {
         let shape = shape.into();
         let num_elements = shape.num_elements();
@@ -187,6 +192,7 @@ where
 
         Data::new(data, shape)
     }
+    /// Populates the data with zeros.
     pub fn zeros_(shape: Shape<D>, _kind: E) -> Data<E, D> {
         Self::zeros(shape)
     }
@@ -195,7 +201,8 @@ where
 impl<E: core::fmt::Debug, const D: usize> Data<E, D>
 where
     E: Element,
-{
+{   
+    /// Populates the data with ones.
     pub fn ones(shape: Shape<D>) -> Data<E, D> {
         let num_elements = shape.num_elements();
         let mut data = Vec::with_capacity(num_elements);
