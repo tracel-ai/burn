@@ -47,11 +47,12 @@ impl LinearConfig {
     pub fn init<B: Backend>(&self) -> Linear<B> {
         let shape = Shape::from([self.d_output, self.d_input]);
         let fan_in = shape.fan_in();
+        let fan_out = shape.fan_out();
         let weight = self.initializer.init(
             shape,
             InitializerOptions::default()
                 .with_fan_in(fan_in)
-                .with_fan_out(self.d_output),
+                .with_fan_out(fan_out),
         );
         let bias = if self.bias {
             Some(
@@ -59,7 +60,7 @@ impl LinearConfig {
                     [self.d_output],
                     InitializerOptions::default()
                         .with_fan_in(fan_in)
-                        .with_fan_out(self.d_output),
+                        .with_fan_out(fan_out),
                 ),
             )
         } else {
