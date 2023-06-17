@@ -364,7 +364,11 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             .map(|(index, node)| node.forward(&mut self.scope, index))
             .for_each(|code| body.extend(code));
 
+        // TODO Return the result without a `let` binding from a block,
+        // otherwise let_and_return error will be triggered by clippy.
+        // For now, we just disable the warning.
         quote! {
+            #[allow(clippy::let_and_return)]
             pub fn forward(&self, #input_def) -> #output_type_def {
                 #body
 

@@ -1,4 +1,4 @@
-use super::{KernelSettings, StaticKernelGenerator};
+use super::{KernelSettings, StaticKernel};
 use crate::{context::WorkGroup, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 
 kernel_wgsl!(UnaryRaw, "../template/unary.wgsl");
@@ -12,13 +12,13 @@ macro_rules! unary {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::StaticKernelGenerator for $struct {
-            type Source = String;
-
-            fn generate() -> Self::Source {
-                let source = $crate::kernel::UnaryRaw::generate().to_string();
-                let body = format!("output[global_id.x] = {}(input[global_id.x]);", $func);
-                source.replace("BODY", &body)
+        impl $crate::kernel::StaticKernel for $struct {
+            fn source_template() -> $crate::kernel::SourceTemplate {
+                let source = $crate::kernel::UnaryRaw::source_template();
+                source.register(
+                    "body",
+                    format!("output[global_id.x] = {}(input[global_id.x]);", $func),
+                )
             }
         }
     };
@@ -28,12 +28,9 @@ macro_rules! unary {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::StaticKernelGenerator for $struct {
-            type Source = String;
-
-            fn generate() -> Self::Source {
-                let source = $crate::kernel::UnaryRaw::generate().to_string();
-                source.replace("BODY", $body)
+        impl $crate::kernel::StaticKernel for $struct {
+            fn source_template() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::UnaryRaw::source_template().register("body", $body)
             }
         }
     };
@@ -44,18 +41,14 @@ macro_rules! unary {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::StaticKernelGenerator for $struct {
-            type Source = String;
-
-            fn generate() -> Self::Source {
-                $crate::kernel_wgsl!(Include, $file);
-
-                let source = $crate::kernel::UnaryRaw::generate().to_string();
-                let body = format!("output[global_id.x] = {}(input[global_id.x]);", $func);
-                let source = source.replace("BODY", &body);
-                let included: &str = Include::generate().as_ref();
-
-                format!("{}\n{}", included, source)
+        impl $crate::kernel::StaticKernel for $struct {
+            fn source_template() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::UnaryRaw::source_template()
+                    .register(
+                        "body",
+                        format!("output[global_id.x] = {}(input[global_id.x]);", $func),
+                    )
+                    .add_template(include_str!($file))
             }
         }
     };
@@ -69,13 +62,12 @@ macro_rules! unary_inplace {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::StaticKernelGenerator for $struct {
-            type Source = String;
-
-            fn generate() -> Self::Source {
-                let source = $crate::kernel::UnaryInplaceRaw::generate().to_string();
-                let body = format!("input[global_id.x] = {}(input[global_id.x]);", $func);
-                source.replace("BODY", &body)
+        impl $crate::kernel::StaticKernel for $struct {
+            fn source_template() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::UnaryInplaceRaw::source_template().register(
+                    "body",
+                    format!("input[global_id.x] = {}(input[global_id.x]);", $func),
+                )
             }
         }
     };
@@ -85,12 +77,9 @@ macro_rules! unary_inplace {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::StaticKernelGenerator for $struct {
-            type Source = String;
-
-            fn generate() -> Self::Source {
-                let source = $crate::kernel::UnaryInplaceRaw::generate().to_string();
-                source.replace("BODY", $body)
+        impl $crate::kernel::StaticKernel for $struct {
+            fn source_template() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::UnaryInplaceRaw::source_template().register("body", $body)
             }
         }
     };
@@ -101,24 +90,20 @@ macro_rules! unary_inplace {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::StaticKernelGenerator for $struct {
-            type Source = String;
-
-            fn generate() -> Self::Source {
-                $crate::kernel_wgsl!(Include, $file);
-
-                let source = $crate::kernel::UnaryInplaceRaw::generate().to_string();
-                let body = format!("input[global_id.x] = {}(input[global_id.x]);", $func);
-                let source = source.replace("BODY", &body);
-                let included: &str = Include::generate().as_ref();
-
-                format!("{}\n{}", included, source)
+        impl $crate::kernel::StaticKernel for $struct {
+            fn source_template() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::UnaryInplaceRaw::source_template()
+                    .register(
+                        "body",
+                        format!("input[global_id.x] = {}(input[global_id.x]);", $func),
+                    )
+                    .add_template(include_str!($file))
             }
         }
     };
 }
 
-pub fn unary<K: StaticKernelGenerator, E: WgpuElement, const D: usize>(
+pub fn unary<K: StaticKernel, E: WgpuElement, const D: usize>(
     input: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     let buffer = input
@@ -146,7 +131,7 @@ pub fn unary<K: StaticKernelGenerator, E: WgpuElement, const D: usize>(
     output
 }
 
-pub fn unary_inplace<K: StaticKernelGenerator, E: WgpuElement, const D: usize>(
+pub fn unary_inplace<K: StaticKernel, E: WgpuElement, const D: usize>(
     input: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     let kernel = input

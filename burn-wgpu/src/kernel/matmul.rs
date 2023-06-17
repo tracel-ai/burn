@@ -1,23 +1,10 @@
-use super::{build_info, DynamicKernelSettings, StaticKernelGenerator};
+use super::{build_info, DynamicKernelSettings};
 use crate::{context::WorkGroup, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 use burn_tensor::Shape;
 
 const BLOCK_SIZE: usize = 16;
 
-kernel_wgsl!(
-    MatmulCoalescingRaw,
-    "../template/matmul_mem_coalescing.wgsl"
-);
-
-struct MatmulCoalescing;
-
-impl StaticKernelGenerator for MatmulCoalescing {
-    type Source = String;
-
-    fn generate() -> Self::Source {
-        MatmulCoalescingRaw::generate().replace("BLOCK_SIZE", &BLOCK_SIZE.to_string())
-    }
-}
+kernel_wgsl!(MatmulCoalescing, "../template/matmul_mem_coalescing.wgsl");
 
 pub fn matmul<E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,

@@ -16,11 +16,13 @@ use burn_tensor::backend::Backend;
 /// let device_gpu_2 = TchDevice::Cuda(1); // Second GPU
 /// let device_cpu = TchDevice::Cpu; // CPU
 /// let device_mps = TchDevice::Mps; // Metal Performance Shaders
+/// let device_vulkan = TchDevice::Vulkan; // Vulkan
 /// ```
 pub enum TchDevice {
     Cpu,
     Cuda(usize),
     Mps,
+    Vulkan,
 }
 
 impl From<TchDevice> for tch::Device {
@@ -29,6 +31,7 @@ impl From<TchDevice> for tch::Device {
             TchDevice::Cpu => tch::Device::Cpu,
             TchDevice::Cuda(num) => tch::Device::Cuda(num),
             TchDevice::Mps => tch::Device::Mps,
+            TchDevice::Vulkan => tch::Device::Vulkan,
         }
     }
 }
@@ -39,6 +42,7 @@ impl From<tch::Device> for TchDevice {
             tch::Device::Cpu => TchDevice::Cpu,
             tch::Device::Cuda(num) => TchDevice::Cuda(num),
             tch::Device::Mps => TchDevice::Mps,
+            tch::Device::Vulkan => TchDevice::Vulkan,
         }
     }
 }

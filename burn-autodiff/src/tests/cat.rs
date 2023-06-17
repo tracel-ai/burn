@@ -5,11 +5,8 @@ mod tests {
 
     #[test]
     fn should_diff_cat() {
-        let data_1 = Data::<_, 2>::from([[2.0, -1.0], [5.0, 2.0]]);
-        let data_2 = Data::<_, 2>::from([[5.0, 4.0], [-1.0, 4.0]]);
-
-        let tensor_1 = TestADTensor::from_data(data_1).require_grad();
-        let tensor_2 = TestADTensor::from_data(data_2).require_grad();
+        let tensor_1 = TestADTensor::from_data([[2.0, -1.0], [5.0, 2.0]]).require_grad();
+        let tensor_2 = TestADTensor::from_data([[5.0, 4.0], [-1.0, 4.0]]).require_grad();
 
         let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
         let grads = tensor_3.backward();
@@ -21,26 +18,21 @@ mod tests {
         let mut tensor_2_list = Vec::new();
 
         for i in 0..2 {
-            tensor_1_list.push(tensor_1.clone().index([i..i + 1]).detach().require_grad());
-            tensor_2_list.push(tensor_2.clone().index([i..i + 1]).detach().require_grad());
+            tensor_1_list.push(tensor_1.clone().index([i..i + 1]));
+            tensor_2_list.push(tensor_2.clone().index([i..i + 1]));
         }
 
         let tensor_1_cat = TestADTensor::cat(tensor_1_list.clone(), 0);
         let tensor_2_cat = TestADTensor::cat(tensor_2_list.clone(), 0);
 
         let tensor_3_cat = tensor_1_cat.clone().matmul(tensor_2_cat.clone());
-        let grads_cat = tensor_3_cat.backward();
+        let grads = tensor_3_cat.backward();
 
-        let grad = |tensor: Option<&TestADTensor<2, Float>>| {
-            tensor
-                .map(|tensor| tensor.grad(&grads_cat).unwrap())
-                .unwrap()
-        };
-        let grad_1_index_1 = grad(tensor_1_list.get(0));
-        let grad_1_index_2 = grad(tensor_1_list.get(1));
+        let grad_1_index_1 = tensor_1.grad(&grads).unwrap().index([0..1]);
+        let grad_1_index_2 = tensor_1.grad(&grads).unwrap().index([1..2]);
 
-        let grad_2_index_1 = grad(tensor_2_list.get(0));
-        let grad_2_index_2 = grad(tensor_2_list.get(1));
+        let grad_2_index_1 = tensor_2.grad(&grads).unwrap().index([0..1]);
+        let grad_2_index_2 = tensor_2.grad(&grads).unwrap().index([1..2]);
 
         grad_1
             .clone()
@@ -61,5 +53,24 @@ mod tests {
             .index([1..2])
             .to_data()
             .assert_approx_eq(&grad_2_index_2.to_data(), 3);
+    }
+
+    #[test]
+    fn should_diff_cat_more_than_1_dim() {
+        let tensor_1 = TestADTensor::from_data([[2.0, -1.0], [5.0, 2.0]]).require_grad();
+        let tensor_2 =
+            TestADTensor::from_data([[5.0, 4.0], [-1.0, 4.0], [4.0, 1.0]]).require_grad();
+
+        // Concat a tensor [2, 2] with another tensor [3, 2] along dim 0.
+        // The resulting tensor should be [5, 2]
+        let tensor_3 = TestADTensor::cat(vec![tensor_1.clone(), tensor_2.clone()], 0);
+        assert_eq!(tensor_3.dims(), [5, 2]);
+        let grads = tensor_3.backward();
+
+        let grad_1 = tensor_1.grad(&grads).unwrap();
+        let grad_2 = tensor_2.grad(&grads).unwrap();
+
+        assert_eq!(tensor_1.dims(), grad_1.dims());
+        assert_eq!(tensor_2.dims(), grad_2.dims());
     }
 }

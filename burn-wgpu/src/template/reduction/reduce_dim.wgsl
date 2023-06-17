@@ -1,19 +1,19 @@
 @group(0)
 @binding(0)
-var<storage, read> input: array<elem>;
+var<storage, read> input: array<{{ elem }}>;
 
 @group(0)
 @binding(1)
-var<storage, read_write> output: array<elem>;
+var<storage, read_write> output: array<{{ elem }}>;
 
 @group(0)
 @binding(2)
 var<storage, read> info: array<u32>;
 
-var<workgroup> data: array<elem, WORKGROUP_SIZE_X>;
+var<workgroup> data: array<{{ elem }}, {{ workgroup_size_x }}>;
 
 @compute
-@workgroup_size(WORKGROUP_SIZE_X, 1, 1)
+@workgroup_size({{ workgroup_size_x }}, 1, 1)
 fn main(
     @builtin(global_invocation_id) global_id: vec3<u32>,
     @builtin(local_invocation_id) local_id: vec3<u32>,
@@ -43,12 +43,12 @@ fn main(
         }
     }
 
-    var sum = elem(0);
+    var sum = {{ elem }}(0);
 
     for (var i = 0u; i < shape_dim; i++) {
         let index_input = i * stride_dim;
         sum += input[index_input + index_offset];
     }
 
-    ASSIGN
+    {{ assign }}
 }

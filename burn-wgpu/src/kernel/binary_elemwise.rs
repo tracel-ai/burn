@@ -1,4 +1,4 @@
-use super::{build_info, KernelSettings, StaticKernelGenerator};
+use super::{build_info, KernelSettings, StaticKernel};
 use crate::{context::WorkGroup, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 use burn_tensor::Shape;
 
@@ -16,16 +16,15 @@ macro_rules! binary_elemwise {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::StaticKernelGenerator for $struct {
-            type Source = String;
-
-            fn generate() -> Self::Source {
-                let source = $crate::kernel::BinaryElemwiseRaw::generate().to_string();
-                let body = format!(
-                    "output[global_id.x] = lhs[index_lhs] {} rhs[index_rhs];",
-                    $ops
-                );
-                source.replace("BODY", &body)
+        impl $crate::kernel::StaticKernel for $struct {
+            fn source_template() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::BinaryElemwiseRaw::source_template().register(
+                    "body",
+                    format!(
+                        "output[global_id.x] = lhs[index_lhs] {} rhs[index_rhs];",
+                        $ops
+                    ),
+                )
             }
         }
     };
@@ -39,22 +38,21 @@ macro_rules! binary_elemwise_inplace {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::StaticKernelGenerator for $struct {
-            type Source = String;
-
-            fn generate() -> Self::Source {
-                let source = $crate::kernel::BinaryElemwiseInplaceRaw::generate().to_string();
-                let body = format!(
-                    "lhs[global_id.x] = lhs[global_id.x] {} rhs[index_rhs];",
-                    $ops
-                );
-                source.replace("BODY", &body)
+        impl $crate::kernel::StaticKernel for $struct {
+            fn source_template() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::BinaryElemwiseInplaceRaw::source_template().register(
+                    "body",
+                    format!(
+                        "lhs[global_id.x] = lhs[global_id.x] {} rhs[index_rhs];",
+                        $ops
+                    ),
+                )
             }
         }
     };
 }
 
-pub fn binary_elemwise<K: StaticKernelGenerator, E: WgpuElement, const D: usize>(
+pub fn binary_elemwise<K: StaticKernel, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
@@ -97,7 +95,7 @@ pub fn binary_elemwise<K: StaticKernelGenerator, E: WgpuElement, const D: usize>
 
     output
 }
-pub fn binary_elemwise_inplace<K: StaticKernelGenerator, E: WgpuElement, const D: usize>(
+pub fn binary_elemwise_inplace<K: StaticKernel, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {

@@ -20,6 +20,10 @@ pub enum WgpuDevice {
 
 impl Default for WgpuDevice {
     fn default() -> Self {
-        Self::DiscreteGpu(0)
+        #[cfg(target_os = "macos")]
+        return Self::IntegratedGpu(0);
+
+        #[cfg(not(target_os = "macos"))]
+        Self::Cpu
     }
 }

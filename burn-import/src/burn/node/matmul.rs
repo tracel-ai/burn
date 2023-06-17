@@ -69,7 +69,7 @@ mod tests {
                 pub fn new_with(record: ModelRecord<B>) -> Self {
                     Self { }
                 }
-
+                #[allow(clippy::let_and_return)]
                 pub fn forward(&self, tensor1: Tensor<B, 4>, tensor2: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor3 = tensor1.matmul(tensor2);
 

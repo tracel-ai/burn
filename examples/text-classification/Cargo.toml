@@ -1,24 +1,20 @@
 [package]
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 edition = "2021"
-license = "MIT/Apache-2.0"
+license = "MIT OR Apache-2.0"
 name = "text-classification"
 publish = false
 version = "0.8.0"
 
 [features]
-default = []
-
-training = []
-inference = []
 f16 = []
 
 [dependencies]
 # Burn
 burn = {path = "../../burn"}
 burn-autodiff = {path = "../../burn-autodiff"}
-burn-tch = {path = "../../burn-tch"}
 burn-ndarray = {path = "../../burn-ndarray"}
+burn-tch = {path = "../../burn-tch"}
 
 # Tokenizer
 tokenizers = {version = "0.13.3", default-features = false, features = [

@@ -1,29 +1,31 @@
 @group(0)
 @binding(0)
-var<storage, read> lhs: array<elem>;
+var<storage, read> lhs: array<{{ elem }}>;
 
 @group(0)
 @binding(1)
-var<storage, read> rhs: array<elem>;
+var<storage, read> rhs: array<{{ elem }}>;
 
 @group(0)
 @binding(2)
-var<storage, read_write> output: array<elem>;
+var<storage, read_write> output: array<{{ elem }}>;
 
 @group(0)
 @binding(3)
 var<storage, read> info: array<u32>;
 
+const BLOCK_SIZE = {{ workgroup_size_x }}u;
+
 @compute
-@workgroup_size(BLOCK_SIZE, BLOCK_SIZE, 1)
+@workgroup_size({{ workgroup_size_x }}, {{ workgroup_size_y }}, 1)
 fn main(
     @builtin(global_invocation_id) global_id: vec3<u32>,
     @builtin(local_invocation_index) local_idx: u32,
     @builtin(workgroup_id) workgroup_id: vec3<u32>,
 ) {
     // Indexes
-    let row = workgroup_id.x * BLOCK_SIZEu + (local_idx / BLOCK_SIZEu);
-    let col = workgroup_id.y * BLOCK_SIZEu + (local_idx % BLOCK_SIZEu);
+    let row = workgroup_id.x * BLOCK_SIZE + (local_idx / BLOCK_SIZE);
+    let col = workgroup_id.y * BLOCK_SIZE + (local_idx % BLOCK_SIZE);
     let batch = global_id.z;
 
     // Basic information

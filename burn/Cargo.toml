@@ -1,22 +1,21 @@
 [package]
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science", "no-std", "embedded", "wasm"]
-description = "BURN: Burn Unstoppable Rusty Neurons"
+description = "Flexible and Comprehensive Deep Learning Framework in Rust"
 edition = "2021"
 keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
-license = "MIT/Apache-2.0"
+license = "MIT OR Apache-2.0"
 name = "burn"
 readme = "README.md"
 repository = "https://github.com/burn-rs/burn"
-
 version = "0.8.0"
 
 [features]
 default = ["std", "train"]
+experimental-named-tensor = ["burn-core/experimental-named-tensor"]
 std = [
   "burn-core/std",
 ]
-experimental-named-tensor = ["burn-core/experimental-named-tensor"]
 train = ["std", "burn-train"] # Training requires std
 
 [dependencies]
