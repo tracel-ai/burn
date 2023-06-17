@@ -9,7 +9,7 @@ use crate as burn;
 
 /// Enum specifying with what values a tensor should be initialized
 #[derive(Config, Debug, PartialEq)]
-pub enum Initializer {
+pub enum InitializerKind {
     /// Fills tensor with specified value everywhere
     Constant(f64),
     /// Fills tensor with 1s everywhere
@@ -18,108 +18,123 @@ pub enum Initializer {
     Zeros,
     /// Fills tensor with values drawn uniformly between specified values
     Uniform(f64, f64),
-    /// Fills tensor with values drawn uniformly between -sqrt(1/fan_in) and sqrt(1/fan_in).
-    NormalizedUniform,
     /// Fills tensor with values drawn from normal distribution with specified mean and std
     Normal(f64, f64),
+    /// Fills tensor with values according to the uniform version of Kaiming initialization
+    KaimingUniform(f64),
+    /// Fills tensor with values according to the uniform version of Kaiming initialization
+    KaimingNormal(f64),
     /// Fills tensor with values according to the uniform version of Xavier Glorot initialization described in [Understanding the difficulty of training deep feedforward neural networks](https://proceedings.mlr.press/v9/glorot10a/glorot10a.pdf)
     XavierUniform(f64),
     /// Fills tensor with values according to the normal version of Xavier Glorot initialization described in [Understanding the difficulty of training deep feedforward neural networks](https://proceedings.mlr.press/v9/glorot10a/glorot10a.pdf)
     XavierNormal(f64),
 }
 
+impl Default for InitializerKind {
+    fn default() -> Self {
+        Self::Zeros
+    }
+}
+
+/// TODO DOC
+pub struct Initializer {
+    kind: InitializerKind,
+    fan_in: Option<usize>,
+    fan_out: Option<usize>,
+}
+
+/// TODO DOC
+#[derive(Default)]
+pub struct InitializerBuilder {
+    initializer_kind: InitializerKind,
+    fan_in: Option<usize>,
+    fan_out: Option<usize>,
+}
+
+impl InitializerBuilder {
+    /// TODO DOC
+    pub fn with_fan_in(mut self, fan_in: usize) {
+        self.fan_in = Some(fan_in);
+    }
+
+    /// TODO DOC
+    pub fn with_fan_out(mut self, fan_out: usize) {
+        self.fan_out = Some(fan_out);
+    }
+
+    /// TODO DOC
+    pub fn with_initializer_kind(mut self, initializer_kind: InitializerKind) {
+        self.initializer_kind = initializer_kind
+    }
+
+    /// TODO DOC
+    pub fn build(self) -> Initializer {
+        Initializer {
+            kind: self.initializer_kind,
+            fan_in: self.fan_in,
+            fan_out: self.fan_out,
+        }
+    }
+}
+
 impl Initializer {
+    /// TODO DOC
     pub fn init<B: Backend, const D: usize, S: Into<Shape<D>>>(&self, shape: S) -> Tensor<B, D> {
         let shape = shape.into();
-        match self {
-            Self::Constant(value) => Tensor::<B, D>::zeros(shape) + *value,
-            Self::Ones => Tensor::<B, D>::ones(shape),
-            Self::Zeros => Tensor::<B, D>::zeros(shape),
-            Self::Uniform(a, b) => {
-                let distribution =
-                    Distribution::Uniform((*a).elem::<B::FloatElem>(), (*b).elem::<B::FloatElem>());
-                Tensor::<B, D>::random(shape, distribution)
+        match self.kind {
+            InitializerKind::Constant(value) => Tensor::<B, D>::zeros(shape) + value,
+            InitializerKind::Ones => Tensor::<B, D>::ones(shape),
+            InitializerKind::Zeros => Tensor::<B, D>::zeros(shape),
+            InitializerKind::Uniform(a, b) => uniform_draw(shape, a, b),
+            InitializerKind::Normal(mean, std) => normal_draw(shape, mean, std),
+            InitializerKind::KaimingUniform(gain) => {
+                let a = sqrt(3.0) * kaiming_std(gain, self.fan_in);
+                uniform_draw(shape, -a, a)
             }
-            Self::NormalizedUniform => {
-                let distribution = normalized_uniform::<B, D>(&shape);
-                Tensor::<B, D>::random(shape, distribution)
+            InitializerKind::KaimingNormal(gain) => {
+                let std = kaiming_std(gain, self.fan_in);
+                normal_draw(shape, 0.0, std)
             }
-            Self::Normal(mean, std) => {
-                let distribution = Distribution::Normal(*mean, *std);
-                Tensor::<B, D>::random(shape, distribution)
+            InitializerKind::XavierUniform(gain) => {
+                let a = sqrt(3.0) * xavier_std(gain, self.fan_in, self.fan_out);
+                uniform_draw(shape, -a, a)
             }
-            Self::XavierUniform(gain) => {
-                let distribution = xavier_uniform::<B, D>(gain, &shape);
-                Tensor::<B, D>::random(shape, distribution)
-            }
-            Self::XavierNormal(gain) => {
-                let distribution = xavier_normal::<B, D>(gain, &shape);
-                Tensor::<B, D>::random(shape, distribution)
+            InitializerKind::XavierNormal(gain) => {
+                let std = xavier_std(gain, self.fan_in, self.fan_out);
+                normal_draw(shape, 0.0, std)
             }
         }
     }
-
-    pub fn init_weight<B: Backend, const D: usize, S: Into<Shape<D>>>(
-        &self,
-        shape: S,
-    ) -> Tensor<B, D> {
-        self.init(shape, false).0
-    }
 }
 
-fn constant_weight_and_bias<B: Backend, const D: usize>(
-    shape: Shape<D>,
-    with_bias: bool,
-    value: f64,
-) -> (Tensor<B, D>, Option<Tensor<B, 1>>) {
-    let fan_out = shape.fan_out();
-    let weight = Tensor::<B, D>::zeros(shape) + value;
-    let bias = if with_bias {
-        Some(Tensor::<B, 1>::zeros([fan_out]) + value)
-    } else {
-        None
-    };
-    (weight, bias)
+fn uniform_draw<B: Backend, const D: usize, S: Into<Shape<D>>>(
+    shape: S,
+    low: f64,
+    high: f64,
+) -> Tensor<B, D> {
+    let distribution =
+        Distribution::Uniform(low.elem::<B::FloatElem>(), high.elem::<B::FloatElem>());
+    Tensor::<B, D>::random(shape, distribution)
 }
 
-fn random_weight_and_bias<B: Backend, const D: usize>(
-    distribution: Distribution<<B as Backend>::FloatElem>,
-    shape: Shape<D>,
-    with_bias: bool,
-) -> (Tensor<B, D>, Option<Tensor<B, 1>>) {
-    let fan_out = shape.fan_out();
-    let weight = Tensor::<B, D>::random(shape, distribution);
-    let bias = if with_bias {
-        Some(Tensor::<B, 1>::random([fan_out], distribution))
-    } else {
-        None
-    };
-    (weight, bias)
+fn normal_draw<B: Backend, const D: usize, S: Into<Shape<D>>>(
+    shape: S,
+    mean: f64,
+    std: f64,
+) -> Tensor<B, D> {
+    let distribution = Distribution::Normal(mean, std);
+    Tensor::<B, D>::random(shape, distribution)
 }
 
-fn normalized_uniform<B: Backend, const D: usize>(
-    shape: &Shape<D>,
-) -> Distribution<<B as Backend>::FloatElem> {
-    let k = 1. / sqrt(shape.fan_in() as f64);
-    Distribution::Uniform((-k).elem::<B::FloatElem>(), k.elem::<B::FloatElem>())
+fn kaiming_std(gain: f64, fan_in: Option<usize>) -> f64 {
+    let fan_in = fan_in.expect("Can't use Kaiming initialization without fan in");
+    gain / sqrt(fan_in as f64)
 }
 
-fn xavier_uniform<B: Backend, const D: usize>(
-    gain: &f64,
-    shape: &Shape<D>,
-) -> Distribution<<B as Backend>::FloatElem> {
-    let fan_sum = shape.fan_in() + shape.fan_out();
-    let a = gain * sqrt(6.0 / fan_sum as f64);
-    Distribution::Uniform((-a).elem::<B::FloatElem>(), a.elem::<B::FloatElem>())
-}
-
-fn xavier_normal<B: Backend, const D: usize>(
-    gain: &f64,
-    shape: &Shape<D>,
-) -> Distribution<<B as Backend>::FloatElem> {
-    let fan_sum = shape.fan_in() + shape.fan_out();
-    let std = gain * sqrt(2.0 / fan_sum as f64);
-    Distribution::Normal(0.0, std)
+fn xavier_std(gain: f64, fan_in: Option<usize>, fan_out: Option<usize>) -> f64 {
+    let fan_in = fan_in.expect("Can't use Xavier initialization without fan in");
+    let fan_out = fan_out.expect("Can't use Xavier initialization without fan out");
+    gain * sqrt(2.0 / (fan_in + fan_out) as f64)
 }
 
 #[cfg(test)]
@@ -129,29 +144,6 @@ mod tests {
     use burn_tensor::Data;
 
     pub type TB = burn_ndarray::NdArrayBackend<f32>;
-
-    #[test]
-    fn initializer_init_without_bias() {
-        TB::seed(0);
-        let with_bias = false;
-
-        let (_weight, bias): (Tensor<TB, 4>, Option<Tensor<TB, 1>>) =
-            Initializer::Uniform(0.0, 1.0).init([2, 2, 2, 2], with_bias);
-
-        assert!(bias.is_none());
-    }
-
-    #[test]
-    fn initializer_init_with_bias() {
-        TB::seed(0);
-        let with_bias = true;
-        let (a, b) = (0.0, 1.0);
-
-        let (_weight, bias): (Tensor<TB, 4>, Option<Tensor<TB, 1>>) =
-            Initializer::Uniform(a, b).init([2, 2, 2, 2], with_bias);
-
-        bias.unwrap().into_data().assert_within_range(a..b);
-    }
 
     #[test]
     fn initializer_uniform_init() {
