@@ -4,8 +4,11 @@ use crate::config::Config;
 use crate::module::Module;
 use crate::module::Param;
 use crate::tensor::{backend::Backend, Tensor};
+use burn_tensor::Shape;
+use libm::sqrt;
 
 use super::Initializer;
+use super::InitializerOptions;
 
 /// Configuration to create a [Linear](Linear) layer.
 #[derive(Config, Debug)]
@@ -18,7 +21,7 @@ pub struct LinearConfig {
     #[config(default = true)]
     pub bias: bool,
     /// The type of function used to initialize neural network parameters
-    #[config(default = "Initializer::NormalizedUniform")]
+    #[config(default = "Initializer::KaimingUniform{gain:1.0/sqrt(3.0), use_fan_out:false}")]
     pub initializer: Initializer,
 }
 
@@ -42,9 +45,26 @@ pub struct Linear<B: Backend> {
 impl LinearConfig {
     /// Initialize a new [linear](Linear) module.
     pub fn init<B: Backend>(&self) -> Linear<B> {
-        let (weight, bias) = self
-            .initializer
-            .init([self.d_output, self.d_input], self.bias);
+        let shape = Shape::from([self.d_output, self.d_input]);
+        let fan_in = shape.fan_in();
+        let weight = self.initializer.init(
+            shape,
+            InitializerOptions::default()
+                .with_fan_in(fan_in)
+                .with_fan_out(self.d_output),
+        );
+        let bias = if self.bias {
+            Some(
+                self.initializer.init(
+                    [self.d_output],
+                    InitializerOptions::default()
+                        .with_fan_in(fan_in)
+                        .with_fan_out(self.d_output),
+                ),
+            )
+        } else {
+            None
+        };
 
         Linear {
             weight: Param::from(weight),
@@ -93,7 +113,13 @@ mod tests {
         let k = sqrt(1.0 / config.d_input as f64) as f32;
         let linear = config.init::<TestBackend>();
 
-        assert_eq!(config.initializer, Initializer::NormalizedUniform);
+        assert_eq!(
+            config.initializer,
+            Initializer::KaimingUniform {
+                gain: 1.0 / sqrt(3.0),
+                use_fan_out: false
+            }
+        );
         linear.weight.to_data().assert_within_range(-k..k);
     }
 
@@ -117,7 +143,7 @@ mod tests {
 
         let value = 2.;
         let config = LinearConfig::new(2, 3)
-            .with_initializer(Initializer::Constant(value))
+            .with_initializer(Initializer::Constant { value })
             .with_bias(false);
         let linear = config.init();
 
@@ -133,7 +159,7 @@ mod tests {
         TestBackend::seed(0);
 
         let value = 2.;
-        let config = LinearConfig::new(2, 3).with_initializer(Initializer::Constant(value));
+        let config = LinearConfig::new(2, 3).with_initializer(Initializer::Constant { value });
         let linear = config.init();
 
         let input = Tensor::<TestBackend, 2>::ones(Shape::new([1, 2]));

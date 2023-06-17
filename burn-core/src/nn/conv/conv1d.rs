@@ -4,11 +4,14 @@ use crate::config::Config;
 use crate::module::Module;
 use crate::module::Param;
 use crate::nn::Initializer;
+use crate::nn::InitializerOptions;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 use burn_tensor::module::conv1d;
 use burn_tensor::ops::conv::calculate_conv_padding;
 use burn_tensor::ops::ConvOptions;
+use burn_tensor::Shape;
+use libm::sqrt;
 
 /// Configuration to create an [1D convolution](Conv1d) layer.
 #[derive(Config)]
@@ -35,7 +38,7 @@ pub struct Conv1dConfig {
     #[config(default = true)]
     pub bias: bool,
     /// The type of function used to initialize neural network parameters
-    #[config(default = "Initializer::NormalizedUniform")]
+    #[config(default = "Initializer::KaimingUniform{gain:1.0/sqrt(3.0),use_fan_out:false}")]
     pub initializer: Initializer,
 }
 
@@ -74,10 +77,19 @@ pub struct Conv1d<B: Backend> {
 impl Conv1dConfig {
     /// Initialize a new [conv1d](Conv1d) module.
     pub fn init<B: Backend>(&self) -> Conv1d<B> {
-        let (weight, bias) = self.initializer.init(
-            [self.channels_out, self.channels_in, self.kernel_size],
-            self.bias,
-        );
+        let shape = Shape::from([self.channels_out, self.channels_in, self.kernel_size]);
+        let fan_in: usize = shape.fan_in();
+        let weight = self
+            .initializer
+            .init(shape, InitializerOptions::default().with_fan_in(fan_in));
+        let bias = if self.bias {
+            Some(self.initializer.init(
+                [self.channels_out],
+                InitializerOptions::default().with_fan_in(fan_in),
+            ))
+        } else {
+            None
+        };
 
         Conv1d {
             weight: Param::from(weight),
@@ -159,7 +171,13 @@ mod tests {
         let k = sqrt(1.0 / k) as f32;
         let conv = config.init::<TestBackend>();
 
-        assert_eq!(config.initializer, Initializer::NormalizedUniform);
+        assert_eq!(
+            config.initializer,
+            Initializer::KaimingUniform {
+                gain: 1.0 / sqrt(3.0),
+                use_fan_out: false
+            }
+        );
         conv.weight.to_data().assert_within_range(-k..k);
     }
 

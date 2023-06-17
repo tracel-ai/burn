@@ -1,6 +1,7 @@
 use crate as burn;
 
 use super::Initializer;
+use super::InitializerOptions;
 use crate::config::Config;
 use crate::module::Module;
 use crate::module::Param;
@@ -16,7 +17,7 @@ pub struct EmbeddingConfig {
     /// The size of each vector.
     d_model: usize,
     /// The type of function used to initialize neural network parameters
-    #[config(default = "Initializer::Normal(0.0,1.0)")]
+    #[config(default = "Initializer::Normal{mean:0.0, std:1.0}")]
     pub initializer: Initializer,
 }
 
@@ -36,7 +37,10 @@ impl EmbeddingConfig {
     pub fn init<B: Backend>(&self) -> Embedding<B> {
         let weight = self
             .initializer
-            .init_weight([self.n_embedding, self.d_model])
+            .init(
+                [self.n_embedding, self.d_model],
+                InitializerOptions::default(),
+            )
             .require_grad();
 
         Embedding {
@@ -78,7 +82,13 @@ mod tests {
         let weights = embed.weight.val().reshape([1000]);
         let (var_act, mean_act) = weights.var_mean(0);
 
-        assert_eq!(config.initializer, Initializer::Normal(0.0, 1.0));
+        assert_eq!(
+            config.initializer,
+            Initializer::Normal {
+                mean: 0.0,
+                std: 1.0
+            }
+        );
         var_act.to_data().assert_approx_eq(&Data::from([1.0f32]), 1);
         mean_act
             .to_data()

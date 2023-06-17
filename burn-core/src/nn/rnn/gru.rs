@@ -21,7 +21,7 @@ pub struct GruConfig {
     pub bias: bool,
     /// Gru initializer
     /// TODO: Make default Xavier initialization. https://github.com/burn-rs/burn/issues/371
-    #[config(default = "Initializer::Uniform(0.0, 1.0)")]
+    #[config(default = "Initializer::Uniform{min:0.0, max:1.0}")]
     pub initializer: Initializer,
     /// The batch size.
     pub batch_size: usize,
@@ -239,12 +239,39 @@ mod tests {
             )
         }
 
-        gru.update_gate =
-            create_gate_controller(0.5, 0.0, 1, 1, false, Initializer::NormalizedUniform);
-        gru.reset_gate =
-            create_gate_controller(0.6, 0.0, 1, 1, false, Initializer::NormalizedUniform);
-        gru.new_gate =
-            create_gate_controller(0.7, 0.0, 1, 1, false, Initializer::NormalizedUniform);
+        gru.update_gate = create_gate_controller(
+            0.5,
+            0.0,
+            1,
+            1,
+            false,
+            Initializer::KaimingUniform {
+                gain: 1.0,
+                use_fan_out: false,
+            },
+        );
+        gru.reset_gate = create_gate_controller(
+            0.6,
+            0.0,
+            1,
+            1,
+            false,
+            Initializer::KaimingUniform {
+                gain: 1.0,
+                use_fan_out: false,
+            },
+        );
+        gru.new_gate = create_gate_controller(
+            0.7,
+            0.0,
+            1,
+            1,
+            false,
+            Initializer::KaimingUniform {
+                gain: 1.0,
+                use_fan_out: false,
+            },
+        );
 
         let input = Tensor::<TestBackend, 3>::from_data(Data::from([[[0.1]]]));
 
