@@ -293,7 +293,7 @@ where
         output
     }
 
-    pub fn mask_scatter<const D: usize>(
+    pub fn mask_where<const D: usize>(
         tensor: NdArrayTensor<E, D>,
         mask: NdArrayTensor<bool, D>,
         source: NdArrayTensor<E, D>,

@@ -265,7 +265,7 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
         TchOps::index_select_dim_assign(tensor, dim, indexes, value)
     }
 
-    fn int_mask_scatter<const D: usize>(
+    fn int_mask_where<const D: usize>(
         tensor: TchTensor<i64, D>,
         mask: TchTensor<bool, D>,
         source: TchTensor<i64, D>,
