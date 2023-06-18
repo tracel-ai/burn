@@ -200,12 +200,12 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         NdArrayOps::index_assign(tensor, indexes, value)
     }
 
-    fn mask_scatter<const D: usize>(
+    fn mask_where<const D: usize>(
         tensor: NdArrayTensor<E, D>,
         mask: NdArrayTensor<bool, D>,
-        source: NdArrayTensor<E, D>,
+        value: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<E, D> {
-        NdArrayMathOps::mask_scatter(tensor, mask, source)
+        NdArrayMathOps::mask_where(tensor, mask, value)
     }
 
     fn mask_fill<const D: usize>(

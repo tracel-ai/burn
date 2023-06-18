@@ -206,7 +206,7 @@ where
         BaseOps::<G>::index_assign(tensor, indexes, value)
     }
 
-    fn mask_scatter<const D: usize>(
+    fn mask_where<const D: usize>(
         _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
         _mask: <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D>,
         _source: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,

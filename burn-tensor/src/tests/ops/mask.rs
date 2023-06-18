@@ -4,14 +4,13 @@ mod tests {
     use burn_tensor::{Bool, Data, Tensor};
 
     #[test]
-    fn should_support_mask_scatter_ops() {
+    fn should_support_mask_where_ops() {
         let tensor = Tensor::<TestBackend, 2>::from_data(Data::from([[1.0, 7.0], [2.0, 3.0]]));
         let mask =
             Tensor::<TestBackend, 2, Bool>::from_bool(Data::from([[true, false], [false, true]]));
+        let value = Tensor::<TestBackend, 2>::from_data(Data::from([[8.8, 8.8], [8.8, 8.8]]));
 
-        let source = Tensor::<TestBackend, 2>::from_data(Data::from([[8.8, 8.8], [8.8, 8.8]]));
-
-        let data_actual = tensor.mask_scatter(mask, source).to_data();
+        let data_actual = tensor.mask_where(mask, value).to_data();
 
         let data_expected = Data::from([[8.8, 7.0], [2.0, 8.8]]);
         assert_eq!(data_expected, data_actual);
