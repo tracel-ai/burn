@@ -62,33 +62,33 @@ pub fn dim_inference(
             NodeType::Conv2d => conv2d_update_outputs(node),
             NodeType::Linear => linear_update_outputs(node),
             NodeType::Flatten => flatten_update_outputs(node),
-            NodeType::Relu => element_wise_update_outputs(node),
-            NodeType::LogSoftmax => element_wise_update_outputs(node),
-            NodeType::BatchNormalization => element_wise_update_outputs(node),
-            NodeType::Add => element_wise_update_outputs(node),
-            NodeType::Sub => element_wise_update_outputs(node),
-            NodeType::Pow => element_wise_update_outputs(node),
-            NodeType::Mul => element_wise_update_outputs(node),
-            NodeType::Cast => element_wise_update_outputs(node),
-            NodeType::Div => element_wise_update_outputs(node),
-            NodeType::Sqrt => element_wise_update_outputs(node),
-            NodeType::Softmax => element_wise_update_outputs(node),
-            NodeType::Erf => element_wise_update_outputs(node),
+            NodeType::Relu => same_as_input(node),
+            NodeType::LogSoftmax => same_as_input(node),
+            NodeType::BatchNormalization => same_as_input(node),
+            NodeType::Add => same_as_input(node),
+            NodeType::Sub => same_as_input(node),
+            NodeType::Pow => same_as_input(node),
+            NodeType::Mul => same_as_input(node),
+            NodeType::Cast => same_as_input(node),
+            NodeType::Div => same_as_input(node),
+            NodeType::Sqrt => same_as_input(node),
+            NodeType::Softmax => same_as_input(node),
+            NodeType::Erf => same_as_input(node),
             NodeType::ReduceMean => mean_update_outputs(node),
             NodeType::Constant => {
                 node.outputs[0].ty = ArgType::Constant;
             }
-            NodeType::Equal => element_wise_update_outputs(node),
+            NodeType::Equal => same_as_input(node),
             NodeType::Shape => shape_update_outputs(node),
             NodeType::Gather => gather_update_outputs(node),
             NodeType::Unsqueeze => unsqueeze_update_outputs(node),
             NodeType::Slice => slice_update_outputs(node),
-            NodeType::MatMul => element_wise_update_outputs(node),
+            NodeType::MatMul => same_as_input(node),
             NodeType::Concat => concat_update_outputs(node),
             NodeType::Reshape => reshape_update_outputs(node),
-            NodeType::Transpose => element_wise_update_outputs(node),
-            NodeType::Expand => element_wise_update_outputs(node),
-            NodeType::Where => element_wise_update_outputs(node),
+            NodeType::Transpose => same_as_input(node),
+            NodeType::Expand => same_as_input(node),
+            NodeType::Where => same_as_input(node),
             _ => todo!(
                 "shape inference for {:?} is not implemented",
                 node.node_type
@@ -222,7 +222,7 @@ fn slice_update_outputs(node: &mut Node) {
     node.outputs[0].ty = ArgType::Tensor(TensorArg { dim: tensor.dim });
 }
 
-fn element_wise_update_outputs(node: &mut Node) {
+fn same_as_input(node: &mut Node) {
     node.outputs[0].ty = node.inputs[0].ty.clone();
 }
 

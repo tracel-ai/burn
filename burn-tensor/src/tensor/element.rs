@@ -9,6 +9,7 @@ pub trait Element:
     + ElementConversion
     + ElementPrecision
     + core::fmt::Debug
+    + core::fmt::Display
     + Default
     + Send
     + Sync
