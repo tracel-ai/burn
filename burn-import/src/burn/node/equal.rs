@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{BurnImports, Scope, TensorType, Type};
+use crate::burn::{Scope, TensorType, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -31,11 +31,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for EqualNode {
         quote! {
             let #output = #lhs.equal(#rhs);
         }
-    }
-
-    fn register_imports(&self, imports: &mut BurnImports) {
-        imports.register("burn::nn::Linear");
-        imports.register("burn::nn::LinearConfig");
     }
 
     fn into_node(self) -> Node<PS> {

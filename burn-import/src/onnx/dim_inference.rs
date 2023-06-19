@@ -171,7 +171,7 @@ fn mean_update_outputs(node: &mut Node) {
 }
 
 fn unsqueeze_update_outputs(node: &mut Node) {
-    if node.inputs.len() < 1 {
+    if node.inputs.is_empty() {
         panic!("Unsqueeze: inputs required: {:?}", node);
     }
 
@@ -186,7 +186,7 @@ fn unsqueeze_update_outputs(node: &mut Node) {
 }
 
 fn slice_update_outputs(node: &mut Node) {
-    if node.inputs.len() < 1 {
+    if node.inputs.is_empty() {
         panic!("Slice: inputs required: {:?}", node);
     }
 
