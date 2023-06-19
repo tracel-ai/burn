@@ -4,7 +4,6 @@ use crate::config::Config;
 use crate::module::Module;
 use crate::module::Param;
 use crate::nn::Initializer;
-use crate::nn::InitializerOptions;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 use burn_tensor::module::conv1d;
@@ -79,14 +78,12 @@ impl Conv1dConfig {
     pub fn init<B: Backend>(&self) -> Conv1d<B> {
         let shape = Shape::from([self.channels_out, self.channels_in, self.kernel_size]);
         let fan_in: usize = shape.fan_in();
-        let weight = self
-            .initializer
-            .init(shape, InitializerOptions::default().with_fan_in(fan_in));
+        let weight = self.initializer.init_with(shape, Some(fan_in), None);
         let bias = if self.bias {
-            Some(self.initializer.init(
-                [self.channels_out],
-                InitializerOptions::default().with_fan_in(fan_in),
-            ))
+            Some(
+                self.initializer
+                    .init_with([self.channels_out], Some(fan_in), None),
+            )
         } else {
             None
         };

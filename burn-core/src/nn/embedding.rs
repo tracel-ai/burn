@@ -1,7 +1,6 @@
 use crate as burn;
 
 use super::Initializer;
-use super::InitializerOptions;
 use crate::config::Config;
 use crate::module::Module;
 use crate::module::Param;
@@ -37,10 +36,7 @@ impl EmbeddingConfig {
     pub fn init<B: Backend>(&self) -> Embedding<B> {
         let weight = self
             .initializer
-            .init(
-                [self.n_embedding, self.d_model],
-                InitializerOptions::default(),
-            )
+            .init([self.n_embedding, self.d_model])
             .require_grad();
 
         Embedding {

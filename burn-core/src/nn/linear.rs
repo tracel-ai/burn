@@ -8,7 +8,6 @@ use burn_tensor::Shape;
 use libm::sqrt;
 
 use super::Initializer;
-use super::InitializerOptions;
 
 /// Configuration to create a [Linear](Linear) layer.
 #[derive(Config, Debug)]
@@ -48,20 +47,13 @@ impl LinearConfig {
         let shape = Shape::from([self.d_output, self.d_input]);
         let fan_in = shape.fan_in();
         let fan_out = shape.fan_out();
-        let weight = self.initializer.init(
-            shape,
-            InitializerOptions::default()
-                .with_fan_in(fan_in)
-                .with_fan_out(fan_out),
-        );
+        let weight = self
+            .initializer
+            .init_with(shape, Some(fan_in), Some(fan_out));
         let bias = if self.bias {
             Some(
-                self.initializer.init(
-                    [self.d_output],
-                    InitializerOptions::default()
-                        .with_fan_in(fan_in)
-                        .with_fan_out(fan_out),
-                ),
+                self.initializer
+                    .init_with([self.d_output], Some(fan_in), Some(fan_out)),
             )
         } else {
             None

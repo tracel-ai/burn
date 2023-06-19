@@ -4,7 +4,6 @@ use crate::config::Config;
 use crate::module::Module;
 use crate::module::Param;
 use crate::nn::Initializer;
-use crate::nn::InitializerOptions;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 use burn_tensor::module::conv2d;
@@ -82,14 +81,12 @@ impl Conv2dConfig {
             self.kernel_size[1],
         ]);
         let fan_in = shape.fan_in();
-        let weight = self
-            .initializer
-            .init(shape, InitializerOptions::default().with_fan_in(fan_in));
+        let weight = self.initializer.init_with(shape, Some(fan_in), None);
         let bias = if self.bias {
-            Some(self.initializer.init(
-                [self.channels[1]],
-                InitializerOptions::default().with_fan_in(fan_in),
-            ))
+            Some(
+                self.initializer
+                    .init_with([self.channels[1]], Some(fan_in), None),
+            )
         } else {
             None
         };
