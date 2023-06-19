@@ -219,4 +219,36 @@ impl<G: GraphicsApi> BaseOps<G> {
 
         comparison::<Equal, E, D>(lhs, rhs)
     }
+    pub fn greater<E: WgpuElement, const D: usize>(
+        lhs: WgpuTensor<E, D>,
+        rhs: WgpuTensor<E, D>,
+    ) -> WgpuTensor<u32, D> {
+        comparison!(Equal, ">");
+
+        comparison::<Equal, E, D>(lhs, rhs)
+    }
+    pub fn greater_equal<E: WgpuElement, const D: usize>(
+        lhs: WgpuTensor<E, D>,
+        rhs: WgpuTensor<E, D>,
+    ) -> WgpuTensor<u32, D> {
+        comparison!(Equal, ">=");
+
+        comparison::<Equal, E, D>(lhs, rhs)
+    }
+    pub fn lower<E: WgpuElement, const D: usize>(
+        lhs: WgpuTensor<E, D>,
+        rhs: WgpuTensor<E, D>,
+    ) -> WgpuTensor<u32, D> {
+        comparison!(Equal, "<");
+
+        comparison::<Equal, E, D>(lhs, rhs)
+    }
+    pub fn lower_equal<E: WgpuElement, const D: usize>(
+        lhs: WgpuTensor<E, D>,
+        rhs: WgpuTensor<E, D>,
+    ) -> WgpuTensor<u32, D> {
+        comparison!(Equal, "<=");
+
+        comparison::<Equal, E, D>(lhs, rhs)
+    }
 }

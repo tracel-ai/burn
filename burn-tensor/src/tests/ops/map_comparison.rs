@@ -6,10 +6,11 @@ mod tests {
     };
 
     type IntElem = <TestBackend as Backend>::IntElem;
+    type FloatElem = <TestBackend as Backend>::FloatElem;
 
     #[test]
     fn test_equal() {
-        equal::<Float, f32>()
+        equal::<Float, FloatElem>()
     }
 
     #[test]
@@ -19,7 +20,7 @@ mod tests {
 
     #[test]
     fn test_greater_elem() {
-        greater_elem::<Float, f32>()
+        greater_elem::<Float, FloatElem>()
     }
 
     #[test]
@@ -29,17 +30,17 @@ mod tests {
 
     #[test]
     fn test_greater_equal_elem() {
-        greater_equal_elem::<Float, f32>()
+        greater_equal_elem::<Float, FloatElem>()
     }
 
     #[test]
     fn test_int_greater_equal_elem() {
-        greater_equal_elem::<Float, f32>()
+        greater_equal_elem::<Float, FloatElem>()
     }
 
     #[test]
     fn test_greater() {
-        greater::<Float, f32>()
+        greater::<Float, FloatElem>()
     }
 
     #[test]
@@ -49,7 +50,7 @@ mod tests {
 
     #[test]
     fn test_greater_equal() {
-        greater_equal::<Float, f32>()
+        greater_equal::<Float, FloatElem>()
     }
 
     #[test]
@@ -59,7 +60,7 @@ mod tests {
 
     #[test]
     fn test_lower_elem() {
-        lower_elem::<Float, f32>()
+        lower_elem::<Float, FloatElem>()
     }
 
     #[test]
@@ -69,7 +70,7 @@ mod tests {
 
     #[test]
     fn test_lower_equal_elem() {
-        lower_equal_elem::<Float, f32>()
+        lower_equal_elem::<Float, FloatElem>()
     }
 
     #[test]
@@ -79,7 +80,7 @@ mod tests {
 
     #[test]
     fn test_lower() {
-        lower::<Float, f32>()
+        lower::<Float, FloatElem>()
     }
 
     #[test]
@@ -89,7 +90,7 @@ mod tests {
 
     #[test]
     fn test_lower_equal() {
-        lower_equal::<Float, f32>()
+        lower_equal::<Float, FloatElem>()
     }
 
     #[test]
@@ -118,8 +119,7 @@ mod tests {
         K: Numeric<TestBackend, Elem = E> + BasicOps<TestBackend, Elem = E>,
         E: Element,
     {
-        let data_1: Data<<K as BasicOps<TestBackend>>::Elem, 2> =
-            Data::<f32, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert();
+        let data_1 = Data::<f32, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert();
         let tensor_1 = Tensor::<TestBackend, 2, K>::from_data(data_1);
 
         let data_actual = tensor_1.greater_elem(4);
@@ -147,10 +147,10 @@ mod tests {
         K: Numeric<TestBackend, Elem = E> + BasicOps<TestBackend, Elem = E>,
         E: Element,
     {
-        let data_1 = Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-        let data_2 = Data::from([[1.0, 1.0, 1.0], [4.0, 3.0, 50.0]]);
-        let tensor_1 = Tensor::<TestBackend, 2>::from_data(data_1);
-        let tensor_2 = Tensor::<TestBackend, 2>::from_data(data_2);
+        let data_1 = Data::<f32, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert();
+        let data_2 = Data::<f32, 2>::from([[1.0, 1.0, 1.0], [4.0, 3.0, 50.0]]).convert();
+        let tensor_1 = Tensor::<TestBackend, 2, K>::from_data(data_1);
+        let tensor_2 = Tensor::<TestBackend, 2, K>::from_data(data_2);
 
         let data_actual = tensor_1.greater(tensor_2);
 
@@ -163,10 +163,10 @@ mod tests {
         K: Numeric<TestBackend, Elem = E> + BasicOps<TestBackend, Elem = E>,
         E: Element,
     {
-        let data_1 = Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-        let data_2 = Data::from([[1.0, 1.0, 1.0], [4.0, 3.0, 50.0]]);
-        let tensor_1 = Tensor::<TestBackend, 2>::from_data(data_1);
-        let tensor_2 = Tensor::<TestBackend, 2>::from_data(data_2);
+        let data_1 = Data::<f32, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert();
+        let data_2 = Data::<f32, 2>::from([[1.0, 1.0, 1.0], [4.0, 3.0, 50.0]]).convert();
+        let tensor_1 = Tensor::<TestBackend, 2, K>::from_data(data_1);
+        let tensor_2 = Tensor::<TestBackend, 2, K>::from_data(data_2);
 
         let data_actual = tensor_1.greater_equal(tensor_2);
 
@@ -179,8 +179,8 @@ mod tests {
         K: Numeric<TestBackend, Elem = E> + BasicOps<TestBackend, Elem = E>,
         E: Element,
     {
-        let data_1 = Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-        let tensor_1 = Tensor::<TestBackend, 2>::from_data(data_1);
+        let data_1 = Data::<f32, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert();
+        let tensor_1 = Tensor::<TestBackend, 2, K>::from_data(data_1);
 
         let data_actual = tensor_1.lower_elem(4.0);
 
@@ -193,8 +193,8 @@ mod tests {
         K: Numeric<TestBackend, Elem = E> + BasicOps<TestBackend, Elem = E>,
         E: Element,
     {
-        let data_1 = Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-        let tensor_1 = Tensor::<TestBackend, 2>::from_data(data_1);
+        let data_1 = Data::<f32, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert();
+        let tensor_1 = Tensor::<TestBackend, 2, K>::from_data(data_1);
 
         let data_actual = tensor_1.lower_equal_elem(4.0);
 
@@ -207,10 +207,10 @@ mod tests {
         K: Numeric<TestBackend, Elem = E> + BasicOps<TestBackend, Elem = E>,
         E: Element,
     {
-        let data_1 = Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-        let data_2 = Data::from([[1.0, 1.0, 1.0], [4.0, 3.0, 50.0]]);
-        let tensor_1 = Tensor::<TestBackend, 2>::from_data(data_1);
-        let tensor_2 = Tensor::<TestBackend, 2>::from_data(data_2);
+        let data_1 = Data::<f32, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert();
+        let data_2 = Data::<f32, 2>::from([[1.0, 1.0, 1.0], [4.0, 3.0, 50.0]]).convert();
+        let tensor_1 = Tensor::<TestBackend, 2, K>::from_data(data_1);
+        let tensor_2 = Tensor::<TestBackend, 2, K>::from_data(data_2);
 
         let data_actual = tensor_1.lower(tensor_2);
 
@@ -223,10 +223,10 @@ mod tests {
         K: Numeric<TestBackend, Elem = E> + BasicOps<TestBackend, Elem = E>,
         E: Element,
     {
-        let data_1 = Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-        let data_2 = Data::from([[1.0, 1.0, 1.0], [4.0, 3.0, 50.0]]);
-        let tensor_1 = Tensor::<TestBackend, 2>::from_data(data_1);
-        let tensor_2 = Tensor::<TestBackend, 2>::from_data(data_2);
+        let data_1 = Data::<f32, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert();
+        let data_2 = Data::<f32, 2>::from([[1.0, 1.0, 1.0], [4.0, 3.0, 50.0]]).convert();
+        let tensor_1 = Tensor::<TestBackend, 2, K>::from_data(data_1);
+        let tensor_2 = Tensor::<TestBackend, 2, K>::from_data(data_2);
 
         let data_actual = tensor_1.lower_equal(tensor_2);
 

@@ -237,10 +237,10 @@ where
     }
 
     fn greater<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        _rhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
-        todo!()
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
+    ) -> BoolTensor<Self, D> {
+        BaseOps::<G>::greater(lhs, rhs)
     }
 
     fn greater_elem<const D: usize>(
@@ -251,10 +251,10 @@ where
     }
 
     fn greater_equal<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        _rhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
-        todo!()
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
+    ) -> BoolTensor<Self, D> {
+        BaseOps::<G>::greater_equal(lhs, rhs)
     }
 
     fn greater_equal_elem<const D: usize>(
@@ -265,10 +265,10 @@ where
     }
 
     fn lower<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        _rhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
-        todo!()
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
+    ) -> BoolTensor<Self, D> {
+        BaseOps::<G>::lower(lhs, rhs)
     }
 
     fn lower_elem<const D: usize>(
@@ -279,10 +279,10 @@ where
     }
 
     fn lower_equal<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        _rhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
-        todo!()
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
+    ) -> BoolTensor<Self, D> {
+        BaseOps::<G>::lower_equal(lhs, rhs)
     }
 
     fn lower_equal_elem<const D: usize>(
