@@ -304,8 +304,8 @@ impl Argument {
     pub fn to_tensor_type(&self) -> TensorType {
         match &self.ty {
             ArgType::Tensor(tensor) => TensorType::new_float(self.name.clone(), tensor.dim),
-            ArgType::Shape(_shape) => panic!("Can't transforme shape to tensor."),
-            ArgType::Constant => panic!("Can't transforme constant to tensor."),
+            ArgType::Shape(_shape) => panic!("Can't transform shape to tensor."),
+            ArgType::Constant => panic!("Can't transform constant to tensor."),
         }
     }
 }
