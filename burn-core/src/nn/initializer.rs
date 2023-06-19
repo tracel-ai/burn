@@ -213,7 +213,7 @@ mod tests {
     fn initializer_kaiming_uniform_init() {
         TB::seed(0);
 
-        let gain = 2. as f64;
+        let gain = 2_f64;
         let (fan_in, fan_out) = (5, 6);
         let k = gain * sqrt(3.0 / fan_in as f64);
 
@@ -246,7 +246,7 @@ mod tests {
     fn initializer_kaiming_uniform_init_bias() {
         TB::seed(0);
 
-        let gain = 2. as f64;
+        let gain = 2_f64;
         let shape = [3];
         let fan_in = 5;
         let k = gain * sqrt(3.0 / fan_in as f64);
@@ -263,7 +263,7 @@ mod tests {
     fn initializer_kaiming_uniform_init_fan_out() {
         TB::seed(0);
 
-        let gain = 2. as f64;
+        let gain = 2_f64;
         let (fan_in, fan_out) = (5, 6);
         let k = gain * sqrt(3.0 / fan_out as f64);
 
@@ -280,7 +280,7 @@ mod tests {
     fn initializer_kaiming_uniform_no_fan() {
         TB::seed(0);
 
-        let gain = 2. as f64;
+        let gain = 2_f64;
         let (fan_in, fan_out) = (5, 6);
 
         let _: Tensor<TB, 2> = Initializer::KaimingUniform {
