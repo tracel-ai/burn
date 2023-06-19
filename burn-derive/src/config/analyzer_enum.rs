@@ -1,7 +1,7 @@
 use super::ConfigAnalyzer;
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
-use syn::Variant;
+use syn::{FieldsNamed, Variant};
 
 pub struct ConfigEnumAnalyzer {
     name: Ident,
@@ -31,7 +31,7 @@ impl ConfigEnumAnalyzer {
     }
 
     fn gen_variant_field(&self, variant: &Variant) -> (TokenStream, TokenStream) {
-        let gen_fields = |num: usize| {
+        let gen_fields_unnamed = |num: usize| {
             let mut input = Vec::new();
             let mut output = Vec::new();
 
@@ -44,10 +44,28 @@ impl ConfigEnumAnalyzer {
 
             (quote! (( #(#input),* )), quote! (( #(#output),* )))
         };
+        let gen_fields_named = |fields: &FieldsNamed| {
+            let mut input = Vec::new();
+            let mut output = Vec::new();
 
-        match variant.fields.is_empty() {
-            true => (quote! {}, quote! {}),
-            false => gen_fields(variant.fields.len()),
+            fields.named.iter().for_each(|field| {
+                let ident = &field.ident;
+
+                input.push(quote! {
+                    #ident
+                });
+                output.push(quote! {
+                    #ident: #ident.clone()
+                });
+            });
+
+            (quote! {{ #(#input),* }}, quote! {{ #(#output),* }})
+        };
+
+        match &variant.fields {
+            syn::Fields::Named(fields) => gen_fields_named(fields),
+            syn::Fields::Unnamed(_) => gen_fields_unnamed(variant.fields.len()),
+            syn::Fields::Unit => (quote! {}, quote! {}),
         }
     }
 

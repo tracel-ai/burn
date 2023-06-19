@@ -21,6 +21,7 @@ pub enum TestEnumConfig {
     None,
     Single(f32),
     Multiple(f32, String),
+    Named { first: f32, second: String },
 }
 
 #[cfg(feature = "std")]

@@ -39,11 +39,11 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     var offset_rhs: u32 = 0u;
 
     let batch_dims = dim - 2u;
-    for (var b: u32 = 0u; b < batch_dims; b++) {
-        let stride_lhs = info[b + 1u];
-        let stride_rhs = info[b + 1u * dim + 1u];
-        let shape_lhs = info[b + 2u * dim + 1u];
-        let shape_rhs = info[b + 3u * dim + 1u];
+    for (var b: u32 = 1u; b <= dim; b++) {
+        let stride_lhs = info[b];
+        let stride_rhs = info[b + 1u * dim];
+        let shape_lhs = info[b + 2u * dim];
+        let shape_rhs = info[b + 3u * dim];
 
         offset_lhs += offset_output / stride_lhs % shape_lhs * stride_lhs;
         offset_rhs += offset_output / stride_rhs % shape_rhs * stride_rhs;

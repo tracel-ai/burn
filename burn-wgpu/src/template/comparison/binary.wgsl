@@ -8,11 +8,12 @@ var<storage, read> rhs: array<{{ elem }}>;
 
 @group(0)
 @binding(2)
-var<storage, read_write> output: array<{{ elem }}>;
+var<storage, read_write> output: array<u32>;
 
 @group(0)
 @binding(3)
 var<storage, read> info: array<u32>;
+
 
 @compute
 @workgroup_size({{ workgroup_size_x }}, 1, 1)
