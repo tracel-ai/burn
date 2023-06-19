@@ -9,6 +9,14 @@ use crate::burn::ToTokens;
 pub struct TensorType {
     pub name: Ident,
     pub dim: usize,
+    pub kind: TensorKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum TensorKind {
+    Int,
+    Float,
+    Bool,
 }
 
 #[derive(Debug, Clone)]
@@ -38,11 +46,23 @@ impl<'a> Type<'a> {
 }
 
 impl TensorType {
-    pub fn new<S: AsRef<str>>(name: S, dim: usize) -> Self {
+    pub fn new<S: AsRef<str>>(name: S, dim: usize, kind: TensorKind) -> Self {
         Self {
             name: Ident::new(name.as_ref(), Span::call_site()),
             dim,
+            kind,
         }
+    }
+    pub fn new_float<S: AsRef<str>>(name: S, dim: usize) -> Self {
+        Self::new(name, dim, TensorKind::Float)
+    }
+
+    pub fn new_int<S: AsRef<str>>(name: S, dim: usize) -> Self {
+        Self::new(name, dim, TensorKind::Int)
+    }
+
+    pub fn new_bool<S: AsRef<str>>(name: S, dim: usize) -> Self {
+        Self::new(name, dim, TensorKind::Bool)
     }
 
     pub fn ty(&self) -> TokenStream {

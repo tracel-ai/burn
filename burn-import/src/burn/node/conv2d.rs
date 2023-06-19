@@ -142,8 +142,8 @@ mod tests {
 
         graph.register(Conv2dNode::new(
             "conv2d",
-            TensorType::new("input", 4),
-            TensorType::new("output", 4),
+            TensorType::new_float("input", 4),
+            TensorType::new_float("output", 4),
             Data::from([2.]).serialize(),
             None,
             Conv2dConfig::new([3, 3], [3, 3]),

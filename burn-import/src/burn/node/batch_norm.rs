@@ -172,8 +172,8 @@ mod tests {
         graph.register(BatchNormNode::new(
             2, // Batch norm 2d
             "norm",
-            TensorType::new("input", 4),
-            TensorType::new("output", 4),
+            TensorType::new_float("input", 4),
+            TensorType::new_float("output", 4),
             Data::from([2.]).serialize(),
             Data::from([2.]).serialize(),
             Data::from([2.]).serialize(),
