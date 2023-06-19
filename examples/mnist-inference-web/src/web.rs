@@ -63,19 +63,6 @@ impl Mnist {
 mod tests {
 
     use super::Mnist;
-    use burn_dataset::source::huggingface::MNISTDataset;
-    use burn_dataset::Dataset;
-
-    #[test]
-    fn inference() {
-        let dataset = MNISTDataset::test();
-        let item = dataset.get(2).unwrap();
-        let mnist = Mnist::new();
-        let input = item.image.iter().copied().flatten().collect::<Vec<f32>>();
-        let output = mnist.inference(input.as_slice()).unwrap();
-
-        assert!(output[item.label] > 0.9);
-    }
 
     #[test]
     fn inference_manual_from_test_data() {

@@ -699,15 +699,15 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
-    fn mask_scatter<const D: usize>(
+    fn mask_where<const D: usize>(
         tensor: ADTensor<B, D>,
         mask: BoolTensor<B, D>,
         source: ADTensor<B, D>,
     ) -> ADTensor<B, D> {
         #[derive(Debug)]
-        struct MaskScatter;
+        struct MaskWhere;
 
-        impl<B: Backend, const D: usize> Backward<B, D, 2> for MaskScatter {
+        impl<B: Backend, const D: usize> Backward<B, D, 2> for MaskWhere {
             type State = (BoolTensor<B, D>, Shape<D>, Shape<D>, B::Device);
 
             fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
@@ -720,17 +720,17 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     grads,
                     |grad| {
                         let zeros = B::zeros(shape_lhs, &device);
-                        B::mask_scatter(grad, mask_4lhs.unwrap(), zeros)
+                        B::mask_where(grad, mask_4lhs.unwrap(), zeros)
                     },
                     |grad| {
                         let zeros = B::zeros(shape_rhs, &device);
-                        B::mask_scatter(zeros, mask_4rhs.unwrap(), grad)
+                        B::mask_where(zeros, mask_4rhs.unwrap(), grad)
                     },
                 );
             }
         }
 
-        match MaskScatter
+        match MaskWhere
             .prepare([tensor.node, source.node], [tensor.graph, source.graph])
             .statefull()
         {
@@ -741,10 +741,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     B::shape(&source.primitive),
                     B::device(&source.primitive),
                 ),
-                B::mask_scatter(tensor.primitive, mask, source.primitive),
+                B::mask_where(tensor.primitive, mask, source.primitive),
             ),
             OpsKind::UnTracked(prep) => {
-                prep.finish(B::mask_scatter(tensor.primitive, mask, source.primitive))
+                prep.finish(B::mask_where(tensor.primitive, mask, source.primitive))
             }
         }
     }
