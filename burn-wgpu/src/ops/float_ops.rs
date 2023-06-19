@@ -1,7 +1,7 @@
 use std::ops::Range;
 
 use super::numeric::NumericOps;
-use super::{BaseOps, Device, FloatElem, FloatTensor};
+use super::{BaseOps, BoolTensor, Device, FloatElem, FloatTensor};
 use crate::kernel::{matmul, unary, unary_inplace, unary_scalar, unary_scalar_inplace};
 use crate::{
     element::{FloatElement, IntElement},
@@ -223,10 +223,10 @@ where
     }
 
     fn equal<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        _rhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
-        todo!()
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
+    ) -> BoolTensor<Self, D> {
+        BaseOps::<G>::equal(lhs, rhs)
     }
 
     fn equal_elem<const D: usize>(

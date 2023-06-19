@@ -7,7 +7,7 @@ use crate::{
     GraphicsApi, WGPUBackend,
 };
 
-use super::{numeric::NumericOps, BaseOps, Device, IntElem, IntTensor};
+use super::{numeric::NumericOps, BaseOps, BoolTensor, Device, IntElem, IntTensor};
 
 impl<G, F, I> IntTensorOps<WGPUBackend<G, F, I>> for WGPUBackend<G, F, I>
 where
@@ -125,10 +125,10 @@ where
     }
 
     fn int_equal<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        _rhs: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
-        todo!()
+        lhs: IntTensor<Self, D>,
+        rhs: IntTensor<Self, D>,
+    ) -> BoolTensor<Self, D> {
+        BaseOps::<G>::equal::<I, D>(lhs, rhs)
     }
 
     fn int_equal_elem<const D: usize>(

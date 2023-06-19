@@ -1,7 +1,8 @@
 use crate::{
+    comparison,
     context::WorkGroup,
     element::WgpuElement,
-    kernel::{build_info, KernelSettings},
+    kernel::{build_info, comparison, KernelSettings},
     kernel_wgsl,
     pool::get_context,
     tensor::WgpuTensor,
@@ -208,5 +209,14 @@ impl<G: GraphicsApi> BaseOps<G> {
         );
 
         tensor
+    }
+
+    pub fn equal<E: WgpuElement, const D: usize>(
+        lhs: WgpuTensor<E, D>,
+        rhs: WgpuTensor<E, D>,
+    ) -> WgpuTensor<u32, D> {
+        comparison!(Equal, "==");
+
+        comparison::<Equal, E, D>(lhs, rhs)
     }
 }

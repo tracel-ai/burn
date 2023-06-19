@@ -1,7 +1,21 @@
 #[burn_tensor_testgen::testgen(map_comparison)]
 mod tests {
     use super::*;
-    use burn_tensor::{BasicOps, Data, Element, Float, Int, Numeric, Tensor, TensorKind};
+    use burn_tensor::{
+        backend::Backend, BasicOps, Data, Element, Float, Int, Numeric, Tensor, TensorKind,
+    };
+
+    type IntElem = <TestBackend as Backend>::IntElem;
+
+    #[test]
+    fn test_equal() {
+        equal::<Float, f32>()
+    }
+
+    #[test]
+    fn test_int_equal() {
+        equal::<Int, IntElem>()
+    }
 
     #[test]
     fn test_greater_elem() {
@@ -10,7 +24,7 @@ mod tests {
 
     #[test]
     fn test_int_greater_elem() {
-        greater_elem::<Int, i64>()
+        greater_elem::<Int, <TestBackend as Backend>::IntElem>()
     }
 
     #[test]
@@ -30,7 +44,7 @@ mod tests {
 
     #[test]
     fn test_int_greater() {
-        greater::<Int, i64>()
+        greater::<Int, IntElem>()
     }
 
     #[test]
@@ -40,7 +54,7 @@ mod tests {
 
     #[test]
     fn test_int_greater_equal() {
-        greater_equal::<Int, i64>()
+        greater_equal::<Int, IntElem>()
     }
 
     #[test]
@@ -50,7 +64,7 @@ mod tests {
 
     #[test]
     fn test_int_lower_elem() {
-        lower_elem::<Int, i64>()
+        lower_elem::<Int, IntElem>()
     }
 
     #[test]
@@ -60,7 +74,7 @@ mod tests {
 
     #[test]
     fn test_int_lower_equal_elem() {
-        lower_equal_elem::<Int, i64>()
+        lower_equal_elem::<Int, IntElem>()
     }
 
     #[test]
@@ -70,7 +84,7 @@ mod tests {
 
     #[test]
     fn test_int_lower() {
-        lower::<Int, i64>()
+        lower::<Int, IntElem>()
     }
 
     #[test]
@@ -80,7 +94,23 @@ mod tests {
 
     #[test]
     fn test_int_lower_equal() {
-        lower_equal::<Int, i64>()
+        lower_equal::<Int, IntElem>()
+    }
+
+    fn equal<K, E>()
+    where
+        K: Numeric<TestBackend, Elem = E> + BasicOps<TestBackend, Elem = E>,
+        E: Element,
+    {
+        let data_1 = Data::<f32, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert();
+        let data_2 = Data::<f32, 2>::from([[1.0, 1.0, 1.0], [4.0, 3.0, 5.0]]).convert();
+        let tensor_1 = Tensor::<TestBackend, 2, K>::from_data(data_1);
+        let tensor_2 = Tensor::<TestBackend, 2, K>::from_data(data_2);
+
+        let data_actual = tensor_1.equal(tensor_2);
+
+        let data_expected = Data::from([[false, true, false], [false, false, true]]);
+        assert_eq!(data_expected, data_actual.to_data());
     }
 
     fn greater_elem<K, E>()

@@ -25,21 +25,21 @@ impl WgpuElement for u32 {
     }
 }
 
-impl WgpuElement for i32 {
+impl WgpuElement for bool {
     fn type_name() -> &'static str {
-        "i32"
+        "bool"
     }
     fn as_bytes(slice: &[Self]) -> &[u8] {
         bytemuck::cast_slice(slice)
     }
     fn from_bytes(bytes: &[u8]) -> &[Self] {
-        bytemuck::cast_slice(bytes)
+        todo!()
     }
 }
 
-impl WgpuElement for i64 {
+impl WgpuElement for i32 {
     fn type_name() -> &'static str {
-        "i64"
+        "i32"
     }
     fn as_bytes(slice: &[Self]) -> &[u8] {
         bytemuck::cast_slice(slice)
@@ -63,4 +63,3 @@ impl WgpuElement for f32 {
 
 impl FloatElement for f32 {}
 impl IntElement for i32 {}
-impl IntElement for i64 {}
