@@ -10,15 +10,10 @@ var<storage, read_write> output: array<{{ elem }}>;
 @binding(2)
 var<storage, read> info: array<u32>;
 
-var<workgroup> data: array<{{ elem }}, {{ workgroup_size_x }}>;
-
 @compute
 @workgroup_size({{ workgroup_size_x }}, 1, 1)
 fn main(
     @builtin(global_invocation_id) global_id: vec3<u32>,
-    @builtin(local_invocation_id) local_id: vec3<u32>,
-    @builtin(workgroup_id) workgroup_id: vec3<u32>,
-    @builtin(num_workgroups) num_workgroups: vec3<u32>,
 ) {
     let dim: u32 = info[0];
     let dim_reduce = info[4u * dim + 1u];
