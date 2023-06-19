@@ -247,7 +247,7 @@ mod tests {
             false,
             Initializer::KaimingUniform {
                 gain: 1.0,
-                use_fan_out: false,
+                fan_out_only: false,
             },
         );
         gru.reset_gate = create_gate_controller(
@@ -258,7 +258,7 @@ mod tests {
             false,
             Initializer::KaimingUniform {
                 gain: 1.0,
-                use_fan_out: false,
+                fan_out_only: false,
             },
         );
         gru.new_gate = create_gate_controller(
@@ -269,7 +269,7 @@ mod tests {
             false,
             Initializer::KaimingUniform {
                 gain: 1.0,
-                use_fan_out: false,
+                fan_out_only: false,
             },
         );
 

@@ -38,7 +38,7 @@ pub struct Conv1dConfig {
     #[config(default = true)]
     pub bias: bool,
     /// The type of function used to initialize neural network parameters
-    #[config(default = "Initializer::KaimingUniform{gain:1.0/sqrt(3.0),use_fan_out:false}")]
+    #[config(default = "Initializer::KaimingUniform{gain:1.0/sqrt(3.0),fan_out_only:false}")]
     pub initializer: Initializer,
 }
 
@@ -175,7 +175,7 @@ mod tests {
             config.initializer,
             Initializer::KaimingUniform {
                 gain: 1.0 / sqrt(3.0),
-                use_fan_out: false
+                fan_out_only: false
             }
         );
         conv.weight.to_data().assert_within_range(-k..k);
