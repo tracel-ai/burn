@@ -380,31 +380,46 @@ where
         NdArrayTensor::new(output_array.into_shared())
     }
     pub fn argmax<const D: usize>(
-        tensor: NdArrayTensor<E, D>,
+        mut tensor: NdArrayTensor<E, D>,
         dim: usize,
     ) -> NdArrayTensor<i64, D> {
-        arg(tensor, dim, cmp_min)
+        if dim == D - 1 {
+            return arg(tensor, cmp_min);
+        }
+
+        tensor.array.swap_axes(dim, D - 1);
+        let mut tensor = arg(tensor, cmp_min);
+        tensor.array.swap_axes(dim, D - 1);
+
+        tensor
     }
 
     pub fn argmin<const D: usize>(
-        tensor: NdArrayTensor<E, D>,
+        mut tensor: NdArrayTensor<E, D>,
         dim: usize,
     ) -> NdArrayTensor<i64, D> {
-        arg(tensor, dim, cmp_max)
+        if dim == D - 1 {
+            return arg(tensor, cmp_max);
+        }
+
+        tensor.array.swap_axes(dim, D - 1);
+        let mut tensor = arg(tensor, cmp_max);
+        tensor.array.swap_axes(dim, D - 1);
+
+        tensor
     }
 }
 
 fn arg<E: NdArrayElement, F, const D: usize>(
     tensor: NdArrayTensor<E, D>,
-    dim: usize,
     cmp: F,
 ) -> NdArrayTensor<i64, D>
 where
     F: Fn(&f64, &f64) -> Ordering,
 {
     let mut shape = tensor.shape();
-    let batch_size = shape.dims[dim];
-    let mut end = shape.dims[dim];
+    let batch_size = shape.dims[D - 1];
+    let mut end = shape.dims[D - 1];
 
     let mut values = tensor.array.into_iter().collect::<Vec<_>>();
     let mut start = 0;
@@ -430,7 +445,7 @@ where
         start += batch_size;
         end += batch_size;
     }
-    shape.dims[dim] = 1;
+    shape.dims[D - 1] = 1;
     NdArrayTensor::from_data(Data::new(output, shape))
 }
 
