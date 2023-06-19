@@ -1,9 +1,12 @@
-use burn_tensor::Shape;
-
 use super::{build_info, KernelSettings, StaticKernel};
 use crate::{context::WorkGroup, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
+use burn_tensor::Shape;
 
-kernel_wgsl!(ComparisonRaw, "../template/comparison.wgsl");
+kernel_wgsl!(ComparisonRaw, "../template/comparison/binary.wgsl");
+kernel_wgsl!(
+    ComparisonInplaceRaw,
+    "../template/comparison/binary_inplace.wgsl"
+);
 
 #[macro_export]
 macro_rules! comparison {
@@ -22,6 +25,32 @@ macro_rules! comparison {
                         $ops
                     ),
                 )
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! comparison_inplace {
+    (
+        $struct:ident,
+        $ops:expr
+    ) => {
+        pub struct $struct;
+
+        impl $crate::kernel::StaticKernel for $struct {
+            fn source_template() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::ComparisonInplaceRaw::source_template()
+                    .register(
+                        "body",
+                        "lhs[index_lhs] = compare(lhs[index_lhs], rhs[index_rhs]);",
+                    )
+                    .add_template(format!(
+                        "{}return {{{{ elem }}}}(lhs {} rhs);{}",
+                        "fn compare(lhs: {{ elem }}, rhs: {{ elem }}) -> {{ elem }} {\n",
+                        $ops,
+                        "\n}\n"
+                    ))
             }
         }
     };
@@ -69,4 +98,31 @@ pub fn comparison<K: StaticKernel, E: WgpuElement, const D: usize>(
     );
 
     WgpuTensor::new(output.context, output.shape, output.buffer)
+}
+
+pub fn comparison_inplace<K: StaticKernel, E: WgpuElement, const D: usize>(
+    lhs: WgpuTensor<E, D>,
+    rhs: WgpuTensor<E, D>,
+) -> WgpuTensor<u32, D> {
+    lhs.assert_is_on_save_device(&rhs);
+
+    let kernel = lhs
+        .context
+        .compile_static::<KernelSettings<K, E, i32, 256, 1, 1>>();
+    let info = build_info(&[&lhs, &rhs]);
+    let info_buffers = lhs
+        .context
+        .create_buffer_with_data(bytemuck::cast_slice(&info));
+
+    lhs.context.execute(
+        WorkGroup::new(
+            f32::ceil(lhs.shape.num_elements() as f32 / 256_f32) as u32,
+            1,
+            1,
+        ),
+        kernel,
+        &[&lhs.buffer, &rhs.buffer, &info_buffers],
+    );
+
+    WgpuTensor::new(lhs.context, lhs.shape, lhs.buffer)
 }

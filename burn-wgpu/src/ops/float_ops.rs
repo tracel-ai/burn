@@ -230,10 +230,10 @@ where
     }
 
     fn equal_elem<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        _rhs: <WGPUBackend<G, F, I> as Backend>::FloatElem,
-    ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
-        todo!()
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> BoolTensor<Self, D> {
+        BaseOps::<G>::equal_elem(lhs, rhs)
     }
 
     fn greater<const D: usize>(
@@ -244,10 +244,10 @@ where
     }
 
     fn greater_elem<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        _rhs: <WGPUBackend<G, F, I> as Backend>::FloatElem,
-    ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
-        todo!()
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> BoolTensor<Self, D> {
+        BaseOps::<G>::greater_elem(lhs, rhs)
     }
 
     fn greater_equal<const D: usize>(
@@ -258,10 +258,10 @@ where
     }
 
     fn greater_equal_elem<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        _rhs: <WGPUBackend<G, F, I> as Backend>::FloatElem,
-    ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
-        todo!()
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> BoolTensor<Self, D> {
+        BaseOps::<G>::greater_equal_elem(lhs, rhs)
     }
 
     fn lower<const D: usize>(
@@ -272,10 +272,10 @@ where
     }
 
     fn lower_elem<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        _rhs: <WGPUBackend<G, F, I> as Backend>::FloatElem,
-    ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
-        todo!()
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> BoolTensor<Self, D> {
+        BaseOps::<G>::lower_elem(lhs, rhs)
     }
 
     fn lower_equal<const D: usize>(
@@ -286,10 +286,10 @@ where
     }
 
     fn lower_equal_elem<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        _rhs: <WGPUBackend<G, F, I> as Backend>::FloatElem,
-    ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
-        todo!()
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> BoolTensor<Self, D> {
+        BaseOps::<G>::lower_equal_elem(lhs, rhs)
     }
 
     fn sum<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {

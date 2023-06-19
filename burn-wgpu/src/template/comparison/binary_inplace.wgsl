@@ -10,6 +10,7 @@ var<storage, read> rhs: array<{{ elem }}>;
 @binding(2)
 var<storage, read> info: array<u32>;
 
+
 @compute
 @workgroup_size({{ workgroup_size_x }}, 1, 1)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
