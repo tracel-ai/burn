@@ -19,6 +19,16 @@ mod tests {
     }
 
     #[test]
+    fn test_equal_elem() {
+        equal_elem::<Float, FloatElem>()
+    }
+
+    #[test]
+    fn test_int_equal_elem() {
+        equal_elem::<Int, IntElem>()
+    }
+
+    #[test]
     fn test_greater_elem() {
         greater_elem::<Float, FloatElem>()
     }
