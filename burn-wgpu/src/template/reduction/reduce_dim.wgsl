@@ -26,17 +26,17 @@ fn main(
     var stride_dim: u32 = 0u;
     var shape_dim: u32 = 0u;
 
-    for (var i: u32 = 0u; i < dim; i++) {
-        let stride_input = info[i + 1u];
-        let stride_output = info[i + dim + 1u];
-        let shape_output = info[i + 3u * dim + 1u];
+    for (var i: u32 = 1u; i <= dim; i++) {
+        let stride_input = info[i];
+        let stride_output = info[i + dim];
+        let shape_output = info[i + 3u * dim];
 
         let num_block = global_id.x / stride_output % shape_output;
 
-        if i != dim_reduce {
+        if i - 1u != dim_reduce {
             index_offset += num_block * stride_input;
         } else {
-            let shape_input = info[i + 2u * dim + 1u];
+            let shape_input = info[i + 2u * dim];
             index_offset += num_block;
             stride_dim = stride_input;
             shape_dim = shape_input;

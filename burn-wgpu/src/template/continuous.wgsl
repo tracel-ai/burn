@@ -16,10 +16,10 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let dim: u32 = info[0];
     var index_input: u32 = 0u;
 
-    for (var i: u32 = 0u; i < dim; i++) {
-        let stride_input = info[i + 1u];
-        let stride_output = info[i + dim + 1u];
-        let shape_input = info[i + 2u * dim + 1u];
+    for (var i: u32 = 1u; i <= dim; i++) {
+        let stride_input = info[i];
+        let stride_output = info[i + dim];
+        let shape_input = info[i + 2u * dim];
 
         index_input += global_id.x / stride_output % shape_input * stride_input;
     }
