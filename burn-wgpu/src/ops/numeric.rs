@@ -191,6 +191,7 @@ impl<G: GraphicsApi> NumericOps<G> {
     ) -> WgpuTensor<I, D> {
         reduction_args_dim::<ArgsMax, E, I, D>(tensor, dim)
     }
+
     pub fn argmin<E: WgpuElement + Element, I: WgpuElement, const D: usize>(
         tensor: WgpuTensor<E, D>,
         dim: usize,
