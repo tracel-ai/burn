@@ -150,6 +150,10 @@ impl ONNXGraph {
                 NodeType::Relu => graph.register(Self::relu_conversion(node)),
                 NodeType::Flatten => graph.register(Self::flatten_conversion(node)),
                 NodeType::LogSoftmax => graph.register(Self::log_softmax_conversion(node)),
+                NodeType::Constant => {
+                    println!("{:?}", node);
+                    panic!();
+                }
                 _ => panic!("Unsupported node conversion {}", node.node_type),
             }
         }
@@ -272,6 +276,8 @@ impl Argument {
     pub fn to_tensor_type(&self) -> TensorType {
         match &self.ty {
             ArgType::Tensor(tensor) => TensorType::new(self.name.clone(), tensor.dim),
+            ArgType::Shape(_shape) => panic!("Can't transforme shape to tensor."),
+            ArgType::Constant => panic!("Can't transforme constant to tensor."),
         }
     }
 }
