@@ -9,7 +9,6 @@ use crate::tensor::Tensor;
 use burn_tensor::module::conv1d;
 use burn_tensor::ops::conv::calculate_conv_padding;
 use burn_tensor::ops::ConvOptions;
-use burn_tensor::Shape;
 use libm::sqrt;
 
 /// Configuration to create an [1D convolution](Conv1d) layer.
@@ -76,8 +75,8 @@ pub struct Conv1d<B: Backend> {
 impl Conv1dConfig {
     /// Initialize a new [conv1d](Conv1d) module.
     pub fn init<B: Backend>(&self) -> Conv1d<B> {
-        let shape = Shape::from([self.channels_out, self.channels_in, self.kernel_size]);
-        let fan_in: usize = shape.fan_in();
+        let shape = [self.channels_out, self.channels_in, self.kernel_size];
+        let fan_in: usize = self.channels_in * self.kernel_size;
         let weight = self.initializer.init_with(shape, Some(fan_in), None);
         let bias = if self.bias {
             Some(

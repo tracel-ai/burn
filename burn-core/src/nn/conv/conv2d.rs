@@ -9,7 +9,6 @@ use crate::tensor::Tensor;
 use burn_tensor::module::conv2d;
 use burn_tensor::ops::conv::calculate_conv_padding;
 use burn_tensor::ops::ConvOptions;
-use burn_tensor::Shape;
 use libm::sqrt;
 
 /// Configuration to create an [2D convolution](Conv2d) layer.
@@ -74,13 +73,13 @@ pub struct Conv2d<B: Backend> {
 impl Conv2dConfig {
     /// Initialize a new [conv2d](Conv2d) module.
     pub fn init<B: Backend>(&self) -> Conv2d<B> {
-        let shape = Shape::from([
+        let shape = [
             self.channels[1],
             self.channels[0],
             self.kernel_size[0],
             self.kernel_size[1],
-        ]);
-        let fan_in = shape.fan_in();
+        ];
+        let fan_in = self.channels[0] * self.kernel_size.iter().product::<usize>();
         let weight = self.initializer.init_with(shape, Some(fan_in), None);
         let bias = if self.bias {
             Some(

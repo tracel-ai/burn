@@ -4,7 +4,6 @@ use crate::config::Config;
 use crate::module::Module;
 use crate::module::Param;
 use crate::tensor::{backend::Backend, Tensor};
-use burn_tensor::Shape;
 use libm::sqrt;
 
 use super::Initializer;
@@ -30,7 +29,7 @@ pub struct LinearConfig {
 ///
 /// # Params
 ///
-/// - weight: Matrix of shape `[d_output, d_input]` initialized from a uniform distribution:
+/// - weight: Matrix of shape `[d_input, d_output]` initialized from a uniform distribution:
 ///     `U(-k, k)`, where `k = sqrt(1 / d_input)`
 ///
 /// - bias (optional): Vector of size `d_output` initialized from a uniform distribution:
@@ -44,17 +43,16 @@ pub struct Linear<B: Backend> {
 impl LinearConfig {
     /// Initialize a new [linear](Linear) module.
     pub fn init<B: Backend>(&self) -> Linear<B> {
-        let shape = Shape::from([self.d_output, self.d_input]);
-        let fan_in = shape.fan_in();
-        let fan_out = shape.fan_out();
+        let shape = [self.d_input, self.d_output];
         let weight = self
             .initializer
-            .init_with(shape, Some(fan_in), Some(fan_out));
+            .init_with(shape, Some(self.d_input), Some(self.d_output));
         let bias = if self.bias {
-            Some(
-                self.initializer
-                    .init_with([self.d_output], Some(fan_in), Some(fan_out)),
-            )
+            Some(self.initializer.init_with(
+                [self.d_output],
+                Some(self.d_input),
+                Some(self.d_output),
+            ))
         } else {
             None
         };
@@ -82,7 +80,7 @@ impl<B: Backend> Linear<B> {
     /// - input: `[..., any, d_input]`
     /// - output: `[..., any, d_output]`
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
-        let output = input.matmul(self.weight.val().unsqueeze().transpose());
+        let output = input.matmul(self.weight.val().unsqueeze());
 
         match &self.bias {
             Some(bias) => output + bias.val().unsqueeze(),
