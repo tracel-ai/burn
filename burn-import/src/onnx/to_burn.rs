@@ -159,7 +159,7 @@ impl ONNXGraph {
                 NodeType::LogSoftmax => graph.register(Self::log_softmax_conversion(node)),
                 NodeType::Constant => graph.register(Self::constant_conversion(node)),
                 NodeType::Equal => graph.register(Self::equal_conversion(node)),
-                _ => panic!("Unsupported node conversion {:?}", node),
+                _ => panic!("Unsupported node conversion {}", node.node_type),
             }
         }
 

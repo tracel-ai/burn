@@ -80,15 +80,11 @@ pub fn dim_inference(
             }
             NodeType::Equal => same_as_input(node),
             NodeType::Shape => shape_update_outputs(node),
-            NodeType::Gather => gather_update_outputs(node),
             NodeType::Unsqueeze => unsqueeze_update_outputs(node),
             NodeType::Slice => slice_update_outputs(node),
             NodeType::MatMul => same_as_input(node),
             NodeType::Concat => concat_update_outputs(node),
             NodeType::Reshape => reshape_update_outputs(node),
-            NodeType::Transpose => same_as_input(node),
-            NodeType::Expand => same_as_input(node),
-            NodeType::Where => same_as_input(node),
             _ => todo!(
                 "shape inference for {:?} is not implemented",
                 node.node_type
@@ -172,22 +168,6 @@ fn mean_update_outputs(node: &mut Node) {
     } else {
         node.outputs[0].ty = ArgType::Tensor(TensorArg { dim: 1 });
     }
-}
-
-fn gather_update_outputs(node: &mut Node) {
-    if node.inputs.len() < 1 {
-        panic!("Gather: inputs required: {:?}", node);
-    }
-
-    // Extract the configuration of the linear layer (inputs are known)
-    let node_input = &mut node.inputs[0];
-    let dim = match node_input.clone().ty {
-        ArgType::Tensor(tensor) => tensor.dim,
-        ArgType::Shape(dim) => dim,
-        ArgType::Constant => panic!("Needs shape or tensor"),
-    };
-
-    node.outputs[0].ty = ArgType::Tensor(TensorArg { dim });
 }
 
 fn unsqueeze_update_outputs(node: &mut Node) {
