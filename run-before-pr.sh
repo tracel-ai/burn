@@ -52,11 +52,17 @@ build_and_test_all_features() {
     echo "Build with all defaults"
     cargo build --all-features
 
-    echo "Test with defaults"
+    echo "Test with all features"
     cargo test --all-features
+
+    echo "Check documentation with all features"
+    cargo doc --all-features
 
     cd .. || exit
 }
+
+# Set RUSTDOCFLAGS to treat warnings as errors for the documentation build
+export RUSTDOCFLAGS="-D warnings"
 
 # Save the script start time
 start_time=$(date +%s)
@@ -65,11 +71,11 @@ start_time=$(date +%s)
 rustup target add wasm32-unknown-unknown
 rustup target add thumbv7m-none-eabi
 
-# TODO decide if we should "cargo clean" here.
 cargo build --workspace
 cargo test --workspace
 cargo fmt --check --all
 cargo clippy -- -D warnings
+cargo doc --workspace
 
 # no_std tests
 build_and_test_no_std "burn"
