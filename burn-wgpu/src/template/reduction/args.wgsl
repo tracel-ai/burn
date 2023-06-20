@@ -4,7 +4,7 @@ var<storage, read> input: array<{{ elem }}>;
 
 @group(0)
 @binding(1)
-var<storage, read_write> output: array<{{ elem }}>;
+var<storage, read_write> output: array<{{ int }}>;
 
 @group(0)
 @binding(2)
@@ -38,12 +38,19 @@ fn main(
         }
     }
 
-    var sum = {{ elem }}(0);
+    var current_value = {{ elem }}({{ initial }});
+    var index = {{ int }}(0);
 
     for (var i = 0u; i < shape_dim; i++) {
         let index_input = i * stride_dim;
-        sum += input[index_input + index_offset];
+        let value = input[index_input + index_offset];
+
+        if (value {{ cmp }} current_value) {
+            current_value = value;
+            index = {{ int }}(i);
+
+        }
     }
 
-    {{ assign }}
+    output[global_id.x] = index;
 }

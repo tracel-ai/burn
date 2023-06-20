@@ -1,7 +1,7 @@
 use std::ops::Range;
 
 use super::numeric::NumericOps;
-use super::{BaseOps, BoolTensor, Device, FloatElem, FloatTensor};
+use super::{BaseOps, BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
 use crate::kernel::{matmul, unary, unary_inplace, unary_scalar, unary_scalar_inplace};
 use crate::{
     element::{FloatElement, IntElement},
@@ -427,17 +427,11 @@ where
         todo!()
     }
 
-    fn argmax<const D: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        _dim: usize,
-    ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
-        todo!()
+    fn argmax<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
+        NumericOps::<G>::argmax(tensor, dim)
     }
 
-    fn argmin<const D: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        _dim: usize,
-    ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
-        todo!()
+    fn argmin<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
+        NumericOps::<G>::argmin(tensor, dim)
     }
 }
