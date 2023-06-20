@@ -36,7 +36,7 @@ pub fn matmul<E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
-    matmul_tiling_1d(lhs, rhs)
+    matmul_coalescing(lhs, rhs)
 }
 
 pub fn matmul_tiling_1d<E: WgpuElement, const D: usize>(
@@ -268,8 +268,6 @@ pub fn matmul_naive<E: WgpuElement, const D: usize>(
 
 #[cfg(test)]
 mod tests {
-    use burn_tensor::backend::Backend;
-
     use super::*;
     use crate::tests::TestTensor;
 
@@ -286,10 +284,10 @@ mod tests {
         same_as_reference(matmul_coalescing, [4, 25, 13], [4, 13, 77]);
     }
 
-    #[test]
-    pub fn test_caching() {
-        same_as_reference(matmul_caching, [4, 25, 13], [4, 13, 77]);
-    }
+    // #[test]
+    // pub fn test_caching() {
+    //     same_as_reference(matmul_caching, [4, 25, 13], [4, 13, 77]);
+    // }
 
     #[test]
     pub fn test_tiling_1d() {

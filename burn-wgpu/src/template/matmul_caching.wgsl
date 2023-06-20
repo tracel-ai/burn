@@ -1,14 +1,14 @@
 @group(0)
 @binding(0)
-var<storage, read> lhs: array<elem>;
+var<storage, read> lhs: array<{{ elem }}>;
 
 @group(0)
 @binding(1)
-var<storage, read> rhs: array<elem>;
+var<storage, read> rhs: array<{{ elem }}>;
 
 @group(0)
 @binding(2)
-var<storage, read_write> output: array<elem>;
+var<storage, read_write> output: array<{{ elem }}>;
 
 @group(0)
 @binding(3)
@@ -17,8 +17,8 @@ var<storage, read> info: array<u32>;
 const BLOCK_SIZE = {{ block_size }}u;
 const BLOCK_SIZE_2X = {{ block_size_2x }}u;
 
-var<workgroup> shared_lhs: array<elem, BLOCK_SIZE_2X>;
-var<workgroup> shared_rhs: array<elem, BLOCK_SIZE_2X>;
+var<workgroup> shared_lhs: array<{{ elem }}, BLOCK_SIZE_2X>;
+var<workgroup> shared_rhs: array<{{ elem }}, BLOCK_SIZE_2X>;
 
 @compute
 @workgroup_size({{ block_size }}, {{ block_size }}, 1)

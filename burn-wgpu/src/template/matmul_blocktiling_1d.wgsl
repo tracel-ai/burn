@@ -1,14 +1,14 @@
 @group(0)
 @binding(0)
-var<storage, read> lhs: array<elem>;
+var<storage, read> lhs: array<{{ elem }}>;
 
 @group(0)
 @binding(1)
-var<storage, read> rhs: array<elem>;
+var<storage, read> rhs: array<{{ elem }}>;
 
 @group(0)
 @binding(2)
-var<storage, read_write> output: array<elem>;
+var<storage, read_write> output: array<{{ elem }}>;
 
 @group(0)
 @binding(3)
@@ -19,11 +19,11 @@ const BLOCK_K = {{block_k}}u;
 const BLOCK_SIZE_X_BLOCK_K = {{block_size_x_block_k}}u;
 const TILE_M = {{tile_m}}u;
 
-var<workgroup> shared_lhs: array<elem, BLOCK_SIZE_X_BLOCK_K>;
-var<workgroup> shared_rhs: array<elem, BLOCK_SIZE_X_BLOCK_K>;
+var<workgroup> shared_lhs: array<{{ elem }}, BLOCK_SIZE_X_BLOCK_K>;
+var<workgroup> shared_rhs: array<{{ elem }}, BLOCK_SIZE_X_BLOCK_K>;
 
 @compute
-@workgroup_size(WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y, 1)
+@workgroup_size({{ workgroup_size_x }}, {{ workgroup_size_y }}, 1)
 fn main(
     @builtin(global_invocation_id) global_id: vec3<u32>,
     @builtin(local_invocation_index) local_idx: u32,
@@ -66,7 +66,7 @@ fn main(
     let shared_row_rhs = local_idx / BLOCK_SIZE;
     let shared_col_rhs = local_idx % BLOCK_SIZE;
 
-    var results: array<elem, TILE_M>;
+    var results: array<{{ elem }}, TILE_M>;
 
     for (var k: u32 = 0u; k < K; k += BLOCK_K) {
         if shared_row_lhs < n_rows && shared_col_lhs + k < K {
