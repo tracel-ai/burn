@@ -7,6 +7,7 @@ pub struct FakeDataset<I> {
 }
 
 impl<I: Dummy<Faker>> FakeDataset<I> {
+    /// Create a new fake dataset with the given size.
     pub fn new(size: usize) -> Self {
         let mut items = Vec::with_capacity(size);
         for _ in 0..size {

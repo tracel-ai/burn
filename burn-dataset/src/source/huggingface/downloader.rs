@@ -11,13 +11,18 @@ use thiserror::Error;
 const PYTHON: &str = "python3";
 const PYTHON_SOURCE: &str = include_str!("importer.py");
 
+/// Error type for [HuggingfaceDatasetLoader](HuggingfaceDatasetLoader).
 #[derive(Error, Debug)]
 pub enum ImporterError {
+    /// Unknown error.
     #[error("unknown: `{0}`")]
     Unknown(String),
+
+    /// Fail to download python dependencies.
     #[error("fail to download python dependencies: `{0}`")]
     FailToDownloadPythonDependencies(String),
 
+    /// Fail to create sqlite dataset.
     #[error("sqlite dataset: `{0}`")]
     SqliteDataset(#[from] SqliteDatasetError),
 }

@@ -14,6 +14,7 @@ pub struct InMemDataset<I> {
 }
 
 impl<I> InMemDataset<I> {
+    /// Creates a new in memory dataset from the given items.
     pub fn new(items: Vec<I>) -> Self {
         InMemDataset { items }
     }

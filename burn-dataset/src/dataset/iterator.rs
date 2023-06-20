@@ -8,6 +8,7 @@ pub struct DatasetIterator<'a, I> {
 }
 
 impl<'a, I> DatasetIterator<'a, I> {
+    /// Creates a new dataset iterator.
     pub fn new<D>(dataset: &'a D) -> Self
     where
         D: Dataset<I>,
