@@ -12,7 +12,7 @@ pub fn cat<E: WgpuElement, const D: usize>(
     inputs: Vec<WgpuTensor<E, D>>,
     dim: usize,
 ) -> WgpuTensor<E, D> {
-    const WORKGROUP: usize = 32;
+    const WORKGROUP: usize = 256;
 
     let first_input = inputs.get(0).unwrap();
     let context = &first_input.context;
@@ -34,7 +34,7 @@ pub fn cat<E: WgpuElement, const D: usize>(
             1,
             1,
         );
-        let mut info = build_info(&[&input, &output]);
+        let mut info = build_info(&[input, &output]);
         info.push(dim as u32);
         info.push(dim_cat_index as u32);
         dim_cat_index += input.shape.dims[dim];
