@@ -4,7 +4,7 @@ use crate::{
     element::WgpuElement,
     kernel::{
         build_info, comparison, comparison_elem, comparison_elem_inplace, comparison_inplace,
-        KernelSettings,
+        mask_fill, mask_fill_inplace, KernelSettings,
     },
     kernel_wgsl,
     pool::get_context,
@@ -371,5 +371,17 @@ impl<G: GraphicsApi> BaseOps<G> {
         }
 
         comparison_elem::<LowerEqualElem, E, D>(lhs, rhs)
+    }
+
+    pub fn mask_fill<E: WgpuElement, const D: usize>(
+        tensor: WgpuTensor<E, D>,
+        mask: WgpuTensor<u32, D>,
+        value: E,
+    ) -> WgpuTensor<E, D> {
+        if tensor.can_mut() {
+            return mask_fill_inplace(tensor, mask, value);
+        }
+
+        mask_fill(tensor, mask, value)
     }
 }

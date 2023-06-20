@@ -54,6 +54,7 @@ mod tests {
     burn_tensor::testgen_aggregation!();
     burn_tensor::testgen_arg!();
     burn_tensor::testgen_map_comparison!();
+    burn_tensor::testgen_mask!();
 
     type TestADBackend = burn_autodiff::ADBackendDecorator<TestBackend>;
     type TestADTensor<const D: usize, K> = burn_tensor::Tensor<TestADBackend, D, K>;
