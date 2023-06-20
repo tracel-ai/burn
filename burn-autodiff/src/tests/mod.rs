@@ -1,3 +1,5 @@
+#![allow(missing_docs)]
+
 mod add;
 mod aggregation;
 mod avgpool1d;
