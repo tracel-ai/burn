@@ -3,7 +3,7 @@ use crate as burn;
 use super::LRScheduler;
 use crate::{config::Config, LearningRate};
 
-/// Configuration to create a [noam](NoamScheduler) learning rate scheduler.
+/// Configuration to create a [noam](NoamLRScheduler) learning rate scheduler.
 #[derive(Config)]
 pub struct NoamLRSchedulerConfig {
     /// The initial learning rate.
@@ -26,7 +26,7 @@ pub struct NoamLRScheduler {
 }
 
 impl NoamLRSchedulerConfig {
-    /// Initialize a new [noam](NoamScheduler) learning rate scheduler.
+    /// Initialize a new [noam](NoamLRScheduler) learning rate scheduler.
     pub fn init(&self) -> NoamLRScheduler {
         NoamLRScheduler {
             warmup_steps: self.warmup_steps as f64,

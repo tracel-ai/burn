@@ -68,13 +68,13 @@ impl From<&'static str> for SqliteDatasetError {
 /// can be in any order.
 ///
 /// For the supported field types, refer to:
-/// - Serialization field types: https://docs.rs/serde_rusqlite/latest/serde_rusqlite
-/// - SQLite data types: https://www.sqlite.org/datatype3.html
+/// - [Serialization field types](https://docs.rs/serde_rusqlite/latest/serde_rusqlite)
+/// - [SQLite data types](https://www.sqlite.org/datatype3.html)
 ///
 /// 2. The fields in the `I` struct can be serialized into a single column `item` in the table. In this case, the table
 /// should have a single column named `item` of type `BLOB`. This is useful when the `I` struct contains complex fields
 /// that cannot be mapped to a SQLite type, such as nested structs, vectors, etc. The serialization is done using
-/// MessagePack (https://msgpack.org/).
+/// [MessagePack](https://msgpack.org/).
 ///
 /// Note: The code automatically figures out which of the above two cases is applicable, and uses the appropriate
 /// method to read the data from the table.
@@ -490,7 +490,7 @@ where
 
     /// Serializes and writes an item to the database. The item is written to the table for the
     /// specified split. If the table does not exist, it is created. If the table exists, the item
-    /// is appended to the table. The serialization is done using the MessagePack (https://msgpack.org/)
+    /// is appended to the table. The serialization is done using the [MessagePack](https://msgpack.org/)
     ///
     /// # Arguments
     ///

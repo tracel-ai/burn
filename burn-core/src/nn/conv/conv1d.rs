@@ -59,7 +59,7 @@ pub enum Conv1dPaddingConfig {
 /// - weight: Tensor of shape [channels_out, channels_in, kernel_size] initialized from a uniform
 ///     distribution `U(-k, k)` where `k = sqrt(1 / channels_in * kernel_size)`
 ///
-/// - bias:   Tensor of shape [channels_out], initialized from a uniform distribution `U(-k, k)`
+/// - bias:   Tensor of shape `[channels_out]`, initialized from a uniform distribution `U(-k, k)`
 ///     where `k = sqrt(1 / channels_in * kernel_size)`
 #[derive(Module, Debug)]
 pub struct Conv1d<B: Backend> {

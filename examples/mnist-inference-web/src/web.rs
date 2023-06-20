@@ -10,7 +10,7 @@ use burn::tensor::Tensor;
 use wasm_bindgen::prelude::*;
 
 /// Mnist structure that corresponds to JavaScript class.
-/// See: https://rustwasm.github.io/wasm-bindgen/contributing/design/exporting-rust-struct.html
+/// See:[exporting-rust-struct](https://rustwasm.github.io/wasm-bindgen/contributing/design/exporting-rust-struct.html)
 #[wasm_bindgen]
 pub struct Mnist {
     model: Model<Backend>,
@@ -35,8 +35,8 @@ impl Mnist {
     /// * `input` - A f32 slice of input 28x28 image
     ///
     /// See bindgen support types for passing and returning arrays:
-    /// * https://rustwasm.github.io/wasm-bindgen/reference/types/number-slices.html
-    /// * https://rustwasm.github.io/wasm-bindgen/reference/types/boxed-number-slices.html
+    /// * [number-slices](https://rustwasm.github.io/wasm-bindgen/reference/types/number-slices.html)
+    /// * [boxed-number-slices](https://rustwasm.github.io/wasm-bindgen/reference/types/boxed-number-slices.html)
     ///
     pub fn inference(&self, input: &[f32]) -> Result<Box<[f32]>, String> {
         // Reshape from the 1D array to 3d tensor [batch, height, width]
