@@ -142,8 +142,8 @@ mod tests {
 
         graph.register(Conv2dNode::new(
             "conv2d",
-            TensorType::new("input", 4),
-            TensorType::new("output", 4),
+            TensorType::new_float("input", 4),
+            TensorType::new_float("output", 4),
             Data::from([2.]).serialize(),
             None,
             Conv2dConfig::new([3, 3], [3, 3]),
@@ -175,7 +175,7 @@ mod tests {
                         conv2d,
                     }
                 }
-
+                #[allow(clippy::let_and_return)]
                 pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
                     let output = self.conv2d.forward(input);
 

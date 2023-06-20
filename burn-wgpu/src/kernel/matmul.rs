@@ -1,77 +1,34 @@
-use super::{build_info, DynamicKernelSettings, KernelSettings, StaticKernelGenerator};
+use super::{build_info, DynamicKernelSettings, KernelSettings, SourceTemplate, StaticKernel};
 use crate::{context::WorkGroup, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 use burn_tensor::Shape;
-use text_placeholder::Template;
 
 const BLOCK_SIZE: usize = 2;
 const BLOCK_K: usize = 2;
 const TILE_M: usize = 4;
 
 kernel_wgsl!(MatmulNaiveRaw, "../template/matmul_naive.wgsl");
-kernel_wgsl!(
-    MatmulCoalescingRaw,
-    "../template/matmul_mem_coalescing.wgsl"
-);
+kernel_wgsl!(MatmulCoalescing, "../template/matmul_mem_coalescing.wgsl");
 kernel_wgsl!(MatmulCachingRaw, "../template/matmul_caching.wgsl");
 kernel_wgsl!(MatmulTiling1DRaw, "../template/matmul_blocktiling_1d.wgsl");
 
 struct MatmulTiling1D;
-struct MatmulCoalescing;
 struct MatmulCaching;
 
-impl StaticKernelGenerator for MatmulTiling1D {
-    type Source = String;
-
-    fn generate() -> Self::Source {
-        #[derive(new, serde::Serialize)]
-        struct Value {
-            block_size: String,
-            block_size_x_block_k: String,
-            block_k: String,
-            tile_m: String,
-        }
-
-        let source = MatmulTiling1DRaw::generate();
-        let template = Template::new(source.as_ref());
-
-        let source = template
-            .fill_with_struct_strict(&Value::new(
-                BLOCK_SIZE.to_string(),
-                (BLOCK_SIZE * BLOCK_K).to_string(),
-                BLOCK_K.to_string(),
-                TILE_M.to_string(),
-            ))
-            .unwrap();
-
-        println!("Teamplate {source}");
-
-        source
+impl StaticKernel for MatmulTiling1D {
+    fn source_template() -> SourceTemplate {
+        MatmulTiling1DRaw::source_template()
+            .register("block_size", BLOCK_SIZE.to_string())
+            .register("block_size_x_block_k", (BLOCK_SIZE * BLOCK_K).to_string())
+            .register("block_k", BLOCK_K.to_string())
+            .register("tile_m", TILE_M.to_string())
     }
 }
 
-impl StaticKernelGenerator for MatmulCoalescing {
-    type Source = String;
-
-    fn generate() -> Self::Source {
-        let source = MatmulCoalescingRaw::generate();
-
-        let source = source.replace("BLOCK_SIZE_2X", &(BLOCK_SIZE * BLOCK_SIZE).to_string());
-        let source = source.replace("BLOCK_SIZE", &BLOCK_SIZE.to_string());
-
-        source
-    }
-}
-
-impl StaticKernelGenerator for MatmulCaching {
-    type Source = String;
-
-    fn generate() -> Self::Source {
-        let source = MatmulCoalescingRaw::generate();
-
-        let source = source.replace("BLOCK_SIZE_2X", &BLOCK_SIZE.to_string());
-        let source = source.replace("BLOCK_SIZE", &BLOCK_SIZE.to_string());
-
-        source
+impl StaticKernel for MatmulCaching {
+    fn source_template() -> SourceTemplate {
+        MatmulCachingRaw::source_template()
+            .register("block_size", BLOCK_SIZE.to_string())
+            .register("block_size_2x", (BLOCK_SIZE * BLOCK_SIZE).to_string())
     }
 }
 

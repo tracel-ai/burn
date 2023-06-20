@@ -1,11 +1,11 @@
 [package]
 authors = ["Dilshod Tadjibaev (@antimora)"]
-edition = "2021"
-license = "MIT/Apache-2.0"
-name = "burn-common"
-description = "Burn common crate."
-keywords = []
 categories = []
+description = "Common crate for the Burn framework"
+edition = "2021"
+keywords = []
+license = "MIT OR Apache-2.0"
+name = "burn-common"
 readme = "README.md"
 repository = "https://github.com/burn-rs/burn/tree/main/burn-common"
 version = "0.8.0"

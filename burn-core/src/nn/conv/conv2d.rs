@@ -9,7 +9,6 @@ use crate::tensor::Tensor;
 use burn_tensor::module::conv2d;
 use burn_tensor::ops::conv::calculate_conv_padding;
 use burn_tensor::ops::ConvOptions;
-
 use libm::sqrt;
 
 /// Configuration to create an [2D convolution](Conv2d) layer.
@@ -35,7 +34,7 @@ pub struct Conv2dConfig {
     #[config(default = true)]
     pub bias: bool,
     /// The type of function used to initialize neural network parameters
-    #[config(default = "Initializer::UniformDefault")]
+    #[config(default = "Initializer::KaimingUniform{gain:1.0/sqrt(3.0),fan_out_only:false}")]
     pub initializer: Initializer,
 }
 
@@ -74,24 +73,19 @@ pub struct Conv2d<B: Backend> {
 impl Conv2dConfig {
     /// Initialize a new [conv2d](Conv2d) module.
     pub fn init<B: Backend>(&self) -> Conv2d<B> {
-        let k = (self.channels[0] * self.kernel_size[0] * self.kernel_size[1]) as f64;
-        let k = sqrt(1.0 / k);
-
-        let initializer = if let Initializer::UniformDefault = self.initializer {
-            Initializer::Uniform(-k, k)
-        } else {
-            self.initializer.clone()
-        };
-
-        let weight = initializer.init([
+        let shape = [
             self.channels[1],
             self.channels[0],
             self.kernel_size[0],
             self.kernel_size[1],
-        ]);
-
+        ];
+        let fan_in = self.channels[0] * self.kernel_size.iter().product::<usize>();
+        let weight = self.initializer.init_with(shape, Some(fan_in), None);
         let bias = if self.bias {
-            Some(initializer.init([self.channels[1]]))
+            Some(
+                self.initializer
+                    .init_with([self.channels[1]], Some(fan_in), None),
+            )
         } else {
             None
         };
@@ -171,6 +165,7 @@ mod tests {
 
     use super::*;
     use crate::TestBackend;
+    use libm::sqrt;
 
     #[test]
     fn initializer_default() {
@@ -181,7 +176,13 @@ mod tests {
         let k = sqrt(1.0 / k) as f32;
         let conv = config.init::<TestBackend>();
 
-        assert_eq!(config.initializer, Initializer::UniformDefault);
+        assert_eq!(
+            config.initializer,
+            Initializer::KaimingUniform {
+                gain: 1.0 / sqrt(3.0),
+                fan_out_only: false
+            }
+        );
         conv.weight.to_data().assert_within_range(-k..k);
     }
 

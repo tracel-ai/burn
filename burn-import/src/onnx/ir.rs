@@ -15,6 +15,8 @@ pub struct Argument {
 #[derive(Debug, Clone)]
 pub enum ArgType {
     Tensor(TensorArg),
+    Shape(usize),
+    Constant,
 }
 
 #[derive(new, Default, Debug, Clone)]

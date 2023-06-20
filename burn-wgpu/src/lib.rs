@@ -22,8 +22,14 @@ pub use graphics::*;
 mod tests {
     use super::*;
 
-    pub type TestBackend = WGPUBackend<Vulkan, f32, i64>;
-    pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
+    #[cfg(target_os = "macos")]
+    type GraphicsApi = Metal;
+
+    #[cfg(not(target_os = "macos"))]
+    type GraphicsApi = Vulkan;
+
+    type TestBackend = WGPUBackend<GraphicsApi, f32, i32>;
+    type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
     // type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
 
     burn_tensor::testgen_add!();
@@ -46,6 +52,8 @@ mod tests {
     burn_tensor::testgen_transpose!();
     burn_tensor::testgen_index!();
     burn_tensor::testgen_aggregation!();
+    burn_tensor::testgen_arg!();
+    burn_tensor::testgen_map_comparison!();
 
     type TestADBackend = burn_autodiff::ADBackendDecorator<TestBackend>;
     type TestADTensor<const D: usize, K> = burn_tensor::Tensor<TestADBackend, D, K>;

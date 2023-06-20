@@ -34,7 +34,7 @@ pub trait IntTensorOps<B: Backend> {
         indexes: [Range<usize>; D2],
         value: B::IntTensorPrimitive<D1>,
     ) -> B::IntTensorPrimitive<D1>;
-    fn int_mask_scatter<const D: usize>(
+    fn int_mask_where<const D: usize>(
         tensor: B::IntTensorPrimitive<D>,
         mask: B::BoolTensorPrimitive<D>,
         source: B::IntTensorPrimitive<D>,

@@ -198,12 +198,18 @@ where
         K::lower_equal_elem(self.primitive, other.elem())
     }
 
-    /// Fill elements from the given tensor based where the mask is true.
-    pub fn mask_scatter(self, mask: Tensor<B, D, Bool>, source: Self) -> Self {
-        Self::new(K::mask_scatter(self.primitive, mask, source.primitive))
+    /// Update the given tensor with the value tensor where the mask is true.
+    ///
+    /// This is similar to [mask_fill](Tensor::mask_fill), however the value is a tensor instead of
+    /// a scalar.
+    pub fn mask_where(self, mask: Tensor<B, D, Bool>, value: Self) -> Self {
+        Self::new(K::mask_where(self.primitive, mask, value.primitive))
     }
 
-    /// Fill each element with the given value based on the given mask.
+    /// Update the given tensor with the value where the mask is true.
+    ///
+    /// This is similar to [mask_where](Tensor::mask_where), however the value is a scalar instead of
+    /// a tensor.
     pub fn mask_fill<E: ElementConversion>(self, mask: Tensor<B, D, Bool>, value: E) -> Self {
         Self::new(K::mask_fill(self.primitive, mask, value.elem()))
     }
@@ -446,7 +452,7 @@ where
         lhs: Self::Primitive<D>,
         rhs: Self::Elem,
     ) -> Tensor<B, D, Bool>;
-    fn mask_scatter<const D: usize>(
+    fn mask_where<const D: usize>(
         tensor: Self::Primitive<D>,
         mask: Tensor<B, D, Bool>,
         source: Self::Primitive<D>,
@@ -621,12 +627,12 @@ impl<B: Backend> Numeric<B> for Int {
         Tensor::new(B::int_lower_equal_elem(lhs, rhs))
     }
 
-    fn mask_scatter<const D: usize>(
+    fn mask_where<const D: usize>(
         tensor: Self::Primitive<D>,
         mask: Tensor<B, D, Bool>,
         source: Self::Primitive<D>,
     ) -> Self::Primitive<D> {
-        B::int_mask_scatter(tensor, mask.primitive, source)
+        B::int_mask_where(tensor, mask.primitive, source)
     }
 
     fn mask_fill<const D: usize>(
@@ -842,12 +848,12 @@ impl<B: Backend> Numeric<B> for Float {
         Tensor::new(B::lower_equal_elem(lhs, rhs))
     }
 
-    fn mask_scatter<const D: usize>(
+    fn mask_where<const D: usize>(
         tensor: Self::Primitive<D>,
         mask: Tensor<B, D, Bool>,
         source: Self::Primitive<D>,
     ) -> Self::Primitive<D> {
-        B::mask_scatter(tensor, mask.primitive, source)
+        B::mask_where(tensor, mask.primitive, source)
     }
 
     fn mask_fill<const D: usize>(

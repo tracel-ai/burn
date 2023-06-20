@@ -150,10 +150,10 @@ pub trait TensorOps<B: Backend> {
         indexes: [Range<usize>; D2],
         value: B::TensorPrimitive<D1>,
     ) -> B::TensorPrimitive<D1>;
-    fn mask_scatter<const D: usize>(
+    fn mask_where<const D: usize>(
         tensor: B::TensorPrimitive<D>,
         mask: B::BoolTensorPrimitive<D>,
-        source: B::TensorPrimitive<D>,
+        value: B::TensorPrimitive<D>,
     ) -> B::TensorPrimitive<D>;
     fn mask_fill<const D: usize>(
         tensor: B::TensorPrimitive<D>,

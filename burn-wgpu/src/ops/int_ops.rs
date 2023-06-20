@@ -7,7 +7,7 @@ use crate::{
     GraphicsApi, WGPUBackend,
 };
 
-use super::{numeric::NumericOps, BaseOps, Device, IntElem, IntTensor};
+use super::{numeric::NumericOps, BaseOps, BoolTensor, Device, IntElem, IntTensor};
 
 impl<G, F, I> IntTensorOps<WGPUBackend<G, F, I>> for WGPUBackend<G, F, I>
 where
@@ -67,7 +67,7 @@ where
         BaseOps::<G>::index_assign(tensor, indexes, value)
     }
 
-    fn int_mask_scatter<const D: usize>(
+    fn int_mask_where<const D: usize>(
         _tensor: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
         _mask: <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D>,
         _source: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
@@ -125,73 +125,73 @@ where
     }
 
     fn int_equal<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        _rhs: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
-        todo!()
+        lhs: IntTensor<Self, D>,
+        rhs: IntTensor<Self, D>,
+    ) -> BoolTensor<Self, D> {
+        BaseOps::<G>::equal::<I, D>(lhs, rhs)
     }
 
     fn int_equal_elem<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        _rhs: <WGPUBackend<G, F, I> as Backend>::IntElem,
-    ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
-        todo!()
+        lhs: IntTensor<Self, D>,
+        rhs: IntElem<Self>,
+    ) -> BoolTensor<Self, D> {
+        BaseOps::<G>::equal_elem::<I, D>(lhs, rhs)
     }
 
     fn int_greater<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        _rhs: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
-        todo!()
+        lhs: IntTensor<Self, D>,
+        rhs: IntTensor<Self, D>,
+    ) -> BoolTensor<Self, D> {
+        BaseOps::<G>::greater::<I, D>(lhs, rhs)
     }
 
     fn int_greater_elem<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        _rhs: <WGPUBackend<G, F, I> as Backend>::IntElem,
-    ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
-        todo!()
+        lhs: IntTensor<Self, D>,
+        rhs: IntElem<Self>,
+    ) -> BoolTensor<Self, D> {
+        BaseOps::<G>::greater_elem::<I, D>(lhs, rhs)
     }
 
     fn int_greater_equal<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        _rhs: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
-        todo!()
+        lhs: IntTensor<Self, D>,
+        rhs: IntTensor<Self, D>,
+    ) -> BoolTensor<Self, D> {
+        BaseOps::<G>::greater_equal::<I, D>(lhs, rhs)
     }
 
     fn int_greater_equal_elem<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        _rhs: <WGPUBackend<G, F, I> as Backend>::IntElem,
-    ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
-        todo!()
+        lhs: IntTensor<Self, D>,
+        rhs: IntElem<Self>,
+    ) -> BoolTensor<Self, D> {
+        BaseOps::<G>::greater_equal_elem::<I, D>(lhs, rhs)
     }
 
     fn int_lower<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        _rhs: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
-        todo!()
+        lhs: IntTensor<Self, D>,
+        rhs: IntTensor<Self, D>,
+    ) -> BoolTensor<Self, D> {
+        BaseOps::<G>::lower::<I, D>(lhs, rhs)
     }
 
     fn int_lower_elem<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        _rhs: <WGPUBackend<G, F, I> as Backend>::IntElem,
-    ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
-        todo!()
+        lhs: IntTensor<Self, D>,
+        rhs: IntElem<Self>,
+    ) -> BoolTensor<Self, D> {
+        BaseOps::<G>::lower_elem::<I, D>(lhs, rhs)
     }
 
     fn int_lower_equal<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        _rhs: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
-        todo!()
+        lhs: IntTensor<Self, D>,
+        rhs: IntTensor<Self, D>,
+    ) -> BoolTensor<Self, D> {
+        BaseOps::<G>::lower_equal::<I, D>(lhs, rhs)
     }
 
     fn int_lower_equal_elem<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        _rhs: <WGPUBackend<G, F, I> as Backend>::IntElem,
-    ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
-        todo!()
+        lhs: IntTensor<Self, D>,
+        rhs: IntElem<Self>,
+    ) -> BoolTensor<Self, D> {
+        BaseOps::<G>::lower_equal_elem::<I, D>(lhs, rhs)
     }
 
     fn int_add<const D: usize>(
@@ -273,17 +273,11 @@ where
         NumericOps::<G>::mean_dim(tensor, dim)
     }
 
-    fn int_argmax<const D: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        _dim: usize,
-    ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
-        todo!()
+    fn int_argmax<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
+        NumericOps::<G>::argmax(tensor, dim)
     }
 
-    fn int_argmin<const D: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        _dim: usize,
-    ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
-        todo!()
+    fn int_argmin<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
+        NumericOps::<G>::argmin(tensor, dim)
     }
 }

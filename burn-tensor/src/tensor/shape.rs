@@ -6,6 +6,7 @@ pub struct Shape<const D: usize> {
 }
 
 impl<const D: usize> Shape<D> {
+    /// Returns the total number of elements of a tensor having this shape
     pub fn num_elements(&self) -> usize {
         let mut num_elements = 1;
         for i in 0..D {
@@ -49,5 +50,17 @@ impl<const D: usize> From<Vec<usize>> for Shape<D> {
             dims[i] = dim;
         }
         Self::new(dims)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn num_elements() {
+        let dims = [2, 3, 4, 5];
+        let shape = Shape::new(dims);
+        assert_eq!(120, shape.num_elements());
     }
 }

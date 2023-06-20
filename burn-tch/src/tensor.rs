@@ -166,7 +166,7 @@ impl<const D: usize> From<Shape<D>> for TchShape<D> {
 
 impl<E: tch::kind::Element + Default, const D: usize> TchTensor<E, D> {
     pub fn from_data(data: Data<E, D>, device: tch::Device) -> Self {
-        let tensor = tch::Tensor::of_slice(data.value.as_slice()).to(device);
+        let tensor = tch::Tensor::from_slice(data.value.as_slice()).to(device);
         let shape_tch = TchShape::from(data.shape);
         let tensor = tensor.reshape(shape_tch.dims).to_kind(E::KIND);
 

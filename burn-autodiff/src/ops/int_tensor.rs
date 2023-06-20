@@ -229,12 +229,12 @@ impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         B::int_index_select_dim_assign(tensor, dim, indexes, value)
     }
 
-    fn int_mask_scatter<const D: usize>(
+    fn int_mask_where<const D: usize>(
         tensor: IntTensor<B, D>,
         mask: BoolTensor<B, D>,
-        source: IntTensor<B, D>,
+        value: IntTensor<B, D>,
     ) -> <ADBackendDecorator<B> as Backend>::IntTensorPrimitive<D> {
-        B::int_mask_scatter(tensor, mask, source)
+        B::int_mask_where(tensor, mask, value)
     }
 
     fn int_mask_fill<const D: usize>(

@@ -14,22 +14,25 @@ var<storage, read_write> output: array<elem>;
 @binding(3)
 var<storage, read> info: array<u32>;
 
+const BLOCK_SIZE = {{ block_size }}u;
+const BLOCK_SIZE_2X = {{ block_size_2x }}u;
+
 var<workgroup> shared_lhs: array<elem, BLOCK_SIZE_2X>;
 var<workgroup> shared_rhs: array<elem, BLOCK_SIZE_2X>;
 
 @compute
-@workgroup_size(BLOCK_SIZE, BLOCK_SIZE, 1)
+@workgroup_size({{ block_size }}, {{ block_size }}, 1)
 fn main(
     @builtin(global_invocation_id) global_id: vec3<u32>,
     @builtin(local_invocation_index) local_idx: u32,
     @builtin(workgroup_id) workgroup_id: vec3<u32>,
 ) {
     // Indexes
-    let thread_row = local_idx / BLOCK_SIZEu;
-    let thread_col = local_idx % BLOCK_SIZEu;
+    let thread_row = local_idx / BLOCK_SIZE;
+    let thread_col = local_idx % BLOCK_SIZE;
     let batch = global_id.z;
-    let row = workgroup_id.x * BLOCK_SIZEu + thread_row;
-    let col = workgroup_id.y * BLOCK_SIZEu + thread_col;
+    let row = workgroup_id.x * BLOCK_SIZE + thread_row;
+    let col = workgroup_id.y * BLOCK_SIZE + thread_col;
 
     // Basic information
     let dim = info[0];
@@ -39,8 +42,8 @@ fn main(
 
     // Calculate the corresponding offsets with support for broadcasting.
     let offset_output = batch * n_rows * n_cols;
-    var offset_lhs: u32 = workgroup_id.x * BLOCK_SIZEu * K;
-    var offset_rhs: u32 = workgroup_id.y * BLOCK_SIZEu;
+    var offset_lhs: u32 = workgroup_id.x * BLOCK_SIZE * K;
+    var offset_rhs: u32 = workgroup_id.y * BLOCK_SIZE;
     let num_elems_lhs = n_rows * K;
     let num_elems_rhs = K * n_cols;
 
@@ -58,21 +61,21 @@ fn main(
 
     var sum = 0.0;
 
-    for (var block_index: u32 = 0u; block_index < K; block_index += BLOCK_SIZEu) {
+    for (var block_index: u32 = 0u; block_index < K; block_index += BLOCK_SIZE) {
         let index_lhs = thread_row * K + thread_col + block_index;
         let index_rhs = thread_row * n_cols + thread_col + block_index * n_cols;
 
         if shared_row_lhs < n_rows && shared_col_lhs + k < K {
-            shared_lhs[thread_row * BLOCK_SIZEu + thread_col] = lhs[index_lhs + offset_lhs];
+            shared_lhs[thread_row * BLOCK_SIZE + thread_col] = lhs[index_lhs + offset_lhs];
         }
         if index_rhs < num_elems_rhs {
-            shared_rhs[thread_row * BLOCK_SIZEu + thread_col] = rhs[index_rhs + offset_rhs];
+            shared_rhs[thread_row * BLOCK_SIZE + thread_col] = rhs[index_rhs + offset_rhs];
         }
 
         workgroupBarrier();
 
-        for (var dot_index: u32 = 0u; dot_index < BLOCK_SIZEu; dot_index++) {
-            sum += shared_lhs[thread_row * BLOCK_SIZEu + dot_index] * shared_rhs[dot_index * BLOCK_SIZEu + thread_col];
+        for (var dot_index: u32 = 0u; dot_index < BLOCK_SIZE; dot_index++) {
+            sum += shared_lhs[thread_row * BLOCK_SIZE + dot_index] * shared_rhs[dot_index * BLOCK_SIZE + thread_col];
         }
 
         workgroupBarrier();

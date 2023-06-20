@@ -129,8 +129,8 @@ mod tests {
 
         graph.register(LinearNode::new(
             "linear",
-            TensorType::new("input", 4),
-            TensorType::new("output", 4),
+            TensorType::new_float("input", 4),
+            TensorType::new_float("output", 4),
             Data::from([2.]).serialize(),
             None,
             LinearConfig::new(128, 128),
@@ -159,7 +159,7 @@ mod tests {
                         linear,
                     }
                 }
-
+                #[allow(clippy::let_and_return)]
                 pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
                     let output = self.linear.forward(input);
 

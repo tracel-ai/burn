@@ -51,9 +51,9 @@ mod tests {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(MatmulNode::new(
-            TensorType::new("tensor1", 4),
-            TensorType::new("tensor2", 4),
-            TensorType::new("tensor3", 4),
+            TensorType::new_float("tensor1", 4),
+            TensorType::new_float("tensor2", 4),
+            TensorType::new_float("tensor3", 4),
         ));
 
         let expected = quote! {
@@ -69,7 +69,7 @@ mod tests {
                 pub fn new_with(record: ModelRecord<B>) -> Self {
                     Self { }
                 }
-
+                #[allow(clippy::let_and_return)]
                 pub fn forward(&self, tensor1: Tensor<B, 4>, tensor2: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor3 = tensor1.matmul(tensor2);
 

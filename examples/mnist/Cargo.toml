@@ -1,26 +1,26 @@
 [package]
-name = "mnist"
-version = "0.8.0"
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
-license = "MIT/Apache-2.0"
 edition = "2021"
+license = "MIT OR Apache-2.0"
+name = "mnist"
 publish = false
+version = "0.8.0"
 
 [features]
 default = []
-tch-cpu = ["dep:burn-tch"]
-tch-gpu = ["dep:burn-tch"]
 ndarray = ["burn-ndarray"]
 ndarray-blas-accelerate = ["burn-ndarray/blas-accelerate"]
 ndarray-blas-netlib = ["burn-ndarray/blas-netlib"]
 ndarray-blas-openblas = ["burn-ndarray/blas-openblas"]
+tch-cpu = ["dep:burn-tch"]
+tch-gpu = ["dep:burn-tch"]
 
 [dependencies]
-burn = { path = "../../burn" }
-burn-autodiff = { path = "../../burn-autodiff" }
-burn-tch = { path = "../../burn-tch", optional = true }
-burn-ndarray = { path = "../../burn-ndarray", optional = true }
+burn = {path = "../../burn"}
+burn-autodiff = {path = "../../burn-autodiff"}
+burn-ndarray = {path = "../../burn-ndarray", optional = true}
+burn-tch = {path = "../../burn-tch", optional = true}
 
 # Serialization
-serde = { workspace = true, features = ["std", "derive"]}
-log = { workspace = true }
+log = {workspace = true}
+serde = {workspace = true, features = ["std", "derive"]}
