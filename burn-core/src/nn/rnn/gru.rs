@@ -20,7 +20,6 @@ pub struct GruConfig {
     /// If a bias should be applied during the Gru transformation.
     pub bias: bool,
     /// Gru initializer
-    /// TODO: Make default Xavier initialization. https://github.com/burn-rs/burn/issues/371
     #[config(default = "Initializer::XavierNormal{gain:1.0}")]
     pub initializer: Initializer,
     /// The batch size.
