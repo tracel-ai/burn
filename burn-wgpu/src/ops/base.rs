@@ -3,7 +3,7 @@ use crate::{
     context::WorkGroup,
     element::WgpuElement,
     kernel::{
-        build_info, comparison, comparison_elem, comparison_elem_inplace, comparison_inplace,
+        build_info, cat, comparison, comparison_elem, comparison_elem_inplace, comparison_inplace,
         KernelSettings,
     },
     kernel_wgsl,
@@ -371,5 +371,12 @@ impl<G: GraphicsApi> BaseOps<G> {
         }
 
         comparison_elem::<LowerEqualElem, E, D>(lhs, rhs)
+    }
+
+    pub fn cat<E: WgpuElement, const D: usize>(
+        tensors: Vec<WgpuTensor<E, D>>,
+        dim: usize,
+    ) -> WgpuTensor<E, D> {
+        cat(tensors, dim)
     }
 }
