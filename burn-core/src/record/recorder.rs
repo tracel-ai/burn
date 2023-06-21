@@ -25,7 +25,16 @@ pub trait Recorder: Send + Sync + core::default::Default + core::fmt::Debug + Cl
     /// Arguments used to load recorded objects.
     type LoadArgs: Clone;
 
-    /// Records using the given [settings](RecordSettings).
+    /// Records an item.
+    ///
+    /// # Arguments
+    ///
+    /// * `record` - The item to record.
+    /// * `args` - Arguments used to record the item.
+    ///
+    /// # Returns
+    ///
+    /// The output of the recording.
     fn record<R: Record>(
         &self,
         record: R,

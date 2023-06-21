@@ -1,6 +1,6 @@
 use super::{MetricEntry, Numeric};
 
-/// Usefull utility to implement numeric [metrics](crate::train::metric::Metric).
+/// Usefull utility to implement numeric metrics.
 ///
 /// # Notes
 ///

@@ -1,6 +1,6 @@
 @group(0)
 @binding(0)
-var<storage, read> lhs: array<{{ elem }}>;
+var<storage, read_write> lhs: array<{{ elem }}>;
 
 @group(0)
 @binding(1)

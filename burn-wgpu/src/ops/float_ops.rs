@@ -206,19 +206,19 @@ where
     }
 
     fn mask_where<const D: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        _mask: <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D>,
-        _source: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
-        todo!()
+        tensor: FloatTensor<Self, D>,
+        mask: BoolTensor<Self, D>,
+        value: FloatTensor<Self, D>,
+    ) -> FloatTensor<Self, D> {
+        BaseOps::<G>::mask_where(tensor, mask, value)
     }
 
     fn mask_fill<const D: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        _mask: <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D>,
-        _value: <WGPUBackend<G, F, I> as Backend>::FloatElem,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
-        todo!()
+        tensor: FloatTensor<Self, D>,
+        mask: BoolTensor<Self, D>,
+        value: FloatElem<Self>,
+    ) -> FloatTensor<Self, D> {
+        BaseOps::<G>::mask_fill(tensor, mask, value)
     }
 
     fn equal<const D: usize>(

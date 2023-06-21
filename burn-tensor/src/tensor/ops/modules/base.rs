@@ -81,9 +81,9 @@ pub trait ModuleOps<B: Backend> {
     ///
     /// # Shapes
     ///
-    /// x:      [batch_size, channels_in, height, width],
-    /// weight: [channels_out, channels_in, kernel_size_1, kernel_size_2],
-    /// bias:   [channels_out],
+    /// x:      `[batch_size, channels_in, height, width]`,
+    /// weight: `[channels_out, channels_in, kernel_size_1, kernel_size_2]`,
+    /// bias:   `[channels_out]`,
     fn conv2d(
         x: B::TensorPrimitive<4>,
         weight: B::TensorPrimitive<4>,
@@ -94,9 +94,9 @@ pub trait ModuleOps<B: Backend> {
     ///
     /// # Shapes
     ///
-    /// x:      [batch_size, channels_in, height, width],
-    /// weight: [channels_in, channels_out, kernel_size_1, kernel_size_2],
-    /// bias:   [channels_out],
+    /// x:      `[batch_size, channels_in, height, width]`,
+    /// weight: `[channels_in, channels_out, kernel_size_1, kernel_size_2]`,
+    /// bias:   `[channels_out]`,
     fn conv_transpose2d(
         x: B::TensorPrimitive<4>,
         weight: B::TensorPrimitive<4>,
@@ -118,9 +118,9 @@ pub trait ModuleOps<B: Backend> {
     ///
     /// # Shapes
     ///
-    /// x:      [batch_size, channels_in, length],
-    /// weight: [channels_out, channels_in, kernel_size],
-    /// bias:   [channels_out],
+    /// x:      `[batch_size, channels_in, length]`,
+    /// weight: `[channels_out, channels_in, kernel_size]`,
+    /// bias:   `[channels_out]`,
     fn conv1d(
         x: B::TensorPrimitive<3>,
         weight: B::TensorPrimitive<3>,
@@ -133,9 +133,9 @@ pub trait ModuleOps<B: Backend> {
     ///
     /// # Shapes
     ///
-    /// x:      [batch_size, channels_in, length],
-    /// weight: [channels_in, channels_out, length],
-    /// bias:   [channels_out],
+    /// x:      `[batch_size, channels_in, length]`,
+    /// weight: `[channels_in, channels_out, length]`,
+    /// bias:   `[channels_out]`,
     fn conv_transpose1d(
         x: B::TensorPrimitive<3>,
         weight: B::TensorPrimitive<3>,

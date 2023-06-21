@@ -28,6 +28,6 @@ where
     /// Change the device of the state.
     ///
     /// This function will be called accordindly to have the state on the same device as the
-    /// gradient and the tensor when the [step](SimpleModuleOptimizer::step) function is called.
+    /// gradient and the tensor when the [step](SimpleOptimizer::step) function is called.
     fn to_device<const D: usize>(state: Self::State<D>, device: &B::Device) -> Self::State<D>;
 }
