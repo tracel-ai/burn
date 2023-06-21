@@ -4,7 +4,7 @@ use crate::{
     element::WgpuElement,
     kernel::{
         build_info, cat, comparison, comparison_elem, comparison_elem_inplace, comparison_inplace,
-        KernelSettings,
+        mask_fill, mask_fill_inplace, mask_where, mask_where_inplace, KernelSettings,
     },
     kernel_wgsl,
     pool::get_context,
@@ -57,7 +57,7 @@ impl<G: GraphicsApi> BaseOps<G> {
         device: &WgpuDevice,
     ) -> WgpuTensor<E, D> {
         let context = get_context::<G>(device);
-        let buffer = context.create_buffer_with_data(E::as_bytes(&data.value));
+        let buffer = context.create_buffer_with_data_options(E::as_bytes(&data.value), true);
 
         WgpuTensor::new(context, data.shape, buffer)
     }
@@ -371,6 +371,33 @@ impl<G: GraphicsApi> BaseOps<G> {
         }
 
         comparison_elem::<LowerEqualElem, E, D>(lhs, rhs)
+    }
+
+    pub fn mask_fill<E: WgpuElement, const D: usize>(
+        tensor: WgpuTensor<E, D>,
+        mask: WgpuTensor<u32, D>,
+        value: E,
+    ) -> WgpuTensor<E, D> {
+        if tensor.can_mut() {
+            return mask_fill_inplace(tensor, mask, value);
+        }
+
+        mask_fill(tensor, mask, value)
+    }
+
+    pub fn mask_where<E: WgpuElement, const D: usize>(
+        tensor: WgpuTensor<E, D>,
+        mask: WgpuTensor<u32, D>,
+        value: WgpuTensor<E, D>,
+    ) -> WgpuTensor<E, D> {
+        if tensor.can_mut_broadcast(&value) {
+            return mask_where_inplace(tensor, mask, value, 1);
+        }
+        if value.can_mut_broadcast(&tensor) {
+            return mask_where_inplace(value, mask, tensor, 0);
+        }
+
+        mask_where(tensor, mask, value)
     }
 
     pub fn cat<E: WgpuElement, const D: usize>(

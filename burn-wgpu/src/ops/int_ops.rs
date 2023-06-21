@@ -68,19 +68,19 @@ where
     }
 
     fn int_mask_where<const D: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        _mask: <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D>,
-        _source: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
-        todo!()
+        tensor: IntTensor<Self, D>,
+        mask: BoolTensor<Self, D>,
+        value: IntTensor<Self, D>,
+    ) -> IntTensor<Self, D> {
+        BaseOps::<G>::mask_where(tensor, mask, value)
     }
 
     fn int_mask_fill<const D: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        _mask: <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D>,
-        _value: <WGPUBackend<G, F, I> as Backend>::IntElem,
-    ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
-        todo!()
+        tensor: IntTensor<Self, D>,
+        mask: BoolTensor<Self, D>,
+        value: IntElem<Self>,
+    ) -> IntTensor<Self, D> {
+        BaseOps::<G>::mask_fill(tensor, mask, value)
     }
 
     fn int_gather<const D: usize>(

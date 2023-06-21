@@ -1,9 +1,10 @@
 use std::ops::Range;
 
-use burn_tensor::{backend::Backend, ops::BoolTensorOps, Data, Shape};
+use burn_tensor::{ops::BoolTensorOps, ops::IntTensorOps, Data, Shape};
 
 use crate::{
     element::{FloatElement, IntElement},
+    tensor::WgpuTensor,
     GraphicsApi, WGPUBackend,
 };
 
@@ -46,8 +47,15 @@ where
         BaseOps::<G>::from_data(data, device)
     }
 
-    fn bool_into_int<const D: usize>(_tensor: BoolTensor<Self, D>) -> IntTensor<Self, D> {
-        todo!()
+    fn bool_into_int<const D: usize>(tensor: BoolTensor<Self, D>) -> IntTensor<Self, D> {
+        if std::mem::size_of::<I>() == std::mem::size_of::<u32>() {
+            return WgpuTensor::new(tensor.context, tensor.shape, tensor.buffer);
+        }
+
+        let device = Self::bool_device(&tensor);
+        let data = Self::bool_into_data(tensor).convert::<I>();
+
+        Self::int_from_data(data, &device)
     }
 
     fn bool_device<const D: usize>(tensor: &BoolTensor<Self, D>) -> Device<Self> {
@@ -91,16 +99,19 @@ where
     }
 
     fn bool_equal<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D>,
-        _rhs: <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
-        todo!()
+        lhs: BoolTensor<Self, D>,
+        rhs: BoolTensor<Self, D>,
+    ) -> BoolTensor<Self, D> {
+        BaseOps::<G>::equal(lhs, rhs)
     }
 
-    fn bool_equal_elem<const D: usize>(
-        _lhs: <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D>,
-        _rhs: bool,
-    ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
-        todo!()
+    fn bool_equal_elem<const D: usize>(lhs: BoolTensor<Self, D>, rhs: bool) -> BoolTensor<Self, D> {
+        BaseOps::<G>::equal_elem(
+            lhs,
+            match rhs {
+                true => 1,
+                false => 0,
+            },
+        )
     }
 }
