@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_tensor::{Data, Tensor};
-    use std::f32::consts::SQRT_2;
+    use core::f32::consts::SQRT_2;
 
     #[test]
     fn should_support_sqrt_ops() {
