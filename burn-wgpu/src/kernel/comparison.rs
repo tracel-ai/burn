@@ -46,7 +46,7 @@ macro_rules! comparison_inplace {
                         "lhs[index_lhs] = compare(lhs[index_lhs], rhs[index_rhs]);",
                     )
                     .add_template(format!(
-                        "{}return {{{{ elem }}}}(u32(lhs {} rhs));{}",
+                        "{}return {{{{ elem }}}}(lhs {} rhs);{}",
                         "fn compare(lhs: {{ elem }}, rhs: {{ elem }}) -> {{ elem }} {\n",
                         $ops,
                         "\n}\n"
