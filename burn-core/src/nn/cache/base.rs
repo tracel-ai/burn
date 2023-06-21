@@ -12,7 +12,7 @@ pub struct TensorCache<B: Backend, const D: usize> {
 }
 
 impl<B: Backend, const D: usize> TensorCache<B, D> {
-    /// Gets empty cache.
+    /// Creates a new empty cache.
     ///
     /// # Returns
     ///

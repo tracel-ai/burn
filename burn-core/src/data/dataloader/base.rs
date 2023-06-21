@@ -19,6 +19,6 @@ pub trait DataLoaderIterator<O>: Iterator<Item = O> {
 
 /// A data loader that can be used to iterate over a dataset.
 pub trait DataLoader<O> {
-    /// Returns the dataset that the data loader is iterating over.
+    /// Returns a boxed [iterator](DataLoaderIterator) to iterate over the data loader.
     fn iter<'a>(&'a self) -> Box<dyn DataLoaderIterator<O> + 'a>;
 }

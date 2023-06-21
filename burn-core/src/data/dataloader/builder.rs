@@ -36,7 +36,8 @@ where
         }
     }
 
-    /// Sets the batch strategy.
+    /// Sets the batch size to a fix number.The [fix batch strategy](FixBatchStrategy)
+    /// will be used.
     ///
     /// # Arguments
     ///
