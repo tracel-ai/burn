@@ -57,9 +57,9 @@ impl TransformerDecoderConfig {
     }
 
     /// Initialize a new [Transformer Decoder](TransformerDecoder) module with a record.
-    /// 
+    ///
     /// # Params
-    /// 
+    ///
     /// - record: the record to initialize the module with.
     pub fn init_with<B: Backend>(
         &self,

@@ -22,15 +22,15 @@ struct BatchDataloaderIterator<I, O> {
 
 impl<I, O> BatchDataLoader<I, O> {
     /// Creates a new batch data loader.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `strategy` - The batch strategy.
     /// * `dataset` - The dataset.
     /// * `batcher` - The batcher.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The batch data loader.
     pub fn new(
         strategy: Box<dyn BatchStrategy<I>>,
@@ -51,16 +51,16 @@ where
     O: Send + Sync + Clone + 'static,
 {
     /// Creates a new multi-threaded batch data loader.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `strategy` - The batch strategy.
     /// * `dataset` - The dataset.
     /// * `batcher` - The batcher.
     /// * `num_threads` - The number of threads.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The multi-threaded batch data loader.
     pub fn multi_thread(
         strategy: Box<dyn BatchStrategy<I>>,
@@ -91,17 +91,16 @@ impl<I, O> DataLoader<O> for BatchDataLoader<I, O> {
 }
 
 impl<I, O> BatchDataloaderIterator<I, O> {
-
     /// Creates a new batch data loader iterator.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `strategy` - The batch strategy.
     /// * `dataset` - The dataset.
     /// * `batcher` - The batcher.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The batch data loader iterator.
     pub fn new(
         strategy: Box<dyn BatchStrategy<I>>,

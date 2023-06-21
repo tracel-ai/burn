@@ -14,12 +14,11 @@ pub struct MomentumConfig {
     /// Dampening factor.
     #[config(default = 0.1)]
     pub dampening: f64,
-    /// Enables Nesterov momentum, see [On the importance of initialization and 
+    /// Enables Nesterov momentum, see [On the importance of initialization and
     /// momentum in deep learning](http://www.cs.toronto.edu/~hinton/absps/momentum.pdf).
     #[config(default = false)]
     pub nesterov: bool,
 }
-
 
 /// State of [Momentum](Momentum).
 #[derive(Record, Clone, new)]
@@ -35,7 +34,6 @@ pub struct Momentum<B: Backend> {
 }
 
 impl<B: Backend> Momentum<B> {
-
     /// Creates a new [Momentum](Momentum) from a [MomentumConfig](MomentumConfig).
     pub fn new(config: &MomentumConfig) -> Self {
         Self {
@@ -46,14 +44,14 @@ impl<B: Backend> Momentum<B> {
     }
 
     /// Transforms a gradient.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `grad` - Gradient to transform.
     /// * `state` - State of the optimizer.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `grad` - Transformed gradient.
     /// * `state` - State of the optimizer.
     pub fn transform<const D: usize>(
@@ -80,13 +78,13 @@ impl<B: Backend> Momentum<B> {
 
 impl<B: Backend, const D: usize> MomemtumState<B, D> {
     /// Moves the state to a device.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `device` - Device to move the state to.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `self` - Moved state.
     pub fn to_device(mut self, device: &B::Device) -> Self {
         self.velocity = self.velocity.to_device(device);

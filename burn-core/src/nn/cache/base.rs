@@ -13,9 +13,9 @@ pub struct TensorCache<B: Backend, const D: usize> {
 
 impl<B: Backend, const D: usize> TensorCache<B, D> {
     /// Gets empty cache.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The empty cache.
     pub fn empty() -> Self {
         Self {

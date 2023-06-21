@@ -87,9 +87,9 @@ impl<B: Backend> SimpleOptimizer<B> for Adam<B> {
 
 impl AdamConfig {
     /// Initialize Adam optimizer.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// Returns an optimizer that can be used to optimize a module.
     pub fn init<B: ADBackend, M: ADModule<B>>(&self) -> impl Optimizer<M, B> {
         let optim = Adam {
@@ -172,15 +172,14 @@ impl AdaptiveMomentum {
 }
 
 impl<B: Backend, const D: usize> AdaptiveMomentumState<B, D> {
-
     /// Move state to device.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `device` - Device to move state to.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// Returns state moved to device.
     pub fn to_device(mut self, device: &B::Device) -> Self {
         self.moment_1 = self.moment_1.to_device(device);
