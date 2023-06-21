@@ -2,6 +2,7 @@
 mod tests {
     use super::*;
     use burn_tensor::{Data, Tensor};
+    use core::f32::consts::SQRT_2;
 
     #[test]
     fn should_support_sqrt_ops() {
@@ -10,7 +11,7 @@ mod tests {
 
         let data_actual = tensor.sqrt().into_data();
 
-        let data_expected = Data::from([[0.0, 1.0, 1.41421], [1.73205, 2.0, 2.2360]]);
+        let data_expected = Data::from([[0.0, 1.0, SQRT_2], [1.73205, 2.0, 2.2360]]);
         data_expected.assert_approx_eq(&data_actual, 3);
     }
 }
