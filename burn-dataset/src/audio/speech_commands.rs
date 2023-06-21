@@ -5,14 +5,15 @@ use crate::{
 
 use hound::WavReader;
 use serde::{Deserialize, Serialize};
-use strum_macros::{Display, FromRepr};
+use strum::EnumCount;
+use strum_macros::{Display, EnumCount, FromRepr};
 
 type MappedDataset = MapperDataset<SqliteDataset<SpeechItemRaw>, ConvertSamples, SpeechItemRaw>;
 
 /// Enum representing speech command classes in the Speech Commands dataset.
 /// Class names are based on the Speech Commands dataset from Huggingface.
 /// See: https://huggingface.co/datasets/speech_commands
-#[derive(Debug, Display, Clone, Copy, FromRepr, Serialize, Deserialize)]
+#[derive(Debug, Display, Clone, Copy, FromRepr, Serialize, Deserialize, EnumCount)]
 pub enum SpeechCommandClass {
     // Target command words
     Yes = 0,
@@ -36,7 +37,7 @@ pub enum SpeechCommandClass {
     Eight = 18,
     Nine = 19,
 
-    // Non-target words grouped into "Other"
+    // Non-target words that can be grouped into "Other"
     Bed = 20,
     Bird = 21,
     Cat = 22,
@@ -48,7 +49,7 @@ pub enum SpeechCommandClass {
     Tree = 28,
     Wow = 29,
 
-    // Commands from v2 dataset, grouped into "Other"
+    // Commands from v2 dataset, that can be grouped into "Other"
     Backward = 30,
     Forward = 31,
     Follow = 32,
@@ -86,11 +87,8 @@ pub struct SpeechItem {
     /// The sample rate of the audio.
     pub sample_rate: usize,
 
-    /// 20 target words, silence and other
+    /// The label of the audio.
     pub label: SpeechCommandClass,
-
-    /// The original label for debugging and remapping if needed.
-    pub label_original: SpeechCommandClass,
 }
 
 /// Speech Commands dataset from Huggingface v0.02.
@@ -99,10 +97,10 @@ pub struct SpeechItem {
 /// The data is downloaded from Huggingface and stored in a SQLite database (3.0 GB).
 /// The dataset contains 99,720 audio samples of 2,607 people saying 35 different words.
 ///
-/// The labels are 20 target words, silence and other (22 classes).
+/// NOTE: The most samples are under 1 second long but there are some with pure background noise that
+/// need splitting into shorter segmants.
 ///
-/// Note: label class indices are not continuous because some classes are grouped together.
-/// This may create gaps in hot encoded labels (effectively wasting some memory).
+/// The labels are 20 target words, silence and other words.
 ///
 /// The dataset is split into 3 parts:
 /// - train: 84,848 audio files
@@ -141,7 +139,7 @@ impl SpeechCommandsDataset {
 
     /// Returns the number of classes in the dataset
     pub fn num_classes() -> usize {
-        22 // 10 command words + 10 digits + 1 silence + 1 other
+        SpeechCommandClass::COUNT
     }
 }
 
@@ -159,16 +157,6 @@ impl Dataset<SpeechItem> for SpeechCommandsDataset {
 struct ConvertSamples;
 
 impl ConvertSamples {
-    /// Convert label to enum class and select the target classes.
-    /// See the original paper (section 5.2) https://arxiv.org/pdf/1804.03209.pdf
-    fn word_choice(label: usize) -> SpeechCommandClass {
-        match label {
-            0..=19 => Self::to_speechcommandclass(label),
-            35 => SpeechCommandClass::Silence,
-            _ => SpeechCommandClass::Other,
-        }
-    }
-
     /// Convert label to enum class.
     fn to_speechcommandclass(label: usize) -> SpeechCommandClass {
         SpeechCommandClass::from_repr(label).unwrap()
@@ -199,23 +187,16 @@ impl ConvertSamples {
 impl Mapper<SpeechItemRaw, SpeechItem> for ConvertSamples {
     /// Convert audio bytes into samples of floats [-1.0, 1.0]
     /// and the label to enum class with the target word, other and silence classes.
-    ///
-    /// Note: The orginal label is also stored in the `label_original` field for debugging
-    /// and remapping if needed.
     fn map(&self, item: &SpeechItemRaw) -> SpeechItem {
         let (audio_samples, sample_rate) = Self::to_audiosamples(&item.audio_bytes);
 
         // Convert the label to enum class, with the target words, other and silence classes.
-        let label = Self::word_choice(item.label);
-
-        // Keep the original label for debugging and remapping if needed.
-        let label_original = Self::to_speechcommandclass(item.label);
+        let label = Self::to_speechcommandclass(item.label);
 
         SpeechItem {
             audio_samples,
             sample_rate,
             label,
-            label_original,
         }
     }
 }
