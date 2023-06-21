@@ -11,6 +11,7 @@ pub fn matmul<E: WgpuElement, const D: usize>(
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     lhs.assert_is_on_save_device(&rhs);
+    println!("{:?} X {:?}", lhs.shape, rhs.shape);
     let mut shape_out = [0; D];
     lhs.shape
         .dims
@@ -35,7 +36,10 @@ pub fn matmul<E: WgpuElement, const D: usize>(
     let kernel = DynamicKernelSettings::<MatmulCoalescing, E, i32>::new(BLOCK_SIZE, BLOCK_SIZE, 1);
     let kernel = lhs.context.compile_dynamic(kernel);
 
-    let info = build_info(&[&lhs, &rhs]);
+    let info = build_info(&[&lhs, &rhs, &output]);
+    println!("K {}", info[4 * D]);
+    println!("num_cols {}", info[5 * D]);
+    println!("num_rows {}", info[4 * D - 1]);
     let info_buffers = lhs
         .context
         .create_buffer_with_data(bytemuck::cast_slice(&info));

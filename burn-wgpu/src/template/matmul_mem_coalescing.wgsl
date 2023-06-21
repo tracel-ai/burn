@@ -30,9 +30,9 @@ fn main(
 
     // Basic information
     let dim = info[0];
-    let n_rows = info[3u * dim - 1u];
-    let n_cols = info[4u * dim];
-    let K = info[3u * dim];
+    let n_rows = info[4u * dim - 1u];
+    let n_cols = info[5u * dim];
+    let K = info[4u * dim];
 
     // Returns if outside the output dimension
     if row >= n_rows || col >= n_cols {
@@ -48,11 +48,13 @@ fn main(
     for (var b: u32 = 1u; b <= batch_dims; b++) {
         let stride_lhs = info[b];
         let stride_rhs = info[b + 1u * dim];
-        let shape_lhs = info[b + 2u * dim];
-        let shape_rhs = info[b + 3u * dim];
+        let stride_output = info[b + 2u * dim];
+        let shape_lhs = info[b + 3u * dim];
+        let shape_rhs = info[b + 4u * dim];
+        let shape_output = info[b + 5u * dim];
 
-        offset_lhs += offset_output / stride_lhs % shape_lhs * stride_lhs;
-        offset_rhs += offset_output / stride_rhs % shape_rhs * stride_rhs;
+        offset_lhs += offset_output / stride_output % shape_lhs * stride_lhs;
+        offset_rhs += offset_output / stride_output % shape_rhs * stride_rhs;
     }
 
     // Basic matmul implementation
