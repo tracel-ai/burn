@@ -21,28 +21,37 @@ use sanitize_filename::sanitize;
 use serde::{de::DeserializeOwned, Serialize};
 use serde_rusqlite::{columns_from_statement, from_row_with_columns};
 
+/// Result type for the sqlite dataset.
 pub type Result<T> = core::result::Result<T, SqliteDatasetError>;
 
+/// Sqlite dataset error.
 #[derive(thiserror::Error, Debug)]
 pub enum SqliteDatasetError {
+    /// IO related error.
     #[error("IO error: {0}")]
     Io(#[from] io::Error),
 
+    /// Sql related error.
     #[error("Sql error: {0}")]
     Sql(#[from] serde_rusqlite::rusqlite::Error),
 
+    /// Serde related error.
     #[error("Serde error: {0}")]
     Serde(#[from] rmp_serde::encode::Error),
 
+    /// The database file already exists error.
     #[error("Overwrite flag is set to false and the database file already exists: {0}")]
     FileExists(PathBuf),
 
+    /// Error when creating the connection pool.
     #[error("Failed to create connection pool: {0}")]
     ConnectionPool(#[from] r2d2::Error),
 
+    /// Error when persisting the temporary database file.
     #[error("Could not persist the temporary database file: {0}")]
     PersistDbFile(#[from] persist::Error<Writable>),
 
+    /// Any other error.
     #[error("{0}")]
     Other(&'static str),
 }
@@ -68,13 +77,13 @@ impl From<&'static str> for SqliteDatasetError {
 /// can be in any order.
 ///
 /// For the supported field types, refer to:
-/// - Serialization field types: https://docs.rs/serde_rusqlite/latest/serde_rusqlite
-/// - SQLite data types: https://www.sqlite.org/datatype3.html
+/// - [Serialization field types](https://docs.rs/serde_rusqlite/latest/serde_rusqlite)
+/// - [SQLite data types](https://www.sqlite.org/datatype3.html)
 ///
 /// 2. The fields in the `I` struct can be serialized into a single column `item` in the table. In this case, the table
 /// should have a single column named `item` of type `BLOB`. This is useful when the `I` struct contains complex fields
 /// that cannot be mapped to a SQLite type, such as nested structs, vectors, etc. The serialization is done using
-/// MessagePack (https://msgpack.org/).
+/// [MessagePack](https://msgpack.org/).
 ///
 /// Note: The code automatically figures out which of the above two cases is applicable, and uses the appropriate
 /// method to read the data from the table.
@@ -490,7 +499,7 @@ where
 
     /// Serializes and writes an item to the database. The item is written to the table for the
     /// specified split. If the table does not exist, it is created. If the table exists, the item
-    /// is appended to the table. The serialization is done using the MessagePack (https://msgpack.org/)
+    /// is appended to the table. The serialization is done using the [MessagePack](https://msgpack.org/)
     ///
     /// # Arguments
     ///

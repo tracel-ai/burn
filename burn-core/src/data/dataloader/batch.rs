@@ -5,12 +5,14 @@ use super::{
 use burn_dataset::{transform::PartialDataset, Dataset};
 use std::sync::Arc;
 
+/// A data loader that can be used to iterate over a dataset in batches.
 pub struct BatchDataLoader<I, O> {
     strategy: Box<dyn BatchStrategy<I>>,
     dataset: Arc<dyn Dataset<I>>,
     batcher: Arc<dyn Batcher<I, O>>,
 }
 
+/// A data loader iterator that can be used to iterate over a data loader.
 struct BatchDataloaderIterator<I, O> {
     current_index: usize,
     strategy: Box<dyn BatchStrategy<I>>,
@@ -19,6 +21,17 @@ struct BatchDataloaderIterator<I, O> {
 }
 
 impl<I, O> BatchDataLoader<I, O> {
+    /// Creates a new batch data loader.
+    ///
+    /// # Arguments
+    ///
+    /// * `strategy` - The batch strategy.
+    /// * `dataset` - The dataset.
+    /// * `batcher` - The batcher.
+    ///
+    /// # Returns
+    ///
+    /// The batch data loader.
     pub fn new(
         strategy: Box<dyn BatchStrategy<I>>,
         dataset: Arc<dyn Dataset<I>>,
@@ -31,11 +44,24 @@ impl<I, O> BatchDataLoader<I, O> {
         }
     }
 }
+
 impl<I, O> BatchDataLoader<I, O>
 where
     I: Send + Sync + Clone + 'static,
     O: Send + Sync + Clone + 'static,
 {
+    /// Creates a new multi-threaded batch data loader.
+    ///
+    /// # Arguments
+    ///
+    /// * `strategy` - The batch strategy.
+    /// * `dataset` - The dataset.
+    /// * `batcher` - The batcher.
+    /// * `num_threads` - The number of threads.
+    ///
+    /// # Returns
+    ///
+    /// The multi-threaded batch data loader.
     pub fn multi_thread(
         strategy: Box<dyn BatchStrategy<I>>,
         dataset: Arc<dyn Dataset<I>>,
@@ -65,6 +91,17 @@ impl<I, O> DataLoader<O> for BatchDataLoader<I, O> {
 }
 
 impl<I, O> BatchDataloaderIterator<I, O> {
+    /// Creates a new batch data loader iterator.
+    ///
+    /// # Arguments
+    ///
+    /// * `strategy` - The batch strategy.
+    /// * `dataset` - The dataset.
+    /// * `batcher` - The batcher.
+    ///
+    /// # Returns
+    ///
+    /// The batch data loader iterator.
     pub fn new(
         strategy: Box<dyn BatchStrategy<I>>,
         dataset: Arc<dyn Dataset<I>>,

@@ -6,14 +6,30 @@ use burn_tensor::backend::Backend;
 use core::any::Any;
 use serde::{Deserialize, Serialize};
 
+/// [Optimizer adaptor](crate::optim::simple::adaptor::OptimizerAdaptor) record item.
 pub enum AdaptorRecordV1<O: SimpleOptimizer<B>, B: Backend> {
+    /// Rank 1.
     Rank1(O::State<1>),
+
+    /// Rank 2.
     Rank2(O::State<2>),
+
+    /// Rank 3.
     Rank3(O::State<3>),
+
+    /// Rank 4.
     Rank4(O::State<4>),
+
+    /// Rank 5.
     Rank5(O::State<5>),
+
+    /// Rank 6.
     Rank6(O::State<6>),
+
+    /// Rank 7.
     Rank7(O::State<7>),
+
+    /// Rank 8.
     Rank8(O::State<8>),
 }
 
@@ -32,16 +48,32 @@ impl<O: SimpleOptimizer<B>, B: Backend> Clone for AdaptorRecordV1<O, B> {
     }
 }
 
+/// [Optimizer adaptor](crate::optim::simple::adaptor::OptimizerAdaptor) record item.
 #[derive(Serialize, Deserialize)]
 #[serde(bound = "")]
 pub enum AdaptorRecordItemV1<O: SimpleOptimizer<B>, B: Backend, S: PrecisionSettings> {
+    /// Rank 1.
     Rank1(<O::State<1> as Record>::Item<S>),
+
+    /// Rank 2.
     Rank2(<O::State<2> as Record>::Item<S>),
+
+    /// Rank 3.
     Rank3(<O::State<3> as Record>::Item<S>),
+
+    /// Rank 4.
     Rank4(<O::State<4> as Record>::Item<S>),
+
+    /// Rank 5.
     Rank5(<O::State<5> as Record>::Item<S>),
+
+    /// Rank 6.
     Rank6(<O::State<6> as Record>::Item<S>),
+
+    /// Rank 7.
     Rank7(<O::State<7> as Record>::Item<S>),
+
+    /// Rank 8.
     Rank8(<O::State<8> as Record>::Item<S>),
 }
 
@@ -50,6 +82,15 @@ where
     O: SimpleOptimizer<B>,
     B: Backend,
 {
+    /// Convert the record into the state.
+    ///
+    /// # Returns
+    ///
+    /// The state.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the state dimension is not supported.
     pub fn into_state<const D: usize>(self) -> O::State<D> {
         let boxed_state: Box<dyn Any> = match self {
             AdaptorRecordV1::Rank1(s) => Box::new(s),
@@ -66,6 +107,16 @@ where
             .expect("Unsupported state dimension, dimension up to 8 are supported.");
         *state
     }
+
+    /// Convert the state into the record.
+    ///
+    /// # Arguments
+    ///
+    /// * `state`: The state.
+    ///
+    /// # Returns
+    ///
+    /// The record.
     pub fn from_state<const D: usize>(state: O::State<D>) -> Self {
         let state: Box<dyn Any> = Box::new(state);
 

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use super::{
-    ir::{ArgType, Argument, Node, NodeType, TensorArg},
+    ir::{ArgType, Argument, AttributeValue, Node, NodeType, TensorArg},
     op_configuration::flatten_config,
 };
 
@@ -30,9 +30,6 @@ impl TensorDimUpdater {
     fn update_tensor_outputs(&mut self, node: &Node) -> usize {
         node.outputs
             .iter()
-            .filter(|output| match &output.ty {
-                ArgType::Tensor(_) => true,
-            })
             .map(|arg| {
                 self.arguments.insert(arg.name.clone(), arg.clone());
             })
@@ -43,11 +40,8 @@ impl TensorDimUpdater {
         arguments
             .iter_mut()
             .filter_map(|input| self.arguments.get(&input.name).map(|arg| (arg, input)))
-            .map(|(arg, input)| match &arg.ty {
-                ArgType::Tensor(tensor) => (tensor, input),
-            })
-            .map(|(tensor, input)| {
-                input.ty = ArgType::Tensor(tensor.clone());
+            .map(|(arg, input)| {
+                input.ty = arg.ty.clone();
             })
             .count()
     }
@@ -68,9 +62,29 @@ pub fn dim_inference(
             NodeType::Conv2d => conv2d_update_outputs(node),
             NodeType::Linear => linear_update_outputs(node),
             NodeType::Flatten => flatten_update_outputs(node),
-            NodeType::Relu => element_wise_update_outputs(node),
-            NodeType::LogSoftmax => element_wise_update_outputs(node),
-            NodeType::BatchNormalization => element_wise_update_outputs(node),
+            NodeType::Relu => same_as_input(node),
+            NodeType::LogSoftmax => same_as_input(node),
+            NodeType::BatchNormalization => same_as_input(node),
+            NodeType::Add => same_as_input(node),
+            NodeType::Sub => same_as_input(node),
+            NodeType::Pow => same_as_input(node),
+            NodeType::Mul => same_as_input(node),
+            NodeType::Cast => same_as_input(node),
+            NodeType::Div => same_as_input(node),
+            NodeType::Sqrt => same_as_input(node),
+            NodeType::Softmax => same_as_input(node),
+            NodeType::Erf => same_as_input(node),
+            NodeType::ReduceMean => mean_update_outputs(node),
+            NodeType::Constant => {
+                node.outputs[0].ty = ArgType::Constant;
+            }
+            NodeType::Equal => same_as_input(node),
+            NodeType::Shape => shape_update_outputs(node),
+            NodeType::Unsqueeze => unsqueeze_update_outputs(node),
+            NodeType::Slice => slice_update_outputs(node),
+            NodeType::MatMul => same_as_input(node),
+            NodeType::Concat => concat_update_outputs(node),
+            NodeType::Reshape => reshape_update_outputs(node),
             _ => todo!(
                 "shape inference for {:?} is not implemented",
                 node.node_type
@@ -84,32 +98,138 @@ pub fn dim_inference(
 }
 
 /// Infer the shape of the output tensor of a Conv2d node
-fn linear_update_outputs(curr: &mut Node) {
-    if curr.inputs.len() != 1 {
+fn linear_update_outputs(node: &mut Node) {
+    if node.inputs.len() != 1 {
         panic!("Linear: multiple inputs are not supported");
     }
 
     // Extract the configuration of the linear layer (inputs are known)
-    let curr_input = &mut curr.inputs[0];
-    let ArgType::Tensor(tensor) = curr_input.clone().ty;
+    let node_input = &mut node.inputs[0];
 
-    // Update the output tensor
-    curr.outputs[0].ty = ArgType::Tensor(TensorArg { dim: tensor.dim });
+    if let ArgType::Tensor(tensor) = node_input.clone().ty {
+        // Update the output tensor
+        node.outputs[0].ty = ArgType::Tensor(TensorArg { dim: tensor.dim });
+    } else {
+        panic!("Only tensor input is valid");
+    }
 }
 
-fn element_wise_update_outputs(curr: &mut Node) {
-    curr.outputs[0].ty = curr.inputs[0].ty.clone();
+fn concat_update_outputs(node: &mut Node) {
+    let tensor = node
+        .inputs
+        .iter()
+        .find_map(|input| match &input.ty {
+            ArgType::Tensor(tensor) => Some(tensor),
+            _ => None,
+        })
+        .unwrap();
+
+    node.outputs[0].ty = ArgType::Tensor(TensorArg { dim: tensor.dim });
+}
+
+fn reshape_update_outputs(node: &mut Node) {
+    let dim = *node
+        .inputs
+        .iter()
+        .filter_map(|input| match &input.ty {
+            ArgType::Tensor(tensor) => Some(tensor.dim),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .last()
+        .unwrap();
+
+    node.outputs[0].ty = ArgType::Tensor(TensorArg { dim });
+}
+
+fn mean_update_outputs(node: &mut Node) {
+    if node.inputs.len() != 1 {
+        panic!("Mean: multiple inputs are not supported");
+    }
+
+    // Extract the configuration of the linear layer (inputs are known)
+    let node_input = &mut node.inputs[0];
+    let tensor = match node_input.clone().ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
+
+    let dim_only = match node.attrs.get("axes") {
+        Some(value) => match &value {
+            AttributeValue::Int64(_) => true,
+            AttributeValue::Int64s(ints) => ints.len() == 1,
+            _ => false,
+        },
+        None => false,
+    };
+
+    if dim_only {
+        node.outputs[0].ty = ArgType::Tensor(TensorArg { dim: tensor.dim });
+    } else {
+        node.outputs[0].ty = ArgType::Tensor(TensorArg { dim: 1 });
+    }
+}
+
+fn unsqueeze_update_outputs(node: &mut Node) {
+    if node.inputs.is_empty() {
+        panic!("Unsqueeze: inputs required: {:?}", node);
+    }
+
+    let node_input = &mut node.inputs[0];
+    let dim = match node_input.clone().ty {
+        ArgType::Tensor(tensor) => tensor.dim,
+        ArgType::Shape(dim) => dim,
+        ArgType::Constant => panic!("Needs shape or tensor"),
+    };
+
+    node.outputs[0].ty = ArgType::Tensor(TensorArg { dim: dim + 1 });
+}
+
+fn slice_update_outputs(node: &mut Node) {
+    if node.inputs.is_empty() {
+        panic!("Slice: inputs required: {:?}", node);
+    }
+
+    let tensor = node
+        .inputs
+        .iter()
+        .find_map(|input| match &input.ty {
+            ArgType::Tensor(tensor) => Some(tensor),
+            _ => None,
+        })
+        .unwrap();
+
+    node.outputs[0].ty = ArgType::Tensor(TensorArg { dim: tensor.dim });
+}
+
+fn same_as_input(node: &mut Node) {
+    node.outputs[0].ty = node.inputs[0].ty.clone();
+}
+
+fn shape_update_outputs(node: &mut Node) {
+    if node.inputs.len() != 1 {
+        panic!("Gather: multiple inputs are not supported: {:?}", node);
+    }
+
+    // Extract the configuration of the linear layer (inputs are known)
+    let node_input = &mut node.inputs[0];
+    if let ArgType::Tensor(tensor) = node_input.clone().ty {
+        // Update the output tensor
+        node.outputs[0].ty = ArgType::Shape(tensor.dim);
+    } else {
+        panic!("Only tensor input is valid");
+    }
 }
 
 /// Infers the shape of a Flatten node and replaces the shape of the output tensor.
-fn flatten_update_outputs(curr: &mut Node) {
-    if curr.inputs.len() != 1 {
+fn flatten_update_outputs(node: &mut Node) {
+    if node.inputs.len() != 1 {
         panic!("Flatten: multiple inputs are not supported");
     }
 
-    let (start_dim, end_dim) = flatten_config(curr);
+    let (start_dim, end_dim) = flatten_config(node);
 
-    curr.outputs[0].ty = ArgType::Tensor(TensorArg {
+    node.outputs[0].ty = ArgType::Tensor(TensorArg {
         dim: end_dim - start_dim,
     });
 }
@@ -117,14 +237,16 @@ fn flatten_update_outputs(curr: &mut Node) {
 /// Infers the shape of a Conv2d node and replaces the shape of the output tensor.
 ///
 /// The shape of the output tensor is calculated by running the actual convolution operation.
-fn conv2d_update_outputs(curr: &mut Node) {
-    // copy the type from the previous output to the current input
-    if curr.inputs.len() != 1 {
+fn conv2d_update_outputs(node: &mut Node) {
+    // copy the type from the previous output to the nodeent input
+    if node.inputs.len() != 1 {
         panic!("Conv2d: multiple inputs are not supported");
     }
 
     // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
-    let ArgType::Tensor(tensor) = curr.inputs[0].clone().ty;
-
-    curr.outputs[0].ty = ArgType::Tensor(TensorArg { dim: tensor.dim });
+    if let ArgType::Tensor(tensor) = node.inputs[0].clone().ty {
+        node.outputs[0].ty = ArgType::Tensor(TensorArg { dim: tensor.dim });
+    } else {
+        panic!("Only tensor input is valid");
+    }
 }

@@ -1,9 +1,13 @@
 use alloc::{format, string::String, string::ToString};
 pub use burn_derive::Config;
 
+/// Configuration IO error.
 #[derive(Debug)]
 pub enum ConfigError {
+    /// Invalid format.
     InvalidFormat(String),
+
+    /// File not found.
     FileNotFound(String),
 }
 
@@ -28,12 +32,31 @@ impl core::fmt::Display for ConfigError {
 #[cfg(feature = "std")]
 impl std::error::Error for ConfigError {}
 
+/// Configuration trait.
 pub trait Config: serde::Serialize + serde::de::DeserializeOwned {
+    /// Saves the configuration to a file.
+    ///
+    /// # Arguments
+    ///
+    /// * `file` - File to save the configuration to.
+    ///
+    /// # Returns
+    ///
+    /// The output of the save operation.
     #[cfg(feature = "std")]
     fn save(&self, file: &str) -> std::io::Result<()> {
         std::fs::write(file, config_to_json(self))
     }
 
+    /// Loads the configuration from a file.
+    ///
+    /// # Arguments
+    ///
+    /// * `file` - File to load the configuration from.
+    ///
+    /// # Returns
+    ///
+    /// The loaded configuration.
     #[cfg(feature = "std")]
     fn load(file: &str) -> Result<Self, ConfigError> {
         let content = std::fs::read_to_string(file)
@@ -41,6 +64,15 @@ pub trait Config: serde::Serialize + serde::de::DeserializeOwned {
         config_from_str(&content)
     }
 
+    /// Loads the configuration from a binary buffer.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - Binary buffer to load the configuration from.
+    ///
+    /// # Returns
+    ///
+    /// The loaded configuration.
     fn load_binary(data: &[u8]) -> Result<Self, ConfigError> {
         let content = core::str::from_utf8(data).map_err(|_| {
             ConfigError::InvalidFormat("Could not parse data as utf-8.".to_string())
@@ -49,6 +81,15 @@ pub trait Config: serde::Serialize + serde::de::DeserializeOwned {
     }
 }
 
+/// Converts a configuration to a JSON string.
+///
+/// # Arguments
+///
+/// * `config` - Configuration to convert.
+///
+/// # Returns
+///
+/// The JSON string.
 pub fn config_to_json<C: Config>(config: &C) -> String {
     serde_json::to_string_pretty(config).unwrap()
 }

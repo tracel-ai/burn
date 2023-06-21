@@ -1,6 +1,7 @@
 use super::{
-    batch_norm::BatchNormNode, conv2d::Conv2dNode, flatten::FlattenNode, linear::LinearNode,
-    log_softmax::LogSoftmaxNode, matmul::MatmulNode, relu::ReLUNode,
+    batch_norm::BatchNormNode, constant::ConstantNode, conv2d::Conv2dNode, equal::EqualNode,
+    flatten::FlattenNode, linear::LinearNode, log_softmax::LogSoftmaxNode, matmul::MatmulNode,
+    relu::ReLUNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::record::PrecisionSettings;
@@ -77,6 +78,8 @@ pub enum Node<PS: PrecisionSettings> {
     ReLU(ReLUNode),
     Flatten(FlattenNode),
     LogSoftmax(LogSoftmaxNode),
+    Constant(ConstantNode),
+    Equal(EqualNode),
 }
 
 macro_rules! match_all {
@@ -89,6 +92,8 @@ macro_rules! match_all {
             Node::ReLU(node) => $func(node),
             Node::Flatten(node) => $func(node),
             Node::LogSoftmax(node) => $func(node),
+            Node::Constant(node) => $func(node),
+            Node::Equal(node) => $func(node),
         }
     }};
 }
@@ -106,12 +111,14 @@ impl<PS: PrecisionSettings> Node<PS> {
     pub fn name(&self) -> &str {
         match self {
             Node::Matmul(_) => "matmul",
+            Node::Constant(_) => "constant",
             Node::Conv2d(_) => "conv2d",
             Node::Linear(_) => "linear",
             Node::BatchNorm(_) => "batch_norm",
             Node::ReLU(_) => "relu",
             Node::Flatten(_) => "flatten",
             Node::LogSoftmax(_) => "log_softmax",
+            Node::Equal(_) => "equal",
         }
     }
 }
@@ -176,14 +183,14 @@ mod tests {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(MatmulNode::new(
-            TensorType::new("tensor1", 4),
-            TensorType::new("tensor2", 4),
-            TensorType::new("tensor3", 4),
+            TensorType::new_float("tensor1", 4),
+            TensorType::new_float("tensor2", 4),
+            TensorType::new_float("tensor3", 4),
         ));
         graph.register(Conv2dNode::new(
             "conv2d",
-            TensorType::new("tensor3", 4),
-            TensorType::new("tensor4", 4),
+            TensorType::new_float("tensor3", 4),
+            TensorType::new_float("tensor4", 4),
             Data::from([2.]).serialize(),
             None,
             Conv2dConfig::new([3, 3], [3, 3]),
@@ -233,22 +240,22 @@ mod tests {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(MatmulNode::new(
-            TensorType::new("tensor1", 4),
-            TensorType::new("tensor2", 4),
-            TensorType::new("tensor3", 4),
+            TensorType::new_float("tensor1", 4),
+            TensorType::new_float("tensor2", 4),
+            TensorType::new_float("tensor3", 4),
         ));
         graph.register(Conv2dNode::new(
             "conv2d",
-            TensorType::new("tensor2", 4),
-            TensorType::new("tensor4", 4),
+            TensorType::new_float("tensor2", 4),
+            TensorType::new_float("tensor4", 4),
             Data::from([2.]).serialize(),
             None,
             Conv2dConfig::new([3, 3], [3, 3]),
         ));
         graph.register(MatmulNode::new(
-            TensorType::new("tensor3", 4),
-            TensorType::new("tensor4", 4),
-            TensorType::new("output", 4),
+            TensorType::new_float("tensor3", 4),
+            TensorType::new_float("tensor4", 4),
+            TensorType::new_float("output", 4),
         ));
 
         let expected = quote! {

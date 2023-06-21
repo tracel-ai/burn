@@ -1,10 +1,6 @@
-use std::marker::PhantomData;
-
-use burn_tensor::{Element, ElementConversion, Shape};
-
 use crate::kernel::{
-    binary_elemwise, binary_elemwise_inplace, reduction_mean_dim, reduction_sum, reduction_sum_dim,
-    unary_scalar, unary_scalar_inplace,
+    binary_elemwise, binary_elemwise_inplace, reduction_args_dim, reduction_dim, reduction_sum,
+    unary_scalar, unary_scalar_inplace, ArgsMax, ArgsMin, MeanDim, SumDim,
 };
 use crate::pool::get_context;
 use crate::{
@@ -12,6 +8,8 @@ use crate::{
     unary_scalar, unary_scalar_inplace,
 };
 use crate::{GraphicsApi, WgpuDevice};
+use burn_tensor::{Element, ElementConversion, Shape};
+use std::marker::PhantomData;
 
 pub struct NumericOps<G: GraphicsApi> {
     _g: PhantomData<G>,
@@ -170,20 +168,34 @@ impl<G: GraphicsApi> NumericOps<G> {
         tensor: WgpuTensor<E, D>,
         dim: usize,
     ) -> WgpuTensor<E, D> {
-        reduction_sum_dim(tensor, dim)
+        reduction_dim::<SumDim, E, D>(tensor, dim)
     }
 
     pub fn mean<E: WgpuElement + Element, const D: usize>(
         tensor: WgpuTensor<E, D>,
     ) -> WgpuTensor<E, 1> {
         let num_elems = tensor.shape.num_elements();
-        Self::div_scalar(reduction_sum(tensor), (num_elems as f32).elem())
+        Self::div_scalar(Self::sum(tensor), (num_elems as f32).elem())
     }
 
     pub fn mean_dim<E: WgpuElement + Element, const D: usize>(
         tensor: WgpuTensor<E, D>,
         dim: usize,
     ) -> WgpuTensor<E, D> {
-        reduction_mean_dim(tensor, dim)
+        reduction_dim::<MeanDim, E, D>(tensor, dim)
+    }
+
+    pub fn argmax<E: WgpuElement + Element, I: WgpuElement, const D: usize>(
+        tensor: WgpuTensor<E, D>,
+        dim: usize,
+    ) -> WgpuTensor<I, D> {
+        reduction_args_dim::<ArgsMax, E, I, D>(tensor, dim)
+    }
+
+    pub fn argmin<E: WgpuElement + Element, I: WgpuElement, const D: usize>(
+        tensor: WgpuTensor<E, D>,
+        dim: usize,
+    ) -> WgpuTensor<I, D> {
+        reduction_args_dim::<ArgsMin, E, I, D>(tensor, dim)
     }
 }

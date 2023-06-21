@@ -144,8 +144,8 @@ where
         self
     }
 
-    /// Register a checkpointer that will save the [optimizer](crate::optim::Optimizer) and the
-    /// [model](crate::module::Module) [states](crate::module::State).
+    /// Register a checkpointer that will save the [optimizer](Optimizer) and the
+    /// [model](ADModule).
     ///
     /// The number of checkpoints to be keep should be set to a minimum of two to be safe, since
     /// they are saved and deleted asynchronously and a crash during training might make a

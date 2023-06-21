@@ -17,6 +17,7 @@ where
     D: Dataset<I>,
     I: Send + Sync,
 {
+    /// Creates a new sampler dataset.
     pub fn new(dataset: D, size: usize) -> Self {
         let rng = Mutex::new(StdRng::from_entropy());
 
@@ -28,6 +29,7 @@ where
         }
     }
 
+    /// Generates random index using uniform distribution (0, dataset.len()).
     fn index(&self) -> usize {
         let mut rng = self.rng.lock().unwrap();
         rng.sample(Uniform::new(0, self.dataset.len()))

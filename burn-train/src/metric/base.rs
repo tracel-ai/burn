@@ -44,7 +44,7 @@ pub trait Metric: Send + Sync {
 /// Adaptor are used to transform types so that they can be used by metrics.
 ///
 /// This should be implemented by a model's output type for all [metric inputs](Metric::Input) that are
-/// registed with the [leaner buidler](burn::train::LearnerBuilder).
+/// registed with the [leaner buidler](crate::learner::LearnerBuilder) .
 pub trait Adaptor<T> {
     /// Adapt the type to be passed to a [metric](Metric).
     fn adapt(&self) -> T;

@@ -1,4 +1,4 @@
-pub mod downloader;
+pub(crate) mod downloader;
 mod mnist;
 
 pub use downloader::*;

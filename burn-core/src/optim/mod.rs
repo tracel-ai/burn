@@ -1,4 +1,7 @@
+/// Weight decay module for optimizers.
 pub mod decay;
+
+/// Momentum module for optimizers.
 pub mod momentum;
 
 mod adam;

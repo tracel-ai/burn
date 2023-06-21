@@ -8,9 +8,13 @@ use serde::{Deserialize, Serialize};
 const WIDTH: usize = 28;
 const HEIGHT: usize = 28;
 
+/// MNIST item.
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct MNISTItem {
+    /// Image as a 2D array of floats.
     pub image: [[f32; WIDTH]; HEIGHT],
+
+    /// Label of the image.
     pub label: usize,
 }
 
@@ -66,10 +70,12 @@ impl Dataset<MNISTItem> for MNISTDataset {
 }
 
 impl MNISTDataset {
+    /// Creates a new train dataset.
     pub fn train() -> Self {
         Self::new("train")
     }
 
+    /// Creates a new test dataset.
     pub fn test() -> Self {
         Self::new("test")
     }

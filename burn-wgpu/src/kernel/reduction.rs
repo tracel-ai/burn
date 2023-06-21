@@ -4,18 +4,20 @@ use burn_tensor::Shape;
 
 kernel_wgsl!(RecursiveSumRaw, "../template/reduction/recursive_sum.wgsl");
 kernel_wgsl!(ReductionDimRaw, "../template/reduction/reduce_dim.wgsl");
+kernel_wgsl!(ReductionArgsRaw, "../template/reduction/args.wgsl");
 
-struct SumDimRaw;
+pub struct ArgsMax;
+pub struct ArgsMin;
+pub struct SumDim;
+pub struct MeanDim;
 
-impl StaticKernel for SumDimRaw {
+impl StaticKernel for SumDim {
     fn source_template() -> SourceTemplate {
         ReductionDimRaw::source_template().register("assign", "output[global_id.x] = sum;")
     }
 }
 
-struct MeanDimRaw;
-
-impl StaticKernel for MeanDimRaw {
+impl StaticKernel for MeanDim {
     fn source_template() -> SourceTemplate {
         ReductionDimRaw::source_template()
             .add_template(
@@ -24,6 +26,22 @@ impl StaticKernel for MeanDimRaw {
 }",
             )
             .register("assign", "output[global_id.x] = mean_dim(sum, shape_dim);")
+    }
+}
+
+impl StaticKernel for ArgsMax {
+    fn source_template() -> SourceTemplate {
+        ReductionArgsRaw::source_template()
+            .register("cmp", ">")
+            .register("initial", (-32767).to_string())
+    }
+}
+
+impl StaticKernel for ArgsMin {
+    fn source_template() -> SourceTemplate {
+        ReductionArgsRaw::source_template()
+            .register("cmp", "<")
+            .register("initial", 32767.to_string())
     }
 }
 
@@ -57,21 +75,7 @@ pub fn reduction_sum<E: WgpuElement, const D: usize>(input: WgpuTensor<E, D>) ->
     }
 }
 
-pub fn reduction_sum_dim<E: WgpuElement, const D: usize>(
-    input: WgpuTensor<E, D>,
-    dim: usize,
-) -> WgpuTensor<E, D> {
-    reduction_dim::<SumDimRaw, E, D>(input, dim)
-}
-
-pub fn reduction_mean_dim<E: WgpuElement, const D: usize>(
-    input: WgpuTensor<E, D>,
-    dim: usize,
-) -> WgpuTensor<E, D> {
-    reduction_dim::<MeanDimRaw, E, D>(input, dim)
-}
-
-fn reduction_dim<K: StaticKernel, E: WgpuElement, const D: usize>(
+pub fn reduction_dim<K: StaticKernel, E: WgpuElement, const D: usize>(
     input: WgpuTensor<E, D>,
     dim: usize,
 ) -> WgpuTensor<E, D> {
@@ -102,4 +106,37 @@ fn reduction_dim<K: StaticKernel, E: WgpuElement, const D: usize>(
     );
 
     output
+}
+
+pub fn reduction_args_dim<K: StaticKernel, E: WgpuElement, I: WgpuElement, const D: usize>(
+    input: WgpuTensor<E, D>,
+    dim: usize,
+) -> WgpuTensor<I, D> {
+    let mut shape_out = input.shape.clone();
+    shape_out.dims[dim] = 1;
+    let buffer = input
+        .context
+        .create_buffer(shape_out.num_elements() * core::mem::size_of::<I>());
+    let output = WgpuTensor::new(input.context.clone(), shape_out, buffer);
+
+    let kernel = input
+        .context
+        .compile_static::<KernelSettings<K, E, I, 256, 1, 1>>();
+    let mut info = build_info(&[&input, &output]);
+    info.push(dim as u32);
+    let info_buffers = input
+        .context
+        .create_buffer_with_data(bytemuck::cast_slice(&info));
+
+    input.context.execute(
+        WorkGroup::new(
+            f32::ceil(output.shape.num_elements() as f32 / 256_f32) as u32,
+            1,
+            1,
+        ),
+        kernel,
+        &[&input.buffer, &output.buffer, &info_buffers],
+    );
+
+    WgpuTensor::new(output.context, output.shape, output.buffer)
 }

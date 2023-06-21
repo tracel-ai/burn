@@ -13,6 +13,7 @@ pub struct WeightDecayConfig {
     pub penalty: f64,
 }
 
+/// State of [WeightDecay](WeightDecay).
 #[derive(Record, Clone, new)]
 pub struct WeightDecayState<B: Backend, const D: usize> {
     grad_last_step: Tensor<B, D>,
@@ -24,12 +25,24 @@ pub struct WeightDecay<B: Backend> {
 }
 
 impl<B: Backend> WeightDecay<B> {
+    /// Creates a new [WeightDecay](WeightDecay) from a [WeightDecayConfig](WeightDecayConfig).
     pub fn new(config: &WeightDecayConfig) -> Self {
         Self {
             penalty: config.penalty.elem(),
         }
     }
 
+    /// Transforms a gradient.
+    ///
+    /// # Arguments
+    ///
+    /// * `grad` - Gradient to transform.
+    /// * `state` - State of the optimizer.
+    ///
+    /// # Returns
+    ///
+    /// * `grad` - Transformed gradient.
+    /// * `state` - State of the optimizer.
     pub fn transform<const D: usize>(
         &self,
         grad: Tensor<B, D>,
@@ -47,6 +60,15 @@ impl<B: Backend> WeightDecay<B> {
 }
 
 impl<B: Backend, const D: usize> WeightDecayState<B, D> {
+    /// Moves the state to a device.
+    ///
+    /// # Arguments
+    ///
+    /// * `device` - Device to move the state to.
+    ///
+    /// # Returns
+    ///
+    /// * `self` - Moved state.
     pub fn to_device(mut self, device: &B::Device) -> Self {
         self.grad_last_step = self.grad_last_step.to_device(device);
         self

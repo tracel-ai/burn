@@ -31,6 +31,7 @@ impl RecordGenerator {
             let name = &field.field.ident;
 
             fields.extend(quote! {
+                /// The #name field.
                 pub #name: <#ty as burn::record::Record>::Item<S>,
             });
             bounds.extend(quote!{
@@ -42,6 +43,8 @@ impl RecordGenerator {
         let bound = bounds.to_string();
 
         quote! {
+
+            /// The record item type for the module.
             #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
             #[serde(bound = #bound)]
             pub struct #name #generics {

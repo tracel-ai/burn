@@ -17,12 +17,12 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     var index_input: u32 = 0u;
     var index_value: u32 = 0u;
 
-    for (var i: u32 = 0u; i < dim; i++) {
-        let stride_input = info[i + 1u];
-        let stride_value = info[i + dim + 1u];
-        let shape_input = info[i + 2u * dim + 1u];
-        let shape_value = info[i + 3u * dim + 1u];
-        let start = info[i + 4u * dim + 1u];
+    for (var i: u32 = 1u; i <= dim; i++) {
+        let stride_input = info[i];
+        let stride_value = info[i + dim];
+        let shape_input = info[i + 2u * dim];
+        let shape_value = info[i + 3u * dim];
+        let start = info[i + 4u * dim];
 
         let num_block = global_id.x / stride_value % shape_value;
 

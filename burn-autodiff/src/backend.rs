@@ -1,6 +1,7 @@
 use crate::{grads::Gradients, graph::backward::backward, tensor::ADTensor};
 use burn_tensor::backend::{ADBackend, Backend};
 
+/// A decorator for a backend that enables automatic differentiation.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ADBackendDecorator<B> {
     _b: B,
