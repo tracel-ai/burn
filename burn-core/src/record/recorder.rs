@@ -13,15 +13,28 @@ use super::{
 
 /// Record any item implementing [Serialize](Serialize) and [DeserializeOwned](DeserializeOwned).
 pub trait Recorder: Send + Sync + core::default::Default + core::fmt::Debug + Clone {
+    /// Type of the settings used by the recorder.
     type Settings: PrecisionSettings;
+
     /// Arguments used to record objects.
     type RecordArgs: Clone;
+
     /// Record output type.
     type RecordOutput;
+
     /// Arguments used to load recorded objects.
     type LoadArgs: Clone;
 
-    /// Record an item with the given arguments.
+    /// Records an item.
+    ///
+    /// # Arguments
+    ///
+    /// * `record` - The item to record.
+    /// * `args` - Arguments used to record the item.
+    ///
+    /// # Returns
+    ///
+    /// The output of the recording.
     fn record<R: Record>(
         &self,
         record: R,
@@ -80,11 +93,35 @@ pub trait Recorder: Send + Sync + core::default::Default + core::fmt::Debug + Cl
         Ok(R::from_item(item.item))
     }
 
+    /// Saves an item.
+    ///
+    /// This method is used by [record](Recorder::record) to save the item.
+    ///
+    /// # Arguments
+    ///
+    /// * `item` - Item to save.
+    /// * `args` - Arguments to use to save the item.
+    ///
+    /// # Returns
+    ///
+    /// The output of the save operation.
     fn save_item<I: Serialize>(
         &self,
         item: I,
         args: Self::RecordArgs,
     ) -> Result<Self::RecordOutput, RecorderError>;
+
+    /// Loads an item.
+    ///
+    /// This method is used by [load](Recorder::load) to load the item.
+    ///
+    /// # Arguments
+    ///
+    /// * `args` - Arguments to use to load the item.
+    ///
+    /// # Returns
+    ///
+    /// The loaded item.
     fn load_item<I: DeserializeOwned>(&self, args: Self::LoadArgs) -> Result<I, RecorderError>;
 }
 
@@ -98,9 +135,13 @@ fn recorder_metadata<R: Recorder>() -> BurnMetadata {
     )
 }
 
+/// Error that can occur when using a [Recorder](Recorder).
 #[derive(Debug)]
 pub enum RecorderError {
+    /// File not found.
     FileNotFound(String),
+
+    /// Other error.
     Unknown(String),
 }
 
@@ -118,22 +159,45 @@ pub(crate) fn bin_config() -> bincode::config::Configuration {
     bincode::config::standard()
 }
 
+/// Metadata of a record.
 #[derive(new, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct BurnMetadata {
+    /// Float type used to record the item.
     pub float: String,
+
+    /// Int type used to record the item.
     pub int: String,
+
+    /// Format used to record the item.
     pub format: String,
+
+    /// Burn record version used to record the item.
     pub version: String,
+
+    /// Settings used to record the item.
     pub settings: String,
 }
 
+/// Record that can be saved by a [Recorder](Recorder).
 #[derive(Serialize, Deserialize)]
 pub struct BurnRecord<I> {
+    /// Metadata of the record.
     pub metadata: BurnMetadata,
+
+    /// Item to record.
     pub item: I,
 }
 
 impl<I> BurnRecord<I> {
+    /// Creates a new record.
+    ///
+    /// # Arguments
+    ///
+    /// * `item` - Item to record.
+    ///
+    /// # Returns
+    ///
+    /// The new record.
     pub fn new<R: Recorder>(item: I) -> Self {
         let metadata = recorder_metadata::<R>();
 
@@ -141,8 +205,10 @@ impl<I> BurnRecord<I> {
     }
 }
 
+/// Record that can be saved by a [Recorder](Recorder) without the item.
 #[derive(new, Debug, Serialize, Deserialize)]
 pub struct BurnRecordNoItem {
+    /// Metadata of the record.
     pub metadata: BurnMetadata,
 }
 

@@ -36,7 +36,7 @@ impl Record for ConstantRecord {
         item
     }
 }
-
+/// Constant macro.
 #[macro_export]
 macro_rules! constant {
     (module) => {

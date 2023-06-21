@@ -14,6 +14,7 @@ impl<D, I> ShuffledDataset<D, I>
 where
     D: Dataset<I>,
 {
+    /// Creates a new shuffled dataset.
     pub fn new(dataset: D, rng: &mut StdRng) -> Self {
         let mut indexes = Vec::with_capacity(dataset.len());
         for i in 0..dataset.len() {
@@ -28,6 +29,7 @@ where
         }
     }
 
+    /// Creates a new shuffled dataset with a fixed seed.
     pub fn with_seed(dataset: D, seed: u64) -> Self {
         let mut rng = StdRng::seed_from_u64(seed);
         Self::new(dataset, &mut rng)

@@ -15,6 +15,11 @@ impl<T> core::fmt::Display for Param<T> {
 }
 
 impl<T: Clone> Param<T> {
+    /// Gets the parameter value.
+    ///
+    /// # Returns
+    ///
+    /// The parameter value.
     pub fn val(&self) -> T {
         self.value.clone()
     }

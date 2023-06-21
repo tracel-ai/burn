@@ -1,15 +1,47 @@
+/// A strategy to batch items.
 pub trait BatchStrategy<I>: Send + Sync {
+    /// Adds an item to the strategy.
+    ///
+    /// # Arguments
+    ///
+    /// * `item` - The item to add.
     fn add(&mut self, item: I);
+
+    /// Batches the items.
+    ///
+    /// # Arguments
+    ///
+    /// * `force` - Whether to force batching.
+    ///
+    /// # Returns
+    ///
+    /// The batched items.
     fn batch(&mut self, force: bool) -> Option<Vec<I>>;
+
+    /// Creates a new strategy of the same type.
+    ///
+    /// # Returns
+    ///
+    /// The new strategy.
     fn new_like(&self) -> Box<dyn BatchStrategy<I>>;
 }
 
+/// A strategy to batch items with a fixed batch size.
 pub struct FixBatchStrategy<I> {
     items: Vec<I>,
     batch_size: usize,
 }
 
 impl<I> FixBatchStrategy<I> {
+    /// Creates a new strategy to batch items with a fixed batch size.
+    ///
+    /// # Arguments
+    ///
+    /// * `batch_size` - The batch size.
+    ///
+    /// # Returns
+    ///
+    /// The strategy.
     pub fn new(batch_size: usize) -> Self {
         FixBatchStrategy {
             items: Vec::with_capacity(batch_size),

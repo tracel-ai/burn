@@ -21,28 +21,37 @@ use sanitize_filename::sanitize;
 use serde::{de::DeserializeOwned, Serialize};
 use serde_rusqlite::{columns_from_statement, from_row_with_columns};
 
+/// Result type for the sqlite dataset.
 pub type Result<T> = core::result::Result<T, SqliteDatasetError>;
 
+/// Sqlite dataset error.
 #[derive(thiserror::Error, Debug)]
 pub enum SqliteDatasetError {
+    /// IO related error.
     #[error("IO error: {0}")]
     Io(#[from] io::Error),
 
+    /// Sql related error.
     #[error("Sql error: {0}")]
     Sql(#[from] serde_rusqlite::rusqlite::Error),
 
+    /// Serde related error.
     #[error("Serde error: {0}")]
     Serde(#[from] rmp_serde::encode::Error),
 
+    /// The database file already exists error.
     #[error("Overwrite flag is set to false and the database file already exists: {0}")]
     FileExists(PathBuf),
 
+    /// Error when creating the connection pool.
     #[error("Failed to create connection pool: {0}")]
     ConnectionPool(#[from] r2d2::Error),
 
+    /// Error when persisting the temporary database file.
     #[error("Could not persist the temporary database file: {0}")]
     PersistDbFile(#[from] persist::Error<Writable>),
 
+    /// Any other error.
     #[error("{0}")]
     Other(&'static str),
 }

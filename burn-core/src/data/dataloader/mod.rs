@@ -4,6 +4,7 @@ mod builder;
 mod multithread;
 mod strategy;
 
+/// Module for batching items.
 pub mod batcher;
 
 pub use base::*;

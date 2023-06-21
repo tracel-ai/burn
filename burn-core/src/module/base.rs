@@ -178,16 +178,21 @@ pub trait Module<B: Backend>: Clone + Send + Sync + core::fmt::Debug {
     fn into_record(self) -> Self::Record;
 }
 
+/// Module visitor trait.
 pub trait ModuleVisitor<B: Backend> {
+    /// Visit a tensor in the module.
     fn visit<const D: usize>(&mut self, id: &ParamId, tensor: &Tensor<B, D>);
 }
 
+/// Module mapper trait.
 pub trait ModuleMapper<B: Backend> {
+    /// Map a tensor in the module.
     fn map<const D: usize>(&mut self, id: &ParamId, tensor: Tensor<B, D>) -> Tensor<B, D>;
 }
 
 /// Module with auto-differentiation backend.
 pub trait ADModule<B: ADBackend>: Module<B> + Send + Sync + core::fmt::Debug {
+    /// Inner module without auto-differentiation.
     type InnerModule: Module<B::InnerBackend>;
 
     /// Get the same module, but on the inner backend without auto-differentiation.
