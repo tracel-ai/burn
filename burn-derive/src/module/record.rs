@@ -26,6 +26,7 @@ impl ModuleRecordGenerator {
             let name = &field.field.ident;
 
             fields.extend(quote! {
+                /// The #name field.
                 pub #name: <#ty as burn::module::Module<B>>::Record,
             });
         }
@@ -33,6 +34,8 @@ impl ModuleRecordGenerator {
         let generics = &self.generics;
 
         quote! {
+
+            /// The record type for the module.
             #[derive(burn::record::Record, Debug, Clone)]
             pub struct #name #generics {
                 #fields

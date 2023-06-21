@@ -10,12 +10,15 @@ use serde::{Deserialize, Serialize};
 ///
 /// Records are versioned for backward compatibility, so old records can be loaded.
 pub enum AdaptorRecord<O: SimpleOptimizer<B>, B: Backend> {
+    /// Version 1.
     V1(AdaptorRecordV1<O, B>),
 }
 
+/// [Optimizer adaptor](crate::optim::simple::adaptor::OptimizerAdaptor) record item.
 #[derive(Serialize, Deserialize)]
 #[serde(bound = "")]
 pub enum AdaptorRecordItem<O: SimpleOptimizer<B>, B: Backend, S: PrecisionSettings> {
+    /// Version 1.
     V1(AdaptorRecordItemV1<O, B, S>),
 }
 
@@ -56,12 +59,26 @@ where
     O: SimpleOptimizer<B>,
     B: Backend,
 {
+    /// Converts the record into the optimizer state.
+    ///
+    /// # Returns
+    ///
+    /// The optimizer state.
     pub fn into_state<const D: usize>(self) -> O::State<D> {
         match self {
             AdaptorRecord::V1(record) => record.into_state(),
         }
     }
 
+    /// Converts the optimizer state into the record.
+    ///
+    /// # Arguments
+    ///
+    /// * `state`: The optimizer state.
+    ///
+    /// # Returns
+    ///
+    /// The record.
     pub fn from_state<const D: usize>(state: O::State<D>) -> Self {
         Self::V1(AdaptorRecordV1::from_state(state))
     }

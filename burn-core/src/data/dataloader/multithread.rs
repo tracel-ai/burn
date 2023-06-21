@@ -3,15 +3,20 @@ use std::collections::HashMap;
 use std::sync::{mpsc, Arc};
 use std::thread;
 
-static MAX_QUEUED_ITEMS: usize = 100;
+const MAX_QUEUED_ITEMS: usize = 100;
 
+/// A multi-threaded data loader that can be used to iterate over a dataset.
 pub struct MultiThreadDataLoader<O> {
     dataloaders: Vec<Arc<dyn DataLoader<O> + Send + Sync>>,
 }
 
+/// A message that can be sent between threads.
 #[derive(Debug)]
 pub enum Message<O> {
+    /// A batch of items.
     Batch(usize, O, Progress),
+
+    /// The thread is done.
     Done,
 }
 
@@ -23,6 +28,15 @@ struct MultiThreadsDataloaderIterator<O> {
 }
 
 impl<O> MultiThreadDataLoader<O> {
+    /// Creates a new multi-threaded data loader.
+    ///
+    /// # Arguments
+    ///
+    /// * `dataloaders` - The data loaders.
+    ///
+    /// # Returns
+    ///
+    /// The multi-threaded data loader.
     pub fn new(dataloaders: Vec<Arc<dyn DataLoader<O> + Send + Sync>>) -> Self {
         Self { dataloaders }
     }

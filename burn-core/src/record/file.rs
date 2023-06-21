@@ -8,6 +8,7 @@ use std::{fs::File, path::PathBuf};
 pub trait FileRecorder:
     Recorder<RecordArgs = PathBuf, RecordOutput = (), LoadArgs = PathBuf>
 {
+    /// File extension of the format used by the recorder.
     fn file_extension() -> &'static str;
 }
 

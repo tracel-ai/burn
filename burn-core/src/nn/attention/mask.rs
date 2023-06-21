@@ -22,8 +22,12 @@ pub fn generate_autoregressive_mask<B: Backend>(
     mask.equal_elem(1_i64.elem::<i64>())
 }
 
+/// Generate a padding attention mask.
 pub struct GeneratePaddingMask<B: Backend> {
+    /// The generated tensor.
     pub tensor: Tensor<B, 2, Int>,
+
+    /// The generated mask.
     pub mask: Tensor<B, 2, Bool>,
 }
 

@@ -190,6 +190,7 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
         }
 
         let body = quote! {
+            /// Create a new instance of the config.
             pub fn new(
                 #(#names),*
             ) -> Self {
@@ -208,6 +209,7 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
             let fn_name = Ident::new(&format!("with_{name}"), name.span());
 
             body.extend(quote! {
+                /// Set the default value for the field.
                 pub fn #fn_name(mut self, #name: #ty) -> Self {
                     self.#name = #name;
                     self
@@ -221,6 +223,7 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
             let fn_name = Ident::new(&format!("with_{name}"), name.span());
 
             body.extend(quote! {
+                /// Set the default value for the field.
                 pub fn #fn_name(mut self, #name: #ty) -> Self {
                     self.#name = #name;
                     self

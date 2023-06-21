@@ -1,6 +1,7 @@
 use alloc::string::{String, ToString};
 use burn_common::id::IdGenerator;
 
+/// Parameter ID.
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
 pub struct ParamId {
     value: String,
@@ -27,11 +28,14 @@ impl Default for ParamId {
 }
 
 impl ParamId {
+    /// Create a new parameter ID.
     pub fn new() -> Self {
         Self {
             value: IdGenerator::generate(),
         }
     }
+
+    /// Convert the parameter ID into a string.
     pub fn into_string(self) -> String {
         self.value
     }

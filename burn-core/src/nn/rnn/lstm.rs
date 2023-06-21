@@ -11,6 +11,7 @@ use burn_tensor::activation;
 
 use super::gate_controller::GateController;
 
+/// The configuration for a [lstm](Lstm) module.
 #[derive(Config)]
 pub struct LstmConfig {
     /// The size of the input features.

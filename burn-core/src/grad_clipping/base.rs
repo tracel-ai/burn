@@ -3,13 +3,22 @@ use crate as burn;
 use crate::{config::Config, tensor::Tensor};
 use burn_tensor::{backend::Backend, ElementConversion};
 
+/// Gradient Clipping provides a way to mitigate exploding gradients
 #[derive(Config)]
 pub enum GradientClippingConfig {
+    /// Clip the gradient by value.
     Value(f32),
+
+    /// Clip the gradient by norm.
     Norm(f32),
 }
 
 impl GradientClippingConfig {
+    /// Initialize the gradient clipping.
+    ///
+    /// # Returns
+    ///
+    /// The gradient clipping.
     pub fn init(&self) -> GradientClipping {
         match self {
             GradientClippingConfig::Value(val) => GradientClipping::Value(*val),
@@ -22,11 +31,23 @@ impl GradientClippingConfig {
 /// by clipping every component of the gradient by value or by norm during
 /// backpropagation.
 pub enum GradientClipping {
+    /// Clip the gradient by value.
     Value(f32),
+
+    /// Clip the gradient by norm.
     Norm(f32),
 }
 
 impl GradientClipping {
+    /// Clip the gradient.
+    ///
+    /// # Arguments
+    ///
+    /// * `grad` - The gradient to clip.
+    ///
+    /// # Returns
+    ///
+    /// The clipped gradient.
     pub fn clip_gradient<B: Backend, const D: usize>(&self, grad: Tensor<B, D>) -> Tensor<B, D> {
         match self {
             GradientClipping::Value(threshold) => self.clip_by_value(grad, *threshold),

@@ -11,27 +11,60 @@ use crate as burn;
 #[derive(Config, Debug, PartialEq)]
 pub enum Initializer {
     /// Fills tensor with specified value everywhere
-    Constant { value: f64 },
+    Constant {
+        /// The value to fill the tensor with
+        value: f64,
+    },
     /// Fills tensor with 1s everywhere
     Ones,
     /// Fills tensor with 0s everywhere
     Zeros,
     /// Fills tensor with values drawn uniformly between specified values
-    Uniform { min: f64, max: f64 },
+    Uniform {
+        /// The minimum value to draw from
+        min: f64,
+
+        /// The maximum value to draw from
+        max: f64,
+    },
     /// Fills tensor with values drawn from normal distribution with specified mean and std
-    Normal { mean: f64, std: f64 },
+    Normal {
+        /// The mean of the normal distribution
+        mean: f64,
+
+        /// The standard deviation of the normal distribution
+        std: f64,
+    },
     /// Fills tensor with values according to the uniform version of Kaiming initialization
-    KaimingUniform { gain: f64, fan_out_only: bool },
+    KaimingUniform {
+        /// The gain to use in initialization formula
+        gain: f64,
+
+        /// Whether to use fan out only in initialization formula
+        fan_out_only: bool,
+    },
     /// Fills tensor with values according to the uniform version of Kaiming initialization
-    KaimingNormal { gain: f64, fan_out_only: bool },
+    KaimingNormal {
+        /// The gain to use in initialization formula
+        gain: f64,
+
+        /// Whether to use fan out only in initialization formula
+        fan_out_only: bool,
+    },
     /// Fills tensor with values according to the uniform version of Xavier Glorot initialization
     /// described in [Understanding the difficulty of training deep feedforward neural networks
     /// ](https://proceedings.mlr.press/v9/glorot10a/glorot10a.pdf)
-    XavierUniform { gain: f64 },
+    XavierUniform {
+        /// The gain to use in initialization formula
+        gain: f64,
+    },
     /// Fills tensor with values according to the normal version of Xavier Glorot initialization
     /// described in [Understanding the difficulty of training deep feedforward neural networks
     /// ](https://proceedings.mlr.press/v9/glorot10a/glorot10a.pdf)
-    XavierNormal { gain: f64 },
+    XavierNormal {
+        /// The gain to use in initialization formula
+        gain: f64,
+    },
 }
 
 impl Initializer {
