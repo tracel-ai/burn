@@ -30,9 +30,9 @@ fn main(
 
     // Basic information
     let dim = info[0];
-    let n_rows = info[4u * dim - 1u];
-    let n_cols = info[5u * dim];
-    let K = info[4u * dim];
+    let n_rows = info[6u * dim - 1u];
+    let n_cols = info[6u * dim];
+    let K = info[5u * dim - 1u];
 
     // Returns if outside the output dimension
     if row >= n_rows || col >= n_cols {
@@ -51,7 +51,6 @@ fn main(
         let stride_output = info[b + 2u * dim];
         let shape_lhs = info[b + 3u * dim];
         let shape_rhs = info[b + 4u * dim];
-        let shape_output = info[b + 5u * dim];
 
         offset_lhs += offset_output / stride_output % shape_lhs * stride_lhs;
         offset_rhs += offset_output / stride_output % shape_rhs * stride_rhs;
@@ -66,6 +65,6 @@ fn main(
         sum += lhs[offset_lhs + lhs_index] * rhs[offset_rhs + rhs_index];
     }
 
-    let output_index = row * n_rows + col;
+    let output_index = row * n_cols + col;
     output[offset_output + output_index] = sum;
 }
