@@ -117,11 +117,8 @@ where
         todo!()
     }
 
-    fn int_cat<const D: usize>(
-        _tensors: Vec<<WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>>,
-        _dim: usize,
-    ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
-        todo!()
+    fn int_cat<const D: usize>(tensors: Vec<IntTensor<Self, D>>, dim: usize) -> IntTensor<Self, D> {
+        BaseOps::<G>::cat(tensors, dim)
     }
 
     fn int_equal<const D: usize>(

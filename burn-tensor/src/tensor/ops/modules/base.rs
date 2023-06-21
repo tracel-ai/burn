@@ -1,5 +1,5 @@
 use super::{conv, pool};
-use crate::backend::Backend;
+use crate::{backend::Backend, Shape};
 
 /// Gradient computed during the backward pass for each tensor used by [conv2d](ModuleOps::conv2d).
 #[derive(new)]
@@ -53,12 +53,30 @@ pub trait ModuleOps<B: Backend> {
     fn embedding(
         weights: B::TensorPrimitive<2>,
         indexes: B::IntTensorPrimitive<2>,
-    ) -> B::TensorPrimitive<3>;
+    ) -> B::TensorPrimitive<3> {
+        let [batch_size, seq_length] = B::int_shape(&indexes).dims;
+        let [_, d_model] = B::shape(&weights).dims;
+
+        let indexes = B::int_reshape(indexes, Shape::new([batch_size * seq_length]));
+        let output = B::index_select(weights, 0, indexes);
+
+        B::reshape(output, Shape::new([batch_size, seq_length, d_model]))
+    }
     fn embedding_backward(
         weights: B::TensorPrimitive<2>,
-        output: B::TensorPrimitive<3>,
+        output_grad: B::TensorPrimitive<3>,
         indexes: B::IntTensorPrimitive<2>,
-    ) -> B::TensorPrimitive<2>;
+    ) -> B::TensorPrimitive<2> {
+        let [batch_size, seq_length] = B::int_shape(&indexes).dims;
+        let [n_embeddings, d_model] = B::shape(&weights).dims;
+        let device = B::device(&weights);
+
+        let indexes = B::int_reshape(indexes, Shape::new([batch_size * seq_length]));
+        let output_grad = B::reshape(output_grad, Shape::new([batch_size * seq_length, d_model]));
+        let grad = B::zeros(Shape::new([n_embeddings, d_model]), &device);
+
+        B::index_select_assign(grad, 0, indexes, output_grad)
+    }
     /// Two dimensional convolution.
     ///
     /// # Shapes

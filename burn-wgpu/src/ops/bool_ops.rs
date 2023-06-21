@@ -84,10 +84,10 @@ where
     }
 
     fn bool_cat<const D: usize>(
-        _tensors: Vec<<WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D>>,
-        _dim: usize,
-    ) -> <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D> {
-        todo!()
+        tensors: Vec<BoolTensor<Self, D>>,
+        dim: usize,
+    ) -> BoolTensor<Self, D> {
+        BaseOps::<G>::cat(tensors, dim)
     }
 
     fn bool_equal<const D: usize>(
