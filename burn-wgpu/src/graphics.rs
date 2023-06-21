@@ -3,24 +3,29 @@
 /// Options are:
 ///   - [Vulkan](Vulkan)
 ///   - [Metal](Metal)
-///   - [OpenGL](OpenGL)
+///   - [OpenGL](OpenGl)
 ///   - [DirectX 11](Dx11)
 ///   - [DirectX 12](Dx12)
-///   - [WebGPU](WebGPU)
+///   - [WebGpu](WebGpu)
 pub trait GraphicsApi: Send + Sync + core::fmt::Debug + Default + Clone + 'static {
     fn backend() -> wgpu::Backend;
 }
 
 #[derive(Default, Debug, Clone)]
 pub struct Vulkan;
+
 #[derive(Default, Debug, Clone)]
 pub struct Metal;
+
 #[derive(Default, Debug, Clone)]
 pub struct OpenGl;
+
 #[derive(Default, Debug, Clone)]
 pub struct Dx11;
+
 #[derive(Default, Debug, Clone)]
 pub struct Dx12;
+
 #[derive(Default, Debug, Clone)]
 pub struct WebGpu;
 

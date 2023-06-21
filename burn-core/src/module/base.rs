@@ -64,7 +64,7 @@ macro_rules! module {
 ///
 /// Modules should be created using the [derive](burn_derive::Module) attribute.
 /// This will make your module trainable, savable and loadable via
-/// [state](Module::state) and [load](Module::load).
+/// `state` and `load`.
 ///
 /// # Example
 ///

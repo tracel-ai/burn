@@ -77,7 +77,7 @@ impl LstmConfig {
         }
     }
 
-    /// Initialize a new [lstm](lstm) module with a [record](LstmRecord).
+    /// Initialize a new [lstm](Lstm) module with a [record](LstmRecord).
     pub fn init_with<B: Backend>(&self, record: LstmRecord<B>) -> Lstm<B> {
         let linear_config = LinearConfig {
             d_input: self.d_input,

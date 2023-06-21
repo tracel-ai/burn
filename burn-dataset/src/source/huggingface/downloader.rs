@@ -81,7 +81,7 @@ impl HuggingfaceDatasetLoader {
 
     /// Specify a huggingface token to download datasets behind authentication.
     ///
-    /// You can get a token from https://huggingface.co/settings/tokens
+    /// You can get a token from [tokens settings](https://huggingface.co/settings/tokens)
     pub fn with_huggingface_token(mut self, huggingface_token: &str) -> Self {
         self.huggingface_token = Some(huggingface_token.to_string());
         self
