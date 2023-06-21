@@ -3,7 +3,7 @@ use crate::{
     context::WorkGroup,
     element::WgpuElement,
     kernel::{
-        build_info, comparison, comparison_elem, comparison_elem_inplace, comparison_inplace,
+        build_info, cat, comparison, comparison_elem, comparison_elem_inplace, comparison_inplace,
         mask_fill, mask_fill_inplace, mask_where, mask_where_inplace, KernelSettings,
     },
     kernel_wgsl,
@@ -384,6 +384,7 @@ impl<G: GraphicsApi> BaseOps<G> {
 
         mask_fill(tensor, mask, value)
     }
+
     pub fn mask_where<E: WgpuElement, const D: usize>(
         tensor: WgpuTensor<E, D>,
         mask: WgpuTensor<u32, D>,
@@ -397,5 +398,12 @@ impl<G: GraphicsApi> BaseOps<G> {
         }
 
         mask_where(tensor, mask, value)
+    }
+
+    pub fn cat<E: WgpuElement, const D: usize>(
+        tensors: Vec<WgpuTensor<E, D>>,
+        dim: usize,
+    ) -> WgpuTensor<E, D> {
+        cat(tensors, dim)
     }
 }

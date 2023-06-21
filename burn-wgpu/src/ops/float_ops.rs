@@ -1,5 +1,3 @@
-use std::ops::Range;
-
 use super::numeric::NumericOps;
 use super::{BaseOps, BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
 use crate::kernel::{matmul, unary, unary_inplace, unary_scalar, unary_scalar_inplace};
@@ -11,6 +9,7 @@ use crate::{unary_scalar, unary_scalar_inplace};
 use burn_common::rand::get_seeded_rng;
 use burn_tensor::ElementConversion;
 use burn_tensor::{backend::Backend, ops::TensorOps, Data, Distribution, Shape};
+use std::ops::Range;
 
 impl<G, F, I> TensorOps<WGPUBackend<G, F, I>> for WGPUBackend<G, F, I>
 where
@@ -420,11 +419,8 @@ where
         unary::<Erf, F, D>(tensor)
     }
 
-    fn cat<const D: usize>(
-        _tensors: Vec<<WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>>,
-        _dim: usize,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
-        todo!()
+    fn cat<const D: usize>(tensors: Vec<FloatTensor<Self, D>>, dim: usize) -> FloatTensor<Self, D> {
+        BaseOps::<G>::cat(tensors, dim)
     }
 
     fn argmax<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
