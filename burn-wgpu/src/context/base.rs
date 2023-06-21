@@ -22,7 +22,7 @@ pub type ContextServerImpl = super::server::AsyncContextServer;
 #[cfg(not(feature = "async"))]
 pub type ContextServerImpl = super::server::SyncContextServer;
 
-/// The context is the basic struct that allows to execute GPU kernel on devices.
+/// The context is the basic struct that allows to ex_writtecute GPU kernel on devices.
 ///
 /// You can access a context for a [wgpu device](WGPUDevice) using [get_context](crate::pool::get_context).
 #[derive(Debug)]
@@ -116,6 +116,11 @@ impl Context {
 
     /// Create a new buffer initialized with the provided bytes.
     pub fn create_buffer_with_data(&self, data: &[u8]) -> Arc<Buffer> {
+        self.create_buffer_with_data_options(data, false)
+    }
+
+    /// Create a new buffer initialized with the provided bytes with the option to be sync.
+    pub fn create_buffer_with_data_options(&self, data: &[u8], sync: bool) -> Arc<Buffer> {
         let buffer_src = Arc::new(self.device_wgpu.create_buffer_init(&BufferInitDescriptor {
             label: Some("Buffer Src"),
             contents: data,
@@ -124,7 +129,7 @@ impl Context {
 
         let buffer_dest = self.create_buffer(buffer_src.size() as usize);
 
-        self.client.copy_buffer(buffer_src, buffer_dest, false)
+        self.client.copy_buffer(buffer_src, buffer_dest, sync)
     }
 
     /// Copy buffer to buffer.

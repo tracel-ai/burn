@@ -4,8 +4,7 @@ var<storage, read_write> input: array<{{ elem }}>;
 
 @group(0)
 @binding(1)
-var<storage, read> value: {{ elem }};
-
+var<storage, read> value: array<{{ elem }}>;
 
 @group(0)
 @binding(2)
@@ -19,21 +18,27 @@ var<storage, read> info: array<u32>;
 @workgroup_size({{ workgroup_size_x }}, 1, 1)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let dim = info[0];
+    let mask_direction = info[6u * dim + 1u];
+
     var index_input = 0u;
+    var index_value = 0u;
     var index_mask = 0u;
 
     for (var i = 1u; i <= dim; i++) {
         let stride_input = info[i];
-        let stride_mask = info[i + dim];
-        let shape_input = info[i + 2u * dim];
-        let shape_mask = info[i + 3u * dim];
+        let stride_value = info[i + dim];
+        let stride_mask = info[i + 2u * dim];
+
+        let shape_input = info[i + 3u * dim];
+        let shape_value = info[i + 4u * dim];
+        let shape_mask = info[i + 5u * dim];
 
         index_input += global_id.x / stride_input % shape_input * stride_input;
+        index_value += global_id.x / stride_input % shape_value * stride_value;
         index_mask += global_id.x / stride_input % shape_mask * stride_mask;
     }
 
-
-    if mask[index_mask] != 0u {
-        input[index_input] = value;
+    if mask[index_mask] == mask_direction  {
+        input[index_input] = value[index_value];
     }
 }
