@@ -1,7 +1,9 @@
 use alloc::vec::Vec;
 
+/// Shape of a tensor.
 #[derive(new, Debug, Clone, PartialEq, Eq)]
 pub struct Shape<const D: usize> {
+    /// The dimensions of the tensor.
     pub dims: [usize; D],
 }
 

@@ -397,103 +397,555 @@ pub trait Numeric<B: Backend>: BasicOps<B>
 where
     Self::Elem: Element,
 {
+    /// Adds two tensors together.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The sum of the two tensors.
     fn add<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Primitive<D>) -> Self::Primitive<D>;
+
+    /// Adds a scalar to a tensor element-wise.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// The sum of the tensor and the scalar.
     fn add_scalar<const D: usize, E: ElementConversion>(
         lhs: Self::Primitive<D>,
         rhs: E,
     ) -> Self::Primitive<D>;
+
+    /// Subtracts two tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The difference of the two tensors.
     fn sub<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Primitive<D>) -> Self::Primitive<D>;
+
+    /// Subtracts a scalar from a tensor element-wise.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// The difference of the tensor and the scalar.
     fn sub_scalar<const D: usize, E: ElementConversion>(
         lhs: Self::Primitive<D>,
         rhs: E,
     ) -> Self::Primitive<D>;
+
+    /// Divides two tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The quotient of the two tensors.
     fn div<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Primitive<D>) -> Self::Primitive<D>;
+
+    /// Divides a tensor by a scalar element-wise.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// The quotient of the tensor and the scalar.
     fn div_scalar<const D: usize, E: ElementConversion>(
         lhs: Self::Primitive<D>,
         rhs: E,
     ) -> Self::Primitive<D>;
+
+    /// Multiplies two tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The product of the two tensors.
     fn mul<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Primitive<D>) -> Self::Primitive<D>;
+
+    /// Multiplies a tensor by a scalar element-wise.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// The product of the tensor and the scalar.
     fn mul_scalar<const D: usize, E: ElementConversion>(
         lhs: Self::Primitive<D>,
         rhs: E,
     ) -> Self::Primitive<D>;
+
+    /// Negates a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to negate.
+    ///
+    /// # Returns
+    ///
+    /// The negated tensor.
     fn neg<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D>;
+
+    /// Creates a tensor filled with zeros.
+    ///
+    /// # Arguments
+    ///
+    /// * `shape` - The shape of the tensor.
+    /// * `device` - The device on which the tensor will be allocated.
+    ///
+    /// # Returns
+    ///
+    /// The tensor filled with zeros.
     fn zeros<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D>;
+
+    /// Creates a tensor filled with ones.
+    ///
+    /// # Arguments
+    ///
+    /// * `shape` - The shape of the tensor.
+    /// * `device` - The device on which the tensor will be allocated.
+    ///
+    /// # Returns
+    ///
+    /// The tensor filled with ones.
     fn ones<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D>;
+
+    /// Sums all the elements of the tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to sum.
+    ///
+    /// # Returns
+    ///
+    /// The sum of all the elements of the tensor.
     fn sum<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1>;
+
+    /// Sums all the elements of the tensor along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to sum.
+    /// * `dim` - The dimension along which to sum.
+    ///
+    /// # Returns
+    ///
+    /// The sum of all the elements of the tensor along the specified dimension.
     fn sum_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D>;
+
+    /// Computes the mean of all the elements of the tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the mean of.
+    ///
+    /// # Returns
+    ///
+    /// The mean of all the elements of the tensor.
     fn mean<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1>;
+
+    /// Computes the mean of all the elements of the tensor along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the mean of.
+    /// * `dim` - The dimension along which to compute the mean.
+    ///
+    /// # Returns
+    ///
+    /// The mean of all the elements of the tensor along the specified dimension.
     fn mean_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D>;
+
+    /// Element-wise equality between two tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the same shape as the input tensors, where each element is true if the
+    /// corresponding elements of the input tensors are equal, and false otherwise.
     fn equal_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool>;
+
+    /// Element-wise greater than comparison between two tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the same shape as the input tensors, where each element is true if the
+    /// corresponding element of the left hand side tensor is greater than the corresponding element
+    /// of the right hand side tensor, and false otherwise.
     fn greater<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, Bool>;
+
+    /// Element-wise greater than comparison between a tensor and a scalar.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the same shape as the input tensor, where each element is true if the
+    /// corresponding element of the left hand side tensor is greater than the right hand side
+    /// scalar, and false otherwise.
     fn greater_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem)
         -> Tensor<B, D, Bool>;
+
+    /// Element-wise greater than or equal comparison between two tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the same shape as the input tensors, where each element is true if the
+    /// corresponding element of the left hand side tensor is greater than or equal to the
+    /// corresponding element of the right hand side tensor, and false otherwise.
     fn greater_equal<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, Bool>;
+
+    /// Element-wise greater than or equal comparison between a tensor and a scalar.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the same shape as the input tensor, where each element is true if the
+    /// corresponding element of the left hand side tensor is greater than or equal to the right
+    /// hand side scalar, and false otherwise.
     fn greater_equal_elem<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Elem,
     ) -> Tensor<B, D, Bool>;
+
+    /// Element-wise less than comparison between two tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the same shape as the input tensors, where each element is true if the
+    /// corresponding element of the left hand side tensor is less than the corresponding element of
+    /// the right hand side tensor, and false otherwise.
     fn lower<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, Bool>;
+
+    /// Element-wise less than comparison between a tensor and a scalar.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the same shape as the input tensor, where each element is true if the
+    /// corresponding element of the left hand side tensor is less than the right hand side scalar,
+    /// and false otherwise.
     fn lower_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool>;
+
+    /// Element-wise less than or equal comparison between two tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the same shape as the input tensors, where each element is true if the
+    /// corresponding element of the left hand side tensor is less than or equal to the corresponding
+    /// element of the right hand side tensor, and false otherwise.
     fn lower_equal<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, Bool>;
+
+    /// Element-wise less than or equal comparison between a tensor and a scalar.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the same shape as the input tensor, where each element is true if the
+    /// corresponding element of the left hand side tensor is less than or equal to the right hand
+    /// side scalar, and false otherwise.
     fn lower_equal_elem<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Elem,
     ) -> Tensor<B, D, Bool>;
+
+    /// Selects elements from a tensor based on a boolean mask.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to select elements from if the corresponding element of the mask is true.
+    /// * `mask` - The boolean mask to use for selecting elements.
+    /// * `source` - The tensor to select elements from when the corresponding element of the mask is false.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensors, where each element is taken from the
+    /// corresponding element of the left hand side tensor if the corresponding element of the mask
+    /// is true, and from the corresponding element of the right hand side tensor otherwise.
     fn mask_where<const D: usize>(
         tensor: Self::Primitive<D>,
         mask: Tensor<B, D, Bool>,
         source: Self::Primitive<D>,
     ) -> Self::Primitive<D>;
+
+    /// Fills elements of a tensor based on a boolean mask.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor where will be overwritten with the value
+    ///              when the corresponding element of the mask is true.
+    /// * `mask` - The boolean mask to use for filling elements.
+    /// * `value` - The value to fill elements with when the corresponding element of the mask is true.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensors, where each element is taken from the
+    /// corresponding element unmodified if the corresponding element of the mask is false, and
+    /// filled with the value otherwise.
     fn mask_fill<const D: usize>(
         tensor: Self::Primitive<D>,
         mask: Tensor<B, D, Bool>,
         value: Self::Elem,
     ) -> Self::Primitive<D>;
+
+    /// Gathers elements from a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim` - The axis along which to gather elements.
+    /// * `tensor` - The tensor to gather elements from.
+    /// * `indexes` - The indexes of the elements to gather.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensor, where each element is taken from the
+    /// corresponding element of the input tensor at the corresponding index along the specified axis.
     fn gather<const D: usize>(
         dim: usize,
         tensor: Self::Primitive<D>,
         indexes: Tensor<B, D, Int>,
     ) -> Self::Primitive<D>;
+
+    /// Scatters elements into a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim` - The axis along which to scatter elements.
+    /// * `tensor` - The tensor to scatter elements into.
+    /// * `indices` - The indexes of the elements to scatter.
+    /// * `values` - The values to scatter into the tensor.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensor, where each element is taken from the
+    /// corresponding element of the input tensor at the corresponding index along the specified axis,
+    /// except for the elements at the specified indexes, which are taken from the corresponding
+    /// element of the values tensor.
     fn scatter<const D: usize>(
         dim: usize,
         tensor: Self::Primitive<D>,
         indexes: Tensor<B, D, Int>,
         values: Self::Primitive<D>,
     ) -> Self::Primitive<D>;
+
+    /// Select tensor elements along the given dimension corresponding for the given indexes.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to select elements from.
+    /// * `dim` - The axis along which to select elements.
+    /// * `indexes` - The indexes of the elements to select.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensor, where each element is taken from the
+    /// corresponding element of the input tensor at the corresponding index along the specified axis.
     fn index_select<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
         indexes: Tensor<B, 1, Int>,
     ) -> Self::Primitive<D>;
+
+    /// Assign the selected elements along the given dimension corresponding to the given indexes
+    /// from the value tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to assign elements to.
+    /// * `dim` - The axis along which to assign elements.
+    /// * `indexes` - The indexes of the elements to assign.
+    /// * `values` - The values to assign to the tensor.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensor, where each element is taken from the
+    /// corresponding element of the input tensor at the corresponding index along the specified axis,
+    /// except for the elements at the specified indexes, which are taken from the corresponding
+    /// element of the values tensor.
     fn index_select_assign<const D1: usize, const D2: usize>(
         tensor: Self::Primitive<D1>,
         dim: usize,
         indexes: Tensor<B, 1, Int>,
         values: Self::Primitive<D2>,
     ) -> Self::Primitive<D1>;
+
+    /// Gets the indexes of the maximum elements of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim` - The axis along which to get the indexes of the maximum elements.
+    /// * `tensor` - The tensor to get the indexes of the maximum elements from.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensor, where each element is the index of the
+    /// maximum element of the input tensor at the corresponding index along the specified axis.
     fn argmax<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> B::IntTensorPrimitive<D>;
+
+    /// Gets the indexes of the minimum elements of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim` - The axis along which to get the indexes of the minimum elements.
+    /// * `tensor` - The tensor to get the indexes of the minimum elements from.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensor, where each element is the index of the
+    /// minimum element of the input tensor at the corresponding index along the specified axis.
     fn argmin<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> B::IntTensorPrimitive<D>;
+
+    /// Gets the maximum elements of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim` - The axis along which to get the maximum elements.
+    ///
+    /// # Returns
+    ///
+    /// A single-element tensor containing the maximum element of the input tensor.
     fn max<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1>;
+
+    /// Gets the maximum elements of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the maximum elements from.
+    /// * `dim` - The axis along which to get the maximum elements.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensor, where each element is the maximum element
     fn max_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D>;
+
+    /// Gets the maximum elements of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the maximum elements from.
+    /// * `dim` - The axis along which to get the maximum elements.
+    ///
     fn max_dim_with_indexes<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
     ) -> (Self::Primitive<D>, B::IntTensorPrimitive<D>);
+
+    /// Gets the minimum elements of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the minimum elements from.
+    ///
+    /// # Returns
+    ///
+    /// A single-element tensor containing the minimum element of the input tensor.
     fn min<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1>;
+
+    /// Gets the minimum elements of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the minimum elements from.
+    /// * `dim` - The axis along which to get the minimum elements.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensor, where each element is the minimum element
+    /// of the input tensor at the corresponding index along the specified axis.
     fn min_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D>;
+
+    /// Gets the minimum elements and indices of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the minimum elements from.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensor and corresponding indices, where
+    /// each element is the minimum element of the input tensor at the corresponding index
+    /// along the specified axis.
     fn min_dim_with_indexes<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
