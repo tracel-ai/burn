@@ -10,6 +10,7 @@ pub struct LearningRateMetric {
 }
 
 impl LearningRateMetric {
+    /// Creates a new learning rate metric.
     pub fn new() -> Self {
         Self {
             state: NumericMetricState::new(),

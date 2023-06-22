@@ -1,4 +1,8 @@
+
+/// Dashboard module for training progress.
 pub mod dashboard;
+
+/// State module for dashboard metrics.
 pub mod state;
 
 mod acc;
