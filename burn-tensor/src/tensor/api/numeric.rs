@@ -407,6 +407,15 @@ where
     /// # Returns
     ///
     /// The sum of the two tensors.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For adding tensors, users should prefer the [Tensor::add](Tensor::add) function,
+    /// which is more high-level and designed for public use.
     fn add<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Primitive<D>) -> Self::Primitive<D>;
 
     /// Adds a scalar to a tensor element-wise.
@@ -419,6 +428,15 @@ where
     /// # Returns
     ///
     /// The sum of the tensor and the scalar.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For adding a scalar to a tensor, users should prefer the [Tensor::add_scalar](Tensor::add_scalar) function,
+    /// which is more high-level and designed for public use.
     fn add_scalar<const D: usize, E: ElementConversion>(
         lhs: Self::Primitive<D>,
         rhs: E,
@@ -434,6 +452,15 @@ where
     /// # Returns
     ///
     /// The difference of the two tensors.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For subtracting tensors, users should prefer the [Tensor::sub](Tensor::sub) function,
+    /// which is more high-level and designed for public use.
     fn sub<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Primitive<D>) -> Self::Primitive<D>;
 
     /// Subtracts a scalar from a tensor element-wise.
@@ -446,6 +473,15 @@ where
     /// # Returns
     ///
     /// The difference of the tensor and the scalar.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For subtracting a scalar from a tensor, users should prefer the [Tensor::sub_scalar](Tensor::sub_scalar) function,
+    /// which is more high-level and designed for public use.
     fn sub_scalar<const D: usize, E: ElementConversion>(
         lhs: Self::Primitive<D>,
         rhs: E,
@@ -461,6 +497,15 @@ where
     /// # Returns
     ///
     /// The quotient of the two tensors.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For dividing tensors, users should prefer the [Tensor::div](Tensor::div) function,
+    /// which is more high-level and designed for public use.
     fn div<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Primitive<D>) -> Self::Primitive<D>;
 
     /// Divides a tensor by a scalar element-wise.
@@ -473,6 +518,15 @@ where
     /// # Returns
     ///
     /// The quotient of the tensor and the scalar.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For dividing a tensor by a scalar, users should prefer the [Tensor::div_scalar](Tensor::div_scalar) function,
+    /// which is more high-level and designed for public use.
     fn div_scalar<const D: usize, E: ElementConversion>(
         lhs: Self::Primitive<D>,
         rhs: E,
@@ -488,6 +542,15 @@ where
     /// # Returns
     ///
     /// The product of the two tensors.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For multiplying tensors, users should prefer the [Tensor::mul](Tensor::mul) function,
+    /// which is more high-level and designed for public use.
     fn mul<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Primitive<D>) -> Self::Primitive<D>;
 
     /// Multiplies a tensor by a scalar element-wise.
@@ -500,6 +563,15 @@ where
     /// # Returns
     ///
     /// The product of the tensor and the scalar.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For multiplying a tensor by a scalar, users should prefer the [Tensor::mul_scalar](Tensor::mul_scalar) function,
+    /// which is more high-level and designed for public use.
     fn mul_scalar<const D: usize, E: ElementConversion>(
         lhs: Self::Primitive<D>,
         rhs: E,
@@ -514,6 +586,15 @@ where
     /// # Returns
     ///
     /// The negated tensor.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For negating a tensor, users should prefer the [Tensor::neg](Tensor::neg) function,
+    /// which is more high-level and designed for public use.
     fn neg<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D>;
 
     /// Creates a tensor filled with zeros.
@@ -526,6 +607,15 @@ where
     /// # Returns
     ///
     /// The tensor filled with zeros.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For creating a tensor filled with zeros, users should prefer the [Tensor::zeros](Tensor::zeros) function,
+    /// which is more high-level and designed for public use.
     fn zeros<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D>;
 
     /// Creates a tensor filled with ones.
@@ -538,6 +628,15 @@ where
     /// # Returns
     ///
     /// The tensor filled with ones.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For creating a tensor filled with ones, users should prefer the [Tensor::ones](Tensor::ones) function,
+    /// which is more high-level and designed for public use.
     fn ones<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D>;
 
     /// Sums all the elements of the tensor.
@@ -549,6 +648,15 @@ where
     /// # Returns
     ///
     /// The sum of all the elements of the tensor.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For summing all the elements of a tensor, users should prefer the [Tensor::sum](Tensor::sum) function,
+    /// which is more high-level and designed for public use.
     fn sum<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1>;
 
     /// Sums all the elements of the tensor along a dimension.
@@ -561,6 +669,15 @@ where
     /// # Returns
     ///
     /// The sum of all the elements of the tensor along the specified dimension.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For summing all the elements of a tensor along a dimension, users should prefer the [Tensor::sum_dim](Tensor::sum_dim) function,
+    /// which is more high-level and designed for public use.
     fn sum_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D>;
 
     /// Computes the mean of all the elements of the tensor.
@@ -572,6 +689,15 @@ where
     /// # Returns
     ///
     /// The mean of all the elements of the tensor.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For computing the mean of all the elements of a tensor, users should prefer the [Tensor::mean](Tensor::mean) function,
+    /// which is more high-level and designed for public use.
     fn mean<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1>;
 
     /// Computes the mean of all the elements of the tensor along a dimension.
@@ -584,6 +710,15 @@ where
     /// # Returns
     ///
     /// The mean of all the elements of the tensor along the specified dimension.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For computing the mean of all the elements of a tensor along a dimension, users should prefer
+    /// the [Tensor::mean_dim](Tensor::mean_dim) function, which is more high-level and designed for public use.
     fn mean_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D>;
 
     /// Element-wise equality between two tensors.
@@ -597,6 +732,14 @@ where
     ///
     /// A boolean tensor with the same shape as the input tensors, where each element is true if the
     /// corresponding elements of the input tensors are equal, and false otherwise.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For element-wise equality between two tensors, users should prefer the [Tensor::equal_elem](Tensor::equal_elem) function,
     fn equal_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool>;
 
     /// Element-wise greater than comparison between two tensors.
@@ -611,6 +754,15 @@ where
     /// A boolean tensor with the same shape as the input tensors, where each element is true if the
     /// corresponding element of the left hand side tensor is greater than the corresponding element
     /// of the right hand side tensor, and false otherwise.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For element-wise greater than comparison between two tensors, users should prefer the [Tensor::greater](Tensor::greater) function,
+    /// which is more high-level and designed for public use.
     fn greater<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
@@ -628,6 +780,15 @@ where
     /// A boolean tensor with the same shape as the input tensor, where each element is true if the
     /// corresponding element of the left hand side tensor is greater than the right hand side
     /// scalar, and false otherwise.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For element-wise greater than comparison between a tensor and a scalar, users should prefer
+    /// the [Tensor::greater_elem](Tensor::greater_elem) function, which is more high-level and designed for public use.
     fn greater_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem)
         -> Tensor<B, D, Bool>;
 
@@ -643,6 +804,15 @@ where
     /// A boolean tensor with the same shape as the input tensors, where each element is true if the
     /// corresponding element of the left hand side tensor is greater than or equal to the
     /// corresponding element of the right hand side tensor, and false otherwise.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For element-wise greater than or equal comparison between two tensors, users should prefer
+    /// the [Tensor::greater_equal](Tensor::greater_equal) function, which is more high-level and designed for public use.
     fn greater_equal<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
@@ -660,6 +830,15 @@ where
     /// A boolean tensor with the same shape as the input tensor, where each element is true if the
     /// corresponding element of the left hand side tensor is greater than or equal to the right
     /// hand side scalar, and false otherwise.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For element-wise greater than or equal comparison between a tensor and a scalar, users should prefer
+    /// the [Tensor::greater_equal_elem](Tensor::greater_equal_elem) function, which is more high-level and designed for public use.
     fn greater_equal_elem<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Elem,
@@ -677,6 +856,15 @@ where
     /// A boolean tensor with the same shape as the input tensors, where each element is true if the
     /// corresponding element of the left hand side tensor is less than the corresponding element of
     /// the right hand side tensor, and false otherwise.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For element-wise less than comparison between two tensors, users should prefer the [Tensor::lower](Tensor::lower) function,
+    /// which is more high-level and designed for public use.
     fn lower<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
@@ -694,6 +882,15 @@ where
     /// A boolean tensor with the same shape as the input tensor, where each element is true if the
     /// corresponding element of the left hand side tensor is less than the right hand side scalar,
     /// and false otherwise.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For element-wise less than comparison between a tensor and a scalar, users should prefer
+    /// the [Tensor::lower_elem](Tensor::lower_elem) function, which is more high-level and designed for public use.
     fn lower_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool>;
 
     /// Element-wise less than or equal comparison between two tensors.
@@ -708,6 +905,15 @@ where
     /// A boolean tensor with the same shape as the input tensors, where each element is true if the
     /// corresponding element of the left hand side tensor is less than or equal to the corresponding
     /// element of the right hand side tensor, and false otherwise.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For element-wise less than or equal comparison between two tensors, users should prefer
+    /// the [Tensor::lower_equal](Tensor::lower_equal) function, which is more high-level and designed for public use.
     fn lower_equal<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
@@ -725,6 +931,15 @@ where
     /// A boolean tensor with the same shape as the input tensor, where each element is true if the
     /// corresponding element of the left hand side tensor is less than or equal to the right hand
     /// side scalar, and false otherwise.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For element-wise less than or equal comparison between a tensor and a scalar, users should prefer
+    /// the [Tensor::lower_equal_elem](Tensor::lower_equal_elem) function, which is more high-level and designed for public use.
     fn lower_equal_elem<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Elem,
@@ -743,6 +958,15 @@ where
     /// A tensor with the same shape as the input tensors, where each element is taken from the
     /// corresponding element of the left hand side tensor if the corresponding element of the mask
     /// is true, and from the corresponding element of the right hand side tensor otherwise.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For selecting elements from a tensor based on a boolean mask, users should prefer the
+    /// [Tensor::mask_where](Tensor::mask_where) function, which is more high-level and designed for public use.
     fn mask_where<const D: usize>(
         tensor: Self::Primitive<D>,
         mask: Tensor<B, D, Bool>,
@@ -763,6 +987,15 @@ where
     /// A tensor with the same shape as the input tensors, where each element is taken from the
     /// corresponding element unmodified if the corresponding element of the mask is false, and
     /// filled with the value otherwise.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For filling elements of a tensor based on a boolean mask, users should prefer the
+    /// [Tensor::mask_fill](Tensor::mask_fill) function, which is more high-level and designed for public use.
     fn mask_fill<const D: usize>(
         tensor: Self::Primitive<D>,
         mask: Tensor<B, D, Bool>,
@@ -781,6 +1014,15 @@ where
     ///
     /// A tensor with the same shape as the input tensor, where each element is taken from the
     /// corresponding element of the input tensor at the corresponding index along the specified axis.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For gathering elements from a tensor along an axis, users should prefer the
+    /// [Tensor::gather](Tensor::gather) function, which is more high-level and designed for public use.
     fn gather<const D: usize>(
         dim: usize,
         tensor: Self::Primitive<D>,
@@ -802,6 +1044,15 @@ where
     /// corresponding element of the input tensor at the corresponding index along the specified axis,
     /// except for the elements at the specified indexes, which are taken from the corresponding
     /// element of the values tensor.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For scattering elements into a tensor along an axis, users should prefer the [Tensor::scatter](Tensor::scatter) function,
+    /// which is more high-level and designed for public use.
     fn scatter<const D: usize>(
         dim: usize,
         tensor: Self::Primitive<D>,
@@ -821,6 +1072,15 @@ where
     ///
     /// A tensor with the same shape as the input tensor, where each element is taken from the
     /// corresponding element of the input tensor at the corresponding index along the specified axis.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For selecting elements from a tensor along an axis, users should prefer the
+    /// [Tensor::index_select](Tensor::index_select) function, which is more high-level and designed for public use.
     fn index_select<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
@@ -843,6 +1103,15 @@ where
     /// corresponding element of the input tensor at the corresponding index along the specified axis,
     /// except for the elements at the specified indexes, which are taken from the corresponding
     /// element of the values tensor.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For assigning elements to a tensor along an axis, users should prefer the
+    /// [Tensor::index_select_assign](Tensor::index_select_assign) function, which is more high-level and designed for public use.
     fn index_select_assign<const D1: usize, const D2: usize>(
         tensor: Self::Primitive<D1>,
         dim: usize,
@@ -861,6 +1130,15 @@ where
     ///
     /// A tensor with the same shape as the input tensor, where each element is the index of the
     /// maximum element of the input tensor at the corresponding index along the specified axis.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For getting the indexes of the maximum elements of a tensor along an axis, users should prefer the
+    /// [Tensor::argmax](Tensor::argmax) function, which is more high-level and designed for public use.
     fn argmax<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> B::IntTensorPrimitive<D>;
 
     /// Gets the indexes of the minimum elements of a tensor along an axis.
@@ -874,6 +1152,15 @@ where
     ///
     /// A tensor with the same shape as the input tensor, where each element is the index of the
     /// minimum element of the input tensor at the corresponding index along the specified axis.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For getting the indexes of the minimum elements of a tensor along an axis, users should prefer the
+    /// [Tensor::argmin](Tensor::argmin) function, which is more high-level and designed for public use.
     fn argmin<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> B::IntTensorPrimitive<D>;
 
     /// Gets the maximum elements of a tensor along an axis.
@@ -885,6 +1172,15 @@ where
     /// # Returns
     ///
     /// A single-element tensor containing the maximum element of the input tensor.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For getting the maximum elements of a tensor along an axis, users should prefer the
+    /// [Tensor::max](Tensor::max) function, which is more high-level and designed for public use.
     fn max<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1>;
 
     /// Gets the maximum elements of a tensor along an axis.
@@ -897,6 +1193,15 @@ where
     /// # Returns
     ///
     /// A tensor with the same shape as the input tensor, where each element is the maximum element
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For getting the maximum elements of a tensor along an axis, users should prefer the
+    /// [Tensor::max_dim](Tensor::max_dim) function, which is more high-level and designed for public use.
     fn max_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D>;
 
     /// Gets the maximum elements of a tensor along an axis.
@@ -906,6 +1211,20 @@ where
     /// * `tensor` - The tensor to get the maximum elements from.
     /// * `dim` - The axis along which to get the maximum elements.
     ///
+    /// # Returns
+    ///
+    /// A tuple containing the maximum element of the input tensor, and a tensor with the same shape
+    /// as the input tensor, where each element is the index of the maximum element of the input tensor
+    /// at the corresponding index along the specified axis.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For getting the maximum elements of a tensor along an axis, users should prefer the
+    /// [Tensor::max_dim_with_indexes](Tensor::max_dim_with_indexes) function, which is more high-level and designed for public use.
     fn max_dim_with_indexes<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
@@ -920,6 +1239,15 @@ where
     /// # Returns
     ///
     /// A single-element tensor containing the minimum element of the input tensor.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For getting the minimum elements of a tensor along an axis, users should prefer the
+    /// [Tensor::min](Tensor::min) function, which is more high-level and designed for public use.
     fn min<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1>;
 
     /// Gets the minimum elements of a tensor along an axis.
@@ -933,6 +1261,15 @@ where
     ///
     /// A tensor with the same shape as the input tensor, where each element is the minimum element
     /// of the input tensor at the corresponding index along the specified axis.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For getting the minimum elements of a tensor along an axis, users should prefer the
+    /// [Tensor::min_dim](Tensor::min_dim) function, which is more high-level and designed for public use.
     fn min_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D>;
 
     /// Gets the minimum elements and indices of a tensor along an axis.
@@ -946,6 +1283,15 @@ where
     /// A tensor with the same shape as the input tensor and corresponding indices, where
     /// each element is the minimum element of the input tensor at the corresponding index
     /// along the specified axis.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For getting the minimum elements of a tensor along an axis, users should prefer the
+    /// [Tensor::min_dim_with_indexes](Tensor::min_dim_with_indexes) function, which is more high-level and designed for public use.
     fn min_dim_with_indexes<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,

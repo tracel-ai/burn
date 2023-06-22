@@ -111,18 +111,18 @@ pub trait ADBackend: Backend {
     ///
     /// # Arguments
     ///
-    /// * `tensor` - The tensor to compute the gradients for.
+    /// * `tensor` - The tensor is the last node of computational graph where the gradients are recomputed.
     ///
     /// # Returns
     ///
     /// The gradients.
     fn backward<const D: usize>(tensor: Self::TensorPrimitive<D>) -> Self::Gradients;
 
-    /// Gradient of a tensor.
+    /// Returns the gradients of a tensor.
     ///
     /// # Arguments
     ///
-    /// * `tensor` - The tensor to compute the gradient for.
+    /// * `tensor` - The tensor to extract the gradients from.
     ///
     /// # Returns
     ///
@@ -132,16 +132,16 @@ pub trait ADBackend: Backend {
         grads: &Self::Gradients,
     ) -> Option<ADBackendTensorPrimitive<D, Self>>;
 
-    /// Removes the gradient of a tensor.
+    /// Pops the gradients of a tensor and returns them.
     ///
     /// # Arguments
     ///
-    /// * `tensor` - The tensor to remove the gradient for.
+    /// * `tensor` - The tensor to pop the gradients from.
     /// * `grads` - The gradients.
     ///
     /// # Returns
     ///
-    /// An optional tensor without the gradient.
+    /// An optional tensor containing the given gradients.
     fn grad_remove<const D: usize>(
         tensor: &Self::TensorPrimitive<D>,
         grads: &mut Self::Gradients,

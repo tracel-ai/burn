@@ -231,10 +231,6 @@ where
 
         Data::new(data, shape)
     }
-    /// Populates the data with zeros.
-    pub fn zeros_(shape: Shape<D>, _kind: E) -> Data<E, D> {
-        Self::zeros(shape)
-    }
 }
 
 impl<E: core::fmt::Debug, const D: usize> Data<E, D>
@@ -251,20 +247,6 @@ where
         }
 
         Data::new(data, shape)
-    }
-
-    /// Populates the data with ones.
-    ///
-    /// # Arguments
-    ///
-    /// * `shape` - The shape of the data.
-    /// * `_kind` - The kind of the data.
-    ///
-    /// # Returns
-    ///
-    /// The data with ones.
-    pub fn ones_(shape: Shape<D>, _kind: E) -> Data<E, D> {
-        Self::ones(shape)
     }
 }
 

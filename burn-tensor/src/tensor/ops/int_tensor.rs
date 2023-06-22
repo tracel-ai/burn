@@ -198,7 +198,7 @@ pub trait IntTensorOps<B: Backend> {
         value: B::IntTensorPrimitive<D>,
     ) -> B::IntTensorPrimitive<D>;
 
-    /// Select tensor elements along the given dimension corresponding to the given indexes.
+    /// Select tensor elements along the given dimension corresponding to the given indices.
     ///
     /// # Arguments
     ///
@@ -215,7 +215,7 @@ pub trait IntTensorOps<B: Backend> {
         indexes: B::IntTensorPrimitive<1>,
     ) -> B::IntTensorPrimitive<D>;
 
-    /// Assign the selected elements along the given dimension corresponding to the given indexes
+    /// Assign the selected elements along the given dimension corresponding to the given indices
     /// to the given value.
     ///
     /// # Arguments
@@ -650,31 +650,31 @@ pub trait IntTensorOps<B: Backend> {
         dim: usize,
     ) -> B::IntTensorPrimitive<D>;
 
-    /// Gets the indeces of the maximum elements along a dimension.
+    /// Gets the indices of the maximum elements along a dimension.
     ///
     /// # Arguments
     ///
-    /// * `tensor` - The tensor to get the maximum indeces of.
-    /// * `dim` - The dimension to get the maximum indeces along.
+    /// * `tensor` - The tensor to get the maximum indices of.
+    /// * `dim` - The dimension to get the maximum indices along.
     ///
     /// # Returns
     ///
-    /// The indeces of the maximum elements along the dimension.
+    /// The indices of the maximum elements along the dimension.
     fn int_argmax<const D: usize>(
         tensor: B::IntTensorPrimitive<D>,
         dim: usize,
     ) -> B::IntTensorPrimitive<D>;
 
-    /// Gets the indeces of the minimum elements along a dimension.
+    /// Gets the indices of the minimum elements along a dimension.
     ///
     /// # Arguments
     ///
-    /// * `tensor` - The tensor to get the minimum indeces of.
-    /// * `dim` - The dimension to get the minimum indeces along.
+    /// * `tensor` - The tensor to get the minimum indices of.
+    /// * `dim` - The dimension to get the minimum indices along.
     ///
     /// # Returns
     ///
-    /// The indeces of the minimum elements along the dimension.
+    /// The indices of the minimum elements along the dimension.
     fn int_argmin<const D: usize>(
         tensor: B::IntTensorPrimitive<D>,
         dim: usize,
@@ -715,16 +715,16 @@ pub trait IntTensorOps<B: Backend> {
         B::int_gather(D - 1, tensor, index)
     }
 
-    /// Gets the maximum elements and corresponding indeces along a dimension.
+    /// Gets the maximum elements and corresponding indices along a dimension.
     ///
     /// # Arguments
     ///
-    /// * `tensor` - The tensor to get the maximum elements and indeces of.
-    /// * `dim` - The dimension to get the maximum elements and indeces along.
+    /// * `tensor` - The tensor to get the maximum elements and indices of.
+    /// * `dim` - The dimension to get the maximum elements and indices along.
     ///
     /// # Returns
     ///
-    /// The maximum elements and corresponding indeces along the dimension.
+    /// The maximum elements and corresponding indices along the dimension.
     fn int_max_dim_with_indexes<const D: usize>(
         tensor: B::IntTensorPrimitive<D>,
         dim: usize,
@@ -770,16 +770,16 @@ pub trait IntTensorOps<B: Backend> {
         B::int_gather(D - 1, tensor, index)
     }
 
-    /// Gets the minimum elements and corresponding indeces along a dimension.
+    /// Gets the minimum elements and corresponding indices along a dimension.
     ///
     /// # Arguments
     ///
-    /// * `tensor` - The tensor to get the minimum elements and indeces of.
-    /// * `dim` - The dimension to get the minimum elements and indeces along.
+    /// * `tensor` - The tensor to get the minimum elements and indices of.
+    /// * `dim` - The dimension to get the minimum elements and indices along.
     ///
     /// # Returns
     ///
-    /// The minimum elements and corresponding indeces along the dimension.
+    /// The minimum elements and corresponding indices along the dimension.
     fn int_min_dim_with_indexes<const D: usize>(
         tensor: B::IntTensorPrimitive<D>,
         dim: usize,

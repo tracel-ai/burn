@@ -32,7 +32,7 @@ pub trait ElementConversion {
     /// The converted element.
     fn from_elem<E: ToPrimitive>(elem: E) -> Self;
 
-    /// Gets the element.
+    /// Converts and returns the converted element.
     fn elem<E: Element>(self) -> E;
 }
 
