@@ -15,12 +15,16 @@ var<storage, read_write> output: array<{{ elem }}>;
 var<storage, read> info: array<u32>;
 
 @compute
-@workgroup_size({{ workgroup_size_x }}, {{ workgroup_size_x }}, {{ workgroup_size_z }})
+@workgroup_size({{ workgroup_size_x }}, {{ workgroup_size_x }}, {{ workgroup_size_z }}) // ligne 241. 16, 16, 1
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // Indexes
-    let row = global_id.x;
-    let col = global_id.y;
-    let batch = global_id.z;
+    //  [20, 10, 5, 256, 256] * [20, 10, 5, 256, 256]
+    // [..., 256, 256] -> 16 instanciations de 16 threads
+    let row = global_id.x; // va jusqu'à 255
+    let col = global_id.y; // va jusqu'à 255
+    let batch = global_id.z;  // va jusqu'à 999
+    // [2, 2] -> 0, 1, 2, 3
+    // [20, 10, 5] -> 0, 1, 2, ..., 999
 
     // Basic information
     let dim = info[0];

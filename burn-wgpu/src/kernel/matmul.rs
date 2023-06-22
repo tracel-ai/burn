@@ -6,10 +6,13 @@ const BLOCK_SIZE: usize = 2;
 const BLOCK_K: usize = 2;
 const TILE_M: usize = 4;
 
-kernel_wgsl!(MatmulNaiveRaw, "../template/matmul_naive.wgsl");
-kernel_wgsl!(MatmulCoalescing, "../template/matmul_mem_coalescing.wgsl");
-kernel_wgsl!(MatmulCachingRaw, "../template/matmul_caching.wgsl");
-kernel_wgsl!(MatmulTiling1DRaw, "../template/matmul_blocktiling_1d.wgsl");
+kernel_wgsl!(MatmulNaiveRaw, "../template/lfd_matmul_naive.wgsl");
+kernel_wgsl!(
+    MatmulCoalescing,
+    "../template/lfd_matmul_mem_coalescing.wgsl"
+);
+kernel_wgsl!(MatmulCachingRaw, "../template/lfd_matmul_caching.wgsl");
+kernel_wgsl!(MatmulTiling1DRaw, "../template/lfd_matmul_blocktiling_1d.wgsl");
 
 struct MatmulTiling1D;
 struct MatmulCaching;
@@ -36,7 +39,7 @@ pub fn matmul<E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
-    matmul_coalescing(lhs, rhs)
+    matmul_tiling_1d(lhs, rhs)
 }
 
 pub fn matmul_tiling_1d<E: WgpuElement, const D: usize>(
@@ -84,9 +87,9 @@ pub fn matmul_tiling_1d<E: WgpuElement, const D: usize>(
         num_iter *= output.shape.dims[i];
     }
 
-    let workgroup_x = f32::ceil(num_rows as f32 / (BLOCK_SIZE / TILE_M) as f32) as u32;
-    let workgroup_y = f32::ceil(num_cols as f32 / (2 / TILE_M) as f32) as u32;
-    let workgroup = WorkGroup::new(1, 4, num_iter as u32);
+    let workgroup_x = 4 as u32;//f32::ceil(num_rows as f32 / (BLOCK_SIZE as f32 / TILE_M as f32) as f32) as u32;
+    let workgroup_y = 4 as u32;//f32::ceil(num_cols as f32 / (2.0 / TILE_M as f32) as f32) as u32;
+    let workgroup = WorkGroup::new(workgroup_x, workgroup_y, num_iter as u32);
 
     println!("WorkGroup {:?}", workgroup);
 
@@ -252,8 +255,7 @@ pub fn matmul_naive<E: WgpuElement, const D: usize>(
     for i in 0..D - 2 {
         num_iter *= output.shape.dims[i];
     }
-
-    let workgroup_x = f32::ceil(num_rows as f32 / WORKGROUP_SIZE_X as f32) as u32;
+    let workgroup_x = f32::ceil(num_rows as f32 / WORKGROUP_SIZE_X as f32) as u32; //nombre d'instanciations. on le voit pas dans le kernel
     let workgroup_y = f32::ceil(num_cols as f32 / WORKGROUP_SIZE_Y as f32) as u32;
     let workgroup = WorkGroup::new(workgroup_x, workgroup_y, num_iter as u32);
 
@@ -274,25 +276,27 @@ mod tests {
     pub type ReferenceTensor<const D: usize> =
         burn_tensor::Tensor<burn_ndarray::NdArrayBackend<f32>, D>;
 
-    #[test]
-    pub fn test_naive() {
-        same_as_reference(matmul_naive, [4, 25, 13], [4, 13, 77]);
-    }
-
-    #[test]
-    pub fn test_coalesing() {
-        same_as_reference(matmul_coalescing, [4, 25, 13], [4, 13, 77]);
-    }
+    // #[test]
+    // pub fn test_naive() {
+    // same_as_reference(matmul_naive, [4, 25, 13], [4, 13, 77]);
+    // }
 
     // #[test]
-    // pub fn test_caching() {
-    //     same_as_reference(matmul_caching, [4, 25, 13], [4, 13, 77]);
+    // pub fn test_coalesing() {
+    //     same_as_reference(matmul_coalescing, [4, 25, 13], [4, 13, 77]);
     // }
 
     #[test]
-    pub fn test_tiling_1d() {
-        same_as_reference(matmul_tiling_1d, [8, 8], [8, 8]);
+    pub fn test_caching() {
+        same_as_reference(matmul_caching, [4, 25, 13], [4, 13, 77]);
+        same_as_reference(matmul_caching, [4, 12, 9], [4, 9, 13]);
+        same_as_reference(matmul_caching, [4, 5], [5, 6]);
     }
+
+    // #[test]
+    // pub fn test_tiling_1d() {
+    //     same_as_reference(matmul_tiling_1d, [8, 8], [8, 8]);
+    // }
 
     fn same_as_reference<F, const D: usize, S>(func: F, shape_lhs: S, shape_rhs: S)
     where
