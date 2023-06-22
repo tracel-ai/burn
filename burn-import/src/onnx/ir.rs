@@ -72,13 +72,25 @@ pub enum TensorData {
     Bool(Vec<bool>),
 }
 
+/// ONNX graph representation
 #[derive(Debug, Clone)]
 pub struct ONNXGraph {
+    /// The nodes of the graph.
     pub nodes: Vec<Node>,
+
+    /// The inputs of the graph.
     pub inputs: Vec<Argument>,
+
+    /// The outputs of the graph.
     pub outputs: Vec<Argument>,
+
+    /// The states of the graph.
     pub states: Vec<State>,
+
+    /// The original node names.
     pub old_node_names: HashMap<String, String>,
+
+    /// The original input names.
     pub old_input_names: HashMap<String, String>,
 }
 
