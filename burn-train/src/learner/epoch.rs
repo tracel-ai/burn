@@ -28,9 +28,9 @@ pub struct TrainEpoch<TI> {
 
 impl<I> ValidEpoch<I> {
     /// Runs the validation epoch.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `model` - The model to validate.
     /// * `callback` - The callback to use.
     pub fn run<B, M, TO, VO>(&self, model: &M, callback: &mut Box<dyn LearnerCallback<TO, VO>>)
@@ -66,18 +66,17 @@ impl<I> ValidEpoch<I> {
 }
 
 impl<TI> TrainEpoch<TI> {
-
     /// Runs the training epoch.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `model` - The model to train.
     /// * `optim` - The optimizer to use.
     /// * `scheduler` - The learning rate scheduler to use.
     /// * `callback` - The callback to use.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The trained model and the optimizer.
     pub fn run<B, M, O, LR, TO, VO>(
         &self,
@@ -141,17 +140,17 @@ impl<TI> TrainEpoch<TI> {
 
 impl<TI> TrainEpoch<TI> {
     /// Runs the training epoch on multiple devices.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `model` - The model to train.
     /// * `optim` - The optimizer to use.
     /// * `lr_scheduler` - The learning rate scheduler to use.
     /// * `callback` - The callback to use.
     /// * `devices` - The devices to use.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The trained model and the optimizer.
     pub fn run_multi_device<B, M, O, S, TO, VO>(
         &self,

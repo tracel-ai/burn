@@ -11,9 +11,9 @@ pub struct FileCheckpointer<FR> {
 
 impl<FR> FileCheckpointer<FR> {
     /// Creates a new file checkpointer.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `recorder` - The file recorder.
     /// * `directory` - The directory to save the checkpoints.
     /// * `name` - The name of the checkpoint.

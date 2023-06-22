@@ -26,16 +26,16 @@ impl TextPlot {
             iteration: 0,
         }
     }
-    
+
     /// Merges two text plots.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `self` - The first text plot.
     /// * `other` - The second text plot.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The merged text plot.
     pub fn merge(self, other: Self) -> Self {
         let mut other = other;
@@ -54,9 +54,9 @@ impl TextPlot {
     }
 
     /// Updates the text plot with a new item for training.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `item` - The new item.
     pub fn update_train(&mut self, item: f32) {
         self.iteration += 1;
@@ -79,9 +79,9 @@ impl TextPlot {
     }
 
     /// Updates the text plot with a new item for validation.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `item` - The new item.
     pub fn update_valid(&mut self, item: f32) {
         self.iteration += 1;
@@ -103,11 +103,10 @@ impl TextPlot {
         }
     }
 
-
     /// Renders the text plot.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The rendered text plot.
     pub fn render(&self) -> String {
         let train_color = RGB8::new(255, 140, 140);

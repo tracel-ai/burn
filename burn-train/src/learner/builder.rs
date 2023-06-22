@@ -43,11 +43,11 @@ where
     Model: ADModule<B>,
     Optim: Optimizer<Model, B>,
     LR: LRScheduler,
-{   
+{
     /// Creates a new learner builder.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `directory` - The directory to save the checkpoints.
     pub fn new(directory: &str) -> Self {
         let renderer = Box::new(CLIDashboardRenderer::new());

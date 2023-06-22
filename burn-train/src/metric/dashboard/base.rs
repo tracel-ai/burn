@@ -47,30 +47,30 @@ pub enum DashboardMetricState {
 /// Trait for rendering dashboard metrics.
 pub trait DashboardRenderer: Send + Sync {
     /// Updates the training metric state.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `state` - The metric state.
     fn update_train(&mut self, state: DashboardMetricState);
 
     /// Updates the validation metric state.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `state` - The metric state.
     fn update_valid(&mut self, state: DashboardMetricState);
 
     /// Renders the training progress.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `item` - The training progress.
     fn render_train(&mut self, item: TrainingProgress);
 
     /// Renders the validation progress.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `item` - The validation progress.
     fn render_valid(&mut self, item: TrainingProgress);
 }
@@ -96,15 +96,15 @@ where
     V: Send + Sync + 'static,
 {
     /// Creates a new dashboard.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `renderer` - The dashboard renderer.
     /// * `logger_train` - The training logger.
     /// * `logger_valid` - The validation logger.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new dashboard.
     pub fn new(
         renderer: Box<dyn DashboardRenderer>,
@@ -123,9 +123,9 @@ where
     }
 
     /// Registers a training metric.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `metric` - The metric.
     pub fn register_train<M: Metric + 'static>(&mut self, metric: M)
     where
@@ -136,9 +136,9 @@ where
     }
 
     /// Registers a training numeric metric.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `metric` - The metric.
     pub fn register_train_plot<M: Numeric + Metric + 'static>(&mut self, metric: M)
     where
@@ -149,9 +149,9 @@ where
     }
 
     /// Registers a validation metric.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `metric` - The metric.
     pub fn register_valid<M: Metric + 'static>(&mut self, metric: M)
     where
@@ -162,9 +162,9 @@ where
     }
 
     /// Registers a validation numeric metric.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `metric` - The metric.
     pub fn register_valid_plot<M: Numeric + Metric + 'static>(&mut self, metric: M)
     where

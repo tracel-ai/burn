@@ -70,13 +70,13 @@ where
     TO: Send + 'static,
 {
     /// Create a new multi devices train step.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `devices` - Devices.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// MultiDevicesTrainStep instance.
     pub fn new(devices: &[B::Device]) -> Self
     where
@@ -104,14 +104,14 @@ where
     }
 
     /// Collect outputs from workers for one step.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `dataloader` - Dataloader.
     /// * `model` - Model.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// Outputs.
     pub fn step<'a>(
         &self,

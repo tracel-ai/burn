@@ -1,4 +1,3 @@
-
 /// Dashboard module for training progress.
 pub mod dashboard;
 

@@ -42,7 +42,6 @@ impl MetricMetadata {
 /// This is important since some conflict may happen when the model output is adapted for each
 /// metric's input type.
 pub trait Metric: Send + Sync {
-
     /// The input type of the metric.
     type Input;
 
@@ -65,7 +64,6 @@ pub trait Adaptor<T> {
 ///
 /// This is usefull to plot the values of a metric during training.
 pub trait Numeric {
-
     /// Returns the numeric value of the metric.
     fn value(&self) -> f64;
 }

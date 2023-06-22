@@ -8,13 +8,13 @@ pub struct FileLogger {
 
 impl FileLogger {
     /// Create a new file logger.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `path` - The path.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The file logger.
     pub fn new(path: &str) -> Self {
         let mut options = std::fs::File::options();

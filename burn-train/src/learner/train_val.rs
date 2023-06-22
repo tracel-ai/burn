@@ -71,16 +71,16 @@ where
     M: ADModule<B> + core::fmt::Display,
     O: Optimizer<M, B>,
     LR: LRScheduler,
-{   
+{
     /// Fits the model.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `dataloader_train` - The training dataloader.
     /// * `dataloader_valid` - The validation dataloader.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The fitted model.
     pub fn fit<TI, VI>(
         mut self,

@@ -4,18 +4,17 @@ use std::collections::HashMap;
 
 /// Metric logger.
 pub trait MetricLogger: Send {
-
     /// Logs an item.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `item` - The item.
     fn log(&mut self, item: &MetricEntry);
 
     /// Logs an epoch.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `epoch` - The epoch.
     fn epoch(&mut self, epoch: usize);
 }
@@ -29,13 +28,13 @@ pub struct FileMetricLogger {
 
 impl FileMetricLogger {
     /// Create a new file metric logger.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `directory` - The directory.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The file metric logger.
     pub fn new(directory: &str) -> Self {
         Self {
