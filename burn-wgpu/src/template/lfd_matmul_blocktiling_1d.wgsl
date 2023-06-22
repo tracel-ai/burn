@@ -123,8 +123,9 @@ fn main(
 
         workgroupBarrier();
 
-        for (var dot_index: u32 = 0u; dot_index < B_K; dot_index++) {
-            let tmp_rhs = shared_rhs[dot_index * rhs_row_stride + rhs_thread_col * rhs_block_column_stride];
+        if thread_row == 0u {
+            for (var dot_index: u32 = 0u; dot_index < B_K; dot_index++) {
+            let tmp_rhs = shared_rhs[dot_index * rhs_block_row_stride + rhs_thread_col * rhs_block_column_stride];
 
             for (var tile_index = 0u; tile_index < TILE_M; tile_index++) {
                 let lhs_position = tile_index * lhs_block_row_stride + dot_index * lhs_block_column_stride;
@@ -132,6 +133,8 @@ fn main(
             }
         }
 
+        }
+        
         workgroupBarrier();
     }
 
