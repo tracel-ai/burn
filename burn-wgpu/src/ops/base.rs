@@ -293,10 +293,6 @@ impl<G: GraphicsApi> BaseOps<G> {
             "../template/index/index_select_assign_inplace.wgsl"
         );
 
-        let values = Self::into_continuous(values);
-        let indexes = Self::into_continuous(indexes);
-        let tensor = Self::into_continuous(tensor);
-
         let tensor = match tensor.can_mut() {
             true => tensor,
             false => tensor.copy(),
