@@ -19,17 +19,9 @@ use burn_tensor::backend::Backend;
 /// let device_vulkan = TchDevice::Vulkan; // Vulkan
 /// ```
 pub enum TchDevice {
-    /// CPU device.
     Cpu,
-
-    /// Cuda device with the given index. The index is the index of the Cuda device in the list of
-    /// all Cuda devices found on the system.
     Cuda(usize),
-
-    /// Metal Performance Shaders device.
     Mps,
-
-    /// Vulkan device.
     Vulkan,
 }
 
@@ -61,7 +53,6 @@ impl Default for TchDevice {
     }
 }
 
-/// The Tch backend.
 #[derive(Clone, Copy, Default, Debug)]
 pub struct TchBackend<E> {
     _e: E,

@@ -1,7 +1,3 @@
-#![warn(missing_docs)]
-
-//! Burn Tch Backend
-
 mod backend;
 mod element;
 mod ops;

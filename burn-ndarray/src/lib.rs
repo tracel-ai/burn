@@ -1,7 +1,4 @@
 #![cfg_attr(not(feature = "std"), no_std)]
-#![warn(missing_docs)]
-
-//! Burn ndarray Backend
 
 #[macro_use]
 extern crate derive_new;
