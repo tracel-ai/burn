@@ -5,6 +5,7 @@ use burn_core::{
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread::spawn;
 
+/// Multi devices train step.
 pub struct MultiDevicesTrainStep<B: ADBackend, M, TI, TO> {
     workers: Vec<Worker<B, M, TI>>,
     receiver: Receiver<TrainOutput<TO>>,
@@ -68,6 +69,15 @@ where
     TI: Send + 'static,
     TO: Send + 'static,
 {
+    /// Create a new multi devices train step.
+    ///
+    /// # Arguments
+    ///
+    /// * `devices` - Devices.
+    ///
+    /// # Returns
+    ///
+    /// MultiDevicesTrainStep instance.
     pub fn new(devices: &[B::Device]) -> Self
     where
         TI: Send + 'static,
@@ -93,6 +103,16 @@ where
         }
     }
 
+    /// Collect outputs from workers for one step.
+    ///
+    /// # Arguments
+    ///
+    /// * `dataloader` - Dataloader.
+    /// * `model` - Model.
+    ///
+    /// # Returns
+    ///
+    /// Outputs.
     pub fn step<'a>(
         &self,
         dataloader: &mut Box<dyn DataLoaderIterator<TI> + 'a>,

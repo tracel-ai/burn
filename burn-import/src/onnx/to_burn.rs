@@ -50,6 +50,7 @@ pub struct ModelGen {
 }
 
 impl ModelGen {
+    /// Create a new `ModelGen`.
     pub fn new() -> Self {
         init_log().ok(); // Error when init multiple times are ignored.
         Self::default()
@@ -143,6 +144,7 @@ impl ModelGen {
 }
 
 impl ONNXGraph {
+    /// Converts ONNX graph to Burn graph.
     pub fn into_burn<PS: PrecisionSettings + 'static>(self) -> BurnGraph<PS> {
         let mut graph = BurnGraph::<PS>::default();
 

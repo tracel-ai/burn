@@ -10,6 +10,7 @@ pub struct CUDAMetric {
 }
 
 impl CUDAMetric {
+    /// Creates a new metric for CUDA.
     pub fn new() -> Self {
         Self {
             nvml: Nvml::init().map(Some).unwrap_or_else(|err| {

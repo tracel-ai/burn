@@ -6,26 +6,42 @@ use crate::{tensor::Shape, Element, ElementConversion};
 
 use rand::{distributions::Standard, Rng, RngCore};
 
+/// Data structure for serializing and deserializing tensor data.
 #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Clone, new)]
 pub struct DataSerialize<E> {
+    /// The values of the tensor.
     pub value: Vec<E>,
+    /// The shape of the tensor.
     pub shape: Vec<usize>,
 }
 
+/// Data structure for tensors.
 #[derive(new, Debug, Clone, PartialEq, Eq)]
 pub struct Data<E, const D: usize> {
+    /// The values of the tensor.
     pub value: Vec<E>,
+
+    /// The shape of the tensor.
     pub shape: Shape<D>,
 }
 
+/// Distribution for random value of a tensor.
 #[derive(Clone, Copy)]
 pub enum Distribution<E> {
+    /// Standard distribution.
     Standard,
+
+    /// Bernoulli distribution with the given probability.
     Bernoulli(f64),
+
+    /// Uniform distribution. The range is inclusive.
     Uniform(E, E),
+
+    /// Normal distribution with the given mean and standard deviation.
     Normal(f64, f64),
 }
 
+/// Distribution sampler for random value of a tensor.
 #[derive(new)]
 pub struct DistributionSampler<'a, E, R>
 where
@@ -37,14 +53,22 @@ where
     rng: &'a mut R,
 }
 
+/// Distribution sampler kind for random value of a tensor.
 pub enum DistributionSamplerKind<E>
 where
     Standard: rand::distributions::Distribution<E>,
     E: rand::distributions::uniform::SampleUniform,
 {
+    /// Standard distribution.
     Standard(rand::distributions::Standard),
+
+    /// Uniform distribution.
     Uniform(rand::distributions::Uniform<E>),
+
+    /// Bernoulli distribution.
     Bernoulli(rand::distributions::Bernoulli),
+
+    /// Normal distribution.
     Normal(rand_distr::Normal<f64>),
 }
 
@@ -55,6 +79,7 @@ where
     E: Element,
     R: RngCore,
 {
+    /// Sames a random value from the distribution.
     pub fn sample(&mut self) -> E {
         match &self.kind {
             DistributionSamplerKind::Standard(distribution) => self.rng.sample(distribution),
@@ -76,6 +101,15 @@ where
     Standard: rand::distributions::Distribution<E>,
     E: rand::distributions::uniform::SampleUniform,
 {
+    /// Creates a new distribution sampler.
+    ///
+    /// # Arguments
+    ///
+    /// * `rng` - The random number generator.
+    ///
+    /// # Returns
+    ///
+    /// The distribution sampler.
     pub fn sampler<R: RngCore>(self, rng: &'_ mut R) -> DistributionSampler<'_, E, R> {
         let kind = match self {
             Distribution::Standard => {
@@ -100,6 +134,11 @@ impl<E> Distribution<E>
 where
     E: Element,
 {
+    /// Converts the distribution to a different element type.
+    ///
+    /// # Returns
+    ///
+    /// The converted distribution.
     pub fn convert<EOther: Element>(self) -> Distribution<EOther> {
         match self {
             Distribution::Standard => Distribution::Standard,
@@ -113,6 +152,7 @@ where
 }
 
 impl<const D: usize, E: Element> Data<E, D> {
+    /// Converts the data to a different element type.
     pub fn convert<EOther: Element>(self) -> Data<EOther, D> {
         let value: Vec<EOther> = self.value.into_iter().map(|a| a.elem()).collect();
 
@@ -138,6 +178,7 @@ impl<const D: usize, E: Element> Data<E, D> {
 }
 
 impl<E: Element> DataSerialize<E> {
+    /// Converts the data to a different element type.
     pub fn convert<EOther: Element>(self) -> DataSerialize<EOther> {
         let value: Vec<EOther> = self.value.into_iter().map(|a| a.elem()).collect();
 
@@ -149,6 +190,7 @@ impl<E: Element> DataSerialize<E> {
 }
 
 impl<const D: usize> Data<bool, D> {
+    /// Converts the data to a different element type.
     pub fn convert<E: Element>(self) -> Data<E, D> {
         let value: Vec<E> = self.value.into_iter().map(|a| (a as i64).elem()).collect();
 
@@ -160,6 +202,7 @@ impl<const D: usize> Data<bool, D> {
 }
 
 impl<E: Element, const D: usize> Data<E, D> {
+    /// Populates the data with random values.
     pub fn random<R: RngCore>(shape: Shape<D>, distribution: Distribution<E>, rng: &mut R) -> Self {
         let num_elements = shape.num_elements();
         let mut data = Vec::with_capacity(num_elements);
@@ -176,6 +219,7 @@ impl<E: core::fmt::Debug, const D: usize> Data<E, D>
 where
     E: Element,
 {
+    /// Populates the data with zeros.
     pub fn zeros<S: Into<Shape<D>>>(shape: S) -> Data<E, D> {
         let shape = shape.into();
         let num_elements = shape.num_elements();
@@ -187,15 +231,13 @@ where
 
         Data::new(data, shape)
     }
-    pub fn zeros_(shape: Shape<D>, _kind: E) -> Data<E, D> {
-        Self::zeros(shape)
-    }
 }
 
 impl<E: core::fmt::Debug, const D: usize> Data<E, D>
 where
     E: Element,
 {
+    /// Populates the data with ones.
     pub fn ones(shape: Shape<D>) -> Data<E, D> {
         let num_elements = shape.num_elements();
         let mut data = Vec::with_capacity(num_elements);
@@ -206,12 +248,14 @@ where
 
         Data::new(data, shape)
     }
-    pub fn ones_(shape: Shape<D>, _kind: E) -> Data<E, D> {
-        Self::ones(shape)
-    }
 }
 
 impl<E: core::fmt::Debug + Copy, const D: usize> Data<E, D> {
+    /// Serializes the data.
+    ///
+    /// # Returns
+    ///
+    /// The serialized data.
     pub fn serialize(&self) -> DataSerialize<E> {
         DataSerialize {
             value: self.value.clone(),
@@ -221,6 +265,16 @@ impl<E: core::fmt::Debug + Copy, const D: usize> Data<E, D> {
 }
 
 impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E, D> {
+    /// Asserts the data is approximately equal to another data.
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - The other data.
+    /// * `precision` - The precision of the comparison.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the data is not approximately equal.
     pub fn assert_approx_eq(&self, other: &Self, precision: usize) {
         let mut message = String::new();
         if self.shape != other.shape {
@@ -270,6 +324,7 @@ impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E
 }
 
 impl<const D: usize> Data<usize, D> {
+    /// Converts the usize data to a different element type.
     pub fn from_usize<O: num_traits::FromPrimitive>(self) -> Data<O, D> {
         let value: Vec<O> = self
             .value

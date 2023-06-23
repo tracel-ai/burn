@@ -8,23 +8,58 @@ use burn_core::optim::{GradientsParams, Optimizer};
 use burn_core::tensor::backend::ADBackend;
 use std::sync::Arc;
 
+/// A training output.
 pub struct TrainOutput<TO> {
+    /// The gradients.
     pub grads: GradientsParams,
+
+    /// The item.
     pub item: TO,
 }
 
 impl<TO> TrainOutput<TO> {
+    /// Creates a new training output.
+    ///
+    /// # Arguments
+    ///
+    /// * `module` - The module.
+    /// * `grads` - The gradients.
+    /// * `item` - The item.
+    ///
+    /// # Returns
+    ///
+    /// A new training output.
     pub fn new<B: ADBackend, M: ADModule<B>>(module: &M, grads: B::Gradients, item: TO) -> Self {
         let grads = GradientsParams::from_grads(grads, module);
         Self { grads, item }
     }
 }
 
+/// Trait for a training step.
 pub trait TrainStep<TI, TO> {
+    /// Runs a training step.
+    ///
+    /// # Arguments
+    ///
+    /// * `item` - The item to train on.
+    ///
+    /// # Returns
+    ///
+    /// The training output.
     fn step(&self, item: TI) -> TrainOutput<TO>;
 }
 
+/// Trait for a validation step.
 pub trait ValidStep<VI, VO> {
+    /// Runs a validation step.
+    ///
+    /// # Arguments
+    ///
+    /// * `item` - The item to validate on.
+    ///
+    /// # Returns
+    ///
+    /// The validation output.
     fn step(&self, item: VI) -> VO;
 }
 
@@ -37,6 +72,16 @@ where
     O: Optimizer<M, B>,
     LR: LRScheduler,
 {
+    /// Fits the model.
+    ///
+    /// # Arguments
+    ///
+    /// * `dataloader_train` - The training dataloader.
+    /// * `dataloader_valid` - The validation dataloader.
+    ///
+    /// # Returns
+    ///
+    /// The fitted model.
     pub fn fit<TI, VI>(
         mut self,
         dataloader_train: Arc<dyn DataLoader<TI>>,

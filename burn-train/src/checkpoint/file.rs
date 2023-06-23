@@ -1,6 +1,7 @@
 use super::{Checkpointer, CheckpointerError};
 use burn_core::record::{FileRecorder, Record};
 
+/// The file checkpointer.
 pub struct FileCheckpointer<FR> {
     directory: String,
     name: String,
@@ -9,6 +10,14 @@ pub struct FileCheckpointer<FR> {
 }
 
 impl<FR> FileCheckpointer<FR> {
+    /// Creates a new file checkpointer.
+    ///
+    /// # Arguments
+    ///
+    /// * `recorder` - The file recorder.
+    /// * `directory` - The directory to save the checkpoints.
+    /// * `name` - The name of the checkpoint.
+    /// * `num_keep` - The number of checkpoints to keep.
     pub fn new(recorder: FR, directory: &str, name: &str, num_keep: usize) -> Self {
         std::fs::create_dir_all(directory).ok();
 

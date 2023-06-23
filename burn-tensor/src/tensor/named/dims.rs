@@ -4,15 +4,22 @@ use alloc::string::String;
 use crate::backend::Backend;
 use crate::Tensor;
 
+/// Dimension trait.
 pub trait Dim: core::fmt::Debug {
+    /// Converts the dimension to a string.
     fn to_string() -> String;
 }
 
+/// Named dimensions trait.
 pub trait NamedDims<B: Backend>: core::fmt::Debug {
+    /// Tensor type.
     type Tensor;
+
+    /// Converts the named dimensions to a string.
     fn to_string() -> String;
 }
 
+/// Named dimension macro.
 #[macro_export]
 macro_rules! NamedDim {
     ($name:ident) => {

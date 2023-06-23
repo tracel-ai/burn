@@ -1,6 +1,7 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 
+#[allow(missing_docs)]
 #[proc_macro_attribute]
 pub fn testgen(attr: TokenStream, item: TokenStream) -> TokenStream {
     let item: proc_macro2::TokenStream = proc_macro2::TokenStream::from(item);

@@ -1,3 +1,4 @@
+/// Macro for running a function in parallel.
 #[macro_export(local_inner_macros)]
 macro_rules! run_par {
     (
@@ -16,6 +17,7 @@ macro_rules! run_par {
     }};
 }
 
+/// Macro for iterating over a range in parallel.
 #[macro_export(local_inner_macros)]
 macro_rules! iter_par {
     (

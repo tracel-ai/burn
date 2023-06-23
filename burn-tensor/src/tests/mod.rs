@@ -3,6 +3,7 @@ mod module;
 mod ops;
 mod stats;
 
+#[allow(missing_docs)]
 #[macro_export]
 macro_rules! testgen_all {
     () => {

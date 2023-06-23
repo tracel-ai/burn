@@ -4,52 +4,93 @@ use crate::{backend::Backend, Shape};
 /// Gradient computed during the backward pass for each tensor used by [conv2d](ModuleOps::conv2d).
 #[derive(new)]
 pub struct Conv2dBackward<B: Backend> {
+    /// Gradient.
     pub x_grad: B::TensorPrimitive<4>,
+
+    /// Weights gradient.
     pub weights_grad: B::TensorPrimitive<4>,
+
+    /// Bias gradient.
     pub bias_grad: Option<B::TensorPrimitive<1>>,
 }
 
 /// Gradient computed during the backward pass for each tensor used by [max_pool2d](ModuleOps::max_pool2d).
 #[derive(new)]
 pub struct MaxPool2dBackward<B: Backend> {
+    /// Gradient.
     pub x_grad: B::TensorPrimitive<4>,
 }
 
 /// Results from [max_pool2d](ModuleOps::max_pool2d_with_indexes).
 #[derive(new)]
 pub struct MaxPool2dWithIndexes<B: Backend> {
+    /// The output tensor.
     pub output: B::TensorPrimitive<4>,
+
+    /// The indexes tensor.
     pub indexes: B::IntTensorPrimitive<4>,
 }
 
 /// Gradient computed during the backward pass for each tensor used by [conv1d](ModuleOps::conv1d).
 #[derive(new)]
 pub struct Conv1dBackward<B: Backend> {
+    /// Gradient.
     pub x_grad: B::TensorPrimitive<3>,
+
+    /// Weights gradient.
     pub weights_grad: B::TensorPrimitive<3>,
+
+    /// Bias gradient.
     pub bias_grad: Option<B::TensorPrimitive<1>>,
 }
 
 /// Convolution options.
 #[derive(new, Debug, Clone)]
 pub struct ConvOptions<const N: usize> {
+    /// Stride.
     pub stride: [usize; N],
+
+    /// Padding.
     pub padding: [usize; N],
+
+    /// Dilation.
     pub dilation: [usize; N],
+
+    /// Groups.
     pub groups: usize,
 }
 
 /// Transposed convolution options.
 #[derive(new, Debug, Clone)]
 pub struct ConvTransposeOptions<const N: usize> {
+    /// Stride.
     pub stride: [usize; N],
+
+    /// Padding.
     pub padding: [usize; N],
+
+    /// Padding out.
     pub padding_out: [usize; N],
+
+    /// Dilation.
     pub dilation: [usize; N],
+
+    /// Groups.
     pub groups: usize,
 }
 
+/// Module operations trait.
 pub trait ModuleOps<B: Backend> {
+    /// Embedding operation.
+    ///
+    /// # Arguments
+    ///
+    /// * `weights` - The embedding weights.
+    /// * `indexes` - The indexes tensor.
+    ///
+    /// # Returns
+    ///
+    /// The output tensor.
     fn embedding(
         weights: B::TensorPrimitive<2>,
         indexes: B::IntTensorPrimitive<2>,
@@ -62,6 +103,18 @@ pub trait ModuleOps<B: Backend> {
 
         B::reshape(output, Shape::new([batch_size, seq_length, d_model]))
     }
+
+    /// Embedding backward operation.
+    ///
+    /// # Arguments
+    ///
+    /// * `weights` - The embedding weights.
+    /// * `output_grad` - The output gradient.
+    /// * `indexes` - The indexes tensor.
+    ///
+    /// # Returns
+    ///
+    /// The gradient.
     fn embedding_backward(
         weights: B::TensorPrimitive<2>,
         output_grad: B::TensorPrimitive<3>,
@@ -77,6 +130,7 @@ pub trait ModuleOps<B: Backend> {
 
         B::index_select_assign(grad, 0, indexes, output_grad)
     }
+
     /// Two dimensional convolution.
     ///
     /// # Shapes
