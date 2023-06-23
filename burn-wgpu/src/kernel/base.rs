@@ -13,6 +13,7 @@ pub trait DynamicKernel {
     fn id(&self) -> String;
 }
 
+/// Generates kernel source code by replacing some information using templating.
 #[macro_export]
 macro_rules! kernel_wgsl {
     (
@@ -30,7 +31,7 @@ macro_rules! kernel_wgsl {
     };
 }
 
-/// Generate kernel source code by replacing some information using templating.
+/// Generates kernel source code by replacing some information using templating.
 pub struct KernelSettings<
     K: StaticKernel,
     E: WgpuElement,

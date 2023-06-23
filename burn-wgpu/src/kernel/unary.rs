@@ -4,6 +4,7 @@ use crate::{context::WorkGroup, element::WgpuElement, kernel_wgsl, tensor::WgpuT
 kernel_wgsl!(UnaryRaw, "../template/unary.wgsl");
 kernel_wgsl!(UnaryInplaceRaw, "../template/unary_inplace.wgsl");
 
+/// Creates a unary kernel.
 #[macro_export]
 macro_rules! unary {
     (
@@ -54,6 +55,7 @@ macro_rules! unary {
     };
 }
 
+/// Creates a unary inplace kernel.
 #[macro_export]
 macro_rules! unary_inplace {
     (

@@ -8,6 +8,7 @@ kernel_wgsl!(
     "../template/binary_elemwise_inplace.wgsl"
 );
 
+/// Creates a binary elementwise kernel.
 #[macro_export]
 macro_rules! binary_elemwise {
     (
@@ -30,6 +31,7 @@ macro_rules! binary_elemwise {
     };
 }
 
+/// Creates a binary elementwise inplace kernel.
 #[macro_export]
 macro_rules! binary_elemwise_inplace {
     (
