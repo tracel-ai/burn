@@ -32,6 +32,7 @@ mod utils {
     }
 }
 
+/// Converts a slice of usize to a typed Dim.
 #[macro_export(local_inner_macros)]
 macro_rules! to_typed_dims {
     (
@@ -48,6 +49,7 @@ macro_rules! to_typed_dims {
     }};
 }
 
+/// Reshapes an array into a typed NdArrayTensor.
 #[macro_export(local_inner_macros)]
 macro_rules! reshape {
     (
