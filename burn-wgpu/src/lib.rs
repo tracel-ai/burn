@@ -1,3 +1,7 @@
+#![warn(missing_docs)]
+
+//! Burn WGPU Backend
+
 #[macro_use]
 extern crate derive_new;
 
@@ -22,9 +26,15 @@ pub use graphics::*;
 mod tests {
     use super::*;
 
-    type TestBackend = WGPUBackend<Vulkan, f32, i64>;
+    #[cfg(target_os = "macos")]
+    type GraphicsApi = Metal;
+
+    #[cfg(not(target_os = "macos"))]
+    type GraphicsApi = Vulkan;
+
+    type TestBackend = WGPUBackend<GraphicsApi, f32, i32>;
     type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
-    // type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
+    type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
 
     burn_tensor::testgen_add!();
     burn_tensor::testgen_sub!();
@@ -46,6 +56,11 @@ mod tests {
     burn_tensor::testgen_transpose!();
     burn_tensor::testgen_index!();
     burn_tensor::testgen_aggregation!();
+    burn_tensor::testgen_arg!();
+    burn_tensor::testgen_map_comparison!();
+    burn_tensor::testgen_mask!();
+    burn_tensor::testgen_cat!();
+    burn_tensor::testgen_index_select!();
 
     type TestADBackend = burn_autodiff::ADBackendDecorator<TestBackend>;
     type TestADTensor<const D: usize, K> = burn_tensor::Tensor<TestADBackend, D, K>;
@@ -68,6 +83,9 @@ mod tests {
     burn_autodiff::testgen_ad_transpose!();
     burn_autodiff::testgen_ad_index!();
     burn_autodiff::testgen_ad_aggregation!();
+    burn_autodiff::testgen_ad_cat!();
+    burn_autodiff::testgen_ad_mask!();
+    burn_autodiff::testgen_ad_index_select!();
 
     // Once all operations will be implemented.
     // burn_tensor::testgen_all!();

@@ -95,7 +95,10 @@ pub fn flatten_config(curr: &Node) -> (usize, usize) {
     }
 
     // extract the shape of the input tensor
-    let ArgType::Tensor(tensor) = curr.inputs.get(0).unwrap().clone().ty;
+    let tensor = match curr.inputs.get(0).unwrap().clone().ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
 
     // check if the input tensor has at least 2 dimensions
     if tensor.dim < 2 {
@@ -171,7 +174,10 @@ pub fn log_softmax_config(node: &Node) -> usize {
     }
 
     // extract the shape of the input tensor
-    let ArgType::Tensor(tensor) = node.inputs.get(0).unwrap().clone().ty;
+    let tensor = match node.inputs.get(0).unwrap().clone().ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
 
     // extract the attributes
     for (key, value) in node.attrs.iter() {

@@ -1,6 +1,4 @@
-use burn::data::dataset::{
-    source::huggingface::downloader::HuggingfaceDatasetLoader, Dataset, SqliteDataset,
-};
+use burn::data::dataset::{source::huggingface::HuggingfaceDatasetLoader, Dataset, SqliteDataset};
 
 #[derive(new, Clone, Debug)]
 pub struct TextGenerationItem {

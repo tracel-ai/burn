@@ -13,15 +13,22 @@ use crate::{
     burn::{
         graph::BurnGraph,
         node::{
-            batch_norm::BatchNormNode, conv2d::Conv2dNode, flatten::FlattenNode,
-            linear::LinearNode, log_softmax::LogSoftmaxNode, matmul::MatmulNode, relu::ReLUNode,
+            batch_norm::BatchNormNode,
+            constant::{ConstantNode, ConstantValue},
+            conv2d::Conv2dNode,
+            equal::EqualNode,
+            flatten::FlattenNode,
+            linear::LinearNode,
+            log_softmax::LogSoftmaxNode,
+            matmul::MatmulNode,
+            relu::ReLUNode,
         },
         TensorType,
     },
     format_tokens,
     logger::init_log,
     onnx::{
-        ir::{Node, NodeType},
+        ir::{AttributeValue, Node, NodeType},
         op_configuration::{
             batch_norm_config, conv2d_config, flatten_config, linear_config, log_softmax_config,
         },
@@ -43,6 +50,7 @@ pub struct ModelGen {
 }
 
 impl ModelGen {
+    /// Create a new `ModelGen`.
     pub fn new() -> Self {
         init_log().ok(); // Error when init multiple times are ignored.
         Self::default()
@@ -136,6 +144,7 @@ impl ModelGen {
 }
 
 impl ONNXGraph {
+    /// Converts ONNX graph to Burn graph.
     pub fn into_burn<PS: PrecisionSettings + 'static>(self) -> BurnGraph<PS> {
         let mut graph = BurnGraph::<PS>::default();
 
@@ -150,11 +159,28 @@ impl ONNXGraph {
                 NodeType::Relu => graph.register(Self::relu_conversion(node)),
                 NodeType::Flatten => graph.register(Self::flatten_conversion(node)),
                 NodeType::LogSoftmax => graph.register(Self::log_softmax_conversion(node)),
+                NodeType::Constant => graph.register(Self::constant_conversion(node)),
+                NodeType::Equal => graph.register(Self::equal_conversion(node)),
                 _ => panic!("Unsupported node conversion {}", node.node_type),
             }
         }
 
         graph
+    }
+
+    fn constant_conversion(mut node: Node) -> ConstantNode {
+        let output = node.outputs.get(0).unwrap();
+        let value = node.attrs.remove("value").unwrap();
+
+        let value = match value {
+            AttributeValue::Float32(val) => ConstantValue::Float(val),
+            AttributeValue::Int64(val) => ConstantValue::Int(val as i32),
+            AttributeValue::Float32s(val) => ConstantValue::Float(val[0]),
+            AttributeValue::Int64s(val) => ConstantValue::Int(val[0] as i32),
+            _ => panic!("Unsupported constant node: {:?}", node),
+        };
+
+        ConstantNode::new(output.name.clone(), value)
     }
 
     fn matmul_conversion(node: Node) -> MatmulNode {
@@ -163,6 +189,14 @@ impl ONNXGraph {
         let output = node.outputs.get(0).unwrap().to_tensor_type();
 
         MatmulNode::new(lhs, rhs, output)
+    }
+
+    fn equal_conversion(node: Node) -> EqualNode {
+        let lhs = node.inputs.get(0).unwrap().to_tensor_type();
+        let rhs = node.inputs.get(1).unwrap().to_tensor_type();
+        let output = node.outputs.get(0).unwrap().to_tensor_type();
+
+        EqualNode::new(lhs, rhs, output)
     }
 
     fn relu_conversion(node: Node) -> ReLUNode {
@@ -271,7 +305,9 @@ impl State {
 impl Argument {
     pub fn to_tensor_type(&self) -> TensorType {
         match &self.ty {
-            ArgType::Tensor(tensor) => TensorType::new(self.name.clone(), tensor.dim),
+            ArgType::Tensor(tensor) => TensorType::new_float(self.name.clone(), tensor.dim),
+            ArgType::Shape(_shape) => panic!("Can't transform shape to tensor."),
+            ArgType::Constant => panic!("Can't transform constant to tensor."),
         }
     }
 }

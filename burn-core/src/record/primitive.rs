@@ -134,6 +134,7 @@ primitive!(f64);
 primitive!(f32);
 
 // TODO: Remove the feature flag when half supports serde with no_std
+// https://github.com/burn-rs/burn/issues/268 tracking issue
 #[cfg(feature = "std")]
 primitive!(half::bf16);
 #[cfg(feature = "std")]

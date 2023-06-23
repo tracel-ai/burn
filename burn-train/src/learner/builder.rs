@@ -44,6 +44,11 @@ where
     Optim: Optimizer<Model, B>,
     LR: LRScheduler,
 {
+    /// Creates a new learner builder.
+    ///
+    /// # Arguments
+    ///
+    /// * `directory` - The directory to save the checkpoints.
     pub fn new(directory: &str) -> Self {
         let renderer = Box::new(CLIDashboardRenderer::new());
         let logger_train = Box::new(FileMetricLogger::new(format!("{directory}/train").as_str()));
@@ -144,8 +149,8 @@ where
         self
     }
 
-    /// Register a checkpointer that will save the [optimizer](crate::optim::Optimizer) and the
-    /// [model](crate::module::Module) [states](crate::module::State).
+    /// Register a checkpointer that will save the [optimizer](Optimizer) and the
+    /// [model](ADModule).
     ///
     /// The number of checkpoints to be keep should be set to a minimum of two to be safe, since
     /// they are saved and deleted asynchronously and a crash during training might make a

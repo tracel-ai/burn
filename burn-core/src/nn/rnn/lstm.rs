@@ -11,6 +11,7 @@ use burn_tensor::activation;
 
 use super::gate_controller::GateController;
 
+/// The configuration for a [lstm](Lstm) module.
 #[derive(Config)]
 pub struct LstmConfig {
     /// The size of the input features.
@@ -20,7 +21,7 @@ pub struct LstmConfig {
     /// If a bias should be applied during the Lstm transformation.
     pub bias: bool,
     /// Lstm initializer
-    #[config(default = "Initializer::XavierNormal(1.0)")]
+    #[config(default = "Initializer::XavierNormal{gain:1.0}")]
     pub initializer: Initializer,
     /// The batch size.
     pub batch_size: usize,
@@ -77,7 +78,7 @@ impl LstmConfig {
         }
     }
 
-    /// Initialize a new [lstm](lstm) module with a [record](LstmRecord).
+    /// Initialize a new [lstm](Lstm) module with a [record](LstmRecord).
     pub fn init_with<B: Backend>(&self, record: LstmRecord<B>) -> Lstm<B> {
         let linear_config = LinearConfig {
             d_input: self.d_input,
@@ -224,8 +225,8 @@ mod tests {
     fn test_with_uniform_initializer() {
         TestBackend::seed(0);
 
-        let config =
-            LstmConfig::new(5, 5, false, 2).with_initializer(Initializer::Uniform(0.0, 1.0));
+        let config = LstmConfig::new(5, 5, false, 2)
+            .with_initializer(Initializer::Uniform { min: 0.0, max: 1.0 });
         let lstm = config.init::<TestBackend>();
 
         let gate_to_data =
@@ -274,13 +275,38 @@ mod tests {
             )
         }
 
-        lstm.input_gate =
-            create_gate_controller(0.5, 0.0, 1, 1, false, Initializer::UniformDefault);
-        lstm.forget_gate =
-            create_gate_controller(0.7, 0.0, 1, 1, false, Initializer::UniformDefault);
-        lstm.cell_gate = create_gate_controller(0.9, 0.0, 1, 1, false, Initializer::UniformDefault);
-        lstm.output_gate =
-            create_gate_controller(1.1, 0.0, 1, 1, false, Initializer::UniformDefault);
+        lstm.input_gate = create_gate_controller(
+            0.5,
+            0.0,
+            1,
+            1,
+            false,
+            Initializer::XavierUniform { gain: 1.0 },
+        );
+        lstm.forget_gate = create_gate_controller(
+            0.7,
+            0.0,
+            1,
+            1,
+            false,
+            Initializer::XavierUniform { gain: 1.0 },
+        );
+        lstm.cell_gate = create_gate_controller(
+            0.9,
+            0.0,
+            1,
+            1,
+            false,
+            Initializer::XavierUniform { gain: 1.0 },
+        );
+        lstm.output_gate = create_gate_controller(
+            1.1,
+            0.0,
+            1,
+            1,
+            false,
+            Initializer::XavierUniform { gain: 1.0 },
+        );
 
         // single timestep with single feature
         let input = Tensor::<TestBackend, 3>::from_data(Data::from([[[0.1]]]));

@@ -1,23 +1,39 @@
 #![cfg_attr(not(feature = "std"), no_std)]
+#![warn(missing_docs)]
+
+//! The core crate of Burn.
 
 #[macro_use]
 extern crate derive_new;
 
+/// The configuration module.
 pub mod config;
 
+/// Data module.
 #[cfg(feature = "std")]
 pub mod data;
 
+/// Optimizer module.
 #[cfg(feature = "std")]
 pub mod optim;
 
+/// Learning rate scheduler module.
 #[cfg(feature = "std")]
 pub mod lr_scheduler;
 
+/// Gradient clipping module.
 pub mod grad_clipping;
+
+/// Module for the neural network module.
 pub mod module;
+
+/// Neural network module.
 pub mod nn;
+
+/// Module for the recorder.
 pub mod record;
+
+/// Module for the tensor.
 pub mod tensor;
 
 extern crate alloc;

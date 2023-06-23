@@ -5,8 +5,13 @@ use burn_core::tensor::Tensor;
 /// Simple regression output adapted for multiple metrics.
 #[derive(new)]
 pub struct RegressionOutput<B: Backend> {
+    /// The loss.
     pub loss: Tensor<B, 1>,
+
+    /// The output.
     pub output: Tensor<B, 2>,
+
+    /// The targets.
     pub targets: Tensor<B, 2>,
 }
 

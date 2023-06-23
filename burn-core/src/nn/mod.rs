@@ -1,8 +1,19 @@
+/// Attention module
 pub mod attention;
+
+/// Cache module
 pub mod cache;
+
+/// Convolution module
 pub mod conv;
+
+/// Loss module
 pub mod loss;
+
+/// Pooling module
 pub mod pool;
+
+/// Transformer module
 pub mod transformer;
 
 mod dropout;

@@ -47,6 +47,7 @@ pub struct TransformerDecoder<B: Backend> {
 }
 
 impl TransformerDecoderConfig {
+    /// Initialize a new [Transformer Decoder](TransformerDecoder) module.
     pub fn init<B: Backend>(&self) -> TransformerDecoder<B> {
         let layers = (0..self.n_layers)
             .map(|_| TransformerDecoderLayer::new(self))
@@ -54,6 +55,12 @@ impl TransformerDecoderConfig {
 
         TransformerDecoder { layers }
     }
+
+    /// Initialize a new [Transformer Decoder](TransformerDecoder) module with a record.
+    ///
+    /// # Params
+    ///
+    /// - record: the record to initialize the module with.
     pub fn init_with<B: Backend>(
         &self,
         record: TransformerDecoderRecord<B>,
@@ -117,6 +124,7 @@ impl<B: Backend> TransformerDecoderInput<B> {
     }
 }
 
+/// [Transformer Decoder](TransformerDecoder) layer module.
 #[derive(Module, Debug)]
 pub struct TransformerDecoderLayer<B: Backend> {
     cross_attn: MultiHeadAttention<B>,

@@ -1,3 +1,4 @@
+/// Command line interface module for the dashboard.
 pub mod cli;
 
 mod base;

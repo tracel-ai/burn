@@ -20,11 +20,12 @@ pub struct AccuracyInput<B: Backend> {
 }
 
 impl<B: Backend> AccuracyMetric<B> {
-    /// Create the metric.
+    /// Creates the metric.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Sets the pad token.
     pub fn with_pad_token(mut self, index: usize) -> Self {
         self.pad_token = Some(index);
         self

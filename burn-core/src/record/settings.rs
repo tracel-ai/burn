@@ -5,7 +5,10 @@ use serde::{de::DeserializeOwned, Serialize};
 pub trait PrecisionSettings:
     Send + Sync + core::fmt::Debug + core::default::Default + Clone
 {
+    /// Float element type.
     type FloatElem: Element + Serialize + DeserializeOwned;
+
+    /// Integer element type.
     type IntElem: Element + Serialize + DeserializeOwned;
 }
 

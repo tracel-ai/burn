@@ -15,6 +15,7 @@ pub struct GradientsParams {
 }
 
 impl GradientsParams {
+    /// Creates a new [GradientsParams](GradientsParams).
     pub fn new() -> Self {
         Self::default()
     }

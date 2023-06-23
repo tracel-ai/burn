@@ -3,8 +3,10 @@ use burn_tensor::{ops::TensorOps, Data, Shape};
 use libc::c_void;
 use std::{marker::PhantomData, sync::Arc};
 
+/// A reference to a tensor storage.
 pub type StorageRef = Arc<*mut c_void>;
 
+/// A tensor that uses the tch backend.
 #[derive(Debug, PartialEq)]
 pub struct TchTensor<E: tch::kind::Element, const D: usize> {
     pub(crate) tensor: tch::Tensor,
@@ -150,7 +152,9 @@ impl<P: tch::kind::Element, const D: usize> Clone for TchTensor<P, D> {
     }
 }
 
+/// A shape that can be used by LibTorch.
 pub struct TchShape<const D: usize> {
+    /// The shape's dimensions.
     pub dims: [i64; D],
 }
 
@@ -165,6 +169,16 @@ impl<const D: usize> From<Shape<D>> for TchShape<D> {
 }
 
 impl<E: tch::kind::Element + Default, const D: usize> TchTensor<E, D> {
+    /// Creates a new tensor from a shape and a device.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - The tensor's data.
+    /// * `device` - The device on which the tensor will be allocated.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor.
     pub fn from_data(data: Data<E, D>, device: tch::Device) -> Self {
         let tensor = tch::Tensor::from_slice(data.value.as_slice()).to(device);
         let shape_tch = TchShape::from(data.shape);
@@ -190,6 +204,16 @@ mod utils {
 }
 
 impl<E: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> TchTensor<E, D> {
+    /// Creates an empty tensor from a shape and a device.
+    ///
+    /// # Arguments
+    ///
+    /// * `shape` - The shape of the tensor.
+    /// * `device` - The device to create the tensor on.
+    ///
+    /// # Returns
+    ///
+    /// A new empty tensor.
     pub fn empty(shape: Shape<D>, device: TchDevice) -> Self {
         let shape_tch = TchShape::from(shape);
         let tensor = tch::Tensor::empty(shape_tch.dims, (E::KIND, device.into()));

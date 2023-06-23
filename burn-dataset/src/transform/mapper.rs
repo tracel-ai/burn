@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 
 /// Basic mapper trait to be used with the [mapper dataset](MapperDataset).
 pub trait Mapper<I, O>: Send + Sync {
+    /// Maps an item of type I to an item of type O.
     fn map(&self, item: &I) -> O;
 }
 

@@ -1,23 +1,10 @@
-use super::{build_info, DynamicKernelSettings, StaticKernelGenerator};
+use super::{build_info, KernelSettings};
 use crate::{context::WorkGroup, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 use burn_tensor::Shape;
 
 const BLOCK_SIZE: usize = 16;
 
-kernel_wgsl!(
-    MatmulCoalescingRaw,
-    "../template/matmul_mem_coalescing.wgsl"
-);
-
-struct MatmulCoalescing;
-
-impl StaticKernelGenerator for MatmulCoalescing {
-    type Source = String;
-
-    fn generate() -> Self::Source {
-        MatmulCoalescingRaw::generate().replace("BLOCK_SIZE", &BLOCK_SIZE.to_string())
-    }
-}
+kernel_wgsl!(MatmulCoalescing, "../template/matmul_mem_coalescing.wgsl");
 
 pub fn matmul<E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
@@ -45,10 +32,11 @@ pub fn matmul<E: WgpuElement, const D: usize>(
     let num_rows = lhs.shape.dims[D - 2];
     let num_cols = rhs.shape.dims[D - 1];
 
-    let kernel = DynamicKernelSettings::<MatmulCoalescing, E, i32>::new(BLOCK_SIZE, BLOCK_SIZE, 1);
-    let kernel = lhs.context.compile_dynamic(kernel);
+    let kernel = lhs
+        .context
+        .compile_static::<KernelSettings<MatmulCoalescing, E, i32, BLOCK_SIZE, BLOCK_SIZE, 1>>();
 
-    let info = build_info(&[&lhs, &rhs]);
+    let info = build_info(&[&lhs, &rhs, &output]);
     let info_buffers = lhs
         .context
         .create_buffer_with_data(bytemuck::cast_slice(&info));

@@ -14,6 +14,7 @@ impl<D, I> PartialDataset<D, I>
 where
     D: Dataset<I>,
 {
+    /// Splits a dataset into multiple partial datasets.
     pub fn split(dataset: D, num: usize) -> Vec<PartialDataset<Arc<D>, I>> {
         let dataset = Arc::new(dataset); // cheap cloning.
 

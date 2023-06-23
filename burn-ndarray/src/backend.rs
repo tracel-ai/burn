@@ -16,8 +16,10 @@ use burn_common::stub::Mutex;
 
 pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 
+/// The device type for the ndarray backend.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NdArrayDevice {
+    /// The CPU device.
     Cpu,
 }
 
@@ -27,6 +29,7 @@ impl Default for NdArrayDevice {
     }
 }
 
+/// The ndarray backend.
 #[derive(Clone, Copy, Default, Debug)]
 pub struct NdArrayBackend<E> {
     phantom: PhantomData<E>,

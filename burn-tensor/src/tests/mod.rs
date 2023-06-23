@@ -3,6 +3,7 @@ mod module;
 mod ops;
 mod stats;
 
+#[allow(missing_docs)]
 #[macro_export]
 macro_rules! testgen_all {
     () => {
@@ -24,6 +25,7 @@ macro_rules! testgen_all {
 
         // test ops
         burn_tensor::testgen_add!();
+        burn_tensor::testgen_cat!();
         burn_tensor::testgen_aggregation!();
         burn_tensor::testgen_arg!();
         burn_tensor::testgen_maxmin!();

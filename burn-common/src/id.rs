@@ -4,9 +4,11 @@ use crate::rand::{get_seeded_rng, Rng, SEED};
 
 use uuid::{Builder, Bytes};
 
+/// Simple ID generator.
 pub struct IdGenerator {}
 
 impl IdGenerator {
+    /// Generates a new ID in the form of a UUID.
     pub fn generate() -> String {
         let mut seed = SEED.lock().unwrap();
         let mut rng = if let Some(rng_seeded) = seed.as_ref() {

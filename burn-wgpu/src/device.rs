@@ -12,14 +12,28 @@
 /// ```
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum WgpuDevice {
+    /// Discrete GPU with the given index. The index is the index of the discrete GPU in the list
+    /// of all discrete GPUs found on the system.
     DiscreteGpu(usize),
+
+    /// Integrated GPU with the given index. The index is the index of the integrated GPU in the
+    /// list of all integrated GPUs found on the system.
     IntegratedGpu(usize),
+
+    /// Virtual GPU with the given index. The index is the index of the virtual GPU in the list of
+    /// all virtual GPUs found on the system.
     VirtualGpu(usize),
+
+    /// CPU.
     Cpu,
 }
 
 impl Default for WgpuDevice {
     fn default() -> Self {
-        Self::DiscreteGpu(0)
+        #[cfg(target_os = "macos")]
+        return Self::IntegratedGpu(0);
+
+        #[cfg(not(target_os = "macos"))]
+        Self::Cpu
     }
 }

@@ -11,13 +11,18 @@ use thiserror::Error;
 const PYTHON: &str = "python3";
 const PYTHON_SOURCE: &str = include_str!("importer.py");
 
+/// Error type for [HuggingfaceDatasetLoader](HuggingfaceDatasetLoader).
 #[derive(Error, Debug)]
 pub enum ImporterError {
+    /// Unknown error.
     #[error("unknown: `{0}`")]
     Unknown(String),
+
+    /// Fail to download python dependencies.
     #[error("fail to download python dependencies: `{0}`")]
     FailToDownloadPythonDependencies(String),
 
+    /// Fail to create sqlite dataset.
     #[error("sqlite dataset: `{0}`")]
     SqliteDataset(#[from] SqliteDatasetError),
 }
@@ -81,7 +86,7 @@ impl HuggingfaceDatasetLoader {
 
     /// Specify a huggingface token to download datasets behind authentication.
     ///
-    /// You can get a token from https://huggingface.co/settings/tokens
+    /// You can get a token from [tokens settings](https://huggingface.co/settings/tokens)
     pub fn with_huggingface_token(mut self, huggingface_token: &str) -> Self {
         self.huggingface_token = Some(huggingface_token.to_string());
         self

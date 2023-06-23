@@ -27,6 +27,8 @@ spin = {workspace = true}
 # WGPU stuff
 futures-intrusive = {workspace = true}
 pollster = {workspace = true}
+text_placeholder = {workspace = true}
+serde = {workspace = true}
 wgpu = {workspace = true}
 
 [dev-dependencies]
