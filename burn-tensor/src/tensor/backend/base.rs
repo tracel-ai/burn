@@ -111,7 +111,7 @@ pub trait ADBackend: Backend {
     ///
     /// # Arguments
     ///
-    /// * `tensor` - The tensor is the last node of computational graph where the gradients are recomputed.
+    /// * `tensor` - The tensor is the last node of computational graph where the gradients are computed.
     ///
     /// # Returns
     ///
