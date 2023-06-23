@@ -312,7 +312,7 @@ impl<G: GraphicsApi> BaseOps<G> {
             .context
             .compile_static::<KernelSettings<IndexSelectAssignInplace, E, I, 256, 1, 1>>();
 
-        let mut shape_tmp = values.shape.clone();
+        let mut shape_tmp = values.shape;
         shape_tmp.dims[dim] = 1; // Just one thread for the dim.
 
         tensor.context.execute(
