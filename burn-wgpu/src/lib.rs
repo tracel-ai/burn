@@ -1,3 +1,7 @@
+#![warn(missing_docs)]
+
+//! Burn WGPU Backend
+
 #[macro_use]
 extern crate derive_new;
 

@@ -10,6 +10,7 @@ use std::{marker::PhantomData, sync::Mutex};
 
 pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 
+/// Wgpu backend.
 #[derive(Debug, Default, Clone)]
 pub struct WGPUBackend<G: GraphicsApi, F: FloatElement, I: IntElement> {
     _g: PhantomData<G>,

@@ -7,6 +7,7 @@ kernel_wgsl!(
     "../template/unary_scalar_inplace.wgsl"
 );
 
+/// Creates a unary scalar kernel.
 #[macro_export]
 macro_rules! unary_scalar {
     (
@@ -42,6 +43,7 @@ macro_rules! unary_scalar {
     };
 }
 
+/// Creates a unary scalar inplace kernel.
 #[macro_export]
 macro_rules! unary_scalar_inplace {
     (
