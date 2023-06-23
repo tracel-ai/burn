@@ -8,7 +8,7 @@ on:
     types: [opened, synchronize]
 
 jobs:
-  test-burn:
+  test-burn-std:
     runs-on: ubuntu-latest
     steps:
       - name: checkout
@@ -20,4 +20,18 @@ jobs:
           components: rustfmt, clippy
 
       - name: run checks & tests
-        run: ./run-checks.sh
+        run: ./run-checks.sh std
+
+  test-burn-no-std:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+
+      - name: install rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: run checks & tests
+        run: ./run-checks.sh no_std
