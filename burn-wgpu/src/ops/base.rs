@@ -153,7 +153,7 @@ impl<G: GraphicsApi> BaseOps<G> {
         tensor: WgpuTensor<E, D1>,
         indexes: [Range<usize>; D2],
     ) -> WgpuTensor<E, D1> {
-        kernel_wgsl!(IndexRaw, "../template/index.wgsl");
+        kernel_wgsl!(IndexRaw, "../template/index/index.wgsl");
 
         let mut dims = tensor.shape.dims;
 
@@ -202,7 +202,7 @@ impl<G: GraphicsApi> BaseOps<G> {
     ) -> WgpuTensor<E, D1> {
         kernel_wgsl!(
             IndexAssignInplaceRaw,
-            "../template/index_assign_inplace.wgsl"
+            "../template/index/index_assign_inplace.wgsl"
         );
 
         let tensor = match tensor.can_mut() {
@@ -233,6 +233,101 @@ impl<G: GraphicsApi> BaseOps<G> {
             ),
             kernel,
             &[&tensor.buffer, &value.buffer, &info_buffer],
+        );
+
+        tensor
+    }
+
+    pub fn index_select<E: WgpuElement, I: WgpuElement, const D: usize>(
+        tensor: WgpuTensor<E, D>,
+        dim: usize,
+        indexes: WgpuTensor<I, 1>,
+    ) -> WgpuTensor<E, D> {
+        kernel_wgsl!(IndexSelect, "../template/index/index_select.wgsl");
+
+        let mut output_shape = tensor.shape.clone();
+        output_shape.dims[dim] = indexes.shape.dims[0];
+
+        let buffer = tensor
+            .context
+            .create_buffer(std::mem::size_of::<E>() * output_shape.num_elements());
+        let output = WgpuTensor::new(tensor.context.clone(), output_shape, buffer);
+
+        let mut info = build_info(&[&tensor, &output]);
+        info.push(dim as u32);
+
+        let info_buffer = tensor
+            .context
+            .create_buffer_with_data(bytemuck::cast_slice(&info));
+
+        let kernel = tensor
+            .context
+            .compile_static::<KernelSettings<IndexSelect, E, I, 256, 1, 1>>();
+
+        tensor.context.execute(
+            WorkGroup::new(
+                f32::ceil(output.shape.num_elements() as f32 / 256_f32) as u32,
+                1,
+                1,
+            ),
+            kernel,
+            &[
+                &tensor.buffer,
+                &indexes.buffer,
+                &output.buffer,
+                &info_buffer,
+            ],
+        );
+
+        output
+    }
+
+    pub fn index_select_assign<E: WgpuElement, I: WgpuElement, const D: usize, const D2: usize>(
+        tensor: WgpuTensor<E, D>,
+        dim: usize,
+        indexes: WgpuTensor<I, 1>,
+        values: WgpuTensor<E, D2>,
+    ) -> WgpuTensor<E, D> {
+        kernel_wgsl!(
+            IndexSelectAssignInplace,
+            "../template/index/index_select_assign_inplace.wgsl"
+        );
+
+        let tensor = match tensor.can_mut() {
+            true => tensor,
+            false => tensor.copy(),
+        };
+
+        let mut shape = tensor.shape.clone();
+        shape.dims[dim] = values.shape.dims[dim];
+        let values = WgpuTensor::new(values.context, shape, values.buffer);
+        let mut info = build_info(&[&tensor, &values]);
+        info.push(dim as u32);
+
+        let info_buffer = tensor
+            .context
+            .create_buffer_with_data(bytemuck::cast_slice(&info));
+
+        let kernel = tensor
+            .context
+            .compile_static::<KernelSettings<IndexSelectAssignInplace, E, I, 256, 1, 1>>();
+
+        let mut shape_tmp = values.shape.clone();
+        shape_tmp.dims[dim] = 1; // Just one thread for the dim.
+
+        tensor.context.execute(
+            WorkGroup::new(
+                f32::ceil(shape_tmp.num_elements() as f32 / 256_f32) as u32,
+                1,
+                1,
+            ),
+            kernel,
+            &[
+                &tensor.buffer,
+                &indexes.buffer,
+                &values.buffer,
+                &info_buffer,
+            ],
         );
 
         tensor
