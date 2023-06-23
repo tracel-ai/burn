@@ -34,6 +34,6 @@ impl Default for WgpuDevice {
         return Self::IntegratedGpu(0);
 
         #[cfg(not(target_os = "macos"))]
-        Self::VirtualGpu(0)
+        Self::Cpu
     }
 }
