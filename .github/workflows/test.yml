@@ -19,6 +19,13 @@ jobs:
         with:
           components: rustfmt, clippy
 
+      - name: caching
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ runner.os }}-rust-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-rust-
+
       - name: install llvmpipe and lavapipe
         run: |
           sudo apt-get update -y -qq
@@ -39,6 +46,13 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+
+      - name: caching
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ runner.os }}-rust-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-rust-
 
       - name: run checks & tests
         run: ./run-checks.sh no_std
