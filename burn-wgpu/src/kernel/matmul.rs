@@ -1,19 +1,18 @@
+use std::cmp::min;
+
 use super::{build_info, DynamicKernelSettings, KernelSettings, SourceTemplate, StaticKernel};
 use crate::{context::WorkGroup, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 use burn_tensor::Shape;
 
-const M: usize = 20;
-const N: usize = 20;
-const K: usize = 100;
+const M: usize = 23;
+const N: usize = 27;
+const K: usize = 11;
 
-const B_M: usize = 32;
-const B_N: usize = 32;
-const B_K: usize = 32;
-const T_M: usize = 16;
+const B_M: usize = 18; 
+const B_N: usize = 23;
+const B_K: usize = 17;
+const T_M: usize = 30;
 
-// ça chie si K > B_M / T_M
-// B_M / T_M == WORKGROUP_SIZE_X
-// == combien de threads en x par workgroup
 
 kernel_wgsl!(
     MatmulTiling1DRaw,
@@ -29,8 +28,8 @@ impl StaticKernel for MatmulTiling1D {
             .register("b_m", B_M.to_string())
             .register("b_n", B_N.to_string())
             .register("b_k", B_K.to_string())
-            .register("bm_x_bk", (B_M * B_K).to_string())
-            .register("bk_x_bn", (B_K * B_N).to_string())
+            .register("bm_x_bk", (B_M * B_N).to_string())
+            .register("bk_x_bn", (B_M * B_N).to_string())
             .register("t_m", T_M.to_string())
     }
 }
@@ -67,6 +66,8 @@ pub fn matmul_tiling_1d<E: WgpuElement, const D: usize>(
         .context
         .create_buffer(shape_out.num_elements() * core::mem::size_of::<E>());
     let output = WgpuTensor::new(lhs.context.clone(), shape_out, buffer);
+
+    assert!(B_K <= min(B_M, B_N)); // otherwise there won't be enough threads to fill the shared memories in lhs and rhs
 
     const WORKGROUP_SIZE_X: usize = B_M;
     let blocks_needed_in_x = f32::ceil(num_rows as f32 / B_M as f32) as u32;
