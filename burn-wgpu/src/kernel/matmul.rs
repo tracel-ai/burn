@@ -4,14 +4,15 @@ use super::{build_info, DynamicKernelSettings, KernelSettings, SourceTemplate, S
 use crate::{context::WorkGroup, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 use burn_tensor::Shape;
 
-const M: usize = 23;
-const N: usize = 27;
+const bat: usize = 3;
+const M: usize = 4;
+const N: usize = 4;
 const K: usize = 11;
 
-const B_M: usize = 18; 
-const B_N: usize = 23;
+const B_M: usize = 23; 
+const B_N: usize = 18;
 const B_K: usize = 17;
-const T_M: usize = 30;
+const T_M: usize = 7;
 
 
 kernel_wgsl!(
@@ -28,8 +29,7 @@ impl StaticKernel for MatmulTiling1D {
             .register("b_m", B_M.to_string())
             .register("b_n", B_N.to_string())
             .register("b_k", B_K.to_string())
-            .register("bm_x_bk", (B_M * B_N).to_string())
-            .register("bk_x_bn", (B_M * B_N).to_string())
+            .register("bm_x_bn", (B_M * B_N).to_string())
             .register("t_m", T_M.to_string())
     }
 }
@@ -114,7 +114,7 @@ mod tests {
 
     #[test]
     pub fn test_tiling_1d() {
-        same_as_reference(matmul_tiling_1d, [M, K], [K, N]);
+        same_as_reference(matmul_tiling_1d, [bat, M, K], [bat, K, N]);
     }
 
     fn same_as_reference<F, const D: usize, S>(func: F, shape_lhs: S, shape_rhs: S)
