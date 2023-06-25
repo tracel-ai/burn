@@ -97,7 +97,8 @@ fn main(
 
     for (var k: u32 = 0u; k < K; k += B_K) { 
         let lhs_block_ptr = k * lhs_column_stride; 
-        let east_of_lhs = lhs_block_ptr + lhs_col_rel >= K * lhs_column_stride;
+        let east_of_lhs = lhs_block_ptr + lhs_col_rel >= K * lhs_column_stride; 
+        // east_of_lhs = k + thread_col >= K
         if east_of_lhs || south_of_lhs {
             shared_lhs[lhs_sm_position] = 0.0;
         } else {

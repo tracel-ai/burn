@@ -18,7 +18,7 @@ const B_M = {{b_m}}u;
 const B_N = {{b_n}}u;
 const B_K = {{b_k}}u;
 const B_M_X_B_N = {{bm_x_bn}}u;
-const T_M = {{t_m}}u;
+const T_N = {{t_n}}u;
 
 var<workgroup> shared_lhs: array<{{ elem }}, B_M_X_B_N>; 
 var<workgroup> shared_rhs: array<{{ elem }}, B_M_X_B_N>;
@@ -64,10 +64,10 @@ fn main(
         offset_rhs += offset_output / stride_output % shape_rhs * stride_rhs;
     }
     
-    let computing_thread = thread_row % T_M == 0u && row < n_rows && col < n_cols; 
+    let computing_thread = thread_col % T_N == 0u && row < n_rows && col < n_cols; 
 
-    let actual_T_M = min(B_M - thread_row, T_M);
-    var results: array<{{ elem }}, T_M>; // useless if not computing_thread, but must be declared anyway...
+    let actual_T_N = min(B_N - thread_col, T_N);
+    var results: array<{{ elem }}, T_N>; // useless if not computing_thread, but must be declared anyway...
 
     let sm_position = thread_row * B_N + thread_col;
     let lhs_row_rel = thread_row * K;
@@ -90,11 +90,11 @@ fn main(
 
         if computing_thread {
             for (var dot_index: u32 = 0u; dot_index < B_K; dot_index++) {
-                let tmp_rhs = shared_rhs[dot_index * B_N + thread_col];
+                let tmp_lhs = shared_lhs[dot_index + thread_row * B_N];
 
-                for (var tile_index = 0u; tile_index < actual_T_M; tile_index++) {
-                    let lhs_sm_position = (thread_row + tile_index) * B_N + dot_index;
-                    results[tile_index] += shared_lhs[lhs_sm_position] * tmp_rhs;
+                for (var tile_index = 0u; tile_index < actual_T_N; tile_index++) {
+                    let rhs_sm_position = thread_col + tile_index + dot_index * B_N;
+                    results[tile_index] += shared_rhs[rhs_sm_position] * tmp_lhs;
                 }
             }
         }
@@ -103,9 +103,9 @@ fn main(
     }
 
     if computing_thread {
-        for (var tile_index = 0u; tile_index < actual_T_M; tile_index++) {
-            if row + tile_index < n_rows { 
-                output[offset_output + (row + tile_index) * n_cols + col] = results[tile_index];
+        for (var tile_index = 0u; tile_index < actual_T_N; tile_index++) {
+            if col + tile_index < n_cols { 
+                output[offset_output + row * n_cols + col + tile_index] = results[tile_index];
             }
         }
     }
