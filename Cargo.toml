@@ -29,7 +29,7 @@ dashmap = "5.4.0"
 dirs = "5.0.1"
 fake = "2.6.1"
 flate2 = "1.0.26"
-gix-tempfile = {version = "6.0.0", features = ["signals"]}
+gix-tempfile = {version = "7.0.0", features = ["signals"]}
 hashbrown = "0.14.0"
 indicatif = "0.17.5"
 libm = "0.2.7"
