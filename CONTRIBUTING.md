@@ -45,15 +45,16 @@ Be sure to follow the coding standards and guidelines used in the rest of the pr
 
 ### Step 6: Run the Pre-Pull Request Script
 
-Before you open a pull request, please run the [`run-before-pr.sh`](/run-before-pr.sh) script. This
+Before you open a pull request, please run the [`run-checks.sh`](/run-before-pr.sh) script. This
 will ensure that your changes are in line with our project's standards and guidelines. You can run
 this script by opening a terminal, navigating to your local project directory, and typing
-`./run-before-pr.sh`.
+`./run-checks`.
 
 ### Step 7: Submit a Pull Request
 
 After you've made your changes and run the pre-pull request script, you're ready to submit a pull
-request. This can be done through the GitHub website or the [GitHub Desktop application](https://desktop.github.com/).
+request. This can be done through the GitHub website or the
+[GitHub Desktop application](https://desktop.github.com/).
 
 When submitting your pull request, please provide a brief description of the changes you've made and
 the issue or issues that your changes address.
@@ -63,4 +64,5 @@ the issue or issues that your changes address.
 We look forward to seeing your contributions to the Burn project. Happy coding!
 
 If you have any questions and would like to get in touch with us, please feel free to join our
-discord server: [![Discord](https://img.shields.io/discord/1038839012602941528.svg?color=7289da&&logo=discord)](https://discord.gg/uPEBbYYDB6)
+discord server:
+[![Discord](https://img.shields.io/discord/1038839012602941528.svg?color=7289da&&logo=discord)](https://discord.gg/uPEBbYYDB6)
