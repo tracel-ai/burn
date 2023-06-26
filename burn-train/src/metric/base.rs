@@ -2,10 +2,19 @@ use burn_core::{data::dataloader::Progress, LearningRate};
 
 /// Metric metadata that can be used when computing metrics.
 pub struct MetricMetadata {
+    /// The current progress.
     pub progress: Progress,
+
+    /// The current epoch.
     pub epoch: usize,
+
+    /// The total number of epochs.
     pub epoch_total: usize,
+
+    /// The current iteration.
     pub iteration: usize,
+
+    /// The current learning rate.
     pub lr: Option<LearningRate>,
 }
 
@@ -33,6 +42,7 @@ impl MetricMetadata {
 /// This is important since some conflict may happen when the model output is adapted for each
 /// metric's input type.
 pub trait Metric: Send + Sync {
+    /// The input type of the metric.
     type Input;
 
     /// Update the metric state and returns the current metric entry.
@@ -54,6 +64,7 @@ pub trait Adaptor<T> {
 ///
 /// This is usefull to plot the values of a metric during training.
 pub trait Numeric {
+    /// Returns the numeric value of the metric.
     fn value(&self) -> f64;
 }
 

@@ -8,24 +8,31 @@
 ///   - [DirectX 12](Dx12)
 ///   - [WebGpu](WebGpu)
 pub trait GraphicsApi: Send + Sync + core::fmt::Debug + Default + Clone + 'static {
+    /// The wgpu backend.
     fn backend() -> wgpu::Backend;
 }
 
+/// Vulkan graphics API.
 #[derive(Default, Debug, Clone)]
 pub struct Vulkan;
 
+/// Metal graphics API.
 #[derive(Default, Debug, Clone)]
 pub struct Metal;
 
+/// OpenGL graphics API.
 #[derive(Default, Debug, Clone)]
 pub struct OpenGl;
 
+/// DirectX 11 graphics API.
 #[derive(Default, Debug, Clone)]
 pub struct Dx11;
 
+/// DirectX 12 graphics API.
 #[derive(Default, Debug, Clone)]
 pub struct Dx12;
 
+/// WebGpu graphics API.
 #[derive(Default, Debug, Clone)]
 pub struct WebGpu;
 

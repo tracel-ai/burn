@@ -1,3 +1,4 @@
+/// The graph module.
 pub mod graph;
 
 pub(crate) mod node;

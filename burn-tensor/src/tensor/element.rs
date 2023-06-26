@@ -3,6 +3,7 @@ use half::{bf16, f16};
 use num_traits::ToPrimitive;
 use rand::RngCore;
 
+/// Element trait for tensor.
 pub trait Element:
     ToPrimitive
     + ElementRandom
@@ -18,29 +19,63 @@ pub trait Element:
 {
 }
 
+/// Element conversion trait for tensor.
 pub trait ElementConversion {
+    /// Converts an element to another element.
+    ///
+    /// # Arguments
+    ///
+    /// * `elem` - The element to convert.
+    ///
+    /// # Returns
+    ///
+    /// The converted element.
     fn from_elem<E: ToPrimitive>(elem: E) -> Self;
+
+    /// Converts and returns the converted element.
     fn elem<E: Element>(self) -> E;
 }
 
+/// Element trait for random value of a tensor.
 pub trait ElementRandom {
+    /// Returns a random value for the given distribution.
+    ///
+    /// # Arguments
+    ///
+    /// * `distribution` - The distribution to sample from.
+    /// * `rng` - The random number generator.
+    ///
+    /// # Returns
+    ///
+    /// The random value.
     fn random<R: RngCore>(distribution: Distribution<Self>, rng: &mut R) -> Self
     where
         Self: Sized;
 }
 
+/// Element precision trait for tensor.
 #[derive(Clone, PartialEq, Eq, Copy, Debug)]
 pub enum Precision {
+    /// Double precision, e.g. f64.
     Double,
+
+    /// Full precision, e.g. f32.
     Full,
+
+    /// Half precision, e.g. f16.
     Half,
+
+    /// Other precision.
     Other,
 }
 
+/// Element precision trait for tensor.
 pub trait ElementPrecision {
+    /// Returns the precision of the element.
     fn precision() -> Precision;
 }
 
+/// Macro to implement the element trait for a type.
 #[macro_export]
 macro_rules! make_element {
     (

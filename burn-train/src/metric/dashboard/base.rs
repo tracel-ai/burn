@@ -5,14 +5,23 @@ use crate::{
 };
 use burn_core::data::dataloader::Progress;
 
+/// Training progress.
 pub struct TrainingProgress {
+    /// The progress.
     pub progress: Progress,
+
+    /// The epoch.
     pub epoch: usize,
+
+    /// The total number of epochs.
     pub epoch_total: usize,
+
+    /// The iteration.
     pub iteration: usize,
 }
 
 impl TrainingProgress {
+    /// Creates a new empy training progress.
     pub fn none() -> Self {
         Self {
             progress: Progress {
@@ -26,18 +35,47 @@ impl TrainingProgress {
     }
 }
 
+/// A dashboard metric.
 pub enum DashboardMetricState {
+    /// A generic metric.
     Generic(MetricEntry),
+
+    /// A numeric metric.
     Numeric(MetricEntry, f64),
 }
 
+/// Trait for rendering dashboard metrics.
 pub trait DashboardRenderer: Send + Sync {
+    /// Updates the training metric state.
+    ///
+    /// # Arguments
+    ///
+    /// * `state` - The metric state.
     fn update_train(&mut self, state: DashboardMetricState);
+
+    /// Updates the validation metric state.
+    ///
+    /// # Arguments
+    ///
+    /// * `state` - The metric state.
     fn update_valid(&mut self, state: DashboardMetricState);
+
+    /// Renders the training progress.
+    ///
+    /// # Arguments
+    ///
+    /// * `item` - The training progress.
     fn render_train(&mut self, item: TrainingProgress);
+
+    /// Renders the validation progress.
+    ///
+    /// # Arguments
+    ///
+    /// * `item` - The validation progress.
     fn render_valid(&mut self, item: TrainingProgress);
 }
 
+/// A dashboard container for all metrics.
 pub struct Dashboard<T, V>
 where
     T: Send + Sync + 'static,
@@ -57,6 +95,17 @@ where
     T: Send + Sync + 'static,
     V: Send + Sync + 'static,
 {
+    /// Creates a new dashboard.
+    ///
+    /// # Arguments
+    ///
+    /// * `renderer` - The dashboard renderer.
+    /// * `logger_train` - The training logger.
+    /// * `logger_valid` - The validation logger.
+    ///
+    /// # Returns
+    ///
+    /// A new dashboard.
     pub fn new(
         renderer: Box<dyn DashboardRenderer>,
         logger_train: Box<dyn MetricLogger>,
@@ -73,6 +122,11 @@ where
         }
     }
 
+    /// Registers a training metric.
+    ///
+    /// # Arguments
+    ///
+    /// * `metric` - The metric.
     pub fn register_train<M: Metric + 'static>(&mut self, metric: M)
     where
         T: Adaptor<M::Input>,
@@ -81,6 +135,11 @@ where
             .push(Box::new(MetricWrapper::new(metric)));
     }
 
+    /// Registers a training numeric metric.
+    ///
+    /// # Arguments
+    ///
+    /// * `metric` - The metric.
     pub fn register_train_plot<M: Numeric + Metric + 'static>(&mut self, metric: M)
     where
         T: Adaptor<M::Input>,
@@ -88,6 +147,12 @@ where
         self.metrics_train_numeric
             .push(Box::new(MetricWrapper::new(metric)));
     }
+
+    /// Registers a validation metric.
+    ///
+    /// # Arguments
+    ///
+    /// * `metric` - The metric.
     pub fn register_valid<M: Metric + 'static>(&mut self, metric: M)
     where
         V: Adaptor<M::Input>,
@@ -96,6 +161,11 @@ where
             .push(Box::new(MetricWrapper::new(metric)));
     }
 
+    /// Registers a validation numeric metric.
+    ///
+    /// # Arguments
+    ///
+    /// * `metric` - The metric.
     pub fn register_valid_plot<M: Numeric + Metric + 'static>(&mut self, metric: M)
     where
         V: Adaptor<M::Input>,

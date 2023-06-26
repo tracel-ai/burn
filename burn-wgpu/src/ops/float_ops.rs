@@ -174,20 +174,20 @@ where
     }
 
     fn index_select<const D: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        _dim: usize,
-        _indexes: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<1>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
-        todo!()
+        tensor: FloatTensor<Self, D>,
+        dim: usize,
+        indexes: IntTensor<Self, 1>,
+    ) -> FloatTensor<Self, D> {
+        BaseOps::<G>::index_select(tensor, dim, indexes)
     }
 
     fn index_select_assign<const D1: usize, const D2: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D1>,
-        _dim: usize,
-        _indexes: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<1>,
-        _value: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D2>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D1> {
-        todo!()
+        tensor: FloatTensor<Self, D1>,
+        dim: usize,
+        indexes: IntTensor<Self, 1>,
+        value: FloatTensor<Self, D2>,
+    ) -> FloatTensor<Self, D1> {
+        BaseOps::<G>::index_select_assign(tensor, dim, indexes, value)
     }
 
     fn index<const D1: usize, const D2: usize>(

@@ -5,7 +5,7 @@ enum Message<T> {
     Log(T),
     End,
 }
-
+/// Async logger.
 pub struct AsyncLogger<T> {
     sender: mpsc::Sender<Message<T>>,
     handler: Option<std::thread::JoinHandle<()>>,
@@ -34,6 +34,7 @@ impl<T> LoggerThread<T> {
 }
 
 impl<T: Send + Sync + 'static> AsyncLogger<T> {
+    /// Create a new async logger.
     pub fn new(logger: Box<dyn Logger<T>>) -> Self {
         let (sender, receiver) = mpsc::channel();
         let thread = LoggerThread::new(Mutex::new(logger), receiver);

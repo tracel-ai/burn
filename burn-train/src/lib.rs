@@ -1,8 +1,17 @@
+#![warn(missing_docs)]
+
+//! A library for training neural networks using the burn crate.
+
 #[macro_use]
 extern crate derive_new;
 
+/// The checkpoint module.
 pub mod checkpoint;
+
+/// The logger module.
 pub mod logger;
+
+/// The metric module.
 pub mod metric;
 
 mod callback;
