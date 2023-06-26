@@ -17,7 +17,6 @@ export_tests = ["burn-tensor-testgen"]
 std = [
   "rand/std",
   "half/std",
-  "half/serde", # TODO: set default when https://github.com/starkat99/half-rs/issues/84 is fixed
 ]
 
 [dependencies]
