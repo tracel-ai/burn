@@ -1,17 +1,17 @@
-# Pull Request Template
+## Pull Request Template
 
-## Checklist
+### Checklist
 
 - [ ] Confirm that `run-checks.sh` has been executed.
 
-## Related Issues/PRs
+### Related Issues/PRs
 
-Provide links to relevant issues and dependent PRs.
+_Provide links to relevant issues and dependent PRs._
 
-## Changes
+### Changes
 
-Summarize the problem being addressed and your solution.
+_Summarize the problem being addressed and your solution._
 
-## Testing
+### Testing
 
-Describe how these changes have been tested.
+_Describe how these changes have been tested._
