@@ -157,20 +157,20 @@ where
     }
 
     fn gather<const D: usize>(
-        _dim: usize,
-        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        _indexes: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
-        todo!()
+        dim: usize,
+        tensor: FloatTensor<Self, D>,
+        indexes: IntTensor<Self, D>,
+    ) -> FloatTensor<Self, D> {
+        BaseOps::<G>::gather(dim, tensor, indexes)
     }
 
     fn scatter<const D: usize>(
-        _dim: usize,
-        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        _indexes: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        _value: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
-        todo!()
+        dim: usize,
+        tensor: FloatTensor<Self, D>,
+        indexes: IntTensor<Self, D>,
+        value: FloatTensor<Self, D>,
+    ) -> FloatTensor<Self, D> {
+        BaseOps::<G>::scatter(dim, tensor, indexes, value)
     }
 
     fn index_select<const D: usize>(
