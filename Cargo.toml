@@ -48,7 +48,7 @@ rusqlite = {version = "0.29", features = ["bundled-full"]}
 sanitize-filename = "0.4.0"
 serde_rusqlite = "0.33.1"
 spin = {version = "0.9.8", features = ["mutex", "spin_mutex"]}
-strum = "0.24"
+strum = "0.25"
 strum_macros = "0.24"
 syn = "2.0"
 tempfile = "3.6.0"
