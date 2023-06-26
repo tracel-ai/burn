@@ -49,7 +49,7 @@ sanitize-filename = "0.4.0"
 serde_rusqlite = "0.33.1"
 spin = {version = "0.9.8", features = ["mutex", "spin_mutex"]}
 strum = "0.24"
-strum_macros = "0.24"
+strum_macros = "0.25"
 syn = "2.0"
 tempfile = "3.6.0"
 thiserror = "1.0.40"
