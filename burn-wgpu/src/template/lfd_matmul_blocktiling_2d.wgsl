@@ -18,12 +18,14 @@ const B_M = {{b_m}}u;
 const B_N = {{b_n}}u;
 const B_K = {{b_k}}u;
 const B_M_X_B_N = {{bm_x_bn}}u;
+const B_M_X_B_K = {{bm_x_bk}}u;
+const B_K_X_B_N = {{bk_x_bn}}u;
 const T_M = {{t_m}}u;
 const T_N = {{t_n}}u;
 const T_M_X_T_N = {{tm_x_tn}}u;
 
-var<workgroup> shared_lhs: array<{{ elem }}, B_M_X_B_N>; 
-var<workgroup> shared_rhs: array<{{ elem }}, B_M_X_B_N>;
+var<workgroup> shared_lhs: array<{{ elem }}, B_M_X_B_K>; 
+var<workgroup> shared_rhs: array<{{ elem }}, B_K_X_B_N>;
 
 @compute
 @workgroup_size({{ workgroup_size_x }}, {{ workgroup_size_y }}, {{ workgroup_size_z }})
@@ -80,17 +82,23 @@ fn main(
     for (var k = 0u; k < K; k += B_K) { 
         for (var i = 0u; i < actual_T_M; i++) {
             for (var j = 0u; j < actual_T_N; j++) {
-                let sm_position = (thread_row + i) * B_N + thread_col + j;
-                if thread_col + k + j >= K {
-                    shared_lhs[sm_position] = 0.0;
-                } else {
-                    shared_lhs[sm_position] = lhs[offset_lhs + k + (thread_row + i) * K + thread_col + j];
+                if thread_col + j < B_K {
+                    let lhs_sm_position = (thread_row + i) * B_K + thread_col + j; 
+                    if thread_col + k + j >= K {
+                        shared_lhs[lhs_sm_position] = 0.0;
+                    } else {
+                        shared_lhs[lhs_sm_position] = lhs[offset_lhs + k + (thread_row + i) * K + thread_col + j];
+                    }
                 }
-                if thread_row + k + i >= K {
-                    shared_rhs[sm_position] = 0.0;
-                } else {
-                    shared_rhs[sm_position] = rhs[offset_rhs + (k + thread_row + i) * n_cols + thread_col + j];
-                }   
+                
+                if thread_row + i < B_K {
+                    let rhs_sm_position = (thread_row + i) * B_N + thread_col + j; 
+                    if thread_row + k + i >= K {
+                        shared_rhs[rhs_sm_position] = 0.0;
+                    } else {
+                        shared_rhs[rhs_sm_position] = rhs[offset_rhs + (k + thread_row + i) * n_cols + thread_col + j];
+                    }   
+                }
             }
         }
 
@@ -99,7 +107,7 @@ fn main(
         if computing_thread {
             for (var dot_index = 0u; dot_index < B_K; dot_index++) {
                 for (var tile_index = 0u; tile_index < actual_T_M; tile_index++) {
-                    let lhs_sm_position = (thread_row + tile_index) * B_N + dot_index;
+                    let lhs_sm_position = (thread_row + tile_index) * B_K + dot_index;
                     register_M[tile_index] = shared_lhs[lhs_sm_position];
                 }
                 for (var tile_index = 0u; tile_index < actual_T_N; tile_index++) {

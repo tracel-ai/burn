@@ -5,17 +5,19 @@ use crate::{context::WorkGroup, element::WgpuElement, kernel_wgsl, tensor::WgpuT
 use burn_tensor::Shape;
 
 const bat_: usize = 2;
-const bat: usize = 2;
-const M: usize = 43;
-const N: usize = 29;
-const K: usize = 21;
+const bat: usize = 3;
+const M: usize = 19;
+const N: usize = 21;
+const K: usize = 12;
 
-const B_M: usize = 32; 
-const B_N: usize = 32;
-const B_K: usize = 3;
-const T_M: usize = 7;
-const T_N: usize = 9;
+const B_M: usize = 128;
+const B_N: usize = 128;
+const B_K: usize = 4;
+const T_M: usize = 4;
+const T_N: usize = 5;
 
+// ne peut jamais y avoir plus de 1024 threads
+//(B_M/T_M) * (B_N/T_N)
 
 kernel_wgsl!(
     MatmulTiling2DRaw,
@@ -32,6 +34,8 @@ impl StaticKernel for MatmulTiling2D {
             .register("b_n", B_N.to_string())
             .register("b_k", B_K.to_string())
             .register("bm_x_bn", (B_M * B_N).to_string())
+            .register("bm_x_bk", (B_M * B_K).to_string())
+            .register("bk_x_bn", (B_K * B_N).to_string())
             .register("t_m", T_M.to_string())
             .register("t_n", T_N.to_string())
             .register("tm_x_tn", (T_M * T_N).to_string())
@@ -44,7 +48,6 @@ pub fn matmul<E: WgpuElement, const D: usize>(
 ) -> WgpuTensor<E, D> {
     matmul_tiling_2d(lhs, rhs)
 }
-
 
 pub fn matmul_tiling_2d<E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
@@ -75,13 +78,17 @@ pub fn matmul_tiling_2d<E: WgpuElement, const D: usize>(
     let n_threads_x: usize = f32::ceil(B_M as f32 / T_M as f32) as usize;
     let n_threads_y: usize = f32::ceil(B_N as f32 / T_N as f32) as usize;
 
-    assert!(B_K <= min(n_threads_x, n_threads_y));
+    assert!(B_K <= min(B_M, B_N)); // otherwise not enough threads to fill B_K
+    assert!(B_K * min(B_M, B_N) <= 8192); // otherwise uses too much memory
 
     let workgroup_size_x: usize = n_threads_x;
-    let blocks_needed_in_x = f32::ceil(num_rows as f32 / n_threads_x as f32) as u32;
+    let blocks_needed_in_x = f32::ceil(num_rows as f32 / (n_threads_x * T_M) as f32) as u32;
 
     let workgroup_size_y: usize = n_threads_y;
-    let blocks_needed_in_y = f32::ceil(num_cols as f32 / n_threads_y as f32) as u32;
+    let blocks_needed_in_y = f32::ceil(num_cols as f32 / (n_threads_y * T_N) as f32) as u32;
+
+    println!("{:?}", blocks_needed_in_x);
+    println!("{:?}", blocks_needed_in_y);
 
     // assert_eq!(WORKGROUP_SIZE_X * WORKGROUP_SIZE_Y, BLOCK_SIZE * BLOCK_K);
 
@@ -90,6 +97,7 @@ pub fn matmul_tiling_2d<E: WgpuElement, const D: usize>(
     let kernel = lhs.context.compile_dynamic(kernel);
 
     let info = build_info(&[&lhs, &rhs, &output]);
+    println!("{:?}", info);
     let info_buffers = lhs
         .context
         .create_buffer_with_data(bytemuck::cast_slice(&info));
@@ -188,7 +196,7 @@ mod tests {
 
     #[test]
     pub fn test_tiling_1d() {
-        same_as_reference(matmul_tiling_2d, [bat_, bat, M, K], [bat_, bat, K, N]);
+        same_as_reference(matmul_tiling_2d, [M, K], [K, N]); //[bat_, bat, M, K], [bat_, bat, K, N]);
     }
 
     fn same_as_reference<F, const D: usize, S>(func: F, shape_lhs: S, shape_rhs: S)
