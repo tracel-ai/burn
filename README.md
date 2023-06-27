@@ -29,42 +29,39 @@ simplifying the process of experimenting, training, and deploying models.
   utilities and sources 📚
 - [Import](https://github.com/burn-rs/burn/tree/main/burn-import) crate for seamless integration of
   pretrained models 📦
-
 ## Supported Platforms
 
 ### [Burn-ndarray][1] Backend
 
-| Option     | CPU | GPU | Linux | Mac | Win | Android | iOS | WASM |
-| :--------- | :-: | :-: | :---: | :-: | :-: | :-----: | :-: | :--: |
-| Pure Rust  | ✅  | ❌  |  ✅   | ✅  | ✅  |   ✅    | ✅  |  ✅  |
-| Accelerate | ✅  | ❌  |  ❌   | ✅  | ❌  |   ❌    | ✅  |  ❌  |
-| Netlib     | ✅  | ❌  |  ✅   | ✅  | ✅  |   ❌    | ❌  |  ❌  |
-| Openblas   | ✅  | ❌  |  ✅   | ✅  | ✅  |   ✅    | ✅  |  ❌  |
+| Option     | CPU | GPU | Linux | MacOS | Windows | Android | iOS | WASM |
+| :--------- | :-: | :-: | :---: | :---: | :-----: | :-----: | :-: | :--: |
+| Pure Rust  | Yes | No  |  Yes  | Yes   | Yes     | Yes     | Yes | Yes  |
+| Accelerate | Yes | No  |  No   | Yes   | No      | No      | Yes | No   |
+| Netlib     | Yes | No  |  Yes  | Yes   | Yes     | No      | No  | No   |
+| Openblas   | Yes | No  |  Yes  | Yes   | Yes     | Yes     | Yes | No   |
 
 ### [Burn-tch][2] Backend
 
-| Option | CPU | GPU | Linux | Mac | Win | Android | iOS | WASM |
-| :----- | :-: | :-: | :---: | :-: | :-: | :-----: | :-: | :--: |
-| CPU    | ✅  | ❌  |  ✅   | ✅  | ✅  |   ✅    | ✅  |  ❌  |
-| CUDA   | ❌  | ✅  |  ✅   | ❌  | ✅  |   ❌    | ❌  |  ❌  |
-| MPS    | ❌  | ✅  |  ❌   | ✅  | ❌  |   ❌    | ❌  |  ❌  |
-| Vulkan | ✅  | ✅  |  ✅   | ✅  | ✅  |   ✅    | ❌  |  ❌  |
+| Option | CPU | GPU | Linux | MacOS | Windows | Android | iOS | WASM |
+| :----- | :-: | :-: | :---: | :---: | :-----: | :-----: | :-: | :--: |
+| CPU    | Yes | No  |  Yes  | Yes   | Yes     | Yes     | Yes | No   |
+| CUDA   | No  | Yes |  Yes  | No    | Yes     | No      | No  | No   |
+| MPS    | No  | Yes |  No   | Yes   | No      | No      | No  | No   |
+| Vulkan | Yes | Yes |  Yes  | Yes   | Yes     | Yes     | No  | No   |
 
 ### [Burn-wgpu][3] Backend
 
-| Option    | CPU | GPU | Linux | Mac | Win | Android | iOS | WASM |
-| :-------- | :-: | :-: | :---: | :-: | :-: | :-----: | :-: | :--: |
-| Metal     | ❌  | ✅  |  ❌   | ✅  | ❌  |   ❌    | ✅  |  ❌  |
-| Vulkan    | ✅  | ✅  |  ✅   | ✅  | ✅  |   ✅    | ✅  |  ❌  |
-| OpenGl    | ❌  | ✅  |  ✅   | ✅  | ✅  |   ✅    | ✅  |  ❌  |
-| WebGpu    | ❌  | ✅  |  ❌   | ❌  | ❌  |   ❌    | ❌  |  ✅  |
-| Dx11/Dx12 | ❌  | ✅  |  ❌   | ❌  | ✅  |   ❌    | ❌  |  ❌  |
+| Option    | CPU | GPU | Linux | MacOS | Windows | Android | iOS | WASM |
+| :-------- | :-: | :-: | :---: | :---: | :-----: | :-----: | :-: | :--: |
+| Metal     | No  | Yes |  No   | Yes   | No      | No      | Yes | No   |
+| Vulkan    | Yes | Yes |  Yes  | Yes   | Yes     | Yes     | Yes | No   |
+| OpenGL    | No  | Yes |  Yes  | Yes   | Yes     | Yes     | Yes | No   |
+| WebGpu    | No  | Yes |  No   | No    | No      | No      | No  | Yes  |
+| Dx11/Dx12 | No  | Yes |  No   | No    | Yes     | No      | No  | No   |
 
 [1]: https://github.com/burn-rs/burn/tree/main/burn-ndarray
 [2]: https://github.com/burn-rs/burn/tree/main/burn-tch
 [3]: https://github.com/burn-rs/burn/tree/main/burn-wgpu
-
-<!-- | Torch | `tch` | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | libtorch | -->
 
 ## Get Started
 
