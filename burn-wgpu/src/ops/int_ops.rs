@@ -68,36 +68,36 @@ where
     }
 
     fn int_mask_where<const D: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        _mask: <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D>,
-        _source: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
-        todo!()
+        tensor: IntTensor<Self, D>,
+        mask: BoolTensor<Self, D>,
+        value: IntTensor<Self, D>,
+    ) -> IntTensor<Self, D> {
+        BaseOps::<G>::mask_where(tensor, mask, value)
     }
 
     fn int_mask_fill<const D: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        _mask: <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D>,
-        _value: <WGPUBackend<G, F, I> as Backend>::IntElem,
-    ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
-        todo!()
+        tensor: IntTensor<Self, D>,
+        mask: BoolTensor<Self, D>,
+        value: IntElem<Self>,
+    ) -> IntTensor<Self, D> {
+        BaseOps::<G>::mask_fill(tensor, mask, value)
     }
 
     fn int_gather<const D: usize>(
-        _dim: usize,
-        _tensor: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        _indexes: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
-        todo!()
+        dim: usize,
+        tensor: IntTensor<Self, D>,
+        indexes: IntTensor<Self, D>,
+    ) -> IntTensor<Self, D> {
+        BaseOps::<G>::gather(dim, tensor, indexes)
     }
 
     fn int_scatter<const D: usize>(
-        _dim: usize,
-        _tensor: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        _indexes: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        _value: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
-        todo!()
+        dim: usize,
+        tensor: IntTensor<Self, D>,
+        indexes: IntTensor<Self, D>,
+        value: IntTensor<Self, D>,
+    ) -> IntTensor<Self, D> {
+        BaseOps::<G>::scatter(dim, tensor, indexes, value)
     }
 
     fn int_index_select_dim<const D: usize>(
@@ -117,11 +117,8 @@ where
         todo!()
     }
 
-    fn int_cat<const D: usize>(
-        _tensors: Vec<<WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>>,
-        _dim: usize,
-    ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
-        todo!()
+    fn int_cat<const D: usize>(tensors: Vec<IntTensor<Self, D>>, dim: usize) -> IntTensor<Self, D> {
+        BaseOps::<G>::cat(tensors, dim)
     }
 
     fn int_equal<const D: usize>(

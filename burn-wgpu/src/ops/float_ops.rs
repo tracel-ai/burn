@@ -1,5 +1,3 @@
-use std::ops::Range;
-
 use super::numeric::NumericOps;
 use super::{BaseOps, BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
 use crate::kernel::{matmul, unary, unary_inplace, unary_scalar, unary_scalar_inplace};
@@ -11,6 +9,7 @@ use crate::{unary_scalar, unary_scalar_inplace};
 use burn_common::rand::get_seeded_rng;
 use burn_tensor::ElementConversion;
 use burn_tensor::{backend::Backend, ops::TensorOps, Data, Distribution, Shape};
+use std::ops::Range;
 
 impl<G, F, I> TensorOps<WGPUBackend<G, F, I>> for WGPUBackend<G, F, I>
 where
@@ -158,37 +157,37 @@ where
     }
 
     fn gather<const D: usize>(
-        _dim: usize,
-        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        _indexes: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
-        todo!()
+        dim: usize,
+        tensor: FloatTensor<Self, D>,
+        indexes: IntTensor<Self, D>,
+    ) -> FloatTensor<Self, D> {
+        BaseOps::<G>::gather(dim, tensor, indexes)
     }
 
     fn scatter<const D: usize>(
-        _dim: usize,
-        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        _indexes: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        _value: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
-        todo!()
+        dim: usize,
+        tensor: FloatTensor<Self, D>,
+        indexes: IntTensor<Self, D>,
+        value: FloatTensor<Self, D>,
+    ) -> FloatTensor<Self, D> {
+        BaseOps::<G>::scatter(dim, tensor, indexes, value)
     }
 
     fn index_select<const D: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        _dim: usize,
-        _indexes: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<1>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
-        todo!()
+        tensor: FloatTensor<Self, D>,
+        dim: usize,
+        indexes: IntTensor<Self, 1>,
+    ) -> FloatTensor<Self, D> {
+        BaseOps::<G>::index_select(tensor, dim, indexes)
     }
 
     fn index_select_assign<const D1: usize, const D2: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D1>,
-        _dim: usize,
-        _indexes: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<1>,
-        _value: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D2>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D1> {
-        todo!()
+        tensor: FloatTensor<Self, D1>,
+        dim: usize,
+        indexes: IntTensor<Self, 1>,
+        value: FloatTensor<Self, D2>,
+    ) -> FloatTensor<Self, D1> {
+        BaseOps::<G>::index_select_assign(tensor, dim, indexes, value)
     }
 
     fn index<const D1: usize, const D2: usize>(
@@ -207,19 +206,19 @@ where
     }
 
     fn mask_where<const D: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        _mask: <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D>,
-        _source: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
-        todo!()
+        tensor: FloatTensor<Self, D>,
+        mask: BoolTensor<Self, D>,
+        value: FloatTensor<Self, D>,
+    ) -> FloatTensor<Self, D> {
+        BaseOps::<G>::mask_where(tensor, mask, value)
     }
 
     fn mask_fill<const D: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-        _mask: <WGPUBackend<G, F, I> as Backend>::BoolTensorPrimitive<D>,
-        _value: <WGPUBackend<G, F, I> as Backend>::FloatElem,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
-        todo!()
+        tensor: FloatTensor<Self, D>,
+        mask: BoolTensor<Self, D>,
+        value: FloatElem<Self>,
+    ) -> FloatTensor<Self, D> {
+        BaseOps::<G>::mask_fill(tensor, mask, value)
     }
 
     fn equal<const D: usize>(
@@ -420,11 +419,8 @@ where
         unary::<Erf, F, D>(tensor)
     }
 
-    fn cat<const D: usize>(
-        _tensors: Vec<<WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>>,
-        _dim: usize,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
-        todo!()
+    fn cat<const D: usize>(tensors: Vec<FloatTensor<Self, D>>, dim: usize) -> FloatTensor<Self, D> {
+        BaseOps::<G>::cat(tensors, dim)
     }
 
     fn argmax<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {

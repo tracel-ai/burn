@@ -1,7 +1,9 @@
 mod base;
 mod binary_elemwise;
+mod cat;
 mod comparison;
 mod comparison_elem;
+mod mask;
 mod matmul;
 mod reduction;
 mod source;
@@ -10,8 +12,10 @@ mod unary_scalar;
 
 pub use base::*;
 pub use binary_elemwise::*;
+pub use cat::*;
 pub use comparison::*;
 pub use comparison_elem::*;
+pub use mask::*;
 pub use matmul::*;
 pub use reduction::*;
 pub use source::*;

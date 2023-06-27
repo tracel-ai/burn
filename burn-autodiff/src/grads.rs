@@ -5,6 +5,7 @@ use crate::{
     tensor::ADTensor,
 };
 
+/// Gradient identifier.
 pub type GradID = String;
 
 /// Gradients container used during the backward pass.
@@ -15,6 +16,7 @@ pub struct Gradients {
 type TensorPrimitive<B, const D: usize> = <B as Backend>::TensorPrimitive<D>;
 
 impl Gradients {
+    /// Creates a new gradients container.
     pub fn new<B: Backend, const D: usize>(
         root_node: NodeRef,
         root_tensor: TensorPrimitive<B, D>,
@@ -28,7 +30,8 @@ impl Gradients {
         );
         gradients
     }
-    /// Consume the gradients for a given tensor.
+
+    /// Consumes the gradients for a given tensor.
     ///
     /// Each tensor should be consumed exactly 1 time if its gradients are only required during the
     /// backward pass, otherwise, it may be consume multiple times.
@@ -48,7 +51,7 @@ impl Gradients {
         }
     }
 
-    /// Remove a grad tensor from the container.
+    /// Removes a grad tensor from the container.
     pub fn remove<B: Backend, const D: usize>(
         &mut self,
         tensor: &ADTensor<B, D>,
@@ -58,6 +61,7 @@ impl Gradients {
             .map(|tensor| tensor.into_primitive())
     }
 
+    /// Gets a grad tensor from the container.
     pub fn get<B: Backend, const D: usize>(
         &self,
         tensor: &ADTensor<B, D>,
@@ -67,6 +71,7 @@ impl Gradients {
             .map(|tensor| tensor.into_primitive())
     }
 
+    /// Registers a grad tensor in the container.
     pub fn register<B: Backend, const D: usize>(
         &mut self,
         node: NodeRef,

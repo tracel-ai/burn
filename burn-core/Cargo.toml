@@ -26,7 +26,6 @@ std = [
   "serde_json/std",
   "bincode/std",
   "half/std",
-  "half/serde", # TODO: set default when https://github.com/starkat99/half-rs/issues/84 is fixed
 ]
 
 # Serialization formats

@@ -45,13 +45,22 @@ where
     M: ADModule<B>,
     B: ADBackend,
 {
+    /// Sets the gradient clipping.
+    ///
+    /// # Arguments
+    ///
+    /// * `gradient_clipping` - The gradient clipping.
+    ///
+    /// # Returns
+    ///
+    /// The optimizer.
     pub fn with_grad_clipping(mut self, gradient_clipping: GradientClipping) -> Self {
         self.grad_clipping = Some(gradient_clipping);
         self
     }
 
     #[cfg(test)]
-    pub fn has_gradient_clipping(&self) -> bool {
+    pub(crate) fn has_gradient_clipping(&self) -> bool {
         self.grad_clipping.is_some()
     }
 }

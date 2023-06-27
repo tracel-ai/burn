@@ -14,6 +14,7 @@ pub struct InMemDataset<I> {
 }
 
 impl<I> InMemDataset<I> {
+    /// Creates a new in memory dataset from the given items.
     pub fn new(items: Vec<I>) -> Self {
         InMemDataset { items }
     }
@@ -43,7 +44,7 @@ where
 
     /// Create from a json rows file (one json per line).
     ///
-    /// Supported field types: https://docs.rs/serde_json/latest/serde_json/value/enum.Value.html
+    /// [Supported field types](https://docs.rs/serde_json/latest/serde_json/value/enum.Value.html)
     pub fn from_json_rows<P: AsRef<Path>>(path: P) -> Result<Self, std::io::Error> {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
@@ -65,7 +66,7 @@ where
     ///
     /// The supported field types are: String, integer, float, and bool.
     ///
-    /// See: https://docs.rs/csv/latest/csv/tutorial/index.html#reading-with-serde
+    /// See: [Reading with Serde](https://docs.rs/csv/latest/csv/tutorial/index.html#reading-with-serde)
     pub fn from_csv<P: AsRef<Path>>(path: P) -> Result<Self, std::io::Error> {
         let file = File::open(path)?;
         let reader = BufReader::new(file);

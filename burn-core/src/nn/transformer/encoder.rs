@@ -151,6 +151,7 @@ impl<B: Backend> TransformerEncoder<B> {
     }
 }
 
+/// Transformer encoder layer module.
 #[derive(Module, Debug)]
 pub struct TransformerEncoderLayer<B: Backend> {
     mha: MultiHeadAttention<B>,

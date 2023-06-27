@@ -1,71 +1,143 @@
 use super::{conv, pool};
-use crate::backend::Backend;
+use crate::{backend::Backend, Shape};
 
 /// Gradient computed during the backward pass for each tensor used by [conv2d](ModuleOps::conv2d).
 #[derive(new)]
 pub struct Conv2dBackward<B: Backend> {
+    /// Gradient.
     pub x_grad: B::TensorPrimitive<4>,
+
+    /// Weights gradient.
     pub weights_grad: B::TensorPrimitive<4>,
+
+    /// Bias gradient.
     pub bias_grad: Option<B::TensorPrimitive<1>>,
 }
 
 /// Gradient computed during the backward pass for each tensor used by [max_pool2d](ModuleOps::max_pool2d).
 #[derive(new)]
 pub struct MaxPool2dBackward<B: Backend> {
+    /// Gradient.
     pub x_grad: B::TensorPrimitive<4>,
 }
 
 /// Results from [max_pool2d](ModuleOps::max_pool2d_with_indexes).
 #[derive(new)]
 pub struct MaxPool2dWithIndexes<B: Backend> {
+    /// The output tensor.
     pub output: B::TensorPrimitive<4>,
+
+    /// The indexes tensor.
     pub indexes: B::IntTensorPrimitive<4>,
 }
 
 /// Gradient computed during the backward pass for each tensor used by [conv1d](ModuleOps::conv1d).
 #[derive(new)]
 pub struct Conv1dBackward<B: Backend> {
+    /// Gradient.
     pub x_grad: B::TensorPrimitive<3>,
+
+    /// Weights gradient.
     pub weights_grad: B::TensorPrimitive<3>,
+
+    /// Bias gradient.
     pub bias_grad: Option<B::TensorPrimitive<1>>,
 }
 
 /// Convolution options.
 #[derive(new, Debug, Clone)]
 pub struct ConvOptions<const N: usize> {
+    /// Stride.
     pub stride: [usize; N],
+
+    /// Padding.
     pub padding: [usize; N],
+
+    /// Dilation.
     pub dilation: [usize; N],
+
+    /// Groups.
     pub groups: usize,
 }
 
 /// Transposed convolution options.
 #[derive(new, Debug, Clone)]
 pub struct ConvTransposeOptions<const N: usize> {
+    /// Stride.
     pub stride: [usize; N],
+
+    /// Padding.
     pub padding: [usize; N],
+
+    /// Padding out.
     pub padding_out: [usize; N],
+
+    /// Dilation.
     pub dilation: [usize; N],
+
+    /// Groups.
     pub groups: usize,
 }
 
+/// Module operations trait.
 pub trait ModuleOps<B: Backend> {
+    /// Embedding operation.
+    ///
+    /// # Arguments
+    ///
+    /// * `weights` - The embedding weights.
+    /// * `indexes` - The indexes tensor.
+    ///
+    /// # Returns
+    ///
+    /// The output tensor.
     fn embedding(
         weights: B::TensorPrimitive<2>,
         indexes: B::IntTensorPrimitive<2>,
-    ) -> B::TensorPrimitive<3>;
+    ) -> B::TensorPrimitive<3> {
+        let [batch_size, seq_length] = B::int_shape(&indexes).dims;
+        let [_, d_model] = B::shape(&weights).dims;
+
+        let indexes = B::int_reshape(indexes, Shape::new([batch_size * seq_length]));
+        let output = B::index_select(weights, 0, indexes);
+
+        B::reshape(output, Shape::new([batch_size, seq_length, d_model]))
+    }
+
+    /// Embedding backward operation.
+    ///
+    /// # Arguments
+    ///
+    /// * `weights` - The embedding weights.
+    /// * `output_grad` - The output gradient.
+    /// * `indexes` - The indexes tensor.
+    ///
+    /// # Returns
+    ///
+    /// The gradient.
     fn embedding_backward(
         weights: B::TensorPrimitive<2>,
-        output: B::TensorPrimitive<3>,
+        output_grad: B::TensorPrimitive<3>,
         indexes: B::IntTensorPrimitive<2>,
-    ) -> B::TensorPrimitive<2>;
+    ) -> B::TensorPrimitive<2> {
+        let [batch_size, seq_length] = B::int_shape(&indexes).dims;
+        let [n_embeddings, d_model] = B::shape(&weights).dims;
+        let device = B::device(&weights);
+
+        let indexes = B::int_reshape(indexes, Shape::new([batch_size * seq_length]));
+        let output_grad = B::reshape(output_grad, Shape::new([batch_size * seq_length, d_model]));
+        let grad = B::zeros(Shape::new([n_embeddings, d_model]), &device);
+
+        B::index_select_assign(grad, 0, indexes, output_grad)
+    }
+
     /// Two dimensional convolution.
     ///
     /// # Shapes
     ///
-    /// x:      [batch_size, channels_in, height, width],
-    /// weight: [channels_out, channels_in, kernel_size_1, kernel_size_2],
-    /// bias:   [channels_out],
+    /// x:      `[batch_size, channels_in, height, width]`,
+    /// weight: `[channels_out, channels_in, kernel_size_1, kernel_size_2]`,
+    /// bias:   `[channels_out]`,
     fn conv2d(
         x: B::TensorPrimitive<4>,
         weight: B::TensorPrimitive<4>,
@@ -76,9 +148,9 @@ pub trait ModuleOps<B: Backend> {
     ///
     /// # Shapes
     ///
-    /// x:      [batch_size, channels_in, height, width],
-    /// weight: [channels_in, channels_out, kernel_size_1, kernel_size_2],
-    /// bias:   [channels_out],
+    /// x:      `[batch_size, channels_in, height, width]`,
+    /// weight: `[channels_in, channels_out, kernel_size_1, kernel_size_2]`,
+    /// bias:   `[channels_out]`,
     fn conv_transpose2d(
         x: B::TensorPrimitive<4>,
         weight: B::TensorPrimitive<4>,
@@ -100,9 +172,9 @@ pub trait ModuleOps<B: Backend> {
     ///
     /// # Shapes
     ///
-    /// x:      [batch_size, channels_in, length],
-    /// weight: [channels_out, channels_in, kernel_size],
-    /// bias:   [channels_out],
+    /// x:      `[batch_size, channels_in, length]`,
+    /// weight: `[channels_out, channels_in, kernel_size]`,
+    /// bias:   `[channels_out]`,
     fn conv1d(
         x: B::TensorPrimitive<3>,
         weight: B::TensorPrimitive<3>,
@@ -115,9 +187,9 @@ pub trait ModuleOps<B: Backend> {
     ///
     /// # Shapes
     ///
-    /// x:      [batch_size, channels_in, length],
-    /// weight: [channels_in, channels_out, length],
-    /// bias:   [channels_out],
+    /// x:      `[batch_size, channels_in, length]`,
+    /// weight: `[channels_in, channels_out, length]`,
+    /// bias:   `[channels_out]`,
     fn conv_transpose1d(
         x: B::TensorPrimitive<3>,
         weight: B::TensorPrimitive<3>,

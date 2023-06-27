@@ -5,11 +5,30 @@ use core::f64::consts::SQRT_2;
 ///
 /// This trait let backend implementations override activation functions for better performance.
 pub trait ActivationOps<B: Backend> {
+    /// Applies the ReLU activation function.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The output tensor.
     fn relu<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D> {
         let mask = B::lower_equal_elem(tensor.clone(), 0.elem());
 
         B::mask_fill(tensor, mask, 0.elem())
     }
+
+    /// Applies the ReLU activation function backward.
+    ///
+    /// # Arguments
+    ///
+    /// * `output` - The output tensor.
+    ///
+    /// # Returns
+    ///
+    /// The gradient.
     fn relu_backward<const D: usize>(
         output: B::TensorPrimitive<D>,
         grad: B::TensorPrimitive<D>,
@@ -18,6 +37,16 @@ pub trait ActivationOps<B: Backend> {
 
         B::mask_fill(grad, mask, 0.elem())
     }
+
+    /// Applies the Gelu activation function.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The output tensor.
     fn gelu<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D> {
         let x = B::div_scalar(tensor.clone(), SQRT_2.elem());
         let x = B::erf(x);
@@ -27,6 +56,16 @@ pub trait ActivationOps<B: Backend> {
         B::div_scalar(x, 2i32.elem())
     }
 
+    /// Applies the Gelu activation function backward.
+    ///
+    /// # Arguments
+    ///
+    /// * `x` - The tensor.
+    /// * `grad` - The gradient.
+    ///
+    /// # Returns
+    ///
+    /// The output tensor.
     fn gelu_backward<const D: usize>(
         x: B::TensorPrimitive<D>,
         grad: B::TensorPrimitive<D>,

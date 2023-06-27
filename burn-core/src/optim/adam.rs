@@ -12,6 +12,7 @@ use crate::optim::adaptor::OptimizerAdaptor;
 use crate::tensor::{backend::ADBackend, Tensor};
 use burn_tensor::{backend::Backend, ElementConversion};
 
+/// Adam configuration.
 #[derive(Config)]
 pub struct AdamConfig {
     /// Parameter for Adam.
@@ -35,6 +36,7 @@ pub struct Adam<B: Backend> {
     weight_decay: Option<WeightDecay<B>>,
 }
 
+/// Adam state.
 #[derive(Record, Clone, new)]
 pub struct AdamState<B: Backend, const D: usize> {
     weight_decay: Option<WeightDecayState<B, D>>,
@@ -84,6 +86,11 @@ impl<B: Backend> SimpleOptimizer<B> for Adam<B> {
 }
 
 impl AdamConfig {
+    /// Initialize Adam optimizer.
+    ///
+    /// # Returns
+    ///
+    /// Returns an optimizer that can be used to optimize a module.
     pub fn init<B: ADBackend, M: ADModule<B>>(&self) -> impl Optimizer<M, B> {
         let optim = Adam {
             momentum: AdaptiveMomentum {
@@ -102,6 +109,7 @@ impl AdamConfig {
     }
 }
 
+/// Adaptive momentum state.
 #[derive(Record, new, Clone)]
 pub struct AdaptiveMomentumState<B: Backend, const D: usize> {
     time: usize,
@@ -164,6 +172,15 @@ impl AdaptiveMomentum {
 }
 
 impl<B: Backend, const D: usize> AdaptiveMomentumState<B, D> {
+    /// Move state to device.
+    ///
+    /// # Arguments
+    ///
+    /// * `device` - Device to move state to.
+    ///
+    /// # Returns
+    ///
+    /// Returns state moved to device.
     pub fn to_device(mut self, device: &B::Device) -> Self {
         self.moment_1 = self.moment_1.to_device(device);
         self.moment_2 = self.moment_2.to_device(device);

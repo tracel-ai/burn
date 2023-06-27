@@ -7,7 +7,7 @@ use burn_core::tensor::backend::ADBackend;
 
 /// Learner struct encapsulating all components necessary to train a Neural Network model.
 ///
-/// To create a learner, use the [builder](crate::train::LearnerBuilder) struct.
+/// To create a learner, use the [builder](crate::learner::LearnerBuilder) struct.
 pub struct Learner<B, M, O, LR, TO, VO>
 where
     B: ADBackend,

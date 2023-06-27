@@ -24,12 +24,13 @@ pub struct SgdConfig {
 
 /// Optimizer that implements stochastic gradient descent with momentum.
 ///
-/// Momentum is optional and can be [configured](SgdConfig::momentum).
+/// The optimizer can be configured with [SgdConfig](SgdConfig).
 pub struct Sgd<B: Backend> {
     momentum: Option<Momentum<B>>,
     weight_decay: Option<WeightDecay<B>>,
 }
 
+/// State of [Sgd](Sgd).
 #[derive(Record, Clone, new)]
 pub struct SgdState<B: Backend, const D: usize> {
     weight_decay: Option<WeightDecayState<B, D>>,
@@ -37,6 +38,7 @@ pub struct SgdState<B: Backend, const D: usize> {
 }
 
 impl SgdConfig {
+    /// Creates a new [SgdConfig](SgdConfig) with default values.
     pub fn init<B: ADBackend, M: ADModule<B>>(
         &self,
     ) -> OptimizerAdaptor<Sgd<B::InnerBackend>, M, B> {

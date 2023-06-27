@@ -1,6 +1,7 @@
 mod add;
 mod aggregation;
 mod arg;
+mod cat;
 mod cos;
 mod div;
 mod erf;

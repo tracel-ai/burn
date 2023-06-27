@@ -9,12 +9,14 @@ use crate::stub::Mutex;
 #[cfg(not(feature = "std"))]
 use const_random::const_random;
 
+/// Returns a seeded random number generator using entropy.
 #[cfg(feature = "std")]
 #[inline(always)]
 pub fn get_seeded_rng() -> StdRng {
     StdRng::from_entropy()
 }
 
+/// Returns a seeded random number generator using a pre-generated seed.
 #[cfg(not(feature = "std"))]
 #[inline(always)]
 pub fn get_seeded_rng() -> StdRng {

@@ -5,9 +5,7 @@
 // the TextClassificationDataset trait. These implementations are designed to be used
 // with a machine learning framework for tasks such as training a text classification model.
 
-use burn::data::dataset::{
-    source::huggingface::downloader::HuggingfaceDatasetLoader, Dataset, SqliteDataset,
-};
+use burn::data::dataset::{source::huggingface::HuggingfaceDatasetLoader, Dataset, SqliteDataset};
 
 // Define a struct for text classification items
 #[derive(new, Clone, Debug)]

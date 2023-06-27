@@ -133,10 +133,7 @@ primitive!(bool);
 primitive!(f64);
 primitive!(f32);
 
-// TODO: Remove the feature flag when half supports serde with no_std
-#[cfg(feature = "std")]
 primitive!(half::bf16);
-#[cfg(feature = "std")]
 primitive!(half::f16);
 
 // Unsigned Integer Types

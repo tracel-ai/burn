@@ -42,6 +42,7 @@ impl<B: Backend> MSELoss<B> {
         }
     }
 
+    /// Compute the criterion on the input tensor without reducing.
     pub fn forward_no_reduction<const D: usize>(
         &self,
         logits: Tensor<B, D>,

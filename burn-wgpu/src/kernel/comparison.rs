@@ -8,6 +8,7 @@ kernel_wgsl!(
     "../template/comparison/binary_inplace.wgsl"
 );
 
+/// Creates a comparison kernel.
 #[macro_export]
 macro_rules! comparison {
     (
@@ -30,6 +31,7 @@ macro_rules! comparison {
     };
 }
 
+/// Creates a comparison inplace kernel.
 #[macro_export]
 macro_rules! comparison_inplace {
     (

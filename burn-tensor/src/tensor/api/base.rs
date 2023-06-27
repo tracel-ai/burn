@@ -8,6 +8,7 @@ use crate::{
     backend::Backend, check, check::TensorCheck, Bool, Data, Float, Int, Shape, TensorKind,
 };
 
+/// A tensor with a given backend, shape and data type.
 #[derive(new, Clone, Debug)]
 pub struct Tensor<B, const D: usize, K = Float>
 where
@@ -401,43 +402,284 @@ where
 ///
 /// This is an internal trait, use the public API provided by [tensor struct](Tensor).
 pub trait BasicOps<B: Backend>: TensorKind<B> {
+    /// The type of the tensor elements.
     type Elem: 'static;
 
+    /// Creates an empty tensor with the given shape.
+    ///
+    /// # Arguments
+    ///
+    /// * `shape` - The shape of the tensor.
+    /// * `device` - The device on which the tensor will be allocated.
+    ///
+    /// # Returns
+    ///
+    /// The empty tensor.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For creating empty tensors, users should prefer the [Tensor::empty](Tensor::empty) function,
+    /// which is more high-level and designed for public use.
     fn empty<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D>;
+
+    /// Returns the shape of the tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The shape of the tensor.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For getting the shape of a tensor, users should prefer the [Tensor::shape](Tensor::shape) function,
+    /// which is more high-level and designed for public use.
     fn shape<const D: usize>(tensor: &Self::Primitive<D>) -> Shape<D>;
+
+    /// Reshapes the tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `shape` - The new shape of the tensor.
+    ///
+    /// # Returns
+    ///
+    /// The reshaped tensor.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For reshaping a tensor, users should prefer the [Tensor::reshape](Tensor::reshape) function,
+    /// which is more high-level and designed for public use.
     fn reshape<const D1: usize, const D2: usize>(
         tensor: Self::Primitive<D1>,
         shape: Shape<D2>,
     ) -> Self::Primitive<D2>;
+
+    ///  Select tensor elements corresponding for the given indexes.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `indexes` - The indexes of the elements to select.
+    ///
+    /// # Returns
+    ///
+    /// The selected elements.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For selecting elements of a tensor, users should prefer the [Tensor::index](Tensor::index) function,
+    /// which is more high-level and designed for public use.
     fn index<const D1: usize, const D2: usize>(
         tensor: Self::Primitive<D1>,
         indexes: [Range<usize>; D2],
     ) -> Self::Primitive<D1>;
+
+    ///  Assigns the given value to the tensor elements corresponding for the given indexes.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `indexes` - The indexes of the elements to select.
+    /// * `value` - The value to assign.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the assigned values.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For assigning values to elements of a tensor, users should prefer the [Tensor::index_assign](Tensor::index_assign) function,
+    /// which is more high-level and designed for public use.
     fn index_assign<const D1: usize, const D2: usize>(
         tensor: Self::Primitive<D1>,
         indexes: [Range<usize>; D2],
         value: Self::Primitive<D1>,
     ) -> Self::Primitive<D1>;
+
+    /// Returns the device on which the tensor is allocated.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The device on which the tensor is allocated.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For getting the device of a tensor, users should prefer the [Tensor::device](Tensor::device) function,
+    /// which is more high-level and designed for public use.
     fn device<const D: usize>(tensor: &Self::Primitive<D>) -> B::Device;
+
+    /// Moves the tensor to the given device.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `device` - The device on which the tensor will be moved.
+    ///
+    /// # Returns
+    ///
+    /// The tensor on the given device.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For moving a tensor to a device, users should prefer the [Tensor::to_device](Tensor::to_device) function,
+    /// which is more high-level and designed for public use.
     fn to_device<const D: usize>(
         tensor: Self::Primitive<D>,
         device: &B::Device,
     ) -> Self::Primitive<D>;
+
+    /// Extracts the data from the tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The data of the tensor.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For extracting the data of a tensor, users should prefer the [Tensor::into_data](Tensor::into_data) function,
+    /// which is more high-level and designed for public use.
     fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Data<Self::Elem, D>;
+
+    /// Creates a tensor from the given data.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - The data of the tensor.
+    /// * `device` - The device on which the tensor will be allocated.
+    ///
+    /// # Returns
+    ///
+    /// The tensor.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For creating a tensor from data, users should prefer the [Tensor::from_data](Tensor::from_data) function,
+    /// which is more high-level and designed for public use.
     fn from_data<const D: usize>(
         data: Data<Self::Elem, D>,
         device: &B::Device,
     ) -> Self::Primitive<D>;
+
+    /// Repeat the tensor along the given dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `dim` - The dimension along which the tensor will be repeated.
+    /// * `times` - The number of times the tensor will be repeated.
+    ///
+    /// # Returns
+    ///
+    /// The repeated tensor.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For repeating a tensor, users should prefer the [Tensor::repeat](Tensor::repeat) function,
+    /// which is more high-level and designed for public use.
     fn repeat<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
         times: usize,
     ) -> Self::Primitive<D>;
+
+    /// Concatenates the given tensors along the given dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `vectors` - The tensors to concatenate.
+    /// * `dim` - The dimension along which the tensors will be concatenated.
+    ///
+    /// # Returns
+    ///
+    /// The concatenated tensor.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For concatenating tensors, users should prefer the [Tensor::cat](Tensor::cat) function,
+    /// which is more high-level and designed for public use.
     fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D>;
+
+    /// Equates the given tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The tensor of booleans indicating whether the corresponding elements are equal.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For equating tensors, users should prefer the [Tensor::equal](Tensor::equal) function,
+    /// which is more high-level and designed for public use.
     fn equal<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, Bool>;
+
+    /// Returns the name of the element type.
     fn elem_type_name() -> &'static str {
         core::any::type_name::<Self::Elem>()
     }

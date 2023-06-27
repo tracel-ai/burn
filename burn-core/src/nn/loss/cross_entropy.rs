@@ -22,8 +22,8 @@ impl<B: Backend> CrossEntropyLoss<B> {
     ///
     /// # Shapes
     ///
-    /// - logits: [batch_size, num_targets]
-    /// - targets: [batch_size]
+    /// - logits: `[batch_size, num_targets]`
+    /// - targets: `[batch_size]`
     pub fn forward(&self, logits: Tensor<B, 2>, targets: Tensor<B, 1, Int>) -> Tensor<B, 1> {
         let [batch_size] = targets.dims();
 

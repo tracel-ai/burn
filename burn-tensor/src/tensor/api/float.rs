@@ -13,10 +13,12 @@ impl<const D: usize, B> Tensor<B, D>
 where
     B: Backend,
 {
+    /// Converts the tensor into a primitive tensor.
     pub fn into_primitive(self) -> B::TensorPrimitive<D> {
         self.primitive
     }
 
+    /// Converts from a primitive tensor into a tensor.
     pub fn from_primitive(tensor: B::TensorPrimitive<D>) -> Self {
         Self::new(tensor)
     }
@@ -261,6 +263,7 @@ where
 }
 
 impl<const D: usize, B: ADBackend> Tensor<B, D> {
+    /// Backward pass of the tensor.
     pub fn backward(&self) -> B::Gradients {
         B::backward::<D>(self.primitive.clone())
     }
@@ -279,10 +282,20 @@ impl<const D: usize, B: ADBackend> Tensor<B, D> {
         B::grad_remove(&self.primitive, grads).map(Tensor::new)
     }
 
+    /// Returns the inner tensor without the autodiff information.
     pub fn inner(self) -> Tensor<B::InnerBackend, D> {
         Tensor::new(B::inner(self.primitive))
     }
 
+    /// Convert a tensor to the autodiff backend.
+    ///
+    /// # Arguments
+    ///
+    /// * `inner` - The tensor to convert.
+    ///
+    /// # Returns
+    ///
+    /// The tensor converted to the autodiff backend.
     pub fn from_inner(inner: Tensor<B::InnerBackend, D>) -> Self {
         Self::new(B::from_inner(inner.primitive))
     }

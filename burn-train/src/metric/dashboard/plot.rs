@@ -2,6 +2,7 @@ use rgb::RGB8;
 use terminal_size::{terminal_size, Height, Width};
 use textplots::{Chart, ColorPlot, Shape};
 
+/// Text plot.
 pub struct TextPlot {
     train: Vec<(f32, f32)>,
     valid: Vec<(f32, f32)>,
@@ -16,6 +17,7 @@ impl Default for TextPlot {
 }
 
 impl TextPlot {
+    /// Creates a new text plot.
     pub fn new() -> Self {
         Self {
             train: Vec::new(),
@@ -25,6 +27,16 @@ impl TextPlot {
         }
     }
 
+    /// Merges two text plots.
+    ///
+    /// # Arguments
+    ///
+    /// * `self` - The first text plot.
+    /// * `other` - The second text plot.
+    ///
+    /// # Returns
+    ///
+    /// The merged text plot.
     pub fn merge(self, other: Self) -> Self {
         let mut other = other;
         let mut train = self.train;
@@ -41,6 +53,11 @@ impl TextPlot {
         }
     }
 
+    /// Updates the text plot with a new item for training.
+    ///
+    /// # Arguments
+    ///
+    /// * `item` - The new item.
     pub fn update_train(&mut self, item: f32) {
         self.iteration += 1;
         self.train.push((self.iteration as f32, item));
@@ -61,6 +78,11 @@ impl TextPlot {
         }
     }
 
+    /// Updates the text plot with a new item for validation.
+    ///
+    /// # Arguments
+    ///
+    /// * `item` - The new item.
     pub fn update_valid(&mut self, item: f32) {
         self.iteration += 1;
         self.valid.push((self.iteration as f32, item));
@@ -81,6 +103,11 @@ impl TextPlot {
         }
     }
 
+    /// Renders the text plot.
+    ///
+    /// # Returns
+    ///
+    /// The rendered text plot.
     pub fn render(&self) -> String {
         let train_color = RGB8::new(255, 140, 140);
         let valid_color = RGB8::new(140, 140, 255);

@@ -7,6 +7,7 @@ kernel_wgsl!(
     "../template/comparison/elem_inplace.wgsl"
 );
 
+/// Creates a comparison elementwise kernel.
 #[macro_export]
 macro_rules! comparison_elem {
     (
@@ -26,6 +27,7 @@ macro_rules! comparison_elem {
     };
 }
 
+/// Creates a comparison elementwise inplace kernel.
 #[macro_export]
 macro_rules! comparison_elem_inplace {
     (

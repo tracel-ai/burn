@@ -6,82 +6,49 @@ on:
       - main
   pull_request:
     types: [opened, synchronize]
-    branches:
-      - main
 
 jobs:
-  test-burn:
-    uses: burn-rs/burn/.github/workflows/test-template.yml@main
-    with:
-      crate: burn
-      test-no-default-feature: true
-      no-std-build-targets: true
+  test-burn-std:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
 
-  test-burn-common:
-    uses: burn-rs/burn/.github/workflows/test-template.yml@main
-    with:
-      crate: burn-common
-      test-no-default-feature: true
-      no-std-build-targets: true
+      - name: install rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
 
-  test-burn-dataset:
-    uses: burn-rs/burn/.github/workflows/test-template.yml@main
-    with:
-      crate: burn-dataset
-      args-test: --all-features
+      - name: caching
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ runner.os }}-rust-${{ hashFiles('**/Cargo.lock') }}
 
-  test-burn-tensor:
-    uses: burn-rs/burn/.github/workflows/test-template.yml@main
-    with:
-      crate: burn-tensor
-      test-no-default-feature: true
-      no-std-build-targets: true
+      - name: install llvmpipe and lavapipe
+        run: |
+          sudo apt-get update -y -qq
+          sudo add-apt-repository ppa:oibaf/graphics-drivers -y
+          sudo apt-get update
+          sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
 
-  test-burn-tch:
-    uses: burn-rs/burn/.github/workflows/test-template.yml@main
-    with:
-      crate: burn-tch
-      args-doc: --features doc
+      - name: run checks & tests
+        run: ./run-checks.sh std
 
-  test-burn-ndarray:
-    uses: burn-rs/burn/.github/workflows/test-template.yml@main
-    with:
-      crate: burn-ndarray
-      test-no-default-feature: true
-      no-std-build-targets: true
+  test-burn-no-std:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
 
-  test-burn-no-std-tests:
-    uses: burn-rs/burn/.github/workflows/test-template.yml@main
-    with:
-      crate: burn-no-std-tests
-      test-no-default-feature: true
-      no-std-build-targets: true
+      - name: install rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
 
-  test-burn-autodiff:
-    uses: burn-rs/burn/.github/workflows/test-template.yml@main
-    with:
-      crate: burn-autodiff
+      - name: caching
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ runner.os }}-rust-${{ hashFiles('**/Cargo.lock') }}
 
-  test-burn-core:
-    uses: burn-rs/burn/.github/workflows/test-template.yml@main
-    with:
-      crate: burn-core
-      test-no-default-feature: true
-      no-std-build-targets: true
-
-  test-burn-core-backend-tch:
-    uses: burn-rs/burn/.github/workflows/test-template.yml@main
-    with:
-      crate: burn-core
-      args-doc: --features test-tch
-
-  test-burn-train:
-    uses: burn-rs/burn/.github/workflows/test-template.yml@main
-    with:
-      crate: burn-train
-
-  test-burn-import:
-    uses: burn-rs/burn/.github/workflows/test-template.yml@main
-    with:
-      crate: burn-import
-
+      - name: run checks & tests
+        run: ./run-checks.sh no_std

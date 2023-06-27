@@ -17,7 +17,6 @@ var<storage, read> info: array<u32>;
 const B_M = {{b_m}}u;
 const B_N = {{b_n}}u;
 const B_K = {{b_k}}u;
-const B_M_X_B_N = {{bm_x_bn}}u;
 const B_M_X_B_K = {{bm_x_bk}}u;
 const B_K_X_B_N = {{bk_x_bn}}u;
 const T_M = {{t_m}}u;
