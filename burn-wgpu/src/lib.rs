@@ -61,6 +61,7 @@ mod tests {
     burn_tensor::testgen_mask!();
     burn_tensor::testgen_cat!();
     burn_tensor::testgen_index_select!();
+    burn_tensor::testgen_gather_scatter!();
 
     type TestADBackend = burn_autodiff::ADBackendDecorator<TestBackend>;
     type TestADTensor<const D: usize, K> = burn_tensor::Tensor<TestADBackend, D, K>;

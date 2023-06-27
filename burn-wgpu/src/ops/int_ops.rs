@@ -84,20 +84,20 @@ where
     }
 
     fn int_gather<const D: usize>(
-        _dim: usize,
-        _tensor: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        _indexes: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
-        todo!()
+        dim: usize,
+        tensor: IntTensor<Self, D>,
+        indexes: IntTensor<Self, D>,
+    ) -> IntTensor<Self, D> {
+        BaseOps::<G>::gather(dim, tensor, indexes)
     }
 
     fn int_scatter<const D: usize>(
-        _dim: usize,
-        _tensor: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        _indexes: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        _value: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
-        todo!()
+        dim: usize,
+        tensor: IntTensor<Self, D>,
+        indexes: IntTensor<Self, D>,
+        value: IntTensor<Self, D>,
+    ) -> IntTensor<Self, D> {
+        BaseOps::<G>::scatter(dim, tensor, indexes, value)
     }
 
     fn int_index_select_dim<const D: usize>(

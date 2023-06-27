@@ -11,21 +11,6 @@ where
     F: FloatElement,
     I: IntElement,
 {
-    fn embedding(
-        _weights: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<2>,
-        _indexes: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<2>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<3> {
-        todo!()
-    }
-
-    fn embedding_backward(
-        _weights: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<2>,
-        _output: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<3>,
-        _indexes: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<2>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<2> {
-        todo!()
-    }
-
     fn conv2d(
         _x: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<4>,
         _weight: <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<4>,
