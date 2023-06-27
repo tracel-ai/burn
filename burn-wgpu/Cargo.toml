@@ -29,7 +29,7 @@ futures-intrusive = {workspace = true}
 pollster = {workspace = true}
 wgpu = {workspace = true}
 
-# Tempalte
+# Template
 serde = {workspace = true}
 text_placeholder = { version = "0.5.0", features = ["struct_context"] }
 

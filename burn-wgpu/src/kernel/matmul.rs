@@ -12,7 +12,7 @@ const T_N: usize = 8;
 
 kernel_wgsl!(
     MatmulTiling2DRaw,
-    "../template/lfd_matmul_blocktiling_2d.wgsl"
+    "../template/matmul_blocktiling_2d.wgsl"
 );
 
 struct MatmulTiling2D;
