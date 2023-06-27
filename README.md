@@ -256,20 +256,21 @@ fn main() {
 
 See this [example](https://github.com/burn-rs/burn/tree/main/examples/mnist) for a real usage.
 
-## No-std support
+## Support for `no_std`
 
-Burn supports `no_std` with `alloc` for the inference mode with the NDArray backend. Simply disable
-the default features of the `burn` and `burn-ndarray` crates (minimum required to run the inference
-mode). See the
-[burn-no-std-tests](https://github.com/burn-rs/burn/tree/main/examples/burn-no-std-tests) example as
-a reference implementation.
+Burn, including its `burn-ndarray` backend, can work in a `no_std` environment, provided `alloc` is
+available for the inference mode. To accomplish this, simply turn off the default features in `burn`
+and `burn-ndarray` (which is the minimum requirement for running the inference mode). You can find a
+reference example in
+[burn-no-std-tests](https://github.com/burn-rs/burn/tree/main/examples/burn-no-std-tests).
 
-Additionally `burn-core` and `burn-tensor` crates support `no_std` with `alloc` if needed to
-direclty include them as dependencies (the `burn` crates reexports `burn-core` and `burn-tensor`).
-Note, under the `no_std` mode, a random seed is generated during the build time if the seed is not
-initialized by `Backend::seed` method. Additionally,
-[spin::mutex::Mutex](https://docs.rs/spin/latest/spin/mutex/struct.Mutex.html) is used in place of
-[std::sync::Mutex](https://doc.rust-lang.org/std/sync/struct.Mutex.html) under the `no_std` mode.
+The `burn-core` and `burn-tensor` crates also support `no_std` with `alloc`. These crates can be
+directly added as dependencies if necessary, as they are reexported by the `burn` crate.
+
+Please be aware that when using the `no_std` mode, a random seed will be generated at build time if
+one hasn't been set using the `Backend::seed` method. Also, the
+[spin::mutex::Mutex](https://docs.rs/spin/latest/spin/mutex/struct.Mutex.html) is used instead of
+[std::sync::Mutex](https://doc.rust-lang.org/std/sync/struct.Mutex.html) in this mode.
 
 ## Contributing
 
