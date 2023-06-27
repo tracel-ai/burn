@@ -32,21 +32,33 @@ simplifying the process of experimenting, training, and deploying models.
 
 ## Supported Platforms
 
-| Backend           | Option     | CPU | GPU | Linux | Mac | Win | Android | iOS | WASM | Extra Lib |
-| ----------------- | :--------- | :-: | :-: | :---: | :-: | :-: | :-----: | :-: | :--: | :-------: |
-| [burn-ndarray][1] | Pure       | ✅  | ❌  |  ✅   | ✅  | ✅  |   ✅    | ✅  |  ✅  |    ❌     |
-|                   | Accelerate | ✅  | ❌  |  ❌   | ✅  | ❌  |   ❌    | ✅  |  ❌  |    ✅     |
-|                   | Netlib     | ✅  | ❌  |  ✅   | ✅  | ✅  |   ❌    | ❌  |  ❌  |    ✅     |
-|                   | Openblas   | ✅  | ❌  |  ✅   | ✅  | ✅  |   ✅    | ✅  |  ❌  |    ✅     |
-| [burn-tch][2]     | CPU        | ✅  | ❌  |  ✅   | ✅  | ✅  |   ✅    | ✅  |  ❌  |    ✅     |
-|                   | CUDA       | ❌  | ✅  |  ✅   | ❌  | ✅  |   ❌    | ❌  |  ❌  |    ✅     |
-|                   | MPS        | ❌  | ✅  |  ❌   | ✅  | ❌  |   ❌    | ❌  |  ❌  |    ✅     |
-|                   | Vulkan     | ✅  | ✅  |  ✅   | ✅  | ✅  |   ✅    | ❌  |  ❌  |    ✅     |
-| [burn-wgpu][3]    | Metal      | ❌  | ✅  |  ❌   | ✅  | ❌  |   ❌    | ✅  |  ❌  |    ❌     |
-|                   | Vulkan     | ✅  | ✅  |  ✅   | ✅  | ✅  |   ✅    | ✅  |  ❌  |    ✅     |
-|                   | OpenGl     | ❌  | ✅  |  ✅   | ✅  | ✅  |   ✅    | ✅  |  ❌  |    ❌     |
-|                   | WebGpu     | ❌  | ✅  |  ❌   | ❌  | ❌  |   ❌    | ❌  |  ✅  |    ❌     |
-|                   | Dx11/Dx12  | ❌  | ✅  |  ❌   | ❌  | ✅  |   ❌    | ❌  |  ❌  |    ❌     |
+### [Burn-ndarray][1] Backend
+
+| Option     | CPU | GPU | Linux | Mac | Win | Android | iOS | WASM |
+| :--------- | :-: | :-: | :---: | :-: | :-: | :-----: | :-: | :--: |
+| Pure Rust  | ✅  | ❌  |  ✅   | ✅  | ✅  |   ✅    | ✅  |  ✅  |
+| Accelerate | ✅  | ❌  |  ❌   | ✅  | ❌  |   ❌    | ✅  |  ❌  |
+| Netlib     | ✅  | ❌  |  ✅   | ✅  | ✅  |   ❌    | ❌  |  ❌  |
+| Openblas   | ✅  | ❌  |  ✅   | ✅  | ✅  |   ✅    | ✅  |  ❌  |
+
+### [Burn-tch][2] Backend
+
+| Option | CPU | GPU | Linux | Mac | Win | Android | iOS | WASM |
+| :----- | :-: | :-: | :---: | :-: | :-: | :-----: | :-: | :--: |
+| CPU    | ✅  | ❌  |  ✅   | ✅  | ✅  |   ✅    | ✅  |  ❌  |
+| CUDA   | ❌  | ✅  |  ✅   | ❌  | ✅  |   ❌    | ❌  |  ❌  |
+| MPS    | ❌  | ✅  |  ❌   | ✅  | ❌  |   ❌    | ❌  |  ❌  |
+| Vulkan | ✅  | ✅  |  ✅   | ✅  | ✅  |   ✅    | ❌  |  ❌  |
+
+### [Burn-wgpu][3] Backend
+
+| Option    | CPU | GPU | Linux | Mac | Win | Android | iOS | WASM |
+| :-------- | :-: | :-: | :---: | :-: | :-: | :-----: | :-: | :--: |
+| Metal     | ❌  | ✅  |  ❌   | ✅  | ❌  |   ❌    | ✅  |  ❌  |
+| Vulkan    | ✅  | ✅  |  ✅   | ✅  | ✅  |   ✅    | ✅  |  ❌  |
+| OpenGl    | ❌  | ✅  |  ✅   | ✅  | ✅  |   ✅    | ✅  |  ❌  |
+| WebGpu    | ❌  | ✅  |  ❌   | ❌  | ❌  |   ❌    | ❌  |  ✅  |
+| Dx11/Dx12 | ❌  | ✅  |  ❌   | ❌  | ✅  |   ❌    | ❌  |  ❌  |
 
 [1]: https://github.com/burn-rs/burn/tree/main/burn-ndarray
 [2]: https://github.com/burn-rs/burn/tree/main/burn-tch
@@ -244,7 +256,7 @@ fn main() {
 
 See this [example](https://github.com/burn-rs/burn/tree/main/examples/mnist) for a real usage.
 
-## no_std support
+## No-std support
 
 Burn supports `no_std` with `alloc` for the inference mode with the NDArray backend. Simply disable
 the default features of the `burn` and `burn-ndarray` crates (minimum required to run the inference
