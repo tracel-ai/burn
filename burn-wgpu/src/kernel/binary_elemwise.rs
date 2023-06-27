@@ -58,6 +58,7 @@ pub fn binary_elemwise<K: StaticKernel, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
+    const WORKGROUP: usize = 256;
     lhs.assert_is_on_save_device(&rhs);
 
     let mut shape_out = [0; D];
@@ -79,7 +80,7 @@ pub fn binary_elemwise<K: StaticKernel, E: WgpuElement, const D: usize>(
 
     let kernel = lhs
         .context
-        .compile_static::<KernelSettings<K, E, i32, 256, 1, 1>>();
+        .compile_static::<KernelSettings<K, E, i32, WORKGROUP, 1, 1>>();
     let info = build_info(&[&lhs, &rhs, &output]);
     let info_buffers = lhs
         .context
@@ -87,7 +88,7 @@ pub fn binary_elemwise<K: StaticKernel, E: WgpuElement, const D: usize>(
 
     lhs.context.execute(
         WorkGroup::new(
-            f32::ceil(output.shape.num_elements() as f32 / 256_f32) as u32,
+            f32::ceil(output.shape.num_elements() as f32 / WORKGROUP as f32) as u32,
             1,
             1,
         ),

@@ -31,6 +31,7 @@ std = [
 # Serialization formats
 experimental-named-tensor = ["burn-tensor/experimental-named-tensor"]
 test-tch = [] # To use tch during testing, default uses ndarray.
+test-wgpu = [] # To use wgpu during testing, default uses ndarray.
 
 [dependencies]
 
@@ -68,3 +69,4 @@ burn-dataset = {path = "../burn-dataset", version = "0.8.0", features = [
 
 burn-ndarray = {path = "../burn-ndarray", version = "0.8.0", default-features = false}
 burn-tch = {path = "../burn-tch", version = "0.8.0"}
+burn-wgpu = {path = "../burn-wgpu", version = "0.8.0"}

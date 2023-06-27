@@ -91,8 +91,9 @@ mod tests {
             [batch_size, num_targets],
             Distribution::Normal(0., 1.0),
         );
-        let targets =
-            Tensor::<TestBackend, 1, Int>::from_data(Data::from([2, 0, 4, pad_index as i64]));
+        let targets = Tensor::<TestBackend, 1, Int>::from_data(
+            Data::<i64, 1>::from([2, 0, 4, pad_index as i64]).convert(),
+        );
         let targets_logits = Tensor::<TestBackend, 2>::from_data(Data::from([
             [0.0, 0.0, 1.0, 0.0, 0.0],
             [1.0, 0.0, 0.0, 0.0, 0.0],
