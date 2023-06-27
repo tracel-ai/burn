@@ -68,8 +68,6 @@ fn main(
         offset_rhs += offset_output / stride_output % shape_rhs * stride_rhs;
     }
     
-    let computing_thread = row < n_rows && col < n_cols; 
-
     // in case T_ does not divide B_ evenly
     let actual_T_M = min(B_M - thread_row, T_M);
     let actual_T_N = min(B_N - thread_col, T_N);
@@ -79,44 +77,41 @@ fn main(
     var register_N: array<{{ elem }}, T_N>;
 
     for (var k = 0u; k < K; k += B_K) { 
+        let sm_limit = min(B_K, K - k);
+        
         for (var i = 0u; i < actual_T_M; i++) {
             for (var j = 0u; j < actual_T_N; j++) {
-                if thread_col + j < B_K {
-                    let lhs_sm_position = (thread_row + i) * B_K + thread_col + j; 
-                    if thread_col + k + j >= K {
-                        shared_lhs[lhs_sm_position] = 0.0;
-                    } else {
-                        shared_lhs[lhs_sm_position] = lhs[offset_lhs + k + (thread_row + i) * K + thread_col + j];
-                    }
+                let current_row = thread_row + i;
+                let current_col = thread_col + j;
+                
+                if current_col < sm_limit {
+                    let lhs_sm_position = current_row * B_K + current_col; 
+                    let lhs_position = offset_lhs + k + current_row * K + current_col;
+                    shared_lhs[lhs_sm_position] = lhs[lhs_position];
                 }
                 
-                if thread_row + i < B_K {
-                    let rhs_sm_position = (thread_row + i) * B_N + thread_col + j; 
-                    if thread_row + k + i >= K {
-                        shared_rhs[rhs_sm_position] = 0.0;
-                    } else {
-                        shared_rhs[rhs_sm_position] = rhs[offset_rhs + (k + thread_row + i) * n_cols + thread_col + j];
-                    }   
+                if current_row < sm_limit {
+                    let rhs_sm_position = current_row * B_N + current_col; 
+                    let rhs_position = offset_rhs + (k + current_row) * n_cols + current_col;
+                    shared_rhs[rhs_sm_position] = rhs[rhs_position];
                 }
             }
         }
 
         workgroupBarrier();
 
-        if computing_thread {
-            for (var dot_index = 0u; dot_index < B_K; dot_index++) {
-                for (var tile_index = 0u; tile_index < actual_T_M; tile_index++) {
-                    let lhs_sm_position = (thread_row + tile_index) * B_K + dot_index;
-                    register_M[tile_index] = shared_lhs[lhs_sm_position];
-                }
-                for (var tile_index = 0u; tile_index < actual_T_N; tile_index++) {
-                    let rhs_sm_position = thread_col + tile_index + dot_index * B_N;
-                    register_N[tile_index] = shared_rhs[rhs_sm_position];
-                }
-                for (var res_idx_M = 0u; res_idx_M < actual_T_M; res_idx_M++) {
-                    for (var res_idx_N = 0u; res_idx_N < actual_T_N; res_idx_N++) {
-                        results[res_idx_M * actual_T_N + res_idx_N] += register_M[res_idx_M] * register_N[res_idx_N];
-                    }
+        for (var dot_index = 0u; dot_index < B_K; dot_index++) {
+            for (var tile_index = 0u; tile_index < actual_T_M; tile_index++) {
+                let lhs_sm_position = (thread_row + tile_index) * B_K + dot_index;
+                register_M[tile_index] = shared_lhs[lhs_sm_position];
+            }
+            for (var tile_index = 0u; tile_index < actual_T_N; tile_index++) {
+                let rhs_sm_position = thread_col + tile_index + dot_index * B_N;
+                register_N[tile_index] = shared_rhs[rhs_sm_position];
+            }
+            for (var res_idx_M = 0u; res_idx_M < actual_T_M; res_idx_M++) {
+                for (var res_idx_N = 0u; res_idx_N < actual_T_N; res_idx_N++) {
+                    results[res_idx_M * actual_T_N + res_idx_N] += register_M[res_idx_M] * register_N[res_idx_N];
                 }
             }
         }
@@ -124,13 +119,14 @@ fn main(
         workgroupBarrier();
     }
 
-    if computing_thread {
-        for (var res_idx_M = 0u; res_idx_M < actual_T_M; res_idx_M++) {
-            for (var res_idx_N = 0u; res_idx_N < actual_T_N; res_idx_N++) {
-                if row + res_idx_M < n_rows && col + res_idx_N < n_cols { 
-                    let res = results[res_idx_M * actual_T_N + res_idx_N];
-                    output[offset_output + (row + res_idx_M) * n_cols + col + res_idx_N] = res;
-                }
+    for (var res_idx_M = 0u; res_idx_M < actual_T_M; res_idx_M++) {
+        for (var res_idx_N = 0u; res_idx_N < actual_T_N; res_idx_N++) {
+            let current_row = row + res_idx_M;
+            let current_col = col + res_idx_N;
+            if current_row < n_rows && current_col < n_cols { 
+                let result_position = res_idx_M * actual_T_N + res_idx_N;
+                let output_position = offset_output + current_row * n_cols + current_col;
+                output[output_position] = results[result_position];
             }
         }
     }
