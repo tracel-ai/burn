@@ -372,7 +372,7 @@ where
 
         for (index_value, index) in indexes.array.into_iter().enumerate() {
             let mut view = output_array.index_axis_mut(Axis(dim), index as usize);
-            let value = value.array.index_axis(Axis(0), index_value);
+            let value = value.array.index_axis(Axis(dim), index_value);
 
             view.zip_mut_with(&value, |a, b| *a += *b);
         }
