@@ -8,7 +8,6 @@
 [![Rust Version](https://img.shields.io/badge/Rust-1.65.0+-blue)](https://releases.rs/docs/1.65.0)
 ![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)
 
-
 This library strives to serve as a comprehensive **deep learning framework**, offering exceptional
 flexibility and written in Rust. Our objective is to cater to both researchers and practitioners by
 simplifying the process of experimenting, training, and deploying models.
@@ -30,6 +29,30 @@ simplifying the process of experimenting, training, and deploying models.
   utilities and sources 📚
 - [Import](https://github.com/burn-rs/burn/tree/main/burn-import) crate for seamless integration of
   pretrained models 📦
+
+## Supported Platforms
+
+| Backend           | Option     | CPU | GPU | Linux | Mac | Win | Android | iOS | WASM | Extra Lib |
+| ----------------- | :--------- | :-: | :-: | :---: | :-: | :-: | :-----: | :-: | :--: | :-------: |
+| [burn-ndarray][1] | Pure       | ✅  | ❌  |  ✅   | ✅  | ✅  |   ✅    | ✅  |  ✅  |    ❌     |
+|                   | Accelerate | ✅  | ❌  |  ❌   | ✅  | ❌  |   ❌    | ✅  |  ❌  |    ✅     |
+|                   | Netlib     | ✅  | ❌  |  ✅   | ✅  | ✅  |   ❌    | ❌  |  ❌  |    ✅     |
+|                   | Openblas   | ✅  | ❌  |  ✅   | ✅  | ✅  |   ✅    | ✅  |  ❌  |    ✅     |
+| [burn-tch][2]     | CPU        | ✅  | ❌  |  ✅   | ✅  | ✅  |   ✅    | ✅  |  ❌  |    ✅     |
+|                   | CUDA       | ❌  | ✅  |  ✅   | ❌  | ✅  |   ❌    | ❌  |  ❌  |    ✅     |
+|                   | MPS        | ❌  | ✅  |  ❌   | ✅  | ❌  |   ❌    | ❌  |  ❌  |    ✅     |
+|                   | Vulkan     | ✅  | ✅  |  ✅   | ✅  | ✅  |   ✅    | ❌  |  ❌  |    ✅     |
+| [burn-wgpu][3]    | Metal      | ❌  | ✅  |  ❌   | ✅  | ❌  |   ❌    | ✅  |  ❌  |    ❌     |
+|                   | Vulkan     | ✅  | ✅  |  ✅   | ✅  | ✅  |   ✅    | ✅  |  ❌  |    ✅     |
+|                   | OpenGl     | ❌  | ✅  |  ✅   | ✅  | ✅  |   ✅    | ✅  |  ❌  |    ❌     |
+|                   | WebGpu     | ❌  | ✅  |  ❌   | ❌  | ❌  |   ❌    | ❌  |  ✅  |    ❌     |
+|                   | Dx11/Dx12  | ❌  | ✅  |  ❌   | ❌  | ✅  |   ❌    | ❌  |  ❌  |    ❌     |
+
+[1]: https://github.com/burn-rs/burn/tree/main/burn-ndarray
+[2]: https://github.com/burn-rs/burn/tree/main/burn-tch
+[3]: https://github.com/burn-rs/burn/tree/main/burn-wgpu
+
+<!-- | Torch | `tch` | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | libtorch | -->
 
 ## Get Started
 
