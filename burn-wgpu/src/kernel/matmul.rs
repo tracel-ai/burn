@@ -10,10 +10,7 @@ const B_K: usize = 8;
 const T_M: usize = 8;
 const T_N: usize = 8;
 
-kernel_wgsl!(
-    MatmulTiling2DRaw,
-    "../template/matmul_blocktiling_2d.wgsl"
-);
+kernel_wgsl!(MatmulTiling2DRaw, "../template/matmul_blocktiling_2d.wgsl");
 
 struct MatmulTiling2D;
 // struct MatmulCaching;

@@ -56,7 +56,6 @@ impl Context {
         let device_wgpu = Arc::new(device_wgpu);
         let client = ContextServerImpl::start(device_wgpu.clone(), queue);
 
-
         Self {
             id: IdGenerator::generate(),
             device_wgpu,
