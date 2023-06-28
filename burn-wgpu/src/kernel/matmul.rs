@@ -29,7 +29,6 @@ const MAX_SHARED_MEMORY_SIZE: usize = 8192;
 kernel_wgsl!(MatmulTiling2DRaw, "../template/matmul_blocktiling_2d.wgsl");
 
 struct MatmulTiling2D;
-// struct MatmulCaching;
 
 impl StaticKernel for MatmulTiling2D {
     fn source_template() -> SourceTemplate {
