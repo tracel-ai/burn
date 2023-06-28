@@ -68,7 +68,8 @@ fn main(
         offset_rhs += offset_output / stride_output % shape_rhs * stride_rhs;
     }
     
-    // in case T_ does not divide B_ evenly
+    // In case B_M % T_M != 0 or B_N % T_N != 0
+    // A thread must not read out of its block
     let actual_T_M = min(B_M - thread_row, T_M);
     let actual_T_N = min(B_N - thread_col, T_N);
 
@@ -77,8 +78,13 @@ fn main(
     var register_N: array<{{ elem }}, T_N>;
 
     for (var k = 0u; k < K; k += B_K) { 
+        // sm_limit ensures that although there are up to B_M x B_N writes to memory, 
+        // shared memories remain B_M x B_K (lhs) or B_K x B_N (rhs)
+        // also ensures we do not read out of matrices if M % B_M != 0 or N % B_N != 0
         let sm_limit = min(B_K, K - k);
-        
+
+        // Load data into shared memories
+        // Each thread is responsible of loading T_M x T_N values from both lhs and rhs
         for (var i = 0u; i < actual_T_M; i++) {
             for (var j = 0u; j < actual_T_N; j++) {
                 let current_row = thread_row + i;
@@ -100,15 +106,21 @@ fn main(
 
         workgroupBarrier();
 
+        // Compute intermediate results
+        // Results are cumulated in results array and updated at each block
+        // Outer loop indicates which subcolumns/subrows to read from shared memories
         for (var dot_index = 0u; dot_index < B_K; dot_index++) {
+            // Load a subcolumn of values from lhs
             for (var tile_index = 0u; tile_index < actual_T_M; tile_index++) {
                 let lhs_sm_position = (thread_row + tile_index) * B_K + dot_index;
                 register_M[tile_index] = shared_lhs[lhs_sm_position];
             }
+            // Load a subrow of values from rhs
             for (var tile_index = 0u; tile_index < actual_T_N; tile_index++) {
                 let rhs_sm_position = thread_col + tile_index + dot_index * B_N;
                 register_N[tile_index] = shared_rhs[rhs_sm_position];
             }
+            // Multiply subcolumn and subrow and store results
             for (var res_idx_M = 0u; res_idx_M < actual_T_M; res_idx_M++) {
                 for (var res_idx_N = 0u; res_idx_N < actual_T_N; res_idx_N++) {
                     results[res_idx_M * actual_T_N + res_idx_N] += register_M[res_idx_M] * register_N[res_idx_N];
@@ -119,10 +131,13 @@ fn main(
         workgroupBarrier();
     }
 
+    // Write output matrix
+    // Each thread is responsible of writing T_M x T_N results
     for (var res_idx_M = 0u; res_idx_M < actual_T_M; res_idx_M++) {
         for (var res_idx_N = 0u; res_idx_N < actual_T_N; res_idx_N++) {
             let current_row = row + res_idx_M;
             let current_col = col + res_idx_N;
+            // Check that we are within the bounds of output matrix
             if current_row < n_rows && current_col < n_cols { 
                 let result_position = res_idx_M * actual_T_N + res_idx_N;
                 let output_position = offset_output + current_row * n_cols + current_col;

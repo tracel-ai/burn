@@ -1,14 +1,27 @@
 use std::cmp::{max, min};
 
-use super::{build_info, DynamicKernelSettings, SourceTemplate, StaticKernel};
-use crate::{context::WorkGroup, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
+use super::{build_info, SourceTemplate, StaticKernel};
+use crate::{context::WorkGroup, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor, kernel::KernelSettings};
 use burn_tensor::Shape;
 
+// Suppose a matmul of m1 of size [M, K] with m2 of size [K, N]
+// Block size along dim M
 const B_M: usize = 128;
+// Block size along dim N
 const B_N: usize = 128;
+// Block size along dim K
 const B_K: usize = 8;
+// Tiling size along dim M
 const T_M: usize = 8;
+// Tiling size along dim N
 const T_N: usize = 8;
+
+// WORKGROUP_SIZE_X = ceil(B_M / T_M)
+const WORKGROUP_SIZE_X: usize = 16;
+// WORKGROUP_SIZE_Y = ceil(B_N / T_N)
+const WORKGROUP_SIZE_Y: usize = 16;
+
+const MAX_SHARED_MEMORY_SIZE: usize = 8192;
 
 kernel_wgsl!(MatmulTiling2DRaw, "../template/matmul_blocktiling_2d.wgsl");
 
@@ -41,7 +54,7 @@ pub fn matmul_tiling_2d<E: WgpuElement, const D: usize>(
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     assert!(B_K <= min(B_M, B_N), "B_K must be smaller than both B_M and B_M, otherwise there won't be enough threads to fill shared memory. ");
-    assert!(B_K * max(B_M, B_N) <= 8192, "B_K x B_M and B_K x B_N must be smaller or equal than 8192, otherwise shared memory limit will be busted. ");
+    assert!(B_K * max(B_M, B_N) <= MAX_SHARED_MEMORY_SIZE, "B_K x B_M and B_K x B_N must be smaller or equal than 8192, otherwise shared memory limit will be busted. ");
     lhs.assert_is_on_save_device(&rhs);
 
     let mut shape_out = [0; D];
@@ -65,17 +78,11 @@ pub fn matmul_tiling_2d<E: WgpuElement, const D: usize>(
         .create_buffer(shape_out.num_elements() * core::mem::size_of::<E>());
     let output = WgpuTensor::new(lhs.context.clone(), shape_out, buffer);
 
-    // set number of threads per workgroup
-    let workgroup_size_x: usize = f32::ceil(B_M as f32 / T_M as f32) as usize;
-    let workgroup_size_y: usize = f32::ceil(B_N as f32 / T_N as f32) as usize;
-
     // set number of workgroups
-    let blocks_needed_in_x = f32::ceil(num_rows as f32 / (workgroup_size_x * T_M) as f32) as u32;
-    let blocks_needed_in_y = f32::ceil(num_cols as f32 / (workgroup_size_y * T_N) as f32) as u32;
+    let blocks_needed_in_x = f32::ceil(num_rows as f32 / (WORKGROUP_SIZE_X * T_M) as f32) as u32;
+    let blocks_needed_in_y = f32::ceil(num_cols as f32 / (WORKGROUP_SIZE_Y * T_N) as f32) as u32;
 
-    let kernel =
-        DynamicKernelSettings::<MatmulTiling2D, E, i32>::new(workgroup_size_x, workgroup_size_y, 1);
-    let kernel = lhs.context.compile_dynamic(kernel);
+    let kernel = lhs.context.compile_static::<KernelSettings<MatmulTiling2D, E, i32, WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y, 1>>();
 
     let info = build_info(&[&lhs, &rhs, &output]);
 
