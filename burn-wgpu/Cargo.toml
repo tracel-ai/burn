@@ -38,3 +38,4 @@ burn-autodiff = {path = "../burn-autodiff", version = "0.8.0", default-features 
 burn-tensor = {path = "../burn-tensor", version = "0.8.0", default-features = false, features = [
   "export_tests",
 ]}
+burn-ndarray = {path = "../burn-ndarray", version = "0.8.0"}
