@@ -65,6 +65,11 @@ impl Context {
         }
     }
 
+    /// Wait for all computation to be executed.
+    pub fn sync(&self) {
+        self.client.sync();
+    }
+
     /// Execute a kernel using the provided buffers.
     ///
     /// # Notes

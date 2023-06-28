@@ -246,7 +246,7 @@ mod async_server {
 
 #[cfg(not(feature = "async"))]
 mod sync_server {
-    use super::{IContextServer, SyncContextServer};
+    use super::{ContextServer, SyncContextServer};
     use crate::context::client::SyncContextClient;
     use std::sync::Arc;
 

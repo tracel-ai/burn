@@ -7,6 +7,9 @@ extern crate derive_new;
 
 mod ops;
 
+/// Benchmark module
+pub mod benchmark;
+
 pub(crate) mod context;
 pub(crate) mod element;
 pub(crate) mod kernel;

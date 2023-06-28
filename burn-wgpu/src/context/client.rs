@@ -72,6 +72,7 @@ mod async_client {
                 panic!("Unable to read buffer")
             }
         }
+
         fn copy_buffer(
             &self,
             buffer_src: Arc<Buffer>,
@@ -135,14 +136,13 @@ mod async_client {
 
 #[cfg(not(feature = "async"))]
 mod sync_client {
+    use super::ContextClient;
     use crate::context::{
         server::{ComputeTask, SyncContextServer},
         WorkGroup,
     };
     use std::sync::Arc;
     use wgpu::{BindGroup, Buffer, ComputePipeline};
-
-    use super::IContextClient;
 
     #[derive(Debug)]
     pub struct SyncContextClient {
@@ -175,7 +175,7 @@ mod sync_client {
         }
         fn read_buffer(&self, buffer: Arc<Buffer>) -> Vec<u8> {
             let mut server = self.server.lock();
-            server.read(&buffer)
+            server.read_buffer(&buffer)
         }
 
         fn register_compute(
