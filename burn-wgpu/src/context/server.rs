@@ -111,6 +111,15 @@ impl SyncContextServer {
         }
     }
 
+    pub fn sync(&mut self) {
+        if self.tasks.len() > 0 {
+            self.register_tasks();
+            self.submit();
+        }
+
+        self.device.poll(wgpu::Maintain::Wait);
+    }
+
     pub fn buffer_to_buffer(&mut self, buffer_src: Arc<Buffer>, buffer_dest: Arc<Buffer>) {
         self.encoder
             .copy_buffer_to_buffer(&buffer_src, 0, &buffer_dest, 0, buffer_src.size());
@@ -167,6 +176,7 @@ mod async_server {
         Compute(ComputeTask),
         ReadBuffer(ReadBufferTask),
         CopyBuffer(CopyBufferTask),
+        Sync(mpsc::Sender<()>),
     }
 
     impl From<ComputeTask> for ContextTask {
@@ -210,6 +220,10 @@ mod async_server {
                     ContextTask::ReadBuffer(task) => {
                         let bytes = self.server.read_buffer(&task.buffer);
                         task.sender.send(bytes).unwrap();
+                    }
+                    ContextTask::Sync(callback) => {
+                        self.server.sync();
+                        callback.send(()).unwrap();
                     }
                 };
             }

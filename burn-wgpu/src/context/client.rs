@@ -36,6 +36,10 @@ pub trait ContextClient {
         pipeline: Arc<ComputePipeline>,
         work_group: WorkGroup,
     );
+    /// Wait for all computation to be done.
+    ///
+    /// Useful for benchmarks.
+    fn sync(&self);
 }
 
 #[cfg(feature = "async")]
@@ -56,6 +60,18 @@ mod async_client {
     }
 
     impl ContextClient for AsyncContextClient {
+        fn sync(&self) {
+            let (sender, receiver) = std::sync::mpsc::channel();
+
+            self.sender.send(ContextTask::Sync(sender)).unwrap();
+
+            let mut iter = receiver.iter();
+            if let Some(_) = iter.next() {
+                log::debug!("Sync completed");
+            } else {
+                panic!("Unable to read buffer")
+            }
+        }
         fn copy_buffer(
             &self,
             buffer_src: Arc<Buffer>,
@@ -142,6 +158,10 @@ mod sync_client {
     }
 
     impl ContextClient for SyncContextClient {
+        fn sync(&self) {
+            let mut server = self.server.lock();
+            server.sync();
+        }
         fn copy_buffer(
             &self,
             buffer_src: Arc<Buffer>,
