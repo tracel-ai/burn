@@ -1,4 +1,4 @@
-use super::{unary_workgroup, KernelSettings, StaticKernel};
+use super::{elemwise_workgroup, KernelSettings, StaticKernel};
 use crate::{element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 
 kernel_wgsl!(UnaryScalarRaw, "../template/unary_scalar.wgsl");
@@ -127,7 +127,7 @@ pub fn unary_scalar<K: StaticKernel, E: WgpuElement, const D: usize, const WORKG
     let rhs_buffer = lhs.context.create_buffer_with_data(E::as_bytes(&[scalar]));
 
     lhs.context.execute(
-        unary_workgroup(num_elems, WORKGROUP),
+        elemwise_workgroup(num_elems, WORKGROUP),
         kernel,
         &[&lhs.buffer, &rhs_buffer, &output.buffer],
     );
@@ -159,7 +159,10 @@ pub fn unary_scalar_inplace<
     let rhs_buffer = lhs.context.create_buffer_with_data(E::as_bytes(&[scalar]));
 
     lhs.context.execute(
-        unary_workgroup(lhs.shape.num_elements(), WORKGROUP),
+        {
+            let num_elems = lhs.shape.num_elements();
+            elemwise_workgroup(num_elems, WORKGROUP)
+        },
         kernel,
         &[&lhs.buffer, &rhs_buffer],
     );

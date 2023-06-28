@@ -1,5 +1,5 @@
-use super::{KernelSettings, StaticKernel};
-use crate::{context::WorkGroup, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
+use super::{elemwise_workgroup, KernelSettings, StaticKernel};
+use crate::{element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 
 kernel_wgsl!(UnaryRaw, "../template/unary.wgsl");
 kernel_wgsl!(UnaryInplaceRaw, "../template/unary_inplace.wgsl");
@@ -108,7 +108,7 @@ pub fn unary_inplace_default<K: StaticKernel, E: WgpuElement, const D: usize>(
     unary_inplace::<K, E, D, 32>(input)
 }
 
-/// Execute a unary inplace kernel using the given WORKGROUP.
+/// Execute a unary inplace kernel using the provided WORKGROUP.
 pub fn unary_inplace<K: StaticKernel, E: WgpuElement, const D: usize, const WORKGROUP: usize>(
     input: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
@@ -118,7 +118,7 @@ pub fn unary_inplace<K: StaticKernel, E: WgpuElement, const D: usize, const WORK
         .compile_static::<KernelSettings<K, E, i32, WORKGROUP, WORKGROUP, 1>>();
 
     input.context.execute(
-        unary_workgroup(num_elems, WORKGROUP),
+        elemwise_workgroup(num_elems, WORKGROUP),
         kernel,
         &[&input.buffer],
     );
@@ -144,28 +144,12 @@ pub fn unary<K: StaticKernel, E: WgpuElement, const D: usize, const WORKGROUP: u
         .compile_static::<KernelSettings<K, E, i32, WORKGROUP, WORKGROUP, 1>>();
 
     input.context.execute(
-        unary_workgroup(num_elems, WORKGROUP),
+        elemwise_workgroup(num_elems, WORKGROUP),
         kernel,
         &[&input.buffer, &output.buffer],
     );
 
     output
-}
-
-pub(crate) fn unary_workgroup(num_elems: usize, workgroup_size: usize) -> WorkGroup {
-    let num_elem_per_invocation = workgroup_size * workgroup_size;
-    let workgroups = f32::ceil(num_elems as f32 / num_elem_per_invocation as f32);
-    let workgroup_x = f32::ceil(f32::sqrt(workgroups)) as u32;
-    let mut workgroup_y = workgroup_x;
-
-    if workgroup_y > 1 {
-        let num_total_covered = workgroup_x * workgroup_y * num_elem_per_invocation as u32;
-        if num_total_covered as usize - workgroup_size > num_elems {
-            workgroup_y -= 1;
-        }
-    }
-
-    WorkGroup::new(workgroup_x, workgroup_y, 1)
 }
 
 #[cfg(test)]
