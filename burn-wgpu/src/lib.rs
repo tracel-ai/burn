@@ -58,6 +58,7 @@ mod tests {
     burn_tensor::testgen_aggregation!();
     burn_tensor::testgen_arg!();
     burn_tensor::testgen_map_comparison!();
+    burn_tensor::testgen_arange!();
     burn_tensor::testgen_mask!();
     burn_tensor::testgen_cat!();
     burn_tensor::testgen_index_select!();
