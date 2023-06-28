@@ -51,15 +51,15 @@ impl Context {
     /// Create a new context where computing tasks will be executed on the given
     /// [device](WgpuDevice).
     pub(crate) fn new<G: GraphicsApi>(device: &WgpuDevice) -> Self {
-        let device_wgpu = device.clone();
-        let (device, queue) = pollster::block_on(select_device::<G>(device));
-        let device = Arc::new(device);
-        let client = ContextServerImpl::start(device.clone(), queue);
+        let (device_wgpu, queue) = pollster::block_on(select_device::<G>(device));
+        let device = device.clone();
+        let device_wgpu = Arc::new(device_wgpu);
+        let client = ContextServerImpl::start(device_wgpu.clone(), queue);
 
         Self {
             id: IdGenerator::generate(),
-            device_wgpu: device,
-            device: device_wgpu,
+            device_wgpu,
+            device,
             client,
             cache: Mutex::new(HashMap::new()),
         }
