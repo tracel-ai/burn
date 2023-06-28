@@ -1,11 +1,13 @@
 use super::numeric::NumericOps;
 use super::{BaseOps, BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
-use crate::kernel::{matmul, unary, unary_inplace, unary_scalar, unary_scalar_inplace};
+use crate::kernel::{
+    matmul, unary, unary_inplace, unary_scalar, unary_scalar_inplace, SourceTemplate, StaticKernel,
+    UnaryScalarInplaceRaw, UnaryScalarRaw,
+};
 use crate::{
     element::{FloatElement, IntElement},
     unary, unary_inplace, GraphicsApi, WGPUBackend, SEED,
 };
-use crate::{unary_scalar, unary_scalar_inplace};
 use burn_common::rand::get_seeded_rng;
 use burn_tensor::ElementConversion;
 use burn_tensor::{backend::Backend, ops::TensorOps, Data, Distribution, Shape};
@@ -354,8 +356,37 @@ where
     }
 
     fn powf<const D: usize>(lhs: FloatTensor<Self, D>, rhs: f32) -> FloatTensor<Self, D> {
-        unary_scalar!(Powf, func "pow");
-        unary_scalar_inplace!(PowfInplace, func "pow");
+        struct Powf;
+        struct PowfInplace;
+        const POWF_TEMPLATE: &str = "fn powf(lhs: {{ elem }}, rhs: {{ elem }}) -> {{ elem }} {
+    let modulo = rhs % 2.0;
+
+    if (modulo == 0.0) {
+        // Even number
+        return pow(abs(lhs), rhs);
+    } else if (modulo == 1.0) {
+        // Odd number
+        return -1.0 * pow(abs(lhs), rhs);
+    } else {
+        // Float number
+        return pow(lhs, rhs);
+    }
+}";
+
+        impl StaticKernel for Powf {
+            fn source_template() -> SourceTemplate {
+                UnaryScalarRaw::source_template()
+                    .add_template(POWF_TEMPLATE)
+                    .register("body", "output[global_id.x] = powf(lhs[global_id.x], rhs);")
+            }
+        }
+        impl StaticKernel for PowfInplace {
+            fn source_template() -> SourceTemplate {
+                UnaryScalarInplaceRaw::source_template()
+                    .add_template(POWF_TEMPLATE)
+                    .register("body", "lhs[global_id.x] = powf(lhs[global_id.x], rhs);")
+            }
+        }
 
         if lhs.can_mut() {
             return unary_scalar_inplace::<PowfInplace, F, D>(lhs, rhs.elem());
