@@ -1,4 +1,4 @@
-use syn::{Attribute, Ident, Meta, NestedMeta};
+use syn::{Attribute, Ident, Meta};
 
 pub struct AttributeAnalyzer {
     attr: Attribute,
@@ -15,30 +15,26 @@ impl AttributeAnalyzer {
         Self { attr }
     }
 
-    pub fn items(&self) -> Vec<AttributeItem> {
-        let config = match self.attr.parse_meta() {
-            Ok(val) => val,
-            Err(err) => panic!("Fail to parse items: {err:?}"),
-        };
-        let nested = match config {
-            Meta::List(val) => val.nested,
-            _ => return Vec::new(),
+    pub fn item(&self) -> AttributeItem {
+        let value = match &self.attr.meta {
+            Meta::List(val) => val.parse_args::<syn::MetaNameValue>().unwrap(),
+            Meta::NameValue(meta) => meta.clone(),
+            Meta::Path(_) => panic!("Path meta unsupported"),
         };
 
-        let mut output = Vec::new();
-        for pair in nested.into_iter() {
-            if let NestedMeta::Meta(Meta::NameValue(value)) = pair {
-                output.push(AttributeItem {
-                    ident: value.path.get_ident().unwrap().clone(),
-                    value: value.lit,
-                });
-            };
+        let lit = match value.value {
+            syn::Expr::Lit(lit) => lit.lit,
+            _ => panic!("Only literal is supported"),
+        };
+
+        AttributeItem {
+            ident: value.path.get_ident().unwrap().clone(),
+            value: lit,
         }
-        output
     }
 
     pub fn has_name(&self, name: &str) -> bool {
-        Self::path_syn_name(&self.attr.path) == name
+        Self::path_syn_name(self.attr.path()) == name
     }
 
     fn path_syn_name(path: &syn::Path) -> String {

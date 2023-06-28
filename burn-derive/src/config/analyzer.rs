@@ -46,8 +46,7 @@ impl ConfigAnalyzerFactory {
             let attributes: Vec<AttributeItem> = field
                 .attributes()
                 .filter(|attr| attr.has_name("config"))
-                .map(|attr| attr.items())
-                .filter_map(|attr| attr.first().map(Clone::clone))
+                .map(|attr| attr.item())
                 .collect();
 
             if !attributes.is_empty() {
