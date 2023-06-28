@@ -50,7 +50,7 @@ serde_rusqlite = "0.33.1"
 spin = {version = "0.9.8", features = ["mutex", "spin_mutex"]}
 strum = "0.24"
 strum_macros = "0.24"
-syn = "2.0"
+syn = {version = "2.0", features = ["full", "extra-traits"]}
 tempfile = "3.6.0"
 thiserror = "1.0.40"
 topological-sort = "0.2.2"
