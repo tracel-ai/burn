@@ -1,7 +1,10 @@
 use std::cmp::{max, min};
 
 use super::{build_info, SourceTemplate, StaticKernel};
-use crate::{context::WorkGroup, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor, kernel::KernelSettings};
+use crate::{
+    context::WorkGroup, element::WgpuElement, kernel::KernelSettings, kernel_wgsl,
+    tensor::WgpuTensor,
+};
 use burn_tensor::Shape;
 
 // Suppose a matmul of m1 of size [M, K] with m2 of size [K, N]
@@ -82,7 +85,14 @@ pub fn matmul_tiling_2d<E: WgpuElement, const D: usize>(
     let blocks_needed_in_x = f32::ceil(num_rows as f32 / (WORKGROUP_SIZE_X * T_M) as f32) as u32;
     let blocks_needed_in_y = f32::ceil(num_cols as f32 / (WORKGROUP_SIZE_Y * T_N) as f32) as u32;
 
-    let kernel = lhs.context.compile_static::<KernelSettings<MatmulTiling2D, E, i32, WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y, 1>>();
+    let kernel = lhs.context.compile_static::<KernelSettings<
+        MatmulTiling2D,
+        E,
+        i32,
+        WORKGROUP_SIZE_X,
+        WORKGROUP_SIZE_Y,
+        1,
+    >>();
 
     let info = build_info(&[&lhs, &rhs, &output]);
 
