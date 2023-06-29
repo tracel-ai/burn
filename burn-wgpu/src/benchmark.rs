@@ -60,28 +60,31 @@ pub trait Benchmark<G: GraphicsApi> {
     ///
     /// This should not include warmup, the benchmark will be run at least one time without
     /// measuring the execution time.
-    fn prepare(&self) -> Self::Args;
+    fn prepare(&self, device: &WgpuDevice) -> Self::Args;
     /// Execute the benchmark and returns the time it took to complete.
     fn execute(&self, args: Self::Args);
-    /// Returns the [device](WgpuDevice) used by the benchmark.
-    fn device(&self) -> WgpuDevice;
+    /// Number of samples required to have a statistical significance.
+    fn num_samples(&self) -> usize {
+        10
+    }
+    /// Name of the benchmark.
+    fn name(&self) -> String;
     /// Run the benchmark a number of times.
-    fn run(&self, num_times: usize) -> BenchmarkResult
+    fn run(&self, device: &WgpuDevice) -> BenchmarkResult
     where
         Self: Sized,
     {
-        let device = self.device();
         let context = get_context::<G>(&device);
 
         // Warmup
-        self.execute(self.prepare());
+        self.execute(self.prepare(device));
         context.sync();
 
-        let mut durations = Vec::with_capacity(num_times);
+        let mut durations = Vec::with_capacity(self.num_samples());
 
-        for _ in 0..num_times {
+        for _ in 0..self.num_samples() {
             // Prepare
-            let args = self.prepare();
+            let args = self.prepare(device);
             context.sync();
 
             // Execute the benchmark
@@ -96,4 +99,58 @@ pub trait Benchmark<G: GraphicsApi> {
 
         BenchmarkResult { durations }
     }
+}
+
+/// Run a benchmark on all platforms.
+#[macro_export]
+macro_rules! run_benchmark {
+    ($bench:expr) => {{
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
+        let output = std::process::Command::new("git")
+            .args(&["rev-parse", "HEAD"])
+            .output()
+            .unwrap();
+        let git_hash = String::from_utf8(output.stdout).unwrap();
+        println!("Timestamp: {}", timestamp);
+        println!("Git Hash: {}", str::trim(&git_hash));
+        #[cfg(any(target_os = "linux", target_os = "windows"))]
+        {
+            println!(
+                "OpenGL - {}{}",
+                Benchmark::<burn_wgpu::OpenGl>::name(&$bench),
+                Benchmark::<burn_wgpu::OpenGl>::run(&$bench, &WgpuDevice::DiscreteGpu(0))
+            );
+            println!(
+                "Vulkan - {}{}",
+                Benchmark::<burn_wgpu::Vulkan>::name(&$bench),
+                Benchmark::<burn_wgpu::Vulkan>::run(&$bench, &WgpuDevice::DiscreteGpu(0))
+            );
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            println!(
+                "Dx11 - {}{}",
+                Benchmark::<burn_wgpu::Dx11>::name(&$bench),
+                Benchmark::<burn_wgpu::Dx11>::run(&$bench, &WgpuDevice::DiscreteGpu(0))
+            );
+            println!(
+                "Dx12 - {}{}",
+                Benchmark::<burn_wgpu::Dx12>::name(&$bench),
+                Benchmark::<burn_wgpu::Dx12>::run(&$bench, &WgpuDevice::DiscreteGpu(0))
+            );
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            println!(
+                "Metal - {}{}",
+                Benchmark::<burn_wgpu::Metal>::name(&$bench),
+                Benchmark::<burn_wgpu::Metal>::run(&$bench, &WgpuDevice::IntegratedGpu(0))
+            );
+        }
+    }};
 }
