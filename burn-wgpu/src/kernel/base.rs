@@ -130,7 +130,6 @@ pub(crate) fn build_info<E: WgpuElement, const D: usize>(
             current += 1;
         }
     }
-
     info
 }
 
