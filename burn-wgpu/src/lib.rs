@@ -35,7 +35,7 @@ mod tests {
     #[cfg(not(target_os = "macos"))]
     type GraphicsApi = Vulkan;
 
-    type TestBackend = WGPUBackend<GraphicsApi, f32, i32>;
+    type TestBackend = WgpuBackend<GraphicsApi, f32, i32>;
     type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
     type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
 

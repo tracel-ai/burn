@@ -12,15 +12,15 @@ pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 
 /// Wgpu backend.
 #[derive(Debug, Default, Clone)]
-pub struct WGPUBackend<G: GraphicsApi, F: FloatElement, I: IntElement> {
+pub struct WgpuBackend<G: GraphicsApi, F: FloatElement, I: IntElement> {
     _g: PhantomData<G>,
     _f: PhantomData<F>,
     _i: PhantomData<I>,
 }
 
-impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> Backend for WGPUBackend<G, F, I> {
+impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> Backend for WgpuBackend<G, F, I> {
     type Device = WgpuDevice;
-    type FullPrecisionBackend = WGPUBackend<G, f32, i32>;
+    type FullPrecisionBackend = WgpuBackend<G, f32, i32>;
 
     type FullPrecisionElem = f32;
     type FloatElem = F;

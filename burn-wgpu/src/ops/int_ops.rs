@@ -4,12 +4,12 @@ use burn_tensor::{backend::Backend, ops::IntTensorOps, Data, Shape};
 
 use crate::{
     element::{FloatElement, IntElement},
-    GraphicsApi, WGPUBackend,
+    GraphicsApi, WgpuBackend,
 };
 
 use super::{numeric::NumericOps, BaseOps, BoolTensor, Device, IntElem, IntTensor};
 
-impl<G, F, I> IntTensorOps<WGPUBackend<G, F, I>> for WGPUBackend<G, F, I>
+impl<G, F, I> IntTensorOps<WgpuBackend<G, F, I>> for WgpuBackend<G, F, I>
 where
     G: GraphicsApi + 'static,
     F: FloatElement,
@@ -101,19 +101,19 @@ where
     }
 
     fn int_index_select_dim<const D: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
+        _tensor: <WgpuBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
         _dim: usize,
-        _indexes: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<1>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
+        _indexes: <WgpuBackend<G, F, I> as Backend>::IntTensorPrimitive<1>,
+    ) -> <WgpuBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
         todo!()
     }
 
     fn int_index_select_dim_assign<const D1: usize, const D2: usize>(
-        _tensor: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D1>,
+        _tensor: <WgpuBackend<G, F, I> as Backend>::IntTensorPrimitive<D1>,
         _dim: usize,
-        _indexes: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<1>,
-        _value: <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D2>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::IntTensorPrimitive<D1> {
+        _indexes: <WgpuBackend<G, F, I> as Backend>::IntTensorPrimitive<1>,
+        _value: <WgpuBackend<G, F, I> as Backend>::IntTensorPrimitive<D2>,
+    ) -> <WgpuBackend<G, F, I> as Backend>::IntTensorPrimitive<D1> {
         todo!()
     }
 

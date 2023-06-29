@@ -63,7 +63,7 @@ pub trait Benchmark<G: GraphicsApi> {
     fn prepare(&self) -> Self::Args;
     /// Execute the benchmark and returns the time it took to complete.
     fn execute(&self, args: Self::Args);
-    /// Returns the [device](Device) used by the benchmark.
+    /// Returns the [device](WgpuDevice) used by the benchmark.
     fn device(&self) -> WgpuDevice;
     /// Run the benchmark a number of times.
     fn run(&self, num_times: usize) -> BenchmarkResult
