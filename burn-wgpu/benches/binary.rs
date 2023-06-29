@@ -3,7 +3,7 @@ use burn_wgpu::{
     benchmark::Benchmark,
     binary_elemwise, binary_elemwise_inplace,
     kernel::{binary_elemwise_default, binary_elemwise_inplace_default},
-    GraphicsApi, OpenGl, Vulkan, WgpuBackend, WgpuDevice,
+    GraphicsApi, WgpuBackend, WgpuDevice,
 };
 
 binary_elemwise!(TestKernel, "+");
@@ -50,23 +50,48 @@ impl<const D: usize, G: GraphicsApi> Benchmark<G> for BinaryBenchmark<D> {
 }
 
 fn main() {
-    let mut benchmark = BinaryBenchmark::<3> {
+    let num_iter = 10;
+    let benchmark_inplace = BinaryBenchmark::<3> {
+        device: WgpuDevice::DiscreteGpu(0),
+        inplace: true,
+        shape: [32, 512, 1024].into(),
+    };
+    let benchmark = BinaryBenchmark::<3> {
         device: WgpuDevice::DiscreteGpu(0),
         inplace: true,
         shape: [32, 512, 1024].into(),
     };
 
-    let durations_inplace_opengl = Benchmark::<OpenGl>::run(&benchmark, 10);
-    let durations_inplace_vulkan = Benchmark::<Vulkan>::run(&benchmark, 10);
+    println!(
+        "OpenGL {}",
+        Benchmark::<burn_wgpu::OpenGl>::run(&benchmark, num_iter)
+    );
+    println!(
+        "OpenGL inplace {}",
+        Benchmark::<burn_wgpu::OpenGl>::run(&benchmark_inplace, num_iter)
+    );
 
-    benchmark.inplace = false;
+    #[cfg(any(target_os = "linux", target_os = "windows"))]
+    {
+        println!(
+            "Vulkan {}",
+            Benchmark::<burn_wgpu::Vulkan>::run(&benchmark, num_iter)
+        );
+        println!(
+            "Vulkan inplace {}",
+            Benchmark::<burn_wgpu::Vulkan>::run(&benchmark_inplace, num_iter)
+        );
+    }
 
-    let durations_opengl = Benchmark::<OpenGl>::run(&benchmark, 10);
-    let durations_vulkan = Benchmark::<Vulkan>::run(&benchmark, 10);
-
-    println!("Vulkan {}", durations_vulkan);
-    println!("Vulkan inplace {}", durations_inplace_vulkan);
-
-    println!("OpenGL {}", durations_opengl);
-    println!("OpenGL inplace {}", durations_inplace_opengl);
+    #[cfg(target_os = "macos")]
+    {
+        println!(
+            "Metal {}",
+            Benchmark::<burn_wgpu::Metal>::run(&benchmark, num_iter)
+        );
+        println!(
+            "Metal inplace {}",
+            Benchmark::<burn_wgpu::Metal>::run(&benchmark_inplace, num_iter)
+        );
+    }
 }
