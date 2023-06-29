@@ -7,11 +7,6 @@ use crate::{
 };
 use burn_tensor::Shape;
 
-// WORKGROUP_SIZE_X = ceil(B_M / T_M)
-const WORKGROUP_SIZE_X: usize = 16;
-// WORKGROUP_SIZE_Y = ceil(B_N / T_N)
-const WORKGROUP_SIZE_Y: usize = 16;
-
 const MAX_SHARED_MEMORY_SIZE: usize = 8192;
 
 kernel_wgsl!(MatmulTiling2DRaw, "../template/matmul_blocktiling_2d.wgsl");
@@ -22,10 +17,19 @@ struct MatmulTiling2D<
     const B_K: usize,
     const T_M: usize,
     const T_N: usize,
+    const WORKGROUP_SIZE_X: usize,
+    const WORKGROUP_SIZE_Y: usize,
 >;
 
-impl<const B_M: usize, const B_N: usize, const B_K: usize, const T_M: usize, const T_N: usize>
-    StaticKernel for MatmulTiling2D<B_M, B_N, B_K, T_M, T_N>
+impl<
+        const B_M: usize,
+        const B_N: usize,
+        const B_K: usize,
+        const T_M: usize,
+        const T_N: usize,
+        const WORKGROUP_SIZE_X: usize,
+        const WORKGROUP_SIZE_Y: usize,
+    > StaticKernel for MatmulTiling2D<B_M, B_N, B_K, T_M, T_N, WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y>
 {
     fn source_template() -> SourceTemplate {
         MatmulTiling2DRaw::source_template()
@@ -55,7 +59,12 @@ pub fn matmul<E: WgpuElement, const D: usize>(
     const T_M: usize = 8;
     // // Tiling size along dim N
     const T_N: usize = 8;
-    matmul_tiling_2d::<E, D, B_M, B_N, B_K, T_M, T_N>(lhs, rhs)
+    // WORKGROUP_SIZE_X = ceil(B_M / T_M)
+    const WORKGROUP_SIZE_X: usize = 16;
+    // WORKGROUP_SIZE_Y = ceil(B_N / T_N)
+    const WORKGROUP_SIZE_Y: usize = 16;
+
+    matmul_tiling_2d::<E, D, B_M, B_N, B_K, T_M, T_N, WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y>(lhs, rhs)
 }
 
 pub fn matmul_tiling_2d<
@@ -66,12 +75,16 @@ pub fn matmul_tiling_2d<
     const B_K: usize,
     const T_M: usize,
     const T_N: usize,
+    const WORKGROUP_SIZE_X: usize,
+    const WORKGROUP_SIZE_Y: usize,
 >(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     assert!(B_K <= min(B_M, B_N), "B_K must be smaller than both B_M and B_M, otherwise there won't be enough threads to fill shared memory. ");
     assert!(B_K * max(B_M, B_N) <= MAX_SHARED_MEMORY_SIZE, "B_K x B_M and B_K x B_N must be smaller or equal than 8192, otherwise shared memory limit will be busted. ");
+    assert!(WORKGROUP_SIZE_X == f32::ceil(B_M as f32 / T_M as f32) as usize, "Workgroup size x must equal ceil(B_M / T_M)");
+    assert!(WORKGROUP_SIZE_Y == f32::ceil(B_N as f32 / T_N as f32) as usize, "Workgroup size y must equal ceil(B_N / T_N)");
     lhs.assert_is_on_same_device(&rhs);
 
     let mut shape_out = [0; D];
@@ -100,7 +113,7 @@ pub fn matmul_tiling_2d<
     let blocks_needed_in_y = f32::ceil(num_cols as f32 / (WORKGROUP_SIZE_Y * T_N) as f32) as u32;
 
     let kernel = lhs.context.compile_static::<KernelSettings<
-        MatmulTiling2D<B_M, B_N, B_K, T_M, T_N>,
+        MatmulTiling2D<B_M, B_N, B_K, T_M, T_N, WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y>,
         E,
         i32,
         WORKGROUP_SIZE_X,
@@ -140,94 +153,108 @@ mod tests {
 
     #[test]
     pub fn test_matmul_tiling_2d_shapes_smaller_than_blocks() {
-        test_with_params::<128, 128, 16, 8, 8>(8, 8, 8, 1, 1);
-    }
-
-    #[test]
-    pub fn test_matmul_tiling_2d_shapes_slightly_larger_than_blocks() {
-        test_with_params::<32, 32, 8, 8, 8>(40, 40, 30, 1, 1);
-    }
-
-    #[test]
-    pub fn test_matmul_tiling_2d_shapes_way_larger_than_blocks() {
-        test_with_params::<16, 16, 8, 8, 8>(50, 50, 50, 1, 1);
-    }
-
-    #[test]
-    pub fn test_matmul_tiling_2d_blocks_divide_shapes_unevenly() {
-        test_with_params::<16, 16, 8, 8, 8>(31, 23, 17, 1, 1);
+        test_with_params::<128, 128, 16, 8, 8, 8, 8>(8, 8, 8, 1, 1);
     }
 
     #[test]
     pub fn test_matmul_tiling_2d_m_not_equals_n() {
-        test_with_params::<16, 16, 8, 8, 8>(8, 8, 3, 1, 1);
+        test_with_params::<16, 16, 8, 8, 8, 2, 2>(8, 8, 3, 1, 1);
     }
 
     #[test]
     pub fn test_matmul_tiling_2d_k_smaller_than_m_n() {
-        test_with_params::<16, 16, 8, 8, 8>(8, 3, 8, 1, 1);
+        test_with_params::<16, 16, 8, 8, 8, 2, 2>(8, 3, 8, 1, 1);
     }
 
     #[test]
     pub fn test_matmul_tiling_2d_k_larger_than_m_n() {
-        test_with_params::<16, 16, 8, 8, 8>(8, 48, 8, 1, 1);
-    }
-
-    #[test]
-    pub fn test_matmul_tiling_2d_t_larger_than_b() {
-        test_with_params::<16, 16, 8, 24, 24>(50, 50, 50, 1, 1);
+        test_with_params::<16, 16, 8, 8, 8, 2, 2>(8, 48, 8, 1, 1);
     }
 
     #[test]
     pub fn test_matmul_tiling_2d_t_divides_b_unevenly() {
-        test_with_params::<128, 128, 8, 7, 11>(8, 8, 8, 1, 1);
-    }
-
-    #[test]
-    pub fn test_matmul_tiling_2d_large_parameters() {
-        test_with_params::<256, 256, 128, 128, 128>(40, 40, 40, 1, 1);
+        test_with_params::<128, 128, 8, 7, 11, 19, 12>(8, 8, 8, 1, 1);
     }
 
     #[test]
     pub fn test_matmul_tiling_2d_small_parameters() {
-        test_with_params::<128, 128, 8, 8, 8>(8, 8, 8, 1, 1);
+        test_with_params::<128, 128, 8, 8, 8, 16, 16>(8, 8, 8, 1, 1);
     }
 
     #[test]
     pub fn test_matmul_tiling_2d_bm_not_equals_bn() {
-        test_with_params::<32, 128, 8, 8, 8>(8, 8, 8, 1, 1);
-    }
-
-    #[test]
-    pub fn test_matmul_tiling_2d_large_tensors() {
-        test_with_params::<128, 128, 8, 8, 8>(150, 150, 150, 1, 1);
-    }
-
-    #[test]
-    pub fn test_matmul_tiling_2d_uneven_parameters() {
-        test_with_params::<17, 15, 11, 13, 7>(24, 24, 24, 1, 1);
+        test_with_params::<32, 128, 8, 8, 8, 4, 16>(8, 8, 8, 1, 1);
     }
 
     #[test]
     pub fn test_matmul_tiling_2d_multibatch_1_dim() {
-        test_with_params::<128, 128, 8, 8, 8>(8, 8, 8, 3, 1);
+        test_with_params::<128, 128, 8, 8, 8, 16, 16>(8, 8, 8, 3, 1);
     }
 
     #[test]
     pub fn test_matmul_tiling_2d_multibatch_2_dims() {
-        test_with_params::<128, 128, 8, 8, 8>(8, 8, 8, 3, 4);
+        test_with_params::<128, 128, 8, 8, 8, 16, 16>(8, 8, 8, 3, 4);
     }
 
     #[test]
     #[should_panic]
     pub fn test_matmul_tiling_2d_memory_busted_should_panic() {
-        test_with_params::<128, 128, 128, 8, 8>(8, 8, 8, 1, 1);
+        test_with_params::<128, 128, 128, 8, 8, 16, 16>(8, 8, 8, 1, 1);
     }
 
     #[test]
     #[should_panic]
-    pub fn test_matmul_tiling_2d_B_K_larger_than_B_M_should_panic() {
-        test_with_params::<64, 64, 128, 8, 8>(8, 8, 8, 1, 1);
+    pub fn test_matmul_tiling_2d_bk_larger_than_bm_should_panic() {
+        test_with_params::<64, 64, 128, 8, 8, 8, 8>(8, 8, 8, 1, 1);
+    }
+
+    #[test]
+    #[should_panic]
+    pub fn test_matmul_tiling_2d_workgroup_x_wrong_should_panic() {
+        test_with_params::<128, 128, 16, 8, 8, 16, 8>(8, 8, 8, 1, 1);
+    }
+
+    #[test]
+    #[should_panic]
+    pub fn test_matmul_tiling_2d_workgroup_y_wrong_should_panic() {
+        test_with_params::<128, 128, 16, 8, 8, 8, 7>(8, 8, 8, 1, 1);
+    }
+
+    ///////////////////////////////////////////////////////////////////////////////////
+
+    #[test]
+    pub fn test_matmul_tiling_2d_blocks_divide_shapes_unevenly() {
+        test_with_params::<16, 16, 8, 8, 8, 2, 2>(31, 23, 17, 1, 1);
+    }
+
+    #[test]
+    pub fn test_matmul_tiling_2d_large_parameters() {
+        test_with_params::<256, 256, 16, 16, 16, 16, 16>(40, 40, 40, 1, 1);
+    }
+
+    #[test]
+    pub fn test_matmul_tiling_2d_large_tensors() {
+        test_with_params::<128, 128, 8, 8, 8, 16, 16>(150, 150, 150, 1, 1);
+    }
+
+    #[test]
+    pub fn test_matmul_tiling_2d_shapes_slightly_larger_than_blocks() {
+        test_with_params::<32, 32, 8, 8, 8, 4, 4>(40, 40, 30, 1, 1);
+    }
+
+    #[test]
+    pub fn test_matmul_tiling_2d_shapes_way_larger_than_blocks() {
+        test_with_params::<16, 16, 8, 8, 8, 2, 2>(50, 50, 50, 1, 1);
+    }
+
+    #[test]
+    pub fn test_matmul_tiling_2d_t_larger_than_b() {
+        test_with_params::<16, 16, 8, 24, 24, 1, 1>(50, 50, 50, 1, 1);
+    }
+
+    #[test]
+    pub fn test_matmul_tiling_2d_uneven_parameters() {
+        test_with_params::<17, 15, 11, 13, 7, 2, 3>(24, 24, 24, 1, 1);
     }
 
     fn test_with_params<
@@ -236,6 +263,8 @@ mod tests {
         const B_K: usize,
         const T_M: usize,
         const T_N: usize,
+        const WORKGROUP_SIZE_X: usize,
+        const WORKGROUP_SIZE_Y: usize,
     >(
         M: usize,
         K: usize,
@@ -243,7 +272,7 @@ mod tests {
         batch_1: usize,
         batch_2: usize,
     ) {
-        let func = |lhs, rhs| matmul_tiling_2d::<f32, 4, B_M, B_N, B_K, T_M, T_N>(lhs, rhs);
+        let func = |lhs, rhs| matmul_tiling_2d::<f32, 4, B_M, B_N, B_K, T_M, T_N, WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y>(lhs, rhs);
         let shape_lhs = [batch_1, batch_2, M, K];
         let shape_rhs = [batch_1, batch_2, K, N];
         same_as_reference(func, shape_lhs, shape_rhs);
@@ -269,3 +298,12 @@ mod tests {
         z_reference.into_data().assert_approx_eq(&z.into_data(), 3);
     }
 }
+
+// failures:
+//     kernel::matmul::tests::test_matmul_tiling_2d_blocks_divide_shapes_unevenly -> SMALL DIFF ON EVERY ENTRY + ZEROS AT THE END
+//     kernel::matmul::tests::test_matmul_tiling_2d_large_parameters -> SMALL DIFF ON EVERY ENTRY
+//     kernel::matmul::tests::test_matmul_tiling_2d_large_tensors -> SMALL DIFF ON EVERY ENTRY
+//     kernel::matmul::tests::test_matmul_tiling_2d_shapes_slightly_larger_than_blocks -> ZEROS AT THE END
+//     kernel::matmul::tests::test_matmul_tiling_2d_shapes_way_larger_than_blocks -> SMALL DIFF ON EVERY ENTRY + MANY ZEROS AT THE END (AND THE END IN COLS)
+//     kernel::matmul::tests::test_matmul_tiling_2d_t_larger_than_b -> SMALL DIFF ON EVERY ENTRY + MANY ZEROS AT THE END (AND THE END IN COLS)
+//     kernel::matmul::tests::test_matmul_tiling_2d_uneven_parameters -> SMALL DIFF ON EVERY ENTRY + MANY ZEROS AT THE END (AND THE END IN COLS)
