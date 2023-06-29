@@ -57,7 +57,7 @@ pub fn matmul_tiling_2d<E: WgpuElement, const D: usize>(
 ) -> WgpuTensor<E, D> {
     assert!(B_K <= min(B_M, B_N), "B_K must be smaller than both B_M and B_M, otherwise there won't be enough threads to fill shared memory. ");
     assert!(B_K * max(B_M, B_N) <= MAX_SHARED_MEMORY_SIZE, "B_K x B_M and B_K x B_N must be smaller or equal than 8192, otherwise shared memory limit will be busted. ");
-    lhs.assert_is_on_save_device(&rhs);
+    lhs.assert_is_on_same_device(&rhs);
 
     let mut shape_out = [0; D];
     lhs.shape
