@@ -1,5 +1,5 @@
 use burn_tensor::Tensor;
-use burn_wgpu::{benchmark::Benchmark, GraphicsApi, Vulkan, WGPUBackend, WgpuDevice};
+use burn_wgpu::{benchmark::Benchmark, GraphicsApi, OpenGl, Vulkan, WGPUBackend, WgpuDevice};
 
 struct UnaryBenchmark {
     device: WgpuDevice,
@@ -9,8 +9,7 @@ impl<G: GraphicsApi> Benchmark<G> for UnaryBenchmark {
     type Args = Tensor<WGPUBackend<G, f32, i32>, 2>;
 
     fn execute(&self, args: Self::Args) {
-        // args.clone().add_scalar(5.0);
-        args.clone().matmul(args);
+        args.sum_dim(0);
     }
 
     fn prepare(&self) -> Self::Args {
@@ -27,7 +26,9 @@ fn main() {
         device: WgpuDevice::DiscreteGpu(0),
     };
 
-    let durations = Benchmark::<Vulkan>::run(&benchmark, 10);
+    let durations_vulkan = Benchmark::<Vulkan>::run(&benchmark, 100);
+    let durations_opengl = Benchmark::<OpenGl>::run(&benchmark, 100);
 
-    println!("{:?}", durations);
+    println!("Vulkan {}", durations_vulkan);
+    println!("OpenGL {}", durations_opengl);
 }
