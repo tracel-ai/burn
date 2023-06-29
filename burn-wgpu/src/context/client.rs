@@ -66,7 +66,7 @@ mod async_client {
             self.sender.send(ContextTask::Sync(sender)).unwrap();
 
             let mut iter = receiver.iter();
-            if let Some(_) = iter.next() {
+            if iter.next().is_some() {
                 log::debug!("Sync completed");
             } else {
                 panic!("Unable to read buffer")

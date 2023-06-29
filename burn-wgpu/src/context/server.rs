@@ -112,7 +112,7 @@ impl SyncContextServer {
     }
 
     pub fn sync(&mut self) {
-        if self.tasks.len() > 0 {
+        if !self.tasks.is_empty() {
             self.register_tasks();
             self.submit();
         }
