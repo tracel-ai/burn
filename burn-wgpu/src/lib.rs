@@ -9,10 +9,11 @@ mod ops;
 
 /// Benchmark module
 pub mod benchmark;
+/// Kernel module
+pub mod kernel;
 
 pub(crate) mod context;
 pub(crate) mod element;
-pub(crate) mod kernel;
 pub(crate) mod pool;
 pub(crate) mod tensor;
 

@@ -1,5 +1,12 @@
 use burn_tensor::{Distribution, Shape, Tensor};
-use burn_wgpu::{benchmark::Benchmark, GraphicsApi, OpenGl, Vulkan, WgpuBackend, WgpuDevice};
+use burn_wgpu::{
+    benchmark::Benchmark,
+    kernel::{unary_default, unary_inplace_default},
+    unary, unary_inplace, GraphicsApi, OpenGl, Vulkan, WgpuBackend, WgpuDevice,
+};
+
+unary!(TestKernel, func "log");
+unary_inplace!(TestKernelInplace, func "log");
 
 struct UnaryBenchmark<const D: usize> {
     device: WgpuDevice,
@@ -12,10 +19,9 @@ impl<const D: usize, G: GraphicsApi> Benchmark<G> for UnaryBenchmark<D> {
 
     fn execute(&self, args: Self::Args) {
         if self.inplace {
-            args.log();
+            unary_inplace_default::<TestKernelInplace, f32, D>(args.into_primitive());
         } else {
-            #[allow(clippy::redundant_clone)]
-            args.clone().log();
+            unary_default::<TestKernel, f32, D>(args.into_primitive());
         }
     }
 
@@ -32,16 +38,16 @@ fn main() {
     let mut benchmark = UnaryBenchmark::<3> {
         device: WgpuDevice::DiscreteGpu(0),
         inplace: true,
-        shape: [32, 256, 256].into(),
+        shape: [32, 512, 1024].into(),
     };
 
-    let durations_inplace_opengl = Benchmark::<OpenGl>::run(&benchmark, 200);
-    let durations_inplace_vulkan = Benchmark::<Vulkan>::run(&benchmark, 200);
+    let durations_inplace_opengl = Benchmark::<OpenGl>::run(&benchmark, 10);
+    let durations_inplace_vulkan = Benchmark::<Vulkan>::run(&benchmark, 10);
 
     benchmark.inplace = false;
 
-    let durations_opengl = Benchmark::<OpenGl>::run(&benchmark, 200);
-    let durations_vulkan = Benchmark::<Vulkan>::run(&benchmark, 200);
+    let durations_opengl = Benchmark::<OpenGl>::run(&benchmark, 10);
+    let durations_vulkan = Benchmark::<Vulkan>::run(&benchmark, 10);
 
     println!("Vulkan {}", durations_vulkan);
     println!("Vulkan inplace {}", durations_inplace_vulkan);
