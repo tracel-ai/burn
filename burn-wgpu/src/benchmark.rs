@@ -74,7 +74,7 @@ pub trait Benchmark<G: GraphicsApi> {
     where
         Self: Sized,
     {
-        let context = get_context::<G>(&device);
+        let context = get_context::<G>(device);
 
         // Warmup
         self.execute(self.prepare(device));
