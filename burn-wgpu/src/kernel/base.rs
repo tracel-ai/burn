@@ -1,5 +1,5 @@
 use super::SourceTemplate;
-use crate::{element::WgpuElement, tensor::WgpuTensor};
+use crate::{context::WorkGroup, element::WgpuElement, tensor::WgpuTensor};
 use std::marker::PhantomData;
 
 /// Static wgpu kernel to create a [source template](SourceTemplate).
@@ -131,6 +131,15 @@ pub(crate) fn build_info<E: WgpuElement, const D: usize>(
         }
     }
     info
+}
+
+pub(crate) fn elemwise_workgroup(num_elems: usize, workgroup_size: usize) -> WorkGroup {
+    let num_elem_per_invocation = workgroup_size * workgroup_size;
+    let workgroups = f32::ceil(num_elems as f32 / num_elem_per_invocation as f32);
+    let workgroup_x = f32::ceil(f32::sqrt(workgroups));
+    let workgroup_y = f32::ceil(num_elems as f32 / (workgroup_x * num_elem_per_invocation as f32));
+
+    WorkGroup::new(workgroup_x as u32, workgroup_y as u32, 1)
 }
 
 #[cfg(test)]

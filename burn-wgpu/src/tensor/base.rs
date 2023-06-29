@@ -3,7 +3,7 @@ use burn_tensor::Shape;
 use std::{marker::PhantomData, sync::Arc};
 use wgpu::Buffer;
 
-use crate::{context::Context, element::WgpuElement, kernel::unary};
+use crate::{context::Context, element::WgpuElement, kernel::unary_default};
 
 #[derive(Debug, Clone)]
 pub struct WgpuTensor<E: WgpuElement, const D: usize> {
@@ -73,7 +73,7 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
         //
         // The solution is just to use a simple unary compute shader.
         unary!(CopyBuffer, body "output[global_id.x] = input[global_id.x];");
-        unary::<CopyBuffer, E, D>(self.clone())
+        unary_default::<CopyBuffer, E, D>(self.clone())
     }
 
     pub fn can_mut(&self) -> bool {
@@ -84,7 +84,7 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
         true
     }
 
-    pub fn assert_is_on_save_device(&self, other: &Self) {
+    pub fn assert_is_on_same_device(&self, other: &Self) {
         if self.context.device != other.context.device {
             panic!(
                 "Both tensors should be on the same device {:?} != {:?}",

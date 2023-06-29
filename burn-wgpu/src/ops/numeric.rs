@@ -1,6 +1,7 @@
 use crate::kernel::{
-    binary_elemwise, binary_elemwise_inplace, reduction_args_dim, reduction_dim, reduction_sum,
-    unary_scalar, unary_scalar_inplace, ArgsMax, ArgsMin, MeanDim, SumDim,
+    binary_elemwise_default, binary_elemwise_inplace_default, reduction_args_dim, reduction_dim,
+    reduction_sum, unary_scalar_default, unary_scalar_inplace_default, ArgsMax, ArgsMin, MeanDim,
+    SumDim,
 };
 use crate::pool::get_context;
 use crate::{
@@ -46,14 +47,14 @@ impl<G: GraphicsApi> NumericOps<G> {
         binary_elemwise_inplace!(AddInplace, "+");
 
         if lhs.can_mut_broadcast(&rhs) {
-            return binary_elemwise_inplace::<AddInplace, E, D>(lhs, rhs);
+            return binary_elemwise_inplace_default::<AddInplace, E, D>(lhs, rhs);
         }
 
         if rhs.can_mut_broadcast(&lhs) {
-            return binary_elemwise_inplace::<AddInplace, E, D>(rhs, lhs);
+            return binary_elemwise_inplace_default::<AddInplace, E, D>(rhs, lhs);
         }
 
-        binary_elemwise::<Add, E, D>(lhs, rhs)
+        binary_elemwise_default::<Add, E, D>(lhs, rhs)
     }
 
     pub fn add_scalar<E: WgpuElement, const D: usize>(
@@ -64,10 +65,10 @@ impl<G: GraphicsApi> NumericOps<G> {
         unary_scalar_inplace!(AddScalarInplace, ops "+");
 
         if lhs.can_mut() {
-            return unary_scalar_inplace::<AddScalarInplace, E, D>(lhs, rhs);
+            return unary_scalar_inplace_default::<AddScalarInplace, E, D>(lhs, rhs);
         }
 
-        unary_scalar::<AddScalar, E, D>(lhs, rhs)
+        unary_scalar_default::<AddScalar, E, D>(lhs, rhs)
     }
 
     pub fn sub<E: WgpuElement, const D: usize>(
@@ -78,10 +79,10 @@ impl<G: GraphicsApi> NumericOps<G> {
         binary_elemwise_inplace!(SubInplace, "-");
 
         if lhs.can_mut_broadcast(&rhs) {
-            return binary_elemwise_inplace::<SubInplace, E, D>(lhs, rhs);
+            return binary_elemwise_inplace_default::<SubInplace, E, D>(lhs, rhs);
         }
 
-        binary_elemwise::<Sub, E, D>(lhs, rhs)
+        binary_elemwise_default::<Sub, E, D>(lhs, rhs)
     }
 
     pub fn sub_scalar<E: WgpuElement, const D: usize>(
@@ -92,10 +93,10 @@ impl<G: GraphicsApi> NumericOps<G> {
         unary_scalar_inplace!(SubScalarInplace, ops "-");
 
         if lhs.can_mut() {
-            return unary_scalar_inplace::<SubScalarInplace, E, D>(lhs, rhs);
+            return unary_scalar_inplace_default::<SubScalarInplace, E, D>(lhs, rhs);
         }
 
-        unary_scalar::<SubScalar, E, D>(lhs, rhs)
+        unary_scalar_default::<SubScalar, E, D>(lhs, rhs)
     }
 
     pub fn mul<E: WgpuElement, const D: usize>(
@@ -106,14 +107,14 @@ impl<G: GraphicsApi> NumericOps<G> {
         binary_elemwise_inplace!(MulInplace, "*");
 
         if lhs.can_mut_broadcast(&rhs) {
-            return binary_elemwise_inplace::<MulInplace, E, D>(lhs, rhs);
+            return binary_elemwise_inplace_default::<MulInplace, E, D>(lhs, rhs);
         }
 
         if rhs.can_mut_broadcast(&lhs) {
-            return binary_elemwise_inplace::<MulInplace, E, D>(rhs, lhs);
+            return binary_elemwise_inplace_default::<MulInplace, E, D>(rhs, lhs);
         }
 
-        binary_elemwise::<Mul, E, D>(lhs, rhs)
+        binary_elemwise_default::<Mul, E, D>(lhs, rhs)
     }
 
     pub fn mul_scalar<E: WgpuElement, const D: usize>(
@@ -124,10 +125,10 @@ impl<G: GraphicsApi> NumericOps<G> {
         unary_scalar_inplace!(MulScalarInplace, ops "*");
 
         if lhs.can_mut() {
-            return unary_scalar_inplace::<MulScalarInplace, E, D>(lhs, rhs);
+            return unary_scalar_inplace_default::<MulScalarInplace, E, D>(lhs, rhs);
         }
 
-        unary_scalar::<MulScalar, E, D>(lhs, rhs)
+        unary_scalar_default::<MulScalar, E, D>(lhs, rhs)
     }
 
     pub fn div<E: WgpuElement, const D: usize>(
@@ -138,10 +139,10 @@ impl<G: GraphicsApi> NumericOps<G> {
         binary_elemwise_inplace!(DivInplace, "/");
 
         if lhs.can_mut_broadcast(&rhs) {
-            return binary_elemwise_inplace::<DivInplace, E, D>(lhs, rhs);
+            return binary_elemwise_inplace_default::<DivInplace, E, D>(lhs, rhs);
         }
 
-        binary_elemwise::<Div, E, D>(lhs, rhs)
+        binary_elemwise_default::<Div, E, D>(lhs, rhs)
     }
 
     pub fn div_scalar<E: WgpuElement, const D: usize>(
@@ -152,10 +153,10 @@ impl<G: GraphicsApi> NumericOps<G> {
         unary_scalar_inplace!(DivScalarInplace, ops "/");
 
         if lhs.can_mut() {
-            return unary_scalar_inplace::<DivScalarInplace, E, D>(lhs, rhs);
+            return unary_scalar_inplace_default::<DivScalarInplace, E, D>(lhs, rhs);
         }
 
-        unary_scalar::<DivScalar, E, D>(lhs, rhs)
+        unary_scalar_default::<DivScalar, E, D>(lhs, rhs)
     }
 
     pub fn sum<E: WgpuElement + Element, const D: usize>(

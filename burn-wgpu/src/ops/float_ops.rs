@@ -1,12 +1,13 @@
 use super::numeric::NumericOps;
 use super::{BaseOps, BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
 use crate::kernel::{
-    matmul, unary, unary_inplace, unary_scalar, unary_scalar_inplace, SourceTemplate, StaticKernel,
-    UnaryScalarInplaceRaw, UnaryScalarRaw,
+    matmul, unary_default, unary_inplace_default, unary_scalar_default,
+    unary_scalar_inplace_default,
 };
+use crate::unary_scalar_inplace;
 use crate::{
     element::{FloatElement, IntElement},
-    unary, unary_inplace, GraphicsApi, WGPUBackend, SEED,
+    unary, unary_inplace, unary_scalar, GraphicsApi, WGPUBackend, SEED,
 };
 use burn_common::rand::get_seeded_rng;
 use burn_tensor::ElementConversion;
@@ -327,10 +328,10 @@ where
         unary_inplace!(ExpInplace, func "exp");
 
         if lhs.can_mut() {
-            return unary_inplace::<ExpInplace, F, D>(lhs);
+            return unary_inplace_default::<ExpInplace, F, D>(lhs);
         }
 
-        unary::<Exp, F, D>(lhs)
+        unary_default::<Exp, F, D>(lhs)
     }
 
     fn log<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
@@ -338,61 +339,32 @@ where
         unary_inplace!(LogInplace, func "log");
 
         if tensor.can_mut() {
-            return unary_inplace::<LogInplace, F, D>(tensor);
+            return unary_inplace_default::<LogInplace, F, D>(tensor);
         }
 
-        unary::<Log, F, D>(tensor)
+        unary_default::<Log, F, D>(tensor)
     }
 
     fn log1p<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        unary!(Log1p, body "output[global_id.x] = log(1.0 + input[global_id.x]);");
-        unary_inplace!(Log1pInplace, body "input[global_id.x] = log(1.0 + input[global_id.x]);");
+        unary!(Log1p, body "output[id] = log(1.0 + input[id]);");
+        unary_inplace!(Log1pInplace, body "input[id] = log(1.0 + input[id]);");
 
         if tensor.can_mut() {
-            return unary_inplace::<Log1pInplace, F, D>(tensor);
+            return unary_inplace_default::<Log1pInplace, F, D>(tensor);
         }
 
-        unary::<Log1p, F, D>(tensor)
+        unary_default::<Log1p, F, D>(tensor)
     }
 
     fn powf<const D: usize>(lhs: FloatTensor<Self, D>, rhs: f32) -> FloatTensor<Self, D> {
-        struct Powf;
-        struct PowfInplace;
-        const POWF_TEMPLATE: &str = "fn powf(lhs: {{ elem }}, rhs: {{ elem }}) -> {{ elem }} {
-    let modulo = rhs % 2.0;
-
-    if (modulo == 0.0) {
-        // Even number
-        return pow(abs(lhs), rhs);
-    } else if (modulo == 1.0) {
-        // Odd number
-        return -1.0 * pow(abs(lhs), rhs);
-    } else {
-        // Float number
-        return pow(lhs, rhs);
-    }
-}";
-
-        impl StaticKernel for Powf {
-            fn source_template() -> SourceTemplate {
-                UnaryScalarRaw::source_template()
-                    .add_template(POWF_TEMPLATE)
-                    .register("body", "output[global_id.x] = powf(lhs[global_id.x], rhs);")
-            }
-        }
-        impl StaticKernel for PowfInplace {
-            fn source_template() -> SourceTemplate {
-                UnaryScalarInplaceRaw::source_template()
-                    .add_template(POWF_TEMPLATE)
-                    .register("body", "lhs[global_id.x] = powf(lhs[global_id.x], rhs);")
-            }
-        }
+        unary_scalar!(Powf, func "powf", include "../template/powf.wgsl");
+        unary_scalar_inplace!(PowfInplace, func "powf", include "../template/powf.wgsl");
 
         if lhs.can_mut() {
-            return unary_scalar_inplace::<PowfInplace, F, D>(lhs, rhs.elem());
+            return unary_scalar_inplace_default::<PowfInplace, F, D>(lhs, rhs.elem());
         }
 
-        unary_scalar::<Powf, F, D>(lhs, rhs.elem())
+        unary_scalar_default::<Powf, F, D>(lhs, rhs.elem())
     }
 
     fn sqrt<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
@@ -400,10 +372,10 @@ where
         unary_inplace!(SqrtInplace, func "sqrt");
 
         if tensor.can_mut() {
-            return unary_inplace::<SqrtInplace, F, D>(tensor);
+            return unary_inplace_default::<SqrtInplace, F, D>(tensor);
         }
 
-        unary::<Sqrt, F, D>(tensor)
+        unary_default::<Sqrt, F, D>(tensor)
     }
 
     fn cos<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
@@ -411,10 +383,10 @@ where
         unary_inplace!(CosInplace, func "cos");
 
         if tensor.can_mut() {
-            return unary_inplace::<CosInplace, F, D>(tensor);
+            return unary_inplace_default::<CosInplace, F, D>(tensor);
         }
 
-        unary::<Cos, F, D>(tensor)
+        unary_default::<Cos, F, D>(tensor)
     }
 
     fn sin<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
@@ -422,10 +394,10 @@ where
         unary_inplace!(SinInplace, func "sin");
 
         if tensor.can_mut() {
-            return unary_inplace::<SinInplace, F, D>(tensor);
+            return unary_inplace_default::<SinInplace, F, D>(tensor);
         }
 
-        unary::<Sin, F, D>(tensor)
+        unary_default::<Sin, F, D>(tensor)
     }
 
     fn tanh<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
@@ -433,10 +405,10 @@ where
         unary_inplace!(TanhInplace, func "tanh");
 
         if tensor.can_mut() {
-            return unary_inplace::<TanhInplace, F, D>(tensor);
+            return unary_inplace_default::<TanhInplace, F, D>(tensor);
         }
 
-        unary::<Tanh, F, D>(tensor)
+        unary_default::<Tanh, F, D>(tensor)
     }
 
     fn erf<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
@@ -444,10 +416,10 @@ where
         unary_inplace!(ErfInplace, func "erf", include "../template/erf.wgsl");
 
         if tensor.can_mut() {
-            return unary_inplace::<ErfInplace, F, D>(tensor);
+            return unary_inplace_default::<ErfInplace, F, D>(tensor);
         }
 
-        unary::<Erf, F, D>(tensor)
+        unary_default::<Erf, F, D>(tensor)
     }
 
     fn cat<const D: usize>(tensors: Vec<FloatTensor<Self, D>>, dim: usize) -> FloatTensor<Self, D> {
