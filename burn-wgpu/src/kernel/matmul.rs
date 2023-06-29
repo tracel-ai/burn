@@ -10,7 +10,7 @@ pub fn matmul<E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
-    lhs.assert_is_on_save_device(&rhs);
+    lhs.assert_is_on_same_device(&rhs);
     let mut shape_out = [0; D];
     lhs.shape
         .dims

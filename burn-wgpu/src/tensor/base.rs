@@ -84,7 +84,7 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
         true
     }
 
-    pub fn assert_is_on_save_device(&self, other: &Self) {
+    pub fn assert_is_on_same_device(&self, other: &Self) {
         if self.context.device != other.context.device {
             panic!(
                 "Both tensors should be on the same device {:?} != {:?}",

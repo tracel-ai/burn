@@ -137,17 +137,10 @@ pub(crate) fn build_info<E: WgpuElement, const D: usize>(
 pub(crate) fn elemwise_workgroup(num_elems: usize, workgroup_size: usize) -> WorkGroup {
     let num_elem_per_invocation = workgroup_size * workgroup_size;
     let workgroups = f32::ceil(num_elems as f32 / num_elem_per_invocation as f32);
-    let workgroup_x = f32::ceil(f32::sqrt(workgroups)) as u32;
-    let mut workgroup_y = workgroup_x;
+    let workgroup_x = f32::ceil(f32::sqrt(workgroups));
+    let workgroup_y = f32::ceil(num_elems as f32 / (workgroup_x * num_elem_per_invocation as f32));
 
-    if workgroup_y > 1 {
-        let num_total_covered = workgroup_x * workgroup_y * num_elem_per_invocation as u32;
-        if num_total_covered as usize - workgroup_size > num_elems {
-            workgroup_y -= 1;
-        }
-    }
-
-    WorkGroup::new(workgroup_x, workgroup_y, 1)
+    WorkGroup::new(workgroup_x as u32, workgroup_y as u32, 1)
 }
 
 #[cfg(test)]

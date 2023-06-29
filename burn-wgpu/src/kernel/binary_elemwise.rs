@@ -61,7 +61,7 @@ pub fn binary_elemwise<K: StaticKernel, E: WgpuElement, const D: usize, const WO
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
-    lhs.assert_is_on_save_device(&rhs);
+    lhs.assert_is_on_same_device(&rhs);
 
     let mut shape_out = [0; D];
     lhs.shape
@@ -116,7 +116,7 @@ pub fn binary_elemwise_inplace<
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
-    lhs.assert_is_on_save_device(&rhs);
+    lhs.assert_is_on_same_device(&rhs);
 
     let kernel = lhs
         .context
