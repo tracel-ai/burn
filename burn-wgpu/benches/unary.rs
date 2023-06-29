@@ -9,7 +9,7 @@ impl<G: GraphicsApi> Benchmark<G> for UnaryBenchmark {
     type Args = Tensor<WGPUBackend<G, f32, i32>, 2>;
 
     fn execute(&self, args: Self::Args) {
-        args.sum_dim(0);
+        args.log();
     }
 
     fn prepare(&self) -> Self::Args {

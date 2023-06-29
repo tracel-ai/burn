@@ -66,6 +66,8 @@ impl Context {
     }
 
     /// Wait for all computation to be executed.
+    ///
+    /// Useful for benchmarks.
     pub fn sync(&self) {
         self.client.sync();
     }

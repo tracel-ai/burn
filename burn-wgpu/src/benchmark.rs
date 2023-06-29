@@ -58,50 +58,42 @@ pub trait Benchmark<G: GraphicsApi> {
     ///
     /// # Notes
     ///
-    /// This should be include warmup, the benchmark will be run at least one time without
+    /// This should not include warmup, the benchmark will be run at least one time without
     /// measuring the execution time.
     fn prepare(&self) -> Self::Args;
     /// Execute the benchmark and returns the time it took to complete.
     fn execute(&self, args: Self::Args);
     /// Returns the [device](Device) used by the benchmark.
     fn device(&self) -> WgpuDevice;
-    /// Run the benchmark a number of times and returns the durations.
+    /// Run the benchmark a number of times.
     fn run(&self, num_times: usize) -> BenchmarkResult
     where
         Self: Sized,
     {
-        run(self, num_times)
-    }
-}
+        let device = self.device();
+        let context = get_context::<G>(&device);
 
-/// Run a [benchmark](Benchmark) a number of times and returns the durations.
-pub fn run<G, B>(benchmark: &B, num_times: usize) -> BenchmarkResult
-where
-    G: GraphicsApi,
-    B: Benchmark<G>,
-{
-    let device = benchmark.device();
-    let context = get_context::<G>(&device);
-
-    // Warmup
-    let args = benchmark.prepare();
-    benchmark.execute(args);
-    context.sync();
-
-    let mut durations = Vec::with_capacity(num_times);
-
-    for _ in 0..num_times {
-        // Prepare
-        let args = benchmark.prepare();
+        // Warmup
+        self.execute(self.prepare());
         context.sync();
 
-        // Execute the benchmark
-        let start = Instant::now();
-        benchmark.execute(args);
-        context.sync();
-        let end = Instant::now();
-        durations.push(end - start);
-    }
+        let mut durations = Vec::with_capacity(num_times);
 
-    BenchmarkResult { durations }
+        for _ in 0..num_times {
+            // Prepare
+            let args = self.prepare();
+            context.sync();
+
+            // Execute the benchmark
+            let start = Instant::now();
+            self.execute(args);
+            context.sync();
+            let end = Instant::now();
+
+            // Register the duration
+            durations.push(end - start);
+        }
+
+        BenchmarkResult { durations }
+    }
 }
