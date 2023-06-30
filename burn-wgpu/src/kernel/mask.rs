@@ -216,18 +216,13 @@ mod tests {
         Tensor<ReferenceBackend, 3>,
         Tensor<ReferenceBackend, 3, Bool>,
     ) {
-        let tensor = Tensor::<TestBackend, 3>::random([12, 6, 256], Distribution::Standard);
-        let mask = Tensor::<TestBackend, 3>::random([256, 6, 12], Distribution::Uniform(0., 1.))
+        let tensor = Tensor::<TestBackend, 3>::random([2, 6, 256], Distribution::Standard);
+        let mask = Tensor::<TestBackend, 3>::random([2, 6, 256], Distribution::Uniform(0., 1.))
             .lower_equal_elem(0.5);
         let tensor_ref = Tensor::<ReferenceBackend, 3>::from_data(tensor.to_data());
         let mask_ref = Tensor::<ReferenceBackend, 3, Bool>::from_data(mask.to_data());
 
-        (
-            tensor.swap_dims(0, 2),
-            mask,
-            tensor_ref.swap_dims(0, 2),
-            mask_ref,
-        )
+        (tensor, mask, tensor_ref, mask_ref)
     }
 
     fn inputs_mask_where() -> (
@@ -238,9 +233,9 @@ mod tests {
         Tensor<ReferenceBackend, 3>,
         Tensor<ReferenceBackend, 3, Bool>,
     ) {
-        let tensor = Tensor::<TestBackend, 3>::random([12, 6, 256], Distribution::Standard);
-        let value = Tensor::<TestBackend, 3>::random([12, 6, 256], Distribution::Standard);
-        let mask = Tensor::<TestBackend, 3>::random([12, 6, 256], Distribution::Uniform(0., 1.))
+        let tensor = Tensor::<TestBackend, 3>::random([2, 6, 256], Distribution::Standard);
+        let value = Tensor::<TestBackend, 3>::random([2, 6, 256], Distribution::Standard);
+        let mask = Tensor::<TestBackend, 3>::random([2, 6, 256], Distribution::Uniform(0., 1.))
             .lower_equal_elem(0.5);
         let tensor_ref = Tensor::<ReferenceBackend, 3>::from_data(tensor.to_data());
         let value_ref = Tensor::<ReferenceBackend, 3>::from_data(tensor.to_data());

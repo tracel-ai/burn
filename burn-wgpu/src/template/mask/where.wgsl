@@ -26,6 +26,7 @@ fn main(
     @builtin(global_invocation_id) global_id: vec3<u32>, 
     @builtin(num_workgroups) num_workgroups: vec3<u32>,
 ) {
+    let id = global_id.y * (num_workgroups.x * WORKGROUP_SIZE_X) + global_id.x;
     let dim = info[0];
     var index_input = 0u;
     var index_value = 0u;
@@ -47,7 +48,7 @@ fn main(
     }
 
 
-    if mask[index_mask] != 0u {
+    if mask[index_mask] == 1u {
         output[id] = value[index_value];
     } else {
         output[id] = input[index_input];
