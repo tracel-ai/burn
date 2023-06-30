@@ -234,7 +234,7 @@ impl CLIDashboardRenderer {
             .set_length(self.progress.progress.items_total as u64);
 
         self.pb_epoch.set_style(style_epoch.progress_chars("#>-"));
-        self.pb_epoch.set_position(self.progress.epoch as u64);
+        self.pb_epoch.set_position(self.progress.epoch as u64 - 1);
         self.pb_epoch.set_length(self.progress.epoch_total as u64);
 
         self.last_update = std::time::Instant::now();
