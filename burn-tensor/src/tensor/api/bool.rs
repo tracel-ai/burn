@@ -4,6 +4,11 @@ impl<B, const D: usize> Tensor<B, D, Bool>
 where
     B: Backend,
 {
+    /// Converts the tensor into a primitive tensor.
+    pub fn into_primitive(self) -> B::BoolTensorPrimitive<D> {
+        self.primitive
+    }
+
     /// Create a boolean tensor from data.
     pub fn from_bool(data: Data<bool, D>) -> Self {
         Self::new(B::bool_from_data(data, &B::Device::default()))
