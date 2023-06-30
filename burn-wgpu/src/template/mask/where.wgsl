@@ -23,7 +23,7 @@ const WORKGROUP_SIZE_X = {{ workgroup_size_x }}u;
 @compute
 @workgroup_size({{ workgroup_size_x }}, {{ workgroup_size_y }}, 1)
 fn main(
-    @builtin(global_invocation_id) global_id: vec3<u32>, 
+    @builtin(global_invocation_id) global_id: vec3<u32>,
     @builtin(num_workgroups) num_workgroups: vec3<u32>,
 ) {
     let id = global_id.y * (num_workgroups.x * WORKGROUP_SIZE_X) + global_id.x;
@@ -46,7 +46,6 @@ fn main(
         index_value += id / stride_output % shape_value * stride_value;
         index_mask += id / stride_output % shape_mask * stride_mask;
     }
-
 
     if mask[index_mask] == 1u {
         output[id] = value[index_value];

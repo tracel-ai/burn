@@ -144,7 +144,7 @@ pub fn mask_where_inplace<E: WgpuElement, const D: usize>(
 mod tests {
     use super::*;
     use crate::tests::{ReferenceBackend, TestBackend};
-    use burn_tensor::{Bool, Distribution, Tensor};
+    use burn_tensor::{backend::Backend, Bool, Distribution, Tensor};
 
     #[test]
     fn mask_fill_should_work_with_multiple_invocation() {
@@ -194,7 +194,7 @@ mod tests {
             .assert_approx_eq(&actual.into_data(), 3);
     }
     #[test]
-    fn mask_where_inplace_should_work_with_multiple_invocation() {
+    fn mask_where_inplace_direction_1_should_work_with_multiple_invocation() {
         let (tensor, value, mask, tensor_ref, value_ref, mask_ref) = inputs_mask_where();
 
         let actual = Tensor::<TestBackend, 3>::from_primitive(mask_where_inplace::<f32, 3>(
@@ -202,6 +202,23 @@ mod tests {
             mask.into_primitive(),
             value.into_primitive(),
             1,
+        ));
+        let expected = tensor_ref.mask_where(mask_ref, value_ref);
+
+        expected
+            .into_data()
+            .assert_approx_eq(&actual.into_data(), 3);
+    }
+
+    #[test]
+    fn mask_where_inplace_direction_0_should_work_with_multiple_invocation() {
+        let (tensor, value, mask, tensor_ref, value_ref, mask_ref) = inputs_mask_where();
+
+        let actual = Tensor::<TestBackend, 3>::from_primitive(mask_where_inplace::<f32, 3>(
+            value.into_primitive(),
+            mask.into_primitive(),
+            tensor.into_primitive(),
+            0,
         ));
         let expected = tensor_ref.mask_where(mask_ref, value_ref);
 
@@ -233,6 +250,7 @@ mod tests {
         Tensor<ReferenceBackend, 3>,
         Tensor<ReferenceBackend, 3, Bool>,
     ) {
+        TestBackend::seed(0);
         let tensor = Tensor::<TestBackend, 3>::random([2, 6, 256], Distribution::Standard);
         let value = Tensor::<TestBackend, 3>::random([2, 6, 256], Distribution::Standard);
         let mask = Tensor::<TestBackend, 3>::random([2, 6, 256], Distribution::Uniform(0., 1.))

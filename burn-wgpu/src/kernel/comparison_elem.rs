@@ -7,6 +7,15 @@ kernel_wgsl!(
     "../template/comparison/elem_inplace.wgsl"
 );
 
+// Fn bool 2 u32 conversion.
+pub const BOOL_2_U32: &str = "fn bool2u32(val: bool) -> u32 {
+    if val {
+        return 1u;
+    }
+
+    return 0u;
+}";
+
 /// Creates a comparison elementwise kernel.
 #[macro_export]
 macro_rules! comparison_elem {
@@ -18,10 +27,15 @@ macro_rules! comparison_elem {
 
         impl $crate::kernel::StaticKernel for $struct {
             fn source_template() -> $crate::kernel::SourceTemplate {
-                $crate::kernel::ComparisonElemRaw::source_template().register(
-                    "body",
-                    format!("output[global_id.x] = u32(lhs[global_id.x] {} rhs);", $ops),
-                )
+                $crate::kernel::ComparisonElemRaw::source_template()
+                    .add_template($crate::kernel::BOOL_2_U32)
+                    .register(
+                        "body",
+                        format!(
+                            "output[global_id.x] = bool2u32(lhs[global_id.x] {} rhs);",
+                            $ops
+                        ),
+                    )
             }
         }
     };
@@ -40,8 +54,9 @@ macro_rules! comparison_elem_inplace {
             fn source_template() -> $crate::kernel::SourceTemplate {
                 $crate::kernel::ComparisonElemInplaceRaw::source_template()
                     .register("body", "lhs[global_id.x] = compare(lhs[global_id.x], rhs);")
+                    .add_template($crate::kernel::BOOL_2_U32)
                     .add_template(format!(
-                        "{}return {{{{ elem }}}}(lhs {} rhs);{}",
+                        "{}return {{{{ elem }}}}(bool2u32(lhs {} rhs));{}",
                         "fn compare(lhs: {{ elem }}, rhs: {{ elem }}) -> {{ elem }} {\n",
                         $ops,
                         "\n}\n"
