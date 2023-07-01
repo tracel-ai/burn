@@ -7,9 +7,6 @@ fn powf(lhs: {{ elem }}, rhs: {{ elem }}) -> {{ elem }} {
     } else if (modulo == 1.0 && lhs < 0.0) {
         // Odd number
         return -1.0 * pow(-1.0 * lhs, rhs);
-    } else if (modulo == 1.0) {
-        // Odd number
-        return pow(lhs, rhs);
     } else {
         // Float number
         return pow(lhs, rhs);
