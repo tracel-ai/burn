@@ -154,7 +154,7 @@ mod tests {
         let (tensor, mask, tensor_ref, mask_ref) = inputs_mask_fill();
 
         let actual = Tensor::<TestBackend, 3>::from_primitive(mask_fill::<f32, 3>(
-            tensor.clone().into_primitive(),
+            tensor.into_primitive(),
             mask.into_primitive(),
             4.0,
         ));
@@ -170,7 +170,7 @@ mod tests {
         let (tensor, mask, tensor_ref, mask_ref) = inputs_mask_fill();
 
         let actual = Tensor::<TestBackend, 3>::from_primitive(mask_fill_inplace::<f32, 3>(
-            tensor.clone().into_primitive(),
+            tensor.into_primitive(),
             mask.into_primitive(),
             4.0,
         ));
@@ -230,6 +230,7 @@ mod tests {
             .assert_approx_eq(&actual.into_data(), 3);
     }
 
+    #[allow(clippy::type_complexity)]
     fn inputs_mask_fill() -> (
         Tensor<TestBackend, 3>,
         Tensor<TestBackend, 3, Bool>,
@@ -245,6 +246,7 @@ mod tests {
         (tensor, mask, tensor_ref, mask_ref)
     }
 
+    #[allow(clippy::type_complexity)]
     fn inputs_mask_where() -> (
         Tensor<TestBackend, 3>,
         Tensor<TestBackend, 3>,
