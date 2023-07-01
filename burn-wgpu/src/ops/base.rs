@@ -486,10 +486,10 @@ impl<G: GraphicsApi> BaseOps<G> {
         value: WgpuTensor<E, D>,
     ) -> WgpuTensor<E, D> {
         if tensor.can_mut_broadcast(&value) {
-            return mask_where_inplace(tensor, mask, value, 1);
+            return mask_where_inplace(tensor, mask, value, false);
         }
         if value.can_mut_broadcast(&tensor) {
-            return mask_where_inplace(value, mask, tensor, 0);
+            return mask_where_inplace(value, mask, tensor, true);
         }
 
         mask_where(tensor, mask, value)

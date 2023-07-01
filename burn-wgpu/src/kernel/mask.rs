@@ -117,7 +117,7 @@ pub fn mask_where_inplace<E: WgpuElement, const D: usize>(
     input: WgpuTensor<E, D>,
     mask: WgpuTensor<u32, D>,
     value: WgpuTensor<E, D>,
-    direction: u32,
+    reverse: bool,
 ) -> WgpuTensor<E, D> {
     const WORKGROUP: usize = 32;
 
@@ -126,7 +126,10 @@ pub fn mask_where_inplace<E: WgpuElement, const D: usize>(
         .compile_static::<KernelSettings<MaskWhereInplace, E, i32, WORKGROUP, WORKGROUP, 1>>();
     let mask = WgpuTensor::new(mask.context, mask.shape, mask.buffer);
     let mut info = build_info(&[&input, &value, &mask]);
-    info.push(direction);
+    info.push(match reverse {
+        true => 1,
+        false => 0,
+    });
     let info_buffers = input
         .context
         .create_buffer_with_data(bytemuck::cast_slice(&info));
@@ -201,7 +204,7 @@ mod tests {
             tensor.into_primitive(),
             mask.into_primitive(),
             value.into_primitive(),
-            1,
+            false,
         ));
         let expected = tensor_ref.mask_where(mask_ref, value_ref);
 
@@ -218,7 +221,7 @@ mod tests {
             value.into_primitive(),
             mask.into_primitive(),
             tensor.into_primitive(),
-            0,
+            true,
         ));
         let expected = tensor_ref.mask_where(mask_ref, value_ref);
 
@@ -256,8 +259,9 @@ mod tests {
         let mask = Tensor::<TestBackend, 3>::random([2, 6, 256], Distribution::Uniform(0., 1.))
             .lower_equal_elem(0.5);
         let tensor_ref = Tensor::<ReferenceBackend, 3>::from_data(tensor.to_data());
-        let value_ref = Tensor::<ReferenceBackend, 3>::from_data(tensor.to_data());
+        let value_ref = Tensor::<ReferenceBackend, 3>::from_data(value.to_data());
         let mask_ref = Tensor::<ReferenceBackend, 3, Bool>::from_data(mask.to_data());
+        assert_eq!(mask.to_data(), mask_ref.to_data());
 
         (tensor, value, mask, tensor_ref, value_ref, mask_ref)
     }

@@ -19,12 +19,12 @@ const WORKGROUP_SIZE_X = {{ workgroup_size_x }}u;
 @compute
 @workgroup_size({{ workgroup_size_x }}, {{ workgroup_size_y }}, 1)
 fn main(
-    @builtin(global_invocation_id) global_id: vec3<u32>, 
+    @builtin(global_invocation_id) global_id: vec3<u32>,
     @builtin(num_workgroups) num_workgroups: vec3<u32>,
 ) {
     let id = global_id.y * (num_workgroups.x * WORKGROUP_SIZE_X) + global_id.x;
     let dim = info[0];
-    let mask_direction = info[6u * dim + 1u];
+    let reverse = info[6u * dim + 1u];
 
     var index_input = 0u;
     var index_value = 0u;
@@ -44,7 +44,15 @@ fn main(
         index_mask += id / stride_input % shape_mask * stride_mask;
     }
 
-    if mask[index_mask] == mask_direction  {
+    var condition = mask[index_mask] != 0u;
+
+    if reverse == 1u {
+        condition = !condition;
+    }
+
+    if condition {
         input[index_input] = value[index_value];
+    } else {
+        input[index_input] = input[index_input];
     }
 }

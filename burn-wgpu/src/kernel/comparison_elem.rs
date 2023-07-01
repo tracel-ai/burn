@@ -31,10 +31,7 @@ macro_rules! comparison_elem {
                     .add_template($crate::kernel::BOOL_2_U32)
                     .register(
                         "body",
-                        format!(
-                            "output[global_id.x] = bool2u32(lhs[global_id.x] {} rhs);",
-                            $ops
-                        ),
+                        format!("output[global_id.x] = u32(lhs[global_id.x] {} rhs);", $ops),
                     )
             }
         }

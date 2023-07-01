@@ -47,7 +47,7 @@ fn main(
         index_mask += id / stride_output % shape_mask * stride_mask;
     }
 
-    if mask[index_mask] == 1u {
+    if mask[index_mask] != 0u {
         output[id] = value[index_value];
     } else {
         output[id] = input[index_input];
