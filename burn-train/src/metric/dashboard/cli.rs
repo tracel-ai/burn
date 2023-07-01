@@ -187,7 +187,7 @@ impl CLIDashboardRenderer {
     fn register_template_progress(&self, progress: &str, template: String) -> String {
         let mut template = template;
 
-        let bar = "[{wide_bar:.cyan/blue}] ({eta})";
+        let bar = "[{wide_bar:.cyan/blue}]";
         template += format!("  - {progress} {bar}").as_str();
         template
     }
