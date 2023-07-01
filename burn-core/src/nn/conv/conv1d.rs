@@ -41,7 +41,7 @@ pub struct Conv1dConfig {
 }
 
 /// Padding configuration for 1D convolution [config](Conv1dConfig).
-#[derive(Module, Config, Debug)]
+#[derive(Module, Config, Debug, PartialEq)]
 pub enum Conv1dPaddingConfig {
     /// Dynamicaly calculate the amount of padding necessary to ensure that the output size will be
     /// the same as the input.
@@ -90,7 +90,7 @@ impl Conv1dConfig {
         Conv1d {
             weight: Param::from(weight),
             bias: bias.map(Param::from),
-            stride: 1, // TODO: Add the stride to the config when properly supported.
+            stride: self.stride,
             kernel_size: self.kernel_size,
             padding: self.padding.clone(),
             dilation: self.dilation,
@@ -102,7 +102,7 @@ impl Conv1dConfig {
         Conv1d {
             weight: record.weight,
             bias: record.bias,
-            stride: 1, // TODO: Add the stride to the config when properly supported.
+            stride: self.stride,
             kernel_size: self.kernel_size,
             padding: self.padding.clone(),
             dilation: self.dilation,
@@ -188,5 +188,26 @@ mod tests {
         conv.weight
             .to_data()
             .assert_approx_eq(&Data::zeros(conv.weight.shape()), 3);
+    }
+
+    #[test]
+    fn configured_custom() {
+        let config = Conv1dConfig::new(2, 2, 2)
+            .with_padding(Conv1dPaddingConfig::Explicit(2))
+            .with_stride(2)
+            .with_bias(false)
+            .with_dilation(2)
+            .with_groups(2)
+            .with_initializer(Initializer::Zeros);
+
+        let conv = config.init::<TestBackend>();
+
+        assert_eq!(conv.padding, Conv1dPaddingConfig::Explicit(2));
+        assert_eq!(conv.stride, 2);
+        assert!(conv.bias.is_none());
+        assert_eq!(conv.dilation, 2);
+        assert_eq!(conv.groups, 2);
+        assert_eq!(conv.weight.shape().dims, [2, 2, 2]);
+        assert_eq!(conv.weight.to_data(), Data::zeros([2, 2, 2]));
     }
 }
