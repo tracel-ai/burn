@@ -81,41 +81,22 @@ fn main(
         // sm_limit ensures that although there are up to B_M x B_N writes to memory, 
         // shared memories remain B_M x B_K (lhs) or B_K x B_N (rhs)
         // also ensures we do not read out of matrices if M % B_M != 0 or N % B_N != 0
-        // let sm_limit = min(B_K, K - k);
+        let sm_limit = min(B_K, K - k);
 
         // Load data into shared memories
         // Each thread is responsible of loading T_M x T_N values from both lhs and rhs
-        // for (var i = 0u; i < actual_T_M; i++) {
-        //     for (var j = 0u; j < actual_T_N; j++) {
-        //         let current_row = thread_row + i;
-        //         let current_col = thread_col + j;
-                
-        //         if current_col < sm_limit {
-        //             let lhs_sm_position = current_row * B_K + current_col; 
-        //             let lhs_position = offset_lhs + k + current_row * K + current_col;
-        //             shared_lhs[lhs_sm_position] = lhs[lhs_position];
-        //         }
-                
-        //         if current_row < sm_limit {
-        //             let rhs_sm_position = current_row * B_N + current_col; 
-        //             let rhs_position = offset_rhs + (k + current_row) * n_cols + current_col;
-        //             shared_rhs[rhs_sm_position] = rhs[rhs_position];
-        //         }
-        //     }
-        // }
-        
         for (var i = 0u; i < actual_T_M; i++) {
             for (var j = 0u; j < actual_T_N; j++) {
                 let current_row = thread_row + i;
                 let current_col = thread_col + j;
                 
-                if current_col < B_K && col + j + k < K {
+                if current_col < sm_limit {
                     let lhs_sm_position = current_row * B_K + current_col; 
                     let lhs_position = offset_lhs + k + current_row * K + current_col;
                     shared_lhs[lhs_sm_position] = lhs[lhs_position];
                 }
                 
-                if current_row < B_K && row + i + k < K {
+                if current_row < sm_limit {
                     let rhs_sm_position = current_row * B_N + current_col; 
                     let rhs_position = offset_rhs + (k + current_row) * n_cols + current_col;
                     shared_rhs[rhs_sm_position] = rhs[rhs_position];
@@ -128,7 +109,7 @@ fn main(
         // Compute intermediate results
         // Results are cumulated in results array and updated at each block
         // Outer loop indicates which subcolumns/subrows to read from shared memories
-        for (var dot_index = 0u; dot_index < B_K; dot_index++) {
+        for (var dot_index = 0u; dot_index < sm_limit; dot_index++) {
             // Load a subcolumn of values from lhs
             for (var tile_index = 0u; tile_index < actual_T_M; tile_index++) {
                 let lhs_sm_position = (thread_row + tile_index) * B_K + dot_index;

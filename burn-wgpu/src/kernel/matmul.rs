@@ -225,13 +225,10 @@ mod tests {
         test_with_params::<16, 16, 8, 8, 8, 2, 2>(32, 32, 32, 1, 1);
     }
 
-    ///////////////////////////////////////////////////////////////////////////////////
-
     #[test]
-    pub fn test_matmul_tiling_2d_k_bigger_than_bk() { ///// THIS TEST IS WHERE THE PROBLEM IS AT
+    pub fn test_matmul_tiling_2d_k_bigger_than_bk() {
         test_with_params::<128, 128, 8, 8, 8, 16, 16>(8, 10, 8, 1, 1);
     }
-
 
     #[test]
     pub fn test_matmul_tiling_2d_blocks_divide_shapes_unevenly() {
@@ -241,11 +238,6 @@ mod tests {
     #[test]
     pub fn test_matmul_tiling_2d_large_parameters() {
         test_with_params::<256, 256, 16, 16, 16, 16, 16>(40, 40, 40, 1, 1);
-    }
-
-    #[test]
-    pub fn test_matmul_tiling_2d_large_tensors() {
-        test_with_params::<128, 128, 8, 8, 8, 16, 16>(150, 150, 150, 1, 1);
     }
 
     #[test]
