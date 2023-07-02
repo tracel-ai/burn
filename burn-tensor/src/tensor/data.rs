@@ -377,6 +377,129 @@ impl<E: core::fmt::Debug + Copy> From<&[E]> for Data<E, 1> {
     }
 }
 
+/// Error for invalid nested data shape
+#[derive(Debug, Clone, Copy)]
+pub struct JaggedCollectionError(usize);
+impl std::fmt::Display for JaggedCollectionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(
+            f,
+            "Collection must have the same lengths across a given dimension. Invalid dimension: '{dimension}'",
+            dimension = self.0
+        )
+    }
+}
+
+impl<E: core::fmt::Debug + Copy> TryFrom<&[&[E]]> for Data<E, 2> {
+    type Error = JaggedCollectionError;
+
+    fn try_from(elems: &[&[E]]) -> Result<Self, Self::Error> {
+        let len_0 = elems.len();
+        let len_1 = match elems.get(0) {
+            Some(elem) => elem.len(),
+            None => 0,
+        };
+
+        let mut data = Vec::with_capacity(len_0 * len_1);
+        let shape = Shape::new([len_0, len_1]);
+
+        for elem_0 in elems.into_iter() {
+            if elem_0.len() != len_1 {
+                return Err(JaggedCollectionError(1));
+            }
+
+            for elem_1 in elem_0.into_iter() {
+                data.push(*elem_1);
+            }
+        }
+
+        Ok(Data::new(data, shape))
+    }
+}
+
+impl<E: core::fmt::Debug + Copy> TryFrom<&[&[&[E]]]> for Data<E, 3> {
+    type Error = JaggedCollectionError;
+
+    fn try_from(elems: &[&[&[E]]]) -> Result<Self, Self::Error> {
+        // Determine data shape
+        let mut len = [elems.len(), 0, 0];
+        if let Some(elem_0) = elems.get(0) {
+            len[1] = elem_0.len();
+            if let Some(elem_1) = elem_0.get(0) {
+                len[2] = elem_1.len();
+            };
+        };
+
+        let mut data = Vec::with_capacity(len[0] * len[1] * len[2]);
+        let shape = Shape::new(len);
+
+        // Blit elements into data
+        for elem_0 in elems.into_iter() {
+            if elem_0.len() != len[1] {
+                return Err(JaggedCollectionError(1));
+            }
+
+            for elem_1 in elem_0.into_iter() {
+                if elem_1.len() != len[2] {
+                    return Err(JaggedCollectionError(2));
+                }
+
+                for elem_2 in elem_1.into_iter() {
+                    data.push(*elem_2);
+                }
+            }
+        }
+
+        Ok(Data::new(data, shape))
+    }
+}
+
+impl<E: core::fmt::Debug + Copy> TryFrom<&[&[&[&[E]]]]> for Data<E, 4> {
+    type Error = JaggedCollectionError;
+
+    fn try_from(elems: &[&[&[&[E]]]]) -> Result<Self, Self::Error> {
+        // Determine data shape
+        let mut len = [elems.len(), 0, 0, 0];
+        if let Some(elem_0) = elems.get(0) {
+            len[1] = elem_0.len();
+            if let Some(elem_1) = elem_0.get(0) {
+                len[2] = elem_1.len();
+                if let Some(elem_2) = elem_1.get(0) {
+                    len[3] = elem_2.len();
+                };
+            };
+        };
+
+        let mut data = Vec::with_capacity(len[0] * len[1] * len[2] * len[3]);
+        let shape = Shape::new(len);
+
+        // Blit elements into data
+        for elem_0 in elems.into_iter() {
+            if elem_0.len() != len[1] {
+                return Err(JaggedCollectionError(1));
+            }
+
+            for elem_1 in elem_0.into_iter() {
+                if elem_1.len() != len[2] {
+                    return Err(JaggedCollectionError(2));
+                }
+
+                for elem_2 in elem_1.into_iter() {
+                    if elem_2.len() != len[3] {
+                        return Err(JaggedCollectionError(3));
+                    }
+
+                    for elem_3 in elem_2.into_iter() {
+                        data.push(*elem_3);
+                    }
+                }
+            }
+        }
+
+        Ok(Data::new(data, shape))
+    }
+}
+
 impl<E: core::fmt::Debug + Copy, const A: usize, const B: usize> From<[[E; B]; A]> for Data<E, 2> {
     fn from(elems: [[E; B]; A]) -> Self {
         let mut data = Vec::with_capacity(A * B);
@@ -490,5 +613,139 @@ mod tests {
         let data2 = Data::<f32, 2>::from([[3.0, 5.0, 6.0]]);
 
         data1.assert_approx_eq(&data2, 2);
+    }
+
+    #[test]
+    fn try_from_slices_2d() {
+        let shape = [2, 4];
+        let slices: &[&[f32]] = &[&[3.0, 5.0, 6.0, 7.0], &[3.0, 5.0, 6.0, 7.0]];
+        let data = Data::<f32, 2>::try_from(slices);
+
+        assert!(data.is_ok());
+
+        let data = data.unwrap();
+        assert_eq!(data.value.len(), shape[0] * shape[1]);
+        assert_eq!(data.shape.dims, shape);
+
+        let slices: &[&[f32]] = &[&[3.0, 5.0, 6.0, 7.0, 8.0], &[3.0, 5.0, 6.0, 7.0]];
+        let data = Data::<f32, 2>::try_from(slices);
+
+        assert!(data.is_err());
+    }
+
+    #[test]
+    fn try_from_slices_3d() {
+        let shape = [3, 2, 4];
+        let slices: &[&[&[f32]]] = &[
+            &[&[3.0, 5.0, 6.0, 7.0], &[3.0, 5.0, 6.0, 7.0]],
+            &[&[1.0, 2.0, 3.0, 4.0], &[5.0, 6.0, 7.0, 8.0]],
+            &[&[9.0, 10.0, 11.0, 12.0], &[13.0, 14.0, 15.0, 16.0]],
+        ];
+        let data = Data::<f32, 3>::try_from(slices);
+
+        assert!(data.is_ok());
+
+        let data = data.unwrap();
+        assert_eq!(data.value.len(), shape[0] * shape[1] * shape[2]);
+        assert_eq!(data.shape.dims, shape);
+
+        let slices: &[&[&[f32]]] = &[
+            &[&[3.0, 5.0, 6.0, 7.0, 8.0], &[3.0, 5.0, 6.0, 7.0]],
+            &[&[1.0, 2.0, 3.0, 4.0], &[5.0, 6.0, 7.0, 8.0]],
+            &[&[9.0, 10.0, 11.0, 12.0], &[13.0, 14.0, 15.0, 16.0]],
+        ];
+        let data = Data::<f32, 3>::try_from(slices);
+
+        assert!(data.is_err());
+
+        let slices: &[&[&[f32]]] = &[
+            &[&[3.0, 5.0, 6.0, 7.0], &[3.0, 5.0, 6.0, 7.0]],
+            &[
+                &[1.0, 2.0, 3.0, 4.0],
+                &[5.0, 6.0, 7.0, 8.0],
+                &[5.0, 6.0, 7.0, 8.0],
+            ],
+            &[&[9.0, 10.0, 11.0, 12.0], &[13.0, 14.0, 15.0, 16.0]],
+        ];
+        let data = Data::<f32, 3>::try_from(slices);
+
+        assert!(data.is_err());
+    }
+
+    #[test]
+    fn try_from_slices_4d() {
+        let shape = [2, 3, 2, 4];
+        let slices: &[&[&[&[f32]]]] = &[
+            &[
+                &[&[3.0, 5.0, 6.0, 7.0], &[3.0, 5.0, 6.0, 7.0]],
+                &[&[1.0, 2.0, 3.0, 4.0], &[5.0, 6.0, 7.0, 8.0]],
+                &[&[9.0, 10.0, 11.0, 12.0], &[13.0, 14.0, 15.0, 16.0]],
+            ],
+            &[
+                &[&[3.0, 5.0, 6.0, 7.0], &[3.0, 5.0, 6.0, 7.0]],
+                &[&[1.0, 2.0, 3.0, 4.0], &[5.0, 6.0, 7.0, 8.0]],
+                &[&[9.0, 10.0, 11.0, 12.0], &[13.0, 14.0, 15.0, 16.0]],
+            ],
+        ];
+        let data = Data::<f32, 4>::try_from(slices);
+
+        assert!(data.is_ok());
+
+        let data = data.unwrap();
+        assert_eq!(data.value.len(), shape[0] * shape[1] * shape[2] * shape[3]);
+        assert_eq!(data.shape.dims, shape);
+
+        let slices: &[&[&[&[f32]]]] = &[
+            &[
+                &[&[3.0, 5.0, 6.0, 7.0, 8.0], &[3.0, 5.0, 6.0, 7.0]],
+                &[&[1.0, 2.0, 3.0, 4.0], &[5.0, 6.0, 7.0, 8.0]],
+                &[&[9.0, 10.0, 11.0, 12.0], &[13.0, 14.0, 15.0, 16.0]],
+            ],
+            &[
+                &[&[3.0, 5.0, 6.0, 7.0], &[3.0, 5.0, 6.0, 7.0]],
+                &[&[1.0, 2.0, 3.0, 4.0], &[5.0, 6.0, 7.0, 8.0]],
+                &[&[9.0, 10.0, 11.0, 12.0], &[13.0, 14.0, 15.0, 16.0]],
+            ],
+        ];
+        let data = Data::<f32, 4>::try_from(slices);
+
+        assert!(data.is_err());
+
+        let slices: &[&[&[&[f32]]]] = &[
+            &[
+                &[&[3.0, 5.0, 6.0, 7.0, 8.0], &[3.0, 5.0, 6.0, 7.0]],
+                &[&[1.0, 2.0, 3.0, 4.0], &[5.0, 6.0, 7.0, 8.0]],
+                &[&[9.0, 10.0, 11.0, 12.0], &[13.0, 14.0, 15.0, 16.0]],
+            ],
+            &[
+                &[&[3.0, 5.0, 6.0, 7.0], &[3.0, 5.0, 6.0, 7.0]],
+                &[
+                    &[1.0, 2.0, 3.0, 4.0],
+                    &[5.0, 6.0, 7.0, 8.0],
+                    &[5.0, 6.0, 7.0, 8.0],
+                ],
+                &[&[9.0, 10.0, 11.0, 12.0], &[13.0, 14.0, 15.0, 16.0]],
+            ],
+        ];
+        let data = Data::<f32, 4>::try_from(slices);
+
+        assert!(data.is_err());
+
+        let slices: &[&[&[&[f32]]]] = &[
+            &[
+                &[&[3.0, 5.0, 6.0, 7.0, 8.0], &[3.0, 5.0, 6.0, 7.0]],
+                &[&[1.0, 2.0, 3.0, 4.0], &[5.0, 6.0, 7.0, 8.0]],
+                &[&[9.0, 10.0, 11.0, 12.0], &[13.0, 14.0, 15.0, 16.0]],
+            ],
+            &[
+                &[&[3.0, 5.0, 6.0, 7.0], &[3.0, 5.0, 6.0, 7.0]],
+                &[&[1.0, 2.0, 3.0, 4.0], &[5.0, 6.0, 7.0, 8.0]],
+                &[&[9.0, 10.0, 11.0, 12.0], &[13.0, 14.0, 15.0, 16.0]],
+                &[&[9.0, 10.0, 11.0, 12.0], &[13.0, 14.0, 15.0, 16.0]],
+            ],
+        ];
+        let data = Data::<f32, 4>::try_from(slices);
+
+        assert!(data.is_err());
     }
 }
