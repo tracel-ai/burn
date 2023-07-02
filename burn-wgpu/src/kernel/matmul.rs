@@ -109,8 +109,8 @@ pub fn matmul_tiling_2d<
     let output = WgpuTensor::new(lhs.context.clone(), shape_out, buffer);
 
     // set number of workgroups
-    let blocks_needed_in_x = f32::ceil(num_rows as f32 / (WORKGROUP_SIZE_X * T_M) as f32) as u32;
-    let blocks_needed_in_y = f32::ceil(num_cols as f32 / (WORKGROUP_SIZE_Y * T_N) as f32) as u32;
+    let blocks_needed_in_x = f32::ceil(num_rows as f32 / (WORKGROUP_SIZE_X * min(B_M, T_M)) as f32) as u32;
+    let blocks_needed_in_y = f32::ceil(num_cols as f32 / (WORKGROUP_SIZE_Y * min(B_N, T_N)) as f32) as u32;
 
     let kernel = lhs.context.compile_static::<KernelSettings<
         MatmulTiling2D<B_M, B_N, B_K, T_M, T_N, WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y>,
@@ -251,14 +251,20 @@ mod tests {
     }
 
     #[test]
-    pub fn test_matmul_tiling_2d_t_larger_than_b() {
-        test_with_params::<16, 16, 8, 24, 24, 1, 1>(50, 50, 50, 1, 1);
+    pub fn test_matmul_tiling_2d_tm_larger_than_bm() {
+        test_with_params::<2, 2, 2, 3, 2, 1, 1>(5, 5, 5, 1, 1);
+    }
+
+    #[test]
+    pub fn test_matmul_tiling_2d_tn_larger_than_bn() {
+        test_with_params::<2, 2, 2, 2, 3, 1, 1>(5, 5, 5, 1, 1);
     }
 
     #[test]
     pub fn test_matmul_tiling_2d_uneven_parameters() {
         test_with_params::<17, 15, 11, 13, 7, 2, 3>(24, 24, 24, 1, 1);
     }
+
 
     fn test_with_params<
         const B_M: usize,
@@ -301,12 +307,3 @@ mod tests {
         z_reference.into_data().assert_approx_eq(&z.into_data(), 3);
     }
 }
-
-// failures:
-//     kernel::matmul::tests::test_matmul_tiling_2d_blocks_divide_shapes_unevenly -> SMALL DIFF ON EVERY ENTRY + ZEROS AT THE END
-//     kernel::matmul::tests::test_matmul_tiling_2d_large_parameters -> SMALL DIFF ON EVERY ENTRY
-//     kernel::matmul::tests::test_matmul_tiling_2d_large_tensors -> SMALL DIFF ON EVERY ENTRY
-//     kernel::matmul::tests::test_matmul_tiling_2d_shapes_slightly_larger_than_blocks -> ZEROS AT THE END
-//     kernel::matmul::tests::test_matmul_tiling_2d_shapes_way_larger_than_blocks -> SMALL DIFF ON EVERY ENTRY + MANY ZEROS AT THE END (AND THE END IN COLS)
-//     kernel::matmul::tests::test_matmul_tiling_2d_t_larger_than_b -> SMALL DIFF ON EVERY ENTRY + MANY ZEROS AT THE END (AND THE END IN COLS)
-//     kernel::matmul::tests::test_matmul_tiling_2d_uneven_parameters -> SMALL DIFF ON EVERY ENTRY + MANY ZEROS AT THE END (AND THE END IN COLS)
