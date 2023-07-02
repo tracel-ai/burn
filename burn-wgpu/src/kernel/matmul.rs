@@ -109,8 +109,8 @@ pub fn matmul_tiling_2d<
     let output = WgpuTensor::new(lhs.context.clone(), shape_out, buffer);
 
     // set number of workgroups
-    let blocks_needed_in_x = f32::ceil(num_rows as f32 / (WORKGROUP_SIZE_X * min(B_M, T_M)) as f32) as u32;
-    let blocks_needed_in_y = f32::ceil(num_cols as f32 / (WORKGROUP_SIZE_Y * min(B_N, T_N)) as f32) as u32;
+    let blocks_needed_in_x = f32::ceil(num_rows as f32 / B_M as f32) as u32;
+    let blocks_needed_in_y = f32::ceil(num_cols as f32 / B_N as f32) as u32;
 
     let kernel = lhs.context.compile_static::<KernelSettings<
         MatmulTiling2D<B_M, B_N, B_K, T_M, T_N, WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y>,
@@ -265,6 +265,10 @@ mod tests {
         test_with_params::<17, 15, 11, 13, 7, 2, 3>(24, 24, 24, 1, 1);
     }
 
+    #[test]
+    pub fn test_matmul_tiling_2d_uneven_parameters_2() {
+        test_with_params::<11, 14, 10, 7, 17, 2, 1>(10, 24, 17, 1, 1);
+    }
 
     fn test_with_params<
         const B_M: usize,
