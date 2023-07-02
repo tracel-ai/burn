@@ -83,8 +83,14 @@ pub fn matmul_tiling_2d<
 ) -> WgpuTensor<E, D> {
     assert!(B_K <= min(B_M, B_N), "B_K must be smaller than both B_M and B_M, otherwise there won't be enough threads to fill shared memory. ");
     assert!(B_K * max(B_M, B_N) <= MAX_SHARED_MEMORY_SIZE, "B_K x B_M and B_K x B_N must be smaller or equal than 8192, otherwise shared memory limit will be busted. ");
-    assert!(WORKGROUP_SIZE_X == f32::ceil(B_M as f32 / T_M as f32) as usize, "Workgroup size x must equal ceil(B_M / T_M)");
-    assert!(WORKGROUP_SIZE_Y == f32::ceil(B_N as f32 / T_N as f32) as usize, "Workgroup size y must equal ceil(B_N / T_N)");
+    assert!(
+        WORKGROUP_SIZE_X == f32::ceil(B_M as f32 / T_M as f32) as usize,
+        "Workgroup size x must equal ceil(B_M / T_M)"
+    );
+    assert!(
+        WORKGROUP_SIZE_Y == f32::ceil(B_N as f32 / T_N as f32) as usize,
+        "Workgroup size y must equal ceil(B_N / T_N)"
+    );
     lhs.assert_is_on_same_device(&rhs);
 
     let mut shape_out = [0; D];
@@ -285,7 +291,11 @@ mod tests {
         batch_1: usize,
         batch_2: usize,
     ) {
-        let func = |lhs, rhs| matmul_tiling_2d::<f32, 4, B_M, B_N, B_K, T_M, T_N, WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y>(lhs, rhs);
+        let func = |lhs, rhs| {
+            matmul_tiling_2d::<f32, 4, B_M, B_N, B_K, T_M, T_N, WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y>(
+                lhs, rhs,
+            )
+        };
         let shape_lhs = [batch_1, batch_2, M, K];
         let shape_rhs = [batch_1, batch_2, K, N];
         same_as_reference(func, shape_lhs, shape_rhs);
