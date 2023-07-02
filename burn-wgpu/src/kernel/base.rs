@@ -4,12 +4,15 @@ use std::marker::PhantomData;
 
 /// Static wgpu kernel to create a [source template](SourceTemplate).
 pub trait StaticKernel: 'static {
+    /// Source template for the kernel.
     fn source_template() -> SourceTemplate;
 }
 
 /// Dynamic wgpu kernel to create a [source template](SourceTemplate).
 pub trait DynamicKernel {
+    /// Source template for the kernel.
     fn source_template(self) -> SourceTemplate;
+    /// Identifier for the kernel, used for caching kernel compilation.
     fn id(&self) -> String;
 }
 
@@ -20,6 +23,7 @@ macro_rules! kernel_wgsl {
         $struct:ident,
         $file:expr
     ) => {
+        /// Generated kernel from wgsl file.
         #[derive(new)]
         pub struct $struct;
 

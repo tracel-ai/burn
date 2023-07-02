@@ -36,6 +36,10 @@ pub trait ContextClient {
         pipeline: Arc<ComputePipeline>,
         work_group: WorkGroup,
     );
+    /// Wait for all computation to be done.
+    ///
+    /// Useful for benchmarks.
+    fn sync(&self);
 }
 
 #[cfg(feature = "async")]
@@ -56,6 +60,18 @@ mod async_client {
     }
 
     impl ContextClient for AsyncContextClient {
+        fn sync(&self) {
+            let (sender, receiver) = std::sync::mpsc::channel();
+
+            self.sender.send(ContextTask::Sync(sender)).unwrap();
+
+            if receiver.iter().next().is_some() {
+                log::debug!("Sync completed");
+            } else {
+                panic!("Unable sync")
+            }
+        }
+
         fn copy_buffer(
             &self,
             buffer_src: Arc<Buffer>,
@@ -119,14 +135,13 @@ mod async_client {
 
 #[cfg(not(feature = "async"))]
 mod sync_client {
+    use super::ContextClient;
     use crate::context::{
         server::{ComputeTask, SyncContextServer},
         WorkGroup,
     };
     use std::sync::Arc;
     use wgpu::{BindGroup, Buffer, ComputePipeline};
-
-    use super::IContextClient;
 
     #[derive(Debug)]
     pub struct SyncContextClient {
@@ -142,6 +157,10 @@ mod sync_client {
     }
 
     impl ContextClient for SyncContextClient {
+        fn sync(&self) {
+            let mut server = self.server.lock();
+            server.sync();
+        }
         fn copy_buffer(
             &self,
             buffer_src: Arc<Buffer>,
@@ -155,7 +174,7 @@ mod sync_client {
         }
         fn read_buffer(&self, buffer: Arc<Buffer>) -> Vec<u8> {
             let mut server = self.server.lock();
-            server.read(&buffer)
+            server.read_buffer(&buffer)
         }
 
         fn register_compute(

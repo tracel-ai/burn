@@ -7,14 +7,14 @@ use crate::kernel::{
 use crate::unary_scalar_inplace;
 use crate::{
     element::{FloatElement, IntElement},
-    unary, unary_inplace, unary_scalar, GraphicsApi, WGPUBackend, SEED,
+    unary, unary_inplace, unary_scalar, GraphicsApi, WgpuBackend, SEED,
 };
 use burn_common::rand::get_seeded_rng;
 use burn_tensor::ElementConversion;
 use burn_tensor::{backend::Backend, ops::TensorOps, Data, Distribution, Shape};
 use std::ops::Range;
 
-impl<G, F, I> TensorOps<WGPUBackend<G, F, I>> for WGPUBackend<G, F, I>
+impl<G, F, I> TensorOps<WgpuBackend<G, F, I>> for WgpuBackend<G, F, I>
 where
     G: GraphicsApi + 'static,
     F: FloatElement,
@@ -31,7 +31,7 @@ where
         shape: Shape<D>,
         distribution: Distribution<FloatElem<Self>>,
         device: &Device<Self>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
+    ) -> <WgpuBackend<G, F, I> as Backend>::TensorPrimitive<D> {
         let mut seed = SEED.lock().unwrap();
         let mut rng = if let Some(rng_seeded) = seed.as_ref() {
             rng_seeded.clone()
@@ -311,15 +311,15 @@ where
     }
 
     fn to_full_precision<const D: usize>(
-        _tensor: &<WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-    ) -> <<WGPUBackend<G, F, I> as Backend>::FullPrecisionBackend as Backend>::TensorPrimitive<D>
+        _tensor: &<WgpuBackend<G, F, I> as Backend>::TensorPrimitive<D>,
+    ) -> <<WgpuBackend<G, F, I> as Backend>::FullPrecisionBackend as Backend>::TensorPrimitive<D>
     {
         todo!()
     }
 
     fn from_full_precision<const D: usize>(
-        _tensor: <<WGPUBackend<G, F, I> as Backend>::FullPrecisionBackend as Backend>::TensorPrimitive<D>,
-    ) -> <WGPUBackend<G, F, I> as Backend>::TensorPrimitive<D> {
+        _tensor: <<WgpuBackend<G, F, I> as Backend>::FullPrecisionBackend as Backend>::TensorPrimitive<D>,
+    ) -> <WgpuBackend<G, F, I> as Backend>::TensorPrimitive<D> {
         todo!()
     }
 

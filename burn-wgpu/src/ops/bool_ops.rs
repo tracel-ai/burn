@@ -5,12 +5,12 @@ use burn_tensor::{ops::BoolTensorOps, ops::IntTensorOps, Data, Shape};
 use crate::{
     element::{FloatElement, IntElement},
     tensor::WgpuTensor,
-    GraphicsApi, WGPUBackend,
+    GraphicsApi, WgpuBackend,
 };
 
 use super::{BaseOps, BoolTensor, Device, IntTensor};
 
-impl<G, F, I> BoolTensorOps<WGPUBackend<G, F, I>> for WGPUBackend<G, F, I>
+impl<G, F, I> BoolTensorOps<WgpuBackend<G, F, I>> for WgpuBackend<G, F, I>
 where
     G: GraphicsApi + 'static,
     F: FloatElement,

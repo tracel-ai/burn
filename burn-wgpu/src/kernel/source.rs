@@ -29,7 +29,7 @@ impl SourceTemplate {
     /// The value can't have placeholders, since it would require recursive templating with
     /// possibly circular dependencies. If you want to add a value that has some
     /// placeholders, consider adding a new template to the source using
-    /// [add_template](Source::add_template). The added template can be a function, and you can
+    /// [add_template](SourceTemplate::add_template). The added template can be a function, and you can
     /// register the function call instead.
     pub fn register<Name, Value>(mut self, name: Name, value: Value) -> Self
     where

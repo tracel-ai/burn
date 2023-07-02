@@ -3,12 +3,12 @@ use burn_tensor::ops::ActivationOps;
 use crate::{
     element::{FloatElement, IntElement},
     kernel::{unary_default, unary_inplace_default},
-    unary, unary_inplace, GraphicsApi, WGPUBackend,
+    unary, unary_inplace, GraphicsApi, WgpuBackend,
 };
 
 use super::FloatTensor;
 
-impl<G, F, I> ActivationOps<WGPUBackend<G, F, I>> for WGPUBackend<G, F, I>
+impl<G, F, I> ActivationOps<WgpuBackend<G, F, I>> for WgpuBackend<G, F, I>
 where
     G: GraphicsApi + 'static,
     F: FloatElement,
