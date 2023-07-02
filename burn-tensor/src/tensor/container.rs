@@ -49,7 +49,7 @@ where
 
         let tensor = grad
             .downcast_ref::<TensorPrimitive<B, D>>()
-            .map(|primitive| Tensor::from_primitive(primitive.clone()))
+            .map(|primitive| Tensor::<B, D>::from_primitive(primitive.clone()))
             .unwrap();
 
         Some(tensor)
