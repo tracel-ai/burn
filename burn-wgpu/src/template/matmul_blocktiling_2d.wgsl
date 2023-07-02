@@ -109,7 +109,7 @@ fn main(
         // Compute intermediate results
         // Results are cumulated in results array and updated at each block
         // Outer loop indicates which subcolumns/subrows to read from shared memories
-        for (var dot_index = 0u; dot_index < B_K; dot_index++) {
+        for (var dot_index = 0u; dot_index < sm_limit; dot_index++) {
             // Load a subcolumn of values from lhs
             for (var tile_index = 0u; tile_index < actual_T_M; tile_index++) {
                 let lhs_sm_position = (thread_row + tile_index) * B_K + dot_index;
