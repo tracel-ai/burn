@@ -150,7 +150,7 @@ mod tests {
     use burn_tensor::{backend::Backend, Bool, Distribution, Tensor};
 
     #[test]
-    fn mask_fill_should_work_with_multiple_invocation() {
+    fn mask_fill_should_work_with_multiple_invocations() {
         let (tensor, mask, tensor_ref, mask_ref) = inputs_mask_fill();
 
         let actual = Tensor::<TestBackend, 3>::from_primitive(mask_fill::<f32, 3>(
@@ -166,7 +166,7 @@ mod tests {
     }
 
     #[test]
-    fn mask_fill_inplace_should_work_with_multiple_invocation() {
+    fn mask_fill_inplace_should_work_with_multiple_invocations() {
         let (tensor, mask, tensor_ref, mask_ref) = inputs_mask_fill();
 
         let actual = Tensor::<TestBackend, 3>::from_primitive(mask_fill_inplace::<f32, 3>(
@@ -182,7 +182,7 @@ mod tests {
     }
 
     #[test]
-    fn mask_where_should_work_with_multiple_invocation() {
+    fn mask_where_should_work_with_multiple_invocations() {
         let (tensor, value, mask, tensor_ref, value_ref, mask_ref) = inputs_mask_where();
 
         let actual = Tensor::<TestBackend, 3>::from_primitive(mask_where::<f32, 3>(
@@ -197,7 +197,7 @@ mod tests {
             .assert_approx_eq(&actual.into_data(), 3);
     }
     #[test]
-    fn mask_where_inplace_direction_1_should_work_with_multiple_invocation() {
+    fn mask_where_inplace_direction_1_should_work_with_multiple_invocations() {
         let (tensor, value, mask, tensor_ref, value_ref, mask_ref) = inputs_mask_where();
 
         let actual = Tensor::<TestBackend, 3>::from_primitive(mask_where_inplace::<f32, 3>(

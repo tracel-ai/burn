@@ -18,11 +18,10 @@ macro_rules! comparison_elem {
 
         impl $crate::kernel::StaticKernel for $struct {
             fn source_template() -> $crate::kernel::SourceTemplate {
-                $crate::kernel::ComparisonElemRaw::source_template()
-                    .register(
-                        "body",
-                        format!("output[global_id.x] = u32(lhs[global_id.x] {} rhs);", $ops),
-                    )
+                $crate::kernel::ComparisonElemRaw::source_template().register(
+                    "body",
+                    format!("output[global_id.x] = u32(lhs[global_id.x] {} rhs);", $ops),
+                )
             }
         }
     };
