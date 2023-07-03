@@ -157,7 +157,7 @@ mod tests {
         batch_1: usize,
         batch_2: usize,
     ) {
-        let func = |lhs, rhs| matmul_naive::<f32, 4, WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y>(lhs, rhs);
+        let func = matmul_naive::<f32, 4, WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y>;
         let shape_lhs = [batch_1, batch_2, m, k];
         let shape_rhs = [batch_1, batch_2, k, n];
         same_as_reference(func, shape_lhs, shape_rhs);

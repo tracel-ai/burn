@@ -35,7 +35,6 @@ where
             self.shape_lhs.dims,
             self.shape_rhs.dims
         )
-        .into()
     }
 
     fn execute(&self, (lhs, rhs): Self::Args) {
@@ -99,7 +98,7 @@ impl<const D: usize, G: GraphicsApi> MatmulFunction<WgpuBackend<G, f32, i32>, D>
 }
 
 fn main() {
-    for i in [128, 256, 512, 1024] {
+    for i in [4096] {
         run_benchmark!(MatmulBenchmark::<NaiveMatmul, 3> {
             shape_lhs: [32, i, i].into(),
             shape_rhs: [32, i, i].into(),
