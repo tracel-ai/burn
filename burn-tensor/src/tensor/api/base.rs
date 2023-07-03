@@ -23,6 +23,16 @@ where
     B: Backend,
     K: BasicOps<B>,
 {
+    /// Converts the tensor into a primitive tensor.
+    pub fn into_primitive(self) -> K::Primitive<D> {
+        self.primitive
+    }
+
+    /// Converts from a primitive tensor into a tensor.
+    pub fn from_primitive(tensor: K::Primitive<D>) -> Self {
+        Self::new(tensor)
+    }
+
     /// Create an empty tensor of the given shape.
     pub fn empty<S: Into<Shape<D>>>(shape: S) -> Self {
         Self::empty_device(shape, &B::Device::default())
