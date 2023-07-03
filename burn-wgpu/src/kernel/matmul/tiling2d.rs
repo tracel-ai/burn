@@ -1,15 +1,20 @@
 use std::cmp::{max, min};
 
-use super::{build_info, SourceTemplate, StaticKernel};
 use crate::{
-    context::WorkGroup, element::WgpuElement, kernel::KernelSettings, kernel_wgsl,
+    context::WorkGroup,
+    element::WgpuElement,
+    kernel::{build_info, KernelSettings, SourceTemplate, StaticKernel},
+    kernel_wgsl,
     tensor::WgpuTensor,
 };
 use burn_tensor::Shape;
 
 const MAX_SHARED_MEMORY_SIZE: usize = 8192;
 
-kernel_wgsl!(MatmulTiling2DRaw, "../template/matmul_blocktiling_2d.wgsl");
+kernel_wgsl!(
+    MatmulTiling2DRaw,
+    "../../template/matmul_blocktiling_2d.wgsl"
+);
 
 struct MatmulTiling2D<
     const B_M: usize,
@@ -44,7 +49,8 @@ impl<
     }
 }
 
-pub fn matmul<E: WgpuElement, const D: usize>(
+/// Matrix multiplication using tiling 2D algorithm with default parameters
+pub fn matmul_tiling_2d_default<E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
@@ -67,6 +73,7 @@ pub fn matmul<E: WgpuElement, const D: usize>(
     matmul_tiling_2d::<E, D, B_M, B_N, B_K, T_M, T_N, WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y>(lhs, rhs)
 }
 
+/// Matrix multiplication using tiling 2D algorithm with custom parameters
 pub fn matmul_tiling_2d<
     E: WgpuElement,
     const D: usize,
@@ -285,9 +292,9 @@ mod tests {
         const WORKGROUP_SIZE_X: usize,
         const WORKGROUP_SIZE_Y: usize,
     >(
-        M: usize,
-        K: usize,
-        N: usize,
+        m: usize,
+        k: usize,
+        n: usize,
         batch_1: usize,
         batch_2: usize,
     ) {
@@ -296,8 +303,8 @@ mod tests {
                 lhs, rhs,
             )
         };
-        let shape_lhs = [batch_1, batch_2, M, K];
-        let shape_rhs = [batch_1, batch_2, K, N];
+        let shape_lhs = [batch_1, batch_2, m, k];
+        let shape_rhs = [batch_1, batch_2, k, n];
         same_as_reference(func, shape_lhs, shape_rhs);
     }
 

@@ -49,3 +49,7 @@ harness = false
 [[bench]]
 name = "binary"
 harness = false
+
+[[bench]]
+name = "matmul"
+harness = false
