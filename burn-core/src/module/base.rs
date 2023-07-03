@@ -107,6 +107,7 @@ pub trait Module<B: Backend>: Clone + Send + Sync + core::fmt::Debug {
             init = Vec::new
         )
     }
+
     /// Fork the module and all of its sub-modules to the given device.
     ///
     /// # Notes
@@ -129,6 +130,7 @@ pub trait Module<B: Backend>: Clone + Send + Sync + core::fmt::Debug {
             capture = { device: B::Device }
         )
     }
+
     /// Move the module and all of its sub-modules to the given device.
     ///
     /// # Warnings
@@ -143,6 +145,7 @@ pub trait Module<B: Backend>: Clone + Send + Sync + core::fmt::Debug {
             capture = { device: B::Device }
         )
     }
+
     /// Each tensor in the module tree will not require grad.
     ///
     /// # Warnings
@@ -170,10 +173,13 @@ pub trait Module<B: Backend>: Clone + Send + Sync + core::fmt::Debug {
     }
     /// Visit each tensor in the module with a [visitor](ModuleVisitor).
     fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V);
+
     /// Map each tensor in the module with a [mapper](ModuleMapper).
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self;
     /// Load the module state from a record.
+
     fn load_record(self, record: Self::Record) -> Self;
+
     /// Convert the module into a record containing the state.
     fn into_record(self) -> Self::Record;
 }
