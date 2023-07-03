@@ -1,8 +1,5 @@
 use super::{KernelSettings, StaticKernel};
-use crate::{
-    context::WorkGroup, element::WgpuElement, kernel::elemwise_workgroup, kernel_wgsl,
-    tensor::WgpuTensor,
-};
+use crate::{element::WgpuElement, kernel::elemwise_workgroup, kernel_wgsl, tensor::WgpuTensor};
 
 kernel_wgsl!(ComparisonElemRaw, "../template/comparison/elem.wgsl");
 kernel_wgsl!(
