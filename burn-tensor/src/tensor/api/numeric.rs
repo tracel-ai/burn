@@ -269,8 +269,8 @@ where
     /// `output[i, j, k] = input[indices[i], j, k]; // dim = 0`
     /// `output[i, j, k] = input[i, indices[j], k]; // dim = 1`
     /// `output[i, j, k] = input[i, j, indices[k]]; // dim = 2`
-    pub fn index_select(self, dim: usize, indices: Tensor<B, 1, Int>) -> Self {
-        check!(TensorCheck::index_select::<D>(dim));
+    pub fn select(self, dim: usize, indices: Tensor<B, 1, Int>) -> Self {
+        check!(TensorCheck::select::<D>(dim));
         Self::new(K::index_select(self.primitive, dim, indices))
     }
 
@@ -282,13 +282,13 @@ where
     /// `input[indices[i], j, k] += values[i, j, k]; // dim = 0`
     /// `input[i, indices[j], k] += values[i, j, k]; // dim = 1`
     /// `input[i, j, indices[k]] += values[i, j, k]; // dim = 2`
-    pub fn index_select_assign<const D2: usize>(
+    pub fn select_assign<const D2: usize>(
         self,
         dim: usize,
         indices: Tensor<B, 1, Int>,
         values: Tensor<B, D2, K>,
     ) -> Self {
-        check!(TensorCheck::index_select_assign::<D>(dim));
+        check!(TensorCheck::select_assign::<D>(dim));
 
         Self::new(K::index_select_assign(
             self.primitive,

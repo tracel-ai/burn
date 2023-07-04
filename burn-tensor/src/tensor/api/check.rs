@@ -432,15 +432,15 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn index_select<const D: usize>(dim: usize) -> Self {
-        Self::check_index_select_basic::<D>(Self::Ok, "index_select", dim)
+    pub(crate) fn select<const D: usize>(dim: usize) -> Self {
+        Self::check_select_basic::<D>(Self::Ok, "select", dim)
     }
 
-    pub(crate) fn index_select_assign<const D: usize>(dim: usize) -> Self {
-        Self::check_index_select_basic::<D>(Self::Ok, "index_select_assign", dim)
+    pub(crate) fn select_assign<const D: usize>(dim: usize) -> Self {
+        Self::check_select_basic::<D>(Self::Ok, "select_assign", dim)
     }
 
-    fn check_index_select_basic<const D: usize>(mut check: Self, ops: &str, dim: usize) -> Self {
+    fn check_select_basic<const D: usize>(mut check: Self, ops: &str, dim: usize) -> Self {
         if dim > D {
             check = check.register(
                 ops,

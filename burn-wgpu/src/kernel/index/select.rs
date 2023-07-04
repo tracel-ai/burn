@@ -99,3 +99,48 @@ pub(crate) fn select_assign<E: WgpuElement, I: WgpuElement, const D: usize, cons
 
     tensor
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tests::{ReferenceBackend, TestBackend};
+    use burn_tensor::{Distribution, Int, Tensor};
+
+    #[test]
+    fn slice_should_work_with_multiple_workgroups() {
+        let tensor = Tensor::<TestBackend, 2>::random([6, 256], Distribution::Standard);
+        let indices = Tensor::<TestBackend, 1, Int>::arange(0..100);
+        let tensor_ref = Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data());
+        let indices_ref =
+            Tensor::<ReferenceBackend, 1, Int>::from_data(indices.to_data().convert());
+
+        let actual = select(tensor.into_primitive(), 1, indices.into_primitive());
+        let expected = tensor_ref.select(1, indices);
+
+        expected.into_data().assert_approx_eq(
+            &Tensor::<TestBackend, 2>::from_primitive(actual).into_data(),
+            3,
+        );
+    }
+
+    #[test]
+    fn slice_assign_should_work_with_multiple_workgroups() {
+        let tensor = Tensor::<TestBackend, 2>::random([6, 256], Distribution::Standard);
+        let value = Tensor::<TestBackend, 2>::random([2, 211], Distribution::Standard);
+        let indices = [3..5, 45..256];
+        let tensor_ref = Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data());
+        let value_ref = Tensor::<ReferenceBackend, 2>::from_data(value.to_data());
+
+        let actual = slice_assign(
+            tensor.into_primitive(),
+            indices.clone(),
+            value.into_primitive(),
+        );
+        let expected = tensor_ref.slice_assign(indices, value_ref);
+
+        expected.into_data().assert_approx_eq(
+            &Tensor::<TestBackend, 2>::from_primitive(actual).into_data(),
+            3,
+        );
+    }
+}
