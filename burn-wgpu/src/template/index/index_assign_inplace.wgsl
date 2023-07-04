@@ -22,6 +22,7 @@ fn main(
     let dim: u32 = info[0];
     var index_input: u32 = 0u;
     var index_value: u32 = 0u;
+    var num_elems = 0u;
 
     for (var i: u32 = 1u; i <= dim; i++) {
         let stride_input = info[i];

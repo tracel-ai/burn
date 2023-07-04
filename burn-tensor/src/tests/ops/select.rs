@@ -8,7 +8,7 @@ mod tests {
         let tensor = TestTensor::from_data([0.0, 1.0, 2.0]);
         let indexes = TestTensorInt::from_data([1, 1, 0, 1, 2]);
 
-        let output = tensor.index_select(0, indexes);
+        let output = tensor.select(0, indexes);
 
         assert_eq!(output.into_data(), Data::from([1.0, 1.0, 0.0, 1.0, 2.0]));
     }
@@ -18,7 +18,7 @@ mod tests {
         let tensor = TestTensor::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
         let indexes = TestTensorInt::from_data(([1, 0]));
 
-        let output = tensor.index_select(0, indexes);
+        let output = tensor.select(0, indexes);
 
         assert_eq!(
             output.into_data(),
@@ -31,7 +31,7 @@ mod tests {
         let tensor = TestTensor::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
         let indexes = TestTensorInt::from_data([1, 0, 1, 1]);
 
-        let output = tensor.index_select(0, indexes);
+        let output = tensor.select(0, indexes);
 
         assert_eq!(
             output.into_data(),
@@ -49,7 +49,7 @@ mod tests {
         let tensor = TestTensor::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
         let indexes = TestTensorInt::from_data([1, 1, 0, 1, 2]);
 
-        let output = tensor.index_select(1, indexes);
+        let output = tensor.select(1, indexes);
 
         assert_eq!(
             output.into_data(),
@@ -63,7 +63,7 @@ mod tests {
         let values = TestTensor::from_data([5.0, 4.0, 3.0, 2.0, 1.0]);
         let indexes = TestTensorInt::from_data(Data::from([1, 1, 0, 1, 2]));
 
-        let output = tensor.index_select_assign(0, indexes, values);
+        let output = tensor.select_assign(0, indexes, values);
 
         assert_eq!(output.into_data(), Data::from([3.0, 12.0, 3.0]));
     }
@@ -74,7 +74,7 @@ mod tests {
         let values = TestTensor::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
         let indexes = TestTensorInt::from_data(Data::from([1, 0]));
 
-        let output = tensor.index_select_assign(0, indexes, values);
+        let output = tensor.select_assign(0, indexes, values);
 
         assert_eq!(
             output.into_data(),
@@ -88,7 +88,7 @@ mod tests {
         let values = TestTensor::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
         let indexes = TestTensorInt::from_data(Data::from([1, 0, 2]));
 
-        let output = tensor.index_select_assign(1, indexes, values);
+        let output = tensor.select_assign(1, indexes, values);
 
         assert_eq!(
             output.into_data(),
