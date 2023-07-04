@@ -100,7 +100,7 @@ mod tests {
         let value = Tensor::<TestBackend, D>::random(shape, Distribution::Standard);
         let indices = Tensor::<TestBackend, 1, Int>::from_data(
             Tensor::<TestBackend, 1>::random(
-                [shape.iter().fold(1, |acc, b| acc * b)],
+                [shape.iter().product()],
                 Distribution::Uniform(0., shape[dim] as f32),
             )
             .into_data()

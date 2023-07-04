@@ -1,6 +1,6 @@
 use crate::{
     element::WgpuElement,
-    kernel::{self, build_info, elemwise_workgroup, KernelSettings},
+    kernel::{build_info, elemwise_workgroup, KernelSettings},
     kernel_wgsl,
     tensor::WgpuTensor,
 };
@@ -56,13 +56,10 @@ pub(crate) fn select_assign<E: WgpuElement, I: WgpuElement, const D: usize>(
     tensor: WgpuTensor<E, D>,
     dim: usize,
     indexes: WgpuTensor<I, 1>,
-    values: WgpuTensor<E, D>,
+    value: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     const WORKGROUP: usize = 32;
 
-    let indexes = kernel::into_continuous(indexes);
-    let tensor = kernel::into_continuous(tensor);
-    let value = kernel::into_continuous(values);
     let tensor = match tensor.can_mut() {
         true => tensor,
         false => tensor.copy(),
@@ -71,7 +68,7 @@ pub(crate) fn select_assign<E: WgpuElement, I: WgpuElement, const D: usize>(
     println!("{:?}", indexes.shape.dims);
     println!("{:?}", tensor.shape.dims);
     println!("{:?}", value.shape.dims);
-    let mut info = build_info(&[&tensor]);
+    let mut info = build_info(&[&tensor, &value]);
     let mut strides = [0; D];
     let mut current = 1;
     let mut num_elems_per_workgroup = 1;
@@ -145,6 +142,21 @@ mod tests {
         select_assign_same_as_ref(1, [6, 256]);
     }
 
+    #[test]
+    fn select_assign_should_work_with_multiple_workgroups_3d_dim0() {
+        select_assign_same_as_ref(0, [256, 6, 6]);
+    }
+
+    #[test]
+    fn select_assign_should_work_with_multiple_workgroups_3d_dim1() {
+        select_assign_same_as_ref(1, [6, 256, 6]);
+    }
+
+    #[test]
+    fn select_assign_should_work_with_multiple_workgroups_3d_dim2() {
+        select_assign_same_as_ref(2, [6, 6, 256]);
+    }
+
     fn select_assign_same_as_ref<const D: usize>(dim: usize, shape: [usize; D]) {
         TestBackend::seed(0);
         let tensor = Tensor::<TestBackend, D>::random(shape, Distribution::Standard);
@@ -164,7 +176,7 @@ mod tests {
 
         let actual = Tensor::<TestBackend, D>::from_primitive(select_assign(
             tensor.into_primitive(),
-            1,
+            dim,
             indices.into_primitive(),
             value.into_primitive(),
         ));
