@@ -57,7 +57,7 @@ impl<E: FloatNdArrayElement> BoolTensorOps<NdArrayBackend<E>> for NdArrayBackend
         NdArrayOps::reshape(tensor, shape)
     }
 
-    fn bool_index<const D1: usize, const D2: usize>(
+    fn bool_slice<const D1: usize, const D2: usize>(
         tensor: NdArrayTensor<bool, D1>,
         indexes: [Range<usize>; D2],
     ) -> NdArrayTensor<bool, D1> {
@@ -85,7 +85,7 @@ impl<E: FloatNdArrayElement> BoolTensorOps<NdArrayBackend<E>> for NdArrayBackend
         NdArrayTensor::from_data(Data::new(values, shape))
     }
 
-    fn bool_index_assign<const D1: usize, const D2: usize>(
+    fn bool_slice_assign<const D1: usize, const D2: usize>(
         tensor: <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D1>,
         indexes: [Range<usize>; D2],
         value: <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D1>,

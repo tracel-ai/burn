@@ -1,4 +1,4 @@
-#[burn_tensor_testgen::testgen(index_select)]
+#[burn_tensor_testgen::testgen(select)]
 mod tests {
     use super::*;
     use burn_tensor::{Data, Tensor};

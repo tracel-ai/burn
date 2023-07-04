@@ -65,7 +65,7 @@ pub fn infer<B: Backend, D: TextClassificationDataset + 'static>(
 
     // Print out predictions for each sample
     for (i, text) in samples.into_iter().enumerate() {
-        let prediction = predictions.clone().index([i..i + 1]); // Get prediction for current sample
+        let prediction = predictions.clone().slice([i..i + 1]); // Get prediction for current sample
         let logits = prediction.to_data(); // Convert prediction tensor to data
         let class_index = prediction.argmax(1).into_data().convert::<i32>().value[0]; // Get class index with the highest value
         let class = D::class_name(class_index as usize); // Get class name

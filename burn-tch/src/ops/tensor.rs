@@ -339,7 +339,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         TchOps::max_dim(tensor, dim)
     }
 
-    fn max_dim_with_indexes<const D: usize>(
+    fn max_dim_with_indices<const D: usize>(
         tensor: TchTensor<E, D>,
         dim: usize,
     ) -> (TchTensor<E, D>, TchTensor<i64, D>) {
@@ -350,7 +350,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         TchOps::min_dim(tensor, dim)
     }
 
-    fn min_dim_with_indexes<const D: usize>(
+    fn min_dim_with_indices<const D: usize>(
         tensor: TchTensor<E, D>,
         dim: usize,
     ) -> (TchTensor<E, D>, TchTensor<i64, D>) {

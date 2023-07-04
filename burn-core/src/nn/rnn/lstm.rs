@@ -162,11 +162,11 @@ impl<B: Backend> Lstm<B> {
             hidden_state = output_values * cell_state.clone().tanh();
 
             // store the state for this timestep
-            batched_cell_state = batched_cell_state.index_assign(
+            batched_cell_state = batched_cell_state.slice_assign(
                 [0..self.batch_size, t..(t + 1), 0..self.d_hidden],
                 cell_state.clone().unsqueeze(),
             );
-            batched_hidden_state = batched_hidden_state.index_assign(
+            batched_hidden_state = batched_hidden_state.slice_assign(
                 [0..self.batch_size, t..(t + 1), 0..self.d_hidden],
                 hidden_state.clone().unsqueeze(),
             );

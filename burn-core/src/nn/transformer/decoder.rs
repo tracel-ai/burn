@@ -421,14 +421,14 @@ mod tests {
         let mut cache = transformer.new_autoregressive_cache();
 
         for i in 1..seq_length + 1 {
-            let target = target.clone().index([0..batch_size, 0..i, 0..d_model]);
+            let target = target.clone().slice([0..batch_size, 0..i, 0..d_model]);
 
             let mask_attn = generate_autoregressive_mask(batch_size, i, &target.device());
             let input = TransformerDecoderInput::new(target.clone(), memory.clone())
                 .target_mask_attn(mask_attn);
             let next_tok = transformer // Greedy sampling
                 .forward_autoregressive_inference(input, &mut cache)
-                .index([0..batch_size, i - 1..i, 0..d_model]);
+                .slice([0..batch_size, i - 1..i, 0..d_model]);
             output_2.push(next_tok);
         }
 

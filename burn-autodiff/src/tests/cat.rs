@@ -18,8 +18,8 @@ mod tests {
         let mut tensor_2_list = Vec::new();
 
         for i in 0..2 {
-            tensor_1_list.push(tensor_1.clone().index([i..i + 1]));
-            tensor_2_list.push(tensor_2.clone().index([i..i + 1]));
+            tensor_1_list.push(tensor_1.clone().slice([i..i + 1]));
+            tensor_2_list.push(tensor_2.clone().slice([i..i + 1]));
         }
 
         let tensor_1_cat = TestADTensor::cat(tensor_1_list.clone(), 0);
@@ -28,31 +28,31 @@ mod tests {
         let tensor_3_cat = tensor_1_cat.clone().matmul(tensor_2_cat.clone());
         let grads = tensor_3_cat.backward();
 
-        let grad_1_index_1 = tensor_1.grad(&grads).unwrap().index([0..1]);
-        let grad_1_index_2 = tensor_1.grad(&grads).unwrap().index([1..2]);
+        let grad_1_slice_1 = tensor_1.grad(&grads).unwrap().slice([0..1]);
+        let grad_1_slice_2 = tensor_1.grad(&grads).unwrap().slice([1..2]);
 
-        let grad_2_index_1 = tensor_2.grad(&grads).unwrap().index([0..1]);
-        let grad_2_index_2 = tensor_2.grad(&grads).unwrap().index([1..2]);
+        let grad_2_slice_1 = tensor_2.grad(&grads).unwrap().slice([0..1]);
+        let grad_2_slice_2 = tensor_2.grad(&grads).unwrap().slice([1..2]);
 
         grad_1
             .clone()
-            .index([0..1])
+            .slice([0..1])
             .to_data()
-            .assert_approx_eq(&grad_1_index_1.to_data(), 3);
+            .assert_approx_eq(&grad_1_slice_1.to_data(), 3);
         grad_1
-            .index([1..2])
+            .slice([1..2])
             .to_data()
-            .assert_approx_eq(&grad_1_index_2.to_data(), 3);
+            .assert_approx_eq(&grad_1_slice_2.to_data(), 3);
 
         grad_2
             .clone()
-            .index([0..1])
+            .slice([0..1])
             .to_data()
-            .assert_approx_eq(&grad_2_index_1.to_data(), 3);
+            .assert_approx_eq(&grad_2_slice_1.to_data(), 3);
         grad_2
-            .index([1..2])
+            .slice([1..2])
             .to_data()
-            .assert_approx_eq(&grad_2_index_2.to_data(), 3);
+            .assert_approx_eq(&grad_2_slice_2.to_data(), 3);
     }
 
     #[test]

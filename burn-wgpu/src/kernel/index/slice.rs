@@ -108,7 +108,7 @@ mod tests {
         let tensor_ref = Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data());
 
         let actual = slice(tensor.into_primitive(), indices.clone());
-        let expected = tensor_ref.index(indices);
+        let expected = tensor_ref.slice(indices);
 
         expected.into_data().assert_approx_eq(
             &Tensor::<TestBackend, 2>::from_primitive(actual).into_data(),
@@ -129,7 +129,7 @@ mod tests {
             indices.clone(),
             value.into_primitive(),
         );
-        let expected = tensor_ref.index_assign(indices, value_ref);
+        let expected = tensor_ref.slice_assign(indices, value_ref);
 
         expected.into_data().assert_approx_eq(
             &Tensor::<TestBackend, 2>::from_primitive(actual).into_data(),

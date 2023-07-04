@@ -149,7 +149,7 @@ impl<B: Backend> Gru<B> {
                 .mul(update_values.clone().sub_scalar(1).mul_scalar(-1)) // (1 - z(t)) = -(z(t) - 1)
                 + update_values.clone().mul(hidden_t);
 
-            hidden_state = hidden_state.index_assign(
+            hidden_state = hidden_state.slice_assign(
                 [0..self.batch_size, t..(t + 1), 0..self.d_hidden],
                 state_vector.clone().unsqueeze(),
             );

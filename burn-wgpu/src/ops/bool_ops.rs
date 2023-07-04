@@ -74,14 +74,14 @@ where
         BaseOps::<G>::reshape(tensor, shape)
     }
 
-    fn bool_index<const D1: usize, const D2: usize>(
+    fn bool_slice<const D1: usize, const D2: usize>(
         tensor: BoolTensor<Self, D1>,
         indexes: [Range<usize>; D2],
     ) -> BoolTensor<Self, D1> {
         kernel::slice(tensor, indexes)
     }
 
-    fn bool_index_assign<const D1: usize, const D2: usize>(
+    fn bool_slice_assign<const D1: usize, const D2: usize>(
         tensor: BoolTensor<Self, D1>,
         indexes: [Range<usize>; D2],
         value: BoolTensor<Self, D1>,

@@ -366,7 +366,7 @@ mod tests {
 
         // Create a padding mask
         let mask_pad: Tensor<TestBackend, 2, Int> = Tensor::zeros([batch_size, seq_length]);
-        let mask_pad = mask_pad.index_assign(
+        let mask_pad = mask_pad.slice_assign(
             [0..batch_size, seq_length - num_padded..seq_length],
             Tensor::ones([batch_size, num_padded]),
         );
@@ -377,7 +377,7 @@ mod tests {
             Distribution::Standard,
         );
         // Change the end of the tensor
-        let tensor_2 = tensor_1.clone().index_assign(
+        let tensor_2 = tensor_1.clone().slice_assign(
             [
                 0..batch_size,
                 seq_length - num_padded..seq_length,
@@ -395,12 +395,12 @@ mod tests {
         // Check that the begginning of each tensor is the same
         output_1
             .context
-            .index([0..batch_size, 0..seq_length - num_padded, 0..d_model])
+            .slice([0..batch_size, 0..seq_length - num_padded, 0..d_model])
             .into_data()
             .assert_approx_eq(
                 &output_2
                     .context
-                    .index([0..batch_size, 0..seq_length - num_padded, 0..d_model])
+                    .slice([0..batch_size, 0..seq_length - num_padded, 0..d_model])
                     .into_data(),
                 3,
             );
@@ -423,9 +423,9 @@ mod tests {
         let mut cache = MhaCache::autoregressive();
 
         for i in 1..seq_length + 1 {
-            let tensor = tensor.clone().index([0..batch_size, 0..i, 0..d_model]);
+            let tensor = tensor.clone().slice([0..batch_size, 0..i, 0..d_model]);
             let input = MhaInput::self_attn(tensor);
-            let next_tok = mha.forward_cache(input, &mut cache).context.index([
+            let next_tok = mha.forward_cache(input, &mut cache).context.slice([
                 0..batch_size,
                 i - 1..i,
                 0..d_model,

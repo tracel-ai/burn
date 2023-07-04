@@ -1316,26 +1316,26 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         match MaxMinDim.prepare([tensor.node], [tensor.graph]).statefull() {
             OpsKind::Tracked(prep) => {
                 let shape = B::shape(&tensor.primitive);
-                let (tensor, index) = B::max_dim_with_indexes(tensor.primitive, dim);
+                let (tensor, index) = B::max_dim_with_indices(tensor.primitive, dim);
                 prep.finish((index, shape), tensor)
             }
             OpsKind::UnTracked(prep) => prep.finish(B::max_dim(tensor.primitive, dim)),
         }
     }
-    fn max_dim_with_indexes<const D: usize>(
+    fn max_dim_with_indices<const D: usize>(
         tensor: ADTensor<B, D>,
         dim: usize,
     ) -> (ADTensor<B, D>, IntTensor<B, D>) {
         match MaxMinDim.prepare([tensor.node], [tensor.graph]).statefull() {
             OpsKind::Tracked(prep) => {
                 let shape = B::shape(&tensor.primitive);
-                let (tensor, index) = B::max_dim_with_indexes(tensor.primitive, dim);
+                let (tensor, index) = B::max_dim_with_indices(tensor.primitive, dim);
                 let tensor = prep.finish((index.clone(), shape), tensor);
 
                 (tensor, index)
             }
             OpsKind::UnTracked(prep) => {
-                let (tensor, index) = B::max_dim_with_indexes(tensor.primitive, dim);
+                let (tensor, index) = B::max_dim_with_indices(tensor.primitive, dim);
                 let tensor = prep.finish(tensor);
 
                 (tensor, index)
@@ -1346,26 +1346,26 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         match MaxMinDim.prepare([tensor.node], [tensor.graph]).statefull() {
             OpsKind::Tracked(prep) => {
                 let shape = B::shape(&tensor.primitive);
-                let (tensor, index) = B::min_dim_with_indexes(tensor.primitive, dim);
+                let (tensor, index) = B::min_dim_with_indices(tensor.primitive, dim);
                 prep.finish((index, shape), tensor)
             }
             OpsKind::UnTracked(prep) => prep.finish(B::min_dim(tensor.primitive, dim)),
         }
     }
-    fn min_dim_with_indexes<const D: usize>(
+    fn min_dim_with_indices<const D: usize>(
         tensor: ADTensor<B, D>,
         dim: usize,
     ) -> (ADTensor<B, D>, IntTensor<B, D>) {
         match MaxMinDim.prepare([tensor.node], [tensor.graph]).statefull() {
             OpsKind::Tracked(prep) => {
                 let shape = B::shape(&tensor.primitive);
-                let (tensor, index) = B::min_dim_with_indexes(tensor.primitive, dim);
+                let (tensor, index) = B::min_dim_with_indices(tensor.primitive, dim);
                 let tensor = prep.finish((index.clone(), shape), tensor);
 
                 (tensor, index)
             }
             OpsKind::UnTracked(prep) => {
-                let (tensor, index) = B::min_dim_with_indexes(tensor.primitive, dim);
+                let (tensor, index) = B::min_dim_with_indices(tensor.primitive, dim);
                 let tensor = prep.finish(tensor);
 
                 (tensor, index)

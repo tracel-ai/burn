@@ -214,36 +214,36 @@ where
         Self::new(K::mask_fill(self.primitive, mask, value.elem()))
     }
 
-    /// Gather tensor elements corresponding to the given indexes from the specified dim.
+    /// Gather tensor elements corresponding to the given indices from the specified dim.
     ///
     /// Example using a 3D tensor:
     ///
-    /// `output[i, j, k] = input[indexes[i, j, k], j, k]; // dim = 0`
-    /// `output[i, j, k] = input[i, indexes[i, j, k], k]; // dim = 1`
-    /// `output[i, j, k] = input[i, j, indexes[i, j, k]]; // dim = 2`
+    /// `output[i, j, k] = input[indices[i, j, k], j, k]; // dim = 0`
+    /// `output[i, j, k] = input[i, indices[i, j, k], k]; // dim = 1`
+    /// `output[i, j, k] = input[i, j, indices[i, j, k]]; // dim = 2`
     ///
     /// # Notes
     ///
     /// The index tensor shoud have the same shape as the original tensor except for the dim
     /// specified.
-    pub fn gather(self, dim: usize, indexes: Tensor<B, D, Int>) -> Self {
+    pub fn gather(self, dim: usize, indices: Tensor<B, D, Int>) -> Self {
         check!(TensorCheck::gather::<D>(
             dim,
             &self.shape(),
-            &indexes.shape()
+            &indices.shape()
         ));
 
-        Self::new(K::gather(dim, self.primitive, indexes))
+        Self::new(K::gather(dim, self.primitive, indices))
     }
 
-    /// Assign the gathered elements corresponding to the given indexes along the speficied dimension
+    /// Assign the gathered elements corresponding to the given indices along the speficied dimension
     /// from the value tensor to the original tensor using sum reduction.
     ///
     /// Example using a 3D tensor:
     ///
-    /// `input[indexes[i, j, k], j, k] += values[i, j, k]; // dim = 0`
-    /// `input[i, indexes[i, j, k], k] += values[i, j, k]; // dim = 1`
-    /// `input[i, j, indexes[i, j, k]] += values[i, j, k]; // dim = 2`
+    /// `input[indices[i, j, k], j, k] += values[i, j, k]; // dim = 0`
+    /// `input[i, indices[i, j, k], k] += values[i, j, k]; // dim = 1`
+    /// `input[i, j, indices[i, j, k]] += values[i, j, k]; // dim = 2`
     ///
     /// # Notes
     ///
@@ -251,41 +251,41 @@ where
     /// dimension. The value and index tensors should have the same shape.
     ///
     /// Other references to the input tensor will not be modified by this operation.
-    pub fn scatter(self, dim: usize, indexes: Tensor<B, D, Int>, values: Self) -> Self {
+    pub fn scatter(self, dim: usize, indices: Tensor<B, D, Int>, values: Self) -> Self {
         check!(TensorCheck::scatter::<D>(
             dim,
             &self.shape(),
-            &indexes.shape(),
+            &indices.shape(),
             &values.shape()
         ));
 
-        Self::new(K::scatter(dim, self.primitive, indexes, values.primitive))
+        Self::new(K::scatter(dim, self.primitive, indices, values.primitive))
     }
 
-    /// Select the tensor elements along the given dimension corresponding to the given indexes.
+    /// Select the tensor elements along the given dimension corresponding to the given indices.
     ///
     /// Example using a 3D tensor:
     ///
-    /// `output[i, j, k] = input[indexes[i], j, k]; // dim = 0`
-    /// `output[i, j, k] = input[i, indexes[j], k]; // dim = 1`
-    /// `output[i, j, k] = input[i, j, indexes[k]]; // dim = 2`
-    pub fn index_select(self, dim: usize, indexes: Tensor<B, 1, Int>) -> Self {
+    /// `output[i, j, k] = input[indices[i], j, k]; // dim = 0`
+    /// `output[i, j, k] = input[i, indices[j], k]; // dim = 1`
+    /// `output[i, j, k] = input[i, j, indices[k]]; // dim = 2`
+    pub fn index_select(self, dim: usize, indices: Tensor<B, 1, Int>) -> Self {
         check!(TensorCheck::index_select::<D>(dim));
-        Self::new(K::index_select(self.primitive, dim, indexes))
+        Self::new(K::index_select(self.primitive, dim, indices))
     }
 
-    /// Assign the selected elements along the given dimension corresponding to the given indexes
+    /// Assign the selected elements along the given dimension corresponding to the given indices
     /// from the value tensor to the original tensor using sum reduction.
     ///
     /// Example using a 3D tensor:
     ///
-    /// `input[indexes[i], j, k] += values[i, j, k]; // dim = 0`
-    /// `input[i, indexes[j], k] += values[i, j, k]; // dim = 1`
-    /// `input[i, j, indexes[k]] += values[i, j, k]; // dim = 2`
+    /// `input[indices[i], j, k] += values[i, j, k]; // dim = 0`
+    /// `input[i, indices[j], k] += values[i, j, k]; // dim = 1`
+    /// `input[i, j, indices[k]] += values[i, j, k]; // dim = 2`
     pub fn index_select_assign<const D2: usize>(
         self,
         dim: usize,
-        indexes: Tensor<B, 1, Int>,
+        indices: Tensor<B, 1, Int>,
         values: Tensor<B, D2, K>,
     ) -> Self {
         check!(TensorCheck::index_select_assign::<D>(dim));
@@ -293,7 +293,7 @@ where
         Self::new(K::index_select_assign(
             self.primitive,
             dim,
-            indexes,
+            indices,
             values.primitive,
         ))
     }
@@ -331,8 +331,8 @@ where
 
     /// Find the maximum value along the given dimension.
     ///
-    /// Also returns the indexes.
-    pub fn max_dim_with_indexes(self, dim: usize) -> (Tensor<B, D, K>, Tensor<B, D, Int>) {
+    /// Also returns the indices.
+    pub fn max_dim_with_indices(self, dim: usize) -> (Tensor<B, D, K>, Tensor<B, D, Int>) {
         check!(TensorCheck::aggregate_dim::<D>("Max", dim));
 
         let (tensor, index) = K::max_dim_with_indices(self.primitive, dim);
@@ -375,8 +375,8 @@ where
 
     /// Find the minimum value along the given dimension.
     ///
-    /// Also returns the indexes.
-    pub fn min_dim_with_indexes(self, dim: usize) -> (Tensor<B, D, K>, Tensor<B, D, Int>) {
+    /// Also returns the indices.
+    pub fn min_dim_with_indices(self, dim: usize) -> (Tensor<B, D, K>, Tensor<B, D, Int>) {
         check!(TensorCheck::aggregate_dim::<D>("Min", dim));
 
         let (tensor, index) = K::min_dim_with_indices(self.primitive, dim);
@@ -1008,7 +1008,7 @@ where
     ///
     /// * `dim` - The axis along which to gather elements.
     /// * `tensor` - The tensor to gather elements from.
-    /// * `indexes` - The indexes of the elements to gather.
+    /// * `indices` - The indices of the elements to gather.
     ///
     /// # Returns
     ///
@@ -1026,7 +1026,7 @@ where
     fn gather<const D: usize>(
         dim: usize,
         tensor: Self::Primitive<D>,
-        indexes: Tensor<B, D, Int>,
+        indices: Tensor<B, D, Int>,
     ) -> Self::Primitive<D>;
 
     /// Scatters elements into a tensor along an axis.
@@ -1035,14 +1035,14 @@ where
     ///
     /// * `dim` - The axis along which to scatter elements.
     /// * `tensor` - The tensor to scatter elements into.
-    /// * `indices` - The indexes of the elements to scatter.
+    /// * `indices` - The indices of the elements to scatter.
     /// * `values` - The values to scatter into the tensor.
     ///
     /// # Returns
     ///
     /// A tensor with the same shape as the input tensor, where each element is taken from the
     /// corresponding element of the input tensor at the corresponding index along the specified axis,
-    /// except for the elements at the specified indexes, which are taken from the corresponding
+    /// except for the elements at the specified indices, which are taken from the corresponding
     /// element of the values tensor.
     ///
     /// # Remarks
@@ -1056,17 +1056,17 @@ where
     fn scatter<const D: usize>(
         dim: usize,
         tensor: Self::Primitive<D>,
-        indexes: Tensor<B, D, Int>,
+        indices: Tensor<B, D, Int>,
         values: Self::Primitive<D>,
     ) -> Self::Primitive<D>;
 
-    /// Select tensor elements along the given dimension corresponding for the given indexes.
+    /// Select tensor elements along the given dimension corresponding for the given indices.
     ///
     /// # Arguments
     ///
     /// * `tensor` - The tensor to select elements from.
     /// * `dim` - The axis along which to select elements.
-    /// * `indexes` - The indexes of the elements to select.
+    /// * `indices` - The indices of the elements to select.
     ///
     /// # Returns
     ///
@@ -1084,24 +1084,24 @@ where
     fn index_select<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
-        indexes: Tensor<B, 1, Int>,
+        indices: Tensor<B, 1, Int>,
     ) -> Self::Primitive<D>;
 
-    /// Assign the selected elements along the given dimension corresponding to the given indexes
+    /// Assign the selected elements along the given dimension corresponding to the given indices
     /// from the value tensor.
     ///
     /// # Arguments
     ///
     /// * `tensor` - The tensor to assign elements to.
     /// * `dim` - The axis along which to assign elements.
-    /// * `indexes` - The indexes of the elements to assign.
+    /// * `indices` - The indices of the elements to assign.
     /// * `values` - The values to assign to the tensor.
     ///
     /// # Returns
     ///
     /// A tensor with the same shape as the input tensor, where each element is taken from the
     /// corresponding element of the input tensor at the corresponding index along the specified axis,
-    /// except for the elements at the specified indexes, which are taken from the corresponding
+    /// except for the elements at the specified indices, which are taken from the corresponding
     /// element of the values tensor.
     ///
     /// # Remarks
@@ -1115,16 +1115,16 @@ where
     fn index_select_assign<const D1: usize, const D2: usize>(
         tensor: Self::Primitive<D1>,
         dim: usize,
-        indexes: Tensor<B, 1, Int>,
+        indices: Tensor<B, 1, Int>,
         values: Self::Primitive<D2>,
     ) -> Self::Primitive<D1>;
 
-    /// Gets the indexes of the maximum elements of a tensor along an axis.
+    /// Gets the indices of the maximum elements of a tensor along an axis.
     ///
     /// # Arguments
     ///
-    /// * `dim` - The axis along which to get the indexes of the maximum elements.
-    /// * `tensor` - The tensor to get the indexes of the maximum elements from.
+    /// * `dim` - The axis along which to get the indices of the maximum elements.
+    /// * `tensor` - The tensor to get the indices of the maximum elements from.
     ///
     /// # Returns
     ///
@@ -1137,16 +1137,16 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For getting the indexes of the maximum elements of a tensor along an axis, users should prefer the
+    /// For getting the indices of the maximum elements of a tensor along an axis, users should prefer the
     /// [Tensor::argmax](Tensor::argmax) function, which is more high-level and designed for public use.
     fn argmax<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> B::IntTensorPrimitive<D>;
 
-    /// Gets the indexes of the minimum elements of a tensor along an axis.
+    /// Gets the indices of the minimum elements of a tensor along an axis.
     ///
     /// # Arguments
     ///
-    /// * `dim` - The axis along which to get the indexes of the minimum elements.
-    /// * `tensor` - The tensor to get the indexes of the minimum elements from.
+    /// * `dim` - The axis along which to get the indices of the minimum elements.
+    /// * `tensor` - The tensor to get the indices of the minimum elements from.
     ///
     /// # Returns
     ///
@@ -1159,7 +1159,7 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For getting the indexes of the minimum elements of a tensor along an axis, users should prefer the
+    /// For getting the indices of the minimum elements of a tensor along an axis, users should prefer the
     /// [Tensor::argmin](Tensor::argmin) function, which is more high-level and designed for public use.
     fn argmin<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> B::IntTensorPrimitive<D>;
 
@@ -1224,7 +1224,7 @@ where
     /// or use this function directly.
     ///
     /// For getting the maximum elements of a tensor along an axis, users should prefer the
-    /// [Tensor::max_dim_with_indexes](Tensor::max_dim_with_indexes) function, which is more high-level and designed for public use.
+    /// [Tensor::max_dim_with_indices](Tensor::max_dim_with_indices) function, which is more high-level and designed for public use.
     fn max_dim_with_indices<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
@@ -1291,7 +1291,7 @@ where
     /// or use this function directly.
     ///
     /// For getting the minimum elements of a tensor along an axis, users should prefer the
-    /// [Tensor::min_dim_with_indexes](Tensor::min_dim_with_indexes) function, which is more high-level and designed for public use.
+    /// [Tensor::min_dim_with_indices](Tensor::min_dim_with_indices) function, which is more high-level and designed for public use.
     fn min_dim_with_indices<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
@@ -1444,34 +1444,34 @@ impl<B: Backend> Numeric<B> for Int {
     fn index_select<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
-        indexes: Tensor<B, 1, Int>,
+        indices: Tensor<B, 1, Int>,
     ) -> Self::Primitive<D> {
-        B::int_select(tensor, dim, indexes.primitive)
+        B::int_select(tensor, dim, indices.primitive)
     }
 
     fn index_select_assign<const D1: usize, const D2: usize>(
         tensor: Self::Primitive<D1>,
         dim: usize,
-        indexes: Tensor<B, 1, Int>,
+        indices: Tensor<B, 1, Int>,
         values: Self::Primitive<D2>,
     ) -> Self::Primitive<D1> {
-        B::int_select_assign(tensor, dim, indexes.primitive, values)
+        B::int_select_assign(tensor, dim, indices.primitive, values)
     }
     fn gather<const D: usize>(
         dim: usize,
         tensor: Self::Primitive<D>,
-        indexes: Tensor<B, D, Int>,
+        indices: Tensor<B, D, Int>,
     ) -> Self::Primitive<D> {
-        B::int_gather(dim, tensor, indexes.primitive)
+        B::int_gather(dim, tensor, indices.primitive)
     }
 
     fn scatter<const D: usize>(
         dim: usize,
         tensor: Self::Primitive<D>,
-        indexes: Tensor<B, D, Int>,
+        indices: Tensor<B, D, Int>,
         values: Self::Primitive<D>,
     ) -> Self::Primitive<D> {
-        B::int_scatter(dim, tensor, indexes.primitive, values)
+        B::int_scatter(dim, tensor, indices.primitive, values)
     }
 
     fn argmax<const D: usize>(
@@ -1665,35 +1665,35 @@ impl<B: Backend> Numeric<B> for Float {
     fn index_select<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
-        indexes: Tensor<B, 1, Int>,
+        indices: Tensor<B, 1, Int>,
     ) -> Self::Primitive<D> {
-        B::select(tensor, dim, indexes.primitive)
+        B::select(tensor, dim, indices.primitive)
     }
 
     fn index_select_assign<const D1: usize, const D2: usize>(
         tensor: Self::Primitive<D1>,
         dim: usize,
-        indexes: Tensor<B, 1, Int>,
+        indices: Tensor<B, 1, Int>,
         values: Self::Primitive<D2>,
     ) -> Self::Primitive<D1> {
-        B::select_assign(tensor, dim, indexes.primitive, values)
+        B::select_assign(tensor, dim, indices.primitive, values)
     }
 
     fn gather<const D: usize>(
         dim: usize,
         tensor: Self::Primitive<D>,
-        indexes: Tensor<B, D, Int>,
+        indices: Tensor<B, D, Int>,
     ) -> Self::Primitive<D> {
-        B::gather(dim, tensor, indexes.primitive)
+        B::gather(dim, tensor, indices.primitive)
     }
 
     fn scatter<const D: usize>(
         dim: usize,
         tensor: Self::Primitive<D>,
-        indexes: Tensor<B, D, Int>,
+        indices: Tensor<B, D, Int>,
         values: Self::Primitive<D>,
     ) -> Self::Primitive<D> {
-        B::scatter(dim, tensor, indexes.primitive, values)
+        B::scatter(dim, tensor, indices.primitive, values)
     }
 
     fn argmax<const D: usize>(
@@ -1722,7 +1722,7 @@ impl<B: Backend> Numeric<B> for Float {
         tensor: Self::Primitive<D>,
         dim: usize,
     ) -> (Self::Primitive<D>, <B as Backend>::IntTensorPrimitive<D>) {
-        B::max_dim_with_indexes(tensor, dim)
+        B::max_dim_with_indices(tensor, dim)
     }
 
     fn min<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
@@ -1737,7 +1737,7 @@ impl<B: Backend> Numeric<B> for Float {
         tensor: Self::Primitive<D>,
         dim: usize,
     ) -> (Self::Primitive<D>, <B as Backend>::IntTensorPrimitive<D>) {
-        B::min_dim_with_indexes(tensor, dim)
+        B::min_dim_with_indices(tensor, dim)
     }
 }
 
