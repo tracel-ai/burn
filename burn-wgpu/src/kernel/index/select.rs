@@ -135,7 +135,6 @@ mod tests {
                 .into_data()
                 .convert(),
         );
-        println!("{indices}");
         let tensor_ref = Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data());
         let value_ref = Tensor::<ReferenceBackend, 2>::from_data(value.to_data());
         let indices_ref =

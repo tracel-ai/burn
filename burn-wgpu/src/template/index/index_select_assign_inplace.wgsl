@@ -29,7 +29,7 @@ fn main(
     var index_values_offset = 0u;
 
     let stride_input_dim = info[dim + 1u];
-    var stride_values_dim = info[dim + rank + 1u];
+    let stride_values_dim = info[dim + rank + 1u];
 
     let shape_input_dim = info[dim + 2u * rank + 1u];
     let shape_values_dim = info[dim + 3u * rank + 1u];
@@ -61,4 +61,3 @@ fn main(
         input[index_input_offset + index * stride_input_dim] += values[index_values_offset + i * stride_values_dim];
     }
 }
-

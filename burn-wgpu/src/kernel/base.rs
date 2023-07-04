@@ -35,6 +35,41 @@ macro_rules! kernel_wgsl {
     };
 }
 
+kernel_wgsl!(ContinuousRaw, "../template/continuous.wgsl");
+
+pub(crate) fn into_continuous<E: WgpuElement, const D: usize>(
+    tensor: WgpuTensor<E, D>,
+) -> WgpuTensor<E, D> {
+    if tensor.is_continuous() {
+        return tensor;
+    }
+
+    let buffer = tensor
+        .context
+        .create_buffer(tensor.shape.num_elements() * core::mem::size_of::<E>());
+    let output = WgpuTensor::new(tensor.context.clone(), tensor.shape.clone(), buffer);
+    let info = build_info(&[&tensor, &output]);
+    let info_buffer = tensor
+        .context
+        .create_buffer_with_data(bytemuck::cast_slice(&info));
+
+    let kernel = tensor
+        .context
+        .compile_static::<KernelSettings<ContinuousRaw, E, i32, 256, 1, 1>>();
+
+    tensor.context.execute(
+        WorkGroup::new(
+            f32::ceil(output.shape.num_elements() as f32 / 256_f32) as u32,
+            1,
+            1,
+        ),
+        kernel,
+        &[&tensor.buffer, &output.buffer, &info_buffer],
+    );
+
+    output
+}
+
 /// Generates kernel source code by replacing some information using templating.
 pub struct KernelSettings<
     K: StaticKernel,

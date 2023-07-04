@@ -14,13 +14,22 @@ var<storage, read> value: array<{{ elem }}>;
 @binding(3)
 var<storage, read> info: array<u32>;
 
+const WORKGROUP_SIZE_X = {{ workgroup_size_x }}u;
+
 @compute
-@workgroup_size({{ workgroup_size_x }}, 1, 1)
-fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
+@workgroup_size({{ workgroup_size_x }}, {{ workgroup_size_y }}, 1)
+fn main(
+    @builtin(global_invocation_id) global_id: vec3<u32>,
+    @builtin(num_workgroups) num_workgroups: vec3<u32>,
+) {
     let rank = info[0];
     let dim = info[3u * rank + 1u];
+
     let shape = info[dim + rank + 1u];
     let stride = info[dim + 1u];
+
+    let id_local = global_id.y * (num_workgroups.x * WORKGROUP_SIZE_X) + global_id.x;
+    let id_global = id_local * shape;
 
     var num_elems = 1u;
     var index_offset = 0u;
@@ -31,12 +40,12 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
             let shape_input = info[i + rank];
             let stride_tmp = info[i + 2u * rank];
 
-            index_offset += global_id.x / stride_tmp % shape_input * stride_input;
             num_elems *= shape_input;
+            index_offset += id_global / stride_tmp % shape_input * stride_input;
         }
     }
 
-    if global_id.x >= num_elems {
+    if id_local >= num_elems {
         return;
     }
 

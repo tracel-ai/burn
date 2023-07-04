@@ -86,7 +86,7 @@ where
         tensor: IntTensor<Self, D>,
         indexes: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        BaseOps::<G>::gather(dim, tensor, indexes)
+        kernel::gather(dim, tensor, indexes)
     }
 
     fn int_scatter<const D: usize>(
@@ -95,7 +95,7 @@ where
         indexes: IntTensor<Self, D>,
         value: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        BaseOps::<G>::scatter(dim, tensor, indexes, value)
+        kernel::scatter(dim, tensor, indexes, value)
     }
 
     fn int_select<const D: usize>(

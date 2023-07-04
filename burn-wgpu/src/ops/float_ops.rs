@@ -138,8 +138,8 @@ where
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        let lhs = BaseOps::<G>::into_continuous(lhs);
-        let rhs = BaseOps::<G>::into_continuous(rhs);
+        let lhs = kernel::into_continuous(lhs);
+        let rhs = kernel::into_continuous(rhs);
 
         matmul_tiling_2d_default::<FloatElem<Self>, D>(lhs, rhs)
     }
@@ -164,7 +164,7 @@ where
         tensor: FloatTensor<Self, D>,
         indexes: IntTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        BaseOps::<G>::gather(dim, tensor, indexes)
+        kernel::gather(dim, tensor, indexes)
     }
 
     fn scatter<const D: usize>(
@@ -173,7 +173,7 @@ where
         indexes: IntTensor<Self, D>,
         value: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        BaseOps::<G>::scatter(dim, tensor, indexes, value)
+        kernel::scatter(dim, tensor, indexes, value)
     }
 
     fn select<const D: usize>(

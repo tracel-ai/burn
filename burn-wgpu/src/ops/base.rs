@@ -1,12 +1,10 @@
 use crate::{
     comparison, comparison_elem, comparison_elem_inplace, comparison_inplace,
-    context::WorkGroup,
     element::WgpuElement,
     kernel::{
-        build_info, cat, comparison, comparison_elem, comparison_elem_inplace, comparison_inplace,
-        mask_fill, mask_fill_inplace, mask_where, mask_where_inplace, KernelSettings,
+        self, cat, comparison, comparison_elem, comparison_elem_inplace, comparison_inplace,
+        mask_fill, mask_fill_inplace, mask_where, mask_where_inplace,
     },
-    kernel_wgsl,
     pool::get_context,
     tensor::WgpuTensor,
     GraphicsApi, WgpuDevice,
@@ -63,7 +61,7 @@ impl<G: GraphicsApi> BaseOps<G> {
     }
 
     pub fn into_data<E: WgpuElement, const D: usize>(tensor: WgpuTensor<E, D>) -> Data<E, D> {
-        let tensor = Self::into_continuous(tensor);
+        let tensor = kernel::into_continuous(tensor);
         let bytes = tensor.context.read_buffer(tensor.buffer);
         let values = E::from_bytes(&bytes);
 
@@ -109,44 +107,9 @@ impl<G: GraphicsApi> BaseOps<G> {
         shape: Shape<D2>,
     ) -> WgpuTensor<E, D2> {
         // TODO: Not force standard layout all the time (improve performance).
-        let tensor = Self::into_continuous(tensor);
+        let tensor = kernel::into_continuous(tensor);
 
         WgpuTensor::new(tensor.context, shape, tensor.buffer)
-    }
-
-    pub fn into_continuous<E: WgpuElement, const D: usize>(
-        tensor: WgpuTensor<E, D>,
-    ) -> WgpuTensor<E, D> {
-        if tensor.is_continuous() {
-            return tensor;
-        }
-
-        kernel_wgsl!(ContinuousRaw, "../template/continuous.wgsl");
-
-        let buffer = tensor
-            .context
-            .create_buffer(tensor.shape.num_elements() * core::mem::size_of::<E>());
-        let output = WgpuTensor::new(tensor.context.clone(), tensor.shape.clone(), buffer);
-        let info = build_info(&[&tensor, &output]);
-        let info_buffer = tensor
-            .context
-            .create_buffer_with_data(bytemuck::cast_slice(&info));
-
-        let kernel = tensor
-            .context
-            .compile_static::<KernelSettings<ContinuousRaw, E, i32, 256, 1, 1>>();
-
-        tensor.context.execute(
-            WorkGroup::new(
-                f32::ceil(output.shape.num_elements() as f32 / 256_f32) as u32,
-                1,
-                1,
-            ),
-            kernel,
-            &[&tensor.buffer, &output.buffer, &info_buffer],
-        );
-
-        output
     }
 
     pub fn equal<E: WgpuElement, const D: usize>(
@@ -316,108 +279,5 @@ impl<G: GraphicsApi> BaseOps<G> {
         dim: usize,
     ) -> WgpuTensor<E, D> {
         cat(tensors, dim)
-    }
-
-    pub fn gather<E: WgpuElement, I: WgpuElement, const D: usize>(
-        dim: usize,
-        tensor: WgpuTensor<E, D>,
-        indexes: WgpuTensor<I, D>,
-    ) -> WgpuTensor<E, D> {
-        kernel_wgsl!(Gather, "../template/gather.wgsl");
-        let shape_output = indexes.shape.clone();
-        let indexes = Self::into_continuous(indexes);
-
-        let buffer = tensor
-            .context
-            .create_buffer(shape_output.num_elements() * core::mem::size_of::<E>());
-        let output = WgpuTensor::new(tensor.context.clone(), shape_output, buffer);
-        let mut info = build_info(&[&tensor, &output]);
-        info.push(dim as u32);
-        let info_buffer = tensor
-            .context
-            .create_buffer_with_data(bytemuck::cast_slice(&info));
-
-        let kernel = tensor
-            .context
-            .compile_static::<KernelSettings<Gather, E, i32, 256, 1, 1>>();
-
-        tensor.context.execute(
-            WorkGroup::new(
-                f32::ceil(output.shape.num_elements() as f32 / 256_f32) as u32,
-                1,
-                1,
-            ),
-            kernel,
-            &[
-                &tensor.buffer,
-                &indexes.buffer,
-                &output.buffer,
-                &info_buffer,
-            ],
-        );
-
-        output
-    }
-
-    pub fn scatter<E: WgpuElement, I: WgpuElement, const D: usize>(
-        dim: usize,
-        tensor: WgpuTensor<E, D>,
-        indexes: WgpuTensor<I, D>,
-        value: WgpuTensor<E, D>,
-    ) -> WgpuTensor<E, D> {
-        kernel_wgsl!(Scatter, "../template/scatter.wgsl");
-
-        const WORKGROUP: usize = 256;
-
-        let indexes = Self::into_continuous(indexes);
-        let tensor = Self::into_continuous(tensor);
-        let value = Self::into_continuous(value);
-        let tensor = match tensor.can_mut() {
-            true => tensor,
-            false => tensor.copy(),
-        };
-        let mut info = build_info(&[&tensor]);
-        let mut strides = [0; D];
-        let mut current = 1;
-        let mut num_elems_per_workgroup = 1;
-
-        tensor
-            .shape
-            .dims
-            .iter()
-            .enumerate()
-            .rev()
-            .filter(|(index, _val)| *index != dim)
-            .for_each(|(index, val)| {
-                strides[index] = current;
-                current *= val;
-                num_elems_per_workgroup *= tensor.shape.dims[index];
-            });
-
-        strides
-            .into_iter()
-            .for_each(|stride| info.push(stride as u32));
-
-        info.push(dim as u32);
-
-        let info_buffer = tensor
-            .context
-            .create_buffer_with_data(bytemuck::cast_slice(&info));
-
-        let kernel = tensor
-            .context
-            .compile_static::<KernelSettings<Scatter, E, i32, WORKGROUP, 1, 1>>();
-
-        tensor.context.execute(
-            WorkGroup::new(
-                f32::ceil(num_elems_per_workgroup as f32 / WORKGROUP as f32) as u32,
-                1,
-                1,
-            ),
-            kernel,
-            &[&tensor.buffer, &indexes.buffer, &value.buffer, &info_buffer],
-        );
-
-        tensor
     }
 }
