@@ -77,7 +77,7 @@ fn main(
     var register_M: array<{{ elem }}, T_M>;
     var register_N: array<{{ elem }}, T_N>;
 
-    for (var k = 0u; k < K; k += B_K) { 
+    for (var k = 0u; k < K; k += B_K) {
         // sm_limit ensures that although there are up to B_M x B_N writes to memory, 
         // shared memories remain B_M x B_K (lhs) or B_K x B_N (rhs)
         // also ensures we do not read out of matrices if M % B_M != 0 or N % B_N != 0
