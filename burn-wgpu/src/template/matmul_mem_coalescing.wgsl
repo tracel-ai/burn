@@ -47,7 +47,7 @@ fn main(
     let batch_dims = dim - 2u;
     for (var b: u32 = 1u; b <= batch_dims; b++) {
         let stride_lhs = info[b];
-        let stride_rhs = info[b + 1u * dim];
+        let stride_rhs = info[b + dim];
         let stride_output = info[b + 2u * dim];
         let shape_lhs = info[b + 3u * dim];
         let shape_rhs = info[b + 4u * dim];

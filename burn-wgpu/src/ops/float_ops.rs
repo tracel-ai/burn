@@ -1,7 +1,7 @@
 use super::numeric::NumericOps;
 use super::{BaseOps, BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
 use crate::kernel::{
-    matmul, unary_default, unary_inplace_default, unary_scalar_default,
+    matmul_tiling_2d_default, unary_default, unary_inplace_default, unary_scalar_default,
     unary_scalar_inplace_default,
 };
 use crate::unary_scalar_inplace;
@@ -141,7 +141,7 @@ where
         let lhs = BaseOps::<G>::into_continuous(lhs);
         let rhs = BaseOps::<G>::into_continuous(rhs);
 
-        matmul::<FloatElem<Self>, D>(lhs, rhs)
+        matmul_tiling_2d_default::<FloatElem<Self>, D>(lhs, rhs)
     }
 
     fn swap_dims<const D: usize>(
