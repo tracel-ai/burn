@@ -87,8 +87,9 @@ pub(crate) fn select_assign<E: WgpuElement, I: WgpuElement, const D: usize, cons
     let mut shape_tmp = values.shape;
     shape_tmp.dims[dim] = 1; // Just one thread for the dim.
 
+    let workgroup = elemwise_workgroup(shape_tmp.num_elements(), WORKGROUP);
     tensor.context.execute(
-        elemwise_workgroup(shape_tmp.num_elements(), WORKGROUP),
+        workgroup,
         kernel,
         &[
             &tensor.buffer,
@@ -127,13 +128,14 @@ mod tests {
     #[test]
     fn select_assign_should_work_with_multiple_workgroups() {
         TestBackend::seed(0);
-        let tensor = Tensor::<TestBackend, 2>::random([6, 32], Distribution::Standard);
-        let value = Tensor::<TestBackend, 2>::random([6, 32], Distribution::Standard);
+        let tensor = Tensor::<TestBackend, 2>::random([6, 256], Distribution::Standard);
+        let value = Tensor::<TestBackend, 2>::random([6, 256], Distribution::Standard);
         let indices = Tensor::<TestBackend, 1, Int>::from_data(
-            Tensor::<TestBackend, 1>::random([32], Distribution::Uniform(0., 32.))
+            Tensor::<TestBackend, 1>::random([256], Distribution::Uniform(0., 256.))
                 .into_data()
                 .convert(),
         );
+        println!("{indices}");
         let tensor_ref = Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data());
         let value_ref = Tensor::<ReferenceBackend, 2>::from_data(value.to_data());
         let indices_ref =

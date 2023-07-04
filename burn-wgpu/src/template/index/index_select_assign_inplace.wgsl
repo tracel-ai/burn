@@ -22,41 +22,37 @@ fn main(
     @builtin(global_invocation_id) global_id: vec3<u32>,
     @builtin(num_workgroups) num_workgroups: vec3<u32>,
 ) {
-    let id = global_id.y * (num_workgroups.x * WORKGROUP_SIZE_X) + global_id.x;
     let rank = info[0];
     let dim = info[4u * rank + 1u];
 
     var index_input_offset = 0u;
     var index_values_offset = 0u;
 
-    var stride_input_dim = 0u;
-    var stride_values_dim = 0u;
+    let stride_input_dim = info[dim + 1u];
+    var stride_values_dim = info[dim + rank + 1u];
 
-    var shape_input_dim = 0u;
-    var shape_values_dim = 0u;
+    let shape_input_dim = info[dim + 2u * rank + 1u];
+    let shape_values_dim = info[dim + 3u * rank + 1u];
+    let id_local = global_id.y * (num_workgroups.x * WORKGROUP_SIZE_X) + global_id.x;
+    let id_global = id_local * shape_input_dim;
 
     var num_elem = 1u;
 
     for (var i = 1u; i <= rank; i++) {
-        let stride_input = info[i];
-        let stride_values = info[i + rank];
-        let shape_input = info[i + 2u * rank];
-        let shape_values = info[i + 3u * rank];
-
         if i - 1u != dim {
-            index_input_offset += id / stride_input % shape_input * stride_input;
-            index_values_offset += id / stride_values % shape_values * stride_values;
-            num_elem += shape_input;
-        } else {
-            shape_input_dim = shape_input;
-            shape_values_dim = shape_values;
+            let stride_input = info[i];
+            let stride_values = info[i + rank];
+            let shape_input = info[i + 2u * rank];
+            let shape_values = info[i + 3u * rank];
 
-            stride_input_dim = stride_input;
-            stride_values_dim = stride_values;
+
+            num_elem *= shape_input;
+            index_input_offset += id_global / stride_input % shape_input * stride_input;
+            index_values_offset += id_global / stride_values % shape_values * stride_values;
         }
     }
 
-    if id > num_elem {
+    if id_local >= num_elem {
         return;
     }
 
