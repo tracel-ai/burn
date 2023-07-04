@@ -305,13 +305,13 @@ impl<E: FloatNdArrayElement> IntTensorOps<NdArrayBackend<E>> for NdArrayBackend<
         NdArrayMathOps::index_select(tensor, dim, indexes)
     }
 
-    fn int_select_assign<const D1: usize, const D2: usize>(
-        tensor: NdArrayTensor<i64, D1>,
+    fn int_select_assign<const D: usize>(
+        tensor: NdArrayTensor<i64, D>,
         dim: usize,
         indexes: NdArrayTensor<i64, 1>,
-        value: NdArrayTensor<i64, D2>,
-    ) -> NdArrayTensor<i64, D1> {
-        NdArrayMathOps::index_select_assign(tensor, dim, indexes, value)
+        value: NdArrayTensor<i64, D>,
+    ) -> NdArrayTensor<i64, D> {
+        NdArrayMathOps::select_assign(tensor, dim, indexes, value)
     }
     fn int_argmax<const D: usize>(
         tensor: NdArrayTensor<i64, D>,

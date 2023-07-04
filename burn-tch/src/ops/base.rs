@@ -92,14 +92,14 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         TchTensor::from_existing(tensor, storage)
     }
 
-    pub fn index_select_dim_assign<const D1: usize, const D2: usize>(
-        tensor: TchTensor<E, D1>,
+    pub fn select_assign<const D: usize>(
+        tensor: TchTensor<E, D>,
         dim: usize,
         indexes: TchTensor<i64, 1>,
-        value: TchTensor<E, D2>,
-    ) -> TchTensor<E, D1> {
-        let mut indices = Vec::with_capacity(D1);
-        for _ in 0..D1 {
+        value: TchTensor<E, D>,
+    ) -> TchTensor<E, D> {
+        let mut indices = Vec::with_capacity(D);
+        for _ in 0..D {
             indices.push(None);
         }
         indices[dim] = Some(indexes.tensor);

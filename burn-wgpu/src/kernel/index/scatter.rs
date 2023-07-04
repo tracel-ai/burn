@@ -54,10 +54,8 @@ pub(crate) fn scatter<E: WgpuElement, I: WgpuElement, const D: usize>(
         .context
         .compile_static::<KernelSettings<Scatter, E, i32, WORKGROUP, WORKGROUP, 1>>();
 
-    let workgroup = elemwise_workgroup(num_elems_per_workgroup, WORKGROUP);
-    println!("{workgroup:?}");
     tensor.context.execute(
-        workgroup,
+        elemwise_workgroup(num_elems_per_workgroup, WORKGROUP),
         kernel,
         &[&tensor.buffer, &indexes.buffer, &value.buffer, &info_buffer],
     );
@@ -72,28 +70,55 @@ mod tests {
     use burn_tensor::{backend::Backend, Distribution, Int, Tensor};
 
     #[test]
-    fn scatter_should_work_with_multiple_workgroups() {
-        TestBackend::seed(0);
-        let tensor = Tensor::<TestBackend, 2>::random([6, 256], Distribution::Standard);
-        let value = Tensor::<TestBackend, 2>::random([6, 256], Distribution::Standard);
-        let indices = Tensor::<TestBackend, 1, Int>::from_data(
-            Tensor::<TestBackend, 1>::random([6 * 256], Distribution::Uniform(0., 256.))
-                .into_data()
-                .convert(),
-        )
-        .reshape([6, 256]);
-        let tensor_ref = Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data());
-        let value_ref = Tensor::<ReferenceBackend, 2>::from_data(value.to_data());
-        let indices_ref =
-            Tensor::<ReferenceBackend, 2, Int>::from_data(indices.to_data().convert());
+    fn scatter_should_work_with_multiple_workgroups_2d_dim0() {
+        same_as_reference(0, [256, 32]);
+    }
 
-        let actual = Tensor::<TestBackend, 2>::from_primitive(scatter(
-            1,
+    #[test]
+    fn scatter_should_work_with_multiple_workgroups_2d_dim1() {
+        same_as_reference(1, [32, 256]);
+    }
+
+    #[test]
+    fn scatter_should_work_with_multiple_workgroups_3d_dim0() {
+        same_as_reference(0, [256, 6, 6]);
+    }
+
+    #[test]
+    fn scatter_should_work_with_multiple_workgroups_3d_dim1() {
+        same_as_reference(1, [6, 256, 6]);
+    }
+
+    #[test]
+    fn scatter_should_work_with_multiple_workgroups_3d_dim2() {
+        same_as_reference(2, [6, 6, 256]);
+    }
+
+    fn same_as_reference<const D: usize>(dim: usize, shape: [usize; D]) {
+        TestBackend::seed(0);
+        let tensor = Tensor::<TestBackend, D>::random(shape, Distribution::Standard);
+        let value = Tensor::<TestBackend, D>::random(shape, Distribution::Standard);
+        let indices = Tensor::<TestBackend, 1, Int>::from_data(
+            Tensor::<TestBackend, 1>::random(
+                [shape.iter().fold(1, |acc, b| acc * b)],
+                Distribution::Uniform(0., shape[dim] as f32),
+            )
+            .into_data()
+            .convert(),
+        )
+        .reshape(shape);
+        let tensor_ref = Tensor::<ReferenceBackend, D>::from_data(tensor.to_data());
+        let value_ref = Tensor::<ReferenceBackend, D>::from_data(value.to_data());
+        let indices_ref =
+            Tensor::<ReferenceBackend, D, Int>::from_data(indices.to_data().convert());
+
+        let actual = Tensor::<TestBackend, D>::from_primitive(scatter(
+            dim,
             tensor.into_primitive(),
             indices.into_primitive(),
             value.into_primitive(),
         ));
-        let expected = tensor_ref.scatter(1, indices_ref, value_ref);
+        let expected = tensor_ref.scatter(dim, indices_ref, value_ref);
 
         expected
             .into_data()

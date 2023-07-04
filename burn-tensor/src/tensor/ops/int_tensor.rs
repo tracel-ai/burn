@@ -228,12 +228,12 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the selected elements assigned to the given value.
-    fn int_select_assign<const D1: usize, const D2: usize>(
-        tensor: B::IntTensorPrimitive<D1>,
+    fn int_select_assign<const D: usize>(
+        tensor: B::IntTensorPrimitive<D>,
         dim: usize,
         indices: B::IntTensorPrimitive<1>,
-        value: B::IntTensorPrimitive<D2>,
-    ) -> B::IntTensorPrimitive<D1>;
+        value: B::IntTensorPrimitive<D>,
+    ) -> B::IntTensorPrimitive<D>;
 
     /// Repeats the tensor along the given dimension the given number of times.
     ///

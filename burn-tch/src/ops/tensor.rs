@@ -204,13 +204,13 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         TchOps::index_select_dim(tensor, dim, indexes)
     }
 
-    fn select_assign<const D1: usize, const D2: usize>(
-        tensor: TchTensor<E, D1>,
+    fn select_assign<const D: usize>(
+        tensor: TchTensor<E, D>,
         dim: usize,
         indexes: TchTensor<i64, 1>,
-        value: TchTensor<E, D2>,
-    ) -> TchTensor<E, D1> {
-        TchOps::index_select_dim_assign(tensor, dim, indexes, value)
+        value: TchTensor<E, D>,
+    ) -> TchTensor<E, D> {
+        TchOps::select_assign(tensor, dim, indexes, value)
     }
 
     fn slice<const D1: usize, const D2: usize>(

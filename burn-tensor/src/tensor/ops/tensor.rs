@@ -440,12 +440,12 @@ pub trait TensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the selected elements assigned to the given value.
-    fn select_assign<const D1: usize, const D2: usize>(
-        tensor: B::TensorPrimitive<D1>,
+    fn select_assign<const D: usize>(
+        tensor: B::TensorPrimitive<D>,
         dim: usize,
         indices: B::IntTensorPrimitive<1>,
-        value: B::TensorPrimitive<D2>,
-    ) -> B::TensorPrimitive<D1>;
+        value: B::TensorPrimitive<D>,
+    ) -> B::TensorPrimitive<D>;
 
     /// Select tensor elements corresponding for the given ranges.
     ///

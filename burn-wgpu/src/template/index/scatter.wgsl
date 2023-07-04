@@ -22,14 +22,12 @@ fn main(
     @builtin(global_invocation_id) global_id: vec3<u32>,
     @builtin(num_workgroups) num_workgroups: vec3<u32>,
 ) {
+    let id = global_id.y * (num_workgroups.x * WORKGROUP_SIZE_X) + global_id.x;
     let rank = info[0];
     let dim = info[3u * rank + 1u];
 
     let shape = info[dim + rank + 1u];
     let stride = info[dim + 1u];
-
-    let id_local = global_id.y * (num_workgroups.x * WORKGROUP_SIZE_X) + global_id.x;
-    let id_global = id_local * shape;
 
     var num_elems = 1u;
     var index_offset = 0u;
@@ -41,11 +39,11 @@ fn main(
             let stride_tmp = info[i + 2u * rank];
 
             num_elems *= shape_input;
-            index_offset += id_global / stride_tmp % shape_input * stride_input;
+            index_offset += id / stride_tmp % shape_input * stride_input;
         }
     }
 
-    if id_local >= num_elems {
+    if id >= num_elems {
         return;
     }
 

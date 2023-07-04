@@ -282,15 +282,15 @@ where
     /// `input[indices[i], j, k] += values[i, j, k]; // dim = 0`
     /// `input[i, indices[j], k] += values[i, j, k]; // dim = 1`
     /// `input[i, j, indices[k]] += values[i, j, k]; // dim = 2`
-    pub fn select_assign<const D2: usize>(
+    pub fn select_assign(
         self,
         dim: usize,
         indices: Tensor<B, 1, Int>,
-        values: Tensor<B, D2, K>,
+        values: Tensor<B, D, K>,
     ) -> Self {
         check!(TensorCheck::select_assign::<D>(dim));
 
-        Self::new(K::index_select_assign(
+        Self::new(K::select_assign(
             self.primitive,
             dim,
             indices,
@@ -1112,12 +1112,12 @@ where
     ///
     /// For assigning elements to a tensor along an axis, users should prefer the
     /// [Tensor::index_select_assign](Tensor::index_select_assign) function, which is more high-level and designed for public use.
-    fn index_select_assign<const D1: usize, const D2: usize>(
-        tensor: Self::Primitive<D1>,
+    fn select_assign<const D: usize>(
+        tensor: Self::Primitive<D>,
         dim: usize,
         indices: Tensor<B, 1, Int>,
-        values: Self::Primitive<D2>,
-    ) -> Self::Primitive<D1>;
+        values: Self::Primitive<D>,
+    ) -> Self::Primitive<D>;
 
     /// Gets the indices of the maximum elements of a tensor along an axis.
     ///
@@ -1449,12 +1449,12 @@ impl<B: Backend> Numeric<B> for Int {
         B::int_select(tensor, dim, indices.primitive)
     }
 
-    fn index_select_assign<const D1: usize, const D2: usize>(
-        tensor: Self::Primitive<D1>,
+    fn select_assign<const D: usize>(
+        tensor: Self::Primitive<D>,
         dim: usize,
         indices: Tensor<B, 1, Int>,
-        values: Self::Primitive<D2>,
-    ) -> Self::Primitive<D1> {
+        values: Self::Primitive<D>,
+    ) -> Self::Primitive<D> {
         B::int_select_assign(tensor, dim, indices.primitive, values)
     }
     fn gather<const D: usize>(
@@ -1670,12 +1670,12 @@ impl<B: Backend> Numeric<B> for Float {
         B::select(tensor, dim, indices.primitive)
     }
 
-    fn index_select_assign<const D1: usize, const D2: usize>(
-        tensor: Self::Primitive<D1>,
+    fn select_assign<const D: usize>(
+        tensor: Self::Primitive<D>,
         dim: usize,
         indices: Tensor<B, 1, Int>,
-        values: Self::Primitive<D2>,
-    ) -> Self::Primitive<D1> {
+        values: Self::Primitive<D>,
+    ) -> Self::Primitive<D> {
         B::select_assign(tensor, dim, indices.primitive, values)
     }
 

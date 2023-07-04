@@ -256,13 +256,13 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
         TchOps::index_select_dim(tensor, dim, indexes)
     }
 
-    fn int_select_assign<const D1: usize, const D2: usize>(
-        tensor: TchTensor<i64, D1>,
+    fn int_select_assign<const D: usize>(
+        tensor: TchTensor<i64, D>,
         dim: usize,
         indexes: TchTensor<i64, 1>,
-        value: TchTensor<i64, D2>,
-    ) -> TchTensor<i64, D1> {
-        TchOps::index_select_dim_assign(tensor, dim, indexes, value)
+        value: TchTensor<i64, D>,
+    ) -> TchTensor<i64, D> {
+        TchOps::select_assign(tensor, dim, indexes, value)
     }
 
     fn int_mask_where<const D: usize>(

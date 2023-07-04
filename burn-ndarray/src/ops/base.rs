@@ -362,7 +362,7 @@ where
         NdArrayTensor::new(array.into_shared())
     }
 
-    pub fn index_select_assign<const D1: usize, const D2: usize>(
+    pub fn select_assign<const D1: usize, const D2: usize>(
         tensor: NdArrayTensor<E, D1>,
         dim: usize,
         indexes: NdArrayTensor<i64, 1>,

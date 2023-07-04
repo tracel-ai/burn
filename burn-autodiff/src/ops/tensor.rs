@@ -563,23 +563,23 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
-    fn select_assign<const D1: usize, const D2: usize>(
-        tensor: ADTensor<B, D1>,
+    fn select_assign<const D: usize>(
+        tensor: ADTensor<B, D>,
         dim: usize,
         indexes: IntTensor<B, 1>,
-        value: ADTensor<B, D2>,
-    ) -> ADTensor<B, D1> {
+        value: ADTensor<B, D>,
+    ) -> ADTensor<B, D> {
         #[derive(Debug)]
-        struct IndexSelectDimAssign<const D2: usize>;
+        struct IndexSelectDimAssign<const D: usize>;
 
-        impl<B: Backend, const D1: usize, const D2: usize> Backward<B, D1, 2> for IndexSelectDimAssign<D2> {
-            type State = (usize, IntTensor<B, 1>, Shape<D1>, Shape<D2>, B::Device);
+        impl<B: Backend, const D: usize> Backward<B, D, 2> for IndexSelectDimAssign<D> {
+            type State = (usize, IntTensor<B, 1>, Shape<D>, Shape<D>, B::Device);
 
             fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
                 let (dim, indexes, shape_lhs, shape_rhs, device) = ops.state;
                 let [indexes_4lhs, indexes_4rhs] = duplicate(&ops.parents, Some(indexes));
 
-                binary::<B, D1, D1, D2, _, _>(
+                binary::<B, D, D, D, _, _>(
                     ops.parents,
                     ops.node,
                     grads,
@@ -595,7 +595,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        match IndexSelectDimAssign::<D2>
+        match IndexSelectDimAssign::<D>
             .prepare([tensor.node, value.node], [tensor.graph, value.graph])
             .statefull()
         {

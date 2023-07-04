@@ -184,12 +184,12 @@ where
         kernel::select(tensor, dim, indexes)
     }
 
-    fn select_assign<const D1: usize, const D2: usize>(
-        tensor: FloatTensor<Self, D1>,
+    fn select_assign<const D: usize>(
+        tensor: FloatTensor<Self, D>,
         dim: usize,
         indexes: IntTensor<Self, 1>,
-        value: FloatTensor<Self, D2>,
-    ) -> FloatTensor<Self, D1> {
+        value: FloatTensor<Self, D>,
+    ) -> FloatTensor<Self, D> {
         kernel::select_assign(tensor, dim, indexes, value)
     }
 

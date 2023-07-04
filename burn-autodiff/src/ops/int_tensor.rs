@@ -220,12 +220,12 @@ impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         B::int_select(tensor, dim, indexes)
     }
 
-    fn int_select_assign<const D1: usize, const D2: usize>(
-        tensor: IntTensor<B, D1>,
+    fn int_select_assign<const D: usize>(
+        tensor: IntTensor<B, D>,
         dim: usize,
         indexes: IntTensor<B, 1>,
-        value: IntTensor<B, D2>,
-    ) -> IntTensor<B, D1> {
+        value: IntTensor<B, D>,
+    ) -> IntTensor<B, D> {
         B::int_select_assign(tensor, dim, indexes, value)
     }
 

@@ -1,13 +1,13 @@
 use crate::{
     element::WgpuElement,
-    kernel::{build_info, elemwise_workgroup, KernelSettings},
+    kernel::{self, build_info, elemwise_workgroup, KernelSettings},
     kernel_wgsl,
     tensor::WgpuTensor,
 };
 
 kernel_wgsl!(IndexSelect, "../../template/index/index_select.wgsl");
 kernel_wgsl!(
-    IndexSelectAssignInplace,
+    SelectAssignInplace,
     "../../template/index/index_select_assign_inplace.wgsl"
 );
 
@@ -52,51 +52,61 @@ pub(crate) fn select<E: WgpuElement, I: WgpuElement, const D: usize>(
     output
 }
 
-pub(crate) fn select_assign<E: WgpuElement, I: WgpuElement, const D: usize, const D2: usize>(
+pub(crate) fn select_assign<E: WgpuElement, I: WgpuElement, const D: usize>(
     tensor: WgpuTensor<E, D>,
     dim: usize,
     indexes: WgpuTensor<I, 1>,
-    values: WgpuTensor<E, D2>,
+    values: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     const WORKGROUP: usize = 32;
 
+    let indexes = kernel::into_continuous(indexes);
+    let tensor = kernel::into_continuous(tensor);
+    let value = kernel::into_continuous(values);
     let tensor = match tensor.can_mut() {
         true => tensor,
         false => tensor.copy(),
     };
 
-    let mut shape = tensor.shape.clone();
-    shape.dims[dim] = values.shape.dims[dim];
-    let values = WgpuTensor::new(values.context, shape, values.buffer);
-    let mut info = build_info(&[&tensor, &values]);
+    println!("{:?}", indexes.shape.dims);
+    println!("{:?}", tensor.shape.dims);
+    println!("{:?}", value.shape.dims);
+    let mut info = build_info(&[&tensor]);
+    let mut strides = [0; D];
+    let mut current = 1;
+    let mut num_elems_per_workgroup = 1;
+
+    tensor
+        .shape
+        .dims
+        .iter()
+        .enumerate()
+        .rev()
+        .filter(|(index, _val)| *index != dim)
+        .for_each(|(index, val)| {
+            strides[index] = current;
+            current *= val;
+            num_elems_per_workgroup *= tensor.shape.dims[index];
+        });
+
+    strides
+        .into_iter()
+        .for_each(|stride| info.push(stride as u32));
+
     info.push(dim as u32);
 
     let info_buffer = tensor
         .context
         .create_buffer_with_data(bytemuck::cast_slice(&info));
 
-    let kernel = tensor.context.compile_static::<KernelSettings<
-        IndexSelectAssignInplace,
-        E,
-        I,
-        WORKGROUP,
-        WORKGROUP,
-        1,
-    >>();
+    let kernel = tensor
+        .context
+        .compile_static::<KernelSettings<SelectAssignInplace, E, I, WORKGROUP, WORKGROUP, 1>>();
 
-    let mut shape_tmp = values.shape;
-    shape_tmp.dims[dim] = 1; // Just one thread for the dim.
-
-    let workgroup = elemwise_workgroup(shape_tmp.num_elements(), WORKGROUP);
     tensor.context.execute(
-        workgroup,
+        elemwise_workgroup(num_elems_per_workgroup, WORKGROUP),
         kernel,
-        &[
-            &tensor.buffer,
-            &indexes.buffer,
-            &values.buffer,
-            &info_buffer,
-        ],
+        &[&tensor.buffer, &indexes.buffer, &value.buffer, &info_buffer],
     );
 
     tensor
@@ -126,27 +136,39 @@ mod tests {
     }
 
     #[test]
-    fn select_assign_should_work_with_multiple_workgroups() {
+    fn select_assign_should_work_with_multiple_workgroups_2d_dim0() {
+        select_assign_same_as_ref(0, [256, 6]);
+    }
+
+    #[test]
+    fn select_assign_should_work_with_multiple_workgroups_2d_dim1() {
+        select_assign_same_as_ref(1, [6, 256]);
+    }
+
+    fn select_assign_same_as_ref<const D: usize>(dim: usize, shape: [usize; D]) {
         TestBackend::seed(0);
-        let tensor = Tensor::<TestBackend, 2>::random([6, 256], Distribution::Standard);
-        let value = Tensor::<TestBackend, 2>::random([6, 256], Distribution::Standard);
+        let tensor = Tensor::<TestBackend, D>::random(shape, Distribution::Standard);
+        let value = Tensor::<TestBackend, D>::random(shape, Distribution::Standard);
         let indices = Tensor::<TestBackend, 1, Int>::from_data(
-            Tensor::<TestBackend, 1>::random([256], Distribution::Uniform(0., 256.))
-                .into_data()
-                .convert(),
+            Tensor::<TestBackend, 1>::random(
+                [shape[dim]],
+                Distribution::Uniform(0., shape[dim] as f32),
+            )
+            .into_data()
+            .convert(),
         );
-        let tensor_ref = Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data());
-        let value_ref = Tensor::<ReferenceBackend, 2>::from_data(value.to_data());
+        let tensor_ref = Tensor::<ReferenceBackend, D>::from_data(tensor.to_data());
+        let value_ref = Tensor::<ReferenceBackend, D>::from_data(value.to_data());
         let indices_ref =
             Tensor::<ReferenceBackend, 1, Int>::from_data(indices.to_data().convert());
 
-        let actual = Tensor::<TestBackend, 2>::from_primitive(select_assign(
+        let actual = Tensor::<TestBackend, D>::from_primitive(select_assign(
             tensor.into_primitive(),
             1,
             indices.into_primitive(),
             value.into_primitive(),
         ));
-        let expected = tensor_ref.select_assign(1, indices_ref, value_ref);
+        let expected = tensor_ref.select_assign(dim, indices_ref, value_ref);
 
         expected
             .into_data()

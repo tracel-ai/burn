@@ -176,13 +176,13 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         NdArrayMathOps::index_select(tensor, dim, indexes)
     }
 
-    fn select_assign<const D1: usize, const D2: usize>(
-        tensor: NdArrayTensor<E, D1>,
+    fn select_assign<const D: usize>(
+        tensor: NdArrayTensor<E, D>,
         dim: usize,
         indexes: NdArrayTensor<i64, 1>,
-        value: NdArrayTensor<E, D2>,
-    ) -> NdArrayTensor<E, D1> {
-        NdArrayMathOps::index_select_assign(tensor, dim, indexes, value)
+        value: NdArrayTensor<E, D>,
+    ) -> NdArrayTensor<E, D> {
+        NdArrayMathOps::select_assign(tensor, dim, indexes, value)
     }
 
     fn slice<const D1: usize, const D2: usize>(

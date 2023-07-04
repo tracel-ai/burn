@@ -106,12 +106,12 @@ where
         kernel::select(tensor, dim, indexes)
     }
 
-    fn int_select_assign<const D1: usize, const D2: usize>(
-        tensor: IntTensor<Self, D1>,
+    fn int_select_assign<const D: usize>(
+        tensor: IntTensor<Self, D>,
         dim: usize,
         indexes: IntTensor<Self, 1>,
-        value: IntTensor<Self, D2>,
-    ) -> IntTensor<Self, D1> {
+        value: IntTensor<Self, D>,
+    ) -> IntTensor<Self, D> {
         kernel::select_assign(tensor, dim, indexes, value)
     }
 
