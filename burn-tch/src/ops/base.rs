@@ -326,7 +326,7 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         TchTensor::from_existing(tensor, storage)
     }
 
-    pub fn max_dim_with_indexes<const D: usize>(
+    pub fn max_dim_with_indices<const D: usize>(
         tensor: TchTensor<E, D>,
         dim: usize,
     ) -> (TchTensor<E, D>, TchTensor<i64, D>) {
@@ -346,7 +346,7 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         TchTensor::from_existing(tensor, storage)
     }
 
-    pub fn min_dim_with_indexes<const D: usize>(
+    pub fn min_dim_with_indices<const D: usize>(
         tensor: TchTensor<E, D>,
         dim: usize,
     ) -> (TchTensor<E, D>, TchTensor<i64, D>) {

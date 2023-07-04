@@ -525,7 +525,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
-    fn index_select<const D: usize>(
+    fn select<const D: usize>(
         tensor: ADTensor<B, D>,
         dim: usize,
         indexes: IntTensor<B, 1>,
@@ -541,7 +541,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
                     let zeros = B::zeros(shape, &device);
-                    B::index_select_assign(zeros, dim, indexes, grad)
+                    B::select_assign(zeros, dim, indexes, grad)
                 });
             }
         }
@@ -557,15 +557,13 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     B::shape(&tensor.primitive),
                     B::device(&tensor.primitive),
                 ),
-                B::index_select(tensor.primitive, dim, indexes),
+                B::select(tensor.primitive, dim, indexes),
             ),
-            OpsKind::UnTracked(prep) => {
-                prep.finish(B::index_select(tensor.primitive, dim, indexes))
-            }
+            OpsKind::UnTracked(prep) => prep.finish(B::select(tensor.primitive, dim, indexes)),
         }
     }
 
-    fn index_select_assign<const D1: usize, const D2: usize>(
+    fn select_assign<const D1: usize, const D2: usize>(
         tensor: ADTensor<B, D1>,
         dim: usize,
         indexes: IntTensor<B, 1>,
@@ -587,11 +585,11 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     grads,
                     |grad| {
                         let zeros = B::zeros(shape_lhs, &device);
-                        B::index_select_assign(grad, dim, indexes_4lhs.unwrap(), zeros)
+                        B::select_assign(grad, dim, indexes_4lhs.unwrap(), zeros)
                     },
                     |grad| {
                         let zeros = B::zeros(shape_rhs, &device);
-                        B::index_select_assign(zeros, dim, indexes_4rhs.unwrap(), grad)
+                        B::select_assign(zeros, dim, indexes_4rhs.unwrap(), grad)
                     },
                 );
             }
@@ -609,9 +607,9 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     B::shape(&value.primitive),
                     B::device(&value.primitive),
                 ),
-                B::index_select_assign(tensor.primitive, dim, indexes, value.primitive),
+                B::select_assign(tensor.primitive, dim, indexes, value.primitive),
             ),
-            OpsKind::UnTracked(prep) => prep.finish(B::index_select_assign(
+            OpsKind::UnTracked(prep) => prep.finish(B::select_assign(
                 tensor.primitive,
                 dim,
                 indexes,
@@ -620,7 +618,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
-    fn index<const D1: usize, const D2: usize>(
+    fn slice<const D1: usize, const D2: usize>(
         tensor: ADTensor<B, D1>,
         indexes: [std::ops::Range<usize>; D2],
     ) -> ADTensor<B, D1> {
@@ -635,7 +633,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
                 unary::<B, D1, D1, _>(ops.parents, ops.node, grads, |grad| {
                     let zeros = B::zeros(shape, &device);
-                    B::index_assign(zeros, indexes, grad)
+                    B::slice_assign(zeros, indexes, grad)
                 });
             }
         }
@@ -647,13 +645,13 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     B::shape(&tensor.primitive),
                     B::device(&tensor.primitive),
                 ),
-                B::index(tensor.primitive, indexes),
+                B::slice(tensor.primitive, indexes),
             ),
-            OpsKind::UnTracked(prep) => prep.finish(B::index(tensor.primitive, indexes)),
+            OpsKind::UnTracked(prep) => prep.finish(B::slice(tensor.primitive, indexes)),
         }
     }
 
-    fn index_assign<const D1: usize, const D2: usize>(
+    fn slice_assign<const D1: usize, const D2: usize>(
         tensor: ADTensor<B, D1>,
         indexes: [std::ops::Range<usize>; D2],
         value: ADTensor<B, D1>,
@@ -674,9 +672,9 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     grads,
                     |grad| {
                         let zeros = B::zeros(shape_rhs, &device);
-                        B::index_assign(grad, indexes_4lhs.unwrap(), zeros)
+                        B::slice_assign(grad, indexes_4lhs.unwrap(), zeros)
                     },
-                    |grad| B::index(grad, indexes_4rhs.unwrap()),
+                    |grad| B::slice(grad, indexes_4rhs.unwrap()),
                 );
             }
         }
@@ -691,10 +689,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     B::shape(&value.primitive),
                     B::device(&value.primitive),
                 ),
-                B::index_assign(tensor.primitive, indexes, value.primitive),
+                B::slice_assign(tensor.primitive, indexes, value.primitive),
             ),
             OpsKind::UnTracked(prep) => {
-                prep.finish(B::index_assign(tensor.primitive, indexes, value.primitive))
+                prep.finish(B::slice_assign(tensor.primitive, indexes, value.primitive))
             }
         }
     }
@@ -1276,7 +1274,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                         let mut indexes = indexes.clone();
                         indexes[self.dim] = current_index..dim_size + current_index;
                         current_index += dim_size;
-                        grads.register::<B, D>(node, B::index(grad.clone(), indexes));
+                        grads.register::<B, D>(node, B::slice(grad.clone(), indexes));
                     });
             }
 

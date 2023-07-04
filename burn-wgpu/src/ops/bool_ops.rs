@@ -1,14 +1,12 @@
-use std::ops::Range;
-
-use burn_tensor::{ops::BoolTensorOps, ops::IntTensorOps, Data, Shape};
-
+use super::{BaseOps, BoolTensor, Device, IntTensor};
 use crate::{
     element::{FloatElement, IntElement},
+    kernel,
     tensor::WgpuTensor,
     GraphicsApi, WgpuBackend,
 };
-
-use super::{BaseOps, BoolTensor, Device, IntTensor};
+use burn_tensor::{ops::BoolTensorOps, ops::IntTensorOps, Data, Shape};
+use std::ops::Range;
 
 impl<G, F, I> BoolTensorOps<WgpuBackend<G, F, I>> for WgpuBackend<G, F, I>
 where
@@ -80,7 +78,7 @@ where
         tensor: BoolTensor<Self, D1>,
         indexes: [Range<usize>; D2],
     ) -> BoolTensor<Self, D1> {
-        BaseOps::<G>::index(tensor, indexes)
+        kernel::slice(tensor, indexes)
     }
 
     fn bool_index_assign<const D1: usize, const D2: usize>(
@@ -88,7 +86,7 @@ where
         indexes: [Range<usize>; D2],
         value: BoolTensor<Self, D1>,
     ) -> BoolTensor<Self, D1> {
-        BaseOps::<G>::index_assign(tensor, indexes, value)
+        kernel::slice_assign(tensor, indexes, value)
     }
 
     fn bool_cat<const D: usize>(

@@ -1,11 +1,9 @@
-use std::ops::Range;
-
-use burn_tensor::{backend::Backend, ops::IntTensorOps, Data, Shape};
-
 use crate::{
     element::{FloatElement, IntElement},
-    GraphicsApi, WgpuBackend,
+    kernel, GraphicsApi, WgpuBackend,
 };
+use burn_tensor::{ops::IntTensorOps, Data, Shape};
+use std::ops::Range;
 
 use super::{numeric::NumericOps, BaseOps, BoolTensor, Device, IntElem, IntTensor};
 
@@ -52,19 +50,19 @@ where
         BaseOps::<G>::reshape(tensor, shape)
     }
 
-    fn int_index<const D1: usize, const D2: usize>(
+    fn int_slice<const D1: usize, const D2: usize>(
         tensor: IntTensor<Self, D1>,
         indexes: [Range<usize>; D2],
     ) -> IntTensor<Self, D1> {
-        BaseOps::<G>::index(tensor, indexes)
+        kernel::slice(tensor, indexes)
     }
 
-    fn int_index_assign<const D1: usize, const D2: usize>(
+    fn int_slice_assign<const D1: usize, const D2: usize>(
         tensor: IntTensor<Self, D1>,
         indexes: [Range<usize>; D2],
         value: IntTensor<Self, D1>,
     ) -> IntTensor<Self, D1> {
-        BaseOps::<G>::index_assign(tensor, indexes, value)
+        kernel::slice_assign(tensor, indexes, value)
     }
 
     fn int_mask_where<const D: usize>(
@@ -100,21 +98,21 @@ where
         BaseOps::<G>::scatter(dim, tensor, indexes, value)
     }
 
-    fn int_index_select_dim<const D: usize>(
-        _tensor: <WgpuBackend<G, F, I> as Backend>::IntTensorPrimitive<D>,
-        _dim: usize,
-        _indexes: <WgpuBackend<G, F, I> as Backend>::IntTensorPrimitive<1>,
-    ) -> <WgpuBackend<G, F, I> as Backend>::IntTensorPrimitive<D> {
-        todo!()
+    fn int_select<const D: usize>(
+        tensor: IntTensor<Self, D>,
+        dim: usize,
+        indexes: IntTensor<Self, 1>,
+    ) -> IntTensor<Self, D> {
+        kernel::select(tensor, dim, indexes)
     }
 
-    fn int_index_select_dim_assign<const D1: usize, const D2: usize>(
-        _tensor: <WgpuBackend<G, F, I> as Backend>::IntTensorPrimitive<D1>,
-        _dim: usize,
-        _indexes: <WgpuBackend<G, F, I> as Backend>::IntTensorPrimitive<1>,
-        _value: <WgpuBackend<G, F, I> as Backend>::IntTensorPrimitive<D2>,
-    ) -> <WgpuBackend<G, F, I> as Backend>::IntTensorPrimitive<D1> {
-        todo!()
+    fn int_select_assign<const D1: usize, const D2: usize>(
+        tensor: IntTensor<Self, D1>,
+        dim: usize,
+        indexes: IntTensor<Self, 1>,
+        value: IntTensor<Self, D2>,
+    ) -> IntTensor<Self, D1> {
+        kernel::select_assign(tensor, dim, indexes, value)
     }
 
     fn int_cat<const D: usize>(tensors: Vec<IntTensor<Self, D>>, dim: usize) -> IntTensor<Self, D> {

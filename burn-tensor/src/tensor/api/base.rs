@@ -716,7 +716,7 @@ impl<B: Backend> BasicOps<B> for Float {
         tensor: Self::Primitive<D1>,
         indexes: [Range<usize>; D2],
     ) -> Self::Primitive<D1> {
-        B::index(tensor, indexes)
+        B::slice(tensor, indexes)
     }
 
     fn index_assign<const D1: usize, const D2: usize>(
@@ -724,7 +724,7 @@ impl<B: Backend> BasicOps<B> for Float {
         indexes: [Range<usize>; D2],
         value: Self::Primitive<D1>,
     ) -> Self::Primitive<D1> {
-        B::index_assign(tensor, indexes, value)
+        B::slice_assign(tensor, indexes, value)
     }
 
     fn device<const D: usize>(tensor: &Self::Primitive<D>) -> <B as Backend>::Device {
@@ -790,7 +790,7 @@ impl<B: Backend> BasicOps<B> for Int {
         tensor: Self::Primitive<D1>,
         indexes: [Range<usize>; D2],
     ) -> Self::Primitive<D1> {
-        B::int_index(tensor, indexes)
+        B::int_slice(tensor, indexes)
     }
 
     fn index_assign<const D1: usize, const D2: usize>(
@@ -798,7 +798,7 @@ impl<B: Backend> BasicOps<B> for Int {
         indexes: [Range<usize>; D2],
         value: Self::Primitive<D1>,
     ) -> Self::Primitive<D1> {
-        B::int_index_assign(tensor, indexes, value)
+        B::int_slice_assign(tensor, indexes, value)
     }
 
     fn device<const D: usize>(tensor: &Self::Primitive<D>) -> <B as Backend>::Device {

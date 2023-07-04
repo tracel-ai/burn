@@ -1,7 +1,7 @@
 use super::numeric::NumericOps;
 use super::{BaseOps, BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
 use crate::kernel::{
-    matmul_tiling_2d_default, unary_default, unary_inplace_default, unary_scalar_default,
+    self, matmul_tiling_2d_default, unary_default, unary_inplace_default, unary_scalar_default,
     unary_scalar_inplace_default,
 };
 use crate::unary_scalar_inplace;
@@ -176,36 +176,36 @@ where
         BaseOps::<G>::scatter(dim, tensor, indexes, value)
     }
 
-    fn index_select<const D: usize>(
+    fn select<const D: usize>(
         tensor: FloatTensor<Self, D>,
         dim: usize,
         indexes: IntTensor<Self, 1>,
     ) -> FloatTensor<Self, D> {
-        BaseOps::<G>::index_select(tensor, dim, indexes)
+        kernel::select(tensor, dim, indexes)
     }
 
-    fn index_select_assign<const D1: usize, const D2: usize>(
+    fn select_assign<const D1: usize, const D2: usize>(
         tensor: FloatTensor<Self, D1>,
         dim: usize,
         indexes: IntTensor<Self, 1>,
         value: FloatTensor<Self, D2>,
     ) -> FloatTensor<Self, D1> {
-        BaseOps::<G>::index_select_assign(tensor, dim, indexes, value)
+        kernel::select_assign(tensor, dim, indexes, value)
     }
 
-    fn index<const D1: usize, const D2: usize>(
+    fn slice<const D1: usize, const D2: usize>(
         tensor: FloatTensor<Self, D1>,
         indexes: [Range<usize>; D2],
     ) -> FloatTensor<Self, D1> {
-        BaseOps::<G>::index(tensor, indexes)
+        kernel::slice(tensor, indexes)
     }
 
-    fn index_assign<const D1: usize, const D2: usize>(
+    fn slice_assign<const D1: usize, const D2: usize>(
         tensor: FloatTensor<Self, D1>,
         indexes: [Range<usize>; D2],
         value: FloatTensor<Self, D1>,
     ) -> FloatTensor<Self, D1> {
-        BaseOps::<G>::index_assign(tensor, indexes, value)
+        kernel::slice_assign(tensor, indexes, value)
     }
 
     fn mask_where<const D: usize>(

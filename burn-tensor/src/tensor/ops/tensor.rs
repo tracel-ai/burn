@@ -192,7 +192,7 @@ pub trait TensorOps<B: Backend> {
         for i in 0..times {
             let mut indexes = indexes_select_all.clone();
             indexes[dim] = i..i + 1;
-            tensor_output = B::index_assign(tensor_output, indexes, tensor.clone());
+            tensor_output = B::slice_assign(tensor_output, indexes, tensor.clone());
         }
 
         tensor_output
@@ -421,7 +421,7 @@ pub trait TensorOps<B: Backend> {
     /// # Returns
     ///
     /// The selected elements.
-    fn index_select<const D: usize>(
+    fn select<const D: usize>(
         tensor: B::TensorPrimitive<D>,
         dim: usize,
         indexes: B::IntTensorPrimitive<1>,
@@ -440,7 +440,7 @@ pub trait TensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the selected elements assigned to the given value.
-    fn index_select_assign<const D1: usize, const D2: usize>(
+    fn select_assign<const D1: usize, const D2: usize>(
         tensor: B::TensorPrimitive<D1>,
         dim: usize,
         indexes: B::IntTensorPrimitive<1>,
@@ -457,7 +457,7 @@ pub trait TensorOps<B: Backend> {
     /// # Returns
     ///
     /// The selected elements in a new tensor.
-    fn index<const D1: usize, const D2: usize>(
+    fn slice<const D1: usize, const D2: usize>(
         tensor: B::TensorPrimitive<D1>,
         indexes: [Range<usize>; D2],
     ) -> B::TensorPrimitive<D1>;
@@ -473,7 +473,7 @@ pub trait TensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the selected elements assigned to the given value.
-    fn index_assign<const D1: usize, const D2: usize>(
+    fn slice_assign<const D1: usize, const D2: usize>(
         tensor: B::TensorPrimitive<D1>,
         indexes: [Range<usize>; D2],
         value: B::TensorPrimitive<D1>,

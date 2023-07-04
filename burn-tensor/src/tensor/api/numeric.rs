@@ -335,7 +335,7 @@ where
     pub fn max_dim_with_indexes(self, dim: usize) -> (Tensor<B, D, K>, Tensor<B, D, Int>) {
         check!(TensorCheck::aggregate_dim::<D>("Max", dim));
 
-        let (tensor, index) = K::max_dim_with_indexes(self.primitive, dim);
+        let (tensor, index) = K::max_dim_with_indices(self.primitive, dim);
 
         let tensor = Tensor::new(tensor);
         let index = Tensor::new(index);
@@ -379,7 +379,7 @@ where
     pub fn min_dim_with_indexes(self, dim: usize) -> (Tensor<B, D, K>, Tensor<B, D, Int>) {
         check!(TensorCheck::aggregate_dim::<D>("Min", dim));
 
-        let (tensor, index) = K::min_dim_with_indexes(self.primitive, dim);
+        let (tensor, index) = K::min_dim_with_indices(self.primitive, dim);
 
         let tensor = Tensor::new(tensor);
         let index = Tensor::new(index);
@@ -1225,7 +1225,7 @@ where
     ///
     /// For getting the maximum elements of a tensor along an axis, users should prefer the
     /// [Tensor::max_dim_with_indexes](Tensor::max_dim_with_indexes) function, which is more high-level and designed for public use.
-    fn max_dim_with_indexes<const D: usize>(
+    fn max_dim_with_indices<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
     ) -> (Self::Primitive<D>, B::IntTensorPrimitive<D>);
@@ -1292,7 +1292,7 @@ where
     ///
     /// For getting the minimum elements of a tensor along an axis, users should prefer the
     /// [Tensor::min_dim_with_indexes](Tensor::min_dim_with_indexes) function, which is more high-level and designed for public use.
-    fn min_dim_with_indexes<const D: usize>(
+    fn min_dim_with_indices<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
     ) -> (Self::Primitive<D>, B::IntTensorPrimitive<D>);
@@ -1446,7 +1446,7 @@ impl<B: Backend> Numeric<B> for Int {
         dim: usize,
         indexes: Tensor<B, 1, Int>,
     ) -> Self::Primitive<D> {
-        B::int_index_select_dim(tensor, dim, indexes.primitive)
+        B::int_select(tensor, dim, indexes.primitive)
     }
 
     fn index_select_assign<const D1: usize, const D2: usize>(
@@ -1455,7 +1455,7 @@ impl<B: Backend> Numeric<B> for Int {
         indexes: Tensor<B, 1, Int>,
         values: Self::Primitive<D2>,
     ) -> Self::Primitive<D1> {
-        B::int_index_select_dim_assign(tensor, dim, indexes.primitive, values)
+        B::int_select_assign(tensor, dim, indexes.primitive, values)
     }
     fn gather<const D: usize>(
         dim: usize,
@@ -1496,11 +1496,11 @@ impl<B: Backend> Numeric<B> for Int {
         B::int_max_dim(tensor, dim)
     }
 
-    fn max_dim_with_indexes<const D: usize>(
+    fn max_dim_with_indices<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
     ) -> (Self::Primitive<D>, <B as Backend>::IntTensorPrimitive<D>) {
-        B::int_max_dim_with_indexes(tensor, dim)
+        B::int_max_dim_with_indices(tensor, dim)
     }
 
     fn min<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
@@ -1511,11 +1511,11 @@ impl<B: Backend> Numeric<B> for Int {
         B::int_min_dim(tensor, dim)
     }
 
-    fn min_dim_with_indexes<const D: usize>(
+    fn min_dim_with_indices<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
     ) -> (Self::Primitive<D>, <B as Backend>::IntTensorPrimitive<D>) {
-        B::int_min_dim_with_indexes(tensor, dim)
+        B::int_min_dim_with_indices(tensor, dim)
     }
 }
 
@@ -1667,7 +1667,7 @@ impl<B: Backend> Numeric<B> for Float {
         dim: usize,
         indexes: Tensor<B, 1, Int>,
     ) -> Self::Primitive<D> {
-        B::index_select(tensor, dim, indexes.primitive)
+        B::select(tensor, dim, indexes.primitive)
     }
 
     fn index_select_assign<const D1: usize, const D2: usize>(
@@ -1676,7 +1676,7 @@ impl<B: Backend> Numeric<B> for Float {
         indexes: Tensor<B, 1, Int>,
         values: Self::Primitive<D2>,
     ) -> Self::Primitive<D1> {
-        B::index_select_assign(tensor, dim, indexes.primitive, values)
+        B::select_assign(tensor, dim, indexes.primitive, values)
     }
 
     fn gather<const D: usize>(
@@ -1718,7 +1718,7 @@ impl<B: Backend> Numeric<B> for Float {
         B::max_dim(tensor, dim)
     }
 
-    fn max_dim_with_indexes<const D: usize>(
+    fn max_dim_with_indices<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
     ) -> (Self::Primitive<D>, <B as Backend>::IntTensorPrimitive<D>) {
@@ -1733,7 +1733,7 @@ impl<B: Backend> Numeric<B> for Float {
         B::min_dim(tensor, dim)
     }
 
-    fn min_dim_with_indexes<const D: usize>(
+    fn min_dim_with_indices<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
     ) -> (Self::Primitive<D>, <B as Backend>::IntTensorPrimitive<D>) {

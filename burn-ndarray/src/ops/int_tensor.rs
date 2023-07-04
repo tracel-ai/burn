@@ -51,7 +51,7 @@ impl<E: FloatNdArrayElement> IntTensorOps<NdArrayBackend<E>> for NdArrayBackend<
         NdArrayOps::reshape(tensor, shape)
     }
 
-    fn int_index<const D1: usize, const D2: usize>(
+    fn int_slice<const D1: usize, const D2: usize>(
         tensor: NdArrayTensor<i64, D1>,
         indexes: [Range<usize>; D2],
     ) -> NdArrayTensor<i64, D1> {
@@ -88,7 +88,7 @@ impl<E: FloatNdArrayElement> IntTensorOps<NdArrayBackend<E>> for NdArrayBackend<
         NdArrayMathOps::mask_fill(tensor, mask, value)
     }
 
-    fn int_index_assign<const D1: usize, const D2: usize>(
+    fn int_slice_assign<const D1: usize, const D2: usize>(
         tensor: NdArrayTensor<i64, D1>,
         indexes: [Range<usize>; D2],
         value: NdArrayTensor<i64, D1>,
@@ -297,7 +297,7 @@ impl<E: FloatNdArrayElement> IntTensorOps<NdArrayBackend<E>> for NdArrayBackend<
         NdArrayMathOps::scatter(dim, tensor, indexes, value)
     }
 
-    fn int_index_select_dim<const D: usize>(
+    fn int_select<const D: usize>(
         tensor: NdArrayTensor<i64, D>,
         dim: usize,
         indexes: NdArrayTensor<i64, 1>,
@@ -305,7 +305,7 @@ impl<E: FloatNdArrayElement> IntTensorOps<NdArrayBackend<E>> for NdArrayBackend<
         NdArrayMathOps::index_select(tensor, dim, indexes)
     }
 
-    fn int_index_select_dim_assign<const D1: usize, const D2: usize>(
+    fn int_select_assign<const D1: usize, const D2: usize>(
         tensor: NdArrayTensor<i64, D1>,
         dim: usize,
         indexes: NdArrayTensor<i64, 1>,

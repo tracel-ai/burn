@@ -168,7 +168,7 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         NdArrayMathOps::scatter(dim, tensor, indexes, value)
     }
 
-    fn index_select<const D: usize>(
+    fn select<const D: usize>(
         tensor: NdArrayTensor<E, D>,
         dim: usize,
         indexes: NdArrayTensor<i64, 1>,
@@ -176,7 +176,7 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         NdArrayMathOps::index_select(tensor, dim, indexes)
     }
 
-    fn index_select_assign<const D1: usize, const D2: usize>(
+    fn select_assign<const D1: usize, const D2: usize>(
         tensor: NdArrayTensor<E, D1>,
         dim: usize,
         indexes: NdArrayTensor<i64, 1>,
@@ -185,14 +185,14 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         NdArrayMathOps::index_select_assign(tensor, dim, indexes, value)
     }
 
-    fn index<const D1: usize, const D2: usize>(
+    fn slice<const D1: usize, const D2: usize>(
         tensor: NdArrayTensor<E, D1>,
         indexes: [Range<usize>; D2],
     ) -> NdArrayTensor<E, D1> {
         NdArrayOps::index(tensor, indexes)
     }
 
-    fn index_assign<const D1: usize, const D2: usize>(
+    fn slice_assign<const D1: usize, const D2: usize>(
         tensor: NdArrayTensor<E, D1>,
         indexes: [Range<usize>; D2],
         value: NdArrayTensor<E, D1>,

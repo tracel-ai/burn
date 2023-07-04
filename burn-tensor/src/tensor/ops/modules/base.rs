@@ -99,7 +99,7 @@ pub trait ModuleOps<B: Backend> {
         let [_, d_model] = B::shape(&weights).dims;
 
         let indexes = B::int_reshape(indexes, Shape::new([batch_size * seq_length]));
-        let output = B::index_select(weights, 0, indexes);
+        let output = B::select(weights, 0, indexes);
 
         B::reshape(output, Shape::new([batch_size, seq_length, d_model]))
     }
@@ -128,7 +128,7 @@ pub trait ModuleOps<B: Backend> {
         let output_grad = B::reshape(output_grad, Shape::new([batch_size * seq_length, d_model]));
         let grad = B::zeros(Shape::new([n_embeddings, d_model]), &device);
 
-        B::index_select_assign(grad, 0, indexes, output_grad)
+        B::select_assign(grad, 0, indexes, output_grad)
     }
 
     /// Two dimensional convolution.

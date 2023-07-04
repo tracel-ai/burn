@@ -243,8 +243,8 @@ fn conv1d_weight_grad_groups<B: Backend>(
         let start_idx_co = g * increment_co;
         let end_idx_co = (g + 1) * increment_co;
 
-        let x = B::index(x_swapped.clone(), [start_idx_ci..end_idx_ci]);
-        let grad = B::index(output_grad_swapped.clone(), [start_idx_co..end_idx_co]);
+        let x = B::slice(x_swapped.clone(), [start_idx_ci..end_idx_ci]);
+        let grad = B::slice(output_grad_swapped.clone(), [start_idx_co..end_idx_co]);
         let mut weight_grad_tmp = B::conv1d(
             x,
             grad,
@@ -252,7 +252,7 @@ fn conv1d_weight_grad_groups<B: Backend>(
             ConvOptions::new(options.dilation, options.padding, options.stride, 1),
         );
         weight_grad_tmp = B::swap_dims(weight_grad_tmp, 0, 1);
-        weight_grad = B::index_assign(
+        weight_grad = B::slice_assign(
             weight_grad,
             [start_idx_co..end_idx_co, 0..increment_ci, 0..kernel_size],
             weight_grad_tmp,
@@ -280,8 +280,8 @@ fn conv2d_weight_grad_groups<B: Backend>(
         let start_idx_co = g * increment_co;
         let end_idx_co = (g + 1) * increment_co;
 
-        let x = B::index(x_swapped.clone(), [start_idx_ci..end_idx_ci]);
-        let grad = B::index(output_grad_swapped.clone(), [start_idx_co..end_idx_co]);
+        let x = B::slice(x_swapped.clone(), [start_idx_ci..end_idx_ci]);
+        let grad = B::slice(output_grad_swapped.clone(), [start_idx_co..end_idx_co]);
         let mut weight_grad_tmp = B::conv2d(
             x,
             grad,
@@ -289,7 +289,7 @@ fn conv2d_weight_grad_groups<B: Backend>(
             ConvOptions::new(options.dilation, options.padding, options.stride, 1),
         );
         weight_grad_tmp = B::swap_dims(weight_grad_tmp, 0, 1);
-        weight_grad = B::index_assign(
+        weight_grad = B::slice_assign(
             weight_grad,
             [
                 start_idx_co..end_idx_co,
@@ -321,7 +321,7 @@ fn conv1d_weight_grad_no_groups<B: Backend>(
     let mut weight_grad = B::swap_dims(weight_grad_swapped, 0, 1);
 
     if B::shape(&weight_grad) != weight_shape {
-        weight_grad = B::index(
+        weight_grad = B::slice(
             weight_grad,
             [
                 0..weight_shape.dims[0],
@@ -350,7 +350,7 @@ fn conv2d_weight_grad_no_groups<B: Backend>(
     let mut weight_grad = B::swap_dims(weight_grad_swapped, 0, 1);
 
     if B::shape(&weight_grad) != weight_shape {
-        weight_grad = B::index(
+        weight_grad = B::slice(
             weight_grad,
             [
                 0..weight_shape.dims[0],

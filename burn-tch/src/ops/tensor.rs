@@ -196,7 +196,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         TchOps::scatter(dim, tensor, indexes, value)
     }
 
-    fn index_select<const D: usize>(
+    fn select<const D: usize>(
         tensor: TchTensor<E, D>,
         dim: usize,
         indexes: TchTensor<i64, 1>,
@@ -204,7 +204,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         TchOps::index_select_dim(tensor, dim, indexes)
     }
 
-    fn index_select_assign<const D1: usize, const D2: usize>(
+    fn select_assign<const D1: usize, const D2: usize>(
         tensor: TchTensor<E, D1>,
         dim: usize,
         indexes: TchTensor<i64, 1>,
@@ -213,14 +213,14 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         TchOps::index_select_dim_assign(tensor, dim, indexes, value)
     }
 
-    fn index<const D1: usize, const D2: usize>(
+    fn slice<const D1: usize, const D2: usize>(
         tensor: TchTensor<E, D1>,
         indexes: [Range<usize>; D2],
     ) -> TchTensor<E, D1> {
         TchOps::index(tensor, indexes)
     }
 
-    fn index_assign<const D1: usize, const D2: usize>(
+    fn slice_assign<const D1: usize, const D2: usize>(
         tensor: TchTensor<E, D1>,
         indexes: [Range<usize>; D2],
         value: TchTensor<E, D1>,
@@ -343,7 +343,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         tensor: TchTensor<E, D>,
         dim: usize,
     ) -> (TchTensor<E, D>, TchTensor<i64, D>) {
-        TchOps::max_dim_with_indexes(tensor, dim)
+        TchOps::max_dim_with_indices(tensor, dim)
     }
 
     fn min_dim<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<E, D> {
@@ -354,7 +354,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         tensor: TchTensor<E, D>,
         dim: usize,
     ) -> (TchTensor<E, D>, TchTensor<i64, D>) {
-        TchOps::min_dim_with_indexes(tensor, dim)
+        TchOps::min_dim_with_indices(tensor, dim)
     }
 
     fn exp<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
