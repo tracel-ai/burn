@@ -23,7 +23,7 @@ simplifying the process of experimenting, training, and deploying models.
   - [Torch](https://github.com/burn-rs/burn/tree/main/burn-tch) backend, supporting both CPU and GPU
     🚀
   - [Ndarray](https://github.com/burn-rs/burn/tree/main/burn-ndarray) backend with
-    [`no_std`](#no_std-support) compatibility, ensuring universal platform adaptability 👌
+    [`no_std`](#support-for-no_std) compatibility, ensuring universal platform adaptability 👌
   - [WebGPU](https://github.com/burn-rs/burn/tree/main/burn-wgpu) backend, offering cross-platform,
     browser-inclusive, GPU-based computations 🌐
   - [Autodiff](https://github.com/burn-rs/burn/tree/main/burn-autodiff) backend that enables
