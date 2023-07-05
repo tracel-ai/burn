@@ -182,50 +182,50 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     fn gather<const D: usize>(
         dim: usize,
         tensor: TchTensor<E, D>,
-        indexes: TchTensor<i64, D>,
+        indices: TchTensor<i64, D>,
     ) -> TchTensor<E, D> {
-        TchOps::gather(dim, tensor, indexes)
+        TchOps::gather(dim, tensor, indices)
     }
 
     fn scatter<const D: usize>(
         dim: usize,
         tensor: TchTensor<E, D>,
-        indexes: TchTensor<i64, D>,
+        indices: TchTensor<i64, D>,
         value: TchTensor<E, D>,
     ) -> TchTensor<E, D> {
-        TchOps::scatter(dim, tensor, indexes, value)
+        TchOps::scatter(dim, tensor, indices, value)
     }
 
-    fn index_select<const D: usize>(
+    fn select<const D: usize>(
         tensor: TchTensor<E, D>,
         dim: usize,
-        indexes: TchTensor<i64, 1>,
+        indices: TchTensor<i64, 1>,
     ) -> TchTensor<E, D> {
-        TchOps::index_select_dim(tensor, dim, indexes)
+        TchOps::index_select_dim(tensor, dim, indices)
     }
 
-    fn index_select_assign<const D1: usize, const D2: usize>(
-        tensor: TchTensor<E, D1>,
+    fn select_assign<const D: usize>(
+        tensor: TchTensor<E, D>,
         dim: usize,
-        indexes: TchTensor<i64, 1>,
-        value: TchTensor<E, D2>,
-    ) -> TchTensor<E, D1> {
-        TchOps::index_select_dim_assign(tensor, dim, indexes, value)
+        indices: TchTensor<i64, 1>,
+        value: TchTensor<E, D>,
+    ) -> TchTensor<E, D> {
+        TchOps::select_assign(tensor, dim, indices, value)
     }
 
-    fn index<const D1: usize, const D2: usize>(
+    fn slice<const D1: usize, const D2: usize>(
         tensor: TchTensor<E, D1>,
-        indexes: [Range<usize>; D2],
+        ranges: [Range<usize>; D2],
     ) -> TchTensor<E, D1> {
-        TchOps::index(tensor, indexes)
+        TchOps::slice(tensor, ranges)
     }
 
-    fn index_assign<const D1: usize, const D2: usize>(
+    fn slice_assign<const D1: usize, const D2: usize>(
         tensor: TchTensor<E, D1>,
-        indexes: [Range<usize>; D2],
+        ranges: [Range<usize>; D2],
         value: TchTensor<E, D1>,
     ) -> <TchBackend<E> as Backend>::TensorPrimitive<D1> {
-        TchOps::index_assign(tensor, indexes, value)
+        TchOps::slice_assign(tensor, ranges, value)
     }
 
     fn mask_where<const D: usize>(
@@ -339,22 +339,22 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         TchOps::max_dim(tensor, dim)
     }
 
-    fn max_dim_with_indexes<const D: usize>(
+    fn max_dim_with_indices<const D: usize>(
         tensor: TchTensor<E, D>,
         dim: usize,
     ) -> (TchTensor<E, D>, TchTensor<i64, D>) {
-        TchOps::max_dim_with_indexes(tensor, dim)
+        TchOps::max_dim_with_indices(tensor, dim)
     }
 
     fn min_dim<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<E, D> {
         TchOps::min_dim(tensor, dim)
     }
 
-    fn min_dim_with_indexes<const D: usize>(
+    fn min_dim_with_indices<const D: usize>(
         tensor: TchTensor<E, D>,
         dim: usize,
     ) -> (TchTensor<E, D>, TchTensor<i64, D>) {
-        TchOps::min_dim_with_indexes(tensor, dim)
+        TchOps::min_dim_with_indices(tensor, dim)
     }
 
     fn exp<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {

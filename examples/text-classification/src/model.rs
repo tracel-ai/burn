@@ -110,7 +110,7 @@ impl<B: Backend> TextClassificationModel<B> {
         let output = self.output.forward(encoded);
 
         let output_classification = output
-            .index([0..batch_size, 0..1])
+            .slice([0..batch_size, 0..1])
             .reshape([batch_size, self.n_classes]);
 
         let loss = CrossEntropyLoss::new(None);
@@ -148,7 +148,7 @@ impl<B: Backend> TextClassificationModel<B> {
             .forward(TransformerEncoderInput::new(embedding).mask_pad(mask_pad));
         let output = self.output.forward(encoded);
         let output = output
-            .index([0..batch_size, 0..1])
+            .slice([0..batch_size, 0..1])
             .reshape([batch_size, self.n_classes]);
 
         softmax(output, 1)

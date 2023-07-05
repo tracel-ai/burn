@@ -44,11 +44,11 @@ impl<B: Backend> BoolTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> 
         B::bool_reshape(tensor, shape)
     }
 
-    fn bool_index<const D1: usize, const D2: usize>(
+    fn bool_slice<const D1: usize, const D2: usize>(
         tensor: BoolTensor<B, D1>,
-        indexes: [std::ops::Range<usize>; D2],
+        ranges: [std::ops::Range<usize>; D2],
     ) -> BoolTensor<B, D1> {
-        B::bool_index(tensor, indexes)
+        B::bool_slice(tensor, ranges)
     }
 
     fn bool_empty<const D: usize>(
@@ -58,12 +58,12 @@ impl<B: Backend> BoolTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> 
         B::bool_empty(shape, device)
     }
 
-    fn bool_index_assign<const D1: usize, const D2: usize>(
-        tensor: <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D1>,
-        indexes: [std::ops::Range<usize>; D2],
-        value: <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D1>,
-    ) -> <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D1> {
-        B::bool_index_assign(tensor, indexes, value)
+    fn bool_slice_assign<const D1: usize, const D2: usize>(
+        tensor: BoolTensor<Self, D1>,
+        ranges: [std::ops::Range<usize>; D2],
+        value: BoolTensor<Self, D1>,
+    ) -> BoolTensor<Self, D1> {
+        B::bool_slice_assign(tensor, ranges, value)
     }
 
     fn bool_cat<const D: usize>(tensors: Vec<BoolTensor<B, D>>, dim: usize) -> BoolTensor<B, D> {

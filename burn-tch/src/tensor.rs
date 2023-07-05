@@ -268,11 +268,11 @@ mod tests {
     }
 
     #[test]
-    fn should_not_update_inplace_after_index() {
+    fn should_not_update_inplace_after_slice() {
         let tensor_1 = Tensor::<TchBackend<f32>, 1>::from_floats([4.0, 4.0]);
         let tensor_2 = tensor_1.clone();
 
-        let tensor_3 = tensor_2.index([0..2]).add_scalar(2.0);
+        let tensor_3 = tensor_2.slice([0..2]).add_scalar(2.0);
 
         assert_ne!(tensor_3.to_data().value, tensor_1.to_data().value);
     }

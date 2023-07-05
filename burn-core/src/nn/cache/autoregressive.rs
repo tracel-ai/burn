@@ -21,7 +21,7 @@ impl<B: Backend, const D: usize> TensorCache<B, D> {
             CacheState::Value(tensor_old) => {
                 let [batch_size, seq_length, d_model] = tensor.dims();
                 let next_seq_token =
-                    tensor.index([0..batch_size, (seq_length - 1)..seq_length, 0..d_model]);
+                    tensor.slice([0..batch_size, (seq_length - 1)..seq_length, 0..d_model]);
                 let next_seq_token = func(next_seq_token);
 
                 Tensor::cat(vec![tensor_old, next_seq_token], dim_cat)

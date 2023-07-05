@@ -154,50 +154,50 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
     fn gather<const D: usize>(
         dim: usize,
         tensor: NdArrayTensor<E, D>,
-        indexes: NdArrayTensor<i64, D>,
+        indices: NdArrayTensor<i64, D>,
     ) -> NdArrayTensor<E, D> {
-        NdArrayMathOps::gather(dim, tensor, indexes)
+        NdArrayMathOps::gather(dim, tensor, indices)
     }
 
     fn scatter<const D: usize>(
         dim: usize,
         tensor: NdArrayTensor<E, D>,
-        indexes: NdArrayTensor<i64, D>,
+        indices: NdArrayTensor<i64, D>,
         value: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<E, D> {
-        NdArrayMathOps::scatter(dim, tensor, indexes, value)
+        NdArrayMathOps::scatter(dim, tensor, indices, value)
     }
 
-    fn index_select<const D: usize>(
+    fn select<const D: usize>(
         tensor: NdArrayTensor<E, D>,
         dim: usize,
-        indexes: NdArrayTensor<i64, 1>,
+        indices: NdArrayTensor<i64, 1>,
     ) -> NdArrayTensor<E, D> {
-        NdArrayMathOps::index_select(tensor, dim, indexes)
+        NdArrayMathOps::select(tensor, dim, indices)
     }
 
-    fn index_select_assign<const D1: usize, const D2: usize>(
-        tensor: NdArrayTensor<E, D1>,
+    fn select_assign<const D: usize>(
+        tensor: NdArrayTensor<E, D>,
         dim: usize,
-        indexes: NdArrayTensor<i64, 1>,
-        value: NdArrayTensor<E, D2>,
-    ) -> NdArrayTensor<E, D1> {
-        NdArrayMathOps::index_select_assign(tensor, dim, indexes, value)
+        indices: NdArrayTensor<i64, 1>,
+        value: NdArrayTensor<E, D>,
+    ) -> NdArrayTensor<E, D> {
+        NdArrayMathOps::select_assign(tensor, dim, indices, value)
     }
 
-    fn index<const D1: usize, const D2: usize>(
+    fn slice<const D1: usize, const D2: usize>(
         tensor: NdArrayTensor<E, D1>,
-        indexes: [Range<usize>; D2],
+        ranges: [Range<usize>; D2],
     ) -> NdArrayTensor<E, D1> {
-        NdArrayOps::index(tensor, indexes)
+        NdArrayOps::slice(tensor, ranges)
     }
 
-    fn index_assign<const D1: usize, const D2: usize>(
+    fn slice_assign<const D1: usize, const D2: usize>(
         tensor: NdArrayTensor<E, D1>,
-        indexes: [Range<usize>; D2],
+        ranges: [Range<usize>; D2],
         value: NdArrayTensor<E, D1>,
     ) -> NdArrayTensor<E, D1> {
-        NdArrayOps::index_assign(tensor, indexes, value)
+        NdArrayOps::slice_assign(tensor, ranges, value)
     }
 
     fn mask_where<const D: usize>(

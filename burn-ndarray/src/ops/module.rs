@@ -1,7 +1,7 @@
 use super::{
     avgpool::{avg_pool2d, avg_pool2d_backward},
     conv::{conv2d, conv_transpose2d},
-    maxpool::{max_pool2d, max_pool2d_backward, max_pool2d_with_indexes},
+    maxpool::{max_pool2d, max_pool2d_backward, max_pool2d_with_indices},
 };
 use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArrayBackend};
 use burn_tensor::ops::*;
@@ -53,24 +53,24 @@ impl<E: FloatNdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         max_pool2d(x, kernel_size, stride, padding)
     }
 
-    fn max_pool2d_with_indexes(
+    fn max_pool2d_with_indices(
         x: NdArrayTensor<E, 4>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
-    ) -> MaxPool2dWithIndexes<NdArrayBackend<E>> {
-        let (output, indexes) = max_pool2d_with_indexes(x, kernel_size, stride, padding);
+    ) -> MaxPool2dWithIndices<NdArrayBackend<E>> {
+        let (output, indices) = max_pool2d_with_indices(x, kernel_size, stride, padding);
 
-        MaxPool2dWithIndexes::new(output, indexes)
+        MaxPool2dWithIndices::new(output, indices)
     }
 
-    fn max_pool2d_with_indexes_backward(
+    fn max_pool2d_with_indices_backward(
         x: NdArrayTensor<E, 4>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
         output_grad: NdArrayTensor<E, 4>,
-        indexes: NdArrayTensor<i64, 4>,
+        indices: NdArrayTensor<i64, 4>,
     ) -> MaxPool2dBackward<NdArrayBackend<E>> {
         MaxPool2dBackward::new(max_pool2d_backward(
             x,
@@ -78,7 +78,7 @@ impl<E: FloatNdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> 
             stride,
             padding,
             output_grad,
-            indexes,
+            indices,
         ))
     }
 }

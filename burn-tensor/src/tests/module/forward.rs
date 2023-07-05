@@ -6,11 +6,11 @@ mod tests {
     #[test]
     fn test_embedding_forward() {
         let weights = Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-        let indexes = Data::from([[0, 1], [1, 1]]);
+        let indices = Data::from([[0, 1], [1, 1]]);
         let weights = Tensor::<TestBackend, 2>::from_data(weights);
-        let indexes = Tensor::<TestBackend, 2, Int>::from_data(indexes);
+        let indices = Tensor::<TestBackend, 2, Int>::from_data(indices);
 
-        let output = embedding(weights, indexes);
+        let output = embedding(weights, indices);
         let expected = Data::from([
             [[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]],
             [[3.0, 4.0, 5.0], [3.0, 4.0, 5.0]],

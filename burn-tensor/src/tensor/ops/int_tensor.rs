@@ -110,9 +110,9 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The elements at the given indices.
-    fn int_index<const D1: usize, const D2: usize>(
+    fn int_slice<const D1: usize, const D2: usize>(
         tensor: B::IntTensorPrimitive<D1>,
-        indexes: [Range<usize>; D2],
+        indices: [Range<usize>; D2],
     ) -> B::IntTensorPrimitive<D1>;
 
     /// Sets the element at the given indices.
@@ -125,7 +125,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the element at the given indices set.
-    fn int_index_assign<const D1: usize, const D2: usize>(
+    fn int_slice_assign<const D1: usize, const D2: usize>(
         tensor: B::IntTensorPrimitive<D1>,
         indices: [Range<usize>; D2],
         value: B::IntTensorPrimitive<D1>,
@@ -204,15 +204,15 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// * `tensor` - The tensor.
     /// * `dim` - The dimension to select from.
-    /// * `indexes` - The indexes.
+    /// * `indices` - The indices.
     ///
     /// # Returns
     ///
     /// The tensor with the selected elements.
-    fn int_index_select_dim<const D: usize>(
+    fn int_select<const D: usize>(
         tensor: B::IntTensorPrimitive<D>,
         dim: usize,
-        indexes: B::IntTensorPrimitive<1>,
+        indices: B::IntTensorPrimitive<1>,
     ) -> B::IntTensorPrimitive<D>;
 
     /// Assign the selected elements along the given dimension corresponding to the given indices
@@ -222,18 +222,18 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// * `tensor` - The tensor.
     /// * `dim` - The dimension to select from.
-    /// * `indexes` - The indexes.
+    /// * `indices` - The indices.
     /// * `value` - The value.
     ///
     /// # Returns
     ///
     /// The tensor with the selected elements assigned to the given value.
-    fn int_index_select_dim_assign<const D1: usize, const D2: usize>(
-        tensor: B::IntTensorPrimitive<D1>,
+    fn int_select_assign<const D: usize>(
+        tensor: B::IntTensorPrimitive<D>,
         dim: usize,
-        indexes: B::IntTensorPrimitive<1>,
-        value: B::IntTensorPrimitive<D2>,
-    ) -> B::IntTensorPrimitive<D1>;
+        indices: B::IntTensorPrimitive<1>,
+        value: B::IntTensorPrimitive<D>,
+    ) -> B::IntTensorPrimitive<D>;
 
     /// Repeats the tensor along the given dimension the given number of times.
     ///
@@ -258,7 +258,7 @@ pub trait IntTensorOps<B: Backend> {
         shape.dims[dim] = times;
 
         let mut i = 0;
-        let indexes_select_all = [0; D].map(|_| {
+        let indices_select_all = [0; D].map(|_| {
             let start = 0;
             let end = shape.dims[i];
             i += 1;
@@ -267,9 +267,9 @@ pub trait IntTensorOps<B: Backend> {
 
         let mut tensor_output = Self::int_empty(shape, &Self::int_device(&tensor));
         for i in 0..times {
-            let mut indexes = indexes_select_all.clone();
-            indexes[dim] = i..i + 1;
-            tensor_output = Self::int_index_assign(tensor_output, indexes, tensor.clone());
+            let mut indices = indices_select_all.clone();
+            indices[dim] = i..i + 1;
+            tensor_output = Self::int_slice_assign(tensor_output, indices, tensor.clone());
         }
 
         tensor_output
@@ -725,7 +725,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The maximum elements and corresponding indices along the dimension.
-    fn int_max_dim_with_indexes<const D: usize>(
+    fn int_max_dim_with_indices<const D: usize>(
         tensor: B::IntTensorPrimitive<D>,
         dim: usize,
     ) -> (B::IntTensorPrimitive<D>, B::IntTensorPrimitive<D>) {
@@ -780,13 +780,13 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The minimum elements and corresponding indices along the dimension.
-    fn int_min_dim_with_indexes<const D: usize>(
+    fn int_min_dim_with_indices<const D: usize>(
         tensor: B::IntTensorPrimitive<D>,
         dim: usize,
     ) -> (B::IntTensorPrimitive<D>, B::IntTensorPrimitive<D>) {
-        let index = B::int_argmin(tensor.clone(), dim);
-        let values = B::int_gather(D - 1, tensor, index.clone());
+        let indices = B::int_argmin(tensor.clone(), dim);
+        let values = B::int_gather(D - 1, tensor, indices.clone());
 
-        (values, index)
+        (values, indices)
     }
 }
