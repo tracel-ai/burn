@@ -9,7 +9,7 @@ use burn_tensor::ops::*;
 use super::OpsKind;
 
 impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
-    fn embedding(weights: ADTensor<B, 2>, indexes: IntTensor<B, 2>) -> ADTensor<B, 3> {
+    fn embedding(weights: ADTensor<B, 2>, indices: IntTensor<B, 2>) -> ADTensor<B, 3> {
         #[derive(Debug)]
         struct Embedding;
 
@@ -17,10 +17,10 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             type State = (B::TensorPrimitive<2>, IntTensor<B, 2>);
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
-                let (weights, indexes) = ops.state;
+                let (weights, indices) = ops.state;
 
                 unary::<B, 3, 2, _>(ops.parents, ops.node, grads, |grad| {
-                    B::embedding_backward(weights, grad, indexes)
+                    B::embedding_backward(weights, grad, indices)
                 });
             }
         }
@@ -30,19 +30,19 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             .statefull()
         {
             OpsKind::Tracked(prep) => prep.finish(
-                (weights.primitive.clone(), indexes.clone()),
-                B::embedding(weights.primitive, indexes),
+                (weights.primitive.clone(), indices.clone()),
+                B::embedding(weights.primitive, indices),
             ),
-            OpsKind::UnTracked(prep) => prep.finish(B::embedding(weights.primitive, indexes)),
+            OpsKind::UnTracked(prep) => prep.finish(B::embedding(weights.primitive, indices)),
         }
     }
 
     fn embedding_backward(
         weights: ADTensor<B, 2>,
         output: ADTensor<B, 3>,
-        indexes: IntTensor<B, 2>,
+        indices: IntTensor<B, 2>,
     ) -> ADTensor<B, 2> {
-        let tensor = B::embedding_backward(weights.primitive, output.primitive, indexes);
+        let tensor = B::embedding_backward(weights.primitive, output.primitive, indices);
         ADTensor::new(tensor)
     }
 
@@ -360,9 +360,9 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         match MaxPool2D.prepare([x.node], [x.graph]).statefull() {
             OpsKind::Tracked(prep) => {
                 let output =
-                    B::max_pool2d_with_indexes(x.primitive.clone(), kernel_size, stride, padding);
+                    B::max_pool2d_with_indices(x.primitive.clone(), kernel_size, stride, padding);
                 prep.finish(
-                    (x.primitive, output.indexes, kernel_size, stride, padding),
+                    (x.primitive, output.indices, kernel_size, stride, padding),
                     output.output,
                 )
             }
@@ -372,21 +372,21 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
-    fn max_pool2d_with_indexes(
+    fn max_pool2d_with_indices(
         x: ADTensor<B, 4>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
-    ) -> MaxPool2dWithIndexes<ADBackendDecorator<B>> {
+    ) -> MaxPool2dWithIndices<ADBackendDecorator<B>> {
         match MaxPool2D.prepare([x.node], [x.graph]).statefull() {
             OpsKind::Tracked(prep) => {
                 let output =
-                    B::max_pool2d_with_indexes(x.primitive.clone(), kernel_size, stride, padding);
+                    B::max_pool2d_with_indices(x.primitive.clone(), kernel_size, stride, padding);
 
                 let output_tensor = prep.finish(
                     (
                         x.primitive,
-                        output.indexes.clone(),
+                        output.indices.clone(),
                         kernel_size,
                         stride,
                         padding,
@@ -394,32 +394,32 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     output.output,
                 );
 
-                MaxPool2dWithIndexes::new(output_tensor, output.indexes)
+                MaxPool2dWithIndices::new(output_tensor, output.indices)
             }
             OpsKind::UnTracked(prep) => {
-                let output = B::max_pool2d_with_indexes(x.primitive, kernel_size, stride, padding);
+                let output = B::max_pool2d_with_indices(x.primitive, kernel_size, stride, padding);
                 let output_tensor = prep.finish(output.output);
 
-                MaxPool2dWithIndexes::new(output_tensor, output.indexes)
+                MaxPool2dWithIndices::new(output_tensor, output.indices)
             }
         }
     }
 
-    fn max_pool2d_with_indexes_backward(
+    fn max_pool2d_with_indices_backward(
         x: ADTensor<B, 4>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
         output_grad: ADTensor<B, 4>,
-        indexes: IntTensor<B, 4>,
+        indices: IntTensor<B, 4>,
     ) -> MaxPool2dBackward<ADBackendDecorator<B>> {
-        let output = B::max_pool2d_with_indexes_backward(
+        let output = B::max_pool2d_with_indices_backward(
             x.primitive,
             kernel_size,
             stride,
             padding,
             output_grad.primitive,
-            indexes,
+            indices,
         );
         MaxPool2dBackward::new(ADTensor::new(output.x_grad))
     }
@@ -440,11 +440,11 @@ impl<B: Backend> Backward<B, 4, 1> for MaxPool2D {
     fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
         let [node_parent] = ops.parents;
         let grad = grads.consume::<B, 4>(&ops.node);
-        let (x, indexes, kernel_size, stride, padding) = ops.state;
+        let (x, indices, kernel_size, stride, padding) = ops.state;
 
         if let Some(node) = node_parent {
             let grad =
-                B::max_pool2d_with_indexes_backward(x, kernel_size, stride, padding, grad, indexes);
+                B::max_pool2d_with_indices_backward(x, kernel_size, stride, padding, grad, indices);
 
             grads.register::<B, 4>(node, grad.x_grad);
         }

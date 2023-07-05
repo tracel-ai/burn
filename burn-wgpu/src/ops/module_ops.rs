@@ -57,22 +57,22 @@ where
         todo!()
     }
 
-    fn max_pool2d_with_indexes(
+    fn max_pool2d_with_indices(
         _x: <WgpuBackend<G, F, I> as Backend>::TensorPrimitive<4>,
         _kernel_size: [usize; 2],
         _stride: [usize; 2],
         _padding: [usize; 2],
-    ) -> burn_tensor::ops::MaxPool2dWithIndexes<WgpuBackend<G, F, I>> {
+    ) -> burn_tensor::ops::MaxPool2dWithIndices<WgpuBackend<G, F, I>> {
         todo!()
     }
 
-    fn max_pool2d_with_indexes_backward(
+    fn max_pool2d_with_indices_backward(
         _x: <WgpuBackend<G, F, I> as Backend>::TensorPrimitive<4>,
         _kernel_size: [usize; 2],
         _stride: [usize; 2],
         _padding: [usize; 2],
         _output_grad: <WgpuBackend<G, F, I> as Backend>::TensorPrimitive<4>,
-        _indexes: <WgpuBackend<G, F, I> as Backend>::IntTensorPrimitive<4>,
+        _indices: <WgpuBackend<G, F, I> as Backend>::IntTensorPrimitive<4>,
     ) -> burn_tensor::ops::MaxPool2dBackward<WgpuBackend<G, F, I>> {
         todo!()
     }

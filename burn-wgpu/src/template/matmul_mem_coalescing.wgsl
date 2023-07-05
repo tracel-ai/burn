@@ -23,7 +23,7 @@ fn main(
     @builtin(local_invocation_index) local_idx: u32,
     @builtin(workgroup_id) workgroup_id: vec3<u32>,
 ) {
-    // Indexes
+    // Indices
     let row = workgroup_id.x * BLOCK_SIZE + (local_idx / BLOCK_SIZE);
     let col = workgroup_id.y * BLOCK_SIZE + (local_idx % BLOCK_SIZE);
     let batch = global_id.z;

@@ -4,7 +4,7 @@ var<storage, read_write> input: array<{{ elem }}>;
 
 @group(0)
 @binding(1)
-var<storage, read> indexes: array<{{ int }}>;
+var<storage, read> indices: array<{{ int }}>;
 
 @group(0)
 @binding(2)
@@ -49,6 +49,6 @@ fn main(
 
     for (var i = 0u; i < shape; i++) {
         let index = i * stride + index_offset;
-        input[index_offset + stride * u32(indexes[index])] += value[index];
+        input[index_offset + stride * u32(indices[index])] += value[index];
     }
 }

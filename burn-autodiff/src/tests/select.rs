@@ -7,10 +7,10 @@ mod tests {
     fn test_select_grad() {
         let tensor_1 =
             TestADTensor::from_data(Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]])).require_grad();
-        let indexes = TestADTensor::from_data(Data::from([1, 0]));
+        let indices = TestADTensor::from_data(Data::from([1, 0]));
 
         let tensor_2 = tensor_1.clone().matmul(tensor_1.clone().transpose());
-        let tensor_3 = tensor_1.clone().select(0, indexes);
+        let tensor_3 = tensor_1.clone().select(0, indices);
         let tensor_4 = tensor_2.matmul(tensor_3);
 
         let grads = tensor_4.backward();
@@ -29,10 +29,10 @@ mod tests {
             TestADTensor::from_data(Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]])).require_grad();
         let values =
             TestADTensor::from_data(Data::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])).require_grad();
-        let indexes = TestADTensor::from_data(Data::from([1, 0]));
+        let indices = TestADTensor::from_data(Data::from([1, 0]));
 
         let tensor_2 = tensor_1.clone().matmul(tensor_1.clone().transpose());
-        let tensor_3 = tensor_1.clone().select_assign(0, indexes, values.clone());
+        let tensor_3 = tensor_1.clone().select_assign(0, indices, values.clone());
         let tensor_4 = tensor_2.matmul(tensor_3);
 
         let grads = tensor_4.backward();

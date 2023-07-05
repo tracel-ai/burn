@@ -271,7 +271,7 @@ where
     /// `output[i, j, k] = input[i, j, indices[k]]; // dim = 2`
     pub fn select(self, dim: usize, indices: Tensor<B, 1, Int>) -> Self {
         check!(TensorCheck::select::<D>(dim));
-        Self::new(K::index_select(self.primitive, dim, indices))
+        Self::new(K::select(self.primitive, dim, indices))
     }
 
     /// Assign the selected elements along the given dimension corresponding to the given indices
@@ -1080,8 +1080,8 @@ where
     /// or use this function directly.
     ///
     /// For selecting elements from a tensor along an axis, users should prefer the
-    /// [Tensor::index_select](Tensor::index_select) function, which is more high-level and designed for public use.
-    fn index_select<const D: usize>(
+    /// [Tensor::select](Tensor::select) function, which is more high-level and designed for public use.
+    fn select<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
         indices: Tensor<B, 1, Int>,
@@ -1111,7 +1111,7 @@ where
     /// or use this function directly.
     ///
     /// For assigning elements to a tensor along an axis, users should prefer the
-    /// [Tensor::index_select_assign](Tensor::index_select_assign) function, which is more high-level and designed for public use.
+    /// [Tensor::select_assign](Tensor::select_assign) function, which is more high-level and designed for public use.
     fn select_assign<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
@@ -1441,7 +1441,7 @@ impl<B: Backend> Numeric<B> for Int {
         B::int_mask_fill(tensor, mask.primitive, value)
     }
 
-    fn index_select<const D: usize>(
+    fn select<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
         indices: Tensor<B, 1, Int>,
@@ -1662,7 +1662,7 @@ impl<B: Backend> Numeric<B> for Float {
         B::mask_fill(tensor, mask.primitive, value)
     }
 
-    fn index_select<const D: usize>(
+    fn select<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
         indices: Tensor<B, 1, Int>,

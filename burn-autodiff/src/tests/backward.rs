@@ -6,16 +6,16 @@ mod tests {
     #[test]
     fn test_embedding_backward() {
         let weights = Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-        let indexes = Data::from([[0, 1], [1, 1]]);
+        let indices = Data::from([[0, 1], [1, 1]]);
         let x = Data::from([
             [[1.0, 2.0], [4.0, 5.0], [3.0, 4.0]],
             [[4.0, 5.0], [8.0, 5.0], [1.0, 9.0]],
         ]);
         let weights = Tensor::<TestADBackend, 2>::from_data(weights).require_grad();
-        let indexes = Tensor::<TestADBackend, 2, Int>::from_data(indexes);
+        let indices = Tensor::<TestADBackend, 2, Int>::from_data(indices);
         let x = Tensor::<TestADBackend, 3>::from_data(x).require_grad();
 
-        let output = embedding(weights.clone(), indexes);
+        let output = embedding(weights.clone(), indices);
         let output = output.matmul(x);
         let grads = output.backward();
 

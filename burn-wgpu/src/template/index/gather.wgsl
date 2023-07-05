@@ -4,7 +4,7 @@ var<storage, read> input: array<{{ elem }}>;
 
 @group(0)
 @binding(1)
-var<storage, read> indexes: array<{{ int }}>;
+var<storage, read> indices: array<{{ int }}>;
 
 @group(0)
 @binding(2)
@@ -41,5 +41,5 @@ fn main(
         }
     }
 
-    output[id] = input[index_input + u32(indexes[id]) * stride];
+    output[id] = input[index_input + u32(indices[id]) * stride];
 }

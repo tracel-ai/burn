@@ -45,9 +45,9 @@ impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
     fn int_slice<const D1: usize, const D2: usize>(
         tensor: IntTensor<B, D1>,
-        indexes: [std::ops::Range<usize>; D2],
+        ranges: [std::ops::Range<usize>; D2],
     ) -> IntTensor<B, D1> {
-        B::int_slice(tensor, indexes)
+        B::int_slice(tensor, ranges)
     }
 
     fn int_empty<const D: usize>(
@@ -59,10 +59,10 @@ impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
     fn int_slice_assign<const D1: usize, const D2: usize>(
         tensor: IntTensor<B, D1>,
-        indexes: [std::ops::Range<usize>; D2],
+        ranges: [std::ops::Range<usize>; D2],
         value: IntTensor<B, D1>,
     ) -> IntTensor<B, D1> {
-        B::int_slice_assign(tensor, indexes, value)
+        B::int_slice_assign(tensor, ranges, value)
     }
 
     fn int_cat<const D: usize>(tensors: Vec<IntTensor<B, D>>, dim: usize) -> IntTensor<B, D> {
@@ -198,35 +198,35 @@ impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     fn int_gather<const D: usize>(
         dim: usize,
         tensor: IntTensor<B, D>,
-        indexes: IntTensor<B, D>,
+        indices: IntTensor<B, D>,
     ) -> IntTensor<B, D> {
-        B::int_gather(dim, tensor, indexes)
+        B::int_gather(dim, tensor, indices)
     }
 
     fn int_scatter<const D: usize>(
         dim: usize,
         tensor: IntTensor<B, D>,
-        indexes: IntTensor<B, D>,
+        indices: IntTensor<B, D>,
         value: IntTensor<B, D>,
     ) -> IntTensor<B, D> {
-        B::int_scatter(dim, tensor, indexes, value)
+        B::int_scatter(dim, tensor, indices, value)
     }
 
     fn int_select<const D: usize>(
         tensor: IntTensor<B, D>,
         dim: usize,
-        indexes: IntTensor<B, 1>,
+        indices: IntTensor<B, 1>,
     ) -> IntTensor<B, D> {
-        B::int_select(tensor, dim, indexes)
+        B::int_select(tensor, dim, indices)
     }
 
     fn int_select_assign<const D: usize>(
         tensor: IntTensor<B, D>,
         dim: usize,
-        indexes: IntTensor<B, 1>,
+        indices: IntTensor<B, 1>,
         value: IntTensor<B, D>,
     ) -> IntTensor<B, D> {
-        B::int_select_assign(tensor, dim, indexes, value)
+        B::int_select_assign(tensor, dim, indices, value)
     }
 
     fn int_mask_where<const D: usize>(

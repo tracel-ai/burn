@@ -76,17 +76,17 @@ where
 
     fn bool_slice<const D1: usize, const D2: usize>(
         tensor: BoolTensor<Self, D1>,
-        indexes: [Range<usize>; D2],
+        ranges: [Range<usize>; D2],
     ) -> BoolTensor<Self, D1> {
-        kernel::slice(tensor, indexes)
+        kernel::slice(tensor, ranges)
     }
 
     fn bool_slice_assign<const D1: usize, const D2: usize>(
         tensor: BoolTensor<Self, D1>,
-        indexes: [Range<usize>; D2],
+        ranges: [Range<usize>; D2],
         value: BoolTensor<Self, D1>,
     ) -> BoolTensor<Self, D1> {
-        kernel::slice_assign(tensor, indexes, value)
+        kernel::slice_assign(tensor, ranges, value)
     }
 
     fn bool_cat<const D: usize>(

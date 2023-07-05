@@ -10,12 +10,12 @@ kernel_wgsl!(Scatter, "../../template/index/scatter.wgsl");
 pub(crate) fn scatter<E: WgpuElement, I: WgpuElement, const D: usize>(
     dim: usize,
     tensor: WgpuTensor<E, D>,
-    indexes: WgpuTensor<I, D>,
+    indices: WgpuTensor<I, D>,
     value: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     const WORKGROUP: usize = 32;
 
-    let indexes = kernel::into_continuous(indexes);
+    let indices = kernel::into_continuous(indices);
     let tensor = kernel::into_continuous(tensor);
     let value = kernel::into_continuous(value);
     let tensor = match tensor.can_mut() {
@@ -57,7 +57,7 @@ pub(crate) fn scatter<E: WgpuElement, I: WgpuElement, const D: usize>(
     tensor.context.execute(
         elemwise_workgroup(num_elems_per_workgroup, WORKGROUP),
         kernel,
-        &[&tensor.buffer, &indexes.buffer, &value.buffer, &info_buffer],
+        &[&tensor.buffer, &indices.buffer, &value.buffer, &info_buffer],
     );
 
     tensor

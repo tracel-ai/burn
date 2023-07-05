@@ -52,17 +52,17 @@ where
 
     fn int_slice<const D1: usize, const D2: usize>(
         tensor: IntTensor<Self, D1>,
-        indexes: [Range<usize>; D2],
+        ranges: [Range<usize>; D2],
     ) -> IntTensor<Self, D1> {
-        kernel::slice(tensor, indexes)
+        kernel::slice(tensor, ranges)
     }
 
     fn int_slice_assign<const D1: usize, const D2: usize>(
         tensor: IntTensor<Self, D1>,
-        indexes: [Range<usize>; D2],
+        ranges: [Range<usize>; D2],
         value: IntTensor<Self, D1>,
     ) -> IntTensor<Self, D1> {
-        kernel::slice_assign(tensor, indexes, value)
+        kernel::slice_assign(tensor, ranges, value)
     }
 
     fn int_mask_where<const D: usize>(
@@ -84,35 +84,35 @@ where
     fn int_gather<const D: usize>(
         dim: usize,
         tensor: IntTensor<Self, D>,
-        indexes: IntTensor<Self, D>,
+        indices: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        kernel::gather(dim, tensor, indexes)
+        kernel::gather(dim, tensor, indices)
     }
 
     fn int_scatter<const D: usize>(
         dim: usize,
         tensor: IntTensor<Self, D>,
-        indexes: IntTensor<Self, D>,
+        indices: IntTensor<Self, D>,
         value: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        kernel::scatter(dim, tensor, indexes, value)
+        kernel::scatter(dim, tensor, indices, value)
     }
 
     fn int_select<const D: usize>(
         tensor: IntTensor<Self, D>,
         dim: usize,
-        indexes: IntTensor<Self, 1>,
+        indices: IntTensor<Self, 1>,
     ) -> IntTensor<Self, D> {
-        kernel::select(tensor, dim, indexes)
+        kernel::select(tensor, dim, indices)
     }
 
     fn int_select_assign<const D: usize>(
         tensor: IntTensor<Self, D>,
         dim: usize,
-        indexes: IntTensor<Self, 1>,
+        indices: IntTensor<Self, 1>,
         value: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        kernel::select_assign(tensor, dim, indexes, value)
+        kernel::select_assign(tensor, dim, indices, value)
     }
 
     fn int_cat<const D: usize>(tensors: Vec<IntTensor<Self, D>>, dim: usize) -> IntTensor<Self, D> {

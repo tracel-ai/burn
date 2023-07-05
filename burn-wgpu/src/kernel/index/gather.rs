@@ -10,13 +10,13 @@ kernel_wgsl!(Gather, "../../template/index/gather.wgsl");
 pub(crate) fn gather<E: WgpuElement, I: WgpuElement, const D: usize>(
     dim: usize,
     tensor: WgpuTensor<E, D>,
-    indexes: WgpuTensor<I, D>,
+    indices: WgpuTensor<I, D>,
 ) -> WgpuTensor<E, D> {
     const WORKGROUP: usize = 32;
 
-    let shape_output = indexes.shape.clone();
+    let shape_output = indices.shape.clone();
     let num_elems = shape_output.num_elements();
-    let indexes = kernel::into_continuous(indexes);
+    let indices = kernel::into_continuous(indices);
 
     let buffer = tensor
         .context
@@ -37,7 +37,7 @@ pub(crate) fn gather<E: WgpuElement, I: WgpuElement, const D: usize>(
         kernel,
         &[
             &tensor.buffer,
-            &indexes.buffer,
+            &indices.buffer,
             &output.buffer,
             &info_buffer,
         ],

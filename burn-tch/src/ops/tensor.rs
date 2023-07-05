@@ -182,50 +182,50 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     fn gather<const D: usize>(
         dim: usize,
         tensor: TchTensor<E, D>,
-        indexes: TchTensor<i64, D>,
+        indices: TchTensor<i64, D>,
     ) -> TchTensor<E, D> {
-        TchOps::gather(dim, tensor, indexes)
+        TchOps::gather(dim, tensor, indices)
     }
 
     fn scatter<const D: usize>(
         dim: usize,
         tensor: TchTensor<E, D>,
-        indexes: TchTensor<i64, D>,
+        indices: TchTensor<i64, D>,
         value: TchTensor<E, D>,
     ) -> TchTensor<E, D> {
-        TchOps::scatter(dim, tensor, indexes, value)
+        TchOps::scatter(dim, tensor, indices, value)
     }
 
     fn select<const D: usize>(
         tensor: TchTensor<E, D>,
         dim: usize,
-        indexes: TchTensor<i64, 1>,
+        indices: TchTensor<i64, 1>,
     ) -> TchTensor<E, D> {
-        TchOps::index_select_dim(tensor, dim, indexes)
+        TchOps::index_select_dim(tensor, dim, indices)
     }
 
     fn select_assign<const D: usize>(
         tensor: TchTensor<E, D>,
         dim: usize,
-        indexes: TchTensor<i64, 1>,
+        indices: TchTensor<i64, 1>,
         value: TchTensor<E, D>,
     ) -> TchTensor<E, D> {
-        TchOps::select_assign(tensor, dim, indexes, value)
+        TchOps::select_assign(tensor, dim, indices, value)
     }
 
     fn slice<const D1: usize, const D2: usize>(
         tensor: TchTensor<E, D1>,
-        indexes: [Range<usize>; D2],
+        ranges: [Range<usize>; D2],
     ) -> TchTensor<E, D1> {
-        TchOps::index(tensor, indexes)
+        TchOps::slice(tensor, ranges)
     }
 
     fn slice_assign<const D1: usize, const D2: usize>(
         tensor: TchTensor<E, D1>,
-        indexes: [Range<usize>; D2],
+        ranges: [Range<usize>; D2],
         value: TchTensor<E, D1>,
     ) -> <TchBackend<E> as Backend>::TensorPrimitive<D1> {
-        TchOps::index_assign(tensor, indexes, value)
+        TchOps::slice_assign(tensor, ranges, value)
     }
 
     fn mask_where<const D: usize>(

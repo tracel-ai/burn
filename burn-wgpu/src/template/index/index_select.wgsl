@@ -4,7 +4,7 @@ var<storage, read> input: array<{{ elem }}>;
 
 @group(0)
 @binding(1)
-var<storage, read> indexes: array<{{ int }}>;
+var<storage, read> indices: array<{{ int }}>;
 
 @group(0)
 @binding(2)
@@ -36,7 +36,7 @@ fn main(
         let index = id / stride_output % shape_output;
 
         if i - 1u == dim {
-            index_input += u32(indexes[index]) * stride_input;
+            index_input += u32(indices[index]) * stride_input;
         } else {
             index_input += index * stride_input;
         }

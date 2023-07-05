@@ -222,7 +222,7 @@ where
     }
 
     /// Returns a copy of the current tensor with the selected elements changed to the new ones at
-    /// the selected indexes.
+    /// the selected indices.
     ///
     /// # Panics
     ///

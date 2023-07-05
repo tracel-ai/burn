@@ -59,9 +59,9 @@ impl<E: FloatNdArrayElement> BoolTensorOps<NdArrayBackend<E>> for NdArrayBackend
 
     fn bool_slice<const D1: usize, const D2: usize>(
         tensor: NdArrayTensor<bool, D1>,
-        indexes: [Range<usize>; D2],
+        ranges: [Range<usize>; D2],
     ) -> NdArrayTensor<bool, D1> {
-        NdArrayOps::index(tensor, indexes)
+        NdArrayOps::slice(tensor, ranges)
     }
 
     fn bool_into_int<const D: usize>(
@@ -87,10 +87,10 @@ impl<E: FloatNdArrayElement> BoolTensorOps<NdArrayBackend<E>> for NdArrayBackend
 
     fn bool_slice_assign<const D1: usize, const D2: usize>(
         tensor: <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D1>,
-        indexes: [Range<usize>; D2],
+        ranges: [Range<usize>; D2],
         value: <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D1>,
     ) -> <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D1> {
-        NdArrayOps::index_assign(tensor, indexes, value)
+        NdArrayOps::slice_assign(tensor, ranges, value)
     }
 
     fn bool_cat<const D: usize>(

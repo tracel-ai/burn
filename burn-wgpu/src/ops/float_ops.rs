@@ -162,50 +162,50 @@ where
     fn gather<const D: usize>(
         dim: usize,
         tensor: FloatTensor<Self, D>,
-        indexes: IntTensor<Self, D>,
+        indices: IntTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        kernel::gather(dim, tensor, indexes)
+        kernel::gather(dim, tensor, indices)
     }
 
     fn scatter<const D: usize>(
         dim: usize,
         tensor: FloatTensor<Self, D>,
-        indexes: IntTensor<Self, D>,
+        indices: IntTensor<Self, D>,
         value: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        kernel::scatter(dim, tensor, indexes, value)
+        kernel::scatter(dim, tensor, indices, value)
     }
 
     fn select<const D: usize>(
         tensor: FloatTensor<Self, D>,
         dim: usize,
-        indexes: IntTensor<Self, 1>,
+        indices: IntTensor<Self, 1>,
     ) -> FloatTensor<Self, D> {
-        kernel::select(tensor, dim, indexes)
+        kernel::select(tensor, dim, indices)
     }
 
     fn select_assign<const D: usize>(
         tensor: FloatTensor<Self, D>,
         dim: usize,
-        indexes: IntTensor<Self, 1>,
+        indices: IntTensor<Self, 1>,
         value: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        kernel::select_assign(tensor, dim, indexes, value)
+        kernel::select_assign(tensor, dim, indices, value)
     }
 
     fn slice<const D1: usize, const D2: usize>(
         tensor: FloatTensor<Self, D1>,
-        indexes: [Range<usize>; D2],
+        ranges: [Range<usize>; D2],
     ) -> FloatTensor<Self, D1> {
-        kernel::slice(tensor, indexes)
+        kernel::slice(tensor, ranges)
     }
 
     fn slice_assign<const D1: usize, const D2: usize>(
         tensor: FloatTensor<Self, D1>,
-        indexes: [Range<usize>; D2],
+        ranges: [Range<usize>; D2],
         value: FloatTensor<Self, D1>,
     ) -> FloatTensor<Self, D1> {
-        kernel::slice_assign(tensor, indexes, value)
+        kernel::slice_assign(tensor, ranges, value)
     }
 
     fn mask_where<const D: usize>(

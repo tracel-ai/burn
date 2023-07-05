@@ -400,31 +400,31 @@ impl TensorCheck {
     pub(crate) fn gather<const D: usize>(
         dim: usize,
         shape: &Shape<D>,
-        shape_indexes: &Shape<D>,
+        shape_indices: &Shape<D>,
     ) -> Self {
-        Self::check_gather_scatter_indexes(Self::Ok, "Gather", dim, shape, shape_indexes)
+        Self::check_gather_scatter_indices(Self::Ok, "Gather", dim, shape, shape_indices)
     }
 
     pub(crate) fn scatter<const D: usize>(
         dim: usize,
         shape: &Shape<D>,
-        shape_indexes: &Shape<D>,
+        shape_indices: &Shape<D>,
         shape_value: &Shape<D>,
     ) -> Self {
         let ops = "Scatter";
         let mut check =
-            Self::check_gather_scatter_indexes(Self::Ok, ops, dim, shape, shape_indexes);
+            Self::check_gather_scatter_indices(Self::Ok, ops, dim, shape, shape_indices);
 
-        if shape_indexes != shape_value {
+        if shape_indices != shape_value {
             check = check.register(
                 ops,
                 TensorError::new(
-                    "Indexes tensor shape should be the same as the value tensor shape."
+                    "Indices tensor shape should be the same as the value tensor shape."
                         .to_string(),
                 )
                 .details(format!(
                     "The shape differs: {:?} != {:?}",
-                    shape_indexes.dims, shape_value.dims
+                    shape_indices.dims, shape_value.dims
                 )),
             );
         }
@@ -452,12 +452,12 @@ impl TensorCheck {
 
         check
     }
-    fn check_gather_scatter_indexes<const D: usize>(
+    fn check_gather_scatter_indices<const D: usize>(
         mut check: Self,
         ops: &str,
         dim: usize,
         shape: &Shape<D>,
-        shape_indexes: &Shape<D>,
+        shape_indices: &Shape<D>,
     ) -> Self {
         if dim > D {
             check = check.register(
@@ -474,9 +474,9 @@ impl TensorCheck {
             }
 
             let tensor_dim_i = shape.dims[i];
-            let indexes_dim_i = shape_indexes.dims[i];
+            let indices_dim_i = shape_indices.dims[i];
 
-            if tensor_dim_i != indexes_dim_i {
+            if tensor_dim_i != indices_dim_i {
                 check = check.register(
                     ops,
                     TensorError::new(
@@ -484,7 +484,7 @@ impl TensorCheck {
                             .to_string(),
                     )
                     .details(format!(
-                        "The shape differs at dimension {i}: {tensor_dim_i} != {indexes_dim_i}"
+                        "The shape differs at dimension {i}: {tensor_dim_i} != {indices_dim_i}"
                     )),
                 );
             }

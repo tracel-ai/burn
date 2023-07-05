@@ -14,12 +14,12 @@ kernel_wgsl!(
 pub(crate) fn select<E: WgpuElement, I: WgpuElement, const D: usize>(
     tensor: WgpuTensor<E, D>,
     dim: usize,
-    indexes: WgpuTensor<I, 1>,
+    indices: WgpuTensor<I, 1>,
 ) -> WgpuTensor<E, D> {
     const WORKGROUP: usize = 32;
 
     let mut output_shape = tensor.shape.clone();
-    output_shape.dims[dim] = indexes.shape.dims[0];
+    output_shape.dims[dim] = indices.shape.dims[0];
     let num_elems = output_shape.num_elements();
 
     let buffer = tensor
@@ -43,7 +43,7 @@ pub(crate) fn select<E: WgpuElement, I: WgpuElement, const D: usize>(
         kernel,
         &[
             &tensor.buffer,
-            &indexes.buffer,
+            &indices.buffer,
             &output.buffer,
             &info_buffer,
         ],
@@ -55,7 +55,7 @@ pub(crate) fn select<E: WgpuElement, I: WgpuElement, const D: usize>(
 pub(crate) fn select_assign<E: WgpuElement, I: WgpuElement, const D: usize>(
     tensor: WgpuTensor<E, D>,
     dim: usize,
-    indexes: WgpuTensor<I, 1>,
+    indices: WgpuTensor<I, 1>,
     value: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     const WORKGROUP: usize = 32;
@@ -65,9 +65,6 @@ pub(crate) fn select_assign<E: WgpuElement, I: WgpuElement, const D: usize>(
         false => tensor.copy(),
     };
 
-    println!("{:?}", indexes.shape.dims);
-    println!("{:?}", tensor.shape.dims);
-    println!("{:?}", value.shape.dims);
     let mut info = build_info(&[&tensor, &value]);
     let mut strides = [0; D];
     let mut current = 1;
@@ -103,7 +100,7 @@ pub(crate) fn select_assign<E: WgpuElement, I: WgpuElement, const D: usize>(
     tensor.context.execute(
         elemwise_workgroup(num_elems_per_workgroup, WORKGROUP),
         kernel,
-        &[&tensor.buffer, &indexes.buffer, &value.buffer, &info_buffer],
+        &[&tensor.buffer, &indices.buffer, &value.buffer, &info_buffer],
     );
 
     tensor
