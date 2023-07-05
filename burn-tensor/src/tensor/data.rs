@@ -28,7 +28,7 @@ pub struct Data<E, const D: usize> {
 /// Distribution for random value of a tensor.
 #[derive(Clone, Copy)]
 pub enum Distribution<E> {
-    /// Standard distribution.
+    /// Uniform distribution from 0 (inclusive) to 1 (exclusive).
     Standard,
 
     /// Bernoulli distribution with the given probability.
