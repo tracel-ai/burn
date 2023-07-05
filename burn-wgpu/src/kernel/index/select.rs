@@ -5,10 +5,10 @@ use crate::{
     tensor::WgpuTensor,
 };
 
-kernel_wgsl!(IndexSelect, "../../template/index/index_select.wgsl");
+kernel_wgsl!(IndexSelect, "../../template/index/select.wgsl");
 kernel_wgsl!(
     SelectAssignInplace,
-    "../../template/index/index_select_assign_inplace.wgsl"
+    "../../template/index/select_assign_inplace.wgsl"
 );
 
 pub(crate) fn select<E: WgpuElement, I: WgpuElement, const D: usize>(

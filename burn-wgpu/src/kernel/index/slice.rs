@@ -7,10 +7,10 @@ use crate::{
 use burn_tensor::Shape;
 use std::ops::Range;
 
-kernel_wgsl!(IndexRaw, "../../template/index/index.wgsl");
+kernel_wgsl!(IndexRaw, "../../template/index/slice.wgsl");
 kernel_wgsl!(
     IndexAssignInplaceRaw,
-    "../../template/index/index_assign_inplace.wgsl"
+    "../../template/index/slice_assign_inplace.wgsl"
 );
 
 pub(crate) fn slice<E: WgpuElement, const D1: usize, const D2: usize>(
