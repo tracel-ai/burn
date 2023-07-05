@@ -18,7 +18,7 @@ pub(crate) fn apply_padding_4d<E: FloatNdArrayElement>(
     );
     let mut x_new = NdArrayTensor::new(x_new.into_shared().into_dyn());
 
-    x_new = NdArrayBackend::index_assign(
+    x_new = NdArrayBackend::slice_assign(
         x_new,
         [
             0..batch_size,

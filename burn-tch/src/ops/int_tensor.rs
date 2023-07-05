@@ -57,18 +57,18 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
         TchTensor::new(tensor)
     }
 
-    fn int_index<const D1: usize, const D2: usize>(
+    fn int_slice<const D1: usize, const D2: usize>(
         tensor: TchTensor<i64, D1>,
-        indexes: [Range<usize>; D2],
+        ranges: [Range<usize>; D2],
     ) -> TchTensor<i64, D1> {
-        TchOps::index(tensor, indexes)
+        TchOps::slice(tensor, ranges)
     }
-    fn int_index_assign<const D1: usize, const D2: usize>(
+    fn int_slice_assign<const D1: usize, const D2: usize>(
         tensor: TchTensor<i64, D1>,
-        indexes: [std::ops::Range<usize>; D2],
+        ranges: [std::ops::Range<usize>; D2],
         value: TchTensor<i64, D1>,
     ) -> TchTensor<i64, D1> {
-        TchOps::index_assign(tensor, indexes, value)
+        TchOps::slice_assign(tensor, ranges, value)
     }
 
     fn int_cat<const D: usize>(tensors: Vec<TchTensor<i64, D>>, dim: usize) -> TchTensor<i64, D> {
@@ -234,35 +234,35 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
     fn int_gather<const D: usize>(
         dim: usize,
         tensor: TchTensor<i64, D>,
-        indexes: TchTensor<i64, D>,
+        indices: TchTensor<i64, D>,
     ) -> TchTensor<i64, D> {
-        TchOps::gather(dim, tensor, indexes)
+        TchOps::gather(dim, tensor, indices)
     }
 
     fn int_scatter<const D: usize>(
         dim: usize,
         tensor: TchTensor<i64, D>,
-        indexes: TchTensor<i64, D>,
+        indices: TchTensor<i64, D>,
         value: TchTensor<i64, D>,
     ) -> TchTensor<i64, D> {
-        TchOps::scatter(dim, tensor, indexes, value)
+        TchOps::scatter(dim, tensor, indices, value)
     }
 
-    fn int_index_select_dim<const D: usize>(
+    fn int_select<const D: usize>(
         tensor: TchTensor<i64, D>,
         dim: usize,
-        indexes: TchTensor<i64, 1>,
+        indices: TchTensor<i64, 1>,
     ) -> TchTensor<i64, D> {
-        TchOps::index_select_dim(tensor, dim, indexes)
+        TchOps::index_select_dim(tensor, dim, indices)
     }
 
-    fn int_index_select_dim_assign<const D1: usize, const D2: usize>(
-        tensor: TchTensor<i64, D1>,
+    fn int_select_assign<const D: usize>(
+        tensor: TchTensor<i64, D>,
         dim: usize,
-        indexes: TchTensor<i64, 1>,
-        value: TchTensor<i64, D2>,
-    ) -> TchTensor<i64, D1> {
-        TchOps::index_select_dim_assign(tensor, dim, indexes, value)
+        indices: TchTensor<i64, 1>,
+        value: TchTensor<i64, D>,
+    ) -> TchTensor<i64, D> {
+        TchOps::select_assign(tensor, dim, indices, value)
     }
 
     fn int_mask_where<const D: usize>(
@@ -301,21 +301,21 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
         TchOps::max_dim(tensor, dim)
     }
 
-    fn int_max_dim_with_indexes<const D: usize>(
+    fn int_max_dim_with_indices<const D: usize>(
         tensor: TchTensor<i64, D>,
         dim: usize,
     ) -> (TchTensor<i64, D>, TchTensor<i64, D>) {
-        TchOps::max_dim_with_indexes(tensor, dim)
+        TchOps::max_dim_with_indices(tensor, dim)
     }
 
     fn int_min_dim<const D: usize>(tensor: TchTensor<i64, D>, dim: usize) -> TchTensor<i64, D> {
         TchOps::min_dim(tensor, dim)
     }
 
-    fn int_min_dim_with_indexes<const D: usize>(
+    fn int_min_dim_with_indices<const D: usize>(
         tensor: TchTensor<i64, D>,
         dim: usize,
     ) -> (TchTensor<i64, D>, TchTensor<i64, D>) {
-        TchOps::min_dim_with_indexes(tensor, dim)
+        TchOps::min_dim_with_indices(tensor, dim)
     }
 }

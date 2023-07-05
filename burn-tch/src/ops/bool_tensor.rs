@@ -60,18 +60,18 @@ impl<E: TchElement> BoolTensorOps<TchBackend<E>> for TchBackend<E> {
         TchTensor::new(tensor)
     }
 
-    fn bool_index<const D1: usize, const D2: usize>(
+    fn bool_slice<const D1: usize, const D2: usize>(
         tensor: TchTensor<bool, D1>,
-        indexes: [Range<usize>; D2],
+        ranges: [Range<usize>; D2],
     ) -> TchTensor<bool, D1> {
-        TchOps::index(tensor, indexes)
+        TchOps::slice(tensor, ranges)
     }
-    fn bool_index_assign<const D1: usize, const D2: usize>(
+    fn bool_slice_assign<const D1: usize, const D2: usize>(
         tensor: TchTensor<bool, D1>,
-        indexes: [std::ops::Range<usize>; D2],
+        ranges: [std::ops::Range<usize>; D2],
         value: TchTensor<bool, D1>,
     ) -> TchTensor<bool, D1> {
-        TchOps::index_assign(tensor, indexes, value)
+        TchOps::slice_assign(tensor, ranges, value)
     }
 
     fn bool_cat<const D: usize>(

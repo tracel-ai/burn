@@ -28,22 +28,22 @@ impl<E> NdArrayOps<E>
 where
     E: Copy,
 {
-    pub fn index<const D1: usize, const D2: usize>(
+    pub fn slice<const D1: usize, const D2: usize>(
         tensor: NdArrayTensor<E, D1>,
-        indexes: [Range<usize>; D2],
+        ranges: [Range<usize>; D2],
     ) -> NdArrayTensor<E, D1> {
-        let slices = Self::to_slice_args::<D1, D2>(indexes);
+        let slices = Self::to_slice_args::<D1, D2>(ranges);
         let array = tensor.array.slice_move(slices.as_slice()).into_shared();
 
         NdArrayTensor { array }
     }
 
-    pub fn index_assign<const D1: usize, const D2: usize>(
+    pub fn slice_assign<const D1: usize, const D2: usize>(
         tensor: NdArrayTensor<E, D1>,
-        indexes: [Range<usize>; D2],
+        ranges: [Range<usize>; D2],
         value: NdArrayTensor<E, D1>,
     ) -> NdArrayTensor<E, D1> {
-        let slices = Self::to_slice_args::<D1, D2>(indexes);
+        let slices = Self::to_slice_args::<D1, D2>(ranges);
         let mut array = tensor.array.into_owned();
         array.slice_mut(slices.as_slice()).assign(&value.array);
         let array = array.into_shared();
@@ -77,7 +77,7 @@ where
     }
 
     fn to_slice_args<const D1: usize, const D2: usize>(
-        indexes: [Range<usize>; D2],
+        ranges: [Range<usize>; D2],
     ) -> [SliceInfoElem; D1] {
         let mut slices = [SliceInfoElem::NewAxis; D1];
         for i in 0..D1 {
@@ -89,8 +89,8 @@ where
                 }
             } else {
                 slices[i] = SliceInfoElem::Slice {
-                    start: indexes[i].start as isize,
-                    end: Some(indexes[i].end as isize),
+                    start: ranges[i].start as isize,
+                    end: Some(ranges[i].end as isize),
                     step: 1,
                 }
             }
@@ -211,31 +211,31 @@ where
     pub fn gather<const D: usize>(
         dim: usize,
         mut tensor: NdArrayTensor<E, D>,
-        mut indexes: NdArrayTensor<i64, D>,
+        mut indices: NdArrayTensor<i64, D>,
     ) -> NdArrayTensor<E, D> {
         if dim != D - 1 {
             tensor.array.swap_axes(D - 1, dim);
-            indexes.array.swap_axes(D - 1, dim);
+            indices.array.swap_axes(D - 1, dim);
         }
-        let (shape_tensor, shape_indexes) = (tensor.shape(), indexes.shape());
-        let (size_tensor, size_index) = (shape_tensor.dims[D - 1], shape_indexes.dims[D - 1]);
-        let batch_size = Self::gather_batch_size(&shape_tensor, &shape_indexes);
+        let (shape_tensor, shape_indices) = (tensor.shape(), indices.shape());
+        let (size_tensor, size_index) = (shape_tensor.dims[D - 1], shape_indices.dims[D - 1]);
+        let batch_size = Self::gather_batch_size(&shape_tensor, &shape_indices);
 
-        let indexes = NdArrayOps::reshape(indexes, Shape::new([batch_size, size_index])).array;
+        let indices = NdArrayOps::reshape(indices, Shape::new([batch_size, size_index])).array;
         let tensor = NdArrayOps::reshape(tensor, Shape::new([batch_size, size_tensor])).array;
         let mut output = Array2::zeros((batch_size, size_index));
 
         for b in 0..batch_size {
-            let indexes = indexes.slice(s!(b, ..));
+            let indices = indices.slice(s!(b, ..));
 
-            for (i, index) in indexes.iter().enumerate() {
+            for (i, index) in indices.iter().enumerate() {
                 output[[b, i]] = tensor[[b, *index as usize]];
             }
         }
 
         let mut output = NdArrayOps::reshape(
             NdArrayTensor::<E, 2>::new(output.into_shared().into_dyn()),
-            shape_indexes,
+            shape_indices,
         );
 
         if dim != D - 1 {
@@ -248,36 +248,36 @@ where
     pub fn scatter<const D: usize>(
         dim: usize,
         mut tensor: NdArrayTensor<E, D>,
-        mut indexes: NdArrayTensor<i64, D>,
+        mut indices: NdArrayTensor<i64, D>,
         mut value: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<E, D> {
         if dim != D - 1 {
             tensor.array.swap_axes(D - 1, dim);
-            indexes.array.swap_axes(D - 1, dim);
+            indices.array.swap_axes(D - 1, dim);
             value.array.swap_axes(D - 1, dim);
         }
 
-        let (shape_tensor, shape_indexes, shape_value) =
-            (tensor.shape(), indexes.shape(), value.shape());
+        let (shape_tensor, shape_indices, shape_value) =
+            (tensor.shape(), indices.shape(), value.shape());
         let (size_tensor, size_index, size_value) = (
             shape_tensor.dims[D - 1],
-            shape_indexes.dims[D - 1],
+            shape_indices.dims[D - 1],
             shape_value.dims[D - 1],
         );
-        let batch_size = Self::gather_batch_size(&shape_tensor, &shape_indexes);
+        let batch_size = Self::gather_batch_size(&shape_tensor, &shape_indices);
 
-        if shape_value != shape_indexes {
-            panic!("Invalid dimension: the shape of the index tensor should be the same as the value tensor: Index {:?} value {:?}", shape_indexes.dims, shape_value.dims);
+        if shape_value != shape_indices {
+            panic!("Invalid dimension: the shape of the index tensor should be the same as the value tensor: Index {:?} value {:?}", shape_indices.dims, shape_value.dims);
         }
 
-        let indexes = NdArrayOps::reshape(indexes, Shape::new([batch_size, size_index])).array;
+        let indices = NdArrayOps::reshape(indices, Shape::new([batch_size, size_index])).array;
         let value = NdArrayOps::reshape(value, Shape::new([batch_size, size_value])).array;
         let mut tensor = NdArrayOps::reshape(tensor, Shape::new([batch_size, size_tensor])).array;
 
         for b in 0..batch_size {
-            let indexes = indexes.slice(s!(b, ..));
+            let indices = indices.slice(s!(b, ..));
 
-            for (i, index) in indexes.iter().enumerate() {
+            for (i, index) in indices.iter().enumerate() {
                 let index = *index as usize;
                 tensor[[b, index]] += value[[b, i]];
             }
@@ -331,28 +331,28 @@ where
 
     fn gather_batch_size<const D: usize>(
         shape_tensor: &Shape<D>,
-        shape_indexes: &Shape<D>,
+        shape_indices: &Shape<D>,
     ) -> usize {
         let mut batch_size = 1;
 
         for i in 0..D - 1 {
-            if shape_tensor.dims[i] != shape_indexes.dims[i] {
-                panic!("Unsupported dimension, only the last dimension can differ: Tensor {:?} Index {:?}", shape_tensor.dims, shape_indexes.dims);
+            if shape_tensor.dims[i] != shape_indices.dims[i] {
+                panic!("Unsupported dimension, only the last dimension can differ: Tensor {:?} Index {:?}", shape_tensor.dims, shape_indices.dims);
             }
-            batch_size *= shape_indexes.dims[i];
+            batch_size *= shape_indices.dims[i];
         }
 
         batch_size
     }
 
-    pub fn index_select<const D: usize>(
+    pub fn select<const D: usize>(
         tensor: NdArrayTensor<E, D>,
         dim: usize,
-        indexes: NdArrayTensor<i64, 1>,
+        indices: NdArrayTensor<i64, 1>,
     ) -> NdArrayTensor<E, D> {
         let array = tensor.array.select(
             Axis(dim),
-            &indexes
+            &indices
                 .array
                 .into_iter()
                 .map(|i| i as usize)
@@ -362,15 +362,15 @@ where
         NdArrayTensor::new(array.into_shared())
     }
 
-    pub fn index_select_assign<const D1: usize, const D2: usize>(
+    pub fn select_assign<const D1: usize, const D2: usize>(
         tensor: NdArrayTensor<E, D1>,
         dim: usize,
-        indexes: NdArrayTensor<i64, 1>,
+        indices: NdArrayTensor<i64, 1>,
         value: NdArrayTensor<E, D2>,
     ) -> NdArrayTensor<E, D1> {
         let mut output_array = tensor.array.into_owned();
 
-        for (index_value, index) in indexes.array.into_iter().enumerate() {
+        for (index_value, index) in indices.array.into_iter().enumerate() {
             let mut view = output_array.index_axis_mut(Axis(dim), index as usize);
             let value = value.array.index_axis(Axis(dim), index_value);
 

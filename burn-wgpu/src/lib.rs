@@ -59,14 +59,14 @@ mod tests {
     burn_tensor::testgen_matmul!();
     burn_tensor::testgen_reshape!();
     burn_tensor::testgen_transpose!();
-    burn_tensor::testgen_index!();
+    burn_tensor::testgen_slice!();
     burn_tensor::testgen_aggregation!();
     burn_tensor::testgen_arg!();
     burn_tensor::testgen_map_comparison!();
     burn_tensor::testgen_arange!();
     burn_tensor::testgen_mask!();
     burn_tensor::testgen_cat!();
-    burn_tensor::testgen_index_select!();
+    burn_tensor::testgen_select!();
     burn_tensor::testgen_gather_scatter!();
 
     type TestADBackend = burn_autodiff::ADBackendDecorator<TestBackend>;
@@ -88,11 +88,11 @@ mod tests {
     burn_autodiff::testgen_ad_matmul!();
     burn_autodiff::testgen_ad_reshape!();
     burn_autodiff::testgen_ad_transpose!();
-    burn_autodiff::testgen_ad_index!();
+    burn_autodiff::testgen_ad_slice!();
     burn_autodiff::testgen_ad_aggregation!();
     burn_autodiff::testgen_ad_cat!();
     burn_autodiff::testgen_ad_mask!();
-    burn_autodiff::testgen_ad_index_select!();
+    burn_autodiff::testgen_ad_select!();
 
     // Once all operations will be implemented.
     // burn_tensor::testgen_all!();

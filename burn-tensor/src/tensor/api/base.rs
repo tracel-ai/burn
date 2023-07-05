@@ -211,18 +211,18 @@ where
     ///
     /// fn example<B: Backend>() {
     ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 3]));
-    ///     let tensor_indexed = tensor.index([0..1, 0..3, 1..2]);
-    ///     println!("{:?}", tensor_indexed.shape());
-    ///     // Shape { dims: [1, 3, 2] }
+    ///     let tensor_slices = tensor.slice([0..1, 0..3, 1..2]);
+    ///     println!("{:?}", tensor_slices.dims()); // [1, 3, 2]
+    ///     
     /// }
     /// ```
-    pub fn index<const D2: usize>(self, indexes: [core::ops::Range<usize>; D2]) -> Self {
-        check!(TensorCheck::index(&self.shape(), &indexes));
-        Self::new(K::index(self.primitive, indexes))
+    pub fn slice<const D2: usize>(self, ranges: [core::ops::Range<usize>; D2]) -> Self {
+        check!(TensorCheck::slice(&self.shape(), &ranges));
+        Self::new(K::slice(self.primitive, ranges))
     }
 
     /// Returns a copy of the current tensor with the selected elements changed to the new ones at
-    /// the selected indexes.
+    /// the selected indices.
     ///
     /// # Panics
     ///
@@ -238,22 +238,21 @@ where
     /// fn example<B: Backend>() {
     ///     let tensor = Tensor::<B, 3>::ones([2, 3, 3]);
     ///     let values = Tensor::<B, 3>::zeros([1, 1, 1]);
-    ///     let tensor_indexed = tensor.index_assign([0..1, 0..1, 0..1], values);
-    ///     println!("{:?}", tensor_indexed.shape());
-    ///     // Shape { dims: [2, 3, 3] }
+    ///     let tensor_sliced = tensor.slice_assign([0..1, 0..1, 0..1], values);
+    ///     println!("{:?}", tensor_sliced.dims()); // [2, 3, 3]
     /// }
     /// ```
-    pub fn index_assign<const D2: usize>(
+    pub fn slice_assign<const D2: usize>(
         self,
-        indexes: [core::ops::Range<usize>; D2],
+        ranges: [core::ops::Range<usize>; D2],
         values: Self,
     ) -> Self {
-        check!(TensorCheck::index_assign(
+        check!(TensorCheck::slice_assign(
             &self.shape(),
             &values.shape(),
-            &indexes
+            &ranges
         ));
-        Self::new(K::index_assign(self.primitive, indexes, values.primitive))
+        Self::new(K::slice_assign(self.primitive, ranges, values.primitive))
     }
 
     /// Returns the device of the current tensor.
@@ -358,7 +357,7 @@ where
                 multi_index[depth] = i;
                 let range: [core::ops::Range<usize>; D] =
                     core::array::from_fn(|i| multi_index[i]..multi_index[i] + 1);
-                let elem = &self.clone().index(range).to_data().value[0];
+                let elem = &self.clone().slice(range).to_data().value[0];
                 acc.push_str(&format!("{elem:?}"));
             }
         } else {
@@ -480,12 +479,12 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         shape: Shape<D2>,
     ) -> Self::Primitive<D2>;
 
-    ///  Select tensor elements corresponding for the given indexes.
+    ///  Select tensor elements corresponding for the given ranges.
     ///
     /// # Arguments
     ///
     /// * `tensor` - The tensor.
-    /// * `indexes` - The indexes of the elements to select.
+    /// * `ranges` - The ranges of the elements to select.
     ///
     /// # Returns
     ///
@@ -497,19 +496,19 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For selecting elements of a tensor, users should prefer the [Tensor::index](Tensor::index) function,
+    /// For selecting elements of a tensor, users should prefer the [Tensor::slice](Tensor::slice) function,
     /// which is more high-level and designed for public use.
-    fn index<const D1: usize, const D2: usize>(
+    fn slice<const D1: usize, const D2: usize>(
         tensor: Self::Primitive<D1>,
-        indexes: [Range<usize>; D2],
+        range: [Range<usize>; D2],
     ) -> Self::Primitive<D1>;
 
-    ///  Assigns the given value to the tensor elements corresponding for the given indexes.
+    ///  Assigns the given value to the tensor elements corresponding for the given ranges.
     ///
     /// # Arguments
     ///
     /// * `tensor` - The tensor.
-    /// * `indexes` - The indexes of the elements to select.
+    /// * `ranges` - The ranges of the elements to select.
     /// * `value` - The value to assign.
     ///
     /// # Returns
@@ -522,11 +521,11 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For assigning values to elements of a tensor, users should prefer the [Tensor::index_assign](Tensor::index_assign) function,
+    /// For assigning values to elements of a tensor, users should prefer the [Tensor::slice_assign](Tensor::slice_assign) function,
     /// which is more high-level and designed for public use.
-    fn index_assign<const D1: usize, const D2: usize>(
+    fn slice_assign<const D1: usize, const D2: usize>(
         tensor: Self::Primitive<D1>,
-        indexes: [Range<usize>; D2],
+        ranges: [Range<usize>; D2],
         value: Self::Primitive<D1>,
     ) -> Self::Primitive<D1>;
 
@@ -712,19 +711,19 @@ impl<B: Backend> BasicOps<B> for Float {
         B::reshape(tensor, shape)
     }
 
-    fn index<const D1: usize, const D2: usize>(
+    fn slice<const D1: usize, const D2: usize>(
         tensor: Self::Primitive<D1>,
-        indexes: [Range<usize>; D2],
+        ranges: [Range<usize>; D2],
     ) -> Self::Primitive<D1> {
-        B::index(tensor, indexes)
+        B::slice(tensor, ranges)
     }
 
-    fn index_assign<const D1: usize, const D2: usize>(
+    fn slice_assign<const D1: usize, const D2: usize>(
         tensor: Self::Primitive<D1>,
-        indexes: [Range<usize>; D2],
+        ranges: [Range<usize>; D2],
         value: Self::Primitive<D1>,
     ) -> Self::Primitive<D1> {
-        B::index_assign(tensor, indexes, value)
+        B::slice_assign(tensor, ranges, value)
     }
 
     fn device<const D: usize>(tensor: &Self::Primitive<D>) -> <B as Backend>::Device {
@@ -786,19 +785,19 @@ impl<B: Backend> BasicOps<B> for Int {
         B::int_reshape(tensor, shape)
     }
 
-    fn index<const D1: usize, const D2: usize>(
+    fn slice<const D1: usize, const D2: usize>(
         tensor: Self::Primitive<D1>,
-        indexes: [Range<usize>; D2],
+        ranges: [Range<usize>; D2],
     ) -> Self::Primitive<D1> {
-        B::int_index(tensor, indexes)
+        B::int_slice(tensor, ranges)
     }
 
-    fn index_assign<const D1: usize, const D2: usize>(
+    fn slice_assign<const D1: usize, const D2: usize>(
         tensor: Self::Primitive<D1>,
-        indexes: [Range<usize>; D2],
+        ranges: [Range<usize>; D2],
         value: Self::Primitive<D1>,
     ) -> Self::Primitive<D1> {
-        B::int_index_assign(tensor, indexes, value)
+        B::int_slice_assign(tensor, ranges, value)
     }
 
     fn device<const D: usize>(tensor: &Self::Primitive<D>) -> <B as Backend>::Device {
@@ -860,19 +859,19 @@ impl<B: Backend> BasicOps<B> for Bool {
         B::bool_reshape(tensor, shape)
     }
 
-    fn index<const D1: usize, const D2: usize>(
+    fn slice<const D1: usize, const D2: usize>(
         tensor: Self::Primitive<D1>,
-        indexes: [Range<usize>; D2],
+        ranges: [Range<usize>; D2],
     ) -> Self::Primitive<D1> {
-        B::bool_index(tensor, indexes)
+        B::bool_slice(tensor, ranges)
     }
 
-    fn index_assign<const D1: usize, const D2: usize>(
+    fn slice_assign<const D1: usize, const D2: usize>(
         tensor: Self::Primitive<D1>,
-        indexes: [Range<usize>; D2],
+        ranges: [Range<usize>; D2],
         value: Self::Primitive<D1>,
     ) -> Self::Primitive<D1> {
-        B::bool_index_assign(tensor, indexes, value)
+        B::bool_slice_assign(tensor, ranges, value)
     }
 
     fn device<const D: usize>(tensor: &Self::Primitive<D>) -> <B as Backend>::Device {

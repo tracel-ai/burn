@@ -21,14 +21,14 @@ pub struct MaxPool2dBackward<B: Backend> {
     pub x_grad: B::TensorPrimitive<4>,
 }
 
-/// Results from [max_pool2d](ModuleOps::max_pool2d_with_indexes).
+/// Results from [max_pool2d](ModuleOps::max_pool2d_with_indices).
 #[derive(new)]
-pub struct MaxPool2dWithIndexes<B: Backend> {
+pub struct MaxPool2dWithIndices<B: Backend> {
     /// The output tensor.
     pub output: B::TensorPrimitive<4>,
 
-    /// The indexes tensor.
-    pub indexes: B::IntTensorPrimitive<4>,
+    /// The indices tensor.
+    pub indices: B::IntTensorPrimitive<4>,
 }
 
 /// Gradient computed during the backward pass for each tensor used by [conv1d](ModuleOps::conv1d).
@@ -86,20 +86,20 @@ pub trait ModuleOps<B: Backend> {
     /// # Arguments
     ///
     /// * `weights` - The embedding weights.
-    /// * `indexes` - The indexes tensor.
+    /// * `indices` - The indices tensor.
     ///
     /// # Returns
     ///
     /// The output tensor.
     fn embedding(
         weights: B::TensorPrimitive<2>,
-        indexes: B::IntTensorPrimitive<2>,
+        indices: B::IntTensorPrimitive<2>,
     ) -> B::TensorPrimitive<3> {
-        let [batch_size, seq_length] = B::int_shape(&indexes).dims;
+        let [batch_size, seq_length] = B::int_shape(&indices).dims;
         let [_, d_model] = B::shape(&weights).dims;
 
-        let indexes = B::int_reshape(indexes, Shape::new([batch_size * seq_length]));
-        let output = B::index_select(weights, 0, indexes);
+        let indices = B::int_reshape(indices, Shape::new([batch_size * seq_length]));
+        let output = B::select(weights, 0, indices);
 
         B::reshape(output, Shape::new([batch_size, seq_length, d_model]))
     }
@@ -110,7 +110,7 @@ pub trait ModuleOps<B: Backend> {
     ///
     /// * `weights` - The embedding weights.
     /// * `output_grad` - The output gradient.
-    /// * `indexes` - The indexes tensor.
+    /// * `indices` - The indices tensor.
     ///
     /// # Returns
     ///
@@ -118,17 +118,17 @@ pub trait ModuleOps<B: Backend> {
     fn embedding_backward(
         weights: B::TensorPrimitive<2>,
         output_grad: B::TensorPrimitive<3>,
-        indexes: B::IntTensorPrimitive<2>,
+        indices: B::IntTensorPrimitive<2>,
     ) -> B::TensorPrimitive<2> {
-        let [batch_size, seq_length] = B::int_shape(&indexes).dims;
+        let [batch_size, seq_length] = B::int_shape(&indices).dims;
         let [n_embeddings, d_model] = B::shape(&weights).dims;
         let device = B::device(&weights);
 
-        let indexes = B::int_reshape(indexes, Shape::new([batch_size * seq_length]));
+        let indices = B::int_reshape(indices, Shape::new([batch_size * seq_length]));
         let output_grad = B::reshape(output_grad, Shape::new([batch_size * seq_length, d_model]));
         let grad = B::zeros(Shape::new([n_embeddings, d_model]), &device);
 
-        B::index_select_assign(grad, 0, indexes, output_grad)
+        B::select_assign(grad, 0, indices, output_grad)
     }
 
     /// Two dimensional convolution.
@@ -263,24 +263,24 @@ pub trait ModuleOps<B: Backend> {
         padding: [usize; 2],
     ) -> B::TensorPrimitive<4>;
 
-    /// Two dimensional max pooling with indexes.
+    /// Two dimensional max pooling with indices.
     ///
     /// # Shapes
     ///
     /// x: [batch_size, channels, height, width],
-    fn max_pool2d_with_indexes(
+    fn max_pool2d_with_indices(
         x: B::TensorPrimitive<4>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
-    ) -> MaxPool2dWithIndexes<B>;
-    /// Backward pass for the [max pooling 2d](ModuleOps::max_pool2d_with_indexes) operation.
-    fn max_pool2d_with_indexes_backward(
+    ) -> MaxPool2dWithIndices<B>;
+    /// Backward pass for the [max pooling 2d](ModuleOps::max_pool2d_with_indices) operation.
+    fn max_pool2d_with_indices_backward(
         x: B::TensorPrimitive<4>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
         output_grad: B::TensorPrimitive<4>,
-        indexes: B::IntTensorPrimitive<4>,
+        indices: B::IntTensorPrimitive<4>,
     ) -> MaxPool2dBackward<B>;
 }

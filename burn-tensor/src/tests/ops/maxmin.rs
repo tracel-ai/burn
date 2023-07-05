@@ -14,10 +14,10 @@ mod tests {
     }
 
     #[test]
-    fn test_max_dim_with_indexes_2d() {
+    fn test_max_dim_with_indices_2d() {
         let tensor = TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
-        let (output_actual, index_actual) = tensor.max_dim_with_indexes(1);
+        let (output_actual, index_actual) = tensor.max_dim_with_indices(1);
 
         let output_expected = Data::from([[2.], [5.]]);
         let index_expected = Data::from([[2], [2]]);
@@ -37,10 +37,10 @@ mod tests {
     }
 
     #[test]
-    fn test_min_dim_with_indexes_2d() {
+    fn test_min_dim_with_indices_2d() {
         let tensor = TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
-        let (output_actual, index_actual) = tensor.min_dim_with_indexes(1);
+        let (output_actual, index_actual) = tensor.min_dim_with_indices(1);
 
         let output_expected = Data::from([[0.], [3.]]);
         let index_expected = Data::from([[0], [0]]);

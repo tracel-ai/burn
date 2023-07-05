@@ -114,35 +114,35 @@ pub trait BoolTensorOps<B: Backend> {
         shape: Shape<D2>,
     ) -> B::BoolTensorPrimitive<D2>;
 
-    /// Gets the values from the tensor for the given indexes.
+    /// Gets the values from the tensor for the given ranges.
     ///
     /// # Arguments
     ///
     /// * `tensor` - The tensor.
-    /// * `indexes` - The indexes to get the values from.
+    /// * `ranges` - The ranges to get the values from.
     ///
     /// # Returns
     ///
-    /// The tensor with the values for the given indexes.
-    fn bool_index<const D1: usize, const D2: usize>(
+    /// The tensor with the values for the given ranges.
+    fn bool_slice<const D1: usize, const D2: usize>(
         tensor: B::BoolTensorPrimitive<D1>,
-        indexes: [Range<usize>; D2],
+        ranges: [Range<usize>; D2],
     ) -> B::BoolTensorPrimitive<D1>;
 
-    /// Sets the values in the tensor for the given indexes.
+    /// Sets the values in the tensor for the given ranges.
     ///
     /// # Arguments
     ///
     /// * `tensor` - The tensor.
-    /// * `indexes` - The indexes to set the values for.
+    /// * `ranges` - The ranges to set the values for.
     /// * `value` - The values to set.
     ///
     /// # Returns
     ///
-    /// The tensor with the values set for the given indexes.
-    fn bool_index_assign<const D1: usize, const D2: usize>(
+    /// The tensor with the values set for the given ranges.
+    fn bool_slice_assign<const D1: usize, const D2: usize>(
         tensor: B::BoolTensorPrimitive<D1>,
-        indexes: [Range<usize>; D2],
+        ranges: [Range<usize>; D2],
         value: B::BoolTensorPrimitive<D1>,
     ) -> B::BoolTensorPrimitive<D1>;
 
@@ -169,7 +169,7 @@ pub trait BoolTensorOps<B: Backend> {
         shape.dims[dim] = times;
 
         let mut i = 0;
-        let indexes_select_all = [0; D].map(|_| {
+        let ranges_select_all = [0; D].map(|_| {
             let start = 0;
             let end = shape.dims[i];
             i += 1;
@@ -178,9 +178,9 @@ pub trait BoolTensorOps<B: Backend> {
 
         let mut tensor_output = Self::bool_empty(shape, &Self::bool_device(&tensor));
         for i in 0..times {
-            let mut indexes = indexes_select_all.clone();
-            indexes[dim] = i..i + 1;
-            tensor_output = Self::bool_index_assign(tensor_output, indexes, tensor.clone());
+            let mut ranges = ranges_select_all.clone();
+            ranges[dim] = i..i + 1;
+            tensor_output = Self::bool_slice_assign(tensor_output, ranges, tensor.clone());
         }
 
         tensor_output

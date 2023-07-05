@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(module_max_pool2d)]
 mod tests {
     use super::*;
-    use burn_tensor::module::{max_pool2d, max_pool2d_with_indexes};
+    use burn_tensor::module::{max_pool2d, max_pool2d_with_indices};
     use burn_tensor::{Data, Tensor};
 
     #[test]
@@ -180,7 +180,7 @@ mod tests {
     }
 
     #[test]
-    fn test_max_pool2d_with_indexes() {
+    fn test_max_pool2d_with_indices() {
         let batch_size = 1;
         let channels_in = 1;
         let kernel_size_1 = 2;
@@ -196,7 +196,7 @@ mod tests {
             [0.5416, 0.8602, 0.8129, 0.1662],
             [0.3358, 0.3059, 0.8293, 0.0990],
         ]]]);
-        let indexes = Data::<i64, 4>::from([[[
+        let indices = Data::<i64, 4>::from([[[
             [0, 1, 1, 3, 3],
             [4, 4, 1, 7, 7],
             [4, 9, 9, 7, 7],
@@ -211,7 +211,7 @@ mod tests {
             [0.3358, 0.3358, 0.8293, 0.8293, 0.0990],
         ]]]);
 
-        let (output, output_indexes) = max_pool2d_with_indexes(
+        let (output, output_indices) = max_pool2d_with_indices(
             x,
             [kernel_size_1, kernel_size_2],
             [stride_1, stride_2],
@@ -219,7 +219,7 @@ mod tests {
         );
 
         y.to_data().assert_approx_eq(&output.into_data(), 3);
-        assert_eq!(indexes.value, output_indexes.into_data().value);
+        assert_eq!(indices.value, output_indices.into_data().value);
     }
 
     #[test]
@@ -240,7 +240,7 @@ mod tests {
             [0.4384, 0.9963, 0.9698, 0.4988, 0.2609],
             [0.3391, 0.2230, 0.4610, 0.5365, 0.6880],
         ]]]);
-        let indexes = Data::<i64, 4>::from([[[
+        let indices = Data::<i64, 4>::from([[[
             [5, 7, 3],
             [5, 7, 3],
             [5, 16, 3],
@@ -256,7 +256,7 @@ mod tests {
             [0.4384, 0.9963, 0.688],
             [0.4384, 0.9963, 0.688],
         ]]]);
-        let (output, output_indexes) = max_pool2d_with_indexes(
+        let (output, output_indices) = max_pool2d_with_indices(
             x,
             [kernel_size_1, kernel_size_2],
             [stride_1, stride_2],
@@ -264,6 +264,6 @@ mod tests {
         );
 
         y.to_data().assert_approx_eq(&output.into_data(), 3);
-        assert_eq!(indexes.value, output_indexes.into_data().value);
+        assert_eq!(indices.value, output_indices.into_data().value);
     }
 }

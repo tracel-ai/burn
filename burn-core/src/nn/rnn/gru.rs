@@ -120,14 +120,8 @@ impl<B: Backend> Gru<B> {
 
         for t in 0..seq_length {
             let indices = Tensor::arange(t..t + 1);
-            let input_t = batched_input
-                .clone()
-                .index_select(1, indices.clone())
-                .squeeze(1);
-            let hidden_t = hidden_state
-                .clone()
-                .index_select(1, indices.clone())
-                .squeeze(1);
+            let input_t = batched_input.clone().select(1, indices.clone()).squeeze(1);
+            let hidden_t = hidden_state.clone().select(1, indices.clone()).squeeze(1);
 
             // u(pdate)g(ate) tensors
             let biased_ug_input_sum = self.gate_product(&input_t, &hidden_t, &self.update_gate);
@@ -149,7 +143,7 @@ impl<B: Backend> Gru<B> {
                 .mul(update_values.clone().sub_scalar(1).mul_scalar(-1)) // (1 - z(t)) = -(z(t) - 1)
                 + update_values.clone().mul(hidden_t);
 
-            hidden_state = hidden_state.index_assign(
+            hidden_state = hidden_state.slice_assign(
                 [0..self.batch_size, t..(t + 1), 0..self.d_hidden],
                 state_vector.clone().unsqueeze(),
             );
@@ -268,7 +262,7 @@ mod tests {
 
         let state = gru.forward(input, None);
 
-        let output = state.index_select(0, Tensor::arange(0..1)).squeeze(0);
+        let output = state.select(0, Tensor::arange(0..1)).squeeze(0);
 
         output.to_data().assert_approx_eq(&Data::from([[0.034]]), 3);
     }

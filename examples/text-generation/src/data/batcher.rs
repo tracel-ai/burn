@@ -57,9 +57,9 @@ impl<B: Backend> Batcher<TextGenerationItem, TrainingTextGenerationBatch<B>>
         let inputs = item
             .tokens
             .clone()
-            .index([0..batch_size, 0..seq_length - 1]);
-        let targets = item.tokens.index([0..batch_size, 1..seq_length]);
-        let mask_pad = item.mask_pad.index([0..batch_size, 0..seq_length - 1]);
+            .slice([0..batch_size, 0..seq_length - 1]);
+        let targets = item.tokens.slice([0..batch_size, 1..seq_length]);
+        let mask_pad = item.mask_pad.slice([0..batch_size, 0..seq_length - 1]);
 
         TrainingTextGenerationBatch::new(inputs, targets, mask_pad)
     }

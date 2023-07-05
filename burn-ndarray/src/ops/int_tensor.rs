@@ -51,11 +51,11 @@ impl<E: FloatNdArrayElement> IntTensorOps<NdArrayBackend<E>> for NdArrayBackend<
         NdArrayOps::reshape(tensor, shape)
     }
 
-    fn int_index<const D1: usize, const D2: usize>(
+    fn int_slice<const D1: usize, const D2: usize>(
         tensor: NdArrayTensor<i64, D1>,
-        indexes: [Range<usize>; D2],
+        ranges: [Range<usize>; D2],
     ) -> NdArrayTensor<i64, D1> {
-        NdArrayOps::index(tensor, indexes)
+        NdArrayOps::slice(tensor, ranges)
     }
 
     fn int_device<const D: usize>(
@@ -88,12 +88,12 @@ impl<E: FloatNdArrayElement> IntTensorOps<NdArrayBackend<E>> for NdArrayBackend<
         NdArrayMathOps::mask_fill(tensor, mask, value)
     }
 
-    fn int_index_assign<const D1: usize, const D2: usize>(
+    fn int_slice_assign<const D1: usize, const D2: usize>(
         tensor: NdArrayTensor<i64, D1>,
-        indexes: [Range<usize>; D2],
+        ranges: [Range<usize>; D2],
         value: NdArrayTensor<i64, D1>,
     ) -> NdArrayTensor<i64, D1> {
-        NdArrayOps::index_assign(tensor, indexes, value)
+        NdArrayOps::slice_assign(tensor, ranges, value)
     }
 
     fn int_cat<const D: usize>(
@@ -283,35 +283,35 @@ impl<E: FloatNdArrayElement> IntTensorOps<NdArrayBackend<E>> for NdArrayBackend<
     fn int_gather<const D: usize>(
         dim: usize,
         tensor: NdArrayTensor<i64, D>,
-        indexes: NdArrayTensor<i64, D>,
+        indices: NdArrayTensor<i64, D>,
     ) -> NdArrayTensor<i64, D> {
-        NdArrayMathOps::gather(dim, tensor, indexes)
+        NdArrayMathOps::gather(dim, tensor, indices)
     }
 
     fn int_scatter<const D: usize>(
         dim: usize,
         tensor: NdArrayTensor<i64, D>,
-        indexes: NdArrayTensor<i64, D>,
+        indices: NdArrayTensor<i64, D>,
         value: NdArrayTensor<i64, D>,
     ) -> NdArrayTensor<i64, D> {
-        NdArrayMathOps::scatter(dim, tensor, indexes, value)
+        NdArrayMathOps::scatter(dim, tensor, indices, value)
     }
 
-    fn int_index_select_dim<const D: usize>(
+    fn int_select<const D: usize>(
         tensor: NdArrayTensor<i64, D>,
         dim: usize,
-        indexes: NdArrayTensor<i64, 1>,
+        indices: NdArrayTensor<i64, 1>,
     ) -> NdArrayTensor<i64, D> {
-        NdArrayMathOps::index_select(tensor, dim, indexes)
+        NdArrayMathOps::select(tensor, dim, indices)
     }
 
-    fn int_index_select_dim_assign<const D1: usize, const D2: usize>(
-        tensor: NdArrayTensor<i64, D1>,
+    fn int_select_assign<const D: usize>(
+        tensor: NdArrayTensor<i64, D>,
         dim: usize,
-        indexes: NdArrayTensor<i64, 1>,
-        value: NdArrayTensor<i64, D2>,
-    ) -> NdArrayTensor<i64, D1> {
-        NdArrayMathOps::index_select_assign(tensor, dim, indexes, value)
+        indices: NdArrayTensor<i64, 1>,
+        value: NdArrayTensor<i64, D>,
+    ) -> NdArrayTensor<i64, D> {
+        NdArrayMathOps::select_assign(tensor, dim, indices, value)
     }
     fn int_argmax<const D: usize>(
         tensor: NdArrayTensor<i64, D>,

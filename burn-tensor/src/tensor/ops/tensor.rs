@@ -181,7 +181,7 @@ pub trait TensorOps<B: Backend> {
         shape.dims[dim] = times;
 
         let mut i = 0;
-        let indexes_select_all = [0; D].map(|_| {
+        let indices_select_all = [0; D].map(|_| {
             let start = 0;
             let end = shape.dims[i];
             i += 1;
@@ -190,9 +190,9 @@ pub trait TensorOps<B: Backend> {
 
         let mut tensor_output = B::empty(shape, &B::device(&tensor));
         for i in 0..times {
-            let mut indexes = indexes_select_all.clone();
-            indexes[dim] = i..i + 1;
-            tensor_output = B::index_assign(tensor_output, indexes, tensor.clone());
+            let mut indices = indices_select_all.clone();
+            indices[dim] = i..i + 1;
+            tensor_output = B::slice_assign(tensor_output, indices, tensor.clone());
         }
 
         tensor_output
@@ -380,7 +380,7 @@ pub trait TensorOps<B: Backend> {
     ///
     /// * `dim` - The dimension to gather from.
     /// * `tensor` - The tensor to gather from.
-    /// * `indexes` - The indexes to gather.
+    /// * `indices` - The indices to gather.
     ///
     /// # Returns
     ///
@@ -388,7 +388,7 @@ pub trait TensorOps<B: Backend> {
     fn gather<const D: usize>(
         dim: usize,
         tensor: B::TensorPrimitive<D>,
-        indexes: B::IntTensorPrimitive<D>,
+        indices: B::IntTensorPrimitive<D>,
     ) -> B::TensorPrimitive<D>;
 
     /// Scatter elements into a tensor.
@@ -397,7 +397,7 @@ pub trait TensorOps<B: Backend> {
     ///
     /// * `dim` - The dimension to scatter into.
     /// * `tensor` - The tensor to scatter into.
-    /// * `indexes` - The indexes to scatter into.
+    /// * `indices` - The indices to scatter into.
     /// * `value` - The value to scatter.
     ///
     /// # Returns
@@ -406,76 +406,76 @@ pub trait TensorOps<B: Backend> {
     fn scatter<const D: usize>(
         dim: usize,
         tensor: B::TensorPrimitive<D>,
-        indexes: B::IntTensorPrimitive<D>,
+        indices: B::IntTensorPrimitive<D>,
         value: B::TensorPrimitive<D>,
     ) -> B::TensorPrimitive<D>;
 
-    /// Select tensor elements along the given dimension corresponding for the given indexes.
+    /// Select tensor elements along the given dimension corresponding for the given indices.
     ///
     /// # Arguments
     ///
     /// * `tensor` - The tensor to select from.
     /// * `dim` - The dimension to select from.
-    /// * `indexes` - The indexes to select.
+    /// * `indices` - The indices to select.
     ///
     /// # Returns
     ///
     /// The selected elements.
-    fn index_select<const D: usize>(
+    fn select<const D: usize>(
         tensor: B::TensorPrimitive<D>,
         dim: usize,
-        indexes: B::IntTensorPrimitive<1>,
+        indices: B::IntTensorPrimitive<1>,
     ) -> B::TensorPrimitive<D>;
 
-    /// Assign the selected elements along the given dimension corresponding for the given indexes
+    /// Assign the selected elements along the given dimension corresponding for the given indices
     /// to the given value.
     ///
     /// # Arguments
     ///
     /// * `tensor` - The tensor to select from.
     /// * `dim` - The dimension to select from.
-    /// * `indexes` - The indexes to select.
+    /// * `indices` - The indices to select.
     /// * `value` - The value to assign.
     ///
     /// # Returns
     ///
     /// The tensor with the selected elements assigned to the given value.
-    fn index_select_assign<const D1: usize, const D2: usize>(
-        tensor: B::TensorPrimitive<D1>,
+    fn select_assign<const D: usize>(
+        tensor: B::TensorPrimitive<D>,
         dim: usize,
-        indexes: B::IntTensorPrimitive<1>,
-        value: B::TensorPrimitive<D2>,
-    ) -> B::TensorPrimitive<D1>;
+        indices: B::IntTensorPrimitive<1>,
+        value: B::TensorPrimitive<D>,
+    ) -> B::TensorPrimitive<D>;
 
-    /// Select tensor elements corresponding for the given indexes.
+    /// Select tensor elements corresponding for the given ranges.
     ///
     /// # Arguments
     ///
     /// * `tensor` - The tensor to select from.
-    /// * `indexes` - The indexes to select.
+    /// * `ranges` - The ranges to select.
     ///
     /// # Returns
     ///
     /// The selected elements in a new tensor.
-    fn index<const D1: usize, const D2: usize>(
+    fn slice<const D1: usize, const D2: usize>(
         tensor: B::TensorPrimitive<D1>,
-        indexes: [Range<usize>; D2],
+        ranges: [Range<usize>; D2],
     ) -> B::TensorPrimitive<D1>;
 
-    /// Assign the selected elements corresponding for the given indexes to the given value.
+    /// Assign the selected elements corresponding for the given ranges to the given value.
     ///
     /// # Arguments
     ///
     /// * `tensor` - The tensor to select from.
-    /// * `indexes` - The indexes to select.
+    /// * `ranges` - The ranges to select.
     /// * `value` - The value to assign.
     ///
     /// # Returns
     ///
     /// The tensor with the selected elements assigned to the given value.
-    fn index_assign<const D1: usize, const D2: usize>(
+    fn slice_assign<const D1: usize, const D2: usize>(
         tensor: B::TensorPrimitive<D1>,
-        indexes: [Range<usize>; D2],
+        ranges: [Range<usize>; D2],
         value: B::TensorPrimitive<D1>,
     ) -> B::TensorPrimitive<D1>;
 
@@ -872,7 +872,7 @@ pub trait TensorOps<B: Backend> {
         dim: usize,
     ) -> B::TensorPrimitive<D>;
 
-    /// Gets the indexes of the maximum elements of a tensor along an axis.
+    /// Gets the indices of the maximum elements of a tensor along an axis.
     ///
     /// # Arguments
     ///
@@ -881,13 +881,13 @@ pub trait TensorOps<B: Backend> {
     ///
     /// # Returns
     ///
-    /// A tensor with the indexes of the maximum elements of `tensor` along `dim`.
+    /// A tensor with the indices of the maximum elements of `tensor` along `dim`.
     fn argmax<const D: usize>(
         tensor: B::TensorPrimitive<D>,
         dim: usize,
     ) -> B::IntTensorPrimitive<D>;
 
-    /// Gets the indexes of the minimum elements of a tensor along an axis.
+    /// Gets the indices of the minimum elements of a tensor along an axis.
     ///
     /// # Arguments
     ///
@@ -896,7 +896,7 @@ pub trait TensorOps<B: Backend> {
     ///
     /// # Returns
     ///
-    /// A tensor with the indexes of the minimum elements of `tensor` along `dim`.
+    /// A tensor with the indices of the minimum elements of `tensor` along `dim`.
     fn argmin<const D: usize>(
         tensor: B::TensorPrimitive<D>,
         dim: usize,
@@ -934,7 +934,7 @@ pub trait TensorOps<B: Backend> {
         B::gather(D - 1, tensor, index)
     }
 
-    /// Gets the maximum elements of a tensor along an axis and their indexes.
+    /// Gets the maximum elements of a tensor along an axis and their indices.
     ///
     /// # Arguments
     ///
@@ -943,8 +943,8 @@ pub trait TensorOps<B: Backend> {
     ///
     /// # Returns
     ///
-    /// A tuple with the maximum elements of `tensor` along `dim` and their indexes.
-    fn max_dim_with_indexes<const D: usize>(
+    /// A tuple with the maximum elements of `tensor` along `dim` and their indices.
+    fn max_dim_with_indices<const D: usize>(
         tensor: B::TensorPrimitive<D>,
         dim: usize,
     ) -> (B::TensorPrimitive<D>, B::IntTensorPrimitive<D>) {
@@ -986,7 +986,7 @@ pub trait TensorOps<B: Backend> {
         B::gather(D - 1, tensor, index)
     }
 
-    /// Gets the minimum elements of a tensor along an axis and their indexes.
+    /// Gets the minimum elements of a tensor along an axis and their indices.
     ///
     /// # Arguments
     ///
@@ -995,8 +995,8 @@ pub trait TensorOps<B: Backend> {
     ///
     /// # Returns
     ///
-    /// A tuple with the minimum elements of `tensor` along `dim` and their indexes.
-    fn min_dim_with_indexes<const D: usize>(
+    /// A tuple with the minimum elements of `tensor` along `dim` and their indices.
+    fn min_dim_with_indices<const D: usize>(
         tensor: B::TensorPrimitive<D>,
         dim: usize,
     ) -> (B::TensorPrimitive<D>, B::IntTensorPrimitive<D>) {
