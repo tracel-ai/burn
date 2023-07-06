@@ -16,48 +16,52 @@ simplifying the process of experimenting, training, and deploying models.
 
 ## Features
 
-- Customizable and user-friendly neural network [module](#module) 🔥
-- Comprehensive [training](#learner) capabilities, including `metrics`, `logging`, and
-  `checkpointing` 📈
-- Versatile [Tensor](#tensor) crate with pluggable backends 🔧
-  - [Torch](https://github.com/burn-rs/burn/tree/main/burn-tch) backend offering CPU/GPU support 🚀
-  - [NdArray](https://github.com/burn-rs/burn/tree/main/burn-ndarray) backend featuring
-    [`no_std`](#no_std-support) compatibility for any platform 👌
-  - [Autodiff](https://github.com/burn-rs/burn/tree/main/burn-autodiff) backend enabling
-    differentiability for all backends 🌟
-- [Dataset](https://github.com/burn-rs/burn/tree/main/burn-dataset) crate with a variety of
-  utilities and sources 📚
-- [Import](https://github.com/burn-rs/burn/tree/main/burn-import) crate for seamless integration of
-  pretrained models 📦
+- Customizable, user-friendly neural network [module](#module) 🔥
+- Comprehensive [training](#learner) tools, inclusive of `metrics`, `logging`, and `checkpointing`
+  📈
+- Versatile [Tensor](#tensor) crate equipped with pluggable backends 🔧
+  - [Torch](https://github.com/burn-rs/burn/tree/main/burn-tch) backend, supporting both CPU and GPU
+    🚀
+  - [Ndarray](https://github.com/burn-rs/burn/tree/main/burn-ndarray) backend with
+    [`no_std`](#support-for-no_std) compatibility, ensuring universal platform adaptability 👌
+  - [WebGPU](https://github.com/burn-rs/burn/tree/main/burn-wgpu) backend, offering cross-platform,
+    browser-inclusive, GPU-based computations 🌐
+  - [Autodiff](https://github.com/burn-rs/burn/tree/main/burn-autodiff) backend that enables
+    differentiability across all backends 🌟
+- [Dataset](https://github.com/burn-rs/burn/tree/main/burn-dataset) crate containing a diverse range
+  of utilities and sources 📚
+- [Import](https://github.com/burn-rs/burn/tree/main/burn-import) crate that simplifies the
+  integration of pretrained models 📦
+
 ## Supported Platforms
 
 ### [Burn-ndarray][1] Backend
 
 | Option     | CPU | GPU | Linux | MacOS | Windows | Android | iOS | WASM |
 | :--------- | :-: | :-: | :---: | :---: | :-----: | :-----: | :-: | :--: |
-| Pure Rust  | Yes | No  |  Yes  | Yes   | Yes     | Yes     | Yes | Yes  |
-| Accelerate | Yes | No  |  No   | Yes   | No      | No      | Yes | No   |
-| Netlib     | Yes | No  |  Yes  | Yes   | Yes     | No      | No  | No   |
-| Openblas   | Yes | No  |  Yes  | Yes   | Yes     | Yes     | Yes | No   |
+| Pure Rust  | Yes | No  |  Yes  |  Yes  |   Yes   |   Yes   | Yes | Yes  |
+| Accelerate | Yes | No  |  No   |  Yes  |   No    |   No    | Yes |  No  |
+| Netlib     | Yes | No  |  Yes  |  Yes  |   Yes   |   No    | No  |  No  |
+| Openblas   | Yes | No  |  Yes  |  Yes  |   Yes   |   Yes   | Yes |  No  |
 
 ### [Burn-tch][2] Backend
 
 | Option | CPU | GPU | Linux | MacOS | Windows | Android | iOS | WASM |
 | :----- | :-: | :-: | :---: | :---: | :-----: | :-----: | :-: | :--: |
-| CPU    | Yes | No  |  Yes  | Yes   | Yes     | Yes     | Yes | No   |
-| CUDA   | No  | Yes |  Yes  | No    | Yes     | No      | No  | No   |
-| MPS    | No  | Yes |  No   | Yes   | No      | No      | No  | No   |
-| Vulkan | Yes | Yes |  Yes  | Yes   | Yes     | Yes     | No  | No   |
+| CPU    | Yes | No  |  Yes  |  Yes  |   Yes   |   Yes   | Yes |  No  |
+| CUDA   | No  | Yes |  Yes  |  No   |   Yes   |   No    | No  |  No  |
+| MPS    | No  | Yes |  No   |  Yes  |   No    |   No    | No  |  No  |
+| Vulkan | Yes | Yes |  Yes  |  Yes  |   Yes   |   Yes   | No  |  No  |
 
 ### [Burn-wgpu][3] Backend
 
 | Option    | CPU | GPU | Linux | MacOS | Windows | Android | iOS | WASM |
 | :-------- | :-: | :-: | :---: | :---: | :-----: | :-----: | :-: | :--: |
-| Metal     | No  | Yes |  No   | Yes   | No      | No      | Yes | No   |
-| Vulkan    | Yes | Yes |  Yes  | Yes   | Yes     | Yes     | Yes | No   |
-| OpenGL    | No  | Yes |  Yes  | Yes   | Yes     | Yes     | Yes | No   |
-| WebGpu    | No  | Yes |  No   | No    | No      | No      | No  | Yes  |
-| Dx11/Dx12 | No  | Yes |  No   | No    | Yes     | No      | No  | No   |
+| Metal     | No  | Yes |  No   |  Yes  |   No    |   No    | Yes |  No  |
+| Vulkan    | Yes | Yes |  Yes  |  Yes  |   Yes   |   Yes   | Yes |  No  |
+| OpenGL    | No  | Yes |  Yes  |  Yes  |   Yes   |   Yes   | Yes |  No  |
+| WebGpu    | No  | Yes |  No   |  No   |   No    |   No    | No  | Yes  |
+| Dx11/Dx12 | No  | Yes |  No   |  No   |   Yes   |   No    | No  |  No  |
 
 [1]: https://github.com/burn-rs/burn/tree/main/burn-ndarray
 [2]: https://github.com/burn-rs/burn/tree/main/burn-tch
