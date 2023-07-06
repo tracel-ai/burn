@@ -99,6 +99,10 @@ impl<
             .register("workgroup_size_x", WORKGROUP_X_SIZE.to_string())
             .register("workgroup_size_y", WORKGROUP_Y_SIZE.to_string())
             .register("workgroup_size_z", WORKGROUP_Z_SIZE.to_string())
+            .register(
+                "workgroup_size",
+                (WORKGROUP_X_SIZE * WORKGROUP_Y_SIZE * WORKGROUP_Z_SIZE).to_string(),
+            )
             .register("elem", E::type_name())
             .register("int", I::type_name())
     }
@@ -123,6 +127,10 @@ impl<K: StaticKernel, E: WgpuElement, I: WgpuElement> DynamicKernel
             .register("workgroup_size_x", self.workgroup_x_size.to_string())
             .register("workgroup_size_y", self.workgroup_y_size.to_string())
             .register("workgroup_size_z", self.workgroup_z_size.to_string())
+            .register(
+                "workgroup_size",
+                (self.workgroup_x_size * self.workgroup_y_size * self.workgroup_z_size).to_string(),
+            )
             .register("elem", E::type_name())
             .register("int", I::type_name())
     }

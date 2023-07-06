@@ -47,6 +47,12 @@ pub struct WorkGroup {
     pub z: u32,
 }
 
+impl WorkGroup {
+    pub fn num_invocations(&self) -> usize {
+        (self.x * self.y * self.z) as usize
+    }
+}
+
 impl Context {
     /// Create a new context where computing tasks will be executed on the given
     /// [device](WgpuDevice).

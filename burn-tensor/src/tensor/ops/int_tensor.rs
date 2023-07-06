@@ -634,7 +634,10 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The mean of all elements in the tensor.
-    fn int_mean<const D: usize>(tensor: B::IntTensorPrimitive<D>) -> B::IntTensorPrimitive<1>;
+    fn int_mean<const D: usize>(tensor: B::IntTensorPrimitive<D>) -> B::IntTensorPrimitive<1> {
+        let num_elems = B::int_shape(&tensor).num_elements();
+        B::int_div_scalar(B::int_sum(tensor), (num_elems as i64).elem())
+    }
 
     /// Computes the mean of all elements in the tensor along a dimension.
     ///

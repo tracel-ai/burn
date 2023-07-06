@@ -295,19 +295,15 @@ where
     }
 
     fn sum<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
-        NumericOps::<G>::sum(tensor)
+        kernel::sum(tensor)
     }
 
     fn sum_dim<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> FloatTensor<Self, D> {
-        NumericOps::<G>::sum_dim(tensor, dim)
-    }
-
-    fn mean<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
-        NumericOps::<G>::mean(tensor)
+        kernel::sum_dim(tensor, dim)
     }
 
     fn mean_dim<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> FloatTensor<Self, D> {
-        NumericOps::<G>::mean_dim(tensor, dim)
+        kernel::mean_dim(tensor, dim)
     }
 
     fn to_full_precision<const D: usize>(
@@ -427,10 +423,10 @@ where
     }
 
     fn argmax<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        NumericOps::<G>::argmax(tensor, dim)
+        kernel::argmax(tensor, dim)
     }
 
     fn argmin<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        NumericOps::<G>::argmin(tensor, dim)
+        kernel::argmin(tensor, dim)
     }
 }
