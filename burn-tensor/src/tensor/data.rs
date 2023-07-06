@@ -163,14 +163,22 @@ impl<const D: usize, E: Element> Data<E, D> {
     }
 
     /// Asserts each value is within a given range.
-    /// Bounds are inclusive.
+    ///
+    /// # Arguments
+    ///
+    /// * `range` - The range.
+    ///
+    /// # Panics
+    ///
+    /// If any value is not within the half-open range bounded inclusively below
+    /// and exclusively above (`start..end`).
     pub fn assert_within_range<EOther: Element>(&self, range: core::ops::Range<EOther>) {
         let start = range.start.elem::<f32>();
         let end = range.end.elem::<f32>();
 
         for elem in self.value.iter() {
             let elem = elem.elem::<f32>();
-            if elem < start || elem > end {
+            if elem < start || elem >= end {
                 panic!("Element ({elem:?}) is not within range {range:?}");
             }
         }
