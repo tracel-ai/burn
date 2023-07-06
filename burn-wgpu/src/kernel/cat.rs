@@ -60,8 +60,8 @@ mod tests {
     }
 
     fn test_same_as_reference(shape: [usize; 2]) {
-        let tensor1 = Tensor::<TestBackend, 2>::random(shape, Distribution::Standard);
-        let tensor2 = Tensor::<TestBackend, 2>::random(shape, Distribution::Standard);
+        let tensor1 = Tensor::<TestBackend, 2>::random(shape, Distribution::Default);
+        let tensor2 = Tensor::<TestBackend, 2>::random(shape, Distribution::Default);
         let tensor1_ref = Tensor::<ReferenceBackend, 2>::from_data(tensor1.to_data());
         let tensor2_ref = Tensor::<ReferenceBackend, 2>::from_data(tensor2.to_data());
 

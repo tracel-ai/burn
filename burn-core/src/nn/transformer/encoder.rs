@@ -349,7 +349,7 @@ mod tests {
 
         let tensor = Tensor::<TestBackend, 3>::random(
             [batch_size, seq_length, d_model],
-            Distribution::Standard,
+            Distribution::Default,
         );
         let mask_attn = generate_autoregressive_mask(batch_size, seq_length, &tensor.device());
         let input = TransformerEncoderInput::new(tensor.clone()).mask_attn(mask_attn);

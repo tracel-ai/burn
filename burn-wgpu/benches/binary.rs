@@ -45,8 +45,8 @@ impl<const D: usize, G: GraphicsApi> Benchmark<G> for BinaryBenchmark<D> {
     }
 
     fn prepare(&self, device: &WgpuDevice) -> Self::Args {
-        let lhs = Tensor::random(self.shape.clone(), Distribution::Standard).to_device(device);
-        let rhs = Tensor::random(self.shape.clone(), Distribution::Standard).to_device(device);
+        let lhs = Tensor::random(self.shape.clone(), Distribution::Default).to_device(device);
+        let rhs = Tensor::random(self.shape.clone(), Distribution::Default).to_device(device);
 
         (lhs, rhs)
     }

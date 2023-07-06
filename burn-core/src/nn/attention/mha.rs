@@ -318,7 +318,7 @@ mod tests {
         let mha = MultiHeadAttentionConfig::new(d_model, n_heads).init::<TestBackend>();
         let input = MhaInput::self_attn(Tensor::random(
             [batch_size, seq_length, d_model],
-            Distribution::Standard,
+            Distribution::Default,
         ));
 
         let output = mha.forward(input);
@@ -340,9 +340,9 @@ mod tests {
         let [batch_size, seq_length_1, seq_length_2, d_model, n_heads] = [7, 13, 15, 32, 4];
         let mha = MultiHeadAttentionConfig::new(d_model, n_heads).init::<TestBackend>();
         let input = MhaInput::new(
-            Tensor::random([batch_size, seq_length_1, d_model], Distribution::Standard),
-            Tensor::random([batch_size, seq_length_2, d_model], Distribution::Standard),
-            Tensor::random([batch_size, seq_length_2, d_model], Distribution::Standard),
+            Tensor::random([batch_size, seq_length_1, d_model], Distribution::Default),
+            Tensor::random([batch_size, seq_length_2, d_model], Distribution::Default),
+            Tensor::random([batch_size, seq_length_2, d_model], Distribution::Default),
         );
 
         let output = mha.forward(input);
@@ -374,7 +374,7 @@ mod tests {
 
         let tensor_1 = Tensor::<TestBackend, 3>::random(
             [batch_size, seq_length, d_model],
-            Distribution::Standard,
+            Distribution::Default,
         );
         // Change the end of the tensor
         let tensor_2 = tensor_1.clone().slice_assign(
@@ -383,7 +383,7 @@ mod tests {
                 seq_length - num_padded..seq_length,
                 0..d_model,
             ],
-            Tensor::random([batch_size, num_padded, d_model], Distribution::Standard),
+            Tensor::random([batch_size, num_padded, d_model], Distribution::Default),
         );
 
         let input_1 = MhaInput::self_attn(tensor_1).mask_pad(mask_pad.clone());
@@ -413,7 +413,7 @@ mod tests {
 
         let tensor = Tensor::<TestBackend, 3>::random(
             [batch_size, seq_length, d_model],
-            Distribution::Standard,
+            Distribution::Default,
         );
         let mask_attn = generate_autoregressive_mask(batch_size, seq_length, &tensor.device());
         let input = MhaInput::self_attn(tensor.clone()).mask_attn(mask_attn);

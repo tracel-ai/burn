@@ -123,7 +123,7 @@ mod tests {
     fn should_support_into_and_from_data_1d() {
         let data_expected = Data::<f32, 1>::random(
             Shape::new([3]),
-            Distribution::Standard,
+            Distribution::Default,
             &mut get_seeded_rng(),
         );
         let tensor = NdArrayTensor::from_data(data_expected.clone());
@@ -137,7 +137,7 @@ mod tests {
     fn should_support_into_and_from_data_2d() {
         let data_expected = Data::<f32, 2>::random(
             Shape::new([2, 3]),
-            Distribution::Standard,
+            Distribution::Default,
             &mut get_seeded_rng(),
         );
         let tensor = NdArrayTensor::from_data(data_expected.clone());
@@ -151,7 +151,7 @@ mod tests {
     fn should_support_into_and_from_data_3d() {
         let data_expected = Data::<f32, 3>::random(
             Shape::new([2, 3, 4]),
-            Distribution::Standard,
+            Distribution::Default,
             &mut get_seeded_rng(),
         );
         let tensor = NdArrayTensor::from_data(data_expected.clone());
@@ -165,7 +165,7 @@ mod tests {
     fn should_support_into_and_from_data_4d() {
         let data_expected = Data::<f32, 4>::random(
             Shape::new([2, 3, 4, 2]),
-            Distribution::Standard,
+            Distribution::Default,
             &mut get_seeded_rng(),
         );
         let tensor = NdArrayTensor::from_data(data_expected.clone());

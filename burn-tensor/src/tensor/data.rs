@@ -29,7 +29,7 @@ pub struct Data<E, const D: usize> {
 #[derive(Clone, Copy)]
 pub enum Distribution<E> {
     /// Uniform distribution from 0 (inclusive) to 1 (exclusive).
-    Standard,
+    Default,
 
     /// Bernoulli distribution with the given probability.
     Bernoulli(f64),
@@ -112,7 +112,7 @@ where
     /// The distribution sampler.
     pub fn sampler<R: RngCore>(self, rng: &'_ mut R) -> DistributionSampler<'_, E, R> {
         let kind = match self {
-            Distribution::Standard => {
+            Distribution::Default => {
                 DistributionSamplerKind::Standard(rand::distributions::Standard {})
             }
             Distribution::Uniform(low, high) => {
@@ -141,7 +141,7 @@ where
     /// The converted distribution.
     pub fn convert<EOther: Element>(self) -> Distribution<EOther> {
         match self {
-            Distribution::Standard => Distribution::Standard,
+            Distribution::Default => Distribution::Default,
             Distribution::Uniform(a, b) => {
                 Distribution::Uniform(EOther::from_elem(a), EOther::from_elem(b))
             }
@@ -457,7 +457,7 @@ mod tests {
         let shape = Shape::new([3, 5, 6]);
         let num_elements = shape.num_elements();
         let data =
-            Data::<f32, 3>::random(shape, Distribution::Standard, &mut StdRng::from_entropy());
+            Data::<f32, 3>::random(shape, Distribution::Default, &mut StdRng::from_entropy());
 
         assert_eq!(num_elements, data.value.len());
     }

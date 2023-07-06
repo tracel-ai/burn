@@ -3,7 +3,7 @@
 use burn_no_std_tests::mlp::*;
 use burn_no_std_tests::model::*;
 
-use burn::tensor::{backend::Backend, Distribution::Standard, Tensor};
+use burn::tensor::{backend::Backend, Distribution::Default, Tensor};
 use burn_ndarray::NdArrayBackend;
 
 #[test]
@@ -20,7 +20,7 @@ fn test_mnist_model_with_random_input() {
 
     // Some random input
     let input_shape = [1, 28, 28];
-    let input = Tensor::<Backend, 3>::random(input_shape, Standard);
+    let input = Tensor::<Backend, 3>::random(input_shape, Default);
 
     // Run through the model
     let output = mnist_model.forward(input);

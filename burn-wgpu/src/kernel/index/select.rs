@@ -114,7 +114,7 @@ mod tests {
 
     #[test]
     fn select_should_work_with_multiple_workgroups() {
-        let tensor = Tensor::<TestBackend, 2>::random([6, 256], Distribution::Standard);
+        let tensor = Tensor::<TestBackend, 2>::random([6, 256], Distribution::Default);
         let indices = Tensor::<TestBackend, 1, Int>::arange(0..100);
         let tensor_ref = Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data());
         let indices_ref =
@@ -156,8 +156,8 @@ mod tests {
 
     fn select_assign_same_as_ref<const D: usize>(dim: usize, shape: [usize; D]) {
         TestBackend::seed(0);
-        let tensor = Tensor::<TestBackend, D>::random(shape, Distribution::Standard);
-        let value = Tensor::<TestBackend, D>::random(shape, Distribution::Standard);
+        let tensor = Tensor::<TestBackend, D>::random(shape, Distribution::Default);
+        let value = Tensor::<TestBackend, D>::random(shape, Distribution::Default);
         let indices = Tensor::<TestBackend, 1, Int>::from_data(
             Tensor::<TestBackend, 1>::random(
                 [shape[dim]],

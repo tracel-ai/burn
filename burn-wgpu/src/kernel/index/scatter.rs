@@ -96,8 +96,8 @@ mod tests {
 
     fn same_as_reference<const D: usize>(dim: usize, shape: [usize; D]) {
         TestBackend::seed(0);
-        let tensor = Tensor::<TestBackend, D>::random(shape, Distribution::Standard);
-        let value = Tensor::<TestBackend, D>::random(shape, Distribution::Standard);
+        let tensor = Tensor::<TestBackend, D>::random(shape, Distribution::Default);
+        let value = Tensor::<TestBackend, D>::random(shape, Distribution::Default);
         let indices = Tensor::<TestBackend, 1, Int>::from_data(
             Tensor::<TestBackend, 1>::random(
                 [shape.iter().product()],

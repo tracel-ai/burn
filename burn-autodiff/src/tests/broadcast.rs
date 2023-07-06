@@ -59,9 +59,9 @@ mod tests {
     #[test]
     fn grad_same_shape_as_forward_tensor() {
         let x: Tensor<TestADBackend, 2> =
-            Tensor::random([2, 1], Distribution::Standard).require_grad();
+            Tensor::random([2, 1], Distribution::Default).require_grad();
         let y: Tensor<TestADBackend, 2> =
-            Tensor::random([2, 3], Distribution::Standard).require_grad();
+            Tensor::random([2, 3], Distribution::Default).require_grad();
         let z = x.clone().add(y);
 
         let grads = z.backward();

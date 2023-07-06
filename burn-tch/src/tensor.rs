@@ -233,7 +233,7 @@ mod tests {
     fn should_support_into_and_from_data_1d() {
         let data_expected = Data::<f32, 1>::random(
             Shape::new([3]),
-            Distribution::Standard,
+            Distribution::Default,
             &mut StdRng::from_entropy(),
         );
         let tensor = TchTensor::from_data(data_expected.clone(), tch::Device::Cpu);
@@ -247,7 +247,7 @@ mod tests {
     fn should_support_into_and_from_data_2d() {
         let data_expected = Data::<f32, 2>::random(
             Shape::new([2, 3]),
-            Distribution::Standard,
+            Distribution::Default,
             &mut StdRng::from_entropy(),
         );
         let tensor = TchTensor::from_data(data_expected.clone(), tch::Device::Cpu);
