@@ -69,7 +69,7 @@ where
         mask: BoolTensor<Self, D>,
         value: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        Init::<G>::mask_where(tensor, mask, value)
+        kernel::mask_where(tensor, mask, value)
     }
 
     fn int_mask_fill<const D: usize>(
@@ -77,7 +77,7 @@ where
         mask: BoolTensor<Self, D>,
         value: IntElem<Self>,
     ) -> IntTensor<Self, D> {
-        Init::<G>::mask_fill(tensor, mask, value)
+        kernel::mask_fill(tensor, mask, value)
     }
 
     fn int_gather<const D: usize>(

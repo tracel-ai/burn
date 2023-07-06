@@ -213,7 +213,7 @@ where
         mask: BoolTensor<Self, D>,
         value: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        Init::<G>::mask_where(tensor, mask, value)
+        kernel::mask_where(tensor, mask, value)
     }
 
     fn mask_fill<const D: usize>(
@@ -221,7 +221,7 @@ where
         mask: BoolTensor<Self, D>,
         value: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        Init::<G>::mask_fill(tensor, mask, value)
+        kernel::mask_fill(tensor, mask, value)
     }
 
     fn equal<const D: usize>(
