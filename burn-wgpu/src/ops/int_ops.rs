@@ -1,4 +1,4 @@
-use super::{numeric::NumericOps, BoolTensor, Device, Init, IntElem, IntTensor};
+use super::{numeric::NumericOps, BoolTensor, Device, IntElem, IntTensor};
 use crate::{
     element::{FloatElement, IntElement},
     kernel, GraphicsApi, WgpuBackend,
@@ -13,7 +13,7 @@ where
     I: IntElement,
 {
     fn int_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
-        Init::<G>::empty(shape, device)
+        super::empty::<G, I, D>(shape, device)
     }
 
     fn int_shape<const D: usize>(tensor: &IntTensor<Self, D>) -> Shape<D> {
@@ -21,14 +21,14 @@ where
     }
 
     fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> Data<I, D> {
-        Init::<G>::into_data(tensor)
+        super::into_data(tensor)
     }
 
     fn int_from_data<const D: usize>(
         data: Data<I, D>,
         device: &Device<Self>,
     ) -> IntTensor<Self, D> {
-        Init::<G>::from_data(data, device)
+        super::from_data::<G, I, D>(data, device)
     }
 
     fn int_device<const D: usize>(tensor: &IntTensor<Self, D>) -> Device<Self> {
@@ -39,14 +39,14 @@ where
         tensor: IntTensor<Self, D>,
         device: &Device<Self>,
     ) -> IntTensor<Self, D> {
-        Init::<G>::to_device(tensor, device)
+        super::to_device::<G, I, D>(tensor, device)
     }
 
     fn int_reshape<const D1: usize, const D2: usize>(
         tensor: IntTensor<Self, D1>,
         shape: Shape<D2>,
     ) -> IntTensor<Self, D2> {
-        Init::<G>::reshape(tensor, shape)
+        super::reshape(tensor, shape)
     }
 
     fn int_slice<const D1: usize, const D2: usize>(
@@ -115,7 +115,7 @@ where
     }
 
     fn int_cat<const D: usize>(tensors: Vec<IntTensor<Self, D>>, dim: usize) -> IntTensor<Self, D> {
-        Init::<G>::cat(tensors, dim)
+        kernel::cat(tensors, dim)
     }
 
     fn int_equal<const D: usize>(
