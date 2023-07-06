@@ -163,7 +163,7 @@ mod tests {
 
     #[test]
     fn unary_should_work_with_multiple_invocations() {
-        let tensor = Tensor::<TestBackend, 2>::random([6, 256], Distribution::Standard);
+        let tensor = Tensor::<TestBackend, 2>::random([6, 256], Distribution::Default);
         let tensor_ref = Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data());
 
         let actual = unary::<TestKernel, _, 2, 16>(tensor.into_primitive());
@@ -177,7 +177,7 @@ mod tests {
 
     #[test]
     fn unary_inplace_should_work_with_multiple_invocations() {
-        let tensor = Tensor::<TestBackend, 2>::random([6, 256], Distribution::Standard);
+        let tensor = Tensor::<TestBackend, 2>::random([6, 256], Distribution::Default);
         let tensor_ref = Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data());
 
         let actual = unary_inplace::<TestKernelInplace, _, 2, 16>(tensor.into_primitive());

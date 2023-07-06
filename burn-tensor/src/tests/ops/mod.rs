@@ -18,6 +18,7 @@ mod maxmin;
 mod mul;
 mod neg;
 mod powf;
+mod random;
 mod repeat;
 mod reshape;
 mod select;

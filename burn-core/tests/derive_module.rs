@@ -14,7 +14,7 @@ pub struct ModuleBasic<B: Backend> {
 
 impl<B: Backend> ModuleBasic<B> {
     fn new() -> Self {
-        let weight_basic = Tensor::random(Shape::new([20, 20]), Distribution::Standard);
+        let weight_basic = Tensor::random(Shape::new([20, 20]), Distribution::Default);
         Self {
             weight_basic: Param::from(weight_basic),
         }
@@ -29,7 +29,7 @@ pub struct ModuleComposed<B: Backend> {
 
 impl<B: Backend> ModuleComposed<B> {
     fn new() -> Self {
-        let weight = Tensor::random(Shape::new([20, 20]), Distribution::Standard);
+        let weight = Tensor::random(Shape::new([20, 20]), Distribution::Default);
         Self {
             weight: Param::from(weight),
             basic: ModuleBasic::new(),

@@ -14,9 +14,11 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         device: &TchDevice,
     ) -> TchTensor<E, D> {
         match distribution {
-            Distribution::Standard => {
+            Distribution::Default => {
                 let mut tensor = TchTensor::<E, D>::empty(shape, *device);
-                tensor.mut_ops(|tensor| tensor.normal_(0.0, 1.0)).unwrap()
+                tensor
+                    .mut_ops(|tensor| tensor.rand_like_out(tensor))
+                    .unwrap()
             }
             Distribution::Bernoulli(prob) => {
                 let mut tensor = TchTensor::<E, D>::empty(shape, *device);

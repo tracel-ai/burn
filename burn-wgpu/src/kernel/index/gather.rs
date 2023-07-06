@@ -55,7 +55,7 @@ mod tests {
     #[test]
     fn gather_should_work_with_multiple_workgroups() {
         TestBackend::seed(0);
-        let tensor = Tensor::<TestBackend, 2>::random([6, 256], Distribution::Standard);
+        let tensor = Tensor::<TestBackend, 2>::random([6, 256], Distribution::Default);
         let indices = Tensor::<TestBackend, 1, Int>::from_data(
             Tensor::<TestBackend, 1>::random([6 * 256], Distribution::Uniform(0., 256.))
                 .into_data()

@@ -12,12 +12,12 @@ pub fn run<B: Backend>() {
 
     let weights = NamedTensor::<B, (Batch, DModel, DModel)>::random(
         [1, d_model, d_model],
-        Distribution::Standard,
+        Distribution::Default,
     );
 
     let input = NamedTensor::<B, (Batch, SeqLength, DModel)>::random(
         [batch_size, seq_length, d_model],
-        Distribution::Standard,
+        Distribution::Default,
     );
 
     // Doesn't compile

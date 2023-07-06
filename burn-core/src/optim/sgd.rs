@@ -159,7 +159,7 @@ mod tests {
     }
 
     fn random_tensor() -> Tensor<TestADBackend, 2> {
-        Tensor::<TestADBackend, 2>::random(Shape::new([2, 20]), Distribution::Standard)
+        Tensor::<TestADBackend, 2>::random(Shape::new([2, 20]), Distribution::Default)
     }
 
     fn layer() -> Linear<TestADBackend> {

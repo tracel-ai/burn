@@ -237,7 +237,7 @@ mod tests {
         Tensor<ReferenceBackend, 3>,
         Tensor<ReferenceBackend, 3, Bool>,
     ) {
-        let tensor = Tensor::<TestBackend, 3>::random([2, 6, 256], Distribution::Standard);
+        let tensor = Tensor::<TestBackend, 3>::random([2, 6, 256], Distribution::Default);
         let mask = Tensor::<TestBackend, 3>::random([2, 6, 256], Distribution::Uniform(0., 1.))
             .lower_equal_elem(0.5);
         let tensor_ref = Tensor::<ReferenceBackend, 3>::from_data(tensor.to_data());
@@ -256,8 +256,8 @@ mod tests {
         Tensor<ReferenceBackend, 3, Bool>,
     ) {
         TestBackend::seed(0);
-        let tensor = Tensor::<TestBackend, 3>::random([2, 6, 256], Distribution::Standard);
-        let value = Tensor::<TestBackend, 3>::random([2, 6, 256], Distribution::Standard);
+        let tensor = Tensor::<TestBackend, 3>::random([2, 6, 256], Distribution::Default);
+        let value = Tensor::<TestBackend, 3>::random([2, 6, 256], Distribution::Default);
         let mask = Tensor::<TestBackend, 3>::random([2, 6, 256], Distribution::Uniform(0., 1.))
             .lower_equal_elem(0.5);
         let tensor_ref = Tensor::<ReferenceBackend, 3>::from_data(tensor.to_data());

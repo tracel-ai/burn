@@ -202,7 +202,7 @@ mod tests {
     #[test]
     fn test_adam_optimizer_save_load_state() {
         let linear = nn::LinearConfig::new(6, 6).init();
-        let x = Tensor::<TestADBackend, 2>::random([2, 6], Distribution::Standard);
+        let x = Tensor::<TestADBackend, 2>::random([2, 6], Distribution::Default);
         let mut optimizer = create_adam();
         let grads = linear.forward(x).backward();
         let grads = GradientsParams::from_grads(grads, &linear);

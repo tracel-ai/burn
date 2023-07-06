@@ -146,8 +146,8 @@ mod tests {
 
     #[test]
     fn binary_should_work_with_multiple_invocations() {
-        let lhs = Tensor::<TestBackend, 2>::random([6, 256], Distribution::Standard);
-        let rhs = Tensor::<TestBackend, 2>::random([6, 256], Distribution::Standard);
+        let lhs = Tensor::<TestBackend, 2>::random([6, 256], Distribution::Default);
+        let rhs = Tensor::<TestBackend, 2>::random([6, 256], Distribution::Default);
         let lhs_ref = Tensor::<ReferenceBackend, 2>::from_data(lhs.to_data());
         let rhs_ref = Tensor::<ReferenceBackend, 2>::from_data(rhs.to_data());
 
@@ -163,8 +163,8 @@ mod tests {
 
     #[test]
     fn binary_inplace_should_work_with_multiple_invocations() {
-        let lhs = Tensor::<TestBackend, 2>::random([6, 256], Distribution::Standard);
-        let rhs = Tensor::<TestBackend, 2>::random([6, 256], Distribution::Standard);
+        let lhs = Tensor::<TestBackend, 2>::random([6, 256], Distribution::Default);
+        let rhs = Tensor::<TestBackend, 2>::random([6, 256], Distribution::Default);
         let lhs_ref = Tensor::<ReferenceBackend, 2>::from_data(lhs.to_data());
         let rhs_ref = Tensor::<ReferenceBackend, 2>::from_data(rhs.to_data());
 

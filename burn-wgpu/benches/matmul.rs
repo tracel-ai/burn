@@ -44,8 +44,8 @@ where
     }
 
     fn prepare(&self, device: &WgpuDevice) -> Self::Args {
-        let lhs = Tensor::random(self.shape_lhs.clone(), Distribution::Standard).to_device(device);
-        let rhs = Tensor::random(self.shape_rhs.clone(), Distribution::Standard).to_device(device);
+        let lhs = Tensor::random(self.shape_lhs.clone(), Distribution::Default).to_device(device);
+        let rhs = Tensor::random(self.shape_rhs.clone(), Distribution::Default).to_device(device);
 
         (lhs, rhs)
     }
