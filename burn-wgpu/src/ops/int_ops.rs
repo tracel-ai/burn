@@ -1,4 +1,4 @@
-use super::{numeric::NumericOps, BoolTensor, Device, IntElem, IntTensor};
+use super::{numeric, BoolTensor, Device, IntElem, IntTensor};
 use crate::{
     element::{FloatElement, IntElement},
     kernel, GraphicsApi, WgpuBackend,
@@ -192,64 +192,64 @@ where
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        NumericOps::<G>::add::<I, D>(lhs, rhs)
+        numeric::add::<I, D>(lhs, rhs)
     }
 
     fn int_add_scalar<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> IntTensor<Self, D> {
-        NumericOps::<G>::add_scalar(lhs, rhs)
+        numeric::add_scalar(lhs, rhs)
     }
 
     fn int_sub<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        NumericOps::<G>::sub(lhs, rhs)
+        numeric::sub(lhs, rhs)
     }
 
     fn int_sub_scalar<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> IntTensor<Self, D> {
-        NumericOps::<G>::sub_scalar(lhs, rhs)
+        numeric::sub_scalar(lhs, rhs)
     }
 
     fn int_mul<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        NumericOps::<G>::mul(lhs, rhs)
+        numeric::mul(lhs, rhs)
     }
 
     fn int_mul_scalar<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> IntTensor<Self, D> {
-        NumericOps::<G>::mul_scalar(lhs, rhs)
+        numeric::mul_scalar(lhs, rhs)
     }
 
     fn int_div<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        NumericOps::<G>::div(lhs, rhs)
+        numeric::div(lhs, rhs)
     }
 
     fn int_div_scalar<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> IntTensor<Self, D> {
-        NumericOps::<G>::div_scalar(lhs, rhs)
+        numeric::div_scalar(lhs, rhs)
     }
 
     fn int_zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
-        NumericOps::<G>::zeros(shape, device)
+        numeric::zeros::<G, I, D>(shape, device)
     }
 
     fn int_ones<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
-        NumericOps::<G>::ones(shape, device)
+        numeric::ones::<G, I, D>(shape, device)
     }
 
     fn int_sum<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, 1> {

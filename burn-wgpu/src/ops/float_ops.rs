@@ -1,5 +1,4 @@
-use super::numeric::NumericOps;
-use super::{BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
+use super::{numeric, BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
 use crate::kernel::{
     self, matmul_tiling_2d_default, unary_default, unary_inplace_default, unary_scalar_default,
     unary_scalar_inplace_default,
@@ -74,64 +73,64 @@ where
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        NumericOps::<G>::add(lhs, rhs)
+        numeric::add(lhs, rhs)
     }
 
     fn add_scalar<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        NumericOps::<G>::add_scalar(lhs, rhs)
+        numeric::add_scalar(lhs, rhs)
     }
 
     fn zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
-        NumericOps::<G>::zeros(shape, device)
+        numeric::zeros::<G, F, D>(shape, device)
     }
 
     fn ones<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
-        NumericOps::<G>::ones(shape, device)
+        numeric::ones::<G, F, D>(shape, device)
     }
 
     fn sub<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        NumericOps::<G>::sub(lhs, rhs)
+        numeric::sub(lhs, rhs)
     }
 
     fn sub_scalar<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        NumericOps::<G>::sub_scalar(lhs, rhs)
+        numeric::sub_scalar(lhs, rhs)
     }
 
     fn mul<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        NumericOps::<G>::mul(lhs, rhs)
+        numeric::mul(lhs, rhs)
     }
 
     fn mul_scalar<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        NumericOps::<G>::mul_scalar(lhs, rhs)
+        numeric::mul_scalar(lhs, rhs)
     }
 
     fn div<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        NumericOps::<G>::div(lhs, rhs)
+        numeric::div(lhs, rhs)
     }
 
     fn div_scalar<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        NumericOps::<G>::div_scalar(lhs, rhs)
+        numeric::div_scalar(lhs, rhs)
     }
 
     fn matmul<const D: usize>(
