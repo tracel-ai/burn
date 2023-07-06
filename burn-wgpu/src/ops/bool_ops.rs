@@ -1,4 +1,4 @@
-use super::{BaseOps, BoolTensor, Device, IntTensor};
+use super::{BoolTensor, Device, IntTensor};
 use crate::{
     element::{FloatElement, IntElement},
     kernel,
@@ -15,7 +15,7 @@ where
     I: IntElement,
 {
     fn bool_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> BoolTensor<Self, D> {
-        BaseOps::<G>::empty(shape, device)
+        super::empty::<G, u32, D>(shape, device)
     }
 
     fn bool_shape<const D: usize>(tensor: &BoolTensor<Self, D>) -> Shape<D> {
@@ -23,7 +23,7 @@ where
     }
 
     fn bool_into_data<const D: usize>(tensor: BoolTensor<Self, D>) -> Data<bool, D> {
-        let data = BaseOps::<G>::into_data(tensor);
+        let data = super::into_data(tensor);
 
         Data::new(data.value.into_iter().map(|i| i != 0).collect(), data.shape)
     }
@@ -42,7 +42,7 @@ where
                 .collect(),
             data.shape,
         );
-        BaseOps::<G>::from_data(data, device)
+        super::from_data::<G, u32, D>(data, device)
     }
 
     fn bool_into_int<const D: usize>(tensor: BoolTensor<Self, D>) -> IntTensor<Self, D> {
@@ -64,14 +64,14 @@ where
         tensor: BoolTensor<Self, D>,
         device: &Device<Self>,
     ) -> BoolTensor<Self, D> {
-        BaseOps::<G>::to_device(tensor, device)
+        super::to_device::<G, u32, D>(tensor, device)
     }
 
     fn bool_reshape<const D1: usize, const D2: usize>(
         tensor: BoolTensor<Self, D1>,
         shape: Shape<D2>,
     ) -> BoolTensor<Self, D2> {
-        BaseOps::<G>::reshape(tensor, shape)
+        super::reshape(tensor, shape)
     }
 
     fn bool_slice<const D1: usize, const D2: usize>(
@@ -93,18 +93,18 @@ where
         tensors: Vec<BoolTensor<Self, D>>,
         dim: usize,
     ) -> BoolTensor<Self, D> {
-        BaseOps::<G>::cat(tensors, dim)
+        kernel::cat(tensors, dim)
     }
 
     fn bool_equal<const D: usize>(
         lhs: BoolTensor<Self, D>,
         rhs: BoolTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        BaseOps::<G>::equal(lhs, rhs)
+        kernel::equal(lhs, rhs)
     }
 
     fn bool_equal_elem<const D: usize>(lhs: BoolTensor<Self, D>, rhs: bool) -> BoolTensor<Self, D> {
-        BaseOps::<G>::equal_elem(
+        kernel::equal_elem(
             lhs,
             match rhs {
                 true => 1,

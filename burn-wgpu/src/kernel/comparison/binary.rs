@@ -1,11 +1,15 @@
-use super::{build_info, KernelSettings, StaticKernel};
-use crate::{element::WgpuElement, kernel::elemwise_workgroup, kernel_wgsl, tensor::WgpuTensor};
+use crate::{
+    element::WgpuElement,
+    kernel::{build_info, elemwise_workgroup, KernelSettings, StaticKernel},
+    kernel_wgsl,
+    tensor::WgpuTensor,
+};
 use burn_tensor::Shape;
 
-kernel_wgsl!(ComparisonRaw, "../template/comparison/binary.wgsl");
+kernel_wgsl!(ComparisonRaw, "../../template/comparison/binary.wgsl");
 kernel_wgsl!(
     ComparisonInplaceRaw,
-    "../template/comparison/binary_inplace.wgsl"
+    "../../template/comparison/binary_inplace.wgsl"
 );
 
 /// Creates a comparison kernel.

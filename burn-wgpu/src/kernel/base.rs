@@ -44,9 +44,12 @@ pub(crate) fn into_continuous<E: WgpuElement, const D: usize>(
         return tensor;
     }
 
+    const WORKGROUP: usize = 32;
+
+    let num_elems = tensor.shape.num_elements();
     let buffer = tensor
         .context
-        .create_buffer(tensor.shape.num_elements() * core::mem::size_of::<E>());
+        .create_buffer(num_elems * core::mem::size_of::<E>());
     let output = WgpuTensor::new(tensor.context.clone(), tensor.shape.clone(), buffer);
     let info = build_info(&[&tensor, &output]);
     let info_buffer = tensor
@@ -55,14 +58,10 @@ pub(crate) fn into_continuous<E: WgpuElement, const D: usize>(
 
     let kernel = tensor
         .context
-        .compile_static::<KernelSettings<ContinuousRaw, E, i32, 256, 1, 1>>();
+        .compile_static::<KernelSettings<ContinuousRaw, E, i32, WORKGROUP, WORKGROUP, 1>>();
 
     tensor.context.execute(
-        WorkGroup::new(
-            f32::ceil(output.shape.num_elements() as f32 / 256_f32) as u32,
-            1,
-            1,
-        ),
+        elemwise_workgroup(num_elems, WORKGROUP),
         kernel,
         &[&tensor.buffer, &output.buffer, &info_buffer],
     );
