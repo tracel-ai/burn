@@ -10,9 +10,15 @@ var<storage, read_write> output: array<{{ elem }}>;
 @binding(2)
 var<storage, read> info: array<u32>;
 
+const WORKGROUP_SIZE_X = {{ workgroup_size_x }}u;
+
 @compute
-@workgroup_size({{ workgroup_size_x }}, 1, 1)
-fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
+@workgroup_size({{ workgroup_size_x }}, {{ workgroup_size_y }}, 1)
+fn main(
+    @builtin(global_invocation_id) global_id: vec3<u32>,
+    @builtin(num_workgroups) num_workgroups: vec3<u32>,
+) {
+    let id = global_id.y * (num_workgroups.x * WORKGROUP_SIZE_X) + global_id.x;
     let dim: u32 = info[0];
     var index_input: u32 = 0u;
 
@@ -21,8 +27,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         let stride_output = info[i + dim];
         let shape_input = info[i + 2u * dim];
 
-        index_input += global_id.x / stride_output % shape_input * stride_input;
+        index_input += id / stride_output % shape_input * stride_input;
     }
 
-    output[global_id.x] = input[index_input];
+    output[id] = input[index_input];
 }

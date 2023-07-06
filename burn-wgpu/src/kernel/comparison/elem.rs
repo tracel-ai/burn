@@ -1,10 +1,14 @@
-use super::{KernelSettings, StaticKernel};
-use crate::{element::WgpuElement, kernel::elemwise_workgroup, kernel_wgsl, tensor::WgpuTensor};
+use crate::{
+    element::WgpuElement,
+    kernel::{elemwise_workgroup, KernelSettings, StaticKernel},
+    kernel_wgsl,
+    tensor::WgpuTensor,
+};
 
-kernel_wgsl!(ComparisonElemRaw, "../template/comparison/elem.wgsl");
+kernel_wgsl!(ComparisonElemRaw, "../../template/comparison/elem.wgsl");
 kernel_wgsl!(
     ComparisonElemInplaceRaw,
-    "../template/comparison/elem_inplace.wgsl"
+    "../../template/comparison/elem_inplace.wgsl"
 );
 
 /// Creates a comparison elementwise kernel.
