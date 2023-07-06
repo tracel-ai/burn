@@ -1,7 +1,6 @@
 use crate::kernel::{
-    binary_elemwise_default, binary_elemwise_inplace_default, reduction_args_dim, reduction_dim,
-    reduction_sum, unary_scalar_default, unary_scalar_inplace_default, ArgsMax, ArgsMin, MeanDim,
-    SumDim,
+    binary_elemwise_default, binary_elemwise_inplace_default, unary_scalar_default,
+    unary_scalar_inplace_default,
 };
 use crate::pool::get_context;
 use crate::{
@@ -157,46 +156,5 @@ impl<G: GraphicsApi> NumericOps<G> {
         }
 
         unary_scalar_default::<DivScalar, E, D>(lhs, rhs)
-    }
-
-    pub fn sum<E: WgpuElement + Element, const D: usize>(
-        tensor: WgpuTensor<E, D>,
-    ) -> WgpuTensor<E, 1> {
-        reduction_sum(tensor)
-    }
-
-    pub fn sum_dim<E: WgpuElement + Element, const D: usize>(
-        tensor: WgpuTensor<E, D>,
-        dim: usize,
-    ) -> WgpuTensor<E, D> {
-        reduction_dim::<SumDim, E, D>(tensor, dim)
-    }
-
-    pub fn mean<E: WgpuElement + Element, const D: usize>(
-        tensor: WgpuTensor<E, D>,
-    ) -> WgpuTensor<E, 1> {
-        let num_elems = tensor.shape.num_elements();
-        Self::div_scalar(Self::sum(tensor), (num_elems as f32).elem())
-    }
-
-    pub fn mean_dim<E: WgpuElement + Element, const D: usize>(
-        tensor: WgpuTensor<E, D>,
-        dim: usize,
-    ) -> WgpuTensor<E, D> {
-        reduction_dim::<MeanDim, E, D>(tensor, dim)
-    }
-
-    pub fn argmax<E: WgpuElement + Element, I: WgpuElement, const D: usize>(
-        tensor: WgpuTensor<E, D>,
-        dim: usize,
-    ) -> WgpuTensor<I, D> {
-        reduction_args_dim::<ArgsMax, E, I, D>(tensor, dim)
-    }
-
-    pub fn argmin<E: WgpuElement + Element, I: WgpuElement, const D: usize>(
-        tensor: WgpuTensor<E, D>,
-        dim: usize,
-    ) -> WgpuTensor<I, D> {
-        reduction_args_dim::<ArgsMin, E, I, D>(tensor, dim)
     }
 }

@@ -716,7 +716,10 @@ pub trait TensorOps<B: Backend> {
     /// # Returns
     ///
     /// A scalar tensor with the mean of all elements in `tensor`.
-    fn mean<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<1>;
+    fn mean<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<1> {
+        let num_elems = B::shape(&tensor).num_elements();
+        B::div_scalar(B::sum(tensor), (num_elems as i64).elem())
+    }
 
     /// Mean of all elements in a tensor along a dimension.
     ///

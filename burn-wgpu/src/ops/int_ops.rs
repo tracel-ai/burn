@@ -1,11 +1,10 @@
+use super::{numeric::NumericOps, BaseOps, BoolTensor, Device, IntElem, IntTensor};
 use crate::{
     element::{FloatElement, IntElement},
     kernel, GraphicsApi, WgpuBackend,
 };
 use burn_tensor::{ops::IntTensorOps, Data, Shape};
 use std::ops::Range;
-
-use super::{numeric::NumericOps, BaseOps, BoolTensor, Device, IntElem, IntTensor};
 
 impl<G, F, I> IntTensorOps<WgpuBackend<G, F, I>> for WgpuBackend<G, F, I>
 where
@@ -254,25 +253,22 @@ where
     }
 
     fn int_sum<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, 1> {
-        NumericOps::<G>::sum(tensor)
+        kernel::sum(tensor)
     }
 
     fn int_sum_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        NumericOps::<G>::sum_dim(tensor, dim)
-    }
-    fn int_mean<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, 1> {
-        NumericOps::<G>::mean(tensor)
+        kernel::sum_dim(tensor, dim)
     }
 
     fn int_mean_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        NumericOps::<G>::mean_dim(tensor, dim)
+        kernel::mean_dim(tensor, dim)
     }
 
     fn int_argmax<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        NumericOps::<G>::argmax(tensor, dim)
+        kernel::argmax(tensor, dim)
     }
 
     fn int_argmin<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        NumericOps::<G>::argmin(tensor, dim)
+        kernel::argmin(tensor, dim)
     }
 }
