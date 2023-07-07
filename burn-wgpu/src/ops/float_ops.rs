@@ -1,7 +1,6 @@
 use super::{numeric, BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
 use crate::kernel::{
-    self, matmul_tiling_2d_default, unary_default, unary_inplace_default, unary_scalar_default,
-    unary_scalar_inplace_default,
+    self, unary_default, unary_inplace_default, unary_scalar_default, unary_scalar_inplace_default,
 };
 use crate::unary_scalar_inplace;
 use crate::{
@@ -140,7 +139,7 @@ where
         let lhs = kernel::into_continuous(lhs);
         let rhs = kernel::into_continuous(rhs);
 
-        matmul_tiling_2d_default::<FloatElem<Self>, D>(lhs, rhs)
+        kernel::matmul::tile_vectorized::matmul_tiling_2d_default(lhs, rhs)
     }
 
     fn swap_dims<const D: usize>(

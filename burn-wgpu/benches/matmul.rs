@@ -1,11 +1,13 @@
-use std::marker::PhantomData;
-
 use burn_tensor::{backend::Backend, Distribution, Shape, Tensor};
 use burn_wgpu::{
     benchmark::Benchmark,
-    kernel::{matmul_mem_coalescing_default, matmul_naive_default, matmul_tiling_2d_default},
+    kernel::matmul::{
+        continuous, continuous_vectorized, matmul_mem_coalescing_default, matmul_naive_default,
+        tile, tile_vectorized,
+    },
     run_benchmark, GraphicsApi, WgpuBackend, WgpuDevice,
 };
+use std::marker::PhantomData;
 
 trait MatmulFunction<B: Backend, const D: usize> {
     fn run(lhs: Tensor<B, D>, rhs: Tensor<B, D>) -> Tensor<B, D>;
@@ -37,6 +39,10 @@ where
         )
     }
 
+    fn num_samples(&self) -> usize {
+        10
+    }
+
     fn execute(&self, (lhs, rhs): Self::Args) {
         for _ in 0..self.num_repeats {
             F::run(lhs.clone(), rhs.clone());
@@ -51,71 +57,69 @@ where
     }
 }
 
-struct Tiling2DMatmul;
+macro_rules! benchmark {
+    ($name:ident, $func:expr) => {
+        struct $name;
 
-impl<const D: usize, G: GraphicsApi> MatmulFunction<WgpuBackend<G, f32, i32>, D>
-    for Tiling2DMatmul
-{
-    fn run(
-        lhs: Tensor<WgpuBackend<G, f32, i32>, D>,
-        rhs: Tensor<WgpuBackend<G, f32, i32>, D>,
-    ) -> Tensor<WgpuBackend<G, f32, i32>, D> {
-        Tensor::from_primitive(matmul_tiling_2d_default(
-            lhs.into_primitive(),
-            rhs.into_primitive(),
-        ))
-    }
+        impl<const D: usize, G: GraphicsApi> MatmulFunction<WgpuBackend<G, f32, i32>, D> for $name {
+            fn run(
+                lhs: Tensor<WgpuBackend<G, f32, i32>, D>,
+                rhs: Tensor<WgpuBackend<G, f32, i32>, D>,
+            ) -> Tensor<WgpuBackend<G, f32, i32>, D> {
+                Tensor::from_primitive($func(lhs.into_primitive(), rhs.into_primitive()))
+            }
+        }
+    };
 }
 
-struct NaiveMatmul;
-
-impl<const D: usize, G: GraphicsApi> MatmulFunction<WgpuBackend<G, f32, i32>, D> for NaiveMatmul {
-    fn run(
-        lhs: Tensor<WgpuBackend<G, f32, i32>, D>,
-        rhs: Tensor<WgpuBackend<G, f32, i32>, D>,
-    ) -> Tensor<WgpuBackend<G, f32, i32>, D> {
-        Tensor::from_primitive(matmul_naive_default(
-            lhs.into_primitive(),
-            rhs.into_primitive(),
-        ))
-    }
-}
-
-struct MemCoalescingMatmul;
-
-impl<const D: usize, G: GraphicsApi> MatmulFunction<WgpuBackend<G, f32, i32>, D>
-    for MemCoalescingMatmul
-{
-    fn run(
-        lhs: Tensor<WgpuBackend<G, f32, i32>, D>,
-        rhs: Tensor<WgpuBackend<G, f32, i32>, D>,
-    ) -> Tensor<WgpuBackend<G, f32, i32>, D> {
-        Tensor::from_primitive(matmul_mem_coalescing_default(
-            lhs.into_primitive(),
-            rhs.into_primitive(),
-        ))
-    }
-}
+benchmark!(NaiveMatmul, matmul_naive_default);
+benchmark!(MemCoalescingMatmul, matmul_mem_coalescing_default);
+benchmark!(
+    Tiling2DMatmulContinuous,
+    continuous::matmul_tiling_2d_default
+);
+benchmark!(Tiling2DMatmulTile, tile::matmul_tiling_2d_default);
+benchmark!(
+    Tiling2DMatmulTileVectorized,
+    tile_vectorized::matmul_tiling_2d_default
+);
+benchmark!(
+    Tiling2DMatmulContinuousVectorized,
+    continuous_vectorized::matmul_tiling_2d_default
+);
 
 fn main() {
-    let batch_size = 32;
-    let matrix_size = 128;
-    run_benchmark!(MatmulBenchmark::<NaiveMatmul, 3> {
-        shape_lhs: [batch_size, matrix_size, matrix_size].into(),
-        shape_rhs: [batch_size, matrix_size, matrix_size].into(),
-        num_repeats: 10,
-        matmul: PhantomData::default()
-    });
+    let num_repeats = 3;
+    let batch_size = 3;
+    let matrix_size = 1000;
     run_benchmark!(MatmulBenchmark::<MemCoalescingMatmul, 3> {
         shape_lhs: [batch_size, matrix_size, matrix_size].into(),
         shape_rhs: [batch_size, matrix_size, matrix_size].into(),
-        num_repeats: 10,
+        num_repeats,
         matmul: PhantomData::default()
     });
-    run_benchmark!(MatmulBenchmark::<Tiling2DMatmul, 3> {
+    run_benchmark!(MatmulBenchmark::<Tiling2DMatmulContinuous, 3> {
         shape_lhs: [batch_size, matrix_size, matrix_size].into(),
         shape_rhs: [batch_size, matrix_size, matrix_size].into(),
-        num_repeats: 10,
+        num_repeats,
+        matmul: PhantomData::default()
+    });
+    run_benchmark!(MatmulBenchmark::<Tiling2DMatmulContinuousVectorized, 3> {
+        shape_lhs: [batch_size, matrix_size, matrix_size].into(),
+        shape_rhs: [batch_size, matrix_size, matrix_size].into(),
+        num_repeats,
+        matmul: PhantomData::default()
+    });
+    run_benchmark!(MatmulBenchmark::<Tiling2DMatmulTile, 3> {
+        shape_lhs: [batch_size, matrix_size, matrix_size].into(),
+        shape_rhs: [batch_size, matrix_size, matrix_size].into(),
+        num_repeats,
+        matmul: PhantomData::default()
+    });
+    run_benchmark!(MatmulBenchmark::<Tiling2DMatmulTileVectorized, 3> {
+        shape_lhs: [batch_size, matrix_size, matrix_size].into(),
+        shape_rhs: [batch_size, matrix_size, matrix_size].into(),
+        num_repeats,
         matmul: PhantomData::default()
     });
 }

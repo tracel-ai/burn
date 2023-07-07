@@ -1,3 +1,5 @@
+pub(crate) mod utils;
+
 mod mem_coalescing;
 mod naive;
 mod tiling2d;

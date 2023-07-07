@@ -1,3 +1,4 @@
+use super::utils::shape_out;
 use crate::{
     context::WorkGroup,
     element::WgpuElement,
@@ -5,11 +6,10 @@ use crate::{
     kernel_wgsl,
     tensor::WgpuTensor,
 };
-use burn_tensor::Shape;
 
 kernel_wgsl!(
     MatmulMemCoalescingRaw,
-    "../../template/matmul_mem_coalescing.wgsl"
+    "../../template/matmul/mem_coalescing.wgsl"
 );
 
 struct MatmulMemCoalescing<const WORKGROUP_SIZE_X: usize, const WORKGROUP_SIZE_Y: usize>;
@@ -44,21 +44,9 @@ pub fn matmul_mem_coalescing<
 ) -> WgpuTensor<E, D> {
     lhs.assert_is_on_same_device(&rhs);
 
-    let mut shape_out = [0; D];
-    lhs.shape
-        .dims
-        .iter()
-        .zip(rhs.shape.dims.iter())
-        .enumerate()
-        .for_each(|(index, (dim_lhs, dim_rhs))| {
-            shape_out[index] = usize::max(*dim_lhs, *dim_rhs);
-        });
-
+    let shape_out = shape_out(&lhs, &rhs);
     let num_rows = lhs.shape.dims[D - 2];
     let num_cols = rhs.shape.dims[D - 1];
-    shape_out[D - 2] = num_rows;
-    shape_out[D - 1] = num_cols;
-    let shape_out = Shape::new(shape_out);
 
     let buffer = lhs
         .context
@@ -103,10 +91,7 @@ pub fn matmul_mem_coalescing<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::TestTensor;
-
-    pub type ReferenceTensor<const D: usize> =
-        burn_tensor::Tensor<burn_ndarray::NdArrayBackend<f32>, D>;
+    use crate::kernel::matmul::utils::tests::same_as_reference;
 
     #[test]
     pub fn test_matmul_mem_coalescing_straightforward() {
@@ -166,26 +151,5 @@ mod tests {
         let shape_lhs = [batch_1, batch_2, m, k];
         let shape_rhs = [batch_1, batch_2, k, n];
         same_as_reference(func, shape_lhs, shape_rhs);
-    }
-
-    fn same_as_reference<F, const D: usize, S>(func: F, shape_lhs: S, shape_rhs: S)
-    where
-        F: Fn(WgpuTensor<f32, D>, WgpuTensor<f32, D>) -> WgpuTensor<f32, D>,
-        S: Into<Shape<D>>,
-    {
-        let x = ReferenceTensor::random(shape_lhs, burn_tensor::Distribution::Uniform(-1.0, 1.0));
-        let y = ReferenceTensor::random(shape_rhs, burn_tensor::Distribution::Uniform(-1.0, 1.0));
-
-        let x_wgpu = TestTensor::from_data(x.to_data());
-        let y_wgpu = TestTensor::from_data(y.to_data());
-
-        let z_reference = x.matmul(y);
-
-        let z = func(x_wgpu.into_primitive(), y_wgpu.into_primitive());
-        let z = TestTensor::from_primitive(z);
-
-        println!("{z}");
-
-        z_reference.into_data().assert_approx_eq(&z.into_data(), 3);
     }
 }
