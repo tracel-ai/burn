@@ -79,6 +79,16 @@ std_func() {
     # all features
     echo "Running all-features checks"
     build_and_test_all_features "burn-dataset"
+
+    cd burn-core || exit
+
+    echo "Test burn-core with tch backend"
+    cargo test --features test-tch
+
+    echo "Test burn-core with wgpu backend"
+    cargo test --features test-wgpu
+
+    cd .. || exit
 }
 
 # Run the checks for no_std

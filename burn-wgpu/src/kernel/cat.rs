@@ -56,7 +56,7 @@ mod tests {
 
     #[test]
     fn cat_should_support_multiple_invocations_dim1() {
-        test_same_as_reference([2, 16], 2, 1);
+        test_same_as_reference([6, 256], 2, 1);
     }
 
     #[test]
