@@ -11,7 +11,7 @@ pub fn cat<E: WgpuElement, const D: usize>(
     inputs: Vec<WgpuTensor<E, D>>,
     dim: usize,
 ) -> WgpuTensor<E, D> {
-    const WORKGROUP: usize = 4;
+    const WORKGROUP: usize = 32;
 
     let first_input = inputs.get(0).unwrap();
     let context = &first_input.context;
