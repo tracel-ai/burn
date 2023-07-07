@@ -7,7 +7,7 @@ use crate::{
 };
 use burn_tensor::Shape;
 
-kernel_wgsl!(MatmulNaiveRaw, "../../template/matmul_naive.wgsl");
+kernel_wgsl!(MatmulNaiveRaw, "../../template/matmul/naive.wgsl");
 
 struct MatmulNaive<const WORKGROUP_SIZE_X: usize, const WORKGROUP_SIZE_Y: usize>;
 

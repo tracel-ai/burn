@@ -103,10 +103,15 @@ mod tests {
         burn_tensor::Tensor<burn_ndarray::NdArrayBackend<f32>, D>;
 
     #[test]
-    pub fn test_matmul_tiling_2d_shapes_smaller_than_blocks() {
-        test_with_params::<128, 128, 16, 4, 4, 32, 32>(8, 8, 8, 1, 1);
+    pub fn test_matmul_tiling_2d_large_blocks() {
+        test_with_params::<128, 128, 8, 4, 4, 32, 32>(8, 8, 8, 1, 1);
     }
 
+    #[test]
+    pub fn test_matmul_tiling_2d_shapes_smaller_than_blocks() {
+        test_with_params::<64, 64, 8, 4, 4, 16, 16>(8, 8, 8, 1, 1);
+    }
+    
     #[test]
     pub fn test_matmul_tiling_2d_m_not_equals_n() {
         test_with_params::<16, 16, 8, 2, 2, 8, 8>(16, 8, 16, 1, 1);

@@ -9,7 +9,7 @@ use burn_tensor::Shape;
 
 kernel_wgsl!(
     MatmulMemCoalescingRaw,
-    "../../template/matmul_mem_coalescing.wgsl"
+    "../../template/matmul/mem_coalescing.wgsl"
 );
 
 struct MatmulMemCoalescing<const WORKGROUP_SIZE_X: usize, const WORKGROUP_SIZE_Y: usize>;

@@ -120,8 +120,8 @@ mod tests {
 
     // WEIRD DOES NOT PASS
     // #[test]
-    // pub fn test_matmul_tiling_2d_shapes_smaller_than_blocks() {
-    //     test_with_params::<128, 128, 8, 4, 4, 32, 32>(8, 8, 8, 1, 1);
+    // pub fn test_matmul_tiling_2d_large_blocks() {
+    //     test_with_params::<116, 116, 8, 4, 4, 32, 32>(8, 8, 8, 1, 1);
     // }
 
     #[test]
