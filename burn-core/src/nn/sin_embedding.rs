@@ -73,21 +73,6 @@ impl<B: Backend> SinEmbedding<B> {
 /// * `length` - The length of the sequence
 /// * `d_model` - The number of channels
 /// * `max_timescale` - The maximum timescale
-///
-/// # Example
-///
-/// ```
-/// use burn_ndarray::NdArrayBackend;
-/// use burn_core::nn::generate_sinusoids;
-///
-/// type TestBackend = NdArrayBackend<f32>;
-///
-/// fn main() {
-///    let sinusoids = generate_sinusoids::<TestBackend>(8, 4, 128);
-///    println!("{}", sinusoids);
-/// }
-///
-/// ```
 pub fn generate_sinusoids<B: Backend>(
     length: usize,
     d_model: usize,
