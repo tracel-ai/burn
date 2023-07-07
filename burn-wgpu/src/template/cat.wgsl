@@ -23,8 +23,9 @@ fn main(
     let dim_cat = info[4u * dim + 1u];
     let dim_cat_index = info[4u * dim + 2u];
 
-    var index_input: u32 = 0u;
-    var index_output: u32 = 0u;
+    var num_elems = 1u;
+    var index_input = 0u;
+    var index_output = 0u;
 
     for (var i: u32 = 1u; i <= dim; i++) {
         let stride_input = info[i];
@@ -32,8 +33,9 @@ fn main(
         let shape_input = info[i + 2u * dim];
         let shape_output = info[i + 3u * dim];
 
-        let num_block_output = id / stride_output % shape_output;
+        let num_block_output = id / stride_input % shape_input;
         index_input += num_block_output * stride_input;
+        num_elems *= shape_input;
 
         if i - 1u == dim_cat {
             index_output += (num_block_output + dim_cat_index) * stride_output;
@@ -42,6 +44,8 @@ fn main(
         }
     }
 
-    output[index_output] = input[index_input];
+    if id < num_elems {
+        output[index_output] = input[index_input];
+    }
 }
 
