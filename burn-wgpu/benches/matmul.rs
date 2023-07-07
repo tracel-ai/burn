@@ -58,100 +58,36 @@ where
     }
 }
 
-/// TODO MACRO
+macro_rules! benchmark {
+    ($name:ident, $func:expr) => {
+        struct $name;
 
-struct NaiveMatmul;
-
-impl<const D: usize, G: GraphicsApi> MatmulFunction<WgpuBackend<G, f32, i32>, D> for NaiveMatmul {
-    fn run(
-        lhs: Tensor<WgpuBackend<G, f32, i32>, D>,
-        rhs: Tensor<WgpuBackend<G, f32, i32>, D>,
-    ) -> Tensor<WgpuBackend<G, f32, i32>, D> {
-        Tensor::from_primitive(matmul_naive_default(
-            lhs.into_primitive(),
-            rhs.into_primitive(),
-        ))
-    }
+        impl<const D: usize, G: GraphicsApi> MatmulFunction<WgpuBackend<G, f32, i32>, D> for $name {
+            fn run(
+                lhs: Tensor<WgpuBackend<G, f32, i32>, D>,
+                rhs: Tensor<WgpuBackend<G, f32, i32>, D>,
+            ) -> Tensor<WgpuBackend<G, f32, i32>, D> {
+                Tensor::from_primitive($func(lhs.into_primitive(), rhs.into_primitive()))
+            }
+        }
+    };
 }
 
-struct MemCoalescingMatmul;
-
-impl<const D: usize, G: GraphicsApi> MatmulFunction<WgpuBackend<G, f32, i32>, D>
-    for MemCoalescingMatmul
-{
-    fn run(
-        lhs: Tensor<WgpuBackend<G, f32, i32>, D>,
-        rhs: Tensor<WgpuBackend<G, f32, i32>, D>,
-    ) -> Tensor<WgpuBackend<G, f32, i32>, D> {
-        Tensor::from_primitive(matmul_mem_coalescing_default(
-            lhs.into_primitive(),
-            rhs.into_primitive(),
-        ))
-    }
-}
-
-struct Tiling2DMatmulContinuous;
-
-impl<const D: usize, G: GraphicsApi> MatmulFunction<WgpuBackend<G, f32, i32>, D>
-    for Tiling2DMatmulContinuous
-{
-    fn run(
-        lhs: Tensor<WgpuBackend<G, f32, i32>, D>,
-        rhs: Tensor<WgpuBackend<G, f32, i32>, D>,
-    ) -> Tensor<WgpuBackend<G, f32, i32>, D> {
-        Tensor::from_primitive(continuous::matmul_tiling_2d_default(
-            lhs.into_primitive(),
-            rhs.into_primitive(),
-        ))
-    }
-}
-struct Tiling2DMatmulTile;
-
-impl<const D: usize, G: GraphicsApi> MatmulFunction<WgpuBackend<G, f32, i32>, D>
-    for Tiling2DMatmulTile
-{
-    fn run(
-        lhs: Tensor<WgpuBackend<G, f32, i32>, D>,
-        rhs: Tensor<WgpuBackend<G, f32, i32>, D>,
-    ) -> Tensor<WgpuBackend<G, f32, i32>, D> {
-        Tensor::from_primitive(tile::matmul_tiling_2d_default(
-            lhs.into_primitive(),
-            rhs.into_primitive(),
-        ))
-    }
-}
-
-struct Tiling2DMatmulTileVectorized;
-
-impl<const D: usize, G: GraphicsApi> MatmulFunction<WgpuBackend<G, f32, i32>, D>
-    for Tiling2DMatmulTileVectorized
-{
-    fn run(
-        lhs: Tensor<WgpuBackend<G, f32, i32>, D>,
-        rhs: Tensor<WgpuBackend<G, f32, i32>, D>,
-    ) -> Tensor<WgpuBackend<G, f32, i32>, D> {
-        Tensor::from_primitive(tile_vectorized::matmul_tiling_2d_default(
-            lhs.into_primitive(),
-            rhs.into_primitive(),
-        ))
-    }
-}
-
-struct Tiling2DMatmulContinuousVectorized;
-
-impl<const D: usize, G: GraphicsApi> MatmulFunction<WgpuBackend<G, f32, i32>, D>
-    for Tiling2DMatmulContinuousVectorized
-{
-    fn run(
-        lhs: Tensor<WgpuBackend<G, f32, i32>, D>,
-        rhs: Tensor<WgpuBackend<G, f32, i32>, D>,
-    ) -> Tensor<WgpuBackend<G, f32, i32>, D> {
-        Tensor::from_primitive(continuous_vectorized::matmul_tiling_2d_default(
-            lhs.into_primitive(),
-            rhs.into_primitive(),
-        ))
-    }
-}
+benchmark!(NaiveMatmul, matmul_naive_default);
+benchmark!(MemCoalescingMatmul, matmul_mem_coalescing_default);
+benchmark!(
+    Tiling2DMatmulContinuous,
+    continuous::matmul_tiling_2d_default
+);
+benchmark!(Tiling2DMatmulTile, tile::matmul_tiling_2d_default);
+benchmark!(
+    Tiling2DMatmulTileVectorized,
+    tile_vectorized::matmul_tiling_2d_default
+);
+benchmark!(
+    Tiling2DMatmulContinuousVectorized,
+    continuous_vectorized::matmul_tiling_2d_default
+);
 
 fn main() {
     let num_repeats = 3;

@@ -1,3 +1,5 @@
+pub(crate) mod utils;
+
 mod matmul;
 mod mem_coalescing;
 mod naive;

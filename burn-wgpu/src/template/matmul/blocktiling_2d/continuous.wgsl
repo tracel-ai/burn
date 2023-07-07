@@ -80,7 +80,10 @@ fn main(
             let block_row = lhs_sm_position / B_K;
             let block_col = lhs_sm_position % B_K;
             let lhs_position = offset_lhs + k + block_row * K + block_col;
-            shared_lhs[lhs_sm_position] = lhs[lhs_position];
+
+            if block_row < B_M {
+                shared_lhs[lhs_sm_position] = lhs[lhs_position];
+            }
         }
 
         for (var load_index = 0u; load_index < T_M_X_T_N; load_index ++) {
@@ -88,7 +91,10 @@ fn main(
             let block_row = rhs_sm_position / B_N;
             let block_col = rhs_sm_position % B_N;
             let rhs_position = offset_rhs + (k + block_row) * n_cols + block_col;
-            shared_rhs[rhs_sm_position] = rhs[rhs_position];
+
+            if block_row < B_K {
+                shared_rhs[rhs_sm_position] = rhs[rhs_position];
+            }
         } 
 
         workgroupBarrier();
