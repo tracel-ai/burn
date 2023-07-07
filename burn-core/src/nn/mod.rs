@@ -24,6 +24,7 @@ mod linear;
 mod norm;
 mod relu;
 mod rnn;
+mod sin_embedding;
 
 pub use dropout::*;
 pub use embedding::*;
@@ -33,3 +34,4 @@ pub use linear::*;
 pub use norm::*;
 pub use relu::*;
 pub use rnn::*;
+pub use sin_embedding::*;
