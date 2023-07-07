@@ -18,3 +18,31 @@ pub(crate) fn shape_out<E: WgpuElement, const D: usize>(
     shape_out[D - 1] = rhs.shape.dims[D - 1];
     Shape::new(shape_out)
 }
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use crate::tensor::WgpuTensor;
+    use crate::tests::{ReferenceTensor, TestTensor};
+    use burn_tensor::Shape;
+
+    pub(crate) fn same_as_reference<F, const D: usize, S>(func: F, shape_lhs: S, shape_rhs: S)
+    where
+        F: Fn(WgpuTensor<f32, D>, WgpuTensor<f32, D>) -> WgpuTensor<f32, D>,
+        S: Into<Shape<D>>,
+    {
+        let x = ReferenceTensor::random(shape_lhs, burn_tensor::Distribution::Uniform(-1.0, 1.0));
+        let y = ReferenceTensor::random(shape_rhs, burn_tensor::Distribution::Uniform(-1.0, 1.0));
+
+        let x_wgpu = TestTensor::from_data(x.to_data());
+        let y_wgpu = TestTensor::from_data(y.to_data());
+
+        let z_reference = x.matmul(y);
+
+        let z = func(x_wgpu.into_primitive(), y_wgpu.into_primitive());
+        let z = TestTensor::from_primitive(z);
+
+        std::println!("{z}");
+        std::println!("{z_reference}");
+        z_reference.into_data().assert_approx_eq(&z.into_data(), 3);
+    }
+}

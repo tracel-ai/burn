@@ -38,7 +38,9 @@ mod tests {
 
     pub type TestBackend = WgpuBackend<GraphicsApi, f32, i32>;
     pub type ReferenceBackend = burn_ndarray::NdArrayBackend<f32>;
+
     pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
+    pub type ReferenceTensor<const D: usize> = burn_tensor::Tensor<ReferenceBackend, D>;
     pub type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
 
     burn_tensor::testgen_add!();

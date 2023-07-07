@@ -1,7 +1,7 @@
 use crate::{
     context::{Context, WorkGroup},
     element::WgpuElement,
-    kernel::{build_info, utils::shape_out, SourceTemplate},
+    kernel::{build_info, matmul::utils::shape_out, SourceTemplate},
     tensor::WgpuTensor,
 };
 use burn_tensor::Shape;
@@ -145,18 +145,13 @@ macro_rules! matmul_tile_2d {
 
         #[cfg(test)]
         mod tests {
-            use burn_tensor::Shape;
             use super::*;
-            use crate::tests::TestTensor;
+            use $crate::kernel::matmul::utils::tests::same_as_reference;
 
-            pub type ReferenceTensor<const D: usize> =
-                burn_tensor::Tensor<burn_ndarray::NdArrayBackend<f32>, D>;
-
-            // WEIRD DOES NOT PASS
-            // #[test]
-            // pub fn test_matmul_tiling_2d_large_blocks() {
-            //     test_with_params::<116, 116, 8, 4, 4, 32, 32>(8, 8, 8, 1, 1);
-            // }
+            #[test]
+            pub fn test_matmul_tiling_2d_large_blocks() {
+                test_with_params::<128, 128, 8, 4, 4, 32, 32>(8, 8, 8, 1, 1);
+            }
 
             #[test]
             pub fn test_matmul_tiling_2d_shapes_smaller_than_blocks() {
@@ -292,28 +287,8 @@ macro_rules! matmul_tile_2d {
                 same_as_reference(func, shape_lhs, shape_rhs);
             }
 
-            fn same_as_reference<F, const D: usize, S>(func: F, shape_lhs: S, shape_rhs: S)
-            where
-                F: Fn(WgpuTensor<f32, D>, WgpuTensor<f32, D>) -> WgpuTensor<f32, D>,
-                S: Into<Shape<D>>,
-            {
-                let x = ReferenceTensor::random(shape_lhs, burn_tensor::Distribution::Uniform(-1.0, 1.0));
-                let y = ReferenceTensor::random(shape_rhs, burn_tensor::Distribution::Uniform(-1.0, 1.0));
 
-                let x_wgpu = TestTensor::from_data(x.to_data());
-                let y_wgpu = TestTensor::from_data(y.to_data());
-
-                let z_reference = x.matmul(y);
-
-                let z = func(x_wgpu.into_primitive(), y_wgpu.into_primitive());
-                let z = TestTensor::from_primitive(z);
-
-                std::println!("{z}");
-                std::println!("{z_reference}");
-                z_reference.into_data().assert_approx_eq(&z.into_data(), 3);
-            }
         }
-
     };
 }
 
@@ -339,6 +314,7 @@ pub(super) fn register_template<
         .register("tm_x_tn", (T_M * T_N).to_string())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn matmul_parameter_assertions<E: WgpuElement, const D: usize>(
     b_m: usize,
     b_n: usize,
@@ -364,7 +340,7 @@ pub(super) fn matmul_parameter_assertions<E: WgpuElement, const D: usize>(
         workgroup_size_y == b_n / t_n,
         "Workgroup size y must equal B_N / T_N"
     );
-    lhs.assert_is_on_same_device(&rhs);
+    lhs.assert_is_on_same_device(rhs);
 }
 
 pub(super) fn make_workgroup<const D: usize>(
@@ -387,7 +363,7 @@ pub(super) fn make_info_buffers<E: WgpuElement, const D: usize>(
     rhs: &WgpuTensor<E, D>,
     output: &WgpuTensor<E, D>,
 ) -> Arc<wgpu::Buffer> {
-    let info = build_info(&[&lhs, &rhs, &output]);
+    let info = build_info(&[lhs, rhs, output]);
     rhs.context
         .create_buffer_with_data(bytemuck::cast_slice(&info))
 }

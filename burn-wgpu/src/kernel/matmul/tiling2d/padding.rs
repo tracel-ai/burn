@@ -141,7 +141,7 @@ mod tests {
         let col_divisor = 5;
         let tensor = TestTensor::random([row, col], burn_tensor::Distribution::Default);
 
-        let padded = pad_round(tensor.clone().into_primitive(), row_divisor, col_divisor);
+        let padded = pad_round(tensor.into_primitive(), row_divisor, col_divisor);
         let padded = TestTensor::from_primitive(padded).to_data();
 
         // check right of matrix

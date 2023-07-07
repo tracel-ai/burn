@@ -1,14 +1,13 @@
-use std::marker::PhantomData;
-
 use burn_tensor::{backend::Backend, Distribution, Shape, Tensor};
 use burn_wgpu::{
     benchmark::Benchmark,
-    kernel::{
+    kernel::matmul::{
         continuous, continuous_vectorized, matmul_mem_coalescing_default, matmul_naive_default,
         tile, tile_vectorized,
     },
     run_benchmark, GraphicsApi, WgpuBackend, WgpuDevice,
 };
+use std::marker::PhantomData;
 
 trait MatmulFunction<B: Backend, const D: usize> {
     fn run(lhs: Tensor<B, D>, rhs: Tensor<B, D>) -> Tensor<B, D>;
