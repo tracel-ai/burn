@@ -47,26 +47,35 @@ pub fn cat<E: WgpuElement, const D: usize>(
 #[cfg(test)]
 mod tests {
     use crate::tests::{ReferenceBackend, TestBackend};
-    use burn_tensor::{Distribution, Tensor};
+    use burn_tensor::{backend::Backend, Distribution, Tensor};
 
     #[test]
-    fn cat_should_support_multiple_invokations() {
-        test_same_as_reference([6, 256]);
+    fn cat_should_support_multiple_invocations_dim0() {
+        test_same_as_reference([6, 256], 2, 0);
+    }
+
+    #[test]
+    fn cat_should_support_multiple_invocations_dim1() {
+        test_same_as_reference([6, 256], 2, 1);
     }
 
     #[test]
     fn cat_should_support_uneven_launch() {
-        test_same_as_reference([1, 137]);
+        test_same_as_reference([1, 137], 2, 0);
     }
 
-    fn test_same_as_reference(shape: [usize; 2]) {
-        let tensor1 = Tensor::<TestBackend, 2>::random(shape, Distribution::Default);
-        let tensor2 = Tensor::<TestBackend, 2>::random(shape, Distribution::Default);
-        let tensor1_ref = Tensor::<ReferenceBackend, 2>::from_data(tensor1.to_data());
-        let tensor2_ref = Tensor::<ReferenceBackend, 2>::from_data(tensor2.to_data());
+    fn test_same_as_reference(shape: [usize; 2], num_tensors: usize, dim: usize) {
+        TestBackend::seed(0);
+        let tensors = (0..num_tensors)
+            .map(|_| Tensor::<TestBackend, 2>::random(shape, Distribution::Default))
+            .collect::<Vec<_>>();
+        let tensors_ref = tensors
+            .iter()
+            .map(|tensor| Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data()))
+            .collect::<Vec<_>>();
 
-        let tensor = Tensor::<TestBackend, 2>::cat(vec![tensor1, tensor2], 0);
-        let tensor_ref = Tensor::<ReferenceBackend, 2>::cat(vec![tensor1_ref, tensor2_ref], 0);
+        let tensor = Tensor::<TestBackend, 2>::cat(tensors, dim);
+        let tensor_ref = Tensor::<ReferenceBackend, 2>::cat(tensors_ref, dim);
 
         tensor
             .into_data()

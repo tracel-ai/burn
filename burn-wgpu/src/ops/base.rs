@@ -58,7 +58,6 @@ pub fn swap_dims<E: WgpuElement, const D: usize>(
     dim2: usize,
 ) -> WgpuTensor<E, D> {
     tensor.strides.swap(dim1, dim2);
-
     tensor.shape.dims.swap(dim1, dim2);
 
     tensor

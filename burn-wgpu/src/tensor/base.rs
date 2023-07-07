@@ -72,7 +72,7 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
         // slowdowns.
         //
         // The solution is just to use a simple unary compute shader.
-        unary!(CopyBuffer, body "output[global_id.x] = input[global_id.x];");
+        unary!(CopyBuffer, body "output[id] = input[id];");
         unary_default::<CopyBuffer, E, D>(self.clone())
     }
 
