@@ -64,3 +64,8 @@ pub fn log_sigmoid<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B
         _ => tensor.neg().exp().add_scalar(1.0_f32).log().neg(),
     }
 }
+
+/// Applies the silu function
+pub fn silu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
+    tensor.clone().mul(sigmoid(tensor))
+}
