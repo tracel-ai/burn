@@ -139,43 +139,43 @@ impl TextPlot {
 
         let mut plot = Plot::default();
 
-        let train_values: Vec<f64> = self.train.iter().map(|(x, _)| f64::from(*x)).collect();
-        let valid_values: Vec<f64> = self.valid.iter().map(|(x, _)| f64::from(*x)).collect();
+        let train_data: Vec<(f64, f64)> = self
+            .train
+            .iter()
+            .map(|&(x, y)| (f64::from(x), f64::from(y)))
+            .collect();
+        let valid_data: Vec<(f64, f64)> = self
+            .valid
+            .iter()
+            .map(|&(x, y)| (f64::from(x), f64::from(y)))
+            .collect();
 
         let x_min = f64::from(x_min);
         let x_max = f64::from(x_max);
 
-        let train_plot = move |x: f64| -> f64 {
-            if train_values.is_empty() {
+        let train_graph = plot::Graph::new(Box::new(move |x: f64| -> f64 {
+            if train_data.is_empty() {
                 return 0.0;
             }
 
-            let index = {
-                let x_min = x_min;
-                let x_max = x_max;
-                (x - x_min) / (x_max - x_min) * (train_values.len() - 1) as f64
-            };
-            train_values[index as usize]
-        };
+            let index = ((x - x_min) / (x_max - x_min) * (train_data.len() - 1) as f64) as usize;
+            train_data[index].1
+        }));
 
-        let valid_plot = move |x: f64| -> f64 {
-            if valid_values.is_empty() {
+        let valid_graph = plot::Graph::new(Box::new(move |x: f64| -> f64 {
+            if valid_data.is_empty() {
                 return 0.0;
             }
 
-            let index = {
-                let x_min = x_min;
-                let x_max = x_max;
-                (x - x_min) / (x_max - x_min) * (valid_values.len() - 1) as f64
-            };
-            valid_values[index as usize]
-        };
+            let index = ((x - x_min) / (x_max - x_min) * (valid_data.len() - 1) as f64) as usize;
+            valid_data[index].1
+        }));
 
         plot.set_domain(Domain(x_min..x_max))
-            .set_codomain(Domain(0.0..200.0))
+            .set_codomain(Domain(0.0..100.0))
             .set_size(Size::new(width, height))
-            .add_plot(Box::new(plot::Graph::new(train_plot)))
-            .add_plot(Box::new(plot::Graph::new(valid_plot)))
+            .add_plot(Box::new(train_graph))
+            .add_plot(Box::new(valid_graph))
             .set_title("Training Metrics")
             .set_x_label("X-Axis: Iterations")
             .set_y_label("Y-Axis: Accuracy")
