@@ -1,6 +1,6 @@
 use rgb::RGB8;
 use terminal_size::{terminal_size, Height, Width};
-use textplots::{Chart, ColorPlot, Shape};
+use termplot::{Plot, Domain, Size, plot};
 
 /// Text plot.
 pub struct TextPlot {
@@ -137,13 +137,26 @@ impl TextPlot {
         let x_min = f32::min(x_min_train, x_min_valid);
 
         let (width, height) = match terminal_size() {
-            Some((Width(w), Height(_))) => (u32::max(64, w.into()) * 2 - 16, 64),
+            Some((Width(w), Height(_))) => (usize::max(64, w.into()) * 2 - 16, 64),
             None => (256, 64),
         };
 
-        Chart::new(width, height, x_min, x_max)
+        let mut plot = Plot::default();
+
+        plot.set_domain(Domain(0.0..x_min.into()))
+        .set_codomain(Domain(0.0..x_max.into()))
+        .set_size(Size::new(width, height))
+        .add_plot()
+        .add_plot()
+        .to_string()
+        
+
+        /* 
+
+        Plot::new(width, height, x_min, x_max)
             .linecolorplot(&Shape::Lines(&self.train), train_color)
             .linecolorplot(&Shape::Lines(&self.valid), valid_color)
             .to_string()
+            */
     }
 }
