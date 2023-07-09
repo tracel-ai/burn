@@ -258,6 +258,14 @@ impl<E: FloatNdArrayElement> IntTensorOps<NdArrayBackend<E>> for NdArrayBackend<
         Self::int_from_data(Data::ones(shape), device)
     }
 
+    fn int_full<const D: usize>(
+        shape: Shape<D>,
+        fill_value: i64,
+        device: &<NdArrayBackend<E> as Backend>::Device,
+    ) -> NdArrayTensor<i64, D> {
+        Self::int_from_data(Data::full(shape, fill_value), device)
+    }
+
     fn int_sum<const D: usize>(tensor: NdArrayTensor<i64, D>) -> NdArrayTensor<i64, 1> {
         NdArrayMathOps::sum(tensor)
     }

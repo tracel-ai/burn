@@ -258,6 +258,22 @@ where
     }
 }
 
+impl<E: core::fmt::Debug, const D: usize> Data<E, D>
+where
+    E: Element,
+{
+    /// Populates the data with the given value
+    pub fn full(shape: Shape<D>, fill_value: E) -> Data<E, D> {
+        let num_elements = shape.num_elements();
+        let mut data = Vec::with_capacity(num_elements);
+        for _ in 0..num_elements {
+            data.push(fill_value)
+        }
+
+        Data::new(data, shape)
+    }
+}
+
 impl<E: core::fmt::Debug + Copy, const D: usize> Data<E, D> {
     /// Serializes the data.
     ///
