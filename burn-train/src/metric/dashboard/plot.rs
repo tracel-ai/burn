@@ -109,9 +109,6 @@ impl TextPlot {
     ///
     /// The rendered text plot.
     pub fn render(&self) -> String {
-        let train_color = RGB8::new(255, 140, 140);
-        let valid_color = RGB8::new(140, 140, 255);
-
         let x_max_valid = self
             .valid
             .last()
@@ -173,13 +170,5 @@ impl TextPlot {
             .add_plot(Box::new(plot::Graph::new(train_plot)))
             .add_plot(Box::new(plot::Graph::new(valid_plot)))
             .to_string()
-
-        /*
-
-        Plot::new(width, height, x_min, x_max)
-            .linecolorplot(&Shape::Lines(&self.train), train_color)
-            .linecolorplot(&Shape::Lines(&self.valid), valid_color)
-            .to_string()
-            */
     }
 }
