@@ -172,10 +172,13 @@ impl TextPlot {
         };
 
         plot.set_domain(Domain(x_min..x_max))
-            .set_codomain(Domain(0.0..100.0))
+            .set_codomain(Domain(0.0..200.0))
             .set_size(Size::new(width, height))
             .add_plot(Box::new(plot::Graph::new(train_plot)))
             .add_plot(Box::new(plot::Graph::new(valid_plot)))
+            .set_title("Training Metrics")
+            .set_x_label("X-Axis: Iterations")
+            .set_y_label("Y-Axis: Accuracy")
             .to_string()
     }
 }
