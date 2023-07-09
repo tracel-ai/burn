@@ -1,6 +1,6 @@
 use rgb::RGB8;
 use terminal_size::{terminal_size, Height, Width};
-use termplot::{Plot, Domain, Size, plot};
+use termplot::{plot, Domain, Plot, Size};
 
 /// Text plot.
 pub struct TextPlot {
@@ -143,15 +143,38 @@ impl TextPlot {
 
         let mut plot = Plot::default();
 
-        plot.set_domain(Domain(0.0..x_min.into()))
-        .set_codomain(Domain(0.0..x_max.into()))
-        .set_size(Size::new(width, height))
-        .add_plot()
-        .add_plot()
-        .to_string()
-        
+        let train_values: Vec<f64> = self.train.iter().map(|(x, _)| f64::from(*x)).collect();
+        let valid_values: Vec<f64> = self.valid.iter().map(|(x, _)| f64::from(*x)).collect();
 
-        /* 
+        let x_min = f64::from(x_min);
+        let x_max = f64::from(x_max);
+
+        let train_plot = move |x: f64| -> f64 {
+            let index = {
+                let x_min = x_min;
+                let x_max = x_max;
+                (x - x_min) / (x_max - x_min) * (train_values.len() - 1) as f64
+            };
+            train_values[index as usize]
+        };
+
+        let valid_plot = move |x: f64| -> f64 {
+            let index = {
+                let x_min = x_min;
+                let x_max = x_max;
+                (x - x_min) / (x_max - x_min) * (valid_values.len() - 1) as f64
+            };
+            valid_values[index as usize]
+        };
+
+        plot.set_domain(Domain(x_min..x_max))
+            .set_codomain(Domain(0.0..10.0))
+            .set_size(Size::new(width, height))
+            .add_plot(Box::new(plot::Graph::new(train_plot)))
+            .add_plot(Box::new(plot::Graph::new(valid_plot)))
+            .to_string()
+
+        /*
 
         Plot::new(width, height, x_min, x_max)
             .linecolorplot(&Shape::Lines(&self.train), train_color)
