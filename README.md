@@ -263,7 +263,7 @@ Burn, including its `burn-ndarray` backend, can work in a `no_std` environment, 
 available for the inference mode. To accomplish this, simply turn off the default features in `burn`
 and `burn-ndarray` (which is the minimum requirement for running the inference mode). You can find a
 reference example in
-[burn-no-std-tests](https://github.com/burn-rs/burn/tree/main/examples/burn-no-std-tests).
+[burn-no-std-tests](https://github.com/burn-rs/burn/tree/main/burn-no-std-tests).
 
 The `burn-core` and `burn-tensor` crates also support `no_std` with `alloc`. These crates can be
 directly added as dependencies if necessary, as they are reexported by the `burn` crate.
