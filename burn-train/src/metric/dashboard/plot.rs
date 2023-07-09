@@ -1,4 +1,3 @@
-use rgb::RGB8;
 use terminal_size::{terminal_size, Height, Width};
 use termplot::{plot, Domain, Plot, Size};
 
@@ -147,6 +146,10 @@ impl TextPlot {
         let x_max = f64::from(x_max);
 
         let train_plot = move |x: f64| -> f64 {
+            if train_values.is_empty() {
+                return 0.0;
+            }
+
             let index = {
                 let x_min = x_min;
                 let x_max = x_max;
@@ -156,6 +159,10 @@ impl TextPlot {
         };
 
         let valid_plot = move |x: f64| -> f64 {
+            if valid_values.is_empty() {
+                return 0.0;
+            }
+
             let index = {
                 let x_min = x_min;
                 let x_max = x_max;
@@ -165,7 +172,7 @@ impl TextPlot {
         };
 
         plot.set_domain(Domain(x_min..x_max))
-            .set_codomain(Domain(0.0..10.0))
+            .set_codomain(Domain(0.0..100.0))
             .set_size(Size::new(width, height))
             .add_plot(Box::new(plot::Graph::new(train_plot)))
             .add_plot(Box::new(plot::Graph::new(valid_plot)))
