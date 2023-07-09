@@ -118,8 +118,8 @@ where
 
     /// Create a tensor of the given shape where each element is equal to the provided value.
     pub fn full_device<S: Into<Shape<D>>, E: ElementConversion>(
-        shape: S, 
-        fill_value: E, 
+        shape: S,
+        fill_value: E,
         device: &B::Device,
     ) -> Self {
         Self::new(K::full(shape.into(), fill_value, device))
@@ -654,19 +654,19 @@ where
     fn ones<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D>;
 
     /// Creates a tensor filled with elements equal to the given value.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `shape` - The shape of the tensor.
     /// * `fill_value` - The value with which to fill the tensor
     /// * `device` - The device on which the tensor will be allocated.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The tensor filled with elements equal to the given value
-    /// 
+    ///
     /// # Remarks
-    /// 
+    ///
     /// This is a low-level function used internally by the library to call different backend functions
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
@@ -674,7 +674,7 @@ where
     /// For creating a tensor filled with a specific value, users should prefer the [Tensor::full](Tensor::full) function,
     /// which is more high-level and designed for public use.
     fn full<const D: usize, E: ElementConversion>(
-        shape: Shape<D>, 
+        shape: Shape<D>,
         fill_value: E,
         device: &B::Device,
     ) -> Self::Primitive<D>;
@@ -1343,7 +1343,7 @@ impl<B: Backend> Numeric<B> for Int {
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> <Int as TensorKind<B>>::Primitive<D> {
-        B::int_add(lhs, rhs) 
+        B::int_add(lhs, rhs)
     }
     fn add_scalar<const D: usize, E: ElementConversion>(
         lhs: Self::Primitive<D>,
@@ -1625,9 +1625,9 @@ impl<B: Backend> Numeric<B> for Float {
         B::ones(shape, device)
     }
     fn full<const D: usize, E: ElementConversion>(
-        shape: Shape<D>, 
-        fill_value: E, 
-        device: &B::Device
+        shape: Shape<D>,
+        fill_value: E,
+        device: &B::Device,
     ) -> Self::Primitive<D> {
         B::full(shape, fill_value.elem(), device)
     }

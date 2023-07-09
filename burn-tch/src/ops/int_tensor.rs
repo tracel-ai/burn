@@ -224,7 +224,11 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
         let shape = TchShape::from(shape);
         let device: tch::Device = (*device).into();
 
-        TchTensor::new(tch::Tensor::full(shape.dims, fill_value, (tch::Kind::Int64, device)))
+        TchTensor::new(tch::Tensor::full(
+            shape.dims,
+            fill_value,
+            (tch::Kind::Int64, device),
+        ))
     }
 
     fn int_sum<const D: usize>(tensor: TchTensor<i64, D>) -> TchTensor<i64, 1> {

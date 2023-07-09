@@ -66,22 +66,22 @@ pub trait TensorOps<B: Backend> {
     }
 
     /// Creates a tensor filled with given value.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `shape` - The shape of the tensor.
     /// * `fill_value` - The value with which to fill the tensor.
     /// * `device` - The device to create the tensor on.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The tensor filled with given value
     fn full<const D: usize>(
-        shape: Shape<D>, 
-        fill_value: B::FloatElem, 
-        device: &B::Device
+        shape: Shape<D>,
+        fill_value: B::FloatElem,
+        device: &B::Device,
     ) -> B::TensorPrimitive<D> {
-        Self::from_data(Data::full(shape, fill_value), device)
+        Self::add_scalar(Self::zeros(shape, device), fill_value)
     }
 
     /// Gets the shape of the tensor.

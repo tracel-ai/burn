@@ -128,9 +128,9 @@ impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn int_full<const D: usize>(
-        shape: Shape<D>, 
-        fill_value: B::IntElem, 
-        device: &B::Device
+        shape: Shape<D>,
+        fill_value: B::IntElem,
+        device: &B::Device,
     ) -> IntTensor<B, D> {
         B::int_full(shape, fill_value, device)
     }

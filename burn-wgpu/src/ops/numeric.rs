@@ -32,18 +32,6 @@ pub fn ones<G: GraphicsApi, E: WgpuElement + Element, const D: usize>(
     add_scalar(WgpuTensor::new(context, shape, buffer), 1i32.elem::<E>())
 }
 
-pub fn full<G: GraphicsApi, E: WgpuElement + Element, const D: usize>(
-    shape: Shape<D>,
-    fill_value: E,
-    device: &WgpuDevice,
-) -> WgpuTensor<E, D> {
-    let context = get_context::<G>(device);
-
-    let buffer = context.create_buffer(shape.num_elements() * core::mem::size_of::<E>());
-
-    add_scalar(WgpuTensor::new(context, shape, buffer), fill_value)
-}
-
 pub fn add<E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,

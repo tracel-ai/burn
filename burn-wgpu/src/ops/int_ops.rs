@@ -252,14 +252,6 @@ where
         numeric::ones::<G, I, D>(shape, device)
     }
 
-    fn int_full<const D: usize>(
-        shape: Shape<D>, 
-        fill_value: IntElem<Self>, 
-        device: &Device<Self>
-    ) -> IntTensor<Self, D> {
-        numeric::full::<G, I, D>(shape, fill_value, device)
-    }
-    
     fn int_sum<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, 1> {
         kernel::sum(tensor)
     }
