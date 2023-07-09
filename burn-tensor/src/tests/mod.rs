@@ -12,6 +12,7 @@ macro_rules! testgen_all {
         burn_tensor::testgen_relu!();
         burn_tensor::testgen_softmax!();
         burn_tensor::testgen_sigmoid!();
+        burn_tensor::testgen_silu!();
 
         // test module
         burn_tensor::testgen_module_forward!();
