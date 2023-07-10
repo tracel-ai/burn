@@ -57,11 +57,31 @@ impl<B: Backend> PositionalEncoding<B> {
     ///
     /// # Shapes
     ///
-    /// - input: [batch_size, seq_length, d_model]
-    /// - output: [batch_size, seq_length, d_model]
+    /// * input: [batch_size, seq_length, d_model]
+    /// * output: [batch_size, seq_length, d_model]
+    ///
+    ///
+    /// # Panics
+    ///
+    /// * Panics if the input sequence length is greater than the maximum sequence size.
+    /// * Panics if the input d_model is not equal to the d_model of the sinusoids.
     pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
-        let [_, seq_length, _] = input.dims();
-        let [batch_size, _, d_model] = self.sinusoids.dims();
+        let [_, seq_length, d_model_input] = input.dims();
+
+        let [batch_size, max_sequence_size, d_model] = self.sinusoids.dims();
+
+        assert!(
+            max_sequence_size >= seq_length,
+            "max_sequence_size({}) must be greater or equal than length({seq_length})",
+            max_sequence_size,
+        );
+
+        assert!(
+            d_model_input == d_model,
+            "d_model({}) of the input must be equal to d_model of encoding({})",
+            d_model_input,
+            d_model,
+        );
 
         let slices = [0..batch_size, 0..seq_length, 0..d_model];
 
@@ -141,13 +161,13 @@ mod tests {
         // expected to broadcast
         let batch_size = 2;
 
-        let sin_embedding = PositionalEncodingConfig::new(6).init::<TestBackend>();
+        let pe = PositionalEncodingConfig::new(d_model).init::<TestBackend>();
 
         // Use a tensor of zeros as input for easy verification of the output
         // The output should be the sinusoids broadcasted to the input shape
         let tensor = Tensor::zeros([batch_size, length, d_model]);
 
-        let output = sin_embedding.forward(tensor);
+        let output = pe.forward(tensor);
 
         assert_eq!(output.shape().dims, [batch_size, length, d_model]);
 
@@ -187,5 +207,23 @@ mod tests {
             [-0.99999, 0.00443, 0.48868, 0.87246, 0.02370, 0.99972],
         ]);
         sinusoids.to_data().assert_approx_eq(&expected.to_data(), 5);
+    }
+
+    #[test]
+    #[should_panic]
+    fn d_model_input_should_match() {
+        let d_model = 8;
+        let pe = PositionalEncodingConfig::new(d_model).init::<TestBackend>();
+        let input = Tensor::zeros([1, 5, 10]);
+        let _output = pe.forward(input);
+    }
+
+    #[test]
+    #[should_panic]
+    fn input_length_should_be_less_than_max_len() {
+        let d_model = 8;
+        let pe = PositionalEncodingConfig::new(d_model).init::<TestBackend>();
+        let input = Tensor::zeros([1, 6_000, d_model]);
+        let _output = pe.forward(input);
     }
 }
