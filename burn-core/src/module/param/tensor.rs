@@ -37,9 +37,7 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
         }
 
         // Make sure we load the record with the same autodiff setting.
-        if self.is_require_grad() {
-            tensor = tensor.require_grad();
-        }
+        tensor = tensor.set_require_grad(self.is_require_grad());
 
         Self::new(record.id, tensor)
     }
