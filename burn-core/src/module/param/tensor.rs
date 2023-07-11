@@ -37,9 +37,7 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
         }
 
         // Make sure we load the record with the same autodiff setting.
-        if self.is_require_grad() {
-            tensor = tensor.require_grad();
-        }
+        tensor = tensor.set_require_grad(self.is_require_grad());
 
         Self::new(record.id, tensor)
     }
@@ -60,6 +58,8 @@ impl<const D: usize, B: ADBackend> ADModule<B> for Param<Tensor<B, D>> {
 mod tests {
     use super::*;
     use crate::{
+        module::Module,
+        nn::LinearConfig,
         record::{BinBytesRecorder, FullPrecisionSettings, Recorder},
         TestADBackend,
     };
@@ -86,5 +86,19 @@ mod tests {
 
         assert!(!no_grad_is_require_grad);
         assert!(with_default_is_require_grad);
+    }
+
+    #[test]
+    fn test_init_with_record_setting() {
+        let config = LinearConfig::new(32, 32);
+        let module_init = config.init::<TestADBackend>();
+
+        let record = module_init.clone().into_record();
+        let module_init_with = config.init_with::<TestADBackend>(record);
+
+        assert_eq!(
+            module_init.weight.is_require_grad(),
+            module_init_with.weight.is_require_grad()
+        );
     }
 }
