@@ -18,11 +18,13 @@ pub(crate) fn scatter<E: WgpuElement, I: WgpuElement, const D: usize>(
     let indices = kernel::into_continuous(indices);
     let tensor = kernel::into_continuous(tensor);
     let value = kernel::into_continuous(value);
+
     let tensor = match tensor.can_mut() {
         true => tensor,
         false => tensor.copy(),
     };
-    let mut info = build_info(&[&tensor]);
+
+    let mut info = build_info(&[&tensor, &value]);
     let mut strides = [0; D];
     let mut current = 1;
     let mut num_elems_per_workgroup = 1;
@@ -71,42 +73,51 @@ mod tests {
 
     #[test]
     fn scatter_should_work_with_multiple_workgroups_2d_dim0() {
-        same_as_reference(0, [256, 32]);
+        same_as_reference_same_shape(0, [256, 32]);
     }
 
     #[test]
     fn scatter_should_work_with_multiple_workgroups_2d_dim1() {
-        same_as_reference(1, [32, 256]);
+        same_as_reference_same_shape(1, [32, 256]);
     }
 
     #[test]
     fn scatter_should_work_with_multiple_workgroups_3d_dim0() {
-        same_as_reference(0, [256, 6, 6]);
+        same_as_reference_same_shape(0, [256, 6, 6]);
     }
 
     #[test]
     fn scatter_should_work_with_multiple_workgroups_3d_dim1() {
-        same_as_reference(1, [6, 256, 6]);
+        same_as_reference_same_shape(1, [6, 256, 6]);
     }
 
     #[test]
     fn scatter_should_work_with_multiple_workgroups_3d_dim2() {
-        same_as_reference(2, [6, 6, 256]);
+        same_as_reference_same_shape(2, [6, 6, 256]);
     }
 
-    fn same_as_reference<const D: usize>(dim: usize, shape: [usize; D]) {
+    #[test]
+    fn scatter_should_work_with_multiple_workgroups_diff_shapes() {
+        same_as_reference_diff_shape(1, [32, 128], [32, 1]);
+    }
+
+    fn same_as_reference_diff_shape<const D: usize>(
+        dim: usize,
+        shape1: [usize; D],
+        shape2: [usize; D],
+    ) {
         TestBackend::seed(0);
-        let tensor = Tensor::<TestBackend, D>::random(shape, Distribution::Default);
-        let value = Tensor::<TestBackend, D>::random(shape, Distribution::Default);
+        let tensor = Tensor::<TestBackend, D>::random(shape1, Distribution::Default);
+        let value = Tensor::<TestBackend, D>::random(shape2, Distribution::Default);
         let indices = Tensor::<TestBackend, 1, Int>::from_data(
             Tensor::<TestBackend, 1>::random(
-                [shape.iter().product()],
-                Distribution::Uniform(0., shape[dim] as f32),
+                [shape2.iter().product()],
+                Distribution::Uniform(0., shape2[dim] as f32),
             )
             .into_data()
             .convert(),
         )
-        .reshape(shape);
+        .reshape(shape2);
         let tensor_ref = Tensor::<ReferenceBackend, D>::from_data(tensor.to_data());
         let value_ref = Tensor::<ReferenceBackend, D>::from_data(value.to_data());
         let indices_ref =
@@ -123,5 +134,9 @@ mod tests {
         expected
             .into_data()
             .assert_approx_eq(&actual.into_data(), 3);
+    }
+
+    fn same_as_reference_same_shape<const D: usize>(dim: usize, shape: [usize; D]) {
+        same_as_reference_diff_shape(dim, shape, shape);
     }
 }
