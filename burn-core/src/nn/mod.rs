@@ -22,6 +22,7 @@ mod gelu;
 mod initializer;
 mod linear;
 mod norm;
+mod pos_encoding;
 mod relu;
 mod rnn;
 
@@ -31,5 +32,6 @@ pub use gelu::*;
 pub use initializer::*;
 pub use linear::*;
 pub use norm::*;
+pub use pos_encoding::*;
 pub use relu::*;
 pub use rnn::*;
