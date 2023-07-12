@@ -1,4 +1,7 @@
+use std::sync::Arc;
+
 use burn_tensor::Shape;
+use wgpu::Buffer;
 
 use crate::{
     element::WgpuElement,
@@ -8,6 +11,10 @@ use crate::{
 };
 
 kernel_wgsl!(MaxPool2d, "../../template/pool/max_pool2d.wgsl");
+kernel_wgsl!(
+    MaxPool2dWithIndices,
+    "../../template/pool/max_pool2d_with_indices.wgsl"
+);
 
 pub(crate) fn max_pool2d<E: WgpuElement>(
     x: WgpuTensor<E, 4>,
@@ -15,8 +22,91 @@ pub(crate) fn max_pool2d<E: WgpuElement>(
     stride: [usize; 2],
     padding: [usize; 2],
 ) -> WgpuTensor<E, 4> {
-    const WORKGROUP: usize = 16;
+    const WORKGROUP: usize = 32;
 
+    let (info_buffer, output) = build_output_and_info(&x, kernel_size, stride, padding);
+    let kernel = x
+        .context
+        .compile_static::<KernelSettings<MaxPool2d, E, i32, WORKGROUP, WORKGROUP, 1>>();
+
+    x.context.execute(
+        elemwise_workgroup(output.shape.num_elements(), WORKGROUP),
+        kernel,
+        &[&x.buffer, &output.buffer, &info_buffer],
+    );
+
+    output
+}
+
+pub(crate) fn max_pool2d_with_indices<E: WgpuElement, I: WgpuElement>(
+    x: WgpuTensor<E, 4>,
+    kernel_size: [usize; 2],
+    stride: [usize; 2],
+    padding: [usize; 2],
+) -> (WgpuTensor<E, 4>, WgpuTensor<I, 4>) {
+    const WORKGROUP: usize = 32;
+
+    let (info_buffer, output) = build_output_and_info(&x, kernel_size, stride, padding);
+    let num_elems = output.shape.num_elements();
+
+    let indices = WgpuTensor::new(
+        x.context.clone(),
+        output.shape.clone(),
+        x.context
+            .create_buffer(num_elems * std::mem::size_of::<I>()),
+    );
+
+    let kernel = x
+        .context
+        .compile_static::<KernelSettings<MaxPool2dWithIndices, E, i32, WORKGROUP, WORKGROUP, 1>>();
+
+    x.context.execute(
+        elemwise_workgroup(output.shape.num_elements(), WORKGROUP),
+        kernel,
+        &[&x.buffer, &output.buffer, &indices.buffer, &info_buffer],
+    );
+
+    (output, indices)
+}
+
+pub(crate) fn max_pool2d_with_indices_backward<E: WgpuElement, I: WgpuElement>(
+    x: WgpuTensor<E, 4>,
+    grad: WgpuTensor<E, 4>,
+    indices: WgpuTensor<I, 4>,
+) -> WgpuTensor<E, 4> {
+    const WORKGROUP: usize = 32;
+    let [batch_size, channels, x_height, x_width] = x.shape.dims;
+
+    let num_elems = x.shape.num_elements();
+    let buffer = x
+        .context
+        .create_buffer(num_elems * core::mem::size_of::<E>());
+    let output = WgpuTensor::new(x.context.clone(), x.shape, buffer);
+
+    let mut info: [u32; 22] = [0; 22];
+    info[0] = output.strides[0] as u32;
+    info[1] = output.strides[1] as u32;
+    info[2] = output.strides[2] as u32;
+    info[3] = output.strides[3] as u32;
+    info[4] = output.shape.dims[0] as u32;
+    info[5] = output.shape.dims[1] as u32;
+    info[6] = output.shape.dims[2] as u32;
+    info[7] = output.shape.dims[3] as u32;
+    info[8] = x_width as u32;
+
+    let info_buffer = x
+        .context
+        .create_buffer_with_data(bytemuck::cast_slice(&info));
+
+    output
+}
+
+fn build_output_and_info<E: WgpuElement>(
+    x: &WgpuTensor<E, 4>,
+    kernel_size: [usize; 2],
+    stride: [usize; 2],
+    padding: [usize; 2],
+) -> (Arc<Buffer>, WgpuTensor<E, 4>) {
     let [kernel_height, kernel_width] = kernel_size;
     let [padding_height, padding_width] = padding;
     let [stride_height, stride_width] = stride;
@@ -58,19 +148,9 @@ pub(crate) fn max_pool2d<E: WgpuElement>(
     info[20] = padding_height as u32;
     info[21] = padding_width as u32;
 
-    let info_buffers = x
+    let info_buffer = x
         .context
         .create_buffer_with_data(bytemuck::cast_slice(&info));
 
-    let kernel = x
-        .context
-        .compile_static::<KernelSettings<MaxPool2d, E, i32, WORKGROUP, WORKGROUP, 1>>();
-
-    x.context.execute(
-        elemwise_workgroup(num_elems, WORKGROUP),
-        kernel,
-        &[&x.buffer, &output.buffer, &info_buffers],
-    );
-
-    output
+    (info_buffer, output)
 }
