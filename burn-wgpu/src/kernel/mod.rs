@@ -17,6 +17,8 @@ pub use unary_scalar::*;
 
 /// Matmul kernels
 pub mod matmul;
+/// Pooling kernels
+pub mod pool;
 
 pub(crate) use cat::*;
 pub(crate) use comparison::*;

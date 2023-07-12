@@ -2,8 +2,10 @@ use burn_tensor::{backend::Backend, ops::ModuleOps};
 
 use crate::{
     element::{FloatElement, IntElement},
-    GraphicsApi, WgpuBackend,
+    kernel, GraphicsApi, WgpuBackend,
 };
+
+use super::FloatTensor;
 
 impl<G, F, I> ModuleOps<WgpuBackend<G, F, I>> for WgpuBackend<G, F, I>
 where
@@ -49,12 +51,12 @@ where
     }
 
     fn max_pool2d(
-        _x: <WgpuBackend<G, F, I> as Backend>::TensorPrimitive<4>,
-        _kernel_size: [usize; 2],
-        _stride: [usize; 2],
-        _padding: [usize; 2],
-    ) -> <WgpuBackend<G, F, I> as Backend>::TensorPrimitive<4> {
-        todo!()
+        x: FloatTensor<Self, 4>,
+        kernel_size: [usize; 2],
+        stride: [usize; 2],
+        padding: [usize; 2],
+    ) -> FloatTensor<Self, 4> {
+        kernel::pool::max_pool2d(x, kernel_size, stride, padding)
     }
 
     fn max_pool2d_with_indices(
