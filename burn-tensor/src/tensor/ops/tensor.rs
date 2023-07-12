@@ -137,11 +137,36 @@ pub trait TensorOps<B: Backend> {
     ///
     /// The tensor with the given values.
     fn arange(range: Range<usize>, device: &B::Device) -> B::IntTensorPrimitive<1> {
-        let shape = Shape::new([range.end - range.start]);
         let value = range
             .into_iter()
             .map(|i| (i as i64).elem())
             .collect::<Vec<B::IntElem>>();
+        let shape = Shape::new([value.len()]);
+        let data = Data::new(value, shape);
+        B::int_from_data(data, device)
+    }
+
+    /// Creates a new tensor with values from the given range with the given step size.
+    ///
+    /// # Arguments
+    ///
+    /// * `range` - The range of values.
+    /// * `step` - The step size.
+    /// * `device` - The device to create the tensor on.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the given values.
+    fn arange_step(
+        range: Range<usize>,
+        step: usize,
+        device: &B::Device,
+    ) -> B::IntTensorPrimitive<1> {
+        let value = range
+            .step_by(step)
+            .map(|i| (i as i64).elem())
+            .collect::<Vec<B::IntElem>>();
+        let shape = Shape::new([value.len()]);
         let data = Data::new(value, shape);
         B::int_from_data(data, device)
     }
