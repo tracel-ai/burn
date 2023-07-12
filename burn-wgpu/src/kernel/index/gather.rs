@@ -50,28 +50,42 @@ pub(crate) fn gather<E: WgpuElement, I: WgpuElement, const D: usize>(
 mod tests {
     use super::*;
     use crate::tests::{ReferenceBackend, TestBackend};
-    use burn_tensor::{backend::Backend, Distribution, Int, Tensor};
+    use burn_tensor::{backend::Backend, Distribution, Int, Shape, Tensor};
 
     #[test]
-    fn gather_should_work_with_multiple_workgroups() {
-        TestBackend::seed(0);
-        let tensor = Tensor::<TestBackend, 2>::random([6, 256], Distribution::Default);
-        let indices = Tensor::<TestBackend, 1, Int>::from_data(
-            Tensor::<TestBackend, 1>::random([6 * 256], Distribution::Uniform(0., 256.))
-                .into_data()
-                .convert(),
-        )
-        .reshape([6, 256]);
-        let tensor_ref = Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data());
-        let indices_ref =
-            Tensor::<ReferenceBackend, 2, Int>::from_data(indices.to_data().convert());
+    fn gather_should_work_with_multiple_workgroups_dim0() {
+        test_same_as_ref([6, 256], 0);
+    }
 
-        let actual = Tensor::<TestBackend, 2>::from_primitive(gather(
-            1,
+    #[test]
+    fn gather_should_work_with_multiple_workgroups_dim1() {
+        test_same_as_ref([6, 256], 1);
+    }
+
+    fn test_same_as_ref<const D: usize>(shape: [usize; D], dim: usize) {
+        TestBackend::seed(0);
+        let max = shape[dim];
+        let shape = Shape::new(shape);
+        let tensor = Tensor::<TestBackend, D>::random(shape.clone(), Distribution::Default);
+        let indices = Tensor::<TestBackend, 1, Int>::from_data(
+            Tensor::<TestBackend, 1>::random(
+                [shape.num_elements()],
+                Distribution::Uniform(0., max as f32),
+            )
+            .into_data()
+            .convert(),
+        )
+        .reshape(shape);
+        let tensor_ref = Tensor::<ReferenceBackend, D>::from_data(tensor.to_data());
+        let indices_ref =
+            Tensor::<ReferenceBackend, D, Int>::from_data(indices.to_data().convert());
+
+        let actual = Tensor::<TestBackend, D>::from_primitive(gather(
+            dim,
             tensor.into_primitive(),
             indices.into_primitive(),
         ));
-        let expected = tensor_ref.gather(1, indices_ref);
+        let expected = tensor_ref.gather(dim, indices_ref);
 
         expected
             .into_data()

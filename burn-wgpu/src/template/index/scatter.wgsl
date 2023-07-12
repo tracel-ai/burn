@@ -24,22 +24,24 @@ fn main(
 ) {
     let id = global_id.y * (num_workgroups.x * WORKGROUP_SIZE_X) + global_id.x;
     let rank = info[0];
-    let dim = info[3u * rank + 1u];
-
-    let shape = info[dim + rank + 1u];
-    let stride = info[dim + 1u];
+    let dim = info[5u * rank + 1u];
 
     var num_elems = 1u;
-    var index_offset = 0u;
+    var input_offset = 0u;
+    var value_offset = 0u;
 
     for (var i = 1u; i <= rank; i++) {
         if i - 1u != dim {
             let stride_input = info[i];
-            let shape_input = info[i + rank];
-            let stride_tmp = info[i + 2u * rank];
+            let stride_value = info[i + rank];
+            let shape_input = info[i + 2u * rank];
+            let shape_value = info[i + 3u * rank];
+            let stride_tmp = info[i + 4u * rank];
 
-            num_elems *= shape_input;
-            index_offset += id / stride_tmp % shape_input * stride_input;
+            num_elems *= shape_value;
+            let num_blocks = id / stride_tmp % shape_input;
+            input_offset += num_blocks * stride_input;
+            value_offset += num_blocks * stride_value;
         }
     }
 
@@ -47,8 +49,11 @@ fn main(
         return;
     }
 
-    for (var i = 0u; i < shape; i++) {
-        let index = i * stride + index_offset;
-        input[index_offset + stride * u32(indices[index])] += value[index];
+    let shape_value = info[dim + 3u * rank + 1u];
+    let stride_input = info[dim + 1u];
+
+    for (var i = 0u; i < shape_value; i++) {
+        let index = i * stride_input + value_offset;
+        input[input_offset + stride_input * u32(indices[index])] += value[index];
     }
 }

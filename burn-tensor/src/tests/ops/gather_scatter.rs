@@ -129,4 +129,18 @@ mod tests {
             ])
         );
     }
+
+    #[test]
+    fn should_scatter_2d_dim1_diff_shape() {
+        let tensor = TestTensor::from_floats([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]);
+        let values = TestTensor::from_floats([[1.0], [4.0]]);
+        let indices = TestTensorInt::from_ints([[1], [2]]);
+
+        let output = tensor.scatter(1, indices, values);
+
+        assert_eq!(
+            output.into_data(),
+            Data::from([[0.0, 1.0, 0.0], [0.0, 0.0, 4.0]])
+        );
+    }
 }
