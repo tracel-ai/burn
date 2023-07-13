@@ -24,7 +24,7 @@ pub fn list_param_ids<M: Module<B>, B: Backend>(module: &M) -> Vec<ParamId> {
     let mut params_ids = Vec::new();
     let mut visitor = ParamIdCollector {
         param_ids: &mut params_ids,
-        phantom: PhantomData::<M>::default(),
+        phantom: PhantomData::<M>,
     };
     module.visit(&mut visitor);
 
