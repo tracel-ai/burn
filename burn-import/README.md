@@ -51,7 +51,7 @@ To import ONNX models, follow these steps:
 
    use burn::tensor;
    use burn_ndarray::NdArrayBackend;
-   use model::mnist::{Model, INPUT1_SHAPE};
+   use model::mnist::Model;
 
    fn main() {
 
@@ -59,7 +59,7 @@ To import ONNX models, follow these steps:
        let model: Model<NdArrayBackend<f32>> = Model::new();
 
        // Create a new input tensor (all zeros for demonstration purposes)
-       let input = tensor::Tensor::<NdArrayBackend<f32>, 4>::zeros(INPUT1_SHAPE);
+       let input = tensor::Tensor::<NdArrayBackend<f32>, 4>::zeros([1, 1, 28, 28]);
 
        // Run the model
        let output = model.forward(input);
