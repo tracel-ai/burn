@@ -47,9 +47,11 @@ To import ONNX models, follow these steps:
 3. Use the imported model in your code as shown below:
 
    ```rust
+   mod model;
+
    use burn::tensor;
    use burn_ndarray::NdArrayBackend;
-   use onnx_inference::model::mnist::{Model, INPUT1_SHAPE};
+   use model::mnist::{Model, INPUT1_SHAPE};
 
    fn main() {
 
