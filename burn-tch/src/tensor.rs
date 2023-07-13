@@ -25,7 +25,7 @@ impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
 
         Self {
             tensor,
-            phantom: PhantomData::default(),
+            phantom: PhantomData,
             storage: data,
         }
     }
@@ -45,7 +45,7 @@ impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
         Self {
             tensor,
             storage,
-            phantom: PhantomData::default(),
+            phantom: PhantomData,
         }
     }
 }
@@ -146,7 +146,7 @@ impl<P: tch::kind::Element, const D: usize> Clone for TchTensor<P, D> {
     fn clone(&self) -> Self {
         Self {
             tensor: self.tensor.shallow_clone(),
-            phantom: PhantomData::default(),
+            phantom: PhantomData,
             storage: self.storage.clone(),
         }
     }

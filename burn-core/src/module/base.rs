@@ -35,7 +35,7 @@ macro_rules! module {
         }
         let mut mapper = Mapper {
             capture: $capture,
-            backend: core::marker::PhantomData::default(),
+            backend: core::marker::PhantomData,
         };
         $module.map(&mut mapper)
     }};
@@ -53,7 +53,7 @@ macro_rules! module {
         let mut state = $init();
         let mut visitor = Visitor {
             state: &mut state,
-            backend: core::marker::PhantomData::default(),
+            backend: core::marker::PhantomData,
         };
         $module.visit(&mut visitor);
         state
