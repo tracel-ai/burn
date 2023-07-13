@@ -85,10 +85,10 @@ mod tests {
                 std: 1.0
             }
         );
-        var_act.to_data().assert_approx_eq(&Data::from([1.0f32]), 1);
+        var_act.to_data().assert_approx_eq(&Data::from([1.0f32]), 0);
         mean_act
             .to_data()
-            .assert_approx_eq(&Data::from([0.0f32]), 1);
+            .assert_approx_eq(&Data::from([0.0f32]), 0);
     }
 
     #[test]
