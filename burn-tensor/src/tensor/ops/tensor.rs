@@ -136,14 +136,12 @@ pub trait TensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the given values.
+    ///
+    /// # Remarks
+    ///
+    /// Uses `arange_step` with a step size of 1 under the hood.
     fn arange(range: Range<usize>, device: &B::Device) -> B::IntTensorPrimitive<1> {
-        let value = range
-            .into_iter()
-            .map(|i| (i as i64).elem())
-            .collect::<Vec<B::IntElem>>();
-        let shape = Shape::new([value.len()]);
-        let data = Data::new(value, shape);
-        B::int_from_data(data, device)
+        Self::arange_step(range, 1, device)
     }
 
     /// Creates a new tensor with values from the given range with the given step size.
