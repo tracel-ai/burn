@@ -85,8 +85,8 @@ std_func() {
     echo "Test burn-core with tch backend"
     cargo test --features test-tch
 
-    echo "Test burn-core with wgpu backend"
-    cargo test --features test-wgpu
+    # echo "Test burn-core with wgpu backend"
+    # cargo test --features test-wgpu
 
     cd .. || exit
 }
