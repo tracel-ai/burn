@@ -23,7 +23,7 @@ impl<M> GradientsAccumulator<M> {
     pub fn new() -> Self {
         Self {
             grads: GradientsParams::new(),
-            phantom: PhantomData::default(),
+            phantom: PhantomData,
         }
     }
 }

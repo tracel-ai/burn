@@ -34,7 +34,7 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
             buffer,
             shape,
             strides,
-            elem: PhantomData::default(),
+            elem: PhantomData,
         }
     }
     pub fn to_context(&self, context: Arc<Context>) -> Self {
@@ -46,7 +46,7 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
             buffer,
             shape: self.shape.clone(),
             strides: self.strides,
-            elem: PhantomData::default(),
+            elem: PhantomData,
         }
     }
     pub fn can_mut_broadcast(&self, tensor_other: &WgpuTensor<E, D>) -> bool {

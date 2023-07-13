@@ -96,30 +96,30 @@ fn main() {
         shape_lhs: [batch_size, matrix_size, matrix_size].into(),
         shape_rhs: [batch_size, matrix_size, matrix_size].into(),
         num_repeats,
-        matmul: PhantomData::default()
+        matmul: PhantomData
     });
     run_benchmark!(MatmulBenchmark::<Tiling2DMatmulContinuous, 3> {
         shape_lhs: [batch_size, matrix_size, matrix_size].into(),
         shape_rhs: [batch_size, matrix_size, matrix_size].into(),
         num_repeats,
-        matmul: PhantomData::default()
+        matmul: PhantomData
     });
     run_benchmark!(MatmulBenchmark::<Tiling2DMatmulContinuousVectorized, 3> {
         shape_lhs: [batch_size, matrix_size, matrix_size].into(),
         shape_rhs: [batch_size, matrix_size, matrix_size].into(),
         num_repeats,
-        matmul: PhantomData::default()
+        matmul: PhantomData
     });
     run_benchmark!(MatmulBenchmark::<Tiling2DMatmulTile, 3> {
         shape_lhs: [batch_size, matrix_size, matrix_size].into(),
         shape_rhs: [batch_size, matrix_size, matrix_size].into(),
         num_repeats,
-        matmul: PhantomData::default()
+        matmul: PhantomData
     });
     run_benchmark!(MatmulBenchmark::<Tiling2DMatmulTileVectorized, 3> {
         shape_lhs: [batch_size, matrix_size, matrix_size].into(),
         shape_rhs: [batch_size, matrix_size, matrix_size].into(),
         num_repeats,
-        matmul: PhantomData::default()
+        matmul: PhantomData
     });
 }
