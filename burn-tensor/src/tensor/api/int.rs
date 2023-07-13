@@ -5,13 +5,43 @@ impl<B> Tensor<B, 1, Int>
 where
     B: Backend,
 {
-    /// Returns a new integer tensor on the default device which values are generated from the given range.
+    /// Returns a new integer tensor on the default device.
+    ///
+    /// # Arguments
+    ///
+    /// * `range` - The range of values to generate.
     pub fn arange(range: Range<usize>) -> Self {
         Tensor::new(B::arange(range, &B::Device::default()))
     }
-    /// Returns a new integer tensor on the specified device which values are generated from the given range.
+
+    /// Returns a new integer tensor on the default device.
+    ///
+    /// # Arguments
+    ///
+    /// * `range` - The range of values to generate.
+    /// * `step` - The step between each value.
+    pub fn arange_step(range: Range<usize>, step: usize) -> Self {
+        Tensor::new(B::arange_step(range, step, &B::Device::default()))
+    }
+
+    /// Returns a new integer tensor on the specified device.
+    ///
+    /// # Arguments
+    ///
+    /// * `range` - The range of values to generate.
+    /// * `device` - The device to create the tensor on.
     pub fn arange_device(range: Range<usize>, device: &B::Device) -> Self {
         Tensor::new(B::arange(range, device))
+    }
+
+    /// Returns a new integer tensor on the specified device.
+    ///
+    /// # Arguments
+    ///
+    /// * `range` - The range of values to generate.
+    /// * `step` - The step between each value.
+    pub fn arange_step_device(range: Range<usize>, step: usize, device: &B::Device) -> Self {
+        Tensor::new(B::arange_step(range, step, device))
     }
 }
 
