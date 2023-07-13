@@ -19,7 +19,7 @@ impl<B: Backend> MSELoss<B> {
     /// Create the criterion.
     pub fn new() -> Self {
         Self {
-            backend: PhantomData::default(),
+            backend: PhantomData,
         }
     }
 

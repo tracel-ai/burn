@@ -983,7 +983,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
 
         let ops = ToFullPrecision::<B> {
-            phantom: PhantomData::default(),
+            phantom: PhantomData,
         };
         ops.prepare([tensor.node.clone()], [tensor.graph.clone()])
             .stateless(B::to_full_precision(&tensor.primitive))
@@ -1011,7 +1011,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
 
         let ops = FromFullPrecision::<B::FullPrecisionBackend> {
-            phantom: PhantomData::default(),
+            phantom: PhantomData,
         };
 
         ops.prepare([tensor.node.clone()], [tensor.graph])

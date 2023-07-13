@@ -33,7 +33,7 @@ where
         Self {
             optim,
             records: HashMap::new(),
-            module: PhantomData::default(),
+            module: PhantomData,
             grad_clipping: None,
         }
     }
