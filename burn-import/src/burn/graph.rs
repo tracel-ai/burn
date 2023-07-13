@@ -268,6 +268,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             .collect::<Vec<_>>();
 
         quote! {
+            #[allow(dead_code)]
             pub fn new() -> Self {
                 #body
 

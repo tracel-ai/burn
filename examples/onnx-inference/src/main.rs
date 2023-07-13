@@ -1,8 +1,10 @@
+mod model;
+
 use std::env::args;
 
 use burn::tensor::Tensor;
 use burn_ndarray::NdArrayBackend;
-use onnx_inference::model::mnist::Model;
+use model::mnist::Model;
 
 use burn_dataset::source::huggingface::MNISTDataset;
 use burn_dataset::Dataset;

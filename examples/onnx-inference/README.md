@@ -60,9 +60,11 @@ https://datasets-server.huggingface.co/assets/mnist/--/mnist/test/15/image/image
 7. Use the model in your code (Sample code):
 
    ```rust
+   mod model;
+
    use burn::tensor;
    use burn_ndarray::NdArrayBackend;
-   use onnx_inference::model::mnist::{Model, INPUT1_SHAPE};
+   use model::mnist::{Model, INPUT1_SHAPE};
 
    fn main() {
        // Create a new model and load the state
