@@ -1,13 +1,12 @@
-mod model;
-
 use std::env::args;
 
 use burn::tensor::Tensor;
 use burn_ndarray::NdArrayBackend;
-use model::mnist::Model;
 
 use burn_dataset::source::huggingface::MNISTDataset;
 use burn_dataset::Dataset;
+
+use onnx_inference::mnist::Model;
 
 const IMAGE_INX: usize = 42; // <- Change this to test a different image
 
