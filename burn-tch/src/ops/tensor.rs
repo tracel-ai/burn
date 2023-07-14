@@ -53,6 +53,17 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         TchTensor::new(tensor)
     }
 
+    fn repeat<const D: usize>(
+        tensor: TchTensor<E, D>,
+        dim: usize,
+        times: usize,
+    ) -> TchTensor<E, D> {
+        let mut dims = [1; D];
+        dims[dim] = times as i64;
+        let tensor = tch::Tensor::repeat(&tensor.tensor, dims);
+        TchTensor::new(tensor)
+    }
+
     fn zeros<const D: usize>(shape: Shape<D>, device: &TchDevice) -> TchTensor<E, D> {
         let shape = TchShape::from(shape);
         let device: tch::Device = (*device).into();
