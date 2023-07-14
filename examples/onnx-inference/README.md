@@ -34,10 +34,12 @@ https://datasets-server.huggingface.co/assets/mnist/--/mnist/test/15/image/image
        include!(concat!(env!("OUT_DIR"), "/model/mnist.rs"));
    }
    ```
-4. Add the module to lib.rs:
+4. Add the module to `lib.rs`:
 
    ```rust
    pub mod model;
+
+   pub use model::mnist::*;
    ```
 
 5. Add the following to `build.rs`:
@@ -55,23 +57,21 @@ https://datasets-server.huggingface.co/assets/mnist/--/mnist/test/15/image/image
 
    ```
 
-6. Run `cargo build` to generate the model code and weights.
-
-7. Use the model in your code (Sample code):
+6. Add your model to `src/bin` as a new file, in this specific case we have
+called it `mnist.rs`:
 
    ```rust
-   mod model;
-
    use burn::tensor;
    use burn_ndarray::NdArrayBackend;
-   use model::mnist::{Model, INPUT1_SHAPE};
+
+   use onnx_inference::mnist::Model;
 
    fn main() {
        // Create a new model and load the state
        let model: Model<Backend> = Model::new().load_state();
 
        // Create a new input tensor (all zeros for demonstration purposes)
-       let input = tensor::Tensor::<NdArrayBackend<f32>, 4>::zeros(INPUT1_SHAPE);
+       let input = tensor::Tensor::<NdArrayBackend<f32>, 4>::zeros([1, 1, 28, 28]);
 
        // Run the model
        let output = model.forward(input);
@@ -80,6 +80,8 @@ https://datasets-server.huggingface.co/assets/mnist/--/mnist/test/15/image/image
        println!("{:?}", output);
    }
    ```
+
+7. Run `cargo build` to generate the model code, weights, and `mnist` binary.
 
 ## How to export PyTorch model to ONNX
 
