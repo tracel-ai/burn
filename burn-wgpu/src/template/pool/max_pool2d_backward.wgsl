@@ -1,22 +1,19 @@
 @group(0)
 @binding(0)
-var<storage, read> x: array<{{ elem }}>;
+var<storage, read> indices: array<{{ int }}>;
 
 @group(0)
 @binding(1)
 var<storage, read> grad: array<{{ elem }}>;
 
-@group(0)
-@binding(2)
-var<storage, read> indices: array<{{ int }}>;
 
 @group(0)
-@binding(3)
+@binding(2)
 var<storage, read_write> output: array<{{ elem }}>;
 
 @group(0)
-@binding(4)
-var<storage, read> info: array<u32, 22>;
+@binding(3)
+var<storage, read> info: array<u32, 18>;
 
 const WORKGROUP_SIZE_X = {{ workgroup_size_x }}u;
 
@@ -28,31 +25,60 @@ fn main(
 ) {
     let id = global_id.y * (num_workgroups.x * WORKGROUP_SIZE_X) + global_id.x;
 
-    let output_stride_0 = info[0];
-    let output_stride_1 = info[1];
-    let output_stride_2 = info[2];
-    let output_stride_3 = info[3];
-    let output_shape_0 = info[4];
-    let output_shape_1 = info[5];
-    let output_shape_2 = info[6];
-    let output_shape_3 = info[7];
-    let width = info[8];
+    let input_stride_0 = info[0];
+    let input_stride_1 = info[1];
+    let input_stride_2 = info[2];
+    let input_stride_3 = info[3];
+    let input_shape_0 = info[4];
+    let input_shape_1 = info[5];
+    let input_shape_2 = info[6];
+    let input_shape_3 = info[7];
 
-    let b = id / output_stride_0 % output_shape_0;
-    let c = id / output_stride_1 % output_shape_1;
+    let grad_stride_0 = info[8];
+    let grad_stride_1 = info[9];
+    let grad_stride_2 = info[10];
+    let grad_stride_3 = info[11];
 
-    let index = indices[id];
-    let index_h = index / width;
-    let index_w = index usize % width;
-    let index_output = b * output_stride_0 + c * output_stride_1 + index_h * output_stride_2 + index_w * output_stride_3;
+    let kernel_size_0 = info[12];
+    let kernel_size_1 = info[13];
+    let pool_stride_0 = info[14];
+    let pool_stride_1 = info[15];
+    let padding_0 = info[16];
+    let padding_1 = info[17];
 
-    var num_elems = 1u;
-    num_elems += output_shape_0;
-    num_elems += output_shape_1;
-    num_elems += output_shape_2;
-    num_elems += output_shape_3;
+    let b = id / input_stride_0 % input_shape_0;
+    let c = id / input_stride_1 % input_shape_1;
+    let ih = id / input_stride_2 % input_shape_2;
+    let iw = id / input_stride_3 % input_shape_3;
 
-    if id < num_elems {
-        output[index_output] += grad[id];
+    // The maximum number of overlapping filters that may content the current index.
+    let kms_0 = i32(kernel_size_0) - i32(pool_stride_0);
+    let kms_1 = i32(kernel_size_1) - i32(pool_stride_1);
+
+    let oh_start_tmp = (i32(ih + padding_0) - kms_0) / i32(pool_stride_0);
+    let ow_start_tmp = (i32(iw + padding_1) - kms_1) / i32(pool_stride_1);
+
+    let oh_start = u32(max(oh_start_tmp, 0));
+    let ow_start = u32(max(ow_start_tmp, 0));
+
+    let oh_end = u32(max(kms_0, 0)) + oh_start;
+    let ow_end = u32(max(kms_1, 0)) + ow_start;
+
+    let index_current = ih * input_stride_2 + iw * input_stride_3;
+    var grad_acc = 0.0;
+
+    // We iterate over each potentially resulting overlapping filters and check
+    // if their max index is the current one.
+    for (var oh = oh_start; oh <= oh_end; oh++) {
+        for (var ow = ow_start; ow <= ow_end; ow++) {
+            let index = b * grad_stride_0 + c * grad_stride_1 + oh * grad_stride_2 + ow * grad_stride_3;
+            let index_max = u32(indices[index]);
+
+            if index_max == index_current {
+                grad_acc += grad[index];
+            }
+        }
     }
+
+    output[id] = grad_acc;
 }

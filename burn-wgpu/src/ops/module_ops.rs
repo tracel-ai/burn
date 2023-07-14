@@ -76,9 +76,9 @@ where
 
     fn max_pool2d_with_indices_backward(
         x: FloatTensor<Self, 4>,
-        _kernel_size: [usize; 2],
-        _stride: [usize; 2],
-        _padding: [usize; 2],
+        kernel_size: [usize; 2],
+        stride: [usize; 2],
+        padding: [usize; 2],
         output_grad: FloatTensor<Self, 4>,
         indices: IntTensor<Self, 4>,
     ) -> MaxPool2dBackward<WgpuBackend<G, F, I>> {
@@ -86,6 +86,9 @@ where
             x,
             output_grad,
             indices,
+            kernel_size,
+            stride,
+            padding,
         ))
     }
 }

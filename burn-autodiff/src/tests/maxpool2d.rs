@@ -38,6 +38,8 @@ mod tests {
 
         // Asserts
         let x_grad_actual = x.grad(&grads).unwrap();
+        println!("ACTUAL {x_grad_actual}");
+        println!("EXPECTED {x_grad_expected}");
         x_grad_expected
             .to_data()
             .assert_approx_eq(&x_grad_actual.to_data(), 3);
