@@ -1,19 +1,17 @@
-use std::sync::Arc;
-
-use burn_tensor::Shape;
-use wgpu::Buffer;
-
 use crate::{
     element::WgpuElement,
     kernel::{self, elemwise_workgroup, KernelSettings},
     kernel_wgsl,
     tensor::WgpuTensor,
 };
+use burn_tensor::Shape;
+use std::sync::Arc;
+use wgpu::Buffer;
 
 kernel_wgsl!(MaxPool2d, "../../template/pool/max_pool2d.wgsl");
 kernel_wgsl!(
     MaxPool2dWithIndicesBackward,
-    "../../template/pool/max_pool2d_backward.wgsl"
+    "../../template/pool/max_pool2d_with_indices_backward.wgsl"
 );
 kernel_wgsl!(
     MaxPool2dWithIndices,
@@ -187,4 +185,86 @@ fn build_output_and_info<E: WgpuElement>(
         .create_buffer_with_data(bytemuck::cast_slice(&info));
 
     (info_buffer, output)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::tests::{ReferenceBackend, TestBackend};
+    use burn_tensor::{module, ops::ModuleOps, Distribution, Tensor};
+
+    #[test]
+    pub fn max_pool2d_should_work_with_multiple_invocations() {
+        let tensor = Tensor::<TestBackend, 4>::random([32, 32, 32, 32], Distribution::Default);
+        let tensor_ref = Tensor::<ReferenceBackend, 4>::from_data(tensor.to_data());
+        let kernel_size = [3, 3];
+        let stride = [2, 2];
+        let padding = [1, 1];
+
+        let pooled = module::max_pool2d(tensor, kernel_size, stride, padding);
+        let pooled_ref = module::max_pool2d(tensor_ref, kernel_size, stride, padding);
+
+        pooled
+            .into_data()
+            .assert_approx_eq(&pooled_ref.into_data(), 3);
+    }
+
+    #[test]
+    pub fn max_pool2d_with_indices_should_work_with_multiple_invocations() {
+        let tensor = Tensor::<TestBackend, 4>::random([32, 32, 32, 32], Distribution::Default);
+        let tensor_ref = Tensor::<ReferenceBackend, 4>::from_data(tensor.to_data());
+        let kernel_size = [3, 3];
+        let stride = [2, 2];
+        let padding = [1, 1];
+
+        let (pooled, indices) =
+            module::max_pool2d_with_indices(tensor, kernel_size, stride, padding);
+        let (pooled_ref, indices_ref) =
+            module::max_pool2d_with_indices(tensor_ref, kernel_size, stride, padding);
+
+        pooled
+            .into_data()
+            .assert_approx_eq(&pooled_ref.into_data(), 3);
+        assert_eq!(indices.into_data(), indices_ref.into_data().convert());
+    }
+
+    #[test]
+    pub fn max_pool2d_with_indices_backward_should_work_with_multiple_invocations() {
+        let tensor = Tensor::<TestBackend, 4>::random([32, 32, 32, 32], Distribution::Default);
+        let grad_output = Tensor::<TestBackend, 4>::random([32, 32, 16, 16], Distribution::Default);
+        let tensor_ref = Tensor::<ReferenceBackend, 4>::from_data(tensor.to_data());
+        let grad_output_ref = Tensor::<ReferenceBackend, 4>::from_data(grad_output.to_data());
+        let kernel_size = [3, 3];
+        let stride = [2, 2];
+        let padding = [1, 1];
+
+        let (_, indices) =
+            module::max_pool2d_with_indices(tensor.clone(), kernel_size, stride, padding);
+        let (_, indices_ref) =
+            module::max_pool2d_with_indices(tensor_ref.clone(), kernel_size, stride, padding);
+        let grad = TestBackend::max_pool2d_with_indices_backward(
+            tensor.into_primitive(),
+            kernel_size,
+            stride,
+            padding,
+            grad_output.into_primitive(),
+            indices.into_primitive(),
+        )
+        .x_grad;
+        let grad_ref = ReferenceBackend::max_pool2d_with_indices_backward(
+            tensor_ref.into_primitive(),
+            kernel_size,
+            stride,
+            padding,
+            grad_output_ref.into_primitive(),
+            indices_ref.into_primitive(),
+        )
+        .x_grad;
+
+        Tensor::<TestBackend, 4>::from_primitive(grad)
+            .into_data()
+            .assert_approx_eq(
+                &Tensor::<ReferenceBackend, 4>::from_primitive(grad_ref).into_data(),
+                3,
+            );
+    }
 }
