@@ -18,6 +18,14 @@ impl<E: TchElement> BoolTensorOps<TchBackend<E>> for TchBackend<E> {
         tensor.shape()
     }
 
+    fn bool_repeat<const D: usize>(
+        tensor: TchTensor<bool, D>,
+        dim: usize,
+        times: usize,
+    ) -> TchTensor<bool, D> {
+        TchOps::repeat(tensor, dim, times)
+    }
+
     fn bool_to_data<const D: usize>(tensor: &TchTensor<bool, D>) -> Data<bool, D> {
         let shape = Self::bool_shape(tensor);
         let tensor = Self::bool_reshape(tensor.clone(), Shape::new([shape.num_elements()]));
