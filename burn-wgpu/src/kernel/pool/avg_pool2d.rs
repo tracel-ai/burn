@@ -58,98 +58,6 @@ pub(crate) fn avg_pool2d_backward<E: WgpuElement>(
         .context
         .compile_static::<KernelSettings<AvgPool2dBackward, E, i32, WORKGROUP, WORKGROUP, 1>>();
 
-    let grad_d = x.context.read_buffer(grad.buffer.clone());
-    let grad_d: &[f32] = bytemuck::cast_slice(&grad_d);
-    println!("{grad_d:?}");
-    let info = x.context.read_buffer(info_buffer.clone());
-    let info: &[u32] = bytemuck::cast_slice(&info);
-    for xx in 0..WORKGROUP {
-        for yy in 0..WORKGROUP {
-            let id = (xx * WORKGROUP + yy) as u32;
-
-            if id >= grad.shape.num_elements() as u32 {
-                continue;
-            }
-
-            let input_stride_0 = info[0];
-            let input_stride_1 = info[1];
-            let input_stride_2 = info[2];
-            let input_stride_3 = info[3];
-            let input_shape_0 = info[4];
-            let input_shape_1 = info[5];
-            let input_shape_2 = info[6];
-            let input_shape_3 = info[7];
-
-            let grad_stride_0 = info[8];
-            let grad_stride_1 = info[9];
-            let grad_stride_2 = info[10];
-            let grad_stride_3 = info[11];
-            let grad_shape_0 = info[12];
-            let grad_shape_1 = info[13];
-            let grad_shape_2 = info[14];
-            let grad_shape_3 = info[15];
-
-            let kernel_size_0 = info[16];
-            let kernel_size_1 = info[17];
-            let pool_stride_0 = info[18];
-            let pool_stride_1 = info[19];
-            let padding_0 = info[20];
-            let padding_1 = info[21];
-
-            let b = id / input_stride_0 % input_shape_0;
-            let c = id / input_stride_1 % input_shape_1;
-            let ih = id / input_stride_2 % input_shape_2;
-            let iw = id / input_stride_3 % input_shape_3;
-
-            // The maximum number of overlapping filters that may content the current index.
-            let kms_0 = kernel_size_0 as i32 - pool_stride_0 as i32;
-            let kms_1 = kernel_size_1 as i32 - pool_stride_1 as i32;
-
-            let oh_start_tmp = ((ih + padding_0) as i32 - kms_0 as i32) / pool_stride_0 as i32;
-            let ow_start_tmp = ((iw + padding_1) as i32 - kms_1 as i32) / pool_stride_1 as i32;
-
-            let oh_start = (i32::max(oh_start_tmp, 0)) as u32;
-            let ow_start = (i32::max(ow_start_tmp, 0)) as u32;
-
-            let oh_end = (i32::max(kms_0, 0)) as u32 + oh_start + 1;
-            let ow_end = (i32::max(kms_1, 0)) as u32 + ow_start + 1;
-
-            println!("===============================");
-            println!("{id} | [{b},{c},{ih},{iw}]");
-            let mut grad_acc = 0.0;
-
-            let ih_min = oh_start * pool_stride_0;
-            let iw_min = ow_start * pool_stride_1;
-            let ih_max = ih_min + kernel_size_0;
-            let iw_max = iw_min + kernel_size_1;
-            // We iterate over each potentially resulting overlapping filters and check
-            // if their max index is the current one.
-            for oh in oh_start..oh_end {
-                for ow in ow_start..ow_end {
-                    println!("[{oh}, {ow}]");
-                    println!("ih {ih_min}..{ih_max}");
-                    println!("iw {iw_min}..{iw_max}");
-                    if ih < ih_min || ih >= ih_max || oh >= grad_shape_2 {
-                        println!("IH SKIP");
-                        continue;
-                    }
-                    if iw < iw_min || iw >= iw_max || ow >= grad_shape_3 {
-                        println!("IW SKIP");
-                        continue;
-                    }
-
-                    let index = b * grad_stride_0
-                        + c * grad_stride_1
-                        + oh * grad_stride_2
-                        + ow * grad_stride_3;
-                    let val = grad_d[index as usize];
-                    println!("{val}");
-                    grad_acc += val;
-                }
-            }
-        }
-    }
-
     x.context.execute(
         elemwise_workgroup(output.shape.num_elements(), WORKGROUP),
         kernel,
@@ -157,4 +65,60 @@ pub(crate) fn avg_pool2d_backward<E: WgpuElement>(
     );
 
     output
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::tests::{ReferenceBackend, TestBackend};
+    use burn_tensor::{backend::Backend, module, ops::ModuleOps, Distribution, Tensor};
+
+    #[test]
+    fn avg_pool2d_should_work_with_multiple_invocations() {
+        let tensor = Tensor::<TestBackend, 4>::random([32, 32, 32, 32], Distribution::Default);
+        let tensor_ref = Tensor::<ReferenceBackend, 4>::from_data(tensor.to_data());
+        let kernel_size = [3, 4];
+        let stride = [1, 2];
+        let padding = [1, 2];
+
+        let pooled = module::avg_pool2d(tensor, kernel_size, stride, padding);
+        let pooled_ref = module::avg_pool2d(tensor_ref, kernel_size, stride, padding);
+
+        pooled
+            .into_data()
+            .assert_approx_eq(&pooled_ref.into_data(), 3);
+    }
+
+    #[test]
+    fn avg_pool2d_backward_should_work_with_multiple_invocations() {
+        TestBackend::seed(0);
+        ReferenceBackend::seed(0);
+        let tensor = Tensor::<TestBackend, 4>::random([32, 32, 32, 32], Distribution::Default);
+        let tensor_ref = Tensor::<ReferenceBackend, 4>::from_data(tensor.to_data());
+        let kernel_size = [3, 3];
+        let stride = [1, 1];
+        let padding = [1, 1];
+
+        let shape_out = module::avg_pool2d(tensor.clone(), kernel_size, stride, padding).shape();
+        let grad_output = Tensor::<TestBackend, 4>::random(shape_out, Distribution::Default);
+        let grad_output_ref = Tensor::<ReferenceBackend, 4>::from_data(grad_output.to_data());
+
+        let grad: Tensor<TestBackend, 4> =
+            Tensor::from_primitive(TestBackend::avg_pool2d_backward(
+                tensor.into_primitive(),
+                grad_output.into_primitive(),
+                kernel_size,
+                stride,
+                padding,
+            ));
+        let grad_ref: Tensor<ReferenceBackend, 4> =
+            Tensor::from_primitive(ReferenceBackend::avg_pool2d_backward(
+                tensor_ref.into_primitive(),
+                grad_output_ref.into_primitive(),
+                kernel_size,
+                stride,
+                padding,
+            ));
+
+        grad.into_data().assert_approx_eq(&grad_ref.into_data(), 3);
+    }
 }

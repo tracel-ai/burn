@@ -2,7 +2,6 @@
 @binding(0)
 var<storage, read> grad: array<{{ elem }}>;
 
-
 @group(0)
 @binding(1)
 var<storage, read_write> output: array<{{ elem }}>;
@@ -65,19 +64,31 @@ fn main(
     let ow_end = u32(max(kms_1, 0)) + ow_start;
 
     var grad_acc = 0.0;
-
-    let ih_min = oh_start * pool_stride_0;
-    let iw_min = ow_start * pool_stride_1;
-    let ih_max = ih_min + kernel_size_0;
-    let iw_max = iw_min + kernel_size_1;
     // We iterate over each potentially resulting overlapping filters and check
     // if their max index is the current one.
     for (var oh = oh_start; oh <= oh_end; oh++) {
         for (var ow = ow_start; ow <= ow_end; ow++) {
-            if ih < ih_min || ih >= ih_max || oh >= grad_shape_2 {
-                continue;
+
+            // We check for every kernel size combination if the current oh/ow have contributed to the output.
+            var contributed_h = false;
+            var contributed_w = false;
+            for (var kh = 0u; kh < kernel_size_0; kh++) {
+                for (var kw = 0u; kw < kernel_size_1; kw++) {
+                    let ih_tmp = oh * pool_stride_0 + kh - padding_0;
+                    let iw_tmp = ow * pool_stride_1 + kw - padding_1;
+
+                    if ih_tmp == ih {
+                        contributed_h = true;
+                    }
+                    if iw_tmp == iw {
+                        contributed_w = true;
+                    }
+
+                }
             }
-            if iw < iw_min || iw >= iw_max || ow >= grad_shape_3 {
+
+            // If no contribution or outside of output shape, skip.
+            if !contributed_h || oh >= grad_shape_2  || !contributed_w || ow >= grad_shape_3 {
                 continue;
             }
 
