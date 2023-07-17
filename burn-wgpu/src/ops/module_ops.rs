@@ -35,22 +35,22 @@ where
     }
 
     fn avg_pool2d(
-        _x: <WgpuBackend<G, F, I> as Backend>::TensorPrimitive<4>,
-        _kernel_size: [usize; 2],
-        _stride: [usize; 2],
-        _padding: [usize; 2],
-    ) -> <WgpuBackend<G, F, I> as Backend>::TensorPrimitive<4> {
-        todo!()
+        x: FloatTensor<Self, 4>,
+        kernel_size: [usize; 2],
+        stride: [usize; 2],
+        padding: [usize; 2],
+    ) -> FloatTensor<Self, 4> {
+        kernel::pool::avg_pool2d(x, kernel_size, stride, padding)
     }
 
     fn avg_pool2d_backward(
-        _x: <WgpuBackend<G, F, I> as Backend>::TensorPrimitive<4>,
-        _grad: <WgpuBackend<G, F, I> as Backend>::TensorPrimitive<4>,
-        _kernel_size: [usize; 2],
-        _stride: [usize; 2],
-        _padding: [usize; 2],
-    ) -> <WgpuBackend<G, F, I> as Backend>::TensorPrimitive<4> {
-        todo!()
+        x: FloatTensor<Self, 4>,
+        grad: FloatTensor<Self, 4>,
+        kernel_size: [usize; 2],
+        stride: [usize; 2],
+        padding: [usize; 2],
+    ) -> FloatTensor<Self, 4> {
+        kernel::pool::avg_pool2d_backward(x, grad, kernel_size, stride, padding)
     }
 
     fn max_pool2d(
