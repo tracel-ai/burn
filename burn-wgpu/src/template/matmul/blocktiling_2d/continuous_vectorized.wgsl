@@ -75,8 +75,6 @@ fn main(
     let thread_offset = local_idx * T_M_X_T_N;
 
     for (var k = 0u; k < K; k += B_K) {
-        // tile:     let lhs_sm_position = current_row * B_K + current_col; 
-        // tile_vec: let lhs_sm_position = current_row + current_col * B_M; 
         for (var load_index = 0u; load_index < T_M_X_T_N; load_index ++) {
             let lhs_sm_position = thread_offset + load_index;
             let block_row = lhs_sm_position % B_M;
@@ -85,6 +83,9 @@ fn main(
 
             if block_col < B_K {
                 shared_lhs[lhs_sm_position] = lhs[lhs_position];
+            } else {
+                // Patch for mac os bugfix
+                output[offset_output + row * n_cols + col] = 0.0;
             }
         }
 
