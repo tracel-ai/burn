@@ -16,6 +16,7 @@ still under development.
 - Gemm (Linear layer)
 - LogSoftmax
 - Relu
+- Sigmoid
 
 ## Usage
 
