@@ -82,7 +82,6 @@ mod tests {
                 [self.padding_1, self.padding_2],
             );
             let grads = output.backward();
-            println!("{output}");
             let x_grad_actual = x.grad(&grads).unwrap();
 
             x_grad

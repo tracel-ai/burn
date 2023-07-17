@@ -72,9 +72,11 @@ mod tests {
     burn_tensor::testgen_gather_scatter!();
 
     burn_tensor::testgen_module_max_pool2d!();
+    burn_tensor::testgen_module_avg_pool1d!();
     burn_tensor::testgen_module_avg_pool2d!();
 
     burn_autodiff::testgen_ad_max_pool2d!();
+    burn_autodiff::testgen_ad_avg_pool1d!();
     burn_autodiff::testgen_ad_avg_pool2d!();
 
     type TestADBackend = burn_autodiff::ADBackendDecorator<TestBackend>;

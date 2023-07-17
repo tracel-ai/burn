@@ -25,7 +25,7 @@ pub fn build_output_and_info_pool2d<E: WgpuElement>(
         .create_buffer(num_elems * core::mem::size_of::<E>());
     let output = WgpuTensor::new(x.context.clone(), shape_out, buffer);
 
-    let info_buffer = build_pool2d_info(&x, &output, kernel_size, stride, padding);
+    let info_buffer = build_pool2d_info(x, &output, kernel_size, stride, padding);
 
     (info_buffer, output)
 }
