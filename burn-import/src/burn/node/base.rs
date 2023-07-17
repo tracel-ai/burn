@@ -1,7 +1,7 @@
 use super::{
     batch_norm::BatchNormNode, constant::ConstantNode, conv2d::Conv2dNode, equal::EqualNode,
     flatten::FlattenNode, linear::LinearNode, log_softmax::LogSoftmaxNode, matmul::MatmulNode,
-    relu::ReLUNode,
+    relu::ReLUNode, sigmoid::SigmoidNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::record::PrecisionSettings;
@@ -80,6 +80,7 @@ pub enum Node<PS: PrecisionSettings> {
     LogSoftmax(LogSoftmaxNode),
     Constant(ConstantNode),
     Equal(EqualNode),
+    Sigmoid(SigmoidNode),
 }
 
 macro_rules! match_all {
@@ -94,6 +95,7 @@ macro_rules! match_all {
             Node::LogSoftmax(node) => $func(node),
             Node::Constant(node) => $func(node),
             Node::Equal(node) => $func(node),
+            Node::Sigmoid(node) => $func(node),
         }
     }};
 }
@@ -119,6 +121,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::Flatten(_) => "flatten",
             Node::LogSoftmax(_) => "log_softmax",
             Node::Equal(_) => "equal",
+            Node::Sigmoid(_) => "sigmoid",
         }
     }
 }
