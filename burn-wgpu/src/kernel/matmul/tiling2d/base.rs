@@ -155,6 +155,16 @@ macro_rules! matmul_tile_2d {
             }
 
             #[test]
+            pub fn test_matmul_tiling_2d_m_larger_than_n() {
+                test_with_params::<64, 64, 32, 4, 4, 16, 16>(64, 32, 4, 1, 1);
+            }
+
+            #[test]
+            pub fn test_matmul_tiling_2d_n_larger_than_m() {
+                test_with_params::<64, 64, 32, 4, 4, 16, 16>(4, 32, 64, 1, 1);
+            }
+
+            #[test]
             pub fn test_matmul_tiling_2d_shapes_smaller_than_blocks() {
                 test_with_params::<64, 64, 8, 4, 4, 16, 16>(8, 8, 8, 1, 1);
             }

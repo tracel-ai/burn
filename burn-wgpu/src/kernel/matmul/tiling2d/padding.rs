@@ -19,17 +19,30 @@ pub(super) fn pad_round<E: WgpuElement, const D: usize>(
     row_divisor: usize,
     col_divisor: usize,
 ) -> WgpuTensor<E, D> {
-    let row_modulo = tensor.shape.dims[D - 2] % row_divisor;
-    let col_modulo = tensor.shape.dims[D - 1] % col_divisor;
-    if row_modulo == 0 && col_modulo == 0 {
+    let previous_row_dim = tensor.shape.dims[D - 2];
+    let previous_col_dim = tensor.shape.dims[D - 1];
+    let row_modulo = previous_row_dim % row_divisor;
+    let col_modulo = previous_col_dim % col_divisor;
+
+    let new_row_dim = match row_modulo {
+        0 => previous_row_dim,
+        _ => previous_row_dim + row_divisor - row_modulo,
+    };
+    let new_col_dim = match col_modulo {
+        0 => previous_col_dim,
+        _ => previous_col_dim + col_divisor - col_modulo,
+    };
+    if previous_row_dim == new_row_dim && previous_col_dim == new_col_dim {
         return tensor;
     }
+
     let mut padded_shape = Vec::with_capacity(D);
     for i in 0..D - 2 {
         padded_shape.push(tensor.shape.dims[i]);
     }
-    padded_shape.push(tensor.shape.dims[D - 2] - row_modulo + row_divisor);
-    padded_shape.push(tensor.shape.dims[D - 1] - col_modulo + col_divisor);
+    padded_shape.push(new_row_dim);
+    padded_shape.push(new_col_dim);
+
     padding::<E, D>(tensor, padded_shape.into())
 }
 
@@ -166,6 +179,34 @@ mod tests {
         let col_divisor = 5;
         let tensor = TestTensor::random([2, 3, row, col], burn_tensor::Distribution::Default);
         let expected_shape = [2, 3, 12, 15].into();
+
+        let padded = pad_round(tensor.into_primitive(), row_divisor, col_divisor);
+
+        assert!(padded.shape == expected_shape);
+    }
+
+    #[test]
+    fn padding_with_row_divisor_larger_than_row() {
+        let row = 10;
+        let row_divisor = 32;
+        let col = 4;
+        let col_divisor = 3;
+        let tensor = TestTensor::random([row, col], burn_tensor::Distribution::Default);
+        let expected_shape = [row_divisor, 2 * col_divisor].into();
+
+        let padded = pad_round(tensor.into_primitive(), row_divisor, col_divisor);
+
+        assert!(padded.shape == expected_shape);
+    }
+
+    #[test]
+    fn padding_with_row_divisor_equal_to_row_but_col_must_be_padded() {
+        let row = 32;
+        let row_divisor = 32;
+        let col = 4;
+        let col_divisor = 64;
+        let tensor = TestTensor::random([row, col], burn_tensor::Distribution::Default);
+        let expected_shape = [32, 64].into();
 
         let padded = pad_round(tensor.into_primitive(), row_divisor, col_divisor);
 

@@ -133,7 +133,7 @@ fn main(
     for (var res_idx_M = 0u; res_idx_M < T_M; res_idx_M++) {
         for (var res_idx_N = 0u; res_idx_N < T_N; res_idx_N++) {
             let result_position = res_idx_M * T_N + res_idx_N;
-            let output_position = offset_output + (row + res_idx_M) * n_cols + col + res_idx_N;;
+            let output_position = offset_output + (row + res_idx_M) * n_cols + col + res_idx_N;
             output[output_position] = results[result_position];
         }
     }
