@@ -149,7 +149,6 @@ macro_rules! matmul_tile_2d {
             use $crate::kernel::matmul::utils::tests::same_as_reference;
 
             #[test]
-            #[ignore]
             pub fn test_matmul_tiling_2d_large_blocks() {
                 test_with_params::<128, 128, 8, 4, 4, 32, 32>(8, 8, 8, 1, 1);
             }
