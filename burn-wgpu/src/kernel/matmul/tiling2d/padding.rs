@@ -30,6 +30,10 @@ pub(super) fn pad_round<E: WgpuElement, const D: usize>(
     }
     padded_shape.push(tensor.shape.dims[D - 2] - row_modulo + row_divisor);
     padded_shape.push(tensor.shape.dims[D - 1] - col_modulo + col_divisor);
+    let x = tensor.shape.dims[D - 2] - row_modulo + row_divisor;
+    let y = tensor.shape.dims[D - 1] - col_modulo + col_divisor;
+    println!("{x}");
+    println!("{y}");
     padding::<E, D>(tensor, padded_shape.into())
 }
 
@@ -166,6 +170,34 @@ mod tests {
         let col_divisor = 5;
         let tensor = TestTensor::random([2, 3, row, col], burn_tensor::Distribution::Default);
         let expected_shape = [2, 3, 12, 15].into();
+
+        let padded = pad_round(tensor.into_primitive(), row_divisor, col_divisor);
+
+        assert!(padded.shape == expected_shape);
+    }
+
+    #[test]
+    fn padding_with_row_divisor_larger_than_row() {
+        let row = 10;
+        let row_divisor = 32;
+        let col = 4;
+        let col_divisor = 3;
+        let tensor = TestTensor::random([row, col], burn_tensor::Distribution::Default);
+        let expected_shape = [row, col].into();
+
+        let padded = pad_round(tensor.into_primitive(), row_divisor, col_divisor);
+
+        assert!(padded.shape == expected_shape);
+    }
+
+    #[test]
+    fn padding_with_col_divisor_larger_than_col() {
+        let row = 32;
+        let row_divisor = 32;
+        let col = 4;
+        let col_divisor = 64;
+        let tensor = TestTensor::random([row, col], burn_tensor::Distribution::Default);
+        let expected_shape = [row, col].into();
 
         let padded = pad_round(tensor.into_primitive(), row_divisor, col_divisor);
 
