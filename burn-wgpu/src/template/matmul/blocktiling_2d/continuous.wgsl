@@ -131,9 +131,9 @@ fn main(
             let current_row = row + res_idx_M;
             let current_col = col + res_idx_N;
             // Check that we are within the bounds of output matrix
-                let result_position = res_idx_M * T_N + res_idx_N;
-                let output_position = offset_output + current_row * n_cols + current_col;
-                output[output_position] = results[result_position];
+            let result_position = res_idx_M * T_N + res_idx_N;
+            let output_position = offset_output + current_row * n_cols + current_col;
+            output[output_position] = results[result_position];
         }
     }
 }

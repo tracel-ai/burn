@@ -406,16 +406,10 @@ pub(super) fn matmul_tiling_2d_launch<
         &rhs,
     );
 
-    println!("{lhs:?}");
-    println!("{rhs:?}");
-
     let final_output_shape = shape_out(&lhs, &rhs);
     let lhs = pad_round(lhs, B_M, B_K);
     let rhs = pad_round(rhs, B_K, B_N);
     let rounded_output_shape = shape_out(&lhs, &rhs);
-
-    println!("{lhs:?}");
-    println!("{rhs:?}");
 
     let output = empty_from_context::<E, D>(rhs.context.clone(), &rounded_output_shape);
 

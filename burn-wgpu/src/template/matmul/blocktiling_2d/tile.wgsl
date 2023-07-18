@@ -36,9 +36,9 @@ fn main(
     let skip_row = workgroup_id.x * B_M;
     let skip_col = workgroup_id.y * B_N;
 
-    let n_thread_per_row = ((B_N - 1u) / T_N) + 1u; // 16
-    let thread_row = (local_idx / n_thread_per_row) * T_M; // 16 premiers: 0, 16 suivants: 4, etc.
-    let thread_col = (local_idx % n_thread_per_row) * T_N; // 0,4,8,..,60. à répétition
+    let n_thread_per_row = ((B_N - 1u) / T_N) + 1u;
+    let thread_row = (local_idx / n_thread_per_row) * T_M;
+    let thread_col = (local_idx % n_thread_per_row) * T_N;
     
     let row = skip_row + thread_row;
     let col = skip_col + thread_col;
@@ -137,6 +137,4 @@ fn main(
             output[output_position] = results[result_position];
         }
     }
-    // let output_position = offset_output + (row) * n_cols + col;
-    // output[output_position] = results[0u];
 }
