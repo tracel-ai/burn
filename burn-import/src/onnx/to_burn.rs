@@ -22,6 +22,7 @@ use crate::{
             log_softmax::LogSoftmaxNode,
             matmul::MatmulNode,
             relu::ReLUNode,
+            sigmoid::SigmoidNode,
         },
         TensorType,
     },
@@ -161,6 +162,7 @@ impl ONNXGraph {
                 NodeType::LogSoftmax => graph.register(Self::log_softmax_conversion(node)),
                 NodeType::Constant => graph.register(Self::constant_conversion(node)),
                 NodeType::Equal => graph.register(Self::equal_conversion(node)),
+                NodeType::Sigmoid => graph.register(Self::sigmoid_conversion(node)),
                 _ => panic!("Unsupported node conversion {}", node.node_type),
             }
         }
@@ -212,6 +214,13 @@ impl ONNXGraph {
         let (start_dim, end_dim) = flatten_config(&node);
 
         FlattenNode::new(input, output, start_dim, end_dim)
+    }
+
+    fn sigmoid_conversion(node: Node) -> SigmoidNode {
+        let input = node.inputs.get(0).unwrap().to_tensor_type();
+        let output = node.outputs.get(0).unwrap().to_tensor_type();
+
+        SigmoidNode::new(input, output)
     }
 
     fn log_softmax_conversion(node: Node) -> LogSoftmaxNode {

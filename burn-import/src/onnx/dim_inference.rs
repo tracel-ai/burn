@@ -83,6 +83,7 @@ pub fn dim_inference(
             NodeType::Unsqueeze => unsqueeze_update_outputs(node),
             NodeType::Slice => slice_update_outputs(node),
             NodeType::MatMul => same_as_input(node),
+            NodeType::Sigmoid => same_as_input(node),
             NodeType::Concat => concat_update_outputs(node),
             NodeType::Reshape => reshape_update_outputs(node),
             _ => todo!(
