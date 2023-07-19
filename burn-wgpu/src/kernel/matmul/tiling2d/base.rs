@@ -452,10 +452,12 @@ pub(super) fn matmul_tiling_2d_launch<
         &rhs,
     );
 
-    // - If needs_padding: pad
-    // - Elif row/col not two smallest: into_continuous
     let final_output_shape = shape_out(&lhs, &rhs);
 
+    // A tensor may need to be padded, in which case it will implicitly become continuous
+    // If not needed, it is only turned into continuous if some batch dim has been swapped with row or col dim.
+    // If batches were swapped among themselves, or if the last two dims are transposed, the underlying
+    // kernel handles it without needing to turn it into continuous.
     let round_lhs = pad_round(lhs, B_M, B_K);
     let lhs = match round_lhs {
         PaddingOutput::Unchanged(tensor) if tensor.batch_swapped_with_row_col() => {

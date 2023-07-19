@@ -10,6 +10,7 @@ use crate::{
 
 use super::base::empty_from_context;
 
+// Output of the pad_round function. Allows to know explicitly if early return occured
 pub(super) enum PaddingOutput<E: WgpuElement, const D: usize> {
     Padded(WgpuTensor<E, D>),
     Unchanged(WgpuTensor<E, D>),
