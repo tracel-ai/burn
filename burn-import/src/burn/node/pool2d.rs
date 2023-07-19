@@ -102,7 +102,7 @@ mod tests {
             "max_pool2d",
             TensorType::new_float("input", 4),
             TensorType::new_float("output", 4),
-            MaxPool2dConfig::new(1, [3, 3]),
+            MaxPool2dConfig::new(1, [3, 3]).with_strides([1, 1]),
         ));
 
         let expected = quote! {
@@ -122,8 +122,7 @@ mod tests {
                 pub fn new_with(record: ModelRecord<B>) -> Self {
                     let max_pool2d = MaxPool2dConfig::new(1, [3, 3])
                         .with_strides([1, 1])
-                        .with_padding(MaxPool2dPaddingConfig::Valid)
-                        .init_with(record.pool2d);
+                        .init();
 
                     Self {
                         max_pool2d,
