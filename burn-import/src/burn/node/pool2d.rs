@@ -92,7 +92,10 @@ mod tests {
         node::{pool2d::MaxPool2dNode, test::assert_tokens},
         TensorType,
     };
-    use burn::{nn::pool::MaxPool2dConfig, record::FullPrecisionSettings};
+    use burn::{
+        nn::pool::{MaxPool2dConfig, MaxPool2dPaddingConfig},
+        record::FullPrecisionSettings,
+    };
 
     #[test]
     fn test_codegen() {
@@ -102,7 +105,9 @@ mod tests {
             "max_pool2d",
             TensorType::new_float("input", 4),
             TensorType::new_float("output", 4),
-            MaxPool2dConfig::new(1, [3, 3]).with_strides([1, 1]),
+            MaxPool2dConfig::new(1, [3, 3])
+                .with_strides([1, 1])
+                .with_padding(MaxPool2dPaddingConfig::Valid),
         ));
 
         let expected = quote! {
@@ -112,6 +117,7 @@ mod tests {
             };
             use burn::nn::pool::MaxPool2d;
             use burn::nn::pool::MaxPool2dConfig;
+            use burn::nn::pool::MaxPool2dPaddingConfig;
 
             #[derive(Module, Debug)]
             pub struct Model <B: Backend> {
@@ -122,6 +128,7 @@ mod tests {
                 pub fn new_with(record: ModelRecord<B>) -> Self {
                     let max_pool2d = MaxPool2dConfig::new(1, [3, 3])
                         .with_strides([1, 1])
+                        .with_padding(MaxPool2dPaddingConfig::Valid)
                         .init();
 
                     Self {
