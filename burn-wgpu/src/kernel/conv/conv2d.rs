@@ -1,6 +1,6 @@
 use crate::{
     element::WgpuElement,
-    kernel::{self, build_info, elemwise_workgroup, KernelSettings},
+    kernel::{self, build_info_no_dim, elemwise_workgroup, KernelSettings},
     kernel_wgsl,
     tensor::WgpuTensor,
 };
@@ -47,8 +47,7 @@ pub(crate) fn conv2d<E: WgpuElement>(
         .create_buffer(num_elems * core::mem::size_of::<E>());
     let output = WgpuTensor::new(input.context.clone(), shape_out, buffer);
 
-    let mut info = build_info(&[&input, &output, &weight]);
-    info.remove(0);
+    let mut info = build_info_no_dim(&[&input, &output, &weight]);
     info.push(options.stride[0] as u32);
     info.push(options.stride[1] as u32);
     info.push(options.padding[0] as u32);

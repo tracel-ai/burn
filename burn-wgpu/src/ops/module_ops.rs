@@ -1,6 +1,6 @@
 use burn_tensor::{
     backend::Backend,
-    ops::{ConvOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps},
+    ops::{ConvOptions, ConvTransposeOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps},
 };
 
 use crate::{
@@ -26,12 +26,12 @@ where
     }
 
     fn conv_transpose2d(
-        _x: <WgpuBackend<G, F, I> as Backend>::TensorPrimitive<4>,
-        _weight: <WgpuBackend<G, F, I> as Backend>::TensorPrimitive<4>,
-        _bias: Option<<WgpuBackend<G, F, I> as Backend>::TensorPrimitive<1>>,
-        _options: burn_tensor::ops::ConvTransposeOptions<2>,
-    ) -> <WgpuBackend<G, F, I> as Backend>::TensorPrimitive<4> {
-        todo!()
+        x: FloatTensor<Self, 4>,
+        weight: FloatTensor<Self, 4>,
+        bias: Option<FloatTensor<Self, 1>>,
+        options: ConvTransposeOptions<2>,
+    ) -> FloatTensor<Self, 4> {
+        kernel::conv::conv_transpose2d(x, weight, bias, options)
     }
 
     fn avg_pool2d(

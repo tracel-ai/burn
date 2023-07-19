@@ -62,38 +62,49 @@ fn main(
     let dilation_1 = info[29];
     let groups = info[30];
 
-    let in_channels = weight_shape_1;
+    let in_channels = weight_shape_0;
     let kernel_size_0 = weight_shape_2;
     let kernel_size_1 = weight_shape_3;
 
     let b = id / output_stride_0 % output_shape_0;
-    let oc = id / output_stride_1 % output_shape_1;
+    let oc_out = id / output_stride_1 % output_shape_1;
     let oh = id / output_stride_2 % output_shape_2;
     let ow = id / output_stride_3 % output_shape_3;
-    let g = (b * weight_shape_0 + oc) % groups;
 
-    var sum = bias[oc];
+    let g = oc_out % groups;
+    let oc = oc_out - (weight_shape_1 * g);
 
-    let ic_start = in_channels * g;
-    let ic_end = in_channels * (g + 1u);
+    var sum = bias[oc_out];
+
+    let ic_start = g * (in_channels / groups);
+    let ic_end = ic_start + in_channels / groups;
+
+    let ih_start = 0u;
+    let ih_end = input_shape_2;
+
+    let iw_start = 0u;
+    let iw_end = input_shape_3;
 
     for (var ic = ic_start; ic < ic_end; ic++) {
-        for (var kh = 0u; kh < kernel_size_0; kh++) {
-            for (var kw = 0u; kw < kernel_size_1; kw++) {
-                let ih = oh * stride_0 + kh * dilation_0;
-                let iw = ow * stride_1 + kw * dilation_1;
+        for (var ih = ih_start; ih < ih_end; ih++) {
+            for (var iw = iw_start; iw < iw_end; iw++) {
+                for (var kh = 0u; kh < kernel_size_0; kh++) {
+                    for (var kw = 0u; kw < kernel_size_1; kw++) {
+                        let oh_tmp = ih * stride_0 + kh * dilation_0;
+                        let ow_tmp = iw * stride_1 + kw * dilation_1;
 
-                // Padding
-                if ih >= padding_0 && ih < input_shape_2 + padding_0 && iw >= padding_1 && iw < input_shape_3 + padding_1 {
-                    // Correct for padding
-                    let ih_pad = ih - padding_0;
-                    let iw_pad = iw - padding_1;
+                        if oh_tmp >= padding_0 && ow_tmp >= padding_1 {
+                            let oh_tmp_pad = oh_tmp - padding_0;
+                            let ow_tmp_pad = ow_tmp - padding_1;
 
-                    let weight_ic = ic - (g * in_channels);
-                    let index_input = b * input_stride_0 + ic * input_stride_1 + ih_pad * input_stride_2 + iw_pad * input_stride_3;
-                    let index_weight = oc * weight_stride_0 + weight_ic * weight_stride_1 + kh * weight_stride_2 + kw * weight_stride_3;
+                            if oh_tmp_pad == oh && ow_tmp_pad == ow {
+                                let index_input = b * input_stride_0 + ic * input_stride_1 + ih * input_stride_2 + iw * input_stride_3;
+                                let index_weight = ic * weight_stride_0 + oc * weight_stride_1 + kh * weight_stride_2 + kw * weight_stride_3;
 
-                    sum += input[index_input] * weight[index_weight];
+                                sum += input[index_input] * weight[index_weight];
+                            }
+                        }
+                    }
                 }
             }
         }
