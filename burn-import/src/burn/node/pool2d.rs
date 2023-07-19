@@ -80,7 +80,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MaxPool2dNode {
     }
 
     fn into_node(self) -> Node<PS> {
-        Node::Pool2d(self)
+        Node::MaxPool2d(self)
     }
 }
 
@@ -99,7 +99,7 @@ mod tests {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(MaxPool2dNode::new(
-            "pool2d",
+            "max_pool2d",
             TensorType::new_float("input", 4),
             TensorType::new_float("output", 4),
             MaxPool2dConfig::new(1, [3, 3]),
@@ -115,23 +115,23 @@ mod tests {
 
             #[derive(Module, Debug)]
             pub struct Model <B: Backend> {
-                pool2d: MaxPool2d<B>,
+                max_pool2d: MaxPool2d<B>,
             }
 
             impl<B: Backend> Model <B> {
                 pub fn new_with(record: ModelRecord<B>) -> Self {
-                    let pool2d = MaxPool2dConfig::new(1, [3, 3])
+                    let max_pool2d = MaxPool2dConfig::new(1, [3, 3])
                         .with_strides([1, 1])
                         .with_padding(MaxPool2dPaddingConfig::Valid)
                         .init_with(record.pool2d);
 
                     Self {
-                        pool2d,
+                        max_pool2d,
                     }
                 }
                 #[allow(clippy::let_and_return)]
                 pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let output = self.pool2d.forward(input);
+                    let output = self.max_pool2d.forward(input);
 
                     output
                 }

@@ -73,7 +73,7 @@ pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
 pub enum Node<PS: PrecisionSettings> {
     Matmul(MatmulNode),
     Conv2d(Conv2dNode<PS>),
-    Pool2d(MaxPool2dNode),
+    MaxPool2d(MaxPool2dNode),
     Linear(LinearNode<PS>),
     BatchNorm(BatchNormNode<PS>),
     ReLU(ReLUNode),
@@ -89,7 +89,7 @@ macro_rules! match_all {
         match $self {
             Node::Matmul(node) => $func(node),
             Node::Conv2d(node) => $func(node),
-            Node::Pool2d(node) => $func(node),
+            Node::MaxPool2d(node) => $func(node),
             Node::Linear(node) => $func(node),
             Node::BatchNorm(node) => $func(node),
             Node::ReLU(node) => $func(node),
@@ -117,7 +117,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::Matmul(_) => "matmul",
             Node::Constant(_) => "constant",
             Node::Conv2d(_) => "conv2d",
-            Node::Pool2d(_) => "pool2d",
+            Node::MaxPool2d(_) => "max_pool2d",
             Node::Linear(_) => "linear",
             Node::BatchNorm(_) => "batch_norm",
             Node::ReLU(_) => "relu",
