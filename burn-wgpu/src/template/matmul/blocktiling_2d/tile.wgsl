@@ -51,10 +51,18 @@ fn main(
     let n_cols = info[6u * dim]; 
     let K = info[5u * dim - 1u];
 
+    // Row / col strides
+    let lhs_stride_row = info[dim - 1u];
+    let lhs_stride_col = info[dim];
+    let rhs_stride_row = info[2u * dim - 1u];
+    let rhs_stride_col = info[2u * dim];
+    let out_stride_row = info [3u * dim - 1u];
+    let out_stride_col = info [3u * dim];
+
     // Calculate the corresponding offsets with support for broadcasting.
     let offset_output = batch * n_rows * n_cols; 
-    var offset_lhs: u32 = skip_row * K; 
-    var offset_rhs: u32 = skip_col;
+    var offset_lhs: u32 = skip_row * lhs_stride_row;
+    var offset_rhs: u32 = skip_col * rhs_stride_col;
 
     let batch_dims = dim - 2u;
     for (var b: u32 = 1u; b <= batch_dims; b++) {
@@ -72,13 +80,7 @@ fn main(
     var register_M: array<{{ elem }}, T_M>;
     var register_N: array<{{ elem }}, T_N>;
 
-    let thread_offset = local_idx * T_M_X_T_N;
-
     for (var k = 0u; k < K; k += B_K) {
-        // sm_limit ensures that although there are up to B_M x B_N writes to memory, 
-        // shared memories remain B_M x B_K (lhs) or B_K x B_N (rhs)
-        // also ensures we do not read out of matrices if M % B_M != 0 or N % B_N != 0
-
         // Load data into shared memories
         // Each thread is responsible of loading T_M x T_N values from both lhs and rhs
         for (var i = 0u; i < T_M; i++) {
@@ -88,13 +90,13 @@ fn main(
                 
                 if current_col < B_K {
                     let lhs_sm_position = current_row * B_K + current_col; 
-                    let lhs_position = offset_lhs + k + current_row * K + current_col;
+                    let lhs_position = offset_lhs + (k + current_col) * lhs_stride_col + current_row * lhs_stride_row;
                     shared_lhs[lhs_sm_position] = lhs[lhs_position];
                 }
                 
                 if current_row < B_K {
                     let rhs_sm_position = current_row * B_N + current_col; 
-                    let rhs_position = offset_rhs + (k + current_row) * n_cols + current_col;
+                    let rhs_position = offset_rhs + (k + current_row) * rhs_stride_row + current_col * rhs_stride_col;
                     shared_rhs[rhs_sm_position] = rhs[rhs_position];
                 }
             }
@@ -133,7 +135,7 @@ fn main(
     for (var res_idx_M = 0u; res_idx_M < T_M; res_idx_M++) {
         for (var res_idx_N = 0u; res_idx_N < T_N; res_idx_N++) {
             let result_position = res_idx_M * T_N + res_idx_N;
-            let output_position = offset_output + (row + res_idx_M) * n_cols + col + res_idx_N;
+            let output_position = offset_output + (row + res_idx_M) * out_stride_row + (col + res_idx_N) * out_stride_col;
             output[output_position] = results[result_position];
         }
     }

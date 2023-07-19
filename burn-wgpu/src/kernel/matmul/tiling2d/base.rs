@@ -147,6 +147,7 @@ macro_rules! matmul_tile_2d {
         mod tests {
             use super::*;
             use $crate::kernel::matmul::utils::tests::same_as_reference;
+            use $crate::kernel::matmul::utils::tests::same_as_reference_swapped_dims;
 
             #[test]
             pub fn test_matmul_tiling_2d_large_blocks() {
@@ -297,7 +298,53 @@ macro_rules! matmul_tile_2d {
                 same_as_reference(func, shape_lhs, shape_rhs);
             }
 
+            #[test]
+            fn test_matmul_tiling_2d_swapped_batches_no_padding() {
+                const DIM: usize = 4;
 
+                let matmul_func = |lhs, rhs| {
+                    matmul_tiling_2d::<f32, 4, DIM, DIM, DIM, 2, 2, 2, 2>(
+                        lhs, rhs,
+                    )
+                };
+                let swap = [0, 1];
+                let shape_lhs = [3, 2, DIM, DIM];
+                let shape_rhs = [3, 2, DIM, DIM];
+                same_as_reference_swapped_dims(matmul_func, swap, swap, shape_lhs, shape_rhs);
+            }
+
+
+            #[test]
+            fn test_matmul_tiling_2d_swapped_row_col_no_padding() {
+                const DIM: usize = 4;
+
+                let matmul_func = |lhs, rhs| {
+                    matmul_tiling_2d::<f32, 4, DIM, DIM, DIM, 2, 2, 2, 2>(
+                        lhs, rhs,
+                    )
+                };
+                let swap_lhs = [0, 0];
+                let swap_rhs = [2, 3];
+                let shape_lhs = [3, 2, DIM, DIM];
+                let shape_rhs = [3, 2, DIM, DIM];
+                same_as_reference_swapped_dims(matmul_func, swap_lhs, swap_rhs, shape_lhs, shape_rhs);
+            }
+
+            #[test]
+            fn test_matmul_tiling_2d_swapped_row_with_batch_no_padding() {
+                const DIM: usize = 4;
+
+                let matmul_func = |lhs, rhs| {
+                    matmul_tiling_2d::<f32, 4, DIM, DIM, DIM, 2, 2, 2, 2>(
+                        lhs, rhs,
+                    )
+                };
+                let swap_lhs = [0, 3];
+                let swap_rhs = [0, 2];
+                let shape_lhs = [DIM, DIM, DIM, DIM];
+                let shape_rhs = [DIM, DIM, DIM, DIM];
+                same_as_reference_swapped_dims(matmul_func, swap_lhs, swap_rhs, shape_lhs, shape_rhs);
+            }
         }
     };
 }
