@@ -83,3 +83,27 @@ pub(crate) fn conv2d<E: WgpuElement>(
 
     output
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::tests::{ReferenceBackend, TestBackend};
+    use burn_tensor::{module, Distribution, Tensor};
+
+    #[test]
+    fn conv2d_should_work_with_multiple_invocations() {
+        let input = Tensor::<TestBackend, 4>::random([6, 16, 32, 32], Distribution::Default);
+        let weight = Tensor::<TestBackend, 4>::random([12, 8, 3, 3], Distribution::Default);
+        let bias = Tensor::<TestBackend, 1>::random([12], Distribution::Default);
+        let input_ref = Tensor::<ReferenceBackend, 4>::from_data(input.to_data());
+        let weight_ref = Tensor::<ReferenceBackend, 4>::from_data(weight.to_data());
+        let bias_ref = Tensor::<ReferenceBackend, 1>::from_data(bias.to_data());
+        let options = burn_tensor::ops::ConvOptions::new([2, 3], [2, 3], [2, 3], 2);
+
+        let output = module::conv2d(input, weight, Some(bias), options.clone());
+        let output_ref = module::conv2d(input_ref, weight_ref, Some(bias_ref), options);
+
+        output
+            .into_data()
+            .assert_approx_eq(&output_ref.into_data(), 3);
+    }
+}
