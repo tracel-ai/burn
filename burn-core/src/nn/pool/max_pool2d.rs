@@ -8,7 +8,7 @@ use crate::tensor::Tensor;
 use burn_tensor::module::max_pool2d;
 
 /// Configuration to create an [2D max pooling](MaxPool2d) layer.
-#[derive(Config)]
+#[derive(Debug, Config)]
 pub struct MaxPool2dConfig {
     /// The number of channels.
     pub channels: usize,
