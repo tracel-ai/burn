@@ -1,5 +1,6 @@
 use burn::nn::{
     conv::{Conv2dConfig, Conv2dPaddingConfig},
+    pool::{MaxPool2dConfig, MaxPool2dPaddingConfig},
     BatchNormConfig, LinearConfig,
 };
 
@@ -78,6 +79,41 @@ pub fn conv2d_config(curr: &Node) -> Conv2dConfig {
         [kernel_shape[0] as usize, kernel_shape[1] as usize],
     )
     .with_bias(bias)
+    .with_padding(padding)
+}
+
+/// Create a MaxPool2dConfig from the attributes of the node
+pub fn max_pool2d_config(curr: &Node) -> MaxPool2dConfig {
+    let mut channels: i64 = 1;
+    let mut kernel_shape = Vec::new();
+    let mut strides = Vec::new();
+    let mut pads = Vec::new();
+
+    for (key, value) in curr.attrs.iter() {
+        match key.as_str() {
+            "channels" => attr_value_i64(value, &mut channels),
+            "kernel_shape" => attr_value_vec_i64(value, &mut kernel_shape),
+            "strides" => attr_value_vec_i64(value, &mut strides),
+            "pads" => attr_value_vec_i64(value, &mut pads),
+            _ => {}
+        }
+    }
+
+    let padding = if pads.iter().all(|&x| x == 0) {
+        MaxPool2dPaddingConfig::Valid
+    } else {
+        todo!("max_pool2d: padding({pads:?}) is not fully supported");
+    };
+
+    if strides.iter().all(|&x| x != 1) {
+        todo!("max_pool2d: strides({strides:?}) are not fully supported");
+    };
+
+    MaxPool2dConfig::new(
+        channels as usize,
+        [kernel_shape[0] as usize, kernel_shape[1] as usize],
+    )
+    .with_strides([strides[0] as usize, strides[1] as usize])
     .with_padding(padding)
 }
 
