@@ -60,7 +60,13 @@ pub fn dim_inference(
 
         match node.node_type {
             NodeType::Conv2d => conv2d_update_outputs(node),
-            NodeType::MaxPool => max_pool2d_update_outputs(node),
+            NodeType::MaxPool => {
+                if node.name == "maxpool2" {
+                    max_pool2d_update_outputs(node)
+                } else {
+                    panic!("MaxPool: {} operator not supported", node.name);
+                }
+            }
             NodeType::Linear => linear_update_outputs(node),
             NodeType::Flatten => flatten_update_outputs(node),
             NodeType::Relu => same_as_input(node),
@@ -253,7 +259,7 @@ fn conv2d_update_outputs(node: &mut Node) {
     }
 }
 
-/// Infers the shape of a Pool2d node and replaces the shape of the output tensor.
+/// Infers the shape of a MaxPool2d node and replaces the shape of the output tensor.
 ///
 /// The shape of the output tensor is calculated by running the actual convolution operation.
 fn max_pool2d_update_outputs(node: &mut Node) {

@@ -154,7 +154,13 @@ impl ONNXGraph {
         for node in self.nodes {
             match node.node_type {
                 NodeType::Conv2d => graph.register(Self::conv2d_conversion::<PS>(node)),
-                NodeType::MaxPool => graph.register(Self::max_pool2d_conversion(node)),
+                NodeType::MaxPool => {
+                    if node.name == "maxpool2" {
+                        graph.register(Self::max_pool2d_conversion(node))
+                    } else {
+                        panic!("MaxPool: {} operator not supported", node.name);
+                    }
+                }
                 NodeType::MatMul => graph.register(Self::matmul_conversion(node)),
                 NodeType::Linear => graph.register(Self::linear_conversion::<PS>(node)),
                 NodeType::BatchNormalization => {
