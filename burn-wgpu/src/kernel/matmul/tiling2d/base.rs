@@ -1,7 +1,7 @@
 use crate::{
     context::{Context, WorkGroup},
     element::WgpuElement,
-    kernel::{build_info, matmul::utils::shape_out, SourceTemplate},
+    kernel::{build_info, into_continuous, matmul::utils::shape_out, SourceTemplate},
     tensor::WgpuTensor,
 };
 use burn_tensor::Shape;
@@ -11,7 +11,7 @@ use std::{
 };
 use wgpu::ComputePipeline;
 
-use super::padding::{crop, pad_round};
+use super::padding::{crop, pad_round, PaddingOutput};
 
 const MAX_SHARED_MEMORY_SIZE: usize = 8192;
 
@@ -452,9 +452,25 @@ pub(super) fn matmul_tiling_2d_launch<
         &rhs,
     );
 
+    // - If needs_padding: pad
+    // - Elif row/col not two smallest: into_continuous
     let final_output_shape = shape_out(&lhs, &rhs);
-    let lhs = pad_round(lhs, B_M, B_K);
-    let rhs = pad_round(rhs, B_K, B_N);
+
+    let round_lhs = pad_round(lhs, B_M, B_K);
+    let lhs = match round_lhs {
+        PaddingOutput::Unchanged(tensor) if tensor.batch_swapped_with_row_col() => {
+            into_continuous(tensor)
+        }
+        _ => round_lhs.into_tensor(),
+    };
+    let round_rhs = pad_round(rhs, B_K, B_N);
+    let rhs = match round_rhs {
+        PaddingOutput::Unchanged(tensor) if tensor.batch_swapped_with_row_col() => {
+            into_continuous(tensor)
+        }
+        _ => round_rhs.into_tensor(),
+    };
+
     let rounded_output_shape = shape_out(&lhs, &rhs);
 
     let output = empty_from_context::<E, D>(rhs.context.clone(), &rounded_output_shape);

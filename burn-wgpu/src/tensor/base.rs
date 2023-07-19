@@ -107,4 +107,14 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
 
         true
     }
+
+    pub fn batch_swapped_with_row_col(&self) -> bool {
+        for d in 0..D - 2 {
+            let stride = self.strides[d];
+            if stride < self.strides[D - 2] || stride < self.strides[D - 1] {
+                return true;
+            }
+        }
+        false
+    }
 }
