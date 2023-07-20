@@ -26,8 +26,8 @@ mod tests {
 
         let output = format!("{}", tensor_int);
         let expected = format!(
-            "Tensor {{\n  data: [[1, 2, 3], [4, 5, 6], [7, 8, 9]],\n  shape:  [3, 3],\n  device:  Cpu,\n  backend:  \"{}\",\n  kind:  \"Int\",\n  dtype:  \"{}\",\n}}",
-            TestBackend::name(), core::any::type_name::<IntElem>()
+            "Tensor {{\n  data: [[1, 2, 3], [4, 5, 6], [7, 8, 9]],\n  shape:  [3, 3],\n  device:  {:?},\n  backend:  \"{}\",\n  kind:  \"Int\",\n  dtype:  \"{}\",\n}}",
+            tensor_int.device(), TestBackend::name(), core::any::type_name::<IntElem>()
         );
         assert_eq!(output, expected);
     }
@@ -40,8 +40,8 @@ mod tests {
 
         let output = format!("{}", tensor_float);
         let expected = format!(
-            "Tensor {{\n  data: [[1.1, 2.2, 3.3], [4.4, 5.5, 6.6], [7.7, 8.8, 9.9]],\n  shape:  [3, 3],\n  device:  Cpu,\n  backend:  \"{}\",\n  kind:  \"Float\",\n  dtype:  \"{}\",\n}}",
-            TestBackend::name(),  core::any::type_name::<FloatElem>()
+            "Tensor {{\n  data: [[1.1, 2.2, 3.3], [4.4, 5.5, 6.6], [7.7, 8.8, 9.9]],\n  shape:  [3, 3],\n  device:  {:?},\n  backend:  \"{}\",\n  kind:  \"Float\",\n  dtype:  \"{}\",\n}}",
+            tensor_float.device(), TestBackend::name(),  core::any::type_name::<FloatElem>()
         );
         assert_eq!(output, expected);
     }
@@ -58,8 +58,8 @@ mod tests {
 
         let output = format!("{}", tensor_bool);
         let expected = format!(
-            "Tensor {{\n  data: [[true, false, true], [false, true, false], [false, true, true]],\n  shape:  [3, 3],\n  device:  Cpu,\n  backend:  \"{}\",\n  kind:  \"Bool\",\n  dtype:  \"bool\",\n}}",
-            TestBackend::name()
+            "Tensor {{\n  data: [[true, false, true], [false, true, false], [false, true, true]],\n  shape:  [3, 3],\n  device:  {:?},\n  backend:  \"{}\",\n  kind:  \"Bool\",\n  dtype:  \"bool\",\n}}",
+            tensor_bool.device(), TestBackend::name()
         );
         assert_eq!(output, expected);
     }
@@ -75,8 +75,8 @@ mod tests {
         let output = format!("{}", tensor);
         let expected = format!(
             "Tensor {{\n  data: [[[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]], \
-                [[13, 14, 15, 16], [17, 18, 19, 20], [21, 22, 23, 24]]],\n  shape:  [2, 3, 4],\n  device:  Cpu,\n  backend:  \"{}\",\n  kind:  \"Int\",\n  dtype:  \"{}\",\n}}",
-                TestBackend::name(), core::any::type_name::<IntElem>()
+                [[13, 14, 15, 16], [17, 18, 19, 20], [21, 22, 23, 24]]],\n  shape:  [2, 3, 4],\n  device:  {:?},\n  backend:  \"{}\",\n  kind:  \"Int\",\n  dtype:  \"{}\",\n}}",
+                tensor.device(), TestBackend::name(), core::any::type_name::<IntElem>()
 
             );
         assert_eq!(output, expected);
@@ -93,8 +93,8 @@ mod tests {
 
         let output = format!("{}", tensor);
         let expected = format!(
-            "Tensor {{\n  data: [[[[1, 2, 3], [4, 5, 6]], [[7, 8, 9], [10, 11, 12]]], [[[13, 14, 15], [16, 17, 18]], [[19, 20, 21], [22, 23, 24]]]],\n  shape:  [2, 2, 2, 3],\n  device:  Cpu,\n  backend:  \"{}\",\n  kind:  \"Int\",\n  dtype:  \"{}\",\n}}",
-            TestBackend::name(), core::any::type_name::<IntElem>()
+            "Tensor {{\n  data: [[[[1, 2, 3], [4, 5, 6]], [[7, 8, 9], [10, 11, 12]]], [[[13, 14, 15], [16, 17, 18]], [[19, 20, 21], [22, 23, 24]]]],\n  shape:  [2, 2, 2, 3],\n  device:  {:?},\n  backend:  \"{}\",\n  kind:  \"Int\",\n  dtype:  \"{}\",\n}}",
+            tensor.device(), TestBackend::name(), core::any::type_name::<IntElem>()
         );
         assert_eq!(output, expected);
     }

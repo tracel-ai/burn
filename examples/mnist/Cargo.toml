@@ -14,12 +14,14 @@ ndarray-blas-netlib = ["burn-ndarray/blas-netlib"]
 ndarray-blas-openblas = ["burn-ndarray/blas-openblas"]
 tch-cpu = ["dep:burn-tch"]
 tch-gpu = ["dep:burn-tch"]
+wgpu = ["dep:burn-wgpu"]
 
 [dependencies]
 burn = {path = "../../burn"}
 burn-autodiff = {path = "../../burn-autodiff"}
 burn-ndarray = {path = "../../burn-ndarray", optional = true}
 burn-tch = {path = "../../burn-tch", optional = true}
+burn-wgpu = {path = "../../burn-wgpu", optional = true}
 
 # Serialization
 log = {workspace = true}
