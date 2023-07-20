@@ -1,7 +1,7 @@
 use super::{
     batch_norm::BatchNormNode, constant::ConstantNode, conv2d::Conv2dNode, equal::EqualNode,
     flatten::FlattenNode, linear::LinearNode, log_softmax::LogSoftmaxNode, matmul::MatmulNode,
-    pool2d::MaxPool2dNode, relu::ReLUNode, sigmoid::SigmoidNode,
+    max_pool2d::MaxPool2dNode, relu::ReLUNode, sigmoid::SigmoidNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::record::PrecisionSettings;

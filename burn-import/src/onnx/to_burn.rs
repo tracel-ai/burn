@@ -21,7 +21,7 @@ use crate::{
             linear::LinearNode,
             log_softmax::LogSoftmaxNode,
             matmul::MatmulNode,
-            pool2d::MaxPool2dNode,
+            max_pool2d::MaxPool2dNode,
             relu::ReLUNode,
             sigmoid::SigmoidNode,
         },
