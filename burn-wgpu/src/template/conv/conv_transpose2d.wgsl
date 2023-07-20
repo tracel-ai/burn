@@ -71,7 +71,8 @@ fn main(
     let oh = id / output_stride_2 % output_shape_2;
     let ow = id / output_stride_3 % output_shape_3;
 
-    let g = (oc_out / weight_shape_1) % groups;
+    let k = oc_out / weight_shape_1;
+    let g = k % groups;
     let oc = oc_out - (weight_shape_1 * g);
 
     var sum = bias[oc_out];
