@@ -26,14 +26,25 @@ pub enum WgpuDevice {
 
     /// CPU.
     Cpu,
+
+    /// The best available device found with the current [graphics API](crate::GraphicsApi).
+    ///
+    /// Priority
+    ///
+    ///   1. DiscreteGpu
+    ///   2. IntegratedGpu
+    ///   3. VirtualGpu
+    ///   4. Cpu
+    ///
+    /// # Notes
+    ///
+    /// A device might be identified as [Other](wgpu::DeviceType::Other) by [wgpu](wgpu), in this case, we chose this device over
+    /// `IntegratedGpu` since it's often a discrete GPU.
+    BestAvailable,
 }
 
 impl Default for WgpuDevice {
     fn default() -> Self {
-        #[cfg(target_os = "macos")]
-        return Self::IntegratedGpu(0);
-
-        #[cfg(not(target_os = "macos"))]
-        Self::Cpu
+        Self::BestAvailable
     }
 }
