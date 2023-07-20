@@ -80,11 +80,18 @@ fn main(
     let ic_start = g * (in_channels / groups);
     let ic_end = ic_start + in_channels / groups;
 
-    let ih_start = 0u;
-    let ih_end = input_shape_2;
+    // The maximum number of overlapping filters that may content the current index.
+    let kms_0 = i32(kernel_size_0 * dilation_0) - i32(stride_0);
+    let kms_1 = i32(kernel_size_1 * dilation_1) - i32(stride_1);
 
-    let iw_start = 0u;
-    let iw_end = input_shape_3;
+    let ih_start_tmp = (i32(oh + padding_0) - kms_0) / i32(stride_0);
+    let iw_start_tmp = (i32(ow + padding_1) - kms_1) / i32(stride_1);
+
+    let ih_start = u32(max(ih_start_tmp, 0));
+    let iw_start = u32(max(iw_start_tmp, 0));
+
+    let ih_end = min(u32(max(kms_0 + ih_start_tmp + 1, 0)), input_shape_2);
+    let iw_end = min(u32(max(kms_1 + iw_start_tmp + 1, 0)), input_shape_3);
 
     for (var ic = ic_start; ic < ic_end; ic++) {
         for (var ih = ih_start; ih < ih_end; ih++) {
