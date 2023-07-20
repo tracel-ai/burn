@@ -1,6 +1,5 @@
-use burn_tensor::{
-    backend::Backend,
-    ops::{ConvOptions, ConvTransposeOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps},
+use burn_tensor::ops::{
+    ConvOptions, ConvTransposeOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
 };
 
 use crate::{
