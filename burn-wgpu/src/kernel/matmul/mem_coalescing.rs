@@ -2,7 +2,7 @@ use super::utils::shape_out;
 use crate::{
     context::WorkGroup,
     element::WgpuElement,
-    kernel::{build_info, KernelSettings, SourceTemplate, StaticKernel, into_continuous},
+    kernel::{build_info, into_contiguous, KernelSettings, SourceTemplate, StaticKernel},
     kernel_wgsl,
     tensor::WgpuTensor,
 };
@@ -44,8 +44,8 @@ pub fn matmul_mem_coalescing<
 ) -> WgpuTensor<E, D> {
     lhs.assert_is_on_same_device(&rhs);
 
-    let lhs = into_continuous(lhs);
-    let rhs = into_continuous(rhs);
+    let lhs = into_contiguous(lhs);
+    let rhs = into_contiguous(rhs);
 
     let shape_out = shape_out(&lhs, &rhs);
     let num_rows = lhs.shape.dims[D - 2];

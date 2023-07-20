@@ -1,7 +1,7 @@
 use crate::{
     context::{Context, WorkGroup},
     element::WgpuElement,
-    kernel::{build_info, into_continuous, matmul::utils::shape_out, SourceTemplate},
+    kernel::{build_info, into_contiguous, matmul::utils::shape_out, SourceTemplate},
     tensor::WgpuTensor,
 };
 use burn_tensor::Shape;
@@ -454,21 +454,21 @@ pub(super) fn matmul_tiling_2d_launch<
 
     let final_output_shape = shape_out(&lhs, &rhs);
 
-    // A tensor may need to be padded, in which case it will implicitly become continuous
-    // If not needed, it is only turned into continuous if some batch dim has been swapped with row or col dim.
+    // A tensor may need to be padded, in which case it will implicitly become contiguous
+    // If not needed, it is only turned into contiguous if some batch dim has been swapped with row or col dim.
     // If batches were swapped among themselves, or if the last two dims are transposed, the underlying
-    // kernel handles it without needing to turn it into continuous.
+    // kernel handles it without needing to turn it into contiguous.
     let round_lhs = pad_round(lhs, B_M, B_K);
     let lhs = match round_lhs {
         PaddingOutput::Unchanged(tensor) if tensor.batch_swapped_with_row_col() => {
-            into_continuous(tensor)
+            into_contiguous(tensor)
         }
         _ => round_lhs.into_tensor(),
     };
     let round_rhs = pad_round(rhs, B_K, B_N);
     let rhs = match round_rhs {
         PaddingOutput::Unchanged(tensor) if tensor.batch_swapped_with_row_col() => {
-            into_continuous(tensor)
+            into_contiguous(tensor)
         }
         _ => round_rhs.into_tensor(),
     };

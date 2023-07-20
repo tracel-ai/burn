@@ -78,8 +78,8 @@ pub(crate) fn max_pool2d_with_indices_backward<E: WgpuElement, I: WgpuElement>(
 ) -> WgpuTensor<E, 4> {
     const WORKGROUP: usize = 32;
 
-    let grad = kernel::into_continuous(grad);
-    let indices = kernel::into_continuous(indices);
+    let grad = kernel::into_contiguous(grad);
+    let indices = kernel::into_contiguous(indices);
 
     let num_elems = x.shape.num_elements();
     let buffer = x

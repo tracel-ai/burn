@@ -16,7 +16,7 @@ pub(crate) fn gather<E: WgpuElement, I: WgpuElement, const D: usize>(
 
     let shape_output = indices.shape.clone();
     let num_elems = shape_output.num_elements();
-    let indices = kernel::into_continuous(indices);
+    let indices = kernel::into_contiguous(indices);
 
     let buffer = tensor
         .context
