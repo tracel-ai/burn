@@ -60,13 +60,7 @@ pub fn dim_inference(
 
         match node.node_type {
             NodeType::Conv2d => conv2d_update_outputs(node),
-            NodeType::MaxPool => {
-                if node.name == "maxpool2" {
-                    max_pool2d_update_outputs(node)
-                } else {
-                    panic!("MaxPool: {} operator not supported", node.name);
-                }
-            }
+            NodeType::MaxPool2d => max_pool2d_update_outputs(node),
             NodeType::Linear => linear_update_outputs(node),
             NodeType::Flatten => flatten_update_outputs(node),
             NodeType::Relu => same_as_input(node),
