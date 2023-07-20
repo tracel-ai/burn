@@ -136,8 +136,8 @@ where
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        let lhs = kernel::into_continuous(lhs);
-        let rhs = kernel::into_continuous(rhs);
+        let lhs = kernel::into_contiguous(lhs);
+        let rhs = kernel::into_contiguous(rhs);
 
         kernel::matmul::tile_vectorized::matmul_tiling_2d_default(lhs, rhs)
     }

@@ -35,12 +35,12 @@ macro_rules! kernel_wgsl {
     };
 }
 
-kernel_wgsl!(ContinuousRaw, "../template/continuous.wgsl");
+kernel_wgsl!(ContiguousRaw, "../template/contiguous.wgsl");
 
-pub(crate) fn into_continuous<E: WgpuElement, const D: usize>(
+pub(crate) fn into_contiguous<E: WgpuElement, const D: usize>(
     tensor: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
-    if tensor.is_continuous() {
+    if tensor.is_contiguous() {
         return tensor;
     }
 
@@ -58,7 +58,7 @@ pub(crate) fn into_continuous<E: WgpuElement, const D: usize>(
 
     let kernel = tensor
         .context
-        .compile_static::<KernelSettings<ContinuousRaw, E, i32, WORKGROUP, WORKGROUP, 1>>();
+        .compile_static::<KernelSettings<ContiguousRaw, E, i32, WORKGROUP, WORKGROUP, 1>>();
 
     tensor.context.execute(
         elemwise_workgroup(num_elems, WORKGROUP),
