@@ -93,7 +93,7 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
         }
     }
 
-    pub fn is_continuous(&self) -> bool {
+    pub fn is_contiguous(&self) -> bool {
         let mut current_stride = 0;
         for d in 0..D {
             let stride = self.strides[D - 1 - d];

@@ -2,7 +2,7 @@ use burn_tensor::{backend::Backend, Distribution, Shape, Tensor};
 use burn_wgpu::{
     benchmark::Benchmark,
     kernel::matmul::{
-        continuous, continuous_vectorized, matmul_mem_coalescing_default, matmul_naive_default,
+        contiguous, contiguous_vectorized, matmul_mem_coalescing_default, matmul_naive_default,
         tile, tile_vectorized,
     },
     run_benchmark, GraphicsApi, WgpuBackend, WgpuDevice,
@@ -75,8 +75,8 @@ macro_rules! benchmark {
 benchmark!(NaiveMatmul, matmul_naive_default);
 benchmark!(MemCoalescingMatmul, matmul_mem_coalescing_default);
 benchmark!(
-    Tiling2DMatmulContinuous,
-    continuous::matmul_tiling_2d_default
+    Tiling2DMatmulContiguous,
+    contiguous::matmul_tiling_2d_default
 );
 benchmark!(Tiling2DMatmulTile, tile::matmul_tiling_2d_default);
 benchmark!(
@@ -84,8 +84,8 @@ benchmark!(
     tile_vectorized::matmul_tiling_2d_default
 );
 benchmark!(
-    Tiling2DMatmulContinuousVectorized,
-    continuous_vectorized::matmul_tiling_2d_default
+    Tiling2DMatmulContiguousVectorized,
+    contiguous_vectorized::matmul_tiling_2d_default
 );
 
 fn main() {
@@ -98,13 +98,13 @@ fn main() {
         num_repeats,
         matmul: PhantomData
     });
-    run_benchmark!(MatmulBenchmark::<Tiling2DMatmulContinuous, 3> {
+    run_benchmark!(MatmulBenchmark::<Tiling2DMatmulContiguous, 3> {
         shape_lhs: [batch_size, matrix_size, matrix_size].into(),
         shape_rhs: [batch_size, matrix_size, matrix_size].into(),
         num_repeats,
         matmul: PhantomData
     });
-    run_benchmark!(MatmulBenchmark::<Tiling2DMatmulContinuousVectorized, 3> {
+    run_benchmark!(MatmulBenchmark::<Tiling2DMatmulContiguousVectorized, 3> {
         shape_lhs: [batch_size, matrix_size, matrix_size].into(),
         shape_rhs: [batch_size, matrix_size, matrix_size].into(),
         num_repeats,

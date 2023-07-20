@@ -46,7 +46,7 @@ pub(crate) fn avg_pool2d_backward<E: WgpuElement>(
 ) -> WgpuTensor<E, 4> {
     const WORKGROUP: usize = 32;
 
-    let grad = kernel::into_continuous(grad);
+    let grad = kernel::into_contiguous(grad);
 
     let num_elems = x.shape.num_elements();
     let buffer = x

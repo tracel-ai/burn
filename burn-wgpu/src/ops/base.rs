@@ -23,7 +23,7 @@ pub fn from_data<G: GraphicsApi, E: WgpuElement, const D: usize>(
 }
 
 pub fn into_data<E: WgpuElement, const D: usize>(tensor: WgpuTensor<E, D>) -> Data<E, D> {
-    let tensor = kernel::into_continuous(tensor);
+    let tensor = kernel::into_contiguous(tensor);
     let bytes = tensor.context.read_buffer(tensor.buffer);
     let values = E::from_bytes(&bytes);
 
@@ -68,7 +68,7 @@ pub fn reshape<E: WgpuElement, const D1: usize, const D2: usize>(
     shape: Shape<D2>,
 ) -> WgpuTensor<E, D2> {
     // TODO: Not force standard layout all the time (improve performance).
-    let tensor = kernel::into_continuous(tensor);
+    let tensor = kernel::into_contiguous(tensor);
 
     WgpuTensor::new(tensor.context, shape, tensor.buffer)
 }

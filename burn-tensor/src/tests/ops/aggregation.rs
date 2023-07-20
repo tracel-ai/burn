@@ -58,7 +58,7 @@ mod tests {
     }
 
     #[test]
-    fn test_should_sum_mid_dim_3d_non_continuous_1() {
+    fn test_should_sum_mid_dim_3d_non_contiguous_1() {
         let tensor = TestTensor::from_data([
             [[2.0, 4.0, 1.0], [7.0, -5.0, 3.0]],
             [[3.0, 1.0, 2.0], [4.0, 2.0, 3.0]],
@@ -73,7 +73,7 @@ mod tests {
     }
 
     #[test]
-    fn test_should_sum_mid_dim_3d_non_continuous_2() {
+    fn test_should_sum_mid_dim_3d_non_contiguous_2() {
         let tensor = TestTensor::from_data([
             [[2.0, 4.0, 1.0], [7.0, -5.0, 3.0]],
             [[3.0, 1.0, 2.0], [4.0, 2.0, 3.0]],
