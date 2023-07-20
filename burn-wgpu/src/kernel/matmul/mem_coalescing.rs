@@ -158,7 +158,7 @@ mod tests {
 
     #[test]
     fn test_matmul_naive_swapped_batches_no_padding() {
-        let matmul_func = |lhs, rhs| matmul_mem_coalescing::<f32, 4, 2, 2>(lhs, rhs);
+        let matmul_func = matmul_mem_coalescing::<f32, 4, 2, 2>;
         let swap = [0, 1];
         let shape_lhs = [3, 2, 4, 4];
         let shape_rhs = [3, 2, 4, 4];
@@ -167,7 +167,7 @@ mod tests {
 
     #[test]
     fn test_matmul_naive_swapped_row_col_no_padding() {
-        let matmul_func = |lhs, rhs| matmul_mem_coalescing::<f32, 4, 2, 2>(lhs, rhs);
+        let matmul_func = matmul_mem_coalescing::<f32, 4, 2, 2>;
         let swap_lhs = [0, 0];
         let swap_rhs = [2, 3];
         let shape_lhs = [3, 2, 4, 4];
@@ -177,7 +177,7 @@ mod tests {
 
     #[test]
     fn test_matmul_naive_swapped_row_with_batch_no_padding() {
-        let matmul_func = |lhs, rhs| matmul_mem_coalescing::<f32, 4, 2, 2>(lhs, rhs);
+        let matmul_func = matmul_mem_coalescing::<f32, 4, 2, 2>;
         let swap_lhs = [0, 3];
         let swap_rhs = [0, 2];
         let shape_lhs = [4, 4, 4, 4];
