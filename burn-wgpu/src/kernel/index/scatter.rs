@@ -15,9 +15,9 @@ pub(crate) fn scatter<E: WgpuElement, I: WgpuElement, const D: usize>(
 ) -> WgpuTensor<E, D> {
     const WORKGROUP: usize = 32;
 
-    let indices = kernel::into_continuous(indices);
-    let tensor = kernel::into_continuous(tensor);
-    let value = kernel::into_continuous(value);
+    let indices = kernel::into_contiguous(indices);
+    let tensor = kernel::into_contiguous(tensor);
+    let value = kernel::into_contiguous(value);
 
     let tensor = match tensor.can_mut() {
         true => tensor,
