@@ -92,7 +92,10 @@ fn main(
             if block_row < B_M {
                 shared_lhs[lhs_sm_position] = lhs[lhs_position];
             } else {
-                // Patch for mac os bugfix
+                // Bugfix
+                // On Mac OS, when blocks are too large, output will be not be written to, 
+                // unless we add this line in which we write in the output. 
+                // This value will be overwritten, but allows the output to be writable at the end. 
                 output[offset_output + row * out_stride_row + col * out_stride_col] = 0.0;
             }
         }
