@@ -27,7 +27,7 @@ pub enum WgpuDevice {
     /// CPU.
     Cpu,
 
-    /// The most performant device found with the current [graphics API](crate::GraphicsApi).
+    /// The best available device found with the current [graphics API](crate::GraphicsApi).
     ///
     /// Priority
     ///
@@ -40,11 +40,11 @@ pub enum WgpuDevice {
     ///
     /// A device might be identified as [Other](wgpu::DeviceType::Other) by [wgpu](wgpu), in this case, we chose this device over
     /// `IntegratedGpu` since it's often a discrete GPU.
-    MostPerformant,
+    BestAvailable,
 }
 
 impl Default for WgpuDevice {
     fn default() -> Self {
-        Self::MostPerformant
+        Self::BestAvailable
     }
 }
