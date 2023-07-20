@@ -273,7 +273,7 @@ fn select_adapter<G: GraphicsApi>(device: &WgpuDevice) -> wgpu::Adapter {
                 WgpuDevice::IntegratedGpu(_) => device_type == DeviceType::IntegratedGpu,
                 WgpuDevice::VirtualGpu(_) => device_type == DeviceType::VirtualGpu,
                 WgpuDevice::Cpu => device_type == DeviceType::Cpu,
-                WgpuDevice::Default => true,
+                WgpuDevice::MostPerformant => true,
             };
 
             if is_same_type {
@@ -329,7 +329,7 @@ fn select_adapter<G: GraphicsApi>(device: &WgpuDevice) -> wgpu::Adapter {
             adapters_other,
         ),
         WgpuDevice::Cpu => select(0, "No CPU device found", adapters, adapters_other),
-        WgpuDevice::Default => {
+        WgpuDevice::MostPerformant => {
             let mut most_performant_adapter = None;
             let mut current_score = -1;
 
