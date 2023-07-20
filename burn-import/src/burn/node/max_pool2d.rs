@@ -89,7 +89,7 @@ mod tests {
     use super::*;
     use crate::burn::{
         graph::BurnGraph,
-        node::{pool2d::MaxPool2dNode, test::assert_tokens},
+        node::{max_pool2d::MaxPool2dNode, test::assert_tokens},
         TensorType,
     };
     use burn::{
