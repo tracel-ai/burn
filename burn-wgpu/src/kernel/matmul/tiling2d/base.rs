@@ -1,7 +1,7 @@
 use crate::{
     context::{Context, WorkGroup},
     element::WgpuElement,
-    kernel::{build_info, matmul::utils::shape_out, SourceTemplate},
+    kernel::{build_info, into_contiguous, matmul::utils::shape_out, SourceTemplate},
     tensor::WgpuTensor,
 };
 use burn_tensor::Shape;
@@ -11,7 +11,7 @@ use std::{
 };
 use wgpu::ComputePipeline;
 
-use super::padding::{crop, pad_round};
+use super::padding::{crop, pad_round, PaddingOutput};
 
 const MAX_SHARED_MEMORY_SIZE: usize = 8192;
 
@@ -147,6 +147,7 @@ macro_rules! matmul_tile_2d {
         mod tests {
             use super::*;
             use $crate::kernel::matmul::utils::tests::same_as_reference;
+            use $crate::kernel::matmul::utils::tests::same_as_reference_swapped_dims;
 
             #[test]
             pub fn test_matmul_tiling_2d_large_blocks() {
@@ -297,7 +298,53 @@ macro_rules! matmul_tile_2d {
                 same_as_reference(func, shape_lhs, shape_rhs);
             }
 
+            #[test]
+            fn test_matmul_tiling_2d_swapped_batches_no_padding() {
+                const DIM: usize = 4;
 
+                let matmul_func = |lhs, rhs| {
+                    matmul_tiling_2d::<f32, 4, DIM, DIM, DIM, 2, 2, 2, 2>(
+                        lhs, rhs,
+                    )
+                };
+                let swap = [0, 1];
+                let shape_lhs = [3, 2, DIM, DIM];
+                let shape_rhs = [3, 2, DIM, DIM];
+                same_as_reference_swapped_dims(matmul_func, swap, swap, shape_lhs, shape_rhs);
+            }
+
+
+            #[test]
+            fn test_matmul_tiling_2d_swapped_row_col_no_padding() {
+                const DIM: usize = 4;
+
+                let matmul_func = |lhs, rhs| {
+                    matmul_tiling_2d::<f32, 4, DIM, DIM, DIM, 2, 2, 2, 2>(
+                        lhs, rhs,
+                    )
+                };
+                let swap_lhs = [0, 0];
+                let swap_rhs = [2, 3];
+                let shape_lhs = [3, 2, DIM, DIM];
+                let shape_rhs = [3, 2, DIM, DIM];
+                same_as_reference_swapped_dims(matmul_func, swap_lhs, swap_rhs, shape_lhs, shape_rhs);
+            }
+
+            #[test]
+            fn test_matmul_tiling_2d_swapped_row_with_batch_no_padding() {
+                const DIM: usize = 4;
+
+                let matmul_func = |lhs, rhs| {
+                    matmul_tiling_2d::<f32, 4, DIM, DIM, DIM, 2, 2, 2, 2>(
+                        lhs, rhs,
+                    )
+                };
+                let swap_lhs = [0, 3];
+                let swap_rhs = [0, 2];
+                let shape_lhs = [DIM, DIM, DIM, DIM];
+                let shape_rhs = [DIM, DIM, DIM, DIM];
+                same_as_reference_swapped_dims(matmul_func, swap_lhs, swap_rhs, shape_lhs, shape_rhs);
+            }
         }
     };
 }
@@ -406,8 +453,26 @@ pub(super) fn matmul_tiling_2d_launch<
     );
 
     let final_output_shape = shape_out(&lhs, &rhs);
-    let lhs = pad_round(lhs, B_M, B_K);
-    let rhs = pad_round(rhs, B_K, B_N);
+
+    // A tensor may need to be padded, in which case it will implicitly become contiguous
+    // If not needed, it is only turned into contiguous if some batch dim has been swapped with row or col dim.
+    // If batches were swapped among themselves, or if the last two dims are transposed, the underlying
+    // kernel handles it without needing to turn it into contiguous.
+    let round_lhs = pad_round(lhs, B_M, B_K);
+    let lhs = match round_lhs {
+        PaddingOutput::Unchanged(tensor) if tensor.batch_swapped_with_row_col() => {
+            into_contiguous(tensor)
+        }
+        _ => round_lhs.into_tensor(),
+    };
+    let round_rhs = pad_round(rhs, B_K, B_N);
+    let rhs = match round_rhs {
+        PaddingOutput::Unchanged(tensor) if tensor.batch_swapped_with_row_col() => {
+            into_contiguous(tensor)
+        }
+        _ => round_rhs.into_tensor(),
+    };
+
     let rounded_output_shape = shape_out(&lhs, &rhs);
 
     let output = empty_from_context::<E, D>(rhs.context.clone(), &rounded_output_shape);

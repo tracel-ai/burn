@@ -2,7 +2,7 @@ use super::utils::shape_out;
 use crate::{
     context::WorkGroup,
     element::WgpuElement,
-    kernel::{build_info, KernelSettings, SourceTemplate, StaticKernel},
+    kernel::{build_info, into_contiguous, KernelSettings, SourceTemplate, StaticKernel},
     kernel_wgsl,
     tensor::WgpuTensor,
 };
@@ -40,6 +40,9 @@ pub fn matmul_naive<
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     lhs.assert_is_on_same_device(&rhs);
+
+    let lhs = into_contiguous(lhs);
+    let rhs = into_contiguous(rhs);
 
     let shape_out = shape_out(&lhs, &rhs);
 
@@ -89,7 +92,7 @@ pub fn matmul_naive<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kernel::matmul::utils::tests::same_as_reference;
+    use crate::kernel::matmul::utils::tests::{same_as_reference, same_as_reference_swapped_dims};
 
     #[test]
     pub fn test_matmul_naive_straightforward() {
@@ -147,5 +150,34 @@ mod tests {
         let shape_lhs = [batch_1, batch_2, m, k];
         let shape_rhs = [batch_1, batch_2, k, n];
         same_as_reference(func, shape_lhs, shape_rhs);
+    }
+
+    #[test]
+    fn test_matmul_naive_swapped_batches_no_padding() {
+        let matmul_func = |lhs, rhs| matmul_naive::<f32, 4, 2, 2>(lhs, rhs);
+        let swap = [0, 1];
+        let shape_lhs = [3, 2, 4, 4];
+        let shape_rhs = [3, 2, 4, 4];
+        same_as_reference_swapped_dims(matmul_func, swap, swap, shape_lhs, shape_rhs);
+    }
+
+    #[test]
+    fn test_matmul_naive_swapped_row_col_no_padding() {
+        let matmul_func = |lhs, rhs| matmul_naive::<f32, 4, 2, 2>(lhs, rhs);
+        let swap_lhs = [0, 0];
+        let swap_rhs = [2, 3];
+        let shape_lhs = [3, 2, 4, 4];
+        let shape_rhs = [3, 2, 4, 4];
+        same_as_reference_swapped_dims(matmul_func, swap_lhs, swap_rhs, shape_lhs, shape_rhs);
+    }
+
+    #[test]
+    fn test_matmul_naive_swapped_row_with_batch_no_padding() {
+        let matmul_func = |lhs, rhs| matmul_naive::<f32, 4, 2, 2>(lhs, rhs);
+        let swap_lhs = [0, 3];
+        let swap_rhs = [0, 2];
+        let shape_lhs = [4, 4, 4, 4];
+        let shape_rhs = [4, 4, 4, 4];
+        same_as_reference_swapped_dims(matmul_func, swap_lhs, swap_rhs, shape_lhs, shape_rhs);
     }
 }

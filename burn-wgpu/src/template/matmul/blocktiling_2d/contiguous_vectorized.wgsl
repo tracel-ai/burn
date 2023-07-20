@@ -51,10 +51,18 @@ fn main(
     let n_cols = info[6u * dim]; 
     let K = info[5u * dim - 1u];
 
+    // Row / col strides
+    let lhs_stride_row = info[dim - 1u];
+    let lhs_stride_col = info[dim];
+    let rhs_stride_row = info[2u * dim - 1u];
+    let rhs_stride_col = info[2u * dim];
+    let out_stride_row = info [3u * dim - 1u];
+    let out_stride_col = info [3u * dim];
+
     // Calculate the corresponding offsets with support for broadcasting.
     let offset_output = batch * n_rows * n_cols; 
-    var offset_lhs: u32 = skip_row * K; 
-    var offset_rhs: u32 = skip_col;
+    var offset_lhs: u32 = skip_row * lhs_stride_row; 
+    var offset_rhs: u32 = skip_col * rhs_stride_col;
 
     let batch_dims = dim - 2u;
     for (var b: u32 = 1u; b <= batch_dims; b++) {
@@ -79,13 +87,16 @@ fn main(
             let lhs_sm_position = thread_offset + load_index;
             let block_row = lhs_sm_position % B_M;
             let block_col = lhs_sm_position / B_M;
-            let lhs_position = offset_lhs + k + block_row * K + block_col;
+            let lhs_position = offset_lhs + block_row * lhs_stride_row + (k + block_col) * lhs_stride_col;
 
             if block_col < B_K {
                 shared_lhs[lhs_sm_position] = lhs[lhs_position];
             } else {
-                // Patch for mac os bugfix
-                output[offset_output + row * n_cols + col] = 0.0;
+                // Bugfix
+                // On Mac OS, when blocks are too large, output will be not be written to, 
+                // unless we add this line in which we write in the output. 
+                // This value will be overwritten, but allows the output to be writable at the end. 
+                output[offset_output + row * out_stride_row + col * out_stride_col] = 0.0;
             }
         }
 
@@ -93,7 +104,7 @@ fn main(
             let rhs_sm_position = thread_offset + load_index;
             let block_row = rhs_sm_position / B_N;
             let block_col = rhs_sm_position % B_N;
-            let rhs_position = offset_rhs + (k + block_row) * n_cols + block_col;
+            let rhs_position = offset_rhs + (k + block_row) * rhs_stride_row + block_col * rhs_stride_col;
 
             if block_row < B_K {
                 shared_rhs[rhs_sm_position] = rhs[rhs_position];
@@ -132,7 +143,7 @@ fn main(
     for (var res_idx_M = 0u; res_idx_M < T_M; res_idx_M++) {
         for (var res_idx_N = 0u; res_idx_N < T_N; res_idx_N++) {
             let result_position = res_idx_M * T_N + res_idx_N;
-            let output_position = offset_output + (row + res_idx_M) * n_cols + col + res_idx_N;
+            let output_position = offset_output + (row + res_idx_M) * out_stride_row + (col + res_idx_N) * out_stride_col;
             output[output_position] = results[result_position];
         }
     }

@@ -41,8 +41,35 @@ pub(crate) mod tests {
         let z = func(x_wgpu.into_primitive(), y_wgpu.into_primitive());
         let z = TestTensor::from_primitive(z);
 
-        std::println!("{z}");
-        std::println!("{z_reference}");
+        z_reference.into_data().assert_approx_eq(&z.into_data(), 3);
+    }
+
+    pub(crate) fn same_as_reference_swapped_dims<F, const D: usize, S>(
+        func: F,
+        swap_lhs: [usize; 2],
+        swap_rhs: [usize; 2],
+        shape_lhs: S,
+        shape_rhs: S,
+    ) where
+        F: Fn(WgpuTensor<f32, D>, WgpuTensor<f32, D>) -> WgpuTensor<f32, D>,
+        S: Into<Shape<D>>,
+    {
+        let x = ReferenceTensor::random(shape_lhs, burn_tensor::Distribution::Uniform(-1.0, 1.0));
+        let y = ReferenceTensor::random(shape_rhs, burn_tensor::Distribution::Uniform(-1.0, 1.0));
+
+        let x_wgpu = TestTensor::from_data(x.to_data());
+        let y_wgpu = TestTensor::from_data(y.to_data());
+
+        let z_reference = x
+            .swap_dims(swap_lhs[0], swap_lhs[1])
+            .matmul(y.swap_dims(swap_rhs[0], swap_rhs[1]));
+
+        let z = func(
+            x_wgpu.swap_dims(swap_lhs[0], swap_lhs[1]).into_primitive(),
+            y_wgpu.swap_dims(swap_rhs[0], swap_rhs[1]).into_primitive(),
+        );
+        let z = TestTensor::from_primitive(z);
+
         z_reference.into_data().assert_approx_eq(&z.into_data(), 3);
     }
 }
