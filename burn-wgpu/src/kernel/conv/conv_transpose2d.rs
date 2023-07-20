@@ -16,8 +16,8 @@ pub(crate) fn conv_transpose2d<E: WgpuElement>(
 ) -> WgpuTensor<E, 4> {
     const WORKGROUP: usize = 32;
 
-    let input = kernel::into_continuous(input);
-    let weight = kernel::into_continuous(weight);
+    let input = kernel::into_contiguous(input);
+    let weight = kernel::into_contiguous(weight);
     let [batch_size, _, in_height, in_width] = input.shape.dims;
     let [_, out_channels, kernel_0, kernel_1] = weight.shape.dims;
 
