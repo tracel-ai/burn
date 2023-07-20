@@ -93,7 +93,7 @@ fn main(
             }
 
             let index = b * grad_stride_0 + c * grad_stride_1 + oh * grad_stride_2 + ow * grad_stride_3;
-            grad_acc += grad[index] ;
+            grad_acc += grad[index];
         }
     }
 

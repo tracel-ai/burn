@@ -15,6 +15,8 @@ pub use source::*;
 pub use unary::*;
 pub use unary_scalar::*;
 
+/// Convolution kernels
+pub mod conv;
 /// Matmul kernels
 pub mod matmul;
 /// Pooling kernels
