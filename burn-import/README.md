@@ -108,6 +108,7 @@ List taken from [here](https://github.com/onnx/onnx/blob/main/docs/Operators.md)
 - [ ] MatMulInteger
 - [ ] Max
 - [ ] MaxPool
+- [x] MaxPool2d
 - [ ] MaxRoiPool
 - [ ] MaxUnpool
 - [ ] Mean
