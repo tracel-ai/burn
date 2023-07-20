@@ -34,12 +34,12 @@ mod tch_gpu {
 #[cfg(feature = "wgpu")]
 mod wgpu {
     use burn_autodiff::ADBackendDecorator;
-    use burn_wgpu::{Metal, WgpuBackend, WgpuDevice};
+    use burn_wgpu::{AutoGraphicsApi, WgpuBackend, WgpuDevice};
     use mnist::training;
 
     pub fn run() {
         let device = WgpuDevice::default();
-        training::run::<ADBackendDecorator<WgpuBackend<Metal, f32, i32>>>(device);
+        training::run::<ADBackendDecorator<WgpuBackend<AutoGraphicsApi, f32, i32>>>(device);
     }
 }
 
