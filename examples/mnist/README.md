@@ -20,4 +20,6 @@ echo "Using tch backend"
 export TORCH_CUDA_VERSION=cu113                                       # Set the cuda version
 cargo run --example mnist --release --features tch-gpu                # GPU Tch Backend - f16
 cargo run --example mnist --release --features tch-cpu                # CPU Tch Backend - f32
+echo "Using wgpu backend"
+cargo run --example mnist --release --features wgpu
 ```
