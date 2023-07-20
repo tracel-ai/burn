@@ -16,7 +16,7 @@ var<storage, read_write> output: array<{{ elem }}>;
 
 @group(0)
 @binding(4)
-var<storage, read> info: array<u32, 31>;
+var<storage, read> info: array<u32, 32>;
 
 const WORKGROUP_SIZE_X = {{ workgroup_size_x }}u;
 
@@ -28,39 +28,39 @@ fn main(
 ) {
     let id = global_id.y * (num_workgroups.x * WORKGROUP_SIZE_X) + global_id.x;
 
-    let input_stride_0 = info[0];
-    let input_stride_1 = info[1];
-    let input_stride_2 = info[2];
-    let input_stride_3 = info[3];
-    let output_stride_0 = info[4];
-    let output_stride_1 = info[5];
-    let output_stride_2 = info[6];
-    let output_stride_3 = info[7];
-    let weight_stride_0 = info[8];
-    let weight_stride_1 = info[9];
-    let weight_stride_2 = info[10];
-    let weight_stride_3 = info[11];
+    let input_stride_0 = info[1];
+    let input_stride_1 = info[2];
+    let input_stride_2 = info[3];
+    let input_stride_3 = info[4];
+    let output_stride_0 = info[5];
+    let output_stride_1 = info[6];
+    let output_stride_2 = info[7];
+    let output_stride_3 = info[8];
+    let weight_stride_0 = info[9];
+    let weight_stride_1 = info[10];
+    let weight_stride_2 = info[11];
+    let weight_stride_3 = info[12];
 
-    let input_shape_0 = info[12];
-    let input_shape_1 = info[13];
-    let input_shape_2 = info[14];
-    let input_shape_3 = info[15];
-    let output_shape_0 = info[16];
-    let output_shape_1 = info[17];
-    let output_shape_2 = info[18];
-    let output_shape_3 = info[19];
-    let weight_shape_0 = info[20];
-    let weight_shape_1 = info[21];
-    let weight_shape_2 = info[22];
-    let weight_shape_3 = info[23];
+    let input_shape_0 = info[13];
+    let input_shape_1 = info[14];
+    let input_shape_2 = info[15];
+    let input_shape_3 = info[16];
+    let output_shape_0 = info[17];
+    let output_shape_1 = info[18];
+    let output_shape_2 = info[19];
+    let output_shape_3 = info[20];
+    let weight_shape_0 = info[21];
+    let weight_shape_1 = info[22];
+    let weight_shape_2 = info[23];
+    let weight_shape_3 = info[24];
 
-    let stride_0 = info[24];
-    let stride_1 = info[25];
-    let padding_0 = info[26];
-    let padding_1 = info[27];
-    let dilation_0 = info[28];
-    let dilation_1 = info[29];
-    let groups = info[30];
+    let stride_0 = info[25];
+    let stride_1 = info[26];
+    let padding_0 = info[27];
+    let padding_1 = info[28];
+    let dilation_0 = info[29];
+    let dilation_1 = info[30];
+    let groups = info[31];
 
     let in_channels = weight_shape_1;
     let kernel_size_0 = weight_shape_2;

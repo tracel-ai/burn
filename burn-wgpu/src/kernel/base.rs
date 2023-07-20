@@ -179,30 +179,6 @@ pub(crate) fn build_info<E: WgpuElement, const D: usize>(
     info
 }
 
-/// Create a vector containing the strides and shape of tensors.
-///
-/// Similar to [build_info](build_info) but without the dimension.
-pub(crate) fn build_info_no_dim<E: WgpuElement, const D: usize>(
-    tensors: &[&WgpuTensor<E, D>],
-) -> Vec<u32> {
-    let mut info: Vec<u32> = vec![0; tensors.len() * 2 * D];
-
-    let mut current = 0;
-    for tensor in tensors.iter() {
-        for d in 0..D {
-            info[current] = tensor.strides[d] as u32;
-            current += 1;
-        }
-    }
-    for tensor in tensors.iter() {
-        for d in 0..D {
-            info[current] = tensor.shape.dims[d] as u32;
-            current += 1;
-        }
-    }
-    info
-}
-
 pub(crate) fn elemwise_workgroup(num_elems: usize, workgroup_size: usize) -> WorkGroup {
     let num_elem_per_invocation = workgroup_size * workgroup_size;
     let workgroups = f32::ceil(num_elems as f32 / num_elem_per_invocation as f32);
