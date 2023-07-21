@@ -105,10 +105,6 @@ pub fn max_pool2d_config(curr: &Node) -> MaxPool2dConfig {
         todo!("max_pool2d: padding({pads:?}) is not fully supported");
     };
 
-    if strides.iter().all(|&x| x != 1) {
-        todo!("max_pool2d: strides({strides:?}) are not fully supported");
-    };
-
     MaxPool2dConfig::new(
         channels as usize,
         [kernel_shape[0] as usize, kernel_shape[1] as usize],
