@@ -101,8 +101,15 @@ pub fn max_pool2d_config(curr: &Node) -> MaxPool2dConfig {
 
     let padding = if pads.iter().all(|&x| x == 0) {
         MaxPool2dPaddingConfig::Valid
+    } else if (pads[0] == pads[1]) == (pads[2] == pads[3]) {
+        // i.e [2, 2, 2, 2]
+        MaxPool2dPaddingConfig::Explicit(pads[0] as usize, pads[0] as usize)
+    } else if pads[0] == pads[1] && pads[2] == pads[3] {
+        // i.e [2, 2, 3, 3]
+        MaxPool2dPaddingConfig::Explicit(pads[0] as usize, pads[2] as usize)
     } else {
-        todo!("max_pool2d: padding({pads:?}) is not fully supported");
+        // All other cases, same as input
+        MaxPool2dPaddingConfig::Same
     };
 
     MaxPool2dConfig::new(

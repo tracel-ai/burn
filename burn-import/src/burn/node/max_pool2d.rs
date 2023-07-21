@@ -51,6 +51,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MaxPool2dNode {
         let channels = self.config.channels.to_tokens();
         let kernel_size = self.config.kernel_size.to_tokens();
         let strides = self.config.strides.to_tokens();
+        let padding = self.config.padding.to_tokens();
 
         let init_line = quote! {
             init();
@@ -59,6 +60,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MaxPool2dNode {
         let tokens = quote! {
             let #name = MaxPool2dConfig::new(#channels, #kernel_size)
                 .with_strides(#strides)
+                .with_padding(#padding)
                 .#init_line
         };
 
@@ -77,6 +79,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MaxPool2dNode {
     fn register_imports(&self, imports: &mut BurnImports) {
         imports.register("burn::nn::pool::MaxPool2d");
         imports.register("burn::nn::pool::MaxPool2dConfig");
+        imports.register("burn::nn::pool::MaxPool2dPaddingConfig");
     }
 
     fn into_node(self) -> Node<PS> {
