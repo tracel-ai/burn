@@ -374,6 +374,62 @@ impl<E: core::fmt::Debug + Copy, const A: usize> From<[E; A]> for Data<E, 1> {
     }
 }
 
+impl<E: core::fmt::Debug + Copy, const A: usize, const B: usize> From<[[E; B]; A]> for Data<E, 2> {
+    fn from(elems: [[E; B]; A]) -> Self {
+        let mut data = Vec::with_capacity(A * B);
+        for elem in elems.into_iter().take(A) {
+            for elem in elem.into_iter().take(B) {
+                data.push(elem);
+            }
+        }
+
+        Data::new(data, Shape::new([A, B]))
+    }
+}
+
+impl<E: core::fmt::Debug + Copy, const A: usize, const B: usize, const C: usize>
+    From<[[[E; C]; B]; A]> for Data<E, 3>
+{
+    fn from(elems: [[[E; C]; B]; A]) -> Self {
+        let mut data = Vec::with_capacity(A * B * C);
+
+        for elem in elems.into_iter().take(A) {
+            for elem in elem.into_iter().take(B) {
+                for elem in elem.into_iter().take(C) {
+                    data.push(elem);
+                }
+            }
+        }
+
+        Data::new(data, Shape::new([A, B, C]))
+    }
+}
+
+impl<
+        E: core::fmt::Debug + Copy,
+        const A: usize,
+        const B: usize,
+        const C: usize,
+        const D: usize,
+    > From<[[[[E; D]; C]; B]; A]> for Data<E, 4>
+{
+    fn from(elems: [[[[E; D]; C]; B]; A]) -> Self {
+        let mut data = Vec::with_capacity(A * B * C * D);
+
+        for elem in elems.into_iter().take(A) {
+            for elem in elem.into_iter().take(B) {
+                for elem in elem.into_iter().take(C) {
+                    for elem in elem.into_iter().take(D) {
+                        data.push(elem);
+                    }
+                }
+            }
+        }
+
+        Data::new(data, Shape::new([A, B, C, D]))
+    }
+}
+
 impl<E: core::fmt::Debug + Copy> From<&[E]> for Data<E, 1> {
     fn from(elems: &[E]) -> Self {
         let mut data = Vec::with_capacity(elems.len());
