@@ -1,6 +1,7 @@
 use super::{numeric, BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
 use crate::kernel::{
-    self, unary_default, unary_inplace_default, unary_scalar_default, unary_scalar_inplace_default,
+    self, greater_elem, mask_fill, unary_default, unary_inplace_default, unary_scalar_default,
+    unary_scalar_inplace_default,
 };
 use crate::unary_scalar_inplace;
 use crate::{
@@ -392,6 +393,12 @@ where
     }
 
     fn tanh<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+        let tensor = mask_fill(
+            tensor.clone(),
+            greater_elem(tensor, F::from_elem(40.0)),
+            F::from_elem(40.0),
+        );
+
         unary!(Tanh, func "tanh");
         unary_inplace!(TanhInplace, func "tanh");
 
