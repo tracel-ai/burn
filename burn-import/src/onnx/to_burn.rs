@@ -21,6 +21,7 @@ use crate::{
             linear::LinearNode,
             log_softmax::LogSoftmaxNode,
             matmul::MatmulNode,
+            max_pool2d::MaxPool2dNode,
             relu::ReLUNode,
             sigmoid::SigmoidNode,
         },
@@ -32,6 +33,7 @@ use crate::{
         ir::{AttributeValue, Node, NodeType},
         op_configuration::{
             batch_norm_config, conv2d_config, flatten_config, linear_config, log_softmax_config,
+            max_pool2d_config,
         },
     },
 };
@@ -152,6 +154,7 @@ impl ONNXGraph {
         for node in self.nodes {
             match node.node_type {
                 NodeType::Conv2d => graph.register(Self::conv2d_conversion::<PS>(node)),
+                NodeType::MaxPool2d => graph.register(Self::max_pool2d_conversion(node)),
                 NodeType::MatMul => graph.register(Self::matmul_conversion(node)),
                 NodeType::Linear => graph.register(Self::linear_conversion::<PS>(node)),
                 NodeType::BatchNormalization => {
@@ -292,6 +295,15 @@ impl ONNXGraph {
 
         let name = &node.name;
         Conv2dNode::<PS>::new(name, input, output, weight, bias, config)
+    }
+
+    fn max_pool2d_conversion(node: Node) -> MaxPool2dNode {
+        let input = node.inputs.get(0).unwrap().to_tensor_type();
+        let output = node.outputs.get(0).unwrap().to_tensor_type();
+        let config = max_pool2d_config(&node);
+
+        let name = &node.name;
+        MaxPool2dNode::new(name, input, output, config)
     }
 }
 

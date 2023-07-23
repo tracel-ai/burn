@@ -1,5 +1,6 @@
 use burn::nn::{
     conv::{Conv2dConfig, Conv2dPaddingConfig},
+    pool::{MaxPool2dConfig, MaxPool2dPaddingConfig},
     BatchNormConfig, LinearConfig,
 };
 
@@ -78,6 +79,44 @@ pub fn conv2d_config(curr: &Node) -> Conv2dConfig {
         [kernel_shape[0] as usize, kernel_shape[1] as usize],
     )
     .with_bias(bias)
+    .with_padding(padding)
+}
+
+/// Create a MaxPool2dConfig from the attributes of the node
+pub fn max_pool2d_config(curr: &Node) -> MaxPool2dConfig {
+    let mut channels: i64 = 1;
+    let mut kernel_shape = Vec::new();
+    let mut strides = Vec::new();
+    let mut pads = Vec::new();
+
+    for (key, value) in curr.attrs.iter() {
+        match key.as_str() {
+            "channels" => attr_value_i64(value, &mut channels),
+            "kernel_shape" => attr_value_vec_i64(value, &mut kernel_shape),
+            "strides" => attr_value_vec_i64(value, &mut strides),
+            "pads" => attr_value_vec_i64(value, &mut pads),
+            _ => {}
+        }
+    }
+
+    let padding = if pads.iter().all(|&x| x == 0) {
+        MaxPool2dPaddingConfig::Valid
+    } else if (pads[0] == pads[1]) == (pads[2] == pads[3]) {
+        // i.e [2, 2, 2, 2]
+        MaxPool2dPaddingConfig::Explicit(pads[0] as usize, pads[0] as usize)
+    } else if pads[0] == pads[1] && pads[2] == pads[3] {
+        // i.e [2, 2, 3, 3]
+        MaxPool2dPaddingConfig::Explicit(pads[0] as usize, pads[2] as usize)
+    } else {
+        // All other cases, same as input
+        MaxPool2dPaddingConfig::Same
+    };
+
+    MaxPool2dConfig::new(
+        channels as usize,
+        [kernel_shape[0] as usize, kernel_shape[1] as usize],
+    )
+    .with_strides([strides[0] as usize, strides[1] as usize])
     .with_padding(padding)
 }
 
