@@ -3,11 +3,10 @@ use crate as burn;
 use crate::config::Config;
 use crate::module::Module;
 use crate::module::Param;
-use crate::nn::Initializer;
+use crate::nn::{Initializer, PaddingConfig1d};
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 use burn_tensor::module::conv1d;
-use burn_tensor::ops::conv::calculate_conv_padding;
 use burn_tensor::ops::ConvOptions;
 use libm::sqrt;
 
@@ -30,26 +29,14 @@ pub struct Conv1dConfig {
     #[config(default = "1")]
     pub groups: usize,
     /// The padding configuration.
-    #[config(default = "Conv1dPaddingConfig::Valid")]
-    pub padding: Conv1dPaddingConfig,
+    #[config(default = "PaddingConfig1d::Valid")]
+    pub padding: PaddingConfig1d,
     /// If bias should be added to the output.
     #[config(default = true)]
     pub bias: bool,
     /// The type of function used to initialize neural network parameters
     #[config(default = "Initializer::KaimingUniform{gain:1.0/sqrt(3.0),fan_out_only:false}")]
     pub initializer: Initializer,
-}
-
-/// Padding configuration for 1D convolution [config](Conv1dConfig).
-#[derive(Module, Config, Debug, PartialEq)]
-pub enum Conv1dPaddingConfig {
-    /// Dynamicaly calculate the amount of padding necessary to ensure that the output size will be
-    /// the same as the input.
-    Same,
-    /// Same as no padding.
-    Valid,
-    /// Applies the specified amount of padding to all inputs.
-    Explicit(usize),
 }
 
 /// Applies a 1D convolution over input tensors.
@@ -69,7 +56,7 @@ pub struct Conv1d<B: Backend> {
     kernel_size: usize,
     dilation: usize,
     groups: usize,
-    padding: Conv1dPaddingConfig,
+    padding: PaddingConfig1d,
 }
 
 impl Conv1dConfig {
@@ -133,23 +120,6 @@ impl<B: Backend> Conv1d<B> {
     }
 }
 
-impl Conv1dPaddingConfig {
-    pub(crate) fn calculate_padding_1d(
-        &self,
-        length: usize,
-        kernel_size: usize,
-        stride: usize,
-    ) -> usize {
-        let same_padding = || calculate_conv_padding(kernel_size, stride, length, length);
-
-        match self {
-            Conv1dPaddingConfig::Valid => 0,
-            Conv1dPaddingConfig::Same => same_padding(),
-            Conv1dPaddingConfig::Explicit(value) => *value,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use burn_tensor::Data;
@@ -193,7 +163,7 @@ mod tests {
     #[test]
     fn configured_custom() {
         let config = Conv1dConfig::new(2, 2, 2)
-            .with_padding(Conv1dPaddingConfig::Explicit(2))
+            .with_padding(PaddingConfig1d::Explicit(2))
             .with_stride(2)
             .with_bias(false)
             .with_dilation(2)
@@ -202,7 +172,7 @@ mod tests {
 
         let conv = config.init::<TestBackend>();
 
-        assert_eq!(conv.padding, Conv1dPaddingConfig::Explicit(2));
+        assert_eq!(conv.padding, PaddingConfig1d::Explicit(2));
         assert_eq!(conv.stride, 2);
         assert!(conv.bias.is_none());
         assert_eq!(conv.dilation, 2);

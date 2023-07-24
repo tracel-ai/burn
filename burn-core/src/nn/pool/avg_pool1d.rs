@@ -2,7 +2,7 @@ use crate as burn;
 
 use crate::config::Config;
 use crate::module::Module;
-use crate::nn::conv::Conv1dPaddingConfig;
+use crate::nn::PaddingConfig1d;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 use burn_tensor::module::avg_pool1d;
@@ -18,19 +18,16 @@ pub struct AvgPool1dConfig {
     #[config(default = "1")]
     pub stride: usize,
     /// The padding configuration.
-    #[config(default = "AvgPool1dPaddingConfig::Valid")]
-    pub padding: AvgPool1dPaddingConfig,
+    #[config(default = "PaddingConfig1d::Valid")]
+    pub padding: PaddingConfig1d,
 }
-
-/// Padding configuration for 1D avg pooling [config](AvgPool1dConfig).
-pub type AvgPool1dPaddingConfig = Conv1dPaddingConfig;
 
 /// Applies a 1D avg pooling over input tensors.
 #[derive(Module, Debug, Clone)]
 pub struct AvgPool1d {
     stride: usize,
     kernel_size: usize,
-    padding: AvgPool1dPaddingConfig,
+    padding: PaddingConfig1d,
 }
 
 impl AvgPool1dConfig {
