@@ -1,7 +1,8 @@
-use super::{numeric, BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
+use super::{numeric, BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor};
 use crate::kernel::{
     self, unary_default, unary_inplace_default, unary_scalar_default, unary_scalar_inplace_default,
 };
+
 use crate::unary_scalar_inplace;
 use crate::{
     element::{FloatElement, IntElement},
@@ -10,6 +11,7 @@ use crate::{
 use burn_common::rand::get_seeded_rng;
 use burn_tensor::ElementConversion;
 use burn_tensor::{backend::Backend, ops::TensorOps, Data, Distribution, Shape};
+
 use std::ops::Range;
 
 impl<G, F, I> TensorOps<WgpuBackend<G, F, I>> for WgpuBackend<G, F, I>
@@ -302,16 +304,15 @@ where
     }
 
     fn to_full_precision<const D: usize>(
-        _tensor: &<WgpuBackend<G, F, I> as Backend>::TensorPrimitive<D>,
-    ) -> <<WgpuBackend<G, F, I> as Backend>::FullPrecisionBackend as Backend>::TensorPrimitive<D>
-    {
-        todo!()
+        tensor: &FloatTensor<Self, D>,
+    ) -> FloatTensor<FullPrecisionBackend<Self>, D> {
+        kernel::cast(tensor.clone())
     }
 
     fn from_full_precision<const D: usize>(
-        _tensor: <<WgpuBackend<G, F, I> as Backend>::FullPrecisionBackend as Backend>::TensorPrimitive<D>,
-    ) -> <WgpuBackend<G, F, I> as Backend>::TensorPrimitive<D> {
-        todo!()
+        tensor: FloatTensor<FullPrecisionBackend<Self>, D>,
+    ) -> FloatTensor<Self, D> {
+        kernel::cast(tensor.clone())
     }
 
     fn exp<const D: usize>(lhs: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
