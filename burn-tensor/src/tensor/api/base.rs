@@ -405,6 +405,25 @@ where
     }
 }
 
+/// Transpose marker (zero-size type). Used to sugar the transpose of a tensor, e.g.
+/// ```rust
+/// use burn_tensor::backend::Backend;
+/// use burn_tensor::{Tensor, T};
+///
+/// fn example<B: Backend>() {
+///     let tensor = Tensor::<B, 2>::from_floats([[1.0, 2.0], [3.0, 4.0]]);
+///     let transposed = tensor^T;
+/// }
+/// ```
+pub struct T;
+
+impl<B: Backend, const D: usize> core::ops::BitXor<T> for Tensor<B, D> {
+    type Output = Self;
+    fn bitxor(self, _: T) -> Self::Output {
+        self.transpose()
+    }
+}
+
 /// Trait that list all operations that can be applied on all tensors.
 ///
 /// # Warnings
