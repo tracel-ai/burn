@@ -41,7 +41,7 @@ pub struct Conv2dConfig {
 /// Padding configuration for 2D convolution [config](Conv2dConfig).
 #[derive(Module, Config, Debug)]
 pub enum Conv2dPaddingConfig {
-    /// Dynamicaly calculate the amount of padding necessary to ensure that the output size will be
+    /// Dynamically calculate the amount of padding necessary to ensure that the output size will be
     /// the same as the input.
     Same,
     /// Same as no padding.
