@@ -5,7 +5,7 @@ use burn_tensor::ops::conv::calculate_conv_padding;
 use crate::config::Config;
 use crate::module::Module;
 
-/// Padding configuration for many operators.
+/// Padding configuration for 2d operators.
 #[derive(Module, Config, Debug)]
 pub enum PaddingConfig2d {
     /// Dynamically calculate the amount of padding necessary to ensure that the output size will be
