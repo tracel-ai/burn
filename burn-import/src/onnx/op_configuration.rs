@@ -1,5 +1,5 @@
 use burn::nn::{
-    conv::Conv2dConfig, pool::MaxPool2dConfig, BatchNormConfig, LinearConfig, PaddingConfig,
+    conv::Conv2dConfig, pool::MaxPool2dConfig, BatchNormConfig, LinearConfig, PaddingConfig2d,
 };
 
 use super::ir::{ArgType, AttributeValue, Node, StateType};
@@ -240,17 +240,17 @@ pub fn batch_norm_config(node: &Node) -> BatchNormConfig {
         .with_momentum(momentum as f64)
 }
 
-fn padding_config(pads: &[i64]) -> PaddingConfig {
+fn padding_config(pads: &[i64]) -> PaddingConfig2d {
     if pads.iter().all(|&x| x == 0) {
-        PaddingConfig::Valid
+        PaddingConfig2d::Valid
     } else if (pads[0] == pads[1]) == (pads[2] == pads[3]) {
         // i.e [2, 2, 2, 2]
-        PaddingConfig::Explicit(pads[0] as usize, pads[0] as usize)
+        PaddingConfig2d::Explicit(pads[0] as usize, pads[0] as usize)
     } else if pads[0] == pads[1] && pads[2] == pads[3] {
         // i.e [2, 2, 3, 3]
-        PaddingConfig::Explicit(pads[0] as usize, pads[2] as usize)
+        PaddingConfig2d::Explicit(pads[0] as usize, pads[2] as usize)
     } else {
         // All other cases, same as input
-        PaddingConfig::Same
+        PaddingConfig2d::Same
     }
 }

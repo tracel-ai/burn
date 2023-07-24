@@ -119,7 +119,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv2dNode<PS> {
         }
     }
     fn register_imports(&self, imports: &mut BurnImports) {
-        imports.register("burn::nn::PaddingConfig");
+        imports.register("burn::nn::PaddingConfig2d");
         imports.register("burn::nn::conv::Conv2d");
         imports.register("burn::nn::conv::Conv2dConfig");
     }
@@ -138,7 +138,7 @@ mod tests {
         TensorType,
     };
     use burn::{
-        nn::conv::Conv2dConfig, nn::PaddingConfig, record::FullPrecisionSettings, tensor::Data,
+        nn::conv::Conv2dConfig, nn::PaddingConfig2d, record::FullPrecisionSettings, tensor::Data,
     };
 
     #[test]
@@ -151,7 +151,7 @@ mod tests {
             TensorType::new_float("output", 4),
             Data::from([2.]).serialize(),
             None,
-            Conv2dConfig::new([3, 3], [3, 3]).with_padding(PaddingConfig::Valid),
+            Conv2dConfig::new([3, 3], [3, 3]).with_padding(PaddingConfig2d::Valid),
         ));
 
         let expected = quote! {
@@ -159,7 +159,7 @@ mod tests {
                 module::Module,
                 tensor::{backend::Backend, Tensor},
             };
-            use burn::nn::PaddingConfig;
+            use burn::nn::PaddingConfig2d;
             use burn::nn::conv::Conv2d;
             use burn::nn::conv::Conv2dConfig;
 
@@ -172,7 +172,7 @@ mod tests {
                 pub fn new_with(record: ModelRecord<B>) -> Self {
                     let conv2d = Conv2dConfig::new([3, 3], [3, 3])
                         .with_stride([1, 1])
-                        .with_padding(PaddingConfig::Valid)
+                        .with_padding(PaddingConfig2d::Valid)
                         .with_dilation([1, 1])
                         .with_groups(1)
                         .with_bias(true)

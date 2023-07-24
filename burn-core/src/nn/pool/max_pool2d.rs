@@ -2,7 +2,7 @@ use crate as burn;
 
 use crate::config::Config;
 use crate::module::Module;
-use crate::nn::PaddingConfig;
+use crate::nn::PaddingConfig2d;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 use burn_tensor::module::max_pool2d;
@@ -18,8 +18,8 @@ pub struct MaxPool2dConfig {
     #[config(default = "[1, 1]")]
     pub strides: [usize; 2],
     /// The padding configuration.
-    #[config(default = "PaddingConfig::Valid")]
-    pub padding: PaddingConfig,
+    #[config(default = "PaddingConfig2d::Valid")]
+    pub padding: PaddingConfig2d,
 }
 
 /// Applies a 2D max pooling over input tensors.
@@ -27,7 +27,7 @@ pub struct MaxPool2dConfig {
 pub struct MaxPool2d {
     stride: [usize; 2],
     kernel_size: [usize; 2],
-    padding: PaddingConfig,
+    padding: PaddingConfig2d,
 }
 
 impl MaxPool2dConfig {

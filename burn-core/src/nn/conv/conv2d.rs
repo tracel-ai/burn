@@ -4,7 +4,7 @@ use crate::config::Config;
 use crate::module::Module;
 use crate::module::Param;
 use crate::nn::Initializer;
-use crate::nn::PaddingConfig;
+use crate::nn::PaddingConfig2d;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 use burn_tensor::module::conv2d;
@@ -28,8 +28,8 @@ pub struct Conv2dConfig {
     #[config(default = "1")]
     pub groups: usize,
     /// The padding configuration.
-    #[config(default = "PaddingConfig::Valid")]
-    pub padding: PaddingConfig,
+    #[config(default = "PaddingConfig2d::Valid")]
+    pub padding: PaddingConfig2d,
     /// If bias should be added to the output.
     #[config(default = true)]
     pub bias: bool,
@@ -55,7 +55,7 @@ pub struct Conv2d<B: Backend> {
     kernel_size: [usize; 2],
     dilation: [usize; 2],
     groups: usize,
-    padding: PaddingConfig,
+    padding: PaddingConfig2d,
 }
 
 impl Conv2dConfig {

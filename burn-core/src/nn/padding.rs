@@ -7,7 +7,7 @@ use crate::module::Module;
 
 /// Padding configuration for many operators.
 #[derive(Module, Config, Debug)]
-pub enum PaddingConfig {
+pub enum PaddingConfig2d {
     /// Dynamically calculate the amount of padding necessary to ensure that the output size will be
     /// the same as the input.
     Same,
@@ -17,7 +17,7 @@ pub enum PaddingConfig {
     Explicit(usize, usize),
 }
 
-impl PaddingConfig {
+impl PaddingConfig2d {
     pub(crate) fn calculate_padding_2d(
         &self,
         height: usize,

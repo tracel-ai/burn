@@ -77,7 +77,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MaxPool2dNode {
         }
     }
     fn register_imports(&self, imports: &mut BurnImports) {
-        imports.register("burn::nn::PaddingConfig");
+        imports.register("burn::nn::PaddingConfig2d");
         imports.register("burn::nn::pool::MaxPool2d");
         imports.register("burn::nn::pool::MaxPool2dConfig");
     }
@@ -95,7 +95,7 @@ mod tests {
         node::{max_pool2d::MaxPool2dNode, test::assert_tokens},
         TensorType,
     };
-    use burn::{nn::pool::MaxPool2dConfig, nn::PaddingConfig, record::FullPrecisionSettings};
+    use burn::{nn::pool::MaxPool2dConfig, nn::PaddingConfig2d, record::FullPrecisionSettings};
 
     #[test]
     fn test_codegen() {
@@ -107,7 +107,7 @@ mod tests {
             TensorType::new_float("output", 4),
             MaxPool2dConfig::new(1, [3, 3])
                 .with_strides([1, 1])
-                .with_padding(PaddingConfig::Valid),
+                .with_padding(PaddingConfig2d::Valid),
         ));
 
         let expected = quote! {
@@ -115,7 +115,7 @@ mod tests {
                 module::Module,
                 tensor::{backend::Backend, Tensor},
             };
-            use burn::nn::PaddingConfig;
+            use burn::nn::PaddingConfig2d;
             use burn::nn::pool::MaxPool2d;
             use burn::nn::pool::MaxPool2dConfig;
 
@@ -128,7 +128,7 @@ mod tests {
                 pub fn new_with(record: ModelRecord<B>) -> Self {
                     let max_pool2d = MaxPool2dConfig::new(1, [3, 3])
                         .with_strides([1, 1])
-                        .with_padding(PaddingConfig::Valid)
+                        .with_padding(PaddingConfig2d::Valid)
                         .init();
 
                     Self {
