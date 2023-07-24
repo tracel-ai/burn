@@ -11,6 +11,14 @@ jobs:
   test-burn-std:
     runs-on: ubuntu-latest
     steps:
+      - name: free disk space
+        run: |
+          df -h
+          sudo swapoff -a
+          sudo rm -f /swapfile
+          sudo apt clean
+          df -h
+
       - name: checkout
         uses: actions/checkout@v3
 
@@ -37,6 +45,14 @@ jobs:
   test-burn-no-std:
     runs-on: ubuntu-latest
     steps:
+      - name: free disk space
+        run: |
+          df -h
+          sudo swapoff -a
+          sudo rm -f /swapfile
+          sudo apt clean
+          df -h
+
       - name: checkout
         uses: actions/checkout@v3
 
