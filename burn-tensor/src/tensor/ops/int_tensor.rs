@@ -599,6 +599,25 @@ pub trait IntTensorOps<B: Backend> {
     /// The tensor of ones.
     fn int_ones<const D: usize>(shape: Shape<D>, device: &B::Device) -> B::IntTensorPrimitive<D>;
 
+    /// Creates a tensor filled with given value.
+    ///
+    /// # Arguments
+    ///
+    /// * `shape` - The shape of the tensor.
+    /// * `fill_value` - The value with which to fill the tensor.
+    /// * `device` - The device to create the tensor on.
+    ///
+    /// # Returns
+    ///
+    /// The tensor filled with given value
+    fn int_full<const D: usize>(
+        shape: Shape<D>,
+        fill_value: B::IntElem,
+        device: &B::Device,
+    ) -> B::IntTensorPrimitive<D> {
+        Self::int_add_scalar(Self::int_zeros(shape, device), fill_value)
+    }
+
     /// Sums all elements in the tensor.
     ///
     /// # Arguments

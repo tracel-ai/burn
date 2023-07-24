@@ -9,6 +9,7 @@ mod div;
 mod erf;
 mod exp;
 mod flatten;
+mod full;
 mod gather_scatter;
 mod log;
 mod log1p;
