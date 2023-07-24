@@ -2,8 +2,7 @@ use super::{numeric, BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBa
 use crate::kernel::{
     self, unary_default, unary_inplace_default, unary_scalar_default, unary_scalar_inplace_default,
 };
-use crate::ops::FullPrecisionFloatElem;
-use crate::tensor::WgpuTensor;
+
 use crate::unary_scalar_inplace;
 use crate::{
     element::{FloatElement, IntElement},
@@ -12,7 +11,7 @@ use crate::{
 use burn_common::rand::get_seeded_rng;
 use burn_tensor::ElementConversion;
 use burn_tensor::{backend::Backend, ops::TensorOps, Data, Distribution, Shape};
-use core::any::TypeId;
+
 use std::ops::Range;
 
 impl<G, F, I> TensorOps<WgpuBackend<G, F, I>> for WgpuBackend<G, F, I>
