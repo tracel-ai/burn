@@ -419,7 +419,9 @@ pub struct T;
 
 impl<B: Backend, const D: usize> core::ops::BitXor<T> for Tensor<B, D> {
     type Output = Self;
-    fn bitxor(self, _: T) -> Self::Output { self.transpose() }
+    fn bitxor(self, _: T) -> Self::Output {
+        self.transpose()
+    }
 }
 
 /// Trait that list all operations that can be applied on all tensors.
