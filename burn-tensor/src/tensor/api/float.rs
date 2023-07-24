@@ -252,18 +252,6 @@ where
     }
 }
 
-/// Transpose marker (zero-size type). Used to sugar the transpose of a tensor, e.g.
-/// ```rust
-/// let tensor = Tensor::<B, 2>::from_floats([[1.0, 2.0], [3.0, 4.0]]);
-/// let transposed = tensor^T;
-/// ```
-pub struct T;
-
-impl<B: Backend, const D: usize> std::ops::BitXor<T> for Tensor<B, D> {
-    type Output = Self;
-    fn bitxor(self, _: T) -> Self::Output { self.transpose() }
-}
-
 impl<const D: usize, B: ADBackend> Tensor<B, D> {
     /// Backward pass of the tensor.
     pub fn backward(&self) -> B::Gradients {
