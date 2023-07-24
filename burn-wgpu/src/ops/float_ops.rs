@@ -393,12 +393,15 @@ where
     }
 
     fn tanh<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        // On metal, tanh has wrong behaviour for inputs over 43.0
-        // TODO: replace mask_fill with clamp when available
-        let tanh_limit = F::from_elem(43.0);
-        let tensor = mask_fill(tensor.clone(), greater_elem(tensor, tanh_limit), tanh_limit);
+        // Metal has a weird numerical behaviour with tanh which require a new function
+        #[cfg(target_os = "macos")]
+        unary!(Tanh, func "safe_tanh", include "../template/safe_tanh.wgsl");
+        #[cfg(target_os = "macos")]
+        unary_inplace!(TanhInplace, func "safe_tanh", include "../template/safe_tanh.wgsl");
 
+        #[cfg(not(target_os = "macos"))]
         unary!(Tanh, func "tanh");
+        #[cfg(not(target_os = "macos"))]
         unary_inplace!(TanhInplace, func "tanh");
 
         if tensor.can_mut() {
