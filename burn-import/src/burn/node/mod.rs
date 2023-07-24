@@ -1,5 +1,6 @@
 mod base;
 
+pub(crate) mod add;
 pub(crate) mod batch_norm;
 pub(crate) mod constant;
 pub(crate) mod conv2d;

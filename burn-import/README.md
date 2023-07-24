@@ -15,7 +15,7 @@ List taken from [here](https://github.com/onnx/onnx/blob/main/docs/Operators.md)
 - [ ] Abs
 - [ ] Acos
 - [ ] Acosh
-- [ ] Add
+- [x] Add
 - [ ] And
 - [ ] ArgMax
 - [ ] ArgMin
