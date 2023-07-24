@@ -5,6 +5,7 @@ use burn::nn::BatchNorm;
 use burn::nn::BatchNormConfig;
 use burn::nn::Linear;
 use burn::nn::LinearConfig;
+use burn::nn::PaddingConfig2d;
 use burn::{
     module::Module,
     tensor::{backend::Backend, Tensor},
@@ -23,6 +24,7 @@ impl<B: Backend> Model<B> {
     pub fn new_with(record: ModelRecord<B>) -> Self {
         let conv2d1 = Conv2dConfig::new([1, 8], [3, 3])
             .with_stride([1, 1])
+            .with_padding(PaddingConfig2d::Valid)
             .with_dilation([1, 1])
             .with_groups(1)
             .with_bias(true)

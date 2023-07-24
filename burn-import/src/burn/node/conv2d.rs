@@ -63,6 +63,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv2dNode<PS> {
         let stride = self.config.stride.to_tokens();
         let dilation = self.config.dilation.to_tokens();
         let groups = self.config.groups.to_tokens();
+        let padding = self.config.padding.to_tokens();
         let bias = self.config.bias;
 
         let init_line = match with_record {
@@ -77,6 +78,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv2dNode<PS> {
         let tokens = quote! {
             let #name = Conv2dConfig::new(#channels, #kernel_size)
                 .with_stride(#stride)
+                .with_padding(#padding)
                 .with_dilation(#dilation)
                 .with_groups(#groups)
                 .with_bias(#bias)
@@ -117,6 +119,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv2dNode<PS> {
         }
     }
     fn register_imports(&self, imports: &mut BurnImports) {
+        imports.register("burn::nn::PaddingConfig2d");
         imports.register("burn::nn::conv::Conv2d");
         imports.register("burn::nn::conv::Conv2dConfig");
     }
@@ -134,7 +137,9 @@ mod tests {
         node::{conv2d::Conv2dNode, test::assert_tokens},
         TensorType,
     };
-    use burn::{nn::conv::Conv2dConfig, record::FullPrecisionSettings, tensor::Data};
+    use burn::{
+        nn::conv::Conv2dConfig, nn::PaddingConfig2d, record::FullPrecisionSettings, tensor::Data,
+    };
 
     #[test]
     fn test_codegen() {
@@ -146,7 +151,7 @@ mod tests {
             TensorType::new_float("output", 4),
             Data::from([2.]).serialize(),
             None,
-            Conv2dConfig::new([3, 3], [3, 3]),
+            Conv2dConfig::new([3, 3], [3, 3]).with_padding(PaddingConfig2d::Valid),
         ));
 
         let expected = quote! {
@@ -154,6 +159,7 @@ mod tests {
                 module::Module,
                 tensor::{backend::Backend, Tensor},
             };
+            use burn::nn::PaddingConfig2d;
             use burn::nn::conv::Conv2d;
             use burn::nn::conv::Conv2dConfig;
 
@@ -166,6 +172,7 @@ mod tests {
                 pub fn new_with(record: ModelRecord<B>) -> Self {
                     let conv2d = Conv2dConfig::new([3, 3], [3, 3])
                         .with_stride([1, 1])
+                        .with_padding(PaddingConfig2d::Valid)
                         .with_dilation([1, 1])
                         .with_groups(1)
                         .with_bias(true)

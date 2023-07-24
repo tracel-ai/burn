@@ -4,10 +4,10 @@ use crate::config::Config;
 use crate::module::Module;
 use crate::module::Param;
 use crate::nn::Initializer;
+use crate::nn::PaddingConfig2d;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 use burn_tensor::module::conv2d;
-use burn_tensor::ops::conv::calculate_conv_padding;
 use burn_tensor::ops::ConvOptions;
 use libm::sqrt;
 
@@ -28,26 +28,14 @@ pub struct Conv2dConfig {
     #[config(default = "1")]
     pub groups: usize,
     /// The padding configuration.
-    #[config(default = "Conv2dPaddingConfig::Valid")]
-    pub padding: Conv2dPaddingConfig,
+    #[config(default = "PaddingConfig2d::Valid")]
+    pub padding: PaddingConfig2d,
     /// If bias should be added to the output.
     #[config(default = true)]
     pub bias: bool,
     /// The type of function used to initialize neural network parameters
     #[config(default = "Initializer::KaimingUniform{gain:1.0/sqrt(3.0),fan_out_only:false}")]
     pub initializer: Initializer,
-}
-
-/// Padding configuration for 2D convolution [config](Conv2dConfig).
-#[derive(Module, Config, Debug)]
-pub enum Conv2dPaddingConfig {
-    /// Dynamically calculate the amount of padding necessary to ensure that the output size will be
-    /// the same as the input.
-    Same,
-    /// Same as no padding.
-    Valid,
-    /// Applies the specified amount of padding to all inputs.
-    Explicit(usize, usize),
 }
 
 /// Applies a 2D convolution over input tensors.
@@ -67,7 +55,7 @@ pub struct Conv2d<B: Backend> {
     kernel_size: [usize; 2],
     dilation: [usize; 2],
     groups: usize,
-    padding: Conv2dPaddingConfig,
+    padding: PaddingConfig2d,
 }
 
 impl Conv2dConfig {
@@ -133,29 +121,6 @@ impl<B: Backend> Conv2d<B> {
             self.bias.as_ref().map(|bias| bias.val()),
             ConvOptions::new(self.stride, padding, self.dilation, self.groups),
         )
-    }
-}
-
-impl Conv2dPaddingConfig {
-    pub(crate) fn calculate_padding_2d(
-        &self,
-        height: usize,
-        width: usize,
-        kernel_size: &[usize; 2],
-        stride: &[usize; 2],
-    ) -> [usize; 2] {
-        let same_padding = || {
-            let p1 = calculate_conv_padding(kernel_size[0], stride[0], height, height);
-            let p2 = calculate_conv_padding(kernel_size[1], stride[1], width, width);
-
-            [p1, p2]
-        };
-
-        match self {
-            Conv2dPaddingConfig::Same => same_padding(),
-            Conv2dPaddingConfig::Valid => [0, 0],
-            Conv2dPaddingConfig::Explicit(v1, v2) => [*v1, *v2],
-        }
     }
 }
 

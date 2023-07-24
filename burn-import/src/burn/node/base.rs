@@ -181,7 +181,9 @@ mod tests {
         node::{conv2d::Conv2dNode, matmul::MatmulNode, test::assert_tokens},
         TensorType,
     };
-    use burn::{nn::conv::Conv2dConfig, record::FullPrecisionSettings, tensor::Data};
+    use burn::{
+        nn::conv::Conv2dConfig, nn::PaddingConfig2d, record::FullPrecisionSettings, tensor::Data,
+    };
     use quote::quote;
 
     #[test]
@@ -199,7 +201,7 @@ mod tests {
             TensorType::new_float("tensor4", 4),
             Data::from([2.]).serialize(),
             None,
-            Conv2dConfig::new([3, 3], [3, 3]),
+            Conv2dConfig::new([3, 3], [3, 3]).with_padding(PaddingConfig2d::Valid),
         ));
 
         let expected = quote! {
@@ -207,6 +209,7 @@ mod tests {
                 module::Module,
                 tensor::{backend::Backend, Tensor},
             };
+            use burn::nn::PaddingConfig2d;
             use burn::nn::conv::Conv2d;
             use burn::nn::conv::Conv2dConfig;
 
@@ -219,6 +222,7 @@ mod tests {
                 pub fn new_with(record: ModelRecord<B>) -> Self {
                     let conv2d = Conv2dConfig::new([3, 3], [3, 3])
                         .with_stride([1, 1])
+                        .with_padding(PaddingConfig2d::Valid)
                         .with_dilation([1, 1])
                         .with_groups(1)
                         .with_bias(true)
@@ -256,7 +260,7 @@ mod tests {
             TensorType::new_float("tensor4", 4),
             Data::from([2.]).serialize(),
             None,
-            Conv2dConfig::new([3, 3], [3, 3]),
+            Conv2dConfig::new([3, 3], [3, 3]).with_padding(PaddingConfig2d::Valid),
         ));
         graph.register(MatmulNode::new(
             TensorType::new_float("tensor3", 4),
@@ -269,6 +273,7 @@ mod tests {
                 module::Module,
                 tensor::{backend::Backend, Tensor},
             };
+            use burn::nn::PaddingConfig2d;
             use burn::nn::conv::Conv2d;
             use burn::nn::conv::Conv2dConfig;
 
@@ -281,6 +286,7 @@ mod tests {
                 pub fn new_with(record: ModelRecord<B>) -> Self {
                     let conv2d = Conv2dConfig::new([3, 3], [3, 3])
                         .with_stride([1, 1])
+                        .with_padding(PaddingConfig2d::Valid)
                         .with_dilation([1, 1])
                         .with_groups(1)
                         .with_bias(true)
