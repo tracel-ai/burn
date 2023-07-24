@@ -393,7 +393,15 @@ where
     }
 
     fn tanh<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+        // Metal has a weird numerical behaviour with tanh which require a new function
+        #[cfg(target_os = "macos")]
+        unary!(Tanh, func "safe_tanh", include "../template/safe_tanh.wgsl");
+        #[cfg(target_os = "macos")]
+        unary_inplace!(TanhInplace, func "safe_tanh", include "../template/safe_tanh.wgsl");
+
+        #[cfg(not(target_os = "macos"))]
         unary!(Tanh, func "tanh");
+        #[cfg(not(target_os = "macos"))]
         unary_inplace!(TanhInplace, func "tanh");
 
         if tensor.can_mut() {
