@@ -59,7 +59,7 @@ topological-sort = "0.2.2"
 futures-intrusive = "0.5"
 pollster = "0.3"
 text_placeholder = {version = "0.5.0", features = ["struct_context"]}
-wgpu = "0.16.1"
+wgpu = "0.17.0"
 
 #
 # The following packages disable the "std" feature for no_std compatibility
