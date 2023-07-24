@@ -1,6 +1,6 @@
 use super::{numeric, BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
 use crate::kernel::{
-    self, greater_elem, mask_fill, unary_default, unary_inplace_default, unary_scalar_default,
+    self, unary_default, unary_inplace_default, unary_scalar_default,
     unary_scalar_inplace_default,
 };
 use crate::unary_scalar_inplace;
