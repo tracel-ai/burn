@@ -15,6 +15,14 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
         tensor.shape()
     }
 
+    fn int_repeat<const D: usize>(
+        tensor: TchTensor<i64, D>,
+        dim: usize,
+        times: usize,
+    ) -> TchTensor<i64, D> {
+        TchOps::repeat(tensor, dim, times)
+    }
+
     fn int_to_data<const D: usize>(tensor: &TchTensor<i64, D>) -> Data<i64, D> {
         let shape = Self::int_shape(tensor);
         let tensor = Self::int_reshape(tensor.clone(), Shape::new([shape.num_elements()]));

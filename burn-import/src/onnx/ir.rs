@@ -241,6 +241,8 @@ pub enum NodeType {
     MatMulInteger,
     Max,
     MaxPool,
+    MaxPool1d,
+    MaxPool2d,
     MaxRoiPool,
     MaxUnpool,
     Mean,

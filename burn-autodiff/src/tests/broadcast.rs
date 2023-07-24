@@ -45,15 +45,15 @@ mod tests {
         let bias_grad = bias.grad(&grads).unwrap();
         let x_grad = x.grad(&grads).unwrap();
 
-        assert_eq!(
-            weights_grad.into_data(),
-            Data::new(vec![252., 372., 492.], Shape::new([3, 1]))
-        );
-        assert_eq!(bias_grad.into_data(), Data::from([[36., 40., 44.]]));
-        assert_eq!(
-            x_grad.into_data(),
-            Data::from([[0., 36., 72.], [0., 84., 168.]])
-        );
+        weights_grad
+            .into_data()
+            .assert_approx_eq(&Data::new(vec![252., 372., 492.], Shape::new([3, 1])), 3);
+        bias_grad
+            .into_data()
+            .assert_approx_eq(&Data::from([[36., 40., 44.]]), 3);
+        x_grad
+            .into_data()
+            .assert_approx_eq(&Data::from([[0., 36., 72.], [0., 84., 168.]]), 3);
     }
 
     #[test]

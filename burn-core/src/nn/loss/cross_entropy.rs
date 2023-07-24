@@ -14,7 +14,7 @@ impl<B: Backend> CrossEntropyLoss<B> {
     pub fn new(pad_index: Option<usize>) -> Self {
         Self {
             pad_index,
-            backend: PhantomData::default(),
+            backend: PhantomData,
         }
     }
 

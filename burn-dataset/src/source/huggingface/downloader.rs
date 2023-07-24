@@ -158,9 +158,9 @@ fn import(
     huggingface_token: Option<String>,
     huggingface_cache_dir: Option<String>,
 ) -> Result<(), ImporterError> {
-    install_python_deps()?;
+    let venv_python_path = install_python_deps(&base_dir)?;
 
-    let mut command = Command::new(PYTHON);
+    let mut command = Command::new(venv_python_path);
 
     command.arg(importer_script_path(&base_dir));
 
@@ -200,8 +200,27 @@ fn importer_script_path(base_dir: &Path) -> PathBuf {
     path_file
 }
 
-fn install_python_deps() -> Result<(), ImporterError> {
+fn install_python_deps(base_dir: &Path) -> Result<PathBuf, ImporterError> {
+    let venv_dir = base_dir.join("venv");
     let mut command = Command::new(PYTHON);
+    command.args([
+        "-m",
+        "venv",
+        venv_dir
+            .as_os_str()
+            .to_str()
+            .expect("Path utf8 conversion should not fail"),
+    ]);
+
+    // Spawn the venv creation process and wait for it to complete.
+    let mut handle = command.spawn().unwrap();
+    handle.wait().map_err(|err| {
+        ImporterError::FailToDownloadPythonDependencies(format!(" error: {}", err))
+    })?;
+
+    let venv_python_path = venv_dir.join("bin").join(PYTHON);
+
+    let mut command = Command::new(&venv_python_path);
     command.args([
         "-m",
         "pip",
@@ -214,11 +233,11 @@ fn install_python_deps() -> Result<(), ImporterError> {
         "datasets",
     ]);
 
-    // Spawn the process and wait for it to complete.
+    // Spawn the pip install process and wait for it to complete.
     let mut handle = command.spawn().unwrap();
     handle.wait().map_err(|err| {
         ImporterError::FailToDownloadPythonDependencies(format!(" error: {}", err))
     })?;
 
-    Ok(())
+    Ok(venv_python_path)
 }

@@ -36,6 +36,10 @@ pub struct Dx12;
 #[derive(Default, Debug, Clone)]
 pub struct WebGpu;
 
+/// Automatic graphics API based on OS.
+#[derive(Default, Debug, Clone)]
+pub struct AutoGraphicsApi;
+
 impl GraphicsApi for Vulkan {
     fn backend() -> wgpu::Backend {
         wgpu::Backend::Vulkan
@@ -69,5 +73,14 @@ impl GraphicsApi for Dx12 {
 impl GraphicsApi for WebGpu {
     fn backend() -> wgpu::Backend {
         wgpu::Backend::BrowserWebGpu
+    }
+}
+
+impl GraphicsApi for AutoGraphicsApi {
+    fn backend() -> wgpu::Backend {
+        #[cfg(target_os = "macos")]
+        return wgpu::Backend::Metal;
+        #[cfg(not(target_os = "macos"))]
+        wgpu::Backend::Vulkan
     }
 }

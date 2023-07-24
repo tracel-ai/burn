@@ -8,14 +8,202 @@ Burn.
 Currently, `burn-import` supports importing ONNX models with a limited set of operators, as it is
 still under development.
 
-## Supported ONNX Operators
+## ONNX Operators
 
-- BatchNorm
-- Conv2d
-- Flatten
-- Gemm (Linear layer)
-- LogSoftmax
-- Relu
+List taken from [here](https://github.com/onnx/onnx/blob/main/docs/Operators.md)
+
+- [ ] Abs
+- [ ] Acos
+- [ ] Acosh
+- [ ] Add
+- [ ] And
+- [ ] ArgMax
+- [ ] ArgMin
+- [ ] Asin
+- [ ] Asinh
+- [ ] Atan
+- [ ] Atanh
+- [ ] AveragePool
+- [x] BatchNormalization
+- [ ] Bernoulli
+- [ ] BitShift
+- [ ] BitwiseAnd
+- [ ] BitwiseNot
+- [ ] BitwiseOr
+- [ ] BitwiseXor
+- [ ] BlackmanWindow
+- [ ] Cast
+- [ ] CastLike
+- [ ] Ceil
+- [ ] Celu
+- [ ] CenterCropPad
+- [ ] Clip
+- [ ] Col
+- [ ] Compress
+- [ ] Concat
+- [ ] ConcatFromSequence
+- [ ] Constant
+- [ ] ConstantOfShape
+- [ ] Conv
+- [ ] Conv1d
+- [x] Conv2d
+- [ ] ConvInteger
+- [ ] ConvTranspose
+- [ ] Cos
+- [ ] Cosh
+- [ ] CumSum
+- [ ] DepthToSpace
+- [ ] DequantizeLinear
+- [ ] Det
+- [ ] DFT
+- [ ] Div
+- [ ] Dropout
+- [ ] DynamicQuantizeLinear
+- [ ] Einsum
+- [ ] Elu
+- [ ] Equal
+- [ ] Erf
+- [ ] Exp
+- [ ] Expand
+- [ ] EyeLike
+- [x] Flatten
+- [ ] Floor
+- [ ] Gather
+- [ ] GatherElements
+- [ ] GatherND
+- [ ] Gelu
+- [x] Gemm (Linear Layer)
+- [ ] GlobalAveragePool
+- [ ] GlobalLpPool
+- [ ] GlobalMaxPool
+- [ ] Greater
+- [ ] GreaterOrEqual
+- [ ] GridSample
+- [ ] GroupNormalization
+- [ ] GRU
+- [ ] HammingWindow
+- [ ] HannWindow
+- [ ] Hardmax
+- [ ] HardSigmoid
+- [ ] HardSwish
+- [ ] Identity
+- [ ] If
+- [ ] Im
+- [ ] InstanceNormalization
+- [ ] IsInf
+- [ ] IsNaN
+- [ ] LayerNormalization
+- [ ] LeakyRelu
+- [ ] Less
+- [ ] LessOrEqual
+- [ ] Linear
+- [ ] Log
+- [x] LogSoftmax
+- [ ] Loop
+- [ ] LpNormalization
+- [ ] LpPool
+- [ ] LRN
+- [ ] LSTM
+- [ ] MatMul
+- [ ] MatMulInteger
+- [ ] Max
+- [ ] MaxPool
+- [ ] MaxPool1d
+- [x] MaxPool2d
+- [ ] MaxRoiPool
+- [ ] MaxUnpool
+- [ ] Mean
+- [ ] MeanVarianceNormalization
+- [ ] MelWeightMatrix
+- [ ] Min
+- [ ] Mish
+- [ ] Mod
+- [ ] Mul
+- [ ] Multinomial
+- [ ] Neg
+- [ ] NegativeLogLikelihoodLoss
+- [ ] NonMaxSuppression
+- [ ] NonZero
+- [ ] Not
+- [ ] OneHot
+- [ ] Optional
+- [ ] OptionalGetElement
+- [ ] OptionalHasElement
+- [ ] Or
+- [ ] Pad
+- [ ] Pow
+- [ ] PRelu
+- [ ] QLinearConv
+- [ ] QLinearMatMul
+- [ ] QuantizeLinear
+- [ ] RandomNormal
+- [ ] RandomNormalLike
+- [ ] RandomUniform
+- [ ] RandomUniformLike
+- [ ] Range
+- [ ] Reciprocal
+- [ ] ReduceL
+- [ ] ReduceLogSum
+- [ ] ReduceLogSumExp
+- [ ] ReduceMax
+- [ ] ReduceMean
+- [ ] ReduceMin
+- [ ] ReduceProd
+- [ ] ReduceSum
+- [ ] ReduceSumSquare
+- [x] Relu
+- [ ] Reshape
+- [ ] Resize
+- [ ] ReverseSequence
+- [ ] RNN
+- [ ] RoiAlign
+- [ ] Round
+- [ ] Scan
+- [ ] Scatter
+- [ ] ScatterElements
+- [ ] ScatterND
+- [ ] Selu
+- [ ] SequenceAt
+- [ ] SequenceConstruct
+- [ ] SequenceEmpty
+- [ ] SequenceErase
+- [ ] SequenceInsert
+- [ ] SequenceLength
+- [ ] SequenceMap
+- [ ] Shape
+- [ ] Shrink
+- [x] Sigmoid
+- [ ] Sign
+- [ ] Sin
+- [ ] Sinh
+- [ ] Size
+- [ ] Slice
+- [ ] Softmax
+- [ ] SoftmaxCrossEntropyLoss
+- [ ] Softplus
+- [ ] Softsign
+- [ ] SpaceToDepth
+- [ ] Split
+- [ ] SplitToSequence
+- [ ] Sqrt
+- [ ] Squeeze
+- [ ] STFT
+- [ ] StringNormalizer
+- [ ] Sub
+- [ ] Sum
+- [ ] Tan
+- [ ] Tanh
+- [ ] TfIdfVectorizer
+- [ ] ThresholdedRelu
+- [ ] Tile
+- [ ] TopK
+- [ ] Transpose
+- [ ] Trilu
+- [ ] Unique
+- [ ] Unsqueeze
+- [ ] Upsample
+- [ ] Where
+- [ ] Xor
 
 ## Usage
 
@@ -47,9 +235,11 @@ To import ONNX models, follow these steps:
 3. Use the imported model in your code as shown below:
 
    ```rust
+   mod model;
+
    use burn::tensor;
    use burn_ndarray::NdArrayBackend;
-   use onnx_inference::model::mnist::{Model, INPUT1_SHAPE};
+   use model::mnist::Model;
 
    fn main() {
 
@@ -57,7 +247,7 @@ To import ONNX models, follow these steps:
        let model: Model<NdArrayBackend<f32>> = Model::new();
 
        // Create a new input tensor (all zeros for demonstration purposes)
-       let input = tensor::Tensor::<NdArrayBackend<f32>, 4>::zeros(INPUT1_SHAPE);
+       let input = tensor::Tensor::<NdArrayBackend<f32>, 4>::zeros([1, 1, 28, 28]);
 
        // Run the model
        let output = model.forward(input);

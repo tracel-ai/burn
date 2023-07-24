@@ -18,6 +18,17 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         TchTensor::from_existing(tensor.tensor.reshape(shape_tch.dims), tensor.storage)
     }
 
+    pub fn repeat<const D: usize>(
+        tensor: TchTensor<E, D>,
+        dim: usize,
+        times: usize,
+    ) -> TchTensor<E, D> {
+        let mut dims = [1; D];
+        dims[dim] = times as i64;
+        let tensor = tch::Tensor::repeat(&tensor.tensor, dims);
+        TchTensor::new(tensor)
+    }
+
     pub fn slice<const D1: usize, const D2: usize>(
         tensor: TchTensor<E, D1>,
         ranges: [Range<usize>; D2],

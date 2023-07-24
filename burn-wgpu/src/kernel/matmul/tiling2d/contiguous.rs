@@ -7,6 +7,6 @@ use crate::{
 };
 
 matmul_tile_2d!(
-    MatmulTiling2DContinuousVectorized,
-    "../../../template/matmul/blocktiling_2d/continuous_vectorized.wgsl"
+    MatmulTiling2DContiguous,
+    "../../../template/matmul/blocktiling_2d/contiguous.wgsl"
 );

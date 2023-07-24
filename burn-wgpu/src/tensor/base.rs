@@ -34,7 +34,7 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
             buffer,
             shape,
             strides,
-            elem: PhantomData::default(),
+            elem: PhantomData,
         }
     }
     pub fn to_context(&self, context: Arc<Context>) -> Self {
@@ -46,7 +46,7 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
             buffer,
             shape: self.shape.clone(),
             strides: self.strides,
-            elem: PhantomData::default(),
+            elem: PhantomData,
         }
     }
     pub fn can_mut_broadcast(&self, tensor_other: &WgpuTensor<E, D>) -> bool {
@@ -93,7 +93,7 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
         }
     }
 
-    pub fn is_continuous(&self) -> bool {
+    pub fn is_contiguous(&self) -> bool {
         let mut current_stride = 0;
         for d in 0..D {
             let stride = self.strides[D - 1 - d];
@@ -106,5 +106,15 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
         }
 
         true
+    }
+
+    pub fn batch_swapped_with_row_col(&self) -> bool {
+        for d in 0..D - 2 {
+            let stride = self.strides[d];
+            if stride < self.strides[D - 2] || stride < self.strides[D - 1] {
+                return true;
+            }
+        }
+        false
     }
 }
