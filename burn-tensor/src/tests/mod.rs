@@ -36,6 +36,7 @@ macro_rules! testgen_all {
         burn_tensor::testgen_erf!();
         burn_tensor::testgen_exp!();
         burn_tensor::testgen_flatten!();
+        burn_tensor::testgen_full!();
         burn_tensor::testgen_gather_scatter!();
         burn_tensor::testgen_log!();
         burn_tensor::testgen_log1p!();

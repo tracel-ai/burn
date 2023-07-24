@@ -1,7 +1,7 @@
 use super::{
-    batch_norm::BatchNormNode, constant::ConstantNode, conv2d::Conv2dNode, equal::EqualNode,
-    flatten::FlattenNode, linear::LinearNode, log_softmax::LogSoftmaxNode, matmul::MatmulNode,
-    max_pool2d::MaxPool2dNode, relu::ReLUNode, sigmoid::SigmoidNode,
+    add::AddNode, batch_norm::BatchNormNode, constant::ConstantNode, conv2d::Conv2dNode,
+    equal::EqualNode, flatten::FlattenNode, linear::LinearNode, log_softmax::LogSoftmaxNode,
+    matmul::MatmulNode, max_pool2d::MaxPool2dNode, relu::ReLUNode, sigmoid::SigmoidNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::record::PrecisionSettings;
@@ -71,6 +71,7 @@ pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
 
 #[derive(Debug)]
 pub enum Node<PS: PrecisionSettings> {
+    Add(AddNode),
     Matmul(MatmulNode),
     Conv2d(Conv2dNode<PS>),
     MaxPool2d(MaxPool2dNode),
@@ -87,6 +88,7 @@ pub enum Node<PS: PrecisionSettings> {
 macro_rules! match_all {
     ($self:expr, $func:expr) => {{
         match $self {
+            Node::Add(node) => $func(node),
             Node::Matmul(node) => $func(node),
             Node::Conv2d(node) => $func(node),
             Node::MaxPool2d(node) => $func(node),
@@ -114,6 +116,7 @@ impl<PS: PrecisionSettings> Serialize for Node<PS> {
 impl<PS: PrecisionSettings> Node<PS> {
     pub fn name(&self) -> &str {
         match self {
+            Node::Add(_) => "add",
             Node::Matmul(_) => "matmul",
             Node::Constant(_) => "constant",
             Node::Conv2d(_) => "conv2d",
@@ -181,7 +184,9 @@ mod tests {
         node::{conv2d::Conv2dNode, matmul::MatmulNode, test::assert_tokens},
         TensorType,
     };
-    use burn::{nn::conv::Conv2dConfig, record::FullPrecisionSettings, tensor::Data};
+    use burn::{
+        nn::conv::Conv2dConfig, nn::PaddingConfig2d, record::FullPrecisionSettings, tensor::Data,
+    };
     use quote::quote;
 
     #[test]
@@ -199,7 +204,7 @@ mod tests {
             TensorType::new_float("tensor4", 4),
             Data::from([2.]).serialize(),
             None,
-            Conv2dConfig::new([3, 3], [3, 3]),
+            Conv2dConfig::new([3, 3], [3, 3]).with_padding(PaddingConfig2d::Valid),
         ));
 
         let expected = quote! {
@@ -207,6 +212,7 @@ mod tests {
                 module::Module,
                 tensor::{backend::Backend, Tensor},
             };
+            use burn::nn::PaddingConfig2d;
             use burn::nn::conv::Conv2d;
             use burn::nn::conv::Conv2dConfig;
 
@@ -219,6 +225,7 @@ mod tests {
                 pub fn new_with(record: ModelRecord<B>) -> Self {
                     let conv2d = Conv2dConfig::new([3, 3], [3, 3])
                         .with_stride([1, 1])
+                        .with_padding(PaddingConfig2d::Valid)
                         .with_dilation([1, 1])
                         .with_groups(1)
                         .with_bias(true)
@@ -256,7 +263,7 @@ mod tests {
             TensorType::new_float("tensor4", 4),
             Data::from([2.]).serialize(),
             None,
-            Conv2dConfig::new([3, 3], [3, 3]),
+            Conv2dConfig::new([3, 3], [3, 3]).with_padding(PaddingConfig2d::Valid),
         ));
         graph.register(MatmulNode::new(
             TensorType::new_float("tensor3", 4),
@@ -269,6 +276,7 @@ mod tests {
                 module::Module,
                 tensor::{backend::Backend, Tensor},
             };
+            use burn::nn::PaddingConfig2d;
             use burn::nn::conv::Conv2d;
             use burn::nn::conv::Conv2dConfig;
 
@@ -281,6 +289,7 @@ mod tests {
                 pub fn new_with(record: ModelRecord<B>) -> Self {
                     let conv2d = Conv2dConfig::new([3, 3], [3, 3])
                         .with_stride([1, 1])
+                        .with_padding(PaddingConfig2d::Valid)
                         .with_dilation([1, 1])
                         .with_groups(1)
                         .with_bias(true)

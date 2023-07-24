@@ -13,6 +13,7 @@ use crate::{
     burn::{
         graph::BurnGraph,
         node::{
+            add::AddNode,
             batch_norm::BatchNormNode,
             constant::{ConstantNode, ConstantValue},
             conv2d::Conv2dNode,
@@ -153,6 +154,7 @@ impl ONNXGraph {
 
         for node in self.nodes {
             match node.node_type {
+                NodeType::Add => graph.register(Self::add_conversion(node)),
                 NodeType::Conv2d => graph.register(Self::conv2d_conversion::<PS>(node)),
                 NodeType::MaxPool2d => graph.register(Self::max_pool2d_conversion(node)),
                 NodeType::MatMul => graph.register(Self::matmul_conversion(node)),
@@ -186,6 +188,14 @@ impl ONNXGraph {
         };
 
         ConstantNode::new(output.name.clone(), value)
+    }
+
+    fn add_conversion(node: Node) -> AddNode {
+        let lhs = node.inputs.get(0).unwrap().to_tensor_type();
+        let rhs = node.inputs.get(1).unwrap().to_tensor_type();
+        let output = node.outputs.get(0).unwrap().to_tensor_type();
+
+        AddNode::new(lhs, rhs, output)
     }
 
     fn matmul_conversion(node: Node) -> MatmulNode {

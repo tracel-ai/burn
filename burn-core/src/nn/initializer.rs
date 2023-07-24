@@ -93,9 +93,7 @@ impl Initializer {
     ) -> Tensor<B, D> {
         let shape = shape.into();
         match self {
-            // TODO replace with full() method when implemented
-            // https://github.com/burn-rs/burn/issues/413 is the issue tracking this
-            Initializer::Constant { value } => Tensor::<B, D>::zeros(shape) + *value,
+            Initializer::Constant { value } => Tensor::<B, D>::full(shape, *value),
             Initializer::Ones => Tensor::<B, D>::ones(shape),
             Initializer::Zeros => Tensor::<B, D>::zeros(shape),
             Initializer::Uniform { min, max } => uniform_draw(shape, *min, *max),

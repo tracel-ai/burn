@@ -1,7 +1,5 @@
 use burn::nn::{
-    conv::{Conv2dConfig, Conv2dPaddingConfig},
-    pool::{MaxPool2dConfig, MaxPool2dPaddingConfig},
-    BatchNormConfig, LinearConfig,
+    conv::Conv2dConfig, pool::MaxPool2dConfig, BatchNormConfig, LinearConfig, PaddingConfig2d,
 };
 
 use super::ir::{ArgType, AttributeValue, Node, StateType};
@@ -56,11 +54,7 @@ pub fn conv2d_config(curr: &Node) -> Conv2dConfig {
         }
     }
 
-    let padding = if pads.iter().all(|&x| x == 0) {
-        Conv2dPaddingConfig::Valid
-    } else {
-        todo!("Conv2d: padding({pads:?}) is not fully supported");
-    };
+    let padding = padding_config(&pads);
 
     if strides.iter().all(|&x| x != 1) {
         todo!("Conv2d: strides({strides:?}) are not fully supported");
@@ -99,18 +93,7 @@ pub fn max_pool2d_config(curr: &Node) -> MaxPool2dConfig {
         }
     }
 
-    let padding = if pads.iter().all(|&x| x == 0) {
-        MaxPool2dPaddingConfig::Valid
-    } else if (pads[0] == pads[1]) == (pads[2] == pads[3]) {
-        // i.e [2, 2, 2, 2]
-        MaxPool2dPaddingConfig::Explicit(pads[0] as usize, pads[0] as usize)
-    } else if pads[0] == pads[1] && pads[2] == pads[3] {
-        // i.e [2, 2, 3, 3]
-        MaxPool2dPaddingConfig::Explicit(pads[0] as usize, pads[2] as usize)
-    } else {
-        // All other cases, same as input
-        MaxPool2dPaddingConfig::Same
-    };
+    let padding = padding_config(&pads);
 
     MaxPool2dConfig::new(
         channels as usize,
@@ -255,4 +238,19 @@ pub fn batch_norm_config(node: &Node) -> BatchNormConfig {
     BatchNormConfig::new(num_features)
         .with_epsilon(epsilon as f64)
         .with_momentum(momentum as f64)
+}
+
+fn padding_config(pads: &[i64]) -> PaddingConfig2d {
+    if pads.iter().all(|&x| x == 0) {
+        PaddingConfig2d::Valid
+    } else if (pads[0] == pads[1]) == (pads[2] == pads[3]) {
+        // i.e [2, 2, 2, 2]
+        PaddingConfig2d::Explicit(pads[0] as usize, pads[0] as usize)
+    } else if pads[0] == pads[1] && pads[2] == pads[3] {
+        // i.e [2, 2, 3, 3]
+        PaddingConfig2d::Explicit(pads[0] as usize, pads[2] as usize)
+    } else {
+        // All other cases, same as input
+        PaddingConfig2d::Same
+    }
 }

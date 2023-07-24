@@ -24,10 +24,10 @@ pub struct ConvBlockConfig {
 impl<B: Backend> ConvBlock<B> {
     pub fn new(config: &ConvBlockConfig) -> Self {
         let conv = nn::conv::Conv2dConfig::new(config.channels, config.kernel_size)
-            .with_padding(nn::conv::Conv2dPaddingConfig::Same)
+            .with_padding(nn::PaddingConfig2d::Same)
             .init();
         let pool = nn::pool::MaxPool2dConfig::new(config.channels[1], config.kernel_size)
-            .with_padding(nn::conv::Conv2dPaddingConfig::Same)
+            .with_padding(nn::PaddingConfig2d::Same)
             .init();
         let activation = nn::GELU::new();
 
