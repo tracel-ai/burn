@@ -67,6 +67,15 @@ jobs:
       crate: burn-ndarray
     secrets: inherit
 
+  publish-burn-wgpu:
+    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
+    needs:
+      - publish-burn-tensor
+      - publish-burn-autodiff
+      - publish-burn-common
+    with:
+      crate: burn-wgpu
+    secrets: inherit
 
   publish-burn-core:
     uses: burn-rs/burn/.github/workflows/publish-template.yml@main
