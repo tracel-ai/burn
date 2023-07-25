@@ -23,6 +23,7 @@ For now, only two backends are implementated, but adding new ones should not be 
 
 * [X] Pytorch using [tch-rs](https://github.com/LaurentMazare/tch-rs)
 * [X] 100% Rust backend using [ndarray](https://github.com/rust-ndarray/ndarray)
+* [X] [WGPU](https://github.com/gfx-rs/wgpu) backend
 * [ ] Tensorflow using [tensorflow-rust](https://github.com/tensorflow/rust)
 * [ ] CuDNN using RustCUDA[tensorflow-rust](https://github.com/Rust-GPU/Rust-CUDA)
 * [ ] ...
@@ -52,7 +53,7 @@ To run with CUDA set `TORCH_CUDA_VERSION=cu113`.
 
 ## Notes
 
-This crate can be use alone without the entire burn stack and with only selected backends for smaller binaries.
+This crate can be used alone without the entire burn stack and with only selected backends for smaller binaries.
 
 
 ## Feature Flags
