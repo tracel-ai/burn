@@ -1,7 +1,8 @@
 use super::{
     add::AddNode, batch_norm::BatchNormNode, constant::ConstantNode, conv2d::Conv2dNode,
     equal::EqualNode, flatten::FlattenNode, linear::LinearNode, log_softmax::LogSoftmaxNode,
-    matmul::MatmulNode, max_pool2d::MaxPool2dNode, relu::ReLUNode, sigmoid::SigmoidNode,
+    matmul::MatmulNode, max_pool2d::MaxPool2dNode, relu::ReLUNode, reshape::ReshapeNode,
+    sigmoid::SigmoidNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::record::PrecisionSettings;
@@ -82,6 +83,7 @@ pub enum Node<PS: PrecisionSettings> {
     LogSoftmax(LogSoftmaxNode),
     Constant(ConstantNode),
     Equal(EqualNode),
+    Reshape(ReshapeNode),
     Sigmoid(SigmoidNode),
 }
 
@@ -99,6 +101,7 @@ macro_rules! match_all {
             Node::LogSoftmax(node) => $func(node),
             Node::Constant(node) => $func(node),
             Node::Equal(node) => $func(node),
+            Node::Reshape(node) => $func(node),
             Node::Sigmoid(node) => $func(node),
         }
     }};
@@ -127,6 +130,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::Flatten(_) => "flatten",
             Node::LogSoftmax(_) => "log_softmax",
             Node::Equal(_) => "equal",
+            Node::Reshape(_) => "reshape",
             Node::Sigmoid(_) => "sigmoid",
         }
     }
