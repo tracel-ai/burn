@@ -1,7 +1,7 @@
 use super::{
-    add::AddNode, batch_norm::BatchNormNode, constant::ConstantNode, conv2d::Conv2dNode,
-    equal::EqualNode, linear::LinearNode, matmul::MatmulNode, max_pool2d::MaxPool2dNode,
-    reshape::ReshapeNode, unary::UnaryNode,
+    batch_norm::BatchNormNode, binary::BinaryNode, constant::ConstantNode, conv2d::Conv2dNode,
+    linear::LinearNode, matmul::MatmulNode, max_pool2d::MaxPool2dNode, reshape::ReshapeNode,
+    unary::UnaryNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::record::PrecisionSettings;
@@ -71,14 +71,13 @@ pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
 
 #[derive(Debug)]
 pub enum Node<PS: PrecisionSettings> {
-    Add(AddNode),
+    Binary(BinaryNode),
     Matmul(MatmulNode),
     Conv2d(Conv2dNode<PS>),
     MaxPool2d(MaxPool2dNode),
     Linear(LinearNode<PS>),
     BatchNorm(BatchNormNode<PS>),
     Constant(ConstantNode),
-    Equal(EqualNode),
     Unary(UnaryNode),
     Reshape(ReshapeNode),
 }
@@ -86,16 +85,15 @@ pub enum Node<PS: PrecisionSettings> {
 macro_rules! match_all {
     ($self:expr, $func:expr) => {{
         match $self {
-            Node::Add(node) => $func(node),
             Node::Matmul(node) => $func(node),
             Node::Conv2d(node) => $func(node),
             Node::MaxPool2d(node) => $func(node),
             Node::Linear(node) => $func(node),
             Node::BatchNorm(node) => $func(node),
             Node::Constant(node) => $func(node),
-            Node::Equal(node) => $func(node),
             Node::Reshape(node) => $func(node),
             Node::Unary(node) => $func(node),
+            Node::Binary(node) => $func(node),
         }
     }};
 }
@@ -112,16 +110,15 @@ impl<PS: PrecisionSettings> Serialize for Node<PS> {
 impl<PS: PrecisionSettings> Node<PS> {
     pub fn name(&self) -> &str {
         match self {
-            Node::Add(_) => "add",
             Node::Matmul(_) => "matmul",
             Node::Constant(_) => "constant",
             Node::Conv2d(_) => "conv2d",
             Node::MaxPool2d(_) => "max_pool2d",
             Node::Linear(_) => "linear",
             Node::BatchNorm(_) => "batch_norm",
-            Node::Equal(_) => "equal",
             Node::Reshape(_) => "reshape",
             Node::Unary(unary) => unary.kind.as_str(),
+            Node::Binary(binary) => binary.binary_type.as_str(),
         }
     }
 }

@@ -56,12 +56,12 @@ List taken from [here](https://github.com/onnx/onnx/blob/main/docs/Operators.md)
 - [ ] DequantizeLinear
 - [ ] Det
 - [ ] DFT
-- [ ] Div
+- [x] Div
 - [ ] Dropout
 - [ ] DynamicQuantizeLinear
 - [ ] Einsum
 - [ ] Elu
-- [ ] Equal
+- [x] Equal
 - [ ] Erf
 - [ ] Exp
 - [ ] Expand
@@ -189,7 +189,7 @@ List taken from [here](https://github.com/onnx/onnx/blob/main/docs/Operators.md)
 - [ ] Squeeze
 - [ ] STFT
 - [ ] StringNormalizer
-- [ ] Sub
+- [x] Sub
 - [ ] Sum
 - [ ] Tan
 - [ ] Tanh
