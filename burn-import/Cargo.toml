@@ -10,16 +10,16 @@ name = "burn-import"
 readme = "README.md"
 repository = "https://github.com/burn-rs/burn/tree/main/burn-import"
 
-version = "0.8.0"
+version = "0.9.0"
 
 [features]
 default = ["onnx"]
 onnx = []
 
 [dependencies]
-burn = {path = "../burn", version = "0.8.0"}
-burn-common = {path = "../burn-common", version = "0.8.0"}
-burn-ndarray = {path = "../burn-ndarray", version = "0.8.0"}
+burn = {path = "../burn", version = "0.9.0" }
+burn-common = {path = "../burn-common", version = "0.9.0" }
+burn-ndarray = {path = "../burn-ndarray", version = "0.9.0" }
 
 bytemuck = {workspace = true}
 derive-new = {workspace = true}

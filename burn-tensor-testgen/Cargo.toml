@@ -6,7 +6,7 @@ license = "MIT OR Apache-2.0"
 name = "burn-tensor-testgen"
 readme = "README.md"
 repository = "https://github.com/burn-rs/burn/tree/main/burn-tensor-testgen"
-version = "0.8.0"
+version = "0.9.0"
 
 [lib]
 proc-macro = true
