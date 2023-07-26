@@ -1,7 +1,6 @@
 use super::{Node, NodeCodegen};
 use crate::burn::{Scope, TensorType, ToTokens, Type};
 use burn::record::PrecisionSettings;
-use burn::tensor::DataSerialize;
 use proc_macro2::TokenStream;
 use quote::quote;
 
@@ -9,7 +8,7 @@ use quote::quote;
 pub struct ReshapeNode {
     pub input: TensorType,
     pub output: TensorType,
-    pub shape: DataSerialize<i64>,
+    pub shape: Vec<usize>,
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for ReshapeNode {
@@ -24,7 +23,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ReshapeNode {
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
         let input = scope.tensor_use_owned(&self.input, node_position);
         let output = &self.output.name;
-        let shape_values = &self.shape.value.to_tokens();
+        let shape_values = &self.shape.to_tokens();
 
         quote! {
             let #output = #input.reshape(Shape::new(#shape_values));
@@ -39,7 +38,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ReshapeNode {
 #[cfg(test)]
 mod tests {
     use burn::record::FullPrecisionSettings;
-    use burn::tensor::Data;
 
     use super::*;
     use crate::burn::{
@@ -55,7 +53,7 @@ mod tests {
         graph.register(ReshapeNode::new(
             TensorType::new_float("tensor1", 4),
             TensorType::new_float("tensor2", 4),
-            Data::from([4, 4, 4, 4]).convert().serialize(),
+            [4, 4, 4, 4].into(),
         ));
 
         let expected = quote! {

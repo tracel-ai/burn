@@ -228,7 +228,11 @@ impl ONNXGraph {
         let output = node.outputs.get(0).unwrap().to_tensor_type();
         let shape = extract_next_data_serialize::<i64>(&mut node).unwrap();
 
-        ReshapeNode::new(input, output, shape)
+        ReshapeNode::new(
+            input,
+            output,
+            shape.value.iter().map(|item| *item as usize).collect(),
+        )
     }
 
     fn flatten_conversion(node: Node) -> FlattenNode {
