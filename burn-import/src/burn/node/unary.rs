@@ -88,12 +88,11 @@ impl UnaryNode {
 mod tests {
 
     use super::*;
+    use crate::burn::node::tests::codegen_unary_operator;
     use crate::burn::TensorType;
 
-    use crate::burn::node::tests::codegen_unary_operator;
-
     #[test]
-    fn test_codegen_node() {
+    fn test_unary_codegen_flatten() {
         codegen_unary_operator::<4, _>(
             UnaryNode::flatten(
                 TensorType::new_float("tensor1", 4),
@@ -103,6 +102,52 @@ mod tests {
             ),
             quote! {
                 let tensor2 = tensor1.flatten(1, 2);
+
+                tensor2
+            },
+        );
+    }
+
+    #[test]
+    fn test_unary_codegen_relu() {
+        codegen_unary_operator::<4, _>(
+            UnaryNode::relu(
+                TensorType::new_float("tensor1", 4),
+                TensorType::new_float("tensor2", 4),
+            ),
+            quote! {
+                let tensor2 = burn::tensor::activation::relu(tensor1);
+
+                tensor2
+            },
+        );
+    }
+
+    #[test]
+    fn test_unary_codegen_sigmoid() {
+        codegen_unary_operator::<4, _>(
+            UnaryNode::sigmoid(
+                TensorType::new_float("tensor1", 4),
+                TensorType::new_float("tensor2", 4),
+            ),
+            quote! {
+                let tensor2 = burn::tensor::activation::sigmoid(tensor1);
+
+                tensor2
+            },
+        );
+    }
+
+    #[test]
+    fn test_unary_codegen_log_softmax() {
+        codegen_unary_operator::<4, _>(
+            UnaryNode::log_softmax(
+                TensorType::new_float("tensor1", 4),
+                TensorType::new_float("tensor2", 4),
+                1,
+            ),
+            quote! {
+                let tensor2 = burn::tensor::activation::log_softmax(tensor1, 1);
 
                 tensor2
             },
