@@ -32,3 +32,27 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ReLUNode {
         Node::ReLU(self)
     }
 }
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    use crate::burn::{node::relu::ReLUNode, TensorType};
+
+    use crate::burn::node::tests::codegen_unary_operator;
+
+    #[test]
+    fn test_codegen_node() {
+        codegen_unary_operator::<4, _>(
+            ReLUNode::new(
+                TensorType::new_float("tensor1", 4),
+                TensorType::new_float("tensor2", 4),
+            ),
+            quote! {
+                let tensor2 = burn::tensor::activation::relu(tensor1);
+
+                tensor2
+            },
+        );
+    }
+}

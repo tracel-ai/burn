@@ -36,3 +36,29 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for FlattenNode {
         Node::Flatten(self)
     }
 }
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    use crate::burn::{node::flatten::FlattenNode, TensorType};
+
+    use crate::burn::node::tests::codegen_unary_operator;
+
+    #[test]
+    fn test_codegen_node() {
+        codegen_unary_operator::<4, _>(
+            FlattenNode::new(
+                TensorType::new_float("tensor1", 4),
+                TensorType::new_float("tensor2", 4),
+                1,
+                2,
+            ),
+            quote! {
+                let tensor2 = tensor1.flatten(1, 2);
+
+                tensor2
+            },
+        );
+    }
+}

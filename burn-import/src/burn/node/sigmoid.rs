@@ -38,46 +38,24 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SigmoidNode {
 
 #[cfg(test)]
 mod tests {
-    use burn::record::FullPrecisionSettings;
 
     use super::*;
-    use crate::burn::{
-        graph::BurnGraph,
-        node::{sigmoid::SigmoidNode, test::assert_tokens},
-        TensorType,
-    };
+    use crate::burn::{node::sigmoid::SigmoidNode, TensorType};
+
+    use crate::burn::node::tests::codegen_unary_operator;
 
     #[test]
-    fn test_codegen_nodes() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+    fn test_codegen_node() {
+        codegen_unary_operator::<4, _>(
+            SigmoidNode::new(
+                TensorType::new_float("tensor1", 4),
+                TensorType::new_float("tensor2", 4),
+            ),
+            quote! {
+                let tensor2 = tensor1.sigmoid();
 
-        graph.register(SigmoidNode::new(
-            TensorType::new_float("tensor1", 4),
-            TensorType::new_float("tensor2", 4),
-        ));
-
-        let expected = quote! {
-            use burn::{
-                module::Module,
-                tensor::{backend::Backend, Tensor},
-            };
-
-            #[derive(Module, Debug)]
-            pub struct Model <B: Backend>{}
-
-            impl<B: Backend> Model <B> {
-                pub fn new_with(record: ModelRecord<B>) -> Self {
-                    Self { }
-                }
-                #[allow(clippy::let_and_return)]
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.sigmoid();
-
-                    tensor2
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+                tensor2
+            },
+        );
     }
 }
