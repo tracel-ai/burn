@@ -178,16 +178,48 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Node<PS> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use crate::burn::{
         graph::BurnGraph,
-        node::{conv2d::Conv2dNode, matmul::MatmulNode, test::assert_tokens},
+        node::{conv2d::Conv2dNode, matmul::MatmulNode, test::assert_tokens, NodeCodegen},
         TensorType,
     };
     use burn::{
         nn::conv::Conv2dConfig, nn::PaddingConfig2d, record::FullPrecisionSettings, tensor::Data,
     };
+    use proc_macro2::TokenStream;
     use quote::quote;
+
+    pub(crate) fn produce_codegen_tests<T: NodeCodegen<FullPrecisionSettings> + 'static>(
+        node_gen: T,
+        function: TokenStream,
+    ) {
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(node_gen);
+
+        let expected = quote! {
+            use burn::{
+                module::Module,
+                tensor::{backend::Backend, Tensor},
+            };
+
+            #[derive(Module, Debug)]
+            pub struct Model <B: Backend>{}
+
+            impl<B: Backend> Model <B> {
+                pub fn new_with(record: ModelRecord<B>) -> Self {
+                    Self { }
+                }
+                #[allow(clippy::let_and_return)]
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                    #function
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
 
     #[test]
     fn test_codegen_two_nodes() {
