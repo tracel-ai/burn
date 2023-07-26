@@ -14,12 +14,12 @@ mod tests {
         let data_expected = Data::from([[2.0, 2.0, 2.0], [3.0, 4.0, 5.0]]);
         assert_eq!(data_expected, data_actual);
 
-        // TODO add test for int tensor
-        // let data = Data::from([[0i64, 1i64, 2i64], [3i64, 4i64, 5i64]]);
-        // let tensor = Tensor::<TestBackend, 2, Int>::from_data(data);
-        // let data_actual = tensor.clamp_min(2).into_data();
-        // let data_expected = Data::from([[2, 2, 2], [3, 4, 5]]);
-        // assert_eq!(data_expected, data_actual);
+        // test int tensor
+        let data = Data::from([[0, 1, 2], [3, 4, 5]]);
+        let tensor = Tensor::<TestBackend, 2, Int>::from_data(data);
+        let data_actual = tensor.clamp_min(2).into_data();
+        let data_expected = Data::from([[2, 2, 2], [3, 4, 5]]);
+        assert_eq!(data_expected, data_actual);
     }
 
     #[test]
@@ -33,7 +33,12 @@ mod tests {
         let data_expected = Data::from([[0.0, 1.0, 2.0], [2.0, 2.0, 2.0]]);
         assert_eq!(data_expected, data_actual);
 
-        // TODO add test for int tensor
+        // test int tensor
+        let data = Data::from([[0, 1, 2], [3, 4, 5]]);
+        let tensor = Tensor::<TestBackend, 2, Int>::from_data(data);
+        let data_actual = tensor.clamp_max(4).into_data();
+        let data_expected = Data::from([[0, 1, 2], [3, 4, 4]]);
+        assert_eq!(data_expected, data_actual);
     }
 
     #[test]
@@ -41,12 +46,15 @@ mod tests {
         // test float tensor
         let data = Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
         let tensor = Tensor::<TestBackend, 2>::from_data(data);
-
         let data_actual = tensor.clamp(1.0, 4.0).into_data();
-
         let data_expected = Data::from([[1.0, 1.0, 2.0], [3.0, 4.0, 4.0]]);
         assert_eq!(data_expected, data_actual);
 
-        // TODO add test for int tensor
+        // test int tensor
+        let data = Data::from([[0, 1, 2], [3, 4, 5]]);
+        let tensor = Tensor::<TestBackend, 2, Int>::from_data(data);
+        let data_actual = tensor.clamp(1, 4).into_data();
+        let data_expected = Data::from([[1, 1, 2], [3, 4, 4]]);
+        assert_eq!(data_expected, data_actual);
     }
 }

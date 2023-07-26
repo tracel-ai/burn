@@ -400,6 +400,49 @@ where
 
         (tensor, index)
     }
+
+    /// Clamp the tensor between the given min and max values.
+    ///
+    /// # Arguments
+    ///
+    /// * `min` - The minimum value.
+    /// * `max` - The maximum value.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor with the values clamped between the given min and max values.
+    pub fn clamp(self, min: K::Elem, max: K::Elem) -> Self {
+        Self::new(K::clamp(self.primitive, min, max))
+    }
+
+    /// Clamps a tensor under a minimum value.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to clamp.
+    /// * `min` - The minimum value.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor with the values clamped under the given min value.
+    pub fn clamp_min(self, min: K::Elem) -> Self {
+        Self::new(K::clamp_min(self.primitive, min))
+    }
+
+    /// Clamps a tensor over a maximum value.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to clamp.
+    /// * `max` - The maximum value.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor with the values clamped over the given max value.
+    ///
+    pub fn clamp_max(self, max: K::Elem) -> Self {
+        Self::new(K::clamp_max(self.primitive, max))
+    }
 }
 
 /// Trait that list all operations that can be applied on all numerical tensors.
@@ -1347,6 +1390,14 @@ where
     /// # Returns
     ///
     /// A new tensor with the values clamped between the given min and max values.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users.
+    ///
+    /// For clamping a tensor between the given min and max values, users should prefer the
+    /// [Tensor::clamp](Tensor::clamp) function, which is more high-level and designed for public use.
     fn clamp<const D: usize>(
         tensor: Self::Primitive<D>,
         min: Self::Elem,
@@ -1363,6 +1414,14 @@ where
     /// # Returns
     ///
     /// A new tensor with the values clamped under the given min value.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users.
+    ///
+    /// For clamping a tensor under a minimum value, users should prefer the
+    /// [Tensor::clamp_min](Tensor::clamp_min) function, which is more high-level and designed for public use.
     fn clamp_min<const D: usize>(tensor: Self::Primitive<D>, min: Self::Elem)
         -> Self::Primitive<D>;
 
@@ -1377,6 +1436,13 @@ where
     ///
     /// A new tensor with the values clamped over the given max value.
     ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users.
+    ///
+    /// For clamping a tensor over a maximum value, users should prefer the
+    /// [Tensor::clamp_max](Tensor::clamp_max) function, which is more high-level and designed for public use.
     fn clamp_max<const D: usize>(tensor: Self::Primitive<D>, max: Self::Elem)
         -> Self::Primitive<D>;
 }

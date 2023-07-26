@@ -486,7 +486,7 @@ pub trait IntTensorOps<B: Backend> {
         tensor: B::IntTensorPrimitive<D>,
         min: B::IntElem,
     ) -> B::IntTensorPrimitive<D> {
-        let mask = Self::int_greater_elem(tensor.clone(), min);
+        let mask = Self::int_lower_elem(tensor.clone(), min);
         Self::int_mask_fill(tensor, mask, min)
     }
 
@@ -504,7 +504,7 @@ pub trait IntTensorOps<B: Backend> {
         tensor: B::IntTensorPrimitive<D>,
         max: B::IntElem,
     ) -> B::IntTensorPrimitive<D> {
-        let mask = Self::int_lower_elem(tensor.clone(), max);
+        let mask = Self::int_greater_elem(tensor.clone(), max);
         Self::int_mask_fill(tensor, mask, max)
     }
 
@@ -524,7 +524,7 @@ pub trait IntTensorOps<B: Backend> {
         min: B::IntElem,
         max: B::IntElem,
     ) -> B::IntTensorPrimitive<D> {
-        Self::int_clamp_max(Self::int_clamp_min(tensor, max), min)
+        Self::int_clamp_min(Self::int_clamp_max(tensor, max), min)
     }
 
     /// Elementwise subtraction.

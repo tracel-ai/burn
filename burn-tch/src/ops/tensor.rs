@@ -414,24 +414,14 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         tensor: TchTensor<E, D>,
         min: E,
     ) -> <TchBackend<E> as Backend>::TensorPrimitive<D> {
-        let min = min.elem::<f64>();
-
-        tensor.unary_ops(
-            |mut tensor| tensor.clamp_min_(min),
-            |tensor| tensor.clamp_min(min),
-        )
+        TchOps::clamp_min(tensor, min.elem::<f64>())
     }
 
     fn clamp_max<const D: usize>(
         tensor: <TchBackend<E> as Backend>::TensorPrimitive<D>,
         max: <TchBackend<E> as Backend>::FloatElem,
     ) -> <TchBackend<E> as Backend>::TensorPrimitive<D> {
-        let max = max.elem::<f64>();
-
-        tensor.unary_ops(
-            |mut tensor| tensor.clamp_max_(max),
-            |tensor| tensor.clamp_max(max),
-        )
+        TchOps::clamp_max(tensor, max.elem::<f64>())
     }
 
     fn clamp<const D: usize>(
@@ -439,12 +429,6 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         min: <TchBackend<E> as Backend>::FloatElem,
         max: <TchBackend<E> as Backend>::FloatElem,
     ) -> <TchBackend<E> as Backend>::TensorPrimitive<D> {
-        let min = min.elem::<f64>();
-        let max = max.elem::<f64>();
-
-        tensor.unary_ops(
-            |mut tensor| tensor.clamp_(min, max),
-            |tensor| tensor.clamp(min, max),
-        )
+        TchOps::clamp(tensor, min.elem::<f64>(), max.elem::<f64>())
     }
 }
