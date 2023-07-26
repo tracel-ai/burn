@@ -118,8 +118,8 @@ where
     ///     let int_tensor = float_tensor.int();
     /// }
     /// ```
-    pub fn int(&self) -> Tensor<B, D, Int> {
-        Tensor::<B, D, Int>::from_data(self.to_data().convert())
+    pub fn int(self) -> Tensor<B, D, Int> {
+        Tensor::<B, D, Int>::from_data(self.into_data().convert())
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor filled with zeros.

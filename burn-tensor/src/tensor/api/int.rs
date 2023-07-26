@@ -80,7 +80,7 @@ where
     ///     let float_tensor = int_tensor.float();
     /// }
     /// ```
-    pub fn float(&self) -> Tensor<B, D, Float> {
-        Tensor::<B, D, Float>::from_data(self.to_data().convert())
+    pub fn float(self) -> Tensor<B, D, Float> {
+        Tensor::<B, D, Float>::from_data(self.into_data().convert())
     }
 }
