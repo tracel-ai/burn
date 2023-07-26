@@ -3,6 +3,7 @@ mod aggregation;
 mod arange;
 mod arange_step;
 mod arg;
+mod cast;
 mod cat;
 mod cos;
 mod div;
