@@ -1,7 +1,7 @@
 use super::{
     add::AddNode, batch_norm::BatchNormNode, constant::ConstantNode, conv2d::Conv2dNode,
     equal::EqualNode, linear::LinearNode, matmul::MatmulNode, max_pool2d::MaxPool2dNode,
-    unary::UnaryNode,
+    reshape::ReshapeNode, unary::UnaryNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::record::PrecisionSettings;
@@ -80,6 +80,7 @@ pub enum Node<PS: PrecisionSettings> {
     Constant(ConstantNode),
     Equal(EqualNode),
     Unary(UnaryNode),
+    Reshape(ReshapeNode),
 }
 
 macro_rules! match_all {
@@ -93,6 +94,7 @@ macro_rules! match_all {
             Node::BatchNorm(node) => $func(node),
             Node::Constant(node) => $func(node),
             Node::Equal(node) => $func(node),
+            Node::Reshape(node) => $func(node),
             Node::Unary(node) => $func(node),
         }
     }};
@@ -118,6 +120,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::Linear(_) => "linear".to_string(),
             Node::BatchNorm(_) => "batch_norm".to_string(),
             Node::Equal(_) => "equal".to_string(),
+            Node::Reshape(_) => "reshape".to_string(),
             Node::Unary(unary) => unary.name.to_string(),
         }
     }
@@ -169,16 +172,64 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Node<PS> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use crate::burn::{
+        codegen::ToTokens,
         graph::BurnGraph,
-        node::{conv2d::Conv2dNode, matmul::MatmulNode, test::assert_tokens},
+        node::{conv2d::Conv2dNode, matmul::MatmulNode, test::assert_tokens, NodeCodegen},
         TensorType,
     };
     use burn::{
         nn::conv::Conv2dConfig, nn::PaddingConfig2d, record::FullPrecisionSettings, tensor::Data,
     };
+    use proc_macro2::TokenStream;
     use quote::quote;
+
+    fn one_node_graph<T: NodeCodegen<FullPrecisionSettings> + 'static>(
+        node_gen: T,
+    ) -> BurnGraph<FullPrecisionSettings> {
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(node_gen);
+
+        graph
+    }
+
+    fn unary_operator_expected<const N: usize>(function: TokenStream) -> TokenStream {
+        let tensor_dim = N.to_tokens();
+        quote! {
+            use burn::{
+                module::Module,
+                tensor::{backend::Backend, Tensor},
+            };
+
+            #[derive(Module, Debug)]
+            pub struct Model <B: Backend>{}
+
+            impl<B: Backend> Model <B> {
+                pub fn new_with(record: ModelRecord<B>) -> Self {
+                    Self { }
+                }
+                #[allow(clippy::let_and_return)]
+                pub fn forward(&self, tensor1: Tensor<B, #tensor_dim>) -> Tensor<B, #tensor_dim> {
+                    #function
+                }
+            }
+        }
+    }
+
+    pub(crate) fn codegen_unary_operator<
+        const N: usize,
+        T: NodeCodegen<FullPrecisionSettings> + 'static,
+    >(
+        node_gen: T,
+        function: TokenStream,
+    ) {
+        assert_tokens(
+            one_node_graph(node_gen).codegen(),
+            unary_operator_expected::<N>(function),
+        );
+    }
 
     #[test]
     fn test_codegen_two_nodes() {

@@ -21,6 +21,7 @@ use crate::{
             linear::LinearNode,
             matmul::MatmulNode,
             max_pool2d::MaxPool2dNode,
+            reshape::ReshapeNode,
             unary::UnaryNode,
         },
         TensorType,
@@ -164,6 +165,7 @@ impl ONNXGraph {
                 NodeType::LogSoftmax => graph.register(Self::log_softmax_conversion(node)),
                 NodeType::Constant => graph.register(Self::constant_conversion(node)),
                 NodeType::Equal => graph.register(Self::equal_conversion(node)),
+                NodeType::Reshape => graph.register(Self::reshape_conversion(node)),
                 NodeType::Sigmoid => graph.register(Self::sigmoid_conversion(node)),
                 _ => panic!("Unsupported node conversion {}", node.node_type),
             }
@@ -224,6 +226,18 @@ impl ONNXGraph {
         let (start_dim, end_dim) = flatten_config(&node);
 
         UnaryNode::flatten(input, output, start_dim, end_dim)
+    }
+
+    fn reshape_conversion(mut node: Node) -> ReshapeNode {
+        let input = node.inputs.get(0).unwrap().to_tensor_type();
+        let output = node.outputs.get(0).unwrap().to_tensor_type();
+        let shape = extract_next_data_serialize::<i64>(&mut node).unwrap();
+
+        ReshapeNode::new(
+            input,
+            output,
+            shape.value.iter().map(|item| *item as usize).collect(),
+        )
     }
 
     fn sigmoid_conversion(node: Node) -> UnaryNode {

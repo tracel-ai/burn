@@ -1,4 +1,4 @@
-use crate::{backend::Backend, Data, Int, Tensor};
+use crate::{backend::Backend, Data, Float, Int, Tensor};
 use core::ops::Range;
 
 impl<B> Tensor<B, 1, Int>
@@ -64,5 +64,23 @@ where
     /// ```
     pub fn from_ints<A: Into<Data<i32, D>>>(ints: A) -> Self {
         Self::from_data(ints.into().convert())
+    }
+
+    /// Returns a new tensor with the same shape and device as the current tensor and the data
+    /// casted to Float.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Int, Tensor};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let int_tensor = Tensor::<B, 1, Int>::arange(0..5);
+    ///     let float_tensor = int_tensor.float();
+    /// }
+    /// ```
+    pub fn float(self) -> Tensor<B, D, Float> {
+        Tensor::<B, D, Float>::from_data(self.into_data().convert())
     }
 }

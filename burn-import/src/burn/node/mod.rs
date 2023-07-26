@@ -8,6 +8,7 @@ pub(crate) mod equal;
 pub(crate) mod linear;
 pub(crate) mod matmul;
 pub(crate) mod max_pool2d;
+pub(crate) mod reshape;
 pub(crate) mod unary;
 
 pub(crate) use base::*;
