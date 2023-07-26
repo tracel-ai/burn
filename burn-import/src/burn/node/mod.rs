@@ -11,6 +11,7 @@ pub(crate) mod log_softmax;
 pub(crate) mod matmul;
 pub(crate) mod max_pool2d;
 pub(crate) mod relu;
+pub(crate) mod reshape;
 pub(crate) mod sigmoid;
 
 pub(crate) use base::*;

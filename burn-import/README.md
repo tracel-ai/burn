@@ -152,7 +152,7 @@ List taken from [here](https://github.com/onnx/onnx/blob/main/docs/Operators.md)
 - [ ] ReduceSum
 - [ ] ReduceSumSquare
 - [x] Relu
-- [ ] Reshape
+- [x] Reshape
 - [ ] Resize
 - [ ] ReverseSequence
 - [ ] RNN
