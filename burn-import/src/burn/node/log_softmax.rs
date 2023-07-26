@@ -34,3 +34,28 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LogSoftmaxNode {
         Node::LogSoftmax(self)
     }
 }
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    use crate::burn::{node::log_softmax::LogSoftmaxNode, TensorType};
+
+    use crate::burn::node::tests::produce_codegen_tests;
+
+    #[test]
+    fn test_codegen_node() {
+        produce_codegen_tests(
+            LogSoftmaxNode::new(
+                TensorType::new_float("tensor1", 4),
+                TensorType::new_float("tensor2", 4),
+                1,
+            ),
+            quote! {
+                let tensor2 = burn::tensor::activation::log_softmax(tensor1, 1);
+
+                tensor2
+            },
+        );
+    }
+}
