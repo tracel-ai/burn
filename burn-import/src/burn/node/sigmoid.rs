@@ -46,7 +46,7 @@ mod tests {
 
     #[test]
     fn test_codegen_node() {
-        codegen_unary_operator(
+        codegen_unary_operator::<4, _>(
             SigmoidNode::new(
                 TensorType::new_float("tensor1", 4),
                 TensorType::new_float("tensor2", 4),

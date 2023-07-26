@@ -180,6 +180,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Node<PS> {
 #[cfg(test)]
 pub(crate) mod tests {
     use crate::burn::{
+        codegen::ToTokens,
         graph::BurnGraph,
         node::{conv2d::Conv2dNode, matmul::MatmulNode, test::assert_tokens, NodeCodegen},
         TensorType,
@@ -200,7 +201,8 @@ pub(crate) mod tests {
         graph
     }
 
-    fn unary_operator_expected(function: TokenStream) -> TokenStream {
+    fn unary_operator_expected<const N: usize>(function: TokenStream) -> TokenStream {
+        let tensor_dim = N.to_tokens();
         quote! {
             use burn::{
                 module::Module,
@@ -215,20 +217,23 @@ pub(crate) mod tests {
                     Self { }
                 }
                 #[allow(clippy::let_and_return)]
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                pub fn forward(&self, tensor1: Tensor<B, #tensor_dim>) -> Tensor<B, #tensor_dim> {
                     #function
                 }
             }
         }
     }
 
-    pub(crate) fn codegen_unary_operator<T: NodeCodegen<FullPrecisionSettings> + 'static>(
+    pub(crate) fn codegen_unary_operator<
+        const N: usize,
+        T: NodeCodegen<FullPrecisionSettings> + 'static,
+    >(
         node_gen: T,
         function: TokenStream,
     ) {
         assert_tokens(
             one_node_graph(node_gen).codegen(),
-            unary_operator_expected(function),
+            unary_operator_expected::<N>(function),
         );
     }
 
