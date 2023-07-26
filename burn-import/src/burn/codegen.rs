@@ -8,7 +8,7 @@ fn convert_primitive<T: ToString>(primitive: T) -> TokenStream {
     value.parse().unwrap()
 }
 
-fn convert_lists<'a, I, T: ToTokens>(list: I) -> TokenStream
+fn convert_to_array<'a, I, T: ToTokens>(list: I) -> TokenStream
 where
     I: Iterator<Item = &'a T>,
     T: 'a,
@@ -31,13 +31,13 @@ pub trait ToTokens {
 
 impl<const N: usize, T: Copy + ToTokens> ToTokens for [T; N] {
     fn to_tokens(&self) -> TokenStream {
-        convert_lists(self.iter())
+        convert_to_array(self.iter())
     }
 }
 
 impl<T: Copy + ToTokens> ToTokens for Vec<T> {
     fn to_tokens(&self) -> TokenStream {
-        convert_lists(self.iter())
+        convert_to_array(self.iter())
     }
 }
 
