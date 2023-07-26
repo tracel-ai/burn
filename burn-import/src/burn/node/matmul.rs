@@ -37,6 +37,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatmulNode {
 
 #[cfg(test)]
 mod tests {
+
     use burn::record::FullPrecisionSettings;
 
     use super::*;

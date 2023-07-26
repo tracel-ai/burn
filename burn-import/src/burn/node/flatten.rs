@@ -43,11 +43,11 @@ mod tests {
     use super::*;
     use crate::burn::{node::flatten::FlattenNode, TensorType};
 
-    use crate::burn::node::tests::produce_codegen_tests;
+    use crate::burn::node::tests::codegen_unary_operator;
 
     #[test]
     fn test_codegen_node() {
-        produce_codegen_tests(
+        codegen_unary_operator(
             FlattenNode::new(
                 TensorType::new_float("tensor1", 4),
                 TensorType::new_float("tensor2", 4),

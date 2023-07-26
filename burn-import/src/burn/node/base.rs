@@ -190,15 +190,18 @@ pub(crate) mod tests {
     use proc_macro2::TokenStream;
     use quote::quote;
 
-    pub(crate) fn produce_codegen_tests<T: NodeCodegen<FullPrecisionSettings> + 'static>(
+    fn one_node_graph<T: NodeCodegen<FullPrecisionSettings> + 'static>(
         node_gen: T,
-        function: TokenStream,
-    ) {
+    ) -> BurnGraph<FullPrecisionSettings> {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(node_gen);
 
-        let expected = quote! {
+        graph
+    }
+
+    fn unary_operator_expected(function: TokenStream) -> TokenStream {
+        quote! {
             use burn::{
                 module::Module,
                 tensor::{backend::Backend, Tensor},
@@ -216,9 +219,17 @@ pub(crate) mod tests {
                     #function
                 }
             }
-        };
+        }
+    }
 
-        assert_tokens(graph.codegen(), expected);
+    pub(crate) fn codegen_unary_operator<T: NodeCodegen<FullPrecisionSettings> + 'static>(
+        node_gen: T,
+        function: TokenStream,
+    ) {
+        assert_tokens(
+            one_node_graph(node_gen).codegen(),
+            unary_operator_expected(function),
+        );
     }
 
     #[test]
