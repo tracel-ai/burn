@@ -1372,6 +1372,28 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
     }
+
+    fn clamp_min<const D: usize>(
+        _tensor: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        _min: <ADBackendDecorator<B> as Backend>::FloatElem,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
+        todo!()
+    }
+
+    fn clamp_max<const D: usize>(
+        _tensor: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        _max: <ADBackendDecorator<B> as Backend>::FloatElem,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
+        todo!()
+    }
+
+    fn clamp<const D: usize>(
+        _tensor: <ADBackendDecorator<B> as Backend>::TensorPrimitive<D>,
+        _min: <ADBackendDecorator<B> as Backend>::FloatElem,
+        _max: <ADBackendDecorator<B> as Backend>::FloatElem,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
+        todo!()
+    }
 }
 
 /// Make sure the grad tensor has the given shape.

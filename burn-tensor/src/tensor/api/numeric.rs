@@ -1336,6 +1336,49 @@ where
         tensor: Self::Primitive<D>,
         dim: usize,
     ) -> (Self::Primitive<D>, B::IntTensorPrimitive<D>);
+
+    /// Clamp the tensor between the given min and max values.
+    ///
+    /// # Arguments
+    ///
+    /// * `min` - The minimum value.
+    /// * `max` - The maximum value.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor with the values clamped between the given min and max values.
+    fn clamp<const D: usize>(
+        tensor: Self::Primitive<D>,
+        min: Self::Elem,
+        max: Self::Elem,
+    ) -> Self::Primitive<D>;
+
+    /// Clamps a tensor under a minimum value.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to clamp.
+    /// * `min` - The minimum value.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor with the values clamped under the given min value.
+    fn clamp_min<const D: usize>(tensor: Self::Primitive<D>, min: Self::Elem)
+        -> Self::Primitive<D>;
+
+    /// Clamps a tensor over a maximum value.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to clamp.
+    /// * `max` - The maximum value.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor with the values clamped over the given max value.
+    ///
+    fn clamp_max<const D: usize>(tensor: Self::Primitive<D>, max: Self::Elem)
+        -> Self::Primitive<D>;
 }
 
 impl<B: Backend> Numeric<B> for Int {
@@ -1563,6 +1606,28 @@ impl<B: Backend> Numeric<B> for Int {
         dim: usize,
     ) -> (Self::Primitive<D>, <B as Backend>::IntTensorPrimitive<D>) {
         B::int_min_dim_with_indices(tensor, dim)
+    }
+
+    fn clamp<const D: usize>(
+        tensor: Self::Primitive<D>,
+        min: B::IntElem,
+        max: B::IntElem,
+    ) -> Self::Primitive<D> {
+        B::int_clamp(tensor, min, max)
+    }
+
+    fn clamp_min<const D: usize>(
+        tensor: Self::Primitive<D>,
+        min: B::IntElem,
+    ) -> Self::Primitive<D> {
+        B::int_clamp_min(tensor, min)
+    }
+
+    fn clamp_max<const D: usize>(
+        tensor: Self::Primitive<D>,
+        max: B::IntElem,
+    ) -> Self::Primitive<D> {
+        B::int_clamp_max(tensor, max)
     }
 }
 
@@ -1792,6 +1857,28 @@ impl<B: Backend> Numeric<B> for Float {
         dim: usize,
     ) -> (Self::Primitive<D>, <B as Backend>::IntTensorPrimitive<D>) {
         B::min_dim_with_indices(tensor, dim)
+    }
+
+    fn clamp<const D: usize>(
+        tensor: Self::Primitive<D>,
+        min: B::FloatElem,
+        max: B::FloatElem,
+    ) -> Self::Primitive<D> {
+        B::clamp(tensor, min, max)
+    }
+
+    fn clamp_min<const D: usize>(
+        tensor: Self::Primitive<D>,
+        min: B::FloatElem,
+    ) -> Self::Primitive<D> {
+        B::clamp_min(tensor, min)
+    }
+
+    fn clamp_max<const D: usize>(
+        tensor: Self::Primitive<D>,
+        max: B::FloatElem,
+    ) -> Self::Primitive<D> {
+        B::clamp_max(tensor, max)
     }
 }
 

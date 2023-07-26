@@ -334,4 +334,26 @@ impl<E: FloatNdArrayElement> IntTensorOps<NdArrayBackend<E>> for NdArrayBackend<
     ) -> NdArrayTensor<i64, D> {
         NdArrayMathOps::argmin(tensor, dim)
     }
+
+    fn int_clamp_min<const D: usize>(
+        tensor: NdArrayTensor<i64, D>,
+        min: i64,
+    ) -> NdArrayTensor<i64, D> {
+        NdArrayMathOps::clamp_min(tensor, min)
+    }
+
+    fn int_clamp_max<const D: usize>(
+        tensor: NdArrayTensor<i64, D>,
+        max: i64,
+    ) -> NdArrayTensor<i64, D> {
+        NdArrayMathOps::clamp_max(tensor, max)
+    }
+
+    fn int_clamp<const D: usize>(
+        tensor: NdArrayTensor<i64, D>,
+        min: i64,
+        max: i64,
+    ) -> NdArrayTensor<i64, D> {
+        NdArrayMathOps::clamp(tensor, min, max)
+    }
 }

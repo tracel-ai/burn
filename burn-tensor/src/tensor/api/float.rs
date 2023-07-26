@@ -250,6 +250,49 @@ where
     pub(crate) fn relu(self) -> Self {
         Self::new(B::relu(self.primitive))
     }
+
+    /// Clamp the tensor between the given min and max values.
+    ///
+    /// # Arguments
+    ///
+    /// * `min` - The minimum value.
+    /// * `max` - The maximum value.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor with the values clamped between the given min and max values.
+    pub fn clamp(self, min: B::FloatElem, max: B::FloatElem) -> Self {
+        Self::new(B::clamp(self.primitive, min, max))
+    }
+
+    /// Clamps a tensor under a minimum value.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to clamp.
+    /// * `min` - The minimum value.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor with the values clamped under the given min value.
+    pub fn clamp_min(self, min: B::FloatElem) -> Self {
+        Self::new(B::clamp_min(self.primitive, min))
+    }
+
+    /// Clamps a tensor over a maximum value.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to clamp.
+    /// * `max` - The maximum value.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor with the values clamped over the given max value.
+    ///
+    pub fn clamp_max(self, max: B::FloatElem) -> Self {
+        Self::new(B::clamp_max(self.primitive, max))
+    }
 }
 
 impl<const D: usize, B: ADBackend> Tensor<B, D> {

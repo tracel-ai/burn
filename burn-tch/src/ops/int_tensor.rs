@@ -341,4 +341,20 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
     ) -> (TchTensor<i64, D>, TchTensor<i64, D>) {
         TchOps::min_dim_with_indices(tensor, dim)
     }
+
+    fn int_clamp_min<const D: usize>(tensor: TchTensor<i64, D>, min: i64) -> TchTensor<i64, D> {
+        TchOps::clamp_min(tensor, min)
+    }
+
+    fn int_clamp_max<const D: usize>(tensor: TchTensor<i64, D>, max: i64) -> TchTensor<i64, D> {
+        TchOps::clamp_max(tensor, max)
+    }
+
+    fn int_clamp<const D: usize>(
+        tensor: TchTensor<i64, D>,
+        min: i64,
+        max: i64,
+    ) -> TchTensor<i64, D> {
+        TchOps::clamp(tensor, min, max)
+    }
 }
