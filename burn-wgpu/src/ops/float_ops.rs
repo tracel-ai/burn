@@ -1,4 +1,5 @@
 use super::{numeric, BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor};
+use crate::kernel::prng::random;
 use crate::kernel::{
     self, unary_default, unary_inplace_default, unary_scalar_default, unary_scalar_inplace_default,
 };
@@ -31,16 +32,8 @@ where
         shape: Shape<D>,
         distribution: Distribution<FloatElem<Self>>,
         device: &Device<Self>,
-    ) -> <WgpuBackend<G, F, I> as Backend>::TensorPrimitive<D> {
-        let mut seed = SEED.lock().unwrap();
-        let mut rng = if let Some(rng_seeded) = seed.as_ref() {
-            rng_seeded.clone()
-        } else {
-            get_seeded_rng()
-        };
-        let tensor = Self::from_data(Data::random(shape, distribution, &mut rng), device);
-        *seed = Some(rng);
-        tensor
+    ) -> FloatTensor<Self, D>{
+        random::<G, F, D>(shape, distribution, device)
     }
 
     fn shape<const D: usize>(tensor: &FloatTensor<Self, D>) -> Shape<D> {
