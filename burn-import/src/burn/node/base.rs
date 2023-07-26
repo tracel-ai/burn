@@ -1,7 +1,7 @@
 use super::{
     add::AddNode, batch_norm::BatchNormNode, constant::ConstantNode, conv2d::Conv2dNode,
-    equal::EqualNode, flatten::FlattenNode, linear::LinearNode, log_softmax::LogSoftmaxNode,
-    matmul::MatmulNode, max_pool2d::MaxPool2dNode, relu::ReLUNode, sigmoid::SigmoidNode,
+    equal::EqualNode, linear::LinearNode, matmul::MatmulNode, max_pool2d::MaxPool2dNode,
+    unary::UnaryNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::record::PrecisionSettings;
@@ -77,12 +77,9 @@ pub enum Node<PS: PrecisionSettings> {
     MaxPool2d(MaxPool2dNode),
     Linear(LinearNode<PS>),
     BatchNorm(BatchNormNode<PS>),
-    ReLU(ReLUNode),
-    Flatten(FlattenNode),
-    LogSoftmax(LogSoftmaxNode),
     Constant(ConstantNode),
     Equal(EqualNode),
-    Sigmoid(SigmoidNode),
+    Unary(UnaryNode),
 }
 
 macro_rules! match_all {
@@ -94,12 +91,9 @@ macro_rules! match_all {
             Node::MaxPool2d(node) => $func(node),
             Node::Linear(node) => $func(node),
             Node::BatchNorm(node) => $func(node),
-            Node::ReLU(node) => $func(node),
-            Node::Flatten(node) => $func(node),
-            Node::LogSoftmax(node) => $func(node),
             Node::Constant(node) => $func(node),
             Node::Equal(node) => $func(node),
-            Node::Sigmoid(node) => $func(node),
+            Node::Unary(node) => $func(node),
         }
     }};
 }
@@ -114,20 +108,17 @@ impl<PS: PrecisionSettings> Serialize for Node<PS> {
 }
 
 impl<PS: PrecisionSettings> Node<PS> {
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> String {
         match self {
-            Node::Add(_) => "add",
-            Node::Matmul(_) => "matmul",
-            Node::Constant(_) => "constant",
-            Node::Conv2d(_) => "conv2d",
-            Node::MaxPool2d(_) => "max_pool2d",
-            Node::Linear(_) => "linear",
-            Node::BatchNorm(_) => "batch_norm",
-            Node::ReLU(_) => "relu",
-            Node::Flatten(_) => "flatten",
-            Node::LogSoftmax(_) => "log_softmax",
-            Node::Equal(_) => "equal",
-            Node::Sigmoid(_) => "sigmoid",
+            Node::Add(_) => "add".to_string(),
+            Node::Matmul(_) => "matmul".to_string(),
+            Node::Constant(_) => "constant".to_string(),
+            Node::Conv2d(_) => "conv2d".to_string(),
+            Node::MaxPool2d(_) => "max_pool2d".to_string(),
+            Node::Linear(_) => "linear".to_string(),
+            Node::BatchNorm(_) => "batch_norm".to_string(),
+            Node::Equal(_) => "equal".to_string(),
+            Node::Unary(unary) => unary.name.to_string(),
         }
     }
 }
@@ -212,9 +203,9 @@ mod tests {
                 module::Module,
                 tensor::{backend::Backend, Tensor},
             };
-            use burn::nn::PaddingConfig2d;
-            use burn::nn::conv::Conv2d;
             use burn::nn::conv::Conv2dConfig;
+            use burn::nn::conv::Conv2d;
+            use burn::nn::PaddingConfig2d;
 
             #[derive(Module, Debug)]
             pub struct Model <B: Backend> {
