@@ -110,18 +110,18 @@ impl<PS: PrecisionSettings> Serialize for Node<PS> {
 }
 
 impl<PS: PrecisionSettings> Node<PS> {
-    pub fn name(&self) -> String {
+    pub fn name(&self) -> &str {
         match self {
-            Node::Add(_) => "add".to_string(),
-            Node::Matmul(_) => "matmul".to_string(),
-            Node::Constant(_) => "constant".to_string(),
-            Node::Conv2d(_) => "conv2d".to_string(),
-            Node::MaxPool2d(_) => "max_pool2d".to_string(),
-            Node::Linear(_) => "linear".to_string(),
-            Node::BatchNorm(_) => "batch_norm".to_string(),
-            Node::Equal(_) => "equal".to_string(),
-            Node::Reshape(_) => "reshape".to_string(),
-            Node::Unary(unary) => unary.name.to_string(),
+            Node::Add(_) => "add",
+            Node::Matmul(_) => "matmul",
+            Node::Constant(_) => "constant",
+            Node::Conv2d(_) => "conv2d",
+            Node::MaxPool2d(_) => "max_pool2d",
+            Node::Linear(_) => "linear",
+            Node::BatchNorm(_) => "batch_norm",
+            Node::Equal(_) => "equal",
+            Node::Reshape(_) => "reshape",
+            Node::Unary(unary) => unary.kind.as_str(),
         }
     }
 }

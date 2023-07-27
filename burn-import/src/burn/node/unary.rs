@@ -13,16 +13,38 @@ type FnPointer = Arc<dyn Fn(TokenStream) -> TokenStream>;
 pub struct UnaryNode {
     pub input: TensorType,
     pub output: TensorType,
-    pub name: String,
+    pub kind: UnaryNodeKind,
     function: FnPointer,
+}
+
+/// Type of unary node.
+#[derive(Clone)]
+pub enum UnaryNodeKind {
+    Flatten,
+    Relu,
+    Sigmoid,
+    LogSoftmax,
+}
+
+impl UnaryNodeKind {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Flatten => "flatten",
+            Self::Relu => "relu",
+            Self::Sigmoid => "sigmoid",
+            Self::LogSoftmax => "log_softmax",
+        }
+    }
 }
 
 impl std::fmt::Debug for UnaryNode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(
             format!(
-                "UnaryNode {{ input: {:?}, output: {:?}, name: {:?} }}",
-                self.input, self.output, self.name
+                "UnaryNode {{ input: {:?}, output: {:?}, name: {} }}",
+                self.input,
+                self.output,
+                self.kind.as_str()
             )
             .as_str(),
         )
@@ -64,29 +86,28 @@ impl UnaryNode {
         let end_dim = end_dim.to_tokens();
         let function = move |input| quote! { #input.flatten(#start_dim, #end_dim) };
 
-        Self::new(input, output, "flatten".to_string(), Arc::new(function))
+        Self::new(input, output, UnaryNodeKind::Flatten, Arc::new(function))
     }
 
     pub(crate) fn relu(input: TensorType, output: TensorType) -> Self {
         let function = move |input| quote! { burn::tensor::activation::relu(#input) };
-        Self::new(input, output, "relu".to_string(), Arc::new(function))
+        Self::new(input, output, UnaryNodeKind::Relu, Arc::new(function))
     }
 
     pub(crate) fn sigmoid(input: TensorType, output: TensorType) -> Self {
         let function = move |input| quote! { burn::tensor::activation::sigmoid(#input) };
-        Self::new(input, output, "sigmoid".to_string(), Arc::new(function))
+        Self::new(input, output, UnaryNodeKind::Sigmoid, Arc::new(function))
     }
 
     pub(crate) fn log_softmax(input: TensorType, output: TensorType, dim: usize) -> Self {
         let dim = dim.to_tokens();
         let function = move |input| quote! { burn::tensor::activation::log_softmax(#input, #dim) };
-        Self::new(input, output, "log_softmax".to_string(), Arc::new(function))
+        Self::new(input, output, UnaryNodeKind::LogSoftmax, Arc::new(function))
     }
 }
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
     use crate::burn::node::tests::codegen_unary_operator;
     use crate::burn::TensorType;
