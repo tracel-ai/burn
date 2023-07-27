@@ -920,7 +920,7 @@ pub trait TensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `tensor` - The tensor to exponentiate.
+    /// * `tensor` - The tensor to take absolute value of.
     ///
     /// # Returns
     ///
