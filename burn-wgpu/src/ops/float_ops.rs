@@ -433,4 +433,27 @@ where
     fn argmin<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
         kernel::argmin(tensor, dim)
     }
+
+    // TODO implement clamp kernels (see https://github.com/burn-rs/burn/issues/549)
+    // fn clamp_min<const D: usize>(
+    //     tensor: FloatTensor<Self, D>,
+    //     min: FloatElem<Self>,
+    // ) -> FloatTensor<Self, D> {
+    //     kernel::clamp_min(tensor, min)
+    // }
+
+    // fn clamp_max<const D: usize>(
+    //     tensor: FloatTensor<Self, D>,
+    //     max: FloatElem<Self>,
+    // ) -> FloatTensor<Self, D> {
+    //     kernel::clamp_max(tensor, max)
+    // }
+
+    // fn clamp<const D: usize>(
+    //     tensor: FloatTensor<Self, D>,
+    //     min: FloatElem<Self>,
+    //     max: FloatElem<Self>,
+    // ) -> FloatTensor<Self, D> {
+    //     kernel::clamp(tensor, min, max)
+    // }
 }

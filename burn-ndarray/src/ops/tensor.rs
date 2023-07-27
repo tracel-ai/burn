@@ -419,4 +419,16 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
     fn cat<const D: usize>(tensors: Vec<NdArrayTensor<E, D>>, dim: usize) -> NdArrayTensor<E, D> {
         NdArrayOps::cat(tensors, dim)
     }
+
+    fn clamp_min<const D: usize>(tensor: NdArrayTensor<E, D>, min: E) -> NdArrayTensor<E, D> {
+        NdArrayMathOps::clamp_min(tensor, min)
+    }
+
+    fn clamp_max<const D: usize>(tensor: NdArrayTensor<E, D>, max: E) -> NdArrayTensor<E, D> {
+        NdArrayMathOps::clamp_max(tensor, max)
+    }
+
+    fn clamp<const D: usize>(tensor: NdArrayTensor<E, D>, min: E, max: E) -> NdArrayTensor<E, D> {
+        NdArrayMathOps::clamp(tensor, min, max)
+    }
 }

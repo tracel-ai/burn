@@ -270,6 +270,64 @@ pub trait TensorOps<B: Backend> {
         rhs: B::FloatElem,
     ) -> B::TensorPrimitive<D>;
 
+    /// Clamps a tensor under a minimum value.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to clamp.
+    /// * `min` - The minimum value.
+    ///
+    /// # Returns
+    ///
+    /// The clamped tensor.
+    fn clamp_min<const D: usize>(
+        tensor: B::TensorPrimitive<D>,
+        min: B::FloatElem,
+    ) -> B::TensorPrimitive<D> {
+        // Default implementation
+        let mask = Self::lower_elem(tensor.clone(), min);
+        B::mask_fill(tensor, mask, min)
+    }
+
+    /// Clamps a tensor over a maximum value.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to clamp.
+    /// * `max` - The maximum value.
+    ///
+    /// # Returns
+    ///
+    /// The clamped tensor.
+    fn clamp_max<const D: usize>(
+        tensor: B::TensorPrimitive<D>,
+        max: B::FloatElem,
+    ) -> B::TensorPrimitive<D> {
+        // Default implementation
+        let mask = Self::greater_elem(tensor.clone(), max);
+        B::mask_fill(tensor, mask, max)
+    }
+
+    /// Clamps a tensor between a minimum and maximum value.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to clamp.
+    /// * `min` - The minimum value.
+    /// * `max` - The maximum value.
+    ///
+    /// # Returns
+    ///
+    /// The clamped tensor.
+    fn clamp<const D: usize>(
+        tensor: B::TensorPrimitive<D>,
+        min: B::FloatElem,
+        max: B::FloatElem,
+    ) -> B::TensorPrimitive<D> {
+        // Default implementation
+        Self::clamp_min(Self::clamp_max(tensor, max), min)
+    }
+
     /// Subtracts two tensors.
     ///
     /// # Arguments

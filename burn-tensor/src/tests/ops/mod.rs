@@ -5,6 +5,7 @@ mod arange_step;
 mod arg;
 mod cast;
 mod cat;
+mod clamp;
 mod cos;
 mod div;
 mod erf;

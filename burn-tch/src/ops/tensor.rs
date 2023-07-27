@@ -409,4 +409,26 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     fn cat<const D: usize>(tensors: Vec<TchTensor<E, D>>, dim: usize) -> TchTensor<E, D> {
         TchOps::cat(tensors, dim)
     }
+
+    fn clamp_min<const D: usize>(
+        tensor: TchTensor<E, D>,
+        min: E,
+    ) -> <TchBackend<E> as Backend>::TensorPrimitive<D> {
+        TchOps::clamp_min(tensor, min.elem::<f64>())
+    }
+
+    fn clamp_max<const D: usize>(
+        tensor: <TchBackend<E> as Backend>::TensorPrimitive<D>,
+        max: <TchBackend<E> as Backend>::FloatElem,
+    ) -> <TchBackend<E> as Backend>::TensorPrimitive<D> {
+        TchOps::clamp_max(tensor, max.elem::<f64>())
+    }
+
+    fn clamp<const D: usize>(
+        tensor: <TchBackend<E> as Backend>::TensorPrimitive<D>,
+        min: <TchBackend<E> as Backend>::FloatElem,
+        max: <TchBackend<E> as Backend>::FloatElem,
+    ) -> <TchBackend<E> as Backend>::TensorPrimitive<D> {
+        TchOps::clamp(tensor, min.elem::<f64>(), max.elem::<f64>())
+    }
 }

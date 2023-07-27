@@ -32,6 +32,7 @@ macro_rules! testgen_all {
         burn_tensor::testgen_arg!();
         burn_tensor::testgen_cast!();
         burn_tensor::testgen_cat!();
+        burn_tensor::testgen_clamp!();
         burn_tensor::testgen_cos!();
         burn_tensor::testgen_div!();
         burn_tensor::testgen_erf!();
