@@ -197,7 +197,7 @@ List taken from [here](https://github.com/onnx/onnx/blob/main/docs/Operators.md)
 - [ ] ThresholdedRelu
 - [ ] Tile
 - [ ] TopK
-- [ ] Transpose
+- [x] Transpose
 - [ ] Trilu
 - [ ] Unique
 - [ ] Unsqueeze

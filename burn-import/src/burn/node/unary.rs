@@ -24,6 +24,7 @@ pub enum UnaryNodeKind {
     Relu,
     Sigmoid,
     LogSoftmax,
+    Transpose,
 }
 
 impl UnaryNodeKind {
@@ -33,6 +34,7 @@ impl UnaryNodeKind {
             Self::Relu => "relu",
             Self::Sigmoid => "sigmoid",
             Self::LogSoftmax => "log_softmax",
+            Self::Transpose => "transpose",
         }
     }
 }
@@ -104,6 +106,11 @@ impl UnaryNode {
         let function = move |input| quote! { burn::tensor::activation::log_softmax(#input, #dim) };
         Self::new(input, output, UnaryNodeKind::LogSoftmax, Arc::new(function))
     }
+
+    pub(crate) fn transpose(input: TensorType, output: TensorType) -> Self {
+        let function = move |input| quote! { #input.transpose() };
+        Self::new(input, output, UnaryNodeKind::Transpose, Arc::new(function))
+    }
 }
 
 #[cfg(test)]
@@ -169,6 +176,21 @@ mod tests {
             ),
             quote! {
                 let tensor2 = burn::tensor::activation::log_softmax(tensor1, 1);
+
+                tensor2
+            },
+        );
+    }
+
+    #[test]
+    fn test_unary_codegen_transpose() {
+        codegen_unary_operator::<4, _>(
+            UnaryNode::transpose(
+                TensorType::new_float("tensor1", 4),
+                TensorType::new_float("tensor2", 4),
+            ),
+            quote! {
+                let tensor2 = tensor1.transpose();
 
                 tensor2
             },
