@@ -105,3 +105,53 @@ impl BinaryNode {
         Self::new(lhs, rhs, output, BinaryType::Equal, Arc::new(function))
     }
 }
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    use crate::burn::node::tests::codegen_binary_operator;
+    use crate::burn::TensorType;
+
+    macro_rules! test_binary_operator {
+        ($operator:ident) => {{
+            codegen_binary_operator::<4, _>(
+                BinaryNode::$operator(
+                    TensorType::new_float("tensor1", 4),
+                    TensorType::new_float("tensor2", 4),
+                    TensorType::new_float("tensor3", 4),
+                ),
+                quote! {
+                    let tensor3 = tensor1.$operator(tensor2);
+
+                    tensor3
+                },
+            );
+        }};
+    }
+
+    #[test]
+    fn test_binary_codegen_add() {
+        test_binary_operator!(add);
+    }
+
+    #[test]
+    fn test_binary_codegen_sub() {
+        test_binary_operator!(sub);
+    }
+
+    #[test]
+    fn test_binary_codegen_mul() {
+        test_binary_operator!(mul);
+    }
+
+    #[test]
+    fn test_binary_codegen_div() {
+        test_binary_operator!(div);
+    }
+
+    #[test]
+    fn test_binary_codegen_equal() {
+        test_binary_operator!(equal);
+    }
+}
