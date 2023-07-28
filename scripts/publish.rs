@@ -1,3 +1,13 @@
+//! This script publishes a crate on `crates.io`.
+//!
+//! To build this script, run the following command:
+//!
+//! rustc scripts/publish.rs --crate-type bin --out-dir scripts
+//!
+//! To run the script:
+//!
+//! ./scripts/publish crate_name
+
 use std::env;
 use std::io::{self, Write};
 use std::process::{Command, Output};
@@ -27,25 +37,28 @@ fn local_version(crate_name: &str) -> String {
 }
 
 // Obtain remote crate version
-fn remote_version(crate_name: &str) -> String {
+fn remote_version(crate_name: &str) -> Option<String> {
     // Obtain remote crate version contained in cargo search data
     let cargo_search_output = Command::new("cargo")
         .args(["search", crate_name, "--limit", "1"])
         .output()
         .expect("Failed to run cargo search");
 
-    // Convert cargo search output into a str
-    let remote_version_str = str::from_utf8(&cargo_search_output.stdout)
-        .expect("Failed to convert cargo search output into a str");
+    // Cargo search returns an empty string in case of a crate not present on
+    // crates.io
+    if cargo_search_output.stdout.is_empty() {
+        None
+    } else {
+        // Convert cargo search output into a str
+        let remote_version_str = str::from_utf8(&cargo_search_output.stdout)
+            .expect("Failed to convert cargo search output into a str");
 
-    // Extract only the remote crate version from str
-    let (remote_version, _) = remote_version_str
-        .split_once('=')
-        .map(|(_, second)| second.trim_start().split_once(' '))
-        .flatten()
-        .expect("Failed to get remote crate version");
-
-    remote_version.trim_matches('"').to_string()
+        // Extract only the remote crate version from str
+        remote_version_str
+            .split_once('=')
+            .and_then(|(_, second)| second.trim_start().split_once(' '))
+            .map(|(s, _)| s.trim_matches('"').to_string())
+    }
 }
 
 // If stdout is not empty, write it, otherwise
@@ -100,7 +113,7 @@ fn publish(crate_name: String) {
 fn main() {
     // Get crate name
     let crate_name = env::args()
-        .nth(1)
+        .nth(1) // Index of the first argument, because 0 is the binary name
         .expect("You need to pass the crate name as first argument!");
 
     println!("Publishing {crate_name}...\n");
@@ -112,15 +125,23 @@ fn main() {
     println!("{crate_name} local version: {local_version}");
 
     // Retrieve remote version for crate
-    let remote_version = remote_version(&crate_name);
+    //
+    // If remote version is None, the crate will be published for the first time
+    // on crates.io
+    if let Some(remote_version) = remote_version(&crate_name) {
+        // Print local version for crate
+        println!("{crate_name} remote version: {remote_version}\n");
 
-    // Print local version for crate
-    println!("{crate_name} remote version: {remote_version}\n");
-
-    // If local and remote versions are equal, do not publish
-    if local_version == remote_version {
-        println!("Remote version {remote_version} is up to date, skipping deployment");
+        // If local and remote versions are equal, do not publish
+        if local_version == remote_version {
+            println!("Remote version {remote_version} is up to date, skipping deployment");
+        } else {
+            // Publish crate
+            publish(crate_name);
+        }
     } else {
+        // Print crate publishing message
+        println!("\nFirst time publishing {crate_name} on crates.io!\n");
         // Publish crate
         publish(crate_name);
     }
