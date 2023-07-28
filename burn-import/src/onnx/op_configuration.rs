@@ -254,9 +254,9 @@ fn padding_config(pads: &[i64]) -> PaddingConfig2d {
     let [left, top, right, bottom] = [pads[0], pads[1], pads[2], pads[3]];
 
     if left < 0 || top < 0 || right < 0 || bottom < 0 {
-        panic!("Padding cannot be negative");
+        panic!("Negative pad values are not supported");
     } else if (left != right) || (top != bottom) {
-        panic!("Padding must be symmetric");
+        panic!("Asymmetric padding is not supported");
     } else if left == top && top == right && right == bottom && bottom == 0 {
         // i.e [0, 0, 0, 0]
         PaddingConfig2d::Valid
