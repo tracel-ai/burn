@@ -29,6 +29,9 @@ pub enum ParseError {
 
 /// Open an onnx file and convert it to a Graph (intermediate representation)
 pub fn parse_onnx(onnx_path: &Path) -> ONNXGraph {
+
+    log::info!("Parsing ONNX file: {}", onnx_path.display());
+
     // Open the file
     let mut file = File::open(onnx_path).expect("Unable to open file");
     let onnx_model: ModelProto =
@@ -69,6 +72,8 @@ pub fn parse_onnx(onnx_path: &Path) -> ONNXGraph {
 
     // Infer shapes and update the inputs and outputs
     dim_inference(&mut nodes, &inputs, &mut outputs);
+
+    log::info!("Finished parsing ONNX file: {}", onnx_path.display());
 
     ONNXGraph {
         nodes,
