@@ -138,7 +138,7 @@ where
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        kernel::matmul::tile_vectorized::matmul_tiling_2d_default(lhs, rhs)
+        kernel::matmul::contiguous_vectorized::matmul_tiling_2d_default(lhs, rhs)
     }
 
     fn swap_dims<const D: usize>(
