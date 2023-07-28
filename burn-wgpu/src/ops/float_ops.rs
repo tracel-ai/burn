@@ -11,7 +11,7 @@ use crate::{
 };
 use burn_common::rand::get_seeded_rng;
 use burn_tensor::ElementConversion;
-use burn_tensor::{backend::Backend, ops::TensorOps, Data, Distribution, Shape};
+use burn_tensor::{ops::TensorOps, Data, Distribution, Shape};
 
 use std::ops::Range;
 
@@ -31,9 +31,22 @@ where
     fn random<const D: usize>(
         shape: Shape<D>,
         distribution: Distribution<FloatElem<Self>>,
-        device: &Device<Self>,
-    ) -> FloatTensor<Self, D>{
-        random::<G, F, D>(shape, distribution, device)
+        device: &Device<Self>
+    ) -> FloatTensor<Self, D> {
+        // TODO other distributions than default
+        if let Distribution::Default = distribution {
+            random::<G, F, D>(shape, distribution, device)
+        } else {
+            let mut seed = SEED.lock().unwrap();
+            let mut rng = if let Some(rng_seeded) = seed.as_ref() {
+                rng_seeded.clone()
+            } else {
+                get_seeded_rng()
+            };
+            let tensor = Self::from_data(Data::random(shape, distribution, &mut rng), device);
+            *seed = Some(rng);
+            tensor
+        }
     }
 
     fn shape<const D: usize>(tensor: &FloatTensor<Self, D>) -> Shape<D> {
