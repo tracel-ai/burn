@@ -15,6 +15,7 @@ use crate::{
         node::{
             batch_norm::BatchNormNode,
             binary::BinaryNode,
+            concat::ConcatNode,
             constant::{ConstantNode, ConstantValue},
             conv2d::Conv2dNode,
             linear::LinearNode,
@@ -39,6 +40,7 @@ use crate::{
 use super::{
     from_onnx::parse_onnx,
     ir::{ArgType, Argument, ONNXGraph, State, StateType, Tensor, TensorData},
+    op_configuration::concat_config,
 };
 
 /// Generate code and states from `.onnx` files and save them to the `out_dir`.
@@ -188,6 +190,7 @@ impl ONNXGraph {
                 NodeType::Reshape => graph.register(Self::reshape_conversion(node)),
                 NodeType::Sigmoid => graph.register(Self::sigmoid_conversion(node)),
                 NodeType::Transpose => graph.register(Self::transpose_conversion(node)),
+                NodeType::Concat => graph.register(Self::concat_conversion(node)),
                 _ => panic!("Unsupported node conversion {}", node.node_type),
             }
         }
@@ -211,6 +214,7 @@ impl ONNXGraph {
     }
 
     fn add_conversion(node: Node) -> BinaryNode {
+        // FIXME scalar vs tensor
         let lhs = node.inputs.get(0).unwrap().to_tensor_type();
         let rhs = node.inputs.get(1).unwrap().to_tensor_type();
         let output = node.outputs.get(0).unwrap().to_tensor_type();
@@ -219,6 +223,7 @@ impl ONNXGraph {
     }
 
     fn sub_conversion(node: Node) -> BinaryNode {
+        // FIXME scalar vs tensor
         let lhs = node.inputs.get(0).unwrap().to_tensor_type();
         let rhs = node.inputs.get(1).unwrap().to_tensor_type();
         let output = node.outputs.get(0).unwrap().to_tensor_type();
@@ -227,6 +232,7 @@ impl ONNXGraph {
     }
 
     fn mul_conversion(node: Node) -> BinaryNode {
+        // FIXME scalar vs tensor
         let lhs = node.inputs.get(0).unwrap().to_tensor_type();
         let rhs = node.inputs.get(1).unwrap().to_tensor_type();
         let output = node.outputs.get(0).unwrap().to_tensor_type();
@@ -305,6 +311,19 @@ impl ONNXGraph {
         let dim = log_softmax_config(&node);
 
         UnaryNode::log_softmax(input, output, dim)
+    }
+
+    fn concat_conversion(node: Node) -> ConcatNode {
+        let inputs = node
+            .inputs
+            .iter()
+            .map(|input| input.to_tensor_type())
+            .collect();
+
+        let output = node.outputs.get(0).unwrap().to_tensor_type();
+        let dim = concat_config(&node);
+
+        ConcatNode::new(inputs, output, dim)
     }
 
     fn linear_conversion<PS: PrecisionSettings>(mut node: Node) -> LinearNode<PS> {
