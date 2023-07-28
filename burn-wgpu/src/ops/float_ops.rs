@@ -1,5 +1,5 @@
 use super::{numeric, BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor};
-use crate::kernel::prng::random;
+use crate::kernel::prng::random_default;
 use crate::kernel::{
     self, unary_default, unary_inplace_default, unary_scalar_default, unary_scalar_inplace_default,
 };
@@ -31,11 +31,11 @@ where
     fn random<const D: usize>(
         shape: Shape<D>,
         distribution: Distribution<FloatElem<Self>>,
-        device: &Device<Self>
+        device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
         // TODO other distributions than default
         if let Distribution::Default = distribution {
-            random::<G, F, D>(shape, distribution, device)
+            random_default::<G, F, D>(shape, device)
         } else {
             let mut seed = SEED.lock().unwrap();
             let mut rng = if let Some(rng_seeded) = seed.as_ref() {

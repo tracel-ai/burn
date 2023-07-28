@@ -1,5 +1,5 @@
 use burn_common::rand::get_seeded_rng;
-use burn_tensor::{Distribution, Shape};
+use burn_tensor::Shape;
 use rand::Rng;
 
 use crate::{
@@ -27,9 +27,9 @@ fn get_seeds() -> Vec<u32> {
     seeds
 }
 
-pub fn random<G: GraphicsApi, E: WgpuElement, const D: usize>(
+/// Pseudo-random generator for default distribution (uniform in [0,1[)
+pub fn random_default<G: GraphicsApi, E: WgpuElement, const D: usize>(
     shape: Shape<D>,
-    distribution: Distribution<E>,
     device: &WgpuDevice,
 ) -> WgpuTensor<E, D> {
     const WORKGROUP: usize = 32;
