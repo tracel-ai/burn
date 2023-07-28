@@ -66,9 +66,9 @@ mod tests {
         let device = WgpuDevice::default();
 
         let tensor_1 =
-            Tensor::<TestBackend, 2>::random_device(shape.clone(), Distribution::Default, &device);
+            Tensor::<TestBackend, 2>::random_device(shape, Distribution::Default, &device);
         let tensor_2 =
-            Tensor::<TestBackend, 2>::random_device(shape.clone(), Distribution::Default, &device);
+            Tensor::<TestBackend, 2>::random_device(shape, Distribution::Default, &device);
         for i in 0..20 {
             assert!(tensor_1.to_data().value[i] != tensor_2.to_data().value[i]);
         }
