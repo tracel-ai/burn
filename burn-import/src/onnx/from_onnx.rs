@@ -552,7 +552,17 @@ fn lookup_node_by_output(nodes: &Vec<Node>, input: &str) -> Option<Node> {
 
 /// Sort nodes in topological order
 pub fn topsort(nodes: &Vec<Node>) -> TopologicalSort<Node> {
+    if nodes.is_empty() {
+        panic!("No nodes to sort");
+    }
+
     let mut ts = TopologicalSort::new();
+
+    // If there is only one node, then it is the only dependency
+    if nodes.len() == 1 {
+        ts.insert(nodes[0].clone());
+        return ts;
+    }
 
     for node in nodes.iter() {
         for input in node.inputs.iter() {

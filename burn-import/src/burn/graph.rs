@@ -161,6 +161,8 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
     }
     /// Build the scope state to make sure tensor clones are added where needed.
     fn build_scope(&mut self) {
+        log::debug!("Building the scope nodes len => '{}'", self.nodes.len());
+
         let input = self.nodes.first().unwrap();
 
         fn to_tensor(ty: Type<'_>) -> Option<&TensorType> {
