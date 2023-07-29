@@ -1,44 +1,15 @@
-pytorch2.0.1:ã
-ï	
+pytorch2.0.1:£
+P
 onnx::Concat_0
 onnx::Concat_0/Concat_output_0/Concat"Concat*
-axis 2œ	/Users/dilshod/Projects/burn/burn-import/tests/data/concat/concat.py(14): forward
-/opt/homebrew/lib/python3.11/site-packages/torch/nn/modules/module.py(1488): _slow_forward
-/opt/homebrew/lib/python3.11/site-packages/torch/nn/modules/module.py(1501): _call_impl
-/opt/homebrew/lib/python3.11/site-packages/torch/jit/_trace.py(118): wrapper
-/opt/homebrew/lib/python3.11/site-packages/torch/jit/_trace.py(127): forward
-/opt/homebrew/lib/python3.11/site-packages/torch/nn/modules/module.py(1501): _call_impl
-/opt/homebrew/lib/python3.11/site-packages/torch/jit/_trace.py(1268): _get_trace_graph
-/opt/homebrew/lib/python3.11/site-packages/torch/onnx/utils.py(893): _trace_and_get_graph_from_model
-/opt/homebrew/lib/python3.11/site-packages/torch/onnx/utils.py(989): _create_jit_graph
-/opt/homebrew/lib/python3.11/site-packages/torch/onnx/utils.py(1113): _model_to_graph
-/opt/homebrew/lib/python3.11/site-packages/torch/onnx/utils.py(1548): _export
-/opt/homebrew/lib/python3.11/site-packages/torch/onnx/utils.py(506): export
-/Users/dilshod/Projects/burn/burn-import/tests/data/concat/concat.py(28): main
-/Users/dilshod/Projects/burn/burn-import/tests/data/concat/concat.py(32): <module>
-
-š
-
+axis 
+{
 onnx::Concat_0
 /Concat_output_0
 /Concat_output_0
 /Concat_output_0
 /Concat_output_02	/Concat_1"Concat*
-axis 2œ	/Users/dilshod/Projects/burn/burn-import/tests/data/concat/concat.py(17): forward
-/opt/homebrew/lib/python3.11/site-packages/torch/nn/modules/module.py(1488): _slow_forward
-/opt/homebrew/lib/python3.11/site-packages/torch/nn/modules/module.py(1501): _call_impl
-/opt/homebrew/lib/python3.11/site-packages/torch/jit/_trace.py(118): wrapper
-/opt/homebrew/lib/python3.11/site-packages/torch/jit/_trace.py(127): forward
-/opt/homebrew/lib/python3.11/site-packages/torch/nn/modules/module.py(1501): _call_impl
-/opt/homebrew/lib/python3.11/site-packages/torch/jit/_trace.py(1268): _get_trace_graph
-/opt/homebrew/lib/python3.11/site-packages/torch/onnx/utils.py(893): _trace_and_get_graph_from_model
-/opt/homebrew/lib/python3.11/site-packages/torch/onnx/utils.py(989): _create_jit_graph
-/opt/homebrew/lib/python3.11/site-packages/torch/onnx/utils.py(1113): _model_to_graph
-/opt/homebrew/lib/python3.11/site-packages/torch/onnx/utils.py(1548): _export
-/opt/homebrew/lib/python3.11/site-packages/torch/onnx/utils.py(506): export
-/Users/dilshod/Projects/burn/burn-import/tests/data/concat/concat.py(28): main
-/Users/dilshod/Projects/burn/burn-import/tests/data/concat/concat.py(32): <module>
-	torch_jitZ)
+axis 	torch_jitZ)
 onnx::Concat_0
 
 

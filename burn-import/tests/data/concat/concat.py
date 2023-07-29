@@ -26,7 +26,7 @@ def main():
     onnx_name = "concat.onnx"
     dummy_input = torch.randn(1,256,13,13, device=device)
     torch.onnx.export(model, dummy_input, onnx_name,
-                      verbose=True, opset_version=16)
+                      verbose=False, opset_version=16)
 
 if __name__ == '__main__':
     main()
