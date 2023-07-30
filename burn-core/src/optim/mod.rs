@@ -5,6 +5,7 @@ pub mod decay;
 pub mod momentum;
 
 mod adam;
+mod adamw;
 mod base;
 mod grad_accum;
 mod grads;

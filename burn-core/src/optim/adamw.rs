@@ -12,13 +12,13 @@ use crate::optim::adaptor::OptimizerAdaptor;
 use crate::tensor::{backend::ADBackend, Tensor};
 use burn_tensor::{backend::Backend, ElementConversion};
 
-/// Adam configuration.
+/// AdamW configuration.
 #[derive(Config)]
-pub struct AdamConfig {
-    /// Parameter for Adam.
+pub struct AdamWConfig {
+    /// Parameter for AdamW.
     #[config(default = 0.9)]
     beta_1: f32,
-    /// Parameter for Adam.
+    /// Parameter for AdamW.
     #[config(default = 0.999)]
     beta_2: f32,
     /// A value required for numerical stability.
@@ -30,31 +30,37 @@ pub struct AdamConfig {
     grad_clipping: Option<GradientClippingConfig>,
 }
 
-/// Adam optimizer as described in the paper [Adam: A Method for Stochastic Optimization](https://arxiv.org/pdf/1412.6980.pdf).
-pub struct Adam<B: Backend> {
-    momentum: AdaptiveMomentumDecoupled,
+/// AdamW optimizer as described in the paper [Decoupled Weight Decay Regularization, Loshchilov and Hutter, 2019](https://arxiv.org/abs/1711.05101).
+pub struct AdamW<B: Backend> {
+    momentum: AdaptiveMomentum,
     weight_decay: Option<WeightDecay<B>>,
 }
 
-/// Adam state.
+/// AdamW state.
 #[derive(Record, Clone, new)]
-pub struct AdamState<B: Backend, const D: usize> {
+pub struct AdamWState<B: Backend, const D: usize> {
     weight_decay: Option<WeightDecayState<B, D>>,
     momentum: AdaptiveMomentumState<B, D>,
 }
 
-impl<B: Backend> SimpleOptimizer<B> for Adam<B> {
-    type State<const D: usize> = AdamState<B, D>;
+impl<B: Backend> SimpleOptimizer<B> for AdamW<B> {
+    type State<const D: usize> = AdamWState<B, D>;
 
+    /// A single optimization step for any tensor that represents the parameters of a model.
     fn step<const D: usize>(
         &self,
+        // Learning rate.
         lr: LearningRate,
+        // Any tensor that represents the parameters of a model.
         tensor: Tensor<B, D>,
+        // Gradient of the loss w.r.t. the parameters.
         mut grad: Tensor<B, D>,
+        // State of the optimizer.
         state: Option<Self::State<D>>,
     ) -> (Tensor<B, D>, Option<Self::State<D>>) {
         let mut state_weight_decay = None;
         let mut state_momentum = None;
+        let mut tensor_out = tensor.clone();
 
         if let Some(state) = state {
             state_weight_decay = state.weight_decay;
@@ -65,14 +71,18 @@ impl<B: Backend> SimpleOptimizer<B> for Adam<B> {
             let (grad_out, state) = weight_decay.transform(grad, state_weight_decay);
             state_weight_decay = Some(state);
             grad = grad_out;
+
+            let (tensor_transformed, state) = self.momentum.transform(tensor.clone(), state_momentum);
+            state_momentum = Some(state);
+            tensor_out = tensor_transformed.mul_scalar(lr);
         }
 
         let (grad, state_momentum) = self.momentum.transform(grad, state_momentum);
 
-        let state = AdamState::new(state_weight_decay, state_momentum);
+        let state = AdamWState::new(state_weight_decay, state_momentum);
         let delta = grad.mul_scalar(lr);
 
-        (tensor - delta, Some(state))
+        (tensor_out - delta, Some(state))
     }
 
     fn to_device<const D: usize>(
@@ -85,15 +95,15 @@ impl<B: Backend> SimpleOptimizer<B> for Adam<B> {
     }
 }
 
-impl AdamConfig {
-    /// Initialize Adam optimizer.
+impl AdamWConfig {
+    /// Initialize AdamW optimizer.
     ///
     /// # Returns
     ///
     /// Returns an optimizer that can be used to optimize a module.
     pub fn init<B: ADBackend, M: ADModule<B>>(&self) -> impl Optimizer<M, B> {
-        let optim = Adam {
-            momentum: AdaptiveMomentumDecoupled {
+        let optim = AdamW {
+            momentum: AdaptiveMomentum {
                 beta_1: self.beta_1,
                 beta_2: self.beta_2,
                 epsilon: self.epsilon,
@@ -117,19 +127,19 @@ pub struct AdaptiveMomentumState<B: Backend, const D: usize> {
     moment_2: Tensor<B, D>,
 }
 
-struct AdaptiveMomentumDecoupled {
+struct AdaptiveMomentum {
     beta_1: f32,
     beta_2: f32,
     epsilon: f32,
 }
 
-impl AdaptiveMomentumDecoupled {
+impl AdaptiveMomentum {
     pub fn transform<B: Backend, const D: usize>(
         &self,
         grad: Tensor<B, D>,
-        momentum_state: Option<AdaptiveMomentumState<B, D>>,
+        state: Option<AdaptiveMomentumState<B, D>>,
     ) -> (Tensor<B, D>, AdaptiveMomentumState<B, D>) {
-        let state = if let Some(mut state) = momentum_state {
+        let state = if let Some(mut state) = state {
             let factor = 1.0 - self.beta_1;
             state.moment_1 = state
                 .moment_1
@@ -237,14 +247,14 @@ mod tests {
             [0.6294, 0.0940, 0.8176, 0.8824, 0.5228, 0.4310],
             [0.7152, 0.9559, 0.7893, 0.5684, 0.5939, 0.8883],
         ])
-        .require_grad();
+            .require_grad();
         let x_2 = Tensor::from_floats([
             [0.8491, 0.2108, 0.8939, 0.4433, 0.5527, 0.2528],
             [0.3270, 0.0412, 0.5538, 0.9605, 0.3195, 0.9085],
         ])
-        .require_grad();
+            .require_grad();
 
-        let mut optimizer = AdamConfig::new()
+        let mut optimizer = AdamWConfig::new()
             .with_epsilon(1e-8)
             .with_beta_1(0.9)
             .with_beta_2(0.999)
@@ -300,17 +310,17 @@ mod tests {
         }
     }
 
-    fn create_adam() -> OptimizerAdaptor<Adam<TestBackend>, nn::Linear<TestADBackend>, TestADBackend>
+    fn create_adam() -> OptimizerAdaptor<AdamW<TestBackend>, nn::Linear<TestADBackend>, TestADBackend>
     {
-        let config = AdamConfig::new();
-        Adam {
-            momentum: AdaptiveMomentumDecoupled {
+        let config = AdamWConfig::new();
+        AdamW {
+            momentum: AdaptiveMomentum {
                 beta_1: config.beta_1,
                 beta_2: config.beta_2,
                 epsilon: config.epsilon,
             },
             weight_decay: config.weight_decay.as_ref().map(WeightDecay::new),
         }
-        .into()
+            .into()
     }
 }
