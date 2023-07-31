@@ -52,15 +52,14 @@ impl<B: Backend> SimpleOptimizer<B> for AdamW<B> {
         // Learning rate.
         lr: LearningRate,
         // Any tensor that represents the parameters of a model.
-        tensor: Tensor<B, D>,
+        mut tensor: Tensor<B, D>,
         // Gradient of the loss w.r.t. the parameters.
-        mut grad: Tensor<B, D>,
+        grad: Tensor<B, D>,
         // State of the optimizer.
         state: Option<Self::State<D>>,
     ) -> (Tensor<B, D>, Option<Self::State<D>>) {
         let mut state_weight_decay = None;
         let mut state_momentum = None;
-        let mut tensor_out = tensor.clone();
 
         if let Some(state) = state {
             state_weight_decay = state.weight_decay;
@@ -68,13 +67,9 @@ impl<B: Backend> SimpleOptimizer<B> for AdamW<B> {
         }
 
         if let Some(weight_decay) = &self.weight_decay {
-            let (grad_out, state) = weight_decay.transform(grad, state_weight_decay);
+            let (tensor_transformed, state) = weight_decay.transform(tensor.clone(), state_weight_decay);
             state_weight_decay = Some(state);
-            grad = grad_out;
-
-            let (tensor_transformed, state) = self.momentum.transform(tensor.clone(), state_momentum);
-            state_momentum = Some(state);
-            tensor_out = tensor_transformed.mul_scalar(lr);
+            tensor = tensor - tensor_transformed.mul_scalar(lr);
         }
 
         let (grad, state_momentum) = self.momentum.transform(grad, state_momentum);
@@ -82,7 +77,7 @@ impl<B: Backend> SimpleOptimizer<B> for AdamW<B> {
         let state = AdamWState::new(state_weight_decay, state_momentum);
         let delta = grad.mul_scalar(lr);
 
-        (tensor_out - delta, Some(state))
+        (tensor - delta, Some(state))
     }
 
     fn to_device<const D: usize>(
