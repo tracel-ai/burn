@@ -32,7 +32,7 @@ pub fn random_default<G: GraphicsApi, E: WgpuElement, const D: usize>(
     const N_VALUES_PER_THREAD: u32 = 100;
     let num_elems = shape.num_elements();
     let num_threads = f32::ceil(num_elems as f32 / N_VALUES_PER_THREAD as f32);
-    let num_invocations = f32::ceil(num_threads as f32 / (WORKGROUP * WORKGROUP) as f32);
+    let num_invocations = f32::ceil(num_threads / (WORKGROUP * WORKGROUP) as f32);
     let workgroup_x = f32::ceil(f32::sqrt(num_invocations));
     let workgroup_y = f32::ceil(num_invocations / workgroup_x);
     let workgroup = WorkGroup::new(workgroup_x as u32, workgroup_y as u32, 1);
