@@ -4,7 +4,11 @@ var<storage, read_write> output: array<{{ elem }}>;
 
 @group(0)
 @binding(1)
-var<storage, read> info: array<u32>;
+var<storage, read> info: array<u32, 5>;
+
+@group(0)
+@binding(2)
+var<storage, read> args: array<{{ elem }}, 2>;
 
 @compute
 @workgroup_size({{ workgroup_size_x }}, {{ workgroup_size_y }}, 1)
@@ -35,7 +39,13 @@ fn main(
         state[3u] = lcg_step(state[3u]);
         let hybrid_taus = state[0u] ^ state[1u] ^ state[2u] ^ state[3u];
         let write_index = wg_offset * n_values_per_thread + local_id + i * n_threads_per_workgroup;
-        output[write_index] = cast_float(hybrid_taus);
+        let float = cast_float(hybrid_taus);
+
+        let low = args[0];
+        let high = args[1];
+        let scale = high - low;
+        let bias = low;
+        output[write_index] = float * scale + bias;
     }
 }
 
