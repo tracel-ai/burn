@@ -5,6 +5,7 @@ use burn_tensor::ops::IntTensorOps;
 use core::ops::Range;
 
 // Current crate
+use crate::element::ExpElement;
 use crate::element::FloatNdArrayElement;
 use crate::NdArrayDevice;
 use crate::{tensor::NdArrayTensor, NdArrayBackend};
@@ -355,5 +356,11 @@ impl<E: FloatNdArrayElement> IntTensorOps<NdArrayBackend<E>> for NdArrayBackend<
         max: i64,
     ) -> NdArrayTensor<i64, D> {
         NdArrayMathOps::clamp(tensor, min, max)
+    }
+
+    fn int_abs<const D: usize>(tensor: NdArrayTensor<i64, D>) -> NdArrayTensor<i64, D> {
+        let array = tensor.array.mapv_into(|a| a.int_abs_elem()).into_shared();
+
+        NdArrayTensor::new(array)
     }
 }

@@ -83,4 +83,9 @@ where
     pub fn float(self) -> Tensor<B, D, Float> {
         Tensor::<B, D, Float>::from_data(self.into_data().convert())
     }
+
+    /// Applies element wise absolute value operation.
+    pub fn abs(self) -> Self {
+        Self::new(B::int_abs(self.primitive))
+    }
 }
