@@ -205,7 +205,7 @@ mod tests {
     const LEARNING_RATE: LearningRate = 0.01;
 
     #[test]
-    fn test_adam_optimizer_save_load_state() {
+    fn test_adamw_optimizer_save_load_state() {
         let linear = nn::LinearConfig::new(6, 6).init();
         let x = Tensor::<TestADBackend, 2>::random([2, 6], Distribution::Default);
         let mut optimizer = create_adamw();
@@ -226,7 +226,7 @@ mod tests {
     }
 
     #[test]
-    fn test_adam_optimizer_with_numbers() {
+    fn test_adamw_optimizer_with_numbers() {
         let linear = given_linear_layer(
             Data::from([
                 [-0.3206, 0.1374, 0.4043, 0.3200, 0.0859, 0.0671],
