@@ -1,7 +1,7 @@
 use super::{
-    batch_norm::BatchNormNode, binary::BinaryNode, constant::ConstantNode, conv2d::Conv2dNode,
-    linear::LinearNode, matmul::MatmulNode, max_pool2d::MaxPool2dNode, reshape::ReshapeNode,
-    unary::UnaryNode,
+    batch_norm::BatchNormNode, binary::BinaryNode, concat::ConcatNode, constant::ConstantNode,
+    conv2d::Conv2dNode, linear::LinearNode, matmul::MatmulNode, max_pool2d::MaxPool2dNode,
+    reshape::ReshapeNode, unary::UnaryNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::record::PrecisionSettings;
@@ -80,12 +80,14 @@ pub enum Node<PS: PrecisionSettings> {
     Constant(ConstantNode),
     Unary(UnaryNode),
     Reshape(ReshapeNode),
+    Concat(ConcatNode),
 }
 
 macro_rules! match_all {
     ($self:expr, $func:expr) => {{
         match $self {
             Node::Matmul(node) => $func(node),
+            Node::Concat(node) => $func(node),
             Node::Conv2d(node) => $func(node),
             Node::MaxPool2d(node) => $func(node),
             Node::Linear(node) => $func(node),
@@ -111,6 +113,7 @@ impl<PS: PrecisionSettings> Node<PS> {
     pub fn name(&self) -> &str {
         match self {
             Node::Matmul(_) => "matmul",
+            Node::Concat(_) => "concat",
             Node::Constant(_) => "constant",
             Node::Conv2d(_) => "conv2d",
             Node::MaxPool2d(_) => "max_pool2d",
