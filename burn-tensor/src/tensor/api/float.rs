@@ -72,11 +72,6 @@ where
         Self::new(B::sqrt(self.primitive))
     }
 
-    /// Applies element wise absolute value operation.
-    pub fn abs(self) -> Self {
-        Self::new(B::abs(self.primitive))
-    }
-
     /// Applies element wise cosine operation.
     pub fn cos(self) -> Self {
         Self::new(B::cos(self.primitive))
