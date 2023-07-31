@@ -88,6 +88,8 @@ pub fn dim_inference(
             NodeType::Transpose => same_as_input(node),
             NodeType::Concat => concat_update_outputs(node),
             NodeType::Reshape => reshape_update_outputs(node),
+            NodeType::Dropout => same_as_input(node),
+            NodeType::GlobalAveragePool => same_as_input(node), //FIXME use correct output
             _ => todo!(
                 "shape inference for {:?} is not implemented",
                 node.node_type

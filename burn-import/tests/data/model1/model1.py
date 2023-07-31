@@ -32,7 +32,7 @@ def main():
     device = torch.device("cpu")
     dummy_input = torch.randn(1, 1, 8, 8, device=device)
     torch.onnx.export(model, dummy_input, "model1.onnx",
-                      verbose=True, opset_version=16)
+                      verbose=False, opset_version=16)
 
     # Apply the optimization pass to simplify the model
     onnx_model = onnx.load("model1.onnx")
