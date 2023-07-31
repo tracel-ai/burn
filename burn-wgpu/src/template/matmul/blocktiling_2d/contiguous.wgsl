@@ -1,3 +1,4 @@
+
 @group(0)
 @binding(0)
 var<storage, read> lhs: array<{{ elem }}>;
@@ -37,6 +38,9 @@ fn main(
     let skip_col = workgroup_id.y * B_N;
 
     let n_thread_per_row = ((B_N - 1u) / T_N) + 1u;
+    let n_thread_per_col = ((B_M - 1u) / T_M) + 1u;
+    let n_threads = n_thread_per_row * n_thread_per_col;
+
     let thread_row = (local_idx / n_thread_per_row) * T_M;
     let thread_col = (local_idx % n_thread_per_row) * T_N;
     
@@ -80,11 +84,9 @@ fn main(
     var register_M: array<{{ elem }}, T_M>;
     var register_N: array<{{ elem }}, T_N>;
 
-    let thread_offset = local_idx * T_M_X_T_N;
-
     for (var k = 0u; k < K; k += B_K) {
         for (var load_index = 0u; load_index < T_M_X_T_N; load_index ++) {
-            let lhs_sm_position = thread_offset + load_index;
+            let lhs_sm_position = local_idx + load_index * n_threads;
             let block_row = lhs_sm_position / B_K;
             let block_col = lhs_sm_position % B_K;
             let lhs_position = offset_lhs + block_row * lhs_stride_row + (k + block_col) * lhs_stride_col;
@@ -101,7 +103,7 @@ fn main(
         }
 
         for (var load_index = 0u; load_index < T_M_X_T_N; load_index ++) {
-            let rhs_sm_position = thread_offset + load_index;
+            let rhs_sm_position = local_idx + load_index * n_threads;
             let block_row = rhs_sm_position / B_N;
             let block_col = rhs_sm_position % B_N;
             let rhs_position = offset_rhs + (k + block_row) * rhs_stride_row + block_col * rhs_stride_col;

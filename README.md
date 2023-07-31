@@ -281,6 +281,16 @@ recommended to read our
 [architecture document](https://github.com/burn-rs/burn/tree/main/ARCHITECTURE.md), which explains
 our architectural decisions. Please see more details in our [contributing guide](/CONTRIBUTING.md).
 
+## CI
+
+### Publish crates
+
+Compile `scripts/publish.rs` using this command:
+
+```
+rustc scripts/publish.rs --crate-type bin --out-dir scripts
+```
+
 ## Disclamer
 
 Burn is currently in active development, and there will be breaking changes. While any resulting

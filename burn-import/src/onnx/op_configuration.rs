@@ -28,10 +28,10 @@ pub fn attr_value_f32(value: &AttributeValue, target: &mut f32) {
 /// Create a Conv2dConfig from the attributes of the node
 pub fn conv2d_config(curr: &Node) -> Conv2dConfig {
     let mut kernel_shape = Vec::new();
-    let mut strides = Vec::new();
+    let mut strides = vec![1, 1];
     let mut pads = Vec::new();
-    let mut dilations = Vec::new();
-    let mut group: i64 = 0;
+    let mut dilations = vec![1, 1];
+    let mut group: i64 = 1;
 
     // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
     let StateType::Tensor(tensor) = curr.states.get(0).unwrap().clone().ty;
@@ -56,22 +56,13 @@ pub fn conv2d_config(curr: &Node) -> Conv2dConfig {
 
     let padding = padding_config(&pads);
 
-    if strides.iter().all(|&x| x != 1) {
-        todo!("Conv2d: strides({strides:?}) are not fully supported");
-    };
-
-    if dilations.iter().all(|&x| x != 1) {
-        todo!("Conv2d: dilations({dilations:?}) are not fully supported");
-    };
-
-    if group != 1 {
-        todo!("Conv2d: group ({group}) is not fully supported");
-    };
-
     Conv2dConfig::new(
         channels,
         [kernel_shape[0] as usize, kernel_shape[1] as usize],
     )
+    .with_stride([strides[0] as usize, strides[1] as usize])
+    .with_dilation([dilations[0] as usize, dilations[1] as usize])
+    .with_groups(group as usize)
     .with_bias(bias)
     .with_padding(padding)
 }
@@ -240,17 +231,40 @@ pub fn batch_norm_config(node: &Node) -> BatchNormConfig {
         .with_momentum(momentum as f64)
 }
 
+/// Calculate the padding configuration for a 2D operations such as Convolution and Pooling.
+///
+/// # Arguments
+///
+/// * `pads` - The padding values
+///
+/// # Panics
+///
+/// * If the padding is negative
+/// * If the padding is not symmetric
+///
+/// # Returns
+///
+/// * The padding configuration
+///
+/// # Remarks
+///
+/// This function is used when the padding is specified as a list of integers,
+/// and not used when the padding is specified as a string, e.g. "SAME_UPPER".
 fn padding_config(pads: &[i64]) -> PaddingConfig2d {
-    if pads.iter().all(|&x| x == 0) {
+    let [left, top, right, bottom] = [pads[0], pads[1], pads[2], pads[3]];
+
+    if left < 0 || top < 0 || right < 0 || bottom < 0 {
+        panic!("Negative pad values are not supported");
+    } else if (left != right) || (top != bottom) {
+        panic!("Asymmetric padding is not supported");
+    } else if left == top && top == right && right == bottom && bottom == 0 {
+        // i.e [0, 0, 0, 0]
         PaddingConfig2d::Valid
-    } else if (pads[0] == pads[1]) == (pads[2] == pads[3]) {
-        // i.e [2, 2, 2, 2]
-        PaddingConfig2d::Explicit(pads[0] as usize, pads[0] as usize)
-    } else if pads[0] == pads[1] && pads[2] == pads[3] {
-        // i.e [2, 2, 3, 3]
-        PaddingConfig2d::Explicit(pads[0] as usize, pads[2] as usize)
+    } else if left == right && top == bottom {
+        // i.e [2, 3, 2, 3]
+        PaddingConfig2d::Explicit(left as usize, top as usize)
     } else {
-        // All other cases, same as input
-        PaddingConfig2d::Same
+        // Unaccounted for padding configuration
+        panic!("Padding configuration ({:?}) not supported", pads);
     }
 }

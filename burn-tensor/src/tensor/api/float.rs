@@ -7,6 +7,7 @@ use crate::check::TensorCheck;
 use crate::tensor::backend::Backend;
 use crate::tensor::stats;
 use crate::tensor::{Data, Distribution, Shape};
+use crate::Int;
 use crate::Tensor;
 
 impl<const D: usize, B> Tensor<B, D>
@@ -101,6 +102,24 @@ where
     /// ```
     pub fn from_floats<A: Into<Data<f32, D>>>(floats: A) -> Self {
         Self::from_data(floats.into().convert())
+    }
+
+    /// Returns a new tensor with the same shape and device as the current tensor and the data
+    /// casted to Integer.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let float_tensor = Tensor::<B, 1>::from_floats([1.0, 2.0]);
+    ///     let int_tensor = float_tensor.int();
+    /// }
+    /// ```
+    pub fn int(self) -> Tensor<B, D, Int> {
+        Tensor::<B, D, Int>::from_data(self.into_data().convert())
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor filled with zeros.

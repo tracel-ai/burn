@@ -13,18 +13,15 @@ use crate::{
     burn::{
         graph::BurnGraph,
         node::{
-            add::AddNode,
             batch_norm::BatchNormNode,
+            binary::BinaryNode,
             constant::{ConstantNode, ConstantValue},
             conv2d::Conv2dNode,
-            equal::EqualNode,
-            flatten::FlattenNode,
             linear::LinearNode,
-            log_softmax::LogSoftmaxNode,
             matmul::MatmulNode,
             max_pool2d::MaxPool2dNode,
-            relu::ReLUNode,
-            sigmoid::SigmoidNode,
+            reshape::ReshapeNode,
+            unary::UnaryNode,
         },
         TensorType,
     },
@@ -155,6 +152,10 @@ impl ONNXGraph {
         for node in self.nodes {
             match node.node_type {
                 NodeType::Add => graph.register(Self::add_conversion(node)),
+                NodeType::Sub => graph.register(Self::sub_conversion(node)),
+                NodeType::Mul => graph.register(Self::mul_conversion(node)),
+                NodeType::Div => graph.register(Self::div_conversion(node)),
+                NodeType::Equal => graph.register(Self::equal_conversion(node)),
                 NodeType::Conv2d => graph.register(Self::conv2d_conversion::<PS>(node)),
                 NodeType::MaxPool2d => graph.register(Self::max_pool2d_conversion(node)),
                 NodeType::MatMul => graph.register(Self::matmul_conversion(node)),
@@ -166,8 +167,9 @@ impl ONNXGraph {
                 NodeType::Flatten => graph.register(Self::flatten_conversion(node)),
                 NodeType::LogSoftmax => graph.register(Self::log_softmax_conversion(node)),
                 NodeType::Constant => graph.register(Self::constant_conversion(node)),
-                NodeType::Equal => graph.register(Self::equal_conversion(node)),
+                NodeType::Reshape => graph.register(Self::reshape_conversion(node)),
                 NodeType::Sigmoid => graph.register(Self::sigmoid_conversion(node)),
+                NodeType::Transpose => graph.register(Self::transpose_conversion(node)),
                 _ => panic!("Unsupported node conversion {}", node.node_type),
             }
         }
@@ -190,12 +192,36 @@ impl ONNXGraph {
         ConstantNode::new(output.name.clone(), value)
     }
 
-    fn add_conversion(node: Node) -> AddNode {
+    fn add_conversion(node: Node) -> BinaryNode {
         let lhs = node.inputs.get(0).unwrap().to_tensor_type();
         let rhs = node.inputs.get(1).unwrap().to_tensor_type();
         let output = node.outputs.get(0).unwrap().to_tensor_type();
 
-        AddNode::new(lhs, rhs, output)
+        BinaryNode::add(lhs, rhs, output)
+    }
+
+    fn sub_conversion(node: Node) -> BinaryNode {
+        let lhs = node.inputs.get(0).unwrap().to_tensor_type();
+        let rhs = node.inputs.get(1).unwrap().to_tensor_type();
+        let output = node.outputs.get(0).unwrap().to_tensor_type();
+
+        BinaryNode::sub(lhs, rhs, output)
+    }
+
+    fn mul_conversion(node: Node) -> BinaryNode {
+        let lhs = node.inputs.get(0).unwrap().to_tensor_type();
+        let rhs = node.inputs.get(1).unwrap().to_tensor_type();
+        let output = node.outputs.get(0).unwrap().to_tensor_type();
+
+        BinaryNode::mul(lhs, rhs, output)
+    }
+
+    fn div_conversion(node: Node) -> BinaryNode {
+        let lhs = node.inputs.get(0).unwrap().to_tensor_type();
+        let rhs = node.inputs.get(1).unwrap().to_tensor_type();
+        let output = node.outputs.get(0).unwrap().to_tensor_type();
+
+        BinaryNode::div(lhs, rhs, output)
     }
 
     fn matmul_conversion(node: Node) -> MatmulNode {
@@ -206,42 +232,61 @@ impl ONNXGraph {
         MatmulNode::new(lhs, rhs, output)
     }
 
-    fn equal_conversion(node: Node) -> EqualNode {
+    fn equal_conversion(node: Node) -> BinaryNode {
         let lhs = node.inputs.get(0).unwrap().to_tensor_type();
         let rhs = node.inputs.get(1).unwrap().to_tensor_type();
         let output = node.outputs.get(0).unwrap().to_tensor_type();
 
-        EqualNode::new(lhs, rhs, output)
+        BinaryNode::equal(lhs, rhs, output)
     }
 
-    fn relu_conversion(node: Node) -> ReLUNode {
+    fn relu_conversion(node: Node) -> UnaryNode {
         let input = node.inputs.get(0).unwrap().to_tensor_type();
         let output = node.outputs.get(0).unwrap().to_tensor_type();
 
-        ReLUNode::new(input, output)
+        UnaryNode::relu(input, output)
     }
 
-    fn flatten_conversion(node: Node) -> FlattenNode {
+    fn flatten_conversion(node: Node) -> UnaryNode {
         let input = node.inputs.get(0).unwrap().to_tensor_type();
         let output = node.outputs.get(0).unwrap().to_tensor_type();
         let (start_dim, end_dim) = flatten_config(&node);
 
-        FlattenNode::new(input, output, start_dim, end_dim)
+        UnaryNode::flatten(input, output, start_dim, end_dim)
     }
 
-    fn sigmoid_conversion(node: Node) -> SigmoidNode {
+    fn transpose_conversion(node: Node) -> UnaryNode {
         let input = node.inputs.get(0).unwrap().to_tensor_type();
         let output = node.outputs.get(0).unwrap().to_tensor_type();
 
-        SigmoidNode::new(input, output)
+        UnaryNode::transpose(input, output)
     }
 
-    fn log_softmax_conversion(node: Node) -> LogSoftmaxNode {
+    fn reshape_conversion(mut node: Node) -> ReshapeNode {
+        let input = node.inputs.get(0).unwrap().to_tensor_type();
+        let output = node.outputs.get(0).unwrap().to_tensor_type();
+        let shape = extract_next_data_serialize::<i64>(&mut node).unwrap();
+
+        ReshapeNode::new(
+            input,
+            output,
+            shape.value.iter().map(|item| *item as usize).collect(),
+        )
+    }
+
+    fn sigmoid_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.get(0).unwrap().to_tensor_type();
+        let output = node.outputs.get(0).unwrap().to_tensor_type();
+
+        UnaryNode::sigmoid(input, output)
+    }
+
+    fn log_softmax_conversion(node: Node) -> UnaryNode {
         let input = node.inputs.get(0).unwrap().to_tensor_type();
         let output = node.outputs.get(0).unwrap().to_tensor_type();
         let dim = log_softmax_config(&node);
 
-        LogSoftmaxNode::new(input, output, dim)
+        UnaryNode::log_softmax(input, output, dim)
     }
 
     fn linear_conversion<PS: PrecisionSettings>(mut node: Node) -> LinearNode<PS> {

@@ -1,37 +1,37 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{Scope, TensorType, Type};
+use crate::burn::{Scope, TensorType, ToTokens, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
 
 #[derive(Debug, Clone, new)]
-pub struct AddNode {
-    pub lhs: TensorType,
-    pub rhs: TensorType,
+pub struct ReshapeNode {
+    pub input: TensorType,
     pub output: TensorType,
+    pub shape: Vec<usize>,
 }
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for AddNode {
+impl<PS: PrecisionSettings> NodeCodegen<PS> for ReshapeNode {
     fn output_types(&self) -> Vec<Type> {
         vec![Type::Tensor(&self.output)]
     }
 
     fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(&self.lhs), Type::Tensor(&self.rhs)]
+        vec![Type::Tensor(&self.input)]
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let lhs = scope.tensor_use_owned(&self.lhs, node_position);
-        let rhs = scope.tensor_use_owned(&self.rhs, node_position);
+        let input = scope.tensor_use_owned(&self.input, node_position);
         let output = &self.output.name;
+        let shape_values = &self.shape.to_tokens();
 
         quote! {
-            let #output = #lhs.add(#rhs);
+            let #output = #input.reshape(Shape::new(#shape_values));
         }
     }
 
     fn into_node(self) -> Node<PS> {
-        Node::Add(self)
+        Node::Reshape(self)
     }
 }
 
@@ -42,18 +42,18 @@ mod tests {
     use super::*;
     use crate::burn::{
         graph::BurnGraph,
-        node::{add::AddNode, test::assert_tokens},
+        node::{reshape::ReshapeNode, test::assert_tokens},
         TensorType,
     };
 
     #[test]
-    fn test_codegen_two_nodes() {
+    fn test_codegen_nodes() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
-        graph.register(AddNode::new(
+        graph.register(ReshapeNode::new(
             TensorType::new_float("tensor1", 4),
             TensorType::new_float("tensor2", 4),
-            TensorType::new_float("tensor3", 4),
+            [4, 4, 4, 4].into(),
         ));
 
         let expected = quote! {
@@ -70,10 +70,10 @@ mod tests {
                     Self { }
                 }
                 #[allow(clippy::let_and_return)]
-                pub fn forward(&self, tensor1: Tensor<B, 4>, tensor2: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor3 = tensor1.add(tensor2);
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let tensor2 = tensor1.reshape(Shape::new([4, 4, 4, 4]));
 
-                    tensor3
+                    tensor2
                 }
             }
         };

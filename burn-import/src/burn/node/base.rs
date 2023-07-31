@@ -1,7 +1,7 @@
 use super::{
-    add::AddNode, batch_norm::BatchNormNode, constant::ConstantNode, conv2d::Conv2dNode,
-    equal::EqualNode, flatten::FlattenNode, linear::LinearNode, log_softmax::LogSoftmaxNode,
-    matmul::MatmulNode, max_pool2d::MaxPool2dNode, relu::ReLUNode, sigmoid::SigmoidNode,
+    batch_norm::BatchNormNode, binary::BinaryNode, constant::ConstantNode, conv2d::Conv2dNode,
+    linear::LinearNode, matmul::MatmulNode, max_pool2d::MaxPool2dNode, reshape::ReshapeNode,
+    unary::UnaryNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::record::PrecisionSettings;
@@ -71,35 +71,29 @@ pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
 
 #[derive(Debug)]
 pub enum Node<PS: PrecisionSettings> {
-    Add(AddNode),
+    Binary(BinaryNode),
     Matmul(MatmulNode),
     Conv2d(Conv2dNode<PS>),
     MaxPool2d(MaxPool2dNode),
     Linear(LinearNode<PS>),
     BatchNorm(BatchNormNode<PS>),
-    ReLU(ReLUNode),
-    Flatten(FlattenNode),
-    LogSoftmax(LogSoftmaxNode),
     Constant(ConstantNode),
-    Equal(EqualNode),
-    Sigmoid(SigmoidNode),
+    Unary(UnaryNode),
+    Reshape(ReshapeNode),
 }
 
 macro_rules! match_all {
     ($self:expr, $func:expr) => {{
         match $self {
-            Node::Add(node) => $func(node),
             Node::Matmul(node) => $func(node),
             Node::Conv2d(node) => $func(node),
             Node::MaxPool2d(node) => $func(node),
             Node::Linear(node) => $func(node),
             Node::BatchNorm(node) => $func(node),
-            Node::ReLU(node) => $func(node),
-            Node::Flatten(node) => $func(node),
-            Node::LogSoftmax(node) => $func(node),
             Node::Constant(node) => $func(node),
-            Node::Equal(node) => $func(node),
-            Node::Sigmoid(node) => $func(node),
+            Node::Reshape(node) => $func(node),
+            Node::Unary(node) => $func(node),
+            Node::Binary(node) => $func(node),
         }
     }};
 }
@@ -116,18 +110,15 @@ impl<PS: PrecisionSettings> Serialize for Node<PS> {
 impl<PS: PrecisionSettings> Node<PS> {
     pub fn name(&self) -> &str {
         match self {
-            Node::Add(_) => "add",
             Node::Matmul(_) => "matmul",
             Node::Constant(_) => "constant",
             Node::Conv2d(_) => "conv2d",
             Node::MaxPool2d(_) => "max_pool2d",
             Node::Linear(_) => "linear",
             Node::BatchNorm(_) => "batch_norm",
-            Node::ReLU(_) => "relu",
-            Node::Flatten(_) => "flatten",
-            Node::LogSoftmax(_) => "log_softmax",
-            Node::Equal(_) => "equal",
-            Node::Sigmoid(_) => "sigmoid",
+            Node::Reshape(_) => "reshape",
+            Node::Unary(unary) => unary.kind.as_str(),
+            Node::Binary(binary) => binary.binary_type.as_str(),
         }
     }
 }
@@ -178,16 +169,84 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Node<PS> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use crate::burn::{
+        codegen::ToTokens,
         graph::BurnGraph,
-        node::{conv2d::Conv2dNode, matmul::MatmulNode, test::assert_tokens},
+        node::{conv2d::Conv2dNode, matmul::MatmulNode, test::assert_tokens, NodeCodegen},
         TensorType,
     };
     use burn::{
         nn::conv::Conv2dConfig, nn::PaddingConfig2d, record::FullPrecisionSettings, tensor::Data,
     };
+    use proc_macro2::TokenStream;
     use quote::quote;
+
+    fn one_node_graph<T: NodeCodegen<FullPrecisionSettings> + 'static>(
+        node_gen: T,
+        forward: TokenStream,
+    ) {
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(node_gen);
+
+        let expected = quote! {
+            use burn::{
+                module::Module,
+                tensor::{backend::Backend, Tensor},
+            };
+
+            #[derive(Module, Debug)]
+            pub struct Model <B: Backend>{}
+
+            impl<B: Backend> Model <B> {
+                pub fn new_with(record: ModelRecord<B>) -> Self {
+                    Self { }
+                }
+
+                #[allow(clippy::let_and_return)]
+                #forward
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+
+    pub(crate) fn codegen_unary_operator<
+        const N: usize,
+        T: NodeCodegen<FullPrecisionSettings> + 'static,
+    >(
+        node_gen: T,
+        function: TokenStream,
+    ) {
+        let forward = |function, tensor_dim| {
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, #tensor_dim>) -> Tensor<B, #tensor_dim> {
+                    #function
+                }
+            }
+        };
+
+        one_node_graph(node_gen, forward(function, N.to_tokens()));
+    }
+
+    pub(crate) fn codegen_binary_operator<
+        const N: usize,
+        T: NodeCodegen<FullPrecisionSettings> + 'static,
+    >(
+        node_gen: T,
+        function: TokenStream,
+    ) {
+        let forward = |function, tensor_dim| {
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, #tensor_dim>, tensor2: Tensor<B, #tensor_dim>) -> Tensor<B, #tensor_dim> {
+                    #function
+                }
+            }
+        };
+
+        one_node_graph(node_gen, forward(function, N.to_tokens()));
+    }
 
     #[test]
     fn test_codegen_two_nodes() {
@@ -212,9 +271,9 @@ mod tests {
                 module::Module,
                 tensor::{backend::Backend, Tensor},
             };
-            use burn::nn::PaddingConfig2d;
-            use burn::nn::conv::Conv2d;
             use burn::nn::conv::Conv2dConfig;
+            use burn::nn::conv::Conv2d;
+            use burn::nn::PaddingConfig2d;
 
             #[derive(Module, Debug)]
             pub struct Model <B: Backend> {
