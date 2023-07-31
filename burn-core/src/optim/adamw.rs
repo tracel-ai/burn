@@ -208,7 +208,7 @@ mod tests {
     fn test_adam_optimizer_save_load_state() {
         let linear = nn::LinearConfig::new(6, 6).init();
         let x = Tensor::<TestADBackend, 2>::random([2, 6], Distribution::Default);
-        let mut optimizer = create_adam();
+        let mut optimizer = create_adamw();
         let grads = linear.forward(x).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
         let _linear = optimizer.step(LEARNING_RATE, linear, grads);
@@ -218,7 +218,7 @@ mod tests {
 
         let state_optim_before = optimizer.to_record();
         let state_optim_before_copy = optimizer.to_record();
-        let optimizer = create_adam();
+        let optimizer = create_adamw();
         let optimizer = optimizer.load_record(state_optim_before_copy);
         let state_optim_after = optimizer.to_record();
 
@@ -253,6 +253,9 @@ mod tests {
             .with_epsilon(1e-8)
             .with_beta_1(0.9)
             .with_beta_2(0.999)
+            .with_weight_decay(Some(WeightDecayConfig {
+                penalty: 0.5
+            }))
             .init();
 
         let grads = linear.forward(x_1).backward();
@@ -305,7 +308,7 @@ mod tests {
         }
     }
 
-    fn create_adam() -> OptimizerAdaptor<AdamW<TestBackend>, nn::Linear<TestADBackend>, TestADBackend>
+    fn create_adamw() -> OptimizerAdaptor<AdamW<TestBackend>, nn::Linear<TestADBackend>, TestADBackend>
     {
         let config = AdamWConfig::new();
         AdamW {
