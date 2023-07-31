@@ -423,6 +423,13 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         );
         MaxPool2dBackward::new(ADTensor::new(output.x_grad))
     }
+
+    fn adaptive_avg_pool2d(
+        x: <ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
+        output_size: [usize; 2],
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<4> {
+        todo!()
+    }
 }
 
 #[derive(Debug)]
