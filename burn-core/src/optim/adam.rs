@@ -32,7 +32,7 @@ pub struct AdamConfig {
 
 /// Adam optimizer as described in the paper [Adam: A Method for Stochastic Optimization](https://arxiv.org/pdf/1412.6980.pdf).
 pub struct Adam<B: Backend> {
-    momentum: AdaptiveMomentumDecoupled,
+    momentum: AdaptiveMomentum,
     weight_decay: Option<WeightDecay<B>>,
 }
 
@@ -93,7 +93,7 @@ impl AdamConfig {
     /// Returns an optimizer that can be used to optimize a module.
     pub fn init<B: ADBackend, M: ADModule<B>>(&self) -> impl Optimizer<M, B> {
         let optim = Adam {
-            momentum: AdaptiveMomentumDecoupled {
+            momentum: AdaptiveMomentum {
                 beta_1: self.beta_1,
                 beta_2: self.beta_2,
                 epsilon: self.epsilon,
@@ -117,13 +117,13 @@ pub struct AdaptiveMomentumState<B: Backend, const D: usize> {
     moment_2: Tensor<B, D>,
 }
 
-struct AdaptiveMomentumDecoupled {
+struct AdaptiveMomentum {
     beta_1: f32,
     beta_2: f32,
     epsilon: f32,
 }
 
-impl AdaptiveMomentumDecoupled {
+impl AdaptiveMomentum {
     pub fn transform<B: Backend, const D: usize>(
         &self,
         grad: Tensor<B, D>,
@@ -304,7 +304,7 @@ mod tests {
     {
         let config = AdamConfig::new();
         Adam {
-            momentum: AdaptiveMomentumDecoupled {
+            momentum: AdaptiveMomentum {
                 beta_1: config.beta_1,
                 beta_2: config.beta_2,
                 epsilon: config.epsilon,
