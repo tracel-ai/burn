@@ -29,6 +29,8 @@ pub enum ParseError {
 
 /// Open an onnx file and convert it to a Graph (intermediate representation)
 pub fn parse_onnx(onnx_path: &Path) -> ONNXGraph {
+    log::info!("Parsing ONNX file: {}", onnx_path.display());
+
     // Open the file
     let mut file = File::open(onnx_path).expect("Unable to open file");
     let onnx_model: ModelProto =
@@ -69,6 +71,8 @@ pub fn parse_onnx(onnx_path: &Path) -> ONNXGraph {
 
     // Infer shapes and update the inputs and outputs
     dim_inference(&mut nodes, &inputs, &mut outputs);
+
+    log::info!("Finished parsing ONNX file: {}", onnx_path.display());
 
     ONNXGraph {
         nodes,
@@ -323,6 +327,9 @@ pub fn convert_vec_attrs_proto(attrs: Vec<AttributeProto>) -> Attributes {
 
 pub fn convert_node_proto(node: &NodeProto) -> Node {
     let name = node.name.clone();
+
+    log::debug!("Converting ONNX node with type {:?}", node.op_type.as_str());
+
     let inputs = node
         .input
         .clone()
@@ -332,6 +339,7 @@ pub fn convert_node_proto(node: &NodeProto) -> Node {
             ty: ArgType::Tensor(TensorArg::default()),
         })
         .collect();
+
     let outputs = node
         .output
         .clone()
@@ -343,7 +351,6 @@ pub fn convert_node_proto(node: &NodeProto) -> Node {
         .collect();
     let attrs = convert_vec_attrs_proto(node.attribute.clone());
 
-    log::debug!("Found ONNX node type => {}", node.op_type.as_str());
     let node_type = NodeType::from_str(node.op_type.as_str()).expect("Unknown node type");
 
     let mut node = Node {
