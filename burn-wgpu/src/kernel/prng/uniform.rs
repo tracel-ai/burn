@@ -53,10 +53,11 @@ pub fn random_uniform<G: GraphicsApi, E: WgpuElement, const D: usize>(
 
 #[cfg(test)]
 mod tests {
-    use burn_tensor::{backend::Backend, Distribution, Shape, Tensor};
-    use num_traits::Float;
+    use core::f32;
 
-    use crate::{tests::TestBackend, WgpuDevice};
+    use burn_tensor::{backend::Backend, Distribution, Shape, Tensor};
+
+    use crate::{kernel::prng::base::tests::calculate_bin_stats, tests::TestBackend, WgpuDevice};
 
     #[test]
     fn subsequent_calls_give_different_tensors() {
@@ -95,6 +96,24 @@ mod tests {
     }
 
     #[test]
+    fn at_least_one_value_per_bin_uniform() {
+        TestBackend::seed(0);
+        let shape = [64, 64];
+        let device = WgpuDevice::default();
+
+        let tensor = Tensor::<TestBackend, 2>::random_device(
+            shape,
+            Distribution::Uniform(-5., 10.),
+            &device,
+        );
+        let numbers = tensor.clone().into_data().value;
+        let stats = calculate_bin_stats(numbers, 3, -5., 10.);
+        assert!(stats[0].count >= 1);
+        assert!(stats[1].count >= 1);
+        assert!(stats[2].count >= 1);
+    }
+
+    #[test]
     fn runs_test() {
         TestBackend::seed(0);
         let shape = Shape::new([512, 512]);
@@ -103,27 +122,26 @@ mod tests {
             Tensor::<TestBackend, 2>::random_device(shape.clone(), Distribution::Default, &device);
 
         let numbers = tensor.clone().into_data().value;
-        let mut n_runs = 1;
-        let mut n_0 = 0.;
-        let mut n_1 = 0.;
-        for i in 1..numbers.len() {
-            let bin = numbers[i] < 0.5;
-            match bin {
-                true => n_0 += 1.,
-                false => n_1 += 1.,
-            };
-            let last_bin = numbers[i - 1] < 0.5;
-            if bin != last_bin {
-                n_runs += 1;
-            }
-        }
+        let stats = calculate_bin_stats(numbers, 2, 0., 1.);
+        let n_0 = stats[0].count as f32;
+        let n_1 = stats[1].count as f32;
+        let n_runs = (stats[0].n_runs + stats[1].n_runs) as f32;
 
         let expectation = (2. * n_0 * n_1) / (n_0 + n_1) + 1.0;
         let variance = ((2. * n_0 * n_1) * (2. * n_0 * n_1 - n_0 - n_1))
             / ((n_0 + n_1).powf(2.) * (n_0 + n_1 - 1.));
-        let z = (n_runs as f32 - expectation) / variance.sqrt();
+        let z = (n_runs - expectation) / variance.sqrt();
 
-        // below 2 means we can have good confidence in the randomness
+        // // below 2 means we can have good confidence in the randomness
         assert!(z.abs() < 2.);
     }
 }
+
+// [0,1] 2 bins
+// 0.5
+// 000111010010
+// Bin0: count:7, n_runs: 4
+// Bin1: count:5, n_runs: 3
+// -> combien de run? 4+3
+
+// 011101
