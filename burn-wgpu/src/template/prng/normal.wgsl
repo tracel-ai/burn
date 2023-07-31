@@ -33,17 +33,17 @@ fn main(
 
     let n_values_per_thread = info[0u];
     for (var i = 0u; i < n_values_per_thread / 2u; i++) {
-        var two_numbers = array<{{elem}}, 2>;
+        var units = array<{{elem}}, 2>;
         for (var j = 0u; j < 2u; j++) {
             state[0u] = taus_step(state[0u], 13u, 19u, 12u, 4294967294u);
             state[1u] = taus_step(state[1u], 2u, 25u, 4u, 4294967288u);
             state[2u] = taus_step(state[2u], 3u, 11u, 17u, 4294967280u);
             state[3u] = lcg_step(state[3u]);
             let hybrid_taus = state[0u] ^ state[1u] ^ state[2u] ^ state[3u];
-            two_numbers[j] = cast_float(hybrid_taus);
+            units[j] = cast_float(hybrid_taus);
         }
 
-        let transformed = box_muller_transform(two_numbers[0], two_numbers[1]);
+        let transformed = box_muller_transform(units[0], units[1]);
 
         let write_index_0 = wg_offset * n_values_per_thread + local_id + (2 * i) * n_threads_per_workgroup;
         let write_index_1 = write_index_0 + n_threads_per_workgroup;
@@ -66,6 +66,12 @@ fn cast_float(number: u32) -> {{ elem }} {
    return 2.3283064365387e-10 * {{ elem }}(number);
 }
 
-fn box_muller_transform(number_1: {{ elem }}, number_2: {{ elem }}) -> array<{{elem}}, 2> {
-
+fn box_muller_transform(unit_1: {{ elem }}, unit_2: {{ elem }}) -> array<{{elem}}, 2> {
+    const two_pi = 2 * 3.141592653589793238;
+    let sigma = args[0];
+    let mu = args[1];
+    let coeff = sqrt(-2 * log(number_1));
+    let cos_ = cos(two_pi * unit_2);
+    let sin_ = sin(two_pi * unit_2);
+    return [coeff * cos_, coeff * sin_];
 }
