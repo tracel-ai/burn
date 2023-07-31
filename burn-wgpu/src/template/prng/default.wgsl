@@ -9,17 +9,34 @@ var<storage, read> info: array<u32>;
 @compute
 @workgroup_size({{ workgroup_size_x }}, {{ workgroup_size_y }}, 1)
 fn main(
-    @builtin(global_invocation_id) global_id: vec3<u32>,
+    @builtin(local_invocation_index) local_id: u32,
     @builtin(num_workgroups) num_workgroups: vec3<u32>,
+    @builtin(workgroup_id) workgroup_id: vec3<u32>,
 ) {
-    let id = global_id.y * (num_workgroups.x * {{ workgroup_size_x }}u) + global_id.x;
+    let wg_size_x = {{ workgroup_size_x }}u;
+    let wg_size_y = {{ workgroup_size_y }}u;
+    let wg = workgroup_id.x * num_workgroups.y + workgroup_id.y;
+    let n_threads_per_workgroup = wg_size_x * wg_size_y;
+    let wg_offset = wg * n_threads_per_workgroup;
+    let unique_thread_id = wg_offset + local_id;
     let large_prime = 1000000007u;
-    let thread_seed = large_prime * id;
-    let seed0 = info[0] + thread_seed;
-    let seed1 = info[1] + thread_seed;
-    let seed2 = info[2] + thread_seed;
-    let seed3 = info[3] + thread_seed;
-    output[id] = hybrid_taus(seed0, seed1, seed2, seed3);
+    let thread_seed = large_prime * unique_thread_id;
+    
+    var state: array<u32, 4u>;
+    for (var i = 0u; i < 4u; i++) {
+        state[i] = info[i + 1u] + thread_seed;
+    }
+
+    let n_values_per_thread = info[0u];
+    for (var i = 0u; i < n_values_per_thread; i++) {
+        state[0u] = taus_step(state[0u], 13u, 19u, 12u, 4294967294u);
+        state[1u] = taus_step(state[1u], 2u, 25u, 4u, 4294967288u);
+        state[2u] = taus_step(state[2u], 3u, 11u, 17u, 4294967280u);
+        state[3u] = lcg_step(state[3u]);
+        let hybrid_taus = state[0u] ^ state[1u] ^ state[2u] ^ state[3u];
+        let write_index = wg_offset * n_values_per_thread + local_id + i * n_threads_per_workgroup;
+        output[write_index] = cast_float(hybrid_taus);
+    }
 }
 
 fn lcg_step(z: u32) -> u32 {
@@ -31,10 +48,6 @@ fn taus_step(z: u32, s1: u32, s2: u32, s3: u32, m: u32) -> u32 {
     return (z & m) << s3 ^ b; 
 } 
 
-fn hybrid_taus(seed0: u32, seed1: u32, seed2: u32, seed3: u32) -> f32 {
-    let random_int = taus_step(seed0, 13u, 19u, 12u, 4294967294u) ^  
-        taus_step(seed1, 2u, 25u, 4u, 4294967288u) ^    
-        taus_step(seed2, 3u, 11u, 17u, 4294967280u) ^  
-        lcg_step(seed3);
-    return 2.3283064365387e-10 * f32(random_int); 
-} 
+fn cast_float(number: u32) -> f32 {
+   return 2.3283064365387e-10 * f32(number);
+}

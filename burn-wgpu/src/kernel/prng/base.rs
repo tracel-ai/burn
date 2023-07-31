@@ -3,12 +3,8 @@ use burn_tensor::Shape;
 use rand::Rng;
 
 use crate::{
-    element::WgpuElement,
-    kernel::{elemwise_workgroup, KernelSettings},
-    kernel_wgsl,
-    pool::get_context,
-    tensor::WgpuTensor,
-    GraphicsApi, WgpuDevice, SEED,
+    context::WorkGroup, element::WgpuElement, kernel::KernelSettings, kernel_wgsl,
+    pool::get_context, tensor::WgpuTensor, GraphicsApi, WgpuDevice, SEED,
 };
 
 kernel_wgsl!(PRNG, "../../template/prng/default.wgsl");
@@ -33,21 +29,25 @@ pub fn random_default<G: GraphicsApi, E: WgpuElement, const D: usize>(
     device: &WgpuDevice,
 ) -> WgpuTensor<E, D> {
     const WORKGROUP: usize = 32;
+    const N_VALUES_PER_THREAD: u32 = 100;
+    let num_elems = shape.num_elements();
+    let num_threads = f32::ceil(num_elems as f32 / N_VALUES_PER_THREAD as f32);
+    let num_invocations = f32::ceil(num_threads as f32 / (WORKGROUP * WORKGROUP) as f32);
+    let workgroup_x = f32::ceil(f32::sqrt(num_invocations));
+    let workgroup_y = f32::ceil(num_invocations / workgroup_x);
+    let workgroup = WorkGroup::new(workgroup_x as u32, workgroup_y as u32, 1);
 
     let context = get_context::<G>(device);
-    let num_elems = shape.num_elements();
     let buffer = context.create_buffer(num_elems * core::mem::size_of::<E>());
     let output = WgpuTensor::new(context.clone(), shape, buffer);
 
     let kernel = context.compile_static::<KernelSettings<PRNG, E, i32, WORKGROUP, WORKGROUP, 1>>();
 
-    let info_buffer = context.create_buffer_with_data(bytemuck::cast_slice(&get_seeds()));
+    let mut info = get_seeds();
+    info.insert(0, N_VALUES_PER_THREAD);
+    let info_buffer = context.create_buffer_with_data(bytemuck::cast_slice(&info));
 
-    context.execute(
-        elemwise_workgroup(num_elems, WORKGROUP),
-        kernel,
-        &[&output.buffer, &info_buffer],
-    );
+    context.execute(workgroup, kernel, &[&output.buffer, &info_buffer]);
 
     output
 }
@@ -77,7 +77,7 @@ mod tests {
     #[test]
     fn runs_test() {
         TestBackend::seed(0);
-        let shape = Shape::new([1000, 1000]);
+        let shape = Shape::new([500, 500]);
         let device = WgpuDevice::default();
         let tensor =
             Tensor::<TestBackend, 2>::random_device(shape.clone(), Distribution::Default, &device);
@@ -103,8 +103,7 @@ mod tests {
             / ((n_0 + n_1).powf(2.) * (n_0 + n_1 - 1.));
         let z = (n_runs as f32 - expectation) / variance.sqrt();
 
-        // a z-score of 15~20 is not very good
-        // for comparison, reference backend's value is < 1.
-        assert!(z.abs() < 20.);
+        // below 1.96 means we can have good confidence in the randomness
+        assert!(z.abs() < 1.96);
     }
 }
