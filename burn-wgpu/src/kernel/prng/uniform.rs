@@ -132,16 +132,7 @@ mod tests {
             / ((n_0 + n_1).powf(2.) * (n_0 + n_1 - 1.));
         let z = (n_runs - expectation) / variance.sqrt();
 
-        // // below 2 means we can have good confidence in the randomness
+        // below 2 means we can have good confidence in the randomness
         assert!(z.abs() < 2.);
     }
 }
-
-// [0,1] 2 bins
-// 0.5
-// 000111010010
-// Bin0: count:7, n_runs: 4
-// Bin1: count:5, n_runs: 3
-// -> combien de run? 4+3
-
-// 011101

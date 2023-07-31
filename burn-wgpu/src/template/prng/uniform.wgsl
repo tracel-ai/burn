@@ -58,6 +58,6 @@ fn taus_step(z: u32, s1: u32, s2: u32, s3: u32, m: u32) -> u32 {
     return (z & m) << s3 ^ b; 
 } 
 
-fn cast_float(number: u32) -> f32 {
-   return 2.3283064365387e-10 * f32(number);
+fn cast_float(number: u32) -> {{ elem }} {
+   return 2.3283064365387e-10 * {{ elem }}(number);
 }
