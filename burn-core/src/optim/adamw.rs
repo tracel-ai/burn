@@ -1,10 +1,10 @@
+use std::marker::PhantomData;
 use crate::{
     self as burn, grad_clipping::GradientClippingConfig, module::ADModule, record::Record,
     LearningRate,
 };
 
 use super::{
-    decay::{WeightDecay, WeightDecayConfig, WeightDecayState},
     Optimizer, SimpleOptimizer,
 };
 use crate::config::Config;
@@ -25,7 +25,8 @@ pub struct AdamWConfig {
     #[config(default = 1e-5)]
     epsilon: f32,
     /// [Weight decay](WeightDecayConfig) config.
-    weight_decay: Option<WeightDecayConfig>,
+    #[config(default = 1e-4)]
+    weight_decay: f32,
     /// [Gradient Clipping](GradientClippingConfig) config.
     grad_clipping: Option<GradientClippingConfig>,
 }
@@ -33,13 +34,13 @@ pub struct AdamWConfig {
 /// AdamW optimizer as described in the paper [Decoupled Weight Decay Regularization, Loshchilov and Hutter, 2019](https://arxiv.org/abs/1711.05101).
 pub struct AdamW<B: Backend> {
     momentum: AdaptiveMomentum,
-    weight_decay: Option<WeightDecay<B>>,
+    weight_decay: f32,
+    _phantom: PhantomData<B>,
 }
 
 /// AdamW state.
 #[derive(Record, Clone, new)]
 pub struct AdamWState<B: Backend, const D: usize> {
-    weight_decay: Option<WeightDecayState<B, D>>,
     momentum: AdaptiveMomentumState<B, D>,
 }
 
@@ -58,33 +59,21 @@ impl<B: Backend> SimpleOptimizer<B> for AdamW<B> {
         // State of the optimizer.
         state: Option<Self::State<D>>,
     ) -> (Tensor<B, D>, Option<Self::State<D>>) {
-        let mut state_weight_decay = None;
-        let mut state_momentum = None;
+        tensor = tensor.clone() - tensor.mul_scalar(lr).mul_scalar(self.weight_decay);
 
-        if let Some(state) = state {
-            state_weight_decay = state.weight_decay;
-            state_momentum = Some(state.momentum);
-        }
+        let (raw_delta, momentum_state) = self.momentum.transform(grad, state.map(|s| s.momentum));
 
-        if let Some(weight_decay) = &self.weight_decay {
-            let (tensor_transformed, state) = weight_decay.transform(tensor.clone(), state_weight_decay);
-            state_weight_decay = Some(state);
-            tensor = tensor - tensor_transformed.mul_scalar(lr);
-        }
+        let state = AdamWState {
+            momentum: momentum_state,
+        };
 
-        let (grad, state_momentum) = self.momentum.transform(grad, state_momentum);
-
-        let state = AdamWState::new(state_weight_decay, state_momentum);
-        let delta = grad.mul_scalar(lr);
-
-        (tensor - delta, Some(state))
+        (tensor - raw_delta.mul_scalar(lr), Some(state))
     }
 
     fn to_device<const D: usize>(
         mut state: Self::State<D>,
         device: &<B as Backend>::Device,
     ) -> Self::State<D> {
-        state.weight_decay = state.weight_decay.map(|state| state.to_device(device));
         state.momentum = state.momentum.to_device(device);
         state
     }
@@ -103,7 +92,8 @@ impl AdamWConfig {
                 beta_2: self.beta_2,
                 epsilon: self.epsilon,
             },
-            weight_decay: self.weight_decay.as_ref().map(WeightDecay::new),
+            weight_decay: self.weight_decay,
+            _phantom: Default::default(),
         };
 
         let mut optim = OptimizerAdaptor::from(optim);
@@ -165,14 +155,22 @@ impl AdaptiveMomentum {
             .moment_1
             .clone()
             .div_scalar(1f32 - self.beta_1.powi(time));
+
         let moment_2_corrected = state
             .moment_2
             .clone()
             .div_scalar(1f32 - self.beta_2.powi(time));
 
-        let grad = moment_1_corrected.div(moment_2_corrected.sqrt().add_scalar(self.epsilon));
+        let raw_delta = moment_1_corrected.clone().div(moment_2_corrected.clone().sqrt().add_scalar(self.epsilon));
 
-        (grad, state)
+        (
+            raw_delta,
+            AdaptiveMomentumState::new(
+                state.time,
+                moment_1_corrected,
+                moment_2_corrected.sqrt().add_scalar(self.epsilon),
+            )
+        )
     }
 }
 
@@ -225,6 +223,8 @@ mod tests {
         assert_eq!(state_optim_before.len(), state_optim_after.len());
     }
 
+    const ASSERT_PRECISION: usize = 4;
+
     #[test]
     fn test_adamw_optimizer_with_numbers() {
         let linear = given_linear_layer(
@@ -253,9 +253,7 @@ mod tests {
             .with_epsilon(1e-8)
             .with_beta_1(0.9)
             .with_beta_2(0.999)
-            .with_weight_decay(Some(WeightDecayConfig {
-                penalty: 0.5
-            }))
+            .with_weight_decay(0.5)
             .init();
 
         let grads = linear.forward(x_1).backward();
@@ -269,15 +267,29 @@ mod tests {
         let state_updated = linear.into_record();
         let state_expected = given_linear_record(
             Data::from([
-                [-0.3373,  0.1178,  0.3804,  0.2969,  0.0652,  0.0465],
-                [ 0.0570, -0.0365, -0.3830,  0.2325,  0.1737, -0.3092],
-                [-0.0387,  0.0161, -0.3132,  0.2260, -0.2950,  0.2900],
-                [-0.3149, -0.2374, -0.3877, -0.3151, -0.0952,  0.1411],
-                [ 0.3068, -0.2342,  0.3481, -0.1911,  0.3560, -0.0500],
-                [-0.0356, -0.0301,  0.1046,  0.1702,  0.0092,  0.3596]
+                [-0.3373, 0.1178, 0.3804, 0.2969, 0.0652, 0.0465],
+                [0.0570, -0.0365, -0.3830, 0.2325, 0.1737, -0.3092],
+                [-0.0387, 0.0161, -0.3132, 0.2260, -0.2950, 0.2900],
+                [-0.3149, -0.2374, -0.3877, -0.3151, -0.0952, 0.1411],
+                [0.3068, -0.2342, 0.3481, -0.1911, 0.3560, -0.0500],
+                [-0.0356, -0.0301, 0.1046, 0.1702, 0.0092, 0.3596]
             ]),
-            Data::from([-0.4066,  0.0676, -0.1160,  0.0965,  0.1153, -0.0071]),
+            Data::from([-0.4066, 0.0676, -0.1160, 0.0965, 0.1153, -0.0071]),
         );
+
+        let t_state_updated: Tensor<TestADBackend, 2> = Tensor::from_data(state_updated.weight.to_data());
+        let t_state_expected: Tensor<TestADBackend, 2> = Tensor::from_data(state_expected.weight.to_data());
+
+        let t_actual_difference = t_state_updated.sub(t_state_expected);
+        let expected_difference: Tensor<TestADBackend, 2> = Tensor::from_floats([
+            [-0.0167, -0.0196, -0.0239, -0.0231, -0.0207, -0.0206],
+            [-0.0207, -0.0180, -0.0163, -0.0225, -0.0218, -0.0170],
+            [-0.0197, -0.0185, -0.0170, -0.0224, -0.0170, -0.0230],
+            [-0.0169, -0.0160, -0.0162, -0.0170, -0.0191, -0.0215],
+            [-0.0232, -0.0160, -0.0236, -0.0182, -0.0236, -0.0196],
+            [-0.0197, -0.0181, -0.0212, -0.0219, -0.0201, -0.0237]
+        ]);
+
         let (weight_updated, bias_updated) = (
             state_updated.weight.to_data(),
             state_updated.bias.unwrap().to_data(),
@@ -287,8 +299,9 @@ mod tests {
             state_expected.bias.unwrap().to_data(),
         );
 
-        bias_updated.assert_approx_eq(&bias_expected, 2);
-        weight_updated.assert_approx_eq(&weight_expected, 2);
+        bias_updated.assert_approx_eq(&bias_expected, ASSERT_PRECISION);
+        weight_updated.assert_approx_eq(&weight_expected, ASSERT_PRECISION);
+
     }
 
     fn given_linear_layer(weight: Data<f32, 2>, bias: Data<f32, 1>) -> nn::Linear<TestADBackend> {
@@ -317,7 +330,8 @@ mod tests {
                 beta_2: config.beta_2,
                 epsilon: config.epsilon,
             },
-            weight_decay: config.weight_decay.as_ref().map(WeightDecay::new),
+            weight_decay: config.weight_decay,
+            _phantom: Default::default(),
         }
             .into()
     }
