@@ -50,7 +50,7 @@ fn main(
 }
 
 fn lcg_step(z: u32) -> u32 {
-    return (1664525u * z + 1013904223u);// % 4294967296u; // modulo 2^32, not necessary in u32
+    return (1664525u * z + 1013904223u); // modulo 2^32, not necessary in u32
 }
 
 fn taus_step(z: u32, s1: u32, s2: u32, s3: u32, m: u32) -> u32 {   
