@@ -99,7 +99,6 @@ mod tests {
 
         // High bound slightly over 1 so 1.0 is included in second bin
         let bin_stats = calculate_bin_stats(tensor_1.into_data().value, 2, 0., 1.1);
-        println!("{}", f32::abs((bin_stats[1].count as f32 / shape.num_elements() as f32) - prob as f32));
         assert!(
             f32::abs((bin_stats[1].count as f32 / shape.num_elements() as f32) - prob as f32)
                 < 0.01
