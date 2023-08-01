@@ -156,9 +156,6 @@ impl ModelGen {
             let graph_file = out_file.with_extension("graph.txt");
             log::debug!("Writing debug graph file: {:?}", graph_file);
             fs::write(graph_file, debug_graph).unwrap();
-            let graph_file = out_file.with_extension("graph.txt");
-            log::debug!("Writing debug graph file: {:?}", graph_file);
-            fs::write(graph_file, debug_graph).unwrap();
         }
 
         let graph = graph
@@ -209,7 +206,6 @@ impl ONNXGraph {
                 NodeType::Reshape => graph.register(Self::reshape_conversion(node)),
                 NodeType::Sigmoid => graph.register(Self::sigmoid_conversion(node)),
                 NodeType::Transpose => graph.register(Self::transpose_conversion(node)),
-                NodeType::Concat => graph.register(Self::concat_conversion(node)),
                 NodeType::Concat => graph.register(Self::concat_conversion(node)),
                 _ => panic!("Unsupported node conversion {}", node.node_type),
             }
@@ -359,19 +355,6 @@ impl ONNXGraph {
         let dim = log_softmax_config(&node);
 
         UnaryNode::log_softmax(input, output, dim)
-    }
-
-    fn concat_conversion(node: Node) -> ConcatNode {
-        let inputs = node
-            .inputs
-            .iter()
-            .map(|input| input.to_tensor_type())
-            .collect();
-
-        let output = node.outputs.get(0).unwrap().to_tensor_type();
-        let dim = concat_config(&node);
-
-        ConcatNode::new(inputs, output, dim)
     }
 
     fn concat_conversion(node: Node) -> ConcatNode {
