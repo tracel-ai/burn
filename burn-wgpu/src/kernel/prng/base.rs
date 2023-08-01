@@ -1,0 +1,69 @@
+use burn_common::rand::get_seeded_rng;
+use rand::Rng;
+
+use crate::SEED;
+
+pub(crate) fn get_seeds() -> Vec<u32> {
+    let mut seed = SEED.lock().unwrap();
+    let mut rng = match seed.as_ref() {
+        Some(rng_seeded) => rng_seeded.clone(),
+        None => get_seeded_rng(),
+    };
+    let mut seeds: Vec<u32> = Vec::with_capacity(4);
+    for _ in 0..4 {
+        seeds.push(rng.gen());
+    }
+    *seed = Some(rng);
+    seeds
+}
+
+#[cfg(test)]
+pub mod tests {
+    use burn_tensor::Element;
+
+    #[derive(Default, Copy, Clone)]
+    pub struct BinStats {
+        pub count: usize,
+        pub n_runs: usize, // Number of sequences of same bin
+    }
+
+    pub fn calculate_bin_stats<E: Element>(
+        numbers: Vec<E>,
+        number_of_bins: usize,
+        low: f32,
+        high: f32,
+    ) -> Vec<BinStats> {
+        let range = (high - low) / number_of_bins as f32;
+        let mut output: Vec<BinStats> = (0..number_of_bins).map(|_| Default::default()).collect();
+        let mut initialized = false;
+        let mut current_runs = number_of_bins; // impossible value for starting point
+        for number in numbers {
+            let index = f32::floor((number.elem::<f32>() - low) / range) as usize;
+            output[index].count += 1;
+            if initialized && index != current_runs {
+                output[current_runs].n_runs += 1;
+            }
+            initialized = true;
+            current_runs = index;
+        }
+        output[current_runs].n_runs += 1;
+        output
+    }
+
+    #[test]
+    fn test_count_bins() {
+        let numbers = vec![0., 1., 1.5, 2., 2.5, 3., 2.5, 1.5, 3.5];
+        let number_of_bins = 4;
+        let low = 0.;
+        let high = 4.;
+        let stats = calculate_bin_stats(numbers, number_of_bins, low, high);
+        assert_eq!(stats[0].count, 1);
+        assert_eq!(stats[0].n_runs, 1);
+        assert_eq!(stats[1].count, 3);
+        assert_eq!(stats[1].n_runs, 2);
+        assert_eq!(stats[2].count, 3);
+        assert_eq!(stats[2].n_runs, 2);
+        assert_eq!(stats[3].count, 2);
+        assert_eq!(stats[3].n_runs, 2);
+    }
+}

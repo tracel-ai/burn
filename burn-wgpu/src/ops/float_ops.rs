@@ -1,4 +1,5 @@
 use super::{numeric, BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor};
+use crate::kernel::prng::random_uniform;
 use crate::kernel::{
     self, unary_default, unary_inplace_default, unary_scalar_default, unary_scalar_inplace_default,
 };
@@ -10,7 +11,7 @@ use crate::{
 };
 use burn_common::rand::get_seeded_rng;
 use burn_tensor::ElementConversion;
-use burn_tensor::{backend::Backend, ops::TensorOps, Data, Distribution, Shape};
+use burn_tensor::{ops::TensorOps, Data, Distribution, Shape};
 
 use std::ops::Range;
 
@@ -31,16 +32,23 @@ where
         shape: Shape<D>,
         distribution: Distribution<FloatElem<Self>>,
         device: &Device<Self>,
-    ) -> <WgpuBackend<G, F, I> as Backend>::TensorPrimitive<D> {
-        let mut seed = SEED.lock().unwrap();
-        let mut rng = if let Some(rng_seeded) = seed.as_ref() {
-            rng_seeded.clone()
-        } else {
-            get_seeded_rng()
-        };
-        let tensor = Self::from_data(Data::random(shape, distribution, &mut rng), device);
-        *seed = Some(rng);
-        tensor
+    ) -> FloatTensor<Self, D> {
+        // TODO other distributions than default
+        match distribution {
+            Distribution::Default => random_uniform::<G, F, D>(shape, device, 0.elem(), 1.elem()),
+            Distribution::Uniform(low, high) => random_uniform::<G, F, D>(shape, device, low, high),
+            _ => {
+                let mut seed = SEED.lock().unwrap();
+                let mut rng = if let Some(rng_seeded) = seed.as_ref() {
+                    rng_seeded.clone()
+                } else {
+                    get_seeded_rng()
+                };
+                let tensor = Self::from_data(Data::random(shape, distribution, &mut rng), device);
+                *seed = Some(rng);
+                tensor
+            }
+        }
     }
 
     fn shape<const D: usize>(tensor: &FloatTensor<Self, D>) -> Shape<D> {
