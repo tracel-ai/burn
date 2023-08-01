@@ -425,8 +425,8 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn adaptive_avg_pool2d(
-        x: <ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
-        output_size: [usize; 2],
+        _x: <ADBackendDecorator<B> as Backend>::TensorPrimitive<4>,
+        _output_size: [usize; 2],
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<4> {
         todo!()
     }

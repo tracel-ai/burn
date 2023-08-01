@@ -2,7 +2,6 @@ use crate::{
     element::FloatNdArrayElement, iter_par, run_par, sharing::UnsafeSharedRef,
     tensor::NdArrayTensor,
 };
-
 use burn_tensor::ElementConversion;
 use ndarray::Array4;
 
@@ -10,13 +9,7 @@ pub(crate) fn adaptive_avg_pool2d<E: FloatNdArrayElement>(
     x: NdArrayTensor<E, 4>,
     output_size: [usize; 2],
 ) -> NdArrayTensor<E, 4> {
-    let [batch_size, channels, x_height, x_width] = x.shape().dims;
-
-    let stride_h = f32::ceil(x_height as f32 / output_size[0] as f32) as usize;
-    let stride_w = f32::ceil(x_width as f32 / output_size[1] as f32) as usize;
-    let kernel_size_h = x_height - (output_size[0] - 1) * stride_h;
-    let kernel_size_w = x_width - (output_size[1] - 1) * stride_w;
-    let count = kernel_size_h * kernel_size_w;
+    let [batch_size, channels, input_height, input_width] = x.shape().dims;
 
     let x = x.array;
     let mut output = Array4::from_elem(
@@ -24,6 +17,15 @@ pub(crate) fn adaptive_avg_pool2d<E: FloatNdArrayElement>(
         0.elem(),
     );
     let unsafe_shared_out = UnsafeSharedRef::new(&mut output);
+
+    let start_index = |output_size_index: usize, output_size: usize, input_size: usize| {
+        f32::floor((output_size_index as f32 * input_size as f32) / output_size as f32) as usize
+    };
+
+    let end_index = |output_size_index: usize, output_size: usize, input_size: usize| {
+        f32::ceil(((output_size_index + 1) as f32 * input_size as f32) / output_size as f32)
+            as usize
+    };
 
     run_par!(|| {
         iter_par!(0, batch_size * channels).for_each(|k| unsafe {
@@ -33,21 +35,24 @@ pub(crate) fn adaptive_avg_pool2d<E: FloatNdArrayElement>(
             let output = unsafe_shared_out.get();
             for h in 0..output_size[0] {
                 for w in 0..output_size[1] {
+                    let ih_start = start_index(h, output_size[0], input_height);
+                    let ih_end = end_index(h, output_size[0], input_height);
+                    let iw_start = start_index(w, output_size[1], input_width);
+                    let iw_end = end_index(w, output_size[1], input_width);
+
+                    let mut count: i32 = 0;
                     let mut sum_val: E = 0.elem();
 
-                    for kh in 0..kernel_size_h {
-                        let ih = h * stride_h + kh;
-
-                        for kw in 0..kernel_size_w {
-                            let iw = w * stride_w + kw;
-
-                            if ih < x_height && iw < x_width {
+                    for ih in ih_start..ih_end {
+                        for iw in iw_start..iw_end {
+                            if ih < input_height && iw < input_width {
                                 sum_val += x[[b, c, ih, iw]];
+                                count += 1;
                             }
                         }
                     }
 
-                    output[[b, c, h, w]] = sum_val / (count as i32).elem();
+                    output[[b, c, h, w]] = sum_val / count.elem();
                 }
             }
         })

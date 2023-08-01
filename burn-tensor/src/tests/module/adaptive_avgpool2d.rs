@@ -5,7 +5,7 @@ mod tests {
     use burn_tensor::{Data, Shape, Tensor};
 
     #[test]
-    fn test_adaptive_avg_pool2d_smaller() {
+    fn test_adaptive_avg_pool2d_simple() {
         let test = AdaptiveAvgPool2dTestCase {
             batch_size: 1,
             channels: 2,
@@ -32,7 +32,24 @@ mod tests {
     }
 
     #[test]
-    fn test_adaptive_avg_pool2d_bigger() {
+    fn test_adaptive_avg_pool2d_dyn_filter_size() {
+        let test = AdaptiveAvgPool2dTestCase {
+            batch_size: 1,
+            channels: 2,
+            height: 5,
+            width: 7,
+            height_out: 3,
+            width_out: 2,
+        };
+
+        test.assert_output(TestTensor::from_floats([[
+            [[5.0000, 8.0000], [15.5000, 18.5000], [26.0000, 29.0000]],
+            [[40.0000, 43.0000], [50.5000, 53.5000], [61.0000, 64.0000]],
+        ]]));
+    }
+
+    #[test]
+    fn test_adaptive_avg_pool2d_bigger_output() {
         let test = AdaptiveAvgPool2dTestCase {
             batch_size: 1,
             channels: 2,
