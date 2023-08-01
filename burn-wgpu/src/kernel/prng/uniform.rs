@@ -1,16 +1,18 @@
 use burn_tensor::Shape;
 
 use crate::{
-    context::WorkGroup,
     element::WgpuElement,
-    kernel::{prng::base::get_seeds, KernelSettings},
+    kernel::{
+        prng::base::{make_args_buffer, make_info_buffer, make_output_tensor},
+        prng_workgroup, KernelSettings,
+    },
     kernel_wgsl,
     pool::get_context,
     tensor::WgpuTensor,
     GraphicsApi, WgpuDevice,
 };
 
-kernel_wgsl!(UniformPRNG, "../../template/prng/uniform.wgsl");
+kernel_wgsl!(UniformPrng, "../../template/prng/uniform.wgsl");
 
 /// Pseudo-random generator for uniform distribution
 pub fn random_uniform<G: GraphicsApi, E: WgpuElement, const D: usize>(
@@ -19,32 +21,17 @@ pub fn random_uniform<G: GraphicsApi, E: WgpuElement, const D: usize>(
     low: E,
     high: E,
 ) -> WgpuTensor<E, D> {
-    let context = get_context::<G>(device);
     const WORKGROUP: usize = 32;
-    const N_VALUES_PER_THREAD: u32 = 128;
-    let num_elems = shape.num_elements();
-    let num_threads = f32::ceil(num_elems as f32 / N_VALUES_PER_THREAD as f32);
-    let num_invocations = f32::ceil(num_threads / (WORKGROUP * WORKGROUP) as f32);
-    let workgroup_x = f32::ceil(f32::sqrt(num_invocations));
-    let workgroup_y = f32::ceil(num_invocations / workgroup_x);
-    let workgroup = WorkGroup::new(workgroup_x as u32, workgroup_y as u32, 1);
+    const N_VALUES_PER_THREAD: usize = 128;
 
-    let buffer = context.create_buffer(num_elems * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(context.clone(), shape, buffer);
-
-    let mut info = get_seeds();
-    info.insert(0, N_VALUES_PER_THREAD);
-    let info_buffer = context.create_buffer_with_data(bytemuck::cast_slice(&info));
-
-    let args = [low, high];
-    let args_buffer = context.create_buffer_with_data(E::as_bytes(&args));
-
-    let kernel =
-        context.compile_static::<KernelSettings<UniformPRNG, E, i32, WORKGROUP, WORKGROUP, 1>>();
+    let context = get_context::<G>(device);
+    let output = make_output_tensor(context.clone(), shape.clone());
+    let info_buffer = make_info_buffer(context.clone(), N_VALUES_PER_THREAD);
+    let args_buffer = make_args_buffer(context.clone(), &[low, high]);
 
     context.execute(
-        workgroup,
-        kernel,
+        prng_workgroup(shape.num_elements(), WORKGROUP, N_VALUES_PER_THREAD),
+        context.compile_static::<KernelSettings<UniformPrng, E, i32, WORKGROUP, WORKGROUP, 1>>(),
         &[&output.buffer, &info_buffer, &args_buffer],
     );
 

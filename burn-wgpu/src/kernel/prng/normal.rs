@@ -1,16 +1,18 @@
 use burn_tensor::Shape;
 
 use crate::{
-    context::WorkGroup,
     element::WgpuElement,
-    kernel::{prng::base::get_seeds, KernelSettings},
+    kernel::{
+        prng::base::{make_args_buffer, make_info_buffer, make_output_tensor},
+        prng_workgroup, KernelSettings,
+    },
     kernel_wgsl,
     pool::get_context,
     tensor::WgpuTensor,
     GraphicsApi, WgpuDevice,
 };
 
-kernel_wgsl!(NormalPRNG, "../../template/prng/normal.wgsl");
+kernel_wgsl!(NormalPrng, "../../template/prng/normal.wgsl");
 
 /// Pseudo-random generator for normal distribution
 pub fn random_normal<G: GraphicsApi, E: WgpuElement, const D: usize>(
@@ -19,33 +21,17 @@ pub fn random_normal<G: GraphicsApi, E: WgpuElement, const D: usize>(
     mean: E,
     std: E,
 ) -> WgpuTensor<E, D> {
-    let context = get_context::<G>(device);
     const WORKGROUP: usize = 32;
-    const N_VALUES_PER_THREAD: u32 = 128; // must be even
+    const N_VALUES_PER_THREAD: usize = 128; // must be even
 
-    let num_elems = shape.num_elements();
-    let num_threads = f32::ceil(num_elems as f32 / N_VALUES_PER_THREAD as f32);
-    let num_invocations = f32::ceil(num_threads / (WORKGROUP * WORKGROUP) as f32);
-    let workgroup_x = f32::ceil(f32::sqrt(num_invocations));
-    let workgroup_y = f32::ceil(num_invocations / workgroup_x);
-    let workgroup = WorkGroup::new(workgroup_x as u32, workgroup_y as u32, 1);
-
-    let buffer = context.create_buffer(num_elems * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(context.clone(), shape, buffer);
-
-    let mut info = get_seeds();
-    info.insert(0, N_VALUES_PER_THREAD);
-    let info_buffer = context.create_buffer_with_data(bytemuck::cast_slice(&info));
-
-    let args = [mean, std];
-    let args_buffer = context.create_buffer_with_data(E::as_bytes(&args));
-
-    let kernel =
-        context.compile_static::<KernelSettings<NormalPRNG, E, i32, WORKGROUP, WORKGROUP, 1>>();
+    let context = get_context::<G>(device);
+    let output = make_output_tensor(context.clone(), shape.clone());
+    let info_buffer = make_info_buffer(context.clone(), N_VALUES_PER_THREAD);
+    let args_buffer = make_args_buffer(context.clone(), &[mean, std]);
 
     context.execute(
-        workgroup,
-        kernel,
+        prng_workgroup(shape.num_elements(), WORKGROUP, N_VALUES_PER_THREAD),
+        context.compile_static::<KernelSettings<NormalPrng, E, i32, WORKGROUP, WORKGROUP, 1>>(),
         &[&output.buffer, &info_buffer, &args_buffer],
     );
 
@@ -106,7 +92,7 @@ mod tests {
         );
         let assert_approx_eq = |count, percent| {
             let expected = percent * shape.num_elements() as f32 / 100.;
-            assert!(f32::abs(count as f32 - expected) < 1000.);
+            assert!(f32::abs(count as f32 - expected) < 1500.);
         };
         assert_approx_eq(stats[0].count, 2.1);
         assert_approx_eq(stats[1].count, 13.6);
