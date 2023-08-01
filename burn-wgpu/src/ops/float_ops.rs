@@ -1,5 +1,5 @@
 use super::{numeric, BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor};
-use crate::kernel::prng::random_uniform;
+use crate::kernel::prng::{random_normal, random_uniform};
 use crate::kernel::{
     self, unary_default, unary_inplace_default, unary_scalar_default, unary_scalar_inplace_default,
 };
@@ -37,6 +37,9 @@ where
         match distribution {
             Distribution::Default => random_uniform::<G, F, D>(shape, device, 0.elem(), 1.elem()),
             Distribution::Uniform(low, high) => random_uniform::<G, F, D>(shape, device, low, high),
+            Distribution::Normal(mean, std) => {
+                random_normal::<G, F, D>(shape, device, mean.elem(), std.elem())
+            }
             _ => {
                 let mut seed = SEED.lock().unwrap();
                 let mut rng = if let Some(rng_seeded) = seed.as_ref() {

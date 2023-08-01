@@ -38,7 +38,11 @@ pub mod tests {
         let mut initialized = false;
         let mut current_runs = number_of_bins; // impossible value for starting point
         for number in numbers {
-            let index = f32::floor((number.elem::<f32>() - low) / range) as usize;
+            let num = number.elem::<f32>();
+            if num < low || num > high {
+                continue;
+            }
+            let index = f32::floor((num - low) / range) as usize;
             output[index].count += 1;
             if initialized && index != current_runs {
                 output[current_runs].n_runs += 1;
