@@ -1155,19 +1155,15 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             type State = B::TensorPrimitive<D>;
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
-                unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
-                    let input = ops.state;
-                    let abs_input = B::abs(input.clone());
-                    let value = B::div(input, abs_input);
-
-                    B::mul(grad, value)
-                });
+                unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| B::mul(grad, ops.state));
             }
         }
 
         match Abs.prepare([tensor.node], [tensor.graph]).statefull() {
             OpsKind::Tracked(prep) => {
-                prep.finish(tensor.primitive.clone(), B::abs(tensor.primitive))
+                let output = B::abs(tensor.primitive.clone());
+                let state = B::div(tensor.primitive, output.clone());
+                prep.finish(state, output)
             }
             OpsKind::UnTracked(prep) => prep.finish(B::abs(tensor.primitive)),
         }
