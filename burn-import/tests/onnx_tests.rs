@@ -21,6 +21,7 @@ mod tests {
     #[rstest]
     #[case::mixed("model1")]
     #[case::conv2d("conv2d")]
+    #[case::concat("concat")]
     // #[case::description_here("model2")] <- Add more models here
     fn test_codegen(#[case] model_name: &str) {
         let input_file = format!("tests/data/{model_name}/{model_name}.onnx");
