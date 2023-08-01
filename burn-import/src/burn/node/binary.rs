@@ -111,7 +111,13 @@ impl BinaryNode {
     }
 
     pub(crate) fn sub(lhs: Type, rhs: Type, output: Type) -> Self {
-        let function = move |lhs, rhs| quote! { #lhs.sub(#rhs) };
+        let function = match (&lhs, &rhs) {
+            (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.sub(#rhs) },
+            (Type::Tensor(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs.sub_scalar(#rhs) },
+            (Type::Scalar(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs - #rhs },
+            _ => panic!("Subtraction is supported for tensor and scalar only"),
+        };
+
         Self::new(lhs, rhs, output, BinaryType::Sub, Arc::new(function))
     }
 

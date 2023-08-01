@@ -309,23 +309,23 @@ impl ONNXGraph {
     }
 
     fn relu_conversion(node: Node) -> UnaryNode {
-        let input = node.inputs.get(0).unwrap().to_tensor_type();
-        let output = node.outputs.get(0).unwrap().to_tensor_type();
+        let input = node.inputs.get(0).unwrap().to_type();
+        let output = node.outputs.get(0).unwrap().to_type();
 
         UnaryNode::relu(input, output)
     }
 
     fn flatten_conversion(node: Node) -> UnaryNode {
-        let input = node.inputs.get(0).unwrap().to_tensor_type();
-        let output = node.outputs.get(0).unwrap().to_tensor_type();
+        let input = node.inputs.get(0).unwrap().to_type();
+        let output = node.outputs.get(0).unwrap().to_type();
         let (start_dim, end_dim) = flatten_config(&node);
 
         UnaryNode::flatten(input, output, start_dim, end_dim)
     }
 
     fn transpose_conversion(node: Node) -> UnaryNode {
-        let input = node.inputs.get(0).unwrap().to_tensor_type();
-        let output = node.outputs.get(0).unwrap().to_tensor_type();
+        let input = node.inputs.get(0).unwrap().to_type();
+        let output = node.outputs.get(0).unwrap().to_type();
 
         UnaryNode::transpose(input, output)
     }
@@ -343,15 +343,15 @@ impl ONNXGraph {
     }
 
     fn sigmoid_conversion(node: Node) -> UnaryNode {
-        let input = node.inputs.get(0).unwrap().to_tensor_type();
-        let output = node.outputs.get(0).unwrap().to_tensor_type();
+        let input = node.inputs.get(0).unwrap().to_type();
+        let output = node.outputs.get(0).unwrap().to_type();
 
         UnaryNode::sigmoid(input, output)
     }
 
     fn log_softmax_conversion(node: Node) -> UnaryNode {
-        let input = node.inputs.get(0).unwrap().to_tensor_type();
-        let output = node.outputs.get(0).unwrap().to_tensor_type();
+        let input = node.inputs.get(0).unwrap().to_type();
+        let output = node.outputs.get(0).unwrap().to_type();
         let dim = log_softmax_config(&node);
 
         UnaryNode::log_softmax(input, output, dim)
