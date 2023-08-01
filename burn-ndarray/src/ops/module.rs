@@ -1,5 +1,5 @@
 use super::{
-    adaptive_avgpool::adaptive_avg_pool2d,
+    adaptive_avgpool::{adaptive_avg_pool2d, adaptive_avg_pool2d_backward},
     avgpool::{avg_pool2d, avg_pool2d_backward},
     conv::{conv2d, conv_transpose2d},
     maxpool::{max_pool2d, max_pool2d_backward, max_pool2d_with_indices},
@@ -85,5 +85,12 @@ impl<E: FloatNdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> 
 
     fn adaptive_avg_pool2d(x: NdArrayTensor<E, 4>, output_size: [usize; 2]) -> NdArrayTensor<E, 4> {
         adaptive_avg_pool2d(x, output_size)
+    }
+
+    fn adaptive_avg_pool2d_backward(
+        x: NdArrayTensor<E, 4>,
+        grad: NdArrayTensor<E, 4>,
+    ) -> NdArrayTensor<E, 4> {
+        adaptive_avg_pool2d_backward(x, grad)
     }
 }

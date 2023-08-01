@@ -50,18 +50,15 @@ fn main(
     let iw_end = end_index(ow, output_shape_3, input_shape_3);
 
     var sum = 0.0;
-    var count = 0.0;
 
     for (var ih = ih_start; ih < ih_end; ih++) {
         for (var iw = iw_start; iw < iw_end; iw++) {
-            if ih < input_shape_2 && iw < input_shape_3 {
-                let index_input = b * input_stride_0 + c * input_stride_1 + ih * input_stride_2 + iw * input_stride_3;
-                sum += x[index_input];
-                count += 1.0;
-            }
+            let index_input = b * input_stride_0 + c * input_stride_1 + ih * input_stride_2 + iw * input_stride_3;
+            sum += x[index_input];
         }
     }
 
+    let count = {{ elem }}((ih_end - ih_start) * (iw_end - iw_start));
     output[id] = sum / count;
 }
 
@@ -70,6 +67,8 @@ fn start_index(output_size_index: u32, output_size: u32, input_size: u32) -> u32
 }
 
 fn end_index(output_size_index: u32, output_size: u32, input_size: u32) -> u32 {
-    return u32(ceil((f32(output_size_index + 1u) * f32(input_size)) / f32(output_size)));
+    let index = u32(ceil((f32(output_size_index + 1u) * f32(input_size)) / f32(output_size)));
+
+    return min(index, input_size);
 }
 

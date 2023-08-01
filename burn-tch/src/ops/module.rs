@@ -226,4 +226,10 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
 
         TchTensor::new(tensor)
     }
+
+    fn adaptive_avg_pool2d_backward(x: TchTensor<E, 4>, grad: TchTensor<E, 4>) -> TchTensor<E, 4> {
+        let tensor = tch::Tensor::internal_adaptive_avg_pool2d_backward(&x.tensor, &grad.tensor);
+
+        TchTensor::new(tensor)
+    }
 }
