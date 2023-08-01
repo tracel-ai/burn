@@ -8,10 +8,13 @@ from onnxoptimizer import optimize
 class Model(nn.Module):
     def __init__(self):
         super(Model, self).__init__()
-        self.conv1 = nn.Conv2d(16, 36, (3, 5), groups = 2, stride=(2, 1), padding=(4, 2), dilation=(3, 1))
 
     def forward(self, x):
-        x = self.conv1(x)
+        # Concatenate along the channel dimension
+        y = torch.cat((x,x), 1)
+        x = torch.cat((x,y), 1)
+        z = torch.cat((y,y), 1)
+        x = torch.cat((x,y,z), 1)
         return x
 
 def main():
@@ -20,17 +23,10 @@ def main():
     model = Model()
     model.eval()
     device = torch.device("cpu")
-    dummy_input = torch.randn(20, 16, 50, 100, device=device)
-    torch.onnx.export(model, dummy_input, "conv2d.onnx",
+    onnx_name = "concat.onnx"
+    dummy_input = torch.randn(1,256,13,13, device=device)
+    torch.onnx.export(model, dummy_input, onnx_name,
                       verbose=False, opset_version=16)
-
-    # Apply the optimization pass to simplify the model
-    onnx_model = onnx.load("conv2d.onnx")
-    optimized_model = optimize(onnx_model)
-
-    # Save the optimized model
-    onnx.save(optimized_model, "conv2d.onnx")
-
 
 if __name__ == '__main__':
     main()
