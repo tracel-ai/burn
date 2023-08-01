@@ -12,7 +12,7 @@ use crate::{
 
 kernel_wgsl!(UniformPRNG, "../../template/prng/uniform.wgsl");
 
-/// Pseudo-random generator for default distribution (uniform in [0,1[)
+/// Pseudo-random generator for uniform distribution
 pub fn random_uniform<G: GraphicsApi, E: WgpuElement, const D: usize>(
     shape: Shape<D>,
     device: &WgpuDevice,
