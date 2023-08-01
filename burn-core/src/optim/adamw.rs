@@ -53,13 +53,13 @@ impl<B: Backend> SimpleOptimizer<B> for AdamW<B> {
         // Learning rate.
         lr: LearningRate,
         // Any tensor that represents the parameters of a model.
-        mut tensor: Tensor<B, D>,
+        tensor: Tensor<B, D>,
         // Gradient of the loss w.r.t. the parameters.
         grad: Tensor<B, D>,
         // State of the optimizer.
         state: Option<Self::State<D>>,
     ) -> (Tensor<B, D>, Option<Self::State<D>>) {
-        tensor = tensor.clone() - tensor.mul_scalar(lr).mul_scalar(self.weight_decay);
+        let tensor_updated = tensor.clone() - tensor.mul_scalar(lr).mul_scalar(self.weight_decay);
 
         let (raw_delta, momentum_state) = self.momentum.transform(grad, state.map(|s| s.momentum));
 
@@ -67,7 +67,7 @@ impl<B: Backend> SimpleOptimizer<B> for AdamW<B> {
             momentum: momentum_state,
         };
 
-        (tensor - raw_delta.mul_scalar(lr), Some(state))
+        (tensor_updated - raw_delta.mul_scalar(lr), Some(state))
     }
 
     fn to_device<const D: usize>(
@@ -289,6 +289,8 @@ mod tests {
             [-0.0232, -0.0160, -0.0236, -0.0182, -0.0236, -0.0196],
             [-0.0197, -0.0181, -0.0212, -0.0219, -0.0201, -0.0237]
         ]);
+
+        t_actual_difference.into_data().assert_approx_eq(&expected_difference.into_data(), ASSERT_PRECISION);
 
         let (weight_updated, bias_updated) = (
             state_updated.weight.to_data(),
