@@ -10,6 +10,7 @@ mod cat;
 mod complex;
 mod conv1d;
 mod conv2d;
+mod conv_transpose2d;
 mod cos;
 mod cross_entropy;
 mod div;
@@ -54,6 +55,7 @@ macro_rules! testgen_all {
         // Modules
         burn_autodiff::testgen_ad_conv1d!();
         burn_autodiff::testgen_ad_conv2d!();
+        burn_autodiff::testgen_ad_conv_transpose2d!();
         burn_autodiff::testgen_ad_max_pool2d!();
         burn_autodiff::testgen_ad_avg_pool1d!();
         burn_autodiff::testgen_ad_avg_pool2d!();
