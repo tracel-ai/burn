@@ -31,9 +31,6 @@ mod tests {
 
         let generated_code = code(input_file);
 
-        // Uncomment this to update the expected code
-        // println!("Generated code:\n{}", generated_code);
-
         assert_eq!(
             source_expected, generated_code,
             "Expected code is left, actual code is right"

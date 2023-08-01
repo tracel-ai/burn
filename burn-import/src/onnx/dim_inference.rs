@@ -76,9 +76,7 @@ pub fn dim_inference(
             NodeType::Softmax => same_as_input(node),
             NodeType::Erf => same_as_input(node),
             NodeType::ReduceMean => mean_update_outputs(node),
-            NodeType::Constant => {
-                node.outputs[0].ty = ArgType::Constant;
-            }
+            NodeType::Constant => constant_update_outputs(node),
             NodeType::Equal => same_as_input(node),
             NodeType::Shape => shape_update_outputs(node),
             NodeType::Unsqueeze => unsqueeze_update_outputs(node),
@@ -89,7 +87,9 @@ pub fn dim_inference(
             NodeType::Concat => concat_update_outputs(node),
             NodeType::Reshape => reshape_update_outputs(node),
             NodeType::Dropout => same_as_input(node),
-            NodeType::GlobalAveragePool => same_as_input(node), //FIXME use correct output
+
+            //FIXME use correct output for GAP (@antimora 8/1/2023)
+            NodeType::GlobalAveragePool => same_as_input(node),
             _ => todo!(
                 "shape inference for {:?} is not implemented",
                 node.node_type
@@ -100,6 +100,20 @@ pub fn dim_inference(
     }
 
     updater.update_arguments(graph_outputs);
+}
+
+fn constant_update_outputs(node: &mut Node) {
+    // Fix the tensor dimension of the output when the value is tensor
+    let output = &mut node.outputs[0];
+    match node.attrs.get("value") {
+        Some(value) => match &value {
+            AttributeValue::Tensor(tensor) => {
+                output.ty = ArgType::Tensor(TensorArg { dim: tensor.dim });
+            }
+            _ => {}
+        },
+        None => panic!("Constant node must have a value attribute"),
+    };
 }
 
 /// Infer the shape of the output tensor of a Conv2d node
@@ -184,7 +198,7 @@ fn unsqueeze_update_outputs(node: &mut Node) {
     let dim = match node_input.clone().ty {
         ArgType::Tensor(tensor) => tensor.dim,
         ArgType::Shape(dim) => dim,
-        ArgType::Constant => panic!("Needs shape or tensor"),
+        ArgType::Scalar(_) => panic!("Needs shape or tensor"),
     };
 
     node.outputs[0].ty = ArgType::Tensor(TensorArg { dim: dim + 1 });

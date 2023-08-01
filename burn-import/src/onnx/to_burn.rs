@@ -16,7 +16,7 @@ use crate::{
             batch_norm::BatchNormNode,
             binary::BinaryNode,
             concat::ConcatNode,
-            constant::{ConstantNode, ConstantValue},
+            constant::{ConstantNode, ConstantValue, TensorValue},
             conv2d::Conv2dNode,
             linear::LinearNode,
             matmul::MatmulNode,
@@ -24,7 +24,7 @@ use crate::{
             reshape::ReshapeNode,
             unary::UnaryNode,
         },
-        TensorType,
+        ScalarKind, ScalarType, TensorKind, TensorType, Type,
     },
     format_tokens,
     logger::init_log,
@@ -39,7 +39,7 @@ use crate::{
 
 use super::{
     from_onnx::parse_onnx,
-    ir::{ArgType, Argument, ONNXGraph, State, StateType, Tensor, TensorData},
+    ir::{ArgType, Argument, ElementType, ONNXGraph, State, StateType, Tensor, TensorData},
     op_configuration::concat_config,
 };
 
@@ -186,7 +186,7 @@ impl ONNXGraph {
                 NodeType::Relu => graph.register(Self::relu_conversion(node)),
                 NodeType::Flatten => graph.register(Self::flatten_conversion(node)),
                 NodeType::LogSoftmax => graph.register(Self::log_softmax_conversion(node)),
-                NodeType::Constant => graph.register(Self::constant_conversion(node)),
+                NodeType::Constant => graph.register(Self::constant_conversion::<PS>(node)),
                 NodeType::Reshape => graph.register(Self::reshape_conversion(node)),
                 NodeType::Sigmoid => graph.register(Self::sigmoid_conversion(node)),
                 NodeType::Transpose => graph.register(Self::transpose_conversion(node)),
@@ -198,52 +198,80 @@ impl ONNXGraph {
         graph
     }
 
-    fn constant_conversion(mut node: Node) -> ConstantNode {
+    fn constant_conversion<PS: PrecisionSettings>(mut node: Node) -> ConstantNode<PS> {
         let output = node.outputs.get(0).unwrap();
+
         let value = node.attrs.remove("value").unwrap();
 
         let value = match value {
-            AttributeValue::Float32(val) => ConstantValue::Float(val),
-            AttributeValue::Int64(val) => ConstantValue::Int(val as i32),
-            AttributeValue::Float32s(val) => ConstantValue::Float(val[0]),
-            AttributeValue::Int64s(val) => ConstantValue::Int(val[0] as i32),
-            _ => panic!("Unsupported constant node: {:?}", node),
+            AttributeValue::Float32(val) => ConstantValue::Float32(val),
+            AttributeValue::Int64(val) => ConstantValue::Int64(val),
+            AttributeValue::Tensor(tensor) => {
+                // Treat zero dim tensor as scalar
+                if tensor.dim == 0 {
+                    match tensor.data.unwrap() {
+                        TensorData::Float32(val) => ConstantValue::Float32(val[0]),
+                        TensorData::Float64(val) => ConstantValue::Float32(val[0] as f32),
+                        TensorData::Int64(val) => ConstantValue::Int64(val[0]),
+                        TensorData::Int32(val) => ConstantValue::Int64(val[0] as i64),
+                        _ => panic!("Unsupported constant tensor type: {:?} ", tensor.elem_type),
+                    }
+                } else {
+                    let ds = match tensor.elem_type {
+                        ElementType::Float32 | ElementType::Float64 => TensorValue::Float(
+                            tensor.clone().into_data_serialize::<PS::FloatElem>(),
+                        ),
+                        ElementType::Int32 | ElementType::Int64 => {
+                            TensorValue::Int(tensor.clone().into_data_serialize::<PS::IntElem>())
+                        }
+                        _ => panic!("Unsupported constant tensor type: {:?} ", tensor.elem_type),
+                    };
+
+                    ConstantValue::<PS>::Tensor(
+                        TensorType::new(
+                            node.name.clone(),
+                            tensor.dim,
+                            tensor.elem_type.into(),
+                            tensor.shape,
+                        ),
+                        ds,
+                    )
+                }
+            }
+            _ => panic!("Unsupported constant value: {:?} ", value),
         };
 
-        ConstantNode::new(output.name.clone(), value)
+        ConstantNode::new(node.name.clone(), value, output.to_type())
     }
 
     fn add_conversion(node: Node) -> BinaryNode {
-        // FIXME scalar vs tensor
-        let lhs = node.inputs.get(0).unwrap().to_tensor_type();
-        let rhs = node.inputs.get(1).unwrap().to_tensor_type();
-        let output = node.outputs.get(0).unwrap().to_tensor_type();
+        let lhs = node.inputs.get(0).unwrap().to_type();
+        let rhs = node.inputs.get(1).unwrap().to_type();
+        let output = node.outputs.get(0).unwrap().to_type();
 
-        BinaryNode::add(lhs, rhs, output)
+        BinaryNode::add(lhs.clone(), rhs.clone(), output.clone())
     }
 
     fn sub_conversion(node: Node) -> BinaryNode {
-        // FIXME scalar vs tensor
-        let lhs = node.inputs.get(0).unwrap().to_tensor_type();
-        let rhs = node.inputs.get(1).unwrap().to_tensor_type();
-        let output = node.outputs.get(0).unwrap().to_tensor_type();
+        let lhs = node.inputs.get(0).unwrap().to_type();
+        let rhs = node.inputs.get(1).unwrap().to_type();
+        let output = node.outputs.get(0).unwrap().to_type();
 
         BinaryNode::sub(lhs, rhs, output)
     }
 
     fn mul_conversion(node: Node) -> BinaryNode {
-        // FIXME scalar vs tensor
-        let lhs = node.inputs.get(0).unwrap().to_tensor_type();
-        let rhs = node.inputs.get(1).unwrap().to_tensor_type();
-        let output = node.outputs.get(0).unwrap().to_tensor_type();
+        let lhs = node.inputs.get(0).unwrap().to_type();
+        let rhs = node.inputs.get(1).unwrap().to_type();
+        let output = node.outputs.get(0).unwrap().to_type();
 
         BinaryNode::mul(lhs, rhs, output)
     }
 
     fn div_conversion(node: Node) -> BinaryNode {
-        let lhs = node.inputs.get(0).unwrap().to_tensor_type();
-        let rhs = node.inputs.get(1).unwrap().to_tensor_type();
-        let output = node.outputs.get(0).unwrap().to_tensor_type();
+        let lhs = node.inputs.get(0).unwrap().to_type();
+        let rhs = node.inputs.get(1).unwrap().to_type();
+        let output = node.outputs.get(0).unwrap().to_type();
 
         BinaryNode::div(lhs, rhs, output)
     }
@@ -257,9 +285,9 @@ impl ONNXGraph {
     }
 
     fn equal_conversion(node: Node) -> BinaryNode {
-        let lhs = node.inputs.get(0).unwrap().to_tensor_type();
-        let rhs = node.inputs.get(1).unwrap().to_tensor_type();
-        let output = node.outputs.get(0).unwrap().to_tensor_type();
+        let lhs = node.inputs.get(0).unwrap().to_type();
+        let rhs = node.inputs.get(1).unwrap().to_type();
+        let output = node.outputs.get(0).unwrap().to_type();
 
         BinaryNode::equal(lhs, rhs, output)
     }
@@ -419,8 +447,54 @@ impl Argument {
     pub fn to_tensor_type(&self) -> TensorType {
         match &self.ty {
             ArgType::Tensor(tensor) => TensorType::new_float(self.name.clone(), tensor.dim),
+            _ => panic!("Can't transform to tensor."),
+        }
+    }
+
+    pub fn to_type(&self) -> Type {
+        match &self.ty {
+            ArgType::Tensor(tensor) => {
+                // Treat tensor with dim 0 as scalar
+                if tensor.dim == 0 {
+                    // FIXME Convert to correct scalar type (@antimora 8/1/2023)
+                    // Currently it's not dangerous because we don't use specific scalar type
+                    Type::Scalar(ScalarType::new(self.name.clone(), ScalarKind::Float64))
+                } else {
+                    Type::Tensor(TensorType::new_float(self.name.clone(), tensor.dim))
+                }
+            }
+
+            ArgType::Scalar(elem_type) => {
+                Type::Scalar(ScalarType::new(self.name.clone(), elem_type.into()))
+            }
             ArgType::Shape(_shape) => panic!("Can't transform shape to tensor."),
-            ArgType::Constant => panic!("Can't transform constant to tensor."),
+        }
+    }
+}
+
+impl From<&ElementType> for ScalarKind {
+    fn from(elem_type: &ElementType) -> Self {
+        match elem_type {
+            ElementType::Float32 => ScalarKind::Float32,
+            ElementType::Float64 => ScalarKind::Float64,
+            ElementType::Int32 => ScalarKind::Int32,
+            ElementType::Int64 => ScalarKind::Int64,
+            ElementType::Bool => ScalarKind::Bool,
+            ElementType::String => panic!("String tensor unsupported"),
+            ElementType::Float16 => panic!("Float16 tensor unsupported"),
+        }
+    }
+}
+
+impl From<ElementType> for TensorKind {
+    fn from(elem_type: ElementType) -> Self {
+        match elem_type {
+            ElementType::Float32 => TensorKind::Float,
+            ElementType::Float64 => TensorKind::Float,
+            ElementType::Int32 => TensorKind::Int,
+            ElementType::Int64 => TensorKind::Int,
+            ElementType::Bool => TensorKind::Bool,
+            _ => panic!("Unsupported tensor type"),
         }
     }
 }

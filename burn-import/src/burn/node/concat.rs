@@ -14,11 +14,14 @@ pub struct ConcatNode {
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for ConcatNode {
     fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(&self.output)]
+        vec![Type::Tensor(self.output.clone())]
     }
 
     fn input_types(&self) -> Vec<Type> {
-        self.inputs.iter().map(Type::Tensor).collect()
+        self.inputs
+            .iter()
+            .map(|t| Type::Tensor(t.clone()))
+            .collect()
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {

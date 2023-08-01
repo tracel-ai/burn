@@ -11,6 +11,7 @@ members = [
   "burn-dataset",
   "burn-derive",
   "burn-import",
+  "burn-import/onnx-tests",
   "burn-ndarray",
   "burn-no-std-tests",
   "burn-tch",

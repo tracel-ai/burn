@@ -55,11 +55,11 @@ impl std::fmt::Debug for UnaryNode {
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for UnaryNode {
     fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(&self.output)]
+        vec![Type::Tensor(self.output.clone())]
     }
 
     fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(&self.input)]
+        vec![Type::Tensor(self.input.clone())]
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {

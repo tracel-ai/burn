@@ -14,11 +14,11 @@ impl<B: Backend> Model<B> {
     }
 
     #[allow(clippy::let_and_return)]
-    pub fn forward(&self, input1: Tensor<B, 4>, input1: Tensor<B, 4>) -> Tensor<B, 4> {
+    pub fn forward(&self, input1: Tensor<B, 4>) -> Tensor<B, 4> {
         let concat1_out1 = burn::tensor::Tensor::cat(vec![input1.clone(), input1.clone()], 1);
         let concat2_out1 = burn::tensor::Tensor::cat(
             vec![
-                input1.clone(),
+                input1,
                 concat1_out1.clone(),
                 concat1_out1.clone(),
                 concat1_out1.clone(),

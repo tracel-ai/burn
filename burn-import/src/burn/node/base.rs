@@ -77,7 +77,7 @@ pub enum Node<PS: PrecisionSettings> {
     MaxPool2d(MaxPool2dNode),
     Linear(LinearNode<PS>),
     BatchNorm(BatchNormNode<PS>),
-    Constant(ConstantNode),
+    Constant(ConstantNode<PS>),
     Unary(UnaryNode),
     Reshape(ReshapeNode),
     Concat(ConcatNode),
@@ -185,7 +185,7 @@ pub(crate) mod tests {
     use proc_macro2::TokenStream;
     use quote::quote;
 
-    fn one_node_graph<T: NodeCodegen<FullPrecisionSettings> + 'static>(
+    pub(crate) fn one_node_graph<T: NodeCodegen<FullPrecisionSettings> + 'static>(
         node_gen: T,
         forward: TokenStream,
     ) {

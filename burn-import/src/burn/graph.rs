@@ -9,7 +9,7 @@ use burn::record::{
 use proc_macro2::TokenStream;
 use quote::quote;
 use serde::{ser::SerializeMap, Serialize};
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
 
 /// Burn graph intermediate representation of modules and tensor operations.
 #[derive(Default, Debug)]
@@ -21,6 +21,8 @@ pub struct BurnGraph<PS: PrecisionSettings> {
     default: Option<TokenStream>,
     blank_spaces: bool,
     gen_new_fn: bool,
+    graph_input_types: Vec<Type>,
+    graph_output_types: Vec<Type>,
 }
 
 impl<PS: PrecisionSettings> BurnGraph<PS> {
@@ -98,6 +100,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
 
     /// Generate tokens reprensenting the graph with Burn modules and tensor operations.
     pub fn codegen(mut self) -> TokenStream {
+        self.extract_graph_io_types();
         self.build_scope();
         self.nodes
             .iter()
@@ -163,20 +166,22 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
     fn build_scope(&mut self) {
         log::debug!("Building the scope nodes len => '{}'", self.nodes.len());
 
-        let input = self.nodes.first().unwrap();
-
-        fn to_tensor(ty: Type<'_>) -> Option<&TensorType> {
+        fn to_tensor(ty: Type) -> Option<TensorType> {
             match ty {
-                Type::Tensor(tensor) => Some(tensor),
+                Type::Tensor(tensor) => Some(tensor.clone()),
+                Type::Scalar(_) => None,
                 Type::Other(_) => None,
             }
         }
 
-        input
-            .input_types()
+        // Register graph tensor input with 0 as node position
+        self.graph_input_types
+            .clone()
             .into_iter()
             .flat_map(to_tensor)
-            .for_each(|tensor| self.scope.tensor_register_variable(tensor, 0));
+            .for_each(|tensor| {
+                self.scope.tensor_register_variable(&tensor, 0);
+            });
 
         self.nodes
             .iter()
@@ -187,7 +192,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                     .flat_map(to_tensor)
                     .for_each(|tensor| {
                         self.scope
-                            .tensor_register_variable(tensor, node_position + 1)
+                            .tensor_register_variable(&tensor, node_position + 1)
                     })
             });
 
@@ -198,7 +203,10 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                 node.input_types()
                     .into_iter()
                     .flat_map(to_tensor)
-                    .for_each(|tensor| self.scope.tensor_register_future_use(tensor, node_position))
+                    .for_each(|tensor| {
+                        self.scope
+                            .tensor_register_future_use(&tensor, node_position)
+                    })
             });
     }
 
@@ -311,26 +319,19 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         let mut output_type_def = quote! {};
         let mut output_return_def = quote! {};
 
-        self.nodes
-            .first()
-            .unwrap()
-            .input_types()
-            .into_iter()
-            .for_each(|input| {
-                let name = input.name();
-                let ty = input.ty();
+        self.graph_input_types.iter().for_each(|input| {
+            let name = input.name().clone();
+            let ty = input.ty().clone();
 
-                input_def.extend(quote! {
-                    #name: #ty,
+            input_def.extend(quote! {
+                #name: #ty,
 
-                })
-            });
+            })
+        });
 
-        let output_types = self.nodes.last().unwrap().output_types();
+        let multiple_output = self.graph_output_types.len() > 1;
 
-        let multiple_output = output_types.len() > 1;
-
-        output_types.into_iter().for_each(|output| {
+        self.graph_output_types.iter().for_each(|output| {
             let name = output.name();
             let ty = output.ty();
 
@@ -378,6 +379,51 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                 #output_return_def
             }
         }
+    }
+
+    /// Extract the input and output types of the graph.
+    fn extract_graph_io_types(&mut self) {
+        // Get the unique names of each input.
+        let mut input_names: HashMap<String, Type> = HashMap::new();
+
+        for node in self.nodes.iter() {
+            for input in node.input_types() {
+                input_names.insert(input.name().to_string(), input);
+            }
+        }
+
+        // Get the unique names of each output.
+        let mut output_names: HashMap<String, Type> = HashMap::new();
+        for node in self.nodes.iter() {
+            for output in node.output_types() {
+                output_names.insert(output.name().to_string(), output);
+            }
+        }
+
+        // Identify the graph inputs by finding the inputs that are not outputs of any node.
+        self.graph_input_types = Vec::new();
+
+        for (input_name, input_type) in input_names.iter() {
+            if !output_names.contains_key(input_name) {
+                self.graph_input_types.push(input_type.clone());
+            }
+        }
+
+        // sort graph input types by name
+        self.graph_input_types
+            .sort_by(|a, b| a.name().cmp(b.name()));
+
+        // Identify the graph outputs by finding the outputs that are not inputs of any node.
+        self.graph_output_types = Vec::new();
+        for (output_name, output_type) in output_names.iter() {
+            if !input_names.contains_key(output_name) {
+                self.graph_output_types.push(output_type.clone());
+            }
+        }
+
+        // sort graph output types by name
+        self.graph_output_types
+            .sort_by(|a, b| a.name().cmp(b.name()));
     }
 }
 
