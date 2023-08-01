@@ -1,9 +1,5 @@
 use super::{numeric, BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor};
-<<<<<<< HEAD
 use crate::kernel::prng::{random_normal, random_uniform};
-=======
-use crate::kernel::prng::random_uniform;
->>>>>>> main
 use crate::kernel::{
     self, unary_default, unary_inplace_default, unary_scalar_default, unary_scalar_inplace_default,
 };

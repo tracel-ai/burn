@@ -21,11 +21,7 @@ pub fn random_normal<G: GraphicsApi, E: WgpuElement, const D: usize>(
 ) -> WgpuTensor<E, D> {
     let context = get_context::<G>(device);
     const WORKGROUP: usize = 32;
-    const N_VALUES_PER_THREAD: u32 = 128;
-    assert!(
-        N_VALUES_PER_THREAD % 2 == 0,
-        "Number of values per thread must be even. "
-    );
+    const N_VALUES_PER_THREAD: u32 = 128; // must be even
 
     let num_elems = shape.num_elements();
     let num_threads = f32::ceil(num_elems as f32 / N_VALUES_PER_THREAD as f32);
