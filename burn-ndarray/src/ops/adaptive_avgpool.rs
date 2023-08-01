@@ -91,12 +91,13 @@ pub(crate) fn adaptive_avg_pool2d_backward<E: FloatNdArrayElement>(
 }
 
 fn start_index(output_size_index: usize, output_size: usize, input_size: usize) -> usize {
-    f32::floor((output_size_index as f32 * input_size as f32) / output_size as f32) as usize
+    libm::floorf((output_size_index as f32 * input_size as f32) / output_size as f32) as usize
 }
 
 fn end_index(output_size_index: usize, output_size: usize, input_size: usize) -> usize {
-    let index = f32::ceil(((output_size_index + 1) as f32 * input_size as f32) / output_size as f32)
-        as usize;
+    let index =
+        libm::ceilf(((output_size_index + 1) as f32 * input_size as f32) / output_size as f32)
+            as usize;
 
     usize::min(index, input_size)
 }
