@@ -98,6 +98,8 @@ impl ModelGen {
     fn run(&self, is_build_script: bool) {
         log::info!("Starting to convert ONNX to Burn");
 
+        log::info!("Starting to convert ONNX to Burn");
+
         // prepend the out_dir to the cargo_out_dir if this is a build script
         let out_dir = if is_build_script {
             let cargo_out_dir = env::var("OUT_DIR").expect("OUT_DIR env is not set");
@@ -112,6 +114,8 @@ impl ModelGen {
 
         log::debug!("Output directory: {:?}", out_dir);
 
+        log::debug!("Output directory: {:?}", out_dir);
+
         create_dir_all(&out_dir).unwrap();
 
         for input in self.inputs.iter() {
@@ -122,8 +126,14 @@ impl ModelGen {
             log::debug!("Input file name: {:?}", file_name);
             log::debug!("Output file: {:?}", out_file);
 
+            log::info!("Converting {:?}", input);
+            log::debug!("Input file name: {:?}", file_name);
+            log::debug!("Output file: {:?}", out_file);
+
             Self::generate_model(self.development, input, out_file);
         }
+
+        log::info!("Finished converting ONNX to Burn");
 
         log::info!("Finished converting ONNX to Burn");
     }
@@ -134,11 +144,18 @@ impl ModelGen {
         log::debug!("Development mode: {:?}", development);
         log::debug!("Output file: {:?}", out_file);
 
+        log::info!("Generating model from {:?}", input);
+        log::debug!("Development mode: {:?}", development);
+        log::debug!("Output file: {:?}", out_file);
+
         let graph = parse_onnx(input.as_ref());
 
         if development {
             // export the graph
             let debug_graph = format!("{:#?}", graph);
+            let graph_file = out_file.with_extension("graph.txt");
+            log::debug!("Writing debug graph file: {:?}", graph_file);
+            fs::write(graph_file, debug_graph).unwrap();
             let graph_file = out_file.with_extension("graph.txt");
             log::debug!("Writing debug graph file: {:?}", graph_file);
             fs::write(graph_file, debug_graph).unwrap();
@@ -159,6 +176,8 @@ impl ModelGen {
 
         let code_str = format_tokens(graph.codegen());
         fs::write(out_file.with_extension("rs"), code_str).unwrap();
+
+        log::info!("Model generated");
 
         log::info!("Model generated");
     }
@@ -190,6 +209,7 @@ impl ONNXGraph {
                 NodeType::Reshape => graph.register(Self::reshape_conversion(node)),
                 NodeType::Sigmoid => graph.register(Self::sigmoid_conversion(node)),
                 NodeType::Transpose => graph.register(Self::transpose_conversion(node)),
+                NodeType::Concat => graph.register(Self::concat_conversion(node)),
                 NodeType::Concat => graph.register(Self::concat_conversion(node)),
                 _ => panic!("Unsupported node conversion {}", node.node_type),
             }
@@ -339,6 +359,19 @@ impl ONNXGraph {
         let dim = log_softmax_config(&node);
 
         UnaryNode::log_softmax(input, output, dim)
+    }
+
+    fn concat_conversion(node: Node) -> ConcatNode {
+        let inputs = node
+            .inputs
+            .iter()
+            .map(|input| input.to_tensor_type())
+            .collect();
+
+        let output = node.outputs.get(0).unwrap().to_tensor_type();
+        let dim = concat_config(&node);
+
+        ConcatNode::new(inputs, output, dim)
     }
 
     fn concat_conversion(node: Node) -> ConcatNode {
