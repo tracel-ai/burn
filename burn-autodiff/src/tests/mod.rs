@@ -1,5 +1,6 @@
 #![allow(missing_docs)]
 
+mod abs;
 mod add;
 mod aggregation;
 mod avgpool1d;
@@ -85,6 +86,7 @@ macro_rules! testgen_all {
         burn_autodiff::testgen_ad_sin!();
         burn_autodiff::testgen_ad_softmax!();
         burn_autodiff::testgen_ad_sqrt!();
+        burn_autodiff::testgen_ad_abs!();
         burn_autodiff::testgen_ad_sub!();
         burn_autodiff::testgen_ad_tanh!();
         burn_autodiff::testgen_ad_transpose!();

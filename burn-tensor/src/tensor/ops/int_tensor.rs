@@ -866,4 +866,15 @@ pub trait IntTensorOps<B: Backend> {
 
         (values, indices)
     }
+
+    /// Returns a new tensor with absolute values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to take absolute value of.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with absolute values.
+    fn int_abs<const D: usize>(tensor: B::IntTensorPrimitive<D>) -> B::IntTensorPrimitive<D>;
 }

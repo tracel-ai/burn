@@ -371,6 +371,17 @@ where
         unary_default::<Sqrt, F, D>(tensor)
     }
 
+    fn abs<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+        unary!(Abs, func "abs");
+        unary_inplace!(AbsInplace, func "abs");
+
+        if tensor.can_mut() {
+            return unary_inplace_default::<AbsInplace, F, D>(tensor);
+        }
+
+        unary_default::<Abs, F, D>(tensor)
+    }
+
     fn cos<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(Cos, func "cos");
         unary_inplace!(CosInplace, func "cos");

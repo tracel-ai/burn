@@ -916,6 +916,17 @@ pub trait TensorOps<B: Backend> {
     /// A tensor with the same shape as `tensor` with square root values.
     fn sqrt<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D>;
 
+    /// Returns a new tensor with absolute values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to take absolute value of.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with absolute values.
+    fn abs<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D>;
+
     /// Returns a new tensor with cosine values.
     ///
     /// # Arguments
