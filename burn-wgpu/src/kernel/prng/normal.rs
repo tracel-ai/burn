@@ -18,6 +18,7 @@ struct NormalPrng;
 impl StaticKernel for NormalPrng {
     fn source_template() -> SourceTemplate {
         Prng::source_template()
+            .register("num_args", "2")
             .register("prng_loop", include_str!("../../template/prng/normal_inner_loop.wgsl"))
             .add_template(include_str!(
                 "../../template/prng/box_muller_transform.wgsl"

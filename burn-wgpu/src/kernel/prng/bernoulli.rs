@@ -18,6 +18,7 @@ struct BernoulliPrng;
 impl StaticKernel for BernoulliPrng {
     fn source_template() -> SourceTemplate {
         Prng::source_template()
+            .register("num_args", "1")
             .register(
                 "prng_loop",
                 include_str!("../../template/prng/bernoulli_inner_loop.wgsl"),

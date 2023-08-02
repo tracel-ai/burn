@@ -8,7 +8,7 @@ var<storage, read> info: array<u32, 5>;
 
 @group(0)
 @binding(2)
-var<storage, read> args: array<{{ elem }}, 2>;
+var<storage, read> args: array<{{ elem }}, {{ num_args }}>;
 
 @compute
 @workgroup_size({{ workgroup_size_x }}, {{ workgroup_size_y }}, 1)
