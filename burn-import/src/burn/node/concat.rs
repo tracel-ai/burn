@@ -80,12 +80,17 @@ mod tests {
             };
 
             #[derive(Module, Debug)]
-            pub struct Model <B: Backend>{}
+            pub struct Model<B: Backend> {
+                _dummy: Tensor<B, 1>,
+            }
 
             impl<B: Backend> Model <B> {
-                pub fn new_with(record: ModelRecord<B>) -> Self {
-                    Self { }
+                pub fn new_with(_record: ModelRecord<B>) -> Self {
+                    Self {
+                        _dummy: Tensor::zeros([1]),
+                    }
                 }
+
                 #[allow(clippy::let_and_return)]
                 pub fn forward(&self, tensor1: Tensor<B, 4>, tensor2: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor3 = burn::tensor::Tensor::cat(vec![tensor1, tensor2], 1);

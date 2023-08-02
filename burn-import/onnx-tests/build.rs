@@ -9,6 +9,7 @@ fn main() {
         .input("tests/add/add.onnx")
         .input("tests/sub/sub.onnx")
         .input("tests/mul/mul.onnx")
+        .input("tests/div/div.onnx")
         .out_dir("model/")
         .run_from_script();
 

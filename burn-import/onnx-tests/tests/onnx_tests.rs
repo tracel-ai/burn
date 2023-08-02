@@ -10,6 +10,10 @@ pub mod mul {
     include!(concat!(env!("OUT_DIR"), "/model/mul.rs"));
 }
 
+pub mod div {
+    include!(concat!(env!("OUT_DIR"), "/model/div.rs"));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -62,6 +66,23 @@ mod tests {
         let scalar = 6.0f64;
         let output = model.forward(input, scalar);
         let expected = Data::from([[[[126., 252., 378., 504.]]]]);
+
+        assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn div() {
+        // Tests the div node with matrix divisions and scalar divisions
+
+        // Initialize the model
+        let model: div::Model<Backend> = div::Model::new();
+
+        // Run the model
+        let input = Tensor::<Backend, 4>::from_floats([[[[3., 6., 6., 9.]]]]);
+        let scalar1 = 9.0f64;
+        let scalar2 = 3.0f64;
+        let output = model.forward(input, scalar1, scalar2);
+        let expected = Data::from([[[[1., 2., 2., 3.]]]]);
 
         assert_eq!(output.to_data(), expected);
     }

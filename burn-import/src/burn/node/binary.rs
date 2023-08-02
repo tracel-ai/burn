@@ -134,7 +134,13 @@ impl BinaryNode {
     }
 
     pub(crate) fn div(lhs: Type, rhs: Type, output: Type) -> Self {
-        let function = move |lhs, rhs| quote! { #lhs.div(#rhs) };
+        let function = match (&lhs, &rhs) {
+            (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.div(#rhs) },
+            (Type::Tensor(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs.div_scalar(#rhs) },
+            (Type::Scalar(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs / #rhs },
+            _ => panic!("Division is supported for tensor and scalar only"),
+        };
+
         Self::new(lhs, rhs, output, BinaryType::Div, Arc::new(function))
     }
 
@@ -226,6 +232,11 @@ mod tests {
     #[test]
     fn test_binary_codegen_div() {
         test_binary_operator_on_tensors!(div);
+    }
+
+    #[test]
+    fn test_binary_codegen_div_scalar() {
+        test_binary_operator_on_tensor_and_scalar!(div, div_scalar);
     }
 
     #[test]

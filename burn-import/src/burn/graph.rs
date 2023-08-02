@@ -253,10 +253,21 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             })
             .for_each(|code| body.extend(code));
 
-        quote! {
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                #body
+        // Add dummy field if no field is present to avoid empty struct
+        // and make sure we can derive Module trait and use it in a model.
+        if body.is_empty() {
+            quote! {
+                #[derive(Module, Debug)]
+                pub struct Model<B: Backend> {
+                    _dummy: Tensor<B, 1>,
+                }
+            }
+        } else {
+            quote! {
+                #[derive(Module, Debug)]
+                pub struct Model<B: Backend> {
+                    #body
+                }
             }
         }
     }
@@ -276,13 +287,24 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             .map(|field| field.name().clone())
             .collect::<Vec<_>>();
 
-        quote! {
-            #[allow(dead_code)]
-            pub fn new() -> Self {
-                #body
+        if fields.is_empty() {
+            quote! {
+                #[allow(dead_code)]
+                pub fn new() -> Self {
+                    Self {
+                        _dummy: Tensor::zeros([1]),
+                    }
+                }
+            }
+        } else {
+            quote! {
+                #[allow(dead_code)]
+                pub fn new() -> Self {
+                    #body
 
-                Self {
-                    #(#fields,)*
+                    Self {
+                        #(#fields,)*
+                    }
                 }
             }
         }
@@ -302,12 +324,22 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             .map(|field| field.name().clone())
             .collect::<Vec<_>>();
 
-        quote! {
-            pub fn new_with(record: ModelRecord<B>) -> Self {
-                #body
+        if fields.is_empty() {
+            quote! {
+                pub fn new_with(_record: ModelRecord<B>) -> Self {
+                    Self {
+                        _dummy: Tensor::zeros([1]),
+                    }
+                }
+            }
+        } else {
+            quote! {
+                pub fn new_with(record: ModelRecord<B>) -> Self {
+                    #body
 
-                Self {
-                    #(#fields,)*
+                    Self {
+                        #(#fields,)*
+                    }
                 }
             }
         }

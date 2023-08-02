@@ -8,7 +8,7 @@ import torch.nn as nn
 
 class Model(nn.Module):
     def __init__(self):
-        # Declare a constant float tensor with ones
+        # Declare a constant float tensor
         self.a = torch.full((1, 1, 1, 4), 3.0)
 
         # Declare a scalar

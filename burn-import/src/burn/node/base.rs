@@ -203,11 +203,15 @@ pub(crate) mod tests {
             };
 
             #[derive(Module, Debug)]
-            pub struct Model <B: Backend>{}
+            pub struct Model<B: Backend> {
+                _dummy: Tensor<B, 1>,
+            }
 
             impl<B: Backend> Model <B> {
-                pub fn new_with(record: ModelRecord<B>) -> Self {
-                    Self { }
+                pub fn new_with(_record: ModelRecord<B>) -> Self {
+                    Self {
+                        _dummy: Tensor::zeros([1]),
+                    }
                 }
 
                 #[allow(clippy::let_and_return)]
