@@ -54,10 +54,12 @@ mod tests {
     use core::f32;
 
     use burn_tensor::{backend::Backend, Distribution, Shape, Tensor};
+    use serial_test::serial;
 
     use crate::{kernel::prng::base::tests::calculate_bin_stats, tests::TestBackend, WgpuDevice};
 
     #[test]
+    #[serial]
     fn subsequent_calls_give_different_tensors() {
         TestBackend::seed(0);
         let shape: Shape<2> = [40, 40].into();
@@ -84,6 +86,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn number_of_1_proportional_to_prob() {
         TestBackend::seed(0);
         let shape: Shape<2> = [40, 40].into();
@@ -105,6 +108,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn runs_test() {
         TestBackend::seed(0);
         let shape = Shape::new([512, 512]);

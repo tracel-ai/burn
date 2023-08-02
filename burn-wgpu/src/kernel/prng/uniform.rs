@@ -53,10 +53,12 @@ mod tests {
     use core::f32;
 
     use burn_tensor::{backend::Backend, Distribution, Shape, Tensor};
+    use serial_test::serial;
 
     use crate::{kernel::prng::base::tests::calculate_bin_stats, tests::TestBackend, WgpuDevice};
 
     #[test]
+    #[serial]
     fn subsequent_calls_give_different_tensors() {
         TestBackend::seed(0);
         let shape = [4, 5];
@@ -72,6 +74,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn values_all_within_interval_default() {
         TestBackend::seed(0);
         let shape = [24, 24];
@@ -82,6 +85,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn values_all_within_interval_uniform() {
         TestBackend::seed(0);
         let shape = [24, 24];
@@ -93,6 +97,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn at_least_one_value_per_bin_uniform() {
         TestBackend::seed(0);
         let shape = [64, 64];
@@ -111,6 +116,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn runs_test() {
         TestBackend::seed(0);
         let shape = Shape::new([512, 512]);

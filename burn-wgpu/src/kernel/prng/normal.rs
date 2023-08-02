@@ -53,10 +53,12 @@ pub fn random_normal<G: GraphicsApi, E: WgpuElement, const D: usize>(
 mod tests {
 
     use burn_tensor::{backend::Backend, Data, Distribution, Shape, Tensor};
+    use serial_test::serial;
 
     use crate::{kernel::prng::base::tests::calculate_bin_stats, tests::TestBackend, WgpuDevice};
 
     #[test]
+    #[serial]
     fn subsequent_calls_give_different_tensors() {
         TestBackend::seed(0);
         let shape = [4, 5];
@@ -72,6 +74,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn empirical_mean_close_to_expectation() {
         TestBackend::seed(0);
         let shape = [128, 128];
@@ -84,6 +87,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn normal_respects_68_95_99_rule() {
         // https://en.wikipedia.org/wiki/68%E2%80%9395%E2%80%9399.7_rule
         let shape: Shape<2> = [1000, 1000].into();
