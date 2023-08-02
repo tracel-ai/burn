@@ -32,7 +32,7 @@ List taken from [here](https://github.com/onnx/onnx/blob/main/docs/Operators.md)
 - [ ] BitwiseOr
 - [ ] BitwiseXor
 - [ ] BlackmanWindow
-- [ ] Cast
+- [x] Cast
 - [ ] CastLike
 - [ ] Ceil
 - [ ] Celu
@@ -40,9 +40,9 @@ List taken from [here](https://github.com/onnx/onnx/blob/main/docs/Operators.md)
 - [ ] Clip
 - [ ] Col
 - [ ] Compress
-- [ ] Concat
+- [x] Concat
 - [ ] ConcatFromSequence
-- [ ] Constant
+- [x] Constant
 - [ ] ConstantOfShape
 - [ ] Conv
 - [ ] Conv1d
