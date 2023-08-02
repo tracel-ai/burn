@@ -212,6 +212,21 @@ impl ONNXGraph {
             }
         }
 
+        // Get input and output names
+        let input_names = self
+            .inputs
+            .iter()
+            .map(|input| input.name.clone())
+            .collect::<Vec<_>>();
+        let output_names = self
+            .outputs
+            .iter()
+            .map(|output| output.name.clone())
+            .collect::<Vec<_>>();
+
+        // Register inputs and outputs with the graph
+        graph.register_input_output(input_names, output_names);
+
         graph
     }
 

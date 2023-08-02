@@ -154,6 +154,8 @@ mod tests {
             Conv2dConfig::new([3, 3], [3, 3]).with_padding(PaddingConfig2d::Valid),
         ));
 
+        graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
+
         let expected = quote! {
             use burn::{
                 module::Module,

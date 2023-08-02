@@ -56,6 +56,8 @@ mod tests {
             [4, 4, 4, 4].into(),
         ));
 
+        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+
         let expected = quote! {
             use burn::{
                 module::Module,

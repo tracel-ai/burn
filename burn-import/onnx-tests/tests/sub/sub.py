@@ -12,19 +12,19 @@ class Model(nn.Module):
         self.a = torch.ones(1, 1, 1, 4)
 
         # Declare a scalar
-        self.b = 5.0
+        self.b = 9.0
         super(Model, self).__init__()
 
     def forward(self, x, k):
 
-        # Add a tensor input and a constant tensor
-        x = x + self.a
+        # Subtract a constant tensor from a tensor input
+        x = x - self.a
 
-        # Add a scalar constant and a scalar input
-        d = self.b + k
+        # Subtract a scalar constant from a scalar input
+        d = k - self.b
 
-        # Add a tensor and a scalar
-        x = x + d
+        # Sutract a scalar from a tensor
+        x = x - d
 
         return x
 
@@ -35,10 +35,10 @@ def main():
     model = Model()
     model.eval()
     device = torch.device("cpu")
-    onnx_name = "add.onnx"
+    onnx_name = "sub.onnx"
     dummy_input = torch.randn(1, 2, 3, 4, device=device)
 
-    scalar = 2.0
+    scalar = 3.0
 
     torch.onnx.export(model, (dummy_input, scalar), onnx_name,
                       verbose=False, opset_version=16)

@@ -100,7 +100,6 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
 
     /// Generate tokens reprensenting the graph with Burn modules and tensor operations.
     pub fn codegen(mut self) -> TokenStream {
-        self.extract_graph_io_types();
         self.build_scope();
         self.nodes
             .iter()
@@ -319,8 +318,6 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         let mut output_type_def = quote! {};
         let mut output_return_def = quote! {};
 
-        // FIXME Preserve the order of the input types as
-        // they are defined originally (@antimora 8/1/2023)
         self.graph_input_types.iter().for_each(|input| {
             let name = input.name().clone();
             let ty = input.ty().clone();
@@ -338,8 +335,6 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             let ty = output.ty();
 
             if multiple_output {
-                // FIXME Preserve the order of the output types as
-                // they are defined originally (@antimora 8/1/2023)
                 output_type_def.extend(quote! {
                     #ty,
                 });
@@ -385,49 +380,46 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         }
     }
 
-    /// Extract the input and output types of the graph.
-    fn extract_graph_io_types(&mut self) {
-        // Get the unique names of each input.
-        let mut input_names: HashMap<String, Type> = HashMap::new();
+    /// Register the input and output types of the graph using the passed in names.
+    /// The names must be unique and match the names of the inputs and outputs of the nodes.
+    /// The order will be preserved.
+    ///
+    /// # Arguments
+    ///
+    /// * `input_names` - The names of the inputs of the graph.
+    /// * `output_names` - The names of the outputs of the graph.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the graph is empty.
+    pub fn register_input_output(&mut self, input_names: Vec<String>, output_names: Vec<String>) {
+        assert!(
+            !self.nodes.is_empty(),
+            "Cannot register input and output types for an empty graph."
+        );
 
+        // Get the unique names of each input of the nodes
+        let mut inputs = HashMap::new();
+        let mut outputs = HashMap::new();
         for node in self.nodes.iter() {
             for input in node.input_types() {
-                input_names.insert(input.name().to_string(), input);
+                inputs.insert(input.name().to_string(), input);
             }
-        }
-
-        // Get the unique names of each output.
-        let mut output_names: HashMap<String, Type> = HashMap::new();
-        for node in self.nodes.iter() {
             for output in node.output_types() {
-                output_names.insert(output.name().to_string(), output);
+                outputs.insert(output.name().to_string(), output);
             }
         }
 
-        // Identify the graph inputs by finding the inputs that are not outputs of any node.
-        self.graph_input_types = Vec::new();
+        // Get the input and output types of the graph using passed in names
+        input_names.iter().for_each(|input| {
+            self.graph_input_types
+                .push(inputs.get(input).unwrap().clone());
+        });
 
-        for (input_name, input_type) in input_names.iter() {
-            if !output_names.contains_key(input_name) {
-                self.graph_input_types.push(input_type.clone());
-            }
-        }
-
-        // sort graph input types by name
-        self.graph_input_types
-            .sort_by(|a, b| a.name().cmp(b.name()));
-
-        // Identify the graph outputs by finding the outputs that are not inputs of any node.
-        self.graph_output_types = Vec::new();
-        for (output_name, output_type) in output_names.iter() {
-            if !input_names.contains_key(output_name) {
-                self.graph_output_types.push(output_type.clone());
-            }
-        }
-
-        // sort graph output types by name
-        self.graph_output_types
-            .sort_by(|a, b| a.name().cmp(b.name()));
+        output_names.iter().for_each(|output| {
+            self.graph_output_types
+                .push(outputs.get(output).unwrap().clone());
+        });
     }
 }
 

@@ -140,12 +140,12 @@ impl UnaryNode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::burn::node::tests::{codegen_unary_operator, one_node_graph};
+    use crate::burn::node::tests::one_node_graph;
     use crate::burn::{ScalarKind, ScalarType, TensorType};
 
     #[test]
     fn test_unary_codegen_flatten() {
-        codegen_unary_operator::<4, _>(
+        one_node_graph(
             UnaryNode::flatten(
                 Type::Tensor(TensorType::new_float("tensor1", 4)),
                 Type::Tensor(TensorType::new_float("tensor2", 4)),
@@ -153,71 +153,91 @@ mod tests {
                 2,
             ),
             quote! {
-                let tensor2 = tensor1.flatten(1, 2);
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let tensor2 = tensor1.flatten(1, 2);
 
-                tensor2
+                    tensor2
+                }
             },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
         );
     }
 
     #[test]
     fn test_unary_codegen_relu() {
-        codegen_unary_operator::<4, _>(
+        one_node_graph(
             UnaryNode::relu(
                 Type::Tensor(TensorType::new_float("tensor1", 4)),
                 Type::Tensor(TensorType::new_float("tensor2", 4)),
             ),
             quote! {
-                let tensor2 = burn::tensor::activation::relu(tensor1);
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let tensor2 = burn::tensor::activation::relu(tensor1);
 
-                tensor2
+                    tensor2
+                }
             },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
         );
     }
 
     #[test]
     fn test_unary_codegen_sigmoid() {
-        codegen_unary_operator::<4, _>(
+        one_node_graph(
             UnaryNode::sigmoid(
                 Type::Tensor(TensorType::new_float("tensor1", 4)),
                 Type::Tensor(TensorType::new_float("tensor2", 4)),
             ),
             quote! {
-                let tensor2 = burn::tensor::activation::sigmoid(tensor1);
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let tensor2 = burn::tensor::activation::sigmoid(tensor1);
 
-                tensor2
+                    tensor2
+                }
             },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
         );
     }
 
     #[test]
     fn test_unary_codegen_log_softmax() {
-        codegen_unary_operator::<4, _>(
+        one_node_graph(
             UnaryNode::log_softmax(
                 Type::Tensor(TensorType::new_float("tensor1", 4)),
                 Type::Tensor(TensorType::new_float("tensor2", 4)),
                 1,
             ),
             quote! {
-                let tensor2 = burn::tensor::activation::log_softmax(tensor1, 1);
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let tensor2 = burn::tensor::activation::log_softmax(tensor1, 1);
 
-                tensor2
+                    tensor2
+                }
             },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
         );
     }
 
     #[test]
     fn test_unary_codegen_transpose() {
-        codegen_unary_operator::<4, _>(
+        one_node_graph(
             UnaryNode::transpose(
                 Type::Tensor(TensorType::new_float("tensor1", 4)),
                 Type::Tensor(TensorType::new_float("tensor2", 4)),
             ),
             quote! {
-                let tensor2 = tensor1.transpose();
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let tensor2 = tensor1.transpose();
 
-                tensor2
+                    tensor2
+                }
             },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
         );
     }
 
@@ -235,6 +255,8 @@ mod tests {
                     scalar2
                 }
             },
+            vec!["scalar1".to_string()],
+            vec!["scalar2".to_string()],
         );
         one_node_graph(
             UnaryNode::cast(
@@ -248,6 +270,8 @@ mod tests {
                     scalar2
                 }
             },
+            vec!["scalar1".to_string()],
+            vec!["scalar2".to_string()],
         );
     }
 }

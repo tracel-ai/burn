@@ -1,9 +1,13 @@
 use burn_import::onnx::ModelGen;
 
 fn main() {
+    // Re-run this build script if the onnx-tests directory changes.
+    println!("cargo:rerun-if-changed=tests");
+
     // Add onnx models.
     ModelGen::new()
         .input("tests/add/add.onnx")
+        .input("tests/sub/sub.onnx")
         .out_dir("model/")
         .run_from_script();
 

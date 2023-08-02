@@ -181,6 +181,8 @@ mod tests {
             BatchNormConfig::new(128),
         ));
 
+        graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
+
         let expected = quote! {
             use burn::{
                 module::Module,

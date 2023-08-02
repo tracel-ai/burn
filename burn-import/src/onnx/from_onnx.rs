@@ -56,12 +56,7 @@ pub fn parse_onnx(onnx_path: &Path) -> ONNXGraph {
     move_inputs_to_state(&mut nodes, &onnx_model.graph.initializer);
 
     // Get the topological sort of the nodes and the top nodes
-    // TODO (antimora) remove _top_nodes because it is not used anymore
-    // (it was used for calculating the outputs)
-    let (ts, _top_nodes) = get_top_nodes(&nodes);
-
-    // Sort the nodes
-    top_sort_nodes(&mut nodes, ts);
+    top_sort_nodes(&mut nodes);
 
     // Collect inputs, outputs and initializers
     let check_if_initializer: HashSet<String> = onnx_model
@@ -135,7 +130,7 @@ fn collect_inputs(
     // top_nodes: HashSet<String>,
 ) -> Vec<Argument> {
     // Get the unique inputs
-    let inputs: HashSet<Argument> = onnx_model
+    let inputs: Vec<Argument> = onnx_model
         .graph
         .input
         .iter()
@@ -149,26 +144,12 @@ fn collect_inputs(
 }
 
 /// Sort the nodes in topological order
-fn top_sort_nodes(nodes: &mut Vec<Node>, mut ts: TopologicalSort<Node>) {
+fn top_sort_nodes(nodes: &mut Vec<Node>) {
+    let mut ts = topsort(nodes);
     *nodes = vec![];
     while let Some(node) = ts.pop() {
         nodes.push(node);
     }
-}
-
-/// Get the top nodes in the graph
-fn get_top_nodes(nodes: &Vec<Node>) -> (TopologicalSort<Node>, HashSet<String>) {
-    // Get the names of the top nodes (first nodes in the graph to receive the input)
-    // Sometimes onnx will pass inputs to be used as weights and biases but they are not truly inputs
-    let ts = topsort(nodes);
-    let mut top_nodes: HashSet<String> = HashSet::new();
-
-    for node in ts.peek_all() {
-        for input in node.inputs.iter() {
-            top_nodes.insert(input.name.clone());
-        }
-    }
-    (ts, top_nodes)
 }
 
 fn to_string(bytes: Vec<u8>) -> String {
