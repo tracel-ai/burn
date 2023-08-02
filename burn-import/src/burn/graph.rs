@@ -319,6 +319,8 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         let mut output_type_def = quote! {};
         let mut output_return_def = quote! {};
 
+        // FIXME Preserve the order of the input types as
+        // they are defined originally (@antimora 8/1/2023)
         self.graph_input_types.iter().for_each(|input| {
             let name = input.name().clone();
             let ty = input.ty().clone();
@@ -336,6 +338,8 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             let ty = output.ty();
 
             if multiple_output {
+                // FIXME Preserve the order of the output types as
+                // they are defined originally (@antimora 8/1/2023)
                 output_type_def.extend(quote! {
                     #ty,
                 });

@@ -20,20 +20,22 @@ pub struct UnaryNode {
 /// Type of unary node.
 #[derive(Clone)]
 pub enum UnaryNodeKind {
+    Cast,
     Flatten,
+    LogSoftmax,
     Relu,
     Sigmoid,
-    LogSoftmax,
     Transpose,
 }
 
 impl UnaryNodeKind {
     pub fn as_str(&self) -> &str {
         match self {
+            Self::Cast => "cast",
             Self::Flatten => "flatten",
+            Self::LogSoftmax => "log_softmax",
             Self::Relu => "relu",
             Self::Sigmoid => "sigmoid",
-            Self::LogSoftmax => "log_softmax",
             Self::Transpose => "transpose",
         }
     }
@@ -116,13 +118,30 @@ impl UnaryNode {
         let function = move |input| quote! { #input.transpose() };
         Self::new(input, output, UnaryNodeKind::Transpose, Arc::new(function))
     }
+
+    pub(crate) fn cast(input: Type, output: Type) -> Self {
+        let function = match output.clone() {
+            Type::Scalar(scalar) => {
+                let ty = scalar.ty();
+                move |input| quote! { #input as #ty }
+            }
+            Type::Tensor(_tensor) => {
+                // TODO: Implement this after tensor Int is implemented (@antimora 8/10/2023)
+                todo!()
+            }
+
+            _ => panic!("output must be a tensor"),
+        };
+
+        Self::new(input, output, UnaryNodeKind::Cast, Arc::new(function))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::burn::node::tests::codegen_unary_operator;
-    use crate::burn::TensorType;
+    use crate::burn::node::tests::{codegen_unary_operator, one_node_graph};
+    use crate::burn::{ScalarKind, ScalarType, TensorType};
 
     #[test]
     fn test_unary_codegen_flatten() {
@@ -198,6 +217,36 @@ mod tests {
                 let tensor2 = tensor1.transpose();
 
                 tensor2
+            },
+        );
+    }
+
+    #[test]
+    fn test_unary_codegen_cast() {
+        one_node_graph(
+            UnaryNode::cast(
+                Type::Scalar(ScalarType::new("scalar1", ScalarKind::Float64)),
+                Type::Scalar(ScalarType::new("scalar2", ScalarKind::Float32)),
+            ),
+            quote! {
+                pub fn forward(&self, scalar1: f64) -> f32 {
+                    let scalar2 = scalar1 as f32;
+
+                    scalar2
+                }
+            },
+        );
+        one_node_graph(
+            UnaryNode::cast(
+                Type::Scalar(ScalarType::new("scalar1", ScalarKind::Float32)),
+                Type::Scalar(ScalarType::new("scalar2", ScalarKind::Float64)),
+            ),
+            quote! {
+                pub fn forward(&self, scalar1: f32) -> f64 {
+                    let scalar2 = scalar1 as f64;
+
+                    scalar2
+                }
             },
         );
     }

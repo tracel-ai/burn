@@ -19,8 +19,9 @@ mod tests {
 
         // Run the model
         let input = Tensor::<Backend, 4>::from_floats([[[[1., 2., 3., 4.]]]]);
-        let output = model.forward(input);
-        let expected = Data::from([[[[7., 8., 9., 10.]]]]);
+        let scalar = 2f64;
+        let output = model.forward(input, scalar);
+        let expected = Data::from([[[[9., 10., 11., 12.]]]]);
 
         assert_eq!(output.to_data(), expected);
     }

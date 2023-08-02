@@ -1,8 +1,11 @@
 use std::collections::HashMap;
 
+use protobuf::Enum;
+
 use super::{
-    ir::{ArgType, Argument, AttributeValue, Node, NodeType, TensorArg},
+    ir::{ArgType, Argument, AttributeValue, ElementType, Node, NodeType, TensorArg},
     op_configuration::flatten_config,
+    protos::tensor_proto::DataType,
 };
 
 struct TensorDimUpdater {
@@ -70,7 +73,7 @@ pub fn dim_inference(
             NodeType::Sub => same_as_input(node),
             NodeType::Pow => same_as_input(node),
             NodeType::Mul => same_as_input(node),
-            NodeType::Cast => same_as_input(node),
+            NodeType::Cast => cast_update_outputs(node),
             NodeType::Div => same_as_input(node),
             NodeType::Sqrt => same_as_input(node),
             NodeType::Softmax => same_as_input(node),
@@ -130,6 +133,49 @@ fn linear_update_outputs(node: &mut Node) {
         node.outputs[0].ty = ArgType::Tensor(TensorArg { dim: tensor.dim });
     } else {
         panic!("Only tensor input is valid");
+    }
+}
+
+/// Update the output type using "to" attribute
+fn cast_update_outputs(node: &mut Node) {
+    if node.inputs.len() != 1 {
+        panic!("Cast: multiple inputs are not supported");
+    }
+    let output = &mut node.outputs[0];
+
+    // Extract cast type and update the output tensor
+    let elem_type = match node.attrs.get("to") {
+        Some(value) => match &value {
+            AttributeValue::Int64(type_id) => match DataType::from_i32(*type_id as i32).unwrap() {
+                DataType::FLOAT => ElementType::Float32,
+                DataType::INT32 => ElementType::Int32,
+                DataType::INT64 => ElementType::Int64,
+                DataType::DOUBLE => ElementType::Float64,
+                _ => panic!("Cast: unsupported type"),
+            },
+            _ => panic!("'to' attribute must be an Int64"),
+        },
+        None => panic!("Constant node must have a value attribute"),
+    };
+
+    match output.ty.clone() {
+        ArgType::Tensor(tensor) => {
+            if tensor.dim == 0 {
+                // treat 0-dim tensor as scalar
+                output.ty = ArgType::Scalar(elem_type);
+            } else {
+                todo!("Cast: update tensor type");
+                // TODO track the type of the tensor elements (@antimora 8/1/2023)
+                // output.ty = ArgType::Tensor(TensorArg {
+                //     dim: tensor.dim,
+                //     elem_type,
+                // });
+            }
+        }
+        ArgType::Scalar(_scalar) => {
+            output.ty = ArgType::Scalar(elem_type);
+        }
+        _ => panic!("Only tensor input is valid"),
     }
 }
 

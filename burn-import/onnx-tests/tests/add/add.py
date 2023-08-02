@@ -6,18 +6,23 @@ import torch.nn as nn
 
 class Model(nn.Module):
     def __init__(self):
+        # Declare a constant float tensor with ones
+        self.a = torch.ones(1, 1, 1, 4)
+
+        # Declare a scalar
+        self.b = 5
         super(Model, self).__init__()
 
-    def forward(self, x):
+    def forward(self, x, k):
 
-        # Declare a constant tensor
-        a = torch.ones(1, 1, 1, 4)
+        # Add a tensor input and a constant
+        x = x + self.a
 
-        # Add a tensor and a constant
-        x = x + a
+        # Add a scalar constant and a scalar input
+        d = self.b + k
 
         # Add a tensor and a scalar
-        x = x + 5
+        x = x + d
 
         return x
 
@@ -31,15 +36,18 @@ def main():
     onnx_name = "add.onnx"
     dummy_input = torch.randn(1, 2, 3, 4, device=device)
 
-    torch.onnx.export(model, dummy_input, onnx_name,
+    scalar = 2.0
+
+    torch.onnx.export(model, (dummy_input, scalar), onnx_name,
                       verbose=False, opset_version=16)
 
     print("Finished exporting model to {}".format(onnx_name))
 
     # Output some test data for use in the test
-    test_input = torch.tensor([[[[1, 2, 3, 4]]]], dtype=torch.float32)
-    print("Test input data: {}".format(test_input))
-    output = model.forward(test_input)
+    test_input = torch.tensor([[[[1.0, 2.0, 3.0, 4.0]]]])
+
+    print("Test input data: {}, {}".format(test_input, scalar))
+    output = model.forward(test_input, scalar)
     print("Test output data: {}".format(output))
 
 
