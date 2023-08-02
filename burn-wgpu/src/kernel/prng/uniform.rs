@@ -19,7 +19,7 @@ impl StaticKernel for UniformPrng {
     fn source_template() -> SourceTemplate {
         Prng::source_template().register(
             "prng_loop",
-            include_str!("../../template/prng/uniform.wgsl"),
+            include_str!("../../template/prng/uniform_inner_loop.wgsl"),
         )
     }
 }

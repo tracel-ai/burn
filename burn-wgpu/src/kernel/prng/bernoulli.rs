@@ -20,7 +20,7 @@ impl StaticKernel for BernoulliPrng {
         Prng::source_template()
             .register(
                 "prng_loop",
-                include_str!("../../template/prng/bernoulli.wgsl"),
+                include_str!("../../template/prng/bernoulli_inner_loop.wgsl"),
             )
             .add_template("fn cast_elem(e: bool) -> {{ elem }} {return {{elem}}(e);}")
     }
