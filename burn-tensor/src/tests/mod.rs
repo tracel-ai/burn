@@ -56,6 +56,7 @@ macro_rules! testgen_all {
         burn_tensor::testgen_sin!();
         burn_tensor::testgen_slice!();
         burn_tensor::testgen_sqrt!();
+        burn_tensor::testgen_abs!();
         burn_tensor::testgen_squeeze!();
         burn_tensor::testgen_sub!();
         burn_tensor::testgen_tanh!();

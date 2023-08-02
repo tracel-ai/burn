@@ -390,6 +390,10 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         tensor.unary_ops(|mut tensor| tensor.sqrt_(), |tensor| tensor.sqrt())
     }
 
+    fn abs<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
+        tensor.unary_ops(|mut tensor| tensor.abs_(), |tensor| tensor.abs())
+    }
+
     fn cos<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
         tensor.unary_ops(|mut tensor| tensor.cos_(), |tensor| tensor.cos())
     }
