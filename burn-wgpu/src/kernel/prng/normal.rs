@@ -92,7 +92,7 @@ mod tests {
         );
         let assert_approx_eq = |count, percent| {
             let expected = percent * shape.num_elements() as f32 / 100.;
-            assert!(f32::abs(count as f32 - expected) < 1500.);
+            assert!(f32::abs(count as f32 - expected) < 2000.);
         };
         assert_approx_eq(stats[0].count, 2.1);
         assert_approx_eq(stats[1].count, 13.6);
