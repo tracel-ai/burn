@@ -9,7 +9,6 @@ use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 use burn_tensor::module::conv2d;
 use burn_tensor::ops::ConvOptions;
-use libm::sqrt;
 
 /// Configuration to create an [2D convolution](Conv2d) layer.
 #[derive(Config, Debug)]
@@ -33,20 +32,26 @@ pub struct Conv2dConfig {
     /// If bias should be added to the output.
     #[config(default = true)]
     pub bias: bool,
-    /// The type of function used to initialize neural network parameters
-    #[config(default = "Initializer::KaimingUniform{gain:1.0/sqrt(3.0),fan_out_only:false}")]
-    pub initializer: Initializer,
+    /// The type of function used to initialize neural network parameters.
+    /// Setting this parameter will override the default initialization scheme.
+    ///
+    /// # Default initialization
+    ///
+    /// - weight: Tensor initialized from a uniform distribution
+    ///           `U(-k, k)` where `k = sqrt(groups / (channels_in * kernel_size_1 * kernel_size_2))`
+    ///
+    /// - bias:   Tensor initialized from a uniform distribution
+    ///           `U(-k, k)` where `k = sqrt(groups / (channels_in * kernel_size_1 * kernel_size_2))`
+    pub initializer: Option<Initializer>,
 }
 
 /// Applies a 2D convolution over input tensors.
 ///
 /// # Params
 ///
-/// - weight: Tensor of shape `[channels_out, channels_in, kernel_size_1, kernel_size_2]` initialized from a uniform
-///     distribution `U(-k, k)` where `k = sqrt(1 / channels_in * kernel_size_1 * kernel_size_2)`
+/// - weight: Tensor of shape `[channels_out, channels_in / groups, kernel_size_1, kernel_size_2]`
 ///
-/// - bias:   Tensor of shape `[channels_out]`, initialized from a uniform distribution `U(-k, k)`
-///     where `k = sqrt(1 / channels_in * kernel_size_1 * kernel_size_2)`
+/// - bias:   Tensor of shape `[channels_out]`
 #[derive(Module, Debug)]
 pub struct Conv2d<B: Backend> {
     weight: Param<Tensor<B, 4>>,
@@ -63,20 +68,31 @@ impl Conv2dConfig {
     pub fn init<B: Backend>(&self) -> Conv2d<B> {
         let shape = [
             self.channels[1],
-            self.channels[0],
+            self.channels[0] / self.groups,
             self.kernel_size[0],
             self.kernel_size[1],
         ];
         let fan_in = self.channels[0] * self.kernel_size.iter().product::<usize>();
-        let weight = self.initializer.init_with(shape, Some(fan_in), None);
-        let bias = if self.bias {
-            Some(
-                self.initializer
-                    .init_with([self.channels[1]], Some(fan_in), None),
-            )
-        } else {
-            None
+
+        let weight = match &self.initializer {
+            Some(initializer) => initializer.init_with(shape, Some(fan_in), None),
+            None => {
+                let k = libm::sqrt(self.groups as f64 / fan_in as f64);
+                Initializer::Uniform { min: -k, max: k }.init(shape)
+            }
         };
+
+        let mut bias = None;
+
+        if self.bias {
+            bias = Some(match &self.initializer {
+                Some(initializer) => initializer.init_with([self.channels[1]], Some(fan_in), None),
+                None => {
+                    let k = libm::sqrt(self.groups as f64 / fan_in as f64);
+                    Initializer::Uniform { min: -k, max: k }.init([self.channels[1]])
+                }
+            });
+        }
 
         Conv2d {
             weight: Param::from(weight),
@@ -138,16 +154,9 @@ mod tests {
 
         let config = Conv2dConfig::new([5, 1], [5, 5]);
         let k = (config.channels[0] * config.kernel_size[0] * config.kernel_size[1]) as f64;
-        let k = sqrt(1.0 / k) as f32;
+        let k = sqrt(config.groups as f64 / k) as f32;
         let conv = config.init::<TestBackend>();
 
-        assert_eq!(
-            config.initializer,
-            Initializer::KaimingUniform {
-                gain: 1.0 / sqrt(3.0),
-                fan_out_only: false
-            }
-        );
         conv.weight.to_data().assert_within_range(-k..k);
     }
 
@@ -155,10 +164,10 @@ mod tests {
     fn initializer_zeros() {
         TestBackend::seed(0);
 
-        let config = Conv2dConfig::new([5, 2], [5, 5]).with_initializer(Initializer::Zeros);
+        let config = Conv2dConfig::new([5, 2], [5, 5]).with_initializer(Some(Initializer::Zeros));
         let conv = config.init::<TestBackend>();
 
-        assert_eq!(config.initializer, Initializer::Zeros);
+        assert_eq!(config.initializer, Some(Initializer::Zeros));
         conv.weight
             .to_data()
             .assert_approx_eq(&Data::zeros(conv.weight.shape()), 3);

@@ -4,12 +4,10 @@ use crate::config::Config;
 use crate::module::Module;
 use crate::module::Param;
 use crate::nn::Initializer;
-use crate::nn::PaddingConfig2d;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
-use burn_tensor::module::conv2d;
-use burn_tensor::ops::ConvOptions;
-use libm::sqrt;
+use burn_tensor::module::conv_transpose2d;
+use burn_tensor::ops::ConvTransposeOptions;
 
 /// Configuration to create an [2D transposed convolution](ConvTranspose2d) layer.
 #[derive(Config, Debug)]
@@ -36,20 +34,26 @@ pub struct ConvTranspose2dConfig {
     /// If bias should be added to the output.
     #[config(default = true)]
     pub bias: bool,
-    /// The type of function used to initialize neural network parameters
-    #[config(default = "Initializer::KaimingUniform{gain:1.0/sqrt(3.0),fan_out_only:false}")]
-    pub initializer: Initializer,
+    /// The type of function used to initialize neural network parameters.
+    /// Setting this parameter will override the default initialization scheme.
+    ///
+    /// # Default initialization
+    ///
+    /// - weight: Tensor initialized from a uniform distribution
+    ///           `U(-k, k)` where `k = sqrt(groups / (channels_out * kernel_size_1 * kernel_size_2))`
+    ///
+    /// - bias:   Tensor initialized from a uniform distribution
+    ///           `U(-k, k)` where `k = sqrt(groups / (channels_out * kernel_size_1 * kernel_size_2))`
+    pub initializer: Option<Initializer>,
 }
 
 /// Applies a 2D transposed convolution over input tensors.
 ///
 /// # Params
 ///
-/// - weight: Tensor of shape `[channels_out, channels_in, kernel_size_1, kernel_size_2]` initialized from a uniform
-///     distribution `U(-k, k)` where `k = sqrt(1 / channels_in * kernel_size_1 * kernel_size_2)`
+/// - weight: Tensor of shape `[channels_in, channels_out / groups, kernel_size_1, kernel_size_2]`
 ///
-/// - bias:   Tensor of shape `[channels_out]`, initialized from a uniform distribution `U(-k, k)`
-///     where `k = sqrt(1 / channels_in * kernel_size_1 * kernel_size_2)`
+/// - bias:   Tensor of shape `[channels_out]`
 #[derive(Module, Debug)]
 pub struct ConvTranspose2d<B: Backend> {
     weight: Param<Tensor<B, 4>>,
@@ -58,28 +62,40 @@ pub struct ConvTranspose2d<B: Backend> {
     kernel_size: [usize; 2],
     dilation: [usize; 2],
     groups: usize,
-    padding: PaddingConfig2d,
+    padding: [usize; 2],
+    padding_out: [usize; 2],
 }
 
 impl ConvTranspose2dConfig {
-    /// Initialize a new [conv2d](Conv2d) module.
+    /// Initialize a new [conv transpose 2d](ConvTranspose2d) module.
     pub fn init<B: Backend>(&self) -> ConvTranspose2d<B> {
         let shape = [
-            self.channels[1],
             self.channels[0],
+            self.channels[1] / self.groups,
             self.kernel_size[0],
             self.kernel_size[1],
         ];
-        let fan_in = self.channels[0] * self.kernel_size.iter().product::<usize>();
-        let weight = self.initializer.init_with(shape, Some(fan_in), None);
-        let bias = if self.bias {
-            Some(
-                self.initializer
-                    .init_with([self.channels[1]], Some(fan_in), None),
-            )
-        } else {
-            None
+        let fan_in = self.channels[1] * self.kernel_size.iter().product::<usize>();
+
+        let weight = match &self.initializer {
+            Some(initializer) => initializer.init_with(shape, Some(fan_in), None),
+            None => {
+                let k = libm::sqrt(self.groups as f64 / fan_in as f64);
+                Initializer::Uniform { min: -k, max: k }.init(shape)
+            }
         };
+
+        let mut bias = None;
+
+        if self.bias {
+            bias = Some(match &self.initializer {
+                Some(initializer) => initializer.init_with([self.channels[1]], Some(fan_in), None),
+                None => {
+                    let k = libm::sqrt(self.groups as f64 / fan_in as f64);
+                    Initializer::Uniform { min: -k, max: k }.init([self.channels[1]])
+                }
+            });
+        }
 
         ConvTranspose2d {
             weight: Param::from(weight),
@@ -87,26 +103,28 @@ impl ConvTranspose2dConfig {
             stride: self.stride,
             kernel_size: self.kernel_size,
             dilation: self.dilation,
-            padding: self.padding.clone(),
             groups: self.groups,
+            padding: self.padding,
+            padding_out: self.padding_out,
         }
     }
 
     /// Initialize a new [conv2d](Conv2d) module with a [record](Conv2dRecord).
-    pub fn init_with<B: Backend>(&self, record: Conv2dRecord<B>) -> Conv2d<B> {
+    pub fn init_with<B: Backend>(&self, record: ConvTranspose2dRecord<B>) -> ConvTranspose2d<B> {
         ConvTranspose2d {
             weight: record.weight,
             bias: record.bias,
             stride: self.stride,
             dilation: self.dilation,
             kernel_size: self.kernel_size,
-            padding: self.padding.clone(),
             groups: self.groups,
+            padding: self.padding,
+            padding_out: self.padding_out,
         }
     }
 }
 
-impl<B: Backend> Conv2d<B> {
+impl<B: Backend> ConvTranspose2d<B> {
     /// Applies the forward pass on the input tensor.
     ///
     /// # Shapes
@@ -114,15 +132,17 @@ impl<B: Backend> Conv2d<B> {
     /// - input: [batch_size, channels_in, height_in, width_in],
     /// - output: [batch_size, channels_out, height_out, width_out],
     pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
-        let [_batch_size, _channels_in, height_in, width_in] = input.dims();
-        let padding =
-            self.padding
-                .calculate_padding_2d(height_in, width_in, &self.kernel_size, &self.stride);
-        conv2d(
+        conv_transpose2d(
             input,
             self.weight.val(),
             self.bias.as_ref().map(|bias| bias.val()),
-            ConvOptions::new(self.stride, padding, self.dilation, self.groups),
+            ConvTransposeOptions::new(
+                self.stride,
+                self.padding,
+                self.padding_out,
+                self.dilation,
+                self.groups,
+            ),
         )
     }
 }
@@ -139,18 +159,11 @@ mod tests {
     fn initializer_default() {
         TestBackend::seed(0);
 
-        let config = Conv2dConfig::new([5, 1], [5, 5]);
-        let k = (config.channels[0] * config.kernel_size[0] * config.kernel_size[1]) as f64;
-        let k = sqrt(1.0 / k) as f32;
+        let config = ConvTranspose2dConfig::new([5, 1], [5, 5]).with_groups(2);
+        let k = (config.channels[1] * config.kernel_size[0] * config.kernel_size[1]) as f64;
+        let k = sqrt(config.groups as f64 / k) as f32;
         let conv = config.init::<TestBackend>();
 
-        assert_eq!(
-            config.initializer,
-            Initializer::KaimingUniform {
-                gain: 1.0 / sqrt(3.0),
-                fan_out_only: false
-            }
-        );
         conv.weight.to_data().assert_within_range(-k..k);
     }
 
@@ -158,10 +171,11 @@ mod tests {
     fn initializer_zeros() {
         TestBackend::seed(0);
 
-        let config = Conv2dConfig::new([5, 2], [5, 5]).with_initializer(Initializer::Zeros);
+        let config =
+            ConvTranspose2dConfig::new([5, 2], [5, 5]).with_initializer(Some(Initializer::Zeros));
         let conv = config.init::<TestBackend>();
 
-        assert_eq!(config.initializer, Initializer::Zeros);
+        assert_eq!(config.initializer, Some(Initializer::Zeros));
         conv.weight
             .to_data()
             .assert_approx_eq(&Data::zeros(conv.weight.shape()), 3);
