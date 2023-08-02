@@ -188,6 +188,20 @@ pub(crate) fn elemwise_workgroup(num_elems: usize, workgroup_size: usize) -> Wor
     WorkGroup::new(workgroup_x as u32, workgroup_y as u32, 1)
 }
 
+pub(crate) fn prng_workgroup(
+    num_elems: usize,
+    workgroup_size: usize,
+    n_values_per_thread: usize,
+) -> WorkGroup {
+    let num_threads = f32::ceil(num_elems as f32 / n_values_per_thread as f32);
+    let num_elem_per_invocation = workgroup_size * workgroup_size;
+    let num_invocations = f32::ceil(num_threads / num_elem_per_invocation as f32);
+    let workgroup_x = f32::ceil(f32::sqrt(num_invocations));
+    let workgroup_y = f32::ceil(num_invocations / workgroup_x);
+
+    WorkGroup::new(workgroup_x as u32, workgroup_y as u32, 1)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
