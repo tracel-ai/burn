@@ -1,5 +1,4 @@
-// fn box_muller_transform(unit_1: {{ elem }}, unit_2: {{ elem }}) -> array<{{elem}}, 2> {
-fn box_muller_transform(unit_1: f32, unit_2: f32) -> array<f32, 2> {
+fn box_muller_transform(unit_1: {{ elem }}, unit_2: {{ elem }}) -> array<{{ elem }}, 2> {
     let mean = args[0];
     let stdev = args[1];
     let coeff = stdev * sqrt(-2.0 * log(unit_1));

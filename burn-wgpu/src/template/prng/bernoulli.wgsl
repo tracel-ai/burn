@@ -9,6 +9,5 @@ for (var i = 0u; i < n_values_per_thread; i++) {
     let random_u32 = state[0u] ^ state[1u] ^ state[2u] ^ state[3u];
     let float = cast_float(random_u32);
 
-    // output[write_index] = {{ elem }}(float < prob);
-    output[write_index] = f32(float < prob);
+    output[write_index] = cast_elem(float < prob);
 }

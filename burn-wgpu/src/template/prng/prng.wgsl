@@ -18,7 +18,7 @@ fn main(
     @builtin(workgroup_id) workgroup_id: vec3<u32>,
 ) {
     // Thread preparation
-    let n_threads_per_workgroup = {{ workgroup_size_x }}u * {{ workgroup_size_y }}u;
+    let n_threads_per_workgroup = {{ workgroup_size }}u;
     let workgroup_offset = (workgroup_id.x * num_workgroups.y + workgroup_id.y) * n_threads_per_workgroup;
     let n_values_per_thread = info[0u];
     let write_index_base = workgroup_offset * n_values_per_thread + local_id; 
@@ -30,7 +30,7 @@ fn main(
         state[i] = info[i + 1u] + thread_seed;
     }
 
-    // Creation of n_values_per_thread, specific to the distribution 
+    // Creation of n_values_per_thread values, specific to the distribution 
     {{ prng_loop }}
 }
 
@@ -58,5 +58,3 @@ fn lcg_step(z: u32) -> u32 {
 fn cast_float(number: u32) -> {{ elem }} {
    return 2.3283064365387e-10 * {{ elem }}(number);
 }
-
-{{ distribution_functions }}

@@ -22,7 +22,7 @@ impl StaticKernel for BernoulliPrng {
                 "prng_loop",
                 include_str!("../../template/prng/bernoulli.wgsl"),
             )
-            .register("distribution_functions", "")
+            .add_template("fn cast_elem(e: bool) -> {{ elem }} {return {{elem}}(e);}")
     }
 }
 

@@ -19,10 +19,9 @@ impl StaticKernel for NormalPrng {
     fn source_template() -> SourceTemplate {
         Prng::source_template()
             .register("prng_loop", include_str!("../../template/prng/normal.wgsl"))
-            .register(
-                "distribution_functions",
-                include_str!("../../template/prng/box_muller_transform.wgsl"),
-            )
+            .add_template(include_str!(
+                "../../template/prng/box_muller_transform.wgsl"
+            ))
     }
 }
 
