@@ -1,7 +1,8 @@
 use super::{numeric, BoolTensor, Device, IntElem, IntTensor};
+use crate::kernel::{unary_default, unary_inplace_default};
 use crate::{
     element::{FloatElement, IntElement},
-    kernel, GraphicsApi, WgpuBackend,
+    kernel, unary, unary_inplace, GraphicsApi, WgpuBackend,
 };
 use burn_tensor::{ops::IntTensorOps, Data, Shape};
 use std::ops::Range;
@@ -294,4 +295,15 @@ where
     // ) -> IntTensor<Self, D> {
     //     kernel::clamp(tensor, min, max)
     // }
+
+    fn int_abs<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, D> {
+        unary!(IntAbs, func "abs");
+        unary_inplace!(IntAbsInplace, func "abs");
+
+        if tensor.can_mut() {
+            return unary_inplace_default::<IntAbsInplace, I, D>(tensor);
+        }
+
+        unary_default::<IntAbs, I, D>(tensor)
+    }
 }

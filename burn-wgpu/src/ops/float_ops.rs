@@ -1,5 +1,5 @@
 use super::{numeric, BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor};
-use crate::kernel::prng::{random_normal, random_uniform};
+use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::{
     self, unary_default, unary_inplace_default, unary_scalar_default, unary_scalar_inplace_default,
 };
@@ -7,9 +7,8 @@ use crate::kernel::{
 use crate::unary_scalar_inplace;
 use crate::{
     element::{FloatElement, IntElement},
-    unary, unary_inplace, unary_scalar, GraphicsApi, WgpuBackend, SEED,
+    unary, unary_inplace, unary_scalar, GraphicsApi, WgpuBackend,
 };
-use burn_common::rand::get_seeded_rng;
 use burn_tensor::ElementConversion;
 use burn_tensor::{ops::TensorOps, Data, Distribution, Shape};
 
@@ -33,23 +32,14 @@ where
         distribution: Distribution<FloatElem<Self>>,
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
-        // TODO other distributions than default
         match distribution {
             Distribution::Default => random_uniform::<G, F, D>(shape, device, 0.elem(), 1.elem()),
             Distribution::Uniform(low, high) => random_uniform::<G, F, D>(shape, device, low, high),
+            Distribution::Bernoulli(prob) => {
+                random_bernoulli::<G, F, D>(shape, device, prob.elem())
+            }
             Distribution::Normal(mean, std) => {
                 random_normal::<G, F, D>(shape, device, mean.elem(), std.elem())
-            }
-            _ => {
-                let mut seed = SEED.lock().unwrap();
-                let mut rng = if let Some(rng_seeded) = seed.as_ref() {
-                    rng_seeded.clone()
-                } else {
-                    get_seeded_rng()
-                };
-                let tensor = Self::from_data(Data::random(shape, distribution, &mut rng), device);
-                *seed = Some(rng);
-                tensor
             }
         }
     }
@@ -379,6 +369,17 @@ where
         }
 
         unary_default::<Sqrt, F, D>(tensor)
+    }
+
+    fn abs<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+        unary!(Abs, func "abs");
+        unary_inplace!(AbsInplace, func "abs");
+
+        if tensor.can_mut() {
+            return unary_inplace_default::<AbsInplace, F, D>(tensor);
+        }
+
+        unary_default::<Abs, F, D>(tensor)
     }
 
     fn cos<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {

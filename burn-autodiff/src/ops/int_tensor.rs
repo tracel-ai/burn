@@ -305,4 +305,7 @@ impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     ) -> (B::IntTensorPrimitive<D>, B::IntTensorPrimitive<D>) {
         B::int_min_dim_with_indices(tensor, dim)
     }
+    fn int_abs<const D: usize>(tensor: B::IntTensorPrimitive<D>) -> B::IntTensorPrimitive<D> {
+        B::int_abs(tensor)
+    }
 }
