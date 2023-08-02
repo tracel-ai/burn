@@ -7,7 +7,7 @@ edition = "2021"
 burn = { path = "../../burn" }
 burn-ndarray = { path = "../../burn-ndarray" }
 serde = { workspace = true }
-
+float-cmp = { workspace = true }
 
 [build-dependencies]
 burn-import = { path = "../" }

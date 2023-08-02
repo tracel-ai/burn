@@ -18,11 +18,17 @@ pub mod concat {
     include!(concat!(env!("OUT_DIR"), "/model/concat.rs"));
 }
 
+pub mod conv2d {
+    include!(concat!(env!("OUT_DIR"), "/model/conv2d.rs"));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     use burn::tensor::{Data, Shape, Tensor};
+
+    use float_cmp::ApproxEq;
 
     type Backend = burn_ndarray::NdArrayBackend<f32>;
 
@@ -106,5 +112,29 @@ mod tests {
         let expected = Shape::from([1, 18, 3, 5]);
 
         assert_eq!(output.shape(), expected);
+    }
+
+    #[test]
+    fn conv2d() {
+        // Tests the conv2d node
+
+        // Initialize the model with weights (loaded from the exported file)
+        let model: conv2d::Model<Backend> = conv2d::Model::default();
+
+        // Run the model with ones as input for easier testing
+        let input = Tensor::<Backend, 4>::ones([2, 4, 10, 15]);
+
+        let output = model.forward(input);
+
+        let expected_shape = Shape::from([2, 6, 6, 15]);
+        assert_eq!(output.shape().clone(), expected_shape);
+
+        // We are using the sum of the output tensor to test the correctness of the conv2d node
+        // because the output tensor is too large to compare with the expected tensor.
+        let output_sum = output.sum().into_scalar();
+
+        let expected_sum = 24.004995346069336; // from pytorch
+
+        assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
     }
 }
