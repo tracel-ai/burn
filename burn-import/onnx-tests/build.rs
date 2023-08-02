@@ -8,6 +8,7 @@ fn main() {
     ModelGen::new()
         .input("tests/add/add.onnx")
         .input("tests/sub/sub.onnx")
+        .input("tests/mul/mul.onnx")
         .out_dir("model/")
         .run_from_script();
 

@@ -150,5 +150,4 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode<PS> {
     }
 }
 
-
 // TODO add test missing for constant node (@antimora 8/2/2023)

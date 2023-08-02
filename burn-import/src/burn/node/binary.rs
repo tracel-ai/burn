@@ -122,7 +122,14 @@ impl BinaryNode {
     }
 
     pub(crate) fn mul(lhs: Type, rhs: Type, output: Type) -> Self {
-        let function = move |lhs, rhs| quote! { #lhs.mul(#rhs) };
+        let function = match (&lhs, &rhs) {
+            (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.mul(#rhs) },
+            (Type::Tensor(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs.mul_scalar(#rhs) },
+            (Type::Scalar(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #rhs.mul_scalar(#lhs) },
+            (Type::Scalar(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs * #rhs },
+            _ => panic!("Multiplication is supported for tensor and scalar only"),
+        };
+
         Self::new(lhs, rhs, output, BinaryType::Mul, Arc::new(function))
     }
 
@@ -202,8 +209,18 @@ mod tests {
     }
 
     #[test]
+    fn test_binary_codegen_sub_scalar() {
+        test_binary_operator_on_tensor_and_scalar!(sub, sub_scalar);
+    }
+
+    #[test]
     fn test_binary_codegen_mul() {
         test_binary_operator_on_tensors!(mul);
+    }
+
+    #[test]
+    fn test_binary_codegen_mul_scalar() {
+        test_binary_operator_on_tensor_and_scalar!(mul, mul_scalar);
     }
 
     #[test]
