@@ -4,15 +4,27 @@ use crate::{
     element::WgpuElement,
     kernel::{
         prng::base::{make_args_buffer, make_info_buffer, make_output_tensor},
-        prng_workgroup, KernelSettings,
+        prng_workgroup, KernelSettings, SourceTemplate, StaticKernel,
     },
-    kernel_wgsl,
     pool::get_context,
     tensor::WgpuTensor,
     GraphicsApi, WgpuDevice,
 };
 
-kernel_wgsl!(BernoulliPrng, "../../template/prng/bernoulli.wgsl");
+use super::base::Prng;
+
+struct BernoulliPrng;
+
+impl StaticKernel for BernoulliPrng {
+    fn source_template() -> SourceTemplate {
+        Prng::source_template()
+            .register(
+                "prng_loop",
+                include_str!("../../template/prng/bernoulli.wgsl"),
+            )
+            .register("distribution_functions", "")
+    }
+}
 
 /// Pseudo-random generator for bernoulli
 pub fn random_bernoulli<G: GraphicsApi, E: WgpuElement, const D: usize>(

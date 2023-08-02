@@ -4,15 +4,27 @@ use crate::{
     element::WgpuElement,
     kernel::{
         prng::base::{make_args_buffer, make_info_buffer, make_output_tensor},
-        prng_workgroup, KernelSettings,
+        prng_workgroup, KernelSettings, SourceTemplate, StaticKernel,
     },
-    kernel_wgsl,
     pool::get_context,
     tensor::WgpuTensor,
     GraphicsApi, WgpuDevice,
 };
 
-kernel_wgsl!(UniformPrng, "../../template/prng/uniform.wgsl");
+use super::base::Prng;
+
+struct UniformPrng;
+
+impl StaticKernel for UniformPrng {
+    fn source_template() -> SourceTemplate {
+        Prng::source_template()
+            .register(
+                "prng_loop",
+                include_str!("../../template/prng/uniform.wgsl"),
+            )
+            .register("distribution_functions", "")
+    }
+}
 
 /// Pseudo-random generator for uniform distribution
 pub fn random_uniform<G: GraphicsApi, E: WgpuElement, const D: usize>(

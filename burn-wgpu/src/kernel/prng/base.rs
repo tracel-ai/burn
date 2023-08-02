@@ -1,11 +1,13 @@
 use std::sync::Arc;
 
 use burn_common::rand::get_seeded_rng;
-use burn_tensor::{Element, Shape};
+use burn_tensor::Shape;
 use rand::Rng;
 use wgpu::Buffer;
 
-use crate::{context::Context, element::WgpuElement, tensor::WgpuTensor, SEED};
+use crate::{context::Context, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor, SEED};
+
+kernel_wgsl!(Prng, "../../template/prng/prng.wgsl");
 
 pub(crate) fn get_seeds() -> Vec<u32> {
     let mut seed = SEED.lock().unwrap();

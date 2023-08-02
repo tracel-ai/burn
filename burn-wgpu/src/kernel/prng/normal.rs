@@ -4,15 +4,27 @@ use crate::{
     element::WgpuElement,
     kernel::{
         prng::base::{make_args_buffer, make_info_buffer, make_output_tensor},
-        prng_workgroup, KernelSettings,
+        prng_workgroup, KernelSettings, SourceTemplate, StaticKernel,
     },
-    kernel_wgsl,
     pool::get_context,
     tensor::WgpuTensor,
     GraphicsApi, WgpuDevice,
 };
 
-kernel_wgsl!(NormalPrng, "../../template/prng/normal.wgsl");
+use super::base::Prng;
+
+struct NormalPrng;
+
+impl StaticKernel for NormalPrng {
+    fn source_template() -> SourceTemplate {
+        Prng::source_template()
+            .register("prng_loop", include_str!("../../template/prng/normal.wgsl"))
+            .register(
+                "distribution_functions",
+                include_str!("../../template/prng/box_muller_transform.wgsl"),
+            )
+    }
+}
 
 /// Pseudo-random generator for normal distribution
 pub fn random_normal<G: GraphicsApi, E: WgpuElement, const D: usize>(
