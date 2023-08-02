@@ -14,11 +14,15 @@ pub mod div {
     include!(concat!(env!("OUT_DIR"), "/model/div.rs"));
 }
 
+pub mod concat {
+    include!(concat!(env!("OUT_DIR"), "/model/concat.rs"));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    use burn::tensor::{Data, Tensor};
+    use burn::tensor::{Data, Shape, Tensor};
 
     type Backend = burn_ndarray::NdArrayBackend<f32>;
 
@@ -85,5 +89,22 @@ mod tests {
         let expected = Data::from([[[[1., 2., 2., 3.]]]]);
 
         assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn concat() {
+        // Tests the concat node with matrix concatenations
+
+        // Initialize the model
+        let model: concat::Model<Backend> = concat::Model::new();
+
+        // Run the model
+        let input = Tensor::<Backend, 4>::zeros([1, 2, 3, 5]);
+
+        let output = model.forward(input);
+
+        let expected = Shape::from([1, 18, 3, 5]);
+
+        assert_eq!(output.shape(), expected);
     }
 }

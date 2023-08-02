@@ -10,6 +10,7 @@ fn main() {
         .input("tests/sub/sub.onnx")
         .input("tests/mul/mul.onnx")
         .input("tests/div/div.onnx")
+        .input("tests/concat/concat.onnx")
         .out_dir("model/")
         .run_from_script();
 
