@@ -151,12 +151,119 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn conv_transpose2d(
-        _x: ADTensor<B, 4>,
-        _weight: ADTensor<B, 4>,
-        _bias: Option<ADTensor<B, 1>>,
-        _options: ConvTransposeOptions<2>,
+        x: ADTensor<B, 4>,
+        weight: ADTensor<B, 4>,
+        bias: Option<ADTensor<B, 1>>,
+        options: ConvTransposeOptions<2>,
     ) -> ADTensor<B, 4> {
-        todo!("Transposed 2D convolution doesn't yet support backward.");
+        #[derive(Debug)]
+        struct ConvTranspose2DWithBias;
+        #[derive(Debug)]
+        struct ConvTranspose2DNoBias;
+
+        impl<B: Backend> Backward<B, 4, 3> for ConvTranspose2DWithBias {
+            type State = (
+                B::TensorPrimitive<4>,
+                B::TensorPrimitive<4>,
+                B::TensorPrimitive<1>,
+                ConvTransposeOptions<2>,
+            );
+
+            fn backward(self, ops: Ops<Self::State, 3>, grads: &mut Gradients) {
+                let [node_x, node_weight, node_bias] = ops.parents;
+                let grad = grads.consume::<B, 4>(&ops.node);
+
+                let (x, weight, bias, options) = ops.state;
+                let backward = B::conv_transpose2d_backward(x, weight, Some(bias), grad, options);
+
+                if let Some(node) = node_x {
+                    grads.register::<B, 4>(node, backward.x_grad)
+                }
+                if let Some(node) = node_weight {
+                    grads.register::<B, 4>(node, backward.weights_grad)
+                }
+                if let Some(node) = node_bias {
+                    grads.register::<B, 1>(node, backward.bias_grad.unwrap())
+                }
+            }
+        }
+
+        impl<B: Backend> Backward<B, 4, 2> for ConvTranspose2DNoBias {
+            type State = (
+                B::TensorPrimitive<4>,
+                B::TensorPrimitive<4>,
+                ConvTransposeOptions<2>,
+            );
+
+            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
+                let [node_x, node_weight] = ops.parents;
+                let grad = grads.consume::<B, 4>(&ops.node);
+
+                let (x, weight, options) = ops.state;
+                let backward = B::conv_transpose2d_backward(x, weight, None, grad, options);
+
+                if let Some(node) = node_x {
+                    grads.register::<B, 4>(node, backward.x_grad)
+                }
+                if let Some(node) = node_weight {
+                    grads.register::<B, 4>(node, backward.weights_grad)
+                }
+            }
+        }
+
+        match bias {
+            Some(bias) => {
+                match ConvTranspose2DWithBias
+                    .prepare(
+                        [x.node, weight.node, bias.node],
+                        [x.graph, weight.graph, bias.graph],
+                    )
+                    .statefull()
+                {
+                    OpsKind::Tracked(prep) => prep.finish(
+                        (
+                            x.primitive.clone(),
+                            weight.primitive.clone(),
+                            bias.primitive.clone(),
+                            options.clone(),
+                        ),
+                        B::conv_transpose2d(
+                            x.primitive,
+                            weight.primitive,
+                            Some(bias.primitive),
+                            options,
+                        ),
+                    ),
+                    OpsKind::UnTracked(prep) => prep.finish(B::conv_transpose2d(
+                        x.primitive,
+                        weight.primitive,
+                        Some(bias.primitive),
+                        options,
+                    )),
+                }
+            }
+            None => {
+                match ConvTranspose2DNoBias
+                    .prepare([x.node, weight.node], [x.graph, weight.graph])
+                    .statefull()
+                {
+                    OpsKind::Tracked(prep) => prep.finish(
+                        (
+                            x.primitive.clone(),
+                            weight.primitive.clone(),
+                            options.clone(),
+                        ),
+                        B::conv_transpose2d(x.primitive, weight.primitive, None, options),
+                    ),
+                    OpsKind::UnTracked(prep) => prep.finish(B::conv_transpose2d(
+                        x.primitive,
+                        weight.primitive,
+                        None,
+                        options,
+                    )),
+                }
+            }
+        }
     }
 
     fn conv1d(
