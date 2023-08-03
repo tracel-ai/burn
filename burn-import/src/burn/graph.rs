@@ -244,11 +244,21 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             .iter()
             .filter_map(|node| node.field_type())
             .map(|field| {
+                let is_param = match &field {
+                    Type::Tensor(_) => true,
+                    _ => false,
+                };
                 let name = field.name();
                 let ty = field.ty();
 
-                quote! {
-                    #name: #ty,
+                if is_param {
+                    quote! {
+                        #name: burn::module::Param<#ty>,
+                    }
+                } else {
+                    quote! {
+                        #name: #ty,
+                    }
                 }
             })
             .for_each(|code| body.extend(code));

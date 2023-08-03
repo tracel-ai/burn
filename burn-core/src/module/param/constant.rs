@@ -112,7 +112,7 @@ constant!(i16);
 constant!(i8);
 
 impl<const D: usize, B: Backend> Module<B> for Tensor<B, D> {
-    type Record = Tensor<B, D>;
+    type Record = ConstantRecord;
 
     fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
         // Important:
@@ -135,11 +135,11 @@ impl<const D: usize, B: Backend> Module<B> for Tensor<B, D> {
     }
 
     fn into_record(self) -> Self::Record {
-        self
+        ConstantRecord
     }
 
-    fn load_record(self, record: Self::Record) -> Self {
-        record
+    fn load_record(self, _record: Self::Record) -> Self {
+        self
     }
 }
 

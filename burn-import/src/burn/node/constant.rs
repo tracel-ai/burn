@@ -1,6 +1,10 @@
 use super::{Node, NodeCodegen};
 use crate::burn::{ScalarKind, ScalarType, Scope, TensorType, ToTokens, Type};
-use burn::{record::PrecisionSettings, tensor::DataSerialize};
+use burn::{
+    module::ParamId,
+    record::{ParamSerde, PrecisionSettings},
+    tensor::DataSerialize,
+};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 use serde::Serialize;
@@ -37,7 +41,7 @@ impl<PS: PrecisionSettings> ConstantValue<PS> {
             ConstantValue::Int64(_) => quote! { i64 },
             ConstantValue::Tensor(tensor_type, _) => {
                 let ty = tensor_type.ty();
-                quote! { #ty}
+                quote! { burn::module::Param<#ty>}
             }
         }
     }
@@ -102,11 +106,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode<PS> {
 
                 if with_record {
                     Some(quote! {
-                        let #name = record.#name;
+                        let #name = record.#name.map(|tensor| tensor.set_require_grad(false));
                     })
                 } else {
                     Some(quote! {
-                        let #name: #ty = Tensor::<B, #dim>::zeros(#shape);
+                        let #name: burn::module::Param<#ty> = burn::module::Param::new(
+                            burn::module::ParamId::new(),
+                            Tensor::<B, #dim>::zeros(#shape).set_require_grad(false),
+                        );
                     })
                 }
             }
@@ -121,7 +128,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode<PS> {
         match &self.value {
             ConstantValue::Tensor(_, _) => {
                 quote! {
-                    let #output = self.#name.clone();
+                    let #output = self.#name.val();
                 }
             }
             _ => {
@@ -140,13 +147,16 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode<PS> {
     }
 
     fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        match &self.value {
-            ConstantValue::Tensor(_tensor_type, ds) => match ds {
-                TensorValue::Float(ds) => ds.serialize(serializer),
-                TensorValue::Int(ds) => ds.serialize(serializer),
-            },
-            _ => S::serialize_none(serializer),
+        if let ConstantValue::Tensor(_, ds) = &self.value {
+            let data: DataSerialize<PS::FloatElem> = match ds {
+                TensorValue::Float(data) => data.clone().convert(),
+                TensorValue::Int(data) => data.clone().convert(),
+            };
+            let data = ParamSerde::new(ParamId::new().into_string(), data);
+            return data.serialize(serializer);
         }
+
+        S::serialize_none(serializer)
     }
 }
 
