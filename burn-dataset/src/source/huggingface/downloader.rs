@@ -10,6 +10,10 @@ use thiserror::Error;
 
 const PYTHON: &str = "python3";
 const PYTHON_SOURCE: &str = include_str!("importer.py");
+#[cfg(not(target_os = "windows"))]
+const VENV_BIN_PYTHON: &str = "bin/python3";
+#[cfg(target_os = "windows")]
+const VENV_BIN_PYTHON: &str = "Scripts\\python";
 
 /// Error type for [HuggingfaceDatasetLoader](HuggingfaceDatasetLoader).
 #[derive(Error, Debug)]
@@ -218,7 +222,7 @@ fn install_python_deps(base_dir: &Path) -> Result<PathBuf, ImporterError> {
         ImporterError::FailToDownloadPythonDependencies(format!(" error: {}", err))
     })?;
 
-    let venv_python_path = venv_dir.join("bin").join(PYTHON);
+    let venv_python_path = venv_dir.join(VENV_BIN_PYTHON);
 
     let mut command = Command::new(&venv_python_path);
     command.args([

@@ -357,4 +357,8 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
     ) -> TchTensor<i64, D> {
         TchOps::clamp(tensor, min, max)
     }
+
+    fn int_abs<const D: usize>(tensor: TchTensor<i64, D>) -> TchTensor<i64, D> {
+        tensor.unary_ops(|mut tensor| tensor.abs_(), |tensor| tensor.abs())
+    }
 }

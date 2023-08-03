@@ -1147,6 +1147,28 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
+    fn abs<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {
+        #[derive(Debug)]
+        struct Abs;
+
+        impl<B: Backend, const D: usize> Backward<B, D, 1> for Abs {
+            type State = B::TensorPrimitive<D>;
+
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+                unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| B::mul(grad, ops.state));
+            }
+        }
+
+        match Abs.prepare([tensor.node], [tensor.graph]).statefull() {
+            OpsKind::Tracked(prep) => {
+                let output = B::abs(tensor.primitive.clone());
+                let state = B::div(tensor.primitive, output.clone());
+                prep.finish(state, output)
+            }
+            OpsKind::UnTracked(prep) => prep.finish(B::abs(tensor.primitive)),
+        }
+    }
+
     fn cos<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {
         #[derive(Debug)]
         struct Cos;

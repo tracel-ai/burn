@@ -23,6 +23,8 @@ pub mod conv;
 pub mod matmul;
 /// Pooling kernels
 pub mod pool;
+/// Pseudo-random number generator kernels
+pub mod prng;
 
 pub(crate) use cat::*;
 pub(crate) use comparison::*;
