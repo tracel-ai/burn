@@ -96,7 +96,7 @@ impl ConvTranspose2dConfig {
         }
     }
 
-    /// Initialize a new [conv2d](Conv2d) module with a [record](Conv2dRecord).
+    /// Initialize a new [conv transpose 2d](ConvTranspose2d) module with a [record](ConvTranspose2dRecord).
     pub fn init_with<B: Backend>(&self, record: ConvTranspose2dRecord<B>) -> ConvTranspose2d<B> {
         ConvTranspose2d {
             weight: record.weight,
