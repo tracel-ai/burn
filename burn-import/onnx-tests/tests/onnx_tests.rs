@@ -133,7 +133,7 @@ mod tests {
         // because the output tensor is too large to compare with the expected tensor.
         let output_sum = output.sum().into_scalar();
 
-        let expected_sum = 24.004995346069336; // from pytorch
+        let expected_sum = 24.004_995; // from pytorch
 
         assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
     }

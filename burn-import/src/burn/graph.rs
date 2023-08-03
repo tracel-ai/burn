@@ -244,14 +244,10 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             .iter()
             .filter_map(|node| node.field_type())
             .map(|field| {
-                let is_param = match &field {
-                    Type::Tensor(_) => true,
-                    _ => false,
-                };
                 let name = field.name();
                 let ty = field.ty();
 
-                if is_param {
+                if matches!(&field, Type::Tensor(_)) {
                     quote! {
                         #name: burn::module::Param<#ty>,
                     }
