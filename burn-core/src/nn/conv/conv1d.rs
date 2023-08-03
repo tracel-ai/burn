@@ -8,6 +8,9 @@ use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 use burn_tensor::module::conv1d;
 use burn_tensor::ops::ConvOptions;
+use libm::sqrt;
+
+use super::checks;
 
 /// Configuration to create an [1D convolution](Conv1d) layer.
 #[derive(Config)]
@@ -33,17 +36,9 @@ pub struct Conv1dConfig {
     /// If bias should be added to the output.
     #[config(default = true)]
     pub bias: bool,
-    /// The type of function used to initialize neural network parameters.
-    /// Setting this parameter will override the default initialization scheme.
-    ///
-    /// # Default initialization
-    ///
-    /// - weight: Tensor initialized from a uniform distribution
-    ///           `U(-k, k)` where `k = sqrt(groups / (channels_in * kernel_size))`
-    ///
-    /// - bias:   Tensor initialized from a uniform distribution
-    ///           `U(-k, k)` where `k = sqrt(groups / (channels_in * kernel_size))`
-    pub initializer: Option<Initializer>,
+    /// The type of function used to initialize neural network parameters
+    #[config(default = "Initializer::KaimingUniform{gain:1.0/sqrt(3.0),fan_out_only:false}")]
+    pub initializer: Initializer,
 }
 
 /// Applies a 1D convolution over input tensors.
@@ -67,31 +62,23 @@ pub struct Conv1d<B: Backend> {
 impl Conv1dConfig {
     /// Initialize a new [conv1d](Conv1d) module.
     pub fn init<B: Backend>(&self) -> Conv1d<B> {
+        checks::checks_channels_div_groups(self.channels_in, self.channels_out, self.groups);
+
         let shape = [
             self.channels_out,
             self.channels_in / self.groups,
             self.kernel_size,
         ];
-        let fan_in: usize = self.channels_in * self.kernel_size;
 
-        let weight = match &self.initializer {
-            Some(initializer) => initializer.init_with(shape, Some(fan_in), None),
-            None => {
-                let k = libm::sqrt(self.groups as f64 / fan_in as f64);
-                Initializer::Uniform { min: -k, max: k }.init(shape)
-            }
-        };
-
+        let fan_in: usize = self.channels_in / self.groups * self.kernel_size;
+        let weight = self.initializer.init_with(shape, Some(fan_in), None);
         let mut bias = None;
 
         if self.bias {
-            bias = Some(match &self.initializer {
-                Some(initializer) => initializer.init_with([self.channels_out], Some(fan_in), None),
-                None => {
-                    let k = libm::sqrt(self.groups as f64 / fan_in as f64);
-                    Initializer::Uniform { min: -k, max: k }.init([self.channels_out])
-                }
-            });
+            bias = Some(
+                self.initializer
+                    .init_with([self.channels_out], Some(fan_in), None),
+            );
         }
 
         Conv1d {
@@ -142,11 +129,9 @@ impl<B: Backend> Conv1d<B> {
 
 #[cfg(test)]
 mod tests {
-    use burn_tensor::Data;
-    use libm::sqrt;
-
     use super::*;
     use crate::TestBackend;
+    use burn_tensor::Data;
 
     #[test]
     fn initializer_default() {
@@ -164,10 +149,10 @@ mod tests {
     fn initializer_zeros() {
         TestBackend::seed(0);
 
-        let config = Conv1dConfig::new(5, 5, 5).with_initializer(Some(Initializer::Zeros));
+        let config = Conv1dConfig::new(5, 5, 5).with_initializer(Initializer::Zeros);
         let conv = config.init::<TestBackend>();
 
-        assert_eq!(config.initializer, Some(Initializer::Zeros));
+        assert_eq!(config.initializer, Initializer::Zeros);
         conv.weight
             .to_data()
             .assert_approx_eq(&Data::zeros(conv.weight.shape()), 3);
