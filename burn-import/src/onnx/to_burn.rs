@@ -239,14 +239,18 @@ impl ONNXGraph {
             AttributeValue::Float32(val) => ConstantValue::Float32(val),
             AttributeValue::Int64(val) => ConstantValue::Int64(val),
             AttributeValue::Tensor(tensor) => {
-                // Treat zero dim tensor as scalar
                 if tensor.dim == 0 {
+                    // Treat zero dim tensor as scalar value by extracting the first element
+                    // because PyTorch/ONNX uses zero dim tensor for scalar values
                     match tensor.data.unwrap() {
                         TensorData::Float32(val) => ConstantValue::Float32(val[0]),
                         TensorData::Float64(val) => ConstantValue::Float64(val[0]),
                         TensorData::Int32(val) => ConstantValue::Int32(val[0]),
                         TensorData::Int64(val) => ConstantValue::Int64(val[0]),
-                        _ => panic!("Unsupported constant tensor type: {:?} ", tensor.elem_type),
+                        _ => panic!(
+                            "Unsupported zero dim constant tensor type: {:?} ",
+                            tensor.elem_type
+                        ),
                     }
                 } else {
                     let ds = match tensor.elem_type {
