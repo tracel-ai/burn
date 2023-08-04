@@ -81,13 +81,13 @@ mod tests {
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
-                _dummy: Tensor<B, 1>,
+                _phantom: core::marker::PhantomData<B>,
             }
 
             impl<B: Backend> Model <B> {
                 pub fn new_with(_record: ModelRecord<B>) -> Self {
                     Self {
-                        _dummy: Tensor::zeros([1]),
+                        _phantom: core::marker::PhantomData,
                     }
                 }
 

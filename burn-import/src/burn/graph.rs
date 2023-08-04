@@ -265,7 +265,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             quote! {
                 #[derive(Module, Debug)]
                 pub struct Model<B: Backend> {
-                    _dummy: Tensor<B, 1>,
+                    _phantom: core::marker::PhantomData<B>,
                 }
             }
         } else {
@@ -298,7 +298,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                 #[allow(dead_code)]
                 pub fn new() -> Self {
                     Self {
-                        _dummy: Tensor::zeros([1]),
+                        _phantom: core::marker::PhantomData,
                     }
                 }
             }
@@ -334,7 +334,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             quote! {
                 pub fn new_with(_record: ModelRecord<B>) -> Self {
                     Self {
-                        _dummy: Tensor::zeros([1]),
+                        _phantom: core::marker::PhantomData,
                     }
                 }
             }
