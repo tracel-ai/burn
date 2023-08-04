@@ -10,8 +10,6 @@ use burn_tensor::module::max_pool2d;
 /// Configuration to create an [2D max pooling](MaxPool2d) layer.
 #[derive(Debug, Config)]
 pub struct MaxPool2dConfig {
-    /// The number of channels.
-    pub channels: usize,
     /// The size of the kernel.
     pub kernel_size: [usize; 2],
     /// The strides.

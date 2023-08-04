@@ -10,8 +10,6 @@ use burn_tensor::module::avg_pool1d;
 /// Configuration to create a [1D avg pooling](AvgPool1d) layer.
 #[derive(Config)]
 pub struct AvgPool1dConfig {
-    /// The number of channels.
-    pub channels: usize,
     /// The size of the kernel.
     pub kernel_size: usize,
     /// The stride.

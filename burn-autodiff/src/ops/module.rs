@@ -38,12 +38,11 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn embedding_backward(
-        weights: ADTensor<B, 2>,
-        output: ADTensor<B, 3>,
-        indices: IntTensor<B, 2>,
+        _weights: ADTensor<B, 2>,
+        _output: ADTensor<B, 3>,
+        _indices: IntTensor<B, 2>,
     ) -> ADTensor<B, 2> {
-        let tensor = B::embedding_backward(weights.primitive, output.primitive, indices);
-        ADTensor::new(tensor)
+        panic!("Can't differentiate embedding backward.");
     }
 
     fn conv2d(
@@ -446,16 +445,15 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
     }
+
     fn avg_pool2d_backward(
-        x: ADTensor<B, 4>,
-        grad: ADTensor<B, 4>,
-        kernel_size: [usize; 2],
-        stride: [usize; 2],
-        padding: [usize; 2],
+        _x: ADTensor<B, 4>,
+        _grad: ADTensor<B, 4>,
+        _kernel_size: [usize; 2],
+        _stride: [usize; 2],
+        _padding: [usize; 2],
     ) -> ADTensor<B, 4> {
-        let tensor =
-            B::avg_pool2d_backward(x.primitive, grad.primitive, kernel_size, stride, padding);
-        ADTensor::new(tensor)
+        panic!("Can't differentiate avg pool 2d backward.");
     }
 
     fn max_pool2d(
@@ -513,22 +511,50 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn max_pool2d_with_indices_backward(
-        x: ADTensor<B, 4>,
-        kernel_size: [usize; 2],
-        stride: [usize; 2],
-        padding: [usize; 2],
-        output_grad: ADTensor<B, 4>,
-        indices: IntTensor<B, 4>,
+        _x: ADTensor<B, 4>,
+        _kernel_size: [usize; 2],
+        _stride: [usize; 2],
+        _padding: [usize; 2],
+        _output_grad: ADTensor<B, 4>,
+        _indices: IntTensor<B, 4>,
     ) -> MaxPool2dBackward<ADBackendDecorator<B>> {
-        let output = B::max_pool2d_with_indices_backward(
-            x.primitive,
-            kernel_size,
-            stride,
-            padding,
-            output_grad.primitive,
-            indices,
-        );
-        MaxPool2dBackward::new(ADTensor::new(output.x_grad))
+        panic!("Can't differentiate max pool2d with indices backward.");
+    }
+
+    fn adaptive_avg_pool2d(x: ADTensor<B, 4>, output_size: [usize; 2]) -> ADTensor<B, 4> {
+        #[derive(Debug)]
+        struct AdaptiveAvgPool2D;
+
+        impl<B: Backend> Backward<B, 4, 1> for AdaptiveAvgPool2D {
+            type State = B::TensorPrimitive<4>;
+
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+                let [node_parent] = ops.parents;
+                let grad = grads.consume::<B, 4>(&ops.node);
+
+                if let Some(node) = node_parent {
+                    let grad = B::adaptive_avg_pool2d_backward(ops.state, grad);
+                    grads.register::<B, 4>(node, grad);
+                }
+            }
+        }
+
+        match AdaptiveAvgPool2D.prepare([x.node], [x.graph]).statefull() {
+            OpsKind::Tracked(prep) => prep.finish(
+                x.primitive.clone(),
+                B::adaptive_avg_pool2d(x.primitive, output_size),
+            ),
+            OpsKind::UnTracked(prep) => {
+                prep.finish(B::adaptive_avg_pool2d(x.primitive, output_size))
+            }
+        }
+    }
+
+    fn adaptive_avg_pool2d_backward(
+        _x: ADTensor<B, 4>,
+        _grad: ADTensor<B, 4>,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<4> {
+        panic!("Can't differentiate adaptive avg pool2d backward.");
     }
 }
 

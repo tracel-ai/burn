@@ -262,6 +262,22 @@ pub trait ModuleOps<B: Backend> {
         padding: [usize; 2],
     ) -> B::TensorPrimitive<4>;
 
+    /// Two dimensional adaptive avg pooling.
+    ///
+    /// # Shapes
+    ///
+    /// x: [batch_size, channels, height, width],
+    fn adaptive_avg_pool2d(
+        x: B::TensorPrimitive<4>,
+        output_size: [usize; 2],
+    ) -> B::TensorPrimitive<4>;
+
+    /// Backward pass for the [adaptive avg pooling 2d](ModuleOps::adaptive_avg_pool2d) operation.
+    fn adaptive_avg_pool2d_backward(
+        x: B::TensorPrimitive<4>,
+        grad: B::TensorPrimitive<4>,
+    ) -> B::TensorPrimitive<4>;
+
     /// Two dimensional max pooling.
     ///
     /// # Shapes

@@ -48,7 +48,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MaxPool2dNode {
 
     fn field_init(&self, _with_record: bool) -> Option<TokenStream> {
         let name = &self.field.name;
-        let channels = self.config.channels.to_tokens();
         let kernel_size = self.config.kernel_size.to_tokens();
         let strides = self.config.strides.to_tokens();
         let padding = self.config.padding.to_tokens();
@@ -58,7 +57,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MaxPool2dNode {
         };
 
         let tokens = quote! {
-            let #name = MaxPool2dConfig::new(#channels, #kernel_size)
+            let #name = MaxPool2dConfig::new(#kernel_size)
                 .with_strides(#strides)
                 .with_padding(#padding)
                 .#init_line
@@ -105,7 +104,7 @@ mod tests {
             "max_pool2d",
             TensorType::new_float("input", 4),
             TensorType::new_float("output", 4),
-            MaxPool2dConfig::new(1, [3, 3])
+            MaxPool2dConfig::new([3, 3])
                 .with_strides([1, 1])
                 .with_padding(PaddingConfig2d::Valid),
         ));
@@ -126,7 +125,7 @@ mod tests {
 
             impl<B: Backend> Model <B> {
                 pub fn new_with(record: ModelRecord<B>) -> Self {
-                    let max_pool2d = MaxPool2dConfig::new(1, [3, 3])
+                    let max_pool2d = MaxPool2dConfig::new([3, 3])
                         .with_strides([1, 1])
                         .with_padding(PaddingConfig2d::Valid)
                         .init();
