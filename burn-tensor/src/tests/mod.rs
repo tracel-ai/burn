@@ -23,6 +23,7 @@ macro_rules! testgen_all {
         burn_tensor::testgen_module_max_pool2d!();
         burn_tensor::testgen_module_avg_pool1d!();
         burn_tensor::testgen_module_avg_pool2d!();
+        burn_tensor::testgen_module_adaptive_avg_pool1d!();
         burn_tensor::testgen_module_adaptive_avg_pool2d!();
 
         // test ops

@@ -232,4 +232,10 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
 
         TchTensor::new(tensor)
     }
+
+    fn adaptive_avg_pool1d(x: TchTensor<E, 3>, output_size: usize) -> TchTensor<E, 3> {
+        let tensor = tch::Tensor::adaptive_avg_pool1d(&x.tensor, output_size as i64);
+
+        TchTensor::new(tensor)
+    }
 }

@@ -145,3 +145,11 @@ where
 {
     Tensor::new(B::adaptive_avg_pool2d(x.primitive, output_size))
 }
+
+/// Applies a [1D adaptive avg pooling](crate::ops::ModuleOps::adaptive_avg_pool1d).
+pub fn adaptive_avg_pool1d<B>(x: Tensor<B, 3>, output_size: usize) -> Tensor<B, 3>
+where
+    B: Backend,
+{
+    Tensor::new(B::adaptive_avg_pool1d(x.primitive, output_size))
+}

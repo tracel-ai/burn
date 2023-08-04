@@ -230,7 +230,7 @@ pub trait ModuleOps<B: Backend> {
         stride: usize,
         padding: usize,
     ) -> B::TensorPrimitive<3> {
-        pool::avg_pool1d_from_avg_pool2d::<B>(x, kernel_size, stride, padding)
+        pool::avg_pool1d_from_2d::<B>(x, kernel_size, stride, padding)
     }
     /// Backward pass for the [avg pooling 1d](ModuleOps::avg_pool1d) operation.
     fn avg_pool1d_backward(
@@ -240,7 +240,7 @@ pub trait ModuleOps<B: Backend> {
         stride: usize,
         padding: usize,
     ) -> B::TensorPrimitive<3> {
-        pool::avg_pool1d_backward_from_avg_pool2d::<B>(x, grad, kernel_size, stride, padding)
+        pool::avg_pool1d_backward_from_2d::<B>(x, grad, kernel_size, stride, padding)
     }
     /// Two dimensional avg pooling.
     ///
@@ -261,7 +261,6 @@ pub trait ModuleOps<B: Backend> {
         stride: [usize; 2],
         padding: [usize; 2],
     ) -> B::TensorPrimitive<4>;
-
     /// Two dimensional adaptive avg pooling.
     ///
     /// # Shapes
@@ -271,13 +270,26 @@ pub trait ModuleOps<B: Backend> {
         x: B::TensorPrimitive<4>,
         output_size: [usize; 2],
     ) -> B::TensorPrimitive<4>;
-
     /// Backward pass for the [adaptive avg pooling 2d](ModuleOps::adaptive_avg_pool2d) operation.
     fn adaptive_avg_pool2d_backward(
         x: B::TensorPrimitive<4>,
         grad: B::TensorPrimitive<4>,
     ) -> B::TensorPrimitive<4>;
-
+    /// One dimensional adaptive avg pooling.
+    ///
+    /// # Shapes
+    ///
+    /// x: [batch_size, channels, length],
+    fn adaptive_avg_pool1d(x: B::TensorPrimitive<3>, output_size: usize) -> B::TensorPrimitive<3> {
+        pool::adaptive_avg_pool1d_from_2d::<B>(x, output_size)
+    }
+    /// Backward pass for the [adaptive avg pooling 1d](ModuleOps::adaptive_avg_pool1d) operation.
+    fn adaptive_avg_pool1d_backward(
+        x: B::TensorPrimitive<3>,
+        grad: B::TensorPrimitive<3>,
+    ) -> B::TensorPrimitive<3> {
+        pool::adaptive_avg_pool1d_backward_from_2d::<B>(x, grad)
+    }
     /// Two dimensional max pooling.
     ///
     /// # Shapes

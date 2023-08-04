@@ -1,6 +1,7 @@
 #![allow(missing_docs)]
 
 mod abs;
+mod adaptive_avgpool1d;
 mod adaptive_avgpool2d;
 mod add;
 mod aggregation;
@@ -61,6 +62,7 @@ macro_rules! testgen_all {
         burn_autodiff::testgen_ad_max_pool2d!();
         burn_autodiff::testgen_ad_avg_pool1d!();
         burn_autodiff::testgen_ad_avg_pool2d!();
+        burn_autodiff::testgen_ad_adaptive_avg_pool1d!();
         burn_autodiff::testgen_ad_adaptive_avg_pool2d!();
         burn_autodiff::testgen_module_backward!();
 
