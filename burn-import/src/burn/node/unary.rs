@@ -119,6 +119,16 @@ impl UnaryNode {
         Self::new(input, output, UnaryNodeKind::Transpose, Arc::new(function))
     }
 
+    /// Casts the input to the output type.
+    ///
+    /// Currently this function only supports the following conversions:
+    /// 1) scalar -> scalar
+    ///
+    /// TODO: Implement the following conversions:
+    /// 2) tensor int -> tensor float
+    /// 3) tensor float -> tensor int
+    /// 4) tensor -> scalar
+    /// 5) scalar -> tensor
     pub(crate) fn cast(input: Type, output: Type) -> Self {
         let function = match output.clone() {
             Type::Scalar(scalar) => {
@@ -126,7 +136,10 @@ impl UnaryNode {
                 move |input| quote! { #input as #ty }
             }
             Type::Tensor(_tensor) => {
-                // TODO: Implement this after tensor Int is implemented (@antimora 8/10/2023)
+                // TODO: Implement this after tensor Int is implemented (@antimora 8/2/2023)
+                // TODO: If the input is scalar and the output type is a tensor,
+                // we should generate another code block. (@antimora 8/4/2023)
+                // Tensor::from_data(Data::from([#input]).convert()).unsqueeze();
                 todo!()
             }
 

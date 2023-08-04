@@ -127,7 +127,6 @@ fn collect_outputs(
 fn collect_inputs(
     onnx_model: &ModelProto,
     check_if_initializer: &HashSet<String>,
-    // top_nodes: HashSet<String>,
 ) -> Vec<Argument> {
     // Get the unique inputs
     let inputs: Vec<Argument> = onnx_model

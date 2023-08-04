@@ -33,9 +33,7 @@ mod tests {
     type Backend = burn_ndarray::NdArrayBackend<f32>;
 
     #[test]
-    fn add() {
-        // Tests the add node with matrix additions and scalar additions
-
+    fn add_scalar_to_tensor_and_tensor_to_tensor() {
         // Initialize the model with weights (loaded from the exported file)
         let model: add::Model<Backend> = add::Model::default();
 
@@ -49,9 +47,7 @@ mod tests {
     }
 
     #[test]
-    fn sub() {
-        // Tests the sub node with matrix subtractions and scalar subtractions
-
+    fn sub_scalar_from_tensor_and_tensor_from_tensor() {
         // Initialize the model with weights (loaded from the exported file)
         let model: sub::Model<Backend> = sub::Model::default();
 
@@ -65,9 +61,7 @@ mod tests {
     }
 
     #[test]
-    fn mul() {
-        // Tests the mul node with matrix multiplications and scalar multiplications
-
+    fn mul_scalar_with_tensor_and_tensor_with_tensor() {
         // Initialize the model with weights (loaded from the exported file)
         let model: mul::Model<Backend> = mul::Model::default();
 
@@ -81,10 +75,8 @@ mod tests {
     }
 
     #[test]
-    fn div() {
-        // Tests the div node with matrix divisions and scalar divisions
-
-        // Initialize the model
+    fn div_tensor_by_scalar_and_tensor_by_tensor() {
+        // Initialize the model without weights (because the exported file does not contain them)
         let model: div::Model<Backend> = div::Model::new();
 
         // Run the model
@@ -98,9 +90,7 @@ mod tests {
     }
 
     #[test]
-    fn concat() {
-        // Tests the concat node with matrix concatenations
-
+    fn concat_tensors() {
         // Initialize the model
         let model: concat::Model<Backend> = concat::Model::new();
 
@@ -116,8 +106,6 @@ mod tests {
 
     #[test]
     fn conv2d() {
-        // Tests the conv2d node
-
         // Initialize the model with weights (loaded from the exported file)
         let model: conv2d::Model<Backend> = conv2d::Model::default();
 

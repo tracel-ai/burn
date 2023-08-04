@@ -26,11 +26,13 @@ pub enum TensorValue<PS: PrecisionSettings> {
 pub enum ConstantValue<PS: PrecisionSettings> {
     /// Float constant.
     Float32(f32),
+    Float64(f64),
 
     /// Integer constant.
+    Int32(i32),
     Int64(i64),
 
-    /// Tensor constant (does not hold a value).
+    /// Tensor constant.
     Tensor(TensorType, TensorValue<PS>),
 }
 
@@ -38,6 +40,8 @@ impl<PS: PrecisionSettings> ConstantValue<PS> {
     pub fn ty_tokens(&self) -> TokenStream {
         match self {
             ConstantValue::Float32(_) => quote! { f32 },
+            ConstantValue::Float64(_) => quote! { f64 },
+            ConstantValue::Int32(_) => quote! { i32 },
             ConstantValue::Int64(_) => quote! { i64 },
             ConstantValue::Tensor(tensor_type, _) => {
                 let ty = tensor_type.ty();
@@ -48,6 +52,8 @@ impl<PS: PrecisionSettings> ConstantValue<PS> {
     pub fn val_tokens(&self) -> TokenStream {
         match self {
             ConstantValue::Float32(val) => quote! { #val },
+            ConstantValue::Float64(val) => quote! { #val },
+            ConstantValue::Int32(val) => quote! { #val },
             ConstantValue::Int64(val) => quote! { #val },
             ConstantValue::Tensor(_, _) => {
                 panic!("Tensor constant is not assignable.")
@@ -70,6 +76,14 @@ impl<PS: PrecisionSettings> ConstantNode<PS> {
             ConstantValue::Float32(_) => Type::Scalar(ScalarType {
                 name,
                 kind: ScalarKind::Float32,
+            }),
+            ConstantValue::Float64(_) => Type::Scalar(ScalarType {
+                name,
+                kind: ScalarKind::Float64,
+            }),
+            ConstantValue::Int32(_) => Type::Scalar(ScalarType {
+                name,
+                kind: ScalarKind::Int32,
             }),
             ConstantValue::Int64(_) => Type::Scalar(ScalarType {
                 name,

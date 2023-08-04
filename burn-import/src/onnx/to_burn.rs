@@ -243,9 +243,9 @@ impl ONNXGraph {
                 if tensor.dim == 0 {
                     match tensor.data.unwrap() {
                         TensorData::Float32(val) => ConstantValue::Float32(val[0]),
-                        TensorData::Float64(val) => ConstantValue::Float32(val[0] as f32),
+                        TensorData::Float64(val) => ConstantValue::Float64(val[0]),
+                        TensorData::Int32(val) => ConstantValue::Int32(val[0]),
                         TensorData::Int64(val) => ConstantValue::Int64(val[0]),
-                        TensorData::Int32(val) => ConstantValue::Int64(val[0] as i64),
                         _ => panic!("Unsupported constant tensor type: {:?} ", tensor.elem_type),
                     }
                 } else {

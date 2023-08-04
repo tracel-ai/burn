@@ -23,6 +23,10 @@ Here are the steps to add a new test:
 1. Add your Python script to the `tests/<model>` directory. Refer to existing scripts for examples.
 2. Run your Python script to generate the ONNX model and inspect the output of the model with the
    test data. Use the inputs and outputs in your test.
-3. Add an entry to the `build.rs` file to account for the generation of the new ONNX model.
-4. Include a test in `tests/onnx_tests.rs` to test the new ONNX model.
-5. Run `cargo test` to ensure your test passes.
+3. Make sure the ONNX output contains the desired operators by verifying with the
+   [Netron](https://github.com/lutzroeder/netron) app. Sometimes PyTorch will optimize the model and
+   remove operators that are not necessary for the model to run. If this happens, you can disable
+   optimization by setting `torch.onnx.export(..., do_constant_folding=False)`.
+4. Add an entry to the `build.rs` file to account for the generation of the new ONNX model.
+5. Include a test in `tests/onnx_tests.rs` to test the new ONNX model.
+6. Run `cargo test` to ensure your test passes.
