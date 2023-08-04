@@ -90,4 +90,18 @@ where
             padding,
         ))
     }
+
+    fn adaptive_avg_pool2d(
+        x: FloatTensor<Self, 4>,
+        output_size: [usize; 2],
+    ) -> FloatTensor<Self, 4> {
+        kernel::pool::adaptive_avg_pool2d(x, output_size)
+    }
+
+    fn adaptive_avg_pool2d_backward(
+        x: FloatTensor<Self, 4>,
+        grad: FloatTensor<Self, 4>,
+    ) -> FloatTensor<Self, 4> {
+        kernel::pool::adaptive_avg_pool2d_backward(x, grad)
+    }
 }

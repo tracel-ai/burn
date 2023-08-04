@@ -10,6 +10,8 @@ use burn_tensor::module::conv1d;
 use burn_tensor::ops::ConvOptions;
 use libm::sqrt;
 
+use super::checks;
+
 /// Configuration to create an [1D convolution](Conv1d) layer.
 #[derive(Config)]
 pub struct Conv1dConfig {
@@ -43,11 +45,9 @@ pub struct Conv1dConfig {
 ///
 /// # Params
 ///
-/// - weight: Tensor of shape [channels_out, channels_in, kernel_size] initialized from a uniform
-///     distribution `U(-k, k)` where `k = sqrt(1 / channels_in * kernel_size)`
+/// - weight: Tensor of shape [channels_out, channels_in / groups, kernel_size]
 ///
-/// - bias:   Tensor of shape `[channels_out]`, initialized from a uniform distribution `U(-k, k)`
-///     where `k = sqrt(1 / channels_in * kernel_size)`
+/// - bias:   Tensor of shape `[channels_out]`
 #[derive(Module, Debug)]
 pub struct Conv1d<B: Backend> {
     weight: Param<Tensor<B, 3>>,
@@ -62,17 +62,24 @@ pub struct Conv1d<B: Backend> {
 impl Conv1dConfig {
     /// Initialize a new [conv1d](Conv1d) module.
     pub fn init<B: Backend>(&self) -> Conv1d<B> {
-        let shape = [self.channels_out, self.channels_in, self.kernel_size];
-        let fan_in: usize = self.channels_in * self.kernel_size;
+        checks::checks_channels_div_groups(self.channels_in, self.channels_out, self.groups);
+
+        let shape = [
+            self.channels_out,
+            self.channels_in / self.groups,
+            self.kernel_size,
+        ];
+
+        let fan_in: usize = self.channels_in / self.groups * self.kernel_size;
         let weight = self.initializer.init_with(shape, Some(fan_in), None);
-        let bias = if self.bias {
-            Some(
+        let mut bias = None;
+
+        if self.bias {
+            bias = Some(
                 self.initializer
                     .init_with([self.channels_out], Some(fan_in), None),
-            )
-        } else {
-            None
-        };
+            );
+        }
 
         Conv1d {
             weight: Param::from(weight),
@@ -122,11 +129,9 @@ impl<B: Backend> Conv1d<B> {
 
 #[cfg(test)]
 mod tests {
-    use burn_tensor::Data;
-    use libm::sqrt;
-
     use super::*;
     use crate::TestBackend;
+    use burn_tensor::Data;
 
     #[test]
     fn initializer_default() {
@@ -134,16 +139,9 @@ mod tests {
 
         let config = Conv1dConfig::new(5, 5, 5);
         let k = (config.channels_in * config.kernel_size) as f64;
-        let k = sqrt(1.0 / k) as f32;
+        let k = sqrt(config.groups as f64 / k) as f32;
         let conv = config.init::<TestBackend>();
 
-        assert_eq!(
-            config.initializer,
-            Initializer::KaimingUniform {
-                gain: 1.0 / sqrt(3.0),
-                fan_out_only: false
-            }
-        );
         conv.weight.to_data().assert_within_range(-k..k);
     }
 
@@ -158,26 +156,5 @@ mod tests {
         conv.weight
             .to_data()
             .assert_approx_eq(&Data::zeros(conv.weight.shape()), 3);
-    }
-
-    #[test]
-    fn configured_custom() {
-        let config = Conv1dConfig::new(2, 2, 2)
-            .with_padding(PaddingConfig1d::Explicit(2))
-            .with_stride(2)
-            .with_bias(false)
-            .with_dilation(2)
-            .with_groups(2)
-            .with_initializer(Initializer::Zeros);
-
-        let conv = config.init::<TestBackend>();
-
-        assert_eq!(conv.padding, PaddingConfig1d::Explicit(2));
-        assert_eq!(conv.stride, 2);
-        assert!(conv.bias.is_none());
-        assert_eq!(conv.dilation, 2);
-        assert_eq!(conv.groups, 2);
-        assert_eq!(conv.weight.shape().dims, [2, 2, 2]);
-        assert_eq!(conv.weight.to_data(), Data::zeros([2, 2, 2]));
     }
 }

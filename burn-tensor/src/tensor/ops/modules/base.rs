@@ -168,6 +168,17 @@ pub trait ModuleOps<B: Backend> {
     ) -> Conv2dBackward<B> {
         conv::conv2d_backward(x, weight, bias, output_grad, options)
     }
+    /// Backward pass for the [conv transpose 2d](ModuleOps::conv_transpose2d) operation.
+    fn conv_transpose2d_backward(
+        x: B::TensorPrimitive<4>,
+        weight: B::TensorPrimitive<4>,
+        bias: Option<B::TensorPrimitive<1>>,
+        output_grad: B::TensorPrimitive<4>,
+        options: ConvTransposeOptions<2>,
+    ) -> Conv2dBackward<B> {
+        conv::conv_transpose2d_backward(x, weight, bias, output_grad, options)
+    }
+
     /// One dimensional convolution.
     ///
     /// # Shapes
@@ -249,6 +260,22 @@ pub trait ModuleOps<B: Backend> {
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+    ) -> B::TensorPrimitive<4>;
+
+    /// Two dimensional adaptive avg pooling.
+    ///
+    /// # Shapes
+    ///
+    /// x: [batch_size, channels, height, width],
+    fn adaptive_avg_pool2d(
+        x: B::TensorPrimitive<4>,
+        output_size: [usize; 2],
+    ) -> B::TensorPrimitive<4>;
+
+    /// Backward pass for the [adaptive avg pooling 2d](ModuleOps::adaptive_avg_pool2d) operation.
+    fn adaptive_avg_pool2d_backward(
+        x: B::TensorPrimitive<4>,
+        grad: B::TensorPrimitive<4>,
     ) -> B::TensorPrimitive<4>;
 
     /// Two dimensional max pooling.

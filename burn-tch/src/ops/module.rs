@@ -220,4 +220,16 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
 
         MaxPool2dBackward::new(TchTensor::new(grad))
     }
+
+    fn adaptive_avg_pool2d(x: TchTensor<E, 4>, output_size: [usize; 2]) -> TchTensor<E, 4> {
+        let tensor = tch::Tensor::adaptive_avg_pool2d(&x.tensor, output_size.map(|e| e as i64));
+
+        TchTensor::new(tensor)
+    }
+
+    fn adaptive_avg_pool2d_backward(x: TchTensor<E, 4>, grad: TchTensor<E, 4>) -> TchTensor<E, 4> {
+        let tensor = tch::Tensor::internal_adaptive_avg_pool2d_backward(&x.tensor, &grad.tensor);
+
+        TchTensor::new(tensor)
+    }
 }
