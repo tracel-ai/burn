@@ -11,6 +11,7 @@ members = [
   "burn-dataset",
   "burn-derive",
   "burn-import",
+  "burn-import/onnx-tests",
   "burn-ndarray",
   "burn-no-std-tests",
   "burn-tch",
@@ -29,6 +30,7 @@ dashmap = "5.4.0"
 dirs = "5.0.1"
 fake = "2.6.1"
 flate2 = "1.0.26"
+float-cmp = "0.9.0"
 gix-tempfile = {version = "7.0.0", features = ["signals"]}
 hashbrown = "0.14.0"
 indicatif = "0.17.5"

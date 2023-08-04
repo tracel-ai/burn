@@ -1,3 +1,5 @@
+use core::marker::PhantomData;
+
 use crate::{
     self as burn,
     module::{ADModule, Module, ModuleMapper, ModuleVisitor},
@@ -135,12 +137,10 @@ impl<const D: usize, B: Backend> Module<B> for Tensor<B, D> {
     }
 
     fn into_record(self) -> Self::Record {
-        // Treat as a constant and do not record
-        ConstantRecord::new()
+        ConstantRecord
     }
 
     fn load_record(self, _record: Self::Record) -> Self {
-        // Treat as a constant and do not load
         self
     }
 }
@@ -153,15 +153,49 @@ impl<const D: usize, B: ADBackend> ADModule<B> for Tensor<B, D> {
     }
 }
 
+impl<B: Backend> Module<B> for PhantomData<B> {
+    type Record = ConstantRecord;
+
+    fn visit<V: ModuleVisitor<B>>(&self, _visitor: &mut V) {
+        // Nothing to do
+    }
+
+    fn map<M: ModuleMapper<B>>(self, _mapper: &mut M) -> Self {
+        self
+    }
+
+    fn load_record(self, _record: Self::Record) -> Self {
+        self
+    }
+
+    fn into_record(self) -> Self::Record {
+        ConstantRecord::new()
+    }
+}
+
+impl<B: ADBackend> ADModule<B> for PhantomData<B> {
+    type InnerModule = PhantomData<B::InnerBackend>;
+
+    fn valid(&self) -> Self::InnerModule {
+        PhantomData
+    }
+}
+
 #[cfg(all(test, feature = "std"))]
 mod tests {
+    use core::marker::PhantomData;
+
+    use burn_tensor::backend::Backend;
     use burn_tensor::Tensor;
 
-    use crate::module::Module;
+    use crate::TestBackend;
     use crate::{
         record::{BinBytesRecorder, FullPrecisionSettings, Recorder},
         TestADBackend,
     };
+    use burn::module::Module;
+
+    use crate as burn;
 
     #[test]
     fn tensor_load_record_setting() {
@@ -184,5 +218,17 @@ mod tests {
 
         assert!(!no_grad_is_require_grad);
         assert!(!with_default_is_require_grad);
+    }
+
+    #[test]
+    fn empty_module_with_phantom() {
+        #[derive(Module, Debug, new)]
+        struct EmptyModule<B: Backend> {
+            _phantom: PhantomData<B>,
+        }
+
+        let _module = EmptyModule::<TestBackend>::new();
+
+        assert_eq!(core::mem::size_of::<EmptyModule<TestBackend>>(), 0);
     }
 }

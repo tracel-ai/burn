@@ -102,13 +102,13 @@ macro_rules! batch_norm_serialize {
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for BatchNormNode<PS> {
     fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(&self.input)]
+        vec![Type::Tensor(self.input.clone())]
     }
     fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(&self.output)]
+        vec![Type::Tensor(self.output.clone())]
     }
     fn field_type(&self) -> Option<Type> {
-        Some(Type::Other(&self.field))
+        Some(Type::Other(self.field.clone()))
     }
 
     fn field_init(&self, with_record: bool) -> Option<TokenStream> {
@@ -180,6 +180,8 @@ mod tests {
             Data::from([2.]).serialize(),
             BatchNormConfig::new(128),
         ));
+
+        graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
 
         let expected = quote! {
             use burn::{

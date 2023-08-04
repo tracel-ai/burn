@@ -13,11 +13,11 @@ pub struct ReshapeNode {
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for ReshapeNode {
     fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(&self.output)]
+        vec![Type::Tensor(self.output.clone())]
     }
 
     fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(&self.input)]
+        vec![Type::Tensor(self.input.clone())]
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
@@ -56,6 +56,8 @@ mod tests {
             [4, 4, 4, 4].into(),
         ));
 
+        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+
         let expected = quote! {
             use burn::{
                 module::Module,
@@ -63,11 +65,15 @@ mod tests {
             };
 
             #[derive(Module, Debug)]
-            pub struct Model <B: Backend>{}
+            pub struct Model<B: Backend> {
+                _phantom: core::marker::PhantomData<B>,
+            }
 
             impl<B: Backend> Model <B> {
-                pub fn new_with(record: ModelRecord<B>) -> Self {
-                    Self { }
+                pub fn new_with(_record: ModelRecord<B>) -> Self {
+                    Self {
+                        _phantom: core::marker::PhantomData,
+                    }
                 }
                 #[allow(clippy::let_and_return)]
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {

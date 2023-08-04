@@ -15,3 +15,5 @@ pub use settings::*;
 mod file;
 #[cfg(feature = "std")]
 pub use file::*;
+
+pub use primitive::ParamSerde;

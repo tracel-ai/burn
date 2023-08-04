@@ -9,7 +9,7 @@ use burn::record::{
 use proc_macro2::TokenStream;
 use quote::quote;
 use serde::{ser::SerializeMap, Serialize};
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
 
 /// Burn graph intermediate representation of modules and tensor operations.
 #[derive(Default, Debug)]
@@ -21,6 +21,8 @@ pub struct BurnGraph<PS: PrecisionSettings> {
     default: Option<TokenStream>,
     blank_spaces: bool,
     gen_new_fn: bool,
+    graph_input_types: Vec<Type>,
+    graph_output_types: Vec<Type>,
 }
 
 impl<PS: PrecisionSettings> BurnGraph<PS> {
@@ -163,20 +165,22 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
     fn build_scope(&mut self) {
         log::debug!("Building the scope nodes len => '{}'", self.nodes.len());
 
-        let input = self.nodes.first().unwrap();
-
-        fn to_tensor(ty: Type<'_>) -> Option<&TensorType> {
+        fn to_tensor(ty: Type) -> Option<TensorType> {
             match ty {
-                Type::Tensor(tensor) => Some(tensor),
+                Type::Tensor(tensor) => Some(tensor.clone()),
+                Type::Scalar(_) => None,
                 Type::Other(_) => None,
             }
         }
 
-        input
-            .input_types()
+        // Register graph tensor input with 0 as node position
+        self.graph_input_types
+            .clone()
             .into_iter()
             .flat_map(to_tensor)
-            .for_each(|tensor| self.scope.tensor_register_variable(tensor, 0));
+            .for_each(|tensor| {
+                self.scope.tensor_register_variable(&tensor, 0);
+            });
 
         self.nodes
             .iter()
@@ -187,7 +191,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                     .flat_map(to_tensor)
                     .for_each(|tensor| {
                         self.scope
-                            .tensor_register_variable(tensor, node_position + 1)
+                            .tensor_register_variable(&tensor, node_position + 1)
                     })
             });
 
@@ -198,7 +202,10 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                 node.input_types()
                     .into_iter()
                     .flat_map(to_tensor)
-                    .for_each(|tensor| self.scope.tensor_register_future_use(tensor, node_position))
+                    .for_each(|tensor| {
+                        self.scope
+                            .tensor_register_future_use(&tensor, node_position)
+                    })
             });
     }
 
@@ -240,16 +247,33 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                 let name = field.name();
                 let ty = field.ty();
 
-                quote! {
-                    #name: #ty,
+                if matches!(&field, Type::Tensor(_)) {
+                    quote! {
+                        #name: burn::module::Param<#ty>,
+                    }
+                } else {
+                    quote! {
+                        #name: #ty,
+                    }
                 }
             })
             .for_each(|code| body.extend(code));
 
-        quote! {
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                #body
+        // Add dummy field if no field is present to avoid empty struct
+        // and make sure we can derive Module trait and use it in a model.
+        if body.is_empty() {
+            quote! {
+                #[derive(Module, Debug)]
+                pub struct Model<B: Backend> {
+                    _phantom: core::marker::PhantomData<B>,
+                }
+            }
+        } else {
+            quote! {
+                #[derive(Module, Debug)]
+                pub struct Model<B: Backend> {
+                    #body
+                }
             }
         }
     }
@@ -269,13 +293,24 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             .map(|field| field.name().clone())
             .collect::<Vec<_>>();
 
-        quote! {
-            #[allow(dead_code)]
-            pub fn new() -> Self {
-                #body
+        if fields.is_empty() {
+            quote! {
+                #[allow(dead_code)]
+                pub fn new() -> Self {
+                    Self {
+                        _phantom: core::marker::PhantomData,
+                    }
+                }
+            }
+        } else {
+            quote! {
+                #[allow(dead_code)]
+                pub fn new() -> Self {
+                    #body
 
-                Self {
-                    #(#fields,)*
+                    Self {
+                        #(#fields,)*
+                    }
                 }
             }
         }
@@ -295,12 +330,22 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             .map(|field| field.name().clone())
             .collect::<Vec<_>>();
 
-        quote! {
-            pub fn new_with(record: ModelRecord<B>) -> Self {
-                #body
+        if fields.is_empty() {
+            quote! {
+                pub fn new_with(_record: ModelRecord<B>) -> Self {
+                    Self {
+                        _phantom: core::marker::PhantomData,
+                    }
+                }
+            }
+        } else {
+            quote! {
+                pub fn new_with(record: ModelRecord<B>) -> Self {
+                    #body
 
-                Self {
-                    #(#fields,)*
+                    Self {
+                        #(#fields,)*
+                    }
                 }
             }
         }
@@ -311,26 +356,19 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         let mut output_type_def = quote! {};
         let mut output_return_def = quote! {};
 
-        self.nodes
-            .first()
-            .unwrap()
-            .input_types()
-            .into_iter()
-            .for_each(|input| {
-                let name = input.name();
-                let ty = input.ty();
+        self.graph_input_types.iter().for_each(|input| {
+            let name = input.name().clone();
+            let ty = input.ty().clone();
 
-                input_def.extend(quote! {
-                    #name: #ty,
+            input_def.extend(quote! {
+                #name: #ty,
 
-                })
-            });
+            })
+        });
 
-        let output_types = self.nodes.last().unwrap().output_types();
+        let multiple_output = self.graph_output_types.len() > 1;
 
-        let multiple_output = output_types.len() > 1;
-
-        output_types.into_iter().for_each(|output| {
+        self.graph_output_types.iter().for_each(|output| {
             let name = output.name();
             let ty = output.ty();
 
@@ -378,6 +416,48 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                 #output_return_def
             }
         }
+    }
+
+    /// Register the input and output types of the graph using the passed in names.
+    /// The names must be unique and match the names of the inputs and outputs of the nodes.
+    /// The order will be preserved.
+    ///
+    /// # Arguments
+    ///
+    /// * `input_names` - The names of the inputs of the graph.
+    /// * `output_names` - The names of the outputs of the graph.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the graph is empty.
+    pub fn register_input_output(&mut self, input_names: Vec<String>, output_names: Vec<String>) {
+        assert!(
+            !self.nodes.is_empty(),
+            "Cannot register input and output types for an empty graph."
+        );
+
+        // Get the unique names of each input of the nodes
+        let mut inputs = HashMap::new();
+        let mut outputs = HashMap::new();
+        for node in self.nodes.iter() {
+            for input in node.input_types() {
+                inputs.insert(input.name().to_string(), input);
+            }
+            for output in node.output_types() {
+                outputs.insert(output.name().to_string(), output);
+            }
+        }
+
+        // Get the input and output types of the graph using passed in names
+        input_names.iter().for_each(|input| {
+            self.graph_input_types
+                .push(inputs.get(input).unwrap().clone());
+        });
+
+        output_names.iter().for_each(|output| {
+            self.graph_output_types
+                .push(outputs.get(output).unwrap().clone());
+        });
     }
 }
 
