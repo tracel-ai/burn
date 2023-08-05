@@ -236,10 +236,6 @@ mod tests {
             let weight_grad_actual = weight.grad(&grads).unwrap();
             let bias_grad_actual = bias.grad(&grads).unwrap();
 
-            println!("{x_grad_actual}");
-            println!("{weight_grad_actual}");
-            println!("{bias_grad_actual}");
-
             expected_grads
                 .bias
                 .to_data()
