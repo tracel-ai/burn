@@ -455,8 +455,12 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         });
 
         output_names.iter().for_each(|output| {
-            self.graph_output_types
-                .push(outputs.get(output).unwrap().clone());
+            self.graph_output_types.push(
+                outputs
+                    .get(output)
+                    .unwrap_or_else(|| panic!("Output type is not found for {output}"))
+                    .clone(),
+            );
         });
     }
 }

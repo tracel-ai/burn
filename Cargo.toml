@@ -55,7 +55,6 @@ strum_macros = "0.24"
 syn = {version = "2.0", features = ["full", "extra-traits"]}
 tempfile = "3.6.0"
 thiserror = "1.0.40"
-topological-sort = "0.2.2"
 
 # WGPU stuff
 futures-intrusive = "0.5"
