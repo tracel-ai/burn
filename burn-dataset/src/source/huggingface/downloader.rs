@@ -227,10 +227,10 @@ fn check_python_version_is_3(python: &str) -> bool {
 
 /// get python3 name `python` `python3` or `py`
 fn get_python_name() -> Result<&'static str, ImporterError> {
-    let python_str_list = ["python", "python3", "py"];
-    for py in python_str_list.iter() {
-        if check_python_version_is_3(py) {
-            return Ok(py);
+    let python_name_list = ["python3", "python", "py"];
+    for python_name in python_name_list.iter() {
+        if check_python_version_is_3(python_name) {
+            return Ok(python_name);
         }
     }
     Err(ImporterError::PythonNotInstalled)
@@ -244,11 +244,11 @@ fn importer_script_path(base_dir: &Path) -> PathBuf {
 }
 
 fn install_python_deps(base_dir: &Path) -> Result<PathBuf, ImporterError> {
-    let python_name = get_python_name()?;
     let venv_dir = base_dir.join("venv");
     let venv_python_path = venv_dir.join(VENV_BIN_PYTHON);
     // If the venv environment is already initialized, skip the initialization.
     if !check_python_version_is_3(venv_python_path.to_str().unwrap()) {
+        let python_name = get_python_name()?;
         let mut command = Command::new(python_name);
         command.args([
             "-m",
