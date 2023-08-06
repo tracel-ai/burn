@@ -46,8 +46,11 @@ impl RMSPropConfig {
         let weight_decay = self.weight_decay.as_ref().map(WeightDecay::new);
 
         let mut optim = OptimizerAdaptor::from(RMSProp {
-            momentum,
-            weight_decay,
+            alpha: self.alpha,
+            epsilon: self.epsilon,
+            centered: self.centered,
+            momentum: momentum,
+            weight_decay: weight_decay,
         });
 
         if let Some(config) = &self.grad_clipping {
@@ -61,6 +64,9 @@ impl RMSPropConfig {
 /// Optimizer that implements stochastic gradient descent with momentum.
 /// The optimizer can be configured with [RMSPropConfig](RMSPropConfig).
 pub struct RMSProp<B: Backend> {
+    alpha: f32,
+    epsilon: f32,
+    centered: bool,
     momentum: Option<Momentum<B>>,
     weight_decay: Option<WeightDecay<B>>,
 }
@@ -70,6 +76,15 @@ pub struct RMSProp<B: Backend> {
 pub struct RMSPropState<B: Backend, const D: usize> {
     weight_decay: Option<WeightDecayState<B, D>>,
     momentum: Option<MomemtumState<B, D>>,
+    square_avg: Option<Tensor<B, D>>,
+    grad_avg: Option<Tensor<B, D>>,
+    avg: Option<Tensor<B, D>>,
+}
+
+// TODO
+pub struct CenteredState<B: Backend, const D: usize> {
+    grad_avg: Option<Tensor<B, D>>,
+    avg: Option<Tensor<B, D>>,
 }
 
 impl<B: Backend> SimpleOptimizer<B> for RMSProp<B> {
@@ -83,11 +98,17 @@ impl<B: Backend> SimpleOptimizer<B> for RMSProp<B> {
         state: Option<Self::State<D>>,
     ) -> (Tensor<B, D>, Option<Self::State<D>>) {
         let mut state_weight_decay = None;
+        let mut state_square_avg = None;
+        let mut state_grad_avg = None;
+        let mut state_avg = None;
         let mut state_momemtum = None;
 
         if let Some(state) = state {
             state_weight_decay = state.weight_decay;
             state_momemtum = state.momentum;
+            state_grad_avg = state.grad_avg;
+            state_square_avg = state.square_avg;
+            state_avg = state.avg;
         }
 
         if let Some(weight_decay) = &self.weight_decay {
@@ -96,13 +117,48 @@ impl<B: Backend> SimpleOptimizer<B> for RMSProp<B> {
             grad = grad_out;
         }
 
+        let square_avg_out = if let Some(square_avg) = &state_square_avg {
+            square_avg
+                .clone()
+                .mul_scalar(self.alpha)
+                .add(grad.clone().powf(2.).mul_scalar(1. - self.alpha))
+        } else {
+            grad.clone().powf(2.).mul_scalar(1. - self.alpha)
+        };
+        state_square_avg = Some(square_avg_out);
+
+        if self.centered {
+            let grad_avg_out = if let Some(grad_avg) = &state_grad_avg {
+                grad_avg
+                    .clone()
+                    .mul_scalar(self.alpha)
+                    .add(grad.clone().mul_scalar(1. - self.alpha))
+            } else {
+                grad.clone().mul_scalar(1. - self.alpha)
+            };
+            let avg_out = if let Some(velocity) = &state_square_avg {
+                velocity.clone().sub(grad_avg_out.clone().powf(2.))
+            } else {
+                grad_avg_out.clone().powf(2.).mul_scalar(-1.)
+            };
+            state_grad_avg = Some(grad_avg_out);
+            state_avg = Some(avg_out);
+        }
+
         if let Some(momentum) = &self.momentum {
+            // TODO change this with [RMSPropMomentum]
             let (grad_out, state) = momentum.transform(grad, state_momemtum);
             state_momemtum = Some(state);
             grad = grad_out;
         }
 
-        let state = RMSPropState::new(state_weight_decay, state_momemtum);
+        let state = RMSPropState::new(
+            state_weight_decay,
+            state_momemtum,
+            state_grad_avg,
+            state_square_avg,
+            state_avg,
+        );
         let delta = grad.mul_scalar(lr);
 
         (tensor - delta, Some(state))
@@ -156,7 +212,7 @@ mod tests {
             momentum: Some(MomentumConfig {
                 momentum: 0.9,
                 dampening: 0.1,
-                nesterov: true,
+                ..MomentumConfig::new()
             }),
             grad_clipping: None,
             ..RMSPropConfig::new()
