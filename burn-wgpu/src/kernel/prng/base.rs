@@ -28,7 +28,7 @@ pub(crate) fn make_output_tensor<E: WgpuElement, const D: usize>(
     shape: Shape<D>,
 ) -> WgpuTensor<E, D> {
     let buffer = context.create_buffer(shape.num_elements() * core::mem::size_of::<E>());
-    WgpuTensor::new(context.clone(), shape, buffer)
+    WgpuTensor::new(context, shape, buffer)
 }
 
 pub(crate) fn make_info_buffer(context: Arc<Context>, n_values_per_thread: usize) -> Arc<Buffer> {

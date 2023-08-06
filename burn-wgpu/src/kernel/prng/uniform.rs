@@ -108,7 +108,7 @@ mod tests {
             Distribution::Uniform(-5., 10.),
             &device,
         );
-        let numbers = tensor.clone().into_data().value;
+        let numbers = tensor.into_data().value;
         let stats = calculate_bin_stats(numbers, 3, -5., 10.);
         assert!(stats[0].count >= 1);
         assert!(stats[1].count >= 1);
@@ -121,10 +121,9 @@ mod tests {
         TestBackend::seed(0);
         let shape = Shape::new([512, 512]);
         let device = WgpuDevice::default();
-        let tensor =
-            Tensor::<TestBackend, 2>::random_device(shape.clone(), Distribution::Default, &device);
+        let tensor = Tensor::<TestBackend, 2>::random_device(shape, Distribution::Default, &device);
 
-        let numbers = tensor.clone().into_data().value;
+        let numbers = tensor.into_data().value;
         let stats = calculate_bin_stats(numbers, 2, 0., 1.);
         let n_0 = stats[0].count as f32;
         let n_1 = stats[1].count as f32;

@@ -167,7 +167,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
 
         fn to_tensor(ty: Type) -> Option<TensorType> {
             match ty {
-                Type::Tensor(tensor) => Some(tensor.clone()),
+                Type::Tensor(tensor) => Some(tensor),
                 Type::Scalar(_) => None,
                 Type::Other(_) => None,
             }
@@ -358,7 +358,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
 
         self.graph_input_types.iter().for_each(|input| {
             let name = input.name().clone();
-            let ty = input.ty().clone();
+            let ty = input.ty();
 
             input_def.extend(quote! {
                 #name: #ty,
