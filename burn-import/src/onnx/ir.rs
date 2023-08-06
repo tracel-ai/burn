@@ -84,9 +84,6 @@ pub struct ONNXGraph {
     /// The outputs of the graph.
     pub outputs: Vec<Argument>,
 
-    /// The states of the graph.
-    pub states: Vec<State>,
-
     /// The original node names.
     pub old_node_names: HashMap<String, String>,
 
