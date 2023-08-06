@@ -313,7 +313,7 @@ where
     fn from_full_precision<const D: usize>(
         tensor: FloatTensor<FullPrecisionBackend<Self>, D>,
     ) -> FloatTensor<Self, D> {
-        kernel::cast(tensor.clone())
+        kernel::cast(tensor)
     }
 
     fn exp<const D: usize>(lhs: FloatTensor<Self, D>) -> FloatTensor<Self, D> {

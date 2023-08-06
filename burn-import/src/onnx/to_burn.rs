@@ -285,7 +285,7 @@ impl ONNXGraph {
         let rhs = node.inputs.get(1).unwrap().to_type();
         let output = node.outputs.get(0).unwrap().to_type();
 
-        BinaryNode::add(lhs.clone(), rhs.clone(), output.clone())
+        BinaryNode::add(lhs, rhs, output)
     }
 
     fn sub_conversion(node: Node) -> BinaryNode {

@@ -114,13 +114,10 @@ mod tests {
         TestBackend::seed(0);
         let shape = Shape::new([512, 512]);
         let device = WgpuDevice::default();
-        let tensor = Tensor::<TestBackend, 2>::random_device(
-            shape.clone(),
-            Distribution::Bernoulli(0.5),
-            &device,
-        );
+        let tensor =
+            Tensor::<TestBackend, 2>::random_device(shape, Distribution::Bernoulli(0.5), &device);
 
-        let numbers = tensor.clone().into_data().value;
+        let numbers = tensor.into_data().value;
         let stats = calculate_bin_stats(numbers, 2, 0., 1.1);
         let n_0 = stats[0].count as f32;
         let n_1 = stats[1].count as f32;

@@ -2,8 +2,8 @@ use super::{bin_config, PrecisionSettings, Recorder, RecorderError};
 use core::marker::PhantomData;
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use serde::{de::DeserializeOwned, Serialize};
-use std::{fs::File, path::PathBuf};
 use std::io::{BufReader, BufWriter};
+use std::{fs::File, path::PathBuf};
 
 /// Recorder trait specialized to save and load data to and from files.
 pub trait FileRecorder:
@@ -80,10 +80,12 @@ macro_rules! str2reader {
         $file.set_extension(<Self as FileRecorder>::file_extension());
         let path = $file.as_path();
 
-        File::open(path).map_err(|err| match err.kind() {
-            std::io::ErrorKind::NotFound => RecorderError::FileNotFound(err.to_string()),
-            _ => RecorderError::Unknown(err.to_string()),
-        }).map(|file| BufReader::new(file))
+        File::open(path)
+            .map_err(|err| match err.kind() {
+                std::io::ErrorKind::NotFound => RecorderError::FileNotFound(err.to_string()),
+                _ => RecorderError::Unknown(err.to_string()),
+            })
+            .map(|file| BufReader::new(file))
     }};
 }
 
@@ -99,10 +101,12 @@ macro_rules! str2writer {
             std::fs::remove_file(path).map_err(|err| RecorderError::Unknown(err.to_string()))?;
         }
 
-        File::create(path).map_err(|err| match err.kind() {
-            std::io::ErrorKind::NotFound => RecorderError::FileNotFound(err.to_string()),
-            _ => RecorderError::Unknown(err.to_string()),
-        }).map(|file| BufWriter::new(file))
+        File::create(path)
+            .map_err(|err| match err.kind() {
+                std::io::ErrorKind::NotFound => RecorderError::FileNotFound(err.to_string()),
+                _ => RecorderError::Unknown(err.to_string()),
+            })
+            .map(|file| BufWriter::new(file))
     }};
 }
 

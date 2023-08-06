@@ -115,7 +115,7 @@ mod tests {
         let output = model.forward(input);
 
         let expected_shape = Shape::from([2, 6, 6, 15]);
-        assert_eq!(output.shape().clone(), expected_shape);
+        assert_eq!(output.shape(), expected_shape);
 
         // We are using the sum of the output tensor to test the correctness of the conv2d node
         // because the output tensor is too large to compare with the expected tensor.
