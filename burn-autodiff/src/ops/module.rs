@@ -369,13 +369,121 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn conv_transpose1d(
-        _x: ADTensor<B, 3>,
-        _weight: ADTensor<B, 3>,
-        _bias: Option<ADTensor<B, 1>>,
-        _options: ConvTransposeOptions<1>,
+        x: ADTensor<B, 3>,
+        weight: ADTensor<B, 3>,
+        bias: Option<ADTensor<B, 1>>,
+        options: ConvTransposeOptions<1>,
     ) -> ADTensor<B, 3> {
-        todo!("Transposed 1D convolution doesn't yet support backward.");
+        #[derive(Debug)]
+        struct ConvTranspose1DWithBias;
+        #[derive(Debug)]
+        struct ConvTranspose1DNoBias;
+
+        impl<B: Backend> Backward<B, 3, 3> for ConvTranspose1DWithBias {
+            type State = (
+                B::TensorPrimitive<3>,
+                B::TensorPrimitive<3>,
+                B::TensorPrimitive<1>,
+                ConvTransposeOptions<1>,
+            );
+
+            fn backward(self, ops: Ops<Self::State, 3>, grads: &mut Gradients) {
+                let [node_x, node_weight, node_bias] = ops.parents;
+                let grad = grads.consume::<B, 3>(&ops.node);
+
+                let (x, weight, bias, options) = ops.state;
+                let backward = B::conv_transpose1d_backward(x, weight, Some(bias), grad, options);
+
+                if let Some(node) = node_x {
+                    grads.register::<B, 3>(node, backward.x_grad)
+                }
+                if let Some(node) = node_weight {
+                    grads.register::<B, 3>(node, backward.weights_grad)
+                }
+                if let Some(node) = node_bias {
+                    grads.register::<B, 1>(node, backward.bias_grad.unwrap())
+                }
+            }
+        }
+
+        impl<B: Backend> Backward<B, 3, 2> for ConvTranspose1DNoBias {
+            type State = (
+                B::TensorPrimitive<3>,
+                B::TensorPrimitive<3>,
+                ConvTransposeOptions<1>,
+            );
+
+            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
+                let [node_x, node_weight] = ops.parents;
+                let grad = grads.consume::<B, 3>(&ops.node);
+
+                let (x, weight, options) = ops.state;
+                let backward = B::conv_transpose1d_backward(x, weight, None, grad, options);
+
+                if let Some(node) = node_x {
+                    grads.register::<B, 3>(node, backward.x_grad)
+                }
+                if let Some(node) = node_weight {
+                    grads.register::<B, 3>(node, backward.weights_grad)
+                }
+            }
+        }
+
+        match bias {
+            Some(bias) => {
+                match ConvTranspose1DWithBias
+                    .prepare(
+                        [x.node, weight.node, bias.node],
+                        [x.graph, weight.graph, bias.graph],
+                    )
+                    .statefull()
+                {
+                    OpsKind::Tracked(prep) => prep.finish(
+                        (
+                            x.primitive.clone(),
+                            weight.primitive.clone(),
+                            bias.primitive.clone(),
+                            options.clone(),
+                        ),
+                        B::conv_transpose1d(
+                            x.primitive,
+                            weight.primitive,
+                            Some(bias.primitive),
+                            options,
+                        ),
+                    ),
+                    OpsKind::UnTracked(prep) => prep.finish(B::conv_transpose1d(
+                        x.primitive,
+                        weight.primitive,
+                        Some(bias.primitive),
+                        options,
+                    )),
+                }
+            }
+            None => {
+                match ConvTranspose1DNoBias
+                    .prepare([x.node, weight.node], [x.graph, weight.graph])
+                    .statefull()
+                {
+                    OpsKind::Tracked(prep) => prep.finish(
+                        (
+                            x.primitive.clone(),
+                            weight.primitive.clone(),
+                            options.clone(),
+                        ),
+                        B::conv_transpose1d(x.primitive, weight.primitive, None, options),
+                    ),
+                    OpsKind::UnTracked(prep) => prep.finish(B::conv_transpose1d(
+                        x.primitive,
+                        weight.primitive,
+                        None,
+                        options,
+                    )),
+                }
+            }
+        }
     }
+
     fn avg_pool1d(
         x: ADTensor<B, 3>,
         kernel_size: usize,
@@ -519,6 +627,34 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         _indices: IntTensor<B, 4>,
     ) -> MaxPool2dBackward<ADBackendDecorator<B>> {
         panic!("Can't differentiate max pool2d with indices backward.");
+    }
+    fn adaptive_avg_pool1d(x: ADTensor<B, 3>, output_size: usize) -> ADTensor<B, 3> {
+        #[derive(Debug)]
+        struct AdaptiveAvgPool1D;
+
+        impl<B: Backend> Backward<B, 3, 1> for AdaptiveAvgPool1D {
+            type State = B::TensorPrimitive<3>;
+
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+                let [node_parent] = ops.parents;
+                let grad = grads.consume::<B, 3>(&ops.node);
+
+                if let Some(node) = node_parent {
+                    let grad = B::adaptive_avg_pool1d_backward(ops.state, grad);
+                    grads.register::<B, 3>(node, grad);
+                }
+            }
+        }
+
+        match AdaptiveAvgPool1D.prepare([x.node], [x.graph]).statefull() {
+            OpsKind::Tracked(prep) => prep.finish(
+                x.primitive.clone(),
+                B::adaptive_avg_pool1d(x.primitive, output_size),
+            ),
+            OpsKind::UnTracked(prep) => {
+                prep.finish(B::adaptive_avg_pool1d(x.primitive, output_size))
+            }
+        }
     }
 
     fn adaptive_avg_pool2d(x: ADTensor<B, 4>, output_size: [usize; 2]) -> ADTensor<B, 4> {
