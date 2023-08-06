@@ -8,7 +8,6 @@ use sanitize_filename::sanitize;
 use serde::de::DeserializeOwned;
 use thiserror::Error;
 
-const PYTHON: &str = "python3";
 const PYTHON_SOURCE: &str = include_str!("importer.py");
 #[cfg(not(target_os = "windows"))]
 const VENV_BIN_PYTHON: &str = "bin/python3";
@@ -29,6 +28,14 @@ pub enum ImporterError {
     /// Fail to create sqlite dataset.
     #[error("sqlite dataset: `{0}`")]
     SqliteDataset(#[from] SqliteDatasetError),
+
+    /// python3 is not installed.
+    #[error("python3 is not installed")]
+    PythonNotInstalled,
+
+    /// venv environment is not initialized.
+    #[error("venv environment is not initialized")]
+    VenvNotInitialized,
 }
 
 /// Load a dataset from [huggingface datasets](https://huggingface.co/datasets).
@@ -197,6 +204,38 @@ fn import(
     Ok(())
 }
 
+/// check python --version output is `Python 3.x.x`
+fn check_python_version_is_3(python: &str) -> bool {
+    let output = Command::new(python).arg("--version").output();
+    match output {
+        Ok(output) => {
+            if output.status.success() {
+                let version_string = String::from_utf8_lossy(&output.stdout);
+                if let Some(index) = version_string.find(' ') {
+                    let version = &version_string[index + 1..];
+                    version.starts_with("3.")
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        }
+        Err(_error) => false,
+    }
+}
+
+/// get python3 name `python` `python3` or `py`
+fn get_python_name() -> Result<&'static str, ImporterError> {
+    let python_name_list = ["python3", "python", "py"];
+    for python_name in python_name_list.iter() {
+        if check_python_version_is_3(python_name) {
+            return Ok(python_name);
+        }
+    }
+    Err(ImporterError::PythonNotInstalled)
+}
+
 fn importer_script_path(base_dir: &Path) -> PathBuf {
     let path_file = base_dir.join("importer.py");
 
@@ -206,23 +245,31 @@ fn importer_script_path(base_dir: &Path) -> PathBuf {
 
 fn install_python_deps(base_dir: &Path) -> Result<PathBuf, ImporterError> {
     let venv_dir = base_dir.join("venv");
-    let mut command = Command::new(PYTHON);
-    command.args([
-        "-m",
-        "venv",
-        venv_dir
-            .as_os_str()
-            .to_str()
-            .expect("Path utf8 conversion should not fail"),
-    ]);
-
-    // Spawn the venv creation process and wait for it to complete.
-    let mut handle = command.spawn().unwrap();
-    handle.wait().map_err(|err| {
-        ImporterError::FailToDownloadPythonDependencies(format!(" error: {}", err))
-    })?;
-
     let venv_python_path = venv_dir.join(VENV_BIN_PYTHON);
+    // If the venv environment is already initialized, skip the initialization.
+    if !check_python_version_is_3(venv_python_path.to_str().unwrap()) {
+        let python_name = get_python_name()?;
+        let mut command = Command::new(python_name);
+        command.args([
+            "-m",
+            "venv",
+            venv_dir
+                .as_os_str()
+                .to_str()
+                .expect("Path utf8 conversion should not fail"),
+        ]);
+
+        // Spawn the venv creation process and wait for it to complete.
+        let mut handle = command.spawn().unwrap();
+
+        handle.wait().map_err(|err| {
+            ImporterError::FailToDownloadPythonDependencies(format!(" error: {}", err))
+        })?;
+        // Check if the venv environment can be used successfully."
+        if !check_python_version_is_3(venv_python_path.to_str().unwrap()) {
+            return Err(ImporterError::VenvNotInitialized);
+        }
+    }
 
     let mut command = Command::new(&venv_python_path);
     command.args([
