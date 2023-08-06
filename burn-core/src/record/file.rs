@@ -3,6 +3,7 @@ use core::marker::PhantomData;
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use serde::{de::DeserializeOwned, Serialize};
 use std::{fs::File, path::PathBuf};
+use std::io::{BufReader, BufWriter};
 
 /// Recorder trait specialized to save and load data to and from files.
 pub trait FileRecorder:
@@ -82,7 +83,7 @@ macro_rules! str2reader {
         File::open(path).map_err(|err| match err.kind() {
             std::io::ErrorKind::NotFound => RecorderError::FileNotFound(err.to_string()),
             _ => RecorderError::Unknown(err.to_string()),
-        })
+        }).map(|file| BufReader::new(file))
     }};
 }
 
@@ -101,7 +102,7 @@ macro_rules! str2writer {
         File::create(path).map_err(|err| match err.kind() {
             std::io::ErrorKind::NotFound => RecorderError::FileNotFound(err.to_string()),
             _ => RecorderError::Unknown(err.to_string()),
-        })
+        }).map(|file| BufWriter::new(file))
     }};
 }
 
