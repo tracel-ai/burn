@@ -225,10 +225,7 @@ impl PartialEq for Context {
 
 async fn select_device<G: GraphicsApi>(device: &WgpuDevice) -> (wgpu::Device, wgpu::Queue) {
     let adapter = select_adapter::<G>(device);
-    let limits = wgpu::Limits {
-        max_compute_invocations_per_workgroup: 1024,
-        ..wgpu::Limits::default()
-    };
+    let limits = adapter.limits();
 
     let (device, queue) = adapter
         .request_device(
