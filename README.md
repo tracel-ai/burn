@@ -67,6 +67,10 @@ simplifying the process of experimenting, training, and deploying models.
 [2]: https://github.com/burn-rs/burn/tree/main/burn-tch
 [3]: https://github.com/burn-rs/burn/tree/main/burn-wgpu
 
+## Pre-trained Models
+
+We keep an updated and curated list of models and examples built with Burn, see the [burn-rs/models](https://github.com/burn-rs/models) repository for more details.
+
 ## Get Started
 
 The best way to get started with `burn` is to clone the repo and play with the

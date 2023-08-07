@@ -443,6 +443,11 @@ where
     pub fn clamp_max(self, max: K::Elem) -> Self {
         Self::new(K::clamp_max(self.primitive, max))
     }
+
+    /// Apply element wise absolute value operation
+    pub fn abs(self) -> Self {
+        Self::new(K::abs(self.primitive))
+    }
 }
 
 /// Trait that list all operations that can be applied on all numerical tensors.
@@ -1445,6 +1450,26 @@ where
     /// [Tensor::clamp_max](Tensor::clamp_max) function, which is more high-level and designed for public use.
     fn clamp_max<const D: usize>(tensor: Self::Primitive<D>, max: Self::Elem)
         -> Self::Primitive<D>;
+
+    /// Calculate absolute value on all elements of a tensor
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to apply abs to.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with absolute values.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For calculating abs of the elements of a tensor, users should prefer the [Tensor::abs](Tensor::abs) function,
+    /// which is more high-level and designed for public use.
+    fn abs<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D>;
 }
 
 impl<B: Backend> Numeric<B> for Int {
@@ -1694,6 +1719,10 @@ impl<B: Backend> Numeric<B> for Int {
         max: B::IntElem,
     ) -> Self::Primitive<D> {
         B::int_clamp_max(tensor, max)
+    }
+
+    fn abs<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
+        B::int_abs(tensor)
     }
 }
 
@@ -1945,6 +1974,10 @@ impl<B: Backend> Numeric<B> for Float {
         max: B::FloatElem,
     ) -> Self::Primitive<D> {
         B::clamp_max(tensor, max)
+    }
+
+    fn abs<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
+        B::abs(tensor)
     }
 }
 

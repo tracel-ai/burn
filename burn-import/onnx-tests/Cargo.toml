@@ -1,0 +1,13 @@
+[package]
+name = "onnx-tests"
+version = "0.9.0"
+edition = "2021"
+
+[dev-dependencies]
+burn = { path = "../../burn" }
+burn-ndarray = { path = "../../burn-ndarray" }
+serde = { workspace = true }
+float-cmp = { workspace = true }
+
+[build-dependencies]
+burn-import = { path = "../" }

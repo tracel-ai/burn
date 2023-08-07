@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{Scope, TensorType, Type};
+use crate::burn::{Scope, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -32,9 +32,9 @@ type FnPointer = Arc<dyn Fn(TokenStream, TokenStream) -> TokenStream>;
 /// Node for all binary operators.
 #[derive(Clone, new)]
 pub struct BinaryNode {
-    pub lhs: TensorType,
-    pub rhs: TensorType,
-    pub output: TensorType,
+    pub lhs: Type,
+    pub rhs: Type,
+    pub output: Type,
     pub binary_type: BinaryType,
     function: FnPointer,
 }
@@ -56,17 +56,35 @@ impl std::fmt::Debug for BinaryNode {
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for BinaryNode {
     fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(&self.output)]
+        vec![self.output.clone()]
     }
 
     fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(&self.lhs), Type::Tensor(&self.rhs)]
+        vec![self.lhs.clone(), self.rhs.clone()]
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let lhs = scope.tensor_use_owned(&self.lhs, node_position);
-        let rhs = scope.tensor_use_owned(&self.rhs, node_position);
-        let output = &self.output.name;
+        // Get the lhs name in the form of token stream.
+        let lhs = match &self.lhs {
+            Type::Tensor(tensor) => scope.tensor_use_owned(tensor, node_position),
+            Type::Scalar(scalar) => {
+                let name = scalar.name.clone();
+                quote! { #name }
+            }
+            _ => panic!("lhs must be a tensor or scalar"),
+        };
+
+        // Get the rhs name in the form of token stream
+        let rhs = match &self.rhs {
+            Type::Tensor(tensor) => scope.tensor_use_owned(tensor, node_position),
+            Type::Scalar(scalar) => {
+                let name = scalar.name.clone();
+                quote! { #name }
+            }
+            _ => panic!("rhs must be a tensor or scalar"),
+        };
+
+        let output = &self.output.name();
         let function = (self.function)(lhs, rhs);
 
         quote! {
@@ -80,27 +98,53 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BinaryNode {
 }
 
 impl BinaryNode {
-    pub(crate) fn add(lhs: TensorType, rhs: TensorType, output: TensorType) -> Self {
-        let function = move |lhs, rhs| quote! { #lhs.add(#rhs) };
+    pub(crate) fn add(lhs: Type, rhs: Type, output: Type) -> Self {
+        let function = match (&lhs, &rhs) {
+            (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.add(#rhs) },
+            (Type::Tensor(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs.add_scalar(#rhs) },
+            (Type::Scalar(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #rhs.add_scalar(#lhs) },
+            (Type::Scalar(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs + #rhs },
+            _ => panic!("Addition is supported for tensor and scalar only"),
+        };
+
         Self::new(lhs, rhs, output, BinaryType::Add, Arc::new(function))
     }
 
-    pub(crate) fn sub(lhs: TensorType, rhs: TensorType, output: TensorType) -> Self {
-        let function = move |lhs, rhs| quote! { #lhs.sub(#rhs) };
+    pub(crate) fn sub(lhs: Type, rhs: Type, output: Type) -> Self {
+        let function = match (&lhs, &rhs) {
+            (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.sub(#rhs) },
+            (Type::Tensor(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs.sub_scalar(#rhs) },
+            (Type::Scalar(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs - #rhs },
+            _ => panic!("Subtraction is supported for tensor and scalar only"),
+        };
+
         Self::new(lhs, rhs, output, BinaryType::Sub, Arc::new(function))
     }
 
-    pub(crate) fn mul(lhs: TensorType, rhs: TensorType, output: TensorType) -> Self {
-        let function = move |lhs, rhs| quote! { #lhs.mul(#rhs) };
+    pub(crate) fn mul(lhs: Type, rhs: Type, output: Type) -> Self {
+        let function = match (&lhs, &rhs) {
+            (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.mul(#rhs) },
+            (Type::Tensor(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs.mul_scalar(#rhs) },
+            (Type::Scalar(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #rhs.mul_scalar(#lhs) },
+            (Type::Scalar(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs * #rhs },
+            _ => panic!("Multiplication is supported for tensor and scalar only"),
+        };
+
         Self::new(lhs, rhs, output, BinaryType::Mul, Arc::new(function))
     }
 
-    pub(crate) fn div(lhs: TensorType, rhs: TensorType, output: TensorType) -> Self {
-        let function = move |lhs, rhs| quote! { #lhs.div(#rhs) };
+    pub(crate) fn div(lhs: Type, rhs: Type, output: Type) -> Self {
+        let function = match (&lhs, &rhs) {
+            (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.div(#rhs) },
+            (Type::Tensor(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs.div_scalar(#rhs) },
+            (Type::Scalar(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs / #rhs },
+            _ => panic!("Division is supported for tensor and scalar only"),
+        };
+
         Self::new(lhs, rhs, output, BinaryType::Div, Arc::new(function))
     }
 
-    pub(crate) fn equal(lhs: TensorType, rhs: TensorType, output: TensorType) -> Self {
+    pub(crate) fn equal(lhs: Type, rhs: Type, output: Type) -> Self {
         let function = move |lhs, rhs| quote! { #lhs.equal(#rhs) };
         Self::new(lhs, rhs, output, BinaryType::Equal, Arc::new(function))
     }
@@ -110,48 +154,93 @@ impl BinaryNode {
 mod tests {
 
     use super::*;
-    use crate::burn::node::tests::codegen_binary_operator;
-    use crate::burn::TensorType;
+    use crate::burn::node::tests::one_node_graph;
+    use crate::burn::{ScalarKind, ScalarType, TensorType};
 
-    macro_rules! test_binary_operator {
+    macro_rules! test_binary_operator_on_tensors {
         ($operator:ident) => {{
-            codegen_binary_operator::<4, _>(
+            one_node_graph(
                 BinaryNode::$operator(
-                    TensorType::new_float("tensor1", 4),
-                    TensorType::new_float("tensor2", 4),
-                    TensorType::new_float("tensor3", 4),
+                    Type::Tensor(TensorType::new_float("tensor1", 4)),
+                    Type::Tensor(TensorType::new_float("tensor2", 4)),
+                    Type::Tensor(TensorType::new_float("tensor3", 4)),
                 ),
                 quote! {
-                    let tensor3 = tensor1.$operator(tensor2);
+                    pub fn forward(&self, tensor1: Tensor<B, 4>, tensor2: Tensor<B, 4>) -> Tensor<B, 4> {
+                        let tensor3 = tensor1.$operator(tensor2);
 
-                    tensor3
+                        tensor3
+                    }
                 },
+                vec!["tensor1".to_string(), "tensor2".to_string()],
+                vec!["tensor3".to_string()],
+            );
+        }};
+    }
+
+    macro_rules! test_binary_operator_on_tensor_and_scalar {
+        ($operator:ident, $burn_operator:ident) => {{
+            one_node_graph(
+                BinaryNode::$operator(
+                    Type::Tensor(TensorType::new_float("tensor1", 4)),
+                    Type::Scalar(ScalarType::new("scalar1", ScalarKind::Float32)),
+                    Type::Tensor(TensorType::new_float("tensor3", 4)),
+                ),
+                quote! {
+                    pub fn forward(&self, scalar1: f32, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                        let tensor3 = tensor1.$burn_operator(scalar1);
+
+                        tensor3
+                    }
+                },
+                vec!["scalar1".to_string(), "tensor1".to_string()],
+                vec!["tensor3".to_string()],
             );
         }};
     }
 
     #[test]
     fn test_binary_codegen_add() {
-        test_binary_operator!(add);
+        test_binary_operator_on_tensors!(add);
+    }
+
+    #[test]
+    fn test_binary_codegen_add_scalar() {
+        test_binary_operator_on_tensor_and_scalar!(add, add_scalar);
     }
 
     #[test]
     fn test_binary_codegen_sub() {
-        test_binary_operator!(sub);
+        test_binary_operator_on_tensors!(sub);
+    }
+
+    #[test]
+    fn test_binary_codegen_sub_scalar() {
+        test_binary_operator_on_tensor_and_scalar!(sub, sub_scalar);
     }
 
     #[test]
     fn test_binary_codegen_mul() {
-        test_binary_operator!(mul);
+        test_binary_operator_on_tensors!(mul);
+    }
+
+    #[test]
+    fn test_binary_codegen_mul_scalar() {
+        test_binary_operator_on_tensor_and_scalar!(mul, mul_scalar);
     }
 
     #[test]
     fn test_binary_codegen_div() {
-        test_binary_operator!(div);
+        test_binary_operator_on_tensors!(div);
+    }
+
+    #[test]
+    fn test_binary_codegen_div_scalar() {
+        test_binary_operator_on_tensor_and_scalar!(div, div_scalar);
     }
 
     #[test]
     fn test_binary_codegen_equal() {
-        test_binary_operator!(equal);
+        test_binary_operator_on_tensors!(equal);
     }
 }

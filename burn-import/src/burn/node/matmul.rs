@@ -13,11 +13,14 @@ pub struct MatmulNode {
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for MatmulNode {
     fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(&self.output)]
+        vec![Type::Tensor(self.output.clone())]
     }
 
     fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(&self.lhs), Type::Tensor(&self.rhs)]
+        vec![
+            Type::Tensor(self.lhs.clone()),
+            Type::Tensor(self.rhs.clone()),
+        ]
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
@@ -57,6 +60,11 @@ mod tests {
             TensorType::new_float("tensor3", 4),
         ));
 
+        graph.register_input_output(
+            vec!["tensor1".to_string(), "tensor2".to_string()],
+            vec!["tensor3".to_string()],
+        );
+
         let expected = quote! {
             use burn::{
                 module::Module,
@@ -64,12 +72,17 @@ mod tests {
             };
 
             #[derive(Module, Debug)]
-            pub struct Model <B: Backend>{}
+            pub struct Model<B: Backend> {
+                _phantom: core::marker::PhantomData<B>,
+            }
 
             impl<B: Backend> Model <B> {
-                pub fn new_with(record: ModelRecord<B>) -> Self {
-                    Self { }
+                pub fn new_with(_record: ModelRecord<B>) -> Self {
+                    Self {
+                        _phantom: core::marker::PhantomData,
+                    }
                 }
+
                 #[allow(clippy::let_and_return)]
                 pub fn forward(&self, tensor1: Tensor<B, 4>, tensor2: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor3 = tensor1.matmul(tensor2);

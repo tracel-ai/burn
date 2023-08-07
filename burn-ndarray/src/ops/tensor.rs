@@ -380,6 +380,12 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         NdArrayTensor::new(array)
     }
 
+    fn abs<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+        let array = tensor.array.mapv_into(|a| a.abs_elem()).into_shared();
+
+        NdArrayTensor::new(array)
+    }
+
     fn cos<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor
             .array

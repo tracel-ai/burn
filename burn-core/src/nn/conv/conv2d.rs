@@ -11,6 +11,8 @@ use burn_tensor::module::conv2d;
 use burn_tensor::ops::ConvOptions;
 use libm::sqrt;
 
+use super::checks;
+
 /// Configuration to create an [2D convolution](Conv2d) layer.
 #[derive(Config, Debug)]
 pub struct Conv2dConfig {
@@ -42,11 +44,9 @@ pub struct Conv2dConfig {
 ///
 /// # Params
 ///
-/// - weight: Tensor of shape `[channels_out, channels_in, kernel_size_1, kernel_size_2]` initialized from a uniform
-///     distribution `U(-k, k)` where `k = sqrt(1 / channels_in * kernel_size_1 * kernel_size_2)`
+/// - weight: Tensor of shape `[channels_out, channels_in / groups, kernel_size_1, kernel_size_2]`
 ///
-/// - bias:   Tensor of shape `[channels_out]`, initialized from a uniform distribution `U(-k, k)`
-///     where `k = sqrt(1 / channels_in * kernel_size_1 * kernel_size_2)`
+/// - bias:   Tensor of shape `[channels_out]`
 #[derive(Module, Debug)]
 pub struct Conv2d<B: Backend> {
     weight: Param<Tensor<B, 4>>,
@@ -61,22 +61,25 @@ pub struct Conv2d<B: Backend> {
 impl Conv2dConfig {
     /// Initialize a new [conv2d](Conv2d) module.
     pub fn init<B: Backend>(&self) -> Conv2d<B> {
+        checks::checks_channels_div_groups(self.channels[0], self.channels[1], self.groups);
+
         let shape = [
             self.channels[1],
-            self.channels[0],
+            self.channels[0] / self.groups,
             self.kernel_size[0],
             self.kernel_size[1],
         ];
-        let fan_in = self.channels[0] * self.kernel_size.iter().product::<usize>();
+
+        let fan_in = self.channels[0] / self.groups * self.kernel_size.iter().product::<usize>();
         let weight = self.initializer.init_with(shape, Some(fan_in), None);
-        let bias = if self.bias {
-            Some(
+        let mut bias = None;
+
+        if self.bias {
+            bias = Some(
                 self.initializer
                     .init_with([self.channels[1]], Some(fan_in), None),
-            )
-        } else {
-            None
-        };
+            );
+        }
 
         Conv2d {
             weight: Param::from(weight),
@@ -126,11 +129,9 @@ impl<B: Backend> Conv2d<B> {
 
 #[cfg(test)]
 mod tests {
-    use burn_tensor::Data;
-
     use super::*;
     use crate::TestBackend;
-    use libm::sqrt;
+    use burn_tensor::Data;
 
     #[test]
     fn initializer_default() {
@@ -138,16 +139,9 @@ mod tests {
 
         let config = Conv2dConfig::new([5, 1], [5, 5]);
         let k = (config.channels[0] * config.kernel_size[0] * config.kernel_size[1]) as f64;
-        let k = sqrt(1.0 / k) as f32;
+        let k = sqrt(config.groups as f64 / k) as f32;
         let conv = config.init::<TestBackend>();
 
-        assert_eq!(
-            config.initializer,
-            Initializer::KaimingUniform {
-                gain: 1.0 / sqrt(3.0),
-                fan_out_only: false
-            }
-        );
         conv.weight.to_data().assert_within_range(-k..k);
     }
 

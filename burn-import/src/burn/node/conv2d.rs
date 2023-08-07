@@ -47,13 +47,13 @@ impl<PS: PrecisionSettings> Conv2dNode<PS> {
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv2dNode<PS> {
     fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(&self.input)]
+        vec![Type::Tensor(self.input.clone())]
     }
     fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(&self.output)]
+        vec![Type::Tensor(self.output.clone())]
     }
     fn field_type(&self) -> Option<Type> {
-        Some(Type::Other(&self.field))
+        Some(Type::Other(self.field.clone()))
     }
 
     fn field_init(&self, with_record: bool) -> Option<TokenStream> {
@@ -153,6 +153,8 @@ mod tests {
             None,
             Conv2dConfig::new([3, 3], [3, 3]).with_padding(PaddingConfig2d::Valid),
         ));
+
+        graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
 
         let expected = quote! {
             use burn::{

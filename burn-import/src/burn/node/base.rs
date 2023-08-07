@@ -77,7 +77,7 @@ pub enum Node<PS: PrecisionSettings> {
     MaxPool2d(MaxPool2dNode),
     Linear(LinearNode<PS>),
     BatchNorm(BatchNormNode<PS>),
-    Constant(ConstantNode),
+    Constant(ConstantNode<PS>),
     Unary(UnaryNode),
     Reshape(ReshapeNode),
     Concat(ConcatNode),
@@ -174,7 +174,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Node<PS> {
 #[cfg(test)]
 pub(crate) mod tests {
     use crate::burn::{
-        codegen::ToTokens,
         graph::BurnGraph,
         node::{conv2d::Conv2dNode, matmul::MatmulNode, test::assert_tokens, NodeCodegen},
         TensorType,
@@ -185,13 +184,17 @@ pub(crate) mod tests {
     use proc_macro2::TokenStream;
     use quote::quote;
 
-    fn one_node_graph<T: NodeCodegen<FullPrecisionSettings> + 'static>(
+    pub(crate) fn one_node_graph<T: NodeCodegen<FullPrecisionSettings> + 'static>(
         node_gen: T,
         forward: TokenStream,
+        input_names: Vec<String>,
+        output_names: Vec<String>,
     ) {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(node_gen);
+
+        graph.register_input_output(input_names, output_names);
 
         let expected = quote! {
             use burn::{
@@ -200,11 +203,15 @@ pub(crate) mod tests {
             };
 
             #[derive(Module, Debug)]
-            pub struct Model <B: Backend>{}
+            pub struct Model<B: Backend> {
+                _phantom: core::marker::PhantomData<B>,
+            }
 
             impl<B: Backend> Model <B> {
-                pub fn new_with(record: ModelRecord<B>) -> Self {
-                    Self { }
+                pub fn new_with(_record: ModelRecord<B>) -> Self {
+                    Self {
+                        _phantom: core::marker::PhantomData,
+                    }
                 }
 
                 #[allow(clippy::let_and_return)]
@@ -213,42 +220,6 @@ pub(crate) mod tests {
         };
 
         assert_tokens(graph.codegen(), expected);
-    }
-
-    pub(crate) fn codegen_unary_operator<
-        const N: usize,
-        T: NodeCodegen<FullPrecisionSettings> + 'static,
-    >(
-        node_gen: T,
-        function: TokenStream,
-    ) {
-        let forward = |function, tensor_dim| {
-            quote! {
-                pub fn forward(&self, tensor1: Tensor<B, #tensor_dim>) -> Tensor<B, #tensor_dim> {
-                    #function
-                }
-            }
-        };
-
-        one_node_graph(node_gen, forward(function, N.to_tokens()));
-    }
-
-    pub(crate) fn codegen_binary_operator<
-        const N: usize,
-        T: NodeCodegen<FullPrecisionSettings> + 'static,
-    >(
-        node_gen: T,
-        function: TokenStream,
-    ) {
-        let forward = |function, tensor_dim| {
-            quote! {
-                pub fn forward(&self, tensor1: Tensor<B, #tensor_dim>, tensor2: Tensor<B, #tensor_dim>) -> Tensor<B, #tensor_dim> {
-                    #function
-                }
-            }
-        };
-
-        one_node_graph(node_gen, forward(function, N.to_tokens()));
     }
 
     #[test]
@@ -268,6 +239,11 @@ pub(crate) mod tests {
             None,
             Conv2dConfig::new([3, 3], [3, 3]).with_padding(PaddingConfig2d::Valid),
         ));
+
+        graph.register_input_output(
+            vec!["tensor1".to_string(), "tensor2".to_string()],
+            vec!["tensor4".to_string()],
+        );
 
         let expected = quote! {
             use burn::{
@@ -332,6 +308,11 @@ pub(crate) mod tests {
             TensorType::new_float("tensor4", 4),
             TensorType::new_float("output", 4),
         ));
+
+        graph.register_input_output(
+            vec!["tensor1".to_string(), "tensor2".to_string()],
+            vec!["output".to_string()],
+        );
 
         let expected = quote! {
             use burn::{

@@ -137,3 +137,19 @@ where
 
     (Tensor::new(output.output), Tensor::new(output.indices))
 }
+
+/// Applies a [2D adaptive avg pooling](crate::ops::ModuleOps::adaptive_avg_pool2d).
+pub fn adaptive_avg_pool2d<B>(x: Tensor<B, 4>, output_size: [usize; 2]) -> Tensor<B, 4>
+where
+    B: Backend,
+{
+    Tensor::new(B::adaptive_avg_pool2d(x.primitive, output_size))
+}
+
+/// Applies a [1D adaptive avg pooling](crate::ops::ModuleOps::adaptive_avg_pool1d).
+pub fn adaptive_avg_pool1d<B>(x: Tensor<B, 3>, output_size: usize) -> Tensor<B, 3>
+where
+    B: Backend,
+{
+    Tensor::new(B::adaptive_avg_pool1d(x.primitive, output_size))
+}

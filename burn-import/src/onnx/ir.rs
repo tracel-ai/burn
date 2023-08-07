@@ -14,9 +14,9 @@ pub struct Argument {
 
 #[derive(Debug, Clone)]
 pub enum ArgType {
-    Tensor(TensorArg),
+    Scalar(ElementType),
     Shape(usize),
-    Constant,
+    Tensor(TensorArg),
 }
 
 #[derive(new, Default, Debug, Clone)]
@@ -84,9 +84,6 @@ pub struct ONNXGraph {
     /// The outputs of the graph.
     pub outputs: Vec<Argument>,
 
-    /// The states of the graph.
-    pub states: Vec<State>,
-
     /// The original node names.
     pub old_node_names: HashMap<String, String>,
 
@@ -139,6 +136,15 @@ impl core::hash::Hash for Node {
 impl core::hash::Hash for Argument {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.name.hash(state);
+    }
+}
+
+impl Eq for Argument {}
+
+// Required by HashSet
+impl PartialEq for Argument {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
     }
 }
 
