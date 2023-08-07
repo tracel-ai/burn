@@ -113,41 +113,6 @@ where
         )
     }
 
-    fn bool_to_data<const D: usize>(
-        tensor: &<WgpuBackend<G, F, I> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D>,
-    ) -> Data<bool, D> {
-        Self::bool_into_data(tensor.clone())
-    }
-
-    fn bool_repeat<const D: usize>(
-        tensor: <WgpuBackend<G, F, I> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D>,
-        dim: usize,
-        times: usize,
-    ) -> <WgpuBackend<G, F, I> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D> {
-        let mut shape = Self::bool_shape(&tensor);
-        if shape.dims[dim] != 1 {
-            panic!("Can only repeat dimension with dim=1");
-        }
-        shape.dims[dim] = times;
-
-        let mut i = 0;
-        let ranges_select_all = [0; D].map(|_| {
-            let start = 0;
-            let end = shape.dims[i];
-            i += 1;
-            start..end
-        });
-
-        let mut tensor_output = Self::bool_empty(shape, &Self::bool_device(&tensor));
-        for i in 0..times {
-            let mut ranges = ranges_select_all.clone();
-            ranges[dim] = i..i + 1;
-            tensor_output = Self::bool_slice_assign(tensor_output, ranges, tensor.clone());
-        }
-
-        tensor_output
-    }
-
     fn bool_into_float<const D: usize>(tensor: BoolTensor<Self, D>) -> FloatTensor<Self, D> {
         kernel::cast(tensor)
     }
