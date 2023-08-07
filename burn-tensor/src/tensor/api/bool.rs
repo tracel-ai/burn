@@ -15,7 +15,12 @@ where
     }
 
     /// Convert the bool tensor into an int tensor.
-    pub fn into_int(self) -> Tensor<B, D, Int> {
+    pub fn int(self) -> Tensor<B, D, Int> {
         Tensor::new(B::bool_into_int(self.primitive))
+    }
+
+    /// Convert the bool tensor into an float tensor.
+    pub fn float(self) -> Tensor<B, D> {
+        Tensor::new(B::bool_into_float(self.primitive))
     }
 }

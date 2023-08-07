@@ -1394,6 +1394,12 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
     }
+
+    fn into_int<const D: usize>(
+        tensor: ADTensor<B, D>,
+    ) -> <ADBackendDecorator<B> as Backend>::IntTensorPrimitive<D> {
+        B::into_int(tensor.primitive)
+    }
 }
 
 /// Make sure the grad tensor has the given shape.

@@ -1,4 +1,4 @@
-use super::{numeric, BoolTensor, Device, IntElem, IntTensor};
+use super::{numeric, BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use crate::kernel::{unary_default, unary_inplace_default};
 use crate::{
     element::{FloatElement, IntElement},
@@ -305,5 +305,9 @@ where
         }
 
         unary_default::<IntAbs, I, D>(tensor)
+    }
+
+    fn int_into_float<const D: usize>(tensor: IntTensor<Self, D>) -> FloatTensor<Self, D> {
+        kernel::cast(tensor)
     }
 }

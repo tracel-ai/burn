@@ -131,6 +131,17 @@ pub trait IntTensorOps<B: Backend> {
         value: B::IntTensorPrimitive<D1>,
     ) -> B::IntTensorPrimitive<D1>;
 
+    /// Converts int tensor to float tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The int tensor with the same data as the float tensor.
+    fn int_into_float<const D: usize>(tensor: B::IntTensorPrimitive<D>) -> B::TensorPrimitive<D>;
+
     /// Fills the tensor with values from the source tensor if the mask is true at the given
     /// indices.
     ///
