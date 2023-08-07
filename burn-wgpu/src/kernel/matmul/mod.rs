@@ -7,3 +7,5 @@ mod tiling2d;
 pub use mem_coalescing::*;
 pub use naive::*;
 pub use tiling2d::*;
+
+pub(crate) mod tune;

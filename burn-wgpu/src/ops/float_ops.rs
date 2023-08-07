@@ -1,9 +1,11 @@
 use super::{numeric, BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor};
+use crate::kernel::matmul::tune::{MatmulBenchmark, MatmulTiling2dTunable};
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::{
     self, unary_default, unary_inplace_default, unary_scalar_default, unary_scalar_inplace_default,
 };
 
+use crate::tune::{AutoTuneKey, Execution, Tunable};
 use crate::unary_scalar_inplace;
 use crate::{
     element::{FloatElement, IntElement},
@@ -13,6 +15,7 @@ use burn_tensor::ElementConversion;
 use burn_tensor::{ops::TensorOps, Data, Distribution, Shape};
 
 use std::ops::Range;
+use std::sync::Arc;
 
 impl<G, F, I> TensorOps<WgpuBackend<G, F, I>> for WgpuBackend<G, F, I>
 where
@@ -139,7 +142,27 @@ where
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        kernel::matmul::contiguous_vectorized::matmul_tiling_2d_default(lhs, rhs)
+        let id = AutoTuneKey::new(vec![vec![2usize]], "matmul".to_string());
+        let context = lhs.context.clone();
+
+        match context.tuner.execute(&id, (lhs, rhs)) {
+            Execution::Executed(output) => return output,
+            Execution::NoCacheFound((lhs, rhs)) => {
+                let func =
+                    Arc::new(MatmulTiling2dTunable::<F, D, 64, 64, 32, 4, 4, 16, 16>::default());
+                let tunableone = Tunable::<G, _, _>::new(
+                    func.clone(),
+                    Arc::new(MatmulBenchmark::new(
+                        lhs.shape.clone(),
+                        rhs.shape.clone(),
+                        10,
+                        func.clone(),
+                    )),
+                );
+                context.tuner.tune(id, (lhs, rhs), vec![tunableone])
+            }
+        }
+        // kernel::matmul::contiguous_vectorized::matmul_tiling_2d_default(lhs, rhs)
     }
 
     fn swap_dims<const D: usize>(
