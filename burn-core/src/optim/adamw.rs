@@ -155,7 +155,7 @@ impl AdaptiveMomentumW {
             AdaptiveMomentumWState::new(
                 0,
                 moment_1,
-                moment_2
+                moment_2,
             )
         };
 
@@ -235,7 +235,7 @@ mod tests {
         assert_eq!(state_optim_before.len(), state_optim_after.len());
     }
 
-    const ASSERT_PRECISION: usize = 4;
+    const ASSERT_PRECISION: usize = 6;
 
     #[test]
     fn test_adamw_optimizer_with_numbers() {
@@ -279,14 +279,14 @@ mod tests {
         let state_updated = linear.into_record();
         let state_expected = given_linear_record(
             Data::from([
-                [-0.3373, 0.1178, 0.3804, 0.2969, 0.0652, 0.0465],
-                [0.0570, -0.0365, -0.3830, 0.2325, 0.1737, -0.3092],
-                [-0.0387, 0.0161, -0.3132, 0.2260, -0.2950, 0.2900],
-                [-0.3149, -0.2374, -0.3877, -0.3151, -0.0952, 0.1411],
-                [0.3068, -0.2342, 0.3481, -0.1911, 0.3560, -0.0500],
-                [-0.0356, -0.0301, 0.1046, 0.1702, 0.0092, 0.3596]
+                [-0.337295, 0.117827, 0.380358, 0.296868, 0.065232, 0.046534],
+                [0.057032, -0.036518, -0.382951, 0.232516, 0.173738, -0.309182],
+                [-0.038703, 0.016052, -0.313155, 0.225982, -0.295039, 0.289981],
+                [-0.314920, -0.237394, -0.387704, -0.315067, -0.095153, 0.141081],
+                [0.306815, -0.234226, 0.348083, -0.191115, 0.356002, -0.049993],
+                [-0.035634, -0.030083, 0.104636, 0.170244, 0.009196, 0.359580]
             ]),
-            Data::from([-0.4066, 0.0676, -0.1160, 0.0965, 0.1153, -0.0071]),
+            Data::from([-0.406555, 0.067568, -0.115982, 0.096477, 0.115287, -0.007080]),
         );
 
         let t_state_updated: Tensor<TestADBackend, 2> = Tensor::from_data(state_updated.weight.to_data());
@@ -294,12 +294,12 @@ mod tests {
 
         let t_actual_difference = t_state_updated.sub(t_state_expected);
         let expected_difference: Tensor<TestADBackend, 2> = Tensor::from_floats([
-            [-0.0167, -0.0196, -0.0239, -0.0231, -0.0207, -0.0206],
-            [-0.0207, -0.0180, -0.0163, -0.0225, -0.0218, -0.0170],
-            [-0.0197, -0.0185, -0.0170, -0.0224, -0.0170, -0.0230],
-            [-0.0169, -0.0160, -0.0162, -0.0170, -0.0191, -0.0215],
-            [-0.0232, -0.0160, -0.0236, -0.0182, -0.0236, -0.0196],
-            [-0.0197, -0.0181, -0.0212, -0.0219, -0.0201, -0.0237]
+            [-0.016695, -0.019573, -0.023942, -0.023132, -0.020668, -0.020566],
+            [-0.020668, -0.018018, -0.016251, -0.022484, -0.021762, -0.016982],
+            [-0.019703, -0.018548, -0.016955, -0.022418, -0.017039, -0.023019],
+            [-0.016920, -0.015994, -0.016204, -0.016967, -0.019053, -0.021519],
+            [-0.023185, -0.016026, -0.023617, -0.018215, -0.023598, -0.019593],
+            [-0.019734, -0.018083, -0.021164, -0.021856, -0.020104, -0.023720]
         ]);
 
         t_actual_difference.into_data().assert_approx_eq(&expected_difference.into_data(), ASSERT_PRECISION);
@@ -315,7 +315,6 @@ mod tests {
 
         bias_updated.assert_approx_eq(&bias_expected, ASSERT_PRECISION);
         weight_updated.assert_approx_eq(&weight_expected, ASSERT_PRECISION);
-
     }
 
     fn given_linear_layer(weight: Data<f32, 2>, bias: Data<f32, 1>) -> nn::Linear<TestADBackend> {
