@@ -765,7 +765,7 @@ pub trait TensorOps<B: Backend> {
 
     /// Detaches a tensor from the computation graph.
     fn detach<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D> {
-        // Should only be overriden by autodiff backends.
+        // Should only be overridden by autodiff backends.
         tensor
     }
 
@@ -774,13 +774,13 @@ pub trait TensorOps<B: Backend> {
         tensor: B::TensorPrimitive<D>,
         _require_grad: bool,
     ) -> B::TensorPrimitive<D> {
-        // Should only be overriden by autodiff backends.
+        // Should only be overridden by autodiff backends.
         tensor
     }
 
     /// Returns the `require_grad` flag of a tensor.
     fn is_require_grad<const D: usize>(_tensor: &B::TensorPrimitive<D>) -> bool {
-        // Should only be overriden by autodiff backends.
+        // Should only be overridden by autodiff backends.
         false
     }
 
