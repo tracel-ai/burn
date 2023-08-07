@@ -33,7 +33,7 @@ pub struct AdamWConfig {
 
 /// AdamW optimizer as described in the paper [Decoupled Weight Decay Regularization, Loshchilov and Hutter, 2019](https://arxiv.org/abs/1711.05101).
 pub struct AdamW<B: Backend> {
-    momentum: AdaptiveMomentum,
+    momentum: AdaptiveMomentumW,
     weight_decay: f32,
     _phantom: PhantomData<B>,
 }
@@ -41,7 +41,7 @@ pub struct AdamW<B: Backend> {
 /// AdamW state.
 #[derive(Record, Clone, new)]
 pub struct AdamWState<B: Backend, const D: usize> {
-    momentum: AdaptiveMomentumState<B, D>,
+    momentum: AdaptiveMomentumWState<B, D>,
 }
 
 impl<B: Backend> SimpleOptimizer<B> for AdamW<B> {
@@ -87,7 +87,7 @@ impl AdamWConfig {
     /// Returns an optimizer that can be used to optimize a module.
     pub fn init<B: ADBackend, M: ADModule<B>>(&self) -> impl Optimizer<M, B> {
         let optim = AdamW {
-            momentum: AdaptiveMomentum {
+            momentum: AdaptiveMomentumW {
                 beta_1: self.beta_1,
                 beta_2: self.beta_2,
                 epsilon: self.epsilon,
@@ -106,51 +106,62 @@ impl AdamWConfig {
 
 /// Adaptive momentum state.
 #[derive(Record, new, Clone)]
-pub struct AdaptiveMomentumState<B: Backend, const D: usize> {
+pub struct AdaptiveMomentumWState<B: Backend, const D: usize> {
     time: usize,
     moment_1: Tensor<B, D>,
     moment_2: Tensor<B, D>,
 }
 
-struct AdaptiveMomentum {
+struct AdaptiveMomentumW {
     beta_1: f32,
     beta_2: f32,
     epsilon: f32,
 }
 
-impl AdaptiveMomentum {
+impl AdaptiveMomentumW {
     pub fn transform<B: Backend, const D: usize>(
         &self,
         grad: Tensor<B, D>,
-        state: Option<AdaptiveMomentumState<B, D>>,
-    ) -> (Tensor<B, D>, AdaptiveMomentumState<B, D>) {
+        state: Option<AdaptiveMomentumWState<B, D>>,
+    ) -> (Tensor<B, D>, AdaptiveMomentumWState<B, D>) {
         let state = if let Some(mut state) = state {
+            // Update first moment estimate.
             let factor = 1.0 - self.beta_1;
             state.moment_1 = state
                 .moment_1
                 .mul_scalar(self.beta_1)
                 .add(grad.clone().mul_scalar(factor));
 
+            // Update second moment estimate.
             let factor = 1.0 - self.beta_2;
             state.moment_2 = state
                 .moment_2
                 .mul_scalar(self.beta_2)
                 .add(grad.powf(2.0).mul_scalar(factor));
 
+            // Update time.
             state.time += 1;
 
             state
         } else {
+            // Initialize first moment estimate.
             let factor = 1.0 - self.beta_1;
             let moment_1 = grad.clone().mul_scalar(factor);
 
+            // Initialize second moment estimate.
             let factor = 1.0 - self.beta_2;
             let moment_2 = grad.powf(2.0).mul_scalar(factor);
 
-            AdaptiveMomentumState::new(1, moment_1, moment_2)
+            AdaptiveMomentumWState::new(
+                0,
+                moment_1,
+                moment_2
+            )
         };
 
-        let time = (state.time as i32).elem();
+        let time: i32 = (state.time as i32).elem();
+
+        // Compute bias-corrected first and second moment estimates.
         let moment_1_corrected = state
             .moment_1
             .clone()
@@ -161,20 +172,21 @@ impl AdaptiveMomentum {
             .clone()
             .div_scalar(1f32 - self.beta_2.powi(time));
 
-        let raw_delta = moment_1_corrected.clone().div(moment_2_corrected.clone().sqrt().add_scalar(self.epsilon));
+        // Compute update delta. This still needs to be scaled by the learning rate.
+        let update_delta = moment_1_corrected.clone().div(moment_2_corrected.clone().sqrt().add_scalar(self.epsilon));
 
         (
-            raw_delta,
-            AdaptiveMomentumState::new(
+            update_delta,
+            AdaptiveMomentumWState::new(
                 state.time,
-                moment_1_corrected,
-                moment_2_corrected.sqrt().add_scalar(self.epsilon),
+                state.moment_1,
+                state.moment_2,
             )
         )
     }
 }
 
-impl<B: Backend, const D: usize> AdaptiveMomentumState<B, D> {
+impl<B: Backend, const D: usize> AdaptiveMomentumWState<B, D> {
     /// Move state to device.
     ///
     /// # Arguments
@@ -327,7 +339,7 @@ mod tests {
     {
         let config = AdamWConfig::new();
         AdamW {
-            momentum: AdaptiveMomentum {
+            momentum: AdaptiveMomentumW {
                 beta_1: config.beta_1,
                 beta_2: config.beta_2,
                 epsilon: config.epsilon,
