@@ -437,9 +437,18 @@ fn move_inputs_to_state(nodes: &mut Vec<Node>, initializer: &[TensorProto]) {
 
 /// Lift constants from the graph into the states vector for known node types.
 ///
-/// The main reason to move constants into the states vector is to reduce the number of nodes in the graph,
-/// and consistently use the same interface for all nodes (constant inputs and inputs with initializers are
-/// treated the same way).
+/// The primary reason to move constants into the states vector is to reduce the number of nodes in the graph,
+/// and consistently utilize the same interface for all nodes (constant inputs and inputs with initializers are
+/// treated the same way). This simplification aids code generation.
+///
+/// For example, if we have a graph ([Const1, Const2, Conv2d1]) where the Conv2d node has 3 inputs
+/// (graph_input, const2_out1, const_out2), we can lift the constants into the states of the Conv2d node.
+/// const2_out1 and const_out2 are used for the weights and bias of the Conv2d node.
+/// After lifting, we will have a graph ([Conv2d1]) where the Conv2d node has 1 input (graph_input) and 2 states.
+///
+/// Also note that often times, Conv2d node's inputs are not constants, but they are initializers. Initializers
+/// move to the states vector as well, using the `move_inputs_to_state` function.
+///
 ///
 /// # Arguments
 ///
