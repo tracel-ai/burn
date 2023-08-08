@@ -155,10 +155,13 @@ fn calculate_benchmark_shapes<const D: usize>(
     (lhs_shape, rhs_shape)
 }
 
+type MatmulTunable<G, E, const D: usize> =
+    Tunable<G, (WgpuTensor<E, D>, WgpuTensor<E, D>), WgpuTensor<E, D>>;
+
 fn matmul_candidates<G: GraphicsApi, E, const D: usize>(
     shape_lhs: Shape<D>,
     shape_rhs: Shape<D>,
-) -> Vec<Tunable<G, (WgpuTensor<E, D>, WgpuTensor<E, D>), WgpuTensor<E, D>>>
+) -> Vec<MatmulTunable<G, E, D>>
 where
     E: WgpuElement + FloatElement,
 {
