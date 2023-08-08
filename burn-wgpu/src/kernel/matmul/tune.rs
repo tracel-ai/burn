@@ -1,4 +1,5 @@
 use burn_tensor::{Distribution, Shape, Tensor};
+use mem_coalescing::matmul_mem_coalescing;
 
 use crate::{
     benchmark::Benchmark,
@@ -9,6 +10,8 @@ use crate::{
     GraphicsApi, WgpuBackend, WgpuDevice,
 };
 use std::{marker::PhantomData, sync::Arc};
+
+use super::mem_coalescing;
 
 macro_rules! tiling2d_tunable {
     ($name:ident, $func:expr) => {
@@ -60,6 +63,22 @@ tiling2d_tunable!(
     Tiling2DTileLoadVectorized,
     kernel::matmul::tile_vectorized::matmul_tiling_2d
 );
+
+#[derive(new)]
+struct MemoryCoalescing<E: WgpuElement, const D: usize> {
+    workgroup_size_x: usize,
+    workgroup_size_y: usize,
+    _elem: PhantomData<E>,
+}
+
+impl<E: WgpuElement, const D: usize> KernelFunction for MemoryCoalescing<E, D> {
+    type Input = (WgpuTensor<E, D>, WgpuTensor<E, D>);
+    type Output = WgpuTensor<E, D>;
+
+    fn call(&self, (lhs, rhs): Self::Input) -> Self::Output {
+        matmul_mem_coalescing::<E, D>(lhs, rhs, self.workgroup_size_x, self.workgroup_size_y)
+    }
+}
 
 #[derive(new)]
 struct MatmulBenchmark<F: WgpuElement, const D: usize> {
@@ -137,7 +156,7 @@ fn calculate_benchmark_shapes<const D: usize>(
     lhs: Shape<D>,
     rhs: Shape<D>,
 ) -> (Shape<D>, Shape<D>) {
-    let anchor = |a| f32::powf(2., f32::ceil(f32::log(a as f32, 2.))) as usize;
+    let anchor = |a| f32::powf(2., f32::min(f32::round(f32::log(a as f32, 2.)), 12.)) as usize;
     let m = anchor(lhs.dims[D - 2]);
     let k = anchor(lhs.dims[D - 1]);
     let n = anchor(rhs.dims[D - 1]);
@@ -172,7 +191,7 @@ where
                 Arc::new(MatmulBenchmark::new(
                     shape_lhs.clone(),
                     shape_rhs.clone(),
-                    1,
+                    5,
                     func.clone(),
                 )),
             )
@@ -226,6 +245,13 @@ where
                     ),
                 )));
             }
+        }
+
+        for workgroup_size in [8, 16, 32] {
+            candidates.push(matmul_benchmark(Arc::new(MemoryCoalescing::new(
+                workgroup_size,
+                workgroup_size,
+            ))));
         }
     }
     candidates
