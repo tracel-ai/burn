@@ -35,7 +35,7 @@ pub struct GeneratePaddingMask<B: Backend> {
 pub fn generate_padding_mask<B: Backend>(
     pad_token: usize,
     tokens_list: Vec<Vec<usize>>,
-    max_seq_lenght: Option<usize>,
+    max_seq_length: Option<usize>,
     device: &B::Device,
 ) -> GeneratePaddingMask<B> {
     let mut max_size = 0;
@@ -46,9 +46,9 @@ pub fn generate_padding_mask<B: Backend>(
             max_size = tokens.len();
         }
 
-        if let Some(max_seq_lenght) = max_seq_lenght {
-            if tokens.len() >= max_seq_lenght {
-                max_size = max_seq_lenght;
+        if let Some(max_seq_length) = max_seq_length {
+            if tokens.len() >= max_seq_length {
+                max_size = max_seq_length;
                 break;
             }
         }
@@ -61,9 +61,9 @@ pub fn generate_padding_mask<B: Backend>(
         let mut seq_length = tokens.len();
         let mut tokens = tokens;
 
-        if let Some(max_seq_lenght) = max_seq_lenght {
-            if seq_length > max_seq_lenght {
-                seq_length = max_seq_lenght;
+        if let Some(max_seq_length) = max_seq_length {
+            if seq_length > max_seq_length {
+                seq_length = max_seq_length;
                 let _ = tokens.split_off(seq_length);
             }
         }

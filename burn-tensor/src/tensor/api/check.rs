@@ -278,7 +278,7 @@ impl TensorCheck {
                 .details(
                     format!(
                     "The ranges array must be smaller or equal to the tensor number of dimensions. \
-                    Tensor number of dimensions: {n_dims_tensor}, ranges array lenght {n_dims_ranges}."
+                    Tensor number of dimensions: {n_dims_tensor}, ranges array length {n_dims_ranges}."
                 )));
         }
 
@@ -334,7 +334,7 @@ impl TensorCheck {
                 .details(
                     format!(
                     "The ranges array must be smaller or equal to the tensor number of dimensions. \
-                    Tensor number of dimensions: {D1}, ranges array lenght {D2}."
+                    Tensor number of dimensions: {D1}, ranges array length {D2}."
                 )));
         }
 
@@ -510,7 +510,7 @@ impl TensorCheck {
     }
 
     /// The goal is to minimize the cost of checks when there are no error, but it's way less
-    /// important when an error occured, crafting a comprehensive error message is more important
+    /// important when an error occurred, crafting a comprehensive error message is more important
     /// than optimizing string manipulation.
     fn register(self, ops: &str, error: TensorError) -> Self {
         let errors = match self {
@@ -634,7 +634,7 @@ impl TensorError {
 }
 
 /// We use a macro for all checks, since the panic message file and line number will match the
-/// function that does the check instead of a the generic error.rs crate private unreleated file
+/// function that does the check instead of a the generic error.rs crate private unrelated file
 /// and line number.
 #[macro_export(local_inner_macros)]
 macro_rules! check {

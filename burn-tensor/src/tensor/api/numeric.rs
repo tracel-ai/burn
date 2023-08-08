@@ -35,7 +35,7 @@ where
         Self::new(K::add_scalar(self.primitive, other))
     }
 
-    /// Applies element wise substraction operation.
+    /// Applies element wise subtraction operation.
     ///
     /// `y = x2 - x1`
     #[allow(clippy::should_implement_trait)]
@@ -44,7 +44,7 @@ where
         Self::new(K::sub(self.primitive, other.primitive))
     }
 
-    /// Applies element wise substraction operation with a scalar.
+    /// Applies element wise subtraction operation with a scalar.
     ///
     /// `y = x - s`
     pub fn sub_scalar<E: ElementConversion>(self, other: E) -> Self {
@@ -238,7 +238,7 @@ where
     ///
     /// # Notes
     ///
-    /// The index tensor shoud have the same shape as the original tensor except for the dim
+    /// The index tensor should have the same shape as the original tensor except for the dim
     /// specified.
     pub fn gather(self, dim: usize, indices: Tensor<B, D, Int>) -> Self {
         check!(TensorCheck::gather::<D>(
@@ -250,7 +250,7 @@ where
         Self::new(K::gather(dim, self.primitive, indices))
     }
 
-    /// Assign the gathered elements corresponding to the given indices along the speficied dimension
+    /// Assign the gathered elements corresponding to the given indices along the specified dimension
     /// from the value tensor to the original tensor using sum reduction.
     ///
     /// Example using a 3D tensor:
@@ -261,7 +261,7 @@ where
     ///
     /// # Notes
     ///
-    /// The index tensor shoud have the same shape as the original tensor except for the speficied
+    /// The index tensor should have the same shape as the original tensor except for the specified
     /// dimension. The value and index tensors should have the same shape.
     ///
     /// Other references to the input tensor will not be modified by this operation.

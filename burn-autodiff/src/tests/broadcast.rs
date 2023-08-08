@@ -4,7 +4,7 @@ mod tests {
     use burn_tensor::{Data, Distribution, Int, Shape, Tensor};
 
     #[test]
-    fn should_handle_broacast_during_backward() {
+    fn should_handle_broadcast_during_backward() {
         let x: Tensor<TestADBackend, 2> = Tensor::from_data(
             Tensor::<TestADBackend, 1, Int>::arange(0..6)
                 .into_data()

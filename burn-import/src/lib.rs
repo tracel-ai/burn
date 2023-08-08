@@ -18,6 +18,6 @@ pub mod onnx;
 /// The module for generating the burn code.
 pub mod burn;
 
-mod formater;
+mod formatter;
 mod logger;
-pub use formater::*;
+pub use formatter::*;

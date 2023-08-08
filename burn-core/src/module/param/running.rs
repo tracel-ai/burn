@@ -137,7 +137,7 @@ impl<const D: usize, B: Backend> RunningState<Tensor<B, D>> {
     /// # Note
     ///
     /// Don't use this function after an update on the same thread where other threads might have to
-    /// register their update before the actual synchonization needs to happen.
+    /// register their update before the actual synchronization needs to happen.
     pub fn value_sync(&self) -> Tensor<B, D> {
         let thread_id = get_thread_current_id();
         let mut map = self.values.lock().unwrap();
