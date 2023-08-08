@@ -44,6 +44,20 @@ macro_rules! tiling2d_tunable {
                     self.workgroup_size_y,
                 )
             }
+
+            fn description(&self) -> String {
+                format!(
+                    "Tiling 2D matmul ({}) - B_M {}, B_N {}, B_K {}, T_M {}, T_N {}, W_X {}, W_X {}",
+                    stringify!($name),
+                    self.b_m,
+                    self.b_n,
+                    self.b_k,
+                    self.t_m,
+                    self.t_n,
+                    self.workgroup_size_x,
+                    self.workgroup_size_y
+                )
+            }
         }
     };
 }
@@ -77,6 +91,13 @@ impl<E: WgpuElement, const D: usize> KernelFunction for MemoryCoalescing<E, D> {
 
     fn call(&self, (lhs, rhs): Self::Input) -> Self::Output {
         matmul_mem_coalescing::<E, D>(lhs, rhs, self.workgroup_size_x, self.workgroup_size_y)
+    }
+
+    fn description(&self) -> String {
+        format!(
+            "Memory Coalescing matmul - W_X {}, W_Y {}",
+            self.workgroup_size_x, self.workgroup_size_y
+        )
     }
 }
 
@@ -191,7 +212,7 @@ where
                 Arc::new(MatmulBenchmark::new(
                     shape_lhs.clone(),
                     shape_rhs.clone(),
-                    5,
+                    10,
                     func.clone(),
                 )),
             )

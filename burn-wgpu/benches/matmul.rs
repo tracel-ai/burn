@@ -107,9 +107,10 @@ impl<const D: usize, G: GraphicsApi> MatmulFunction<WgpuBackend<G, f32, i32>, D>
 fn main() {
     let num_repeats = 3;
     let batch_size = 3;
-    let m = 100;
-    let k = 1000;
-    let n = 260;
+    let m = 1024;
+    let k = 2048;
+    let n = 1024;
+
     run_benchmark!(MatmulBenchmark::<MemCoalescingMatmul, 3> {
         shape_lhs: [batch_size, m, k].into(),
         shape_rhs: [batch_size, k, n].into(),

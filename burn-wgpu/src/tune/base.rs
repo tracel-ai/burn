@@ -17,6 +17,7 @@ pub trait KernelFunction: Send + Sync + 'static {
     type Output;
 
     fn call(&self, input: Self::Input) -> Self::Output;
+    fn description(&self) -> String;
 }
 
 pub type AutoTuneValue = Box<dyn core::any::Any + Send + Sync>;
@@ -37,6 +38,17 @@ pub enum Execution<I, O> {
 pub struct Tunable<G, I, O> {
     func: AutoTuneFunction<I, O>,
     benchmark: Arc<dyn Benchmark<G, Args = I>>,
+}
+
+impl<G, I, O> std::fmt::Display for Tunable<G, I, O>
+where
+    G: GraphicsApi,
+    I: Send + Sync + 'static,
+    O: Send + Sync + 'static,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.func.description().as_str())
+    }
 }
 
 impl Tuner {
@@ -110,5 +122,6 @@ where
         }
     }
 
-    Box::new(best_tunable.expect("At least one tunable needed. ").func)
+    let tunable = best_tunable.expect("At least one tunable needed. ");
+    Box::new(tunable.func)
 }
