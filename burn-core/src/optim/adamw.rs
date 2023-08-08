@@ -203,6 +203,7 @@ mod tests {
     use crate::record::{BinFileRecorder, FullPrecisionSettings, Recorder};
     use crate::tensor::{Data, Distribution, Tensor};
     use crate::{nn, TestADBackend, TestBackend};
+    use tempfile::TempDir;
 
     const LEARNING_RATE: LearningRate = 0.01;
 
@@ -214,8 +215,9 @@ mod tests {
         let grads = linear.forward(x).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
         let _linear = optimizer.step(LEARNING_RATE, linear, grads);
+        let temp_dir = TempDir::new().unwrap();
         BinFileRecorder::<FullPrecisionSettings>::default()
-            .record(optimizer.to_record(), "/tmp/test_optim".into())
+            .record(optimizer.to_record(), temp_dir.path().join("test_optim"))
             .unwrap();
 
         let state_optim_before = optimizer.to_record();
