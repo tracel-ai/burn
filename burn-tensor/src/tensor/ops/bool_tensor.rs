@@ -82,6 +82,17 @@ pub trait BoolTensorOps<B: Backend> {
     fn bool_into_int<const D: usize>(tensor: B::BoolTensorPrimitive<D>)
         -> B::IntTensorPrimitive<D>;
 
+    /// Converts bool tensor to float tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The float tensor with the same data as the bool tensor.
+    fn bool_into_float<const D: usize>(tensor: B::BoolTensorPrimitive<D>) -> B::TensorPrimitive<D>;
+
     /// Gets the device of the tensor.
     ///
     /// # Arguments

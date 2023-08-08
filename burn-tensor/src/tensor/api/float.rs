@@ -119,7 +119,7 @@ where
     /// }
     /// ```
     pub fn int(self) -> Tensor<B, D, Int> {
-        Tensor::<B, D, Int>::from_data(self.into_data().convert())
+        Tensor::new(B::into_int(self.primitive))
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor filled with zeros.

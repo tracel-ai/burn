@@ -2,6 +2,7 @@
 use alloc::vec;
 use alloc::vec::Vec;
 use burn_tensor::ops::{BoolTensorOps, IntTensorOps};
+use burn_tensor::ElementConversion;
 use core::ops::Range;
 
 // Current crate
@@ -115,6 +116,13 @@ impl<E: FloatNdArrayElement> BoolTensorOps<NdArrayBackend<E>> for NdArrayBackend
         rhs: bool,
     ) -> <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D> {
         let array = lhs.array.mapv(|a| a == rhs).into_shared();
+        NdArrayTensor { array }
+    }
+
+    fn bool_into_float<const D: usize>(
+        tensor: <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D>,
+    ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D> {
+        let array = tensor.array.mapv(|a| (a as i32).elem()).into_shared();
         NdArrayTensor { array }
     }
 }
