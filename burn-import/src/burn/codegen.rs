@@ -55,6 +55,13 @@ impl ToTokens for i64 {
     }
 }
 
+/// Prettier output for `f64`
+impl ToTokens for f64 {
+    fn to_tokens(&self) -> TokenStream {
+        convert_primitive(self)
+    }
+}
+
 /// Padding configuration
 impl ToTokens for PaddingConfig2d {
     fn to_tokens(&self) -> TokenStream {

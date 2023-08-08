@@ -5,6 +5,7 @@ pub(crate) mod binary;
 pub(crate) mod concat;
 pub(crate) mod constant;
 pub(crate) mod conv2d;
+pub(crate) mod dropout;
 pub(crate) mod linear;
 pub(crate) mod matmul;
 pub(crate) mod max_pool2d;

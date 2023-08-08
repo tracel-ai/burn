@@ -1,26 +1,16 @@
-pub mod add {
-    include!(concat!(env!("OUT_DIR"), "/model/add.rs"));
+/// Include generated models in the `model` directory in the target directory.
+macro_rules! include_models {
+    ($($model:ident),*) => {
+        $(
+            pub mod $model {
+                include!(concat!(env!("OUT_DIR"), concat!("/model/", stringify!($model), ".rs")));
+            }
+        )*
+    };
 }
 
-pub mod sub {
-    include!(concat!(env!("OUT_DIR"), "/model/sub.rs"));
-}
-
-pub mod mul {
-    include!(concat!(env!("OUT_DIR"), "/model/mul.rs"));
-}
-
-pub mod div {
-    include!(concat!(env!("OUT_DIR"), "/model/div.rs"));
-}
-
-pub mod concat {
-    include!(concat!(env!("OUT_DIR"), "/model/concat.rs"));
-}
-
-pub mod conv2d {
-    include!(concat!(env!("OUT_DIR"), "/model/conv2d.rs"));
-}
+// ATTENTION: Modify this macro to include all models in the `model` directory.
+include_models!(add, sub, mul, div, concat, conv2d, dropout);
 
 #[cfg(test)]
 mod tests {
@@ -122,6 +112,25 @@ mod tests {
         let output_sum = output.sum().into_scalar();
 
         let expected_sum = 24.004_995; // from pytorch
+
+        assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
+    }
+
+    #[test]
+    fn dropout() {
+        let model: dropout::Model<Backend> = dropout::Model::default();
+
+        // Run the model with ones as input for easier testing
+        let input = Tensor::<Backend, 4>::ones([2, 4, 10, 15]);
+
+        let output = model.forward(input);
+
+        let expected_shape = Shape::from([2, 4, 10, 15]);
+        assert_eq!(output.shape(), expected_shape);
+
+        let output_sum = output.sum().into_scalar();
+
+        let expected_sum = 1200.0; // from pytorch
 
         assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
     }

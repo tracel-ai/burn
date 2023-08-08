@@ -1,6 +1,9 @@
 use burn::nn::{
-    conv::Conv2dConfig, pool::MaxPool2dConfig, BatchNormConfig, LinearConfig, PaddingConfig2d,
+    conv::Conv2dConfig, pool::MaxPool2dConfig, BatchNormConfig, DropoutConfig, LinearConfig,
+    PaddingConfig2d,
 };
+
+use crate::onnx::ir::TensorData;
 
 use super::ir::{ArgType, AttributeValue, Node, StateType};
 
@@ -166,6 +169,29 @@ pub fn linear_config(node: &Node) -> LinearConfig {
     let bias = node.states.len() == 2;
 
     LinearConfig::new(in_size, out_size).with_bias(bias)
+}
+
+/// Create a DropoutConfig from the attributes of the node
+pub fn dropout_config(node: &Node) -> DropoutConfig {
+    // the dropout probability comes as input, which is copied to state.
+
+    if node.states.is_empty() {
+        panic!("Dropout: no state found needed for configuration");
+    }
+
+    // extract the tensor from the state
+    let StateType::Tensor(tensor) = node.states.get(0).unwrap().clone().ty;
+
+    // Zero dim tensor is treated as a scalar
+    assert_eq!(tensor.dim, 0);
+
+    let prob = match tensor.data.unwrap() {
+        TensorData::Float32(prob) => *prob.first().unwrap() as f64,
+        TensorData::Float64(prob) => *prob.first().unwrap(),
+        _ => panic!("Dropout: only float probability is supported"),
+    };
+
+    DropoutConfig::new(prob)
 }
 
 /// Create log_softmax config from the attributes of the node
