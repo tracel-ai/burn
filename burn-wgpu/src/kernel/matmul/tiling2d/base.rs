@@ -123,6 +123,7 @@ macro_rules! matmul_tile_2d {
         }
 
         /// Matrix multiplication using tiling 2D algorithm with custom parameters
+        #[allow(clippy::too_many_arguments)]
         pub fn matmul_tiling_2d<
             E: WgpuElement,
             const D: usize,
