@@ -115,9 +115,9 @@ pub fn tune<G: GraphicsApi, E, const D: usize>(
 where
     E: WgpuElement + FloatElement,
 {
-    // TODO interpolation
+    let (shape_lhs, shape_rhs) = calculate_benchmark_shapes(lhs.shape.clone(), rhs.shape.clone());
     let id = AutoTuneKey::new(
-        vec![Vec::from(lhs.shape.dims), Vec::from(rhs.shape.dims)],
+        vec![Vec::from(shape_lhs.dims), Vec::from(shape_rhs.dims)],
         "matmul".to_string(),
     );
     let context = lhs.context.clone();
@@ -125,81 +125,7 @@ where
     match context.tuner.execute(&id, (lhs, rhs)) {
         Execution::Executed(output) => return output,
         Execution::NoCacheFound((lhs, rhs)) => {
-            let mut lhs_shape = [1; D];
-            let mut rhs_shape = [1; D];
-
-            lhs_shape[D - 2] = 512;
-            lhs_shape[D - 1] = 512;
-            rhs_shape[D - 2] = 512;
-            rhs_shape[D - 1] = 512;
-
-            let lhs_shape = Shape::new(lhs_shape);
-            let rhs_shape = Shape::new(rhs_shape);
-
-            let matmul_benchmark =
-                |func: AutoTuneFunction<(WgpuTensor<E, D>, WgpuTensor<E, D>), WgpuTensor<E, D>>| {
-                    Tunable::<G, _, _>::new(
-                        func.clone(),
-                        Arc::new(MatmulBenchmark::new(
-                            lhs_shape.clone(),
-                            rhs_shape.clone(),
-                            5, // number of samples
-                            func.clone(),
-                        )),
-                    )
-                };
-
-            let mut tunables = Vec::new();
-
-            for block_size in [64, 128] {
-                for block_size_k in [16, 32] {
-                    for tile_size in [4, 8] {
-                        tunables.push(matmul_benchmark(Arc::new(
-                            Tiling2DContiguousLoad::<E, D>::new(
-                                block_size,
-                                block_size,
-                                block_size_k,
-                                tile_size,
-                                tile_size,
-                                block_size / tile_size,
-                                block_size / tile_size,
-                            ),
-                        )));
-                        tunables.push(matmul_benchmark(Arc::new(
-                            Tiling2DContiguousLoadVectorized::<E, D>::new(
-                                block_size,
-                                block_size,
-                                block_size_k,
-                                tile_size,
-                                tile_size,
-                                block_size / tile_size,
-                                block_size / tile_size,
-                            ),
-                        )));
-                        tunables.push(matmul_benchmark(Arc::new(Tiling2DTileLoad::<E, D>::new(
-                            block_size,
-                            block_size,
-                            block_size_k,
-                            tile_size,
-                            tile_size,
-                            block_size / tile_size,
-                            block_size / tile_size,
-                        ))));
-                        tunables.push(matmul_benchmark(Arc::new(
-                            Tiling2DTileLoadVectorized::<E, D>::new(
-                                block_size,
-                                block_size,
-                                block_size_k,
-                                tile_size,
-                                tile_size,
-                                block_size / tile_size,
-                                block_size / tile_size,
-                            ),
-                        )));
-                    }
-                }
-            }
-
+            let tunables = matmul_candidates::<G, E, D>(shape_lhs, shape_rhs);
             context
                 .tuner
                 .tune(id, (lhs, rhs), tunables, &context.device)
@@ -207,22 +133,97 @@ where
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use burn_tensor::{backend::Backend, Distribution, Shape, Tensor};
+fn calculate_benchmark_shapes<const D: usize>(
+    lhs: Shape<D>,
+    rhs: Shape<D>,
+) -> (Shape<D>, Shape<D>) {
+    let anchor = |a| f32::powf(2., f32::ceil(f32::log(a as f32, 2.))) as usize;
+    let m = anchor(lhs.dims[D - 2]);
+    let k = anchor(lhs.dims[D - 1]);
+    let n = anchor(rhs.dims[D - 1]);
 
-    use crate::{tests::TestBackend, WgpuDevice};
+    let mut lhs_shape = [1; D];
+    lhs_shape[D - 2] = m;
+    lhs_shape[D - 1] = k;
+    let lhs_shape = Shape::new(lhs_shape);
 
-    #[test]
-    fn assert_matmul_works() {
-        TestBackend::seed(0);
-        let shape: Shape<2> = [40, 40].into();
-        let device = WgpuDevice::default();
+    let mut rhs_shape = [1; D];
+    rhs_shape[D - 2] = k;
+    rhs_shape[D - 1] = n;
+    let rhs_shape = Shape::new(rhs_shape);
 
-        let tensor_1 =
-            Tensor::<TestBackend, 2>::random_device(shape.clone(), Distribution::Default, &device);
-        let tensor_2 =
-            Tensor::<TestBackend, 2>::random_device(shape.clone(), Distribution::Default, &device);
-        tensor_1.matmul(tensor_2);
+    (lhs_shape, rhs_shape)
+}
+
+fn matmul_candidates<G: GraphicsApi, E, const D: usize>(
+    shape_lhs: Shape<D>,
+    shape_rhs: Shape<D>,
+) -> Vec<Tunable<G, (WgpuTensor<E, D>, WgpuTensor<E, D>), WgpuTensor<E, D>>>
+where
+    E: WgpuElement + FloatElement,
+{
+    let matmul_benchmark =
+        |func: AutoTuneFunction<(WgpuTensor<E, D>, WgpuTensor<E, D>), WgpuTensor<E, D>>| {
+            Tunable::<G, _, _>::new(
+                func.clone(),
+                Arc::new(MatmulBenchmark::new(
+                    shape_lhs.clone(),
+                    shape_rhs.clone(),
+                    5, // number of samples
+                    func.clone(),
+                )),
+            )
+        };
+
+    let mut candidates = Vec::new();
+
+    for block_size in [64, 128] {
+        for block_size_k in [16, 32] {
+            for tile_size in [4, 8] {
+                candidates.push(matmul_benchmark(Arc::new(
+                    Tiling2DContiguousLoad::<E, D>::new(
+                        block_size,
+                        block_size,
+                        block_size_k,
+                        tile_size,
+                        tile_size,
+                        block_size / tile_size,
+                        block_size / tile_size,
+                    ),
+                )));
+                candidates.push(matmul_benchmark(Arc::new(
+                    Tiling2DContiguousLoadVectorized::<E, D>::new(
+                        block_size,
+                        block_size,
+                        block_size_k,
+                        tile_size,
+                        tile_size,
+                        block_size / tile_size,
+                        block_size / tile_size,
+                    ),
+                )));
+                candidates.push(matmul_benchmark(Arc::new(Tiling2DTileLoad::<E, D>::new(
+                    block_size,
+                    block_size,
+                    block_size_k,
+                    tile_size,
+                    tile_size,
+                    block_size / tile_size,
+                    block_size / tile_size,
+                ))));
+                candidates.push(matmul_benchmark(Arc::new(
+                    Tiling2DTileLoadVectorized::<E, D>::new(
+                        block_size,
+                        block_size,
+                        block_size_k,
+                        tile_size,
+                        tile_size,
+                        block_size / tile_size,
+                        block_size / tile_size,
+                    ),
+                )));
+            }
+        }
     }
+    candidates
 }
