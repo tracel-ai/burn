@@ -3,7 +3,7 @@ use crate::module::ADModule;
 use crate::{self as burn, LearningRate};
 
 use super::decay::{WeightDecay, WeightDecayConfig, WeightDecayState};
-use super::momentum::{MomentumState, Momentum, MomentumConfig};
+use super::momentum::{Momentum, MomentumConfig, MomentumState};
 use super::SimpleOptimizer;
 use crate::config::Config;
 use crate::optim::adaptor::OptimizerAdaptor;

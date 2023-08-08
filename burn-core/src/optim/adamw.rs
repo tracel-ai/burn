@@ -1,12 +1,10 @@
-use std::marker::PhantomData;
 use crate::{
     self as burn, grad_clipping::GradientClippingConfig, module::ADModule, record::Record,
     LearningRate,
 };
+use std::marker::PhantomData;
 
-use super::{
-    Optimizer, SimpleOptimizer,
-};
+use super::{Optimizer, SimpleOptimizer};
 use crate::config::Config;
 use crate::optim::adaptor::OptimizerAdaptor;
 use crate::tensor::{backend::ADBackend, Tensor};
@@ -152,11 +150,7 @@ impl AdaptiveMomentumW {
             let factor = 1.0 - self.beta_2;
             let moment_2 = grad.powf(2.0).mul_scalar(factor);
 
-            AdaptiveMomentumWState::new(
-                0,
-                moment_1,
-                moment_2,
-            )
+            AdaptiveMomentumWState::new(0, moment_1, moment_2)
         };
 
         let time: i32 = (state.time as i32).elem();
@@ -173,15 +167,13 @@ impl AdaptiveMomentumW {
             .div_scalar(1f32 - self.beta_2.powi(time));
 
         // Compute update delta. This still needs to be scaled by the learning rate.
-        let update_delta = moment_1_corrected.clone().div(moment_2_corrected.clone().sqrt().add_scalar(self.epsilon));
+        let update_delta = moment_1_corrected
+            .clone()
+            .div(moment_2_corrected.clone().sqrt().add_scalar(self.epsilon));
 
         (
             update_delta,
-            AdaptiveMomentumWState::new(
-                state.time,
-                state.moment_1,
-                state.moment_2,
-            )
+            AdaptiveMomentumWState::new(state.time, state.moment_1, state.moment_2),
         )
     }
 }
@@ -254,12 +246,12 @@ mod tests {
             [0.6294, 0.0940, 0.8176, 0.8824, 0.5228, 0.4310],
             [0.7152, 0.9559, 0.7893, 0.5684, 0.5939, 0.8883],
         ])
-            .require_grad();
+        .require_grad();
         let x_2 = Tensor::from_floats([
             [0.8491, 0.2108, 0.8939, 0.4433, 0.5527, 0.2528],
             [0.3270, 0.0412, 0.5538, 0.9605, 0.3195, 0.9085],
         ])
-            .require_grad();
+        .require_grad();
 
         let mut optimizer = AdamWConfig::new()
             .with_epsilon(1e-8)
@@ -280,29 +272,55 @@ mod tests {
         let state_expected = given_linear_record(
             Data::from([
                 [-0.337295, 0.117827, 0.380358, 0.296868, 0.065232, 0.046534],
-                [0.057032, -0.036518, -0.382951, 0.232516, 0.173738, -0.309182],
-                [-0.038703, 0.016052, -0.313155, 0.225982, -0.295039, 0.289981],
-                [-0.314920, -0.237394, -0.387704, -0.315067, -0.095153, 0.141081],
-                [0.306815, -0.234226, 0.348083, -0.191115, 0.356002, -0.049993],
-                [-0.035634, -0.030083, 0.104636, 0.170244, 0.009196, 0.359580]
+                [
+                    0.057032, -0.036518, -0.382951, 0.232516, 0.173738, -0.309182,
+                ],
+                [
+                    -0.038703, 0.016052, -0.313155, 0.225982, -0.295039, 0.289981,
+                ],
+                [
+                    -0.314920, -0.237394, -0.387704, -0.315067, -0.095153, 0.141081,
+                ],
+                [
+                    0.306815, -0.234226, 0.348083, -0.191115, 0.356002, -0.049993,
+                ],
+                [-0.035634, -0.030083, 0.104636, 0.170244, 0.009196, 0.359580],
             ]),
-            Data::from([-0.406555, 0.067568, -0.115982, 0.096477, 0.115287, -0.007080]),
+            Data::from([
+                -0.406555, 0.067568, -0.115982, 0.096477, 0.115287, -0.007080,
+            ]),
         );
 
-        let t_state_updated: Tensor<TestADBackend, 2> = Tensor::from_data(state_updated.weight.to_data());
-        let t_state_expected: Tensor<TestADBackend, 2> = Tensor::from_data(state_expected.weight.to_data());
+        let t_state_updated: Tensor<TestADBackend, 2> =
+            Tensor::from_data(state_updated.weight.to_data());
+        let t_state_expected: Tensor<TestADBackend, 2> =
+            Tensor::from_data(state_expected.weight.to_data());
 
         let t_actual_difference = t_state_updated.sub(t_state_expected);
         let expected_difference: Tensor<TestADBackend, 2> = Tensor::from_floats([
-            [-0.016695, -0.019573, -0.023942, -0.023132, -0.020668, -0.020566],
-            [-0.020668, -0.018018, -0.016251, -0.022484, -0.021762, -0.016982],
-            [-0.019703, -0.018548, -0.016955, -0.022418, -0.017039, -0.023019],
-            [-0.016920, -0.015994, -0.016204, -0.016967, -0.019053, -0.021519],
-            [-0.023185, -0.016026, -0.023617, -0.018215, -0.023598, -0.019593],
-            [-0.019734, -0.018083, -0.021164, -0.021856, -0.020104, -0.023720]
+            [
+                -0.016695, -0.019573, -0.023942, -0.023132, -0.020668, -0.020566,
+            ],
+            [
+                -0.020668, -0.018018, -0.016251, -0.022484, -0.021762, -0.016982,
+            ],
+            [
+                -0.019703, -0.018548, -0.016955, -0.022418, -0.017039, -0.023019,
+            ],
+            [
+                -0.016920, -0.015994, -0.016204, -0.016967, -0.019053, -0.021519,
+            ],
+            [
+                -0.023185, -0.016026, -0.023617, -0.018215, -0.023598, -0.019593,
+            ],
+            [
+                -0.019734, -0.018083, -0.021164, -0.021856, -0.020104, -0.023720,
+            ],
         ]);
 
-        t_actual_difference.into_data().assert_approx_eq(&expected_difference.into_data(), ASSERT_PRECISION);
+        t_actual_difference
+            .into_data()
+            .assert_approx_eq(&expected_difference.into_data(), ASSERT_PRECISION);
 
         let (weight_updated, bias_updated) = (
             state_updated.weight.to_data(),
@@ -334,8 +352,8 @@ mod tests {
         }
     }
 
-    fn create_adamw() -> OptimizerAdaptor<AdamW<TestBackend>, nn::Linear<TestADBackend>, TestADBackend>
-    {
+    fn create_adamw(
+    ) -> OptimizerAdaptor<AdamW<TestBackend>, nn::Linear<TestADBackend>, TestADBackend> {
         let config = AdamWConfig::new();
         AdamW {
             momentum: AdaptiveMomentumW {
@@ -346,6 +364,6 @@ mod tests {
             weight_decay: config.weight_decay,
             _phantom: Default::default(),
         }
-            .into()
+        .into()
     }
 }
