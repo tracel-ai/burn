@@ -421,6 +421,7 @@ pub(super) fn make_info_buffers<E: WgpuElement, const D: usize>(
         .create_buffer_with_data(bytemuck::cast_slice(&info))
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn matmul_tiling_2d_launch<E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,

@@ -123,7 +123,7 @@ where
     let context = lhs.context.clone();
 
     match context.tuner.execute(&id, (lhs, rhs)) {
-        Execution::Executed(output) => return output,
+        Execution::Executed(output) => output,
         Execution::NoCacheFound((lhs, rhs)) => {
             let tunables = matmul_candidates::<G, E, D>(shape_lhs, shape_rhs);
             context
