@@ -10,51 +10,56 @@ use crate::{
 };
 use std::{marker::PhantomData, sync::Arc};
 
-#[derive(Default)]
-struct MatmulTiling2dTunable<
-    E: WgpuElement,
-    const D: usize,
-    const B_M: usize,
-    const B_N: usize,
-    const B_K: usize,
-    const T_M: usize,
-    const T_N: usize,
-    const WORKGROUP_SIZE_X: usize,
-    const WORKGROUP_SIZE_Y: usize,
-> {
-    _elem: PhantomData<E>,
+macro_rules! tiling2d_tunable {
+    ($name:ident, $func:expr) => {
+        #[derive(new, Default)]
+        struct $name<E: WgpuElement, const D: usize> {
+            b_m: usize,
+            b_n: usize,
+            b_k: usize,
+            t_m: usize,
+            t_n: usize,
+            workgroup_size_x: usize,
+            workgroup_size_y: usize,
+            _elem: PhantomData<E>,
+        }
+
+        impl<E: WgpuElement, const D: usize> KernelFunction for $name<E, D> {
+            type Input = (WgpuTensor<E, D>, WgpuTensor<E, D>);
+            type Output = WgpuTensor<E, D>;
+
+            fn call(&self, (lhs, rhs): Self::Input) -> Self::Output {
+                $func(
+                    lhs,
+                    rhs,
+                    self.b_m,
+                    self.b_n,
+                    self.b_k,
+                    self.t_m,
+                    self.t_n,
+                    self.workgroup_size_x,
+                    self.workgroup_size_y,
+                )
+            }
+        }
+    };
 }
 
-impl<
-        E: WgpuElement,
-        const D: usize,
-        const B_M: usize,
-        const B_N: usize,
-        const B_K: usize,
-        const T_M: usize,
-        const T_N: usize,
-        const WORKGROUP_SIZE_X: usize,
-        const WORKGROUP_SIZE_Y: usize,
-    > KernelFunction
-    for MatmulTiling2dTunable<E, D, B_M, B_N, B_K, T_M, T_N, WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y>
-{
-    type Input = (WgpuTensor<E, D>, WgpuTensor<E, D>);
-    type Output = WgpuTensor<E, D>;
+tiling2d_tunable!(
+    Tiling2DContiguousLoad,
+    kernel::matmul::contiguous::matmul_tiling_2d
+);
 
-    fn call(&self, (lhs, rhs): Self::Input) -> Self::Output {
-        kernel::matmul::matmul_tiling_2d::<
-            E,
-            D,
-            B_M,
-            B_N,
-            B_K,
-            T_M,
-            T_N,
-            WORKGROUP_SIZE_X,
-            WORKGROUP_SIZE_Y,
-        >(lhs, rhs)
-    }
-}
+tiling2d_tunable!(Tiling2DTileLoad, kernel::matmul::tile::matmul_tiling_2d);
+tiling2d_tunable!(
+    Tiling2DContiguousLoadVectorized,
+    kernel::matmul::contiguous_vectorized::matmul_tiling_2d
+);
+
+tiling2d_tunable!(
+    Tiling2DTileLoadVectorized,
+    kernel::matmul::tile_vectorized::matmul_tiling_2d
+);
 
 #[derive(new)]
 struct MatmulBenchmark<F: WgpuElement, const D: usize> {
@@ -122,6 +127,7 @@ where
         Execution::NoCacheFound((lhs, rhs)) => {
             let mut lhs_shape = [1; D];
             let mut rhs_shape = [1; D];
+
             lhs_shape[D - 2] = 512;
             lhs_shape[D - 1] = 512;
             rhs_shape[D - 2] = 512;
@@ -143,52 +149,56 @@ where
                     )
                 };
 
-            let tunables = vec![
-                matmul_benchmark(Arc::new(MatmulTiling2dTunable::<
-                    E,
-                    D,
-                    64,
-                    64,
-                    32,
-                    4,
-                    4,
-                    16,
-                    16,
-                >::default())),
-                matmul_benchmark(Arc::new(MatmulTiling2dTunable::<
-                    E,
-                    D,
-                    64,
-                    64,
-                    16,
-                    4,
-                    4,
-                    16,
-                    16,
-                >::default())),
-                matmul_benchmark(Arc::new(MatmulTiling2dTunable::<
-                    E,
-                    D,
-                    64,
-                    64,
-                    4,
-                    4,
-                    4,
-                    16,
-                    16,
-                >::default())),
-                matmul_benchmark(Arc::new(MatmulTiling2dTunable::<
-                    E,
-                    D,
-                    128,
-                    128,
-                    16,
-                    4,
-                    4,
-                    32,
-                    32,
-                >::default())),
-            ];
+            let mut tunables = Vec::new();
+
+            for block_size in [64, 128] {
+                for block_size_k in [16, 32] {
+                    for tile_size in [4, 8] {
+                        tunables.push(matmul_benchmark(Arc::new(
+                            Tiling2DContiguousLoad::<E, D>::new(
+                                block_size,
+                                block_size,
+                                block_size_k,
+                                tile_size,
+                                tile_size,
+                                block_size / tile_size,
+                                block_size / tile_size,
+                            ),
+                        )));
+                        tunables.push(matmul_benchmark(Arc::new(
+                            Tiling2DContiguousLoadVectorized::<E, D>::new(
+                                block_size,
+                                block_size,
+                                block_size_k,
+                                tile_size,
+                                tile_size,
+                                block_size / tile_size,
+                                block_size / tile_size,
+                            ),
+                        )));
+                        tunables.push(matmul_benchmark(Arc::new(Tiling2DTileLoad::<E, D>::new(
+                            block_size,
+                            block_size,
+                            block_size_k,
+                            tile_size,
+                            tile_size,
+                            block_size / tile_size,
+                            block_size / tile_size,
+                        ))));
+                        tunables.push(matmul_benchmark(Arc::new(
+                            Tiling2DTileLoadVectorized::<E, D>::new(
+                                block_size,
+                                block_size,
+                                block_size_k,
+                                tile_size,
+                                tile_size,
+                                block_size / tile_size,
+                                block_size / tile_size,
+                            ),
+                        )));
+                    }
+                }
+            }
 
             context
                 .tuner

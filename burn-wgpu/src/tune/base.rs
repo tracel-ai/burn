@@ -103,7 +103,7 @@ where
     for tunable in tunables {
         let benchmark_result = tunable.benchmark.run(&device);
         let duration = benchmark_result.median_duration();
-        
+
         if duration < best_duration {
             best_duration = duration;
             best_tunable = Some(tunable);

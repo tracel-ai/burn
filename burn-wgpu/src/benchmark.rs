@@ -130,11 +130,11 @@ macro_rules! run_benchmark {
         println!("Git Hash: {}", str::trim(&git_hash));
         #[cfg(any(target_os = "linux", target_os = "windows"))]
         {
-            println!(
-                "OpenGL - {}{}",
-                Benchmark::<burn_wgpu::OpenGl>::name(&$bench),
-                Benchmark::<burn_wgpu::OpenGl>::run(&$bench, &WgpuDevice::DiscreteGpu(0))
-            );
+            // println!(
+            //     "OpenGL - {}{}",
+            //     Benchmark::<burn_wgpu::OpenGl>::name(&$bench),
+            //     Benchmark::<burn_wgpu::OpenGl>::run(&$bench, &WgpuDevice::DiscreteGpu(0))
+            // );
             println!(
                 "Vulkan - {}{}",
                 Benchmark::<burn_wgpu::Vulkan>::name(&$bench),
