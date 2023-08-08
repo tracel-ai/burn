@@ -10,9 +10,21 @@ pub struct BenchmarkResult {
     durations: Vec<Duration>,
 }
 
+impl BenchmarkResult {
+    pub(crate) fn mean_duration(&self) -> Duration {
+        self.durations.iter().sum::<Duration>() / self.durations.len() as u32
+    }
+
+    pub(crate) fn median_duration(&self) -> Duration {
+        let mut sorted = self.durations.clone();
+        sorted.sort();
+        *sorted.get(sorted.len() / 2).unwrap()
+    }
+}
+
 impl Display for BenchmarkResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mean: Duration = self.durations.iter().sum::<Duration>() / self.durations.len() as u32;
+        let mean = self.mean_duration();
         let var = self
             .durations
             .iter()
@@ -71,8 +83,8 @@ pub trait Benchmark<G: GraphicsApi> {
     fn name(&self) -> String;
     /// Run the benchmark a number of times.
     fn run(&self, device: &WgpuDevice) -> BenchmarkResult
-    where
-        Self: Sized,
+// where
+        // Self: Sized,
     {
         let context = get_context::<G>(device);
 
