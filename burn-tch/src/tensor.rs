@@ -32,7 +32,7 @@ impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
 
     /// Create a tensor that was created from an operation executed on a parent tensor.
     ///
-    /// If the child tensor shared the same storage as its parent, it will be cloned, effectivly
+    /// If the child tensor shared the same storage as its parent, it will be cloned, effectively
     /// tracking how much tensors point to the same memory space.
     pub fn from_existing(tensor: tch::Tensor, storage_parent: StorageRef) -> Self {
         let storage_child = tensor.data_ptr();

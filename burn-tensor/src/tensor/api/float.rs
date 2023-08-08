@@ -250,7 +250,7 @@ where
 
     /// Detach the current tensor from the autodiff graph.
     /// This function does nothing when autodiff is not enabled.
-    /// This can be used in batchers or elsewere to ensure that previous operations are not
+    /// This can be used in batchers or elsewhere to ensure that previous operations are not
     /// considered in the autodiff graph.
     pub fn detach(self) -> Self {
         Self::new(B::detach(self.primitive))
