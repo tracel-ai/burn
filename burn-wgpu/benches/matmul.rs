@@ -110,40 +110,10 @@ fn main() {
     let m = 128;
     let k = 1024;
     let n = 512;
-    run_benchmark!(MatmulBenchmark::<MemCoalescingMatmul, 3> {
-        shape_lhs: [batch_size, m, k].into(),
-        shape_rhs: [batch_size, k, n].into(),
-        num_repeats,
-        matmul: PhantomData
-    });
-    run_benchmark!(MatmulBenchmark::<Tiling2DMatmulContiguous, 3> {
-        shape_lhs: [batch_size, m, k].into(),
-        shape_rhs: [batch_size, k, n].into(),
-        num_repeats,
-        matmul: PhantomData
-    });
-    run_benchmark!(MatmulBenchmark::<Tiling2DMatmulContiguousVectorized, 3> {
-        shape_lhs: [batch_size, m, k].into(),
-        shape_rhs: [batch_size, k, n].into(),
-        num_repeats,
-        matmul: PhantomData
-    });
-    run_benchmark!(MatmulBenchmark::<Tiling2DMatmulTile, 3> {
-        shape_lhs: [batch_size, m, k].into(),
-        shape_rhs: [batch_size, k, n].into(),
-        num_repeats,
-        matmul: PhantomData
-    });
-    run_benchmark!(MatmulBenchmark::<Tiling2DMatmulTileVectorized, 3> {
-        shape_lhs: [batch_size, m, k].into(),
-        shape_rhs: [batch_size, k, n].into(),
-        num_repeats,
-        matmul: PhantomData
-    });
     run_benchmark!(MatmulBenchmark::<MatmulAutotune, 3> {
         shape_lhs: [batch_size, m, k].into(),
         shape_rhs: [batch_size, k, n].into(),
         num_repeats,
         matmul: PhantomData
-    })
+    });
 }

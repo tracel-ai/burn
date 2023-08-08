@@ -82,7 +82,7 @@ where
     }
 
     fn num_samples(&self) -> usize {
-        10
+        5
     }
 
     fn execute(&self, (lhs, rhs): Self::Args) {
@@ -172,7 +172,7 @@ where
                 Arc::new(MatmulBenchmark::new(
                     shape_lhs.clone(),
                     shape_rhs.clone(),
-                    5, // number of samples
+                    1,
                     func.clone(),
                 )),
             )
