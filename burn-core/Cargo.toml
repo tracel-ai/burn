@@ -63,6 +63,7 @@ rmp-serde = {workspace = true, optional = true}
 serde_json = {workspace = true, features = ["alloc"]}#Default enables std 
 
 [dev-dependencies]
+tempfile = {workspace = true}
 burn-dataset = {path = "../burn-dataset", version = "0.9.0", features = [
   "fake",
 ]}

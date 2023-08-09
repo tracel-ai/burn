@@ -5,6 +5,7 @@ pub mod decay;
 pub mod momentum;
 
 mod adam;
+mod adamw;
 mod base;
 mod grad_accum;
 mod grads;
@@ -13,6 +14,7 @@ mod simple;
 mod visitor;
 
 pub use adam::*;
+pub use adamw::*;
 pub use base::*;
 pub use grad_accum::*;
 pub use grads::*;
