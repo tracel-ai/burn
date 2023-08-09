@@ -73,7 +73,7 @@ List taken from [here](https://github.com/onnx/onnx/blob/main/docs/Operators.md)
 - [ ] GatherND
 - [ ] Gelu
 - [x] Gemm (Linear Layer)
-- [ ] GlobalAveragePool
+- [x] GlobalAveragePool
 - [ ] GlobalLpPool
 - [ ] GlobalMaxPool
 - [ ] Greater

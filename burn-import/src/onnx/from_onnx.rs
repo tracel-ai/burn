@@ -600,7 +600,6 @@ fn rename_inputs(
         if let Some(new_name) = old_names.get(&output.name) {
             output.name = new_name.clone();
         } else {
-            println!("{:#?}", old_names);
             panic!("Output {} not found in old_names", output.name);
         }
     }
