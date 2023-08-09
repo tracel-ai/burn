@@ -9,7 +9,7 @@ use std::sync::Arc;
 #[derive(new)]
 pub struct TextGenerationBatcher {
     tokenizer: Arc<dyn Tokenizer>,
-    max_seq_lenght: usize,
+    max_seq_length: usize,
 }
 
 #[derive(Debug, Clone, new)]
@@ -36,7 +36,7 @@ impl<B: Backend> Batcher<TextGenerationItem, TextGenerationBatch<B>> for TextGen
         let mask = generate_padding_mask(
             self.tokenizer.pad_token(),
             tokens_list,
-            Some(self.max_seq_lenght),
+            Some(self.max_seq_length),
             &B::Device::default(),
         );
 

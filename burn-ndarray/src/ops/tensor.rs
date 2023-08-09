@@ -437,4 +437,11 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
     fn clamp<const D: usize>(tensor: NdArrayTensor<E, D>, min: E, max: E) -> NdArrayTensor<E, D> {
         NdArrayMathOps::clamp(tensor, min, max)
     }
+
+    fn into_int<const D: usize>(
+        tensor: <NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
+    ) -> <NdArrayBackend<E> as Backend>::IntTensorPrimitive<D> {
+        let array = tensor.array.mapv(|a| a.elem()).into_shared();
+        NdArrayTensor { array }
+    }
 }

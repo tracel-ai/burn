@@ -326,7 +326,7 @@ impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E
             let tolerance = libm::pow(0.1, precision as f64);
 
             if err > tolerance {
-                // Only print the first 5 differents values.
+                // Only print the first 5 different values.
                 if num_diff < max_num_diff {
                     message += format!(
                         "\n  => Position {i}: {a} != {b} | difference {err} > tolerance {tolerance}"

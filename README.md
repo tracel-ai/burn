@@ -295,7 +295,7 @@ Compile `scripts/publish.rs` using this command:
 rustc scripts/publish.rs --crate-type bin --out-dir scripts
 ```
 
-## Disclamer
+## Disclaimer
 
 Burn is currently in active development, and there will be breaking changes. While any resulting
 issues are likely to be easy to fix, there are no guarantees at this stage.

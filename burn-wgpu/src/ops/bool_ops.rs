@@ -1,4 +1,4 @@
-use super::{BoolTensor, Device, IntTensor};
+use super::{BoolTensor, Device, FloatTensor, IntTensor};
 use crate::{
     element::{FloatElement, IntElement},
     kernel,
@@ -111,5 +111,9 @@ where
                 false => 0,
             },
         )
+    }
+
+    fn bool_into_float<const D: usize>(tensor: BoolTensor<Self, D>) -> FloatTensor<Self, D> {
+        kernel::cast(tensor)
     }
 }

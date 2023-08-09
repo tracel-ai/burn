@@ -3,7 +3,7 @@ use burn_tensor::Shape;
 use std::sync::Arc;
 use wgpu::Buffer;
 
-/// Build basic info to lauch pool 2d kernels.
+/// Build basic info to launch pool 2d kernels.
 pub fn build_output_and_info_pool2d<E: WgpuElement>(
     x: &WgpuTensor<E, 4>,
     kernel_size: [usize; 2],

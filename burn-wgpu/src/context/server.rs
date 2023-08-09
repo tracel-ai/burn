@@ -22,7 +22,7 @@ pub trait ContextServer {
     fn start(device: Arc<wgpu::Device>, queue: wgpu::Queue) -> Self::Client;
 }
 
-/// Context server where each operation is added in a synchonous maner.
+/// Context server where each operation is added in a synchronous maner.
 #[derive(Debug)]
 pub struct SyncContextServer {
     device: Arc<wgpu::Device>,
@@ -141,7 +141,7 @@ impl SyncContextServer {
     fn submit(&mut self) {
         assert!(
             self.tasks.is_empty(),
-            "Tasks should be completed before submiting the current encoder."
+            "Tasks should be completed before submitting the current encoder."
         );
         let mut new_encoder = self
             .device

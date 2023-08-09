@@ -23,7 +23,7 @@ use std::sync::Arc;
 pub struct TextClassificationBatcher<B: Backend> {
     tokenizer: Arc<dyn Tokenizer>, // Tokenizer for converting text to token IDs
     device: B::Device, // Device on which to perform computation (e.g., CPU or CUDA device)
-    max_seq_lenght: usize, // Maximum sequence length for tokenized text
+    max_seq_length: usize, // Maximum sequence length for tokenized text
 }
 
 /// Struct for training batch in text classification task
@@ -60,7 +60,7 @@ impl<B: Backend> Batcher<TextClassificationItem, TextClassificationTrainingBatch
         let mask = generate_padding_mask(
             self.tokenizer.pad_token(),
             tokens_list,
-            Some(self.max_seq_lenght),
+            Some(self.max_seq_length),
             &B::Device::default(),
         );
 
@@ -90,7 +90,7 @@ impl<B: Backend> Batcher<String, TextClassificationInferenceBatch<B>>
         let mask = generate_padding_mask(
             self.tokenizer.pad_token(),
             tokens_list,
-            Some(self.max_seq_lenght),
+            Some(self.max_seq_length),
             &B::Device::default(),
         );
 

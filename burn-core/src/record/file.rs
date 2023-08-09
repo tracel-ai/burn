@@ -34,7 +34,7 @@ pub struct JsonGzFileRecorder<S: PrecisionSettings> {
     _settings: PhantomData<S>,
 }
 
-/// File recorder using [pretty json format](serde_json) for easy redability.
+/// File recorder using [pretty json format](serde_json) for easy readability.
 #[derive(new, Debug, Default, Clone)]
 pub struct PrettyJsonFileRecorder<S: PrecisionSettings> {
     _settings: PhantomData<S>,
