@@ -109,6 +109,11 @@ impl<E: TchElement> BoolTensorOps<TchBackend<E>> for TchBackend<E> {
     }
 
     fn bool_into_int<const D: usize>(tensor: TchTensor<bool, D>) -> TchTensor<i64, D> {
+        let tensor = tensor.tensor.to_kind(tch::Kind::Int64);
+        TchTensor::new(tensor)
+    }
+
+    fn bool_into_float<const D: usize>(tensor: TchTensor<bool, D>) -> TchTensor<E, D> {
         let tensor = tensor.tensor.to_kind(E::KIND);
         TchTensor::new(tensor)
     }

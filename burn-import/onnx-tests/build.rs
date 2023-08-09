@@ -12,6 +12,7 @@ fn main() {
         .input("tests/div/div.onnx")
         .input("tests/concat/concat.onnx")
         .input("tests/conv2d/conv2d.onnx")
+        .input("tests/dropout/dropout.onnx")
         .out_dir("model/")
         .run_from_script();
 

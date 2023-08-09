@@ -195,8 +195,8 @@ where
         LR::Record: 'static,
     {
         self.init_logger();
-        let callack = Box::new(self.dashboard);
-        let callback = Box::new(AsyncTrainerCallback::new(callack));
+        let callback = Box::new(self.dashboard);
+        let callback = Box::new(AsyncTrainerCallback::new(callback));
 
         let checkpointer_optimizer = match self.checkpointer_optimizer {
             Some(checkpointer) => {

@@ -150,7 +150,7 @@ impl<B: Backend> Lstm<B> {
             let biased_ig_input_sum = self.gate_product(&input_t, &hidden_state, &self.input_gate);
             let add_values = activation::sigmoid(biased_ig_input_sum);
 
-            // o(utput)g(ate) tensors
+            // o(output)g(ate) tensors
             let biased_og_input_sum = self.gate_product(&input_t, &hidden_state, &self.output_gate);
             let output_values = activation::sigmoid(biased_og_input_sum);
 

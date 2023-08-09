@@ -163,6 +163,17 @@ pub trait TensorOps<B: Backend> {
         Self::arange_step(range, 1, device)
     }
 
+    /// Converts float tensor to int tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The int tensor with the same data as the float tensor.
+    fn into_int<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::IntTensorPrimitive<D>;
+
     /// Creates a new tensor with values from the given range with the given step size.
     ///
     /// # Arguments

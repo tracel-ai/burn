@@ -81,6 +81,6 @@ where
     /// }
     /// ```
     pub fn float(self) -> Tensor<B, D, Float> {
-        Tensor::<B, D, Float>::from_data(self.into_data().convert())
+        Tensor::new(B::int_into_float(self.primitive))
     }
 }

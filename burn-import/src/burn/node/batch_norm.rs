@@ -194,9 +194,11 @@ mod tests {
             #[derive(Module, Debug)]
             pub struct Model <B: Backend> {
                 norm: BatchNorm<B, 2>,
+                phantom: core::marker::PhantomData<B>,
             }
 
             impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
                 pub fn new_with(record: ModelRecord<B>) -> Self {
                     let norm = BatchNormConfig::new(128)
                         .with_epsilon(0.00001f64)
@@ -205,6 +207,7 @@ mod tests {
 
                     Self {
                         norm,
+                        phantom: core::marker::PhantomData,
                     }
                 }
                 #[allow(clippy::let_and_return)]

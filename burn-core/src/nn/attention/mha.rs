@@ -392,7 +392,7 @@ mod tests {
         let output_1 = mha.forward(input_1);
         let output_2 = mha.forward(input_2);
 
-        // Check that the begginning of each tensor is the same
+        // Check that the beginning of each tensor is the same
         output_1
             .context
             .slice([0..batch_size, 0..seq_length - num_padded, 0..d_model])

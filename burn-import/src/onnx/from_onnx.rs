@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs::File,
     path::Path,
     str::{from_utf8, FromStr},
@@ -69,7 +69,10 @@ pub fn parse_onnx(onnx_path: &Path) -> ONNXGraph {
     // https://github.com/onnx/onnx/blob/main/docs/IR.md#graphs
     assert!(nodes.is_top_sorted(), "Nodes are not topologically sorted");
 
-    // Move inputs to initializers
+    // Lift constants to initializers
+    lift_constants(&mut nodes);
+
+    // Move inputs with initializers to states
     move_inputs_to_state(&mut nodes, &onnx_model.graph.initializer);
 
     // Coalesce and transform nodes
@@ -428,8 +431,94 @@ fn move_inputs_to_state(nodes: &mut Vec<Node>, initializer: &[TensorProto]) {
             .collect();
 
         // Set the node's states vector to the temporary node_states vector
-        node.states = node_states;
+        node.states.append(&mut node_states);
     });
+}
+
+/// Lift constants from the graph into the states vector for known node types.
+///
+/// The primary reason to move constants into the states vector is to reduce the number of nodes in the graph,
+/// and consistently utilize the same interface for all nodes (constant inputs and inputs with initializers are
+/// treated the same way). This simplification aids code generation.
+///
+/// For example, if we have a graph ([Const1, Const2, Conv2d1]) where the Conv2d node has 3 inputs
+/// (graph_input, const2_out1, const_out2), we can lift the constants into the states of the Conv2d node.
+/// const2_out1 and const_out2 are used for the weights and bias of the Conv2d node.
+/// After lifting, we will have a graph ([Conv2d1]) where the Conv2d node has 1 input (graph_input) and 2 states.
+///
+/// Also note that often times, Conv2d node's inputs are not constants, but they are initializers. Initializers
+/// move to the states vector as well, using the `move_inputs_to_state` function.
+///
+///
+/// # Arguments
+///
+/// * `nodes` - A mutable reference to a vector of nodes
+///
+/// # Panics
+///
+/// Panics if the node's output is not a constant.
+fn lift_constants(nodes: &mut Vec<Node>) {
+    log::info!("Lifting constants into the states");
+
+    // create a set to hold the node types to process
+    let node_types_to_process: HashSet<NodeType> =
+        [NodeType::Dropout, NodeType::Conv1d, NodeType::Conv2d]
+            .into_iter()
+            .collect();
+
+    // create a new vector to hold the graph's constants (index by the node's name)
+    let constants = nodes
+        .iter()
+        .filter(|node| node.node_type == NodeType::Constant) // filter out non-constant nodes
+        .map(|node| (node.outputs[0].name.clone(), node.clone()))
+        .collect::<HashMap<String, Node>>();
+
+    // create a set to hold the IDs of constants to be removed
+    let mut constant_to_removed = HashSet::<String>::new();
+
+    for node in nodes.iter_mut() {
+        // check if the node's type is in the set of node types to process
+        if !node_types_to_process.contains(&node.node_type) {
+            continue;
+        }
+
+        // create a new vector to hold the node's states
+        let mut node_states = Vec::new();
+
+        let mut inputs_to_remove = Vec::new();
+
+        node.inputs.iter().for_each(|input| {
+            if let Some(constant) = constants.get(&input.name) {
+                // if the input is a constant, get its ID and node
+                let value = &constant.attrs["value"]; // get the value of the constant
+                let state = match value {
+                    AttributeValue::Tensor(tensor) => State {
+                        // if the value is a tensor, create a new State object with the tensor as its type
+                        name: input.name.clone(),
+                        ty: StateType::Tensor(tensor.clone()),
+                    },
+                    _ => todo!("Support non tensor constant type"),
+                };
+                node_states.push(state); // add the new state to the node's states vector
+                constant_to_removed.insert(constant.name.clone());
+                inputs_to_remove.push(input.name.clone());
+            }
+        });
+
+        // append the node's states vector to the new vector created in the previous step
+        node.states.append(&mut node_states);
+
+        // remove the inputs that were moved to the states vector
+        node.inputs.retain(|x| !inputs_to_remove.contains(&x.name))
+    }
+
+    // remove the constants that were moved to the states vector
+    nodes.retain(|node| !constant_to_removed.contains(&node.name));
+
+    log::debug!(
+        "The number of constants removed: {}",
+        constant_to_removed.len()
+    );
 }
 
 /// Rename the nodes in the graph to be unique and return a map of the old names to the new names.

@@ -66,13 +66,14 @@ mod tests {
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
-                _phantom: core::marker::PhantomData<B>,
+                phantom: core::marker::PhantomData<B>,
             }
 
             impl<B: Backend> Model <B> {
-                pub fn new_with(_record: ModelRecord<B>) -> Self {
+                #[allow(unused_variables)]
+                pub fn new_with(record: ModelRecord<B>) -> Self {
                     Self {
-                        _phantom: core::marker::PhantomData,
+                        phantom: core::marker::PhantomData,
                     }
                 }
                 #[allow(clippy::let_and_return)]

@@ -1,5 +1,5 @@
 use crate::{
-    tensor::{BoolTensor, IntTensor},
+    tensor::{ADTensor, BoolTensor, IntTensor},
     ADBackendDecorator,
 };
 
@@ -307,5 +307,10 @@ impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
     fn int_abs<const D: usize>(tensor: B::IntTensorPrimitive<D>) -> B::IntTensorPrimitive<D> {
         B::int_abs(tensor)
+    }
+    fn int_into_float<const D: usize>(
+        tensor: <ADBackendDecorator<B> as Backend>::IntTensorPrimitive<D>,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
+        ADTensor::new(B::int_into_float(tensor))
     }
 }

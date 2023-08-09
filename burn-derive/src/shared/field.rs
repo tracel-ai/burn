@@ -85,7 +85,7 @@ pub(crate) fn parse_fields(ast: &syn::DeriveInput) -> Vec<Field> {
             }
         }
         syn::Data::Enum(_) => panic!("Only struct can be derived"),
-        syn::Data::Union(_) => panic!("Only struct cna be derived"),
+        syn::Data::Union(_) => panic!("Only struct can be derived"),
     };
     fields
 }

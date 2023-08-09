@@ -435,4 +435,9 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
     ) -> <TchBackend<E> as Backend>::TensorPrimitive<D> {
         TchOps::clamp(tensor, min.elem::<f64>(), max.elem::<f64>())
     }
+
+    fn into_int<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<i64, D> {
+        let tensor = tensor.tensor.to_kind(tch::Kind::Int64);
+        TchTensor::new(tensor)
+    }
 }

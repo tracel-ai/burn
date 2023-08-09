@@ -16,7 +16,7 @@ __Sections__
 Modules are a way of creating neural network structures that can be easily optimized, saved, and loaded with little to no boilerplate.
 Unlike other frameworks, a module does not force the declaration of the forward pass, leaving it up to the implementer to decide how it should be defined.
 Additionally, most modules are created using a (de)serializable configuration, which defines the structure of the module and its hyper-parameters.
-Parameters and hyper-parameters are not serialized into the same file and both are normaly necessary to load a module for inference.
+Parameters and hyper-parameters are not serialized into the same file and both are normally necessary to load a module for inference.
 
 ### Optimization
 
@@ -71,7 +71,7 @@ When performing an optimization step, the adaptor handles the following:
 3. Makes sure that the gradient, the tensor, and the optimizer state associated with the current parameter are on the same device.
 The device can be different if the state is loaded from disk to restart training.
 4. Performs the simple optimizer step using the inner tensor since the operations done by the optimizer should not be tracked in the autodiff graph.
-5. Updates the state for the current parameter and returns the updated tensor, making sure it's properly registered into the autodiff graph if gradients are maked as required.
+5. Updates the state for the current parameter and returns the updated tensor, making sure it's properly registered into the autodiff graph if gradients are marked as required.
 
 Note that a parameter can still be updated by another process, as is the case with running metrics used in batch norm.
 These tensors are still wrapped using the `Param` struct so that they are included in the module's state and given a proper parameter ID, but they are not registered in the autodiff graph.

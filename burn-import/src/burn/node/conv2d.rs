@@ -168,9 +168,11 @@ mod tests {
             #[derive(Module, Debug)]
             pub struct Model <B: Backend> {
                 conv2d: Conv2d<B>,
+                phantom: core::marker::PhantomData<B>,
             }
 
             impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
                 pub fn new_with(record: ModelRecord<B>) -> Self {
                     let conv2d = Conv2dConfig::new([3, 3], [3, 3])
                         .with_stride([1, 1])
@@ -182,6 +184,7 @@ mod tests {
 
                     Self {
                         conv2d,
+                        phantom: core::marker::PhantomData,
                     }
                 }
                 #[allow(clippy::let_and_return)]

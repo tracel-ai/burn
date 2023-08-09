@@ -119,7 +119,7 @@ where
     /// }
     /// ```
     pub fn int(self) -> Tensor<B, D, Int> {
-        Tensor::<B, D, Int>::from_data(self.into_data().convert())
+        Tensor::new(B::into_int(self.primitive))
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor filled with zeros.
@@ -250,7 +250,7 @@ where
 
     /// Detach the current tensor from the autodiff graph.
     /// This function does nothing when autodiff is not enabled.
-    /// This can be used in batchers or elsewere to ensure that previous operations are not
+    /// This can be used in batchers or elsewhere to ensure that previous operations are not
     /// considered in the autodiff graph.
     pub fn detach(self) -> Self {
         Self::new(B::detach(self.primitive))

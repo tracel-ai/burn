@@ -259,21 +259,15 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             })
             .for_each(|code| body.extend(code));
 
-        // Add dummy field if no field is present to avoid empty struct
-        // and make sure we can derive Module trait and use it in a model.
-        if body.is_empty() {
-            quote! {
-                #[derive(Module, Debug)]
-                pub struct Model<B: Backend> {
-                    _phantom: core::marker::PhantomData<B>,
-                }
-            }
-        } else {
-            quote! {
-                #[derive(Module, Debug)]
-                pub struct Model<B: Backend> {
-                    #body
-                }
+        // Extend with phantom data to avoid unused generic type.
+        body.extend(quote! {
+            phantom: core::marker::PhantomData<B>,
+        });
+
+        quote! {
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                #body
             }
         }
     }
@@ -293,24 +287,14 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             .map(|field| field.name().clone())
             .collect::<Vec<_>>();
 
-        if fields.is_empty() {
-            quote! {
-                #[allow(dead_code)]
-                pub fn new() -> Self {
-                    Self {
-                        _phantom: core::marker::PhantomData,
-                    }
-                }
-            }
-        } else {
-            quote! {
-                #[allow(dead_code)]
-                pub fn new() -> Self {
-                    #body
+        quote! {
+            #[allow(dead_code)]
+            pub fn new() -> Self {
+                #body
 
-                    Self {
-                        #(#fields,)*
-                    }
+                Self {
+                    #(#fields,)*
+                    phantom: core::marker::PhantomData,
                 }
             }
         }
@@ -330,22 +314,14 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             .map(|field| field.name().clone())
             .collect::<Vec<_>>();
 
-        if fields.is_empty() {
-            quote! {
-                pub fn new_with(_record: ModelRecord<B>) -> Self {
-                    Self {
-                        _phantom: core::marker::PhantomData,
-                    }
-                }
-            }
-        } else {
-            quote! {
-                pub fn new_with(record: ModelRecord<B>) -> Self {
-                    #body
+        quote! {
+            #[allow(unused_variables)]
+            pub fn new_with(record: ModelRecord<B>) -> Self {
+                #body
 
-                    Self {
-                        #(#fields,)*
-                    }
+                Self {
+                    #(#fields,)*
+                    phantom: core::marker::PhantomData,
                 }
             }
         }

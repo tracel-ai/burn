@@ -24,7 +24,7 @@ pub fn run<B: Backend>() {
     //
     // mismatched types
     //   expected reference `&NamedTensor<B, (Batch, DModel, _)>`
-    //   found reference `&NamedTensor<B, (Batch, SeqLenght, DModel)>`
+    //   found reference `&NamedTensor<B, (Batch, SeqLength, DModel)>`
     // let output = weights.matmul(&input);
 
     let output = input.clone().matmul(weights.clone());
@@ -32,7 +32,7 @@ pub fn run<B: Backend>() {
     // Doesn't compile
     //
     // mismatched types
-    //   expected reference `&NamedTensor<B, (Batch, SeqLenght, DModel)>`
+    //   expected reference `&NamedTensor<B, (Batch, SeqLength, DModel)>`
     //   found reference `&NamedTensor<B, (Batch, DModel, DModel)>`
     // let output = output.mul(&weights);
 
