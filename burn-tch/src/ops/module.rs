@@ -1,6 +1,7 @@
 use crate::{element::TchElement, TchBackend, TchTensor};
 use burn_tensor::ops::{
-    ConvOptions, ConvTransposeOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
+    ConvOptions, ConvTransposeOptions, MaxPool1dWithIndices, MaxPool2dBackward,
+    MaxPool2dWithIndices, ModuleOps,
 };
 
 impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
@@ -161,6 +162,42 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
         );
 
         TchTensor::new(tensor)
+    }
+
+    fn max_pool1d(
+        x: TchTensor<E, 3>,
+        kernel_size: usize,
+        stride: usize,
+        padding: usize,
+    ) -> TchTensor<E, 3> {
+        let tensor = tch::Tensor::max_pool1d(
+            &x.tensor,
+            kernel_size as i64,
+            stride as i64,
+            padding as i64,
+            1,
+            false,
+        );
+
+        TchTensor::new(tensor)
+    }
+
+    fn max_pool1d_with_indices(
+        x: TchTensor<E, 3>,
+        kernel_size: usize,
+        stride: usize,
+        padding: usize,
+    ) -> MaxPool1dWithIndices<TchBackend<E>> {
+        let (tensor, indices) = tch::Tensor::max_pool1d_with_indices(
+            &x.tensor,
+            kernel_size as i64,
+            stride as i64,
+            padding as i64,
+            1,
+            false,
+        );
+
+        MaxPool1dWithIndices::new(TchTensor::new(tensor), TchTensor::new(indices))
     }
 
     fn max_pool2d(
