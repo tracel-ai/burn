@@ -14,6 +14,23 @@ pub struct Conv2dBackward<B: Backend> {
     pub bias_grad: Option<B::TensorPrimitive<1>>,
 }
 
+/// Gradient computed during the backward pass for each tensor used by [max_pool1d](ModuleOps::max_pool1d).
+#[derive(new)]
+pub struct MaxPool1dBackward<B: Backend> {
+    /// Gradient.
+    pub x_grad: B::TensorPrimitive<3>,
+}
+
+/// Results from [max_pool1d](ModuleOps::max_pool1d_with_indices).
+#[derive(new)]
+pub struct MaxPool1dWithIndices<B: Backend> {
+    /// The output tensor.
+    pub output: B::TensorPrimitive<3>,
+
+    /// The indices tensor.
+    pub indices: B::IntTensorPrimitive<3>,
+}
+
 /// Gradient computed during the backward pass for each tensor used by [max_pool2d](ModuleOps::max_pool2d).
 #[derive(new)]
 pub struct MaxPool2dBackward<B: Backend> {
@@ -299,6 +316,52 @@ pub trait ModuleOps<B: Backend> {
     ) -> B::TensorPrimitive<3> {
         pool::adaptive_avg_pool1d_backward_from_2d::<B>(x, grad)
     }
+    /// One dimensional max pooling.
+    ///
+    /// # Shapes
+    ///
+    /// x: [batch_size, channels, length],
+    fn max_pool1d(
+        x: B::TensorPrimitive<3>,
+        kernel_size: usize,
+        stride: usize,
+        padding: usize,
+    ) -> B::TensorPrimitive<3> {
+        pool::max_pool1d_from_2d::<B>(x, kernel_size, stride, padding)
+    }
+
+    /// One dimensional max pooling with indices.
+    ///
+    /// # Shapes
+    ///
+    /// x: [batch_size, channels, height, width],
+    fn max_pool1d_with_indices(
+        x: B::TensorPrimitive<3>,
+        kernel_size: usize,
+        stride: usize,
+        padding: usize,
+    ) -> MaxPool1dWithIndices<B> {
+        pool::max_pool1d_with_indices_from_2d::<B>(x, kernel_size, stride, padding)
+    }
+    /// Backward pass for the [max pooling 1d](ModuleOps::max_pool1d_with_indices) operation.
+    fn max_pool1d_with_indices_backward(
+        x: B::TensorPrimitive<3>,
+        kernel_size: usize,
+        stride: usize,
+        padding: usize,
+        output_grad: B::TensorPrimitive<3>,
+        indices: B::IntTensorPrimitive<3>,
+    ) -> MaxPool1dBackward<B> {
+        pool::max_pool1d_with_indices_backward_from_2d::<B>(
+            x,
+            kernel_size,
+            stride,
+            padding,
+            output_grad,
+            indices,
+        )
+    }
+
     /// Two dimensional max pooling.
     ///
     /// # Shapes
