@@ -23,6 +23,7 @@ pub enum UnaryNodeKind {
     Cast,
     Flatten,
     LogSoftmax,
+    Softmax,
     Relu,
     Sigmoid,
     Transpose,
@@ -34,6 +35,7 @@ impl UnaryNodeKind {
             Self::Cast => "cast",
             Self::Flatten => "flatten",
             Self::LogSoftmax => "log_softmax",
+            Self::Softmax => "softmax",
             Self::Relu => "relu",
             Self::Sigmoid => "sigmoid",
             Self::Transpose => "transpose",
@@ -112,6 +114,12 @@ impl UnaryNode {
         let dim = dim.to_tokens();
         let function = move |input| quote! { burn::tensor::activation::log_softmax(#input, #dim) };
         Self::new(input, output, UnaryNodeKind::LogSoftmax, Arc::new(function))
+    }
+
+    pub(crate) fn softmax(input: Type, output: Type, dim: usize) -> Self {
+        let dim = dim.to_tokens();
+        let function = move |input| quote! { burn::tensor::activation::softmax(#input, #dim) };
+        Self::new(input, output, UnaryNodeKind::Softmax, Arc::new(function))
     }
 
     pub(crate) fn transpose(input: Type, output: Type) -> Self {
@@ -226,6 +234,26 @@ mod tests {
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = burn::tensor::activation::log_softmax(tensor1, 1);
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_unary_codegen_softmax() {
+        one_node_graph(
+            UnaryNode::softmax(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 4)),
+                1,
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let tensor2 = burn::tensor::activation::softmax(tensor1, 1);
 
                     tensor2
                 }

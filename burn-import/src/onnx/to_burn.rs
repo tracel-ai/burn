@@ -42,7 +42,7 @@ use crate::{
 use super::{
     from_onnx::parse_onnx,
     ir::{ArgType, Argument, ElementType, ONNXGraph, State, StateType, Tensor, TensorData},
-    op_configuration::{concat_config, dropout_config},
+    op_configuration::{concat_config, dropout_config, softmax_config},
 };
 
 /// Generate code and states from `.onnx` files and save them to the `out_dir`.
@@ -188,6 +188,7 @@ impl ONNXGraph {
                 NodeType::Relu => graph.register(Self::relu_conversion(node)),
                 NodeType::Flatten => graph.register(Self::flatten_conversion(node)),
                 NodeType::LogSoftmax => graph.register(Self::log_softmax_conversion(node)),
+                NodeType::Softmax => graph.register(Self::softmax_conversion(node)),
                 NodeType::Constant => graph.register(Self::constant_conversion::<PS>(node)),
                 NodeType::Reshape => graph.register(Self::reshape_conversion(node)),
                 NodeType::Sigmoid => graph.register(Self::sigmoid_conversion(node)),
@@ -373,6 +374,14 @@ impl ONNXGraph {
         let dim = log_softmax_config(&node);
 
         UnaryNode::log_softmax(input, output, dim)
+    }
+
+    fn softmax_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.get(0).unwrap().to_type();
+        let output = node.outputs.get(0).unwrap().to_type();
+        let dim = softmax_config(&node);
+
+        UnaryNode::softmax(input, output, dim)
     }
 
     fn concat_conversion(node: Node) -> ConcatNode {
