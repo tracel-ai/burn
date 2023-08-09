@@ -13,6 +13,11 @@ use std::{marker::PhantomData, sync::Arc};
 
 use super::mem_coalescing;
 
+const TILING_2D_BLOCK_SIZES: [usize; 2] = [64, 128];
+const TILING_2D_BLOCK_SIZES_K: [usize; 2] = [16, 32];
+const TILING_2D_TILE_SIZES: [usize; 2] = [4, 16];
+const MEMORY_COALESCING_WORKGROUP_SIZES: [usize; 3] = [8, 16, 32];
+
 macro_rules! tiling2d_tunable {
     ($name:ident, $func:expr) => {
         #[derive(new, Default)]
@@ -173,6 +178,7 @@ where
     }
 }
 
+/// Shape dims are anchored to the closest (on a log scale) power of 2
 fn calculate_benchmark_shapes<const D: usize>(
     lhs: Shape<D>,
     rhs: Shape<D>,
@@ -198,6 +204,7 @@ fn calculate_benchmark_shapes<const D: usize>(
 type MatmulTunable<G, E, const D: usize> =
     Tunable<G, (WgpuTensor<E, D>, WgpuTensor<E, D>), WgpuTensor<E, D>>;
 
+/// Enumerates all matmul versions that are candidates for autotuning
 fn matmul_candidates<G: GraphicsApi, E, const D: usize>(
     shape_lhs: Shape<D>,
     shape_rhs: Shape<D>,
@@ -220,9 +227,10 @@ where
 
     let mut candidates = Vec::new();
 
-    for block_size in [64, 128] {
-        for block_size_k in [16, 32] {
-            for tile_size in [4, 8] {
+    // All combinations of tiling 2d parameters are pushed for a grid search
+    for block_size in TILING_2D_BLOCK_SIZES {
+        for block_size_k in TILING_2D_BLOCK_SIZES_K {
+            for tile_size in TILING_2D_TILE_SIZES {
                 candidates.push(matmul_benchmark(Arc::new(
                     Tiling2DContiguousLoad::<E, D>::new(
                         block_size,
@@ -268,7 +276,8 @@ where
             }
         }
 
-        for workgroup_size in [8, 16, 32] {
+        // All combinations of tiling 2d parameters are pushed for a grid search
+        for workgroup_size in MEMORY_COALESCING_WORKGROUP_SIZES {
             candidates.push(matmul_benchmark(Arc::new(MemoryCoalescing::new(
                 workgroup_size,
                 workgroup_size,
@@ -276,4 +285,21 @@ where
         }
     }
     candidates
+}
+
+#[cfg(test)]
+mod tests {
+    use super::calculate_benchmark_shapes;
+
+    #[test]
+    pub fn benchmark_shapes_are_anchored_correctly() {
+        let m = f32::powf(2., 8.49) as usize;
+        let k = f32::powf(2., 8.51) as usize;
+        let n = f32::powf(2., 4.) as usize;
+        let lhs_shape = [m, k].into();
+        let rhs_shape = [k, n].into();
+        let (lhs_shape, rhs_shape) = calculate_benchmark_shapes(lhs_shape, rhs_shape);
+        assert_eq!(lhs_shape.dims, [256, 512]);
+        assert_eq!(rhs_shape.dims, [512, 16]);
+    }
 }

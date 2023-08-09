@@ -4,6 +4,7 @@ use burn_common::stub::RwLock;
 
 use crate::{benchmark::Benchmark, GraphicsApi, WgpuDevice};
 
+/// Key used for caching.
 #[derive(new, Hash, Clone, Debug, PartialEq, Eq)]
 pub struct AutoTuneKey {
     /// List all shapes used for the autotuned kernel.
@@ -12,6 +13,10 @@ pub struct AutoTuneKey {
     ops_name: String,
 }
 
+/// Objects that are stored in the tuner cache. Can have any inputs and outputs.
+pub type AutoTuneValue = Box<dyn core::any::Any + Send + Sync>;
+
+/// Executable function
 pub trait KernelFunction: Send + Sync + 'static {
     type Input;
     type Output;
@@ -20,20 +25,10 @@ pub trait KernelFunction: Send + Sync + 'static {
     fn description(&self) -> String;
 }
 
-pub type AutoTuneValue = Box<dyn core::any::Any + Send + Sync>;
+/// Encapsulates kernel functions, with specified inputs and outputs
 pub type AutoTuneFunction<I, O> = Arc<dyn KernelFunction<Input = I, Output = O>>;
 
-#[derive(Debug)]
-pub struct Tuner {
-    cache: RwLock<HashMap<AutoTuneKey, AutoTuneValue>>,
-}
-
-#[derive(Debug)]
-pub enum Execution<I, O> {
-    Executed(O),
-    NoCacheFound(I),
-}
-
+/// The tunable links an executable function to its corresponding benchmark
 #[derive(new)]
 pub struct Tunable<G, I, O> {
     func: AutoTuneFunction<I, O>,
@@ -51,6 +46,23 @@ where
     }
 }
 
+/// Output of the tuner execution. If execution succeeded, the output of
+/// the execution is contained. Otherwise, the function must be tuned and
+/// the input is given back to preserve ownership.
+#[derive(Debug)]
+pub enum Execution<I, O> {
+    Executed(O),
+    NoCacheFound(I),
+}
+
+/// The tuner allows to find the best version of a kernel by benchmarking
+/// different versions. It keeps the best version found in a cache, so the best
+/// function is reused automatically in similar circumstances.
+#[derive(Debug)]
+pub struct Tuner {
+    cache: RwLock<HashMap<AutoTuneKey, AutoTuneValue>>,
+}
+
 impl Tuner {
     pub fn new() -> Self {
         Self {
@@ -58,6 +70,8 @@ impl Tuner {
         }
     }
 
+    /// Executes the function stored in the cache at key id, on specified input,
+    /// and returns its output. If cache has no such id, returns NoCacheFound.
     pub fn execute<I, O>(&self, id: &AutoTuneKey, input: I) -> Execution<I, O>
     where
         I: Send + Sync + 'static,
@@ -78,6 +92,7 @@ impl Tuner {
         Execution::Executed(output)
     }
 
+    /// Finds the best tunable and writes it to the cache.
     pub fn tune<G: GraphicsApi, I, O>(
         &self,
         id: AutoTuneKey,
@@ -101,6 +116,8 @@ impl Tuner {
     }
 }
 
+/// Finds the best benchmark by running them and keeping the one
+/// with the smallest median duration.
 fn find_best<G: GraphicsApi, I, O>(
     tunables: Vec<Tunable<G, I, O>>,
     device: &WgpuDevice,
