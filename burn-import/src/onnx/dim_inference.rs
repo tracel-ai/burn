@@ -90,8 +90,6 @@ pub fn dim_inference(
             NodeType::Concat => concat_update_outputs(node),
             NodeType::Reshape => reshape_update_outputs(node),
             NodeType::Dropout => same_as_input(node),
-
-            //FIXME use correct output for GAP (@antimora 8/1/2023)
             NodeType::GlobalAveragePool => same_as_input(node),
             _ => todo!(
                 "shape inference for {:?} is not implemented",

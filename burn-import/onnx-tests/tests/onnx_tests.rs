@@ -10,7 +10,7 @@ macro_rules! include_models {
 }
 
 // ATTENTION: Modify this macro to include all models in the `model` directory.
-include_models!(add, sub, mul, div, concat, conv2d, dropout);
+include_models!(add, sub, mul, div, concat, conv2d, dropout, global_avr_pool);
 
 #[cfg(test)]
 mod tests {
@@ -133,5 +133,31 @@ mod tests {
         let expected_sum = 1200.0; // from pytorch
 
         assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
+    }
+
+    #[test]
+    fn globalavrpool_1d_2d() {
+        // The model contains 1d and 2d global average pooling nodes
+        let model: global_avr_pool::Model<Backend> = global_avr_pool::Model::default();
+
+        // Run the model with ones as input for easier testing
+        let input_1d = Tensor::<Backend, 3>::ones([2, 4, 10]);
+        let input_2d = Tensor::<Backend, 4>::ones([3, 10, 3, 15]);
+
+        let (output_1d, output_2d) = model.forward(input_1d, input_2d);
+
+        let expected_shape_1d = Shape::from([2, 4, 1]);
+        let expected_shape_2d = Shape::from([3, 10, 1, 1]);
+        assert_eq!(output_1d.shape(), expected_shape_1d);
+        assert_eq!(output_2d.shape(), expected_shape_2d);
+
+        let output_sum_1d = output_1d.sum().into_scalar();
+        let output_sum_2d = output_2d.sum().into_scalar();
+
+        let expected_sum_1d = 8.0; // from pytorch
+        let expected_sum_2d = 30.0; // from pytorch
+
+        assert!(expected_sum_1d.approx_eq(output_sum_1d, (1.0e-4, 2)));
+        assert!(expected_sum_2d.approx_eq(output_sum_2d, (1.0e-4, 2)));
     }
 }
