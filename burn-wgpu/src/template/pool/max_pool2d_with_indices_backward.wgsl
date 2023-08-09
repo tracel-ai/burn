@@ -13,7 +13,7 @@ var<storage, read_write> output: array<{{ elem }}>;
 
 @group(0)
 @binding(3)
-var<storage, read> info: array<u32, 18>;
+var<storage, read> info: array<u32, 22>;
 
 const WORKGROUP_SIZE_X = {{ workgroup_size_x }}u;
 
@@ -38,13 +38,17 @@ fn main(
     let grad_stride_1 = info[9];
     let grad_stride_2 = info[10];
     let grad_stride_3 = info[11];
+    let grad_shape_0 = info[12];
+    let grad_shape_1 = info[13];
+    let grad_shape_2 = info[14];
+    let grad_shape_3 = info[15];
 
-    let kernel_size_0 = info[12];
-    let kernel_size_1 = info[13];
-    let pool_stride_0 = info[14];
-    let pool_stride_1 = info[15];
-    let padding_0 = info[16];
-    let padding_1 = info[17];
+    let kernel_size_0 = info[16];
+    let kernel_size_1 = info[17];
+    let pool_stride_0 = info[18];
+    let pool_stride_1 = info[19];
+    let padding_0 = info[20];
+    let padding_1 = info[21];
 
     let b = id / input_stride_0 % input_shape_0;
     let c = id / input_stride_1 % input_shape_1;
@@ -72,10 +76,12 @@ fn main(
     for (var oh = oh_start; oh <= oh_end; oh++) {
         for (var ow = ow_start; ow <= ow_end; ow++) {
             let index = b * grad_stride_0 + c * grad_stride_1 + oh * grad_stride_2 + ow * grad_stride_3;
-            let index_max = u32(indices[index]);
+            if oh < grad_shape_2 && ow < grad_shape_3 {
+                let index_max = u32(indices[index]);
 
-            if index_max == index_current {
-                grad_acc += grad[index];
+                if index_max == index_current {
+                    grad_acc += grad[index];
+                }
             }
         }
     }

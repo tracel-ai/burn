@@ -1,6 +1,10 @@
 use crate::{
     element::WgpuElement,
-    kernel::{self, elemwise_workgroup, pool::build_output_and_info_pool2d, KernelSettings},
+    kernel::{
+        self, elemwise_workgroup,
+        pool::{build_output_and_info_pool2d, build_pool2d_info},
+        KernelSettings,
+    },
     kernel_wgsl,
     tensor::WgpuTensor,
 };
@@ -87,31 +91,7 @@ pub(crate) fn max_pool2d_with_indices_backward<E: WgpuElement, I: WgpuElement>(
         .create_buffer(num_elems * core::mem::size_of::<E>());
     let output = WgpuTensor::new(x.context.clone(), x.shape.clone(), buffer);
 
-    let mut info: [u32; 18] = [0; 18];
-    info[0] = x.strides[0] as u32;
-    info[1] = x.strides[1] as u32;
-    info[2] = x.strides[2] as u32;
-    info[3] = x.strides[3] as u32;
-    info[4] = x.shape.dims[0] as u32;
-    info[5] = x.shape.dims[1] as u32;
-    info[6] = x.shape.dims[2] as u32;
-    info[7] = x.shape.dims[3] as u32;
-
-    info[8] = grad.strides[0] as u32;
-    info[9] = grad.strides[1] as u32;
-    info[10] = grad.strides[2] as u32;
-    info[11] = grad.strides[3] as u32;
-
-    info[12] = kernel_size[0] as u32;
-    info[13] = kernel_size[1] as u32;
-    info[14] = stride[0] as u32;
-    info[15] = stride[1] as u32;
-    info[16] = padding[0] as u32;
-    info[17] = padding[1] as u32;
-
-    let info_buffer = x
-        .context
-        .create_buffer_with_data(bytemuck::cast_slice(&info));
+    let info_buffer = build_pool2d_info(&x, &grad, kernel_size, stride, padding);
 
     let kernel = x.context.compile_static::<KernelSettings<
         MaxPool2dWithIndicesBackward,
