@@ -271,32 +271,30 @@ mod tests {
         let linear = optimizer.step(LEARNING_RATE, linear, grads);
 
         let state_updated = linear.into_record();
-        let state_expected = given_linear_record(
-            Data::from([
-                [-0.337295, 0.117827, 0.380358, 0.296868, 0.065232, 0.046534],
-                [
-                    0.057032, -0.036518, -0.382951, 0.232516, 0.173738, -0.309182,
-                ],
-                [
-                    -0.038703, 0.016052, -0.313155, 0.225982, -0.295039, 0.289981,
-                ],
-                [
-                    -0.314920, -0.237394, -0.387704, -0.315067, -0.095153, 0.141081,
-                ],
-                [
-                    0.306815, -0.234226, 0.348083, -0.191115, 0.356002, -0.049993,
-                ],
-                [-0.035634, -0.030083, 0.104636, 0.170244, 0.009196, 0.359580],
-            ]),
-            Data::from([
-                -0.406555, 0.067568, -0.115982, 0.096477, 0.115287, -0.007080,
-            ]),
-        );
+        let weights_expected = Data::from([
+            [-0.337295, 0.117827, 0.380358, 0.296868, 0.065232, 0.046534],
+            [
+                0.057032, -0.036518, -0.382951, 0.232516, 0.173738, -0.309182,
+            ],
+            [
+                -0.038703, 0.016052, -0.313155, 0.225982, -0.295039, 0.289981,
+            ],
+            [
+                -0.314920, -0.237394, -0.387704, -0.315067, -0.095153, 0.141081,
+            ],
+            [
+                0.306815, -0.234226, 0.348083, -0.191115, 0.356002, -0.049993,
+            ],
+            [-0.035634, -0.030083, 0.104636, 0.170244, 0.009196, 0.359580],
+        ]);
+        let bias_expected = Data::from([
+            -0.406555, 0.067568, -0.115982, 0.096477, 0.115287, -0.007080,
+        ]);
 
         let t_state_updated: Tensor<TestADBackend, 2> =
             Tensor::from_data(state_updated.weight.to_data());
         let t_state_expected: Tensor<TestADBackend, 2> =
-            Tensor::from_data(state_expected.weight.to_data());
+            Tensor::from_data(weights_expected.clone());
 
         let t_actual_difference = t_state_updated.sub(t_state_expected);
         let expected_difference: Tensor<TestADBackend, 2> = Tensor::from_floats([
@@ -328,30 +326,18 @@ mod tests {
             state_updated.weight.to_data(),
             state_updated.bias.unwrap().to_data(),
         );
-        let (weight_expected, bias_expected) = (
-            state_expected.weight.to_data(),
-            state_expected.bias.unwrap().to_data(),
-        );
 
         bias_updated.assert_approx_eq(&bias_expected, ASSERT_PRECISION);
-        weight_updated.assert_approx_eq(&weight_expected, ASSERT_PRECISION);
+        weight_updated.assert_approx_eq(&weights_expected, ASSERT_PRECISION);
     }
 
     fn given_linear_layer(weight: Data<f32, 2>, bias: Data<f32, 1>) -> nn::Linear<TestADBackend> {
-        let linear = nn::LinearConfig::new(6, 6).init();
-        let record = given_linear_record(weight, bias);
-
-        linear.load_record(record)
-    }
-
-    fn given_linear_record(
-        weight: Data<f32, 2>,
-        bias: Data<f32, 1>,
-    ) -> nn::LinearRecord<TestADBackend> {
-        nn::LinearRecord {
+        let record = nn::LinearRecord {
             weight: Param::from(Tensor::from_data(weight)),
             bias: Some(Param::from(Tensor::from_data(bias))),
-        }
+        };
+
+        nn::LinearConfig::new(6, 6).init_with(record)
     }
 
     fn create_adamw(
