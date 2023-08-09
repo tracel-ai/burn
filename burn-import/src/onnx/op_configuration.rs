@@ -229,6 +229,41 @@ pub fn log_softmax_config(node: &Node) -> usize {
     axis as usize
 }
 
+/// Create softmax config from the attributes of the node
+pub fn softmax_config(node: &Node) -> usize {
+    // the axis is the last dimension (Default: 1 per ONNX spec)
+    let mut axis: i64 = -1;
+
+    // check if the node has only one input
+    if node.inputs.len() != 1 {
+        panic!(
+            "Softmax: multiple inputs are not supported (got {:?})",
+            node.inputs.len()
+        );
+    }
+
+    // extract the shape of the input tensor
+    let tensor = match node.inputs.get(0).unwrap().clone().ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
+
+    // extract the attributes
+    for (key, value) in node.attrs.iter() {
+        match key.as_str() {
+            "axis" => attr_value_i64(value, &mut axis),
+            _ => {}
+        }
+    }
+
+    // if axis is negative, it is counted from the end
+    if axis < 0 {
+        axis += tensor.dim as i64;
+    }
+
+    axis as usize
+}
+
 /// Create concat config from the attributes of the node
 pub fn concat_config(node: &Node) -> usize {
     // the axis is the last dimension (Default: 1 per ONNX spec)

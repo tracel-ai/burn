@@ -178,7 +178,7 @@ List taken from [here](https://github.com/onnx/onnx/blob/main/docs/Operators.md)
 - [ ] Sinh
 - [ ] Size
 - [ ] Slice
-- [ ] Softmax
+- [x] Softmax
 - [ ] SoftmaxCrossEntropyLoss
 - [ ] Softplus
 - [ ] Softsign

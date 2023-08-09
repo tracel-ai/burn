@@ -10,7 +10,18 @@ macro_rules! include_models {
 }
 
 // ATTENTION: Modify this macro to include all models in the `model` directory.
-include_models!(add, sub, mul, div, concat, conv2d, dropout, global_avr_pool);
+include_models!(
+    add,
+    sub,
+    mul,
+    div,
+    concat,
+    conv2d,
+    dropout,
+    global_avr_pool,
+    softmax,
+    log_softmax
+);
 
 #[cfg(test)]
 mod tests {
@@ -159,5 +170,43 @@ mod tests {
 
         assert!(expected_sum_1d.approx_eq(output_sum_1d, (1.0e-4, 2)));
         assert!(expected_sum_2d.approx_eq(output_sum_2d, (1.0e-4, 2)));
+    }
+
+    #[test]
+    fn softmax() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let model: softmax::Model<Backend> = softmax::Model::new();
+
+        // Run the model
+        let input = Tensor::<Backend, 2>::from_floats([
+            [0.33669037, 0.12880941, 0.23446237],
+            [0.23033303, -1.12285638, -0.18632829],
+        ]);
+        let output = model.forward(input);
+        let expected = Data::from([
+            [0.36830685, 0.29917702, 0.33251613],
+            [0.52146918, 0.13475533, 0.34377551],
+        ]);
+
+        assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn log_softmax() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let model: log_softmax::Model<Backend> = log_softmax::Model::new();
+
+        // Run the model
+        let input = Tensor::<Backend, 2>::from_floats([
+            [0.33669037, 0.12880941, 0.23446237],
+            [0.23033303, -1.12285638, -0.18632829],
+        ]);
+        let output = model.forward(input);
+        let expected = Data::from([
+            [-0.99883890, -1.20671988, -1.10106695],
+            [-0.65110511, -2.00429463, -1.06776643],
+        ]);
+
+        assert_eq!(output.to_data(), expected);
     }
 }
