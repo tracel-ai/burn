@@ -1,31 +1,31 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 
-use burn::{nn::pool::MaxPool2dConfig, record::PrecisionSettings};
+use burn::{nn::DropoutConfig, record::PrecisionSettings};
 
 use super::{Node, NodeCodegen};
 use crate::burn::{BurnImports, OtherType, Scope, TensorType, ToTokens, Type};
 
 #[derive(Debug, Clone)]
-pub struct MaxPool2dNode {
+pub struct DropoutNode {
     pub field: OtherType,
     pub input: TensorType,
     pub output: TensorType,
-    pub config: MaxPool2dConfig,
+    pub config: DropoutConfig,
 }
 
-impl MaxPool2dNode {
+impl DropoutNode {
     pub fn new<S: AsRef<str>>(
         name: S,
         input: TensorType,
         output: TensorType,
-        config: MaxPool2dConfig,
+        config: DropoutConfig,
     ) -> Self {
         Self {
             field: OtherType::new(
                 name,
                 quote! {
-                    MaxPool2d<B>
+                    Dropout
                 },
             ),
             input,
@@ -35,7 +35,7 @@ impl MaxPool2dNode {
     }
 }
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for MaxPool2dNode {
+impl<PS: PrecisionSettings> NodeCodegen<PS> for DropoutNode {
     fn input_types(&self) -> Vec<Type> {
         vec![Type::Tensor(self.input.clone())]
     }
@@ -48,18 +48,15 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MaxPool2dNode {
 
     fn field_init(&self, _with_record: bool) -> Option<TokenStream> {
         let name = &self.field.name;
-        let kernel_size = self.config.kernel_size.to_tokens();
-        let strides = self.config.strides.to_tokens();
-        let padding = self.config.padding.to_tokens();
+
+        let prob = self.config.prob.to_tokens();
 
         let init_line = quote! {
             init();
         };
 
         let tokens = quote! {
-            let #name = MaxPool2dConfig::new(#kernel_size)
-                .with_strides(#strides)
-                .with_padding(#padding)
+            let #name = DropoutConfig::new(#prob)
                 .#init_line
         };
 
@@ -76,37 +73,34 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MaxPool2dNode {
         }
     }
     fn register_imports(&self, imports: &mut BurnImports) {
-        imports.register("burn::nn::PaddingConfig2d");
-        imports.register("burn::nn::pool::MaxPool2d");
-        imports.register("burn::nn::pool::MaxPool2dConfig");
+        imports.register("burn::nn::Dropout");
+        imports.register("burn::nn::DropoutConfig");
     }
 
     fn into_node(self) -> Node<PS> {
-        Node::MaxPool2d(self)
+        Node::Dropout(self)
+    }
+
+    fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        S::serialize_none(serializer)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::burn::{
-        graph::BurnGraph,
-        node::{max_pool2d::MaxPool2dNode, test::assert_tokens},
-        TensorType,
-    };
-    use burn::{nn::pool::MaxPool2dConfig, nn::PaddingConfig2d, record::FullPrecisionSettings};
+    use crate::burn::{graph::BurnGraph, node::test::assert_tokens, TensorType};
+    use burn::{nn::DropoutConfig, record::FullPrecisionSettings};
 
     #[test]
     fn test_codegen() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
-        graph.register(MaxPool2dNode::new(
-            "max_pool2d",
+        graph.register(DropoutNode::new(
+            "dropout",
             TensorType::new_float("input", 4),
             TensorType::new_float("output", 4),
-            MaxPool2dConfig::new([3, 3])
-                .with_strides([1, 1])
-                .with_padding(PaddingConfig2d::Valid),
+            DropoutConfig::new(0.5),
         ));
 
         graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
@@ -116,32 +110,30 @@ mod tests {
                 module::Module,
                 tensor::{backend::Backend, Tensor},
             };
-            use burn::nn::PaddingConfig2d;
-            use burn::nn::pool::MaxPool2d;
-            use burn::nn::pool::MaxPool2dConfig;
+            use burn::nn::Dropout;
+            use burn::nn::DropoutConfig;
 
             #[derive(Module, Debug)]
             pub struct Model <B: Backend> {
-                max_pool2d: MaxPool2d<B>,
+                dropout: Dropout,
                 phantom: core::marker::PhantomData<B>,
+
             }
 
             impl<B: Backend> Model <B> {
                 #[allow(unused_variables)]
                 pub fn new_with(record: ModelRecord<B>) -> Self {
-                    let max_pool2d = MaxPool2dConfig::new([3, 3])
-                        .with_strides([1, 1])
-                        .with_padding(PaddingConfig2d::Valid)
+                    let dropout = DropoutConfig::new(0.5)
                         .init();
 
                     Self {
-                        max_pool2d,
+                        dropout,
                         phantom: core::marker::PhantomData,
                     }
                 }
                 #[allow(clippy::let_and_return)]
                 pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let output = self.max_pool2d.forward(input);
+                    let output = self.dropout.forward(input);
 
                     output
                 }

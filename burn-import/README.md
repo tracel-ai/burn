@@ -57,7 +57,7 @@ List taken from [here](https://github.com/onnx/onnx/blob/main/docs/Operators.md)
 - [ ] Det
 - [ ] DFT
 - [x] Div
-- [ ] Dropout
+- [x] Dropout
 - [ ] DynamicQuantizeLinear
 - [ ] Einsum
 - [ ] Elu

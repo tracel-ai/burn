@@ -28,5 +28,7 @@ Here are the steps to add a new test:
    remove operators that are not necessary for the model to run. If this happens, you can disable
    optimization by setting `torch.onnx.export(..., do_constant_folding=False)`.
 4. Add an entry to the `build.rs` file to account for the generation of the new ONNX model.
-5. Include a test in `tests/onnx_tests.rs` to test the new ONNX model.
-6. Run `cargo test` to ensure your test passes.
+5. Add an entry to `include_models!` in `tests/onnx_tests.rs` to include the new ONNX model in the
+   tests.
+6. Include a test in `tests/onnx_tests.rs` to test the new ONNX model.
+7. Run `cargo test` to ensure your test passes.

@@ -1,7 +1,7 @@
 use super::{
     batch_norm::BatchNormNode, binary::BinaryNode, concat::ConcatNode, constant::ConstantNode,
-    conv2d::Conv2dNode, linear::LinearNode, matmul::MatmulNode, max_pool2d::MaxPool2dNode,
-    reshape::ReshapeNode, unary::UnaryNode,
+    conv2d::Conv2dNode, dropout::DropoutNode, linear::LinearNode, matmul::MatmulNode,
+    max_pool2d::MaxPool2dNode, reshape::ReshapeNode, unary::UnaryNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::record::PrecisionSettings;
@@ -81,6 +81,7 @@ pub enum Node<PS: PrecisionSettings> {
     Unary(UnaryNode),
     Reshape(ReshapeNode),
     Concat(ConcatNode),
+    Dropout(DropoutNode),
 }
 
 macro_rules! match_all {
@@ -94,6 +95,7 @@ macro_rules! match_all {
             Node::BatchNorm(node) => $func(node),
             Node::Constant(node) => $func(node),
             Node::Reshape(node) => $func(node),
+            Node::Dropout(node) => $func(node),
             Node::Unary(node) => $func(node),
             Node::Binary(node) => $func(node),
         }
@@ -120,6 +122,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::Linear(_) => "linear",
             Node::BatchNorm(_) => "batch_norm",
             Node::Reshape(_) => "reshape",
+            Node::Dropout(_) => "dropout",
             Node::Unary(unary) => unary.kind.as_str(),
             Node::Binary(binary) => binary.binary_type.as_str(),
         }
@@ -204,13 +207,14 @@ pub(crate) mod tests {
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
-                _phantom: core::marker::PhantomData<B>,
+                phantom: core::marker::PhantomData<B>,
             }
 
             impl<B: Backend> Model <B> {
-                pub fn new_with(_record: ModelRecord<B>) -> Self {
+                #[allow(unused_variables)]
+                pub fn new_with(record: ModelRecord<B>) -> Self {
                     Self {
-                        _phantom: core::marker::PhantomData,
+                        phantom: core::marker::PhantomData,
                     }
                 }
 
@@ -257,9 +261,11 @@ pub(crate) mod tests {
             #[derive(Module, Debug)]
             pub struct Model <B: Backend> {
                 conv2d: Conv2d<B>,
+                phantom: core::marker::PhantomData<B>,
             }
 
             impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
                 pub fn new_with(record: ModelRecord<B>) -> Self {
                     let conv2d = Conv2dConfig::new([3, 3], [3, 3])
                         .with_stride([1, 1])
@@ -271,6 +277,7 @@ pub(crate) mod tests {
 
                     Self {
                         conv2d,
+                        phantom: core::marker::PhantomData,
                     }
                 }
                 #[allow(clippy::let_and_return)]
@@ -326,9 +333,11 @@ pub(crate) mod tests {
             #[derive(Module, Debug)]
             pub struct Model <B: Backend> {
                 conv2d: Conv2d<B>,
+                phantom: core::marker::PhantomData<B>,
             }
 
             impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
                 pub fn new_with(record: ModelRecord<B>) -> Self {
                     let conv2d = Conv2dConfig::new([3, 3], [3, 3])
                         .with_stride([1, 1])
@@ -340,6 +349,7 @@ pub(crate) mod tests {
 
                     Self {
                         conv2d,
+                        phantom: core::marker::PhantomData,
                     }
                 }
                 #[allow(clippy::let_and_return)]

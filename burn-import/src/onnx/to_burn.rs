@@ -18,6 +18,7 @@ use crate::{
             concat::ConcatNode,
             constant::{ConstantNode, ConstantValue, TensorValue},
             conv2d::Conv2dNode,
+            dropout::DropoutNode,
             linear::LinearNode,
             matmul::MatmulNode,
             max_pool2d::MaxPool2dNode,
@@ -40,7 +41,7 @@ use crate::{
 use super::{
     from_onnx::parse_onnx,
     ir::{ArgType, Argument, ElementType, ONNXGraph, State, StateType, Tensor, TensorData},
-    op_configuration::concat_config,
+    op_configuration::{concat_config, dropout_config},
 };
 
 /// Generate code and states from `.onnx` files and save them to the `out_dir`.
@@ -98,8 +99,6 @@ impl ModelGen {
     fn run(&self, is_build_script: bool) {
         log::info!("Starting to convert ONNX to Burn");
 
-        log::info!("Starting to convert ONNX to Burn");
-
         // prepend the out_dir to the cargo_out_dir if this is a build script
         let out_dir = if is_build_script {
             let cargo_out_dir = env::var("OUT_DIR").expect("OUT_DIR env is not set");
@@ -114,8 +113,6 @@ impl ModelGen {
 
         log::debug!("Output directory: {:?}", out_dir);
 
-        log::debug!("Output directory: {:?}", out_dir);
-
         create_dir_all(&out_dir).unwrap();
 
         for input in self.inputs.iter() {
@@ -126,24 +123,14 @@ impl ModelGen {
             log::debug!("Input file name: {:?}", file_name);
             log::debug!("Output file: {:?}", out_file);
 
-            log::info!("Converting {:?}", input);
-            log::debug!("Input file name: {:?}", file_name);
-            log::debug!("Output file: {:?}", out_file);
-
             Self::generate_model(self.development, input, out_file);
         }
-
-        log::info!("Finished converting ONNX to Burn");
 
         log::info!("Finished converting ONNX to Burn");
     }
 
     /// Generate model source code and model state.
     fn generate_model(development: bool, input: &PathBuf, out_file: PathBuf) {
-        log::info!("Generating model from {:?}", input);
-        log::debug!("Development mode: {:?}", development);
-        log::debug!("Output file: {:?}", out_file);
-
         log::info!("Generating model from {:?}", input);
         log::debug!("Development mode: {:?}", development);
         log::debug!("Output file: {:?}", out_file);
@@ -173,8 +160,6 @@ impl ModelGen {
 
         let code_str = format_tokens(graph.codegen());
         fs::write(out_file.with_extension("rs"), code_str).unwrap();
-
-        log::info!("Model generated");
 
         log::info!("Model generated");
     }
@@ -208,6 +193,7 @@ impl ONNXGraph {
                 NodeType::Transpose => graph.register(Self::transpose_conversion(node)),
                 NodeType::Concat => graph.register(Self::concat_conversion(node)),
                 NodeType::Cast => graph.register(Self::cast_conversion(node)),
+                NodeType::Dropout => graph.register(Self::dropout_conversion(node)),
                 _ => panic!("Unsupported node conversion {}", node.node_type),
             }
         }
@@ -247,6 +233,7 @@ impl ONNXGraph {
                         TensorData::Float64(val) => ConstantValue::Float64(val[0]),
                         TensorData::Int32(val) => ConstantValue::Int32(val[0]),
                         TensorData::Int64(val) => ConstantValue::Int64(val[0]),
+                        TensorData::Bool(val) => ConstantValue::Bool(val[0]),
                         _ => panic!(
                             "Unsupported zero dim constant tensor type: {:?} ",
                             tensor.elem_type
@@ -412,6 +399,15 @@ impl ONNXGraph {
         };
 
         LinearNode::new(name, input, output, weight, bias, config)
+    }
+
+    fn dropout_conversion(node: Node) -> DropoutNode {
+        let name = &node.name;
+        let input = node.inputs.get(0).unwrap().to_tensor_type();
+        let output = node.outputs.get(0).unwrap().to_tensor_type();
+        let config = dropout_config(&node);
+
+        DropoutNode::new(name, input, output, config)
     }
 
     fn batch_norm_conversion<PS: PrecisionSettings>(mut node: Node) -> BatchNormNode<PS> {
