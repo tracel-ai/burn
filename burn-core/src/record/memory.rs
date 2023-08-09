@@ -7,7 +7,7 @@ use serde::{de::DeserializeOwned, Serialize};
 ///
 /// # Notes
 ///
-/// This is especialy useful in no_std environment where weights are stored directly in
+/// This is especially useful in no_std environment where weights are stored directly in
 /// compiled binaries.
 pub trait BytesRecorder:
     Recorder<RecordArgs = (), RecordOutput = Vec<u8>, LoadArgs = Vec<u8>>

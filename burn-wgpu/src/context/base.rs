@@ -83,9 +83,9 @@ impl Context {
     /// # Notes
     ///
     /// This function isn't safe, buffer can be mutated by the GPU. The users must ensure that a
-    /// buffer can be mutated when lauching a compute shaders with write access to a buffer.
+    /// buffer can be mutated when launching a compute shaders with write access to a buffer.
     ///
-    /// Buffer positions are used as bindings when lauching a compute kernel.
+    /// Buffer positions are used as bindings when launching a compute kernel.
     pub fn execute(
         &self,
         work_group: WorkGroup,

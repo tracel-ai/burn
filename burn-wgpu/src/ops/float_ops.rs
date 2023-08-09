@@ -446,6 +446,10 @@ where
         kernel::argmin(tensor, dim)
     }
 
+    fn into_int<const D: usize>(tensor: FloatTensor<Self, D>) -> IntTensor<Self, D> {
+        kernel::cast(tensor)
+    }
+
     // TODO implement clamp kernels (see https://github.com/burn-rs/burn/issues/549)
     // fn clamp_min<const D: usize>(
     //     tensor: FloatTensor<Self, D>,

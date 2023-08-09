@@ -2,6 +2,7 @@
 use alloc::vec;
 use alloc::vec::Vec;
 use burn_tensor::ops::IntTensorOps;
+use burn_tensor::ElementConversion;
 use core::ops::Range;
 
 // Current crate
@@ -362,5 +363,12 @@ impl<E: FloatNdArrayElement> IntTensorOps<NdArrayBackend<E>> for NdArrayBackend<
         let array = tensor.array.mapv_into(|a| a.int_abs_elem()).into_shared();
 
         NdArrayTensor::new(array)
+    }
+
+    fn int_into_float<const D: usize>(
+        tensor: <NdArrayBackend<E> as Backend>::IntTensorPrimitive<D>,
+    ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D> {
+        let array = tensor.array.mapv(|a| a.elem()).into_shared();
+        NdArrayTensor { array }
     }
 }

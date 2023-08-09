@@ -115,7 +115,7 @@ impl<B: Backend, const D: usize> Record for Param<Tensor<B, D>> {
     }
 }
 
-// Type that can be serialized as is without any convertion.
+// Type that can be serialized as is without any conversion.
 macro_rules! primitive {
     ($type:ty) => {
         impl Record for $type {

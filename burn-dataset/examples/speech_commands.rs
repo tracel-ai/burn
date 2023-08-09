@@ -8,7 +8,7 @@ fn speech_command() {
     let item = test.get(index).unwrap();
 
     println!("Item: {:?}", item);
-    println!("Item Lengh: {:?}", item.audio_samples.len());
+    println!("Item Length: {:?}", item.audio_samples.len());
     println!("Label: {}", item.label.to_string());
 
     assert_eq!(test.len(), 4890);
