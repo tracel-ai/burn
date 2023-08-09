@@ -65,8 +65,8 @@ fn main(
     let oh_start = u32(max(oh_start_tmp, 0));
     let ow_start = u32(max(ow_start_tmp, 0));
 
-    let oh_end = u32(max(kms_0, 0)) + oh_start;
-    let ow_end = u32(max(kms_1, 0)) + ow_start;
+    let oh_end = min(u32(max(kms_0, 0)) + oh_start, grad_shape_2 - 1u);
+    let ow_end = min(u32(max(kms_1, 0)) + ow_start, grad_shape_3 - 1u);
 
     let index_current = ih * input_stride_2 + iw * input_stride_3;
     var grad_acc = 0.0;
@@ -76,12 +76,10 @@ fn main(
     for (var oh = oh_start; oh <= oh_end; oh++) {
         for (var ow = ow_start; ow <= ow_end; ow++) {
             let index = b * grad_stride_0 + c * grad_stride_1 + oh * grad_stride_2 + ow * grad_stride_3;
-            if oh < grad_shape_2 && ow < grad_shape_3 {
-                let index_max = u32(indices[index]);
+            let index_max = u32(indices[index]);
 
-                if index_max == index_current {
-                    grad_acc += grad[index];
-                }
+            if index_max == index_current {
+                grad_acc += grad[index];
             }
         }
     }
