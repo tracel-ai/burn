@@ -4,6 +4,7 @@ pub mod decay;
 /// Momentum module for optimizers.
 pub mod momentum;
 
+mod adagrad;
 mod adam;
 mod adamw;
 mod base;
