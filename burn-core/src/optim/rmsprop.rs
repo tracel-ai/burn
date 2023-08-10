@@ -341,6 +341,8 @@ mod tests {
         TestADBackend, TestBackend,
     };
 
+    use crate::optim::base::Optimizer;
+
     use super::*;
 
     const LEARNING_RATE: LearningRate = 0.02;
