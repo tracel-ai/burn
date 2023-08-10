@@ -309,7 +309,8 @@ grows.
 
 Thanks to all current sponsors 🙏.
 
-<a href="https://github.com/smallstepman"><img src="https://github.com/smallstepman.png" width="60px" style="border-radius: 50%;" alt="nathanielsimard" /></a>
+<a href="https://github.com/smallstepman"><img src="https://github.com/smallstepman.png" width="60px" style="border-radius: 50%;" alt="smallstepman" /></a>
+<a href="https://github.com/premAI-io"><img src="https://github.com/premAI-io.png" width="60px" style="border-radius: 50%;" alt="premAI-io" /></a>
 
 ## License
 
