@@ -3,7 +3,7 @@
 The `Learner` is the main `struct` that let you train a neural network with support for `logging`,
 `metric`, `checkpointing` and more. In order to create a learner, you must use the `LearnerBuilder`.
 
-```rust
+```rust,ignore
 use burn::train::LearnerBuilder;
 use burn::train::metric::{AccuracyMetric, LossMetric};
 use burn::record::DefaultRecordSettings;
