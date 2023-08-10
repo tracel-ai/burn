@@ -28,8 +28,6 @@
   - [Text Classification](./examples/text-classification.md)
   - [Text Generation](./examples/text-generation.md)
 
-[Zero to LLaMA2](./zero-to-llama2.md)
-
 [Help](./help.md)
 
 [Contributing](./contributing.md)
