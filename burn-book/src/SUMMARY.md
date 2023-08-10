@@ -2,16 +2,16 @@
 
 [Motivation](./motivation.md)
 
-[Installation](./installation.md)
 
 - [Usage](./usage/README.md)
+  - [Installation](./usage/installation.md)
   - [Quick Start](./usage/quick-start.md)
 - [Concepts](./concepts/README.md)
   - [Tensors](./concepts/tensors.md)
+  - [Modules](./concepts/modules.md)
   - [Backend](./concepts/backend.md)
   - [Configs](./concepts/configs.md)
   - [Datasets](./concepts/datasets.md)
-  - [Models](./concepts/models.md)
   - [Metrics](./concepts/metrics.md)
   - [Losses](./concepts/losses.md)
   - [Optimizers](./concepts/optimizers.md)
