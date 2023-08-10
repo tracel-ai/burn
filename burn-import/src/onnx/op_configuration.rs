@@ -75,14 +75,20 @@ pub fn max_pool2d_config(curr: &Node) -> MaxPool2dConfig {
     let mut kernel_shape = Vec::new();
     let mut strides = Vec::new();
     let mut pads = Vec::new();
+    let mut dilations = Vec::new();
 
     for (key, value) in curr.attrs.iter() {
         match key.as_str() {
             "kernel_shape" => attr_value_vec_i64(value, &mut kernel_shape),
             "strides" => attr_value_vec_i64(value, &mut strides),
             "pads" => attr_value_vec_i64(value, &mut pads),
+            "dilations" => attr_value_vec_i64(value, &mut dilations),
             _ => {}
         }
+    }
+
+    if !dilations.is_empty() && (dilations[0] != 1 || dilations[1] != 1) {
+        todo!("MaxPool2d: dilations are not supported. See https://github.com/burn-rs/burn/issues/622");
     }
 
     let padding = padding_config(&pads);
