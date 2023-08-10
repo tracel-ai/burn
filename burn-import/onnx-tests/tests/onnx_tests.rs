@@ -20,7 +20,8 @@ include_models!(
     dropout,
     global_avr_pool,
     softmax,
-    log_softmax
+    log_softmax,
+    maxpool2d
 );
 
 #[cfg(test)]
@@ -206,6 +207,29 @@ mod tests {
             [-0.99883890, -1.20671988, -1.10106695],
             [-0.65110511, -2.00429463, -1.06776643],
         ]);
+
+        assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn maxpool2d() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let model: maxpool2d::Model<Backend> = maxpool2d::Model::new();
+
+        // Run the model
+        let input = Tensor::<Backend, 4>::from_floats([[[
+            [1.927, 1.487, 0.901, -2.106, 0.678],
+            [-1.235, -0.043, -1.605, -0.752, -0.687],
+            [-0.493, 0.241, -1.111, 0.092, -2.317],
+            [-0.217, -1.385, -0.396, 0.803, -0.622],
+            [-0.592, -0.063, -0.829, 0.331, -1.558],
+        ]]]);
+        let output = model.forward(input);
+        let expected = Data::from([[[
+            [1.927, 1.927, 1.487, 0.901, 0.678, 0.678],
+            [1.927, 1.927, 1.487, 0.901, 0.803, 0.678],
+            [-0.217, 0.241, 0.241, 0.803, 0.803, -0.622],
+        ]]]);
 
         assert_eq!(output.to_data(), expected);
     }
