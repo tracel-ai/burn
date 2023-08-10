@@ -1,0 +1,18 @@
+target
+
+# MacOS temp file
+.DS_Store
+
+book-test
+guide/book
+
+.vscode
+tests/burn-book/book/
+book/
+
+# Ignore Jetbrains specific files.
+.idea/
+
+# Ignore Vim temporary and swap files.
+*.sw?
+*~
