@@ -1,0 +1,18 @@
+[package]
+authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+name = "guide"
+publish = false
+version = "0.9.0"
+
+[dependencies]
+burn = {path = "../../burn"}
+burn-autodiff = {path = "../../burn-autodiff"}
+burn-wgpu = {path = "../../burn-wgpu"}
+burn-train = {path = "../../burn-train"}
+burn-dataset = {path = "../../burn-dataset"}
+
+# Serialization
+log = {workspace = true}
+serde = {workspace = true, features = ["std", "derive"]}
