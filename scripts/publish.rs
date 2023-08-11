@@ -85,36 +85,33 @@ fn stdout_and_stderr_write(output: Output, message_stdout: &str, message_stderr:
     }
 }
 
-// Publishes a crate
-fn publish(crate_name: String) {
-    // Run cargo publish --dry-run
-    let cargo_publish_dry = Command::new("cargo")
-        .args(["publish", "-p", &crate_name, "--dry-run"])
-        .output()
-        .expect("Failed to run cargo publish --dry-run");
-
-    // Write cargo publish --dry-run either on stdout or on stderr
-    stdout_and_stderr_write(
-        cargo_publish_dry,
-        "Failed to write cargo publish --dry-run on stdout",
-        "Failed to write cargo publish --dry-run on stderr",
-    );
-
-    let crates_io_token =
-        env::var(CRATES_IO_API_TOKEN).expect("Failed to retrieve the crates.io API token");
-
-    // Publish crate
+// Run cargo publish
+fn cargo_publish(params: &[&str]) {
+    // Run cargo publish
     let cargo_publish = Command::new("cargo")
-        .args(["publish", "-p", &crate_name, "--token", &crates_io_token])
+        .arg("publish")
+        .args(params)
         .output()
         .expect("Failed to run cargo publish");
 
-    // Write cargo publish either on stdout or on stderr
+    // Write cargo publish output either on stdout or on stderr
     stdout_and_stderr_write(
         cargo_publish,
         "Failed to write cargo publish on stdout",
         "Failed to write cargo publish on stderr",
     );
+}
+
+// Publishes a crate
+fn publish(crate_name: String) {
+    // Run cargo publish --dry-run
+    cargo_publish(&["-p", &crate_name, "--dry-run"]);
+
+    let crates_io_token =
+        env::var(CRATES_IO_API_TOKEN).expect("Failed to retrieve the crates.io API token");
+
+    // Publish crate
+    cargo_publish(&["-p", &crate_name, "--token", &crates_io_token]);
 }
 
 fn main() {
