@@ -1,11 +1,11 @@
 # Inference
 
-Now that we have trained our model, we may want to use the model for inference.
-To load a model ready for inference, you normally prefer to directly load the weights in the model without having the initiaize a model with something like xavier normal only to then overriden everything with the saved weights.
-For efficency, let's create a new initialization function receiving the record as input.
+Now that we have trained our model, the next natural step is to use it for inference.
 
+For loading a model primed for inference, it is of course more efficient to directly load the weights into the model, bypassing the need to initially set arbitrary weights —or worse, weights computed from a Xavier normal initialization— only to then promptly replace them with the stored weights.
+With that in mind, let's create a new initialization function receiving the record as input.
 
-```rust, ignore
+```rust , ignore
 impl ModelConfig {
     /// Returns the initialized model using the recorded weights.
     pub fn init_with<B: Backend>(&self, record: ModelRecord<B>) -> Model<B> {
@@ -23,13 +23,12 @@ impl ModelConfig {
 }
 ```
 
-Note that the record is generated automatically with the `Module` trait.
-It allows you to load module state without having to deal with featching the correct type in a dictionaly or something manual.
+It is important to note that the `ModelRecord` was automatically generated thanks to the `Module` trait. It allows us to load the module state without having to deal with fetching the correct type manually.
 Everything is validated when loading the model with the record.
 
-Now let's create a simple infer method that shows how to load a trained model.
+Now let's create a simple `infer` method in which we will load our trained model.
 
-```rust, ignore
+```rust , ignore
 pub fn infer<B: Backend>(artifact_dir: &str, device: B::Device, item: MNISTItem) {
     let config =
         TrainingConfig::load(&format!("{artifact_dir}/config.json")).expect("A config exists");
@@ -50,7 +49,8 @@ pub fn infer<B: Backend>(artifact_dir: &str, device: B::Device, item: MNISTItem)
 ```
 
 The first step is to load the configuration of the training to fetch the correct model configuration.
-Then we can fetch the record using the same recorder that was used during training.
-Finaly we can init the model with the config and the record before sending it to the wanted device for inference.
-
+Then we can fetch the record using the same recorder as we used during training.
+Finally we can init the model with the configuration and the record before sending it to the wanted device for inference.
 For simplicity we can use the same batcher used during the training to pass from a MNISTItem to a tensor.
+
+By running the infer function, you should see the predictions of your model!  

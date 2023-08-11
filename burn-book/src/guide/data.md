@@ -1,14 +1,13 @@
 # Data
 
-Normaly you have to train your model on some sort of dataset.
-Burn provides a library of very useful dataset sources and transformation.
-There is an hugging face dataset utilities that allows you to download and store data from hugging face into a SQLite database for extrmelly efficient data streaming and storage.
-For this guide, we will use the provided MNIST dataset in `burn_dataset::source::MNISTDataset`, interested users can look at how the implementation is done.
+Typically, one trains a model on some dataset. 
+Burn provides a library of very useful dataset sources and transformations.
+In particular, there are Hugging Face dataset utilities that allow to download and store data from Hugging Face into an SQLite database for extremely efficient data streaming and storage. For this guide, we will use the MNIST dataset provided by Hugging Face.
 
 To iterate over a dataset efficiently, the `Dataloader` struct is also provided, we also need to implement the `Batcher` trait.
-The goal of the batcher is to map individual dataset item into a batched tensor that can be used as input by our model defined previously.
+To iterate over a dataset efficiently, we will define a struct which will implement the `Batcher` trait. The goal of a batcher is to map individual dataset items into a batched tensor that can be used as input to our previously defined model.
 
-```rust, ignore
+```rust , ignore
 use burn::{
     data::{dataloader::batcher::Batcher, dataset::source::huggingface::MNISTItem},
     tensor::{backend::Backend, Data, ElementConversion, Int, Tensor},
@@ -26,13 +25,13 @@ impl<B: Backend> MNISTBatcher<B> {
 
 ```
 
-This codeblock define a batcher struct with the device in which the tensor should be send before being passed to the model.
-Note that the device is an associative type of the `Backend` trait since not all backends exposes the sames devices.
-As an example, the libtorch based backend exposes `Cuda(gpu_index)`, `Cpu`, `Vulkan` and `Metal` devices, but the ndarray only expose the `Cpu` device.
+This codeblock defines a batcher struct with the device in which the tensor should be sent before being passed to the model.
+Note that the device is an associative type of the `Backend` trait since not all backends expose the same devices.
+As an example, the Libtorch-based backend exposes `Cuda(gpu_index)`, `Cpu`, `Vulkan` and `Metal` devices, while the ndarray backend only exposes the `Cpu` device.
 
 Next, we need to actually implement the batching logic.
 
-```rust, ignore
+```rust , ignore
 #[derive(Clone, Debug)]
 pub struct MNISTBatch<B: Backend> {
     pub images: Tensor<B, 3>,
@@ -46,8 +45,8 @@ impl<B: Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
             .map(|item| Data::<f32, 2>::from(item.image))
             .map(|data| Tensor::<B, 2>::from_data(data.convert()))
             .map(|tensor| tensor.reshape([1, 28, 28]))
-            // normalize: make between [0,1] and make the mean =  0 and std = 1
-            // values mean=0.1307,std=0.3081 were copied from Pytorch Mist Example
+            // Normalize: make between [0,1] and make the mean=0 and std=1
+            // values mean=0.1307,std=0.3081 are from the PyTorch MNIST example
             // https://github.com/pytorch/examples/blob/54f4572509891883a947411fd7239237dd2a39c3/mnist/main.py#L122
             .map(|tensor| ((tensor / 255) - 0.1307) / 0.3081)
             .collect();
@@ -65,10 +64,10 @@ impl<B: Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
 }
 ```
 
-In the previous example, we implement the `Batcher` trait with a list of`MNISTItem` as input and a single `MNISTBatch` as output.
-The batch contains the images in the forme of a 3D Tensor and a targets tensors that contains the indexes of the correct digit class.
-The first step is the parse the image array into a `Data` struct.
-Burn provide the `Data` struct to encapsulate tensor storage information without being spefific for a backend.
+In the previous example, we implement the `Batcher` trait with a list of `MNISTItem` as input and a single `MNISTBatch` as output.
+The batch contains the images in the form of a 3D tensor, along with a targets tensor that contains the indexes of the correct digit class.
+The first step is to parse the image array into a `Data` struct.
+Burn provides the `Data` struct to encapsulate tensor storage information without being specific for a backend.
 When creating a tensor from data, we often need to convert the data precision to the current backend in use.
 This can be done with the `.convert()` method while importing the `burn::tensor::elementConversion` trait.
-This also allow you to call `.elem()` on a spefic number to convert it to the current backend element type in use.
+This also allows to call `.elem()` on a specific number to convert it to the current backend element type in use.

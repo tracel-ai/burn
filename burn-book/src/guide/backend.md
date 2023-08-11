@@ -1,9 +1,9 @@
 # Backend
 
-So we have coded everything to train our model, but didn't specify at anyplace the backend to be used.
-The last remaing thing to code is the main function.
+We have effectively written most of the necessary code for training our model. However, we have not explicitly designated the backend to be utilized at any point.
+Indeed, only the `main` function remains. 
 
-```rust, ignore
+```rust , ignore
 use burn::optim::AdamConfig;
 use guide::model::ModelConfig;
 
@@ -20,10 +20,11 @@ fn main() {
 }
 ```
 
-In this example, we will use the `WgpuBackend` which is compatible with any operating system and will use the GPU.
-The backend takes the graphics api, the float type and the int type as generic argument that will be used during the training.
-The autodiff backend is simply the backend wrapped with the `ADBackendDecorator` which makes any backend diffirentiable.
-We call the function with the default adam configuration, specifying that the number of classes (10) and the hidden dimension (512).
-When running the example, we can see the training progression through a basic CLI dashboard.
+In this example, we use the `WgpuBackend` which is compatible with any operating system and will use the GPU. For other options, see the Burn README. 
+This backend type takes the graphics api, the float type and the int type as generic argument that will be used during the training. By leaving the graphics API as `burn_wgpu::AutoGraphicsApi`, it should automatically use an API available on your machine. 
+The autodiff backend is simply the same backend, wrapped within the `ADBackendDecorator` struct which imparts differentiability to any backend.
+We call the `train` function defined earlier with a directory for artifacts, the configuration of the model (the number of digit classes is 10 and the hidden dimension is 512), the optimizer configuration which in our case will be the default Adam configuration, and the device which can be obtained from the backend.
+
+When running the example, we can see the training progression through a basic CLI dashboard:
 
 <img title="a title" alt="Alt text" src="./training-output.png">

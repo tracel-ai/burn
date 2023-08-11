@@ -1,4 +1,3 @@
 # Conclusion
 
-We have seen in this guide the basic building blocks to get started with Burn.
-There are still so much more to explore, but this is supposed to get you up to speed to be productive with the framework.
+In this short guide, we've introduced you to the fundamental building blocks getting started with Burn. While there's still plenty to explore, our goal has been to provide you with the essential knowledge to kickstart your productivity within the framework.
