@@ -14,6 +14,14 @@ pub struct WgpuTensor<E: WgpuElement, const D: usize> {
     elem: PhantomData<E>,
 }
 
+pub struct WgpuTensorDyn<E: WgpuElement> {
+    pub(crate) context: Arc<Context>,
+    pub(crate) buffer: Arc<Buffer>,
+    pub(crate) shape: Vec<usize>,
+    pub(crate) strides: Vec<usize>,
+    elem: PhantomData<E>,
+}
+
 impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
     pub fn new(context: Arc<Context>, shape: Shape<D>, buffer: Arc<Buffer>) -> Self {
         let mut strides = [0; D];
@@ -37,6 +45,27 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
             elem: PhantomData,
         }
     }
+
+    pub fn from_dyn(tensor: WgpuTensorDyn<E>) -> Self {
+        WgpuTensor {
+            context: tensor.context,
+            buffer: tensor.buffer,
+            shape: Shape::new(tensor.shape.try_into().expect("Wrong dimension")),
+            strides: tensor.strides.try_into().expect("Wrong dimension"),
+            elem: PhantomData,
+        }
+    }
+
+    pub fn into_dyn(tensor: Self) -> WgpuTensorDyn<E> {
+        WgpuTensorDyn {
+            context: tensor.context,
+            buffer: tensor.buffer,
+            shape: tensor.shape.dims.to_vec(),
+            strides: tensor.strides.to_vec(),
+            elem: PhantomData,
+        }
+    }
+
     pub fn to_context(&self, context: Arc<Context>) -> Self {
         let data = self.context.read_buffer(self.buffer.clone());
         let buffer = context.create_buffer_with_data(&data);

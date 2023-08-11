@@ -5,7 +5,7 @@ use crate::{
     benchmark::Benchmark,
     element::{FloatElement, WgpuElement},
     kernel,
-    tensor::WgpuTensor,
+    tensor::{WgpuTensor, WgpuTensorDyn},
     tune::{AutoTuneFunction, AutoTuneKey, Execution, KernelFunction, Tunable},
     GraphicsApi, WgpuBackend, WgpuDevice,
 };
@@ -84,18 +84,32 @@ tiling2d_tunable!(
 );
 
 #[derive(new)]
-struct MemoryCoalescing<E: WgpuElement, const D: usize> {
+struct MemoryCoalescing<E: WgpuElement> {
     workgroup_size_x: usize,
     workgroup_size_y: usize,
     _elem: PhantomData<E>,
 }
 
-impl<E: WgpuElement, const D: usize> KernelFunction for MemoryCoalescing<E, D> {
-    type Input = (WgpuTensor<E, D>, WgpuTensor<E, D>);
-    type Output = WgpuTensor<E, D>;
+impl<E: WgpuElement> KernelFunction for MemoryCoalescing<E> {
+    type Input = (WgpuTensorDyn<E>, WgpuTensorDyn<E>);
+    type Output = WgpuTensorDyn<E>;
 
     fn call(&self, (lhs, rhs): Self::Input) -> Self::Output {
-        matmul_mem_coalescing::<E, D>(lhs, rhs, self.workgroup_size_x, self.workgroup_size_y)
+        fn mem_coalescing_dyn<E: WgpuElement, const D: usize>(
+            lhs: WgpuTensorDyn<E>,
+            rhs: WgpuTensorDyn<E>,
+            workgroup_size_x: usize,
+            workgroup_size_y: usize,
+        ) -> WgpuTensorDyn<E> {
+            let lhs = WgpuTensor::from_dyn(lhs);
+            let rhs = WgpuTensor::from_dyn(rhs);
+            let o = matmul_mem_coalescing::<E, D>(lhs, rhs, workgroup_size_x, workgroup_size_y);
+            o.into_dyn()
+        }
+        match lhs.shape.len() {
+            1 => mem_coalescing_dyn::<_, 1>(lhs, rhs, self.workgroup_size_x, self.workgroup_size_y),
+            _ => panic!("unsupported dim"),
+        }
     }
 
     fn description(&self) -> String {
@@ -162,9 +176,13 @@ where
 {
     let (shape_lhs, shape_rhs) = calculate_benchmark_shapes(lhs.shape.clone(), rhs.shape.clone());
     let id = AutoTuneKey::new(
-        vec![Vec::from(shape_lhs.dims), Vec::from(shape_rhs.dims)],
-        "matmul".to_string(),
+        vec![
+            shape_lhs.dims[D - 2..].to_vec(),
+            shape_rhs.dims[D - 2..].to_vec(),
+        ],
+        format!("matmul {}", E::type_name()),
     );
+
     let context = lhs.context.clone();
 
     match context.tuner.execute(&id, (lhs, rhs)) {
