@@ -8,7 +8,7 @@ Burn isn’t a framework specialized for only one type of application, it is des
 The foundation of Burn's design revolves around three key user profiles:
 
 **Machine Learning Researchers** require tools to construct and execute experiments efficiently.
-It’s essential for them to iterate fast on their ideas and design testable experiments which can help them discover new findings.
+It’s essential for them to iterate quickly on their ideas and design testable experiments which can help them discover new findings.
 The framework should facilitate the swift implementation of cutting-edge research while ensuring fast execution for testing.
 
 **Machine Learning Engineers** are another important demographic to keep in mind.

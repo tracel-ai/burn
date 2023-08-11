@@ -1,12 +1,15 @@
 # Guide
 
-This guide will go through the creation of a custom model built with Burn.
-We will train the model on the MNIST dataset and prepare it for inference.
+This guide will walk you through the process of creating a custom model built with Burn.
+We will train a simple convolutional neural network model on the MNIST dataset and prepare it for inference.
+
+For clarity, we sometimes omit imports in our code snippets. For more details, please refer to the corresponding code in the `examples/guide` directory.
 
 ## Key Learnings
 
-* How to create neural network models.
-* How to train models on data.
-
-All the code presented is actually available in the `guide` example.
-For clarify, we sometimes omit imports.
+* Creating a projet 
+* Creating neural network models
+* Importing and preparing datasets
+* Training models on data
+* Choosing a backend
+* Using a model for inference
