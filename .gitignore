@@ -7,3 +7,7 @@ Cargo.lock
 
 .idea
 .vscode
+
+# Ignore binaries contained in the `scripts` directory
+scripts/publish
+scripts/run-checks
