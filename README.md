@@ -285,7 +285,29 @@ recommended to read our
 [architecture document](https://github.com/burn-rs/burn/tree/main/ARCHITECTURE.md), which explains
 our architectural decisions. Please see more details in our [contributing guide](/CONTRIBUTING.md).
 
-## CI
+## Continuous Integration
+
+### Run checks
+
+Compile `scripts/run-checks.rs` using this command
+
+```
+rustc scripts/run-checks.rs --crate-type bin --out-dir scripts
+```
+
+Run `scripts/run-checks` using this command
+
+```
+./scripts/run-checks environment
+```
+
+where `environment` can assume **ONLY** the following values:
+
+- `std` to perform checks using `libstd`
+- `no_std` to perform checks on an embedded environment using `libcore`
+- `all` to perform checks using both `libstd` and `libcore`
+
+## Continuous Deployment
 
 ### Publish crates
 
@@ -294,6 +316,15 @@ Compile `scripts/publish.rs` using this command:
 ```
 rustc scripts/publish.rs --crate-type bin --out-dir scripts
 ```
+
+Run `scripts/publish` using this command
+
+```
+./scripts/publish crate_name
+```
+
+where `crate_name` is the name of the crate to publish
+
 
 ## Disclaimer
 
