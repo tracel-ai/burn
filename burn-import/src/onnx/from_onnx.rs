@@ -566,21 +566,16 @@ fn rename_inputs(
         counter += 1;
     }
 
-    let mut counter: HashMap<String, usize> = HashMap::new();
-
     for node in nodes.iter_mut() {
-        // keep track of the number of nodes of each type
-        counter
-            .entry(node.name.clone())
-            .and_modify(|e| *e += 1)
-            .or_insert(1);
+        let mut counter = 1;
 
         // loop through node outputs and rename them and store the new name <-> old name mapping
         for output in node.outputs.iter_mut() {
             let old_name = output.name.clone();
-            let new_name = format!("{}_out{}", node.name, counter[&node.name]);
+            let new_name = format!("{}_out{}", node.name, counter);
             output.name = new_name.clone();
             old_names.insert(old_name, new_name);
+            counter += 1;
         }
     }
 
@@ -600,7 +595,6 @@ fn rename_inputs(
         if let Some(new_name) = old_names.get(&output.name) {
             output.name = new_name.clone();
         } else {
-            println!("{:#?}", old_names);
             panic!("Output {} not found in old_names", output.name);
         }
     }

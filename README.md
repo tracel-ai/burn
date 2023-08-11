@@ -120,7 +120,7 @@ use burn::tensor::{Tensor, Int};
 
 fn function<B: Backend>(tensor_float: Tensor<B, 2>) {
     let _tensor_bool = tensor_float.clone().equal_elem(2.0); // Tensor<B, 2, Bool>
-    let _tensor_int = tensor_float.argmax(1) // Tensor<B, 2, Int>
+    let _tensor_int = tensor_float.argmax(1); // Tensor<B, 2, Int>
 }
 ```
 
@@ -309,7 +309,8 @@ grows.
 
 Thanks to all current sponsors 🙏.
 
-<a href="https://github.com/smallstepman"><img src="https://github.com/smallstepman.png" width="60px" style="border-radius: 50%;" alt="nathanielsimard" /></a>
+<a href="https://github.com/smallstepman"><img src="https://github.com/smallstepman.png" width="60px" style="border-radius: 50%;" alt="smallstepman" /></a>
+<a href="https://github.com/premAI-io"><img src="https://github.com/premAI-io.png" width="60px" style="border-radius: 50%;" alt="premAI-io" /></a>
 
 ## License
 

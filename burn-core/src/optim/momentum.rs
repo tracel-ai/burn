@@ -22,7 +22,7 @@ pub struct MomentumConfig {
 
 /// State of [Momentum](Momentum).
 #[derive(Record, Clone, new)]
-pub struct MomemtumState<B: Backend, const D: usize> {
+pub struct MomentumState<B: Backend, const D: usize> {
     velocity: Tensor<B, D>,
 }
 
@@ -57,8 +57,8 @@ impl<B: Backend> Momentum<B> {
     pub fn transform<const D: usize>(
         &self,
         grad: Tensor<B, D>,
-        state: Option<MomemtumState<B, D>>,
-    ) -> (Tensor<B, D>, MomemtumState<B, D>) {
+        state: Option<MomentumState<B, D>>,
+    ) -> (Tensor<B, D>, MomentumState<B, D>) {
         let velocity = if let Some(state) = state {
             grad.clone()
                 .mul_scalar(1.0 - self.dampening)
@@ -72,11 +72,11 @@ impl<B: Backend> Momentum<B> {
             false => velocity.clone(),
         };
 
-        (grad, MomemtumState::new(velocity))
+        (grad, MomentumState::new(velocity))
     }
 }
 
-impl<B: Backend, const D: usize> MomemtumState<B, D> {
+impl<B: Backend, const D: usize> MomentumState<B, D> {
     /// Moves the state to a device.
     ///
     /// # Arguments

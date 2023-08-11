@@ -13,6 +13,10 @@ fn main() {
         .input("tests/concat/concat.onnx")
         .input("tests/conv2d/conv2d.onnx")
         .input("tests/dropout/dropout.onnx")
+        .input("tests/global_avr_pool/global_avr_pool.onnx")
+        .input("tests/softmax/softmax.onnx")
+        .input("tests/log_softmax/log_softmax.onnx")
+        .input("tests/maxpool2d/maxpool2d.onnx")
         .out_dir("model/")
         .run_from_script();
 

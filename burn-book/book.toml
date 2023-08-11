@@ -1,0 +1,6 @@
+[book]
+authors = ["Wouter Doppenberg"]
+language = "en"
+multilingual = false
+src = "src"
+title = "The Burn Book"

@@ -19,6 +19,7 @@ use crate::{
             constant::{ConstantNode, ConstantValue, TensorValue},
             conv2d::Conv2dNode,
             dropout::DropoutNode,
+            global_avg_pool::GlobalAvgPoolNode,
             linear::LinearNode,
             matmul::MatmulNode,
             max_pool2d::MaxPool2dNode,
@@ -41,7 +42,7 @@ use crate::{
 use super::{
     from_onnx::parse_onnx,
     ir::{ArgType, Argument, ElementType, ONNXGraph, State, StateType, Tensor, TensorData},
-    op_configuration::{concat_config, dropout_config},
+    op_configuration::{concat_config, dropout_config, softmax_config},
 };
 
 /// Generate code and states from `.onnx` files and save them to the `out_dir`.
@@ -187,6 +188,7 @@ impl ONNXGraph {
                 NodeType::Relu => graph.register(Self::relu_conversion(node)),
                 NodeType::Flatten => graph.register(Self::flatten_conversion(node)),
                 NodeType::LogSoftmax => graph.register(Self::log_softmax_conversion(node)),
+                NodeType::Softmax => graph.register(Self::softmax_conversion(node)),
                 NodeType::Constant => graph.register(Self::constant_conversion::<PS>(node)),
                 NodeType::Reshape => graph.register(Self::reshape_conversion(node)),
                 NodeType::Sigmoid => graph.register(Self::sigmoid_conversion(node)),
@@ -194,6 +196,9 @@ impl ONNXGraph {
                 NodeType::Concat => graph.register(Self::concat_conversion(node)),
                 NodeType::Cast => graph.register(Self::cast_conversion(node)),
                 NodeType::Dropout => graph.register(Self::dropout_conversion(node)),
+                NodeType::GlobalAveragePool => {
+                    graph.register(Self::global_avg_pool_conversion(node))
+                }
                 _ => panic!("Unsupported node conversion {}", node.node_type),
             }
         }
@@ -371,6 +376,14 @@ impl ONNXGraph {
         UnaryNode::log_softmax(input, output, dim)
     }
 
+    fn softmax_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.get(0).unwrap().to_type();
+        let output = node.outputs.get(0).unwrap().to_type();
+        let dim = softmax_config(&node);
+
+        UnaryNode::softmax(input, output, dim)
+    }
+
     fn concat_conversion(node: Node) -> ConcatNode {
         let inputs = node
             .inputs
@@ -463,6 +476,15 @@ impl ONNXGraph {
 
         let name = &node.name;
         MaxPool2dNode::new(name, input, output, config)
+    }
+
+    fn global_avg_pool_conversion(node: Node) -> GlobalAvgPoolNode {
+        let input = node.inputs.get(0).unwrap().to_tensor_type();
+        let output = node.outputs.get(0).unwrap().to_tensor_type();
+
+        let name = &node.name;
+
+        GlobalAvgPoolNode::new(name, input, output)
     }
 }
 

@@ -10,7 +10,19 @@ macro_rules! include_models {
 }
 
 // ATTENTION: Modify this macro to include all models in the `model` directory.
-include_models!(add, sub, mul, div, concat, conv2d, dropout);
+include_models!(
+    add,
+    sub,
+    mul,
+    div,
+    concat,
+    conv2d,
+    dropout,
+    global_avr_pool,
+    softmax,
+    log_softmax,
+    maxpool2d
+);
 
 #[cfg(test)]
 mod tests {
@@ -133,5 +145,92 @@ mod tests {
         let expected_sum = 1200.0; // from pytorch
 
         assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
+    }
+
+    #[test]
+    fn globalavrpool_1d_2d() {
+        // The model contains 1d and 2d global average pooling nodes
+        let model: global_avr_pool::Model<Backend> = global_avr_pool::Model::default();
+
+        // Run the model with ones as input for easier testing
+        let input_1d = Tensor::<Backend, 3>::ones([2, 4, 10]);
+        let input_2d = Tensor::<Backend, 4>::ones([3, 10, 3, 15]);
+
+        let (output_1d, output_2d) = model.forward(input_1d, input_2d);
+
+        let expected_shape_1d = Shape::from([2, 4, 1]);
+        let expected_shape_2d = Shape::from([3, 10, 1, 1]);
+        assert_eq!(output_1d.shape(), expected_shape_1d);
+        assert_eq!(output_2d.shape(), expected_shape_2d);
+
+        let output_sum_1d = output_1d.sum().into_scalar();
+        let output_sum_2d = output_2d.sum().into_scalar();
+
+        let expected_sum_1d = 8.0; // from pytorch
+        let expected_sum_2d = 30.0; // from pytorch
+
+        assert!(expected_sum_1d.approx_eq(output_sum_1d, (1.0e-4, 2)));
+        assert!(expected_sum_2d.approx_eq(output_sum_2d, (1.0e-4, 2)));
+    }
+
+    #[test]
+    fn softmax() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let model: softmax::Model<Backend> = softmax::Model::new();
+
+        // Run the model
+        let input = Tensor::<Backend, 2>::from_floats([
+            [0.33669037, 0.12880941, 0.23446237],
+            [0.23033303, -1.12285638, -0.18632829],
+        ]);
+        let output = model.forward(input);
+        let expected = Data::from([
+            [0.36830685, 0.29917702, 0.33251613],
+            [0.52146918, 0.13475533, 0.34377551],
+        ]);
+
+        assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn log_softmax() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let model: log_softmax::Model<Backend> = log_softmax::Model::new();
+
+        // Run the model
+        let input = Tensor::<Backend, 2>::from_floats([
+            [0.33669037, 0.12880941, 0.23446237],
+            [0.23033303, -1.12285638, -0.18632829],
+        ]);
+        let output = model.forward(input);
+        let expected = Data::from([
+            [-0.99883890, -1.20671988, -1.10106695],
+            [-0.65110511, -2.00429463, -1.06776643],
+        ]);
+
+        assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn maxpool2d() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let model: maxpool2d::Model<Backend> = maxpool2d::Model::new();
+
+        // Run the model
+        let input = Tensor::<Backend, 4>::from_floats([[[
+            [1.927, 1.487, 0.901, -2.106, 0.678],
+            [-1.235, -0.043, -1.605, -0.752, -0.687],
+            [-0.493, 0.241, -1.111, 0.092, -2.317],
+            [-0.217, -1.385, -0.396, 0.803, -0.622],
+            [-0.592, -0.063, -0.829, 0.331, -1.558],
+        ]]]);
+        let output = model.forward(input);
+        let expected = Data::from([[[
+            [1.927, 1.927, 1.487, 0.901, 0.678, 0.678],
+            [1.927, 1.927, 1.487, 0.901, 0.803, 0.678],
+            [-0.217, 0.241, 0.241, 0.803, 0.803, -0.622],
+        ]]]);
+
+        assert_eq!(output.to_data(), expected);
     }
 }

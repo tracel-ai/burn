@@ -75,14 +75,20 @@ pub fn max_pool2d_config(curr: &Node) -> MaxPool2dConfig {
     let mut kernel_shape = Vec::new();
     let mut strides = Vec::new();
     let mut pads = Vec::new();
+    let mut dilations = Vec::new();
 
     for (key, value) in curr.attrs.iter() {
         match key.as_str() {
             "kernel_shape" => attr_value_vec_i64(value, &mut kernel_shape),
             "strides" => attr_value_vec_i64(value, &mut strides),
             "pads" => attr_value_vec_i64(value, &mut pads),
+            "dilations" => attr_value_vec_i64(value, &mut dilations),
             _ => {}
         }
+    }
+
+    if !dilations.is_empty() && (dilations[0] != 1 || dilations[1] != 1) {
+        todo!("MaxPool2d: dilations are not supported. See https://github.com/burn-rs/burn/issues/622");
     }
 
     let padding = padding_config(&pads);
@@ -203,6 +209,41 @@ pub fn log_softmax_config(node: &Node) -> usize {
     if node.inputs.len() != 1 {
         panic!(
             "LogSoftmax: multiple inputs are not supported (got {:?})",
+            node.inputs.len()
+        );
+    }
+
+    // extract the shape of the input tensor
+    let tensor = match node.inputs.get(0).unwrap().clone().ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
+
+    // extract the attributes
+    for (key, value) in node.attrs.iter() {
+        match key.as_str() {
+            "axis" => attr_value_i64(value, &mut axis),
+            _ => {}
+        }
+    }
+
+    // if axis is negative, it is counted from the end
+    if axis < 0 {
+        axis += tensor.dim as i64;
+    }
+
+    axis as usize
+}
+
+/// Create softmax config from the attributes of the node
+pub fn softmax_config(node: &Node) -> usize {
+    // the axis is the last dimension (Default: 1 per ONNX spec)
+    let mut axis: i64 = -1;
+
+    // check if the node has only one input
+    if node.inputs.len() != 1 {
+        panic!(
+            "Softmax: multiple inputs are not supported (got {:?})",
             node.inputs.len()
         );
     }

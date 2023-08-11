@@ -27,6 +27,7 @@ mod log1p;
 mod mask;
 mod matmul;
 mod maxmin;
+mod maxpool1d;
 mod maxpool2d;
 mod mul;
 mod multithread;
@@ -61,6 +62,7 @@ macro_rules! testgen_all {
         burn_autodiff::testgen_ad_conv2d!();
         burn_autodiff::testgen_ad_conv_transpose1d!();
         burn_autodiff::testgen_ad_conv_transpose2d!();
+        burn_autodiff::testgen_ad_max_pool1d!();
         burn_autodiff::testgen_ad_max_pool2d!();
         burn_autodiff::testgen_ad_avg_pool1d!();
         burn_autodiff::testgen_ad_avg_pool2d!();

@@ -1,7 +1,8 @@
 use super::{
     batch_norm::BatchNormNode, binary::BinaryNode, concat::ConcatNode, constant::ConstantNode,
-    conv2d::Conv2dNode, dropout::DropoutNode, linear::LinearNode, matmul::MatmulNode,
-    max_pool2d::MaxPool2dNode, reshape::ReshapeNode, unary::UnaryNode,
+    conv2d::Conv2dNode, dropout::DropoutNode, global_avg_pool::GlobalAvgPoolNode,
+    linear::LinearNode, matmul::MatmulNode, max_pool2d::MaxPool2dNode, reshape::ReshapeNode,
+    unary::UnaryNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::record::PrecisionSettings;
@@ -82,6 +83,7 @@ pub enum Node<PS: PrecisionSettings> {
     Reshape(ReshapeNode),
     Concat(ConcatNode),
     Dropout(DropoutNode),
+    GlobalAvgPool(GlobalAvgPoolNode),
 }
 
 macro_rules! match_all {
@@ -98,6 +100,7 @@ macro_rules! match_all {
             Node::Dropout(node) => $func(node),
             Node::Unary(node) => $func(node),
             Node::Binary(node) => $func(node),
+            Node::GlobalAvgPool(node) => $func(node),
         }
     }};
 }
@@ -123,6 +126,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::BatchNorm(_) => "batch_norm",
             Node::Reshape(_) => "reshape",
             Node::Dropout(_) => "dropout",
+            Node::GlobalAvgPool(_) => "global_avg_pool",
             Node::Unary(unary) => unary.kind.as_str(),
             Node::Binary(binary) => binary.binary_type.as_str(),
         }

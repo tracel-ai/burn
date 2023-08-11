@@ -3,7 +3,7 @@ use crate::module::ADModule;
 use crate::{self as burn, LearningRate};
 
 use super::decay::{WeightDecay, WeightDecayConfig, WeightDecayState};
-use super::momentum::{MomemtumState, Momentum, MomentumConfig};
+use super::momentum::{Momentum, MomentumConfig, MomentumState};
 use super::SimpleOptimizer;
 use crate::config::Config;
 use crate::optim::adaptor::OptimizerAdaptor;
@@ -34,7 +34,7 @@ pub struct Sgd<B: Backend> {
 #[derive(Record, Clone, new)]
 pub struct SgdState<B: Backend, const D: usize> {
     weight_decay: Option<WeightDecayState<B, D>>,
-    momentum: Option<MomemtumState<B, D>>,
+    momentum: Option<MomentumState<B, D>>,
 }
 
 impl SgdConfig {
