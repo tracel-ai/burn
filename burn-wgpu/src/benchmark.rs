@@ -82,10 +82,7 @@ pub trait Benchmark<G: GraphicsApi> {
     /// Name of the benchmark.
     fn name(&self) -> String;
     /// Run the benchmark a number of times.
-    fn run(&self, device: &WgpuDevice) -> BenchmarkResult
-// where
-        // Self: Sized,
-    {
+    fn run(&self, device: &WgpuDevice) -> BenchmarkResult {
         let context = get_context::<G>(device);
 
         // Warmup
@@ -130,11 +127,6 @@ macro_rules! run_benchmark {
         println!("Git Hash: {}", str::trim(&git_hash));
         #[cfg(any(target_os = "linux", target_os = "windows"))]
         {
-            // println!(
-            //     "OpenGL - {}{}",
-            //     Benchmark::<burn_wgpu::OpenGl>::name(&$bench),
-            //     Benchmark::<burn_wgpu::OpenGl>::run(&$bench, &WgpuDevice::DiscreteGpu(0))
-            // );
             println!(
                 "Vulkan - {}{}",
                 Benchmark::<burn_wgpu::Vulkan>::name(&$bench),

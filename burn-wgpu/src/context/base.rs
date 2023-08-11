@@ -30,14 +30,14 @@ pub type ContextServerImpl = super::server::SyncContextServer;
 pub struct Context {
     id: String,
     device_wgpu: Arc<wgpu::Device>,
-    cache: Mutex<HashMap<ComputeKey, Arc<ComputePipeline>>>,
+    cache: Mutex<HashMap<TemplateKey, Arc<ComputePipeline>>>,
     client: ContextClientImpl,
     pub(crate) tuner: Tuner,
     pub(crate) device: WgpuDevice,
 }
 
 #[derive(Debug, Hash, PartialOrd, PartialEq, Eq)]
-enum ComputeKey {
+enum TemplateKey {
     Static(TypeId),
     Dynamic(String),
 }
@@ -171,7 +171,7 @@ impl Context {
     /// Compile a kernel template if not present in the cache.
     pub fn compile_static<K: StaticKernel>(&self) -> Arc<ComputePipeline> {
         let mut cache = self.cache.lock();
-        let template_id = ComputeKey::Static(TypeId::of::<K>());
+        let template_id = TemplateKey::Static(TypeId::of::<K>());
 
         if let Some(module) = cache.get(&template_id) {
             return module.clone();
@@ -187,7 +187,7 @@ impl Context {
     /// Compile a dynamic template if not present in the cache.
     pub fn compile_dynamic<K: DynamicKernel>(&self, kernel: K) -> Arc<ComputePipeline> {
         let mut cache = self.cache.lock();
-        let template_id = ComputeKey::Dynamic(kernel.id());
+        let template_id = TemplateKey::Dynamic(kernel.id());
 
         if let Some(module) = cache.get(&template_id) {
             return module.clone();

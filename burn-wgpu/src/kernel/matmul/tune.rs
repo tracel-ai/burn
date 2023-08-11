@@ -219,7 +219,7 @@ where
                 Arc::new(MatmulBenchmark::new(
                     shape_lhs.clone(),
                     shape_rhs.clone(),
-                    10,
+                    5,
                     func.clone(),
                 )),
             )
