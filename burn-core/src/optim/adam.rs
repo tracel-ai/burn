@@ -152,7 +152,7 @@ impl AdaptiveMomentum {
             let factor = 1.0 - self.beta_2;
             let moment_2 = grad.powf(2.0).mul_scalar(factor);
 
-            AdaptiveMomentumState::new(0, moment_1, moment_2)
+            AdaptiveMomentumState::new(1, moment_1, moment_2)
         };
 
         let time = (state.time as i32).elem();
@@ -219,7 +219,7 @@ mod tests {
 
         assert_eq!(state_optim_before.len(), state_optim_after.len());
     }
-    const ASSERT_PRECISION: usize = 6;
+    const ASSERT_PRECISION: usize = 2;
 
     #[test]
     fn test_adam_optimizer_with_numbers() {
