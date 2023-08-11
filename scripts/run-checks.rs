@@ -36,6 +36,10 @@ fn stdout_and_stderr_write(output: Output, message_stdout: &str, message_stderr:
         io::stderr()
             .write_all(&output.stderr)
             .expect(message_stderr);
+    }
+
+    // If exit status is not a success, exit the binary with an error
+    if !output.status.success() {
         std::process::exit(1);
     }
 }
@@ -218,7 +222,7 @@ fn std_checks() {
     // for the documentation build
     env::set_var("RUSTDOCFLAGS", "-D warnings");
 
-    println!("\n\nRunning std checks");
+    println!("Running std checks");
 
     println!("\nBuild each workspace");
     // Build each workspace
