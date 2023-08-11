@@ -27,6 +27,9 @@ jobs:
         with:
           components: rustfmt, clippy
 
+      - name: compile run-checks binary
+        run: rustc scripts/run-checks.rs --crate-type bin --out-dir scripts
+
       - name: caching
         uses: Swatinem/rust-cache@v2
         with:
@@ -40,7 +43,7 @@ jobs:
           sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
 
       - name: run checks & tests
-        run: ./run-checks.sh std
+        run: ./scripts/run-checks std
 
   test-burn-no-std:
     runs-on: ubuntu-latest
@@ -61,10 +64,13 @@ jobs:
         with:
           components: rustfmt, clippy
 
+      - name: compile run-checks binary
+        run: rustc scripts/run-checks.rs --crate-type bin --out-dir scripts
+
       - name: caching
         uses: Swatinem/rust-cache@v2
         with:
           key: ${{ runner.os }}-rust-${{ hashFiles('**/Cargo.lock') }}
 
       - name: run checks & tests
-        run: ./run-checks.sh no_std
+        run: ./scripts/run-checks no_std
