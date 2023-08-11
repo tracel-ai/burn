@@ -23,8 +23,9 @@ use std::process::{Command, Output};
 use std::str;
 use std::time::Instant;
 
-// If stdout is not empty, write it, otherwise
-// write stderr and exit with code error 1
+// Write stdout and stderr output on shell.
+// If there exit status of a command is not a success, terminate the process
+// with an error.
 fn stdout_and_stderr_write(output: Output, message_stdout: &str, message_stderr: &str) {
     if !output.stdout.is_empty() {
         io::stdout()
@@ -38,9 +39,11 @@ fn stdout_and_stderr_write(output: Output, message_stdout: &str, message_stderr:
             .expect(message_stderr);
     }
 
-    // If exit status is not a success, exit the binary with an error
+    // If exit status is not a success, terminate the process with an error
     if !output.status.success() {
-        std::process::exit(1);
+        // Use the exit code associated to a command to terminate the process,
+        // if any exit code had been found, use the default value 1
+        std::process::exit(output.status.code().unwrap_or(1));
     }
 }
 
