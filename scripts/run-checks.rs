@@ -155,7 +155,7 @@ fn build_and_test_no_std(crate_name: &str) {
         crate_name,
         "--no-default-features",
         "--target",
-        "wasm32-unknown-unknowns",
+        "wasm32-unknown-unknown",
     ]);
 
     println!("\nBuild for ARM");
