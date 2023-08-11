@@ -7,3 +7,6 @@ We will train the model on the MNIST dataset and prepare it for inference.
 
 * How to create neural network models.
 * How to train models on data.
+
+All the code presented is actually available in the `guide` example.
+For clarify, we sometimes omit imports.

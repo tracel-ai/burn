@@ -97,7 +97,6 @@ pub fn train<B: ADBackend>(artifact_dir: &str, config: TrainingConfig, device: B
         .with_file_checkpointer(1, CompactRecorder::new())
         .devices(vec![device])
         .num_epochs(config.num_epochs)
-        .checkpoint(2)
         .build(
             config.model.init::<B>(),
             config.optimizer.init(),
