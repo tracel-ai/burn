@@ -23,6 +23,10 @@ use std::process::{Command, Output};
 use std::str;
 use std::time::Instant;
 
+// Targets constants
+const WASM32_TARGET: &str = "wasm32-unknown-unknown";
+const ARM_TARGET: &str = "thumbv7m-none-eabi";
+
 // Write stdout and stderr output on shell.
 // If there exit status of a command is not a success, terminate the process
 // with an error.
@@ -155,7 +159,7 @@ fn build_and_test_no_std(crate_name: &str) {
         crate_name,
         "--no-default-features",
         "--target",
-        "wasm32-unknown-unknown",
+        WASM32_TARGET,
     ]);
 
     println!("\nBuild for ARM");
@@ -165,7 +169,7 @@ fn build_and_test_no_std(crate_name: &str) {
         crate_name,
         "--no-default-features",
         "--target",
-        "thumbv7m-none-eabi",
+        ARM_TARGET,
     ]);
 }
 
@@ -175,11 +179,11 @@ fn no_std_checks() {
 
     println!("Install Wasm32 target\n");
     // Install wasm32 target
-    rustup("wasm32-unknown-unknown");
+    rustup(WASM32_TARGET);
 
     println!("\nInstall ARM target\n");
     // Install ARM target
-    rustup("thumbv7m-none-eabi");
+    rustup(ARM_TARGET);
 
     // Run checks for the following crates
     build_and_test_no_std("burn");
