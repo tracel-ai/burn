@@ -1,6 +1,6 @@
 use burn::nn::{
-    conv::Conv2dConfig, pool::MaxPool2dConfig, BatchNormConfig, DropoutConfig, LinearConfig,
-    PaddingConfig2d,
+    conv::Conv1dConfig, conv::Conv2dConfig, pool::MaxPool2dConfig, BatchNormConfig, DropoutConfig,
+    LinearConfig, PaddingConfig1d, PaddingConfig2d,
 };
 
 use crate::onnx::ir::TensorData;
@@ -26,6 +26,50 @@ pub fn attr_value_f32(value: &AttributeValue, target: &mut f32) {
     if let AttributeValue::Float32(val) = value {
         *target = *val;
     }
+}
+
+/// Create a Conv1dConfig from the attributes of the node
+/// TODO check this function carefully, I don't understand it well enough
+pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
+    let mut kernel_shape = 1;
+    let mut strides = 1;
+    let mut pads = 1;
+    let mut dilations = 1;
+    let mut group: i64 = 1;
+
+    // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
+    let StateType::Tensor(tensor) = curr.states.get(0).unwrap().clone().ty;
+
+    // check if the bias is present
+    let bias = curr.states.len() == 2;
+
+    // the channels are inverted in the weight tensor
+    let shape = tensor.shape.unwrap();
+    let channels_in = shape[1];
+    let channels_out = shape[0];
+    //let channels: [usize; 2] = [shape[1], shape[0]];
+
+    for (key, value) in curr.attrs.iter() {
+        match key.as_str() {
+            "kernel_shape" => attr_value_i64(value, &mut kernel_shape),
+            "strides" => attr_value_i64(value, &mut strides),
+            "pads" => attr_value_i64(value, &mut pads),
+            "dilations" => attr_value_i64(value, &mut dilations),
+            "group" => attr_value_i64(value, &mut group),
+            _ => {}
+        }
+    }
+
+    //let padding = padding_config(&pads);
+    // TODO, I think I may have done this wrong
+    let padding = PaddingConfig1d::Explicit(pads as usize);
+
+    Conv1dConfig::new(channels_in, channels_out, kernel_shape as usize)
+        .with_stride(strides as usize)
+        .with_dilation(dilations as usize)
+        .with_groups(group as usize)
+        .with_bias(bias)
+        .with_padding(padding)
 }
 
 /// Create a Conv2dConfig from the attributes of the node
