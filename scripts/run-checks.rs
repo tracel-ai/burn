@@ -72,6 +72,7 @@ fn run_cargo(command: &str, params: &[&str], error: &str, stdout_error: &str, st
     // Run cargo
     let cargo = Command::new("cargo")
         .arg(command)
+        .arg("--color=always")
         .args(params)
         .output()
         .expect(error);
