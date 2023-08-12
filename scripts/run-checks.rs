@@ -193,13 +193,11 @@ fn build_and_test_no_std(crate_name: &str) {
 
 // Run no_std checks
 fn no_std_checks() {
-    println!("\n\nChecks for no_std environment...\n\n");
+    println!("Checks for no_std environment...\n\n");
 
-    println!("Install Wasm32 target\n");
     // Install wasm32 target
     rustup(WASM32_TARGET);
 
-    println!("\nInstall ARM target\n");
     // Install ARM target
     rustup(ARM_TARGET);
 
