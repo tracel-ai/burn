@@ -52,7 +52,7 @@ fn rustup(target: &str) {
     let args = ["target", "add", target];
 
     // Print rustup command
-    println!("rustup {}\n", args.join(" "));
+    println!("rustup {}\n\n", args.join(" "));
 
     // Run rustup command
     let rustup = Command::new("rustup")
@@ -74,7 +74,12 @@ fn run_cargo(command: &str, params: &[&str], error: &str, stdout_error: &str, st
     let color_option = "--color=always";
 
     // Print cargo command
-    println!("\ncargo {} {} {}", color_option, command, params.join(" "));
+    println!(
+        "\ncargo {} {} {}\n",
+        color_option,
+        command,
+        params.join(" ")
+    );
 
     // Run cargo
     let cargo = Command::new("cargo")
