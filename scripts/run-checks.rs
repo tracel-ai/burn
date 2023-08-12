@@ -35,12 +35,14 @@ fn stdout_and_stderr_write(output: Output, message_stdout: &str, message_stderr:
         io::stdout()
             .write_all(&output.stdout)
             .expect(message_stdout);
+        io::stdout().flush().expect("Failed to flush stdout");
     }
 
     if !output.stderr.is_empty() {
         io::stderr()
             .write_all(&output.stderr)
             .expect(message_stderr);
+        io::stderr().flush().expect("Failed to flush stderr");
     }
 
     // If exit status is not a success, terminate the process with an error
