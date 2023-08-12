@@ -6,4 +6,7 @@ Cargo.lock
 .cargo/config.toml
 
 .idea
-.vscode
+.vscode/*
+
+!.vscode/launch.json
+!.vscode/extensions.json
