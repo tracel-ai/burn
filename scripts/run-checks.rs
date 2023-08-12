@@ -18,7 +18,6 @@
 //!     - `all` to perform checks using both `libstd` and `libcore`
 
 use std::env;
-use std::io::{self, Write};
 use std::process::{Command, Output};
 use std::str;
 use std::time::Instant;
@@ -32,17 +31,11 @@ const ARM_TARGET: &str = "thumbv7m-none-eabi";
 // with an error.
 fn stdout_and_stderr_write(output: Output, message_stdout: &str, message_stderr: &str) {
     if !output.stdout.is_empty() {
-        io::stdout()
-            .write_all(&output.stdout)
-            .expect(message_stdout);
-        io::stdout().flush().expect("Failed to flush stdout");
+        println!("{}", str::from_utf8(&output.stdout).expect(message_stdout));
     }
 
     if !output.stderr.is_empty() {
-        io::stderr()
-            .write_all(&output.stderr)
-            .expect(message_stderr);
-        io::stderr().flush().expect("Failed to flush stderr");
+        println!("{}", str::from_utf8(&output.stderr).expect(message_stderr));
     }
 
     // If exit status is not a success, terminate the process with an error
