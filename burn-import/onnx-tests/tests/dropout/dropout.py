@@ -23,7 +23,7 @@ def main():
     model.eval()
     device = torch.device("cpu")
 
-    file_name = "dropout.onnx"
+    file_name = "dropout_opset16.onnx"
     test_input = torch.ones(2, 4, 10, 15, device=device)
     torch.onnx.export(model, test_input, file_name,
                       training=torch.onnx.TrainingMode.TRAINING,
