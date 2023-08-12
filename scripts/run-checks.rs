@@ -69,23 +69,27 @@ fn rustup(target: &str) {
 }
 
 // Define and run a cargo command
-fn run_cargo(command: &str, params: &[&str], error: &str, stdout_error: &str, stderr_error: &str) {
-    // Cargo option to always print colored output
-    let color_option = "--color=always";
-
+fn run_cargo(
+    command: &str,
+    first_params: &[&str],
+    second_params: &[&str],
+    error: &str,
+    stdout_error: &str,
+    stderr_error: &str,
+) {
     // Print cargo command
     println!(
         "\ncargo {} {} {}\n",
-        color_option,
         command,
-        params.join(" ")
+        first_params.join(" "),
+        second_params.join(" ")
     );
 
     // Run cargo
     let cargo = Command::new("cargo")
-        .arg(color_option)
         .arg(command)
-        .args(params)
+        .args(first_params)
+        .args(second_params)
         .output()
         .expect(error);
 
@@ -99,6 +103,7 @@ fn cargo_build(params: &[&str]) {
     run_cargo(
         "build",
         params,
+        &["--color=always"],
         "Failed to run cargo build",
         "Failed to write cargo build output on stdout",
         "Failed to write cargo build output on stderr",
@@ -111,6 +116,7 @@ fn cargo_test(params: &[&str]) {
     run_cargo(
         "test",
         params,
+        &["--color=always", "--", "--color=always"],
         "Failed to run cargo test",
         "Failed to write cargo test output on stdout",
         "Failed to write cargo test output on stderr",
@@ -123,6 +129,7 @@ fn cargo_fmt() {
     run_cargo(
         "fmt",
         &["--check", "--all"],
+        &["--", "--color=always"],
         "Failed to run cargo fmt",
         "Failed to write cargo fmt output on stdout",
         "Failed to write cargo fmt output on stderr",
@@ -134,6 +141,7 @@ fn cargo_clippy() {
     // Run cargo clippy
     run_cargo(
         "clippy",
+        &["--color=always"],
         &["--", "-D", "warnings"],
         "Failed to run cargo clippy",
         "Failed to write cargo clippy output on stdout",
@@ -147,6 +155,7 @@ fn cargo_doc(params: &[&str]) {
     run_cargo(
         "doc",
         params,
+        &["--color=always"],
         "Failed to run cargo doc",
         "Failed to write cargo doc output on stdout",
         "Failed to write cargo doc output on stderr",
