@@ -58,6 +58,7 @@ impl<B: Backend> WeightDecay<B> {
         (grad, WeightDecayState::new(grad_last_step))
     }
 
+    /// temp fix for Transform.
     pub fn transform_temp_fix<const D: usize>(
         &self,
         grad: Tensor<B, D>,
