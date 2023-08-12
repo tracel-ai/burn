@@ -57,6 +57,20 @@ impl<B: Backend> WeightDecay<B> {
 
         (grad, WeightDecayState::new(grad_last_step))
     }
+
+    pub fn transform_temp_fix<const D: usize>(
+        &self,
+        grad: Tensor<B, D>,
+        tensor: Tensor<B, D>,
+        state: Option<WeightDecayState<B, D>>,
+    ) -> (Tensor<B, D>, Tensor<B, D>, WeightDecayState<B, D>) {
+        let grad = match state {
+            Some(state) => state.grad_last_step.mul_scalar(self.penalty).add(grad),
+            None => tensor.clone().mul_scalar(self.penalty).add(grad),
+        };
+
+        (grad, tensor.clone(), WeightDecayState::new(tensor))
+    }
 }
 
 impl<B: Backend, const D: usize> WeightDecayState<B, D> {
