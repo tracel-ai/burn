@@ -53,11 +53,17 @@ fn stdout_and_stderr_write(output: Output, message_stdout: &str, message_stderr:
     }
 }
 
-// Run rustup command
+// Define and run rustup command
 fn rustup(target: &str) {
-    // Run rustup
+    // Rustup arguments
+    let args = ["target", "add", target];
+
+    // Print rustup command
+    println!("rustup {}\n", args.join(" "));
+
+    // Run rustup command
     let rustup = Command::new("rustup")
-        .args(["target", "add", target])
+        .args(args)
         .output()
         .expect("Failed to run rustup");
 
@@ -69,12 +75,18 @@ fn rustup(target: &str) {
     );
 }
 
-// Run a cargo command
+// Define and run a cargo command
 fn run_cargo(command: &str, params: &[&str], error: &str, stdout_error: &str, stderr_error: &str) {
+    // Cargo option to always print colored output
+    let color_option = "--color=always";
+
+    // Print cargo command
+    println!("\ncargo {} {} {}", color_option, command, params.join(" "));
+
     // Run cargo
     let cargo = Command::new("cargo")
+        .arg(color_option)
         .arg(command)
-        .arg("--color=always")
         .args(params)
         .output()
         .expect(error);
