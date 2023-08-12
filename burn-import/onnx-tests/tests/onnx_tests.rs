@@ -17,7 +17,8 @@ include_models!(
     div,
     concat,
     conv2d,
-    dropout,
+    dropout_opset7,
+    dropout_opset16,
     global_avr_pool,
     softmax,
     log_softmax,
@@ -129,8 +130,27 @@ mod tests {
     }
 
     #[test]
-    fn dropout() {
-        let model: dropout::Model<Backend> = dropout::Model::default();
+    fn dropout_opset16() {
+        let model: dropout_opset16::Model<Backend> = dropout_opset16::Model::default();
+
+        // Run the model with ones as input for easier testing
+        let input = Tensor::<Backend, 4>::ones([2, 4, 10, 15]);
+
+        let output = model.forward(input);
+
+        let expected_shape = Shape::from([2, 4, 10, 15]);
+        assert_eq!(output.shape(), expected_shape);
+
+        let output_sum = output.sum().into_scalar();
+
+        let expected_sum = 1200.0; // from pytorch
+
+        assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
+    }
+
+    #[test]
+    fn dropout_opset7() {
+        let model: dropout_opset7::Model<Backend> = dropout_opset7::Model::default();
 
         // Run the model with ones as input for easier testing
         let input = Tensor::<Backend, 4>::ones([2, 4, 10, 15]);

@@ -177,9 +177,15 @@ pub fn linear_config(node: &Node) -> LinearConfig {
     LinearConfig::new(in_size, out_size).with_bias(bias)
 }
 
-/// Create a DropoutConfig from the attributes of the node
+/// Create a DropoutConfig from an attribute and state of the node
 pub fn dropout_config(node: &Node) -> DropoutConfig {
-    // the dropout probability comes as input, which is copied to state.
+    // Opset 7 and older store probability as an attribute
+    if node.attrs.contains_key("ratio") {
+        let mut prob: f32 = 0.0;
+        attr_value_f32(node.attrs.get("ratio").unwrap(), &mut prob);
+
+        return DropoutConfig::new(prob as f64);
+    }
 
     if node.states.is_empty() {
         panic!("Dropout: no state found needed for configuration");
