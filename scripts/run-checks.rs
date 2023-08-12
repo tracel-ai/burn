@@ -145,15 +145,12 @@ fn cargo_doc(params: &[&str]) {
 fn build_and_test_no_std(crate_name: &str) {
     println!("\nRun checks for `{}` crate", crate_name);
 
-    println!("\nBuild without defaults");
     // Run cargo build --no-default-features
     cargo_build(&["-p", crate_name, "--no-default-features"]);
 
-    println!("\nTest without defaults");
     // Run cargo test --no-default-features
     cargo_test(&["-p", crate_name, "--no-default-features"]);
 
-    println!("\nBuild for WebAssembly");
     // Run cargo build --no-default-features --target wasm32-unknown-unknowns
     cargo_build(&[
         "-p",
@@ -163,7 +160,6 @@ fn build_and_test_no_std(crate_name: &str) {
         WASM32_TARGET,
     ]);
 
-    println!("\nBuild for ARM");
     // Run cargo build --no-default-features --target thumbv7m-none-eabi
     cargo_build(&[
         "-p",
@@ -176,7 +172,7 @@ fn build_and_test_no_std(crate_name: &str) {
 
 // Run no_std checks
 fn no_std_checks() {
-    println!("Checks for no_std environment...\n\n");
+    println!("\n\nChecks for no_std environment...\n\n");
 
     println!("Install Wasm32 target\n");
     // Install wasm32 target
@@ -199,11 +195,9 @@ fn no_std_checks() {
 fn burn_core_std() {
     println!("\n\nRun checks for burn-core crate with tch and wgpu backend");
 
-    println!("\nTest with tch backend");
     // Run cargo test --features test-tch
     cargo_test(&["-p", "burn-core", "--features", "test-tch"]);
 
-    println!("\nTest with wgpu backend");
     // Run cargo test --features test-wgpu
     cargo_test(&["-p", "burn-core", "--features", "test-wgpu"]);
 }
@@ -212,15 +206,12 @@ fn burn_core_std() {
 fn burn_dataset_features_std() {
     println!("\n\nRun checks for burn-dataset features");
 
-    println!("\nBuild with all features");
     // Run cargo build --all-features
     cargo_build(&["-p", "burn-dataset", "--all-features"]);
 
-    println!("\nTest with all features");
     // Run cargo test --all-features
     cargo_test(&["-p", "burn-dataset", "--all-features"]);
 
-    println!("\nCheck documentation with all features");
     // Run cargo doc --all-features
     cargo_doc(&["-p", "burn-dataset", "--all-features"]);
 }
@@ -232,23 +223,18 @@ fn std_checks() {
 
     println!("Running std checks");
 
-    println!("\nBuild each workspace");
     // Build each workspace
     cargo_build(&["--workspace"]);
 
-    println!("\nTest each workspace");
     // Test each workspace
     cargo_test(&["--workspace"]);
 
-    println!("\nCheck format");
     // Check format
     cargo_fmt();
 
-    println!("\nCheck clippy lints");
     // Check clippy lints
     cargo_clippy();
 
-    println!("\nProduce documentation for each workspace");
     // Produce documentation for each workspace
     cargo_doc(&["--workspace"]);
 
