@@ -8,7 +8,7 @@ use crate::tensor::Tensor;
 use burn_tensor::module::avg_pool2d;
 
 /// Configuration to create a [2D avg pooling](AvgPool2d) layer.
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct AvgPool2dConfig {
     /// The size of the kernel.
     pub kernel_size: [usize; 2],
@@ -21,6 +21,19 @@ pub struct AvgPool2dConfig {
 }
 
 /// Applies a 2D avg pooling over input tensors.
+///
+/// See [AvgPool2dConfig](AvgPool2dConfig) for details.
+///
+/// # Remarks
+///
+/// The zero-padding values will be included in the calculation
+/// of the average. This means that the zeros are counted as
+/// legitimate values, and they contribute to the denominator
+/// when calculating the average. This is equivalent to
+/// `torch.nn.AvgPool2d` with `count_include_pad=True`.
+///
+/// TODO: Add support for `count_include_pad=False`, see
+/// [Issue 636](https://github.com/burn-rs/burn/issues/636)
 #[derive(Module, Debug, Clone)]
 pub struct AvgPool2d {
     stride: [usize; 2],

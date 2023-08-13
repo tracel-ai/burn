@@ -18,6 +18,7 @@ fn main() {
         .input("tests/softmax/softmax.onnx")
         .input("tests/log_softmax/log_softmax.onnx")
         .input("tests/maxpool2d/maxpool2d.onnx")
+        .input("tests/avg_pool2d/avg_pool2d.onnx")
         .out_dir("model/")
         .run_from_script();
 
