@@ -2,31 +2,34 @@
 
 # used to generate model: onnx-tests/tests/conv1d/conv1d.onnx
 
-# TODO finish this
-
 import torch
 import torch.nn as nn
+# must set for testing against crate
+torch.manual_seed(0)
+
 
 class Model(nn.Module):
     def __init__(self):
         super(Model, self).__init__()
-        self.conv1 = nn.Conv1d(4, 6, (3, 5), groups = 2, stride=1, padding=2, dilation=1)
+        self.conv1 = nn.Conv1d(4,2,3, groups = 1, stride=1, padding=4, dilation=1)
 
     def forward(self, x):
         x = self.conv1(x)
         return x
 
 def main():
-
+    print("Making model")
     # Export to onnx
     model = Model()
     model.eval()
     device = torch.device("cpu")
+    print("Made model")
 
     file_name = "conv1d.onnx"
-    test_input = torch.ones(2, 4, 10, 15, device=device)
+    test_input = torch.ones(1, 4, 5, device=device)
     torch.onnx.export(model, test_input, file_name,
                       verbose=False, opset_version=16)
+    print(test_input)
 
     print("Finished exporting model to {}".format(file_name))
 

@@ -33,7 +33,7 @@ pub fn attr_value_f32(value: &AttributeValue, target: &mut f32) {
 pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
     let mut kernel_shape = 1;
     let mut strides = 1;
-    let mut pads = 1;
+    let mut pads = vec![0];
     let mut dilations = 1;
     let mut group: i64 = 1;
 
@@ -53,16 +53,14 @@ pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
         match key.as_str() {
             "kernel_shape" => attr_value_i64(value, &mut kernel_shape),
             "strides" => attr_value_i64(value, &mut strides),
-            "pads" => attr_value_i64(value, &mut pads),
+            "pads" => attr_value_vec_i64(value, &mut pads),
             "dilations" => attr_value_i64(value, &mut dilations),
             "group" => attr_value_i64(value, &mut group),
             _ => {}
         }
     }
 
-    //let padding = padding_config(&pads);
-    // TODO, I think I may have done this wrong
-    let padding = PaddingConfig1d::Explicit(pads as usize);
+    let padding = padding_config_1d(&pads);
 
     Conv1dConfig::new(channels_in, channels_out, kernel_shape as usize)
         .with_stride(strides as usize)
@@ -396,6 +394,44 @@ fn padding_config(pads: &[i64]) -> PaddingConfig2d {
     } else if left == right && top == bottom {
         // i.e [2, 3, 2, 3]
         PaddingConfig2d::Explicit(left as usize, top as usize)
+    } else {
+        // Unaccounted for padding configuration
+        panic!("Padding configuration ({:?}) not supported", pads);
+    }
+}
+
+/// Calculate the padding configuration for a 1D operations such as Convolution and Pooling.
+///
+/// # Arguments
+///
+/// * `pads` - The padding values
+///
+/// # Panics
+///
+/// * If the padding is negative
+/// * If the padding is not symmetric
+///
+/// # Returns
+///
+/// * The padding configuration
+///
+/// # Remarks
+///
+/// This function is used when the padding is specified as a list of integers,
+/// and not used when the padding is specified as a string, e.g. "SAME_UPPER".
+fn padding_config_1d(pads: &[i64]) -> PaddingConfig1d {
+    let [left, right] = [pads[0], pads[1]];
+
+    if left < 0 || right < 0 {
+        panic!("Negative pad values are not supported");
+    } else if left != right {
+        panic!("Asymmetric padding is not supported");
+    } else if left == right && right == 0 {
+        // i.e [0, 0]
+        PaddingConfig1d::Valid
+    } else if left == right {
+        // i.e [2, 3, 2, 3]
+        PaddingConfig1d::Explicit(left as usize) //#(left as usize, top as usize)
     } else {
         // Unaccounted for padding configuration
         panic!("Padding configuration ({:?}) not supported", pads);

@@ -4,6 +4,8 @@
 
 import torch
 import torch.nn as nn
+# must set for testing against crate
+torch.manual_seed(0)
 
 class Model(nn.Module):
     def __init__(self):
