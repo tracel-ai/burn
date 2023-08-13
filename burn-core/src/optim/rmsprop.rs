@@ -199,14 +199,11 @@ impl RMSPropMomentum {
 
         if self.momentum > 0. {
             let buf = match momentum_state {
-                Some(state) => {
-                    println!("\nbefore momentum momentum=={}", state.buf);
-                    state
-                        .buf
-                        .clone()
-                        .mul_scalar(self.momentum)
-                        .add(grad.clone())
-                }
+                Some(state) => state
+                    .buf
+                    .clone()
+                    .mul_scalar(self.momentum)
+                    .add(grad.clone()),
                 _ => grad.clone(),
             };
             (buf.clone(), centered_state, RMSPropMomentumState { buf })
@@ -248,9 +245,6 @@ impl<B: Backend> SimpleOptimizer<B> for RMSProp<B> {
         mut grad: Tensor<B, D>,
         state: Option<Self::State<D>>,
     ) -> (Tensor<B, D>, Option<Self::State<D>>) {
-        println!("\nparam tensor == {}", tensor);
-        println!("\nparam grad == {}", grad);
-
         // fetch state for params
         let mut state_weight_decay = None;
         let mut state_square_avg = None;
@@ -266,25 +260,13 @@ impl<B: Backend> SimpleOptimizer<B> for RMSProp<B> {
         // weight_decay transform
         if let Some(weight_decay) = &self.weight_decay {
             let (grad_out, tensor_out) = weight_decay.transform_temp_fix(grad, tensor);
-            println!("\nafter weight_decay tensor=={}", tensor_out);
-            println!("\nafter weight_decay grad=={}", grad_out);
-            // println!(
-            //     "\nafter weight_decay weight_decay=={}",
-            //     state.grad_last_step
-            // );
             grad = grad_out;
             tensor = tensor_out;
-            // state_weight_decay = Some(state);
         }
 
         // square_avg transform
         let (mut grad, square_avg_out) =
             SquareAvgState::transform(self.alpha, grad, state_square_avg);
-        println!("\nafter square_avg grad=={}", grad);
-        println!(
-            "\nafter square_avg square_avg=={}",
-            square_avg_out.square_avg
-        );
         state_square_avg = Some(square_avg_out);
 
         // centered trnsform
@@ -295,9 +277,6 @@ impl<B: Backend> SimpleOptimizer<B> for RMSProp<B> {
             state_centered,
             state_square_avg,
         );
-        println!("\nafter centered grad=={}", grad_out);
-        println!("\nafter centered avg=={}", centered_out.avg);
-        println!("\nafter centered square_avg=={}", square_avg_out.square_avg);
         grad = grad_out;
         state_centered = Some(centered_out);
         state_square_avg = Some(square_avg_out);
@@ -306,8 +285,6 @@ impl<B: Backend> SimpleOptimizer<B> for RMSProp<B> {
         let (grad, centered_state, momentum) =
             self.momentum
                 .transform(grad, state_centered, state_momentum);
-        println!("\nafter momentum grad=={}", grad);
-        println!("\nafter momentum momentum=={}", momentum.buf);
         let state_centered = Some(centered_state);
         let state_momentum = Some(momentum);
 
@@ -323,7 +300,6 @@ impl<B: Backend> SimpleOptimizer<B> for RMSProp<B> {
         let delta = grad.mul_scalar(lr);
         // (tensor - delta, Some(state))
         let tmp = tensor - delta;
-        println!("\nfinal tensor=={}", tmp);
         (tmp, Some(state))
     }
 
@@ -515,8 +491,8 @@ mod tests {
             state_updated.bias.unwrap().to_data(),
         );
 
-        println!("\nweight_updated\n{:?}", weight_updated);
-        println!("\nbias_updated\n{:?}", bias_updated);
+        // println!("\nweight_updated\n{:?}", weight_updated);
+        // println!("\nbias_updated\n{:?}", bias_updated);
 
         bias_updated.assert_approx_eq(&bias_expected, ASSERT_PRECISION);
         weight_updated.assert_approx_eq(&weights_expected, ASSERT_PRECISION);
