@@ -12,17 +12,18 @@ macro_rules! include_models {
 // ATTENTION: Modify this macro to include all models in the `model` directory.
 include_models!(
     add,
-    sub,
-    mul,
-    div,
+    avg_pool2d,
     concat,
     conv2d,
-    dropout_opset7,
+    div,
     dropout_opset16,
+    dropout_opset7,
     global_avr_pool,
-    softmax,
     log_softmax,
-    maxpool2d
+    maxpool2d,
+    mul,
+    softmax,
+    sub
 );
 
 #[cfg(test)]
@@ -252,5 +253,24 @@ mod tests {
         ]]]);
 
         assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn avg_pool2d() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let model: avg_pool2d::Model<Backend> = avg_pool2d::Model::new();
+
+        // Run the model
+        let input = Tensor::<Backend, 4>::from_floats([[[
+            [-0.077, 0.360, -0.782, 0.072, 0.665],
+            [-0.287, 1.621, -1.597, -0.052, 0.611],
+            [0.760, -0.034, -0.345, 0.494, -0.078],
+            [-1.805, -0.476, 0.205, 0.338, 1.353],
+            [0.374, 0.013, 0.774, -0.109, -0.271],
+        ]]]);
+        let output = model.forward(input);
+        let expected = Data::from([[[[0.008, -0.131, -0.208, 0.425]]]]);
+
+        output.to_data().assert_approx_eq(&expected, 3);
     }
 }

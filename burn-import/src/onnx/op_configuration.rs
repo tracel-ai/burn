@@ -1,6 +1,7 @@
 use burn::nn::{
-    conv::Conv2dConfig, pool::MaxPool2dConfig, BatchNormConfig, DropoutConfig, LinearConfig,
-    PaddingConfig2d,
+    conv::Conv2dConfig,
+    pool::{AvgPool2dConfig, MaxPool2dConfig},
+    BatchNormConfig, DropoutConfig, LinearConfig, PaddingConfig2d,
 };
 
 use crate::onnx::ir::TensorData;
@@ -94,6 +95,34 @@ pub fn max_pool2d_config(curr: &Node) -> MaxPool2dConfig {
     let padding = padding_config(&pads);
 
     MaxPool2dConfig::new([kernel_shape[0] as usize, kernel_shape[1] as usize])
+        .with_strides([strides[0] as usize, strides[1] as usize])
+        .with_padding(padding)
+}
+
+/// Create a AvgPool2dConfig from the attributes of the node
+pub fn avg_pool2d_config(curr: &Node) -> AvgPool2dConfig {
+    let mut kernel_shape = Vec::new();
+    let mut strides = Vec::new();
+    let mut pads = Vec::new();
+    let mut count_include_pad: i64 = 0;
+
+    for (key, value) in curr.attrs.iter() {
+        match key.as_str() {
+            "kernel_shape" => attr_value_vec_i64(value, &mut kernel_shape),
+            "strides" => attr_value_vec_i64(value, &mut strides),
+            "pads" => attr_value_vec_i64(value, &mut pads),
+            "count_include_pad" => attr_value_i64(value, &mut count_include_pad),
+            _ => {}
+        }
+    }
+
+    let padding = padding_config(&pads);
+
+    if count_include_pad == 1 && padding != PaddingConfig2d::Valid {
+        todo!("AvgPool2d: count_include_pad is not supported. See https://github.com/burn-rs/burn/issues/636");
+    }
+
+    AvgPool2dConfig::new([kernel_shape[0] as usize, kernel_shape[1] as usize])
         .with_strides([strides[0] as usize, strides[1] as usize])
         .with_padding(padding)
 }
