@@ -16,7 +16,7 @@ pub struct WeightDecayConfig {
 /// State of [WeightDecay](WeightDecay).
 #[derive(Record, Clone, new)]
 pub struct WeightDecayState<B: Backend, const D: usize> {
-    grad_last_step: Tensor<B, D>,
+    pub(crate) grad_last_step: Tensor<B, D>,
 }
 
 /// Weight decay implementation that transforms gradients.
@@ -63,14 +63,9 @@ impl<B: Backend> WeightDecay<B> {
         &self,
         grad: Tensor<B, D>,
         tensor: Tensor<B, D>,
-        state: Option<WeightDecayState<B, D>>,
-    ) -> (Tensor<B, D>, Tensor<B, D>, WeightDecayState<B, D>) {
-        let grad = match state {
-            Some(state) => state.grad_last_step.mul_scalar(self.penalty).add(grad),
-            None => tensor.clone().mul_scalar(self.penalty).add(grad),
-        };
-
-        (grad, tensor.clone(), WeightDecayState::new(tensor))
+    ) -> (Tensor<B, D>, Tensor<B, D>) {
+        let grad = tensor.clone().mul_scalar(self.penalty).add(grad);
+        (grad, tensor.clone())
     }
 }
 
