@@ -144,14 +144,7 @@ impl<B: Backend, const D: usize> CenteredState<B, D> {
                     state.square_avg,
                 ),
                 _ => {
-                    // same as init value of SquareAvgState.transform
-                    let square_avg = grad.clone().powf(2.).mul_scalar(1. - alpha);
-                    (
-                        square_avg
-                            .clone()
-                            .sub(grad_avg.clone().powf(2.).mul_scalar(-1.)),
-                        square_avg,
-                    )
+                    panic!("uninitialized square_avg state")
                 }
             };
             (grad, Self { grad_avg, avg }, SquareAvgState { square_avg })
@@ -160,9 +153,7 @@ impl<B: Backend, const D: usize> CenteredState<B, D> {
             let (avg, square_avg) = match square_avg_state {
                 Some(state) => (state.square_avg.clone(), state.square_avg),
                 _ => {
-                    // same as init value of SquareAvgState.transform
-                    let square_avg = grad.clone().powf(2.).mul_scalar(1. - alpha);
-                    (square_avg.clone(), square_avg)
+                    panic!("uninitialized square_avg state")
                 }
             };
             (grad, Self { grad_avg, avg }, SquareAvgState { square_avg })
@@ -188,52 +179,46 @@ impl RMSPropMomentum {
     pub fn transform<B: Backend, const D: usize>(
         &self,
         grad: Tensor<B, D>,
+        centered_state: Option<CenteredState<B, D>>,
         momentum_state: Option<RMSPropMomentumState<B, D>>,
-        square_avg_state: Option<SquareAvgState<B, D>>,
     ) -> (
         Tensor<B, D>,
+        CenteredState<B, D>,
         RMSPropMomentumState<B, D>,
-        SquareAvgState<B, D>,
     ) {
-        let (grad, square_avg) = match square_avg_state {
+        let (grad, centered_state) = match centered_state {
             Some(state) => (
                 grad.clone()
-                    .div(state.square_avg.clone().sqrt().add_scalar(self.epsilon)),
-                state.square_avg,
+                    .div(state.avg.clone().sqrt().add_scalar(self.epsilon)),
+                state,
             ),
             _ => {
-                let square_avg = Tensor::<B, D>::zeros(grad.shape());
-                (
-                    grad.clone()
-                        .div(square_avg.clone().add_scalar(self.epsilon)),
-                    square_avg,
-                )
+                panic!("uninitialized centered state")
             }
         };
 
         if self.momentum > 0. {
-            let velocity = match momentum_state {
-                Some(state) => state
-                    .velocity
-                    .clone()
-                    .mul_scalar(self.momentum)
-                    .add(grad.clone()),
+            let buf = match momentum_state {
+                Some(state) => {
+                    println!("\nbefore momentum momentum=={}", state.buf);
+                    state
+                        .buf
+                        .clone()
+                        .mul_scalar(self.momentum)
+                        .add(grad.clone())
+                }
                 _ => grad.clone(),
             };
-            (
-                velocity.clone(),
-                RMSPropMomentumState { velocity },
-                SquareAvgState { square_avg },
-            )
+            (buf.clone(), centered_state, RMSPropMomentumState { buf })
         } else {
             match momentum_state {
-                Some(state) => (grad.clone(), state, SquareAvgState { square_avg }),
+                Some(state) => (grad.clone(), centered_state, state),
                 _ => (
                     grad.clone(),
+                    centered_state,
                     RMSPropMomentumState {
-                        velocity: Tensor::zeros(grad.shape()),
+                        buf: Tensor::zeros(grad.shape()),
                     },
-                    SquareAvgState { square_avg },
                 ),
             }
         }
@@ -243,12 +228,12 @@ impl RMSPropMomentum {
 /// [RMSPropMomentumState](RMSPropMomentumState) is to store and pass optimizer step params.
 #[derive(Record, Clone, new)]
 pub struct RMSPropMomentumState<B: Backend, const D: usize> {
-    velocity: Tensor<B, D>,
+    buf: Tensor<B, D>,
 }
 
 impl<B: Backend, const D: usize> RMSPropMomentumState<B, D> {
     fn to_device(mut self, device: &B::Device) -> Self {
-        self.velocity = self.velocity.to_device(device);
+        self.buf = self.buf.to_device(device);
         self
     }
 }
@@ -280,13 +265,16 @@ impl<B: Backend> SimpleOptimizer<B> for RMSProp<B> {
 
         // weight_decay transform
         if let Some(weight_decay) = &self.weight_decay {
-            let (grad_out, tensor_out, state) =
-                weight_decay.transform_temp_fix(grad, tensor, state_weight_decay);
+            let (grad_out, tensor_out) = weight_decay.transform_temp_fix(grad, tensor);
+            println!("\nafter weight_decay tensor=={}", tensor_out);
+            println!("\nafter weight_decay grad=={}", grad_out);
+            // println!(
+            //     "\nafter weight_decay weight_decay=={}",
+            //     state.grad_last_step
+            // );
             grad = grad_out;
             tensor = tensor_out;
-            state_weight_decay = Some(state);
-            println!("\nafter weight_decay tensor=={}", tensor);
-            println!("\nafter weight_decay grad=={}", grad);
+            // state_weight_decay = Some(state);
         }
 
         // square_avg transform
@@ -307,18 +295,20 @@ impl<B: Backend> SimpleOptimizer<B> for RMSProp<B> {
             state_centered,
             state_square_avg,
         );
+        println!("\nafter centered grad=={}", grad_out);
+        println!("\nafter centered avg=={}", centered_out.avg);
+        println!("\nafter centered square_avg=={}", square_avg_out.square_avg);
         grad = grad_out;
         state_centered = Some(centered_out);
         state_square_avg = Some(square_avg_out);
-        println!("\nafter centered grad=={}", grad);
 
         // momentum transform
-        let (grad, momentum, square_avg) =
+        let (grad, centered_state, momentum) =
             self.momentum
-                .transform(grad, state_momentum, state_square_avg);
+                .transform(grad, state_centered, state_momentum);
         println!("\nafter momentum grad=={}", grad);
-        println!("\nafter momentum momentum=={}", momentum.velocity);
-        let state_square_avg = Some(square_avg);
+        println!("\nafter momentum momentum=={}", momentum.buf);
+        let state_centered = Some(centered_state);
         let state_momentum = Some(momentum);
 
         // transition state
@@ -375,8 +365,9 @@ mod tests {
         assert!(!record.is_empty());
     }
 
+    /// used for test differences and debug
     #[test]
-    fn test_rmsprop_optimizer_with_numbers_2() {
+    fn test_rmsprop_optimizer_with_numbers_basic() {
         let linear = given_linear_layer(
             Data::from([
                 [1., 1., 1., 1., 1., 1.],
@@ -399,7 +390,6 @@ mod tests {
         ])
         .require_grad();
 
-        // let mut optimizer = create_rmsprop();
         let mut optimizer = RMSPropConfig::new()
             .with_alpha(0.99)
             .with_epsilon(1e-8)
@@ -408,17 +398,17 @@ mod tests {
             .with_centered(false)
             .init();
 
-        println!("linear is {:?}", linear);
+        // println!("linear is {:?}", linear);
         let grads = linear.forward(x_1).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
         let linear = optimizer.step(LEARNING_RATE, linear, grads);
 
-        println!("linear is {:?}", linear);
+        // println!("linear is {:?}", linear);
         let grads = linear.forward(x_2).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
         let linear = optimizer.step(LEARNING_RATE, linear, grads);
 
-        println!("linear is {:?}", linear);
+        // println!("linear is {:?}", linear);
         let state_updated = linear.into_record();
 
         let (weight_updated, bias_updated) = (
@@ -426,8 +416,22 @@ mod tests {
             state_updated.bias.unwrap().to_data(),
         );
 
-        println!("\nweight_updated\n{:?}", weight_updated);
-        println!("\nbias_updated\n{:?}", bias_updated);
+        // println!("\nweight_updated\n{:?}", weight_updated);
+        // println!("\nbias_updated\n{:?}", bias_updated);
+
+        let weights_expected = Data::from([
+            [0.743937, 0.743937, 0.743937, 0.743937, 0.743937, 0.743937],
+            [0.783809, 0.783809, 0.783809, 0.783809, 0.783809, 0.783809],
+            [0.742881, 0.742881, 0.742881, 0.742881, 0.742881, 0.742881],
+            [0.740366, 0.740366, 0.740366, 0.740366, 0.740366, 0.740366],
+            [0.748005, 0.748005, 0.748005, 0.748005, 0.748005, 0.748005],
+            [0.743710, 0.743710, 0.743710, 0.743710, 0.743710, 0.743710],
+        ]);
+        let bias_expected =
+            Data::from([0.239199, 0.239199, 0.239199, 0.239199, 0.239199, 0.239199]);
+
+        bias_updated.assert_approx_eq(&bias_expected, ASSERT_PRECISION);
+        weight_updated.assert_approx_eq(&weights_expected, ASSERT_PRECISION);
     }
 
     #[test]
@@ -454,7 +458,6 @@ mod tests {
         ])
         .require_grad();
 
-        // let mut optimizer = create_rmsprop();
         let mut optimizer = RMSPropConfig::new()
             .with_alpha(0.99)
             .with_epsilon(1e-8)
@@ -474,22 +477,22 @@ mod tests {
         let state_updated = linear.into_record();
         let weights_expected = Data::from([
             [
-                -0.576399, -0.076070, 0.147256, 0.060396, -0.165669, -0.189013,
+                -0.576399, -0.118494, 0.148353, 0.064070, -0.169983, -0.188779,
             ],
             [
-                -0.178181, -0.231448, -0.623644, -0.004601, -0.056122, -0.548240,
+                -0.135571, -0.231448, -0.578445, 0.041143, -0.018162, -0.504207,
             ],
             [
-                -0.274862, -0.178527, -0.553153, -0.011201, -0.529388, 0.056839,
+                -0.275990, -0.222397, -0.553153, -0.008625, -0.534956, 0.055967,
             ],
             [
-                -0.553804, -0.433653, -0.628443, -0.557675, -0.327589, -0.093531,
+                -0.557575, -0.480979, -0.631072, -0.557675, -0.335686, -0.096997,
             ],
             [
-                0.074068, -0.430464, 0.114660, -0.432481, 0.127890, -0.286493,
+                0.078313, -0.469618, 0.119993, -0.424341, 0.127890, -0.281912,
             ],
             [
-                -0.271762, -0.224970, -0.131209, -0.067498, -0.222241, 0.127126,
+                -0.271996, -0.268097, -0.130324, -0.064037, -0.226805, 0.127126,
             ],
         ]);
         let bias_expected = Data::from([
@@ -501,9 +504,8 @@ mod tests {
             state_updated.bias.unwrap().to_data(),
         );
 
-        println!("\nweight_expected{}\n", weights_expected);
-        println!("\nweight_updated\n{}", weight_updated);
-        println!("\nbias_updated\n{}", bias_updated);
+        println!("\nweight_updated\n{:?}", weight_updated);
+        println!("\nbias_updated\n{:?}", bias_updated);
 
         bias_updated.assert_approx_eq(&bias_expected, ASSERT_PRECISION);
         weight_updated.assert_approx_eq(&weights_expected, ASSERT_PRECISION);
