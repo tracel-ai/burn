@@ -7,7 +7,7 @@ For clarity, we sometimes omit imports in our code snippets. For more details, p
 
 ## Key Learnings
 
-* Creating a projet 
+* Creating a project
 * Creating neural network models
 * Importing and preparing datasets
 * Training models on data

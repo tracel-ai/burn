@@ -2,7 +2,7 @@
 
 The first step is to create a project and add the different Burn dependencies.
 In a `Cargo.toml` file, add the `burn`, `burn-wgpu`, `burn-dataset`, `burn-autodiff` and `burn-train`.
-Note that the `serde` dependancy is necessary for serialization and is mandatory for the time being.
+Note that the `serde` dependency is necessary for serialization and is mandatory for the time being.
 
 ```toml
 [package]
@@ -64,7 +64,7 @@ This is important because you can extend the functionalities of a specific backe
 You can also change backend during runtime, for instance to compute training metrics on a cpu backend while using a gpu one only to train the model. 
 In our example, the backend in use will be determined later on.
 
-Next, we need to instanciate the model for training.
+Next, we need to instantiate the model for training.
 
 ```rust , ignore
 #[derive(Config, Debug)]
@@ -95,7 +95,7 @@ When creating a custom neural network module, it is often a good idea to create 
 This allows you to define default values for your network, thanks to the `Config` attribute.
 The benefit of this attribute is that it makes the configuration serializable, enabling you to painlessly save your model hyperparameters, enhancing your experimentation process.
 Note that a constructor will automatically be generated for your configuration, which will take as input values for the parameter which do not have default values: `let config = ModelConfig::new(num_classes, hidden_size);`.
-The default values can be overriden easily with builder-like methods: (e.g `config.with_dropout(0.2);`)
+The default values can be overridden easily with builder-like methods: (e.g `config.with_dropout(0.2);`)
 
 The first implementation block is related to the initialization method.
 As we can see, all fields are set using the configuration of the corresponding neural network underlying module.
