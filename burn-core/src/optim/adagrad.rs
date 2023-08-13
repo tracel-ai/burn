@@ -12,6 +12,7 @@ use crate::optim::adaptor::OptimizerAdaptor;
 use crate::tensor::{backend::ADBackend, Tensor};
 use burn_tensor::backend::Backend;
 
+/// AdaGrad configuration.
 #[derive(Config)]
 pub struct AdaGradConfig {
     #[config(default = 0.)]
@@ -24,11 +25,13 @@ pub struct AdaGradConfig {
     grad_clipping: Option<GradientClippingConfig>,
 }
 
+/// AdaGrad optimizer
 pub struct AdaGrad<B: Backend> {
     lr_decay: LRDecay,
     weight_decay: Option<WeightDecay<B>>,
 }
 
+/// AdaGrad state.
 #[derive(Record, Clone, new)]
 pub struct AdaGradState<B: Backend, const D: usize> {
     weight_decay: Option<WeightDecayState<B, D>>,
@@ -77,6 +80,11 @@ impl<B: Backend> SimpleOptimizer<B> for AdaGrad<B> {
 }
 
 impl AdaGradConfig {
+    /// Initialize AdaGrad optimizer.
+    ///
+    /// # Returns
+    ///
+    /// Returns an optimizer that can be used to optimize a module.
     pub fn init<B: ADBackend, M: ADModule<B>>(&self) -> impl Optimizer<M, B> {
         let optim = AdaGrad {
             lr_decay: LRDecay {
@@ -94,6 +102,7 @@ impl AdaGradConfig {
     }
 }
 
+/// Learning rate decay state (also includes sum state).
 #[derive(Record, new, Clone)]
 pub struct LRDecayState<B: Backend, const D: usize> {
     time: usize,

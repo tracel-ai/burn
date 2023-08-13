@@ -14,6 +14,7 @@ mod sgd;
 mod simple;
 mod visitor;
 
+pub use adagrad::*;
 pub use adam::*;
 pub use adamw::*;
 pub use base::*;
