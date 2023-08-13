@@ -346,23 +346,34 @@ mod tests {
     use super::*;
     use crate::module::{Module, Param};
     use crate::optim::{GradientsParams, Optimizer};
+    use crate::record::{BinFileRecorder, FullPrecisionSettings, Recorder};
     use crate::tensor::{Data, Distribution, Tensor};
     use crate::{nn, TestADBackend, TestBackend};
+    use tempfile::TempDir;
 
     const LEARNING_RATE: LearningRate = 0.01;
     const ASSERT_PRECISION: usize = 6;
 
     #[test]
-    fn test_load_state() {
-        let layer = nn::LinearConfig::new(20, 20).with_bias(true).init();
-        let mut optim = create_rmsprop();
-        let loss = layer.forward(create_random_tensor());
-        let grads = loss.backward();
-        let grads = GradientsParams::from_grads(grads, &layer);
-        let _layer = optim.step(LEARNING_RATE, layer, grads);
+    fn test_rmsprop_optimizer_save_load_state() {
+        let linear = nn::LinearConfig::new(6, 6).init();
+        let x = Tensor::<TestADBackend, 2>::random([2, 6], Distribution::Default);
+        let mut optimizer = create_rmsprop();
+        let grads = linear.forward(x).backward();
+        let grads = GradientsParams::from_grads(grads, &linear);
+        let _linear = optimizer.step(LEARNING_RATE, linear, grads);
+        let temp_dir = TempDir::new().unwrap();
+        BinFileRecorder::<FullPrecisionSettings>::default()
+            .record(optimizer.to_record(), temp_dir.path().join("test_optim"))
+            .unwrap();
 
-        let record = optim.to_record();
-        assert!(!record.is_empty());
+        let state_optim_before = optimizer.to_record();
+        let state_optim_before_copy = optimizer.to_record();
+        let optimizer = create_rmsprop();
+        let optimizer = optimizer.load_record(state_optim_before_copy);
+        let state_optim_after = optimizer.to_record();
+
+        assert_eq!(state_optim_before.len(), state_optim_after.len());
     }
 
     /// used for test differences and debug
@@ -520,6 +531,7 @@ mod tests {
         nn::LinearConfig::new(6, 6).init_with(record)
     }
 
+    #[allow(dead_code)]
     fn create_random_tensor() -> Tensor<TestADBackend, 2> {
         Tensor::<TestADBackend, 2>::random(Shape::new([2, 20]), Distribution::Default)
     }
