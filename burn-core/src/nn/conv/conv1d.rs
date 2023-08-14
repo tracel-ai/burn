@@ -13,7 +13,7 @@ use libm::sqrt;
 use super::checks;
 
 /// Configuration to create an [1D convolution](Conv1d) layer.
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct Conv1dConfig {
     /// The number of input channels.
     pub channels_in: usize,

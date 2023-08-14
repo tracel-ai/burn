@@ -62,6 +62,7 @@ pub fn dim_inference(
         updater.update_tensor_inputs(node);
 
         match node.node_type {
+            NodeType::Conv1d => conv1d_update_outputs(node),
             NodeType::Conv2d => conv2d_update_outputs(node),
             NodeType::MaxPool2d => max_pool2d_update_outputs(node),
             NodeType::Linear => linear_update_outputs(node),
@@ -297,9 +298,22 @@ fn flatten_update_outputs(node: &mut Node) {
     });
 }
 
+/// Infers the shape of a Conv1d node and replaces the shape of the output tensor.
+fn conv1d_update_outputs(node: &mut Node) {
+    // copy the type from the previous output to the nodeent input
+    if node.inputs.len() != 1 {
+        panic!("Conv1d: multiple inputs are not supported");
+    }
+
+    // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
+    if let ArgType::Tensor(tensor) = node.inputs[0].clone().ty {
+        node.outputs[0].ty = ArgType::Tensor(TensorArg { dim: tensor.dim });
+    } else {
+        panic!("Only tensor input is valid");
+    }
+}
+
 /// Infers the shape of a Conv2d node and replaces the shape of the output tensor.
-///
-/// The shape of the output tensor is calculated by running the actual convolution operation.
 fn conv2d_update_outputs(node: &mut Node) {
     // copy the type from the previous output to the nodeent input
     if node.inputs.len() != 1 {

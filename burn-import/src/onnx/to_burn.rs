@@ -17,6 +17,7 @@ use crate::{
             binary::BinaryNode,
             concat::ConcatNode,
             constant::{ConstantNode, ConstantValue, TensorValue},
+            conv1d::Conv1dNode,
             conv2d::Conv2dNode,
             dropout::DropoutNode,
             global_avg_pool::GlobalAvgPoolNode,
@@ -33,8 +34,8 @@ use crate::{
     onnx::{
         ir::{AttributeValue, Node, NodeType},
         op_configuration::{
-            batch_norm_config, conv2d_config, flatten_config, linear_config, log_softmax_config,
-            max_pool2d_config,
+            batch_norm_config, conv1d_config, conv2d_config, flatten_config, linear_config,
+            log_softmax_config, max_pool2d_config,
         },
     },
 };
@@ -178,6 +179,7 @@ impl ONNXGraph {
                 NodeType::Mul => graph.register(Self::mul_conversion(node)),
                 NodeType::Div => graph.register(Self::div_conversion(node)),
                 NodeType::Equal => graph.register(Self::equal_conversion(node)),
+                NodeType::Conv1d => graph.register(Self::conv1d_conversion::<PS>(node)),
                 NodeType::Conv2d => graph.register(Self::conv2d_conversion::<PS>(node)),
                 NodeType::MaxPool2d => graph.register(Self::max_pool2d_conversion(node)),
                 NodeType::MatMul => graph.register(Self::matmul_conversion(node)),
@@ -451,6 +453,22 @@ impl ONNXGraph {
             running_var,
             config,
         )
+    }
+
+    fn conv1d_conversion<PS: PrecisionSettings>(mut node: Node) -> Conv1dNode<PS> {
+        let input = node.inputs.get(0).unwrap().to_tensor_type();
+        let output = node.outputs.get(0).unwrap().to_tensor_type();
+        let config = conv1d_config(&node);
+
+        let bias = node.states.len() == 2;
+        let weight = extract_next_data_serialize::<PS::FloatElem>(&mut node).unwrap();
+        let bias = match bias {
+            true => Some(extract_next_data_serialize::<PS::FloatElem>(&mut node)).unwrap(),
+            false => None,
+        };
+
+        let name = &node.name;
+        Conv1dNode::<PS>::new(name, input, output, weight, bias, config)
     }
 
     fn conv2d_conversion<PS: PrecisionSettings>(mut node: Node) -> Conv2dNode<PS> {
