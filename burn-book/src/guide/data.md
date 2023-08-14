@@ -4,7 +4,6 @@ Typically, one trains a model on some dataset.
 Burn provides a library of very useful dataset sources and transformations.
 In particular, there are Hugging Face dataset utilities that allow to download and store data from Hugging Face into an SQLite database for extremely efficient data streaming and storage. For this guide, we will use the MNIST dataset provided by Hugging Face.
 
-To iterate over a dataset efficiently, the `Dataloader` struct is also provided, we also need to implement the `Batcher` trait.
 To iterate over a dataset efficiently, we will define a struct which will implement the `Batcher` trait. The goal of a batcher is to map individual dataset items into a batched tensor that can be used as input to our previously defined model.
 
 ```rust , ignore
@@ -69,5 +68,4 @@ The batch contains the images in the form of a 3D tensor, along with a targets t
 The first step is to parse the image array into a `Data` struct.
 Burn provides the `Data` struct to encapsulate tensor storage information without being specific for a backend.
 When creating a tensor from data, we often need to convert the data precision to the current backend in use.
-This can be done with the `.convert()` method while importing the `burn::tensor::elementConversion` trait.
-This also allows to call `.elem()` on a specific number to convert it to the current backend element type in use.
+This can be done with the `.convert()` method. While importing the `burn::tensor::ElementConversion` trait, you can call `.elem()` on a specific number to convert it to the current backend element type in use.

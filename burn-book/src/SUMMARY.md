@@ -1,6 +1,5 @@
 - [Overview](./overview.md)
 - [Why Burn?](./motivation.md)
-- [Getting Started](./getting-started.md)
 - [Guide](./guide/README.md)
   - [Model](./guide/model.md)
   - [Data](./guide/data.md)

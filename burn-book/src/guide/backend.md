@@ -23,6 +23,7 @@ fn main() {
 In this example, we use the `WgpuBackend` which is compatible with any operating system and will use the GPU. For other options, see the Burn README. 
 This backend type takes the graphics api, the float type and the int type as generic argument that will be used during the training. By leaving the graphics API as `burn_wgpu::AutoGraphicsApi`, it should automatically use an API available on your machine. 
 The autodiff backend is simply the same backend, wrapped within the `ADBackendDecorator` struct which imparts differentiability to any backend.
+
 We call the `train` function defined earlier with a directory for artifacts, the configuration of the model (the number of digit classes is 10 and the hidden dimension is 512), the optimizer configuration which in our case will be the default Adam configuration, and the device which can be obtained from the backend.
 
 When running the example, we can see the training progression through a basic CLI dashboard:

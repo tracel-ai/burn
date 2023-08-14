@@ -72,7 +72,6 @@ pub fn train<B: ADBackend>(artifact_dir: &str, config: TrainingConfig, device: B
 
     B::seed(config.seed);
 
-    // Data
     let batcher_train = MNISTBatcher::<B>::new(device.clone());
     let batcher_valid = MNISTBatcher::<B::InnerBackend>::new(device.clone());
 
@@ -88,7 +87,6 @@ pub fn train<B: ADBackend>(artifact_dir: &str, config: TrainingConfig, device: B
         .num_workers(config.num_workers)
         .build(MNISTDataset::test());
 
-    // Model
     let learner = LearnerBuilder::new(artifact_dir)
         .metric_train_plot(AccuracyMetric::new())
         .metric_valid_plot(AccuracyMetric::new())
