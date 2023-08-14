@@ -18,10 +18,42 @@ const TILING_2D_BLOCK_SIZES_K: [usize; 2] = [16, 32];
 const TILING_2D_TILE_SIZES: [usize; 2] = [4, 16];
 const MEMORY_COALESCING_WORKGROUP_SIZES: [usize; 3] = [8, 16, 32];
 
+macro_rules! call_dim {
+    ($func:expr, $dim:expr, $( $x:expr ),*) => {
+        match $dim {
+            1 => {
+                let tensor: WgpuTensor<E, 1> = $func($($x,)*);
+                tensor.into()
+            },
+            2 => {
+                let tensor: WgpuTensor<E, 2> = $func($($x,)*);
+                tensor.into()
+            },
+            3 => {
+                let tensor: WgpuTensor<E, 3> = $func($($x,)*);
+                tensor.into()
+            },
+            4 => {
+                let tensor: WgpuTensor<E, 4> = $func($($x,)*);
+                tensor.into()
+            },
+            5 => {
+                let tensor: WgpuTensor<E, 5> = $func($($x,)*);
+                tensor.into()
+            },
+            6 => {
+                let tensor: WgpuTensor<E, 6> = $func($($x,)*);
+                tensor.into()
+            },
+            _ => panic!("Tensors of rank 7 and more can't be autotuned."),
+        }
+    };
+}
+
 macro_rules! tiling2d_tunable {
     ($name:ident, $func:expr) => {
         #[derive(new, Default)]
-        struct $name<E: WgpuElement, const D: usize> {
+        struct $name<E: WgpuElement> {
             b_m: usize,
             b_n: usize,
             b_k: usize,
@@ -32,12 +64,38 @@ macro_rules! tiling2d_tunable {
             _elem: PhantomData<E>,
         }
 
-        impl<E: WgpuElement, const D: usize> KernelFunction for $name<E, D> {
-            type Input = (WgpuTensor<E, D>, WgpuTensor<E, D>);
-            type Output = WgpuTensor<E, D>;
+        impl<E: WgpuElement> KernelFunction for $name<E> {
+            type Input = (WgpuTensorDyn<E>, WgpuTensorDyn<E>);
+            type Output = WgpuTensorDyn<E>;
 
             fn call(&self, (lhs, rhs): Self::Input) -> Self::Output {
-                $func(
+                fn call_dyn<E: WgpuElement, const D: usize>(
+                    lhs: WgpuTensorDyn<E>,
+                    rhs: WgpuTensorDyn<E>,
+                    b_m: usize,
+                    b_n: usize,
+                    b_k: usize,
+                    t_m: usize,
+                    t_n: usize,
+                    workgroup_size_x: usize,
+                    workgroup_size_y: usize,
+                ) -> WgpuTensor<E, D> {
+                    $func(
+                        WgpuTensor::<E, D>::from(lhs),
+                        WgpuTensor::<E, D>::from(rhs),
+                        b_m,
+                        b_n,
+                        b_k,
+                        t_m,
+                        t_n,
+                        workgroup_size_x,
+                        workgroup_size_y,
+                    )
+                }
+
+                return call_dim!(
+                    call_dyn,
+                    lhs.shape.len(),
                     lhs,
                     rhs,
                     self.b_m,
@@ -46,8 +104,8 @@ macro_rules! tiling2d_tunable {
                     self.t_m,
                     self.t_n,
                     self.workgroup_size_x,
-                    self.workgroup_size_y,
-                )
+                    self.workgroup_size_y
+                );
             }
 
             fn description(&self) -> String {
@@ -95,21 +153,26 @@ impl<E: WgpuElement> KernelFunction for MemoryCoalescing<E> {
     type Output = WgpuTensorDyn<E>;
 
     fn call(&self, (lhs, rhs): Self::Input) -> Self::Output {
-        fn mem_coalescing_dyn<E: WgpuElement, const D: usize>(
+        fn call_dyn<E: WgpuElement, const D: usize>(
             lhs: WgpuTensorDyn<E>,
             rhs: WgpuTensorDyn<E>,
             workgroup_size_x: usize,
             workgroup_size_y: usize,
-        ) -> WgpuTensorDyn<E> {
-            let lhs = WgpuTensor::from_dyn(lhs);
-            let rhs = WgpuTensor::from_dyn(rhs);
-            let o = matmul_mem_coalescing::<E, D>(lhs, rhs, workgroup_size_x, workgroup_size_y);
-            o.into_dyn()
+        ) -> WgpuTensor<E, D> {
+            let lhs = WgpuTensor::from(lhs);
+            let rhs = WgpuTensor::from(rhs);
+
+            matmul_mem_coalescing::<E, D>(lhs, rhs, workgroup_size_x, workgroup_size_y)
         }
-        match lhs.shape.len() {
-            1 => mem_coalescing_dyn::<_, 1>(lhs, rhs, self.workgroup_size_x, self.workgroup_size_y),
-            _ => panic!("unsupported dim"),
-        }
+
+        call_dim!(
+            call_dyn,
+            lhs.shape.len(),
+            lhs,
+            rhs,
+            self.workgroup_size_x,
+            self.workgroup_size_y
+        )
     }
 
     fn description(&self) -> String {
@@ -126,7 +189,7 @@ struct MatmulBenchmark<F: WgpuElement, const D: usize> {
     shape_rhs: Shape<D>,
     num_repeats: usize,
     matmul: PhantomData<F>,
-    func: AutoTuneFunction<(WgpuTensor<F, D>, WgpuTensor<F, D>), WgpuTensor<F, D>>,
+    func: AutoTuneFunction<(WgpuTensorDyn<F>, WgpuTensorDyn<F>), WgpuTensorDyn<F>>,
 }
 
 impl<E, const D: usize, G> Benchmark<G> for MatmulBenchmark<E, D>
@@ -134,7 +197,7 @@ where
     E: WgpuElement + FloatElement,
     G: GraphicsApi,
 {
-    type Args = (WgpuTensor<E, D>, WgpuTensor<E, D>);
+    type Args = (WgpuTensorDyn<E>, WgpuTensorDyn<E>);
 
     fn name(&self) -> String {
         format!("{:?} x {:?}", self.shape_lhs.dims, self.shape_rhs.dims)
@@ -162,7 +225,7 @@ where
         )
         .to_device(device);
 
-        (lhs.into_primitive(), rhs.into_primitive())
+        (lhs.into_primitive().into(), rhs.into_primitive().into())
     }
 }
 
@@ -174,6 +237,11 @@ pub fn tune<G: GraphicsApi, E, const D: usize>(
 where
     E: WgpuElement + FloatElement,
 {
+    if D > 6 {
+        log::debug!("Can't autotune matmul for tensors of rank 7 or more.");
+        return kernel::matmul::matmul_tiling_2d_default(lhs, rhs);
+    }
+
     let (shape_lhs, shape_rhs) = calculate_benchmark_shapes(lhs.shape.clone(), rhs.shape.clone());
     let id = AutoTuneKey::new(
         vec![
@@ -184,16 +252,19 @@ where
     );
 
     let context = lhs.context.clone();
-
-    match context.tuner.execute(&id, (lhs, rhs)) {
+    let input: (WgpuTensorDyn<E>, WgpuTensorDyn<E>) = (lhs.into(), rhs.into());
+    let output: WgpuTensorDyn<E> = match context.tuner.execute(&id, input) {
         Execution::Executed(output) => output,
         Execution::NoCacheFound((lhs, rhs)) => {
             let tunables = matmul_candidates::<G, E, D>(shape_lhs, shape_rhs);
+
             context
                 .tuner
-                .tune(id, (lhs, rhs), tunables, &context.device)
+                .tune(id, (lhs.into(), rhs.into()), tunables, &context.device)
         }
-    }
+    };
+
+    output.into()
 }
 
 /// Shape dims are anchored to the closest (on a log scale) power of 2
@@ -219,19 +290,18 @@ fn calculate_benchmark_shapes<const D: usize>(
     (lhs_shape, rhs_shape)
 }
 
-type MatmulTunable<G, E, const D: usize> =
-    Tunable<G, (WgpuTensor<E, D>, WgpuTensor<E, D>), WgpuTensor<E, D>>;
+type MatmulTunable<G, E> = Tunable<G, (WgpuTensorDyn<E>, WgpuTensorDyn<E>), WgpuTensorDyn<E>>;
 
 /// Enumerates all matmul versions that are candidates for autotuning
 fn matmul_candidates<G: GraphicsApi, E, const D: usize>(
     shape_lhs: Shape<D>,
     shape_rhs: Shape<D>,
-) -> Vec<MatmulTunable<G, E, D>>
+) -> Vec<MatmulTunable<G, E>>
 where
     E: WgpuElement + FloatElement,
 {
     let matmul_benchmark =
-        |func: AutoTuneFunction<(WgpuTensor<E, D>, WgpuTensor<E, D>), WgpuTensor<E, D>>| {
+        |func: AutoTuneFunction<(WgpuTensorDyn<E>, WgpuTensorDyn<E>), WgpuTensorDyn<E>>| {
             Tunable::<G, _, _>::new(
                 func.clone(),
                 Arc::new(MatmulBenchmark::new(
@@ -250,7 +320,7 @@ where
         for block_size_k in TILING_2D_BLOCK_SIZES_K {
             for tile_size in TILING_2D_TILE_SIZES {
                 candidates.push(matmul_benchmark(Arc::new(
-                    Tiling2DContiguousLoad::<E, D>::new(
+                    Tiling2DContiguousLoad::<E>::new(
                         block_size,
                         block_size,
                         block_size_k,
@@ -261,7 +331,7 @@ where
                     ),
                 )));
                 candidates.push(matmul_benchmark(Arc::new(
-                    Tiling2DContiguousLoadVectorized::<E, D>::new(
+                    Tiling2DContiguousLoadVectorized::<E>::new(
                         block_size,
                         block_size,
                         block_size_k,
@@ -271,7 +341,7 @@ where
                         block_size / tile_size,
                     ),
                 )));
-                candidates.push(matmul_benchmark(Arc::new(Tiling2DTileLoad::<E, D>::new(
+                candidates.push(matmul_benchmark(Arc::new(Tiling2DTileLoad::<E>::new(
                     block_size,
                     block_size,
                     block_size_k,
@@ -281,7 +351,7 @@ where
                     block_size / tile_size,
                 ))));
                 candidates.push(matmul_benchmark(Arc::new(
-                    Tiling2DTileLoadVectorized::<E, D>::new(
+                    Tiling2DTileLoadVectorized::<E>::new(
                         block_size,
                         block_size,
                         block_size_k,

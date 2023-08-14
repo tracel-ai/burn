@@ -139,10 +139,10 @@ where
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        #[cfg(feature = "autotune")]
+        #[cfg(all(feature = "autotune", not(test)))]
         return kernel::matmul::tune::<G, F, D>(lhs, rhs);
 
-        #[cfg(not(feature = "autotune"))]
+        #[cfg(any(not(feature = "autotune"), test))]
         kernel::matmul::contiguous_vectorized::matmul_tiling_2d_default(lhs, rhs)
     }
 

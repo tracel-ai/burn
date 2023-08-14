@@ -14,12 +14,37 @@ pub struct WgpuTensor<E: WgpuElement, const D: usize> {
     elem: PhantomData<E>,
 }
 
+#[derive(Debug, Clone)]
 pub struct WgpuTensorDyn<E: WgpuElement> {
     pub(crate) context: Arc<Context>,
     pub(crate) buffer: Arc<Buffer>,
     pub(crate) shape: Vec<usize>,
     pub(crate) strides: Vec<usize>,
     elem: PhantomData<E>,
+}
+
+impl<E: WgpuElement, const D: usize> From<WgpuTensor<E, D>> for WgpuTensorDyn<E> {
+    fn from(value: WgpuTensor<E, D>) -> Self {
+        WgpuTensorDyn {
+            context: value.context,
+            buffer: value.buffer,
+            shape: value.shape.dims.to_vec(),
+            strides: value.strides.to_vec(),
+            elem: PhantomData,
+        }
+    }
+}
+
+impl<E: WgpuElement, const D: usize> From<WgpuTensorDyn<E>> for WgpuTensor<E, D> {
+    fn from(value: WgpuTensorDyn<E>) -> Self {
+        WgpuTensor {
+            context: value.context,
+            buffer: value.buffer,
+            shape: Shape::new(value.shape.try_into().expect("Wrong dimension")),
+            strides: value.strides.try_into().expect("Wrong dimension"),
+            elem: PhantomData,
+        }
+    }
 }
 
 impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
@@ -42,26 +67,6 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
             buffer,
             shape,
             strides,
-            elem: PhantomData,
-        }
-    }
-
-    pub fn from_dyn(tensor: WgpuTensorDyn<E>) -> Self {
-        WgpuTensor {
-            context: tensor.context,
-            buffer: tensor.buffer,
-            shape: Shape::new(tensor.shape.try_into().expect("Wrong dimension")),
-            strides: tensor.strides.try_into().expect("Wrong dimension"),
-            elem: PhantomData,
-        }
-    }
-
-    pub fn into_dyn(tensor: Self) -> WgpuTensorDyn<E> {
-        WgpuTensorDyn {
-            context: tensor.context,
-            buffer: tensor.buffer,
-            shape: tensor.shape.dims.to_vec(),
-            strides: tensor.strides.to_vec(),
             elem: PhantomData,
         }
     }

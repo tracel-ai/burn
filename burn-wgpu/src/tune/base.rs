@@ -86,7 +86,6 @@ impl Tuner {
         };
 
         let func: &Arc<dyn KernelFunction<Input = I, Output = O>> = obj.downcast_ref().unwrap();
-
         let output = func.call(input);
 
         Execution::Executed(output)
