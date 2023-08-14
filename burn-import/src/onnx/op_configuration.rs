@@ -425,8 +425,10 @@ fn padding_config_1d(pads: &[i64]) -> PaddingConfig1d {
     } else if left != right {
         panic!("Asymmetric padding is not supported");
     } else if left == right && right == 0 {
+        // i.e. [0, 0]
         PaddingConfig1d::Valid
     } else if left == right {
+        // i.e. [2, 2]
         PaddingConfig1d::Explicit(left as usize)
     } else {
         // Unaccounted for padding configuration
