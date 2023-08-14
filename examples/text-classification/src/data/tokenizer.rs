@@ -52,7 +52,10 @@ impl Tokenizer for BertCasedTokenizer {
     /// Converts a sequence of tokens back into a text string.
     fn decode(&self, tokens: &[usize]) -> String {
         self.tokenizer
-            .decode(tokens.iter().map(|t| *t as u32).collect(), false)
+            .decode(
+                tokens.iter().map(|t| *t as u32).collect::<Vec<u32>>(),
+                false,
+            )
             .unwrap()
     }
 
