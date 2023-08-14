@@ -455,7 +455,6 @@ impl ONNXGraph {
         )
     }
 
-    /// TODO check that this is valid, I am not 100% sure on it.
     fn conv1d_conversion<PS: PrecisionSettings>(mut node: Node) -> Conv1dNode<PS> {
         let input = node.inputs.get(0).unwrap().to_tensor_type();
         let output = node.outputs.get(0).unwrap().to_tensor_type();

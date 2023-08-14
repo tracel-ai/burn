@@ -29,7 +29,6 @@ pub fn attr_value_f32(value: &AttributeValue, target: &mut f32) {
 }
 
 /// Create a Conv1dConfig from the attributes of the node
-/// TODO check this function carefully, I don't understand it well enough
 pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
     let mut kernel_shape = 1;
     let mut strides = 1;
@@ -47,7 +46,6 @@ pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
     let shape = tensor.shape.unwrap();
     let channels_in = shape[1];
     let channels_out = shape[0];
-    //let channels: [usize; 2] = [shape[1], shape[0]];
 
     for (key, value) in curr.attrs.iter() {
         match key.as_str() {
@@ -427,11 +425,9 @@ fn padding_config_1d(pads: &[i64]) -> PaddingConfig1d {
     } else if left != right {
         panic!("Asymmetric padding is not supported");
     } else if left == right && right == 0 {
-        // i.e [0, 0]
         PaddingConfig1d::Valid
     } else if left == right {
-        // i.e [2, 3, 2, 3]
-        PaddingConfig1d::Explicit(left as usize) //#(left as usize, top as usize)
+        PaddingConfig1d::Explicit(left as usize)
     } else {
         // Unaccounted for padding configuration
         panic!("Padding configuration ({:?}) not supported", pads);

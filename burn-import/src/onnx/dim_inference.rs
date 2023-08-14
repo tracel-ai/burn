@@ -299,8 +299,6 @@ fn flatten_update_outputs(node: &mut Node) {
 }
 
 /// Infers the shape of a Conv1d node and replaces the shape of the output tensor.
-///
-/// The shape of the output tensor is calculated by running the actual convolution operation.
 fn conv1d_update_outputs(node: &mut Node) {
     // copy the type from the previous output to the nodeent input
     if node.inputs.len() != 1 {
@@ -316,8 +314,6 @@ fn conv1d_update_outputs(node: &mut Node) {
 }
 
 /// Infers the shape of a Conv2d node and replaces the shape of the output tensor.
-///
-/// The shape of the output tensor is calculated by running the actual convolution operation.
 fn conv2d_update_outputs(node: &mut Node) {
     // copy the type from the previous output to the nodeent input
     if node.inputs.len() != 1 {
