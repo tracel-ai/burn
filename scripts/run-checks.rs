@@ -15,7 +15,6 @@
 //! where `environment` can assume **ONLY** the following values:
 //!     - `std` to perform checks using `libstd`
 //!     - `no_std` to perform checks on an embedded environment using `libcore`
-//!     - `all` to perform checks using both `libstd` and `libcore`
 
 use std::env;
 use std::process::{Child, Command, Stdio};
@@ -241,36 +240,27 @@ fn std_checks() {
 }
 
 fn main() {
-    // Get the environment.
-    //
-    // If any environment is passed, then the `all` argument is the default
-    // value.
-    let environment = if let Some(argument) = env::args().nth(
-        1, /* Index of the first argument, because 0 is the binary name */
-    ) {
-        argument
-    } else {
-        "all".to_string()
-    };
-
     // Start time measurement
     let start = Instant::now();
 
-    // The environment can assume ONLY "all", "std" and "no_std" as values.
+    // The environment can assume ONLY "std" and "no_std" as values.
     //
     // Depending on the input argument, the respective environment checks
     // are run.
     //
-    // If a wrong argument is passed, the program panics.
-    match environment.as_str() {
-        "all" => {
+    // If no environment has been passed, run both "std" and "no_std" checks.
+    match env::args()
+        .nth(
+            1, /* Index of the first argument, because 0 is the binary name */
+        )
+        .as_deref()
+    {
+        Some("std") => std_checks(),
+        Some("no_std") => no_std_checks(),
+        Some(_) | None => {
+            /* Run both "std" and "no_std" checks" */
             std_checks();
             no_std_checks();
-        }
-        "std" => std_checks(),
-        "no_std" => no_std_checks(),
-        _ => {
-            panic!("You can pass only 'all', 'std' and 'no_std' as values for the first argument!")
         }
     }
 

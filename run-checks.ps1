@@ -8,7 +8,8 @@
 #
 # - `std` to perform checks using `libstd`
 # - `no_std` to perform checks on an embedded environment using `libcore`
-# - `all` to perform checks using both `libstd` and `libcore`
+#
+# If no `environment` value has been passed, run both `std` and `no_std` checks.
 
 # Compile run-checks binary
 rustc scripts/run-checks.rs --crate-type bin --out-dir scripts

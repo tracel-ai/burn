@@ -305,7 +305,8 @@ The `environment` argument can assume **ONLY** the following values:
 
 - `std` to perform checks using `libstd`
 - `no_std` to perform checks on an embedded environment using `libcore`
-- `all` to perform checks using both `libstd` and `libcore`
+
+If no `environment` value has been passed, run both `std` and `no_std` checks.
 
 ## Continuous Deployment
 
