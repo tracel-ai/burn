@@ -1,5 +1,5 @@
 [book]
-authors = ["Wouter Doppenberg"]
+authors = ["Wouter Doppenberg", "Nathaniel Simard", "Louis Fortier-Dubois"]
 language = "en"
 multilingual = false
 src = "src"
