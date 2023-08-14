@@ -18,7 +18,7 @@
 //!     - `all` to perform checks using both `libstd` and `libcore`
 
 use std::env;
-use std::process::{Command, Output};
+use std::process::{Child, Command, Stdio};
 use std::str;
 use std::time::Instant;
 
@@ -26,23 +26,16 @@ use std::time::Instant;
 const WASM32_TARGET: &str = "wasm32-unknown-unknown";
 const ARM_TARGET: &str = "thumbv7m-none-eabi";
 
-// Write stdout and stderr output on shell.
-// If there exit status of a command is not a success, terminate the process
-// with an error.
-fn stdout_and_stderr_write(output: Output, message_stdout: &str, message_stderr: &str) {
-    if !output.stdout.is_empty() {
-        println!("{}", str::from_utf8(&output.stdout).expect(message_stdout));
-    }
-
-    if !output.stderr.is_empty() {
-        println!("{}", str::from_utf8(&output.stderr).expect(message_stderr));
-    }
+// Handle child process
+fn handle_child_process(mut child: Child, error: &str) {
+    // Wait for the child process to finish
+    let status = child.wait().expect(error);
 
     // If exit status is not a success, terminate the process with an error
-    if !output.status.success() {
+    if !status.success() {
         // Use the exit code associated to a command to terminate the process,
         // if any exit code had been found, use the default value 1
-        std::process::exit(output.status.code().unwrap_or(1));
+        std::process::exit(status.code().unwrap_or(1));
     }
 }
 
@@ -54,29 +47,20 @@ fn rustup(target: &str) {
     // Print rustup command
     println!("rustup {}\n\n", args.join(" "));
 
-    // Run rustup command
+    // Run rustup command as child process
     let rustup = Command::new("rustup")
         .args(args)
-        .output()
+        .stdout(Stdio::inherit()) // Send stdout directly to terminal
+        .stderr(Stdio::inherit()) // Send stderr directly to terminal
+        .spawn()
         .expect("Failed to run rustup");
 
-    // Write rustup output either on stdout or on stderr
-    stdout_and_stderr_write(
-        rustup,
-        "Failed to write rustup output on stdout",
-        "Failed to write rustup output on stderr",
-    );
+    // Handle rustup child process
+    handle_child_process(rustup, "Failed to wait for rustup child process");
 }
 
 // Define and run a cargo command
-fn run_cargo(
-    command: &str,
-    first_params: &[&str],
-    second_params: &[&str],
-    error: &str,
-    stdout_error: &str,
-    stderr_error: &str,
-) {
+fn run_cargo(command: &str, first_params: &[&str], second_params: &[&str], error: &str) {
     // Print cargo command
     println!(
         "\ncargo {} {} {}\n",
@@ -90,11 +74,13 @@ fn run_cargo(
         .arg(command)
         .args(first_params)
         .args(second_params)
-        .output()
+        .stdout(Stdio::inherit()) // Send stdout directly to terminal
+        .stderr(Stdio::inherit()) // Send stderr directly to terminal
+        .spawn()
         .expect(error);
 
-    // Write cargo output either on stdout or on stderr
-    stdout_and_stderr_write(cargo, stdout_error, stderr_error);
+    // Handle cargo child process
+    handle_child_process(cargo, "Failed to wait for cargo child process");
 }
 
 // Run cargo build command
@@ -105,8 +91,6 @@ fn cargo_build(params: &[&str]) {
         params,
         &["--color=always"],
         "Failed to run cargo build",
-        "Failed to write cargo build output on stdout",
-        "Failed to write cargo build output on stderr",
     );
 }
 
@@ -118,8 +102,6 @@ fn cargo_test(params: &[&str]) {
         params,
         &["--color=always", "--", "--color=always"],
         "Failed to run cargo test",
-        "Failed to write cargo test output on stdout",
-        "Failed to write cargo test output on stderr",
     );
 }
 
@@ -131,8 +113,6 @@ fn cargo_fmt() {
         &["--check", "--all"],
         &["--", "--color=always"],
         "Failed to run cargo fmt",
-        "Failed to write cargo fmt output on stdout",
-        "Failed to write cargo fmt output on stderr",
     );
 }
 
@@ -144,8 +124,6 @@ fn cargo_clippy() {
         &["--color=always"],
         &["--", "-D", "warnings"],
         "Failed to run cargo clippy",
-        "Failed to write cargo clippy output on stdout",
-        "Failed to write cargo clippy output on stderr",
     );
 }
 
@@ -157,8 +135,6 @@ fn cargo_doc(params: &[&str]) {
         params,
         &["--color=always"],
         "Failed to run cargo doc",
-        "Failed to write cargo doc output on stdout",
-        "Failed to write cargo doc output on stderr",
     );
 }
 
