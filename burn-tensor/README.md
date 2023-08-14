@@ -19,11 +19,12 @@ This library provides multiple tensor implementations hidden behind an easy to u
 
 ### Backends
 
-For now, only two backends are implemented, but adding new ones should not be that hard.
+For now, three backends are implemented, and some more are planned. 
 
 * [X] Pytorch using [tch-rs](https://github.com/LaurentMazare/tch-rs)
 * [X] 100% Rust backend using [ndarray](https://github.com/rust-ndarray/ndarray)
 * [X] [WGPU](https://github.com/gfx-rs/wgpu) backend
+* [ ] [Candle](https://github.com/huggingface/candle) backend
 * [ ] Tensorflow using [tensorflow-rust](https://github.com/tensorflow/rust)
 * [ ] CuDNN using RustCUDA[tensorflow-rust](https://github.com/Rust-GPU/Rust-CUDA)
 * [ ] ...

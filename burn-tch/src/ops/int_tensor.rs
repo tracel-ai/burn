@@ -71,6 +71,7 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
     ) -> TchTensor<i64, D1> {
         TchOps::slice(tensor, ranges)
     }
+
     fn int_slice_assign<const D1: usize, const D2: usize>(
         tensor: TchTensor<i64, D1>,
         ranges: [std::ops::Range<usize>; D2],
@@ -254,6 +255,7 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
     fn int_mean_dim<const D: usize>(tensor: TchTensor<i64, D>, dim: usize) -> TchTensor<i64, D> {
         TchOps::mean_dim(tensor, dim)
     }
+
     fn int_gather<const D: usize>(
         dim: usize,
         tensor: TchTensor<i64, D>,
@@ -312,6 +314,7 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
             |tensor| tensor.f_masked_fill(&mask.tensor, value).unwrap(),
         )
     }
+
     fn int_argmax<const D: usize>(tensor: TchTensor<i64, D>, dim: usize) -> TchTensor<i64, D> {
         TchOps::argmax(tensor, dim)
     }
