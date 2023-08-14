@@ -289,19 +289,19 @@ our architectural decisions. Please see more details in our [contributing guide]
 
 ### Run checks
 
-Compile `scripts/run-checks.rs` using this command
+On Unix systems, run `run-checks.sh` using this command
 
 ```
-rustc scripts/run-checks.rs --crate-type bin --out-dir scripts
+run-checks.sh environment
 ```
 
-Run `scripts/run-checks` using this command
+On Windows systems, run `run-checks.ps1` using this command:
 
 ```
-./scripts/run-checks environment
+run-checks.ps1 environment
 ```
 
-where `environment` can assume **ONLY** the following values:
+The `environment` argument can assume **ONLY** the following values:
 
 - `std` to perform checks using `libstd`
 - `no_std` to perform checks on an embedded environment using `libcore`
