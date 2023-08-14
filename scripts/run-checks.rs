@@ -265,10 +265,17 @@ fn std_checks() {
 }
 
 fn main() {
-    // Get the environment
-    let environment = env::args()
-        .nth(1) // Index of the first argument, because 0 is the binary name
-        .expect("You need to pass the environment as first argument!");
+    // Get the environment.
+    //
+    // If any environment is passed, then the `all` argument is the default
+    // value.
+    let environment = if let Some(argument) = env::args().nth(
+        1, /* Index of the first argument, because 0 is the binary name */
+    ) {
+        argument
+    } else {
+        "all".to_string()
+    };
 
     // Start time measurement
     let start = Instant::now();
