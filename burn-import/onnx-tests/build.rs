@@ -9,6 +9,7 @@ fn main() {
         .input("tests/add/add.onnx")
         .input("tests/avg_pool2d/avg_pool2d.onnx")
         .input("tests/concat/concat.onnx")
+        .input("tests/conv1d/conv1d.onnx")
         .input("tests/conv2d/conv2d.onnx")
         .input("tests/div/div.onnx")
         .input("tests/dropout/dropout_opset16.onnx")

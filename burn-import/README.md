@@ -45,7 +45,8 @@ List taken from [here](https://github.com/onnx/onnx/blob/main/docs/Operators.md)
 - [ ] ConcatFromSequence
 - [x] Constant
 - [ ] ConstantOfShape
-- [ ] Conv1d
+- [ ] Conv
+- [x] Conv1d
 - [x] Conv2d
 - [ ] ConvInteger
 - [ ] ConvTranspose
