@@ -2,7 +2,7 @@
 
 ### Checklist
 
-- [ ] Confirm that `run-checks.sh` has been executed.
+- [ ] Confirm that `run-checks` script has been executed.
 
 ### Related Issues/PRs
 

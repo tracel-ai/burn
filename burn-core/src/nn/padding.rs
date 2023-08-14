@@ -25,7 +25,6 @@ impl PaddingConfig1d {
         stride: usize,
     ) -> usize {
         let same_padding = || calculate_conv_padding(kernel_size, stride, length, length);
-
         match self {
             Self::Valid => 0,
             Self::Same => same_padding(),

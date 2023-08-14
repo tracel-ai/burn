@@ -16,6 +16,7 @@ include_models!(
     mul,
     div,
     concat,
+    conv1d,
     conv2d,
     dropout,
     global_avr_pool,
@@ -107,6 +108,27 @@ mod tests {
     }
 
     #[test]
+    fn conv1d() {
+        // Initialize the model with weights (loaded from the exported file)
+        let model: conv1d::Model<Backend> = conv1d::Model::default();
+
+        // Run the model with ones as input for easier testing
+        let input = Tensor::<Backend, 3>::ones([1, 4, 5]);
+
+        let output = model.forward(input);
+
+        // test the output shape
+        let expected_shape: Shape<3> = Shape::from([1, 2, 11]);
+        assert_eq!(output.shape(), expected_shape);
+
+        // We are using the sum of the output tensor to test the correctness of the conv1d node
+        // because the output tensor is too large to compare with the expected tensor.
+        let output_sum = output.sum().into_scalar();
+        let expected_sum = -1.722_538; // from pytorch
+        assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
+    }
+
+    #[test]
     fn conv2d() {
         // Initialize the model with weights (loaded from the exported file)
         let model: conv2d::Model<Backend> = conv2d::Model::default();
@@ -123,7 +145,7 @@ mod tests {
         // because the output tensor is too large to compare with the expected tensor.
         let output_sum = output.sum().into_scalar();
 
-        let expected_sum = 24.004_995; // from pytorch
+        let expected_sum = -113.869_987; // from pytorch
 
         assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
     }

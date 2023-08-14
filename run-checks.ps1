@@ -1,5 +1,3 @@
-#!/bin/bash
-#
 # This script runs all `burn` checks locally
 #
 # Run `run-checks` using this command:
@@ -19,4 +17,4 @@ rustc scripts/run-checks.rs --crate-type bin --out-dir scripts
 # Run binary passing the first input parameter, who is mandatory.
 # If the input parameter is missing or wrong, it will be the `run-checks`
 # binary which will be responsible of arising an error.
-./scripts/run-checks $1
+./scripts/run-checks $args[0]
