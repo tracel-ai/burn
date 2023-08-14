@@ -25,7 +25,7 @@ burn-tch = { path = "../../burn-tch", optional = true }
 burn-wgpu = { path = "../../burn-wgpu", optional = true }
 
 # Tokenizer
-tokenizers = { version = "0.13.3", default-features = false, features = [
+tokenizers = { version = "0.13.4", default-features = false, features = [
   "onig",
   "http",
 ] }

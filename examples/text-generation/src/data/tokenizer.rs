@@ -44,12 +44,8 @@ impl Tokenizer for Gpt2Tokenizer {
     }
 
     fn decode(&self, tokens: &[usize]) -> String {
-        self.tokenizer
-            .decode(
-                tokens.iter().map(|t| *t as u32).collect::<Vec<u32>>(),
-                false,
-            )
-            .unwrap()
+        let tokens = tokens.iter().map(|t| *t as u32).collect::<Vec<u32>>();
+        self.tokenizer.decode(&tokens, false).unwrap()
     }
 
     fn vocab_size(&self) -> usize {
