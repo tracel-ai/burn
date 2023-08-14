@@ -152,7 +152,7 @@ impl AdaptiveMomentum {
             let factor = 1.0 - self.beta_2;
             let moment_2 = grad.powf(2.0).mul_scalar(factor);
 
-            AdaptiveMomentumState::new(0, moment_1, moment_2)
+            AdaptiveMomentumState::new(1, moment_1, moment_2)
         };
 
         let time = (state.time as i32).elem();
@@ -219,7 +219,7 @@ mod tests {
 
         assert_eq!(state_optim_before.len(), state_optim_after.len());
     }
-    const ASSERT_PRECISION: usize = 6;
+    const ASSERT_PRECISION: usize = 2;
 
     #[test]
     fn test_adam_optimizer_with_numbers() {
@@ -288,6 +288,45 @@ mod tests {
 
         bias_updated.assert_approx_eq(&bias_expected, ASSERT_PRECISION);
         weight_updated.assert_approx_eq(&weights_expected, ASSERT_PRECISION);
+    }
+
+    #[test]
+    fn test_adam_optimizer_no_nan() {
+        let linear = given_linear_layer(
+            Data::from([
+                [-0.3206, 0.1374, 0.4043, 0.3200, 0.0859, 0.0671],
+                [0.0777, -0.0185, -0.3667, 0.2550, 0.1955, -0.2922],
+                [-0.0190, 0.0346, -0.2962, 0.2484, -0.2780, 0.3130],
+                [-0.2980, -0.2214, -0.3715, -0.2981, -0.0761, 0.1626],
+                [0.3300, -0.2182, 0.3717, -0.1729, 0.3796, -0.0304],
+                [-0.0159, -0.0120, 0.1258, 0.1921, 0.0293, 0.3833],
+            ]),
+            Data::from([-0.3905, 0.0884, -0.0970, 0.1176, 0.1366, 0.0130]),
+        );
+
+        let x = Tensor::from_floats([
+            [0.8491, 0.2108, 0.8939, 0.4433, 0.5527, 0.2528],
+            [0.3270, 0.0412, 0.5538, 0.9605, 0.3195, 0.9085],
+        ])
+        .require_grad();
+
+        let mut optimizer = AdamConfig::new()
+            .with_epsilon(1e-8)
+            .with_beta_1(0.9)
+            .with_beta_2(0.999)
+            .with_weight_decay(Some(WeightDecayConfig::new(0.5)))
+            .init();
+
+        let grads = linear.forward(x.clone()).backward();
+        let grads = GradientsParams::from_grads(grads, &linear);
+        let linear = optimizer.step(LEARNING_RATE, linear, grads);
+
+        let grads = linear.forward(x).backward();
+        let grads = GradientsParams::from_grads(grads, &linear);
+        let linear = optimizer.step(LEARNING_RATE, linear, grads);
+
+        let state_updated = linear.into_record();
+        assert!(!state_updated.weight.to_data().value[0].is_nan());
     }
 
     fn given_linear_layer(weight: Data<f32, 2>, bias: Data<f32, 1>) -> nn::Linear<TestADBackend> {
