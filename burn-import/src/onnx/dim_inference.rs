@@ -3,7 +3,10 @@ use std::collections::HashMap;
 use protobuf::Enum;
 
 use super::{
-    ir::{ArgType, Argument, AttributeValue, ElementType, Node, NodeType, TensorArg},
+    ir::{
+        ArgType, Argument, AttributeValue, ElementType, Node, NodeType, StateType, TensorArg,
+        TensorData,
+    },
     op_configuration::flatten_config,
     protos::tensor_proto::DataType,
 };
@@ -192,16 +195,19 @@ fn concat_update_outputs(node: &mut Node) {
 }
 
 fn reshape_update_outputs(node: &mut Node) {
-    let dim = *node
-        .inputs
-        .iter()
-        .filter_map(|input| match &input.ty {
-            ArgType::Tensor(tensor) => Some(tensor.dim),
-            _ => None,
-        })
-        .collect::<Vec<_>>()
-        .last()
-        .unwrap();
+    // Extract the shape information from the state
+    let shape = match node.states.first() {
+        Some(state) => match &state.ty {
+            StateType::Tensor(tensor) => match tensor.data.as_ref() {
+                Some(TensorData::Int64(data)) => data.clone(),
+                _ => panic!("Reshape: invalid state data for shape"),
+            },
+        },
+        None => panic!("Reshape: missing state required for shape"),
+    };
+
+    // The output dimension is the same as the shape length
+    let dim = shape.len();
 
     node.outputs[0].ty = ArgType::Tensor(TensorArg { dim });
 }

@@ -43,7 +43,9 @@ use crate::{
 use super::{
     from_onnx::parse_onnx,
     ir::{ArgType, Argument, ElementType, ONNXGraph, State, StateType, Tensor, TensorData},
-    op_configuration::{avg_pool2d_config, concat_config, dropout_config, softmax_config},
+    op_configuration::{
+        avg_pool2d_config, concat_config, dropout_config, reshape_config, softmax_config,
+    },
 };
 
 /// Generate code and states from `.onnx` files and save them to the `out_dir`.
@@ -351,16 +353,12 @@ impl ONNXGraph {
         UnaryNode::cast(input, output)
     }
 
-    fn reshape_conversion(mut node: Node) -> ReshapeNode {
+    fn reshape_conversion(node: Node) -> ReshapeNode {
         let input = node.inputs.get(0).unwrap().to_tensor_type();
         let output = node.outputs.get(0).unwrap().to_tensor_type();
-        let shape = extract_next_data_serialize::<i64>(&mut node).unwrap();
+        let shape = reshape_config(&node);
 
-        ReshapeNode::new(
-            input,
-            output,
-            shape.value.iter().map(|item| *item as usize).collect(),
-        )
+        ReshapeNode::new(input, output, shape)
     }
 
     fn sigmoid_conversion(node: Node) -> UnaryNode {

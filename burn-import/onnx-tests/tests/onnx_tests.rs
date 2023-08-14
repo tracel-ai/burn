@@ -22,6 +22,7 @@ include_models!(
     log_softmax,
     maxpool2d,
     mul,
+    reshape,
     softmax,
     sub
 );
@@ -272,5 +273,18 @@ mod tests {
         let expected = Data::from([[[[0.008, -0.131, -0.208, 0.425]]]]);
 
         output.to_data().assert_approx_eq(&expected, 3);
+    }
+
+    #[test]
+    fn reshape() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let model: reshape::Model<Backend> = reshape::Model::new();
+
+        // Run the model
+        let input = Tensor::<Backend, 1>::from_floats([0., 1., 2., 3.]);
+        let output = model.forward(input);
+        let expected = Data::from([[0., 1.], [2., 3.]]);
+
+        assert_eq!(output.to_data(), expected);
     }
 }

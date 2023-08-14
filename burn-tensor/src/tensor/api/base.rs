@@ -67,6 +67,60 @@ where
         Tensor::new(K::reshape::<D, D2>(self.primitive, shape))
     }
 
+    /// Reshape the tensor to have the given shape.
+    ///
+    /// Compared to [Tensor::reshape](Tensor::reshape),
+    /// this function allows to infer the size of one dimension and matches the numpy/pytorch behavior.
+    ///
+    /// # Arguments
+    ///
+    /// - `shape`: The new shape of the tensor.
+    ///
+    /// # Panics
+    ///
+    /// - If the tensor contains more than one `-1` in the shape.
+    /// - If the tensor contains values that are not positive (other than -1).
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///    let tensor = Tensor::<B, 3>::ones([2, 3, 4]);
+    ///
+    ///    // Given a 3D tensor with dimensions (2, 3, 4), reshape it to (2, 12)
+    ///    let reshaped_tensor: Tensor::<B, 2> = tensor.reshape_infer([2, -1]);
+    ///
+    ///    // The resulting tensor will have dimensions (2, 12).
+    ///    println!("{:?}", reshaped_tensor.shape());
+    ///
+    /// }
+    ///
+    pub fn reshape_infer<const D2: usize>(self, shape: [i64; D2]) -> Tensor<B, D2, K> {
+        check!(TensorCheck::reshape_infer(&shape));
+        let infer_index = shape.iter().position(|x| x == &-1);
+        let mut new_shape: [usize; D2] = [1; D2];
+        if let Some(index) = infer_index {
+            let mut product = 1;
+            for (i, &s) in shape.iter().enumerate() {
+                if i != index {
+                    product *= s as usize;
+                }
+            }
+            let product_current = self.shape().num_elements();
+            new_shape[index] = product_current / product;
+        } else {
+            // Change i64 to usize
+            shape
+                .iter()
+                .enumerate()
+                .for_each(|(i, &x)| new_shape[i] = x as usize);
+        };
+        Tensor::reshape(self, new_shape)
+    }
+
     /// Flatten the tensor along a given range of dimensions.
     ///
     /// This function collapses the specified range of dimensions into a single dimension,

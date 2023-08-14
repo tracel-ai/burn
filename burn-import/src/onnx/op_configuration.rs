@@ -392,3 +392,31 @@ fn padding_config(pads: &[i64]) -> PaddingConfig2d {
         panic!("Padding configuration ({:?}) not supported", pads);
     }
 }
+
+pub fn reshape_config(node: &Node) -> Vec<i64> {
+    let mut allowzero = 0;
+
+    for (key, value) in node.attrs.iter() {
+        match key.as_str() {
+            "allowzero" => attr_value_i64(value, &mut allowzero),
+            _ => {}
+        }
+    }
+
+    // Burn does not support zero size shape
+    if allowzero != 0 {
+        panic!("Zero shape size is not supported");
+    }
+
+    let shape = match node.states.first() {
+        Some(state) => match &state.ty {
+            StateType::Tensor(tensor) => match tensor.data.as_ref() {
+                Some(TensorData::Int64(data)) => data.clone(),
+                _ => panic!("Reshape: invalid state data for shape"),
+            },
+        },
+        None => panic!("Reshape: missing state required for shape"),
+    };
+
+    shape
+}

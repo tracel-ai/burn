@@ -99,6 +99,30 @@ impl TensorCheck {
         check
     }
 
+    pub(crate) fn reshape_infer<const D: usize>(target: &[i64; D]) -> Self {
+        let mut check = Self::Ok;
+
+        if target.iter().any(|&dim| dim < -1 || dim == 0) {
+            check = check.register(
+                "Reshape_infer",
+                TensorError::new(
+                    "The given shape cannot contain negative dimensions (other than -1) and zero.",
+                )
+                .details(format!("Target shape: {:?}.", target)),
+            );
+        }
+
+        if target.iter().filter(|&x| x == &-1).count() > 1 {
+            check = check.register(
+                "Reshape_infer",
+                TensorError::new("The given shape cannot contain more than one -1.")
+                    .details(format!("Target shape: {:?}.", target)),
+            );
+        }
+
+        check
+    }
+
     pub(crate) fn flatten<const D1: usize, const D2: usize>(
         start_dim: usize,
         end_dim: usize,
