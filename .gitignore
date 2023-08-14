@@ -8,5 +8,6 @@ Cargo.lock
 .idea
 .vscode/*
 
-!.vscode/launch.json
+!.vscode/tasks.json
 !.vscode/extensions.json
+!.vscode/generate_launch_config.py

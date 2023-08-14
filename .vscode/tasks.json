@@ -1,0 +1,19 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Generate launch.json",
+            "type": "shell",
+            "command": "python ${workspaceFolder}/.vscode/generate_launch_config.py",
+            "group": "none",
+            "presentation": {
+                "reveal": "silent",
+                "panel": "new"
+            },
+            "runOptions": {
+                "runOn": "folderOpen",
+            },
+
+        }
+    ]
+}
