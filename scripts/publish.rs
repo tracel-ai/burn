@@ -90,6 +90,7 @@ fn cargo_publish(params: &[&str]) {
     // Run cargo publish
     let cargo_publish = Command::new("cargo")
         .arg("publish")
+        .arg("--color=always")
         .args(params)
         .output()
         .expect("Failed to run cargo publish");
