@@ -2,7 +2,10 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use burn_common::stub::RwLock;
 
-use crate::{benchmark::Benchmark, GraphicsApi, WgpuDevice};
+use crate::{
+    benchmark::{Benchmark, BenchmarkResult},
+    GraphicsApi, WgpuDevice,
+};
 
 /// Key used for caching.
 #[derive(new, Hash, Clone, Debug, PartialEq, Eq)]
@@ -105,7 +108,9 @@ impl Tuner {
     {
         let mut cache = self.cache.write().unwrap();
 
-        cache.insert(id.clone(), find_best(tunables, device));
+        let results = benchmark(&tunables, device);
+        let kernel = find_best(&id, tunables, results);
+        cache.insert(id.clone(), kernel);
         drop(cache);
 
         match self.execute(&id, input) {
@@ -115,11 +120,11 @@ impl Tuner {
     }
 }
 
-/// Finds the best benchmark by running them and keeping the one
-/// with the smallest median duration.
+/// Finds the best kernel by keeping the one with the smallest median duration.
 fn find_best<G: GraphicsApi, I, O>(
+    id: &AutoTuneKey,
     tunables: Vec<Tunable<G, I, O>>,
-    device: &WgpuDevice,
+    results: Vec<BenchmarkResult>,
 ) -> AutoTuneValue
 where
     I: Send + Sync + 'static,
@@ -128,9 +133,8 @@ where
     let mut best_duration = Duration::MAX;
     let mut best_tunable = None;
 
-    for tunable in tunables {
-        let benchmark_result = tunable.benchmark.run(device);
-        let duration = benchmark_result.median_duration();
+    for (tunable, result) in tunables.into_iter().zip(results) {
+        let duration = result.median_duration();
 
         if duration < best_duration {
             best_duration = duration;
@@ -139,5 +143,26 @@ where
     }
 
     let tunable = best_tunable.expect("At least one tunable needed. ");
+    log::info!(
+        "(AutoTune) Kernel {} - Shapes {:?} => {}",
+        id.ops_name,
+        id.shapes,
+        tunable
+    );
     Box::new(tunable.func)
+}
+
+/// Run benchmarks.
+fn benchmark<G: GraphicsApi, I, O>(
+    tunables: &[Tunable<G, I, O>],
+    device: &WgpuDevice,
+) -> Vec<BenchmarkResult>
+where
+    I: Send + Sync + 'static,
+    O: Send + Sync + 'static,
+{
+    tunables
+        .iter()
+        .map(|tunable| tunable.benchmark.run(device))
+        .collect()
 }

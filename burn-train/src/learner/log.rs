@@ -22,8 +22,35 @@ fn create_config(file_path: &str) -> Config {
         .build(file_path)
         .unwrap();
 
+    /// The wgpu crate is logging too much, so we skip `info` level.
+    #[derive(Debug)]
+    struct WgpuFilter;
+
+    impl log4rs::filter::Filter for WgpuFilter {
+        fn filter(&self, record: &log::Record) -> log4rs::filter::Response {
+            if !matches!(record.level(), log::Level::Info) {
+                return log4rs::filter::Response::Accept;
+            }
+
+            match record.module_path_static() {
+                Some(path) => {
+                    if path.starts_with("wgpu") {
+                        log4rs::filter::Response::Reject
+                    } else {
+                        log4rs::filter::Response::Accept
+                    }
+                }
+                None => log4rs::filter::Response::Accept,
+            }
+        }
+    }
+
     Config::builder()
-        .appender(Appender::builder().build("experiment", Box::new(experiment)))
+        .appender(
+            Appender::builder()
+                .filter(Box::new(WgpuFilter))
+                .build("experiment", Box::new(experiment)),
+        )
         .build(
             Root::builder()
                 .appender("experiment")
