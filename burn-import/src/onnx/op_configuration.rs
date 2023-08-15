@@ -444,7 +444,8 @@ pub fn reshape_config(node: &Node) -> Vec<i64> {
         }
     }
 
-    // Burn does not support zero size shape
+    // Burn does not support zero size shape (0 means false in ONNX)
+    // (see https://onnx.ai/onnx/operators/onnx__Reshape.html#attributes)
     if allowzero != 0 {
         panic!("Zero shape size is not supported");
     }
