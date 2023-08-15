@@ -4,7 +4,7 @@ use crate::{
 };
 
 use super::{
-    decay::{WeightDecay, WeightDecayConfig, WeightDecayState},
+    decay::{WeightDecay, WeightDecayConfig},
     SimpleOptimizer,
 };
 use crate::config::Config;
@@ -76,10 +76,9 @@ pub struct RMSProp<B: Backend> {
 /// State of [RMSProp](RMSProp)
 #[derive(Record, Clone, new)]
 pub struct RMSPropState<B: Backend, const D: usize> {
-    weight_decay: Option<WeightDecayState<B, D>>,
-    square_avg: Option<SquareAvgState<B, D>>,
-    centered: Option<CenteredState<B, D>>,
-    momentum: Option<RMSPropMomentumState<B, D>>,
+    square_avg: SquareAvgState<B, D>,
+    centered: CenteredState<B, D>,
+    momentum: RMSPropMomentumState<B, D>,
 }
 
 /// [SquareAvgState](SquareAvgState) is to store and pass optimizer step params.
@@ -126,9 +125,9 @@ impl<B: Backend, const D: usize> CenteredState<B, D> {
         alpha: f32,
         centered: bool,
         grad: Tensor<B, D>,
+        square_avg_state: SquareAvgState<B, D>,
         centered_state: Option<Self>,
-        square_avg_state: Option<SquareAvgState<B, D>>,
-    ) -> (Tensor<B, D>, Self, SquareAvgState<B, D>) {
+    ) -> (Tensor<B, D>, SquareAvgState<B, D>, Self) {
         if centered {
             let grad_avg = match centered_state {
                 Some(state) => state
@@ -138,25 +137,18 @@ impl<B: Backend, const D: usize> CenteredState<B, D> {
                     .add(grad.clone().mul_scalar(1. - alpha)),
                 _ => grad.clone().mul_scalar(1. - alpha),
             };
-            let (avg, square_avg) = match square_avg_state {
-                Some(state) => (
-                    state.square_avg.clone().sub(grad_avg.clone().powf(2.)),
-                    state.square_avg,
-                ),
-                _ => {
-                    panic!("uninitialized square_avg state")
-                }
-            };
-            (grad, Self { grad_avg, avg }, SquareAvgState { square_avg })
+            let avg = square_avg_state
+                .square_avg
+                .clone()
+                .sub(grad_avg.clone().powf(2.));
+            (grad, square_avg_state, Self { grad_avg, avg })
         } else {
-            let grad_avg = Tensor::zeros(grad.shape());
-            let (avg, square_avg) = match square_avg_state {
-                Some(state) => (state.square_avg.clone(), state.square_avg),
-                _ => {
-                    panic!("uninitialized square_avg state")
-                }
+            let grad_avg = match centered_state {
+                Some(state) => state.grad_avg,
+                _ => Tensor::zeros(grad.shape()),
             };
-            (grad, Self { grad_avg, avg }, SquareAvgState { square_avg })
+            let avg = square_avg_state.square_avg.clone();
+            (grad, square_avg_state, Self { grad_avg, avg })
         }
     }
 
@@ -179,23 +171,16 @@ impl RMSPropMomentum {
     pub fn transform<B: Backend, const D: usize>(
         &self,
         grad: Tensor<B, D>,
-        centered_state: Option<CenteredState<B, D>>,
+        centered_state: CenteredState<B, D>,
         momentum_state: Option<RMSPropMomentumState<B, D>>,
     ) -> (
         Tensor<B, D>,
         CenteredState<B, D>,
         RMSPropMomentumState<B, D>,
     ) {
-        let (grad, centered_state) = match centered_state {
-            Some(state) => (
-                grad.clone()
-                    .div(state.avg.clone().sqrt().add_scalar(self.epsilon)),
-                state,
-            ),
-            _ => {
-                panic!("uninitialized centered state")
-            }
-        };
+        let grad = grad
+            .clone()
+            .div(centered_state.avg.clone().sqrt().add_scalar(self.epsilon));
 
         if self.momentum > 0. {
             let buf = match momentum_state {
@@ -246,15 +231,13 @@ impl<B: Backend> SimpleOptimizer<B> for RMSProp<B> {
         state: Option<Self::State<D>>,
     ) -> (Tensor<B, D>, Option<Self::State<D>>) {
         // fetch state for params
-        let mut state_weight_decay = None;
         let mut state_square_avg = None;
         let mut state_centered = None;
         let mut state_momentum = None;
         if let Some(state) = state {
-            state_weight_decay = state.weight_decay;
-            state_square_avg = state.square_avg;
-            state_centered = state.centered;
-            state_momentum = state.momentum;
+            state_square_avg = Some(state.square_avg);
+            state_centered = Some(state.centered);
+            state_momentum = Some(state.momentum);
         }
 
         // weight_decay transform
@@ -265,36 +248,25 @@ impl<B: Backend> SimpleOptimizer<B> for RMSProp<B> {
         }
 
         // square_avg transform
-        let (mut grad, square_avg_out) =
+        let (grad, state_square_avg) =
             SquareAvgState::transform(self.alpha, grad, state_square_avg);
-        state_square_avg = Some(square_avg_out);
 
         // centered trnsform
-        let (grad_out, centered_out, square_avg_out) = CenteredState::transform(
+        let (grad, state_square_avg, state_centered) = CenteredState::transform(
             self.alpha,
             self.centered,
             grad,
-            state_centered,
             state_square_avg,
+            state_centered,
         );
-        grad = grad_out;
-        state_centered = Some(centered_out);
-        state_square_avg = Some(square_avg_out);
 
         // momentum transform
-        let (grad, centered_state, momentum) =
+        let (grad, state_centered, state_momentum) =
             self.momentum
                 .transform(grad, state_centered, state_momentum);
-        let state_centered = Some(centered_state);
-        let state_momentum = Some(momentum);
 
         // transition state
-        let state = RMSPropState::new(
-            state_weight_decay,
-            state_square_avg,
-            state_centered,
-            state_momentum,
-        );
+        let state = RMSPropState::new(state_square_avg, state_centered, state_momentum);
 
         // tensor param transform
         let delta = grad.mul_scalar(lr);
@@ -307,10 +279,9 @@ impl<B: Backend> SimpleOptimizer<B> for RMSProp<B> {
         mut state: Self::State<D>,
         device: &<B as Backend>::Device,
     ) -> Self::State<D> {
-        state.weight_decay = state.weight_decay.map(|state| state.to_device(device));
-        state.square_avg = state.square_avg.map(|state| state.to_device(device));
-        state.centered = state.centered.map(|state| state.to_device(device));
-        state.momentum = state.momentum.map(|state| state.to_device(device));
+        state.square_avg = state.square_avg.to_device(device);
+        state.centered = state.centered.to_device(device);
+        state.momentum = state.momentum.to_device(device);
         state
     }
 }
