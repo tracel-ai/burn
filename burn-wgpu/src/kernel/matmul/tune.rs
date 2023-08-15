@@ -69,6 +69,8 @@ macro_rules! tiling2d_tunable {
             type Output = WgpuTensorDyn<E>;
 
             fn call(&self, (lhs, rhs): Self::Input) -> Self::Output {
+
+                #[allow(clippy::too_many_arguments)]
                 fn call_dyn<E: WgpuElement, const D: usize>(
                     lhs: WgpuTensorDyn<E>,
                     rhs: WgpuTensorDyn<E>,
