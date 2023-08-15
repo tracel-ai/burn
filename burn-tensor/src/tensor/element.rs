@@ -134,6 +134,12 @@ make_element!(
 );
 
 make_element!(
+    ty u32 Precision::Full,
+    convert |elem: &dyn ToPrimitive| elem.to_u32().unwrap(),
+    random |distribution: Distribution<u32>, rng: &mut R| distribution.sampler(rng).sample()
+);
+
+make_element!(
     ty i16 Precision::Half,
     convert |elem: &dyn ToPrimitive| elem.to_i16().unwrap(),
     random |distribution: Distribution<i16>, rng: &mut R| distribution.sampler(rng).sample()
