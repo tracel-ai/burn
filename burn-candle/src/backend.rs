@@ -1,4 +1,5 @@
 use burn_tensor::backend::Backend;
+use candle_core::DeviceLocation;
 
 use crate::{element::CandleElement, CandleTensor};
 
@@ -27,9 +28,9 @@ impl From<CandleDevice> for candle_core::Device {
 
 impl From<candle_core::Device> for CandleDevice {
     fn from(device: candle_core::Device) -> Self {
-        match device {
-            candle_core::Device::Cpu => CandleDevice::Cpu,
-            candle_core::Device::Cuda(cuda_device) => CandleDevice::Cuda(0), // TODO replace 0
+        match device.location() {
+            DeviceLocation::Cpu => CandleDevice::Cpu,
+            DeviceLocation::Cuda { gpu_id } => CandleDevice::Cuda(gpu_id),
         }
     }
 }
