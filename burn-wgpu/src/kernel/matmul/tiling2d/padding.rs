@@ -287,7 +287,6 @@ mod tests {
 
         let unpadded = TestTensor::from_primitive(unpadded).to_data();
         let tensor = tensor.into_data();
-        println!("{:?}\n {:?}", unpadded, tensor);
 
         for i in 0..keep_rows {
             for j in 0..keep_cols {

@@ -145,7 +145,7 @@ mod tests {
         // because the output tensor is too large to compare with the expected tensor.
         let output_sum = output.sum().into_scalar();
 
-        let expected_sum = -113.869_987; // from pytorch
+        let expected_sum = -113.869_99; // from pytorch
 
         assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
     }
@@ -202,13 +202,13 @@ mod tests {
 
         // Run the model
         let input = Tensor::<Backend, 2>::from_floats([
-            [0.33669037, 0.12880941, 0.23446237],
-            [0.23033303, -1.12285638, -0.18632829],
+            [0.33669037, 0.128_809_4, 0.23446237],
+            [0.23033303, -1.122_856_4, -0.18632829],
         ]);
         let output = model.forward(input);
         let expected = Data::from([
             [0.36830685, 0.29917702, 0.33251613],
-            [0.52146918, 0.13475533, 0.34377551],
+            [0.521_469_2, 0.13475533, 0.343_775_5],
         ]);
 
         assert_eq!(output.to_data(), expected);
@@ -221,13 +221,13 @@ mod tests {
 
         // Run the model
         let input = Tensor::<Backend, 2>::from_floats([
-            [0.33669037, 0.12880941, 0.23446237],
-            [0.23033303, -1.12285638, -0.18632829],
+            [0.33669037, 0.128_809_4, 0.23446237],
+            [0.23033303, -1.122_856_4, -0.18632829],
         ]);
         let output = model.forward(input);
         let expected = Data::from([
-            [-0.99883890, -1.20671988, -1.10106695],
-            [-0.65110511, -2.00429463, -1.06776643],
+            [-0.998_838_9, -1.206_719_9, -1.101_067],
+            [-0.651_105_1, -2.004_294_6, -1.067_766_4],
         ]);
 
         assert_eq!(output.to_data(), expected);

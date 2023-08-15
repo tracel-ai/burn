@@ -3,7 +3,7 @@ use burn_wgpu::{
     benchmark::Benchmark,
     kernel::matmul::{
         contiguous, contiguous_vectorized, matmul_mem_coalescing_default, matmul_naive_default,
-        tile, tile_vectorized,
+        tile, tile_vectorized, tune,
     },
     run_benchmark, GraphicsApi, WgpuBackend, WgpuDevice,
 };
@@ -88,37 +88,62 @@ benchmark!(
     contiguous_vectorized::matmul_tiling_2d_default
 );
 
+struct MatmulAutotune;
+
+impl<const D: usize, G: GraphicsApi> MatmulFunction<WgpuBackend<G, f32, i32>, D>
+    for MatmulAutotune
+{
+    fn run(
+        lhs: Tensor<WgpuBackend<G, f32, i32>, D>,
+        rhs: Tensor<WgpuBackend<G, f32, i32>, D>,
+    ) -> Tensor<WgpuBackend<G, f32, i32>, D> {
+        Tensor::from_primitive(tune::<G, f32, D>(
+            lhs.into_primitive(),
+            rhs.into_primitive(),
+        ))
+    }
+}
+
 fn main() {
     let num_repeats = 3;
     let batch_size = 3;
-    let matrix_size = 1000;
+    let m = 1024;
+    let k = 2048;
+    let n = 1024;
+
     run_benchmark!(MatmulBenchmark::<MemCoalescingMatmul, 3> {
-        shape_lhs: [batch_size, matrix_size, matrix_size].into(),
-        shape_rhs: [batch_size, matrix_size, matrix_size].into(),
+        shape_lhs: [batch_size, m, k].into(),
+        shape_rhs: [batch_size, k, n].into(),
         num_repeats,
         matmul: PhantomData
     });
     run_benchmark!(MatmulBenchmark::<Tiling2DMatmulContiguous, 3> {
-        shape_lhs: [batch_size, matrix_size, matrix_size].into(),
-        shape_rhs: [batch_size, matrix_size, matrix_size].into(),
+        shape_lhs: [batch_size, m, k].into(),
+        shape_rhs: [batch_size, k, n].into(),
         num_repeats,
         matmul: PhantomData
     });
     run_benchmark!(MatmulBenchmark::<Tiling2DMatmulContiguousVectorized, 3> {
-        shape_lhs: [batch_size, matrix_size, matrix_size].into(),
-        shape_rhs: [batch_size, matrix_size, matrix_size].into(),
+        shape_lhs: [batch_size, m, k].into(),
+        shape_rhs: [batch_size, k, n].into(),
         num_repeats,
         matmul: PhantomData
     });
     run_benchmark!(MatmulBenchmark::<Tiling2DMatmulTile, 3> {
-        shape_lhs: [batch_size, matrix_size, matrix_size].into(),
-        shape_rhs: [batch_size, matrix_size, matrix_size].into(),
+        shape_lhs: [batch_size, m, k].into(),
+        shape_rhs: [batch_size, k, n].into(),
         num_repeats,
         matmul: PhantomData
     });
     run_benchmark!(MatmulBenchmark::<Tiling2DMatmulTileVectorized, 3> {
-        shape_lhs: [batch_size, matrix_size, matrix_size].into(),
-        shape_rhs: [batch_size, matrix_size, matrix_size].into(),
+        shape_lhs: [batch_size, m, k].into(),
+        shape_rhs: [batch_size, k, n].into(),
+        num_repeats,
+        matmul: PhantomData
+    });
+    run_benchmark!(MatmulBenchmark::<MatmulAutotune, 3> {
+        shape_lhs: [batch_size, m, k].into(),
+        shape_rhs: [batch_size, k, n].into(),
         num_repeats,
         matmul: PhantomData
     });

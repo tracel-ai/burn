@@ -1,7 +1,7 @@
 use crate::{
     context::{Context, WorkGroup},
     element::WgpuElement,
-    kernel::{build_info, into_contiguous, matmul::utils::shape_out, SourceTemplate},
+    kernel::{build_info, into_contiguous, matmul::utils::shape_out},
     tensor::WgpuTensor,
 };
 use burn_tensor::Shape;
@@ -51,33 +51,41 @@ macro_rules! matmul_tile_2d {
         T_M $tm:expr,
         T_N $tn:expr
      ) => {
-        struct $struct<
-            const B_M: usize,
-            const B_N: usize,
-            const B_K: usize,
-            const T_M: usize,
-            const T_N: usize,
-            const WORKGROUP_SIZE_X: usize,
-            const WORKGROUP_SIZE_Y: usize,
-        >;
+        #[derive(new, Debug)]
+        struct $struct<E: WgpuElement> {
+            b_m: usize,
+            b_n: usize,
+            b_k: usize,
+            t_m: usize,
+            t_n: usize,
+            workgroup_size_x: usize,
+            workgroup_size_y: usize,
+            _elem: core::marker::PhantomData<E>,
+        }
 
-        impl<
-                const B_M: usize,
-                const B_N: usize,
-                const B_K: usize,
-                const T_M: usize,
-                const T_N: usize,
-                const WORKGROUP_SIZE_X: usize,
-                const WORKGROUP_SIZE_Y: usize,
-            > StaticKernel
-            for $struct<B_M, B_N, B_K, T_M, T_N, WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y>
-        {
-            fn source_template() -> SourceTemplate {
+        impl<E: WgpuElement> DynamicKernel for $struct<E> {
+            fn source_template(self) -> SourceTemplate {
                 kernel_wgsl!(Raw, $file);
 
-                register_template::<B_M, B_N, B_K, T_M, T_N, WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y>(
-                    Raw::source_template(),
-                )
+                Raw::source_template()
+                    .register("b_m", self.b_m.to_string())
+                    .register("b_n", self.b_n.to_string())
+                    .register("b_k", self.b_k.to_string())
+                    .register("bm_x_bk", (self.b_m * self.b_k).to_string())
+                    .register("bk_x_bn", (self.b_k * self.b_n).to_string())
+                    .register("t_m", self.t_m.to_string())
+                    .register("t_n", self.t_n.to_string())
+                    .register("tm_x_tn", (self.t_m * self.t_n).to_string())
+                    .register("workgroup_size_x", self.workgroup_size_x.to_string())
+                    .register("workgroup_size_y", self.workgroup_size_y.to_string())
+                    .register("workgroup_size_z", "1".to_string())
+                    .register("elem", E::type_name())
+                    .register("int", "i32")
+
+            }
+
+            fn id(&self) -> String {
+                std::format!("{:?}", self)
             }
         }
 
@@ -102,45 +110,52 @@ macro_rules! matmul_tile_2d {
             // WORKGROUP_SIZE_Y = ceil(B_N / T_N)
             const WORKGROUP_SIZE_Y: usize = B_N / T_N;
 
-            matmul_tiling_2d::<E, D, B_M, B_N, B_K, T_M, T_N, WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y>(
+            matmul_tiling_2d(
                 lhs, rhs,
+                B_M,
+                B_N,
+                B_K,
+                T_N,
+                T_N,
+                WORKGROUP_SIZE_X,
+                WORKGROUP_SIZE_Y,
             )
         }
 
         /// Matrix multiplication using tiling 2D algorithm with custom parameters
+        #[allow(clippy::too_many_arguments)]
         pub fn matmul_tiling_2d<
             E: WgpuElement,
             const D: usize,
-            const B_M: usize,
-            const B_N: usize,
-            const B_K: usize,
-            const T_M: usize,
-            const T_N: usize,
-            const WORKGROUP_SIZE_X: usize,
-            const WORKGROUP_SIZE_Y: usize,
-        >(
+       >(
             lhs: WgpuTensor<E, D>,
             rhs: WgpuTensor<E, D>,
+            b_m: usize,
+            b_n: usize,
+            b_k: usize,
+            t_m: usize,
+            t_n: usize,
+            workgroup_size_x: usize,
+            workgroup_size_y: usize,
+
         ) -> WgpuTensor<E, D> {
-            let kernel = lhs.context.compile_static::<KernelSettings<
-                $struct<B_M, B_N, B_K, T_M, T_N, WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y>,
-                E,
-                i32,
-                WORKGROUP_SIZE_X,
-                WORKGROUP_SIZE_Y,
-                1,
-            >>();
+            let kernel = $struct::<E>::new(b_m, b_n, b_k, t_m, t_n, workgroup_size_x, workgroup_size_y);
+            let kernel = lhs.context.compile_dynamic(kernel);
             matmul_tiling_2d_launch::<
                 E,
                 D,
-                B_M,
-                B_N,
-                B_K,
-                T_M,
-                T_N,
-                WORKGROUP_SIZE_X,
-                WORKGROUP_SIZE_Y,
-            >(lhs, rhs, kernel)
+            >(
+                lhs,
+                rhs,
+                kernel,
+                b_m,
+                b_n,
+                b_k,
+                t_m,
+                t_n,
+                workgroup_size_x,
+                workgroup_size_y,
+              )
         }
 
         #[cfg(test)]
@@ -289,8 +304,9 @@ macro_rules! matmul_tile_2d {
                 batch_2: usize,
             ) {
                 let func = |lhs, rhs| {
-                    matmul_tiling_2d::<f32, 4, B_M, B_N, B_K, T_M, T_N, WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y>(
+                    matmul_tiling_2d::<f32, 4, >(
                         lhs, rhs,
+                        B_M, B_N, B_K, T_M, T_N, WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y
                     )
                 };
                 let shape_lhs = [batch_1, batch_2, m, k];
@@ -303,8 +319,9 @@ macro_rules! matmul_tile_2d {
                 const DIM: usize = 4;
 
                 let matmul_func = |lhs, rhs| {
-                    matmul_tiling_2d::<f32, 4, DIM, DIM, DIM, 2, 2, 2, 2>(
+                    matmul_tiling_2d::<f32, 4, >(
                         lhs, rhs,
+                        DIM, DIM, DIM, 2, 2, 2, 2
                     )
                 };
                 let swap = [0, 1];
@@ -319,8 +336,9 @@ macro_rules! matmul_tile_2d {
                 const DIM: usize = 4;
 
                 let matmul_func = |lhs, rhs| {
-                    matmul_tiling_2d::<f32, 4, DIM, DIM, DIM, 2, 2, 2, 2>(
+                    matmul_tiling_2d::<f32, 4, >(
                         lhs, rhs,
+                        DIM, DIM, DIM, 2, 2, 2, 2
                     )
                 };
                 let swap_lhs = [0, 0];
@@ -335,8 +353,9 @@ macro_rules! matmul_tile_2d {
                 const DIM: usize = 4;
 
                 let matmul_func = |lhs, rhs| {
-                    matmul_tiling_2d::<f32, 4, DIM, DIM, DIM, 2, 2, 2, 2>(
+                    matmul_tiling_2d::<f32, 4, >(
                         lhs, rhs,
+                        DIM, DIM, DIM, 2, 2, 2, 2
                     )
                 };
                 let swap_lhs = [0, 3];
@@ -347,28 +366,6 @@ macro_rules! matmul_tile_2d {
             }
         }
     };
-}
-
-pub(super) fn register_template<
-    const B_M: usize,
-    const B_N: usize,
-    const B_K: usize,
-    const T_M: usize,
-    const T_N: usize,
-    const WORKGROUP_SIZE_X: usize,
-    const WORKGROUP_SIZE_Y: usize,
->(
-    template: SourceTemplate,
-) -> SourceTemplate {
-    template
-        .register("b_m", B_M.to_string())
-        .register("b_n", B_N.to_string())
-        .register("b_k", B_K.to_string())
-        .register("bm_x_bk", (B_M * B_K).to_string())
-        .register("bk_x_bn", (B_K * B_N).to_string())
-        .register("t_m", T_M.to_string())
-        .register("t_n", T_N.to_string())
-        .register("tm_x_tn", (T_M * T_N).to_string())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -425,29 +422,27 @@ pub(super) fn make_info_buffers<E: WgpuElement, const D: usize>(
         .create_buffer_with_data(bytemuck::cast_slice(&info))
 }
 
-pub(super) fn matmul_tiling_2d_launch<
-    E: WgpuElement,
-    const D: usize,
-    const B_M: usize,
-    const B_N: usize,
-    const B_K: usize,
-    const T_M: usize,
-    const T_N: usize,
-    const WORKGROUP_SIZE_X: usize,
-    const WORKGROUP_SIZE_Y: usize,
->(
+#[allow(clippy::too_many_arguments)]
+pub(super) fn matmul_tiling_2d_launch<E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
     kernel: Arc<ComputePipeline>,
+    b_m: usize,
+    b_n: usize,
+    b_k: usize,
+    t_m: usize,
+    t_n: usize,
+    workgroup_size_x: usize,
+    workgroup_size_y: usize,
 ) -> WgpuTensor<E, D> {
     matmul_parameter_assertions::<E, D>(
-        B_M,
-        B_N,
-        B_K,
-        T_M,
-        T_N,
-        WORKGROUP_SIZE_X,
-        WORKGROUP_SIZE_Y,
+        b_m,
+        b_n,
+        b_k,
+        t_m,
+        t_n,
+        workgroup_size_x,
+        workgroup_size_y,
         &lhs,
         &rhs,
     );
@@ -458,14 +453,14 @@ pub(super) fn matmul_tiling_2d_launch<
     // If not needed, it is only turned into contiguous if some batch dim has been swapped with row or col dim.
     // If batches were swapped among themselves, or if the last two dims are transposed, the underlying
     // kernel handles it without needing to turn it into contiguous.
-    let round_lhs = pad_round(lhs, B_M, B_K);
+    let round_lhs = pad_round(lhs, b_m, b_k);
     let lhs = match round_lhs {
         PaddingOutput::Unchanged(tensor) if tensor.batch_swapped_with_row_col() => {
             into_contiguous(tensor)
         }
         _ => round_lhs.into_tensor(),
     };
-    let round_rhs = pad_round(rhs, B_K, B_N);
+    let round_rhs = pad_round(rhs, b_k, b_n);
     let rhs = match round_rhs {
         PaddingOutput::Unchanged(tensor) if tensor.batch_swapped_with_row_col() => {
             into_contiguous(tensor)
@@ -477,7 +472,7 @@ pub(super) fn matmul_tiling_2d_launch<
 
     let output = empty_from_context::<E, D>(rhs.context.clone(), &rounded_output_shape);
 
-    let workgroup = make_workgroup(rounded_output_shape, B_M, B_N);
+    let workgroup = make_workgroup(rounded_output_shape, b_m, b_n);
     let info_buffers = make_info_buffers(&lhs, &rhs, &output);
 
     lhs.context.execute(
