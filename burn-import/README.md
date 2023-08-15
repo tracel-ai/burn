@@ -23,7 +23,8 @@ List taken from [here](https://github.com/onnx/onnx/blob/main/docs/Operators.md)
 - [ ] Asinh
 - [ ] Atan
 - [ ] Atanh
-- [ ] AveragePool
+- [ ] AveragePool1d
+- [x] AveragePool2d
 - [x] BatchNormalization
 - [ ] Bernoulli
 - [ ] BitShift
@@ -107,7 +108,6 @@ List taken from [here](https://github.com/onnx/onnx/blob/main/docs/Operators.md)
 - [ ] MatMul
 - [ ] MatMulInteger
 - [ ] Max
-- [ ] MaxPool
 - [ ] MaxPool1d
 - [x] MaxPool2d
 - [ ] MaxRoiPool

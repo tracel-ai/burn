@@ -1,6 +1,8 @@
 use burn::nn::{
-    conv::Conv1dConfig, conv::Conv2dConfig, pool::MaxPool2dConfig, BatchNormConfig, DropoutConfig,
-    LinearConfig, PaddingConfig1d, PaddingConfig2d,
+    conv::Conv1dConfig,
+    conv::Conv2dConfig,
+    pool::{AvgPool2dConfig, MaxPool2dConfig},
+    BatchNormConfig, DropoutConfig, LinearConfig, PaddingConfig1d, PaddingConfig2d,
 };
 
 use crate::onnx::ir::TensorData;
@@ -138,6 +140,34 @@ pub fn max_pool2d_config(curr: &Node) -> MaxPool2dConfig {
         .with_padding(padding)
 }
 
+/// Create a AvgPool2dConfig from the attributes of the node
+pub fn avg_pool2d_config(curr: &Node) -> AvgPool2dConfig {
+    let mut kernel_shape = Vec::new();
+    let mut strides = Vec::new();
+    let mut pads = Vec::new();
+    let mut count_include_pad: i64 = 0;
+
+    for (key, value) in curr.attrs.iter() {
+        match key.as_str() {
+            "kernel_shape" => attr_value_vec_i64(value, &mut kernel_shape),
+            "strides" => attr_value_vec_i64(value, &mut strides),
+            "pads" => attr_value_vec_i64(value, &mut pads),
+            "count_include_pad" => attr_value_i64(value, &mut count_include_pad),
+            _ => {}
+        }
+    }
+
+    let padding = padding_config(&pads);
+
+    if count_include_pad == 1 && padding != PaddingConfig2d::Valid {
+        todo!("AvgPool2d: count_include_pad is not supported. See https://github.com/burn-rs/burn/issues/636");
+    }
+
+    AvgPool2dConfig::new([kernel_shape[0] as usize, kernel_shape[1] as usize])
+        .with_strides([strides[0] as usize, strides[1] as usize])
+        .with_padding(padding)
+}
+
 /// Create a FlattenConfig from the attributes of the node
 pub fn flatten_config(curr: &Node) -> (usize, usize) {
     // the begin dimension is the first dimension (Default: 1 per ONNX spec)
@@ -217,9 +247,15 @@ pub fn linear_config(node: &Node) -> LinearConfig {
     LinearConfig::new(in_size, out_size).with_bias(bias)
 }
 
-/// Create a DropoutConfig from the attributes of the node
+/// Create a DropoutConfig from an attribute and state of the node
 pub fn dropout_config(node: &Node) -> DropoutConfig {
-    // the dropout probability comes as input, which is copied to state.
+    // Opset 7 and older store probability as an attribute
+    if node.attrs.contains_key("ratio") {
+        let mut prob: f32 = 0.0;
+        attr_value_f32(node.attrs.get("ratio").unwrap(), &mut prob);
+
+        return DropoutConfig::new(prob as f64);
+    }
 
     if node.states.is_empty() {
         panic!("Dropout: no state found needed for configuration");
@@ -396,6 +432,35 @@ fn padding_config(pads: &[i64]) -> PaddingConfig2d {
         // Unaccounted for padding configuration
         panic!("Padding configuration ({:?}) not supported", pads);
     }
+}
+
+pub fn reshape_config(node: &Node) -> Vec<i64> {
+    let mut allowzero = 0;
+
+    for (key, value) in node.attrs.iter() {
+        match key.as_str() {
+            "allowzero" => attr_value_i64(value, &mut allowzero),
+            _ => {}
+        }
+    }
+
+    // Burn does not support zero size shape (0 means false in ONNX)
+    // (see https://onnx.ai/onnx/operators/onnx__Reshape.html#attributes)
+    if allowzero != 0 {
+        panic!("Zero shape size is not supported");
+    }
+
+    let shape = match node.states.first() {
+        Some(state) => match &state.ty {
+            StateType::Tensor(tensor) => match tensor.data.as_ref() {
+                Some(TensorData::Int64(data)) => data.clone(),
+                _ => panic!("Reshape: invalid state data for shape"),
+            },
+        },
+        None => panic!("Reshape: missing state required for shape"),
+    };
+
+    shape
 }
 
 /// Calculate the padding configuration for a 1D operations such as Convolution and Pooling.

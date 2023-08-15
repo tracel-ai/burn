@@ -3,7 +3,10 @@ use std::collections::HashMap;
 use protobuf::Enum;
 
 use super::{
-    ir::{ArgType, Argument, AttributeValue, ElementType, Node, NodeType, TensorArg},
+    ir::{
+        ArgType, Argument, AttributeValue, ElementType, Node, NodeType, StateType, TensorArg,
+        TensorData,
+    },
     op_configuration::flatten_config,
     protos::tensor_proto::DataType,
 };
@@ -64,7 +67,7 @@ pub fn dim_inference(
         match node.node_type {
             NodeType::Conv1d => conv1d_update_outputs(node),
             NodeType::Conv2d => conv2d_update_outputs(node),
-            NodeType::MaxPool2d => max_pool2d_update_outputs(node),
+            NodeType::MaxPool2d => same_as_input(node),
             NodeType::Linear => linear_update_outputs(node),
             NodeType::Flatten => flatten_update_outputs(node),
             NodeType::Relu => same_as_input(node),
@@ -92,6 +95,7 @@ pub fn dim_inference(
             NodeType::Reshape => reshape_update_outputs(node),
             NodeType::Dropout => same_as_input(node),
             NodeType::GlobalAveragePool => same_as_input(node),
+            NodeType::AveragePool2d => same_as_input(node),
             _ => todo!(
                 "shape inference for {:?} is not implemented",
                 node.node_type
@@ -192,16 +196,19 @@ fn concat_update_outputs(node: &mut Node) {
 }
 
 fn reshape_update_outputs(node: &mut Node) {
-    let dim = *node
-        .inputs
-        .iter()
-        .filter_map(|input| match &input.ty {
-            ArgType::Tensor(tensor) => Some(tensor.dim),
-            _ => None,
-        })
-        .collect::<Vec<_>>()
-        .last()
-        .unwrap();
+    // Extract the shape information from the state
+    let shape = match node.states.first() {
+        Some(state) => match &state.ty {
+            StateType::Tensor(tensor) => match tensor.data.as_ref() {
+                Some(TensorData::Int64(data)) => data.clone(),
+                _ => panic!("Reshape: invalid state data for shape"),
+            },
+        },
+        None => panic!("Reshape: missing state required for shape"),
+    };
+
+    // The output dimension is the same as the shape length
+    let dim = shape.len();
 
     node.outputs[0].ty = ArgType::Tensor(TensorArg { dim });
 }
@@ -318,23 +325,6 @@ fn conv2d_update_outputs(node: &mut Node) {
     // copy the type from the previous output to the nodeent input
     if node.inputs.len() != 1 {
         panic!("Conv2d: multiple inputs are not supported");
-    }
-
-    // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
-    if let ArgType::Tensor(tensor) = node.inputs[0].clone().ty {
-        node.outputs[0].ty = ArgType::Tensor(TensorArg { dim: tensor.dim });
-    } else {
-        panic!("Only tensor input is valid");
-    }
-}
-
-/// Infers the shape of a MaxPool2d node and replaces the shape of the output tensor.
-///
-/// The shape of the output tensor is calculated by running the actual convolution operation.
-fn max_pool2d_update_outputs(node: &mut Node) {
-    // copy the type from the previous output to the node input
-    if node.inputs.len() != 1 {
-        panic!("Pool2d: multiple inputs are not supported");
     }
 
     // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]

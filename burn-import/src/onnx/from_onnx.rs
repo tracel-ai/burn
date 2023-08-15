@@ -20,6 +20,13 @@ use super::{coalesce::coalesce, ir::StateType};
 use bytemuck::cast_slice;
 use protobuf::{Enum, Message};
 
+const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 4] = [
+    NodeType::Conv1d,
+    NodeType::Conv2d,
+    NodeType::Dropout,
+    NodeType::Reshape,
+];
+
 /// Error type for parsing ONNX model
 #[derive(Debug)]
 pub enum ParseError {
@@ -101,6 +108,9 @@ pub fn parse_onnx(onnx_path: &Path) -> ONNXGraph {
 
     // Infer shapes and update the inputs and outputs
     dim_inference(&mut nodes, &inputs, &mut outputs);
+
+    // Remove the graph inputs/output that are not used by any node
+    remove_unused_graph_inputs(&mut inputs, &mut outputs, &nodes);
 
     log::info!("Finished parsing ONNX file: {}", onnx_path.display());
 
@@ -346,6 +356,11 @@ fn remap_node_type(node: &mut Node) {
             2 => NodeType::MaxPool2d,
             _ => panic!("Only max_pool 1d and 2d are supported"),
         }),
+        NodeType::AveragePool => remap_node_with_kernel_shape(node, |ints| match ints.len() {
+            1 => NodeType::AveragePool1d,
+            2 => NodeType::AveragePool2d,
+            _ => panic!("Only avg_pool 1d and 2d are supported"),
+        }),
         _ => (),
     }
 }
@@ -462,9 +477,7 @@ fn lift_constants(nodes: &mut Vec<Node>) {
 
     // create a set to hold the node types to process
     let node_types_to_process: HashSet<NodeType> =
-        [NodeType::Dropout, NodeType::Conv1d, NodeType::Conv2d]
-            .into_iter()
-            .collect();
+        LIFT_CONSTANTS_FOR_NODE_TYPES.into_iter().collect();
 
     // create a new vector to hold the graph's constants (index by the node's name)
     let constants = nodes
@@ -600,6 +613,41 @@ fn rename_inputs(
     }
 
     old_names
+}
+
+/// Removes the graph inputs/output that are not used by any node.
+///
+/// In older ONNX models, the inputs and outputs are not always used by the nodes.
+/// For example, the input could be used as a state instead of an input. Since the
+/// inputs with initializers are moved to the states vector, the inputs vector could
+/// contain unused inputs. The same is true for the outputs.
+///
+/// Generally, it's a good idea to remove unused inputs/outputs because it makes the
+/// generated code cleaner and easier to read.
+fn remove_unused_graph_inputs(
+    inputs: &mut Vec<Argument>,
+    outputs: &mut Vec<Argument>,
+    nodes: &Vec<Node>,
+) {
+    // Remove inputs that are not used by any node
+    inputs.retain(|input| {
+        for node in nodes.iter() {
+            if node.inputs.iter().any(|x| x.name == input.name) {
+                return true;
+            }
+        }
+        false
+    });
+
+    // Remove outputs that are not used by any node
+    outputs.retain(|output| {
+        for node in nodes.iter() {
+            if node.outputs.iter().any(|x| x.name == output.name) {
+                return true;
+            }
+        }
+        false
+    });
 }
 
 // Define a trait for topological sorting
