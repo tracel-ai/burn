@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, sync::Arc};
+use std::marker::PhantomData;
 
 use burn_tensor::Shape;
 
@@ -8,7 +8,7 @@ use crate::element::CandleElement;
 // pub type StorageRef = Arc<*mut >;
 
 /// A tensor that uses the tch backend.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct CandleTensor<E: CandleElement, const D: usize> {
     pub(crate) tensor: candle_core::Tensor,
     // pub(crate) storage: StorageRef,
@@ -30,6 +30,7 @@ impl<E: CandleElement, const D: usize> CandleTensor<E, D> {
 
 impl<E: CandleElement, const D: usize> CandleTensor<E, D> {
     pub(crate) fn shape(&self) -> Shape<D> {
-        Shape::from(self.tensor.shape().dims())
+        let x: [usize; D] = self.tensor.shape().dims().try_into().unwrap();
+        Shape::from(x)
     }
 }

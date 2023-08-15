@@ -66,3 +66,5 @@ Storage = ???
 from_existing (inspiré de tch) -> ne pas oublier, quand storage sera figured out
 
 element: u32 ajouté dans burn-tensor
+
+Faire implémenter les ops (module, activation, tensor, int tensor, bool tensor)

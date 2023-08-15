@@ -1,3 +1,5 @@
+use burn_tensor::backend::Backend;
+
 pub type FloatElem<B> = <B as Backend>::FloatElem;
 pub type Device<B> = <B as Backend>::Device;
 

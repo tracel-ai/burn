@@ -20,7 +20,7 @@ impl From<CandleDevice> for candle_core::Device {
     fn from(device: CandleDevice) -> Self {
         match device {
             CandleDevice::Cpu => candle_core::Device::Cpu,
-            CandleDevice::Cuda(num) => candle_core::Device::Cuda(num),
+            CandleDevice::Cuda(ordinal) => candle_core::Device::new_cuda(ordinal).unwrap(),
         }
     }
 }
@@ -29,7 +29,7 @@ impl From<candle_core::Device> for CandleDevice {
     fn from(device: candle_core::Device) -> Self {
         match device {
             candle_core::Device::Cpu => CandleDevice::Cpu,
-            candle_core::Device::Cuda(num) => CandleDevice::Cuda(num),
+            candle_core::Device::Cuda(cuda_device) => CandleDevice::Cuda(0), // TODO replace 0
         }
     }
 }
