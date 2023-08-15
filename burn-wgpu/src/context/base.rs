@@ -34,6 +34,7 @@ pub struct Context {
     client: ContextClientImpl,
     pub(crate) tuner: Tuner,
     pub(crate) device: WgpuDevice,
+    pub(crate) info: wgpu::AdapterInfo,
 }
 
 #[derive(Debug, Hash, PartialOrd, PartialEq, Eq)]
@@ -59,7 +60,7 @@ impl Context {
     /// Create a new context where computing tasks will be executed on the given
     /// [device](WgpuDevice).
     pub(crate) fn new<G: GraphicsApi>(device: &WgpuDevice) -> Self {
-        let (device_wgpu, queue) = pollster::block_on(select_device::<G>(device));
+        let (device_wgpu, queue, info) = pollster::block_on(select_device::<G>(device));
         let device = device.clone();
         let device_wgpu = Arc::new(device_wgpu);
         let client = ContextServerImpl::start(device_wgpu.clone(), queue);
@@ -71,6 +72,7 @@ impl Context {
             client,
             cache: Mutex::new(HashMap::new()),
             tuner: Tuner::new(),
+            info,
         }
     }
 
@@ -226,7 +228,9 @@ impl PartialEq for Context {
     }
 }
 
-async fn select_device<G: GraphicsApi>(device: &WgpuDevice) -> (wgpu::Device, wgpu::Queue) {
+async fn select_device<G: GraphicsApi>(
+    device: &WgpuDevice,
+) -> (wgpu::Device, wgpu::Queue, wgpu::AdapterInfo) {
     let adapter = select_adapter::<G>(device);
     let limits = adapter.limits();
 
@@ -249,7 +253,7 @@ async fn select_device<G: GraphicsApi>(device: &WgpuDevice) -> (wgpu::Device, wg
         })
         .unwrap();
 
-    (device, queue)
+    (device, queue, adapter.get_info())
 }
 
 fn select_adapter<G: GraphicsApi>(device: &WgpuDevice) -> wgpu::Adapter {

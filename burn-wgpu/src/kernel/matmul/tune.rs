@@ -251,6 +251,7 @@ where
             shape_rhs.dims[D - 2..].to_vec(),
         ],
         format!("matmul {}", E::type_name()),
+        &lhs.context,
     );
 
     let context = lhs.context.clone();

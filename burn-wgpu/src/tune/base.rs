@@ -1,19 +1,48 @@
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, fmt::Display, hash::Hash, sync::Arc, time::Duration};
 
 use burn_common::stub::RwLock;
 
 use crate::{
     benchmark::{Benchmark, BenchmarkResult},
+    context::Context,
     GraphicsApi, WgpuDevice,
 };
 
 /// Key used for caching.
-#[derive(new, Hash, Clone, Debug, PartialEq, Eq)]
+#[derive(Hash, Clone, Debug, PartialEq, Eq)]
 pub struct AutoTuneKey {
     /// List all shapes used for the autotuned kernel.
     shapes: Vec<Vec<usize>>,
-    /// Name of the operation.
-    ops_name: String,
+    /// Operation name.
+    ops: String,
+    /// Device name used to benchmark.
+    device: String,
+    /// Graphics api name.
+    graphics_api: String,
+}
+
+impl AutoTuneKey {
+    pub fn new(shapes: Vec<Vec<usize>>, ops: String, context: &Context) -> Self {
+        let device = format!("{:?}", context.info.name);
+        let graphics_api = format!("{:?}", context.info.backend);
+
+        Self {
+            shapes,
+            ops,
+            device,
+            graphics_api,
+        }
+    }
+}
+
+impl Display for AutoTuneKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let message = format!(
+            "(AutoTuneKey) Kernel {} - Shapes {:?} - Device {} - API {}",
+            self.ops, self.shapes, self.device, self.graphics_api,
+        );
+        f.write_str(&message)
+    }
 }
 
 /// Objects that are stored in the tuner cache. Can have any inputs and outputs.
@@ -143,12 +172,8 @@ where
     }
 
     let tunable = best_tunable.expect("At least one tunable needed. ");
-    log::info!(
-        "(AutoTune) Kernel {} - Shapes {:?} => {}",
-        id.ops_name,
-        id.shapes,
-        tunable
-    );
+
+    log::info!("{} => {}", id, tunable);
     Box::new(tunable.func)
 }
 
