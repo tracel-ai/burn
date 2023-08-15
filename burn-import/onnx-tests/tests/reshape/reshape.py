@@ -12,6 +12,7 @@ class Model(nn.Module):
 
     def forward(self, x):
         x = x.reshape(2, 2)
+        x = x.reshape(1, -1)  # -1 means infer from other dimensions
         return x
 
 
@@ -21,7 +22,7 @@ def main():
     torch.manual_seed(42)
 
     torch.set_printoptions(precision=8)
-                           
+
     # Export to onnx
     model = Model()
     model.eval()

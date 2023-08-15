@@ -76,6 +76,6 @@ where
         S: Into<Shape<D2>>,
         ND2: NamedDims<B, Tensor = Tensor<B, D2>>,
     {
-        NamedTensor::from_tensor(self.tensor.reshape(shape))
+        NamedTensor::from_tensor(self.tensor.reshape(shape.into()))
     }
 }

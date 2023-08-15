@@ -305,7 +305,7 @@ mod tests {
         // Run the model
         let input = Tensor::<Backend, 1>::from_floats([0., 1., 2., 3.]);
         let output = model.forward(input);
-        let expected = Data::from([[0., 1.], [2., 3.]]);
+        let expected = Data::from([[0., 1., 2., 3.]]);
 
         assert_eq!(output.to_data(), expected);
     }

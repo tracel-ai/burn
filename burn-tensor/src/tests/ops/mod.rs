@@ -26,7 +26,6 @@ mod powf;
 mod random;
 mod repeat;
 mod reshape;
-mod reshape_infer;
 mod select;
 mod sin;
 mod slice;

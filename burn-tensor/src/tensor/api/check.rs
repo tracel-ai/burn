@@ -99,7 +99,7 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn reshape_infer<const D: usize>(target: &[i64; D]) -> Self {
+    pub(crate) fn reshape_args<const D: usize>(target: &[i32; D]) -> Self {
         let mut check = Self::Ok;
 
         if target.iter().any(|&dim| dim < -1 || dim == 0) {

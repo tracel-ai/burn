@@ -57,18 +57,6 @@ where
 
     /// Reshape the tensor to have the given shape.
     ///
-    /// # Panics
-    ///
-    /// If the tensor can not be reshape to the given shape.
-    pub fn reshape<const D2: usize, S: Into<Shape<D2>>>(self, shape: S) -> Tensor<B, D2, K> {
-        let shape = shape.into();
-        check!(TensorCheck::reshape(&self.shape(), &shape));
-
-        Tensor::new(K::reshape::<D, D2>(self.primitive, shape))
-    }
-
-    /// Reshape the tensor to have the given shape.
-    ///
     /// Compared to [Tensor::reshape](Tensor::reshape),
     /// this function allows to infer the size of one dimension and matches the numpy/pytorch behavior.
     ///
@@ -91,34 +79,17 @@ where
     ///    let tensor = Tensor::<B, 3>::ones([2, 3, 4]);
     ///
     ///    // Given a 3D tensor with dimensions (2, 3, 4), reshape it to (2, 12)
-    ///    let reshaped_tensor: Tensor::<B, 2> = tensor.reshape_infer([2, -1]);
+    ///    let reshaped_tensor: Tensor::<B, 2> = tensor.reshape([2, -1]);
     ///
     ///    // The resulting tensor will have dimensions (2, 12).
     ///    println!("{:?}", reshaped_tensor.shape());
     ///
     /// }
-    ///
-    pub fn reshape_infer<const D2: usize>(self, shape: [i64; D2]) -> Tensor<B, D2, K> {
-        check!(TensorCheck::reshape_infer(&shape));
-        let infer_index = shape.iter().position(|x| x == &-1);
-        let mut new_shape: [usize; D2] = [1; D2];
-        if let Some(index) = infer_index {
-            let mut product = 1;
-            for (i, &s) in shape.iter().enumerate() {
-                if i != index {
-                    product *= s as usize;
-                }
-            }
-            let product_current = self.shape().num_elements();
-            new_shape[index] = product_current / product;
-        } else {
-            // Change i64 to usize
-            shape
-                .iter()
-                .enumerate()
-                .for_each(|(i, &x)| new_shape[i] = x as usize);
-        };
-        Tensor::reshape(self, new_shape)
+    pub fn reshape<const D2: usize, S: ReshapeArgs<D2>>(self, shape: S) -> Tensor<B, D2, K> {
+        let shape = shape.into_shape(&self);
+        check!(TensorCheck::reshape(&self.shape(), &shape));
+
+        Tensor::new(K::reshape::<D, D2>(self.primitive, shape))
     }
 
     /// Flatten the tensor along a given range of dimensions.
@@ -986,5 +957,65 @@ impl<B: Backend> BasicOps<B> for Bool {
 
     fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D> {
         B::bool_cat(vectors, dim)
+    }
+}
+
+/// Trait used for reshape arguments.
+pub trait ReshapeArgs<const D2: usize> {
+    /// Converts to a shape.
+    fn into_shape<B: Backend, const D: usize, K: BasicOps<B>>(
+        self,
+        tensor: &Tensor<B, D, K>,
+    ) -> Shape<D2>;
+}
+
+impl<const D2: usize> ReshapeArgs<D2> for Shape<D2> {
+    fn into_shape<B: Backend, const D: usize, K: BasicOps<B>>(
+        self,
+        _tensor: &Tensor<B, D, K>,
+    ) -> Shape<D2> {
+        self
+    }
+}
+impl<const D2: usize> ReshapeArgs<D2> for [usize; D2] {
+    fn into_shape<B: Backend, const D: usize, K: BasicOps<B>>(
+        self,
+        _tensor: &Tensor<B, D, K>,
+    ) -> Shape<D2> {
+        Shape::from(self)
+    }
+}
+
+impl<const D2: usize> ReshapeArgs<D2> for [i32; D2] {
+    fn into_shape<B: Backend, const D: usize, K: BasicOps<B>>(
+        self,
+        tensor: &Tensor<B, D, K>,
+    ) -> Shape<D2> {
+        // Validate the reshape arguments
+        check!(TensorCheck::reshape_args(&self));
+
+        // Find the index of the inferred dimension
+        let infer_index = self.iter().position(|x| x == &-1);
+
+        // Compute the new shape
+        let mut new_shape: [usize; D2] = [1; D2];
+        if let Some(index) = infer_index {
+            // Handle the case where the dimension is inferred
+            let mut product = 1;
+            for (i, &s) in self.iter().enumerate() {
+                if i != index {
+                    product *= s as usize;
+                }
+            }
+            let product_current = tensor.shape().num_elements();
+            new_shape[index] = product_current / product;
+        } else {
+            // Handle the case where the dimension is not inferred
+            // Straight copy and change to usize type
+            self.iter()
+                .enumerate()
+                .for_each(|(i, &x)| new_shape[i] = x as usize);
+        };
+        Shape::from(new_shape)
     }
 }
