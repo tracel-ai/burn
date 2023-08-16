@@ -98,26 +98,33 @@ pub(crate) fn avg_pool2d_backward<E: FloatNdArrayElement>(
             let c = k % channels;
 
             let output_grad = unsafe_shared_grad.get();
+
             for oh in 0..out_height {
                 for ow in 0..out_width {
-                    for kh in 0..kernel_height {
-                        for kw in 0..kernel_width {
-                            let ih = oh * stride_height + kh;
-                            let iw = ow * stride_width + kw;
+                    let ih_start = oh * stride_height;
+                    let iw_start = ow * stride_width;
 
-                            if ih >= x_height + padding_height
-                                || iw >= x_width + padding_width
-                                || ih < padding_height
-                                || iw < padding_width
-                            {
-                                continue;
-                            }
+                    let ih_end = ih_start + kernel_height;
+                    let iw_end = iw_start + kernel_width;
 
+                    let ih_start = usize::max(ih_start, padding_height);
+                    let iw_start = usize::max(iw_start, padding_width);
+
+                    let ih_end = usize::min(ih_end, x_height + padding_height);
+                    let iw_end = usize::min(iw_end, x_width + padding_width);
+
+                    let count = match count_include_pad {
+                        true => kernel_width * kernel_height,
+                        false => (ih_end - ih_start) * (iw_end - iw_start),
+                    };
+
+                    for ih in ih_start..ih_end {
+                        for iw in iw_start..iw_end {
                             let ih = ih - padding_height;
                             let iw = iw - padding_width;
 
-                            output_grad[[b, c, ih, iw]] += grad[[b, c, oh, ow]]
-                                / ((kernel_height * kernel_width) as i32).elem();
+                            output_grad[[b, c, ih, iw]] +=
+                                grad[[b, c, oh, ow]] / (count as i32).elem();
                         }
                     }
                 }
