@@ -13,6 +13,7 @@ mod tests {
             padding: 0,
             stride: 1,
             length: 6,
+            count_include_pad: true,
         };
 
         test.assert_output(TestTensor::from_floats([[[1., 2., 3., 4.]]]));
@@ -27,6 +28,7 @@ mod tests {
             padding: 1,
             stride: 2,
             length: 6,
+            count_include_pad: true,
         };
 
         test.assert_output(TestTensor::from_floats([[
@@ -42,6 +44,7 @@ mod tests {
         padding: usize,
         stride: usize,
         length: usize,
+        count_include_pad: bool,
     }
 
     impl AvgPool1dTestCase {
@@ -53,7 +56,13 @@ mod tests {
                     .into_data()
                     .convert(),
             );
-            let output = avg_pool1d(x, self.kernel_size, self.stride, self.padding);
+            let output = avg_pool1d(
+                x,
+                self.kernel_size,
+                self.stride,
+                self.padding,
+                self.count_include_pad,
+            );
 
             y.to_data().assert_approx_eq(&output.into_data(), 3);
         }

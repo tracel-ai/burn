@@ -116,11 +116,18 @@ pub fn avg_pool2d<B>(
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
+    count_include_pad: bool,
 ) -> Tensor<B, 4>
 where
     B: Backend,
 {
-    Tensor::new(B::avg_pool2d(x.primitive, kernel_size, stride, padding))
+    Tensor::new(B::avg_pool2d(
+        x.primitive,
+        kernel_size,
+        stride,
+        padding,
+        count_include_pad,
+    ))
 }
 
 /// Applies a [1D avg pooling](crate::ops::ModuleOps::avg_pool1d).
@@ -129,11 +136,18 @@ pub fn avg_pool1d<B>(
     kernel_size: usize,
     stride: usize,
     padding: usize,
+    count_include_pad: bool,
 ) -> Tensor<B, 3>
 where
     B: Backend,
 {
-    Tensor::new(B::avg_pool1d(x.primitive, kernel_size, stride, padding))
+    Tensor::new(B::avg_pool1d(
+        x.primitive,
+        kernel_size,
+        stride,
+        padding,
+        count_include_pad,
+    ))
 }
 
 /// Applies a [1D max pooling](crate::ops::ModuleOps::max_pool1d).
