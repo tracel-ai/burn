@@ -85,7 +85,6 @@ fn main(
             ih_end = min(ih_end, input_shape_2 + padding_0);
             iw_end = min(iw_end, input_shape_3 + padding_1);
 
-            // We check for every kernel size combination if the current oh/ow have contributed to the output.
             let contributed_h = ih + padding_0 >= ih_start && ih < ih_end;
             let contributed_w = iw + padding_1 >= iw_start && iw < iw_end;
 

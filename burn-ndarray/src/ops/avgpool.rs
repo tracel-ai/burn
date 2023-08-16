@@ -21,7 +21,6 @@ pub(crate) fn avg_pool2d<E: FloatNdArrayElement>(
     let out_height = ((x_height + 2 * padding_height - kernel_height) / stride_height) + 1;
     let out_width = ((x_width + 2 * padding_width - kernel_width) / stride_width) + 1;
 
-    // let x = apply_padding_4d(x, padding, 0.elem()).array;
     let x = x.array;
 
     let mut output = Array4::from_elem((batch_size, channels, out_height, out_width), 0.elem());
