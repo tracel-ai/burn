@@ -19,6 +19,7 @@ include_models!(
     div,
     dropout_opset16,
     dropout_opset7,
+    flatten,
     global_avr_pool,
     log_softmax,
     maxpool2d,
@@ -308,5 +309,18 @@ mod tests {
         let expected = Data::from([[0., 1., 2., 3.]]);
 
         assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn flatten() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let model: flatten::Model<Backend> = flatten::Model::new();
+
+        // Run the model
+        let input = Tensor::<Backend, 3>::ones([1, 5, 15]);
+        let output = model.forward(input);
+
+        let expected_shape = Shape::from([1, 75]);
+        assert_eq!(expected_shape, output.shape());
     }
 }

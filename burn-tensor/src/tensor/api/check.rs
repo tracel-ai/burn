@@ -154,6 +154,16 @@ impl TensorCheck {
             );
         }
 
+        if D2 < D1 - (end_dim - start_dim) {
+            check = check.register(
+                "Flatten",
+                TensorError::new(format!(
+                    "The destination dimension ({D2}) must be large enough to accommodate the flattening operation."
+
+                )),
+            );
+        }
+
         check
     }
 
