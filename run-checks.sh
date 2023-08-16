@@ -1,5 +1,8 @@
 #!/bin/bash
-#
+
+# Exit immediately if a command exits with a non-zero status.
+set -e
+
 # This script runs all `burn` checks locally
 #
 # Run `run-checks` using this command:

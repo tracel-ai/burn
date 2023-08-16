@@ -12,6 +12,9 @@
 #
 # If no `environment` value has been passed, run all checks.
 
+# Exit if any command fails
+$ErrorActionPreference = "Stop"
+
 # Compile run-checks binary
 rustc scripts/run-checks.rs --crate-type bin --out-dir scripts
 

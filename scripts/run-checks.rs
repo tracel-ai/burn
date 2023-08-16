@@ -253,7 +253,7 @@ fn std_checks() {
 
 fn check_typos() {
     // Install typos-cli
-    cargo_install(&["typos-cli"]);
+    cargo_install(&["typos-cli", "--version", "1.16.5"]);
 
     println!("Running typos check \n\n");
 
@@ -264,7 +264,7 @@ fn check_typos() {
         .spawn()
         .expect("Failed to run typos");
 
-    // Handle rustup child process
+    // Handle typos child process
     handle_child_process(typos, "Failed to wait for typos child process");
 }
 
@@ -288,6 +288,7 @@ fn main() {
         Some("no_std") => no_std_checks(),
         Some("typos") => check_typos(),
         Some(_) | None => {
+            /* Run all checks */
             check_typos();
             std_checks();
             no_std_checks();
