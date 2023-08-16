@@ -9,8 +9,7 @@
 //! ./scripts/publish crate_name
 
 use std::env;
-use std::io::{self, Write};
-use std::process::{Command, Output};
+use std::process::{Command, Stdio};
 use std::str;
 
 // Crates.io API token
@@ -61,45 +60,29 @@ fn remote_version(crate_name: &str) -> Option<String> {
     }
 }
 
-// Write stdout and stderr output on shell.
-// If there exit status of a command is not a success, terminate the process
-// with an error.
-fn stdout_and_stderr_write(output: Output, message_stdout: &str, message_stderr: &str) {
-    if !output.stdout.is_empty() {
-        io::stdout()
-            .write_all(&output.stdout)
-            .expect(message_stdout);
-    }
-
-    if !output.stderr.is_empty() {
-        io::stderr()
-            .write_all(&output.stderr)
-            .expect(message_stderr);
-    }
-
-    // If exit status is not a success, terminate the process with an error
-    if !output.status.success() {
-        // Use the exit code associated to a command to terminate the process,
-        // if any exit code had been found, use the default value 1
-        std::process::exit(output.status.code().unwrap_or(1));
-    }
-}
-
 // Run cargo publish
 fn cargo_publish(params: &[&str]) {
     // Run cargo publish
-    let cargo_publish = Command::new("cargo")
+    let mut cargo_publish = Command::new("cargo")
         .arg("publish")
+        .arg("--color=always")
         .args(params)
-        .output()
+        .stdout(Stdio::inherit()) // Send stdout directly to terminal
+        .stderr(Stdio::inherit()) // Send stderr directly to terminal
+        .spawn()
         .expect("Failed to run cargo publish");
 
-    // Write cargo publish output either on stdout or on stderr
-    stdout_and_stderr_write(
-        cargo_publish,
-        "Failed to write cargo publish on stdout",
-        "Failed to write cargo publish on stderr",
-    );
+    // Wait for cargo publish command to finish
+    let status = cargo_publish
+        .wait()
+        .expect("Failed to wait for cargo publish child process");
+
+    // If exit status is not a success, terminate the process with an error
+    if !status.success() {
+        // Use the exit code associated to a command to terminate the process,
+        // if any exit code had been found, use the default value 1
+        std::process::exit(status.code().unwrap_or(1));
+    }
 }
 
 // Publishes a crate

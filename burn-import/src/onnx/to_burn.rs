@@ -13,10 +13,12 @@ use crate::{
     burn::{
         graph::BurnGraph,
         node::{
+            avg_pool2d::AvgPool2dNode,
             batch_norm::BatchNormNode,
             binary::BinaryNode,
             concat::ConcatNode,
             constant::{ConstantNode, ConstantValue, TensorValue},
+            conv1d::Conv1dNode,
             conv2d::Conv2dNode,
             dropout::DropoutNode,
             global_avg_pool::GlobalAvgPoolNode,
@@ -33,8 +35,8 @@ use crate::{
     onnx::{
         ir::{AttributeValue, Node, NodeType},
         op_configuration::{
-            batch_norm_config, conv2d_config, flatten_config, linear_config, log_softmax_config,
-            max_pool2d_config,
+            batch_norm_config, conv1d_config, conv2d_config, flatten_config, linear_config,
+            log_softmax_config, max_pool2d_config,
         },
     },
 };
@@ -42,7 +44,9 @@ use crate::{
 use super::{
     from_onnx::parse_onnx,
     ir::{ArgType, Argument, ElementType, ONNXGraph, State, StateType, Tensor, TensorData},
-    op_configuration::{concat_config, dropout_config, softmax_config},
+    op_configuration::{
+        avg_pool2d_config, concat_config, dropout_config, reshape_config, softmax_config,
+    },
 };
 
 /// Generate code and states from `.onnx` files and save them to the `out_dir`.
@@ -178,8 +182,10 @@ impl ONNXGraph {
                 NodeType::Mul => graph.register(Self::mul_conversion(node)),
                 NodeType::Div => graph.register(Self::div_conversion(node)),
                 NodeType::Equal => graph.register(Self::equal_conversion(node)),
+                NodeType::Conv1d => graph.register(Self::conv1d_conversion::<PS>(node)),
                 NodeType::Conv2d => graph.register(Self::conv2d_conversion::<PS>(node)),
                 NodeType::MaxPool2d => graph.register(Self::max_pool2d_conversion(node)),
+                NodeType::AveragePool2d => graph.register(Self::avg_pool_2d_conversion(node)),
                 NodeType::MatMul => graph.register(Self::matmul_conversion(node)),
                 NodeType::Linear => graph.register(Self::linear_conversion::<PS>(node)),
                 NodeType::BatchNormalization => {
@@ -349,16 +355,12 @@ impl ONNXGraph {
         UnaryNode::cast(input, output)
     }
 
-    fn reshape_conversion(mut node: Node) -> ReshapeNode {
+    fn reshape_conversion(node: Node) -> ReshapeNode {
         let input = node.inputs.get(0).unwrap().to_tensor_type();
         let output = node.outputs.get(0).unwrap().to_tensor_type();
-        let shape = extract_next_data_serialize::<i64>(&mut node).unwrap();
+        let shape = reshape_config(&node);
 
-        ReshapeNode::new(
-            input,
-            output,
-            shape.value.iter().map(|item| *item as usize).collect(),
-        )
+        ReshapeNode::new(input, output, shape)
     }
 
     fn sigmoid_conversion(node: Node) -> UnaryNode {
@@ -453,6 +455,22 @@ impl ONNXGraph {
         )
     }
 
+    fn conv1d_conversion<PS: PrecisionSettings>(mut node: Node) -> Conv1dNode<PS> {
+        let input = node.inputs.get(0).unwrap().to_tensor_type();
+        let output = node.outputs.get(0).unwrap().to_tensor_type();
+        let config = conv1d_config(&node);
+
+        let bias = node.states.len() == 2;
+        let weight = extract_next_data_serialize::<PS::FloatElem>(&mut node).unwrap();
+        let bias = match bias {
+            true => Some(extract_next_data_serialize::<PS::FloatElem>(&mut node)).unwrap(),
+            false => None,
+        };
+
+        let name = &node.name;
+        Conv1dNode::<PS>::new(name, input, output, weight, bias, config)
+    }
+
     fn conv2d_conversion<PS: PrecisionSettings>(mut node: Node) -> Conv2dNode<PS> {
         let input = node.inputs.get(0).unwrap().to_tensor_type();
         let output = node.outputs.get(0).unwrap().to_tensor_type();
@@ -476,6 +494,15 @@ impl ONNXGraph {
 
         let name = &node.name;
         MaxPool2dNode::new(name, input, output, config)
+    }
+
+    fn avg_pool_2d_conversion(node: Node) -> AvgPool2dNode {
+        let input = node.inputs.get(0).unwrap().to_tensor_type();
+        let output = node.outputs.get(0).unwrap().to_tensor_type();
+        let config = avg_pool2d_config(&node);
+
+        let name = &node.name;
+        AvgPool2dNode::new(name, input, output, config)
     }
 
     fn global_avg_pool_conversion(node: Node) -> GlobalAvgPoolNode {

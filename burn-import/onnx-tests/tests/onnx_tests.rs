@@ -12,16 +12,20 @@ macro_rules! include_models {
 // ATTENTION: Modify this macro to include all models in the `model` directory.
 include_models!(
     add,
-    sub,
-    mul,
-    div,
+    avg_pool2d,
     concat,
+    conv1d,
     conv2d,
-    dropout,
+    div,
+    dropout_opset16,
+    dropout_opset7,
     global_avr_pool,
-    softmax,
     log_softmax,
-    maxpool2d
+    maxpool2d,
+    mul,
+    reshape,
+    softmax,
+    sub
 );
 
 #[cfg(test)]
@@ -107,6 +111,27 @@ mod tests {
     }
 
     #[test]
+    fn conv1d() {
+        // Initialize the model with weights (loaded from the exported file)
+        let model: conv1d::Model<Backend> = conv1d::Model::default();
+
+        // Run the model with ones as input for easier testing
+        let input = Tensor::<Backend, 3>::ones([1, 4, 5]);
+
+        let output = model.forward(input);
+
+        // test the output shape
+        let expected_shape: Shape<3> = Shape::from([1, 2, 11]);
+        assert_eq!(output.shape(), expected_shape);
+
+        // We are using the sum of the output tensor to test the correctness of the conv1d node
+        // because the output tensor is too large to compare with the expected tensor.
+        let output_sum = output.sum().into_scalar();
+        let expected_sum = -1.722_538; // from pytorch
+        assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
+    }
+
+    #[test]
     fn conv2d() {
         // Initialize the model with weights (loaded from the exported file)
         let model: conv2d::Model<Backend> = conv2d::Model::default();
@@ -123,14 +148,33 @@ mod tests {
         // because the output tensor is too large to compare with the expected tensor.
         let output_sum = output.sum().into_scalar();
 
-        let expected_sum = 24.004_995; // from pytorch
+        let expected_sum = -113.869_99; // from pytorch
 
         assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
     }
 
     #[test]
-    fn dropout() {
-        let model: dropout::Model<Backend> = dropout::Model::default();
+    fn dropout_opset16() {
+        let model: dropout_opset16::Model<Backend> = dropout_opset16::Model::default();
+
+        // Run the model with ones as input for easier testing
+        let input = Tensor::<Backend, 4>::ones([2, 4, 10, 15]);
+
+        let output = model.forward(input);
+
+        let expected_shape = Shape::from([2, 4, 10, 15]);
+        assert_eq!(output.shape(), expected_shape);
+
+        let output_sum = output.sum().into_scalar();
+
+        let expected_sum = 1200.0; // from pytorch
+
+        assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
+    }
+
+    #[test]
+    fn dropout_opset7() {
+        let model: dropout_opset7::Model<Backend> = dropout_opset7::Model::default();
 
         // Run the model with ones as input for easier testing
         let input = Tensor::<Backend, 4>::ones([2, 4, 10, 15]);
@@ -180,13 +224,13 @@ mod tests {
 
         // Run the model
         let input = Tensor::<Backend, 2>::from_floats([
-            [0.33669037, 0.12880941, 0.23446237],
-            [0.23033303, -1.12285638, -0.18632829],
+            [0.33669037, 0.128_809_4, 0.23446237],
+            [0.23033303, -1.122_856_4, -0.18632829],
         ]);
         let output = model.forward(input);
         let expected = Data::from([
             [0.36830685, 0.29917702, 0.33251613],
-            [0.52146918, 0.13475533, 0.34377551],
+            [0.521_469_2, 0.13475533, 0.343_775_5],
         ]);
 
         assert_eq!(output.to_data(), expected);
@@ -199,13 +243,13 @@ mod tests {
 
         // Run the model
         let input = Tensor::<Backend, 2>::from_floats([
-            [0.33669037, 0.12880941, 0.23446237],
-            [0.23033303, -1.12285638, -0.18632829],
+            [0.33669037, 0.128_809_4, 0.23446237],
+            [0.23033303, -1.122_856_4, -0.18632829],
         ]);
         let output = model.forward(input);
         let expected = Data::from([
-            [-0.99883890, -1.20671988, -1.10106695],
-            [-0.65110511, -2.00429463, -1.06776643],
+            [-0.998_838_9, -1.206_719_9, -1.101_067],
+            [-0.651_105_1, -2.004_294_6, -1.067_766_4],
         ]);
 
         assert_eq!(output.to_data(), expected);
@@ -230,6 +274,38 @@ mod tests {
             [1.927, 1.927, 1.487, 0.901, 0.803, 0.678],
             [-0.217, 0.241, 0.241, 0.803, 0.803, -0.622],
         ]]]);
+
+        assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn avg_pool2d() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let model: avg_pool2d::Model<Backend> = avg_pool2d::Model::new();
+
+        // Run the model
+        let input = Tensor::<Backend, 4>::from_floats([[[
+            [-0.077, 0.360, -0.782, 0.072, 0.665],
+            [-0.287, 1.621, -1.597, -0.052, 0.611],
+            [0.760, -0.034, -0.345, 0.494, -0.078],
+            [-1.805, -0.476, 0.205, 0.338, 1.353],
+            [0.374, 0.013, 0.774, -0.109, -0.271],
+        ]]]);
+        let output = model.forward(input);
+        let expected = Data::from([[[[0.008, -0.131, -0.208, 0.425]]]]);
+
+        output.to_data().assert_approx_eq(&expected, 3);
+    }
+
+    #[test]
+    fn reshape() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let model: reshape::Model<Backend> = reshape::Model::new();
+
+        // Run the model
+        let input = Tensor::<Backend, 1>::from_floats([0., 1., 2., 3.]);
+        let output = model.forward(input);
+        let expected = Data::from([[0., 1., 2., 3.]]);
 
         assert_eq!(output.to_data(), expected);
     }

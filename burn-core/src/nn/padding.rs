@@ -25,7 +25,6 @@ impl PaddingConfig1d {
         stride: usize,
     ) -> usize {
         let same_padding = || calculate_conv_padding(kernel_size, stride, length, length);
-
         match self {
             Self::Valid => 0,
             Self::Same => same_padding(),
@@ -35,7 +34,7 @@ impl PaddingConfig1d {
 }
 
 /// Padding configuration for 2D operators.
-#[derive(Module, Config, Debug)]
+#[derive(Module, Config, Debug, PartialEq)]
 pub enum PaddingConfig2d {
     /// Dynamically calculate the amount of padding necessary to ensure that the output size will be
     /// the same as the input.

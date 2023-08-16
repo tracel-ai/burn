@@ -163,6 +163,8 @@ pub enum NodeType {
     Atan,
     Atanh,
     AveragePool,
+    AveragePool1d,
+    AveragePool2d,
     BatchNormalization,
     Bernoulli,
     BitShift,

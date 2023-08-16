@@ -21,6 +21,20 @@ pub struct AvgPool1dConfig {
 }
 
 /// Applies a 1D avg pooling over input tensors.
+///
+/// See [AvgPool1dConfig](AvgPool1dConfig) for details.
+///
+/// # Remarks
+///
+/// The zero-padding values will be included in the calculation
+/// of the average. This means that the zeros are counted as
+/// legitimate values, and they contribute to the denominator
+/// when calculating the average. This is equivalent to
+/// `torch.nn.AvgPool2d` with `count_include_pad=True`.
+///
+/// TODO: Add support for `count_include_pad=False`, see
+/// [Issue 636](https://github.com/burn-rs/burn/issues/636)
+
 #[derive(Module, Debug, Clone)]
 pub struct AvgPool1d {
     stride: usize,

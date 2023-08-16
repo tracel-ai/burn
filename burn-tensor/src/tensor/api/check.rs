@@ -80,7 +80,7 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn reshape<const D1: usize, const D2: usize>(
+    pub(crate) fn reshape_args_usize<const D1: usize, const D2: usize>(
         original: &Shape<D1>,
         target: &Shape<D2>,
     ) -> Self {
@@ -94,6 +94,30 @@ impl TensorCheck {
                 "Current shape: {:?}, target shape: {:?}.",
                 original.dims, target.dims
             )));
+        }
+
+        check
+    }
+
+    pub(crate) fn reshape_args_i32<const D: usize>(target: &[i32; D]) -> Self {
+        let mut check = Self::Ok;
+
+        if target.iter().any(|&dim| dim < -1) {
+            check = check.register(
+                "Reshape",
+                TensorError::new(
+                    "The given shape cannot contain negative dimensions (other than -1).",
+                )
+                .details(format!("Target shape: {:?}.", target)),
+            );
+        }
+
+        if target.iter().filter(|&x| x == &-1).count() > 1 {
+            check = check.register(
+                "Reshape",
+                TensorError::new("The given shape cannot contain more than one -1.")
+                    .details(format!("Target shape: {:?}.", target)),
+            );
         }
 
         check
@@ -652,7 +676,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn reshape_invalid_shape() {
-        check!(TensorCheck::reshape(
+        check!(TensorCheck::reshape_args_usize(
             &Shape::new([2, 2]),
             &Shape::new([1, 3])
         ));
@@ -660,7 +684,7 @@ mod tests {
 
     #[test]
     fn reshape_valid_shape() {
-        check!(TensorCheck::reshape(
+        check!(TensorCheck::reshape_args_usize(
             &Shape::new([2, 2]),
             &Shape::new([1, 4])
         ));

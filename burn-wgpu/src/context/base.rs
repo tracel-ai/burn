@@ -2,6 +2,7 @@ use super::client::ContextClient;
 use crate::{
     context::server::ContextServer,
     kernel::{DynamicKernel, StaticKernel},
+    tune::Tuner,
     GraphicsApi, WgpuDevice,
 };
 use burn_common::id::IdGenerator;
@@ -29,13 +30,15 @@ pub type ContextServerImpl = super::server::SyncContextServer;
 pub struct Context {
     id: String,
     device_wgpu: Arc<wgpu::Device>,
-    cache: Mutex<HashMap<Key, Arc<ComputePipeline>>>,
+    cache: Mutex<HashMap<TemplateKey, Arc<ComputePipeline>>>,
     client: ContextClientImpl,
+    pub(crate) tuner: Tuner,
     pub(crate) device: WgpuDevice,
+    pub(crate) info: wgpu::AdapterInfo,
 }
 
 #[derive(Debug, Hash, PartialOrd, PartialEq, Eq)]
-enum Key {
+enum TemplateKey {
     Static(TypeId),
     Dynamic(String),
 }
@@ -57,7 +60,7 @@ impl Context {
     /// Create a new context where computing tasks will be executed on the given
     /// [device](WgpuDevice).
     pub(crate) fn new<G: GraphicsApi>(device: &WgpuDevice) -> Self {
-        let (device_wgpu, queue) = pollster::block_on(select_device::<G>(device));
+        let (device_wgpu, queue, info) = pollster::block_on(select_device::<G>(device));
         let device = device.clone();
         let device_wgpu = Arc::new(device_wgpu);
         let client = ContextServerImpl::start(device_wgpu.clone(), queue);
@@ -68,6 +71,8 @@ impl Context {
             device,
             client,
             cache: Mutex::new(HashMap::new()),
+            tuner: Tuner::new(),
+            info,
         }
     }
 
@@ -168,7 +173,7 @@ impl Context {
     /// Compile a kernel template if not present in the cache.
     pub fn compile_static<K: StaticKernel>(&self) -> Arc<ComputePipeline> {
         let mut cache = self.cache.lock();
-        let template_id = Key::Static(TypeId::of::<K>());
+        let template_id = TemplateKey::Static(TypeId::of::<K>());
 
         if let Some(module) = cache.get(&template_id) {
             return module.clone();
@@ -184,7 +189,7 @@ impl Context {
     /// Compile a dynamic template if not present in the cache.
     pub fn compile_dynamic<K: DynamicKernel>(&self, kernel: K) -> Arc<ComputePipeline> {
         let mut cache = self.cache.lock();
-        let template_id = Key::Dynamic(kernel.id());
+        let template_id = TemplateKey::Dynamic(kernel.id());
 
         if let Some(module) = cache.get(&template_id) {
             return module.clone();
@@ -223,7 +228,9 @@ impl PartialEq for Context {
     }
 }
 
-async fn select_device<G: GraphicsApi>(device: &WgpuDevice) -> (wgpu::Device, wgpu::Queue) {
+async fn select_device<G: GraphicsApi>(
+    device: &WgpuDevice,
+) -> (wgpu::Device, wgpu::Queue, wgpu::AdapterInfo) {
     let adapter = select_adapter::<G>(device);
     let limits = adapter.limits();
 
@@ -246,7 +253,7 @@ async fn select_device<G: GraphicsApi>(device: &WgpuDevice) -> (wgpu::Device, wg
         })
         .unwrap();
 
-    (device, queue)
+    (device, queue, adapter.get_info())
 }
 
 fn select_adapter<G: GraphicsApi>(device: &WgpuDevice) -> wgpu::Adapter {

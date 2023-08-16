@@ -16,6 +16,7 @@ pub(crate) mod context;
 pub(crate) mod element;
 pub(crate) mod pool;
 pub(crate) mod tensor;
+pub(crate) mod tune;
 
 mod device;
 pub use device::*;

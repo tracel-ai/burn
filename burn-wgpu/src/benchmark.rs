@@ -10,9 +10,21 @@ pub struct BenchmarkResult {
     durations: Vec<Duration>,
 }
 
+impl BenchmarkResult {
+    pub(crate) fn mean_duration(&self) -> Duration {
+        self.durations.iter().sum::<Duration>() / self.durations.len() as u32
+    }
+
+    pub(crate) fn median_duration(&self) -> Duration {
+        let mut sorted = self.durations.clone();
+        sorted.sort();
+        *sorted.get(sorted.len() / 2).unwrap()
+    }
+}
+
 impl Display for BenchmarkResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mean: Duration = self.durations.iter().sum::<Duration>() / self.durations.len() as u32;
+        let mean = self.mean_duration();
         let var = self
             .durations
             .iter()
@@ -70,10 +82,7 @@ pub trait Benchmark<G: GraphicsApi> {
     /// Name of the benchmark.
     fn name(&self) -> String;
     /// Run the benchmark a number of times.
-    fn run(&self, device: &WgpuDevice) -> BenchmarkResult
-    where
-        Self: Sized,
-    {
+    fn run(&self, device: &WgpuDevice) -> BenchmarkResult {
         let context = get_context::<G>(device);
 
         // Warmup
@@ -118,11 +127,6 @@ macro_rules! run_benchmark {
         println!("Git Hash: {}", str::trim(&git_hash));
         #[cfg(any(target_os = "linux", target_os = "windows"))]
         {
-            println!(
-                "OpenGL - {}{}",
-                Benchmark::<burn_wgpu::OpenGl>::name(&$bench),
-                Benchmark::<burn_wgpu::OpenGl>::run(&$bench, &WgpuDevice::DiscreteGpu(0))
-            );
             println!(
                 "Vulkan - {}{}",
                 Benchmark::<burn_wgpu::Vulkan>::name(&$bench),

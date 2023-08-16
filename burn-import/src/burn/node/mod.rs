@@ -1,9 +1,11 @@
 mod base;
 
+pub(crate) mod avg_pool2d;
 pub(crate) mod batch_norm;
 pub(crate) mod binary;
 pub(crate) mod concat;
 pub(crate) mod constant;
+pub(crate) mod conv1d;
 pub(crate) mod conv2d;
 pub(crate) mod dropout;
 pub(crate) mod global_avg_pool;

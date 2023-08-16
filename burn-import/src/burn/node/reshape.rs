@@ -8,7 +8,7 @@ use quote::quote;
 pub struct ReshapeNode {
     pub input: TensorType,
     pub output: TensorType,
-    pub shape: Vec<usize>,
+    pub shape: Vec<i64>,
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for ReshapeNode {
@@ -26,7 +26,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ReshapeNode {
         let shape_values = &self.shape.to_tokens();
 
         quote! {
-            let #output = #input.reshape(Shape::new(#shape_values));
+            let #output = #input.reshape(#shape_values);
         }
     }
 
@@ -78,7 +78,7 @@ mod tests {
                 }
                 #[allow(clippy::let_and_return)]
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.reshape(Shape::new([4, 4, 4, 4]));
+                    let tensor2 = tensor1.reshape([4, 4, 4, 4]);
 
                     tensor2
                 }
