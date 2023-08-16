@@ -73,12 +73,74 @@ pub struct RMSProp<B: Backend> {
     weight_decay: Option<WeightDecay<B>>,
 }
 
+impl<B: Backend> SimpleOptimizer<B> for RMSProp<B> {
+    type State<const D: usize> = RMSPropState<B, D>;
+
+    fn step<const D: usize>(
+        &self,
+        lr: LearningRate,
+        tensor: Tensor<B, D>,
+        mut grad: Tensor<B, D>,
+        state: Option<Self::State<D>>,
+    ) -> (Tensor<B, D>, Option<Self::State<D>>) {
+        // fetch state for params
+        let mut state_square_avg = None;
+        let mut state_centered = None;
+        let mut state_momentum = None;
+        if let Some(state) = state {
+            state_square_avg = Some(state.square_avg);
+            state_centered = Some(state.centered);
+            state_momentum = state.momentum;
+        }
+
+        // weight_decay transform
+        if let Some(weight_decay) = &self.weight_decay {
+            grad = weight_decay.transform_temp_fix(grad, tensor.clone());
+        }
+
+        // square_avg transform
+        let (grad, state_square_avg) =
+            SquareAvgState::transform(self.alpha, grad, state_square_avg);
+
+        // centered transform
+        let (grad, state_square_avg, state_centered) = CenteredState::transform(
+            self.alpha,
+            self.centered,
+            grad,
+            state_square_avg,
+            state_centered,
+        );
+
+        // momentum transform
+        let (grad, state_centered, state_momentum) =
+            self.momentum
+                .transform(grad, state_centered, state_momentum);
+
+        // transition state
+        let state = RMSPropState::new(state_square_avg, state_centered, state_momentum);
+
+        // tensor param transform
+        let delta = grad.mul_scalar(lr);
+        (tensor - delta, Some(state))
+    }
+
+    fn to_device<const D: usize>(
+        mut state: Self::State<D>,
+        device: &<B as Backend>::Device,
+    ) -> Self::State<D> {
+        state.square_avg = state.square_avg.to_device(device);
+        state.centered = state.centered.to_device(device);
+        state.momentum = state.momentum.map(|momentum| momentum.to_device(device));
+        state
+    }
+}
+
 /// State of [RMSProp](RMSProp)
 #[derive(Record, Clone, new)]
 pub struct RMSPropState<B: Backend, const D: usize> {
     square_avg: SquareAvgState<B, D>,
     centered: CenteredState<B, D>,
-    momentum: RMSPropMomentumState<B, D>,
+    momentum: Option<RMSPropMomentumState<B, D>>,
 }
 
 /// [SquareAvgState](SquareAvgState) is to store and pass optimizer step params.
@@ -89,7 +151,7 @@ pub struct SquareAvgState<B: Backend, const D: usize> {
 
 impl<B: Backend, const D: usize> SquareAvgState<B, D> {
     /// transform [SquareAvgState] to the next step
-    pub fn transform(alpha: f32, grad: Tensor<B, D>, state: Option<Self>) -> (Tensor<B, D>, Self) {
+    fn transform(alpha: f32, grad: Tensor<B, D>, state: Option<Self>) -> (Tensor<B, D>, Self) {
         match state {
             Some(state) => {
                 let square_avg = state
@@ -115,13 +177,13 @@ impl<B: Backend, const D: usize> SquareAvgState<B, D> {
 /// [CenteredState](CenteredState) is to store and pass optimizer step params.
 #[derive(Record, Clone, new)]
 pub struct CenteredState<B: Backend, const D: usize> {
-    grad_avg: Tensor<B, D>,
+    grad_avg: Option<Tensor<B, D>>,
     avg: Tensor<B, D>,
 }
 
 impl<B: Backend, const D: usize> CenteredState<B, D> {
     /// transform [CenteredState] to the next step
-    pub fn transform(
+    fn transform(
         alpha: f32,
         centered: bool,
         grad: Tensor<B, D>,
@@ -129,31 +191,42 @@ impl<B: Backend, const D: usize> CenteredState<B, D> {
         centered_state: Option<Self>,
     ) -> (Tensor<B, D>, SquareAvgState<B, D>, Self) {
         if centered {
+            let grad_avg_constant = grad.clone().mul_scalar(1. - alpha);
             let grad_avg = match centered_state {
                 Some(state) => state
                     .grad_avg
-                    .clone()
-                    .mul_scalar(alpha)
-                    .add(grad.clone().mul_scalar(1. - alpha)),
-                _ => grad.clone().mul_scalar(1. - alpha),
+                    .map_or(grad_avg_constant.clone(), move |grad_avg| {
+                        grad_avg.clone().mul_scalar(alpha).add(grad_avg_constant)
+                    }),
+                _ => grad_avg_constant,
             };
             let avg = square_avg_state
                 .square_avg
                 .clone()
                 .sub(grad_avg.clone().powf(2.));
-            (grad, square_avg_state, Self { grad_avg, avg })
+
+            (
+                grad,
+                square_avg_state,
+                Self {
+                    grad_avg: Some(grad_avg),
+                    avg,
+                },
+            )
         } else {
-            let grad_avg = match centered_state {
-                Some(state) => state.grad_avg,
-                _ => Tensor::zeros(grad.shape()),
-            };
-            let avg = square_avg_state.square_avg.clone();
-            (grad, square_avg_state, Self { grad_avg, avg })
+            (
+                grad,
+                square_avg_state.clone(),
+                Self {
+                    grad_avg: None,
+                    avg: square_avg_state.square_avg,
+                },
+            )
         }
     }
 
     fn to_device(mut self, device: &B::Device) -> Self {
-        self.grad_avg = self.grad_avg.to_device(device);
+        self.grad_avg = self.grad_avg.map(|grad_avg| grad_avg.to_device(device));
         self.avg = self.avg.to_device(device);
         self
     }
@@ -168,7 +241,7 @@ pub struct RMSPropMomentum {
 
 impl RMSPropMomentum {
     /// transform [grad](Tensor) and [RMSPropMomentumState] to the next step
-    pub fn transform<B: Backend, const D: usize>(
+    fn transform<B: Backend, const D: usize>(
         &self,
         grad: Tensor<B, D>,
         centered_state: CenteredState<B, D>,
@@ -176,7 +249,7 @@ impl RMSPropMomentum {
     ) -> (
         Tensor<B, D>,
         CenteredState<B, D>,
-        RMSPropMomentumState<B, D>,
+        Option<RMSPropMomentumState<B, D>>,
     ) {
         let grad = grad
             .clone()
@@ -191,18 +264,13 @@ impl RMSPropMomentum {
                     .add(grad.clone()),
                 _ => grad.clone(),
             };
-            (buf.clone(), centered_state, RMSPropMomentumState { buf })
+            (
+                buf.clone(),
+                centered_state,
+                Some(RMSPropMomentumState { buf }),
+            )
         } else {
-            match momentum_state {
-                Some(state) => (grad.clone(), centered_state, state),
-                _ => (
-                    grad.clone(),
-                    centered_state,
-                    RMSPropMomentumState {
-                        buf: Tensor::zeros(grad.shape()),
-                    },
-                ),
-            }
+            (grad.clone(), centered_state, None)
         }
     }
 }
@@ -217,72 +285,6 @@ impl<B: Backend, const D: usize> RMSPropMomentumState<B, D> {
     fn to_device(mut self, device: &B::Device) -> Self {
         self.buf = self.buf.to_device(device);
         self
-    }
-}
-
-impl<B: Backend> SimpleOptimizer<B> for RMSProp<B> {
-    type State<const D: usize> = RMSPropState<B, D>;
-
-    fn step<const D: usize>(
-        &self,
-        lr: LearningRate,
-        mut tensor: Tensor<B, D>,
-        mut grad: Tensor<B, D>,
-        state: Option<Self::State<D>>,
-    ) -> (Tensor<B, D>, Option<Self::State<D>>) {
-        // fetch state for params
-        let mut state_square_avg = None;
-        let mut state_centered = None;
-        let mut state_momentum = None;
-        if let Some(state) = state {
-            state_square_avg = Some(state.square_avg);
-            state_centered = Some(state.centered);
-            state_momentum = Some(state.momentum);
-        }
-
-        // weight_decay transform
-        if let Some(weight_decay) = &self.weight_decay {
-            let (grad_out, tensor_out) = weight_decay.transform_temp_fix(grad, tensor);
-            grad = grad_out;
-            tensor = tensor_out;
-        }
-
-        // square_avg transform
-        let (grad, state_square_avg) =
-            SquareAvgState::transform(self.alpha, grad, state_square_avg);
-
-        // centered trnsform
-        let (grad, state_square_avg, state_centered) = CenteredState::transform(
-            self.alpha,
-            self.centered,
-            grad,
-            state_square_avg,
-            state_centered,
-        );
-
-        // momentum transform
-        let (grad, state_centered, state_momentum) =
-            self.momentum
-                .transform(grad, state_centered, state_momentum);
-
-        // transition state
-        let state = RMSPropState::new(state_square_avg, state_centered, state_momentum);
-
-        // tensor param transform
-        let delta = grad.mul_scalar(lr);
-        // (tensor - delta, Some(state))
-        let tmp = tensor - delta;
-        (tmp, Some(state))
-    }
-
-    fn to_device<const D: usize>(
-        mut state: Self::State<D>,
-        device: &<B as Backend>::Device,
-    ) -> Self::State<D> {
-        state.square_avg = state.square_avg.to_device(device);
-        state.centered = state.centered.to_device(device);
-        state.momentum = state.momentum.to_device(device);
-        state
     }
 }
 

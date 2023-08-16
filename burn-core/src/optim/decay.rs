@@ -63,9 +63,8 @@ impl<B: Backend> WeightDecay<B> {
         &self,
         grad: Tensor<B, D>,
         tensor: Tensor<B, D>,
-    ) -> (Tensor<B, D>, Tensor<B, D>) {
-        let grad = tensor.clone().mul_scalar(self.penalty).add(grad);
-        (grad, tensor.clone())
+    ) -> Tensor<B, D> {
+        tensor.mul_scalar(self.penalty).add(grad)
     }
 }
 
