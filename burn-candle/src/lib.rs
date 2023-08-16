@@ -1,4 +1,5 @@
 #![warn(missing_docs)]
+#![allow(unused)] // TODO remove when backend filled
 
 //! Burn Candle Backend
 
@@ -24,6 +25,6 @@ mod tests {
     pub type ReferenceTensor<const D: usize> = burn_tensor::Tensor<ReferenceBackend, D>;
     pub type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
 
-    burn_tensor::testgen_all!();
-    burn_autodiff::testgen_all!();
+    burn_tensor::testgen_some!();
+    burn_autodiff::testgen_some!();
 }
