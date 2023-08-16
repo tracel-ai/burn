@@ -11,6 +11,7 @@ pub(crate) fn avg_pool2d<E: FloatNdArrayElement>(
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
+    count_include_pad: bool,
 ) -> NdArrayTensor<E, 4> {
     let [kernel_height, kernel_width] = kernel_size;
     let [padding_height, padding_width] = padding;
@@ -20,7 +21,8 @@ pub(crate) fn avg_pool2d<E: FloatNdArrayElement>(
     let out_height = ((x_height + 2 * padding_height - kernel_height) / stride_height) + 1;
     let out_width = ((x_width + 2 * padding_width - kernel_width) / stride_width) + 1;
 
-    let x = apply_padding_4d(x, padding, 0.elem()).array;
+    // let x = apply_padding_4d(x, padding, 0.elem()).array;
+    let x = x.array;
 
     let mut output = Array4::from_elem((batch_size, channels, out_height, out_width), 0.elem());
     let unsafe_shared_out = UnsafeSharedRef::new(&mut output);
@@ -35,19 +37,34 @@ pub(crate) fn avg_pool2d<E: FloatNdArrayElement>(
             for oh in 0..out_height {
                 for ow in 0..out_width {
                     let mut sum_val: E = 0.elem();
+                    let mut count: E = 0.elem();
 
                     for kh in 0..kernel_height {
-                        let ih = oh * stride_height + kh;
-
                         for kw in 0..kernel_width {
+                            let ih = oh * stride_height + kh;
                             let iw = ow * stride_width + kw;
 
+                            if ih >= x_height + padding_height
+                                || iw >= x_width + padding_width
+                                || ih < padding_height
+                                || iw < padding_width
+                            {
+                                continue;
+                            }
+
+                            let ih = ih - padding_height;
+                            let iw = iw - padding_width;
+
+                            count += 1.elem();
                             sum_val += x[[b, c, ih, iw]];
                         }
                     }
 
-                    output[[b, c, oh, ow]] =
-                        sum_val / ((kernel_height * kernel_width) as i32).elem();
+                    if count_include_pad {
+                        count = ((kernel_height * kernel_width) as i32).elem();
+                    }
+
+                    output[[b, c, oh, ow]] = sum_val / count;
                 }
             }
         })
@@ -62,6 +79,7 @@ pub(crate) fn avg_pool2d_backward<E: FloatNdArrayElement>(
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
+    count_include_pad: bool,
 ) -> NdArrayTensor<E, 4> {
     let [kernel_height, kernel_width] = kernel_size;
     let [stride_height, stride_width] = stride;
@@ -94,6 +112,7 @@ pub(crate) fn avg_pool2d_backward<E: FloatNdArrayElement>(
                             {
                                 continue;
                             }
+
                             let ih = ih - padding_height;
                             let iw = iw - padding_width;
 

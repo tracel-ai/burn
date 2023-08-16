@@ -20,6 +20,7 @@ pub(crate) fn avg_pool2d<E: WgpuElement>(
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
+    count_include_pad: bool,
 ) -> WgpuTensor<E, 4> {
     const WORKGROUP: usize = 32;
 
@@ -43,6 +44,7 @@ pub(crate) fn avg_pool2d_backward<E: WgpuElement>(
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
+    count_include_pad: bool,
 ) -> WgpuTensor<E, 4> {
     const WORKGROUP: usize = 32;
 
@@ -79,9 +81,11 @@ mod tests {
         let kernel_size = [3, 4];
         let stride = [1, 2];
         let padding = [1, 2];
+        let count_include_pad = true;
 
-        let pooled = module::avg_pool2d(tensor, kernel_size, stride, padding);
-        let pooled_ref = module::avg_pool2d(tensor_ref, kernel_size, stride, padding);
+        let pooled = module::avg_pool2d(tensor, kernel_size, stride, padding, count_include_pad);
+        let pooled_ref =
+            module::avg_pool2d(tensor_ref, kernel_size, stride, padding, count_include_pad);
 
         pooled
             .into_data()
@@ -97,8 +101,16 @@ mod tests {
         let kernel_size = [3, 3];
         let stride = [1, 1];
         let padding = [1, 1];
+        let count_include_pad = true;
 
-        let shape_out = module::avg_pool2d(tensor.clone(), kernel_size, stride, padding).shape();
+        let shape_out = module::avg_pool2d(
+            tensor.clone(),
+            kernel_size,
+            stride,
+            padding,
+            count_include_pad,
+        )
+        .shape();
         let grad_output = Tensor::<TestBackend, 4>::random(shape_out, Distribution::Default);
         let grad_output_ref = Tensor::<ReferenceBackend, 4>::from_data(grad_output.to_data());
 
@@ -109,6 +121,7 @@ mod tests {
                 kernel_size,
                 stride,
                 padding,
+                count_include_pad,
             ));
         let grad_ref: Tensor<ReferenceBackend, 4> =
             Tensor::from_primitive(ReferenceBackend::avg_pool2d_backward(
@@ -117,6 +130,7 @@ mod tests {
                 kernel_size,
                 stride,
                 padding,
+                count_include_pad,
             ));
 
         grad.into_data().assert_approx_eq(&grad_ref.into_data(), 3);
