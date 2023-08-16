@@ -1,99 +1,85 @@
-use burn_tensor::ops::BoolTensorOps;
+use burn_tensor::{ops::BoolTensorOps, Data, Shape};
 
 use crate::{element::CandleElement, CandleBackend};
 
+use super::base::{BoolTensor, Device, FloatTensor, IntTensor};
+
 impl<E: CandleElement> BoolTensorOps<CandleBackend<E>> for CandleBackend<E> {
-    fn bool_empty<const D: usize>(
-        shape: burn_tensor::Shape<D>,
-        device: &<CandleBackend<E> as burn_tensor::backend::Backend>::Device,
-    ) -> <CandleBackend<E> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D> {
+    fn bool_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> BoolTensor<Self, D> {
         todo!()
     }
 
-    fn bool_shape<const D: usize>(
-        tensor: &<CandleBackend<E> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D>,
-    ) -> burn_tensor::Shape<D> {
+    fn bool_shape<const D: usize>(tensor: &BoolTensor<Self, D>) -> Shape<D> {
         todo!()
     }
 
-    fn bool_into_data<const D: usize>(
-        tensor: <CandleBackend<E> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D>,
-    ) -> burn_tensor::Data<bool, D> {
+    fn bool_into_data<const D: usize>(tensor: BoolTensor<Self, D>) -> Data<bool, D> {
         todo!()
     }
 
     fn bool_from_data<const D: usize>(
-        data: burn_tensor::Data<bool, D>,
-        device: &<CandleBackend<E> as burn_tensor::backend::Backend>::Device,
-    ) -> <CandleBackend<E> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D> {
+        data: Data<bool, D>,
+        device: &Device<Self>,
+    ) -> BoolTensor<Self, D> {
         todo!()
     }
 
-    fn bool_into_int<const D: usize>(
-        tensor: <CandleBackend<E> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D>,
-    ) -> <CandleBackend<E> as burn_tensor::backend::Backend>::IntTensorPrimitive<D> {
+    fn bool_into_int<const D: usize>(tensor: BoolTensor<Self, D>) -> IntTensor<Self, D> {
         todo!()
     }
 
-    fn bool_into_float<const D: usize>(
-        tensor: <CandleBackend<E> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D>,
-    ) -> <CandleBackend<E> as burn_tensor::backend::Backend>::TensorPrimitive<D> {
+    fn bool_into_float<const D: usize>(tensor: BoolTensor<Self, D>) -> FloatTensor<Self, D> {
         todo!()
     }
 
-    fn bool_device<const D: usize>(
-        tensor: &<CandleBackend<E> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D>,
-    ) -> <CandleBackend<E> as burn_tensor::backend::Backend>::Device {
+    fn bool_device<const D: usize>(tensor: &BoolTensor<Self, D>) -> Device<Self> {
         todo!()
     }
 
     fn bool_to_device<const D: usize>(
-        tensor: <CandleBackend<E> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D>,
-        device: &<CandleBackend<E> as burn_tensor::backend::Backend>::Device,
-    ) -> <CandleBackend<E> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D> {
+        tensor: BoolTensor<Self, D>,
+        device: &Device<Self>,
+    ) -> BoolTensor<Self, D> {
         todo!()
     }
 
     fn bool_reshape<const D1: usize, const D2: usize>(
-        tensor: <CandleBackend<E> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D1>,
-        shape: burn_tensor::Shape<D2>,
-    ) -> <CandleBackend<E> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D2> {
+        tensor: BoolTensor<Self, D1>,
+        shape: Shape<D2>,
+    ) -> BoolTensor<Self, D2> {
         todo!()
     }
 
     fn bool_slice<const D1: usize, const D2: usize>(
-        tensor: <CandleBackend<E> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D1>,
+        tensor: BoolTensor<Self, D1>,
         ranges: [std::ops::Range<usize>; D2],
-    ) -> <CandleBackend<E> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D1> {
+    ) -> BoolTensor<Self, D1> {
         todo!()
     }
 
     fn bool_slice_assign<const D1: usize, const D2: usize>(
-        tensor: <CandleBackend<E> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D1>,
+        tensor: BoolTensor<Self, D1>,
         ranges: [std::ops::Range<usize>; D2],
-        value: <CandleBackend<E> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D1>,
-    ) -> <CandleBackend<E> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D1> {
+        value: BoolTensor<Self, D1>,
+    ) -> BoolTensor<Self, D1> {
         todo!()
     }
 
     fn bool_cat<const D: usize>(
-        tensors: Vec<<CandleBackend<E> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D>>,
+        tensors: Vec<BoolTensor<Self, D>>,
         dim: usize,
-    ) -> <CandleBackend<E> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D> {
+    ) -> BoolTensor<Self, D> {
         todo!()
     }
 
     fn bool_equal<const D: usize>(
-        lhs: <CandleBackend<E> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D>,
-        rhs: <CandleBackend<E> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D>,
-    ) -> <CandleBackend<E> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D> {
+        lhs: BoolTensor<Self, D>,
+        rhs: BoolTensor<Self, D>,
+    ) -> BoolTensor<Self, D> {
         todo!()
     }
 
-    fn bool_equal_elem<const D: usize>(
-        lhs: <CandleBackend<E> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D>,
-        rhs: bool,
-    ) -> <CandleBackend<E> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D> {
+    fn bool_equal_elem<const D: usize>(lhs: BoolTensor<Self, D>, rhs: bool) -> BoolTensor<Self, D> {
         todo!()
     }
 }

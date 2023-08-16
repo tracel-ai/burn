@@ -1,4 +1,4 @@
-use burn_tensor::{ops::TensorOps, Bool, Data, Distribution, Shape};
+use burn_tensor::{ops::TensorOps, Data, Distribution, Shape};
 
 use crate::{element::CandleElement, CandleBackend, CandleTensor};
 
