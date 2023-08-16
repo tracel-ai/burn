@@ -9,3 +9,5 @@ pub type FullPrecisionBackend<B> = <B as Backend>::FullPrecisionBackend;
 
 pub type IntElem<B> = <B as Backend>::IntElem;
 pub type IntTensor<B, const D: usize> = <B as Backend>::IntTensorPrimitive<D>;
+
+pub type BoolTensor<B, const D: usize> = <B as Backend>::BoolTensorPrimitive<D>;

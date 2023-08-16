@@ -1,7 +1,7 @@
 use burn_tensor::Element;
 use half::{bf16, f16};
 
-pub trait CandleElement: Element {} // + candle_core::WithDType {}
+pub trait CandleElement: Element {}
 
 impl CandleElement for f64 {}
 impl CandleElement for f32 {}
