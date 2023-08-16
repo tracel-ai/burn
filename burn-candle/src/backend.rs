@@ -57,7 +57,7 @@ impl<E: CandleElement> Backend for CandleBackend<E> {
     type FloatElem = E;
 
     type IntTensorPrimitive<const D: usize> = CandleTensor<Self::IntElem, D>;
-    type IntElem = i32;
+    type IntElem = u32;
     type BoolTensorPrimitive<const D: usize> = CandleTensor<u32, D>;
 
     fn ad_enabled() -> bool {

@@ -1,4 +1,5 @@
 use burn_tensor::{ops::TensorOps, Data, Distribution, Shape};
+use candle_core::Tensor;
 
 use crate::{element::CandleElement, CandleBackend, CandleTensor};
 
@@ -6,7 +7,7 @@ use super::base::{BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBacke
 
 impl<E: CandleElement> TensorOps<CandleBackend<E>> for CandleBackend<E> {
     fn from_data<const D: usize>(data: Data<E, D>, device: &Device<Self>) -> CandleTensor<E, D> {
-        todo!()
+        CandleTensor::from_data(data, *device)
     }
 
     fn random<const D: usize>(
@@ -18,15 +19,18 @@ impl<E: CandleElement> TensorOps<CandleBackend<E>> for CandleBackend<E> {
     }
 
     fn shape<const D: usize>(tensor: &CandleTensor<E, D>) -> Shape<D> {
-        todo!()
+        tensor.shape()
     }
 
     fn to_data<const D: usize>(tensor: &CandleTensor<E, D>) -> Data<E, D> {
-        todo!()
+        Data::new(
+            tensor.tensor.flatten_all().unwrap().to_vec1().unwrap(),
+            tensor.shape(),
+        )
     }
 
     fn device<const D: usize>(tensor: &CandleTensor<E, D>) -> Device<Self> {
-        todo!()
+        tensor.tensor.device().clone().into()
     }
 
     fn to_device<const D: usize>(
@@ -48,7 +52,7 @@ impl<E: CandleElement> TensorOps<CandleBackend<E>> for CandleBackend<E> {
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        CandleTensor::new(lhs.tensor.broadcast_add(&rhs.tensor).unwrap())
     }
 
     fn add_scalar<const D: usize>(

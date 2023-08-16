@@ -95,7 +95,7 @@ macro_rules! testgen_some {
         // burn_tensor::testgen_module_adaptive_avg_pool2d!();
 
         // test ops
-        // burn_tensor::testgen_add!();
+        burn_tensor::testgen_add!();
         // burn_tensor::testgen_aggregation!();
         // burn_tensor::testgen_arange!();
         // burn_tensor::testgen_arange_step!();
