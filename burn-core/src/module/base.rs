@@ -176,8 +176,8 @@ pub trait Module<B: Backend>: Clone + Send + Sync + core::fmt::Debug {
 
     /// Map each tensor in the module with a [mapper](ModuleMapper).
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self;
-    /// Load the module state from a record.
 
+    /// Load the module state from a record.
     fn load_record(self, record: Self::Record) -> Self;
 
     /// Convert the module into a record containing the state.

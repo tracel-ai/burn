@@ -16,7 +16,7 @@ pub struct WeightDecayConfig {
 /// State of [WeightDecay](WeightDecay).
 #[derive(Record, Clone, new)]
 pub struct WeightDecayState<B: Backend, const D: usize> {
-    grad_last_step: Tensor<B, D>,
+    pub(crate) grad_last_step: Tensor<B, D>,
 }
 
 /// Weight decay implementation that transforms gradients.
@@ -56,6 +56,15 @@ impl<B: Backend> WeightDecay<B> {
         };
 
         (grad, WeightDecayState::new(grad_last_step))
+    }
+
+    /// temp fix for Transform.
+    pub fn transform_temp_fix<const D: usize>(
+        &self,
+        grad: Tensor<B, D>,
+        tensor: Tensor<B, D>,
+    ) -> Tensor<B, D> {
+        tensor.mul_scalar(self.penalty).add(grad)
     }
 }
 
