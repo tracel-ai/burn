@@ -68,3 +68,12 @@ jobs:
 
       - name: run checks & tests
         run: ./run-checks.sh no_std
+
+  check-typos:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+
+      - name: run spelling checks using typos
+        run: ./run-checks.sh typos

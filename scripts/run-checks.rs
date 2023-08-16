@@ -15,6 +15,7 @@
 //! where `environment` can assume **ONLY** the following values:
 //!     - `std` to perform checks using `libstd`
 //!     - `no_std` to perform checks on an embedded environment using `libcore`
+//!     - `typos` to check typos in the source code
 
 use std::env;
 use std::process::{Child, Command, Stdio};
@@ -90,6 +91,17 @@ fn cargo_build(params: &[&str]) {
         params,
         &["--color=always"],
         "Failed to run cargo build",
+    );
+}
+
+// Run cargo install command
+fn cargo_install(params: &[&str]) {
+    // Run cargo install
+    run_cargo(
+        "install",
+        params,
+        &["--color=always"],
+        "Failed to run cargo install",
     );
 }
 
@@ -239,16 +251,33 @@ fn std_checks() {
     burn_core_std();
 }
 
+fn check_typos() {
+    // Install typos-cli
+    cargo_install(&["typos-cli", "--version", "1.16.5"]);
+
+    println!("Running typos check \n\n");
+
+    // Run typos command as child process
+    let typos = Command::new("typos")
+        .stdout(Stdio::inherit()) // Send stdout directly to terminal
+        .stderr(Stdio::inherit()) // Send stderr directly to terminal
+        .spawn()
+        .expect("Failed to run typos");
+
+    // Handle typos child process
+    handle_child_process(typos, "Failed to wait for typos child process");
+}
+
 fn main() {
     // Start time measurement
     let start = Instant::now();
 
-    // The environment can assume ONLY "std" and "no_std" as values.
+    // The environment can assume ONLY "std", "no_std", "typos" as values.
     //
     // Depending on the input argument, the respective environment checks
     // are run.
     //
-    // If no environment has been passed, run both "std" and "no_std" checks.
+    // If no environment has been passed, run all checks.
     match env::args()
         .nth(
             1, /* Index of the first argument, because 0 is the binary name */
@@ -257,8 +286,10 @@ fn main() {
     {
         Some("std") => std_checks(),
         Some("no_std") => no_std_checks(),
+        Some("typos") => check_typos(),
         Some(_) | None => {
-            /* Run both "std" and "no_std" checks" */
+            /* Run all checks */
+            check_typos();
             std_checks();
             no_std_checks();
         }

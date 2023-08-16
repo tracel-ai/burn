@@ -8,8 +8,12 @@
 #
 # - `std` to perform checks using `libstd`
 # - `no_std` to perform checks on an embedded environment using `libcore`
+# - `typos` to check for typos in the codebase
 #
-# If no `environment` value has been passed, run both `std` and `no_std` checks.
+# If no `environment` value has been passed, run all checks.
+
+# Exit if any command fails
+$ErrorActionPreference = "Stop"
 
 # Compile run-checks binary
 rustc scripts/run-checks.rs --crate-type bin --out-dir scripts
