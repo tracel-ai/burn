@@ -47,7 +47,7 @@ impl RMSPropConfig {
         let mut optim = OptimizerAdaptor::from(RMSProp {
             alpha: self.alpha,
             centered: self.centered,
-            weight_decay: weight_decay,
+            weight_decay,
             momentum: RMSPropMomentum {
                 momentum: self.momentum,
                 epsilon: self.epsilon,
@@ -168,7 +168,16 @@ impl<B: Backend, const D: usize> SquareAvgState<B, D> {
         }
     }
 
-    fn to_device(mut self, device: &B::Device) -> Self {
+    /// Moves the state to a device.
+    ///
+    /// # Arguments
+    ///
+    /// * `device` - Device to move the state to.
+    ///
+    /// # Returns
+    ///
+    /// * `self` - Moved state.
+    pub fn to_device(mut self, device: &B::Device) -> Self {
         self.square_avg = self.square_avg.to_device(device);
         self
     }
@@ -225,7 +234,16 @@ impl<B: Backend, const D: usize> CenteredState<B, D> {
         }
     }
 
-    fn to_device(mut self, device: &B::Device) -> Self {
+    /// Moves the state to a device.
+    ///
+    /// # Arguments
+    ///
+    /// * `device` - Device to move the state to.
+    ///
+    /// # Returns
+    ///
+    /// * `self` - Moved state.
+    pub fn to_device(mut self, device: &B::Device) -> Self {
         self.grad_avg = self.grad_avg.map(|grad_avg| grad_avg.to_device(device));
         self.avg = self.avg.to_device(device);
         self
@@ -282,7 +300,16 @@ pub struct RMSPropMomentumState<B: Backend, const D: usize> {
 }
 
 impl<B: Backend, const D: usize> RMSPropMomentumState<B, D> {
-    fn to_device(mut self, device: &B::Device) -> Self {
+    /// Moves the state to a device.
+    ///
+    /// # Arguments
+    ///
+    /// * `device` - Device to move the state to.
+    ///
+    /// # Returns
+    ///
+    /// * `self` - Moved state.
+    pub fn to_device(mut self, device: &B::Device) -> Self {
         self.buf = self.buf.to_device(device);
         self
     }
