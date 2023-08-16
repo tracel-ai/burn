@@ -297,12 +297,23 @@ fn flatten_update_outputs(node: &mut Node) {
     if node.inputs.len() != 1 {
         panic!("Flatten: multiple inputs are not supported");
     }
+    let tensor = node
+        .inputs
+        .iter()
+        .find_map(|input| match &input.ty {
+            ArgType::Tensor(tensor) => Some(tensor),
+            _ => None,
+        })
+        .unwrap();
+
+    let input_dim = tensor.dim;
 
     let (start_dim, end_dim) = flatten_config(node);
 
-    node.outputs[0].ty = ArgType::Tensor(TensorArg {
-        dim: end_dim - start_dim,
-    });
+    let collapsed_dims = end_dim - start_dim;
+    let output_dim = input_dim - collapsed_dims;
+
+    node.outputs[0].ty = ArgType::Tensor(TensorArg { dim: output_dim });
 }
 
 /// Infers the shape of a Conv1d node and replaces the shape of the output tensor.
