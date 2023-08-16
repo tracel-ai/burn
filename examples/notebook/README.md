@@ -27,7 +27,7 @@ started:
 1. **Build Evcxr Kernel:** Install the required package with the following command:
 
    ```shell
-   cargo install --locked evcxr_jupyter
+   cargo install evcxr_jupyter
    ```
 
 2. **Install and Register the Kernel to Jupyter:**
