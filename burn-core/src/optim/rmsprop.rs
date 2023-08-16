@@ -521,7 +521,6 @@ mod tests {
             weight_decay: Some(WeightDecayConfig { penalty: 0.05 }),
             momentum: 0.9,
             grad_clipping: None,
-            ..RMSPropConfig::new()
         }
         .init()
     }

@@ -1,6 +1,6 @@
 use crate::{
-    element::FloatNdArrayElement, iter_par, ops::padding::apply_padding_4d, run_par,
-    sharing::UnsafeSharedRef, tensor::NdArrayTensor,
+    element::FloatNdArrayElement, iter_par, run_par, sharing::UnsafeSharedRef,
+    tensor::NdArrayTensor,
 };
 
 use burn_tensor::ElementConversion;
