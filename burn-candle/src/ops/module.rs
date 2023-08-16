@@ -2,11 +2,16 @@ use burn_tensor::ops::{
     ConvOptions, ConvTransposeOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
 };
 
-use crate::{element::CandleElement, CandleBackend};
+use crate::{
+    element::{CandleElement, FloatCandleElement, IntCandleElement},
+    CandleBackend,
+};
 
 use super::base::{FloatTensor, IntTensor};
 
-impl<E: CandleElement> ModuleOps<CandleBackend<E>> for CandleBackend<E> {
+impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<CandleBackend<F, I>>
+    for CandleBackend<F, I>
+{
     fn conv2d(
         x: FloatTensor<Self, 4>,
         weight: FloatTensor<Self, 4>,
@@ -58,7 +63,7 @@ impl<E: CandleElement> ModuleOps<CandleBackend<E>> for CandleBackend<E> {
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
-    ) -> MaxPool2dWithIndices<CandleBackend<E>> {
+    ) -> MaxPool2dWithIndices<CandleBackend<F, I>> {
         todo!()
     }
 
@@ -69,7 +74,7 @@ impl<E: CandleElement> ModuleOps<CandleBackend<E>> for CandleBackend<E> {
         padding: [usize; 2],
         output_grad: FloatTensor<Self, 4>,
         indices: IntTensor<Self, 4>,
-    ) -> MaxPool2dBackward<CandleBackend<E>> {
+    ) -> MaxPool2dBackward<CandleBackend<F, I>> {
         todo!()
     }
 

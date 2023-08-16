@@ -1,46 +1,51 @@
 use burn_tensor::{ops::TensorOps, Data, Distribution, Shape};
 use candle_core::Tensor;
 
-use crate::{element::CandleElement, CandleBackend, CandleTensor};
+use crate::{
+    element::{CandleElement, FloatCandleElement, IntCandleElement},
+    CandleBackend, CandleTensor,
+};
 
 use super::base::{BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor};
 
-impl<E: CandleElement> TensorOps<CandleBackend<E>> for CandleBackend<E> {
-    fn from_data<const D: usize>(data: Data<E, D>, device: &Device<Self>) -> CandleTensor<E, D> {
+impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
+    for CandleBackend<F, I>
+{
+    fn from_data<const D: usize>(data: Data<F, D>, device: &Device<Self>) -> CandleTensor<F, D> {
         CandleTensor::from_data(data, *device)
     }
 
     fn random<const D: usize>(
         shape: Shape<D>,
-        distribution: Distribution<E>,
+        distribution: Distribution<F>,
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
         todo!()
     }
 
-    fn shape<const D: usize>(tensor: &CandleTensor<E, D>) -> Shape<D> {
+    fn shape<const D: usize>(tensor: &CandleTensor<F, D>) -> Shape<D> {
         tensor.shape()
     }
 
-    fn to_data<const D: usize>(tensor: &CandleTensor<E, D>) -> Data<E, D> {
+    fn to_data<const D: usize>(tensor: &CandleTensor<F, D>) -> Data<F, D> {
         Data::new(
             tensor.tensor.flatten_all().unwrap().to_vec1().unwrap(),
             tensor.shape(),
         )
     }
 
-    fn device<const D: usize>(tensor: &CandleTensor<E, D>) -> Device<Self> {
+    fn device<const D: usize>(tensor: &CandleTensor<F, D>) -> Device<Self> {
         tensor.tensor.device().clone().into()
     }
 
     fn to_device<const D: usize>(
-        tensor: CandleTensor<E, D>,
+        tensor: CandleTensor<F, D>,
         device: &Device<Self>,
-    ) -> CandleTensor<E, D> {
+    ) -> CandleTensor<F, D> {
         todo!()
     }
 
-    fn into_int<const D: usize>(tensor: CandleTensor<E, D>) -> IntTensor<Self, D> {
+    fn into_int<const D: usize>(tensor: CandleTensor<F, D>) -> IntTensor<Self, D> {
         todo!()
     }
 

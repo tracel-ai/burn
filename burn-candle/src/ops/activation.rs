@@ -1,5 +1,11 @@
 use burn_tensor::ops::ActivationOps;
 
-use crate::{element::CandleElement, CandleBackend};
+use crate::{
+    element::{CandleElement, FloatCandleElement, IntCandleElement},
+    CandleBackend,
+};
 
-impl<E: CandleElement> ActivationOps<CandleBackend<E>> for CandleBackend<E> {}
+impl<F: FloatCandleElement, I: IntCandleElement> ActivationOps<CandleBackend<F, I>>
+    for CandleBackend<F, I>
+{
+}

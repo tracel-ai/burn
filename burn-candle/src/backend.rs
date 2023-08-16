@@ -1,7 +1,12 @@
+use std::marker::PhantomData;
+
 use burn_tensor::backend::Backend;
 use candle_core::DeviceLocation;
 
-use crate::{element::CandleElement, CandleTensor};
+use crate::{
+    element::{CandleElement, FloatCandleElement, IntCandleElement},
+    CandleTensor,
+};
 
 /// The device type for the candle backend.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -43,22 +48,24 @@ impl Default for CandleDevice {
 
 /// The Candle backend.
 #[derive(Clone, Copy, Default, Debug)]
-pub struct CandleBackend<E> {
-    _e: E,
+pub struct CandleBackend<F: FloatCandleElement, I: IntCandleElement> {
+    _float: PhantomData<F>,
+    _int: PhantomData<I>,
 }
 
-impl<E: CandleElement> Backend for CandleBackend<E> {
+impl<F: FloatCandleElement, I: IntCandleElement> Backend for CandleBackend<F, I> {
     type Device = CandleDevice;
 
-    type FullPrecisionBackend = CandleBackend<f32>;
-    type FullPrecisionElem = f32;
+    type FullPrecisionBackend = CandleBackend<Self::FullPrecisionElem, Self::IntElem>;
+    type FullPrecisionElem = f64;
 
     type TensorPrimitive<const D: usize> = CandleTensor<Self::FloatElem, D>;
-    type FloatElem = E;
+    type FloatElem = F;
 
     type IntTensorPrimitive<const D: usize> = CandleTensor<Self::IntElem, D>;
-    type IntElem = u32;
-    type BoolTensorPrimitive<const D: usize> = CandleTensor<u32, D>;
+    type IntElem = I;
+
+    type BoolTensorPrimitive<const D: usize> = CandleTensor<u8, D>;
 
     fn ad_enabled() -> bool {
         false
