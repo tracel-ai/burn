@@ -37,6 +37,24 @@ mod tests {
         ]]));
     }
 
+    #[test]
+    fn test_avg_pool1d_complex_dont_count_pad() {
+        let test = AvgPool1dTestCase {
+            batch_size: 1,
+            channels: 2,
+            kernel_size: 3,
+            padding: 1,
+            stride: 2,
+            length: 6,
+            count_include_pad: false,
+        };
+
+        test.assert_output(TestTensor::from_floats([[
+            [0.5000, 2.0000, 4.0000],
+            [6.5000, 8.0000, 10.0000],
+        ]]));
+    }
+
     struct AvgPool1dTestCase {
         batch_size: usize,
         channels: usize,

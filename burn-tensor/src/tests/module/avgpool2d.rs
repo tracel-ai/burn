@@ -52,6 +52,30 @@ mod tests {
         ]]]));
     }
 
+    #[test]
+    fn test_avg_pool2d_complex_dont_include_pad() {
+        let test = AvgPool2dTestCase {
+            batch_size: 1,
+            channels: 1,
+            kernel_size_1: 3,
+            kernel_size_2: 4,
+            padding_1: 1,
+            padding_2: 2,
+            stride_1: 1,
+            stride_2: 2,
+            height: 4,
+            width: 6,
+            count_include_pad: false,
+        };
+
+        test.assert_output(TestTensor::from_floats([[[
+            [3.5000, 4.5000, 6.5000, 7.5000],
+            [6.5000, 7.5000, 9.5000, 10.5000],
+            [12.5000, 13.5000, 15.5000, 16.5000],
+            [15.5000, 16.5000, 18.5000, 19.5000],
+        ]]]));
+    }
+
     struct AvgPool2dTestCase {
         batch_size: usize,
         channels: usize,
