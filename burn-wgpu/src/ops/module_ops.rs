@@ -38,8 +38,9 @@ where
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        count_include_pad: bool,
     ) -> FloatTensor<Self, 4> {
-        kernel::pool::avg_pool2d(x, kernel_size, stride, padding)
+        kernel::pool::avg_pool2d(x, kernel_size, stride, padding, count_include_pad)
     }
 
     fn avg_pool2d_backward(
@@ -48,8 +49,9 @@ where
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        count_include_pad: bool,
     ) -> FloatTensor<Self, 4> {
-        kernel::pool::avg_pool2d_backward(x, grad, kernel_size, stride, padding)
+        kernel::pool::avg_pool2d_backward(x, grad, kernel_size, stride, padding, count_include_pad)
     }
 
     fn max_pool2d(

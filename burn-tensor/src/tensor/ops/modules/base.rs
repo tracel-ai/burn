@@ -255,8 +255,9 @@ pub trait ModuleOps<B: Backend> {
         kernel_size: usize,
         stride: usize,
         padding: usize,
+        count_include_pad: bool,
     ) -> B::TensorPrimitive<3> {
-        pool::avg_pool1d_from_2d::<B>(x, kernel_size, stride, padding)
+        pool::avg_pool1d_from_2d::<B>(x, kernel_size, stride, padding, count_include_pad)
     }
     /// Backward pass for the [avg pooling 1d](ModuleOps::avg_pool1d) operation.
     fn avg_pool1d_backward(
@@ -265,8 +266,16 @@ pub trait ModuleOps<B: Backend> {
         kernel_size: usize,
         stride: usize,
         padding: usize,
+        count_include_pad: bool,
     ) -> B::TensorPrimitive<3> {
-        pool::avg_pool1d_backward_from_2d::<B>(x, grad, kernel_size, stride, padding)
+        pool::avg_pool1d_backward_from_2d::<B>(
+            x,
+            grad,
+            kernel_size,
+            stride,
+            padding,
+            count_include_pad,
+        )
     }
     /// Two dimensional avg pooling.
     ///
@@ -278,6 +287,7 @@ pub trait ModuleOps<B: Backend> {
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        count_include_pad: bool,
     ) -> B::TensorPrimitive<4>;
     /// Backward pass for the [avg pooling 2d](ModuleOps::avg_pool2d) operation.
     fn avg_pool2d_backward(
@@ -286,6 +296,7 @@ pub trait ModuleOps<B: Backend> {
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        count_include_pad: bool,
     ) -> B::TensorPrimitive<4>;
     /// Two dimensional adaptive avg pooling.
     ///

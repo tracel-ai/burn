@@ -112,6 +112,7 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
         kernel_size: usize,
         stride: usize,
         padding: usize,
+        count_include_pad: bool,
     ) -> TchTensor<E, 3> {
         let tensor = tch::Tensor::avg_pool1d(
             &x.tensor,
@@ -119,7 +120,7 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
             [stride as i64],
             [padding as i64],
             false,
-            true,
+            count_include_pad,
         );
 
         TchTensor::new(tensor)
@@ -129,6 +130,7 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        count_include_pad: bool,
     ) -> TchTensor<E, 4> {
         let tensor = tch::Tensor::avg_pool2d(
             &x.tensor,
@@ -136,7 +138,7 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
             [stride[0] as i64, stride[1] as i64],
             [padding[0] as i64, padding[1] as i64],
             false,
-            true,
+            count_include_pad,
             None,
         );
 
@@ -149,6 +151,7 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        count_include_pad: bool,
     ) -> TchTensor<E, 4> {
         let tensor = tch::Tensor::avg_pool2d_backward(
             &x.tensor,
@@ -157,7 +160,7 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
             [stride[0] as i64, stride[1] as i64],
             [padding[0] as i64, padding[1] as i64],
             false,
-            true,
+            count_include_pad,
             None,
         );
 

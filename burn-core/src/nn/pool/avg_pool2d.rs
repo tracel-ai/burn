@@ -18,6 +18,9 @@ pub struct AvgPool2dConfig {
     /// The padding configuration.
     #[config(default = "PaddingConfig2d::Valid")]
     pub padding: PaddingConfig2d,
+    /// If the padding is counted in the denominator when computing the average.
+    #[config(default = "true")]
+    count_include_pad: bool,
 }
 
 /// Applies a 2D avg pooling over input tensors.
@@ -39,6 +42,7 @@ pub struct AvgPool2d {
     stride: [usize; 2],
     kernel_size: [usize; 2],
     padding: PaddingConfig2d,
+    count_include_pad: bool,
 }
 
 impl AvgPool2dConfig {
@@ -48,6 +52,7 @@ impl AvgPool2dConfig {
             stride: self.strides,
             kernel_size: self.kernel_size,
             padding: self.padding.clone(),
+            count_include_pad: self.count_include_pad,
         }
     }
 }
@@ -65,6 +70,12 @@ impl AvgPool2d {
             self.padding
                 .calculate_padding_2d(height_in, width_in, &self.kernel_size, &self.stride);
 
-        avg_pool2d(input, self.kernel_size, self.stride, padding)
+        avg_pool2d(
+            input,
+            self.kernel_size,
+            self.stride,
+            padding,
+            self.count_include_pad,
+        )
     }
 }

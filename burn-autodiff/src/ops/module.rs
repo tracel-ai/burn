@@ -489,20 +489,28 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         kernel_size: usize,
         stride: usize,
         padding: usize,
+        count_include_pad: bool,
     ) -> ADTensor<B, 3> {
         #[derive(Debug)]
         struct AvgPool1D;
 
         impl<B: Backend> Backward<B, 3, 1> for AvgPool1D {
-            type State = (B::TensorPrimitive<3>, usize, usize, usize);
+            type State = (B::TensorPrimitive<3>, usize, usize, usize, bool);
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 let [node_parent] = ops.parents;
                 let grad = grads.consume::<B, 3>(&ops.node);
-                let (x, kernel_size, stride, padding) = ops.state;
+                let (x, kernel_size, stride, padding, count_include_pad) = ops.state;
 
                 if let Some(node) = node_parent {
-                    let grad = B::avg_pool1d_backward(x, grad, kernel_size, stride, padding);
+                    let grad = B::avg_pool1d_backward(
+                        x,
+                        grad,
+                        kernel_size,
+                        stride,
+                        padding,
+                        count_include_pad,
+                    );
                     grads.register::<B, 3>(node, grad);
                 }
             }
@@ -510,12 +518,25 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
         match AvgPool1D.prepare([x.node], [x.graph]).statefull() {
             OpsKind::Tracked(prep) => {
-                let output = B::avg_pool1d(x.primitive.clone(), kernel_size, stride, padding);
-                prep.finish((x.primitive, kernel_size, stride, padding), output)
+                let output = B::avg_pool1d(
+                    x.primitive.clone(),
+                    kernel_size,
+                    stride,
+                    padding,
+                    count_include_pad,
+                );
+                prep.finish(
+                    (x.primitive, kernel_size, stride, padding, count_include_pad),
+                    output,
+                )
             }
-            OpsKind::UnTracked(prep) => {
-                prep.finish(B::avg_pool1d(x.primitive, kernel_size, stride, padding))
-            }
+            OpsKind::UnTracked(prep) => prep.finish(B::avg_pool1d(
+                x.primitive,
+                kernel_size,
+                stride,
+                padding,
+                count_include_pad,
+            )),
         }
     }
 
@@ -524,20 +545,34 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        count_include_pad: bool,
     ) -> ADTensor<B, 4> {
         #[derive(Debug)]
         struct AvgPool2D;
 
         impl<B: Backend> Backward<B, 4, 1> for AvgPool2D {
-            type State = (B::TensorPrimitive<4>, [usize; 2], [usize; 2], [usize; 2]);
+            type State = (
+                B::TensorPrimitive<4>,
+                [usize; 2],
+                [usize; 2],
+                [usize; 2],
+                bool,
+            );
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 let [node_parent] = ops.parents;
                 let grad = grads.consume::<B, 4>(&ops.node);
-                let (x, kernel_size, stride, padding) = ops.state;
+                let (x, kernel_size, stride, padding, count_include_pad) = ops.state;
 
                 if let Some(node) = node_parent {
-                    let grad = B::avg_pool2d_backward(x, grad, kernel_size, stride, padding);
+                    let grad = B::avg_pool2d_backward(
+                        x,
+                        grad,
+                        kernel_size,
+                        stride,
+                        padding,
+                        count_include_pad,
+                    );
                     grads.register::<B, 4>(node, grad);
                 }
             }
@@ -545,12 +580,25 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
         match AvgPool2D.prepare([x.node], [x.graph]).statefull() {
             OpsKind::Tracked(prep) => {
-                let output = B::avg_pool2d(x.primitive.clone(), kernel_size, stride, padding);
-                prep.finish((x.primitive, kernel_size, stride, padding), output)
+                let output = B::avg_pool2d(
+                    x.primitive.clone(),
+                    kernel_size,
+                    stride,
+                    padding,
+                    count_include_pad,
+                );
+                prep.finish(
+                    (x.primitive, kernel_size, stride, padding, count_include_pad),
+                    output,
+                )
             }
-            OpsKind::UnTracked(prep) => {
-                prep.finish(B::avg_pool2d(x.primitive, kernel_size, stride, padding))
-            }
+            OpsKind::UnTracked(prep) => prep.finish(B::avg_pool2d(
+                x.primitive,
+                kernel_size,
+                stride,
+                padding,
+                count_include_pad,
+            )),
         }
     }
 
@@ -560,6 +608,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         _kernel_size: [usize; 2],
         _stride: [usize; 2],
         _padding: [usize; 2],
+        _count_include_pad: bool,
     ) -> ADTensor<B, 4> {
         panic!("Can't differentiate avg pool 2d backward.");
     }
