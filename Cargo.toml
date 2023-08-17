@@ -23,6 +23,10 @@ members = [
   "examples/*",
 ]
 
+exclude = [
+    "examples/notebook",
+]
+
 [workspace.dependencies]
 bytemuck = "1.13"
 const-random = "0.1.15"

@@ -46,4 +46,13 @@ mod tests {
         let tensor = Tensor::<TestBackend, 4>::ones(Shape::new([2, 3, 4, 5]));
         let flattened_tensor: Tensor<TestBackend, 2> = tensor.flatten(2, 0);
     }
+
+    #[test]
+    #[should_panic]
+    fn not_enough_destination_dimension() {
+        let tensor = Tensor::<TestBackend, 3>::ones(Shape::new([1, 5, 15]));
+        let flattened_tensor: Tensor<TestBackend, 1> = tensor.flatten(1, 2);
+        let expected_shape = Shape::new([75]);
+        assert_eq!(flattened_tensor.shape(), expected_shape);
+    }
 }
