@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use protobuf::Enum;
 
 use super::{
+    from_onnx::get_constant_value,
     ir::{
         ArgType, Argument, AttributeValue, ElementType, Node, NodeType, StateType, TensorArg,
         TensorData,
@@ -110,13 +111,13 @@ pub fn dim_inference(
 
 fn constant_update_outputs(node: &mut Node) {
     // Fix the tensor dimension of the output when the value is tensor
-    let output = &mut node.outputs[0];
-    match node.attrs.get("value") {
+    match get_constant_value(node) {
         Some(value) => match &value {
+            // The value is stored in an attribute
             AttributeValue::Tensor(tensor) => {
-                output.ty = ArgType::Tensor(TensorArg { dim: tensor.dim });
+                node.outputs[0].ty = ArgType::Tensor(TensorArg { dim: tensor.dim });
             }
-            _ => {}
+            _ => todo!("Support other constant value types"),
         },
         None => panic!("Constant node must have a value attribute"),
     };

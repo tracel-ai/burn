@@ -270,7 +270,7 @@ impl ONNXGraph {
                     )
                 }
             }
-            value @ _ => panic!("Unsupported constant value: {:?} ", value),
+            value => panic!("Unsupported constant value: {:?} ", value),
         };
 
         ConstantNode::new(node.name.clone(), value, output.to_type())

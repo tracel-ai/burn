@@ -13,6 +13,7 @@ macro_rules! include_models {
 include_models!(
     add,
     avg_pool2d,
+    batch_norm,
     concat,
     conv1d,
     conv2d,
@@ -322,5 +323,21 @@ mod tests {
 
         let expected_shape = Shape::from([1, 75]);
         assert_eq!(expected_shape, output.shape());
+    }
+
+    #[test]
+    fn batch_norm() {
+        let model: batch_norm::Model<Backend> = batch_norm::Model::default();
+
+        // Run the model with ones as input for easier testing
+        let input = Tensor::<Backend, 3>::ones([1, 20, 1]);
+        let output = model.forward(input);
+
+        let expected_shape = Shape::from([1, 5, 2, 2]);
+        assert_eq!(output.shape(), expected_shape);
+
+        let output_sum = output.sum().into_scalar();
+        let expected_sum = 19.999801635742188; // from pytorch
+        assert!(expected_sum.approx_eq(output_sum, (1.0e-8, 2)));
     }
 }

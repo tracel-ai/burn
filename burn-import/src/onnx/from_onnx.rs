@@ -20,7 +20,8 @@ use super::{coalesce::coalesce, ir::StateType};
 use bytemuck::cast_slice;
 use protobuf::{Enum, Message};
 
-const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 4] = [
+const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 5] = [
+    NodeType::BatchNormalization,
     NodeType::Conv1d,
     NodeType::Conv2d,
     NodeType::Dropout,
@@ -76,14 +77,14 @@ pub fn parse_onnx(onnx_path: &Path) -> ONNXGraph {
     // https://github.com/onnx/onnx/blob/main/docs/IR.md#graphs
     assert!(nodes.is_top_sorted(), "Nodes are not topologically sorted");
 
-    // Handle Identity nodes
-    handle_identity(&mut nodes);
-
-    // Lift constants to initializers
-    lift_constants(&mut nodes);
-
     // Move inputs with initializers to states
     move_inputs_to_state(&mut nodes, &onnx_model.graph.initializer);
+
+    // Handle Identity nodes (expects inputs to be moved to states)
+    handle_identity(&mut nodes);
+
+    // Lift constants to initializers (expects inputs to be moved to states)
+    lift_constants(&mut nodes);
 
     // Coalesce and transform nodes
     coalesce(&mut nodes);
@@ -506,7 +507,7 @@ fn lift_constants(nodes: &mut Vec<Node>) {
         node.inputs.iter().for_each(|input| {
             if let Some(constant) = constants.get(&input.name) {
                 // if the input is a constant, get its ID and node
-                let value = get_constant_value(&constant).unwrap(); // get the value of the constant
+                let value = get_constant_value(constant).unwrap(); // get the value of the constant
 
                 let state = match value {
                     AttributeValue::Tensor(tensor) => State {
@@ -538,8 +539,57 @@ fn lift_constants(nodes: &mut Vec<Node>) {
     );
 }
 
-/// Handle Identity nodes
-fn handle_identity(nodes: &mut Vec<Node>) {}
+/// Handle Identity nodes.
+///
+/// There are two types of Identity nodes:
+/// 1. Pass-through nodes that are used to connect two nodes. These are removed from the graph.
+/// 2. Nodes that act as a constant (its input has initializer). Change the node type to Constant.
+fn handle_identity(nodes: &mut Vec<Node>) {
+    log::info!("Handling identity nodes");
+
+    let mut identity_nodes_to_remove = Vec::new();
+
+    for node in nodes
+        .iter_mut()
+        .filter(|node| node.node_type == NodeType::Identity)
+    {
+        // if the node has states, it is a constant. Move the data to value attribute for consistency.
+        if let Some(state) = node.states.first() {
+            match &state.ty {
+                // Currently there is only tensor type
+                StateType::Tensor(tensor) => {
+                    node.attrs
+                        .insert("value".to_string(), AttributeValue::Tensor(tensor.clone()));
+                    node.states.clear();
+                }
+            }
+            node.node_type = NodeType::Constant;
+            log::debug!("Converted identity node ({}) to constant", node.name);
+        } else {
+            // Support pass through identity node
+            identity_nodes_to_remove.push(node.clone());
+        }
+    }
+
+    // Remove the identity nodes that are only used to connect two nodes
+    for identity_node in identity_nodes_to_remove.iter() {
+        let input = identity_node.inputs.first().unwrap();
+        let output = identity_node.outputs.first().unwrap();
+
+        // find the node that uses the identity node's output
+        for node in nodes.iter_mut() {
+            // let matched_input = node.inputs.iter().find(|x| x.name == output.name);
+
+            if let Some(matched_input) = node.inputs.iter_mut().find(|x| x.name == output.name) {
+                // replace the identity node's output with the identity node's input
+                matched_input.name = input.name.clone();
+            }
+        }
+    }
+
+    // remove the identity nodes that are used to connect two nodes
+    nodes.retain(|node| !identity_nodes_to_remove.contains(node));
+}
 
 /// Rename the nodes in the graph to be unique and return a map of the old names to the new names.
 fn rename_nodes(nodes: &mut Vec<Node>) -> HashMap<String, String> {
