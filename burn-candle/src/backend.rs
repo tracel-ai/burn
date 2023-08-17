@@ -57,7 +57,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for CandleBackend<F, I>
     type Device = CandleDevice;
 
     type FullPrecisionBackend = CandleBackend<Self::FullPrecisionElem, Self::IntElem>;
-    type FullPrecisionElem = f64;
+    type FullPrecisionElem = f32;
 
     type TensorPrimitive<const D: usize> = CandleTensor<Self::FloatElem, D>;
     type FloatElem = F;
