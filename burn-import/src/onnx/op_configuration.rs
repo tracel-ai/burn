@@ -39,9 +39,9 @@ pub fn attr_value_f32(value: &AttributeValue, target: &mut f32) {
 /// Create a Conv1dConfig from the attributes of the node
 pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
     let mut kernel_shape = Vec::new();
-    let mut strides = vec![1, 1];
+    let mut strides = vec![1];
     let mut pads = Vec::new();
-    let mut dilations = vec![1, 1];
+    let mut dilations = vec![1];
     let mut group: i64 = 1;
 
     // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
