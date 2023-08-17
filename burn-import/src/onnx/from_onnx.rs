@@ -76,6 +76,9 @@ pub fn parse_onnx(onnx_path: &Path) -> ONNXGraph {
     // https://github.com/onnx/onnx/blob/main/docs/IR.md#graphs
     assert!(nodes.is_top_sorted(), "Nodes are not topologically sorted");
 
+    // Handle Identity nodes
+    handle_identity(&mut nodes);
+
     // Lift constants to initializers
     lift_constants(&mut nodes);
 
@@ -503,7 +506,8 @@ fn lift_constants(nodes: &mut Vec<Node>) {
         node.inputs.iter().for_each(|input| {
             if let Some(constant) = constants.get(&input.name) {
                 // if the input is a constant, get its ID and node
-                let value = &constant.attrs["value"]; // get the value of the constant
+                let value = get_constant_value(&constant).unwrap(); // get the value of the constant
+
                 let state = match value {
                     AttributeValue::Tensor(tensor) => State {
                         // if the value is a tensor, create a new State object with the tensor as its type
@@ -533,6 +537,9 @@ fn lift_constants(nodes: &mut Vec<Node>) {
         constant_to_removed.len()
     );
 }
+
+/// Handle Identity nodes
+fn handle_identity(nodes: &mut Vec<Node>) {}
 
 /// Rename the nodes in the graph to be unique and return a map of the old names to the new names.
 fn rename_nodes(nodes: &mut Vec<Node>) -> HashMap<String, String> {
@@ -685,4 +692,23 @@ impl TopologicalSortable for Vec<Node> {
         // The vector is topologically sorted
         true
     }
+}
+
+/// Get the value of a constant node from its attributes
+pub(crate) fn get_constant_value(node: &Node) -> Option<AttributeValue> {
+    // A value can be stored in any of these attributes
+    let value_keys = [
+        "value",
+        "value_float",
+        "value_floats",
+        "value_int",
+        "value_ints",
+        "value_string",
+        "value_strings",
+        "sparse_value",
+    ];
+
+    value_keys
+        .iter()
+        .find_map(|&key| node.attrs.get(key).cloned())
 }

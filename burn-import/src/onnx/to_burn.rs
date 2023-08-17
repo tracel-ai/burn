@@ -42,7 +42,7 @@ use crate::{
 };
 
 use super::{
-    from_onnx::parse_onnx,
+    from_onnx::{get_constant_value, parse_onnx},
     ir::{ArgType, Argument, ElementType, ONNXGraph, State, StateType, Tensor, TensorData},
     op_configuration::{
         avg_pool2d_config, concat_config, dropout_config, reshape_config, softmax_config,
@@ -227,12 +227,10 @@ impl ONNXGraph {
         graph
     }
 
-    fn constant_conversion<PS: PrecisionSettings>(mut node: Node) -> ConstantNode<PS> {
+    fn constant_conversion<PS: PrecisionSettings>(node: Node) -> ConstantNode<PS> {
         let output = node.outputs.get(0).unwrap();
 
-        let value = node.attrs.remove("value").unwrap();
-
-        let value = match value {
+        let value = match get_constant_value(&node).unwrap() {
             AttributeValue::Float32(val) => ConstantValue::Float32(val),
             AttributeValue::Int64(val) => ConstantValue::Int64(val),
             AttributeValue::Tensor(tensor) => {
@@ -272,7 +270,7 @@ impl ONNXGraph {
                     )
                 }
             }
-            _ => panic!("Unsupported constant value: {:?} ", value),
+            value @ _ => panic!("Unsupported constant value: {:?} ", value),
         };
 
         ConstantNode::new(node.name.clone(), value, output.to_type())
