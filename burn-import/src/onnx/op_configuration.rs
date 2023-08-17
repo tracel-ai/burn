@@ -13,6 +13,8 @@ use super::ir::{ArgType, AttributeValue, Node, StateType};
 pub fn attr_value_vec_i64(value: &AttributeValue, target: &mut Vec<i64>) {
     if let AttributeValue::Int64s(val) = value {
         *target = val.clone();
+    } else {
+        panic!("The attribute value type does not match the expected type");
     }
 }
 
@@ -20,6 +22,8 @@ pub fn attr_value_vec_i64(value: &AttributeValue, target: &mut Vec<i64>) {
 pub fn attr_value_i64(value: &AttributeValue, target: &mut i64) {
     if let AttributeValue::Int64(val) = value {
         *target = *val;
+    } else {
+        panic!("The attribute value type does not match the expected type");
     }
 }
 
@@ -27,15 +31,17 @@ pub fn attr_value_i64(value: &AttributeValue, target: &mut i64) {
 pub fn attr_value_f32(value: &AttributeValue, target: &mut f32) {
     if let AttributeValue::Float32(val) = value {
         *target = *val;
+    } else {
+        panic!("The attribute value type does not match the expected type");
     }
 }
 
 /// Create a Conv1dConfig from the attributes of the node
 pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
-    let mut kernel_shape = 1;
-    let mut strides = 1;
-    let mut pads = vec![0];
-    let mut dilations = 1;
+    let mut kernel_shape = Vec::new();
+    let mut strides = vec![1];
+    let mut pads = Vec::new();
+    let mut dilations = vec![1];
     let mut group: i64 = 1;
 
     // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
@@ -51,10 +57,10 @@ pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
 
     for (key, value) in curr.attrs.iter() {
         match key.as_str() {
-            "kernel_shape" => attr_value_i64(value, &mut kernel_shape),
-            "strides" => attr_value_i64(value, &mut strides),
+            "kernel_shape" => attr_value_vec_i64(value, &mut kernel_shape),
+            "strides" => attr_value_vec_i64(value, &mut strides),
             "pads" => attr_value_vec_i64(value, &mut pads),
-            "dilations" => attr_value_i64(value, &mut dilations),
+            "dilations" => attr_value_vec_i64(value, &mut dilations),
             "group" => attr_value_i64(value, &mut group),
             _ => {}
         }
@@ -62,9 +68,9 @@ pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
 
     let padding = padding_config_1d(&pads);
 
-    Conv1dConfig::new(channels_in, channels_out, kernel_shape as usize)
-        .with_stride(strides as usize)
-        .with_dilation(dilations as usize)
+    Conv1dConfig::new(channels_in, channels_out, kernel_shape[0] as usize)
+        .with_stride(strides[0] as usize)
+        .with_dilation(dilations[0] as usize)
         .with_groups(group as usize)
         .with_bias(bias)
         .with_padding(padding)
