@@ -4,7 +4,7 @@ use crate::{
 };
 
 use super::{
-    decay::{WeightDecay, WeightDecayConfig, WeightDecayState},
+    decay::{WeightDecay, WeightDecayConfig},
     Optimizer, SimpleOptimizer,
 };
 use crate::config::Config;
@@ -34,7 +34,6 @@ pub struct AdaGrad<B: Backend> {
 /// AdaGrad state.
 #[derive(Record, Clone, new)]
 pub struct AdaGradState<B: Backend, const D: usize> {
-    weight_decay: Option<WeightDecayState<B, D>>,
     lr_decay: LRDecayState<B, D>,
 }
 
@@ -48,23 +47,19 @@ impl<B: Backend> SimpleOptimizer<B> for AdaGrad<B> {
         mut grad: Tensor<B, D>,
         state: Option<Self::State<D>>,
     ) -> (Tensor<B, D>, Option<Self::State<D>>) {
-        let mut state_weight_decay = None;
         let mut state_lr_decay = None;
 
         if let Some(state) = state {
-            state_weight_decay = state.weight_decay;
             state_lr_decay = Some(state.lr_decay);
         }
 
         if let Some(weight_decay) = &self.weight_decay {
-            let (grad_out, state) = weight_decay.transform(grad, state_weight_decay);
-            state_weight_decay = Some(state);
-            grad = grad_out;
+            grad = weight_decay.transform(grad, tensor.clone());
         }
 
         let (grad, state_lr_decay) = self.lr_decay.transform(grad, lr, state_lr_decay);
 
-        let state = AdaGradState::new(state_weight_decay, state_lr_decay);
+        let state = AdaGradState::new(state_lr_decay);
 
         (tensor - grad, Some(state))
     }
@@ -73,7 +68,6 @@ impl<B: Backend> SimpleOptimizer<B> for AdaGrad<B> {
         mut state: Self::State<D>,
         device: &<B as Backend>::Device,
     ) -> Self::State<D> {
-        state.weight_decay = state.weight_decay.map(|state| state.to_device(device));
         state.lr_decay = state.lr_decay.to_device(device);
         state
     }

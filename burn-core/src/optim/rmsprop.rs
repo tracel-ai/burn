@@ -95,7 +95,7 @@ impl<B: Backend> SimpleOptimizer<B> for RMSProp<B> {
 
         // weight_decay transform
         if let Some(weight_decay) = &self.weight_decay {
-            grad = weight_decay.transform_temp_fix(grad, tensor.clone());
+            grad = weight_decay.transform(grad, tensor.clone());
         }
 
         // square_avg transform

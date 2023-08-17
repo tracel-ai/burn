@@ -4,7 +4,7 @@ use crate::{
 };
 
 use super::{
-    decay::{WeightDecay, WeightDecayConfig, WeightDecayState},
+    decay::{WeightDecay, WeightDecayConfig},
     Optimizer, SimpleOptimizer,
 };
 use crate::config::Config;
@@ -39,7 +39,6 @@ pub struct Adam<B: Backend> {
 /// Adam state.
 #[derive(Record, Clone, new)]
 pub struct AdamState<B: Backend, const D: usize> {
-    weight_decay: Option<WeightDecayState<B, D>>,
     momentum: AdaptiveMomentumState<B, D>,
 }
 
@@ -53,23 +52,19 @@ impl<B: Backend> SimpleOptimizer<B> for Adam<B> {
         mut grad: Tensor<B, D>,
         state: Option<Self::State<D>>,
     ) -> (Tensor<B, D>, Option<Self::State<D>>) {
-        let mut state_weight_decay = None;
         let mut state_momentum = None;
 
         if let Some(state) = state {
-            state_weight_decay = state.weight_decay;
             state_momentum = Some(state.momentum);
         }
 
         if let Some(weight_decay) = &self.weight_decay {
-            let (grad_out, state) = weight_decay.transform(grad, state_weight_decay);
-            state_weight_decay = Some(state);
-            grad = grad_out;
+            grad = weight_decay.transform(grad, tensor.clone());
         }
 
         let (grad, state_momentum) = self.momentum.transform(grad, state_momentum);
 
-        let state = AdamState::new(state_weight_decay, state_momentum);
+        let state = AdamState::new(state_momentum);
         let delta = grad.mul_scalar(lr);
 
         (tensor - delta, Some(state))
@@ -79,7 +74,6 @@ impl<B: Backend> SimpleOptimizer<B> for Adam<B> {
         mut state: Self::State<D>,
         device: &<B as Backend>::Device,
     ) -> Self::State<D> {
-        state.weight_decay = state.weight_decay.map(|state| state.to_device(device));
         state.momentum = state.momentum.to_device(device);
         state
     }
