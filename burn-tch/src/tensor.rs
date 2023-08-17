@@ -65,7 +65,7 @@ impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
 }
 
 // This is safe since we don't use autodiff from LibTorch.
-// Also, atommic reference counting is used to know if the tensor's data can be reused.
+// Also, atomic reference counting is used to know if the tensor's data can be reused.
 // If there are multiple reference on the same tensor, it becomes read only.
 unsafe impl<E: tch::kind::Element, const D: usize> Send for TchTensor<E, D> {}
 unsafe impl<E: tch::kind::Element, const D: usize> Sync for TchTensor<E, D> {}

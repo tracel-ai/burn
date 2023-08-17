@@ -16,6 +16,7 @@ members = [
   "burn-no-std-tests",
   "burn-tch",
   "burn-wgpu",
+  "burn-candle",
   "burn-tensor-testgen",
   "burn-tensor",
   "burn-train",

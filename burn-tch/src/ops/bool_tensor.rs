@@ -74,6 +74,7 @@ impl<E: TchElement> BoolTensorOps<TchBackend<E>> for TchBackend<E> {
     ) -> TchTensor<bool, D1> {
         TchOps::slice(tensor, ranges)
     }
+
     fn bool_slice_assign<const D1: usize, const D2: usize>(
         tensor: TchTensor<bool, D1>,
         ranges: [std::ops::Range<usize>; D2],
