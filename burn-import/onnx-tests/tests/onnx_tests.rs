@@ -25,6 +25,7 @@ include_models!(
     log_softmax,
     maxpool2d,
     mul,
+    relu,
     reshape,
     softmax,
     sub
@@ -339,5 +340,24 @@ mod tests {
         let output_sum = output.sum().into_scalar();
         let expected_sum = 19.999801635742188; // from pytorch
         assert!(expected_sum.approx_eq(output_sum, (1.0e-8, 2)));
+    }
+
+    #[test]
+    fn relu() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let model: relu::Model<Backend> = relu::Model::new();
+
+        // Run the model
+        let input = Tensor::<Backend, 2>::from_floats([
+            [0.33669037, 0.12880941, 0.23446237],
+            [0.23033303, -1.12285638, -0.18632829],
+        ]);
+        let output = model.forward(input);
+        let expected = Data::from([
+            [0.33669037, 0.12880941, 0.23446237],
+            [0.23033303, 0.00000000, 0.00000000],
+        ]);
+
+        assert_eq!(output.to_data(), expected);
     }
 }

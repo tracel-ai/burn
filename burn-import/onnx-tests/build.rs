@@ -20,6 +20,7 @@ fn main() {
         .input("tests/log_softmax/log_softmax.onnx")
         .input("tests/maxpool2d/maxpool2d.onnx")
         .input("tests/mul/mul.onnx")
+        .input("tests/relu/relu.onnx")
         .input("tests/reshape/reshape.onnx")
         .input("tests/softmax/softmax.onnx")
         .input("tests/sub/sub.onnx")
