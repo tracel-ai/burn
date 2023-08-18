@@ -25,6 +25,7 @@ fn main() {
         .input("tests/sigmoid/sigmoid.onnx")
         .input("tests/softmax/softmax.onnx")
         .input("tests/sub/sub.onnx")
+        .input("tests/transpose/transpose.onnx")
         .out_dir("model/")
         .run_from_script();
 

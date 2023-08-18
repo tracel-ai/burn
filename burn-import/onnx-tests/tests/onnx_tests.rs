@@ -29,7 +29,8 @@ include_models!(
     reshape,
     sigmoid,
     softmax,
-    sub
+    sub,
+    transpose
 );
 
 #[cfg(test)]
@@ -379,5 +380,25 @@ mod tests {
         ]);
 
         output.to_data().assert_approx_eq(&expected, 7);
+    }
+
+    #[test]
+    fn transpose() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let model: transpose::Model<Backend> = transpose::Model::new();
+
+        // Run the model
+        let input = Tensor::<Backend, 2>::from_floats([
+            [0.33669037, 0.12880941, 0.23446237],
+            [0.23033303, -1.12285638, -0.18632829],
+        ]);
+        let output = model.forward(input);
+        let expected = Data::from([
+            [0.33669037, 0.23033303],
+            [0.12880941, -1.12285638],
+            [0.23446237, -0.18632829],
+        ]);
+
+        assert_eq!(output.to_data(), expected);
     }
 }
