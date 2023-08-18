@@ -27,6 +27,7 @@ include_models!(
     mul,
     relu,
     reshape,
+    sigmoid,
     softmax,
     sub
 );
@@ -359,5 +360,24 @@ mod tests {
         ]);
 
         assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn sigmoid() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let model: sigmoid::Model<Backend> = sigmoid::Model::new();
+
+        // Run the model
+        let input = Tensor::<Backend, 2>::from_floats([
+            [0.33669037, 0.12880941, 0.23446237],
+            [0.23033303, -1.12285638, -0.18632829],
+        ]);
+        let output = model.forward(input);
+        let expected = Data::from([
+            [0.58338636, 0.53215790, 0.55834854],
+            [0.55733001, 0.24548186, 0.45355222],
+        ]);
+
+        output.to_data().assert_approx_eq(&expected, 7);
     }
 }

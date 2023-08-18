@@ -22,6 +22,7 @@ fn main() {
         .input("tests/mul/mul.onnx")
         .input("tests/relu/relu.onnx")
         .input("tests/reshape/reshape.onnx")
+        .input("tests/sigmoid/sigmoid.onnx")
         .input("tests/softmax/softmax.onnx")
         .input("tests/sub/sub.onnx")
         .out_dir("model/")
