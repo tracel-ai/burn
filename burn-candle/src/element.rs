@@ -1,5 +1,7 @@
+use std::borrow::Borrow;
+
 use burn_tensor::Element;
-use candle_core::WithDType;
+use candle_core::{Tensor, WithDType};
 use half::{bf16, f16};
 
 pub trait CandleElement: Element + WithDType {}

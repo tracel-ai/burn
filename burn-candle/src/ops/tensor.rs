@@ -1,3 +1,5 @@
+use std::borrow::Borrow;
+
 use burn_tensor::{ops::TensorOps, Data, Distribution, Shape};
 use candle_core::Tensor;
 
@@ -64,49 +66,49 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        CandleTensor::new((lhs.tensor + rhs.elem::<f64>()).unwrap())
     }
 
     fn sub<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        CandleTensor::new(lhs.tensor.broadcast_sub(&rhs.tensor).unwrap())
     }
 
     fn sub_scalar<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        CandleTensor::new((lhs.tensor - rhs.elem::<f64>()).unwrap())
     }
 
     fn mul<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        CandleTensor::new(lhs.tensor.broadcast_mul(&rhs.tensor).unwrap())
     }
 
     fn mul_scalar<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        CandleTensor::new((lhs.tensor * rhs.elem::<f64>()).unwrap())
     }
 
     fn div<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        CandleTensor::new(lhs.tensor.broadcast_div(&rhs.tensor).unwrap())
     }
 
     fn div_scalar<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        CandleTensor::new((lhs.tensor / rhs.elem::<f64>()).unwrap())
     }
 
     fn matmul<const D: usize>(

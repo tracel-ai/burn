@@ -58,7 +58,7 @@ mod tests {
     // burn_tensor::testgen_cat!();
     // burn_tensor::testgen_clamp!();
     // burn_tensor::testgen_cos!();
-    // burn_tensor::testgen_div!();
+    burn_tensor::testgen_div!();
     // burn_tensor::testgen_erf!();
     // burn_tensor::testgen_exp!();
     // burn_tensor::testgen_flatten!();
@@ -70,7 +70,7 @@ mod tests {
     // burn_tensor::testgen_mask!();
     // burn_tensor::testgen_matmul!();
     // burn_tensor::testgen_maxmin!();
-    // burn_tensor::testgen_mul!();
+    burn_tensor::testgen_mul!();
     // burn_tensor::testgen_neg!();
     // burn_tensor::testgen_powf!();
     // burn_tensor::testgen_random!();
@@ -82,7 +82,7 @@ mod tests {
     // burn_tensor::testgen_sqrt!();
     // burn_tensor::testgen_abs!();
     // burn_tensor::testgen_squeeze!();
-    // burn_tensor::testgen_sub!();
+    burn_tensor::testgen_sub!();
     // burn_tensor::testgen_tanh!();
     // burn_tensor::testgen_transpose!();
 
