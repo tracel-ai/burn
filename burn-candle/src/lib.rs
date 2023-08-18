@@ -66,7 +66,7 @@ mod tests {
     burn_tensor::testgen_gather_scatter!();
     // burn_tensor::testgen_log!();
     // burn_tensor::testgen_log1p!();
-    // burn_tensor::testgen_map_comparison!();
+    burn_tensor::testgen_map_comparison!();
     burn_tensor::testgen_mask!();
     // burn_tensor::testgen_matmul!();
     // burn_tensor::testgen_maxmin!();

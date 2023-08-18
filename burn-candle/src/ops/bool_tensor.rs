@@ -19,7 +19,15 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<CandleBackend<F, 
     }
 
     fn bool_into_data<const D: usize>(tensor: BoolTensor<Self, D>) -> Data<bool, D> {
-        todo!()
+        let x: Vec<u8> = tensor.tensor.flatten_all().unwrap().to_vec1().unwrap();
+        let y = x
+            .iter()
+            .map(|b| match b {
+                0 => false,
+                _ => true,
+            })
+            .collect();
+        Data::new(y, tensor.shape())
     }
 
     fn bool_from_data<const D: usize>(
