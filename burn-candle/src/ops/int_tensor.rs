@@ -2,7 +2,7 @@ use burn_tensor::{ops::IntTensorOps, Bool, Data, Shape};
 
 use crate::{
     element::{CandleElement, FloatCandleElement, IntCandleElement},
-    CandleBackend,
+    CandleBackend, CandleTensor,
 };
 
 use super::base::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
@@ -15,7 +15,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<CandleBackend<F, I
     }
 
     fn int_shape<const D: usize>(tensor: &IntTensor<Self, D>) -> Shape<D> {
-        todo!()
+        tensor.shape()
     }
 
     fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> Data<IntElem<Self>, D> {
@@ -26,7 +26,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<CandleBackend<F, I
         data: Data<IntElem<Self>, D>,
         device: &Device<Self>,
     ) -> IntTensor<Self, D> {
-        todo!()
+        CandleTensor::from_data(data, *device)
     }
 
     fn int_device<const D: usize>(tensor: &IntTensor<Self, D>) -> Device<Self> {
@@ -44,7 +44,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<CandleBackend<F, I
         tensor: IntTensor<Self, D1>,
         shape: Shape<D2>,
     ) -> IntTensor<Self, D2> {
-        todo!()
+        CandleTensor::new(tensor.tensor.reshape(&shape.dims).unwrap())
     }
 
     fn int_slice<const D1: usize, const D2: usize>(

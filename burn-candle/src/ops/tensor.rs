@@ -1,7 +1,7 @@
 use std::borrow::Borrow;
 
 use burn_tensor::{ops::TensorOps, Data, Distribution, Shape};
-use candle_core::Tensor;
+use candle_core::{shape, Tensor};
 
 use crate::{
     element::{CandleElement, FloatCandleElement, IntCandleElement},
@@ -44,15 +44,17 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
         tensor: CandleTensor<F, D>,
         device: &Device<Self>,
     ) -> CandleTensor<F, D> {
-        todo!()
+        CandleTensor::new(tensor.tensor.to_device(&(*device).into()).unwrap())
     }
 
     fn into_int<const D: usize>(tensor: CandleTensor<F, D>) -> IntTensor<Self, D> {
-        todo!()
+        CandleTensor::new(tensor.tensor.to_dtype(I::DTYPE).unwrap())
     }
 
     fn empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
-        todo!()
+        CandleTensor::new(
+            candle_core::Tensor::zeros(&shape.dims, F::DTYPE, &(*device).into()).unwrap(),
+        )
     }
 
     fn add<const D: usize>(
@@ -115,7 +117,13 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        // TODO: file an issue at Candle to support different batch dims
+        for batch_dim in 0..D - 2 {
+            if lhs.shape().dims[batch_dim] != rhs.shape().dims[batch_dim] {
+                panic!("Candle only supports matmul with same number of batches")
+            }
+        }
+        CandleTensor::new(lhs.tensor.matmul(&rhs.tensor).unwrap())
     }
 
     fn swap_dims<const D: usize>(
@@ -123,14 +131,14 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
         dim1: usize,
         dim2: usize,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        CandleTensor::new(tensor.tensor.transpose(dim1, dim2).unwrap())
     }
 
     fn reshape<const D1: usize, const D2: usize>(
         tensor: FloatTensor<Self, D1>,
         shape: Shape<D2>,
     ) -> FloatTensor<Self, D2> {
-        todo!()
+        CandleTensor::new(tensor.tensor.reshape(&shape.dims).unwrap())
     }
 
     fn gather<const D: usize>(
@@ -138,7 +146,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
         tensor: FloatTensor<Self, D>,
         indices: IntTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        CandleTensor::new(tensor.tensor.gather(&indices.tensor, dim).unwrap())
     }
 
     fn scatter<const D: usize>(
@@ -147,7 +155,12 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
         indices: IntTensor<Self, D>,
         value: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        CandleTensor::new(
+            tensor
+                .tensor
+                .scatter_add(&indices.tensor, &value.tensor, dim)
+                .unwrap(),
+        )
     }
 
     fn select<const D: usize>(
@@ -155,7 +168,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
         dim: usize,
         indices: IntTensor<Self, 1>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        CandleTensor::new(tensor.tensor.index_select(&indices.tensor, dim).unwrap())
     }
 
     fn select_assign<const D: usize>(
@@ -164,14 +177,25 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
         indices: IntTensor<Self, 1>,
         value: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        CandleTensor::new(
+            tensor
+                .tensor
+                .index_add(&indices.tensor, &value.tensor, dim)
+                .unwrap(),
+        )
     }
 
     fn slice<const D1: usize, const D2: usize>(
         tensor: FloatTensor<Self, D1>,
         ranges: [std::ops::Range<usize>; D2],
     ) -> FloatTensor<Self, D1> {
-        todo!()
+        let mut narrow_tensor = tensor.tensor;
+        for (i, range) in ranges.iter().enumerate().take(D2) {
+            narrow_tensor = narrow_tensor
+                .narrow(i, range.start, range.end - range.start)
+                .unwrap()
+        }
+        CandleTensor::new(narrow_tensor)
     }
 
     fn slice_assign<const D1: usize, const D2: usize>(
@@ -179,6 +203,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
         ranges: [std::ops::Range<usize>; D2],
         value: FloatTensor<Self, D1>,
     ) -> FloatTensor<Self, D1> {
+        // TODO: not trivial, because no view_ like in torch
         todo!()
     }
 
@@ -187,7 +212,11 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
         mask: BoolTensor<Self, D>,
         value: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        CandleTensor::new(
+            mask.tensor
+                .where_cond(&value.tensor, &tensor.tensor)
+                .unwrap(),
+        )
     }
 
     fn mask_fill<const D: usize>(
@@ -195,7 +224,16 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
         mask: BoolTensor<Self, D>,
         value: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        CandleTensor::new(
+            mask.tensor
+                .where_cond(
+                    &(candle_core::Tensor::ones_like(&tensor.tensor).unwrap()
+                        * value.elem::<f64>())
+                   .unwrap(),
+                    &tensor.tensor,
+                )
+                .unwrap(),
+        )
     }
 
     fn equal<const D: usize>(
