@@ -8,7 +8,7 @@ use std::{
 use super::dim_inference::dim_inference;
 use super::ir::{
     ArgType, Argument, AttributeValue, Attributes, ElementType, Node, NodeType, ONNXGraph, State,
-    Tensor, TensorArg, TensorData,
+    Tensor, TensorData,
 };
 use super::protos::{
     attribute_proto::AttributeType, tensor_proto::DataType, tensor_shape_proto::dimension::Value,
@@ -304,7 +304,7 @@ pub fn convert_node_proto(node: &NodeProto) -> Node {
         .into_iter()
         .map(|x| Argument {
             name: x,
-            ty: ArgType::Tensor(TensorArg::default()),
+            ty: ArgType::Tensor(Tensor::default()),
         })
         .collect();
 
@@ -314,7 +314,7 @@ pub fn convert_node_proto(node: &NodeProto) -> Node {
         .into_iter()
         .map(|x| Argument {
             name: x,
-            ty: ArgType::Tensor(TensorArg::default()),
+            ty: ArgType::Tensor(Tensor::default()),
         })
         .collect();
     let attrs = convert_vec_attrs_proto(node.attribute.clone());
@@ -381,7 +381,25 @@ impl TryFrom<ValueInfoProto> for Argument {
         }
 
         let tensor_proto = proto_type.tensor_type();
-        let tensor: TensorArg = TensorArg::new(tensor_proto.shape.dim.len());
+
+        let elem_type = match DataType::from_i32(tensor_proto.elem_type).unwrap() {
+            DataType::FLOAT => ElementType::Float32,
+            DataType::INT32 => ElementType::Int32,
+            DataType::INT64 => ElementType::Int64,
+            DataType::DOUBLE => ElementType::Float64,
+            DataType::BOOL => ElementType::Bool,
+            _ => {
+                return Err(ParseError::VariantNotFound);
+            }
+        };
+
+        let tensor: Tensor = Tensor {
+            dim: tensor_proto.shape.dim.len(),
+            elem_type,
+            shape: None,
+            data: None,
+        };
+
         let ty = ArgType::Tensor(tensor);
 
         Ok(Argument { ty, name })

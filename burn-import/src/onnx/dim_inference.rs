@@ -5,7 +5,7 @@ use protobuf::Enum;
 use super::{
     from_onnx::get_constant_value,
     ir::{
-        ArgType, Argument, AttributeValue, ElementType, Node, NodeType, StateType, TensorArg,
+        ArgType, Argument, AttributeValue, ElementType, Node, NodeType, StateType, Tensor,
         TensorData,
     },
     op_configuration::flatten_config,
@@ -85,7 +85,7 @@ pub fn dim_inference(
             NodeType::Erf => same_as_input(node),
             NodeType::ReduceMean => mean_update_outputs(node),
             NodeType::Constant => constant_update_outputs(node),
-            NodeType::Equal => same_as_input(node),
+            NodeType::Equal => equal_update_outputs(node),
             NodeType::Shape => shape_update_outputs(node),
             NodeType::Unsqueeze => unsqueeze_update_outputs(node),
             NodeType::Slice => slice_update_outputs(node),
@@ -115,7 +115,7 @@ fn constant_update_outputs(node: &mut Node) {
         Some(value) => match &value {
             // The value is stored in an attribute
             AttributeValue::Tensor(tensor) => {
-                node.outputs[0].ty = ArgType::Tensor(TensorArg { dim: tensor.dim });
+                node.outputs[0].ty = ArgType::Tensor(tensor.clone());
             }
             _ => todo!("Support other constant value types"),
         },
@@ -134,7 +134,7 @@ fn linear_update_outputs(node: &mut Node) {
 
     if let ArgType::Tensor(tensor) = node_input.clone().ty {
         // Update the output tensor
-        node.outputs[0].ty = ArgType::Tensor(TensorArg { dim: tensor.dim });
+        node.outputs[0].ty = ArgType::Tensor(tensor.clone());
     } else {
         panic!("Only tensor input is valid");
     }
@@ -168,12 +168,7 @@ fn cast_update_outputs(node: &mut Node) {
                 // treat 0-dim tensor as scalar
                 output.ty = ArgType::Scalar(elem_type);
             } else {
-                todo!("Cast: update tensor type");
-                // TODO track the type of the tensor elements (@antimora 8/1/2023)
-                // output.ty = ArgType::Tensor(TensorArg {
-                //     dim: tensor.dim,
-                //     elem_type,
-                // });
+                todo!("Cast: support casting from different tensor types");
             }
         }
         ArgType::Scalar(_scalar) => {
@@ -193,7 +188,7 @@ fn concat_update_outputs(node: &mut Node) {
         })
         .unwrap();
 
-    node.outputs[0].ty = ArgType::Tensor(TensorArg { dim: tensor.dim });
+    node.outputs[0].ty = ArgType::Tensor(tensor.clone());
 }
 
 fn reshape_update_outputs(node: &mut Node) {
@@ -210,8 +205,17 @@ fn reshape_update_outputs(node: &mut Node) {
 
     // The output dimension is the same as the shape length
     let dim = shape.len();
+    let elem_type = match node.inputs[0].ty.clone() {
+        ArgType::Tensor(tensor) => tensor.elem_type,
+        _ => panic!("Reshape: invalid input type"),
+    };
 
-    node.outputs[0].ty = ArgType::Tensor(TensorArg { dim });
+    node.outputs[0].ty = ArgType::Tensor(Tensor {
+        elem_type,
+        dim,
+        data: None,
+        shape: None,
+    });
 }
 
 fn mean_update_outputs(node: &mut Node) {
@@ -236,9 +240,9 @@ fn mean_update_outputs(node: &mut Node) {
     };
 
     if dim_only {
-        node.outputs[0].ty = ArgType::Tensor(TensorArg { dim: tensor.dim });
+        node.outputs[0].ty = ArgType::Tensor(tensor);
     } else {
-        node.outputs[0].ty = ArgType::Tensor(TensorArg { dim: 1 });
+        node.outputs[0].ty = ArgType::Tensor(Tensor { dim: 1, ..tensor });
     }
 }
 
@@ -248,13 +252,18 @@ fn unsqueeze_update_outputs(node: &mut Node) {
     }
 
     let node_input = &mut node.inputs[0];
-    let dim = match node_input.clone().ty {
-        ArgType::Tensor(tensor) => tensor.dim,
-        ArgType::Shape(dim) => dim,
+    let (dim, elem_type) = match node_input.clone().ty {
+        ArgType::Tensor(tensor) => (tensor.dim, tensor.elem_type),
+        ArgType::Shape(dim) => (dim, ElementType::Int64), // TODO: check if this is correct
         ArgType::Scalar(_) => panic!("Needs shape or tensor"),
     };
 
-    node.outputs[0].ty = ArgType::Tensor(TensorArg { dim: dim + 1 });
+    node.outputs[0].ty = ArgType::Tensor(Tensor {
+        elem_type,
+        dim: dim + 1,
+        data: None,
+        shape: None,
+    });
 }
 
 fn slice_update_outputs(node: &mut Node) {
@@ -271,11 +280,29 @@ fn slice_update_outputs(node: &mut Node) {
         })
         .unwrap();
 
-    node.outputs[0].ty = ArgType::Tensor(TensorArg { dim: tensor.dim });
+    node.outputs[0].ty = ArgType::Tensor(tensor.clone());
 }
 
 fn same_as_input(node: &mut Node) {
     node.outputs[0].ty = node.inputs[0].ty.clone();
+}
+
+fn equal_update_outputs(node: &mut Node) {
+    let input1_type = node.inputs[0].ty.clone();
+
+    match input1_type {
+        ArgType::Tensor(tensor) => {
+            // if the input is a tensor, the output is a tensor of bool
+            node.outputs[0].ty = ArgType::Tensor(Tensor {
+                elem_type: ElementType::Bool,
+                ..tensor
+            });
+        }
+        ArgType::Scalar(_) => {
+            node.outputs[0].ty = ArgType::Scalar(ElementType::Bool);
+        }
+        _ => panic!("Only tensor input is valid"),
+    }
 }
 
 fn shape_update_outputs(node: &mut Node) {
@@ -314,7 +341,10 @@ fn flatten_update_outputs(node: &mut Node) {
     let collapsed_dims = end_dim - start_dim;
     let output_dim = input_dim - collapsed_dims;
 
-    node.outputs[0].ty = ArgType::Tensor(TensorArg { dim: output_dim });
+    node.outputs[0].ty = ArgType::Tensor(Tensor {
+        dim: output_dim,
+        ..tensor.clone()
+    });
 }
 
 /// Infers the shape of a Conv1d node and replaces the shape of the output tensor.
@@ -326,7 +356,7 @@ fn conv1d_update_outputs(node: &mut Node) {
 
     // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
     if let ArgType::Tensor(tensor) = node.inputs[0].clone().ty {
-        node.outputs[0].ty = ArgType::Tensor(TensorArg { dim: tensor.dim });
+        node.outputs[0].ty = ArgType::Tensor(tensor);
     } else {
         panic!("Only tensor input is valid");
     }
@@ -341,7 +371,7 @@ fn conv2d_update_outputs(node: &mut Node) {
 
     // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
     if let ArgType::Tensor(tensor) = node.inputs[0].clone().ty {
-        node.outputs[0].ty = ArgType::Tensor(TensorArg { dim: tensor.dim });
+        node.outputs[0].ty = ArgType::Tensor(tensor);
     } else {
         panic!("Only tensor input is valid");
     }

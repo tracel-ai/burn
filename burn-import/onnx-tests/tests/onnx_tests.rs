@@ -20,6 +20,7 @@ include_models!(
     div,
     dropout_opset16,
     dropout_opset7,
+    equal,
     flatten,
     global_avr_pool,
     log_softmax,
@@ -400,5 +401,21 @@ mod tests {
         ]);
 
         assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn equal_scalar_to_scalar_and_tensor_to_tensor() {
+        // Initialize the model with weights (loaded from the exported file)
+        let model: equal::Model<Backend> = equal::Model::default();
+
+        // Run the model
+        let input = Tensor::<Backend, 4>::from_floats([[[[1., 1., 1., 1.]]]]);
+        let scalar = 2f64;
+        let (tensor_out, scalar_out) = model.forward(input, scalar);
+        let expected_tensor = Data::from([[[[true, true, true, true]]]]);
+        let expected_scalar = false;
+
+        assert_eq!(tensor_out.to_data(), expected_tensor);
+        assert_eq!(scalar_out, expected_scalar);
     }
 }

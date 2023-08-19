@@ -546,7 +546,11 @@ impl Argument {
                     // Currently it's not dangerous because we don't use specific scalar type
                     Type::Scalar(ScalarType::new(self.name.clone(), ScalarKind::Float64))
                 } else {
-                    Type::Tensor(TensorType::new_float(self.name.clone(), tensor.dim))
+                    let kind: TensorKind = tensor.elem_type.clone().into();
+                    let dim = tensor.dim;
+                    let name = self.name.clone();
+                    let shape = tensor.shape.clone();
+                    Type::Tensor(TensorType::new(name, dim, kind, shape))
                 }
             }
 

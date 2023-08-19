@@ -1,7 +1,7 @@
 use super::{BurnImports, Scope, Type};
 use crate::burn::{
     node::{Node, NodeCodegen},
-    TensorType,
+    TensorKind, TensorType,
 };
 use burn::record::{
     BurnRecord, DefaultFileRecorder, FileRecorder, PrecisionSettings, PrettyJsonFileRecorder,
@@ -101,9 +101,8 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
     /// Generate tokens reprensenting the graph with Burn modules and tensor operations.
     pub fn codegen(mut self) -> TokenStream {
         self.build_scope();
-        self.nodes
-            .iter()
-            .for_each(|node| node.register_imports(&mut self.imports));
+
+        self.register_imports();
 
         let codegen_imports = self.imports.codegen();
         let codegen_struct = self.codegen_struct();
@@ -159,6 +158,28 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                 #codegen_new
                 #codegen_forward
             }
+        }
+    }
+
+    fn register_imports(&mut self) {
+        // Register imports from nodes
+        self.nodes
+            .iter()
+            .for_each(|node| node.register_imports(&mut self.imports));
+
+        // Registor import for bool tensor
+        let has_bool_tensor_output = self.graph_output_types.iter().any(|ty| {
+            matches!(
+                ty,
+                Type::Tensor(TensorType {
+                    kind: TensorKind::Bool,
+                    ..
+                })
+            )
+        });
+
+        if has_bool_tensor_output {
+            self.imports.register("burn::tensor::Bool");
         }
     }
     /// Build the scope state to make sure tensor clones are added where needed.

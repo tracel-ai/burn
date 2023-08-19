@@ -15,6 +15,7 @@ fn main() {
         .input("tests/div/div.onnx")
         .input("tests/dropout/dropout_opset16.onnx")
         .input("tests/dropout/dropout_opset7.onnx")
+        .input("tests/equal/equal.onnx")
         .input("tests/flatten/flatten.onnx")
         .input("tests/global_avr_pool/global_avr_pool.onnx")
         .input("tests/log_softmax/log_softmax.onnx")
