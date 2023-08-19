@@ -30,14 +30,14 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<CandleBackend<F, I
     }
 
     fn int_device<const D: usize>(tensor: &IntTensor<Self, D>) -> Device<Self> {
-        todo!()
+        tensor.tensor.device().clone().into()
     }
 
     fn int_to_device<const D: usize>(
         tensor: IntTensor<Self, D>,
         device: &Device<Self>,
     ) -> IntTensor<Self, D> {
-        todo!()
+        CandleTensor::new(tensor.tensor.to_device(&(*device).into()).unwrap())
     }
 
     fn int_reshape<const D1: usize, const D2: usize>(
@@ -124,70 +124,105 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<CandleBackend<F, I
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        todo!()
+        CandleTensor::new(lhs.tensor.eq(&rhs.tensor).unwrap())
     }
 
     fn int_equal_elem<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> BoolTensor<Self, D> {
-        todo!()
+        CandleTensor::new(
+            lhs.tensor
+                .eq(
+                    &(candle_core::Tensor::ones_like(&lhs.tensor).unwrap() * rhs.elem::<f64>())
+                        .unwrap(),
+                )
+                .unwrap(),
+        )
     }
 
     fn int_greater<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        todo!()
+        CandleTensor::new(lhs.tensor.gt(&rhs.tensor).unwrap())
     }
 
     fn int_greater_elem<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> BoolTensor<Self, D> {
-        todo!()
+        CandleTensor::new(
+            lhs.tensor
+                .gt(
+                    &(candle_core::Tensor::ones_like(&lhs.tensor).unwrap() * rhs.elem::<f64>())
+                        .unwrap(),
+                )
+                .unwrap(),
+        )
     }
 
     fn int_greater_equal<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        todo!()
+        CandleTensor::new(lhs.tensor.ge(&rhs.tensor).unwrap())
     }
 
     fn int_greater_equal_elem<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> BoolTensor<Self, D> {
-        todo!()
+        CandleTensor::new(
+            lhs.tensor
+                .ge(
+                    &(candle_core::Tensor::ones_like(&lhs.tensor).unwrap() * rhs.elem::<f64>())
+                        .unwrap(),
+                )
+                .unwrap(),
+        )
     }
 
     fn int_lower<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        todo!()
+        CandleTensor::new(lhs.tensor.lt(&rhs.tensor).unwrap())
     }
 
     fn int_lower_elem<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> BoolTensor<Self, D> {
-        todo!()
+        CandleTensor::new(
+            lhs.tensor
+                .lt(
+                    &(candle_core::Tensor::ones_like(&lhs.tensor).unwrap() * rhs.elem::<f64>())
+                        .unwrap(),
+                )
+                .unwrap(),
+        )
     }
 
     fn int_lower_equal<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        todo!()
+        CandleTensor::new(lhs.tensor.le(&rhs.tensor).unwrap())
     }
 
     fn int_lower_equal_elem<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> BoolTensor<Self, D> {
-        todo!()
+        CandleTensor::new(
+            lhs.tensor
+                .le(
+                    &(candle_core::Tensor::ones_like(&lhs.tensor).unwrap() * rhs.elem::<f64>())
+                        .unwrap(),
+                )
+                .unwrap(),
+        )
     }
 
     fn int_add<const D: usize>(
