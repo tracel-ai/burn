@@ -167,19 +167,29 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             .iter()
             .for_each(|node| node.register_imports(&mut self.imports));
 
-        // Registor import for bool tensor
-        let has_bool_tensor_output = self.graph_output_types.iter().any(|ty| {
-            matches!(
-                ty,
+        // Combine input and output types into a single vector
+        let all_types = self
+            .graph_input_types
+            .iter()
+            .chain(&self.graph_output_types);
+
+        // Register imports for bool and int tensors
+        for ty in all_types {
+            match ty {
                 Type::Tensor(TensorType {
                     kind: TensorKind::Bool,
                     ..
-                })
-            )
-        });
-
-        if has_bool_tensor_output {
-            self.imports.register("burn::tensor::Bool");
+                }) => {
+                    self.imports.register("burn::tensor::Bool");
+                }
+                Type::Tensor(TensorType {
+                    kind: TensorKind::Int,
+                    ..
+                }) => {
+                    self.imports.register("burn::tensor::Int");
+                }
+                _ => {}
+            }
         }
     }
     /// Build the scope state to make sure tensor clones are added where needed.
