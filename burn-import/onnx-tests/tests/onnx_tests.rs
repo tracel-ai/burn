@@ -12,6 +12,7 @@ macro_rules! include_models {
 // ATTENTION: Modify this macro to include all models in the `model` directory.
 include_models!(
     add,
+    add_int,
     avg_pool2d,
     batch_norm,
     concat,
@@ -31,6 +32,7 @@ include_models!(
     sigmoid,
     softmax,
     sub,
+    sub_int,
     transpose
 );
 
@@ -38,7 +40,7 @@ include_models!(
 mod tests {
     use super::*;
 
-    use burn::tensor::{Data, Shape, Tensor};
+    use burn::tensor::{Data, Int, Shape, Tensor};
 
     use float_cmp::ApproxEq;
 
@@ -59,6 +61,20 @@ mod tests {
     }
 
     #[test]
+    fn add_scalar_to_int_tensor_and_int_tensor_to_int_tensor() {
+        // Initialize the model with weights (loaded from the exported file)
+        let model: add_int::Model<Backend> = add_int::Model::default();
+
+        // Run the model
+        let input = Tensor::<Backend, 4, Int>::from_ints([[[[1, 2, 3, 4]]]]);
+        let scalar = 2;
+        let output = model.forward(input, scalar);
+        let expected = Data::from([[[[9, 11, 13, 15]]]]);
+
+        assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
     fn sub_scalar_from_tensor_and_tensor_from_tensor() {
         // Initialize the model with weights (loaded from the exported file)
         let model: sub::Model<Backend> = sub::Model::default();
@@ -72,6 +88,19 @@ mod tests {
         assert_eq!(output.to_data(), expected);
     }
 
+    #[test]
+    fn sub_scalar_from_int_tensor_and_int_tensor_from_tensor() {
+        // Initialize the model with weights (loaded from the exported file)
+        let model: sub_int::Model<Backend> = sub_int::Model::default();
+
+        // Run the model
+        let input = Tensor::<Backend, 4, Int>::from_ints([[[[1, 2, 3, 4]]]]);
+        let scalar = 3;
+        let output = model.forward(input, scalar);
+        let expected = Data::from([[[[6, 6, 6, 6]]]]);
+
+        assert_eq!(output.to_data(), expected);
+    }
     #[test]
     fn mul_scalar_with_tensor_and_tensor_with_tensor() {
         // Initialize the model with weights (loaded from the exported file)

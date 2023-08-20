@@ -542,9 +542,10 @@ impl Argument {
             ArgType::Tensor(tensor) => {
                 // Treat tensor with dim 0 as scalar
                 if tensor.dim == 0 {
-                    // FIXME Convert to correct scalar type (@antimora 8/1/2023)
-                    // Currently it's not dangerous because we don't use specific scalar type
-                    Type::Scalar(ScalarType::new(self.name.clone(), ScalarKind::Float64))
+                    Type::Scalar(ScalarType::new(
+                        self.name.clone(),
+                        ScalarKind::from(&tensor.elem_type),
+                    ))
                 } else {
                     let kind: TensorKind = tensor.elem_type.clone().into();
                     let dim = tensor.dim;

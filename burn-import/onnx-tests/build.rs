@@ -7,6 +7,7 @@ fn main() {
     // Add onnx models.
     ModelGen::new()
         .input("tests/add/add.onnx")
+        .input("tests/add/add_int.onnx")
         .input("tests/avg_pool2d/avg_pool2d.onnx")
         .input("tests/batch_norm/batch_norm.onnx")
         .input("tests/concat/concat.onnx")
@@ -26,6 +27,7 @@ fn main() {
         .input("tests/sigmoid/sigmoid.onnx")
         .input("tests/softmax/softmax.onnx")
         .input("tests/sub/sub.onnx")
+        .input("tests/sub/sub_int.onnx")
         .input("tests/transpose/transpose.onnx")
         .out_dir("model/")
         .run_from_script();
