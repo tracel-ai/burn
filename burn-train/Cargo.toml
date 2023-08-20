@@ -24,6 +24,7 @@ rgb = "0.8.36"
 terminal_size = "0.2.6"
 textplots = "0.8.0"
 sysinfo = "0.29.8"
+systemstat = "0.2.3"
 
 # Utilities
 derive-new = {workspace = true}
