@@ -51,14 +51,12 @@ impl Metric for GpuTemp {
 
         gpu_temp.temp_celsius = temps_vec.iter().sum::<f32>() / temps_vec.len() as f32;
 
-        let mut formatted = String::new();
-
-        if temps_vec.len() > 1 {
-            formatted = format!("Mean of GPUs temps: {:.2}°C", gpu_temp.temp_celsius)
-        }
-        else {
-            formatted = format!("GPU Temp: {:.2}°C", gpu_temp.temp_celsius)
-        }
+        // if there is more than 1 GPU, the metric lets the user know that the value displayed is a mean
+        let formatted = if temps_vec.len() > 1 {
+            format!("Mean of GPUs temps: {:.2}°C", gpu_temp.temp_celsius) 
+        } else {
+            format!("GPU Temp: {:.2}°C", gpu_temp.temp_celsius)   
+        };
 
         let raw = format!("{:.2}", gpu_temp.temp_celsius);
 
