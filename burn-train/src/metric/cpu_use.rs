@@ -50,9 +50,9 @@ impl Metric for CpuUse {
                 // use percentage of each core
                 cores_use.push(cpu.cpu_usage());
                                                 
-                // Mean of all cores use -> General CPU use
-                cpu_use.use_percentage = cores_use.iter().sum::<f32>() / sys.cpus().len() as f32;
             }
+            // Mean of all cores use -> General CPU use
+            cpu_use.use_percentage = cores_use.iter().sum::<f32>() / sys.cpus().len() as f32;
             formatted = format!("CPU Use: {:.2}%", cpu_use.use_percentage);
             raw = format!("{:.2}", cpu_use.use_percentage);
 
