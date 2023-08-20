@@ -10,8 +10,6 @@ use burn_tensor::module::max_pool1d;
 /// Configuration to create a [1D max pooling](MaxPool1d) layer.
 #[derive(Config)]
 pub struct MaxPool1dConfig {
-    /// The number of channels.
-    pub channels: usize,
     /// The size of the kernel.
     pub kernel_size: usize,
     /// The stride.
