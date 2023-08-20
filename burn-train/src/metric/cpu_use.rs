@@ -1,5 +1,4 @@
 /// The CPU use metric.
-
 use super::MetricMetadata;
 use crate::metric::{Metric, MetricEntry};
 use sysinfo::{CpuExt, System, SystemExt};
@@ -8,15 +7,13 @@ static NAME: &str = "CPU_USE";
 
 /// General CPU Usage metric
 pub struct CpuUse {
-    use_percentage: f32
+    use_percentage: f32,
 }
 
 impl CpuUse {
     /// Creates a new CPU metric
     pub fn new() -> Self {
-        Self {
-            use_percentage: 0.
-        }
+        Self { use_percentage: 0. }
     }
 }
 
@@ -43,13 +40,12 @@ impl Metric for CpuUse {
         // You need to call this method at least twice with a bit of time between each call" (see line 59)
         for _i in 0..=1 {
             let mut cores_use: Vec<f32> = Vec::new();
-            
+
             sys.refresh_cpu(); // Refreshing CPU information
-            
+
             for cpu in sys.cpus() {
                 // use percentage of each core
                 cores_use.push(cpu.cpu_usage());
-                                                
             }
             // Mean of all cores use -> General CPU use
             cpu_use.use_percentage = cores_use.iter().sum::<f32>() / sys.cpus().len() as f32;

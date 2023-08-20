@@ -1,5 +1,4 @@
 /// GPU Temperature metric
-
 use super::MetricMetadata;
 use crate::metric::{Metric, MetricEntry};
 use sysinfo::{ComponentExt, System, SystemExt};
@@ -14,9 +13,7 @@ pub struct GpuTemp {
 impl GpuTemp {
     /// Creates a new GPU temp metric
     pub fn new() -> Self {
-        Self {
-            temp_celsius: 0.
-        }
+        Self { temp_celsius: 0. }
     }
 }
 
@@ -53,9 +50,9 @@ impl Metric for GpuTemp {
 
         // if there is more than 1 GPU, the metric lets the user know that the value displayed is a mean
         let formatted = if temps_vec.len() > 1 {
-            format!("Mean of GPUs temps: {:.2}°C", gpu_temp.temp_celsius) 
+            format!("Mean of GPUs temps: {:.2}°C", gpu_temp.temp_celsius)
         } else {
-            format!("GPU Temp: {:.2}°C", gpu_temp.temp_celsius)   
+            format!("GPU Temp: {:.2}°C", gpu_temp.temp_celsius)
         };
 
         let raw = format!("{:.2}", gpu_temp.temp_celsius);

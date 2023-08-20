@@ -1,5 +1,4 @@
 /// RAM use metric
-
 use super::MetricMetadata;
 use crate::metric::{Metric, MetricEntry};
 use sysinfo::{System, SystemExt};
@@ -11,7 +10,7 @@ pub struct MemoryUse {
     ram_bytes_total: f32,
     ram_bytes_used: f32,
     swap_bytes_total: f32,
-    swap_bytes_used: f32
+    swap_bytes_used: f32,
 }
 
 impl MemoryUse {
@@ -21,7 +20,7 @@ impl MemoryUse {
             ram_bytes_total: 0.,
             ram_bytes_used: 0.,
             swap_bytes_total: 0.,
-            swap_bytes_used: 0.
+            swap_bytes_used: 0.,
         }
     }
 }
@@ -47,24 +46,24 @@ impl Metric for MemoryUse {
 
         // bytes of RAM in use
         memory_use.ram_bytes_used = sys.used_memory() as f32;
-        
+
         // bytes of swap available
         memory_use.swap_bytes_total = sys.total_swap() as f32;
-        
+
         // bytes of swap in use
         memory_use.swap_bytes_total = sys.used_swap() as f32;
 
         let ram_use_percentage = (memory_use.ram_bytes_used / memory_use.ram_bytes_total) * 100.;
         let swap_use_percentage = (memory_use.swap_bytes_used / memory_use.swap_bytes_total) * 100.;
 
-        let formatted = format!("RAM Used: {:.2}% - Swap Used: {:.2}%",
-            ram_use_percentage,
-            swap_use_percentage
+        let formatted = format!(
+            "RAM Used: {:.2}% - Swap Used: {:.2}%",
+            ram_use_percentage, swap_use_percentage
         );
 
-        let raw = format!("ram: {:.2}%, swap: {:.2}%",
-            ram_use_percentage,
-            swap_use_percentage
+        let raw = format!(
+            "ram: {:.2}%, swap: {:.2}%",
+            ram_use_percentage, swap_use_percentage
         );
 
         MetricEntry::new(NAME.to_string(), formatted, raw)
