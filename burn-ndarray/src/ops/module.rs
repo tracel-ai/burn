@@ -52,8 +52,9 @@ impl<E: FloatNdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
     ) -> NdArrayTensor<E, 4> {
-        max_pool2d(x, kernel_size, stride, padding)
+        max_pool2d(x, kernel_size, stride, padding, dilation)
     }
 
     fn max_pool2d_with_indices(
@@ -61,8 +62,9 @@ impl<E: FloatNdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
     ) -> MaxPool2dWithIndices<NdArrayBackend<E>> {
-        let (output, indices) = max_pool2d_with_indices(x, kernel_size, stride, padding);
+        let (output, indices) = max_pool2d_with_indices(x, kernel_size, stride, padding, dilation);
 
         MaxPool2dWithIndices::new(output, indices)
     }
@@ -72,6 +74,7 @@ impl<E: FloatNdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
         output_grad: NdArrayTensor<E, 4>,
         indices: NdArrayTensor<i64, 4>,
     ) -> MaxPool2dBackward<NdArrayBackend<E>> {
@@ -80,6 +83,7 @@ impl<E: FloatNdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> 
             kernel_size,
             stride,
             padding,
+            dilation,
             output_grad,
             indices,
         ))

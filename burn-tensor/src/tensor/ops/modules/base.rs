@@ -383,6 +383,7 @@ pub trait ModuleOps<B: Backend> {
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
     ) -> B::TensorPrimitive<4>;
 
     /// Two dimensional max pooling with indices.
@@ -395,6 +396,7 @@ pub trait ModuleOps<B: Backend> {
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
     ) -> MaxPool2dWithIndices<B>;
     /// Backward pass for the [max pooling 2d](ModuleOps::max_pool2d_with_indices) operation.
     fn max_pool2d_with_indices_backward(
@@ -402,6 +404,7 @@ pub trait ModuleOps<B: Backend> {
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
         output_grad: B::TensorPrimitive<4>,
         indices: B::IntTensorPrimitive<4>,
     ) -> MaxPool2dBackward<B>;
