@@ -512,8 +512,8 @@ fn lift_constants(nodes: &mut Vec<Node>) {
     let mut constant_to_removed = HashSet::<String>::new();
 
     for node in nodes.iter_mut() {
-        // check if the node's type is in the set of node types to process
-        if !node_types_to_process.contains(&node.node_type) {
+        // skip if not in the set or len <= 1
+        if !node_types_to_process.contains(&node.node_type) || node.inputs.len() <= 1 {
             continue;
         }
 
@@ -522,7 +522,8 @@ fn lift_constants(nodes: &mut Vec<Node>) {
 
         let mut inputs_to_remove = Vec::new();
 
-        node.inputs.iter().for_each(|input| {
+        // Skip the first input because it is the node's true input and not a constant/state
+        node.inputs.iter().skip(1).for_each(|input| {
             if let Some(constant) = constants.get(&input.name) {
                 // if the input is a constant, get its ID and node
                 let value = get_constant_value(constant).unwrap(); // get the value of the constant
