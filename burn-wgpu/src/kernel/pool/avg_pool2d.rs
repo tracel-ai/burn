@@ -41,7 +41,8 @@ pub(crate) fn avg_pool2d<E: WgpuElement>(
 ) -> WgpuTensor<E, 4> {
     const WORKGROUP: usize = 32;
 
-    let (info_buffer, output) = build_output_and_info_pool2d(&x, kernel_size, stride, padding);
+    let (info_buffer, output) =
+        build_output_and_info_pool2d(&x, kernel_size, stride, padding, [1, 1]);
     let kernel = match count_include_pad {
         true => x
             .context
@@ -77,7 +78,7 @@ pub(crate) fn avg_pool2d_backward<E: WgpuElement>(
         .context
         .create_buffer(num_elems * core::mem::size_of::<E>());
     let output = WgpuTensor::new(x.context.clone(), x.shape.clone(), buffer);
-    let info_buffer = build_pool2d_info(&x, &grad, kernel_size, stride, padding);
+    let info_buffer = build_pool2d_info(&x, &grad, kernel_size, stride, padding, [1, 1]);
 
     let kernel =
         match count_include_pad {

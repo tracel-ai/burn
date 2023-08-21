@@ -337,8 +337,9 @@ pub trait ModuleOps<B: Backend> {
         kernel_size: usize,
         stride: usize,
         padding: usize,
+        dilation: usize,
     ) -> B::TensorPrimitive<3> {
-        pool::max_pool1d_from_2d::<B>(x, kernel_size, stride, padding)
+        pool::max_pool1d_from_2d::<B>(x, kernel_size, stride, padding, dilation)
     }
 
     /// One dimensional max pooling with indices.
@@ -351,8 +352,9 @@ pub trait ModuleOps<B: Backend> {
         kernel_size: usize,
         stride: usize,
         padding: usize,
+        dilation: usize,
     ) -> MaxPool1dWithIndices<B> {
-        pool::max_pool1d_with_indices_from_2d::<B>(x, kernel_size, stride, padding)
+        pool::max_pool1d_with_indices_from_2d::<B>(x, kernel_size, stride, padding, dilation)
     }
     /// Backward pass for the [max pooling 1d](ModuleOps::max_pool1d_with_indices) operation.
     fn max_pool1d_with_indices_backward(
@@ -360,6 +362,7 @@ pub trait ModuleOps<B: Backend> {
         kernel_size: usize,
         stride: usize,
         padding: usize,
+        dilation: usize,
         output_grad: B::TensorPrimitive<3>,
         indices: B::IntTensorPrimitive<3>,
     ) -> MaxPool1dBackward<B> {
@@ -368,6 +371,7 @@ pub trait ModuleOps<B: Backend> {
             kernel_size,
             stride,
             padding,
+            dilation,
             output_grad,
             indices,
         )
@@ -383,6 +387,7 @@ pub trait ModuleOps<B: Backend> {
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
     ) -> B::TensorPrimitive<4>;
 
     /// Two dimensional max pooling with indices.
@@ -395,6 +400,7 @@ pub trait ModuleOps<B: Backend> {
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
     ) -> MaxPool2dWithIndices<B>;
     /// Backward pass for the [max pooling 2d](ModuleOps::max_pool2d_with_indices) operation.
     fn max_pool2d_with_indices_backward(
@@ -402,6 +408,7 @@ pub trait ModuleOps<B: Backend> {
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
         output_grad: B::TensorPrimitive<4>,
         indices: B::IntTensorPrimitive<4>,
     ) -> MaxPool2dBackward<B>;
