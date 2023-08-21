@@ -36,25 +36,24 @@ impl Metric for MemoryUse {
 
     fn update(&mut self, _item: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
         let mut sys = System::new();
-        let mut memory_use = MemoryUse::new();
 
         // refreshing memory info before gathering it
         sys.refresh_memory();
 
         // bytes of RAM available
-        memory_use.ram_bytes_total = sys.total_memory() as f32;
+        self.ram_bytes_total = sys.total_memory() as f32;
 
         // bytes of RAM in use
-        memory_use.ram_bytes_used = sys.used_memory() as f32;
+        self.ram_bytes_used = sys.used_memory() as f32;
 
         // bytes of swap available
-        memory_use.swap_bytes_total = sys.total_swap() as f32;
+        self.swap_bytes_total = sys.total_swap() as f32;
 
         // bytes of swap in use
-        memory_use.swap_bytes_total = sys.used_swap() as f32;
+        self.swap_bytes_total = sys.used_swap() as f32;
 
-        let ram_use_percentage = (memory_use.ram_bytes_used / memory_use.ram_bytes_total) * 100.;
-        let swap_use_percentage = (memory_use.swap_bytes_used / memory_use.swap_bytes_total) * 100.;
+        let ram_use_percentage = (self.ram_bytes_used / self.ram_bytes_total) * 100.;
+        let swap_use_percentage = (self.swap_bytes_used / self.swap_bytes_total) * 100.;
 
         let formatted = format!(
             "RAM Used: {:.2}% - Swap Used: {:.2}%",

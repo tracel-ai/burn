@@ -28,16 +28,15 @@ impl Metric for CpuTemp {
 
     fn update(&mut self, _item: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
         let sys = System::new();
-        let mut cpu_temp = CpuTemp::new();
 
         match sys.cpu_temp() {
-            Ok(temp) => cpu_temp.temp_celsius = temp,
-            Err(_) => cpu_temp.temp_celsius = f32::NAN,
+            Ok(temp) => self.temp_celsius = temp,
+            Err(_) => self.temp_celsius = f32::NAN,
         }
 
-        let formatted = format!("CPU Temp: {:.2}°C", cpu_temp.temp_celsius);
+        let formatted = format!("CPU Temp: {:.2}°C", self.temp_celsius);
 
-        let raw = format!("{:.2}", cpu_temp.temp_celsius);
+        let raw = format!("{:.2}", self.temp_celsius);
 
         MetricEntry::new(NAME.to_string(), formatted, raw)
     }

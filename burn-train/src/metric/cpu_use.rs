@@ -28,7 +28,6 @@ impl Metric for CpuUse {
 
     fn update(&mut self, _item: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
         let mut sys = System::new();
-        let mut cpu_use = CpuUse::new();
 
         // variables are declared here so that we can still access them after the 'for' loop
         let mut formatted = String::new();
@@ -48,9 +47,9 @@ impl Metric for CpuUse {
                 cores_use.push(cpu.cpu_usage());
             }
             // Mean of all cores use -> General CPU use
-            cpu_use.use_percentage = cores_use.iter().sum::<f32>() / sys.cpus().len() as f32;
-            formatted = format!("CPU Use: {:.2}%", cpu_use.use_percentage);
-            raw = format!("{:.2}", cpu_use.use_percentage);
+            self.use_percentage = cores_use.iter().sum::<f32>() / sys.cpus().len() as f32;
+            formatted = format!("CPU Use: {:.2}%", self.use_percentage);
+            raw = format!("{:.2}", self.use_percentage);
 
             std::thread::sleep(System::MINIMUM_CPU_UPDATE_INTERVAL);
         }

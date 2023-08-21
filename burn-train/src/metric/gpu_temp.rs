@@ -29,7 +29,6 @@ impl Metric for GpuTemp {
     fn update(&mut self, _item: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
         let mut sys = System::new();
 
-        let mut gpu_temp = GpuTemp::new();
         // Vec containing all "gpu" labeled devices' temperature
         let mut temps_vec: Vec<f32> = Vec::new();
 
@@ -46,16 +45,16 @@ impl Metric for GpuTemp {
             }
         }
 
-        gpu_temp.temp_celsius = temps_vec.iter().sum::<f32>() / temps_vec.len() as f32;
+        self.temp_celsius = temps_vec.iter().sum::<f32>() / temps_vec.len() as f32;
 
         // if there is more than 1 GPU, the metric lets the user know that the value displayed is a mean
         let formatted = if temps_vec.len() > 1 {
-            format!("Mean of GPUs temps: {:.2}°C", gpu_temp.temp_celsius)
+            format!("Mean of GPUs temps: {:.2}°C", self.temp_celsius)
         } else {
-            format!("GPU Temp: {:.2}°C", gpu_temp.temp_celsius)
+            format!("GPU Temp: {:.2}°C", self.temp_celsius)
         };
 
-        let raw = format!("{:.2}", gpu_temp.temp_celsius);
+        let raw = format!("{:.2}", self.temp_celsius);
 
         MetricEntry::new(NAME.to_string(), formatted, raw)
     }
