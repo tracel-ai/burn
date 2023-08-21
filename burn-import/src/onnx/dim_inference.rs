@@ -174,7 +174,7 @@ fn cast_update_outputs(node: &mut Node) {
         ArgType::Scalar(_scalar) => {
             output.ty = ArgType::Scalar(elem_type);
         }
-        _ => panic!("Only tensor input is valid"),
+        _ => panic!("Cast: only scalar input is valid"),
     }
 }
 
@@ -247,15 +247,14 @@ fn mean_update_outputs(node: &mut Node) {
 }
 
 fn unsqueeze_update_outputs(node: &mut Node) {
-    if node.inputs.is_empty() {
-        panic!("Unsqueeze: inputs required: {:?}", node);
-    }
+    let node_input = &mut node
+        .inputs
+        .first()
+        .expect("Unsqueeze: an input is required");
 
-    let node_input = &mut node.inputs[0];
     let (dim, elem_type) = match node_input.clone().ty {
         ArgType::Tensor(tensor) => (tensor.dim, tensor.elem_type),
-        ArgType::Shape(dim) => (dim, ElementType::Int64), // TODO: check if this is correct
-        ArgType::Scalar(_) => panic!("Needs shape or tensor"),
+        _ => panic!("Input must be a tensor"),
     };
 
     node.outputs[0].ty = ArgType::Tensor(Tensor {

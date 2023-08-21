@@ -592,13 +592,17 @@ fn handle_identity(nodes: &mut Vec<Node>) {
 
     // Remove the identity nodes that are only used to connect two nodes
     for identity_node in identity_nodes_to_remove.iter() {
-        let input = identity_node.inputs.first().unwrap();
-        let output = identity_node.outputs.first().unwrap();
+        let input = identity_node
+            .inputs
+            .first()
+            .expect("Pass through Identity node should have at least one input");
+        let output = identity_node
+            .outputs
+            .first()
+            .expect("Pass through Identity node should have at least one ");
 
         // find the node that uses the identity node's output
         for node in nodes.iter_mut() {
-            // let matched_input = node.inputs.iter().find(|x| x.name == output.name);
-
             if let Some(matched_input) = node.inputs.iter_mut().find(|x| x.name == output.name) {
                 // replace the identity node's output with the identity node's input
                 matched_input.name = input.name.clone();
