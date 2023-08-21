@@ -117,13 +117,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        // TODO: remove when issue solved: https://github.com/huggingface/candle/issues/513
-        for batch_dim in 0..D - 2 {
-            if lhs.shape().dims[batch_dim] != rhs.shape().dims[batch_dim] {
-                panic!("Candle only supports matmul with same number of batches")
-            }
-        }
-        CandleTensor::new(lhs.tensor.matmul(&rhs.tensor).unwrap())
+        CandleTensor::new(lhs.tensor.broadcast_matmul(&rhs.tensor).unwrap())
     }
 
     fn swap_dims<const D: usize>(
