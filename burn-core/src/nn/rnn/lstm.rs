@@ -122,6 +122,7 @@ impl<B: Backend> Lstm<B> {
     ///     A tuple of tensors, where the first tensor represents the cell states and
     ///     the second tensor represents the hidden states for each sequence element.
     ///     Both output tensors have the shape [batch_size, sequence_length, hidden_size].
+    #[track_caller]
     pub fn forward(
         &mut self,
         batched_input: Tensor<B, 3>,

@@ -108,6 +108,7 @@ impl<B: Backend> TransformerEncoder<B> {
     ///
     /// - tensor: `[batch_size, seq_length, d_model]`
     /// - output: `[batch_size, seq_length, d_model]`
+    #[track_caller]
     pub fn forward(&self, input: TransformerEncoderInput<B>) -> Tensor<B, 3> {
         let mut x = input.tensor;
 
@@ -123,6 +124,7 @@ impl<B: Backend> TransformerEncoder<B> {
     ///
     /// - tensor: `[batch_size, seq_length, d_model]`
     /// - output: `[batch_size, seq_length, d_model]`
+    #[track_caller]
     pub fn forward_autoregressive_inference(
         &self,
         input: TransformerEncoderInput<B>,
@@ -207,6 +209,7 @@ impl<B: Backend> TransformerEncoderLayer<B> {
         }
     }
 
+    #[track_caller]
     fn forward(
         &self,
         mut input: Tensor<B, 3>,
@@ -241,6 +244,7 @@ impl<B: Backend> TransformerEncoderLayer<B> {
         x_2
     }
 
+    #[track_caller]
     fn forward_autoregressive_inference(
         &self,
         mut input: Tensor<B, 3>,

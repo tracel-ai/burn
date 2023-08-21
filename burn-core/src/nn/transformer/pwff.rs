@@ -65,6 +65,7 @@ impl<B: Backend> PositionWiseFeedForward<B> {
     ///
     /// - tensor: `[batch_size, seq_length, d_model]`
     /// - output: `[batch_size, seq_length, d_model]`
+    #[track_caller]
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
         let x = self.linear_inner.forward(input);
         let x = self.gelu.forward(x);

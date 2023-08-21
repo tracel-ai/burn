@@ -112,6 +112,7 @@ impl<B: Backend> Conv1d<B> {
     ///
     /// - input: [batch_size, channels_in, length_in],
     /// - output: [batch_size, channels_out, length_out],
+    #[track_caller]
     pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
         let [_batch_size, _channels, length] = input.dims();
         let padding = self

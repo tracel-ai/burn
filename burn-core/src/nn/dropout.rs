@@ -37,6 +37,7 @@ impl Dropout {
     ///
     /// - input: `[..., any]`
     /// - output: `[..., any]`
+    #[track_caller]
     pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
         if !B::ad_enabled() || self.prob == 0.0 {
             return input;

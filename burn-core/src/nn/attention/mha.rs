@@ -154,6 +154,7 @@ impl<B: Backend> MultiHeadAttention<B> {
     /// - key: `[batch_size, seq_length_2, d_model]`
     /// - value: `[batch_size, seq_length_2, d_model]`
     /// - output: `[batch_size, seq_length_1, d_model]`
+    #[track_caller]
     pub fn forward(&self, input: MhaInput<B>) -> MhaOutput<B> {
         let [batch_size, seq_length_1, d_model] = input.query.dims();
 
@@ -181,6 +182,7 @@ impl<B: Backend> MultiHeadAttention<B> {
     /// - key: `[batch_size, seq_length_2, d_model]`
     /// - value: `[batch_size, seq_length_2, d_model]`
     /// - output: `[batch_size, seq_length_1, d_model]`
+    #[track_caller]
     pub fn forward_cache(&self, input: MhaInput<B>, cache: &mut MhaCache<B>) -> MhaOutput<B> {
         let [batch_size, seq_length_1, d_model] = input.query.dims();
 

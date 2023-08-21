@@ -35,6 +35,7 @@ impl AdaptiveAvgPool2d {
     ///
     /// - input: [batch_size, channels, height_in, width_in],
     /// - output: [batch_size, channels, height_out, width_out],
+    #[track_caller]
     pub fn forward<B: Backend>(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
         adaptive_avg_pool2d(input, self.output_size)
     }

@@ -65,6 +65,7 @@ impl<B: Backend> PositionalEncoding<B> {
     ///
     /// * Panics if the input sequence length is greater than the maximum sequence size.
     /// * Panics if the input d_model is not equal to the d_model of the sinusoids.
+    #[track_caller]
     pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
         let [_, seq_length, d_model_input] = input.dims();
 

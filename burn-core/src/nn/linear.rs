@@ -79,6 +79,8 @@ impl<B: Backend> Linear<B> {
     ///
     /// - input: `[..., any, d_input]`
     /// - output: `[..., any, d_output]`
+    // #[track_caller]
+    #[track_caller]
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
         let output = input.matmul(self.weight.val().unsqueeze());
 

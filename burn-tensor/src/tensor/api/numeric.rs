@@ -14,6 +14,7 @@ where
     /// # Panics
     ///
     /// If the tensor doesn't have one element.
+    #[track_caller]
     pub fn into_scalar(self) -> K::Elem {
         check!(TensorCheck::into_scalar(&self.shape()));
         let data = self.into_data();
@@ -23,6 +24,7 @@ where
     ///
     /// `y = x2 + x1`
     #[allow(clippy::should_implement_trait)]
+    #[track_caller]
     pub fn add(self, other: Self) -> Self {
         check!(TensorCheck::binary_ops_ew("Add", &self, &other));
         Self::new(K::add(self.primitive, other.primitive))
@@ -39,6 +41,7 @@ where
     ///
     /// `y = x2 - x1`
     #[allow(clippy::should_implement_trait)]
+    #[track_caller]
     pub fn sub(self, other: Self) -> Self {
         check!(TensorCheck::binary_ops_ew("Sub", &self, &other));
         Self::new(K::sub(self.primitive, other.primitive))
@@ -55,6 +58,7 @@ where
     ///
     /// `y = x2 / x1`
     #[allow(clippy::should_implement_trait)]
+    #[track_caller]
     pub fn div(self, other: Self) -> Self {
         check!(TensorCheck::binary_ops_ew("Div", &self, &other));
         Self::new(K::div(self.primitive, other.primitive))
@@ -71,6 +75,7 @@ where
     ///
     /// `y = x2 * x1`
     #[allow(clippy::should_implement_trait)]
+    #[track_caller]
     pub fn mul(self, other: Self) -> Self {
         check!(TensorCheck::binary_ops_ew("Mul", &self, &other));
         Self::new(K::mul(self.primitive, other.primitive))
@@ -136,12 +141,14 @@ where
     }
 
     /// Aggregate all elements along the given *dimension* or *axis* in the tensor with the mean operation.
+    #[track_caller]
     pub fn mean_dim(self, dim: usize) -> Self {
         check!(TensorCheck::aggregate_dim::<D>("Mean", dim));
         Self::new(K::mean_dim(self.primitive, dim))
     }
 
     /// Aggregate all elements along the given *dimension* or *axis* in the tensor with the sum operation.
+    #[track_caller]
     pub fn sum_dim(self, dim: usize) -> Self {
         check!(TensorCheck::aggregate_dim::<D>("Sum", dim));
         Self::new(K::sum_dim(self.primitive, dim))
@@ -157,6 +164,7 @@ where
     /// # Panics
     ///
     /// If the two tensors don't have the same shape.
+    #[track_caller]
     pub fn greater(self, other: Self) -> Tensor<B, D, Bool> {
         check!(TensorCheck::binary_ops_ew("Greater", &self, &other));
         K::greater(self.primitive, other.primitive)
@@ -167,6 +175,7 @@ where
     /// # Panics
     ///
     /// If the two tensors don't have the same shape.
+    #[track_caller]
     pub fn greater_equal(self, other: Self) -> Tensor<B, D, Bool> {
         check!(TensorCheck::binary_ops_ew("Greater_equal", &self, &other));
         K::greater_equal(self.primitive, other.primitive)
@@ -177,6 +186,7 @@ where
     /// # Panics
     ///
     /// If the two tensors don't have the same shape.
+    #[track_caller]
     pub fn lower(self, other: Self) -> Tensor<B, D, Bool> {
         check!(TensorCheck::binary_ops_ew("Lower", &self, &other));
         K::lower(self.primitive, other.primitive)
@@ -187,6 +197,7 @@ where
     /// # Panics
     ///
     /// If the two tensors don't have the same shape.
+    #[track_caller]
     pub fn lower_equal(self, other: Self) -> Tensor<B, D, Bool> {
         check!(TensorCheck::binary_ops_ew("Lower_equal", &self, &other));
         K::lower_equal(self.primitive, other.primitive)
@@ -240,6 +251,7 @@ where
     ///
     /// The index tensor should have the same shape as the original tensor except for the dim
     /// specified.
+    #[track_caller]
     pub fn gather(self, dim: usize, indices: Tensor<B, D, Int>) -> Self {
         check!(TensorCheck::gather::<D>(
             dim,
@@ -265,6 +277,7 @@ where
     /// dimension. The value and index tensors should have the same shape.
     ///
     /// Other references to the input tensor will not be modified by this operation.
+    #[track_caller]
     pub fn scatter(self, dim: usize, indices: Tensor<B, D, Int>, values: Self) -> Self {
         check!(TensorCheck::scatter::<D>(
             dim,
@@ -283,6 +296,7 @@ where
     /// `output[i, j, k] = input[indices[i], j, k]; // dim = 0`
     /// `output[i, j, k] = input[i, indices[j], k]; // dim = 1`
     /// `output[i, j, k] = input[i, j, indices[k]]; // dim = 2`
+    #[track_caller]
     pub fn select(self, dim: usize, indices: Tensor<B, 1, Int>) -> Self {
         check!(TensorCheck::select::<D>(dim));
         Self::new(K::select(self.primitive, dim, indices))
@@ -296,6 +310,7 @@ where
     /// `input[indices[i], j, k] += values[i, j, k]; // dim = 0`
     /// `input[i, indices[j], k] += values[i, j, k]; // dim = 1`
     /// `input[i, j, indices[k]] += values[i, j, k]; // dim = 2`
+    #[track_caller]
     pub fn select_assign(
         self,
         dim: usize,
@@ -337,6 +352,7 @@ where
     }
 
     /// Find the maximum value along the given dimension.
+    #[track_caller]
     pub fn max_dim(self, dim: usize) -> Tensor<B, D, K> {
         check!(TensorCheck::aggregate_dim::<D>("Max", dim));
 
@@ -346,6 +362,7 @@ where
     /// Find the maximum value along the given dimension.
     ///
     /// Also returns the indices.
+    #[track_caller]
     pub fn max_dim_with_indices(self, dim: usize) -> (Tensor<B, D, K>, Tensor<B, D, Int>) {
         check!(TensorCheck::aggregate_dim::<D>("Max", dim));
 
@@ -382,6 +399,7 @@ where
     }
 
     /// Find the minimum value along the given dimension.
+    #[track_caller]
     pub fn min_dim(self, dim: usize) -> Tensor<B, D, K> {
         check!(TensorCheck::aggregate_dim::<D>("Min", dim));
         Tensor::new(K::min_dim(self.primitive, dim))
@@ -390,6 +408,7 @@ where
     /// Find the minimum value along the given dimension.
     ///
     /// Also returns the indices.
+    #[track_caller]
     pub fn min_dim_with_indices(self, dim: usize) -> (Tensor<B, D, K>, Tensor<B, D, Int>) {
         check!(TensorCheck::aggregate_dim::<D>("Min", dim));
 

@@ -129,6 +129,7 @@ where
     /// }
     ///
     /// ```
+    #[track_caller]
     pub fn flatten<const D2: usize>(self, start_dim: usize, end_dim: usize) -> Tensor<B, D2, K> {
         check!(TensorCheck::flatten::<D, D2>(start_dim, end_dim));
 
@@ -179,6 +180,7 @@ where
     ///     println!("{:?}", squeezed_tensor.shape());
     /// }
     /// ```
+    #[track_caller]
     pub fn squeeze<const D2: usize>(self, dim: usize) -> Tensor<B, D2, K> {
         check!(TensorCheck::squeeze::<D2>(dim, &self.shape().dims));
 
@@ -210,6 +212,7 @@ where
     ///     // Shape { dims: [1, 1, 3, 3] }
     /// }
     /// ```
+    #[track_caller]
     pub fn unsqueeze<const D2: usize>(self) -> Tensor<B, D2, K> {
         check!(TensorCheck::unsqueeze::<D, D2>());
 
@@ -242,6 +245,7 @@ where
     ///     
     /// }
     /// ```
+    #[track_caller]
     pub fn slice<const D2: usize>(self, ranges: [core::ops::Range<usize>; D2]) -> Self {
         check!(TensorCheck::slice(&self.shape(), &ranges));
         Self::new(K::slice(self.primitive, ranges))
@@ -268,6 +272,7 @@ where
     ///     println!("{:?}", tensor_sliced.dims()); // [2, 3, 3]
     /// }
     /// ```
+    #[track_caller]
     pub fn slice_assign<const D2: usize>(
         self,
         ranges: [core::ops::Range<usize>; D2],
@@ -331,6 +336,7 @@ where
     /// # Panics
     ///
     /// If the two tensors don't have the same shape.
+    #[track_caller]
     pub fn equal(self, other: Self) -> Tensor<B, D, Bool> {
         check!(TensorCheck::binary_ops_ew("Equal", &self, &other));
         K::equal(self.primitive, other.primitive)
@@ -341,6 +347,7 @@ where
     /// # Panics
     ///
     /// If all tensors don't have the same shape.
+    #[track_caller]
     pub fn cat(tensors: Vec<Self>, dim: usize) -> Self {
         check!(TensorCheck::cat(&tensors, dim));
 
@@ -971,6 +978,7 @@ pub trait ReshapeArgs<const D2: usize> {
 }
 
 impl<const D2: usize> ReshapeArgs<D2> for Shape<D2> {
+    #[track_caller]
     fn into_shape<B: Backend, const D: usize, K: BasicOps<B>>(
         self,
         tensor: &Tensor<B, D, K>,
@@ -981,6 +989,7 @@ impl<const D2: usize> ReshapeArgs<D2> for Shape<D2> {
     }
 }
 impl<const D2: usize> ReshapeArgs<D2> for [usize; D2] {
+    #[track_caller]
     fn into_shape<B: Backend, const D: usize, K: BasicOps<B>>(
         self,
         tensor: &Tensor<B, D, K>,
@@ -994,6 +1003,7 @@ impl<const D2: usize> ReshapeArgs<D2> for [usize; D2] {
 }
 
 impl<const D2: usize> ReshapeArgs<D2> for [i32; D2] {
+    #[track_caller]
     fn into_shape<B: Backend, const D: usize, K: BasicOps<B>>(
         self,
         tensor: &Tensor<B, D, K>,

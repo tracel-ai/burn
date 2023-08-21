@@ -74,6 +74,7 @@ impl<const D: usize, B: Backend> BatchNorm<B, D> {
     ///
     /// - input: `[batch_size, channels, ...]`
     /// - output: `[batch_size, channels, ...]`
+    #[track_caller]
     pub fn forward<const DI: usize>(&self, input: Tensor<B, DI>) -> Tensor<B, DI> {
         // Should be move to a compilation error when const generic support that kind of
         // validation. https://github.com/rust-lang/rust/issues/76560
@@ -87,6 +88,7 @@ impl<const D: usize, B: Backend> BatchNorm<B, D> {
         }
     }
 
+    #[track_caller]
     fn forward_inference<const DI: usize>(&self, input: Tensor<B, DI>) -> Tensor<B, DI> {
         let channels = input.dims()[1];
         let mean = self.running_mean.value();
@@ -98,6 +100,7 @@ impl<const D: usize, B: Backend> BatchNorm<B, D> {
         self.forward_shared(input, mean.reshape(shape), var.reshape(shape))
     }
 
+    #[track_caller]
     fn forward_train<const DI: usize>(&self, input: Tensor<B, DI>) -> Tensor<B, DI> {
         let dims = input.dims();
         let batch_size = dims[0];
@@ -149,6 +152,7 @@ impl<const D: usize, B: Backend> BatchNorm<B, D> {
         self.forward_shared(input, mean, var)
     }
 
+    #[track_caller]
     fn forward_shared<const DI: usize>(
         &self,
         x: Tensor<B, DI>,

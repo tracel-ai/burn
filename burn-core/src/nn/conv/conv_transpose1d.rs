@@ -117,6 +117,7 @@ impl<B: Backend> ConvTranspose1d<B> {
     ///
     /// - input: [batch_size, channels_in, length_in],
     /// - output: [batch_size, channels_out, length_out],
+    #[track_caller]
     pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
         conv_transpose1d(
             input,

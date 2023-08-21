@@ -21,6 +21,7 @@ pub fn gelu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
 ///
 /// The dimension argument `dim` specifies the dimension along which the function will be computed.
 /// It must in the range of `0` and `D-1`.
+#[track_caller]
 pub fn softmax<const D: usize, B: Backend>(tensor: Tensor<B, D>, dim: usize) -> Tensor<B, D> {
     check!(TensorCheck::dim_ops::<D>("softmax", dim));
 
@@ -39,6 +40,7 @@ pub fn softmax<const D: usize, B: Backend>(tensor: Tensor<B, D>, dim: usize) -> 
 ///
 /// The dimension argument `dim` specifies the dimension along which the function will be computed.
 /// It must in the range of `0` and `D-1`.
+#[track_caller]
 pub fn log_softmax<const D: usize, B: Backend>(tensor: Tensor<B, D>, dim: usize) -> Tensor<B, D> {
     check!(TensorCheck::dim_ops::<D>("log softmax", dim));
 

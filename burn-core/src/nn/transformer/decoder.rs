@@ -235,6 +235,7 @@ impl<B: Backend> TransformerDecoderLayer<B> {
         }
     }
 
+    #[track_caller]
     fn forward(&self, mut input: TransformerDecoderInput<B>) -> TransformerDecoderInput<B> {
         let mut x_0 = input.target;
 
@@ -278,6 +279,7 @@ impl<B: Backend> TransformerDecoderLayer<B> {
         input
     }
 
+    #[track_caller]
     fn forward_autoregressive_inference(
         &self,
         mut input: TransformerDecoderInput<B>,
@@ -341,6 +343,7 @@ impl<B: Backend> TransformerDecoderLayer<B> {
 
 impl<B: Backend> TransformerDecoder<B> {
     /// Applies the forward pass.
+    #[track_caller]
     pub fn forward(&self, mut input: TransformerDecoderInput<B>) -> Tensor<B, 3> {
         for layer in self.layers.iter() {
             input = layer.forward(input);
@@ -350,6 +353,7 @@ impl<B: Backend> TransformerDecoder<B> {
     }
 
     /// Applies the forward pass on the input using autoregressive cache.
+    #[track_caller]
     pub fn forward_autoregressive_inference(
         &self,
         mut input: TransformerDecoderInput<B>,

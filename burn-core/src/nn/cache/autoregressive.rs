@@ -5,6 +5,7 @@ use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 
 impl<B: Backend, const D: usize> TensorCache<B, D> {
+    #[track_caller]
     pub(crate) fn forward_autoregressive<F>(
         &mut self,
         tensor: Tensor<B, 3>,
@@ -33,6 +34,7 @@ impl<B: Backend, const D: usize> TensorCache<B, D> {
         tensor_new
     }
 
+    #[track_caller]
     pub(crate) fn forward_full<F>(&mut self, tensor: Tensor<B, 3>, func: F) -> Tensor<B, D>
     where
         F: Fn(Tensor<B, 3>) -> Tensor<B, D>,

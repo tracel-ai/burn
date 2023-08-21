@@ -56,6 +56,7 @@ impl<B: Backend> LayerNorm<B> {
     ///
     /// - input: `[..., any, d_model]`
     /// - output: `[..., any, d_model]`
+    #[track_caller]
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
         let (var, mean) = input.clone().var_mean_bias(D - 1);
 
