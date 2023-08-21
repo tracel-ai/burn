@@ -2,7 +2,7 @@ use burn_tensor::{ops::BoolTensorOps, Data, Shape};
 
 use crate::{
     element::{CandleElement, FloatCandleElement, IntCandleElement},
-    CandleBackend,
+    CandleBackend, CandleTensor,
 };
 
 use super::base::{BoolTensor, Device, FloatTensor, IntTensor};
@@ -19,14 +19,26 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<CandleBackend<F, 
     }
 
     fn bool_into_data<const D: usize>(tensor: BoolTensor<Self, D>) -> Data<bool, D> {
-        todo!()
+        let x: Vec<u8> = tensor.tensor.flatten_all().unwrap().to_vec1().unwrap();
+        let y = x.iter().map(|b| !matches!(b, 0)).collect();
+        Data::new(y, tensor.shape())
     }
 
     fn bool_from_data<const D: usize>(
         data: Data<bool, D>,
         device: &Device<Self>,
     ) -> BoolTensor<Self, D> {
-        todo!()
+        let data: Data<u8, D> = Data::new(
+            data.value
+                .into_iter()
+                .map(|c| match c {
+                    true => 1,
+                    false => 0,
+                })
+                .collect(),
+            data.shape,
+        );
+        CandleTensor::from_data(data, *device)
     }
 
     fn bool_into_int<const D: usize>(tensor: BoolTensor<Self, D>) -> IntTensor<Self, D> {
