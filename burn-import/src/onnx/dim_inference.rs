@@ -76,20 +76,15 @@ pub fn dim_inference(
             NodeType::BatchNormalization => same_as_input(node),
             NodeType::Add => same_as_input(node),
             NodeType::Sub => same_as_input(node),
-            NodeType::Pow => same_as_input(node),
             NodeType::Mul => same_as_input(node),
             NodeType::Cast => cast_update_outputs(node),
             NodeType::Div => same_as_input(node),
-            NodeType::Sqrt => same_as_input(node),
             NodeType::Softmax => same_as_input(node),
-            NodeType::Erf => same_as_input(node),
             NodeType::ReduceMean => mean_update_outputs(node),
             NodeType::Constant => constant_update_outputs(node),
             NodeType::Equal => equal_update_outputs(node),
             NodeType::Shape => shape_update_outputs(node),
             NodeType::Unsqueeze => unsqueeze_update_outputs(node),
-            NodeType::Slice => slice_update_outputs(node),
-            NodeType::MatMul => same_as_input(node),
             NodeType::Sigmoid => same_as_input(node),
             NodeType::Transpose => same_as_input(node),
             NodeType::Concat => concat_update_outputs(node),
@@ -97,10 +92,7 @@ pub fn dim_inference(
             NodeType::Dropout => same_as_input(node),
             NodeType::GlobalAveragePool => same_as_input(node),
             NodeType::AveragePool2d => same_as_input(node),
-            _ => todo!(
-                "shape inference for {:?} is not implemented",
-                node.node_type
-            ),
+            _ => temporary_pass_through_stub(node),
         }
 
         updater.update_tensor_outputs(node);
@@ -265,25 +257,16 @@ fn unsqueeze_update_outputs(node: &mut Node) {
     });
 }
 
-fn slice_update_outputs(node: &mut Node) {
-    if node.inputs.is_empty() {
-        panic!("Slice: inputs required: {:?}", node);
-    }
-
-    let tensor = node
-        .inputs
-        .iter()
-        .find_map(|input| match &input.ty {
-            ArgType::Tensor(tensor) => Some(tensor),
-            _ => None,
-        })
-        .unwrap();
-
-    node.outputs[0].ty = ArgType::Tensor(tensor.clone());
-}
-
 fn same_as_input(node: &mut Node) {
     node.outputs[0].ty = node.inputs[0].ty.clone();
+}
+
+/// Temporary pass-through stub for dimension inference so that we can export the IR model.
+fn temporary_pass_through_stub(node: &mut Node) {
+    log::warn!(
+        "Must implement dimension inference for {:?}",
+        node.node_type
+    );
 }
 
 fn equal_update_outputs(node: &mut Node) {
