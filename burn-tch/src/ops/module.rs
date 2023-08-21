@@ -172,13 +172,14 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
         kernel_size: usize,
         stride: usize,
         padding: usize,
+        dilation: usize,
     ) -> TchTensor<E, 3> {
         let tensor = tch::Tensor::max_pool1d(
             &x.tensor,
             kernel_size as i64,
             stride as i64,
             padding as i64,
-            1,
+            dilation as i64,
             false,
         );
 
@@ -190,13 +191,14 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
         kernel_size: usize,
         stride: usize,
         padding: usize,
+        dilation: usize,
     ) -> MaxPool1dWithIndices<TchBackend<E>> {
         let (tensor, indices) = tch::Tensor::max_pool1d_with_indices(
             &x.tensor,
             kernel_size as i64,
             stride as i64,
             padding as i64,
-            1,
+            dilation as i64,
             false,
         );
 

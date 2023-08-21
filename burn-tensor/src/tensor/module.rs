@@ -90,11 +90,18 @@ pub fn max_pool1d<B>(
     kernel_size: usize,
     stride: usize,
     padding: usize,
+    dilation: usize,
 ) -> Tensor<B, 3>
 where
     B: Backend,
 {
-    Tensor::new(B::max_pool1d(x.primitive, kernel_size, stride, padding))
+    Tensor::new(B::max_pool1d(
+        x.primitive,
+        kernel_size,
+        stride,
+        padding,
+        dilation,
+    ))
 }
 
 /// Applies a [2D max pooling](crate::ops::ModuleOps::max_pool2d).
@@ -163,11 +170,12 @@ pub fn max_pool1d_with_indices<B>(
     kernel_size: usize,
     stride: usize,
     padding: usize,
+    dilation: usize,
 ) -> (Tensor<B, 3>, Tensor<B, 3, Int>)
 where
     B: Backend,
 {
-    let output = B::max_pool1d_with_indices(x.primitive, kernel_size, stride, padding);
+    let output = B::max_pool1d_with_indices(x.primitive, kernel_size, stride, padding, dilation);
 
     (Tensor::new(output.output), Tensor::new(output.indices))
 }
