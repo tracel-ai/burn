@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# used to generate model: softmax.onnx
+# used to generate model: relu.onnx
 
 import torch
 import torch.nn as nn
@@ -9,10 +9,10 @@ import torch.nn as nn
 class Model(nn.Module):
     def __init__(self):
         super(Model, self).__init__()
-        self.softmax1 = nn.Softmax(dim=1)
+        self.sigmoid1 = nn.Sigmoid()
 
     def forward(self, x):
-        x = self.softmax1(x)
+        x = self.sigmoid1(x)
         return x
 
 
@@ -28,7 +28,7 @@ def main():
     model.eval()
     device = torch.device("cpu")
 
-    file_name = "softmax.onnx"
+    file_name = "sigmoid.onnx"
     test_input = torch.randn(2, 3, device=device)
     torch.onnx.export(model, test_input, file_name,
                       verbose=False, opset_version=16)

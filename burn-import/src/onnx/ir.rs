@@ -16,12 +16,7 @@ pub struct Argument {
 pub enum ArgType {
     Scalar(ElementType),
     Shape(usize),
-    Tensor(TensorArg),
-}
-
-#[derive(new, Default, Debug, Clone)]
-pub struct TensorArg {
-    pub dim: usize,
+    Tensor(Tensor),
 }
 
 #[derive(Debug, Clone)]
@@ -59,6 +54,17 @@ pub struct Tensor {
     pub dim: usize,
     pub data: Option<TensorData>,
     pub shape: Option<Shape>,
+}
+
+impl Default for Tensor {
+    fn default() -> Self {
+        Self {
+            elem_type: ElementType::Float32,
+            dim: 0,
+            data: None,
+            shape: None,
+        }
+    }
 }
 
 #[derive(Clone)]

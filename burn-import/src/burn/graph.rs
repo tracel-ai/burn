@@ -1,7 +1,7 @@
 use super::{BurnImports, Scope, Type};
 use crate::burn::{
     node::{Node, NodeCodegen},
-    TensorType,
+    TensorKind, TensorType,
 };
 use burn::record::{
     BurnRecord, DefaultFileRecorder, FileRecorder, PrecisionSettings, PrettyJsonFileRecorder,
@@ -101,9 +101,8 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
     /// Generate tokens reprensenting the graph with Burn modules and tensor operations.
     pub fn codegen(mut self) -> TokenStream {
         self.build_scope();
-        self.nodes
-            .iter()
-            .for_each(|node| node.register_imports(&mut self.imports));
+
+        self.register_imports();
 
         let codegen_imports = self.imports.codegen();
         let codegen_struct = self.codegen_struct();
@@ -158,6 +157,38 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
 
                 #codegen_new
                 #codegen_forward
+            }
+        }
+    }
+
+    fn register_imports(&mut self) {
+        // Register imports from nodes
+        self.nodes
+            .iter()
+            .for_each(|node| node.register_imports(&mut self.imports));
+
+        // Combine input and output types into a single vector
+        let all_types = self
+            .graph_input_types
+            .iter()
+            .chain(&self.graph_output_types);
+
+        // Register imports for bool and int tensors
+        for ty in all_types {
+            match ty {
+                Type::Tensor(TensorType {
+                    kind: TensorKind::Bool,
+                    ..
+                }) => {
+                    self.imports.register("burn::tensor::Bool");
+                }
+                Type::Tensor(TensorType {
+                    kind: TensorKind::Int,
+                    ..
+                }) => {
+                    self.imports.register("burn::tensor::Int");
+                }
+                _ => {}
             }
         }
     }

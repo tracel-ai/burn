@@ -8,7 +8,7 @@ use std::{
 use super::dim_inference::dim_inference;
 use super::ir::{
     ArgType, Argument, AttributeValue, Attributes, ElementType, Node, NodeType, ONNXGraph, State,
-    Tensor, TensorArg, TensorData,
+    Tensor, TensorData,
 };
 use super::protos::{
     attribute_proto::AttributeType, tensor_proto::DataType, tensor_shape_proto::dimension::Value,
@@ -20,7 +20,8 @@ use super::{coalesce::coalesce, ir::StateType};
 use bytemuck::cast_slice;
 use protobuf::{Enum, Message};
 
-const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 4] = [
+const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 5] = [
+    NodeType::BatchNormalization,
     NodeType::Conv1d,
     NodeType::Conv2d,
     NodeType::Dropout,
@@ -76,11 +77,14 @@ pub fn parse_onnx(onnx_path: &Path) -> ONNXGraph {
     // https://github.com/onnx/onnx/blob/main/docs/IR.md#graphs
     assert!(nodes.is_top_sorted(), "Nodes are not topologically sorted");
 
-    // Lift constants to initializers
-    lift_constants(&mut nodes);
-
     // Move inputs with initializers to states
     move_inputs_to_state(&mut nodes, &onnx_model.graph.initializer);
+
+    // Handle Identity nodes (expects inputs to be moved to states)
+    handle_identity(&mut nodes);
+
+    // Lift constants to initializers (expects inputs to be moved to states)
+    lift_constants(&mut nodes);
 
     // Coalesce and transform nodes
     coalesce(&mut nodes);
@@ -300,7 +304,7 @@ pub fn convert_node_proto(node: &NodeProto) -> Node {
         .into_iter()
         .map(|x| Argument {
             name: x,
-            ty: ArgType::Tensor(TensorArg::default()),
+            ty: ArgType::Tensor(Tensor::default()),
         })
         .collect();
 
@@ -310,7 +314,7 @@ pub fn convert_node_proto(node: &NodeProto) -> Node {
         .into_iter()
         .map(|x| Argument {
             name: x,
-            ty: ArgType::Tensor(TensorArg::default()),
+            ty: ArgType::Tensor(Tensor::default()),
         })
         .collect();
     let attrs = convert_vec_attrs_proto(node.attribute.clone());
@@ -377,7 +381,25 @@ impl TryFrom<ValueInfoProto> for Argument {
         }
 
         let tensor_proto = proto_type.tensor_type();
-        let tensor: TensorArg = TensorArg::new(tensor_proto.shape.dim.len());
+
+        let elem_type = match DataType::from_i32(tensor_proto.elem_type).unwrap() {
+            DataType::FLOAT => ElementType::Float32,
+            DataType::INT32 => ElementType::Int32,
+            DataType::INT64 => ElementType::Int64,
+            DataType::DOUBLE => ElementType::Float64,
+            DataType::BOOL => ElementType::Bool,
+            _ => {
+                return Err(ParseError::VariantNotFound);
+            }
+        };
+
+        let tensor: Tensor = Tensor {
+            dim: tensor_proto.shape.dim.len(),
+            elem_type,
+            shape: None,
+            data: None,
+        };
+
         let ty = ArgType::Tensor(tensor);
 
         Ok(Argument { ty, name })
@@ -490,8 +512,8 @@ fn lift_constants(nodes: &mut Vec<Node>) {
     let mut constant_to_removed = HashSet::<String>::new();
 
     for node in nodes.iter_mut() {
-        // check if the node's type is in the set of node types to process
-        if !node_types_to_process.contains(&node.node_type) {
+        // skip if not in the set or len <= 1
+        if !node_types_to_process.contains(&node.node_type) || node.inputs.len() <= 1 {
             continue;
         }
 
@@ -500,10 +522,12 @@ fn lift_constants(nodes: &mut Vec<Node>) {
 
         let mut inputs_to_remove = Vec::new();
 
-        node.inputs.iter().for_each(|input| {
+        // Skip the first input because it is the node's true input and not a constant/state
+        node.inputs.iter().skip(1).for_each(|input| {
             if let Some(constant) = constants.get(&input.name) {
                 // if the input is a constant, get its ID and node
-                let value = &constant.attrs["value"]; // get the value of the constant
+                let value = get_constant_value(constant).unwrap(); // get the value of the constant
+
                 let state = match value {
                     AttributeValue::Tensor(tensor) => State {
                         // if the value is a tensor, create a new State object with the tensor as its type
@@ -532,6 +556,62 @@ fn lift_constants(nodes: &mut Vec<Node>) {
         "The number of constants removed: {}",
         constant_to_removed.len()
     );
+}
+
+/// Handle Identity nodes.
+///
+/// There are two types of Identity nodes:
+/// 1. Pass-through nodes that are used to connect two nodes. These are removed from the graph.
+/// 2. Nodes that act as a constant (its input has initializer). Change the node type to Constant.
+fn handle_identity(nodes: &mut Vec<Node>) {
+    log::info!("Handling identity nodes");
+
+    let mut identity_nodes_to_remove = Vec::new();
+
+    for node in nodes
+        .iter_mut()
+        .filter(|node| node.node_type == NodeType::Identity)
+    {
+        // if the node has states, it is a constant. Move the data to value attribute for consistency.
+        if let Some(state) = node.states.first() {
+            match &state.ty {
+                // Currently there is only tensor type
+                StateType::Tensor(tensor) => {
+                    node.attrs
+                        .insert("value".to_string(), AttributeValue::Tensor(tensor.clone()));
+                    node.states.clear();
+                }
+            }
+            node.node_type = NodeType::Constant;
+            log::debug!("Converted identity node ({}) to constant", node.name);
+        } else {
+            // Support pass through identity node
+            identity_nodes_to_remove.push(node.clone());
+        }
+    }
+
+    // Remove the identity nodes that are only used to connect two nodes
+    for identity_node in identity_nodes_to_remove.iter() {
+        let input = identity_node
+            .inputs
+            .first()
+            .expect("Pass through Identity node should have at least one input");
+        let output = identity_node
+            .outputs
+            .first()
+            .expect("Pass through Identity node should have at least one ");
+
+        // find the node that uses the identity node's output
+        for node in nodes.iter_mut() {
+            if let Some(matched_input) = node.inputs.iter_mut().find(|x| x.name == output.name) {
+                // replace the identity node's output with the identity node's input
+                matched_input.name = input.name.clone();
+            }
+        }
+    }
+
+    // remove the identity nodes that are used to connect two nodes
+    nodes.retain(|node| !identity_nodes_to_remove.contains(node));
 }
 
 /// Rename the nodes in the graph to be unique and return a map of the old names to the new names.
@@ -685,4 +765,23 @@ impl TopologicalSortable for Vec<Node> {
         // The vector is topologically sorted
         true
     }
+}
+
+/// Get the value of a constant node from its attributes
+pub(crate) fn get_constant_value(node: &Node) -> Option<AttributeValue> {
+    // A value can be stored in any of these attributes
+    let value_keys = [
+        "value",
+        "value_float",
+        "value_floats",
+        "value_int",
+        "value_ints",
+        "value_string",
+        "value_strings",
+        "sparse_value",
+    ];
+
+    value_keys
+        .iter()
+        .find_map(|&key| node.attrs.get(key).cloned())
 }

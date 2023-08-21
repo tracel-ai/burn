@@ -12,28 +12,35 @@ macro_rules! include_models {
 // ATTENTION: Modify this macro to include all models in the `model` directory.
 include_models!(
     add,
+    add_int,
     avg_pool2d,
+    batch_norm,
     concat,
     conv1d,
     conv2d,
     div,
     dropout_opset16,
     dropout_opset7,
+    equal,
     flatten,
     global_avr_pool,
     log_softmax,
     maxpool2d,
     mul,
+    relu,
     reshape,
+    sigmoid,
     softmax,
-    sub
+    sub,
+    sub_int,
+    transpose
 );
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    use burn::tensor::{Data, Shape, Tensor};
+    use burn::tensor::{Data, Int, Shape, Tensor};
 
     use float_cmp::ApproxEq;
 
@@ -54,6 +61,20 @@ mod tests {
     }
 
     #[test]
+    fn add_scalar_to_int_tensor_and_int_tensor_to_int_tensor() {
+        // Initialize the model with weights (loaded from the exported file)
+        let model: add_int::Model<Backend> = add_int::Model::default();
+
+        // Run the model
+        let input = Tensor::<Backend, 4, Int>::from_ints([[[[1, 2, 3, 4]]]]);
+        let scalar = 2;
+        let output = model.forward(input, scalar);
+        let expected = Data::from([[[[9, 11, 13, 15]]]]);
+
+        assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
     fn sub_scalar_from_tensor_and_tensor_from_tensor() {
         // Initialize the model with weights (loaded from the exported file)
         let model: sub::Model<Backend> = sub::Model::default();
@@ -67,6 +88,19 @@ mod tests {
         assert_eq!(output.to_data(), expected);
     }
 
+    #[test]
+    fn sub_scalar_from_int_tensor_and_int_tensor_from_tensor() {
+        // Initialize the model with weights (loaded from the exported file)
+        let model: sub_int::Model<Backend> = sub_int::Model::default();
+
+        // Run the model
+        let input = Tensor::<Backend, 4, Int>::from_ints([[[[1, 2, 3, 4]]]]);
+        let scalar = 3;
+        let output = model.forward(input, scalar);
+        let expected = Data::from([[[[6, 6, 6, 6]]]]);
+
+        assert_eq!(output.to_data(), expected);
+    }
     #[test]
     fn mul_scalar_with_tensor_and_tensor_with_tensor() {
         // Initialize the model with weights (loaded from the exported file)
@@ -322,5 +356,95 @@ mod tests {
 
         let expected_shape = Shape::from([1, 75]);
         assert_eq!(expected_shape, output.shape());
+    }
+
+    #[test]
+    fn batch_norm() {
+        let model: batch_norm::Model<Backend> = batch_norm::Model::default();
+
+        // Run the model with ones as input for easier testing
+        let input = Tensor::<Backend, 3>::ones([1, 20, 1]);
+        let output = model.forward(input);
+
+        let expected_shape = Shape::from([1, 5, 2, 2]);
+        assert_eq!(output.shape(), expected_shape);
+
+        let output_sum = output.sum().into_scalar();
+        let expected_sum = 19.999801635742188; // from pytorch
+        assert!(expected_sum.approx_eq(output_sum, (1.0e-8, 2)));
+    }
+
+    #[test]
+    fn relu() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let model: relu::Model<Backend> = relu::Model::new();
+
+        // Run the model
+        let input = Tensor::<Backend, 2>::from_floats([
+            [0.33669037, 0.12880941, 0.23446237],
+            [0.23033303, -1.12285638, -0.18632829],
+        ]);
+        let output = model.forward(input);
+        let expected = Data::from([
+            [0.33669037, 0.12880941, 0.23446237],
+            [0.23033303, 0.00000000, 0.00000000],
+        ]);
+
+        assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn sigmoid() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let model: sigmoid::Model<Backend> = sigmoid::Model::new();
+
+        // Run the model
+        let input = Tensor::<Backend, 2>::from_floats([
+            [0.33669037, 0.12880941, 0.23446237],
+            [0.23033303, -1.12285638, -0.18632829],
+        ]);
+        let output = model.forward(input);
+        let expected = Data::from([
+            [0.58338636, 0.53215790, 0.55834854],
+            [0.55733001, 0.24548186, 0.45355222],
+        ]);
+
+        output.to_data().assert_approx_eq(&expected, 7);
+    }
+
+    #[test]
+    fn transpose() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let model: transpose::Model<Backend> = transpose::Model::new();
+
+        // Run the model
+        let input = Tensor::<Backend, 2>::from_floats([
+            [0.33669037, 0.12880941, 0.23446237],
+            [0.23033303, -1.12285638, -0.18632829],
+        ]);
+        let output = model.forward(input);
+        let expected = Data::from([
+            [0.33669037, 0.23033303],
+            [0.12880941, -1.12285638],
+            [0.23446237, -0.18632829],
+        ]);
+
+        assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn equal_scalar_to_scalar_and_tensor_to_tensor() {
+        // Initialize the model with weights (loaded from the exported file)
+        let model: equal::Model<Backend> = equal::Model::default();
+
+        // Run the model
+        let input = Tensor::<Backend, 4>::from_floats([[[[1., 1., 1., 1.]]]]);
+        let scalar = 2f64;
+        let (tensor_out, scalar_out) = model.forward(input, scalar);
+        let expected_tensor = Data::from([[[[true, true, true, true]]]]);
+        let expected_scalar = false;
+
+        assert_eq!(tensor_out.to_data(), expected_tensor);
+        assert_eq!(scalar_out, expected_scalar);
     }
 }
