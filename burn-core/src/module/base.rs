@@ -182,6 +182,52 @@ pub trait Module<B: Backend>: Clone + Send + Sync + core::fmt::Debug {
 
     /// Convert the module into a record containing the state.
     fn into_record(self) -> Self::Record;
+
+    #[cfg(feature = "std")]
+    /// Save the module to a file using the provided [file recorder](crate::record::FileRecorder).
+    ///
+    /// List of supported file recorders:
+    ///
+    /// * [default](crate::record::DefaultFileRecorder)
+    /// * [bincode](crate::record::BinFileRecorder)
+    /// * [bincode compressed with gzip](crate::record::BinGzFileRecorder)
+    /// * [json pretty](crate::record::PrettyJsonFileRecorder)
+    /// * [json compressed with gzip](crate::record::JsonGzFileRecorder)
+    /// * [named mpk](crate::record::NamedMpkFileRecorder)
+    /// * [named mpk compressed with gzip](crate::record::NamedMpkGzFileRecorder)
+    ///
+    /// ## Notes
+    ///
+    /// The file extension is automatically added depending on the file recorder provided, you
+    /// don't have to specify it.
+    fn save_file<FR: crate::record::FileRecorder, PB: Into<std::path::PathBuf>>(
+        self,
+        file_path: PB,
+        recorder: &FR,
+    ) -> Result<(), crate::record::RecorderError> {
+        let record = Self::into_record(self);
+        recorder.record(record, file_path.into())
+    }
+
+    #[cfg(feature = "std")]
+    /// Load the module from a file using the provided [file recorder](crate::record::FileRecorder).
+    ///
+    /// The recorder should be the same as the one used to save the module, see
+    /// [save_file](Self::save_file).
+    ///
+    /// ## Notes
+    ///
+    /// The file extension is automatically added depending on the file recorder provided, you
+    /// don't have to specify it.
+    fn load_file<FR: crate::record::FileRecorder, PB: Into<std::path::PathBuf>>(
+        self,
+        file_path: PB,
+        recorder: &FR,
+    ) -> Result<Self, crate::record::RecorderError> {
+        let record = recorder.load(file_path.into())?;
+
+        Ok(self.load_record(record))
+    }
 }
 
 /// Module visitor trait.

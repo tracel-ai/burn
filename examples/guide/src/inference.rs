@@ -13,7 +13,7 @@ pub fn infer<B: Backend>(artifact_dir: &str, device: B::Device, item: MNISTItem)
         TrainingConfig::load(&format!("{artifact_dir}/config.json")).expect("A config exists");
     let record = CompactRecorder::new()
         .load(format!("{artifact_dir}/model").into())
-        .expect("Failed to save trained model");
+        .expect("Failed to load trained model");
 
     let model = config.model.init_with::<B>(record).to_device(&device);
 
