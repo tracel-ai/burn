@@ -32,7 +32,6 @@ pub struct Context {
     device_wgpu: Arc<wgpu::Device>,
     cache: Mutex<HashMap<TemplateKey, (Arc<ComputePipeline>, usize)>>,
     is_tuning: Mutex<bool>,
-    pipeline_counter: Mutex<HashMap<TemplateKey, usize>>,
     client: ContextClientImpl,
     pub(crate) tuner: Tuner,
     pub(crate) device: WgpuDevice,
@@ -74,7 +73,6 @@ impl Context {
             client,
             cache: Mutex::new(HashMap::new()),
             is_tuning: false.into(),
-            pipeline_counter: Mutex::new(HashMap::new()),
             tuner: Tuner::new(),
             info,
         }
@@ -258,7 +256,6 @@ impl Context {
 
     fn retain_best_kernel(&self) {
         let mut cache = self.cache.lock();
-        let counter = self.pipeline_counter.lock();
         if cache.len() == 1 {
             return;
         }
@@ -268,7 +265,7 @@ impl Context {
             .max_by(|a, b| {
                 cache
                     .get(a)
-                    .map(|(_, count_a)| count_a) 
+                    .map(|(_, count_a)| count_a)
                     .unwrap_or(&0)
                     .cmp(&cache.get(b).map(|(_, count_b)| count_b).unwrap_or(&0))
             })
