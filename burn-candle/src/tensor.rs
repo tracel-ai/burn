@@ -38,7 +38,7 @@ impl<E: CandleElement, const D: usize> CandleTensor<E, D> {
     }
 
     pub(crate) fn shape(&self) -> Shape<D> {
-        let x: [usize; D] = self.tensor.shape().dims().try_into().unwrap();
+        let x: [usize; D] = self.tensor.dims().try_into().unwrap();
         Shape::from(x)
     }
 }

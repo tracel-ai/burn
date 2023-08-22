@@ -26,25 +26,22 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
     }
 
     fn shape<const D: usize>(tensor: &CandleTensor<F, D>) -> Shape<D> {
-        tensor.shape()
+        super::base::shape(tensor)
     }
 
     fn to_data<const D: usize>(tensor: &CandleTensor<F, D>) -> Data<F, D> {
-        Data::new(
-            tensor.tensor.flatten_all().unwrap().to_vec1().unwrap(),
-            tensor.shape(),
-        )
+        super::base::to_data(tensor)
     }
 
     fn device<const D: usize>(tensor: &CandleTensor<F, D>) -> Device<Self> {
-        tensor.tensor.device().clone().into()
+        super::base::device(tensor)
     }
 
     fn to_device<const D: usize>(
         tensor: CandleTensor<F, D>,
         device: &Device<Self>,
     ) -> CandleTensor<F, D> {
-        CandleTensor::new(tensor.tensor.to_device(&(*device).into()).unwrap())
+        super::base::to_device(tensor, device)
     }
 
     fn into_int<const D: usize>(tensor: CandleTensor<F, D>) -> IntTensor<Self, D> {
@@ -52,9 +49,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
     }
 
     fn empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
-        CandleTensor::new(
-            candle_core::Tensor::zeros(&shape.dims, F::DTYPE, &(*device).into()).unwrap(),
-        )
+        super::base::empty(shape, device)
     }
 
     fn add<const D: usize>(
@@ -125,14 +120,14 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
         dim1: usize,
         dim2: usize,
     ) -> FloatTensor<Self, D> {
-        CandleTensor::new(tensor.tensor.transpose(dim1, dim2).unwrap())
+        super::base::swap_dims(tensor, dim1, dim2)
     }
 
     fn reshape<const D1: usize, const D2: usize>(
         tensor: FloatTensor<Self, D1>,
         shape: Shape<D2>,
     ) -> FloatTensor<Self, D2> {
-        CandleTensor::new(tensor.tensor.reshape(&shape.dims).unwrap())
+        super::base::reshape(tensor, shape)
     }
 
     fn gather<const D: usize>(
@@ -183,13 +178,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
         tensor: FloatTensor<Self, D1>,
         ranges: [std::ops::Range<usize>; D2],
     ) -> FloatTensor<Self, D1> {
-        let mut narrow_tensor = tensor.tensor;
-        for (i, range) in ranges.iter().enumerate().take(D2) {
-            narrow_tensor = narrow_tensor
-                .narrow(i, range.start, range.end - range.start)
-                .unwrap()
-        }
-        CandleTensor::new(narrow_tensor)
+        super::base::slice(tensor, ranges)
     }
 
     fn slice_assign<const D1: usize, const D2: usize>(
@@ -197,8 +186,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
         ranges: [std::ops::Range<usize>; D2],
         value: FloatTensor<Self, D1>,
     ) -> FloatTensor<Self, D1> {
-        // TODO: not trivial, because no view_ like in torch
-        todo!()
+        super::base::slice_assign(tensor, ranges, value)
     }
 
     fn mask_where<const D: usize>(
@@ -336,78 +324,83 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
     }
 
     fn sum<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
-        todo!()
+        let sum = tensor.tensor.sum_all().unwrap().to_scalar::<F>().unwrap();
+        CandleTensor::from_data(Data::new([sum].into(), [1].into()), Self::device(&tensor))
     }
 
     fn sum_dim<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> FloatTensor<Self, D> {
-        todo!()
+        CandleTensor::new(tensor.tensor.sum_keepdim(dim).unwrap())
     }
 
     fn mean_dim<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> FloatTensor<Self, D> {
-        todo!()
+        CandleTensor::new(tensor.tensor.mean_keepdim(dim).unwrap())
     }
 
     fn to_full_precision<const D: usize>(
         tensor: &FloatTensor<Self, D>,
     ) -> FloatTensor<FullPrecisionBackend<Self>, D> {
-        todo!()
+        CandleTensor::new(tensor.tensor.to_dtype(candle_core::DType::F32).unwrap())
     }
 
     fn from_full_precision<const D: usize>(
         tensor: FloatTensor<FullPrecisionBackend<Self>, D>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        CandleTensor::new(tensor.tensor.to_dtype(F::DTYPE).unwrap())
     }
 
     fn exp<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        todo!()
+        CandleTensor::new(tensor.tensor.exp().unwrap())
     }
 
     fn log<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        todo!()
+        CandleTensor::new(tensor.tensor.log().unwrap())
     }
 
     fn log1p<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        todo!()
+        CandleTensor::new((tensor.tensor + 1.).unwrap().log().unwrap())
     }
 
     fn powf<const D: usize>(tensor: FloatTensor<Self, D>, value: f32) -> FloatTensor<Self, D> {
-        todo!()
+        panic!("powf not supported by Candle")
     }
 
     fn sqrt<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        todo!()
+        CandleTensor::new(tensor.tensor.sqrt().unwrap())
     }
 
     fn abs<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        todo!()
+        // TODO Candle will need to support signed ints before we can enable test
+        CandleTensor::new(tensor.tensor.abs().unwrap())
     }
 
     fn cos<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        todo!()
+        CandleTensor::new(tensor.tensor.cos().unwrap())
     }
 
     fn sin<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        todo!()
+        CandleTensor::new(tensor.tensor.sin().unwrap())
     }
 
     fn tanh<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        todo!()
+        let e_x = tensor.tensor.exp().unwrap();
+        let e_minus_x = tensor.tensor.neg().unwrap().exp().unwrap();
+        CandleTensor::new(((e_x.clone() - e_minus_x.clone()).unwrap() / (e_x + e_minus_x)).unwrap())
     }
 
     fn erf<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        todo!()
+        // TODO submit an issue at Candle
+        panic!("erf not supported by Candle")
     }
 
     fn cat<const D: usize>(tensors: Vec<FloatTensor<Self, D>>, dim: usize) -> FloatTensor<Self, D> {
-        todo!()
+        super::base::cat(tensors, dim)
     }
 
     fn argmax<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        todo!()
+        CandleTensor::new(tensor.tensor.argmax_keepdim(dim).unwrap())
     }
 
     fn argmin<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        todo!()
+        CandleTensor::new(tensor.tensor.argmin_keepdim(dim).unwrap())
     }
 }
