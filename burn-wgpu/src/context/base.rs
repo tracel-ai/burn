@@ -30,7 +30,7 @@ pub type ContextServerImpl = super::server::SyncContextServer;
 pub struct Context {
     id: String,
     device_wgpu: Arc<wgpu::Device>,
-    cache: Mutex<HashMap<TemplateKey, Arc<ComputePipeline>>>,
+    cache: Mutex<HashMap<TemplateKey, (Arc<ComputePipeline>, usize)>>,
     is_tuning: Mutex<bool>,
     pipeline_counter: Mutex<HashMap<TemplateKey, usize>>,
     client: ContextClientImpl,
@@ -122,9 +122,11 @@ impl Context {
 
         if *self.is_tuning.lock() {
             if let Some(template_key) = self.find_template_key_for_pipeline(&pipeline) {
-                let mut counter = self.pipeline_counter.lock();
-                *counter.entry(template_key).or_insert(0) += 1;
-                self.retain_best_kernel();
+                let mut cache = self.cache.lock();
+                if let Some((_, count)) = cache.get_mut(&template_key) {
+                    *count += 1;
+                    self.retain_best_kernel();
+                }
             }
         }
 
@@ -187,14 +189,14 @@ impl Context {
         let mut cache = self.cache.lock();
         let template_id = TemplateKey::Static(TypeId::of::<K>());
 
-        if let Some(module) = cache.get(&template_id) {
+        if let Some((module, _)) = cache.get(&template_id) {
             return module.clone();
         }
 
         let source = K::source_template();
         let pipeline = self.compile_source(&source.complete());
 
-        cache.insert(template_id, pipeline.clone());
+        cache.insert(template_id, (pipeline.clone(), 0));
         pipeline
     }
 
@@ -203,14 +205,14 @@ impl Context {
         let mut cache = self.cache.lock();
         let template_id = TemplateKey::Dynamic(kernel.id());
 
-        if let Some(module) = cache.get(&template_id) {
+        if let Some((module, _)) = cache.get(&template_id) {
             return module.clone();
         }
 
         let source = kernel.source_template();
         let pipeline = self.compile_source(&source.complete());
 
-        cache.insert(template_id, pipeline.clone());
+        cache.insert(template_id, (pipeline.clone(), 0));
         pipeline
     }
 
@@ -246,7 +248,7 @@ impl Context {
         pipeline: &Arc<ComputePipeline>,
     ) -> Option<TemplateKey> {
         let cache = self.cache.lock();
-        for (key, cached_pipeline) in cache.iter() {
+        for (key, (cached_pipeline, _)) in cache.iter() {
             if Arc::ptr_eq(pipeline, cached_pipeline) {
                 return Some(key.clone());
             }
@@ -264,10 +266,11 @@ impl Context {
         let winning_key = cache
             .keys()
             .max_by(|a, b| {
-                counter
+                cache
                     .get(a)
+                    .map(|(_, count_a)| count_a) 
                     .unwrap_or(&0)
-                    .cmp(&counter.get(b).unwrap_or(&0))
+                    .cmp(&cache.get(b).map(|(_, count_b)| count_b).unwrap_or(&0))
             })
             .cloned();
 
