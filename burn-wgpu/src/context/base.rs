@@ -31,13 +31,14 @@ pub struct Context {
     id: String,
     device_wgpu: Arc<wgpu::Device>,
     cache: Mutex<HashMap<TemplateKey, Arc<ComputePipeline>>>,
+    pipeline_counter: Mutex<HashMap<TemplateKey, usize>>,
     client: ContextClientImpl,
     pub(crate) tuner: Tuner,
     pub(crate) device: WgpuDevice,
     pub(crate) info: wgpu::AdapterInfo,
 }
 
-#[derive(Debug, Hash, PartialOrd, PartialEq, Eq)]
+#[derive(Debug, Hash, Clone, PartialOrd, PartialEq, Eq)]
 enum TemplateKey {
     Static(TypeId),
     Dynamic(String),
@@ -71,6 +72,7 @@ impl Context {
             device,
             client,
             cache: Mutex::new(HashMap::new()),
+            pipeline_counter: Mutex::new(HashMap::new()),
             tuner: Tuner::new(),
             info,
         }
@@ -115,6 +117,12 @@ impl Context {
                 layout: &group_layout,
                 entries: &entries,
             });
+
+        if let Some(template_key) = self.find_template_key_for_pipeline(&pipeline) {
+            let mut counter = self.pipeline_counter.lock();
+            *counter.entry(template_key).or_insert(0) += 1;
+            self.retain_best_kernel();
+        }
 
         self.client
             .register_compute(bind_group, pipeline, work_group)
@@ -219,6 +227,43 @@ impl Context {
             });
 
         Arc::new(pipeline)
+    }
+
+    fn find_template_key_for_pipeline(
+        &self,
+        pipeline: &Arc<ComputePipeline>,
+    ) -> Option<TemplateKey> {
+        let cache = self.cache.lock();
+        for (key, cached_pipeline) in cache.iter() {
+            if Arc::ptr_eq(pipeline, cached_pipeline) {
+                return Some(key.clone());
+            }
+        }
+        None
+    }
+
+    fn retain_best_kernel(&self) {
+        let mut cache = self.cache.lock();
+        let counter = self.pipeline_counter.lock();
+        if cache.len() == 1 {
+            return;
+        }
+
+        let winning_key = cache
+            .keys()
+            .max_by(|a, b| {
+                counter
+                    .get(a)
+                    .unwrap_or(&0)
+                    .cmp(&counter.get(b).unwrap_or(&0))
+            })
+            .cloned();
+
+        if let Some(key) = winning_key {
+            let winning_pipeline = cache.remove(&key).unwrap();
+            cache.clear();
+            cache.insert(key, winning_pipeline);
+        }
     }
 }
 
