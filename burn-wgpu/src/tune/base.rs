@@ -143,7 +143,8 @@ impl Tuner {
         let kernel = find_best(&id, tunables, results);
         cache.insert(id.clone(), kernel);
         drop(cache);
-        context.end_tuning();
+
+        context.perform_cache_optimization();
 
         match self.execute(&id, input) {
             Execution::Executed(output) => output,
