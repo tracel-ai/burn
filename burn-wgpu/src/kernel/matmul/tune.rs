@@ -263,7 +263,7 @@ where
 
             context
                 .tuner
-                .tune(id, (lhs, rhs), tunables, &context.device)
+                .tune(id, (lhs, rhs), tunables, &context.device, &context)
         }
     };
 

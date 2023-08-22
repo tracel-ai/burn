@@ -31,6 +31,7 @@ pub struct Context {
     id: String,
     device_wgpu: Arc<wgpu::Device>,
     cache: Mutex<HashMap<TemplateKey, Arc<ComputePipeline>>>,
+    is_tuning: Mutex<bool>,
     pipeline_counter: Mutex<HashMap<TemplateKey, usize>>,
     client: ContextClientImpl,
     pub(crate) tuner: Tuner,
@@ -72,6 +73,7 @@ impl Context {
             device,
             client,
             cache: Mutex::new(HashMap::new()),
+            is_tuning: false.into(),
             pipeline_counter: Mutex::new(HashMap::new()),
             tuner: Tuner::new(),
             info,
@@ -118,10 +120,12 @@ impl Context {
                 entries: &entries,
             });
 
-        if let Some(template_key) = self.find_template_key_for_pipeline(&pipeline) {
-            let mut counter = self.pipeline_counter.lock();
-            *counter.entry(template_key).or_insert(0) += 1;
-            self.retain_best_kernel();
+        if *self.is_tuning.lock() {
+            if let Some(template_key) = self.find_template_key_for_pipeline(&pipeline) {
+                let mut counter = self.pipeline_counter.lock();
+                *counter.entry(template_key).or_insert(0) += 1;
+                self.retain_best_kernel();
+            }
         }
 
         self.client
@@ -227,6 +231,14 @@ impl Context {
             });
 
         Arc::new(pipeline)
+    }
+
+    pub fn start_tuning(&self) {
+        *self.is_tuning.lock() = true;
+    }
+
+    pub fn end_tuning(&self) {
+        *self.is_tuning.lock() = false;
     }
 
     fn find_template_key_for_pipeline(
