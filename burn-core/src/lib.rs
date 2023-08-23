@@ -38,11 +38,19 @@ pub mod tensor;
 
 extern crate alloc;
 
-#[cfg(all(test, not(feature = "test-tch"), not(feature = "test-wgpu")))]
+#[cfg(all(
+    test,
+    not(feature = "test-tch"),
+    not(feature = "test-wgpu"),
+    not(feature = "test-candle")
+))]
 pub type TestBackend = burn_ndarray::NdArrayBackend<f32>;
 
 #[cfg(all(test, feature = "test-tch"))]
 pub type TestBackend = burn_tch::TchBackend<f32>;
+
+#[cfg(all(test, feature = "test-candle"))]
+pub type TestBackend = burn_candle::CandleBackend<f32, u32>;
 
 #[cfg(all(test, feature = "test-wgpu", not(target_os = "macos")))]
 pub type TestBackend = burn_wgpu::WgpuBackend<burn_wgpu::Vulkan, f32, i32>;

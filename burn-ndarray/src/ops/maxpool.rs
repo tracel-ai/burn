@@ -11,15 +11,21 @@ pub(crate) fn max_pool2d<E: FloatNdArrayElement>(
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
+    dilation: [usize; 2],
 ) -> NdArrayTensor<E, 4> {
     let [kernel_height, kernel_width] = kernel_size;
     let [padding_height, padding_width] = padding;
     let [stride_height, stride_width] = stride;
+    let [dilation_height, dilation_width] = dilation;
     let [batch_size, channels, x_height, x_width] = x.shape().dims;
     let inf = (-f32::INFINITY).elem::<E>();
 
-    let out_height = ((x_height + 2 * padding_height - kernel_height) / stride_height) + 1;
-    let out_width = ((x_width + 2 * padding_width - kernel_width) / stride_width) + 1;
+    let out_height = ((x_height + 2 * padding_height - dilation_height * (kernel_height - 1) - 1)
+        / stride_height)
+        + 1;
+    let out_width = ((x_width + 2 * padding_width - dilation_width * (kernel_width - 1) - 1)
+        / stride_width)
+        + 1;
 
     let x = apply_padding_4d(x, padding, inf).array;
 
@@ -38,10 +44,10 @@ pub(crate) fn max_pool2d<E: FloatNdArrayElement>(
                     let mut max_val = inf;
 
                     for kh in 0..kernel_height {
-                        let ih = oh * stride_height + kh;
+                        let ih = oh * stride_height + kh * dilation_height;
 
                         for kw in 0..kernel_width {
-                            let iw = ow * stride_width + kw;
+                            let iw = ow * stride_width + kw * dilation_width;
 
                             let val = x[[b, c, ih, iw]];
 
@@ -65,15 +71,21 @@ pub(crate) fn max_pool2d_with_indices<E: FloatNdArrayElement>(
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
+    dilation: [usize; 2],
 ) -> (NdArrayTensor<E, 4>, NdArrayTensor<i64, 4>) {
     let [kernel_height, kernel_width] = kernel_size;
     let [padding_height, padding_width] = padding;
     let [stride_height, stride_width] = stride;
+    let [dilation_height, dilation_width] = dilation;
     let [batch_size, channels, x_height, x_width] = x.shape().dims;
     let inf = (-f32::INFINITY).elem::<E>();
 
-    let out_height = ((x_height + 2 * padding_height - kernel_height) / stride_height) + 1;
-    let out_width = ((x_width + 2 * padding_width - kernel_width) / stride_width) + 1;
+    let out_height = ((x_height + 2 * padding_height - dilation_height * (kernel_height - 1) - 1)
+        / stride_height)
+        + 1;
+    let out_width = ((x_width + 2 * padding_width - dilation_width * (kernel_width - 1) - 1)
+        / stride_width)
+        + 1;
 
     let x = apply_padding_4d(x, padding, inf).array;
 
@@ -97,10 +109,10 @@ pub(crate) fn max_pool2d_with_indices<E: FloatNdArrayElement>(
                     let mut index = 0;
 
                     for kh in 0..kernel_height {
-                        let ih = oh * stride_height + kh;
+                        let ih = oh * stride_height + kh * dilation_height;
 
                         for kw in 0..kernel_width {
-                            let iw = ow * stride_width + kw;
+                            let iw = ow * stride_width + kw * dilation_width;
                             let val = x[[b, c, ih, iw]];
 
                             if val > max_val {
@@ -132,6 +144,7 @@ pub(crate) fn max_pool2d_backward<E: FloatNdArrayElement>(
     _kernel_size: [usize; 2],
     _stride: [usize; 2],
     _padding: [usize; 2],
+    _dilation: [usize; 2],
     output_grad: NdArrayTensor<E, 4>,
     indices: NdArrayTensor<i64, 4>,
 ) -> NdArrayTensor<E, 4> {

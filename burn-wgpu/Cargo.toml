@@ -11,36 +11,38 @@ repository = "https://github.com/burn-rs/burn/tree/main/burn-wgpu"
 version = "0.9.0"
 
 [features]
-async = []
 default = ["async"]
+async = []
+# Still experimental
+autotune = []
 
 [dependencies]
-burn-common = {path = "../burn-common", version = "0.9.0" }
-burn-tensor = {path = "../burn-tensor", version = "0.9.0" }
-bytemuck = {workspace = true}
-derive-new = {workspace = true}
-log = {workspace = true}
-num-traits = {workspace = true}
-rand = {workspace = true}
-spin = {workspace = true}
+burn-common = { path = "../burn-common", version = "0.9.0" }
+burn-tensor = { path = "../burn-tensor", version = "0.9.0" }
+bytemuck = { workspace = true }
+derive-new = { workspace = true }
+log = { workspace = true }
+num-traits = { workspace = true }
+rand = { workspace = true }
+spin = { workspace = true }
 
 # WGPU stuff
-futures-intrusive = {workspace = true}
-pollster = {workspace = true}
-wgpu = {workspace = true}
+futures-intrusive = { workspace = true }
+pollster = { workspace = true }
+wgpu = { workspace = true }
 
 # Template
-serde = {workspace = true}
+serde = { workspace = true }
 text_placeholder = { version = "0.5.0", features = ["struct_context"] }
 
 [dev-dependencies]
-burn-autodiff = {path = "../burn-autodiff", version = "0.9.0", default-features = false, features = [
+burn-autodiff = { path = "../burn-autodiff", version = "0.9.0", default-features = false, features = [
   "export_tests",
-]}
-burn-tensor = {path = "../burn-tensor", version = "0.9.0", default-features = false, features = [
+] }
+burn-tensor = { path = "../burn-tensor", version = "0.9.0", default-features = false, features = [
   "export_tests",
-]}
-burn-ndarray = {path = "../burn-ndarray", version = "0.9.0" }
+] }
+burn-ndarray = { path = "../burn-ndarray", version = "0.9.0" }
 serial_test = "2.0.0"
 
 [[bench]]

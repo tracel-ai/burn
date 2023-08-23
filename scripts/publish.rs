@@ -9,8 +9,7 @@
 //! ./scripts/publish crate_name
 
 use std::env;
-use std::io::{self, Write};
-use std::process::{Command, Output};
+use std::process::{Command, Stdio};
 use std::str;
 
 // Crates.io API token
@@ -61,53 +60,41 @@ fn remote_version(crate_name: &str) -> Option<String> {
     }
 }
 
-// If stdout is not empty, write it, otherwise
-// write stderr and exit with code error 1
-fn stdout_and_stderr_write(output: Output, message_stdout: &str, message_stderr: &str) {
-    if !output.stdout.is_empty() {
-        io::stdout()
-            .write_all(&output.stdout)
-            .expect(message_stdout);
-    }
+// Run cargo publish
+fn cargo_publish(params: &[&str]) {
+    // Run cargo publish
+    let mut cargo_publish = Command::new("cargo")
+        .arg("publish")
+        .arg("--color=always")
+        .args(params)
+        .stdout(Stdio::inherit()) // Send stdout directly to terminal
+        .stderr(Stdio::inherit()) // Send stderr directly to terminal
+        .spawn()
+        .expect("Failed to run cargo publish");
 
-    if !output.stderr.is_empty() {
-        io::stderr()
-            .write_all(&output.stderr)
-            .expect(message_stderr);
-        std::process::exit(1);
+    // Wait for cargo publish command to finish
+    let status = cargo_publish
+        .wait()
+        .expect("Failed to wait for cargo publish child process");
+
+    // If exit status is not a success, terminate the process with an error
+    if !status.success() {
+        // Use the exit code associated to a command to terminate the process,
+        // if any exit code had been found, use the default value 1
+        std::process::exit(status.code().unwrap_or(1));
     }
 }
 
 // Publishes a crate
 fn publish(crate_name: String) {
     // Run cargo publish --dry-run
-    let cargo_publish_dry = Command::new("cargo")
-        .args(["publish", "-p", &crate_name, "--dry-run"])
-        .output()
-        .expect("Failed to run cargo publish --dry-run");
-
-    // Write cargo publish --dry-run either on stdout or on stderr
-    stdout_and_stderr_write(
-        cargo_publish_dry,
-        "Failed to write cargo publish --dry-run on stdout",
-        "Failed to write cargo publish --dry-run on stderr",
-    );
+    cargo_publish(&["-p", &crate_name, "--dry-run"]);
 
     let crates_io_token =
         env::var(CRATES_IO_API_TOKEN).expect("Failed to retrieve the crates.io API token");
 
     // Publish crate
-    let cargo_publish = Command::new("cargo")
-        .args(["publish", "-p", &crate_name, "--token", &crates_io_token])
-        .output()
-        .expect("Failed to run cargo publish");
-
-    // Write cargo publish either on stdout or on stderr
-    stdout_and_stderr_write(
-        cargo_publish,
-        "Failed to write cargo publish on stdout",
-        "Failed to write cargo publish on stderr",
-    );
+    cargo_publish(&["-p", &crate_name, "--token", &crates_io_token]);
 }
 
 fn main() {

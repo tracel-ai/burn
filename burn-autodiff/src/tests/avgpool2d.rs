@@ -17,6 +17,7 @@ mod tests {
             stride_2: 1,
             height: 6,
             width: 6,
+            count_include_pad: true,
         };
 
         test.assert_output(TestTensor::from_floats([[[
@@ -42,6 +43,7 @@ mod tests {
             stride_2: 2,
             height: 4,
             width: 6,
+            count_include_pad: true,
         };
 
         test.assert_output(TestTensor::from_floats([[[
@@ -49,6 +51,30 @@ mod tests {
             [0.5000, 0.5000, 0.5000, 0.5000, 0.5000, 0.5000],
             [0.5000, 0.5000, 0.5000, 0.5000, 0.5000, 0.5000],
             [0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333],
+        ]]]));
+    }
+
+    #[test]
+    fn test_avg_pool2d_complex_dont_include_pad() {
+        let test = AvgPool2dTestCase {
+            batch_size: 1,
+            channels: 1,
+            kernel_size_1: 3,
+            kernel_size_2: 4,
+            padding_1: 1,
+            padding_2: 2,
+            stride_1: 1,
+            stride_2: 2,
+            height: 4,
+            width: 6,
+            count_include_pad: false,
+        };
+
+        test.assert_output(TestTensor::from_floats([[[
+            [0.6250, 0.6250, 0.4167, 0.4167, 0.6250, 0.6250],
+            [0.8750, 0.8750, 0.5833, 0.5833, 0.8750, 0.8750],
+            [0.8750, 0.8750, 0.5833, 0.5833, 0.8750, 0.8750],
+            [0.6250, 0.6250, 0.4167, 0.4167, 0.6250, 0.6250],
         ]]]));
     }
 
@@ -63,6 +89,7 @@ mod tests {
         stride_2: usize,
         height: usize,
         width: usize,
+        count_include_pad: bool,
     }
 
     impl AvgPool2dTestCase {
@@ -80,6 +107,7 @@ mod tests {
                 [self.kernel_size_1, self.kernel_size_2],
                 [self.stride_1, self.stride_2],
                 [self.padding_1, self.padding_2],
+                self.count_include_pad,
             );
             let grads = output.backward();
             let x_grad_actual = x.grad(&grads).unwrap();

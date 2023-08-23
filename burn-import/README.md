@@ -23,7 +23,8 @@ List taken from [here](https://github.com/onnx/onnx/blob/main/docs/Operators.md)
 - [ ] Asinh
 - [ ] Atan
 - [ ] Atanh
-- [ ] AveragePool
+- [ ] AveragePool1d
+- [x] AveragePool2d
 - [x] BatchNormalization
 - [ ] Bernoulli
 - [ ] BitShift
@@ -45,7 +46,7 @@ List taken from [here](https://github.com/onnx/onnx/blob/main/docs/Operators.md)
 - [x] Constant
 - [ ] ConstantOfShape
 - [ ] Conv
-- [ ] Conv1d
+- [x] Conv1d
 - [x] Conv2d
 - [ ] ConvInteger
 - [ ] ConvTranspose
@@ -57,7 +58,7 @@ List taken from [here](https://github.com/onnx/onnx/blob/main/docs/Operators.md)
 - [ ] Det
 - [ ] DFT
 - [x] Div
-- [ ] Dropout
+- [x] Dropout
 - [ ] DynamicQuantizeLinear
 - [ ] Einsum
 - [ ] Elu
@@ -73,7 +74,7 @@ List taken from [here](https://github.com/onnx/onnx/blob/main/docs/Operators.md)
 - [ ] GatherND
 - [ ] Gelu
 - [x] Gemm (Linear Layer)
-- [ ] GlobalAveragePool
+- [x] GlobalAveragePool
 - [ ] GlobalLpPool
 - [ ] GlobalMaxPool
 - [ ] Greater
@@ -86,7 +87,7 @@ List taken from [here](https://github.com/onnx/onnx/blob/main/docs/Operators.md)
 - [ ] Hardmax
 - [ ] HardSigmoid
 - [ ] HardSwish
-- [ ] Identity
+- [x] Identity
 - [ ] If
 - [ ] Im
 - [ ] InstanceNormalization
@@ -107,7 +108,6 @@ List taken from [here](https://github.com/onnx/onnx/blob/main/docs/Operators.md)
 - [ ] MatMul
 - [ ] MatMulInteger
 - [ ] Max
-- [ ] MaxPool
 - [ ] MaxPool1d
 - [x] MaxPool2d
 - [ ] MaxRoiPool
@@ -178,7 +178,7 @@ List taken from [here](https://github.com/onnx/onnx/blob/main/docs/Operators.md)
 - [ ] Sinh
 - [ ] Size
 - [ ] Slice
-- [ ] Softmax
+- [x] Softmax
 - [ ] SoftmaxCrossEntropyLoss
 - [ ] Softplus
 - [ ] Softsign

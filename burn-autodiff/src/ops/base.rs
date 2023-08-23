@@ -11,7 +11,7 @@ use std::marker::PhantomData;
 
 /// Operation in preparation.
 ///
-/// There are 3 diffent modes: 'Init', 'Tracked' and 'UnTracked'.
+/// There are 3 different modes: 'Init', 'Tracked' and 'UnTracked'.
 /// Each mode has its own set of functions to minimize cloning for unused backward states.
 #[derive(new)]
 pub struct OpsPrep<Backward, B, S, const D: usize, const N: usize, Mode = Init> {

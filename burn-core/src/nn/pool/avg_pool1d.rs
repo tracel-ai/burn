@@ -18,14 +18,32 @@ pub struct AvgPool1dConfig {
     /// The padding configuration.
     #[config(default = "PaddingConfig1d::Valid")]
     pub padding: PaddingConfig1d,
+    /// If the padding is counted in the denominator when computing the average.
+    #[config(default = "true")]
+    count_include_pad: bool,
 }
 
 /// Applies a 1D avg pooling over input tensors.
+///
+/// See [AvgPool1dConfig](AvgPool1dConfig) for details.
+///
+/// # Remarks
+///
+/// The zero-padding values will be included in the calculation
+/// of the average. This means that the zeros are counted as
+/// legitimate values, and they contribute to the denominator
+/// when calculating the average. This is equivalent to
+/// `torch.nn.AvgPool2d` with `count_include_pad=True`.
+///
+/// TODO: Add support for `count_include_pad=False`, see
+/// [Issue 636](https://github.com/burn-rs/burn/issues/636)
+
 #[derive(Module, Debug, Clone)]
 pub struct AvgPool1d {
     stride: usize,
     kernel_size: usize,
     padding: PaddingConfig1d,
+    count_include_pad: bool,
 }
 
 impl AvgPool1dConfig {
@@ -35,6 +53,7 @@ impl AvgPool1dConfig {
             stride: self.stride,
             kernel_size: self.kernel_size,
             padding: self.padding.clone(),
+            count_include_pad: self.count_include_pad,
         }
     }
 }
@@ -52,6 +71,12 @@ impl AvgPool1d {
             .padding
             .calculate_padding_1d(length, self.kernel_size, self.stride);
 
-        avg_pool1d(input, self.kernel_size, self.stride, padding)
+        avg_pool1d(
+            input,
+            self.kernel_size,
+            self.stride,
+            padding,
+            self.count_include_pad,
+        )
     }
 }

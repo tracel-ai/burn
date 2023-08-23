@@ -25,7 +25,7 @@ impl MaxPool2dNode {
             field: OtherType::new(
                 name,
                 quote! {
-                    MaxPool2d<B>
+                    MaxPool2d
                 },
             ),
             input,
@@ -51,6 +51,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MaxPool2dNode {
         let kernel_size = self.config.kernel_size.to_tokens();
         let strides = self.config.strides.to_tokens();
         let padding = self.config.padding.to_tokens();
+        let dilation = self.config.dilation.to_tokens();
 
         let init_line = quote! {
             init();
@@ -60,6 +61,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MaxPool2dNode {
             let #name = MaxPool2dConfig::new(#kernel_size)
                 .with_strides(#strides)
                 .with_padding(#padding)
+                .with_dilation(#dilation)
                 .#init_line
         };
 
@@ -75,6 +77,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MaxPool2dNode {
             let #output = self.#field.forward(#input);
         }
     }
+
     fn register_imports(&self, imports: &mut BurnImports) {
         imports.register("burn::nn::PaddingConfig2d");
         imports.register("burn::nn::pool::MaxPool2d");
@@ -83,6 +86,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MaxPool2dNode {
 
     fn into_node(self) -> Node<PS> {
         Node::MaxPool2d(self)
+    }
+
+    fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        S::serialize_none(serializer)
     }
 }
 
@@ -106,7 +113,8 @@ mod tests {
             TensorType::new_float("output", 4),
             MaxPool2dConfig::new([3, 3])
                 .with_strides([1, 1])
-                .with_padding(PaddingConfig2d::Valid),
+                .with_padding(PaddingConfig2d::Valid)
+                .with_dilation([1, 1]),
         ));
 
         graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
@@ -122,18 +130,22 @@ mod tests {
 
             #[derive(Module, Debug)]
             pub struct Model <B: Backend> {
-                max_pool2d: MaxPool2d<B>,
+                max_pool2d: MaxPool2d,
+                phantom: core::marker::PhantomData<B>,
             }
 
             impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
                 pub fn new_with(record: ModelRecord<B>) -> Self {
                     let max_pool2d = MaxPool2dConfig::new([3, 3])
                         .with_strides([1, 1])
                         .with_padding(PaddingConfig2d::Valid)
+                        .with_dilation([1, 1])
                         .init();
 
                     Self {
                         max_pool2d,
+                        phantom: core::marker::PhantomData,
                     }
                 }
                 #[allow(clippy::let_and_return)]

@@ -11,6 +11,7 @@ var<storage, read_write> output: array<{{ elem }}>;
 var<storage, read> info: array<u32, 22>;
 
 const WORKGROUP_SIZE_X = {{ workgroup_size_x }}u;
+const COUNT_INCLUDE_PAD = {{ count_include_pad }};
 
 @compute
 @workgroup_size({{ workgroup_size_x }}, {{ workgroup_size_y }}, 1)
@@ -68,34 +69,42 @@ fn main(
     // if their max index is the current one.
     for (var oh = oh_start; oh <= oh_end; oh++) {
         for (var ow = ow_start; ow <= ow_end; ow++) {
-
-            // We check for every kernel size combination if the current oh/ow have contributed to the output.
-            var contributed_h = false;
-            var contributed_w = false;
-            for (var kh = 0u; kh < kernel_size_0; kh++) {
-                for (var kw = 0u; kw < kernel_size_1; kw++) {
-                    let ih_tmp = oh * pool_stride_0 + kh - padding_0;
-                    let iw_tmp = ow * pool_stride_1 + kw - padding_1;
-
-                    if ih_tmp == ih {
-                        contributed_h = true;
-                    }
-                    if iw_tmp == iw {
-                        contributed_w = true;
-                    }
-
-                }
-            }
-
-            // If no contribution or outside of output shape, skip.
-            if !contributed_h || oh >= grad_shape_2  || !contributed_w || ow >= grad_shape_3 {
+            if oh >= grad_shape_2 || ow >= grad_shape_3 {
                 continue;
             }
 
+            var ih_start = oh * pool_stride_0;
+            var iw_start = ow * pool_stride_1;
+
+            var ih_end = ih_start + kernel_size_0;
+            var iw_end = iw_start + kernel_size_1;
+
+            ih_start = max(ih_start, padding_0);
+            iw_start = max(iw_start, padding_1);
+
+            ih_end = min(ih_end, input_shape_2 + padding_0);
+            iw_end = min(iw_end, input_shape_3 + padding_1);
+
+            let contributed_h = ih + padding_0 >= ih_start && ih < ih_end;
+            let contributed_w = iw + padding_1 >= iw_start && iw < iw_end;
+
+            // If no contribution or outside of output shape, skip.
+            if !contributed_h || !contributed_w {
+                continue;
+            }
+
+            var count = 0.0;
+
+            if COUNT_INCLUDE_PAD {
+                count = {{ elem }}(kernel_size_0 * kernel_size_1);
+            } else {
+                count = {{ elem }}((ih_end - ih_start) * (iw_end - iw_start));
+            }
+
             let index = b * grad_stride_0 + c * grad_stride_1 + oh * grad_stride_2 + ow * grad_stride_3;
-            grad_acc += grad[index];
+            grad_acc += grad[index] / count;
         }
     }
 
-    output[id] = grad_acc / {{ elem }}(kernel_size_0 * kernel_size_1);
+    output[id] = grad_acc;
 }

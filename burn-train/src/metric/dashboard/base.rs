@@ -21,7 +21,7 @@ pub struct TrainingProgress {
 }
 
 impl TrainingProgress {
-    /// Creates a new empy training progress.
+    /// Creates a new empty training progress.
     pub fn none() -> Self {
         Self {
             progress: Progress {

@@ -17,7 +17,7 @@ burn-autodiff = {path = "../../burn-autodiff"}
 burn-tch = {path = "../../burn-tch"}
 
 # Tokenizer
-tokenizers = {version = "0.13.3", default-features = false, features = [
+tokenizers = {version = "0.13.4", default-features = false, features = [
   "onig",
   "http",
 ]}

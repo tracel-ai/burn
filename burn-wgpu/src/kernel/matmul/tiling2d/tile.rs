@@ -1,11 +1,11 @@
 use crate::{
     element::WgpuElement,
-    kernel::{KernelSettings, SourceTemplate, StaticKernel},
+    kernel::{DynamicKernel, SourceTemplate, StaticKernel},
     matmul_tile_2d,
     tensor::WgpuTensor,
 };
 
-use super::base::{matmul_tiling_2d_launch, register_template};
+use super::base::matmul_tiling_2d_launch;
 
 matmul_tile_2d!(
     MatmulTiling2DTile,

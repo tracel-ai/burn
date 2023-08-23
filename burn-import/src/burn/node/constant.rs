@@ -32,6 +32,9 @@ pub enum ConstantValue<PS: PrecisionSettings> {
     Int32(i32),
     Int64(i64),
 
+    // Boolean constant.
+    Bool(bool),
+
     /// Tensor constant.
     Tensor(TensorType, TensorValue<PS>),
 }
@@ -43,6 +46,7 @@ impl<PS: PrecisionSettings> ConstantValue<PS> {
             ConstantValue::Float64(_) => quote! { f64 },
             ConstantValue::Int32(_) => quote! { i32 },
             ConstantValue::Int64(_) => quote! { i64 },
+            ConstantValue::Bool(_) => quote! { bool },
             ConstantValue::Tensor(tensor_type, _) => {
                 let ty = tensor_type.ty();
                 quote! { burn::module::Param<#ty>}
@@ -55,6 +59,7 @@ impl<PS: PrecisionSettings> ConstantValue<PS> {
             ConstantValue::Float64(val) => quote! { #val },
             ConstantValue::Int32(val) => quote! { #val },
             ConstantValue::Int64(val) => quote! { #val },
+            ConstantValue::Bool(val) => quote! { #val },
             ConstantValue::Tensor(_, _) => {
                 panic!("Tensor constant is not assignable.")
             }
@@ -89,6 +94,11 @@ impl<PS: PrecisionSettings> ConstantNode<PS> {
                 name,
                 kind: ScalarKind::Int64,
             }),
+            ConstantValue::Bool(_) => Type::Scalar(ScalarType {
+                name,
+                kind: ScalarKind::Bool,
+            }),
+
             ConstantValue::Tensor(tensor_type, _) => Type::Tensor(tensor_type.clone()),
         }
     }

@@ -1,6 +1,7 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 
+use burn::nn::PaddingConfig1d;
 use burn::nn::PaddingConfig2d;
 
 fn convert_primitive<T: ToString>(primitive: T) -> TokenStream {
@@ -52,6 +53,27 @@ impl ToTokens for usize {
 impl ToTokens for i64 {
     fn to_tokens(&self) -> TokenStream {
         convert_primitive(self)
+    }
+}
+
+/// Prettier output for `f64`
+impl ToTokens for f64 {
+    fn to_tokens(&self) -> TokenStream {
+        convert_primitive(self)
+    }
+}
+
+/// Padding configuration
+impl ToTokens for PaddingConfig1d {
+    fn to_tokens(&self) -> TokenStream {
+        match self {
+            Self::Same => quote! { PaddingConfig1d::Same },
+            Self::Valid => quote! { PaddingConfig1d::Valid },
+            Self::Explicit(padding) => {
+                let padding = padding.to_tokens();
+                quote! { PaddingConfig1d::Explicit(#padding) }
+            }
+        }
     }
 }
 

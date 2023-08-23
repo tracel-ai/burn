@@ -1,6 +1,6 @@
 use burn_tensor::Element;
 
-pub trait WgpuElement: core::fmt::Debug + 'static + Clone
+pub trait WgpuElement: core::fmt::Debug + Send + Sync + 'static + Clone
 where
     Self: Sized,
 {

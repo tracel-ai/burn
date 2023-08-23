@@ -13,11 +13,15 @@ use crate::{
     burn::{
         graph::BurnGraph,
         node::{
+            avg_pool2d::AvgPool2dNode,
             batch_norm::BatchNormNode,
             binary::BinaryNode,
             concat::ConcatNode,
             constant::{ConstantNode, ConstantValue, TensorValue},
+            conv1d::Conv1dNode,
             conv2d::Conv2dNode,
+            dropout::DropoutNode,
+            global_avg_pool::GlobalAvgPoolNode,
             linear::LinearNode,
             matmul::MatmulNode,
             max_pool2d::MaxPool2dNode,
@@ -31,16 +35,18 @@ use crate::{
     onnx::{
         ir::{AttributeValue, Node, NodeType},
         op_configuration::{
-            batch_norm_config, conv2d_config, flatten_config, linear_config, log_softmax_config,
-            max_pool2d_config,
+            batch_norm_config, conv1d_config, conv2d_config, flatten_config, linear_config,
+            log_softmax_config, max_pool2d_config,
         },
     },
 };
 
 use super::{
-    from_onnx::parse_onnx,
+    from_onnx::{get_constant_value, parse_onnx},
     ir::{ArgType, Argument, ElementType, ONNXGraph, State, StateType, Tensor, TensorData},
-    op_configuration::concat_config,
+    op_configuration::{
+        avg_pool2d_config, concat_config, dropout_config, reshape_config, softmax_config,
+    },
 };
 
 /// Generate code and states from `.onnx` files and save them to the `out_dir`.
@@ -98,8 +104,6 @@ impl ModelGen {
     fn run(&self, is_build_script: bool) {
         log::info!("Starting to convert ONNX to Burn");
 
-        log::info!("Starting to convert ONNX to Burn");
-
         // prepend the out_dir to the cargo_out_dir if this is a build script
         let out_dir = if is_build_script {
             let cargo_out_dir = env::var("OUT_DIR").expect("OUT_DIR env is not set");
@@ -114,8 +118,6 @@ impl ModelGen {
 
         log::debug!("Output directory: {:?}", out_dir);
 
-        log::debug!("Output directory: {:?}", out_dir);
-
         create_dir_all(&out_dir).unwrap();
 
         for input in self.inputs.iter() {
@@ -126,24 +128,14 @@ impl ModelGen {
             log::debug!("Input file name: {:?}", file_name);
             log::debug!("Output file: {:?}", out_file);
 
-            log::info!("Converting {:?}", input);
-            log::debug!("Input file name: {:?}", file_name);
-            log::debug!("Output file: {:?}", out_file);
-
             Self::generate_model(self.development, input, out_file);
         }
-
-        log::info!("Finished converting ONNX to Burn");
 
         log::info!("Finished converting ONNX to Burn");
     }
 
     /// Generate model source code and model state.
     fn generate_model(development: bool, input: &PathBuf, out_file: PathBuf) {
-        log::info!("Generating model from {:?}", input);
-        log::debug!("Development mode: {:?}", development);
-        log::debug!("Output file: {:?}", out_file);
-
         log::info!("Generating model from {:?}", input);
         log::debug!("Development mode: {:?}", development);
         log::debug!("Output file: {:?}", out_file);
@@ -175,8 +167,6 @@ impl ModelGen {
         fs::write(out_file.with_extension("rs"), code_str).unwrap();
 
         log::info!("Model generated");
-
-        log::info!("Model generated");
     }
 }
 
@@ -192,8 +182,10 @@ impl ONNXGraph {
                 NodeType::Mul => graph.register(Self::mul_conversion(node)),
                 NodeType::Div => graph.register(Self::div_conversion(node)),
                 NodeType::Equal => graph.register(Self::equal_conversion(node)),
+                NodeType::Conv1d => graph.register(Self::conv1d_conversion::<PS>(node)),
                 NodeType::Conv2d => graph.register(Self::conv2d_conversion::<PS>(node)),
                 NodeType::MaxPool2d => graph.register(Self::max_pool2d_conversion(node)),
+                NodeType::AveragePool2d => graph.register(Self::avg_pool_2d_conversion(node)),
                 NodeType::MatMul => graph.register(Self::matmul_conversion(node)),
                 NodeType::Linear => graph.register(Self::linear_conversion::<PS>(node)),
                 NodeType::BatchNormalization => {
@@ -202,12 +194,17 @@ impl ONNXGraph {
                 NodeType::Relu => graph.register(Self::relu_conversion(node)),
                 NodeType::Flatten => graph.register(Self::flatten_conversion(node)),
                 NodeType::LogSoftmax => graph.register(Self::log_softmax_conversion(node)),
+                NodeType::Softmax => graph.register(Self::softmax_conversion(node)),
                 NodeType::Constant => graph.register(Self::constant_conversion::<PS>(node)),
                 NodeType::Reshape => graph.register(Self::reshape_conversion(node)),
                 NodeType::Sigmoid => graph.register(Self::sigmoid_conversion(node)),
                 NodeType::Transpose => graph.register(Self::transpose_conversion(node)),
                 NodeType::Concat => graph.register(Self::concat_conversion(node)),
                 NodeType::Cast => graph.register(Self::cast_conversion(node)),
+                NodeType::Dropout => graph.register(Self::dropout_conversion(node)),
+                NodeType::GlobalAveragePool => {
+                    graph.register(Self::global_avg_pool_conversion(node))
+                }
                 _ => panic!("Unsupported node conversion {}", node.node_type),
             }
         }
@@ -230,12 +227,10 @@ impl ONNXGraph {
         graph
     }
 
-    fn constant_conversion<PS: PrecisionSettings>(mut node: Node) -> ConstantNode<PS> {
+    fn constant_conversion<PS: PrecisionSettings>(node: Node) -> ConstantNode<PS> {
         let output = node.outputs.get(0).unwrap();
 
-        let value = node.attrs.remove("value").unwrap();
-
-        let value = match value {
+        let value = match get_constant_value(&node).unwrap() {
             AttributeValue::Float32(val) => ConstantValue::Float32(val),
             AttributeValue::Int64(val) => ConstantValue::Int64(val),
             AttributeValue::Tensor(tensor) => {
@@ -247,6 +242,7 @@ impl ONNXGraph {
                         TensorData::Float64(val) => ConstantValue::Float64(val[0]),
                         TensorData::Int32(val) => ConstantValue::Int32(val[0]),
                         TensorData::Int64(val) => ConstantValue::Int64(val[0]),
+                        TensorData::Bool(val) => ConstantValue::Bool(val[0]),
                         _ => panic!(
                             "Unsupported zero dim constant tensor type: {:?} ",
                             tensor.elem_type
@@ -274,7 +270,7 @@ impl ONNXGraph {
                     )
                 }
             }
-            _ => panic!("Unsupported constant value: {:?} ", value),
+            value => panic!("Unsupported constant value: {:?} ", value),
         };
 
         ConstantNode::new(node.name.clone(), value, output.to_type())
@@ -357,16 +353,12 @@ impl ONNXGraph {
         UnaryNode::cast(input, output)
     }
 
-    fn reshape_conversion(mut node: Node) -> ReshapeNode {
+    fn reshape_conversion(node: Node) -> ReshapeNode {
         let input = node.inputs.get(0).unwrap().to_tensor_type();
         let output = node.outputs.get(0).unwrap().to_tensor_type();
-        let shape = extract_next_data_serialize::<i64>(&mut node).unwrap();
+        let shape = reshape_config(&node);
 
-        ReshapeNode::new(
-            input,
-            output,
-            shape.value.iter().map(|item| *item as usize).collect(),
-        )
+        ReshapeNode::new(input, output, shape)
     }
 
     fn sigmoid_conversion(node: Node) -> UnaryNode {
@@ -382,6 +374,14 @@ impl ONNXGraph {
         let dim = log_softmax_config(&node);
 
         UnaryNode::log_softmax(input, output, dim)
+    }
+
+    fn softmax_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.get(0).unwrap().to_type();
+        let output = node.outputs.get(0).unwrap().to_type();
+        let dim = softmax_config(&node);
+
+        UnaryNode::softmax(input, output, dim)
     }
 
     fn concat_conversion(node: Node) -> ConcatNode {
@@ -414,6 +414,15 @@ impl ONNXGraph {
         LinearNode::new(name, input, output, weight, bias, config)
     }
 
+    fn dropout_conversion(node: Node) -> DropoutNode {
+        let name = &node.name;
+        let input = node.inputs.get(0).unwrap().to_tensor_type();
+        let output = node.outputs.get(0).unwrap().to_tensor_type();
+        let config = dropout_config(&node);
+
+        DropoutNode::new(name, input, output, config)
+    }
+
     fn batch_norm_conversion<PS: PrecisionSettings>(mut node: Node) -> BatchNormNode<PS> {
         let config = batch_norm_config(&node);
         let input = node.inputs.get(0).unwrap().to_tensor_type();
@@ -444,6 +453,22 @@ impl ONNXGraph {
         )
     }
 
+    fn conv1d_conversion<PS: PrecisionSettings>(mut node: Node) -> Conv1dNode<PS> {
+        let input = node.inputs.get(0).unwrap().to_tensor_type();
+        let output = node.outputs.get(0).unwrap().to_tensor_type();
+        let config = conv1d_config(&node);
+
+        let bias = node.states.len() == 2;
+        let weight = extract_next_data_serialize::<PS::FloatElem>(&mut node).unwrap();
+        let bias = match bias {
+            true => Some(extract_next_data_serialize::<PS::FloatElem>(&mut node)).unwrap(),
+            false => None,
+        };
+
+        let name = &node.name;
+        Conv1dNode::<PS>::new(name, input, output, weight, bias, config)
+    }
+
     fn conv2d_conversion<PS: PrecisionSettings>(mut node: Node) -> Conv2dNode<PS> {
         let input = node.inputs.get(0).unwrap().to_tensor_type();
         let output = node.outputs.get(0).unwrap().to_tensor_type();
@@ -467,6 +492,24 @@ impl ONNXGraph {
 
         let name = &node.name;
         MaxPool2dNode::new(name, input, output, config)
+    }
+
+    fn avg_pool_2d_conversion(node: Node) -> AvgPool2dNode {
+        let input = node.inputs.get(0).unwrap().to_tensor_type();
+        let output = node.outputs.get(0).unwrap().to_tensor_type();
+        let config = avg_pool2d_config(&node);
+
+        let name = &node.name;
+        AvgPool2dNode::new(name, input, output, config)
+    }
+
+    fn global_avg_pool_conversion(node: Node) -> GlobalAvgPoolNode {
+        let input = node.inputs.get(0).unwrap().to_tensor_type();
+        let output = node.outputs.get(0).unwrap().to_tensor_type();
+
+        let name = &node.name;
+
+        GlobalAvgPoolNode::new(name, input, output)
     }
 }
 
@@ -499,11 +542,16 @@ impl Argument {
             ArgType::Tensor(tensor) => {
                 // Treat tensor with dim 0 as scalar
                 if tensor.dim == 0 {
-                    // FIXME Convert to correct scalar type (@antimora 8/1/2023)
-                    // Currently it's not dangerous because we don't use specific scalar type
-                    Type::Scalar(ScalarType::new(self.name.clone(), ScalarKind::Float64))
+                    Type::Scalar(ScalarType::new(
+                        self.name.clone(),
+                        ScalarKind::from(&tensor.elem_type),
+                    ))
                 } else {
-                    Type::Tensor(TensorType::new_float(self.name.clone(), tensor.dim))
+                    let kind: TensorKind = tensor.elem_type.clone().into();
+                    let dim = tensor.dim;
+                    let name = self.name.clone();
+                    let shape = tensor.shape.clone();
+                    Type::Tensor(TensorType::new(name, dim, kind, shape))
                 }
             }
 

@@ -34,11 +34,11 @@ impl GradientsParams {
     }
 
     /// Remove the gradients for the given [parameter id](ParamId).
-    pub fn remove<B, const D: usize>(&self, id: &ParamId) -> Option<Tensor<B, D>>
+    pub fn remove<B, const D: usize>(&mut self, id: &ParamId) -> Option<Tensor<B, D>>
     where
         B: Backend,
     {
-        self.container.get(id)
+        self.container.remove(id)
     }
 
     /// Register a gradients tensor for the given [parameter id](ParamId).

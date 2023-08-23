@@ -149,9 +149,11 @@ mod tests {
             #[derive(Module, Debug)]
             pub struct Model <B: Backend> {
                 linear: Linear<B>,
+                phantom: core::marker::PhantomData<B>,
             }
 
             impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
                 pub fn new_with(record: ModelRecord<B>) -> Self {
                     let linear = LinearConfig::new(128, 128)
                         .with_bias(true)
@@ -159,6 +161,7 @@ mod tests {
 
                     Self {
                         linear,
+                        phantom: core::marker::PhantomData,
                     }
                 }
                 #[allow(clippy::let_and_return)]

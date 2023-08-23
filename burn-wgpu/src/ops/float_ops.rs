@@ -139,6 +139,10 @@ where
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
+        #[cfg(feature = "autotune")]
+        return kernel::matmul::tune::<G, F, D>(lhs, rhs);
+
+        #[cfg(not(feature = "autotune"))]
         kernel::matmul::contiguous_vectorized::matmul_tiling_2d_default(lhs, rhs)
     }
 
@@ -444,6 +448,10 @@ where
 
     fn argmin<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
         kernel::argmin(tensor, dim)
+    }
+
+    fn into_int<const D: usize>(tensor: FloatTensor<Self, D>) -> IntTensor<Self, D> {
+        kernel::cast(tensor)
     }
 
     // TODO implement clamp kernels (see https://github.com/burn-rs/burn/issues/549)

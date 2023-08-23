@@ -38,8 +38,9 @@ where
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        count_include_pad: bool,
     ) -> FloatTensor<Self, 4> {
-        kernel::pool::avg_pool2d(x, kernel_size, stride, padding)
+        kernel::pool::avg_pool2d(x, kernel_size, stride, padding, count_include_pad)
     }
 
     fn avg_pool2d_backward(
@@ -48,8 +49,9 @@ where
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        count_include_pad: bool,
     ) -> FloatTensor<Self, 4> {
-        kernel::pool::avg_pool2d_backward(x, grad, kernel_size, stride, padding)
+        kernel::pool::avg_pool2d_backward(x, grad, kernel_size, stride, padding, count_include_pad)
     }
 
     fn max_pool2d(
@@ -57,8 +59,9 @@ where
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
     ) -> FloatTensor<Self, 4> {
-        kernel::pool::max_pool2d(x, kernel_size, stride, padding)
+        kernel::pool::max_pool2d(x, kernel_size, stride, padding, dilation)
     }
 
     fn max_pool2d_with_indices(
@@ -66,9 +69,10 @@ where
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
     ) -> MaxPool2dWithIndices<WgpuBackend<G, F, I>> {
         let (output, indices) =
-            kernel::pool::max_pool2d_with_indices(x, kernel_size, stride, padding);
+            kernel::pool::max_pool2d_with_indices(x, kernel_size, stride, padding, dilation);
 
         MaxPool2dWithIndices::new(output, indices)
     }
@@ -78,6 +82,7 @@ where
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
         output_grad: FloatTensor<Self, 4>,
         indices: IntTensor<Self, 4>,
     ) -> MaxPool2dBackward<WgpuBackend<G, F, I>> {
@@ -88,6 +93,7 @@ where
             kernel_size,
             stride,
             padding,
+            dilation,
         ))
     }
 

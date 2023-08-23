@@ -1,7 +1,7 @@
 use super::{BurnImports, Scope, Type};
 use crate::burn::{
     node::{Node, NodeCodegen},
-    TensorType,
+    TensorKind, TensorType,
 };
 use burn::record::{
     BurnRecord, DefaultFileRecorder, FileRecorder, PrecisionSettings, PrettyJsonFileRecorder,
@@ -101,9 +101,8 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
     /// Generate tokens reprensenting the graph with Burn modules and tensor operations.
     pub fn codegen(mut self) -> TokenStream {
         self.build_scope();
-        self.nodes
-            .iter()
-            .for_each(|node| node.register_imports(&mut self.imports));
+
+        self.register_imports();
 
         let codegen_imports = self.imports.codegen();
         let codegen_struct = self.codegen_struct();
@@ -158,6 +157,38 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
 
                 #codegen_new
                 #codegen_forward
+            }
+        }
+    }
+
+    fn register_imports(&mut self) {
+        // Register imports from nodes
+        self.nodes
+            .iter()
+            .for_each(|node| node.register_imports(&mut self.imports));
+
+        // Combine input and output types into a single vector
+        let all_types = self
+            .graph_input_types
+            .iter()
+            .chain(&self.graph_output_types);
+
+        // Register imports for bool and int tensors
+        for ty in all_types {
+            match ty {
+                Type::Tensor(TensorType {
+                    kind: TensorKind::Bool,
+                    ..
+                }) => {
+                    self.imports.register("burn::tensor::Bool");
+                }
+                Type::Tensor(TensorType {
+                    kind: TensorKind::Int,
+                    ..
+                }) => {
+                    self.imports.register("burn::tensor::Int");
+                }
+                _ => {}
             }
         }
     }
@@ -259,21 +290,15 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             })
             .for_each(|code| body.extend(code));
 
-        // Add dummy field if no field is present to avoid empty struct
-        // and make sure we can derive Module trait and use it in a model.
-        if body.is_empty() {
-            quote! {
-                #[derive(Module, Debug)]
-                pub struct Model<B: Backend> {
-                    _phantom: core::marker::PhantomData<B>,
-                }
-            }
-        } else {
-            quote! {
-                #[derive(Module, Debug)]
-                pub struct Model<B: Backend> {
-                    #body
-                }
+        // Extend with phantom data to avoid unused generic type.
+        body.extend(quote! {
+            phantom: core::marker::PhantomData<B>,
+        });
+
+        quote! {
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                #body
             }
         }
     }
@@ -293,24 +318,14 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             .map(|field| field.name().clone())
             .collect::<Vec<_>>();
 
-        if fields.is_empty() {
-            quote! {
-                #[allow(dead_code)]
-                pub fn new() -> Self {
-                    Self {
-                        _phantom: core::marker::PhantomData,
-                    }
-                }
-            }
-        } else {
-            quote! {
-                #[allow(dead_code)]
-                pub fn new() -> Self {
-                    #body
+        quote! {
+            #[allow(dead_code)]
+            pub fn new() -> Self {
+                #body
 
-                    Self {
-                        #(#fields,)*
-                    }
+                Self {
+                    #(#fields,)*
+                    phantom: core::marker::PhantomData,
                 }
             }
         }
@@ -330,22 +345,14 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             .map(|field| field.name().clone())
             .collect::<Vec<_>>();
 
-        if fields.is_empty() {
-            quote! {
-                pub fn new_with(_record: ModelRecord<B>) -> Self {
-                    Self {
-                        _phantom: core::marker::PhantomData,
-                    }
-                }
-            }
-        } else {
-            quote! {
-                pub fn new_with(record: ModelRecord<B>) -> Self {
-                    #body
+        quote! {
+            #[allow(unused_variables)]
+            pub fn new_with(record: ModelRecord<B>) -> Self {
+                #body
 
-                    Self {
-                        #(#fields,)*
-                    }
+                Self {
+                    #(#fields,)*
+                    phantom: core::marker::PhantomData,
                 }
             }
         }
