@@ -25,3 +25,9 @@ mod wgpu {
     }
 }
 ```
+
+## Configuration
+
+You can set `BURN_WGPU_MAX_TASKS` to a positive integer that determines how many computing tasks are submitted in batches to the graphics API.
+The best value should be the smallest one that allows 100% GPU usage.
+A high value might increase GPU memory usage with no benefit.
