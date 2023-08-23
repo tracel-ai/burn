@@ -341,6 +341,16 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<CandleBackend<F, I
     }
 
     fn int_abs<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, D> {
-        CandleTensor::new(tensor.tensor.abs().unwrap())
+        // Ugly type conversion here as Candle does not support unary ops on ints
+        CandleTensor::new(
+            tensor
+                .tensor
+                .to_dtype(F::DTYPE)
+                .unwrap()
+                .abs()
+                .unwrap()
+                .to_dtype(I::DTYPE)
+                .unwrap(),
+        )
     }
 }

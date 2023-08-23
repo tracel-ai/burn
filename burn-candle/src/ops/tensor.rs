@@ -369,7 +369,6 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
     }
 
     fn abs<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        // TODO Candle will need to support signed ints before we can enable test
         CandleTensor::new(tensor.tensor.abs().unwrap())
     }
 
@@ -397,10 +396,24 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
     }
 
     fn argmax<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        CandleTensor::new(tensor.tensor.argmax_keepdim(dim).unwrap())
+        CandleTensor::new(
+            tensor
+                .tensor
+                .argmax_keepdim(dim)
+                .unwrap()
+                .to_dtype(I::DTYPE)
+                .unwrap(),
+        )
     }
 
     fn argmin<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        CandleTensor::new(tensor.tensor.argmin_keepdim(dim).unwrap())
+        CandleTensor::new(
+            tensor
+                .tensor
+                .argmin_keepdim(dim)
+                .unwrap()
+                .to_dtype(I::DTYPE)
+                .unwrap(),
+        )
     }
 }

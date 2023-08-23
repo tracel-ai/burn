@@ -18,7 +18,7 @@ pub use tensor::*;
 mod tests {
     use super::*;
 
-    pub type TestBackend = CandleBackend<f32, u32>;
+    pub type TestBackend = CandleBackend<f32, i64>;
     pub type ReferenceBackend = burn_tch::TchBackend<f32>;
 
     pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
@@ -80,7 +80,7 @@ mod tests {
     burn_tensor::testgen_sin!();
     burn_tensor::testgen_slice!();
     burn_tensor::testgen_sqrt!();
-    // burn_tensor::testgen_abs!();
+    burn_tensor::testgen_abs!();
     burn_tensor::testgen_squeeze!();
     burn_tensor::testgen_sub!();
     burn_tensor::testgen_tanh!();
