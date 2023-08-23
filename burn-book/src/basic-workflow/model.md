@@ -10,11 +10,11 @@ edition = "2021"
 name = "My first Burn model"
 
 [dependencies]
-burn = "0.8"
-burn-wgpu = "0.8"
-burn-dataset = "0.8"
-burn-autodiff = "0.8"
-burn-train = "0.8"
+burn = "0.9"
+burn-wgpu = "0.9"
+burn-dataset = "0.9"
+burn-autodiff = "0.9"
+burn-train = "0.9"
 
 # Serialization
 serde = "1"
