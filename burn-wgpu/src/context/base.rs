@@ -242,7 +242,7 @@ impl Context {
         *self.is_tuning.lock() = true;
     }
 
-    /// Let the Context know that the next ComputePipeline that is called is the 'Winning"
+    /// Let the Context know that the next ComputePipeline that is called is the 'Winning'
     /// kernel and we can get rid of the rest.
     pub fn perform_cache_optimization(&self) {
         *self.optimize_cache.lock() = true;
