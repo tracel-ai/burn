@@ -13,7 +13,7 @@ var<storage, read_write> output: array<{{ elem }}>;
 
 @group(0)
 @binding(3)
-var<storage, read> info: array<u32, 22>;
+var<storage, read> info: array<u32, 24>;
 
 const WORKGROUP_SIZE_X = {{ workgroup_size_x }}u;
 
@@ -49,6 +49,8 @@ fn main(
     let pool_stride_1 = info[19];
     let padding_0 = info[20];
     let padding_1 = info[21];
+    let dilation_0 = info[22];
+    let dilation_1 = info[23];
 
     let b = id / input_stride_0 % input_shape_0;
     let c = id / input_stride_1 % input_shape_1;
@@ -56,8 +58,8 @@ fn main(
     let iw = id / input_stride_3 % input_shape_3;
 
     // The maximum number of overlapping filters that may content the current index.
-    let kms_0 = i32(kernel_size_0) - i32(pool_stride_0);
-    let kms_1 = i32(kernel_size_1) - i32(pool_stride_1);
+    let kms_0 = i32(kernel_size_0 * dilation_0) - i32(pool_stride_0);
+    let kms_1 = i32(kernel_size_1 * dilation_1) - i32(pool_stride_1);
 
     let oh_start_tmp = (i32(ih + padding_0) - kms_0) / i32(pool_stride_0);
     let ow_start_tmp = (i32(iw + padding_1) - kms_1) / i32(pool_stride_1);

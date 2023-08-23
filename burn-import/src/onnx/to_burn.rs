@@ -42,7 +42,7 @@ use crate::{
 };
 
 use super::{
-    from_onnx::parse_onnx,
+    from_onnx::{get_constant_value, parse_onnx},
     ir::{ArgType, Argument, ElementType, ONNXGraph, State, StateType, Tensor, TensorData},
     op_configuration::{
         avg_pool2d_config, concat_config, dropout_config, reshape_config, softmax_config,
@@ -227,12 +227,10 @@ impl ONNXGraph {
         graph
     }
 
-    fn constant_conversion<PS: PrecisionSettings>(mut node: Node) -> ConstantNode<PS> {
+    fn constant_conversion<PS: PrecisionSettings>(node: Node) -> ConstantNode<PS> {
         let output = node.outputs.get(0).unwrap();
 
-        let value = node.attrs.remove("value").unwrap();
-
-        let value = match value {
+        let value = match get_constant_value(&node).unwrap() {
             AttributeValue::Float32(val) => ConstantValue::Float32(val),
             AttributeValue::Int64(val) => ConstantValue::Int64(val),
             AttributeValue::Tensor(tensor) => {
@@ -272,7 +270,7 @@ impl ONNXGraph {
                     )
                 }
             }
-            _ => panic!("Unsupported constant value: {:?} ", value),
+            value => panic!("Unsupported constant value: {:?} ", value),
         };
 
         ConstantNode::new(node.name.clone(), value, output.to_type())
@@ -544,11 +542,16 @@ impl Argument {
             ArgType::Tensor(tensor) => {
                 // Treat tensor with dim 0 as scalar
                 if tensor.dim == 0 {
-                    // FIXME Convert to correct scalar type (@antimora 8/1/2023)
-                    // Currently it's not dangerous because we don't use specific scalar type
-                    Type::Scalar(ScalarType::new(self.name.clone(), ScalarKind::Float64))
+                    Type::Scalar(ScalarType::new(
+                        self.name.clone(),
+                        ScalarKind::from(&tensor.elem_type),
+                    ))
                 } else {
-                    Type::Tensor(TensorType::new_float(self.name.clone(), tensor.dim))
+                    let kind: TensorKind = tensor.elem_type.clone().into();
+                    let dim = tensor.dim;
+                    let name = self.name.clone();
+                    let shape = tensor.shape.clone();
+                    Type::Tensor(TensorType::new(name, dim, kind, shape))
                 }
             }
 

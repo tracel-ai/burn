@@ -18,6 +18,9 @@ pub struct MaxPool1dConfig {
     /// The padding configuration.
     #[config(default = "PaddingConfig1d::Valid")]
     pub padding: PaddingConfig1d,
+    /// The dilation.
+    #[config(default = "1")]
+    pub dilation: usize,
 }
 
 /// Applies a 1D max pooling over input tensors.
@@ -26,6 +29,7 @@ pub struct MaxPool1d {
     stride: usize,
     kernel_size: usize,
     padding: PaddingConfig1d,
+    dilation: usize,
 }
 
 impl MaxPool1dConfig {
@@ -35,6 +39,7 @@ impl MaxPool1dConfig {
             stride: self.stride,
             kernel_size: self.kernel_size,
             padding: self.padding.clone(),
+            dilation: self.dilation,
         }
     }
 }
@@ -52,6 +57,6 @@ impl MaxPool1d {
             .padding
             .calculate_padding_1d(length, self.kernel_size, self.stride);
 
-        max_pool1d(input, self.kernel_size, self.stride, padding)
+        max_pool1d(input, self.kernel_size, self.stride, padding, self.dilation)
     }
 }

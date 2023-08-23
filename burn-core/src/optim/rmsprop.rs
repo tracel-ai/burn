@@ -156,7 +156,6 @@ impl<B: Backend, const D: usize> SquareAvgState<B, D> {
             Some(state) => {
                 let square_avg = state
                     .square_avg
-                    .clone()
                     .mul_scalar(alpha)
                     .add(grad.clone().powf(2.).mul_scalar(1. - alpha));
                 (grad, Self { square_avg })
@@ -205,7 +204,7 @@ impl<B: Backend, const D: usize> CenteredState<B, D> {
                 Some(state) => state
                     .grad_avg
                     .map_or(grad_avg_constant.clone(), move |grad_avg| {
-                        grad_avg.clone().mul_scalar(alpha).add(grad_avg_constant)
+                        grad_avg.mul_scalar(alpha).add(grad_avg_constant)
                     }),
                 _ => grad_avg_constant,
             };
@@ -269,18 +268,12 @@ impl RMSPropMomentum {
         CenteredState<B, D>,
         Option<RMSPropMomentumState<B, D>>,
     ) {
-        let grad = grad
-            .clone()
-            .div(centered_state.avg.clone().sqrt().add_scalar(self.epsilon));
+        let grad = grad.div(centered_state.avg.clone().sqrt().add_scalar(self.epsilon));
 
         if self.momentum > 0. {
             let buf = match momentum_state {
-                Some(state) => state
-                    .buf
-                    .clone()
-                    .mul_scalar(self.momentum)
-                    .add(grad.clone()),
-                _ => grad.clone(),
+                Some(state) => state.buf.mul_scalar(self.momentum).add(grad),
+                _ => grad,
             };
             (
                 buf.clone(),
@@ -288,7 +281,7 @@ impl RMSPropMomentum {
                 Some(RMSPropMomentumState { buf }),
             )
         } else {
-            (grad.clone(), centered_state, None)
+            (grad, centered_state, None)
         }
     }
 }

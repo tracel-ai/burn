@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# used to generate model:
+# used to generate model: softmax.onnx
 
 import torch
 import torch.nn as nn

@@ -51,6 +51,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MaxPool2dNode {
         let kernel_size = self.config.kernel_size.to_tokens();
         let strides = self.config.strides.to_tokens();
         let padding = self.config.padding.to_tokens();
+        let dilation = self.config.dilation.to_tokens();
 
         let init_line = quote! {
             init();
@@ -60,6 +61,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MaxPool2dNode {
             let #name = MaxPool2dConfig::new(#kernel_size)
                 .with_strides(#strides)
                 .with_padding(#padding)
+                .with_dilation(#dilation)
                 .#init_line
         };
 
@@ -111,7 +113,8 @@ mod tests {
             TensorType::new_float("output", 4),
             MaxPool2dConfig::new([3, 3])
                 .with_strides([1, 1])
-                .with_padding(PaddingConfig2d::Valid),
+                .with_padding(PaddingConfig2d::Valid)
+                .with_dilation([1, 1]),
         ));
 
         graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
@@ -137,6 +140,7 @@ mod tests {
                     let max_pool2d = MaxPool2dConfig::new([3, 3])
                         .with_strides([1, 1])
                         .with_padding(PaddingConfig2d::Valid)
+                        .with_dilation([1, 1])
                         .init();
 
                     Self {

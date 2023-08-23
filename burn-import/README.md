@@ -87,7 +87,7 @@ List taken from [here](https://github.com/onnx/onnx/blob/main/docs/Operators.md)
 - [ ] Hardmax
 - [ ] HardSigmoid
 - [ ] HardSwish
-- [ ] Identity
+- [x] Identity
 - [ ] If
 - [ ] Im
 - [ ] InstanceNormalization

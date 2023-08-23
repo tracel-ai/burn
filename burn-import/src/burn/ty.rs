@@ -116,10 +116,25 @@ impl TensorType {
 
     pub fn ty(&self) -> TokenStream {
         let dim = self.dim.to_tokens();
-
-        // TODO use passed elem kind and do not assume float (@antimora 8/1/2023)
-        quote! {
-            Tensor<B, #dim>
+        match self {
+            TensorType {
+                kind: TensorKind::Float,
+                ..
+            } => quote! {
+                Tensor<B, #dim>
+            },
+            TensorType {
+                kind: TensorKind::Int,
+                ..
+            } => quote! {
+                Tensor<B, #dim, Int>
+            },
+            TensorType {
+                kind: TensorKind::Bool,
+                ..
+            } => quote! {
+                Tensor<B, #dim, Bool>
+            },
         }
     }
 }
