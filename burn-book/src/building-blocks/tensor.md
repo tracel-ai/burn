@@ -17,10 +17,10 @@ Almost all Burn operations take ownership of the input tensors.
 Therefore, reusing a tensor multiple times will necessitate cloning it.
 Don't worry, the tensor's buffer isn't copied, but a reference to it is increased.
 This makes it possible to determine exactly how many times a tensor is used, which is very convenient for reusing tensor buffers and improving performance.
-For that reason, we don't provide inplace operations.
+For that reason, we don't provide explicit inplace operations.
 If a tensor is used only one time, inplace operations will always be used when available.
 
-Normally with PyTorch, inplace operations aren't supported during the backward pass, making them useful only for data preprocessing or inference-only model implementations.
+Normally with PyTorch, explicit inplace operations aren't supported during the backward pass, making them useful only for data preprocessing or inference-only model implementations.
 With Burn, you can focus more on _what_ the model should do, rather than on _how_ to do it.
 We take the responsibility of making your code run as fast as possible during training as well as inference.
 The same principles apply to broadcasting; all operations support broadcasting unless specified otherwise.
