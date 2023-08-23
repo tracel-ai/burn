@@ -532,7 +532,7 @@ fn lift_constants(nodes: &mut Vec<Node>) {
                     AttributeValue::Tensor(tensor) => State {
                         // if the value is a tensor, create a new State object with the tensor as its type
                         name: input.name.clone(),
-                        ty: StateType::Tensor(tensor.clone()),
+                        ty: StateType::Tensor(tensor),
                     },
                     _ => todo!("Support non tensor constant type"),
                 };

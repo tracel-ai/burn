@@ -134,7 +134,7 @@ fn linear_update_outputs(node: &mut Node) {
 
     if let ArgType::Tensor(tensor) = node_input.clone().ty {
         // Update the output tensor
-        node.outputs[0].ty = ArgType::Tensor(tensor.clone());
+        node.outputs[0].ty = ArgType::Tensor(tensor);
     } else {
         panic!("Only tensor input is valid");
     }
