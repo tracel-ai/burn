@@ -9,7 +9,7 @@ use burn::{
     module::Module,
     nn::loss::CrossEntropyLoss,
     optim::AdamConfig,
-    record::{CompactRecorder, Recorder},
+    record::CompactRecorder,
     tensor::{
         backend::{ADBackend, Backend},
         Int, Tensor,
@@ -103,10 +103,7 @@ pub fn train<B: ADBackend>(artifact_dir: &str, config: TrainingConfig, device: B
 
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 
-    CompactRecorder::new()
-        .record(
-            model_trained.into_record(),
-            format!("{artifact_dir}/model").into(),
-        )
+    model_trained
+        .save_file(format!("{artifact_dir}/model"), &CompactRecorder::new())
         .expect("Failed to save trained model");
 }
