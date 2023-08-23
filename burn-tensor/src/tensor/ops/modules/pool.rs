@@ -122,10 +122,7 @@ pub(crate) fn max_pool1d_with_indices_from_2d<B: Backend>(
     );
     let [batch_size, channels, _, length] = B::shape(&x.output).dims;
     let output = B::reshape(x.output, Shape::from([batch_size, channels, length]));
-    let indices = B::int_reshape(
-        x.indices.clone(),
-        Shape::from([batch_size, channels, length]),
-    );
+    let indices = B::int_reshape(x.indices, Shape::from([batch_size, channels, length]));
     MaxPool1dWithIndices::new(output, indices)
 }
 

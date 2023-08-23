@@ -126,7 +126,6 @@ impl LRDecay {
         let new_lr = lr / (1. + (state.time as f64 - 1.) * self.lr_decay);
 
         let grad = grad
-            .clone()
             .div(state.sum.clone().sqrt().add_scalar(self.epsilon))
             .mul_scalar(new_lr);
 

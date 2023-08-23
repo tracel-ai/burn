@@ -9,8 +9,10 @@ pub type StorageRef = Arc<*mut c_void>;
 /// A tensor that uses the tch backend.
 #[derive(Debug, PartialEq)]
 pub struct TchTensor<E: tch::kind::Element, const D: usize> {
-    pub(crate) tensor: tch::Tensor,
-    pub(crate) storage: StorageRef,
+    /// Handle to the tensor. Call methods on this field.
+    pub tensor: tch::Tensor,
+    /// The tensor's storage
+    pub storage: StorageRef,
     phantom: PhantomData<E>,
 }
 
