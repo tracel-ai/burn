@@ -50,6 +50,8 @@ impl SyncContextServer {
         let encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Command Encoder"),
         });
+
+        // TODO: Support a way to modify this value without std.
         let max_tasks = match std::env::var("BURN_WGPU_MAX_TASKS") {
             Ok(value) => value
                 .parse::<usize>()
