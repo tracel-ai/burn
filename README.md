@@ -149,9 +149,9 @@ fn linear<B: Backend>(x: Tensor<B, 2>, weight: Tensor<B, 2>, bias: Tensor<B, 2>)
 fn main() {
     type Backend = NdArrayBackend<f32>;
 
-    let weight = Tensor::random([3, 3], Distribution::Standard);
+    let weight = Tensor::random([3, 3], Distribution::Default);
     let bias = Tensor::zeros([1, 3]);
-    let x = Tensor::random([3, 3], Distribution::Standard);
+    let x = Tensor::random([3, 3], Distribution::Default);
 
     let y = linear::<Backend>(x.clone(), weight.clone(), bias.clone());
     // y.backward() // Method backward doesn't exist
