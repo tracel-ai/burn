@@ -22,7 +22,33 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
         distribution: Distribution<F>,
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        let shape = &shape.dims;
+        let device = &(*device).into();
+        match distribution {
+            Distribution::Default => CandleTensor::new(
+                candle_core::Tensor::rand(0., 1., shape, device)
+                    .unwrap()
+                    .to_dtype(F::DTYPE)
+                    .unwrap(),
+            ),
+            Distribution::Bernoulli(prob) => CandleTensor::new(
+                candle_core::Tensor::rand(0., 1., shape, device)
+                    .unwrap()
+                    .gt(
+                        &(candle_core::Tensor::ones(shape, F::DTYPE, device).unwrap() * prob)
+                            .unwrap(),
+                    )
+                    .unwrap()
+                    .to_dtype(F::DTYPE)
+                    .unwrap(),
+            ),
+            Distribution::Uniform(from, to) => {
+                CandleTensor::new(candle_core::Tensor::rand(from, to, shape, device).unwrap())
+            }
+            Distribution::Normal(mean, std) => {
+                CandleTensor::new(candle_core::Tensor::randn(mean, std, shape, device).unwrap())
+            }
+        }
     }
 
     fn shape<const D: usize>(tensor: &CandleTensor<F, D>) -> Shape<D> {

@@ -1,11 +1,11 @@
 use std::borrow::Borrow;
 
 use burn_tensor::Element;
-use candle_core::{Tensor, WithDType};
+use candle_core::{FloatDType, Tensor, WithDType};
 use half::{bf16, f16};
 
 pub trait CandleElement: Element + WithDType {}
-pub trait FloatCandleElement: CandleElement {}
+pub trait FloatCandleElement: CandleElement + FloatDType {}
 pub trait IntCandleElement: CandleElement {}
 
 impl CandleElement for f64 {}
