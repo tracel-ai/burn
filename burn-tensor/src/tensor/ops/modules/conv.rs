@@ -1,3 +1,4 @@
+#![allow(clippy::single_range_in_vec_init)]
 use super::{Conv1dBackward, Conv2dBackward, ConvOptions, ConvTransposeOptions};
 use crate::{backend::Backend, Shape};
 use libm::ceilf;

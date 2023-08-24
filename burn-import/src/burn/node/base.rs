@@ -90,6 +90,7 @@ pub enum Node<PS: PrecisionSettings> {
 
 macro_rules! match_all {
     ($self:expr, $func:expr) => {{
+        #[allow(clippy::redundant_closure_call)]
         match $self {
             Node::AvgPool2d(node) => $func(node),
             Node::BatchNorm(node) => $func(node),

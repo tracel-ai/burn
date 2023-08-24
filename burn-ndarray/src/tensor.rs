@@ -101,7 +101,7 @@ where
 {
     pub fn from_data(data: Data<E, D>) -> NdArrayTensor<E, D> {
         let shape = data.shape.clone();
-        let to_array = |data: Data<E, D>| Array::from_iter(data.value.into_iter()).into_shared();
+        let to_array = |data: Data<E, D>| Array::from_iter(data.value).into_shared();
         let array = to_array(data);
 
         reshape!(

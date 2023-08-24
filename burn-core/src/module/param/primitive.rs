@@ -74,7 +74,7 @@ where
 
     fn load_record(self, record: Self::Record) -> Self {
         self.into_iter()
-            .zip(record.into_iter())
+            .zip(record)
             .map(|(module, record)| module.load_record(record))
             .collect()
     }

@@ -461,7 +461,7 @@ impl ONNXGraph {
         let bias = node.states.len() == 2;
         let weight = extract_next_data_serialize::<PS::FloatElem>(&mut node).unwrap();
         let bias = match bias {
-            true => Some(extract_next_data_serialize::<PS::FloatElem>(&mut node)).unwrap(),
+            true => extract_next_data_serialize::<PS::FloatElem>(&mut node),
             false => None,
         };
 
@@ -477,7 +477,7 @@ impl ONNXGraph {
         let bias = node.states.len() == 2;
         let weight = extract_next_data_serialize::<PS::FloatElem>(&mut node).unwrap();
         let bias = match bias {
-            true => Some(extract_next_data_serialize::<PS::FloatElem>(&mut node)).unwrap(),
+            true => extract_next_data_serialize::<PS::FloatElem>(&mut node),
             false => None,
         };
 
