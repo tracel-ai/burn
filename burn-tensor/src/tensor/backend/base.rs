@@ -147,6 +147,21 @@ pub trait ADBackend: Backend {
         grads: &mut Self::Gradients,
     ) -> Option<ADBackendTensorPrimitive<D, Self>>;
 
+    /// Replace the gradients of a tensor with the one provided.
+    ///
+    /// If no gradient existed for the provided tensor, register it.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to pop the gradients from.
+    /// * `grads` - The gradients.
+    /// * `grad` - The updated grad tensor.
+    fn grad_replace<const D: usize>(
+        tensor: &Self::TensorPrimitive<D>,
+        grads: &mut Self::Gradients,
+        grad: ADBackendTensorPrimitive<D, Self>,
+    );
+
     /// Returns the tensor with inner backend type.
     ///
     /// # Arguments
