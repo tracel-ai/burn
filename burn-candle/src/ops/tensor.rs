@@ -1,7 +1,7 @@
 use std::borrow::Borrow;
 
-use burn_tensor::{ops::TensorOps, Data, Distribution, Shape};
-use candle_core::{shape, Tensor};
+use burn_tensor::{ops::TensorOps, Data, Distribution, ElementConversion, Shape};
+use candle_core::{backend::BackendStorage, shape, Tensor};
 
 use crate::{
     element::{CandleElement, FloatCandleElement, IntCandleElement},
@@ -34,10 +34,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
             Distribution::Bernoulli(prob) => CandleTensor::new(
                 candle_core::Tensor::rand(0., 1., shape, device)
                     .unwrap()
-                    .gt(
-                        &(candle_core::Tensor::ones(shape, F::DTYPE, device).unwrap() * prob)
-                            .unwrap(),
-                    )
+                    .gt(&super::candle_utils::fill(prob, shape, F::DTYPE, device))
                     .unwrap()
                     .to_dtype(F::DTYPE)
                     .unwrap(),
@@ -235,9 +232,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
         CandleTensor::new(
             mask.tensor
                 .where_cond(
-                    &(candle_core::Tensor::ones_like(&tensor.tensor).unwrap()
-                        * value.elem::<f64>())
-                    .unwrap(),
+                    &super::candle_utils::fill_like::<F, D>(value, &tensor.tensor),
                     &tensor.tensor,
                 )
                 .unwrap(),
@@ -255,13 +250,9 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> BoolTensor<Self, D> {
-        // TODO submit an issue at Candle
         CandleTensor::new(
             lhs.tensor
-                .eq(
-                    &(candle_core::Tensor::ones_like(&lhs.tensor).unwrap() * rhs.elem::<f64>())
-                        .unwrap(),
-                )
+                .eq(&super::candle_utils::fill_like::<F, D>(rhs, &lhs.tensor))
                 .unwrap(),
         )
     }
@@ -279,10 +270,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
     ) -> BoolTensor<Self, D> {
         CandleTensor::new(
             lhs.tensor
-                .gt(
-                    &(candle_core::Tensor::ones_like(&lhs.tensor).unwrap() * rhs.elem::<f64>())
-                        .unwrap(),
-                )
+                .gt(&super::candle_utils::fill_like::<F, D>(rhs, &lhs.tensor))
                 .unwrap(),
         )
     }
@@ -300,10 +288,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
     ) -> BoolTensor<Self, D> {
         CandleTensor::new(
             lhs.tensor
-                .ge(
-                    &(candle_core::Tensor::ones_like(&lhs.tensor).unwrap() * rhs.elem::<f64>())
-                        .unwrap(),
-                )
+                .ge(&super::candle_utils::fill_like::<F, D>(rhs, &lhs.tensor))
                 .unwrap(),
         )
     }
@@ -321,10 +306,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
     ) -> BoolTensor<Self, D> {
         CandleTensor::new(
             lhs.tensor
-                .lt(
-                    &(candle_core::Tensor::ones_like(&lhs.tensor).unwrap() * rhs.elem::<f64>())
-                        .unwrap(),
-                )
+                .lt(&super::candle_utils::fill_like::<F, D>(rhs, &lhs.tensor))
                 .unwrap(),
         )
     }
@@ -342,10 +324,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
     ) -> BoolTensor<Self, D> {
         CandleTensor::new(
             lhs.tensor
-                .le(
-                    &(candle_core::Tensor::ones_like(&lhs.tensor).unwrap() * rhs.elem::<f64>())
-                        .unwrap(),
-                )
+                .le(&super::candle_utils::fill_like::<F, D>(rhs, &lhs.tensor))
                 .unwrap(),
         )
     }
