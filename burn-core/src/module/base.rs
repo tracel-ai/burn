@@ -50,6 +50,7 @@ macro_rules! module {
                 func(tensor, &mut self.state)
             }
         }
+        #[allow(clippy::redundant_closure_call)]
         let mut state = $init();
         let mut visitor = Visitor {
             state: &mut state,
