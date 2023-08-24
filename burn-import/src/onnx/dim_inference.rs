@@ -81,6 +81,7 @@ pub fn dim_inference(
             NodeType::Cast => cast_update_outputs(node),
             NodeType::Div => same_as_input(node),
             NodeType::Sqrt => same_as_input(node),
+            NodeType::Tanh => same_as_input(node),
             NodeType::Softmax => same_as_input(node),
             NodeType::Erf => same_as_input(node),
             NodeType::ReduceMean => mean_update_outputs(node),

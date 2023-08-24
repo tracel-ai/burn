@@ -195,6 +195,7 @@ impl ONNXGraph {
                 NodeType::Flatten => graph.register(Self::flatten_conversion(node)),
                 NodeType::LogSoftmax => graph.register(Self::log_softmax_conversion(node)),
                 NodeType::Softmax => graph.register(Self::softmax_conversion(node)),
+                NodeType::Tanh => graph.register(Self::tanh_conversion(node)),
                 NodeType::Constant => graph.register(Self::constant_conversion::<PS>(node)),
                 NodeType::Reshape => graph.register(Self::reshape_conversion(node)),
                 NodeType::Sigmoid => graph.register(Self::sigmoid_conversion(node)),
@@ -382,6 +383,13 @@ impl ONNXGraph {
         let dim = softmax_config(&node);
 
         UnaryNode::softmax(input, output, dim)
+    }
+
+    fn tanh_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.get(0).unwrap().to_type();
+        let output = node.outputs.get(0).unwrap().to_type();
+
+        UnaryNode::tanh(input, output)
     }
 
     fn concat_conversion(node: Node) -> ConcatNode {
