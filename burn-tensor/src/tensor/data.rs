@@ -309,11 +309,7 @@ impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E
             .as_str();
         }
 
-        let iter = self
-            .value
-            .clone()
-            .into_iter()
-            .zip(other.value.clone().into_iter());
+        let iter = self.value.clone().into_iter().zip(other.value.clone());
 
         let mut num_diff = 0;
         let max_num_diff = 5;

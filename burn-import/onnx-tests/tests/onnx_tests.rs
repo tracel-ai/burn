@@ -370,7 +370,7 @@ mod tests {
         assert_eq!(output.shape(), expected_shape);
 
         let output_sum = output.sum().into_scalar();
-        let expected_sum = 19.999801635742188; // from pytorch
+        let expected_sum = 19.999_802; // from pytorch
         assert!(expected_sum.approx_eq(output_sum, (1.0e-8, 2)));
     }
 
@@ -381,12 +381,12 @@ mod tests {
 
         // Run the model
         let input = Tensor::<Backend, 2>::from_floats([
-            [0.33669037, 0.12880941, 0.23446237],
-            [0.23033303, -1.12285638, -0.18632829],
+            [0.33669037, 0.128_809_4, 0.23446237],
+            [0.23033303, -1.122_856_4, -0.18632829],
         ]);
         let output = model.forward(input);
         let expected = Data::from([
-            [0.33669037, 0.12880941, 0.23446237],
+            [0.33669037, 0.128_809_4, 0.23446237],
             [0.23033303, 0.00000000, 0.00000000],
         ]);
 
@@ -400,13 +400,13 @@ mod tests {
 
         // Run the model
         let input = Tensor::<Backend, 2>::from_floats([
-            [0.33669037, 0.12880941, 0.23446237],
-            [0.23033303, -1.12285638, -0.18632829],
+            [0.33669037, 0.128_809_4, 0.23446237],
+            [0.23033303, -1.122_856_4, -0.18632829],
         ]);
         let output = model.forward(input);
         let expected = Data::from([
-            [0.58338636, 0.53215790, 0.55834854],
-            [0.55733001, 0.24548186, 0.45355222],
+            [0.58338636, 0.532_157_9, 0.55834854],
+            [0.557_33, 0.24548186, 0.45355222],
         ]);
 
         output.to_data().assert_approx_eq(&expected, 7);
@@ -419,13 +419,13 @@ mod tests {
 
         // Run the model
         let input = Tensor::<Backend, 2>::from_floats([
-            [0.33669037, 0.12880941, 0.23446237],
-            [0.23033303, -1.12285638, -0.18632829],
+            [0.33669037, 0.128_809_4, 0.23446237],
+            [0.23033303, -1.122_856_4, -0.18632829],
         ]);
         let output = model.forward(input);
         let expected = Data::from([
             [0.33669037, 0.23033303],
-            [0.12880941, -1.12285638],
+            [0.128_809_4, -1.122_856_4],
             [0.23446237, -0.18632829],
         ]);
 

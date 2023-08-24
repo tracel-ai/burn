@@ -8,6 +8,7 @@ macro_rules! run_par {
         use rayon::prelude::*;
 
         #[cfg(feature = "std")]
+        #[allow(clippy::redundant_closure_call)]
         let output = rayon::scope(|_| $func());
 
         #[cfg(not(feature = "std"))]
