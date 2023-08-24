@@ -28,6 +28,7 @@ fn main() {
         .input("tests/softmax/softmax.onnx")
         .input("tests/sub/sub.onnx")
         .input("tests/sub/sub_int.onnx")
+        .input("tests/tanh/tanh.onnx")
         .input("tests/transpose/transpose.onnx")
         .out_dir("model/")
         .run_from_script();
