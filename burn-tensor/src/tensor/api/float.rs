@@ -301,6 +301,12 @@ impl<const D: usize, B: ADBackend> Tensor<B, D> {
         B::grad_remove(&self.primitive, grads).map(Tensor::new)
     }
 
+    /// Replace the grad tensor from the [grads](ADBackend::Gradients) struct with the provided
+    /// gradient.
+    pub fn grad_replace(&self, grads: &mut B::Gradients, grad: Tensor<B::InnerBackend, D>) {
+        B::grad_replace(&self.primitive, grads, grad.primitive);
+    }
+
     /// Returns the inner tensor without the autodiff information.
     pub fn inner(self) -> Tensor<B::InnerBackend, D> {
         Tensor::new(B::inner(self.primitive))
