@@ -25,7 +25,7 @@ pub fn cat<E: CandleElement, const D: usize>(
     tensors: Vec<CandleTensor<E, D>>,
     dim: usize,
 ) -> CandleTensor<E, D> {
-    let tensors: Vec<candle_core::Tensor> = tensors.iter().map(|t| t.clone().tensor).collect();
+    let tensors: Vec<candle_core::Tensor> = tensors.into_iter().map(|t| t.tensor).collect();
     CandleTensor::new(candle_core::Tensor::cat(&tensors, dim).unwrap())
 }
 
