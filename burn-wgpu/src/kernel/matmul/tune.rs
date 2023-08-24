@@ -216,14 +216,16 @@ where
     }
 
     fn prepare(&self, device: &WgpuDevice) -> Self::Args {
-        let lhs = Tensor::<WgpuBackend<G, E, i32>, D>::random(
+        let lhs = Tensor::<WgpuBackend<G, E, i32>, D>::random_device(
             self.shape_lhs.clone(),
             Distribution::Default,
+            device,
         )
         .to_device(device);
-        let rhs = Tensor::<WgpuBackend<G, E, i32>, D>::random(
+        let rhs = Tensor::<WgpuBackend<G, E, i32>, D>::random_device(
             self.shape_rhs.clone(),
             Distribution::Default,
+            device,
         )
         .to_device(device);
 
