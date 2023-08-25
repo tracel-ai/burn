@@ -38,7 +38,7 @@ List taken from [here](https://github.com/onnx/onnx/blob/main/docs/Operators.md)
 - [ ] Ceil
 - [ ] Celu
 - [ ] CenterCropPad
-- [ ] Clip
+- [x] Clip
 - [ ] Col
 - [ ] Compress
 - [x] Concat
