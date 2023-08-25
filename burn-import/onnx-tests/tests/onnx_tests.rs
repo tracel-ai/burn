@@ -36,6 +36,7 @@ include_models!(
     softmax,
     sub_int,
     sub,
+    tanh,
     transpose
 );
 
@@ -522,5 +523,17 @@ mod tests {
         let expected_sum = -3.205_825; // from pytorch
         println!("output_sum: {}", output_sum);
         assert!(expected_sum.approx_eq(output_sum, (1.0e-5, 2)));
+    }
+
+    fn tanh() {
+        // Initialize the model
+        let model = tanh::Model::<Backend>::new();
+
+        // Run the model
+        let input = Tensor::<Backend, 4>::from_floats([[[[1., 2., 3., 4.]]]]);
+        let output = model.forward(input);
+        // data from pyTorch
+        let expected = Data::from([[[[0.7616, 0.9640, 0.9951, 0.9993]]]]);
+        output.to_data().assert_approx_eq(&expected, 4);
     }
 }

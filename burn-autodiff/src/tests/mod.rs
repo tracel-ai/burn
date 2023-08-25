@@ -22,6 +22,7 @@ mod erf;
 mod exp;
 mod gather_scatter;
 mod gelu;
+mod gradients;
 mod log;
 mod log1p;
 mod mask;
@@ -52,6 +53,7 @@ macro_rules! testgen_all {
 
         // Behavior
         burn_autodiff::testgen_ad_broadcast!();
+        burn_autodiff::testgen_gradients!();
 
         // Activation
         burn_autodiff::testgen_ad_relu!();
