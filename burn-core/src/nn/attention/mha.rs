@@ -1,6 +1,7 @@
 use crate as burn;
 
 use crate::nn::cache::TensorCache;
+use crate::nn::Initializer;
 use crate::{
     config::Config,
     module::Module,
@@ -24,6 +25,11 @@ pub struct MultiHeadAttentionConfig {
     /// A value too low might result in NaN.
     #[config(default = -1.0e4)]
     min_float: f64,
+    /// The type of function used to initialize neural network parameters
+    #[config(
+        default = "Initializer::KaimingUniform{gain:1.0/libm::sqrt(3.0), fan_out_only:false}"
+    )]
+    pub initializer: Initializer,
 }
 
 /// The multihead attention module as describe in the paper [Attention Is All You Need](https://arxiv.org/abs/1706.03762).
@@ -60,7 +66,11 @@ pub struct MhaInput<B: Backend> {
 impl MultiHeadAttentionConfig {
     /// Initialize a new [multihead attention](MultiHeadAttention) module.
     pub fn init<B: Backend>(&self) -> MultiHeadAttention<B> {
-        let linear = |config: &Self| nn::LinearConfig::new(config.d_model, config.d_model).init();
+        let linear = |config: &Self| {
+            nn::LinearConfig::new(config.d_model, config.d_model)
+                .with_initializer(self.initializer.clone())
+                .init()
+        };
 
         MultiHeadAttention {
             query: linear(self),

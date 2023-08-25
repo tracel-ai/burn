@@ -3,7 +3,7 @@ use burn_tensor::Bool;
 
 use crate::{
     self as burn,
-    nn::{attention::MhaCache, cache::TensorCache},
+    nn::{attention::MhaCache, cache::TensorCache, Initializer},
 };
 
 use super::{PositionWiseFeedForward, PositionWiseFeedForwardConfig};
@@ -34,6 +34,11 @@ pub struct TransformerDecoderConfig {
     /// Layer norm will be applied first instead of after the other modules.
     #[config(default = false)]
     pub norm_first: bool,
+    /// The type of function used to initialize neural network parameters
+    #[config(
+        default = "Initializer::KaimingUniform{gain:1.0/libm::sqrt(3.0), fan_out_only:false}"
+    )]
+    pub initializer: Initializer,
 }
 
 /// The transformer decoder module as describe in the paper [Attention Is All You Need](https://arxiv.org/abs/1706.03762).
@@ -179,10 +184,12 @@ impl<B: Backend> TransformerDecoderAutoregressiveCache<B> {
 impl<B: Backend> TransformerDecoderLayer<B> {
     fn new(config: &TransformerDecoderConfig) -> Self {
         let self_attn = MultiHeadAttentionConfig::new(config.d_model, config.n_heads)
+            .with_initializer(config.initializer.clone())
             .with_dropout(config.dropout)
             .init();
 
         let cross_attn = MultiHeadAttentionConfig::new(config.d_model, config.n_heads)
+            .with_initializer(config.initializer.clone())
             .with_dropout(config.dropout)
             .init();
         let norm_1 = LayerNormConfig::new(config.d_model).init();
@@ -210,9 +217,11 @@ impl<B: Backend> TransformerDecoderLayer<B> {
         record: TransformerDecoderLayerRecord<B>,
     ) -> Self {
         let self_attn = MultiHeadAttentionConfig::new(config.d_model, config.n_heads)
+            .with_initializer(config.initializer.clone())
             .with_dropout(config.dropout)
             .init_with(record.self_attn);
         let cross_attn = MultiHeadAttentionConfig::new(config.d_model, config.n_heads)
+            .with_initializer(config.initializer.clone())
             .with_dropout(config.dropout)
             .init_with(record.cross_attn);
         let norm_1 = LayerNormConfig::new(config.d_model).init_with(record.norm_1);
