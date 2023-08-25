@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use alloc::{format, string::String, string::ToString};
 pub use burn_derive::Config;
 
