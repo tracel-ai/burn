@@ -1,7 +1,7 @@
 use super::log::update_log_file;
 use super::Learner;
 use crate::checkpoint::{AsyncCheckpointer, Checkpointer, FileCheckpointer};
-use crate::logger::FileMetricLogger;
+use crate::logger::{FileMetricLogger, MetricLogger};
 use crate::metric::dashboard::cli::CLIDashboardRenderer;
 use crate::metric::dashboard::Dashboard;
 use crate::metric::{Adaptor, Metric, Numeric};
@@ -65,6 +65,22 @@ where
             grad_accumulation: None,
             devices: vec![B::Device::default()],
         }
+    }
+
+    /// Replace the default metric loggers with the provided ones.
+    ///
+    /// # Arguments
+    ///
+    /// * `logger_train` - The training logger.
+    /// * `logger_valid` - The validation logger.
+    pub fn metric_loggers<MT, MV>(mut self, logger_train: MT, logger_valid: MV) -> Self
+    where
+        MT: MetricLogger + 'static,
+        MV: MetricLogger + 'static,
+    {
+        self.dashboard
+            .replace_loggers(Box::new(logger_train), Box::new(logger_valid));
+        self
     }
 
     /// Register a training metric.
