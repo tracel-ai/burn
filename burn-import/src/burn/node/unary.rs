@@ -126,7 +126,7 @@ impl UnaryNode {
 
     pub(crate) fn tanh(input: Type, output: Type) -> Self {
         let function = move |input| quote! { burn::tensor::activation::tanh(#input)};
-        Self::new(input, output, UnaryNodeKind::Tanh, Arc::new(function))
+        Self::new(input, output, UnaryNodeKind::Tanh, Rc::new(function))
     }
 
     pub(crate) fn transpose(input: Type, output: Type) -> Self {
