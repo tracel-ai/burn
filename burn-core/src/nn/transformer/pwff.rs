@@ -1,5 +1,6 @@
 use crate as burn;
 
+use crate::nn::Initializer;
 use crate::{
     config::Config,
     module::Module,
@@ -17,6 +18,11 @@ pub struct PositionWiseFeedForwardConfig {
     /// The dropout rate. Default: 0.1
     #[config(default = 0.1)]
     pub dropout: f64,
+    /// The type of function used to initialize neural network parameters
+    #[config(
+        default = "Initializer::KaimingUniform{gain:1.0/libm::sqrt(3.0), fan_out_only:false}"
+    )]
+    pub initializer: Initializer,
 }
 
 /// Applies the position-wise feed-forward network to the input tensor.
@@ -37,8 +43,12 @@ impl PositionWiseFeedForwardConfig {
     /// Initialize a new [position-wise feed-forward](PositionWiseFeedForward) module.
     pub fn init<B: Backend>(&self) -> PositionWiseFeedForward<B> {
         PositionWiseFeedForward {
-            linear_inner: LinearConfig::new(self.d_model, self.d_ff).init(),
-            linear_outer: LinearConfig::new(self.d_ff, self.d_model).init(),
+            linear_inner: LinearConfig::new(self.d_model, self.d_ff)
+                .with_initializer(self.initializer.clone())
+                .init(),
+            linear_outer: LinearConfig::new(self.d_ff, self.d_model)
+                .with_initializer(self.initializer.clone())
+                .init(),
             dropout: DropoutConfig::new(self.dropout).init(),
             gelu: GELU::new(),
         }
