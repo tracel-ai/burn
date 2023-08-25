@@ -33,6 +33,7 @@ include_models!(
     softmax,
     sub,
     sub_int,
+    tanh,
     transpose
 );
 
@@ -446,5 +447,18 @@ mod tests {
 
         assert_eq!(tensor_out.to_data(), expected_tensor);
         assert_eq!(scalar_out, expected_scalar);
+    }
+
+    #[test]
+    fn tanh() {
+        // Initialize the model
+        let model = tanh::Model::<Backend>::new();
+
+        // Run the model
+        let input = Tensor::<Backend, 4>::from_floats([[[[1., 2., 3., 4.]]]]);
+        let output = model.forward(input);
+        // data from pyTorch
+        let expected = Data::from([[[[0.7616, 0.9640, 0.9951, 0.9993]]]]);
+        output.to_data().assert_approx_eq(&expected, 4);
     }
 }
