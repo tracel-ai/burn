@@ -20,6 +20,7 @@ pub struct ConstantNode<PS: PrecisionSettings> {
 pub enum TensorValue<PS: PrecisionSettings> {
     Float(DataSerialize<PS::FloatElem>),
     Int(DataSerialize<PS::IntElem>),
+    // TODO file a ticket for bool
 }
 
 #[derive(Debug, Clone, new)]
