@@ -56,6 +56,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<CandleBackend<F, I>>
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
     ) -> FloatTensor<Self, 4> {
         todo!()
     }
@@ -65,6 +66,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<CandleBackend<F, I>>
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
     ) -> MaxPool2dWithIndices<CandleBackend<F, I>> {
         todo!()
     }
@@ -74,6 +76,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<CandleBackend<F, I>>
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
         output_grad: FloatTensor<Self, 4>,
         indices: IntTensor<Self, 4>,
     ) -> MaxPool2dBackward<CandleBackend<F, I>> {

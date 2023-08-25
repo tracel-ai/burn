@@ -122,6 +122,21 @@ where
         }
     }
 
+    /// Replace the current loggers with the provided ones.
+    ///
+    /// # Arguments
+    ///
+    /// * `logger_train` - The training logger.
+    /// * `logger_valid` - The validation logger.
+    pub fn replace_loggers(
+        &mut self,
+        logger_train: Box<dyn MetricLogger>,
+        logger_valid: Box<dyn MetricLogger>,
+    ) {
+        self.logger_train = logger_train;
+        self.logger_valid = logger_valid;
+    }
+
     /// Registers a training metric.
     ///
     /// # Arguments

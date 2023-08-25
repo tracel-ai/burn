@@ -16,6 +16,8 @@ mod tests {
         let padding_2 = 1;
         let stride_1 = 1;
         let stride_2 = 1;
+        let dilation_1 = 1;
+        let dilation_2 = 1;
 
         let x = TestTensor::from_floats([
             [
@@ -99,6 +101,7 @@ mod tests {
             [kernel_size_1, kernel_size_2],
             [stride_1, stride_2],
             [padding_1, padding_2],
+            [dilation_1, dilation_2],
         );
 
         y.to_data().assert_approx_eq(&output.into_data(), 3);
@@ -114,6 +117,8 @@ mod tests {
         let padding_2 = 0;
         let stride_1 = 1;
         let stride_2 = 2;
+        let dilation_1 = 1;
+        let dilation_2 = 1;
 
         let x = TestTensor::from_floats([[[
             [0.6309, 0.6112, 0.6998],
@@ -137,6 +142,7 @@ mod tests {
             [kernel_size_1, kernel_size_2],
             [stride_1, stride_2],
             [padding_1, padding_2],
+            [dilation_1, dilation_2],
         );
 
         y.to_data().assert_approx_eq(&output.into_data(), 3);
@@ -152,6 +158,8 @@ mod tests {
         let padding_2 = 1;
         let stride_1 = 1;
         let stride_2 = 1;
+        let dilation_1 = 1;
+        let dilation_2 = 1;
 
         let x = TestTensor::from_floats([[[
             [0.6309, 0.6112, 0.6998],
@@ -176,12 +184,51 @@ mod tests {
             [kernel_size_1, kernel_size_2],
             [stride_1, stride_2],
             [padding_1, padding_2],
+            [dilation_1, dilation_2],
         );
 
         y.to_data().assert_approx_eq(&output.into_data(), 3);
     }
 
     #[test]
+    fn test_max_pool2d_with_dilation() {
+        let batch_size = 1;
+        let channels_in = 1;
+        let kernel_size_1 = 2;
+        let kernel_size_2 = 2;
+        let padding_1 = 0;
+        let padding_2 = 0;
+        let stride_1 = 1;
+        let stride_2 = 1;
+        let dilation_1 = 2;
+        let dilation_2 = 2;
+
+        let x = TestTensor::from_floats([[[
+            [0.9861, 0.9861, 0.9490, 0.9490, 0.8221, 0.8221],
+            [0.9861, 0.9861, 0.9490, 0.9490, 0.8221, 0.8221],
+            [0.9540, 0.9540, 0.9540, 0.9490, 0.7890, 0.7111],
+            [0.9540, 0.9540, 0.9540, 0.8855, 0.8855, 0.8855],
+            [0.9540, 0.9540, 0.9540, 0.9432, 0.8855, 0.8855],
+            [0.5063, 0.9432, 0.9432, 0.9432, 0.8855, 0.8855],
+        ]]]);
+        let y = TestTensor::from_floats([[[
+            [0.9861, 0.9861, 0.9540, 0.9490],
+            [0.9861, 0.9861, 0.9540, 0.9490],
+            [0.9540, 0.9540, 0.9540, 0.9490],
+            [0.9540, 0.9540, 0.9540, 0.9432],
+        ]]]);
+
+        let output = max_pool2d(
+            x,
+            [kernel_size_1, kernel_size_2],
+            [stride_1, stride_2],
+            [padding_1, padding_2],
+            [dilation_1, dilation_2],
+        );
+
+        y.to_data().assert_approx_eq(&output.into_data(), 3);
+    }
+
     fn test_max_pool2d_with_indices() {
         let batch_size = 1;
         let channels_in = 1;
@@ -191,6 +238,8 @@ mod tests {
         let padding_2 = 1;
         let stride_1 = 1;
         let stride_2 = 1;
+        let dilation_1 = 1;
+        let dilation_2 = 1;
 
         let x = TestTensor::from_floats([[[
             [0.2479, 0.6386, 0.3166, 0.5742],
@@ -218,6 +267,7 @@ mod tests {
             [kernel_size_1, kernel_size_2],
             [stride_1, stride_2],
             [padding_1, padding_2],
+            [dilation_1, dilation_2],
         );
 
         y.to_data().assert_approx_eq(&output.into_data(), 3);
@@ -234,6 +284,8 @@ mod tests {
         let padding_2 = 1;
         let stride_1 = 1;
         let stride_2 = 2;
+        let dilation_1 = 1;
+        let dilation_2 = 1;
 
         let x = TestTensor::from_floats([[[
             [0.5388, 0.0676, 0.7122, 0.8316, 0.0653],
@@ -263,6 +315,7 @@ mod tests {
             [kernel_size_1, kernel_size_2],
             [stride_1, stride_2],
             [padding_1, padding_2],
+            [dilation_1, dilation_2],
         );
 
         y.to_data().assert_approx_eq(&output.into_data(), 3);

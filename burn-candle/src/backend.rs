@@ -76,6 +76,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for CandleBackend<F, I>
     }
 
     fn seed(seed: u64) {
-        todo!()
+        // TODO submit an issue at Candle
+        panic!("Manual seed not supported by Candle. ")
     }
 }

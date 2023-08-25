@@ -1290,7 +1290,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
                 self.nodes
                     .into_iter()
-                    .zip(self.dim_sizes.into_iter())
+                    .zip(self.dim_sizes)
                     .filter_map(|(node, dim_size)| node.map(|node| (node, dim_size)))
                     .for_each(|(node, dim_size)| {
                         let mut ranges = ranges.clone();

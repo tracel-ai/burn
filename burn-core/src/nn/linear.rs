@@ -26,18 +26,14 @@ pub struct LinearConfig {
 /// Applies a linear transformation to the input tensor:
 ///
 /// `O = IW + b`
-///
-/// # Params
-///
-/// - weight: Matrix of shape `[d_input, d_output]` initialized from a uniform distribution:
-///     `U(-k, k)`, where `k = sqrt(1 / d_input)`
-///
-/// - bias (optional): Vector of size `d_output` initialized from a uniform distribution:
-///     `U(-k, k)`, where `k = sqrt(1 / d_input)`
 #[derive(Module, Debug)]
 pub struct Linear<B: Backend> {
-    pub(crate) weight: Param<Tensor<B, 2>>,
-    pub(crate) bias: Option<Param<Tensor<B, 1>>>,
+    /// Matrix of shape `[d_input, d_output]` initialized from a uniform distribution:
+    ///     `U(-k, k)`, where `k = sqrt(1 / d_input)`
+    pub weight: Param<Tensor<B, 2>>,
+    /// Vector of size `d_output` initialized from a uniform distribution:
+    ///     `U(-k, k)`, where `k = sqrt(1 / d_input)`
+    pub bias: Option<Param<Tensor<B, 1>>>,
 }
 
 impl LinearConfig {

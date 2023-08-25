@@ -167,9 +167,8 @@ impl AdaptiveMomentumW {
             .div_scalar(1f32 - self.beta_2.powi(time));
 
         // Compute update delta. This still needs to be scaled by the learning rate.
-        let update_delta = moment_1_corrected
-            .clone()
-            .div(moment_2_corrected.clone().sqrt().add_scalar(self.epsilon));
+        let update_delta =
+            moment_1_corrected.div(moment_2_corrected.sqrt().add_scalar(self.epsilon));
 
         (
             update_delta,

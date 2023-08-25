@@ -4,7 +4,7 @@ use crate::model::Model;
 use burn::module::Module;
 use burn::optim::decay::WeightDecayConfig;
 use burn::optim::AdamConfig;
-use burn::record::{CompactRecorder, NoStdTrainingRecorder, Recorder};
+use burn::record::{CompactRecorder, NoStdTrainingRecorder};
 use burn::{
     config::Config,
     data::{dataloader::DataLoaderBuilder, dataset::source::huggingface::MNISTDataset},
@@ -72,10 +72,10 @@ pub fn run<B: ADBackend>(device: B::Device) {
         .save(format!("{ARTIFACT_DIR}/config.json").as_str())
         .unwrap();
 
-    NoStdTrainingRecorder::new()
-        .record(
-            model_trained.into_record(),
-            format!("{ARTIFACT_DIR}/model").into(),
+    model_trained
+        .save_file(
+            format!("{ARTIFACT_DIR}/model"),
+            &NoStdTrainingRecorder::new(),
         )
         .expect("Failed to save trained model");
 }

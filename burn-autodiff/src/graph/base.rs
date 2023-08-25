@@ -84,11 +84,11 @@ impl Graph {
 
         self.execute_mut(|map1| {
             if map1.len() > map2.len() {
-                map1.extend(map2.into_iter());
+                map1.extend(map2);
             } else {
                 let mut map_drain = HashMap::new();
                 std::mem::swap(map1, &mut map_drain);
-                map2.extend(map_drain.into_iter());
+                map2.extend(map_drain);
                 std::mem::swap(map1, &mut map2);
             }
         })

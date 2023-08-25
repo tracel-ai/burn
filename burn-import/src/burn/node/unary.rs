@@ -3,10 +3,10 @@ use crate::burn::{Scope, ToTokens, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
-use std::sync::Arc;
+use std::rc::Rc;
 
 // Simple fn pointer that receive input as a token stream and return function call.
-type FnPointer = Arc<dyn Fn(TokenStream) -> TokenStream>;
+type FnPointer = Rc<dyn Fn(TokenStream) -> TokenStream>;
 
 /// Node for all unary operators.
 #[derive(Clone, new)]
@@ -97,34 +97,34 @@ impl UnaryNode {
         let end_dim = end_dim.to_tokens();
         let function = move |input| quote! { #input.flatten(#start_dim, #end_dim) };
 
-        Self::new(input, output, UnaryNodeKind::Flatten, Arc::new(function))
+        Self::new(input, output, UnaryNodeKind::Flatten, Rc::new(function))
     }
 
     pub(crate) fn relu(input: Type, output: Type) -> Self {
         let function = move |input| quote! { burn::tensor::activation::relu(#input) };
-        Self::new(input, output, UnaryNodeKind::Relu, Arc::new(function))
+        Self::new(input, output, UnaryNodeKind::Relu, Rc::new(function))
     }
 
     pub(crate) fn sigmoid(input: Type, output: Type) -> Self {
         let function = move |input| quote! { burn::tensor::activation::sigmoid(#input) };
-        Self::new(input, output, UnaryNodeKind::Sigmoid, Arc::new(function))
+        Self::new(input, output, UnaryNodeKind::Sigmoid, Rc::new(function))
     }
 
     pub(crate) fn log_softmax(input: Type, output: Type, dim: usize) -> Self {
         let dim = dim.to_tokens();
         let function = move |input| quote! { burn::tensor::activation::log_softmax(#input, #dim) };
-        Self::new(input, output, UnaryNodeKind::LogSoftmax, Arc::new(function))
+        Self::new(input, output, UnaryNodeKind::LogSoftmax, Rc::new(function))
     }
 
     pub(crate) fn softmax(input: Type, output: Type, dim: usize) -> Self {
         let dim = dim.to_tokens();
         let function = move |input| quote! { burn::tensor::activation::softmax(#input, #dim) };
-        Self::new(input, output, UnaryNodeKind::Softmax, Arc::new(function))
+        Self::new(input, output, UnaryNodeKind::Softmax, Rc::new(function))
     }
 
     pub(crate) fn transpose(input: Type, output: Type) -> Self {
         let function = move |input| quote! { #input.transpose() };
-        Self::new(input, output, UnaryNodeKind::Transpose, Arc::new(function))
+        Self::new(input, output, UnaryNodeKind::Transpose, Rc::new(function))
     }
 
     /// Casts the input to the output type.
@@ -154,7 +154,7 @@ impl UnaryNode {
             _ => panic!("output must be a tensor"),
         };
 
-        Self::new(input, output, UnaryNodeKind::Cast, Arc::new(function))
+        Self::new(input, output, UnaryNodeKind::Cast, Rc::new(function))
     }
 }
 

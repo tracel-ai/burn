@@ -62,4 +62,12 @@ impl<B: Backend> ADBackend for ADBackendDecorator<B> {
     fn from_inner<const D: usize>(tensor: B::TensorPrimitive<D>) -> ADTensor<B, D> {
         ADTensor::new(tensor)
     }
+
+    fn grad_replace<const D: usize>(
+        tensor: &ADTensor<B, D>,
+        grads: &mut Self::Gradients,
+        grad: B::TensorPrimitive<D>,
+    ) {
+        grads.register::<B, D>(tensor.node.clone(), grad);
+    }
 }

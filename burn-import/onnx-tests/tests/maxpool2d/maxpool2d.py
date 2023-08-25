@@ -10,8 +10,7 @@ class Model(nn.Module):
     def __init__(self):
         super(Model, self).__init__()
 
-        # TODO support dilation=(3, 1) (see https://github.com/burn-rs/burn/issues/622)
-        self.maxpool2d1 = nn.MaxPool2d((4, 2), stride=(2, 1), padding=(2, 1))
+        self.maxpool2d1 = nn.MaxPool2d((4, 2), stride=(2, 1), padding=(2, 1), dilation=(1, 3))
 
     def forward(self, x):
         x = self.maxpool2d1(x)

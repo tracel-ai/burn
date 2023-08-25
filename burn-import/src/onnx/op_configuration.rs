@@ -115,15 +115,12 @@ pub fn max_pool2d_config(curr: &Node) -> MaxPool2dConfig {
         }
     }
 
-    if !dilations.is_empty() && (dilations[0] != 1 || dilations[1] != 1) {
-        todo!("MaxPool2d: dilations are not supported. See https://github.com/burn-rs/burn/issues/622");
-    }
-
     let padding = padding_config(&pads);
 
     MaxPool2dConfig::new([kernel_shape[0] as usize, kernel_shape[1] as usize])
         .with_strides([strides[0] as usize, strides[1] as usize])
         .with_padding(padding)
+        .with_dilation([dilations[0] as usize, dilations[1] as usize])
 }
 
 /// Create a AvgPool2dConfig from the attributes of the node
