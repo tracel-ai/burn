@@ -68,6 +68,7 @@ impl<B: Backend> ADBackend for ADBackendDecorator<B> {
         grads: &mut Self::Gradients,
         grad: B::TensorPrimitive<D>,
     ) {
+        grads.remove(tensor);
         grads.register::<B, D>(tensor.node.clone(), grad);
     }
 }
