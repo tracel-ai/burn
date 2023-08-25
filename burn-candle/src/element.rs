@@ -1,11 +1,11 @@
 use std::borrow::Borrow;
 
 use burn_tensor::Element;
-use candle_core::{Tensor, WithDType};
+use candle_core::{FloatDType, Tensor, WithDType};
 use half::{bf16, f16};
 
 pub trait CandleElement: Element + WithDType {}
-pub trait FloatCandleElement: CandleElement {}
+pub trait FloatCandleElement: CandleElement + FloatDType {}
 pub trait IntCandleElement: CandleElement {}
 
 impl CandleElement for f64 {}
@@ -27,4 +27,5 @@ impl IntCandleElement for u8 {}
 impl CandleElement for u32 {}
 impl IntCandleElement for u32 {}
 
-// Support for i32 may come soon (https://github.com/huggingface/candle/issues/514)
+impl CandleElement for i64 {}
+impl IntCandleElement for i64 {}
