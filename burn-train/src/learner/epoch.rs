@@ -87,9 +87,8 @@ impl<TI> TrainEpoch<TI> {
     ) -> (M, O)
     where
         B: ADBackend,
-        M: ADModule<B>,
+        M: TrainStep<TI, TO> + ADModule<B>,
         O: Optimizer<M, B>,
-        M: TrainStep<TI, TO>,
         LR: LRScheduler,
     {
         log::info!("Executing training step for epoch {}", self.epoch,);
@@ -114,11 +113,11 @@ impl<TI> TrainEpoch<TI> {
 
                     if accumulation <= accumulation_current {
                         let grads = accumulator.grads();
-                        model = optim.step(lr, model, grads);
+                        model = model.optimize(&mut optim, lr, grads);
                         accumulation_current = 0;
                     }
                 }
-                None => model = optim.step(lr, model, item.grads),
+                None => model = model.optimize(&mut optim, lr, item.grads),
             }
 
             let item = LearnerItem::new(
@@ -204,7 +203,7 @@ impl<TI> TrainEpoch<TI> {
 
                 if accumulation <= accumulation_current {
                     let grads = accumulator.grads();
-                    model = optim.step(lr, model, grads);
+                    model = model.optimize(&mut optim, lr, grads);
                     accumulation_current = 0;
                 }
 

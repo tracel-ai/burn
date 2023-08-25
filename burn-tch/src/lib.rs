@@ -1,4 +1,5 @@
 #![warn(missing_docs)]
+#![allow(clippy::single_range_in_vec_init)]
 
 //! Burn Tch Backend
 
