@@ -192,7 +192,7 @@ List taken from [here](https://github.com/onnx/onnx/blob/main/docs/Operators.md)
 - [x] Sub
 - [ ] Sum
 - [ ] Tan
-- [ ] Tanh
+- [x] Tanh
 - [ ] TfIdfVectorizer
 - [ ] ThresholdedRelu
 - [ ] Tile
