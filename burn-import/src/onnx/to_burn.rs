@@ -469,7 +469,7 @@ impl ONNXGraph {
         let bias = node.inputs.len() == 3;
         let weight = extract_data_serialize::<PS::FloatElem>(1, &node).unwrap();
         let bias = match bias {
-            true => Some(extract_data_serialize::<PS::FloatElem>(2, &node)).unwrap(),
+            true => extract_data_serialize::<PS::FloatElem>(2, &node),
             false => None,
         };
 
@@ -485,7 +485,7 @@ impl ONNXGraph {
         let bias = node.inputs.len() == 3;
         let weight = extract_data_serialize::<PS::FloatElem>(1, &node).unwrap();
         let bias = match bias {
-            true => Some(extract_data_serialize::<PS::FloatElem>(2, &node)).unwrap(),
+            true => extract_data_serialize::<PS::FloatElem>(2, &node),
             false => None,
         };
 
