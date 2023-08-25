@@ -220,14 +220,12 @@ where
             self.shape_lhs.clone(),
             Distribution::Default,
             device,
-        )
-        .to_device(device);
+        );
         let rhs = Tensor::<WgpuBackend<G, E, i32>, D>::random_device(
             self.shape_rhs.clone(),
             Distribution::Default,
             device,
-        )
-        .to_device(device);
+        );
 
         (lhs.into_primitive().into(), rhs.into_primitive().into())
     }
