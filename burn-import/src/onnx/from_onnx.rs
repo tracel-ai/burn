@@ -2,37 +2,27 @@ use std::{
     collections::{HashMap, HashSet},
     fs::File,
     path::Path,
-    str::{from_utf8, FromStr},
+};
+
+use crate::onnx::{
+    coalesce::coalesce, ir::TensorType, node_remap::remap_node_type,
+    proto_conversion::convert_node_proto,
 };
 
 use super::dim_inference::dim_inference;
-use super::ir::{
-    ArgType, Argument, AttributeValue, Attributes, ElementType, Node, NodeType, ONNXGraph, State,
-    Tensor, TensorData,
-};
-use super::protos::{
-    attribute_proto::AttributeType, tensor_proto::DataType, tensor_shape_proto::dimension::Value,
-    type_proto, AttributeProto, ModelProto, NodeProto, TensorProto, TensorShapeProto,
-    ValueInfoProto,
-};
-use super::{coalesce::coalesce, ir::StateType};
+use super::ir::{ArgType, Argument, Node, NodeType, ONNXGraph, Tensor};
+use super::protos::{ModelProto, TensorProto};
 
-use bytemuck::cast_slice;
-use protobuf::{Enum, Message};
+use protobuf::Message;
 
-const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 5] = [
+const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 6] = [
     NodeType::BatchNormalization,
+    NodeType::Clip,
     NodeType::Conv1d,
     NodeType::Conv2d,
     NodeType::Dropout,
     NodeType::Reshape,
 ];
-
-/// Error type for parsing ONNX model
-#[derive(Debug)]
-pub enum ParseError {
-    VariantNotFound,
-}
 
 /// Open an onnx file and convert it to a Graph (intermediate representation)
 ///
@@ -70,7 +60,9 @@ pub fn parse_onnx(onnx_path: &Path) -> ONNXGraph {
     // Convert the nodes
     let mut nodes: Vec<Node> = vec![];
     for onnx_node in onnx_model.graph.node.iter() {
-        nodes.push(convert_node_proto(onnx_node));
+        let mut node = convert_node_proto(onnx_node);
+        remap_node_type(&mut node);
+        nodes.push(node);
     }
 
     // ONNX nodes must be topologically sorted per spec:
@@ -127,349 +119,58 @@ pub fn parse_onnx(onnx_path: &Path) -> ONNXGraph {
     }
 }
 
-fn to_string(bytes: Vec<u8>) -> String {
-    from_utf8(bytes.as_slice()).unwrap().to_string()
-}
+/// This function moves inputs that are also present
+/// in the initializer to the node's states vector.
+/// It also removes inputs that are already present in the states vector.
+///
+/// # Arguments
+///
+/// * `nodes` - A mutable reference to a vector of nodes
+/// * `initializers` - A vector of TensorProto
+fn move_inputs_to_state(nodes: &mut Vec<Node>, initializers: &[TensorProto]) {
+    // Convert initializers to hashmap for faster lookup
+    let initializers = initializers
+        .iter()
+        .map(|x| (x.name.clone(), x.clone()))
+        .collect::<HashMap<String, TensorProto>>();
 
-fn to_string_vec(bytes: Vec<Vec<u8>>) -> Vec<String> {
-    bytes.iter().map(|b| to_string(b.clone())).collect()
-}
-
-fn convert_shape(shape: Vec<i64>) -> Vec<usize> {
-    shape.iter().map(|s| *s as usize).collect()
-}
-
-/// Convert a vector of AttributeProto to a HashMap of AttributeValue
-impl TryFrom<TensorProto> for Tensor {
-    type Error = ParseError;
-    fn try_from(tensor: TensorProto) -> Result<Tensor, Self::Error> {
-        let (elem_type, data) = match DataType::from_i32(tensor.data_type).unwrap() {
-            DataType::FLOAT => (
-                ElementType::Float32,
-                // Convert the raw data to a vector of floats
-                if !tensor.raw_data.is_empty() {
-                    TensorData::Float32(cast_slice(&tensor.raw_data[..]).to_vec())
-                } else {
-                    TensorData::Float32(tensor.float_data)
-                },
-            ),
-            DataType::INT32 => (
-                ElementType::Int32,
-                // Convert the raw data to a vector of ints
-                if !tensor.raw_data.is_empty() {
-                    TensorData::Int32(cast_slice(&tensor.raw_data[..]).to_vec())
-                } else {
-                    TensorData::Int32(tensor.int32_data)
-                },
-            ),
-            DataType::INT64 => (
-                ElementType::Int64,
-                // Convert the raw data to a vector of ints
-                if !tensor.raw_data.is_empty() {
-                    TensorData::Int64(cast_slice(&tensor.raw_data[..]).to_vec())
-                } else {
-                    TensorData::Int64(tensor.int64_data)
-                },
-            ),
-            DataType::DOUBLE => (
-                ElementType::Float64,
-                // Convert the raw data to a vector of floats
-                if !tensor.raw_data.is_empty() {
-                    TensorData::Float64(cast_slice(&tensor.raw_data[..]).to_vec())
-                } else {
-                    TensorData::Float64(tensor.double_data)
-                },
-            ),
-            DataType::BOOL => (ElementType::Bool, {
-                assert!(!tensor.raw_data.is_empty());
-                TensorData::Bool(tensor.raw_data.iter().map(|x| *x != 0).collect())
-            }),
-            // TODO : Add more types
-            _ => {
-                return Err(ParseError::VariantNotFound);
-            }
-        };
-        let shape = convert_shape(tensor.dims);
-
-        Ok(Tensor {
-            elem_type,
-            dim: shape.len(),
-            shape: Some(shape),
-            data: Some(data),
-        })
-    }
-}
-
-impl TryFrom<TensorShapeProto> for Vec<usize> {
-    type Error = ParseError;
-    fn try_from(shape: TensorShapeProto) -> Result<Vec<usize>, Self::Error> {
-        let mut result = Vec::new();
-
-        for dim in shape.dim {
-            if let Value::DimValue(value) = dim.value.unwrap() {
-                result.push(value as usize);
-            }
-        }
-
-        Ok(result)
-    }
-}
-
-/// Convert a vector of AttributeProto to a HashMap of AttributeValue
-impl TryFrom<&type_proto::Tensor> for Tensor {
-    type Error = ParseError;
-    fn try_from(tensor: &type_proto::Tensor) -> Result<Tensor, Self::Error> {
-        let elem_type = match DataType::from_i32(tensor.elem_type).unwrap() {
-            DataType::FLOAT => ElementType::Float32,
-            DataType::INT32 => ElementType::Int32,
-            DataType::INT64 => ElementType::Int64,
-            DataType::DOUBLE => ElementType::Float64,
-
-            // TODO : Add more types
-            _ => {
-                return Err(ParseError::VariantNotFound);
-            }
-        };
-
-        let shape_proto = tensor.shape.clone().unwrap();
-        let shape: Vec<usize> = shape_proto.try_into().unwrap();
-
-        Ok(Tensor {
-            elem_type,
-            dim: shape.len(),
-            shape: Some(shape),
-            data: None,
-        })
-    }
-}
-
-fn convert_vec_tensor_proto(tensors: Vec<TensorProto>) -> Result<Vec<Tensor>, ParseError> {
-    let mut result = Vec::new();
-    for tensor in tensors {
-        result.push(Tensor::try_from(tensor)?);
-    }
-    Ok(result)
-}
-
-/// Convert a vector of AttributeProto to a HashMap of AttributeValue
-impl TryFrom<AttributeProto> for AttributeValue {
-    type Error = ParseError;
-
-    fn try_from(attr: AttributeProto) -> Result<AttributeValue, Self::Error> {
-        let value = match attr.type_.unwrap() {
-            AttributeType::FLOAT => AttributeValue::Float32(attr.f),
-            AttributeType::INT => AttributeValue::Int64(attr.i),
-            AttributeType::STRING => AttributeValue::String(to_string(attr.s)),
-
-            // warning: tensor can be empty TODO: check if it is empty
-            AttributeType::TENSOR => AttributeValue::Tensor(Tensor::try_from(attr.t.unwrap())?),
-
-            // Graph is not supported for now
-            // AttributeType::GRAPH => AttributeValue::Graph(attr.g),
-            AttributeType::FLOATS => AttributeValue::Float32s(attr.floats),
-            AttributeType::INTS => AttributeValue::Int64s(attr.ints),
-            AttributeType::STRINGS => AttributeValue::Strings(to_string_vec(attr.strings)),
-            AttributeType::TENSORS => {
-                AttributeValue::Tensors(convert_vec_tensor_proto(attr.tensors)?)
-            }
-            // AttributeType::GRAPHS => AttributeValue::Graphs(attr.graphs),
-            // AttributeType::SPARSE_TENSORS => AttributeValue::SparseTensors(attr.sparse_tensors),
-            // AttributeType::SPARSE_TENSOR => AttributeValue::SparseTensor(attr.sparse_tensor),
-            _ => {
-                return Err(ParseError::VariantNotFound);
-            }
-        };
-
-        Ok(value)
-    }
-}
-
-/// Convert a vector of AttributeProto to a HashMap of AttributeValue
-pub fn convert_vec_attrs_proto(attrs: Vec<AttributeProto>) -> Attributes {
-    let mut result = Attributes::new();
-    for attr in attrs {
-        result.insert(attr.name.clone(), AttributeValue::try_from(attr).unwrap());
-    }
-    result
-}
-
-pub fn convert_node_proto(node: &NodeProto) -> Node {
-    let name = node.name.clone();
-
-    log::debug!("Converting ONNX node with type {:?}", node.op_type.as_str());
-
-    let inputs = node
-        .input
-        .clone()
-        .into_iter()
-        .map(|x| Argument {
-            name: x,
-            ty: ArgType::Tensor(Tensor::default()),
-        })
-        .collect();
-
-    let outputs = node
-        .output
-        .clone()
-        .into_iter()
-        .map(|x| Argument {
-            name: x,
-            ty: ArgType::Tensor(Tensor::default()),
-        })
-        .collect();
-    let attrs = convert_vec_attrs_proto(node.attribute.clone());
-
-    let node_type = NodeType::from_str(node.op_type.as_str()).expect("Unknown node type");
-
-    let mut node = Node {
-        node_type,
-        name,
-        inputs,
-        outputs,
-        states: vec![],
-        attrs,
-    };
-
-    remap_node_type(&mut node);
-
-    node
-}
-
-/// Remap node type using kernel shape
-fn remap_node_with_kernel_shape<F>(node: &mut Node, new_node_type: F)
-where
-    F: FnOnce(&Vec<i64>) -> NodeType,
-{
-    if let AttributeValue::Int64s(ints) = node.attrs.get("kernel_shape").unwrap() {
-        node.node_type = new_node_type(ints);
-    } else {
-        panic!("kernel_shape is not an int64s");
-    }
-}
-
-/// Remap node type to a more specific one
-fn remap_node_type(node: &mut Node) {
-    match node.node_type {
-        NodeType::Conv => remap_node_with_kernel_shape(node, |ints| match ints.len() {
-            1 => NodeType::Conv1d,
-            2 => NodeType::Conv2d,
-            _ => panic!("Only conv 1d and 2d are supported"),
-        }),
-        NodeType::MaxPool => remap_node_with_kernel_shape(node, |ints| match ints.len() {
-            1 => NodeType::MaxPool1d,
-            2 => NodeType::MaxPool2d,
-            _ => panic!("Only max_pool 1d and 2d are supported"),
-        }),
-        NodeType::AveragePool => remap_node_with_kernel_shape(node, |ints| match ints.len() {
-            1 => NodeType::AveragePool1d,
-            2 => NodeType::AveragePool2d,
-            _ => panic!("Only avg_pool 1d and 2d are supported"),
-        }),
-        _ => (),
-    }
-}
-
-impl TryFrom<ValueInfoProto> for Argument {
-    type Error = ParseError;
-
-    fn try_from(value: ValueInfoProto) -> Result<Argument, Self::Error> {
-        let name = value.name.clone();
-        let proto_type = value.type_.unwrap();
-
-        if !proto_type.has_tensor_type() {
-            panic!("Unsupported argument type {:?}", proto_type);
-        }
-
-        let tensor_proto = proto_type.tensor_type();
-
-        let elem_type = match DataType::from_i32(tensor_proto.elem_type).unwrap() {
-            DataType::FLOAT => ElementType::Float32,
-            DataType::INT32 => ElementType::Int32,
-            DataType::INT64 => ElementType::Int64,
-            DataType::DOUBLE => ElementType::Float64,
-            DataType::BOOL => ElementType::Bool,
-            _ => {
-                return Err(ParseError::VariantNotFound);
-            }
-        };
-
-        let tensor: Tensor = Tensor {
-            dim: tensor_proto.shape.dim.len(),
-            elem_type,
-            shape: None,
-            data: None,
-        };
-
-        let ty = ArgType::Tensor(tensor);
-
-        Ok(Argument { ty, name })
-    }
-}
-
-impl TryFrom<ValueInfoProto> for State {
-    type Error = ParseError;
-
-    fn try_from(value: ValueInfoProto) -> Result<State, Self::Error> {
-        let name = value.name.clone();
-        let proto_type = value.type_.unwrap();
-
-        if !proto_type.has_tensor_type() {
-            panic!("Unsupported argument type {:?}", proto_type);
-        }
-
-        let tensor_proto = proto_type.tensor_type();
-        let tensor: Tensor = tensor_proto.try_into().unwrap();
-        let ty = StateType::Tensor(tensor);
-
-        Ok(State { name, ty })
-    }
-}
-
-// This function moves inputs that are also present in the initializer to the node's states vector.
-// It also removes inputs that are already present in the states vector.
-fn move_inputs_to_state(nodes: &mut Vec<Node>, initializer: &[TensorProto]) {
     // Iterate over each node in the graph
     nodes.iter_mut().for_each(|node| {
-        // Create a new vector to hold the node's states
-        let mut node_states = Vec::new();
-        // Create a new vector to hold the node's inputs
-        let mut inputs = Vec::new();
-
-        // Iterate over each input in the node's inputs vector
-        for input in node.inputs.iter() {
-            // Iterate over each tensor in the initializer
-            for init in initializer.iter() {
-                // If the input name matches the tensor name in the initializer
-                if init.name == input.name {
-                    // Add the tensor to the node's states vector
-                    node_states.push(State {
-                        name: init.name.clone(),
-                        ty: StateType::Tensor(init.clone().try_into().unwrap()),
-                    });
-                }
+        for input in node.inputs.iter_mut() {
+            // If there is a corresponding initializer for the input, then move the data to the input value
+            if let Some(initializer) = initializers.get(&input.name) {
+                move_initializer_data(initializer, input);
             }
         }
-
-        // Swap the node's inputs vector with the temporary inputs vector
-        core::mem::swap(&mut inputs, &mut node.inputs);
-
-        // Filter out inputs that are already present in the node's states vector
-        node.inputs = inputs
-            .into_iter()
-            .filter(|input| {
-                for init in node_states.iter() {
-                    if init.name == input.name {
-                        return false;
-                    }
-                }
-
-                true
-            })
-            .collect();
-
-        // Set the node's states vector to the temporary node_states vector
-        node.states.append(&mut node_states);
     });
+}
+
+fn move_initializer_data(initializer: &TensorProto, input: &mut Argument) {
+    // If the input name matches the tensor name in the initializer
+    // Convert the initializer to a tensor
+    let tensor = Tensor::try_from(initializer.clone()).expect("Invalid tensor");
+
+    if tensor.dim == 0 {
+        // Convert zero dim tensor to scalar
+        if let Some(data) = tensor.data {
+            input.value = Some(data.into_scalar());
+        } else {
+            input.value = None;
+        }
+
+        // Update the input type
+        input.ty = ArgType::Scalar(tensor.elem_type);
+    } else {
+        // Move the tensor data to the input value
+        input.value = tensor.data.clone();
+
+        // Update the input type
+        input.ty = ArgType::Tensor(TensorType {
+            dim: tensor.dim,
+            elem_type: tensor.elem_type,
+            shape: tensor.shape,
+        });
+    }
 }
 
 /// Lift constants from the graph into the states vector for known node types.
@@ -504,7 +205,7 @@ fn lift_constants(nodes: &mut Vec<Node>) {
     // create a new vector to hold the graph's constants (index by the node's name)
     let constants = nodes
         .iter()
-        .filter(|node| node.node_type == NodeType::Constant) // filter out non-constant nodes
+        .filter(|node| node.node_type == NodeType::Constant || node.node_type == NodeType::Identity)
         .map(|node| (node.outputs[0].name.clone(), node.clone()))
         .collect::<HashMap<String, Node>>();
 
@@ -512,106 +213,77 @@ fn lift_constants(nodes: &mut Vec<Node>) {
     let mut constant_to_removed = HashSet::<String>::new();
 
     for node in nodes.iter_mut() {
-        // skip if not in the set or len <= 1
-        if !node_types_to_process.contains(&node.node_type) || node.inputs.len() <= 1 {
+        // Skip the node if it is not in the set of node types to process
+        if !node_types_to_process.contains(&node.node_type) {
             continue;
         }
 
-        // create a new vector to hold the node's states
-        let mut node_states = Vec::new();
-
-        let mut inputs_to_remove = Vec::new();
-
         // Skip the first input because it is the node's true input and not a constant/state
-        node.inputs.iter().skip(1).for_each(|input| {
-            if let Some(constant) = constants.get(&input.name) {
-                // if the input is a constant, get its ID and node
-                let value = get_constant_value(constant).unwrap(); // get the value of the constant
+        node.inputs
+            .iter_mut()
+            .skip(1) // TODO make configurable
+            .for_each(|input| {
+                if let Some(constant) = constants.get(&input.name) {
+                    if !constant.inputs.is_empty() && constant.inputs[0].value.is_some() {
+                        // The value comes from Identity inputs
+                        if let Some(constant_input) = constant.inputs.first() {
+                            input.ty = constant_input.ty.clone();
+                            input.value = constant_input.value.clone();
+                        }
+                    } else {
+                        // The value comes from an attribute
+                        let arg = convert_constant_value(constant); // get the value of the constant
 
-                let state = match value {
-                    AttributeValue::Tensor(tensor) => State {
-                        // if the value is a tensor, create a new State object with the tensor as its type
-                        name: input.name.clone(),
-                        ty: StateType::Tensor(tensor),
-                    },
-                    _ => todo!("Support non tensor constant type"),
-                };
-                node_states.push(state); // add the new state to the node's states vector
-                constant_to_removed.insert(constant.name.clone());
-                inputs_to_remove.push(input.name.clone());
-            }
-        });
-
-        // append the node's states vector to the new vector created in the previous step
-        node.states.append(&mut node_states);
-
-        // remove the inputs that were moved to the states vector
-        node.inputs.retain(|x| !inputs_to_remove.contains(&x.name))
+                        input.value = arg.value; // set the input's value to the constant's value
+                        input.ty = arg.ty; // set the input's type to the constant's type
+                                           // remove the constant from the graph
+                    }
+                    constant_to_removed.insert(constant.name.clone());
+                }
+            });
     }
 
     // remove the constants that were moved to the states vector
     nodes.retain(|node| !constant_to_removed.contains(&node.name));
 
     log::debug!(
-        "The number of constants removed: {}",
+        "The number of constants lifted: {}",
         constant_to_removed.len()
     );
 }
 
-/// Handle Identity nodes.
-///
-/// There are two types of Identity nodes:
-/// 1. Pass-through nodes that are used to connect two nodes. These are removed from the graph.
-/// 2. Nodes that act as a constant (its input has initializer). Change the node type to Constant.
 fn handle_identity(nodes: &mut Vec<Node>) {
     log::info!("Handling identity nodes");
 
-    let mut identity_nodes_to_remove = Vec::new();
+    let mut nodes_to_remove = HashSet::new();
 
-    for node in nodes
-        .iter_mut()
+    let identity_nodes = nodes
+        .iter()
         .filter(|node| node.node_type == NodeType::Identity)
-    {
-        // if the node has states, it is a constant. Move the data to value attribute for consistency.
-        if let Some(state) = node.states.first() {
-            match &state.ty {
-                // Currently there is only tensor type
-                StateType::Tensor(tensor) => {
-                    node.attrs
-                        .insert("value".to_string(), AttributeValue::Tensor(tensor.clone()));
-                    node.states.clear();
+        .cloned()
+        .collect::<Vec<Node>>();
+
+    // Handle pass-through nodes.
+    for identity_node in identity_nodes {
+        if identity_node.node_type == NodeType::Identity && identity_node.inputs[0].value.is_none()
+        {
+            let input_name = &identity_node.inputs[0].name;
+            let output_name = &identity_node.outputs[0].name;
+
+            // Replace the identity node's output with its input in the connected nodes.
+            for node in nodes.iter_mut() {
+                if let Some(matched_input) = node.inputs.iter_mut().find(|x| x.name == *output_name)
+                {
+                    matched_input.name = input_name.clone();
                 }
             }
-            node.node_type = NodeType::Constant;
-            log::debug!("Converted identity node ({}) to constant", node.name);
-        } else {
-            // Support pass through identity node
-            identity_nodes_to_remove.push(node.clone());
+
+            nodes_to_remove.insert(identity_node);
         }
     }
 
-    // Remove the identity nodes that are only used to connect two nodes
-    for identity_node in identity_nodes_to_remove.iter() {
-        let input = identity_node
-            .inputs
-            .first()
-            .expect("Pass through Identity node should have at least one input");
-        let output = identity_node
-            .outputs
-            .first()
-            .expect("Pass through Identity node should have at least one ");
-
-        // find the node that uses the identity node's output
-        for node in nodes.iter_mut() {
-            if let Some(matched_input) = node.inputs.iter_mut().find(|x| x.name == output.name) {
-                // replace the identity node's output with the identity node's input
-                matched_input.name = input.name.clone();
-            }
-        }
-    }
-
-    // remove the identity nodes that are used to connect two nodes
-    nodes.retain(|node| !identity_nodes_to_remove.contains(node));
+    // Remove the identity nodes.
+    nodes.retain(|node| !nodes_to_remove.contains(node));
 }
 
 /// Rename the nodes in the graph to be unique and return a map of the old names to the new names.
@@ -637,10 +309,12 @@ fn rename_nodes(nodes: &mut Vec<Node>) -> HashMap<String, String> {
     old_names
 }
 
-/// Rename the inputs and output in the graph and return a map of the old names to the new names.
+/// Rename the inputs and output in the graph and return a map of
+/// the old names to the new names.
 ///
-/// The inputs are renamed to be unique and to be in the format of conv2_in1, conv2_in2, etc.
-/// This is done to be consistent with the naming convention of the nodes and allow to be used as rust identifiers.
+/// The inputs are renamed to be unique and to be in the format of
+/// conv2_in1, conv2_in2, etc. This is done to be consistent with
+/// the naming convention of the nodes and allow to be used as rust identifiers.
 fn rename_inputs(
     nodes: &mut Vec<Node>,
     inputs: &mut Vec<Argument>,
@@ -674,11 +348,14 @@ fn rename_inputs(
 
     for node in nodes.iter_mut() {
         // loop through node inputs and rename them with previously replaced names
+        // and mark them as passed if they are in the old_names map (i.e. they are node outputs)
         for input in node.inputs.iter_mut() {
             if let Some(new_name) = old_names.get(&input.name) {
                 input.name = new_name.clone();
+                input.passed = true;
             } else {
-                panic!("Input {} not found in old_names", input.name);
+                input.name = "".to_string(); // Rename to a placeholder
+                input.passed = false;
             }
         }
     }
@@ -688,7 +365,7 @@ fn rename_inputs(
         if let Some(new_name) = old_names.get(&output.name) {
             output.name = new_name.clone();
         } else {
-            panic!("Output {} not found in old_names", output.name);
+            log::warn!("Output {:?} not found in old_names", output.name);
         }
     }
 
@@ -768,9 +445,9 @@ impl TopologicalSortable for Vec<Node> {
 }
 
 /// Get the value of a constant node from its attributes
-pub(crate) fn get_constant_value(node: &Node) -> Option<AttributeValue> {
+pub(crate) fn convert_constant_value(node: &Node) -> Argument {
     // A value can be stored in any of these attributes
-    let value_keys = [
+    let keys = [
         "value",
         "value_float",
         "value_floats",
@@ -781,7 +458,10 @@ pub(crate) fn get_constant_value(node: &Node) -> Option<AttributeValue> {
         "sparse_value",
     ];
 
-    value_keys
+    let value = keys
         .iter()
         .find_map(|&key| node.attrs.get(key).cloned())
+        .expect("Constant should have a value");
+
+    Argument::from(value)
 }

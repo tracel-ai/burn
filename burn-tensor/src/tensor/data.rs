@@ -299,6 +299,7 @@ impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E
     /// # Panics
     ///
     /// Panics if the data is not approximately equal.
+    #[track_caller]
     pub fn assert_approx_eq(&self, other: &Self, precision: usize) {
         let mut message = String::new();
         if self.shape != other.shape {

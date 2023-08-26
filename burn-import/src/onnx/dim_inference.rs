@@ -3,11 +3,7 @@ use std::collections::HashMap;
 use protobuf::Enum;
 
 use super::{
-    from_onnx::get_constant_value,
-    ir::{
-        ArgType, Argument, AttributeValue, ElementType, Node, NodeType, StateType, Tensor,
-        TensorData,
-    },
+    ir::{ArgType, Argument, AttributeValue, Data, ElementType, Node, NodeType, TensorType},
     op_configuration::flatten_config,
     protos::tensor_proto::DataType,
 };
@@ -76,21 +72,17 @@ pub fn dim_inference(
             NodeType::BatchNormalization => same_as_input(node),
             NodeType::Add => same_as_input(node),
             NodeType::Sub => same_as_input(node),
-            NodeType::Pow => same_as_input(node),
             NodeType::Mul => same_as_input(node),
             NodeType::Cast => cast_update_outputs(node),
             NodeType::Div => same_as_input(node),
             NodeType::Sqrt => same_as_input(node),
             NodeType::Tanh => same_as_input(node),
             NodeType::Softmax => same_as_input(node),
-            NodeType::Erf => same_as_input(node),
             NodeType::ReduceMean => mean_update_outputs(node),
             NodeType::Constant => constant_update_outputs(node),
             NodeType::Equal => equal_update_outputs(node),
             NodeType::Shape => shape_update_outputs(node),
             NodeType::Unsqueeze => unsqueeze_update_outputs(node),
-            NodeType::Slice => slice_update_outputs(node),
-            NodeType::MatMul => same_as_input(node),
             NodeType::Sigmoid => same_as_input(node),
             NodeType::Transpose => same_as_input(node),
             NodeType::Concat => concat_update_outputs(node),
@@ -98,10 +90,9 @@ pub fn dim_inference(
             NodeType::Dropout => same_as_input(node),
             NodeType::GlobalAveragePool => same_as_input(node),
             NodeType::AveragePool2d => same_as_input(node),
-            _ => todo!(
-                "shape inference for {:?} is not implemented",
-                node.node_type
-            ),
+            NodeType::Clip => same_as_input(node),
+            // Intentionally letting outputs leave unchanged but issue a warning so IR file can be generated.
+            _ => temporary_pass_through_stub(node),
         }
 
         updater.update_tensor_outputs(node);
@@ -112,13 +103,41 @@ pub fn dim_inference(
 
 fn constant_update_outputs(node: &mut Node) {
     // Fix the tensor dimension of the output when the value is tensor
-    match get_constant_value(node) {
+
+    let keys = [
+        "value",
+        "value_float",
+        "value_floats",
+        "value_int",
+        "value_ints",
+        "value_string",
+        "value_strings",
+        "sparse_value",
+    ];
+
+    let matched_value = keys.iter().find_map(|&key| node.attrs.get(key).cloned());
+
+    node.outputs[0].ty = match matched_value {
         Some(value) => match &value {
             // The value is stored in an attribute
-            AttributeValue::Tensor(tensor) => {
-                node.outputs[0].ty = ArgType::Tensor(tensor.clone());
-            }
-            _ => todo!("Support other constant value types"),
+            AttributeValue::Tensor(tensor) => ArgType::Tensor(TensorType {
+                elem_type: tensor.elem_type.clone(),
+                dim: tensor.dim,
+                shape: tensor.shape.clone(),
+            }),
+            AttributeValue::Float32(_) => ArgType::Scalar(ElementType::Float32),
+            AttributeValue::Float32s(value) => ArgType::Tensor(TensorType {
+                elem_type: ElementType::Float32,
+                dim: 1,
+                shape: Some(vec![value.len()]),
+            }),
+            AttributeValue::Int64(_) => ArgType::Scalar(ElementType::Int64),
+            AttributeValue::Int64s(value) => ArgType::Tensor(TensorType {
+                elem_type: ElementType::Int64,
+                dim: 1,
+                shape: Some(vec![value.len()]),
+            }),
+            ty => panic!("Constant value of {:?} is not supported", ty),
         },
         None => panic!("Constant node must have a value attribute"),
     };
@@ -126,14 +145,25 @@ fn constant_update_outputs(node: &mut Node) {
 
 /// Infer the shape of the output tensor of a Conv2d node
 fn linear_update_outputs(node: &mut Node) {
-    if node.inputs.len() != 1 {
-        panic!("Linear: multiple inputs are not supported");
-    }
-
     // Extract the configuration of the linear layer (inputs are known)
-    let node_input = &mut node.inputs[0];
+    let node_input = &node.inputs[0];
+    let weight = &node.inputs[1];
 
+    // Calculate the output shape. Usually we do not use shapes, but since the input shape is
+    // known, we can calculate the output shape.
     if let ArgType::Tensor(tensor) = node_input.clone().ty {
+        let mut tensor = tensor.clone();
+        let mut shape = tensor.shape.clone().unwrap();
+
+        if let ArgType::Tensor(weight_tensor) = weight.clone().ty {
+            let last = shape.last_mut().unwrap();
+            *last = *weight_tensor.shape.unwrap().first().unwrap();
+        } else {
+            panic!("Weight must be a tensor");
+        }
+
+        tensor.shape = Some(shape);
+
         // Update the output tensor
         node.outputs[0].ty = ArgType::Tensor(tensor);
     } else {
@@ -193,15 +223,12 @@ fn concat_update_outputs(node: &mut Node) {
 }
 
 fn reshape_update_outputs(node: &mut Node) {
-    // Extract the shape information from the state
-    let shape = match node.states.first() {
-        Some(state) => match &state.ty {
-            StateType::Tensor(tensor) => match tensor.data.as_ref() {
-                Some(TensorData::Int64(data)) => data.clone(),
-                _ => panic!("Reshape: invalid state data for shape"),
-            },
-        },
-        None => panic!("Reshape: missing state required for shape"),
+    assert_eq!(node.inputs.len(), 2);
+
+    let shape = if let Some(Data::Int64s(ref shape)) = node.inputs[1].value {
+        shape
+    } else {
+        panic!("Reshape: int64s shape is expected per ONNX spec");
     };
 
     // The output dimension is the same as the shape length
@@ -211,11 +238,12 @@ fn reshape_update_outputs(node: &mut Node) {
         _ => panic!("Reshape: invalid input type"),
     };
 
-    node.outputs[0].ty = ArgType::Tensor(Tensor {
+    let shape = shape.iter().map(|&dim| dim as usize).collect();
+
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
         elem_type,
         dim,
-        data: None,
-        shape: None,
+        shape: Some(shape),
     });
 }
 
@@ -243,48 +271,47 @@ fn mean_update_outputs(node: &mut Node) {
     if dim_only {
         node.outputs[0].ty = ArgType::Tensor(tensor);
     } else {
-        node.outputs[0].ty = ArgType::Tensor(Tensor { dim: 1, ..tensor });
+        node.outputs[0].ty = ArgType::Tensor(TensorType { dim: 1, ..tensor });
     }
 }
-
+/// Infers the shape of a Unsqueeze node and replaces the shape of the output tensor.
+///
+/// # Remarks
+///
+/// Unsqueeze is not implemented fully. This is left WIP from the past.
 fn unsqueeze_update_outputs(node: &mut Node) {
-    let node_input = &mut node
+    let node_input = node
         .inputs
-        .first()
+        .first_mut()
         .expect("Unsqueeze: an input is required");
 
-    let (dim, elem_type) = match node_input.clone().ty {
-        ArgType::Tensor(tensor) => (tensor.dim, tensor.elem_type),
-        _ => panic!("Input must be a tensor"),
-    };
+    if let ArgType::Tensor(tensor) = &mut node_input.ty {
+        tensor.dim += 1;
 
-    node.outputs[0].ty = ArgType::Tensor(Tensor {
-        elem_type,
-        dim: dim + 1,
-        data: None,
-        shape: None,
-    });
-}
+        // add a new dimension to the input tensor by extending the shape
+        // TODO: support unsqueezing configurations
+        if let Some(shape) = &mut tensor.shape {
+            shape.insert(0, 1);
+        } else {
+            todo!("Unsqueeze: support unsqueezing a tensor without shape");
+        }
 
-fn slice_update_outputs(node: &mut Node) {
-    if node.inputs.is_empty() {
-        panic!("Slice: inputs required: {:?}", node);
+        node.outputs[0].ty = ArgType::Tensor(tensor.clone());
+    } else {
+        panic!("Only tensor input is valid");
     }
-
-    let tensor = node
-        .inputs
-        .iter()
-        .find_map(|input| match &input.ty {
-            ArgType::Tensor(tensor) => Some(tensor),
-            _ => None,
-        })
-        .unwrap();
-
-    node.outputs[0].ty = ArgType::Tensor(tensor.clone());
 }
 
 fn same_as_input(node: &mut Node) {
     node.outputs[0].ty = node.inputs[0].ty.clone();
+}
+
+/// Temporary pass-through stub for dimension inference so that we can export the IR model.
+fn temporary_pass_through_stub(node: &mut Node) {
+    log::warn!(
+        "Must implement dimension inference for {:?}",
+        node.node_type
+    );
 }
 
 fn equal_update_outputs(node: &mut Node) {
@@ -293,7 +320,7 @@ fn equal_update_outputs(node: &mut Node) {
     match input1_type {
         ArgType::Tensor(tensor) => {
             // if the input is a tensor, the output is a tensor of bool
-            node.outputs[0].ty = ArgType::Tensor(Tensor {
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
                 elem_type: ElementType::Bool,
                 ..tensor
             });
@@ -341,7 +368,7 @@ fn flatten_update_outputs(node: &mut Node) {
     let collapsed_dims = end_dim - start_dim;
     let output_dim = input_dim - collapsed_dims;
 
-    node.outputs[0].ty = ArgType::Tensor(Tensor {
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
         dim: output_dim,
         ..tensor.clone()
     });
@@ -349,11 +376,6 @@ fn flatten_update_outputs(node: &mut Node) {
 
 /// Infers the shape of a Conv1d node and replaces the shape of the output tensor.
 fn conv1d_update_outputs(node: &mut Node) {
-    // copy the type from the previous output to the nodeent input
-    if node.inputs.len() != 1 {
-        panic!("Conv1d: multiple inputs are not supported");
-    }
-
     // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
     if let ArgType::Tensor(tensor) = node.inputs[0].clone().ty {
         node.outputs[0].ty = ArgType::Tensor(tensor);
@@ -364,11 +386,6 @@ fn conv1d_update_outputs(node: &mut Node) {
 
 /// Infers the shape of a Conv2d node and replaces the shape of the output tensor.
 fn conv2d_update_outputs(node: &mut Node) {
-    // copy the type from the previous output to the nodeent input
-    if node.inputs.len() != 1 {
-        panic!("Conv2d: multiple inputs are not supported");
-    }
-
     // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
     if let ArgType::Tensor(tensor) = node.inputs[0].clone().ty {
         node.outputs[0].ty = ArgType::Tensor(tensor);

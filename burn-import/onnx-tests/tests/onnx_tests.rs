@@ -11,10 +11,12 @@ macro_rules! include_models {
 
 // ATTENTION: Modify this macro to include all models in the `model` directory.
 include_models!(
-    add,
     add_int,
+    add,
     avg_pool2d,
     batch_norm,
+    clip_opset16,
+    clip_opset7,
     concat,
     conv1d,
     conv2d,
@@ -24,6 +26,7 @@ include_models!(
     equal,
     flatten,
     global_avr_pool,
+    linear,
     log_softmax,
     maxpool2d,
     mul,
@@ -31,8 +34,8 @@ include_models!(
     reshape,
     sigmoid,
     softmax,
-    sub,
     sub_int,
+    sub,
     tanh,
     transpose
 );
@@ -440,6 +443,7 @@ mod tests {
 
         // Run the model
         let input = Tensor::<Backend, 4>::from_floats([[[[1., 1., 1., 1.]]]]);
+
         let scalar = 2f64;
         let (tensor_out, scalar_out) = model.forward(input, scalar);
         let expected_tensor = Data::from([[[[true, true, true, true]]]]);
@@ -447,6 +451,78 @@ mod tests {
 
         assert_eq!(tensor_out.to_data(), expected_tensor);
         assert_eq!(scalar_out, expected_scalar);
+    }
+
+    #[test]
+    fn clip_opset16() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let model: clip_opset16::Model<Backend> = clip_opset16::Model::new();
+
+        // Run the model
+        let input = Tensor::<Backend, 1>::from_floats([
+            0.88226926, 0.91500396, 0.38286376, 0.95930564, 0.39044821, 0.60089535,
+        ]);
+        let (output1, output2, output3) = model.forward(input);
+        let expected1 = Data::from([
+            0.88226926, 0.91500396, 0.38286376, 0.95930564, 0.39044821, 0.60089535,
+        ]);
+        let expected2 = Data::from([
+            0.69999999, 0.69999999, 0.50000000, 0.69999999, 0.50000000, 0.60089535,
+        ]);
+        let expected3 = Data::from([
+            0.80000001, 0.80000001, 0.38286376, 0.80000001, 0.39044821, 0.60089535,
+        ]);
+
+        assert_eq!(output1.to_data(), expected1);
+        assert_eq!(output2.to_data(), expected2);
+        assert_eq!(output3.to_data(), expected3);
+    }
+
+    #[test]
+    fn clip_opset7() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let model: clip_opset7::Model<Backend> = clip_opset7::Model::new();
+
+        // Run the model
+        let input = Tensor::<Backend, 1>::from_floats([
+            0.88226926, 0.91500396, 0.38286376, 0.95930564, 0.39044821, 0.60089535,
+        ]);
+        let (output1, output2, output3) = model.forward(input);
+        let expected1 = Data::from([
+            0.88226926, 0.91500396, 0.38286376, 0.95930564, 0.39044821, 0.60089535,
+        ]);
+        let expected2 = Data::from([
+            0.69999999, 0.69999999, 0.50000000, 0.69999999, 0.50000000, 0.60089535,
+        ]);
+        let expected3 = Data::from([
+            0.80000001, 0.80000001, 0.38286376, 0.80000001, 0.39044821, 0.60089535,
+        ]);
+
+        assert_eq!(output1.to_data(), expected1);
+        assert_eq!(output2.to_data(), expected2);
+        assert_eq!(output3.to_data(), expected3);
+    }
+
+    #[test]
+    fn linear() {
+        // Initialize the model with weights (loaded from the exported file)
+        let model: linear::Model<Backend> = linear::Model::default();
+
+        // Run the model with 3.1416 as input for easier testing
+        let input = Tensor::<Backend, 2>::full([1, 16], 3.1416);
+
+        let output = model.forward(input);
+
+        // test the output shape
+        let expected_shape: Shape<2> = Shape::from([1, 32]);
+        assert_eq!(output.shape(), expected_shape);
+
+        // We are using the sum of the output tensor to test the correctness of the conv1d node
+        // because the output tensor is too large to compare with the expected tensor.
+        let output_sum = output.sum().into_scalar();
+        let expected_sum = -3.205_825; // from pytorch
+        println!("output_sum: {}", output_sum);
+        assert!(expected_sum.approx_eq(output_sum, (1.0e-5, 2)));
     }
 
     #[test]

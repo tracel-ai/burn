@@ -5,63 +5,40 @@ use burn::nn::{
     BatchNormConfig, DropoutConfig, LinearConfig, PaddingConfig1d, PaddingConfig2d,
 };
 
-use crate::onnx::ir::TensorData;
+use crate::onnx::ir::Data;
 
-use super::ir::{ArgType, AttributeValue, Node, StateType};
-
-#[inline(always)]
-pub fn attr_value_vec_i64(value: &AttributeValue, target: &mut Vec<i64>) {
-    if let AttributeValue::Int64s(val) = value {
-        *target = val.clone();
-    } else {
-        panic!("The attribute value type does not match the expected type");
-    }
-}
-
-#[inline(always)]
-pub fn attr_value_i64(value: &AttributeValue, target: &mut i64) {
-    if let AttributeValue::Int64(val) = value {
-        *target = *val;
-    } else {
-        panic!("The attribute value type does not match the expected type");
-    }
-}
-
-#[inline(always)]
-pub fn attr_value_f32(value: &AttributeValue, target: &mut f32) {
-    if let AttributeValue::Float32(val) = value {
-        *target = *val;
-    } else {
-        panic!("The attribute value type does not match the expected type");
-    }
-}
+use super::ir::{ArgType, Node};
 
 /// Create a Conv1dConfig from the attributes of the node
 pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
-    let mut kernel_shape = Vec::new();
+    let mut kernel_shape = Vec::new(); // TODO default inferred from weight tensor per spec
     let mut strides = vec![1];
-    let mut pads = Vec::new();
+    let mut pads = vec![0, 0];
     let mut dilations = vec![1];
     let mut group: i64 = 1;
 
     // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
-    let StateType::Tensor(tensor) = curr.states.get(0).unwrap().clone().ty;
+    let weight = if let ArgType::Tensor(ref weight) = curr.inputs[1].ty {
+        weight
+    } else {
+        panic!("Conv1d: weight tensor must be present");
+    };
 
     // check if the bias is present
-    let bias = curr.states.len() == 2;
+    let bias = curr.inputs.len() == 3;
 
     // the channels are inverted in the weight tensor
-    let shape = tensor.shape.unwrap();
+    let shape = weight.shape.clone().unwrap();
     let channels_in = shape[1];
     let channels_out = shape[0];
 
     for (key, value) in curr.attrs.iter() {
         match key.as_str() {
-            "kernel_shape" => attr_value_vec_i64(value, &mut kernel_shape),
-            "strides" => attr_value_vec_i64(value, &mut strides),
-            "pads" => attr_value_vec_i64(value, &mut pads),
-            "dilations" => attr_value_vec_i64(value, &mut dilations),
-            "group" => attr_value_i64(value, &mut group),
+            "kernel_shape" => kernel_shape = value.clone().into_i64s(),
+            "strides" => strides = value.clone().into_i64s(),
+            "pads" => pads = value.clone().into_i64s(),
+            "dilations" => dilations = value.clone().into_i64s(),
+            "group" => group = value.clone().into_i64(),
             _ => {}
         }
     }
@@ -78,29 +55,32 @@ pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
 
 /// Create a Conv2dConfig from the attributes of the node
 pub fn conv2d_config(curr: &Node) -> Conv2dConfig {
-    let mut kernel_shape = Vec::new();
+    let mut kernel_shape = Vec::new(); // TODO default inferred from weight tensor per spec
     let mut strides = vec![1, 1];
-    let mut pads = Vec::new();
+    let mut pads = vec![0, 0, 0, 0];
     let mut dilations = vec![1, 1];
     let mut group: i64 = 1;
 
     // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
-    let StateType::Tensor(tensor) = curr.states.get(0).unwrap().clone().ty;
-
+    let weight = if let ArgType::Tensor(ref weight) = curr.inputs[1].ty {
+        weight
+    } else {
+        panic!("Conv1d: weight tensor must be present");
+    };
     // check if the bias is present
-    let bias = curr.states.len() == 2;
+    let bias = curr.inputs.len() == 3;
 
     // the channels are inverted in the weight tensor
-    let shape = tensor.shape.unwrap();
+    let shape = weight.shape.clone().unwrap();
     let channels: [usize; 2] = [shape[1], shape[0]];
 
     for (key, value) in curr.attrs.iter() {
         match key.as_str() {
-            "kernel_shape" => attr_value_vec_i64(value, &mut kernel_shape),
-            "strides" => attr_value_vec_i64(value, &mut strides),
-            "pads" => attr_value_vec_i64(value, &mut pads),
-            "dilations" => attr_value_vec_i64(value, &mut dilations),
-            "group" => attr_value_i64(value, &mut group),
+            "kernel_shape" => kernel_shape = value.clone().into_i64s(),
+            "strides" => strides = value.clone().into_i64s(),
+            "pads" => pads = value.clone().into_i64s(),
+            "dilations" => dilations = value.clone().into_i64s(),
+            "group" => group = value.clone().into_i64(),
             _ => {}
         }
     }
@@ -121,16 +101,16 @@ pub fn conv2d_config(curr: &Node) -> Conv2dConfig {
 /// Create a MaxPool2dConfig from the attributes of the node
 pub fn max_pool2d_config(curr: &Node) -> MaxPool2dConfig {
     let mut kernel_shape = Vec::new();
-    let mut strides = Vec::new();
-    let mut pads = Vec::new();
+    let mut strides = vec![1, 1];
+    let mut pads = vec![0, 0, 0, 0];
     let mut dilations = vec![1, 1];
 
     for (key, value) in curr.attrs.iter() {
         match key.as_str() {
-            "kernel_shape" => attr_value_vec_i64(value, &mut kernel_shape),
-            "strides" => attr_value_vec_i64(value, &mut strides),
-            "pads" => attr_value_vec_i64(value, &mut pads),
-            "dilations" => attr_value_vec_i64(value, &mut dilations),
+            "kernel_shape" => kernel_shape = value.clone().into_i64s(),
+            "strides" => strides = value.clone().into_i64s(),
+            "pads" => pads = value.clone().into_i64s(),
+            "dilations" => dilations = value.clone().into_i64s(),
             _ => {}
         }
     }
@@ -146,16 +126,16 @@ pub fn max_pool2d_config(curr: &Node) -> MaxPool2dConfig {
 /// Create a AvgPool2dConfig from the attributes of the node
 pub fn avg_pool2d_config(curr: &Node) -> AvgPool2dConfig {
     let mut kernel_shape = Vec::new();
-    let mut strides = Vec::new();
-    let mut pads = Vec::new();
+    let mut strides = vec![1, 1];
+    let mut pads = vec![0, 0, 0, 0];
     let mut count_include_pad: i64 = 0;
 
     for (key, value) in curr.attrs.iter() {
         match key.as_str() {
-            "kernel_shape" => attr_value_vec_i64(value, &mut kernel_shape),
-            "strides" => attr_value_vec_i64(value, &mut strides),
-            "pads" => attr_value_vec_i64(value, &mut pads),
-            "count_include_pad" => attr_value_i64(value, &mut count_include_pad),
+            "kernel_shape" => kernel_shape = value.clone().into_i64s(),
+            "strides" => strides = value.clone().into_i64s(),
+            "pads" => pads = value.clone().into_i64s(),
+            "count_include_pad" => count_include_pad = value.clone().into_i64(),
             _ => {}
         }
     }
@@ -204,7 +184,7 @@ pub fn flatten_config(curr: &Node) -> (usize, usize) {
     // extract the attributes
     for (key, value) in curr.attrs.iter() {
         match key.as_str() {
-            "axis" => attr_value_i64(value, &mut start_dim),
+            "axis" => start_dim = value.clone().into_i64(),
             _ => {}
         }
     }
@@ -219,33 +199,30 @@ pub fn flatten_config(curr: &Node) -> (usize, usize) {
 
 /// Create a LinearConfig from the attributes of the node
 pub fn linear_config(node: &Node) -> LinearConfig {
-    // check if the node has only one input
-    if node.inputs.len() != 1 {
-        panic!(
-            "Linear: multiple inputs are not supported (got {:?})",
-            node.inputs.len()
-        );
-    }
-
-    if node.states.is_empty() {
-        panic!("Linear: no state found");
+    if node.inputs.len() < 2 {
+        panic!("Linear: missing weight tensor");
     }
 
     // extract the shape of the weight tensor
-    let StateType::Tensor(tensor) = node.states.get(0).unwrap().clone().ty;
+    let weight = if let ArgType::Tensor(ref weight) = node.inputs[1].ty {
+        weight
+    } else {
+        panic!("Linear: weight tensor must be present");
+    };
 
     // check if the weight tensor has at least 2 dimensions
-    if tensor.dim < 2 {
+    if weight.dim < 2 {
         panic!(
             "Linear: weight tensor must have at least 2 dimensions (got {:?})",
-            tensor.dim
+            weight.dim
         );
     }
-    let shape = tensor.shape.unwrap();
+
+    let shape = weight.shape.clone().unwrap();
     let (in_size, out_size) = (shape[0], shape[1]);
 
     // check if the bias is present
-    let bias = node.states.len() == 2;
+    let bias = node.inputs.len() == 3 && node.inputs[2].value.is_some();
 
     LinearConfig::new(in_size, out_size).with_bias(bias)
 }
@@ -254,26 +231,25 @@ pub fn linear_config(node: &Node) -> LinearConfig {
 pub fn dropout_config(node: &Node) -> DropoutConfig {
     // Opset 7 and older store probability as an attribute
     if node.attrs.contains_key("ratio") {
-        let mut prob: f32 = 0.0;
-        attr_value_f32(node.attrs.get("ratio").unwrap(), &mut prob);
-
+        let prob = node.attrs.get("ratio").unwrap().clone().into_f32();
         return DropoutConfig::new(prob as f64);
     }
 
-    if node.states.is_empty() {
-        panic!("Dropout: no state found needed for configuration");
+    if node.inputs.len() < 2 {
+        panic!("Dropout configuration must have at least 2 inputs");
     }
 
-    // extract the tensor from the state
-    let StateType::Tensor(tensor) = node.states.get(0).unwrap().clone().ty;
+    let ratio = node.inputs[1]
+        .value
+        .clone()
+        .expect("Dropout ratio must be passed in the second input")
+        .into_scalar();
 
-    // Zero dim tensor is treated as a scalar
-    assert_eq!(tensor.dim, 0);
-
-    let prob = match tensor.data.unwrap() {
-        TensorData::Float32(prob) => *prob.first().unwrap() as f64,
-        TensorData::Float64(prob) => *prob.first().unwrap(),
-        _ => panic!("Dropout: only float probability is supported"),
+    let prob = match ratio {
+        Data::Float16(ratio) => f64::from(f32::from(ratio)),
+        Data::Float32(ratio) => ratio as f64,
+        Data::Float64(ratio) => ratio,
+        _ => panic!("Dropout ratio must be a float"),
     };
 
     DropoutConfig::new(prob)
@@ -301,7 +277,7 @@ pub fn log_softmax_config(node: &Node) -> usize {
     // extract the attributes
     for (key, value) in node.attrs.iter() {
         match key.as_str() {
-            "axis" => attr_value_i64(value, &mut axis),
+            "axis" => axis = value.clone().into_i64(),
             _ => {}
         }
     }
@@ -336,7 +312,7 @@ pub fn softmax_config(node: &Node) -> usize {
     // extract the attributes
     for (key, value) in node.attrs.iter() {
         match key.as_str() {
-            "axis" => attr_value_i64(value, &mut axis),
+            "axis" => axis = value.clone().into_i64(),
             _ => {}
         }
     }
@@ -363,7 +339,7 @@ pub fn concat_config(node: &Node) -> usize {
     // extract the attributes
     for (key, value) in node.attrs.iter() {
         match key.as_str() {
-            "axis" => attr_value_i64(value, &mut axis),
+            "axis" => axis = value.clone().into_i64(),
             _ => {}
         }
     }
@@ -379,17 +355,21 @@ pub fn concat_config(node: &Node) -> usize {
 /// Create a BatchNormConfig from the attributes of the node
 pub fn batch_norm_config(node: &Node) -> BatchNormConfig {
     // extract the shape of the weight tensor
-    let StateType::Tensor(tensor) = node.states.get(0).unwrap().clone().ty;
+    let tensor_type = if let ArgType::Tensor(ref tensor_type) = node.inputs[1].ty {
+        tensor_type
+    } else {
+        panic!("BatchNorm: weight tensor must be present");
+    };
 
-    let num_features: usize = tensor.shape.unwrap()[0];
+    let num_features: usize = tensor_type.shape.clone().unwrap()[0];
 
     let mut epsilon = 0f32;
     let mut momentum = 0f32;
 
     for (key, value) in node.attrs.iter() {
         match key.as_str() {
-            "momentum" => attr_value_f32(value, &mut momentum),
-            "epsilon" => attr_value_f32(value, &mut epsilon),
+            "momentum" => momentum = value.clone().into_f32(),
+            "epsilon" => epsilon = value.clone().into_f32(),
             _ => {}
         }
     }
@@ -442,7 +422,7 @@ pub fn reshape_config(node: &Node) -> Vec<i64> {
 
     for (key, value) in node.attrs.iter() {
         match key.as_str() {
-            "allowzero" => attr_value_i64(value, &mut allowzero),
+            "allowzero" => allowzero = value.clone().into_i64(),
             _ => {}
         }
     }
@@ -453,17 +433,76 @@ pub fn reshape_config(node: &Node) -> Vec<i64> {
         panic!("Zero shape size is not supported");
     }
 
-    let shape = match node.states.first() {
-        Some(state) => match &state.ty {
-            StateType::Tensor(tensor) => match tensor.data.as_ref() {
-                Some(TensorData::Int64(data)) => data.clone(),
-                _ => panic!("Reshape: invalid state data for shape"),
-            },
-        },
-        None => panic!("Reshape: missing state required for shape"),
-    };
+    if node.inputs.len() != 2 || node.inputs[1].value.is_none() {
+        panic!("Reshape: shape tensor must be present");
+    }
 
-    shape
+    let input_value = &node.inputs[1].value;
+    match &node.inputs[1].ty {
+        ArgType::Tensor(tensor) => {
+            assert_eq!(tensor.dim, 1, "Reshape: shape tensor must be 1D");
+
+            if let Some(Data::Int64s(shape)) = input_value.as_ref() {
+                shape.clone()
+            } else {
+                panic!("Tensor data type must be int64")
+            }
+        }
+        _ => panic!("Only tensor input is valid for shape"),
+    }
+}
+
+pub fn clip_config(node: &Node) -> (Option<f64>, Option<f64>) {
+    let mut min_result: Option<f64> = None;
+    let mut max_result: Option<f64> = None;
+
+    // For Clip Opset 6+ , the min and max values are attributes
+    for (key, value) in node.attrs.iter() {
+        match key.as_str() {
+            "min" => {
+                let min = value.clone().into_f32() as f64;
+                min_result = Some(min);
+            }
+            "max" => {
+                let max = value.clone().into_f32();
+                max_result = Some(max as f64);
+            }
+            _ => {}
+        }
+    }
+
+    // For Clip Opset 11+ , the min and max values are inputs
+    // Get the min and max values from the input values
+    if min_result.is_none() && max_result.is_none() {
+        let min = &node.inputs[1].value;
+        let max = &node.inputs[2].value;
+
+        if min_result.is_none() && min.is_some() {
+            let min = min.clone().unwrap().into_scalar();
+            min_result = match min {
+                Data::Float16(min) => Some(f32::from(min) as f64),
+                Data::Float32(min) => Some(min as f64),
+                Data::Float64(min) => Some(min),
+                _ => panic!("Clip: only float min is supported"),
+            };
+        }
+
+        if max_result.is_none() && max.is_some() {
+            let max = max.clone().unwrap().into_scalar();
+            max_result = match max {
+                Data::Float16(max) => Some(f32::from(max) as f64),
+                Data::Float32(max) => Some(max as f64),
+                Data::Float64(max) => Some(max),
+                _ => panic!("Clip: only float max is supported"),
+            };
+        }
+    }
+
+    if min_result.is_none() && max_result.is_none() {
+        panic!("Clip: min and max values must be either attributes or inputs");
+    }
+
+    (min_result, max_result)
 }
 
 /// Calculate the padding configuration for a 1D operations such as Convolution and Pooling.

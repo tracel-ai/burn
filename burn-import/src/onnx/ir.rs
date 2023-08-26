@@ -1,42 +1,52 @@
-use burn_ndarray::NdArrayBackend;
 use core::fmt;
 use half::f16;
 use std::{collections::HashMap, fmt::Formatter};
 use strum_macros::{Display, EnumString};
 
-pub type Shape = Vec<usize>;
+pub type Dim = usize;
+pub type Shape = Vec<Dim>;
 
+/// A node input or output.
 #[derive(Debug, Clone)]
 pub struct Argument {
+    /// The name of the node input.
     pub name: String,
+
+    /// The type of the argument.
     pub ty: ArgType,
+
+    /// The data of the argument.
+    pub value: Option<Data>,
+
+    /// True if the argument is passed to node, false otherwise. We use it mainly for informational purposes.
+    /// The argument should contain a value if passed is false.
+    pub passed: bool,
 }
 
+/// The type of an argument.
 #[derive(Debug, Clone)]
 pub enum ArgType {
     Scalar(ElementType),
-    Shape(usize),
-    Tensor(Tensor),
+    Shape(Dim),
+    Tensor(TensorType),
 }
 
-#[derive(Debug, Clone)]
-pub struct SparseTensor(Tensor, Tensor, Shape);
-
+/// The type of an attribute.
 #[derive(Debug, Clone)]
 pub enum AttributeValue {
     Float32(f32),
-    Int64(i64),
-    String(String),
-    Tensor(Tensor),
-    SparseTensor(SparseTensor),
     Float32s(Vec<f32>),
+    Int64(i64),
     Int64s(Vec<i64>),
+    String(String),
     Strings(Vec<String>),
+    Tensor(Tensor),
     Tensors(Vec<Tensor>),
-    SparseTensors(Vec<SparseTensor>),
 }
+
 pub type Attributes = HashMap<String, AttributeValue>;
 
+/// The type of an element.
 #[derive(Debug, Clone)]
 pub enum ElementType {
     Float32,
@@ -48,34 +58,73 @@ pub enum ElementType {
     Bool,
 }
 
-#[derive(Debug, Clone)]
-pub struct Tensor {
+#[derive(Debug, Clone, Default)]
+pub struct TensorType {
+    /// The type of the tensor.
     pub elem_type: ElementType,
-    pub dim: usize,
-    pub data: Option<TensorData>,
+
+    /// The dimension of the tensor.
+    pub dim: Dim,
+
+    /// The shape of the tensor.
     pub shape: Option<Shape>,
 }
 
-impl Default for Tensor {
+impl Default for ElementType {
     fn default() -> Self {
+        Self::Float32
+    }
+}
+
+impl Default for ArgType {
+    fn default() -> Self {
+        Self::Tensor(TensorType::default())
+    }
+}
+
+impl Argument {
+    pub fn new(name: String) -> Self {
         Self {
-            elem_type: ElementType::Float32,
-            dim: 0,
-            data: None,
-            shape: None,
+            name,
+            ty: ArgType::default(),
+            value: None,
+            passed: false,
         }
     }
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct Tensor {
+    /// The type of the tensor.
+    pub elem_type: ElementType,
+
+    /// The dimension of the tensor.
+    pub dim: Dim,
+
+    /// The data of the tensor.
+    pub data: Option<Data>,
+
+    /// The shape of the tensor.
+    pub shape: Option<Shape>,
+}
+
+/// Container to hold data for tensors and arguments
 #[derive(Clone)]
-pub enum TensorData {
-    Float16(Vec<f16>),
-    Float32(Vec<f32>),
-    Float64(Vec<f64>),
-    Int32(Vec<i32>),
-    Int64(Vec<i64>),
-    String(Vec<String>),
-    Bool(Vec<bool>),
+pub enum Data {
+    Bool(bool),
+    Bools(Vec<bool>),
+    Float16(f16),
+    Float16s(Vec<f16>),
+    Float32(f32),
+    Float32s(Vec<f32>),
+    Float64(f64),
+    Float64s(Vec<f64>),
+    Int32(i32),
+    Int32s(Vec<i32>),
+    Int64(i64),
+    Int64s(Vec<i64>),
+    String(String),
+    Strings(Vec<String>),
 }
 
 /// ONNX graph representation
@@ -98,23 +147,20 @@ pub struct ONNXGraph {
 }
 
 #[derive(Debug, Clone)]
-pub struct State {
-    pub name: String,
-    pub ty: StateType,
-}
-
-#[derive(Debug, Clone)]
-pub enum StateType {
-    Tensor(Tensor),
-}
-
-#[derive(Debug, Clone)]
 pub struct Node {
+    /// The type of the node.
     pub node_type: NodeType,
+
+    /// The name of the node.
     pub name: String,
+
+    /// The inputs of the node.
     pub inputs: Vec<Argument>,
+
+    /// The outputs of the node.
     pub outputs: Vec<Argument>,
-    pub states: Vec<State>,
+
+    /// The attributes of the node.
     pub attrs: Attributes,
 }
 
@@ -374,30 +420,352 @@ fn trunc<T: fmt::Display>(v: &Vec<T>) -> String {
 }
 
 /// Shorten the tensor data for debug display
-impl fmt::Debug for TensorData {
+impl fmt::Debug for Data {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            TensorData::Float16(v) => write!(f, "Float16({})", trunc(v)),
-            TensorData::Float32(v) => write!(f, "Float32({})", trunc(v)),
-            TensorData::Float64(v) => write!(f, "Float64({})", trunc(v)),
-            TensorData::Int32(v) => write!(f, "Int32({})", trunc(v)),
-            TensorData::Int64(v) => write!(f, "Int64({})", trunc(v)),
-            TensorData::String(v) => write!(f, "String({})", trunc(v)),
-            TensorData::Bool(v) => write!(f, "Bool({})", trunc(v)),
+            Data::Float16s(v) => write!(f, "Float16s({})", trunc(v)),
+            Data::Float32s(v) => write!(f, "Float32s({})", trunc(v)),
+            Data::Float64s(v) => write!(f, "Float64s({})", trunc(v)),
+            Data::Int32s(v) => write!(f, "Int32s({})", trunc(v)),
+            Data::Int64s(v) => write!(f, "Int64s({})", trunc(v)),
+            Data::Strings(v) => write!(f, "Strings({})", trunc(v)),
+            Data::Bools(v) => write!(f, "Bools({})", trunc(v)),
+            Data::Float16(v) => write!(f, "Float16({})", v),
+            Data::Float32(v) => write!(f, "Float32({})", v),
+            Data::Float64(v) => write!(f, "Float64({})", v),
+            Data::Int32(v) => write!(f, "Int32({})", v),
+            Data::Int64(v) => write!(f, "Int64({})", v),
+            Data::String(v) => write!(f, "String({})", v),
+            Data::Bool(v) => write!(f, "Bool({})", v),
         }
     }
 }
 
-/// Convert itermediate representation of tensor into a burn tensor
-impl<const D: usize> TryFrom<&Tensor> for burn::tensor::Tensor<NdArrayBackend<f32>, D> {
-    type Error = ();
+impl Data {
+    pub fn into_scalar(self) -> Self {
+        match self {
+            Data::Float16s(data) => {
+                assert_eq!(data.len(), 1);
+                Data::Float16(data[0])
+            }
+            Data::Float32s(data) => {
+                assert_eq!(data.len(), 1);
+                Data::Float32(data[0])
+            }
+            Data::Float64s(data) => {
+                assert_eq!(data.len(), 1);
+                Data::Float64(data[0])
+            }
+            Data::Int32s(data) => {
+                assert_eq!(data.len(), 1);
+                Data::Int32(data[0])
+            }
+            Data::Int64s(data) => {
+                assert_eq!(data.len(), 1);
+                Data::Int64(data[0])
+            }
+            Data::Bools(data) => {
+                assert_eq!(data.len(), 1);
+                Data::Bool(data[0])
+            }
+            Data::Strings(data) => {
+                assert_eq!(data.len(), 1);
+                Data::String(data[0].clone())
+            }
+            _ => self,
+        }
+    }
 
-    fn try_from(value: &Tensor) -> Result<Self, Self::Error> {
-        let shape: [usize; D] = value.shape.clone().unwrap().try_into().unwrap();
-        let TensorData::Float32(floats) = value.data.clone().unwrap() else {
-            todo!("Tensor data must be float32s");
-        };
+    pub fn into_f16(self) -> f16 {
+        if let Data::Float16(elem) = self {
+            elem
+        } else {
+            panic!("Expected Float16, got {:?}", self);
+        }
+    }
 
-        Ok(burn::tensor::Tensor::from_data(floats.as_slice()).reshape(shape))
+    pub fn into_f32(self) -> f32 {
+        if let Data::Float32(elem) = self {
+            elem
+        } else {
+            panic!("Expected Float32, got {:?}", self);
+        }
+    }
+
+    pub fn into_f64(self) -> f64 {
+        if let Data::Float64(elem) = self {
+            elem
+        } else {
+            panic!("Expected Float64, got {:?}", self);
+        }
+    }
+
+    pub fn into_i32(self) -> i32 {
+        if let Data::Int32(elem) = self {
+            elem
+        } else {
+            panic!("Expected Int32, got {:?}", self);
+        }
+    }
+
+    pub fn into_i64(self) -> i64 {
+        if let Data::Int64(elem) = self {
+            elem
+        } else {
+            panic!("Expected Int64, got {:?}", self);
+        }
+    }
+
+    pub fn into_bool(self) -> bool {
+        if let Data::Bool(elem) = self {
+            elem
+        } else {
+            panic!("Expected Bool, got {:?}", self);
+        }
+    }
+
+    pub fn into_string(self) -> String {
+        if let Data::String(elem) = self {
+            elem
+        } else {
+            panic!("Expected String, got {:?}", self);
+        }
+    }
+
+    pub fn into_f16s(self) -> Vec<f16> {
+        if let Data::Float16s(elem) = self {
+            elem
+        } else {
+            panic!("Expected Float16s, got {:?}", self);
+        }
+    }
+
+    pub fn into_f32s(self) -> Vec<f32> {
+        if let Data::Float32s(elem) = self {
+            elem
+        } else {
+            panic!("Expected Float32s, got {:?}", self);
+        }
+    }
+
+    pub fn into_f64s(self) -> Vec<f64> {
+        if let Data::Float64s(elem) = self {
+            elem
+        } else {
+            panic!("Expected Float64s, got {:?}", self);
+        }
+    }
+
+    pub fn into_i32s(self) -> Vec<i32> {
+        if let Data::Int32s(elem) = self {
+            elem
+        } else {
+            panic!("Expected Int32s, got {:?}", self);
+        }
+    }
+
+    pub fn into_i64s(self) -> Vec<i64> {
+        if let Data::Int64s(elem) = self {
+            elem
+        } else {
+            panic!("Expected Int64s, got {:?}", self);
+        }
+    }
+
+    pub fn into_bools(self) -> Vec<bool> {
+        if let Data::Bools(elem) = self {
+            elem
+        } else {
+            panic!("Expected Bools, got {:?}", self);
+        }
+    }
+
+    pub fn into_strings(self) -> Vec<String> {
+        if let Data::Strings(elem) = self {
+            elem
+        } else {
+            panic!("Expected Strings, got {:?}", self);
+        }
+    }
+}
+
+impl AttributeValue {
+    pub fn into_f32(self) -> f32 {
+        if let AttributeValue::Float32(elem) = self {
+            elem
+        } else {
+            panic!("Expected Float32, got {:?}", self);
+        }
+    }
+
+    pub fn into_i32(self) -> i32 {
+        if let AttributeValue::Int64(elem) = self {
+            elem as i32
+        } else {
+            panic!("Expected Int32, got {:?}", self);
+        }
+    }
+
+    pub fn into_i64(self) -> i64 {
+        if let AttributeValue::Int64(elem) = self {
+            elem
+        } else {
+            panic!("Expected Int64, got {:?}", self);
+        }
+    }
+
+    pub fn into_string(self) -> String {
+        if let AttributeValue::String(elem) = self {
+            elem
+        } else {
+            panic!("Expected String, got {:?}", self);
+        }
+    }
+
+    pub fn into_tensor(self) -> Tensor {
+        if let AttributeValue::Tensor(elem) = self {
+            elem
+        } else {
+            panic!("Expected Tensor, got {:?}", self);
+        }
+    }
+
+    pub fn into_f32s(self) -> Vec<f32> {
+        if let AttributeValue::Float32s(elem) = self {
+            elem
+        } else {
+            panic!("Expected Float32s, got {:?}", self);
+        }
+    }
+
+    pub fn into_i64s(self) -> Vec<i64> {
+        if let AttributeValue::Int64s(elem) = self {
+            elem
+        } else {
+            panic!("Expected Int64s, got {:?}", self);
+        }
+    }
+
+    pub fn into_strings(self) -> Vec<String> {
+        if let AttributeValue::Strings(elem) = self {
+            elem
+        } else {
+            panic!("Expected Strings, got {:?}", self);
+        }
+    }
+
+    pub fn into_tensors(self) -> Vec<Tensor> {
+        if let AttributeValue::Tensors(elem) = self {
+            elem
+        } else {
+            panic!("Expected Tensors, got {:?}", self);
+        }
+    }
+}
+
+/// Convert AttributeValue to an Argument
+impl From<AttributeValue> for Argument {
+    fn from(attr: AttributeValue) -> Argument {
+        // "" is used as a placeholder for the name
+        let name = "".to_string();
+
+        match attr {
+            AttributeValue::Float32(value) => Argument {
+                ty: ArgType::Scalar(ElementType::Float32),
+                name,
+                value: Some(Data::Float32(value)),
+                passed: false,
+            },
+            AttributeValue::Float32s(values) => Argument {
+                ty: ArgType::Tensor(TensorType {
+                    dim: 1,
+                    elem_type: ElementType::Float32,
+                    shape: Some(vec![values.len()]),
+                }),
+                name,
+                value: Some(Data::Float32s(values)),
+                passed: false,
+            },
+            AttributeValue::Int64(value) => Argument {
+                ty: ArgType::Scalar(ElementType::Int64),
+                name,
+                value: Some(Data::Int64(value)),
+                passed: false,
+            },
+            AttributeValue::Int64s(values) => Argument {
+                ty: ArgType::Tensor(TensorType {
+                    dim: 1,
+                    elem_type: ElementType::Int64,
+                    shape: Some(vec![values.len()]),
+                }),
+                name,
+                value: Some(Data::Int64s(values)),
+                passed: false,
+            },
+            AttributeValue::String(value) => Argument {
+                ty: ArgType::Scalar(ElementType::String),
+                name,
+                value: Some(Data::String(value)),
+                passed: false,
+            },
+            AttributeValue::Strings(values) => Argument {
+                ty: ArgType::Tensor(TensorType {
+                    dim: 1,
+                    elem_type: ElementType::String,
+                    shape: Some(vec![values.len()]),
+                }),
+                name,
+                value: Some(Data::Strings(values)),
+                passed: false,
+            },
+            AttributeValue::Tensor(tensor) => {
+                if tensor.dim == 0 {
+                    // Convert zero dim tensor to scalar
+                    if let Some(data) = tensor.data {
+                        Argument {
+                            ty: ArgType::Scalar(tensor.elem_type),
+                            name,
+                            value: Some(data.into_scalar()),
+                            passed: false,
+                        }
+                    } else {
+                        Argument {
+                            ty: ArgType::Scalar(tensor.elem_type),
+                            name,
+                            value: None,
+                            passed: false,
+                        }
+                    }
+                } else {
+                    // Convert tensor to argument
+                    Argument {
+                        ty: ArgType::Tensor(TensorType {
+                            dim: tensor.dim,
+                            elem_type: tensor.elem_type,
+                            shape: tensor.shape,
+                        }),
+                        name,
+                        value: tensor.data,
+                        passed: false,
+                    }
+                }
+            }
+            _ => panic!("Unsupported attribute type"),
+        }
+    }
+}
+
+impl Argument {
+    pub fn into_tensor(self) -> Option<Tensor> {
+        if let ArgType::Tensor(tensor_type) = self.ty {
+            Some(Tensor {
+                elem_type: tensor_type.elem_type,
+                dim: tensor_type.dim,
+                data: self.value,
+                shape: tensor_type.shape,
+            })
+        } else {
+            None
+        }
     }
 }
