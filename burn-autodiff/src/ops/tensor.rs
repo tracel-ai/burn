@@ -98,8 +98,8 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     ops.parents,
                     ops.node,
                     grads,
-                    |grad| broadcast_shape::<B, D>(grad, shape_lhs),
-                    |grad| broadcast_shape::<B, D>(grad, shape_rhs),
+                    |grad| broadcast_shape::<B, D>(grad, &shape_lhs),
+                    |grad| broadcast_shape::<B, D>(grad, &shape_rhs),
                 );
             }
         }
@@ -147,8 +147,8 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     ops.parents,
                     ops.node,
                     grads,
-                    |grad| broadcast_shape::<B, D>(grad, shape_lhs),
-                    |grad| broadcast_shape::<B, D>(B::neg(grad), shape_rhs),
+                    |grad| broadcast_shape::<B, D>(grad, &shape_lhs),
+                    |grad| broadcast_shape::<B, D>(B::neg(grad), &shape_rhs),
                 );
             }
         }
@@ -187,23 +187,34 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         struct Mul;
 
         impl<B: Backend, const D: usize> Backward<B, D, 2> for Mul {
-            type State = (Option<B::TensorPrimitive<D>>, Option<B::TensorPrimitive<D>>);
+            type State = (
+                Option<B::TensorPrimitive<D>>,
+                Option<B::TensorPrimitive<D>>,
+                BinaryOpsBroadcast<D>,
+            );
 
             fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
-                let (lhs, rhs) = ops.state;
+                let (lhs, rhs, broadcast) = ops.state;
 
                 binary::<B, D, D, D, _, _>(
                     ops.parents,
                     ops.node,
                     grads,
-                    |grad| B::mul(grad, rhs.unwrap()),
-                    |grad| B::mul(grad, lhs.unwrap()),
+                    |grad| {
+                        let grad = B::mul(grad, rhs.unwrap());
+                        broadcast.backward_lhs::<B>(grad)
+                    },
+                    |grad| {
+                        let grad = B::mul(grad, lhs.unwrap());
+                        broadcast.backward_rhs::<B>(grad)
+                    },
                 );
             }
         }
 
         let lhs_tracked = lhs.is_tracked();
         let rhs_tracked = rhs.is_tracked();
+        let broadcast = BinaryOpsBroadcast::new::<B>(&lhs.primitive, &rhs.primitive);
 
         match Mul
             .prepare([lhs.node, rhs.node], [lhs.graph, rhs.graph])
@@ -213,6 +224,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 (
                     rhs_tracked.then(|| lhs.primitive.clone()),
                     lhs_tracked.then(|| rhs.primitive.clone()),
+                    broadcast,
                 ),
                 B::mul(lhs.primitive, rhs.primitive),
             ),
@@ -245,10 +257,14 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         struct Div;
 
         impl<B: Backend, const D: usize> Backward<B, D, 2> for Div {
-            type State = (Option<B::TensorPrimitive<D>>, Option<B::TensorPrimitive<D>>);
+            type State = (
+                Option<B::TensorPrimitive<D>>,
+                Option<B::TensorPrimitive<D>>,
+                BinaryOpsBroadcast<D>,
+            );
 
             fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
-                let (lhs, rhs) = ops.state;
+                let (lhs, rhs, broadcast) = ops.state;
                 let [rhs_4lhs, rhs_4rhs] = duplicate(&ops.parents, rhs);
 
                 binary::<B, D, D, D, _, _>(
@@ -258,14 +274,17 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     |grad| {
                         let rhs = rhs_4lhs.unwrap();
                         let value = B::powf(rhs, -1.0);
+                        let grad = B::mul(grad, value);
 
-                        B::mul(grad, value)
+                        broadcast.backward_lhs::<B>(grad)
                     },
                     |grad| {
                         let rhs = rhs_4rhs.unwrap();
                         let lhs = lhs.unwrap();
                         let value = B::div(B::neg(lhs), B::powf(rhs, 2.0));
-                        B::mul(grad, value)
+                        let grad = B::mul(grad, value);
+
+                        broadcast.backward_rhs::<B>(grad)
                     },
                 );
             }
@@ -273,6 +292,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
         let lhs_tracked = lhs.is_tracked();
         let rhs_tracked = rhs.is_tracked();
+        let broadcast = BinaryOpsBroadcast::new::<B>(&lhs.primitive, &rhs.primitive);
 
         match Div
             .prepare([lhs.node, rhs.node], [lhs.graph, rhs.graph])
@@ -282,6 +302,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 (
                     rhs_tracked.then(|| lhs.primitive.clone()),
                     (lhs_tracked || rhs_tracked).then(|| rhs.primitive.clone()),
+                    broadcast,
                 ),
                 B::div(lhs.primitive, rhs.primitive),
             ),
@@ -315,10 +336,14 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         struct Matmul;
 
         impl<B: Backend, const D: usize> Backward<B, D, 2> for Matmul {
-            type State = (Option<B::TensorPrimitive<D>>, Option<B::TensorPrimitive<D>>);
+            type State = (
+                Option<B::TensorPrimitive<D>>,
+                Option<B::TensorPrimitive<D>>,
+                BinaryOpsBroadcast<D>,
+            );
 
             fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
-                let (lhs, rhs) = ops.state;
+                let (lhs, rhs, broadcast) = ops.state;
 
                 binary::<B, D, D, D, _, _>(
                     ops.parents,
@@ -326,11 +351,15 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     grads,
                     |grad| {
                         let rhs = B::transpose(rhs.unwrap());
-                        B::matmul(grad, rhs)
+                        let grad = B::matmul(grad, rhs);
+
+                        broadcast.backward_lhs::<B>(grad)
                     },
                     |grad| {
                         let lhs = B::transpose(lhs.unwrap());
-                        B::matmul(lhs, grad)
+                        let grad = B::matmul(lhs, grad);
+
+                        broadcast.backward_rhs::<B>(grad)
                     },
                 );
             }
@@ -338,6 +367,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
         let lhs_tracked = lhs.is_tracked();
         let rhs_tracked = rhs.is_tracked();
+        let broadcast = BinaryOpsBroadcast::new::<B>(&lhs.primitive, &rhs.primitive);
 
         match Matmul
             .prepare([lhs.node, rhs.node], [lhs.graph, rhs.graph])
@@ -347,6 +377,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                 (
                     rhs_tracked.then(|| lhs.primitive.clone()),
                     lhs_tracked.then(|| rhs.primitive.clone()),
+                    broadcast,
                 ),
                 B::matmul(lhs.primitive, rhs.primitive),
             ),
@@ -717,12 +748,16 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     ops.node,
                     grads,
                     |grad| {
-                        let zeros = B::zeros(shape_lhs, &device);
-                        B::mask_where(grad, mask_4lhs.unwrap(), zeros)
+                        let zeros = B::zeros(shape_lhs.clone(), &device);
+                        let grad = B::mask_where(grad, mask_4lhs.unwrap(), zeros);
+
+                        broadcast_shape::<B, D>(grad, &shape_lhs)
                     },
                     |grad| {
-                        let zeros = B::zeros(shape_rhs, &device);
-                        B::mask_where(zeros, mask_4rhs.unwrap(), grad)
+                        let zeros = B::zeros(shape_rhs.clone(), &device);
+                        let grad = B::mask_where(zeros, mask_4rhs.unwrap(), grad);
+
+                        broadcast_shape::<B, D>(grad, &shape_rhs)
                     },
                 );
             }
@@ -1402,13 +1437,48 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 }
 
+#[derive(Debug, Clone)]
+enum BinaryOpsBroadcast<const D: usize> {
+    Broadcasted(Shape<D>, Shape<D>),
+    None,
+}
+
+impl<const D: usize> BinaryOpsBroadcast<D> {
+    fn new<B: Backend>(lhs: &B::TensorPrimitive<D>, rhs: &B::TensorPrimitive<D>) -> Self {
+        let shape_lhs = B::shape(lhs);
+        let shape_rhs = B::shape(rhs);
+
+        for i in 0..D {
+            if shape_rhs.dims[i] != shape_lhs.dims[i] {
+                return Self::Broadcasted(shape_lhs, shape_rhs);
+            }
+        }
+
+        Self::None
+    }
+
+    fn backward_lhs<B: Backend>(&self, grad: B::TensorPrimitive<D>) -> B::TensorPrimitive<D> {
+        match self {
+            BinaryOpsBroadcast::Broadcasted(lhs, _rhs) => broadcast_shape::<B, D>(grad, lhs),
+            BinaryOpsBroadcast::None => grad,
+        }
+    }
+
+    fn backward_rhs<B: Backend>(&self, grad: B::TensorPrimitive<D>) -> B::TensorPrimitive<D> {
+        match self {
+            BinaryOpsBroadcast::Broadcasted(_lhs, rhs) => broadcast_shape::<B, D>(grad, rhs),
+            BinaryOpsBroadcast::None => grad,
+        }
+    }
+}
+
 /// Make sure the grad tensor has the given shape.
 ///
 /// If broadcasting happened during the forward pass, the gradients will be sum along the
 /// broadcasted dimension.
 fn broadcast_shape<B: Backend, const D: usize>(
     mut grad: B::TensorPrimitive<D>,
-    shape: Shape<D>,
+    shape: &Shape<D>,
 ) -> B::TensorPrimitive<D> {
     let shape_grad = B::shape(&grad);
 
