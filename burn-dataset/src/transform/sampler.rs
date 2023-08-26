@@ -1,6 +1,6 @@
 use crate::Dataset;
-use rand::{distributions::Uniform, rngs::StdRng, Rng, SeedableRng};
-use std::{marker::PhantomData, sync::Mutex};
+use rand::{distributions::Uniform, rngs::StdRng, seq::IteratorRandom, Rng, SeedableRng};
+use std::{marker::PhantomData, ops::DerefMut, sync::Mutex};
 
 /// Sample items from a dataset.
 ///
@@ -8,7 +8,7 @@ use std::{marker::PhantomData, sync::Mutex};
 /// You have multiple options to instantiate the dataset sampler.
 ///
 /// * With replacement: This is the most efficient way of using the sampler because no state is
-///   required to keep indexes that have been selected.
+///   required to keep indices that have been selected.
 ///
 /// * Without replacement: This has a similar effect to using a
 ///   [shuffled dataset](crate::transform::ShuffledDataset), but with more flexibility since you can
@@ -16,9 +16,13 @@ use std::{marker::PhantomData, sync::Mutex};
 pub struct SamplerDataset<D, I> {
     dataset: D,
     size: usize,
-    rng: Mutex<StdRng>,
-    state: Option<Mutex<Vec<usize>>>,
+    state: Mutex<SamplerState>,
     input: PhantomData<I>,
+}
+
+enum SamplerState {
+    WithReplacement(StdRng),
+    WithoutReplacement(StdRng, Vec<usize>),
 }
 
 impl<D, I> SamplerDataset<D, I>
@@ -28,13 +32,10 @@ where
 {
     /// Creates a new sampler dataset with replacement.
     pub fn new(dataset: D, size: usize) -> Self {
-        let rng = Mutex::new(StdRng::from_entropy());
-
         Self {
             dataset,
             size,
-            rng,
-            state: None,
+            state: Mutex::new(SamplerState::WithReplacement(StdRng::from_entropy())),
             input: PhantomData,
         }
     }
@@ -46,38 +47,31 @@ where
 
     /// Creates a new sampler dataset without replacement.
     pub fn without_replacement(dataset: D, size: usize) -> Self {
-        let rng = Mutex::new(StdRng::from_entropy());
-        let state = Mutex::new((0..dataset.len()).collect());
-
         Self {
             dataset,
             size,
-            rng,
-            state: Some(state),
+            state: Mutex::new(SamplerState::WithoutReplacement(
+                StdRng::from_entropy(),
+                Vec::new(),
+            )),
             input: PhantomData,
         }
     }
 
     fn index(&self) -> usize {
-        match &self.state {
-            Some(state) => {
-                let mut state = state.lock().unwrap();
+        let mut state = self.state.lock().unwrap();
 
-                if state.len() == 0 {
-                    // Refill the state using the same vector.
-                    (0..self.dataset.len()).for_each(|i| state.push(i));
+        match state.deref_mut() {
+            SamplerState::WithReplacement(rng) => rng.sample(Uniform::new(0, self.dataset.len())),
+            SamplerState::WithoutReplacement(rng, indices) => {
+                if indices.len() == 0 {
+                    // Refill the state.
+                    *indices = (0..self.dataset.len()).choose_multiple(rng, self.dataset.len());
                 }
 
-                let index = self.index_size(state.len());
-                state.remove(index)
+                indices.pop().expect("State is never empty")
             }
-            None => self.index_size(self.dataset.len()),
         }
-    }
-
-    fn index_size(&self, size: usize) -> usize {
-        let mut rng = self.rng.lock().unwrap();
-        rng.sample(Uniform::new(0, size))
     }
 }
 
