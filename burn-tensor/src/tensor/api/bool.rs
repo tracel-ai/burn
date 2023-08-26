@@ -23,4 +23,9 @@ where
     pub fn float(self) -> Tensor<B, D> {
         Tensor::new(B::bool_into_float(self.primitive))
     }
+
+    /// Inverses boolean values.
+    pub fn bool_not(self) -> Self {
+        Tensor::new(B::bool_not(self.primitive))
+    }
 }

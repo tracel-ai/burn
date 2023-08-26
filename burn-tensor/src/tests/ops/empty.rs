@@ -1,10 +1,7 @@
-// #[burn_tensor_testgen::testgen(empty)]
+#[burn_tensor_testgen::testgen(empty)]
 mod tests {
-    use crate::CandleBackend;
-
     use super::*;
     use burn_tensor::{Bool, Int, Tensor};
-    pub type TestBackend = CandleBackend<f32, i64>;
 
     #[test]
     fn should_support_float_empty() {
