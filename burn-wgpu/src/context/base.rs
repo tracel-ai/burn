@@ -7,7 +7,13 @@ use crate::{
 };
 use burn_common::id::IdGenerator;
 use spin::Mutex;
-use std::{any::TypeId, borrow::Cow, collections::HashMap, sync::Arc};
+use std::{
+    any::TypeId,
+    borrow::Cow,
+    collections::HashMap,
+    sync::atomic::{AtomicBool, Ordering},
+    sync::Arc,
+};
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
     Buffer, ComputePipeline, DeviceDescriptor, DeviceType, ShaderModuleDescriptor,
@@ -30,16 +36,15 @@ pub type ContextServerImpl = super::server::SyncContextServer;
 pub struct Context {
     id: String,
     device_wgpu: Arc<wgpu::Device>,
-    cache: Mutex<HashMap<TemplateKey, (Arc<ComputePipeline>, usize)>>,
-    is_tuning: Mutex<bool>,
-    optimize_cache: Mutex<bool>,
+    cache: Mutex<HashMap<TemplateKey, Arc<ComputePipeline>>>,
+    is_tuning: AtomicBool,
     client: ContextClientImpl,
     pub(crate) tuner: Tuner,
     pub(crate) device: WgpuDevice,
     pub(crate) info: wgpu::AdapterInfo,
 }
 
-#[derive(Debug, Hash, Clone, PartialOrd, PartialEq, Eq)]
+#[derive(Debug, Hash, PartialOrd, PartialEq, Eq)]
 enum TemplateKey {
     Static(TypeId),
     Dynamic(String),
@@ -73,8 +78,7 @@ impl Context {
             device,
             client,
             cache: Mutex::new(HashMap::new()),
-            is_tuning: false.into(),
-            optimize_cache: false.into(),
+            is_tuning: AtomicBool::new(false),
             tuner: Tuner::new(),
             info,
         }
@@ -101,19 +105,6 @@ impl Context {
         pipeline: Arc<ComputePipeline>,
         buffers: &[&Buffer],
     ) {
-        if *self.is_tuning.lock() {
-            if let Some(template_key) = self.find_template_key_for_pipeline(&pipeline) {
-                let mut cache = self.cache.lock();
-                if let Some((_, count)) = cache.get_mut(&template_key) {
-                    *count += 1;
-                }
-            }
-        }
-
-        if *self.optimize_cache.lock() {
-            self.retain_best_kernel();
-        }
-
         let group_layout = pipeline.get_bind_group_layout(0);
 
         let entries = buffers
@@ -192,14 +183,17 @@ impl Context {
         let mut cache = self.cache.lock();
         let template_id = TemplateKey::Static(TypeId::of::<K>());
 
-        if let Some((module, _)) = cache.get(&template_id) {
+        if let Some(module) = cache.get(&template_id) {
             return module.clone();
         }
 
         let source = K::source_template();
         let pipeline = self.compile_source(&source.complete());
 
-        cache.insert(template_id, (pipeline.clone(), 0));
+        if !self.is_tuning.load(Ordering::Relaxed) {
+            cache.insert(template_id, pipeline.clone());
+        }
+
         pipeline
     }
 
@@ -208,14 +202,17 @@ impl Context {
         let mut cache = self.cache.lock();
         let template_id = TemplateKey::Dynamic(kernel.id());
 
-        if let Some((module, _)) = cache.get(&template_id) {
+        if let Some(module) = cache.get(&template_id) {
             return module.clone();
         }
 
         let source = kernel.source_template();
         let pipeline = self.compile_source(&source.complete());
 
-        cache.insert(template_id, (pipeline.clone(), 0));
+        if !self.is_tuning.load(Ordering::Relaxed) {
+            cache.insert(template_id, pipeline.clone());
+        }
+
         pipeline
     }
 
@@ -239,56 +236,11 @@ impl Context {
     }
 
     pub fn start_tuning(&self) {
-        *self.is_tuning.lock() = true;
+        self.is_tuning.store(true, Ordering::Relaxed);
     }
 
-    /// Let the Context know that the next ComputePipeline that is called is the 'Winning'
-    /// kernel and we can get rid of the rest.
-    pub fn perform_cache_optimization(&self) {
-        *self.optimize_cache.lock() = true;
-    }
-
-    fn find_template_key_for_pipeline(
-        &self,
-        pipeline: &Arc<ComputePipeline>,
-    ) -> Option<TemplateKey> {
-        let cache = self.cache.lock();
-        for (key, (cached_pipeline, _)) in cache.iter() {
-            if Arc::ptr_eq(pipeline, cached_pipeline) {
-                return Some(key.clone());
-            }
-        }
-        None
-    }
-
-    /// After tuning, the cache will contain all kernels that were tried. The one that is used post-tuning is
-    /// the winner. So the next time it is executed, it's execution count will be the highest and we can clear
-    /// all other kernels.
-    fn retain_best_kernel(&self) {
-        let mut cache = self.cache.lock();
-        if cache.len() == 1 {
-            return;
-        }
-
-        let winning_key = cache
-            .keys()
-            .max_by(|a, b| {
-                cache
-                    .get(a)
-                    .map(|(_, count_a)| count_a)
-                    .unwrap_or(&0)
-                    .cmp(cache.get(b).map(|(_, count_b)| count_b).unwrap_or(&0))
-            })
-            .cloned();
-
-        if let Some(key) = winning_key {
-            let winning_pipeline = cache.remove(&key).unwrap();
-            cache.clear();
-            cache.insert(key, winning_pipeline);
-        }
-
-        *self.is_tuning.lock() = false; // We can stop tagging the cache with kernel metadata now.
-        *self.optimize_cache.lock() = false; // Cache should only have winning kernel left.
+    pub fn stop_tuning(&self) {
+        self.is_tuning.store(false, Ordering::Relaxed);
     }
 }
 
