@@ -109,7 +109,7 @@ mod tests {
     fn sampler_dataset_with_replacement_iter() {
         let factor = 3;
         let len_original = 10;
-        let dataset_sampler = SamplerDataset::without_replacement(
+        let dataset_sampler = SamplerDataset::with_replacement(
             FakeDataset::<String>::new(len_original),
             len_original * factor,
         );
