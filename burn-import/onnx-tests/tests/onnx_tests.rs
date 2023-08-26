@@ -525,6 +525,7 @@ mod tests {
         assert!(expected_sum.approx_eq(output_sum, (1.0e-5, 2)));
     }
 
+    #[test]
     fn tanh() {
         // Initialize the model
         let model = tanh::Model::<Backend>::new();

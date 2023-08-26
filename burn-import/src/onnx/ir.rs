@@ -18,7 +18,8 @@ pub struct Argument {
     /// The data of the argument.
     pub value: Option<Data>,
 
-    /// Whether the argument has been passed (comes from the graph inputs or node outputs).
+    /// True if the argument is passed to node, false otherwise. We use it mainly for informational purposes.
+    /// The argument should contain a value if passed is false.
     pub passed: bool,
 }
 

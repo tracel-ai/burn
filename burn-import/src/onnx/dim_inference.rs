@@ -91,6 +91,7 @@ pub fn dim_inference(
             NodeType::GlobalAveragePool => same_as_input(node),
             NodeType::AveragePool2d => same_as_input(node),
             NodeType::Clip => same_as_input(node),
+            // Intentionally letting outputs leave unchanged but issue a warning so IR file can be generated.
             _ => temporary_pass_through_stub(node),
         }
 
@@ -148,6 +149,8 @@ fn linear_update_outputs(node: &mut Node) {
     let node_input = &node.inputs[0];
     let weight = &node.inputs[1];
 
+    // Calculate the output shape. Usually we do not use shapes, but since the input shape is
+    // known, we can calculate the output shape.
     if let ArgType::Tensor(tensor) = node_input.clone().ty {
         let mut tensor = tensor.clone();
         let mut shape = tensor.shape.clone().unwrap();
@@ -225,7 +228,7 @@ fn reshape_update_outputs(node: &mut Node) {
     let shape = if let Some(Data::Int64s(ref shape)) = node.inputs[1].value {
         shape
     } else {
-        panic!("Reshape: shape must be an int64s");
+        panic!("Reshape: int64s shape is expected per ONNX spec");
     };
 
     // The output dimension is the same as the shape length
@@ -271,7 +274,11 @@ fn mean_update_outputs(node: &mut Node) {
         node.outputs[0].ty = ArgType::Tensor(TensorType { dim: 1, ..tensor });
     }
 }
-
+/// Infers the shape of a Unsqueeze node and replaces the shape of the output tensor.
+///
+/// # Remarks
+///
+/// Unsqueeze is not implemented fully. This is left WIP from the past.
 fn unsqueeze_update_outputs(node: &mut Node) {
     let node_input = node
         .inputs

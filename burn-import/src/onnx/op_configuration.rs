@@ -479,20 +479,20 @@ pub fn clip_config(node: &Node) -> (Option<f64>, Option<f64>) {
 
         if min_result.is_none() && min.is_some() {
             let min = min.clone().unwrap().into_scalar();
-            match min {
-                Data::Float16(min) => min_result = Some(f32::from(min) as f64),
-                Data::Float32(min) => min_result = Some(min as f64),
-                Data::Float64(min) => min_result = Some(min),
+            min_result = match min {
+                Data::Float16(min) => Some(f32::from(min) as f64),
+                Data::Float32(min) => Some(min as f64),
+                Data::Float64(min) => Some(min),
                 _ => panic!("Clip: only float min is supported"),
             };
         }
 
         if max_result.is_none() && max.is_some() {
             let max = max.clone().unwrap().into_scalar();
-            match max {
-                Data::Float16(max) => max_result = Some(f32::from(max) as f64),
-                Data::Float32(max) => max_result = Some(max as f64),
-                Data::Float64(max) => max_result = Some(max),
+            max_result = match max {
+                Data::Float16(max) => Some(f32::from(max) as f64),
+                Data::Float32(max) => Some(max as f64),
+                Data::Float64(max) => Some(max),
                 _ => panic!("Clip: only float max is supported"),
             };
         }
