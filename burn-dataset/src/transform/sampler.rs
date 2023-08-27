@@ -64,7 +64,7 @@ where
         match state.deref_mut() {
             SamplerState::WithReplacement(rng) => rng.sample(Uniform::new(0, self.dataset.len())),
             SamplerState::WithoutReplacement(rng, indices) => {
-                if indices.len() == 0 {
+                if indices.is_empty() {
                     // Refill the state.
                     *indices = (0..self.dataset.len()).choose_multiple(rng, self.dataset.len());
                 }
