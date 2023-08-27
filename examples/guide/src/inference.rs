@@ -10,7 +10,7 @@ use burn_dataset::source::huggingface::MNISTItem;
 
 pub fn infer<B: Backend>(artifact_dir: &str, device: B::Device, item: MNISTItem) {
     let config =
-        TrainingConfig::load(&format!("{artifact_dir}/config.json")).expect("A config exists");
+        TrainingConfig::load(format!("{artifact_dir}/config.json")).expect("A config exists");
     let record = CompactRecorder::new()
         .load(format!("{artifact_dir}/model").into())
         .expect("Failed to load trained model");
