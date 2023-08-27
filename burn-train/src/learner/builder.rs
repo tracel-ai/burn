@@ -36,6 +36,7 @@ where
     metric_logger_valid: Option<Box<dyn MetricLogger + 'static>>,
     renderer: Option<Box<dyn DashboardRenderer + 'static>>,
     metrics: Metrics<T, V>,
+    log_to_file: bool,
 }
 
 impl<B, T, V, Model, Optim, LR> LearnerBuilder<B, T, V, Model, Optim, LR>
@@ -66,6 +67,7 @@ where
             metric_logger_valid: None,
             metrics: Metrics::new(),
             renderer: None,
+            log_to_file: true,
         }
     }
 
@@ -188,6 +190,14 @@ where
         self
     }
 
+    /// By default, Rust logs are captured and written into
+    /// `experiment.log`. If disabled, standard Rust log handling
+    /// will apply.
+    pub fn log_to_file(mut self, enabled: bool) -> Self {
+        self.log_to_file = enabled;
+        self
+    }
+
     /// Register a checkpointer that will save the [optimizer](Optimizer) and the
     /// [model](ADModule).
     ///
@@ -233,8 +243,9 @@ where
         Optim::Record: 'static,
         LR::Record: 'static,
     {
-        self.init_logger();
-
+        if self.log_to_file {
+            self.init_logger();
+        }
         let renderer = self
             .renderer
             .unwrap_or_else(|| Box::new(CLIDashboardRenderer::new()));
