@@ -13,10 +13,12 @@ pub mod benchmark;
 pub mod kernel;
 
 pub(crate) mod context;
-pub(crate) mod element;
 pub(crate) mod pool;
 pub(crate) mod tensor;
 pub(crate) mod tune;
+
+mod element;
+pub use element::{FloatElement, IntElement};
 
 mod device;
 pub use device::*;
