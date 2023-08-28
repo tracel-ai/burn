@@ -2,7 +2,11 @@ use super::{
     batcher::Batcher, BatchStrategy, DataLoader, DataLoaderIterator, MultiThreadDataLoader,
     Progress,
 };
-use burn_dataset::{transform::PartialDataset, Dataset};
+use burn_dataset::{
+    transform::{PartialDataset, ShuffledDataset},
+    Dataset,
+};
+use rand::{distributions::Standard, prelude::Distribution, rngs::StdRng, Rng, SeedableRng};
 use std::sync::Arc;
 
 /// A data loader that can be used to iterate over a dataset in batches.
@@ -10,14 +14,7 @@ pub struct BatchDataLoader<I, O> {
     strategy: Box<dyn BatchStrategy<I>>,
     dataset: Arc<dyn Dataset<I>>,
     batcher: Arc<dyn Batcher<I, O>>,
-}
-
-/// A data loader iterator that can be used to iterate over a data loader.
-struct BatchDataloaderIterator<I, O> {
-    current_index: usize,
-    strategy: Box<dyn BatchStrategy<I>>,
-    dataset: Arc<dyn Dataset<I>>,
-    batcher: Arc<dyn Batcher<I, O>>,
+    rng: Option<spin::Mutex<rand::rngs::StdRng>>,
 }
 
 impl<I, O> BatchDataLoader<I, O> {
@@ -28,6 +25,8 @@ impl<I, O> BatchDataLoader<I, O> {
     /// * `strategy` - The batch strategy.
     /// * `dataset` - The dataset.
     /// * `batcher` - The batcher.
+    /// * `rng`     - The rng determining if the dataset is shuffled each time a dataloader
+    ///               iterator is created.
     ///
     /// # Returns
     ///
@@ -36,13 +35,23 @@ impl<I, O> BatchDataLoader<I, O> {
         strategy: Box<dyn BatchStrategy<I>>,
         dataset: Arc<dyn Dataset<I>>,
         batcher: Arc<dyn Batcher<I, O>>,
+        rng: Option<rand::rngs::StdRng>,
     ) -> Self {
         Self {
             strategy,
             dataset,
             batcher,
+            rng: rng.map(spin::Mutex::new),
         }
     }
+}
+
+/// A data loader iterator that can be used to iterate over a data loader.
+struct BatchDataloaderIterator<I, O> {
+    current_index: usize,
+    strategy: Box<dyn BatchStrategy<I>>,
+    dataset: Arc<dyn Dataset<I>>,
+    batcher: Arc<dyn Batcher<I, O>>,
 }
 
 impl<I, O> BatchDataLoader<I, O>
@@ -67,12 +76,23 @@ where
         dataset: Arc<dyn Dataset<I>>,
         batcher: Arc<dyn Batcher<I, O>>,
         num_threads: usize,
+        mut rng: Option<rand::rngs::StdRng>,
     ) -> MultiThreadDataLoader<O> {
         let datasets = PartialDataset::split(dataset, num_threads);
-        let mut dataloaders: Vec<Arc<dyn DataLoader<_> + Send + Sync>> = Vec::new();
-        for dataset in datasets {
+
+        let mut dataloaders: Vec<Arc<dyn DataLoader<_> + Send + Sync>> =
+            Vec::with_capacity(num_threads);
+
+        // Create more rngs from the first one, one for each new dataloader.
+        let rngs = (0..num_threads).map(|_| {
+            rng.as_mut()
+                .map(|rng| StdRng::seed_from_u64(Distribution::sample(&Standard, rng)))
+        });
+
+        for (dataset, rng) in datasets.into_iter().zip(rngs) {
             let strategy = strategy.new_like();
-            let dataloader = BatchDataLoader::new(strategy, Arc::new(dataset), batcher.clone());
+            let dataloader =
+                BatchDataLoader::new(strategy, Arc::new(dataset), batcher.clone(), rng);
             let dataloader = Arc::new(dataloader);
             dataloaders.push(dataloader);
         }
@@ -80,11 +100,25 @@ where
     }
 }
 
-impl<I, O> DataLoader<O> for BatchDataLoader<I, O> {
+impl<I: Send + Sync + Clone + 'static, O: Send + Sync> DataLoader<O> for BatchDataLoader<I, O> {
     fn iter<'a>(&'a self) -> Box<dyn DataLoaderIterator<O> + 'a> {
+        // When starting a new iteration, we first check if the dataloader was created with an rng,
+        // implying that we should shuffle the dataset beforehand, while advancing the current
+        // rng to ensure that each new iteration shuffles the dataset differently.
+        let dataset = match &self.rng {
+            Some(rng) => {
+                let mut rng = rng.lock();
+
+                Arc::new(ShuffledDataset::with_seed(
+                    self.dataset.clone(),
+                    rng.sample(Standard),
+                ))
+            }
+            None => self.dataset.clone(),
+        };
         Box::new(BatchDataloaderIterator::new(
             self.strategy.new_like(),
-            self.dataset.clone(),
+            dataset,
             self.batcher.clone(),
         ))
     }
@@ -159,8 +193,12 @@ mod tests {
     fn test_batch_dataloader() {
         let batcher = Arc::new(TestBatcher::new());
         let dataset = Arc::new(FakeDataset::<String>::new(27));
-        let dataloader =
-            BatchDataLoader::new(Box::new(FixBatchStrategy::new(5)), dataset.clone(), batcher);
+        let dataloader = BatchDataLoader::new(
+            Box::new(FixBatchStrategy::new(5)),
+            dataset.clone(),
+            batcher,
+            None,
+        );
 
         let mut items_dataset = HashSet::new();
         let mut items_dataloader = HashSet::new();
@@ -186,9 +224,15 @@ mod tests {
             Box::new(FixBatchStrategy::new(5)),
             dataset.clone(),
             batcher.clone(),
+            None,
         );
-        let dataloader_multi_thread =
-            BatchDataLoader::multi_thread(Box::new(FixBatchStrategy::new(5)), dataset, batcher, 4);
+        let dataloader_multi_thread = BatchDataLoader::multi_thread(
+            Box::new(FixBatchStrategy::new(5)),
+            dataset,
+            batcher,
+            4,
+            None,
+        );
 
         let mut items_single_thread = HashSet::new();
         let mut items_multi_thread = HashSet::new();

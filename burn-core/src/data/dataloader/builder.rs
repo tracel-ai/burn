@@ -1,5 +1,6 @@
 use super::{batcher::Batcher, BatchDataLoader, BatchStrategy, DataLoader, FixBatchStrategy};
-use burn_dataset::{transform::ShuffledDataset, Dataset};
+use burn_dataset::Dataset;
+use rand::{rngs::StdRng, SeedableRng};
 use std::sync::Arc;
 
 /// A builder for data loaders.
@@ -53,6 +54,8 @@ where
 
     /// Sets the seed for shuffling.
     ///
+    /// Each time the dataloader starts a new iteration, the dataset will be shuffled.
+    ///
     /// # Arguments
     ///
     /// * `seed` - The seed.
@@ -92,10 +95,9 @@ where
     where
         D: Dataset<I> + 'static,
     {
-        let dataset: Arc<dyn Dataset<I>> = match self.shuffle {
-            Some(seed) => Arc::new(ShuffledDataset::with_seed(dataset, seed)),
-            None => Arc::new(dataset),
-        };
+        let dataset = Arc::new(dataset);
+
+        let rng = self.shuffle.map(StdRng::seed_from_u64);
         let strategy = match self.strategy {
             Some(strategy) => strategy,
             None => Box::new(FixBatchStrategy::new(1)),
@@ -106,9 +108,10 @@ where
                 dataset,
                 self.batcher,
                 num_threads,
+                rng,
             ));
         }
 
-        Arc::new(BatchDataLoader::new(strategy, dataset, self.batcher))
+        Arc::new(BatchDataLoader::new(strategy, dataset, self.batcher, rng))
     }
 }
