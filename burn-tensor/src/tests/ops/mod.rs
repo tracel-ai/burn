@@ -9,7 +9,7 @@ mod cat;
 mod clamp;
 mod cos;
 mod div;
-mod empty;
+mod init;
 mod erf;
 mod exp;
 mod flatten;

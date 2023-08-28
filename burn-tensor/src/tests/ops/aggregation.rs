@@ -13,12 +13,30 @@ mod tests {
     }
 
     #[test]
+    fn test_should_mean_int() {
+        let tensor = TestTensorInt::from_data([[2, 2, 2], [3, 4, 5]]);
+
+        let data_actual = tensor.mean().to_data();
+
+        assert_eq!(data_actual, Data::from([3]));
+    }
+
+    #[test]
     fn test_should_sum() {
         let tensor = TestTensor::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
         let data_actual = tensor.sum().to_data();
 
         assert_eq!(data_actual, Data::from([15.0]));
+    }
+
+    #[test]
+    fn test_should_sum_int() {
+        let tensor = TestTensorInt::from_data([[0, 1, 2], [3, 4, 5]]);
+
+        let data_actual = tensor.sum().to_data();
+
+        assert_eq!(data_actual, Data::from([15]));
     }
 
     #[test]
@@ -37,6 +55,24 @@ mod tests {
         let data_actual = tensor.sum_dim(1).to_data();
 
         assert_eq!(data_actual, Data::from([[3.0], [12.0]]));
+    }
+
+    #[test]
+    fn test_should_mean_last_dim_int() {
+        let tensor = TestTensorInt::from_data([[0, 1, 2], [3, 4, 5]]);
+
+        let data_actual = tensor.mean_dim(1).to_data();
+
+        assert_eq!(data_actual, Data::from([[1], [4]]));
+    }
+
+    #[test]
+    fn test_should_sum_last_dim_int() {
+        let tensor = TestTensorInt::from_data([[0, 1, 2], [3, 4, 5]]);
+
+        let data_actual = tensor.sum_dim(1).to_data();
+
+        assert_eq!(data_actual, Data::from([[3], [12]]));
     }
 
     #[test]
