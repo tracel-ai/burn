@@ -73,7 +73,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<CandleBackend<F, I
     ) -> IntTensor<Self, D> {
         CandleTensor::new(
             mask.tensor
-                .where_cond(&tensor.tensor, &tensor.tensor)
+                .where_cond(&source.tensor, &tensor.tensor)
                 .unwrap(),
         )
     }
