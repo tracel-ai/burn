@@ -7,12 +7,13 @@ use std::{marker::PhantomData, ops::DerefMut, sync::Mutex};
 /// This is an convenient way of modeling a dataset as a probability distribution of a fixed size.
 /// You have multiple options to instantiate the dataset sampler.
 ///
-/// * With replacement: This is the most efficient way of using the sampler because no state is
+/// * With replacement (Default): This is the most efficient way of using the sampler because no state is
 ///   required to keep indices that have been selected.
 ///
 /// * Without replacement: This has a similar effect to using a
 ///   [shuffled dataset](crate::transform::ShuffledDataset), but with more flexibility since you can
-///   set the dataset to an arbitrary size.
+///   set the dataset to an arbitrary size. Once every item has been used, a new cycle is
+///   created with a new random suffle.
 pub struct SamplerDataset<D, I> {
     dataset: D,
     size: usize,
@@ -69,7 +70,7 @@ where
                     *indices = (0..self.dataset.len()).choose_multiple(rng, self.dataset.len());
                 }
 
-                indices.pop().expect("State is never empty")
+                indices.pop().expect("Indices are refilled when empty.")
             }
         }
     }
