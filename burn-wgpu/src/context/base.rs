@@ -108,7 +108,7 @@ impl Context {
         buffers: &[&Buffer],
     ) {
         if !self.is_tuning.load(Ordering::Relaxed) && !self.tuning_template_ids.lock().is_empty() {
-            // clean cache of template_ids accumulated during tuning
+            // clean cache of pipelines accumulated during tuning
             let mut cache = self.cache.lock();
             let mut tuning_template_ids = self.tuning_template_ids.lock();
             for template_id in tuning_template_ids.iter() {
