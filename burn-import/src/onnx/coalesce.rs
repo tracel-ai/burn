@@ -1,23 +1,32 @@
-use crate::onnx::ir::{ArgType, Data, TensorType};
+use std::{iter::Peekable, slice::IterMut};
 
 use super::ir::{AttributeValue, Node, NodeType};
+use crate::onnx::ir::{ArgType, Data, TensorType};
 
 /// The function transforms the graph into a new one where the nodes are coalesced into a single node.
 pub fn coalesce(nodes: &mut Vec<Node>) {
-    for node in nodes.iter_mut() {
+    let mut iter_mut = nodes.iter_mut().peekable();
+    let mut nodes_to_remove: Vec<String> = vec![];
+    while let Some(node) = iter_mut.next() {
         match node.node_type {
-            NodeType::Gemm => convert_gemm(node),
-            // TODO Account when linear is converted into MatMul and Add nodes
+            NodeType::Gemm => convert_gemm_to_linear(node),
+            NodeType::MatMul => {
+                convert_matmul_to_linear(node, &mut iter_mut, &mut nodes_to_remove);
+            }
             _ => {}
         }
+    }
+
+    // Remove nodes instructed by conversation functions
+    for node_to_remove in nodes_to_remove {
+        nodes.retain(|n| n.name != node_to_remove);
     }
 }
 
 /// This function converts a Gemm node into a Linear node
 ///
-///  Warning: This function is not complete yet.
-///  It only supports the case where the Gemm node is a straight linear transformation.
-fn convert_gemm(node: &mut Node) {
+/// PyTorch and other frameworks use Gemm node to represent Linear layer.
+fn convert_gemm_to_linear(node: &mut Node) {
     if node.outputs.len() != 1 {
         panic!("Gemm node must have 1 output");
     }
@@ -100,4 +109,67 @@ fn transpose_flattened<T: Copy>(matrix: Vec<T>, rows: usize, cols: usize) -> Vec
     }
 
     transposed
+}
+
+/// This function converts a MatMul node into a Linear node if possible.
+///
+/// PyTorch and other frameworks use MatMul node to represent Linear layer.
+///
+/// This function also converts the following Add node into a Linear node if possible.
+/// Add node is used to represent bias in PyTorch.
+fn convert_matmul_to_linear(
+    node: &mut Node,
+    iter_mut: &mut Peekable<IterMut<Node>>,
+    nodes_to_remove: &mut Vec<String>,
+) {
+    if node.inputs.len() != 2 {
+        panic!("MatMul node must have 2 inputs");
+    }
+
+    // Do not convert if the second input does not have a value, and
+    // treat it as a normal MatMul node
+    if node.inputs[1].value.is_none() {
+        return;
+    }
+
+    let weight = node.inputs[1]
+        .clone()
+        .into_tensor()
+        .expect("Tensor input is expected");
+
+    assert_eq!(weight.dim, 2, "Weight must be a 2D tensor");
+
+    // Convert the node to Linear
+    node.node_type = NodeType::Linear;
+
+    // The following block of code is used to convert the following Add node into this Linear node
+    // Add node is used to represent bias in PyTorch.
+    let peek_node = iter_mut.peek(); // Peek the next node
+    if peek_node.is_some()
+        && peek_node.unwrap().node_type == NodeType::Add
+        && peek_node.unwrap().inputs.len() == 2
+
+        // Make sure the Add node has a value in one of its inputs and 
+        // the other input is the output of this MatMul node
+        && (peek_node.unwrap().inputs[0].name == node.outputs[0].name
+            && peek_node.unwrap().inputs[1].value.is_some())
+            | (peek_node.unwrap().inputs[1].name == node.outputs[0].name
+                && peek_node.unwrap().inputs[0].value.is_some())
+    {
+        // Proceed iteration
+        let bias_node = iter_mut.next().unwrap();
+
+        // Copy input value from one of the inputs of the Add node
+        if bias_node.inputs[0].value.is_some() {
+            node.inputs.push(bias_node.inputs[0].clone());
+        } else {
+            node.inputs.push(bias_node.inputs[1].clone());
+        }
+
+        // Rename the output of MatMul node to the output of Add node
+        node.outputs[0].name = bias_node.outputs[0].name.clone();
+
+        // Remove the Add node
+        nodes_to_remove.push(bias_node.name.clone());
+    };
 }
