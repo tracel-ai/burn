@@ -44,7 +44,7 @@ pub trait Config: serde::Serialize + serde::de::DeserializeOwned {
     ///
     /// The output of the save operation.
     #[cfg(feature = "std")]
-    fn save(&self, file: &str) -> std::io::Result<()> {
+    fn save<P: AsRef<std::path::Path>>(&self, file: P) -> std::io::Result<()> {
         std::fs::write(file, config_to_json(self))
     }
 
@@ -58,9 +58,9 @@ pub trait Config: serde::Serialize + serde::de::DeserializeOwned {
     ///
     /// The loaded configuration.
     #[cfg(feature = "std")]
-    fn load(file: &str) -> Result<Self, ConfigError> {
-        let content = std::fs::read_to_string(file)
-            .map_err(|_| ConfigError::FileNotFound(file.to_string()))?;
+    fn load<P: AsRef<std::path::Path>>(file: P) -> Result<Self, ConfigError> {
+        let content = std::fs::read_to_string(file.as_ref().clone())
+            .map_err(|_| ConfigError::FileNotFound(file.as_ref().to_string_lossy().to_string()))?;
         config_from_str(&content)
     }
 

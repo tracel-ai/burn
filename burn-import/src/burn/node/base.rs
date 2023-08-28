@@ -1,8 +1,8 @@
 use super::{
-    avg_pool2d::AvgPool2dNode, batch_norm::BatchNormNode, binary::BinaryNode, concat::ConcatNode,
-    constant::ConstantNode, conv1d::Conv1dNode, conv2d::Conv2dNode, dropout::DropoutNode,
-    global_avg_pool::GlobalAvgPoolNode, linear::LinearNode, matmul::MatmulNode,
-    max_pool2d::MaxPool2dNode, reshape::ReshapeNode, unary::UnaryNode,
+    avg_pool2d::AvgPool2dNode, batch_norm::BatchNormNode, binary::BinaryNode, clip::ClipNode,
+    concat::ConcatNode, constant::ConstantNode, conv1d::Conv1dNode, conv2d::Conv2dNode,
+    dropout::DropoutNode, global_avg_pool::GlobalAvgPoolNode, linear::LinearNode,
+    matmul::MatmulNode, max_pool2d::MaxPool2dNode, reshape::ReshapeNode, unary::UnaryNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::record::PrecisionSettings;
@@ -73,19 +73,20 @@ pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
 #[derive(Debug)]
 pub enum Node<PS: PrecisionSettings> {
     AvgPool2d(AvgPool2dNode),
+    BatchNorm(BatchNormNode<PS>),
     Binary(BinaryNode),
-    Matmul(MatmulNode),
+    Clip(ClipNode),
+    Concat(ConcatNode),
+    Constant(ConstantNode<PS>),
     Conv1d(Conv1dNode<PS>),
     Conv2d(Conv2dNode<PS>),
-    MaxPool2d(MaxPool2dNode),
-    Linear(LinearNode<PS>),
-    BatchNorm(BatchNormNode<PS>),
-    Constant(ConstantNode<PS>),
-    Unary(UnaryNode),
-    Reshape(ReshapeNode),
-    Concat(ConcatNode),
     Dropout(DropoutNode),
     GlobalAvgPool(GlobalAvgPoolNode),
+    Linear(LinearNode<PS>),
+    Matmul(MatmulNode),
+    MaxPool2d(MaxPool2dNode),
+    Reshape(ReshapeNode),
+    Unary(UnaryNode),
 }
 
 macro_rules! match_all {
@@ -95,6 +96,7 @@ macro_rules! match_all {
             Node::AvgPool2d(node) => $func(node),
             Node::BatchNorm(node) => $func(node),
             Node::Binary(node) => $func(node),
+            Node::Clip(node) => $func(node),
             Node::Concat(node) => $func(node),
             Node::Constant(node) => $func(node),
             Node::Conv1d(node) => $func(node),
@@ -126,6 +128,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::BatchNorm(_) => "batch_norm",
             Node::Binary(binary) => binary.binary_type.as_str(),
             Node::Concat(_) => "concat",
+            Node::Clip(_) => "clip",
             Node::Constant(_) => "constant",
             Node::Conv1d(_) => "conv1d",
             Node::Conv2d(_) => "conv2d",

@@ -67,7 +67,7 @@ pub struct TrainingConfig {
 pub fn train<B: ADBackend>(artifact_dir: &str, config: TrainingConfig, device: B::Device) {
     std::fs::create_dir_all(artifact_dir).ok();
     config
-        .save(&format!("{artifact_dir}/config.json"))
+        .save(format!("{artifact_dir}/config.json"))
         .expect("Save without error");
 
     B::seed(config.seed);

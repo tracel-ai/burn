@@ -1,15 +1,13 @@
-use burn::tensor::Tensor;
-use burn_ndarray::NdArrayBackend;
+use crate::onnx::ir::{ArgType, Data, TensorType};
 
-use super::ir::{AttributeValue, Node, NodeType, StateType, TensorData};
-
-type B = NdArrayBackend<f32>;
+use super::ir::{AttributeValue, Node, NodeType};
 
 /// The function transforms the graph into a new one where the nodes are coalesced into a single node.
 pub fn coalesce(nodes: &mut Vec<Node>) {
     for node in nodes.iter_mut() {
         match node.node_type {
             NodeType::Gemm => convert_gemm(node),
+            // TODO Account when linear is converted into MatMul and Add nodes
             _ => {}
         }
     }
@@ -20,10 +18,6 @@ pub fn coalesce(nodes: &mut Vec<Node>) {
 ///  Warning: This function is not complete yet.
 ///  It only supports the case where the Gemm node is a straight linear transformation.
 fn convert_gemm(node: &mut Node) {
-    if node.inputs.len() != 1 {
-        panic!("Gemm node must have 1 input");
-    }
-
     if node.outputs.len() != 1 {
         panic!("Gemm node must have 1 output");
     }
@@ -55,18 +49,55 @@ fn convert_gemm(node: &mut Node) {
 
 // Transpose linear weights (required for Gemm -> Linear conversion)
 fn transpose_linear_node_weights(node: &mut Node) {
-    if node.states.is_empty() {
-        panic!("Linear node must have at least 1 state.");
+    assert!(
+        node.inputs.len() > 1,
+        "Linear node must have at least 2 input"
+    );
+
+    assert!(node.inputs[1].value.is_some(), "Input must have a value");
+
+    let weight = node.inputs[1]
+        .clone()
+        .into_tensor()
+        .expect("Tensor input is expected");
+
+    assert_eq!(weight.dim, 2, "Weight must be a 2D tensor");
+
+    let shape = weight.shape.unwrap();
+
+    match weight.data.expect("Tensor must have data") {
+        Data::Float32s(data) => {
+            let data_t = transpose_flattened(data, shape[0], shape[1]);
+            node.inputs[1].value = Some(Data::Float32s(data_t));
+        }
+        Data::Float64s(data) => {
+            let data_t = transpose_flattened(data, shape[0], shape[1]);
+            node.inputs[1].value = Some(Data::Float64s(data_t));
+        }
+        Data::Float16s(data) => {
+            let data_t = transpose_flattened(data, shape[0], shape[1]);
+            node.inputs[1].value = Some(Data::Float16s(data_t));
+        }
+        _ => panic!("Only float types are supported for Linear node"),
+    }
+    let shape = Some(vec![shape[1], shape[0]]); // Transpose the shape
+    node.inputs[1].ty = ArgType::Tensor(TensorType {
+        shape,
+        elem_type: weight.elem_type,
+        dim: 2,
+    });
+}
+
+fn transpose_flattened<T: Copy>(matrix: Vec<T>, rows: usize, cols: usize) -> Vec<T> {
+    assert_eq!(matrix.len(), rows * cols, "Matrix must be flattened");
+
+    let mut transposed: Vec<T> = vec![matrix[0]; matrix.len()];
+
+    for i in 0..rows {
+        for j in 0..cols {
+            transposed[j * rows + i] = matrix[i * cols + j];
+        }
     }
 
-    let StateType::Tensor(node_weight) = &node.states[0].ty;
-
-    let weight: Tensor<B, 2> = node_weight.try_into().unwrap();
-
-    let weight = weight.transpose();
-
-    let StateType::Tensor(node_weight) = &mut node.states[0].ty;
-
-    node_weight.data = Some(TensorData::Float32(weight.clone().into_data().value));
-    node_weight.shape = Some(weight.shape().dims.to_vec());
+    transposed
 }

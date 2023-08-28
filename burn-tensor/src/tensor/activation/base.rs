@@ -69,3 +69,8 @@ pub fn log_sigmoid<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B
 pub fn silu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
     tensor.clone().mul(sigmoid(tensor))
 }
+
+/// Applies the tanh function
+pub fn tanh<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
+    tensor.tanh()
+}

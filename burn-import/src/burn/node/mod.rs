@@ -3,6 +3,7 @@ mod base;
 pub(crate) mod avg_pool2d;
 pub(crate) mod batch_norm;
 pub(crate) mod binary;
+pub(crate) mod clip;
 pub(crate) mod concat;
 pub(crate) mod constant;
 pub(crate) mod conv1d;

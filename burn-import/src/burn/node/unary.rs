@@ -26,6 +26,7 @@ pub enum UnaryNodeKind {
     Softmax,
     Relu,
     Sigmoid,
+    Tanh,
     Transpose,
 }
 
@@ -38,6 +39,7 @@ impl UnaryNodeKind {
             Self::Softmax => "softmax",
             Self::Relu => "relu",
             Self::Sigmoid => "sigmoid",
+            Self::Tanh => "tanh",
             Self::Transpose => "transpose",
         }
     }
@@ -120,6 +122,11 @@ impl UnaryNode {
         let dim = dim.to_tokens();
         let function = move |input| quote! { burn::tensor::activation::softmax(#input, #dim) };
         Self::new(input, output, UnaryNodeKind::Softmax, Rc::new(function))
+    }
+
+    pub(crate) fn tanh(input: Type, output: Type) -> Self {
+        let function = move |input| quote! { burn::tensor::activation::tanh(#input)};
+        Self::new(input, output, UnaryNodeKind::Tanh, Rc::new(function))
     }
 
     pub(crate) fn transpose(input: Type, output: Type) -> Self {

@@ -3,13 +3,15 @@ use libm::{exp, fabs, log, log1p, pow, sqrt};
 use libm::{expf, fabsf, log1pf, logf, powf, sqrtf};
 use ndarray::LinalgScalar;
 
-pub(crate) trait FloatNdArrayElement: NdArrayElement + LinalgScalar
+/// A float element for ndarray backend.
+pub trait FloatNdArrayElement: NdArrayElement + LinalgScalar
 where
     Self: Sized,
 {
 }
 
-pub(crate) trait NdArrayElement:
+/// A general element for ndarray backend.
+pub trait NdArrayElement:
     Element
     + ndarray::LinalgScalar
     + ndarray::ScalarOperand
@@ -21,7 +23,8 @@ pub(crate) trait NdArrayElement:
 {
 }
 
-pub(crate) trait ExpElement {
+/// A element for ndarray backend that supports exp ops.
+pub trait ExpElement {
     fn exp_elem(self) -> Self;
     fn log_elem(self) -> Self;
     fn log1p_elem(self) -> Self;
