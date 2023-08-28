@@ -107,16 +107,6 @@ impl Context {
         pipeline: Arc<ComputePipeline>,
         buffers: &[&Buffer],
     ) {
-        if !self.is_tuning.load(Ordering::Relaxed) && !self.tuning_template_ids.lock().is_empty() {
-            // clean cache of pipelines accumulated during tuning
-            let mut cache = self.cache.lock();
-            let mut tuning_template_ids = self.tuning_template_ids.lock();
-            for template_id in tuning_template_ids.iter() {
-                cache.remove(template_id);
-            }
-            tuning_template_ids.clear();
-        }
-
         let group_layout = pipeline.get_bind_group_layout(0);
 
         let entries = buffers
@@ -257,6 +247,15 @@ impl Context {
 
     pub fn stop_tuning(&self) {
         self.is_tuning.store(false, Ordering::Relaxed);
+
+        // clean cache of pipelines accumulated during tuning
+        let mut cache = self.cache.lock();
+        let mut tuning_template_ids = self.tuning_template_ids.lock();
+        for template_id in tuning_template_ids.iter() {
+            cache.remove(template_id);
+        }
+
+        tuning_template_ids.clear();
     }
 }
 
