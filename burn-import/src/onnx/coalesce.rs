@@ -126,50 +126,57 @@ fn convert_matmul_to_linear(
         panic!("MatMul node must have 2 inputs");
     }
 
-    // Do not convert if the second input does not have a value, and
-    // treat it as a normal MatMul node
+    // if the second input does not have a value, it is not a weight, then proceed to the next node
     if node.inputs[1].value.is_none() {
         return;
     }
 
-    let weight = node.inputs[1]
-        .clone()
-        .into_tensor()
-        .expect("Tensor input is expected");
-
-    assert_eq!(weight.dim, 2, "Weight must be a 2D tensor");
+    // Check if the second input is a 2D tensor
+    if let ArgType::Tensor(ref tensor_type) = node.inputs[1].ty {
+        assert_eq!(tensor_type.dim, 2, "Weight must be a 2D tensor");
+    } else {
+        panic!("Tensor input is expected");
+    }
 
     // Convert the node to Linear
     node.node_type = NodeType::Linear;
 
-    // The following block of code is used to convert the following Add node into this Linear node
-    // Add node is used to represent bias in PyTorch.
-    let peek_node = iter_mut.peek(); // Peek the next node
-    if peek_node.is_some()
-        && peek_node.unwrap().node_type == NodeType::Add
-        && peek_node.unwrap().inputs.len() == 2
-
-        // Make sure the Add node has a value in one of its inputs and 
-        // the other input is the output of this MatMul node
-        && (peek_node.unwrap().inputs[0].name == node.outputs[0].name
-            && peek_node.unwrap().inputs[1].value.is_some())
-            | (peek_node.unwrap().inputs[1].name == node.outputs[0].name
-                && peek_node.unwrap().inputs[0].value.is_some())
-    {
-        // Proceed iteration
-        let bias_node = iter_mut.next().unwrap();
-
-        // Copy input value from one of the inputs of the Add node
-        if bias_node.inputs[0].value.is_some() {
-            node.inputs.push(bias_node.inputs[0].clone());
-        } else {
-            node.inputs.push(bias_node.inputs[1].clone());
+    // Check the next node for potential conversion
+    if let Some(peek_node) = iter_mut.peek() {
+        if is_add_node_with_bias(peek_node, node) {
+            convert_and_remove_add_node(iter_mut, nodes_to_remove, node);
         }
+    }
+}
 
-        // Rename the output of MatMul node to the output of Add node
-        node.outputs[0].name = bias_node.outputs[0].name.clone();
+/// Helper function to check if the peeked node is an Add node with bias
+fn is_add_node_with_bias(peek_node: &Node, current_node: &Node) -> bool {
+    peek_node.node_type == NodeType::Add
+        && peek_node.inputs.len() == 2
+        && ((peek_node.inputs[0].name == current_node.outputs[0].name
+            && peek_node.inputs[1].value.is_some())
+            || (peek_node.inputs[1].name == current_node.outputs[0].name
+                && peek_node.inputs[0].value.is_some()))
+}
 
-        // Remove the Add node
-        nodes_to_remove.push(bias_node.name.clone());
+/// Helper function to convert and remove the Add node
+fn convert_and_remove_add_node(
+    iter_mut: &mut Peekable<IterMut<Node>>,
+    nodes_to_remove: &mut Vec<String>,
+    current_node: &mut Node,
+) {
+    let bias_node = iter_mut.next().unwrap();
+
+    let bias_input = if bias_node.inputs[0].value.is_some() {
+        bias_node.inputs[0].clone()
+    } else {
+        bias_node.inputs[1].clone()
     };
+
+    // Push the bias input and update the output name
+    current_node.inputs.push(bias_input);
+    current_node.outputs[0].name = bias_node.outputs[0].name.clone();
+
+    // Remove the Add node
+    nodes_to_remove.push(bias_node.name.clone());
 }
