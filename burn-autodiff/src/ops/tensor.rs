@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use crate::{
     grads::Gradients,
     graph::{NodeRef, Requirement, Step},
-    ops::{binary, unary, unary_different_backend, Backward, Ops, OpsKind},
+    ops::{binary, broadcast_shape, unary, unary_different_backend, Backward, Ops, OpsKind},
     tensor::{ADTensor, BoolTensor, FloatElem, IntTensor},
     utils::duplicate,
     ADBackendDecorator,
@@ -1470,29 +1470,4 @@ impl<const D: usize> BinaryOpsBroadcast<D> {
             BinaryOpsBroadcast::None => grad,
         }
     }
-}
-
-/// Make sure the grad tensor has the given shape.
-///
-/// If broadcasting happened during the forward pass, the gradients will be sum along the
-/// broadcasted dimension.
-fn broadcast_shape<B: Backend, const D: usize>(
-    mut grad: B::TensorPrimitive<D>,
-    shape: &Shape<D>,
-) -> B::TensorPrimitive<D> {
-    let shape_grad = B::shape(&grad);
-
-    for i in 0..D {
-        if shape_grad.dims[i] != shape.dims[i] {
-            if shape.dims[i] != 1 {
-                panic!(
-                    "Invalid broadcast shapes: Next grad shape {:?}, Previous grad shape {:?}. {}",
-                    shape.dims, shape_grad.dims, "Expected the shape of the next grad to be 1."
-                );
-            }
-            grad = B::sum_dim(grad, i);
-        }
-    }
-
-    grad
 }
