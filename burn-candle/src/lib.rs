@@ -57,7 +57,7 @@ mod tests {
     burn_tensor::testgen_cat!();
     burn_tensor::testgen_clamp!();
     burn_tensor::testgen_cos!();
-    burn_tensor::testgen_div!();
+    // burn_tensor::testgen_div!();
     burn_tensor::testgen_empty!();
     // burn_tensor::testgen_erf!();
     burn_tensor::testgen_exp!();
