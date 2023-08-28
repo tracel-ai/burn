@@ -10,7 +10,6 @@ mod backend;
 mod element;
 mod ops;
 mod tensor;
-
 pub use backend::*;
 pub use tensor::*;
 
@@ -59,6 +58,7 @@ mod tests {
     burn_tensor::testgen_clamp!();
     burn_tensor::testgen_cos!();
     burn_tensor::testgen_div!();
+    burn_tensor::testgen_empty!();
     // burn_tensor::testgen_erf!();
     burn_tensor::testgen_exp!();
     burn_tensor::testgen_flatten!();

@@ -103,14 +103,8 @@ where
         kernel::equal(lhs, rhs)
     }
 
-    fn bool_equal_elem<const D: usize>(lhs: BoolTensor<Self, D>, rhs: bool) -> BoolTensor<Self, D> {
-        kernel::equal_elem(
-            lhs,
-            match rhs {
-                true => 1,
-                false => 0,
-            },
-        )
+    fn bool_not<const D: usize>(tensor: BoolTensor<Self, D>) -> BoolTensor<Self, D> {
+        kernel::equal_elem(tensor, 0)
     }
 
     fn bool_into_float<const D: usize>(tensor: BoolTensor<Self, D>) -> FloatTensor<Self, D> {

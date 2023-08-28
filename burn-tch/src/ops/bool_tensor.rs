@@ -97,15 +97,10 @@ impl<E: TchElement> BoolTensorOps<TchBackend<E>> for TchBackend<E> {
         TchOps::equal(lhs, rhs)
     }
 
-    fn bool_equal_elem<const D: usize>(lhs: TchTensor<bool, D>, rhs: bool) -> TchTensor<bool, D> {
-        let rhs = match rhs {
-            true => 1,
-            false => 0,
-        };
-
-        lhs.unary_ops(
-            |mut tensor| tensor.eq_(rhs).to_kind(tch::Kind::Bool),
-            |tensor| tensor.eq(rhs),
+    fn bool_not<const D: usize>(tensor: TchTensor<bool, D>) -> TchTensor<bool, D> {
+        tensor.unary_ops(
+            |mut tensor| tensor.eq_(0).to_kind(tch::Kind::Bool),
+            |tensor| tensor.eq(0),
         )
     }
 

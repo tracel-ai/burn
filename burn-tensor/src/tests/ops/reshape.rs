@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(reshape)]
 mod tests {
     use super::*;
-    use burn_tensor::{Data, Tensor};
+    use burn_tensor::{Bool, Data, Int, Tensor};
 
     #[test]
     fn should_support_reshape_1d() {
@@ -10,6 +10,26 @@ mod tests {
 
         let data_actual = tensor.clone().reshape([1, 3]).into_data();
         let data_expected = Data::from([[0.0, 1.0, 2.0]]);
+        assert_eq!(data_expected, data_actual);
+    }
+
+    #[test]
+    fn should_support_reshape_int() {
+        let data = Data::from([0, 1, 2]);
+        let tensor = Tensor::<TestBackend, 1, Int>::from_data(data);
+
+        let data_actual = tensor.clone().reshape([1, 3]).into_data();
+        let data_expected = Data::from([[0, 1, 2]]);
+        assert_eq!(data_expected, data_actual);
+    }
+
+    #[test]
+    fn should_support_reshape_bool() {
+        let data = Data::from([false, true, false]);
+        let tensor = Tensor::<TestBackend, 1, Bool>::from_data(data);
+
+        let data_actual = tensor.clone().reshape([1, 3]).into_data();
+        let data_expected = Data::from([[false, true, false]]);
         assert_eq!(data_expected, data_actual);
     }
 
