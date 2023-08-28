@@ -120,14 +120,8 @@ impl<I, O> Iterator for BatchDataloaderIterator<I, O> {
     type Item = O;
 
     fn next(&mut self) -> Option<O> {
-        loop {
-            let item = self.dataset.get(self.current_index);
+        while let Some(item) = self.dataset.get(self.current_index) {
             self.current_index += 1;
-
-            let item = match item {
-                Some(item) => item,
-                None => break,
-            };
             self.strategy.add(item);
 
             if let Some(items) = self.strategy.batch(false) {
