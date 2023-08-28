@@ -13,6 +13,7 @@ version = "0.9.0"
 [features]
 default = [
   "fake",
+  "sqlite-bundled"
 ]
 
 audio = [
@@ -20,6 +21,12 @@ audio = [
 ]
 
 fake = ["dep:fake"]
+
+sqlite = ["__sqlite-shared", "dep:rusqlite"]
+sqlite-bundled = ["__sqlite-shared", "rusqlite/bundled"]
+
+# internal
+__sqlite-shared = ["dep:r2d2", "dep:r2d2_sqlite", "dep:serde_rusqlite"]
 
 [dependencies]
 csv = {workspace = true}
@@ -29,15 +36,15 @@ fake = {workspace = true, optional = true}
 gix-tempfile = {workspace = true}
 hound = {version = "3.5.0", optional = true}
 image = {version = "0.24.6", features = ["png"]}
-r2d2 = {workspace = true}
-r2d2_sqlite = {workspace = true}
+r2d2 = {workspace = true, optional = true}
+r2d2_sqlite = {workspace = true, optional = true}
 rand = {workspace = true, features = ["std"]}
 rmp-serde = {workspace = true}
-rusqlite = {workspace = true}
+rusqlite = {workspace = true, optional = true}
 sanitize-filename = {workspace = true}
 serde = {workspace = true, features = ["std", "derive"]}
 serde_json = {workspace = true, features = ["std"]}
-serde_rusqlite = {workspace = true}
+serde_rusqlite = {workspace = true, optional = true}
 strum = {workspace = true}
 strum_macros = {workspace = true}
 tempfile = {workspace = true}
