@@ -6,6 +6,7 @@ use crate::{
 use burn_core::data::dataloader::Progress;
 
 /// Training progress.
+#[derive(Debug)]
 pub struct TrainingProgress {
     /// The progress.
     pub progress: Progress,
@@ -36,6 +37,7 @@ impl TrainingProgress {
 }
 
 /// A dashboard metric.
+#[derive(Debug)]
 pub enum DashboardMetricState {
     /// A generic metric.
     Generic(MetricEntry),
@@ -75,16 +77,40 @@ pub trait DashboardRenderer: Send + Sync {
     fn render_valid(&mut self, item: TrainingProgress);
 }
 
-/// A dashboard container for all metrics.
+/// A container for the metrics held by a dashboard.
+pub(crate) struct Metrics<T, V>
+where
+    T: Send + Sync + 'static,
+    V: Send + Sync + 'static,
+{
+    pub(crate) train: Vec<Box<dyn DashboardMetric<T>>>,
+    pub(crate) valid: Vec<Box<dyn DashboardMetric<V>>>,
+    pub(crate) train_numeric: Vec<Box<dyn DashboardNumericMetric<T>>>,
+    pub(crate) valid_numeric: Vec<Box<dyn DashboardNumericMetric<V>>>,
+}
+
+impl<T, V> Metrics<T, V>
+where
+    T: Send + Sync + 'static,
+    V: Send + Sync + 'static,
+{
+    pub fn new() -> Self {
+        Self {
+            train: vec![],
+            valid: vec![],
+            train_numeric: vec![],
+            valid_numeric: vec![],
+        }
+    }
+}
+
+/// Holds all metrics, metric loggers, and a dashboard renderer.
 pub struct Dashboard<T, V>
 where
     T: Send + Sync + 'static,
     V: Send + Sync + 'static,
 {
-    metrics_train: Vec<Box<dyn DashboardMetric<T>>>,
-    metrics_valid: Vec<Box<dyn DashboardMetric<V>>>,
-    metrics_train_numeric: Vec<Box<dyn DashboardNumericMetric<T>>>,
-    metrics_valid_numeric: Vec<Box<dyn DashboardNumericMetric<V>>>,
+    metrics: Metrics<T, V>,
     logger_train: Box<dyn MetricLogger>,
     logger_valid: Box<dyn MetricLogger>,
     renderer: Box<dyn DashboardRenderer>,
@@ -100,93 +126,25 @@ where
     /// # Arguments
     ///
     /// * `renderer` - The dashboard renderer.
+    /// * `metrics` - The dashboard's metrics
     /// * `logger_train` - The training logger.
     /// * `logger_valid` - The validation logger.
     ///
     /// # Returns
     ///
     /// A new dashboard.
-    pub fn new(
+    pub(crate) fn new(
         renderer: Box<dyn DashboardRenderer>,
+        metrics: Metrics<T, V>,
         logger_train: Box<dyn MetricLogger>,
         logger_valid: Box<dyn MetricLogger>,
     ) -> Self {
         Self {
-            metrics_train: Vec::new(),
-            metrics_valid: Vec::new(),
-            metrics_train_numeric: Vec::new(),
-            metrics_valid_numeric: Vec::new(),
+            metrics,
             logger_train,
             logger_valid,
             renderer,
         }
-    }
-
-    /// Replace the current loggers with the provided ones.
-    ///
-    /// # Arguments
-    ///
-    /// * `logger_train` - The training logger.
-    /// * `logger_valid` - The validation logger.
-    pub fn replace_loggers(
-        &mut self,
-        logger_train: Box<dyn MetricLogger>,
-        logger_valid: Box<dyn MetricLogger>,
-    ) {
-        self.logger_train = logger_train;
-        self.logger_valid = logger_valid;
-    }
-
-    /// Registers a training metric.
-    ///
-    /// # Arguments
-    ///
-    /// * `metric` - The metric.
-    pub fn register_train<M: Metric + 'static>(&mut self, metric: M)
-    where
-        T: Adaptor<M::Input>,
-    {
-        self.metrics_train
-            .push(Box::new(MetricWrapper::new(metric)));
-    }
-
-    /// Registers a training numeric metric.
-    ///
-    /// # Arguments
-    ///
-    /// * `metric` - The metric.
-    pub fn register_train_plot<M: Numeric + Metric + 'static>(&mut self, metric: M)
-    where
-        T: Adaptor<M::Input>,
-    {
-        self.metrics_train_numeric
-            .push(Box::new(MetricWrapper::new(metric)));
-    }
-
-    /// Registers a validation metric.
-    ///
-    /// # Arguments
-    ///
-    /// * `metric` - The metric.
-    pub fn register_valid<M: Metric + 'static>(&mut self, metric: M)
-    where
-        V: Adaptor<M::Input>,
-    {
-        self.metrics_valid
-            .push(Box::new(MetricWrapper::new(metric)));
-    }
-
-    /// Registers a validation numeric metric.
-    ///
-    /// # Arguments
-    ///
-    /// * `metric` - The metric.
-    pub fn register_valid_plot<M: Numeric + Metric + 'static>(&mut self, metric: M)
-    where
-        V: Adaptor<M::Input>,
-    {
-        self.metrics_valid_numeric
-            .push(Box::new(MetricWrapper::new(metric)));
     }
 }
 
@@ -220,14 +178,14 @@ where
 {
     fn on_train_item(&mut self, item: LearnerItem<T>) {
         let metadata = (&item).into();
-        for metric in self.metrics_train.iter_mut() {
+        for metric in self.metrics.train.iter_mut() {
             let state = metric.update(&item, &metadata);
             self.logger_train.log(&state);
 
             self.renderer
                 .update_train(DashboardMetricState::Generic(state));
         }
-        for metric in self.metrics_train_numeric.iter_mut() {
+        for metric in self.metrics.train_numeric.iter_mut() {
             let (state, value) = metric.update(&item, &metadata);
             self.logger_train.log(&state);
 
@@ -239,14 +197,14 @@ where
 
     fn on_valid_item(&mut self, item: LearnerItem<V>) {
         let metadata = (&item).into();
-        for metric in self.metrics_valid.iter_mut() {
+        for metric in self.metrics.valid.iter_mut() {
             let state = metric.update(&item, &metadata);
             self.logger_valid.log(&state);
 
             self.renderer
                 .update_valid(DashboardMetricState::Generic(state));
         }
-        for metric in self.metrics_valid_numeric.iter_mut() {
+        for metric in self.metrics.valid_numeric.iter_mut() {
             let (state, value) = metric.update(&item, &metadata);
             self.logger_valid.log(&state);
 
@@ -257,38 +215,38 @@ where
     }
 
     fn on_train_end_epoch(&mut self, epoch: usize) {
-        for metric in self.metrics_train.iter_mut() {
+        for metric in self.metrics.train.iter_mut() {
             metric.clear();
         }
-        for metric in self.metrics_train_numeric.iter_mut() {
+        for metric in self.metrics.train_numeric.iter_mut() {
             metric.clear();
         }
         self.logger_train.epoch(epoch + 1);
     }
 
     fn on_valid_end_epoch(&mut self, epoch: usize) {
-        for metric in self.metrics_valid.iter_mut() {
+        for metric in self.metrics.valid.iter_mut() {
             metric.clear();
         }
-        for metric in self.metrics_valid_numeric.iter_mut() {
+        for metric in self.metrics.valid_numeric.iter_mut() {
             metric.clear();
         }
         self.logger_valid.epoch(epoch + 1);
     }
 }
 
-trait DashboardNumericMetric<T>: Send + Sync {
+pub(crate) trait DashboardNumericMetric<T>: Send + Sync {
     fn update(&mut self, item: &LearnerItem<T>, metadata: &MetricMetadata) -> (MetricEntry, f64);
     fn clear(&mut self);
 }
 
-trait DashboardMetric<T>: Send + Sync {
+pub(crate) trait DashboardMetric<T>: Send + Sync {
     fn update(&mut self, item: &LearnerItem<T>, metadata: &MetricMetadata) -> MetricEntry;
     fn clear(&mut self);
 }
 
 #[derive(new)]
-struct MetricWrapper<M> {
+pub(crate) struct MetricWrapper<M> {
     metric: M,
 }
 
