@@ -537,22 +537,19 @@ impl ONNXGraph {
 /// * `node` - The node where value are stored.
 #[track_caller]
 fn extract_data_serialize<E: Element>(input_index: usize, node: &Node) -> Option<DataSerialize<E>> {
-    if node.inputs.is_empty() || node.inputs.get(input_index).unwrap().value.is_none() {
+    if node.inputs.is_empty() {
         return None;
     }
 
-    let ty = node.inputs.get(input_index).unwrap().ty.clone();
+    let input = node.inputs.get(input_index);
+    input?;
+    let input = input.unwrap();
+    input.value.as_ref()?;
+    let ty = input.ty.clone();
 
     match ty {
         ArgType::Tensor(tensor_type) => {
-            let value = node
-                .inputs
-                .get(input_index)
-                .unwrap()
-                .value
-                .as_ref()
-                .expect("Value to be provided.")
-                .clone();
+            let value = input.value.as_ref().expect("Value to be provided.").clone();
 
             Some(serialize_data(
                 value.clone(),
