@@ -98,6 +98,5 @@ pub fn slice_assign<E: CandleElement, const D1: usize, const D2: usize>(
     ranges: [std::ops::Range<usize>; D2],
     value: CandleTensor<E, D1>,
 ) -> CandleTensor<E, D1> {
-    // TODO: not trivial, because no view_ like in torch
-    todo!()
+    panic!("slice_assign not supported by Candle")
 }

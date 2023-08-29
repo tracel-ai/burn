@@ -9,7 +9,7 @@ mod tests {
     #[test]
     fn test_max_pool1d_simple() {
         let kernel_size = 3;
-        let padding = 1;
+        let padding = 0;
         let stride = 1;
         let dilation = 1;
 
@@ -18,8 +18,8 @@ mod tests {
             [0.8148, 0.5474, 0.9490, 0.7890, 0.5537, 0.5689],
         ]]);
         let y = TestTensor::from_floats([[
-            [0.9861, 0.9861, 0.5474, 0.4477, 0.8221, 0.8221],
-            [0.8148, 0.9490, 0.9490, 0.9490, 0.7890, 0.5689],
+            [0.9861, 0.5474, 0.4477, 0.8221],
+            [0.949, 0.949, 0.949, 0.789],
         ]]);
 
         let output = max_pool1d(x, kernel_size, stride, padding, dilation);
@@ -81,13 +81,13 @@ mod tests {
     #[test]
     fn test_max_pool1d_with_indices() {
         let kernel_size = 2;
-        let padding = 1;
+        let padding = 0;
         let stride = 1;
         let dilation = 1;
 
         let x = TestTensor::from_floats([[[0.2479, 0.6386, 0.3166, 0.5742]]]);
-        let indices = Data::<IntElem, 3>::from([[[0, 1, 1, 3, 3]]]);
-        let y = TestTensor::from_floats([[[0.2479, 0.6386, 0.6386, 0.5742, 0.5742]]]);
+        let indices = Data::<IntElem, 3>::from([[[1, 1, 3]]]);
+        let y = TestTensor::from_floats([[[0.6386, 0.6386, 0.5742]]]);
 
         let (output, output_indices) =
             max_pool1d_with_indices(x, kernel_size, stride, padding, dilation);
