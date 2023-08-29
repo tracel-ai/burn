@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(arg)]
 mod tests {
     use super::*;
-    use burn_tensor::{Data, Tensor, Int};
+    use burn_tensor::{Data, Int, Tensor};
 
     #[test]
     fn test_argmax_2d_dim0() {
