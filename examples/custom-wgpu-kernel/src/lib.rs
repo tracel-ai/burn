@@ -1,21 +1,24 @@
 mod backward;
 mod forward;
-use burn::tensor::{
-    activation,
-    backend::{ADBackend, Backend},
-    Tensor,
-};
 
-pub trait CustomBackend: Backend {
+use burn::tensor::{activation, Tensor};
+
+/// We create a type alias to avoid the ugly disambiguation assotiative type with primitive tensor.
+pub type FloatTensor<B, const D: usize> = <B as burn::tensor::backend::Backend>::TensorPrimitive<D>;
+
+/// We create our own Backend trait that extends the Burn backend trait.
+pub trait Backend: burn::tensor::backend::Backend {
     fn fused_matmul_add_relu<const D: usize>(
-        lhs: <Self as Backend>::TensorPrimitive<D>,
-        rhs: <Self as Backend>::TensorPrimitive<D>,
-        bias: <Self as Backend>::TensorPrimitive<D>,
-    ) -> <Self as Backend>::TensorPrimitive<D>;
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
+        bias: FloatTensor<Self, D>,
+    ) -> FloatTensor<Self, D>;
 }
 
-pub trait CustomADBackend: CustomBackend + ADBackend {}
+/// We create our own ADBackend trait that extends the Burn autodiff backend trait.
+pub trait ADBackend: Backend + burn::tensor::backend::ADBackend {}
 
+/// We define a reference implementation using basic tensor operations.
 pub fn matmul_add_relu_reference<B: Backend>(
     lhs: Tensor<B, 3>,
     rhs: Tensor<B, 3>,
@@ -26,7 +29,8 @@ pub fn matmul_add_relu_reference<B: Backend>(
     activation::relu(x)
 }
 
-pub fn matmul_add_relu_custom<B: CustomBackend>(
+/// We define out custom implementation using the added function on our custom backend.
+pub fn matmul_add_relu_custom<B: Backend>(
     lhs: Tensor<B, 3>,
     rhs: Tensor<B, 3>,
     bias: Tensor<B, 3>,

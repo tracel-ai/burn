@@ -1,9 +1,7 @@
 use burn::tensor::{Distribution, Tensor};
-use custom_wgpu_kernel::{
-    matmul_add_relu_custom, matmul_add_relu_reference, CustomADBackend, CustomBackend,
-};
+use custom_wgpu_kernel::{matmul_add_relu_custom, matmul_add_relu_reference, ADBackend, Backend};
 
-fn inference<B: CustomBackend>() {
+fn inference<B: Backend>() {
     let lhs = Tensor::<B, 3>::random([1, 32, 32], Distribution::Default);
     let rhs = Tensor::random([32, 32, 32], Distribution::Default);
     let bias = Tensor::random([32, 32, 32], Distribution::Default);
@@ -20,7 +18,7 @@ fn inference<B: CustomBackend>() {
     println!("Both reference and the custom fused kernel have the same output");
 }
 
-fn autodiff<B: CustomADBackend>() {
+fn autodiff<B: ADBackend>() {
     let lhs = Tensor::<B, 3>::random([1, 32, 32], Distribution::Default).require_grad();
     let rhs = Tensor::random([32, 32, 32], Distribution::Default).require_grad();
     let bias = Tensor::random([32, 32, 32], Distribution::Default).require_grad();

@@ -1,5 +1,7 @@
-use super::{CustomADBackend, CustomBackend};
-use burn::tensor::{backend::Backend, ops::TensorOps, Shape};
+use crate::FloatTensor;
+
+use super::{ADBackend, Backend};
+use burn::tensor::Shape;
 use burn_autodiff::{
     grads::Gradients,
     ops::{broadcast_shape, Backward, Ops, OpsKind},
@@ -7,50 +9,76 @@ use burn_autodiff::{
 };
 use burn_wgpu::{FloatElement, GraphicsApi, IntElement, WgpuBackend};
 
-impl<G: GraphicsApi, F: FloatElement, I: IntElement> CustomADBackend
+impl<G: GraphicsApi, F: FloatElement, I: IntElement> ADBackend
     for ADBackendDecorator<WgpuBackend<G, F, I>>
 {
 }
 
-impl<G: GraphicsApi, F: FloatElement, I: IntElement> CustomBackend
-    for ADBackendDecorator<WgpuBackend<G, F, I>>
-{
+// Implement our custom backend trait for any backend that also implement our custom backend trait.
+//
+// Note that we could implement the backend trait only for wgpu backend instead of any backend that
+// also implement our own api. This would allow us to call any function only implemented for wgpu
+// and potentially call a custom kernel crafted only for this task.
+impl<B: Backend> Backend for ADBackendDecorator<B> {
     fn fused_matmul_add_relu<const D: usize>(
-        lhs: <Self as Backend>::TensorPrimitive<D>,
-        rhs: <Self as Backend>::TensorPrimitive<D>,
-        bias: <Self as Backend>::TensorPrimitive<D>,
-    ) -> <Self as Backend>::TensorPrimitive<D> {
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
+        bias: FloatTensor<Self, D>,
+    ) -> FloatTensor<Self, D> {
+        // Create our zero sized type that will implement the Backward trait.
         #[derive(Debug)]
         struct FusedMatmulAddReluBackward<const D: usize>;
 
-        impl<B: CustomBackend, const D: usize> Backward<B, D, 3> for FusedMatmulAddReluBackward<D> {
+        // Implement the backward trait for the given backend B, the node gradient being of rank D
+        // with three other gradients to calculate (lhs, rhs, and bias).
+        impl<B: Backend, const D: usize> Backward<B, D, 3> for FusedMatmulAddReluBackward<D> {
+            // Our state that we must build during the foward pass to compute the backward pass.
+            //
+            // Note that we could improve the performance further by only keeping the state of
+            // tensor that are tracked, improving memory management, but for simplicity we avoid
+            // that part.
             type State = (
-                B::TensorPrimitive<D>,
-                B::TensorPrimitive<D>,
-                B::TensorPrimitive<D>,
+                FloatTensor<B, D>,
+                FloatTensor<B, D>,
+                FloatTensor<B, D>,
                 Shape<D>,
             );
 
             fn backward(self, ops: Ops<Self::State, 3>, grads: &mut Gradients) {
+                // Getch the nodes of each variable.
                 let [node_lhs, node_rhs, node_bias] = ops.parents;
+                // Fetch the gradient for the current node.
                 let grad = grads.consume::<B, D>(&ops.node);
 
+                // Set out state.
                 let (lhs, rhs, output, shape_bias) = ops.state;
 
+                // Fetch shapes of our tensor to support broadcasting.
                 let shape_lhs = B::shape(&lhs);
                 let shape_rhs = B::shape(&rhs);
+
+                // Compute the gradient of the output using the already existing `relu_backward`
+                // function in the basic Burn backend trait.
                 let grad_output = B::relu_backward(output, grad);
 
+                // Compute the lhs gradient, which is the derivative of matmul with support for
+                // broadcasting.
                 let grad_lhs = broadcast_shape::<B, D>(
                     B::matmul(grad_output.clone(), B::transpose(rhs)),
                     &shape_lhs,
                 );
+                // Compute the rhs gradient, which is the derivative of matmul with support for
+                // broadcasting.
                 let grad_rhs = broadcast_shape::<B, D>(
                     B::matmul(B::transpose(lhs), grad_output.clone()),
                     &shape_rhs,
                 );
+                // The add derivative is only 1, so we just need to support broadcasting to
+                // compute the bias gradient.
                 let grad_bias = broadcast_shape::<B, D>(grad_output, &shape_bias);
 
+                // Register the gradient for each variable based on it they are marked as
+                // `tracked`.
                 if let Some(node) = node_bias {
                     grads.register::<B, D>(node, grad_bias);
                 }
@@ -63,16 +91,21 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> CustomBackend
             }
         }
 
+        // Prepare a stateful operation with each variable node and corresponding graph.
+        //
+        // Each node can be fetched with `ops.parents` in the same order as defined here.
         match FusedMatmulAddReluBackward
             .prepare(
                 [lhs.node, rhs.node, bias.node],
                 [lhs.graph, rhs.graph, bias.graph],
             )
-            .statefull()
+            .stateful()
         {
             OpsKind::Tracked(prep) => {
-                let bias_shape = WgpuBackend::<G, F, I>::shape(&bias.primitive);
-                let output = WgpuBackend::<G, F, I>::fused_matmul_add_relu(
+                // When at least on node is tracked, we should register our backward step.
+                // We compute the output and the state before finishing the preparation.
+                let bias_shape = B::shape(&bias.primitive);
+                let output = B::fused_matmul_add_relu(
                     lhs.primitive.clone(),
                     rhs.primitive.clone(),
                     bias.primitive,
@@ -82,11 +115,9 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> CustomBackend
                 prep.finish(state, output)
             }
             OpsKind::UnTracked(prep) => {
-                let output = WgpuBackend::<G, F, I>::fused_matmul_add_relu(
-                    lhs.primitive,
-                    rhs.primitive,
-                    bias.primitive,
-                );
+                // When no node is tracked, we can just compute the original operation without
+                // keeping any state.
+                let output = B::fused_matmul_add_relu(lhs.primitive, rhs.primitive, bias.primitive);
                 prep.finish(output)
             }
         }

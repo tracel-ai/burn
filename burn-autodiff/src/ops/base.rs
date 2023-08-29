@@ -38,7 +38,7 @@ where
 {
     /// Prepare an stateless operation.
     pub fn stateless(self, output: <B as Backend>::TensorPrimitive<D>) -> ADTensor<B, D> {
-        match self.statefull() {
+        match self.stateful() {
             OpsKind::Tracked(prep) => prep.finish((), output),
             OpsKind::UnTracked(prep) => prep.finish(output),
         }
@@ -52,7 +52,7 @@ where
     BO: Backward<B, D, N, State = S>,
 {
     /// Prepare an operation that requires a state during the backward pass.
-    pub fn statefull(self) -> OpsKind<BO, B, S, D, N> {
+    pub fn stateful(self) -> OpsKind<BO, B, S, D, N> {
         match self.requirement.is_none() {
             false => OpsKind::Tracked(OpsPrep::new(
                 self.nodes,

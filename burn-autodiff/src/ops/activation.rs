@@ -23,7 +23,7 @@ impl<B: Backend> ActivationOps<ADBackendDecorator<B>> for ADBackendDecorator<B> 
             }
         }
 
-        match Gelu::<D>.prepare([tensor.node], [tensor.graph]).statefull() {
+        match Gelu::<D>.prepare([tensor.node], [tensor.graph]).stateful() {
             OpsKind::Tracked(prep) => {
                 let output = B::gelu(tensor.primitive.clone());
                 prep.finish(tensor.primitive, output)
@@ -47,7 +47,7 @@ impl<B: Backend> ActivationOps<ADBackendDecorator<B>> for ADBackendDecorator<B> 
         }
         let output = B::relu(tensor.primitive);
 
-        match Relu.prepare([tensor.node], [tensor.graph]).statefull() {
+        match Relu.prepare([tensor.node], [tensor.graph]).stateful() {
             OpsKind::Tracked(prep) => prep.finish(output.clone(), output),
             OpsKind::UnTracked(prep) => prep.finish(output),
         }
