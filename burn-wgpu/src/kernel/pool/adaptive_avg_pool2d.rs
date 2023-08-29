@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use burn_tensor::Shape;
-use wgpu::Buffer;
 
 use crate::{
+    buffer::Buffer,
     element::WgpuElement,
     kernel::{elemwise_workgroup, KernelSettings},
     kernel_wgsl,

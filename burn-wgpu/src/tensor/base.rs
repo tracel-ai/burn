@@ -1,7 +1,7 @@
-use crate::unary;
+use crate::{buffer::Buffer, unary};
+
 use burn_tensor::Shape;
 use std::{marker::PhantomData, sync::Arc};
-use wgpu::Buffer;
 
 use crate::{context::Context, element::WgpuElement, kernel::unary_default};
 

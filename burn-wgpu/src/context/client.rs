@@ -42,6 +42,34 @@ pub trait ContextClient {
     fn sync(&self);
 }
 
+impl<T: ContextClient> ContextClient for &T {
+    fn copy_buffer(
+        &self,
+        buffer_src: Arc<Buffer>,
+        buffer_dest: Arc<Buffer>,
+        wait_for_registered: bool,
+    ) -> Arc<Buffer> {
+        (*self).copy_buffer(buffer_src, buffer_dest, wait_for_registered)
+    }
+
+    fn read_buffer(&self, buffer: Arc<Buffer>) -> Vec<u8> {
+        (*self).read_buffer(buffer)
+    }
+
+    fn register_compute(
+        &self,
+        bind_group: BindGroup,
+        pipeline: Arc<ComputePipeline>,
+        work_group: WorkGroup,
+    ) {
+        (*self).register_compute(bind_group, pipeline, work_group)
+    }
+
+    fn sync(&self) {
+        (*self).sync()
+    }
+}
+
 #[cfg(feature = "async")]
 mod async_client {
     use super::ContextClient;

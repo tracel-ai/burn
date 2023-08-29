@@ -3,9 +3,10 @@ use std::sync::Arc;
 use burn_common::rand::get_seeded_rng;
 use burn_tensor::Shape;
 use rand::Rng;
-use wgpu::Buffer;
 
-use crate::{context::Context, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor, SEED};
+use crate::{
+    buffer::Buffer, context::Context, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor, SEED,
+};
 
 kernel_wgsl!(Prng, "../../template/prng/prng.wgsl");
 

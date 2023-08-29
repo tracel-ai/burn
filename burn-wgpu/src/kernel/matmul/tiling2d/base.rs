@@ -1,4 +1,5 @@
 use crate::{
+    buffer::Buffer,
     context::{Context, WorkGroup},
     element::WgpuElement,
     kernel::{build_info, into_contiguous, matmul::utils::shape_out},
@@ -416,7 +417,7 @@ pub(super) fn make_info_buffers<E: WgpuElement, const D: usize>(
     lhs: &WgpuTensor<E, D>,
     rhs: &WgpuTensor<E, D>,
     output: &WgpuTensor<E, D>,
-) -> Arc<wgpu::Buffer> {
+) -> Arc<Buffer> {
     let info = build_info(&[lhs, rhs, output]);
     rhs.context
         .create_buffer_with_data(bytemuck::cast_slice(&info))

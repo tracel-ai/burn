@@ -1,10 +1,11 @@
-use super::client::ContextClient;
 use crate::{
-    context::server::ContextServer,
+    buffer::Buffer,
+    context::{client::ContextClient, server::ContextServer},
     kernel::{DynamicKernel, StaticKernel},
     tune::Tuner,
     GraphicsApi, WgpuDevice,
 };
+
 use burn_common::id::IdGenerator;
 use spin::Mutex;
 use std::{
@@ -12,11 +13,11 @@ use std::{
     borrow::Cow,
     collections::HashMap,
     sync::atomic::{AtomicBool, Ordering},
-    sync::Arc,
+    sync::{Arc, Weak},
 };
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
-    Buffer, ComputePipeline, DeviceDescriptor, DeviceType, ShaderModuleDescriptor,
+    ComputePipeline, DeviceDescriptor, DeviceType, ShaderModuleDescriptor,
 };
 
 #[cfg(feature = "async")]
@@ -29,16 +30,86 @@ pub(crate) type ContextServerImpl = super::server::AsyncContextServer;
 #[cfg(not(feature = "async"))]
 pub(crate) type ContextServerImpl = super::server::SyncContextServer;
 
+#[derive(Debug, Default)]
+struct BufferCache {
+    /// A list of weakly-owned buffers.
+    list: Vec<(u64, Weak<Buffer>)>,
+}
+
+impl BufferCache {
+    fn clean(&mut self) {
+        let mut csz = 0u64;
+        self.list.retain(|(sz, weak)| {
+            if weak.strong_count() > 0 {
+                true
+            } else {
+                csz += sz;
+                false
+            }
+        });
+    }
+
+    /// Evict the oldest entries from GPU memory to ensure at least `bytes` bytes
+    /// can be allocated.
+    fn evict(&mut self, context: impl ContextClient, bytes: u64) {
+        self.clean();
+
+        let mut allocs = self.list.clone();
+
+        let mut bytes_resident = 0u64;
+        allocs.retain(|(sz, weak)| {
+            if let Some(strong) = weak.upgrade() {
+                if strong.is_resident() {
+                    bytes_resident += sz;
+                    true
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        });
+
+        let bytes = std::cmp::min(bytes_resident / 2, bytes);
+
+        allocs.sort_by(|s1, s2| {
+            if let (Some(b1), Some(b2)) = (s1.1.upgrade(), s2.1.upgrade()) {
+                b2.last_used().elapsed().cmp(&b1.last_used().elapsed())
+            } else {
+                std::cmp::Ordering::Equal
+            }
+        });
+
+        // Alright, begin evicting allocated buffers.
+        let mut bytes_evicted = 0u64;
+        for (sz, b) in allocs.iter() {
+            if let Some(strong) = b.upgrade() {
+                let elapsed = strong.last_used().elapsed();
+                if bytes_evicted < bytes || elapsed.as_secs() > 1 || *sz < 1024u64 {
+                    // println!("evict {sz}: {}", elapsed.as_secs());
+
+                    if strong.evict(&context) {
+                        bytes_evicted += sz;
+                    }
+                }
+            }
+        }
+
+        // println!("evicted {bytes_evicted}");
+    }
+}
+
 /// The context is the basic struct that allows to execute GPU kernel on devices.
 ///
 /// You can access a context for a WGPUDevice using get_context.
 #[derive(Debug)]
 pub struct Context {
     id: String,
-    device_wgpu: Arc<wgpu::Device>,
     cache: Mutex<HashMap<TemplateKey, Arc<ComputePipeline>>>,
     is_tuning: AtomicBool,
+    buffer_cache: Mutex<BufferCache>,
     client: ContextClientImpl,
+    pub(crate) device_wgpu: Arc<wgpu::Device>,
     pub(crate) tuner: Tuner,
     tuning_template_ids: Mutex<Vec<TemplateKey>>,
     pub(crate) device: WgpuDevice,
@@ -85,6 +156,7 @@ impl Context {
             client,
             cache: Mutex::new(HashMap::new()),
             is_tuning: AtomicBool::new(false),
+            buffer_cache: Mutex::new(Default::default()),
             tuner: Tuner::new(),
             tuning_template_ids: Mutex::new(Vec::new()),
             info,
@@ -106,20 +178,49 @@ impl Context {
     /// buffer can be mutated when launching a compute shaders with write access to a buffer.
     ///
     /// Buffer positions are used as bindings when launching a compute kernel.
-    pub fn execute(
+    pub fn execute<I: IntoIterator<Item = T>, T: AsRef<Buffer>>(
         &self,
         work_group: WorkGroup,
         pipeline: Arc<ComputePipeline>,
-        buffers: &[&Buffer],
+        buffers: I,
     ) {
         let group_layout = pipeline.get_bind_group_layout(0);
 
-        let entries = buffers
+        let buffers = buffers.into_iter().map(|b| b).collect::<Vec<_>>();
+
+        // Tally up memory requirements and evict old buffers.
+        let mem = buffers.iter().map(|b| b.as_ref().size()).sum::<u64>();
+
+        let mut gbuffers = Vec::new();
+        for buffer in buffers.into_iter() {
+            let buffer = buffer.as_ref();
+            buffer.mark_used();
+
+            let gbuffer = loop {
+                match buffer.make_resident(&self.device_wgpu) {
+                    Ok(gbuffer) => break gbuffer,
+                    Err(_e) => {
+                        // The allocation failed because we ran out of memory on the GPU.
+                        // Try to evict some old buffers to free up memory, and try again.
+                        // eprintln!("allocation error: {e}");
+                        self.buffer_cache.lock().evict(&self.client, mem);
+                    }
+                }
+            };
+
+            gbuffers.push(gbuffer);
+        }
+
+        // FIXME: Once the `gbuffers` go out of scope, it's possible the underlying `wgpu::Buffer`
+        // can be freed asynchronously making these bindings invalid.
+        // `register_compute` should hold references to the gbuffers until the operation is finished
+        // to ensure this does not happen.
+        let bindings = gbuffers
             .iter()
             .enumerate()
-            .map(|(i, buffer)| wgpu::BindGroupEntry {
+            .map(|(i, gbuffer)| wgpu::BindGroupEntry {
                 binding: i as u32,
-                resource: buffer.as_entire_binding(),
+                resource: gbuffer.as_binding(),
             })
             .collect::<Vec<_>>();
 
@@ -128,7 +229,7 @@ impl Context {
             .create_bind_group(&wgpu::BindGroupDescriptor {
                 label: None,
                 layout: &group_layout,
-                entries: &entries,
+                entries: &bindings,
             });
 
         self.client
@@ -137,14 +238,22 @@ impl Context {
 
     /// Create a new buffer with the provided size.
     pub fn create_buffer(&self, size: usize) -> Arc<Buffer> {
-        Arc::new(self.device_wgpu.create_buffer(&wgpu::BufferDescriptor {
-            label: None,
-            size: size as u64,
-            usage: wgpu::BufferUsages::COPY_DST
-                | wgpu::BufferUsages::STORAGE
-                | wgpu::BufferUsages::COPY_SRC,
-            mapped_at_creation: false,
-        }))
+        let buf = Arc::new(Buffer::new_nonresident(
+            &wgpu::BufferDescriptor {
+                label: None,
+                size: size as u64,
+                usage: wgpu::BufferUsages::COPY_DST
+                    | wgpu::BufferUsages::STORAGE
+                    | wgpu::BufferUsages::COPY_SRC,
+                mapped_at_creation: false,
+            },
+            None,
+        ));
+
+        let mut cache = self.buffer_cache.lock();
+        cache.list.push((size as u64, Arc::downgrade(&buf)));
+
+        buf
     }
 
     /// Create a new buffer initialized with the provided bytes.
@@ -156,16 +265,23 @@ impl Context {
     ///
     /// It's important to be sync when you want to reuse the buffer using the Arc strong count for
     /// inner mutability.
-    pub fn create_buffer_with_data_options(&self, data: &[u8], sync: bool) -> Arc<Buffer> {
-        let buffer_src = Arc::new(self.device_wgpu.create_buffer_init(&BufferInitDescriptor {
-            label: Some("Buffer Src"),
-            contents: data,
-            usage: wgpu::BufferUsages::COPY_SRC,
-        }));
+    pub fn create_buffer_with_data_options(&self, data: &[u8], _sync: bool) -> Arc<Buffer> {
+        let buf = Arc::new(Buffer::new_nonresident(
+            &wgpu::BufferDescriptor {
+                label: None,
+                size: data.len() as u64,
+                usage: wgpu::BufferUsages::COPY_DST
+                    | wgpu::BufferUsages::STORAGE
+                    | wgpu::BufferUsages::COPY_SRC,
+                mapped_at_creation: false,
+            },
+            Some(data),
+        ));
 
-        let buffer_dest = self.create_buffer(buffer_src.size() as usize);
+        let mut cache = self.buffer_cache.lock();
+        cache.list.push((data.len() as u64, Arc::downgrade(&buf)));
 
-        self.client.copy_buffer(buffer_src, buffer_dest, sync)
+        buf
     }
 
     /// Copy buffer to buffer.
@@ -173,16 +289,35 @@ impl Context {
     /// Wait for registered may be useful if you want to allow inplace operations on the created
     /// buffer. Otherwise, the strong count of the buffer might not be 1 when registering a new
     /// operation, which makes the buffer readonly.
-    pub fn copy_buffer(&self, buffer_src: Arc<Buffer>, wait_for_registered: bool) -> Arc<Buffer> {
-        let buffer_dest = self.create_buffer(buffer_src.size() as usize);
+    pub fn copy_buffer(
+        &self,
+        buffer_src: Arc<wgpu::Buffer>,
+        wait_for_registered: bool,
+    ) -> Arc<Buffer> {
+        let desc = wgpu::BufferDescriptor {
+            label: None,
+            size: buffer_src.size(),
+            usage: wgpu::BufferUsages::COPY_DST
+                | wgpu::BufferUsages::STORAGE
+                | wgpu::BufferUsages::COPY_SRC,
+            mapped_at_creation: false,
+        };
 
-        self.client
-            .copy_buffer(buffer_src, buffer_dest, wait_for_registered)
+        let buffer_dest = Arc::new(self.device_wgpu.create_buffer(&desc));
+
+        let buffer = self
+            .client
+            .copy_buffer(buffer_src, buffer_dest, wait_for_registered);
+
+        Arc::new(Buffer::new_resident(&desc, buffer))
     }
 
     /// Read a buffer from the GPU and return its content as bytes.
     pub fn read_buffer(&self, buffer: Arc<Buffer>) -> Vec<u8> {
-        self.client.read_buffer(buffer)
+        let mut buf = Vec::new();
+
+        buffer.read(&self.client, &mut buf);
+        buf
     }
 
     /// Compile a kernel template if not present in the cache.

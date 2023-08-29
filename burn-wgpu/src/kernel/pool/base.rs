@@ -1,7 +1,6 @@
-use crate::{element::WgpuElement, tensor::WgpuTensor};
+use crate::{buffer::Buffer, element::WgpuElement, tensor::WgpuTensor};
 use burn_tensor::Shape;
 use std::sync::Arc;
-use wgpu::Buffer;
 
 /// Build basic info to launch pool 2d kernels.
 pub fn build_output_and_info_pool2d<E: WgpuElement>(

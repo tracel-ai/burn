@@ -27,6 +27,7 @@ rand = { workspace = true }
 spin = { workspace = true }
 
 # WGPU stuff
+futures = { workspace = true }
 futures-intrusive = { workspace = true }
 pollster = { workspace = true }
 wgpu = { workspace = true }

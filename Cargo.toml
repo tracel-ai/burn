@@ -64,6 +64,7 @@ tracing-core = "0.1.31"
 tracing-appender = "0.2.2"
 
 # WGPU stuff
+futures = "0.3.28"
 futures-intrusive = "0.5"
 pollster = "0.3"
 text_placeholder = {version = "0.5.0", features = ["struct_context"]}

@@ -29,6 +29,8 @@ pub struct SyncContextServer {
     queue: wgpu::Queue,
     encoder: CommandEncoder,
     tasks: Vec<ComputeTask>,
+    /// A generic mappable buffer, used to move data out of GPU memory.
+    mappable_buffer: wgpu::Buffer,
     max_tasks: usize,
 }
 
@@ -56,14 +58,20 @@ impl SyncContextServer {
             Ok(value) => value
                 .parse::<usize>()
                 .expect("BURN_WGPU_MAX_TASKS should be a positive integer."),
-            Err(_) => 16, // 16 tasks by default
+            Err(_) => 1, // 1 task by default
         };
 
         Self {
-            device,
             queue,
             encoder,
             tasks: Vec::new(),
+            mappable_buffer: device.create_buffer(&wgpu::BufferDescriptor {
+                label: None,
+                size: 64 * 1024 * 1024, // 64MB mappable buffer.
+                usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            }),
+            device,
             max_tasks,
         }
     }
@@ -77,45 +85,56 @@ impl SyncContextServer {
         }
     }
 
+    fn read_buffer_chunks(&mut self, buffer: &wgpu::Buffer) -> Vec<u8> {
+        let size = buffer.size();
+        let mut copied_size = 0u64;
+        let mut data = Vec::with_capacity(size as usize);
+
+        while copied_size < size {
+            let chunk_size = std::cmp::min(size - copied_size, self.mappable_buffer.size());
+
+            self.encoder.copy_buffer_to_buffer(
+                buffer,
+                copied_size,
+                &self.mappable_buffer,
+                0,
+                chunk_size,
+            );
+
+            self.submit();
+
+            let buffer_slice = self.mappable_buffer.slice(..chunk_size);
+            let (sender, receiver) = futures_intrusive::channel::shared::oneshot_channel();
+            buffer_slice.map_async(wgpu::MapMode::Read, move |v| {
+                sender
+                    .send(v)
+                    .expect("Unable to send buffer slice result to async channel.")
+            });
+
+            self.device.poll(wgpu::Maintain::Wait);
+            let result = pollster::block_on(receiver.receive());
+
+            if let Some(Ok(())) = result {
+                let chunk = buffer_slice.get_mapped_range();
+                data.extend(chunk.iter());
+
+                drop(chunk);
+                self.mappable_buffer.unmap();
+            } else {
+                panic!("Unable to read buffer {:?}", result)
+            }
+
+            copied_size += chunk_size;
+        }
+
+        data
+    }
+
     pub fn read_buffer(&mut self, buffer: &Buffer) -> Vec<u8> {
         // Register previous tasks before reading the buffer so that it is up to date.
         self.register_tasks();
 
-        let size = buffer.size();
-        let buffer_dest = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: None,
-            size,
-            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
-        self.encoder
-            .copy_buffer_to_buffer(buffer, 0, &buffer_dest, 0, size);
-
-        self.submit();
-
-        let buffer_slice = buffer_dest.slice(..);
-        let (sender, receiver) = futures_intrusive::channel::shared::oneshot_channel();
-        buffer_slice.map_async(wgpu::MapMode::Read, move |v| {
-            sender
-                .send(v)
-                .expect("Unable to send buffer slice result to async channel.")
-        });
-
-        self.device.poll(wgpu::Maintain::Wait);
-
-        let result = pollster::block_on(receiver.receive());
-
-        if let Some(Ok(())) = result {
-            let data = buffer_slice.get_mapped_range();
-            let result = bytemuck::cast_slice(&data).to_vec();
-
-            drop(data);
-            buffer_dest.unmap();
-            result
-        } else {
-            panic!("Unable to read buffer {:?}", result)
-        }
+        self.read_buffer_chunks(buffer)
     }
 
     pub fn sync(&mut self) {
@@ -130,6 +149,10 @@ impl SyncContextServer {
     pub fn buffer_to_buffer(&mut self, buffer_src: Arc<Buffer>, buffer_dest: Arc<Buffer>) {
         self.encoder
             .copy_buffer_to_buffer(&buffer_src, 0, &buffer_dest, 0, buffer_src.size());
+    }
+
+    fn poll(&mut self) {
+        let _done = self.device.poll(wgpu::Maintain::Poll);
     }
 
     fn register_tasks(&mut self) {
@@ -150,12 +173,15 @@ impl SyncContextServer {
             self.tasks.is_empty(),
             "Tasks should be completed before submitting the current encoder."
         );
-        let mut new_encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-        core::mem::swap(&mut new_encoder, &mut self.encoder);
 
-        self.queue.submit(Some(new_encoder.finish()));
+        // Pull the `CommandEncoder` out from our struct and replace it with a new one.
+        let encoder = core::mem::replace(
+            &mut self.encoder,
+            self.device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None }),
+        );
+
+        self.queue.submit([encoder.finish()]);
     }
 }
 
@@ -164,7 +190,13 @@ mod async_server {
     use crate::context::client::AsyncContextClient;
 
     use super::{ComputeTask, ContextServer, SyncContextServer};
-    use std::sync::{mpsc, Arc};
+    use std::{
+        sync::{
+            mpsc::{self, RecvTimeoutError},
+            Arc,
+        },
+        time::Duration,
+    };
     use wgpu::Buffer;
 
     #[derive(new)]
@@ -218,21 +250,26 @@ mod async_server {
     impl AsyncContextServer {
         fn run(mut self) {
             loop {
-                let task = self.receiver.recv().unwrap();
-                match task {
-                    ContextTask::Compute(task) => self.server.register_compute(task),
-                    ContextTask::CopyBuffer(task) => self
-                        .server
-                        .buffer_to_buffer(task.buffer_src, task.buffer_dest),
-                    ContextTask::ReadBuffer(task) => {
-                        let bytes = self.server.read_buffer(&task.buffer);
-                        task.sender.send(bytes).unwrap();
+                match self.receiver.recv_timeout(Duration::from_millis(1)) {
+                    Ok(task) => match task {
+                        ContextTask::Compute(task) => self.server.register_compute(task),
+                        ContextTask::CopyBuffer(task) => self
+                            .server
+                            .buffer_to_buffer(task.buffer_src, task.buffer_dest),
+                        ContextTask::ReadBuffer(task) => {
+                            let bytes = self.server.read_buffer(&task.buffer);
+                            task.sender.send(bytes).unwrap();
+                        }
+                        ContextTask::Sync(callback) => {
+                            self.server.sync();
+                            callback.send(()).unwrap();
+                        }
+                    },
+                    Err(RecvTimeoutError::Disconnected) => panic!("channel disconnected"),
+                    Err(RecvTimeoutError::Timeout) => {
+                        self.server.poll();
                     }
-                    ContextTask::Sync(callback) => {
-                        self.server.sync();
-                        callback.send(()).unwrap();
-                    }
-                };
+                }
             }
         }
     }
