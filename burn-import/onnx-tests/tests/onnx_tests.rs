@@ -42,6 +42,8 @@ include_models!(
 
 #[cfg(test)]
 mod tests {
+    use std::f64::consts;
+
     use super::*;
 
     use burn::tensor::{Data, Int, Shape, Tensor};
@@ -155,7 +157,7 @@ mod tests {
         let model: conv1d::Model<Backend> = conv1d::Model::default();
 
         // Run the model with 3.1416 as input for easier testing
-        let input = Tensor::<Backend, 3>::full([6, 4, 10], 3.1416);
+        let input = Tensor::<Backend, 3>::full([6, 4, 10], consts::PI);
 
         let output = model.forward(input);
 
@@ -460,18 +462,24 @@ mod tests {
 
         // Run the model
         let input = Tensor::<Backend, 1>::from_floats([
-            0.88226926, 0.91500396, 0.38286376, 0.95930564, 0.390_448_2, 0.60089535,
+            0.88226926,
+            0.91500396,
+            0.38286376,
+            0.95930564,
+            0.390_448_2,
+            0.60089535,
         ]);
         let (output1, output2, output3) = model.forward(input);
         let expected1 = Data::from([
-            0.88226926, 0.91500396, 0.38286376, 0.95930564, 0.390_448_2, 0.60089535,
+            0.88226926,
+            0.91500396,
+            0.38286376,
+            0.95930564,
+            0.390_448_2,
+            0.60089535,
         ]);
-        let expected2 = Data::from([
-            0.7, 0.7, 0.5, 0.7, 0.5, 0.60089535,
-        ]);
-        let expected3 = Data::from([
-            0.8, 0.8, 0.38286376, 0.8, 0.390_448_2, 0.60089535,
-        ]);
+        let expected2 = Data::from([0.7, 0.7, 0.5, 0.7, 0.5, 0.60089535]);
+        let expected3 = Data::from([0.8, 0.8, 0.38286376, 0.8, 0.390_448_2, 0.60089535]);
 
         assert_eq!(output1.to_data(), expected1);
         assert_eq!(output2.to_data(), expected2);
@@ -485,18 +493,24 @@ mod tests {
 
         // Run the model
         let input = Tensor::<Backend, 1>::from_floats([
-            0.88226926, 0.91500396, 0.38286376, 0.95930564, 0.390_448_2, 0.60089535,
+            0.88226926,
+            0.91500396,
+            0.38286376,
+            0.95930564,
+            0.390_448_2,
+            0.60089535,
         ]);
         let (output1, output2, output3) = model.forward(input);
         let expected1 = Data::from([
-            0.88226926, 0.91500396, 0.38286376, 0.95930564, 0.390_448_2, 0.60089535,
+            0.88226926,
+            0.91500396,
+            0.38286376,
+            0.95930564,
+            0.390_448_2,
+            0.60089535,
         ]);
-        let expected2 = Data::from([
-            0.7, 0.7, 0.5, 0.7, 0.5, 0.60089535,
-        ]);
-        let expected3 = Data::from([
-            0.8, 0.8, 0.38286376, 0.8, 0.390_448_2, 0.60089535,
-        ]);
+        let expected2 = Data::from([0.7, 0.7, 0.5, 0.7, 0.5, 0.60089535]);
+        let expected3 = Data::from([0.8, 0.8, 0.38286376, 0.8, 0.390_448_2, 0.60089535]);
 
         assert_eq!(output1.to_data(), expected1);
         assert_eq!(output2.to_data(), expected2);
@@ -509,7 +523,7 @@ mod tests {
         let model: linear::Model<Backend> = linear::Model::default();
 
         // Run the model with 3.1416 as input for easier testing
-        let input = Tensor::<Backend, 2>::full([1, 16], 3.1416);
+        let input = Tensor::<Backend, 2>::full([1, 16], consts::PI);
 
         let output = model.forward(input);
 
