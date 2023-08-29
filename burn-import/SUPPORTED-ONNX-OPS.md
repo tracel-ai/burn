@@ -114,7 +114,6 @@ dimensionality)
 | [Multinomial][108]               |       ❌       |      ❌      |
 | [Neg][109]                       |       ❌       |      ✅      |
 | [NegativeLogLikelihoodLoss][110] |       ❌       |      ❌      |
-| [NegativeLogLikelihoodLoss][111] |       ❌       |      ❌      |
 | [NonMaxSuppression][112]         |       ❌       |      ❌      |
 | [NonZero][113]                   |       ❌       |      ❌      |
 | [Not][114]                       |       ❌       |      ❌      |
@@ -304,12 +303,7 @@ dimensionality)
 [107]: https://onnx.ai/onnx/operators/onnx__Mul.html "ONNX Mul"
 [108]: https://onnx.ai/onnx/operators/onnx__Multinomial.html "ONNX Multinomial"
 [109]: https://onnx.ai/onnx/operators/onnx__Neg.html "ONNX Neg"
-[110]:
-  https://onnx.ai/onnx/operators/onnx__NegativeLogLikelihoodLoss.html
-  "ONNX NegativeLogLikelihoodLoss"
-[111]:
-  https://onnx.ai/onnx/operators/onnx__NegativeLogLikelihoodLoss.html
-  "ONNX NegativeLogLikelihoodLoss"
+[110]: https://onnx.ai/onnx/operators/onnx__NegativeLogLikelihoodLoss.html "ONNX NegativeLogLikelihoodLoss"
 [112]: https://onnx.ai/onnx/operators/onnx__NonMaxSuppression.html "ONNX NonMaxSuppression"
 [113]: https://onnx.ai/onnx/operators/onnx__NonZero.html "ONNX NonZero"
 [114]: https://onnx.ai/onnx/operators/onnx__Not.html "ONNX Not"
