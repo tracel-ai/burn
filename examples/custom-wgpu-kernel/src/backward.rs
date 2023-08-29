@@ -14,10 +14,10 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> ADBackend
 {
 }
 
-// Implement our custom backend trait for any backend that also implement our custom backend trait.
+// Implement our custom backend trait for any backend that also implements our custom backend trait.
 //
-// Note that we could implement the backend trait only for wgpu backend instead of any backend that
-// also implement our own api. This would allow us to call any function only implemented for wgpu
+// Note that we could implement the backend trait only for the Wgpu backend instead of any backend that
+// also implements our own API. This would allow us to call any function only implemented for Wgpu
 // and potentially call a custom kernel crafted only for this task.
 impl<B: Backend> Backend for ADBackendDecorator<B> {
     fn fused_matmul_add_relu<const D: usize>(
@@ -25,17 +25,17 @@ impl<B: Backend> Backend for ADBackendDecorator<B> {
         rhs: FloatTensor<Self, D>,
         bias: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        // Create our zero sized type that will implement the Backward trait.
+        // Create our zero-sized type that will implement the Backward trait.
         #[derive(Debug)]
         struct FusedMatmulAddReluBackward<const D: usize>;
 
         // Implement the backward trait for the given backend B, the node gradient being of rank D
         // with three other gradients to calculate (lhs, rhs, and bias).
         impl<B: Backend, const D: usize> Backward<B, D, 3> for FusedMatmulAddReluBackward<D> {
-            // Our state that we must build during the foward pass to compute the backward pass.
+            // Our state that we must build during the forward pass to compute the backward pass.
             //
             // Note that we could improve the performance further by only keeping the state of
-            // tensor that are tracked, improving memory management, but for simplicity we avoid
+            // tensors that are tracked, improving memory management, but for simplicity, we avoid
             // that part.
             type State = (
                 FloatTensor<B, D>,
@@ -45,12 +45,12 @@ impl<B: Backend> Backend for ADBackendDecorator<B> {
             );
 
             fn backward(self, ops: Ops<Self::State, 3>, grads: &mut Gradients) {
-                // Getch the nodes of each variable.
+                // Get the nodes of each variable.
                 let [node_lhs, node_rhs, node_bias] = ops.parents;
                 // Fetch the gradient for the current node.
                 let grad = grads.consume::<B, D>(&ops.node);
 
-                // Set out state.
+                // Set our state.
                 let (lhs, rhs, output, shape_bias) = ops.state;
 
                 // Fetch shapes of our tensor to support broadcasting.
@@ -77,7 +77,7 @@ impl<B: Backend> Backend for ADBackendDecorator<B> {
                 // compute the bias gradient.
                 let grad_bias = broadcast_shape::<B, D>(grad_output, &shape_bias);
 
-                // Register the gradient for each variable based on it they are marked as
+                // Register the gradient for each variable based on whether they are marked as
                 // `tracked`.
                 if let Some(node) = node_bias {
                     grads.register::<B, D>(node, grad_bias);
@@ -102,7 +102,7 @@ impl<B: Backend> Backend for ADBackendDecorator<B> {
             .stateful()
         {
             OpsKind::Tracked(prep) => {
-                // When at least on node is tracked, we should register our backward step.
+                // When at least one node is tracked, we should register our backward step.
                 // We compute the output and the state before finishing the preparation.
                 let bias_shape = B::shape(&bias.primitive);
                 let output = B::fused_matmul_add_relu(

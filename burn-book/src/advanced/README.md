@@ -1,8 +1,9 @@
 # Advanced
 
-In this section we will cover advanced topics that goes beyond basic usage.
-Since Burn aims to be extremely flexible, a lot of advanced use cases are possible.
+In this section, we will go into advanced topics that extend beyond basic usage.
+Given Burn's exceptional flexibility, a lot of advanced use cases become possible.
 
-We recommend going through the [basic-workflow](../basic-workflow/README.md) section as well as the [building blocks](../building-blocks/README.md) section before going through this one.
-A solid fundation of how the framework works is crusial to understand the advanced section.
-However, you can consume any advanced section in the order you want, since it isn't meet to be a linear sections like the previous ones, but a collection of usecases that you can refer to when you need more guidance.
+Before going through this section, we strongly recommend exploring the [basic workflow](../basic-workflow/README.md) section and the [building blocks](../building-blocks/README.md) section.
+Establishing a solid understanding of how the framework operates is crucial to comprehending the advanced concepts presented here.
+While you have the freedom to explore the advanced sections in any order you prefer, it's important to note that this section is not intended to be linear, contrary to preceding sections.
+Instead, it serves as a repository of use cases that you can refer to for guidance as needed.

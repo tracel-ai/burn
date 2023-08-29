@@ -12,7 +12,7 @@ use burn_wgpu::{
 use derive_new::new;
 use std::marker::PhantomData;
 
-// Source the kernel written in wgsl.
+// Source the kernel written in WGSL.
 kernel_wgsl!(FusedMatmulAddReluRaw, "./kernel.wgsl");
 
 // Define our kernel type with workgroup information.
@@ -36,11 +36,11 @@ impl<E: FloatElement> DynamicKernel for FusedMatmulAddRelu<E> {
     }
 
     fn id(&self) -> String {
-        std::format!("{:?}", self)
+        format!("{:?}", self)
     }
 }
 
-// Implement our custom backend trait for the existing backend `WgpuBackend`.
+/// Implement our custom backend trait for the existing backend `WgpuBackend`.
 impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for WgpuBackend<G, F, I> {
     fn fused_matmul_add_relu<const D: usize>(
         lhs: FloatTensor<Self, D>,
@@ -54,7 +54,7 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for WgpuBackend<G, 
         lhs.assert_is_on_same_device(&rhs);
         lhs.assert_is_on_same_device(&bias);
 
-        // For simplicity make sure each tensor is continuous.
+        // For simplicity, make sure each tensor is continuous.
         let lhs = into_contiguous(lhs);
         let rhs = into_contiguous(rhs);
         let bias = into_contiguous(bias);
@@ -67,6 +67,7 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for WgpuBackend<G, 
         let buffer = lhs
             .context
             .create_buffer(shape_out.num_elements() * core::mem::size_of::<F>());
+
         // Create the output tensor primitive.
         let output = WgpuTensor::new(lhs.context.clone(), shape_out, buffer);
 
