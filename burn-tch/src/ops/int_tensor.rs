@@ -298,9 +298,9 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
         TchTensor::binary_ops_tensor(
             tensor,
             source,
-            |tensor, source| tensor.f_masked_scatter_(&mask.tensor, source).unwrap(),
-            |tensor, source| tensor.f_masked_scatter(&mask.tensor, source).unwrap(),
-            |tensor, source| tensor.f_masked_scatter(&mask.tensor, source).unwrap(),
+            |tensor, source| source.f_where_self(&mask.tensor, tensor).unwrap(),
+            |tensor, source| source.f_where_self(&mask.tensor, tensor).unwrap(),
+            |tensor, source| source.f_where_self(&mask.tensor, tensor).unwrap(),
         )
     }
 
