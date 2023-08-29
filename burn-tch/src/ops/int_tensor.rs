@@ -197,10 +197,11 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
     fn int_div_scalar<const D: usize>(lhs: TchTensor<i64, D>, rhs: i64) -> TchTensor<i64, D> {
         let lhs: TchTensor<f64, D> =
             TchTensor::new(lhs.tensor.to_dtype(tch::Kind::Float, true, false));
-        lhs.unary_ops(
+        let output: TchTensor<i64, D> = lhs.unary_ops(
             |mut tensor| tensor.f_div_scalar_(rhs).unwrap(),
             |tensor| tensor.f_div_scalar(rhs).unwrap(),
-        )
+        );
+        TchTensor::<i64, D>::new(output.tensor.to_dtype(tch::Kind::Int64, true, false))
     }
 
     fn int_neg<const D: usize>(tensor: TchTensor<i64, D>) -> TchTensor<i64, D> {
@@ -253,13 +254,18 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
     fn int_mean<const D: usize>(tensor: TchTensor<i64, D>) -> TchTensor<i64, 1> {
         let tensor: TchTensor<f64, D> =
             TchTensor::new(tensor.tensor.to_dtype(tch::Kind::Float, true, false));
-        TchTensor::new(TchOps::mean(tensor).tensor)
+        let output: TchTensor<i64, 1> = TchTensor::new(TchOps::mean(tensor).tensor);
+
+        TchTensor::<i64, 1>::new(output.tensor.to_dtype(tch::Kind::Int64, true, false))
     }
 
     fn int_mean_dim<const D: usize>(tensor: TchTensor<i64, D>, dim: usize) -> TchTensor<i64, D> {
         let tensor: TchTensor<f64, D> =
             TchTensor::new(tensor.tensor.to_dtype(tch::Kind::Float, true, false));
-        TchTensor::new(TchOps::mean_dim(tensor, dim).tensor)
+
+        let output: TchTensor<i64, D> = TchTensor::new(TchOps::mean_dim(tensor, dim).tensor);
+
+        TchTensor::<i64, D>::new(output.tensor.to_dtype(tch::Kind::Int64, true, false))
     }
 
     fn int_gather<const D: usize>(

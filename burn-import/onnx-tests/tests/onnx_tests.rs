@@ -156,7 +156,7 @@ mod tests {
         // Initialize the model with weights (loaded from the exported file)
         let model: conv1d::Model<Backend> = conv1d::Model::default();
 
-        // Run the model with 616 as input for easier testing
+        // Run the model with pi as input for easier testing
         let input = Tensor::<Backend, 3>::full([6, 4, 10], consts::PI);
 
         let output = model.forward(input);
