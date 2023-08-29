@@ -1,5 +1,5 @@
 mod base;
-#[cfg(feature = "fake")]
+#[cfg(any(test, feature = "fake"))]
 mod fake;
 mod in_memory;
 mod iterator;
