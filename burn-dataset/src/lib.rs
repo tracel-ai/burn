@@ -21,6 +21,7 @@ pub mod audio;
 
 mod dataset;
 pub use dataset::*;
+#[cfg(any(feature = "sqlite", feature = "sqlite-bundled"))]
 pub use source::huggingface::downloader::*;
 
 #[cfg(test)]

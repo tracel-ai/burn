@@ -96,12 +96,8 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<CandleBackend<F, 
         CandleTensor::new(lhs.tensor.eq(&rhs.tensor).unwrap())
     }
 
-    fn bool_equal_elem<const D: usize>(lhs: BoolTensor<Self, D>, rhs: bool) -> BoolTensor<Self, D> {
-        let rhs: f64 = match rhs {
-            false => 0.,
-            true => 1.,
-        };
-        let x = (candle_core::Tensor::ones_like(&lhs.tensor).unwrap() * rhs).unwrap();
-        CandleTensor::new(lhs.tensor.eq(&x).unwrap())
+    fn bool_not<const D: usize>(tensor: BoolTensor<Self, D>) -> BoolTensor<Self, D> {
+        let x = (candle_core::Tensor::zeros_like(&tensor.tensor).unwrap());
+        CandleTensor::new(tensor.tensor.eq(&x).unwrap())
     }
 }

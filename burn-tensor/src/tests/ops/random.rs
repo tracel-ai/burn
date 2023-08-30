@@ -10,4 +10,18 @@ mod tests {
         // check that the tensor is within the range of [0..1) (1 is exclusive)
         tensor.into_data().assert_within_range(0.0..1.0);
     }
+
+    #[test]
+    fn rand_uniform() {
+        let tensor = Tensor::<TestBackend, 1>::random([20], Distribution::Uniform(4., 5.));
+
+        tensor.into_data().assert_within_range(4.0..5.0);
+    }
+
+    #[test]
+    fn rand_bernoulli() {
+        let tensor = Tensor::<TestBackend, 1>::random([20], Distribution::Bernoulli(1.));
+
+        assert_eq!(tensor.into_data(), [1.; 20].into());
+    }
 }

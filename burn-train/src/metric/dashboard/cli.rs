@@ -17,6 +17,12 @@ pub struct CLIDashboardRenderer {
     metric_valid_plot: HashMap<String, TextPlot>,
 }
 
+impl TrainingProgress {
+    fn finished(&self) -> bool {
+        self.epoch == self.epoch_total && self.progress.items_processed == self.progress.items_total
+    }
+}
+
 impl Default for CLIDashboardRenderer {
     fn default() -> Self {
         CLIDashboardRenderer::new()
@@ -193,10 +199,11 @@ impl CLIDashboardRenderer {
     }
 
     fn render(&mut self) {
-        if std::time::Instant::now()
-            .duration_since(self.last_update)
-            .as_millis()
-            < MAX_REFRESH_RATE_MILLIS
+        if !self.progress.finished()
+            && std::time::Instant::now()
+                .duration_since(self.last_update)
+                .as_millis()
+                < MAX_REFRESH_RATE_MILLIS
         {
             return;
         }

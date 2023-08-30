@@ -227,18 +227,14 @@ pub trait BoolTensorOps<B: Backend> {
         rhs: B::BoolTensorPrimitive<D>,
     ) -> B::BoolTensorPrimitive<D>;
 
-    /// Equates the tensor with the element.
+    /// Inverses boolean values.
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side element.
+    /// * `tensor` - The tensor.
     ///
     /// # Returns
     ///
-    /// The tensor with the result of the equate.
-    fn bool_equal_elem<const D: usize>(
-        lhs: B::BoolTensorPrimitive<D>,
-        rhs: bool,
-    ) -> B::BoolTensorPrimitive<D>;
+    /// The tensor with the result of the negation.
+    fn bool_not<const D: usize>(tensor: B::BoolTensorPrimitive<D>) -> B::BoolTensorPrimitive<D>;
 }

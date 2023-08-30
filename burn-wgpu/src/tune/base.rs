@@ -130,6 +130,7 @@ impl Tuner {
         input: I,
         tunables: Vec<Tunable<G, I, O>>,
         device: &WgpuDevice,
+        context: &Context,
     ) -> O
     where
         I: Send + Sync + 'static,
@@ -137,10 +138,12 @@ impl Tuner {
     {
         let mut cache = self.cache.write().unwrap();
 
+        context.start_tuning();
         let results = benchmark(&tunables, device);
         let kernel = find_best(&id, tunables, results);
         cache.insert(id.clone(), kernel);
         drop(cache);
+        context.stop_tuning();
 
         match self.execute(&id, input) {
             Execution::Executed(output) => output,

@@ -44,6 +44,7 @@ macro_rules! testgen_all {
         burn_tensor::testgen_flatten!();
         burn_tensor::testgen_full!();
         burn_tensor::testgen_gather_scatter!();
+        burn_tensor::testgen_init!();
         burn_tensor::testgen_log!();
         burn_tensor::testgen_log1p!();
         burn_tensor::testgen_map_comparison!();

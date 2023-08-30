@@ -14,6 +14,7 @@ mod exp;
 mod flatten;
 mod full;
 mod gather_scatter;
+mod init;
 mod log;
 mod log1p;
 mod map_comparison;

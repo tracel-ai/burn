@@ -73,7 +73,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<CandleBackend<F, I
     ) -> IntTensor<Self, D> {
         CandleTensor::new(
             mask.tensor
-                .where_cond(&tensor.tensor, &tensor.tensor)
+                .where_cond(&source.tensor, &tensor.tensor)
                 .unwrap(),
         )
     }
@@ -284,7 +284,8 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<CandleBackend<F, I
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> IntTensor<Self, D> {
-        CandleTensor::new((lhs.tensor / rhs.elem::<f64>()).unwrap())
+        // Candle implements scalar a/b as a * (1/b). With ints 1/b is rounded to 0 so we always obtain 0.
+        panic!("Not supported by Candle")
     }
 
     fn int_zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
@@ -312,15 +313,30 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<CandleBackend<F, I
     }
 
     fn int_mean_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        CandleTensor::new(tensor.tensor.mean_keepdim(dim).unwrap())
+        // Candle implements scalar a/b as a * (1/b). With ints 1/b is rounded to 0 so we always obtain 0.
+        panic!("Not supported by Candle")
     }
 
     fn int_argmax<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        CandleTensor::new(tensor.tensor.argmax_keepdim(dim).unwrap())
+        CandleTensor::new(
+            tensor
+                .tensor
+                .argmax_keepdim(dim)
+                .unwrap()
+                .to_dtype(I::DTYPE)
+                .unwrap(),
+        )
     }
 
     fn int_argmin<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        CandleTensor::new(tensor.tensor.argmin_keepdim(dim).unwrap())
+        CandleTensor::new(
+            tensor
+                .tensor
+                .argmin_keepdim(dim)
+                .unwrap()
+                .to_dtype(I::DTYPE)
+                .unwrap(),
+        )
     }
 
     fn int_abs<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, D> {

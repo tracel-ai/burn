@@ -7,7 +7,13 @@ use crate::{
 };
 use burn_common::id::IdGenerator;
 use spin::Mutex;
-use std::{any::TypeId, borrow::Cow, collections::HashMap, sync::Arc};
+use std::{
+    any::TypeId,
+    borrow::Cow,
+    collections::HashMap,
+    sync::atomic::{AtomicBool, Ordering},
+    sync::Arc,
+};
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
     Buffer, ComputePipeline, DeviceDescriptor, DeviceType, ShaderModuleDescriptor,
@@ -31,13 +37,15 @@ pub struct Context {
     id: String,
     device_wgpu: Arc<wgpu::Device>,
     cache: Mutex<HashMap<TemplateKey, Arc<ComputePipeline>>>,
+    is_tuning: AtomicBool,
     client: ContextClientImpl,
     pub(crate) tuner: Tuner,
+    tuning_template_ids: Mutex<Vec<TemplateKey>>,
     pub(crate) device: WgpuDevice,
     pub(crate) info: wgpu::AdapterInfo,
 }
 
-#[derive(Debug, Hash, PartialOrd, PartialEq, Eq)]
+#[derive(Debug, Hash, Clone, PartialOrd, PartialEq, Eq)]
 enum TemplateKey {
     Static(TypeId),
     Dynamic(String),
@@ -71,7 +79,9 @@ impl Context {
             device,
             client,
             cache: Mutex::new(HashMap::new()),
+            is_tuning: AtomicBool::new(false),
             tuner: Tuner::new(),
+            tuning_template_ids: Mutex::new(Vec::new()),
             info,
         }
     }
@@ -182,6 +192,11 @@ impl Context {
         let source = K::source_template();
         let pipeline = self.compile_source(&source.complete());
 
+        if self.is_tuning.load(Ordering::Relaxed) {
+            let mut templates_vec = self.tuning_template_ids.lock();
+            templates_vec.push(template_id.clone());
+        }
+
         cache.insert(template_id, pipeline.clone());
         pipeline
     }
@@ -197,6 +212,11 @@ impl Context {
 
         let source = kernel.source_template();
         let pipeline = self.compile_source(&source.complete());
+
+        if self.is_tuning.load(Ordering::Relaxed) {
+            let mut templates_vec = self.tuning_template_ids.lock();
+            templates_vec.push(template_id.clone());
+        }
 
         cache.insert(template_id, pipeline.clone());
         pipeline
@@ -219,6 +239,23 @@ impl Context {
             });
 
         Arc::new(pipeline)
+    }
+
+    pub fn start_tuning(&self) {
+        self.is_tuning.store(true, Ordering::Relaxed);
+    }
+
+    pub fn stop_tuning(&self) {
+        self.is_tuning.store(false, Ordering::Relaxed);
+
+        // clean cache of pipelines accumulated during tuning
+        let mut cache = self.cache.lock();
+        let mut tuning_template_ids = self.tuning_template_ids.lock();
+        for template_id in tuning_template_ids.iter() {
+            cache.remove(template_id);
+        }
+
+        tuning_template_ids.clear();
     }
 }
 

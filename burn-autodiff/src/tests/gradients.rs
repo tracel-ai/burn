@@ -11,7 +11,7 @@ mod tests {
         let x = tensor_1.clone().matmul(activation::gelu(tensor_2));
         let mut grads = x.backward();
 
-        let grad_1 = tensor_1.grad(&mut grads).unwrap();
+        let grad_1 = tensor_1.grad(&grads).unwrap();
 
         let grad_1_updated = TestADTensor::random([32, 32], Distribution::Default).require_grad();
         tensor_1.grad_replace(&mut grads, grad_1_updated.clone().inner());
