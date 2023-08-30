@@ -1,10 +1,7 @@
 use crate::{element::TchElement, TchBackend, TchTensor};
-use burn_tensor::{
-    ops::{
-        ConvOptions, ConvTransposeOptions, MaxPool1dWithIndices, MaxPool2dBackward,
-        MaxPool2dWithIndices, ModuleOps,
-    },
-    Tensor,
+use burn_tensor::ops::{
+    ConvOptions, ConvTransposeOptions, MaxPool1dWithIndices, MaxPool2dBackward,
+    MaxPool2dWithIndices, ModuleOps,
 };
 
 impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
@@ -185,20 +182,7 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
             dilation as i64,
             false,
         );
-        println!(
-            "{:?}",
-            Tensor::<TchBackend<E>, 3>::from_primitive(TchTensor::new(tensor))
-                .to_data()
-                .value
-        );
-        let tensor = tch::Tensor::max_pool1d(
-            &x.tensor,
-            kernel_size as i64,
-            stride as i64,
-            padding as i64,
-            dilation as i64,
-            false,
-        );
+
         TchTensor::new(tensor)
     }
 
