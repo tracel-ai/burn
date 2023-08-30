@@ -20,14 +20,14 @@ use wgpu::{
 };
 
 #[cfg(feature = "async")]
-pub type ContextClientImpl = super::client::AsyncContextClient;
+pub(crate) type ContextClientImpl = super::client::AsyncContextClient;
 #[cfg(not(feature = "async"))]
-pub type ContextClientImpl = super::client::SyncContextClient;
+pub(crate) type ContextClientImpl = super::client::SyncContextClient;
 
 #[cfg(feature = "async")]
-pub type ContextServerImpl = super::server::AsyncContextServer;
+pub(crate) type ContextServerImpl = super::server::AsyncContextServer;
 #[cfg(not(feature = "async"))]
-pub type ContextServerImpl = super::server::SyncContextServer;
+pub(crate) type ContextServerImpl = super::server::SyncContextServer;
 
 /// The context is the basic struct that allows to execute GPU kernel on devices.
 ///
@@ -51,14 +51,19 @@ enum TemplateKey {
     Dynamic(String),
 }
 
+/// Provides launch information specifying the number of work groups to be used by a compute shader.
 #[derive(new, Clone, Debug)]
 pub struct WorkGroup {
+    /// Work groups for the x axis.
     pub x: u32,
+    /// Work groups for the y axis.
     pub y: u32,
+    /// Work groups for the z axis.
     pub z: u32,
 }
 
 impl WorkGroup {
+    /// Calculate the number of invocations of a compute shader.
     pub fn num_invocations(&self) -> usize {
         (self.x * self.y * self.z) as usize
     }
@@ -241,11 +246,11 @@ impl Context {
         Arc::new(pipeline)
     }
 
-    pub fn start_tuning(&self) {
+    pub(crate) fn start_tuning(&self) {
         self.is_tuning.store(true, Ordering::Relaxed);
     }
 
-    pub fn stop_tuning(&self) {
+    pub(crate) fn stop_tuning(&self) {
         self.is_tuning.store(false, Ordering::Relaxed);
 
         // clean cache of pipelines accumulated during tuning
