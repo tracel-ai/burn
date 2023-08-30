@@ -195,10 +195,13 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
     }
 
     fn int_div_scalar<const D: usize>(lhs: TchTensor<i64, D>, rhs: i64) -> TchTensor<i64, D> {
-        lhs.unary_ops(
+        let lhs: TchTensor<f64, D> =
+            TchTensor::new(lhs.tensor.to_dtype(tch::Kind::Float, true, false));
+        let output: TchTensor<i64, D> = lhs.unary_ops(
             |mut tensor| tensor.f_div_scalar_(rhs).unwrap(),
             |tensor| tensor.f_div_scalar(rhs).unwrap(),
-        )
+        );
+        TchTensor::<i64, D>::new(output.tensor.to_dtype(tch::Kind::Int64, true, false))
     }
 
     fn int_neg<const D: usize>(tensor: TchTensor<i64, D>) -> TchTensor<i64, D> {
@@ -249,11 +252,20 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
     }
 
     fn int_mean<const D: usize>(tensor: TchTensor<i64, D>) -> TchTensor<i64, 1> {
-        TchOps::mean(tensor)
+        let tensor: TchTensor<f64, D> =
+            TchTensor::new(tensor.tensor.to_dtype(tch::Kind::Float, true, false));
+        let output: TchTensor<i64, 1> = TchTensor::new(TchOps::mean(tensor).tensor);
+
+        TchTensor::<i64, 1>::new(output.tensor.to_dtype(tch::Kind::Int64, true, false))
     }
 
     fn int_mean_dim<const D: usize>(tensor: TchTensor<i64, D>, dim: usize) -> TchTensor<i64, D> {
-        TchOps::mean_dim(tensor, dim)
+        let tensor: TchTensor<f64, D> =
+            TchTensor::new(tensor.tensor.to_dtype(tch::Kind::Float, true, false));
+
+        let output: TchTensor<i64, D> = TchTensor::new(TchOps::mean_dim(tensor, dim).tensor);
+
+        TchTensor::<i64, D>::new(output.tensor.to_dtype(tch::Kind::Int64, true, false))
     }
 
     fn int_gather<const D: usize>(
@@ -298,9 +310,9 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
         TchTensor::binary_ops_tensor(
             tensor,
             source,
-            |tensor, source| tensor.f_masked_scatter_(&mask.tensor, source).unwrap(),
-            |tensor, source| tensor.f_masked_scatter(&mask.tensor, source).unwrap(),
-            |tensor, source| tensor.f_masked_scatter(&mask.tensor, source).unwrap(),
+            |tensor, source| source.f_where_self(&mask.tensor, tensor).unwrap(),
+            |tensor, source| source.f_where_self(&mask.tensor, tensor).unwrap(),
+            |tensor, source| source.f_where_self(&mask.tensor, tensor).unwrap(),
         )
     }
 

@@ -34,7 +34,9 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
             Distribution::Bernoulli(prob) => CandleTensor::new(
                 candle_core::Tensor::rand(0., 1., shape, device)
                     .unwrap()
-                    .gt(&super::candle_utils::fill(prob, shape, F::DTYPE, device))
+                    .to_dtype(F::DTYPE)
+                    .unwrap()
+                    .lt(&super::candle_utils::fill(prob, shape, F::DTYPE, device))
                     .unwrap()
                     .to_dtype(F::DTYPE)
                     .unwrap(),
