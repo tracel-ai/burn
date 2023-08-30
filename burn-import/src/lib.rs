@@ -2,6 +2,7 @@
 #![allow(clippy::ptr_arg)]
 #![allow(clippy::single_match)]
 #![allow(clippy::upper_case_acronyms)]
+#![allow(clippy::approx_constant)]
 
 //! `burn-import` is a crate designed to simplify the process of importing models trained in other
 //! machine learning frameworks into the Burn framework. This tool generates a Rust source file that
