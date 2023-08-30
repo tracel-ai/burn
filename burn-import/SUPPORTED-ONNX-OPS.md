@@ -1,7 +1,8 @@
 # Supported ONNX Operators
 
-Note: some ONNX OPs are broken into multiple OPs (Conv to Conv1d, Conv2d to signify the
-dimensionality)
+Note: some ONNX Ops listed below are pseudo Ops, such as `Linear`, `Conv1d`, `Conv2d` (or other with
+1d, 2d suffixes used signify the dimensionality). These are not real ONNX Ops, but are used to
+represent the corresponding Burn Op.
 
 | ONNX OP                          | Import Support | Burn Support |
 | -------------------------------- | :------------: | :----------: |
@@ -65,7 +66,7 @@ dimensionality)
 | [GatherElements][59]             |       ❌       |      ❌      |
 | [GatherND][60]                   |       ❌       |      ❌      |
 | [Gelu][61]                       |       ❌       |      ✅      |
-| [Gemm (Linear Layer)][62]        |       ✅       |      ✅      |
+| [Gemm][62]                       |       ❌       |      ❌      |
 | [GlobalAveragePool][63]          |       ✅       |      ✅      |
 | [GlobalLpPool][64]               |       ❌       |      ❌      |
 | [GlobalMaxPool][65]              |       ❌       |      ❌      |
@@ -89,7 +90,7 @@ dimensionality)
 | [LeakyRelu][83]                  |       ❌       |      ❌      |
 | [Less][84]                       |       ❌       |      ✅      |
 | [LessOrEqual][85]                |       ❌       |      ✅      |
-| [Linear][86]                     |       ✅       |      ✅      |
+| Linear                           |       ✅       |      ✅      |
 | [Log][87]                        |       ❌       |      ✅      |
 | [LogSoftmax][88]                 |       ✅       |      ✅      |
 | [Loop][89]                       |       ❌       |      ❌      |
@@ -116,8 +117,8 @@ dimensionality)
 | [NegativeLogLikelihoodLoss][110] |       ❌       |      ❌      |
 | [NonMaxSuppression][112]         |       ❌       |      ❌      |
 | [NonZero][113]                   |       ❌       |      ❌      |
-| [Not][114]                       |       ❌       |      ❌      |
-| [OneHot][115]                    |       ❌       |      ❌      |
+| [Not][114]                       |       ❌       |      ✅      |
+| [OneHot][115]                    |       ❌       |      ✅      |
 | [Optional][116]                  |       ❌       |      ❌      |
 | [OptionalGetElement][117]        |       ❌       |      ❌      |
 | [OptionalHasElement][118]        |       ❌       |      ❌      |
@@ -128,20 +129,20 @@ dimensionality)
 | [QLinearConv][123]               |       ❌       |      ❌      |
 | [QLinearMatMul][124]             |       ❌       |      ❌      |
 | [QuantizeLinear][125]            |       ❌       |      ❌      |
-| [RandomNormal][126]              |       ❌       |      ❌      |
-| [RandomNormalLike][127]          |       ❌       |      ❌      |
-| [RandomUniform][128]             |       ❌       |      ❌      |
-| [RandomUniformLike][129]         |       ❌       |      ❌      |
+| [RandomNormal][126]              |       ❌       |      ✅      |
+| [RandomNormalLike][127]          |       ❌       |      ✅      |
+| [RandomUniform][128]             |       ❌       |      ✅      |
+| [RandomUniformLike][129]         |       ❌       |      ✅      |
 | [Range][130]                     |       ❌       |      ✅      |
 | [Reciprocal][131]                |       ❌       |      ❌      |
 | [ReduceL][132]                   |       ❌       |      ❌      |
 | [ReduceLogSum][133]              |       ❌       |      ❌      |
 | [ReduceLogSumExp][134]           |       ❌       |      ❌      |
-| [ReduceMax][135]                 |       ❌       |      ❌      |
-| [ReduceMean][136]                |       ❌       |      ❌      |
-| [ReduceMin][137]                 |       ❌       |      ❌      |
+| [ReduceMax][135]                 |       ❌       |      ✅      |
+| [ReduceMean][136]                |       ❌       |      ✅      |
+| [ReduceMin][137]                 |       ❌       |      ✅      |
 | [ReduceProd][138]                |       ❌       |      ❌      |
-| [ReduceSum][139]                 |       ❌       |      ❌      |
+| [ReduceSum][139]                 |       ❌       |      ✅      |
 | [ReduceSumSquare][140]           |       ❌       |      ❌      |
 | [Relu][141]                      |       ✅       |      ✅      |
 | [Reshape][142]                   |       ✅       |      ✅      |
@@ -166,7 +167,7 @@ dimensionality)
 | [Shrink][161]                    |       ❌       |      ❌      |
 | [Sigmoid][162]                   |       ✅       |      ✅      |
 | [Sign][163]                      |       ❌       |      ❌      |
-| [Sin][164]                       |       ❌       |      ❌      |
+| [Sin][164]                       |       ❌       |      ✅      |
 | [Sinh][165]                      |       ❌       |      ❌      |
 | [Size][166]                      |       ❌       |      ❌      |
 | [Slice][167]                     |       ❌       |      ✅      |
@@ -195,7 +196,6 @@ dimensionality)
 | [Upsample][190]                  |       ❌       |      ❌      |
 | [Where][191]                     |       ❌       |      ✅      |
 | [Xor][192]                       |       ❌       |      ❌      |
-
 
 [1]: https://onnx.ai/onnx/operators/onnx__Abs.html "ONNX Abs"
 [2]: https://onnx.ai/onnx/operators/onnx__Acos.html "ONNX Acos"
@@ -279,7 +279,6 @@ dimensionality)
 [83]: https://onnx.ai/onnx/operators/onnx__LeakyRelu.html "ONNX LeakyRelu"
 [84]: https://onnx.ai/onnx/operators/onnx__Less.html "ONNX Less"
 [85]: https://onnx.ai/onnx/operators/onnx__LessOrEqual.html "ONNX LessOrEqual"
-[86]: https://onnx.ai/onnx/operators/onnx__Linear.html "ONNX Linear"
 [87]: https://onnx.ai/onnx/operators/onnx__Log.html "ONNX Log"
 [88]: https://onnx.ai/onnx/operators/onnx__LogSoftmax.html "ONNX LogSoftmax"
 [89]: https://onnx.ai/onnx/operators/onnx__Loop.html "ONNX Loop"
