@@ -389,10 +389,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
     }
 
     fn tanh<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        // TODO submit an issue at Candle
-        let e_x = tensor.tensor.exp().unwrap();
-        let e_minus_x = tensor.tensor.neg().unwrap().exp().unwrap();
-        CandleTensor::new(((e_x.clone() - e_minus_x.clone()).unwrap() / (e_x + e_minus_x)).unwrap())
+        CandleTensor::new(tensor.tensor.tanh().unwrap())
     }
 
     fn erf<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
