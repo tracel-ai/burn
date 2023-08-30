@@ -42,11 +42,7 @@ include_models!(
 
 #[cfg(test)]
 mod tests {
-<<<<<<< HEAD
-    use std::{f64::consts};
-=======
     use std::f64::consts;
->>>>>>> main
 
     use super::*;
 

@@ -151,7 +151,7 @@ fn main(
 ```
 
 Now, let's move on to the next step, which involves implementing the remaining code to launch the kernel.
-The initial part entails loading the template and populating it with the appropriate variables. The `register(name, value)` method simply replaces occurences of `{{ name }}` in the above WGSL code with some other string before it is compilated. 
+The initial part entails loading the template and populating it with the appropriate variables. The `register(name, value)` method simply replaces occurrences of `{{ name }}` in the above WGSL code with some other string before it is compilated. 
 
 ```rust, ignore
 // Source the kernel written in WGSL.
