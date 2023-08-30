@@ -369,7 +369,12 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
     }
 
     fn powf<const D: usize>(tensor: FloatTensor<Self, D>, value: f32) -> FloatTensor<Self, D> {
-        panic!("powf not supported by Candle")
+        CandleTensor::new(
+            (tensor.tensor.log().unwrap() * value.elem::<f64>())
+                .unwrap()
+                .exp()
+                .unwrap(),
+        )
     }
 
     fn sqrt<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {

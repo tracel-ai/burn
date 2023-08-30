@@ -68,6 +68,7 @@ macro_rules! testgen_all {
         burn_tensor::testgen_transpose!();
 
         // test stats
-        burn_tensor::testgen_stats!();
+        burn_tensor::testgen_var!();
+        burn_tensor::testgen_display!();
     };
 }

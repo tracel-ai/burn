@@ -28,15 +28,15 @@ mod tests {
     type TestADTensor<const D: usize, K> = burn_tensor::Tensor<TestADBackend, D, K>;
 
     // test activation
-    // burn_tensor::testgen_gelu!();
-    // burn_tensor::testgen_relu!();
-    // burn_tensor::testgen_softmax!();
-    // burn_tensor::testgen_sigmoid!();
-    // burn_tensor::testgen_silu!();
+    burn_tensor::testgen_gelu!();
+    burn_tensor::testgen_relu!();
+    burn_tensor::testgen_softmax!();
+    burn_tensor::testgen_sigmoid!();
+    burn_tensor::testgen_silu!();
 
     // test module
-    // burn_tensor::testgen_module_forward!();
-    // burn_tensor::testgen_module_conv1d!();
+    burn_tensor::testgen_module_forward!();
+    burn_tensor::testgen_module_conv1d!();
     // burn_tensor::testgen_module_conv2d!();
     // burn_tensor::testgen_module_conv_transpose1d!();
     // burn_tensor::testgen_module_conv_transpose2d!();
@@ -72,7 +72,7 @@ mod tests {
     burn_tensor::testgen_maxmin!();
     burn_tensor::testgen_mul!();
     burn_tensor::testgen_neg!();
-    // burn_tensor::testgen_powf!();
+    burn_tensor::testgen_powf!();
     burn_tensor::testgen_random!();
     // burn_tensor::testgen_repeat!();
     burn_tensor::testgen_reshape!();
@@ -87,14 +87,15 @@ mod tests {
     burn_tensor::testgen_transpose!();
 
     // test stats
-    // burn_tensor::testgen_stats!();
+    burn_tensor::testgen_var!();
+    burn_tensor::testgen_display!();
 
     // Behavior
     // burn_autodiff::testgen_ad_broadcast!();
 
     // Activation
-    // burn_autodiff::testgen_ad_relu!();
-    // burn_autodiff::testgen_ad_gelu!();
+    burn_autodiff::testgen_ad_relu!();
+    burn_autodiff::testgen_ad_gelu!();
 
     // Modules
     // burn_autodiff::testgen_ad_conv1d!();
@@ -107,36 +108,36 @@ mod tests {
     // burn_autodiff::testgen_ad_avg_pool2d!();
     // burn_autodiff::testgen_ad_adaptive_avg_pool1d!();
     // burn_autodiff::testgen_ad_adaptive_avg_pool2d!();
-    // burn_autodiff::testgen_module_backward!();
+    burn_autodiff::testgen_module_backward!();
 
     // Tensor
-    // burn_autodiff::testgen_ad_complex!();
-    // burn_autodiff::testgen_ad_multithread!();
-    // burn_autodiff::testgen_ad_add!();
-    // burn_autodiff::testgen_ad_aggregation!();
-    // burn_autodiff::testgen_ad_maxmin!();
+    burn_autodiff::testgen_ad_complex!();
+    burn_autodiff::testgen_ad_multithread!();
+    burn_autodiff::testgen_ad_add!();
+    burn_autodiff::testgen_ad_aggregation!();
+    burn_autodiff::testgen_ad_maxmin!();
     // burn_autodiff::testgen_ad_cat!();
-    // burn_autodiff::testgen_ad_cos!();
-    // burn_autodiff::testgen_ad_cross_entropy_loss!();
-    // burn_autodiff::testgen_ad_div!();
+    burn_autodiff::testgen_ad_cos!();
+    burn_autodiff::testgen_ad_cross_entropy_loss!();
+    burn_autodiff::testgen_ad_div!();
     // burn_autodiff::testgen_ad_erf!();
-    // burn_autodiff::testgen_ad_exp!();
+    burn_autodiff::testgen_ad_exp!();
     // burn_autodiff::testgen_ad_slice!();
-    // burn_autodiff::testgen_ad_gather_scatter!();
-    // burn_autodiff::testgen_ad_select!();
-    // burn_autodiff::testgen_ad_log!();
-    // burn_autodiff::testgen_ad_log1p!();
-    // burn_autodiff::testgen_ad_mask!();
-    // burn_autodiff::testgen_ad_matmul!();
-    // burn_autodiff::testgen_ad_mul!();
-    // burn_autodiff::testgen_ad_neg!();
-    // burn_autodiff::testgen_ad_powf!();
-    // burn_autodiff::testgen_ad_reshape!();
-    // burn_autodiff::testgen_ad_sin!();
-    // burn_autodiff::testgen_ad_softmax!();
-    // burn_autodiff::testgen_ad_sqrt!();
-    // burn_autodiff::testgen_ad_abs!();
-    // burn_autodiff::testgen_ad_sub!();
-    // burn_autodiff::testgen_ad_tanh!();
-    // burn_autodiff::testgen_ad_transpose!();
+    burn_autodiff::testgen_ad_gather_scatter!();
+    burn_autodiff::testgen_ad_select!();
+    burn_autodiff::testgen_ad_log!();
+    burn_autodiff::testgen_ad_log1p!();
+    burn_autodiff::testgen_ad_mask!();
+    burn_autodiff::testgen_ad_matmul!();
+    burn_autodiff::testgen_ad_mul!();
+    burn_autodiff::testgen_ad_neg!();
+    burn_autodiff::testgen_ad_powf!();
+    burn_autodiff::testgen_ad_reshape!();
+    burn_autodiff::testgen_ad_sin!();
+    burn_autodiff::testgen_ad_softmax!();
+    burn_autodiff::testgen_ad_sqrt!();
+    burn_autodiff::testgen_ad_abs!();
+    burn_autodiff::testgen_ad_sub!();
+    burn_autodiff::testgen_ad_tanh!();
+    burn_autodiff::testgen_ad_transpose!();
 }
