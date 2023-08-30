@@ -77,7 +77,7 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
         }
     }
 
-    /// Change the context of the current tensor and return the newly transfered tensor.
+    /// Change the context of the current tensor and return the newly transferred tensor.
     pub fn to_context(&self, context: Arc<Context>) -> Self {
         let data = self.context.read_buffer(self.buffer.clone());
         let buffer = context.create_buffer_with_data(&data);
