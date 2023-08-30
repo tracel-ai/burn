@@ -47,7 +47,6 @@ If you want the tensor to be included as a parameter of your modules, and theref
 If you want the tensor to act as a constant that can be recreated when instantiating a module.
 This can be useful when generating sinusoidal embeddings, for example.
 
-
 ## Methods
 
 These methods are available for all modules.
@@ -65,7 +64,6 @@ These methods are available for all modules.
 | `module.load_record(record)`                           | Similar to `load_state_dict(state_dict)`                |
 | `module.save_file(file_path, recorder)`                | N/A                                                     |
 | `module.load_file(file_path, recorder)`                | N/A                                                     |
-
 
 Similar to the backend trait, there is also the `ADModule` trait to signify a module with autodiff support.
 
@@ -99,3 +97,33 @@ pub trait ModuleMapper<B: Backend> {
     fn map<const D: usize>(&mut self, id: &ParamId, tensor: Tensor<B, D>) -> Tensor<B, D>;
 }
 ```
+
+## Built-in Modules
+
+Burn comes with a few built-in modules that you can use to build your own modules.
+
+| Burn API             | PyTorch Equivalent                      |
+| -------------------- | --------------------------------------- |
+| `AdaptiveAvgPool1d`  | `nn.AdaptiveAvgPool1d`                  |
+| `AdaptiveAvgPool2d`  | `nn.AdaptiveAvgPool2d`                  |
+| `AvgPool1d`          | `nn.AvgPool1d`                          |
+| `AvgPool2d`          | `nn.AvgPool2d`                          |
+| `BatchNorm`          | `nn.BatchNorm1d`, `nn.BatchNorm2d` etc. |
+| `Conv1d`             | `nn.Conv1d`                             |
+| `Conv2d`             | `nn.Conv2d`                             |
+| `ConvTranspose1d`    | `nn.ConvTranspose1d`                    |
+| `ConvTranspose2d`    | `nn.ConvTranspose2d`                    |
+| `Dropout`            | `nn.Dropout` or `nn.Dropout2d` etc.     |
+| `Embedding`          | `nn.Embedding`                          |
+| `GateController`     | _No direct equivalent_                  |
+| `GELU`               | `nn.GELU`                               |
+| `Gru`                | `nn.GRU`                                |
+| `LayerNorm`          | `nn.LayerNorm`                          |
+| `Linear`             | `nn.Linear`                             |
+| `Lstm`               | `nn.LSTM`                               |
+| `MaxPool1d`          | `nn.MaxPool1d`                          |
+| `MaxPool2d`          | `nn.MaxPool2d`                          |
+| `MultiHeadAttention` | `nn.MultiheadAttention`                 |
+| `PositionalEncoding` | _No direct equivalent_                  |
+| `TransformerDecoder` | `nn.TransformerDecoder`                 |
+| `TransformerEncoder` | `nn.TransformerEncoder`                 |
