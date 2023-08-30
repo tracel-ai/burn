@@ -1,10 +1,13 @@
-use super::{generator::FnGenerator, record::ModuleRecordGenerator};
+use super::{
+    codegen::ModuleCodegen, codegen_struct::StructModuleCodegen, record::ModuleRecordCodegen,
+    record_struct::StructModuleRecordCodegen,
+};
 use crate::module::display;
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::parse_quote;
+use syn::{parse_quote, Ident};
 
-pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
+pub(crate) fn derive_impl(ast: &syn::DeriveInput) -> TokenStream {
     let name = &ast.ident;
     let has_backend = ast
         .generics
@@ -21,21 +24,19 @@ pub(crate) fn module_derive_impl(ast: &syn::DeriveInput) -> TokenStream {
 
     let display_fn = display::display_fn(name);
 
-    let generator = FnGenerator::from_ast(ast);
-    let num_params_fn = generator.gen_num_params_fn();
-    let visit = generator.gen_visit_fn();
-    let map_mut = generator.gen_map_fn();
-    let valid_fn = generator.gen_valid_fn();
-    let into_record_fn = generator.gen_into_record_fn();
-    let load_record_fn = generator.gen_load_record_fn();
-    let clone_fn = generator.gen_clone_fn();
+    let generator = StructModuleCodegen::from_ast(ast);
+    let num_params_fn = generator.gen_num_params();
+    let visit = generator.gen_visit();
+    let map_mut = generator.gen_map();
+    let valid_fn = generator.gen_valid();
+    let into_record_fn = generator.gen_into_record();
+    let load_record_fn = generator.gen_load_record();
+    let clone_fn = generator.gen_clone();
     let generics_names_except_backend = generics_names_except_backend(&ast.generics);
 
-    let record_gen =
-        ModuleRecordGenerator::new(name.clone(), generator.fields, ast.generics.clone());
-
-    let record_name = record_gen.record_name();
-    let record_struct = record_gen.gen_record_struct();
+    let record_name = Ident::new(format!("{}Record", name).as_str(), name.span());
+    let record_gen = StructModuleRecordCodegen::new(generator.fields);
+    let record_struct = record_gen.gen_record_type(&record_name, &ast.generics);
 
     let gen = quote! {
         impl #generics burn::module::Module<B> for #name #generics_ty #generics_where {
