@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_tensor::{
-        backend::Backend, BasicOps, Data, Element, Float, Int, Numeric, Tensor, TensorKind,
+        backend::Backend, BasicOps, Bool, Data, Element, Float, Int, Numeric, Tensor, TensorKind,
     };
 
     type IntElem = <TestBackend as Backend>::IntElem;
@@ -45,7 +45,7 @@ mod tests {
 
     #[test]
     fn test_int_greater_equal_elem() {
-        greater_equal_elem::<Float, FloatElem>()
+        greater_equal_elem::<Int, IntElem>()
     }
 
     #[test]
@@ -163,8 +163,8 @@ mod tests {
         K: Numeric<TestBackend, Elem = E> + BasicOps<TestBackend, Elem = E>,
         E: Element,
     {
-        let data_1 = Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-        let tensor_1 = Tensor::<TestBackend, 2>::from_data(data_1);
+        let data_1 = Data::<f32, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert();
+        let tensor_1 = Tensor::<TestBackend, 2, K>::from_data(data_1);
 
         let data_actual_cloned = tensor_1.clone().greater_equal_elem(4.0);
         let data_actual_inplace = tensor_1.greater_equal_elem(4.0);
@@ -274,6 +274,34 @@ mod tests {
         let data_actual_inplace = tensor_1.lower_equal(tensor_2);
 
         let data_expected = Data::from([[true, true, false], [true, false, true]]);
+        assert_eq!(data_expected, data_actual_cloned.into_data());
+        assert_eq!(data_expected, data_actual_inplace.into_data());
+    }
+
+    #[test]
+    fn should_support_bool_equal() {
+        let data_1 = Data::from([[false, true, true], [true, false, true]]);
+        let data_2 = Data::from([[false, false, true], [false, true, true]]);
+        let tensor_1 = Tensor::<TestBackend, 2, Bool>::from_data(data_1);
+        let tensor_2 = Tensor::<TestBackend, 2, Bool>::from_data(data_2);
+
+        let data_actual_cloned = tensor_1.clone().equal(tensor_2.clone());
+        let data_actual_inplace = tensor_1.equal(tensor_2);
+
+        let data_expected = Data::from([[true, false, true], [false, false, true]]);
+        assert_eq!(data_expected, data_actual_cloned.into_data());
+        assert_eq!(data_expected, data_actual_inplace.into_data());
+    }
+
+    #[test]
+    fn should_support_bool_not() {
+        let data_1 = Data::from([[false, true, true], [true, true, false]]);
+        let tensor_1 = Tensor::<TestBackend, 2, Bool>::from_data(data_1);
+
+        let data_actual_cloned = tensor_1.clone().bool_not();
+        let data_actual_inplace = tensor_1.bool_not();
+
+        let data_expected = Data::from([[true, false, false], [false, false, true]]);
         assert_eq!(data_expected, data_actual_cloned.into_data());
         assert_eq!(data_expected, data_actual_inplace.into_data());
     }

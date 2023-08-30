@@ -14,6 +14,16 @@ mod tests {
     }
 
     #[test]
+    fn should_select_1d_int() {
+        let tensor = TestTensorInt::from_data([5, 6, 7]);
+        let indices = TestTensorInt::from_data([1, 1, 0, 1, 2]);
+
+        let output = tensor.select(0, indices);
+
+        assert_eq!(output.into_data(), Data::from([6, 6, 5, 6, 7]));
+    }
+
+    #[test]
     fn should_select_2d_dim0_same_num_dim() {
         let tensor = TestTensor::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
         let indices = TestTensorInt::from_data(([1, 0]));
@@ -66,6 +76,17 @@ mod tests {
         let output = tensor.select_assign(0, indices, values);
 
         assert_eq!(output.into_data(), Data::from([3.0, 12.0, 3.0]));
+    }
+
+    #[test]
+    fn should_select_assign_1d_int() {
+        let tensor = TestTensorInt::from_data([7, 8, 9]);
+        let values = TestTensorInt::from_data([5, 4, 3, 2, 1]);
+        let indices = TestTensorInt::from_data(Data::from([1, 1, 0, 1, 2]));
+
+        let output = tensor.select_assign(0, indices, values);
+
+        assert_eq!(output.into_data(), Data::from([10, 19, 10]));
     }
 
     #[test]

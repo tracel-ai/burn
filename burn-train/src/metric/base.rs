@@ -69,7 +69,7 @@ pub trait Numeric {
 }
 
 /// Data type that contains the current state of a metric at a given time.
-#[derive(new)]
+#[derive(new, Debug)]
 pub struct MetricEntry {
     /// The name of the metric.
     pub name: String,

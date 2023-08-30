@@ -1,7 +1,6 @@
 use alloc::vec::Vec;
 use burn_tensor::Data;
 use burn_tensor::ElementConversion;
-use core::cmp::Ordering;
 use core::{marker::PhantomData, ops::Range};
 use ndarray::s;
 use ndarray::Array2;
@@ -380,33 +379,17 @@ where
         NdArrayTensor::new(output_array.into_shared())
     }
     pub fn argmax<const D: usize>(
-        mut tensor: NdArrayTensor<E, D>,
+        tensor: NdArrayTensor<E, D>,
         dim: usize,
     ) -> NdArrayTensor<i64, D> {
-        if dim == D - 1 {
-            return arg(tensor, cmp_min);
-        }
-
-        tensor.array.swap_axes(dim, D - 1);
-        let mut tensor = arg(tensor, cmp_min);
-        tensor.array.swap_axes(dim, D - 1);
-
-        tensor
+        arg(tensor, dim, CmpType::Max)
     }
 
     pub fn argmin<const D: usize>(
-        mut tensor: NdArrayTensor<E, D>,
+        tensor: NdArrayTensor<E, D>,
         dim: usize,
     ) -> NdArrayTensor<i64, D> {
-        if dim == D - 1 {
-            return arg(tensor, cmp_max);
-        }
-
-        tensor.array.swap_axes(dim, D - 1);
-        let mut tensor = arg(tensor, cmp_max);
-        tensor.array.swap_axes(dim, D - 1);
-
-        tensor
+        arg(tensor, dim, CmpType::Min)
     }
 
     pub fn clamp_min<const D: usize>(tensor: NdArrayTensor<E, D>, min: E) -> NdArrayTensor<E, D> {
@@ -444,59 +427,40 @@ where
     }
 }
 
-fn arg<E: NdArrayElement, F, const D: usize>(
+enum CmpType {
+    Min,
+    Max,
+}
+
+fn arg<E: NdArrayElement, const D: usize>(
     tensor: NdArrayTensor<E, D>,
-    cmp: F,
-) -> NdArrayTensor<i64, D>
-where
-    F: Fn(&f64, &f64) -> Ordering,
-{
-    let mut shape = tensor.shape();
-    let batch_size = shape.dims[D - 1];
-    let mut end = shape.dims[D - 1];
+    dim: usize,
+    cmp: CmpType,
+) -> NdArrayTensor<i64, D> {
+    let mut reshape = tensor.array.shape().to_vec();
+    reshape[dim] = 1;
 
-    let mut values = tensor.array.into_iter().collect::<Vec<_>>();
-    let mut start = 0;
-    let mut output = Vec::new();
+    let output = tensor.array.map_axis(Axis(dim), |arr| {
+        // Find the min/max value in the array, and return its index.
+        let (_e, idx) = arr.indexed_iter().fold((arr[0], 0usize), |acc, (idx, e)| {
+            let cmp = match cmp {
+                CmpType::Min => e < &acc.0,
+                CmpType::Max => e > &acc.0,
+            };
 
-    while end <= values.len() {
-        let data_dim = &mut values[start..end];
-        let mut sorted: Vec<f64> = data_dim.iter().map(|a| a.elem()).collect();
-        sorted.sort_by(&cmp);
-
-        let max = sorted[0];
-
-        let data_dim = &mut values[start..end];
-        let mut index: i64 = 0;
-        for elem in data_dim {
-            let as_float: f64 = elem.elem();
-            if as_float == max {
-                break;
+            if cmp {
+                (*e, idx)
+            } else {
+                acc
             }
-            index += 1;
-        }
-        output.push(index);
-        start += batch_size;
-        end += batch_size;
-    }
-    shape.dims[D - 1] = 1;
-    NdArrayTensor::from_data(Data::new(output, shape))
-}
+        });
 
-fn cmp_max(a: &f64, b: &f64) -> Ordering {
-    if a < b {
-        return Ordering::Less;
-    } else if a > b {
-        return Ordering::Greater;
-    }
-    Ordering::Equal
-}
+        idx as i64
+    });
 
-fn cmp_min(a: &f64, b: &f64) -> Ordering {
-    if a > b {
-        return Ordering::Less;
-    } else if a < b {
-        return Ordering::Greater;
+    let output = output.into_shape(Dim(reshape.as_slice())).unwrap();
+
+    NdArrayTensor {
+        array: output.into_shared(),
     }
-    Ordering::Equal
 }

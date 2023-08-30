@@ -14,6 +14,16 @@ mod tests {
     }
 
     #[test]
+    fn should_gather_1d_dim0_int() {
+        let tensor = TestTensorInt::from_ints([5, 6, 7]);
+        let indices = TestTensorInt::from_ints([1, 1, 0, 1, 2]);
+
+        let output = tensor.gather(0, indices);
+
+        assert_eq!(output.into_data(), Data::from([6, 6, 5, 6, 7]));
+    }
+
+    #[test]
     fn should_gather_2d_dim0() {
         let tensor = TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
         let indices = TestTensorInt::from_ints([[0, 1, 0], [1, 0, 1]]);
@@ -77,6 +87,17 @@ mod tests {
         let output = tensor.scatter(0, indices, values);
 
         assert_eq!(output.into_data(), Data::from([4.0, 5.0, 3.0]));
+    }
+
+    #[test]
+    fn should_scatter_1d_int() {
+        let tensor = TestTensorInt::from_ints([0, 0, 0]);
+        let values = TestTensorInt::from_ints([5, 4, 3]);
+        let indices = TestTensorInt::from_ints([1, 0, 2]);
+
+        let output = tensor.scatter(0, indices, values);
+
+        assert_eq!(output.into_data(), Data::from([4, 5, 3]));
     }
 
     #[test]
