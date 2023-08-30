@@ -7,10 +7,10 @@ All the code can be found under the [examples directory](https://github.com/burn
 
 ## Custom Backend Trait
 
-First, we need to determine the type signature of our newly created operation by defining our custom backend traits.
+First, we need to determine the type signature of our newly created operation by defining our custom backend traits. As we will use the associated type `TensorPrimitive` of the `Backend` trait, which encapsulates the underlying tensor implementation of the backend, we will use a type alias to avoid the ugly disambiguation with associated types.
 
 ```rust, ignore
-/// We create a type alias to avoid the ugly disambiguation with associative types.
+/// We use a type alias for better readability.
 pub type FloatTensor<B, const D: usize> = <B as burn::tensor::backend::Backend>::TensorPrimitive<D>;
 
 /// We create our own Backend trait that extends the Burn backend trait.
@@ -67,7 +67,7 @@ While not mandatory, having a reference implementation can be valuable, especial
 
 Now, let's proceed to write the fused kernel using the WGSL shading language.
 To keep things simple, we'll create a straightforward matmul kernel without employing any intricate techniques.
-Although we won't delve into the details of the WGSL syntax, as it falls beyond the scope of this guide, we still provide the implementation below for readers who are curious.
+Although we won't delve into the details of the WGSL syntax, as it falls beyond the scope of this guide, we still provide the implementation below for readers who are curious. The actual matmul, add and relu computations are found at the end, after an extensive overhead whose use is to correctly map each thread to the data it is responsible of, with support for batches.
 
 
 ```wgsl, ignore
@@ -145,12 +145,13 @@ fn main(
     let output_index = row * n_cols + col;
     let index = offset_output + output_index;
 
+    // Add and ReLU
     output[index] = max(sum + bias[index], 0.0);
 }
 ```
 
 Now, let's move on to the next step, which involves implementing the remaining code to launch the kernel.
-The initial part entails loading the template and populating it with the appropriate variables.
+The initial part entails loading the template and populating it with the appropriate variables. The `register(name, value)` method simply replaces occurences of `{{ name }}` in the above WGSL code with some other string before it is compilated. 
 
 ```rust, ignore
 // Source the kernel written in WGSL.
@@ -173,7 +174,6 @@ impl<E: FloatElement> DynamicKernel for FusedMatmulAddRelu<E> {
             .register("workgroup_size_x", self.workgroup_size_x.to_string())
             .register("workgroup_size_y", self.workgroup_size_y.to_string())
             .register("elem", E::type_name())
-            .register("int", "i32")
     }
 
     fn id(&self) -> String {
@@ -199,14 +199,25 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for WgpuBackend<G, 
         lhs.assert_is_on_same_device(&rhs);
         lhs.assert_is_on_same_device(&bias);
 
-        // For simplicity, make sure each tensor is contiguous.
+        // For simplicity, make sure each tensor is continuous.
         let lhs = into_contiguous(lhs);
         let rhs = into_contiguous(rhs);
         let bias = into_contiguous(bias);
 
-        let shape_out = shape_out(&lhs, &rhs);
+        // Get the matmul relevant shapes.
         let num_rows = lhs.shape.dims[D - 2];
         let num_cols = rhs.shape.dims[D - 1];
+
+        // Compute shape of output, while tracking number of batches.
+        let mut num_batches = 1;
+        let mut shape_out = [0; D];
+        for i in 0..D - 2 {
+            shape_out[i] = usize::max(lhs.shape.dims[i], rhs.shape.dims[i]);
+            num_batches *= shape_out[i];
+        }
+        shape_out[D - 2] = num_rows;
+        shape_out[D - 1] = num_cols;
+        let shape_out = Shape::new(shape_out);
 
         // Create a buffer for the output tensor.
         let buffer = lhs
@@ -225,18 +236,14 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for WgpuBackend<G, 
             workgroup_size_y,
         ));
 
-        // Build info buffer with tensor information.
+        // Build info buffer with tensor information needed by the kernel, such as shapes and strides.
         let info = build_info(&[&lhs, &rhs, &output]);
         let info_buffer = lhs
             .context
             .create_buffer_with_data(bytemuck::cast_slice(&info));
 
-        // Calculate launch information.
-        let mut num_iter = 1;
-        for i in 0..D - 2 {
-            num_iter *= output.shape.dims[i];
-        }
-        let workgroup = WorkGroup::new(blocks_needed_in_x, blocks_needed_in_y, num_iter as u32);
+        // Declare the wgsl workgroup with the number of blocks in x, y and z.
+        let workgroup = WorkGroup::new(blocks_needed_in_x, blocks_needed_in_y, num_batches as u32);
 
         // Execute lazily the kernel with the launch information and the given buffers.
         lhs.context.execute(
@@ -258,17 +265,17 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for WgpuBackend<G, 
 ```
 
 In the preceding code block, we demonstrated how to launch the kernel that modifies the correct buffer.
-It's important to note that Rust's mutability safety doesn't apply in this context; the context has the capability to execute any mutable operation on any buffer.
-While this isn't a problem in the previous scenario where we only modify the newly created output buffer, it's wise to keep this in mind.
+It's important to note that Rust's mutability safety doesn't apply here; the context has the capability to execute any mutable operation on any buffer.
+While this isn't a problem in the previous scenario where we only modify the newly created output buffer, it is wise to keep this in mind.
 
 ## Backward
 
 Now that the custom backend trait is implemented for the WGPU backend, you can use it to invoke the `matmul_add_relu_custom` function.
 However, calculating gradients is not yet possible at this stage.
-If your use case doesn't extend beyond inference, there's no need to implement any of the following code.
+If your use case does not extend beyond inference, there is no need to implement any of the following code.
 
 For the backward pass, we will leverage the backend implementation from `burn-autodiff`, which is actually generic over the backend.
-Instead of crafting our own kernel for the backward pass, we will use our fused kernel for the forward pass only and compute the gradient with basic operations.
+Instead of crafting our own WGSL kernel for the backward pass, we will use our fused kernel only for the forward pass, and compute the gradient using basic operations.
 
 ```rust, ignore
 // Implement our custom backend trait for any backend that also implements our custom backend trait.
@@ -399,7 +406,7 @@ In this guide, we've implemented a fused kernel using the WGPU backend, enabling
 By delving into the inner workings of both the WGPU backend and the autodiff backend, we've gained a deeper understanding of these systems.
 
 While extending a backend may be harder than working with straightforward tensors, the benefits can be worth it.
-This approach empowers you to craft custom models with greater control over execution, and potentially optimize the performance of your models. 
+This approach enables the crafting of custom models with greater control over execution, which can potentially greatly enhance the performance of your models. 
 
-It's worth noting that while the manual fusion of operations can be valuable, our future plans include the development of a backend extension that will automate this process.
-As we conclude this guide, we hope you've gained insights into the world of backend extensions, enabling you to unleash the full potential of your projects.
+It is worth noting that while the manual fusion of operations can be valuable, our future plans include the development of a backend extension that will automate this process.
+As we conclude this guide, we hope that you have gained insights into Burn's world of backend extensions, and that it will help you to unleash the full potential of your projects.

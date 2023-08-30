@@ -59,9 +59,20 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for WgpuBackend<G, 
         let rhs = into_contiguous(rhs);
         let bias = into_contiguous(bias);
 
-        let shape_out = shape_out(&lhs, &rhs);
+        // Get the matmul relevant shapes.
         let num_rows = lhs.shape.dims[D - 2];
         let num_cols = rhs.shape.dims[D - 1];
+
+        // Compute shape of output, while tracking number of batches.
+        let mut num_batches = 1;
+        let mut shape_out = [0; D];
+        for i in 0..D - 2 {
+            shape_out[i] = usize::max(lhs.shape.dims[i], rhs.shape.dims[i]);
+            num_batches *= shape_out[i];
+        }
+        shape_out[D - 2] = num_rows;
+        shape_out[D - 1] = num_cols;
+        let shape_out = Shape::new(shape_out);
 
         // Create a buffer for the output tensor.
         let buffer = lhs
@@ -80,18 +91,14 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for WgpuBackend<G, 
             workgroup_size_y,
         ));
 
-        // Build info buffer with tensor information.
+        // Build info buffer with tensor information needed by the kernel, such as shapes and strides.
         let info = build_info(&[&lhs, &rhs, &output]);
         let info_buffer = lhs
             .context
             .create_buffer_with_data(bytemuck::cast_slice(&info));
 
-        // Calculate launch information.
-        let mut num_iter = 1;
-        for i in 0..D - 2 {
-            num_iter *= output.shape.dims[i];
-        }
-        let workgroup = WorkGroup::new(blocks_needed_in_x, blocks_needed_in_y, num_iter as u32);
+        // Declare the wgsl workgroup with the number of blocks in x, y and z.
+        let workgroup = WorkGroup::new(blocks_needed_in_x, blocks_needed_in_y, num_batches as u32);
 
         // Execute lazily the kernel with the launch information and the given buffers.
         lhs.context.execute(
@@ -109,28 +116,4 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for WgpuBackend<G, 
         // Return the output tensor.
         output
     }
-}
-
-// Calculate the output shape of a matmul operation on lhs and rhs.
-pub(crate) fn shape_out<E: FloatElement, const D: usize>(
-    lhs: &WgpuTensor<E, D>,
-    rhs: &WgpuTensor<E, D>,
-) -> Shape<D> {
-    let mut shape_out = [0; D];
-
-    // Batch dimensions with broadcasting.
-    lhs.shape
-        .dims
-        .iter()
-        .zip(rhs.shape.dims.iter())
-        .enumerate()
-        .for_each(|(index, (dim_lhs, dim_rhs))| {
-            shape_out[index] = usize::max(*dim_lhs, *dim_rhs);
-        });
-
-    // Output matrix dimensions.
-    shape_out[D - 2] = lhs.shape.dims[D - 2];
-    shape_out[D - 1] = rhs.shape.dims[D - 1];
-
-    Shape::new(shape_out)
 }

@@ -3,7 +3,7 @@ mod forward;
 
 use burn::tensor::{activation, Tensor};
 
-/// We create a type alias to avoid the ugly disambiguation with associative types.
+/// We use a type alias for better readability.
 pub type FloatTensor<B, const D: usize> = <B as burn::tensor::backend::Backend>::TensorPrimitive<D>;
 
 /// We create our own Backend trait that extends the Burn backend trait.
