@@ -1,9 +1,12 @@
-use burn_tensor::ops::{
-    ConvOptions, ConvTransposeOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
+use burn_tensor::{
+    ops::{ConvOptions, ConvTransposeOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps},
+    Shape,
 };
+use candle_core::ToUsize2;
 
 use crate::{
     element::{CandleElement, FloatCandleElement, IntCandleElement},
+    ops::base::reshape,
     CandleBackend, CandleTensor,
 };
 
@@ -18,16 +21,13 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<CandleBackend<F, I>>
         bias: Option<FloatTensor<Self, 1>>,
         options: ConvOptions<1>,
     ) -> FloatTensor<Self, 3> {
-        assert!(
-            options.dilation[0] == 1,
-            "Candle does not support dilation different from 1 in convolutions"
-        );
         let conv = x
             .tensor
             .conv1d(
                 &weight.tensor,
                 options.padding[0],
                 options.stride[0],
+                options.dilation[0],
                 options.groups,
             )
             .unwrap();
@@ -46,16 +46,10 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<CandleBackend<F, I>>
         options: ConvOptions<2>,
     ) -> FloatTensor<Self, 4> {
         assert!(
-            options.dilation[0] == 1 && options.dilation[1] == 1,
-            "Candle does not support dilation in convolutions"
-        );
-        assert!(
-            options.padding[0] == options.padding[1],
-            "Candle does not support per dimension padding in convolutions"
-        );
-        assert!(
-            options.stride[0] == options.stride[1],
-            "Candle does not support per dimension stride in convolutions"
+            options.dilation[0] == options.dilation[1]
+                && options.padding[0] == options.padding[1]
+                && options.stride[0] == options.stride[1],
+            "Candle does not support per dimension options in convolutions"
         );
         let conv = x
             .tensor
@@ -63,6 +57,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<CandleBackend<F, I>>
                 &weight.tensor,
                 options.padding[0],
                 options.stride[0],
+                options.dilation[0],
                 options.groups,
             )
             .unwrap();
@@ -83,13 +78,57 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<CandleBackend<F, I>>
         })
     }
 
+    fn conv_transpose1d(
+        x: FloatTensor<Self, 3>,
+        weight: FloatTensor<Self, 3>,
+        bias: Option<FloatTensor<Self, 1>>,
+        options: ConvTransposeOptions<1>,
+    ) -> FloatTensor<Self, 3> {
+        panic!("Candle does not support conv_transpose1d")
+    }
+
     fn conv_transpose2d(
         x: FloatTensor<Self, 4>,
         weight: FloatTensor<Self, 4>,
         bias: Option<FloatTensor<Self, 1>>,
         options: ConvTransposeOptions<2>,
     ) -> FloatTensor<Self, 4> {
-        panic!("conv_transpose is not supported by Candle")
+        assert!(
+            options.dilation[0] == options.dilation[1]
+                && options.padding[0] == options.padding[1]
+                && options.padding_out[0] == options.padding_out[1]
+                && options.stride[0] == options.stride[1],
+            "Candle does not support per dimension options in transposed convolutions"
+        );
+        assert!(
+            options.groups == 1,
+            "Candle does not support groups in transposed convolutions"
+        );
+        let conv_transpose = x
+            .tensor
+            .conv_transpose2d(
+                &weight.tensor,
+                options.padding[0],
+                options.padding_out[0],
+                options.stride[0],
+                options.dilation[0],
+            )
+            .unwrap();
+        CandleTensor::new(match bias {
+            Some(bias) => conv_transpose
+                .broadcast_add(
+                    &bias
+                        .tensor
+                        .unsqueeze(0)
+                        .unwrap()
+                        .unsqueeze(2)
+                        .unwrap()
+                        .unsqueeze(3)
+                        .unwrap(),
+                )
+                .unwrap(),
+            None => conv_transpose,
+        })
     }
 
     fn avg_pool2d(
@@ -109,7 +148,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<CandleBackend<F, I>>
         );
         CandleTensor::new(
             x.tensor
-                .avg_pool2d(kernel_size.into(), stride.into())
+                .avg_pool2d_with_stride((kernel_size[0], kernel_size[1]), (stride[0], stride[1]))
                 .unwrap(),
         )
     }
@@ -142,7 +181,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<CandleBackend<F, I>>
         );
         CandleTensor::new(
             x.tensor
-                .max_pool2d(kernel_size.into(), stride.into())
+                .max_pool2d_with_stride((kernel_size[0], kernel_size[1]), (stride[0], stride[1]))
                 .unwrap(),
         )
     }
