@@ -199,7 +199,7 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for WgpuBackend<G, 
         lhs.assert_is_on_same_device(&rhs);
         lhs.assert_is_on_same_device(&bias);
 
-        // For simplicity, make sure each tensor is continuous.
+        // For simplicity, make sure each tensor is contiguous.
         let lhs = into_contiguous(lhs);
         let rhs = into_contiguous(rhs);
         let bias = into_contiguous(bias);
@@ -268,7 +268,7 @@ However, calculating gradients is not yet possible at this stage.
 If your use case doesn't extend beyond inference, there's no need to implement any of the following code.
 
 For the backward pass, we will leverage the backend implementation from `burn-autodiff`, which is actually generic over the backend.
-Instead of crafting our own kernel for the backward pass, we will leverage our fused kernel for the forward pass only and compute the gradient with basic operations.
+Instead of crafting our own kernel for the backward pass, we will use our fused kernel for the forward pass only and compute the gradient with basic operations.
 
 ```rust, ignore
 // Implement our custom backend trait for any backend that also implements our custom backend trait.
@@ -289,7 +289,7 @@ impl<B: Backend> Backend for ADBackendDecorator<B> {
         // Implement the backward trait for the given backend B, the node gradient being of rank D
         // with three other gradients to calculate (lhs, rhs, and bias).
         impl<B: Backend, const D: usize> Backward<B, D, 3> for FusedMatmulAddReluBackward<D> {
-            // Our state that we must build during the forward pass to compute the backward pass.
+            // The state that must be built during the forward pass to compute the backward pass.
             //
             // Note that we could improve the performance further by only keeping the state of
             // tensors that are tracked, improving memory management, but for simplicity, we avoid
@@ -307,10 +307,10 @@ impl<B: Backend> Backend for ADBackendDecorator<B> {
                 // Fetch the gradient for the current node.
                 let grad = grads.consume::<B, D>(&ops.node);
 
-                // Set our state.
+                // Set the state.
                 let (lhs, rhs, output, shape_bias) = ops.state;
 
-                // Fetch shapes of our tensor to support broadcasting.
+                // Fetch shapes of the tensors to support broadcasting.
                 let shape_lhs = B::shape(&lhs);
                 let shape_rhs = B::shape(&rhs);
 
@@ -382,9 +382,9 @@ impl<B: Backend> Backend for ADBackendDecorator<B> {
 }
 ```
 
-The code is self-documented to improve the learning process, but in summary, the we use existing operation such as matmul and transpose to compute the gradient with respect to each of our variable tracked in the autodiff graph.
-The only remaining part is to implement out custom ad backend trait, that serves as an alias, to use the decorated backend.
-When proper support for trait alias will work with Rust stable, this block won't be necessary
+The code is self-documented to improve the learning process, but in summary, we use existing operations such as matmul and transpose to compute the gradient with respect to each of our variable tracked in the autodiff graph.
+The only remaining part is to implement our custom ad backend trait, that serves as an alias, to use the decorated backend.
+When proper support for trait alias will work with Rust stable, this block won't be necessary.
 
 ```rust, ignore
 impl<G: GraphicsApi, F: FloatElement, I: IntElement> ADBackend
