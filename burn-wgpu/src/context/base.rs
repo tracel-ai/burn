@@ -31,7 +31,7 @@ pub(crate) type ContextServerImpl = super::server::SyncContextServer;
 
 /// The context is the basic struct that allows to execute GPU kernel on devices.
 ///
-/// You can access a context for a [wgpu device](WGPUDevice) using [get_context](crate::pool::get_context).
+/// You can access a context for a WGPUDevice using get_context.
 #[derive(Debug)]
 pub struct Context {
     id: String,
