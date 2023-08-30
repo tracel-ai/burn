@@ -1,3 +1,9 @@
+<!-- 
+TODO: Add the following sections:
+# Tenets
+# Design Philosophy 
+-->
+
 # Architecture
 
 This file documents most major architectural decisions with the reasoning behind them.

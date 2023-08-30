@@ -39,12 +39,12 @@ macro_rules! testgen_all {
         burn_tensor::testgen_clamp!();
         burn_tensor::testgen_cos!();
         burn_tensor::testgen_div!();
-        burn_tensor::testgen_empty!();
         burn_tensor::testgen_erf!();
         burn_tensor::testgen_exp!();
         burn_tensor::testgen_flatten!();
         burn_tensor::testgen_full!();
         burn_tensor::testgen_gather_scatter!();
+        burn_tensor::testgen_init!();
         burn_tensor::testgen_log!();
         burn_tensor::testgen_log1p!();
         burn_tensor::testgen_map_comparison!();

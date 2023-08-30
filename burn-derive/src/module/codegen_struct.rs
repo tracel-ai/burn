@@ -2,21 +2,14 @@ use crate::shared::field::{parse_fields, FieldTypeAnalyzer};
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 
-pub struct FnGenerator {
+use super::codegen::ModuleCodegen;
+
+pub(crate) struct StructModuleCodegen {
     pub fields: Vec<FieldTypeAnalyzer>,
 }
 
-impl FnGenerator {
-    pub fn from_ast(ast: &syn::DeriveInput) -> Self {
-        Self {
-            fields: parse_fields(ast)
-                .into_iter()
-                .map(FieldTypeAnalyzer::new)
-                .collect(),
-        }
-    }
-
-    pub fn gen_num_params_fn(&self) -> TokenStream {
+impl ModuleCodegen for StructModuleCodegen {
+    fn gen_num_params(&self) -> TokenStream {
         let body = self.gen_fields_fn(|name| {
             quote! {
                 num_params += burn::module::Module::<B>::num_params(&self.#name);
@@ -32,39 +25,7 @@ impl FnGenerator {
         }
     }
 
-    pub fn gen_into_record_fn(&self) -> TokenStream {
-        let body = self.gen_fields_fn(|name| {
-            quote! {
-                #name: burn::module::Module::<B>::into_record(self.#name),
-            }
-        });
-
-        quote! {
-            fn into_record(self) -> Self::Record {
-                Self::Record {
-                    #body
-                }
-            }
-        }
-    }
-
-    pub fn gen_load_record_fn(&self) -> TokenStream {
-        let body = self.gen_fields_fn(|name| {
-            quote! {
-                #name: burn::module::Module::<B>::load_record(self.#name, record.#name),
-            }
-        });
-
-        quote! {
-            fn load_record(self, record: Self::Record) -> Self {
-                Self {
-                    #body
-                }
-            }
-        }
-    }
-
-    pub fn gen_visit_fn(&self) -> TokenStream {
+    fn gen_visit(&self) -> TokenStream {
         let body = self.gen_fields_fn(|name| {
             quote! {
                 burn::module::Module::visit(&self.#name, visitor);
@@ -78,7 +39,7 @@ impl FnGenerator {
         }
     }
 
-    pub fn gen_map_fn(&self) -> TokenStream {
+    fn gen_map(&self) -> TokenStream {
         let (names, body) = self.gen_fields_fn_names(|name| {
             quote! {
                 let #name = burn::module::Module::map(self.#name, mapper);
@@ -96,7 +57,7 @@ impl FnGenerator {
         }
     }
 
-    pub fn gen_valid_fn(&self) -> TokenStream {
+    fn gen_valid(&self) -> TokenStream {
         let (names, body) = self.gen_fields_fn_names(|name| {
             quote! {
                 let #name = burn::module::ADModule::<B>::valid(&self.#name);
@@ -114,7 +75,39 @@ impl FnGenerator {
         }
     }
 
-    pub fn gen_clone_fn(&self) -> TokenStream {
+    fn gen_into_record(&self) -> TokenStream {
+        let body = self.gen_fields_fn(|name| {
+            quote! {
+                #name: burn::module::Module::<B>::into_record(self.#name),
+            }
+        });
+
+        quote! {
+            fn into_record(self) -> Self::Record {
+                Self::Record {
+                    #body
+                }
+            }
+        }
+    }
+
+    fn gen_load_record(&self) -> TokenStream {
+        let body = self.gen_fields_fn(|name| {
+            quote! {
+                #name: burn::module::Module::<B>::load_record(self.#name, record.#name),
+            }
+        });
+
+        quote! {
+            fn load_record(self, record: Self::Record) -> Self {
+                Self {
+                    #body
+                }
+            }
+        }
+    }
+
+    fn gen_clone(&self) -> TokenStream {
         let (names, body) = self.gen_fields_fn_names(|name| {
             quote! {
                 let #name = self.#name.clone();
@@ -131,8 +124,19 @@ impl FnGenerator {
             }
         }
     }
+}
 
-    pub fn gen_fields_fn_names<F>(&self, func: F) -> (Vec<Ident>, TokenStream)
+impl StructModuleCodegen {
+    pub fn from_ast(ast: &syn::DeriveInput) -> Self {
+        Self {
+            fields: parse_fields(ast)
+                .into_iter()
+                .map(FieldTypeAnalyzer::new)
+                .collect(),
+        }
+    }
+
+    fn gen_fields_fn_names<F>(&self, func: F) -> (Vec<Ident>, TokenStream)
     where
         F: Fn(Ident) -> TokenStream,
     {
@@ -149,7 +153,7 @@ impl FnGenerator {
         (names, body)
     }
 
-    pub fn gen_fields_fn<F>(&self, func: F) -> TokenStream
+    fn gen_fields_fn<F>(&self, func: F) -> TokenStream
     where
         F: Fn(Ident) -> TokenStream,
     {
