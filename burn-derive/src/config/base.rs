@@ -1,8 +1,7 @@
 use super::ConfigAnalyzerFactory;
-use proc_macro2::TokenStream;
 use quote::quote;
 
-pub(crate) fn config_attr_impl(item: &syn::DeriveInput) -> TokenStream {
+pub(crate) fn derive_impl(item: &syn::DeriveInput) -> proc_macro::TokenStream {
     let factory = ConfigAnalyzerFactory::new();
     let analyzer = factory.create_analyzer(item);
 
@@ -21,4 +20,5 @@ pub(crate) fn config_attr_impl(item: &syn::DeriveInput) -> TokenStream {
         #clone
         #display
     }
+    .into()
 }
