@@ -66,7 +66,7 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for WgpuBackend<G, 
         // Compute shape of output, while tracking number of batches.
         let mut num_batches = 1;
         let mut shape_out = [0; D];
-        for i in 0..D - 2 {
+        for i in shape_out.into_iter().take(D - 2) {
             shape_out[i] = usize::max(lhs.shape.dims[i], rhs.shape.dims[i]);
             num_batches *= shape_out[i];
         }

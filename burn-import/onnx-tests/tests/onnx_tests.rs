@@ -42,6 +42,8 @@ include_models!(
 
 #[cfg(test)]
 mod tests {
+    use std::{f32::consts::PI, f64::consts};
+
     use super::*;
 
     use burn::tensor::{Data, Int, Shape, Tensor};
@@ -154,8 +156,8 @@ mod tests {
         // Initialize the model with weights (loaded from the exported file)
         let model: conv1d::Model<Backend> = conv1d::Model::default();
 
-        // Run the model with 3.1416 as input for easier testing
-        let input = Tensor::<Backend, 3>::full([6, 4, 10], 3.1416);
+        // Run the model with PI as input for easier testing
+        let input = Tensor::<Backend, 3>::full([6, 4, 10], consts::PI);
 
         let output = model.forward(input);
 
@@ -520,8 +522,8 @@ mod tests {
         // Initialize the model with weights (loaded from the exported file)
         let model: linear::Model<Backend> = linear::Model::default();
 
-        // Run the model with 3.1416 as input for easier testing
-        let input = Tensor::<Backend, 2>::full([1, 16], 3.1416);
+        // Run the model with PI as input for easier testing
+        let input = Tensor::<Backend, 2>::full([1, 16], consts::PI);
 
         let output = model.forward(input);
 
