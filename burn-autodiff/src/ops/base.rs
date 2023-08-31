@@ -36,7 +36,7 @@ where
     B: Backend,
     BO: Backward<B, D, N, State = ()>,
 {
-    /// Prepare an stateless operation.
+    /// Prepare a stateless operation.
     pub fn stateless(self, output: <B as Backend>::TensorPrimitive<D>) -> ADTensor<B, D> {
         match self.stateful() {
             OpsKind::Tracked(prep) => prep.finish((), output),

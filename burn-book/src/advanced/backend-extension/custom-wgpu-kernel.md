@@ -389,9 +389,13 @@ impl<B: Backend> Backend for ADBackendDecorator<B> {
 }
 ```
 
-The code is self-documented to improve the learning process, but in summary, we use existing operations such as matmul and transpose to compute the gradient with respect to each of our variable tracked in the autodiff graph.
-The only remaining part is to implement our custom ad backend trait, that serves as an alias, to use the decorated backend.
-When proper support for trait alias will work with Rust stable, this block won't be necessary.
+The previous code is self-documented to make it clearer, but here is what it does in summary. 
+
+We define `fused_matmul_add_relu` within `ADBackendDecorator<B>`, allowing any autodiff-decorated backend to benefit from our implementation. In an autodiff-decorated backend, the forward pass must still be implemented. This is achieved using a comprehensive match statement block where computation is delegated to the inner backend, while keeping track of a state. The state comprises any information relevant to the backward pass, such as input and output tensors, along with the bias shape. When an operation isn't tracked (meaning there won't be a backward pass for this specific operation in the graph), storing a state becomes unnecessary, and we simply perform the forward computation.
+
+The backward pass utilizes the gradient obtained from the preceding node in the computation graph. It calculates the derivatives for `relu` (`relu_backward`), add (no operation is required here, as the derivative is one), and `matmul` (another `matmul` with transposed inputs). This results in gradients for both input tensors and the bias, which are registered for consumption by subsequent operation nodes.
+
+The only remaining part is to implement our autodiff-decorated backend trait for our WGPUBackend. 
 
 ```rust, ignore
 impl<G: GraphicsApi, F: FloatElement, I: IntElement> ADBackend
