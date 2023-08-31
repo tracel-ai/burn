@@ -41,6 +41,9 @@ impl MetricMetadata {
 /// Implementations should define their own input type only used by the metric.
 /// This is important since some conflict may happen when the model output is adapted for each
 /// metric's input type.
+///
+/// The only exception is for metrics that don't need nay input, setting the assotiative type 
+/// to the null type `()`.
 pub trait Metric: Send + Sync {
     /// The input type of the metric.
     type Input;
