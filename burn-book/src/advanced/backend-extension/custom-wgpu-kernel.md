@@ -1,13 +1,18 @@
 # Custom WGPU Kernel
 
-In this section, you will learn how to create your own custom operation by writing your own kernel with the WGPU backend.
-We will take the example of a common workflow in the deep learning field, where we create a kernel to fuse multiple operations together.
-We will fuse a matmul kernel followed by an addition and the ReLU activation function, which is commonly found in various models.
-All the code can be found under the [examples directory](https://github.com/burn-rs/burn/tree/main/examples/custom-wgpu-kernel).
+In this section, you will learn how to create your own custom operation by writing your own kernel
+with the WGPU backend. We will take the example of a common workflow in the deep learning field,
+where we create a kernel to fuse multiple operations together. We will fuse a matmul kernel followed
+by an addition and the ReLU activation function, which is commonly found in various models. All the
+code can be found under the
+[examples directory](https://github.com/burn-rs/burn/tree/main/examples/custom-wgpu-kernel).
 
 ## Custom Backend Trait
 
-First, we need to determine the type signature of our newly created operation by defining our custom backend traits. As we will use the associated type `TensorPrimitive` of the `Backend` trait, which encapsulates the underlying tensor implementation of the backend, we will use a type alias to avoid the ugly disambiguation with associated types.
+First, we need to determine the type signature of our newly created operation by defining our custom
+backend traits. As we will use the associated type `TensorPrimitive` of the `Backend` trait, which
+encapsulates the underlying tensor implementation of the backend, we will use a type alias to avoid
+the ugly disambiguation with associated types.
 
 ```rust, ignore
 /// We use a type alias for better readability.
@@ -26,10 +31,10 @@ pub trait Backend: burn::tensor::backend::Backend {
 pub trait ADBackend: Backend + burn::tensor::backend::ADBackend {}
 ```
 
-In our project, we can use these traits instead of the `burn::tensor::backend::{Backend, ADBackend}` traits provided by Burn.
-Burn's user APIs typically make use of the `Tensor` struct rather than dealing directly with primitive tensor types.
-Therefore, we can encapsulate our newly defined backend traits with functions that expose new operations while maintaining a consistent API.
-
+In our project, we can use these traits instead of the `burn::tensor::backend::{Backend, ADBackend}`
+traits provided by Burn. Burn's user APIs typically make use of the `Tensor` struct rather than
+dealing directly with primitive tensor types. Therefore, we can encapsulate our newly defined
+backend traits with functions that expose new operations while maintaining a consistent API.
 
 ```rust, ignore
 /// We define our custom implementation using the added function on our custom backend.
@@ -60,15 +65,19 @@ pub fn matmul_add_relu_reference<B: Backend>(
 
 ```
 
-Note that we also provide a reference implementation for testing purposes, which allows us to easily validate our new implementation.
-While not mandatory, having a reference implementation can be valuable, especially in projects where creating a reference implementation solely using basic tensor operations is feasible.
+Note that we also provide a reference implementation for testing purposes, which allows us to easily
+validate our new implementation. While not mandatory, having a reference implementation can be
+valuable, especially in projects where creating a reference implementation solely using basic tensor
+operations is feasible.
 
 ## Forward Kernel
 
-Now, let's proceed to write the fused kernel using the WGSL shading language.
-To keep things simple, we'll create a straightforward matmul kernel without employing any intricate techniques.
-Although we won't delve into the details of the WGSL syntax, as it falls beyond the scope of this guide, we still provide the implementation below for readers who are curious. The actual matmul, add and relu computations are found at the end, after an extensive overhead whose use is to correctly map each thread to the data it is responsible of, with support for batches.
-
+Now, let's proceed to write the fused kernel using the WGSL shading language. To keep things simple,
+we'll create a straightforward matmul kernel without employing any intricate techniques. Although we
+won't delve into the details of the WGSL syntax, as it falls beyond the scope of this guide, we
+still provide the implementation below for readers who are curious. The actual matmul, add and relu
+computations are found at the end, after an extensive overhead whose use is to correctly map each
+thread to the data it is responsible of, with support for batches.
 
 ```wgsl, ignore
 @group(0)
@@ -150,8 +159,10 @@ fn main(
 }
 ```
 
-Now, let's move on to the next step, which involves implementing the remaining code to launch the kernel.
-The initial part entails loading the template and populating it with the appropriate variables. The `register(name, value)` method simply replaces occurrences of `{{ name }}` in the above WGSL code with some other string before it is compilated. 
+Now, let's move on to the next step, which involves implementing the remaining code to launch the
+kernel. The initial part entails loading the template and populating it with the appropriate
+variables. The `register(name, value)` method simply replaces occurrences of `{{ name }}` in the
+above WGSL code with some other string before it is compilated.
 
 ```rust, ignore
 // Source the kernel written in WGSL.
@@ -264,18 +275,23 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for WgpuBackend<G, 
 }
 ```
 
-In the preceding code block, we demonstrated how to launch the kernel that modifies the correct buffer.
-It's important to note that Rust's mutability safety doesn't apply here; the context has the capability to execute any mutable operation on any buffer.
-While this isn't a problem in the previous scenario where we only modify the newly created output buffer, it is wise to keep this in mind.
+In the preceding code block, we demonstrated how to launch the kernel that modifies the correct
+buffer. It's important to note that Rust's mutability safety doesn't apply here; the context has the
+capability to execute any mutable operation on any buffer. While this isn't a problem in the
+previous scenario where we only modify the newly created output buffer, it is wise to keep this in
+mind.
 
 ## Backward
 
-Now that the custom backend trait is implemented for the WGPU backend, you can use it to invoke the `matmul_add_relu_custom` function.
-However, calculating gradients is not yet possible at this stage.
-If your use case does not extend beyond inference, there is no need to implement any of the following code.
+Now that the custom backend trait is implemented for the WGPU backend, you can use it to invoke the
+`matmul_add_relu_custom` function. However, calculating gradients is not yet possible at this stage.
+If your use case does not extend beyond inference, there is no need to implement any of the
+following code.
 
-For the backward pass, we will leverage the backend implementation from `burn-autodiff`, which is actually generic over the backend.
-Instead of crafting our own WGSL kernel for the backward pass, we will use our fused kernel only for the forward pass, and compute the gradient using basic operations.
+For the backward pass, we will leverage the backend implementation from `burn-autodiff`, which is
+actually generic over the backend. Instead of crafting our own WGSL kernel for the backward pass, we
+will use our fused kernel only for the forward pass, and compute the gradient using basic
+operations.
 
 ```rust, ignore
 // Implement our custom backend trait for any backend that also implements our custom backend trait.
@@ -389,13 +405,24 @@ impl<B: Backend> Backend for ADBackendDecorator<B> {
 }
 ```
 
-The previous code is self-documented to make it clearer, but here is what it does in summary. 
+The previous code is self-documented to make it clearer, but here is what it does in summary.
 
-We define `fused_matmul_add_relu` within `ADBackendDecorator<B>`, allowing any autodiff-decorated backend to benefit from our implementation. In an autodiff-decorated backend, the forward pass must still be implemented. This is achieved using a comprehensive match statement block where computation is delegated to the inner backend, while keeping track of a state. The state comprises any information relevant to the backward pass, such as input and output tensors, along with the bias shape. When an operation isn't tracked (meaning there won't be a backward pass for this specific operation in the graph), storing a state becomes unnecessary, and we simply perform the forward computation.
+We define `fused_matmul_add_relu` within `ADBackendDecorator<B>`, allowing any autodiff-decorated
+backend to benefit from our implementation. In an autodiff-decorated backend, the forward pass must
+still be implemented. This is achieved using a comprehensive match statement block where computation
+is delegated to the inner backend, while keeping track of a state. The state comprises any
+information relevant to the backward pass, such as input and output tensors, along with the bias
+shape. When an operation isn't tracked (meaning there won't be a backward pass for this specific
+operation in the graph), storing a state becomes unnecessary, and we simply perform the forward
+computation.
 
-The backward pass uses the gradient obtained from the preceding node in the computation graph. It calculates the derivatives for `relu` (`relu_backward`), add (no operation is required here, as the derivative is one), and `matmul` (another `matmul` with transposed inputs). This results in gradients for both input tensors and the bias, which are registered for consumption by subsequent operation nodes.
+The backward pass uses the gradient obtained from the preceding node in the computation graph. It
+calculates the derivatives for `relu` (`relu_backward`), add (no operation is required here, as the
+derivative is one), and `matmul` (another `matmul` with transposed inputs). This results in
+gradients for both input tensors and the bias, which are registered for consumption by subsequent
+operation nodes.
 
-The only remaining part is to implement our autodiff-decorated backend trait for our WGPUBackend. 
+The only remaining part is to implement our autodiff-decorated backend trait for our WGPUBackend.
 
 ```rust, ignore
 impl<G: GraphicsApi, F: FloatElement, I: IntElement> ADBackend
@@ -406,11 +433,15 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> ADBackend
 
 ## Conclusion
 
-In this guide, we've implemented a fused kernel using the WGPU backend, enabling execution on any GPU.
-By delving into the inner workings of both the WGPU backend and the autodiff backend, we've gained a deeper understanding of these systems.
+In this guide, we've implemented a fused kernel using the WGPU backend, enabling execution on any
+GPU. By delving into the inner workings of both the WGPU backend and the autodiff backend, we've
+gained a deeper understanding of these systems.
 
-While extending a backend may be harder than working with straightforward tensors, the benefits can be worth it.
-This approach enables the crafting of custom models with greater control over execution, which can potentially greatly enhance the performance of your models. 
+While extending a backend may be harder than working with straightforward tensors, the benefits can
+be worth it. This approach enables the crafting of custom models with greater control over
+execution, which can potentially greatly enhance the performance of your models.
 
-It is worth noting that while the manual fusion of operations can be valuable, our future plans include the development of a backend extension that will automate this process.
-As we conclude this guide, we hope that you have gained insights into Burn's world of backend extensions, and that it will help you to unleash the full potential of your projects.
+It is worth noting that while the manual fusion of operations can be valuable, our future plans
+include the development of a backend extension that will automate this process. As we conclude this
+guide, we hope that you have gained insights into Burn's world of backend extensions, and that it
+will help you to unleash the full potential of your projects.
