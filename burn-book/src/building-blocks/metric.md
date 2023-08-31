@@ -1,6 +1,7 @@
 # Metric
 
-When working with the learner, you have the option to record metrics that will be monitored throughout the training process. We currently offer a restricted range of metrics.
+When working with the learner, you have the option to record metrics that will be monitored
+throughout the training process. We currently offer a restricted range of metrics.
 
 | Metric           | Description                                             |
 | ---------------- | ------------------------------------------------------- |
@@ -13,8 +14,9 @@ When working with the learner, you have the option to record metrics that will b
 | Learning Rate    | Fetch the current learning rate for each optimizer step |
 | CUDA             | Fetch general CUDA metrics such as utilization          |
 
-In order to use a metric, the output of your training step has to implement the `Adaptor` trait from `burn-train::metric`.
-Here is an example for the classification output, already provided with the crate.
+In order to use a metric, the output of your training step has to implement the `Adaptor` trait from
+`burn-train::metric`. Here is an example for the classification output, already provided with the
+crate.
 
 ```rust , ignore
 use crate::metric::{AccuracyInput, Adaptor, LossInput};
@@ -103,7 +105,8 @@ impl<B: Backend> Metric for LossMetric<B> {
 }
 ```
 
-When the metric you are implementing is numeric in nature, you may want to also implement the `Numeric` trait. This will allow your metric to be plotted.
+When the metric you are implementing is numeric in nature, you may want to also implement the
+`Numeric` trait. This will allow your metric to be plotted.
 
 ```rust, ignore
 impl<B: Backend> Numeric for LossMetric<B> {
