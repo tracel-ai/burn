@@ -25,7 +25,6 @@ bytemuck = {workspace = true}
 derive-new = {workspace = true}
 half = {workspace = true}
 log = {workspace = true}
-log4rs = {workspace = true}
 proc-macro2 = {workspace = true}
 protobuf = {version = "3.2", features = ["with-bytes"]}
 quote = {workspace = true}
@@ -35,6 +34,8 @@ serde_json = {workspace = true, features = ["std"]}
 strum = {workspace = true}
 strum_macros = {workspace = true}
 syn = {workspace = true, features = ["parsing"]}
+tracing-subscriber.workspace = true
+tracing-core.workspace = true
 
 [build-dependencies]
 protobuf-codegen = {workspace = true}
