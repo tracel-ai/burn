@@ -13,6 +13,7 @@ pub(crate) fn install_file_logger(file_path: &str) {
         path.file_name().unwrap(),
     );
     let layer = tracing_subscriber::fmt::layer()
+        .with_ansi(false)
         .with_writer(writer)
         .with_filter(LevelFilter::INFO)
         .with_filter(filter_fn(|m| {
