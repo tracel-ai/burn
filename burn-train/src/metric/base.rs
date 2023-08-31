@@ -42,13 +42,13 @@ impl MetricMetadata {
 /// This is important since some conflict may happen when the model output is adapted for each
 /// metric's input type.
 ///
-/// The only exception is for metrics that don't need nay input, setting the assotiative type 
+/// The only exception is for metrics that don't need any input, setting the associated type
 /// to the null type `()`.
 pub trait Metric: Send + Sync {
     /// The input type of the metric.
     type Input;
 
-    /// Update the metric state and returns the current metric entry.
+    /// Updates the metric state and returns the current metric entry.
     fn update(&mut self, item: &Self::Input, metadata: &MetricMetadata) -> MetricEntry;
     /// Clear the metric state.
     fn clear(&mut self);

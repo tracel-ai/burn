@@ -1,23 +1,22 @@
 # Metric
 
-When working with the [learner](./learner.md), you can register metrics that will be tracked during training.
-We actually provide a limited set of metrics.
+When working with the learner, you have the option to record metrics that will be monitored throughout the training process. We currently offer a restricted range of metrics.
 
 | Metric           | Description                                             |
 | ---------------- | ------------------------------------------------------- |
-| Accuracy         | Calculate the accuracy in pourcentage                   |
+| Accuracy         | Calculate the accuracy in percentage                    |
 | Loss             | Output the loss used for the backward pass              |
-| CPU Temperature  | Fetch the temperature of cpus                           |
-| CPU Usage        | Fetch the cpu utilization                               |
-| CPU Memory Usage | Fetch the cpu RAM usafe                                 |
+| CPU Temperature  | Fetch the temperature of CPUs                           |
+| CPU Usage        | Fetch the CPU utilization                               |
+| CPU Memory Usage | Fetch the CPU RAM usage                                 |
 | GPU Temperature  | Fetch the GPU temperature                               |
 | Learning Rate    | Fetch the current learning rate for each optimizer step |
-| CUDA             | Fetch general cuda metric such as utilization           |
+| CUDA             | Fetch general CUDA metrics such as utilization          |
 
-In order to use a metric, the output of your training step must implement the trait `Adaptor` from `burn-train::metric`.
-Here's an example for the classification output, already provided with the crate.
+In order to use a metric, the output of your training step has to implement the `Adaptor` trait from `burn-train::metric`.
+Here is an example for the classification output, already provided with the crate.
 
-```rust, ignore
+```rust , ignore
 use crate::metric::{AccuracyInput, Adaptor, LossInput};
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{Int, Tensor};
@@ -50,32 +49,29 @@ impl<B: Backend> Adaptor<LossInput<B>> for ClassificationOutput<B> {
 
 # Custom Metric
 
-You can create your own custom metric without much trouble.
-In order to do so, you need to implement the `Metric` trait.
+Generating your own custom metrics is done by implementing the `Metric` trait.
 
-```rust, ignore
+```rust , ignore
 /// Metric trait.
-///
-/// # Notes
 ///
 /// Implementations should define their own input type only used by the metric.
 /// This is important since some conflict may happen when the model output is adapted for each
 /// metric's input type.
 ///
-/// The only exception is for metrics that don't need nay input, setting the assotiative type 
+/// The only exception is for metrics that don't need any input, setting the associated type
 /// to the null type `()`.
 pub trait Metric: Send + Sync {
     /// The input type of the metric.
     type Input;
 
-    /// Update the metric state and returns the current metric entry.
+    /// Updates the metric state and returns the current metric entry.
     fn update(&mut self, item: &Self::Input, metadata: &MetricMetadata) -> MetricEntry;
     /// Clear the metric state.
     fn clear(&mut self);
 }
 ```
 
-Here's how the loss metric is implemented.
+As an example, let's see how the loss metric is implemented.
 
 ```rust, ignore
 /// The loss metric.
@@ -85,7 +81,7 @@ pub struct LossMetric<B: Backend> {
     _b: B,
 }
 
-/// The [loss metric](LossMetric) input type.
+/// The loss metric input type.
 #[derive(new)]
 pub struct LossInput<B: Backend> {
     tensor: Tensor<B, 1>,
@@ -107,7 +103,7 @@ impl<B: Backend> Metric for LossMetric<B> {
 }
 ```
 
-When the metric you are implementing is numeric in nature, you may want to also implement the `Numeric` trait so that your metric can be plotted.
+When the metric you are implementing is numeric in nature, you may want to also implement the `Numeric` trait. This will allow your metric to be plotted.
 
 ```rust, ignore
 impl<B: Backend> Numeric for LossMetric<B> {
