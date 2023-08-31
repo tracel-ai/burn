@@ -10,9 +10,12 @@
 #[macro_use]
 extern crate derive_new;
 
-pub(crate) mod grads;
+/// Gradients module.
+pub mod grads;
+/// Operation module.
+pub mod ops;
+
 pub(crate) mod graph;
-pub(crate) mod ops;
 pub(crate) mod tensor;
 pub(crate) mod utils;
 

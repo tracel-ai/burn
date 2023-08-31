@@ -37,7 +37,8 @@ macro_rules! kernel_wgsl {
 
 kernel_wgsl!(ContiguousRaw, "../template/contiguous.wgsl");
 
-pub(crate) fn into_contiguous<E: WgpuElement, const D: usize>(
+/// Make a wgpu tensor contiguous.
+pub fn into_contiguous<E: WgpuElement, const D: usize>(
     tensor: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     if tensor.is_contiguous() {
@@ -157,9 +158,7 @@ impl<K: StaticKernel, E: WgpuElement, I: WgpuElement> DynamicKernel
 /// |     (D + 1)..(2 * D + 1) | rhs strides |
 /// | (2 * D + 1)..(3 * D + 1) | lhs shape   |
 /// | (3 * D + 1)..(4 * D + 1) | rhs shape   |
-pub(crate) fn build_info<E: WgpuElement, const D: usize>(
-    tensors: &[&WgpuTensor<E, D>],
-) -> Vec<u32> {
+pub fn build_info<E: WgpuElement, const D: usize>(tensors: &[&WgpuTensor<E, D>]) -> Vec<u32> {
     let mut info: Vec<u32> = vec![0; tensors.len() * 2 * D + 1];
     info[0] = D as u32;
 

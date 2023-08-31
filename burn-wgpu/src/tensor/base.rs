@@ -5,17 +5,22 @@ use wgpu::Buffer;
 
 use crate::{context::Context, element::WgpuElement, kernel::unary_default};
 
+/// The basic tensor primitive struct.
 #[derive(Debug, Clone)]
 pub struct WgpuTensor<E: WgpuElement, const D: usize> {
-    pub(crate) context: Arc<Context>,
-    pub(crate) buffer: Arc<Buffer>,
-    pub(crate) shape: Shape<D>,
-    pub(crate) strides: [usize; D],
+    /// The context the tensor is binded to.
+    pub context: Arc<Context>,
+    /// The buffer where the data are stored.
+    pub buffer: Arc<Buffer>,
+    /// The shape of the current tensor.
+    pub shape: Shape<D>,
+    /// The strides of the current tensor.
+    pub strides: [usize; D],
     elem: PhantomData<E>,
 }
 
 #[derive(Debug, Clone)]
-pub struct WgpuTensorDyn<E: WgpuElement> {
+pub(crate) struct WgpuTensorDyn<E: WgpuElement> {
     pub(crate) context: Arc<Context>,
     pub(crate) buffer: Arc<Buffer>,
     pub(crate) shape: Vec<usize>,
@@ -48,6 +53,7 @@ impl<E: WgpuElement, const D: usize> From<WgpuTensorDyn<E>> for WgpuTensor<E, D>
 }
 
 impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
+    /// Create a new tensor.
     pub fn new(context: Arc<Context>, shape: Shape<D>, buffer: Arc<Buffer>) -> Self {
         let mut strides = [0; D];
 
@@ -71,6 +77,7 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
         }
     }
 
+    /// Change the context of the current tensor and return the newly transferred tensor.
     pub fn to_context(&self, context: Arc<Context>) -> Self {
         let data = self.context.read_buffer(self.buffer.clone());
         let buffer = context.create_buffer_with_data(&data);
@@ -83,7 +90,7 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
             elem: PhantomData,
         }
     }
-    pub fn can_mut_broadcast(&self, tensor_other: &WgpuTensor<E, D>) -> bool {
+    pub(crate) fn can_mut_broadcast(&self, tensor_other: &WgpuTensor<E, D>) -> bool {
         if Arc::strong_count(&self.buffer) > 1 {
             return false;
         }
@@ -98,6 +105,7 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
         true
     }
 
+    /// Copy the current tensor.
     pub fn copy(&self) -> Self {
         // Seems like using the copy buffer from the `wgpu` API leads to race condition when they
         // are used inplace afterward.
@@ -110,6 +118,7 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
         unary_default::<CopyBuffer, E, D>(self.clone())
     }
 
+    /// Check if the tensor is safe to mutate.
     pub fn can_mut(&self) -> bool {
         if Arc::strong_count(&self.buffer) > 1 {
             return false;
@@ -118,6 +127,7 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
         true
     }
 
+    /// Assert that both tensors are on the same device.
     pub fn assert_is_on_same_device(&self, other: &Self) {
         if self.context.device != other.context.device {
             panic!(
@@ -127,6 +137,7 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
         }
     }
 
+    /// Check if the current tensor is contiguous.
     pub fn is_contiguous(&self) -> bool {
         let mut current_stride = 0;
         for d in 0..D {
@@ -142,7 +153,7 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
         true
     }
 
-    pub fn batch_swapped_with_row_col(&self) -> bool {
+    pub(crate) fn batch_swapped_with_row_col(&self) -> bool {
         for d in 0..D - 2 {
             let stride = self.strides[d];
             if stride < self.strides[D - 2] || stride < self.strides[D - 1] {
