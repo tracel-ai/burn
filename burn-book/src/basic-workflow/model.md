@@ -1,8 +1,8 @@
 # Model
 
-The first step is to create a project and add the different Burn dependencies.
-In a `Cargo.toml` file, add the `burn`, `burn-wgpu`, `burn-dataset`, `burn-autodiff` and `burn-train`.
-Note that the `serde` dependency is necessary for serialization and is mandatory for the time being.
+The first step is to create a project and add the different Burn dependencies. In a `Cargo.toml`
+file, add the `burn`, `burn-wgpu`, `burn-dataset`, `burn-autodiff` and `burn-train`. Note that the
+`serde` dependency is necessary for serialization and is mandatory for the time being.
 
 ```toml
 [package]
@@ -20,8 +20,9 @@ burn-train = "0.9"
 serde = "1"
 ```
 
-Our goal will be to create a basic convolutional neural network used for image classification. We will keep the model simple by using two convolution layers followed by two linear layers, some pooling and ReLU activations.
-We will also use dropout to improve training performance.
+Our goal will be to create a basic convolutional neural network used for image classification. We
+will keep the model simple by using two convolution layers followed by two linear layers, some
+pooling and ReLU activations. We will also use dropout to improve training performance.
 
 Let us start by creating a model in a file `model.rs`.
 
@@ -53,16 +54,19 @@ pub struct Model<B: Backend> {
 There are two major things going on in this code sample.
 
 1. You can create a deep learning module with the `#[derive(Module)]` attribute on top of a struct.
-This will generate the necessary code so that the struct implements the `Module` trait.
-This trait will make your module both trainable and (de)serializable while adding related functionalities.
-Like other attributes often used in Rust, such as `Clone`, `PartialEq` or `Debug`, each field within the struct must also implement the `Module` trait.
+   This will generate the necessary code so that the struct implements the `Module` trait. This
+   trait will make your module both trainable and (de)serializable while adding related
+   functionalities. Like other attributes often used in Rust, such as `Clone`, `PartialEq` or
+   `Debug`, each field within the struct must also implement the `Module` trait.
 
-2. Note that the struct is generic over the `Backend` trait.
-The backend trait abstracts the underlying low level implementations of tensor operations, allowing your new model to run on any backend.
-Contrary to other frameworks, the backend abstraction isn't determined by a compilation flag or a device type.
-This is important because you can extend the functionalities of a specific backend (which will be covered in the more advanced sections of this book), and it allows for an innovative autodiff system.
-You can also change backend during runtime, for instance to compute training metrics on a cpu backend while using a gpu one only to train the model. 
-In our example, the backend in use will be determined later on.
+2. Note that the struct is generic over the `Backend` trait. The backend trait abstracts the
+   underlying low level implementations of tensor operations, allowing your new model to run on any
+   backend. Contrary to other frameworks, the backend abstraction isn't determined by a compilation
+   flag or a device type. This is important because you can extend the functionalities of a specific
+   backend (which will be covered in the more advanced sections of this book), and it allows for an
+   innovative autodiff system. You can also change backend during runtime, for instance to compute
+   training metrics on a cpu backend while using a gpu one only to train the model. In our example,
+   the backend in use will be determined later on.
 
 Next, we need to instantiate the model for training.
 
@@ -91,16 +95,21 @@ impl ModelConfig {
 }
 ```
 
-When creating a custom neural network module, it is often a good idea to create a config alongside the model struct.
-This allows you to define default values for your network, thanks to the `Config` attribute.
-The benefit of this attribute is that it makes the configuration serializable, enabling you to painlessly save your model hyperparameters, enhancing your experimentation process.
-Note that a constructor will automatically be generated for your configuration, which will take as input values for the parameter which do not have default values: `let config = ModelConfig::new(num_classes, hidden_size);`.
-The default values can be overridden easily with builder-like methods: (e.g `config.with_dropout(0.2);`)
+When creating a custom neural network module, it is often a good idea to create a config alongside
+the model struct. This allows you to define default values for your network, thanks to the `Config`
+attribute. The benefit of this attribute is that it makes the configuration serializable, enabling
+you to painlessly save your model hyperparameters, enhancing your experimentation process. Note that
+a constructor will automatically be generated for your configuration, which will take as input
+values for the parameter which do not have default values:
+`let config = ModelConfig::new(num_classes, hidden_size);`. The default values can be overridden
+easily with builder-like methods: (e.g `config.with_dropout(0.2);`)
 
-The first implementation block is related to the initialization method.
-As we can see, all fields are set using the configuration of the corresponding neural network underlying module.
-In this specific case, we have chosen to expand the tensor channels from 1 to 8 with the first layer, then from 8 to 16 with the second layer, using a kernel size of 3 on all dimensions.
-We also use the adaptive average pooling module to reduce the dimensionality of the images to an 8 by 8 matrix, which we will flatten in the forward pass to have a 1024 (16 * 8 * 8) resulting tensor.
+The first implementation block is related to the initialization method. As we can see, all fields
+are set using the configuration of the corresponding neural network underlying module. In this
+specific case, we have chosen to expand the tensor channels from 1 to 8 with the first layer, then
+from 8 to 16 with the second layer, using a kernel size of 3 on all dimensions. We also use the
+adaptive average pooling module to reduce the dimensionality of the images to an 8 by 8 matrix,
+which we will flatten in the forward pass to have a 1024 (16 _ 8 _ 8) resulting tensor.
 
 Now let's see how the forward pass is defined.
 
@@ -133,12 +142,15 @@ impl<B: Backend> Model<B> {
 }
 ```
 
-For former PyTorch users, this might feel very intuitive, as each module is directly incorporated into the code using an eager API.
-Note that no abstraction is imposed for the forward method. You are free to define multiple forward functions with the names of your liking.
-Most of the neural network modules already built with Burn use the `forward` nomenclature, simply because it is standard in the field.
+For former PyTorch users, this might feel very intuitive, as each module is directly incorporated
+into the code using an eager API. Note that no abstraction is imposed for the forward method. You
+are free to define multiple forward functions with the names of your liking. Most of the neural
+network modules already built with Burn use the `forward` nomenclature, simply because it is
+standard in the field.
 
-Similar to neural network modules, the `Tensor` struct given as a parameter also takes the Backend trait as a generic argument, alongside its rank.
-Even if it is not used in this specific example, it is possible to add the kind of the tensor as a third generic argument.
+Similar to neural network modules, the `Tensor` struct given as a parameter also takes the Backend
+trait as a generic argument, alongside its rank. Even if it is not used in this specific example, it
+is possible to add the kind of the tensor as a third generic argument.
 
 ```rust , ignore
 Tensor<B, 3> // Float tensor (default)
@@ -147,4 +159,5 @@ Tensor<B, 3, Int> // Int tensor
 Tensor<B, 3, Bool> // Bool tensor
 ```
 
-Note that the specific element type, such as `f16`, `f32` and the likes, will be defined later with the backend.
+Note that the specific element type, such as `f16`, `f32` and the likes, will be defined later with
+the backend.
