@@ -1,6 +1,6 @@
 - [Overview](./overview.md)
 - [Why Burn?](./motivation.md)
-- [Installation and Setup]()
+- [Getting started](./getting-started.md)
 - [Basic Workflow: From Training to Inference](./basic-workflow/README.md)
   - [Model](./basic-workflow/model.md)
   - [Data](./basic-workflow/data.md)
