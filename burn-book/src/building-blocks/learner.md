@@ -12,7 +12,7 @@ There are still some assumptions in the current provided APIs, which may make th
 your learning requirements. Indeed, they assume your model will learn from a training dataset and be
 validated against another dataset. This is the most common paradigm, allowing users to do both
 supervised and unsupervised learning as well as fine-tuning. However, for more complex requirements,
-creating a [custom training loop](../advanced/custom-training-loop.md) might be what you need.
+creating a [custom training loop](../custom-training-loop.md) might be what you need.
 
 ## Usage
 

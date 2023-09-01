@@ -12,7 +12,7 @@ burn-autodiff = {path = "../../burn-autodiff"}
 burn-wgpu = {path = "../../burn-wgpu"}
 burn-train = {path = "../../burn-train"}
 burn-dataset = {path = "../../burn-dataset"}
-mnist = {path = "../mnist"}
+guide = {path = "../guide"}
 
 # Serialization
 log = {workspace = true}

@@ -1,18 +1,20 @@
+use std::marker::PhantomData;
+
 use burn::{
     config::Config,
     data::dataloader::DataLoaderBuilder,
     module::ADModule,
     nn::loss::CrossEntropyLoss,
-    optim::{decay::WeightDecayConfig, AdamConfig, GradientsParams, Optimizer},
+    optim::{AdamConfig, GradientsParams, Optimizer},
     tensor::{
         backend::{ADBackend, Backend},
         ElementConversion, Int, Tensor,
     },
 };
 use burn_dataset::source::huggingface::MNISTDataset;
-use mnist::{
+use guide::{
     data::{MNISTBatch, MNISTBatcher},
-    model::Model,
+    model::{Model, ModelConfig},
 };
 
 #[derive(Config)]
@@ -25,26 +27,29 @@ pub struct MnistTrainingConfig {
     pub num_workers: usize,
     #[config(default = 42)]
     pub seed: u64,
-    #[config(default = 5e-5)]
+    #[config(default = 1e-4)]
     pub lr: f64,
+    pub model: ModelConfig,
     pub optimizer: AdamConfig,
 }
 
 pub fn run<B: ADBackend>(device: B::Device) {
-    // Create our configuration
-    let config_optimizer = AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5)));
-    let config = MnistTrainingConfig::new(config_optimizer);
+    // Create the configuration.
+    let config_model = ModelConfig::new(10, 1024);
+    let config_optimizer = AdamConfig::new();
+    let config = MnistTrainingConfig::new(config_model, config_optimizer);
 
     B::seed(config.seed);
 
-    // Create our model and optimizer.
-    let mut model = Model::<B>::new();
+    // Create the model and optimizer.
+    let mut model = config.model.init();
     let mut optim = config.optimizer.init();
 
-    // Create out batcher.
+    // Create the batcher.
     let batcher_train = MNISTBatcher::<B>::new(device.clone());
     let batcher_valid = MNISTBatcher::<B::InnerBackend>::new(device.clone());
 
+    // Create the dataloaders.
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
         .batch_size(config.batch_size)
         .shuffle(config.seed)
@@ -56,15 +61,6 @@ pub fn run<B: ADBackend>(device: B::Device) {
         .shuffle(config.seed)
         .num_workers(config.num_workers)
         .build(MNISTDataset::test());
-
-    /// Create out own accuracy metric calculation.
-    fn accuracy<B: Backend>(output: Tensor<B, 2>, targets: Tensor<B, 1, Int>) -> f32 {
-        let predictions = output.argmax(1).squeeze(1);
-        let num_predictions: usize = targets.dims().iter().product();
-        let num_corects = predictions.equal(targets).int().sum().into_scalar();
-
-        num_corects.elem::<f32>() / num_predictions as f32 * 100.0
-    }
 
     // Iterate over our training and validation loop for X epochs.
     for epoch in 1..config.num_epochs + 1 {
@@ -100,7 +96,7 @@ pub fn run<B: ADBackend>(device: B::Device) {
             let accuracy = accuracy(output, batch.targets);
 
             println!(
-                "[Train - Epoch {} - Iteration {}] Loss {} | Accuracy {}",
+                "[Valid - Epoch {} - Iteration {}] Loss {} | Accuracy {}",
                 iteration,
                 epoch,
                 loss.clone().into_scalar(),
@@ -108,6 +104,15 @@ pub fn run<B: ADBackend>(device: B::Device) {
             );
         }
     }
+}
+
+/// Create out own accuracy metric calculation.
+fn accuracy<B: Backend>(output: Tensor<B, 2>, targets: Tensor<B, 1, Int>) -> f32 {
+    let predictions = output.argmax(1).squeeze(1);
+    let num_predictions: usize = targets.dims().iter().product();
+    let num_corects = predictions.equal(targets).int().sum().into_scalar();
+
+    num_corects.elem::<f32>() / num_predictions as f32 * 100.0
 }
 
 #[allow(dead_code)]
@@ -123,6 +128,13 @@ where
 struct Learner2<M, O> {
     model: M,
     optim: O,
+}
+
+#[allow(dead_code)]
+struct Learner3<B, M, O> {
+    model: M,
+    optim: O,
+    _b: PhantomData<B>,
 }
 
 #[allow(dead_code)]
@@ -158,3 +170,4 @@ impl<M, O> Learner2<M, O> {
         //
     }
 }
+
