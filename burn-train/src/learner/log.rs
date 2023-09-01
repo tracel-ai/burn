@@ -1,76 +1,33 @@
-use log::LevelFilter;
-use log4rs::{
-    append::file::FileAppender,
-    config::{Appender, Config, Root},
-    encode::pattern::PatternEncoder,
-    Handle,
-};
-use std::{cell::Cell, sync::Mutex};
+use std::path::Path;
+use tracing_core::{Level, LevelFilter};
+use tracing_subscriber::filter::filter_fn;
+use tracing_subscriber::prelude::*;
+use tracing_subscriber::{registry, Layer};
 
-static LOGGER_HANDLER: Mutex<Cell<Option<Handle>>> = Mutex::new(Cell::new(None));
-
-pub fn update_log_file(file_path: &str) {
-    let config = create_config(file_path);
-    set_config(config, file_path);
-}
-
-fn create_config(file_path: &str) -> Config {
-    let experiment = FileAppender::builder()
-        .encoder(Box::new(PatternEncoder::new(
-            "[{d(%+)(utc)} - {h({l})} - {f}:{L}] {m}{n}",
-        )))
-        .build(file_path)
-        .unwrap();
-
-    /// The wgpu crate is logging too much, so we skip `info` level.
-    #[derive(Debug)]
-    struct WgpuFilter;
-
-    impl log4rs::filter::Filter for WgpuFilter {
-        fn filter(&self, record: &log::Record) -> log4rs::filter::Response {
-            if !matches!(record.level(), log::Level::Info) {
-                return log4rs::filter::Response::Accept;
-            }
-
-            match record.module_path_static() {
-                Some(path) => {
-                    if path.starts_with("wgpu") {
-                        log4rs::filter::Response::Reject
-                    } else {
-                        log4rs::filter::Response::Accept
-                    }
+/// If a global tracing subscriber is not already configured, set up logging to a file,
+/// and add our custom panic hook.
+pub(crate) fn install_file_logger(file_path: &str) {
+    let path = Path::new(file_path);
+    let writer = tracing_appender::rolling::never(
+        path.parent().unwrap_or_else(|| Path::new(".")),
+        path.file_name().unwrap(),
+    );
+    let layer = tracing_subscriber::fmt::layer()
+        .with_ansi(false)
+        .with_writer(writer)
+        .with_filter(LevelFilter::INFO)
+        .with_filter(filter_fn(|m| {
+            if let Some(path) = m.module_path() {
+                // The wgpu crate is logging too much, so we skip `info` level.
+                if path.starts_with("wgpu") && *m.level() >= Level::INFO {
+                    return false;
                 }
-                None => log4rs::filter::Response::Accept,
             }
-        }
-    }
+            true
+        }));
 
-    Config::builder()
-        .appender(
-            Appender::builder()
-                .filter(Box::new(WgpuFilter))
-                .build("experiment", Box::new(experiment)),
-        )
-        .build(
-            Root::builder()
-                .appender("experiment")
-                .build(LevelFilter::Info),
-        )
-        .unwrap()
-}
-
-fn set_config(config: Config, file_path: &str) {
-    let mut cell = LOGGER_HANDLER.lock().unwrap();
-
-    match cell.get_mut() {
-        Some(handler) => {
-            handler.set_config(config);
-        }
-        None => {
-            let handler = log4rs::init_config(config).unwrap();
-            update_panic_hook(file_path);
-            cell.replace(Some(handler));
-        }
+    if registry().with(layer).try_init().is_ok() {
+        update_panic_hook(file_path);
     }
 }
 
