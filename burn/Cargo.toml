@@ -16,7 +16,9 @@ experimental-named-tensor = ["burn-core/experimental-named-tensor"]
 std = [
   "burn-core/std",
 ]
-train = ["std", "burn-train"] # Training requires std
+# Training requires std
+train = ["std", "burn-train"]
+train-cli = ["train", "burn-train/cli"]
 
 dataset = ["burn-core/dataset"]
 dataset-sqlite = ["burn-core/dataset-sqlite"]
