@@ -16,13 +16,17 @@ manually recreating the architecture in the destination framework before loading
 only is this method tedious, but it's also error-prone and hinders smooth interoperability between
 frameworks.
 
-## Enter ONNX: The One Format to Rule Them All
+It's worth noting that for models using cutting-edge, framework-specific features, manual porting
+might be the only option, as standards like ONNX might not yet support these new innovations.
 
-ONNX (Open Neural Network Exchange) is designed to solve such complications. It's an open-standard
-format that exports both the architecture and the weights of a deep learning model. This feature
-makes it exponentially easier to move models between different frameworks, thereby significantly
-aiding interoperability. ONNX is supported by a number of frameworks including but not limited to
-TensorFlow, PyTorch, Caffe2, and Microsoft Cognitive Toolkit.
+## Enter ONNX
+
+[ONNX (Open Neural Network Exchange)](https://onnx.ai/onnx/intro/index.html) is designed to solve
+such complications. It's an open-standard format that exports both the architecture and the weights
+of a deep learning model. This feature makes it exponentially easier to move models between
+different frameworks, thereby significantly aiding interoperability. ONNX is supported by a number
+of frameworks including but not limited to TensorFlow, PyTorch, Caffe2, and Microsoft Cognitive
+Toolkit.
 
 ### Advantages of ONNX
 
@@ -41,9 +45,9 @@ Understanding the important role that ONNX plays in the contemporary deep learni
 simplifies the process of importing ONNX models via an intuitive API designed to mesh well with
 Burn's ecosystem.
 
-Unique to Burn is its approach of converting an ONNX file into Rust source code alongside
-Burn-compatible weights. This conversion is facilitated by the `burn-import` crate's code generator,
-executed during build time.
+Burn's solution is to translate ONNX files into Rust source code as well as Burn-compatible weights.
+This transformation is carried out through the burn-import crate's code generator during build time,
+providing advantages for both executing and further training ONNX models.
 
 ### Advantages of Burn's ONNX Approach
 
@@ -59,9 +63,6 @@ executed during build time.
 
 4. **Optimization**: Rust's compiler can further optimize the generated code for target
    architectures, thereby improving performance.
-
-As far as we know, Burn is the only deep learning framework that employs this technique, making it
-uniquely advantageous for running and training ONNX models.
 
 ### Sample Code for Importing ONNX Model
 
