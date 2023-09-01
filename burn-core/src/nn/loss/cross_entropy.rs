@@ -3,9 +3,10 @@ use core::marker::PhantomData;
 use burn_tensor::{activation, backend::Backend, Bool, Int, Tensor};
 
 /// Calculate the cross entropy loss from the input logits and the targets.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct CrossEntropyLoss<B: Backend> {
     pad_index: Option<usize>,
+    weights: Option<Tensor<B, 1>>,
     backend: PhantomData<B>,
 }
 
@@ -15,6 +16,7 @@ impl<B: Backend> CrossEntropyLoss<B> {
         Self {
             pad_index,
             backend: PhantomData,
+            weights: None,
         }
     }
 
@@ -29,10 +31,31 @@ impl<B: Backend> CrossEntropyLoss<B> {
 
         let mask = self.padding_mask(&targets);
         let tensor = activation::log_softmax(logits, 1);
-        let tensor = tensor.gather(1, targets.reshape([batch_size, 1]));
-        let tensor = self.apply_mask(tensor.reshape([batch_size]), mask);
+        let tensor = tensor.gather(1, targets.clone().reshape([batch_size, 1]));
 
-        tensor.mean().neg()
+        if let Some(weights) = self.weights.clone() {
+            let weights = weights.gather(0, targets);
+            let tensor = tensor.reshape([batch_size]) * weights.clone();
+            let tensor = self.apply_mask(tensor, mask);
+            tensor.sum().neg() / weights.sum()
+        } else {
+            let tensor = self.apply_mask(tensor.reshape([batch_size]), mask);
+            tensor.mean().neg()
+        }
+    }
+
+    /// Create weighted cross-entropy.
+    ///
+    /// The loss of a specific sample will simply be given by: weight[y] * p(x) * 1,
+    ///
+    /// # Pre-conditions
+    ///   - The order of the weight vector should correspond to the label integer assignment.
+    ///   - Targets assigned negative Int's will not be allowed.
+    pub fn with_weights(self, weights: Vec<f32>) -> Self {
+        Self {
+            weights: Some(Tensor::<B, 1>::from_floats(weights.as_slice())),
+            ..self
+        }
     }
 
     fn padding_mask(&self, targets: &Tensor<B, 1, Int>) -> Option<Tensor<B, 1, Bool>> {
@@ -62,6 +85,35 @@ mod tests {
     use super::*;
     use crate::TestBackend;
     use burn_tensor::{loss::cross_entropy_with_logits, Data, Distribution};
+
+    #[test]
+    fn test_cross_entropy_loss_with_weights() {
+        let [batch_size, num_targets] = [4, 5];
+        let logits = Tensor::<TestBackend, 2>::random(
+            [batch_size, num_targets],
+            Distribution::Normal(0., 1.0),
+        );
+        let weights = vec![1.0, 2., 3., 4., 5.];
+        let targets = Tensor::<TestBackend, 1, Int>::from_data(Data::from([2, 0, 4, 1]));
+        let targets_logits = Tensor::<TestBackend, 2>::from_data(Data::from([
+            [0.0, 0.0, 1.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 1.0],
+            [0.0, 1.0, 0.0, 0.0, 0.0],
+        ]));
+
+        let loss_1 = CrossEntropyLoss::new(None)
+            .with_weights(weights.clone())
+            .forward(logits.clone(), targets);
+        let tensor = activation::log_softmax(logits, 1);
+        let loss_2 = tensor
+            * targets_logits
+            * Tensor::<TestBackend, 1>::from_floats(weights.as_slice())
+                .unsqueeze()
+                .repeat(0, 4);
+        let loss_2 = loss_2.sum().neg() / (1. + 2. + 3. + 5.);
+        loss_1.into_data().assert_approx_eq(&loss_2.into_data(), 3);
+    }
 
     #[test]
     fn test_cross_entropy_loss() {
