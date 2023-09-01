@@ -11,7 +11,7 @@ repository = "https://github.com/burn-rs/burn/tree/main/burn-train"
 version = "0.9.0"
 
 [features]
-cli = [
+ui = [
     "indicatif",
     "rgb",
     "terminal_size",

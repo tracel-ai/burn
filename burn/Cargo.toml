@@ -11,7 +11,7 @@ repository = "https://github.com/burn-rs/burn"
 version = "0.9.0"
 
 [features]
-default = ["std", "train-cli"]
+default = ["std", "train-ui"]
 experimental-named-tensor = ["burn-core/experimental-named-tensor"]
 std = [
   "burn-core/std",
@@ -20,7 +20,7 @@ std = [
 # Training requires std
 train = ["std", "burn-train"]
 # Includes the Text UI (progress bars, metric plots)
-train-cli = ["train", "burn-train/cli"]
+train-ui = ["train", "burn-train/ui"]
 
 dataset = ["burn-core/dataset"]
 dataset-sqlite = ["burn-core/dataset-sqlite"]

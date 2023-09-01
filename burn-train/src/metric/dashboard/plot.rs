@@ -104,7 +104,7 @@ impl TextPlot {
     /// # Returns
     ///
     /// The rendered text plot.
-    #[cfg(feature = "cli")]
+    #[cfg(feature = "ui")]
     pub fn render(&self) -> String {
         use rgb::RGB8;
         use terminal_size::{terminal_size, Height, Width};
@@ -153,7 +153,7 @@ impl TextPlot {
     /// # Returns
     ///
     /// The rendered text plot.
-    #[cfg(not(feature = "cli"))]
+    #[cfg(not(feature = "ui"))]
     pub fn render(&self) -> String {
         panic!("metrics feature not enabled on burn-train")
     }
