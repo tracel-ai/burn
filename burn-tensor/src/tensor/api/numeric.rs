@@ -35,7 +35,7 @@ where
         Self::new(K::add_scalar(self.primitive, other))
     }
 
-    /// Applies element wise substraction operation.
+    /// Applies element wise subtraction operation.
     ///
     /// `y = x2 - x1`
     #[allow(clippy::should_implement_trait)]
@@ -44,7 +44,7 @@ where
         Self::new(K::sub(self.primitive, other.primitive))
     }
 
-    /// Applies element wise substraction operation with a scalar.
+    /// Applies element wise subtraction operation with a scalar.
     ///
     /// `y = x - s`
     pub fn sub_scalar<E: ElementConversion>(self, other: E) -> Self {
@@ -238,7 +238,7 @@ where
     ///
     /// # Notes
     ///
-    /// The index tensor shoud have the same shape as the original tensor except for the dim
+    /// The index tensor should have the same shape as the original tensor except for the dim
     /// specified.
     pub fn gather(self, dim: usize, indices: Tensor<B, D, Int>) -> Self {
         check!(TensorCheck::gather::<D>(
@@ -250,7 +250,7 @@ where
         Self::new(K::gather(dim, self.primitive, indices))
     }
 
-    /// Assign the gathered elements corresponding to the given indices along the speficied dimension
+    /// Assign the gathered elements corresponding to the given indices along the specified dimension
     /// from the value tensor to the original tensor using sum reduction.
     ///
     /// Example using a 3D tensor:
@@ -261,7 +261,7 @@ where
     ///
     /// # Notes
     ///
-    /// The index tensor shoud have the same shape as the original tensor except for the speficied
+    /// The index tensor should have the same shape as the original tensor except for the specified
     /// dimension. The value and index tensors should have the same shape.
     ///
     /// Other references to the input tensor will not be modified by this operation.
@@ -399,6 +399,54 @@ where
         let index = Tensor::new(index);
 
         (tensor, index)
+    }
+
+    /// Clamp the tensor between the given min and max values.
+    ///
+    /// # Arguments
+    ///
+    /// * `min` - The minimum value.
+    /// * `max` - The maximum value.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor with the values clamped between the given min and max values.
+    pub fn clamp(self, min: K::Elem, max: K::Elem) -> Self {
+        Self::new(K::clamp(self.primitive, min, max))
+    }
+
+    /// Clamps a tensor under a minimum value.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to clamp.
+    /// * `min` - The minimum value.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor with the values clamped under the given min value.
+    pub fn clamp_min(self, min: K::Elem) -> Self {
+        Self::new(K::clamp_min(self.primitive, min))
+    }
+
+    /// Clamps a tensor over a maximum value.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to clamp.
+    /// * `max` - The maximum value.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor with the values clamped over the given max value.
+    ///
+    pub fn clamp_max(self, max: K::Elem) -> Self {
+        Self::new(K::clamp_max(self.primitive, max))
+    }
+
+    /// Apply element wise absolute value operation
+    pub fn abs(self) -> Self {
+        Self::new(K::abs(self.primitive))
     }
 }
 
@@ -1336,6 +1384,92 @@ where
         tensor: Self::Primitive<D>,
         dim: usize,
     ) -> (Self::Primitive<D>, B::IntTensorPrimitive<D>);
+
+    /// Clamp the tensor between the given min and max values.
+    ///
+    /// # Arguments
+    ///
+    /// * `min` - The minimum value.
+    /// * `max` - The maximum value.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor with the values clamped between the given min and max values.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users.
+    ///
+    /// For clamping a tensor between the given min and max values, users should prefer the
+    /// [Tensor::clamp](Tensor::clamp) function, which is more high-level and designed for public use.
+    fn clamp<const D: usize>(
+        tensor: Self::Primitive<D>,
+        min: Self::Elem,
+        max: Self::Elem,
+    ) -> Self::Primitive<D>;
+
+    /// Clamps a tensor under a minimum value.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to clamp.
+    /// * `min` - The minimum value.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor with the values clamped under the given min value.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users.
+    ///
+    /// For clamping a tensor under a minimum value, users should prefer the
+    /// [Tensor::clamp_min](Tensor::clamp_min) function, which is more high-level and designed for public use.
+    fn clamp_min<const D: usize>(tensor: Self::Primitive<D>, min: Self::Elem)
+        -> Self::Primitive<D>;
+
+    /// Clamps a tensor over a maximum value.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to clamp.
+    /// * `max` - The maximum value.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor with the values clamped over the given max value.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users.
+    ///
+    /// For clamping a tensor over a maximum value, users should prefer the
+    /// [Tensor::clamp_max](Tensor::clamp_max) function, which is more high-level and designed for public use.
+    fn clamp_max<const D: usize>(tensor: Self::Primitive<D>, max: Self::Elem)
+        -> Self::Primitive<D>;
+
+    /// Calculate absolute value on all elements of a tensor
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to apply abs to.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with absolute values.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For calculating abs of the elements of a tensor, users should prefer the [Tensor::abs](Tensor::abs) function,
+    /// which is more high-level and designed for public use.
+    fn abs<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D>;
 }
 
 impl<B: Backend> Numeric<B> for Int {
@@ -1563,6 +1697,32 @@ impl<B: Backend> Numeric<B> for Int {
         dim: usize,
     ) -> (Self::Primitive<D>, <B as Backend>::IntTensorPrimitive<D>) {
         B::int_min_dim_with_indices(tensor, dim)
+    }
+
+    fn clamp<const D: usize>(
+        tensor: Self::Primitive<D>,
+        min: B::IntElem,
+        max: B::IntElem,
+    ) -> Self::Primitive<D> {
+        B::int_clamp(tensor, min, max)
+    }
+
+    fn clamp_min<const D: usize>(
+        tensor: Self::Primitive<D>,
+        min: B::IntElem,
+    ) -> Self::Primitive<D> {
+        B::int_clamp_min(tensor, min)
+    }
+
+    fn clamp_max<const D: usize>(
+        tensor: Self::Primitive<D>,
+        max: B::IntElem,
+    ) -> Self::Primitive<D> {
+        B::int_clamp_max(tensor, max)
+    }
+
+    fn abs<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
+        B::int_abs(tensor)
     }
 }
 
@@ -1792,6 +1952,32 @@ impl<B: Backend> Numeric<B> for Float {
         dim: usize,
     ) -> (Self::Primitive<D>, <B as Backend>::IntTensorPrimitive<D>) {
         B::min_dim_with_indices(tensor, dim)
+    }
+
+    fn clamp<const D: usize>(
+        tensor: Self::Primitive<D>,
+        min: B::FloatElem,
+        max: B::FloatElem,
+    ) -> Self::Primitive<D> {
+        B::clamp(tensor, min, max)
+    }
+
+    fn clamp_min<const D: usize>(
+        tensor: Self::Primitive<D>,
+        min: B::FloatElem,
+    ) -> Self::Primitive<D> {
+        B::clamp_min(tensor, min)
+    }
+
+    fn clamp_max<const D: usize>(
+        tensor: Self::Primitive<D>,
+        max: B::FloatElem,
+    ) -> Self::Primitive<D> {
+        B::clamp_max(tensor, max)
+    }
+
+    fn abs<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
+        B::abs(tensor)
     }
 }
 

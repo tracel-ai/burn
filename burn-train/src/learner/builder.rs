@@ -1,9 +1,9 @@
 use super::log::update_log_file;
 use super::Learner;
 use crate::checkpoint::{AsyncCheckpointer, Checkpointer, FileCheckpointer};
-use crate::logger::FileMetricLogger;
+use crate::logger::{FileMetricLogger, MetricLogger};
 use crate::metric::dashboard::cli::CLIDashboardRenderer;
-use crate::metric::dashboard::Dashboard;
+use crate::metric::dashboard::{Dashboard, DashboardRenderer, MetricWrapper, Metrics};
 use crate::metric::{Adaptor, Metric, Numeric};
 use crate::AsyncTrainerCallback;
 use burn_core::lr_scheduler::LRScheduler;
@@ -24,7 +24,6 @@ where
     O: Optimizer<M, B>,
     S: LRScheduler,
 {
-    dashboard: Dashboard<T, V>,
     checkpointer_model: Option<Arc<dyn Checkpointer<M::Record> + Send + Sync>>,
     checkpointer_optimizer: Option<Arc<dyn Checkpointer<O::Record> + Send + Sync>>,
     checkpointer_scheduler: Option<Arc<dyn Checkpointer<S::Record> + Send + Sync>>,
@@ -33,6 +32,11 @@ where
     directory: String,
     grad_accumulation: Option<usize>,
     devices: Vec<B::Device>,
+    metric_logger_train: Option<Box<dyn MetricLogger + 'static>>,
+    metric_logger_valid: Option<Box<dyn MetricLogger + 'static>>,
+    renderer: Option<Box<dyn DashboardRenderer + 'static>>,
+    metrics: Metrics<T, V>,
+    log_to_file: bool,
 }
 
 impl<B, T, V, Model, Optim, LR> LearnerBuilder<B, T, V, Model, Optim, LR>
@@ -50,12 +54,7 @@ where
     ///
     /// * `directory` - The directory to save the checkpoints.
     pub fn new(directory: &str) -> Self {
-        let renderer = Box::new(CLIDashboardRenderer::new());
-        let logger_train = Box::new(FileMetricLogger::new(format!("{directory}/train").as_str()));
-        let logger_valid = Box::new(FileMetricLogger::new(format!("{directory}/valid").as_str()));
-
         Self {
-            dashboard: Dashboard::new(renderer, logger_train, logger_valid),
             num_epochs: 1,
             checkpoint: None,
             checkpointer_model: None,
@@ -64,7 +63,41 @@ where
             directory: directory.to_string(),
             grad_accumulation: None,
             devices: vec![B::Device::default()],
+            metric_logger_train: None,
+            metric_logger_valid: None,
+            metrics: Metrics::new(),
+            renderer: None,
+            log_to_file: true,
         }
+    }
+
+    /// Replace the default metric loggers with the provided ones.
+    ///
+    /// # Arguments
+    ///
+    /// * `logger_train` - The training logger.
+    /// * `logger_valid` - The validation logger.
+    pub fn metric_loggers<MT, MV>(mut self, logger_train: MT, logger_valid: MV) -> Self
+    where
+        MT: MetricLogger + 'static,
+        MV: MetricLogger + 'static,
+    {
+        self.metric_logger_train = Some(Box::new(logger_train));
+        self.metric_logger_valid = Some(Box::new(logger_valid));
+        self
+    }
+
+    /// Replace the default CLI renderer with a custom one.
+    ///
+    /// # Arguments
+    ///
+    /// * `renderer` - The custom renderer.
+    pub fn renderer<DR>(mut self, renderer: DR) -> Self
+    where
+        DR: DashboardRenderer + 'static,
+    {
+        self.renderer = Some(Box::new(renderer));
+        self
     }
 
     /// Register a training metric.
@@ -72,7 +105,9 @@ where
     where
         T: Adaptor<M::Input>,
     {
-        self.dashboard.register_train(metric);
+        self.metrics
+            .train
+            .push(Box::new(MetricWrapper::new(metric)));
         self
     }
 
@@ -81,7 +116,9 @@ where
     where
         V: Adaptor<M::Input>,
     {
-        self.dashboard.register_valid(metric);
+        self.metrics
+            .valid
+            .push(Box::new(MetricWrapper::new(metric)));
         self
     }
 
@@ -112,7 +149,9 @@ where
         M: Metric + Numeric + 'static,
         T: Adaptor<M::Input>,
     {
-        self.dashboard.register_train_plot(metric);
+        self.metrics
+            .train_numeric
+            .push(Box::new(MetricWrapper::new(metric)));
         self
     }
 
@@ -127,7 +166,9 @@ where
     where
         V: Adaptor<M::Input>,
     {
-        self.dashboard.register_valid_plot(metric);
+        self.metrics
+            .valid_numeric
+            .push(Box::new(MetricWrapper::new(metric)));
         self
     }
 
@@ -146,6 +187,14 @@ where
     /// The epoch from which the training must resume.
     pub fn checkpoint(mut self, checkpoint: usize) -> Self {
         self.checkpoint = Some(checkpoint);
+        self
+    }
+
+    /// By default, Rust logs are captured and written into
+    /// `experiment.log`. If disabled, standard Rust log handling
+    /// will apply.
+    pub fn log_to_file(mut self, enabled: bool) -> Self {
+        self.log_to_file = enabled;
         self
     }
 
@@ -194,9 +243,22 @@ where
         Optim::Record: 'static,
         LR::Record: 'static,
     {
-        self.init_logger();
-        let callack = Box::new(self.dashboard);
-        let callback = Box::new(AsyncTrainerCallback::new(callack));
+        if self.log_to_file {
+            self.init_logger();
+        }
+        let renderer = self
+            .renderer
+            .unwrap_or_else(|| Box::new(CLIDashboardRenderer::new()));
+        let directory = &self.directory;
+        let logger_train = self.metric_logger_train.unwrap_or_else(|| {
+            Box::new(FileMetricLogger::new(format!("{directory}/train").as_str()))
+        });
+        let logger_valid = self.metric_logger_valid.unwrap_or_else(|| {
+            Box::new(FileMetricLogger::new(format!("{directory}/valid").as_str()))
+        });
+        let dashboard = Dashboard::new(renderer, self.metrics, logger_train, logger_valid);
+        let callback = Box::new(dashboard);
+        let callback = Box::new(AsyncTrainerCallback::new(callback));
 
         let checkpointer_optimizer = match self.checkpointer_optimizer {
             Some(checkpointer) => {

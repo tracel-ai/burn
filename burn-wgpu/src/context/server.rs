@@ -22,13 +22,14 @@ pub trait ContextServer {
     fn start(device: Arc<wgpu::Device>, queue: wgpu::Queue) -> Self::Client;
 }
 
-/// Context server where each operation is added in a synchonous maner.
+/// Context server where each operation is added in a synchronous maner.
 #[derive(Debug)]
 pub struct SyncContextServer {
     device: Arc<wgpu::Device>,
     queue: wgpu::Queue,
     encoder: CommandEncoder,
     tasks: Vec<ComputeTask>,
+    max_tasks: usize,
 }
 
 /// Basic building block to execute computing tasks on the GPU.
@@ -50,21 +51,27 @@ impl SyncContextServer {
             label: Some("Command Encoder"),
         });
 
+        // TODO: Support a way to modify this value without std.
+        let max_tasks = match std::env::var("BURN_WGPU_MAX_TASKS") {
+            Ok(value) => value
+                .parse::<usize>()
+                .expect("BURN_WGPU_MAX_TASKS should be a positive integer."),
+            Err(_) => 16, // 16 tasks by default
+        };
+
         Self {
             device,
             queue,
             encoder,
             tasks: Vec::new(),
+            max_tasks,
         }
     }
 
     pub fn register_compute(&mut self, task: ComputeTask) {
         self.tasks.push(task);
 
-        // Submit the tasks to the GPU when more than 50 tasks are accumulated.
-        const MAX_TASKS: usize = 50;
-
-        if self.tasks.len() > MAX_TASKS {
+        if self.tasks.len() > self.max_tasks {
             self.register_tasks();
             self.submit();
         }
@@ -141,7 +148,7 @@ impl SyncContextServer {
     fn submit(&mut self) {
         assert!(
             self.tasks.is_empty(),
-            "Tasks should be completed before submiting the current encoder."
+            "Tasks should be completed before submitting the current encoder."
         );
         let mut new_encoder = self
             .device

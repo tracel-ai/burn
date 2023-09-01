@@ -1,0 +1,24 @@
+pytorch2.0.1:¡
+P
+onnx::Concat_0
+onnx::Concat_0/Concat_output_0/Concat"Concat*
+axis 
+{
+onnx::Concat_0
+/Concat_output_0
+/Concat_output_0
+/Concat_output_0
+/Concat_output_02	/Concat_1"Concat*
+axis 	torch_jitZ(
+onnx::Concat_0
+
+
+
+
+b
+2
+
+
+
+
+B

@@ -163,6 +163,17 @@ pub trait TensorOps<B: Backend> {
         Self::arange_step(range, 1, device)
     }
 
+    /// Converts float tensor to int tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The int tensor with the same data as the float tensor.
+    fn into_int<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::IntTensorPrimitive<D>;
+
     /// Creates a new tensor with values from the given range with the given step size.
     ///
     /// # Arguments
@@ -269,6 +280,64 @@ pub trait TensorOps<B: Backend> {
         lhs: B::TensorPrimitive<D>,
         rhs: B::FloatElem,
     ) -> B::TensorPrimitive<D>;
+
+    /// Clamps a tensor under a minimum value.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to clamp.
+    /// * `min` - The minimum value.
+    ///
+    /// # Returns
+    ///
+    /// The clamped tensor.
+    fn clamp_min<const D: usize>(
+        tensor: B::TensorPrimitive<D>,
+        min: B::FloatElem,
+    ) -> B::TensorPrimitive<D> {
+        // Default implementation
+        let mask = Self::lower_elem(tensor.clone(), min);
+        B::mask_fill(tensor, mask, min)
+    }
+
+    /// Clamps a tensor over a maximum value.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to clamp.
+    /// * `max` - The maximum value.
+    ///
+    /// # Returns
+    ///
+    /// The clamped tensor.
+    fn clamp_max<const D: usize>(
+        tensor: B::TensorPrimitive<D>,
+        max: B::FloatElem,
+    ) -> B::TensorPrimitive<D> {
+        // Default implementation
+        let mask = Self::greater_elem(tensor.clone(), max);
+        B::mask_fill(tensor, mask, max)
+    }
+
+    /// Clamps a tensor between a minimum and maximum value.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to clamp.
+    /// * `min` - The minimum value.
+    /// * `max` - The maximum value.
+    ///
+    /// # Returns
+    ///
+    /// The clamped tensor.
+    fn clamp<const D: usize>(
+        tensor: B::TensorPrimitive<D>,
+        min: B::FloatElem,
+        max: B::FloatElem,
+    ) -> B::TensorPrimitive<D> {
+        // Default implementation
+        Self::clamp_min(Self::clamp_max(tensor, max), min)
+    }
 
     /// Subtracts two tensors.
     ///
@@ -707,7 +776,7 @@ pub trait TensorOps<B: Backend> {
 
     /// Detaches a tensor from the computation graph.
     fn detach<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D> {
-        // Should only be overriden by autodiff backends.
+        // Should only be overridden by autodiff backends.
         tensor
     }
 
@@ -716,13 +785,13 @@ pub trait TensorOps<B: Backend> {
         tensor: B::TensorPrimitive<D>,
         _require_grad: bool,
     ) -> B::TensorPrimitive<D> {
-        // Should only be overriden by autodiff backends.
+        // Should only be overridden by autodiff backends.
         tensor
     }
 
     /// Returns the `require_grad` flag of a tensor.
     fn is_require_grad<const D: usize>(_tensor: &B::TensorPrimitive<D>) -> bool {
-        // Should only be overriden by autodiff backends.
+        // Should only be overridden by autodiff backends.
         false
     }
 
@@ -857,6 +926,17 @@ pub trait TensorOps<B: Backend> {
     ///
     /// A tensor with the same shape as `tensor` with square root values.
     fn sqrt<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D>;
+
+    /// Returns a new tensor with absolute values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to take absolute value of.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with absolute values.
+    fn abs<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D>;
 
     /// Returns a new tensor with cosine values.
     ///

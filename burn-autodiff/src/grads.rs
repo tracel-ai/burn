@@ -71,7 +71,9 @@ impl Gradients {
             .map(|tensor| tensor.into_primitive())
     }
 
-    /// Registers a grad tensor in the container.
+    /// Register a grad tensor in the container.
+    ///
+    /// If the tensor already exists, add both tensors together before saving the result.
     pub fn register<B: Backend, const D: usize>(
         &mut self,
         node: NodeRef,

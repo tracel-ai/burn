@@ -2,6 +2,7 @@
 use alloc::vec;
 use alloc::vec::Vec;
 use burn_tensor::ops::{BoolTensorOps, IntTensorOps};
+use burn_tensor::ElementConversion;
 use core::ops::Range;
 
 // Current crate
@@ -105,16 +106,22 @@ impl<E: FloatNdArrayElement> BoolTensorOps<NdArrayBackend<E>> for NdArrayBackend
         rhs: <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D>,
     ) -> <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D> {
         let mut array = lhs.array;
-        array.zip_mut_with(&rhs.array, |a, b| *a = *a && *b);
+        array.zip_mut_with(&rhs.array, |a, b| *a = *a == *b);
 
         NdArrayTensor { array }
     }
 
-    fn bool_equal_elem<const D: usize>(
-        lhs: <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D>,
-        rhs: bool,
+    fn bool_not<const D: usize>(
+        tensor: <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D>,
     ) -> <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D> {
-        let array = lhs.array.mapv(|a| a == rhs).into_shared();
+        let array = tensor.array.mapv(|a| !a).into_shared();
+        NdArrayTensor { array }
+    }
+
+    fn bool_into_float<const D: usize>(
+        tensor: <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D>,
+    ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D> {
+        let array = tensor.array.mapv(|a| (a as i32).elem()).into_shared();
         NdArrayTensor { array }
     }
 }

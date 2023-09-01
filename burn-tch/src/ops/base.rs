@@ -369,4 +369,35 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
 
         (tensor, indices)
     }
+
+    pub fn clamp_min<const D: usize, S: Into<tch::Scalar> + Clone + Copy>(
+        tensor: TchTensor<E, D>,
+        min: S,
+    ) -> TchTensor<E, D> {
+        tensor.unary_ops(
+            |mut tensor| tensor.clamp_min_(min),
+            |tensor| tensor.clamp_min(min),
+        )
+    }
+
+    pub fn clamp_max<const D: usize, S: Into<tch::Scalar> + Clone + Copy>(
+        tensor: TchTensor<E, D>,
+        max: S,
+    ) -> TchTensor<E, D> {
+        tensor.unary_ops(
+            |mut tensor| tensor.clamp_max_(max),
+            |tensor| tensor.clamp_max(max),
+        )
+    }
+
+    pub fn clamp<const D: usize, S: Into<tch::Scalar> + Clone + Copy>(
+        tensor: TchTensor<E, D>,
+        min: S,
+        max: S,
+    ) -> TchTensor<E, D> {
+        tensor.unary_ops(
+            |mut tensor| tensor.clamp_(min, max),
+            |tensor| tensor.clamp(min, max),
+        )
+    }
 }

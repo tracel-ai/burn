@@ -1,8 +1,10 @@
+use std::marker::PhantomData;
+
 use super::utils::shape_out;
 use crate::{
     context::WorkGroup,
     element::WgpuElement,
-    kernel::{build_info, into_contiguous, KernelSettings, SourceTemplate, StaticKernel},
+    kernel::{build_info, into_contiguous, DynamicKernel, SourceTemplate, StaticKernel},
     kernel_wgsl,
     tensor::WgpuTensor,
 };
@@ -12,15 +14,24 @@ kernel_wgsl!(
     "../../template/matmul/mem_coalescing.wgsl"
 );
 
-struct MatmulMemCoalescing<const WORKGROUP_SIZE_X: usize, const WORKGROUP_SIZE_Y: usize>;
+#[derive(new, Debug)]
+struct MatmulMemCoalescing<E: WgpuElement> {
+    workgroup_size_x: usize,
+    workgroup_size_y: usize,
+    _elem: PhantomData<E>,
+}
 
-impl<const WORKGROUP_SIZE_X: usize, const WORKGROUP_SIZE_Y: usize> StaticKernel
-    for MatmulMemCoalescing<WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y>
-{
-    fn source_template() -> SourceTemplate {
+impl<E: WgpuElement> DynamicKernel for MatmulMemCoalescing<E> {
+    fn source_template(self) -> SourceTemplate {
         MatmulMemCoalescingRaw::source_template()
-            .register("block_size_m", WORKGROUP_SIZE_X.to_string())
-            .register("block_size_n", WORKGROUP_SIZE_Y.to_string())
+            .register("workgroup_size_x", self.workgroup_size_x.to_string())
+            .register("workgroup_size_y", self.workgroup_size_y.to_string())
+            .register("elem", E::type_name())
+            .register("int", "i32")
+    }
+
+    fn id(&self) -> String {
+        std::format!("{:?}", self)
     }
 }
 
@@ -29,18 +40,15 @@ pub fn matmul_mem_coalescing_default<E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
-    matmul_mem_coalescing::<E, D, 16, 16>(lhs, rhs)
+    matmul_mem_coalescing::<E, D>(lhs, rhs, 16, 16)
 }
 
 /// Matrix multiplication using memory coalescing algorithm with custom workgroup sizes
-pub fn matmul_mem_coalescing<
-    E: WgpuElement,
-    const D: usize,
-    const WORKGROUP_SIZE_X: usize,
-    const WORKGROUP_SIZE_Y: usize,
->(
+pub fn matmul_mem_coalescing<E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
+    workgroup_size_x: usize,
+    workgroup_size_y: usize,
 ) -> WgpuTensor<E, D> {
     lhs.assert_is_on_same_device(&rhs);
 
@@ -57,17 +65,13 @@ pub fn matmul_mem_coalescing<
     let output = WgpuTensor::new(lhs.context.clone(), shape_out, buffer);
 
     // set number of workgroups
-    let blocks_needed_in_x = f32::ceil(num_rows as f32 / WORKGROUP_SIZE_X as f32) as u32;
-    let blocks_needed_in_y = f32::ceil(num_cols as f32 / WORKGROUP_SIZE_Y as f32) as u32;
+    let blocks_needed_in_x = f32::ceil(num_rows as f32 / workgroup_size_x as f32) as u32;
+    let blocks_needed_in_y = f32::ceil(num_cols as f32 / workgroup_size_y as f32) as u32;
 
-    let kernel = lhs.context.compile_static::<KernelSettings<
-        MatmulMemCoalescing<WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y>,
-        E,
-        i32,
-        WORKGROUP_SIZE_X,
-        WORKGROUP_SIZE_Y,
-        1,
-    >>();
+    let kernel = lhs.context.compile_dynamic(MatmulMemCoalescing::<E>::new(
+        workgroup_size_x,
+        workgroup_size_y,
+    ));
 
     let info = build_info(&[&lhs, &rhs, &output]);
 
@@ -149,7 +153,7 @@ mod tests {
         batch_2: usize,
     ) {
         let func = |lhs, rhs| {
-            matmul_mem_coalescing::<f32, 4, WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y>(lhs, rhs)
+            matmul_mem_coalescing::<f32, 4>(lhs, rhs, WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y)
         };
         let shape_lhs = [batch_1, batch_2, m, k];
         let shape_rhs = [batch_1, batch_2, k, n];
@@ -158,7 +162,7 @@ mod tests {
 
     #[test]
     fn test_matmul_naive_swapped_batches_no_padding() {
-        let matmul_func = matmul_mem_coalescing::<f32, 4, 2, 2>;
+        let matmul_func = |lhs, rhs| matmul_mem_coalescing::<f32, 4>(lhs, rhs, 2, 2);
         let swap = [0, 1];
         let shape_lhs = [3, 2, 4, 4];
         let shape_rhs = [3, 2, 4, 4];
@@ -167,7 +171,7 @@ mod tests {
 
     #[test]
     fn test_matmul_naive_swapped_row_col_no_padding() {
-        let matmul_func = matmul_mem_coalescing::<f32, 4, 2, 2>;
+        let matmul_func = |lhs, rhs| matmul_mem_coalescing::<f32, 4>(lhs, rhs, 2, 2);
         let swap_lhs = [0, 0];
         let swap_rhs = [2, 3];
         let shape_lhs = [3, 2, 4, 4];
@@ -177,7 +181,7 @@ mod tests {
 
     #[test]
     fn test_matmul_naive_swapped_row_with_batch_no_padding() {
-        let matmul_func = matmul_mem_coalescing::<f32, 4, 2, 2>;
+        let matmul_func = |lhs, rhs| matmul_mem_coalescing::<f32, 4>(lhs, rhs, 2, 2);
         let swap_lhs = [0, 3];
         let swap_rhs = [0, 2];
         let shape_lhs = [4, 4, 4, 4];

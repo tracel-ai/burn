@@ -37,7 +37,8 @@ macro_rules! kernel_wgsl {
 
 kernel_wgsl!(ContiguousRaw, "../template/contiguous.wgsl");
 
-pub(crate) fn into_contiguous<E: WgpuElement, const D: usize>(
+/// Make a wgpu tensor contiguous.
+pub fn into_contiguous<E: WgpuElement, const D: usize>(
     tensor: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     if tensor.is_contiguous() {
@@ -157,9 +158,7 @@ impl<K: StaticKernel, E: WgpuElement, I: WgpuElement> DynamicKernel
 /// |     (D + 1)..(2 * D + 1) | rhs strides |
 /// | (2 * D + 1)..(3 * D + 1) | lhs shape   |
 /// | (3 * D + 1)..(4 * D + 1) | rhs shape   |
-pub(crate) fn build_info<E: WgpuElement, const D: usize>(
-    tensors: &[&WgpuTensor<E, D>],
-) -> Vec<u32> {
+pub fn build_info<E: WgpuElement, const D: usize>(tensors: &[&WgpuTensor<E, D>]) -> Vec<u32> {
     let mut info: Vec<u32> = vec![0; tensors.len() * 2 * D + 1];
     info[0] = D as u32;
 
@@ -184,6 +183,20 @@ pub(crate) fn elemwise_workgroup(num_elems: usize, workgroup_size: usize) -> Wor
     let workgroups = f32::ceil(num_elems as f32 / num_elem_per_invocation as f32);
     let workgroup_x = f32::ceil(f32::sqrt(workgroups));
     let workgroup_y = f32::ceil(num_elems as f32 / (workgroup_x * num_elem_per_invocation as f32));
+
+    WorkGroup::new(workgroup_x as u32, workgroup_y as u32, 1)
+}
+
+pub(crate) fn prng_workgroup(
+    num_elems: usize,
+    workgroup_size: usize,
+    n_values_per_thread: usize,
+) -> WorkGroup {
+    let num_threads = f32::ceil(num_elems as f32 / n_values_per_thread as f32);
+    let num_elem_per_invocation = workgroup_size * workgroup_size;
+    let num_invocations = f32::ceil(num_threads / num_elem_per_invocation as f32);
+    let workgroup_x = f32::ceil(f32::sqrt(num_invocations));
+    let workgroup_y = f32::ceil(num_invocations / workgroup_x);
 
     WorkGroup::new(workgroup_x as u32, workgroup_y as u32, 1)
 }

@@ -13,6 +13,7 @@ macro_rules! testgen_all {
         burn_tensor::testgen_softmax!();
         burn_tensor::testgen_sigmoid!();
         burn_tensor::testgen_silu!();
+        burn_tensor::testgen_tanh_activation!();
 
         // test module
         burn_tensor::testgen_module_forward!();
@@ -20,9 +21,12 @@ macro_rules! testgen_all {
         burn_tensor::testgen_module_conv2d!();
         burn_tensor::testgen_module_conv_transpose1d!();
         burn_tensor::testgen_module_conv_transpose2d!();
+        burn_tensor::testgen_module_max_pool1d!();
         burn_tensor::testgen_module_max_pool2d!();
         burn_tensor::testgen_module_avg_pool1d!();
         burn_tensor::testgen_module_avg_pool2d!();
+        burn_tensor::testgen_module_adaptive_avg_pool1d!();
+        burn_tensor::testgen_module_adaptive_avg_pool2d!();
 
         // test ops
         burn_tensor::testgen_add!();
@@ -30,7 +34,9 @@ macro_rules! testgen_all {
         burn_tensor::testgen_arange!();
         burn_tensor::testgen_arange_step!();
         burn_tensor::testgen_arg!();
+        burn_tensor::testgen_cast!();
         burn_tensor::testgen_cat!();
+        burn_tensor::testgen_clamp!();
         burn_tensor::testgen_cos!();
         burn_tensor::testgen_div!();
         burn_tensor::testgen_erf!();
@@ -38,6 +44,7 @@ macro_rules! testgen_all {
         burn_tensor::testgen_flatten!();
         burn_tensor::testgen_full!();
         burn_tensor::testgen_gather_scatter!();
+        burn_tensor::testgen_init!();
         burn_tensor::testgen_log!();
         burn_tensor::testgen_log1p!();
         burn_tensor::testgen_map_comparison!();
@@ -54,12 +61,14 @@ macro_rules! testgen_all {
         burn_tensor::testgen_sin!();
         burn_tensor::testgen_slice!();
         burn_tensor::testgen_sqrt!();
+        burn_tensor::testgen_abs!();
         burn_tensor::testgen_squeeze!();
         burn_tensor::testgen_sub!();
         burn_tensor::testgen_tanh!();
         burn_tensor::testgen_transpose!();
 
         // test stats
-        burn_tensor::testgen_stats!();
+        burn_tensor::testgen_var!();
+        burn_tensor::testgen_display!();
     };
 }

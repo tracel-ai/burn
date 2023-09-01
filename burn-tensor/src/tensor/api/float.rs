@@ -7,6 +7,7 @@ use crate::check::TensorCheck;
 use crate::tensor::backend::Backend;
 use crate::tensor::stats;
 use crate::tensor::{Data, Distribution, Shape};
+use crate::Int;
 use crate::Tensor;
 
 impl<const D: usize, B> Tensor<B, D>
@@ -101,6 +102,24 @@ where
     /// ```
     pub fn from_floats<A: Into<Data<f32, D>>>(floats: A) -> Self {
         Self::from_data(floats.into().convert())
+    }
+
+    /// Returns a new tensor with the same shape and device as the current tensor and the data
+    /// casted to Integer.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let float_tensor = Tensor::<B, 1>::from_floats([1.0, 2.0]);
+    ///     let int_tensor = float_tensor.int();
+    /// }
+    /// ```
+    pub fn int(self) -> Tensor<B, D, Int> {
+        Tensor::new(B::into_int(self.primitive))
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor filled with zeros.
@@ -209,6 +228,16 @@ where
         Self::new(tensor)
     }
 
+    /// Create a random tensor of the given shape on the given device where each element is
+    /// sampled from the given distribution.
+    pub fn random_device<S: Into<Shape<D>>>(
+        shape: S,
+        distribution: Distribution<B::FloatElem>,
+        device: &B::Device,
+    ) -> Self {
+        let tensor = B::random(shape.into(), distribution, device);
+        Self::new(tensor)
+    }
     /// Returns a tensor with full precision based on the selected backend.
     pub fn to_full_precision(&self) -> Tensor<B::FullPrecisionBackend, D> {
         Tensor::new(B::to_full_precision(&self.primitive))
@@ -221,7 +250,7 @@ where
 
     /// Detach the current tensor from the autodiff graph.
     /// This function does nothing when autodiff is not enabled.
-    /// This can be used in batchers or elsewere to ensure that previous operations are not
+    /// This can be used in batchers or elsewhere to ensure that previous operations are not
     /// considered in the autodiff graph.
     pub fn detach(self) -> Self {
         Self::new(B::detach(self.primitive))
@@ -270,6 +299,12 @@ impl<const D: usize, B: ADBackend> Tensor<B, D> {
     /// Remove the grad tensor from the [grads](ADBackend::Gradients) struct returning the result.
     pub fn grad_remove(&self, grads: &mut B::Gradients) -> Option<Tensor<B::InnerBackend, D>> {
         B::grad_remove(&self.primitive, grads).map(Tensor::new)
+    }
+
+    /// Replace the grad tensor from the [grads](ADBackend::Gradients) struct with the provided
+    /// gradient.
+    pub fn grad_replace(&self, grads: &mut B::Gradients, grad: Tensor<B::InnerBackend, D>) {
+        B::grad_replace(&self.primitive, grads, grad.primitive);
     }
 
     /// Returns the inner tensor without the autodiff information.

@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use crate::{
     grads::Gradients,
     graph::{NodeRef, Requirement, Step},
-    ops::{binary, unary, unary_different_backend, Backward, Ops, OpsKind},
+    ops::{binary, broadcast_shape, unary, unary_different_backend, Backward, Ops, OpsKind},
     tensor::{ADTensor, BoolTensor, FloatElem, IntTensor},
     utils::duplicate,
     ADBackendDecorator,
@@ -67,7 +67,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        match ToDevice.prepare([tensor.node], [tensor.graph]).statefull() {
+        match ToDevice.prepare([tensor.node], [tensor.graph]).stateful() {
             OpsKind::Tracked(prep) => {
                 let device_old = B::device(&tensor.primitive);
                 prep.finish(device_old, B::to_device(tensor.primitive, device))
@@ -98,15 +98,15 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     ops.parents,
                     ops.node,
                     grads,
-                    |grad| broadcast_shape::<B, D>(grad, shape_lhs),
-                    |grad| broadcast_shape::<B, D>(grad, shape_rhs),
+                    |grad| broadcast_shape::<B, D>(grad, &shape_lhs),
+                    |grad| broadcast_shape::<B, D>(grad, &shape_rhs),
                 );
             }
         }
 
         match Add
             .prepare([lhs.node, rhs.node], [lhs.graph, rhs.graph])
-            .statefull()
+            .stateful()
         {
             OpsKind::Tracked(preps) => preps.finish(
                 (B::shape(&lhs.primitive), B::shape(&rhs.primitive)),
@@ -147,15 +147,15 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     ops.parents,
                     ops.node,
                     grads,
-                    |grad| broadcast_shape::<B, D>(grad, shape_lhs),
-                    |grad| broadcast_shape::<B, D>(B::neg(grad), shape_rhs),
+                    |grad| broadcast_shape::<B, D>(grad, &shape_lhs),
+                    |grad| broadcast_shape::<B, D>(B::neg(grad), &shape_rhs),
                 );
             }
         }
 
         match Sub
             .prepare([lhs.node, rhs.node], [lhs.graph, rhs.graph])
-            .statefull()
+            .stateful()
         {
             OpsKind::Tracked(preps) => preps.finish(
                 (B::shape(&lhs.primitive), B::shape(&rhs.primitive)),
@@ -187,32 +187,44 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         struct Mul;
 
         impl<B: Backend, const D: usize> Backward<B, D, 2> for Mul {
-            type State = (Option<B::TensorPrimitive<D>>, Option<B::TensorPrimitive<D>>);
+            type State = (
+                Option<B::TensorPrimitive<D>>,
+                Option<B::TensorPrimitive<D>>,
+                BinaryOpsBroadcast<D>,
+            );
 
             fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
-                let (lhs, rhs) = ops.state;
+                let (lhs, rhs, broadcast) = ops.state;
 
                 binary::<B, D, D, D, _, _>(
                     ops.parents,
                     ops.node,
                     grads,
-                    |grad| B::mul(grad, rhs.unwrap()),
-                    |grad| B::mul(grad, lhs.unwrap()),
+                    |grad| {
+                        let grad = B::mul(grad, rhs.unwrap());
+                        broadcast.backward_lhs::<B>(grad)
+                    },
+                    |grad| {
+                        let grad = B::mul(grad, lhs.unwrap());
+                        broadcast.backward_rhs::<B>(grad)
+                    },
                 );
             }
         }
 
         let lhs_tracked = lhs.is_tracked();
         let rhs_tracked = rhs.is_tracked();
+        let broadcast = BinaryOpsBroadcast::new::<B>(&lhs.primitive, &rhs.primitive);
 
         match Mul
             .prepare([lhs.node, rhs.node], [lhs.graph, rhs.graph])
-            .statefull()
+            .stateful()
         {
             OpsKind::Tracked(prep) => prep.finish(
                 (
                     rhs_tracked.then(|| lhs.primitive.clone()),
                     lhs_tracked.then(|| rhs.primitive.clone()),
+                    broadcast,
                 ),
                 B::mul(lhs.primitive, rhs.primitive),
             ),
@@ -234,7 +246,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        match MulScalar.prepare([lhs.node], [lhs.graph]).statefull() {
+        match MulScalar.prepare([lhs.node], [lhs.graph]).stateful() {
             OpsKind::Tracked(prep) => prep.finish(rhs, B::mul_scalar(lhs.primitive, rhs)),
             OpsKind::UnTracked(prep) => prep.finish(B::mul_scalar(lhs.primitive, rhs)),
         }
@@ -245,10 +257,14 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         struct Div;
 
         impl<B: Backend, const D: usize> Backward<B, D, 2> for Div {
-            type State = (Option<B::TensorPrimitive<D>>, Option<B::TensorPrimitive<D>>);
+            type State = (
+                Option<B::TensorPrimitive<D>>,
+                Option<B::TensorPrimitive<D>>,
+                BinaryOpsBroadcast<D>,
+            );
 
             fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
-                let (lhs, rhs) = ops.state;
+                let (lhs, rhs, broadcast) = ops.state;
                 let [rhs_4lhs, rhs_4rhs] = duplicate(&ops.parents, rhs);
 
                 binary::<B, D, D, D, _, _>(
@@ -258,14 +274,17 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     |grad| {
                         let rhs = rhs_4lhs.unwrap();
                         let value = B::powf(rhs, -1.0);
+                        let grad = B::mul(grad, value);
 
-                        B::mul(grad, value)
+                        broadcast.backward_lhs::<B>(grad)
                     },
                     |grad| {
                         let rhs = rhs_4rhs.unwrap();
                         let lhs = lhs.unwrap();
                         let value = B::div(B::neg(lhs), B::powf(rhs, 2.0));
-                        B::mul(grad, value)
+                        let grad = B::mul(grad, value);
+
+                        broadcast.backward_rhs::<B>(grad)
                     },
                 );
             }
@@ -273,15 +292,17 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
         let lhs_tracked = lhs.is_tracked();
         let rhs_tracked = rhs.is_tracked();
+        let broadcast = BinaryOpsBroadcast::new::<B>(&lhs.primitive, &rhs.primitive);
 
         match Div
             .prepare([lhs.node, rhs.node], [lhs.graph, rhs.graph])
-            .statefull()
+            .stateful()
         {
             OpsKind::Tracked(prep) => prep.finish(
                 (
                     rhs_tracked.then(|| lhs.primitive.clone()),
                     (lhs_tracked || rhs_tracked).then(|| rhs.primitive.clone()),
+                    broadcast,
                 ),
                 B::div(lhs.primitive, rhs.primitive),
             ),
@@ -304,7 +325,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        match DivScalar.prepare([lhs.node], [lhs.graph]).statefull() {
+        match DivScalar.prepare([lhs.node], [lhs.graph]).stateful() {
             OpsKind::Tracked(prep) => prep.finish(rhs, B::div_scalar(lhs.primitive, rhs)),
             OpsKind::UnTracked(prep) => prep.finish(B::div_scalar(lhs.primitive, rhs)),
         }
@@ -315,10 +336,14 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         struct Matmul;
 
         impl<B: Backend, const D: usize> Backward<B, D, 2> for Matmul {
-            type State = (Option<B::TensorPrimitive<D>>, Option<B::TensorPrimitive<D>>);
+            type State = (
+                Option<B::TensorPrimitive<D>>,
+                Option<B::TensorPrimitive<D>>,
+                BinaryOpsBroadcast<D>,
+            );
 
             fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
-                let (lhs, rhs) = ops.state;
+                let (lhs, rhs, broadcast) = ops.state;
 
                 binary::<B, D, D, D, _, _>(
                     ops.parents,
@@ -326,11 +351,15 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     grads,
                     |grad| {
                         let rhs = B::transpose(rhs.unwrap());
-                        B::matmul(grad, rhs)
+                        let grad = B::matmul(grad, rhs);
+
+                        broadcast.backward_lhs::<B>(grad)
                     },
                     |grad| {
                         let lhs = B::transpose(lhs.unwrap());
-                        B::matmul(lhs, grad)
+                        let grad = B::matmul(lhs, grad);
+
+                        broadcast.backward_rhs::<B>(grad)
                     },
                 );
             }
@@ -338,15 +367,17 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
         let lhs_tracked = lhs.is_tracked();
         let rhs_tracked = rhs.is_tracked();
+        let broadcast = BinaryOpsBroadcast::new::<B>(&lhs.primitive, &rhs.primitive);
 
         match Matmul
             .prepare([lhs.node, rhs.node], [lhs.graph, rhs.graph])
-            .statefull()
+            .stateful()
         {
             OpsKind::Tracked(prep) => prep.finish(
                 (
                     rhs_tracked.then(|| lhs.primitive.clone()),
                     lhs_tracked.then(|| rhs.primitive.clone()),
+                    broadcast,
                 ),
                 B::matmul(lhs.primitive, rhs.primitive),
             ),
@@ -392,7 +423,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
         let output = B::swap_dims(tensor.primitive, dim1, dim2);
 
-        match SwapDim.prepare([tensor.node], [tensor.graph]).statefull() {
+        match SwapDim.prepare([tensor.node], [tensor.graph]).stateful() {
             OpsKind::Tracked(prep) => prep.finish((dim1, dim2), output),
             OpsKind::UnTracked(prep) => prep.finish(output),
         }
@@ -426,10 +457,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        match ReshapeDim
-            .prepare([tensor.node], [tensor.graph])
-            .statefull()
-        {
+        match ReshapeDim.prepare([tensor.node], [tensor.graph]).stateful() {
             OpsKind::Tracked(prep) => prep.finish(
                 (B::shape(&tensor.primitive), shape.clone()),
                 B::reshape(tensor.primitive, shape),
@@ -459,7 +487,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        match Gather.prepare([tensor.node], [tensor.graph]).statefull() {
+        match Gather.prepare([tensor.node], [tensor.graph]).stateful() {
             OpsKind::Tracked(prep) => prep.finish(
                 (
                     dim,
@@ -507,7 +535,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
         match Scatter
             .prepare([tensor.node, value.node], [tensor.graph, value.graph])
-            .statefull()
+            .stateful()
         {
             OpsKind::Tracked(prep) => prep.finish(
                 (
@@ -548,7 +576,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
         match IndexSelectDim
             .prepare([tensor.node], [tensor.graph])
-            .statefull()
+            .stateful()
         {
             OpsKind::Tracked(prep) => prep.finish(
                 (
@@ -597,7 +625,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
         match IndexSelectDimAssign::<D>
             .prepare([tensor.node, value.node], [tensor.graph, value.graph])
-            .statefull()
+            .stateful()
         {
             OpsKind::Tracked(prep) => prep.finish(
                 (
@@ -638,7 +666,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        match Index.prepare([tensor.node], [tensor.graph]).statefull() {
+        match Index.prepare([tensor.node], [tensor.graph]).stateful() {
             OpsKind::Tracked(prep) => prep.finish(
                 (
                     ranges.clone(),
@@ -681,7 +709,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
         match IndexAssign
             .prepare([tensor.node, value.node], [tensor.graph, value.graph])
-            .statefull()
+            .stateful()
         {
             OpsKind::Tracked(prep) => prep.finish(
                 (
@@ -717,12 +745,16 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
                     ops.node,
                     grads,
                     |grad| {
-                        let zeros = B::zeros(shape_lhs, &device);
-                        B::mask_where(grad, mask_4lhs.unwrap(), zeros)
+                        let zeros = B::zeros(shape_lhs.clone(), &device);
+                        let grad = B::mask_where(grad, mask_4lhs.unwrap(), zeros);
+
+                        broadcast_shape::<B, D>(grad, &shape_lhs)
                     },
                     |grad| {
-                        let zeros = B::zeros(shape_rhs, &device);
-                        B::mask_where(zeros, mask_4rhs.unwrap(), grad)
+                        let zeros = B::zeros(shape_rhs.clone(), &device);
+                        let grad = B::mask_where(zeros, mask_4rhs.unwrap(), grad);
+
+                        broadcast_shape::<B, D>(grad, &shape_rhs)
                     },
                 );
             }
@@ -730,7 +762,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
         match MaskWhere
             .prepare([tensor.node, source.node], [tensor.graph, source.graph])
-            .statefull()
+            .stateful()
         {
             OpsKind::Tracked(prep) => prep.finish(
                 (
@@ -765,7 +797,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        match MaskFill.prepare([tensor.node], [tensor.graph]).statefull() {
+        match MaskFill.prepare([tensor.node], [tensor.graph]).stateful() {
             OpsKind::Tracked(prep) => {
                 prep.finish(mask.clone(), B::mask_fill(tensor.primitive, mask, value))
             }
@@ -868,7 +900,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        match Mean.prepare([tensor.node], [tensor.graph]).statefull() {
+        match Mean.prepare([tensor.node], [tensor.graph]).stateful() {
             OpsKind::Tracked(prep) => {
                 prep.finish(B::shape(&tensor.primitive), B::mean(tensor.primitive))
             }
@@ -895,7 +927,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        match Sum.prepare([tensor.node], [tensor.graph]).statefull() {
+        match Sum.prepare([tensor.node], [tensor.graph]).stateful() {
             OpsKind::Tracked(prep) => {
                 prep.finish(B::shape(&tensor.primitive), B::sum(tensor.primitive))
             }
@@ -924,7 +956,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        match MeamDim.prepare([tensor.node], [tensor.graph]).statefull() {
+        match MeamDim.prepare([tensor.node], [tensor.graph]).stateful() {
             OpsKind::Tracked(prep) => prep.finish(
                 (B::shape(&tensor.primitive), dim),
                 B::mean_dim(tensor.primitive, dim),
@@ -952,7 +984,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        match SumDim.prepare([tensor.node], [tensor.graph]).statefull() {
+        match SumDim.prepare([tensor.node], [tensor.graph]).stateful() {
             OpsKind::Tracked(prep) => prep.finish(
                 (B::shape(&tensor.primitive), dim),
                 B::sum_dim(tensor.primitive, dim),
@@ -1040,7 +1072,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
         let output = B::exp(tensor.primitive);
 
-        match Exp.prepare([tensor.node], [tensor.graph]).statefull() {
+        match Exp.prepare([tensor.node], [tensor.graph]).stateful() {
             OpsKind::Tracked(prep) => prep.finish(output.clone(), output),
             OpsKind::UnTracked(prep) => prep.finish(output),
         }
@@ -1061,7 +1093,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        match Log.prepare([tensor.node], [tensor.graph]).statefull() {
+        match Log.prepare([tensor.node], [tensor.graph]).stateful() {
             OpsKind::Tracked(prep) => {
                 prep.finish(tensor.primitive.clone(), B::log(tensor.primitive))
             }
@@ -1086,7 +1118,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        match Log1P.prepare([tensor.node], [tensor.graph]).statefull() {
+        match Log1P.prepare([tensor.node], [tensor.graph]).stateful() {
             OpsKind::Tracked(prep) => {
                 prep.finish(tensor.primitive.clone(), B::log1p(tensor.primitive))
             }
@@ -1113,7 +1145,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        match PowF.prepare([tensor.node], [tensor.graph]).statefull() {
+        match PowF.prepare([tensor.node], [tensor.graph]).stateful() {
             OpsKind::Tracked(prep) => prep.finish(
                 (tensor.primitive.clone(), value),
                 B::powf(tensor.primitive, value),
@@ -1139,11 +1171,33 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        match Sqrt.prepare([tensor.node], [tensor.graph]).statefull() {
+        match Sqrt.prepare([tensor.node], [tensor.graph]).stateful() {
             OpsKind::Tracked(prep) => {
                 prep.finish(tensor.primitive.clone(), B::sqrt(tensor.primitive))
             }
             OpsKind::UnTracked(prep) => prep.finish(B::sqrt(tensor.primitive)),
+        }
+    }
+
+    fn abs<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {
+        #[derive(Debug)]
+        struct Abs;
+
+        impl<B: Backend, const D: usize> Backward<B, D, 1> for Abs {
+            type State = B::TensorPrimitive<D>;
+
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+                unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| B::mul(grad, ops.state));
+            }
+        }
+
+        match Abs.prepare([tensor.node], [tensor.graph]).stateful() {
+            OpsKind::Tracked(prep) => {
+                let output = B::abs(tensor.primitive.clone());
+                let state = B::div(tensor.primitive, output.clone());
+                prep.finish(state, output)
+            }
+            OpsKind::UnTracked(prep) => prep.finish(B::abs(tensor.primitive)),
         }
     }
 
@@ -1164,7 +1218,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        match Cos.prepare([tensor.node], [tensor.graph]).statefull() {
+        match Cos.prepare([tensor.node], [tensor.graph]).stateful() {
             OpsKind::Tracked(prep) => {
                 prep.finish(tensor.primitive.clone(), B::cos(tensor.primitive))
             }
@@ -1187,7 +1241,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        match Sin.prepare([tensor.node], [tensor.graph]).statefull() {
+        match Sin.prepare([tensor.node], [tensor.graph]).stateful() {
             OpsKind::Tracked(prep) => {
                 prep.finish(tensor.primitive.clone(), B::sin(tensor.primitive))
             }
@@ -1210,7 +1264,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        match Tanh.prepare([tensor.node], [tensor.graph]).statefull() {
+        match Tanh.prepare([tensor.node], [tensor.graph]).stateful() {
             OpsKind::Tracked(prep) => {
                 let output = B::tanh(tensor.primitive);
                 prep.finish(output.clone(), output)
@@ -1238,7 +1292,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
 
-        match Erf.prepare([tensor.node], [tensor.graph]).statefull() {
+        match Erf.prepare([tensor.node], [tensor.graph]).stateful() {
             OpsKind::Tracked(prep) => {
                 prep.finish(tensor.primitive.clone(), B::erf(tensor.primitive))
             }
@@ -1268,7 +1322,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
                 self.nodes
                     .into_iter()
-                    .zip(self.dim_sizes.into_iter())
+                    .zip(self.dim_sizes)
                     .filter_map(|(node, dim_size)| node.map(|node| (node, dim_size)))
                     .for_each(|(node, dim_size)| {
                         let mut ranges = ranges.clone();
@@ -1313,7 +1367,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn max_dim<const D: usize>(tensor: ADTensor<B, D>, dim: usize) -> ADTensor<B, D> {
-        match MaxMinDim.prepare([tensor.node], [tensor.graph]).statefull() {
+        match MaxMinDim.prepare([tensor.node], [tensor.graph]).stateful() {
             OpsKind::Tracked(prep) => {
                 let shape = B::shape(&tensor.primitive);
                 let (tensor, index) = B::max_dim_with_indices(tensor.primitive, dim);
@@ -1326,7 +1380,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         tensor: ADTensor<B, D>,
         dim: usize,
     ) -> (ADTensor<B, D>, IntTensor<B, D>) {
-        match MaxMinDim.prepare([tensor.node], [tensor.graph]).statefull() {
+        match MaxMinDim.prepare([tensor.node], [tensor.graph]).stateful() {
             OpsKind::Tracked(prep) => {
                 let shape = B::shape(&tensor.primitive);
                 let (tensor, index) = B::max_dim_with_indices(tensor.primitive, dim);
@@ -1343,7 +1397,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
     fn min_dim<const D: usize>(tensor: ADTensor<B, D>, dim: usize) -> ADTensor<B, D> {
-        match MaxMinDim.prepare([tensor.node], [tensor.graph]).statefull() {
+        match MaxMinDim.prepare([tensor.node], [tensor.graph]).stateful() {
             OpsKind::Tracked(prep) => {
                 let shape = B::shape(&tensor.primitive);
                 let (tensor, index) = B::min_dim_with_indices(tensor.primitive, dim);
@@ -1356,7 +1410,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         tensor: ADTensor<B, D>,
         dim: usize,
     ) -> (ADTensor<B, D>, IntTensor<B, D>) {
-        match MaxMinDim.prepare([tensor.node], [tensor.graph]).statefull() {
+        match MaxMinDim.prepare([tensor.node], [tensor.graph]).stateful() {
             OpsKind::Tracked(prep) => {
                 let shape = B::shape(&tensor.primitive);
                 let (tensor, index) = B::min_dim_with_indices(tensor.primitive, dim);
@@ -1372,29 +1426,45 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
     }
+
+    fn into_int<const D: usize>(
+        tensor: ADTensor<B, D>,
+    ) -> <ADBackendDecorator<B> as Backend>::IntTensorPrimitive<D> {
+        B::into_int(tensor.primitive)
+    }
 }
 
-/// Make sure the grad tensor has the given shape.
-///
-/// If broadcasting happened during the forward pass, the gradients will be sum along the
-/// broadcasted dimension.
-fn broadcast_shape<B: Backend, const D: usize>(
-    mut grad: B::TensorPrimitive<D>,
-    shape: Shape<D>,
-) -> B::TensorPrimitive<D> {
-    let shape_grad = B::shape(&grad);
+#[derive(Debug, Clone)]
+enum BinaryOpsBroadcast<const D: usize> {
+    Broadcasted(Shape<D>, Shape<D>),
+    None,
+}
 
-    for i in 0..D {
-        if shape_grad.dims[i] != shape.dims[i] {
-            if shape.dims[i] != 1 {
-                panic!(
-                    "Invalid broadcast shapes: Next grad shape {:?}, Previous grad shape {:?}. {}",
-                    shape.dims, shape_grad.dims, "Expected the shape of the next grad to be 1."
-                );
+impl<const D: usize> BinaryOpsBroadcast<D> {
+    fn new<B: Backend>(lhs: &B::TensorPrimitive<D>, rhs: &B::TensorPrimitive<D>) -> Self {
+        let shape_lhs = B::shape(lhs);
+        let shape_rhs = B::shape(rhs);
+
+        for i in 0..D {
+            if shape_rhs.dims[i] != shape_lhs.dims[i] {
+                return Self::Broadcasted(shape_lhs, shape_rhs);
             }
-            grad = B::sum_dim(grad, i);
+        }
+
+        Self::None
+    }
+
+    fn backward_lhs<B: Backend>(&self, grad: B::TensorPrimitive<D>) -> B::TensorPrimitive<D> {
+        match self {
+            BinaryOpsBroadcast::Broadcasted(lhs, _rhs) => broadcast_shape::<B, D>(grad, lhs),
+            BinaryOpsBroadcast::None => grad,
         }
     }
 
-    grad
+    fn backward_rhs<B: Backend>(&self, grad: B::TensorPrimitive<D>) -> B::TensorPrimitive<D> {
+        match self {
+            BinaryOpsBroadcast::Broadcasted(_lhs, rhs) => broadcast_shape::<B, D>(grad, rhs),
+            BinaryOpsBroadcast::None => grad,
+        }
+    }
 }

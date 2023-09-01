@@ -1,5 +1,5 @@
 use crate::{
-    tensor::{BoolTensor, IntTensor},
+    tensor::{ADTensor, BoolTensor, IntTensor},
     ADBackendDecorator,
 };
 
@@ -83,6 +83,22 @@ impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
     fn int_add_scalar<const D: usize>(lhs: IntTensor<B, D>, rhs: B::IntElem) -> IntTensor<B, D> {
         B::int_add_scalar(lhs, rhs)
+    }
+
+    fn int_clamp_min<const D: usize>(tensor: IntTensor<B, D>, min: B::IntElem) -> IntTensor<B, D> {
+        B::int_clamp_min(tensor, min)
+    }
+
+    fn int_clamp_max<const D: usize>(tensor: IntTensor<B, D>, max: B::IntElem) -> IntTensor<B, D> {
+        B::int_clamp_max(tensor, max)
+    }
+
+    fn int_clamp<const D: usize>(
+        tensor: IntTensor<B, D>,
+        min: B::IntElem,
+        max: B::IntElem,
+    ) -> IntTensor<B, D> {
+        B::int_clamp(tensor, min, max)
     }
 
     fn int_sub<const D: usize>(lhs: IntTensor<B, D>, rhs: IntTensor<B, D>) -> IntTensor<B, D> {
@@ -288,5 +304,13 @@ impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         dim: usize,
     ) -> (B::IntTensorPrimitive<D>, B::IntTensorPrimitive<D>) {
         B::int_min_dim_with_indices(tensor, dim)
+    }
+    fn int_abs<const D: usize>(tensor: B::IntTensorPrimitive<D>) -> B::IntTensorPrimitive<D> {
+        B::int_abs(tensor)
+    }
+    fn int_into_float<const D: usize>(
+        tensor: <ADBackendDecorator<B> as Backend>::IntTensorPrimitive<D>,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
+        ADTensor::new(B::int_into_float(tensor))
     }
 }

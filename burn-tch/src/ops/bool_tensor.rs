@@ -74,6 +74,7 @@ impl<E: TchElement> BoolTensorOps<TchBackend<E>> for TchBackend<E> {
     ) -> TchTensor<bool, D1> {
         TchOps::slice(tensor, ranges)
     }
+
     fn bool_slice_assign<const D1: usize, const D2: usize>(
         tensor: TchTensor<bool, D1>,
         ranges: [std::ops::Range<usize>; D2],
@@ -96,19 +97,19 @@ impl<E: TchElement> BoolTensorOps<TchBackend<E>> for TchBackend<E> {
         TchOps::equal(lhs, rhs)
     }
 
-    fn bool_equal_elem<const D: usize>(lhs: TchTensor<bool, D>, rhs: bool) -> TchTensor<bool, D> {
-        let rhs = match rhs {
-            true => 1,
-            false => 0,
-        };
-
-        lhs.unary_ops(
-            |mut tensor| tensor.eq_(rhs).to_kind(tch::Kind::Bool),
-            |tensor| tensor.eq(rhs),
+    fn bool_not<const D: usize>(tensor: TchTensor<bool, D>) -> TchTensor<bool, D> {
+        tensor.unary_ops(
+            |mut tensor| tensor.eq_(0).to_kind(tch::Kind::Bool),
+            |tensor| tensor.eq(0),
         )
     }
 
     fn bool_into_int<const D: usize>(tensor: TchTensor<bool, D>) -> TchTensor<i64, D> {
+        let tensor = tensor.tensor.to_kind(tch::Kind::Int64);
+        TchTensor::new(tensor)
+    }
+
+    fn bool_into_float<const D: usize>(tensor: TchTensor<bool, D>) -> TchTensor<E, D> {
         let tensor = tensor.tensor.to_kind(E::KIND);
         TchTensor::new(tensor)
     }

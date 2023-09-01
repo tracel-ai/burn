@@ -19,11 +19,12 @@ This library provides multiple tensor implementations hidden behind an easy to u
 
 ### Backends
 
-For now, only two backends are implementated, but adding new ones should not be that hard.
+For now, three backends are implemented, and some more are planned. 
 
 * [X] Pytorch using [tch-rs](https://github.com/LaurentMazare/tch-rs)
 * [X] 100% Rust backend using [ndarray](https://github.com/rust-ndarray/ndarray)
 * [X] [WGPU](https://github.com/gfx-rs/wgpu) backend
+* [ ] [Candle](https://github.com/huggingface/candle) backend
 * [ ] Tensorflow using [tensorflow-rust](https://github.com/tensorflow/rust)
 * [ ] CuDNN using RustCUDA[tensorflow-rust](https://github.com/Rust-GPU/Rust-CUDA)
 * [ ] ...
@@ -33,7 +34,7 @@ For now, only two backends are implementated, but adding new ones should not be 
 Automatic differentiation is implemented as just another tensor backend without any global state.
 It's possible since we keep track of the order in which each operation as been executed and the tape is only created when calculating the gradients.
 To do so, each operation creates a new node which has a reference to its parent nodes.
-Therefore, creating the tape only requires a simple and efficent graph traversal algorithm.
+Therefore, creating the tape only requires a simple and efficient graph traversal algorithm.
 
 ```rust
     let x = ADTensor::from_tensor(x_ndarray);
@@ -62,5 +63,5 @@ This crate can be used without the standard library (`#![no_std]`) with `alloc` 
 the default `std` feature.
 
 * `std` - enables the standard library.
-* `burn-tensor-testgen` - enables test macros for genarating tensor tests. 
+* `burn-tensor-testgen` - enables test macros for generating tensor tests. 
 

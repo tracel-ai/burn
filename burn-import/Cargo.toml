@@ -35,7 +35,6 @@ serde_json = {workspace = true, features = ["std"]}
 strum = {workspace = true}
 strum_macros = {workspace = true}
 syn = {workspace = true, features = ["parsing"]}
-topological-sort = {workspace = true}
 
 [build-dependencies]
 protobuf-codegen = {workspace = true}

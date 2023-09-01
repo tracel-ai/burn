@@ -10,8 +10,6 @@ use burn_tensor::module::max_pool2d;
 /// Configuration to create an [2D max pooling](MaxPool2d) layer.
 #[derive(Debug, Config)]
 pub struct MaxPool2dConfig {
-    /// The number of channels.
-    pub channels: usize,
     /// The size of the kernel.
     pub kernel_size: [usize; 2],
     /// The strides.
@@ -20,6 +18,9 @@ pub struct MaxPool2dConfig {
     /// The padding configuration.
     #[config(default = "PaddingConfig2d::Valid")]
     pub padding: PaddingConfig2d,
+    /// The dilation.
+    #[config(default = "[1, 1]")]
+    pub dilation: [usize; 2],
 }
 
 /// Applies a 2D max pooling over input tensors.
@@ -28,6 +29,7 @@ pub struct MaxPool2d {
     stride: [usize; 2],
     kernel_size: [usize; 2],
     padding: PaddingConfig2d,
+    dilation: [usize; 2],
 }
 
 impl MaxPool2dConfig {
@@ -37,6 +39,7 @@ impl MaxPool2dConfig {
             stride: self.strides,
             kernel_size: self.kernel_size,
             padding: self.padding.clone(),
+            dilation: self.dilation,
         }
     }
 }
@@ -54,6 +57,6 @@ impl MaxPool2d {
             self.padding
                 .calculate_padding_2d(height_in, width_in, &self.kernel_size, &self.stride);
 
-        max_pool2d(input, self.kernel_size, self.stride, padding)
+        max_pool2d(input, self.kernel_size, self.stride, padding, self.dilation)
     }
 }

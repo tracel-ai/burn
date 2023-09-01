@@ -10,4 +10,4 @@ pub mod tile;
 /// Loading is done in a tile manner, with left hand tensor being transposed.
 pub mod tile_vectorized;
 
-pub use tile_vectorized::*;
+pub use contiguous_vectorized::*;

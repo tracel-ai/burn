@@ -1,5 +1,5 @@
 use crate::{
-    tensor::{BoolTensor, IntTensor},
+    tensor::{ADTensor, BoolTensor, IntTensor},
     ADBackendDecorator,
 };
 
@@ -77,7 +77,13 @@ impl<B: Backend> BoolTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> 
         B::bool_equal(lhs, rhs)
     }
 
-    fn bool_equal_elem<const D: usize>(lhs: BoolTensor<B, D>, rhs: bool) -> BoolTensor<B, D> {
-        B::bool_equal_elem(lhs, rhs)
+    fn bool_not<const D: usize>(tensor: BoolTensor<B, D>) -> BoolTensor<B, D> {
+        B::bool_not(tensor)
+    }
+
+    fn bool_into_float<const D: usize>(
+        tensor: BoolTensor<B, D>,
+    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
+        ADTensor::new(B::bool_into_float(tensor))
     }
 }

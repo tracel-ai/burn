@@ -2,6 +2,7 @@ use super::{bin_config, PrecisionSettings, Recorder, RecorderError};
 use core::marker::PhantomData;
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use serde::{de::DeserializeOwned, Serialize};
+use std::io::{BufReader, BufWriter};
 use std::{fs::File, path::PathBuf};
 
 /// Recorder trait specialized to save and load data to and from files.
@@ -33,7 +34,7 @@ pub struct JsonGzFileRecorder<S: PrecisionSettings> {
     _settings: PhantomData<S>,
 }
 
-/// File recorder using [pretty json format](serde_json) for easy redability.
+/// File recorder using [pretty json format](serde_json) for easy readability.
 #[derive(new, Debug, Default, Clone)]
 pub struct PrettyJsonFileRecorder<S: PrecisionSettings> {
     _settings: PhantomData<S>,
@@ -42,6 +43,12 @@ pub struct PrettyJsonFileRecorder<S: PrecisionSettings> {
 /// File recorder using the [named msgpack](rmp_serde) format compressed with gzip.
 #[derive(new, Debug, Default, Clone)]
 pub struct NamedMpkGzFileRecorder<S: PrecisionSettings> {
+    _settings: PhantomData<S>,
+}
+
+/// File recorder using the [named msgpack](rmp_serde) format.
+#[derive(new, Debug, Default, Clone)]
+pub struct NamedMpkFileRecorder<S: PrecisionSettings> {
     _settings: PhantomData<S>,
 }
 
@@ -72,6 +79,12 @@ impl<S: PrecisionSettings> FileRecorder for NamedMpkGzFileRecorder<S> {
     }
 }
 
+impl<S: PrecisionSettings> FileRecorder for NamedMpkFileRecorder<S> {
+    fn file_extension() -> &'static str {
+        "mpk"
+    }
+}
+
 macro_rules! str2reader {
     (
         $file:expr
@@ -79,10 +92,12 @@ macro_rules! str2reader {
         $file.set_extension(<Self as FileRecorder>::file_extension());
         let path = $file.as_path();
 
-        File::open(path).map_err(|err| match err.kind() {
-            std::io::ErrorKind::NotFound => RecorderError::FileNotFound(err.to_string()),
-            _ => RecorderError::Unknown(err.to_string()),
-        })
+        File::open(path)
+            .map_err(|err| match err.kind() {
+                std::io::ErrorKind::NotFound => RecorderError::FileNotFound(err.to_string()),
+                _ => RecorderError::Unknown(err.to_string()),
+            })
+            .map(|file| BufReader::new(file))
     }};
 }
 
@@ -98,10 +113,12 @@ macro_rules! str2writer {
             std::fs::remove_file(path).map_err(|err| RecorderError::Unknown(err.to_string()))?;
         }
 
-        File::create(path).map_err(|err| match err.kind() {
-            std::io::ErrorKind::NotFound => RecorderError::FileNotFound(err.to_string()),
-            _ => RecorderError::Unknown(err.to_string()),
-        })
+        File::create(path)
+            .map_err(|err| match err.kind() {
+                std::io::ErrorKind::NotFound => RecorderError::FileNotFound(err.to_string()),
+                _ => RecorderError::Unknown(err.to_string()),
+            })
+            .map(|file| BufWriter::new(file))
     }};
 }
 
@@ -246,6 +263,34 @@ impl<S: PrecisionSettings> Recorder for NamedMpkGzFileRecorder<S> {
     }
 }
 
+impl<S: PrecisionSettings> Recorder for NamedMpkFileRecorder<S> {
+    type Settings = S;
+    type RecordArgs = PathBuf;
+    type RecordOutput = ();
+    type LoadArgs = PathBuf;
+
+    fn save_item<I: Serialize>(
+        &self,
+        item: I,
+        mut file: Self::RecordArgs,
+    ) -> Result<(), RecorderError> {
+        let mut writer = str2writer!(file)?;
+
+        rmp_serde::encode::write_named(&mut writer, &item)
+            .map_err(|err| RecorderError::Unknown(err.to_string()))?;
+
+        Ok(())
+    }
+
+    fn load_item<I: DeserializeOwned>(&self, mut file: Self::LoadArgs) -> Result<I, RecorderError> {
+        let reader = str2reader!(file)?;
+        let state = rmp_serde::decode::from_read(reader)
+            .map_err(|err| RecorderError::Unknown(err.to_string()))?;
+
+        Ok(state)
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -282,6 +327,11 @@ mod tests {
     #[test]
     fn test_can_save_and_load_mpkgz_format() {
         test_can_save_and_load(NamedMpkGzFileRecorder::<FullPrecisionSettings>::default())
+    }
+
+    #[test]
+    fn test_can_save_and_load_mpk_format() {
+        test_can_save_and_load(NamedMpkFileRecorder::<FullPrecisionSettings>::default())
     }
 
     fn test_can_save_and_load<Recorder: FileRecorder>(recorder: Recorder) {

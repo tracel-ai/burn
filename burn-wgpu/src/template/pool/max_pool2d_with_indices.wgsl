@@ -12,7 +12,7 @@ var<storage, read_write> indices: array<{{ int }}>;
 
 @group(0)
 @binding(3)
-var<storage, read> info: array<u32, 22>;
+var<storage, read> info: array<u32, 24>;
 
 const WORKGROUP_SIZE_X = {{ workgroup_size_x }}u;
 
@@ -48,6 +48,8 @@ fn main(
     let pool_stride_1 = info[19];
     let padding_0 = info[20];
     let padding_1 = info[21];
+    let dilation_0 = info[22];
+    let dilation_1 = info[23];
 
     let b = id / output_stride_0 % output_shape_0;
     let c = id / output_stride_1 % output_shape_1;
@@ -58,7 +60,7 @@ fn main(
     var index = 0u;
 
     for (var kh = 0u; kh < kernel_size_0; kh++) {
-        let ih = oh * pool_stride_0 + kh;
+        let ih = oh * pool_stride_0 + kh * dilation_0;
 
         // Padding
         if ih < padding_0 || ih >= input_shape_2 + padding_0 {
@@ -66,7 +68,7 @@ fn main(
         }
 
         for (var kw = 0u; kw < kernel_size_1; kw++) {
-            let iw = ow * pool_stride_1 + kw;
+            let iw = ow * pool_stride_1 + kw * dilation_1;
 
             // Padding
             if iw < padding_1 || iw >= input_shape_3 + padding_1 {

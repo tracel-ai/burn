@@ -1,6 +1,10 @@
 use crate::{
     element::WgpuElement,
-    kernel::{self, elemwise_workgroup, pool::build_output_and_info_pool2d, KernelSettings},
+    kernel::{
+        self, elemwise_workgroup,
+        pool::{build_output_and_info_pool2d, build_pool2d_info},
+        KernelSettings,
+    },
     kernel_wgsl,
     tensor::WgpuTensor,
 };
@@ -20,10 +24,12 @@ pub(crate) fn max_pool2d<E: WgpuElement>(
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
+    dilation: [usize; 2],
 ) -> WgpuTensor<E, 4> {
     const WORKGROUP: usize = 32;
 
-    let (info_buffer, output) = build_output_and_info_pool2d(&x, kernel_size, stride, padding);
+    let (info_buffer, output) =
+        build_output_and_info_pool2d(&x, kernel_size, stride, padding, dilation);
     let kernel = x
         .context
         .compile_static::<KernelSettings<MaxPool2d, E, i32, WORKGROUP, WORKGROUP, 1>>();
@@ -42,10 +48,12 @@ pub(crate) fn max_pool2d_with_indices<E: WgpuElement, I: WgpuElement>(
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
+    dilation: [usize; 2],
 ) -> (WgpuTensor<E, 4>, WgpuTensor<I, 4>) {
     const WORKGROUP: usize = 32;
 
-    let (info_buffer, output) = build_output_and_info_pool2d(&x, kernel_size, stride, padding);
+    let (info_buffer, output) =
+        build_output_and_info_pool2d(&x, kernel_size, stride, padding, dilation);
     let num_elems = output.shape.num_elements();
 
     let indices = WgpuTensor::new(
@@ -75,6 +83,7 @@ pub(crate) fn max_pool2d_with_indices_backward<E: WgpuElement, I: WgpuElement>(
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
+    dilation: [usize; 2],
 ) -> WgpuTensor<E, 4> {
     const WORKGROUP: usize = 32;
 
@@ -87,31 +96,7 @@ pub(crate) fn max_pool2d_with_indices_backward<E: WgpuElement, I: WgpuElement>(
         .create_buffer(num_elems * core::mem::size_of::<E>());
     let output = WgpuTensor::new(x.context.clone(), x.shape.clone(), buffer);
 
-    let mut info: [u32; 18] = [0; 18];
-    info[0] = x.strides[0] as u32;
-    info[1] = x.strides[1] as u32;
-    info[2] = x.strides[2] as u32;
-    info[3] = x.strides[3] as u32;
-    info[4] = x.shape.dims[0] as u32;
-    info[5] = x.shape.dims[1] as u32;
-    info[6] = x.shape.dims[2] as u32;
-    info[7] = x.shape.dims[3] as u32;
-
-    info[8] = grad.strides[0] as u32;
-    info[9] = grad.strides[1] as u32;
-    info[10] = grad.strides[2] as u32;
-    info[11] = grad.strides[3] as u32;
-
-    info[12] = kernel_size[0] as u32;
-    info[13] = kernel_size[1] as u32;
-    info[14] = stride[0] as u32;
-    info[15] = stride[1] as u32;
-    info[16] = padding[0] as u32;
-    info[17] = padding[1] as u32;
-
-    let info_buffer = x
-        .context
-        .create_buffer_with_data(bytemuck::cast_slice(&info));
+    let info_buffer = build_pool2d_info(&x, &grad, kernel_size, stride, padding, dilation);
 
     let kernel = x.context.compile_static::<KernelSettings<
         MaxPool2dWithIndicesBackward,
@@ -142,9 +127,10 @@ mod tests {
         let kernel_size = [3, 3];
         let stride = [2, 2];
         let padding = [1, 1];
+        let dilation = [1, 1];
 
-        let pooled = module::max_pool2d(tensor, kernel_size, stride, padding);
-        let pooled_ref = module::max_pool2d(tensor_ref, kernel_size, stride, padding);
+        let pooled = module::max_pool2d(tensor, kernel_size, stride, padding, dilation);
+        let pooled_ref = module::max_pool2d(tensor_ref, kernel_size, stride, padding, dilation);
 
         pooled
             .into_data()
@@ -158,11 +144,12 @@ mod tests {
         let kernel_size = [3, 3];
         let stride = [2, 2];
         let padding = [1, 1];
+        let dilation = [1, 1];
 
         let (pooled, indices) =
-            module::max_pool2d_with_indices(tensor, kernel_size, stride, padding);
+            module::max_pool2d_with_indices(tensor, kernel_size, stride, padding, dilation);
         let (pooled_ref, indices_ref) =
-            module::max_pool2d_with_indices(tensor_ref, kernel_size, stride, padding);
+            module::max_pool2d_with_indices(tensor_ref, kernel_size, stride, padding, dilation);
 
         pooled
             .into_data()
@@ -179,16 +166,23 @@ mod tests {
         let kernel_size = [3, 3];
         let stride = [2, 2];
         let padding = [1, 1];
+        let dilation = [1, 1];
 
         let (_, indices) =
-            module::max_pool2d_with_indices(tensor.clone(), kernel_size, stride, padding);
-        let (_, indices_ref) =
-            module::max_pool2d_with_indices(tensor_ref.clone(), kernel_size, stride, padding);
+            module::max_pool2d_with_indices(tensor.clone(), kernel_size, stride, padding, dilation);
+        let (_, indices_ref) = module::max_pool2d_with_indices(
+            tensor_ref.clone(),
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+        );
         let grad = TestBackend::max_pool2d_with_indices_backward(
             tensor.into_primitive(),
             kernel_size,
             stride,
             padding,
+            dilation,
             grad_output.into_primitive(),
             indices.into_primitive(),
         )
@@ -198,6 +192,7 @@ mod tests {
             kernel_size,
             stride,
             padding,
+            dilation,
             grad_output_ref.into_primitive(),
             indices_ref.into_primitive(),
         )

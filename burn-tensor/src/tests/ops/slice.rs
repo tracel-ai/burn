@@ -74,7 +74,7 @@ mod tests {
     }
 
     #[test]
-    fn should_support_slicee_assign_1d() {
+    fn should_support_slice_assign_1d() {
         let data = Data::from([0.0, 1.0, 2.0]);
         let data_assigned = Data::from([10.0, 5.0]);
 
@@ -88,7 +88,7 @@ mod tests {
     }
 
     #[test]
-    fn should_support_slicee_assign_2d() {
+    fn should_support_slice_assign_2d() {
         let data = Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
         let data_assigned = Data::from([[10.0, 5.0]]);
 

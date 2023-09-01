@@ -11,14 +11,20 @@ members = [
   "burn-dataset",
   "burn-derive",
   "burn-import",
+  "burn-import/onnx-tests",
   "burn-ndarray",
   "burn-no-std-tests",
   "burn-tch",
   "burn-wgpu",
+  "burn-candle",
   "burn-tensor-testgen",
   "burn-tensor",
   "burn-train",
   "examples/*",
+]
+
+exclude = [
+    "examples/notebook",
 ]
 
 [workspace.dependencies]
@@ -29,7 +35,8 @@ dashmap = "5.4.0"
 dirs = "5.0.1"
 fake = "2.6.1"
 flate2 = "1.0.26"
-gix-tempfile = {version = "7.0.0", features = ["signals"]}
+float-cmp = "0.9.0"
+gix-tempfile = {version = "8.0.0", features = ["signals"]}
 hashbrown = "0.14.0"
 indicatif = "0.17.5"
 libm = "0.2.7"
@@ -40,12 +47,12 @@ proc-macro2 = "1.0.60"
 protobuf-codegen = "3.2"
 quote = "1.0.28"
 r2d2 = "0.8.10"
-r2d2_sqlite = {version = "0.22.0", features = ["bundled"]}
+r2d2_sqlite = {version = "0.22.0"}
 rayon = "1.7.0"
 rmp-serde = "1.1.1"
 rstest = "0.18.1"
-rusqlite = {version = "0.29", features = ["bundled-full"]}
-sanitize-filename = "0.4.0"
+rusqlite = {version = "0.29"}
+sanitize-filename = "0.5.0"
 serde_rusqlite = "0.33.1"
 spin = {version = "0.9.8", features = ["mutex", "spin_mutex"]}
 strum = "0.24"
@@ -53,7 +60,6 @@ strum_macros = "0.24"
 syn = {version = "2.0", features = ["full", "extra-traits"]}
 tempfile = "3.6.0"
 thiserror = "1.0.40"
-topological-sort = "0.2.2"
 
 # WGPU stuff
 futures-intrusive = "0.5"

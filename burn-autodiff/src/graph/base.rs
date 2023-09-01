@@ -38,7 +38,7 @@ impl Graph {
     /// be shared with other graphs, therefore they are going to be cleared.
     ///
     /// This is usefull, since the graph is supposed to be consumed only once for backprop, and
-    /// keeping all the tensors alive for multiple backward call is a heavy waste of ressources.
+    /// keeping all the tensors alive for multiple backward call is a heavy waste of resources.
     pub fn steps(self) -> NodeSteps {
         let mut map_drain = HashMap::new();
         self.execute_mut(|map| {
@@ -84,11 +84,11 @@ impl Graph {
 
         self.execute_mut(|map1| {
             if map1.len() > map2.len() {
-                map1.extend(map2.into_iter());
+                map1.extend(map2);
             } else {
                 let mut map_drain = HashMap::new();
                 std::mem::swap(map1, &mut map_drain);
-                map2.extend(map_drain.into_iter());
+                map2.extend(map_drain);
                 std::mem::swap(map1, &mut map2);
             }
         })

@@ -1,4 +1,5 @@
 #![warn(missing_docs)]
+#![allow(clippy::single_range_in_vec_init)]
 
 //! Burn Tch Backend
 
@@ -8,6 +9,7 @@ mod ops;
 mod tensor;
 
 pub use backend::*;
+pub use element::*;
 pub use tensor::*;
 
 #[cfg(test)]

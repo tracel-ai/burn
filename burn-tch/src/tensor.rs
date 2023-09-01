@@ -1,16 +1,18 @@
 use crate::{element::TchElement, TchBackend, TchDevice};
 use burn_tensor::{ops::TensorOps, Data, Shape};
 use libc::c_void;
-use std::{marker::PhantomData, sync::Arc};
+use std::{marker::PhantomData, rc::Rc};
 
 /// A reference to a tensor storage.
-pub type StorageRef = Arc<*mut c_void>;
+pub type StorageRef = Rc<*mut c_void>;
 
 /// A tensor that uses the tch backend.
 #[derive(Debug, PartialEq)]
 pub struct TchTensor<E: tch::kind::Element, const D: usize> {
-    pub(crate) tensor: tch::Tensor,
-    pub(crate) storage: StorageRef,
+    /// Handle to the tensor. Call methods on this field.
+    pub tensor: tch::Tensor,
+    /// The tensor's storage
+    pub storage: StorageRef,
     phantom: PhantomData<E>,
 }
 
@@ -21,7 +23,7 @@ impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
     /// storage as the parent, you should use [from_existing](TchTensor::from_existing)
     /// instead.
     pub fn new(tensor: tch::Tensor) -> Self {
-        let data = Arc::new(tensor.data_ptr());
+        let data = Rc::new(tensor.data_ptr());
 
         Self {
             tensor,
@@ -32,14 +34,14 @@ impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
 
     /// Create a tensor that was created from an operation executed on a parent tensor.
     ///
-    /// If the child tensor shared the same storage as its parent, it will be cloned, effectivly
+    /// If the child tensor shared the same storage as its parent, it will be cloned, effectively
     /// tracking how much tensors point to the same memory space.
     pub fn from_existing(tensor: tch::Tensor, storage_parent: StorageRef) -> Self {
         let storage_child = tensor.data_ptr();
 
         let storage = match storage_child == *storage_parent {
             true => storage_parent.clone(),
-            false => Arc::new(storage_child),
+            false => Rc::new(storage_child),
         };
 
         Self {
@@ -65,7 +67,7 @@ impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
 }
 
 // This is safe since we don't use autodiff from LibTorch.
-// Also, atommic reference counting is used to know if the tensor's data can be reused.
+// Also, atomic reference counting is used to know if the tensor's data can be reused.
 // If there are multiple reference on the same tensor, it becomes read only.
 unsafe impl<E: tch::kind::Element, const D: usize> Send for TchTensor<E, D> {}
 unsafe impl<E: tch::kind::Element, const D: usize> Sync for TchTensor<E, D> {}
@@ -80,7 +82,7 @@ impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
         &mut self,
         func: F,
     ) -> Option<TchTensor<EOut, D_OUT>> {
-        if Arc::strong_count(&self.storage) > 1 {
+        if Rc::strong_count(&self.storage) > 1 {
             return None;
         }
 
@@ -97,7 +99,7 @@ impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
         FOwn: Fn(tch::Tensor) -> tch::Tensor,
         FRef: Fn(&tch::Tensor) -> tch::Tensor,
     {
-        if Arc::strong_count(&self.storage) > 1 {
+        if Rc::strong_count(&self.storage) > 1 {
             return TchTensor::from_existing(fref(&self.tensor), self.storage);
         }
 

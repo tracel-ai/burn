@@ -1,0 +1,13 @@
+pytorch2.0.1:x
+=
+input1/log_softmax1/LogSoftmax"
+LogSoftmax*
+axis 	torch_jitZ
+input
+
+
+b
+1
+
+
+B

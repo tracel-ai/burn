@@ -131,6 +131,17 @@ pub trait IntTensorOps<B: Backend> {
         value: B::IntTensorPrimitive<D1>,
     ) -> B::IntTensorPrimitive<D1>;
 
+    /// Converts int tensor to float tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The int tensor with the same data as the float tensor.
+    fn int_into_float<const D: usize>(tensor: B::IntTensorPrimitive<D>) -> B::TensorPrimitive<D>;
+
     /// Fills the tensor with values from the source tensor if the mask is true at the given
     /// indices.
     ///
@@ -472,6 +483,61 @@ pub trait IntTensorOps<B: Backend> {
         rhs: B::IntElem,
     ) -> B::IntTensorPrimitive<D>;
 
+    /// Clamps a tensor under a minimum value.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to clamp.
+    /// * `min` - The minimum value.
+    ///
+    /// # Returns
+    ///
+    /// The clamped tensor.
+    fn int_clamp_min<const D: usize>(
+        tensor: B::IntTensorPrimitive<D>,
+        min: B::IntElem,
+    ) -> B::IntTensorPrimitive<D> {
+        let mask = Self::int_lower_elem(tensor.clone(), min);
+        Self::int_mask_fill(tensor, mask, min)
+    }
+
+    /// Clamps a tensor over a maximum value.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to clamp.
+    /// * `max` - The maximum value.
+    ///
+    /// # Returns
+    ///
+    /// The clamped tensor.
+    fn int_clamp_max<const D: usize>(
+        tensor: B::IntTensorPrimitive<D>,
+        max: B::IntElem,
+    ) -> B::IntTensorPrimitive<D> {
+        let mask = Self::int_greater_elem(tensor.clone(), max);
+        Self::int_mask_fill(tensor, mask, max)
+    }
+
+    /// Clamps a tensor between a minimum and maximum value.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to clamp.
+    /// * `min` - The minimum value.
+    /// * `max` - The maximum value.
+    ///
+    /// # Returns
+    ///
+    /// The clamped tensor.
+    fn int_clamp<const D: usize>(
+        tensor: B::IntTensorPrimitive<D>,
+        min: B::IntElem,
+        max: B::IntElem,
+    ) -> B::IntTensorPrimitive<D> {
+        Self::int_clamp_min(Self::int_clamp_max(tensor, max), min)
+    }
+
     /// Elementwise subtraction.
     ///
     /// # Arguments
@@ -811,4 +877,15 @@ pub trait IntTensorOps<B: Backend> {
 
         (values, indices)
     }
+
+    /// Returns a new tensor with absolute values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to take absolute value of.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with absolute values.
+    fn int_abs<const D: usize>(tensor: B::IntTensorPrimitive<D>) -> B::IntTensorPrimitive<D>;
 }

@@ -380,6 +380,12 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         NdArrayTensor::new(array)
     }
 
+    fn abs<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+        let array = tensor.array.mapv_into(|a| a.abs_elem()).into_shared();
+
+        NdArrayTensor::new(array)
+    }
+
     fn cos<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor
             .array
@@ -418,5 +424,24 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
 
     fn cat<const D: usize>(tensors: Vec<NdArrayTensor<E, D>>, dim: usize) -> NdArrayTensor<E, D> {
         NdArrayOps::cat(tensors, dim)
+    }
+
+    fn clamp_min<const D: usize>(tensor: NdArrayTensor<E, D>, min: E) -> NdArrayTensor<E, D> {
+        NdArrayMathOps::clamp_min(tensor, min)
+    }
+
+    fn clamp_max<const D: usize>(tensor: NdArrayTensor<E, D>, max: E) -> NdArrayTensor<E, D> {
+        NdArrayMathOps::clamp_max(tensor, max)
+    }
+
+    fn clamp<const D: usize>(tensor: NdArrayTensor<E, D>, min: E, max: E) -> NdArrayTensor<E, D> {
+        NdArrayMathOps::clamp(tensor, min, max)
+    }
+
+    fn into_int<const D: usize>(
+        tensor: <NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
+    ) -> <NdArrayBackend<E> as Backend>::IntTensorPrimitive<D> {
+        let array = tensor.array.mapv(|a| a.elem()).into_shared();
+        NdArrayTensor { array }
     }
 }

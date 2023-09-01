@@ -299,6 +299,7 @@ impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E
     /// # Panics
     ///
     /// Panics if the data is not approximately equal.
+    #[track_caller]
     pub fn assert_approx_eq(&self, other: &Self, precision: usize) {
         let mut message = String::new();
         if self.shape != other.shape {
@@ -309,11 +310,7 @@ impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E
             .as_str();
         }
 
-        let iter = self
-            .value
-            .clone()
-            .into_iter()
-            .zip(other.value.clone().into_iter());
+        let iter = self.value.clone().into_iter().zip(other.value.clone());
 
         let mut num_diff = 0;
         let max_num_diff = 5;
@@ -326,7 +323,7 @@ impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E
             let tolerance = libm::pow(0.1, precision as f64);
 
             if err > tolerance {
-                // Only print the first 5 differents values.
+                // Only print the first 5 different values.
                 if num_diff < max_num_diff {
                     message += format!(
                         "\n  => Position {i}: {a} != {b} | difference {err} > tolerance {tolerance}"

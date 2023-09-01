@@ -1,7 +1,8 @@
 use super::{
-    add::AddNode, batch_norm::BatchNormNode, constant::ConstantNode, conv2d::Conv2dNode,
-    equal::EqualNode, flatten::FlattenNode, linear::LinearNode, log_softmax::LogSoftmaxNode,
-    matmul::MatmulNode, max_pool2d::MaxPool2dNode, relu::ReLUNode, sigmoid::SigmoidNode,
+    avg_pool2d::AvgPool2dNode, batch_norm::BatchNormNode, binary::BinaryNode, clip::ClipNode,
+    concat::ConcatNode, constant::ConstantNode, conv1d::Conv1dNode, conv2d::Conv2dNode,
+    dropout::DropoutNode, global_avg_pool::GlobalAvgPoolNode, linear::LinearNode,
+    matmul::MatmulNode, max_pool2d::MaxPool2dNode, reshape::ReshapeNode, unary::UnaryNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::record::PrecisionSettings;
@@ -71,35 +72,42 @@ pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
 
 #[derive(Debug)]
 pub enum Node<PS: PrecisionSettings> {
-    Add(AddNode),
-    Matmul(MatmulNode),
-    Conv2d(Conv2dNode<PS>),
-    MaxPool2d(MaxPool2dNode),
-    Linear(LinearNode<PS>),
+    AvgPool2d(AvgPool2dNode),
     BatchNorm(BatchNormNode<PS>),
-    ReLU(ReLUNode),
-    Flatten(FlattenNode),
-    LogSoftmax(LogSoftmaxNode),
-    Constant(ConstantNode),
-    Equal(EqualNode),
-    Sigmoid(SigmoidNode),
+    Binary(BinaryNode),
+    Clip(ClipNode),
+    Concat(ConcatNode),
+    Constant(ConstantNode<PS>),
+    Conv1d(Conv1dNode<PS>),
+    Conv2d(Conv2dNode<PS>),
+    Dropout(DropoutNode),
+    GlobalAvgPool(GlobalAvgPoolNode),
+    Linear(LinearNode<PS>),
+    Matmul(MatmulNode),
+    MaxPool2d(MaxPool2dNode),
+    Reshape(ReshapeNode),
+    Unary(UnaryNode),
 }
 
 macro_rules! match_all {
     ($self:expr, $func:expr) => {{
+        #[allow(clippy::redundant_closure_call)]
         match $self {
-            Node::Add(node) => $func(node),
-            Node::Matmul(node) => $func(node),
-            Node::Conv2d(node) => $func(node),
-            Node::MaxPool2d(node) => $func(node),
-            Node::Linear(node) => $func(node),
+            Node::AvgPool2d(node) => $func(node),
             Node::BatchNorm(node) => $func(node),
-            Node::ReLU(node) => $func(node),
-            Node::Flatten(node) => $func(node),
-            Node::LogSoftmax(node) => $func(node),
+            Node::Binary(node) => $func(node),
+            Node::Clip(node) => $func(node),
+            Node::Concat(node) => $func(node),
             Node::Constant(node) => $func(node),
-            Node::Equal(node) => $func(node),
-            Node::Sigmoid(node) => $func(node),
+            Node::Conv1d(node) => $func(node),
+            Node::Conv2d(node) => $func(node),
+            Node::Dropout(node) => $func(node),
+            Node::GlobalAvgPool(node) => $func(node),
+            Node::Linear(node) => $func(node),
+            Node::Matmul(node) => $func(node),
+            Node::MaxPool2d(node) => $func(node),
+            Node::Reshape(node) => $func(node),
+            Node::Unary(node) => $func(node),
         }
     }};
 }
@@ -116,18 +124,21 @@ impl<PS: PrecisionSettings> Serialize for Node<PS> {
 impl<PS: PrecisionSettings> Node<PS> {
     pub fn name(&self) -> &str {
         match self {
-            Node::Add(_) => "add",
-            Node::Matmul(_) => "matmul",
-            Node::Constant(_) => "constant",
-            Node::Conv2d(_) => "conv2d",
-            Node::MaxPool2d(_) => "max_pool2d",
-            Node::Linear(_) => "linear",
+            Node::AvgPool2d(_) => "avg_pool2d",
             Node::BatchNorm(_) => "batch_norm",
-            Node::ReLU(_) => "relu",
-            Node::Flatten(_) => "flatten",
-            Node::LogSoftmax(_) => "log_softmax",
-            Node::Equal(_) => "equal",
-            Node::Sigmoid(_) => "sigmoid",
+            Node::Binary(binary) => binary.binary_type.as_str(),
+            Node::Concat(_) => "concat",
+            Node::Clip(_) => "clip",
+            Node::Constant(_) => "constant",
+            Node::Conv1d(_) => "conv1d",
+            Node::Conv2d(_) => "conv2d",
+            Node::Dropout(_) => "dropout",
+            Node::GlobalAvgPool(_) => "global_avg_pool",
+            Node::Linear(_) => "linear",
+            Node::Matmul(_) => "matmul",
+            Node::MaxPool2d(_) => "max_pool2d",
+            Node::Reshape(_) => "reshape",
+            Node::Unary(unary) => unary.kind.as_str(),
         }
     }
 }
@@ -178,16 +189,56 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Node<PS> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use crate::burn::{
         graph::BurnGraph,
-        node::{conv2d::Conv2dNode, matmul::MatmulNode, test::assert_tokens},
+        node::{conv2d::Conv2dNode, matmul::MatmulNode, test::assert_tokens, NodeCodegen},
         TensorType,
     };
     use burn::{
         nn::conv::Conv2dConfig, nn::PaddingConfig2d, record::FullPrecisionSettings, tensor::Data,
     };
+    use proc_macro2::TokenStream;
     use quote::quote;
+
+    pub(crate) fn one_node_graph<T: NodeCodegen<FullPrecisionSettings> + 'static>(
+        node_gen: T,
+        forward: TokenStream,
+        input_names: Vec<String>,
+        output_names: Vec<String>,
+    ) {
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(node_gen);
+
+        graph.register_input_output(input_names, output_names);
+
+        let expected = quote! {
+            use burn::{
+                module::Module,
+                tensor::{backend::Backend, Tensor},
+            };
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+            }
+
+            impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
+                pub fn new_with(record: ModelRecord<B>) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                    }
+                }
+
+                #[allow(clippy::let_and_return)]
+                #forward
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
 
     #[test]
     fn test_codegen_two_nodes() {
@@ -207,21 +258,28 @@ mod tests {
             Conv2dConfig::new([3, 3], [3, 3]).with_padding(PaddingConfig2d::Valid),
         ));
 
+        graph.register_input_output(
+            vec!["tensor1".to_string(), "tensor2".to_string()],
+            vec!["tensor4".to_string()],
+        );
+
         let expected = quote! {
             use burn::{
                 module::Module,
                 tensor::{backend::Backend, Tensor},
             };
-            use burn::nn::PaddingConfig2d;
-            use burn::nn::conv::Conv2d;
             use burn::nn::conv::Conv2dConfig;
+            use burn::nn::conv::Conv2d;
+            use burn::nn::PaddingConfig2d;
 
             #[derive(Module, Debug)]
             pub struct Model <B: Backend> {
                 conv2d: Conv2d<B>,
+                phantom: core::marker::PhantomData<B>,
             }
 
             impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
                 pub fn new_with(record: ModelRecord<B>) -> Self {
                     let conv2d = Conv2dConfig::new([3, 3], [3, 3])
                         .with_stride([1, 1])
@@ -233,6 +291,7 @@ mod tests {
 
                     Self {
                         conv2d,
+                        phantom: core::marker::PhantomData,
                     }
                 }
                 #[allow(clippy::let_and_return)]
@@ -271,6 +330,11 @@ mod tests {
             TensorType::new_float("output", 4),
         ));
 
+        graph.register_input_output(
+            vec!["tensor1".to_string(), "tensor2".to_string()],
+            vec!["output".to_string()],
+        );
+
         let expected = quote! {
             use burn::{
                 module::Module,
@@ -283,9 +347,11 @@ mod tests {
             #[derive(Module, Debug)]
             pub struct Model <B: Backend> {
                 conv2d: Conv2d<B>,
+                phantom: core::marker::PhantomData<B>,
             }
 
             impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
                 pub fn new_with(record: ModelRecord<B>) -> Self {
                     let conv2d = Conv2dConfig::new([3, 3], [3, 3])
                         .with_stride([1, 1])
@@ -297,6 +363,7 @@ mod tests {
 
                     Self {
                         conv2d,
+                        phantom: core::marker::PhantomData,
                     }
                 }
                 #[allow(clippy::let_and_return)]

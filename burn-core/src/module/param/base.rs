@@ -23,6 +23,12 @@ impl<T: Clone> Param<T> {
     pub fn val(&self) -> T {
         self.value.clone()
     }
+
+    /// Execute the given function on the inner value.
+    pub fn map<F: FnOnce(T) -> T>(mut self, func: F) -> Self {
+        self.value = func(self.value);
+        self
+    }
 }
 
 impl<T> core::ops::Deref for Param<T> {

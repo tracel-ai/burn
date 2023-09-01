@@ -6,7 +6,7 @@ use crate::tensor::backend::Backend;
 use crate::tensor::{Distribution, Tensor};
 
 /// Configuration to create a [Dropout](Dropout) layer.
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct DropoutConfig {
     /// The probability of randomly zeroes some elements of the input tensor during training.
     pub prob: f64,

@@ -88,6 +88,7 @@ macro_rules! make_element {
 
         impl ElementConversion for $type {
             fn from_elem<E: ToPrimitive>(elem: E) -> Self {
+                #[allow(clippy::redundant_closure_call)]
                 $convert(&elem)
             }
             fn elem<E: Element>(self) -> E {
@@ -103,6 +104,7 @@ macro_rules! make_element {
 
         impl ElementRandom for $type {
             fn random<R: RngCore>(distribution: Distribution<Self>, rng: &mut R) -> Self {
+                #[allow(clippy::redundant_closure_call)]
                 $random(distribution, rng)
             }
         }
@@ -131,6 +133,12 @@ make_element!(
     ty i32 Precision::Full,
     convert |elem: &dyn ToPrimitive| elem.to_i32().unwrap(),
     random |distribution: Distribution<i32>, rng: &mut R| distribution.sampler(rng).sample()
+);
+
+make_element!(
+    ty u32 Precision::Full,
+    convert |elem: &dyn ToPrimitive| elem.to_u32().unwrap(),
+    random |distribution: Distribution<u32>, rng: &mut R| distribution.sampler(rng).sample()
 );
 
 make_element!(

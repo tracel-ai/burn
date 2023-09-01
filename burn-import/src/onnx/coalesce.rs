@@ -1,29 +1,32 @@
-use burn::tensor::Tensor;
-use burn_ndarray::NdArrayBackend;
+use std::{iter::Peekable, slice::IterMut};
 
-use super::ir::{AttributeValue, Node, NodeType, StateType, TensorData};
-
-type B = NdArrayBackend<f32>;
+use super::ir::{AttributeValue, Node, NodeType};
+use crate::onnx::ir::{ArgType, Data, TensorType};
 
 /// The function transforms the graph into a new one where the nodes are coalesced into a single node.
 pub fn coalesce(nodes: &mut Vec<Node>) {
-    for node in nodes.iter_mut() {
+    let mut iter_mut = nodes.iter_mut().peekable();
+    let mut nodes_to_remove: Vec<String> = vec![];
+    while let Some(node) = iter_mut.next() {
         match node.node_type {
-            NodeType::Gemm => convert_gemm(node),
+            NodeType::Gemm => convert_gemm_to_linear(node),
+            NodeType::MatMul => {
+                convert_matmul_to_linear(node, &mut iter_mut, &mut nodes_to_remove);
+            }
             _ => {}
         }
+    }
+
+    // Remove nodes instructed by conversation functions
+    for node_to_remove in nodes_to_remove {
+        nodes.retain(|n| n.name != node_to_remove);
     }
 }
 
 /// This function converts a Gemm node into a Linear node
 ///
-///  Warning: This function is not complete yet.
-///  It only supports the case where the Gemm node is a straight linear transformation.
-fn convert_gemm(node: &mut Node) {
-    if node.inputs.len() != 1 {
-        panic!("Gemm node must have 1 input");
-    }
-
+/// PyTorch and other frameworks use Gemm node to represent Linear layer.
+fn convert_gemm_to_linear(node: &mut Node) {
     if node.outputs.len() != 1 {
         panic!("Gemm node must have 1 output");
     }
@@ -55,18 +58,125 @@ fn convert_gemm(node: &mut Node) {
 
 // Transpose linear weights (required for Gemm -> Linear conversion)
 fn transpose_linear_node_weights(node: &mut Node) {
-    if node.states.is_empty() {
-        panic!("Linear node must have at least 1 state.");
+    assert!(
+        node.inputs.len() > 1,
+        "Linear node must have at least 2 input"
+    );
+
+    assert!(node.inputs[1].value.is_some(), "Input must have a value");
+
+    let weight = node.inputs[1]
+        .clone()
+        .into_tensor()
+        .expect("Tensor input is expected");
+
+    assert_eq!(weight.dim, 2, "Weight must be a 2D tensor");
+
+    let shape = weight.shape.unwrap();
+
+    match weight.data.expect("Tensor must have data") {
+        Data::Float32s(data) => {
+            let data_t = transpose_flattened(data, shape[0], shape[1]);
+            node.inputs[1].value = Some(Data::Float32s(data_t));
+        }
+        Data::Float64s(data) => {
+            let data_t = transpose_flattened(data, shape[0], shape[1]);
+            node.inputs[1].value = Some(Data::Float64s(data_t));
+        }
+        Data::Float16s(data) => {
+            let data_t = transpose_flattened(data, shape[0], shape[1]);
+            node.inputs[1].value = Some(Data::Float16s(data_t));
+        }
+        _ => panic!("Only float types are supported for Linear node"),
+    }
+    let shape = Some(vec![shape[1], shape[0]]); // Transpose the shape
+    node.inputs[1].ty = ArgType::Tensor(TensorType {
+        shape,
+        elem_type: weight.elem_type,
+        dim: 2,
+    });
+}
+
+fn transpose_flattened<T: Copy>(matrix: Vec<T>, rows: usize, cols: usize) -> Vec<T> {
+    assert_eq!(matrix.len(), rows * cols, "Matrix must be flattened");
+
+    let mut transposed: Vec<T> = vec![matrix[0]; matrix.len()];
+
+    for i in 0..rows {
+        for j in 0..cols {
+            transposed[j * rows + i] = matrix[i * cols + j];
+        }
     }
 
-    let StateType::Tensor(node_weight) = &node.states[0].ty;
+    transposed
+}
 
-    let weight: Tensor<B, 2> = node_weight.try_into().unwrap();
+/// This function converts a MatMul node into a Linear node if possible.
+///
+/// PyTorch and other frameworks use MatMul node to represent Linear layer.
+///
+/// This function also converts the following Add node into a Linear node if possible.
+/// Add node is used to represent bias in PyTorch.
+fn convert_matmul_to_linear(
+    node: &mut Node,
+    iter_mut: &mut Peekable<IterMut<Node>>,
+    nodes_to_remove: &mut Vec<String>,
+) {
+    if node.inputs.len() != 2 {
+        panic!("MatMul node must have 2 inputs");
+    }
 
-    let weight = weight.transpose();
+    // if the second input does not have a value, it is not a weight, then proceed to the next node
+    if node.inputs[1].value.is_none() {
+        return;
+    }
 
-    let StateType::Tensor(node_weight) = &mut node.states[0].ty;
+    // Check if the second input is a 2D tensor
+    if let ArgType::Tensor(ref tensor_type) = node.inputs[1].ty {
+        assert_eq!(tensor_type.dim, 2, "Weight must be a 2D tensor");
+    } else {
+        panic!("Tensor input is expected");
+    }
 
-    node_weight.data = Some(TensorData::Float32(weight.clone().into_data().value));
-    node_weight.shape = Some(weight.shape().dims.to_vec());
+    // Convert the node to Linear
+    node.node_type = NodeType::Linear;
+
+    // Check the next node for potential conversion
+    if let Some(peek_node) = iter_mut.peek() {
+        if is_add_node_with_bias(peek_node, node) {
+            convert_and_remove_add_node(iter_mut, nodes_to_remove, node);
+        }
+    }
+}
+
+/// Helper function to check if the peeked node is an Add node with bias
+fn is_add_node_with_bias(peek_node: &Node, current_node: &Node) -> bool {
+    peek_node.node_type == NodeType::Add
+        && peek_node.inputs.len() == 2
+        && ((peek_node.inputs[0].name == current_node.outputs[0].name
+            && peek_node.inputs[1].value.is_some())
+            || (peek_node.inputs[1].name == current_node.outputs[0].name
+                && peek_node.inputs[0].value.is_some()))
+}
+
+/// Helper function to convert and remove the Add node
+fn convert_and_remove_add_node(
+    iter_mut: &mut Peekable<IterMut<Node>>,
+    nodes_to_remove: &mut Vec<String>,
+    current_node: &mut Node,
+) {
+    let bias_node = iter_mut.next().unwrap();
+
+    let bias_input = if bias_node.inputs[0].value.is_some() {
+        bias_node.inputs[0].clone()
+    } else {
+        bias_node.inputs[1].clone()
+    };
+
+    // Push the bias input and update the output name
+    current_node.inputs.push(bias_input);
+    current_node.outputs[0].name = bias_node.outputs[0].name.clone();
+
+    // Remove the Add node
+    nodes_to_remove.push(bias_node.name.clone());
 }

@@ -1,4 +1,4 @@
-// Orginally copied from the burn/examples/mnist package
+// Originally copied from the burn/examples/mnist package
 
 use crate::{
     conv::{ConvBlock, ConvBlockConfig},
@@ -52,11 +52,11 @@ impl<B: Backend> Model<B> {
     }
 
     pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 2> {
-        let [batch_size, heigth, width] = input.dims();
+        let [batch_size, height, width] = input.dims();
 
-        let x = input.reshape([batch_size, 1, heigth, width]).detach();
+        let x = input.reshape([batch_size, 1, height, width]).detach();
         let x = self.conv.forward(x);
-        let x = x.reshape([batch_size, heigth * width]);
+        let x = x.reshape([batch_size, height * width]);
 
         let x = self.input.forward(x);
         let x = self.mlp.forward(x);

@@ -50,15 +50,15 @@ impl<B: Backend> Model<B> {
     }
 
     pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 2> {
-        let [batch_size, heigth, width] = input.dims();
+        let [batch_size, height, width] = input.dims();
 
-        let x = input.reshape([batch_size, 1, heigth, width]).detach();
+        let x = input.reshape([batch_size, 1, height, width]).detach();
         let x = self.conv1.forward(x);
         let x = self.conv2.forward(x);
         let x = self.conv3.forward(x);
 
-        let [batch_size, channels, heigth, width] = x.dims();
-        let x = x.reshape([batch_size, channels * heigth * width]);
+        let [batch_size, channels, height, width] = x.dims();
+        let x = x.reshape([batch_size, channels * height * width]);
 
         let x = self.dropout.forward(x);
         let x = self.fc1.forward(x);

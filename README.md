@@ -67,6 +67,10 @@ simplifying the process of experimenting, training, and deploying models.
 [2]: https://github.com/burn-rs/burn/tree/main/burn-tch
 [3]: https://github.com/burn-rs/burn/tree/main/burn-wgpu
 
+## Pre-trained Models
+
+We keep an updated and curated list of models and examples built with Burn, see the [burn-rs/models](https://github.com/burn-rs/models) repository for more details.
+
 ## Get Started
 
 The best way to get started with `burn` is to clone the repo and play with the
@@ -116,7 +120,7 @@ use burn::tensor::{Tensor, Int};
 
 fn function<B: Backend>(tensor_float: Tensor<B, 2>) {
     let _tensor_bool = tensor_float.clone().equal_elem(2.0); // Tensor<B, 2, Bool>
-    let _tensor_int = tensor_float.argmax(1) // Tensor<B, 2, Int>
+    let _tensor_int = tensor_float.argmax(1); // Tensor<B, 2, Int>
 }
 ```
 
@@ -145,9 +149,9 @@ fn linear<B: Backend>(x: Tensor<B, 2>, weight: Tensor<B, 2>, bias: Tensor<B, 2>)
 fn main() {
     type Backend = NdArrayBackend<f32>;
 
-    let weight = Tensor::random([3, 3], Distribution::Standard);
+    let weight = Tensor::random([3, 3], Distribution::Default);
     let bias = Tensor::zeros([1, 3]);
-    let x = Tensor::random([3, 3], Distribution::Standard);
+    let x = Tensor::random([3, 3], Distribution::Default);
 
     let y = linear::<Backend>(x.clone(), weight.clone(), bias.clone());
     // y.backward() // Method backward doesn't exist
@@ -281,7 +285,49 @@ recommended to read our
 [architecture document](https://github.com/burn-rs/burn/tree/main/ARCHITECTURE.md), which explains
 our architectural decisions. Please see more details in our [contributing guide](/CONTRIBUTING.md).
 
-## Disclamer
+## Continuous Integration
+
+### Run checks
+
+On Unix systems, run `run-checks.sh` using this command
+
+```
+run-checks.sh environment
+```
+
+On Windows systems, run `run-checks.ps1` using this command:
+
+```
+run-checks.ps1 environment
+```
+
+The `environment` argument can assume **ONLY** the following values:
+
+- `std` to perform checks using `libstd`
+- `no_std` to perform checks on an embedded environment using `libcore`
+
+If no `environment` value has been passed, run both `std` and `no_std` checks.
+
+## Continuous Deployment
+
+### Publish crates
+
+Compile `scripts/publish.rs` using this command:
+
+```
+rustc scripts/publish.rs --crate-type bin --out-dir scripts
+```
+
+Run `scripts/publish` using this command
+
+```
+./scripts/publish crate_name
+```
+
+where `crate_name` is the name of the crate to publish
+
+
+## Disclaimer
 
 Burn is currently in active development, and there will be breaking changes. While any resulting
 issues are likely to be easy to fix, there are no guarantees at this stage.
@@ -295,7 +341,8 @@ grows.
 
 Thanks to all current sponsors 🙏.
 
-<a href="https://github.com/smallstepman"><img src="https://github.com/smallstepman.png" width="60px" style="border-radius: 50%;" alt="nathanielsimard" /></a>
+<a href="https://github.com/smallstepman"><img src="https://github.com/smallstepman.png" width="60px" style="border-radius: 50%;" alt="smallstepman" /></a>
+<a href="https://github.com/premAI-io"><img src="https://github.com/premAI-io.png" width="60px" style="border-radius: 50%;" alt="premAI-io" /></a>
 
 ## License
 

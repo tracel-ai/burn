@@ -80,7 +80,7 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn reshape<const D1: usize, const D2: usize>(
+    pub(crate) fn reshape_args_usize<const D1: usize, const D2: usize>(
         original: &Shape<D1>,
         target: &Shape<D2>,
     ) -> Self {
@@ -94,6 +94,30 @@ impl TensorCheck {
                 "Current shape: {:?}, target shape: {:?}.",
                 original.dims, target.dims
             )));
+        }
+
+        check
+    }
+
+    pub(crate) fn reshape_args_i32<const D: usize>(target: &[i32; D]) -> Self {
+        let mut check = Self::Ok;
+
+        if target.iter().any(|&dim| dim < -1) {
+            check = check.register(
+                "Reshape",
+                TensorError::new(
+                    "The given shape cannot contain negative dimensions (other than -1).",
+                )
+                .details(format!("Target shape: {:?}.", target)),
+            );
+        }
+
+        if target.iter().filter(|&x| x == &-1).count() > 1 {
+            check = check.register(
+                "Reshape",
+                TensorError::new("The given shape cannot contain more than one -1.")
+                    .details(format!("Target shape: {:?}.", target)),
+            );
         }
 
         check
@@ -126,6 +150,16 @@ impl TensorCheck {
                 "Flatten",
                 TensorError::new(format!(
                     "The end dim ({end_dim}) must be greater than the tensor dim ({D2})"
+                )),
+            );
+        }
+
+        if D2 < D1 - (end_dim - start_dim) {
+            check = check.register(
+                "Flatten",
+                TensorError::new(format!(
+                    "The destination dimension ({D2}) must be large enough to accommodate the flattening operation."
+
                 )),
             );
         }
@@ -278,7 +312,7 @@ impl TensorCheck {
                 .details(
                     format!(
                     "The ranges array must be smaller or equal to the tensor number of dimensions. \
-                    Tensor number of dimensions: {n_dims_tensor}, ranges array lenght {n_dims_ranges}."
+                    Tensor number of dimensions: {n_dims_tensor}, ranges array length {n_dims_ranges}."
                 )));
         }
 
@@ -334,7 +368,7 @@ impl TensorCheck {
                 .details(
                     format!(
                     "The ranges array must be smaller or equal to the tensor number of dimensions. \
-                    Tensor number of dimensions: {D1}, ranges array lenght {D2}."
+                    Tensor number of dimensions: {D1}, ranges array length {D2}."
                 )));
         }
 
@@ -510,7 +544,7 @@ impl TensorCheck {
     }
 
     /// The goal is to minimize the cost of checks when there are no error, but it's way less
-    /// important when an error occured, crafting a comprehensive error message is more important
+    /// important when an error occurred, crafting a comprehensive error message is more important
     /// than optimizing string manipulation.
     fn register(self, ops: &str, error: TensorError) -> Self {
         let errors = match self {
@@ -634,7 +668,7 @@ impl TensorError {
 }
 
 /// We use a macro for all checks, since the panic message file and line number will match the
-/// function that does the check instead of a the generic error.rs crate private unreleated file
+/// function that does the check instead of a the generic error.rs crate private unrelated file
 /// and line number.
 #[macro_export(local_inner_macros)]
 macro_rules! check {
@@ -652,7 +686,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn reshape_invalid_shape() {
-        check!(TensorCheck::reshape(
+        check!(TensorCheck::reshape_args_usize(
             &Shape::new([2, 2]),
             &Shape::new([1, 3])
         ));
@@ -660,7 +694,7 @@ mod tests {
 
     #[test]
     fn reshape_valid_shape() {
-        check!(TensorCheck::reshape(
+        check!(TensorCheck::reshape_args_usize(
             &Shape::new([2, 2]),
             &Shape::new([1, 4])
         ));

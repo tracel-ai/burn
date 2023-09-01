@@ -2,52 +2,68 @@ use super::client::ContextClient;
 use crate::{
     context::server::ContextServer,
     kernel::{DynamicKernel, StaticKernel},
+    tune::Tuner,
     GraphicsApi, WgpuDevice,
 };
 use burn_common::id::IdGenerator;
 use spin::Mutex;
-use std::{any::TypeId, borrow::Cow, collections::HashMap, sync::Arc};
+use std::{
+    any::TypeId,
+    borrow::Cow,
+    collections::HashMap,
+    sync::atomic::{AtomicBool, Ordering},
+    sync::Arc,
+};
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
     Buffer, ComputePipeline, DeviceDescriptor, DeviceType, ShaderModuleDescriptor,
 };
 
 #[cfg(feature = "async")]
-pub type ContextClientImpl = super::client::AsyncContextClient;
+pub(crate) type ContextClientImpl = super::client::AsyncContextClient;
 #[cfg(not(feature = "async"))]
-pub type ContextClientImpl = super::client::SyncContextClient;
+pub(crate) type ContextClientImpl = super::client::SyncContextClient;
 
 #[cfg(feature = "async")]
-pub type ContextServerImpl = super::server::AsyncContextServer;
+pub(crate) type ContextServerImpl = super::server::AsyncContextServer;
 #[cfg(not(feature = "async"))]
-pub type ContextServerImpl = super::server::SyncContextServer;
+pub(crate) type ContextServerImpl = super::server::SyncContextServer;
 
 /// The context is the basic struct that allows to execute GPU kernel on devices.
 ///
-/// You can access a context for a [wgpu device](WGPUDevice) using [get_context](crate::pool::get_context).
+/// You can access a context for a WGPUDevice using get_context.
 #[derive(Debug)]
 pub struct Context {
     id: String,
     device_wgpu: Arc<wgpu::Device>,
-    cache: Mutex<HashMap<Key, Arc<ComputePipeline>>>,
+    cache: Mutex<HashMap<TemplateKey, Arc<ComputePipeline>>>,
+    is_tuning: AtomicBool,
     client: ContextClientImpl,
+    pub(crate) tuner: Tuner,
+    tuning_template_ids: Mutex<Vec<TemplateKey>>,
     pub(crate) device: WgpuDevice,
+    pub(crate) info: wgpu::AdapterInfo,
 }
 
-#[derive(Debug, Hash, PartialOrd, PartialEq, Eq)]
-enum Key {
+#[derive(Debug, Hash, Clone, PartialOrd, PartialEq, Eq)]
+enum TemplateKey {
     Static(TypeId),
     Dynamic(String),
 }
 
+/// Provides launch information specifying the number of work groups to be used by a compute shader.
 #[derive(new, Clone, Debug)]
 pub struct WorkGroup {
+    /// Work groups for the x axis.
     pub x: u32,
+    /// Work groups for the y axis.
     pub y: u32,
+    /// Work groups for the z axis.
     pub z: u32,
 }
 
 impl WorkGroup {
+    /// Calculate the number of invocations of a compute shader.
     pub fn num_invocations(&self) -> usize {
         (self.x * self.y * self.z) as usize
     }
@@ -57,7 +73,7 @@ impl Context {
     /// Create a new context where computing tasks will be executed on the given
     /// [device](WgpuDevice).
     pub(crate) fn new<G: GraphicsApi>(device: &WgpuDevice) -> Self {
-        let (device_wgpu, queue) = pollster::block_on(select_device::<G>(device));
+        let (device_wgpu, queue, info) = pollster::block_on(select_device::<G>(device));
         let device = device.clone();
         let device_wgpu = Arc::new(device_wgpu);
         let client = ContextServerImpl::start(device_wgpu.clone(), queue);
@@ -68,6 +84,10 @@ impl Context {
             device,
             client,
             cache: Mutex::new(HashMap::new()),
+            is_tuning: AtomicBool::new(false),
+            tuner: Tuner::new(),
+            tuning_template_ids: Mutex::new(Vec::new()),
+            info,
         }
     }
 
@@ -83,9 +103,9 @@ impl Context {
     /// # Notes
     ///
     /// This function isn't safe, buffer can be mutated by the GPU. The users must ensure that a
-    /// buffer can be mutated when lauching a compute shaders with write access to a buffer.
+    /// buffer can be mutated when launching a compute shaders with write access to a buffer.
     ///
-    /// Buffer positions are used as bindings when lauching a compute kernel.
+    /// Buffer positions are used as bindings when launching a compute kernel.
     pub fn execute(
         &self,
         work_group: WorkGroup,
@@ -168,7 +188,7 @@ impl Context {
     /// Compile a kernel template if not present in the cache.
     pub fn compile_static<K: StaticKernel>(&self) -> Arc<ComputePipeline> {
         let mut cache = self.cache.lock();
-        let template_id = Key::Static(TypeId::of::<K>());
+        let template_id = TemplateKey::Static(TypeId::of::<K>());
 
         if let Some(module) = cache.get(&template_id) {
             return module.clone();
@@ -177,6 +197,11 @@ impl Context {
         let source = K::source_template();
         let pipeline = self.compile_source(&source.complete());
 
+        if self.is_tuning.load(Ordering::Relaxed) {
+            let mut templates_vec = self.tuning_template_ids.lock();
+            templates_vec.push(template_id.clone());
+        }
+
         cache.insert(template_id, pipeline.clone());
         pipeline
     }
@@ -184,7 +209,7 @@ impl Context {
     /// Compile a dynamic template if not present in the cache.
     pub fn compile_dynamic<K: DynamicKernel>(&self, kernel: K) -> Arc<ComputePipeline> {
         let mut cache = self.cache.lock();
-        let template_id = Key::Dynamic(kernel.id());
+        let template_id = TemplateKey::Dynamic(kernel.id());
 
         if let Some(module) = cache.get(&template_id) {
             return module.clone();
@@ -192,6 +217,11 @@ impl Context {
 
         let source = kernel.source_template();
         let pipeline = self.compile_source(&source.complete());
+
+        if self.is_tuning.load(Ordering::Relaxed) {
+            let mut templates_vec = self.tuning_template_ids.lock();
+            templates_vec.push(template_id.clone());
+        }
 
         cache.insert(template_id, pipeline.clone());
         pipeline
@@ -215,6 +245,23 @@ impl Context {
 
         Arc::new(pipeline)
     }
+
+    pub(crate) fn start_tuning(&self) {
+        self.is_tuning.store(true, Ordering::Relaxed);
+    }
+
+    pub(crate) fn stop_tuning(&self) {
+        self.is_tuning.store(false, Ordering::Relaxed);
+
+        // clean cache of pipelines accumulated during tuning
+        let mut cache = self.cache.lock();
+        let mut tuning_template_ids = self.tuning_template_ids.lock();
+        for template_id in tuning_template_ids.iter() {
+            cache.remove(template_id);
+        }
+
+        tuning_template_ids.clear();
+    }
 }
 
 impl PartialEq for Context {
@@ -223,12 +270,11 @@ impl PartialEq for Context {
     }
 }
 
-async fn select_device<G: GraphicsApi>(device: &WgpuDevice) -> (wgpu::Device, wgpu::Queue) {
+async fn select_device<G: GraphicsApi>(
+    device: &WgpuDevice,
+) -> (wgpu::Device, wgpu::Queue, wgpu::AdapterInfo) {
     let adapter = select_adapter::<G>(device);
-    let limits = wgpu::Limits {
-        max_compute_invocations_per_workgroup: 1024,
-        ..wgpu::Limits::default()
-    };
+    let limits = adapter.limits();
 
     let (device, queue) = adapter
         .request_device(
@@ -249,7 +295,7 @@ async fn select_device<G: GraphicsApi>(device: &WgpuDevice) -> (wgpu::Device, wg
         })
         .unwrap();
 
-    (device, queue)
+    (device, queue, adapter.get_info())
 }
 
 fn select_adapter<G: GraphicsApi>(device: &WgpuDevice) -> wgpu::Adapter {

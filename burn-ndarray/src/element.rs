@@ -1,15 +1,17 @@
 use burn_tensor::Element;
-use libm::{exp, log, log1p, pow, sqrt};
-use libm::{expf, log1pf, logf, powf, sqrtf};
+use libm::{exp, fabs, log, log1p, pow, sqrt};
+use libm::{expf, fabsf, log1pf, logf, powf, sqrtf};
 use ndarray::LinalgScalar;
 
-pub(crate) trait FloatNdArrayElement: NdArrayElement + LinalgScalar
+/// A float element for ndarray backend.
+pub trait FloatNdArrayElement: NdArrayElement + LinalgScalar
 where
     Self: Sized,
 {
 }
 
-pub(crate) trait NdArrayElement:
+/// A general element for ndarray backend.
+pub trait NdArrayElement:
     Element
     + ndarray::LinalgScalar
     + ndarray::ScalarOperand
@@ -21,13 +23,16 @@ pub(crate) trait NdArrayElement:
 {
 }
 
-pub(crate) trait ExpElement {
+/// A element for ndarray backend that supports exp ops.
+pub trait ExpElement {
     fn exp_elem(self) -> Self;
     fn log_elem(self) -> Self;
     fn log1p_elem(self) -> Self;
     fn powf_elem(self, value: f32) -> Self;
     fn powi_elem(self, value: i32) -> Self;
     fn sqrt_elem(self) -> Self;
+    fn abs_elem(self) -> Self;
+    fn int_abs_elem(self) -> Self;
 }
 
 impl FloatNdArrayElement for f64 {}
@@ -76,6 +81,16 @@ macro_rules! make_elem {
             fn sqrt_elem(self) -> Self {
                 sqrt(self as f64) as $ty
             }
+
+            #[inline(always)]
+            fn abs_elem(self) -> Self {
+                fabs(self as f64) as $ty
+            }
+
+            #[inline(always)]
+            fn int_abs_elem(self) -> Self {
+                (self as i64).abs() as $ty
+            }
         }
     };
     (
@@ -119,6 +134,16 @@ macro_rules! make_elem {
             #[inline(always)]
             fn sqrt_elem(self) -> Self {
                 sqrtf(self as f32) as $ty
+            }
+
+            #[inline(always)]
+            fn abs_elem(self) -> Self {
+                fabsf(self as f32) as $ty
+            }
+
+            #[inline(always)]
+            fn int_abs_elem(self) -> Self {
+                (self as i32).abs() as $ty
             }
         }
     };

@@ -47,13 +47,13 @@ impl<PS: PrecisionSettings> Conv2dNode<PS> {
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv2dNode<PS> {
     fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(&self.input)]
+        vec![Type::Tensor(self.input.clone())]
     }
     fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(&self.output)]
+        vec![Type::Tensor(self.output.clone())]
     }
     fn field_type(&self) -> Option<Type> {
-        Some(Type::Other(&self.field))
+        Some(Type::Other(self.field.clone()))
     }
 
     fn field_init(&self, with_record: bool) -> Option<TokenStream> {
@@ -154,6 +154,8 @@ mod tests {
             Conv2dConfig::new([3, 3], [3, 3]).with_padding(PaddingConfig2d::Valid),
         ));
 
+        graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
+
         let expected = quote! {
             use burn::{
                 module::Module,
@@ -166,9 +168,11 @@ mod tests {
             #[derive(Module, Debug)]
             pub struct Model <B: Backend> {
                 conv2d: Conv2d<B>,
+                phantom: core::marker::PhantomData<B>,
             }
 
             impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
                 pub fn new_with(record: ModelRecord<B>) -> Self {
                     let conv2d = Conv2dConfig::new([3, 3], [3, 3])
                         .with_stride([1, 1])
@@ -180,6 +184,7 @@ mod tests {
 
                     Self {
                         conv2d,
+                        phantom: core::marker::PhantomData,
                     }
                 }
                 #[allow(clippy::let_and_return)]

@@ -50,7 +50,7 @@ def download_and_export(name: str, subset: str, db_file: str, token: str, cache_
         dataset = dataset.flatten()
 
         # Rename columns to remove dots from the names
-        dataset = rename_colums(dataset)
+        dataset = rename_columns(dataset)
 
         print(f"Saving dataset: {name} - {key}")
         print(f"Dataset features: {dataset.features}")
@@ -81,7 +81,7 @@ def disable_decoding(dataset):
     return dataset
 
 
-def rename_colums(dataset):
+def rename_columns(dataset):
     """
     Rename columns to remove dots from the names. Dots appear in the column names because of the flattening.
     Dots are not allowed in column names in rust and sql (unless quoted). So we replace them with underscores.

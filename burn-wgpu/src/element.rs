@@ -1,6 +1,7 @@
 use burn_tensor::Element;
 
-pub trait WgpuElement: core::fmt::Debug + 'static + Clone
+/// The base element trait for the wgou backend.
+pub trait WgpuElement: core::fmt::Debug + Send + Sync + 'static + Clone
 where
     Self: Sized,
 {
@@ -9,8 +10,10 @@ where
     fn from_bytes(bytes: &[u8]) -> &[Self];
 }
 
+/// The float element type for the wgpu backend.
 pub trait FloatElement: WgpuElement + Element {}
 
+/// The int element type for the wgpu backend.
 pub trait IntElement: WgpuElement + Element {}
 
 impl WgpuElement for u32 {

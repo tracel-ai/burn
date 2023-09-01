@@ -1,0 +1,11 @@
+[book]
+authors = [
+    "Wouter Doppenberg",
+    "Nathaniel Simard",
+    "Louis Fortier-Dubois",
+    "Dilshod Tadjibaev",
+]
+language = "en"
+multilingual = false
+src = "src"
+title = "The Burn Book"

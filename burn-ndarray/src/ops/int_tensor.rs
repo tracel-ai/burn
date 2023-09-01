@@ -2,9 +2,11 @@
 use alloc::vec;
 use alloc::vec::Vec;
 use burn_tensor::ops::IntTensorOps;
+use burn_tensor::ElementConversion;
 use core::ops::Range;
 
 // Current crate
+use crate::element::ExpElement;
 use crate::element::FloatNdArrayElement;
 use crate::NdArrayDevice;
 use crate::{tensor::NdArrayTensor, NdArrayBackend};
@@ -333,5 +335,40 @@ impl<E: FloatNdArrayElement> IntTensorOps<NdArrayBackend<E>> for NdArrayBackend<
         dim: usize,
     ) -> NdArrayTensor<i64, D> {
         NdArrayMathOps::argmin(tensor, dim)
+    }
+
+    fn int_clamp_min<const D: usize>(
+        tensor: NdArrayTensor<i64, D>,
+        min: i64,
+    ) -> NdArrayTensor<i64, D> {
+        NdArrayMathOps::clamp_min(tensor, min)
+    }
+
+    fn int_clamp_max<const D: usize>(
+        tensor: NdArrayTensor<i64, D>,
+        max: i64,
+    ) -> NdArrayTensor<i64, D> {
+        NdArrayMathOps::clamp_max(tensor, max)
+    }
+
+    fn int_clamp<const D: usize>(
+        tensor: NdArrayTensor<i64, D>,
+        min: i64,
+        max: i64,
+    ) -> NdArrayTensor<i64, D> {
+        NdArrayMathOps::clamp(tensor, min, max)
+    }
+
+    fn int_abs<const D: usize>(tensor: NdArrayTensor<i64, D>) -> NdArrayTensor<i64, D> {
+        let array = tensor.array.mapv_into(|a| a.int_abs_elem()).into_shared();
+
+        NdArrayTensor::new(array)
+    }
+
+    fn int_into_float<const D: usize>(
+        tensor: <NdArrayBackend<E> as Backend>::IntTensorPrimitive<D>,
+    ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D> {
+        let array = tensor.array.mapv(|a| a.elem()).into_shared();
+        NdArrayTensor { array }
     }
 }

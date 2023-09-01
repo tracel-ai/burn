@@ -11,6 +11,7 @@ var<storage, read_write> output: array<{{ elem }}>;
 var<storage, read> info: array<u32, 22>;
 
 const WORKGROUP_SIZE_X = {{ workgroup_size_x }}u;
+const COUNT_INCLUDE_PAD = {{ count_include_pad }};
 
 @compute
 @workgroup_size({{ workgroup_size_x }}, {{ workgroup_size_y }}, 1)
@@ -51,6 +52,7 @@ fn main(
     let ow = id / output_stride_3 % output_shape_3;
 
     var sum = 0.0;
+    var count = 0.0;
 
     for (var kh = 0u; kh < kernel_size_0; kh++) {
         let ih = oh * pool_stride_0 + kh;
@@ -73,10 +75,13 @@ fn main(
             let iw_pad = iw - padding_1;
 
             let index_input = b * input_stride_0 + c * input_stride_1 + ih_pad * input_stride_2 + iw_pad * input_stride_3;
+            count += 1.0;
             sum += x[index_input];
         }
     }
 
-    let total = {{ elem }}(kernel_size_1 * kernel_size_0);
-    output[id] = sum / total;
+    if COUNT_INCLUDE_PAD {
+        count = {{ elem }}(kernel_size_1 * kernel_size_0);
+    }
+    output[id] = sum / count;
 }

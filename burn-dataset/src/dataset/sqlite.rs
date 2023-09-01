@@ -576,7 +576,7 @@ where
     ///
     /// * A `Result` which is `Ok` if the table could be created, `Err` otherwise.
     ///
-    /// TODO (@antimora): add support creating a table with columns coresponding to the item fields
+    /// TODO (@antimora): add support creating a table with columns corresponding to the item fields
     fn create_table(&self, split: &str) -> Result<()> {
         // Check if the split already exists
         if self.splits.read().unwrap().contains(split) {
