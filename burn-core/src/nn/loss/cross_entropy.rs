@@ -28,7 +28,7 @@ impl<B: Backend> CrossEntropyLoss<B> {
     ///
     /// - logits: `[batch_size, num_targets]`
     /// - targets: `[batch_size]`
-    pub fn forward(&self, logists: Tensor<B, 2>, targets: Tensor<B, 1, Int>) -> Tensor<B, 1> {
+    pub fn forward(&self, logits: Tensor<B, 2>, targets: Tensor<B, 1, Int>) -> Tensor<B, 1> {
         if let Some(alpha) = self.smoothing.clone() {
             self.forward_smoothed(logits, targets, alpha)
         } else {
@@ -96,7 +96,7 @@ impl<B: Backend> CrossEntropyLoss<B> {
     /// Alpah = 0 would be the same as default.
     ///
     pub fn with_smoothing(self, alpha: f32) -> Self {
-        assert!(a < 1 && a > 0, "Alpha most be in interval [0, 1]");
+        assert!(alpha < 1 && alpha > 0, "Alpha most be in interval [0, 1]");
         Self {
             weights: Some(alpha),
             self..
