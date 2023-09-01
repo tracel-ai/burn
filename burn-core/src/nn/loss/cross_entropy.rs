@@ -53,8 +53,8 @@ impl<B: Backend> CrossEntropyLoss<B> {
     ///   - Targets assigned negative Int's will not be allowed.
     pub fn with_weights(self, weights: Vec<f32>) -> Self {
         Self {
-            weights: Some(Tensor::<B, 1, Int>::from_floats(weights.as_slice)),
-            self..
+            weights: Some(Tensor::<B, 1>::from_floats(weights.as_slice()),
+            ..self
         }
     }
 
