@@ -2,12 +2,50 @@ use burn_tensor::{
     ops::{conv::calculate_conv_output_size, ConvOptions, ConvTransposeOptions},
     ElementConversion,
 };
-use ndarray::{s, Array3, Array4, Axis, Dim};
+use ndarray::{s, Array3, Array4, ArrayView2, ArrayViewMut2, Axis, Dim};
 
 use crate::{
     element::FloatNdArrayElement, iter_par, iter_range_par, ops::padding::apply_padding_4d,
     run_par, sharing::UnsafeSharedRef, tensor::NdArrayTensor,
 };
+
+#[inline(always)]
+fn conv2d_mad_inner<E: FloatNdArrayElement>(
+    mut output: ArrayViewMut2<E>,
+    x: ArrayView2<E>,
+    k: E,
+    k_xy: (usize, usize),
+    out_xy: (usize, usize),
+    stride: (usize, usize),
+    dilation: (usize, usize),
+) {
+    let (kh, kw) = k_xy;
+    let (out_width, out_height) = out_xy;
+    let (stride_width, stride_height) = stride;
+    let (dilation_width, dilation_height) = dilation;
+
+    for oh in 0..out_height {
+        // Construct a sub-slice view of the input row.
+        // This is done upfront so that rustc does not have to emit bounds checks
+        // in the hot loop below.
+        let ir = x
+            .row(oh * stride_height + kh * dilation_height)
+            .to_slice()
+            .unwrap();
+
+        // Ditto. Construct a sub-slice view of the output row, and explicitly specify
+        // the bounds upfront as 0..out_width so that rustc can make the assumption
+        // that all accesses are in-bounds in the below loop.
+        let mut or = output.row_mut(oh);
+        let or = &mut or.as_slice_mut().unwrap()[0..out_width];
+
+        #[allow(clippy::needless_range_loop)]
+        for ow in 0..out_width {
+            let iw = (ow * stride_width) + (kw * dilation_width);
+            or[ow] += ir[iw] * k;
+        }
+    }
+}
 
 pub(crate) fn conv2d<E: FloatNdArrayElement>(
     x: NdArrayTensor<E, 4>,
@@ -61,12 +99,12 @@ pub(crate) fn conv2d<E: FloatNdArrayElement>(
                         let k = weights.slice(s![oc, weight_ic, .., ..]);
 
                         for kh in 0..kernel_height {
-                            // let kr = &k.row(kh).to_slice().unwrap()[0..kernel_width];
                             for kw in 0..kernel_width {
                                 let k = k[[kh, kw]];
 
-                                // NOTE: This loop is duplicated twice so that the compiler can perform auto-vectorization
+                                // NOTE: This function call is duplicated twice so that the compiler can perform auto-vectorization
                                 // in the case that the stride/dilation is 1.
+                                #[allow(clippy::if_same_then_else)]
                                 if (1, 1, 1, 1)
                                     == (
                                         stride_width,
@@ -75,40 +113,25 @@ pub(crate) fn conv2d<E: FloatNdArrayElement>(
                                         dilation_height,
                                     )
                                 {
-                                    for oh in 0..out_height {
-                                        // Construct a sub-slice view of the input row.
-                                        // This is done upfront so that rustc does not have to emit bounds checks
-                                        // in the hot loop below.
-                                        let ir = x.row(oh + kh).to_slice().unwrap();
-
-                                        let mut or = output.row_mut(oh);
-                                        let or = &mut or.as_slice_mut().unwrap()[0..out_width];
-
-                                        #[allow(clippy::needless_range_loop)]
-                                        for ow in 0..out_width {
-                                            let iw = ow + kw;
-                                            or[ow] += ir[iw] * k;
-                                        }
-                                    }
+                                    conv2d_mad_inner(
+                                        output.view_mut(),
+                                        x.view(),
+                                        k,
+                                        (kh, kw),
+                                        (out_width, out_height),
+                                        (stride_width, stride_height),
+                                        (dilation_width, dilation_height),
+                                    );
                                 } else {
-                                    for oh in 0..out_height {
-                                        // Construct a sub-slice view of the input row.
-                                        // This is done upfront so that rustc does not have to emit bounds checks
-                                        // in the hot loop below.
-                                        let ir = x
-                                            .row(oh * stride_height + kh * dilation_height)
-                                            .to_slice()
-                                            .unwrap();
-
-                                        let mut or = output.row_mut(oh);
-                                        let or = &mut or.as_slice_mut().unwrap()[0..out_width];
-
-                                        #[allow(clippy::needless_range_loop)]
-                                        for ow in 0..out_width {
-                                            let iw = (ow * stride_width) + (kw * dilation_width);
-                                            or[ow] += ir[iw] * k;
-                                        }
-                                    }
+                                    conv2d_mad_inner(
+                                        output.view_mut(),
+                                        x.view(),
+                                        k,
+                                        (kh, kw),
+                                        (out_width, out_height),
+                                        (stride_width, stride_height),
+                                        (dilation_width, dilation_height),
+                                    );
                                 }
                             }
                         }
@@ -118,6 +141,9 @@ pub(crate) fn conv2d<E: FloatNdArrayElement>(
                         let bias = bias.array[oc];
 
                         for oh in 0..out_height {
+                            // Get a mutable slice reference to the row we're looping over.
+                            // We explicitly define the bounds to 0..out_width so that rustc can make
+                            // the assumption that all accesses are in-bounds.
                             let mut or = output.row_mut(oh);
                             let or = &mut or.as_slice_mut().unwrap()[0..out_width];
 
