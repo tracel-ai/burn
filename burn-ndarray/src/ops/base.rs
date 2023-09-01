@@ -392,30 +392,36 @@ where
         arg(tensor, dim, CmpType::Min)
     }
 
-    pub fn clamp_min<const D: usize>(tensor: NdArrayTensor<E, D>, min: E) -> NdArrayTensor<E, D> {
-        let array = tensor.array.mapv(|x| match x < min {
+    pub fn clamp_min<const D: usize>(
+        mut tensor: NdArrayTensor<E, D>,
+        min: E,
+    ) -> NdArrayTensor<E, D> {
+        tensor.array.mapv_inplace(|x| match x < min {
             true => min,
             false => x,
         });
 
-        NdArrayTensor::new(array.into_shared())
+        tensor
     }
 
-    pub fn clamp_max<const D: usize>(tensor: NdArrayTensor<E, D>, max: E) -> NdArrayTensor<E, D> {
-        let array = tensor.array.mapv(|x| match x > max {
+    pub fn clamp_max<const D: usize>(
+        mut tensor: NdArrayTensor<E, D>,
+        max: E,
+    ) -> NdArrayTensor<E, D> {
+        tensor.array.mapv_inplace(|x| match x > max {
             true => max,
             false => x,
         });
 
-        NdArrayTensor::new(array.into_shared())
+        tensor
     }
 
     pub fn clamp<const D: usize>(
-        tensor: NdArrayTensor<E, D>,
+        mut tensor: NdArrayTensor<E, D>,
         min: E,
         max: E,
     ) -> NdArrayTensor<E, D> {
-        let array = tensor.array.mapv(|x| match x < min {
+        tensor.array.mapv_inplace(|x| match x < min {
             true => min,
             false => match x > max {
                 true => max,
@@ -423,7 +429,7 @@ where
             },
         });
 
-        NdArrayTensor::new(array.into_shared())
+        tensor
     }
 }
 

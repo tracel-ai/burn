@@ -1,5 +1,5 @@
 use crate::{
-    element::FloatNdArrayElement, iter_par, ops::padding::apply_padding_4d, run_par,
+    element::FloatNdArrayElement, iter_range_par, ops::padding::apply_padding_4d, run_par,
     sharing::UnsafeSharedRef, tensor::NdArrayTensor,
 };
 
@@ -33,7 +33,7 @@ pub(crate) fn max_pool2d<E: FloatNdArrayElement>(
     let unsafe_shared_out = UnsafeSharedRef::new(&mut output);
 
     run_par!(|| {
-        iter_par!(0, batch_size * channels).for_each(|k| unsafe {
+        iter_range_par!(0, batch_size * channels).for_each(|k| unsafe {
             let b = k / channels;
             let c = k % channels;
 
@@ -96,7 +96,7 @@ pub(crate) fn max_pool2d_with_indices<E: FloatNdArrayElement>(
     let unsafe_shared_indices = UnsafeSharedRef::new(&mut indices);
 
     run_par!(|| {
-        iter_par!(0, batch_size * channels).for_each(|k| unsafe {
+        iter_range_par!(0, batch_size * channels).for_each(|k| unsafe {
             let b = k / channels;
             let c = k % channels;
 
@@ -159,7 +159,7 @@ pub(crate) fn max_pool2d_backward<E: FloatNdArrayElement>(
     let unsafe_shared_out = UnsafeSharedRef::new(&mut output);
 
     run_par!(|| {
-        iter_par!(0, batch_size * channels).for_each(|k| unsafe {
+        iter_range_par!(0, batch_size * channels).for_each(|k| unsafe {
             let b = k / channels;
             let c = k % channels;
 

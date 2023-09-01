@@ -18,9 +18,25 @@ macro_rules! run_par {
     }};
 }
 
-/// Macro for iterating over a range in parallel.
+/// Macro for iterating in parallel.
 #[macro_export(local_inner_macros)]
 macro_rules! iter_par {
+    (
+        $iter:expr
+    ) => {{
+        #[cfg(feature = "std")]
+        let output = $iter.into_par_iter();
+
+        #[cfg(not(feature = "std"))]
+        let output = $iter;
+
+        output
+    }};
+}
+
+/// Macro for iterating over a range in parallel.
+#[macro_export(local_inner_macros)]
+macro_rules! iter_range_par {
     (
         $start:expr, $end:expr
     ) => {{
