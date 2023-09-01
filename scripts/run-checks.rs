@@ -277,7 +277,13 @@ fn check_examples() {
 
     std::fs::read_dir("examples").unwrap().for_each(|dir| {
         let dir = dir.unwrap();
-        println!("Checking {} \n\n", dir.path().display());
+        let path = dir.path();
+        if path.file_name().unwrap().to_str().unwrap() == "notebook" {
+            // not a crate
+            return;
+        }
+        let path = path.to_str().unwrap();
+        println!("Checking {path} \n\n");
 
         let child = Command::new("cargo")
             .arg("check")
