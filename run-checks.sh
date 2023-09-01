@@ -3,7 +3,8 @@
 # Exit immediately if a command exits with a non-zero status.
 set -e
 
-# This script runs all `burn` checks locally
+# This script runs all `burn` checks locally. It may take around 15 minutes
+# on the first run.
 #
 # Run `run-checks` using this command:
 #
@@ -14,8 +15,9 @@ set -e
 # - `std` to perform checks using `libstd`
 # - `no_std` to perform checks on an embedded environment using `libcore`
 # - `typos` to check for typos in the codebase
+# - `examples` to check the examples compile
 #
-# If no `environment` value has been passed, run all checks.
+# If no `environment` value has been passed, run all checks except examples.
 
 # Compile run-checks binary
 rustc scripts/run-checks.rs --crate-type bin --out-dir scripts

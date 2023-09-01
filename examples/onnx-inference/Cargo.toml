@@ -7,7 +7,7 @@ publish = false
 version = "0.9.0"
 
 [features]
-default = []
+default = ["burn/dataset-sqlite-bundled"]
 
 [dependencies]
 burn = {path = "../../burn"}

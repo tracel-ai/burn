@@ -1,26 +1,14 @@
-use log::{LevelFilter, SetLoggerError};
-use log4rs::{
-    append::console::ConsoleAppender,
-    config::{Appender, Root},
-    encode::pattern::PatternEncoder,
-    Config,
-};
+use std::error::Error;
+use tracing_core::LevelFilter;
 
-pub fn init_log() -> Result<(), SetLoggerError> {
-    let stdout = ConsoleAppender::builder()
-        .encoder(Box::new(PatternEncoder::new("[{h({l})} - {f}:{L}] {m}{n}")))
-        .build();
-    let appender = Appender::builder().build("stdout", Box::new(stdout));
-
-    log4rs::init_config(
-        Config::builder()
-            .appender(appender)
-            .build(Root::builder().appender("stdout").build(LevelFilter::Debug))
-            .unwrap(),
-    )?;
-    update_panic_hook();
-
-    Ok(())
+pub fn init_log() -> Result<(), Box<dyn Error + Send + Sync>> {
+    let result = tracing_subscriber::fmt()
+        .with_max_level(LevelFilter::INFO)
+        .try_init();
+    if result.is_ok() {
+        update_panic_hook();
+    }
+    result
 }
 
 fn update_panic_hook() {

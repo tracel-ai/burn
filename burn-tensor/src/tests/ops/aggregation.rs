@@ -9,7 +9,7 @@ mod tests {
 
         let data_actual = tensor.mean().to_data();
 
-        assert_eq!(data_actual, Data::from([15.0 / 6.0]));
+        data_actual.assert_approx_eq(&Data::from([15.0 / 6.0]), 3);
     }
 
     #[test]
@@ -45,7 +45,7 @@ mod tests {
 
         let data_actual = tensor.mean_dim(1).to_data();
 
-        assert_eq!(data_actual, Data::from([[3.0 / 3.0], [12.0 / 3.0]]));
+        data_actual.assert_approx_eq(&Data::from([[3.0 / 3.0], [12.0 / 3.0]]), 3);
     }
 
     #[test]

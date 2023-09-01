@@ -18,6 +18,10 @@ std = [
 ]
 train = ["std", "burn-train"] # Training requires std
 
+dataset = ["burn-core/dataset"]
+dataset-sqlite = ["burn-core/dataset-sqlite"]
+dataset-sqlite-bundled = ["burn-core/dataset-sqlite-bundled"]
+
 [dependencies]
 
 # ** Please make sure all dependencies support no_std when std is disabled **

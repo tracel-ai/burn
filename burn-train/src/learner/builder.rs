@@ -1,4 +1,4 @@
-use super::log::update_log_file;
+use super::log::install_file_logger;
 use super::Learner;
 use crate::checkpoint::{AsyncCheckpointer, Checkpointer, FileCheckpointer};
 use crate::logger::{FileMetricLogger, MetricLogger};
@@ -36,7 +36,6 @@ where
     metric_logger_valid: Option<Box<dyn MetricLogger + 'static>>,
     renderer: Option<Box<dyn DashboardRenderer + 'static>>,
     metrics: Metrics<T, V>,
-    log_to_file: bool,
 }
 
 impl<B, T, V, Model, Optim, LR> LearnerBuilder<B, T, V, Model, Optim, LR>
@@ -67,7 +66,6 @@ where
             metric_logger_valid: None,
             metrics: Metrics::new(),
             renderer: None,
-            log_to_file: true,
         }
     }
 
@@ -190,14 +188,6 @@ where
         self
     }
 
-    /// By default, Rust logs are captured and written into
-    /// `experiment.log`. If disabled, standard Rust log handling
-    /// will apply.
-    pub fn log_to_file(mut self, enabled: bool) -> Self {
-        self.log_to_file = enabled;
-        self
-    }
-
     /// Register a checkpointer that will save the [optimizer](Optimizer) and the
     /// [model](ADModule).
     ///
@@ -243,9 +233,7 @@ where
         Optim::Record: 'static,
         LR::Record: 'static,
     {
-        if self.log_to_file {
-            self.init_logger();
-        }
+        self.init_logger();
         let renderer = self
             .renderer
             .unwrap_or_else(|| Box::new(CLIDashboardRenderer::new()));
@@ -302,6 +290,6 @@ where
 
     fn init_logger(&self) {
         let file_path = format!("{}/experiment.log", self.directory);
-        update_log_file(file_path.as_str());
+        install_file_logger(file_path.as_str());
     }
 }
