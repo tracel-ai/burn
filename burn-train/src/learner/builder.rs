@@ -142,7 +142,6 @@ where
     /// Only [numeric](crate::metric::Numeric) metric can be displayed on a plot.
     /// If the same metric is also registered for the [validation split](Self::metric_valid_plot),
     /// the same graph will be used for both.
-    #[cfg(feature = "ui")]
     pub fn metric_train_plot<M>(mut self, metric: M) -> Self
     where
         M: Metric + crate::metric::Numeric + 'static,
@@ -161,7 +160,6 @@ where
     /// Only [numeric](crate::metric::Numeric) metric can be displayed on a plot.
     /// If the same metric is also registered for the [training split](Self::metric_train_plot),
     /// the same graph will be used for both.
-    #[cfg(feature = "ui")]
     pub fn metric_valid_plot<M: Metric + crate::metric::Numeric + 'static>(
         mut self,
         metric: M,

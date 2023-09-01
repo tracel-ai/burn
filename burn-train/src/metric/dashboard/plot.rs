@@ -155,6 +155,6 @@ impl TextPlot {
     /// The rendered text plot.
     #[cfg(not(feature = "ui"))]
     pub fn render(&self) -> String {
-        panic!("metrics feature not enabled on burn-train")
+        panic!("ui feature not enabled on burn-train")
     }
 }
