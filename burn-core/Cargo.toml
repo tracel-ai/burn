@@ -15,7 +15,7 @@ default = ["std"]
 std = [
   "burn-autodiff",
   "burn-common/std",
-  "burn-dataset",
+  "dataset",
   "burn-tensor/std",
   "burn-ndarray/std",
   "flate2",
@@ -27,6 +27,10 @@ std = [
   "bincode/std",
   "half/std",
 ]
+
+dataset = ["burn-dataset"]
+dataset-sqlite = ["burn-dataset/sqlite"]
+dataset-sqlite-bundled = ["burn-dataset/sqlite-bundled"]
 
 # Serialization formats
 experimental-named-tensor = ["burn-tensor/experimental-named-tensor"]
