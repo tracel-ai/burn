@@ -3,7 +3,8 @@
 # Exit immediately if a command exits with a non-zero status.
 set -e
 
-# This script runs all `burn` checks locally
+# This script runs all `burn` checks locally. It may take around 15 minutes
+# on the first run.
 #
 # Run `run-checks` using this command:
 #

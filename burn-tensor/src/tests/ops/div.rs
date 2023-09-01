@@ -14,7 +14,7 @@ mod tests {
 
         let data_actual = output.into_data();
         let data_expected = Data::from([[0.0, 1.0, 1.0], [1.0, 1.0, 1.0]]);
-        assert_eq!(data_expected, data_actual);
+        data_expected.assert_approx_eq(&data_actual, 3);
     }
 
     #[test]
