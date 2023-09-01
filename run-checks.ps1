@@ -10,8 +10,8 @@
 # - `std` to perform checks using `libstd`
 # - `no_std` to perform checks on an embedded environment using `libcore`
 # - `typos` to check for typos in the codebase
-#
-# If no `environment` value has been passed, run all checks.
+# - `examples` to check the examples compile
+# If no `environment` value has been passed, run all checks except examples.
 
 # Exit if any command fails
 $ErrorActionPreference = "Stop"

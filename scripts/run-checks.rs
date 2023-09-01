@@ -16,6 +16,7 @@
 //!     - `std` to perform checks using `libstd`
 //!     - `no_std` to perform checks on an embedded environment using `libcore`
 //!     - `typos` to check typos in the source code
+//!     - `examples` to check the examples compile
 
 use std::env;
 use std::process::{Child, Command, Stdio};
@@ -271,6 +272,33 @@ fn check_typos() {
     handle_child_process(typos, "Failed to wait for typos child process");
 }
 
+fn check_examples() {
+    println!("Checking examples compile \n\n");
+
+    std::fs::read_dir("examples").unwrap().for_each(|dir| {
+        let dir = dir.unwrap();
+        let path = dir.path();
+        if path.file_name().unwrap().to_str().unwrap() == "notebook" {
+            // not a crate
+            return;
+        }
+        let path = path.to_str().unwrap();
+        println!("Checking {path} \n\n");
+
+        let child = Command::new("cargo")
+            .arg("check")
+            .current_dir(dir.path())
+            .stdout(Stdio::inherit()) // Send stdout directly to terminal
+            .stderr(Stdio::inherit()) // Send stderr directly to terminal
+            .spawn()
+            .expect("Failed to check examples");
+
+        // Handle typos child process
+        handle_child_process(child, "Failed to wait for examples child process");
+    });
+}
+
+
 fn main() {
     // Start time measurement
     let start = Instant::now();
@@ -290,6 +318,7 @@ fn main() {
         Some("std") => std_checks(),
         Some("no_std") => no_std_checks(),
         Some("typos") => check_typos(),
+        Some("examples") => check_examples(),
         Some(_) | None => {
             /* Run all checks */
             check_typos();
