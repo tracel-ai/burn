@@ -37,7 +37,7 @@ where
     metric_logger_valid: Option<Box<dyn MetricLogger + 'static>>,
     renderer: Option<Box<dyn DashboardRenderer + 'static>>,
     metrics: Metrics<T, V>,
-    interrupter: Option<TrainingInterrupter>,
+    interrupter: TrainingInterrupter,
 }
 
 impl<B, T, V, Model, Optim, LR> LearnerBuilder<B, T, V, Model, Optim, LR>
@@ -68,7 +68,7 @@ where
             metric_logger_valid: None,
             metrics: Metrics::new(),
             renderer: None,
-            interrupter: None,
+            interrupter: TrainingInterrupter::new(),
         }
     }
 
@@ -191,10 +191,9 @@ where
         self
     }
 
-    /// Provide a handle that can be used to interrupt training.
-    pub fn interrupter(mut self, interrupter: TrainingInterrupter) -> Self {
-        self.interrupter = Some(interrupter);
-        self
+    /// Provides a handle that can be used to interrupt training.
+    pub fn interrupter(&self) -> TrainingInterrupter {
+        self.interrupter.clone()
     }
 
     /// Register a checkpointer that will save the [optimizer](Optimizer) and the
@@ -294,7 +293,7 @@ where
             checkpointer_scheduler,
             grad_accumulation: self.grad_accumulation,
             devices: self.devices,
-            interrupter: self.interrupter.unwrap_or_default(),
+            interrupter: self.interrupter,
         }
     }
 
