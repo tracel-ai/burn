@@ -19,10 +19,6 @@ In order to use a metric, the output of your training step has to implement the 
 crate.
 
 ```rust , ignore
-use crate::metric::{AccuracyInput, Adaptor, LossInput};
-use burn_core::tensor::backend::Backend;
-use burn_core::tensor::{Int, Tensor};
-
 /// Simple classification output adapted for multiple metrics.
 #[derive(new)]
 pub struct ClassificationOutput<B: Backend> {
