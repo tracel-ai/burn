@@ -12,6 +12,7 @@ use burn_core::optim::Optimizer;
 use burn_core::record::FileRecorder;
 use burn_core::tensor::backend::ADBackend;
 
+use crate::learner::base::TrainingInterrupter;
 use std::sync::Arc;
 
 /// Struct to configure and create a [learner](Learner).
@@ -36,6 +37,7 @@ where
     metric_logger_valid: Option<Box<dyn MetricLogger + 'static>>,
     renderer: Option<Box<dyn DashboardRenderer + 'static>>,
     metrics: Metrics<T, V>,
+    interrupter: Option<TrainingInterrupter>,
 }
 
 impl<B, T, V, Model, Optim, LR> LearnerBuilder<B, T, V, Model, Optim, LR>
@@ -66,6 +68,7 @@ where
             metric_logger_valid: None,
             metrics: Metrics::new(),
             renderer: None,
+            interrupter: None,
         }
     }
 
@@ -188,6 +191,12 @@ where
         self
     }
 
+    /// Provide a handle that can be used to interrupt training.
+    pub fn interrupter(mut self, interrupter: TrainingInterrupter) -> Self {
+        self.interrupter = Some(interrupter);
+        self
+    }
+
     /// Register a checkpointer that will save the [optimizer](Optimizer) and the
     /// [model](ADModule).
     ///
@@ -285,6 +294,7 @@ where
             checkpointer_scheduler,
             grad_accumulation: self.grad_accumulation,
             devices: self.devices,
+            interrupter: self.interrupter.unwrap_or_default(),
         }
     }
 

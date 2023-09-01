@@ -156,14 +156,20 @@ where
                     &mut self.lr_scheduler,
                     &mut self.callback,
                     self.devices.clone(),
+                    &self.interrupter,
                 )
             } else {
-                (model, optim) =
-                    epoch_train.run(model, optim, &mut self.lr_scheduler, &mut self.callback);
+                (model, optim) = epoch_train.run(
+                    model,
+                    optim,
+                    &mut self.lr_scheduler,
+                    &mut self.callback,
+                    &self.interrupter,
+                );
             }
 
             let epoch_valid = ValidEpoch::new(dataloader_valid.clone(), epoch, self.num_epochs);
-            epoch_valid.run(&model, &mut self.callback);
+            epoch_valid.run(&model, &mut self.callback, &self.interrupter);
 
             Self::checkpoint(
                 &model,
