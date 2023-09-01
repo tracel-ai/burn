@@ -44,20 +44,6 @@ impl<B: Backend> CrossEntropyLoss<B> {
         }
     }
 
-    /// Create weighted cross-entropy.
-    ///
-    /// The loss of a specific sample will simply be given by: weight[y] * p(x) * 1,
-    ///
-    /// # Pre-conditions
-    ///   - The order of the weight vector should correspond to the label integer assignment.
-    ///   - Targets assigned negative Int's will not be allowed.
-    pub fn with_weights(self, weights: Vec<f32>) -> Self {
-        Self {
-            weights: Some(Tensor::<B, 1>::from_floats(weights.as_slice())),
-            ..self
-        }
-    }
-
     /// Create weighted cross-entropy. 
     ///
     /// The loss of a specific sample will simply be given by: weight[y] * p(x) * 1, 
