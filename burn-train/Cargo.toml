@@ -10,23 +10,38 @@ readme = "README.md"
 repository = "https://github.com/burn-rs/burn/tree/main/burn-train"
 version = "0.9.0"
 
+[features]
+default = ["metrics", "ui"]
+metrics = [
+    "nvml-wrapper",
+    "sysinfo",
+    "systemstat"
+]
+ui = [
+    "indicatif",
+    "rgb",
+    "terminal_size",
+    "textplots",
+]
+
 [dependencies]
 burn-core = {path = "../burn-core", version = "0.9.0" }
 
-# Console
-indicatif = "0.17.5"
 log = {workspace = true}
 tracing-subscriber.workspace = true
 tracing-appender.workspace = true
 tracing-core.workspace = true
 
 # Metrics
-nvml-wrapper = "0.9.0"
-rgb = "0.8.36"
-terminal_size = "0.2.6"
-textplots = "0.8.0"
-sysinfo = "0.29.8"
-systemstat = "0.2.3"
+nvml-wrapper = { version = "0.9.0", optional = true }
+sysinfo = { version = "0.29.8", optional = true }
+systemstat = { version = "0.2.3", optional = true }
+
+# Text UI
+indicatif = { version = "0.17.5", optional = true }
+rgb = { version = "0.8.36", optional = true }
+terminal_size = { version = "0.2.6", optional = true }
+textplots = { version = "0.8.0", optional = true }
 
 # Utilities
 derive-new = {workspace = true}

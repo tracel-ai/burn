@@ -1,7 +1,3 @@
-use rgb::RGB8;
-use terminal_size::{terminal_size, Height, Width};
-use textplots::{Chart, ColorPlot, Shape};
-
 /// Text plot.
 pub struct TextPlot {
     train: Vec<(f32, f32)>,
@@ -108,7 +104,12 @@ impl TextPlot {
     /// # Returns
     ///
     /// The rendered text plot.
+    #[cfg(feature = "ui")]
     pub fn render(&self) -> String {
+        use rgb::RGB8;
+        use terminal_size::{terminal_size, Height, Width};
+        use textplots::{Chart, ColorPlot, Shape};
+
         let train_color = RGB8::new(255, 140, 140);
         let valid_color = RGB8::new(140, 140, 255);
 
@@ -145,5 +146,15 @@ impl TextPlot {
             .linecolorplot(&Shape::Lines(&self.train), train_color)
             .linecolorplot(&Shape::Lines(&self.valid), valid_color)
             .to_string()
+    }
+
+    /// Renders the text plot.
+    ///
+    /// # Returns
+    ///
+    /// The rendered text plot.
+    #[cfg(not(feature = "ui"))]
+    pub fn render(&self) -> String {
+        panic!("ui feature not enabled on burn-train")
     }
 }

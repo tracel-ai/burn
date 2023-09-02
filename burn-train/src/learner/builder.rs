@@ -2,9 +2,9 @@ use super::log::install_file_logger;
 use super::Learner;
 use crate::checkpoint::{AsyncCheckpointer, Checkpointer, FileCheckpointer};
 use crate::logger::{FileMetricLogger, MetricLogger};
-use crate::metric::dashboard::cli::CLIDashboardRenderer;
+use crate::metric::dashboard::CLIDashboardRenderer;
 use crate::metric::dashboard::{Dashboard, DashboardRenderer, MetricWrapper, Metrics};
-use crate::metric::{Adaptor, Metric, Numeric};
+use crate::metric::{Adaptor, Metric};
 use crate::AsyncTrainerCallback;
 use burn_core::lr_scheduler::LRScheduler;
 use burn_core::module::ADModule;
@@ -139,12 +139,12 @@ where
     ///
     /// # Notes
     ///
-    /// Only [numeric](Numeric) metric can be displayed on a plot.
+    /// Only [numeric](crate::metric::Numeric) metric can be displayed on a plot.
     /// If the same metric is also registered for the [validation split](Self::metric_valid_plot),
     /// the same graph will be used for both.
     pub fn metric_train_plot<M>(mut self, metric: M) -> Self
     where
-        M: Metric + Numeric + 'static,
+        M: Metric + crate::metric::Numeric + 'static,
         T: Adaptor<M::Input>,
     {
         self.metrics
@@ -157,10 +157,13 @@ where
     ///
     /// # Notes
     ///
-    /// Only [numeric](Numeric) metric can be displayed on a plot.
+    /// Only [numeric](crate::metric::Numeric) metric can be displayed on a plot.
     /// If the same metric is also registered for the [training split](Self::metric_train_plot),
     /// the same graph will be used for both.
-    pub fn metric_valid_plot<M: Metric + Numeric + 'static>(mut self, metric: M) -> Self
+    pub fn metric_valid_plot<M: Metric + crate::metric::Numeric + 'static>(
+        mut self,
+        metric: M,
+    ) -> Self
     where
         V: Adaptor<M::Input>,
     {
