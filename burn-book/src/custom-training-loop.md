@@ -7,7 +7,7 @@ training loop instead of using a pre-built one in general.
 
 Burn's got you covered!
 
-We will start from the same example shown in the [basic workflow](./basic-workflow/README.md)
+We will start from the same example shown in the [basic workflow](./basic-workflow)
 section, but without using the `Learner` struct.
 
 ```rust, ignore
