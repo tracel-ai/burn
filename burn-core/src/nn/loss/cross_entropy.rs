@@ -1,7 +1,8 @@
 use crate as burn;
 
 use crate::{config::Config, module::Module};
-use burn_tensor::{activation, backend::Backend, Bool, Int, Tensor};
+use burn_tensor::activation::{log_softmax, softmax};
+use burn_tensor::{backend::Backend, Bool, Int, Tensor};
 
 /// Configuration to create a [Cross-entropy loss](CrossEntropyLoss).
 #[derive(Config)]
@@ -9,7 +10,6 @@ pub struct CrossEntropyLossConfig {
     /// Create padded cross entropy.
     ///
     /// Prevents pad token from impacting loss calculation.
-    ///
     pad_token: Option<usize>,
 
     /// Create weighted cross-entropy.
@@ -19,22 +19,20 @@ pub struct CrossEntropyLossConfig {
     /// # Pre-conditions
     ///   - The order of the weight vector should correspond to the label integer assignment.
     ///   - Targets assigned negative Int's will not be allowed.
-    ///
     weights: Option<Vec<f32>>,
 
     /// Create cross-entropy with label smoothing.
     ///
     /// Hard labels {0, 1} will be changed to y_smoothed = y(1 - a) + a / nr_classes.
     /// Alpha = 0 would be the same as default.
-    ///
     smoothing: Option<f32>,
 
     /// Create binary cross-entrop.
     ///
     /// Will reduce computation by interpolating secondary label.  
-    /// Algorithm will only consider targets of label 0. All others will be discarded.
-    /// Will painc during run-time if labels other than 0 or 1 is encountered.
+    /// Should only be given labels Tensor with {0, 1}.
     /// If weights are aslo used, only two should be given.     
+    /// Cannot use pad_token at the same time.
     #[config(default = false)]
     binary: bool,
 }
@@ -49,6 +47,7 @@ impl CrossEntropyLossConfig {
                 .as_ref()
                 .map(|e| Tensor::<B, 1>::from_floats(e.as_slice())),
             smoothing: self.smoothing,
+            binary: self.binary,
         }
     }
 
@@ -63,7 +62,7 @@ impl CrossEntropyLossConfig {
         if let Some(weights) = self.weights.as_ref() {
             assert!(
                 weights.iter().all(|e| e > &0.),
-                "Weights of cross-entropy has to be positive."
+                "Weights of cross-entropy have to be positive."
             );
         }
         if let (Some(weights), true) = (self.weights.as_ref(), self.binary) {
@@ -71,6 +70,11 @@ impl CrossEntropyLossConfig {
                 weights.len() == 2,
                 "Weights of binary cross-entropy should be of len 2. Got {}.",
                 weights.len()
+            );
+        }
+        if let (Some(_), true) = (self.pad_token, self.binary) {
+            panic!(
+                "Pad tokens and binary option cannot be used at the same time in Cross Entropy."
             );
         }
     }
@@ -82,6 +86,7 @@ pub struct CrossEntropyLoss<B: Backend> {
     pad_token: Option<usize>,
     weights: Option<Tensor<B, 1>>,
     smoothing: Option<f32>,
+    binary: bool,
 }
 
 impl<B: Backend> Default for CrossEntropyLoss<B> {
@@ -98,10 +103,31 @@ impl<B: Backend> CrossEntropyLoss<B> {
     /// - logits: `[batch_size, num_targets]`
     /// - targets: `[batch_size]`
     pub fn forward(&self, logits: Tensor<B, 2>, targets: Tensor<B, 1, Int>) -> Tensor<B, 1> {
-        assert!(true);
-        match self.smoothing {
-            Some(alpha) => self.forward_smoothed(logits, targets, alpha),
+        match (self.smoothing, self.binary) {
+            (Some(_), true) => self.forward_binary(logits, targets),
+            (Some(alpha), false) => self.forward_smoothed(logits, targets, alpha),
             _ => self.forward_default(logits, targets),
+        }
+    }
+
+    fn forward_binary(&self, logits: Tensor<B, 2>, mut targets: Tensor<B, 1, Int>) -> Tensor<B, 1> {
+        let [batch_size, nr_classes] = logits.dims();
+
+        if let Some(alpha) = self.smoothing {
+            targets = targets * (1. - alpha) + alpha / nr_classes as f32;
+        }
+
+        let logits = logits.slice([0..batch_size, 0..1]).reshape([batch_size]);
+        let loss = targets.clone().float() * log_softmax(logits.clone(), 0)
+            + (targets.clone().neg().float() + 1) * (softmax(logits, 0).neg() + 1).log();
+
+        match self.weights.clone() {
+            Some(weights) => {
+                let loss = loss * weights.clone().slice([0..1]);
+                let weights = weights.gather(0, targets);
+                loss.neg() / weights
+            }
+            None => loss.mean().neg(),
         }
     }
 
@@ -112,7 +138,7 @@ impl<B: Backend> CrossEntropyLoss<B> {
         alpha: f32,
     ) -> Tensor<B, 1> {
         let mask = self.padding_mask(&targets);
-        let tensor = activation::log_softmax(logits, 1);
+        let tensor = log_softmax(logits, 1);
         let [batch_size, nr_classes] = tensor.dims();
         let tensor = tensor
             * Self::compute_smoothed_targets([batch_size, nr_classes], targets.clone(), alpha);
@@ -139,7 +165,7 @@ impl<B: Backend> CrossEntropyLoss<B> {
         let [batch_size] = targets.dims();
 
         let mask = self.padding_mask(&targets);
-        let tensor = activation::log_softmax(logits, 1);
+        let tensor = log_softmax(logits, 1);
         let tensor = tensor.gather(1, targets.clone().reshape([batch_size, 1]));
 
         match self.weights.clone() {
@@ -249,7 +275,7 @@ mod tests {
             .with_weights(Some(weights.clone()))
             .init()
             .forward(logits.clone(), targets);
-        let tensor = activation::log_softmax(logits, 1);
+        let tensor = log_softmax(logits, 1);
         let loss_2 = tensor
             * targets_logits
             * Tensor::<TestBackend, 1>::from_floats(weights.as_slice())
@@ -362,8 +388,32 @@ mod tests {
             [0.01, 0.96, 0.01, 0.01, 0.01],
         ]));
 
-        let x = activation::log_softmax(logits, 1);
+        let x = log_softmax(logits, 1);
         let loss_2 = (x * targets_logits).sum_dim(1).mean().neg();
+
+        loss_1.into_data().assert_approx_eq(&loss_2.into_data(), 3);
+    }
+
+    #[test]
+    fn test_binary_cross_entropy() {
+        let [batch_size, num_targets] = [4, 2];
+        let logits = Tensor::<TestBackend, 2>::random(
+            [batch_size, num_targets],
+            Distribution::Normal(0., 1.0),
+        );
+        let targets = Tensor::<TestBackend, 1, Int>::from_data(Data::from([0, 1, 0, 1]));
+        let targets_logits = Tensor::<TestBackend, 2>::from_data(Data::from([
+            [1.0, 0.0],
+            [0.0, 1.0],
+            [1.0, 0.0],
+            [0.0, 1.0],
+        ]));
+        let loss_1 = CrossEntropyLossConfig::new()
+            .with_binary(true)
+            .init()
+            .forward(logits.clone(), targets);
+        let loss_2 = log_softmax(logits, 1) * targets_logits;
+        let loss_2 = loss_2.sum().neg() / 4.;
 
         loss_1.into_data().assert_approx_eq(&loss_2.into_data(), 3);
     }
