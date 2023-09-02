@@ -73,7 +73,7 @@ impl CrossEntropyLossConfig {
                 weights.len()
             );
         }
-        if let (Some(_), true) = (self.pad_tokens.clone(), self.binary) {
+        if let (Some(_), true) = (&self.pad_tokens, self.binary) {
             panic!(
                 "Pad tokens and binary option cannot be used at the same time in Cross Entropy."
             );
@@ -129,10 +129,10 @@ impl<B: Backend> CrossEntropyLoss<B> {
         let loss = targets.clone().float() * log_softmax(logits.clone(), 0)
             + (targets.clone().neg().float() + 1) * (softmax(logits, 0).neg() + 1).log();
 
-        match self.weights.clone() {
+        match &self.weights {
             Some(weights) => {
                 let loss = loss * weights.clone().slice([0..1]);
-                let weights = weights.gather(0, targets);
+                let weights = weights.clone().gather(0, targets);
                 loss.neg() / weights
             }
             None => loss.mean().neg(),
@@ -151,14 +151,14 @@ impl<B: Backend> CrossEntropyLoss<B> {
         let tensor = tensor
             * Self::compute_smoothed_targets([batch_size, nr_classes], targets.clone(), alpha);
 
-        match self.weights.clone() {
+        match &self.weights {
             Some(weights) => {
                 let tensor = tensor
                     * weights
                         .clone()
                         .reshape([1, nr_classes])
                         .repeat(0, batch_size);
-                let weights = weights.gather(0, targets);
+                let weights = weights.clone().gather(0, targets);
                 let tensor = Self::apply_mask_2d(tensor, mask);
                 tensor.sum().neg() / weights.sum()
             }
@@ -176,9 +176,9 @@ impl<B: Backend> CrossEntropyLoss<B> {
         let tensor = log_softmax(logits, 1);
         let tensor = tensor.gather(1, targets.clone().reshape([batch_size, 1]));
 
-        match self.weights.clone() {
+        match &self.weights {
             Some(weights) => {
-                let weights = weights.gather(0, targets);
+                let weights = weights.clone().gather(0, targets);
                 let tensor = tensor.reshape([batch_size]) * weights.clone();
                 let tensor = Self::apply_mask_1d(tensor, mask);
                 tensor.sum().neg() / weights.sum()
@@ -206,7 +206,7 @@ impl<B: Backend> CrossEntropyLoss<B> {
 
     fn padding_mask(&self, targets: &Tensor<B, 1, Int>) -> Option<Tensor<B, 1, Bool>> {
         let mut mask = None;
-        if let Some(pad_tokens) = self.pad_tokens.as_ref() {
+        if let Some(pad_tokens) = &self.pad_tokens {
             let mut res = targets.clone().equal_elem(pad_tokens[0] as i64).int();
             for x in pad_tokens {
                 res = res + targets.clone().equal_elem(*x as i64).int();
