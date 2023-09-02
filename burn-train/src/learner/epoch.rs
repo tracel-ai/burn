@@ -7,6 +7,7 @@ use burn_core::{
 };
 use std::sync::Arc;
 
+use crate::learner::base::TrainingInterrupter;
 use crate::{LearnerCallback, LearnerItem, MultiDevicesTrainStep, TrainStep, ValidStep};
 
 /// A validation epoch.
@@ -33,8 +34,12 @@ impl<I> ValidEpoch<I> {
     ///
     /// * `model` - The model to validate.
     /// * `callback` - The callback to use.
-    pub fn run<B, M, TO, VO>(&self, model: &M, callback: &mut Box<dyn LearnerCallback<TO, VO>>)
-    where
+    pub fn run<B, M, TO, VO>(
+        &self,
+        model: &M,
+        callback: &mut Box<dyn LearnerCallback<TO, VO>>,
+        interrupter: &TrainingInterrupter,
+    ) where
         B: ADBackend,
         M: ADModule<B>,
         M::InnerModule: ValidStep<I, VO>,
@@ -60,6 +65,10 @@ impl<I> ValidEpoch<I> {
             );
 
             callback.on_valid_item(item);
+            if interrupter.should_stop() {
+                log::info!("Training interrupted.");
+                break;
+            }
         }
         callback.on_valid_end_epoch(self.epoch);
     }
@@ -84,6 +93,7 @@ impl<TI> TrainEpoch<TI> {
         mut optim: O,
         scheduler: &mut LR,
         callback: &mut Box<dyn LearnerCallback<TO, VO>>,
+        interrupter: &TrainingInterrupter,
     ) -> (M, O)
     where
         B: ADBackend,
@@ -130,6 +140,10 @@ impl<TI> TrainEpoch<TI> {
             );
 
             callback.on_train_item(item);
+            if interrupter.should_stop() {
+                log::info!("Training interrupted.");
+                break;
+            }
         }
         callback.on_train_end_epoch(self.epoch);
 
@@ -158,6 +172,7 @@ impl<TI> TrainEpoch<TI> {
         lr_scheduler: &mut S,
         callback: &mut Box<dyn LearnerCallback<TO, VO>>,
         devices: Vec<B::Device>,
+        interrupter: &TrainingInterrupter,
     ) -> (M, O)
     where
         B: ADBackend,
@@ -217,6 +232,10 @@ impl<TI> TrainEpoch<TI> {
                 );
 
                 callback.on_train_item(item);
+                if interrupter.should_stop() {
+                    log::info!("Training interrupted.");
+                    break;
+                }
             }
         }
 

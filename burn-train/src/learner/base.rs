@@ -4,6 +4,8 @@ use burn_core::lr_scheduler::LRScheduler;
 use burn_core::module::{ADModule, Module};
 use burn_core::optim::Optimizer;
 use burn_core::tensor::backend::ADBackend;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 /// Learner struct encapsulating all components necessary to train a Neural Network model.
 ///
@@ -26,6 +28,7 @@ where
     pub(super) checkpointer_scheduler: CheckpointScheduler<LR>,
     pub(super) grad_accumulation: Option<usize>,
     pub(super) devices: Vec<B::Device>,
+    pub(super) interrupter: TrainingInterrupter,
 }
 
 type CheckpointModel<M, B> = Option<Box<dyn Checkpointer<<M as Module<B>>::Record>>>;
@@ -82,5 +85,28 @@ where
         }
 
         self
+    }
+}
+
+#[derive(Clone, Default)]
+/// A handle that allows aborting the training process early.
+pub struct TrainingInterrupter {
+    state: Arc<AtomicBool>,
+}
+
+impl TrainingInterrupter {
+    /// Create a new instance.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Notify the learner that it should stop.
+    pub fn stop(&self) {
+        self.state.store(true, Ordering::Relaxed);
+    }
+
+    /// True if .stop() has been called.
+    pub fn should_stop(&self) -> bool {
+        self.state.load(Ordering::Relaxed)
     }
 }
