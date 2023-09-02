@@ -1,4 +1,6 @@
-# Installing Rust
+# Getting Started
+
+## Installing Rust
 
 Burn is a deep learning framework in the Rust programming language. Therefore, it goes without
 saying that one must have basic notions of Rust. Reading the first chapters of the
@@ -9,7 +11,7 @@ In particular, the books'
 the most convenient way for you to install Rust on your computer, which is the very first thing to
 do in order to run Burn.
 
-# Creating a Burn application
+## Creating a Burn application
 
 Once Rust is correctly installed, create a new Rust application by using Rust's package manager
 Cargo, which was installed with Rust. In the directory of your choice, run
@@ -48,7 +50,7 @@ cargo build
 This will install Burn, along with the WGPU backend for Burn, which allows to execute low-level
 operations on every platform, using the GPU.
 
-# Writing a code snippet
+## Writing a code snippet
 
 Now open `src/main.rs` and replace its content with
 
