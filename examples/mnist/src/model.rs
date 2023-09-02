@@ -21,6 +21,12 @@ pub struct Model<B: Backend> {
     activation: nn::GELU,
 }
 
+impl<B: Backend> Default for Model<B> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 const NUM_CLASSES: usize = 10;
 
 impl<B: Backend> Model<B> {
