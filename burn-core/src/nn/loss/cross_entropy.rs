@@ -112,7 +112,7 @@ impl<B: Backend> CrossEntropyLoss<B> {
     /// Create cross-entropy with label smoothing.
     ///
     /// Hard labels {0, 1} will be changed to y_smoothed = y(1 - a) + a / nr_classes.
-    /// Alpah = 0 would be the same as default.
+    /// Alpha = 0 would be the same as default.
     ///
     pub fn with_smoothing(self, alpha: f32) -> Self {
         assert!(
@@ -214,7 +214,7 @@ mod tests {
     }
 
     #[test]
-    fn test_label_smooting_with_weights_and_alpha_zero() {
+    fn test_label_smoothing_with_weights_and_alpha_zero() {
         let (logits, targets, _) = setup!();
         let weights = vec![1.0, 2., 3., 4., 5.];
         let loss_1 = CrossEntropyLoss::new(None)
@@ -237,7 +237,7 @@ mod tests {
     }
 
     #[test]
-    fn test_label_smooting_alpha_equal_zero() {
+    fn test_label_smoothing_alpha_equal_zero() {
         let (logits, targets, _) = setup!();
         let loss_1 = CrossEntropyLoss::new(None).forward(logits.clone(), targets.clone());
         let loss_2 = CrossEntropyLoss::new(None)
@@ -259,7 +259,7 @@ mod tests {
     }
 
     #[test]
-    fn test_label_smooting_with_zero_alpha_and_pad_token() {
+    fn test_label_smoothing_with_zero_alpha_and_pad_token() {
         let (logits, targets, _) = setup_padded!();
         let pad_index = 1;
 
@@ -273,7 +273,7 @@ mod tests {
     }
 
     #[test]
-    fn test_label_smooting_target_convertion() {
+    fn test_label_smoothing_target_conversion() {
         let (logits, targets, _) = setup!();
         let smoothed_targets =
             CrossEntropyLoss::compute_smoothed_targets(logits.dims(), targets, 0.05);
@@ -289,7 +289,7 @@ mod tests {
     }
 
     #[test]
-    fn test_label_smooting() {
+    fn test_label_smoothing() {
         let (logits, targets, _) = setup!();
         let loss_1 = CrossEntropyLoss::new(None)
             .with_smoothing(0.05)
