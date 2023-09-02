@@ -9,8 +9,8 @@ use burn_tensor::{backend::Backend, Bool, Int, Tensor};
 pub struct CrossEntropyLossConfig {
     /// Create padded cross entropy.
     ///
-    /// Prevents pad token from impacting loss calculation.
-    pad_token: Option<usize>,
+    /// Prevents pad tokens from impacting loss calculation.
+    pad_tokens: Option<Vec<usize>>,
 
     /// Create weighted cross-entropy.
     ///
@@ -41,7 +41,7 @@ impl CrossEntropyLossConfig {
     fn init<B: Backend>(&self) -> CrossEntropyLoss<B> {
         self.assertions();
         CrossEntropyLoss {
-            pad_token: self.pad_token,
+            pad_tokens: self.pad_tokens.clone(),
             weights: self
                 .weights
                 .as_ref()
@@ -72,7 +72,7 @@ impl CrossEntropyLossConfig {
                 weights.len()
             );
         }
-        if let (Some(_), true) = (self.pad_token, self.binary) {
+        if let (Some(_), true) = (self.pad_tokens.clone(), self.binary) {
             panic!(
                 "Pad tokens and binary option cannot be used at the same time in Cross Entropy."
             );
@@ -83,7 +83,7 @@ impl CrossEntropyLossConfig {
 /// Calculate the cross entropy loss from the input logits and the targets.
 #[derive(Module, Debug)]
 pub struct CrossEntropyLoss<B: Backend> {
-    pad_token: Option<usize>,
+    pad_tokens: Option<Vec<usize>>,
     weights: Option<Tensor<B, 1>>,
     smoothing: Option<f32>,
     binary: bool,
@@ -198,8 +198,12 @@ impl<B: Backend> CrossEntropyLoss<B> {
 
     fn padding_mask(&self, targets: &Tensor<B, 1, Int>) -> Option<Tensor<B, 1, Bool>> {
         let mut mask = None;
-        if let Some(pad_token) = self.pad_token {
-            mask = Some(targets.clone().equal_elem(pad_token as i64));
+        if let Some(pad_tokens) = self.pad_tokens.as_ref() {
+            let mut res = targets.clone().equal_elem(pad_tokens[0] as i64).int();
+            for x in pad_tokens {
+                res = res + targets.clone().equal_elem(*x as i64).int();
+            }
+            mask = Some(res.greater_elem(0));
         }
 
         mask
@@ -258,7 +262,7 @@ mod tests {
                 Data::<i64, 1>::from([2, 0, 4, pad_index as i64]).convert(),
             );
             let targets_logits = Tensor::<TestBackend, 2>::from_data(Data::from([
-                [0.0, 0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0, 0.0],
                 [1.0, 0.0, 0.0, 0.0, 0.0],
                 [0.0, 0.0, 0.0, 0.0, 1.0],
                 [0.0, 0.0, 0.0, 0.0, 0.0],
@@ -332,7 +336,7 @@ mod tests {
         let pad_index = 1;
 
         let loss_1 = CrossEntropyLossConfig::new()
-            .with_pad_token(Some(pad_index))
+            .with_pad_tokens(Some(vec![pad_index, 2]))
             .init()
             .forward(logits.clone(), targets);
         let loss_2 = cross_entropy_with_logits(logits, targets_logits);
@@ -346,11 +350,11 @@ mod tests {
         let pad_index = 1;
 
         let loss_1 = CrossEntropyLossConfig::new()
-            .with_pad_token(Some(pad_index))
+            .with_pad_tokens(Some(vec![pad_index, 2]))
             .init()
             .forward(logits.clone(), targets.clone());
         let loss_2 = CrossEntropyLossConfig::new()
-            .with_pad_token(Some(pad_index))
+            .with_pad_tokens(Some(vec![pad_index, 2]))
             .with_smoothing(Some(0.))
             .init()
             .forward(logits.clone(), targets);
