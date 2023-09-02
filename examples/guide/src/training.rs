@@ -7,7 +7,7 @@ use burn::{
     config::Config,
     data::dataloader::DataLoaderBuilder,
     module::Module,
-    nn::loss::CrossEntropyLossConfig,
+    nn::loss::CrossEntropyLoss,
     optim::AdamConfig,
     record::CompactRecorder,
     tensor::{
@@ -28,9 +28,7 @@ impl<B: Backend> Model<B> {
         targets: Tensor<B, 1, Int>,
     ) -> ClassificationOutput<B> {
         let output = self.forward(images);
-        let loss = CrossEntropyLossConfig::new()
-            .init()
-            .forward(output.clone(), targets.clone());
+        let loss = CrossEntropyLoss::default().forward(output.clone(), targets.clone());
 
         ClassificationOutput::new(loss, output, targets)
     }
