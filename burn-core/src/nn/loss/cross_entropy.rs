@@ -97,6 +97,13 @@ impl<B: Backend> Default for CrossEntropyLoss<B> {
 }
 
 impl<B: Backend> CrossEntropyLoss<B> {
+    /// For backward compatibility.
+    pub fn new(pad_index: Option<usize>) -> Self {
+        CrossEntropyLossConfig::new()
+            .with_pad_tokens(pad_index.map(|e| vec![e]))
+            .init()
+    }
+
     /// Compute the criterion on the input tensor.
     ///
     /// # Shapes
