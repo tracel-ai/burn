@@ -20,6 +20,7 @@ members = [
   "burn-tensor-testgen",
   "burn-tensor",
   "burn-train",
+  "xtask",
   "examples/*",
 ]
 

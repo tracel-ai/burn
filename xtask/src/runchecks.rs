@@ -302,8 +302,22 @@ fn check_examples() {
     });
 }
 
+#[derive(clap::ValueEnum, Default, Copy, Clone, PartialEq, Eq)]
+pub enum CheckType {
+    /// Run all checks.
+    #[default]
+    All,
+    /// Run `std` environment checks
+    Std,
+    /// Run `no-std` environment checks
+    NoStd,
+    /// Check for typos
+    Typos,
+    /// Test the examples
+    Examples,
+}
 
-fn main() {
+pub fn run(env: CheckType) -> anyhow::Result<()> {
     // Start time measurement
     let start = Instant::now();
 
@@ -313,18 +327,12 @@ fn main() {
     // are run.
     //
     // If no environment has been passed, run all checks.
-    match env::args()
-        .nth(
-            1, /* Index of the first argument, because 0 is the binary name */
-        )
-        .as_deref()
-    {
-        Some("std") => std_checks(),
-        Some("no_std") => no_std_checks(),
-        Some("typos") => check_typos(),
-        Some("examples") => check_examples(),
-        Some(other) => panic!("Unexpected test type: {}", other),
-        None => {
+    match env {
+        CheckType::Std => std_checks(),
+        CheckType::NoStd => no_std_checks(),
+        CheckType::Typos => check_typos(),
+        CheckType::Examples => check_examples(),
+        CheckType::All => {
             /* Run all checks */
             check_typos();
             std_checks();
@@ -339,4 +347,6 @@ fn main() {
 
     // Print duration
     println!("Time elapsed for the current execution: {:?}", duration);
+
+    Ok(())
 }

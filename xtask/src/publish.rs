@@ -97,12 +97,7 @@ fn publish(crate_name: String) {
     cargo_publish(&["-p", &crate_name, "--token", &crates_io_token]);
 }
 
-fn main() {
-    // Get crate name
-    let crate_name = env::args()
-        .nth(1) // Index of the first argument, because 0 is the binary name
-        .expect("You need to pass the crate name as first argument!");
-
+pub fn run(crate_name: String) -> anyhow::Result<()> {
     println!("Publishing {crate_name}...\n");
 
     // Retrieve local version for crate
@@ -132,4 +127,6 @@ fn main() {
         // Publish crate
         publish(crate_name);
     }
+
+    Ok(())
 }
