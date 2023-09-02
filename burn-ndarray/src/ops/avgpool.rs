@@ -1,5 +1,5 @@
 use crate::{
-    element::FloatNdArrayElement, iter_par, run_par, sharing::UnsafeSharedRef,
+    element::FloatNdArrayElement, iter_range_par, run_par, sharing::UnsafeSharedRef,
     tensor::NdArrayTensor,
 };
 
@@ -27,7 +27,7 @@ pub(crate) fn avg_pool2d<E: FloatNdArrayElement>(
     let unsafe_shared_out = UnsafeSharedRef::new(&mut output);
 
     run_par!(|| {
-        iter_par!(0, batch_size * channels).for_each(|k| unsafe {
+        iter_range_par!(0, batch_size * channels).for_each(|k| unsafe {
             let b = k / channels;
             let c = k % channels;
 
@@ -92,7 +92,7 @@ pub(crate) fn avg_pool2d_backward<E: FloatNdArrayElement>(
     let unsafe_shared_grad = UnsafeSharedRef::new(&mut output_grad);
 
     run_par!(|| {
-        iter_par!(0, batch_size * channels).for_each(|k| unsafe {
+        iter_range_par!(0, batch_size * channels).for_each(|k| unsafe {
             let b = k / channels;
             let c = k % channels;
 

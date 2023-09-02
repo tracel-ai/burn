@@ -1,5 +1,5 @@
 use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArrayBackend};
-use crate::{iter_par, run_par, UnsafeSharedRef};
+use crate::{iter_range_par, run_par, UnsafeSharedRef};
 use burn_tensor::ElementConversion;
 use burn_tensor::{ops::TensorOps, Shape};
 use ndarray::s;
@@ -58,7 +58,7 @@ fn general_matmul<E: FloatNdArrayElement>(
         let lhs_array = lhs.array.into_shape((batch_size_lhs, m, k)).unwrap();
         let rhs_array = rhs.array.into_shape((batch_size_rhs, k, n)).unwrap();
 
-        iter_par!(0, batch_size).for_each(|b| {
+        iter_range_par!(0, batch_size).for_each(|b| {
             let lhs_slice = match batch_size_lhs == 1 {
                 true => lhs_array.slice(s!(0, .., ..)),
                 false => lhs_array.slice(s!(b, .., ..)),
