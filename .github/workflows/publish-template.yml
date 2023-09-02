@@ -18,10 +18,7 @@ jobs:
       - name: install rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: compile publish binary
-        run: rustc scripts/publish.rs --crate-type bin --out-dir scripts
-
       - name: publish to crates.io
-        run: ./scripts/publish ${{ inputs.crate }}
+        run: cargo xtask publish ${{ inputs.crate }}
         env:
           CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}

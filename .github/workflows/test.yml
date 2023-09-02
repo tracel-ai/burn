@@ -17,7 +17,7 @@ jobs:
     strategy:
       matrix:
         rust: [stable, 1.71.0]
-        test: [std, no_std]
+        test: ['std', 'no-std']
     steps:
       - name: free disk space
         run: |
@@ -50,7 +50,7 @@ jobs:
           sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
 
       - name: run checks & tests
-        run: RUST_MATRIX=${{ matrix.rust }} ./run-checks.sh ${{ matrix.test }}
+        run: RUST_MATRIX=${{ matrix.rust }} cargo xtask run-checks ${{ matrix.test }}
 
   check-typos:
     runs-on: ubuntu-latest
@@ -59,4 +59,4 @@ jobs:
         uses: actions/checkout@v4
 
       - name: run spelling checks using typos
-        run: ./run-checks.sh typos
+        run: cargo xtask run-checks typos
