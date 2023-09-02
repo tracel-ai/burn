@@ -4,7 +4,7 @@ use burn::{
     module::Module,
     nn::{
         attention::generate_autoregressive_mask,
-        loss::CrossEntropyLoss,
+        loss::CrossEntropyLossConfig,
         transformer::{TransformerEncoder, TransformerEncoderConfig, TransformerEncoderInput},
         Embedding, EmbeddingConfig, Linear, LinearConfig,
     },
@@ -83,7 +83,9 @@ impl<B: Backend> TextGenerationModel<B> {
         let output_flatten = output.reshape([batch_size * seq_length, self.vocab_size]);
         let targets_flatten = targets.reshape([batch_size * seq_length]);
 
-        let loss = CrossEntropyLoss::new(Some(self.pad_token));
+        let loss = CrossEntropyLossConfig::new()
+            .with_pad_tokens(Some(vec![self.pad_token]))
+            .init();
         let loss = loss.forward(output_flatten.clone(), targets_flatten.clone());
 
         ClassificationOutput {

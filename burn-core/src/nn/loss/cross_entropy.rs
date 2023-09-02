@@ -31,14 +31,15 @@ pub struct CrossEntropyLossConfig {
     ///
     /// Will reduce computation by interpolating secondary label.  
     /// Should only be given labels Tensor with {0, 1}.
-    /// If weights are aslo used, only two should be given.     
+    /// If weights are also used, only two should be given.     
     /// Cannot use pad_token at the same time.
     #[config(default = false)]
     binary: bool,
 }
 
 impl CrossEntropyLossConfig {
-    fn init<B: Backend>(&self) -> CrossEntropyLoss<B> {
+    /// Initialize [Cross-entropy loss](CrossEntropyLoss).
+    pub fn init<B: Backend>(&self) -> CrossEntropyLoss<B> {
         self.assertions();
         CrossEntropyLoss {
             pad_tokens: self.pad_tokens.clone(),
