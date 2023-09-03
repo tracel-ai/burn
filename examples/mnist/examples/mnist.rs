@@ -18,7 +18,7 @@ mod ndarray {
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
     use burn::autodiff::ADBackendDecorator;
-    use burn_tch::{TchBackend, TchDevice};
+    use burn::tch::{TchBackend, TchDevice};
     use mnist::training;
 
     pub fn run() {
@@ -46,7 +46,7 @@ mod wgpu {
 #[cfg(feature = "tch-cpu")]
 mod tch_cpu {
     use burn::autodiff::ADBackendDecorator;
-    use burn_tch::{TchBackend, TchDevice};
+    use burn::tch::{TchBackend, TchDevice};
     use mnist::training;
 
     pub fn run() {

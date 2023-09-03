@@ -48,6 +48,10 @@ pub use burn_ndarray as ndarray;
 #[cfg(feature = "wgpu")]
 pub use burn_wgpu as wgpu;
 
+/// Tch module.
+#[cfg(feature = "tch")]
+pub use burn_tch as tch;
+
 extern crate alloc;
 
 #[cfg(all(
