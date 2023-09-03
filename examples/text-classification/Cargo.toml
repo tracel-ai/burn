@@ -19,8 +19,7 @@ wgpu = ["burn-wgpu"]
 
 [dependencies]
 # Burn
-burn = { path = "../../burn" }
-burn-autodiff = { path = "../../burn-autodiff" }
+burn = {path = "../../burn", features=["autodiff"]}
 burn-ndarray = { path = "../../burn-ndarray", optional = true }
 burn-tch = { path = "../../burn-tch", optional = true }
 burn-wgpu = { path = "../../burn-wgpu", optional = true }

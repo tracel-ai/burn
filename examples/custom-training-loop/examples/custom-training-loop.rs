@@ -1,4 +1,4 @@
-use burn_autodiff::ADBackendDecorator;
+use burn::autodiff::ADBackendDecorator;
 use burn_wgpu::{AutoGraphicsApi, WgpuBackend, WgpuDevice};
 
 fn main() {

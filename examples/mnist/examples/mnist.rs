@@ -5,7 +5,7 @@
     feature = "ndarray-blas-accelerate",
 ))]
 mod ndarray {
-    use burn_autodiff::ADBackendDecorator;
+    use burn::autodiff::ADBackendDecorator;
     use burn_ndarray::{NdArrayBackend, NdArrayDevice};
     use mnist::training;
 
@@ -17,7 +17,7 @@ mod ndarray {
 
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
-    use burn_autodiff::ADBackendDecorator;
+    use burn::autodiff::ADBackendDecorator;
     use burn_tch::{TchBackend, TchDevice};
     use mnist::training;
 
@@ -33,7 +33,7 @@ mod tch_gpu {
 
 #[cfg(feature = "wgpu")]
 mod wgpu {
-    use burn_autodiff::ADBackendDecorator;
+    use burn::autodiff::ADBackendDecorator;
     use burn_wgpu::{AutoGraphicsApi, WgpuBackend, WgpuDevice};
     use mnist::training;
 
@@ -45,7 +45,7 @@ mod wgpu {
 
 #[cfg(feature = "tch-cpu")]
 mod tch_cpu {
-    use burn_autodiff::ADBackendDecorator;
+    use burn::autodiff::ADBackendDecorator;
     use burn_tch::{TchBackend, TchDevice};
     use mnist::training;
 

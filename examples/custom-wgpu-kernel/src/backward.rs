@@ -1,12 +1,12 @@
 use crate::FloatTensor;
 
 use super::{ADBackend, Backend};
-use burn::tensor::Shape;
-use burn_autodiff::{
+use burn::autodiff::{
     grads::Gradients,
     ops::{broadcast_shape, Backward, Ops, OpsKind},
     ADBackendDecorator,
 };
+use burn::tensor::Shape;
 use burn_wgpu::{FloatElement, GraphicsApi, IntElement, WgpuBackend};
 
 impl<G: GraphicsApi, F: FloatElement, I: IntElement> ADBackend

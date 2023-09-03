@@ -6,7 +6,7 @@ type Elem = burn::tensor::f16;
 #[cfg(not(feature = "f16"))]
 type Elem = f32;
 
-type Backend = burn_autodiff::ADBackendDecorator<burn_tch::TchBackend<Elem>>;
+type Backend = burn::autodiff::ADBackendDecorator<burn_tch::TchBackend<Elem>>;
 
 fn main() {
     let config = ExperimentConfig::new(
