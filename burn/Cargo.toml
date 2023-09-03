@@ -32,6 +32,8 @@ dataset = ["burn-core/dataset"]
 dataset-sqlite = ["burn-core/dataset-sqlite"]
 dataset-sqlite-bundled = ["burn-core/dataset-sqlite-bundled"]
 
+autodiff = ["burn-core/autodiff"]
+
 [dependencies]
 
 # ** Please make sure all dependencies support no_std when std is disabled **

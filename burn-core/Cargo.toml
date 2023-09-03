@@ -13,7 +13,7 @@ version = "0.9.0"
 [features]
 default = ["std"]
 std = [
-  "burn-autodiff",
+  "autodiff",
   "burn-common/std",
   "dataset",
   "burn-tensor/std",
@@ -31,6 +31,8 @@ std = [
 dataset = ["burn-dataset"]
 dataset-sqlite = ["burn-dataset/sqlite"]
 dataset-sqlite-bundled = ["burn-dataset/sqlite-bundled"]
+
+autodiff = ["burn-autodiff"]
 
 # Serialization formats
 experimental-named-tensor = ["burn-tensor/experimental-named-tensor"]
