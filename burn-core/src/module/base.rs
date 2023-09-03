@@ -73,7 +73,7 @@ macro_rules! module {
 /// parameter B. This will be used by the [derive](burn_derive::Module) attribute to generate the code
 /// necessary to optimize and train the module on any backend.
 ///
-/// ```rust
+/// ```no_run
 /// // Not necessary when using the burn crate directly.
 /// use burn_core as burn;
 ///
