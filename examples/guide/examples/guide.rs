@@ -3,10 +3,11 @@ use burn_dataset::Dataset;
 use guide::{model::ModelConfig, training::TrainingConfig};
 
 fn main() {
-    type MyBackend = burn::wgpu::WgpuBackend<burn::wgpu::AutoGraphicsApi, f32, i32>;
+    type MyBackend =
+        burn::backend::wgpu::WgpuBackend<burn::backend::wgpu::AutoGraphicsApi, f32, i32>;
     type MyAutodiffBackend = burn::autodiff::ADBackendDecorator<MyBackend>;
 
-    let device = burn::wgpu::WgpuDevice::default();
+    let device = burn::backend::wgpu::WgpuDevice::default();
     let artifact_dir = "/tmp/guide";
     guide::training::train::<MyAutodiffBackend>(
         artifact_dir,

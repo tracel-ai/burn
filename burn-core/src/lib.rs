@@ -40,17 +40,8 @@ pub mod tensor;
 #[cfg(feature = "autodiff")]
 pub use burn_autodiff as autodiff;
 
-/// Ndarray module.
-#[cfg(feature = "ndarray")]
-pub use burn_ndarray as ndarray;
-
-/// WGPU module.
-#[cfg(feature = "wgpu")]
-pub use burn_wgpu as wgpu;
-
-/// Tch module.
-#[cfg(feature = "tch")]
-pub use burn_tch as tch;
+/// Backend module.
+pub mod backend;
 
 extern crate alloc;
 

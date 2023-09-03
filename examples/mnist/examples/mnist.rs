@@ -6,7 +6,7 @@
 ))]
 mod ndarray {
     use burn::autodiff::ADBackendDecorator;
-    use burn::ndarray::{NdArrayBackend, NdArrayDevice};
+    use burn::backend::ndarray::{NdArrayBackend, NdArrayDevice};
     use mnist::training;
 
     pub fn run() {
@@ -18,7 +18,7 @@ mod ndarray {
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
     use burn::autodiff::ADBackendDecorator;
-    use burn::tch::{TchBackend, TchDevice};
+    use burn::backend::tch::{TchBackend, TchDevice};
     use mnist::training;
 
     pub fn run() {
@@ -34,7 +34,7 @@ mod tch_gpu {
 #[cfg(feature = "wgpu")]
 mod wgpu {
     use burn::autodiff::ADBackendDecorator;
-    use burn::wgpu::{AutoGraphicsApi, WgpuBackend, WgpuDevice};
+    use burn::backend::wgpu::{AutoGraphicsApi, WgpuBackend, WgpuDevice};
     use mnist::training;
 
     pub fn run() {
@@ -46,7 +46,7 @@ mod wgpu {
 #[cfg(feature = "tch-cpu")]
 mod tch_cpu {
     use burn::autodiff::ADBackendDecorator;
-    use burn::tch::{TchBackend, TchDevice};
+    use burn::backend::tch::{TchBackend, TchDevice};
     use mnist::training;
 
     pub fn run() {

@@ -62,7 +62,7 @@ called it `mnist.rs`:
 
    ```rust
    use burn::tensor;
-   use burn::ndarray::NdArrayBackend;
+   use burn::backend::ndarray::NdArrayBackend;
 
    use onnx_inference::mnist::Model;
 
