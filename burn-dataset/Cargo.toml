@@ -19,7 +19,7 @@ audio = [
 
 fake = ["dep:fake"]
 
-sqlite = ["__sqlite-shared", "rusqlite"]
+sqlite = ["__sqlite-shared", "dep:rusqlite"]
 sqlite-bundled = ["__sqlite-shared", "rusqlite/bundled"]
 
 # internal
