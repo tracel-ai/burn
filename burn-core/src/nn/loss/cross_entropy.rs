@@ -306,8 +306,8 @@ impl<B: Backend> BinaryCrossEntropyLoss<B> {
         if let Some(alpha) = self.smoothing {
             targets_float = targets_float * (1. - alpha) + alpha / 2.;
         }
-        let loss = targets_float.clone() * sigmoid(logits.clone()).log()
-            + (sigmoid(targets_float.clone()).neg() + 1.) * (logits.neg() + 1.).log();
+        let loss = targets_float.clone() * logits.clone().log()
+            + (targets_float.clone().neg() + 1.) * (logits.neg() + 1.).log();
 
         match &self.weights {
             Some(weights) => {
@@ -528,6 +528,32 @@ mod tests {
         let loss_2 = targets.clone().float() * logits.clone().log()
             + (-targets.float() + 1) * (-logits + 1).log();
         let loss_2 = loss_2.mean().neg();
+        loss_1.into_data().assert_approx_eq(&loss_2.into_data(), 3);
+    }
+
+    #[test]
+    fn test_binary_cross_entropy_with_smoothing() {
+        let [batch_size, nr_classes] = [4, 2];
+        let logits = Tensor::<TestBackend, 2>::random(
+            [batch_size, nr_classes],
+            Distribution::Normal(10., 5.),
+        );
+        let targets = Tensor::<TestBackend, 1, Int>::from_data(Data::from([0, 1, 0, 1]));
+
+        let loss_1 = CrossEntropyLossConfig::new()
+            .with_smoothing(Some(0.1))
+            .init()
+            .forward(logits.clone(), targets.clone());
+        let loss_2 = BinaryCrossEntropyLossConfig::new()
+            .with_smoothing(Some(0.1))
+            .init()
+            .forward(
+                logits
+                    .clone()
+                    .slice([0..batch_size, 0..1])
+                    .reshape([batch_size]),
+                targets.clone(),
+            );
         loss_1.into_data().assert_approx_eq(&loss_2.into_data(), 3);
     }
 }
