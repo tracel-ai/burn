@@ -1,11 +1,11 @@
+use burn::backend::{WgpuAutodiffBackend, WgpuBackend};
 use burn::optim::AdamConfig;
 use burn_dataset::Dataset;
 use guide::{model::ModelConfig, training::TrainingConfig};
 
 fn main() {
-    type MyBackend =
-        burn::backend::wgpu::WgpuBackend<burn::backend::wgpu::AutoGraphicsApi, f32, i32>;
-    type MyAutodiffBackend = burn::autodiff::ADBackendDecorator<MyBackend>;
+    type MyBackend = WgpuBackend;
+    type MyAutodiffBackend = WgpuAutodiffBackend;
 
     let device = burn::backend::wgpu::WgpuDevice::default();
     let artifact_dir = "/tmp/guide";

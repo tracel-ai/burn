@@ -1,8 +1,8 @@
-use burn::autodiff::ADBackendDecorator;
-use burn::backend::wgpu::{AutoGraphicsApi, WgpuBackend, WgpuDevice};
+use burn::backend::wgpu::WgpuDevice;
+use burn::backend::WgpuAutodiffBackend;
 
 fn main() {
-    custom_training_loop::run::<ADBackendDecorator<WgpuBackend<AutoGraphicsApi, f32, i32>>>(
+    custom_training_loop::run::<WgpuAutodiffBackend>(
         WgpuDevice::default(),
     );
 }
