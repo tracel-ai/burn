@@ -1,6 +1,6 @@
 use burn::backend::{WgpuAutodiffBackend, WgpuBackend};
+use burn::data::dataset::Dataset;
 use burn::optim::AdamConfig;
-use burn_dataset::Dataset;
 use guide::{model::ModelConfig, training::TrainingConfig};
 
 fn main() {
@@ -17,7 +17,7 @@ fn main() {
     guide::inference::infer::<MyBackend>(
         artifact_dir,
         device,
-        burn_dataset::source::huggingface::MNISTDataset::test()
+        burn::data::dataset::source::huggingface::MNISTDataset::test()
             .get(42)
             .unwrap(),
     );

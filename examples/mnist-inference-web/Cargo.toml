@@ -16,6 +16,3 @@ default = []
 burn = {path = "../../burn", default-features = false, features = ["ndarray"]}
 serde = {workspace = true}
 wasm-bindgen = "0.2.87"
-
-[dev-dependencies]
-burn-dataset = {path = "../../burn-dataset"}

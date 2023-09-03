@@ -11,8 +11,6 @@ default = ["burn/dataset-sqlite-bundled"]
 
 [dependencies]
 burn = {path = "../../burn", features=["autodiff", "wgpu"]}
-burn-train = {path = "../../burn-train"}
-burn-dataset = {path = "../../burn-dataset"}
 
 # Serialization
 log = {workspace = true}

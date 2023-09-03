@@ -3,8 +3,8 @@ use std::env::args;
 use burn::backend::ndarray::NdArrayBackend;
 use burn::tensor::Tensor;
 
-use burn_dataset::source::huggingface::MNISTDataset;
-use burn_dataset::Dataset;
+use burn::data::dataset::source::huggingface::MNISTDataset;
+use burn::data::dataset::Dataset;
 
 use onnx_inference::mnist::Model;
 
