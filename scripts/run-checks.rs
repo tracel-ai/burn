@@ -132,8 +132,9 @@ fn cargo_fmt() {
 fn cargo_clippy() {
     // Run cargo clippy
     run_cargo(
-        "clippy",
-        &["--color=always"],
+        // when changing, make sure to update test.yml
+        "+1.72.0",
+        &["clippy", "--color=always"],
         &["--", "-D", "warnings"],
         "Failed to run cargo clippy",
     );

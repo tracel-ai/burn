@@ -22,10 +22,15 @@ jobs:
       - name: checkout
         uses: actions/checkout@v3
 
-      - name: install rust
+      - name: install rust 1.72
+        uses: dtolnay/rust-toolchain@1.72
+        with:
+          components: clippy, rustfmt
+
+      - name: install rust 1.71
         uses: dtolnay/rust-toolchain@1.71
         with:
-          components: rustfmt, clippy
+          components: rustfmt
 
       - name: caching
         uses: Swatinem/rust-cache@v2
