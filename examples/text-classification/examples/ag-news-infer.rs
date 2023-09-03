@@ -70,7 +70,7 @@ mod tch_cpu {
 #[cfg(feature = "wgpu")]
 mod wgpu {
     use burn::autodiff::ADBackendDecorator;
-    use burn_wgpu::{AutoGraphicsApi, WgpuBackend, WgpuDevice};
+    use burn::wgpu::{AutoGraphicsApi, WgpuBackend, WgpuDevice};
 
     use crate::{launch, ElemType};
 

@@ -34,7 +34,7 @@ mod tch_gpu {
 #[cfg(feature = "wgpu")]
 mod wgpu {
     use burn::autodiff::ADBackendDecorator;
-    use burn_wgpu::{AutoGraphicsApi, WgpuBackend, WgpuDevice};
+    use burn::wgpu::{AutoGraphicsApi, WgpuBackend, WgpuDevice};
     use mnist::training;
 
     pub fn run() {

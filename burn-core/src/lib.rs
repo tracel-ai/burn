@@ -44,6 +44,10 @@ pub use burn_autodiff as autodiff;
 #[cfg(feature = "ndarray")]
 pub use burn_ndarray as ndarray;
 
+/// WGPU module.
+#[cfg(feature = "wgpu")]
+pub use burn_wgpu as wgpu;
+
 extern crate alloc;
 
 #[cfg(all(

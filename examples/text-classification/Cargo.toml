@@ -15,13 +15,12 @@ ndarray-blas-netlib = ["burn/ndarray-blas-netlib"]
 ndarray-blas-openblas = ["burn/ndarray-blas-openblas"]
 tch-cpu = ["burn-tch"]
 tch-gpu = ["burn-tch"]
-wgpu = ["burn-wgpu"]
+wgpu = ["burn/wgpu"]
 
 [dependencies]
 # Burn
 burn = {path = "../../burn", features=["autodiff", "ndarray-std"]}
 burn-tch = { path = "../../burn-tch", optional = true }
-burn-wgpu = { path = "../../burn-wgpu", optional = true }
 
 # Tokenizer
 tokenizers = { version = "0.13.4", default-features = false, features = [

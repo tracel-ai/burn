@@ -2,7 +2,7 @@ use crate::FloatTensor;
 
 use super::Backend;
 use burn::tensor::Shape;
-use burn_wgpu::{
+use burn::wgpu::{
     context::WorkGroup,
     kernel::{build_info, into_contiguous, DynamicKernel, SourceTemplate, StaticKernel},
     kernel_wgsl,

@@ -7,7 +7,7 @@ use burn::autodiff::{
     ADBackendDecorator,
 };
 use burn::tensor::Shape;
-use burn_wgpu::{FloatElement, GraphicsApi, IntElement, WgpuBackend};
+use burn::wgpu::{FloatElement, GraphicsApi, IntElement, WgpuBackend};
 
 impl<G: GraphicsApi, F: FloatElement, I: IntElement> ADBackend
     for ADBackendDecorator<WgpuBackend<G, F, I>>
