@@ -27,6 +27,11 @@ pub struct CrossEntropyLossConfig {
     /// Hard labels {0, 1} will be changed to y_smoothed = y(1 - a) + a / nr_classes.
     /// Alpha = 0 would be the same as default.
     smoothing: Option<f32>,
+
+    /// Create cross-entropy with probabilites as input instead of logits.    
+    ///
+    #[config(default = true)]
+    logits: bool,
 }
 
 impl CrossEntropyLossConfig {
@@ -40,6 +45,7 @@ impl CrossEntropyLossConfig {
                 .as_ref()
                 .map(|e| Tensor::<B, 1>::from_floats(e.as_slice())),
             smoothing: self.smoothing,
+            logits: self.logits,
         }
     }
 
@@ -67,6 +73,7 @@ pub struct CrossEntropyLoss<B: Backend> {
     /// Weights for cross-entropy.
     pub weights: Option<Tensor<B, 1>>,
     smoothing: Option<f32>,
+    logits: bool,
 }
 
 impl<B: Backend> Default for CrossEntropyLoss<B> {
@@ -104,7 +111,11 @@ impl<B: Backend> CrossEntropyLoss<B> {
         alpha: f32,
     ) -> Tensor<B, 1> {
         let mask = self.padding_mask(&targets);
-        let tensor = log_softmax(logits, 1);
+        let tensor = if self.logits {
+            log_softmax(logits, 1)
+        } else {
+            logits.log()
+        };
         let [batch_size, nr_classes] = tensor.dims();
         let tensor = tensor
             * Self::compute_smoothed_targets([batch_size, nr_classes], targets.clone(), alpha);
@@ -240,6 +251,11 @@ pub struct BinaryCrossEntropyLossConfig {
     /// Hard labels {0, 1} will be changed to y_smoothed = y(1 - a) + a / nr_classes.
     /// Alpha = 0 would be the same as default.
     smoothing: Option<f32>,
+
+    /// Create binary cross-entropy with probabilites as input instead of logits.    
+    ///
+    #[config(default = true)]
+    logits: bool,
 }
 
 impl BinaryCrossEntropyLossConfig {
@@ -252,6 +268,7 @@ impl BinaryCrossEntropyLossConfig {
                 .as_ref()
                 .map(|e| Tensor::<B, 1>::from_floats(e.as_slice())),
             smoothing: self.smoothing,
+            logits: self.logits,
         }
     }
 
@@ -285,6 +302,7 @@ pub struct BinaryCrossEntropyLoss<B: Backend> {
     /// Weights for cross-entropy.
     pub weights: Option<Tensor<B, 1>>,
     smoothing: Option<f32>,
+    logits: bool,
 }
 
 impl<B: Backend> Default for BinaryCrossEntropyLoss<B> {
@@ -306,7 +324,7 @@ impl<B: Backend> BinaryCrossEntropyLoss<B> {
         if let Some(alpha) = self.smoothing {
             targets_float = targets_float * (1. - alpha) + alpha / 2.;
         }
-        let logits = sigmoid(logits);
+        let logits = if self.logits { sigmoid(logits) } else { logits };
         let loss = targets_float.clone() * logits.clone().log()
             + (targets_float.clone().neg() + 1.) * (logits.neg() + 1.).log();
 
