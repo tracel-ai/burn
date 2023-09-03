@@ -116,21 +116,17 @@ fn fetch_backend_trait(generics: &syn::Generics) -> proc_macro2::TokenStream {
     - Any backend trait is supported.";
 
     for param in generics.params.iter() {
-        match &param {
-            syn::GenericParam::Type(ty) => {
-                if ty.ident == "B" {
-                    let bound = ty
-                        .bounds
-                        .first()
-                        .expect(BACKEND_TRAIT_COMPILATION_ERROR_MSG);
+        if let syn::GenericParam::Type(ty) = &param {
+            if ty.ident == "B" {
+                let bound = ty
+                    .bounds
+                    .first()
+                    .expect(BACKEND_TRAIT_COMPILATION_ERROR_MSG);
 
-                    return quote! {
-                        #bound
-                    }
-                    .into();
-                }
+                return quote! {
+                    #bound
+                };
             }
-            _ => {}
         }
     }
 
