@@ -90,6 +90,7 @@ impl<B: Backend> CrossEntropyLoss<B> {
     /// - logits: `[batch_size, num_targets]`
     /// - targets: `[batch_size]`
     pub fn forward(&self, logits: Tensor<B, 2>, targets: Tensor<B, 1, Int>) -> Tensor<B, 1> {
+        Self::assertions(logits.clone(), targets.clone());
         match self.smoothing {
             Some(alpha) => self.forward_smoothed(logits, targets, alpha),
             _ => self.forward_default(logits, targets),
@@ -110,16 +111,7 @@ impl<B: Backend> CrossEntropyLoss<B> {
 
         match &self.weights {
             Some(weights) => {
-                let [weight_size] = weights.dims();
-                assert!(
-                    targets
-                        .clone()
-                        .max()
-                        .lower_elem(weight_size as u32)
-                        .into_data()
-                        .value[0],
-                    "Cross entropy encountered target with no corresponding weight."
-                );
+                assert_comprehensive_weights(weights, targets.clone());
                 let tensor = tensor
                     * weights
                         .clone()
@@ -145,16 +137,7 @@ impl<B: Backend> CrossEntropyLoss<B> {
 
         match &self.weights {
             Some(weights) => {
-                let [weight_size] = weights.dims();
-                assert!(
-                    targets
-                        .clone()
-                        .max()
-                        .lower_elem(weight_size as u32)
-                        .into_data()
-                        .value[0],
-                    "Cross entropy encountered target with no corresponding weight."
-                );
+                assert_comprehensive_weights(weights, targets.clone());
                 let weights = weights.clone().gather(0, targets);
                 let tensor = tensor.reshape([batch_size]) * weights.clone();
                 let tensor = Self::apply_mask_1d(tensor, mask);
@@ -209,6 +192,34 @@ impl<B: Backend> CrossEntropyLoss<B> {
         }
 
         tensor
+    }
+
+    fn assertions(logits: Tensor<B, 2>, targets: Tensor<B, 1, Int>) {
+        let [logits_height, logits_width] = logits.dims();
+        let [targets_height] = targets.dims();
+        assert!(
+            logits_height == targets_height,
+            "Shape of targets ({}) should correspond to outer shape of logits ({}).",
+            targets_height,
+            logits_height
+        );
+        let max_target = targets.clone().max();
+        assert!(
+            max_target
+                .clone()
+                .lower_elem(logits.dims()[1] as i32)
+                .into_data()
+                .value[0],
+            "Encounter target ({}) greater than feature dimension ({}).",
+            max_target,
+            logits_width
+        );
+        let min_target = targets.clone().min();
+        assert!(
+            min_target.clone().equal_elem(0).into_data().value[0],
+            "Lowest target ({}) is not equal, with isn't allowed.",
+            min_target
+        );
     }
 }
 
@@ -289,26 +300,18 @@ impl<B: Backend> BinaryCrossEntropyLoss<B> {
     ///
     /// - logits: `[batch_size, num_targets]`
     /// - targets: `[batch_size]`
-    pub fn forward(&self, logits: Tensor<B, 1>, mut targets: Tensor<B, 1, Int>) -> Tensor<B, 1> {
+    pub fn forward(&self, logits: Tensor<B, 1>, targets: Tensor<B, 1, Int>) -> Tensor<B, 1> {
+        Self::assertions(logits.clone(), targets.clone());
+        let mut targets_float = targets.clone().float();
         if let Some(alpha) = self.smoothing {
-            targets = targets * (1. - alpha) + alpha / 2.;
+            targets_float = targets_float * (1. - alpha) + alpha / 2.;
         }
-        let logits = sigmoid(logits);
-        let loss = targets.clone().float() * logits.clone().log()
-            + (targets.clone().neg().float() + 1.) * (logits.neg() + 1.).log();
+        let loss = targets_float.clone() * sigmoid(logits.clone()).log()
+            + (sigmoid(targets_float.clone()).neg() + 1.) * (logits.neg() + 1.).log();
 
         match &self.weights {
             Some(weights) => {
-                let [weight_size] = weights.dims();
-                assert!(
-                    targets
-                        .clone()
-                        .max()
-                        .lower_elem(weight_size as u32)
-                        .into_data()
-                        .value[0],
-                    "Cross entropy encountered target with no corresponding weight."
-                );
+                assert_comprehensive_weights(weights, targets.clone());
                 let loss = loss * weights.clone().slice([0..1]);
                 let weights = weights.clone().gather(0, targets);
                 loss.neg() / weights
@@ -316,13 +319,36 @@ impl<B: Backend> BinaryCrossEntropyLoss<B> {
             None => loss.mean().neg(),
         }
     }
+
+    fn assertions(logits: Tensor<B, 1>, targets: Tensor<B, 1, Int>) {
+        let [logits_height] = logits.dims();
+        let [targets_height] = targets.dims();
+        assert!(
+            logits_height == targets_height,
+            "Shape of targets ({}) should correspond to outer shape of logits ({}).",
+            targets_height,
+            logits_height
+        );
+    }
+}
+
+fn assert_comprehensive_weights<B: Backend>(weights: &Tensor<B, 1>, targets: Tensor<B, 1, Int>) {
+    let [weight_size] = weights.dims();
+    assert!(
+        targets
+            .max()
+            .lower_elem(weight_size as u32)
+            .into_data()
+            .value[0],
+        "Cross entropy encountered target with no corresponding weight."
+    );
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::TestBackend;
-    use burn_tensor::{loss::cross_entropy_with_logits, Data, Distribution};
+    use burn_tensor::{activation::sigmoid, loss::cross_entropy_with_logits, Data, Distribution};
 
     macro_rules! setup {
         () => {{
@@ -491,7 +517,7 @@ mod tests {
 
     #[test]
     fn test_binary_cross_entropy() {
-        let [batch_size, num_targets] = [4, 2];
+        let [batch_size] = [4];
         let logits = Tensor::<TestBackend, 1>::random([batch_size], Distribution::Normal(0., 1.0));
         let targets = Tensor::<TestBackend, 1, Int>::from_data(Data::from([0, 1, 0, 1]));
 
