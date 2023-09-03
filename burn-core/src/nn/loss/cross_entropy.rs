@@ -6,7 +6,7 @@ use burn_tensor::activation::{log_softmax, sigmoid};
 use burn_tensor::{backend::Backend, Bool, Int, Tensor};
 
 /// Configuration to create a [Cross-entropy loss](CrossEntropyLoss).
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct CrossEntropyLossConfig {
     /// Create padded cross entropy.
     ///
@@ -224,7 +224,7 @@ impl<B: Backend> CrossEntropyLoss<B> {
 }
 
 /// Configuration to create a [Binary Cross-entropy loss](BinaryCrossEntropyLoss).
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct BinaryCrossEntropyLossConfig {
     /// Create weighted binary cross-entropy.
     ///
