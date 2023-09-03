@@ -40,6 +40,10 @@ pub mod tensor;
 #[cfg(feature = "autodiff")]
 pub use burn_autodiff as autodiff;
 
+/// Ndarray module.
+#[cfg(feature = "ndarray")]
+pub use burn_ndarray as ndarray;
+
 extern crate alloc;
 
 #[cfg(all(
