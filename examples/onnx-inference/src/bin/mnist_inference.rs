@@ -1,7 +1,7 @@
 use std::env::args;
 
+use burn::ndarray::NdArrayBackend;
 use burn::tensor::Tensor;
-use burn_ndarray::NdArrayBackend;
 
 use burn_dataset::source::huggingface::MNISTDataset;
 use burn_dataset::Dataset;

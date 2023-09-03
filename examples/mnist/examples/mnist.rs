@@ -6,7 +6,7 @@
 ))]
 mod ndarray {
     use burn::autodiff::ADBackendDecorator;
-    use burn_ndarray::{NdArrayBackend, NdArrayDevice};
+    use burn::ndarray::{NdArrayBackend, NdArrayDevice};
     use mnist::training;
 
     pub fn run() {

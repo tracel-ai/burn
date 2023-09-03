@@ -29,7 +29,7 @@ pub fn launch<B: ADBackend>(device: B::Device) {
 ))]
 mod ndarray {
     use burn::autodiff::ADBackendDecorator;
-    use burn_ndarray::{NdArrayBackend, NdArrayDevice};
+    use burn::ndarray::{NdArrayBackend, NdArrayDevice};
 
     use crate::{launch, ElemType};
 

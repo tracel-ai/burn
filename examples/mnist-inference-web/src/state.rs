@@ -1,9 +1,9 @@
 use crate::model::Model;
 use burn::module::Module;
+use burn::ndarray::NdArrayBackend;
 use burn::record::BinBytesRecorder;
 use burn::record::FullPrecisionSettings;
 use burn::record::Recorder;
-use burn_ndarray::NdArrayBackend;
 
 pub type Backend = NdArrayBackend<f32>;
 
