@@ -46,6 +46,8 @@ wgpu-autotune = ["burn-core/wgpu-autotune"]
 
 tch = ["burn-core/tch"]
 
+candle = ["burn-core/candle"]
+
 [dependencies]
 
 # ** Please make sure all dependencies support no_std when std is disabled **
