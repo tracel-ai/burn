@@ -298,7 +298,7 @@ impl<B: Backend> BinaryCrossEntropyLoss<B> {
     ///
     /// # Shapes
     ///
-    /// - logits: `[batch_size, num_targets]`
+    /// - logits: `[batch_size]`
     /// - targets: `[batch_size]`
     pub fn forward(&self, logits: Tensor<B, 1>, targets: Tensor<B, 1, Int>) -> Tensor<B, 1> {
         Self::assertions(logits.clone(), targets.clone());
