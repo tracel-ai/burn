@@ -58,7 +58,7 @@ impl SyncContextServer {
             Ok(value) => value
                 .parse::<usize>()
                 .expect("BURN_WGPU_MAX_TASKS should be a positive integer."),
-            Err(_) => 1, // 1 task by default
+            Err(_) => 16, // 16 tasks by default
         };
 
         Self {
@@ -151,10 +151,6 @@ impl SyncContextServer {
             .copy_buffer_to_buffer(&buffer_src, 0, &buffer_dest, 0, buffer_src.size());
     }
 
-    fn poll(&mut self) {
-        let _done = self.device.poll(wgpu::Maintain::Poll);
-    }
-
     fn register_tasks(&mut self) {
         let mut compute = self
             .encoder
@@ -190,13 +186,7 @@ mod async_server {
     use crate::context::client::AsyncContextClient;
 
     use super::{ComputeTask, ContextServer, SyncContextServer};
-    use std::{
-        sync::{
-            mpsc::{self, RecvTimeoutError},
-            Arc,
-        },
-        time::Duration,
-    };
+    use std::sync::{mpsc, Arc};
     use wgpu::Buffer;
 
     #[derive(new)]
@@ -250,26 +240,21 @@ mod async_server {
     impl AsyncContextServer {
         fn run(mut self) {
             loop {
-                match self.receiver.recv_timeout(Duration::from_millis(1)) {
-                    Ok(task) => match task {
-                        ContextTask::Compute(task) => self.server.register_compute(task),
-                        ContextTask::CopyBuffer(task) => self
-                            .server
-                            .buffer_to_buffer(task.buffer_src, task.buffer_dest),
-                        ContextTask::ReadBuffer(task) => {
-                            let bytes = self.server.read_buffer(&task.buffer);
-                            task.sender.send(bytes).unwrap();
-                        }
-                        ContextTask::Sync(callback) => {
-                            self.server.sync();
-                            callback.send(()).unwrap();
-                        }
-                    },
-                    Err(RecvTimeoutError::Disconnected) => panic!("channel disconnected"),
-                    Err(RecvTimeoutError::Timeout) => {
-                        self.server.poll();
+                let task = self.receiver.recv().unwrap();
+                match task {
+                    ContextTask::Compute(task) => self.server.register_compute(task),
+                    ContextTask::CopyBuffer(task) => self
+                        .server
+                        .buffer_to_buffer(task.buffer_src, task.buffer_dest),
+                    ContextTask::ReadBuffer(task) => {
+                        let bytes = self.server.read_buffer(&task.buffer);
+                        task.sender.send(bytes).unwrap();
                     }
-                }
+                    ContextTask::Sync(callback) => {
+                        self.server.sync();
+                        callback.send(()).unwrap();
+                    }
+                };
             }
         }
     }

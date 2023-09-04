@@ -1,4 +1,4 @@
-use crate::{buffer::Buffer, context::Context, GraphicsApi, WgpuDevice};
+use crate::{context::Context, GraphicsApi, WgpuDevice};
 use std::{
     any::TypeId,
     collections::HashMap,
@@ -6,24 +6,6 @@ use std::{
 };
 
 static POOL_CONTEXT: Mutex<Option<ContextPool>> = Mutex::new(None);
-
-struct BufferPoolInner {
-    /// Allocations that are currently owned by this pool.
-    allocs: Vec<Arc<Buffer>>,
-}
-struct BufferPool {
-    inner: Mutex<BufferPoolInner>,
-}
-
-impl BufferPool {
-    fn create_buffer_init(
-        &self,
-        dev: &wgpu::Device,
-        descriptor: &wgpu::util::BufferInitDescriptor<'_>,
-    ) -> Arc<Buffer> {
-        todo!()
-    }
-}
 
 #[derive(Default)]
 struct ContextPool {

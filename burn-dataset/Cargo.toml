@@ -23,7 +23,7 @@ sqlite = ["__sqlite-shared", "dep:rusqlite"]
 sqlite-bundled = ["__sqlite-shared", "rusqlite/bundled"]
 
 # internal
-__sqlite-shared = ["dep:r2d2", "dep:r2d2_sqlite", "dep:serde_rusqlite"]
+__sqlite-shared = ["dep:r2d2", "dep:r2d2_sqlite", "dep:serde_rusqlite", "dep:image"]
 
 [dependencies]
 csv = {workspace = true}
@@ -32,7 +32,7 @@ dirs = {workspace = true}
 fake = {workspace = true, optional = true}
 gix-tempfile = {workspace = true}
 hound = {version = "3.5.0", optional = true}
-image = {version = "0.24.6", features = ["png"]}
+image = {version = "0.24.6", features = ["png"], optional = true}
 r2d2 = {workspace = true, optional = true}
 r2d2_sqlite = {workspace = true, optional = true}
 rand = {workspace = true, features = ["std"]}

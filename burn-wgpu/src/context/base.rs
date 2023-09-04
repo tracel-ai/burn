@@ -13,7 +13,7 @@ use std::{
     borrow::Cow,
     collections::HashMap,
     sync::atomic::{AtomicBool, Ordering},
-    sync::{Arc, Weak},
+    sync::Arc,
 };
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
@@ -30,75 +30,6 @@ pub(crate) type ContextServerImpl = super::server::AsyncContextServer;
 #[cfg(not(feature = "async"))]
 pub(crate) type ContextServerImpl = super::server::SyncContextServer;
 
-#[derive(Debug, Default)]
-struct BufferCache {
-    /// A list of weakly-owned buffers.
-    list: Vec<(u64, Weak<Buffer>)>,
-}
-
-impl BufferCache {
-    fn clean(&mut self) {
-        let mut csz = 0u64;
-        self.list.retain(|(sz, weak)| {
-            if weak.strong_count() > 0 {
-                true
-            } else {
-                csz += sz;
-                false
-            }
-        });
-    }
-
-    /// Evict the oldest entries from GPU memory to ensure at least `bytes` bytes
-    /// can be allocated.
-    fn evict(&mut self, context: impl ContextClient, bytes: u64) {
-        self.clean();
-
-        let mut allocs = self.list.clone();
-
-        let mut bytes_resident = 0u64;
-        allocs.retain(|(sz, weak)| {
-            if let Some(strong) = weak.upgrade() {
-                if strong.is_resident() {
-                    bytes_resident += sz;
-                    true
-                } else {
-                    false
-                }
-            } else {
-                false
-            }
-        });
-
-        let bytes = std::cmp::min(bytes_resident / 2, bytes);
-
-        allocs.sort_by(|s1, s2| {
-            if let (Some(b1), Some(b2)) = (s1.1.upgrade(), s2.1.upgrade()) {
-                b2.last_used().elapsed().cmp(&b1.last_used().elapsed())
-            } else {
-                std::cmp::Ordering::Equal
-            }
-        });
-
-        // Alright, begin evicting allocated buffers.
-        let mut bytes_evicted = 0u64;
-        for (sz, b) in allocs.iter() {
-            if let Some(strong) = b.upgrade() {
-                let elapsed = strong.last_used().elapsed();
-                if bytes_evicted < bytes || elapsed.as_secs() > 1 || *sz < 1024u64 {
-                    // println!("evict {sz}: {}", elapsed.as_secs());
-
-                    if strong.evict(&context) {
-                        bytes_evicted += sz;
-                    }
-                }
-            }
-        }
-
-        // println!("evicted {bytes_evicted}");
-    }
-}
-
 /// The context is the basic struct that allows to execute GPU kernel on devices.
 ///
 /// You can access a context for a WGPUDevice using get_context.
@@ -107,7 +38,6 @@ pub struct Context {
     id: String,
     cache: Mutex<HashMap<TemplateKey, Arc<ComputePipeline>>>,
     is_tuning: AtomicBool,
-    buffer_cache: Mutex<BufferCache>,
     client: ContextClientImpl,
     pub(crate) device_wgpu: Arc<wgpu::Device>,
     pub(crate) tuner: Tuner,
@@ -156,7 +86,6 @@ impl Context {
             client,
             cache: Mutex::new(HashMap::new()),
             is_tuning: AtomicBool::new(false),
-            buffer_cache: Mutex::new(Default::default()),
             tuner: Tuner::new(),
             tuning_template_ids: Mutex::new(Vec::new()),
             info,
@@ -186,25 +115,17 @@ impl Context {
     ) {
         let group_layout = pipeline.get_bind_group_layout(0);
 
-        let buffers = buffers.into_iter().map(|b| b).collect::<Vec<_>>();
-
-        // Tally up memory requirements and evict old buffers.
-        let mem = buffers.iter().map(|b| b.as_ref().size()).sum::<u64>();
-
         let mut gbuffers = Vec::new();
         for buffer in buffers.into_iter() {
             let buffer = buffer.as_ref();
             buffer.mark_used();
 
-            let gbuffer = loop {
-                match buffer.make_resident(&self.device_wgpu) {
-                    Ok(gbuffer) => break gbuffer,
-                    Err(_e) => {
-                        // The allocation failed because we ran out of memory on the GPU.
-                        // Try to evict some old buffers to free up memory, and try again.
-                        // eprintln!("allocation error: {e}");
-                        self.buffer_cache.lock().evict(&self.client, mem);
-                    }
+            let gbuffer = match buffer.make_resident(&self.device_wgpu) {
+                Ok(gbuffer) => gbuffer,
+                Err(e) => {
+                    // The allocation failed because we ran out of memory on the GPU.
+                    // Try to evict some old buffers to free up memory, and try again.
+                    panic!("allocation error: {e}");
                 }
             };
 
@@ -250,9 +171,6 @@ impl Context {
             None,
         ));
 
-        let mut cache = self.buffer_cache.lock();
-        cache.list.push((size as u64, Arc::downgrade(&buf)));
-
         buf
     }
 
@@ -277,9 +195,6 @@ impl Context {
             },
             Some(data),
         ));
-
-        let mut cache = self.buffer_cache.lock();
-        cache.list.push((data.len() as u64, Arc::downgrade(&buf)));
 
         buf
     }
