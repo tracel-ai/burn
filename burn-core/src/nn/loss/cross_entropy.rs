@@ -16,7 +16,7 @@ pub struct CrossEntropyLossConfig {
 
     /// Create weighted cross-entropy.
     ///
-    /// The loss of a specific sample will simply be given by: weight[y] * log(p(x)) * 1,
+    /// The loss of a specific sample will simply be given by: weight * log(p(x)) * 1,
     ///
     /// # Pre-conditions
     ///   - The order of the weight vector should correspond to the label integer assignment.
