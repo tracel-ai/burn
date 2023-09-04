@@ -1,7 +1,8 @@
 use crate as burn;
 
 use crate::{config::Config, module::Module};
-use alloc::vec::{self, Vec};
+use alloc::vec;
+use alloc::vec::Vec;
 use burn_tensor::activation::log_softmax;
 use burn_tensor::{backend::Backend, Bool, Int, Tensor};
 
