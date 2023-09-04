@@ -226,12 +226,6 @@ impl<B: Backend> CrossEntropyLoss<B> {
             max_target,
             logits_width
         );
-        let min_target = targets.clone().min();
-        assert!(
-            min_target.clone().equal_elem(0).into_data().value[0],
-            "Lowest target ({}) is not equal, with isn't allowed.",
-            min_target
-        );
     }
 }
 
