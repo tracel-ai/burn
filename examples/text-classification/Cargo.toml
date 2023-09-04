@@ -9,21 +9,17 @@ version = "0.9.0"
 [features]
 default = ["burn/dataset-sqlite-bundled"]
 f16 = []
-ndarray = ["burn-ndarray"]
-ndarray-blas-accelerate = ["burn-ndarray/blas-accelerate"]
-ndarray-blas-netlib = ["burn-ndarray/blas-netlib"]
-ndarray-blas-openblas = ["burn-ndarray/blas-openblas"]
-tch-cpu = ["burn-tch"]
-tch-gpu = ["burn-tch"]
-wgpu = ["burn-wgpu"]
+ndarray = ["burn/ndarray-std"]
+ndarray-blas-accelerate = ["burn/ndarray-blas-accelerate"]
+ndarray-blas-netlib = ["burn/ndarray-blas-netlib"]
+ndarray-blas-openblas = ["burn/ndarray-blas-openblas"]
+tch-cpu = ["burn/tch"]
+tch-gpu = ["burn/tch"]
+wgpu = ["burn/wgpu"]
 
 [dependencies]
 # Burn
-burn = { path = "../../burn" }
-burn-autodiff = { path = "../../burn-autodiff" }
-burn-ndarray = { path = "../../burn-ndarray", optional = true }
-burn-tch = { path = "../../burn-tch", optional = true }
-burn-wgpu = { path = "../../burn-wgpu", optional = true }
+burn = {path = "../../burn", features=["autodiff", "ndarray-std"]}
 
 # Tokenizer
 tokenizers = { version = "0.13.4", default-features = false, features = [

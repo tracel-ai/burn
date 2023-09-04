@@ -32,6 +32,22 @@ dataset = ["burn-core/dataset"]
 dataset-sqlite = ["burn-core/dataset-sqlite"]
 dataset-sqlite-bundled = ["burn-core/dataset-sqlite-bundled"]
 
+autodiff = ["burn-core/autodiff"]
+
+ndarray = ["burn-core/ndarray"]
+ndarray-std = ["burn-core/ndarray-std"]
+ndarray-blas-accelerate = ["burn-core/ndarray-blas-accelerate"]
+ndarray-blas-netlib = ["burn-core/ndarray-blas-netlib"]
+ndarray-blas-openblas = ["burn-core/ndarray-blas-openblas"]
+ndarray-blas-openblas-system = ["burn-core/ndarray-blas-openblas-system"]
+
+wgpu = ["burn-core/wgpu"]
+wgpu-autotune = ["burn-core/wgpu-autotune"]
+
+tch = ["burn-core/tch"]
+
+candle = ["burn-core/candle"]
+
 [dependencies]
 
 # ** Please make sure all dependencies support no_std when std is disabled **

@@ -66,8 +66,8 @@ fn autodiff<B: ADBackend>() {
 }
 
 fn main() {
-    type MyBackend = burn_wgpu::WgpuBackend<burn_wgpu::AutoGraphicsApi, f32, i32>;
-    type MyADBackend = burn_autodiff::ADBackendDecorator<MyBackend>;
+    type MyBackend = burn::backend::WgpuBackend;
+    type MyADBackend = burn::backend::WgpuAutodiffBackend;
 
     inference::<MyBackend>();
     autodiff::<MyADBackend>();

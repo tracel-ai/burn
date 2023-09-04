@@ -1,4 +1,5 @@
 use crate::{data::MNISTBatcher, training::TrainingConfig};
+use burn::data::dataset::source::huggingface::MNISTItem;
 use burn::{
     config::Config,
     data::dataloader::batcher::Batcher,
@@ -6,7 +7,6 @@ use burn::{
     record::{CompactRecorder, Recorder},
     tensor::backend::Backend,
 };
-use burn_dataset::source::huggingface::MNISTItem;
 
 pub fn infer<B: Backend>(artifact_dir: &str, device: B::Device, item: MNISTItem) {
     let config =

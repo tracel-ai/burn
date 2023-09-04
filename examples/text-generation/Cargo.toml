@@ -12,9 +12,7 @@ f16 = []
 
 [dependencies]
 # Burn
-burn = {path = "../../burn"}
-burn-autodiff = {path = "../../burn-autodiff"}
-burn-tch = {path = "../../burn-tch"}
+burn = {path = "../../burn", features=["autodiff", "tch"]}
 
 # Tokenizer
 tokenizers = {version = "0.13.4", default-features = false, features = [

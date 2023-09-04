@@ -5,20 +5,20 @@
     feature = "ndarray-blas-accelerate",
 ))]
 mod ndarray {
-    use burn_autodiff::ADBackendDecorator;
-    use burn_ndarray::{NdArrayBackend, NdArrayDevice};
+    use burn::backend::ndarray::NdArrayDevice;
+    use burn::backend::NdArrayAutodiffBackend;
     use mnist::training;
 
     pub fn run() {
         let device = NdArrayDevice::Cpu;
-        training::run::<ADBackendDecorator<NdArrayBackend<f32>>>(device);
+        training::run::<NdArrayAutodiffBackend>(device);
     }
 }
 
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
-    use burn_autodiff::ADBackendDecorator;
-    use burn_tch::{TchBackend, TchDevice};
+    use burn::backend::tch::TchDevice;
+    use burn::backend::TchAutodiffBackend;
     use mnist::training;
 
     pub fn run() {
@@ -27,31 +27,31 @@ mod tch_gpu {
         #[cfg(target_os = "macos")]
         let device = TchDevice::Mps;
 
-        training::run::<ADBackendDecorator<TchBackend<f32>>>(device);
+        training::run::<TchAutodiffBackend>(device);
     }
 }
 
 #[cfg(feature = "wgpu")]
 mod wgpu {
-    use burn_autodiff::ADBackendDecorator;
-    use burn_wgpu::{AutoGraphicsApi, WgpuBackend, WgpuDevice};
+    use burn::backend::wgpu::WgpuDevice;
+    use burn::backend::WgpuAutodiffBackend;
     use mnist::training;
 
     pub fn run() {
         let device = WgpuDevice::default();
-        training::run::<ADBackendDecorator<WgpuBackend<AutoGraphicsApi, f32, i32>>>(device);
+        training::run::<WgpuAutodiffBackend>(device);
     }
 }
 
 #[cfg(feature = "tch-cpu")]
 mod tch_cpu {
-    use burn_autodiff::ADBackendDecorator;
-    use burn_tch::{TchBackend, TchDevice};
+    use burn::backend::tch::TchDevice;
+    use burn::backend::TchAutodiffBackend;
     use mnist::training;
 
     pub fn run() {
         let device = TchDevice::Cpu;
-        training::run::<ADBackendDecorator<TchBackend<f32>>>(device);
+        training::run::<TchAutodiffBackend>(device);
     }
 }
 

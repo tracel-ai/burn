@@ -287,6 +287,7 @@ fn check_examples() {
 
         let child = Command::new("cargo")
             .arg("check")
+            .arg("--examples")
             .current_dir(dir.path())
             .stdout(Stdio::inherit()) // Send stdout directly to terminal
             .stderr(Stdio::inherit()) // Send stderr directly to terminal

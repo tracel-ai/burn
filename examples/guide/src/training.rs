@@ -2,6 +2,11 @@ use crate::{
     data::{MNISTBatch, MNISTBatcher},
     model::{Model, ModelConfig},
 };
+use burn::data::dataset::source::huggingface::MNISTDataset;
+use burn::train::{
+    metric::{AccuracyMetric, LossMetric},
+    ClassificationOutput, LearnerBuilder, TrainOutput, TrainStep, ValidStep,
+};
 use burn::{
     self,
     config::Config,
@@ -14,11 +19,6 @@ use burn::{
         backend::{ADBackend, Backend},
         Int, Tensor,
     },
-};
-use burn_dataset::source::huggingface::MNISTDataset;
-use burn_train::{
-    metric::{AccuracyMetric, LossMetric},
-    ClassificationOutput, LearnerBuilder, TrainOutput, TrainStep, ValidStep,
 };
 
 impl<B: Backend> Model<B> {

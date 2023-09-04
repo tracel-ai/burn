@@ -28,8 +28,8 @@ pub fn launch<B: ADBackend>(device: B::Device) {
     feature = "ndarray-blas-accelerate",
 ))]
 mod ndarray {
-    use burn_autodiff::ADBackendDecorator;
-    use burn_ndarray::{NdArrayBackend, NdArrayDevice};
+    use burn::autodiff::ADBackendDecorator;
+    use burn::backend::ndarray::{NdArrayBackend, NdArrayDevice};
 
     use crate::{launch, ElemType};
 
@@ -40,8 +40,8 @@ mod ndarray {
 
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
-    use burn_autodiff::ADBackendDecorator;
-    use burn_tch::{TchBackend, TchDevice};
+    use burn::autodiff::ADBackendDecorator;
+    use burn::backend::tch::{TchBackend, TchDevice};
 
     use crate::{launch, ElemType};
 
@@ -57,8 +57,8 @@ mod tch_gpu {
 
 #[cfg(feature = "tch-cpu")]
 mod tch_cpu {
-    use burn_autodiff::ADBackendDecorator;
-    use burn_tch::{TchBackend, TchDevice};
+    use burn::autodiff::ADBackendDecorator;
+    use burn::backend::tch::{TchBackend, TchDevice};
 
     use crate::{launch, ElemType};
 
@@ -69,8 +69,8 @@ mod tch_cpu {
 
 #[cfg(feature = "wgpu")]
 mod wgpu {
-    use burn_autodiff::ADBackendDecorator;
-    use burn_wgpu::{AutoGraphicsApi, WgpuBackend, WgpuDevice};
+    use burn::autodiff::ADBackendDecorator;
+    use burn::backend::wgpu::{AutoGraphicsApi, WgpuBackend, WgpuDevice};
 
     use crate::{launch, ElemType};
 

@@ -10,9 +10,7 @@ version = "0.9.0"
 default = ["burn/dataset-sqlite-bundled"]
 
 [dependencies]
-burn = {path = "../../burn"}
-burn-dataset = {path = "../../burn-dataset"}
-burn-ndarray = {path = "../../burn-ndarray"}
+burn = {path = "../../burn", features=["ndarray-std"]}
 serde = {workspace = true}
 
 [build-dependencies]

@@ -7,9 +7,7 @@ publish = false
 version = "0.9.0"
 
 [dependencies]
-burn = {path = "../../burn", features = ["experimental-named-tensor"]}
-burn-autodiff = {path = "../../burn-autodiff"}
-burn-ndarray = {path = "../../burn-ndarray"}
+burn = {path = "../../burn", features = ["experimental-named-tensor", "ndarray-std"]}
 
 # Serialization
 serde = {workspace = true, features = ["std", "derive"]}

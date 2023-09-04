@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use burn::data::dataset::source::huggingface::MNISTDataset;
 use burn::{
     config::Config,
     data::dataloader::DataLoaderBuilder,
@@ -11,7 +12,6 @@ use burn::{
         ElementConversion, Int, Tensor,
     },
 };
-use burn_dataset::source::huggingface::MNISTDataset;
 use guide::{
     data::{MNISTBatch, MNISTBatcher},
     model::{Model, ModelConfig},
