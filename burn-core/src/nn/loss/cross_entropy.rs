@@ -28,7 +28,7 @@ pub struct CrossEntropyLossConfig {
     /// Alpha = 0 would be the same as default.
     smoothing: Option<f32>,
 
-    /// Create cross-entropy with probabilites as input instead of logits.    
+    /// Create cross-entropy with probabilities as input instead of logits.    
     ///
     #[config(default = true)]
     logits: bool,
