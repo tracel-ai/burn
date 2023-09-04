@@ -123,7 +123,7 @@ impl<B: Backend> Lstm<B> {
     ///     the second tensor represents the hidden states for each sequence element.
     ///     Both output tensors have the shape [batch_size, sequence_length, hidden_size].
     pub fn forward(
-        &mut self,
+        &self,
         batched_input: Tensor<B, 3>,
         state: Option<(Tensor<B, 2>, Tensor<B, 2>)>,
     ) -> (Tensor<B, 3>, Tensor<B, 3>) {

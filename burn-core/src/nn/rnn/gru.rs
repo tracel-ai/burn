@@ -107,7 +107,7 @@ impl<B: Backend> Gru<B> {
     /// Returns:
     ///     The resulting state tensor, with shape [batch_size, sequence_length, hidden_size].
     pub fn forward(
-        &mut self,
+        &self,
         batched_input: Tensor<B, 3>,
         state: Option<Tensor<B, 3>>,
     ) -> Tensor<B, 3> {
