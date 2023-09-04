@@ -167,10 +167,11 @@ impl<B: Backend> CrossEntropyLoss<B> {
         alpha: f32,
     ) -> Tensor<B, 2> {
         let [batch_size, nr_classes] = shape;
-        let targets_matrix = Tensor::zeros(shape).scatter(
+        let device = &targets.device();
+        let targets_matrix = Tensor::<B, 2>::zeros_device(shape, device).scatter(
             1,
             targets.reshape([batch_size, 1]),
-            Tensor::ones([batch_size, 1]),
+            Tensor::ones_device([batch_size, 1], device),
         );
         targets_matrix * (1. - alpha) + alpha / nr_classes as f32
     }
