@@ -50,7 +50,7 @@ jobs:
           sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
 
       - name: run checks & tests
-        run: ./run-checks.sh ${{ matrix.test }}
+        run: RUST_MATRIX=${{ matrix.rust }} ./run-checks.sh ${{ matrix.test }}
 
   check-typos:
     runs-on: ubuntu-latest
