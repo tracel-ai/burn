@@ -42,21 +42,32 @@ fn main() {
 ## Good practices
 
 The interest of the Config pattern is to be able to easily create instances, factoried from this
-config. In that optic, an initialization method should be implemented on the config struct. 
+config. In that optic, initialization methods should be implemented on the config struct.
 
 ```rust
 impl MyModuleConfig {
+    /// Create a module with random weights.
     pub fn init(&self) -> MyModule {
         MyModule {
-            d_model: self.d_model,
-            d_ff: self.d_ff,
-            dropout: self.dropout,
+            linear: LinearConfig::new(self.d_model, self.d_ff).init(),
+            dropout: DropoutConfig::new(self.dropout).init(),
+        }
+    }
+
+    /// Create a module with a record, for inference and fine-tuning.
+    pub fn init_with(&self, record: MyModuleRecord<B>) -> MyModule {
+        MyModule {
+            linear: LinearConfig::new(
+                self.d_model,
+                self.d_ff,
+            ).init_with(record.linear),
+            dropout: DropoutConfig::new(self.dropout).init(),
         }
     }
 }
 ```
 
-Then we could add this line to the above `main`: 
+Then we could add this line to the above `main`:
 
 ```rust
 let my_module = config.init()
