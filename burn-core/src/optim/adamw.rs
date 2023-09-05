@@ -22,7 +22,7 @@ pub struct AdamWConfig {
     /// A value required for numerical stability.
     #[config(default = 1e-5)]
     epsilon: f32,
-    /// [Weight decay](WeightDecayConfig) config.
+    /// Weight decay config.
     #[config(default = 1e-4)]
     weight_decay: f32,
     /// [Gradient Clipping](GradientClippingConfig) config.
