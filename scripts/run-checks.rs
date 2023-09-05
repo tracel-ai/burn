@@ -130,10 +130,8 @@ fn cargo_fmt() {
 
 // Run cargo clippy command
 fn cargo_clippy() {
-    if let Ok(matrix) = std::env::var("RUST_MATRIX") {
-        if matrix != "stable" {
-            return;
-        }
+    if std::env::var("RUST_MATRIX").map_or(false, |matrix| matrix != "stable") {
+        return;
     }
     // Run cargo clippy
     run_cargo(
