@@ -7,9 +7,17 @@ on:
   pull_request:
     types: [opened, synchronize]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test-burn-std:
+  tests:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust: [stable, 1.71.0]
+        test: [std, no_std]
     steps:
       - name: free disk space
         run: |
@@ -20,18 +28,19 @@ jobs:
           df -h
 
       - name: checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: install rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
         with:
           components: rustfmt, clippy
+          toolchain: ${{ matrix.rust }}
 
       - name: caching
         uses: Swatinem/rust-cache@v2
         with:
           key: ${{ runner.os }}-rust-${{ hashFiles('**/Cargo.lock') }}
-          prefix-key: "v1-rust"
+          prefix-key: "v4-rust"
 
       - name: install llvmpipe and lavapipe
         run: |
@@ -41,40 +50,13 @@ jobs:
           sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
 
       - name: run checks & tests
-        run: ./run-checks.sh std
-
-  test-burn-no-std:
-    runs-on: ubuntu-latest
-    steps:
-      - name: free disk space
-        run: |
-          df -h
-          sudo swapoff -a
-          sudo rm -f /swapfile
-          sudo apt clean
-          df -h
-
-      - name: checkout
-        uses: actions/checkout@v3
-
-      - name: install rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-
-      - name: caching
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: ${{ runner.os }}-rust-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: run checks & tests
-        run: ./run-checks.sh no_std
+        run: RUST_MATRIX=${{ matrix.rust }} ./run-checks.sh ${{ matrix.test }}
 
   check-typos:
     runs-on: ubuntu-latest
     steps:
       - name: checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: run spelling checks using typos
         run: ./run-checks.sh typos

@@ -9,6 +9,7 @@ name = "burn"
 readme = "README.md"
 repository = "https://github.com/burn-rs/burn"
 version = "0.9.0"
+rust-version = "1.71"
 
 [features]
 default = [
