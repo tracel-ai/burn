@@ -21,6 +21,7 @@ pub(crate) fn derive_impl(ast: &syn::DeriveInput) -> TokenStream {
     }
 
     let (generics, generics_ty, generics_where) = ast.generics.split_for_impl();
+    let backend_trait = fetch_backend_trait(&ast.generics);
 
     let display_fn = display::display_fn(name);
 
@@ -51,7 +52,11 @@ pub(crate) fn derive_impl(ast: &syn::DeriveInput) -> TokenStream {
             #map_mut
         }
 
-        impl #generics burn::module::ADModule<B> for #name #generics_ty where B: burn::tensor::backend::ADBackend, {
+        impl #generics burn::module::ADModule<B> for #name #generics_ty
+        where
+            B: burn::tensor::backend::ADBackend,
+            <B as burn::tensor::backend::ADBackend>::InnerBackend: #backend_trait,
+        {
             type InnerModule=#name<B::InnerBackend, #generics_names_except_backend>;
 
             #valid_fn
@@ -102,6 +107,30 @@ fn constant_impl(ast: &syn::DeriveInput) -> TokenStream {
     };
 
     gen.into()
+}
+
+fn fetch_backend_trait(generics: &syn::Generics) -> proc_macro2::TokenStream {
+    static BACKEND_TRAIT_COMPILATION_ERROR_MSG: &str = "Modules should be generic over a backend.
+    - The generic argument named `B` should have its first trait bound being a backend trait.
+    - The default backend trait is `burn::tensor::backend::Backend`.
+    - Any backend trait is supported.";
+
+    for param in generics.params.iter() {
+        if let syn::GenericParam::Type(ty) = &param {
+            if ty.ident == "B" {
+                let bound = ty
+                    .bounds
+                    .first()
+                    .expect(BACKEND_TRAIT_COMPILATION_ERROR_MSG);
+
+                return quote! {
+                    #bound
+                };
+            }
+        }
+    }
+
+    panic!("{BACKEND_TRAIT_COMPILATION_ERROR_MSG}");
 }
 
 fn generics_names_except_backend(generics: &syn::Generics) -> proc_macro2::TokenStream {
