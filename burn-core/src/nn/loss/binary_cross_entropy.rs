@@ -1,4 +1,5 @@
-// #![allow(clippy::single_range_in_vec_init)]
+#![allow(clippy::single_range_in_vec_init)]
+
 use crate as burn;
 
 use crate::{config::Config, module::Module};
@@ -94,7 +95,7 @@ impl<B: Backend> BinaryCrossEntropyLoss<B> {
 
         match &self.weights {
             Some(weights) => {
-                let loss = loss * weights.clone().select(0, Tensor::from_ints([0]));
+                let loss = loss * weights.clone().slice([0..1]);
                 let weights = weights.clone().gather(0, targets);
                 loss.neg() / weights
             }
