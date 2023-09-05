@@ -325,7 +325,8 @@ fn main() {
         Some("no_std") => no_std_checks(),
         Some("typos") => check_typos(),
         Some("examples") => check_examples(),
-        Some(_) | None => {
+        Some(other) => panic!("Unexpected test type: {}", other),
+        None => {
             /* Run all checks */
             check_typos();
             std_checks();

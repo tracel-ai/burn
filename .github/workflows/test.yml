@@ -17,7 +17,7 @@ jobs:
     strategy:
       matrix:
         rust: [stable, 1.71.0]
-        test: [std, no-std]
+        test: [std, no_std]
     steps:
       - name: free disk space
         run: |
