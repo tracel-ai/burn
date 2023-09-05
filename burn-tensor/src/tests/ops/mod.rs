@@ -15,6 +15,7 @@ mod flatten;
 mod full;
 mod gather_scatter;
 mod init;
+mod iter_dim;
 mod log;
 mod log1p;
 mod map_comparison;
