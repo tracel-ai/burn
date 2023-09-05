@@ -1,8 +1,7 @@
 # Dataset
 
-Most deep learning training is done on a dataset, with perhaps the exception of reinforcement
-learning, so it's essential to provide a convenient and performant API. The dataset trait is quite
-similar to the dataset abstract class in PyTorch:
+Most deep learning training being done on datasets –with perhaps the exception of reinforcement learning–, it is essential to provide a convenient and performant API.
+The dataset trait is quite similar to the dataset abstract class in PyTorch:
 
 ```rust, ignore
 pub trait Dataset<I>: Send + Sync {
@@ -47,9 +46,9 @@ dataset to use should be based on the dataset's size as well as its intended pur
 
 For now, there is only one dataset source available with Burn, but more to come!
 
-### HuggingFace
+### Hugging Face
 
-You can easily import any HuggingFace dataset with Burn. We use SQLite as the storage to avoid
+You can easily import any Hugging Face dataset with Burn. We use SQLite as the storage to avoid
 downloading the model each time or starting a Python process. You need to know the format of each
 item in the dataset beforehand. Here's an example with the
 [dbpedia dataset](https://huggingface.co/datasets/dbpedia_14).

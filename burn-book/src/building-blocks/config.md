@@ -10,12 +10,12 @@ With that in mind, we came up with the Config system. It's a simple Rust derive 
 to your types, allowing you to define default values with ease. Additionally, all configs can be
 serialized, reducing potential bugs when upgrading versions and improving reproducibility.
 
-```rust, ignore
+```rust , ignore
 #[derive(Config)]
 use burn::config::Config;
 
 #[derive(Config)]
-pub struct MyConfig {
+pub struct MyModuleConfig {
     d_model: usize,
     d_ff: usize,
     #[config(default = 0.1)]
@@ -23,15 +23,41 @@ pub struct MyConfig {
 }
 ```
 
-The derive also adds useful methods to your config, similar to a builder pattern.
+The derive also adds useful `with_` methods for every attribute of your config, similar to a builder
+pattern, along with a `save` method.
 
 ```rust
 fn main() {
-    let config = MyConfig::new(512, 2048);
+    let config = MyModuleConfig::new(512, 2048);
     println!("{}", config.d_model); // 512
     println!("{}", config.d_ff); // 2048
     println!("{}", config.dropout); // 0.1
     let config =  config.with_dropout(0.2);
     println!("{}", config.dropout); // 0.2
+
+    config.save("config.json").unwrap();
 }
+```
+
+## Good practices
+
+The interest of the Config pattern is to be able to easily create instances, factoried from this
+config. In that optic, an initialization method should be implemented on the config struct. 
+
+```rust
+impl MyModuleConfig {
+    pub fn init(&self) -> MyModule {
+        MyModule {
+            d_model: self.d_model,
+            d_ff: self.d_ff,
+            dropout: self.dropout,
+        }
+    }
+}
+```
+
+Then we could add this line to the above `main`: 
+
+```rust
+let my_module = config.init()
 ```

@@ -5,7 +5,7 @@ advanced saving mechanism that allows interoperability between backends with min
 runtime errors. There are multiple reasons why Burn decided to create its own saving formats.
 
 First, Rust has [serde](https://serde.rs/), which is an extremely well-developed serialization and
-deserialization library that also powers the `safetensors` format developed by HuggingFace. If used
+deserialization library that also powers the `safetensors` format developed by Hugging Face. If used
 properly, all the validations are done when deserializing, which removes the need to write
 validation code. Since modules in Burn are created with configurations, they can't implement
 serialization and deserialization. That's why the record system was created: allowing you to save
@@ -14,11 +14,13 @@ the flexibility possible to include any non-serializable field within your modul
 
 **Why not use safetensors?**
 
-Safetensors uses serde with the JSON file format and only supports serializing and deserializing
+`Safetensors` uses serde with the JSON file format and only supports serializing and deserializing
 tensors. The record system in Burn gives you the possibility to serialize any type, which is very
 useful for optimizers that save their state, but also for any non-standard, cutting-edge modeling
 needs you may have. Additionally, the record system performs automatic precision conversion by using
-Rust types, making it more reliable with fewer manual manipulations.
+Rust types, making it more reliable with fewer manual manipulations. 
+
+It is important to note that the `safetensors` format uses the word *safe* to distinguish itself from Pickle, which is vulnerable to Python code injection. The safety comes from a checksum mechanism that guarantees that the data suffered no corruption. On our end, the simple fact that we use Rust already ensures that no code injection is possible. To prevent any data corruption, using a recorder with Gzip compression is recommended, as it includes a checksum mechanism.  
 
 ## Recorder
 
