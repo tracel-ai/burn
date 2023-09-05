@@ -28,7 +28,7 @@ jobs:
           df -h
 
       - name: checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: install rust
         uses: dtolnay/rust-toolchain@master
@@ -40,7 +40,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           key: ${{ runner.os }}-rust-${{ hashFiles('**/Cargo.lock') }}
-          prefix-key: "v2-rust"
+          prefix-key: "v4-rust"
 
       - name: install llvmpipe and lavapipe
         run: |
@@ -56,7 +56,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: run spelling checks using typos
         run: ./run-checks.sh typos
