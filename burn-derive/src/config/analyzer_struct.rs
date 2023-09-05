@@ -205,11 +205,16 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
 
         for (field, _) in self.fields_default.iter() {
             let name = field.ident();
+            let doc = field.doc().unwrap_or_else(|| {
+                quote! {
+                        /// Set the default value for the field.
+                }
+            });
             let ty = &field.field.ty;
             let fn_name = Ident::new(&format!("with_{name}"), name.span());
 
             body.extend(quote! {
-                /// Set the default value for the field.
+                #doc
                 pub fn #fn_name(mut self, #name: #ty) -> Self {
                     self.#name = #name;
                     self
