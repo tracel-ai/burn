@@ -78,6 +78,48 @@ the issue or issues that your changes address.
 
 4. If you're creating a new library or binary, keep in mind to repeat the step 2 to always keep a fresh list of targets.
 
+## Continuous Integration
+
+### Run checks
+
+On Unix systems, run `run-checks.sh` using this command
+
+```
+run-checks.sh environment
+```
+
+On Windows systems, run `run-checks.ps1` using this command:
+
+```
+run-checks.ps1 environment
+```
+
+The `environment` argument can assume **ONLY** the following values:
+
+- `std` to perform checks using `libstd`
+- `no_std` to perform checks on an embedded environment using `libcore`
+
+If no `environment` value has been passed, run both `std` and `no_std` checks.
+
+## Continuous Deployment
+
+### Publish crates
+
+Compile `scripts/publish.rs` using this command:
+
+```
+rustc scripts/publish.rs --crate-type bin --out-dir scripts
+```
+
+Run `scripts/publish` using this command
+
+```
+./scripts/publish crate_name
+```
+
+where `crate_name` is the name of the crate to publish
+
+
 ---
 
 We look forward to seeing your contributions to the Burn project. Happy coding!
