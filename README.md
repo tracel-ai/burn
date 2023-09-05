@@ -16,8 +16,8 @@ simplifying the process of experimenting, training, and deploying models.
 
 ## Features
 
-- Customizable, user-friendly neural network [module](https://burn-rs.github.io/book/building-blocks/module.html) 🔥
-- Comprehensive [training](https://burn-rs.github.io/book/building-blocks/learner.html) tools, inclusive of `metrics`, `logging`, and `checkpointing`
+- Customizable, intuitive and user-friendly neural network [module](https://burn-rs.github.io/book/building-blocks/module.html) 🔥
+- Comprehensive [training](https://burn-rs.github.io/book/building-blocks/learner.html) tools, including `metrics`, `logging`, and `checkpointing`
   📈
 - Versatile [Tensor](https://burn-rs.github.io/book/building-blocks/tensor.html) crate equipped with pluggable backends 🔧
   - [Torch](https://github.com/burn-rs/burn/tree/main/burn-tch) backend, supporting both CPU and GPU
@@ -26,6 +26,7 @@ simplifying the process of experimenting, training, and deploying models.
     [`no_std`](#support-for-no_std) compatibility, ensuring universal platform adaptability 👌
   - [WebGPU](https://github.com/burn-rs/burn/tree/main/burn-wgpu) backend, offering cross-platform,
     browser-inclusive, GPU-based computations 🌐
+  - [Candle](https://github.com/burn-rs/burn/tree/main/burn-candle) backend (alpha) 🕯️
   - [Autodiff](https://github.com/burn-rs/burn/tree/main/burn-autodiff) backend that enables
     differentiability across all backends 🌟
 - [Dataset](https://github.com/burn-rs/burn/tree/main/burn-dataset) crate containing a diverse range
@@ -38,11 +39,15 @@ simplifying the process of experimenting, training, and deploying models.
 ### The Burn Book 🔥
 
 To begin working effectively with `burn`, it is crucial to understand its key components and philosophy.
-For detailed examples and explanations covering every facet of the framework, please refer to [The Burn Book 🔥](https://burn-rs.github.io/book/). 
+For detailed examples and explanations covering every facet of the framework, please refer to [The Burn Book 🔥](https://burn-rs.github.io/book/).
+
+### Pre-trained Models
+
+We keep an updated and curated list of models and examples built with Burn, see the [burn-rs/models](https://github.com/burn-rs/models) repository for more details.
 
 ### Examples
 
-Here is a code snippet showing how intuitive the framework is to use, where we declare a position-wise feed-forward module along with its forward pass. 
+Here is a code snippet showing how intuitive the framework is to use, where we declare a position-wise feed-forward module along with its forward pass.
 
 ```rust
 use burn::nn;
@@ -79,7 +84,6 @@ For more practical insights, you can clone the repository and experiment with th
 - [Text Generation](https://github.com/burn-rs/burn/tree/main/examples/text-generation) train an
   autoregressive transformer from scratch on GPU.
 
-
 ## Supported Platforms
 
 ### [Burn-ndarray][1] Backend
@@ -114,11 +118,6 @@ For more practical insights, you can clone the repository and experiment with th
 [2]: https://github.com/burn-rs/burn/tree/main/burn-tch
 [3]: https://github.com/burn-rs/burn/tree/main/burn-wgpu
 
-## Pre-trained Models
-
-We keep an updated and curated list of models and examples built with Burn, see the [burn-rs/models](https://github.com/burn-rs/models) repository for more details.
-
-
 ## Support for `no_std`
 
 Burn, including its `burn-ndarray` backend, can work in a `no_std` environment, provided `alloc` is
@@ -149,11 +148,6 @@ Burn is currently in active development, and there will be breaking changes. Whi
 issues are likely to be easy to fix, there are no guarantees at this stage.
 
 ## Sponsors
-
-You can sponsor the founder of Burn from his
-[GitHub Sponsors profile](https://github.com/sponsors/nathanielsimard). The Burn-rs organization
-doesn't yet have a fiscal entity, but other sponsor methods might become available as the project
-grows.
 
 Thanks to all current sponsors 🙏.
 
