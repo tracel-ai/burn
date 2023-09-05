@@ -1,5 +1,3 @@
-#![allow(clippy::single_range_in_vec_init)]
-
 use crate as burn;
 
 use crate::{config::Config, module::Module};
@@ -95,9 +93,9 @@ impl<B: Backend> BinaryCrossEntropyLoss<B> {
 
         match &self.weights {
             Some(weights) => {
-                let loss = loss * weights.clone().slice([0..1]);
                 let weights = weights.clone().gather(0, targets);
-                loss.neg() / weights
+                let loss = loss * weights.clone();
+                loss.neg().sum() / weights.sum()
             }
             None => loss.mean().neg(),
         }
@@ -134,6 +132,45 @@ mod tests {
         let loss_2 = targets.clone().float() * logits.clone().log()
             + (-targets.float() + 1) * (-logits + 1).log();
         let loss_2 = loss_2.mean().neg();
+        loss_1.into_data().assert_approx_eq(&loss_2.into_data(), 3);
+    }
+
+    #[test]
+    fn test_binary_cross_entropy_with_weights() {
+        let [batch_size] = [4];
+        let logits = Tensor::<TestBackend, 1>::random([batch_size], Distribution::Normal(0., 1.0));
+        let targets = Tensor::<TestBackend, 1, Int>::from_data(Data::from([0, 1, 0, 1]));
+        let weights = [3., 7.];
+
+        let loss_1 = BinaryCrossEntropyLossConfig::new()
+            .with_weights(Some(weights))
+            .init()
+            .forward(logits.clone(), targets.clone());
+        let logits = sigmoid(logits);
+        let loss_2 = targets.clone().float() * logits.clone().log()
+            + (-targets.float() + 1) * (-logits + 1).log();
+
+        let loss_2 = loss_2 * Tensor::from_floats([3., 7., 3., 7.]);
+        let loss_2 = loss_2.neg().sum() / (3. + 3. + 7. + 7.);
+        loss_1.into_data().assert_approx_eq(&loss_2.into_data(), 3);
+    }
+
+    #[test]
+    fn test_binary_cross_entropy_with_smoothing() {
+        let [batch_size] = [4];
+        let logits = Tensor::<TestBackend, 1>::random([batch_size], Distribution::Normal(0., 1.0));
+        let targets = Tensor::<TestBackend, 1, Int>::from_data(Data::from([0, 1, 0, 1]));
+
+        let loss_1 = BinaryCrossEntropyLossConfig::new()
+            .with_smoothing(Some(0.1))
+            .init()
+            .forward(logits.clone(), targets.clone());
+
+        let logits = sigmoid(logits);
+        let targets = targets.float() * (1. - 0.1) + 0.1 / 2.;
+        let loss_2 = targets.clone() * logits.clone().log() + (-targets + 1) * (-logits + 1).log();
+        let loss_2 = loss_2.mean().neg();
+
         loss_1.into_data().assert_approx_eq(&loss_2.into_data(), 3);
     }
 }
