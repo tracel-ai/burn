@@ -28,7 +28,7 @@ impl<B: Backend> Model<B> {
         targets: Tensor<B, 1, Int>,
     ) -> ClassificationOutput<B> {
         let output = self.forward(images);
-        let loss = CrossEntropyLoss::new(None).forward(output.clone(), targets.clone());
+        let loss = CrossEntropyLoss::default().forward(output.clone(), targets.clone());
 
         ClassificationOutput::new(loss, output, targets)
     }
