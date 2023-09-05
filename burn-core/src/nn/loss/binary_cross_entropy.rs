@@ -95,7 +95,7 @@ impl<B: Backend> BinaryCrossEntropyLoss<B> {
             Some(weights) => {
                 let weights = weights.clone().gather(0, targets);
                 let loss = loss * weights.clone();
-                loss.neg() / weights
+                loss.neg() / weights.sum()
             }
             None => loss.mean().neg(),
         }
