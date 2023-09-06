@@ -1,6 +1,6 @@
-use core::ops::Range;
-
+use alloc::vec::Vec;
 use burn_tensor::activation::sigmoid;
+use core::ops::Range;
 
 use crate as burn;
 
