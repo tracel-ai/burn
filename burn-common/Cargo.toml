@@ -8,7 +8,7 @@ license = "MIT OR Apache-2.0"
 name = "burn-common"
 readme = "README.md"
 repository = "https://github.com/burn-rs/burn/tree/main/burn-common"
-version = "0.9.0"
+version = "0.10.0"
 
 [features]
 default = ["std"]

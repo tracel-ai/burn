@@ -8,7 +8,7 @@ license = "MIT OR Apache-2.0"
 name = "burn-train"
 readme = "README.md"
 repository = "https://github.com/burn-rs/burn/tree/main/burn-train"
-version = "0.9.0"
+version = "0.10.0"
 
 [features]
 default = ["metrics", "ui"]
@@ -25,7 +25,7 @@ ui = [
 ]
 
 [dependencies]
-burn-core = {path = "../burn-core", version = "0.9.0" }
+burn-core = {path = "../burn-core", version = "0.10.0" }
 
 log = {workspace = true}
 tracing-subscriber.workspace = true
@@ -48,4 +48,4 @@ derive-new = {workspace = true}
 serde = {workspace = true, features = ["std", "derive"]}
 
 [dev-dependencies]
-burn-ndarray = {path = "../burn-ndarray", version = "0.9.0" }
+burn-ndarray = {path = "../burn-ndarray", version = "0.10.0" }
