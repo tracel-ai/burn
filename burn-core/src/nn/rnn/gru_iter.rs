@@ -75,6 +75,7 @@ impl<B: Backend> Gru<B> {
     /// Returning a (GruIter) over the batched time series, whose output is the hidden state at each time point.
     pub fn over(&self, input: Tensor<B, 3>, state: Option<Tensor<B, 2>>) -> GruIter<B> {
         let [batch, seq, _] = input.dims();
+        let device = &input.device();
         let ranges = input
             .dims()
             .into_iter()
@@ -87,7 +88,9 @@ impl<B: Backend> Gru<B> {
             ranges,
             end_idx: seq,
             input,
-            state: state.unwrap_or(Tensor::<B, 2>::zeros([batch, self.d_hidden])),
+            state: state
+                .unwrap_or(Tensor::<B, 2>::zeros_device([batch, self.d_hidden], device))
+                .no_grad(),
         }
     }
 
