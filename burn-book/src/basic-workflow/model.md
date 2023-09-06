@@ -7,14 +7,11 @@ file, add the `burn`, `burn-wgpu`, `burn-dataset`, `burn-autodiff` and `burn-tra
 ```toml
 [package]
 edition = "2021"
-name = "My first Burn model"
+name = "my-first-burn-model"
+version = "0.1.0"
 
 [dependencies]
-burn = "0.9"
-burn-wgpu = "0.9"
-burn-dataset = "0.9"
-burn-autodiff = "0.9"
-burn-train = "0.9"
+burn = { version = "0.9.0", features=["train", "wgpu"]}
 
 # Serialization
 serde = "1"
@@ -63,8 +60,8 @@ There are two major things going on in this code sample.
    underlying low level implementations of tensor operations, allowing your new model to run on any
    backend. Contrary to other frameworks, the backend abstraction isn't determined by a compilation
    flag or a device type. This is important because you can extend the functionalities of a specific
-   backend (which will be covered in the more advanced sections of this book), and it allows for an
-   innovative autodiff system. You can also change backend during runtime, for instance to compute
+   backend (see [backend extension section](../advanced/backend-extension)), and it allows for an
+   innovative [autodiff system](../building-blocks/autodiff.md). You can also change backend during runtime, for instance to compute
    training metrics on a cpu backend while using a gpu one only to train the model. In our example,
    the backend in use will be determined later on.
 

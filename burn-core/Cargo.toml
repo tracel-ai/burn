@@ -11,13 +11,10 @@ repository = "https://github.com/burn-rs/burn/tree/main/burn-core"
 version = "0.9.0"
 
 [features]
-default = ["std"]
+default = ["std", "dataset-minimal"]
 std = [
-  "autodiff",
   "burn-common/std",
-  "dataset",
   "burn-tensor/std",
-  "ndarray-std",
   "flate2",
   "log",
   "rand/std",
@@ -28,14 +25,16 @@ std = [
   "half/std",
 ]
 
-dataset = ["burn-dataset"]
+dataset = ["burn-dataset/default"]
+dataset-minimal = ["burn-dataset"]
 dataset-sqlite = ["burn-dataset/sqlite"]
 dataset-sqlite-bundled = ["burn-dataset/sqlite-bundled"]
 
+# Backend
 autodiff = ["burn-autodiff"]
 
-ndarray = ["burn-ndarray"]
-ndarray-std = ["ndarray", "burn-ndarray/std"]
+ndarray = ["burn-ndarray/default"]
+ndarray-no-std = ["burn-ndarray"]
 ndarray-blas-accelerate = ["ndarray", "burn-ndarray/blas-accelerate"]
 ndarray-blas-netlib = ["ndarray", "burn-ndarray/blas-netlib"]
 ndarray-blas-openblas = ["ndarray", "burn-ndarray/blas-openblas"]
@@ -45,7 +44,6 @@ wgpu = ["burn-wgpu"]
 wgpu-autotune = ["wgpu", "burn-wgpu/autotune"]
 
 tch = ["burn-tch"]
-
 candle = ["burn-candle"]
 
 # Serialization formats
@@ -59,14 +57,14 @@ test-candle = ["candle"] # To use candle during testing, default uses ndarray.
 
 # ** Please make sure all dependencies support no_std when std is disabled **
 
-burn-autodiff = { path = "../burn-autodiff", version = "0.9.0", optional = true, features = [
-  "export_tests",
-] }
 burn-common = { path = "../burn-common", version = "0.9.0", default-features = false }
 burn-dataset = { path = "../burn-dataset", version = "0.9.0", optional = true, default-features = false }
 burn-derive = { path = "../burn-derive", version = "0.9.0" }
 burn-tensor = { path = "../burn-tensor", version = "0.9.0", default-features = false }
+
+# Backends
 burn-ndarray = { path = "../burn-ndarray", version = "0.9.0", optional = true, default-features = false }
+burn-autodiff = { path = "../burn-autodiff", version = "0.9.0", optional = true }
 burn-wgpu = { path = "../burn-wgpu", version = "0.9.0", optional = true }
 burn-tch = { path = "../burn-tch", version = "0.9.0", optional = true }
 burn-candle = { path = "../burn-candle", version = "0.9.0", optional = true }
@@ -97,3 +95,4 @@ burn-dataset = { path = "../burn-dataset", version = "0.9.0", features = [
 ] }
 
 burn-ndarray = { path = "../burn-ndarray", version = "0.9.0", default-features = false }
+burn-autodiff = { path = "../burn-autodiff", version = "0.9.0" }

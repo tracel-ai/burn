@@ -6,11 +6,8 @@ name = "guide"
 publish = false
 version = "0.9.0"
 
-[features]
-default = ["burn/dataset-sqlite-bundled"]
-
 [dependencies]
-burn = {path = "../../burn", features=["autodiff", "wgpu"]}
+burn = {path = "../../burn", features = ["train", "wgpu"]}
 
 # Serialization
 log = {workspace = true}

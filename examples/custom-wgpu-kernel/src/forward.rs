@@ -82,9 +82,6 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for WgpuBackend<G, 
         // Create the output tensor primitive.
         let output = WgpuTensor::new(lhs.context.clone(), shape_out, buffer);
 
-        let blocks_needed_in_x = f32::ceil(num_rows as f32 / workgroup_size_x as f32) as u32;
-        let blocks_needed_in_y = f32::ceil(num_cols as f32 / workgroup_size_y as f32) as u32;
-
         // Compile the kernel or use the cache based on the template id.
         let kernel = lhs.context.compile_dynamic(FusedMatmulAddRelu::<F>::new(
             workgroup_size_x,
@@ -98,6 +95,8 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for WgpuBackend<G, 
             .create_buffer_with_data(bytemuck::cast_slice(&info));
 
         // Declare the wgsl workgroup with the number of blocks in x, y and z.
+        let blocks_needed_in_x = f32::ceil(num_rows as f32 / workgroup_size_x as f32) as u32;
+        let blocks_needed_in_y = f32::ceil(num_cols as f32 / workgroup_size_y as f32) as u32;
         let workgroup = WorkGroup::new(blocks_needed_in_x, blocks_needed_in_y, num_batches as u32);
 
         // Execute lazily the kernel with the launch information and the given buffers.

@@ -168,3 +168,4 @@ Those operations are only available for `Bool` tensors.
 | ---------------- | ----------------------------------- |
 | `tensor.float()` | Similar to `tensor.to(torch.float)` |
 | `tensor.int()`   | Similar to `tensor.to(torch.long)`  |
+| `tensor.not()`   | `tensor.logical_not()`              |
