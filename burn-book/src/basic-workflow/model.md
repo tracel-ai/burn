@@ -60,7 +60,7 @@ There are two major things going on in this code sample.
    underlying low level implementations of tensor operations, allowing your new model to run on any
    backend. Contrary to other frameworks, the backend abstraction isn't determined by a compilation
    flag or a device type. This is important because you can extend the functionalities of a specific
-   backend, such as [backend extension section](../advanced/backend-extension), and it allows for an
+   backend (see [backend extension section](../advanced/backend-extension)), and it allows for an
    innovative [autodiff system](../building-blocks/autodiff.md). You can also change backend during runtime, for instance to compute
    training metrics on a cpu backend while using a gpu one only to train the model. In our example,
    the backend in use will be determined later on.
