@@ -2,6 +2,7 @@ mod gate_controller;
 
 /// Gated Recurrent Unit module.
 pub mod gru;
+pub mod gru_iter;
 
 /// Long Short-Term Memory module.
 pub mod lstm;
