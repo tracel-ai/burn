@@ -105,6 +105,18 @@ pub trait ModuleMapper<B: Backend> {
 
 Burn comes with built-in modules that you can use to build your own modules.
 
+### General
+
+| Burn API    | PyTorch Equivalent                      |
+| ----------- | --------------------------------------- |
+| `BatchNorm` | `nn.BatchNorm1d`, `nn.BatchNorm2d` etc. |
+| `LayerNorm` | `nn.LayerNorm`                          |
+| `Dropout`   | `nn.Dropout`                            |
+| `GELU`      | `nn.GELU`                               |
+| `Linear`    | `nn.Linear`                             |
+| `Embedding` | `nn.Embedding`                          |
+| `Relu`      | `nn.ReLU`                               |
+
 ### Convolutions
 
 | Burn API          | PyTorch Equivalent   |
@@ -113,25 +125,6 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `Conv2d`          | `nn.Conv2d`          |
 | `ConvTranspose1d` | `nn.ConvTranspose1d` |
 | `ConvTranspose2d` | `nn.ConvTranspose2d` |
-
-### General
-
-| Burn API    | PyTorch Equivalent                      |
-| ----------- | --------------------------------------- |
-| `BatchNorm` | `nn.BatchNorm1d`, `nn.BatchNorm2d` etc. |
-| `Dropout`   | `nn.Dropout` or `nn.Dropout2d` etc.     |
-| `GELU`      | `nn.GELU`                               |
-| `LayerNorm` | `nn.LayerNorm`                          |
-| `Linear`    | `nn.Linear`                             |
-| `Embedding` | `nn.Embedding`                          |
-| `Relu`      | `nn.ReLU`                               |
-
-### Loss
-
-| Burn API           | PyTorch Equivalent    |
-| ------------------ | --------------------- |
-| `CrossEntropyLoss` | `nn.CrossEntropyLoss` |
-| `MSELoss`          | `nn.MSELoss`          |
 
 ### Pooling
 
@@ -160,3 +153,10 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `TransformerDecoder` | `nn.TransformerDecoder` |
 | `TransformerEncoder` | `nn.TransformerEncoder` |
 | `PositionalEncoding` | _No direct equivalent_  |
+
+### Loss
+
+| Burn API           | PyTorch Equivalent    |
+| ------------------ | --------------------- |
+| `CrossEntropyLoss` | `nn.CrossEntropyLoss` |
+| `MSELoss`          | `nn.MSELoss`          |

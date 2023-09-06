@@ -37,8 +37,7 @@ edition = "2021"
 Under dependencies, add
 
 ```toml
-burn = "0.9.0"
-burn-wgpu = "0.9.0"
+burn = { version = "0.9.0", features = ["wgpu"] }
 ```
 
 Then, to compile the dependencies, execute
@@ -56,12 +55,12 @@ Now open `src/main.rs` and replace its content with
 
 ```rust
 use burn::tensor::Tensor;
-use burn_wgpu::{AutoGraphicsApi, WgpuBackend};
+use burn::backend::WgpuBackend;
+
+// Type alias for the backend to use.
+type Backend = WgpuBackend;
 
 fn main() {
-    // Type alias to be cleaner
-    type Backend = WgpuBackend<AutoGraphicsApi, f32, i32>;
-
     // Creation of two tensors, the first with explicit values and the second one with ones, with the same shape as the first
     let tensor_1 = Tensor::<Backend, 2>::from_data([[2., 3.], [4., 5.]]);
     let tensor_2 = Tensor::<Backend, 2>::ones_like(&tensor_1);

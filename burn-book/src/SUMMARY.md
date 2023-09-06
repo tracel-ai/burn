@@ -18,7 +18,7 @@
   - [Config](./building-blocks/config.md)
   - [Record](./building-blocks/record.md)
   - [Dataset](./building-blocks/dataset.md)
-- [Custom Training Loops](./custom-training-loop.md)
+- [Custom Training Loop](./custom-training-loop.md)
 - [Import ONNX Model](./import/onnx-model.md)
 - [Advanced](./advanced/README.md)
   - [Backend Extension](./advanced/backend-extension/README.md)

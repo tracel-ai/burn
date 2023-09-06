@@ -11,7 +11,7 @@ repository = "https://github.com/burn-rs/burn/tree/main/burn-dataset"
 version = "0.9.0"
 
 [features]
-default = []
+default = ["sqlite-bundled"]
 
 audio = [
   "hound",

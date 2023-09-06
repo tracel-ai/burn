@@ -160,6 +160,6 @@ set; however, we do not recommend this practice for actual usage.
 
 Finally, the trained model is returned by the `fit` method, and the only remaining task is saving
 the trained weights using the `CompactRecorder`. This recorder employs the `MessagePack` format with
-`gzip` compression, `f16` for floats and `i32` for integers. Other recorders are available, offering
+`gzip` compression, `f16` for floats and `i16` for integers. Other recorders are available, offering
 support for various formats, such as `BinCode` and `JSON`, with or without compression. Any backend,
 regardless of precision, can load recorded data of any kind.

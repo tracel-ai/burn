@@ -13,6 +13,6 @@ crate-type = ["cdylib"]
 default = []
 
 [dependencies]
-burn = {path = "../../burn", default-features = false, features = ["ndarray"]}
+burn = {path = "../../burn", default-features = false, features = ["ndarray-no-std"]}
 serde = {workspace = true}
 wasm-bindgen = "0.2.87"
