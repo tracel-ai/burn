@@ -139,9 +139,8 @@ impl<B: Backend> Lstm<B> {
             ),
         };
 
-        for t in 0..seq_length {
-            let indices = Tensor::arange(t..t + 1);
-            let input_t = batched_input.clone().select(1, indices).squeeze(1);
+        for (t, input_t) in batched_input.iter_dim(1).enumerate() {
+            let input_t = input_t.squeeze(1);
             // f(orget)g(ate) tensors
             let biased_fg_input_sum = self.gate_product(&input_t, &hidden_state, &self.forget_gate);
             let forget_values = activation::sigmoid(biased_fg_input_sum); // to multiply with cell state

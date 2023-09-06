@@ -118,11 +118,13 @@ impl<B: Backend> Gru<B> {
             None => Tensor::zeros([self.batch_size, seq_length, self.d_hidden]),
         };
 
-        for t in 0..seq_length {
-            let indices = Tensor::arange(t..t + 1);
-            let input_t = batched_input.clone().select(1, indices.clone()).squeeze(1);
-            let hidden_t = hidden_state.clone().select(1, indices.clone()).squeeze(1);
-
+        for (t, (input_t, hidden_t)) in batched_input
+            .iter_dim(1)
+            .zip(hidden_state.clone().iter_dim(1))
+            .enumerate()
+        {
+            let input_t = input_t.squeeze(1);
+            let hidden_t = hidden_t.squeeze(1);
             // u(pdate)g(ate) tensors
             let biased_ug_input_sum = self.gate_product(&input_t, &hidden_t, &self.update_gate);
             let update_values = activation::sigmoid(biased_ug_input_sum); // Colloquially referred to as z(t)

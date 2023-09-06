@@ -1,3 +1,4 @@
+#![allow(clippy::single_range_in_vec_init)]
 use alloc::format;
 use alloc::string::String;
 use alloc::vec;
@@ -348,6 +349,68 @@ where
             tensors.into_iter().map(|vector| vector.primitive).collect(),
             dim,
         ))
+    }
+
+    /// Iterate over slices of tensors alongside a given dimension.
+    ///
+    /// # Panics
+    ///
+    /// Given dimension is less than tensor rank.
+    ///
+    /// # Returns
+    ///
+    /// A tensor iterator.
+    pub fn iter_dim(self, dim: usize) -> DimIter<B, D, K> {
+        check!(TensorCheck::dim_ops::<D>("iter_dim", dim));
+        DimIter::new(self, dim)
+    }
+}
+
+/// Iterator given by (Tensor::iter_dim).
+pub struct DimIter<B, const D: usize, K>
+where
+    B: Backend,
+    K: BasicOps<B>,
+{
+    counter: usize,
+    dim: usize,
+    end_idx: usize,
+    ranges: [Range<usize>; D],
+    tensor: Tensor<B, D, K>,
+}
+
+impl<B: Backend, const D: usize, K: BasicOps<B>> Iterator for DimIter<B, D, K> {
+    type Item = Tensor<B, D, K>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let res = if self.counter < self.end_idx {
+            let mut ranges = self.ranges.clone();
+            ranges[self.dim] = self.counter..(self.counter + 1);
+            let slice = self.tensor.clone().slice(ranges);
+            Some(slice)
+        } else {
+            None
+        };
+        self.counter += 1;
+        res
+    }
+}
+
+impl<B: Backend, const D: usize, K: BasicOps<B>> DimIter<B, D, K> {
+    fn new(tensor: Tensor<B, D, K>, dim: usize) -> Self {
+        let dims = tensor.dims();
+        let ranges = dims
+            .iter()
+            .map(|&dim| 0..dim)
+            .collect::<Vec<Range<usize>>>();
+        let ranges: [Range<usize>; D] = ranges.try_into().unwrap();
+        Self {
+            end_idx: dims[dim],
+            ranges,
+            counter: 0,
+            dim,
+            tensor,
+        }
     }
 }
 
