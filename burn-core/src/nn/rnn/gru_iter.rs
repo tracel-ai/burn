@@ -91,7 +91,7 @@ impl<B: Backend> Gru<B> {
         }
     }
 
-    /// Appies the forward pass.
+    /// Applies the forward pass.
     pub fn forward(&self, input: Tensor<B, 2>, state: Tensor<B, 2>) -> Tensor<B, 2> {
         // Forget gate.
         let forget = sigmoid(self.forget.forward(input.clone(), state.clone()));
