@@ -28,14 +28,3 @@ pub type TchBackend<F = f32> = tch::TchBackend<F>;
 /// A TchBackend with autodiffing enabled.
 #[cfg(all(feature = "tch", feature = "autodiff"))]
 pub type TchAutodiffBackend<F = f32> = crate::autodiff::ADBackendDecorator<TchBackend<F>>;
-
-/// Candle module.
-#[cfg(feature = "candle")]
-pub use burn_candle as candle;
-/// A CandleBackend with a default type of f32/i32.
-#[cfg(feature = "candle")]
-pub type CandleBackend<F = f32, I = i32> = candle::CandleBackend<F, I>;
-/// A CandleBackend with autodiffing enabled.
-#[cfg(all(feature = "candle", feature = "autodiff"))]
-pub type CandleAutodiffBackend<F = f32, I = i32> =
-    crate::autodiff::ADBackendDecorator<CandleBackend<F, I>>;

@@ -208,9 +208,6 @@ fn burn_core_std() {
     // Run cargo test --features test-tch
     cargo_test(&["-p", "burn-core", "--features", "test-tch"]);
 
-    // Run cargo test --features test-candle
-    // cargo_test(&["-p", "burn-core", "--features", "test-candle"]);
-
     // Run cargo test --features test-wgpu
     cargo_test(&["-p", "burn-core", "--features", "test-wgpu"]);
 }

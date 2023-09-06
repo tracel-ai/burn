@@ -78,16 +78,6 @@ jobs:
       crate: burn-wgpu
     secrets: inherit
 
-  publish-burn-candle:
-    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
-    needs:
-      - publish-burn-tensor
-      - publish-burn-autodiff
-      - publish-burn-tch
-    with:
-      crate: burn-candle
-    secrets: inherit
-
   publish-burn-core:
     uses: burn-rs/burn/.github/workflows/publish-template.yml@main
     needs:
@@ -96,7 +86,6 @@ jobs:
       - publish-burn-derive
       - publish-burn-tensor
       - publish-burn-autodiff
-      - publish-burn-candle
       - publish-burn-wgpu
       - publish-burn-tch
       - publish-burn-ndarray

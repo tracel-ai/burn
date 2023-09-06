@@ -44,14 +44,12 @@ wgpu = ["burn-wgpu"]
 wgpu-autotune = ["wgpu", "burn-wgpu/autotune"]
 
 tch = ["burn-tch"]
-candle = ["burn-candle"]
 
 # Serialization formats
 experimental-named-tensor = ["burn-tensor/experimental-named-tensor"]
 
 test-tch = ["tch"]    # To use tch during testing, default uses ndarray.
 test-wgpu = ["wgpu"]   # To use wgpu during testing, default uses ndarray.
-test-candle = ["candle"] # To use candle during testing, default uses ndarray.
 
 [dependencies]
 
@@ -67,7 +65,6 @@ burn-ndarray = { path = "../burn-ndarray", version = "0.9.0", optional = true, d
 burn-autodiff = { path = "../burn-autodiff", version = "0.9.0", optional = true }
 burn-wgpu = { path = "../burn-wgpu", version = "0.9.0", optional = true }
 burn-tch = { path = "../burn-tch", version = "0.9.0", optional = true }
-burn-candle = { path = "../burn-candle", version = "0.9.0", optional = true }
 
 derive-new = { workspace = true }
 libm = { workspace = true }

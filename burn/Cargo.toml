@@ -47,7 +47,6 @@ wgpu = ["burn-core/wgpu"]
 wgpu-autotune = ["burn-core/wgpu-autotune"]
 
 tch = ["burn-core/tch"]
-candle = ["burn-core/candle"]
 
 # Experimental
 experimental-named-tensor = ["burn-core/experimental-named-tensor"]
