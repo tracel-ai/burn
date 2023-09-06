@@ -139,12 +139,8 @@ impl<B: Backend> Lstm<B> {
             ),
         };
 
-        let [batch, _, d] = batched_input.dims();
-        for (t, input_t) in batched_input
-            .iter_dim(1)
-            .map(|e| e.reshape([batch, d]))
-            .enumerate()
-        {
+        for (t, input_t) in batched_input.iter_dim(1).enumerate() {
+            let input_t = input_t.squeeze(1);
             // f(orget)g(ate) tensors
             let biased_fg_input_sum = self.gate_product(&input_t, &hidden_state, &self.forget_gate);
             let forget_values = activation::sigmoid(biased_fg_input_sum); // to multiply with cell state
