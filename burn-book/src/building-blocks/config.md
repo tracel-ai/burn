@@ -26,7 +26,7 @@ pub struct MyModuleConfig {
 The derive also adds useful `with_` methods for every attribute of your config, similar to a builder
 pattern, along with a `save` method.
 
-```rust
+```rust, ignore
 fn main() {
     let config = MyModuleConfig::new(512, 2048);
     println!("{}", config.d_model); // 512
@@ -44,7 +44,7 @@ fn main() {
 The interest of the Config pattern is to be able to easily create instances, factoried from this
 config. In that optic, initialization methods should be implemented on the config struct.
 
-```rust
+```rust, ignore
 impl MyModuleConfig {
     /// Create a module with random weights.
     pub fn init(&self) -> MyModule {
@@ -69,6 +69,6 @@ impl MyModuleConfig {
 
 Then we could add this line to the above `main`:
 
-```rust
+```rust, ignore
 let my_module = config.init()
 ```
