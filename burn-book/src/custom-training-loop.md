@@ -202,7 +202,7 @@ where
 
 This will result in the following compilation error:
 
-```
+```console
 1. the type parameter `B` is not constrained by the impl trait, self type, or predicates
    unconstrained type parameter [E0207]
 ```

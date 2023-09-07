@@ -53,7 +53,7 @@ operations on every platform, using the GPU.
 
 Now open `src/main.rs` and replace its content with
 
-```rust
+```rust, ignore
 use burn::tensor::Tensor;
 use burn::backend::WgpuBackend;
 

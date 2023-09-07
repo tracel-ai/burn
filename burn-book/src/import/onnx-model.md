@@ -72,7 +72,7 @@ Below is a step-by-step guide to importing an ONNX model into a Burn-based proje
 
 Include the `burn-import` crate and use the following Rust code in your `build.rs`:
 
-```rust
+```rust, ignore
 use burn_import::onnx::ModelGen;
 
 fn main() {
@@ -88,7 +88,7 @@ fn main() {
 
 Add this code to the `mod.rs` file located in `src/model`:
 
-```rust
+```rust, ignore
 pub mod mnist {
     include!(concat!(env!("OUT_DIR"), "/model/mnist.rs"));
 }
@@ -98,7 +98,7 @@ pub mod mnist {
 
 Here's how to use the imported model in your application:
 
-```rust
+```rust, ignore
 mod model;
 
 use burn::tensor;
