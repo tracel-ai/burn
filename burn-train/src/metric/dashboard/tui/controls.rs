@@ -14,7 +14,12 @@ impl ControlsView {
             vec![
                 Span::from(" Quit  : ").yellow().bold(),
                 Span::from("q  ").bold(),
-                Span::from("  Stop the training").italic(),
+                Span::from("  Stop the training gracefully").italic(),
+            ],
+            vec![
+                Span::from(" Kill  : ").yellow().bold(),
+                Span::from("k  ").bold(),
+                Span::from("  Terminate the training").italic(),
             ],
             vec![
                 Span::from(" Plots : ").yellow().bold(),
@@ -33,6 +38,7 @@ impl ControlsView {
         .style(Style::default().fg(Color::Gray))
         .block(
             Block::default()
+                .title_alignment(Alignment::Center)
                 .borders(Borders::ALL)
                 .style(Style::default().fg(Color::Gray))
                 .title(Span::styled(

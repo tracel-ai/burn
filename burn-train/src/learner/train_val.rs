@@ -180,6 +180,10 @@ where
                 &self.checkpointer_scheduler,
                 epoch,
             );
+
+            if self.interrupter.should_stop() {
+                break;
+            }
         }
 
         model

@@ -1,7 +1,7 @@
 use super::TFrame;
 use crate::metric::dashboard::TrainingProgress;
 use ratatui::{
-    prelude::Rect,
+    prelude::{Alignment, Rect},
     style::{Color, Style},
     widgets::{Block, Borders, Gauge},
 };
@@ -40,9 +40,15 @@ impl ProgressState {
             "Epoch {}/{}",
             self.progress.epoch, self.progress.epoch_total
         );
+        let items = format!(
+            "Items {}/{}",
+            self.progress.progress.items_processed, self.progress.progress.items_total
+        );
+        let iteration = format!("Iteration {}", self.progress.iteration,);
+        let progress = format!("{epoch} - {items} - {iteration}");
         let title = match self.mode {
-            Mode::Valid => format!("Validation - {}", epoch),
-            Mode::Train => format!("Training - {}", epoch),
+            Mode::Valid => format!(" Validation | {} ", progress),
+            Mode::Train => format!(" Training | {} ", progress),
         };
 
         ProgressView::new(&self.progress, title)
@@ -62,7 +68,12 @@ impl<'a> ProgressView<'a> {
             * 100.;
 
         let iteration = Gauge::default()
-            .block(Block::default().title(self.title).borders(Borders::ALL))
+            .block(
+                Block::default()
+                    .title(self.title)
+                    .title_alignment(Alignment::Center)
+                    .borders(Borders::ALL),
+            )
             .gauge_style(Style::default().fg(Color::Yellow))
             .percent(percent_items as u16);
 

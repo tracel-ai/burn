@@ -108,6 +108,7 @@ impl TextMetricView {
         .block(
             Block::default()
                 .borders(Borders::ALL)
+                .title_alignment(Alignment::Center)
                 .style(Style::default().fg(Color::Gray))
                 .title(Span::styled(
                     "Summary",

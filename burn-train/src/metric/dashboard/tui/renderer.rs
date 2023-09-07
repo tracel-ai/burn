@@ -13,7 +13,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-use super::{ControlsView, DashboardView, ProgressState, TextMetricsState};
+use super::{
+    Callback, ControlsView, DashboardView, PopupCallback, PopupState, ProgressState,
+    TextMetricsState,
+};
 
 pub(crate) type TBackend = CrosstermBackend<Stdout>;
 pub(crate) type TFrame<'a> = ratatui::Frame<'a, TBackend>;
@@ -28,6 +31,7 @@ pub struct TuiDashboardRenderer {
     metrics_numeric: NumericMetricsState,
     metrics_text: TextMetricsState,
     interuptor: TrainingInterrupter,
+    popup: PopupState,
 }
 
 impl DashboardRenderer for TuiDashboardRenderer {
@@ -81,6 +85,7 @@ impl TuiDashboardRenderer {
             metrics_numeric: NumericMetricsState::default(),
             metrics_text: TextMetricsState::default(),
             interuptor,
+            popup: PopupState::None,
         }
     }
 
@@ -90,39 +95,105 @@ impl TuiDashboardRenderer {
             return Ok(());
         }
 
-        self.terminal.draw(|mut frame| {
-            let size = frame.size();
-            let view = DashboardView::new(
-                self.metrics_numeric.view(),
-                self.metrics_text.view(),
-                self.progress.view(),
-                ControlsView,
-            );
-
-            view.render(&mut frame, size);
-        })?;
-
-        while crossterm::event::poll(Duration::from_secs(0))? {
-            let event = event::read()?;
-            self.metrics_numeric.on_event(&event);
-
-            if let Event::Key(key) = event {
-                if let KeyCode::Char('q') = key.code {
-                    self.interuptor.stop();
-                }
-            }
-        }
+        self.draw()?;
+        self.handle_events()?;
 
         self.last_update = Instant::now();
 
         Ok(())
     }
+
+    fn draw(&mut self) -> Result<(), Box<dyn Error>> {
+        self.terminal.draw(|mut frame| {
+            let size = frame.size();
+            match self.popup.view() {
+                Some(view) => view.render(&mut frame, size),
+                None => {
+                    let view = DashboardView::new(
+                        self.metrics_numeric.view(),
+                        self.metrics_text.view(),
+                        self.progress.view(),
+                        ControlsView,
+                    );
+
+                    view.render(&mut frame, size);
+                }
+            };
+        })?;
+
+        Ok(())
+    }
+
+    fn handle_events(&mut self) -> Result<(), Box<dyn Error>> {
+        while crossterm::event::poll(Duration::from_secs(0))? {
+            let event = event::read()?;
+            self.metrics_numeric.on_event(&event);
+            self.popup.on_event(&event);
+
+            if let Event::Key(key) = event {
+                if let KeyCode::Char('k') = key.code {
+                    self.popup = PopupState::Callback(
+                        "Kill".to_string(),
+                        vec![
+                            Callback::new(
+                                "Confirm",
+                                "Stop the training immediately. This will cause a panic and the program will terminate.",
+                                'y',
+                                KillPopupAccept,
+                            ),
+                            Callback::new("Cancel", "Continue the training.", 'n', PopupCancel),
+                        ],
+                    );
+                }
+
+                if let KeyCode::Char('q') = key.code {
+                    self.popup = PopupState::Callback(
+                        "Quit".to_string(),
+                        vec![
+                            Callback::new(
+                                "Confirm",
+                                "Stop the training immediately. This will stop from the training loop, but any remaining code after the loop will be executed.",
+                                'y',
+                                QuitPopupAccept(self.interuptor.clone()),
+                            ),
+                            Callback::new("Cancel", "Continue the training.", 'n', PopupCancel),
+                        ],
+                    );
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
+struct QuitPopupAccept(TrainingInterrupter);
+struct KillPopupAccept;
+struct PopupCancel;
+
+impl PopupCallback for KillPopupAccept {
+    fn call(&self) -> bool {
+        panic!("Killing training from user input.");
+    }
+}
+
+impl PopupCallback for QuitPopupAccept {
+    fn call(&self) -> bool {
+        self.0.stop();
+        true
+    }
+}
+
+impl PopupCallback for PopupCancel {
+    fn call(&self) -> bool {
+        true
+    }
 }
 
 impl Drop for TuiDashboardRenderer {
     fn drop(&mut self) {
-        disable_raw_mode().unwrap();
-        execute!(self.terminal.backend_mut(), LeaveAlternateScreen,).unwrap();
-        self.terminal.show_cursor().unwrap();
+        disable_raw_mode().ok();
+        execute!(self.terminal.backend_mut(), LeaveAlternateScreen).unwrap();
+        self.terminal.show_cursor().ok();
     }
 }

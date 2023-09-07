@@ -1,6 +1,6 @@
 use crossterm::event::{Event, KeyCode};
 use ratatui::{
-    prelude::{Constraint, Direction, Layout, Rect},
+    prelude::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style, Stylize},
     symbols,
     text::Line,
@@ -40,7 +40,10 @@ impl NumericMetricsState {
     }
 
     pub(crate) fn view<'a>(&'a self) -> NumericMetricView<'a> {
-        NumericMetricView::new(&self.names, self.selected, self.chart())
+        match self.names.is_empty() {
+            true => NumericMetricView::None,
+            false => NumericMetricView::Plots(&self.names, self.selected, self.chart()),
+        }
     }
 
     pub(crate) fn on_event(&mut self, event: &Event) {
@@ -94,43 +97,49 @@ impl NumericMetricsState {
 }
 
 #[derive(new)]
-pub(crate) struct NumericMetricView<'a> {
-    titles: &'a [String],
-    selected: usize,
-    chart: Chart<'a>,
+pub(crate) enum NumericMetricView<'a> {
+    Plots(&'a [String], usize, Chart<'a>),
+    None,
 }
 
 impl<'a> NumericMetricView<'a> {
     pub(crate) fn render<'b>(self, frame: &mut TFrame<'b>, size: Rect) {
-        let block = Block::default().borders(Borders::ALL).title("Plots");
-        let size_new = block.inner(size);
-        frame.render_widget(block, size);
+        match self {
+            Self::Plots(titles, selected, chart) => {
+                let block = Block::default()
+                    .borders(Borders::ALL)
+                    .title("Plots")
+                    .title_alignment(Alignment::Center);
+                let size_new = block.inner(size);
+                frame.render_widget(block, size);
 
-        let size = size_new;
+                let size = size_new;
 
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([Constraint::Length(3), Constraint::Min(0)].as_ref())
-            .split(size);
+                let chunks = Layout::default()
+                    .direction(Direction::Vertical)
+                    .constraints([Constraint::Length(3), Constraint::Min(0)].as_ref())
+                    .split(size);
 
-        let titles = self
-            .titles
-            .iter()
-            .map(|i| Line::from(vec![i.yellow()]))
-            .collect();
+                let titles = titles
+                    .iter()
+                    .map(|i| Line::from(vec![i.yellow()]))
+                    .collect();
 
-        let tabs = Tabs::new(titles)
-            .block(Block::default())
-            .select(self.selected)
-            .style(Style::default())
-            .highlight_style(
-                Style::default()
-                    .add_modifier(Modifier::BOLD)
-                    .bg(Color::Black),
-            );
+                let tabs = Tabs::new(titles)
+                    .block(Block::default())
+                    .select(selected)
+                    .style(Style::default())
+                    .highlight_style(
+                        Style::default()
+                            .add_modifier(Modifier::BOLD)
+                            .bg(Color::Black),
+                    );
 
-        frame.render_widget(tabs, chunks[0]);
-        frame.render_widget(self.chart, chunks[1]);
+                frame.render_widget(tabs, chunks[0]);
+                frame.render_widget(chart, chunks[1]);
+            }
+            Self::None => {}
+        };
     }
 }
 

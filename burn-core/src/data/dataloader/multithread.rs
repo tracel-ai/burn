@@ -62,11 +62,13 @@ where
                     let mut iterator = dataloader_cloned.iter();
                     while let Some(item) = iterator.next() {
                         let progress = iterator.progress();
-                        sender_cloned
-                            .send(Message::Batch(index, item, progress))
-                            .unwrap();
+
+                        match sender_cloned.send(Message::Batch(index, item, progress)) {
+                            Ok(_) => {}
+                            Err(_) => return,
+                        };
                     }
-                    sender_cloned.send(Message::Done).unwrap();
+                    sender_cloned.send(Message::Done).ok();
                 })
             })
             .collect();
