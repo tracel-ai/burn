@@ -22,7 +22,7 @@ train = ["burn-train/default", "autodiff", "dataset"]
 train-minimal = ["burn-train"]
 
 ## Includes the Text UI (progress bars, metric plots)
-train-ui = ["burn-train/ui"]
+train-tui = ["burn-train/tui"]
 
 ##  Includes system info metrics (CPU/GPU usage, etc)
 train-metrics = ["burn-train/metrics"]

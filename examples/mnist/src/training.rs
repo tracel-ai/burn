@@ -5,12 +5,13 @@ use burn::module::Module;
 use burn::optim::decay::WeightDecayConfig;
 use burn::optim::AdamConfig;
 use burn::record::{CompactRecorder, NoStdTrainingRecorder};
+use burn::train::metric::CUDAMetric;
 use burn::{
     config::Config,
     data::{dataloader::DataLoaderBuilder, dataset::source::huggingface::MNISTDataset},
     tensor::backend::ADBackend,
     train::{
-        metric::{AccuracyMetric, LossMetric},
+        metric::{AccuracyMetric, CpuUse, LossMetric},
         LearnerBuilder,
     },
 };
@@ -61,6 +62,10 @@ pub fn run<B: ADBackend>(device: B::Device) {
         .metric_valid_plot(AccuracyMetric::new())
         .metric_train_plot(LossMetric::new())
         .metric_valid_plot(LossMetric::new())
+        .metric_train(CpuUse::new())
+        .metric_valid(CpuUse::new())
+        .metric_train(CUDAMetric::new())
+        .metric_valid(CUDAMetric::new())
         .with_file_checkpointer(1, CompactRecorder::new())
         .devices(vec![device])
         .num_epochs(config.num_epochs)

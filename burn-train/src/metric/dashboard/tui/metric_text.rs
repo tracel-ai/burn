@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use super::TFrame;
 use crate::metric::MetricEntry;
 use ratatui::{
@@ -8,6 +6,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Wrap},
 };
+use std::collections::HashMap;
 
 pub(crate) struct TextMetricsState {
     data: HashMap<String, MetricData>,
@@ -100,7 +99,7 @@ impl TextMetricView {
         let paragraph = Paragraph::new(
             self.lines
                 .into_iter()
-                .map(|span| Line::from(span))
+                .map(|spans| Line::from(spans))
                 .collect::<Vec<_>>(),
         )
         .alignment(Alignment::Left)

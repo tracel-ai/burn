@@ -76,20 +76,17 @@ impl NumericMetricsState {
         let data = self.data.get(name).unwrap();
 
         Chart::<'a>::new(data.to_datasets())
-            .block(
-                Block::default()
-                    .title(name.cyan().bold())
-                    .borders(Borders::ALL),
-            )
+            .block(Block::default())
             .x_axis(
                 Axis::default()
-                    .style(Style::default().fg(Color::Gray))
+                    .style(Style::default().fg(Color::DarkGray))
+                    .title("Iteration")
                     .labels(data.labels_x.iter().map(|s| s.bold()).collect())
                     .bounds(data.bounds_x),
             )
             .y_axis(
                 Axis::default()
-                    .style(Style::default().fg(Color::Gray))
+                    .style(Style::default().fg(Color::DarkGray))
                     .labels(data.labels_y.iter().map(|s| s.bold()).collect())
                     .bounds(data.bounds_y),
             )
@@ -105,6 +102,12 @@ pub(crate) struct NumericMetricView<'a> {
 
 impl<'a> NumericMetricView<'a> {
     pub(crate) fn render<'b>(self, frame: &mut TFrame<'b>, size: Rect) {
+        let block = Block::default().borders(Borders::ALL).title("Plots");
+        let size_new = block.inner(size);
+        frame.render_widget(block, size);
+
+        let size = size_new;
+
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Length(3), Constraint::Min(0)].as_ref())
@@ -117,7 +120,7 @@ impl<'a> NumericMetricView<'a> {
             .collect();
 
         let tabs = Tabs::new(titles)
-            .block(Block::default().borders(Borders::ALL).title("Tabs"))
+            .block(Block::default())
             .select(self.selected)
             .style(Style::default())
             .highlight_style(
@@ -255,7 +258,7 @@ impl ChartData {
                 Dataset::default()
                     .name("Train")
                     .marker(symbols::Marker::Dot)
-                    .style(Style::default().fg(Color::Red).bold())
+                    .style(Style::default().fg(Color::LightRed).bold())
                     .graph_type(GraphType::Scatter)
                     .data(&self.train),
             );
@@ -266,7 +269,7 @@ impl ChartData {
                 Dataset::default()
                     .name("Valid")
                     .marker(symbols::Marker::Dot)
-                    .style(Style::default().fg(Color::Green).bold())
+                    .style(Style::default().fg(Color::LightBlue).bold())
                     .graph_type(GraphType::Scatter)
                     .data(&self.valid),
             );

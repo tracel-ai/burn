@@ -260,7 +260,7 @@ where
         }
         let renderer = self
             .renderer
-            .unwrap_or_else(|| Box::new(SelectedDashboardRenderer::new()));
+            .unwrap_or_else(|| Box::new(SelectedDashboardRenderer::new(self.interrupter.clone())));
         let directory = &self.directory;
         let logger_train = self.metric_logger_train.unwrap_or_else(|| {
             Box::new(FileMetricLogger::new(format!("{directory}/train").as_str()))

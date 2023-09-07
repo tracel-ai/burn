@@ -1,5 +1,6 @@
 use crate::metric::dashboard::tui::NumericMetricsState;
 use crate::metric::dashboard::{DashboardMetricState, DashboardRenderer, TrainingProgress};
+use crate::TrainingInterrupter;
 use crossterm::{
     event::{self, Event, KeyCode},
     execute,
@@ -12,7 +13,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use super::{DashboardView, ProgressState, TextMetricsState};
+use super::{ControlsView, DashboardView, ProgressState, TextMetricsState};
 
 pub(crate) type TBackend = CrosstermBackend<Stdout>;
 pub(crate) type TFrame<'a> = ratatui::Frame<'a, TBackend>;
@@ -26,6 +27,7 @@ pub struct TuiDashboardRenderer {
     progress: ProgressState,
     metrics_numeric: NumericMetricsState,
     metrics_text: TextMetricsState,
+    interuptor: TrainingInterrupter,
 }
 
 impl DashboardRenderer for TuiDashboardRenderer {
@@ -66,7 +68,7 @@ impl DashboardRenderer for TuiDashboardRenderer {
 
 impl TuiDashboardRenderer {
     /// Create a new CLI dashboard renderer.
-    pub fn new() -> Self {
+    pub fn new(interuptor: TrainingInterrupter) -> Self {
         let mut stdout = io::stdout();
         execute!(stdout, EnterAlternateScreen).unwrap();
         enable_raw_mode().unwrap();
@@ -78,6 +80,7 @@ impl TuiDashboardRenderer {
             progress: ProgressState::default(),
             metrics_numeric: NumericMetricsState::default(),
             metrics_text: TextMetricsState::default(),
+            interuptor,
         }
     }
 
@@ -93,6 +96,7 @@ impl TuiDashboardRenderer {
                 self.metrics_numeric.view(),
                 self.metrics_text.view(),
                 self.progress.view(),
+                ControlsView,
             );
 
             view.render(&mut frame, size);
@@ -104,8 +108,7 @@ impl TuiDashboardRenderer {
 
             if let Event::Key(key) = event {
                 if let KeyCode::Char('q') = key.code {
-                    self.cleanup();
-                    panic!("Stopping training");
+                    self.interuptor.stop();
                 }
             }
         }
@@ -114,23 +117,12 @@ impl TuiDashboardRenderer {
 
         Ok(())
     }
-
-    fn cleanup(&mut self) {
-        // restore terminal
-        disable_raw_mode().unwrap();
-        execute!(self.terminal.backend_mut(), LeaveAlternateScreen,).unwrap();
-        self.terminal.show_cursor().unwrap();
-    }
 }
 
 impl Drop for TuiDashboardRenderer {
     fn drop(&mut self) {
-        self.cleanup()
-    }
-}
-
-impl Default for TuiDashboardRenderer {
-    fn default() -> Self {
-        TuiDashboardRenderer::new()
+        disable_raw_mode().unwrap();
+        execute!(self.terminal.backend_mut(), LeaveAlternateScreen,).unwrap();
+        self.terminal.show_cursor().unwrap();
     }
 }
