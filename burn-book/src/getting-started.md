@@ -20,27 +20,19 @@ Cargo, which was installed with Rust. In the directory of your choice, run
 cargo new my_burn_app
 ```
 
-This will create the `my_burn_app` project directory. Head inside and open the `Cargo.toml` file. It
-should contain something like:
+This will create the `my_burn_app` project directory. Head inside with 
 
-```toml
-[package]
-name = "my_burn_app"
-version = "0.1.0"
-edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
+```console
+cd my_burn_app
 ```
 
-Under dependencies, add
+then add the dependency with
 
-```toml
-burn = { version = "0.9.0", features = ["wgpu"] }
+```console
+cargo add burn --features wgpu
 ```
 
-Then, to compile the dependencies, execute
+and compile it by executing
 
 ```console
 cargo build
