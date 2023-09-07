@@ -19,6 +19,23 @@ mod tests {
     }
 
     #[test]
+    fn test_arange_step_device() {
+        let device = Tensor::<TestBackend, 1>::from_data(Data::from([0.0])).device();
+
+        // Test correct sequence of numbers when the range is 0..9 and the step is 1
+        let tensor = Tensor::<TestBackend, 1, Int>::arange_step_device(0..9, 1, &device);
+        assert_eq!(tensor.into_data(), Data::from([0, 1, 2, 3, 4, 5, 6, 7, 8]));
+
+        // Test correct sequence of numbers when the range is 0..3 and the step is 2
+        let tensor = Tensor::<TestBackend, 1, Int>::arange_step_device(0..3, 2, &device);
+        assert_eq!(tensor.into_data(), Data::from([0, 2]));
+
+        // Test correct sequence of numbers when the range is 0..2 and the step is 5
+        let tensor = Tensor::<TestBackend, 1, Int>::arange_step_device(0..2, 5, &device);
+        assert_eq!(tensor.into_data(), Data::from([0]));
+    }
+
+    #[test]
     #[should_panic]
     fn test_arange_step_panic() {
         // Test that arange_step panics when the step is 0
