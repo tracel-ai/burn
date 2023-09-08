@@ -12,14 +12,19 @@ impl ControlsView {
     pub(crate) fn render<'b>(self, frame: &mut TFrame<'b>, size: Rect) {
         let lines = vec![
             vec![
-                Span::from(" Quit  : ").yellow().bold(),
+                Span::from(" Quit          : ").yellow().bold(),
                 Span::from("q  ").bold(),
                 Span::from("  Stop the training").italic(),
             ],
             vec![
-                Span::from(" Plots : ").yellow().bold(),
+                Span::from(" Plots Metrics : ").yellow().bold(),
                 Span::from("⬅ ➡").bold(),
-                Span::from("  Switch between plots").italic(),
+                Span::from("  Switch between metric").italic(),
+            ],
+            vec![
+                Span::from(" Plots Type    : ").yellow().bold(),
+                Span::from("⬆ ⬇").bold(),
+                Span::from("  Switch between plot type").italic(),
             ],
         ];
         let paragraph = Paragraph::new(

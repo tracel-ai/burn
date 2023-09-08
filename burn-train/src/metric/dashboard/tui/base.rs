@@ -28,7 +28,7 @@ impl<'a> DashboardView<'a> {
 
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Max(4), Constraint::Min(6), Constraint::Max(6)].as_ref())
+            .constraints([Constraint::Max(5), Constraint::Min(6), Constraint::Max(6)].as_ref())
             .split(size_other);
         let size_controls = chunks[0];
         let size_metric_text = chunks[1];
