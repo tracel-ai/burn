@@ -37,6 +37,7 @@ pub mod record;
 pub mod tensor;
 
 /// Autodiff module.
+#[cfg_attr(docsrs, doc(cfg(feature = "autodiff")))]
 #[cfg(feature = "autodiff")]
 pub use burn_autodiff as autodiff;
 
