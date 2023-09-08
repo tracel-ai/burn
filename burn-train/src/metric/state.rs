@@ -70,20 +70,10 @@ impl NumericMetricState {
         let serialized = value_current.to_string();
 
         let (formatted_current, formatted_running) = match format.precision {
-            Some(precision) => {
-                let scientific_notation_threshold = 0.1_f64.powf(precision as f64 - 1.0);
-
-                (
-                    match scientific_notation_threshold >= value_current {
-                        true => format!("{value_current:.precision$e}"),
-                        false => format!("{value_current:.precision$}"),
-                    },
-                    match scientific_notation_threshold >= value_running {
-                        true => format!("{value_running:.precision$e}"),
-                        false => format!("{value_running:.precision$}"),
-                    },
-                )
-            }
+            Some(precision) => (
+                format_number(value_current, precision),
+                format_number(value_running, precision),
+            ),
             None => (format!("{value_current}"), format!("{value_running}")),
         };
 
@@ -95,6 +85,15 @@ impl NumericMetricState {
         };
 
         MetricEntry::new(format.name, formatted, serialized)
+    }
+}
+
+pub fn format_number(number: f64, precision: usize) -> String {
+    let scientific_notation_threshold = 0.1_f64.powf(precision as f64 - 1.0);
+
+    match scientific_notation_threshold >= number {
+        true => format!("{number:.precision$e}"),
+        false => format!("{number:.precision$}"),
     }
 }
 
