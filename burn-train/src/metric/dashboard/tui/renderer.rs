@@ -14,7 +14,7 @@ use std::{
 };
 
 use super::{
-    Callback, ControlsView, DashboardView, PopupCallback, PopupState, ProgressState,
+    Callback, ControlsView, DashboardView, PopupCallback, PopupState, ProgressState, StatusState,
     TextMetricsState,
 };
 
@@ -30,6 +30,7 @@ pub struct TuiDashboardRenderer {
     progress: ProgressState,
     metrics_numeric: NumericMetricsState,
     metrics_text: TextMetricsState,
+    status: StatusState,
     interuptor: TrainingInterrupter,
     popup: PopupState,
 }
@@ -60,12 +61,14 @@ impl DashboardRenderer for TuiDashboardRenderer {
     }
 
     fn render_train(&mut self, item: TrainingProgress) {
-        self.progress.update_train(item);
+        self.progress.update_train(&item);
+        self.status.update_train(item);
         self.render().unwrap();
     }
 
     fn render_valid(&mut self, item: TrainingProgress) {
-        self.progress.update_valid(item);
+        self.progress.update_valid(&item);
+        self.status.update_valid(item);
         self.render().unwrap();
     }
 }
@@ -84,6 +87,7 @@ impl TuiDashboardRenderer {
             progress: ProgressState::default(),
             metrics_numeric: NumericMetricsState::default(),
             metrics_text: TextMetricsState::default(),
+            status: StatusState::default(),
             interuptor,
             popup: PopupState::None,
         }
@@ -114,6 +118,7 @@ impl TuiDashboardRenderer {
                         self.metrics_text.view(),
                         self.progress.view(),
                         ControlsView,
+                        self.status.view(),
                     );
 
                     view.render(&mut frame, size);
@@ -131,32 +136,23 @@ impl TuiDashboardRenderer {
             self.popup.on_event(&event);
 
             if let Event::Key(key) = event {
-                if let KeyCode::Char('k') = key.code {
-                    self.popup = PopupState::Callback(
-                        "Kill".to_string(),
-                        vec![
-                            Callback::new(
-                                "Confirm",
-                                "Stop the training immediately. This will cause a panic and the program will terminate.",
-                                'y',
-                                KillPopupAccept,
-                            ),
-                            Callback::new("Cancel", "Continue the training.", 'n', PopupCancel),
-                        ],
-                    );
-                }
-
                 if let KeyCode::Char('q') = key.code {
                     self.popup = PopupState::Callback(
                         "Quit".to_string(),
                         vec![
                             Callback::new(
-                                "Confirm",
-                                "Stop the training immediately. This will stop from the training loop, but any remaining code after the loop will be executed.",
-                                'y',
+                                "Stop the training",
+                                "Stop the training immediately. This will break from the training loop, but any remaining code after the loop will be executed.",
+                                's',
                                 QuitPopupAccept(self.interuptor.clone()),
                             ),
-                            Callback::new("Cancel", "Continue the training.", 'n', PopupCancel),
+                            Callback::new(
+                                "Kill the program.",
+                                "Stop the training immediately. This will stop from the training loop, but any remaining code after the loop will be executed.",
+                                'k',
+                                KillPopupAccept,
+                            ),
+                            Callback::new("Cancel", "Continue the training.", 'c', PopupCancel),
                         ],
                     );
                 }

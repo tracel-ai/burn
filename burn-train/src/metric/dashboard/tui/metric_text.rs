@@ -2,7 +2,7 @@ use super::TFrame;
 use crate::metric::MetricEntry;
 use ratatui::{
     prelude::{Alignment, Rect},
-    style::{Color, Modifier, Style, Stylize},
+    style::{Color, Style, Stylize},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Wrap},
 };
@@ -63,6 +63,7 @@ pub(crate) struct TextMetricView {
 impl TextMetricView {
     fn new(names: &[String], data: &HashMap<String, MetricData>) -> Self {
         let mut lines = Vec::with_capacity(names.len() * 4);
+
         let start_line = |title: &str| vec![Span::from(format!(" {title} ")).bold().yellow()];
         let train_line = |formatted: &str| {
             vec![
@@ -95,6 +96,7 @@ impl TextMetricView {
 
         Self { lines }
     }
+
     pub(crate) fn render<'b>(self, frame: &mut TFrame<'b>, size: Rect) {
         let paragraph = Paragraph::new(
             self.lines
@@ -104,17 +106,8 @@ impl TextMetricView {
         )
         .alignment(Alignment::Left)
         .wrap(Wrap { trim: false })
-        .style(Style::default().fg(Color::Gray))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title_alignment(Alignment::Center)
-                .style(Style::default().fg(Color::Gray))
-                .title(Span::styled(
-                    "Summary",
-                    Style::default().add_modifier(Modifier::BOLD),
-                )),
-        );
+        .block(Block::default().borders(Borders::ALL).title("Metrics"))
+        .style(Style::default().fg(Color::Gray));
 
         frame.render_widget(paragraph, size);
     }

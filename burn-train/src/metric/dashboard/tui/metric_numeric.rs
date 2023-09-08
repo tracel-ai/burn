@@ -4,7 +4,7 @@ use ratatui::{
     prelude::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style, Stylize},
     text::Line,
-    widgets::{Axis, Block, Borders, Chart, Tabs},
+    widgets::{Axis, Block, Borders, Chart, Paragraph, Tabs},
 };
 use std::collections::HashMap;
 
@@ -76,22 +76,22 @@ impl NumericMetricsState {
 
     fn chart<'a>(&'a self) -> Chart<'a> {
         let name = self.names.get(self.selected).unwrap();
-        let data = self.data.get(name).unwrap();
+        let plot = self.data.get(name).unwrap();
 
-        Chart::<'a>::new(data.datasets())
+        Chart::<'a>::new(plot.datasets())
             .block(Block::default())
             .x_axis(
                 Axis::default()
                     .style(Style::default().fg(Color::DarkGray))
                     .title("Iteration")
-                    .labels(data.labels_x.iter().map(|s| s.bold()).collect())
-                    .bounds(data.bounds_x),
+                    .labels(plot.labels_x.iter().map(|s| s.bold()).collect())
+                    .bounds(plot.bounds_x),
             )
             .y_axis(
                 Axis::default()
                     .style(Style::default().fg(Color::DarkGray))
-                    .labels(data.labels_y.iter().map(|s| s.bold()).collect())
-                    .bounds(data.bounds_y),
+                    .labels(plot.labels_y.iter().map(|s| s.bold()).collect())
+                    .bounds(plot.bounds_y),
             )
     }
 }
@@ -109,7 +109,7 @@ impl<'a> NumericMetricView<'a> {
                 let block = Block::default()
                     .borders(Borders::ALL)
                     .title("Plots")
-                    .title_alignment(Alignment::Center);
+                    .title_alignment(Alignment::Left);
                 let size_new = block.inner(size);
                 frame.render_widget(block, size);
 
@@ -117,7 +117,14 @@ impl<'a> NumericMetricView<'a> {
 
                 let chunks = Layout::default()
                     .direction(Direction::Vertical)
-                    .constraints([Constraint::Length(3), Constraint::Min(0)].as_ref())
+                    .constraints(
+                        [
+                            Constraint::Length(2),
+                            Constraint::Length(1),
+                            Constraint::Min(0),
+                        ]
+                        .as_ref(),
+                    )
                     .split(size);
 
                 let titles = titles
@@ -126,17 +133,20 @@ impl<'a> NumericMetricView<'a> {
                     .collect();
 
                 let tabs = Tabs::new(titles)
-                    .block(Block::default())
                     .select(selected)
                     .style(Style::default())
                     .highlight_style(
                         Style::default()
                             .add_modifier(Modifier::BOLD)
-                            .bg(Color::Black),
+                            .add_modifier(Modifier::UNDERLINED)
+                            .fg(Color::LightYellow),
                     );
+                let plot_type = Paragraph::new(Line::from("Recent History".bold()))
+                    .alignment(Alignment::Center);
 
                 frame.render_widget(tabs, chunks[0]);
-                frame.render_widget(chart, chunks[1]);
+                frame.render_widget(plot_type, chunks[1]);
+                frame.render_widget(chart, chunks[2]);
             }
             Self::None => {}
         };

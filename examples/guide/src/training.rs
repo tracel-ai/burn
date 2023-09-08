@@ -4,7 +4,7 @@ use crate::{
 };
 use burn::data::dataset::source::huggingface::MNISTDataset;
 use burn::train::{
-    metric::{AccuracyMetric, LossMetric},
+    metric::{AccuracyMetric, CUDAMetric, LossMetric},
     ClassificationOutput, LearnerBuilder, TrainOutput, TrainStep, ValidStep,
 };
 use burn::{
@@ -92,6 +92,8 @@ pub fn train<B: ADBackend>(artifact_dir: &str, config: TrainingConfig, device: B
         .metric_valid_plot(AccuracyMetric::new())
         .metric_train_plot(LossMetric::new())
         .metric_valid_plot(LossMetric::new())
+        .metric_train(CUDAMetric::new())
+        .metric_valid(CUDAMetric::new())
         .with_file_checkpointer(1, CompactRecorder::new())
         .devices(vec![device])
         .num_epochs(config.num_epochs)

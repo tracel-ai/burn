@@ -1,9 +1,13 @@
-use crate::metric::state::format_number;
 use ratatui::{
     style::{Color, Style, Stylize},
     symbols,
     widgets::{Dataset, GraphType},
 };
+
+use crate::metric::format_float;
+
+static FACTOR_BEFORE_RESIZE: usize = 2;
+static AXIS_TITLE_PRECISION: usize = 2;
 
 pub(crate) struct RecentHistoryPlot {
     pub(crate) labels_x: Vec<String>,
@@ -26,9 +30,84 @@ struct RecentHistoryPoints {
     factor_before_resize: usize,
 }
 
-impl RecentHistoryPoints {
+impl RecentHistoryPlot {
     pub(crate) fn new(max_samples: usize) -> Self {
-        let factor_before_resize = 2;
+        Self {
+            bounds_x: [f64::MAX, f64::MIN],
+            bounds_y: [f64::MAX, f64::MIN],
+            labels_x: Vec::new(),
+            labels_y: Vec::new(),
+            train: RecentHistoryPoints::new(max_samples),
+            valid: RecentHistoryPoints::new(max_samples),
+            max_samples,
+        }
+    }
+
+    pub(crate) fn push_train(&mut self, data: f64) {
+        let (x_min, x_current) = self.x();
+
+        self.train.push((x_current, data));
+        self.train.update_cursor(x_min);
+        self.valid.update_cursor(x_min);
+
+        self.update_bounds();
+    }
+
+    pub(crate) fn push_valid(&mut self, data: f64) {
+        let (x_min, x_current) = self.x();
+
+        self.valid.push((x_current, data));
+        self.valid.update_cursor(x_min);
+        self.train.update_cursor(x_min);
+
+        self.update_bounds();
+    }
+
+    pub(crate) fn datasets<'a>(&'a self) -> Vec<Dataset<'a>> {
+        let mut datasets = Vec::with_capacity(2);
+
+        if self.train.num_visible_points() > 0 {
+            datasets.push(self.train.dataset("Train", Color::LightRed));
+        }
+
+        if self.valid.num_visible_points() > 0 {
+            datasets.push(self.valid.dataset("Valid", Color::LightBlue));
+        }
+
+        datasets
+    }
+
+    fn x(&mut self) -> (f64, f64) {
+        let x_current = f64::max(self.train.max_x, self.valid.max_x) + 1.0;
+        let mut x_min = f64::min(self.train.min_x, self.valid.min_x);
+        if x_current - x_min >= self.max_samples as f64 {
+            x_min += 1.0;
+        }
+
+        (x_min, x_current)
+    }
+
+    fn update_bounds(&mut self) {
+        let x_min = f64::min(self.train.min_x, self.valid.min_x);
+        let x_max = f64::max(self.train.max_x, self.valid.max_x);
+        let y_min = f64::min(self.train.min_y, self.valid.min_y);
+        let y_max = f64::max(self.train.max_y, self.valid.max_y);
+
+        self.bounds_x = [x_min, x_max];
+        self.bounds_y = [y_min, y_max];
+
+        // We know x are integers.
+        self.labels_x = vec![format!("{x_min}"), format!("{x_max}")];
+        self.labels_y = vec![
+            format_float(y_min, AXIS_TITLE_PRECISION),
+            format_float(y_max, AXIS_TITLE_PRECISION),
+        ];
+    }
+}
+
+impl RecentHistoryPoints {
+    fn new(max_samples: usize) -> Self {
+        let factor_before_resize = FACTOR_BEFORE_RESIZE;
 
         Self {
             min_x: 0.,
@@ -147,78 +226,6 @@ impl RecentHistoryPoints {
             .style(Style::default().fg(color).bold())
             .graph_type(GraphType::Scatter)
             .data(data)
-    }
-}
-
-impl RecentHistoryPlot {
-    pub(crate) fn new(max_samples: usize) -> Self {
-        Self {
-            bounds_x: [f64::MAX, f64::MIN],
-            bounds_y: [f64::MAX, f64::MIN],
-            labels_x: Vec::new(),
-            labels_y: Vec::new(),
-            train: RecentHistoryPoints::new(max_samples),
-            valid: RecentHistoryPoints::new(max_samples),
-            max_samples,
-        }
-    }
-
-    pub(crate) fn push_train(&mut self, data: f64) {
-        let (x_min, x_current) = self.x();
-
-        self.train.push((x_current, data));
-        self.train.update_cursor(x_min);
-        self.valid.update_cursor(x_min);
-
-        self.update_bounds();
-    }
-
-    pub(crate) fn push_valid(&mut self, data: f64) {
-        let (x_min, x_current) = self.x();
-
-        self.valid.push((x_current, data));
-        self.valid.update_cursor(x_min);
-        self.train.update_cursor(x_min);
-
-        self.update_bounds();
-    }
-
-    pub(crate) fn datasets<'a>(&'a self) -> Vec<Dataset<'a>> {
-        let mut datasets = Vec::with_capacity(2);
-
-        if self.train.num_visible_points() > 0 {
-            datasets.push(self.train.dataset("Train", Color::LightRed));
-        }
-
-        if self.valid.num_visible_points() > 0 {
-            datasets.push(self.valid.dataset("Valid", Color::LightBlue));
-        }
-
-        datasets
-    }
-
-    fn x(&mut self) -> (f64, f64) {
-        let x_current = f64::max(self.train.max_x, self.valid.max_x) + 1.0;
-        let mut x_min = f64::min(self.train.min_x, self.valid.min_x);
-        if x_current - x_min >= self.max_samples as f64 {
-            x_min += 1.0;
-        }
-
-        (x_min, x_current)
-    }
-
-    fn update_bounds(&mut self) {
-        let x_min = f64::min(self.train.min_x, self.valid.min_x);
-        let x_max = f64::max(self.train.max_x, self.valid.max_x);
-        let y_min = f64::min(self.train.min_y, self.valid.min_y);
-        let y_max = f64::max(self.train.max_y, self.valid.max_y);
-
-        self.bounds_x = [x_min, x_max];
-        self.bounds_y = [y_min, y_max];
-
-        // We know x are integers.
-        self.labels_x = vec![format!("{x_min}"), format!("{x_max}")];
-        self.labels_y = vec![format_number(y_min, 3), format_number(y_max, 3)];
     }
 }
 

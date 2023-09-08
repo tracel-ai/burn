@@ -1,7 +1,7 @@
 use super::TFrame;
 use ratatui::{
     prelude::{Alignment, Rect},
-    style::{Color, Modifier, Style, Stylize},
+    style::{Color, Style, Stylize},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Wrap},
 };
@@ -14,12 +14,7 @@ impl ControlsView {
             vec![
                 Span::from(" Quit  : ").yellow().bold(),
                 Span::from("q  ").bold(),
-                Span::from("  Stop the training gracefully").italic(),
-            ],
-            vec![
-                Span::from(" Kill  : ").yellow().bold(),
-                Span::from("k  ").bold(),
-                Span::from("  Terminate the training").italic(),
+                Span::from("  Stop the training").italic(),
             ],
             vec![
                 Span::from(" Plots : ").yellow().bold(),
@@ -38,13 +33,10 @@ impl ControlsView {
         .style(Style::default().fg(Color::Gray))
         .block(
             Block::default()
-                .title_alignment(Alignment::Center)
                 .borders(Borders::ALL)
                 .style(Style::default().fg(Color::Gray))
-                .title(Span::styled(
-                    "Controls",
-                    Style::default().add_modifier(Modifier::BOLD),
-                )),
+                .title_alignment(Alignment::Left)
+                .title("Controls"),
         );
 
         frame.render_widget(paragraph, size);
