@@ -234,7 +234,7 @@ fn std_checks() {
     println!("Running std checks");
 
     // Build each workspace
-    cargo_build(&["--workspace"]);
+    cargo_build(&["--workspace", "--exclude=xtask"]);
 
     // Test each workspace
     cargo_test(&["--workspace"]);
