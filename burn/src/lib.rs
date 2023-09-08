@@ -10,7 +10,7 @@
 pub use burn_core::*;
 
 /// Train module
-#[cfg(feature = "train")]
+#[cfg(any(feature = "train", feature = "train-minimal"))]
 pub mod train {
     pub use burn_train::*;
 }
