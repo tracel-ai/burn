@@ -62,12 +62,14 @@ impl DashboardRenderer for TuiDashboardRenderer {
 
     fn render_train(&mut self, item: TrainingProgress) {
         self.progress.update_train(&item);
+        self.metrics_numeric.update_progress_train(&item);
         self.status.update_train(item);
         self.render().unwrap();
     }
 
     fn render_valid(&mut self, item: TrainingProgress) {
         self.progress.update_valid(&item);
+        self.metrics_numeric.update_progress_valid(&item);
         self.status.update_valid(item);
         self.render().unwrap();
     }

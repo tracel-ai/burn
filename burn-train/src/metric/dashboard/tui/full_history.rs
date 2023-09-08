@@ -6,7 +6,6 @@ use ratatui::{
 
 use crate::metric::format_float;
 
-static FACTOR_BEFORE_RESIZE: usize = 2;
 static AXIS_TITLE_PRECISION: usize = 2;
 
 pub(crate) struct FullHistoryPlot {
@@ -16,6 +15,7 @@ pub(crate) struct FullHistoryPlot {
     pub(crate) bounds_y: [f64; 2],
     train: FullHistoryPoints,
     valid: FullHistoryPoints,
+    iteration: usize,
 }
 
 struct FullHistoryPoints {
@@ -25,7 +25,7 @@ struct FullHistoryPoints {
     max_y: f64,
     points: Vec<(f64, f64)>,
     max_samples: usize,
-    factor_resize: usize,
+    factor: usize,
 }
 
 impl FullHistoryPlot {
@@ -37,6 +37,13 @@ impl FullHistoryPlot {
             labels_y: Vec::new(),
             train: FullHistoryPoints::new(max_samples),
             valid: FullHistoryPoints::new(max_samples),
+            iteration: 0,
+        }
+    }
+
+    pub(crate) fn update_max_sample_valid(&mut self, max_samples: usize) {
+        if self.valid.factor == 1 {
+            self.valid.max_samples = max_samples;
         }
     }
 
@@ -68,8 +75,11 @@ impl FullHistoryPlot {
 
         datasets
     }
+
     fn x(&mut self) -> f64 {
-        f64::max(self.train.max_x, self.valid.max_x) + 1.0
+        let current = self.iteration;
+        self.iteration += 1;
+        current as f64
     }
 
     fn update_bounds(&mut self) {
@@ -99,11 +109,15 @@ impl FullHistoryPoints {
             max_y: f64::MIN,
             points: Vec::with_capacity(max_samples),
             max_samples,
-            factor_resize: FACTOR_BEFORE_RESIZE,
+            factor: 1,
         }
     }
 
     fn push(&mut self, (x, y): (f64, f64)) {
+        if x as usize % self.factor != 0 {
+            return;
+        }
+
         if x > self.max_x {
             self.max_x = x;
         }
@@ -116,6 +130,7 @@ impl FullHistoryPoints {
         if y < self.min_y {
             self.min_y = y
         }
+
         self.points.push((x, y));
 
         if self.points.len() > self.max_samples {
@@ -124,40 +139,34 @@ impl FullHistoryPoints {
     }
 
     fn resize(&mut self) {
-        let mut points = Vec::with_capacity(self.max_samples / self.factor_resize);
-        let mut current_x = 0.;
-        let mut current_y = 0.;
+        let mut points = Vec::with_capacity(self.max_samples / 2);
         let mut max_x = f64::MIN;
         let mut max_y = f64::MIN;
         let mut min_x = f64::MAX;
         let mut min_y = f64::MAX;
 
         for (i, (x, y)) in self.points.drain(0..self.points.len()).enumerate() {
-            current_x += x;
-            current_y += y;
+            if i % 2 == 0 {
+                if x > max_x {
+                    max_x = x;
+                }
+                if x < min_x {
+                    min_x = x;
+                }
+                if y > max_y {
+                    max_y = y;
+                }
+                if y < min_y {
+                    min_y = y;
+                }
 
-            if (i + 1) % 2 == 0 {
-                let new_x = current_x / 2.;
-                let new_y = current_y / 2.;
-                if new_x > max_x {
-                    max_x = new_x;
-                }
-                if new_x < min_x {
-                    min_x = new_x;
-                }
-                if new_y > max_y {
-                    max_y = new_y;
-                }
-                if new_y < min_y {
-                    min_y = new_y;
-                }
-                points.push((new_x, new_y));
-                current_x = 0.;
-                current_y = 0.;
+                points.push((x, y));
             }
         }
 
         self.points = points;
+        self.factor *= 2;
+
         self.min_x = min_x;
         self.max_x = max_x;
         self.min_y = min_y;
@@ -167,7 +176,7 @@ impl FullHistoryPoints {
     fn dataset<'a>(&'a self, name: &'a str, color: Color) -> Dataset<'a> {
         Dataset::default()
             .name(name)
-            .marker(symbols::Marker::Dot)
+            .marker(symbols::Marker::Braille)
             .style(Style::default().fg(color).bold())
             .graph_type(GraphType::Line)
             .data(&self.points)
@@ -184,14 +193,11 @@ mod tests {
 
     #[test]
     fn test_push_update_bounds_max_y() {
-        let mut chart = FullHistoryPlot::new(3);
-        chart.push_train(15.0);
-        chart.push_train(10.0);
-        chart.push_train(14.0);
-
-        assert_eq!(chart.bounds_y[1], 15.);
-        chart.push_train(10.0);
-        assert_eq!(chart.bounds_y[1], 14.);
+        let mut chart = FullHistoryPlot::new(10);
+        for i in 0..100 {
+            chart.push_train(i as f64);
+        }
+        panic!("");
     }
 
     #[test]

@@ -222,7 +222,7 @@ impl RecentHistoryPoints {
 
         Dataset::default()
             .name(name)
-            .marker(symbols::Marker::Dot)
+            .marker(symbols::Marker::Braille)
             .style(Style::default().fg(color).bold())
             .graph_type(GraphType::Scatter)
             .data(data)

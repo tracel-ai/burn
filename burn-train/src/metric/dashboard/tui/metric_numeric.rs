@@ -1,3 +1,5 @@
+use crate::metric::dashboard::TrainingProgress;
+
 use super::{FullHistoryPlot, RecentHistoryPlot, TFrame};
 use crossterm::event::{Event, KeyCode};
 use ratatui::{
@@ -8,7 +10,8 @@ use ratatui::{
 };
 use std::collections::HashMap;
 
-static MAX_NUM_SAMPLES: usize = 1000;
+static MAX_NUM_SAMPLES_RECENT: usize = 1000;
+static MAX_NUM_SAMPLES_FULL: usize = 250;
 
 #[derive(Default)]
 pub(crate) struct NumericMetricsState {
@@ -16,12 +19,14 @@ pub(crate) struct NumericMetricsState {
     names: Vec<String>,
     selected: usize,
     kind: PlotKind,
+    num_samples_train: Option<usize>,
+    num_samples_valid: Option<usize>,
 }
 
 #[derive(Default, Clone, Copy)]
 pub(crate) enum PlotKind {
-    Full,
     #[default]
+    Full,
     Recent,
 }
 
@@ -31,8 +36,8 @@ impl NumericMetricsState {
             recent.push_train(data);
             full.push_train(data);
         } else {
-            let mut recent = RecentHistoryPlot::new(MAX_NUM_SAMPLES);
-            let mut full = FullHistoryPlot::new(MAX_NUM_SAMPLES);
+            let mut recent = RecentHistoryPlot::new(MAX_NUM_SAMPLES_RECENT);
+            let mut full = FullHistoryPlot::new(MAX_NUM_SAMPLES_FULL);
 
             recent.push_train(data);
             full.push_train(data);
@@ -42,13 +47,37 @@ impl NumericMetricsState {
         }
     }
 
+    pub(crate) fn update_progress_train(&mut self, progress: &TrainingProgress) {
+        if self.num_samples_train.is_some() {
+            return;
+        }
+
+        self.num_samples_train = Some(progress.progress.items_total);
+    }
+
+    pub(crate) fn update_progress_valid(&mut self, progress: &TrainingProgress) {
+        if self.num_samples_valid.is_some() {
+            return;
+        }
+
+        if let Some(num_sample_train) = self.num_samples_train {
+            for (_, (_recent, full)) in self.data.iter_mut() {
+                let max_samples =
+                    progress.progress.items_total * MAX_NUM_SAMPLES_FULL / num_sample_train;
+                full.update_max_sample_valid(max_samples);
+            }
+        }
+
+        self.num_samples_valid = Some(progress.progress.items_total);
+    }
+
     pub(crate) fn push_valid(&mut self, key: String, data: f64) {
         if let Some((recent, full)) = self.data.get_mut(&key) {
             recent.push_valid(data);
             full.push_valid(data);
         } else {
-            let mut recent = RecentHistoryPlot::new(MAX_NUM_SAMPLES);
-            let mut full = FullHistoryPlot::new(MAX_NUM_SAMPLES);
+            let mut recent = RecentHistoryPlot::new(MAX_NUM_SAMPLES_RECENT);
+            let mut full = FullHistoryPlot::new(MAX_NUM_SAMPLES_FULL);
 
             recent.push_valid(data);
             full.push_valid(data);
