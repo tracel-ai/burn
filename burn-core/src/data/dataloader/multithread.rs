@@ -65,9 +65,12 @@ where
 
                         match sender_cloned.send(Message::Batch(index, item, progress)) {
                             Ok(_) => {}
+                            // The receiver is probably gone, no need to panic, just need to stop
+                            // iterating.
                             Err(_) => return,
                         };
                     }
+                    // Same thing.
                     sender_cloned.send(Message::Done).ok();
                 })
             })
