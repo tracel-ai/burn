@@ -62,7 +62,7 @@ impl FullHistoryPlot {
     }
 
     /// Create the training and validation datasets from the data points.
-    pub(crate) fn datasets<'a>(&'a self) -> Vec<Dataset<'a>> {
+    pub(crate) fn datasets(&self) -> Vec<Dataset<'_>> {
         let mut datasets = Vec::with_capacity(2);
 
         if !self.train.is_empty() {

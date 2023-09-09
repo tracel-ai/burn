@@ -56,7 +56,7 @@ impl RecentHistoryPlot {
         self.update_bounds();
     }
 
-    pub(crate) fn datasets<'a>(&'a self) -> Vec<Dataset<'a>> {
+    pub(crate) fn datasets(&self) -> Vec<Dataset<'_>> {
         let mut datasets = Vec::with_capacity(2);
 
         if self.train.num_visible_points() > 0 {
@@ -163,7 +163,7 @@ impl RecentHistoryPoints {
         }
     }
 
-    fn slice<'a>(&'a self) -> &'a [(f64, f64)] {
+    fn slice(&self) -> &[(f64, f64)] {
         &self.points[self.cursor..self.points.len()]
     }
 

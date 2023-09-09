@@ -112,11 +112,11 @@ impl TuiDashboardRenderer {
     }
 
     fn draw(&mut self) -> Result<(), Box<dyn Error>> {
-        self.terminal.draw(|mut frame| {
+        self.terminal.draw(|frame| {
             let size = frame.size();
 
             match self.popup.view() {
-                Some(view) => view.render(&mut frame, size),
+                Some(view) => view.render(frame, size),
                 None => {
                     let view = DashboardView::new(
                         self.metrics_numeric.view(),
@@ -126,7 +126,7 @@ impl TuiDashboardRenderer {
                         self.status.view(),
                     );
 
-                    view.render(&mut frame, size);
+                    view.render(frame, size);
                 }
             };
         })?;

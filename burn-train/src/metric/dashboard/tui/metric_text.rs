@@ -8,6 +8,7 @@ use ratatui::{
 };
 use std::collections::HashMap;
 
+#[derive(Default)]
 pub(crate) struct TextMetricsState {
     data: HashMap<String, MetricData>,
     names: Vec<String>,
@@ -17,15 +18,6 @@ pub(crate) struct TextMetricsState {
 pub(crate) struct MetricData {
     train: Option<MetricEntry>,
     valid: Option<MetricEntry>,
-}
-
-impl Default for TextMetricsState {
-    fn default() -> Self {
-        Self {
-            data: HashMap::default(),
-            names: Vec::default(),
-        }
-    }
 }
 
 impl TextMetricsState {
@@ -97,17 +89,12 @@ impl TextMetricView {
         Self { lines }
     }
 
-    pub(crate) fn render<'b>(self, frame: &mut TerminalFrame<'b>, size: Rect) {
-        let paragraph = Paragraph::new(
-            self.lines
-                .into_iter()
-                .map(|spans| Line::from(spans))
-                .collect::<Vec<_>>(),
-        )
-        .alignment(Alignment::Left)
-        .wrap(Wrap { trim: false })
-        .block(Block::default().borders(Borders::ALL).title("Metrics"))
-        .style(Style::default().fg(Color::Gray));
+    pub(crate) fn render(self, frame: &mut TerminalFrame<'_>, size: Rect) {
+        let paragraph = Paragraph::new(self.lines.into_iter().map(Line::from).collect::<Vec<_>>())
+            .alignment(Alignment::Left)
+            .wrap(Wrap { trim: false })
+            .block(Block::default().borders(Borders::ALL).title("Metrics"))
+            .style(Style::default().fg(Color::Gray));
 
         frame.render_widget(paragraph, size);
     }

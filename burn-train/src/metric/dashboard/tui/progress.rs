@@ -54,7 +54,7 @@ impl ProgressBarState {
             let eta = (total_estimated * remaining) as u64;
             format_eta(eta)
         } else {
-            format!("---")
+            "---".to_string()
         };
         ProgressBarView::new(self.progress_train, eta)
     }
@@ -68,7 +68,7 @@ pub(crate) struct ProgressBarView {
 
 impl ProgressBarView {
     /// Render the view.
-    pub(crate) fn render<'b>(self, frame: &mut TerminalFrame<'b>, size: Rect) {
+    pub(crate) fn render(self, frame: &mut TerminalFrame<'_>, size: Rect) {
         let block = Block::default()
             .borders(Borders::ALL)
             .title("Progress")

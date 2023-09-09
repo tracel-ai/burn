@@ -13,7 +13,7 @@ pub(crate) struct DashboardView<'a> {
 }
 
 impl<'a> DashboardView<'a> {
-    pub(crate) fn render<'b>(self, frame: &mut TerminalFrame<'b>, size: Rect) {
+    pub(crate) fn render(self, frame: &mut TerminalFrame<'_>, size: Rect) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Min(16), Constraint::Max(3)].as_ref())

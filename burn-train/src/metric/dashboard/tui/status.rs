@@ -79,17 +79,12 @@ impl StatusView {
         }
     }
 
-    pub(crate) fn render<'b>(self, frame: &mut TerminalFrame<'b>, size: Rect) {
-        let paragraph = Paragraph::new(
-            self.lines
-                .into_iter()
-                .map(|spans| Line::from(spans))
-                .collect::<Vec<_>>(),
-        )
-        .alignment(Alignment::Left)
-        .block(Block::default().borders(Borders::ALL).title("Status"))
-        .wrap(Wrap { trim: false })
-        .style(Style::default().fg(Color::Gray));
+    pub(crate) fn render(self, frame: &mut TerminalFrame<'_>, size: Rect) {
+        let paragraph = Paragraph::new(self.lines.into_iter().map(Line::from).collect::<Vec<_>>())
+            .alignment(Alignment::Left)
+            .block(Block::default().borders(Borders::ALL).title("Status"))
+            .wrap(Wrap { trim: false })
+            .style(Style::default().fg(Color::Gray));
 
         frame.render_widget(paragraph, size);
     }

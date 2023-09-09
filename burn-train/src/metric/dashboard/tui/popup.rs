@@ -48,10 +48,7 @@ pub(crate) enum PopupState {
 impl PopupState {
     /// If the popup is empty.
     pub(crate) fn is_empty(&self) -> bool {
-        match &self {
-            PopupState::Empty => true,
-            _ => false,
-        }
+        matches!(&self, PopupState::Empty)
     }
     /// Handle popup events.
     pub(crate) fn on_event(&mut self, event: &Event) {
@@ -63,10 +60,8 @@ impl PopupState {
                 for callback in callbacks.iter() {
                     if let Event::Key(key) = event {
                         if let KeyCode::Char(key) = &key.code {
-                            if &callback.trigger == key {
-                                if callback.callback.call() {
-                                    reset = true;
-                                }
+                            if &callback.trigger == key && callback.callback.call() {
+                                reset = true;
                             }
                         }
                     }
@@ -79,10 +74,10 @@ impl PopupState {
         }
     }
     /// Create the popup view.
-    pub(crate) fn view<'a>(&'a self) -> Option<PopupView<'a>> {
+    pub(crate) fn view(&self) -> Option<PopupView<'_>> {
         match self {
             PopupState::Empty => None,
-            PopupState::Full(title, callbacks) => Some(PopupView::new(&title, &callbacks)),
+            PopupState::Full(title, callbacks) => Some(PopupView::new(title, callbacks)),
         }
     }
 }
@@ -99,18 +94,17 @@ impl<'a> PopupView<'a> {
         let lines = self
             .callbacks
             .iter()
-            .map(|callback| {
+            .flat_map(|callback| {
                 vec![
                     Line::from(vec![
                         Span::from(format!("[{}] ", callback.trigger)).bold(),
                         Span::from(format!("{} ", callback.title)).yellow().bold(),
                     ]),
                     Line::from(Span::from("")),
-                    Line::from(Span::from(format!("{}", callback.description)).italic()),
+                    Line::from(Span::from(callback.description.to_string()).italic()),
                     Line::from(Span::from("")),
                 ]
             })
-            .flatten()
             .collect::<Vec<_>>();
 
         let paragraph = Paragraph::new(lines)

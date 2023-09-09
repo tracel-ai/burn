@@ -97,7 +97,7 @@ impl NumericMetricsState {
     }
 
     /// Create a view to display the numeric metrics.
-    pub(crate) fn view<'a>(&'a self) -> NumericMetricView<'a> {
+    pub(crate) fn view(&self) -> NumericMetricView<'_> {
         match self.names.is_empty() {
             true => NumericMetricView::None,
             false => NumericMetricView::Plots(&self.names, self.selected, self.chart(), self.kind),
@@ -126,7 +126,7 @@ impl NumericMetricsState {
 
     fn next_metric(&mut self) {
         self.selected = (self.selected + 1) % {
-            let ref this = self;
+            let this = &self;
             this.data.len()
         };
     }
@@ -136,7 +136,7 @@ impl NumericMetricsState {
             self.selected -= 1;
         } else {
             self.selected = ({
-                let ref this = self;
+                let this = &self;
                 this.data.len()
             }) - 1;
         }
@@ -176,7 +176,7 @@ pub(crate) enum NumericMetricView<'a> {
 }
 
 impl<'a> NumericMetricView<'a> {
-    pub(crate) fn render<'b>(self, frame: &mut TerminalFrame<'b>, size: Rect) {
+    pub(crate) fn render(self, frame: &mut TerminalFrame<'_>, size: Rect) {
         match self {
             Self::Plots(titles, selected, chart, kind) => {
                 let block = Block::default()
