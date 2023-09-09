@@ -1,6 +1,6 @@
 use crate::metric::dashboard::TrainingProgress;
 
-use super::{FullHistoryPlot, RecentHistoryPlot, TFrame};
+use super::{FullHistoryPlot, RecentHistoryPlot, TerminalFrame};
 use crossterm::event::{Event, KeyCode};
 use ratatui::{
     prelude::{Alignment, Constraint, Direction, Layout, Rect},
@@ -10,9 +10,13 @@ use ratatui::{
 };
 use std::collections::HashMap;
 
+/// 1000 seems to be required to see some improvement.
 static MAX_NUM_SAMPLES_RECENT: usize = 1000;
+/// 250 seems to be the right resolution when plotting all history.
+/// Otherwise, there is too much points and the lines arent't smooth enough.
 static MAX_NUM_SAMPLES_FULL: usize = 250;
 
+/// Numeric metrics state that handles creating plots.
 #[derive(Default)]
 pub(crate) struct NumericMetricsState {
     data: HashMap<String, (RecentHistoryPlot, FullHistoryPlot)>,
@@ -23,16 +27,20 @@ pub(crate) struct NumericMetricsState {
     num_samples_valid: Option<usize>,
 }
 
+/// The kind of plot to display.
 #[derive(Default, Clone, Copy)]
 pub(crate) enum PlotKind {
+    /// Display the full history of the metric with reduced resolution.
     #[default]
     Full,
+    /// Display only the recent history of the metric, but with more resolution.
     Recent,
 }
 
 impl NumericMetricsState {
-    pub(crate) fn push_train(&mut self, key: String, data: f64) {
-        if let Some((recent, full)) = self.data.get_mut(&key) {
+    /// Register a new training value for the metric with the given name.
+    pub(crate) fn push_train(&mut self, name: String, data: f64) {
+        if let Some((recent, full)) = self.data.get_mut(&name) {
             recent.push_train(data);
             full.push_train(data);
         } else {
@@ -42,35 +50,12 @@ impl NumericMetricsState {
             recent.push_train(data);
             full.push_train(data);
 
-            self.names.push(key.clone());
-            self.data.insert(key, (recent, full));
+            self.names.push(name.clone());
+            self.data.insert(name, (recent, full));
         }
     }
 
-    pub(crate) fn update_progress_train(&mut self, progress: &TrainingProgress) {
-        if self.num_samples_train.is_some() {
-            return;
-        }
-
-        self.num_samples_train = Some(progress.progress.items_total);
-    }
-
-    pub(crate) fn update_progress_valid(&mut self, progress: &TrainingProgress) {
-        if self.num_samples_valid.is_some() {
-            return;
-        }
-
-        if let Some(num_sample_train) = self.num_samples_train {
-            for (_, (_recent, full)) in self.data.iter_mut() {
-                let max_samples =
-                    progress.progress.items_total * MAX_NUM_SAMPLES_FULL / num_sample_train;
-                full.update_max_sample_valid(max_samples);
-            }
-        }
-
-        self.num_samples_valid = Some(progress.progress.items_total);
-    }
-
+    /// Register a new validation value for the metric with the given name.
     pub(crate) fn push_valid(&mut self, key: String, data: f64) {
         if let Some((recent, full)) = self.data.get_mut(&key) {
             recent.push_valid(data);
@@ -86,6 +71,32 @@ impl NumericMetricsState {
         }
     }
 
+    /// Update the state with the training progress.
+    pub(crate) fn update_progress_train(&mut self, progress: &TrainingProgress) {
+        if self.num_samples_train.is_some() {
+            return;
+        }
+
+        self.num_samples_train = Some(progress.progress.items_total);
+    }
+
+    /// Update the state with the validation progress.
+    pub(crate) fn update_progress_valid(&mut self, progress: &TrainingProgress) {
+        if self.num_samples_valid.is_some() {
+            return;
+        }
+
+        if let Some(num_sample_train) = self.num_samples_train {
+            for (_, (_recent, full)) in self.data.iter_mut() {
+                let ratio = progress.progress.items_total as f64 / num_sample_train as f64;
+                full.update_max_sample_valid(ratio);
+            }
+        }
+
+        self.num_samples_valid = Some(progress.progress.items_total);
+    }
+
+    /// Create a view to display the numeric metrics.
     pub(crate) fn view<'a>(&'a self) -> NumericMetricView<'a> {
         match self.names.is_empty() {
             true => NumericMetricView::None,
@@ -93,11 +104,12 @@ impl NumericMetricsState {
         }
     }
 
+    /// Handle the current event.
     pub(crate) fn on_event(&mut self, event: &Event) {
         if let Event::Key(key) = event {
             match key.code {
-                KeyCode::Right => self.next(),
-                KeyCode::Left => self.previous(),
+                KeyCode::Right => self.next_metric(),
+                KeyCode::Left => self.previous_metric(),
                 KeyCode::Up => self.switch_kind(),
                 KeyCode::Down => self.switch_kind(),
                 _ => {}
@@ -112,14 +124,14 @@ impl NumericMetricsState {
         };
     }
 
-    fn next(&mut self) {
+    fn next_metric(&mut self) {
         self.selected = (self.selected + 1) % {
             let ref this = self;
             this.data.len()
         };
     }
 
-    fn previous(&mut self) {
+    fn previous_metric(&mut self) {
         if self.selected > 0 {
             self.selected -= 1;
         } else {
@@ -134,21 +146,9 @@ impl NumericMetricsState {
         let name = self.names.get(self.selected).unwrap();
         let (recent, full) = self.data.get(name).unwrap();
 
-        let (datasets, labels_x, labels_y, bounds_x, bounds_y) = match self.kind {
-            PlotKind::Full => (
-                full.datasets(),
-                &full.labels_x,
-                &full.labels_y,
-                full.bounds_x,
-                full.bounds_y,
-            ),
-            PlotKind::Recent => (
-                recent.datasets(),
-                &recent.labels_x,
-                &recent.labels_y,
-                recent.bounds_x,
-                recent.bounds_y,
-            ),
+        let (datasets, axes) = match self.kind {
+            PlotKind::Full => (full.datasets(), &full.axes),
+            PlotKind::Recent => (recent.datasets(), &recent.axes),
         };
 
         Chart::<'a>::new(datasets)
@@ -157,14 +157,14 @@ impl NumericMetricsState {
                 Axis::default()
                     .style(Style::default().fg(Color::DarkGray))
                     .title("Iteration")
-                    .labels(labels_x.iter().map(|s| s.bold()).collect())
-                    .bounds(bounds_x),
+                    .labels(axes.labels_x.iter().map(|s| s.bold()).collect())
+                    .bounds(axes.bounds_x),
             )
             .y_axis(
                 Axis::default()
                     .style(Style::default().fg(Color::DarkGray))
-                    .labels(labels_y.iter().map(|s| s.bold()).collect())
-                    .bounds(bounds_y),
+                    .labels(axes.labels_y.iter().map(|s| s.bold()).collect())
+                    .bounds(axes.bounds_y),
             )
     }
 }
@@ -176,7 +176,7 @@ pub(crate) enum NumericMetricView<'a> {
 }
 
 impl<'a> NumericMetricView<'a> {
-    pub(crate) fn render<'b>(self, frame: &mut TFrame<'b>, size: Rect) {
+    pub(crate) fn render<'b>(self, frame: &mut TerminalFrame<'b>, size: Rect) {
         match self {
             Self::Plots(titles, selected, chart, kind) => {
                 let block = Block::default()

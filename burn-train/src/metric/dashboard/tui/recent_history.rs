@@ -1,19 +1,15 @@
+use super::PlotAxes;
 use ratatui::{
     style::{Color, Style, Stylize},
     symbols,
     widgets::{Dataset, GraphType},
 };
 
-use crate::metric::format_float;
-
 static FACTOR_BEFORE_RESIZE: usize = 2;
-static AXIS_TITLE_PRECISION: usize = 2;
 
+/// A plot that shows the recent history at full resolution.
 pub(crate) struct RecentHistoryPlot {
-    pub(crate) labels_x: Vec<String>,
-    pub(crate) labels_y: Vec<String>,
-    pub(crate) bounds_x: [f64; 2],
-    pub(crate) bounds_y: [f64; 2],
+    pub(crate) axes: PlotAxes,
     train: RecentHistoryPoints,
     valid: RecentHistoryPoints,
     max_samples: usize,
@@ -33,10 +29,7 @@ struct RecentHistoryPoints {
 impl RecentHistoryPlot {
     pub(crate) fn new(max_samples: usize) -> Self {
         Self {
-            bounds_x: [f64::MAX, f64::MIN],
-            bounds_y: [f64::MAX, f64::MIN],
-            labels_x: Vec::new(),
-            labels_y: Vec::new(),
+            axes: PlotAxes::default(),
             train: RecentHistoryPoints::new(max_samples),
             valid: RecentHistoryPoints::new(max_samples),
             max_samples,
@@ -88,20 +81,12 @@ impl RecentHistoryPlot {
     }
 
     fn update_bounds(&mut self) {
-        let x_min = f64::min(self.train.min_x, self.valid.min_x);
-        let x_max = f64::max(self.train.max_x, self.valid.max_x);
-        let y_min = f64::min(self.train.min_y, self.valid.min_y);
-        let y_max = f64::max(self.train.max_y, self.valid.max_y);
-
-        self.bounds_x = [x_min, x_max];
-        self.bounds_y = [y_min, y_max];
-
-        // We know x are integers.
-        self.labels_x = vec![format!("{x_min}"), format!("{x_max}")];
-        self.labels_y = vec![
-            format_float(y_min, AXIS_TITLE_PRECISION),
-            format_float(y_max, AXIS_TITLE_PRECISION),
-        ];
+        self.axes.update_bounds(
+            (self.train.min_x, self.train.max_x),
+            (self.valid.min_x, self.valid.max_x),
+            (self.train.min_y, self.train.max_y),
+            (self.valid.min_y, self.valid.max_y),
+        );
     }
 }
 
@@ -240,9 +225,9 @@ mod tests {
         chart.push_train(10.0);
         chart.push_train(14.0);
 
-        assert_eq!(chart.bounds_y[1], 15.);
+        assert_eq!(chart.axes.bounds_y[1], 15.);
         chart.push_train(10.0);
-        assert_eq!(chart.bounds_y[1], 14.);
+        assert_eq!(chart.axes.bounds_y[1], 14.);
     }
 
     #[test]
@@ -252,8 +237,8 @@ mod tests {
         chart.push_train(10.0);
         chart.push_train(14.0);
 
-        assert_eq!(chart.bounds_y[0], 5.);
+        assert_eq!(chart.axes.bounds_y[0], 5.);
         chart.push_train(10.0);
-        assert_eq!(chart.bounds_y[0], 10.);
+        assert_eq!(chart.axes.bounds_y[0], 10.);
     }
 }

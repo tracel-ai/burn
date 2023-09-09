@@ -1,4 +1,4 @@
-use super::TFrame;
+use super::TerminalFrame;
 use ratatui::{
     prelude::{Alignment, Rect},
     style::{Color, Style, Stylize},
@@ -6,25 +6,27 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, Wrap},
 };
 
+/// Controls view.
 pub(crate) struct ControlsView;
 
 impl ControlsView {
-    pub(crate) fn render<'b>(self, frame: &mut TFrame<'b>, size: Rect) {
+    /// Render the view.
+    pub(crate) fn render<'b>(self, frame: &mut TerminalFrame<'b>, size: Rect) {
         let lines = vec![
             vec![
                 Span::from(" Quit          : ").yellow().bold(),
                 Span::from("q  ").bold(),
-                Span::from("  Stop the training").italic(),
+                Span::from("  Stop the training.").italic(),
             ],
             vec![
                 Span::from(" Plots Metrics : ").yellow().bold(),
                 Span::from("⬅ ➡").bold(),
-                Span::from("  Switch between metric").italic(),
+                Span::from("  Switch between metrics.").italic(),
             ],
             vec![
                 Span::from(" Plots Type    : ").yellow().bold(),
                 Span::from("⬆ ⬇").bold(),
-                Span::from("  Switch between plot type").italic(),
+                Span::from("  Switch between types.").italic(),
             ],
         ];
         let paragraph = Paragraph::new(

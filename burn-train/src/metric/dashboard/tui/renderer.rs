@@ -14,20 +14,22 @@ use std::{
 };
 
 use super::{
-    Callback, ControlsView, DashboardView, PopupCallback, PopupState, ProgressState, StatusState,
+    Callback, CallbackFn, ControlsView, DashboardView, PopupState, ProgressBarState, StatusState,
     TextMetricsState,
 };
 
-pub(crate) type TBackend = CrosstermBackend<Stdout>;
-pub(crate) type TFrame<'a> = ratatui::Frame<'a, TBackend>;
+/// The current terminal backend.
+pub(crate) type TerminalBackend = CrosstermBackend<Stdout>;
+/// The current terminal frame.
+pub(crate) type TerminalFrame<'a> = ratatui::Frame<'a, TerminalBackend>;
 
-static MAX_REFRESH_RATE_MILLIS: u64 = 250;
+static MAX_REFRESH_RATE_MILLIS: u64 = 100;
 
 /// The CLI dashboard renderer.
 pub struct TuiDashboardRenderer {
-    terminal: Terminal<TBackend>,
+    terminal: Terminal<TerminalBackend>,
     last_update: std::time::Instant,
-    progress: ProgressState,
+    progress: ProgressBarState,
     metrics_numeric: NumericMetricsState,
     metrics_text: TextMetricsState,
     status: StatusState,
@@ -86,12 +88,12 @@ impl TuiDashboardRenderer {
         Self {
             terminal,
             last_update: Instant::now(),
-            progress: ProgressState::default(),
+            progress: ProgressBarState::default(),
             metrics_numeric: NumericMetricsState::default(),
             metrics_text: TextMetricsState::default(),
             status: StatusState::default(),
             interuptor,
-            popup: PopupState::None,
+            popup: PopupState::Empty,
         }
     }
 
@@ -112,6 +114,7 @@ impl TuiDashboardRenderer {
     fn draw(&mut self) -> Result<(), Box<dyn Error>> {
         self.terminal.draw(|mut frame| {
             let size = frame.size();
+
             match self.popup.view() {
                 Some(view) => view.render(&mut frame, size),
                 None => {
@@ -134,12 +137,14 @@ impl TuiDashboardRenderer {
     fn handle_events(&mut self) -> Result<(), Box<dyn Error>> {
         while crossterm::event::poll(Duration::from_secs(0))? {
             let event = event::read()?;
-            self.metrics_numeric.on_event(&event);
             self.popup.on_event(&event);
 
-            if let Event::Key(key) = event {
-                if let KeyCode::Char('q') = key.code {
-                    self.popup = PopupState::Callback(
+            if self.popup.is_empty() {
+                self.metrics_numeric.on_event(&event);
+
+                if let Event::Key(key) = event {
+                    if let KeyCode::Char('q') = key.code {
+                        self.popup = PopupState::Full(
                         "Quit".to_string(),
                         vec![
                             Callback::new(
@@ -149,14 +154,15 @@ impl TuiDashboardRenderer {
                                 QuitPopupAccept(self.interuptor.clone()),
                             ),
                             Callback::new(
-                                "Kill the program.",
-                                "Stop the training immediately. This will stop from the training loop, but any remaining code after the loop will be executed.",
+                                "Kill the program. This will create a panic! which will make the current training fails. Any code following the training won't be executed.",
+                                "Stop the training immediately. ",
                                 'k',
                                 KillPopupAccept,
                             ),
-                            Callback::new("Cancel", "Continue the training.", 'c', PopupCancel),
+                            Callback::new("Cancel", "Cancel the action, continue the training.", 'c', PopupCancel),
                         ],
                     );
+                    }
                 }
             }
         }
@@ -169,20 +175,20 @@ struct QuitPopupAccept(TrainingInterrupter);
 struct KillPopupAccept;
 struct PopupCancel;
 
-impl PopupCallback for KillPopupAccept {
+impl CallbackFn for KillPopupAccept {
     fn call(&self) -> bool {
         panic!("Killing training from user input.");
     }
 }
 
-impl PopupCallback for QuitPopupAccept {
+impl CallbackFn for QuitPopupAccept {
     fn call(&self) -> bool {
         self.0.stop();
         true
     }
 }
 
-impl PopupCallback for PopupCancel {
+impl CallbackFn for PopupCancel {
     fn call(&self) -> bool {
         true
     }

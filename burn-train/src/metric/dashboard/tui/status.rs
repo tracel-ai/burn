@@ -1,4 +1,4 @@
-use super::TFrame;
+use super::TerminalFrame;
 use crate::metric::dashboard::TrainingProgress;
 use ratatui::{
     prelude::{Alignment, Rect},
@@ -7,6 +7,7 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, Wrap},
 };
 
+/// Show the training status with various information.
 pub(crate) struct StatusState {
     progress: TrainingProgress,
     mode: Mode,
@@ -27,14 +28,17 @@ impl Default for StatusState {
 }
 
 impl StatusState {
+    /// Update the training information.
     pub(crate) fn update_train(&mut self, progress: TrainingProgress) {
         self.progress = progress;
         self.mode = Mode::Train;
     }
+    /// Update the validation information.
     pub(crate) fn update_valid(&mut self, progress: TrainingProgress) {
         self.progress = progress;
         self.mode = Mode::Valid;
     }
+    /// Create a view.
     pub(crate) fn view(&self) -> StatusView {
         StatusView::new(&self.progress, &self.mode)
     }
@@ -75,7 +79,7 @@ impl StatusView {
         }
     }
 
-    pub(crate) fn render<'b>(self, frame: &mut TFrame<'b>, size: Rect) {
+    pub(crate) fn render<'b>(self, frame: &mut TerminalFrame<'b>, size: Rect) {
         let paragraph = Paragraph::new(
             self.lines
                 .into_iter()

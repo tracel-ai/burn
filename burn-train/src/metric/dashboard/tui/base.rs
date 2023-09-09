@@ -1,17 +1,19 @@
-use super::{ControlsView, NumericMetricView, ProgressView, StatusView, TFrame, TextMetricView};
+use super::{
+    ControlsView, NumericMetricView, ProgressBarView, StatusView, TerminalFrame, TextMetricView,
+};
 use ratatui::prelude::{Constraint, Direction, Layout, Rect};
 
 #[derive(new)]
 pub(crate) struct DashboardView<'a> {
     metric_numeric: NumericMetricView<'a>,
     metric_text: TextMetricView,
-    progress: ProgressView,
+    progress: ProgressBarView,
     controls: ControlsView,
     status: StatusView,
 }
 
 impl<'a> DashboardView<'a> {
-    pub(crate) fn render<'b>(self, frame: &mut TFrame<'b>, size: Rect) {
+    pub(crate) fn render<'b>(self, frame: &mut TerminalFrame<'b>, size: Rect) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Min(16), Constraint::Max(3)].as_ref())

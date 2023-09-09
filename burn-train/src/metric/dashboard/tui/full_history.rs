@@ -1,21 +1,16 @@
+use super::PlotAxes;
 use ratatui::{
     style::{Color, Style, Stylize},
     symbols,
     widgets::{Dataset, GraphType},
 };
 
-use crate::metric::format_float;
-
-static AXIS_TITLE_PRECISION: usize = 2;
-
+/// A plot that shows the full history at a reduced resolution.
 pub(crate) struct FullHistoryPlot {
-    pub(crate) labels_x: Vec<String>,
-    pub(crate) labels_y: Vec<String>,
-    pub(crate) bounds_x: [f64; 2],
-    pub(crate) bounds_y: [f64; 2],
+    pub(crate) axes: PlotAxes,
     train: FullHistoryPoints,
     valid: FullHistoryPoints,
-    iteration: usize,
+    next_x_state: usize,
 }
 
 struct FullHistoryPoints {
@@ -25,43 +20,48 @@ struct FullHistoryPoints {
     max_y: f64,
     points: Vec<(f64, f64)>,
     max_samples: usize,
-    factor: usize,
+    step_size: usize,
 }
 
 impl FullHistoryPlot {
+    /// Create a new history plot.
     pub(crate) fn new(max_samples: usize) -> Self {
         Self {
-            bounds_x: [f64::MAX, f64::MIN],
-            bounds_y: [f64::MAX, f64::MIN],
-            labels_x: Vec::new(),
-            labels_y: Vec::new(),
+            axes: PlotAxes::default(),
             train: FullHistoryPoints::new(max_samples),
             valid: FullHistoryPoints::new(max_samples),
-            iteration: 0,
+            next_x_state: 0,
         }
     }
 
-    pub(crate) fn update_max_sample_valid(&mut self, max_samples: usize) {
-        if self.valid.factor == 1 {
-            self.valid.max_samples = max_samples;
+    /// Update the maximum amount of sample to display for the validation points.
+    ///
+    /// This is necessary if we want the validation line to have the same point density as the
+    /// training line.
+    pub(crate) fn update_max_sample_valid(&mut self, ratio_train: f64) {
+        if self.valid.step_size == 1 {
+            self.valid.max_samples = (ratio_train * self.train.max_samples as f64) as usize;
         }
     }
 
+    /// Register a training data point.
     pub(crate) fn push_train(&mut self, data: f64) {
-        let x_current = self.x();
+        let x_current = self.next_x();
         self.train.push((x_current, data));
 
         self.update_bounds();
     }
 
+    /// Register a validation data point.
     pub(crate) fn push_valid(&mut self, data: f64) {
-        let x_current = self.x();
+        let x_current = self.next_x();
 
         self.valid.push((x_current, data));
 
         self.update_bounds();
     }
 
+    /// Create the training and validation datasets from the data points.
     pub(crate) fn datasets<'a>(&'a self) -> Vec<Dataset<'a>> {
         let mut datasets = Vec::with_capacity(2);
 
@@ -76,27 +76,19 @@ impl FullHistoryPlot {
         datasets
     }
 
-    fn x(&mut self) -> f64 {
-        let current = self.iteration;
-        self.iteration += 1;
-        current as f64
+    fn next_x(&mut self) -> f64 {
+        let value = self.next_x_state;
+        self.next_x_state += 1;
+        value as f64
     }
 
     fn update_bounds(&mut self) {
-        let x_min = f64::min(self.train.min_x, self.valid.min_x);
-        let x_max = f64::max(self.train.max_x, self.valid.max_x);
-        let y_min = f64::min(self.train.min_y, self.valid.min_y);
-        let y_max = f64::max(self.train.max_y, self.valid.max_y);
-
-        self.bounds_x = [x_min, x_max];
-        self.bounds_y = [y_min, y_max];
-
-        // We know x are integers.
-        self.labels_x = vec![format!("{x_min}"), format!("{x_max}")];
-        self.labels_y = vec![
-            format_float(y_min, AXIS_TITLE_PRECISION),
-            format_float(y_max, AXIS_TITLE_PRECISION),
-        ];
+        self.axes.update_bounds(
+            (self.train.min_x, self.train.max_x),
+            (self.valid.min_x, self.valid.max_x),
+            (self.train.min_y, self.train.max_y),
+            (self.valid.min_y, self.valid.max_y),
+        );
     }
 }
 
@@ -109,12 +101,12 @@ impl FullHistoryPoints {
             max_y: f64::MIN,
             points: Vec::with_capacity(max_samples),
             max_samples,
-            factor: 1,
+            step_size: 1,
         }
     }
 
     fn push(&mut self, (x, y): (f64, f64)) {
-        if x as usize % self.factor != 0 {
+        if x as usize % self.step_size != 0 {
             return;
         }
 
@@ -138,6 +130,9 @@ impl FullHistoryPoints {
         }
     }
 
+    /// We keep only half the points and we double the step size.
+    ///
+    /// This ensure that we have the same amount of points across the X axis.
     fn resize(&mut self) {
         let mut points = Vec::with_capacity(self.max_samples / 2);
         let mut max_x = f64::MIN;
@@ -165,7 +160,7 @@ impl FullHistoryPoints {
         }
 
         self.points = points;
-        self.factor *= 2;
+        self.step_size *= 2;
 
         self.min_x = min_x;
         self.max_x = max_x;
@@ -182,7 +177,7 @@ impl FullHistoryPoints {
             .data(&self.points)
     }
 
-    pub fn is_empty(&self) -> bool {
+    fn is_empty(&self) -> bool {
         self.points.is_empty()
     }
 }
@@ -192,23 +187,30 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_push_update_bounds_max_y() {
+    fn test_points() {
         let mut chart = FullHistoryPlot::new(10);
+        chart.update_max_sample_valid(0.6);
+
         for i in 0..100 {
             chart.push_train(i as f64);
         }
-        panic!("");
-    }
+        for i in 0..60 {
+            chart.push_valid(i as f64);
+        }
 
-    #[test]
-    fn test_push_update_bounds_min_y() {
-        let mut chart = FullHistoryPlot::new(3);
-        chart.push_train(5.0);
-        chart.push_train(10.0);
-        chart.push_train(14.0);
+        let expected_train = vec![
+            (0.0, 0.0),
+            (16.0, 16.0),
+            (32.0, 32.0),
+            (48.0, 48.0),
+            (64.0, 64.0),
+            (80.0, 80.0),
+            (96.0, 96.0),
+        ];
 
-        assert_eq!(chart.bounds_y[0], 5.);
-        chart.push_train(10.0);
-        assert_eq!(chart.bounds_y[0], 10.);
+        let expected_valid = vec![(100.0, 0.0), (116.0, 16.0), (128.0, 28.0), (144.0, 44.0)];
+
+        assert_eq!(chart.train.points, expected_train);
+        assert_eq!(chart.valid.points, expected_valid);
     }
 }

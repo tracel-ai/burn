@@ -6,25 +6,29 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, Wrap},
 };
 
-use super::TFrame;
+use super::TerminalFrame;
 
-pub trait PopupCallback: Send + Sync {
+/// Popup callback function.
+pub(crate) trait CallbackFn: Send + Sync {
+    /// Call the function and return if the popup state should be reset.
     fn call(&self) -> bool;
 }
 
+/// Popup callback.
 pub(crate) struct Callback {
     title: String,
     description: String,
     trigger: char,
-    callback: Box<dyn PopupCallback>,
+    callback: Box<dyn CallbackFn>,
 }
 
 impl Callback {
-    pub fn new<T, D, C>(title: T, description: D, trigger: char, callback: C) -> Self
+    /// Create a new popup.
+    pub(crate) fn new<T, D, C>(title: T, description: D, trigger: char, callback: C) -> Self
     where
         T: Into<String>,
         D: Into<String>,
-        C: PopupCallback + 'static,
+        C: CallbackFn + 'static,
     {
         Self {
             title: title.into(),
@@ -35,18 +39,27 @@ impl Callback {
     }
 }
 
+/// Popup state.
 pub(crate) enum PopupState {
-    None,
-    Callback(String, Vec<Callback>),
+    Empty,
+    Full(String, Vec<Callback>),
 }
 
 impl PopupState {
-    pub fn on_event(&mut self, event: &Event) {
+    /// If the popup is empty.
+    pub(crate) fn is_empty(&self) -> bool {
+        match &self {
+            PopupState::Empty => true,
+            _ => false,
+        }
+    }
+    /// Handle popup events.
+    pub(crate) fn on_event(&mut self, event: &Event) {
         let mut reset = false;
 
         match self {
-            PopupState::None => {}
-            PopupState::Callback(_, callbacks) => {
+            PopupState::Empty => {}
+            PopupState::Full(_, callbacks) => {
                 for callback in callbacks.iter() {
                     if let Event::Key(key) = event {
                         if let KeyCode::Char(key) = &key.code {
@@ -62,13 +75,14 @@ impl PopupState {
         };
 
         if reset {
-            *self = Self::None;
+            *self = Self::Empty;
         }
     }
-    pub fn view<'a>(&'a self) -> Option<PopupView<'a>> {
+    /// Create the popup view.
+    pub(crate) fn view<'a>(&'a self) -> Option<PopupView<'a>> {
         match self {
-            PopupState::None => None,
-            PopupState::Callback(title, callbacks) => Some(PopupView::new(&title, &callbacks)),
+            PopupState::Empty => None,
+            PopupState::Full(title, callbacks) => Some(PopupView::new(&title, &callbacks)),
         }
     }
 }
@@ -80,7 +94,8 @@ pub(crate) struct PopupView<'a> {
 }
 
 impl<'a> PopupView<'a> {
-    pub(crate) fn render<'b>(&'a self, frame: &mut TFrame<'b>, size: Rect) {
+    /// Render the view.
+    pub(crate) fn render<'b>(&'a self, frame: &mut TerminalFrame<'b>, size: Rect) {
         let lines = self
             .callbacks
             .iter()

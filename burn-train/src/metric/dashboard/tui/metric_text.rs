@@ -1,4 +1,4 @@
-use super::TFrame;
+use super::TerminalFrame;
 use crate::metric::MetricEntry;
 use ratatui::{
     prelude::{Alignment, Rect},
@@ -97,7 +97,7 @@ impl TextMetricView {
         Self { lines }
     }
 
-    pub(crate) fn render<'b>(self, frame: &mut TFrame<'b>, size: Rect) {
+    pub(crate) fn render<'b>(self, frame: &mut TerminalFrame<'b>, size: Rect) {
         let paragraph = Paragraph::new(
             self.lines
                 .into_iter()
