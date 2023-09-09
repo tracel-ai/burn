@@ -168,7 +168,7 @@ where
                 );
             }
 
-            if !self.interrupter.should_stop() {
+            if self.interrupter.should_stop() {
                 break;
             }
 

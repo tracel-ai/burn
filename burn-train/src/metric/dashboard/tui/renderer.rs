@@ -135,7 +135,7 @@ impl TuiDashboardRenderer {
     }
 
     fn handle_events(&mut self) -> Result<(), Box<dyn Error>> {
-        while crossterm::event::poll(Duration::from_secs(0))? {
+        while event::poll(Duration::from_secs(0))? {
             let event = event::read()?;
             self.popup.on_event(&event);
 
@@ -148,14 +148,14 @@ impl TuiDashboardRenderer {
                         "Quit".to_string(),
                         vec![
                             Callback::new(
-                                "Stop the training",
+                                "Stop the training.",
                                 "Stop the training immediately. This will break from the training loop, but any remaining code after the loop will be executed.",
                                 's',
                                 QuitPopupAccept(self.interuptor.clone()),
                             ),
                             Callback::new(
+                                "Stop the training immediately.",
                                 "Kill the program. This will create a panic! which will make the current training fails. Any code following the training won't be executed.",
-                                "Stop the training immediately. ",
                                 'k',
                                 KillPopupAccept,
                             ),
