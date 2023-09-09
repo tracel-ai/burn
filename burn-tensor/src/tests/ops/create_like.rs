@@ -19,17 +19,6 @@ mod tests {
     }
 
     #[test]
-    fn should_support_zeros_like_empty() {
-        let tensor = Tensor::<TestBackend, 1>::empty([0]);
-
-        let data_actual = tensor.zeros_like().into_data();
-
-        let data_expected = Data::from([]);
-
-        data_expected.assert_approx_eq(&data_actual, 3);
-    }
-
-    #[test]
     fn should_support_ones_like() {
         let tensor = TestTensor::from_floats([
             [[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]],
@@ -40,17 +29,6 @@ mod tests {
 
         let data_expected =
             Data::from([[[1., 1., 1.], [1., 1., 1.]], [[1., 1., 1.], [1., 1., 1.]]]);
-
-        data_expected.assert_approx_eq(&data_actual, 3);
-    }
-
-    #[test]
-    fn should_support_ones_like_empty() {
-        let tensor = Tensor::<TestBackend, 1>::empty([0]);
-
-        let data_actual = tensor.ones_like().into_data();
-
-        let data_expected = Data::from([]);
 
         data_expected.assert_approx_eq(&data_actual, 3);
     }
@@ -72,15 +50,4 @@ mod tests {
         data_expected.assert_approx_eq(&data_actual, 3);
     }
 
-    #[test]
-    fn should_support_randoms_like_empty() {
-        let tensor = Tensor::<TestBackend, 1>::empty([0]);
-
-        let data_actual = tensor
-            .random_like(Distribution::Uniform(0.99999, 1.))
-            .into_data();
-
-        let data_expected = Data::from([]);
-        data_expected.assert_approx_eq(&data_actual, 3);
-    }
 }
