@@ -5,8 +5,14 @@ mod tests {
 
     #[test]
     fn should_support_one_hot() {
+        let tensor = Tensor::<TestBackend, 1>::one_hot(0, 5);
+        assert_eq!(tensor.to_data(), Data::from([1., 0., 0., 0., 0.]));
+
         let tensor = Tensor::<TestBackend, 1>::one_hot(1, 5);
         assert_eq!(tensor.to_data(), Data::from([0., 1., 0., 0., 0.]));
+
+        let tensor = Tensor::<TestBackend, 1>::one_hot(4, 5);
+        assert_eq!(tensor.to_data(), Data::from([0., 0., 0., 0., 1.]));
 
         let tensor = Tensor::<TestBackend, 1>::one_hot(1, 2);
         assert_eq!(tensor.to_data(), Data::from([0., 1.]));
