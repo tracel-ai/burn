@@ -1,4 +1,5 @@
 use crate::{backend::Backend, Data, Float, Int, Tensor};
+use alloc::vec::Vec;
 use core::ops::Range;
 
 impl<B> Tensor<B, 1, Int>
@@ -42,6 +43,26 @@ where
     /// * `step` - The step between each value.
     pub fn arange_step_device(range: Range<usize>, step: usize, device: &B::Device) -> Self {
         Tensor::new(B::arange_step(range, step, device))
+    }
+}
+
+impl<B> Tensor<B, 2, Int>
+where
+    B: Backend,
+{
+    /// Create diagonal matrix.
+    ///
+    /// # Arguments
+    ///
+    /// * `size` - The size of the square matrix.
+    pub fn diagonal(size: usize) -> Tensor<B, 2, Int> {
+        let indices = (0..size)
+            .map(|e| Tensor::<B, 1, Int>::from_ints([e as i32]))
+            .map(|e| e.unsqueeze())
+            .collect::<Vec<Tensor<B, 2, Int>>>();
+        let indices = Tensor::cat(indices, 0);
+        let ones = Tensor::ones([size]).reshape([size, 1]);
+        Tensor::<B, 2, Int>::zeros([size, size]).scatter(1, indices, ones)
     }
 }
 

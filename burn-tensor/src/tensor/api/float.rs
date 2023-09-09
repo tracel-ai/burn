@@ -279,6 +279,33 @@ where
     pub(crate) fn relu(self) -> Self {
         Self::new(B::relu(self.primitive))
     }
+
+    /// Calculate covaraince matrix between different entries alongside a given dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `size` - The size of the square matrix.
+    /// * `degrees_of_freedom` - Is usually 1 for samples and 0 for population.
+    pub fn cov(self, dim: usize, degrees_of_feedom: usize) -> Tensor<B, D> {
+        let n = self.dims()[dim];
+        let centered = (self.clone() - self.mean_dim(dim)).swap_dims(dim, 0);
+        centered
+            .clone()
+            .transpose()
+            .matmul(centered)
+            .div_scalar(n as f32 - degrees_of_feedom as f32)
+    }
+}
+
+impl<B: Backend> Tensor<B, 2> {
+    /// Create diagonal matrix.
+    ///
+    /// # Arguments
+    ///
+    /// * `size` - The size of the square matrix.
+    pub fn diagonal(size: usize) -> Tensor<B, 2> {
+        Tensor::<B, 2, Int>::diagonal(size).float()
+    }
 }
 
 impl<const D: usize, B: ADBackend> Tensor<B, D> {
