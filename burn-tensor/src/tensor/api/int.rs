@@ -56,13 +56,9 @@ where
     ///
     /// * `size` - The size of the square matrix.
     pub fn diagonal(size: usize) -> Tensor<B, 2, Int> {
-        let indices = (0..size)
-            .map(|e| Tensor::<B, 1, Int>::from_ints([e as i32]))
-            .map(|e| e.unsqueeze())
-            .collect::<Vec<Tensor<B, 2, Int>>>();
-        let indices = Tensor::cat(indices, 0);
-        let ones = Tensor::ones([size]).reshape([size, 1]);
-        Tensor::<B, 2, Int>::zeros([size, size]).scatter(1, indices, ones)
+        let indices = Tensor::arange(0..size).unsqueeze();
+        let ones = Tensor::ones([size]).unsqueeze();
+        Tensor::<B, 2, Int>::zeros([size, size]).scatter(0, indices, ones)
     }
 }
 
