@@ -49,5 +49,4 @@ mod tests {
 
         data_expected.assert_approx_eq(&data_actual, 3);
     }
-
 }
