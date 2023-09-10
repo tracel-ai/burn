@@ -116,4 +116,15 @@ mod tests {
             Data::from([[2.0, 2.0, 5.0], [8.0, 8.0, 11.0]])
         );
     }
+
+    #[test]
+    #[should_panic(
+        expected = "=== Tensor Operation Error ===\n  Operation: 'select'\n  Reason:\n    1. Can't index a tensor with (2) dimensions on axis (10) \n"
+    )]
+    fn should_select_panic_invalid_dimension() {
+        let tensor = TestTensor::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let indices = TestTensorInt::from_data([1, 1, 0, 1, 2]);
+
+        tensor.select(10, indices);
+    }
 }

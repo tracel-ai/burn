@@ -4,6 +4,16 @@ mod tests {
     use burn_tensor::{Data, Tensor};
 
     #[test]
+    fn test_matmul_d1() {
+        let tensor_1 = TestTensor::from_floats([1.0, 7.0, 6.0]);
+        let tensor_2 = TestTensor::from_floats([4.0, 7.0, 5.0]);
+
+        let tensor_3 = tensor_1.matmul(tensor_2);
+
+        assert_eq!(tensor_3.into_data(), Data::from([83.0]));
+    }
+
+    #[test]
     fn test_matmul_d2() {
         let tensor_1 = TestTensor::from_floats([[1.0, 7.0], [2.0, 3.0], [1.0, 5.0]]);
         let tensor_2 = TestTensor::from_floats([[4.0, 7.0, 5.0], [2.0, 3.0, 5.0]]);
@@ -70,6 +80,28 @@ mod tests {
     fn test_matmul_simple_3() {
         let tensor_1 =
             TestTensor::from_floats([[3., 3., 3.], [4., 4., 4.], [5., 5., 5.], [6., 6., 6.]]);
+        let tensor_2 =
+            TestTensor::from_floats([[1., 2., 3., 4.], [1., 2., 3., 4.], [1., 2., 3., 4.]]);
+
+        let tensor_3 = tensor_1.matmul(tensor_2);
+
+        assert_eq!(
+            tensor_3.into_data(),
+            Data::from([
+                [9., 18., 27., 36.],
+                [12., 24., 36., 48.],
+                [15., 30., 45., 60.],
+                [18., 36., 54., 72.]
+            ])
+        );
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "=== Tensor Operation Error ===\n  Operation: 'Matmul'\n  Reason:\n    1. The inner dimension of matmul should be the same, but got 2 and 3. Lhs shape [4, 2], rhs shape [3, 4]. \n"
+    )]
+    fn test_matmul_panic_on_wrong_inner_dimensions() {
+        let tensor_1 = TestTensor::from_floats([[3., 3.], [4., 4.], [5., 5.], [6., 6.]]);
         let tensor_2 =
             TestTensor::from_floats([[1., 2., 3., 4.], [1., 2., 3., 4.], [1., 2., 3., 4.]]);
 
