@@ -1,5 +1,4 @@
 use crate::{backend::Backend, Data, Float, Int, Tensor};
-use alloc::vec::Vec;
 use core::ops::Range;
 
 impl<B> Tensor<B, 1, Int>
