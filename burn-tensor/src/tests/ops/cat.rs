@@ -1,8 +1,8 @@
 #[burn_tensor_testgen::testgen(cat)]
 mod tests {
     use super::*;
+    use alloc::vec::Vec;
     use burn_tensor::{Bool, Data, Int, Tensor};
-
     #[test]
     fn should_support_cat_ops_2d_dim0() {
         let tensor_1 = TestTensor::from_data([[1.0, 2.0, 3.0]]);
@@ -83,4 +83,4 @@ mod tests {
 
         TestTensor::cat(vec![tensor_1, tensor_2], 3).into_data();
     }
-}(expected = "index out of bounds: the len is 3 but the index is 3")
+}
