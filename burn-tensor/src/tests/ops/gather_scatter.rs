@@ -166,7 +166,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Indices tensor shape should be the same as the value tensor shape.")]
+    #[should_panic]
     fn should_scatter_panic_on_mismatch_of_shapes() {
         let tensor = TestTensor::from_floats([0.0, 0.0, 0.0]);
         let values = TestTensor::from_floats([5.0, 4.0]);

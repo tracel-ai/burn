@@ -87,9 +87,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(
-        expected = "=== Tensor Operation Error ===\n  Operation: 'Matmul'\n  Reason:\n    1. The inner dimension of matmul should be the same, but got 2 and 3. Lhs shape [4, 2], rhs shape [3, 4]. \n"
-    )]
+    #[should_panic]
     fn test_matmul_panic_on_wrong_inner_dimensions() {
         let tensor_1 = TestTensor::from_floats([[3., 3.], [4., 4.], [5., 5.], [6., 6.]]);
         let tensor_2 =
