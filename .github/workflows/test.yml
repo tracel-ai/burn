@@ -33,7 +33,7 @@ jobs:
       - name: install rust
         uses: dtolnay/rust-toolchain@master
         with:
-          components: rustfmt, clippy
+          components: rustfmt, clippy, llvm-tools-preview
           toolchain: ${{ matrix.rust }}
 
       - name: caching
@@ -52,11 +52,29 @@ jobs:
       - name: run checks & tests
         run: RUST_MATRIX=${{ matrix.rust }} cargo xtask run-checks ${{ matrix.test }}
 
+      - name: Install Grcov
+        run: cargo install grcov
+
+      - name: Run grcov
+        run: grcov . --binary-path target/debug/deps/ -s . -t cobertura --branch --ignore-not-existing --ignore 'target/**' --ignore '../**' --ignore '/*' -o coverage.xml
+
+      - name: Code Coverage Report
+        uses: irongut/CodeCoverageSummary@v1.3.0
+        with:
+          filename: coverage.xml
+          badge: true
+          fail_below_min: false
+          format: markdown
+          hide_branch_rate: false
+          hide_complexity: false
+          indicators: true
+          output: both
+          thresholds: '60 80'
+
   check-typos:
     runs-on: ubuntu-latest
     steps:
       - name: checkout
         uses: actions/checkout@v4
-
       - name: run spelling checks using typos
         run: cargo xtask run-checks typos
