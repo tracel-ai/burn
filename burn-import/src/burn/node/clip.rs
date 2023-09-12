@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{BurnImports, Scope, TensorType, Type};
+use crate::burn::{Scope, TensorType, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -28,23 +28,20 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ClipNode {
         if let Some(min) = self.min {
             if let Some(max) = self.max {
                 quote! {
-                    let #output = #input.clamp(#min.elem(), #max.elem());
+                    let #output = #input.clamp(#min, #max);
                 }
             } else {
                 quote! {
-                    let #output = #input.clamp_min(#min.elem());
+                    let #output = #input.clamp_min(#min);
                 }
             }
         } else if let Some(max) = self.max {
             return quote! {
-                let #output = #input.clamp_max(#max.elem());
+                let #output = #input.clamp_max(#max);
             };
         } else {
             panic!("Clip node must have at least one min or max value");
         }
-    }
-    fn register_imports(&self, imports: &mut BurnImports) {
-        imports.register("burn::tensor::ElementConversion");
     }
 
     fn into_node(self) -> Node<PS> {
@@ -73,7 +70,6 @@ mod tests {
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::ElementConversion;
             use burn::{
                 module::Module,
                 tensor::{backend::Backend, Tensor},
@@ -93,7 +89,7 @@ mod tests {
                 }
                 #[allow(clippy::let_and_return)]
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.clamp(0f64.elem(), 1f64.elem());
+                    let tensor2 = tensor1.clamp(0f64, 1f64);
 
                     tensor2
                 }
@@ -117,7 +113,6 @@ mod tests {
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::ElementConversion;
             use burn::{
                 module::Module,
                 tensor::{backend::Backend, Tensor},
@@ -137,7 +132,7 @@ mod tests {
                 }
                 #[allow(clippy::let_and_return)]
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.clamp_min(0f64.elem());
+                    let tensor2 = tensor1.clamp_min(0f64);
 
                     tensor2
                 }
@@ -161,7 +156,6 @@ mod tests {
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::ElementConversion;
             use burn::{
                 module::Module,
                 tensor::{backend::Backend, Tensor},
@@ -181,7 +175,7 @@ mod tests {
                 }
                 #[allow(clippy::let_and_return)]
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.clamp_max(1f64.elem());
+                    let tensor2 = tensor1.clamp_max(1f64);
 
                     tensor2
                 }
