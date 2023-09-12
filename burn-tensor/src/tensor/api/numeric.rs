@@ -411,8 +411,8 @@ where
     /// # Returns
     ///
     /// A new tensor with the values clamped between the given min and max values.
-    pub fn clamp(self, min: K::Elem, max: K::Elem) -> Self {
-        Self::new(K::clamp(self.primitive, min, max))
+    pub fn clamp<E: ElementConversion>(self, min: E, max: E) -> Self {
+        Self::new(K::clamp(self.primitive, min.elem(), max.elem()))
     }
 
     /// Clamps a tensor under a minimum value.
@@ -425,8 +425,8 @@ where
     /// # Returns
     ///
     /// A new tensor with the values clamped under the given min value.
-    pub fn clamp_min(self, min: K::Elem) -> Self {
-        Self::new(K::clamp_min(self.primitive, min))
+    pub fn clamp_min<E: ElementConversion>(self, min: E) -> Self {
+        Self::new(K::clamp_min(self.primitive, min.elem()))
     }
 
     /// Clamps a tensor over a maximum value.
@@ -440,8 +440,8 @@ where
     ///
     /// A new tensor with the values clamped over the given max value.
     ///
-    pub fn clamp_max(self, max: K::Elem) -> Self {
-        Self::new(K::clamp_max(self.primitive, max))
+    pub fn clamp_max<E: ElementConversion>(self, max: E) -> Self {
+        Self::new(K::clamp_max(self.primitive, max.elem()))
     }
 
     /// Apply element wise absolute value operation
