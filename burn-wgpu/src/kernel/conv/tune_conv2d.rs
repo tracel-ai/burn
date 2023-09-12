@@ -1,3 +1,4 @@
+use burn_tensor::ops::ConvOptions;
 use crate::{
     benchmark::Benchmark,
     element::{FloatElement, WgpuElement},
@@ -6,7 +7,6 @@ use crate::{
     tune::{AutoTuneFunction, AutoTuneKey, Execution, KernelFunction, Tunable},
     GraphicsApi, WgpuDevice,
 };
-use burn_tensor::ops::ConvOptions;
 use std::{marker::PhantomData, sync::Arc};
 
 const WORKGROUP_SIZES: [usize; 3] = [8, 16, 32];
@@ -43,7 +43,7 @@ impl<E: WgpuElement + FloatElement> KernelFunction for Conv2dKernel<E> {
 }
 
 #[derive(new)]
-struct Conv2dBenchmark<E: WgpuElement, const D: usize> {
+struct Conv2dBenchmark<E: WgpuElement> {
     input: WgpuTensor<E, 4>,
     weight: WgpuTensor<E, 4>,
     bias: Option<WgpuTensor<E, 1>>,
@@ -61,7 +61,7 @@ struct Conv2dBenchmark<E: WgpuElement, const D: usize> {
     >,
 }
 
-impl<E, const D: usize, G> Benchmark<G> for Conv2dBenchmark<E, D>
+impl<E, G> Benchmark<G> for Conv2dBenchmark<E>
 where
     E: WgpuElement + FloatElement,
     G: GraphicsApi,
@@ -92,7 +92,7 @@ where
         }
     }
 
-    fn prepare(&self, device: &WgpuDevice) -> Self::Args {
+    fn prepare(&self, _device: &WgpuDevice) -> Self::Args {
         (
             self.input.clone().into(),
             self.weight.clone().into(),
@@ -136,14 +136,14 @@ where
         Execution::Executed(output) => output,
         Execution::NoCacheFound((input, weight, bias, options)) => {
             let tunables = conv2d_candidates::<G, E>(
-                input.into(),
-                weight.into(),
-                bias.map(|b| b.into()),
-                options,
+                input.clone().into(),
+                weight.clone().into(),
+                bias.clone().map(|b| b.into()),
+                options.clone(),
             );
             context.tuner.tune(
                 id,
-                (input, weight, bias, options),
+                (input.clone(), weight.clone(), bias.clone(), options.clone()),
                 tunables,
                 &context.device,
                 &context,
