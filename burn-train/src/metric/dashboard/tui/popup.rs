@@ -122,40 +122,23 @@ impl<'a> PopupView<'a> {
                     )),
             );
 
-        let area = centered_rect(60, 40, size);
+        let area = centered_percent(20, size, Direction::Horizontal);
+        let area = centered_percent(20, area, Direction::Vertical);
+
         frame.render_widget(paragraph, area);
     }
 }
 
-// Helper function to center a rect.
-//
-// From: https://github.com/ratatui-org/ratatui/blob/main/examples/popup.rs
-fn centered_rect(percent_x: u16, percent_y: u16, size: Rect) -> Rect {
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
+/// The percent represents the amount of space that will be taken by each side.
+fn centered_percent(percent: u16, size: Rect, direction: Direction) -> Rect {
+    let center = 100 - (percent * 2);
+
+    Layout::default()
+        .direction(direction)
         .constraints([
-            Constraint::Percentage((100 - percent_y) / 2),
-            Constraint::Percentage(percent_y),
-            Constraint::Percentage((100 - percent_y) / 2),
+            Constraint::Percentage(percent),
+            Constraint::Percentage(center),
+            Constraint::Percentage(percent),
         ])
-        .split(size);
-
-    let _vertical_top_space = chunks[0];
-    let vertical_middle_space = chunks[1];
-    let _vertical_bottom_space = chunks[2];
-
-    let chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage((100 - percent_x) / 2),
-            Constraint::Percentage(percent_x),
-            Constraint::Percentage((100 - percent_x) / 2),
-        ])
-        .split(vertical_middle_space);
-
-    let _horizontal_top_space = chunks[0];
-    let horizontal_middle_space = chunks[1];
-    let _horizontal_bottom_space = chunks[2];
-
-    horizontal_middle_space
+        .split(size)[1]
 }
