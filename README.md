@@ -8,6 +8,14 @@
 [![Rust Version](https://img.shields.io/badge/Rust-1.71.0+-blue)](https://releases.rs/docs/1.71.0)
 ![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)
 
+[![CodeCov][codecov badge]][codecov]
+
+<!-- Links -->
+[codecov]: https://codecov.io/gh/burn-rs/burn/
+
+<!-- Badges -->
+[codecov badge]: https://codecov.io/gh/burn-rs/burn/branch/main/graph/badge.svg
+
 This library strives to serve as a comprehensive **deep learning framework**, offering exceptional
 flexibility and written in Rust. Our objective is to cater to both researchers and practitioners by
 simplifying the process of experimenting, training, and deploying models.
