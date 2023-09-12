@@ -318,7 +318,8 @@ pub fn run(env: CheckType) -> anyhow::Result<()> {
     // Start time measurement
     let start = Instant::now();
 
-    // The environment can assume ONLY "std", "no_std", "typos" as values.
+    // The environment can assume ONLY "std", "no_std", "typos", "examples"
+    // as values.
     //
     // Depending on the input argument, the respective environment checks
     // are run.
@@ -334,6 +335,7 @@ pub fn run(env: CheckType) -> anyhow::Result<()> {
             check_typos();
             std_checks();
             no_std_checks();
+            check_examples();
         }
     }
 
