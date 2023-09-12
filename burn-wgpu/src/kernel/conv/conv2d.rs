@@ -33,13 +33,14 @@ pub(crate) fn conv2d<E: WgpuElement>(
     weight: WgpuTensor<E, 4>,
     bias: Option<WgpuTensor<E, 1>>,
     options: ConvOptions<2>,
+    workgroup_size_override: Option<usize>,
 ) -> WgpuTensor<E, 4> {
     #[cfg(feature = "autotune")]
     const WORKGROUP: usize = workgroup_size_override.unwrap_or(32);
 
     #[cfg(not(feature = "autotune"))]
     const WORKGROUP: usize = 32;
-    
+
     let input = kernel::into_contiguous(input);
     let weight = kernel::into_contiguous(weight);
     let [batch_size, _, in_height, in_width] = input.shape.dims;
