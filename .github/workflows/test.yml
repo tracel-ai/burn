@@ -20,8 +20,8 @@ jobs:
         test: ['std', 'no-std']
         include:
           - rust: stable
-            test: std
             rustflags: -Cinstrument-coverage
+            rustcomponents: ', llvm-tools-preview'
     steps:
       - name: free disk space
         run: |
@@ -37,7 +37,7 @@ jobs:
       - name: install rust
         uses: dtolnay/rust-toolchain@master
         with:
-          components: rustfmt, clippy, llvm-tools-preview
+          components: rustfmt, clippy ${{ matrix.rustcomponents }}
           toolchain: ${{ matrix.rust }}
 
       - name: caching
