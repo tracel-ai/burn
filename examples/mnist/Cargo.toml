@@ -17,7 +17,7 @@ tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu"]
 
 [dependencies]
-burn = {path = "../../burn", features=["autodiff"]}
+burn = {path = "../../burn", features=["train"]}
 
 # Serialization
 log = {workspace = true}
