@@ -18,6 +18,10 @@ jobs:
       matrix:
         rust: [stable, 1.71.0]
         test: ['std', 'no-std']
+        include:
+          - rust: stable
+            test: std
+            rustflags: -Cinstrument-coverage
     steps:
       - name: free disk space
         run: |
@@ -51,37 +55,35 @@ jobs:
 
       - name: run checks & tests
         run: RUST_MATRIX=${{ matrix.rust }} cargo xtask run-checks ${{ matrix.test }}
+        env:
+          RUSTFLAGS: ${{ matrix.rustflags }}
+          CARGO_INCREMENTAL: 0
+          LLVM_PROFILE_FILE: coverage-%p-%s.profraw
 
-      - name: Install Grcov
-        run: cargo install grcov
+      - name: Install grcov
+        if: matrix.rust = 'stable'
+        env:
+          GRCOV_LINK: https://github.com/mozilla/grcov/releases/download
+          GRCOV_VERSION: v0.8.18
+        run: |
+          curl -L "$GRCOV_LINK/$GRCOV_VERSION/grcov-x86_64-unknown-linux-musl.tar.bz2" |
+          tar xj -C $HOME/.cargo/bin
 
       - name: Run grcov
-        run: grcov . --binary-path target/debug/deps/ -s . -t cobertura --branch --ignore-not-existing --ignore 'target/**' --ignore '../**' --ignore '/*' -o coverage.xml
+        if: matrix.rust = 'stable'
+        run: grcov . --binary-path target/debug/deps/ -s . -t lcov --branch --ignore-not-existing --ignore 'target/**' --ignore '../**' --ignore '/*' -o lcov.info
 
-      - name: Code Coverage Report
-        uses: irongut/CodeCoverageSummary@v1.3.0
+      - name: Codecov upload
+        if: matrix.rust = 'stable'
+        uses: codecov/codecov-action@v3
         with:
-          filename: coverage.xml
-          badge: true
-          fail_below_min: false
-          format: markdown
-          hide_branch_rate: false
-          hide_complexity: false
-          indicators: true
-          output: both
-          thresholds: '60 80'
-
-      - name: Add Coverage PR Comment
-        uses: marocchino/sticky-pull-request-comment@v2
-        if: github.event_name == 'pull_request'
-        with:
-          recreate: true
-          path: code-coverage-results.md
+          files: lcov.info
 
   check-typos:
     runs-on: ubuntu-latest
     steps:
       - name: checkout
         uses: actions/checkout@v4
+
       - name: run spelling checks using typos
         run: cargo xtask run-checks typos

@@ -18,7 +18,6 @@
 //!     - `typos` to check typos in the source code
 //!     - `examples` to check the examples compile
 
-use std::collections::HashMap;
 use std::env;
 use std::process::{Child, Command, Stdio};
 use std::str;
@@ -63,16 +62,6 @@ fn rustup(target: &str) {
 
 // Define and run a cargo command
 fn run_cargo(command: &str, first_params: &[&str], second_params: &[&str], error: &str) {
-    run_cargo_with_envs(command, first_params, second_params, error, HashMap::new());
-}
-
-fn run_cargo_with_envs(
-    command: &str,
-    first_params: &[&str],
-    second_params: &[&str],
-    error: &str,
-    envs: HashMap<&str, &str>,
-) {
     // Print cargo command
     println!(
         "\ncargo {} {} {}\n",
@@ -86,7 +75,6 @@ fn run_cargo_with_envs(
         .arg(command)
         .args(first_params)
         .args(second_params)
-        .envs(envs)
         .stdout(Stdio::inherit()) // Send stdout directly to terminal
         .stderr(Stdio::inherit()) // Send stderr directly to terminal
         .spawn()
@@ -118,21 +106,14 @@ fn cargo_install(params: &[&str]) {
     );
 }
 
-// Run cargo test command with coverage instrumentation
-fn cargo_test_with_coverage(params: &[&str]) {
-    let envs = [
-        ("RUSTFLAGS", "-Cinstrument-coverage"),
-        ("CARGO_INCREMENTAL", "0"),
-        ("LLVM_PROFILE_FILE", "coverage-%p-%s.profraw"),
-    ];
-
+// Run cargo test command
+fn cargo_test(params: &[&str]) {
     // Run cargo test
-    run_cargo_with_envs(
+    run_cargo(
         "test",
         params,
         &["--color=always", "--", "--color=always"],
         "Failed to run cargo test",
-        envs.iter().cloned().collect(),
     );
 }
 
@@ -180,7 +161,7 @@ fn build_and_test_no_std(crate_name: &str) {
     cargo_build(&["-p", crate_name, "--no-default-features"]);
 
     // Run cargo test --no-default-features
-    cargo_test_with_coverage(&["-p", crate_name, "--no-default-features"]);
+    cargo_test(&["-p", crate_name, "--no-default-features"]);
 
     // Run cargo build --no-default-features --target wasm32-unknown-unknowns
     cargo_build(&[
@@ -225,10 +206,10 @@ fn burn_core_std() {
     println!("\n\nRun checks for burn-core crate with tch and wgpu backend");
 
     // Run cargo test --features test-tch
-    cargo_test_with_coverage(&["-p", "burn-core", "--features", "test-tch"]);
+    cargo_test(&["-p", "burn-core", "--features", "test-tch"]);
 
     // Run cargo test --features test-wgpu
-    cargo_test_with_coverage(&["-p", "burn-core", "--features", "test-wgpu"]);
+    cargo_test(&["-p", "burn-core", "--features", "test-wgpu"]);
 }
 
 // Test burn-dataset features
@@ -239,7 +220,7 @@ fn burn_dataset_features_std() {
     cargo_build(&["-p", "burn-dataset", "--all-features"]);
 
     // Run cargo test --all-features
-    cargo_test_with_coverage(&["-p", "burn-dataset", "--all-features"]);
+    cargo_test(&["-p", "burn-dataset", "--all-features"]);
 
     // Run cargo doc --all-features
     cargo_doc(&["-p", "burn-dataset", "--all-features"]);
@@ -256,7 +237,7 @@ fn std_checks() {
     cargo_build(&["--workspace", "--exclude=xtask"]);
 
     // Test each workspace
-    cargo_test_with_coverage(&["--workspace"]);
+    cargo_test(&["--workspace"]);
 
     // Check format
     cargo_fmt();
