@@ -11,14 +11,35 @@ use burn_tensor::{
 
 kernel_wgsl!(Conv2d, "../../template/conv/conv2d.wgsl");
 
+macro_rules! compile_kernel_with_workgroup {
+    ($input:expr, $workgroup_size:expr) => {
+        match $workgroup_size {
+            8 => $input
+                .context
+                .compile_static::<KernelSettings<Conv2d, E, i32, 8, 8, 1>>(),
+            16 => $input
+                .context
+                .compile_static::<KernelSettings<Conv2d, E, i32, 16, 16, 1>>(),
+            32 => $input
+                .context
+                .compile_static::<KernelSettings<Conv2d, E, i32, 32, 32, 1>>(),
+            _ => panic!("Unsupported workgroup size"),
+        }
+    };
+}
+
 pub(crate) fn conv2d<E: WgpuElement>(
     input: WgpuTensor<E, 4>,
     weight: WgpuTensor<E, 4>,
     bias: Option<WgpuTensor<E, 1>>,
     options: ConvOptions<2>,
 ) -> WgpuTensor<E, 4> {
-    const WORKGROUP: usize = 32;
+    #[cfg(feature = "autotune")]
+    const WORKGROUP: usize = workgroup_size_override.unwrap_or(32);
 
+    #[cfg(not(feature = "autotune"))]
+    const WORKGROUP: usize = 32;
+    
     let input = kernel::into_contiguous(input);
     let weight = kernel::into_contiguous(weight);
     let [batch_size, _, in_height, in_width] = input.shape.dims;
@@ -64,9 +85,7 @@ pub(crate) fn conv2d<E: WgpuElement>(
         .context
         .create_buffer_with_data(bytemuck::cast_slice(&info));
 
-    let kernel = input
-        .context
-        .compile_static::<KernelSettings<Conv2d, E, i32, WORKGROUP, WORKGROUP, 1>>();
+    let kernel = compile_kernel_with_workgroup!(input, WORKGROUP);
 
     input.context.execute(
         elemwise_workgroup(output.shape.num_elements(), WORKGROUP),
