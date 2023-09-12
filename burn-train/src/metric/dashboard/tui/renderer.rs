@@ -23,7 +23,7 @@ pub(crate) type TerminalBackend = CrosstermBackend<Stdout>;
 /// The current terminal frame.
 pub(crate) type TerminalFrame<'a> = ratatui::Frame<'a, TerminalBackend>;
 
-static MAX_REFRESH_RATE_MILLIS: u64 = 100;
+const MAX_REFRESH_RATE_MILLIS: u64 = 100;
 
 /// The CLI dashboard renderer.
 pub struct TuiDashboardRenderer {

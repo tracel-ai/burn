@@ -127,29 +127,35 @@ impl<'a> PopupView<'a> {
     }
 }
 
+// Helper function to center a rect.
+//
 // From: https://github.com/ratatui-org/ratatui/blob/main/examples/popup.rs
-fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
-    let popup_layout = Layout::default()
+fn centered_rect(percent_x: u16, percent_y: u16, size: Rect) -> Rect {
+    let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints(
-            [
-                Constraint::Percentage((100 - percent_y) / 2),
-                Constraint::Percentage(percent_y),
-                Constraint::Percentage((100 - percent_y) / 2),
-            ]
-            .as_ref(),
-        )
-        .split(r);
+        .constraints([
+            Constraint::Percentage((100 - percent_y) / 2),
+            Constraint::Percentage(percent_y),
+            Constraint::Percentage((100 - percent_y) / 2),
+        ])
+        .split(size);
 
-    Layout::default()
+    let _vertical_top_space = chunks[0];
+    let vertical_middle_space = chunks[1];
+    let _vertical_bottom_space = chunks[2];
+
+    let chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints(
-            [
-                Constraint::Percentage((100 - percent_x) / 2),
-                Constraint::Percentage(percent_x),
-                Constraint::Percentage((100 - percent_x) / 2),
-            ]
-            .as_ref(),
-        )
-        .split(popup_layout[1])[1]
+        .constraints([
+            Constraint::Percentage((100 - percent_x) / 2),
+            Constraint::Percentage(percent_x),
+            Constraint::Percentage((100 - percent_x) / 2),
+        ])
+        .split(vertical_middle_space);
+
+    let _horizontal_top_space = chunks[0];
+    let horizontal_middle_space = chunks[1];
+    let _horizontal_bottom_space = chunks[2];
+
+    horizontal_middle_space
 }

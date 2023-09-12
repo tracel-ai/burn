@@ -5,7 +5,7 @@ use ratatui::{
     widgets::{Dataset, GraphType},
 };
 
-static FACTOR_BEFORE_RESIZE: usize = 2;
+const FACTOR_BEFORE_RESIZE: usize = 2;
 
 /// A plot that shows the recent history at full resolution.
 pub(crate) struct RecentHistoryPlot {
