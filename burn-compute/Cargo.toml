@@ -1,0 +1,19 @@
+[package]
+authors = ["louisfd <louisfd94@gmail.com>"]
+categories = ["science"]
+description = "Infrastructure for making backend computations asynchronous, autotunable and with well-managed memory"
+edition = "2021"
+keywords = ["deep-learning", "machine-learning", "data"]
+license = "MIT OR Apache-2.0"
+name = "burn-compute"
+readme = "README.md"
+repository = "https://github.com/burn-rs/burn/tree/main/burn-compute"
+version = "0.10.0"
+
+[features]
+
+[dependencies]
+derive-new = { workspace = true }
+half = { workspace = true, features = ["std"] }
+
+[dev-dependencies]
