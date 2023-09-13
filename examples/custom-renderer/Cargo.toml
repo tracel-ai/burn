@@ -1,0 +1,20 @@
+[package]
+authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>", "Ankitects Pty Ltd"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+name = "custom-renderer"
+description = "Example of how to render training progress outside of the tui"
+publish = false
+version = "0.10.0"
+
+[dependencies]
+burn = {path = "../../burn", features=["autodiff", "wgpu", "train-minimal", "dataset"]}
+guide = {path = "../guide", default-features=false, features=["train-minimal"]}
+
+# Serialization
+log = {workspace = true}
+serde = {workspace = true, features = ["std", "derive"]}
+
+# Wgpu internal dependencies
+derive-new = { workspace = true }
+bytemuck = { workspace = true }
