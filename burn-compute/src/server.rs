@@ -1,18 +1,19 @@
+use alloc::vec::Vec;
+
 pub trait ComputeServer {
     type KernelDescription;
     type ResourceDescription;
-    type Resource: Sized; // in WGPU, this would be Vec<u8>
 
-    fn read(&self, resource_description: Self::ResourceDescription) -> Self::Resource;
+    fn read(&mut self, resource_description: &Self::ResourceDescription) -> Vec<u8>;
 
-    fn create(&self, resource: Self::Resource) -> Self::ResourceDescription;
+    fn create(&mut self, resource: Vec<u8>) -> Self::ResourceDescription;
 
-    fn empty(&self, size: usize) -> Self::ResourceDescription;
+    fn empty(&mut self, size: usize) -> Self::ResourceDescription;
 
     fn execute(
-        &self,
+        &mut self,
         kernel_description: Self::KernelDescription,
-        resource_descriptions: Vec<Self::ResourceDescription>,
+        resource_descriptions: Vec<&Self::ResourceDescription>,
     );
 
     fn sync(&self);

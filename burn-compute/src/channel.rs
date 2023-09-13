@@ -1,67 +1,70 @@
-use std::marker::PhantomData;
+use core::marker::PhantomData;
 
+use alloc::{boxed::Box, vec::Vec};
 use derive_new::new;
+use spin::Mutex;
 
 use crate::{ComputeClient, ComputeServer};
 
 #[derive(new)]
-pub struct ComputeChannel<KernelDescription, ResourceDescription, Resource> {
-    server: Box<
-        dyn ComputeServer<
-            KernelDescription = KernelDescription,
-            ResourceDescription = ResourceDescription,
-            Resource = Resource,
+pub struct ComputeChannel<KernelDescription, ResourceDescription> {
+    server: Mutex<
+        Box<
+            dyn ComputeServer<
+                KernelDescription = KernelDescription,
+                ResourceDescription = ResourceDescription,
+            >,
         >,
     >,
     _kd: PhantomData<KernelDescription>,
     _rd: PhantomData<ResourceDescription>,
-    _r: PhantomData<Resource>,
 }
 
-impl<KernelDescription, ResourceDescription, Resource>
-    ComputeChannel<KernelDescription, ResourceDescription, Resource>
+impl<'a, KernelDescription, ResourceDescription>
+    ComputeChannel<KernelDescription, ResourceDescription>
 {
     pub fn init(
-        server: Box<
-            dyn ComputeServer<
-                KernelDescription = KernelDescription,
-                ResourceDescription = ResourceDescription,
-                Resource = Resource,
+        server: Mutex<
+            Box<
+                dyn ComputeServer<
+                    KernelDescription = KernelDescription,
+                    ResourceDescription = ResourceDescription,
+                >,
             >,
         >,
-    ) -> ComputeClient<KernelDescription, ResourceDescription, Resource> {
+    ) -> ComputeClient<KernelDescription, ResourceDescription> {
         let channel = ComputeChannel {
             server: server,
             _kd: PhantomData,
             _rd: PhantomData,
-            _r: PhantomData,
         };
 
         ComputeClient::new(channel)
     }
 
-    pub fn read(&self, resource_description: ResourceDescription) -> Resource {
-        self.server.read(resource_description)
+    pub fn read(&self, resource_description: &ResourceDescription) -> Vec<u8> {
+        self.server.lock().read(resource_description)
     }
 
-    pub fn create(&self, resource: Resource) -> ResourceDescription {
-        self.server.create(resource)
+    pub fn create(&self, resource: Vec<u8>) -> ResourceDescription {
+        self.server.lock().create(resource)
     }
 
     pub fn empty(&self, size: usize) -> ResourceDescription {
-        self.server.empty(size)
+        self.server.lock().empty(size)
     }
 
     pub fn execute(
         &self,
         kernel_description: KernelDescription,
-        resource_descriptions: Vec<ResourceDescription>,
+        resource_descriptions: Vec<&ResourceDescription>,
     ) {
         self.server
+            .lock()
             .execute(kernel_description, resource_descriptions)
     }
 
     pub fn sync(&self) {
-        self.server.sync()
+        self.server.lock().sync()
     }
 }
