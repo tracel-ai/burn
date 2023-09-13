@@ -1,70 +1,60 @@
-use core::marker::PhantomData;
-
-use alloc::{boxed::Box, vec::Vec};
-use derive_new::new;
+use alloc::vec::Vec;
 use spin::Mutex;
 
-use crate::{ComputeClient, ComputeServer};
+use crate::ComputeServer;
 
-#[derive(new)]
-pub struct ComputeChannel<KernelDescription, ResourceDescription> {
-    server: Mutex<
-        Box<
-            dyn ComputeServer<
-                KernelDescription = KernelDescription,
-                ResourceDescription = ResourceDescription,
-            >,
-        >,
-    >,
-    _kd: PhantomData<KernelDescription>,
-    _rd: PhantomData<ResourceDescription>,
+pub struct MutexComputeChannel<Server> {
+    server: Mutex<Server>,
 }
 
-impl<'a, KernelDescription, ResourceDescription>
-    ComputeChannel<KernelDescription, ResourceDescription>
+impl<Server> ComputeChannel<Server> for MutexComputeChannel<Server>
+where
+    Server: ComputeServer,
 {
-    pub fn init(
-        server: Mutex<
-            Box<
-                dyn ComputeServer<
-                    KernelDescription = KernelDescription,
-                    ResourceDescription = ResourceDescription,
-                >,
-            >,
-        >,
-    ) -> ComputeClient<KernelDescription, ResourceDescription> {
-        let channel = ComputeChannel {
-            server: server,
-            _kd: PhantomData,
-            _rd: PhantomData,
-        };
-
-        ComputeClient::new(channel)
+    fn new(server: Server) -> Self {
+        Self {
+            server: Mutex::new(server),
+        }
     }
 
-    pub fn read(&self, resource_description: &ResourceDescription) -> Vec<u8> {
-        self.server.lock().read(resource_description)
+    fn read(&self, resource_description: &Server::ResourceDescription) -> Vec<u8> {
+        let mut server = self.server.lock();
+
+        server.read(resource_description)
     }
 
-    pub fn create(&self, resource: Vec<u8>) -> ResourceDescription {
+    fn create(&self, resource: Vec<u8>) -> Server::ResourceDescription {
         self.server.lock().create(resource)
     }
 
-    pub fn empty(&self, size: usize) -> ResourceDescription {
+    fn empty(&self, size: usize) -> Server::ResourceDescription {
         self.server.lock().empty(size)
     }
 
-    pub fn execute(
+    fn execute(
         &self,
-        kernel_description: KernelDescription,
-        resource_descriptions: Vec<&ResourceDescription>,
+        kernel_description: Server::KernelDescription,
+        resource_descriptions: Vec<&Server::ResourceDescription>,
     ) {
         self.server
             .lock()
             .execute(kernel_description, resource_descriptions)
     }
 
-    pub fn sync(&self) {
+    fn sync(&self) {
         self.server.lock().sync()
     }
+}
+
+pub trait ComputeChannel<Server: ComputeServer> {
+    fn new(server: Server) -> Self;
+    fn read(&self, resource_description: &Server::ResourceDescription) -> Vec<u8>;
+    fn create(&self, resource: Vec<u8>) -> Server::ResourceDescription;
+    fn empty(&self, size: usize) -> Server::ResourceDescription;
+    fn execute(
+        &self,
+        kernel_description: Server::KernelDescription,
+        resource_descriptions: Vec<&Server::ResourceDescription>,
+    );
+    fn sync(&self);
 }

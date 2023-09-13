@@ -1,30 +1,38 @@
 use alloc::vec::Vec;
+use core::marker::PhantomData;
 use derive_new::new;
 
-use crate::channel::ComputeChannel;
+use crate::{
+    channel::{ComputeChannel, MutexComputeChannel},
+    ComputeServer,
+};
 
 #[derive(new)]
-pub struct ComputeClient<KernelDescription, ResourceDescription> {
-    channel: ComputeChannel<KernelDescription, ResourceDescription>,
+pub struct ComputeClient<Server, Channel = MutexComputeChannel<Server>> {
+    channel: Channel,
+    _server: PhantomData<Server>,
 }
 
-impl<KernelDescription, ResourceDescription> ComputeClient<KernelDescription, ResourceDescription> {
-    pub fn read(&self, resource_description: &ResourceDescription) -> Vec<u8> {
+impl<Server> ComputeClient<Server>
+where
+    Server: ComputeServer,
+{
+    pub fn read(&self, resource_description: &Server::ResourceDescription) -> Vec<u8> {
         self.channel.read(resource_description)
     }
 
-    pub fn create(&self, resource: Vec<u8>) -> ResourceDescription {
+    pub fn create(&self, resource: Vec<u8>) -> Server::ResourceDescription {
         self.channel.create(resource)
     }
 
-    pub fn empty(&self, size: usize) -> ResourceDescription {
+    pub fn empty(&self, size: usize) -> Server::ResourceDescription {
         self.channel.empty(size)
     }
 
     pub fn execute(
         &self,
-        kernel_description: KernelDescription,
-        resource_descriptions: Vec<&ResourceDescription>,
+        kernel_description: Server::KernelDescription,
+        resource_descriptions: Vec<&Server::ResourceDescription>,
     ) {
         self.channel
             .execute(kernel_description, resource_descriptions)

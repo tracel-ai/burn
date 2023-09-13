@@ -1,31 +1,23 @@
-// #![cfg_attr(not(feature = "std"), no_std)]
-
 extern crate alloc;
+
 mod channel;
 mod client;
+mod dummy;
 mod memory_management;
 mod server;
-pub use channel::*;
 
+pub use channel::*;
 pub use client::*;
-use dummy::{DummyKernelDescription, DummyResourceDescription};
 pub use memory_management::*;
 pub use server::*;
-mod dummy;
-type Server = dyn ComputeServer<
-    KernelDescription = DummyKernelDescription,
-    ResourceDescription = DummyResourceDescription,
->;
 
 #[cfg(test)]
 mod tests {
-
-    use alloc::{boxed::Box, vec::Vec};
-    use spin::Mutex;
-
     use crate::dummy::{
-        DummyAllocator, DummyElementwiseAddition, DummyMemoryManagement, DummyServer,
+        DummyAllocator, DummyElementwiseAddition, DummyKernelDescription, DummyMemoryManagement,
+        DummyServer,
     };
+    use alloc::{boxed::Box, vec::Vec};
 
     use super::*;
 
@@ -67,10 +59,11 @@ mod tests {
         assert_eq!(obtained_resource, Vec::from([4, 5, 6]))
     }
 
-    fn make_client() -> ComputeClient<DummyKernelDescription, DummyResourceDescription> {
+    fn make_client() -> ComputeClient<DummyServer> {
         let memory_management = DummyMemoryManagement::new(Vec::new(), DummyAllocator::new());
         let server = DummyServer::new(Box::new(memory_management));
-        let server_for_channel: Mutex<Box<Server>> = Mutex::new(Box::new(server));
-        ComputeChannel::init(server_for_channel)
+        let channel = MutexComputeChannel::new(server);
+
+        ComputeClient::new(channel)
     }
 }

@@ -1,11 +1,8 @@
-use std::mem;
-
 use alloc::{boxed::Box, vec, vec::Vec};
 use derive_new::new;
 
-use crate::{ComputeServer, Memory, MemoryManagement};
-
 use super::{DummyAllocator, DummyKernelDescription};
+use crate::{ComputeServer, Memory, MemoryManagement};
 
 #[derive(new)]
 pub struct DummyServer {
@@ -18,7 +15,6 @@ pub struct DummyResourceDescription {
 
 impl ComputeServer for DummyServer {
     type KernelDescription = DummyKernelDescription;
-
     type ResourceDescription = DummyResourceDescription;
 
     fn read(&mut self, resource_description: &Self::ResourceDescription) -> Vec<u8> {
