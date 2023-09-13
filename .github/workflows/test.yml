@@ -20,6 +20,7 @@ jobs:
         test: ['std', 'no-std']
         include:
           - rust: stable
+            test: std
             rustflags: -Cinstrument-coverage
             rustcomponents: ', llvm-tools-preview'
     steps:
@@ -61,7 +62,7 @@ jobs:
           LLVM_PROFILE_FILE: coverage-%p-%s.profraw
 
       - name: Install grcov
-        if: matrix.rust == 'stable'
+        if: matrix.rust == 'stable' && matrix.test == 'std'
         env:
           GRCOV_LINK: https://github.com/mozilla/grcov/releases/download
           GRCOV_VERSION: v0.8.18
@@ -70,11 +71,11 @@ jobs:
           tar xj -C $HOME/.cargo/bin
 
       - name: Run grcov
-        if: matrix.rust == 'stable'
+        if: matrix.rust == 'stable' && matrix.test == 'std'
         run: grcov . --binary-path target/debug/deps/ -s . -t lcov --branch --ignore-not-existing --ignore 'target/**' --ignore '../**' --ignore '/*' -o lcov.info
 
       - name: Codecov upload
-        if: matrix.rust == 'stable'
+        if: matrix.rust == 'stable' && matrix.test == 'std'
         uses: codecov/codecov-action@v3
         with:
           files: lcov.info
