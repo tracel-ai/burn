@@ -34,6 +34,7 @@ pub(crate) fn conv2d<E: WgpuElement>(
     bias: Option<WgpuTensor<E, 1>>,
     options: ConvOptions<2>,
     workgroup_size_override: Option<usize>,
+    unrolling_factor: Option<u32>,
 ) -> WgpuTensor<E, 4> {
     #[cfg(feature = "autotune")]
     const WORKGROUP: usize = workgroup_size_override.unwrap_or(32);
@@ -77,6 +78,7 @@ pub(crate) fn conv2d<E: WgpuElement>(
     info.push(options.dilation[0] as u32);
     info.push(options.dilation[1] as u32);
     info.push(options.groups as u32);
+    info.push(unrolling_factor.unwrap_or(1) as u32);
 
     let bias_buffer = bias
         .map(|bias| bias.buffer)
