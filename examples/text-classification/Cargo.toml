@@ -19,7 +19,7 @@ wgpu = ["burn/wgpu"]
 
 [dependencies]
 # Burn
-burn = {path = "../../burn", features=["autodiff", "ndarray"]}
+burn = {path = "../../burn", features=["train", "ndarray"]}
 
 # Tokenizer
 tokenizers = { version = "0.13.4", default-features = false, features = [
