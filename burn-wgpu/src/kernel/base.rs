@@ -159,7 +159,7 @@ impl<K: StaticKernel, E: WgpuElement, I: WgpuElement> DynamicKernel
 /// | (2 * D + 1)..(3 * D + 1) | lhs shape   |
 /// | (3 * D + 1)..(4 * D + 1) | rhs shape   |
 pub fn build_info<E: WgpuElement, const D: usize>(tensors: &[&WgpuTensor<E, D>]) -> Vec<u32> {
-    let mut info: Vec<u32> = vec![0; tensors.len() * 2 * D + 1];
+    let mut info: Vec<u32> = vec![0; tensors.len() * 2 * D + 2];
     info[0] = D as u32;
 
     let mut current = 1;

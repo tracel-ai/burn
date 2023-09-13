@@ -16,7 +16,7 @@ var<storage, read_write> output: array<{{ elem }}>;
 
 @group(0)
 @binding(4)
-var<storage, read> info: array<u32, 32>;
+var<storage, read> info: array<u32, 33>;
 
 const WORKGROUP_SIZE_X = {{ workgroup_size_x }}u;
 
