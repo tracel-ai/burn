@@ -22,10 +22,10 @@ where
         options: ConvOptions<2>,
     ) -> FloatTensor<Self, 4> {
         #[cfg(feature = "autotune")]
-        return kernel::conv::tune(x, weight, bias, options, None);
+        return kernel::conv::tune(x, weight, bias, options, None, None);
 
         #[cfg(not(feature = "autotune"))]
-        kernel::conv::conv2d(x, weight, bias, options, None)
+        kernel::conv::conv2d(x, weight, bias, options, None, None)
     }
 
     fn conv_transpose2d(

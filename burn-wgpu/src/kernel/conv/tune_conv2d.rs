@@ -1,4 +1,3 @@
-use burn_tensor::ops::ConvOptions;
 use crate::{
     benchmark::Benchmark,
     element::{FloatElement, WgpuElement},
@@ -7,12 +6,14 @@ use crate::{
     tune::{AutoTuneFunction, AutoTuneKey, Execution, KernelFunction, Tunable},
     GraphicsApi, WgpuDevice,
 };
+use burn_tensor::ops::ConvOptions;
 use std::{marker::PhantomData, sync::Arc};
 
 const WORKGROUP_SIZES: [usize; 3] = [8, 16, 32];
 
 struct Conv2dKernel<E> {
     workgroup_size: usize,
+    unrolling_factor: u32,
     _marker: PhantomData<E>,
 }
 
@@ -33,6 +34,7 @@ impl<E: WgpuElement + FloatElement> KernelFunction for Conv2dKernel<E> {
             bias.map(|b| b.into()),
             options,
             Some(self.workgroup_size),
+            Some(self.unrolling_factor),
         )
         .into()
     }
@@ -164,6 +166,19 @@ type Conv2dTunable<G, E> = Tunable<
     ),
     WgpuTensorDyn<E>,
 >;
+
+/// Create a vector of unrolling factors which are divisors of kernel_size_1
+fn generate_unrolling_factors(kernel_size_1: usize) -> Vec<u32> {
+    let mut unrolling_factors = Vec::new();
+    for potential_factor in 1..=(kernel_size_1 as u32) {
+        if kernel_size_1 as u32 % potential_factor == 0 {
+            unrolling_factors.push(potential_factor);
+        }
+    }
+
+    unrolling_factors
+}
+
 /// Enumerates all convolution compute pipelines that are candidates for autotuning
 fn conv2d_candidates<G: GraphicsApi, E>(
     input: WgpuTensor<E, 4>,
@@ -196,14 +211,19 @@ where
         )
     };
 
+    let kernel_size = weight.shape.dims[3];
+    let unrolling_factors = generate_unrolling_factors(kernel_size);
     let mut candidates = Vec::new(); //Vec(Tunable<G, (WgputTensorDyn<...>, ...), ...>)
     for workgroup_size in WORKGROUP_SIZES {
-        let kernel = Conv2dKernel {
-            workgroup_size,
-            _marker: PhantomData,
-        };
-        let func: AutoTuneFunction<_, _> = Arc::new(kernel);
-        candidates.push(conv2d_benchmark(func));
+        for unrolling_factor in &unrolling_factors {
+            let kernel = Conv2dKernel {
+                workgroup_size,
+                unrolling_factor: *unrolling_factor,
+                _marker: PhantomData,
+            };
+            let func: AutoTuneFunction<_, _> = Arc::new(kernel);
+            candidates.push(conv2d_benchmark(func));
+        }
     }
 
     candidates.into()
