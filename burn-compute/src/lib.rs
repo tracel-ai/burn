@@ -3,6 +3,7 @@ extern crate alloc;
 mod channel;
 mod client;
 mod dummy;
+mod id;
 mod memory_management;
 mod server;
 mod storage;
@@ -16,6 +17,7 @@ pub use storage::*;
 #[cfg(test)]
 mod tests {
     use crate::dummy::{DummyElementwiseAddition, DummyKernelDescription, DummyServer};
+    use crate::memory_management::SimpleMemoryManagement;
     use alloc::{boxed::Box, vec::Vec};
 
     use super::*;
@@ -60,7 +62,7 @@ mod tests {
 
     fn make_client() -> ComputeClient<DummyServer> {
         let storage = BytesStorage::default();
-        let memory_management = BasicMemoryManagement::new(storage);
+        let memory_management = SimpleMemoryManagement::new(storage);
         let server = DummyServer::new(memory_management);
         let channel = MutexComputeChannel::new(server);
 

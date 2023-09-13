@@ -4,7 +4,7 @@ use derive_new::new;
 
 use crate::{
     channel::{ComputeChannel, MutexComputeChannel},
-    ComputeServer, ServerResource,
+    ComputeServer, Handle,
 };
 
 #[derive(new)]
@@ -30,22 +30,22 @@ impl<Server> ComputeClient<Server>
 where
     Server: ComputeServer,
 {
-    pub fn read(&self, resource_description: &ServerResource<Server>) -> Vec<u8> {
+    pub fn read(&self, resource_description: &Handle<Server>) -> Vec<u8> {
         self.channel.read(resource_description)
     }
 
-    pub fn create(&self, resource: Vec<u8>) -> ServerResource<Server> {
+    pub fn create(&self, resource: Vec<u8>) -> Handle<Server> {
         self.channel.create(resource)
     }
 
-    pub fn empty(&self, size: usize) -> ServerResource<Server> {
+    pub fn empty(&self, size: usize) -> Handle<Server> {
         self.channel.empty(size)
     }
 
     pub fn execute(
         &self,
         kernel_description: Server::KernelDescription,
-        resource_descriptions: &[&ServerResource<Server>],
+        resource_descriptions: &[&Handle<Server>],
     ) {
         self.channel
             .execute(kernel_description, resource_descriptions)

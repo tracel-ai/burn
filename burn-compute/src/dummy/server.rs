@@ -2,10 +2,10 @@ use alloc::vec::Vec;
 use derive_new::new;
 
 use super::DummyKernelDescription;
-use crate::{BasicMemoryManagement, BytesStorage, ComputeServer, MemoryManagement, ServerResource};
+use crate::{BytesStorage, ComputeServer, Handle, MemoryManagement, SimpleMemoryManagement};
 
 #[derive(new)]
-pub struct DummyServer<MM = BasicMemoryManagement<BytesStorage>> {
+pub struct DummyServer<MM = SimpleMemoryManagement<BytesStorage>> {
     memory_management: MM,
 }
 
@@ -17,13 +17,13 @@ where
     type Storage = BytesStorage;
     type MemoryManagement = MM;
 
-    fn read(&mut self, resource_description: &ServerResource<Self>) -> Vec<u8> {
+    fn read(&mut self, resource_description: &Handle<Self>) -> Vec<u8> {
         let bytes = self.memory_management.get(resource_description);
 
         bytes.read().to_vec()
     }
 
-    fn create(&mut self, data: Vec<u8>) -> ServerResource<Self> {
+    fn create(&mut self, data: Vec<u8>) -> Handle<Self> {
         let resource = self.memory_management.reserve(data.len());
         let bytes = self.memory_management.get(&resource);
 
@@ -36,14 +36,14 @@ where
         resource
     }
 
-    fn empty(&mut self, size: usize) -> ServerResource<Self> {
+    fn empty(&mut self, size: usize) -> Handle<Self> {
         self.memory_management.reserve(size)
     }
 
     fn execute(
         &mut self,
         kernel_description: Self::KernelDescription,
-        resource_descriptions: &[&ServerResource<Self>],
+        resource_descriptions: &[&Handle<Self>],
     ) {
         let mut resources = resource_descriptions
             .iter()

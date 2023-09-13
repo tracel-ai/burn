@@ -1,70 +1,48 @@
-use crate::{ComputeStorage, MemorySpace, ResourceDescription};
+use crate::{id_type, ComputeStorage, MemoryHandle, MemoryManagement, MemorySpace, StorageHandle};
 use alloc::sync::Arc;
 use std::collections::HashMap;
-
-macro_rules! id_type {
-    ($name:ident) => {
-        #[derive(Clone, Hash, PartialEq, Eq)]
-        pub struct $name {
-            id: Arc<String>,
-        }
-
-        impl $name {
-            pub fn new() -> Self {
-                Self {
-                    id: Arc::new(burn_common::id::IdGenerator::generate()),
-                }
-            }
-        }
-    };
-}
 
 id_type!(ChunkId);
 id_type!(SliceId);
 
-pub enum Resource {
+#[derive(Clone)]
+pub enum SimpleHandle {
     Chunk(ChunkId),
     Slice(SliceId),
 }
 
-impl Resource {
-    pub fn can_mut(&self) -> bool {
-        match self {
-            Resource::Chunk(id) => Arc::strong_count(&id.id) == 3,
-            Resource::Slice(id) => Arc::strong_count(&id.id) == 3,
-        }
-    }
-}
-
-pub struct BasicMemoryManagement<Storage> {
-    chunks: HashMap<ChunkId, (ResourceDescription, Vec<SliceId>)>,
-    slices: HashMap<SliceId, (ResourceDescription, ChunkId)>,
+pub struct SimpleMemoryManagement<Storage> {
+    chunks: HashMap<ChunkId, (StorageHandle, Vec<SliceId>)>,
+    slices: HashMap<SliceId, (StorageHandle, ChunkId)>,
     storage: Storage,
     frequency: usize,
     current: usize,
 }
 
-pub trait MemoryManagement<Storage: ComputeStorage> {
-    type Resource;
-
-    fn get(&mut self, ressource: &Self::Resource) -> Storage::StorageResource;
-    fn reserve(&mut self, size: usize) -> Self::Resource;
+impl MemoryHandle for SimpleHandle {
+    fn can_mut(&self) -> bool {
+        match self {
+            // One reference in the chunk hashmap, another owned by the tensor.
+            SimpleHandle::Chunk(id) => Arc::strong_count(&id.id) <= 2,
+            // One reference in the chunk hashmap, another in the slice hashmap, and another owned by the tensor.
+            SimpleHandle::Slice(id) => Arc::strong_count(&id.id) <= 3,
+        }
+    }
 }
 
-impl<Storage: ComputeStorage> MemoryManagement<Storage> for BasicMemoryManagement<Storage> {
-    type Resource = Resource;
+impl<Storage: ComputeStorage> MemoryManagement<Storage> for SimpleMemoryManagement<Storage> {
+    type Handle = SimpleHandle;
 
-    fn get(&mut self, ressource: &Self::Resource) -> Storage::StorageResource {
-        let ressource = match ressource {
-            Resource::Chunk(id) => &self.chunks.get(id).unwrap().0,
-            Resource::Slice(id) => &self.slices.get(id).unwrap().0,
+    fn get(&mut self, handle: &Self::Handle) -> Storage::StorageResource {
+        let resource = match handle {
+            SimpleHandle::Chunk(id) => &self.chunks.get(id).unwrap().0,
+            SimpleHandle::Slice(id) => &self.slices.get(id).unwrap().0,
         };
 
-        let ressource = self.storage.get(ressource);
-        ressource
+        self.storage.get(resource)
     }
 
-    fn reserve(&mut self, size: usize) -> Self::Resource {
+    fn reserve(&mut self, size: usize) -> Self::Handle {
         let mut size_diff_current = usize::MAX;
         let mut current = None;
 
@@ -87,10 +65,10 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for BasicMemoryManagemen
         let ressource = match current {
             Some((id, ressource, slices)) => {
                 if size_diff_current == 0 {
-                    return Resource::Chunk(id.clone());
+                    return SimpleHandle::Chunk(id.clone());
                 }
                 let slice_id = SliceId::new();
-                let ressource = ResourceDescription {
+                let ressource = StorageHandle {
                     id: ressource.id.clone(),
                     space: MemorySpace::Slice(0, size),
                 };
@@ -99,7 +77,7 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for BasicMemoryManagemen
                 self.slices
                     .insert(slice_id.clone(), (ressource, id.clone()));
 
-                return Resource::Slice(slice_id);
+                return SimpleHandle::Slice(slice_id);
             }
             None => self.create_new(size),
         };
@@ -109,7 +87,7 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for BasicMemoryManagemen
     }
 }
 
-impl<Storage: ComputeStorage> BasicMemoryManagement<Storage> {
+impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
     pub fn new(storage: Storage) -> Self {
         Self {
             storage,
@@ -119,14 +97,14 @@ impl<Storage: ComputeStorage> BasicMemoryManagement<Storage> {
             current: 0,
         }
     }
-    fn create_new(&mut self, size: usize) -> Resource {
+    fn create_new(&mut self, size: usize) -> SimpleHandle {
         let ressource = self.storage.alloc(size);
         let chunk_id = ChunkId::new();
 
         self.chunks
             .insert(chunk_id.clone(), (ressource, Vec::new()));
 
-        Resource::Chunk(chunk_id)
+        SimpleHandle::Chunk(chunk_id)
     }
 
     fn cleanup(&mut self) {

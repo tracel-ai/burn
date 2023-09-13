@@ -2,7 +2,7 @@ use alloc::sync::Arc;
 use alloc::vec::Vec;
 use spin::Mutex;
 
-use crate::{ComputeServer, ServerResource};
+use crate::{ComputeServer, Handle};
 
 pub struct MutexComputeChannel<Server> {
     server: Arc<Mutex<Server>>,
@@ -26,24 +26,24 @@ where
         }
     }
 
-    fn read(&self, resource_description: &ServerResource<Server>) -> Vec<u8> {
+    fn read(&self, resource_description: &Handle<Server>) -> Vec<u8> {
         let mut server = self.server.lock();
 
         server.read(resource_description)
     }
 
-    fn create(&self, resource: Vec<u8>) -> ServerResource<Server> {
+    fn create(&self, resource: Vec<u8>) -> Handle<Server> {
         self.server.lock().create(resource)
     }
 
-    fn empty(&self, size: usize) -> ServerResource<Server> {
+    fn empty(&self, size: usize) -> Handle<Server> {
         self.server.lock().empty(size)
     }
 
     fn execute(
         &self,
         kernel_description: Server::KernelDescription,
-        resource_descriptions: &[&ServerResource<Server>],
+        resource_descriptions: &[&Handle<Server>],
     ) {
         self.server
             .lock()
@@ -57,13 +57,13 @@ where
 
 pub trait ComputeChannel<Server: ComputeServer>: Clone {
     fn new(server: Server) -> Self;
-    fn read(&self, resource_description: &ServerResource<Server>) -> Vec<u8>;
-    fn create(&self, resource: Vec<u8>) -> ServerResource<Server>;
-    fn empty(&self, size: usize) -> ServerResource<Server>;
+    fn read(&self, resource_description: &Handle<Server>) -> Vec<u8>;
+    fn create(&self, resource: Vec<u8>) -> Handle<Server>;
+    fn empty(&self, size: usize) -> Handle<Server>;
     fn execute(
         &self,
         kernel_description: Server::KernelDescription,
-        resource_descriptions: &[&ServerResource<Server>],
+        resource_descriptions: &[&Handle<Server>],
     );
     fn sync(&self);
 }

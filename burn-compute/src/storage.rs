@@ -1,18 +1,7 @@
-use alloc::sync::Arc;
+use crate::id_type;
 use std::collections::HashMap;
 
-#[derive(Clone, Hash, PartialEq, Eq)]
-pub struct StorageId {
-    id: String,
-}
-
-impl StorageId {
-    pub fn new() -> Self {
-        Self {
-            id: burn_common::id::IdGenerator::generate(),
-        }
-    }
-}
+id_type!(StorageId);
 
 #[derive(Clone)]
 pub enum MemorySpace {
@@ -21,24 +10,24 @@ pub enum MemorySpace {
 }
 
 #[derive(Clone)]
-pub struct ResourceDescription {
-    pub id: Arc<StorageId>,
+pub struct StorageHandle {
+    pub id: StorageId,
     pub space: MemorySpace,
 }
 
 pub trait ComputeStorage {
     type StorageResource;
 
-    fn get(&mut self, description: &ResourceDescription) -> Self::StorageResource;
-    fn alloc(&mut self, size: usize) -> ResourceDescription;
-    fn dealloc(&mut self, description: &ResourceDescription);
+    fn get(&mut self, handle: &StorageHandle) -> Self::StorageResource;
+    fn alloc(&mut self, size: usize) -> StorageHandle;
+    fn dealloc(&mut self, handle: &StorageHandle);
 }
 
 //// IMPL
 
 #[derive(Default)]
 pub struct BytesStorage {
-    data: HashMap<Arc<StorageId>, Vec<u8>>,
+    data: HashMap<StorageId, Vec<u8>>,
 }
 
 pub struct BytesResource {
@@ -69,7 +58,7 @@ impl BytesResource {
 impl ComputeStorage for BytesStorage {
     type StorageResource = BytesResource;
 
-    fn get(&mut self, description: &ResourceDescription) -> Self::StorageResource {
+    fn get(&mut self, description: &StorageHandle) -> Self::StorageResource {
         let ptr = self.data.get_mut(&description.id).unwrap().as_mut_ptr();
 
         BytesResource {
@@ -78,9 +67,9 @@ impl ComputeStorage for BytesStorage {
         }
     }
 
-    fn alloc(&mut self, size: usize) -> ResourceDescription {
-        let id = Arc::new(StorageId::new());
-        let ressource = ResourceDescription {
+    fn alloc(&mut self, size: usize) -> StorageHandle {
+        let id = StorageId::new();
+        let ressource = StorageHandle {
             id: id.clone(),
             space: MemorySpace::Full(size),
         };
@@ -89,7 +78,7 @@ impl ComputeStorage for BytesStorage {
         ressource
     }
 
-    fn dealloc(&mut self, description: &ResourceDescription) {
+    fn dealloc(&mut self, description: &StorageHandle) {
         self.data.remove(&description.id);
     }
 }
