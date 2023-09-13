@@ -5,18 +5,17 @@ mod client;
 mod dummy;
 mod memory_management;
 mod server;
+mod storage;
 
 pub use channel::*;
 pub use client::*;
 pub use memory_management::*;
 pub use server::*;
+pub use storage::*;
 
 #[cfg(test)]
 mod tests {
-    use crate::dummy::{
-        DummyAllocator, DummyElementwiseAddition, DummyKernelDescription, DummyMemoryManagement,
-        DummyServer,
-    };
+    use crate::dummy::{DummyElementwiseAddition, DummyKernelDescription, DummyServer};
     use alloc::{boxed::Box, vec::Vec};
 
     use super::*;
@@ -52,7 +51,7 @@ mod tests {
         let kernel_description =
             DummyKernelDescription::new(Box::new(DummyElementwiseAddition::new()));
 
-        client.execute(kernel_description, [&lhs, &rhs, &out].into());
+        client.execute(kernel_description, &[&lhs, &rhs, &out]);
 
         let obtained_resource = client.read(&out);
 
@@ -60,8 +59,9 @@ mod tests {
     }
 
     fn make_client() -> ComputeClient<DummyServer> {
-        let memory_management = DummyMemoryManagement::new(Vec::new(), DummyAllocator::new());
-        let server = DummyServer::new(Box::new(memory_management));
+        let storage = BytesStorage::default();
+        let memory_management = BasicMemoryManagement::new(storage);
+        let server = DummyServer::new(memory_management);
         let channel = MutexComputeChannel::new(server);
 
         ComputeClient::new(channel)

@@ -1,13 +1,12 @@
-use alloc::{boxed::Box, vec::Vec};
+use crate::BytesResource;
+use alloc::boxed::Box;
 use derive_new::new;
-
-use crate::Memory;
 
 #[derive(new)]
 pub struct DummyElementwiseAddition {}
 
 pub trait DummyKernel {
-    fn compute(&self, resources: Vec<Memory>);
+    fn compute<'a>(&self, resources: &mut [BytesResource]);
 }
 
 #[derive(new)]
@@ -16,20 +15,21 @@ pub struct DummyKernelDescription {
 }
 
 impl DummyKernelDescription {
-    pub fn compute(&self, memories: Vec<Memory>) {
-        self.kernel.compute(memories)
+    pub fn compute(&self, inputs: &mut [BytesResource]) {
+        self.kernel.compute(inputs);
     }
 }
 
 impl DummyKernel for DummyElementwiseAddition {
-    fn compute(&self, mut memories: Vec<Memory>) {
-        let lhs = memories[0].to_bytes();
-        let rhs = memories[1].to_bytes();
-        let length = lhs.len();
-        let mut tmp: Vec<u8> = Vec::with_capacity(length);
-        for i in 0..length {
-            tmp.push(lhs[i] + rhs[i]);
+    fn compute<'a>(&self, inputs: &mut [BytesResource]) {
+        let lhs = &inputs[0].read();
+        let rhs = &inputs[1].read();
+        let out = &mut inputs[2].write();
+
+        let size = lhs.len();
+
+        for i in 0..size {
+            out[i] = lhs[i] + rhs[i];
         }
-        memories[2].write(tmp)
     }
 }

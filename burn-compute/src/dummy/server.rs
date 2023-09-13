@@ -1,58 +1,59 @@
-use alloc::{boxed::Box, vec, vec::Vec};
+use alloc::vec::Vec;
 use derive_new::new;
 
-use super::{DummyAllocator, DummyKernelDescription};
-use crate::{ComputeServer, Memory, MemoryManagement};
+use super::DummyKernelDescription;
+use crate::{BasicMemoryManagement, BytesStorage, ComputeServer, MemoryManagement, ServerResource};
 
 #[derive(new)]
-pub struct DummyServer {
-    memory_management: Box<dyn MemoryManagement<Allocator = DummyAllocator>>,
-}
-#[derive(new)]
-pub struct DummyResourceDescription {
-    memory_id: usize,
+pub struct DummyServer<MM = BasicMemoryManagement<BytesStorage>> {
+    memory_management: MM,
 }
 
-impl ComputeServer for DummyServer {
+impl<MM> ComputeServer for DummyServer<MM>
+where
+    MM: MemoryManagement<BytesStorage>,
+{
     type KernelDescription = DummyKernelDescription;
-    type ResourceDescription = DummyResourceDescription;
+    type Storage = BytesStorage;
+    type MemoryManagement = MM;
 
-    fn read(&mut self, resource_description: &Self::ResourceDescription) -> Vec<u8> {
-        self.get_resource(resource_description).to_bytes()
+    fn read(&mut self, resource_description: &ServerResource<Self>) -> Vec<u8> {
+        let bytes = self.memory_management.get(resource_description);
+
+        bytes.read().to_vec()
     }
 
-    fn create(&mut self, resource: Vec<u8>) -> Self::ResourceDescription {
-        let memory_description = self.memory_management.init(resource);
-        DummyResourceDescription::new(memory_description.memory_id)
+    fn create(&mut self, data: Vec<u8>) -> ServerResource<Self> {
+        let resource = self.memory_management.reserve(data.len());
+        let bytes = self.memory_management.get(&resource);
+
+        let bytes = bytes.write();
+
+        for (i, val) in data.into_iter().enumerate() {
+            bytes[i] = val;
+        }
+
+        resource
     }
 
-    fn empty(&mut self, size: usize) -> Self::ResourceDescription {
-        self.create(vec![0; size])
+    fn empty(&mut self, size: usize) -> ServerResource<Self> {
+        self.memory_management.reserve(size)
     }
 
     fn execute(
         &mut self,
         kernel_description: Self::KernelDescription,
-        resource_descriptions: Vec<&Self::ResourceDescription>,
+        resource_descriptions: &[&ServerResource<Self>],
     ) {
-        // todo: queue kernels
-
-        let memories: Vec<Memory<'_>> = resource_descriptions
+        let mut resources = resource_descriptions
             .iter()
-            .map(|rd| self.get_resource(rd))
-            .collect();
-        kernel_description.compute(memories)
+            .map(|r| self.memory_management.get(&r))
+            .collect::<Vec<_>>();
+
+        kernel_description.compute(&mut resources);
     }
 
     fn sync(&self) {
-        todo!()
-    }
-}
-
-impl DummyServer {
-    fn get_resource(&self, resource_description: &DummyResourceDescription) -> Memory {
-        self.memory_management.get(crate::MemoryDescription {
-            memory_id: resource_description.memory_id,
-        })
+        // Nothing to do with dummy backend.
     }
 }
