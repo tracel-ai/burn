@@ -1,4 +1,6 @@
-use crate::{id_type, ComputeStorage, MemoryHandle, MemoryManagement, MemorySpace, StorageHandle};
+use crate::{
+    id_type, ComputeStorage, MemoryHandle, MemoryManagement, StorageHandle, StorageUtilization,
+};
 use alloc::sync::Arc;
 use std::collections::HashMap;
 
@@ -50,9 +52,9 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for SimpleMemoryManageme
             .iter_mut()
             .for_each(|(key, (ressource, slices))| {
                 let is_free = slices.is_empty() && Arc::strong_count(&key.id) == 1;
-                let space_available = match ressource.space {
-                    MemorySpace::Full(len) => len,
-                    MemorySpace::Slice(_, _) => panic!("Only chunks"),
+                let space_available = match ressource.utilization {
+                    StorageUtilization::Full(len) => len,
+                    StorageUtilization::Slice(_, _) => panic!("Only chunks"),
                 };
 
                 let size_diff = space_available - size;
@@ -70,7 +72,7 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for SimpleMemoryManageme
                 let slice_id = SliceId::new();
                 let ressource = StorageHandle {
                     id: ressource.id.clone(),
-                    space: MemorySpace::Slice(0, size),
+                    utilization: StorageUtilization::Slice(0, size),
                 };
 
                 slices.push(slice_id.clone());
