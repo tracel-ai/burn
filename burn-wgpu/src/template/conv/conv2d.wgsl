@@ -61,6 +61,7 @@ fn main(
     let dilation_0 = info[29];
     let dilation_1 = info[30];
     let groups = info[31];
+    let unrolling_factor = info[32];
 
     let in_channels = weight_shape_1;
     let kernel_size_0 = weight_shape_2;
@@ -79,21 +80,24 @@ fn main(
 
     for (var ic = ic_start; ic < ic_end; ic++) {
         for (var kh = 0u; kh < kernel_size_0; kh++) {
-            for (var kw = 0u; kw < kernel_size_1; kw++) {
-                let ih = oh * stride_0 + kh * dilation_0;
-                let iw = ow * stride_1 + kw * dilation_1;
+            for (var kw_step = 0u; kw_step < kernel_size_1; kw_step+=unrolling_factor) {
+                for (var kw_unroll = 0u; kw_unroll < unrolling_factor && kw_step + kw_unroll < kernel_size_1; kw_unroll++) {
+                    let kw = kw_step + kw_unroll;
+                    let ih = oh * stride_0 + kh * dilation_0;
+                    let iw = ow * stride_1 + kw * dilation_1;
 
-                // Padding
-                if ih >= padding_0 && ih < input_shape_2 + padding_0 && iw >= padding_1 && iw < input_shape_3 + padding_1 {
-                    // Correct for padding
-                    let ih_pad = ih - padding_0;
-                    let iw_pad = iw - padding_1;
+                    // Padding
+                    if ih >= padding_0 && ih < input_shape_2 + padding_0 && iw >= padding_1 && iw < input_shape_3 + padding_1 {
+                        // Correct for padding
+                        let ih_pad = ih - padding_0;
+                        let iw_pad = iw - padding_1;
 
-                    let weight_ic = ic - (g * in_channels);
-                    let index_input = b * input_stride_0 + ic * input_stride_1 + ih_pad * input_stride_2 + iw_pad * input_stride_3;
-                    let index_weight = oc * weight_stride_0 + weight_ic * weight_stride_1 + kh * weight_stride_2 + kw * weight_stride_3;
+                        let weight_ic = ic - (g * in_channels);
+                        let index_input = b * input_stride_0 + ic * input_stride_1 + ih_pad * input_stride_2 + iw_pad * input_stride_3;
+                        let index_weight = oc * weight_stride_0 + weight_ic * weight_stride_1 + kh * weight_stride_2 + kw * weight_stride_3;
 
-                    sum += input[index_input] * weight[index_weight];
+                        sum += input[index_input] * weight[index_weight];
+                    }
                 }
             }
         }
