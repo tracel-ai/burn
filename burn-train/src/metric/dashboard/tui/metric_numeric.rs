@@ -11,10 +11,10 @@ use ratatui::{
 use std::collections::HashMap;
 
 /// 1000 seems to be required to see some improvement.
-static MAX_NUM_SAMPLES_RECENT: usize = 1000;
+const MAX_NUM_SAMPLES_RECENT: usize = 1000;
 /// 250 seems to be the right resolution when plotting all history.
 /// Otherwise, there is too much points and the lines arent't smooth enough.
-static MAX_NUM_SAMPLES_FULL: usize = 250;
+const MAX_NUM_SAMPLES_FULL: usize = 250;
 
 /// Numeric metrics state that handles creating plots.
 #[derive(Default)]

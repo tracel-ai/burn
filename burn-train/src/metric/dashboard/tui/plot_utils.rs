@@ -1,6 +1,6 @@
 use crate::metric::format_float;
 
-static AXIS_TITLE_PRECISION: usize = 2;
+const AXIS_TITLE_PRECISION: usize = 2;
 
 /// The data describing both X and Y axes.
 pub(crate) struct PlotAxes {
