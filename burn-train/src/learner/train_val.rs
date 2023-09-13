@@ -168,6 +168,10 @@ where
                 );
             }
 
+            if self.interrupter.should_stop() {
+                break;
+            }
+
             let epoch_valid = ValidEpoch::new(dataloader_valid.clone(), epoch, self.num_epochs);
             epoch_valid.run(&model, &mut self.callback, &self.interrupter);
 

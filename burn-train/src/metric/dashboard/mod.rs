@@ -1,16 +1,13 @@
-/// Command line interface module for the dashboard.
-#[cfg(feature = "ui")]
-mod cli;
-#[cfg(not(feature = "ui"))]
-mod cli_stub;
-
 mod base;
-mod plot;
 
 pub use base::*;
-pub use plot::*;
 
-#[cfg(feature = "ui")]
-pub use cli::CLIDashboardRenderer;
-#[cfg(not(feature = "ui"))]
-pub use cli_stub::CLIDashboardRenderer;
+#[cfg(not(feature = "tui"))]
+mod cli_stub;
+#[cfg(not(feature = "tui"))]
+pub use cli_stub::CLIDashboardRenderer as SelectedDashboardRenderer;
+
+#[cfg(feature = "tui")]
+mod tui;
+#[cfg(feature = "tui")]
+pub use tui::TuiDashboardRenderer as SelectedDashboardRenderer;

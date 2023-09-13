@@ -2,8 +2,9 @@ use super::log::install_file_logger;
 use super::Learner;
 use crate::checkpoint::{AsyncCheckpointer, Checkpointer, FileCheckpointer};
 use crate::logger::{FileMetricLogger, MetricLogger};
-use crate::metric::dashboard::CLIDashboardRenderer;
-use crate::metric::dashboard::{Dashboard, DashboardRenderer, MetricWrapper, Metrics};
+use crate::metric::dashboard::{
+    Dashboard, DashboardRenderer, MetricWrapper, Metrics, SelectedDashboardRenderer,
+};
 use crate::metric::{Adaptor, Metric};
 use crate::AsyncTrainerCallback;
 use burn_core::lr_scheduler::LRScheduler;
@@ -259,7 +260,7 @@ where
         }
         let renderer = self
             .renderer
-            .unwrap_or_else(|| Box::new(CLIDashboardRenderer::new()));
+            .unwrap_or_else(|| Box::new(SelectedDashboardRenderer::new(self.interrupter.clone())));
         let directory = &self.directory;
         let logger_train = self.metric_logger_train.unwrap_or_else(|| {
             Box::new(FileMetricLogger::new(format!("{directory}/train").as_str()))

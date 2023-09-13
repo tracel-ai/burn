@@ -78,3 +78,13 @@ pub struct MetricEntry {
     /// The string to be saved.
     pub serialize: String,
 }
+
+/// Format a float with the given precision. Will use scientific notation if necessary.
+pub fn format_float(float: f64, precision: usize) -> String {
+    let scientific_notation_threshold = 0.1_f64.powf(precision as f64 - 1.0);
+
+    match scientific_notation_threshold >= float {
+        true => format!("{float:.precision$e}"),
+        false => format!("{float:.precision$}"),
+    }
+}
