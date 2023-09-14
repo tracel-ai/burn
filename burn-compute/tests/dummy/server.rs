@@ -1,8 +1,11 @@
-use alloc::{boxed::Box, vec::Vec};
+use burn_compute::{
+    memory_management::{MemoryManagement, SimpleMemoryManagement},
+    server::{ComputeServer, Handle},
+    storage::BytesStorage,
+};
 use derive_new::new;
 
 use super::DummyKernel;
-use crate::{BytesStorage, ComputeServer, Handle, MemoryManagement, SimpleMemoryManagement};
 
 /// The dummy server is used to test the burn-compute infrastructure.
 /// It uses simple memory management with a bytes storage on CPU, without asynchronous tasks.

@@ -11,11 +11,14 @@ repository = "https://github.com/burn-rs/burn/tree/main/burn-compute"
 version = "0.10.0"
 
 [features]
+default = ["std"]
+std = []
+minimal = []
 
 [dependencies]
-burn-common = { path = "../burn-common", version = "0.10.0" }
+burn-common = { path = "../burn-common", version = "0.10.0", default-features = false }
 derive-new = { workspace = true }
-spin = { workspace = true }                                   # using in place of use std::sync::Mutex;          
-hashbrown = "0.14.0"
+spin = { workspace = true }
+hashbrown = { workspace = true }
 
 [dev-dependencies]

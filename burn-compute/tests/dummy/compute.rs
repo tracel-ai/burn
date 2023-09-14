@@ -1,10 +1,11 @@
 use spin::Mutex;
 
-use crate::channel::MutexComputeChannel;
-use crate::client::ComputeClient;
-use crate::compute::Compute;
-use crate::tests::integration::dummy_server::DummyServer;
-use crate::{BytesStorage, ComputeChannel, SimpleMemoryManagement};
+use super::DummyServer;
+use burn_compute::channel::MutexComputeChannel;
+use burn_compute::client::ComputeClient;
+use burn_compute::memory_management::SimpleMemoryManagement;
+use burn_compute::storage::BytesStorage;
+use burn_compute::Compute;
 
 /// The dummy device.
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]

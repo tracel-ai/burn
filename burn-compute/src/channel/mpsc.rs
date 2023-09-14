@@ -1,9 +1,17 @@
-use crate::{ComputeChannel, ComputeServer, Handle, MemoryHandle};
 use std::{
     sync::{mpsc, Arc},
     thread,
 };
 
+use crate::{
+    memory_management::MemoryHandle,
+    server::{ComputeServer, Handle},
+};
+
+use super::ComputeChannel;
+
+/// Create a channel using the [multi-producer, single-consumer](mpsc) channel to communicate with
+/// the compute server spawn on its own tread.
 pub struct MpscComputeChannel<Server>
 where
     Server: ComputeServer,
@@ -11,7 +19,7 @@ where
     state: Arc<MpscComputeChannelState<Server>>,
 }
 
-pub struct MpscComputeChannelState<Server>
+struct MpscComputeChannelState<Server>
 where
     Server: ComputeServer,
 {
@@ -21,7 +29,7 @@ where
 
 type Callback<Response> = mpsc::SyncSender<Response>;
 
-pub enum Message<Server>
+enum Message<Server>
 where
     Server: ComputeServer,
 {
@@ -32,20 +40,13 @@ where
     Sync(Callback<()>),
 }
 
-impl<Server: ComputeServer> Clone for MpscComputeChannel<Server> {
-    fn clone(&self) -> Self {
-        Self {
-            state: self.state.clone(),
-        }
-    }
-}
-
-impl<Server> ComputeChannel<Server> for MpscComputeChannel<Server>
+impl<Server> MpscComputeChannel<Server>
 where
     Server: ComputeServer + 'static,
 {
-    fn new(mut server: Server) -> Self {
-        let (sender, receiver) = mpsc::sync_channel(10);
+    /// Create a new mpsc compute channel.
+    pub fn new(mut server: Server, bound: usize) -> Self {
+        let (sender, receiver) = mpsc::sync_channel(bound);
 
         let _handle = thread::spawn(move || {
             while let Ok(message) = receiver.recv() {
@@ -78,7 +79,20 @@ where
 
         Self { state }
     }
+}
 
+impl<Server: ComputeServer> Clone for MpscComputeChannel<Server> {
+    fn clone(&self) -> Self {
+        Self {
+            state: self.state.clone(),
+        }
+    }
+}
+
+impl<Server> ComputeChannel<Server> for MpscComputeChannel<Server>
+where
+    Server: ComputeServer + 'static,
+{
     fn read(&self, handle: &Handle<Server>) -> Vec<u8> {
         let (callback, response) = mpsc::sync_channel(1);
 

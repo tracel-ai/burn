@@ -1,4 +1,4 @@
-use crate::ComputeStorage;
+use crate::storage::ComputeStorage;
 
 /// The MemoryHandle trait is an abstract way to refer to some memory segment.
 /// It should not contain actual references to data.

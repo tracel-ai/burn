@@ -1,5 +1,6 @@
-use crate::{ComputeStorage, MemoryManagement};
 use alloc::vec::Vec;
+
+use crate::{memory_management::MemoryManagement, storage::ComputeStorage};
 
 /// Type aliases
 /// The Handle<Server> type is an abstraction over pointers to resources in memory

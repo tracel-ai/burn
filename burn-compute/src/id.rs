@@ -4,7 +4,7 @@ macro_rules! id_type {
     ($name:ident) => {
         #[derive(Clone, Hash, PartialEq, Eq)]
         pub struct $name {
-            id: alloc::sync::Arc<String>,
+            id: alloc::sync::Arc<alloc::string::String>,
         }
 
         impl $name {

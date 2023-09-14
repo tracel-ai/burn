@@ -1,6 +1,9 @@
+use crate::{
+    channel::{ComputeChannel, MutexComputeChannel},
+    client::ComputeClient,
+    server::ComputeServer,
+};
 use hashbrown::HashMap;
-
-use crate::{ComputeChannel, ComputeClient, ComputeServer, MutexComputeChannel};
 
 /// The compute type has the responsability to retrive the correct compute client based on the
 /// given device.

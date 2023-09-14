@@ -1,8 +1,8 @@
+use super::ComputeChannel;
+use crate::server::{ComputeServer, Handle};
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use spin::Mutex;
-
-use crate::{ComputeServer, Handle};
 
 /// The MutexComputeChannel ensures thread-safety by locking the server
 /// on every operation
@@ -17,17 +17,22 @@ impl<S> Clone for MutexComputeChannel<S> {
         }
     }
 }
+impl<Server> MutexComputeChannel<Server>
+where
+    Server: ComputeServer,
+{
+    /// Create a new mutex compute channel.
+    pub fn new(server: Server) -> Self {
+        Self {
+            server: Arc::new(Mutex::new(server)),
+        }
+    }
+}
 
 impl<Server> ComputeChannel<Server> for MutexComputeChannel<Server>
 where
     Server: ComputeServer,
 {
-    fn new(server: Server) -> Self {
-        Self {
-            server: Arc::new(Mutex::new(server)),
-        }
-    }
-
     fn read(&self, resource_description: &Handle<Server>) -> Vec<u8> {
         let mut server = self.server.lock();
 
@@ -49,25 +54,4 @@ where
     fn sync(&self) {
         self.server.lock().sync()
     }
-}
-
-/// The ComputeChannel trait links the ComputeClient to the ComputeServer
-/// while ensuring thread-safety
-pub trait ComputeChannel<Server: ComputeServer>: Clone {
-    fn new(server: Server) -> Self;
-
-    /// Given a handle, returns owned resource as bytes
-    fn read(&self, handle: &Handle<Server>) -> Vec<u8>;
-
-    /// Given a resource as bytes, stores it and returns the resource handle
-    fn create(&self, data: Vec<u8>) -> Handle<Server>;
-
-    /// Reserves `size` bytes in the storage, and returns a handle over them
-    fn empty(&self, size: usize) -> Handle<Server>;
-
-    /// Executes the `kernel` over the given `handles`.
-    fn execute(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]);
-
-    /// Wait for the completion of every task in the server.
-    fn sync(&self);
 }

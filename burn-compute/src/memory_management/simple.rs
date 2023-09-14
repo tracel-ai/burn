@@ -1,9 +1,10 @@
-use std::sync::atomic::AtomicUsize;
-
+use super::{MemoryHandle, MemoryManagement};
 use crate::{
-    id_type, ComputeStorage, MemoryHandle, MemoryManagement, StorageHandle, StorageUtilization,
+    id_type,
+    storage::{ComputeStorage, StorageHandle, StorageUtilization},
 };
 use alloc::{sync::Arc, vec::Vec};
+use core::sync::atomic::AtomicUsize;
 use hashbrown::HashMap;
 
 // The ChunkId allows to keep track of how many references there are to a specific chunk
@@ -38,8 +39,8 @@ pub enum DeallocStrategy {
     /// Once every n calls to reserve
     /// First associated data is n, second is the state and should start at 0
     PeriodTick(usize, usize),
+    #[cfg(feature = "std")]
     /// Once every period of time
-    /// TODO find an alternative for no std
     PeriodTime(std::time::Duration, std::time::Instant),
     /// Never deallocate
     Never,
@@ -52,6 +53,7 @@ impl DeallocStrategy {
                 *last = (*last + 1) % *period;
                 *last == 0
             }
+            #[cfg(feature = "std")]
             DeallocStrategy::PeriodTime(period, last) => {
                 if &last.elapsed() > period {
                     *last = std::time::Instant::now();
@@ -80,7 +82,7 @@ impl MemoryHandle for SimpleHandle {
     fn can_mut(&self) -> bool {
         let compute_reference = self
             .compute_reference
-            .load(std::sync::atomic::Ordering::Relaxed);
+            .load(core::sync::atomic::Ordering::Relaxed);
 
         match &self.id {
             // One reference in the chunk hashmap, another owned by the tensor.
@@ -97,7 +99,7 @@ impl MemoryHandle for SimpleHandle {
     }
     fn compute_reference(&self) -> Self {
         self.compute_reference
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            .fetch_add(1, core::sync::atomic::Ordering::Relaxed);
 
         Self {
             id: self.id.clone(),
