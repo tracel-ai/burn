@@ -1,13 +1,11 @@
 /// Ndarray module.
 #[cfg(feature = "ndarray")]
 pub use burn_ndarray as ndarray;
-
 #[cfg(feature = "ndarray")]
 /// An NdArrayBackend with a default type of f32.
 pub type NdArrayBackend<F = f32> = ndarray::NdArrayBackend<F>;
-
-#[cfg(all(feature = "ndarray", feature = "autodiff"))]
 /// An NdArrayBackend with autodiffing enabled.
+#[cfg(all(feature = "ndarray", feature = "autodiff"))]
 pub type NdArrayAutodiffBackend<F = f32> = crate::autodiff::ADBackendDecorator<NdArrayBackend<F>>;
 
 /// WGPU module.
