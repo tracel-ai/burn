@@ -19,7 +19,7 @@ pub struct SimpleHandle {
 }
 
 impl SimpleHandle {
-    pub fn new(id: SimpleHandleId) -> SimpleHandle {
+    fn new(id: SimpleHandleId) -> SimpleHandle {
         Self {
             id,
             compute_reference: Arc::new(0.into()),
@@ -28,7 +28,7 @@ impl SimpleHandle {
 }
 
 #[derive(Clone)]
-pub enum SimpleHandleId {
+enum SimpleHandleId {
     Chunk(ChunkId),
     Slice(SliceId),
 }

@@ -15,7 +15,9 @@ pub enum StorageUtilization {
 /// The StorageHandle contains the storage id of a resource and the way it is stored
 #[derive(Clone)]
 pub struct StorageHandle {
+    /// Storage id.
     pub id: StorageId,
+    /// How the storage is used.
     pub utilization: StorageUtilization,
 }
 

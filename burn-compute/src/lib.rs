@@ -1,5 +1,7 @@
-#![cfg(not(feature = "std"))]
-#![no_std]
+#![cfg_attr(not(feature = "std"), no_std)]
+#![warn(missing_docs)]
+
+//! Burn compute crate that helps creating high performance async backends.
 
 extern crate alloc;
 
