@@ -118,11 +118,13 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
 
         self.chunks.iter().for_each(|(key, (ressource, slices))| {
             let is_free = slices.is_empty() && Arc::strong_count(&key.id) == 1;
-            let size_diff = ressource.size() - size;
 
-            if is_free && size_diff < size_diff_current {
-                current = Some((key, ressource));
-                size_diff_current = size_diff;
+            if is_free && ressource.size() > size {
+                let size_diff = ressource.size() - size;
+                if size_diff < size_diff_current {
+                    current = Some((key, ressource));
+                    size_diff_current = size_diff;
+                }
             }
         });
 
