@@ -1,7 +1,7 @@
 use burn_tensor::{backend::Backend, ops::ConvOptions, Distribution, Shape, Tensor};
 use burn_wgpu::{
     benchmark::Benchmark,
-    kernel::conv::{tune, Conv2d},
+    kernel::conv::{tune, conv2d},
     run_benchmark, GraphicsApi, WgpuBackend, WgpuDevice,
 };
 use std::marker::PhantomData;
@@ -60,13 +60,31 @@ where
     }
 }
 
-/*
-struct Conv2dDefault;
+macro_rules! benchmark {
+    ($name:ident, $func:expr) => {
+        struct $name;
 
-impl<const D: usize, G: GraphicsApi> Conv2dFunction<WgpuBackend<G, f32, i32>, D> for Conv2dDefault {
-
+        impl<G: GraphicsApi> Conv2dFunction<WgpuBackend<G, f32, i32>> for $name {
+            fn run(
+                input: Tensor<WgpuBackend<G, f32, i32>, 4>,
+                weight: Tensor<WgpuBackend<G, f32, i32>, 4>,
+                bias: Option<Tensor<WgpuBackend<G, f32, i32>, 1>>,
+                options: ConvOptions<2>,
+            ) -> Tensor<WgpuBackend<G, f32, i32>, 4> {
+                Tensor::from_primitive($func(
+                    input.into_primitive(),
+                    weight.into_primitive(),
+                    None,
+                    options,
+                    None,
+                    None
+                ))
+            }
+        }
+    };
 }
-*/
+
+benchmark!(DefaultConv, conv2d);
 
 struct Conv2dAututone;
 
@@ -87,12 +105,12 @@ impl<G: GraphicsApi> Conv2dFunction<WgpuBackend<G, f32, i32>> for Conv2dAututone
 }
 
 fn main() {
-    let num_repeats = 3;
-    let batch_size = 32;
-    let input_channels = 3;
+    let num_repeats = 5;
+    let batch_size = 32; // Decreasing from 32 may provide insight
+    let input_channels = 3; //3 is RGB, but 32 or 64 may work
     let h = 224;
     let w = 224;
-    let output_channels = 64;
+    let output_channels = 64; //64, 128, 256, 512
     let filter_height = 3;
     let filter_width = 3;
     let c_o = ConvOptions {stride: [1,1], padding: [1,1], dilation: [1,1], groups: 1 };
@@ -103,5 +121,13 @@ fn main() {
         options: c_o.clone(),
         num_repeats,
         conv2d: PhantomData
-    })
+    });
+
+    run_benchmark!(Conv2dBenchmark::<DefaultConv>{
+        shape_input: [batch_size, input_channels, h, w].into(),
+        shape_weight: [output_channels, input_channels, filter_height, filter_width].into(),
+        options: c_o.clone(),
+        num_repeats,
+        conv2d: PhantomData
+    });
 }
