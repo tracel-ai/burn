@@ -19,6 +19,17 @@ mod tests {
     }
 
     #[test]
+    fn test_cov_4() {
+        let data = Data::from([[0.5, 1.8, 0.2, -2.0], [3.0, -4.0, 5.0, 0.0]]);
+        let tensor = Tensor::<TestBackend, 2>::from_data(data);
+
+        let data_actual = tensor.cov(1, 0).into_data();
+
+        let data_expected = Data::from([[1.8668, -1.2999], [-1.2999, 11.5]]);
+        data_expected.assert_approx_eq(&data_actual, 3);
+    }
+
+    #[test]
     fn test_cov_2() {
         let data = Data::from([[0.5, 1.8], [0.2, -2.0], [3.0, -4.0], [5.0, 0.0]]);
         let tensor = Tensor::<TestBackend, 2>::from_data(data);
