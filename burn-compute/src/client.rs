@@ -8,6 +8,7 @@ use crate::{
 };
 
 /// The ComputeClient is the entry point to require tasks from the ComputeServer.
+/// It should be obtained for a specific device via the Compute struct.
 #[derive(new)]
 pub struct ComputeClient<Server, Channel = MutexComputeChannel<Server>> {
     channel: Channel,

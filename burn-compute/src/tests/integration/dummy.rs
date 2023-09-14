@@ -1,4 +1,3 @@
-#[cfg(test)]
 mod tests {
     use alloc::{boxed::Box, vec::Vec};
 

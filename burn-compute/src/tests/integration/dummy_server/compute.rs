@@ -1,7 +1,7 @@
-use super::DummyServer;
 use crate::channel::MutexComputeChannel;
 use crate::client::ComputeClient;
 use crate::compute::Compute;
+use crate::tests::integration::dummy_server::DummyServer;
 use crate::{BytesStorage, ComputeChannel, SimpleMemoryManagement};
 use std::sync::Mutex;
 
