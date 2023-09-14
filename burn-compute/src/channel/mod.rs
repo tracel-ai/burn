@@ -1,7 +1,9 @@
 mod base;
+mod cell;
 mod mutex;
 
 pub use base::*;
+pub use cell::*;
 pub use mutex::*;
 
 #[cfg(feature = "std")]

@@ -33,22 +33,22 @@ impl<Server> ComputeChannel<Server> for MutexComputeChannel<Server>
 where
     Server: ComputeServer,
 {
-    fn read(&self, resource_description: &Handle<Server>) -> Vec<u8> {
+    fn read(&self, handle: &Handle<Server>) -> Vec<u8> {
         let mut server = self.server.lock();
 
-        server.read(resource_description)
+        server.read(handle)
     }
 
-    fn create(&self, resource: Vec<u8>) -> Handle<Server> {
-        self.server.lock().create(resource)
+    fn create(&self, data: Vec<u8>) -> Handle<Server> {
+        self.server.lock().create(data)
     }
 
     fn empty(&self, size: usize) -> Handle<Server> {
         self.server.lock().empty(size)
     }
 
-    fn execute(&self, kernel_description: Server::Kernel, handles: &[&Handle<Server>]) {
-        self.server.lock().execute(kernel_description, handles)
+    fn execute(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]) {
+        self.server.lock().execute(kernel, handles)
     }
 
     fn sync(&self) {
