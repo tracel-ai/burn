@@ -5,9 +5,11 @@ use crate::ComputeStorage;
 ///
 /// It is responsible for determining if the memory segment can be mutated,
 /// for instance by keeping track of a reference count
-pub trait MemoryHandle: Clone {
+pub trait MemoryHandle {
     /// Checks if the underlying memory can be safely mutated.
     fn can_mut(&self) -> bool;
+    fn tensor_reference(&self) -> Self;
+    fn compute_reference(&self) -> Self;
 }
 
 /// The MemoryManagement trait encapsulates strategies for (de)allocating memory.
