@@ -4,19 +4,28 @@ use crate::{
 use alloc::{sync::Arc, vec::Vec};
 use hashbrown::HashMap;
 
+// The ChunkId allows to keep track of how many references there are to a specific chunk
 id_type!(ChunkId);
+// The SliceId allows to keep track of how many references there are to a specific slice
 id_type!(SliceId);
 
+/// The SimpleHandle is a memory handle, referring to either a chunk or a slice
 #[derive(Clone)]
 pub enum SimpleHandle {
     Chunk(ChunkId),
     Slice(SliceId),
 }
 
+/// The DeallocStrategy defines the frequency at which deallocation
+/// of unused memory chunks should occur
 pub enum DeallocStrategy {
+    /// Once every n calls to reserve
+    /// First associated data is n, second is the state and should start at 0
     PeriodTick(usize, usize),
+    /// Once every period of time
     /// TODO find an alternative for no std
     PeriodTime(std::time::Duration, std::time::Instant),
+    /// Never deallocate
     Never,
 }
 
@@ -24,13 +33,8 @@ impl DeallocStrategy {
     fn should_dealloc(&mut self) -> bool {
         match self {
             DeallocStrategy::PeriodTick(period, last) => {
-                *last += 1;
-                if last > period {
-                    *last = 0;
-                    true
-                } else {
-                    false
-                }
+                *last = (*last + 1) % *period;
+                *last == 0
             }
             DeallocStrategy::PeriodTime(period, last) => {
                 if &last.elapsed() > period {
