@@ -57,20 +57,16 @@ pub trait ComputeChannel<Server: ComputeServer>: Clone {
     fn new(server: Server) -> Self;
 
     /// Given a handle, returns owned resource as bytes
-    fn read(&self, resource_description: &Handle<Server>) -> Vec<u8>;
+    fn read(&self, handle: &Handle<Server>) -> Vec<u8>;
 
     /// Given a resource as bytes, stores it and returns the resource handle
-    fn create(&self, resource: Vec<u8>) -> Handle<Server>;
+    fn create(&self, data: Vec<u8>) -> Handle<Server>;
 
     /// Reserves `size` bytes in the storage, and returns a handle over them
     fn empty(&self, size: usize) -> Handle<Server>;
 
     /// Executes the `kernel` over the given `handles`.
-    fn execute(
-        &self,
-        kernel_description: Server::Kernel,
-        resource_descriptions: &[&Handle<Server>],
-    );
+    fn execute(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]);
 
     /// Wait for the completion of every task in the server.
     fn sync(&self);
