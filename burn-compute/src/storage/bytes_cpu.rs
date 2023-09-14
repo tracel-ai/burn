@@ -10,6 +10,7 @@ pub struct BytesStorage {
 
 /// Can send to other thread, but can't sync.
 unsafe impl Send for BytesStorage {}
+unsafe impl Send for BytesResource {}
 
 /// The BytesResource struct is a pointer to a memory chunk or slice
 pub struct BytesResource {

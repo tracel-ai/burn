@@ -10,9 +10,9 @@ pub type Handle<Server> = <_MemoryManagement<Server> as MemoryManagement<_Storag
 /// The ComputeServer is responsible for handling resources and computations over resources.
 /// Everything in the server is mutable, therefore it should be solely accessed through the
 /// [ComputeChannel](ComputeChannel) for thread safety
-pub trait ComputeServer {
+pub trait ComputeServer: Send {
     /// The Kernel type defines the computation algorithms
-    type Kernel;
+    type Kernel: Send;
     /// The Storage type defines how data is stored and accessed
     type Storage: ComputeStorage;
     /// The MemoryManagement type defines strategies for allocation in the Storage type.

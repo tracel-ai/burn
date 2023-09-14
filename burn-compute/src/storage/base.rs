@@ -30,10 +30,10 @@ impl StorageHandle {
 }
 
 /// The ComputeStorage trait is responsible for allocating and deallocating memory.
-pub trait ComputeStorage {
+pub trait ComputeStorage: Send {
     /// The Resource associated type determines the way data is implemented and how
     /// it can be accessed by kernels
-    type Resource;
+    type Resource: Send;
 
     /// Returns the underlying resource for a specified storage handle
     fn get(&mut self, handle: &StorageHandle) -> Self::Resource;

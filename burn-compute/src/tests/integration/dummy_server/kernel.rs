@@ -1,7 +1,7 @@
 use crate::BytesResource;
 
 /// The DummyKernel trait should be implemented for every supported operation
-pub trait DummyKernel {
+pub trait DummyKernel: Send {
     fn compute<'a>(&self, resources: &mut [BytesResource]);
 }
 
