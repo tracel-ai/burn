@@ -76,7 +76,7 @@ where
     );
 
     fn name(&self) -> String {
-        format!("{:?} Convolution", self.input.shape.dims) // update later
+        format!("{:?} Convolution", self.input.shape.dims) 
     }
 
     fn num_samples(&self) -> usize {
@@ -122,7 +122,6 @@ where
     );
 
     let context = input.context.clone();
-    // let bias_dyn: Option<WgpuTensorDyn<E>> = bias.map(|b| b.into());
     let execution_input: (
         WgpuTensorDyn<E>,
         WgpuTensorDyn<E>,
@@ -168,6 +167,8 @@ type Conv2dTunable<G, E> = Tunable<
 >;
 
 /// Create a vector of unrolling factors which are divisors of kernel_size_1
+/// to avoid needing to handle remainders in shader when total loop iterations 
+/// aren't a multiple of the unrolling factor
 fn generate_unrolling_factors(kernel_size_1: usize) -> Vec<u32> {
     let mut unrolling_factors = Vec::new();
     for potential_factor in 1..=(kernel_size_1 as u32) {
