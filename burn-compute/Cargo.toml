@@ -15,6 +15,7 @@ version = "0.10.0"
 [dependencies]
 burn-common = { path = "../burn-common", version = "0.10.0" }
 derive-new = { workspace = true }
-spin = { workspace = true }                     # using in place of use std::sync::Mutex;          
+spin = { workspace = true }                                   # using in place of use std::sync::Mutex;          
+hashbrown = "0.14.0"
 
 [dev-dependencies]

@@ -1,5 +1,6 @@
+use hashbrown::HashMap;
+
 use crate::{ComputeChannel, ComputeClient, ComputeServer, MutexComputeChannel};
-use std::collections::HashMap;
 
 /// The compute type has the responsability to retrive the correct compute client based on the
 /// given device.

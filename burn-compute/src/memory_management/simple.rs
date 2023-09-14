@@ -1,8 +1,8 @@
 use crate::{
     id_type, ComputeStorage, MemoryHandle, MemoryManagement, StorageHandle, StorageUtilization,
 };
-use alloc::sync::Arc;
-use std::collections::HashMap;
+use alloc::{sync::Arc, vec::Vec};
+use hashbrown::HashMap;
 
 id_type!(ChunkId);
 id_type!(SliceId);
@@ -15,6 +15,7 @@ pub enum SimpleHandle {
 
 pub enum DeallocStrategy {
     PeriodTick(usize, usize),
+    /// TODO find an alternative for no std
     PeriodTime(std::time::Duration, std::time::Instant),
     Never,
 }
