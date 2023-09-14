@@ -2,7 +2,7 @@ extern crate alloc;
 
 mod channel;
 mod client;
-mod dummy;
+mod compute;
 mod id;
 mod memory_management;
 mod server;
@@ -10,21 +10,23 @@ mod storage;
 
 pub use channel::*;
 pub use client::*;
+pub use compute::*;
 pub use memory_management::*;
 pub use server::*;
 pub use storage::*;
 
+mod dummy;
+
 #[cfg(test)]
 mod tests {
-    use crate::dummy::{DummyElementwiseAddition, DummyServer};
-    use crate::memory_management::SimpleMemoryManagement;
+    use crate::dummy::{DummyDevice, DummyElementwiseAddition};
     use alloc::{boxed::Box, vec::Vec};
 
     use super::*;
 
     #[test]
     fn created_resource_is_the_same_when_read() {
-        let client = make_client();
+        let client = dummy::get(&DummyDevice);
         let resource = Vec::from([0, 1, 2]);
         let resource_description = client.create(resource.clone());
 
@@ -35,7 +37,7 @@ mod tests {
 
     #[test]
     fn empty_allocates_memory() {
-        let client = make_client();
+        let client = dummy::get(&DummyDevice);
         let size = 4;
         let resource_description = client.empty(size);
         let empty_resource = client.read(&resource_description);
@@ -45,7 +47,7 @@ mod tests {
 
     #[test]
     fn execute_elementwise_addition() {
-        let client = make_client();
+        let client = dummy::get(&DummyDevice);
         let lhs = client.create([0, 1, 2].into());
         let rhs = client.create([4, 4, 4].into());
         let out = client.empty(3);
@@ -57,14 +59,5 @@ mod tests {
         let obtained_resource = client.read(&out);
 
         assert_eq!(obtained_resource, Vec::from([4, 5, 6]))
-    }
-
-    fn make_client() -> ComputeClient<DummyServer> {
-        let storage = BytesStorage::default();
-        let memory_management = SimpleMemoryManagement::never_dealloc(storage);
-        let server = DummyServer::new(memory_management);
-        let channel = MutexComputeChannel::new(server);
-
-        ComputeClient::new(channel)
     }
 }

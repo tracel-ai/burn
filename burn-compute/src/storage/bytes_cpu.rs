@@ -7,6 +7,9 @@ pub struct BytesStorage {
     memory: HashMap<StorageId, AllocatedBytes>,
 }
 
+/// Can send to other thread, but can't sync.
+unsafe impl Send for BytesStorage {}
+
 pub struct BytesResource {
     ptr: *mut u8,
     utilization: StorageUtilization,
