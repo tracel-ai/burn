@@ -10,7 +10,6 @@
 pub use burn_core::*;
 
 /// Train module
-#[cfg_attr(docsr, doc(cfg(any(feature = "train", feature = "train_minimal"))))]
 #[cfg(any(feature = "train", feature = "train-minimal"))]
 pub mod train {
     pub use burn_train::*;

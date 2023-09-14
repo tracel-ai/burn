@@ -16,13 +16,11 @@ pub mod source;
 pub mod transform;
 
 /// Audio datasets.
-#[cfg_attr(docsrs, doc(cfg(feature = "audio")))]
 #[cfg(feature = "audio")]
 pub mod audio;
 
 mod dataset;
 pub use dataset::*;
-#[cfg_attr(docsrs, doc(cfg(any(feature = "sqlite", feature = "sqlite-bundled"))))]
 #[cfg(any(feature = "sqlite", feature = "sqlite-bundled"))]
 pub use source::huggingface::downloader::*;
 
