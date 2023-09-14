@@ -1,3 +1,5 @@
+use std::sync::atomic::AtomicUsize;
+
 use crate::{
     id_type, ComputeStorage, MemoryHandle, MemoryManagement, StorageHandle, StorageUtilization,
 };
@@ -7,8 +9,22 @@ use hashbrown::HashMap;
 id_type!(ChunkId);
 id_type!(SliceId);
 
+pub struct SimpleHandle {
+    id: SimpleHandleId,
+    compute_reference: Arc<AtomicUsize>,
+}
+
+impl SimpleHandle {
+    pub fn new(id: SimpleHandleId) -> SimpleHandle {
+        Self {
+            id,
+            compute_reference: Arc::new(0.into()),
+        }
+    }
+}
+
 #[derive(Clone)]
-pub enum SimpleHandle {
+pub enum SimpleHandleId {
     Chunk(ChunkId),
     Slice(SliceId),
 }
@@ -54,11 +70,30 @@ pub struct SimpleMemoryManagement<Storage> {
 
 impl MemoryHandle for SimpleHandle {
     fn can_mut(&self) -> bool {
-        match self {
+        let compute_reference = self
+            .compute_reference
+            .load(std::sync::atomic::Ordering::Relaxed);
+
+        match &self.id {
             // One reference in the chunk hashmap, another owned by the tensor.
-            SimpleHandle::Chunk(id) => Arc::strong_count(&id.id) <= 2,
+            SimpleHandleId::Chunk(id) => Arc::strong_count(&id.id) <= 2 + compute_reference,
             // One reference in the chunk hashmap, another in the slice hashmap, and another owned by the tensor.
-            SimpleHandle::Slice(id) => Arc::strong_count(&id.id) <= 3,
+            SimpleHandleId::Slice(id) => Arc::strong_count(&id.id) <= 3 + compute_reference,
+        }
+    }
+    fn tensor_reference(&self) -> Self {
+        Self {
+            id: self.id.clone(),
+            compute_reference: self.compute_reference.clone(),
+        }
+    }
+    fn compute_reference(&self) -> Self {
+        self.compute_reference
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
+        Self {
+            id: self.id.clone(),
+            compute_reference: self.compute_reference.clone(),
         }
     }
 }
@@ -67,9 +102,9 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for SimpleMemoryManageme
     type Handle = SimpleHandle;
 
     fn get(&mut self, handle: &Self::Handle) -> Storage::Resource {
-        let resource = match handle {
-            SimpleHandle::Chunk(id) => &self.chunks.get(id).unwrap().0,
-            SimpleHandle::Slice(id) => &self.slices.get(id).unwrap().0,
+        let resource = match &handle.id {
+            SimpleHandleId::Chunk(id) => &self.chunks.get(id).unwrap().0,
+            SimpleHandleId::Slice(id) => &self.slices.get(id).unwrap().0,
         };
 
         self.storage.get(resource)
@@ -83,7 +118,7 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for SimpleMemoryManageme
         let handle = match chunk {
             Some((chunk_id, chunk_size)) => {
                 if size == chunk_size {
-                    SimpleHandle::Chunk(chunk_id.clone())
+                    SimpleHandle::new(SimpleHandleId::Chunk(chunk_id.clone()))
                 } else {
                     self.create_slice(size, chunk_id)
                 }
@@ -149,7 +184,7 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
 
         slices.push(slide_id.clone());
 
-        SimpleHandle::Slice(slide_id)
+        SimpleHandle::new(SimpleHandleId::Slice(slide_id))
     }
 
     fn create_new(&mut self, size: usize) -> SimpleHandle {
@@ -159,7 +194,7 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
         self.chunks
             .insert(chunk_id.clone(), (ressource, Vec::new()));
 
-        SimpleHandle::Chunk(chunk_id)
+        SimpleHandle::new(SimpleHandleId::Chunk(chunk_id))
     }
 
     fn dealloc_chunks(&mut self) {

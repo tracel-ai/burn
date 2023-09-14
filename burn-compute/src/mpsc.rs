@@ -1,4 +1,4 @@
-use crate::{ComputeChannel, ComputeServer, Handle};
+use crate::{ComputeChannel, ComputeServer, Handle, MemoryHandle};
 use std::{
     sync::{mpsc, Arc},
     thread,
@@ -28,7 +28,7 @@ where
     Read(Handle<Server>, Callback<Vec<u8>>),
     Create(Vec<u8>, Callback<Handle<Server>>),
     Empty(usize, Callback<Handle<Server>>),
-    Execute(Server::Kernel, Vec<Handle<Server>>, Callback<()>),
+    Execute(Server::Kernel, Vec<Handle<Server>>),
     Sync(Callback<()>),
 }
 
@@ -63,10 +63,8 @@ where
                         let handle = server.empty(size);
                         callback.send(handle).unwrap();
                     }
-                    Message::Execute(kernel, handles, callback) => {
+                    Message::Execute(kernel, handles) => {
                         server.execute(kernel, &handles.iter().map(|h| h).collect::<Vec<_>>());
-                        core::mem::drop(handles);
-                        callback.send(()).unwrap();
                     }
                     Message::Sync(callback) => {
                         server.sync();
@@ -86,7 +84,7 @@ where
 
         self.state
             .sender
-            .send(Message::Read(handle.clone(), callback))
+            .send(Message::Read(handle.compute_reference(), callback))
             .unwrap();
 
         self.response(response)
@@ -115,21 +113,16 @@ where
     }
 
     fn execute(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]) {
-        let (callback, response) = mpsc::sync_channel(1);
-
         self.state
             .sender
             .send(Message::Execute(
                 kernel,
                 handles
                     .into_iter()
-                    .map(|h| (*h).clone())
+                    .map(|h| (*h).compute_reference())
                     .collect::<Vec<Handle<Server>>>(),
-                callback,
             ))
-            .unwrap();
-
-        self.response(response)
+            .unwrap()
     }
 
     fn sync(&self) {
