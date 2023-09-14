@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 use derive_new::new;
 
-use super::DummyKernelDescription;
+use super::DummyKernel;
 use crate::{BytesStorage, ComputeServer, Handle, MemoryManagement, SimpleMemoryManagement};
 
 #[derive(new)]
@@ -13,44 +13,40 @@ impl<MM> ComputeServer for DummyServer<MM>
 where
     MM: MemoryManagement<BytesStorage>,
 {
-    type KernelDescription = DummyKernelDescription;
+    type Kernel = Box<dyn DummyKernel>;
     type Storage = BytesStorage;
     type MemoryManagement = MM;
 
-    fn read(&mut self, resource_description: &Handle<Self>) -> Vec<u8> {
-        let bytes = self.memory_management.get(resource_description);
+    fn read(&mut self, handle: &Handle<Self>) -> Vec<u8> {
+        let bytes = self.memory_management.get(handle);
 
         bytes.read().to_vec()
     }
 
     fn create(&mut self, data: Vec<u8>) -> Handle<Self> {
-        let resource = self.memory_management.reserve(data.len());
-        let bytes = self.memory_management.get(&resource);
+        let handle = self.memory_management.reserve(data.len());
+        let resource = self.memory_management.get(&handle);
 
-        let bytes = bytes.write();
+        let bytes = resource.write();
 
         for (i, val) in data.into_iter().enumerate() {
             bytes[i] = val;
         }
 
-        resource
+        handle
     }
 
     fn empty(&mut self, size: usize) -> Handle<Self> {
         self.memory_management.reserve(size)
     }
 
-    fn execute(
-        &mut self,
-        kernel_description: Self::KernelDescription,
-        resource_descriptions: &[&Handle<Self>],
-    ) {
-        let mut resources = resource_descriptions
+    fn execute(&mut self, kernel: Self::Kernel, handles: &[&Handle<Self>]) {
+        let mut resources = handles
             .iter()
-            .map(|r| self.memory_management.get(&r))
+            .map(|handle| self.memory_management.get(&handle))
             .collect::<Vec<_>>();
 
-        kernel_description.compute(&mut resources);
+        kernel.compute(&mut resources);
     }
 
     fn sync(&self) {

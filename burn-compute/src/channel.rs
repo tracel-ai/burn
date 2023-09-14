@@ -40,14 +40,8 @@ where
         self.server.lock().empty(size)
     }
 
-    fn execute(
-        &self,
-        kernel_description: Server::KernelDescription,
-        resource_descriptions: &[&Handle<Server>],
-    ) {
-        self.server
-            .lock()
-            .execute(kernel_description, resource_descriptions)
+    fn execute(&self, kernel_description: Server::Kernel, handles: &[&Handle<Server>]) {
+        self.server.lock().execute(kernel_description, handles)
     }
 
     fn sync(&self) {
@@ -62,7 +56,7 @@ pub trait ComputeChannel<Server: ComputeServer>: Clone {
     fn empty(&self, size: usize) -> Handle<Server>;
     fn execute(
         &self,
-        kernel_description: Server::KernelDescription,
+        kernel_description: Server::Kernel,
         resource_descriptions: &[&Handle<Server>],
     );
     fn sync(&self);

@@ -9,7 +9,7 @@ pub struct BytesStorage {
 
 pub struct BytesResource {
     ptr: *mut u8,
-    space: StorageUtilization,
+    utilization: StorageUtilization,
 }
 
 struct AllocatedBytes {
@@ -19,7 +19,7 @@ struct AllocatedBytes {
 
 impl BytesResource {
     pub fn write<'a>(&self) -> &'a mut [u8] {
-        let (ptr, len) = match self.space {
+        let (ptr, len) = match self.utilization {
             StorageUtilization::Full(len) => (self.ptr, len),
             StorageUtilization::Slice(location, len) => unsafe { (self.ptr.add(location), len) },
         };
@@ -28,7 +28,7 @@ impl BytesResource {
     }
 
     pub fn read<'a>(&self) -> &'a [u8] {
-        let (ptr, len) = match self.space {
+        let (ptr, len) = match self.utilization {
             StorageUtilization::Full(len) => (self.ptr, len),
             StorageUtilization::Slice(location, len) => unsafe { (self.ptr.add(location), len) },
         };
@@ -38,20 +38,20 @@ impl BytesResource {
 }
 
 impl ComputeStorage for BytesStorage {
-    type StorageResource = BytesResource;
+    type Resource = BytesResource;
 
-    fn get(&mut self, description: &StorageHandle) -> Self::StorageResource {
-        let memory = self.memory.get_mut(&description.id).unwrap();
+    fn get(&mut self, handle: &StorageHandle) -> Self::Resource {
+        let memory = self.memory.get_mut(&handle.id).unwrap();
 
         BytesResource {
             ptr: memory.ptr,
-            space: description.utilization.clone(),
+            utilization: handle.utilization.clone(),
         }
     }
 
     fn alloc(&mut self, size: usize) -> StorageHandle {
         let id = StorageId::new();
-        let ressource = StorageHandle {
+        let handle = StorageHandle {
             id: id.clone(),
             utilization: StorageUtilization::Full(size),
         };
@@ -64,11 +64,11 @@ impl ComputeStorage for BytesStorage {
             self.memory.insert(id, memory);
         }
 
-        ressource
+        handle
     }
 
-    fn dealloc(&mut self, description: &StorageHandle) {
-        if let Some(memory) = self.memory.remove(&description.id) {
+    fn dealloc(&mut self, handle: &StorageHandle) {
+        if let Some(memory) = self.memory.remove(&handle.id) {
             unsafe {
                 dealloc(memory.ptr, memory.layout);
             }

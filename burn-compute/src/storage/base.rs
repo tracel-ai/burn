@@ -14,10 +14,19 @@ pub struct StorageHandle {
     pub utilization: StorageUtilization,
 }
 
-pub trait ComputeStorage {
-    type StorageResource;
+impl StorageHandle {
+    pub fn size(&self) -> usize {
+        match self.utilization {
+            StorageUtilization::Full(size) => size,
+            StorageUtilization::Slice(_, size) => size,
+        }
+    }
+}
 
-    fn get(&mut self, handle: &StorageHandle) -> Self::StorageResource;
+pub trait ComputeStorage {
+    type Resource;
+
+    fn get(&mut self, handle: &StorageHandle) -> Self::Resource;
     fn alloc(&mut self, size: usize) -> StorageHandle;
     fn dealloc(&mut self, handle: &StorageHandle);
 }

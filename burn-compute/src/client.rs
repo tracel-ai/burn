@@ -30,25 +30,20 @@ impl<Server> ComputeClient<Server>
 where
     Server: ComputeServer,
 {
-    pub fn read(&self, resource_description: &Handle<Server>) -> Vec<u8> {
-        self.channel.read(resource_description)
+    pub fn read(&self, handle: &Handle<Server>) -> Vec<u8> {
+        self.channel.read(handle)
     }
 
-    pub fn create(&self, resource: Vec<u8>) -> Handle<Server> {
-        self.channel.create(resource)
+    pub fn create(&self, data: Vec<u8>) -> Handle<Server> {
+        self.channel.create(data)
     }
 
     pub fn empty(&self, size: usize) -> Handle<Server> {
         self.channel.empty(size)
     }
 
-    pub fn execute(
-        &self,
-        kernel_description: Server::KernelDescription,
-        resource_descriptions: &[&Handle<Server>],
-    ) {
-        self.channel
-            .execute(kernel_description, resource_descriptions)
+    pub fn execute(&self, kernel_description: Server::Kernel, handles: &[&Handle<Server>]) {
+        self.channel.execute(kernel_description, handles)
     }
 
     pub fn sync(&self) {

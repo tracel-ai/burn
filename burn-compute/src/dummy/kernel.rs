@@ -1,23 +1,9 @@
 use crate::BytesResource;
-use alloc::boxed::Box;
-use derive_new::new;
 
-#[derive(new)]
-pub struct DummyElementwiseAddition {}
+pub struct DummyElementwiseAddition;
 
 pub trait DummyKernel {
     fn compute<'a>(&self, resources: &mut [BytesResource]);
-}
-
-#[derive(new)]
-pub struct DummyKernelDescription {
-    kernel: Box<dyn DummyKernel>,
-}
-
-impl DummyKernelDescription {
-    pub fn compute(&self, inputs: &mut [BytesResource]) {
-        self.kernel.compute(inputs);
-    }
 }
 
 impl DummyKernel for DummyElementwiseAddition {

@@ -7,6 +7,6 @@ pub trait MemoryHandle: Clone {
 pub trait MemoryManagement<Storage: ComputeStorage> {
     type Handle: MemoryHandle;
 
-    fn get(&mut self, ressource: &Self::Handle) -> Storage::StorageResource;
+    fn get(&mut self, handle: &Self::Handle) -> Storage::Resource;
     fn reserve(&mut self, size: usize) -> Self::Handle;
 }
