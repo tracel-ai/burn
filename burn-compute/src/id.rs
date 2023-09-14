@@ -1,3 +1,4 @@
+/// Macro to easily generate structs that are a unique ID wrapped in an Arc
 #[macro_export]
 macro_rules! id_type {
     ($name:ident) => {
