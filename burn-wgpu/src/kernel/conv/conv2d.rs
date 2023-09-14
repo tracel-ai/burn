@@ -11,7 +11,7 @@ use burn_tensor::{
 
 kernel_wgsl!(Conv2d, "../../template/conv/conv2d.wgsl");
 
-macro_rules! compile_kernel_with_workgroup {
+macro_rules! compile_kernel_with_workgroup { // probably a bad idea to do this here
     ($input:expr, $workgroup_size:expr) => {
         match $workgroup_size {
             8 => $input
@@ -28,13 +28,13 @@ macro_rules! compile_kernel_with_workgroup {
     };
 }
 
-pub(crate) fn conv2d<E: WgpuElement>(
+pub fn conv2d<E: WgpuElement>( // revert to pub(crate)
     input: WgpuTensor<E, 4>,
     weight: WgpuTensor<E, 4>,
     bias: Option<WgpuTensor<E, 1>>,
     options: ConvOptions<2>,
-    workgroup_size_override: Option<usize>,
-    unrolling_factor: Option<u32>,
+    workgroup_size_override: Option<usize>, // don't actually do this
+    unrolling_factor: Option<u32>, // or this
 ) -> WgpuTensor<E, 4> {
     #[cfg(feature = "autotune")]
     const WORKGROUP: usize = workgroup_size_override.unwrap_or(32);
