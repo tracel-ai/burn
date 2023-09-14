@@ -60,3 +60,7 @@ harness = false
 [[bench]]
 name = "data"
 harness = false
+
+[[bench]]
+name = "conv2d"
+harness = false
