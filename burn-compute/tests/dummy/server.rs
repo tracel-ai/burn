@@ -48,7 +48,7 @@ where
     fn execute(&mut self, kernel: Self::Kernel, handles: &[&Handle<Self>]) {
         let mut resources = handles
             .iter()
-            .map(|handle| self.memory_management.get(&handle))
+            .map(|handle| self.memory_management.get(handle))
             .collect::<Vec<_>>();
 
         kernel.compute(&mut resources);

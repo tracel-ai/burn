@@ -65,7 +65,7 @@ where
                         callback.send(handle).unwrap();
                     }
                     Message::Execute(kernel, handles) => {
-                        server.execute(kernel, &handles.iter().map(|h| h).collect::<Vec<_>>());
+                        server.execute(kernel, &handles.iter().collect::<Vec<_>>());
                     }
                     Message::Sync(callback) => {
                         server.sync();
@@ -132,7 +132,7 @@ where
             .send(Message::Execute(
                 kernel,
                 handles
-                    .into_iter()
+                    .iter()
                     .map(|h| (*h).compute_reference())
                     .collect::<Vec<Handle<Server>>>(),
             ))

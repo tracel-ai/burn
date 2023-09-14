@@ -161,7 +161,7 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
     fn reserve_algorithm(&mut self, size: usize) -> SimpleHandle {
         let chunk = self.find_free_chunk(size);
 
-        let handle = match chunk {
+        match chunk {
             Some((chunk_id, chunk_size)) => {
                 if size == chunk_size {
                     SimpleHandle::new(SimpleHandleId::Chunk(chunk_id.clone()))
@@ -170,9 +170,7 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
                 }
             }
             None => self.create_chunk(size),
-        };
-
-        handle
+        }
     }
     /// Finds the smallest of the free and large enough chunks to fit `size`
     /// Returns the chunk's id and size

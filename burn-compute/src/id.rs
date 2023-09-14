@@ -16,5 +16,11 @@ macro_rules! id_type {
                 }
             }
         }
+
+        impl Default for $name {
+            fn default() -> Self {
+                Self::new()
+            }
+        }
     };
 }

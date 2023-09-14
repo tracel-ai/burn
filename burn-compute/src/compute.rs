@@ -86,7 +86,7 @@ where
         clients.insert(device.clone(), client.clone());
     }
 
-    fn clients<'a>(&'a mut self) -> &'a mut HashMap<Device, ComputeClient<Server, Channel>> {
+    fn clients(&mut self) -> &mut HashMap<Device, ComputeClient<Server, Channel>> {
         self.init();
 
         if let Some(clients) = &mut self.clients {
@@ -97,7 +97,7 @@ where
     }
 
     fn init(&mut self) {
-        if let None = self.clients {
+        if self.clients.is_none() {
             self.clients = Some(HashMap::new());
         }
     }
