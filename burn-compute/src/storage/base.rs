@@ -13,7 +13,7 @@ pub enum StorageUtilization {
 }
 
 /// The StorageHandle contains the storage id of a resource and the way it is stored
-#[derive(Clone)]
+#[derive(Clone, new)]
 pub struct StorageHandle {
     /// Storage id.
     pub id: StorageId,
@@ -44,5 +44,5 @@ pub trait ComputeStorage: Send {
     fn alloc(&mut self, size: usize) -> StorageHandle;
 
     /// Deallocates the memory pointed by the given handle
-    fn dealloc(&mut self, handle: &StorageHandle);
+    fn dealloc(&mut self, handle: StorageHandle);
 }
