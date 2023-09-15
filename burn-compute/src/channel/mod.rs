@@ -1,12 +1,17 @@
 mod base;
-mod cell;
-mod mutex;
-
 pub use base::*;
-pub use cell::*;
+
+#[cfg(feature = "channel-mutex")]
+mod mutex;
+#[cfg(feature = "channel-mutex")]
 pub use mutex::*;
 
-#[cfg(feature = "std")]
+#[cfg(feature = "channel-mpsc")]
 mod mpsc;
-#[cfg(feature = "std")]
+#[cfg(feature = "channel-mpsc")]
 pub use mpsc::*;
+
+#[cfg(feature = "channel-cell")]
+mod cell;
+#[cfg(feature = "channel-cell")]
+pub use cell::*;

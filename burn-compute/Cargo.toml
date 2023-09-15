@@ -11,9 +11,13 @@ repository = "https://github.com/burn-rs/burn/tree/main/burn-compute"
 version = "0.10.0"
 
 [features]
-default = ["std"]
+default = ["std", "channel-mutex", "channel-mpsc", "channel-cell"]
 std = []
-minimal = []
+channel-mutex = []
+channel-cell = []
+channel-mpsc = [] # Asume std
+
+minimal = [] # Some dependencies are necessary to run tests, but can be disabled with the feature minimal.
 
 [dependencies]
 burn-common = { path = "../burn-common", version = "0.10.0", default-features = false }

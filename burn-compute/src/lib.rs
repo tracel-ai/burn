@@ -5,6 +5,9 @@
 
 extern crate alloc;
 
+#[macro_use]
+extern crate derive_new;
+
 mod id;
 
 /// Compute channel module.
