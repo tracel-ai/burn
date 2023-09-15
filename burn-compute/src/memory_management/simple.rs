@@ -46,7 +46,8 @@ pub enum DeallocStrategy {
 }
 
 impl DeallocStrategy {
-    fn new_period_tick(period: usize) -> Self {
+    /// Create a new strategy with given period.
+    pub fn new_period_tick(period: usize) -> Self {
         DeallocStrategy::PeriodTick(period, 0)
     }
 

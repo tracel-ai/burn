@@ -6,7 +6,7 @@ use dummy::{get, DummyDevice, DummyElementwiseAddition};
 fn created_resource_is_the_same_when_read() {
     let client = get(&DummyDevice);
     let resource = Vec::from([0, 1, 2]);
-    let resource_description = client.create(resource.clone());
+    let resource_description = client.create(&resource);
 
     let obtained_resource = client.read(&resource_description);
 
@@ -26,8 +26,8 @@ fn empty_allocates_memory() {
 #[test]
 fn execute_elementwise_addition() {
     let client = get(&DummyDevice);
-    let lhs = client.create([0, 1, 2].into());
-    let rhs = client.create([4, 4, 4].into());
+    let lhs = client.create(&[0, 1, 2]);
+    let rhs = client.create(&[4, 4, 4]);
     let out = client.empty(3);
 
     let kernel_description = Box::new(DummyElementwiseAddition);

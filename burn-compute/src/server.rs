@@ -25,7 +25,7 @@ pub trait ComputeServer: Send {
     fn read(&mut self, handle: &Handle<Self>) -> Vec<u8>;
 
     /// Given a resource as bytes, stores it and returns the resource handle
-    fn create(&mut self, data: Vec<u8>) -> Handle<Self>;
+    fn create(&mut self, data: &[u8]) -> Handle<Self>;
 
     /// Reserves `size` bytes in the storage, and returns a handle over them
     fn empty(&mut self, size: usize) -> Handle<Self>;

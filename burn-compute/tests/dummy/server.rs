@@ -28,14 +28,14 @@ where
         bytes.read().to_vec()
     }
 
-    fn create(&mut self, data: Vec<u8>) -> Handle<Self> {
+    fn create(&mut self, data: &[u8]) -> Handle<Self> {
         let handle = self.memory_management.reserve(data.len());
         let resource = self.memory_management.get(&handle);
 
         let bytes = resource.write();
 
         for (i, val) in data.into_iter().enumerate() {
-            bytes[i] = val;
+            bytes[i] = *val;
         }
 
         handle

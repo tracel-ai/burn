@@ -101,19 +101,19 @@ mod tests {
         let rhs: Vec<f32> = vec![10., 11., 12., 6., 7., 3., 1., 0.];
         let info: Vec<u32> = vec![1, 1, 1, 1, 8, 8, 8];
 
-        // let data: Vec<f32> = client.read(&lhs);
-        // let rhs = client.create(rhs);
-        // let out = client.empty(core::mem::size_of::<f32>() * 8);
-        // let info = client.create(info);
+        let lhs = client.create(bytemuck::cast_slice(&lhs));
+        let rhs = client.create(bytemuck::cast_slice(&rhs));
+        let out = client.empty(core::mem::size_of::<f32>() * 8);
+        let info = client.create(bytemuck::cast_slice(&info));
 
-        // type Kernel = KernelSettings<Add, f32, i32, 16, 16, 1>;
+        type Kernel = KernelSettings<Add, f32, i32, 16, 16, 1>;
+        let kernel = Box::new(StaticComputeKernel::<Kernel>::new(WorkGroup::new(1, 1, 1)));
 
-        // let kernel = StaticComputeKernel::<Kernel>::new(WorkGroup::new(1, 1, 1));
+        client.execute(kernel, &[&lhs, &rhs, &out, &info]);
 
-        // client.execute(Box::new(kernel), &[&lhs, &rhs, &out, &info]);
+        let data = client.read(&out);
+        let output: &[f32] = bytemuck::cast_slice(&data);
 
-        // let data: Vec<f32> = client.read(&out);
-
-        // assert_eq!(data, [10., 12., 14., 9., 11., 8., 7., 7.]);
+        assert_eq!(output, [10., 12., 14., 9., 11., 8., 7., 7.]);
     }
 }

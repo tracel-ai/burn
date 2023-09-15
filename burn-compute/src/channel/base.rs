@@ -8,7 +8,7 @@ pub trait ComputeChannel<Server: ComputeServer>: Clone {
     fn read(&self, handle: &Handle<Server>) -> Vec<u8>;
 
     /// Given a resource as bytes, stores it and returns the resource handle
-    fn create(&self, data: Vec<u8>) -> Handle<Server>;
+    fn create(&self, data: &[u8]) -> Handle<Server>;
 
     /// Reserves `size` bytes in the storage, and returns a handle over them
     fn empty(&self, size: usize) -> Handle<Server>;

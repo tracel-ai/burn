@@ -183,12 +183,12 @@ where
         }
     }
 
-    fn create(&mut self, data: Vec<u8>) -> server::Handle<Self> {
+    fn create(&mut self, data: &[u8]) -> server::Handle<Self> {
         let handle = self.empty(data.len());
 
         let buffer_src = Arc::new(self.device.create_buffer_init(&BufferInitDescriptor {
             label: Some("Buffer Src"),
-            contents: &data,
+            contents: data,
             usage: wgpu::BufferUsages::COPY_SRC,
         }));
 

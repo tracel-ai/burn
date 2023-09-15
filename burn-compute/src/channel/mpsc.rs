@@ -3,12 +3,8 @@ use std::{
     thread,
 };
 
-use crate::{
-    memory_management::MemoryHandle,
-    server::{ComputeServer, Handle},
-};
-
 use super::ComputeChannel;
+use crate::server::{ComputeServer, Handle};
 
 /// Create a channel using the [multi-producer, single-consumer](mpsc) channel to communicate with
 /// the compute server spawn on its own tread.
@@ -57,7 +53,7 @@ where
                         callback.send(data).unwrap();
                     }
                     Message::Create(data, callback) => {
-                        let handle = server.create(data);
+                        let handle = server.create(&data);
                         callback.send(handle).unwrap();
                     }
                     Message::Empty(size, callback) => {
@@ -104,12 +100,12 @@ where
         self.response(response)
     }
 
-    fn create(&self, data: Vec<u8>) -> Handle<Server> {
+    fn create(&self, data: &[u8]) -> Handle<Server> {
         let (callback, response) = mpsc::sync_channel(1);
 
         self.state
             .sender
-            .send(Message::Create(data, callback))
+            .send(Message::Create(data.to_vec(), callback))
             .unwrap();
 
         self.response(response)

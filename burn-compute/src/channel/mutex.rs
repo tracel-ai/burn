@@ -39,7 +39,7 @@ where
         server.read(handle)
     }
 
-    fn create(&self, data: Vec<u8>) -> Handle<Server> {
+    fn create(&self, data: &[u8]) -> Handle<Server> {
         self.server.lock().create(data)
     }
 

@@ -45,7 +45,7 @@ where
         server.read(handle)
     }
 
-    fn create(&self, resource: Vec<u8>) -> Handle<Server> {
+    fn create(&self, resource: &[u8]) -> Handle<Server> {
         self.server.borrow_mut().create(resource)
     }
 

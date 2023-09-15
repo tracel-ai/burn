@@ -43,7 +43,7 @@ where
     }
 
     /// Given a resource, stores it and returns the resource handle
-    pub fn create(&self, data: Vec<u8>) -> Handle<Server> {
+    pub fn create(&self, data: &[u8]) -> Handle<Server> {
         self.channel.create(data)
     }
 
