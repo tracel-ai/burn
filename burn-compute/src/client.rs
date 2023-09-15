@@ -1,15 +1,12 @@
-use alloc::vec::Vec;
-use core::marker::PhantomData;
-use derive_new::new;
-
 use crate::{
     channel::{ComputeChannel, MutexComputeChannel},
-    ComputeServer, Handle,
+    server::{ComputeServer, Handle},
 };
+use alloc::vec::Vec;
+use core::marker::PhantomData;
 
 /// The ComputeClient is the entry point to require tasks from the ComputeServer.
 /// It should be obtained for a specific device via the Compute struct.
-#[derive(new)]
 pub struct ComputeClient<Server, Channel = MutexComputeChannel<Server>> {
     channel: Channel,
     _server: PhantomData<Server>,
@@ -28,10 +25,18 @@ where
     }
 }
 
-impl<Server> ComputeClient<Server>
+impl<Server, Channel> ComputeClient<Server, Channel>
 where
     Server: ComputeServer,
+    Channel: ComputeChannel<Server>,
 {
+    /// Create a new client.
+    pub fn new(channel: Channel) -> Self {
+        Self {
+            channel,
+            _server: PhantomData,
+        }
+    }
     /// Given a handle, returns owned resource as bytes
     pub fn read(&self, handle: &Handle<Server>) -> Vec<u8> {
         self.channel.read(handle)

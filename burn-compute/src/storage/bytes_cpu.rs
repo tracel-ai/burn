@@ -1,4 +1,4 @@
-use crate::{ComputeStorage, StorageHandle, StorageId, StorageUtilization};
+use super::{ComputeStorage, StorageHandle, StorageId, StorageUtilization};
 use alloc::alloc::{alloc, dealloc, Layout};
 use hashbrown::HashMap;
 
@@ -70,7 +70,7 @@ impl ComputeStorage for BytesStorage {
 
         unsafe {
             let layout = Layout::array::<u8>(size).unwrap();
-            let ptr = alloc(layout.clone());
+            let ptr = alloc(layout);
             let memory = AllocatedBytes { ptr, layout };
 
             self.memory.insert(id, memory);

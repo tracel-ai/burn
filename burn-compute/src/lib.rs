@@ -1,21 +1,23 @@
-// #![no_std]
+#![cfg_attr(not(feature = "std"), no_std)]
+#![warn(missing_docs)]
+
+//! Burn compute crate that helps creating high performance async backends.
+
 extern crate alloc;
 
-mod channel;
-mod client;
-mod compute;
 mod id;
-mod memory_management;
-mod server;
-mod storage;
-mod tests;
 
-pub use channel::*;
-pub use client::*;
+/// Compute channel module.
+pub mod channel;
+/// Compute client module.
+pub mod client;
+
+/// Memory management module.
+pub mod memory_management;
+/// Compute server module.
+pub mod server;
+/// Compute Storage module.
+pub mod storage;
+
+mod compute;
 pub use compute::*;
-pub use memory_management::*;
-pub use server::*;
-pub use storage::*;
-
-mod mpsc;
-pub use mpsc::*;

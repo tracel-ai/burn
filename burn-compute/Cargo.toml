@@ -1,7 +1,7 @@
 [package]
 authors = ["louisfd <louisfd94@gmail.com>"]
 categories = ["science"]
-description = "Infrastructure for making backend computations asynchronous, autotunable and with well-managed memory"
+description = "Compute crate that helps creating high performance async backends."
 edition = "2021"
 keywords = ["deep-learning", "machine-learning", "data"]
 license = "MIT OR Apache-2.0"
@@ -11,11 +11,14 @@ repository = "https://github.com/burn-rs/burn/tree/main/burn-compute"
 version = "0.10.0"
 
 [features]
+default = ["std"]
+std = []
+minimal = []
 
 [dependencies]
-burn-common = { path = "../burn-common", version = "0.10.0" }
+burn-common = { path = "../burn-common", version = "0.10.0", default-features = false }
 derive-new = { workspace = true }
-spin = { workspace = true }                                   # using in place of use std::sync::Mutex;          
-hashbrown = "0.14.0"
+spin = { workspace = true }
+hashbrown = { workspace = true }
 
 [dev-dependencies]

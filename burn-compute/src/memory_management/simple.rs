@@ -1,10 +1,10 @@
-use std::sync::atomic::AtomicUsize;
-
+use super::{MemoryHandle, MemoryManagement};
 use crate::{
-    compute, id_type, ComputeStorage, MemoryHandle, MemoryManagement, StorageHandle,
-    StorageUtilization,
+    id_type,
+    storage::{ComputeStorage, StorageHandle, StorageUtilization},
 };
 use alloc::{sync::Arc, vec::Vec};
+use core::sync::atomic::AtomicUsize;
 use hashbrown::HashMap;
 
 // The ChunkId allows to keep track of how many references there are to a specific chunk
@@ -19,7 +19,7 @@ pub struct SimpleHandle {
 }
 
 impl SimpleHandle {
-    pub fn new(id: SimpleHandleId) -> SimpleHandle {
+    fn new(id: SimpleHandleId) -> SimpleHandle {
         Self {
             id,
             compute_reference: Arc::new(0.into()),
@@ -28,7 +28,7 @@ impl SimpleHandle {
 }
 
 #[derive(Clone)]
-pub enum SimpleHandleId {
+enum SimpleHandleId {
     Chunk(ChunkId),
     Slice(SliceId),
 }
@@ -39,8 +39,8 @@ pub enum DeallocStrategy {
     /// Once every n calls to reserve
     /// First associated data is n, second is the state and should start at 0
     PeriodTick(usize, usize),
+    #[cfg(feature = "std")]
     /// Once every period of time
-    /// TODO find an alternative for no std
     PeriodTime(std::time::Duration, std::time::Instant),
     /// Never deallocate
     Never,
@@ -53,6 +53,7 @@ impl DeallocStrategy {
                 *last = (*last + 1) % *period;
                 *last == 0
             }
+            #[cfg(feature = "std")]
             DeallocStrategy::PeriodTime(period, last) => {
                 if &last.elapsed() > period {
                     *last = std::time::Instant::now();
@@ -83,7 +84,7 @@ impl MemoryHandle for SimpleHandle {
         // because it does not impact mutability
         let compute_reference = self
             .compute_reference
-            .load(std::sync::atomic::Ordering::Relaxed);
+            .load(core::sync::atomic::Ordering::Relaxed);
 
         // One reference in the chunk hashmap, another owned by one tensor.
         let chunk_reference_limit = 2;
@@ -112,7 +113,7 @@ impl MemoryHandle for SimpleHandle {
     // Returns a clone of the handle and increment compute reference
     fn compute_reference(&self) -> Self {
         self.compute_reference
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            .fetch_add(1, core::sync::atomic::Ordering::Relaxed);
 
         Self {
             id: self.id.clone(),
@@ -174,7 +175,7 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
     fn reserve_algorithm(&mut self, size: usize) -> SimpleHandle {
         let chunk = self.find_free_chunk(size);
 
-        let handle = match chunk {
+        match chunk {
             Some((chunk_id, chunk_size)) => {
                 if size == chunk_size {
                     SimpleHandle::new(SimpleHandleId::Chunk(chunk_id.clone()))
@@ -183,9 +184,7 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
                 }
             }
             None => self.create_chunk(size),
-        };
-
-        handle
+        }
     }
     /// Finds the smallest of the free and large enough chunks to fit `size`
     /// Returns the chunk's id and size

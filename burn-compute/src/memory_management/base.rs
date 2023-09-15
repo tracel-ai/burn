@@ -1,4 +1,4 @@
-use crate::ComputeStorage;
+use crate::storage::ComputeStorage;
 
 /// The MemoryHandle trait is an abstract way to refer to some memory segment.
 /// It should not contain actual references to data.
@@ -8,9 +8,13 @@ use crate::ComputeStorage;
 pub trait MemoryHandle {
     /// Checks if the underlying memory can be safely mutated.
     fn can_mut(&self) -> bool;
-    /// Tracks how many distinct tensors refer to this memory
+    /// Clone the current handle to be used by a tensor handle.
+    ///
+    /// This will mark the handle as read only.
     fn tensor_reference(&self) -> Self;
-    /// Tracks how many computation kernels refer to this memory
+    /// Clone the current handle to be used by a compute pipeline.
+    ///
+    /// This will not impact if the handle can be used inplace.
     fn compute_reference(&self) -> Self;
 }
 
