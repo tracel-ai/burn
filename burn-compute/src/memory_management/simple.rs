@@ -242,7 +242,7 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
             .into_iter()
             .map(|key| self.chunks.remove(&key).unwrap())
             .for_each(|(ressource, _slices)| {
-                self.storage.dealloc(ressource);
+                self.storage.dealloc(ressource.id);
             });
     }
 

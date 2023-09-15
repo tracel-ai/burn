@@ -80,8 +80,8 @@ impl ComputeStorage for BytesStorage {
     }
 
     /// Deallocates the memory referred by the handle
-    fn dealloc(&mut self, handle: StorageHandle) {
-        if let Some(memory) = self.memory.remove(&handle.id) {
+    fn dealloc(&mut self, id: StorageId) {
+        if let Some(memory) = self.memory.remove(&id) {
             unsafe {
                 dealloc(memory.ptr, memory.layout);
             }
@@ -99,7 +99,7 @@ mod tests {
         let handle_1 = storage.alloc(64);
 
         assert_eq!(handle_1.size(), 64);
-        storage.dealloc(handle_1);
+        storage.dealloc(handle_1.id);
     }
 
     #[test]
@@ -118,7 +118,7 @@ mod tests {
             });
 
         let bytes = storage.get(&handle_2).read().to_vec();
-        storage.dealloc(handle_1);
+        storage.dealloc(handle_1.id);
         assert_eq!(bytes, &[24, 25, 26, 27, 28, 29, 30, 31]);
     }
 }
