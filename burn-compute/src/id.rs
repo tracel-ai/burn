@@ -59,6 +59,15 @@ macro_rules! memory_id_type {
                     computing_count: self.computing_count.clone(),
                 }
             }
+
+            pub fn get_compute_reference_number(&self) -> usize {
+                self.computing_count
+                    .load(core::sync::atomic::Ordering::Relaxed)
+            }
+
+            pub fn is_free_to_deallocate(&self) -> bool {
+                self.get_compute_reference_number() == 0 && Arc::strong_count(&self.id) <= 1
+            }
         }
 
         impl Default for $name {

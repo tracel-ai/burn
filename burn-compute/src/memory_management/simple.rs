@@ -1,6 +1,6 @@
 use super::{MemoryHandle, MemoryManagement};
 use crate::{
-    id_type, memory_id_type,
+    memory_id_type,
     storage::{ComputeStorage, StorageHandle, StorageUtilization},
 };
 use alloc::{sync::Arc, vec::Vec};
@@ -13,7 +13,9 @@ memory_id_type!(SliceId);
 
 /// The SimpleHandle is a memory handle, referring to either a chunk or a slice
 pub enum SimpleHandle {
+    /// A whole chunk of memory
     Chunk(ChunkId),
+    /// A slice of a chunk of memory
     Slice(SliceId),
 }
 
@@ -64,63 +66,35 @@ impl MemoryHandle for SimpleHandle {
     /// Returns true if referenced by only one tensor, and only once by the
     /// memory management hashmaps
     fn can_mut(&self) -> bool {
-        // The number of compute references is subtracted from the arc count,
-        // because it does not impact mutability
-        let compute_reference = self
-            .compute_reference
-            .load(core::sync::atomic::Ordering::Relaxed);
-
         // One reference in the chunk hashmap, another owned by one tensor.
         let chunk_reference_limit = 2;
         // One reference in the chunk hashmap, another in the slice hashmap,
         // and another owned by one tensor.
         let slice_reference_limit = 3;
 
-        match &self.id {
-            SimpleHandleId::Chunk(id) => {
-                Arc::strong_count(&id.id) <= chunk_reference_limit + compute_reference
+        match &self {
+            SimpleHandle::Chunk(id) => {
+                Arc::strong_count(&id.id)
+                    <= chunk_reference_limit + id.get_compute_reference_number()
             }
-            SimpleHandleId::Slice(id) => {
-                Arc::strong_count(&id.id) <= slice_reference_limit + compute_reference
+            SimpleHandle::Slice(id) => {
+                Arc::strong_count(&id.id)
+                    <= slice_reference_limit + id.get_compute_reference_number()
             }
         }
     }
 
-    // Returns a clone of the handle
     fn tensor_reference(&self) -> Self {
-        Self {
-            id: self.id.clone(),
-            compute_reference: self.compute_reference.clone(),
+        match &self {
+            SimpleHandle::Chunk(id) => SimpleHandle::Chunk(id.tensor_reference()),
+            SimpleHandle::Slice(id) => SimpleHandle::Slice(id.tensor_reference()),
         }
     }
 
-    // Returns a clone of the handle and increment compute reference
     fn compute_reference(&self) -> Self {
-        self.compute_reference
-            .fetch_add(1, core::sync::atomic::Ordering::Relaxed);
-    }
-}
-
-impl SimpleHandle {
-    /// Returns true if the handle can be safely deallocated, i.e.
-    /// it is not used in any computation nor referenced by any tensor.
-    pub fn is_free_to_deallocate(&self) -> bool {
-        let compute_reference = self
-            .compute_reference
-            .load(core::sync::atomic::Ordering::Relaxed);
-
-        if compute_reference > 0 {
-            return false;
-        }
-
-        let r = match &self.id {
-            SimpleHandleId::Chunk(id) => Arc::strong_count(&id.id),
-            SimpleHandleId::Slice(id) => Arc::strong_count(&id.id),
-        };
-        println!("{:?}", r);
-        match &self.id {
-            SimpleHandleId::Chunk(id) => Arc::strong_count(&id.id) <= 1,
-            SimpleHandleId::Slice(id) => Arc::strong_count(&id.id) <= 1,
+        match &self {
+            SimpleHandle::Chunk(id) => SimpleHandle::Chunk(id.compute_reference()),
+            SimpleHandle::Slice(id) => SimpleHandle::Slice(id.compute_reference()),
         }
     }
 }
@@ -130,9 +104,9 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for SimpleMemoryManageme
 
     /// Returns the resource from the storage, for the specified handle
     fn get(&mut self, handle: &Self::Handle) -> Storage::Resource {
-        let resource = match &handle.id {
-            SimpleHandleId::Chunk(id) => &self.chunks.get(id).unwrap().0,
-            SimpleHandleId::Slice(id) => &self.slices.get(id).unwrap().0,
+        let resource = match &handle {
+            SimpleHandle::Chunk(id) => &self.chunks.get(id).unwrap().0,
+            SimpleHandle::Slice(id) => &self.slices.get(id).unwrap().0,
         };
 
         self.storage.get(resource)
@@ -181,7 +155,7 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
         match chunk {
             Some((chunk_id, chunk_size)) => {
                 if size == chunk_size {
-                    SimpleHandle::new(SimpleHandleId::Chunk(chunk_id.clone()))
+                    SimpleHandle::Chunk(chunk_id.tensor_reference())
                 } else {
                     self.create_slice(size, chunk_id)
                 }
@@ -209,14 +183,14 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
             }
         });
 
-        current.map(|(id, handle)| (id.clone(), handle.size()))
+        current.map(|(id, handle)| (id.tensor_reference(), handle.size()))
     }
 
     /// Creates a slice of size `size` upon the given chunk
     /// For now slices must start at zero, therefore there can be only one per chunk
     fn create_slice(&mut self, size: usize, chunk_id: ChunkId) -> SimpleHandle {
         let (handle, slices) = self.chunks.get_mut(&chunk_id).unwrap();
-        let slide_id = SliceId::new();
+        let slice_id = SliceId::new();
 
         let storage = StorageHandle {
             id: handle.id.clone(),
@@ -224,14 +198,15 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
         };
 
         if slices.is_empty() {
-            self.slices.insert(slide_id.clone(), (storage, chunk_id));
+            self.slices
+                .insert(slice_id.tensor_reference(), (storage, chunk_id));
         } else {
             panic!("Can't have more than 1 slice yet.");
         }
 
-        slices.push(slide_id.clone());
+        slices.push(slice_id.tensor_reference());
 
-        SimpleHandle::new(SimpleHandleId::Slice(slide_id))
+        SimpleHandle::Slice(slice_id)
     }
 
     /// Creates a chunk of given size by allocating on the storage.
@@ -239,24 +214,25 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
         let resource = self.storage.alloc(size);
         let chunk_id = ChunkId::new();
 
-        self.chunks.insert(chunk_id.clone(), (resource, Vec::new()));
+        self.chunks
+            .insert(chunk_id.tensor_reference(), (resource, Vec::new()));
 
-        SimpleHandle::new(SimpleHandleId::Chunk(chunk_id))
+        SimpleHandle::Chunk(chunk_id)
     }
 
     /// Deallocates free chunks and remove them from chunks map
     fn cleanup_chunks(&mut self) {
         let mut keys_to_remove = Vec::new();
 
-        self.chunks.iter().for_each(|(key, _resource)| {
-            if Arc::strong_count(&key.id) == 1 {
-                keys_to_remove.push(key.clone());
+        self.chunks.iter().for_each(|(chunk_id, _resource)| {
+            if chunk_id.is_free_to_deallocate() {
+                keys_to_remove.push(chunk_id.tensor_reference());
             }
         });
 
         keys_to_remove
-            .into_iter()
-            .map(|key| self.chunks.remove(&key).unwrap())
+            .iter()
+            .map(|chunk_id| self.chunks.remove(chunk_id).unwrap())
             .for_each(|(resource, _slices)| {
                 self.storage.dealloc(resource.id);
             });
@@ -266,33 +242,30 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
     fn cleanup_slices(&mut self) {
         let mut keys_to_remove = Vec::new();
 
-        self.slices.iter().for_each(|(key, _resource)| {
-            if Arc::strong_count(&key.id) == 1 {
-                keys_to_remove.push(key.clone());
+        self.slices.iter().for_each(|(slice_id, _resource)| {
+            if slice_id.is_free_to_deallocate() {
+                keys_to_remove.push(slice_id.tensor_reference());
             }
         });
 
         keys_to_remove
-            .into_iter()
-            .map(|key| {
-                let value = self.slices.remove(&key).unwrap();
-                (key, value.1)
+            .iter()
+            .map(|slice_id| {
+                let value = self.slices.remove(slice_id).unwrap();
+                (slice_id, value.1)
             })
             .for_each(|(slice_id, chunk_id)| {
                 let (_chunk, slices) = self.chunks.get_mut(&chunk_id).unwrap();
-                slices.retain(|id| *id != slice_id);
+                slices.retain(|id| id != slice_id);
             });
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        memory_management::MemoryHandle,
-        storage::{BytesStorage, ComputeStorage},
-    };
+    use crate::{memory_management::MemoryHandle, storage::BytesStorage};
 
-    use super::{ChunkId, SimpleHandle, SimpleHandleId, SimpleMemoryManagement};
+    use super::SimpleMemoryManagement;
 
     #[test]
     fn many_compute_references_do_not_remove_mutability() {
@@ -301,9 +274,9 @@ mod tests {
         let chunk_size = 4;
         let simple_handle = memory_management.create_chunk(chunk_size);
 
-        let x = simple_handle.compute_reference();
-        let y = simple_handle.compute_reference();
-        let z = simple_handle.compute_reference();
+        let _x = simple_handle.compute_reference();
+        let _y = simple_handle.compute_reference();
+        let _z = simple_handle.compute_reference();
 
         assert!(simple_handle.can_mut())
     }
