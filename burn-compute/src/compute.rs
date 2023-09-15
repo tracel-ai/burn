@@ -6,7 +6,7 @@ use crate::{
 use core::ops::DerefMut;
 use hashbrown::HashMap;
 
-/// The compute type has the responsability to retrive the correct compute client based on the
+/// The compute type has the responsibility to retrieve the correct compute client based on the
 /// given device.
 pub struct Compute<Device, Server, Channel = MutexComputeChannel<Server>> {
     clients: spin::Mutex<Option<HashMap<Device, ComputeClient<Server, Channel>>>>,

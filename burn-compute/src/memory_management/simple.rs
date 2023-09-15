@@ -178,15 +178,15 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
         let mut size_diff_current = usize::MAX;
         let mut current = None;
 
-        self.chunks.iter().for_each(|(key, (ressource, slices))| {
+        self.chunks.iter().for_each(|(key, (resource, slices))| {
             // A chunk is free if no slice is built upon it and no tensor
             // depends on it, i.e. only the memory management map refers to it
             let is_free = slices.is_empty() && Arc::strong_count(&key.id) == 1;
 
-            if is_free && ressource.size() > size {
-                let size_diff = ressource.size() - size;
+            if is_free && resource.size() > size {
+                let size_diff = resource.size() - size;
                 if size_diff < size_diff_current {
-                    current = Some((key, ressource));
+                    current = Some((key, resource));
                     size_diff_current = size_diff;
                 }
             }
@@ -219,11 +219,10 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
 
     /// Creates a chunk of given size by allocating on the storage.
     fn create_chunk(&mut self, size: usize) -> SimpleHandle {
-        let ressource = self.storage.alloc(size);
+        let resource = self.storage.alloc(size);
         let chunk_id = ChunkId::new();
 
-        self.chunks
-            .insert(chunk_id.clone(), (ressource, Vec::new()));
+        self.chunks.insert(chunk_id.clone(), (resource, Vec::new()));
 
         SimpleHandle::new(SimpleHandleId::Chunk(chunk_id))
     }
@@ -232,7 +231,7 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
     fn cleanup_chunks(&mut self) {
         let mut keys_to_remove = Vec::new();
 
-        self.chunks.iter().for_each(|(key, _ressource)| {
+        self.chunks.iter().for_each(|(key, _resource)| {
             if Arc::strong_count(&key.id) == 1 {
                 keys_to_remove.push(key.clone());
             }
@@ -241,8 +240,8 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
         keys_to_remove
             .into_iter()
             .map(|key| self.chunks.remove(&key).unwrap())
-            .for_each(|(ressource, _slices)| {
-                self.storage.dealloc(ressource.id);
+            .for_each(|(resource, _slices)| {
+                self.storage.dealloc(resource.id);
             });
     }
 
@@ -250,7 +249,7 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
     fn cleanup_slices(&mut self) {
         let mut keys_to_remove = Vec::new();
 
-        self.slices.iter().for_each(|(key, _ressource)| {
+        self.slices.iter().for_each(|(key, _resource)| {
             if Arc::strong_count(&key.id) == 1 {
                 keys_to_remove.push(key.clone());
             }
