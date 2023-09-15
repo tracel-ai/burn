@@ -8,7 +8,9 @@ use crate::ComputeStorage;
 pub trait MemoryHandle {
     /// Checks if the underlying memory can be safely mutated.
     fn can_mut(&self) -> bool;
+    /// Tracks how many distinct tensors refer to this memory
     fn tensor_reference(&self) -> Self;
+    /// Tracks how many computation kernels refer to this memory
     fn compute_reference(&self) -> Self;
 }
 

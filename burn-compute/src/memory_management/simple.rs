@@ -1,7 +1,8 @@
 use std::sync::atomic::AtomicUsize;
 
 use crate::{
-    id_type, ComputeStorage, MemoryHandle, MemoryManagement, StorageHandle, StorageUtilization,
+    compute, id_type, ComputeStorage, MemoryHandle, MemoryManagement, StorageHandle,
+    StorageUtilization,
 };
 use alloc::{sync::Arc, vec::Vec};
 use hashbrown::HashMap;
@@ -78,23 +79,37 @@ impl MemoryHandle for SimpleHandle {
     /// Returns true if referenced by only one tensor, and only once by the
     /// memory management hashmaps
     fn can_mut(&self) -> bool {
+        // The number of compute references is subtracted from the arc count,
+        // because it does not impact mutability
         let compute_reference = self
             .compute_reference
             .load(std::sync::atomic::Ordering::Relaxed);
 
+        // One reference in the chunk hashmap, another owned by one tensor.
+        let chunk_reference_limit = 2;
+        // One reference in the chunk hashmap, another in the slice hashmap,
+        // and another owned by one tensor.
+        let slice_reference_limit = 3;
+
         match &self.id {
-            // One reference in the chunk hashmap, another owned by the tensor.
-            SimpleHandleId::Chunk(id) => Arc::strong_count(&id.id) <= 2 + compute_reference,
-            // One reference in the chunk hashmap, another in the slice hashmap, and another owned by the tensor.
-            SimpleHandleId::Slice(id) => Arc::strong_count(&id.id) <= 3 + compute_reference,
+            SimpleHandleId::Chunk(id) => {
+                Arc::strong_count(&id.id) - compute_reference <= chunk_reference_limit
+            }
+            SimpleHandleId::Slice(id) => {
+                Arc::strong_count(&id.id) - compute_reference <= slice_reference_limit
+            }
         }
     }
+
+    // Returns a clone of the handle
     fn tensor_reference(&self) -> Self {
         Self {
             id: self.id.clone(),
             compute_reference: self.compute_reference.clone(),
         }
     }
+
+    // Returns a clone of the handle and increment compute reference
     fn compute_reference(&self) -> Self {
         self.compute_reference
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
