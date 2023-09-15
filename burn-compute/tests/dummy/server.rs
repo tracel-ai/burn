@@ -54,7 +54,7 @@ where
         kernel.compute(&mut resources);
     }
 
-    fn sync(&self) {
+    fn sync(&mut self) {
         // Nothing to do with dummy backend.
     }
 }

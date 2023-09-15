@@ -37,5 +37,5 @@ pub trait ComputeServer: Send {
     fn execute(&mut self, kernel: Self::Kernel, handles: &[&Handle<Self>]);
 
     /// Wait for the completion of every task in the server.
-    fn sync(&self);
+    fn sync(&mut self);
 }
