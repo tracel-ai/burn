@@ -7,7 +7,7 @@ pub struct WgpuStorage {
     device: Arc<wgpu::Device>,
 }
 
-#[derive(new)]
+#[derive(new, Debug)]
 pub struct WgpuResource {
     pub buffer: Arc<wgpu::Buffer>,
     pub kind: WgpuResourceKind,
@@ -45,6 +45,7 @@ impl WgpuResource {
     }
 }
 
+#[derive(Debug)]
 pub enum WgpuResourceKind {
     Full,
     Slice(wgpu::BufferAddress, wgpu::BufferAddress),

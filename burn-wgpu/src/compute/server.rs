@@ -12,7 +12,7 @@ use wgpu::{
     BindGroup, CommandEncoder, ComputePipeline, ShaderModuleDescriptor,
 };
 
-#[derive(new)]
+/// Wgpu compute server.
 pub struct WgpuServer<MM = SimpleMemoryManagement<WgpuStorage>> {
     memory_management: MM,
     device: Arc<wgpu::Device>,
@@ -24,7 +24,7 @@ pub struct WgpuServer<MM = SimpleMemoryManagement<WgpuStorage>> {
 }
 
 #[derive(new)]
-pub struct ComputeTask {
+struct ComputeTask {
     pipeline: Arc<ComputePipeline>,
     bind_group: BindGroup,
     work_group: WorkGroup,
@@ -42,11 +42,35 @@ impl<MM> WgpuServer<MM>
 where
     MM: MemoryManagement<WgpuStorage>,
 {
+    pub fn new(memory_management: MM, device: Arc<wgpu::Device>, queue: wgpu::Queue) -> Self {
+        let encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Command Encoder"),
+        });
+
+        // TODO: Support a way to modify this value without std.
+        let max_tasks = match std::env::var("BURN_WGPU_MAX_TASKS") {
+            Ok(value) => value
+                .parse::<usize>()
+                .expect("BURN_WGPU_MAX_TASKS should be a positive integer."),
+            Err(_) => 16, // 16 tasks by default
+        };
+
+        Self {
+            memory_management,
+            device,
+            queue,
+            encoder,
+            pipelines: HashMap::new(),
+            tasks: Vec::new(),
+            max_tasks,
+        }
+    }
     fn submit(&mut self) {
         assert!(
             self.tasks.is_empty(),
             "Tasks should be completed before submitting the current encoder."
         );
+        println!("Submit");
         let mut new_encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
@@ -64,6 +88,7 @@ where
             .begin_compute_pass(&wgpu::ComputePassDescriptor { label: None });
 
         for task in self.tasks.iter() {
+            println!("Register task");
             compute.set_pipeline(&task.pipeline);
             compute.set_bind_group(0, &task.bind_group, &[]);
             compute.dispatch_workgroups(task.work_group.x, task.work_group.y, task.work_group.z);

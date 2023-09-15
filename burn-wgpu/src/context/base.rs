@@ -270,7 +270,7 @@ impl PartialEq for Context {
     }
 }
 
-async fn select_device<G: GraphicsApi>(
+pub(crate) async fn select_device<G: GraphicsApi>(
     device: &WgpuDevice,
 ) -> (wgpu::Device, wgpu::Queue, wgpu::AdapterInfo) {
     let adapter = select_adapter::<G>(device);

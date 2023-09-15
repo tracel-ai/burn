@@ -28,7 +28,7 @@ where
     /// Get the compute client for the given device.
     ///
     /// Provide the init function to create a new client if it isn't already initialized.
-    pub fn get<Init>(&self, device: &Device, init: Init) -> ComputeClient<Server, Channel>
+    pub fn client<Init>(&self, device: &Device, init: Init) -> ComputeClient<Server, Channel>
     where
         Init: Fn() -> ComputeClient<Server, Channel>,
     {
