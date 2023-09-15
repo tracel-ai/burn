@@ -11,7 +11,7 @@ repository = "https://github.com/burn-rs/burn/tree/main/burn-compute"
 version = "0.10.0"
 
 [features]
-default = ["std", "channel-mutex"]
+default = ["std", "channel-mutex", "channel-mpsc", "channel-cell"]
 std = []
 channel-mutex = []
 channel-cell = []
