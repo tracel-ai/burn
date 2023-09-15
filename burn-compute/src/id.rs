@@ -24,3 +24,62 @@ macro_rules! id_type {
         }
     };
 }
+
+/// TODO
+#[macro_export]
+macro_rules! memory_id_type {
+    ($name:ident) => {
+        /// TODO
+        pub struct $name {
+            id: alloc::sync::Arc<alloc::string::String>,
+            computing_count: Arc<core::sync::atomic::AtomicUsize>,
+        }
+
+        impl $name {
+            ///
+            pub fn new() -> Self {
+                Self {
+                    id: alloc::sync::Arc::new(burn_common::id::IdGenerator::generate()),
+                    computing_count: Arc::new(0.into()),
+                }
+            }
+
+            pub fn tensor_reference(&self) -> Self {
+                Self {
+                    id: self.id.clone(),
+                    computing_count: self.computing_count.clone(),
+                }
+            }
+
+            pub fn compute_reference(&self) -> Self {
+                self.computing_count
+                    .fetch_add(1, core::sync::atomic::Ordering::Relaxed);
+                Self {
+                    id: self.id.clone(),
+                    computing_count: self.computing_count.clone(),
+                }
+            }
+        }
+
+        impl Default for $name {
+            fn default() -> Self {
+                Self::new()
+            }
+        }
+        impl core::hash::Hash for $name {
+            fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+                self.id.hash(state);
+            }
+        }
+
+        impl core::cmp::PartialEq for $name {
+            fn eq(&self, other: &Self) -> bool {
+                self.id == other.id
+            }
+        }
+
+        impl core::cmp::Eq for $name {}
+    };
+}
+
+// TODO TESTS

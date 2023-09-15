@@ -27,7 +27,7 @@ impl<Server> RefCellComputeChannel<Server>
 where
     Server: ComputeServer,
 {
-    /// Create a new mutex compute channel.
+    /// Create a new cell compute channel.
     pub fn new(server: Server) -> Self {
         Self {
             server: Arc::new(core::cell::RefCell::new(server)),

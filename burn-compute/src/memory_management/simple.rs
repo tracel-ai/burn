@@ -1,34 +1,18 @@
 use super::{MemoryHandle, MemoryManagement};
 use crate::{
-    id_type,
+    id_type, memory_id_type,
     storage::{ComputeStorage, StorageHandle, StorageUtilization},
 };
 use alloc::{sync::Arc, vec::Vec};
-use core::sync::atomic::AtomicUsize;
 use hashbrown::HashMap;
 
 // The ChunkId allows to keep track of how many references there are to a specific chunk
-id_type!(ChunkId);
+memory_id_type!(ChunkId);
 // The SliceId allows to keep track of how many references there are to a specific slice
-id_type!(SliceId);
+memory_id_type!(SliceId);
 
 /// The SimpleHandle is a memory handle, referring to either a chunk or a slice
-pub struct SimpleHandle {
-    id: SimpleHandleId,
-    compute_reference: Arc<AtomicUsize>,
-}
-
-impl SimpleHandle {
-    fn new(id: SimpleHandleId) -> SimpleHandle {
-        Self {
-            id,
-            compute_reference: Arc::new(0.into()),
-        }
-    }
-}
-
-#[derive(Clone)]
-enum SimpleHandleId {
+pub enum SimpleHandle {
     Chunk(ChunkId),
     Slice(SliceId),
 }
@@ -94,10 +78,10 @@ impl MemoryHandle for SimpleHandle {
 
         match &self.id {
             SimpleHandleId::Chunk(id) => {
-                Arc::strong_count(&id.id) - compute_reference <= chunk_reference_limit
+                Arc::strong_count(&id.id) <= chunk_reference_limit + compute_reference
             }
             SimpleHandleId::Slice(id) => {
-                Arc::strong_count(&id.id) - compute_reference <= slice_reference_limit
+                Arc::strong_count(&id.id) <= slice_reference_limit + compute_reference
             }
         }
     }
@@ -114,10 +98,29 @@ impl MemoryHandle for SimpleHandle {
     fn compute_reference(&self) -> Self {
         self.compute_reference
             .fetch_add(1, core::sync::atomic::Ordering::Relaxed);
+    }
+}
 
-        Self {
-            id: self.id.clone(),
-            compute_reference: self.compute_reference.clone(),
+impl SimpleHandle {
+    /// Returns true if the handle can be safely deallocated, i.e.
+    /// it is not used in any computation nor referenced by any tensor.
+    pub fn is_free_to_deallocate(&self) -> bool {
+        let compute_reference = self
+            .compute_reference
+            .load(core::sync::atomic::Ordering::Relaxed);
+
+        if compute_reference > 0 {
+            return false;
+        }
+
+        let r = match &self.id {
+            SimpleHandleId::Chunk(id) => Arc::strong_count(&id.id),
+            SimpleHandleId::Slice(id) => Arc::strong_count(&id.id),
+        };
+        println!("{:?}", r);
+        match &self.id {
+            SimpleHandleId::Chunk(id) => Arc::strong_count(&id.id) <= 1,
+            SimpleHandleId::Slice(id) => Arc::strong_count(&id.id) <= 1,
         }
     }
 }
@@ -280,5 +283,55 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
                 let (_chunk, slices) = self.chunks.get_mut(&chunk_id).unwrap();
                 slices.retain(|id| *id != slice_id);
             });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        memory_management::MemoryHandle,
+        storage::{BytesStorage, ComputeStorage},
+    };
+
+    use super::{ChunkId, SimpleHandle, SimpleHandleId, SimpleMemoryManagement};
+
+    #[test]
+    fn many_compute_references_do_not_remove_mutability() {
+        let mut memory_management = SimpleMemoryManagement::never_dealloc(BytesStorage::default());
+
+        let chunk_size = 4;
+        let simple_handle = memory_management.create_chunk(chunk_size);
+
+        let x = simple_handle.compute_reference();
+        let y = simple_handle.compute_reference();
+        let z = simple_handle.compute_reference();
+
+        assert!(simple_handle.can_mut())
+    }
+
+    #[test]
+    fn two_tensor_references_remove_mutability() {
+        let mut memory_management = SimpleMemoryManagement::never_dealloc(BytesStorage::default());
+
+        let chunk_size = 4;
+        let simple_handle = memory_management.create_chunk(chunk_size);
+
+        let x = simple_handle.tensor_reference();
+
+        assert!(!simple_handle.can_mut());
+        assert!(!x.can_mut())
+    }
+
+    #[test]
+    fn can_mut_with_single_tensor_reference() {
+        let mut memory_management = SimpleMemoryManagement::never_dealloc(BytesStorage::default());
+
+        let chunk_size = 4;
+        let simple_handle = memory_management.create_chunk(chunk_size);
+
+        let x = simple_handle.tensor_reference();
+        core::mem::drop(simple_handle);
+
+        assert!(x.can_mut());
     }
 }

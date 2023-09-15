@@ -8,10 +8,12 @@ use crate::storage::ComputeStorage;
 pub trait MemoryHandle {
     /// Checks if the underlying memory can be safely mutated.
     fn can_mut(&self) -> bool;
+
     /// Clone the current handle to be used by a tensor handle.
     ///
     /// This will mark the handle as read only.
     fn tensor_reference(&self) -> Self;
+
     /// Clone the current handle to be used by a compute pipeline.
     ///
     /// This will not impact if the handle can be used inplace.
