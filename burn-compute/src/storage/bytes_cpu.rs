@@ -60,7 +60,7 @@ impl ComputeStorage for BytesStorage {
         }
     }
 
-    /// Allocates `size` bytes of memory and creates a handle refering to them
+    /// Allocates `size` bytes of memory and creates a handle referring to them
     fn alloc(&mut self, size: usize) -> StorageHandle {
         let id = StorageId::new();
         let handle = StorageHandle {

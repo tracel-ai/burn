@@ -1,5 +1,5 @@
 [package]
-authors = ["louisfd <louisfd94@gmail.com>"]
+authors = ["louisfd <louisfd94@gmail.com>", "Nathaniel Simard"]
 categories = ["science"]
 description = "Compute crate that helps creating high performance async backends."
 edition = "2021"
@@ -15,7 +15,7 @@ default = ["std", "channel-mutex", "channel-mpsc", "channel-cell"]
 std = []
 channel-mutex = []
 channel-cell = []
-channel-mpsc = [] # Asume std
+channel-mpsc = [] # Assume std
 
 minimal = [] # Some dependencies are necessary to run tests, but can be disabled with the feature minimal.
 
