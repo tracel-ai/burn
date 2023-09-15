@@ -16,6 +16,9 @@ pub mod kernel;
 /// Tensor module.
 pub mod tensor;
 
+/// Compute related module.
+pub mod compute;
+
 pub(crate) mod pool;
 pub(crate) mod tune;
 
