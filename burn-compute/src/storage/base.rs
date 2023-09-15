@@ -1,7 +1,7 @@
-use crate::id_type;
+use crate::storage_id_type;
 
 // The StorageId can be used to map a handle to its actual data.
-id_type!(StorageId);
+storage_id_type!(StorageId);
 
 /// The StorageUtilization defines if data uses a full memory chunk or a slice of it.
 #[derive(Clone)]
@@ -13,7 +13,7 @@ pub enum StorageUtilization {
 }
 
 /// The StorageHandle contains the storage id of a resource and the way it is stored
-#[derive(Clone, new)]
+#[derive(new)]
 pub struct StorageHandle {
     /// Storage id.
     pub id: StorageId,

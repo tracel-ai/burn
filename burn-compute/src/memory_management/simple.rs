@@ -11,7 +11,20 @@ memory_id_type!(ChunkId);
 // The SliceId allows to keep track of how many references there are to a specific slice
 memory_id_type!(SliceId);
 
+impl ChunkId {
+    fn is_free(&self) -> bool {
+        Arc::strong_count(&self.id) <= 1
+    }
+}
+
+impl SliceId {
+    fn is_free(&self) -> bool {
+        Arc::strong_count(&self.id) <= 2
+    }
+}
+
 /// The SimpleHandle is a memory handle, referring to either a chunk or a slice
+#[derive(Clone)]
 pub enum SimpleHandle {
     /// A whole chunk of memory
     Chunk(ChunkId),
@@ -33,6 +46,10 @@ pub enum DeallocStrategy {
 }
 
 impl DeallocStrategy {
+    fn new_period_tick(period: usize) -> Self {
+        DeallocStrategy::PeriodTick(period, 0)
+    }
+
     fn should_dealloc(&mut self) -> bool {
         match self {
             DeallocStrategy::PeriodTick(period, last) => {
@@ -73,28 +90,8 @@ impl MemoryHandle for SimpleHandle {
         let slice_reference_limit = 3;
 
         match &self {
-            SimpleHandle::Chunk(id) => {
-                Arc::strong_count(&id.id)
-                    <= chunk_reference_limit + id.get_compute_reference_number()
-            }
-            SimpleHandle::Slice(id) => {
-                Arc::strong_count(&id.id)
-                    <= slice_reference_limit + id.get_compute_reference_number()
-            }
-        }
-    }
-
-    fn tensor_reference(&self) -> Self {
-        match &self {
-            SimpleHandle::Chunk(id) => SimpleHandle::Chunk(id.tensor_reference()),
-            SimpleHandle::Slice(id) => SimpleHandle::Slice(id.tensor_reference()),
-        }
-    }
-
-    fn compute_reference(&self) -> Self {
-        match &self {
-            SimpleHandle::Chunk(id) => SimpleHandle::Chunk(id.compute_reference()),
-            SimpleHandle::Slice(id) => SimpleHandle::Slice(id.compute_reference()),
+            SimpleHandle::Chunk(id) => Arc::strong_count(&id.id) <= chunk_reference_limit,
+            SimpleHandle::Slice(id) => Arc::strong_count(&id.id) <= slice_reference_limit,
         }
     }
 }
@@ -155,7 +152,7 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
         match chunk {
             Some((chunk_id, chunk_size)) => {
                 if size == chunk_size {
-                    SimpleHandle::Chunk(chunk_id.tensor_reference())
+                    SimpleHandle::Chunk(chunk_id.clone())
                 } else {
                     self.create_slice(size, chunk_id)
                 }
@@ -169,21 +166,21 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
         let mut size_diff_current = usize::MAX;
         let mut current = None;
 
-        self.chunks.iter().for_each(|(key, (resource, slices))| {
-            // A chunk is free if no slice is built upon it and no tensor
-            // depends on it, i.e. only the memory management map refers to it
-            let is_free = slices.is_empty() && Arc::strong_count(&key.id) == 1;
+        self.chunks
+            .iter()
+            .for_each(|(chunk_id, (resource, slices))| {
+                let is_free = slices.is_empty() && chunk_id.is_free();
 
-            if is_free && resource.size() > size {
-                let size_diff = resource.size() - size;
-                if size_diff < size_diff_current {
-                    current = Some((key, resource));
-                    size_diff_current = size_diff;
+                if is_free && resource.size() > size {
+                    let size_diff = resource.size() - size;
+                    if size_diff < size_diff_current {
+                        current = Some((chunk_id, resource));
+                        size_diff_current = size_diff;
+                    }
                 }
-            }
-        });
+            });
 
-        current.map(|(id, handle)| (id.tensor_reference(), handle.size()))
+        current.map(|(id, handle)| (id.clone(), handle.size()))
     }
 
     /// Creates a slice of size `size` upon the given chunk
@@ -198,13 +195,12 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
         };
 
         if slices.is_empty() {
-            self.slices
-                .insert(slice_id.tensor_reference(), (storage, chunk_id));
+            self.slices.insert(slice_id.clone(), (storage, chunk_id));
         } else {
             panic!("Can't have more than 1 slice yet.");
         }
 
-        slices.push(slice_id.tensor_reference());
+        slices.push(slice_id.clone());
 
         SimpleHandle::Slice(slice_id)
     }
@@ -214,23 +210,22 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
         let resource = self.storage.alloc(size);
         let chunk_id = ChunkId::new();
 
-        self.chunks
-            .insert(chunk_id.tensor_reference(), (resource, Vec::new()));
+        self.chunks.insert(chunk_id.clone(), (resource, Vec::new()));
 
         SimpleHandle::Chunk(chunk_id)
     }
 
     /// Deallocates free chunks and remove them from chunks map
     fn cleanup_chunks(&mut self) {
-        let mut keys_to_remove = Vec::new();
+        let mut ids_to_remove = Vec::new();
 
         self.chunks.iter().for_each(|(chunk_id, _resource)| {
-            if chunk_id.is_free_to_deallocate() {
-                keys_to_remove.push(chunk_id.tensor_reference());
+            if chunk_id.is_free() {
+                ids_to_remove.push(chunk_id.clone());
             }
         });
 
-        keys_to_remove
+        ids_to_remove
             .iter()
             .map(|chunk_id| self.chunks.remove(chunk_id).unwrap())
             .for_each(|(resource, _slices)| {
@@ -240,15 +235,15 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
 
     /// Removes free slices from slice map and corresponding chunks
     fn cleanup_slices(&mut self) {
-        let mut keys_to_remove = Vec::new();
+        let mut ids_to_remove = Vec::new();
 
         self.slices.iter().for_each(|(slice_id, _resource)| {
-            if slice_id.is_free_to_deallocate() {
-                keys_to_remove.push(slice_id.tensor_reference());
+            if slice_id.is_free() {
+                ids_to_remove.push(slice_id.clone());
             }
         });
 
-        keys_to_remove
+        ids_to_remove
             .iter()
             .map(|slice_id| {
                 let value = self.slices.remove(slice_id).unwrap();
@@ -263,22 +258,24 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{memory_management::MemoryHandle, storage::BytesStorage};
+    use crate::{
+        memory_management::{MemoryHandle, MemoryManagement},
+        storage::BytesStorage,
+    };
 
-    use super::SimpleMemoryManagement;
+    use super::{DeallocStrategy, SimpleMemoryManagement};
 
     #[test]
-    fn many_compute_references_do_not_remove_mutability() {
+    fn can_mut_with_single_tensor_reference() {
         let mut memory_management = SimpleMemoryManagement::never_dealloc(BytesStorage::default());
 
         let chunk_size = 4;
         let simple_handle = memory_management.create_chunk(chunk_size);
 
-        let _x = simple_handle.compute_reference();
-        let _y = simple_handle.compute_reference();
-        let _z = simple_handle.compute_reference();
+        let x = simple_handle.clone();
+        core::mem::drop(simple_handle);
 
-        assert!(simple_handle.can_mut())
+        assert!(x.can_mut());
     }
 
     #[test]
@@ -288,22 +285,50 @@ mod tests {
         let chunk_size = 4;
         let simple_handle = memory_management.create_chunk(chunk_size);
 
-        let x = simple_handle.tensor_reference();
+        let x = simple_handle.clone();
 
         assert!(!simple_handle.can_mut());
         assert!(!x.can_mut())
     }
 
     #[test]
-    fn can_mut_with_single_tensor_reference() {
+    fn when_non_empty_chunk_exists_and_other_one_created_there_should_be_two() {
         let mut memory_management = SimpleMemoryManagement::never_dealloc(BytesStorage::default());
-
         let chunk_size = 4;
-        let simple_handle = memory_management.create_chunk(chunk_size);
+        let _chunk_handle = memory_management.reserve(chunk_size);
+        let _new_handle = memory_management.reserve(chunk_size);
 
-        let x = simple_handle.tensor_reference();
-        core::mem::drop(simple_handle);
+        assert_eq!(memory_management.chunks.len(), 2);
+    }
 
-        assert!(x.can_mut());
+    #[test]
+    fn when_empty_chunk_exists_it_can_be_reused() {
+        let mut memory_management = SimpleMemoryManagement::never_dealloc(BytesStorage::default());
+        let chunk_size = 4;
+        let chunk_handle = memory_management.reserve(chunk_size);
+        drop(chunk_handle);
+        memory_management.cleanup_chunks();
+        let _new_handle = memory_management.reserve(chunk_size);
+
+        assert_eq!(memory_management.chunks.len(), 1);
+    }
+
+    #[test]
+    fn never_dealloc_strategy_never_deallocs() {
+        let mut never_dealloc = DeallocStrategy::Never;
+        assert!(!never_dealloc.should_dealloc())
+    }
+
+    #[test]
+    fn period_tick_dealloc_strategy_should_dealloc_after_period() {
+        let period = 3;
+        let mut period_tick_dealloc = DeallocStrategy::new_period_tick(period);
+
+        for _ in 0..3 {
+            for _ in 0..period - 1 {
+                assert!(!period_tick_dealloc.should_dealloc());
+            }
+            assert!(period_tick_dealloc.should_dealloc());
+        }
     }
 }

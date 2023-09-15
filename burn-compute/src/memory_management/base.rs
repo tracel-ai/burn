@@ -5,19 +5,9 @@ use crate::storage::ComputeStorage;
 ///
 /// It is responsible for determining if the memory segment can be mutated,
 /// for instance by keeping track of a reference count
-pub trait MemoryHandle {
+pub trait MemoryHandle: Clone + Send {
     /// Checks if the underlying memory can be safely mutated.
     fn can_mut(&self) -> bool;
-
-    /// Clone the current handle to be used by a tensor handle.
-    ///
-    /// This will mark the handle as read only.
-    fn tensor_reference(&self) -> Self;
-
-    /// Clone the current handle to be used by a compute pipeline.
-    ///
-    /// This will not impact if the handle can be used inplace.
-    fn compute_reference(&self) -> Self;
 }
 
 /// The MemoryManagement trait encapsulates strategies for (de)allocating memory.
@@ -27,7 +17,7 @@ pub trait MemoryHandle {
 /// Modification of the resource data should be done directly on the resource.
 pub trait MemoryManagement<Storage: ComputeStorage>: Send {
     /// The associated type Handle must implement MemoryHandle
-    type Handle: MemoryHandle + Send;
+    type Handle: MemoryHandle;
 
     /// Returns the resource from the storage at the specified handle
     fn get(&mut self, handle: &Self::Handle) -> Storage::Resource;

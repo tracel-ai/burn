@@ -98,7 +98,7 @@ where
 
         self.state
             .sender
-            .send(Message::Read(handle.compute_reference(), callback))
+            .send(Message::Read(handle.clone(), callback))
             .unwrap();
 
         self.response(response)
@@ -133,7 +133,7 @@ where
                 kernel,
                 handles
                     .iter()
-                    .map(|h| (*h).compute_reference())
+                    .map(|h| (*h).clone())
                     .collect::<Vec<Handle<Server>>>(),
             ))
             .unwrap()
