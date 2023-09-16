@@ -13,7 +13,7 @@ fn main() {
     type MyBackend = WgpuBackend<AutoGraphicsApi, f32, i32>;
     type MyAutodiffBackend = ADBackendDecorator<MyBackend>;
 
-    let device = burn_wgpu::WgpuDevice::default();
+    let device = burn::backend::wgpu::WgpuDevice::default();
     guide::training::train::<MyAutodiffBackend>(
         "/tmp/guide",
         guide::training::TrainingConfig::new(ModelConfig::new(10, 512), AdamConfig::new()),
