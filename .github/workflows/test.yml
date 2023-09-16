@@ -40,7 +40,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           key: ${{ runner.os }}-${{ matrix.rust }}-${{ matrix.test}}-${{ hashFiles('**/Cargo.lock') }}
-          prefix-key: "v4-rust"
+          prefix-key: "v5-rust"
 
       - name: install llvmpipe and lavapipe
         run: |
