@@ -1,14 +1,11 @@
-use crate::{
-    metric::dashboard::{DashboardMetricState, DashboardRenderer, TrainingProgress},
-    TrainingInterrupter,
-};
+use crate::metric::dashboard::{DashboardMetricState, DashboardRenderer, TrainingProgress};
 
 /// A simple renderer for when the cli feature is not enabled.
 pub struct CLIDashboardRenderer;
 
 impl CLIDashboardRenderer {
     /// Create a new instance.
-    pub fn new(_interuptor: TrainingInterrupter) -> Self {
+    pub fn new() -> Self {
         Self {}
     }
 }

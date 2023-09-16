@@ -3,7 +3,7 @@ use super::Learner;
 use crate::checkpoint::{AsyncCheckpointer, Checkpointer, FileCheckpointer};
 use crate::logger::{FileMetricLogger, MetricLogger};
 use crate::metric::dashboard::{
-    Dashboard, DashboardRenderer, MetricWrapper, Metrics, SelectedDashboardRenderer,
+    default_renderer, Dashboard, DashboardRenderer, MetricWrapper, Metrics,
 };
 use crate::metric::{Adaptor, Metric};
 use crate::AsyncTrainerCallback;
@@ -260,7 +260,7 @@ where
         }
         let renderer = self
             .renderer
-            .unwrap_or_else(|| Box::new(SelectedDashboardRenderer::new(self.interrupter.clone())));
+            .unwrap_or_else(|| Box::new(default_renderer(self.interrupter.clone())));
         let directory = &self.directory;
         let logger_train = self.metric_logger_train.unwrap_or_else(|| {
             Box::new(FileMetricLogger::new(format!("{directory}/train").as_str()))
