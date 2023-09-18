@@ -3,13 +3,13 @@ use crate::{context::WorkGroup, element::WgpuElement, tensor::WgpuTensor};
 use std::marker::PhantomData;
 
 /// Static wgpu kernel to create a [source template](SourceTemplate).
-pub trait StaticKernel: 'static {
+pub trait StaticKernel: Send + 'static {
     /// Source template for the kernel.
     fn source_template() -> SourceTemplate;
 }
 
 /// Dynamic wgpu kernel to create a [source template](SourceTemplate).
-pub trait DynamicKernel {
+pub trait DynamicKernel: Send {
     /// Source template for the kernel.
     fn source_template(self) -> SourceTemplate;
     /// Identifier for the kernel, used for caching kernel compilation.

@@ -1,7 +1,5 @@
-use alloc::string::{String, ToString};
-
 use crate::rand::{get_seeded_rng, Rng, SEED};
-
+use alloc::string::{String, ToString};
 use uuid::{Builder, Bytes};
 
 /// Simple ID generator.

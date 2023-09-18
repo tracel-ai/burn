@@ -61,20 +61,14 @@ fn rustup(target: &str) {
 }
 
 // Define and run a cargo command
-fn run_cargo(command: &str, first_params: &[&str], second_params: &[&str], error: &str) {
+fn run_cargo(command: &str, params: Params, error: &str) {
     // Print cargo command
-    println!(
-        "\ncargo {} {} {}\n",
-        command,
-        first_params.join(" "),
-        second_params.join(" ")
-    );
+    println!("\ncargo {} {}\n", command, params);
 
     // Run cargo
     let cargo = Command::new("cargo")
         .arg(command)
-        .args(first_params)
-        .args(second_params)
+        .args(params.params)
         .stdout(Stdio::inherit()) // Send stdout directly to terminal
         .stderr(Stdio::inherit()) // Send stderr directly to terminal
         .spawn()
@@ -85,34 +79,31 @@ fn run_cargo(command: &str, first_params: &[&str], second_params: &[&str], error
 }
 
 // Run cargo build command
-fn cargo_build(params: &[&str]) {
+fn cargo_build(params: Params) {
     // Run cargo build
     run_cargo(
         "build",
-        params,
-        &["--color=always"],
+        params + "--color=always",
         "Failed to run cargo build",
     );
 }
 
 // Run cargo install command
-fn cargo_install(params: &[&str]) {
+fn cargo_install(params: Params) {
     // Run cargo install
     run_cargo(
         "install",
-        params,
-        &["--color=always"],
+        params + "--color=always",
         "Failed to run cargo install",
     );
 }
 
 // Run cargo test command
-fn cargo_test(params: &[&str]) {
+fn cargo_test(params: Params) {
     // Run cargo test
     run_cargo(
         "test",
-        params,
-        &["--color=always", "--", "--color=always"],
+        params + "--color=always" + "--" + "--color=always",
         "Failed to run cargo test",
     );
 }
@@ -122,8 +113,7 @@ fn cargo_fmt() {
     // Run cargo fmt
     run_cargo(
         "fmt",
-        &["--check", "--all"],
-        &["--", "--color=always"],
+        ["--check", "--all", "--", "--color=always"].into(),
         "Failed to run cargo fmt",
     );
 }
@@ -136,50 +126,48 @@ fn cargo_clippy() {
     // Run cargo clippy
     run_cargo(
         "clippy",
-        &["--color=always"],
-        &["--", "-D", "warnings"],
+        ["--color=always", "--", "-D", "warnings"].into(),
         "Failed to run cargo clippy",
     );
 }
 
 // Run cargo doc command
-fn cargo_doc(params: &[&str]) {
+fn cargo_doc(params: Params) {
     // Run cargo doc
-    run_cargo(
-        "doc",
-        params,
-        &["--color=always"],
-        "Failed to run cargo doc",
-    );
+    run_cargo("doc", params + "--color=always", "Failed to run cargo doc");
 }
 
 // Build and test a crate in a no_std environment
-fn build_and_test_no_std(crate_name: &str) {
+fn build_and_test_no_std<const N: usize>(crate_name: &str, extra_args: [&str; N]) {
     println!("\nRun checks for `{}` crate", crate_name);
 
     // Run cargo build --no-default-features
-    cargo_build(&["-p", crate_name, "--no-default-features"]);
+    cargo_build(Params::from(["-p", crate_name, "--no-default-features"]) + extra_args);
 
     // Run cargo test --no-default-features
-    cargo_test(&["-p", crate_name, "--no-default-features"]);
+    cargo_test(Params::from(["-p", crate_name, "--no-default-features"]) + extra_args);
 
     // Run cargo build --no-default-features --target wasm32-unknown-unknowns
-    cargo_build(&[
-        "-p",
-        crate_name,
-        "--no-default-features",
-        "--target",
-        WASM32_TARGET,
-    ]);
+    cargo_build(
+        Params::from([
+            "-p",
+            crate_name,
+            "--no-default-features",
+            "--target",
+            WASM32_TARGET,
+        ]) + extra_args,
+    );
 
     // Run cargo build --no-default-features --target thumbv7m-none-eabi
-    cargo_build(&[
-        "-p",
-        crate_name,
-        "--no-default-features",
-        "--target",
-        ARM_TARGET,
-    ]);
+    cargo_build(
+        Params::from([
+            "-p",
+            crate_name,
+            "--no-default-features",
+            "--target",
+            ARM_TARGET,
+        ]) + extra_args,
+    );
 }
 
 // Run no_std checks
@@ -193,12 +181,16 @@ fn no_std_checks() {
     rustup(ARM_TARGET);
 
     // Run checks for the following crates
-    build_and_test_no_std("burn");
-    build_and_test_no_std("burn-core");
-    build_and_test_no_std("burn-common");
-    build_and_test_no_std("burn-tensor");
-    build_and_test_no_std("burn-ndarray");
-    build_and_test_no_std("burn-no-std-tests");
+    build_and_test_no_std("burn", []);
+    build_and_test_no_std("burn-core", []);
+    build_and_test_no_std(
+        "burn-compute",
+        ["--features", "channel-mutex storage-bytes"],
+    );
+    build_and_test_no_std("burn-common", []);
+    build_and_test_no_std("burn-tensor", []);
+    build_and_test_no_std("burn-ndarray", []);
+    build_and_test_no_std("burn-no-std-tests", []);
 }
 
 // Test burn-core with tch and wgpu backend
@@ -206,10 +198,10 @@ fn burn_core_std() {
     println!("\n\nRun checks for burn-core crate with tch and wgpu backend");
 
     // Run cargo test --features test-tch
-    cargo_test(&["-p", "burn-core", "--features", "test-tch"]);
+    cargo_test(["-p", "burn-core", "--features", "test-tch"].into());
 
     // Run cargo test --features test-wgpu
-    cargo_test(&["-p", "burn-core", "--features", "test-wgpu"]);
+    cargo_test(["-p", "burn-core", "--features", "test-wgpu"].into());
 }
 
 // Test burn-dataset features
@@ -217,13 +209,13 @@ fn burn_dataset_features_std() {
     println!("\n\nRun checks for burn-dataset features");
 
     // Run cargo build --all-features
-    cargo_build(&["-p", "burn-dataset", "--all-features"]);
+    cargo_build(["-p", "burn-dataset", "--all-features"].into());
 
     // Run cargo test --all-features
-    cargo_test(&["-p", "burn-dataset", "--all-features"]);
+    cargo_test(["-p", "burn-dataset", "--all-features"].into());
 
     // Run cargo doc --all-features
-    cargo_doc(&["-p", "burn-dataset", "--all-features"]);
+    cargo_doc(["-p", "burn-dataset", "--all-features"].into());
 }
 
 fn std_checks() {
@@ -234,10 +226,10 @@ fn std_checks() {
     println!("Running std checks");
 
     // Build each workspace
-    cargo_build(&["--workspace", "--exclude=xtask"]);
+    cargo_build(["--workspace", "--exclude=xtask"].into());
 
     // Test each workspace
-    cargo_test(&["--workspace"]);
+    cargo_test(["--workspace"].into());
 
     // Check format
     cargo_fmt();
@@ -246,7 +238,7 @@ fn std_checks() {
     cargo_clippy();
 
     // Produce documentation for each workspace
-    cargo_doc(&["--workspace"]);
+    cargo_doc(["--workspace"].into());
 
     // Test burn-dataset features
     burn_dataset_features_std();
@@ -257,7 +249,7 @@ fn std_checks() {
 
 fn check_typos() {
     // Install typos-cli
-    cargo_install(&["typos-cli", "--version", "1.16.5"]);
+    cargo_install(["typos-cli", "--version", "1.16.5"].into());
 
     println!("Running typos check \n\n");
 
@@ -348,4 +340,40 @@ pub fn run(env: CheckType) -> anyhow::Result<()> {
     println!("Time elapsed for the current execution: {:?}", duration);
 
     Ok(())
+}
+
+struct Params {
+    params: Vec<String>,
+}
+
+impl<const N: usize> From<[&str; N]> for Params {
+    fn from(value: [&str; N]) -> Self {
+        Self {
+            params: value.iter().map(|v| v.to_string()).collect(),
+        }
+    }
+}
+
+impl From<&str> for Params {
+    fn from(value: &str) -> Self {
+        Self {
+            params: vec![value.to_string()],
+        }
+    }
+}
+
+impl std::fmt::Display for Params {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.params.join(" ").as_str())
+    }
+}
+
+impl<Rhs: Into<Params>> std::ops::Add<Rhs> for Params {
+    type Output = Params;
+
+    fn add(mut self, rhs: Rhs) -> Self::Output {
+        let rhs: Params = rhs.into();
+        self.params.extend(rhs.params);
+        self
+    }
 }
