@@ -5,7 +5,7 @@ use crate::{memory_management::MemoryManagement, storage::ComputeStorage};
 type _Storage<Server> = <Server as ComputeServer>::Storage;
 type _MemoryManagement<Server> = <Server as ComputeServer>::MemoryManagement;
 
-/// The Handle<Server> type is an abstraction over pointers to resources in memory.
+/// This alias for a [memory handle](MemoryManagement::Handle).
 pub type Handle<Server> = <_MemoryManagement<Server> as MemoryManagement<_Storage<Server>>>::Handle;
 
 /// The compute server is responsible for handling resources and computations over resources.
