@@ -34,7 +34,7 @@ where
 
         let bytes = resource.write();
 
-        for (i, val) in data.into_iter().enumerate() {
+        for (i, val) in data.iter().enumerate() {
             bytes[i] = *val;
         }
 

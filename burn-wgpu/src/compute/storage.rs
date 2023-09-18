@@ -27,7 +27,7 @@ impl WgpuResource {
         wgpu::BindingResource::Buffer(binding)
     }
 
-    /// Return the buffer size
+    /// Return the buffer size.
     pub fn size(&self) -> u64 {
         match self.kind {
             WgpuResourceKind::Full => self.buffer.size(),
@@ -35,7 +35,7 @@ impl WgpuResource {
         }
     }
 
-    /// Return the buffer offset
+    /// Return the buffer offset.
     pub fn offset(&self) -> u64 {
         match self.kind {
             WgpuResourceKind::Full => 0,
@@ -46,13 +46,13 @@ impl WgpuResource {
 
 #[derive(Debug)]
 pub enum WgpuResourceKind {
-    /// Represents an entire buffer
+    /// Represents an entire buffer.
     Full,
-    /// A slice over a buffer
+    /// A slice over a buffer.
     Slice(wgpu::BufferAddress, wgpu::BufferSize),
 }
 
-/// The WgpuStorage keeps actual wgpu buffer references in a hashmap with ids as key
+/// Keeps actual wgpu buffer references in a hashmap with ids as key.
 impl WgpuStorage {
     pub fn new(device: Arc<wgpu::Device>) -> Self {
         Self {

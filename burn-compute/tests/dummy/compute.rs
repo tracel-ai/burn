@@ -12,7 +12,9 @@ pub struct DummyDevice;
 static COMPUTE: Compute<DummyDevice, DummyServer, MutexComputeChannel<DummyServer>> =
     Compute::new();
 
-pub fn get(device: &DummyDevice) -> ComputeClient<DummyServer, MutexComputeChannel<DummyServer>> {
+pub fn client(
+    device: &DummyDevice,
+) -> ComputeClient<DummyServer, MutexComputeChannel<DummyServer>> {
     COMPUTE.client(device, || {
         let storage = BytesStorage::default();
         let memory_management = SimpleMemoryManagement::never_dealloc(storage);

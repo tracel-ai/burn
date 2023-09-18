@@ -1,9 +1,9 @@
 use crate::storage_id_type;
 
-// The StorageId can be used to map a handle to its actual data.
+// This ID is used to map a handle to its actual data.
 storage_id_type!(StorageId);
 
-/// The StorageUtilization defines if data uses a full memory chunk or a slice of it.
+/// Defines if data uses a full memory chunk or a slice of it.
 #[derive(Clone)]
 pub enum StorageUtilization {
     /// Full memory chunk of specified size
@@ -12,7 +12,7 @@ pub enum StorageUtilization {
     Slice(usize, usize),
 }
 
-/// The StorageHandle contains the storage id of a resource and the way it is stored
+/// Contains the [storage id](StorageId) of a resource and the way it is used.
 #[derive(new)]
 pub struct StorageHandle {
     /// Storage id.
@@ -22,7 +22,7 @@ pub struct StorageHandle {
 }
 
 impl StorageHandle {
-    /// Returns the size of the resource of the handle
+    /// Returns the size the handle is pointing to in memory.
     pub fn size(&self) -> usize {
         match self.utilization {
             StorageUtilization::Full(size) => size,
@@ -31,10 +31,10 @@ impl StorageHandle {
     }
 }
 
-/// The ComputeStorage trait is responsible for allocating and deallocating memory.
+/// Storage types are responsible for allocating and deallocating memory.
 pub trait ComputeStorage: Send {
-    /// The Resource associated type determines the way data is implemented and how
-    /// it can be accessed by kernels
+    /// The resource associated type determines the way data is implemented and how
+    /// it can be accessed by kernels.
     type Resource: Send;
 
     /// Returns the underlying resource for a specified storage handle

@@ -37,24 +37,25 @@ where
             _server: PhantomData,
         }
     }
-    /// Given a handle, returns owned resource as bytes
+
+    /// Given a handle, returns owned resource as bytes.
     pub fn read(&self, handle: &Handle<Server>) -> Vec<u8> {
         self.channel.read(handle)
     }
 
-    /// Given a resource, stores it and returns the resource handle
+    /// Given a resource, stores it and returns the resource handle.
     pub fn create(&self, data: &[u8]) -> Handle<Server> {
         self.channel.create(data)
     }
 
-    /// Reserves `size` bytes in the storage, and returns a handle over them
+    /// Reserves `size` bytes in the storage, and returns a handle over them.
     pub fn empty(&self, size: usize) -> Handle<Server> {
         self.channel.empty(size)
     }
 
     /// Executes the `kernel` over the given `handles`.
-    pub fn execute(&self, kernel_description: Server::Kernel, handles: &[&Handle<Server>]) {
-        self.channel.execute(kernel_description, handles)
+    pub fn execute(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]) {
+        self.channel.execute(kernel, handles)
     }
 
     /// Wait for the completion of every task in the server.

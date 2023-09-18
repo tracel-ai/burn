@@ -52,7 +52,7 @@ where
     /// # Note
     ///
     /// This function is mostly useful when the creation of the compute client can't be done
-    /// syunchonously and require special contexte.
+    /// synchronously and require special context.
     ///
     /// # Panics
     ///

@@ -1,10 +1,10 @@
 mod dummy;
 
-use dummy::{get, DummyDevice, DummyElementwiseAddition};
+use dummy::{client, DummyDevice, DummyElementwiseAddition};
 
 #[test]
 fn created_resource_is_the_same_when_read() {
-    let client = get(&DummyDevice);
+    let client = client(&DummyDevice);
     let resource = Vec::from([0, 1, 2]);
     let resource_description = client.create(&resource);
 
@@ -15,7 +15,7 @@ fn created_resource_is_the_same_when_read() {
 
 #[test]
 fn empty_allocates_memory() {
-    let client = get(&DummyDevice);
+    let client = client(&DummyDevice);
     let size = 4;
     let resource_description = client.empty(size);
     let empty_resource = client.read(&resource_description);
@@ -25,14 +25,12 @@ fn empty_allocates_memory() {
 
 #[test]
 fn execute_elementwise_addition() {
-    let client = get(&DummyDevice);
+    let client = client(&DummyDevice);
     let lhs = client.create(&[0, 1, 2]);
     let rhs = client.create(&[4, 4, 4]);
     let out = client.empty(3);
 
-    let kernel_description = Box::new(DummyElementwiseAddition);
-
-    client.execute(kernel_description, &[&lhs, &rhs, &out]);
+    client.execute(Box::new(DummyElementwiseAddition), &[&lhs, &rhs, &out]);
 
     let obtained_resource = client.read(&out);
 

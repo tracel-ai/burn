@@ -6,8 +6,8 @@ use std::{
 use super::ComputeChannel;
 use crate::server::{ComputeServer, Handle};
 
-/// Create a channel using the [multi-producer, single-consumer](mpsc) channel to communicate with
-/// the compute server spawn on its own tread.
+/// Create a channel using the [multi-producer, single-consumer channel](mpsc) to communicate with
+/// the compute server spawn on its own thread.
 pub struct MpscComputeChannel<Server>
 where
     Server: ComputeServer,

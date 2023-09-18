@@ -1,9 +1,9 @@
 #[macro_export(local_inner_macros)]
-/// Create a new storage if type.
+/// Create a new storage ID type.
 macro_rules! storage_id_type {
     ($name:ident) => {
         #[derive(Clone, Hash, PartialEq, Eq)]
-        /// ID
+        /// Storage ID.
         pub struct $name {
             id: alloc::sync::Arc<alloc::string::String>,
         }
@@ -26,11 +26,11 @@ macro_rules! storage_id_type {
 }
 
 #[macro_export(local_inner_macros)]
-/// Create a new memory if type.
+/// Create a new memory ID type.
 macro_rules! memory_id_type {
     ($name:ident) => {
         #[derive(Clone, Hash, PartialEq, Eq)]
-        /// ID
+        /// Memory ID.
         pub struct $name {
             id: alloc::sync::Arc<alloc::string::String>,
         }

@@ -22,6 +22,6 @@ pub trait MemoryManagement<Storage: ComputeStorage>: Send {
     /// Returns the resource from the storage at the specified handle
     fn get(&mut self, handle: &Self::Handle) -> Storage::Resource;
 
-    /// Finds a spot in memory for a resource of size `size`, and returns a handle to it
+    /// Finds a spot in memory for a resource with the given size in bytes, and returns a handle to it
     fn reserve(&mut self, size: usize) -> Self::Handle;
 }

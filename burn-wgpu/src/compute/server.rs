@@ -87,11 +87,11 @@ where
             .begin_compute_pass(&wgpu::ComputePassDescriptor { label: None });
 
         for task in self.tasks.iter() {
-            println!("Register task");
             compute.set_pipeline(&task.pipeline);
             compute.set_bind_group(0, &task.bind_group, &[]);
             compute.dispatch_workgroups(task.work_group.x, task.work_group.y, task.work_group.z);
         }
+
         std::mem::drop(compute);
         self.tasks.clear();
     }

@@ -6,49 +6,49 @@ use crate::{
 use alloc::{sync::Arc, vec::Vec};
 use hashbrown::HashMap;
 
-// The ChunkId allows to keep track of how many references there are to a specific chunk
+// The ChunkId allows to keep track of how many references there are to a specific chunk.
 memory_id_type!(ChunkId);
-// The SliceId allows to keep track of how many references there are to a specific slice
+// The SliceId allows to keep track of how many references there are to a specific slice.
 memory_id_type!(SliceId);
 
 impl ChunkId {
-    /// A chunk is free if it is only referred by the chunk hashmap
+    /// A chunk is free if it is only referred by the chunk hashmap.
     fn is_free(&self) -> bool {
         Arc::strong_count(&self.id) <= 1
     }
 }
 
 impl SliceId {
-    /// A slice is free if it is only referred by the slice hashmap and the chunk it is in
+    /// A slice is free if it is only referred by the slice hashmap and the chunk it is in.
     fn is_free(&self) -> bool {
         Arc::strong_count(&self.id) <= 2
     }
 }
 
-/// The SimpleHandle is a memory handle, referring to either a chunk or a slice
+/// The SimpleHandle is a memory handle, referring to either a chunk or a slice.
 #[derive(Clone)]
 pub enum SimpleHandle {
-    /// A whole chunk of memory
+    /// A whole chunk of memory.
     Chunk(ChunkId),
-    /// A slice of a chunk of memory
+    /// A slice of a chunk of memory.
     Slice(SliceId),
 }
 
-/// The DeallocStrategy defines the frequency at which deallocation
-/// of unused memory chunks should occur
+/// The strategy defines the frequency at which deallocation of unused memory chunks should occur.
 pub enum DeallocStrategy {
-    /// Once every n calls to reserve
+    /// Once every n calls to reserve.
+    ///
     /// First associated data is n, second is the state and should start at 0
     PeriodTick(usize, usize),
     #[cfg(feature = "std")]
     /// Once every period of time
     PeriodTime(std::time::Duration, std::time::Instant),
-    /// Never deallocate
+    /// Never deallocate.
     Never,
 }
 
 impl DeallocStrategy {
-    /// Create a new strategy with given period.
+    /// Create a new strategy with the given period.
     pub fn new_period_tick(period: usize) -> Self {
         DeallocStrategy::PeriodTick(period, 0)
     }
@@ -73,8 +73,7 @@ impl DeallocStrategy {
     }
 }
 
-/// The SimpleMemoryManagement reserves and keeps track of chunks of memory in the storage,
-/// and slices upon these chunks
+/// Reserves and keeps track of chunks of memory in the storage, and slices upon these chunks.
 pub struct SimpleMemoryManagement<Storage> {
     chunks: HashMap<ChunkId, (StorageHandle, Vec<SliceId>)>,
     slices: HashMap<SliceId, (StorageHandle, ChunkId)>,
@@ -87,14 +86,14 @@ impl MemoryHandle for SimpleHandle {
     /// memory management hashmaps
     fn can_mut(&self) -> bool {
         // One reference in the chunk hashmap, another owned by one tensor.
-        let chunk_reference_limit = 2;
+        const REFERENCE_LIMIT_CHUNK: usize = 2;
         // One reference in the chunk hashmap (for the chunk on which this slice is built),
         // another in the slice hashmap for this slice, and another owned by one tensor.
-        let slice_reference_limit = 3;
+        const REFERENCE_LIMIT_SLICE: usize = 3;
 
         match &self {
-            SimpleHandle::Chunk(id) => Arc::strong_count(&id.id) <= chunk_reference_limit,
-            SimpleHandle::Slice(id) => Arc::strong_count(&id.id) <= slice_reference_limit,
+            SimpleHandle::Chunk(id) => Arc::strong_count(&id.id) <= REFERENCE_LIMIT_CHUNK,
+            SimpleHandle::Slice(id) => Arc::strong_count(&id.id) <= REFERENCE_LIMIT_SLICE,
         }
     }
 }
@@ -102,7 +101,7 @@ impl MemoryHandle for SimpleHandle {
 impl<Storage: ComputeStorage> MemoryManagement<Storage> for SimpleMemoryManagement<Storage> {
     type Handle = SimpleHandle;
 
-    /// Returns the resource from the storage, for the specified handle
+    /// Returns the resource from the storage, for the specified handle.
     fn get(&mut self, handle: &Self::Handle) -> Storage::Resource {
         let resource = match &handle {
             SimpleHandle::Chunk(id) => &self.chunks.get(id).unwrap().0,
@@ -114,7 +113,8 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for SimpleMemoryManageme
 
     /// Reserves memory of specified size using the reserve algorithm, and return
     /// a handle to the reserved memory.
-    /// Also clean ups, removing unused slices, and chunks if permitted by deallocation strategy
+    ///
+    /// Also clean ups, removing unused slices, and chunks if permitted by deallocation strategy.
     fn reserve(&mut self, size: usize) -> Self::Handle {
         self.cleanup_slices();
 
@@ -129,7 +129,7 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for SimpleMemoryManageme
 }
 
 impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
-    /// Creates an empty SimpleMemoryManagement
+    /// Creates a new instance using the given storage and deallocation strategy.
     pub fn new(storage: Storage, dealloc_strategy: DeallocStrategy) -> Self {
         Self {
             chunks: HashMap::new(),
@@ -139,33 +139,32 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
         }
     }
 
-    /// Creates an empty SimpleMemoryManagement with no deallocation
+    /// Creates an new instance using the given storage without deallocation.
     pub fn never_dealloc(storage: Storage) -> Self {
         Self::new(storage, DeallocStrategy::Never)
     }
 
-    /// Looks for a large enough, existing but unused chunk of memory.
-    /// If there is none, it creates one of exactly the right size.
-    /// If there is one of exactly the same size, it reuses it.
-    /// If there are only larger chunks, it takes the smallest of them
-    /// and creates a slice of the right size upon it, always starting at zero.
     fn reserve_algorithm(&mut self, size: usize) -> SimpleHandle {
+        // Looks for a large enough, existing but unused chunk of memory.
         let chunk = self.find_free_chunk(size);
 
         match chunk {
             Some((chunk_id, chunk_size)) => {
                 if size == chunk_size {
+                    // If there is one of exactly the same size, it reuses it.
                     SimpleHandle::Chunk(chunk_id.clone())
                 } else {
+                    // Otherwise creates a slice of the right size upon it, always starting at zero.
                     self.create_slice(size, chunk_id)
                 }
             }
+            // If no chunk available, creates one of exactly the right size.
             None => self.create_chunk(size),
         }
     }
 
     /// Finds the smallest of the free and large enough chunks to fit `size`
-    /// Returns the chunk's id and size
+    /// Returns the chunk's id and size.
     fn find_free_chunk(&self, size: usize) -> Option<(ChunkId, usize)> {
         let mut size_diff_current = usize::MAX;
         let mut current = None;
@@ -187,7 +186,8 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
         current.map(|(id, handle)| (id.clone(), handle.size()))
     }
 
-    /// Creates a slice of size `size` upon the given chunk
+    /// Creates a slice of size `size` upon the given chunk.
+    ///
     /// For now slices must start at zero, therefore there can be only one per chunk
     fn create_slice(&mut self, size: usize, chunk_id: ChunkId) -> SimpleHandle {
         let (handle, slices) = self.chunks.get_mut(&chunk_id).unwrap();
@@ -219,7 +219,7 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
         SimpleHandle::Chunk(chunk_id)
     }
 
-    /// Deallocates free chunks and remove them from chunks map
+    /// Deallocates free chunks and remove them from chunks map.
     fn cleanup_chunks(&mut self) {
         let mut ids_to_remove = Vec::new();
 
@@ -237,7 +237,7 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
             });
     }
 
-    /// Removes free slices from slice map and corresponding chunks
+    /// Removes free slices from slice map and corresponding chunks.
     fn cleanup_slices(&mut self) {
         let mut ids_to_remove = Vec::new();
 
