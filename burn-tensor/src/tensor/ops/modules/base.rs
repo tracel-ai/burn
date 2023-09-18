@@ -269,7 +269,7 @@ pub trait ModuleOps<B: Backend> {
     /// # Shapes
     ///
     /// x:      `[batch_size, channels_in, height, width]`,
-    /// returns: `[batch_size, channels_in * kernel_size_1 * kernel_size_2, height_out * width_out]`,
+    /// returns: `[batch_size, channels_in * kernel_size_1 * kernel_size_2, number of blocks]`,
     fn unfold4d(
         x: B::TensorPrimitive<4>,
         kernel_size: [usize; 2],
