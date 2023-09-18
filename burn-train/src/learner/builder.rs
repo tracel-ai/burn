@@ -258,9 +258,9 @@ where
         if self.log_to_file {
             self.init_logger();
         }
-        let renderer = self
-            .renderer
-            .unwrap_or_else(|| Box::new(default_renderer(self.interrupter.clone())));
+        let renderer = self.renderer.unwrap_or_else(|| {
+            Box::new(default_renderer(self.interrupter.clone(), self.checkpoint))
+        });
         let directory = &self.directory;
         let logger_train = self.metric_logger_train.unwrap_or_else(|| {
             Box::new(FileMetricLogger::new(format!("{directory}/train").as_str()))
