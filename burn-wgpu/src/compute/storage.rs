@@ -14,43 +14,45 @@ pub struct WgpuResource {
 }
 
 impl WgpuResource {
+    /// Return the binding view of the buffer.
     pub fn as_binding(&self) -> wgpu::BindingResource {
-        wgpu::BindingResource::Buffer(self.as_buffer_binding())
+        let binding = match &self.kind {
+            WgpuResourceKind::Full => self.buffer.as_entire_buffer_binding(),
+            WgpuResourceKind::Slice(offs, size) => wgpu::BufferBinding {
+                buffer: &self.buffer,
+                offset: *offs,
+                size: Some(*size),
+            },
+        };
+        wgpu::BindingResource::Buffer(binding)
     }
 
+    /// Return the buffer size
     pub fn size(&self) -> u64 {
         match self.kind {
             WgpuResourceKind::Full => self.buffer.size(),
-            WgpuResourceKind::Slice(_, size) => size,
+            WgpuResourceKind::Slice(_, size) => size.get(),
         }
     }
 
+    /// Return the buffer offset
     pub fn offset(&self) -> u64 {
         match self.kind {
             WgpuResourceKind::Full => 0,
             WgpuResourceKind::Slice(offset, _) => offset,
         }
     }
-
-    /// Return the binding view of the buffer.
-    fn as_buffer_binding(&self) -> wgpu::BufferBinding {
-        match &self.kind {
-            WgpuResourceKind::Full => self.buffer.as_entire_buffer_binding(),
-            WgpuResourceKind::Slice(offs, size) => wgpu::BufferBinding {
-                buffer: &self.buffer,
-                offset: *offs,
-                size: NonZeroU64::new(*size),
-            },
-        }
-    }
 }
 
 #[derive(Debug)]
 pub enum WgpuResourceKind {
+    /// Represents an entire buffer
     Full,
-    Slice(wgpu::BufferAddress, wgpu::BufferAddress),
+    /// A slice over a buffer
+    Slice(wgpu::BufferAddress, wgpu::BufferSize),
 }
 
+/// The WgpuStorage keeps actual wgpu buffer references in a hashmap with ids as key
 impl WgpuStorage {
     pub fn new(device: Arc<wgpu::Device>) -> Self {
         Self {
@@ -72,7 +74,7 @@ impl ComputeStorage for WgpuStorage {
             }
             StorageUtilization::Slice(offset, size) => WgpuResource::new(
                 buffer.clone(),
-                WgpuResourceKind::Slice(offset as u64, size as u64),
+                WgpuResourceKind::Slice(offset as u64, NonZeroU64::new(size as u64).unwrap()),
             ),
         }
     }
@@ -94,6 +96,7 @@ impl ComputeStorage for WgpuStorage {
     }
 
     fn dealloc(&mut self, id: StorageId) {
+        self.memory.get(&id).unwrap().destroy();
         let _ = self.memory.remove(&id);
     }
 }

@@ -12,12 +12,14 @@ memory_id_type!(ChunkId);
 memory_id_type!(SliceId);
 
 impl ChunkId {
+    /// A chunk is free if it is only referred by the chunk hashmap
     fn is_free(&self) -> bool {
         Arc::strong_count(&self.id) <= 1
     }
 }
 
 impl SliceId {
+    /// A slice is free if it is only referred by the slice hashmap and the chunk it is in
     fn is_free(&self) -> bool {
         Arc::strong_count(&self.id) <= 2
     }
@@ -86,8 +88,8 @@ impl MemoryHandle for SimpleHandle {
     fn can_mut(&self) -> bool {
         // One reference in the chunk hashmap, another owned by one tensor.
         let chunk_reference_limit = 2;
-        // One reference in the chunk hashmap, another in the slice hashmap,
-        // and another owned by one tensor.
+        // One reference in the chunk hashmap (for the chunk on which this slice is built),
+        // another in the slice hashmap for this slice, and another owned by one tensor.
         let slice_reference_limit = 3;
 
         match &self {
@@ -161,6 +163,7 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
             None => self.create_chunk(size),
         }
     }
+
     /// Finds the smallest of the free and large enough chunks to fit `size`
     /// Returns the chunk's id and size
     fn find_free_chunk(&self, size: usize) -> Option<(ChunkId, usize)> {
@@ -303,21 +306,22 @@ mod tests {
     }
 
     #[test]
-    fn when_empty_chunk_exists_it_can_be_reused() {
+    fn when_empty_chunk_is_cleaned_upexists_it_disappears() {
         let mut memory_management = SimpleMemoryManagement::never_dealloc(BytesStorage::default());
         let chunk_size = 4;
         let chunk_handle = memory_management.reserve(chunk_size);
         drop(chunk_handle);
         memory_management.cleanup_chunks();
-        let _new_handle = memory_management.reserve(chunk_size);
 
-        assert_eq!(memory_management.chunks.len(), 1);
+        assert_eq!(memory_management.chunks.len(), 0);
     }
 
     #[test]
     fn never_dealloc_strategy_never_deallocs() {
         let mut never_dealloc = DeallocStrategy::Never;
-        assert!(!never_dealloc.should_dealloc())
+        for _ in 0..20 {
+            assert!(!never_dealloc.should_dealloc())
+        }
     }
 
     #[test]

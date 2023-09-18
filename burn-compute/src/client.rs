@@ -1,5 +1,5 @@
 use crate::{
-    channel::{ComputeChannel, MutexComputeChannel},
+    channel::ComputeChannel,
     server::{ComputeServer, Handle},
 };
 use alloc::vec::Vec;
@@ -7,7 +7,7 @@ use core::marker::PhantomData;
 
 /// The ComputeClient is the entry point to require tasks from the ComputeServer.
 /// It should be obtained for a specific device via the Compute struct.
-pub struct ComputeClient<Server, Channel = MutexComputeChannel<Server>> {
+pub struct ComputeClient<Server, Channel> {
     channel: Channel,
     _server: PhantomData<Server>,
 }

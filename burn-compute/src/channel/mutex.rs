@@ -34,9 +34,7 @@ where
     Server: ComputeServer,
 {
     fn read(&self, handle: &Handle<Server>) -> Vec<u8> {
-        let mut server = self.server.lock();
-
-        server.read(handle)
+        self.server.lock().read(handle)
     }
 
     fn create(&self, data: &[u8]) -> Handle<Server> {

@@ -42,18 +42,15 @@ impl<MM> WgpuServer<MM>
 where
     MM: MemoryManagement<WgpuStorage>,
 {
-    pub fn new(memory_management: MM, device: Arc<wgpu::Device>, queue: wgpu::Queue) -> Self {
+    pub fn new(
+        memory_management: MM,
+        device: Arc<wgpu::Device>,
+        queue: wgpu::Queue,
+        max_tasks: usize,
+    ) -> Self {
         let encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Command Encoder"),
         });
-
-        // TODO: Support a way to modify this value without std.
-        let max_tasks = match std::env::var("BURN_WGPU_MAX_TASKS") {
-            Ok(value) => value
-                .parse::<usize>()
-                .expect("BURN_WGPU_MAX_TASKS should be a positive integer."),
-            Err(_) => 16, // 16 tasks by default
-        };
 
         Self {
             memory_management,
@@ -65,6 +62,7 @@ where
             max_tasks,
         }
     }
+
     fn submit(&mut self) {
         assert!(
             self.tasks.is_empty(),
@@ -78,6 +76,7 @@ where
 
         self.queue.submit(Some(new_encoder.finish()));
     }
+
     fn register_tasks(&mut self) {
         if self.tasks.is_empty() {
             return;
