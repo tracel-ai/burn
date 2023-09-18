@@ -1,6 +1,6 @@
 use crate::{
     backend::Backend, check, check::TensorCheck, BasicOps, Bool, Element, ElementConversion, Float,
-    Int, Shape, Tensor, TensorKind, Data, ops::TensorOps,
+    Int, Shape, Tensor, TensorKind,
 };
 
 impl<B, const D: usize, K> Tensor<B, D, K>
@@ -448,71 +448,6 @@ where
     pub fn abs(self) -> Self {
         Self::new(K::abs(self.primitive))
     }
-
-    pub fn unfold(
-        self,
-        kernel_size: [usize; 2],
-        dilation: Option<[usize; 2]>, 
-        padding: Option<[usize; 2]>,
-        stride: Option<[usize; 2]>,
-    ) -> Tensor<B, 3, K> {
-
-    let dilation = dilation.unwrap_or([1, 1]);
-    let padding = padding.unwrap_or([0, 0]);
-    let stride = stride.unwrap_or([1, 1]);
-
-    let N = self.dims()[0];
-    let C = self.dims()[1];
-    let H = self.dims()[2];
-    let W = self.dims()[3];
-
-    let effective_kernel_height = (kernel_size[0] - 1) * dilation[0] + 1;
-    let effective_kernel_width = (kernel_size[1] - 1) * dilation[1] + 1;
-
-    let H_out = (H + 2*padding[0] - effective_kernel_height) / stride[0] + 1;
-    let W_out = (W + 2*padding[1] - effective_kernel_width) / stride[1] + 1;
-
-    let mut output = Tensor::zeros([N, C * kernel_size[0] * kernel_size[1], H_out * W_out]);
-
-    for n in 0..N {
-        for c in 0..C {
-            for h in 0..H_out {
-                for w in 0..W_out {
-                    // Calculate start and end for height and width based on stride, padding and dilation.
-                    let h_start = h * stride[0] - padding[0];
-                    let w_start = w * stride[1] - padding[1];
-                    
-                    for i in 0..kernel_size[0] {
-                        for j in 0..kernel_size[1] {
-                            let h_idx = h_start + i * dilation[0];
-                            let w_idx = w_start + j * dilation[1];
-
-                            // Check for padding
-                            if h_idx >= 0 && h_idx < H && w_idx >= 0 && w_idx < W {
-                                // Calculate the index for the output tensor.
-                                let out_c_idx = c * kernel_size[0] * kernel_size[1] + i * kernel_size[1] + j;
-                                let out_hw_idx = h * W_out + w;
-                                let index_int = out_hw_idx as i32;
-                                let out_indices = Tensor::<B, 1, Int>::from_ints([index_int]);
-
-                                let c_int = c.clone() as i32;
-                                let h_idx_int = h_idx.clone() as i32;
-                                let w_idx_int = w_idx.clone() as i32;
-                                let select_indices = Tensor::<B, 1, Int>::from_ints([c_int, h_idx_int, w_idx_int]);
-                                let patch_tensor = self.select(n, select_indices);
-                                
-                                output = output.select_assign(2, out_indices, patch_tensor);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    output
-}
-
 }
 
 /// Trait that list all operations that can be applied on all numerical tensors.
