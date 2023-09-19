@@ -489,7 +489,25 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         kernel_size: [usize; 2],
         options: UnfoldOptions,
     ) -> ADTensor<B, 3> {
-        todo!()
+        #[derive(Debug)]
+        struct Unfold4D;
+
+        impl<B: Backend> Backward<B, 3, 1> for Unfold4D {
+            type State = ();
+
+            fn backward(self, _ops: Ops<Self::State, 1>, _grads: &mut Gradients) {
+                panic!("Backward pass for unfold4d is not supported."); // this is a fold
+            }
+        }
+
+        match Unfold4D.prepare([x.node], [x.graph]).stateful() {
+            OpsKind::Tracked(prep) => {
+                let output = B::unfold4d(x.primitive.clone(), kernel_size, options);
+                prep.finish((), output,)
+            }
+
+            OpsKind::UnTracked(prep) => prep.finish(B::unfold4d(x.primitive, kernel_size, options)),
+        }
     }
 
     fn avg_pool1d(
