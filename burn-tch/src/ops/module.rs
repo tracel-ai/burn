@@ -1,7 +1,7 @@
 use crate::{element::TchElement, TchBackend, TchTensor};
 use burn_tensor::ops::{
     ConvOptions, ConvTransposeOptions, MaxPool1dWithIndices, MaxPool2dBackward,
-    MaxPool2dWithIndices, ModuleOps,
+    MaxPool2dWithIndices, ModuleOps, UnfoldOptions,
 };
 
 impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
@@ -105,6 +105,14 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
         );
 
         TchTensor::new(tensor)
+    }
+
+    fn unfold4d(
+        x: TchTensor<E, 4>,
+        kernel_size: [usize; 2],
+        options: UnfoldOptions,
+    ) -> TchTensor<E,3> {
+        todo!()
     }
 
     fn avg_pool1d(

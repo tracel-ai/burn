@@ -484,6 +484,14 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
+    fn unfold4d(
+        x: ADTensor<B, 4>,
+        kernel_size: [usize; 2],
+        options: UnfoldOptions,
+    ) -> ADTensor<B, 3> {
+        todo!()
+    }
+
     fn avg_pool1d(
         x: ADTensor<B, 3>,
         kernel_size: usize,
