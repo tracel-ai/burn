@@ -1,5 +1,5 @@
 use burn_tensor::ops::{
-    ConvOptions, ConvTransposeOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
+    ConvOptions, ConvTransposeOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps, UnfoldOptions,
 };
 
 use crate::{
@@ -31,6 +31,14 @@ where
         options: ConvTransposeOptions<2>,
     ) -> FloatTensor<Self, 4> {
         kernel::conv::conv_transpose2d(x, weight, bias, options)
+    }
+
+    fn unfold4d(
+        x: FloatTensor<Self, 4>,
+        kernel_size: [usize; 2],
+        options: UnfoldOptions,
+    ) -> FloatTensor<Self, 3> {
+        todo!() // write shader or trick conv2d into doing this for us again?
     }
 
     fn avg_pool2d(
