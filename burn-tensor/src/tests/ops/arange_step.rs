@@ -1,6 +1,7 @@
 #[burn_tensor_testgen::testgen(arange_step)]
 mod tests {
     use super::*;
+    use burn_tensor::backend::Backend;
     use burn_tensor::{Data, Int, Tensor};
 
     #[test]
@@ -20,7 +21,7 @@ mod tests {
 
     #[test]
     fn test_arange_step_device() {
-        let device = Tensor::<TestBackend, 1>::from_data(Data::from([0.0])).device();
+        let device = <TestBackend as Backend>::Device::default();
 
         // Test correct sequence of numbers when the range is 0..9 and the step is 1
         let tensor = Tensor::<TestBackend, 1, Int>::arange_step_device(0..9, 1, &device);
@@ -38,7 +39,7 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn test_arange_step_panic() {
+    fn should_panic_when_step_is_zero() {
         // Test that arange_step panics when the step is 0
         let _tensor = Tensor::<TestBackend, 1, Int>::arange_step(0..3, 0);
     }

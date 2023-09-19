@@ -167,7 +167,7 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn should_scatter_panic_on_mismatch_of_shapes() {
+    fn scatter_should_panic_on_mismatch_of_shapes() {
         let tensor = TestTensor::from_floats([0.0, 0.0, 0.0]);
         let values = TestTensor::from_floats([5.0, 4.0]);
         let indices = TestTensorInt::from_ints([1, 0, 2]);

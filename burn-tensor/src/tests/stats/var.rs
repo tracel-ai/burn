@@ -9,8 +9,7 @@ mod tests {
 
     #[test]
     fn test_var() {
-        let data = Data::from([[0.5, 1.8, 0.2, -2.0], [3.0, -4.0, 5.0, 0.0]]);
-        let tensor = Tensor::<TestBackend, 2>::from_data(data);
+        let tensor = TestTensor::from_data([[0.5, 1.8, 0.2, -2.0], [3.0, -4.0, 5.0, 0.0]]);
 
         let data_actual = tensor.var(1).into_data();
 
@@ -20,8 +19,7 @@ mod tests {
 
     #[test]
     fn test_var_mean() {
-        let data = Data::from([[0.5, 1.8, 0.2, -2.0], [3.0, -4.0, 5.0, 0.0]]);
-        let tensor = Tensor::<TestBackend, 2>::from_data(data);
+        let tensor = TestTensor::from_data([[0.5, 1.8, 0.2, -2.0], [3.0, -4.0, 5.0, 0.0]]);
 
         let (var, mean) = tensor.var_mean(1);
 
@@ -34,8 +32,7 @@ mod tests {
 
     #[test]
     fn test_var_bias() {
-        let data = Data::from([[0.5, 1.8, 0.2, -2.0], [3.0, -4.0, 5.0, 0.0]]);
-        let tensor = Tensor::<TestBackend, 2>::from_data(data);
+        let tensor = TestTensor::from_data([[0.5, 1.8, 0.2, -2.0], [3.0, -4.0, 5.0, 0.0]]);
 
         let data_actual = tensor.var_bias(1).into_data();
 
@@ -45,8 +42,7 @@ mod tests {
 
     #[test]
     fn test_var_mean_bias() {
-        let data = Data::from([[0.5, 1.8, 0.2, -2.0], [3.0, -4.0, 5.0, 0.0]]);
-        let tensor = Tensor::<TestBackend, 2>::from_data(data);
+        let tensor = TestTensor::from_data([[0.5, 1.8, 0.2, -2.0], [3.0, -4.0, 5.0, 0.0]]);
 
         let (var, mean) = tensor.var_mean_bias(1);
 

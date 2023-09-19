@@ -88,7 +88,7 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn test_matmul_panic_on_wrong_inner_dimensions() {
+    fn should_panic_when_inner_dimensions_are_not_equal() {
         let tensor_1 = TestTensor::from_floats([[3., 3.], [4., 4.], [5., 5.], [6., 6.]]);
         let tensor_2 =
             TestTensor::from_floats([[1., 2., 3., 4.], [1., 2., 3., 4.], [1., 2., 3., 4.]]);
