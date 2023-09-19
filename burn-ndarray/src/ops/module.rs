@@ -2,7 +2,8 @@ use super::{
     adaptive_avgpool::{adaptive_avg_pool2d, adaptive_avg_pool2d_backward},
     avgpool::{avg_pool2d, avg_pool2d_backward},
     conv::{conv2d, conv_transpose2d},
-    maxpool::{max_pool2d, max_pool2d_backward, max_pool2d_with_indices}, unfold::unfold4d,
+    maxpool::{max_pool2d, max_pool2d_backward, max_pool2d_with_indices},
+    unfold::unfold4d,
 };
 use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArrayBackend};
 use burn_tensor::ops::*;

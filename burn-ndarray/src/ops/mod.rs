@@ -8,10 +8,10 @@ mod tensor;
 pub(crate) mod adaptive_avgpool;
 pub(crate) mod avgpool;
 pub(crate) mod conv;
-pub(crate) mod unfold;
 pub(crate) mod macros;
 pub(crate) mod matmul;
 pub(crate) mod maxpool;
 pub(crate) mod padding;
+pub(crate) mod unfold;
 
 pub(crate) use base::*;

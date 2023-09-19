@@ -1,6 +1,6 @@
+use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor};
 use burn_tensor::ops::{ConvOptions, UnfoldOptions};
 use ndarray::{Array4, Dim};
-use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor};
 
 use super::conv::conv2d;
 
@@ -71,7 +71,6 @@ pub(crate) fn unfold4d<E: FloatNdArrayElement>(
         .unwrap()
         .into_dyn()
         .into_shared();
-    let reshaped = NdArrayTensor::new(reshaped_array);
-    
-    reshaped
+
+    NdArrayTensor::new(reshaped_array)
 }

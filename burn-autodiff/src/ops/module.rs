@@ -493,7 +493,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         struct Unfold4D;
 
         impl<B: Backend> Backward<B, 3, 1> for Unfold4D {
-            type State = ();
+            type State = (); // Not sure if there's anything to really keep track of here
 
             fn backward(self, _ops: Ops<Self::State, 1>, _grads: &mut Gradients) {
                 panic!("Backward pass for unfold4d is not supported."); // this is a fold
@@ -503,7 +503,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         match Unfold4D.prepare([x.node], [x.graph]).stateful() {
             OpsKind::Tracked(prep) => {
                 let output = B::unfold4d(x.primitive.clone(), kernel_size, options);
-                prep.finish((), output,)
+                prep.finish((), output)
             }
 
             OpsKind::UnTracked(prep) => prep.finish(B::unfold4d(x.primitive, kernel_size, options)),

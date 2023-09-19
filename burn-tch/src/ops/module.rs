@@ -111,20 +111,22 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
         x: TchTensor<E, 4>,
         kernel_size: [usize; 2],
         options: UnfoldOptions,
-    ) -> TchTensor<E,3> {
+    ) -> TchTensor<E, 3> {
         // tch unfold seems to be a lower-level implementation that unfolds
         // one dimension at a time, so we have to unfold height first then width.
         let height_dimension = 2;
         let height_size = kernel_size[0] as i64;
         let height_step = options.stride.unwrap_or([1, 1])[0] as i64;
 
-        let height_unfolded = tch::Tensor::unfold(&x.tensor, height_dimension, height_size, height_step);
+        let height_unfolded =
+            tch::Tensor::unfold(&x.tensor, height_dimension, height_size, height_step);
 
         let width_dimension = 3;
         let width_size = kernel_size[1] as i64;
         let width_step = options.stride.unwrap_or([1, 1])[1] as i64;
 
-        let unfolded = tch::Tensor::unfold(&height_unfolded, width_dimension, width_size, width_step);
+        let unfolded =
+            tch::Tensor::unfold(&height_unfolded, width_dimension, width_size, width_step);
 
         TchTensor::new(unfolded)
     }

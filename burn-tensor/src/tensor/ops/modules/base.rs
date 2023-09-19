@@ -110,7 +110,7 @@ pub struct UnfoldOptions {
     /// If not provided, defaults to no padding (`[0, 0]`).
     pub padding: Option<[usize; 2]>,
 
-    /// The spacing between the blocks (patches) in the original input tensor. 
+    /// The spacing between the blocks (patches) in the original input tensor.
     /// If not provided, defaults to `[1, 1]`.
     pub dilation: Option<[usize; 2]>,
 }
