@@ -70,7 +70,7 @@ pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Node<PS: PrecisionSettings> {
     AvgPool2d(AvgPool2dNode),
     BatchNorm(BatchNormNode<PS>),

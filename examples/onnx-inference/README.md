@@ -24,6 +24,13 @@ See the image online, click the link below:
 https://datasets-server.huggingface.co/assets/mnist/--/mnist/test/15/image/image.jpg
 ```
 
+## Feature Flags
+
+- `embedded-model` (default) - Embed the model weights into the binary. This is useful for small
+  models (e.g. MNIST) but not recommended for very large models because it will increase the binary
+  size significantly and will consume a lot of memory at runtime. If you do not use this feature,
+  the model weights will be loaded from a binary file at runtime.
+
 ## How to import
 
 1. Create `model` directory under `src`
@@ -57,8 +64,7 @@ https://datasets-server.huggingface.co/assets/mnist/--/mnist/test/15/image/image
 
    ```
 
-6. Add your model to `src/bin` as a new file, in this specific case we have
-called it `mnist.rs`:
+6. Add your model to `src/bin` as a new file, in this specific case we have called it `mnist.rs`:
 
    ```rust
    use burn::tensor;

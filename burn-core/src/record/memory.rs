@@ -41,6 +41,35 @@ impl<S: PrecisionSettings> Recorder for BinBytesRecorder<S> {
     }
 }
 
+#[cfg(feature = "std")]
+/// In memory recorder using the [Named MessagePack](rmp_serde).
+#[derive(new, Debug, Default, Clone)]
+pub struct NamedMpkBytesRecorder<S: PrecisionSettings> {
+    _settings: PhantomData<S>,
+}
+
+#[cfg(feature = "std")]
+impl<S: PrecisionSettings> BytesRecorder for NamedMpkBytesRecorder<S> {}
+
+#[cfg(feature = "std")]
+impl<S: PrecisionSettings> Recorder for NamedMpkBytesRecorder<S> {
+    type Settings = S;
+    type RecordArgs = ();
+    type RecordOutput = Vec<u8>;
+    type LoadArgs = Vec<u8>;
+
+    fn save_item<I: Serialize>(
+        &self,
+        item: I,
+        _args: Self::RecordArgs,
+    ) -> Result<Self::RecordOutput, RecorderError> {
+        rmp_serde::encode::to_vec_named(&item).map_err(|e| RecorderError::Unknown(e.to_string()))
+    }
+    fn load_item<I: DeserializeOwned>(&self, args: Self::LoadArgs) -> Result<I, RecorderError> {
+        rmp_serde::decode::from_slice(&args).map_err(|e| RecorderError::Unknown(e.to_string()))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -49,6 +78,12 @@ mod tests {
     #[test]
     fn test_can_save_and_load_bin_format() {
         test_can_save_and_load(BinBytesRecorder::<FullPrecisionSettings>::default())
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn test_can_save_and_load_named_mpk_format() {
+        test_can_save_and_load(NamedMpkBytesRecorder::<FullPrecisionSettings>::default())
     }
 
     fn test_can_save_and_load<Recorder: BytesRecorder>(recorder: Recorder) {
