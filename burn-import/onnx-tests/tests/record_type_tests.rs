@@ -5,34 +5,20 @@
 // For half precision, we use a different tolerance because the output is
 // different.
 
-macro_rules! include_model {
-    ($($mod_name:ident),*) => {
-        $(
-            pub mod $mod_name {
-                include!(concat!(env!("OUT_DIR"), "/model/", stringify!($mod_name), "/conv1d.rs"));
-            }
-        )*
-    };
-}
-
-include_model!(
-    named_mpk,
-    named_mpk_half,
-    pretty_json,
-    pretty_json_half,
-    named_mpk_gz,
-    named_mpk_gz_half,
-    bincode,
-    bincode_half,
-    bincode_embedded,
-    bincode_embedded_half
-);
-
 macro_rules! test_model {
     ($mod_name:ident) => {
         test_model!($mod_name, 1.0e-4); // Default tolerance
     };
     ($mod_name:ident, $tolerance:expr) => {
+        pub mod $mod_name {
+            include!(concat!(
+                env!("OUT_DIR"),
+                "/model/",
+                stringify!($mod_name),
+                "/conv1d.rs"
+            ));
+        }
+
         #[test]
         fn $mod_name() {
             // Initialize the model with weights (loaded from the exported file)
@@ -58,13 +44,9 @@ macro_rules! test_model {
 
 #[cfg(test)]
 mod tests {
-    use std::f64::consts;
-
-    use super::*;
-
     use burn::tensor::{Shape, Tensor};
-
     use float_cmp::ApproxEq;
+    use std::f64::consts;
 
     type Backend = burn_ndarray::NdArrayBackend<f32>;
 

@@ -107,9 +107,8 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                     "Embedding states is not supported for PrettyJsonFileRecorder."
                 );
 
-                self.register_record(
+                self.register_record_file(
                     out_file,
-                    embed_states,
                     &format!("burn::record::PrettyJsonFileRecorder::<{precision_ty_str}>"),
                 );
             }
@@ -127,9 +126,8 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                     !embed_states,
                     "Embedding states is not supported for NamedMpkGzFileRecorder."
                 );
-                self.register_record(
+                self.register_record_file(
                     out_file,
-                    embed_states,
                     &format!("burn::record::NamedMpkGzFileRecorder::<{precision_ty_str}>"),
                 );
             }
@@ -149,9 +147,8 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                     "Embedding states is not supported for NamedMpkFileRecorder."
                 );
 
-                self.register_record(
+                self.register_record_file(
                     out_file,
-                    embed_states,
                     &format!("burn::record::NamedMpkFileRecorder::<{precision_ty_str}>"),
                 );
             }
@@ -166,11 +163,14 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                     )
                     .unwrap();
 
-                self.register_record(
-                    out_file,
-                    embed_states,
-                    &format!("burn::record::BinFileRecorder::<{precision_ty_str}>"),
-                );
+                if embed_states {
+                    self.register_record_embed(out_file);
+                } else {
+                    self.register_record_file(
+                        out_file,
+                        &format!("burn::record::BinFileRecorder::<{precision_ty_str}>"),
+                    );
+                }
             }
         }
 
@@ -335,49 +335,50 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             });
     }
 
-    fn register_record(&mut self, file: PathBuf, embed_states: bool, recorder_str: &str) {
+    fn register_record_file(&mut self, file: PathBuf, recorder_str: &str) {
         self.imports.register("burn::record::Recorder");
 
         let recorder_ty = syn::parse_str::<syn::Type>(recorder_str).unwrap();
 
-        if embed_states {
-            // NOTE: Bincode format is used for embedding states for now.
-
-            let precision = extract_type_name_by_type::<PS>();
-            let precision_ty = syn::parse_str::<syn::Type>(&precision).unwrap();
-            self.imports.register("burn::record::BinBytesRecorder");
-
-            let mut file = file;
-            file.set_extension(BinFileRecorder::<PS>::file_extension());
-            let file = file.to_str().unwrap();
-            self.default = Some(quote! {
-                static EMBEDDED_STATES: &[u8] = include_bytes!(#file);
-
-                impl<B: Backend> Default for Model<B> {
-                    fn default() -> Self {
-                        let record = BinBytesRecorder::<#precision_ty>::default()
-                        .load(EMBEDDED_STATES.to_vec())
-                        .expect("Failed to decode state");
-
-                        Self::new_with(record)
-                    }
+        // Add default implementation
+        let file = file.to_str().unwrap();
+        self.default = Some(quote! {
+            impl<B: Backend> Default for Model<B> {
+                fn default() -> Self {
+                    let record = #recorder_ty::new()
+                        .load(#file.into())
+                        .expect("Record file to exist.");
+                    Self::new_with(record)
                 }
+            }
+        });
+    }
 
-            });
-        } else {
-            // Add default implementation
-            let file = file.to_str().unwrap();
-            self.default = Some(quote! {
-                impl<B: Backend> Default for Model<B> {
-                    fn default() -> Self {
-                        let record = #recorder_ty::new()
-                            .load(#file.into())
-                            .expect("Record file to exist.");
-                        Self::new_with(record)
-                    }
+    fn register_record_embed(&mut self, file: PathBuf) {
+        self.imports.register("burn::record::Recorder");
+
+        // NOTE: Bincode format is used for embedding states for now.
+        let precision = extract_type_name_by_type::<PS>();
+        let precision_ty = syn::parse_str::<syn::Type>(&precision).unwrap();
+        self.imports.register("burn::record::BinBytesRecorder");
+
+        let mut file = file;
+        file.set_extension(BinFileRecorder::<PS>::file_extension());
+        let file = file.to_str().unwrap();
+        self.default = Some(quote! {
+            static EMBEDDED_STATES: &[u8] = include_bytes!(#file);
+
+            impl<B: Backend> Default for Model<B> {
+                fn default() -> Self {
+                    let record = BinBytesRecorder::<#precision_ty>::default()
+                    .load(EMBEDDED_STATES.to_vec())
+                    .expect("Failed to decode state");
+
+                    Self::new_with(record)
                 }
-            });
-        }
+            }
+
+        });
     }
 
     fn codegen_struct(&self) -> TokenStream {
@@ -588,20 +589,21 @@ struct BurnGraphState<'a, PS: PrecisionSettings> {
     nodes: &'a Vec<Node<PS>>,
 }
 
-/// For custom serialization of the graph state in module struct, there are generally
-/// two options:
-/// 1. Serialize the nodes as a map with the node name as the key and the node as the value.
-/// 2. Serialize the nodes as a tuple.
+/// Represents a custom serialization strategy for the graph state in the module struct.
 ///
-/// PrettyJson, NamedMpk, and NamedMpkGz use the first option and this struct is used for that.
+/// This struct serializes the graph state using a map format. Specifically, nodes are
+/// serialized as a map where each node name acts as the key and the node itself is the value.
+///
+/// Notably, this approach is utilized by serialization formats such as PrettyJson, NamedMpk,
+/// and NamedMpkGz.
 struct StructMap<'a, PS: PrecisionSettings>(BurnGraphState<'a, PS>);
 
-/// For custom serialization of the graph state in module struct, there are generally
-/// two options:
-/// 1. Serialize the nodes as a map with the node name as the key and the node as the value.
-/// 2. Serialize the nodes as a tuple.
+/// Represents a custom serialization strategy for the graph state in the module struct.
 ///
-/// Mpk, and Bincode use the second option and this struct is used for that.
+/// In contrast to `StructMap`, this struct serializes the graph state using a tuple format.
+/// Each node is simply serialized as an element of the tuple without explicit naming.
+///
+/// Serialization formats such as Mpk and Bincode employ this method.
 struct StructTuple<'a, PS: PrecisionSettings>(BurnGraphState<'a, PS>);
 
 impl<'a, PS: PrecisionSettings> Serialize for StructMap<'a, PS> {
