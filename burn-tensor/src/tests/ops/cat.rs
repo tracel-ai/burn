@@ -1,6 +1,7 @@
 #[burn_tensor_testgen::testgen(cat)]
 mod tests {
     use super::*;
+    use alloc::vec::Vec;
     use burn_tensor::{Bool, Data, Int, Tensor};
 
     #[test]
@@ -56,5 +57,13 @@ mod tests {
 
         let data_expected = Data::from([[[1.0, 2.0, 3.0]], [[1.1, 2.1, 3.1]], [[4.0, 5.0, 6.0]]]);
         data_expected.assert_approx_eq(&data_actual, 3);
+    }
+
+    #[test]
+    #[should_panic]
+    fn should_panic_when_list_of_vectors_is_empty() {
+        let tensor: Vec<TestTensor<2>> = vec![];
+
+        TestTensor::cat(tensor, 0).into_data();
     }
 }
