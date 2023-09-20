@@ -4,7 +4,6 @@
 
 #[macro_use]
 extern crate derive_new;
-extern crate alloc;
 
 mod ops;
 
