@@ -70,9 +70,8 @@ mod tests {
     #[test]
     #[should_panic]
     fn should_panic_when_list_of_vectors_is_empty() {
-        let tensor_2: Vec<burn_tensor::Tensor<TestBackend, 2, burn_tensor::Float>> = vec![];
-
-        TestTensor::cat(tensor_2, 0).into_data();
+        let tensor: Vec<TestTensor<2>> = vec![];
+        TestTensor::cat(tensor, 0).into_data();
     }
 
     #[test]
