@@ -133,7 +133,7 @@ where
         let starting_epoch = match self.checkpoint {
             Some(checkpoint) => {
                 self = self.load_checkpoint(checkpoint);
-                checkpoint
+                checkpoint + 1
             }
             None => 1,
         };

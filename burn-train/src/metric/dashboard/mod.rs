@@ -15,9 +15,12 @@ pub use tui::TuiDashboardRenderer as SelectedDashboardRenderer;
 
 /// The TUI renderer, or a simple stub if the tui feature is not enabled.
 #[allow(unused_variables)]
-pub(crate) fn default_renderer(interuptor: TrainingInterrupter) -> SelectedDashboardRenderer {
+pub(crate) fn default_renderer(
+    interuptor: TrainingInterrupter,
+    checkpoint: Option<usize>,
+) -> SelectedDashboardRenderer {
     #[cfg(feature = "tui")]
-    return SelectedDashboardRenderer::new(interuptor);
+    return SelectedDashboardRenderer::new(interuptor, checkpoint);
 
     #[cfg(not(feature = "tui"))]
     return SelectedDashboardRenderer::new();

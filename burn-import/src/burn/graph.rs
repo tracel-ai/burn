@@ -596,15 +596,12 @@ struct BurnGraphState<'a, PS: PrecisionSettings> {
 ///
 /// Notably, this approach is utilized by serialization formats such as PrettyJson, NamedMpk,
 /// and NamedMpkGz.
+///
+/// # Notes
+///
+/// Mpk and Bincode cannot use this method because they do not support serializing maps.
+/// Instead, they use the `StructTuple` serialization strategy (to avoid memory overhead presumably).
 struct StructMap<'a, PS: PrecisionSettings>(BurnGraphState<'a, PS>);
-
-/// Represents a custom serialization strategy for the graph state in the module struct.
-///
-/// In contrast to `StructMap`, this struct serializes the graph state using a tuple format.
-/// Each node is simply serialized as an element of the tuple without explicit naming.
-///
-/// Serialization formats such as Mpk and Bincode employ this method.
-struct StructTuple<'a, PS: PrecisionSettings>(BurnGraphState<'a, PS>);
 
 impl<'a, PS: PrecisionSettings> Serialize for StructMap<'a, PS> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -626,6 +623,19 @@ impl<'a, PS: PrecisionSettings> Serialize for StructMap<'a, PS> {
         map.end()
     }
 }
+
+/// Represents a custom serialization strategy for the graph state in the module struct.
+///
+/// In contrast to `StructMap`, this struct serializes the graph state using a tuple format.
+/// Each node is simply serialized as an element of the tuple without explicit naming.
+///
+/// Serialization formats such as Mpk and Bincode employ this method.
+///
+/// # Notes
+///
+/// PrettyJson, NamedMpk, and NamedMpkGz cannot use this method because they do not support
+/// serializing tuples. Instead, they use the `StructMap` serialization strategy.
+struct StructTuple<'a, PS: PrecisionSettings>(BurnGraphState<'a, PS>);
 
 impl<'a, PS: PrecisionSettings> Serialize for StructTuple<'a, PS> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
