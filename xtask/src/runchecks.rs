@@ -3,21 +3,6 @@
 //! It is used to check that the code compiles and passes all tests.
 //!
 //! It is also used to check that the code is formatted correctly and passes clippy.
-//!
-//! To build this script, run the following command:
-//!
-//! rustc scripts/run-checks.rs --crate-type bin --out-dir scripts
-//!
-//! To run the script:
-//!
-//! ./scripts/run-checks environment
-//!
-//! where `environment` can assume **ONLY** the following values:
-//!     - `std` to perform checks using `libstd`
-//!     - `no_std` to perform checks on an embedded environment using `libcore`
-//!     - `typos` to check typos in the source code
-//!     - `examples` to check the examples compile
-
 use std::env;
 use std::process::{Child, Command, Stdio};
 use std::str;
@@ -270,6 +255,10 @@ fn check_examples() {
     std::fs::read_dir("examples").unwrap().for_each(|dir| {
         let dir = dir.unwrap();
         let path = dir.path();
+        // Skip if not a directory
+        if !path.is_dir() {
+            return;
+        }
         if path.file_name().unwrap().to_str().unwrap() == "notebook" {
             // not a crate
             return;

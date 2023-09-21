@@ -5,7 +5,7 @@ use std::{
 };
 
 use burn::{
-    record::{FullPrecisionSettings, PrecisionSettings},
+    record::{FullPrecisionSettings, HalfPrecisionSettings, PrecisionSettings},
     tensor::{DataSerialize, Element},
 };
 
@@ -52,6 +52,8 @@ use super::{
     },
 };
 
+pub use crate::burn::graph::RecordType;
+
 /// Generate code and states from `.onnx` files and save them to the `out_dir`.
 #[derive(Debug, Default)]
 pub struct ModelGen {
@@ -59,6 +61,9 @@ pub struct ModelGen {
     /// List of onnx files to generate source code from.
     inputs: Vec<PathBuf>,
     development: bool,
+    half_precision: bool,
+    record_type: RecordType,
+    embed_states: bool,
 }
 
 impl ModelGen {
@@ -103,6 +108,37 @@ impl ModelGen {
         self.run(false);
     }
 
+    /// Specify parameter precision to be saved.
+    ///
+    /// # Arguments
+    ///
+    /// * `half_precision` - If true, half precision is saved. Otherwise, full precision is saved.
+    pub fn half_precision(&mut self, half_precision: bool) -> &mut Self {
+        self.half_precision = half_precision;
+        self
+    }
+
+    /// Specify the type of the record to be saved.
+    ///
+    /// # Arguments
+    ///
+    /// * `record_type` - The type of the record to be saved.
+    pub fn record_type(&mut self, record_type: RecordType) -> &mut Self {
+        self.record_type = record_type;
+        self
+    }
+
+    /// Specify whether to embed states in the generated code.
+    ///
+    /// # Arguments
+    ///
+    /// * `embed_states` - If true, states are embedded in the generated code. Otherwise, states are
+    /// saved as a separate file.
+    pub fn embed_states(&mut self, embed_states: bool) -> &mut Self {
+        self.embed_states = embed_states;
+        self
+    }
+
     /// Run code generation.
     fn run(&self, is_build_script: bool) {
         log::info!("Starting to convert ONNX to Burn");
@@ -131,21 +167,21 @@ impl ModelGen {
             log::debug!("Input file name: {:?}", file_name);
             log::debug!("Output file: {:?}", out_file);
 
-            Self::generate_model(self.development, input, out_file);
+            self.generate_model(input, out_file);
         }
 
         log::info!("Finished converting ONNX to Burn");
     }
 
     /// Generate model source code and model state.
-    fn generate_model(development: bool, input: &PathBuf, out_file: PathBuf) {
+    fn generate_model(&self, input: &PathBuf, out_file: PathBuf) {
         log::info!("Generating model from {:?}", input);
-        log::debug!("Development mode: {:?}", development);
+        log::debug!("Development mode: {:?}", self.development);
         log::debug!("Output file: {:?}", out_file);
 
         let graph = parse_onnx(input.as_ref());
 
-        if development {
+        if self.development {
             // export the graph
             let debug_graph = format!("{:#?}", graph);
             let graph_file = out_file.with_extension("graph.txt");
@@ -153,20 +189,29 @@ impl ModelGen {
             fs::write(graph_file, debug_graph).unwrap();
         }
 
-        let graph = graph
-            .into_burn::<FullPrecisionSettings>()
-            .with_record(
-                out_file.clone(),
-                development,
-                "burn::record::FullPrecisionSettings",
-            )
-            .with_new_fn(true)
-            .with_blank_space(true)
-            .with_top_comment(Some(format!(
-                "Generated from ONNX {input:?} by burn-import"
-            )));
+        let new_fn = true;
+        let blank_space = true;
+        let top_comment = Some(format!("Generated from ONNX {input:?} by burn-import"));
 
-        let code_str = format_tokens(graph.codegen());
+        let code = if self.half_precision {
+            graph
+                .into_burn::<HalfPrecisionSettings>()
+                .with_record(out_file.clone(), self.record_type, self.embed_states)
+                .with_new_fn(new_fn)
+                .with_blank_space(blank_space)
+                .with_top_comment(top_comment)
+                .codegen()
+        } else {
+            graph
+                .into_burn::<FullPrecisionSettings>()
+                .with_record(out_file.clone(), self.record_type, self.embed_states)
+                .with_new_fn(new_fn)
+                .with_blank_space(blank_space)
+                .with_top_comment(top_comment)
+                .codegen()
+        };
+
+        let code_str = format_tokens(code);
         fs::write(out_file.with_extension("rs"), code_str).unwrap();
 
         log::info!("Model generated");

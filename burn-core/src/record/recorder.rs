@@ -179,7 +179,7 @@ pub struct BurnMetadata {
 }
 
 /// Record that can be saved by a [Recorder](Recorder).
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct BurnRecord<I> {
     /// Metadata of the record.
     pub metadata: BurnMetadata,

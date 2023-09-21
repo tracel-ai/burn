@@ -7,11 +7,13 @@ publish = false
 version = "0.10.0"
 
 [features]
-default = ["burn/dataset-sqlite-bundled"]
+default = ["embedded-model"]
+
+embedded-model = []
 
 [dependencies]
-burn = {path = "../../burn", features=["ndarray"]}
-serde = {workspace = true}
+burn = { path = "../../burn", features = ["ndarray", "dataset-sqlite-bundled"] }
+serde = { workspace = true }
 
 [build-dependencies]
-burn-import = {path = "../../burn-import"}
+burn-import = { path = "../../burn-import" }
