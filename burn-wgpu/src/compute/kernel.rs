@@ -13,6 +13,13 @@ pub struct WorkGroup {
     pub z: u32,
 }
 
+impl WorkGroup {
+    /// Calculate the number of invocations of a compute shader.
+    pub fn num_invocations(&self) -> usize {
+        (self.x * self.y * self.z) as usize
+    }
+}
+
 /// Wraps a [dynamic kernel source](DynamicKernelSource) into a [kernel](Kernel) with launch
 /// information such as [workgroup](WorkGroup).
 #[derive(new)]

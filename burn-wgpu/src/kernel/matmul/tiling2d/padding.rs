@@ -74,7 +74,7 @@ fn padding<E: WgpuElement, const D: usize>(
         .try_into()
         .unwrap();
     slice_assign::<E, D, D>(
-        empty_from_context(tensor.context.clone(), &padded_shape),
+        empty_from_context(tensor.client, tensor.device, &padded_shape),
         ranges,
         tensor,
     )

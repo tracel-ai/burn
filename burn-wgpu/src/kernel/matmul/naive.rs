@@ -1,6 +1,6 @@
 use super::utils::shape_out;
 use crate::{
-    context::WorkGroup,
+    compute::{StaticKernel, WorkGroup},
     element::WgpuElement,
     kernel::{build_info, into_contiguous, KernelSettings, SourceTemplate, StaticKernelSource},
     kernel_wgsl,
@@ -50,40 +50,37 @@ pub fn matmul_naive<
     let num_cols = rhs.shape.dims[D - 1];
 
     let buffer = lhs
-        .context
-        .create_buffer(shape_out.num_elements() * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(lhs.context.clone(), shape_out, buffer);
+        .client
+        .empty(shape_out.num_elements() * core::mem::size_of::<E>());
+    let output = WgpuTensor::new(lhs.client.clone(), lhs.device, shape_out, buffer);
 
     // set number of workgroups
     let blocks_needed_in_x = f32::ceil(num_rows as f32 / WORKGROUP_SIZE_X as f32) as u32;
     let blocks_needed_in_y = f32::ceil(num_cols as f32 / WORKGROUP_SIZE_Y as f32) as u32;
-
-    let kernel = lhs.context.compile_static::<KernelSettings<
-        MatmulNaive<WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y>,
-        E,
-        i32,
-        WORKGROUP_SIZE_X,
-        WORKGROUP_SIZE_Y,
-        1,
-    >>();
-
-    let info = build_info(&[&lhs, &rhs, &output]);
-
-    let info_buffers = lhs
-        .context
-        .create_buffer_with_data(bytemuck::cast_slice(&info));
-
     let mut num_iter = 1;
     for i in 0..D - 2 {
         num_iter *= output.shape.dims[i];
     }
-
     let workgroup = WorkGroup::new(blocks_needed_in_x, blocks_needed_in_y, num_iter as u32);
 
-    lhs.context.execute(
-        workgroup,
-        kernel,
-        &[&lhs.buffer, &rhs.buffer, &output.buffer, &info_buffers],
+    let kernel = StaticKernel::<
+        KernelSettings<
+            MatmulNaive<WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y>,
+            E,
+            i32,
+            WORKGROUP_SIZE_X,
+            WORKGROUP_SIZE_Y,
+            1,
+        >,
+    >::new(workgroup);
+
+    let info = build_info(&[&lhs, &rhs, &output]);
+
+    let info_handle = lhs.client.create(bytemuck::cast_slice(&info));
+
+    lhs.client.execute(
+        Box::new(kernel),
+        &[&lhs.handle, &rhs.handle, &output.handle, &info_handle],
     );
 
     output
