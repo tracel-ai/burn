@@ -1,7 +1,7 @@
 use std::{borrow::Cow, sync::Arc};
 
-use super::WgpuStorage;
-use crate::{context::WorkGroup, kernel::SourceTemplate};
+use super::{WgpuStorage, WorkGroup};
+use crate::kernel::SourceTemplate;
 use burn_compute::{
     memory_management::{MemoryManagement, SimpleMemoryManagement},
     server::{self, ComputeServer},

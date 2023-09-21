@@ -1,9 +1,17 @@
 use super::Kernel;
-use crate::{
-    context::WorkGroup,
-    kernel::{DynamicKernelSource, SourceTemplate, StaticKernelSource},
-};
+use crate::kernel::{DynamicKernelSource, SourceTemplate, StaticKernelSource};
 use core::marker::PhantomData;
+
+/// Provides launch information specifying the number of work groups to be used by a compute shader.
+#[derive(new, Clone, Debug)]
+pub struct WorkGroup {
+    /// Work groups for the x axis.
+    pub x: u32,
+    /// Work groups for the y axis.
+    pub y: u32,
+    /// Work groups for the z axis.
+    pub z: u32,
+}
 
 /// Wraps a [dynamic kernel source](DynamicKernelSource) into a [kernel](Kernel) with launch
 /// information such as [workgroup](WorkGroup).

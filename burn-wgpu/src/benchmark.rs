@@ -1,4 +1,4 @@
-use crate::{pool::get_context, GraphicsApi, WgpuDevice};
+use crate::{compute::compute_client, GraphicsApi, WgpuDevice};
 use std::{
     fmt::Display,
     time::{Duration, Instant},
@@ -83,7 +83,7 @@ pub trait Benchmark<G: GraphicsApi> {
     fn name(&self) -> String;
     /// Run the benchmark a number of times.
     fn run(&self, device: &WgpuDevice) -> BenchmarkResult {
-        let context = get_context::<G>(device);
+        let context = compute_client::<G>(device);
 
         // Warmup
         self.execute(self.prepare(device));

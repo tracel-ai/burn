@@ -1,5 +1,9 @@
 use super::SourceTemplate;
-use crate::{compute::StaticKernel, context::WorkGroup, element::WgpuElement, tensor::WgpuTensor};
+use crate::{
+    compute::{StaticKernel, WorkGroup},
+    element::WgpuElement,
+    tensor::WgpuTensor,
+};
 use std::marker::PhantomData;
 
 /// Static wgpu kernel to create a [source template](SourceTemplate).
