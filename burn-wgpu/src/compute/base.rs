@@ -1,23 +1,19 @@
-use super::{Kernel, WgpuServer};
-use crate::{
-    compute::WgpuStorage,
-    context::{select_device, WorkGroup},
-    kernel::{DynamicKernel, SourceTemplate, StaticKernel},
-    GraphicsApi, WgpuDevice,
-};
+use super::WgpuServer;
+use crate::{compute::WgpuStorage, context::select_device, GraphicsApi, WgpuDevice};
+use alloc::sync::Arc;
 use burn_compute::{
     channel::MutexComputeChannel,
     client::ComputeClient,
     memory_management::{DeallocStrategy, SimpleMemoryManagement},
     Compute,
 };
-use std::{marker::PhantomData, sync::Arc};
 
 type WgpuChannel = MutexComputeChannel<WgpuServer>;
 
 /// Compute handle for the wgpu backend.
 static COMPUTE: Compute<WgpuDevice, WgpuServer, WgpuChannel> = Compute::new();
 
+/// Get the [compute client](ComputeClient) for the given [device](WgpuDevice).
 pub fn compute_client<G: GraphicsApi>(
     device: &WgpuDevice,
 ) -> ComputeClient<WgpuServer, WgpuChannel> {
@@ -49,81 +45,4 @@ pub fn compute_client<G: GraphicsApi>(
 
         ComputeClient::new(channel)
     })
-}
-
-pub struct DynamicComputeKernel<K> {
-    kernel: K,
-    workgroup: WorkGroup,
-}
-
-impl<K> Kernel for DynamicComputeKernel<K>
-where
-    K: DynamicKernel + 'static,
-{
-    fn source_template(self: Box<Self>) -> SourceTemplate {
-        self.kernel.source_template()
-    }
-
-    fn id(&self) -> String {
-        self.kernel.id()
-    }
-
-    fn workgroup(&self) -> WorkGroup {
-        self.workgroup.clone()
-    }
-}
-
-#[derive(new)]
-pub struct StaticComputeKernel<K> {
-    workgroup: WorkGroup,
-    _kernel: PhantomData<K>,
-}
-
-impl<K> Kernel for StaticComputeKernel<K>
-where
-    K: StaticKernel + 'static,
-{
-    fn source_template(self: Box<Self>) -> SourceTemplate {
-        K::source_template()
-    }
-
-    fn id(&self) -> String {
-        format!("{:?}", core::any::TypeId::of::<K>())
-    }
-
-    fn workgroup(&self) -> WorkGroup {
-        self.workgroup.clone()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{binary_elemwise, kernel::KernelSettings, AutoGraphicsApi};
-
-    #[test]
-    fn can_run_kernel() {
-        binary_elemwise!(Add, "+");
-
-        let client = compute_client::<AutoGraphicsApi>(&WgpuDevice::default());
-
-        let lhs: Vec<f32> = vec![0., 1., 2., 3., 4., 5., 6., 7.];
-        let rhs: Vec<f32> = vec![10., 11., 12., 6., 7., 3., 1., 0.];
-        let info: Vec<u32> = vec![1, 1, 1, 1, 8, 8, 8];
-
-        let lhs = client.create(bytemuck::cast_slice(&lhs));
-        let rhs = client.create(bytemuck::cast_slice(&rhs));
-        let out = client.empty(core::mem::size_of::<f32>() * 8);
-        let info = client.create(bytemuck::cast_slice(&info));
-
-        type Kernel = KernelSettings<Add, f32, i32, 16, 16, 1>;
-        let kernel = Box::new(StaticComputeKernel::<Kernel>::new(WorkGroup::new(1, 1, 1)));
-
-        client.execute(kernel, &[&lhs, &rhs, &out, &info]);
-
-        let data = client.read(&out);
-        let output: &[f32] = bytemuck::cast_slice(&data);
-
-        assert_eq!(output, [10., 12., 14., 9., 11., 8., 7., 7.]);
-    }
 }

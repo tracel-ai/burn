@@ -1,0 +1,87 @@
+use super::Kernel;
+use crate::{
+    context::WorkGroup,
+    kernel::{DynamicKernel, SourceTemplate, StaticKernel},
+    WgpuDevice,
+};
+use core::marker::PhantomData;
+
+/// Wraps a [dynamic kernel](DynamicKernel) into a [kernel](Kernel)
+#[derive(new)]
+pub struct DynamicComputeKernel<K> {
+    kernel: K,
+    workgroup: WorkGroup,
+}
+#[derive(new)]
+pub struct StaticComputeKernel<K> {
+    workgroup: WorkGroup,
+    _kernel: PhantomData<K>,
+}
+
+impl<K> Kernel for DynamicComputeKernel<K>
+where
+    K: DynamicKernel + 'static,
+{
+    fn source_template(self: Box<Self>) -> SourceTemplate {
+        self.kernel.source_template()
+    }
+
+    fn id(&self) -> String {
+        self.kernel.id()
+    }
+
+    fn workgroup(&self) -> WorkGroup {
+        self.workgroup.clone()
+    }
+}
+
+impl<K> Kernel for StaticComputeKernel<K>
+where
+    K: StaticKernel + 'static,
+{
+    fn source_template(self: Box<Self>) -> SourceTemplate {
+        K::source_template()
+    }
+
+    fn id(&self) -> String {
+        format!("{:?}", core::any::TypeId::of::<K>())
+    }
+
+    fn workgroup(&self) -> WorkGroup {
+        self.workgroup.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        binary_elemwise, compute::compute_client, kernel::KernelSettings, AutoGraphicsApi,
+    };
+
+    #[test]
+    fn can_run_kernel() {
+        binary_elemwise!(Add, "+");
+
+        let client = compute_client::<AutoGraphicsApi>(&WgpuDevice::default());
+
+        let lhs: Vec<f32> = vec![0., 1., 2., 3., 4., 5., 6., 7.];
+        let rhs: Vec<f32> = vec![10., 11., 12., 6., 7., 3., 1., 0.];
+        let info: Vec<u32> = vec![1, 1, 1, 1, 8, 8, 8];
+
+        let lhs = client.create(bytemuck::cast_slice(&lhs));
+        let rhs = client.create(bytemuck::cast_slice(&rhs));
+        let out = client.empty(core::mem::size_of::<f32>() * 8);
+        let info = client.create(bytemuck::cast_slice(&info));
+
+        type Kernel = KernelSettings<Add, f32, i32, 16, 16, 1>;
+        let kernel = Box::new(StaticComputeKernel::<Kernel>::new(WorkGroup::new(1, 1, 1)));
+
+        client.execute(kernel, &[&lhs, &rhs, &out, &info]);
+
+        let data = client.read(&out);
+        let output: &[f32] = bytemuck::cast_slice(&data);
+
+        assert_eq!(output, [10., 12., 14., 9., 11., 8., 7., 7.]);
+    }
+}
