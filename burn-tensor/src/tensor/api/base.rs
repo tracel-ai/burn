@@ -587,6 +587,34 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         shape: Shape<D2>,
     ) -> Self::Primitive<D2>;
 
+    /// Transposes a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to transpose.
+    ///
+    /// # Returns
+    ///
+    /// The transposed tensor.
+    fn transpose<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D>;
+
+    /// Swaps two dimensions of a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to swap the dimensions of.
+    /// * `dim1` - The first dimension to swap.
+    /// * `dim2` - The second dimension to swap.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the dimensions swapped.
+    fn swap_dims<const D: usize>(
+        tensor: Self::Primitive<D>,
+        dim1: usize,
+        dim2: usize,
+    ) -> Self::Primitive<D>;
+
     ///  Select tensor elements corresponding for the given ranges.
     ///
     /// # Arguments
@@ -819,6 +847,19 @@ impl<B: Backend> BasicOps<B> for Float {
         B::reshape(tensor, shape)
     }
 
+    fn transpose<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
+        B::transpose(tensor)
+    }
+
+    fn swap_dims<const D: usize>(
+        tensor: Self::Primitive<D>,
+        dim1: usize,
+        dim2: usize,
+    ) -> Self::Primitive<D> {
+        check!(TensorCheck::swap_dims::<D>(dim1, dim2));
+        B::swap_dims(tensor, dim1, dim2)
+    }
+
     fn slice<const D1: usize, const D2: usize>(
         tensor: Self::Primitive<D1>,
         ranges: [Range<usize>; D2],
@@ -893,6 +934,19 @@ impl<B: Backend> BasicOps<B> for Int {
         B::int_reshape(tensor, shape)
     }
 
+    fn transpose<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
+        B::int_transpose(tensor)
+    }
+
+    fn swap_dims<const D: usize>(
+        tensor: Self::Primitive<D>,
+        dim1: usize,
+        dim2: usize,
+    ) -> Self::Primitive<D> {
+        check!(TensorCheck::swap_dims::<D>(dim1, dim2));
+        B::int_swap_dims(tensor, dim1, dim2)
+    }
+
     fn slice<const D1: usize, const D2: usize>(
         tensor: Self::Primitive<D1>,
         ranges: [Range<usize>; D2],
@@ -965,6 +1019,19 @@ impl<B: Backend> BasicOps<B> for Bool {
         shape: Shape<D2>,
     ) -> Self::Primitive<D2> {
         B::bool_reshape(tensor, shape)
+    }
+
+    fn transpose<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
+        B::bool_transpose(tensor)
+    }
+
+    fn swap_dims<const D: usize>(
+        tensor: Self::Primitive<D>,
+        dim1: usize,
+        dim2: usize,
+    ) -> Self::Primitive<D> {
+        check!(TensorCheck::swap_dims::<D>(dim1, dim2));
+        B::bool_swap_dims(tensor, dim1, dim2)
     }
 
     fn slice<const D1: usize, const D2: usize>(
