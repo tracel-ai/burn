@@ -37,7 +37,12 @@ pub(crate) fn conv_transpose2d<E: WgpuElement>(
     let num_elems = shape_out.num_elements();
 
     let buffer = input.client.empty(num_elems * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(input.client, input.device, shape_out, buffer);
+    let output = WgpuTensor::new(
+        input.client.clone(),
+        input.device.clone(),
+        shape_out,
+        buffer,
+    );
 
     let mut info = build_info(&[&input, &output, &weight]);
     info.push(options.stride[0] as u32);

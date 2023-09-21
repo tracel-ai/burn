@@ -73,8 +73,9 @@ fn padding<E: WgpuElement, const D: usize>(
         .collect::<Vec<Range<usize>>>()
         .try_into()
         .unwrap();
+
     slice_assign::<E, D, D>(
-        empty_from_context(tensor.client, tensor.device, &padded_shape),
+        empty_from_context(tensor.client.clone(), tensor.device.clone(), &padded_shape),
         ranges,
         tensor,
     )

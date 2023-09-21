@@ -28,7 +28,12 @@ pub(crate) fn slice<E: WgpuElement, const D1: usize, const D2: usize>(
     let num_elems = shape_output.num_elements();
 
     let buffer = tensor.client.empty(num_elems * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(tensor.client, tensor.device, shape_output, buffer);
+    let output = WgpuTensor::new(
+        tensor.client.clone(),
+        tensor.device.clone(),
+        shape_output,
+        buffer,
+    );
     let mut info = build_info(&[&tensor, &output]);
 
     for i in 0..D1 {

@@ -55,7 +55,7 @@ pub(crate) fn max_pool2d_with_indices<E: WgpuElement, I: WgpuElement>(
     let num_elems = output.shape.num_elements();
 
     let indices = WgpuTensor::new(
-        x.client,
+        x.client.clone(),
         x.device,
         output.shape.clone(),
         x.client.empty(num_elems * std::mem::size_of::<I>()),

@@ -24,7 +24,12 @@ pub(crate) fn select<E: WgpuElement, I: WgpuElement, const D: usize>(
     let num_elems = output_shape.num_elements();
 
     let buffer = tensor.client.empty(num_elems * std::mem::size_of::<E>());
-    let output = WgpuTensor::new(tensor.client, tensor.device, output_shape, buffer);
+    let output = WgpuTensor::new(
+        tensor.client.clone(),
+        tensor.device.clone(),
+        output_shape,
+        buffer,
+    );
 
     let mut info = build_info(&[&tensor, &output]);
     info.push(dim as u32);

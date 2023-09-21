@@ -83,7 +83,7 @@ pub fn binary_elemwise<
     let num_elems = shape_out.num_elements();
 
     let handle = lhs.client.empty(num_elems * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(lhs.client.clone(), lhs.device, shape_out, handle);
+    let output = WgpuTensor::new(lhs.client.clone(), lhs.device.clone(), shape_out, handle);
 
     let info = build_info(&[&lhs, &rhs, &output]);
     let info_handle = lhs.client.create(bytemuck::cast_slice(&info));

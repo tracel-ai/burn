@@ -18,7 +18,12 @@ pub fn mask_where<E: WgpuElement, const D: usize>(
 
     let num_elems = input.shape.num_elements();
     let buffer = input.client.empty(num_elems * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(input.client, input.device, input.shape.clone(), buffer);
+    let output = WgpuTensor::new(
+        input.client.clone(),
+        input.device.clone(),
+        input.shape.clone(),
+        buffer,
+    );
 
     let kernel = StaticKernel::<KernelSettings<MaskWhere, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
         elemwise_workgroup(num_elems, WORKGROUP),

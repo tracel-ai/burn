@@ -52,7 +52,7 @@ pub fn matmul_naive<
     let buffer = lhs
         .client
         .empty(shape_out.num_elements() * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(lhs.client.clone(), lhs.device, shape_out, buffer);
+    let output = WgpuTensor::new(lhs.client.clone(), lhs.device.clone(), shape_out, buffer);
 
     // set number of workgroups
     let blocks_needed_in_x = f32::ceil(num_rows as f32 / WORKGROUP_SIZE_X as f32) as u32;

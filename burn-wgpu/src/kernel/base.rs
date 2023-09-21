@@ -55,7 +55,7 @@ pub fn into_contiguous<E: WgpuElement, const D: usize>(
     let handle = tensor.client.empty(num_elems * core::mem::size_of::<E>());
     let output = WgpuTensor::new(
         tensor.client.clone(),
-        tensor.device,
+        tensor.device.clone(),
         tensor.shape.clone(),
         handle,
     );

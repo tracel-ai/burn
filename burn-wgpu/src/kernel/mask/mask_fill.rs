@@ -18,7 +18,12 @@ pub fn mask_fill<E: WgpuElement, const D: usize>(
 
     let num_elems = input.shape.num_elements();
     let buffer = input.client.empty(num_elems * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(input.client, input.device, input.shape.clone(), buffer);
+    let output = WgpuTensor::new(
+        input.client.clone(),
+        input.device.clone(),
+        input.shape.clone(),
+        buffer,
+    );
 
     let value_handle = output.client.create(E::as_bytes(&[value]));
     let kernel = StaticKernel::<KernelSettings<MaskFill, E, i32, WORKGROUP, WORKGROUP, 1>>::new(

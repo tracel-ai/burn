@@ -20,7 +20,12 @@ pub(crate) fn gather<E: WgpuElement, I: WgpuElement, const D: usize>(
     let indices = kernel::into_contiguous(indices);
 
     let buffer = tensor.client.empty(num_elems * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(tensor.client, tensor.device, shape_output, buffer);
+    let output = WgpuTensor::new(
+        tensor.client.clone(),
+        tensor.device.clone(),
+        shape_output,
+        buffer,
+    );
     let mut info = build_info(&[&tensor, &output]);
     info.push(dim as u32);
     let info_buffer = tensor.client.create(bytemuck::cast_slice(&info));

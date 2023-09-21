@@ -64,7 +64,7 @@ pub fn matmul_mem_coalescing<E: WgpuElement, const D: usize>(
     let buffer = lhs
         .client
         .empty(shape_out.num_elements() * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(lhs.client.clone(), lhs.device, shape_out, buffer);
+    let output = WgpuTensor::new(lhs.client.clone(), lhs.device.clone(), shape_out, buffer);
 
     // set number of workgroups
     let blocks_needed_in_x = f32::ceil(num_rows as f32 / workgroup_size_x as f32) as u32;

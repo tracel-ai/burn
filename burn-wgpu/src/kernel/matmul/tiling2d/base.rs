@@ -419,7 +419,11 @@ pub(super) fn make_info_handle<E: WgpuElement, const D: usize>(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn matmul_tiling_2d_launch<E: WgpuElement, const D: usize, K: DynamicKernelSource>(
+pub(super) fn matmul_tiling_2d_launch<
+    E: WgpuElement,
+    const D: usize,
+    K: DynamicKernelSource + 'static,
+>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
     b_m: usize,
@@ -466,7 +470,11 @@ pub(super) fn matmul_tiling_2d_launch<E: WgpuElement, const D: usize, K: Dynamic
 
     let rounded_output_shape = shape_out(&lhs, &rhs);
 
-    let output = empty_from_context::<E, D>(rhs.client, rhs.device, &rounded_output_shape);
+    let output = empty_from_context::<E, D>(
+        rhs.client.clone(),
+        rhs.device.clone(),
+        &rounded_output_shape,
+    );
 
     let workgroup = make_workgroup(rounded_output_shape, b_m, b_n);
     let info_handle = make_info_handle(&lhs, &rhs, &output);

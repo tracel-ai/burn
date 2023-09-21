@@ -15,6 +15,7 @@ impl BenchmarkResult {
         self.durations.iter().sum::<Duration>() / self.durations.len() as u32
     }
 
+    #[allow(dead_code)]
     pub(crate) fn median_duration(&self) -> Duration {
         let mut sorted = self.durations.clone();
         sorted.sort();

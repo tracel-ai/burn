@@ -27,7 +27,12 @@ pub(crate) fn adaptive_avg_pool2d<E: WgpuElement>(
     let output_shape = Shape::new([batch_size, channels, output_size[0], output_size[1]]);
     let num_elems = output_shape.num_elements();
     let output_buffer = x.client.empty(num_elems * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(x.client, x.device, output_shape, output_buffer);
+    let output = WgpuTensor::new(
+        x.client.clone(),
+        x.device.clone(),
+        output_shape,
+        output_buffer,
+    );
 
     let kernel =
         StaticKernel::<KernelSettings<AdaptiveAvgPool2d, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
@@ -50,7 +55,12 @@ pub(crate) fn adaptive_avg_pool2d_backward<E: WgpuElement>(
     let output_shape = x.shape.clone();
     let num_elems = output_shape.num_elements();
     let output_buffer = x.client.empty(num_elems * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(x.client, x.device, output_shape, output_buffer);
+    let output = WgpuTensor::new(
+        x.client.clone(),
+        x.device.clone(),
+        output_shape,
+        output_buffer,
+    );
 
     let kernel = StaticKernel::<
         KernelSettings<AdaptiveAvgPool2dBackward, E, i32, WORKGROUP, WORKGROUP, 1>,

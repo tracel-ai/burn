@@ -73,7 +73,7 @@ pub(crate) fn avg_pool2d_backward<E: WgpuElement>(
 
     let num_elems = x.shape.num_elements();
     let buffer = x.client.empty(num_elems * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(x.client.clone(), x.device, x.shape.clone(), buffer);
+    let output = WgpuTensor::new(x.client.clone(), x.device.clone(), x.shape.clone(), buffer);
     let info_handle = build_pool2d_info(&x, &grad, kernel_size, stride, padding, [1, 1]);
     let workgroup = elemwise_workgroup(output.shape.num_elements(), WORKGROUP);
 
