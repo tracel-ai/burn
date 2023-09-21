@@ -102,4 +102,48 @@ mod tests {
         let data_expected = Data::from([[0.0, 1.0, 2.0], [10.0, 5.0, 5.0]]);
         assert_eq!(data_expected, data_actual);
     }
+
+    #[test]
+    #[should_panic]
+    fn should_panic_when_slice_exceeds_dimension() {
+        let data = Data::from([0.0, 1.0, 2.0]);
+        let tensor = Tensor::<TestBackend, 1>::from_data(data.clone());
+
+        let data_actual = tensor.slice([0..4]).into_data();
+
+        assert_eq!(data, data_actual);
+    }
+
+    #[test]
+    #[should_panic]
+    fn should_panic_when_slice_with_too_many_dimensions() {
+        let data = Data::from([0.0, 1.0, 2.0]);
+        let tensor = Tensor::<TestBackend, 1>::from_data(data.clone());
+
+        let data_actual = tensor.slice([0..1, 0..1]).into_data();
+
+        assert_eq!(data, data_actual);
+    }
+
+    #[test]
+    #[should_panic]
+    fn should_panic_when_slice_is_desc() {
+        let data = Data::from([0.0, 1.0, 2.0]);
+        let tensor = Tensor::<TestBackend, 1>::from_data(data.clone());
+
+        let data_actual = tensor.slice([2..1]).into_data();
+
+        assert_eq!(data, data_actual);
+    }
+
+    #[test]
+    #[should_panic]
+    fn should_panic_when_slice_is_equal() {
+        let data = Data::from([0.0, 1.0, 2.0]);
+        let tensor = Tensor::<TestBackend, 1>::from_data(data.clone());
+
+        let data_actual = tensor.slice([1..1]).into_data();
+
+        assert_eq!(data, data_actual);
+    }
 }

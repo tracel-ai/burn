@@ -15,6 +15,7 @@ pub use tensor::*;
 
 #[cfg(test)]
 mod tests {
+    extern crate alloc;
     use super::*;
 
     pub type TestBackend = CandleBackend<f32, i64>;
