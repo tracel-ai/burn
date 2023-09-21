@@ -1,4 +1,5 @@
 use crate::{
+    compute::StaticKernel,
     element::WgpuElement,
     kernel::{self, build_info, elemwise_workgroup, KernelSettings},
     kernel_wgsl,
@@ -18,27 +19,22 @@ pub(crate) fn gather<E: WgpuElement, I: WgpuElement, const D: usize>(
     let num_elems = shape_output.num_elements();
     let indices = kernel::into_contiguous(indices);
 
-    let buffer = tensor
-        .context
-        .create_buffer(num_elems * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(tensor.context.clone(), shape_output, buffer);
+    let buffer = tensor.client.empty(num_elems * core::mem::size_of::<E>());
+    let output = WgpuTensor::new(tensor.client, tensor.device, shape_output, buffer);
     let mut info = build_info(&[&tensor, &output]);
     info.push(dim as u32);
-    let info_buffer = tensor
-        .context
-        .create_buffer_with_data(bytemuck::cast_slice(&info));
+    let info_buffer = tensor.client.create(bytemuck::cast_slice(&info));
 
-    let kernel = tensor
-        .context
-        .compile_static::<KernelSettings<Gather, E, i32, WORKGROUP, WORKGROUP, 1>>();
-
-    tensor.context.execute(
+    let kernel = StaticKernel::<KernelSettings<Gather, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
         elemwise_workgroup(num_elems, WORKGROUP),
-        kernel,
+    );
+
+    tensor.client.execute(
+        Box::new(kernel),
         &[
-            &tensor.buffer,
-            &indices.buffer,
-            &output.buffer,
+            &tensor.handle,
+            &indices.handle,
+            &output.handle,
             &info_buffer,
         ],
     );
