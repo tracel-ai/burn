@@ -1,4 +1,5 @@
 use super::{build_info, elemwise_workgroup, KernelSettings, StaticKernelSource};
+use crate::compute::StaticKernel;
 use crate::{element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 use burn_tensor::Shape;
 
@@ -81,23 +82,19 @@ pub fn binary_elemwise<
     let shape_out = Shape::new(shape_out);
     let num_elems = shape_out.num_elements();
 
-    let buffer = lhs
-        .context
-        .create_buffer(num_elems * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(lhs.context.clone(), shape_out, buffer);
+    let handle = lhs.client.empty(num_elems * core::mem::size_of::<E>());
+    let output = WgpuTensor::new(lhs.client.clone(), lhs.device, shape_out, handle);
 
-    let kernel = lhs
-        .context
-        .compile_static::<KernelSettings<K, E, i32, WORKGROUP, WORKGROUP, 1>>();
     let info = build_info(&[&lhs, &rhs, &output]);
-    let info_buffers = lhs
-        .context
-        .create_buffer_with_data(bytemuck::cast_slice(&info));
+    let info_handle = lhs.client.create(bytemuck::cast_slice(&info));
 
-    lhs.context.execute(
+    let kernel = StaticKernel::<KernelSettings<K, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
         elemwise_workgroup(num_elems, WORKGROUP),
-        kernel,
-        &[&lhs.buffer, &rhs.buffer, &output.buffer, &info_buffers],
+    );
+
+    lhs.client.execute(
+        Box::new(kernel),
+        &[&lhs.handle, &rhs.handle, &output.handle, &info_handle],
     );
 
     output
@@ -123,19 +120,14 @@ pub fn binary_elemwise_inplace<
 ) -> WgpuTensor<E, D> {
     lhs.assert_is_on_same_device(&rhs);
 
-    let kernel = lhs
-        .context
-        .compile_static::<KernelSettings<K, E, i32, WORKGROUP, WORKGROUP, 1>>();
     let info = build_info(&[&lhs, &rhs]);
-    let info_buffers = lhs
-        .context
-        .create_buffer_with_data(bytemuck::cast_slice(&info));
-
-    lhs.context.execute(
+    let info_handle = lhs.client.create(bytemuck::cast_slice(&info));
+    let kernel = StaticKernel::<KernelSettings<K, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
         elemwise_workgroup(lhs.shape.num_elements(), WORKGROUP),
-        kernel,
-        &[&lhs.buffer, &rhs.buffer, &info_buffers],
     );
+
+    lhs.client
+        .execute(Box::new(kernel), &[&lhs.handle, &rhs.handle, &info_handle]);
 
     lhs
 }

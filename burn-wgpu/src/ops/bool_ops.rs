@@ -47,7 +47,7 @@ where
 
     fn bool_into_int<const D: usize>(tensor: BoolTensor<Self, D>) -> IntTensor<Self, D> {
         if std::mem::size_of::<I>() == std::mem::size_of::<u32>() {
-            return WgpuTensor::new(tensor.context, tensor.shape, tensor.buffer);
+            return WgpuTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle);
         }
 
         let device = Self::bool_device(&tensor);
@@ -57,7 +57,7 @@ where
     }
 
     fn bool_device<const D: usize>(tensor: &BoolTensor<Self, D>) -> Device<Self> {
-        tensor.context.device.clone()
+        tensor.device.clone()
     }
 
     fn bool_to_device<const D: usize>(

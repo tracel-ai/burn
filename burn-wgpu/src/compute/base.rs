@@ -10,6 +10,9 @@ use burn_compute::{
 
 type WgpuChannel = MutexComputeChannel<WgpuServer>;
 
+pub type WgpuComputeClient = ComputeClient<WgpuServer, WgpuChannel>;
+pub type WgpuHandle = burn_compute::server::Handle<WgpuServer>;
+
 /// Compute handle for the wgpu backend.
 static COMPUTE: Compute<WgpuDevice, WgpuServer, WgpuChannel> = Compute::new();
 

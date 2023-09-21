@@ -13,6 +13,7 @@ use wgpu::{
 };
 
 /// Wgpu compute server.
+#[derive(Debug)]
 pub struct WgpuServer<MM = SimpleMemoryManagement<WgpuStorage>> {
     memory_management: MM,
     device: Arc<wgpu::Device>,
@@ -23,7 +24,7 @@ pub struct WgpuServer<MM = SimpleMemoryManagement<WgpuStorage>> {
     max_tasks: usize,
 }
 
-#[derive(new)]
+#[derive(new, Debug)]
 struct ComputeTask {
     pipeline: Arc<ComputePipeline>,
     bind_group: BindGroup,

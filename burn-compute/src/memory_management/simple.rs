@@ -26,7 +26,7 @@ impl SliceId {
 }
 
 /// The SimpleHandle is a memory handle, referring to either a chunk or a slice.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum SimpleHandle {
     /// A whole chunk of memory.
     Chunk(ChunkId),
@@ -35,6 +35,7 @@ pub enum SimpleHandle {
 }
 
 /// The strategy defines the frequency at which deallocation of unused memory chunks should occur.
+#[derive(Debug)]
 pub enum DeallocStrategy {
     /// Once every n calls to reserve.
     ///
@@ -79,6 +80,19 @@ pub struct SimpleMemoryManagement<Storage> {
     slices: HashMap<SliceId, (StorageHandle, ChunkId)>,
     dealloc_strategy: DeallocStrategy,
     storage: Storage,
+}
+
+impl<Storage> core::fmt::Debug for SimpleMemoryManagement<Storage> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(
+            alloc::format!(
+                "SimpleMemoryManagement {:?} - {:?}",
+                self.dealloc_strategy,
+                core::any::type_name::<Storage>(),
+            )
+            .as_str(),
+        )
+    }
 }
 
 impl MemoryHandle for SimpleHandle {

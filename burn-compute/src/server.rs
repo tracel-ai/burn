@@ -12,7 +12,7 @@ pub type Handle<Server> = <_MemoryManagement<Server> as MemoryManagement<_Storag
 ///
 /// Everything in the server is mutable, therefore it should be solely accessed through the
 /// [compute channel](crate::channel::ComputeChannel) for thread safety.
-pub trait ComputeServer: Send {
+pub trait ComputeServer: Send + core::fmt::Debug {
     /// The kernel type defines the computation algorithms.
     type Kernel: Send;
     /// The [storage](ComputeStorage) type defines how data is stored and accessed.

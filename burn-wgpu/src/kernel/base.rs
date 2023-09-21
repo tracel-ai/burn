@@ -1,5 +1,5 @@
 use super::SourceTemplate;
-use crate::{context::WorkGroup, element::WgpuElement, tensor::WgpuTensor};
+use crate::{compute::StaticKernel, context::WorkGroup, element::WgpuElement, tensor::WgpuTensor};
 use std::marker::PhantomData;
 
 /// Static wgpu kernel to create a [source template](SourceTemplate).
@@ -48,23 +48,21 @@ pub fn into_contiguous<E: WgpuElement, const D: usize>(
     const WORKGROUP: usize = 32;
 
     let num_elems = tensor.shape.num_elements();
-    let buffer = tensor
-        .context
-        .create_buffer(num_elems * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(tensor.context.clone(), tensor.shape.clone(), buffer);
+    let handle = tensor.client.empty(num_elems * core::mem::size_of::<E>());
+    let output = WgpuTensor::new(
+        tensor.client.clone(),
+        tensor.device,
+        tensor.shape.clone(),
+        handle,
+    );
     let info = build_info(&[&tensor, &output]);
-    let info_buffer = tensor
-        .context
-        .create_buffer_with_data(bytemuck::cast_slice(&info));
+    let info_handle = tensor.client.create(bytemuck::cast_slice(&info));
 
-    let kernel = tensor
-        .context
-        .compile_static::<KernelSettings<ContiguousRaw, E, i32, WORKGROUP, WORKGROUP, 1>>();
-
-    tensor.context.execute(
-        elemwise_workgroup(num_elems, WORKGROUP),
-        kernel,
-        &[&tensor.buffer, &output.buffer, &info_buffer],
+    tensor.client.execute(
+        Box::new(StaticKernel::<
+            KernelSettings<ContiguousRaw, E, i32, WORKGROUP, WORKGROUP, 1>,
+        >::new(elemwise_workgroup(num_elems, WORKGROUP))),
+        &[&tensor.handle, &output.handle, &info_handle],
     );
 
     output

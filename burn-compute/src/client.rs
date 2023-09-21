@@ -7,6 +7,7 @@ use core::marker::PhantomData;
 
 /// The ComputeClient is the entry point to require tasks from the ComputeServer.
 /// It should be obtained for a specific device via the Compute struct.
+#[derive(Debug)]
 pub struct ComputeClient<Server, Channel> {
     channel: Channel,
     _server: PhantomData<Server>,

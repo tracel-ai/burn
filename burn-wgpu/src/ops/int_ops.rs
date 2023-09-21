@@ -33,7 +33,7 @@ where
     }
 
     fn int_device<const D: usize>(tensor: &IntTensor<Self, D>) -> Device<Self> {
-        tensor.context.device.clone()
+        tensor.device.clone()
     }
 
     fn int_to_device<const D: usize>(

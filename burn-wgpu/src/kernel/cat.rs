@@ -1,4 +1,5 @@
 use crate::{
+    compute::StaticKernel,
     element::WgpuElement,
     kernel::{build_info, elemwise_workgroup, KernelSettings},
     kernel_wgsl,
@@ -14,16 +15,20 @@ pub fn cat<E: WgpuElement, const D: usize>(
     const WORKGROUP: usize = 32;
 
     let first_input = inputs.get(0).unwrap();
-    let context = &first_input.context;
+    let client = &first_input.client;
     let mut shape_output = first_input.shape.clone();
     shape_output.dims[dim] = inputs.iter().map(|input| input.shape.dims[dim]).sum();
 
     let buffer = first_input
-        .context
-        .create_buffer(shape_output.num_elements() * std::mem::size_of::<E>());
+        .client
+        .empty(shape_output.num_elements() * std::mem::size_of::<E>());
 
-    let output = WgpuTensor::new(context.clone(), shape_output, buffer);
-    let kernel = context.compile_static::<KernelSettings<Cat, E, i32, WORKGROUP, WORKGROUP, 1>>();
+    let output = WgpuTensor::new(
+        client.clone(),
+        first_input.device.clone(),
+        shape_output,
+        buffer,
+    );
 
     let mut dim_cat_index = 0;
 
@@ -32,12 +37,14 @@ pub fn cat<E: WgpuElement, const D: usize>(
         info.push(dim as u32);
         info.push(dim_cat_index as u32);
         dim_cat_index += input.shape.dims[dim];
-        let info_buffer = context.create_buffer_with_data(bytemuck::cast_slice(&info));
-
-        context.execute(
+        let info_buffer = client.create(bytemuck::cast_slice(&info));
+        let kernel = StaticKernel::<KernelSettings<Cat, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
             elemwise_workgroup(input.shape.num_elements(), WORKGROUP),
-            kernel.clone(),
-            &[&input.buffer, &output.buffer, &info_buffer],
+        );
+
+        client.execute(
+            Box::new(kernel),
+            &[&input.handle, &output.handle, &info_buffer],
         );
     }
 

@@ -1,5 +1,5 @@
 use super::{elemwise_workgroup, KernelSettings, StaticKernelSource};
-use crate::{element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
+use crate::{compute::StaticKernel, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 
 kernel_wgsl!(UnaryRaw, "../template/unary.wgsl");
 kernel_wgsl!(UnaryInplaceRaw, "../template/unary_inplace.wgsl");
@@ -118,15 +118,11 @@ pub fn unary_inplace<
     input: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     let num_elems = input.shape.num_elements();
-    let kernel = input
-        .context
-        .compile_static::<KernelSettings<K, E, i32, WORKGROUP, WORKGROUP, 1>>();
-
-    input.context.execute(
+    let kernel = StaticKernel::<KernelSettings<K, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
         elemwise_workgroup(num_elems, WORKGROUP),
-        kernel,
-        &[&input.buffer],
     );
+
+    input.client.execute(Box::new(kernel), &[&input.handle]);
 
     input
 }
@@ -136,23 +132,18 @@ pub fn unary<K: StaticKernelSource, E: WgpuElement, const D: usize, const WORKGR
     input: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     let num_elems = input.shape.num_elements();
-    let buffer = input
-        .context
-        .create_buffer(num_elems * core::mem::size_of::<E>());
-    let mut output = WgpuTensor::new(input.context.clone(), input.shape, buffer);
+    let buffer = input.client.empty(num_elems * core::mem::size_of::<E>());
+    let mut output = WgpuTensor::new(input.client.clone(), input.device, input.shape, buffer);
     // Since we don't handle the stride inside the kernel, the output tensor have the same strides
     // as the input tensor. It might not be in the default format.
     output.strides = input.strides;
 
-    let kernel = input
-        .context
-        .compile_static::<KernelSettings<K, E, i32, WORKGROUP, WORKGROUP, 1>>();
-
-    input.context.execute(
+    let kernel = StaticKernel::<KernelSettings<K, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
         elemwise_workgroup(num_elems, WORKGROUP),
-        kernel,
-        &[&input.buffer, &output.buffer],
     );
+    input
+        .client
+        .execute(Box::new(kernel), &[&input.handle, &output.handle]);
 
     output
 }

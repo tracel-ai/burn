@@ -57,7 +57,7 @@ where
     }
 
     fn device<const D: usize>(tensor: &FloatTensor<Self, D>) -> Device<Self> {
-        tensor.context.device.clone()
+        tensor.device.clone()
     }
 
     fn to_device<const D: usize>(

@@ -2,7 +2,6 @@ use super::Kernel;
 use crate::{
     context::WorkGroup,
     kernel::{DynamicKernelSource, SourceTemplate, StaticKernelSource},
-    WgpuDevice,
 };
 use core::marker::PhantomData;
 
@@ -61,6 +60,7 @@ mod tests {
     use super::*;
     use crate::{
         binary_elemwise, compute::compute_client, kernel::KernelSettings, AutoGraphicsApi,
+        WgpuDevice,
     };
 
     #[test]

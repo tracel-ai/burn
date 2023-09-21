@@ -6,6 +6,7 @@ use spin::Mutex;
 
 /// The MutexComputeChannel ensures thread-safety by locking the server
 /// on every operation
+#[derive(Debug)]
 pub struct MutexComputeChannel<Server> {
     server: Arc<Mutex<Server>>,
 }

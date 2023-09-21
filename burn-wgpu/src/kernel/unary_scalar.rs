@@ -1,5 +1,5 @@
 use super::{elemwise_workgroup, KernelSettings, StaticKernelSource};
-use crate::{element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
+use crate::{compute::StaticKernel, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 
 kernel_wgsl!(UnaryScalarRaw, "../template/unary_scalar.wgsl");
 kernel_wgsl!(
@@ -122,19 +122,16 @@ pub fn unary_scalar<
     scalar: E,
 ) -> WgpuTensor<E, D> {
     let num_elems = lhs.shape.num_elements();
-    let buffer = lhs
-        .context
-        .create_buffer(num_elems * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(lhs.context.clone(), lhs.shape, buffer);
-    let kernel = lhs
-        .context
-        .compile_static::<KernelSettings<K, E, i32, WORKGROUP, WORKGROUP, 1>>();
-    let rhs_buffer = lhs.context.create_buffer_with_data(E::as_bytes(&[scalar]));
-
-    lhs.context.execute(
+    let buffer = lhs.client.empty(num_elems * core::mem::size_of::<E>());
+    let output = WgpuTensor::new(lhs.client.clone(), lhs.device, lhs.shape, buffer);
+    let kernel = StaticKernel::<KernelSettings<K, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
         elemwise_workgroup(num_elems, WORKGROUP),
-        kernel,
-        &[&lhs.buffer, &rhs_buffer, &output.buffer],
+    );
+    let rhs_handle = lhs.client.create(E::as_bytes(&[scalar]));
+
+    lhs.client.execute(
+        Box::new(kernel),
+        &[&lhs.handle, &rhs_handle, &output.handle],
     );
 
     output
@@ -158,19 +155,14 @@ pub fn unary_scalar_inplace<
     lhs: WgpuTensor<E, D>,
     scalar: E,
 ) -> WgpuTensor<E, D> {
-    let kernel = lhs
-        .context
-        .compile_static::<KernelSettings<K, E, i32, WORKGROUP, WORKGROUP, 1>>();
-    let rhs_buffer = lhs.context.create_buffer_with_data(E::as_bytes(&[scalar]));
-
-    lhs.context.execute(
-        {
-            let num_elems = lhs.shape.num_elements();
-            elemwise_workgroup(num_elems, WORKGROUP)
-        },
-        kernel,
-        &[&lhs.buffer, &rhs_buffer],
+    let num_elems = lhs.shape.num_elements();
+    let kernel = StaticKernel::<KernelSettings<K, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
+        elemwise_workgroup(num_elems, WORKGROUP),
     );
+    let rhs_handle = lhs.client.create(E::as_bytes(&[scalar]));
+
+    lhs.client
+        .execute(Box::new(kernel), &[&lhs.handle, &rhs_handle]);
 
     lhs
 }
