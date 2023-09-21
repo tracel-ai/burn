@@ -249,5 +249,7 @@ where
             self.register_tasks();
             self.submit();
         }
+
+        self.device.poll(wgpu::Maintain::Wait);
     }
 }

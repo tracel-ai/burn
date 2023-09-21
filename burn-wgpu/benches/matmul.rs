@@ -3,7 +3,7 @@ use burn_wgpu::{
     benchmark::Benchmark,
     kernel::matmul::{
         contiguous, contiguous_vectorized, matmul_mem_coalescing_default, matmul_naive_default,
-        tile, tile_vectorized, 
+        tile, tile_vectorized,
     },
     run_benchmark, GraphicsApi, WgpuBackend, WgpuDevice,
 };
@@ -87,7 +87,6 @@ benchmark!(
     Tiling2DMatmulContiguousVectorized,
     contiguous_vectorized::matmul_tiling_2d_default
 );
-
 
 fn main() {
     let num_repeats = 3;

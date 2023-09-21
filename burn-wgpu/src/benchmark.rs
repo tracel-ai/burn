@@ -84,23 +84,23 @@ pub trait Benchmark<G: GraphicsApi> {
     fn name(&self) -> String;
     /// Run the benchmark a number of times.
     fn run(&self, device: &WgpuDevice) -> BenchmarkResult {
-        let context = compute_client::<G>(device);
+        let client = compute_client::<G>(device);
 
         // Warmup
         self.execute(self.prepare(device));
-        context.sync();
+        client.sync();
 
         let mut durations = Vec::with_capacity(self.num_samples());
 
         for _ in 0..self.num_samples() {
             // Prepare
             let args = self.prepare(device);
-            context.sync();
+            client.sync();
 
             // Execute the benchmark
             let start = Instant::now();
             self.execute(args);
-            context.sync();
+            client.sync();
             let end = Instant::now();
 
             // Register the duration
