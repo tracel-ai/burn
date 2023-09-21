@@ -1,6 +1,6 @@
 use crate::{
     element::WgpuElement,
-    kernel::{elemwise_workgroup, KernelSettings, StaticKernel},
+    kernel::{elemwise_workgroup, KernelSettings, StaticKernelSource},
     kernel_wgsl,
     tensor::WgpuTensor,
 };
@@ -20,9 +20,9 @@ macro_rules! comparison_elem {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::StaticKernel for $struct {
-            fn source_template() -> $crate::kernel::SourceTemplate {
-                $crate::kernel::ComparisonElemRaw::source_template()
+        impl $crate::kernel::StaticKernelSource for $struct {
+            fn source() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::ComparisonElemRaw::source()
                     .register("body", format!("output[id] = u32(lhs[id] {} rhs);", $ops))
             }
         }
@@ -38,9 +38,9 @@ macro_rules! comparison_elem_inplace {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::StaticKernel for $struct {
-            fn source_template() -> $crate::kernel::SourceTemplate {
-                $crate::kernel::ComparisonElemInplaceRaw::source_template()
+        impl $crate::kernel::StaticKernelSource for $struct {
+            fn source() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::ComparisonElemInplaceRaw::source()
                     .register("body", "lhs[id] = compare(lhs[id], rhs);")
                     .add_template(format!(
                         "{}return {{{{ elem }}}}(lhs {} rhs);{}",
@@ -53,7 +53,7 @@ macro_rules! comparison_elem_inplace {
     };
 }
 
-pub fn comparison_elem<K: StaticKernel, E: WgpuElement, const D: usize>(
+pub fn comparison_elem<K: StaticKernelSource, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: E,
 ) -> WgpuTensor<u32, D> {
@@ -77,7 +77,7 @@ pub fn comparison_elem<K: StaticKernel, E: WgpuElement, const D: usize>(
     WgpuTensor::new(lhs.context, lhs.shape, buffer)
 }
 
-pub fn comparison_elem_inplace<K: StaticKernel, E: WgpuElement, const D: usize>(
+pub fn comparison_elem_inplace<K: StaticKernelSource, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: E,
 ) -> WgpuTensor<u32, D> {

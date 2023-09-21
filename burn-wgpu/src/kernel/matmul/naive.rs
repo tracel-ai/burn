@@ -2,7 +2,7 @@ use super::utils::shape_out;
 use crate::{
     context::WorkGroup,
     element::WgpuElement,
-    kernel::{build_info, into_contiguous, KernelSettings, SourceTemplate, StaticKernel},
+    kernel::{build_info, into_contiguous, KernelSettings, SourceTemplate, StaticKernelSource},
     kernel_wgsl,
     tensor::WgpuTensor,
 };
@@ -11,11 +11,11 @@ kernel_wgsl!(MatmulNaiveRaw, "../../template/matmul/naive.wgsl");
 
 struct MatmulNaive<const WORKGROUP_SIZE_X: usize, const WORKGROUP_SIZE_Y: usize>;
 
-impl<const WORKGROUP_SIZE_X: usize, const WORKGROUP_SIZE_Y: usize> StaticKernel
+impl<const WORKGROUP_SIZE_X: usize, const WORKGROUP_SIZE_Y: usize> StaticKernelSource
     for MatmulNaive<WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y>
 {
-    fn source_template() -> SourceTemplate {
-        MatmulNaiveRaw::source_template()
+    fn source() -> SourceTemplate {
+        MatmulNaiveRaw::source()
             .register("block_size_m", WORKGROUP_SIZE_X.to_string())
             .register("block_size_n", WORKGROUP_SIZE_Y.to_string())
     }

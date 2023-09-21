@@ -63,11 +63,11 @@ macro_rules! matmul_tile_2d {
             _elem: core::marker::PhantomData<E>,
         }
 
-        impl<E: WgpuElement> DynamicKernel for $struct<E> {
-            fn source_template(self) -> SourceTemplate {
+        impl<E: WgpuElement> DynamicKernelSource for $struct<E> {
+            fn source(self) -> SourceTemplate {
                 kernel_wgsl!(Raw, $file);
 
-                Raw::source_template()
+                Raw::source()
                     .register("b_m", self.b_m.to_string())
                     .register("b_n", self.b_n.to_string())
                     .register("b_k", self.b_k.to_string())

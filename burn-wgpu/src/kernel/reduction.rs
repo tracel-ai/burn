@@ -1,4 +1,4 @@
-use super::{build_info, KernelSettings, SourceTemplate, StaticKernel};
+use super::{build_info, KernelSettings, SourceTemplate, StaticKernelSource};
 use crate::{element::WgpuElement, kernel::elemwise_workgroup, kernel_wgsl, tensor::WgpuTensor};
 use burn_tensor::Shape;
 
@@ -11,15 +11,15 @@ pub struct ArgsMin;
 pub struct SumDim;
 pub struct MeanDim;
 
-impl StaticKernel for SumDim {
-    fn source_template() -> SourceTemplate {
-        ReductionDimRaw::source_template().register("assign", "output[id] = sum;")
+impl StaticKernelSource for SumDim {
+    fn source() -> SourceTemplate {
+        ReductionDimRaw::source().register("assign", "output[id] = sum;")
     }
 }
 
-impl StaticKernel for MeanDim {
-    fn source_template() -> SourceTemplate {
-        ReductionDimRaw::source_template()
+impl StaticKernelSource for MeanDim {
+    fn source() -> SourceTemplate {
+        ReductionDimRaw::source()
             .add_template(
                 "fn mean_dim(sum: {{ elem }}, dim: u32) -> {{ elem }} { 
     return sum / {{ elem }}(dim);
@@ -29,17 +29,17 @@ impl StaticKernel for MeanDim {
     }
 }
 
-impl StaticKernel for ArgsMax {
-    fn source_template() -> SourceTemplate {
-        ReductionArgsRaw::source_template()
+impl StaticKernelSource for ArgsMax {
+    fn source() -> SourceTemplate {
+        ReductionArgsRaw::source()
             .register("cmp", ">")
             .register("initial", (-32767).to_string())
     }
 }
 
-impl StaticKernel for ArgsMin {
-    fn source_template() -> SourceTemplate {
-        ReductionArgsRaw::source_template()
+impl StaticKernelSource for ArgsMin {
+    fn source() -> SourceTemplate {
+        ReductionArgsRaw::source()
             .register("cmp", "<")
             .register("initial", 32767.to_string())
     }
@@ -91,7 +91,7 @@ pub fn mean_dim<E: WgpuElement, const D: usize>(
     reduction_dim::<MeanDim, E, D>(input, dim)
 }
 
-fn reduction_dim<K: StaticKernel, E: WgpuElement, const D: usize>(
+fn reduction_dim<K: StaticKernelSource, E: WgpuElement, const D: usize>(
     input: WgpuTensor<E, D>,
     dim: usize,
 ) -> WgpuTensor<E, D> {
@@ -140,7 +140,7 @@ pub fn argmin<E: WgpuElement, I: WgpuElement, const D: usize>(
     reduction_args_dim::<ArgsMin, E, I, D>(input, dim)
 }
 
-fn reduction_args_dim<K: StaticKernel, E: WgpuElement, I: WgpuElement, const D: usize>(
+fn reduction_args_dim<K: StaticKernelSource, E: WgpuElement, I: WgpuElement, const D: usize>(
     input: WgpuTensor<E, D>,
     dim: usize,
 ) -> WgpuTensor<I, D> {

@@ -1,29 +1,33 @@
 use super::Kernel;
 use crate::{
     context::WorkGroup,
-    kernel::{DynamicKernel, SourceTemplate, StaticKernel},
+    kernel::{DynamicKernelSource, SourceTemplate, StaticKernelSource},
     WgpuDevice,
 };
 use core::marker::PhantomData;
 
-/// Wraps a [dynamic kernel](DynamicKernel) into a [kernel](Kernel)
+/// Wraps a [dynamic kernel source](DynamicKernelSource) into a [kernel](Kernel) with launch
+/// information such as [workgroup](WorkGroup).
 #[derive(new)]
-pub struct DynamicComputeKernel<K> {
+pub struct DynamicKernel<K> {
     kernel: K,
     workgroup: WorkGroup,
 }
+
+/// Wraps a [static kernel source](StaticKernelSource) into a [kernel](Kernel) with launch
+/// information such as [workgroup](WorkGroup).
 #[derive(new)]
-pub struct StaticComputeKernel<K> {
+pub struct StaticKernel<K> {
     workgroup: WorkGroup,
     _kernel: PhantomData<K>,
 }
 
-impl<K> Kernel for DynamicComputeKernel<K>
+impl<K> Kernel for DynamicKernel<K>
 where
-    K: DynamicKernel + 'static,
+    K: DynamicKernelSource + 'static,
 {
-    fn source_template(self: Box<Self>) -> SourceTemplate {
-        self.kernel.source_template()
+    fn source(self: Box<Self>) -> SourceTemplate {
+        self.kernel.source()
     }
 
     fn id(&self) -> String {
@@ -35,12 +39,12 @@ where
     }
 }
 
-impl<K> Kernel for StaticComputeKernel<K>
+impl<K> Kernel for StaticKernel<K>
 where
-    K: StaticKernel + 'static,
+    K: StaticKernelSource + 'static,
 {
-    fn source_template(self: Box<Self>) -> SourceTemplate {
-        K::source_template()
+    fn source(self: Box<Self>) -> SourceTemplate {
+        K::source()
     }
 
     fn id(&self) -> String {
@@ -75,7 +79,7 @@ mod tests {
         let info = client.create(bytemuck::cast_slice(&info));
 
         type Kernel = KernelSettings<Add, f32, i32, 16, 16, 1>;
-        let kernel = Box::new(StaticComputeKernel::<Kernel>::new(WorkGroup::new(1, 1, 1)));
+        let kernel = Box::new(StaticKernel::<Kernel>::new(WorkGroup::new(1, 1, 1)));
 
         client.execute(kernel, &[&lhs, &rhs, &out, &info]);
 

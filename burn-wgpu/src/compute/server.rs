@@ -32,7 +32,7 @@ struct ComputeTask {
 
 pub trait Kernel: 'static + Send {
     /// Source template for the kernel.
-    fn source_template(self: Box<Self>) -> SourceTemplate;
+    fn source(self: Box<Self>) -> SourceTemplate;
     /// Identifier for the kernel, used for caching kernel compilation.
     fn id(&self) -> String;
     fn workgroup(&self) -> WorkGroup;
@@ -102,7 +102,7 @@ where
             return pipeline.clone();
         }
 
-        let pipeline = self.compile_source(&kernel.source_template().complete());
+        let pipeline = self.compile_source(&kernel.source().complete());
         self.pipelines.insert(kernel_id.clone(), pipeline.clone());
 
         pipeline

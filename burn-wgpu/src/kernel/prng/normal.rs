@@ -4,7 +4,7 @@ use crate::{
     element::WgpuElement,
     kernel::{
         prng::base::{make_args_buffer, make_info_buffer, make_output_tensor},
-        prng_workgroup, KernelSettings, SourceTemplate, StaticKernel,
+        prng_workgroup, KernelSettings, SourceTemplate, StaticKernelSource,
     },
     pool::get_context,
     tensor::WgpuTensor,
@@ -15,9 +15,9 @@ use super::base::Prng;
 
 struct NormalPrng;
 
-impl StaticKernel for NormalPrng {
-    fn source_template() -> SourceTemplate {
-        Prng::source_template()
+impl StaticKernelSource for NormalPrng {
+    fn source() -> SourceTemplate {
+        Prng::source()
             .register("num_args", "2")
             .register(
                 "prng_loop",

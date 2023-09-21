@@ -4,7 +4,9 @@ use super::utils::shape_out;
 use crate::{
     context::WorkGroup,
     element::WgpuElement,
-    kernel::{build_info, into_contiguous, DynamicKernel, SourceTemplate, StaticKernel},
+    kernel::{
+        build_info, into_contiguous, DynamicKernelSource, SourceTemplate, StaticKernelSource,
+    },
     kernel_wgsl,
     tensor::WgpuTensor,
 };
@@ -21,9 +23,9 @@ struct MatmulMemCoalescing<E: WgpuElement> {
     _elem: PhantomData<E>,
 }
 
-impl<E: WgpuElement> DynamicKernel for MatmulMemCoalescing<E> {
-    fn source_template(self) -> SourceTemplate {
-        MatmulMemCoalescingRaw::source_template()
+impl<E: WgpuElement> DynamicKernelSource for MatmulMemCoalescing<E> {
+    fn source(self) -> SourceTemplate {
+        MatmulMemCoalescingRaw::source()
             .register("workgroup_size_x", self.workgroup_size_x.to_string())
             .register("workgroup_size_y", self.workgroup_size_y.to_string())
             .register("elem", E::type_name())

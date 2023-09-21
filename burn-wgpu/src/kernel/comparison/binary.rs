@@ -1,6 +1,6 @@
 use crate::{
     element::WgpuElement,
-    kernel::{build_info, elemwise_workgroup, KernelSettings, StaticKernel},
+    kernel::{build_info, elemwise_workgroup, KernelSettings, StaticKernelSource},
     kernel_wgsl,
     tensor::WgpuTensor,
 };
@@ -21,9 +21,9 @@ macro_rules! comparison {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::StaticKernel for $struct {
-            fn source_template() -> $crate::kernel::SourceTemplate {
-                $crate::kernel::ComparisonRaw::source_template().register(
+        impl $crate::kernel::StaticKernelSource for $struct {
+            fn source() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::ComparisonRaw::source().register(
                     "body",
                     format!("output[id] = u32(lhs[index_lhs] {} rhs[index_rhs]);", $ops),
                 )
@@ -41,9 +41,9 @@ macro_rules! comparison_inplace {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::StaticKernel for $struct {
-            fn source_template() -> $crate::kernel::SourceTemplate {
-                $crate::kernel::ComparisonInplaceRaw::source_template()
+        impl $crate::kernel::StaticKernelSource for $struct {
+            fn source() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::ComparisonInplaceRaw::source()
                     .register(
                         "body",
                         "lhs[index_lhs] = compare(lhs[index_lhs], rhs[index_rhs]);",
@@ -59,7 +59,7 @@ macro_rules! comparison_inplace {
     };
 }
 
-pub fn comparison<K: StaticKernel, E: WgpuElement, const D: usize>(
+pub fn comparison<K: StaticKernelSource, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<u32, D> {
@@ -101,7 +101,7 @@ pub fn comparison<K: StaticKernel, E: WgpuElement, const D: usize>(
     WgpuTensor::new(output.context, output.shape, output.buffer)
 }
 
-pub fn comparison_inplace<K: StaticKernel, E: WgpuElement, const D: usize>(
+pub fn comparison_inplace<K: StaticKernelSource, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<u32, D> {

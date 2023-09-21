@@ -3,7 +3,7 @@ use crate::{
     kernel::{
         self, elemwise_workgroup,
         pool::{build_output_and_info_pool2d, build_pool2d_info},
-        KernelSettings, StaticKernel,
+        KernelSettings, StaticKernelSource,
     },
     kernel_wgsl,
     tensor::WgpuTensor,
@@ -18,17 +18,15 @@ kernel_wgsl!(
 struct AvgPool2dBackward<const COUNT_INCLUDE_PAD: bool>;
 struct AvgPool2d<const COUNT_INCLUDE_PAD: bool>;
 
-impl<const COUNT_INCLUDE_PAD: bool> StaticKernel for AvgPool2dBackward<COUNT_INCLUDE_PAD> {
-    fn source_template() -> kernel::SourceTemplate {
-        AvgPool2dBackwardRaw::source_template()
-            .register("count_include_pad", format!("{COUNT_INCLUDE_PAD}"))
+impl<const COUNT_INCLUDE_PAD: bool> StaticKernelSource for AvgPool2dBackward<COUNT_INCLUDE_PAD> {
+    fn source() -> kernel::SourceTemplate {
+        AvgPool2dBackwardRaw::source().register("count_include_pad", format!("{COUNT_INCLUDE_PAD}"))
     }
 }
 
-impl<const COUNT_INCLUDE_PAD: bool> StaticKernel for AvgPool2d<COUNT_INCLUDE_PAD> {
-    fn source_template() -> kernel::SourceTemplate {
-        AvgPool2dRaw::source_template()
-            .register("count_include_pad", format!("{COUNT_INCLUDE_PAD}"))
+impl<const COUNT_INCLUDE_PAD: bool> StaticKernelSource for AvgPool2d<COUNT_INCLUDE_PAD> {
+    fn source() -> kernel::SourceTemplate {
+        AvgPool2dRaw::source().register("count_include_pad", format!("{COUNT_INCLUDE_PAD}"))
     }
 }
 

@@ -1,4 +1,4 @@
-use super::{elemwise_workgroup, KernelSettings, StaticKernel};
+use super::{elemwise_workgroup, KernelSettings, StaticKernelSource};
 use crate::{element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 
 kernel_wgsl!(UnaryScalarRaw, "../template/unary_scalar.wgsl");
@@ -16,9 +16,9 @@ macro_rules! unary_scalar {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::StaticKernel for $struct {
-            fn source_template() -> $crate::kernel::SourceTemplate {
-                $crate::kernel::UnaryScalarRaw::source_template()
+        impl $crate::kernel::StaticKernelSource for $struct {
+            fn source() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::UnaryScalarRaw::source()
                     .register("body", format!("output[id] = lhs[id] {} rhs;", $ops))
             }
         }
@@ -30,9 +30,9 @@ macro_rules! unary_scalar {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::StaticKernel for $struct {
-            fn source_template() -> $crate::kernel::SourceTemplate {
-                $crate::kernel::UnaryScalarRaw::source_template()
+        impl $crate::kernel::StaticKernelSource for $struct {
+            fn source() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::UnaryScalarRaw::source()
                     .register("body", format!("output[id] = {}(lhs[id], rhs);", $func))
             }
         }
@@ -45,9 +45,9 @@ macro_rules! unary_scalar {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::StaticKernel for $struct {
-            fn source_template() -> $crate::kernel::SourceTemplate {
-                $crate::kernel::UnaryScalarRaw::source_template()
+        impl $crate::kernel::StaticKernelSource for $struct {
+            fn source() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::UnaryScalarRaw::source()
                     .register("body", format!("output[id] = {}(lhs[id], rhs);", $func))
                     .add_template(include_str!($file))
             }
@@ -64,9 +64,9 @@ macro_rules! unary_scalar_inplace {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::StaticKernel for $struct {
-            fn source_template() -> $crate::kernel::SourceTemplate {
-                $crate::kernel::UnaryScalarInplaceRaw::source_template()
+        impl $crate::kernel::StaticKernelSource for $struct {
+            fn source() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::UnaryScalarInplaceRaw::source()
                     .register("body", format!("lhs[id] = lhs[id] {} rhs;", $ops))
             }
         }
@@ -78,9 +78,9 @@ macro_rules! unary_scalar_inplace {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::StaticKernel for $struct {
-            fn source_template() -> $crate::kernel::SourceTemplate {
-                $crate::kernel::UnaryScalarInplaceRaw::source_template()
+        impl $crate::kernel::StaticKernelSource for $struct {
+            fn source() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::UnaryScalarInplaceRaw::source()
                     .register("body", format!("lhs[id] = {}(lhs[id], rhs);", $func))
             }
         }
@@ -93,9 +93,9 @@ macro_rules! unary_scalar_inplace {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::StaticKernel for $struct {
-            fn source_template() -> $crate::kernel::SourceTemplate {
-                $crate::kernel::UnaryScalarInplaceRaw::source_template()
+        impl $crate::kernel::StaticKernelSource for $struct {
+            fn source() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::UnaryScalarInplaceRaw::source()
                     .register("body", format!("lhs[id] = {}(lhs[id], rhs);", $func))
                     .add_template(include_str!($file))
             }
@@ -104,7 +104,7 @@ macro_rules! unary_scalar_inplace {
 }
 
 /// Execute a unary scalar kernel using the default settings.
-pub fn unary_scalar_default<K: StaticKernel, E: WgpuElement, const D: usize>(
+pub fn unary_scalar_default<K: StaticKernelSource, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     scalar: E,
 ) -> WgpuTensor<E, D> {
@@ -112,7 +112,12 @@ pub fn unary_scalar_default<K: StaticKernel, E: WgpuElement, const D: usize>(
 }
 
 /// Execute a unary scalar kernel using the provided WORKGROUP.
-pub fn unary_scalar<K: StaticKernel, E: WgpuElement, const D: usize, const WORKGROUP: usize>(
+pub fn unary_scalar<
+    K: StaticKernelSource,
+    E: WgpuElement,
+    const D: usize,
+    const WORKGROUP: usize,
+>(
     lhs: WgpuTensor<E, D>,
     scalar: E,
 ) -> WgpuTensor<E, D> {
@@ -136,7 +141,7 @@ pub fn unary_scalar<K: StaticKernel, E: WgpuElement, const D: usize, const WORKG
 }
 
 /// Execute a unary scalar inplace kernel using the default settings.
-pub fn unary_scalar_inplace_default<K: StaticKernel, E: WgpuElement, const D: usize>(
+pub fn unary_scalar_inplace_default<K: StaticKernelSource, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     scalar: E,
 ) -> WgpuTensor<E, D> {
@@ -145,7 +150,7 @@ pub fn unary_scalar_inplace_default<K: StaticKernel, E: WgpuElement, const D: us
 
 /// Execute a unary scalar inplace kernel using the provided WORKGROUP.
 pub fn unary_scalar_inplace<
-    K: StaticKernel,
+    K: StaticKernelSource,
     E: WgpuElement,
     const D: usize,
     const WORKGROUP: usize,

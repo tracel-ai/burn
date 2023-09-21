@@ -1,7 +1,7 @@
 use super::client::ContextClient;
 use crate::{
     context::server::ContextServer,
-    kernel::{DynamicKernel, StaticKernel},
+    kernel::{DynamicKernelSource, StaticKernelSource},
     tune::Tuner,
     GraphicsApi, WgpuDevice,
 };
@@ -186,7 +186,7 @@ impl Context {
     }
 
     /// Compile a kernel template if not present in the cache.
-    pub fn compile_static<K: StaticKernel>(&self) -> Arc<ComputePipeline> {
+    pub fn compile_static<K: StaticKernelSource>(&self) -> Arc<ComputePipeline> {
         let mut cache = self.cache.lock();
         let template_id = TemplateKey::Static(TypeId::of::<K>());
 
@@ -194,7 +194,7 @@ impl Context {
             return module.clone();
         }
 
-        let source = K::source_template();
+        let source = K::source();
         let pipeline = self.compile_source(&source.complete());
 
         if self.is_tuning.load(Ordering::Relaxed) {
@@ -207,7 +207,7 @@ impl Context {
     }
 
     /// Compile a dynamic template if not present in the cache.
-    pub fn compile_dynamic<K: DynamicKernel>(&self, kernel: K) -> Arc<ComputePipeline> {
+    pub fn compile_dynamic<K: DynamicKernelSource>(&self, kernel: K) -> Arc<ComputePipeline> {
         let mut cache = self.cache.lock();
         let template_id = TemplateKey::Dynamic(kernel.id());
 
@@ -215,7 +215,7 @@ impl Context {
             return module.clone();
         }
 
-        let source = kernel.source_template();
+        let source = kernel.source();
         let pipeline = self.compile_source(&source.complete());
 
         if self.is_tuning.load(Ordering::Relaxed) {

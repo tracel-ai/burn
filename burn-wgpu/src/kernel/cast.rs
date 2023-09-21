@@ -1,7 +1,7 @@
 use crate::{element::WgpuElement, kernel::elemwise_workgroup, kernel_wgsl, tensor::WgpuTensor};
 use std::{any::TypeId, marker::PhantomData};
 
-use super::{KernelSettings, SourceTemplate, StaticKernel};
+use super::{KernelSettings, SourceTemplate, StaticKernelSource};
 
 kernel_wgsl!(CastRaw, "../template/cast.wgsl");
 
@@ -10,9 +10,11 @@ struct Cast<InputElem: WgpuElement, OutputElem: WgpuElement> {
     _o: PhantomData<OutputElem>,
 }
 
-impl<InputElem: WgpuElement, OutputElem: WgpuElement> StaticKernel for Cast<InputElem, OutputElem> {
-    fn source_template() -> SourceTemplate {
-        CastRaw::source_template()
+impl<InputElem: WgpuElement, OutputElem: WgpuElement> StaticKernelSource
+    for Cast<InputElem, OutputElem>
+{
+    fn source() -> SourceTemplate {
+        CastRaw::source()
             .register("input_elem", InputElem::type_name())
             .register("output_elem", OutputElem::type_name())
     }
