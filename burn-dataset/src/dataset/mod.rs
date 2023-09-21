@@ -6,7 +6,7 @@ mod iterator;
 #[cfg(any(feature = "sqlite", feature = "sqlite-bundled"))]
 mod sqlite;
 
-#[cfg(feature = "fake")]
+#[cfg(any(test, feature = "fake"))]
 pub use self::fake::*;
 pub use base::*;
 pub use in_memory::*;
