@@ -343,10 +343,17 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         // Add default implementation
         let file = file.to_str().unwrap();
         self.default = Some(quote! {
+            _blank_!();
             impl<B: Backend> Default for Model<B> {
                 fn default() -> Self {
+                    Self::from_file(#file)
+                }
+            }
+            _blank_!();
+            impl<B: Backend> Model<B> {
+                pub fn from_file(file: &str) -> Self {
                     let record = #recorder_ty::new()
-                        .load(#file.into())
+                        .load(file.into())
                         .expect("Record file to exist.");
                     Self::new_with(record)
                 }
@@ -366,10 +373,17 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         file.set_extension(BinFileRecorder::<PS>::file_extension());
         let file = file.to_str().unwrap();
         self.default = Some(quote! {
+            _blank_!();
             static EMBEDDED_STATES: &[u8] = include_bytes!(#file);
-
+            _blank_!();
             impl<B: Backend> Default for Model<B> {
                 fn default() -> Self {
+                    Self::from_embedded()
+                }
+            }
+            _blank_!();
+            impl<B: Backend> Model<B> {
+                pub fn from_embedded() -> Self {
                     let record = BinBytesRecorder::<#precision_ty>::default()
                     .load(EMBEDDED_STATES.to_vec())
                     .expect("Failed to decode state");
