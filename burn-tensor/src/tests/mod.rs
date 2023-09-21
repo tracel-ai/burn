@@ -21,6 +21,7 @@ macro_rules! testgen_all {
         burn_tensor::testgen_module_conv2d!();
         burn_tensor::testgen_module_conv_transpose1d!();
         burn_tensor::testgen_module_conv_transpose2d!();
+        burn_tensor::testgen_module_unfold4d!();
         burn_tensor::testgen_module_max_pool1d!();
         burn_tensor::testgen_module_max_pool2d!();
         burn_tensor::testgen_module_avg_pool1d!();
