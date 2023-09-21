@@ -17,7 +17,6 @@ pub trait PrecisionSettings:
 pub struct FullPrecisionSettings;
 
 /// Precision settings optimized for compactness.
-#[cfg(feature = "std")]
 #[derive(Debug, Default, Clone)]
 pub struct HalfPrecisionSettings;
 
@@ -35,7 +34,6 @@ impl PrecisionSettings for DoublePrecisionSettings {
     type IntElem = i64;
 }
 
-#[cfg(feature = "std")]
 impl PrecisionSettings for HalfPrecisionSettings {
     type FloatElem = half::f16;
     type IntElem = i16;
