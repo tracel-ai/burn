@@ -34,7 +34,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConcatNode {
         let output = &self.output.name;
 
         quote! {
-            let #output = burn::tensor::Tensor::cat(vec![#(#inputs),*], #dim);
+            let #output = burn::tensor::Tensor::cat([#(#inputs),*].into(), #dim);
         }
     }
 
@@ -94,7 +94,7 @@ mod tests {
 
                 #[allow(clippy::let_and_return)]
                 pub fn forward(&self, tensor1: Tensor<B, 4>, tensor2: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor3 = burn::tensor::Tensor::cat(vec![tensor1, tensor2], 1);
+                    let tensor3 = burn::tensor::Tensor::cat([tensor1, tensor2].into(), 1);
 
                     tensor3
                 }
