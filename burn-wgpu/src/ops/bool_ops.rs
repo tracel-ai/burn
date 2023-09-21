@@ -110,4 +110,15 @@ where
     fn bool_into_float<const D: usize>(tensor: BoolTensor<Self, D>) -> FloatTensor<Self, D> {
         kernel::cast(tensor)
     }
+
+    fn bool_swap_dims<const D: usize>(
+        mut tensor: BoolTensor<Self, D>,
+        dim1: usize,
+        dim2: usize,
+    ) -> <WgpuBackend<G, F, I> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D> {
+        tensor.strides.swap(dim1, dim2);
+        tensor.shape.dims.swap(dim1, dim2);
+
+        tensor
+    }
 }

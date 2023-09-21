@@ -94,6 +94,34 @@ where
         Tensor::new(K::reshape::<D, D2>(self.primitive, shape))
     }
 
+    /// Transpose the tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to transpose.
+    ///
+    /// # Returns
+    ///
+    /// The transposed tensor.
+    pub fn transpose(self) -> Tensor<B, D, K> {
+        Tensor::new(K::transpose(self.primitive))
+    }
+
+    /// Swaps two dimensions of a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to swap the dimensions of.
+    /// * `dim1` - The first dimension to swap.
+    /// * `dim2` - The second dimension to swap.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the dimensions swapped.
+    pub fn swap_dims(self, dim1: usize, dim2: usize) -> Tensor<B, D, K> {
+        Tensor::new(K::swap_dims(self.primitive, dim1, dim2))
+    }
+
     /// Flatten the tensor along a given range of dimensions.
     ///
     /// This function collapses the specified range of dimensions into a single dimension,

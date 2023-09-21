@@ -124,4 +124,12 @@ impl<E: FloatNdArrayElement> BoolTensorOps<NdArrayBackend<E>> for NdArrayBackend
         let array = tensor.array.mapv(|a| (a as i32).elem()).into_shared();
         NdArrayTensor { array }
     }
+
+    fn bool_swap_dims<const D: usize>(
+        tensor: <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D>,
+        dim1: usize,
+        dim2: usize,
+    ) -> <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D> {
+        NdArrayOps::swap_dims(tensor, dim1, dim2)
+    }
 }

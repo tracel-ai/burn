@@ -319,6 +319,6 @@ impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         dim1: usize,
         dim2: usize,
     ) -> <ADBackendDecorator<B> as Backend>::IntTensorPrimitive<D> {
-        todo!()
+        B::int_swap_dims(tensor, dim1, dim2)
     }
 }

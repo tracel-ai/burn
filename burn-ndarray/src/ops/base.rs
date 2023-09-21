@@ -96,6 +96,17 @@ where
         }
         slices
     }
+
+    pub fn swap_dims<const D: usize>(
+        tensor: NdArrayTensor<E, D>,
+        dim1: usize,
+        dim2: usize,
+    ) -> NdArrayTensor<E, D> {
+        let mut array = tensor.array;
+        array.swap_axes(dim1, dim2);
+
+        NdArrayTensor::new(array)
+    }
 }
 
 impl<E> NdArrayMathOps<E>

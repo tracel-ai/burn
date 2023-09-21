@@ -387,6 +387,6 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
         dim1: usize,
         dim2: usize,
     ) -> <TchBackend<E> as Backend>::IntTensorPrimitive<D> {
-        todo!()
+        TchOps::swap_dims(tensor, dim1, dim2)
     }
 }

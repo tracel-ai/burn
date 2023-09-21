@@ -358,6 +358,6 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<CandleBackend<F, I
         dim1: usize,
         dim2: usize,
     ) -> <CandleBackend<F, I> as burn_tensor::backend::Backend>::IntTensorPrimitive<D> {
-        todo!()
+        super::base::swap_dims(tensor, dim1, dim2)
     }
 }

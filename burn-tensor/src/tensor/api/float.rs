@@ -164,7 +164,6 @@ where
         tensor.slice_assign(ranges, Tensor::ones(Shape::new([1; D])))
     }
 
-
     /// Applies the matrix multiplication operation.
     ///
     /// `C = AB`

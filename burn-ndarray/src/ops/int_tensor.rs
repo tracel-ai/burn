@@ -377,6 +377,6 @@ impl<E: FloatNdArrayElement> IntTensorOps<NdArrayBackend<E>> for NdArrayBackend<
         dim1: usize,
         dim2: usize,
     ) -> <NdArrayBackend<E> as Backend>::IntTensorPrimitive<D> {
-        todo!()
+        NdArrayOps::swap_dims(tensor, dim1, dim2)
     }
 }
