@@ -3,6 +3,7 @@ use crate::{
     element::WgpuElement,
     kernel::{self, build_info, elemwise_workgroup, KernelSettings},
     kernel_wgsl,
+    ops::numeric::empty_device,
     tensor::WgpuTensor,
 };
 
@@ -18,17 +19,11 @@ pub(crate) fn gather<E: WgpuElement, I: WgpuElement, const D: usize>(
     let shape_output = indices.shape.clone();
     let num_elems = shape_output.num_elements();
     let indices = kernel::into_contiguous(indices);
+    let output = empty_device(tensor.client.clone(), tensor.device.clone(), shape_output);
 
-    let buffer = tensor.client.empty(num_elems * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(
-        tensor.client.clone(),
-        tensor.device.clone(),
-        shape_output,
-        buffer,
-    );
     let mut info = build_info(&[&tensor, &output]);
     info.push(dim as u32);
-    let info_buffer = tensor.client.create(bytemuck::cast_slice(&info));
+    let info_handle = tensor.client.create(bytemuck::cast_slice(&info));
 
     let kernel = StaticKernel::<KernelSettings<Gather, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
         elemwise_workgroup(num_elems, WORKGROUP),
@@ -40,7 +35,7 @@ pub(crate) fn gather<E: WgpuElement, I: WgpuElement, const D: usize>(
             &tensor.handle,
             &indices.handle,
             &output.handle,
-            &info_buffer,
+            &info_handle,
         ],
     );
 

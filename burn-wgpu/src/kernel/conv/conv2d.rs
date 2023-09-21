@@ -3,16 +3,17 @@ use crate::{
     element::WgpuElement,
     kernel::{self, build_info, elemwise_workgroup, KernelSettings},
     kernel_wgsl,
+    ops::numeric::empty_device,
     tensor::WgpuTensor,
 };
 use burn_tensor::{
     ops::{conv::calculate_conv_output_size, ConvOptions},
-    Shape,
+    Element, ElementConversion, Shape,
 };
 
 kernel_wgsl!(Conv2d, "../../template/conv/conv2d.wgsl");
 
-pub(crate) fn conv2d<E: WgpuElement>(
+pub(crate) fn conv2d<E: WgpuElement + Element>(
     input: WgpuTensor<E, 4>,
     weight: WgpuTensor<E, 4>,
     bias: Option<WgpuTensor<E, 1>>,
@@ -41,14 +42,11 @@ pub(crate) fn conv2d<E: WgpuElement>(
     );
 
     let shape_out = Shape::new([batch_size, out_channels, out_0, out_1]);
-    let num_elems = shape_out.num_elements();
 
-    let buffer = input.client.empty(num_elems * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(
+    let output = empty_device(
         input.client.clone(),
         input.device.clone(),
-        shape_out,
-        buffer,
+        shape_out.clone(),
     );
 
     let mut info = build_info(&[&input, &output, &weight]);
@@ -62,7 +60,7 @@ pub(crate) fn conv2d<E: WgpuElement>(
 
     let bias_handle = bias
         .map(|bias| bias.handle)
-        .unwrap_or_else(|| input.client.empty(core::mem::size_of::<E>()));
+        .unwrap_or_else(|| input.client.create(E::as_bytes(&[0.elem()])));
 
     let info_handle = input.client.create(bytemuck::cast_slice(&info));
 

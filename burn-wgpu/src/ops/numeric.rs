@@ -1,4 +1,4 @@
-use crate::compute::compute_client;
+use crate::compute::{compute_client, WgpuComputeClient};
 use crate::kernel::{
     binary_elemwise_default, binary_elemwise_inplace_default, unary_scalar_default,
     unary_scalar_inplace_default,
@@ -15,10 +15,26 @@ pub fn zeros<G: GraphicsApi, E: WgpuElement + Element, const D: usize>(
     device: &WgpuDevice,
 ) -> WgpuTensor<E, D> {
     let client = compute_client::<G>(device);
-    let buffer = client.empty(shape.num_elements() * core::mem::size_of::<E>());
-    let tensor = WgpuTensor::new(client, device.clone(), shape, buffer);
 
-    mul_scalar(tensor, 0i32.elem::<E>())
+    zeros_device(client, device.clone(), shape)
+}
+
+pub fn zeros_device<E: WgpuElement + Element, const D: usize>(
+    client: WgpuComputeClient,
+    device: WgpuDevice,
+    shape: Shape<D>,
+) -> WgpuTensor<E, D> {
+    mul_scalar(empty_device(client, device, shape), 0i32.elem::<E>())
+}
+
+pub fn empty_device<E: WgpuElement, const D: usize>(
+    client: WgpuComputeClient,
+    device: WgpuDevice,
+    shape: Shape<D>,
+) -> WgpuTensor<E, D> {
+    let buffer = client.empty(shape.num_elements() * core::mem::size_of::<E>());
+
+    WgpuTensor::new(client, device, shape, buffer)
 }
 
 pub fn ones<G: GraphicsApi, E: WgpuElement + Element, const D: usize>(
