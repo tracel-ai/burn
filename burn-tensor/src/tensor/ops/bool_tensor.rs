@@ -237,4 +237,36 @@ pub trait BoolTensorOps<B: Backend> {
     ///
     /// The tensor with the result of the negation.
     fn bool_not<const D: usize>(tensor: B::BoolTensorPrimitive<D>) -> B::BoolTensorPrimitive<D>;
+
+    /// Transposes a bool tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to transpose.
+    ///
+    /// # Returns
+    ///
+    /// The transposed tensor.
+    fn bool_transpose<const D: usize>(
+        tensor: B::BoolTensorPrimitive<D>,
+    ) -> B::BoolTensorPrimitive<D> {
+        Self::bool_swap_dims(tensor, D - 2, D - 1)
+    }
+
+    /// Swaps two dimensions of a bool tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to swap the dimensions of.
+    /// * `dim1` - The first dimension to swap.
+    /// * `dim2` - The second dimension to swap.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the dimensions swapped.
+    fn bool_swap_dims<const D: usize>(
+        tensor: B::BoolTensorPrimitive<D>,
+        dim1: usize,
+        dim2: usize,
+    ) -> B::BoolTensorPrimitive<D>;
 }

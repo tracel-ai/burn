@@ -352,4 +352,12 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<CandleBackend<F, I
                 .unwrap(),
         )
     }
+
+    fn int_swap_dims<const D: usize>(
+        tensor: <CandleBackend<F, I> as burn_tensor::backend::Backend>::IntTensorPrimitive<D>,
+        dim1: usize,
+        dim2: usize,
+    ) -> <CandleBackend<F, I> as burn_tensor::backend::Backend>::IntTensorPrimitive<D> {
+        super::base::swap_dims(tensor, dim1, dim2)
+    }
 }

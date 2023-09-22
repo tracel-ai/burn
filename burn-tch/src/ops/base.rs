@@ -400,4 +400,13 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
             |tensor| tensor.clamp(min, max),
         )
     }
+
+    pub fn swap_dims<const D: usize>(
+        tensor: TchTensor<E, D>,
+        dim1: usize,
+        dim2: usize,
+    ) -> TchTensor<E, D> {
+        let tensor = tensor.tensor.transpose(dim1 as i64, dim2 as i64);
+        TchTensor::new(tensor)
+    }
 }

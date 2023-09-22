@@ -100,4 +100,12 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<CandleBackend<F, 
         let x = (candle_core::Tensor::zeros_like(&tensor.tensor).unwrap());
         CandleTensor::new(tensor.tensor.eq(&x).unwrap())
     }
+
+    fn bool_swap_dims<const D: usize>(
+        tensor: <CandleBackend<F, I> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D>,
+        dim1: usize,
+        dim2: usize,
+    ) -> <CandleBackend<F, I> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D> {
+        super::base::swap_dims(tensor, dim1, dim2)
+    }
 }

@@ -178,8 +178,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         dim1: usize,
         dim2: usize,
     ) -> TchTensor<E, D> {
-        let tensor = tensor.tensor.transpose(dim1 as i64, dim2 as i64);
-        TchTensor::new(tensor)
+        TchOps::swap_dims(tensor, dim1, dim2)
     }
 
     fn reshape<const D1: usize, const D2: usize>(

@@ -381,4 +381,12 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
         let tensor = tensor.tensor.to_kind(E::KIND);
         TchTensor::new(tensor)
     }
+
+    fn int_swap_dims<const D: usize>(
+        tensor: <TchBackend<E> as Backend>::IntTensorPrimitive<D>,
+        dim1: usize,
+        dim2: usize,
+    ) -> <TchBackend<E> as Backend>::IntTensorPrimitive<D> {
+        TchOps::swap_dims(tensor, dim1, dim2)
+    }
 }

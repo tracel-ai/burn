@@ -86,4 +86,12 @@ impl<B: Backend> BoolTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> 
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
         ADTensor::new(B::bool_into_float(tensor))
     }
+
+    fn bool_swap_dims<const D: usize>(
+        tensor: <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D>,
+        dim1: usize,
+        dim2: usize,
+    ) -> <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D> {
+        B::bool_swap_dims(tensor, dim1, dim2)
+    }
 }
