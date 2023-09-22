@@ -10,8 +10,8 @@ mod tests {
         let test = Unfold4dTestCase {
             batch_size: 2,
             channels_in: 5,
-            kernel_size: [2, 2],
-            padding: [1, 1],
+            kernel_size: [2, 3],
+            padding: [0, 0],
             stride: [1, 1],
             dilation: [1, 1],
             height: 3,

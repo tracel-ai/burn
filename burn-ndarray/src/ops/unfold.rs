@@ -1,6 +1,6 @@
 use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor};
 use burn_tensor::ops::{ConvOptions, UnfoldOptions};
-use ndarray::{Array4, Dim};
+use ndarray::{Array3, Array4, Dim};
 
 use super::conv::conv2d;
 
@@ -46,10 +46,16 @@ pub(crate) fn unfold4d<E: FloatNdArrayElement>(
 
     // See https://pytorch.org/docs/stable/generated/torch.nn.Unfold.html#torch.nn.Unfold for full explanation,
     // This calculates the number of patches with each patch having channels_out values
-    let l_dim_1 = (in_height + 2 * padding[0] - dilation[0] * (kernel_size[0] - 1) - 1) / stride[0];
-    let l_dim_2 = (in_width + 2 * padding[1] - dilation[1] * (kernel_size[1] - 1) - 1) / stride[1];
+    let l_dim_1 =
+        (in_height + 2 * padding[0] - dilation[0] * (kernel_size[0] - 1) - 1) / stride[0] + 1;
+    let l_dim_2 =
+        (in_width + 2 * padding[1] - dilation[1] * (kernel_size[1] - 1) - 1) / stride[1] + 1;
     let l = l_dim_1 * l_dim_2;
-
+    println!(
+        "{:?} {:?} {:?} {:?}",
+        batch_size, in_channels, in_height, in_width
+    );
+    println!("{:?} {:?} {:?}", l_dim_1, l_dim_2, l);
     let channels_out = in_channels * kernel_size[0] * kernel_size[1];
 
     let weight = create_unfolding_weight(in_channels, kernel_size);
@@ -61,16 +67,31 @@ pub(crate) fn unfold4d<E: FloatNdArrayElement>(
             stride,
             padding,
             dilation,
-            groups: 0,
+            groups: 1,
         },
     );
 
     let inner_array = unfolded.array;
-    let reshaped_array = inner_array
-        .into_shape([batch_size, channels_out, l])
-        .unwrap()
-        .into_dyn()
-        .into_shared();
+    println!("{:?}", inner_array.shape()); // still [2, 20, 4, 5] here
+    let mut reshaped_array = Array3::zeros([batch_size, channels_out, l]);
 
+    // Iterate over each dimension and fill in the values from unfolded to reshaped
+    for b in 0..batch_size {
+        for c in 0..channels_out {
+            let mut l_index = 0; // Index to keep track of where to put the value in the L dimension
+            for h in 0..l_dim_1 {
+                for w in 0..l_dim_2 {
+                    // Copy the value from unfolded to reshaped
+                    let value = inner_array[[b, c, h, w]];
+                    reshaped_array[[b, c, l_index]] = value;
+
+                    l_index += 1;
+                }
+            }
+        }
+    }
+
+    // Convert the reshaped_array into the format that your NdArrayTensor needs
+    let reshaped_array = reshaped_array.into_dyn().into_shared();
     NdArrayTensor::new(reshaped_array)
 }
