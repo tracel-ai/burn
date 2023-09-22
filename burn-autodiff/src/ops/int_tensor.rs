@@ -313,4 +313,12 @@ impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
         ADTensor::new(B::int_into_float(tensor))
     }
+
+    fn int_swap_dims<const D: usize>(
+        tensor: <ADBackendDecorator<B> as Backend>::IntTensorPrimitive<D>,
+        dim1: usize,
+        dim2: usize,
+    ) -> <ADBackendDecorator<B> as Backend>::IntTensorPrimitive<D> {
+        B::int_swap_dims(tensor, dim1, dim2)
+    }
 }

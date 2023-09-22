@@ -138,10 +138,7 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         dim1: usize,
         dim2: usize,
     ) -> NdArrayTensor<E, D> {
-        let mut array = tensor.array;
-        array.swap_axes(dim1, dim2);
-
-        NdArrayTensor::new(array)
+        NdArrayOps::swap_dims(tensor, dim1, dim2)
     }
 
     fn reshape<const D1: usize, const D2: usize>(
