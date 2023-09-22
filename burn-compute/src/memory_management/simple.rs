@@ -188,7 +188,7 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
             .for_each(|(chunk_id, (resource, slices))| {
                 let is_free = slices.is_empty() && chunk_id.is_free();
 
-                if is_free && resource.size() > size {
+                if is_free && resource.size() == size {
                     let size_diff = resource.size() - size;
                     if size_diff < size_diff_current {
                         current = Some((chunk_id, resource));
