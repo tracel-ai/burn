@@ -51,11 +51,6 @@ pub(crate) fn unfold4d<E: FloatNdArrayElement>(
     let l_dim_2 =
         (in_width + 2 * padding[1] - dilation[1] * (kernel_size[1] - 1) - 1) / stride[1] + 1;
     let l = l_dim_1 * l_dim_2;
-    println!(
-        "{:?} {:?} {:?} {:?}",
-        batch_size, in_channels, in_height, in_width
-    );
-    println!("{:?} {:?} {:?}", l_dim_1, l_dim_2, l);
     let channels_out = in_channels * kernel_size[0] * kernel_size[1];
 
     let weight = create_unfolding_weight(in_channels, kernel_size);
