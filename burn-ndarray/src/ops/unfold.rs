@@ -67,7 +67,6 @@ pub(crate) fn unfold4d<E: FloatNdArrayElement>(
     );
 
     let inner_array = unfolded.array;
-    println!("{:?}", inner_array.shape()); // still [2, 20, 4, 5] here
     let mut reshaped_array = Array3::zeros([batch_size, channels_out, l]);
 
     // Iterate over each dimension and fill in the values from unfolded to reshaped
