@@ -91,4 +91,9 @@ impl<E: TchElement> Backend for TchBackend<E> {
     fn name() -> String {
         "tch".to_string()
     }
+
+    fn sync(device: &Self::Device) {
+        let tensor = tch::Tensor::from_slice(&[0]).to((*device).into());
+        let _data: Vec<f32> = tensor.try_into().unwrap();
+    }
 }

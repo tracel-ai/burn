@@ -2,6 +2,7 @@ use burn_tensor::backend::Backend;
 use rand::{rngs::StdRng, SeedableRng};
 
 use crate::{
+    compute::compute_client,
     element::{FloatElement, IntElement},
     tensor::WgpuTensor,
     GraphicsApi, WgpuDevice,
@@ -42,5 +43,10 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> Backend for WgpuB
 
     fn ad_enabled() -> bool {
         false
+    }
+
+    fn sync(device: &Self::Device) {
+        let client = compute_client::<G>(device);
+        client.sync();
     }
 }
