@@ -1,7 +1,6 @@
-use std::{borrow::Cow, sync::Arc};
-
 use super::{WgpuStorage, WorkGroup};
 use crate::kernel::SourceTemplate;
+use alloc::{borrow::Cow, sync::Arc};
 use burn_compute::{
     memory_management::MemoryManagement,
     server::{self, ComputeServer},
@@ -22,7 +21,8 @@ pub struct WgpuServer<MM: MemoryManagement<WgpuStorage>> {
     pipelines: HashMap<String, Arc<ComputePipeline>>,
     tasks: Vec<ComputeTask>,
     max_tasks: usize,
-    manual_allocations: Vec<server::Handle<Self>>,
+    manual_available: HashMap<usize, Vec<server::Handle<Self>>>,
+    manual_taken: Vec<(usize, server::Handle<Self>)>,
 }
 
 #[derive(new, Debug)]
@@ -68,7 +68,8 @@ where
             pipelines: HashMap::new(),
             tasks: Vec::new(),
             max_tasks,
-            manual_allocations: Vec::new(),
+            manual_available: HashMap::new(),
+            manual_taken: Vec::new(),
         }
     }
 
@@ -83,20 +84,43 @@ where
         core::mem::swap(&mut new_encoder, &mut self.encoder);
 
         self.queue.submit(Some(new_encoder.finish()));
+        self.free_manual_allocations();
+    }
 
-        // When we submit all the work, we can then check if we can deallocate our custom
-        // allocations.
-        self.manual_allocations.retain_mut(|handle| {
-            // We have to check if we can mutate the current handle first.
-            //
-            // If not, at least one tensor has a reference to this handle and might use it.
+    fn free_manual_allocations(&mut self) {
+        let mut manual_taken_tmp = Vec::new();
+        core::mem::swap(&mut manual_taken_tmp, &mut self.manual_taken);
+
+        for (size, handle) in manual_taken_tmp.drain(0..manual_taken_tmp.len()) {
             if handle.can_mut() {
-                self.memory_management.dealloc(&handle.memory);
-                return false;
+                self.register_manual(size, handle);
+            } else {
+                self.manual_taken.push((size, handle));
             }
+        }
+    }
 
-            true
-        });
+    fn manual_reserve(&mut self, size: usize) -> server::Handle<Self> {
+        let handle = if let Some(handles) = self.manual_available.get_mut(&size) {
+            handles.pop().unwrap_or_else(|| {
+                let memory = self.memory_management.alloc(size);
+                server::Handle::new(memory)
+            })
+        } else {
+            let memory = self.memory_management.alloc(size);
+            server::Handle::new(memory)
+        };
+        self.manual_taken.push((size, handle.clone()));
+
+        handle
+    }
+
+    fn register_manual(&mut self, size: usize, handle: server::Handle<Self>) {
+        if let Some(handles) = self.manual_available.get_mut(&size) {
+            handles.push(handle);
+        } else {
+            self.manual_available.insert(size, [handle].into());
+        }
     }
 
     fn register_tasks(&mut self) {
@@ -210,10 +234,7 @@ where
     /// This is important, otherwise the compute passes are going to be too small and we won't be able to
     /// fully utilize the GPU.
     fn create(&mut self, data: &[u8]) -> server::Handle<Self> {
-        let memory = self.memory_management.alloc(data.len());
-        let handle = server::Handle::new(memory);
-
-        self.manual_allocations.push(handle.clone());
+        let handle = self.manual_reserve(data.len());
 
         let buffer_src = Arc::new(self.device.create_buffer_init(&BufferInitDescriptor {
             label: Some("Buffer Src"),
