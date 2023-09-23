@@ -3,6 +3,7 @@ use crate::{
     element::WgpuElement,
     kernel::{build_info, elemwise_workgroup, KernelSettings},
     kernel_wgsl,
+    ops::numeric::empty_device,
     tensor::WgpuTensor,
 };
 use burn_tensor::Shape;
@@ -27,13 +28,7 @@ pub(crate) fn slice<E: WgpuElement, const D1: usize, const D2: usize>(
     let shape_output = Shape::new(dims);
     let num_elems = shape_output.num_elements();
 
-    let buffer = tensor.client.empty(num_elems * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(
-        tensor.client.clone(),
-        tensor.device.clone(),
-        shape_output,
-        buffer,
-    );
+    let output = empty_device(tensor.client.clone(), tensor.device.clone(), shape_output);
     let mut info = build_info(&[&tensor, &output]);
 
     for i in 0..D1 {

@@ -4,9 +4,10 @@ use crate::{
     compute::{compute_client, StaticKernel},
     element::WgpuElement,
     kernel::{
-        prng::base::{make_args_buffer, make_info_buffer, make_output_tensor},
+        prng::base::{make_args_buffer, make_info_buffer},
         prng_workgroup, KernelSettings, SourceTemplate, StaticKernelSource,
     },
+    ops::numeric::empty_device,
     tensor::WgpuTensor,
     GraphicsApi, WgpuDevice,
 };
@@ -37,7 +38,7 @@ pub fn random_bernoulli<G: GraphicsApi, E: WgpuElement, const D: usize>(
     const N_VALUES_PER_THREAD: usize = 128;
 
     let client = compute_client::<G>(device);
-    let output = make_output_tensor(client.clone(), device.clone(), shape.clone());
+    let output = empty_device(client.clone(), device.clone(), shape.clone());
     let info_handle = make_info_buffer(client.clone(), N_VALUES_PER_THREAD);
     let args_handle = make_args_buffer(client.clone(), &[prob]);
     let workgroup = prng_workgroup(shape.num_elements(), WORKGROUP, N_VALUES_PER_THREAD);

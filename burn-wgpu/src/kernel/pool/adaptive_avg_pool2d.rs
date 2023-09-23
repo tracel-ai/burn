@@ -3,6 +3,7 @@ use crate::{
     element::WgpuElement,
     kernel::{elemwise_workgroup, KernelSettings},
     kernel_wgsl,
+    ops::numeric::empty_device,
     tensor::WgpuTensor,
 };
 use burn_tensor::Shape;
@@ -25,14 +26,7 @@ pub(crate) fn adaptive_avg_pool2d<E: WgpuElement>(
     let [batch_size, channels, _, _] = x.shape.dims;
 
     let output_shape = Shape::new([batch_size, channels, output_size[0], output_size[1]]);
-    let num_elems = output_shape.num_elements();
-    let output_buffer = x.client.empty(num_elems * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(
-        x.client.clone(),
-        x.device.clone(),
-        output_shape,
-        output_buffer,
-    );
+    let output = empty_device(x.client.clone(), x.device.clone(), output_shape);
 
     let kernel =
         StaticKernel::<KernelSettings<AdaptiveAvgPool2d, E, i32, WORKGROUP, WORKGROUP, 1>>::new(

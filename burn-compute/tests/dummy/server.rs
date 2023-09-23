@@ -9,7 +9,7 @@ use super::DummyKernel;
 
 /// The dummy server is used to test the burn-compute infrastructure.
 /// It uses simple memory management with a bytes storage on CPU, without asynchronous tasks.
-#[derive(new)]
+#[derive(new, Debug)]
 pub struct DummyServer<MM = SimpleMemoryManagement<BytesStorage>> {
     memory_management: MM,
 }

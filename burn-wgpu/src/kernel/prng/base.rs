@@ -1,14 +1,10 @@
-use burn_common::rand::get_seeded_rng;
-use burn_tensor::Shape;
-use rand::Rng;
-
 use crate::{
     compute::{WgpuComputeClient, WgpuHandle},
     element::WgpuElement,
-    kernel_wgsl,
-    tensor::WgpuTensor,
-    WgpuDevice, SEED,
+    kernel_wgsl, SEED,
 };
+use burn_common::rand::get_seeded_rng;
+use rand::Rng;
 
 kernel_wgsl!(Prng, "../../template/prng/prng.wgsl");
 
@@ -24,15 +20,6 @@ pub(crate) fn get_seeds() -> Vec<u32> {
     }
     *seed = Some(rng);
     seeds
-}
-
-pub(crate) fn make_output_tensor<E: WgpuElement, const D: usize>(
-    client: WgpuComputeClient,
-    device: WgpuDevice,
-    shape: Shape<D>,
-) -> WgpuTensor<E, D> {
-    let buffer = client.empty(shape.num_elements() * core::mem::size_of::<E>());
-    WgpuTensor::new(client, device, shape, buffer)
 }
 
 pub(crate) fn make_info_buffer(

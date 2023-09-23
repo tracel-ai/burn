@@ -7,6 +7,7 @@ use crate::{
         KernelSettings,
     },
     kernel_wgsl,
+    ops::numeric::empty_device,
     tensor::WgpuTensor,
 };
 
@@ -52,14 +53,7 @@ pub(crate) fn max_pool2d_with_indices<E: WgpuElement, I: WgpuElement>(
 
     let (info_handle, output) =
         build_output_and_info_pool2d(&x, kernel_size, stride, padding, dilation);
-    let num_elems = output.shape.num_elements();
-
-    let indices = WgpuTensor::new(
-        x.client.clone(),
-        x.device,
-        output.shape.clone(),
-        x.client.empty(num_elems * std::mem::size_of::<I>()),
-    );
+    let indices = empty_device(x.client.clone(), x.device, output.shape.clone());
 
     let kernel = StaticKernel::<
         KernelSettings<MaxPool2dWithIndices, E, i32, WORKGROUP, WORKGROUP, 1>,

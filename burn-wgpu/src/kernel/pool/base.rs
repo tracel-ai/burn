@@ -1,4 +1,6 @@
-use crate::{compute::WgpuHandle, element::WgpuElement, tensor::WgpuTensor};
+use crate::{
+    compute::WgpuHandle, element::WgpuElement, ops::numeric::empty_device, tensor::WgpuTensor,
+};
 use burn_tensor::Shape;
 
 /// Build basic info to launch pool 2d kernels.
@@ -22,10 +24,7 @@ pub fn build_output_and_info_pool2d<E: WgpuElement>(
         / stride_width)
         + 1;
     let shape_out = Shape::new([batch_size, channels, out_height, out_width]);
-    let num_elems = shape_out.num_elements();
-
-    let buffer = x.client.empty(num_elems * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(x.client.clone(), x.device.clone(), shape_out, buffer);
+    let output = empty_device(x.client.clone(), x.device.clone(), shape_out);
 
     let info_buffer = build_pool2d_info(x, &output, kernel_size, stride, padding, dilation);
 
