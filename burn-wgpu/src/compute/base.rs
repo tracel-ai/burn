@@ -9,20 +9,20 @@ use burn_compute::{
 };
 use wgpu::{DeviceDescriptor, DeviceType};
 
-type WgpuChannel = MutexComputeChannel<WgpuServer>;
+type MemoryManagement = SimpleMemoryManagement<WgpuStorage>;
+type Server = WgpuServer<MemoryManagement>;
+type Channel = MutexComputeChannel<Server>;
 
 /// Wgpu [compute client](ComputeClient) to communicate with the [compute server](WgpuServer).
-pub type WgpuComputeClient = ComputeClient<WgpuServer, WgpuChannel>;
+pub type WgpuComputeClient = ComputeClient<Server, Channel>;
 /// Wgpu [server handle](burn_compute::server::Handle).
-pub type WgpuHandle = burn_compute::server::Handle<WgpuServer>;
+pub type WgpuHandle = burn_compute::server::Handle<Server>;
 
 /// Compute handle for the wgpu backend.
-static COMPUTE: Compute<WgpuDevice, WgpuServer, WgpuChannel> = Compute::new();
+static COMPUTE: Compute<WgpuDevice, WgpuServer<MemoryManagement>, Channel> = Compute::new();
 
 /// Get the [compute client](ComputeClient) for the given [device](WgpuDevice).
-pub fn compute_client<G: GraphicsApi>(
-    device: &WgpuDevice,
-) -> ComputeClient<WgpuServer, WgpuChannel> {
+pub fn compute_client<G: GraphicsApi>(device: &WgpuDevice) -> ComputeClient<Server, Channel> {
     let device = Arc::new(device);
 
     COMPUTE.client(&device, move || {
@@ -47,7 +47,7 @@ pub fn compute_client<G: GraphicsApi>(
         // Maximum reusability.
         let memory_management = SimpleMemoryManagement::new(storage, DeallocStrategy::Never);
         let server = WgpuServer::new(memory_management, device, queue, max_tasks);
-        let channel = WgpuChannel::new(server);
+        let channel = Channel::new(server);
 
         ComputeClient::new(channel)
     })

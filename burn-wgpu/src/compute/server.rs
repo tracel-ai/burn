@@ -3,7 +3,7 @@ use std::{borrow::Cow, sync::Arc};
 use super::{WgpuStorage, WorkGroup};
 use crate::kernel::SourceTemplate;
 use burn_compute::{
-    memory_management::{MemoryManagement, SimpleMemoryManagement},
+    memory_management::MemoryManagement,
     server::{self, ComputeServer},
 };
 use hashbrown::HashMap;
@@ -14,7 +14,7 @@ use wgpu::{
 
 /// Wgpu compute server.
 #[derive(Debug)]
-pub struct WgpuServer<MM = SimpleMemoryManagement<WgpuStorage>> {
+pub struct WgpuServer<MM> {
     memory_management: MM,
     device: Arc<wgpu::Device>,
     queue: wgpu::Queue,
