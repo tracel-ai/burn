@@ -140,6 +140,21 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for SimpleMemoryManageme
 
         handle
     }
+
+    fn alloc(&mut self, size: usize) -> Self::Handle {
+        self.create_chunk(size)
+    }
+
+    fn dealloc(&mut self, handle: &Self::Handle) {
+        match handle {
+            SimpleHandle::Chunk(id) => {
+                if let Some((handle, _slices)) = self.chunks.remove(id) {
+                    self.storage.dealloc(handle.id);
+                }
+            }
+            SimpleHandle::Slice(_) => panic!("Can't dealloc slice manually"),
+        }
+    }
 }
 
 impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {

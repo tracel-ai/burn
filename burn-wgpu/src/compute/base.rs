@@ -39,7 +39,7 @@ pub fn compute_client<G: GraphicsApi>(device: &WgpuDevice) -> ComputeClient<Serv
             Ok(value) => value
                 .parse::<usize>()
                 .expect("BURN_WGPU_MAX_TASKS should be a positive integer."),
-            Err(_) => 16, // 16 tasks by default
+            Err(_) => 64, // 64 tasks by default
         };
 
         let device = Arc::new(device_wgpu);

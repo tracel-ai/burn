@@ -14,7 +14,7 @@ use wgpu::{
 
 /// Wgpu compute server.
 #[derive(Debug)]
-pub struct WgpuServer<MM> {
+pub struct WgpuServer<MM: MemoryManagement<WgpuStorage>> {
     memory_management: MM,
     device: Arc<wgpu::Device>,
     queue: wgpu::Queue,
@@ -22,6 +22,7 @@ pub struct WgpuServer<MM> {
     pipelines: HashMap<String, Arc<ComputePipeline>>,
     tasks: Vec<ComputeTask>,
     max_tasks: usize,
+    manual_allocations: Vec<server::Handle<Self>>,
 }
 
 #[derive(new, Debug)]
@@ -67,6 +68,7 @@ where
             pipelines: HashMap::new(),
             tasks: Vec::new(),
             max_tasks,
+            manual_allocations: Vec::new(),
         }
     }
 
@@ -81,6 +83,20 @@ where
         core::mem::swap(&mut new_encoder, &mut self.encoder);
 
         self.queue.submit(Some(new_encoder.finish()));
+
+        // When we submit all the work, we can then check if we can deallocate our custom
+        // allocations.
+        self.manual_allocations.retain_mut(|handle| {
+            // We have to check if we can mutate the current handle first.
+            //
+            // If not, at least one tensor has a reference to this handle and might use it.
+            if handle.can_mut() {
+                self.memory_management.dealloc(&handle.memory);
+                return false;
+            }
+
+            true
+        });
     }
 
     fn register_tasks(&mut self) {
@@ -188,8 +204,16 @@ where
         }
     }
 
+    /// When we create a new handle from existing data, we use custom allocations so that we don't
+    /// have to execute the current pending tasks.
+    ///
+    /// This is important, otherwise the compute passes are going to be too small and we won't be able to
+    /// fully utilize the GPU.
     fn create(&mut self, data: &[u8]) -> server::Handle<Self> {
-        let handle = self.empty(data.len());
+        let memory = self.memory_management.alloc(data.len());
+        let handle = server::Handle::new(memory);
+
+        self.manual_allocations.push(handle.clone());
 
         let buffer_src = Arc::new(self.device.create_buffer_init(&BufferInitDescriptor {
             label: Some("Buffer Src"),
@@ -198,8 +222,6 @@ where
         }));
 
         let resource = self.memory_management.get(&handle.memory);
-
-        self.register_tasks();
 
         self.encoder.copy_buffer_to_buffer(
             &buffer_src,
