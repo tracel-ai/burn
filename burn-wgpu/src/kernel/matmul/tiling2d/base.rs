@@ -1,25 +1,15 @@
 use super::padding::{crop, pad_round, PaddingOutput};
 use crate::{
-    compute::{DynamicKernel, WgpuComputeClient, WgpuHandle, WorkGroup},
+    compute::{DynamicKernel, WgpuHandle, WorkGroup},
     element::WgpuElement,
     kernel::{build_info, into_contiguous, matmul::utils::shape_out, DynamicKernelSource},
+    ops::numeric::empty_device,
     tensor::WgpuTensor,
-    WgpuDevice,
 };
-use burn_tensor::Shape;
+use burn_tensor::{Element, Shape};
 use std::cmp::{max, min};
 
 const MAX_SHARED_MEMORY_SIZE: usize = 8192;
-
-pub(super) fn empty_from_context<E: WgpuElement, const D: usize>(
-    client: WgpuComputeClient,
-    device: WgpuDevice,
-    shape: &Shape<D>,
-) -> WgpuTensor<E, D> {
-    let handle = client.empty(shape.num_elements() * core::mem::size_of::<E>());
-
-    WgpuTensor::new(client, device, shape.clone(), handle)
-}
 
 /// Create a source template for tile 2d matmul.
 #[macro_export(local_inner_macros)]
@@ -87,7 +77,7 @@ macro_rules! matmul_tile_2d {
         }
 
         /// Matrix multiplication using tiling 2D algorithm with default parameters
-        pub fn matmul_tiling_2d_default<E: WgpuElement, const D: usize>(
+        pub fn matmul_tiling_2d_default<E: WgpuElement + burn_tensor::Element, const D: usize>(
             lhs: WgpuTensor<E, D>,
             rhs: WgpuTensor<E, D>,
         ) -> WgpuTensor<E, D> {
@@ -122,7 +112,7 @@ macro_rules! matmul_tile_2d {
         /// Matrix multiplication using tiling 2D algorithm with custom parameters
         #[allow(clippy::too_many_arguments)]
         pub fn matmul_tiling_2d<
-            E: WgpuElement,
+            E: WgpuElement + burn_tensor::Element,
             const D: usize,
        >(
             lhs: WgpuTensor<E, D>,
@@ -420,7 +410,7 @@ pub(super) fn make_info_handle<E: WgpuElement, const D: usize>(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn matmul_tiling_2d_launch<
-    E: WgpuElement,
+    E: WgpuElement + Element,
     const D: usize,
     K: DynamicKernelSource + 'static,
 >(
@@ -470,10 +460,10 @@ pub(super) fn matmul_tiling_2d_launch<
 
     let rounded_output_shape = shape_out(&lhs, &rhs);
 
-    let output = empty_from_context::<E, D>(
+    let output = empty_device(
         rhs.client.clone(),
         rhs.device.clone(),
-        &rounded_output_shape,
+        rounded_output_shape.clone(),
     );
 
     let workgroup = make_workgroup(rounded_output_shape, b_m, b_n);

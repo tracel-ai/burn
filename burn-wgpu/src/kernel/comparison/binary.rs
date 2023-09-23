@@ -3,6 +3,7 @@ use crate::{
     element::WgpuElement,
     kernel::{build_info, elemwise_workgroup, KernelSettings, StaticKernelSource},
     kernel_wgsl,
+    ops::numeric::empty_device,
     tensor::WgpuTensor,
 };
 use burn_tensor::Shape;
@@ -80,8 +81,7 @@ pub fn comparison<K: StaticKernelSource, E: WgpuElement, const D: usize>(
     let shape_out = Shape::new(shape_out);
     let num_elems = shape_out.num_elements();
 
-    let buffer = lhs.client.empty(num_elems * core::mem::size_of::<u32>());
-    let output = WgpuTensor::new(lhs.client.clone(), lhs.device.clone(), shape_out, buffer);
+    let output = empty_device(lhs.client.clone(), lhs.device.clone(), shape_out);
 
     let kernel = StaticKernel::<KernelSettings<K, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
         elemwise_workgroup(num_elems, WORKGROUP),
