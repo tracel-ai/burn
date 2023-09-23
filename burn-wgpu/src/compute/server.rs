@@ -31,11 +31,16 @@ struct ComputeTask {
     work_group: WorkGroup,
 }
 
+/// Kernel trait with the [source](SourceTemplate) that will be compiled and cache based on the
+/// provided id.
+///
+/// The kernel will be launched with the given [workgroup](WorkGroup).
 pub trait Kernel: 'static + Send {
     /// Source template for the kernel.
     fn source(self: Box<Self>) -> SourceTemplate;
     /// Identifier for the kernel, used for caching kernel compilation.
     fn id(&self) -> String;
+    /// Launch information.
     fn workgroup(&self) -> WorkGroup;
 }
 
@@ -43,6 +48,7 @@ impl<MM> WgpuServer<MM>
 where
     MM: MemoryManagement<WgpuStorage>,
 {
+    /// Create a new server.
     pub fn new(
         memory_management: MM,
         device: Arc<wgpu::Device>,
@@ -138,7 +144,7 @@ where
         // Register previous tasks before reading the buffer so that it is up to date.
         self.register_tasks();
 
-        let resource = self.memory_management.get(handle);
+        let resource = self.memory_management.get(&handle.memory);
 
         let size = resource.size();
         let buffer_dest = self.device.create_buffer(&wgpu::BufferDescriptor {
@@ -191,7 +197,7 @@ where
             usage: wgpu::BufferUsages::COPY_SRC,
         }));
 
-        let resource = self.memory_management.get(&handle);
+        let resource = self.memory_management.get(&handle.memory);
 
         self.register_tasks();
 
@@ -207,7 +213,7 @@ where
     }
 
     fn empty(&mut self, size: usize) -> server::Handle<Self> {
-        self.memory_management.reserve(size)
+        server::Handle::new(self.memory_management.reserve(size))
     }
 
     fn execute(&mut self, kernel: Self::Kernel, handles: &[&server::Handle<Self>]) {
@@ -217,7 +223,7 @@ where
 
         let handles = handles
             .iter()
-            .map(|handle| self.memory_management.get(handle))
+            .map(|handle| self.memory_management.get(&handle.memory))
             .collect::<Vec<_>>();
 
         let entries = handles

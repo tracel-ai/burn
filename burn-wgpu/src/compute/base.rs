@@ -11,7 +11,9 @@ use wgpu::{DeviceDescriptor, DeviceType};
 
 type WgpuChannel = MutexComputeChannel<WgpuServer>;
 
+/// Wgpu [compute client](ComputeClient) to communicate with the [compute server](WgpuServer).
 pub type WgpuComputeClient = ComputeClient<WgpuServer, WgpuChannel>;
+/// Wgpu [server handle](burn_compute::server::Handle).
 pub type WgpuHandle = burn_compute::server::Handle<WgpuServer>;
 
 /// Compute handle for the wgpu backend.
@@ -51,6 +53,7 @@ pub fn compute_client<G: GraphicsApi>(
     })
 }
 
+/// Select the wgpu device and queue based on the provided [device](WgpuDevice).
 pub async fn select_device<G: GraphicsApi>(
     device: &WgpuDevice,
 ) -> (wgpu::Device, wgpu::Queue, wgpu::AdapterInfo) {

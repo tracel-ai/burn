@@ -3,7 +3,6 @@ use crate::{
     unary, WgpuDevice,
 };
 use crate::{element::WgpuElement, kernel::unary_default};
-use burn_compute::memory_management::MemoryHandle;
 use burn_tensor::Shape;
 use std::marker::PhantomData;
 
