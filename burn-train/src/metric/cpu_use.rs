@@ -1,5 +1,5 @@
 /// The CPU use metric.
-use super::MetricMetadata;
+use super::{MetricMetadata, Numeric};
 use crate::metric::{Metric, MetricEntry};
 use sysinfo::{CpuExt, System, SystemExt};
 
@@ -58,4 +58,10 @@ impl Metric for CpuUse {
     }
 
     fn clear(&mut self) {}
+}
+
+impl Numeric for CpuUse {
+    fn value(&self) -> f64 {
+        self.use_percentage as f64
+    }
 }

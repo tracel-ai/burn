@@ -85,4 +85,24 @@ mod tests {
             ])
         );
     }
+
+    #[test]
+    #[should_panic]
+    fn should_panic_when_inner_dimensions_are_not_equal() {
+        let tensor_1 = TestTensor::from_floats([[3., 3.], [4., 4.], [5., 5.], [6., 6.]]);
+        let tensor_2 =
+            TestTensor::from_floats([[1., 2., 3., 4.], [1., 2., 3., 4.], [1., 2., 3., 4.]]);
+
+        let tensor_3 = tensor_1.matmul(tensor_2);
+
+        assert_eq!(
+            tensor_3.into_data(),
+            Data::from([
+                [9., 18., 27., 36.],
+                [12., 24., 36., 48.],
+                [15., 30., 45., 60.],
+                [18., 36., 54., 72.]
+            ])
+        );
+    }
 }

@@ -389,7 +389,11 @@ fn remove_unused_graph_inputs(
     // Remove inputs that are not used by any node
     inputs.retain(|input| {
         for node in nodes.iter() {
-            if node.inputs.iter().any(|x| x.name == input.name) {
+            if node
+                .inputs
+                .iter()
+                .any(|x| x.name == input.name && x.value.is_none())
+            {
                 return true;
             }
         }

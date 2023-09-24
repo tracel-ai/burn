@@ -247,7 +247,15 @@ fn fetch_columns_and_len(
     let columns = columns_from_statement(&statement);
 
     // Count the number of rows and save it as len
-    let mut statement = connection.prepare(format!("select count(*) from {split}").as_str())?;
+    //
+    // NOTE: Using coalesce(max(row_id), 0) instead of count(*) because count(*) is super slow for large tables.
+    // The coalesce(max(row_id), 0) returns 0 if the table is empty, otherwise it returns the max row_id,
+    // which corresponds to the number of rows in the table.
+    // The main assumption, which always holds true, is that the row_id is always increasing and there are no gaps.
+    // This is true for all the datasets that we are using, otherwise row_id will not correspond to the index.
+    let mut statement =
+        connection.prepare(format!("select coalesce(max(row_id), 0) from {split}").as_str())?;
+
     let len = statement.query_row([], |row| {
         let len: usize = row.get(0)?;
         Ok(len)

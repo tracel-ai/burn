@@ -6,8 +6,13 @@ name = "guide"
 publish = false
 version = "0.10.0"
 
+[features]
+default = ["train"]
+train = ["burn/train"]
+train-minimal = ["burn/train-minimal"]
+
 [dependencies]
-burn = {path = "../../burn", features = ["train", "wgpu"]}
+burn = {path = "../../burn", features = ["wgpu"]}
 
 # Serialization
 log = {workspace = true}

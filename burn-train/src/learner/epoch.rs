@@ -199,6 +199,7 @@ impl<TI> TrainEpoch<TI> {
 
         // The main device is always the first in the list.
         let device_main = devices.get(0).unwrap().clone();
+        let mut interrupted = false;
 
         loop {
             let items = step.step(&mut iterator, &model);
@@ -234,8 +235,13 @@ impl<TI> TrainEpoch<TI> {
                 callback.on_train_item(item);
                 if interrupter.should_stop() {
                     log::info!("Training interrupted.");
+                    interrupted = true;
                     break;
                 }
+            }
+
+            if interrupted {
+                break;
             }
         }
 

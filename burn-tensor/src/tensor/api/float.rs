@@ -164,27 +164,6 @@ where
         tensor.slice_assign(ranges, Tensor::ones(Shape::new([1; D])))
     }
 
-    /// Applies the transpose operation.
-    ///
-    /// On matrix and higher dimension tensor, it swap the last two dimensions.
-    ///
-    /// # Panics
-    ///
-    /// If the tensor is of 1 dimension or less.
-    pub fn transpose(self) -> Self {
-        Self::new(B::transpose(self.primitive))
-    }
-
-    /// Swap two dimensions.
-    ///
-    /// # Panics
-    ///
-    /// If the dimensions exceed the shape of than the tensor.
-    pub fn swap_dims(self, dim1: usize, dim2: usize) -> Self {
-        check!(TensorCheck::swap_dims::<D>(dim1, dim2));
-        Self::new(B::swap_dims(self.primitive, dim1, dim2))
-    }
-
     /// Applies the matrix multiplication operation.
     ///
     /// `C = AB`

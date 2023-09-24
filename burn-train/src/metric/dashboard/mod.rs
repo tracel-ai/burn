@@ -1,16 +1,27 @@
-/// Command line interface module for the dashboard.
-#[cfg(feature = "ui")]
-mod cli;
-#[cfg(not(feature = "ui"))]
-mod cli_stub;
-
 mod base;
-mod plot;
 
 pub use base::*;
-pub use plot::*;
 
-#[cfg(feature = "ui")]
-pub use cli::CLIDashboardRenderer;
-#[cfg(not(feature = "ui"))]
-pub use cli_stub::CLIDashboardRenderer;
+#[cfg(not(feature = "tui"))]
+mod cli_stub;
+#[cfg(not(feature = "tui"))]
+pub use cli_stub::CLIDashboardRenderer as SelectedDashboardRenderer;
+
+#[cfg(feature = "tui")]
+mod tui;
+use crate::TrainingInterrupter;
+#[cfg(feature = "tui")]
+pub use tui::TuiDashboardRenderer as SelectedDashboardRenderer;
+
+/// The TUI renderer, or a simple stub if the tui feature is not enabled.
+#[allow(unused_variables)]
+pub(crate) fn default_renderer(
+    interuptor: TrainingInterrupter,
+    checkpoint: Option<usize>,
+) -> SelectedDashboardRenderer {
+    #[cfg(feature = "tui")]
+    return SelectedDashboardRenderer::new(interuptor, checkpoint);
+
+    #[cfg(not(feature = "tui"))]
+    return SelectedDashboardRenderer::new();
+}

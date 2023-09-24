@@ -25,13 +25,6 @@ jobs:
             rustcomponents: ', llvm-tools-preview'
             testflags: --jobs 6
     steps:
-      - name: free disk space
-        run: |
-          df -h
-          sudo swapoff -a
-          sudo rm -f /swapfile
-          sudo apt clean
-          df -h
 
       - name: checkout
         uses: actions/checkout@v4
@@ -45,8 +38,17 @@ jobs:
       - name: caching
         uses: Swatinem/rust-cache@v2
         with:
-          key: ${{ runner.os }}-rust-${{ hashFiles('**/Cargo.lock') }}
-          prefix-key: "v4-rust"
+          key: ${{ runner.os }}-${{ matrix.rust }}-${{ matrix.test}}-${{ hashFiles('**/Cargo.lock') }}
+          prefix-key: "v5-rust"
+
+      - name: free disk space
+        run: |
+          df -h
+          sudo swapoff -a
+          sudo rm -f /swapfile
+          sudo apt clean
+          df -h
+          cargo clean --package burn-tch
 
       - name: install llvmpipe and lavapipe
         run: |

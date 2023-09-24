@@ -113,4 +113,12 @@ impl<E: TchElement> BoolTensorOps<TchBackend<E>> for TchBackend<E> {
         let tensor = tensor.tensor.to_kind(E::KIND);
         TchTensor::new(tensor)
     }
+
+    fn bool_swap_dims<const D: usize>(
+        tensor: <TchBackend<E> as Backend>::BoolTensorPrimitive<D>,
+        dim1: usize,
+        dim2: usize,
+    ) -> <TchBackend<E> as Backend>::BoolTensorPrimitive<D> {
+        TchOps::swap_dims(tensor, dim1, dim2)
+    }
 }

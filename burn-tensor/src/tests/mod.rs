@@ -38,6 +38,7 @@ macro_rules! testgen_all {
         burn_tensor::testgen_cat!();
         burn_tensor::testgen_clamp!();
         burn_tensor::testgen_cos!();
+        burn_tensor::testgen_create_like!();
         burn_tensor::testgen_div!();
         burn_tensor::testgen_erf!();
         burn_tensor::testgen_exp!();
@@ -54,6 +55,7 @@ macro_rules! testgen_all {
         burn_tensor::testgen_maxmin!();
         burn_tensor::testgen_mul!();
         burn_tensor::testgen_neg!();
+        burn_tensor::testgen_one_hot!();
         burn_tensor::testgen_powf!();
         burn_tensor::testgen_random!();
         burn_tensor::testgen_repeat!();

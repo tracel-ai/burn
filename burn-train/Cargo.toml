@@ -11,17 +11,15 @@ repository = "https://github.com/burn-rs/burn/tree/main/burn-train"
 version = "0.10.0"
 
 [features]
-default = ["metrics", "ui"]
+default = ["metrics", "tui"]
 metrics = [
     "nvml-wrapper",
     "sysinfo",
     "systemstat"
 ]
-ui = [
-    "indicatif",
-    "rgb",
-    "terminal_size",
-    "textplots",
+tui = [
+    "ratatui",
+    "crossterm"
 ]
 
 [dependencies]
@@ -38,10 +36,8 @@ sysinfo = { version = "0.29.8", optional = true }
 systemstat = { version = "0.2.3", optional = true }
 
 # Text UI
-indicatif = { version = "0.17.5", optional = true }
-rgb = { version = "0.8.36", optional = true }
-terminal_size = { version = "0.2.6", optional = true }
-textplots = { version = "0.8.0", optional = true }
+ratatui = { version = "0.23", optional = true, features = ["all-widgets"] }
+crossterm = { version = "0.27", optional = true }
 
 # Utilities
 derive-new = {workspace = true}

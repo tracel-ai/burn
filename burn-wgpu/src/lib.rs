@@ -4,6 +4,7 @@
 
 #[macro_use]
 extern crate derive_new;
+extern crate alloc;
 
 mod ops;
 
@@ -15,6 +16,10 @@ pub mod context;
 pub mod kernel;
 /// Tensor module.
 pub mod tensor;
+
+#[cfg(test)] // Only enabled for dev for now.
+/// Compute related module.
+pub mod compute;
 
 pub(crate) mod pool;
 pub(crate) mod tune;

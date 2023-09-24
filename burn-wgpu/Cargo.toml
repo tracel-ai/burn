@@ -45,6 +45,10 @@ burn-tensor = { path = "../burn-tensor", version = "0.10.0", default-features = 
 burn-ndarray = { path = "../burn-ndarray", version = "0.10.0" }
 serial_test = "2.0.0"
 
+# Still only in dev mode
+hashbrown = { workspace = true }
+burn-compute = { path = "../burn-compute", version = "0.10.0", default-features = false, features=["channel-mutex", "std"] }
+
 [[bench]]
 name = "unary"
 harness = false

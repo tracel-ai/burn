@@ -33,12 +33,13 @@ dataset-sqlite-bundled = ["burn-dataset/sqlite-bundled"]
 # Backend
 autodiff = ["burn-autodiff"]
 
-ndarray = ["burn-ndarray/default"]
-ndarray-no-std = ["burn-ndarray"]
-ndarray-blas-accelerate = ["ndarray", "burn-ndarray/blas-accelerate"]
-ndarray-blas-netlib = ["ndarray", "burn-ndarray/blas-netlib"]
-ndarray-blas-openblas = ["ndarray", "burn-ndarray/blas-openblas"]
-ndarray-blas-openblas-system = ["ndarray", "burn-ndarray/blas-openblas-system"]
+ndarray = ["__ndarray", "burn-ndarray/default"]
+ndarray-no-std = ["__ndarray", "burn-ndarray"]
+ndarray-blas-accelerate = ["__ndarray", "ndarray", "burn-ndarray/blas-accelerate"]
+ndarray-blas-netlib = ["__ndarray", "ndarray", "burn-ndarray/blas-netlib"]
+ndarray-blas-openblas = ["__ndarray", "ndarray", "burn-ndarray/blas-openblas"]
+ndarray-blas-openblas-system = ["__ndarray", "ndarray", "burn-ndarray/blas-openblas-system"]
+__ndarray = [] # Internal flag to know when one ndarray feature is enabled.
 
 wgpu = ["burn-wgpu"]
 wgpu-autotune = ["wgpu", "burn-wgpu/autotune"]
