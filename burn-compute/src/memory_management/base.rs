@@ -29,16 +29,14 @@ pub trait MemoryManagement<Storage: ComputeStorage>: Send + core::fmt::Debug {
     ///
     /// # Notes
     ///
-    /// Can be useful for servers that want specific control over memory for some
-    /// usecases.
+    /// Can be useful for servers that want specific control over memory.
     fn alloc(&mut self, size: usize) -> Self::Handle;
 
     /// Bypass the memory allocation algorithm to deallocate data directly.
     ///
     /// # Notes
     ///
-    /// Can be useful for servers that want specific control over memory for some
-    /// usecases.
+    /// Can be useful for servers that want specific control over memory.
     fn dealloc(&mut self, handle: &Self::Handle);
 
     /// Fetch the storage used by the memory manager.
@@ -47,7 +45,7 @@ pub trait MemoryManagement<Storage: ComputeStorage>: Send + core::fmt::Debug {
     ///
     /// The storage should probably not be used for allocations since the handles won't be
     /// compatible with the ones provided by the current trait. Prefer using the
-    /// [alloc](MemoryManagement::alloc) and [dealloc](MemoryManagement::dealloc).
+    /// [alloc](MemoryManagement::alloc) and [dealloc](MemoryManagement::dealloc) functions.
     ///
     /// This is useful if you need to time the deallocations based on async computation, or to
     /// change the mode of storage for different reasons.

@@ -93,7 +93,8 @@ impl<E: TchElement> Backend for TchBackend<E> {
     }
 
     fn sync(device: &Self::Device) {
-        let tensor = tch::Tensor::from_slice(&[0]).to((*device).into());
-        let _data: Vec<f32> = tensor.try_into().unwrap();
+        if let TchDevice::Cuda(index) = device {
+            tch::Cuda::synchronize(*index as i64);
+        }
     }
 }

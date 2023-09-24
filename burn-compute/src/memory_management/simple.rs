@@ -38,17 +38,25 @@ pub enum SimpleHandle {
 #[derive(Debug)]
 pub enum DeallocStrategy {
     /// Once every n calls to reserve.
-    ///
-    /// First associated data is n, second is the state and should start at 0
-    PeriodTick(usize, usize),
+    PeriodTick {
+        /// Number of calls to be executed before triggering the deallocation.
+        period: usize,
+        /// Current state. Should start at zero.
+        state: usize,
+    },
     #[cfg(feature = "std")]
     /// Once every period of time
-    PeriodTime(std::time::Duration, std::time::Instant),
+    PeriodTime {
+        /// Number of time before triggering the deallocation.
+        period: std::time::Duration,
+        /// Current state. Should start at now.
+        state: std::time::Instant,
+    },
     /// Never deallocate.
     Never,
 }
 
-/// The strategy defines when to reuse slices.
+/// The strategy defines when to reuse chunk with slices.
 #[derive(Debug)]
 pub enum SliceStrategy {
     /// Never use slices.
@@ -70,7 +78,7 @@ impl SliceStrategy {
 
         match self {
             SliceStrategy::Never => false,
-            SliceStrategy::Ratio(ratio) => (reserved_size as f32 / chunk_size as f32) > *ratio,
+            SliceStrategy::Ratio(ratio) => (reserved_size as f32 / chunk_size as f32) >= *ratio,
             SliceStrategy::MinimumSize(bytes) => reserved_size >= *bytes,
             SliceStrategy::MaximumSize(bytes) => reserved_size <= *bytes,
         }
@@ -80,19 +88,19 @@ impl SliceStrategy {
 impl DeallocStrategy {
     /// Create a new strategy with the given period.
     pub fn new_period_tick(period: usize) -> Self {
-        DeallocStrategy::PeriodTick(period, 0)
+        DeallocStrategy::PeriodTick { period, state: 0 }
     }
 
     fn should_dealloc(&mut self) -> bool {
         match self {
-            DeallocStrategy::PeriodTick(period, last) => {
-                *last = (*last + 1) % *period;
-                *last == 0
+            DeallocStrategy::PeriodTick { period, state } => {
+                *state = (*state + 1) % *period;
+                *state == 0
             }
             #[cfg(feature = "std")]
-            DeallocStrategy::PeriodTime(period, last) => {
-                if &last.elapsed() > period {
-                    *last = std::time::Instant::now();
+            DeallocStrategy::PeriodTime { period, state } => {
+                if &state.elapsed() > period {
+                    *state = std::time::Instant::now();
                     true
                 } else {
                     false
@@ -242,8 +250,13 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
             let resource_size = resource.size();
             let use_all = size == resource_size;
 
-            if use_all || self.slice_strategy.can_use_chunk(resource_size, size) {
-                let size_diff = resource.size() - size;
+            if use_all {
+                current = Some((chunk_id, resource));
+                break;
+            }
+
+            if self.slice_strategy.can_use_chunk(resource_size, size) {
+                let size_diff = resource_size - size;
 
                 if size_diff < size_diff_current {
                     current = Some((chunk_id, resource));
@@ -424,17 +437,25 @@ mod tests {
 
     #[test]
     fn slice_strategy_minimum_bytes() {
-        let strategy = SliceStrategy::MinimumSize(1000);
+        let strategy = SliceStrategy::MinimumSize(100);
 
-        assert!(strategy.can_use_chunk(100, 101));
-        assert!(!strategy.can_use_chunk(100, 99));
+        assert!(strategy.can_use_chunk(200, 101));
+        assert!(!strategy.can_use_chunk(200, 99));
     }
 
     #[test]
     fn slice_strategy_maximum_bytes() {
-        let strategy = SliceStrategy::MinimumSize(1000);
+        let strategy = SliceStrategy::MaximumSize(100);
 
-        assert!(strategy.can_use_chunk(100, 99));
-        assert!(!strategy.can_use_chunk(100, 101));
+        assert!(strategy.can_use_chunk(200, 99));
+        assert!(!strategy.can_use_chunk(200, 101));
+    }
+
+    #[test]
+    fn slice_strategy_ratio() {
+        let strategy = SliceStrategy::Ratio(0.9);
+
+        assert!(strategy.can_use_chunk(200, 180));
+        assert!(!strategy.can_use_chunk(200, 179));
     }
 }
