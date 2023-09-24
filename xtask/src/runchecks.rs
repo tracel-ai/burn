@@ -226,7 +226,7 @@ fn burn_dataset_features_std() {
     cargo_doc(&["-p", "burn-dataset", "--all-features"]);
 }
 
-fn std_checks() {
+fn std_checks(jobs: Option<u32>) {
     // Set RUSTDOCFLAGS environment variable to treat warnings as errors
     // for the documentation build
     env::set_var("RUSTDOCFLAGS", "-D warnings");
@@ -237,7 +237,8 @@ fn std_checks() {
     cargo_build(&["--workspace", "--exclude=xtask"]);
 
     // Test each workspace
-    cargo_test(&["--workspace"]);
+    let njobs = jobs.map_or(String::new(), |n| format!("--jobs={}", n));
+    cargo_test(&["--workspace", njobs.as_str()]);
 
     // Check format
     cargo_fmt();
@@ -314,7 +315,7 @@ pub enum CheckType {
     Examples,
 }
 
-pub fn run(env: CheckType) -> anyhow::Result<()> {
+pub fn run(env: CheckType, jobs: Option<u32>) -> anyhow::Result<()> {
     // Start time measurement
     let start = Instant::now();
 
@@ -325,14 +326,14 @@ pub fn run(env: CheckType) -> anyhow::Result<()> {
     //
     // If no environment has been passed, run all checks.
     match env {
-        CheckType::Std => std_checks(),
+        CheckType::Std => std_checks(jobs),
         CheckType::NoStd => no_std_checks(),
         CheckType::Typos => check_typos(),
         CheckType::Examples => check_examples(),
         CheckType::All => {
             /* Run all checks */
             check_typos();
-            std_checks();
+            std_checks(jobs);
             no_std_checks();
         }
     }

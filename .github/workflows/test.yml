@@ -21,8 +21,9 @@ jobs:
         include:
           - rust: stable
             test: std
-            rustflags: -Cinstrument-coverage
+            rustflags: -Cinstrument-coverage -Clink-dead-code
             rustcomponents: ', llvm-tools-preview'
+            testflags: --jobs 6
     steps:
       - name: free disk space
         run: |
@@ -55,7 +56,7 @@ jobs:
           sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
 
       - name: run checks & tests
-        run: RUST_MATRIX=${{ matrix.rust }} cargo xtask run-checks ${{ matrix.test }}
+        run: RUST_MATRIX=${{ matrix.rust }} cargo xtask run-checks ${{ matrix.test }} ${{ matrix.testflags }}
         env:
           RUSTFLAGS: ${{ matrix.rustflags }}
           CARGO_INCREMENTAL: 0

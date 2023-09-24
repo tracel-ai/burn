@@ -21,6 +21,8 @@ enum Command {
     RunChecks {
         /// The environment to run checks against
         env: runchecks::CheckType,
+        #[arg(short, long)]
+        jobs: Option<u32>,
     },
 }
 
@@ -28,7 +30,7 @@ fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     match args.command {
-        Command::RunChecks { env } => runchecks::run(env),
+        Command::RunChecks { env, jobs } => runchecks::run(env, jobs),
         Command::Publish { name } => publish::run(name),
     }
 }
