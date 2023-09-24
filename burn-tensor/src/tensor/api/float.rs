@@ -297,17 +297,6 @@ where
     }
 }
 
-impl<B: Backend> Tensor<B, 2> {
-    /// Create diagonal matrix.
-    ///
-    /// # Arguments
-    ///
-    /// * `size` - The size of the square matrix.
-    pub fn diagonal(size: usize) -> Tensor<B, 2> {
-        Tensor::<B, 2, Int>::diagonal(size).float()
-    }
-}
-
 impl<const D: usize, B: ADBackend> Tensor<B, D> {
     /// Backward pass of the tensor.
     pub fn backward(&self) -> B::Gradients {

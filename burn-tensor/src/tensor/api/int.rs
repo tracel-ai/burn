@@ -45,22 +45,6 @@ where
     }
 }
 
-impl<B> Tensor<B, 2, Int>
-where
-    B: Backend,
-{
-    /// Create diagonal matrix.
-    ///
-    /// # Arguments
-    ///
-    /// * `size` - The size of the square matrix.
-    pub fn diagonal(size: usize) -> Tensor<B, 2, Int> {
-        let indices = Tensor::arange(0..size).unsqueeze();
-        let ones = Tensor::ones([size]).unsqueeze();
-        Tensor::<B, 2, Int>::zeros([size, size]).scatter(0, indices, ones)
-    }
-}
-
 impl<const D: usize, B> Tensor<B, D, Int>
 where
     B: Backend,
