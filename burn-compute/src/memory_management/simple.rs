@@ -186,7 +186,7 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for SimpleMemoryManageme
         }
     }
 
-    fn storage<'a>(&'a mut self) -> &'a mut Storage {
+    fn storage(&mut self) -> &mut Storage {
         &mut self.storage
     }
 }

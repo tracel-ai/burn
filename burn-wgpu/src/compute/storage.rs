@@ -78,7 +78,9 @@ impl WgpuStorage {
     /// Actually deallocates buffers tagged to be deallocated.
     pub fn perform_deallocations(&mut self) {
         for id in self.deallocations.drain(..) {
-            self.memory.remove(&id).map(|buffer| buffer.destroy());
+            if let Some(buffer) = self.memory.remove(&id) {
+                buffer.destroy()
+            }
         }
     }
 }

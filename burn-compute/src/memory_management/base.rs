@@ -51,5 +51,5 @@ pub trait MemoryManagement<Storage: ComputeStorage>: Send + core::fmt::Debug {
     ///
     /// This is useful if you need to time the deallocations based on async computation, or to
     /// change the mode of storage for different reasons.
-    fn storage<'a>(&'a mut self) -> &'a mut Storage;
+    fn storage(&mut self) -> &mut Storage;
 }
