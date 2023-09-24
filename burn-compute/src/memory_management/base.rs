@@ -40,4 +40,16 @@ pub trait MemoryManagement<Storage: ComputeStorage>: Send + core::fmt::Debug {
     /// Can be useful for servers that want specific control over memory for some
     /// usecases.
     fn dealloc(&mut self, handle: &Self::Handle);
+
+    /// Fetch the storage used by the memory manager.
+    ///
+    /// # Notes
+    ///
+    /// The storage should probably not be used for allocations since the handles won't be
+    /// compatible with the ones provided by the current trait. Prefer using the
+    /// [alloc](MemoryManagement::alloc) and [dealloc](MemoryManagement::dealloc).
+    ///
+    /// This is useful if you need to time the deallocations based on async computation, or to
+    /// change the mode of storage for different reasons.
+    fn storage<'a>(&'a mut self) -> &'a mut Storage;
 }

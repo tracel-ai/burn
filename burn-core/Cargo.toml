@@ -43,7 +43,6 @@ ndarray-blas-openblas-system = ["__ndarray", "ndarray", "burn-ndarray/blas-openb
 __ndarray = [] # Internal flag to know when one ndarray feature is enabled.
 
 wgpu = ["burn-wgpu"]
-wgpu-autotune = ["wgpu", "burn-wgpu/autotune"]
 
 tch = ["burn-tch"]
 

@@ -48,6 +48,35 @@ pub enum DeallocStrategy {
     Never,
 }
 
+/// The strategy defines when to reuse slices.
+#[derive(Debug)]
+pub enum SliceStrategy {
+    /// Never use slices.
+    Never,
+    /// Ratio needed before the chunk can be used as a slice. Between 0 and 1.
+    Ratio(f32),
+    /// When the reserved memory is at least {} bytes.
+    MinimumSize(usize),
+    /// When the reserved memory less than {} bytes.
+    MaximumSize(usize),
+}
+
+impl SliceStrategy {
+    /// If the chunk can be used with a slice.
+    pub fn can_use_chunk(&self, chunk_size: usize, reserved_size: usize) -> bool {
+        if chunk_size < reserved_size {
+            return false;
+        }
+
+        match self {
+            SliceStrategy::Never => false,
+            SliceStrategy::Ratio(ratio) => (reserved_size as f32 / chunk_size as f32) > *ratio,
+            SliceStrategy::MinimumSize(bytes) => reserved_size >= *bytes,
+            SliceStrategy::MaximumSize(bytes) => reserved_size <= *bytes,
+        }
+    }
+}
+
 impl DeallocStrategy {
     /// Create a new strategy with the given period.
     pub fn new_period_tick(period: usize) -> Self {
@@ -79,6 +108,7 @@ pub struct SimpleMemoryManagement<Storage> {
     chunks: HashMap<ChunkId, (StorageHandle, Vec<SliceId>)>,
     slices: HashMap<SliceId, (StorageHandle, ChunkId)>,
     dealloc_strategy: DeallocStrategy,
+    slice_strategy: SliceStrategy,
     storage: Storage,
 }
 
@@ -155,22 +185,26 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for SimpleMemoryManageme
             SimpleHandle::Slice(_) => panic!("Can't dealloc slice manually"),
         }
     }
+
+    fn storage<'a>(&'a mut self) -> &'a mut Storage {
+        &mut self.storage
+    }
 }
 
 impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
     /// Creates a new instance using the given storage and deallocation strategy.
-    pub fn new(storage: Storage, dealloc_strategy: DeallocStrategy) -> Self {
+    pub fn new(
+        storage: Storage,
+        dealloc_strategy: DeallocStrategy,
+        slice_strategy: SliceStrategy,
+    ) -> Self {
         Self {
             chunks: HashMap::new(),
             slices: HashMap::new(),
             dealloc_strategy,
+            slice_strategy,
             storage,
         }
-    }
-
-    /// Creates an new instance using the given storage without deallocation.
-    pub fn never_dealloc(storage: Storage) -> Self {
-        Self::new(storage, DeallocStrategy::Never)
     }
 
     fn reserve_algorithm(&mut self, size: usize) -> SimpleHandle {
@@ -198,19 +232,25 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
         let mut size_diff_current = usize::MAX;
         let mut current = None;
 
-        self.chunks
-            .iter()
-            .for_each(|(chunk_id, (resource, slices))| {
-                let is_free = slices.is_empty() && chunk_id.is_free();
+        for (chunk_id, (resource, slices)) in self.chunks.iter() {
+            let is_free = slices.is_empty() && chunk_id.is_free();
 
-                if is_free && resource.size() == size {
-                    let size_diff = resource.size() - size;
-                    if size_diff < size_diff_current {
-                        current = Some((chunk_id, resource));
-                        size_diff_current = size_diff;
-                    }
+            if !is_free {
+                continue;
+            }
+
+            let resource_size = resource.size();
+            let use_all = size == resource_size;
+
+            if use_all || self.slice_strategy.can_use_chunk(resource_size, size) {
+                let size_diff = resource.size() - size;
+
+                if size_diff < size_diff_current {
+                    current = Some((chunk_id, resource));
+                    size_diff_current = size_diff;
                 }
-            });
+            }
+        }
 
         current.map(|(id, handle)| (id.clone(), handle.size()))
     }
@@ -292,7 +332,7 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        memory_management::{MemoryHandle, MemoryManagement},
+        memory_management::{MemoryHandle, MemoryManagement, SliceStrategy},
         storage::BytesStorage,
     };
 
@@ -300,7 +340,11 @@ mod tests {
 
     #[test]
     fn can_mut_with_single_tensor_reference() {
-        let mut memory_management = SimpleMemoryManagement::never_dealloc(BytesStorage::default());
+        let mut memory_management = SimpleMemoryManagement::new(
+            BytesStorage::default(),
+            DeallocStrategy::Never,
+            SliceStrategy::Never,
+        );
 
         let chunk_size = 4;
         let simple_handle = memory_management.create_chunk(chunk_size);
@@ -313,7 +357,11 @@ mod tests {
 
     #[test]
     fn two_tensor_references_remove_mutability() {
-        let mut memory_management = SimpleMemoryManagement::never_dealloc(BytesStorage::default());
+        let mut memory_management = SimpleMemoryManagement::new(
+            BytesStorage::default(),
+            DeallocStrategy::Never,
+            SliceStrategy::Never,
+        );
 
         let chunk_size = 4;
         let simple_handle = memory_management.create_chunk(chunk_size);
@@ -326,7 +374,11 @@ mod tests {
 
     #[test]
     fn when_non_empty_chunk_exists_and_other_one_created_there_should_be_two() {
-        let mut memory_management = SimpleMemoryManagement::never_dealloc(BytesStorage::default());
+        let mut memory_management = SimpleMemoryManagement::new(
+            BytesStorage::default(),
+            DeallocStrategy::Never,
+            SliceStrategy::Never,
+        );
         let chunk_size = 4;
         let _chunk_handle = memory_management.reserve(chunk_size);
         let _new_handle = memory_management.reserve(chunk_size);
@@ -336,7 +388,11 @@ mod tests {
 
     #[test]
     fn when_empty_chunk_is_cleaned_upexists_it_disappears() {
-        let mut memory_management = SimpleMemoryManagement::never_dealloc(BytesStorage::default());
+        let mut memory_management = SimpleMemoryManagement::new(
+            BytesStorage::default(),
+            DeallocStrategy::Never,
+            SliceStrategy::Never,
+        );
         let chunk_size = 4;
         let chunk_handle = memory_management.reserve(chunk_size);
         drop(chunk_handle);
@@ -364,5 +420,21 @@ mod tests {
             }
             assert!(period_tick_dealloc.should_dealloc());
         }
+    }
+
+    #[test]
+    fn slice_strategy_minimum_bytes() {
+        let strategy = SliceStrategy::MinimumSize(1000);
+
+        assert!(strategy.can_use_chunk(100, 101));
+        assert!(!strategy.can_use_chunk(100, 99));
+    }
+
+    #[test]
+    fn slice_strategy_maximum_bytes() {
+        let strategy = SliceStrategy::MinimumSize(1000);
+
+        assert!(strategy.can_use_chunk(100, 99));
+        assert!(!strategy.can_use_chunk(100, 101));
     }
 }

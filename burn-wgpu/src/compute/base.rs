@@ -4,7 +4,7 @@ use alloc::sync::Arc;
 use burn_compute::{
     channel::MutexComputeChannel,
     client::ComputeClient,
-    memory_management::{DeallocStrategy, SimpleMemoryManagement},
+    memory_management::{DeallocStrategy, SimpleMemoryManagement, SliceStrategy},
     Compute,
 };
 use wgpu::{DeviceDescriptor, DeviceType};
@@ -45,7 +45,11 @@ pub fn compute_client<G: GraphicsApi>(device: &WgpuDevice) -> ComputeClient<Serv
         let device = Arc::new(device_wgpu);
         let storage = WgpuStorage::new(device.clone());
         // Maximum reusability.
-        let memory_management = SimpleMemoryManagement::new(storage, DeallocStrategy::Never);
+        let memory_management = SimpleMemoryManagement::new(
+            storage,
+            DeallocStrategy::new_period_tick(1000),
+            SliceStrategy::Ratio(0.9),
+        );
         let server = WgpuServer::new(memory_management, device, queue, max_tasks);
         let channel = Channel::new(server);
 

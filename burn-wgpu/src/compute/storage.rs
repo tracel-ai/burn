@@ -5,6 +5,7 @@ use std::{num::NonZeroU64, sync::Arc};
 /// Buffer storage for wgpu.
 pub struct WgpuStorage {
     memory: HashMap<StorageId, Arc<wgpu::Buffer>>,
+    deallocations: Vec<StorageId>,
     device: Arc<wgpu::Device>,
 }
 
@@ -69,7 +70,15 @@ impl WgpuStorage {
     pub fn new(device: Arc<wgpu::Device>) -> Self {
         Self {
             memory: HashMap::new(),
+            deallocations: Vec::new(),
             device,
+        }
+    }
+
+    /// Actually deallocates buffers tagged to be deallocated.
+    pub fn perform_deallocations(&mut self) {
+        for id in self.deallocations.drain(..) {
+            self.memory.remove(&id).map(|buffer| buffer.destroy());
         }
     }
 }
@@ -108,7 +117,6 @@ impl ComputeStorage for WgpuStorage {
     }
 
     fn dealloc(&mut self, id: StorageId) {
-        self.memory.get(&id).unwrap().destroy();
-        let _ = self.memory.remove(&id);
+        self.deallocations.push(id);
     }
 }

@@ -11,10 +11,7 @@ repository = "https://github.com/burn-rs/burn/tree/main/burn-wgpu"
 version = "0.10.0"
 
 [features]
-default = ["async"]
-async = []
-# Still experimental
-autotune = []
+default = []
 
 [dependencies]
 burn-common = { path = "../burn-common", version = "0.10.0" }

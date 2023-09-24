@@ -84,14 +84,17 @@ where
         core::mem::swap(&mut new_encoder, &mut self.encoder);
 
         self.queue.submit(Some(new_encoder.finish()));
+
+        // Cleanup allocations and deallocations.
         self.free_manual_allocations();
+        self.memory_management.storage().perform_deallocations();
     }
 
     fn free_manual_allocations(&mut self) {
         let mut manual_taken_tmp = Vec::new();
         core::mem::swap(&mut manual_taken_tmp, &mut self.manual_taken);
 
-        for (size, handle) in manual_taken_tmp.drain(0..manual_taken_tmp.len()) {
+        for (size, handle) in manual_taken_tmp.drain(..) {
             if handle.can_mut() {
                 self.register_manual(size, handle);
             } else {
