@@ -112,23 +112,42 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
         kernel_size: [usize; 2],
         options: UnfoldOptions,
     ) -> TchTensor<E, 3> {
+        let stride = options.stride.unwrap_or([1, 1]);
+        let padding = options.padding.unwrap_or([0, 0]);
+        let dilation = options.dilation.unwrap_or([1, 1]);
+
         // tch unfold seems to be a lower-level implementation that unfolds
         // one dimension at a time, so we have to unfold height first then width.
         let height_dimension = 2;
         let height_size = kernel_size[0] as i64;
-        let height_step = options.stride.unwrap_or([1, 1])[0] as i64;
+        let height_step = stride[0] as i64;
 
         let height_unfolded =
             tch::Tensor::unfold(&x.tensor, height_dimension, height_size, height_step);
 
         let width_dimension = 3;
         let width_size = kernel_size[1] as i64;
-        let width_step = options.stride.unwrap_or([1, 1])[1] as i64;
+        let width_step = stride[1] as i64;
 
         let unfolded =
             tch::Tensor::unfold(&height_unfolded, width_dimension, width_size, width_step);
 
-        TchTensor::new(unfolded)
+        // Reshape to have the shape [batch_size, channels_out, l]
+        let batch_size = unfolded.size()[0];
+        let channels = unfolded.size()[1];
+        let channels_out = channels * kernel_size[0] as i64 * kernel_size[1] as i64;
+
+        let l_dim_1 = (x.shape().dims[2] + 2 * padding[0] - dilation[0] * (kernel_size[0] - 1) - 1)
+            / stride[0]
+            + 1;
+        let l_dim_2 = (x.shape().dims[3] + 2 * padding[1] - dilation[1] * (kernel_size[1] - 1) - 1)
+            / stride[1]
+            + 1;
+        let l = (l_dim_1 * l_dim_2) as i64;
+
+        let reshaped_unfolded = unfolded.contiguous().view([batch_size, channels_out, l]);
+
+        TchTensor::new(reshaped_unfolded)
     }
 
     fn avg_pool1d(
