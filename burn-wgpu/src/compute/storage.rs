@@ -9,6 +9,9 @@ pub struct WgpuStorage {
     device: Arc<wgpu::Device>,
 }
 
+unsafe impl Send for WgpuStorage {}
+unsafe impl Sync for WgpuStorage {}
+
 impl core::fmt::Debug for WgpuStorage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(format!("WgpuStorage {{ device: {:?} }}", self.device).as_str())
@@ -23,6 +26,9 @@ pub struct WgpuResource {
     /// How the resource is used.
     pub kind: WgpuResourceKind,
 }
+
+unsafe impl Send for WgpuResource {}
+unsafe impl Sync for WgpuResource {}
 
 impl WgpuResource {
     /// Return the binding view of the buffer.

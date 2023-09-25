@@ -31,11 +31,16 @@ impl<B: Backend, const D: usize, S: PrecisionSettings> Serialize for FloatTensor
     where
         Se: serde::Serializer,
     {
-        self.tensor
+        #[cfg(not(feature = "async-read"))]
+        return self
+            .tensor
             .to_data()
             .convert::<S::FloatElem>()
             .serialize()
-            .serialize(serializer)
+            .serialize(serializer);
+
+        #[cfg(feature = "async-read")]
+        panic!("Not supported with async-read");
     }
 }
 
@@ -58,11 +63,16 @@ impl<B: Backend, const D: usize, S: PrecisionSettings> Serialize for IntTensorSe
     where
         Se: serde::Serializer,
     {
-        self.tensor
+        #[cfg(not(feature = "async-read"))]
+        return self
+            .tensor
             .to_data()
             .convert::<S::IntElem>()
             .serialize()
-            .serialize(serializer)
+            .serialize(serializer);
+
+        #[cfg(feature = "async-read")]
+        panic!("Not supported with async-read");
     }
 }
 
@@ -85,7 +95,11 @@ impl<B: Backend, const D: usize> Serialize for BoolTensorSerde<B, D> {
     where
         Se: serde::Serializer,
     {
-        self.tensor.to_data().serialize().serialize(serializer)
+        #[cfg(not(feature = "async-read"))]
+        return self.tensor.to_data().serialize().serialize(serializer);
+
+        #[cfg(feature = "async-read")]
+        panic!("Not supported with async-read");
     }
 }
 

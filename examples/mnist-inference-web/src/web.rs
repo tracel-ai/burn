@@ -20,9 +20,9 @@ pub struct Mnist {
 impl Mnist {
     /// Constructor called by JavaScripts with the new keyword.
     #[wasm_bindgen(constructor)]
-    pub fn new() -> Self {
+    pub async fn new() -> Self {
         Self {
-            model: build_and_load_model(),
+            model: build_and_load_model().await,
         }
     }
 
@@ -38,7 +38,7 @@ impl Mnist {
     /// * [number-slices](https://rustwasm.github.io/wasm-bindgen/reference/types/number-slices.html)
     /// * [boxed-number-slices](https://rustwasm.github.io/wasm-bindgen/reference/types/boxed-number-slices.html)
     ///
-    pub fn inference(&self, input: &[f32]) -> Result<Box<[f32]>, String> {
+    pub async fn inference(&self, input: &[f32]) -> Result<Box<[f32]>, String> {
         // Reshape from the 1D array to 3d tensor [batch, height, width]
         let input: Tensor<Backend, 3> = Tensor::from_floats(input).reshape([1, 28, 28]);
 
@@ -55,7 +55,7 @@ impl Mnist {
         let output: Tensor<Backend, 2> = output.clone().exp() / output.exp().sum_dim(1);
 
         // Flatten output tensor with [1, 10] shape into boxed slice of [f32]
-        Ok(output.to_data().value.into_boxed_slice())
+        Ok(output.into_data().await.value.into_boxed_slice())
     }
 }
 

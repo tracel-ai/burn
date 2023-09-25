@@ -80,13 +80,20 @@ impl GradientClipping {
         grad: Tensor<B, D>,
         threshold: f32,
     ) -> Tensor<B, D> {
-        let norm = Self::l2_norm(grad.clone());
-        let norm_float = norm.into_scalar().elem::<f32>();
-        if norm_float > threshold {
-            let scale = threshold / norm_float;
-            grad.mul_scalar(scale)
-        } else {
-            grad
+        #[cfg(feature = "async-read")]
+        panic!("Not supported with async");
+
+        #[cfg(not(feature = "async-read"))]
+        {
+            let norm = Self::l2_norm(grad.clone());
+            let norm_float = norm.into_scalar().elem::<f32>();
+
+            return if norm_float > threshold {
+                let scale = threshold / norm_float;
+                grad.mul_scalar(scale)
+            } else {
+                grad
+            };
         }
     }
 }

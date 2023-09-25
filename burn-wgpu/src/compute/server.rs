@@ -25,6 +25,9 @@ pub struct WgpuServer<MM: MemoryManagement<WgpuStorage>> {
     manual_taken: Vec<(usize, server::Handle<Self>)>,
 }
 
+unsafe impl<MM: MemoryManagement<WgpuStorage>> Send for WgpuServer<MM> {}
+unsafe impl<MM: MemoryManagement<WgpuStorage>> Sync for WgpuServer<MM> {}
+
 #[derive(new, Debug)]
 struct ComputeTask {
     pipeline: Arc<ComputePipeline>,
@@ -175,6 +178,32 @@ where
                 }),
         )
     }
+
+    async fn async_readaa(buffer_dest: wgpu::Buffer, device: &wgpu::Device) -> Vec<u8> {
+        let buffer_slice = buffer_dest.slice(..);
+        let (sender, receiver) = futures_intrusive::channel::shared::oneshot_channel();
+
+        buffer_slice.map_async(wgpu::MapMode::Read, move |v| {
+            sender
+                .send(v)
+                .expect("Unable to send buffer slice result to async channel.")
+        });
+
+        device.poll(wgpu::Maintain::Wait);
+
+        let result = receiver.receive();
+
+        if let Some(Ok(())) = result.await {
+            let data = buffer_slice.get_mapped_range();
+            let result = bytemuck::cast_slice(&data).to_vec();
+
+            drop(data);
+            buffer_dest.unmap();
+            result
+        } else {
+            panic!("Unable to read buffer")
+        }
+    }
 }
 
 #[cfg(feature = "async-read")]
@@ -238,51 +267,38 @@ where
 
     #[cfg(feature = "async-read")]
     async fn read(&mut self, handle: &server::Handle<Self>) -> Vec<u8> {
-        // Register previous tasks before reading the buffer so that it is up to date.
         self.register_tasks();
-
-        let resource = self.memory_management.get(&handle.memory);
-
-        let size = resource.size();
-        let buffer_dest = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: None,
-            size,
-            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
-        self.encoder.copy_buffer_to_buffer(
-            &resource.buffer,
-            resource.offset(),
-            &buffer_dest,
-            0,
-            size,
-        );
-
         self.submit();
 
-        let buffer_slice = buffer_dest.slice(..);
-        let (sender, receiver) = futures_intrusive::channel::shared::oneshot_channel();
-        buffer_slice.map_async(wgpu::MapMode::Read, move |v| {
-            sender
-                .send(v)
-                .expect("Unable to send buffer slice result to async channel.")
-        });
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+        core::mem::swap(&mut encoder, &mut self.encoder);
+        let resource = self.memory_management.get(&handle.memory);
+        let device = self.device.clone();
 
-        self.device.poll(wgpu::Maintain::Wait);
+        todo!();
 
-        let result = receiver.receive().await;
+        // async move {
+        //     let size = resource.size();
+        //     let buffer_dest = self.device.create_buffer(&wgpu::BufferDescriptor {
+        //         label: None,
+        //         size,
+        //         usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+        //         mapped_at_creation: false,
+        //     });
 
-        if let Some(Ok(())) = result {
-            let data = buffer_slice.get_mapped_range();
-            let result = bytemuck::cast_slice(&data).to_vec();
+        //     encoder.copy_buffer_to_buffer(
+        //         &resource.buffer,
+        //         resource.offset(),
+        //         &buffer_dest,
+        //         0,
+        //         size,
+        //     );
 
-            drop(data);
-            buffer_dest.unmap();
-            result
-        } else {
-            panic!("Unable to read buffer {:?}", result)
-        }
+        //     Self::async_readaa(buffer_dest, &device).await
+        // }
+        // .await
     }
 
     /// When we create a new handle from existing data, we use custom allocations so that we don't

@@ -11,7 +11,7 @@ repository = "https://github.com/burn-rs/burn/tree/main/burn-core"
 version = "0.10.0"
 
 [features]
-default = ["std", "dataset-minimal", "async-read"]
+default = ["std", "dataset-minimal"]
 std = [
   "burn-common/std",
   "burn-tensor/std",
@@ -43,7 +43,9 @@ ndarray-blas-openblas = ["__ndarray", "ndarray", "burn-ndarray/blas-openblas"]
 ndarray-blas-openblas-system = ["__ndarray", "ndarray", "burn-ndarray/blas-openblas-system"]
 __ndarray = [] # Internal flag to know when one ndarray feature is enabled.
 
-wgpu = ["burn-wgpu"]
+__wgpu = [] # Internal flag to know when one ndarray feature is enabled.
+wgpu = ["__wgpu", "burn-wgpu/default"]
+wgpu-async-read = ["__wgpu", "async-read", "burn-wgpu/async-read"]
 
 tch = ["burn-tch"]
 
