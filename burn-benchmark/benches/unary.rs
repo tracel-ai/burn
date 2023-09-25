@@ -38,7 +38,7 @@ fn bench<B: Backend>(device: &B::Device) {
 
     let benchmark = UnaryBenchmark::<B, D>::new(shape, num_repeats);
 
-    run_benchmark(benchmark, &device)
+    run_benchmark(benchmark, device)
 }
 
 fn main() {

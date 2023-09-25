@@ -70,8 +70,8 @@ fn bench<B: Backend>(device: &B::Device) {
     let to_benchmark = ToDataBenchmark::<B, D>::new(shape.clone(), num_repeats);
     let from_benchmark = FromDataBenchmark::<B, D>::new(shape, num_repeats);
 
-    run_benchmark(to_benchmark, &device);
-    run_benchmark(from_benchmark, &device)
+    run_benchmark(to_benchmark, device);
+    run_benchmark(from_benchmark, device)
 }
 
 fn main() {

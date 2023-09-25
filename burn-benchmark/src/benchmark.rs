@@ -116,7 +116,7 @@ pub fn run_benchmark<B: Backend, BM: Benchmark<B>>(benchmark: BM, device: &B::De
         .unwrap()
         .as_millis();
     let output = std::process::Command::new("git")
-        .args(&["rev-parse", "HEAD"])
+        .args(["rev-parse", "HEAD"])
         .output()
         .unwrap();
     let git_hash = String::from_utf8(output.stdout).unwrap();
