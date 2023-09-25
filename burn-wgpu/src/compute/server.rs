@@ -32,7 +32,7 @@ struct ComputeTask {
     work_group: WorkGroup,
 }
 
-/// Kernel trait with the [source](SourceTemplate) that will be compiled and cache based on the
+/// Kernel trait with the [source](SourceTemplate) that will be compiled and cached based on the
 /// provided id.
 ///
 /// The kernel will be launched with the given [workgroup](WorkGroup).
@@ -103,21 +103,23 @@ where
         }
     }
 
+    // Finds a free, manually-added handle of specified size, or creates it if none is found
     fn manual_reserve(&mut self, size: usize) -> server::Handle<Self> {
-        let handle = if let Some(handles) = self.manual_available.get_mut(&size) {
-            handles.pop().unwrap_or_else(|| {
+        let handle = self
+            .manual_available
+            .get_mut(&size)
+            .and_then(|h| h.pop())
+            .unwrap_or_else(|| {
                 let memory = self.memory_management.alloc(size);
                 server::Handle::new(memory)
-            })
-        } else {
-            let memory = self.memory_management.alloc(size);
-            server::Handle::new(memory)
-        };
+            });
+
         self.manual_taken.push((size, handle.clone()));
 
         handle
     }
 
+    // Manually adds a handle of given size
     fn register_manual(&mut self, size: usize, handle: server::Handle<Self>) {
         if let Some(handles) = self.manual_available.get_mut(&size) {
             handles.push(handle);

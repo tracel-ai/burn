@@ -200,7 +200,7 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for SimpleMemoryManageme
 }
 
 impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
-    /// Creates a new instance using the given storage and deallocation strategy.
+    /// Creates a new instance using the given storage, deallocation strategy and slice strategy.
     pub fn new(
         storage: Storage,
         dealloc_strategy: DeallocStrategy,
@@ -241,20 +241,21 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
         let mut current = None;
 
         for (chunk_id, (resource, slices)) in self.chunks.iter() {
-            let is_free = slices.is_empty() && chunk_id.is_free();
-
-            if !is_free {
+            // If chunk is already used, we do not choose it
+            if !slices.is_empty() || !chunk_id.is_free() {
                 continue;
             }
 
             let resource_size = resource.size();
-            let use_all = size == resource_size;
 
-            if use_all {
+            // If we find a chunk of exactly the right size, we stop searching altogether
+            if size == resource_size {
                 current = Some((chunk_id, resource));
                 break;
             }
 
+            // Finds the smallest of the large enough chunks that can accept a slice
+            // of the given size
             if self.slice_strategy.can_use_chunk(resource_size, size) {
                 let size_diff = resource_size - size;
 

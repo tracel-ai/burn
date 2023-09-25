@@ -44,7 +44,6 @@ pub fn compute_client<G: GraphicsApi>(device: &WgpuDevice) -> ComputeClient<Serv
 
         let device = Arc::new(device_wgpu);
         let storage = WgpuStorage::new(device.clone());
-        // Maximum reusability.
         let memory_management = SimpleMemoryManagement::new(
             storage,
             DeallocStrategy::new_period_tick(1000),
