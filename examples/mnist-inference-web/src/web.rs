@@ -1,7 +1,7 @@
 #![allow(clippy::new_without_default)]
 
-use alloc::{boxed::Box, string::String};
 use alloc::vec::Vec;
+use alloc::{boxed::Box, string::String};
 use js_sys::Array;
 use wasm_bindgen::convert::WasmSlice;
 use wasm_bindgen::prelude::*;
@@ -17,17 +17,15 @@ use wasm_bindgen::{prelude::*, Clamped, JsObject};
 /// See:[exporting-rust-struct](https://rustwasm.github.io/wasm-bindgen/contributing/design/exporting-rust-struct.html)
 #[wasm_bindgen]
 pub struct Mnist {
-    // model: Option<Model<Backend>>,
+    model: Option<Model<Backend>>,
 }
 
 #[wasm_bindgen]
 impl Mnist {
     /// Constructor called by JavaScripts with the new keyword.
-    #[wasm_bindgen()]
+    #[wasm_bindgen(constructor)]
     pub fn new() -> Self {
-        Self {
-      //      model: None,
-        }
+        Self { model: None }
     }
 
     /// Returns the inference results.
@@ -42,14 +40,12 @@ impl Mnist {
     /// * [number-slices](https://rustwasm.github.io/wasm-bindgen/reference/types/number-slices.html)
     /// * [boxed-number-slices](https://rustwasm.github.io/wasm-bindgen/reference/types/boxed-number-slices.html)
     ///
-    pub async fn inference(&self, input: &[f32]) -> Result<Array, String> {
-        //if let None = self.model {
-        //    self.model = Some(build_and_load_model().await);
-        //}
+    pub async fn inference(&mut self, input: &[f32]) -> Result<Array, String> {
+        if let None = self.model {
+            self.model = Some(build_and_load_model().await);
+        }
 
-        //let model = self.model.as_ref().unwrap();
-        //
-        let model = build_and_load_model().await;
+        let model = self.model.as_ref().unwrap();
 
         // Reshape from the 1D array to 3d tensor [batch, height, width]
         let input: Tensor<Backend, 3> = Tensor::from_floats(input).reshape([1, 28, 28]);
@@ -68,7 +64,7 @@ impl Mnist {
 
         // Flatten output tensor with [1, 10] shape into boxed slice of [f32]
         let output = output.into_data().await.convert::<f32>().value;
-        let mut array = Array::new_with_length(output.len() as u32);
+        let array = Array::new_with_length(output.len() as u32);
         for value in output {
             array.push(&value.into());
         }
