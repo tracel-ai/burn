@@ -11,8 +11,8 @@ repository = "https://github.com/burn-rs/burn/tree/main/burn-wgpu"
 version = "0.10.0"
 
 [features]
-default = []
-async-read = ["burn-tensor/async-read", "burn-compute/async-read", "async-trait"]
+default = ["async-read", "wgpu/fragile-send-sync-non-atomic-wasm"]
+async-read = ["burn-tensor/async-read", "burn-compute/async-read", "async-trait", "wgpu/webgl"]
 
 [dependencies]
 burn-common = { path = "../burn-common", version = "0.10.0" }

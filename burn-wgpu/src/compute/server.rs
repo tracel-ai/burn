@@ -277,28 +277,26 @@ where
         let resource = self.memory_management.get(&handle.memory);
         let device = self.device.clone();
 
-        todo!();
+        async {
+            let size = resource.size();
+            let buffer_dest = device.create_buffer(&wgpu::BufferDescriptor {
+                label: None,
+                size,
+                usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
 
-        // async move {
-        //     let size = resource.size();
-        //     let buffer_dest = self.device.create_buffer(&wgpu::BufferDescriptor {
-        //         label: None,
-        //         size,
-        //         usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
-        //         mapped_at_creation: false,
-        //     });
+            encoder.copy_buffer_to_buffer(
+                &resource.buffer,
+                resource.offset(),
+                &buffer_dest,
+                0,
+                size,
+            );
 
-        //     encoder.copy_buffer_to_buffer(
-        //         &resource.buffer,
-        //         resource.offset(),
-        //         &buffer_dest,
-        //         0,
-        //         size,
-        //     );
-
-        //     Self::async_readaa(buffer_dest, &device).await
-        // }
-        // .await
+            Self::async_readaa(buffer_dest, &device).await
+        }
+        .await
     }
 
     /// When we create a new handle from existing data, we use custom allocations so that we don't
