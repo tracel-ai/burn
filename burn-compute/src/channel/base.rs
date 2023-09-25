@@ -3,7 +3,7 @@ use alloc::vec::Vec;
 
 /// The ComputeChannel trait links the ComputeClient to the ComputeServer
 /// while ensuring thread-safety
-pub trait ComputeChannel<Server: ComputeServer>: Clone {
+pub trait ComputeChannel<Server: ComputeServer>: Clone + core::fmt::Debug {
     /// Given a handle, returns owned resource as bytes
     fn read(&self, handle: &Handle<Server>) -> Vec<u8>;
 

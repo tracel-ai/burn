@@ -12,6 +12,7 @@ use alloc::vec::Vec;
 ///
 /// This is mosly useful for `no-std` environments where threads aren't supported, otherwise prefer
 /// the [mutex](super::MutexComputeChannel) or the [mpsc](super::MpscComputeChannel) channels.
+#[derive(Debug)]
 pub struct RefCellComputeChannel<Server> {
     server: Arc<core::cell::RefCell<Server>>,
 }

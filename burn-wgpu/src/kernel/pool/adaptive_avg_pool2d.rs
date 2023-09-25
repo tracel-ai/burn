@@ -1,14 +1,12 @@
-use std::sync::Arc;
-
-use burn_tensor::Shape;
-use wgpu::Buffer;
-
 use crate::{
+    compute::{StaticKernel, WgpuHandle},
     element::WgpuElement,
     kernel::{elemwise_workgroup, KernelSettings},
     kernel_wgsl,
+    ops::numeric::empty_device,
     tensor::WgpuTensor,
 };
+use burn_tensor::Shape;
 
 kernel_wgsl!(
     AdaptiveAvgPool2d,
@@ -28,23 +26,16 @@ pub(crate) fn adaptive_avg_pool2d<E: WgpuElement>(
     let [batch_size, channels, _, _] = x.shape.dims;
 
     let output_shape = Shape::new([batch_size, channels, output_size[0], output_size[1]]);
-    let num_elems = output_shape.num_elements();
-    let output_buffer = x
-        .context
-        .create_buffer(num_elems * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(x.context.clone(), output_shape, output_buffer);
+    let output = empty_device(x.client.clone(), x.device.clone(), output_shape);
 
-    let kernel = x
-        .context
-        .compile_static::<KernelSettings<AdaptiveAvgPool2d, E, i32, WORKGROUP, WORKGROUP, 1>>();
+    let kernel =
+        StaticKernel::<KernelSettings<AdaptiveAvgPool2d, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
+            elemwise_workgroup(output.shape.num_elements(), WORKGROUP),
+        );
 
-    let info_buffer = build_info(&x, &output);
-
-    x.context.execute(
-        elemwise_workgroup(output.shape.num_elements(), WORKGROUP),
-        kernel,
-        &[&x.buffer, &output.buffer, &info_buffer],
-    );
+    let info_handle = build_info(&x, &output);
+    x.client
+        .execute(Box::new(kernel), &[&x.handle, &output.handle, &info_handle]);
 
     output
 }
@@ -57,32 +48,29 @@ pub(crate) fn adaptive_avg_pool2d_backward<E: WgpuElement>(
 
     let output_shape = x.shape.clone();
     let num_elems = output_shape.num_elements();
-    let output_buffer = x
-        .context
-        .create_buffer(num_elems * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(x.context.clone(), output_shape, output_buffer);
+    let output_buffer = x.client.empty(num_elems * core::mem::size_of::<E>());
+    let output = WgpuTensor::new(
+        x.client.clone(),
+        x.device.clone(),
+        output_shape,
+        output_buffer,
+    );
 
-    let kernel = x.context.compile_static::<KernelSettings<
-        AdaptiveAvgPool2dBackward,
-        E,
-        i32,
-        WORKGROUP,
-        WORKGROUP,
-        1,
-    >>();
+    let kernel = StaticKernel::<
+        KernelSettings<AdaptiveAvgPool2dBackward, E, i32, WORKGROUP, WORKGROUP, 1>,
+    >::new(elemwise_workgroup(output.shape.num_elements(), WORKGROUP));
 
-    let info_buffer = build_info(&x, &out_grad);
+    let info_handle = build_info(&x, &out_grad);
 
-    x.context.execute(
-        elemwise_workgroup(output.shape.num_elements(), WORKGROUP),
-        kernel,
-        &[&out_grad.buffer, &output.buffer, &info_buffer],
+    x.client.execute(
+        Box::new(kernel),
+        &[&out_grad.handle, &output.handle, &info_handle],
     );
 
     output
 }
 
-fn build_info<E: WgpuElement>(x: &WgpuTensor<E, 4>, output: &WgpuTensor<E, 4>) -> Arc<Buffer> {
+fn build_info<E: WgpuElement>(x: &WgpuTensor<E, 4>, output: &WgpuTensor<E, 4>) -> WgpuHandle {
     let mut info: [u32; 16] = [0; 16];
     info[0] = x.strides[0] as u32;
     info[1] = x.strides[1] as u32;
@@ -102,7 +90,5 @@ fn build_info<E: WgpuElement>(x: &WgpuTensor<E, 4>, output: &WgpuTensor<E, 4>) -
     info[14] = output.shape.dims[2] as u32;
     info[15] = output.shape.dims[3] as u32;
 
-    output
-        .context
-        .create_buffer_with_data(bytemuck::cast_slice(&info))
+    output.client.create(bytemuck::cast_slice(&info))
 }

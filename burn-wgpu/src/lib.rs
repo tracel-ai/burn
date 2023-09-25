@@ -10,19 +10,12 @@ mod ops;
 
 /// Benchmark module
 pub mod benchmark;
-/// Context module.
-pub mod context;
+/// Compute related module.
+pub mod compute;
 /// Kernel module
 pub mod kernel;
 /// Tensor module.
 pub mod tensor;
-
-#[cfg(test)] // Only enabled for dev for now.
-/// Compute related module.
-pub mod compute;
-
-pub(crate) mod pool;
-pub(crate) mod tune;
 
 mod element;
 pub use element::{FloatElement, IntElement};

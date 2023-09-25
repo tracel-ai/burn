@@ -1,7 +1,9 @@
 use crate::{
+    compute::StaticKernel,
     element::WgpuElement,
     kernel::{build_info, elemwise_workgroup, KernelSettings},
     kernel_wgsl,
+    ops::numeric::empty_device,
     tensor::WgpuTensor,
 };
 
@@ -16,29 +18,27 @@ pub fn mask_where<E: WgpuElement, const D: usize>(
     const WORKGROUP: usize = 32;
 
     let num_elems = input.shape.num_elements();
-    let buffer = input
-        .context
-        .create_buffer(num_elems * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(input.context.clone(), input.shape.clone(), buffer);
+    let output = empty_device(
+        input.client.clone(),
+        input.device.clone(),
+        input.shape.clone(),
+    );
 
-    let kernel = input
-        .context
-        .compile_static::<KernelSettings<MaskWhere, E, i32, WORKGROUP, WORKGROUP, 1>>();
-    let mask = WgpuTensor::new(mask.context, mask.shape, mask.buffer);
-    let info = build_info(&[&input, &value, &mask, &output]);
-    let info_buffers = input
-        .context
-        .create_buffer_with_data(bytemuck::cast_slice(&info));
-
-    input.context.execute(
+    let kernel = StaticKernel::<KernelSettings<MaskWhere, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
         elemwise_workgroup(num_elems, WORKGROUP),
-        kernel,
+    );
+    let mask = WgpuTensor::new(mask.client, mask.device, mask.shape, mask.handle);
+    let info = build_info(&[&input, &value, &mask, &output]);
+    let info_handle = input.client.create(bytemuck::cast_slice(&info));
+
+    input.client.execute(
+        Box::new(kernel),
         &[
-            &input.buffer,
-            &value.buffer,
-            &mask.buffer,
-            &output.buffer,
-            &info_buffers,
+            &input.handle,
+            &value.handle,
+            &mask.handle,
+            &output.handle,
+            &info_handle,
         ],
     );
 
@@ -53,23 +53,21 @@ pub fn mask_where_inplace<E: WgpuElement, const D: usize>(
 ) -> WgpuTensor<E, D> {
     const WORKGROUP: usize = 32;
 
-    let kernel = input
-        .context
-        .compile_static::<KernelSettings<MaskWhereInplace, E, i32, WORKGROUP, WORKGROUP, 1>>();
-    let mask = WgpuTensor::new(mask.context, mask.shape, mask.buffer);
+    let kernel =
+        StaticKernel::<KernelSettings<MaskWhereInplace, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
+            elemwise_workgroup(input.shape.num_elements(), WORKGROUP),
+        );
+    let mask = WgpuTensor::new(mask.client, mask.device, mask.shape, mask.handle);
     let mut info = build_info(&[&input, &value, &mask]);
     info.push(match reverse {
         true => 1,
         false => 0,
     });
-    let info_buffers = input
-        .context
-        .create_buffer_with_data(bytemuck::cast_slice(&info));
+    let info_handle = input.client.create(bytemuck::cast_slice(&info));
 
-    input.context.execute(
-        elemwise_workgroup(input.shape.num_elements(), WORKGROUP),
-        kernel,
-        &[&input.buffer, &value.buffer, &mask.buffer, &info_buffers],
+    input.client.execute(
+        Box::new(kernel),
+        &[&input.handle, &value.handle, &mask.handle, &info_handle],
     );
 
     input

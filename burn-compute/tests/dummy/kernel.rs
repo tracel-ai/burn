@@ -2,14 +2,14 @@ use burn_compute::storage::BytesResource;
 
 /// The DummyKernel trait should be implemented for every supported operation
 pub trait DummyKernel: Send {
-    fn compute<'a>(&self, resources: &mut [BytesResource]);
+    fn compute(&self, resources: &mut [BytesResource]);
 }
 
 /// Contains the algorithm for element-wise addition
 pub struct DummyElementwiseAddition;
 
 impl DummyKernel for DummyElementwiseAddition {
-    fn compute<'a>(&self, inputs: &mut [BytesResource]) {
+    fn compute(&self, inputs: &mut [BytesResource]) {
         // Notice how the kernel is responsible for determining which inputs
         // are read-only and which are writable.
         let lhs = &inputs[0].read();

@@ -450,6 +450,25 @@ where
     }
 }
 
+impl<B, K> Tensor<B, 2, K>
+where
+    B: Backend,
+    K: Numeric<B>,
+    K::Elem: Element,
+{
+    /// Create diagonal matrix.
+    ///
+    /// # Arguments
+    ///
+    /// * `size` - The size of the square matrix.
+    pub fn diagonal(size: usize) -> Self {
+        let indices = Tensor::<B, 1, Int>::arange(0..size).unsqueeze();
+        let ones = K::ones([1, size].into(), &B::Device::default());
+        let zeros = K::zeros([size, size].into(), &B::Device::default());
+        Self::new(K::scatter(0, zeros, indices, ones))
+    }
+}
+
 /// Trait that list all operations that can be applied on all numerical tensors.
 ///
 /// # Warnings

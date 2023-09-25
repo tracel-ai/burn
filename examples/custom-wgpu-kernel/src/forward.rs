@@ -2,8 +2,10 @@ use crate::FloatTensor;
 
 use super::Backend;
 use burn::backend::wgpu::{
-    context::WorkGroup,
-    kernel::{build_info, into_contiguous, DynamicKernel, SourceTemplate, StaticKernel},
+    compute::{DynamicKernel, WorkGroup},
+    kernel::{
+        build_info, into_contiguous, DynamicKernelSource, SourceTemplate, StaticKernelSource,
+    },
     kernel_wgsl,
     tensor::WgpuTensor,
     FloatElement, GraphicsApi, IntElement, WgpuBackend,
@@ -24,11 +26,11 @@ struct FusedMatmulAddRelu<E: FloatElement> {
 }
 
 // Implement the dynamic kernel trait for our kernel type.
-impl<E: FloatElement> DynamicKernel for FusedMatmulAddRelu<E> {
-    fn source_template(self) -> SourceTemplate {
+impl<E: FloatElement> DynamicKernelSource for FusedMatmulAddRelu<E> {
+    fn source(self) -> SourceTemplate {
         // Extend our raw kernel with workgroup size information using the
         // `SourceTemplate` trait.
-        FusedMatmulAddReluRaw::source_template()
+        FusedMatmulAddReluRaw::source()
             .register("workgroup_size_x", self.workgroup_size_x.to_string())
             .register("workgroup_size_y", self.workgroup_size_y.to_string())
             .register("elem", E::type_name())
@@ -76,23 +78,18 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for WgpuBackend<G, 
 
         // Create a buffer for the output tensor.
         let buffer = lhs
-            .context
-            .create_buffer(shape_out.num_elements() * core::mem::size_of::<F>());
+            .client
+            .empty(shape_out.num_elements() * core::mem::size_of::<F>());
 
         // Create the output tensor primitive.
-        let output = WgpuTensor::new(lhs.context.clone(), shape_out, buffer);
+        let output = WgpuTensor::new(lhs.client.clone(), lhs.device.clone(), shape_out, buffer);
 
-        // Compile the kernel or use the cache based on the template id.
-        let kernel = lhs.context.compile_dynamic(FusedMatmulAddRelu::<F>::new(
-            workgroup_size_x,
-            workgroup_size_y,
-        ));
+        // Create the kernel.
+        let kernel = FusedMatmulAddRelu::<F>::new(workgroup_size_x, workgroup_size_y);
 
         // Build info buffer with tensor information needed by the kernel, such as shapes and strides.
         let info = build_info(&[&lhs, &rhs, &output]);
-        let info_buffer = lhs
-            .context
-            .create_buffer_with_data(bytemuck::cast_slice(&info));
+        let info_handle = lhs.client.create(bytemuck::cast_slice(&info));
 
         // Declare the wgsl workgroup with the number of blocks in x, y and z.
         let blocks_needed_in_x = f32::ceil(num_rows as f32 / workgroup_size_x as f32) as u32;
@@ -100,15 +97,14 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for WgpuBackend<G, 
         let workgroup = WorkGroup::new(blocks_needed_in_x, blocks_needed_in_y, num_batches as u32);
 
         // Execute lazily the kernel with the launch information and the given buffers.
-        lhs.context.execute(
-            workgroup,
-            kernel,
+        lhs.client.execute(
+            Box::new(DynamicKernel::new(kernel, workgroup)),
             &[
-                &lhs.buffer,
-                &rhs.buffer,
-                &bias.buffer,
-                &output.buffer,
-                &info_buffer,
+                &lhs.handle,
+                &rhs.handle,
+                &bias.handle,
+                &output.handle,
+                &info_handle,
             ],
         );
 

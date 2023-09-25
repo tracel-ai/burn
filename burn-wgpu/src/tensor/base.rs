@@ -1,19 +1,22 @@
-use crate::unary;
+use crate::{
+    compute::{WgpuComputeClient, WgpuHandle},
+    unary, WgpuDevice,
+};
+use crate::{element::WgpuElement, kernel::unary_default};
 use burn_tensor::Shape;
-use std::{marker::PhantomData, sync::Arc};
-use wgpu::Buffer;
-
-use crate::{context::Context, element::WgpuElement, kernel::unary_default};
+use std::marker::PhantomData;
 
 /// The basic tensor primitive struct.
 #[derive(Debug, Clone)]
 pub struct WgpuTensor<E: WgpuElement, const D: usize> {
-    /// The context the tensor is binded to.
-    pub context: Arc<Context>,
+    /// Compute client for wgpu.
+    pub client: WgpuComputeClient,
     /// The buffer where the data are stored.
-    pub buffer: Arc<Buffer>,
+    pub handle: WgpuHandle,
     /// The shape of the current tensor.
     pub shape: Shape<D>,
+    /// The device of the current tensor.
+    pub device: WgpuDevice,
     /// The strides of the current tensor.
     pub strides: [usize; D],
     elem: PhantomData<E>,
@@ -21,8 +24,12 @@ pub struct WgpuTensor<E: WgpuElement, const D: usize> {
 
 #[derive(Debug, Clone)]
 pub(crate) struct WgpuTensorDyn<E: WgpuElement> {
-    pub(crate) context: Arc<Context>,
-    pub(crate) buffer: Arc<Buffer>,
+    /// Compute client for wgpu.
+    pub client: WgpuComputeClient,
+    /// The buffer where the data are stored.
+    pub handle: WgpuHandle,
+    /// The device of the current tensor.
+    pub device: WgpuDevice,
     pub(crate) shape: Vec<usize>,
     pub(crate) strides: Vec<usize>,
     elem: PhantomData<E>,
@@ -31,8 +38,9 @@ pub(crate) struct WgpuTensorDyn<E: WgpuElement> {
 impl<E: WgpuElement, const D: usize> From<WgpuTensor<E, D>> for WgpuTensorDyn<E> {
     fn from(value: WgpuTensor<E, D>) -> Self {
         WgpuTensorDyn {
-            context: value.context,
-            buffer: value.buffer,
+            client: value.client,
+            handle: value.handle,
+            device: value.device,
             shape: value.shape.dims.to_vec(),
             strides: value.strides.to_vec(),
             elem: PhantomData,
@@ -43,8 +51,9 @@ impl<E: WgpuElement, const D: usize> From<WgpuTensor<E, D>> for WgpuTensorDyn<E>
 impl<E: WgpuElement, const D: usize> From<WgpuTensorDyn<E>> for WgpuTensor<E, D> {
     fn from(value: WgpuTensorDyn<E>) -> Self {
         WgpuTensor {
-            context: value.context,
-            buffer: value.buffer,
+            client: value.client,
+            handle: value.handle,
+            device: value.device,
             shape: Shape::new(value.shape.try_into().expect("Wrong dimension")),
             strides: value.strides.try_into().expect("Wrong dimension"),
             elem: PhantomData,
@@ -54,7 +63,12 @@ impl<E: WgpuElement, const D: usize> From<WgpuTensorDyn<E>> for WgpuTensor<E, D>
 
 impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
     /// Create a new tensor.
-    pub fn new(context: Arc<Context>, shape: Shape<D>, buffer: Arc<Buffer>) -> Self {
+    pub fn new(
+        client: WgpuComputeClient,
+        device: WgpuDevice,
+        shape: Shape<D>,
+        handle: WgpuHandle,
+    ) -> Self {
         let mut strides = [0; D];
 
         let mut current = 1;
@@ -69,29 +83,31 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
             });
 
         Self {
-            context,
-            buffer,
+            client,
+            handle,
             shape,
             strides,
+            device,
             elem: PhantomData,
         }
     }
 
     /// Change the context of the current tensor and return the newly transferred tensor.
-    pub fn to_context(&self, context: Arc<Context>) -> Self {
-        let data = self.context.read_buffer(self.buffer.clone());
-        let buffer = context.create_buffer_with_data(&data);
+    pub fn to_client(&self, client: WgpuComputeClient, device: WgpuDevice) -> Self {
+        let data = self.client.read(&self.handle);
+        let handle = client.create(&data);
 
         Self {
-            context,
-            buffer,
+            client,
+            handle,
             shape: self.shape.clone(),
             strides: self.strides,
+            device,
             elem: PhantomData,
         }
     }
     pub(crate) fn can_mut_broadcast(&self, tensor_other: &WgpuTensor<E, D>) -> bool {
-        if Arc::strong_count(&self.buffer) > 1 {
+        if !self.handle.can_mut() {
             return false;
         }
 
@@ -120,19 +136,15 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
 
     /// Check if the tensor is safe to mutate.
     pub fn can_mut(&self) -> bool {
-        if Arc::strong_count(&self.buffer) > 1 {
-            return false;
-        }
-
-        true
+        self.handle.can_mut()
     }
 
     /// Assert that both tensors are on the same device.
     pub fn assert_is_on_same_device(&self, other: &Self) {
-        if self.context.device != other.context.device {
+        if self.device != other.device {
             panic!(
                 "Both tensors should be on the same device {:?} != {:?}",
-                self.context.device, other.context.device
+                self.device, other.device
             );
         }
     }

@@ -3,7 +3,7 @@ use burn_wgpu::{
     benchmark::Benchmark,
     kernel::matmul::{
         contiguous, contiguous_vectorized, matmul_mem_coalescing_default, matmul_naive_default,
-        tile, tile_vectorized, tune,
+        tile, tile_vectorized,
     },
     run_benchmark, GraphicsApi, WgpuBackend, WgpuDevice,
 };
@@ -50,8 +50,8 @@ where
     }
 
     fn prepare(&self, device: &WgpuDevice) -> Self::Args {
-        let lhs = Tensor::random(self.shape_lhs.clone(), Distribution::Default).to_device(device);
-        let rhs = Tensor::random(self.shape_rhs.clone(), Distribution::Default).to_device(device);
+        let lhs = Tensor::random_device(self.shape_lhs.clone(), Distribution::Default, device);
+        let rhs = Tensor::random_device(self.shape_rhs.clone(), Distribution::Default, device);
 
         (lhs, rhs)
     }
@@ -88,22 +88,6 @@ benchmark!(
     contiguous_vectorized::matmul_tiling_2d_default
 );
 
-struct MatmulAutotune;
-
-impl<const D: usize, G: GraphicsApi> MatmulFunction<WgpuBackend<G, f32, i32>, D>
-    for MatmulAutotune
-{
-    fn run(
-        lhs: Tensor<WgpuBackend<G, f32, i32>, D>,
-        rhs: Tensor<WgpuBackend<G, f32, i32>, D>,
-    ) -> Tensor<WgpuBackend<G, f32, i32>, D> {
-        Tensor::from_primitive(tune::<G, f32, D>(
-            lhs.into_primitive(),
-            rhs.into_primitive(),
-        ))
-    }
-}
-
 fn main() {
     let num_repeats = 3;
     let batch_size = 3;
@@ -136,12 +120,6 @@ fn main() {
         matmul: PhantomData
     });
     run_benchmark!(MatmulBenchmark::<Tiling2DMatmulTileVectorized, 3> {
-        shape_lhs: [batch_size, m, k].into(),
-        shape_rhs: [batch_size, k, n].into(),
-        num_repeats,
-        matmul: PhantomData
-    });
-    run_benchmark!(MatmulBenchmark::<MatmulAutotune, 3> {
         shape_lhs: [batch_size, m, k].into(),
         shape_rhs: [batch_size, k, n].into(),
         num_repeats,

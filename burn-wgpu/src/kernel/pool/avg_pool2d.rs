@@ -1,11 +1,13 @@
 use crate::{
+    compute::{Kernel, StaticKernel},
     element::WgpuElement,
     kernel::{
         self, elemwise_workgroup,
         pool::{build_output_and_info_pool2d, build_pool2d_info},
-        KernelSettings, StaticKernel,
+        KernelSettings, StaticKernelSource,
     },
     kernel_wgsl,
+    ops::numeric::empty_device,
     tensor::WgpuTensor,
 };
 
@@ -18,17 +20,15 @@ kernel_wgsl!(
 struct AvgPool2dBackward<const COUNT_INCLUDE_PAD: bool>;
 struct AvgPool2d<const COUNT_INCLUDE_PAD: bool>;
 
-impl<const COUNT_INCLUDE_PAD: bool> StaticKernel for AvgPool2dBackward<COUNT_INCLUDE_PAD> {
-    fn source_template() -> kernel::SourceTemplate {
-        AvgPool2dBackwardRaw::source_template()
-            .register("count_include_pad", format!("{COUNT_INCLUDE_PAD}"))
+impl<const COUNT_INCLUDE_PAD: bool> StaticKernelSource for AvgPool2dBackward<COUNT_INCLUDE_PAD> {
+    fn source() -> kernel::SourceTemplate {
+        AvgPool2dBackwardRaw::source().register("count_include_pad", format!("{COUNT_INCLUDE_PAD}"))
     }
 }
 
-impl<const COUNT_INCLUDE_PAD: bool> StaticKernel for AvgPool2d<COUNT_INCLUDE_PAD> {
-    fn source_template() -> kernel::SourceTemplate {
-        AvgPool2dRaw::source_template()
-            .register("count_include_pad", format!("{COUNT_INCLUDE_PAD}"))
+impl<const COUNT_INCLUDE_PAD: bool> StaticKernelSource for AvgPool2d<COUNT_INCLUDE_PAD> {
+    fn source() -> kernel::SourceTemplate {
+        AvgPool2dRaw::source().register("count_include_pad", format!("{COUNT_INCLUDE_PAD}"))
     }
 }
 
@@ -41,22 +41,21 @@ pub(crate) fn avg_pool2d<E: WgpuElement>(
 ) -> WgpuTensor<E, 4> {
     const WORKGROUP: usize = 32;
 
-    let (info_buffer, output) =
+    let (info_handle, output) =
         build_output_and_info_pool2d(&x, kernel_size, stride, padding, [1, 1]);
-    let kernel = match count_include_pad {
-        true => x
-            .context
-            .compile_static::<KernelSettings<AvgPool2d<true>, E, i32, WORKGROUP, WORKGROUP, 1>>(),
-        false => x
-            .context
-            .compile_static::<KernelSettings<AvgPool2d<false>, E, i32, WORKGROUP, WORKGROUP, 1>>(),
+
+    let workgroup = elemwise_workgroup(output.shape.num_elements(), WORKGROUP);
+    let kernel: Box<dyn Kernel> = match count_include_pad {
+        true => Box::new(StaticKernel::<
+            KernelSettings<AvgPool2d<true>, E, i32, WORKGROUP, WORKGROUP, 1>,
+        >::new(workgroup)),
+        false => Box::new(StaticKernel::<
+            KernelSettings<AvgPool2d<false>, E, i32, WORKGROUP, WORKGROUP, 1>,
+        >::new(workgroup)),
     };
 
-    x.context.execute(
-        elemwise_workgroup(output.shape.num_elements(), WORKGROUP),
-        kernel,
-        &[&x.buffer, &output.buffer, &info_buffer],
-    );
+    x.client
+        .execute(kernel, &[&x.handle, &output.handle, &info_handle]);
 
     output
 }
@@ -72,39 +71,21 @@ pub(crate) fn avg_pool2d_backward<E: WgpuElement>(
     const WORKGROUP: usize = 32;
 
     let grad = kernel::into_contiguous(grad);
+    let output = empty_device(x.client.clone(), x.device.clone(), x.shape.clone());
+    let info_handle = build_pool2d_info(&x, &grad, kernel_size, stride, padding, [1, 1]);
+    let workgroup = elemwise_workgroup(output.shape.num_elements(), WORKGROUP);
 
-    let num_elems = x.shape.num_elements();
-    let buffer = x
-        .context
-        .create_buffer(num_elems * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(x.context.clone(), x.shape.clone(), buffer);
-    let info_buffer = build_pool2d_info(&x, &grad, kernel_size, stride, padding, [1, 1]);
+    let kernel: Box<dyn Kernel> = match count_include_pad {
+        true => Box::new(StaticKernel::<
+            KernelSettings<AvgPool2dBackward<true>, E, i32, WORKGROUP, WORKGROUP, 1>,
+        >::new(workgroup)),
+        false => Box::new(StaticKernel::<
+            KernelSettings<AvgPool2dBackward<false>, E, i32, WORKGROUP, WORKGROUP, 1>,
+        >::new(workgroup)),
+    };
 
-    let kernel =
-        match count_include_pad {
-            true => x.context.compile_static::<KernelSettings<
-                AvgPool2dBackward<true>,
-                E,
-                i32,
-                WORKGROUP,
-                WORKGROUP,
-                1,
-            >>(),
-            false => x.context.compile_static::<KernelSettings<
-                AvgPool2dBackward<false>,
-                E,
-                i32,
-                WORKGROUP,
-                WORKGROUP,
-                1,
-            >>(),
-        };
-
-    x.context.execute(
-        elemwise_workgroup(output.shape.num_elements(), WORKGROUP),
-        kernel,
-        &[&grad.buffer, &output.buffer, &info_buffer],
-    );
+    x.client
+        .execute(kernel, &[&grad.handle, &output.handle, &info_handle]);
 
     output
 }

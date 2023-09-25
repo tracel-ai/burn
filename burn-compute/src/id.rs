@@ -29,7 +29,7 @@ macro_rules! storage_id_type {
 /// Create a new memory ID type.
 macro_rules! memory_id_type {
     ($name:ident) => {
-        #[derive(Clone, Hash, PartialEq, Eq)]
+        #[derive(Clone, Hash, PartialEq, Eq, Debug)]
         /// Memory ID.
         pub struct $name {
             id: alloc::sync::Arc<alloc::string::String>,

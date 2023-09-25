@@ -1,7 +1,9 @@
 use crate::{
+    compute::StaticKernel,
     element::WgpuElement,
     kernel::{build_info, elemwise_workgroup, KernelSettings},
     kernel_wgsl,
+    ops::numeric::empty_device,
     tensor::WgpuTensor,
 };
 
@@ -16,30 +18,28 @@ pub fn mask_fill<E: WgpuElement, const D: usize>(
     const WORKGROUP: usize = 32;
 
     let num_elems = input.shape.num_elements();
-    let buffer = input
-        .context
-        .create_buffer(num_elems * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(input.context.clone(), input.shape.clone(), buffer);
+    let output = empty_device(
+        input.client.clone(),
+        input.device.clone(),
+        input.shape.clone(),
+    );
 
-    let value_buffer = input.context.create_buffer_with_data(E::as_bytes(&[value]));
-    let kernel = input
-        .context
-        .compile_static::<KernelSettings<MaskFill, E, i32, WORKGROUP, WORKGROUP, 1>>();
-    let mask = WgpuTensor::new(mask.context, mask.shape, mask.buffer);
-    let info = build_info(&[&input, &mask, &output]);
-    let info_buffers = input
-        .context
-        .create_buffer_with_data(bytemuck::cast_slice(&info));
-
-    input.context.execute(
+    let value_handle = output.client.create(E::as_bytes(&[value]));
+    let kernel = StaticKernel::<KernelSettings<MaskFill, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
         elemwise_workgroup(num_elems, WORKGROUP),
-        kernel,
+    );
+    let mask = WgpuTensor::new(mask.client, mask.device, mask.shape, mask.handle);
+    let info = build_info(&[&input, &mask, &output]);
+    let info_handle = input.client.create(bytemuck::cast_slice(&info));
+
+    input.client.execute(
+        Box::new(kernel),
         &[
-            &input.buffer,
-            &value_buffer,
-            &mask.buffer,
-            &output.buffer,
-            &info_buffers,
+            &input.handle,
+            &value_handle,
+            &mask.handle,
+            &output.handle,
+            &info_handle,
         ],
     );
 
@@ -54,20 +54,18 @@ pub fn mask_fill_inplace<E: WgpuElement, const D: usize>(
     const WORKGROUP: usize = 32;
 
     let num_elems = input.shape.num_elements();
-    let value_buffer = input.context.create_buffer_with_data(E::as_bytes(&[value]));
-    let kernel = input
-        .context
-        .compile_static::<KernelSettings<MaskFillInplace, E, i32, WORKGROUP, WORKGROUP, 1>>();
-    let mask = WgpuTensor::new(mask.context, mask.shape, mask.buffer);
+    let value_handle = input.client.create(E::as_bytes(&[value]));
+    let kernel =
+        StaticKernel::<KernelSettings<MaskFillInplace, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
+            elemwise_workgroup(num_elems, WORKGROUP),
+        );
+    let mask = WgpuTensor::new(mask.client, mask.device, mask.shape, mask.handle);
     let info = build_info(&[&input, &mask]);
-    let info_buffers = input
-        .context
-        .create_buffer_with_data(bytemuck::cast_slice(&info));
+    let info_handle = input.client.create(bytemuck::cast_slice(&info));
 
-    input.context.execute(
-        elemwise_workgroup(num_elems, WORKGROUP),
-        kernel,
-        &[&input.buffer, &value_buffer, &mask.buffer, &info_buffers],
+    input.client.execute(
+        Box::new(kernel),
+        &[&input.handle, &value_handle, &mask.handle, &info_handle],
     );
 
     input

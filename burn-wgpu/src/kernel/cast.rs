@@ -1,7 +1,9 @@
-use crate::{element::WgpuElement, kernel::elemwise_workgroup, kernel_wgsl, tensor::WgpuTensor};
+use super::{KernelSettings, SourceTemplate, StaticKernelSource};
+use crate::{
+    compute::StaticKernel, element::WgpuElement, kernel::elemwise_workgroup, kernel_wgsl,
+    tensor::WgpuTensor,
+};
 use std::{any::TypeId, marker::PhantomData};
-
-use super::{KernelSettings, SourceTemplate, StaticKernel};
 
 kernel_wgsl!(CastRaw, "../template/cast.wgsl");
 
@@ -10,9 +12,11 @@ struct Cast<InputElem: WgpuElement, OutputElem: WgpuElement> {
     _o: PhantomData<OutputElem>,
 }
 
-impl<InputElem: WgpuElement, OutputElem: WgpuElement> StaticKernel for Cast<InputElem, OutputElem> {
-    fn source_template() -> SourceTemplate {
-        CastRaw::source_template()
+impl<InputElem: WgpuElement, OutputElem: WgpuElement> StaticKernelSource
+    for Cast<InputElem, OutputElem>
+{
+    fn source() -> SourceTemplate {
+        CastRaw::source()
             .register("input_elem", InputElem::type_name())
             .register("output_elem", OutputElem::type_name())
     }
@@ -23,31 +27,29 @@ pub fn cast<InputElem: WgpuElement, OutputElem: WgpuElement, const D: usize>(
     tensor: WgpuTensor<InputElem, D>,
 ) -> WgpuTensor<OutputElem, D> {
     if TypeId::of::<InputElem>() == TypeId::of::<OutputElem>() {
-        return WgpuTensor::new(tensor.context, tensor.shape, tensor.buffer);
+        return WgpuTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle);
     }
 
     const WORKGROUP: usize = 32;
 
     let num_elems = tensor.shape.num_elements();
-    let kernel = tensor.context.compile_static::<KernelSettings<
-        Cast<InputElem, OutputElem>,
-        f32,
-        i32,
-        WORKGROUP,
-        WORKGROUP,
-        1,
-    >>();
+    let kernel = StaticKernel::<
+        KernelSettings<Cast<InputElem, OutputElem>, f32, i32, WORKGROUP, WORKGROUP, 1>,
+    >::new(elemwise_workgroup(num_elems, WORKGROUP));
 
-    let buffer = tensor
-        .context
-        .create_buffer(num_elems * core::mem::size_of::<OutputElem>());
-    let output = WgpuTensor::new(tensor.context.clone(), tensor.shape.clone(), buffer);
-
-    tensor.context.execute(
-        elemwise_workgroup(num_elems, WORKGROUP),
-        kernel,
-        &[&tensor.buffer, &output.buffer],
+    let handle = tensor
+        .client
+        .empty(num_elems * core::mem::size_of::<OutputElem>());
+    let output = WgpuTensor::new(
+        tensor.client.clone(),
+        tensor.device,
+        tensor.shape.clone(),
+        handle,
     );
+
+    tensor
+        .client
+        .execute(Box::new(kernel), &[&tensor.handle, &output.handle]);
 
     output
 }

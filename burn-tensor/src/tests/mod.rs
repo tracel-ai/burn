@@ -72,6 +72,8 @@ macro_rules! testgen_all {
 
         // test stats
         burn_tensor::testgen_var!();
+        burn_tensor::testgen_cov!();
+        burn_tensor::testgen_diagonal!();
         burn_tensor::testgen_display!();
     };
 }
