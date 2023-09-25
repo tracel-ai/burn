@@ -11,7 +11,7 @@ repository = "https://github.com/burn-rs/burn/tree/main/burn-core"
 version = "0.10.0"
 
 [features]
-default = ["std", "dataset-minimal"]
+default = ["std", "dataset-minimal", "async-read"]
 std = [
   "burn-common/std",
   "burn-tensor/std",
@@ -25,6 +25,7 @@ std = [
   "half/std",
   "derive-new/std",
 ]
+async-read = ["burn-tensor/async-read"]
 
 dataset = ["burn-dataset/default"]
 dataset-minimal = ["burn-dataset"]

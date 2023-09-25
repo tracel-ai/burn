@@ -11,13 +11,14 @@ repository = "https://github.com/burn-rs/burn/tree/main/burn-tensor"
 version = "0.10.0"
 
 [features]
-default = ["std"]
+default = ["std", "async-read"]
 experimental-named-tensor = []
 export_tests = ["burn-tensor-testgen"]
 std = [
   "rand/std",
   "half/std",
 ]
+async-read = ["async-trait"]
 
 [dependencies]
 burn-tensor-testgen = {path = "../burn-tensor-testgen", version = "0.10.0", optional = true}
@@ -28,6 +29,7 @@ libm = {workspace = true}# no_std is supported by default
 num-traits = {workspace = true}
 rand = {workspace = true}
 rand_distr = {workspace = true}# use instead of statrs because it supports no_std
+async-trait = {workspace = true, optional = true}
 
 # The same implementation of HashMap in std but with no_std support (only needs alloc crate)
 hashbrown = {workspace = true}# no_std compatible

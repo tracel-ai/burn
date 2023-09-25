@@ -30,7 +30,9 @@ impl<Server: ComputeServer> Clone for Handle<Server> {
 ///
 /// Everything in the server is mutable, therefore it should be solely accessed through the
 /// [compute channel](crate::channel::ComputeChannel) for thread safety.
-pub trait ComputeServer: Send + core::fmt::Debug
+#[cfg(feature = "async-read")]
+#[async_trait::async_trait]
+pub trait ComputeServer: Send + Sync + core::fmt::Debug
 where
     Self: Sized,
 {
@@ -41,8 +43,13 @@ where
     /// The [memory management](MemoryManagement) type defines strategies for allocation in the [storage](ComputeStorage) type.
     type MemoryManagement: MemoryManagement<Self::Storage>;
 
+    #[cfg(not(feature = "async-read"))]
     /// Given a handle, returns the owned resource as bytes.
     fn read(&mut self, handle: &Handle<Self>) -> Vec<u8>;
+
+    #[cfg(feature = "async-read")]
+    /// Given a handle, returns the owned resource as bytes.
+    async fn read(&mut self, handle: &Handle<Self>) -> Vec<u8>;
 
     /// Given a resource as bytes, stores it and returns the memory handle.
     fn create(&mut self, data: &[u8]) -> Handle<Self>;

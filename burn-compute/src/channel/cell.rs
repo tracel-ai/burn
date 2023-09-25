@@ -17,6 +17,9 @@ pub struct RefCellComputeChannel<Server> {
     server: Arc<core::cell::RefCell<Server>>,
 }
 
+unsafe impl<Server> Send for RefCellComputeChannel<Server> {}
+unsafe impl<Server> Sync for RefCellComputeChannel<Server> {}
+
 impl<S> Clone for RefCellComputeChannel<S> {
     fn clone(&self) -> Self {
         Self {
@@ -36,14 +39,25 @@ where
     }
 }
 
+#[cfg(feature = "async-read")]
+#[async_trait::async_trait]
 impl<Server> ComputeChannel<Server> for RefCellComputeChannel<Server>
 where
     Server: ComputeServer,
 {
+    #[cfg(not(feature = "async-read"))]
     fn read(&self, handle: &Handle<Server>) -> Vec<u8> {
         let mut server = self.server.borrow_mut();
 
         server.read(handle)
+    }
+
+    #[cfg(feature = "async-read")]
+    async fn read(&self, handle: &Handle<Server>) -> Vec<u8> {
+        todo!();
+        // let mut server = self.server.borrow_mut();
+
+        // server.read(handle).await
     }
 
     fn create(&self, resource: &[u8]) -> Handle<Server> {

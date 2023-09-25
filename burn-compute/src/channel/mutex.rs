@@ -30,12 +30,20 @@ where
     }
 }
 
+#[cfg(feature = "async-read")]
+#[async_trait::async_trait]
 impl<Server> ComputeChannel<Server> for MutexComputeChannel<Server>
 where
     Server: ComputeServer,
 {
+    #[cfg(not(feature = "async-read"))]
     fn read(&self, handle: &Handle<Server>) -> Vec<u8> {
         self.server.lock().read(handle)
+    }
+
+    #[cfg(feature = "async-read")]
+    async fn read(&self, handle: &Handle<Server>) -> Vec<u8> {
+        self.server.lock().read(handle).await
     }
 
     fn create(&self, data: &[u8]) -> Handle<Server> {

@@ -14,6 +14,8 @@ use burn_tensor::{ops::TensorOps, Data, Distribution, Shape};
 
 use std::ops::Range;
 
+#[cfg(feature = "async-read")]
+#[async_trait::async_trait]
 impl<G, F, I> TensorOps<WgpuBackend<G, F, I>> for WgpuBackend<G, F, I>
 where
     G: GraphicsApi + 'static,
@@ -48,12 +50,14 @@ where
         tensor.shape.clone()
     }
 
-    fn to_data<const D: usize>(tensor: &FloatTensor<Self, D>) -> Data<FloatElem<Self>, D> {
-        super::into_data(tensor.clone())
-    }
-
+    #[cfg(not(feature = "async-read"))]
     fn into_data<const D: usize>(tensor: FloatTensor<Self, D>) -> Data<FloatElem<Self>, D> {
         super::into_data(tensor)
+    }
+
+    #[cfg(feature = "async-read")]
+    async fn into_data<const D: usize>(tensor: FloatTensor<Self, D>) -> Data<FloatElem<Self>, D> {
+        super::into_data(tensor).await
     }
 
     fn device<const D: usize>(tensor: &FloatTensor<Self, D>) -> Device<Self> {

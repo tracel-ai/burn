@@ -5,6 +5,8 @@ use crate::{backend::Backend, tensor::Shape, Data};
 
 /// Bool Tensor API for basic operations, see [tensor](crate::Tensor)
 /// for documentation on each function.
+#[cfg(feature = "async-read")]
+#[async_trait::async_trait]
 pub trait BoolTensorOps<B: Backend> {
     /// Creates a new bool tensor.
     ///
@@ -30,6 +32,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// The shape of the tensor.
     fn bool_shape<const D: usize>(tensor: &B::BoolTensorPrimitive<D>) -> Shape<D>;
 
+    #[cfg(not(feature = "async-read"))]
     /// Converts the tensor to a data structure.
     ///
     /// # Arguments
@@ -41,6 +44,19 @@ pub trait BoolTensorOps<B: Backend> {
     /// The data structure with the tensor's data.
     fn bool_into_data<const D: usize>(tensor: B::BoolTensorPrimitive<D>) -> Data<bool, D>;
 
+    #[cfg(feature = "async-read")]
+    /// Converts the tensor to a data structure.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The data structure with the tensor's data.
+    async fn bool_into_data<const D: usize>(tensor: B::BoolTensorPrimitive<D>) -> Data<bool, D>;
+
+    #[cfg(not(feature = "async-read"))]
     /// Gets the data from the tensor.
     ///
     ///
@@ -53,6 +69,21 @@ pub trait BoolTensorOps<B: Backend> {
     /// The data cloned from the data structure.
     fn bool_to_data<const D: usize>(tensor: &B::BoolTensorPrimitive<D>) -> Data<bool, D> {
         Self::bool_into_data(tensor.clone())
+    }
+
+    #[cfg(feature = "async-read")]
+    /// Gets the data from the tensor.
+    ///
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - The data structure.
+    ///
+    /// # Returns
+    ///
+    /// The data cloned from the data structure.
+    async fn bool_to_data<const D: usize>(tensor: &B::BoolTensorPrimitive<D>) -> Data<bool, D> {
+        Self::bool_into_data(tensor.clone()).await
     }
 
     /// Creates a tensor from the data structure.

@@ -25,9 +25,19 @@ pub fn from_data<G: GraphicsApi, E: WgpuElement, const D: usize>(
     WgpuTensor::new(client, device.clone(), data.shape, buffer)
 }
 
+#[cfg(not(feature = "async-read"))]
 pub fn into_data<E: WgpuElement, const D: usize>(tensor: WgpuTensor<E, D>) -> Data<E, D> {
     let tensor = kernel::into_contiguous(tensor);
     let bytes = tensor.client.read(&tensor.handle);
+    let values = E::from_bytes(&bytes);
+
+    Data::new(values.to_vec(), tensor.shape)
+}
+
+#[cfg(feature = "async-read")]
+pub async fn into_data<E: WgpuElement, const D: usize>(tensor: WgpuTensor<E, D>) -> Data<E, D> {
+    let tensor = kernel::into_contiguous(tensor);
+    let bytes = tensor.client.read(&tensor.handle).await;
     let values = E::from_bytes(&bytes);
 
     Data::new(values.to_vec(), tensor.shape)
@@ -41,8 +51,13 @@ pub fn to_device<G: GraphicsApi, E: WgpuElement, const D: usize>(
         return tensor;
     }
 
-    let client = compute_client::<G>(device);
-    tensor.to_client(client, device.clone())
+    #[cfg(not(feature = "async-read"))]
+    {
+        let client = compute_client::<G>(device);
+        return tensor.to_client(client, device.clone());
+    }
+
+    panic!("Can't change device when using async-read");
 }
 
 pub fn empty<G: GraphicsApi, E: WgpuElement, const D: usize>(

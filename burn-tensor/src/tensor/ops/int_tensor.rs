@@ -5,6 +5,8 @@ use crate::{backend::Backend, tensor::Shape, Data, ElementConversion};
 
 /// Int Tensor API for basic and numeric operations, see [tensor](crate::Tensor)
 /// for documentation on each function.
+#[cfg(feature = "async-read")]
+#[async_trait::async_trait]
 pub trait IntTensorOps<B: Backend> {
     /// Creates a new int tensor.
     ///
@@ -29,6 +31,7 @@ pub trait IntTensorOps<B: Backend> {
     /// The shape of the tensor.
     fn int_shape<const D: usize>(tensor: &B::IntTensorPrimitive<D>) -> Shape<D>;
 
+    #[cfg(not(feature = "async-read"))]
     /// Converts the tensor to a data structure.
     ///
     /// # Arguments
@@ -40,6 +43,20 @@ pub trait IntTensorOps<B: Backend> {
     /// The data structure with the tensor's data.
     fn int_into_data<const D: usize>(tensor: B::IntTensorPrimitive<D>) -> Data<B::IntElem, D>;
 
+    #[cfg(feature = "async-read")]
+    /// Converts the tensor to a data structure.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The data structure with the tensor's data.
+    async fn int_into_data<const D: usize>(tensor: B::IntTensorPrimitive<D>)
+        -> Data<B::IntElem, D>;
+
+    #[cfg(not(feature = "async-read"))]
     /// Gets the data from the tensor.
     ///
     /// # Arguments
@@ -51,6 +68,20 @@ pub trait IntTensorOps<B: Backend> {
     /// The data cloned from the data structure.
     fn int_to_data<const D: usize>(tensor: &B::IntTensorPrimitive<D>) -> Data<B::IntElem, D> {
         Self::int_into_data(tensor.clone())
+    }
+
+    #[cfg(feature = "async-read")]
+    /// Gets the data from the tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The data cloned from the data structure.
+    async fn int_to_data<const D: usize>(tensor: &B::IntTensorPrimitive<D>) -> Data<B::IntElem, D> {
+        Self::int_into_data(tensor.clone()).await
     }
 
     /// Creates a tensor from the data structure.

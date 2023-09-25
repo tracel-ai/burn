@@ -7,6 +7,8 @@ use crate::{
 use burn_tensor::{ops::IntTensorOps, Data, Shape};
 use std::ops::Range;
 
+#[cfg(feature = "async-read")]
+#[async_trait::async_trait]
 impl<G, F, I> IntTensorOps<WgpuBackend<G, F, I>> for WgpuBackend<G, F, I>
 where
     G: GraphicsApi + 'static,
@@ -21,8 +23,14 @@ where
         tensor.shape.clone()
     }
 
+    #[cfg(not(feature = "async-read"))]
     fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> Data<I, D> {
         super::into_data(tensor)
+    }
+
+    #[cfg(feature = "async-read")]
+    async fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> Data<I, D> {
+        super::into_data(tensor).await
     }
 
     fn int_from_data<const D: usize>(
