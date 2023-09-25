@@ -1,0 +1,50 @@
+use std::marker::PhantomData;
+
+use burn_benchmark::{bench_on_backend, run_benchmark, Benchmark};
+use burn_tensor::{backend::Backend, Distribution, Shape, Tensor};
+use derive_new::new;
+
+#[derive(new)]
+struct UnaryBenchmark<B: Backend, const D: usize> {
+    shape: Shape<D>,
+    num_repeats: usize,
+    backend: PhantomData<B>,
+}
+
+impl<B: Backend, const D: usize> Benchmark<B> for UnaryBenchmark<B, D> {
+    type Args = Tensor<B, D>;
+
+    fn name(&self) -> String {
+        "Unary Ops".into()
+    }
+
+    fn execute(&self, args: Self::Args) {
+        for _ in 0..self.num_repeats {
+            // Choice of tanh is arbitrary
+            B::tanh(args.clone().into_primitive());
+        }
+    }
+
+    fn prepare(&self, device: &B::Device) -> Self::Args {
+        Tensor::random_device(self.shape.clone(), Distribution::Default, device)
+    }
+}
+
+#[allow(dead_code)]
+fn bench<B: Backend>(device: &B::Device) {
+    const D: usize = 3;
+    let shape: Shape<D> = [32, 512, 1024].into();
+    let num_repeats = 10;
+
+    let benchmark = UnaryBenchmark::<B, D> {
+        shape,
+        num_repeats,
+        backend: PhantomData,
+    };
+
+    run_benchmark(benchmark, &device)
+}
+
+fn main() {
+    bench_on_backend!();
+}

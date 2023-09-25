@@ -33,7 +33,10 @@ serde = { workspace = true }
 text_placeholder = { version = "0.5.0", features = ["struct_context"] }
 
 hashbrown = { workspace = true }
-burn-compute = { path = "../burn-compute", version = "0.10.0", default-features = false, features=["channel-mutex", "std"] }
+burn-compute = { path = "../burn-compute", version = "0.10.0", default-features = false, features = [
+  "channel-mutex",
+  "std",
+] }
 
 
 [dev-dependencies]
@@ -45,19 +48,3 @@ burn-tensor = { path = "../burn-tensor", version = "0.10.0", default-features = 
 ] }
 burn-ndarray = { path = "../burn-ndarray", version = "0.10.0" }
 serial_test = "2.0.0"
-
-[[bench]]
-name = "unary"
-harness = false
-
-[[bench]]
-name = "binary"
-harness = false
-
-[[bench]]
-name = "matmul"
-harness = false
-
-[[bench]]
-name = "data"
-harness = false
