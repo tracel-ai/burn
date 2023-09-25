@@ -8,6 +8,7 @@ use crate::server::{ComputeServer, Handle};
 
 /// Create a channel using the [multi-producer, single-consumer channel](mpsc) to communicate with
 /// the compute server spawn on its own thread.
+#[derive(Debug)]
 pub struct MpscComputeChannel<Server>
 where
     Server: ComputeServer,
@@ -15,6 +16,7 @@ where
     state: Arc<MpscComputeChannelState<Server>>,
 }
 
+#[derive(Debug)]
 struct MpscComputeChannelState<Server>
 where
     Server: ComputeServer,

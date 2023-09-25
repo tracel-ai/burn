@@ -1,6 +1,5 @@
 use super::{PrecisionSettings, Record};
 use burn_tensor::{backend::Backend, Bool, DataSerialize, Int, Tensor};
-use core::marker::PhantomData;
 use serde::{Deserialize, Serialize};
 
 /// This struct implements serde to lazily serialize and deserialize a float tensor
@@ -8,7 +7,7 @@ use serde::{Deserialize, Serialize};
 #[derive(new, Clone, Debug)]
 pub struct FloatTensorSerde<B: Backend, const D: usize, S: PrecisionSettings> {
     tensor: Tensor<B, D>,
-    elem: PhantomData<S>,
+    elem: core::marker::PhantomData<S>,
 }
 
 /// This struct implements serde to lazily serialize and deserialize an int tensor
@@ -16,7 +15,7 @@ pub struct FloatTensorSerde<B: Backend, const D: usize, S: PrecisionSettings> {
 #[derive(new, Clone, Debug)]
 pub struct IntTensorSerde<B: Backend, const D: usize, S: PrecisionSettings> {
     tensor: Tensor<B, D, Int>,
-    elem: PhantomData<S>,
+    elem: core::marker::PhantomData<S>,
 }
 
 /// This struct implements serde to lazily serialize and deserialize an bool tensor.

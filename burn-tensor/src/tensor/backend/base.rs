@@ -94,6 +94,9 @@ pub trait Backend:
 
     /// Seed the backend.
     fn seed(seed: u64);
+
+    /// Sync the backend, ensure that all computation are finished.
+    fn sync(_device: &Self::Device) {}
 }
 
 pub(crate) type ADBackendTensorPrimitive<const D: usize, B> =

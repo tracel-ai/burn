@@ -1,4 +1,5 @@
-use super::{build_info, elemwise_workgroup, KernelSettings, StaticKernel};
+use super::{build_info, elemwise_workgroup, KernelSettings, StaticKernelSource};
+use crate::compute::StaticKernel;
 use crate::{element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 use burn_tensor::Shape;
 
@@ -17,9 +18,9 @@ macro_rules! binary_elemwise {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::StaticKernel for $struct {
-            fn source_template() -> $crate::kernel::SourceTemplate {
-                $crate::kernel::BinaryElemwiseRaw::source_template().register(
+        impl $crate::kernel::StaticKernelSource for $struct {
+            fn source() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::BinaryElemwiseRaw::source().register(
                     "body",
                     format!("output[id] = lhs[index_lhs] {} rhs[index_rhs];", $ops),
                 )
@@ -37,9 +38,9 @@ macro_rules! binary_elemwise_inplace {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::StaticKernel for $struct {
-            fn source_template() -> $crate::kernel::SourceTemplate {
-                $crate::kernel::BinaryElemwiseInplaceRaw::source_template().register(
+        impl $crate::kernel::StaticKernelSource for $struct {
+            fn source() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::BinaryElemwiseInplaceRaw::source().register(
                     "body",
                     format!("lhs[id] = lhs[id] {} rhs[index_rhs];", $ops),
                 )
@@ -49,7 +50,7 @@ macro_rules! binary_elemwise_inplace {
 }
 
 /// Execute a binary kernel using the default settings.
-pub fn binary_elemwise_default<K: StaticKernel, E: WgpuElement, const D: usize>(
+pub fn binary_elemwise_default<K: StaticKernelSource, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
@@ -57,7 +58,12 @@ pub fn binary_elemwise_default<K: StaticKernel, E: WgpuElement, const D: usize>(
 }
 
 /// Execute a binary kernel using the provided WORKGROUP.
-pub fn binary_elemwise<K: StaticKernel, E: WgpuElement, const D: usize, const WORKGROUP: usize>(
+pub fn binary_elemwise<
+    K: StaticKernelSource,
+    E: WgpuElement,
+    const D: usize,
+    const WORKGROUP: usize,
+>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
@@ -76,30 +82,26 @@ pub fn binary_elemwise<K: StaticKernel, E: WgpuElement, const D: usize, const WO
     let shape_out = Shape::new(shape_out);
     let num_elems = shape_out.num_elements();
 
-    let buffer = lhs
-        .context
-        .create_buffer(num_elems * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(lhs.context.clone(), shape_out, buffer);
+    let handle = lhs.client.empty(num_elems * core::mem::size_of::<E>());
+    let output = WgpuTensor::new(lhs.client.clone(), lhs.device.clone(), shape_out, handle);
 
-    let kernel = lhs
-        .context
-        .compile_static::<KernelSettings<K, E, i32, WORKGROUP, WORKGROUP, 1>>();
     let info = build_info(&[&lhs, &rhs, &output]);
-    let info_buffers = lhs
-        .context
-        .create_buffer_with_data(bytemuck::cast_slice(&info));
+    let info_handle = lhs.client.create(bytemuck::cast_slice(&info));
 
-    lhs.context.execute(
+    let kernel = StaticKernel::<KernelSettings<K, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
         elemwise_workgroup(num_elems, WORKGROUP),
-        kernel,
-        &[&lhs.buffer, &rhs.buffer, &output.buffer, &info_buffers],
+    );
+
+    lhs.client.execute(
+        Box::new(kernel),
+        &[&lhs.handle, &rhs.handle, &output.handle, &info_handle],
     );
 
     output
 }
 
 /// Execute a binary inplace kernel using the default settings.
-pub fn binary_elemwise_inplace_default<K: StaticKernel, E: WgpuElement, const D: usize>(
+pub fn binary_elemwise_inplace_default<K: StaticKernelSource, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
@@ -108,7 +110,7 @@ pub fn binary_elemwise_inplace_default<K: StaticKernel, E: WgpuElement, const D:
 
 /// Execute a binary inplace kernel using the provided WORKGROUP.
 pub fn binary_elemwise_inplace<
-    K: StaticKernel,
+    K: StaticKernelSource,
     E: WgpuElement,
     const D: usize,
     const WORKGROUP: usize,
@@ -118,19 +120,14 @@ pub fn binary_elemwise_inplace<
 ) -> WgpuTensor<E, D> {
     lhs.assert_is_on_same_device(&rhs);
 
-    let kernel = lhs
-        .context
-        .compile_static::<KernelSettings<K, E, i32, WORKGROUP, WORKGROUP, 1>>();
     let info = build_info(&[&lhs, &rhs]);
-    let info_buffers = lhs
-        .context
-        .create_buffer_with_data(bytemuck::cast_slice(&info));
-
-    lhs.context.execute(
+    let info_handle = lhs.client.create(bytemuck::cast_slice(&info));
+    let kernel = StaticKernel::<KernelSettings<K, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
         elemwise_workgroup(lhs.shape.num_elements(), WORKGROUP),
-        kernel,
-        &[&lhs.buffer, &rhs.buffer, &info_buffers],
     );
+
+    lhs.client
+        .execute(Box::new(kernel), &[&lhs.handle, &rhs.handle, &info_handle]);
 
     lhs
 }

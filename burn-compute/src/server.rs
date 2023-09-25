@@ -1,18 +1,39 @@
+use crate::{
+    memory_management::{MemoryHandle, MemoryManagement},
+    storage::ComputeStorage,
+};
 use alloc::vec::Vec;
 
-use crate::{memory_management::MemoryManagement, storage::ComputeStorage};
+/// Server handle containing the [memory handle](MemoryManagement::Handle).
+#[derive(new, Debug)]
+pub struct Handle<Server: ComputeServer> {
+    /// Handle for the memory in use.
+    pub memory: <Server::MemoryManagement as MemoryManagement<Server::Storage>>::Handle,
+}
 
-type _Storage<Server> = <Server as ComputeServer>::Storage;
-type _MemoryManagement<Server> = <Server as ComputeServer>::MemoryManagement;
+impl<Server: ComputeServer> Handle<Server> {
+    /// If the tensor handle can be mut with an inplace operation.
+    pub fn can_mut(&self) -> bool {
+        self.memory.can_mut()
+    }
+}
 
-/// This alias for a [memory handle](MemoryManagement::Handle).
-pub type Handle<Server> = <_MemoryManagement<Server> as MemoryManagement<_Storage<Server>>>::Handle;
+impl<Server: ComputeServer> Clone for Handle<Server> {
+    fn clone(&self) -> Self {
+        Self {
+            memory: self.memory.clone(),
+        }
+    }
+}
 
 /// The compute server is responsible for handling resources and computations over resources.
 ///
 /// Everything in the server is mutable, therefore it should be solely accessed through the
 /// [compute channel](crate::channel::ComputeChannel) for thread safety.
-pub trait ComputeServer: Send {
+pub trait ComputeServer: Send + core::fmt::Debug
+where
+    Self: Sized,
+{
     /// The kernel type defines the computation algorithms.
     type Kernel: Send;
     /// The [storage](ComputeStorage) type defines how data is stored and accessed.

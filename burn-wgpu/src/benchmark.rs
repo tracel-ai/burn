@@ -1,4 +1,4 @@
-use crate::{pool::get_context, GraphicsApi, WgpuDevice};
+use crate::{compute::compute_client, GraphicsApi, WgpuDevice};
 use std::{
     fmt::Display,
     time::{Duration, Instant},
@@ -15,6 +15,7 @@ impl BenchmarkResult {
         self.durations.iter().sum::<Duration>() / self.durations.len() as u32
     }
 
+    #[allow(dead_code)]
     pub(crate) fn median_duration(&self) -> Duration {
         let mut sorted = self.durations.clone();
         sorted.sort();
@@ -83,23 +84,23 @@ pub trait Benchmark<G: GraphicsApi> {
     fn name(&self) -> String;
     /// Run the benchmark a number of times.
     fn run(&self, device: &WgpuDevice) -> BenchmarkResult {
-        let context = get_context::<G>(device);
+        let client = compute_client::<G>(device);
 
         // Warmup
         self.execute(self.prepare(device));
-        context.sync();
+        client.sync();
 
         let mut durations = Vec::with_capacity(self.num_samples());
 
         for _ in 0..self.num_samples() {
             // Prepare
             let args = self.prepare(device);
-            context.sync();
+            client.sync();
 
             // Execute the benchmark
             let start = Instant::now();
             self.execute(args);
-            context.sync();
+            client.sync();
             let end = Instant::now();
 
             // Register the duration

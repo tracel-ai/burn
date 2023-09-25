@@ -1,6 +1,5 @@
 use super::{bin_config, PrecisionSettings, Recorder, RecorderError};
 use alloc::vec::Vec;
-use core::marker::PhantomData;
 use serde::{de::DeserializeOwned, Serialize};
 
 /// Recorder trait specialized to save and load data to and from bytes.
@@ -17,7 +16,7 @@ pub trait BytesRecorder:
 /// In memory recorder using the [bincode format](bincode).
 #[derive(new, Debug, Default, Clone)]
 pub struct BinBytesRecorder<S: PrecisionSettings> {
-    _settings: PhantomData<S>,
+    _settings: core::marker::PhantomData<S>,
 }
 
 impl<S: PrecisionSettings> BytesRecorder for BinBytesRecorder<S> {}
@@ -45,7 +44,7 @@ impl<S: PrecisionSettings> Recorder for BinBytesRecorder<S> {
 /// In memory recorder using the [Named MessagePack](rmp_serde).
 #[derive(new, Debug, Default, Clone)]
 pub struct NamedMpkBytesRecorder<S: PrecisionSettings> {
-    _settings: PhantomData<S>,
+    _settings: core::marker::PhantomData<S>,
 }
 
 #[cfg(feature = "std")]

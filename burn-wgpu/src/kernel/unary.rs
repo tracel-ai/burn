@@ -1,5 +1,5 @@
-use super::{elemwise_workgroup, KernelSettings, StaticKernel};
-use crate::{element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
+use super::{elemwise_workgroup, KernelSettings, StaticKernelSource};
+use crate::{compute::StaticKernel, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 
 kernel_wgsl!(UnaryRaw, "../template/unary.wgsl");
 kernel_wgsl!(UnaryInplaceRaw, "../template/unary_inplace.wgsl");
@@ -13,9 +13,9 @@ macro_rules! unary {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::StaticKernel for $struct {
-            fn source_template() -> $crate::kernel::SourceTemplate {
-                let source = $crate::kernel::UnaryRaw::source_template();
+        impl $crate::kernel::StaticKernelSource for $struct {
+            fn source() -> $crate::kernel::SourceTemplate {
+                let source = $crate::kernel::UnaryRaw::source();
                 source.register("body", format!("output[id] = {}(input[id]);", $func))
             }
         }
@@ -26,9 +26,9 @@ macro_rules! unary {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::StaticKernel for $struct {
-            fn source_template() -> $crate::kernel::SourceTemplate {
-                $crate::kernel::UnaryRaw::source_template().register("body", $body)
+        impl $crate::kernel::StaticKernelSource for $struct {
+            fn source() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::UnaryRaw::source().register("body", $body)
             }
         }
     };
@@ -39,9 +39,9 @@ macro_rules! unary {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::StaticKernel for $struct {
-            fn source_template() -> $crate::kernel::SourceTemplate {
-                $crate::kernel::UnaryRaw::source_template()
+        impl $crate::kernel::StaticKernelSource for $struct {
+            fn source() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::UnaryRaw::source()
                     .register("body", format!("output[id] = {}(input[id]);", $func))
                     .add_template(include_str!($file))
             }
@@ -58,9 +58,9 @@ macro_rules! unary_inplace {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::StaticKernel for $struct {
-            fn source_template() -> $crate::kernel::SourceTemplate {
-                $crate::kernel::UnaryInplaceRaw::source_template()
+        impl $crate::kernel::StaticKernelSource for $struct {
+            fn source() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::UnaryInplaceRaw::source()
                     .register("body", format!("input[id] = {}(input[id]);", $func))
             }
         }
@@ -71,9 +71,9 @@ macro_rules! unary_inplace {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::StaticKernel for $struct {
-            fn source_template() -> $crate::kernel::SourceTemplate {
-                $crate::kernel::UnaryInplaceRaw::source_template().register("body", $body)
+        impl $crate::kernel::StaticKernelSource for $struct {
+            fn source() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::UnaryInplaceRaw::source().register("body", $body)
             }
         }
     };
@@ -84,9 +84,9 @@ macro_rules! unary_inplace {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::StaticKernel for $struct {
-            fn source_template() -> $crate::kernel::SourceTemplate {
-                $crate::kernel::UnaryInplaceRaw::source_template()
+        impl $crate::kernel::StaticKernelSource for $struct {
+            fn source() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::UnaryInplaceRaw::source()
                     .register("body", format!("input[id] = {}(input[id]);", $func))
                     .add_template(include_str!($file))
             }
@@ -95,59 +95,55 @@ macro_rules! unary_inplace {
 }
 
 /// Execute a unary kernel using the default settings.
-pub fn unary_default<K: StaticKernel, E: WgpuElement, const D: usize>(
+pub fn unary_default<K: StaticKernelSource, E: WgpuElement, const D: usize>(
     input: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     unary::<K, E, D, 32>(input)
 }
 
 /// Execute a unary inplace kernel using the default settings.
-pub fn unary_inplace_default<K: StaticKernel, E: WgpuElement, const D: usize>(
+pub fn unary_inplace_default<K: StaticKernelSource, E: WgpuElement, const D: usize>(
     input: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     unary_inplace::<K, E, D, 32>(input)
 }
 
 /// Execute a unary inplace kernel using the provided WORKGROUP.
-pub fn unary_inplace<K: StaticKernel, E: WgpuElement, const D: usize, const WORKGROUP: usize>(
+pub fn unary_inplace<
+    K: StaticKernelSource,
+    E: WgpuElement,
+    const D: usize,
+    const WORKGROUP: usize,
+>(
     input: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     let num_elems = input.shape.num_elements();
-    let kernel = input
-        .context
-        .compile_static::<KernelSettings<K, E, i32, WORKGROUP, WORKGROUP, 1>>();
-
-    input.context.execute(
+    let kernel = StaticKernel::<KernelSettings<K, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
         elemwise_workgroup(num_elems, WORKGROUP),
-        kernel,
-        &[&input.buffer],
     );
+
+    input.client.execute(Box::new(kernel), &[&input.handle]);
 
     input
 }
 
 /// Execute a unary kernel using the provided WORKGROUP.
-pub fn unary<K: StaticKernel, E: WgpuElement, const D: usize, const WORKGROUP: usize>(
+pub fn unary<K: StaticKernelSource, E: WgpuElement, const D: usize, const WORKGROUP: usize>(
     input: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     let num_elems = input.shape.num_elements();
-    let buffer = input
-        .context
-        .create_buffer(num_elems * core::mem::size_of::<E>());
-    let mut output = WgpuTensor::new(input.context.clone(), input.shape, buffer);
+    let buffer = input.client.empty(num_elems * core::mem::size_of::<E>());
+    let mut output = WgpuTensor::new(input.client.clone(), input.device, input.shape, buffer);
     // Since we don't handle the stride inside the kernel, the output tensor have the same strides
     // as the input tensor. It might not be in the default format.
     output.strides = input.strides;
 
-    let kernel = input
-        .context
-        .compile_static::<KernelSettings<K, E, i32, WORKGROUP, WORKGROUP, 1>>();
-
-    input.context.execute(
+    let kernel = StaticKernel::<KernelSettings<K, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
         elemwise_workgroup(num_elems, WORKGROUP),
-        kernel,
-        &[&input.buffer, &output.buffer],
     );
+    input
+        .client
+        .execute(Box::new(kernel), &[&input.handle, &output.handle]);
 
     output
 }

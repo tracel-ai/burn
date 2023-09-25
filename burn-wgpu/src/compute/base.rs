@@ -1,26 +1,28 @@
-use super::{Kernel, WgpuServer};
-use crate::{
-    compute::WgpuStorage,
-    context::{select_device, WorkGroup},
-    kernel::{DynamicKernel, SourceTemplate, StaticKernel},
-    GraphicsApi, WgpuDevice,
-};
+use super::WgpuServer;
+use crate::{compute::WgpuStorage, GraphicsApi, WgpuDevice};
+use alloc::sync::Arc;
 use burn_compute::{
     channel::MutexComputeChannel,
     client::ComputeClient,
-    memory_management::{DeallocStrategy, SimpleMemoryManagement},
+    memory_management::{DeallocStrategy, SimpleMemoryManagement, SliceStrategy},
     Compute,
 };
-use std::{marker::PhantomData, sync::Arc};
+use wgpu::{DeviceDescriptor, DeviceType};
 
-type WgpuChannel = MutexComputeChannel<WgpuServer>;
+type MemoryManagement = SimpleMemoryManagement<WgpuStorage>;
+type Server = WgpuServer<MemoryManagement>;
+type Channel = MutexComputeChannel<Server>;
+
+/// Wgpu [compute client](ComputeClient) to communicate with the [compute server](WgpuServer).
+pub type WgpuComputeClient = ComputeClient<Server, Channel>;
+/// Wgpu [server handle](burn_compute::server::Handle).
+pub type WgpuHandle = burn_compute::server::Handle<Server>;
 
 /// Compute handle for the wgpu backend.
-static COMPUTE: Compute<WgpuDevice, WgpuServer, WgpuChannel> = Compute::new();
+static COMPUTE: Compute<WgpuDevice, WgpuServer<MemoryManagement>, Channel> = Compute::new();
 
-pub fn compute_client<G: GraphicsApi>(
-    device: &WgpuDevice,
-) -> ComputeClient<WgpuServer, WgpuChannel> {
+/// Get the [compute client](ComputeClient) for the given [device](WgpuDevice).
+pub fn compute_client<G: GraphicsApi>(device: &WgpuDevice) -> ComputeClient<Server, Channel> {
     let device = Arc::new(device);
 
     COMPUTE.client(&device, move || {
@@ -37,93 +39,159 @@ pub fn compute_client<G: GraphicsApi>(
             Ok(value) => value
                 .parse::<usize>()
                 .expect("BURN_WGPU_MAX_TASKS should be a positive integer."),
-            Err(_) => 16, // 16 tasks by default
+            Err(_) => 64, // 64 tasks by default
         };
 
         let device = Arc::new(device_wgpu);
         let storage = WgpuStorage::new(device.clone());
-        // Maximum reusability.
-        let memory_management = SimpleMemoryManagement::new(storage, DeallocStrategy::Never);
+        let memory_management = SimpleMemoryManagement::new(
+            storage,
+            DeallocStrategy::new_period_tick(1000),
+            SliceStrategy::Ratio(0.9),
+        );
         let server = WgpuServer::new(memory_management, device, queue, max_tasks);
-        let channel = WgpuChannel::new(server);
+        let channel = Channel::new(server);
 
         ComputeClient::new(channel)
     })
 }
 
-pub struct DynamicComputeKernel<K> {
-    kernel: K,
-    workgroup: WorkGroup,
+/// Select the wgpu device and queue based on the provided [device](WgpuDevice).
+pub async fn select_device<G: GraphicsApi>(
+    device: &WgpuDevice,
+) -> (wgpu::Device, wgpu::Queue, wgpu::AdapterInfo) {
+    let adapter = select_adapter::<G>(device);
+    let limits = adapter.limits();
+
+    let (device, queue) = adapter
+        .request_device(
+            &DeviceDescriptor {
+                label: None,
+                features: wgpu::Features::empty(),
+                limits,
+            },
+            None,
+        )
+        .await
+        .map_err(|err| {
+            format!(
+                "Unable to request the device with the adapter {:?}, err {:?}",
+                adapter.get_info(),
+                err
+            )
+        })
+        .unwrap();
+
+    (device, queue, adapter.get_info())
 }
 
-impl<K> Kernel for DynamicComputeKernel<K>
-where
-    K: DynamicKernel + 'static,
-{
-    fn source_template(self: Box<Self>) -> SourceTemplate {
-        self.kernel.source_template()
+fn select_adapter<G: GraphicsApi>(device: &WgpuDevice) -> wgpu::Adapter {
+    let instance = wgpu::Instance::default();
+
+    let mut adapters_other = Vec::new();
+    let mut adapters = Vec::new();
+
+    instance
+        .enumerate_adapters(G::backend().into())
+        .for_each(|adapter| {
+            let device_type = adapter.get_info().device_type;
+
+            if let DeviceType::Other = device_type {
+                adapters_other.push(adapter);
+                return;
+            }
+
+            let is_same_type = match device {
+                WgpuDevice::DiscreteGpu(_) => device_type == DeviceType::DiscreteGpu,
+                WgpuDevice::IntegratedGpu(_) => device_type == DeviceType::IntegratedGpu,
+                WgpuDevice::VirtualGpu(_) => device_type == DeviceType::VirtualGpu,
+                WgpuDevice::Cpu => device_type == DeviceType::Cpu,
+                WgpuDevice::BestAvailable => true,
+            };
+
+            if is_same_type {
+                adapters.push(adapter);
+            }
+        });
+
+    fn select(
+        num: usize,
+        error: &str,
+        mut adapters: Vec<wgpu::Adapter>,
+        mut adapters_other: Vec<wgpu::Adapter>,
+    ) -> wgpu::Adapter {
+        if adapters.len() <= num {
+            if adapters_other.len() <= num {
+                panic!(
+                    "{}, adapters {:?}, other adapters {:?}",
+                    error,
+                    adapters
+                        .into_iter()
+                        .map(|adapter| adapter.get_info())
+                        .collect::<Vec<_>>(),
+                    adapters_other
+                        .into_iter()
+                        .map(|adapter| adapter.get_info())
+                        .collect::<Vec<_>>(),
+                );
+            } else {
+                return adapters_other.remove(num);
+            }
+        }
+
+        adapters.remove(num)
     }
 
-    fn id(&self) -> String {
-        self.kernel.id()
-    }
+    let adapter = match device {
+        WgpuDevice::DiscreteGpu(num) => select(
+            *num,
+            "No Discrete GPU device found",
+            adapters,
+            adapters_other,
+        ),
+        WgpuDevice::IntegratedGpu(num) => select(
+            *num,
+            "No Integrated GPU device found",
+            adapters,
+            adapters_other,
+        ),
+        WgpuDevice::VirtualGpu(num) => select(
+            *num,
+            "No Virtual GPU device found",
+            adapters,
+            adapters_other,
+        ),
+        WgpuDevice::Cpu => select(0, "No CPU device found", adapters, adapters_other),
+        WgpuDevice::BestAvailable => {
+            let mut most_performant_adapter = None;
+            let mut current_score = -1;
 
-    fn workgroup(&self) -> WorkGroup {
-        self.workgroup.clone()
-    }
-}
+            adapters.into_iter().for_each(|adapter| {
+                let info = adapter.get_info();
+                let score = match info.device_type {
+                    DeviceType::DiscreteGpu => 5,
+                    DeviceType::Other => 4, // Let's be optimistic with the Other device, it's
+                    // often a Discrete Gpu.
+                    DeviceType::IntegratedGpu => 3,
+                    DeviceType::VirtualGpu => 2,
+                    DeviceType::Cpu => 1,
+                };
 
-#[derive(new)]
-pub struct StaticComputeKernel<K> {
-    workgroup: WorkGroup,
-    _kernel: PhantomData<K>,
-}
+                if score > current_score {
+                    most_performant_adapter = Some(adapter);
+                    current_score = score;
+                }
+            });
 
-impl<K> Kernel for StaticComputeKernel<K>
-where
-    K: StaticKernel + 'static,
-{
-    fn source_template(self: Box<Self>) -> SourceTemplate {
-        K::source_template()
-    }
+            if let Some(adapter) = most_performant_adapter {
+                adapter
+            } else {
+                panic!("No adapter found for graphics API {:?}", G::default());
+            }
+        }
+    };
 
-    fn id(&self) -> String {
-        format!("{:?}", core::any::TypeId::of::<K>())
-    }
+    log::info!("Using adapter {:?}", adapter.get_info());
 
-    fn workgroup(&self) -> WorkGroup {
-        self.workgroup.clone()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{binary_elemwise, kernel::KernelSettings, AutoGraphicsApi};
-
-    #[test]
-    fn can_run_kernel() {
-        binary_elemwise!(Add, "+");
-
-        let client = compute_client::<AutoGraphicsApi>(&WgpuDevice::default());
-
-        let lhs: Vec<f32> = vec![0., 1., 2., 3., 4., 5., 6., 7.];
-        let rhs: Vec<f32> = vec![10., 11., 12., 6., 7., 3., 1., 0.];
-        let info: Vec<u32> = vec![1, 1, 1, 1, 8, 8, 8];
-
-        let lhs = client.create(bytemuck::cast_slice(&lhs));
-        let rhs = client.create(bytemuck::cast_slice(&rhs));
-        let out = client.empty(core::mem::size_of::<f32>() * 8);
-        let info = client.create(bytemuck::cast_slice(&info));
-
-        type Kernel = KernelSettings<Add, f32, i32, 16, 16, 1>;
-        let kernel = Box::new(StaticComputeKernel::<Kernel>::new(WorkGroup::new(1, 1, 1)));
-
-        client.execute(kernel, &[&lhs, &rhs, &out, &info]);
-
-        let data = client.read(&out);
-        let output: &[f32] = bytemuck::cast_slice(&data);
-
-        assert_eq!(output, [10., 12., 14., 9., 11., 8., 7., 7.]);
-    }
+    adapter
 }

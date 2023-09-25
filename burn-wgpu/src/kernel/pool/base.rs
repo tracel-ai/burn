@@ -1,7 +1,7 @@
-use crate::{element::WgpuElement, tensor::WgpuTensor};
+use crate::{
+    compute::WgpuHandle, element::WgpuElement, ops::numeric::empty_device, tensor::WgpuTensor,
+};
 use burn_tensor::Shape;
-use std::sync::Arc;
-use wgpu::Buffer;
 
 /// Build basic info to launch pool 2d kernels.
 pub fn build_output_and_info_pool2d<E: WgpuElement>(
@@ -10,7 +10,7 @@ pub fn build_output_and_info_pool2d<E: WgpuElement>(
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
-) -> (Arc<Buffer>, WgpuTensor<E, 4>) {
+) -> (WgpuHandle, WgpuTensor<E, 4>) {
     let [kernel_height, kernel_width] = kernel_size;
     let [padding_height, padding_width] = padding;
     let [stride_height, stride_width] = stride;
@@ -24,12 +24,7 @@ pub fn build_output_and_info_pool2d<E: WgpuElement>(
         / stride_width)
         + 1;
     let shape_out = Shape::new([batch_size, channels, out_height, out_width]);
-    let num_elems = shape_out.num_elements();
-
-    let buffer = x
-        .context
-        .create_buffer(num_elems * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(x.context.clone(), shape_out, buffer);
+    let output = empty_device(x.client.clone(), x.device.clone(), shape_out);
 
     let info_buffer = build_pool2d_info(x, &output, kernel_size, stride, padding, dilation);
 
@@ -43,7 +38,7 @@ pub fn build_pool2d_info<E: WgpuElement>(
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
-) -> Arc<Buffer> {
+) -> WgpuHandle {
     let mut info: [u32; 24] = [0; 24];
     info[0] = input.strides[0] as u32;
     info[1] = input.strides[1] as u32;
@@ -72,9 +67,7 @@ pub fn build_pool2d_info<E: WgpuElement>(
     info[22] = dilation[0] as u32;
     info[23] = dilation[1] as u32;
 
-    let info_buffer = input
-        .context
-        .create_buffer_with_data(bytemuck::cast_slice(&info));
+    let info_buffer = input.client.create(bytemuck::cast_slice(&info));
 
     info_buffer
 }

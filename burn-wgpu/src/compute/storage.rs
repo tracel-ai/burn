@@ -2,14 +2,25 @@ use burn_compute::storage::{ComputeStorage, StorageHandle, StorageId, StorageUti
 use hashbrown::HashMap;
 use std::{num::NonZeroU64, sync::Arc};
 
+/// Buffer storage for wgpu.
 pub struct WgpuStorage {
     memory: HashMap<StorageId, Arc<wgpu::Buffer>>,
+    deallocations: Vec<StorageId>,
     device: Arc<wgpu::Device>,
 }
 
+impl core::fmt::Debug for WgpuStorage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(format!("WgpuStorage {{ device: {:?} }}", self.device).as_str())
+    }
+}
+
+/// The memory resource that can be allocated for wgpu.
 #[derive(new, Debug)]
 pub struct WgpuResource {
+    /// The wgpu buffer.
     pub buffer: Arc<wgpu::Buffer>,
+    /// How the resource is used.
     pub kind: WgpuResourceKind,
 }
 
@@ -44,6 +55,7 @@ impl WgpuResource {
     }
 }
 
+/// How the resource is used, either as a slice or fully.
 #[derive(Debug)]
 pub enum WgpuResourceKind {
     /// Represents an entire buffer.
@@ -54,10 +66,21 @@ pub enum WgpuResourceKind {
 
 /// Keeps actual wgpu buffer references in a hashmap with ids as key.
 impl WgpuStorage {
+    /// Create a new storage on the given [device](wgpu::Device).
     pub fn new(device: Arc<wgpu::Device>) -> Self {
         Self {
             memory: HashMap::new(),
+            deallocations: Vec::new(),
             device,
+        }
+    }
+
+    /// Actually deallocates buffers tagged to be deallocated.
+    pub fn perform_deallocations(&mut self) {
+        for id in self.deallocations.drain(..) {
+            if let Some(buffer) = self.memory.remove(&id) {
+                buffer.destroy()
+            }
         }
     }
 }
@@ -96,7 +119,6 @@ impl ComputeStorage for WgpuStorage {
     }
 
     fn dealloc(&mut self, id: StorageId) {
-        self.memory.get(&id).unwrap().destroy();
-        let _ = self.memory.remove(&id);
+        self.deallocations.push(id);
     }
 }

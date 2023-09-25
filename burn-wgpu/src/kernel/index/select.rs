@@ -1,7 +1,9 @@
 use crate::{
+    compute::StaticKernel,
     element::WgpuElement,
     kernel::{build_info, elemwise_workgroup, KernelSettings},
     kernel_wgsl,
+    ops::numeric::empty_device,
     tensor::WgpuTensor,
 };
 
@@ -20,32 +22,25 @@ pub(crate) fn select<E: WgpuElement, I: WgpuElement, const D: usize>(
 
     let mut output_shape = tensor.shape.clone();
     output_shape.dims[dim] = indices.shape.dims[0];
-    let num_elems = output_shape.num_elements();
 
-    let buffer = tensor
-        .context
-        .create_buffer(num_elems * std::mem::size_of::<E>());
-    let output = WgpuTensor::new(tensor.context.clone(), output_shape, buffer);
+    let num_elems = output_shape.num_elements();
+    let output = empty_device(tensor.client.clone(), tensor.device.clone(), output_shape);
 
     let mut info = build_info(&[&tensor, &output]);
     info.push(dim as u32);
 
-    let info_buffer = tensor
-        .context
-        .create_buffer_with_data(bytemuck::cast_slice(&info));
-
-    let kernel = tensor
-        .context
-        .compile_static::<KernelSettings<IndexSelect, E, I, WORKGROUP, WORKGROUP, 1>>();
-
-    tensor.context.execute(
+    let info_handle = output.client.create(bytemuck::cast_slice(&info));
+    let kernel = StaticKernel::<KernelSettings<IndexSelect, E, I, WORKGROUP, WORKGROUP, 1>>::new(
         elemwise_workgroup(num_elems, WORKGROUP),
-        kernel,
+    );
+
+    tensor.client.execute(
+        Box::new(kernel),
         &[
-            &tensor.buffer,
-            &indices.buffer,
-            &output.buffer,
-            &info_buffer,
+            &tensor.handle,
+            &indices.handle,
+            &output.handle,
+            &info_handle,
         ],
     );
 
@@ -89,18 +84,16 @@ pub(crate) fn select_assign<E: WgpuElement, I: WgpuElement, const D: usize>(
 
     info.push(dim as u32);
 
-    let info_buffer = tensor
-        .context
-        .create_buffer_with_data(bytemuck::cast_slice(&info));
+    let info_handle = tensor.client.create(bytemuck::cast_slice(&info));
 
-    let kernel = tensor
-        .context
-        .compile_static::<KernelSettings<SelectAssignInplace, E, I, WORKGROUP, WORKGROUP, 1>>();
+    let kernel =
+        StaticKernel::<KernelSettings<SelectAssignInplace, E, I, WORKGROUP, WORKGROUP, 1>>::new(
+            elemwise_workgroup(num_elems_per_workgroup, WORKGROUP),
+        );
 
-    tensor.context.execute(
-        elemwise_workgroup(num_elems_per_workgroup, WORKGROUP),
-        kernel,
-        &[&tensor.buffer, &indices.buffer, &value.buffer, &info_buffer],
+    tensor.client.execute(
+        Box::new(kernel),
+        &[&tensor.handle, &indices.handle, &value.handle, &info_handle],
     );
 
     tensor
