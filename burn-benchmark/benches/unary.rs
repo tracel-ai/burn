@@ -36,11 +36,7 @@ fn bench<B: Backend>(device: &B::Device) {
     let shape: Shape<D> = [32, 512, 1024].into();
     let num_repeats = 10;
 
-    let benchmark = UnaryBenchmark::<B, D> {
-        shape,
-        num_repeats,
-        backend: PhantomData,
-    };
+    let benchmark = UnaryBenchmark::<B, D>::new(shape, num_repeats);
 
     run_benchmark(benchmark, &device)
 }

@@ -1,77 +1,79 @@
-// use burn_tensor::{Data, Distribution, Shape, Tensor};
-// use burn_wgpu::{benchmark::Benchmark, run_benchmark, GraphicsApi, WgpuBackend, WgpuDevice};
+use std::marker::PhantomData;
 
-// struct ToDataBenchmark<const D: usize> {
-//     shape: Shape<D>,
-//     num_repeats: usize,
-// }
+use burn_benchmark::{bench_on_backend, run_benchmark, Benchmark};
+use burn_tensor::{backend::Backend, Data, Distribution, Shape, Tensor};
+use derive_new::new;
 
-// impl<const D: usize, G: GraphicsApi> Benchmark<G> for ToDataBenchmark<D> {
-//     type Args = Tensor<WgpuBackend<G, f32, i32>, D>;
+#[derive(new)]
+struct ToDataBenchmark<B: Backend, const D: usize> {
+    shape: Shape<D>,
+    num_repeats: usize,
+    backend: PhantomData<B>,
+}
 
-//     fn name(&self) -> String {
-//         format!("to-data-{:?}-{}", self.shape.dims, self.num_repeats)
-//     }
+impl<B: Backend, const D: usize> Benchmark<B> for ToDataBenchmark<B, D> {
+    type Args = Tensor<B, D>;
 
-//     fn execute(&self, args: Self::Args) {
-//         for _ in 0..self.num_repeats {
-//             let _data = args.to_data();
-//         }
-//     }
+    fn name(&self) -> String {
+        format!("to-data-{:?}-{}", self.shape.dims, self.num_repeats)
+    }
 
-//     fn prepare(&self, device: &WgpuDevice) -> Self::Args {
-//         Tensor::random(self.shape.clone(), Distribution::Default).to_device(device)
-//     }
-// }
+    fn execute(&self, args: Self::Args) {
+        for _ in 0..self.num_repeats {
+            let _data = args.to_data();
+        }
+    }
 
-// struct FromDataBenchmark<const D: usize> {
-//     shape: Shape<D>,
-//     num_repeats: usize,
-// }
+    fn prepare(&self, device: &B::Device) -> Self::Args {
+        Tensor::random_device(self.shape.clone(), Distribution::Default, device)
+    }
+}
 
-// impl<const D: usize, G: GraphicsApi> Benchmark<G> for FromDataBenchmark<D> {
-//     type Args = (Data<f32, D>, WgpuDevice);
+#[derive(new)]
+struct FromDataBenchmark<B: Backend, const D: usize> {
+    shape: Shape<D>,
+    num_repeats: usize,
+    backend: PhantomData<B>,
+}
 
-//     fn name(&self) -> String {
-//         format!("from-data-{:?}-{}", self.shape.dims, self.num_repeats)
-//     }
+impl<B: Backend, const D: usize> Benchmark<B> for FromDataBenchmark<B, D> {
+    type Args = (Data<B::FloatElem, D>, B::Device);
 
-//     fn execute(&self, (data, device): Self::Args) {
-//         for _ in 0..self.num_repeats {
-//             let _data =
-//                 Tensor::<WgpuBackend<G, f32, i32>, D>::from_data_device(data.clone(), &device);
-//         }
-//     }
+    fn name(&self) -> String {
+        format!("from-data-{:?}-{}", self.shape.dims, self.num_repeats)
+    }
 
-//     fn prepare(&self, device: &WgpuDevice) -> Self::Args {
-//         (
-//             Data::random(
-//                 self.shape.clone(),
-//                 Distribution::Default,
-//                 &mut rand::thread_rng(),
-//             ),
-//             device.clone(),
-//         )
-//     }
-// }
+    fn execute(&self, (data, device): Self::Args) {
+        for _ in 0..self.num_repeats {
+            let _data = Tensor::<B, D>::from_data_device(data.clone(), &device);
+        }
+    }
 
-// fn main() {
-//     let num_repeats = 3;
+    fn prepare(&self, device: &B::Device) -> Self::Args {
+        (
+            Data::random(
+                self.shape.clone(),
+                Distribution::Default,
+                &mut rand::thread_rng(),
+            ),
+            device.clone(),
+        )
+    }
+}
 
-//     run_benchmark!(ToDataBenchmark::<3> {
-//         shape: [32, 256, 512].into(),
-//         num_repeats,
-//     });
-//     run_benchmark!(ToDataBenchmark::<3> {
-//         shape: [32, 512, 1024].into(),
-//         num_repeats,
-//     });
-//     run_benchmark!(FromDataBenchmark::<3> {
-//         shape: [32, 256, 512].into(),
-//         num_repeats,
-//     });
-//     run_benchmark!(FromDataBenchmark::<3> {
-//         shape: [32, 512, 1024].into(),
-//         num_repeats,
-//     });
-// }
+#[allow(dead_code)]
+fn bench<B: Backend>(device: &B::Device) {
+    const D: usize = 3;
+    let shape: Shape<D> = [32, 512, 1024].into();
+    let num_repeats = 10;
+
+    let to_benchmark = ToDataBenchmark::<B, D>::new(shape.clone(), num_repeats);
+    let from_benchmark = FromDataBenchmark::<B, D>::new(shape, num_repeats);
+
+    run_benchmark(to_benchmark, &device);
+    run_benchmark(from_benchmark, &device)
+}
+
+fn main() {
+    bench_on_backend!();
+}

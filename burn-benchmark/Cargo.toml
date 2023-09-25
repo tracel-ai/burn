@@ -25,6 +25,7 @@ burn-wgpu = { path = "../burn-wgpu", version = "0.10.0" }
 burn = { path = "../burn" }
 burn-tensor = { path = "../burn-tensor", version = "0.10.0", default-features = false }
 derive-new = { workspace = true }
+rand = { workspace = true }
 
 [dev-dependencies]
 
@@ -37,10 +38,10 @@ harness = false
 name = "binary"
 harness = false
 
-# [[bench]]
-# name = "matmul"
-# harness = false
+[[bench]]
+name = "matmul"
+harness = false
 
-# [[bench]]
-# name = "data"
-# harness = false
+[[bench]]
+name = "data"
+harness = false
