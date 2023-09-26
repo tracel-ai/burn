@@ -1,4 +1,6 @@
-use super::{build_info, elemwise_workgroup, KernelSettings, StaticKernelSource};
+use super::{
+    build_info, elemwise_workgroup, KernelSettings, StaticKernelSource, WORKGROUP_DEFAULT,
+};
 use crate::compute::StaticKernel;
 use crate::{element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 use burn_tensor::Shape;
@@ -54,7 +56,7 @@ pub fn binary_elemwise_default<K: StaticKernelSource, E: WgpuElement, const D: u
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
-    binary_elemwise::<K, E, D, 32>(lhs, rhs)
+    binary_elemwise::<K, E, D, WORKGROUP_DEFAULT>(lhs, rhs)
 }
 
 /// Execute a binary kernel using the provided WORKGROUP.
@@ -105,7 +107,7 @@ pub fn binary_elemwise_inplace_default<K: StaticKernelSource, E: WgpuElement, co
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
-    binary_elemwise_inplace::<K, E, D, 32>(lhs, rhs)
+    binary_elemwise_inplace::<K, E, D, WORKGROUP_DEFAULT>(lhs, rhs)
 }
 
 /// Execute a binary inplace kernel using the provided WORKGROUP.

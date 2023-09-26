@@ -6,14 +6,14 @@ use crate::{
     tensor::WgpuTensor,
 };
 
+use super::WORKGROUP_DEFAULT;
+
 kernel_wgsl!(Cat, "../template/cat.wgsl");
 
 pub fn cat<E: WgpuElement, const D: usize>(
     inputs: Vec<WgpuTensor<E, D>>,
     dim: usize,
 ) -> WgpuTensor<E, D> {
-    const WORKGROUP: usize = 32;
-
     let first_input = inputs.get(0).unwrap();
     let client = &first_input.client;
     let mut shape_output = first_input.shape.clone();
@@ -38,9 +38,12 @@ pub fn cat<E: WgpuElement, const D: usize>(
         info.push(dim_cat_index as u32);
         dim_cat_index += input.shape.dims[dim];
         let info_buffer = client.create(bytemuck::cast_slice(&info));
-        let kernel = StaticKernel::<KernelSettings<Cat, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
-            elemwise_workgroup(input.shape.num_elements(), WORKGROUP),
-        );
+        let kernel = StaticKernel::<
+            KernelSettings<Cat, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
+        >::new(elemwise_workgroup(
+            input.shape.num_elements(),
+            WORKGROUP_DEFAULT,
+        ));
 
         client.execute(
             Box::new(kernel),

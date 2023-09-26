@@ -1,7 +1,7 @@
 use crate::{
     compute::StaticKernel,
     element::WgpuElement,
-    kernel::{build_info, elemwise_workgroup, KernelSettings},
+    kernel::{build_info, elemwise_workgroup, KernelSettings, WORKGROUP_DEFAULT},
     kernel_wgsl,
     ops::numeric::empty_device,
     tensor::WgpuTensor,
@@ -19,8 +19,6 @@ pub(crate) fn slice<E: WgpuElement, const D1: usize, const D2: usize>(
     tensor: WgpuTensor<E, D1>,
     indices: [Range<usize>; D2],
 ) -> WgpuTensor<E, D1> {
-    const WORKGROUP: usize = 32;
-
     let mut dims = tensor.shape.dims;
     for i in 0..D2 {
         dims[i] = indices[i].end - indices[i].start;
@@ -38,9 +36,9 @@ pub(crate) fn slice<E: WgpuElement, const D1: usize, const D2: usize>(
 
     let info_handle = output.client.create(bytemuck::cast_slice(&info));
 
-    let kernel = StaticKernel::<KernelSettings<IndexRaw, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
-        elemwise_workgroup(num_elems, WORKGROUP),
-    );
+    let kernel = StaticKernel::<
+        KernelSettings<IndexRaw, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
+    >::new(elemwise_workgroup(num_elems, WORKGROUP_DEFAULT));
 
     tensor.client.execute(
         Box::new(kernel),
@@ -55,8 +53,6 @@ pub(crate) fn slice_assign<E: WgpuElement, const D1: usize, const D2: usize>(
     indices: [Range<usize>; D2],
     value: WgpuTensor<E, D1>,
 ) -> WgpuTensor<E, D1> {
-    const WORKGROUP: usize = 32;
-
     let tensor = match tensor.can_mut() {
         true => tensor,
         false => tensor.copy(),
@@ -72,8 +68,8 @@ pub(crate) fn slice_assign<E: WgpuElement, const D1: usize, const D2: usize>(
     let info_handle = tensor.client.create(bytemuck::cast_slice(&info));
 
     let kernel = StaticKernel::<
-        KernelSettings<IndexAssignInplaceRaw, E, i32, WORKGROUP, WORKGROUP, 1>,
-    >::new(elemwise_workgroup(num_elems, WORKGROUP));
+        KernelSettings<IndexAssignInplaceRaw, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
+    >::new(elemwise_workgroup(num_elems, WORKGROUP_DEFAULT));
 
     tensor.client.execute(
         Box::new(kernel),
