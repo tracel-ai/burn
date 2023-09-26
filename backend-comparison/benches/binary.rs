@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use burn::tensor::{backend::Backend, Distribution, Shape, Tensor};
-use burn_tensor::benchmark::{Benchmark, run_benchmark};
+use burn_tensor::benchmark::{run_benchmark, Benchmark};
 
 pub struct BinaryBenchmark<B: Backend, const D: usize> {
     shape: Shape<D>,
