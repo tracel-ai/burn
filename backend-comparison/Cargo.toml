@@ -6,7 +6,7 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 name = "backend-comparison"
 readme = "README.md"
-repository = "https://github.com/burn-rs/burn/tree/main/benchmark"
+repository = "https://github.com/burn-rs/burn/tree/main/backend-comparison"
 version = "0.10.0"
 
 [features]
