@@ -7,7 +7,7 @@ use burn_compute::{
     memory_management::{DeallocStrategy, SimpleMemoryManagement, SliceStrategy},
     Compute,
 };
-use wgpu::{DeviceDescriptor, DeviceType};
+use wgpu::DeviceDescriptor;
 
 type MemoryManagement = SimpleMemoryManagement<WgpuStorage>;
 type Server = WgpuServer<MemoryManagement>;
@@ -103,7 +103,7 @@ pub async fn select_device<G: GraphicsApi>(
 }
 
 #[cfg(feature = "async-read")]
-async fn select_adapter<G: GraphicsApi>(device: &WgpuDevice) -> wgpu::Adapter {
+async fn select_adapter<G: GraphicsApi>(_device: &WgpuDevice) -> wgpu::Adapter {
     let instance = wgpu::Instance::default();
 
     instance

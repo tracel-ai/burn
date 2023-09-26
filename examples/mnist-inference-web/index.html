@@ -129,8 +129,6 @@
             isTimeOutSet = true;
             fabricCanvas.freeDrawingBrush._finalizeAndAddPath();
             const data = cropScaleGetImageData(mainContext, cropContext, scaledContext);
-            console.log(mnist);
-            console.log(data);
             const output = await mnist.inference(data);
             chart.data.datasets[0].data = output;
             chart.update();

@@ -64,7 +64,8 @@ impl Mnist {
 
         // Flatten output tensor with [1, 10] shape into boxed slice of [f32]
         let output = output.into_data().await.convert::<f32>().value;
-        let array = Array::new_with_length(output.len() as u32);
+
+        let array = Array::new();
         for value in output {
             array.push(&value.into());
         }

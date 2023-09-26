@@ -178,46 +178,7 @@ where
                 }),
         )
     }
-
-    async fn async_readaa(buffer_dest: wgpu::Buffer, device: &wgpu::Device) -> Vec<u8> {
-        let buffer_slice = buffer_dest.slice(..);
-        let (sender, receiver) = futures_intrusive::channel::shared::oneshot_channel();
-
-        buffer_slice.map_async(wgpu::MapMode::Read, move |v| {
-            sender
-                .send(v)
-                .expect("Unable to send buffer slice result to async channel.")
-        });
-
-        device.poll(wgpu::Maintain::Wait);
-
-        let result = receiver.receive();
-
-        if let Some(Ok(())) = result.await {
-            let data = buffer_slice.get_mapped_range();
-            let result = bytemuck::cast_slice(&data).to_vec();
-
-            drop(data);
-            buffer_dest.unmap();
-            result
-        } else {
-            panic!("Unable to read buffer")
-        }
-    }
-}
-
-#[cfg(feature = "async-read")]
-#[async_trait::async_trait]
-impl<MM> ComputeServer for WgpuServer<MM>
-where
-    MM: MemoryManagement<WgpuStorage>,
-{
-    type Kernel = Box<dyn Kernel>;
-    type Storage = WgpuStorage;
-    type MemoryManagement = MM;
-
-    #[cfg(not(feature = "async-read"))]
-    fn read(&mut self, handle: &server::Handle<Self>) -> Vec<u8> {
+    async fn read_async(&mut self, handle: &server::Handle<Self>) -> Vec<u8> {
         // Register previous tasks before reading the buffer so that it is up to date.
         self.register_tasks();
 
@@ -251,7 +212,7 @@ where
 
         self.device.poll(wgpu::Maintain::Wait);
 
-        let result = pollster::block_on(receiver.receive());
+        let result = receiver.receive().await;
 
         if let Some(Ok(())) = result {
             let data = buffer_slice.get_mapped_range();
@@ -264,39 +225,26 @@ where
             panic!("Unable to read buffer {:?}", result)
         }
     }
+}
+
+#[cfg(feature = "async-read")]
+#[async_trait::async_trait]
+impl<MM> ComputeServer for WgpuServer<MM>
+where
+    MM: MemoryManagement<WgpuStorage>,
+{
+    type Kernel = Box<dyn Kernel>;
+    type Storage = WgpuStorage;
+    type MemoryManagement = MM;
+
+    #[cfg(not(feature = "async-read"))]
+    fn read(&mut self, handle: &server::Handle<Self>) -> Vec<u8> {
+        pollster::block_on(self.read_async(handle))
+    }
 
     #[cfg(feature = "async-read")]
     async fn read(&mut self, handle: &server::Handle<Self>) -> Vec<u8> {
-        self.register_tasks();
-        self.submit();
-
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-        core::mem::swap(&mut encoder, &mut self.encoder);
-        let resource = self.memory_management.get(&handle.memory);
-        let device = self.device.clone();
-
-        async {
-            let size = resource.size();
-            let buffer_dest = device.create_buffer(&wgpu::BufferDescriptor {
-                label: None,
-                size,
-                usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            });
-
-            encoder.copy_buffer_to_buffer(
-                &resource.buffer,
-                resource.offset(),
-                &buffer_dest,
-                0,
-                size,
-            );
-
-            Self::async_readaa(buffer_dest, &device).await
-        }
-        .await
+        self.read_async(handle).await
     }
 
     /// When we create a new handle from existing data, we use custom allocations so that we don't
