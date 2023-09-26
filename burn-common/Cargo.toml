@@ -13,18 +13,16 @@ version = "0.10.0"
 [features]
 default = ["std"]
 
-std = [
-  "rand/std",
-]
+std = ["rand/std"]
 
 [dependencies]
 
 # ** Please make sure all dependencies support no_std when std is disabled **
 
-const-random = {workspace = true}
-rand = {workspace = true}
-spin = {workspace = true}# using in place of use std::sync::Mutex;          
-uuid = {workspace = true}
+const-random = { workspace = true }
+rand = { workspace = true }
+spin = { workspace = true }         # using in place of use std::sync::Mutex;          
+uuid = { workspace = true }
 
 [dev-dependencies]
-dashmap = {workspace = true}
+dashmap = { workspace = true }

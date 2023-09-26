@@ -14,26 +14,24 @@ version = "0.10.0"
 default = ["std"]
 experimental-named-tensor = []
 export_tests = ["burn-tensor-testgen"]
-std = [
-  "rand/std",
-  "half/std",
-]
+std = ["rand/std", "half/std"]
+benchmark = []
 
 [dependencies]
-burn-tensor-testgen = {path = "../burn-tensor-testgen", version = "0.10.0", optional = true}
+burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.10.0", optional = true }
 
-derive-new = {workspace = true}
-half = {workspace = true}
-libm = {workspace = true}# no_std is supported by default
-num-traits = {workspace = true}
-rand = {workspace = true}
-rand_distr = {workspace = true}# use instead of statrs because it supports no_std
+derive-new = { workspace = true }
+half = { workspace = true }
+libm = { workspace = true }       # no_std is supported by default
+num-traits = { workspace = true }
+rand = { workspace = true }
+rand_distr = { workspace = true } # use instead of statrs because it supports no_std
 
 # The same implementation of HashMap in std but with no_std support (only needs alloc crate)
-hashbrown = {workspace = true}# no_std compatible
+hashbrown = { workspace = true } # no_std compatible
 
 # Serialization
-serde = {workspace = true}
+serde = { workspace = true }
 
 [dev-dependencies]
-rand = {workspace = true, features = ["std", "std_rng"]}# Default enables std
+rand = { workspace = true, features = ["std", "std_rng"] } # Default enables std

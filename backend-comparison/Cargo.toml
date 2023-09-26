@@ -4,7 +4,7 @@ categories = ["science"]
 description = "This crate is used to time the execution of various computations, from operation kernels to complex model scenarios."
 edition = "2021"
 license = "MIT OR Apache-2.0"
-name = "burn-benchmark"
+name = "backend-comparison"
 readme = "README.md"
 repository = "https://github.com/burn-rs/burn/tree/main/benchmark"
 version = "0.10.0"
@@ -21,11 +21,12 @@ tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu"]
 
 [dependencies]
-burn-wgpu = { path = "../burn-wgpu", version = "0.10.0" }
 burn = { path = "../burn" }
-burn-tensor = { path = "../burn-tensor", version = "0.10.0", default-features = false }
 derive-new = { workspace = true }
 rand = { workspace = true }
+burn-tensor = { path = "../burn-tensor", version = "0.10.0", features = [
+    "benchmark",
+] }
 
 [dev-dependencies]
 

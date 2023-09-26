@@ -6,7 +6,6 @@ resolver = "2"
 members = [
   "burn",
   "burn-autodiff",
-  "burn-benchmark",
   "burn-common",
   "burn-compute",
   "burn-core",
@@ -24,6 +23,7 @@ members = [
   "burn-train",
   "xtask",
   "examples/*",
+  "backend-comparison",
 ]
 
 exclude = ["examples/notebook"]

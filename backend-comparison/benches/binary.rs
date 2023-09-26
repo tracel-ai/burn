@@ -1,11 +1,9 @@
 use std::marker::PhantomData;
 
-use burn_benchmark::{bench_on_backend, run_benchmark, Benchmark};
-use burn_tensor::{backend::Backend, Distribution, Shape, Tensor};
-use derive_new::new;
+use burn::tensor::{backend::Backend, Distribution, Shape, Tensor};
+use burn_tensor::benchmark::{Benchmark, run_benchmark};
 
-#[derive(new)]
-struct BinaryBenchmark<B: Backend, const D: usize> {
+pub struct BinaryBenchmark<B: Backend, const D: usize> {
     shape: Shape<D>,
     num_repeats: usize,
     backend: PhantomData<B>,
@@ -39,11 +37,15 @@ fn bench<B: Backend>(device: &B::Device) {
     let shape: Shape<D> = [32, 512, 1024].into();
     let num_repeats = 10;
 
-    let benchmark = BinaryBenchmark::<B, D>::new(shape, num_repeats);
+    let benchmark = BinaryBenchmark::<B, D> {
+        shape,
+        num_repeats,
+        backend: PhantomData,
+    };
 
     run_benchmark(benchmark, device)
 }
 
 fn main() {
-    bench_on_backend!();
+    backend_comparison::bench_on_backend!();
 }

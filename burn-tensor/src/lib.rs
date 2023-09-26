@@ -17,3 +17,11 @@ mod tests;
 
 pub use half::{bf16, f16};
 pub use tensor::*;
+
+#[cfg(feature = "benchmark")]
+/// This module provides benchmark utilities for easily and reliably run
+/// benches on any function that is generic over a backend.
+///
+/// This can be useful to compare backends on  inference or training speed
+/// for your models.
+pub mod benchmark;

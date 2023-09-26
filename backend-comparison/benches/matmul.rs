@@ -1,5 +1,5 @@
-use burn_benchmark::{bench_on_backend, run_benchmark, Benchmark};
-use burn_tensor::{backend::Backend, Distribution, Shape, Tensor};
+use burn::tensor::{backend::Backend, Distribution, Shape, Tensor};
+use burn_tensor::benchmark::{run_benchmark, Benchmark};
 use derive_new::new;
 use std::marker::PhantomData;
 
@@ -55,5 +55,5 @@ fn bench<B: Backend>(device: &B::Device) {
 }
 
 fn main() {
-    bench_on_backend!();
+    backend_comparison::bench_on_backend!();
 }
