@@ -1,21 +1,12 @@
 #![allow(clippy::single_range_in_vec_init)]
 
-#[cfg(not(feature = "async-read"))]
-use alloc::format;
-#[cfg(not(feature = "async-read"))]
-use alloc::string::String;
-#[cfg(not(feature = "async-read"))]
-use alloc::vec;
-
 use alloc::vec::Vec;
 use core::{fmt::Debug, ops::Range};
 
 use crate::{
-    backend::Backend, check, check::TensorCheck, Bool, Data, Float, Int, Shape, TensorKind,
+    backend::Backend, check, check::TensorCheck, Bool, Data, DataReader, Float, Int, Shape,
+    TensorKind,
 };
-
-#[cfg(feature = "async-read")]
-use alloc::boxed::Box;
 
 /// A tensor with a given backend, shape and data type.
 #[derive(new, Clone, Debug)]
@@ -331,19 +322,19 @@ where
     #[cfg(feature = "async-read")]
     /// Returns the data of the current tensor.
     pub async fn into_data(self) -> Data<K::Elem, D> {
-        K::into_data(self.primitive).await
+        K::into_data(self.primitive).read().await
     }
 
     #[cfg(not(feature = "async-read"))]
     /// Returns the data of the current tensor.
     pub fn into_data(self) -> Data<K::Elem, D> {
-        K::into_data(self.primitive)
+        K::into_data(self.primitive).read()
     }
 
     #[cfg(feature = "async-read")]
     /// Returns the data of the current tensor.
     pub async fn to_data(&self) -> Data<K::Elem, D> {
-        K::into_data(self.primitive.clone()).await
+        K::into_data(self.primitive.clone()).read().await
     }
 
     #[cfg(not(feature = "async-read"))]
@@ -766,7 +757,6 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         device: &B::Device,
     ) -> Self::Primitive<D>;
 
-    #[cfg(not(feature = "async-read"))]
     /// Extracts the data from the tensor.
     ///
     /// # Arguments
@@ -785,28 +775,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// For extracting the data of a tensor, users should prefer the [Tensor::into_data](Tensor::into_data) function,
     /// which is more high-level and designed for public use.
-    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Data<Self::Elem, D>;
-
-    #[cfg(feature = "async-read")]
-    /// Extracts the data from the tensor.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor.
-    ///
-    /// # Returns
-    ///
-    /// The data of the tensor.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For extracting the data of a tensor, users should prefer the [Tensor::into_data](Tensor::into_data) function,
-    /// which is more high-level and designed for public use.
-    async fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Data<Self::Elem, D>;
+    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> DataReader<Self::Elem, D>;
 
     /// Creates a tensor from the given data.
     ///
@@ -909,7 +878,6 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     }
 }
 
-#[cfg_attr(feature = "async-read", async_trait::async_trait)]
 impl<B: Backend> BasicOps<B> for Float {
     type Elem = B::FloatElem;
 
@@ -966,14 +934,8 @@ impl<B: Backend> BasicOps<B> for Float {
         B::to_device(tensor, device)
     }
 
-    #[cfg(not(feature = "async-read"))]
-    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Data<Self::Elem, D> {
+    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> DataReader<Self::Elem, D> {
         B::into_data(tensor)
-    }
-
-    #[cfg(feature = "async-read")]
-    async fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Data<Self::Elem, D> {
-        B::into_data(tensor).await
     }
 
     fn from_data<const D: usize>(
@@ -1003,7 +965,6 @@ impl<B: Backend> BasicOps<B> for Float {
     }
 }
 
-#[cfg_attr(feature = "async-read", async_trait::async_trait)]
 impl<B: Backend> BasicOps<B> for Int {
     type Elem = B::IntElem;
 
@@ -1060,14 +1021,8 @@ impl<B: Backend> BasicOps<B> for Int {
         B::int_to_device(tensor, device)
     }
 
-    #[cfg(not(feature = "async-read"))]
-    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Data<Self::Elem, D> {
+    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> DataReader<Self::Elem, D> {
         B::int_into_data(tensor)
-    }
-
-    #[cfg(feature = "async-read")]
-    async fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Data<Self::Elem, D> {
-        B::int_into_data(tensor).await
     }
 
     fn from_data<const D: usize>(
@@ -1097,7 +1052,6 @@ impl<B: Backend> BasicOps<B> for Int {
     }
 }
 
-#[cfg_attr(feature = "async-read", async_trait::async_trait)]
 impl<B: Backend> BasicOps<B> for Bool {
     type Elem = bool;
 
@@ -1154,14 +1108,8 @@ impl<B: Backend> BasicOps<B> for Bool {
         B::bool_to_device(tensor, device)
     }
 
-    #[cfg(not(feature = "async-read"))]
-    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Data<Self::Elem, D> {
+    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> DataReader<Self::Elem, D> {
         B::bool_into_data(tensor)
-    }
-
-    #[cfg(feature = "async-read")]
-    async fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Data<Self::Elem, D> {
-        B::bool_into_data(tensor).await
     }
 
     fn from_data<const D: usize>(

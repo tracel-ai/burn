@@ -1,12 +1,8 @@
-use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion};
+use crate::{backend::Backend, tensor::Shape, Data, DataReader, Distribution, ElementConversion};
 use alloc::vec::Vec;
 use core::ops::Range;
 
-#[cfg(feature = "async-read")]
-use alloc::boxed::Box;
-
 /// Operations on float tensors.
-#[cfg_attr(feature = "async-read", async_trait::async_trait)]
 pub trait TensorOps<B: Backend> {
     /// Creates a new tensor from the data structure.
     ///
@@ -98,7 +94,6 @@ pub trait TensorOps<B: Backend> {
     /// The shape of the tensor.
     fn shape<const D: usize>(tensor: &B::TensorPrimitive<D>) -> Shape<D>;
 
-    #[cfg(not(feature = "async-read"))]
     /// Converts the tensor to a data structure.
     ///
     /// # Arguments
@@ -108,11 +103,10 @@ pub trait TensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn to_data<const D: usize>(tensor: &B::TensorPrimitive<D>) -> Data<B::FloatElem, D> {
+    fn to_data<const D: usize>(tensor: &B::TensorPrimitive<D>) -> DataReader<B::FloatElem, D> {
         Self::into_data(tensor.clone())
     }
 
-    #[cfg(feature = "async-read")]
     /// Converts the tensor to a data structure.
     ///
     /// # Arguments
@@ -122,33 +116,7 @@ pub trait TensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    async fn to_data<const D: usize>(tensor: &B::TensorPrimitive<D>) -> Data<B::FloatElem, D> {
-        Self::into_data(tensor.clone()).await
-    }
-
-    #[cfg(not(feature = "async-read"))]
-    /// Converts the tensor to a data structure.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor.
-    ///
-    /// # Returns
-    ///
-    /// The data structure with the tensor's data.
-    fn into_data<const D: usize>(tensor: B::TensorPrimitive<D>) -> Data<B::FloatElem, D>;
-
-    #[cfg(feature = "async-read")]
-    /// Converts the tensor to a data structure.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor.
-    ///
-    /// # Returns
-    ///
-    /// The data structure with the tensor's data.
-    async fn into_data<const D: usize>(tensor: B::TensorPrimitive<D>) -> Data<B::FloatElem, D>;
+    fn into_data<const D: usize>(tensor: B::TensorPrimitive<D>) -> DataReader<B::FloatElem, D>;
 
     /// Gets the device of the tensor.
     ///

@@ -1,5 +1,3 @@
-use alloc::boxed::Box;
-use alloc::vec::Vec;
 use std::marker::PhantomData;
 
 use crate::{
@@ -11,11 +9,12 @@ use crate::{
     ADBackendDecorator,
 };
 
-use burn_tensor::{backend::Backend, ops::TensorOps, Data, ElementConversion, Shape, Tensor};
+use burn_tensor::{
+    backend::Backend, ops::TensorOps, Data, DataReader, ElementConversion, Shape, Tensor,
+};
 
 use super::maxmin::MaxMinDim;
 
-#[cfg_attr(feature = "async-read", async_trait::async_trait)]
 impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     fn from_data<const D: usize>(
         data: Data<FloatElem<B>, D>,
@@ -44,24 +43,12 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         B::shape(&tensor.primitive)
     }
 
-    #[cfg(not(feature = "async-read"))]
-    fn to_data<const D: usize>(tensor: &ADTensor<B, D>) -> Data<FloatElem<B>, D> {
+    fn to_data<const D: usize>(tensor: &ADTensor<B, D>) -> DataReader<FloatElem<B>, D> {
         B::to_data(&tensor.primitive)
     }
 
-    #[cfg(not(feature = "async-read"))]
-    fn into_data<const D: usize>(tensor: ADTensor<B, D>) -> Data<FloatElem<B>, D> {
+    fn into_data<const D: usize>(tensor: ADTensor<B, D>) -> DataReader<FloatElem<B>, D> {
         B::into_data(tensor.primitive)
-    }
-
-    #[cfg(feature = "async-read")]
-    async fn to_data<const D: usize>(tensor: &ADTensor<B, D>) -> Data<FloatElem<B>, D> {
-        B::to_data(&tensor.primitive).await
-    }
-
-    #[cfg(feature = "async-read")]
-    async fn into_data<const D: usize>(tensor: ADTensor<B, D>) -> Data<FloatElem<B>, D> {
-        B::into_data(tensor.primitive).await
     }
 
     fn device<const D: usize>(tensor: &ADTensor<B, D>) -> B::Device {

@@ -2,7 +2,7 @@ use crate::{
     compute::compute_client, element::WgpuElement, kernel, tensor::WgpuTensor, GraphicsApi,
     WgpuDevice,
 };
-use burn_tensor::{backend::Backend, Data, Shape};
+use burn_tensor::{backend::Backend, Data, DataReader, Shape};
 
 pub type FloatElem<B> = <B as Backend>::FloatElem;
 pub type Device<B> = <B as Backend>::Device;
@@ -25,22 +25,68 @@ pub fn from_data<G: GraphicsApi, E: WgpuElement, const D: usize>(
     WgpuTensor::new(client, device.clone(), data.shape, buffer)
 }
 
-#[cfg(not(feature = "async-read"))]
-pub fn into_data<E: WgpuElement, const D: usize>(tensor: WgpuTensor<E, D>) -> Data<E, D> {
+pub fn into_data<E: WgpuElement, const D: usize>(tensor: WgpuTensor<E, D>) -> DataReader<E, D> {
     let tensor = kernel::into_contiguous(tensor);
-    let bytes = tensor.client.read(&tensor.handle);
-    let values = E::from_bytes(&bytes);
 
-    Data::new(values.to_vec(), tensor.shape)
+    #[cfg(feature = "async-read")]
+    {
+        #[derive(new)]
+        struct AsyncReader<E: WgpuElement, const D: usize> {
+            tensor: WgpuTensor<E, D>,
+        }
+
+        #[async_trait::async_trait]
+        impl<E: WgpuElement, const D: usize> burn_tensor::AsyncDataReader<E, D> for AsyncReader<E, D> {
+            async fn read(self: Box<Self>) -> Data<E, D> {
+                let bytes = self.tensor.client.read(&self.tensor.handle).await;
+                let values = E::from_bytes(&bytes);
+                Data::new(values.to_vec(), self.tensor.shape)
+            }
+        }
+
+        return DataReader::Async(Box::new(AsyncReader::new(tensor)));
+    }
+
+    #[cfg(not(feature = "async-read"))]
+    {
+        let bytes = tensor.client.read(&tensor.handle);
+        let values = E::from_bytes(&bytes);
+        return DataReader::Sync(Data::new(values.to_vec(), tensor.shape));
+    }
 }
 
-#[cfg(feature = "async-read")]
-pub async fn into_data<E: WgpuElement, const D: usize>(tensor: WgpuTensor<E, D>) -> Data<E, D> {
+pub fn bool_into_data<const D: usize>(tensor: WgpuTensor<u32, D>) -> DataReader<bool, D> {
     let tensor = kernel::into_contiguous(tensor);
-    let bytes = tensor.client.read(&tensor.handle).await;
-    let values = E::from_bytes(&bytes);
 
-    Data::new(values.to_vec(), tensor.shape)
+    #[cfg(feature = "async-read")]
+    {
+        #[derive(new)]
+        struct AsyncReader<const D: usize> {
+            tensor: WgpuTensor<u32, D>,
+        }
+
+        #[async_trait::async_trait]
+        impl<const D: usize> burn_tensor::AsyncDataReader<bool, D> for AsyncReader<D> {
+            async fn read(self: Box<Self>) -> Data<bool, D> {
+                let bytes = self.tensor.client.read(&self.tensor.handle).await;
+                let values = u32::from_bytes(&bytes);
+                let values = values.to_vec().into_iter().map(|i| i != 0).collect();
+
+                Data::new(values, self.tensor.shape)
+            }
+        }
+
+        return DataReader::Async(Box::new(AsyncReader::new(tensor)));
+    }
+
+    #[cfg(not(feature = "async-read"))]
+    {
+        let bytes = tensor.client.read(&tensor.handle);
+        let values = u32::from_bytes(&bytes);
+        let values = values.to_vec().into_iter().map(|i| i != 0).collect();
+
+        return DataReader::Sync(Data::new(values, tensor.shape));
+    }
 }
 
 pub fn to_device<G: GraphicsApi, E: WgpuElement, const D: usize>(
@@ -51,13 +97,8 @@ pub fn to_device<G: GraphicsApi, E: WgpuElement, const D: usize>(
         return tensor;
     }
 
-    #[cfg(not(feature = "async-read"))]
-    {
-        let client = compute_client::<G>(device);
-        return tensor.to_client(client, device.clone());
-    }
-
-    panic!("Can't change device when using async-read");
+    let client = compute_client::<G>(device);
+    tensor.to_client(client, device.clone())
 }
 
 pub fn empty<G: GraphicsApi, E: WgpuElement, const D: usize>(

@@ -3,12 +3,8 @@ use crate::{
     ADBackendDecorator,
 };
 
-use burn_tensor::{backend::Backend, ops::BoolTensorOps, Data, Shape};
+use burn_tensor::{backend::Backend, ops::BoolTensorOps, Data, DataReader, Shape};
 
-#[cfg(feature = "async-read")]
-use alloc::boxed::Box;
-
-#[cfg_attr(feature = "async-read", async_trait::async_trait)]
 impl<B: Backend> BoolTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     fn bool_from_data<const D: usize>(data: Data<bool, D>, device: &B::Device) -> BoolTensor<B, D> {
         B::bool_from_data(data, device)
@@ -18,24 +14,12 @@ impl<B: Backend> BoolTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> 
         B::bool_shape(tensor)
     }
 
-    #[cfg(not(feature = "async-read"))]
-    fn bool_to_data<const D: usize>(tensor: &BoolTensor<B, D>) -> Data<bool, D> {
+    fn bool_to_data<const D: usize>(tensor: &BoolTensor<B, D>) -> DataReader<bool, D> {
         B::bool_to_data(tensor)
     }
 
-    #[cfg(not(feature = "async-read"))]
-    fn bool_into_data<const D: usize>(tensor: BoolTensor<B, D>) -> Data<bool, D> {
+    fn bool_into_data<const D: usize>(tensor: BoolTensor<B, D>) -> DataReader<bool, D> {
         B::bool_into_data(tensor)
-    }
-
-    #[cfg(feature = "async-read")]
-    async fn bool_to_data<const D: usize>(tensor: &BoolTensor<B, D>) -> Data<bool, D> {
-        B::bool_to_data(tensor).await
-    }
-
-    #[cfg(feature = "async-read")]
-    async fn bool_into_data<const D: usize>(tensor: BoolTensor<B, D>) -> Data<bool, D> {
-        B::bool_into_data(tensor).await
     }
 
     fn bool_into_int<const D: usize>(tensor: BoolTensor<B, D>) -> IntTensor<B, D> {

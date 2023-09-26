@@ -5,13 +5,10 @@ use crate::{
     tensor::WgpuTensor,
     GraphicsApi, WgpuBackend,
 };
-use burn_tensor::{ops::BoolTensorOps, Data, Shape};
+use burn_tensor::ops::IntTensorOps;
+use burn_tensor::{ops::BoolTensorOps, Data, DataReader, Shape};
 use std::ops::Range;
 
-#[cfg(not(feature = "async-read"))]
-use burn_tensor::ops::IntTensorOps;
-
-#[cfg_attr(feature = "async-read", async_trait::async_trait)]
 impl<G, F, I> BoolTensorOps<WgpuBackend<G, F, I>> for WgpuBackend<G, F, I>
 where
     G: GraphicsApi + 'static,
@@ -26,18 +23,8 @@ where
         tensor.shape.clone()
     }
 
-    #[cfg(not(feature = "async-read"))]
-    fn bool_into_data<const D: usize>(tensor: BoolTensor<Self, D>) -> Data<bool, D> {
-        let data = super::into_data(tensor);
-
-        Data::new(data.value.into_iter().map(|i| i != 0).collect(), data.shape)
-    }
-
-    #[cfg(feature = "async-read")]
-    async fn bool_into_data<const D: usize>(tensor: BoolTensor<Self, D>) -> Data<bool, D> {
-        let data = super::into_data(tensor).await;
-
-        Data::new(data.value.into_iter().map(|i| i != 0).collect(), data.shape)
+    fn bool_into_data<const D: usize>(tensor: BoolTensor<Self, D>) -> DataReader<bool, D> {
+        super::bool_into_data(tensor)
     }
 
     fn bool_from_data<const D: usize>(
@@ -62,15 +49,12 @@ where
             return WgpuTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle);
         }
 
-        #[cfg(not(feature = "async-read"))]
-        {
-            let device = Self::bool_device(&tensor);
-            let data = Self::bool_into_data(tensor).convert::<I>();
+        let device = Self::bool_device(&tensor);
+        let data = Self::bool_into_data(tensor)
+            .read_force_sync()
+            .convert::<I>();
 
-            return Self::int_from_data(data, &device);
-        }
-
-        panic!("Can't convert bool into int when integer type isn't 32 bits with async-read");
+        return Self::int_from_data(data, &device);
     }
 
     fn bool_device<const D: usize>(tensor: &BoolTensor<Self, D>) -> Device<Self> {

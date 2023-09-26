@@ -9,12 +9,11 @@ use crate::{
     element::{FloatElement, IntElement},
     unary, unary_inplace, unary_scalar, GraphicsApi, WgpuBackend,
 };
-use burn_tensor::ElementConversion;
 use burn_tensor::{ops::TensorOps, Data, Distribution, Shape};
+use burn_tensor::{DataReader, ElementConversion};
 
 use std::ops::Range;
 
-#[cfg_attr(feature = "async-read", async_trait::async_trait)]
 impl<G, F, I> TensorOps<WgpuBackend<G, F, I>> for WgpuBackend<G, F, I>
 where
     G: GraphicsApi + 'static,
@@ -49,14 +48,8 @@ where
         tensor.shape.clone()
     }
 
-    #[cfg(not(feature = "async-read"))]
-    fn into_data<const D: usize>(tensor: FloatTensor<Self, D>) -> Data<FloatElem<Self>, D> {
+    fn into_data<const D: usize>(tensor: FloatTensor<Self, D>) -> DataReader<FloatElem<Self>, D> {
         super::into_data(tensor)
-    }
-
-    #[cfg(feature = "async-read")]
-    async fn into_data<const D: usize>(tensor: FloatTensor<Self, D>) -> Data<FloatElem<Self>, D> {
-        super::into_data(tensor).await
     }
 
     fn device<const D: usize>(tensor: &FloatTensor<Self, D>) -> Device<Self> {
