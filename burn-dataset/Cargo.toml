@@ -19,11 +19,11 @@ audio = [
 
 fake = ["dep:fake"]
 
-sqlite = ["__sqlite-shared", "dep:rusqlite", "dep:gix-tempfile"]
-sqlite-bundled = ["__sqlite-shared", "rusqlite/bundled", "dep:gix-tempfile"]
+sqlite = ["__sqlite-shared", "dep:rusqlite"]
+sqlite-bundled = ["__sqlite-shared", "rusqlite/bundled"]
 
 # internal
-__sqlite-shared = ["dep:r2d2", "dep:r2d2_sqlite", "dep:serde_rusqlite", "dep:image"]
+__sqlite-shared = ["dep:r2d2", "dep:r2d2_sqlite", "dep:serde_rusqlite", "dep:image", "dep:gix-tempfile"]
 
 [dependencies]
 csv = {workspace = true}
