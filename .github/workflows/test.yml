@@ -18,6 +18,12 @@ jobs:
       matrix:
         rust: [stable, 1.71.0]
         test: ['std', 'no-std']
+        include:
+          - cache: stable
+            rust: stable
+          - cache: 1-71-0
+            rust: 1.71.0
+
     steps:
 
       - name: checkout
@@ -32,7 +38,7 @@ jobs:
       - name: caching
         uses: Swatinem/rust-cache@v2
         with:
-          key: ${{ runner.os }}-${{ matrix.rust }}-${{ matrix.test}}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-${{ matrix.cache }}-${{ matrix.test}}-${{ hashFiles('**/Cargo.toml') }}
           prefix-key: "v5-rust"
 
       - name: free disk space
