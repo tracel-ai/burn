@@ -1,12 +1,13 @@
+use crate::{backend::Backend, tensor::Shape, Data, ElementConversion};
 use alloc::vec::Vec;
 use core::ops::Range;
 
-use crate::{backend::Backend, tensor::Shape, Data, ElementConversion};
+#[cfg(feature = "async-read")]
+use alloc::boxed::Box;
 
 /// Int Tensor API for basic and numeric operations, see [tensor](crate::Tensor)
 /// for documentation on each function.
-#[cfg(feature = "async-read")]
-#[async_trait::async_trait]
+#[cfg_attr(feature = "async-read", async_trait::async_trait)]
 pub trait IntTensorOps<B: Backend> {
     /// Creates a new int tensor.
     ///

@@ -3,8 +3,7 @@ use alloc::vec::Vec;
 
 /// The ComputeChannel trait links the ComputeClient to the ComputeServer
 /// while ensuring thread-safety
-#[cfg(feature = "async-read")]
-#[async_trait::async_trait]
+#[cfg_attr(feature = "async-read", async_trait::async_trait)]
 pub trait ComputeChannel<Server: ComputeServer>: Send + Clone + core::fmt::Debug {
     #[cfg(not(feature = "async-read"))]
     /// Given a handle, returns owned resource as bytes

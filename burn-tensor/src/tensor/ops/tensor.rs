@@ -1,11 +1,12 @@
+use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion};
 use alloc::vec::Vec;
 use core::ops::Range;
 
-use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion};
+#[cfg(feature = "async-read")]
+use alloc::boxed::Box;
 
 /// Operations on float tensors.
-#[cfg(feature = "async-read")]
-#[async_trait::async_trait]
+#[cfg_attr(feature = "async-read", async_trait::async_trait)]
 pub trait TensorOps<B: Backend> {
     /// Creates a new tensor from the data structure.
     ///

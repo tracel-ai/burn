@@ -114,8 +114,9 @@ async fn select_adapter<G: GraphicsApi>(_device: &WgpuDevice) -> wgpu::Adapter {
 
 #[cfg(not(feature = "async-read"))]
 fn select_adapter<G: GraphicsApi>(device: &WgpuDevice) -> wgpu::Adapter {
-    let instance = wgpu::Instance::default();
+    use wgpu::DeviceType;
 
+    let instance = wgpu::Instance::default();
     let mut adapters_other = Vec::new();
     let mut adapters = Vec::new();
 

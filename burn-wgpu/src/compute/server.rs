@@ -227,8 +227,7 @@ where
     }
 }
 
-#[cfg(feature = "async-read")]
-#[async_trait::async_trait]
+#[cfg_attr(feature = "async-read", async_trait::async_trait)]
 impl<MM> ComputeServer for WgpuServer<MM>
 where
     MM: MemoryManagement<WgpuStorage>,

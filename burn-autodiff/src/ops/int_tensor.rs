@@ -5,6 +5,10 @@ use crate::{
 
 use burn_tensor::{backend::Backend, ops::IntTensorOps, Data, Shape};
 
+#[cfg(feature = "async-read")]
+use alloc::boxed::Box;
+
+#[cfg_attr(feature = "async-read", async_trait::async_trait)]
 impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     fn int_from_data<const D: usize>(
         data: Data<B::IntElem, D>,
@@ -17,12 +21,24 @@ impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         B::int_shape(tensor)
     }
 
+    #[cfg(not(feature = "async-read"))]
     fn int_to_data<const D: usize>(tensor: &IntTensor<B, D>) -> Data<B::IntElem, D> {
         B::int_to_data(tensor)
     }
 
+    #[cfg(not(feature = "async-read"))]
     fn int_into_data<const D: usize>(tensor: IntTensor<B, D>) -> Data<B::IntElem, D> {
         B::int_into_data(tensor)
+    }
+
+    #[cfg(feature = "async-read")]
+    async fn int_to_data<const D: usize>(tensor: &IntTensor<B, D>) -> Data<B::IntElem, D> {
+        B::int_to_data(tensor).await
+    }
+
+    #[cfg(feature = "async-read")]
+    async fn int_into_data<const D: usize>(tensor: IntTensor<B, D>) -> Data<B::IntElem, D> {
+        B::int_into_data(tensor).await
     }
 
     fn int_to_device<const D: usize>(

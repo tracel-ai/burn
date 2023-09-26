@@ -30,8 +30,7 @@ where
     }
 }
 
-#[cfg(feature = "async-read")]
-#[async_trait::async_trait]
+#[cfg_attr(feature = "async-read", async_trait::async_trait)]
 impl<Server> ComputeChannel<Server> for MutexComputeChannel<Server>
 where
     Server: ComputeServer,

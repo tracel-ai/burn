@@ -14,6 +14,9 @@ use crate::{
     backend::Backend, check, check::TensorCheck, Bool, Data, Float, Int, Shape, TensorKind,
 };
 
+#[cfg(feature = "async-read")]
+use alloc::boxed::Box;
+
 /// A tensor with a given backend, shape and data type.
 #[derive(new, Clone, Debug)]
 pub struct Tensor<B, const D: usize, K = Float>
@@ -571,8 +574,7 @@ impl<B: Backend, const D: usize> core::ops::BitXor<T> for Tensor<B, D> {
 /// # Warnings
 ///
 /// This is an internal trait, use the public API provided by [tensor struct](Tensor).
-#[cfg(feature = "async-read")]
-#[async_trait::async_trait]
+#[cfg_attr(feature = "async-read", async_trait::async_trait)]
 pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// The type of the tensor elements.
     type Elem: 'static;
@@ -907,8 +909,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     }
 }
 
-#[cfg(feature = "async-read")]
-#[async_trait::async_trait]
+#[cfg_attr(feature = "async-read", async_trait::async_trait)]
 impl<B: Backend> BasicOps<B> for Float {
     type Elem = B::FloatElem;
 
@@ -1002,8 +1003,7 @@ impl<B: Backend> BasicOps<B> for Float {
     }
 }
 
-#[cfg(feature = "async-read")]
-#[async_trait::async_trait]
+#[cfg_attr(feature = "async-read", async_trait::async_trait)]
 impl<B: Backend> BasicOps<B> for Int {
     type Elem = B::IntElem;
 
@@ -1097,8 +1097,7 @@ impl<B: Backend> BasicOps<B> for Int {
     }
 }
 
-#[cfg(feature = "async-read")]
-#[async_trait::async_trait]
+#[cfg_attr(feature = "async-read", async_trait::async_trait)]
 impl<B: Backend> BasicOps<B> for Bool {
     type Elem = bool;
 

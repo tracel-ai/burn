@@ -14,8 +14,7 @@ use burn_tensor::{ops::TensorOps, Data, Distribution, Shape};
 
 use std::ops::Range;
 
-#[cfg(feature = "async-read")]
-#[async_trait::async_trait]
+#[cfg_attr(feature = "async-read", async_trait::async_trait)]
 impl<G, F, I> TensorOps<WgpuBackend<G, F, I>> for WgpuBackend<G, F, I>
 where
     G: GraphicsApi + 'static,

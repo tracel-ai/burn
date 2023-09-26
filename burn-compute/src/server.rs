@@ -4,34 +4,11 @@ use crate::{
 };
 use alloc::vec::Vec;
 
-/// Server handle containing the [memory handle](MemoryManagement::Handle).
-#[derive(new, Debug)]
-pub struct Handle<Server: ComputeServer> {
-    /// Handle for the memory in use.
-    pub memory: <Server::MemoryManagement as MemoryManagement<Server::Storage>>::Handle,
-}
-
-impl<Server: ComputeServer> Handle<Server> {
-    /// If the tensor handle can be mut with an inplace operation.
-    pub fn can_mut(&self) -> bool {
-        self.memory.can_mut()
-    }
-}
-
-impl<Server: ComputeServer> Clone for Handle<Server> {
-    fn clone(&self) -> Self {
-        Self {
-            memory: self.memory.clone(),
-        }
-    }
-}
-
 /// The compute server is responsible for handling resources and computations over resources.
 ///
 /// Everything in the server is mutable, therefore it should be solely accessed through the
 /// [compute channel](crate::channel::ComputeChannel) for thread safety.
-#[cfg(feature = "async-read")]
-#[async_trait::async_trait]
+#[cfg_attr(feature = "async-read", async_trait::async_trait)]
 pub trait ComputeServer: Send + Sync + core::fmt::Debug
 where
     Self: Sized,
@@ -65,4 +42,26 @@ where
 
     /// Wait for the completion of every task in the server.
     fn sync(&mut self);
+}
+
+/// Server handle containing the [memory handle](MemoryManagement::Handle).
+#[derive(new, Debug)]
+pub struct Handle<Server: ComputeServer> {
+    /// Handle for the memory in use.
+    pub memory: <Server::MemoryManagement as MemoryManagement<Server::Storage>>::Handle,
+}
+
+impl<Server: ComputeServer> Handle<Server> {
+    /// If the tensor handle can be mut with an inplace operation.
+    pub fn can_mut(&self) -> bool {
+        self.memory.can_mut()
+    }
+}
+
+impl<Server: ComputeServer> Clone for Handle<Server> {
+    fn clone(&self) -> Self {
+        Self {
+            memory: self.memory.clone(),
+        }
+    }
 }

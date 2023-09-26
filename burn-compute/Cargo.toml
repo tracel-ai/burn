@@ -12,18 +12,21 @@ version = "0.10.0"
 
 [features]
 default = ["std", "channel-mutex", "channel-mpsc", "channel-cell", "storage-bytes"]
-async-read = ["async-trait"]
 std = []
 channel-mutex = []
 channel-cell = []
 channel-mpsc = [] # Assume std
 storage-bytes = []
 
+async-read = ["async-trait"]
+
 [dependencies]
-async-trait = { workspace = true, optional = true}
 burn-common = { path = "../burn-common", version = "0.10.0", default-features = false }
 derive-new = { workspace = true }
 spin = { workspace = true }
 hashbrown = { workspace = true }
+
+# Async Read
+async-trait = { workspace = true, optional = true}
 
 [dev-dependencies]

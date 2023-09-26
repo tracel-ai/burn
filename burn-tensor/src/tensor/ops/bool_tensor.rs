@@ -1,12 +1,13 @@
+use crate::{backend::Backend, tensor::Shape, Data};
 use alloc::vec::Vec;
 use core::ops::Range;
 
-use crate::{backend::Backend, tensor::Shape, Data};
+#[cfg(feature = "async-read")]
+use alloc::boxed::Box;
 
 /// Bool Tensor API for basic operations, see [tensor](crate::Tensor)
 /// for documentation on each function.
-#[cfg(feature = "async-read")]
-#[async_trait::async_trait]
+#[cfg_attr(feature = "async-read", async_trait::async_trait)]
 pub trait BoolTensorOps<B: Backend> {
     /// Creates a new bool tensor.
     ///
