@@ -5,6 +5,8 @@ mod padding;
 pub mod contiguous;
 /// Loading is done in a contiguous manner, with left hand tensor being transposed.
 pub mod contiguous_vectorized;
+/// WGSL matrix primitive are used
+pub mod matrix_primitive;
 /// Loading is done in a tile manner
 pub mod tile;
 /// Loading is done in a tile manner, with left hand tensor being transposed.
