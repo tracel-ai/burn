@@ -80,10 +80,10 @@ impl GradientClipping {
         grad: Tensor<B, D>,
         threshold: f32,
     ) -> Tensor<B, D> {
-        #[cfg(feature = "async-read")]
-        panic!("Not supported with async");
+        #[cfg(target_family = "wasm")]
+        panic!("Not supported on wasm");
 
-        #[cfg(not(feature = "async-read"))]
+        #[cfg(not(target_family = "wasm"))]
         {
             let norm = Self::l2_norm(grad.clone());
             let norm_float = norm.into_scalar().elem::<f32>();

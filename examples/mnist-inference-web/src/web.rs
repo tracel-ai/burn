@@ -1,17 +1,13 @@
 #![allow(clippy::new_without_default)]
 
-use alloc::vec::Vec;
-use alloc::{boxed::Box, string::String};
+use alloc::string::String;
 use js_sys::Array;
-use wasm_bindgen::convert::WasmSlice;
 use wasm_bindgen::prelude::*;
 
 use crate::model::Model;
 use crate::state::{build_and_load_model, Backend};
 
 use burn::tensor::Tensor;
-
-use wasm_bindgen::{prelude::*, Clamped, JsObject};
 
 /// Mnist structure that corresponds to JavaScript class.
 /// See:[exporting-rust-struct](https://rustwasm.github.io/wasm-bindgen/contributing/design/exporting-rust-struct.html)
@@ -63,6 +59,10 @@ impl Mnist {
         let output: Tensor<Backend, 2> = output.clone().exp() / output.exp().sum_dim(1);
 
         // Flatten output tensor with [1, 10] shape into boxed slice of [f32]
+        #[cfg(not(target_family = "wasm"))]
+        let output = output.into_data().convert::<f32>().value;
+
+        #[cfg(target_family = "wasm")]
         let output = output.into_data().await.convert::<f32>().value;
 
         let array = Array::new();
