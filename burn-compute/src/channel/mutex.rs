@@ -2,6 +2,7 @@ use super::ComputeChannel;
 use crate::server::{ComputeServer, Handle};
 use alloc::sync::Arc;
 use alloc::vec::Vec;
+use burn_common::reader::Reader;
 use spin::Mutex;
 
 /// The MutexComputeChannel ensures thread-safety by locking the server
@@ -30,19 +31,12 @@ where
     }
 }
 
-#[cfg_attr(feature = "async-read", async_trait::async_trait)]
 impl<Server> ComputeChannel<Server> for MutexComputeChannel<Server>
 where
     Server: ComputeServer,
 {
-    #[cfg(not(feature = "async-read"))]
-    fn read(&self, handle: &Handle<Server>) -> Vec<u8> {
+    fn read(&self, handle: &Handle<Server>) -> Reader<Vec<u8>> {
         self.server.lock().read(handle)
-    }
-
-    #[cfg(feature = "async-read")]
-    async fn read(&self, handle: &Handle<Server>) -> Vec<u8> {
-        self.server.lock().read(handle).await
     }
 
     fn create(&self, data: &[u8]) -> Handle<Server> {

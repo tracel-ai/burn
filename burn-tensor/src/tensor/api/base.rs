@@ -316,31 +316,25 @@ where
         Self::new(K::to_device(self.primitive, device))
     }
 
-    /// Returns the data of the current tensor and block for its.
-    #[cfg(not(target_family = "wasm"))]
-    pub fn into_data_block(self) -> Reader<Data<K::Elem, D>> {
-        K::into_data(self.primitive)
-    }
-
-    #[cfg(feature = "async-read")]
+    #[cfg(target_family = "wasm")]
     /// Returns the data of the current tensor.
     pub async fn into_data(self) -> Data<K::Elem, D> {
         K::into_data(self.primitive).read().await
     }
 
-    #[cfg(not(feature = "async-read"))]
+    #[cfg(not(target_family = "wasm"))]
     /// Returns the data of the current tensor.
     pub fn into_data(self) -> Data<K::Elem, D> {
         K::into_data(self.primitive).read()
     }
 
-    #[cfg(feature = "async-read")]
+    #[cfg(target_family = "wasm")]
     /// Returns the data of the current tensor.
     pub async fn to_data(&self) -> Data<K::Elem, D> {
         K::into_data(self.primitive.clone()).read().await
     }
 
-    #[cfg(not(feature = "async-read"))]
+    #[cfg(not(target_family = "wasm"))]
     /// Returns the data of the current tensor without taking ownership.
     pub fn to_data(&self) -> Data<K::Elem, D> {
         Self::into_data(self.clone())

@@ -12,7 +12,9 @@ version = "0.10.0"
 
 [features]
 default = []
-async-read = ["burn-tensor/async-read", "burn-compute/async-read", "async-trait", "wgpu/fragile-send-sync-non-atomic-wasm"]
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+async-trait = { workspace = true }
 
 [dependencies]
 burn-common = { path = "../burn-common", version = "0.10.0" }
@@ -35,7 +37,6 @@ text_placeholder = { version = "0.5.0", features = ["struct_context"] }
 
 hashbrown = { workspace = true }
 burn-compute = { path = "../burn-compute", version = "0.10.0", default-features = false, features=["channel-mutex", "std"] }
-async-trait = { workspace = true, optional = true}
 
 
 [dev-dependencies]

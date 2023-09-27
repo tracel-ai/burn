@@ -3,6 +3,7 @@ use crate::{
     server::{ComputeServer, Handle},
 };
 use alloc::vec::Vec;
+use burn_common::reader::Reader;
 use core::marker::PhantomData;
 
 /// The ComputeClient is the entry point to require tasks from the ComputeServer.
@@ -39,16 +40,9 @@ where
         }
     }
 
-    #[cfg(not(feature = "async-read"))]
     /// Given a handle, returns owned resource as bytes.
-    pub fn read(&self, handle: &Handle<Server>) -> Vec<u8> {
+    pub fn read(&self, handle: &Handle<Server>) -> Reader<Vec<u8>> {
         self.channel.read(handle)
-    }
-
-    #[cfg(feature = "async-read")]
-    /// Given a handle, returns owned resource as bytes.
-    pub async fn read(&self, handle: &Handle<Server>) -> Vec<u8> {
-        self.channel.read(handle).await
     }
 
     /// Given a resource, stores it and returns the resource handle.

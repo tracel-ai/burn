@@ -31,7 +31,7 @@ impl<B: Backend, const D: usize, S: PrecisionSettings> Serialize for FloatTensor
     where
         Se: serde::Serializer,
     {
-        #[cfg(not(feature = "async-read"))]
+        #[cfg(not(target_family = "wasm"))]
         return self
             .tensor
             .to_data()
@@ -39,7 +39,7 @@ impl<B: Backend, const D: usize, S: PrecisionSettings> Serialize for FloatTensor
             .serialize()
             .serialize(serializer);
 
-        #[cfg(feature = "async-read")]
+        #[cfg(target_family = "wasm")]
         panic!("Not supported with async-read");
     }
 }

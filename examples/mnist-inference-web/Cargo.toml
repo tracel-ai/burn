@@ -13,7 +13,7 @@ crate-type = ["cdylib"]
 default = []
 
 [dependencies]
-burn = {path = "../../burn", default-features = false, features = ["wgpu-async-read"]}
+burn = {path = "../../burn", default-features = false}
 serde = {workspace = true}
 getrandom = { version = "0.2", features = ["js"] }
 wasm-bindgen = { version = "0.2.87" } 

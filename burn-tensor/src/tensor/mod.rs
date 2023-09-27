@@ -32,6 +32,3 @@ pub mod ops;
 mod named;
 #[cfg(feature = "experimental-named-tensor")]
 pub use named::*;
-
-mod reader;
-pub use reader::*;
