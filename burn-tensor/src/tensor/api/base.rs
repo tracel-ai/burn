@@ -1,6 +1,14 @@
 #![allow(clippy::single_range_in_vec_init)]
 
 use alloc::vec::Vec;
+
+#[cfg(not(target_family = "wasm"))]
+use alloc::format;
+#[cfg(not(target_family = "wasm"))]
+use alloc::string::String;
+#[cfg(not(target_family = "wasm"))]
+use alloc::vec;
+
 use burn_common::reader::Reader;
 use core::{fmt::Debug, ops::Range};
 

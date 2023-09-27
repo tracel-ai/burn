@@ -23,7 +23,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<CandleBackend<F, 
         let y = x.iter().map(|b| !matches!(b, 0)).collect();
         let data = Data::new(y, tensor.shape());
 
-        Reader::Sync(data)
+        Reader::Concrete(data)
     }
 
     fn bool_from_data<const D: usize>(

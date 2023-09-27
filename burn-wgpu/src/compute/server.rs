@@ -5,6 +5,7 @@ use burn_compute::{
     memory_management::MemoryManagement,
     server::{self, ComputeServer},
 };
+use burn_tensor::Reader;
 use hashbrown::HashMap;
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
@@ -227,7 +228,6 @@ where
     }
 }
 
-#[cfg_attr(feature = "async-read", async_trait::async_trait)]
 impl<MM> ComputeServer for WgpuServer<MM>
 where
     MM: MemoryManagement<WgpuStorage>,
@@ -236,14 +236,12 @@ where
     type Storage = WgpuStorage;
     type MemoryManagement = MM;
 
-    #[cfg(not(feature = "async-read"))]
-    fn read(&mut self, handle: &server::Handle<Self>) -> Vec<u8> {
-        pollster::block_on(self.read_async(handle))
-    }
+    fn read(&mut self, handle: &server::Handle<Self>) -> Reader<Vec<u8>> {
+        #[cfg(target_family = "wasm")]
+        return Reader::Future(self.read_async(handle));
 
-    #[cfg(feature = "async-read")]
-    async fn read(&mut self, handle: &server::Handle<Self>) -> Vec<u8> {
-        self.read_async(handle).await
+        #[cfg(not(target_family = "wasm"))]
+        Reader::Concrete(pollster::block_on(self.read_async(handle)))
     }
 
     /// When we create a new handle from existing data, we use custom allocations so that we don't

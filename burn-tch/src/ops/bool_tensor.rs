@@ -31,7 +31,7 @@ impl<E: TchElement> BoolTensorOps<TchBackend<E>> for TchBackend<E> {
         let tensor = Self::bool_reshape(tensor.clone(), Shape::new([shape.num_elements()]));
         let values: Result<Vec<bool>, tch::TchError> = tensor.tensor.shallow_clone().try_into();
 
-        Reader::Sync(Data::new(values.unwrap(), shape))
+        Reader::Concrete(Data::new(values.unwrap(), shape))
     }
 
     fn bool_to_device<const D: usize>(

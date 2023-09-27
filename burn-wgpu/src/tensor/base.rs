@@ -94,7 +94,11 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
 
     /// Change the context of the current tensor and return the newly transferred tensor.
     pub fn to_client(&self, client: WgpuComputeClient, device: WgpuDevice) -> Self {
-        let bytes = self.as_bytes_sync();
+        let bytes = self
+            .client
+            .read(&self.handle)
+            .read_sync()
+            .expect("Can only change client synchronously");
         let handle = client.create(&bytes);
 
         Self {
@@ -104,21 +108,6 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
             strides: self.strides,
             device,
             elem: PhantomData,
-        }
-    }
-
-    fn as_bytes_sync(&self) -> Vec<u8> {
-        #[cfg(not(feature = "async-read"))]
-        {
-            return self.client.read(&self.handle);
-        }
-
-        #[cfg(feature = "async-read")]
-        {
-            let reader = crate::ops::into_data(self.clone());
-            let data = reader.read_force_sync();
-
-            return bytemuck::cast_slice(&data.value).to_vec();
         }
     }
 

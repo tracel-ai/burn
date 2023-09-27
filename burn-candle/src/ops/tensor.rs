@@ -55,7 +55,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
     }
 
     fn into_data<const D: usize>(tensor: CandleTensor<F, D>) -> Reader<Data<F, D>> {
-        Reader::Sync(super::base::into_data(tensor))
+        Reader::Concrete(super::base::into_data(tensor))
     }
 
     fn device<const D: usize>(tensor: &CandleTensor<F, D>) -> Device<Self> {

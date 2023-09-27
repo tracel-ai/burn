@@ -34,7 +34,7 @@ impl<E: FloatNdArrayElement> IntTensorOps<NdArrayBackend<E>> for NdArrayBackend<
         let shape = tensor.shape();
         let values = tensor.array.into_iter().collect();
 
-        Reader::Sync(Data::new(values, shape))
+        Reader::Concrete(Data::new(values, shape))
     }
 
     fn int_to_device<const D: usize>(

@@ -13,9 +13,6 @@ version = "0.10.0"
 [features]
 default = []
 
-[target.'cfg(target_family = "wasm")'.dependencies]
-async-trait = { workspace = true }
-
 [dependencies]
 burn-common = { path = "../burn-common", version = "0.10.0" }
 burn-tensor = { path = "../burn-tensor", version = "0.10.0" }

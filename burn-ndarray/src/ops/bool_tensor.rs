@@ -35,7 +35,7 @@ impl<E: FloatNdArrayElement> BoolTensorOps<NdArrayBackend<E>> for NdArrayBackend
         let shape = tensor.shape();
         let values = tensor.array.into_iter().collect();
 
-        Reader::Sync(Data::new(values, shape))
+        Reader::Concrete(Data::new(values, shape))
     }
 
     fn bool_to_device<const D: usize>(
@@ -62,7 +62,9 @@ impl<E: FloatNdArrayElement> BoolTensorOps<NdArrayBackend<E>> for NdArrayBackend
     fn bool_into_int<const D: usize>(
         tensor: <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D>,
     ) -> NdArrayTensor<i64, D> {
-        let data = Self::bool_into_data(tensor).read_force_sync();
+        let data = Self::bool_into_data(tensor)
+            .read_sync()
+            .expect("Always sync with ndarray");
         NdArrayBackend::<E>::int_from_data(data.convert(), &NdArrayDevice::Cpu)
     }
 

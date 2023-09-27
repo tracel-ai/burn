@@ -19,7 +19,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<CandleBackend<F, I
     }
 
     fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> Reader<Data<IntElem<Self>, D>> {
-        Reader::Sync(super::base::into_data(tensor))
+        Reader::Concrete(super::base::into_data(tensor))
     }
 
     fn int_from_data<const D: usize>(

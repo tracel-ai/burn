@@ -18,6 +18,9 @@ pub enum Reader<T> {
     #[cfg(target_family = "wasm")]
     /// Async data variant.
     Async(Box<dyn AsyncReader<T>>),
+    #[cfg(target_family = "wasm")]
+    /// Future data variant.
+    Future(core::pin::Pin<Box<dyn core::future::Future<Output = T> + Send>>),
 }
 
 /// Allows to create sync reader.
@@ -37,15 +40,13 @@ impl<I, O, F> SyncReader<O> for MappedReader<I, O, F>
 where
     I: Send,
     O: Send,
-    F: Send + Fn(I) -> O,
+    F: Send + FnOnce(I) -> O,
 {
     fn read(self: Box<Self>) -> O {
-        let input = match self.reader {
-            Reader::Concrete(input) => input,
-            Reader::Sync(func) => func.read(),
-            #[cfg(target_family = "wasm")]
-            Reader::Async(_func) => panic!("Can't read async function with sync reader"),
-        };
+        let input = self
+            .reader
+            .read_sync()
+            .expect("Only sync data supported in a sync reader.");
 
         (self.mapper)(input)
     }
@@ -57,7 +58,7 @@ impl<I, O, F> AsyncReader<O> for MappedReader<I, O, F>
 where
     I: Send,
     O: Send,
-    F: Send + Fn(I) -> O,
+    F: Send + FnOnce(I) -> O,
 {
     async fn read(self: Box<Self>) -> O {
         let input = self.reader.read().await;
@@ -73,6 +74,7 @@ impl<T> Reader<T> {
             Self::Concrete(data) => data,
             Self::Sync(reader) => reader.read(),
             Self::Async(func) => func.read().await,
+            Self::Future(future) => future.await,
         }
     }
 
@@ -85,8 +87,20 @@ impl<T> Reader<T> {
         }
     }
 
+    /// Read the data only if sync, returns None if an async reader.
+    pub fn read_sync(self) -> Option<T> {
+        match self {
+            Self::Concrete(data) => Some(data),
+            Self::Sync(reader) => Some(reader.read()),
+            #[cfg(target_family = "wasm")]
+            Self::Async(_func) => return None,
+            #[cfg(target_family = "wasm")]
+            Self::Future(_future) => return None,
+        }
+    }
+
     /// Map the current reader to another type.
-    pub fn map<O, F: Fn(T) -> O>(self, mapper: F) -> Reader<O>
+    pub fn map<O, F: FnOnce(T) -> O>(self, mapper: F) -> Reader<O>
     where
         T: 'static + Send,
         O: 'static + Send,

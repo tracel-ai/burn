@@ -72,10 +72,10 @@ async fn create_client<G: GraphicsApi>(device: &WgpuDevice) -> ComputeClient<Ser
 pub async fn select_device<G: GraphicsApi>(
     device: &WgpuDevice,
 ) -> (wgpu::Device, wgpu::Queue, wgpu::AdapterInfo) {
-    #[cfg(feature = "async-read")]
+    #[cfg(target_family = "wasm")]
     let adapter = select_adapter::<G>(device).await;
 
-    #[cfg(not(feature = "async-read"))]
+    #[cfg(not(target_family = "wasm"))]
     let adapter = select_adapter::<G>(device);
 
     let limits = adapter.limits();
@@ -102,7 +102,7 @@ pub async fn select_device<G: GraphicsApi>(
     (device, queue, adapter.get_info())
 }
 
-#[cfg(feature = "async-read")]
+#[cfg(target_family = "wasm")]
 async fn select_adapter<G: GraphicsApi>(_device: &WgpuDevice) -> wgpu::Adapter {
     let instance = wgpu::Instance::default();
 
@@ -112,7 +112,7 @@ async fn select_adapter<G: GraphicsApi>(_device: &WgpuDevice) -> wgpu::Adapter {
         .unwrap()
 }
 
-#[cfg(not(feature = "async-read"))]
+#[cfg(not(target_family = "wasm"))]
 fn select_adapter<G: GraphicsApi>(device: &WgpuDevice) -> wgpu::Adapter {
     use wgpu::DeviceType;
 

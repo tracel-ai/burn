@@ -88,7 +88,7 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         let tensor = Self::reshape(tensor.clone(), Shape::new([shape.num_elements()]));
         let values: Result<Vec<E>, tch::TchError> = tensor.tensor.try_into();
 
-        Reader::Sync(Data::new(values.unwrap(), shape))
+        Reader::Concrete(Data::new(values.unwrap(), shape))
     }
 
     fn device<const D: usize>(tensor: &TchTensor<E, D>) -> TchDevice {

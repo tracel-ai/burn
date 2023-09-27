@@ -17,3 +17,6 @@ mod tests;
 
 pub use half::{bf16, f16};
 pub use tensor::*;
+
+pub use burn_common::reader::Reader; // Useful so that backends don't have to add burn_common as
+                                     // well just for that.

@@ -51,7 +51,8 @@ where
 
         let device = Self::bool_device(&tensor);
         let data = Self::bool_into_data(tensor)
-            .read_force_sync()
+            .read_sync()
+            .expect("Can't convert bool to int with different precision async")
             .convert::<I>();
 
         return Self::int_from_data(data, &device);
