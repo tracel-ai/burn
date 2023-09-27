@@ -1,5 +1,6 @@
-use crate::{backend::Backend, tensor::Shape, Data, ElementConversion, Reader};
+use crate::{backend::Backend, tensor::Shape, Data, ElementConversion};
 use alloc::vec::Vec;
+use burn_common::reader::Reader;
 use core::ops::Range;
 
 /// Int Tensor API for basic and numeric operations, see [tensor](crate::Tensor)

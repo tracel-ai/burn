@@ -1,10 +1,11 @@
 #![allow(clippy::single_range_in_vec_init)]
 
 use alloc::vec::Vec;
+use burn_common::reader::Reader;
 use core::{fmt::Debug, ops::Range};
 
 use crate::{
-    backend::Backend, check, check::TensorCheck, Bool, Data, Float, Int, Reader, Shape, TensorKind,
+    backend::Backend, check, check::TensorCheck, Bool, Data, Float, Int, Shape, TensorKind,
 };
 
 /// A tensor with a given backend, shape and data type.
@@ -487,7 +488,7 @@ where
                     core::array::from_fn(|i| multi_index[i]..multi_index[i] + 1);
 
                 let primitive = self.clone().slice(range).into_primitive();
-                let data = K::into_data(primitive.clone()).read_force_sync();
+                let data = K::into_data(primitive.clone()).read();
                 let elem = &data.value[0];
                 acc.push_str(&format!("{elem:?}"));
             }

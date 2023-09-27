@@ -1,5 +1,6 @@
-use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion, Reader};
+use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion};
 use alloc::vec::Vec;
+use burn_common::reader::Reader;
 use core::ops::Range;
 
 /// Operations on float tensors.
