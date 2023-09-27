@@ -26,7 +26,7 @@ spin = { workspace = true }
 # WGPU stuff
 futures-intrusive = { workspace = true }
 pollster = { workspace = true }
-wgpu = { workspace = true }
+wgpu = { workspace = true, features = ["fragile-send-sync-non-atomic-wasm"] }
 
 # Template
 serde = { workspace = true }

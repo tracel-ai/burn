@@ -179,7 +179,8 @@ where
                 }),
         )
     }
-    async fn read_async(&mut self, handle: &server::Handle<Self>) -> Vec<u8> {
+
+    fn buffer_reader(&mut self, handle: &server::Handle<Self>) -> BufferReader {
         // Register previous tasks before reading the buffer so that it is up to date.
         self.register_tasks();
 
@@ -203,7 +204,28 @@ where
 
         self.submit();
 
-        let buffer_slice = buffer_dest.slice(..);
+        BufferReader::new(buffer_dest)
+    }
+}
+
+#[derive(new)]
+struct BufferReader {
+    buffer: wgpu::Buffer,
+}
+
+impl BufferReader {
+    #[cfg(target_family = "wasm")]
+    async fn read(self, device: alloc::sync::Arc<wgpu::Device>) -> Vec<u8> {
+        self.read_async(&device).await
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    fn read(self, device: &wgpu::Device) -> Vec<u8> {
+        pollster::block_on(self.read_async(device))
+    }
+
+    async fn read_async(&self, device: &wgpu::Device) -> Vec<u8> {
+        let buffer_slice = self.buffer.slice(..);
         let (sender, receiver) = futures_intrusive::channel::shared::oneshot_channel();
         buffer_slice.map_async(wgpu::MapMode::Read, move |v| {
             sender
@@ -211,7 +233,7 @@ where
                 .expect("Unable to send buffer slice result to async channel.")
         });
 
-        self.device.poll(wgpu::Maintain::Wait);
+        device.poll(wgpu::Maintain::Wait);
 
         let result = receiver.receive().await;
 
@@ -220,7 +242,7 @@ where
             let result = bytemuck::cast_slice(&data).to_vec();
 
             drop(data);
-            buffer_dest.unmap();
+            self.buffer.unmap();
             result
         } else {
             panic!("Unable to read buffer {:?}", result)
@@ -238,10 +260,13 @@ where
 
     fn read(&mut self, handle: &server::Handle<Self>) -> Reader<Vec<u8>> {
         #[cfg(target_family = "wasm")]
-        return Reader::Future(self.read_async(handle));
+        {
+            let future = self.buffer_reader(handle).read(self.device.clone());
+            return Reader::Future(Box::pin(future));
+        }
 
         #[cfg(not(target_family = "wasm"))]
-        Reader::Concrete(pollster::block_on(self.read_async(handle)))
+        Reader::Concrete(self.buffer_reader(handle).read(&self.device))
     }
 
     /// When we create a new handle from existing data, we use custom allocations so that we don't

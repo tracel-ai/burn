@@ -58,7 +58,7 @@ impl Mnist {
         let output: Tensor<Backend, 2> = model.forward(input);
 
         // Convert the model output into probability distribution using softmax formula
-        let output: Tensor<Backend, 2> = output.clone().exp() / output.exp().sum_dim(1);
+        let output = burn::tensor::activation::softmax(output, 1);
 
         // Flatten output tensor with [1, 10] shape into boxed slice of [f32]
         #[cfg(not(target_family = "wasm"))]
