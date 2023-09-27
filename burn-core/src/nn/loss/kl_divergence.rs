@@ -6,8 +6,7 @@ use crate::{config::Config, module::Module};
 use burn_tensor::{backend::Backend, Tensor};
 
 /// Implementation of the KL-divergence between a given normal distribution to the standard normal distribution.  
-///
-/// It return the ratio of the standard normal distribution that is covered by the other normal distribution.      
+///    
 /// This loss is useful when trying to coerce a distribution into the standard normal one.
 #[derive(Debug, Config)]
 pub struct KLDivergenceNormConfig {}
