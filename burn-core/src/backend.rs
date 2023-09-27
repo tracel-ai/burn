@@ -10,15 +10,15 @@ pub type NdArrayBackend<F = f32> = ndarray::NdArrayBackend<F>;
 /// An NdArrayBackend with autodiffing enabled.
 pub type NdArrayAutodiffBackend<F = f32> = crate::autodiff::ADBackendDecorator<NdArrayBackend<F>>;
 
-#[cfg(feature = "__wgpu")]
+#[cfg(feature = "wgpu")]
 /// WGPU module.
 pub use burn_wgpu as wgpu;
 
-#[cfg(feature = "__wgpu")]
+#[cfg(feature = "wgpu")]
 /// A WGpuBackend with a default type of f32/i32, and auto graphics.
 pub type WgpuBackend<G = wgpu::AutoGraphicsApi, F = f32, I = i32> = wgpu::WgpuBackend<G, F, I>;
 
-#[cfg(all(feature = "__wgpu", feature = "autodiff"))]
+#[cfg(all(feature = "wgpu", feature = "autodiff"))]
 /// A WgpuBackend with autodiffing enabled.
 pub type WgpuAutodiffBackend<G = wgpu::AutoGraphicsApi, F = f32, I = i32> =
     crate::autodiff::ADBackendDecorator<WgpuBackend<G, F, I>>;

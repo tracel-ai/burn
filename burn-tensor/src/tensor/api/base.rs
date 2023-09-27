@@ -495,9 +495,7 @@ where
                 let range: [core::ops::Range<usize>; D] =
                     core::array::from_fn(|i| multi_index[i]..multi_index[i] + 1);
 
-                let primitive = self.clone().slice(range).into_primitive();
-                let data = K::into_data(primitive.clone()).read();
-                let elem = &data.value[0];
+                let elem = &self.clone().slice(range).into_data().value[0];
                 acc.push_str(&format!("{elem:?}"));
             }
         } else {
@@ -574,7 +572,6 @@ impl<B: Backend, const D: usize> core::ops::BitXor<T> for Tensor<B, D> {
 /// # Warnings
 ///
 /// This is an internal trait, use the public API provided by [tensor struct](Tensor).
-#[cfg_attr(feature = "async-read", async_trait::async_trait)]
 pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// The type of the tensor elements.
     type Elem: 'static;

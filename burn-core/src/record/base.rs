@@ -3,7 +3,6 @@ pub use burn_derive::Record;
 use super::PrecisionSettings;
 use serde::{de::DeserializeOwned, Serialize};
 
-#[cfg_attr(target_family = "wasm", async_trait::async_trait)]
 /// Trait to define a family of types which can be recorded using any [settings](PrecisionSettings).
 pub trait Record: Send + Sync {
     /// Type of the item that can be serialized and deserialized.

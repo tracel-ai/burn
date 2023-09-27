@@ -26,9 +26,6 @@ pub struct WgpuServer<MM: MemoryManagement<WgpuStorage>> {
     manual_taken: Vec<(usize, server::Handle<Self>)>,
 }
 
-unsafe impl<MM: MemoryManagement<WgpuStorage>> Send for WgpuServer<MM> {}
-unsafe impl<MM: MemoryManagement<WgpuStorage>> Sync for WgpuServer<MM> {}
-
 #[derive(new, Debug)]
 struct ComputeTask {
     pipeline: Arc<ComputePipeline>,

@@ -39,7 +39,7 @@ pub async fn init_async<G: GraphicsApi>(device: &WgpuDevice) {
 }
 
 async fn create_client<G: GraphicsApi>(device: &WgpuDevice) -> ComputeClient<Server, Channel> {
-    let (device_wgpu, queue, info) = select_device::<G>(&device).await;
+    let (device_wgpu, queue, info) = select_device::<G>(device).await;
 
     log::info!(
         "Created wgpu compute server on device {:?} => {:?}",

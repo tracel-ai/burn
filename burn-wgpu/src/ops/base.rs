@@ -39,10 +39,7 @@ pub fn bool_into_data<const D: usize>(tensor: WgpuTensor<u32, D>) -> Reader<Data
 
     tensor.client.read(&tensor.handle).map(|bytes| {
         Data::new(
-            u32::from_bytes(&bytes)
-                .into_iter()
-                .map(|i| *i != 0)
-                .collect(),
+            u32::from_bytes(&bytes).iter().map(|i| *i != 0).collect(),
             tensor.shape,
         )
     })

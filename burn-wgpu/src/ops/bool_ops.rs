@@ -52,10 +52,10 @@ where
         let device = Self::bool_device(&tensor);
         let data = Self::bool_into_data(tensor)
             .read_sync()
-            .expect("Can't convert bool to int with different precision async")
+            .expect("Can't convert bool to int with a different type size async")
             .convert::<I>();
 
-        return Self::int_from_data(data, &device);
+        Self::int_from_data(data, &device)
     }
 
     fn bool_device<const D: usize>(tensor: &BoolTensor<Self, D>) -> Device<Self> {

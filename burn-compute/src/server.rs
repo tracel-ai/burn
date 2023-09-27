@@ -9,7 +9,7 @@ use burn_common::reader::Reader;
 ///
 /// Everything in the server is mutable, therefore it should be solely accessed through the
 /// [compute channel](crate::channel::ComputeChannel) for thread safety.
-pub trait ComputeServer: Send + Sync + core::fmt::Debug
+pub trait ComputeServer: Send + core::fmt::Debug
 where
     Self: Sized,
 {

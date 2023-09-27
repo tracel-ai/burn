@@ -41,8 +41,7 @@ ndarray-blas-openblas = ["__ndarray", "ndarray", "burn-ndarray/blas-openblas"]
 ndarray-blas-openblas-system = ["__ndarray", "ndarray", "burn-ndarray/blas-openblas-system"]
 __ndarray = [] # Internal flag to know when one ndarray feature is enabled.
 
-__wgpu = [] # Internal flag to know when one ndarray feature is enabled.
-wgpu = ["__wgpu", "burn-wgpu/default"]
+wgpu = ["burn-wgpu/default"]
 
 tch = ["burn-tch"]
 
@@ -51,9 +50,6 @@ experimental-named-tensor = ["burn-tensor/experimental-named-tensor"]
 
 test-tch = ["tch"]    # To use tch during testing, default uses ndarray.
 test-wgpu = ["wgpu"]   # To use wgpu during testing, default uses ndarray.
-
-[target.'cfg(target_family = "wasm")'.dependencies]
-async-trait = { workspace = true }
 
 [dependencies]
 

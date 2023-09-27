@@ -18,9 +18,6 @@ pub struct RefCellComputeChannel<Server> {
     server: Arc<core::cell::RefCell<Server>>,
 }
 
-unsafe impl<Server> Send for RefCellComputeChannel<Server> {}
-unsafe impl<Server> Sync for RefCellComputeChannel<Server> {}
-
 impl<S> Clone for RefCellComputeChannel<S> {
     fn clone(&self) -> Self {
         Self {

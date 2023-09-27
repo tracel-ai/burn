@@ -39,7 +39,7 @@ impl Mnist {
     /// * [boxed-number-slices](https://rustwasm.github.io/wasm-bindgen/reference/types/boxed-number-slices.html)
     ///
     pub async fn inference(&mut self, input: &[f32]) -> Result<Array, String> {
-        if let None = self.model {
+        if self.model.is_none() {
             self.model = Some(build_and_load_model().await);
         }
 
