@@ -1,5 +1,3 @@
-use burn_wgpu::{kernel::matmul::matrix_primitive, WgpuDevice};
-
 use std::marker::PhantomData;
 
 use burn_tensor::{
@@ -8,10 +6,10 @@ use burn_tensor::{
 };
 use derive_new::new;
 
-use crate::{
+use burn_wgpu::{
     kernel::matmul::{
         contiguous, contiguous_vectorized, matmul_mem_coalescing_default, matmul_naive_default,
-        tile, tile_vectorized,
+        matrix_primitive, tile, tile_vectorized,
     },
     AutoGraphicsApi, GraphicsApi, WgpuBackend, WgpuDevice,
 };
@@ -105,7 +103,7 @@ bench_matmul!(
 bench_matmul!(
     Tiling2DMatmulMatrixPrimitiveBenchmark,
     Tiling2DMatmulMatrixPrimitive,
-    matrix_primitive::matmul_tiling_2d_default
+    matrix_primitive::matmul_tiling_2d_matrix_primitive_default
 );
 
 #[allow(dead_code)]
@@ -114,9 +112,9 @@ pub fn bench(device: &WgpuDevice) {
     const D: usize = 3;
     let num_repeats = 3;
     let batch_size = 3;
-    let m = 1024;
+    let m = 2048;
     let k = 2048;
-    let n = 1024;
+    let n = 2048;
     let shape_lhs = Shape::new([batch_size, m, k]);
     let shape_rhs = Shape::new([batch_size, k, n]);
 
@@ -128,11 +126,11 @@ pub fn bench(device: &WgpuDevice) {
             );
         };
     }
-    run_matmul_benchmark!(NaiveMatmulBenchmark);
-    run_matmul_benchmark!(MemCoalescingMatmulBenchmark);
-    run_matmul_benchmark!(Tiling2DMatmulContiguousBenchmark);
-    run_matmul_benchmark!(Tiling2DMatmulTileBenchmark);
-    run_matmul_benchmark!(Tiling2DMatmulTileVectorizedBenchmark);
+    // run_matmul_benchmark!(NaiveMatmulBenchmark);
+    // run_matmul_benchmark!(MemCoalescingMatmulBenchmark);
+    // run_matmul_benchmark!(Tiling2DMatmulContiguousBenchmark);
+    // run_matmul_benchmark!(Tiling2DMatmulTileBenchmark);
+    // run_matmul_benchmark!(Tiling2DMatmulTileVectorizedBenchmark);
     run_matmul_benchmark!(Tiling2DMatmulContiguousVectorizedBenchmark);
     run_matmul_benchmark!(Tiling2DMatmulMatrixPrimitiveBenchmark);
 }
