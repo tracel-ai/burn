@@ -2,6 +2,8 @@
 
 use alloc::string::String;
 use js_sys::Array;
+
+#[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
 
 use crate::model::Model;
@@ -11,15 +13,15 @@ use burn::tensor::Tensor;
 
 /// Mnist structure that corresponds to JavaScript class.
 /// See:[exporting-rust-struct](https://rustwasm.github.io/wasm-bindgen/contributing/design/exporting-rust-struct.html)
-#[wasm_bindgen]
+#[cfg_attr(target_family = "wasm", wasm_bindgen)]
 pub struct Mnist {
     model: Option<Model<Backend>>,
 }
 
-#[wasm_bindgen]
+#[cfg_attr(target_family = "wasm", wasm_bindgen)]
 impl Mnist {
     /// Constructor called by JavaScripts with the new keyword.
-    #[wasm_bindgen(constructor)]
+    #[cfg_attr(target_family = "wasm", wasm_bindgen(constructor))]
     pub fn new() -> Self {
         Self { model: None }
     }
@@ -81,7 +83,8 @@ mod tests {
 
     #[test]
     fn inference_manual_from_test_data() {
-        let mnist = Mnist::new();
+        let mut mnist = Mnist::new();
+
         let input: Vec<f32> = vec![
             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
@@ -133,8 +136,8 @@ mod tests {
             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
         ];
 
-        let output = mnist.inference(input.as_slice()).unwrap();
+        let output = pollster::block_on(mnist.inference(input.as_slice())).unwrap();
 
-        assert!(output[7] > 0.9);
+        assert!(output.get(7).as_f64().unwrap() > 0.9);
     }
 }
