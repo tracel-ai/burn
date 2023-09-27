@@ -10,7 +10,7 @@ use crate::{
     unary, unary_inplace, unary_scalar, GraphicsApi, WgpuBackend,
 };
 use burn_tensor::{ops::TensorOps, Data, Distribution, Shape};
-use burn_tensor::{DataReader, ElementConversion};
+use burn_tensor::{ElementConversion, Reader};
 
 use std::ops::Range;
 
@@ -48,7 +48,7 @@ where
         tensor.shape.clone()
     }
 
-    fn into_data<const D: usize>(tensor: FloatTensor<Self, D>) -> DataReader<FloatElem<Self>, D> {
+    fn into_data<const D: usize>(tensor: FloatTensor<Self, D>) -> Reader<Data<FloatElem<Self>, D>> {
         super::into_data(tensor)
     }
 

@@ -4,8 +4,7 @@ use alloc::vec::Vec;
 use core::{fmt::Debug, ops::Range};
 
 use crate::{
-    backend::Backend, check, check::TensorCheck, Bool, Data, DataReader, Float, Int, Shape,
-    TensorKind,
+    backend::Backend, check, check::TensorCheck, Bool, Data, Float, Int, Reader, Shape, TensorKind,
 };
 
 /// A tensor with a given backend, shape and data type.
@@ -221,8 +220,6 @@ where
 
     /// Unsqueeze the current tensor. Create new dimensions to fit the given size.
     ///
-    /// # Panics
-    ///
     /// If the output size is higher than the current tensor.
     ///
     /// # Example
@@ -317,6 +314,12 @@ where
     /// Returns a new tensor on the given device.
     pub fn to_device(self, device: &B::Device) -> Self {
         Self::new(K::to_device(self.primitive, device))
+    }
+
+    /// Returns the data of the current tensor and block for its.
+    #[cfg(not(target_family = "wasm"))]
+    pub fn into_data_block(self) -> Reader<Data<K::Elem, D>> {
+        K::into_data(self.primitive)
     }
 
     #[cfg(feature = "async-read")]
@@ -461,7 +464,7 @@ where
     K: BasicOps<B>,
     <K as BasicOps<B>>::Elem: Debug,
 {
-    #[cfg(not(feature = "async-read"))]
+    #[cfg(not(target_family = "wasm"))]
     /// Recursively formats the tensor data for display and appends it to the provided accumulator string.
     ///
     /// This function is designed to work with tensors of any dimensionality.
@@ -488,7 +491,10 @@ where
                 multi_index[depth] = i;
                 let range: [core::ops::Range<usize>; D] =
                     core::array::from_fn(|i| multi_index[i]..multi_index[i] + 1);
-                let elem = &self.clone().slice(range).to_data().value[0];
+
+                let primitive = self.clone().slice(range).into_primitive();
+                let data = K::into_data(primitive.clone()).read_force_sync();
+                let elem = &data.value[0];
                 acc.push_str(&format!("{elem:?}"));
             }
         } else {
@@ -521,7 +527,7 @@ where
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         writeln!(f, "Tensor {{")?;
 
-        #[cfg(not(feature = "async-read"))]
+        #[cfg(not(target_family = "wasm"))]
         {
             write!(f, "  data: ")?;
             let mut acc = String::new();
@@ -775,7 +781,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// For extracting the data of a tensor, users should prefer the [Tensor::into_data](Tensor::into_data) function,
     /// which is more high-level and designed for public use.
-    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> DataReader<Self::Elem, D>;
+    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Reader<Data<Self::Elem, D>>;
 
     /// Creates a tensor from the given data.
     ///
@@ -934,7 +940,7 @@ impl<B: Backend> BasicOps<B> for Float {
         B::to_device(tensor, device)
     }
 
-    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> DataReader<Self::Elem, D> {
+    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Reader<Data<Self::Elem, D>> {
         B::into_data(tensor)
     }
 
@@ -1021,7 +1027,7 @@ impl<B: Backend> BasicOps<B> for Int {
         B::int_to_device(tensor, device)
     }
 
-    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> DataReader<Self::Elem, D> {
+    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Reader<Data<Self::Elem, D>> {
         B::int_into_data(tensor)
     }
 
@@ -1108,7 +1114,7 @@ impl<B: Backend> BasicOps<B> for Bool {
         B::bool_to_device(tensor, device)
     }
 
-    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> DataReader<Self::Elem, D> {
+    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Reader<Data<Self::Elem, D>> {
         B::bool_into_data(tensor)
     }
 

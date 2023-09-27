@@ -1,46 +1,44 @@
-use crate::Data;
-
 #[cfg(feature = "async-read")]
 #[async_trait::async_trait]
 /// Allows to create async data reader for backends.
-pub trait AsyncDataReader<E, const D: usize> {
+pub trait AsyncReader<T> {
     /// Read the data asynchronously.
-    async fn read(self: Box<Self>) -> Data<E, D>;
+    async fn read(self: Box<Self>) -> T;
 }
 
 /// Define how data is read, sync or async.
-pub enum DataReader<E, const D: usize> {
+pub enum Reader<T> {
     /// Sync data variant.
-    Sync(Data<E, D>),
+    Sync(T),
     #[cfg(feature = "async-read")]
     /// Async data variant.
-    Async(Box<dyn AsyncDataReader<E, D>>),
+    Async(Box<dyn AsyncReader<T>>),
 }
 
-impl<E, const D: usize> DataReader<E, D> {
+impl<T> Reader<T> {
     #[cfg(feature = "async-read")]
     /// Read the data.
-    pub async fn read(self) -> Data<E, D> {
+    pub async fn read(self) -> T {
         match self {
-            DataReader::Sync(data) => data,
-            DataReader::Async(func) => func.read().await,
+            Self::Sync(data) => data,
+            Self::Async(func) => func.read().await,
         }
     }
 
     #[cfg(not(feature = "async-read"))]
     /// Read the data.
-    pub fn read(self) -> Data<E, D> {
+    pub fn read(self) -> T {
         match self {
-            DataReader::Sync(data) => data,
+            Self::Sync(data) => data,
         }
     }
 
     /// Force reading the data synchronously.
-    pub fn read_force_sync(self) -> Data<E, D> {
+    pub fn read_force_sync(self) -> T {
         match self {
-            DataReader::Sync(data) => data,
+            Self::Sync(data) => data,
             #[cfg(feature = "async-read")] // TODO: Maybe block_on here instead.
-            DataReader::Async(_) => panic!("Force sync, but got async function"),
+            Self::Async(_) => panic!("Force sync, but got async function"),
         }
     }
 }

@@ -2,7 +2,7 @@
 use alloc::vec;
 use alloc::vec::Vec;
 use burn_tensor::ops::{BoolTensorOps, IntTensorOps};
-use burn_tensor::{DataReader, ElementConversion};
+use burn_tensor::{ElementConversion, Reader};
 use core::ops::Range;
 
 // Current crate
@@ -31,11 +31,11 @@ impl<E: FloatNdArrayElement> BoolTensorOps<NdArrayBackend<E>> for NdArrayBackend
 
     fn bool_into_data<const D: usize>(
         tensor: <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D>,
-    ) -> DataReader<bool, D> {
+    ) -> Reader<Data<bool, D>> {
         let shape = tensor.shape();
         let values = tensor.array.into_iter().collect();
 
-        DataReader::Sync(Data::new(values, shape))
+        Reader::Sync(Data::new(values, shape))
     }
 
     fn bool_to_device<const D: usize>(

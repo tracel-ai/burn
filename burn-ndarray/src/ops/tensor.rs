@@ -11,7 +11,7 @@ use crate::{NdArrayDevice, SEED};
 // Workspace crates
 use burn_common::rand::get_seeded_rng;
 use burn_tensor::{backend::Backend, ops::TensorOps, Data, ElementConversion, Shape};
-use burn_tensor::{DataReader, Distribution};
+use burn_tensor::{Distribution, Reader};
 
 // External crates
 use libm::{cos, erf, sin, tanh};
@@ -47,11 +47,11 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
 
     fn into_data<const D: usize>(
         tensor: NdArrayTensor<E, D>,
-    ) -> DataReader<<NdArrayBackend<E> as Backend>::FloatElem, D> {
+    ) -> Reader<Data<<NdArrayBackend<E> as Backend>::FloatElem, D>> {
         let shape = tensor.shape();
         let values = tensor.array.into_iter().collect();
 
-        DataReader::Sync(Data::new(values, shape))
+        Reader::Sync(Data::new(values, shape))
     }
 
     fn device<const D: usize>(_tensor: &NdArrayTensor<E, D>) -> NdArrayDevice {

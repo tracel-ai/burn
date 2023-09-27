@@ -2,7 +2,7 @@ use crate::{
     compute::compute_client, element::WgpuElement, kernel, tensor::WgpuTensor, GraphicsApi,
     WgpuDevice,
 };
-use burn_tensor::{backend::Backend, Data, DataReader, Shape};
+use burn_tensor::{backend::Backend, Data, Reader, Shape};
 
 pub type FloatElem<B> = <B as Backend>::FloatElem;
 pub type Device<B> = <B as Backend>::Device;
@@ -25,7 +25,7 @@ pub fn from_data<G: GraphicsApi, E: WgpuElement, const D: usize>(
     WgpuTensor::new(client, device.clone(), data.shape, buffer)
 }
 
-pub fn into_data<E: WgpuElement, const D: usize>(tensor: WgpuTensor<E, D>) -> DataReader<E, D> {
+pub fn into_data<E: WgpuElement, const D: usize>(tensor: WgpuTensor<E, D>) -> Reader<Data<E, D>> {
     let tensor = kernel::into_contiguous(tensor);
 
     #[cfg(feature = "async-read")]
@@ -36,7 +36,7 @@ pub fn into_data<E: WgpuElement, const D: usize>(tensor: WgpuTensor<E, D>) -> Da
         }
 
         #[async_trait::async_trait]
-        impl<E: WgpuElement, const D: usize> burn_tensor::AsyncDataReader<E, D> for AsyncReader<E, D> {
+        impl<E: WgpuElement, const D: usize> burn_tensor::AsyncReader<Data<E, D>> for AsyncReader<E, D> {
             async fn read(self: Box<Self>) -> Data<E, D> {
                 let bytes = self.tensor.client.read(&self.tensor.handle).await;
                 let values = E::from_bytes(&bytes);
@@ -44,18 +44,18 @@ pub fn into_data<E: WgpuElement, const D: usize>(tensor: WgpuTensor<E, D>) -> Da
             }
         }
 
-        return DataReader::Async(Box::new(AsyncReader::new(tensor)));
+        return Reader::Async(Box::new(AsyncReader::new(tensor)));
     }
 
     #[cfg(not(feature = "async-read"))]
     {
         let bytes = tensor.client.read(&tensor.handle);
         let values = E::from_bytes(&bytes);
-        return DataReader::Sync(Data::new(values.to_vec(), tensor.shape));
+        return Reader::Sync(Data::new(values.to_vec(), tensor.shape));
     }
 }
 
-pub fn bool_into_data<const D: usize>(tensor: WgpuTensor<u32, D>) -> DataReader<bool, D> {
+pub fn bool_into_data<const D: usize>(tensor: WgpuTensor<u32, D>) -> Reader<Data<bool, D>> {
     let tensor = kernel::into_contiguous(tensor);
 
     #[cfg(feature = "async-read")]
@@ -66,7 +66,7 @@ pub fn bool_into_data<const D: usize>(tensor: WgpuTensor<u32, D>) -> DataReader<
         }
 
         #[async_trait::async_trait]
-        impl<const D: usize> burn_tensor::AsyncDataReader<bool, D> for AsyncReader<D> {
+        impl<const D: usize> burn_tensor::AsyncReader<Data<bool, D>> for AsyncReader<D> {
             async fn read(self: Box<Self>) -> Data<bool, D> {
                 let bytes = self.tensor.client.read(&self.tensor.handle).await;
                 let values = u32::from_bytes(&bytes);
@@ -76,7 +76,7 @@ pub fn bool_into_data<const D: usize>(tensor: WgpuTensor<u32, D>) -> DataReader<
             }
         }
 
-        return DataReader::Async(Box::new(AsyncReader::new(tensor)));
+        return Reader::Async(Box::new(AsyncReader::new(tensor)));
     }
 
     #[cfg(not(feature = "async-read"))]
@@ -85,7 +85,7 @@ pub fn bool_into_data<const D: usize>(tensor: WgpuTensor<u32, D>) -> DataReader<
         let values = u32::from_bytes(&bytes);
         let values = values.to_vec().into_iter().map(|i| i != 0).collect();
 
-        return DataReader::Sync(Data::new(values, tensor.shape));
+        return Reader::Sync(Data::new(values, tensor.shape));
     }
 }
 

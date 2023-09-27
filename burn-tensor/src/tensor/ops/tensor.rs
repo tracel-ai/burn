@@ -1,4 +1,4 @@
-use crate::{backend::Backend, tensor::Shape, Data, DataReader, Distribution, ElementConversion};
+use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion, Reader};
 use alloc::vec::Vec;
 use core::ops::Range;
 
@@ -103,7 +103,7 @@ pub trait TensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn to_data<const D: usize>(tensor: &B::TensorPrimitive<D>) -> DataReader<B::FloatElem, D> {
+    fn to_data<const D: usize>(tensor: &B::TensorPrimitive<D>) -> Reader<Data<B::FloatElem, D>> {
         Self::into_data(tensor.clone())
     }
 
@@ -116,7 +116,7 @@ pub trait TensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn into_data<const D: usize>(tensor: B::TensorPrimitive<D>) -> DataReader<B::FloatElem, D>;
+    fn into_data<const D: usize>(tensor: B::TensorPrimitive<D>) -> Reader<Data<B::FloatElem, D>>;
 
     /// Gets the device of the tensor.
     ///

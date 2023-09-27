@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use burn_tensor::{backend::Backend, ops::BoolTensorOps, Data, DataReader, Shape};
+use burn_tensor::{backend::Backend, ops::BoolTensorOps, Data, Reader, Shape};
 
 use crate::{element::TchElement, TchBackend, TchDevice, TchTensor};
 
@@ -26,12 +26,12 @@ impl<E: TchElement> BoolTensorOps<TchBackend<E>> for TchBackend<E> {
         TchOps::repeat(tensor, dim, times)
     }
 
-    fn bool_into_data<const D: usize>(tensor: TchTensor<bool, D>) -> DataReader<bool, D> {
+    fn bool_into_data<const D: usize>(tensor: TchTensor<bool, D>) -> Reader<Data<bool, D>> {
         let shape = Self::bool_shape(&tensor);
         let tensor = Self::bool_reshape(tensor.clone(), Shape::new([shape.num_elements()]));
         let values: Result<Vec<bool>, tch::TchError> = tensor.tensor.shallow_clone().try_into();
 
-        DataReader::Sync(Data::new(values.unwrap(), shape))
+        Reader::Sync(Data::new(values.unwrap(), shape))
     }
 
     fn bool_to_device<const D: usize>(

@@ -1,7 +1,7 @@
 use super::TchOps;
 use crate::{element::TchElement, TchBackend, TchDevice, TchShape, TchTensor};
 use burn_tensor::{
-    backend::Backend, ops::TensorOps, Data, DataReader, Distribution, ElementConversion, Shape,
+    backend::Backend, ops::TensorOps, Data, Distribution, ElementConversion, Reader, Shape,
 };
 use std::ops::Range;
 
@@ -83,12 +83,12 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
 
     fn into_data<const D: usize>(
         tensor: <TchBackend<E> as Backend>::TensorPrimitive<D>,
-    ) -> DataReader<<TchBackend<E> as Backend>::FloatElem, D> {
+    ) -> Reader<Data<<TchBackend<E> as Backend>::FloatElem, D>> {
         let shape = Self::shape(&tensor);
         let tensor = Self::reshape(tensor.clone(), Shape::new([shape.num_elements()]));
         let values: Result<Vec<E>, tch::TchError> = tensor.tensor.try_into();
 
-        DataReader::Sync(Data::new(values.unwrap(), shape))
+        Reader::Sync(Data::new(values.unwrap(), shape))
     }
 
     fn device<const D: usize>(tensor: &TchTensor<E, D>) -> TchDevice {

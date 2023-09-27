@@ -2,7 +2,8 @@
 use alloc::vec;
 use alloc::vec::Vec;
 use burn_tensor::ops::IntTensorOps;
-use burn_tensor::DataReader;
+use burn_tensor::Reader;
+
 use burn_tensor::ElementConversion;
 use core::ops::Range;
 
@@ -29,11 +30,11 @@ impl<E: FloatNdArrayElement> IntTensorOps<NdArrayBackend<E>> for NdArrayBackend<
         tensor.shape()
     }
 
-    fn int_into_data<const D: usize>(tensor: NdArrayTensor<i64, D>) -> DataReader<i64, D> {
+    fn int_into_data<const D: usize>(tensor: NdArrayTensor<i64, D>) -> Reader<Data<i64, D>> {
         let shape = tensor.shape();
         let values = tensor.array.into_iter().collect();
 
-        DataReader::Sync(Data::new(values, shape))
+        Reader::Sync(Data::new(values, shape))
     }
 
     fn int_to_device<const D: usize>(

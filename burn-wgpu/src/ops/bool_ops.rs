@@ -5,8 +5,8 @@ use crate::{
     tensor::WgpuTensor,
     GraphicsApi, WgpuBackend,
 };
-use burn_tensor::ops::IntTensorOps;
-use burn_tensor::{ops::BoolTensorOps, Data, DataReader, Shape};
+use burn_tensor::{ops::BoolTensorOps, Data, Shape};
+use burn_tensor::{ops::IntTensorOps, Reader};
 use std::ops::Range;
 
 impl<G, F, I> BoolTensorOps<WgpuBackend<G, F, I>> for WgpuBackend<G, F, I>
@@ -23,7 +23,7 @@ where
         tensor.shape.clone()
     }
 
-    fn bool_into_data<const D: usize>(tensor: BoolTensor<Self, D>) -> DataReader<bool, D> {
+    fn bool_into_data<const D: usize>(tensor: BoolTensor<Self, D>) -> Reader<Data<bool, D>> {
         super::bool_into_data(tensor)
     }
 
