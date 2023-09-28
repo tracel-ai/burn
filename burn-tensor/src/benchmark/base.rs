@@ -1,8 +1,9 @@
-use crate::{compute::compute_client, GraphicsApi, WgpuDevice};
 use std::{
     fmt::Display,
     time::{Duration, Instant},
 };
+
+use crate::backend::Backend;
 
 /// Results of a benchmark run.
 #[derive(Debug)]
@@ -62,7 +63,7 @@ impl Display for BenchmarkResult {
 }
 
 /// Benchmark trait.
-pub trait Benchmark<G: GraphicsApi> {
+pub trait Benchmark<B: Backend> {
     /// Benchmark arguments.
     type Args;
 
@@ -73,7 +74,7 @@ pub trait Benchmark<G: GraphicsApi> {
     ///
     /// This should not include warmup, the benchmark will be run at least one time without
     /// measuring the execution time.
-    fn prepare(&self, device: &WgpuDevice) -> Self::Args;
+    fn prepare(&self, device: &B::Device) -> Self::Args;
     /// Execute the benchmark and returns the time it took to complete.
     fn execute(&self, args: Self::Args);
     /// Number of samples required to have a statistical significance.
@@ -83,24 +84,22 @@ pub trait Benchmark<G: GraphicsApi> {
     /// Name of the benchmark.
     fn name(&self) -> String;
     /// Run the benchmark a number of times.
-    fn run(&self, device: &WgpuDevice) -> BenchmarkResult {
-        let client = compute_client::<G>(device);
-
+    fn run(&self, device: &B::Device) -> BenchmarkResult {
         // Warmup
         self.execute(self.prepare(device));
-        client.sync();
+        B::sync(device);
 
         let mut durations = Vec::with_capacity(self.num_samples());
 
         for _ in 0..self.num_samples() {
             // Prepare
             let args = self.prepare(device);
-            client.sync();
+            B::sync(device);
 
             // Execute the benchmark
             let start = Instant::now();
             self.execute(args);
-            client.sync();
+            B::sync(device);
             let end = Instant::now();
 
             // Register the duration
@@ -111,51 +110,23 @@ pub trait Benchmark<G: GraphicsApi> {
     }
 }
 
-/// Run a benchmark on all platforms.
-#[macro_export]
-macro_rules! run_benchmark {
-    ($bench:expr) => {{
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_millis();
-        let output = std::process::Command::new("git")
-            .args(&["rev-parse", "HEAD"])
-            .output()
-            .unwrap();
-        let git_hash = String::from_utf8(output.stdout).unwrap();
-        println!("Timestamp: {}", timestamp);
-        println!("Git Hash: {}", str::trim(&git_hash));
-        #[cfg(any(target_os = "linux", target_os = "windows"))]
-        {
-            println!(
-                "Vulkan - {}{}",
-                Benchmark::<burn_wgpu::Vulkan>::name(&$bench),
-                Benchmark::<burn_wgpu::Vulkan>::run(&$bench, &WgpuDevice::DiscreteGpu(0))
-            );
-        }
-
-        #[cfg(target_os = "windows")]
-        {
-            println!(
-                "Dx11 - {}{}",
-                Benchmark::<burn_wgpu::Dx11>::name(&$bench),
-                Benchmark::<burn_wgpu::Dx11>::run(&$bench, &WgpuDevice::DiscreteGpu(0))
-            );
-            println!(
-                "Dx12 - {}{}",
-                Benchmark::<burn_wgpu::Dx12>::name(&$bench),
-                Benchmark::<burn_wgpu::Dx12>::run(&$bench, &WgpuDevice::DiscreteGpu(0))
-            );
-        }
-
-        #[cfg(target_os = "macos")]
-        {
-            println!(
-                "Metal - {}{}",
-                Benchmark::<burn_wgpu::Metal>::name(&$bench),
-                Benchmark::<burn_wgpu::Metal>::run(&$bench, &WgpuDevice::IntegratedGpu(0))
-            );
-        }
-    }};
+/// Runs the given benchmark on the device and prints result and information.
+pub fn run_benchmark<B: Backend, BM: Benchmark<B>>(benchmark: BM, device: &B::Device) {
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis();
+    let output = std::process::Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .output()
+        .unwrap();
+    let git_hash = String::from_utf8(output.stdout).unwrap();
+    println!("Timestamp: {}", timestamp);
+    println!("Git Hash: {}", str::trim(&git_hash));
+    println!("Backend: {}", B::name());
+    println!(
+        "Benchmarking - {}{}",
+        benchmark.name(),
+        benchmark.run(device)
+    );
 }
