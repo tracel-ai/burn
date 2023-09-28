@@ -17,6 +17,7 @@ var<storage, read> info: array<u32>;
 const B_M = 64u;
 const B_N = 64u;
 const B_K = 32u;
+const N_THREAD_PER_ROW = 16u;
 
 var<workgroup> shared_lhs: array<vec4<{{ elem }}>, 512u>; 
 var<workgroup> shared_rhs: array<vec4<{{ elem }}>, 512u>; 
@@ -31,12 +32,12 @@ fn main(
     let skip_row = workgroup_id.x * B_M;
     let skip_col = workgroup_id.y * B_N;
 
-    let n_thread_per_row = ((B_N - 1u) / 4u) + 1u;
-    let thread_row = (local_idx / n_thread_per_row) * 4u;
-    let thread_col = (local_idx % n_thread_per_row) * 4u;
+    let thread_row = local_idx / 16u;
+    let thread_col = local_idx % 16u;
+    // if thread_row != 4u {return;}
     
-    let row = skip_row + thread_row;
-    let col = skip_col + thread_col;
+    let row = skip_row + thread_row * 4u;
+    let col = skip_col + thread_col * 4u;
 
     let batch = global_id.z;
 
@@ -78,47 +79,47 @@ fn main(
     for (var k = 0u; k < K; k += B_K) {
         // Load data into shared memories
         for (var j = 0u; j < 4u; j++) {
-            let current_row = thread_row;
-            let current_col = thread_col + j;
+            let current_row = thread_row * 4u;
+            let current_col = thread_col * 4u + j;
             
-            if current_col < B_K {
-                let lhs_sm_position = current_row * B_K + current_col; 
-                let lhs_position0 = offset_lhs + (k + current_col) * lhs_stride_col + (current_row) * lhs_stride_row;
-                let lhs_position1 = lhs_position0 + lhs_stride_row;
-                let lhs_position2 = lhs_position1 + lhs_stride_row;
-                let lhs_position3 = lhs_position2 + lhs_stride_row;
+            let lhs_sm_position = thread_row * B_K + current_col; // shits here
+            let lhs_position0 = offset_lhs + (k + current_col) * lhs_stride_col + (current_row) * lhs_stride_row;
+            let lhs_position1 = lhs_position0 + lhs_stride_row;
+            let lhs_position2 = lhs_position1 + lhs_stride_row;
+            let lhs_position3 = lhs_position2 + lhs_stride_row;
 
-                // shared_lhs[lhs_sm_position] = vec4(1., 1.,1.,1.,);
-                // let x = lhs[lhs_position0];
-                shared_lhs[lhs_sm_position] = vec4(
-                    lhs[lhs_position0],
-                    lhs[lhs_position1],
-                    lhs[lhs_position2],
-                    lhs[lhs_position3],
-                );
-            }
+            // let y = f32(lhs_sm_position);
+            // shared_lhs[lhs_sm_position] = vec4(y, y, y, y);
+            // shared_lhs[lhs_sm_position] = vec4(1., 1.,1.,1.,);
+            // let x = lhs[lhs_position0];
+            shared_lhs[lhs_sm_position] = vec4(
+                lhs[lhs_position0],
+                lhs[lhs_position1],
+                lhs[lhs_position2],
+                lhs[lhs_position3],
+            );
         }
 
         for (var i = 0u; i < 4u; i++) {
-            let current_row = thread_row + i;
-            let current_col = thread_col;
+            let current_row = thread_row * 4u + i;
+            let current_col = thread_col * 4u;
             
-            if current_row < B_K {
-                let rhs_sm_position = (current_col / 4u)  + current_row * (B_N / 4u); 
-                let rhs_position0 = offset_rhs + (k + current_row) * rhs_stride_row + (current_col) * rhs_stride_col;
-                let rhs_position1 = rhs_position0 + rhs_stride_col;
-                let rhs_position2 = rhs_position1 + rhs_stride_col;
-                let rhs_position3 = rhs_position2 + rhs_stride_col;
-                
-                // shared_rhs[rhs_sm_position] = vec4(1., 1.,1.,1.,);
-                // let x = rhs[rhs_position0];
-                shared_rhs[rhs_sm_position] = vec4(
-                    rhs[rhs_position0],
-                    rhs[rhs_position1],
-                    rhs[rhs_position2],
-                    rhs[rhs_position3]
-                );
-            }
+            let rhs_sm_position = thread_col + current_row * 16u; 
+            let rhs_position0 = offset_rhs + (k + current_row) * rhs_stride_row + (current_col) * rhs_stride_col;
+            let rhs_position1 = rhs_position0 + rhs_stride_col;
+            let rhs_position2 = rhs_position1 + rhs_stride_col;
+            let rhs_position3 = rhs_position2 + rhs_stride_col;
+            
+            // let y = f32(rhs_sm_position);
+            // shared_rhs[rhs_sm_position] = vec4(y, y, y, y);
+            // shared_rhs[rhs_sm_position] = vec4(1., 1.,1.,1.,);
+            // let x = rhs[rhs_position0];
+            shared_rhs[rhs_sm_position] = vec4(
+                rhs[rhs_position0],
+                rhs[rhs_position1],
+                rhs[rhs_position2],
+                rhs[rhs_position3]
+            );
         }
 
         workgroupBarrier();
@@ -129,10 +130,12 @@ fn main(
         for (var dot_index = 0u; dot_index < B_K; dot_index++) {
             // Load a subcolumn of values from lhs
             let lhs_sm_position = thread_row * B_K + dot_index;
-            register_M = shared_lhs[lhs_sm_position];
+            register_M = shared_lhs[lhs_sm_position]; // shits here
+            // register_M = vec4(1.,1.,1.,1.);
             // Load a subrow of values from rhs
-            let rhs_sm_position = thread_col / 4u + dot_index * (B_N / 4u);
+            let rhs_sm_position = thread_col + dot_index * 16u;
             register_N = shared_rhs[rhs_sm_position];
+            // register_N = vec4(1.,1.,1.,1.);
             // Multiply subcolumn and subrow and store results
             for (var res_idx_M = 0u; res_idx_M < 4u; res_idx_M++) {
                 for (var res_idx_N = 0u; res_idx_N < 4u; res_idx_N++) {
