@@ -30,7 +30,10 @@ fn main(
     @builtin(workgroup_id) workgroup_id: vec3<u32>,
 ) {
     let skip_row = workgroup_id.x * B_M;
-    let skip_col = workgroup_id.y * B_N;
+    // it should be B_N because it's regarding the output
+    // but it has the problem of skipping 32 entries
+    let skip_col = workgroup_id.y * B_N; 
+
     
     let thread_row = local_idx / N_THREAD_PER_ROW;
     let thread_col = local_idx % N_THREAD_PER_ROW;
