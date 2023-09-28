@@ -18,12 +18,25 @@ kernel_wgsl!(
 
 #[derive(new, Debug)]
 struct MatmulTiling2DMatrixPrimitive<E: WgpuElement> {
+    b_m: usize,
+    b_n: usize,
+    b_k: usize,
+    workgroup_size_x: usize,
+    workgroup_size_y: usize,
     _elem: PhantomData<E>,
 }
 
 impl<E: WgpuElement> DynamicKernelSource for MatmulTiling2DMatrixPrimitive<E> {
     fn source(self) -> SourceTemplate {
         MatmulTiling2DMatrixPrimitiveRaw::source()
+            .register("b_m", self.b_m.to_string())
+            .register("b_n", self.b_n.to_string())
+            .register("b_k", self.b_k.to_string())
+            .register("bm_x_bk", (self.b_m * self.b_k).to_string())
+            .register("bk_x_bn", (self.b_k * self.b_n).to_string())
+            .register("workgroup_size_x", self.workgroup_size_x.to_string())
+            .register("workgroup_size_y", self.workgroup_size_y.to_string())
+            .register("workgroup_size_z", "1".to_string())
             .register("elem", E::type_name())
             .register("int", "i32")
     }
@@ -46,8 +59,13 @@ pub fn matmul_tiling_2d_matrix_primitive<E: WgpuElement + Element, const D: usiz
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
-    let kernel = MatmulTiling2DMatrixPrimitive::<E>::new();
-    matmul_tiling_2d_launch(lhs, rhs, 64, 64, 32, 4, 4, 16, 16, kernel)
+    let b_m = 64;
+    let b_n = 64;
+    let b_k = 32;
+    let wgx = 16;
+    let wgy = 16;
+    let kernel = MatmulTiling2DMatrixPrimitive::<E>::new(b_m, b_n, b_k, wgx, wgy);
+    matmul_tiling_2d_launch(lhs, rhs, b_m, b_n, b_k, 4, 4, wgx, wgy, kernel)
 }
 
 #[cfg(test)]
@@ -107,8 +125,8 @@ mod tests {
 
     #[test]
     pub fn test_matmul_matrix_primitive_large() {
-        // test_with_params(34, 34, 34, 1, 1);
-        test_with_params(65, 65, 65, 1, 1);
+        // test_with_params(33, 32, 32, 1, 1);
+        test_with_params(134, 242, 25, 1, 1);
     }
 
     fn test_with_params(m: usize, k: usize, n: usize, batch_1: usize, batch_2: usize) {

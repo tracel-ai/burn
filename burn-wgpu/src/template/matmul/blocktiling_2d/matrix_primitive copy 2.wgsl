@@ -1,10 +1,10 @@
 @group(0)
 @binding(0)
-var<storage, read> lhs: array<{{ elem }}>;
+var<storage, read> lhs: array<vec4<{{ elem }}>>;
 
 @group(0)
 @binding(1)
-var<storage, read> rhs: array<{{ elem }}>;
+var<storage, read> rhs: array<vec4<{{ elem }}>>;
 
 @group(0)
 @binding(2)
@@ -19,9 +19,9 @@ const B_N = {{b_n}}u;
 const B_K = {{b_k}}u;
 const B_M_X_B_K = {{bm_x_bk}}u;
 const B_K_X_B_N = {{bk_x_bn}}u;
-const T_M = 4u;
-const T_N = 4u;
-const T_M_X_T_N = 16u;
+const T_M = {{t_m}}u;
+const T_N = {{t_n}}u;
+const T_M_X_T_N = {{tm_x_tn}}u;
 
 var<workgroup> shared_lhs: array<{{ elem }}, B_M_X_B_K>; 
 var<workgroup> shared_rhs: array<{{ elem }}, B_K_X_B_N>;
@@ -91,13 +91,16 @@ fn main(
                 if current_col < B_K {
                     let lhs_sm_position = current_row * B_K + current_col; 
                     let lhs_position = offset_lhs + (k + current_col) * lhs_stride_col + current_row * lhs_stride_row;
-                    shared_lhs[lhs_sm_position] = lhs[lhs_position];
+                    let v = lhs[lhs_position / 4u];
+                    shared_lhs[lhs_sm_position] = v[lhs_position % 4u];
                 }
                 
                 if current_row < B_K {
                     let rhs_sm_position = current_row * B_N + current_col; 
                     let rhs_position = offset_rhs + (k + current_row) * rhs_stride_row + current_col * rhs_stride_col;
-                    shared_rhs[rhs_sm_position] = rhs[rhs_position];
+                    let v = rhs[rhs_position / 4u];
+                    shared_rhs[rhs_sm_position] = v[rhs_position % 4u];
+                    // shared_rhs[rhs_sm_position] = rhs[rhs_position / 4u];
                 }
             }
         }
