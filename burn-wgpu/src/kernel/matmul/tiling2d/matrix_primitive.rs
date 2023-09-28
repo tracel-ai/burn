@@ -101,8 +101,13 @@ mod tests {
     }
 
     #[test]
+    pub fn test_matmul_matrix_primitive_medium() {
+        test_with_params(31, 31, 31, 1, 1);
+    }
+
+    #[test]
     pub fn test_matmul_matrix_primitive_large() {
-        test_with_params(17, 17, 17, 1, 1); // if M > 16, fails starting at position N * 16
+        test_with_params(34, 34, 34, 1, 1);
     }
 
     fn test_with_params(m: usize, k: usize, n: usize, batch_1: usize, batch_2: usize) {
