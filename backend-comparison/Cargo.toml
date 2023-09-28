@@ -1,0 +1,48 @@
+[package]
+authors = ["louisfd <louisfd94@gmail.com>"]
+categories = ["science"]
+description = "This crate is used to time the execution of various computations, from operation kernels to complex model scenarios."
+edition = "2021"
+license = "MIT OR Apache-2.0"
+name = "backend-comparison"
+readme = "README.md"
+repository = "https://github.com/burn-rs/burn/tree/main/backend-comparison"
+version = "0.10.0"
+
+[features]
+default = ["std"]
+std = []
+ndarray = ["burn/ndarray"]
+ndarray-blas-accelerate = ["burn/ndarray-blas-accelerate"]
+ndarray-blas-netlib = ["burn/ndarray-blas-netlib"]
+ndarray-blas-openblas = ["burn/ndarray-blas-openblas"]
+tch-cpu = ["burn/tch"]
+tch-gpu = ["burn/tch"]
+wgpu = ["burn/wgpu"]
+
+[dependencies]
+burn = { path = "../burn" }
+derive-new = { workspace = true }
+rand = { workspace = true }
+burn-tensor = { path = "../burn-tensor", version = "0.10.0", features = [
+    "benchmark",
+] }
+
+[dev-dependencies]
+
+
+[[bench]]
+name = "unary"
+harness = false
+
+[[bench]]
+name = "binary"
+harness = false
+
+[[bench]]
+name = "matmul"
+harness = false
+
+[[bench]]
+name = "data"
+harness = false

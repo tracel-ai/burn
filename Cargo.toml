@@ -23,6 +23,7 @@ members = [
   "burn-train",
   "xtask",
   "examples/*",
+  "backend-comparison",
 ]
 
 exclude = ["examples/notebook"]
