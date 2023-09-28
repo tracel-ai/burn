@@ -94,8 +94,12 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
 
     /// Change the context of the current tensor and return the newly transferred tensor.
     pub fn to_client(&self, client: WgpuComputeClient, device: WgpuDevice) -> Self {
-        let data = self.client.read(&self.handle);
-        let handle = client.create(&data);
+        let bytes = self
+            .client
+            .read(&self.handle)
+            .read_sync()
+            .expect("Can only change client synchronously");
+        let handle = client.create(&bytes);
 
         Self {
             client,
@@ -106,6 +110,7 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
             elem: PhantomData,
         }
     }
+
     pub(crate) fn can_mut_broadcast(&self, tensor_other: &WgpuTensor<E, D>) -> bool {
         if !self.handle.can_mut() {
             return false;

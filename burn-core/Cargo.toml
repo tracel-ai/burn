@@ -25,7 +25,6 @@ std = [
   "half/std",
   "derive-new/std",
 ]
-
 dataset = ["burn-dataset/default"]
 dataset-minimal = ["burn-dataset"]
 dataset-sqlite = ["burn-dataset/sqlite"]
@@ -42,7 +41,7 @@ ndarray-blas-openblas = ["__ndarray", "ndarray", "burn-ndarray/blas-openblas"]
 ndarray-blas-openblas-system = ["__ndarray", "ndarray", "burn-ndarray/blas-openblas-system"]
 __ndarray = [] # Internal flag to know when one ndarray feature is enabled.
 
-wgpu = ["burn-wgpu"]
+wgpu = ["burn-wgpu/default"]
 
 tch = ["burn-tch"]
 

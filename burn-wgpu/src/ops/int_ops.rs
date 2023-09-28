@@ -4,6 +4,8 @@ use crate::{
     element::{FloatElement, IntElement},
     kernel, unary, unary_inplace, GraphicsApi, WgpuBackend,
 };
+
+use burn_tensor::Reader;
 use burn_tensor::{ops::IntTensorOps, Data, Shape};
 use std::ops::Range;
 
@@ -21,7 +23,7 @@ where
         tensor.shape.clone()
     }
 
-    fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> Data<I, D> {
+    fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> Reader<Data<I, D>> {
         super::into_data(tensor)
     }
 

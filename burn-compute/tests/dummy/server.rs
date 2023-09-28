@@ -1,3 +1,4 @@
+use burn_common::reader::Reader;
 use burn_compute::{
     memory_management::{MemoryManagement, SimpleMemoryManagement},
     server::{ComputeServer, Handle},
@@ -22,10 +23,10 @@ where
     type Storage = BytesStorage;
     type MemoryManagement = MM;
 
-    fn read(&mut self, handle: &Handle<Self>) -> Vec<u8> {
+    fn read(&mut self, handle: &Handle<Self>) -> Reader<Vec<u8>> {
         let bytes = self.memory_management.get(&handle.memory);
 
-        bytes.read().to_vec()
+        Reader::Concrete(bytes.read().to_vec())
     }
 
     fn create(&mut self, data: &[u8]) -> Handle<Self> {

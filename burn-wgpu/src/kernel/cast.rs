@@ -1,4 +1,4 @@
-use super::{KernelSettings, SourceTemplate, StaticKernelSource};
+use super::{KernelSettings, SourceTemplate, StaticKernelSource, WORKGROUP_DEFAULT};
 use crate::{
     compute::StaticKernel, element::WgpuElement, kernel::elemwise_workgroup, kernel_wgsl,
     tensor::WgpuTensor,
@@ -30,12 +30,17 @@ pub fn cast<InputElem: WgpuElement, OutputElem: WgpuElement, const D: usize>(
         return WgpuTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle);
     }
 
-    const WORKGROUP: usize = 32;
-
     let num_elems = tensor.shape.num_elements();
     let kernel = StaticKernel::<
-        KernelSettings<Cast<InputElem, OutputElem>, f32, i32, WORKGROUP, WORKGROUP, 1>,
-    >::new(elemwise_workgroup(num_elems, WORKGROUP));
+        KernelSettings<
+            Cast<InputElem, OutputElem>,
+            f32,
+            i32,
+            WORKGROUP_DEFAULT,
+            WORKGROUP_DEFAULT,
+            1,
+        >,
+    >::new(elemwise_workgroup(num_elems, WORKGROUP_DEFAULT));
 
     let handle = tensor
         .client

@@ -44,7 +44,6 @@ ndarray-blas-openblas = ["burn-core/ndarray-blas-openblas"]
 ndarray-blas-openblas-system = ["burn-core/ndarray-blas-openblas-system"]
 
 wgpu = ["burn-core/wgpu"]
-
 tch = ["burn-core/tch"]
 
 # Experimental

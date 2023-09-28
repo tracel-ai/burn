@@ -1,4 +1,4 @@
-use super::{elemwise_workgroup, KernelSettings, StaticKernelSource};
+use super::{elemwise_workgroup, KernelSettings, StaticKernelSource, WORKGROUP_DEFAULT};
 use crate::{compute::StaticKernel, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 
 kernel_wgsl!(UnaryScalarRaw, "../template/unary_scalar.wgsl");
@@ -108,7 +108,7 @@ pub fn unary_scalar_default<K: StaticKernelSource, E: WgpuElement, const D: usiz
     lhs: WgpuTensor<E, D>,
     scalar: E,
 ) -> WgpuTensor<E, D> {
-    unary_scalar::<K, E, D, 32>(lhs, scalar)
+    unary_scalar::<K, E, D, WORKGROUP_DEFAULT>(lhs, scalar)
 }
 
 /// Execute a unary scalar kernel using the provided WORKGROUP.
@@ -142,7 +142,7 @@ pub fn unary_scalar_inplace_default<K: StaticKernelSource, E: WgpuElement, const
     lhs: WgpuTensor<E, D>,
     scalar: E,
 ) -> WgpuTensor<E, D> {
-    unary_scalar_inplace::<K, E, D, 32>(lhs, scalar)
+    unary_scalar_inplace::<K, E, D, WORKGROUP_DEFAULT>(lhs, scalar)
 }
 
 /// Execute a unary scalar inplace kernel using the provided WORKGROUP.

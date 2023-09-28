@@ -15,14 +15,19 @@ default = ["std"]
 
 std = ["rand/std"]
 
-[dependencies]
 
+[target.'cfg(target_family = "wasm")'.dependencies]
+async-trait = { workspace = true }
+getrandom = { version = "0.2", features = ["js"] }
+
+[dependencies]
 # ** Please make sure all dependencies support no_std when std is disabled **
 
 const-random = { workspace = true }
 rand = { workspace = true }
-spin = { workspace = true }         # using in place of use std::sync::Mutex;          
+spin = { workspace = true } # using in place of use std::sync::Mutex;          
 uuid = { workspace = true }
+derive-new = { workspace = true }
 
 [dev-dependencies]
 dashmap = { workspace = true }

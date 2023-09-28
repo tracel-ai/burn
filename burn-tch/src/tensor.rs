@@ -200,7 +200,7 @@ mod utils {
         where
             P: tch::kind::Element,
         {
-            <TchBackend<P> as TensorOps<TchBackend<P>>>::into_data(self)
+            <TchBackend<P> as TensorOps<TchBackend<P>>>::into_data(self).read()
         }
     }
 }

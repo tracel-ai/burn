@@ -9,8 +9,8 @@ use crate::{
     element::{FloatElement, IntElement},
     unary, unary_inplace, unary_scalar, GraphicsApi, WgpuBackend,
 };
-use burn_tensor::ElementConversion;
 use burn_tensor::{ops::TensorOps, Data, Distribution, Shape};
+use burn_tensor::{ElementConversion, Reader};
 
 use std::ops::Range;
 
@@ -48,11 +48,7 @@ where
         tensor.shape.clone()
     }
 
-    fn to_data<const D: usize>(tensor: &FloatTensor<Self, D>) -> Data<FloatElem<Self>, D> {
-        super::into_data(tensor.clone())
-    }
-
-    fn into_data<const D: usize>(tensor: FloatTensor<Self, D>) -> Data<FloatElem<Self>, D> {
+    fn into_data<const D: usize>(tensor: FloatTensor<Self, D>) -> Reader<Data<FloatElem<Self>, D>> {
         super::into_data(tensor)
     }
 

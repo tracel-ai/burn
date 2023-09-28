@@ -1,4 +1,4 @@
-use burn_tensor::{ops::BoolTensorOps, Data, Shape};
+use burn_tensor::{ops::BoolTensorOps, Data, Reader, Shape};
 
 use crate::{
     element::{CandleElement, FloatCandleElement, IntCandleElement},
@@ -18,10 +18,12 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<CandleBackend<F, 
         super::base::shape(tensor)
     }
 
-    fn bool_into_data<const D: usize>(tensor: BoolTensor<Self, D>) -> Data<bool, D> {
+    fn bool_into_data<const D: usize>(tensor: BoolTensor<Self, D>) -> Reader<Data<bool, D>> {
         let x: Vec<u8> = tensor.tensor.flatten_all().unwrap().to_vec1().unwrap();
         let y = x.iter().map(|b| !matches!(b, 0)).collect();
-        Data::new(y, tensor.shape())
+        let data = Data::new(y, tensor.shape());
+
+        Reader::Concrete(data)
     }
 
     fn bool_from_data<const D: usize>(

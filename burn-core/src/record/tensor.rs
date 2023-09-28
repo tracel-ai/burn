@@ -5,136 +5,131 @@ use serde::{Deserialize, Serialize};
 /// This struct implements serde to lazily serialize and deserialize a float tensor
 /// using the given [record settings](RecordSettings).
 #[derive(new, Clone, Debug)]
-pub struct FloatTensorSerde<B: Backend, const D: usize, S: PrecisionSettings> {
-    tensor: Tensor<B, D>,
-    elem: core::marker::PhantomData<S>,
+pub struct FloatTensorSerde<S: PrecisionSettings> {
+    data: DataSerialize<S::FloatElem>,
 }
 
 /// This struct implements serde to lazily serialize and deserialize an int tensor
 /// using the given [record settings](RecordSettings).
 #[derive(new, Clone, Debug)]
-pub struct IntTensorSerde<B: Backend, const D: usize, S: PrecisionSettings> {
-    tensor: Tensor<B, D, Int>,
-    elem: core::marker::PhantomData<S>,
+pub struct IntTensorSerde<S: PrecisionSettings> {
+    data: DataSerialize<S::IntElem>,
 }
 
 /// This struct implements serde to lazily serialize and deserialize an bool tensor.
 #[derive(new, Clone, Debug)]
-pub struct BoolTensorSerde<B: Backend, const D: usize> {
-    tensor: Tensor<B, D, Bool>,
+pub struct BoolTensorSerde {
+    data: DataSerialize<bool>,
 }
 
 // --- SERDE IMPLEMENTATIONS --- //
 
-impl<B: Backend, const D: usize, S: PrecisionSettings> Serialize for FloatTensorSerde<B, D, S> {
+impl<S: PrecisionSettings> Serialize for FloatTensorSerde<S> {
     fn serialize<Se>(&self, serializer: Se) -> Result<Se::Ok, Se::Error>
     where
         Se: serde::Serializer,
     {
-        self.tensor
-            .to_data()
-            .convert::<S::FloatElem>()
-            .serialize()
-            .serialize(serializer)
+        self.data.serialize(serializer)
     }
 }
 
-impl<'de, B: Backend, const D: usize, S: PrecisionSettings> Deserialize<'de>
-    for FloatTensorSerde<B, D, S>
-{
+impl<'de, S: PrecisionSettings> Deserialize<'de> for FloatTensorSerde<S> {
     fn deserialize<De>(deserializer: De) -> Result<Self, De::Error>
     where
         De: serde::Deserializer<'de>,
     {
         let data = DataSerialize::<S::FloatElem>::deserialize(deserializer)?;
-        let tensor = Tensor::from_data(data.convert::<B::FloatElem>());
 
-        Ok(Self::new(tensor))
+        Ok(Self::new(data))
     }
 }
 
-impl<B: Backend, const D: usize, S: PrecisionSettings> Serialize for IntTensorSerde<B, D, S> {
+// #[cfg(not(target_family = "wasm"))]
+impl<S: PrecisionSettings> Serialize for IntTensorSerde<S> {
     fn serialize<Se>(&self, serializer: Se) -> Result<Se::Ok, Se::Error>
     where
         Se: serde::Serializer,
     {
-        self.tensor
-            .to_data()
-            .convert::<S::IntElem>()
-            .serialize()
-            .serialize(serializer)
+        self.data.serialize(serializer)
     }
 }
 
-impl<'de, B: Backend, const D: usize, S: PrecisionSettings> Deserialize<'de>
-    for IntTensorSerde<B, D, S>
-{
+impl<'de, S: PrecisionSettings> Deserialize<'de> for IntTensorSerde<S> {
     fn deserialize<De>(deserializer: De) -> Result<Self, De::Error>
     where
         De: serde::Deserializer<'de>,
     {
         let data = DataSerialize::<S::IntElem>::deserialize(deserializer)?;
-        let tensor = Tensor::from_data(data.convert::<B::IntElem>());
-
-        Ok(Self::new(tensor))
+        Ok(Self::new(data))
     }
 }
 
-impl<B: Backend, const D: usize> Serialize for BoolTensorSerde<B, D> {
+impl Serialize for BoolTensorSerde {
     fn serialize<Se>(&self, serializer: Se) -> Result<Se::Ok, Se::Error>
     where
         Se: serde::Serializer,
     {
-        self.tensor.to_data().serialize().serialize(serializer)
+        self.data.serialize(serializer)
     }
 }
 
-impl<'de, B: Backend, const D: usize> Deserialize<'de> for BoolTensorSerde<B, D> {
+impl<'de> Deserialize<'de> for BoolTensorSerde {
     fn deserialize<De>(deserializer: De) -> Result<Self, De::Error>
     where
         De: serde::Deserializer<'de>,
     {
         let data = DataSerialize::<bool>::deserialize(deserializer)?;
-        let tensor = Tensor::from_data(data);
 
-        Ok(Self::new(tensor))
+        Ok(Self::new(data))
     }
 }
 
 // --- RECORD IMPLEMENTATIONS --- //
 
 impl<B: Backend, const D: usize> Record for Tensor<B, D> {
-    type Item<S: PrecisionSettings> = FloatTensorSerde<B, D, S>;
+    type Item<S: PrecisionSettings> = FloatTensorSerde<S>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
-        FloatTensorSerde::new(self)
+        #[cfg(target_family = "wasm")]
+        todo!("Recording float tensors isn't yet supported on wasm.");
+
+        #[cfg(not(target_family = "wasm"))]
+        FloatTensorSerde::new(self.into_data().convert().serialize())
     }
 
     fn from_item<S: PrecisionSettings>(item: Self::Item<S>) -> Self {
-        item.tensor
+        Tensor::from_data(item.data.convert::<B::FloatElem>())
     }
 }
 
 impl<B: Backend, const D: usize> Record for Tensor<B, D, Int> {
-    type Item<S: PrecisionSettings> = IntTensorSerde<B, D, S>;
+    type Item<S: PrecisionSettings> = IntTensorSerde<S>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
-        IntTensorSerde::new(self)
+        #[cfg(target_family = "wasm")]
+        todo!("Recording int tensors isn't yet supported on wasm.");
+
+        #[cfg(not(target_family = "wasm"))]
+        IntTensorSerde::new(self.into_data().convert().serialize())
     }
 
     fn from_item<S: PrecisionSettings>(item: Self::Item<S>) -> Self {
-        item.tensor
+        Tensor::from_data(item.data.convert())
     }
 }
 
 impl<B: Backend, const D: usize> Record for Tensor<B, D, Bool> {
-    type Item<S: PrecisionSettings> = BoolTensorSerde<B, D>;
+    type Item<S: PrecisionSettings> = BoolTensorSerde;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
-        BoolTensorSerde::new(self)
+        #[cfg(target_family = "wasm")]
+        todo!("Recording bool tensors isn't yet supported on wasm.");
+
+        #[cfg(not(target_family = "wasm"))]
+        BoolTensorSerde::new(self.into_data().serialize())
     }
 
     fn from_item<S: PrecisionSettings>(item: Self::Item<S>) -> Self {
-        item.tensor
+        Tensor::from_data(item.data)
     }
 }

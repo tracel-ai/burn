@@ -14,7 +14,7 @@ impl core::fmt::Debug for BytesStorage {
     }
 }
 
-/// Can send to other threads, but can't sync.
+/// Can send to other threads.
 unsafe impl Send for BytesStorage {}
 unsafe impl Send for BytesResource {}
 

@@ -5,6 +5,7 @@ use alloc::string::{String, ToString};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use super::{BinBytesRecorder, FullPrecisionSettings, PrecisionSettings, Record};
+
 #[cfg(feature = "std")]
 use super::{
     BinFileRecorder, BinGzFileRecorder, DefaultFileRecorder, HalfPrecisionSettings,

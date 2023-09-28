@@ -10,9 +10,17 @@ version = "0.10.0"
 crate-type = ["cdylib"]
 
 [features]
-default = []
+default = ["ndarray"]
+
+ndarray = ["burn/ndarray-no-std"]
+wgpu = ["burn/wgpu"]
 
 [dependencies]
-burn = {path = "../../burn", default-features = false, features = ["ndarray-no-std"]}
+burn = {path = "../../burn", default-features = false}
 serde = {workspace = true}
-wasm-bindgen = "0.2.87"
+wasm-bindgen = { version = "0.2.87" } 
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3.64"
+
+[dev-dependencies]
+pollster = { workspace = true }
