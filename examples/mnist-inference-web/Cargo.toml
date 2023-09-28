@@ -10,10 +10,13 @@ version = "0.10.0"
 crate-type = ["cdylib"]
 
 [features]
-default = []
+default = ["ndarray"]
+
+ndarray = ["burn/ndarray-no-std"]
+wgpu = ["burn/wgpu"]
 
 [dependencies]
-burn = {path = "../../burn", default-features = false, features = ["wgpu"]}
+burn = {path = "../../burn", default-features = false}
 serde = {workspace = true}
 getrandom = { version = "0.2", features = ["js"] }
 wasm-bindgen = { version = "0.2.87" } 
