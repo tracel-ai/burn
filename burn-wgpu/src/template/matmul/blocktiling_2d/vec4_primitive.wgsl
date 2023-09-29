@@ -17,9 +17,10 @@ var<storage, read> info: array<u32>;
 const B_M = {{b_m}}u;
 const B_N = {{b_n}}u;
 const B_K = {{b_k}}u;
-const B_M_X_B_K = {{bm_x_bk}}u;
 const B_M_X_B_K_4 = {{bm_x_bk_4}}u;
 const B_K_X_B_N = {{bk_x_bn}}u;
+
+// T_M and T_N are hardcoded to 4 to match vec4
 const T_M = 4u;
 const T_N = 4u;
 const T_M_X_T_N = 16u;
@@ -85,17 +86,19 @@ fn main(
         // Load data into shared memories
         // Each thread is responsible of loading T_M x T_N values from both lhs and rhs
         
+       // On lhs, we build vec4 structures of column-oriented data
        for (var j = 0u; j < 4u; j++) {
             let current_col = thread_col + j;
             
-            // the if is so that threads who work on between B_K and B_N store nothing
-            // it is not for edge cases
-            if current_col < B_K {
+            if current_col < B_K { // so that threads who work on between B_K and B_N store nothing
+
                 let lhs_sm_position = (thread_row/4u) * B_K + current_col;
+                
                 let lhs_position0 = offset_lhs + (k + current_col) * lhs_stride_col + thread_row * lhs_stride_row;
                 let lhs_position1 = lhs_position0 + lhs_stride_row;
                 let lhs_position2 = lhs_position1 + lhs_stride_row;
                 let lhs_position3 = lhs_position2 + lhs_stride_row;
+
                 shared_lhs[lhs_sm_position] = vec4(
                     lhs[lhs_position0],
                     lhs[lhs_position1],
@@ -105,6 +108,7 @@ fn main(
             }
         } 
 
+        // On rhs we keep a simple memory of scalar
         for (var i = 0u; i < T_M; i++) {
             for (var j = 0u; j < T_N; j++) {
                 let current_row = thread_row + i;
@@ -125,14 +129,17 @@ fn main(
         // Results are cumulated in results array and updated at each block
         // Outer loop indicates which subcolumns/subrows to read from shared memories
         for (var dot_index = 0u; dot_index < B_K; dot_index++) {
+            
             // Load a subcolumn of values from lhs
             let lhs_sm_position = (thread_row/4u) * B_K + dot_index;
             register_M = shared_lhs[lhs_sm_position];
+            
             // Load a subrow of values from rhs
             for (var tile_index = 0u; tile_index < T_N; tile_index++) {
                 let rhs_sm_position = thread_col + tile_index + dot_index * B_N;
                 register_N[tile_index] = shared_rhs[rhs_sm_position];
             }
+
             // Multiply subcolumn and subrow and store results
             for (var res_idx_M = 0u; res_idx_M < T_M; res_idx_M++) {
                 for (var res_idx_N = 0u; res_idx_N < T_N; res_idx_N++) {
