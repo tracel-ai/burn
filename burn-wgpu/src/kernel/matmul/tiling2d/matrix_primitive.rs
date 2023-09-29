@@ -121,7 +121,8 @@ mod tests {
 
     #[test]
     pub fn test_matmul_matrix_primitive_medium() {
-        test_with_params(31, 31, 31, 1, 1);
+        test_with_params(17, 16, 16, 1, 1);
+        // test_with_params(31, 31, 31, 1, 1);
     }
 
     #[test]

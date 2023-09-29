@@ -86,12 +86,13 @@ fn main(
         // Each thread is responsible of loading T_M x T_N values from both lhs and rhs
         
        for (var j = 0u; j < 4u; j++) {
-            let current_row = thread_row;
             let current_col = thread_col + j;
             
-            // if current_col < B_K {
-                let lhs_sm_position = thread_row * B_K + current_col;
-                let lhs_position0 = offset_lhs + (k + current_col) * lhs_stride_col + current_row * lhs_stride_row;
+            // the if is so that threads who work on between B_K and B_N store nothing
+            // it is not for edge cases
+            if current_col < B_K {
+                let lhs_sm_position = (thread_row/4u) * B_K + current_col;
+                let lhs_position0 = offset_lhs + (k + current_col) * lhs_stride_col + thread_row * lhs_stride_row;
                 let lhs_position1 = lhs_position0 + lhs_stride_row;
                 let lhs_position2 = lhs_position1 + lhs_stride_row;
                 let lhs_position3 = lhs_position2 + lhs_stride_row;
@@ -101,7 +102,7 @@ fn main(
                     lhs[lhs_position2],
                     lhs[lhs_position3],
                 );
-            // }
+            }
         } 
 
         for (var i = 0u; i < T_M; i++) {
@@ -125,7 +126,7 @@ fn main(
         // Outer loop indicates which subcolumns/subrows to read from shared memories
         for (var dot_index = 0u; dot_index < B_K; dot_index++) {
             // Load a subcolumn of values from lhs
-            let lhs_sm_position = thread_row * B_K + dot_index;
+            let lhs_sm_position = (thread_row/4u) * B_K + dot_index;
             register_M = shared_lhs[lhs_sm_position];
             // Load a subrow of values from rhs
             for (var tile_index = 0u; tile_index < T_N; tile_index++) {
