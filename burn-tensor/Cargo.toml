@@ -18,6 +18,7 @@ std = ["rand/std", "half/std"]
 benchmark = []
 
 [dependencies]
+burn-common = { path = "../burn-common", version = "0.10.0", default-features = false }
 burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.10.0", optional = true }
 
 derive-new = { workspace = true }

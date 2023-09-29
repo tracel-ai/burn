@@ -100,7 +100,7 @@ pub struct ParamSerde<T> {
 }
 
 impl<B: Backend, const D: usize> Record for Param<Tensor<B, D>> {
-    type Item<S: PrecisionSettings> = ParamSerde<FloatTensorSerde<B, D, S>>;
+    type Item<S: PrecisionSettings> = ParamSerde<FloatTensorSerde<S>>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
         ParamSerde::new(self.id.into_string(), self.value.into_item())

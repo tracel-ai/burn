@@ -4,7 +4,7 @@ use crate::{
     kernel::{
         self, elemwise_workgroup,
         pool::{build_output_and_info_pool2d, build_pool2d_info},
-        KernelSettings, StaticKernelSource,
+        KernelSettings, StaticKernelSource, WORKGROUP_DEFAULT,
     },
     kernel_wgsl,
     ops::numeric::empty_device,
@@ -39,18 +39,16 @@ pub(crate) fn avg_pool2d<E: WgpuElement>(
     padding: [usize; 2],
     count_include_pad: bool,
 ) -> WgpuTensor<E, 4> {
-    const WORKGROUP: usize = 32;
-
     let (info_handle, output) =
         build_output_and_info_pool2d(&x, kernel_size, stride, padding, [1, 1]);
 
-    let workgroup = elemwise_workgroup(output.shape.num_elements(), WORKGROUP);
+    let workgroup = elemwise_workgroup(output.shape.num_elements(), WORKGROUP_DEFAULT);
     let kernel: Box<dyn Kernel> = match count_include_pad {
         true => Box::new(StaticKernel::<
-            KernelSettings<AvgPool2d<true>, E, i32, WORKGROUP, WORKGROUP, 1>,
+            KernelSettings<AvgPool2d<true>, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
         >::new(workgroup)),
         false => Box::new(StaticKernel::<
-            KernelSettings<AvgPool2d<false>, E, i32, WORKGROUP, WORKGROUP, 1>,
+            KernelSettings<AvgPool2d<false>, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
         >::new(workgroup)),
     };
 
@@ -68,19 +66,31 @@ pub(crate) fn avg_pool2d_backward<E: WgpuElement>(
     padding: [usize; 2],
     count_include_pad: bool,
 ) -> WgpuTensor<E, 4> {
-    const WORKGROUP: usize = 32;
-
     let grad = kernel::into_contiguous(grad);
     let output = empty_device(x.client.clone(), x.device.clone(), x.shape.clone());
     let info_handle = build_pool2d_info(&x, &grad, kernel_size, stride, padding, [1, 1]);
-    let workgroup = elemwise_workgroup(output.shape.num_elements(), WORKGROUP);
+    let workgroup = elemwise_workgroup(output.shape.num_elements(), WORKGROUP_DEFAULT);
 
     let kernel: Box<dyn Kernel> = match count_include_pad {
         true => Box::new(StaticKernel::<
-            KernelSettings<AvgPool2dBackward<true>, E, i32, WORKGROUP, WORKGROUP, 1>,
+            KernelSettings<
+                AvgPool2dBackward<true>,
+                E,
+                i32,
+                WORKGROUP_DEFAULT,
+                WORKGROUP_DEFAULT,
+                1,
+            >,
         >::new(workgroup)),
         false => Box::new(StaticKernel::<
-            KernelSettings<AvgPool2dBackward<false>, E, i32, WORKGROUP, WORKGROUP, 1>,
+            KernelSettings<
+                AvgPool2dBackward<false>,
+                E,
+                i32,
+                WORKGROUP_DEFAULT,
+                WORKGROUP_DEFAULT,
+                1,
+            >,
         >::new(workgroup)),
     };
 

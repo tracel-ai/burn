@@ -9,6 +9,7 @@ where
     K: Numeric<B>,
     K::Elem: Element,
 {
+    #[cfg(not(target_family = "wasm"))]
     /// Convert the tensor into a scalar.
     ///
     /// # Panics
@@ -19,6 +20,19 @@ where
         let data = self.into_data();
         data.value[0]
     }
+
+    #[cfg(target_family = "wasm")]
+    /// Convert the tensor into a scalar.
+    ///
+    /// # Panics
+    ///
+    /// If the tensor doesn't have one element.
+    pub async fn into_scalar(self) -> K::Elem {
+        check!(TensorCheck::into_scalar(&self.shape()));
+        let data = self.into_data().await;
+        data.value[0]
+    }
+
     /// Applies element wise addition operation.
     ///
     /// `y = x2 + x1`

@@ -1,7 +1,7 @@
 use crate::{
     compute::StaticKernel,
     element::WgpuElement,
-    kernel::{build_info, elemwise_workgroup, KernelSettings},
+    kernel::{build_info, elemwise_workgroup, KernelSettings, WORKGROUP_DEFAULT},
     kernel_wgsl,
     ops::numeric::empty_device,
     tensor::WgpuTensor,
@@ -18,8 +18,6 @@ pub(crate) fn select<E: WgpuElement, I: WgpuElement, const D: usize>(
     dim: usize,
     indices: WgpuTensor<I, 1>,
 ) -> WgpuTensor<E, D> {
-    const WORKGROUP: usize = 32;
-
     let mut output_shape = tensor.shape.clone();
     output_shape.dims[dim] = indices.shape.dims[0];
 
@@ -30,9 +28,9 @@ pub(crate) fn select<E: WgpuElement, I: WgpuElement, const D: usize>(
     info.push(dim as u32);
 
     let info_handle = output.client.create(bytemuck::cast_slice(&info));
-    let kernel = StaticKernel::<KernelSettings<IndexSelect, E, I, WORKGROUP, WORKGROUP, 1>>::new(
-        elemwise_workgroup(num_elems, WORKGROUP),
-    );
+    let kernel = StaticKernel::<
+        KernelSettings<IndexSelect, E, I, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
+    >::new(elemwise_workgroup(num_elems, WORKGROUP_DEFAULT));
 
     tensor.client.execute(
         Box::new(kernel),

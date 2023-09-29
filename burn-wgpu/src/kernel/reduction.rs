@@ -1,4 +1,4 @@
-use super::{build_info, KernelSettings, SourceTemplate, StaticKernelSource};
+use super::{build_info, KernelSettings, SourceTemplate, StaticKernelSource, WORKGROUP_DEFAULT};
 use crate::{
     compute::StaticKernel, element::WgpuElement, kernel::elemwise_workgroup, kernel_wgsl,
     tensor::WgpuTensor,
@@ -50,10 +50,8 @@ impl StaticKernelSource for ArgsMin {
 
 /// Sum all elements in the input buffer.
 pub fn sum<E: WgpuElement, const D: usize>(input: WgpuTensor<E, D>) -> WgpuTensor<E, 1> {
-    const WORKGROUP: usize = 32;
-
     let mut input_handle = input.handle;
-    let mut workgroup = elemwise_workgroup(input.shape.num_elements(), WORKGROUP);
+    let mut workgroup = elemwise_workgroup(input.shape.num_elements(), WORKGROUP_DEFAULT);
 
     loop {
         let num_invocations = workgroup.num_invocations();
@@ -61,10 +59,9 @@ pub fn sum<E: WgpuElement, const D: usize>(input: WgpuTensor<E, D>) -> WgpuTenso
             .client
             .empty(core::mem::size_of::<E>() * num_invocations);
 
-        let kernel =
-            StaticKernel::<KernelSettings<RecursiveSumRaw, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
-                workgroup,
-            );
+        let kernel = StaticKernel::<
+            KernelSettings<RecursiveSumRaw, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
+        >::new(workgroup);
 
         input
             .client
@@ -75,7 +72,7 @@ pub fn sum<E: WgpuElement, const D: usize>(input: WgpuTensor<E, D>) -> WgpuTenso
         }
 
         input_handle = handle;
-        workgroup = elemwise_workgroup(num_invocations, WORKGROUP);
+        workgroup = elemwise_workgroup(num_invocations, WORKGROUP_DEFAULT);
     }
 }
 
@@ -99,8 +96,6 @@ fn reduction_dim<K: StaticKernelSource, E: WgpuElement, const D: usize>(
     input: WgpuTensor<E, D>,
     dim: usize,
 ) -> WgpuTensor<E, D> {
-    const WORKGROUP: usize = 32;
-
     let mut shape_out = input.shape.clone();
     shape_out.dims[dim] = 1;
     let num_elems = shape_out.num_elements();
@@ -112,9 +107,10 @@ fn reduction_dim<K: StaticKernelSource, E: WgpuElement, const D: usize>(
         handle,
     );
 
-    let kernel = StaticKernel::<KernelSettings<K, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
-        elemwise_workgroup(num_elems, WORKGROUP),
-    );
+    let kernel =
+        StaticKernel::<KernelSettings<K, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>>::new(
+            elemwise_workgroup(num_elems, WORKGROUP_DEFAULT),
+        );
 
     let mut info = build_info(&[&input, &output]);
     info.push(dim as u32);
@@ -148,8 +144,6 @@ fn reduction_args_dim<K: StaticKernelSource, E: WgpuElement, I: WgpuElement, con
     input: WgpuTensor<E, D>,
     dim: usize,
 ) -> WgpuTensor<I, D> {
-    const WORKGROUP: usize = 32;
-
     let mut shape_out = input.shape.clone();
     shape_out.dims[dim] = 1;
     let num_elems = shape_out.num_elements();
@@ -161,9 +155,10 @@ fn reduction_args_dim<K: StaticKernelSource, E: WgpuElement, I: WgpuElement, con
         buffer,
     );
 
-    let kernel = StaticKernel::<KernelSettings<K, E, I, WORKGROUP, WORKGROUP, 1>>::new(
-        elemwise_workgroup(num_elems, WORKGROUP),
-    );
+    let kernel =
+        StaticKernel::<KernelSettings<K, E, I, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>>::new(
+            elemwise_workgroup(num_elems, WORKGROUP_DEFAULT),
+        );
     let mut info = build_info(&[&input, &output]);
     info.push(dim as u32);
     let info_handle = input.client.create(bytemuck::cast_slice(&info));

@@ -1,3 +1,5 @@
+use burn_wgpu::{kernel::matmul::vec4_primitive, WgpuDevice};
+
 use std::marker::PhantomData;
 
 use burn_tensor::{
@@ -9,9 +11,9 @@ use derive_new::new;
 use burn_wgpu::{
     kernel::matmul::{
         contiguous, contiguous_vectorized, matmul_mem_coalescing_default, matmul_naive_default,
-        tile, tile_vectorized, vec4_primitive,
+        tile, tile_vectorized,
     },
-    AutoGraphicsApi, GraphicsApi, WgpuBackend, WgpuDevice,
+    AutoGraphicsApi, GraphicsApi, WgpuBackend,
 };
 
 type WTensor<G, const D: usize> = Tensor<WgpuBackend<G, f32, i32>, D>;
@@ -114,7 +116,7 @@ pub fn bench(device: &WgpuDevice) {
     let batch_size = 3;
     let m = 2048;
     let k = 2048;
-    let n = 2048;
+    let n = 1024;
     let shape_lhs = Shape::new([batch_size, m, k]);
     let shape_rhs = Shape::new([batch_size, k, n]);
 

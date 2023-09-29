@@ -3,7 +3,7 @@ use crate::{
     ADBackendDecorator,
 };
 
-use burn_tensor::{backend::Backend, ops::BoolTensorOps, Data, Shape};
+use burn_tensor::{backend::Backend, ops::BoolTensorOps, Data, Reader, Shape};
 
 impl<B: Backend> BoolTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     fn bool_from_data<const D: usize>(data: Data<bool, D>, device: &B::Device) -> BoolTensor<B, D> {
@@ -14,11 +14,11 @@ impl<B: Backend> BoolTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> 
         B::bool_shape(tensor)
     }
 
-    fn bool_to_data<const D: usize>(tensor: &BoolTensor<B, D>) -> Data<bool, D> {
+    fn bool_to_data<const D: usize>(tensor: &BoolTensor<B, D>) -> Reader<Data<bool, D>> {
         B::bool_to_data(tensor)
     }
 
-    fn bool_into_data<const D: usize>(tensor: BoolTensor<B, D>) -> Data<bool, D> {
+    fn bool_into_data<const D: usize>(tensor: BoolTensor<B, D>) -> Reader<Data<bool, D>> {
         B::bool_into_data(tensor)
     }
 

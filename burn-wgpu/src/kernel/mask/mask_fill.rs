@@ -1,7 +1,7 @@
 use crate::{
     compute::StaticKernel,
     element::WgpuElement,
-    kernel::{build_info, elemwise_workgroup, KernelSettings},
+    kernel::{build_info, elemwise_workgroup, KernelSettings, WORKGROUP_DEFAULT},
     kernel_wgsl,
     ops::numeric::empty_device,
     tensor::WgpuTensor,
@@ -15,8 +15,6 @@ pub fn mask_fill<E: WgpuElement, const D: usize>(
     mask: WgpuTensor<u32, D>,
     value: E,
 ) -> WgpuTensor<E, D> {
-    const WORKGROUP: usize = 32;
-
     let num_elems = input.shape.num_elements();
     let output = empty_device(
         input.client.clone(),
@@ -25,9 +23,9 @@ pub fn mask_fill<E: WgpuElement, const D: usize>(
     );
 
     let value_handle = output.client.create(E::as_bytes(&[value]));
-    let kernel = StaticKernel::<KernelSettings<MaskFill, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
-        elemwise_workgroup(num_elems, WORKGROUP),
-    );
+    let kernel = StaticKernel::<
+        KernelSettings<MaskFill, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
+    >::new(elemwise_workgroup(num_elems, WORKGROUP_DEFAULT));
     let mask = WgpuTensor::new(mask.client, mask.device, mask.shape, mask.handle);
     let info = build_info(&[&input, &mask, &output]);
     let info_handle = input.client.create(bytemuck::cast_slice(&info));
@@ -51,14 +49,11 @@ pub fn mask_fill_inplace<E: WgpuElement, const D: usize>(
     mask: WgpuTensor<u32, D>,
     value: E,
 ) -> WgpuTensor<E, D> {
-    const WORKGROUP: usize = 32;
-
     let num_elems = input.shape.num_elements();
     let value_handle = input.client.create(E::as_bytes(&[value]));
-    let kernel =
-        StaticKernel::<KernelSettings<MaskFillInplace, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
-            elemwise_workgroup(num_elems, WORKGROUP),
-        );
+    let kernel = StaticKernel::<
+        KernelSettings<MaskFillInplace, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
+    >::new(elemwise_workgroup(num_elems, WORKGROUP_DEFAULT));
     let mask = WgpuTensor::new(mask.client, mask.device, mask.shape, mask.handle);
     let info = build_info(&[&input, &mask]);
     let info_handle = input.client.create(bytemuck::cast_slice(&info));

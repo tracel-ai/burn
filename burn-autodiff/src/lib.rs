@@ -10,6 +10,8 @@
 #[macro_use]
 extern crate derive_new;
 
+extern crate alloc;
+
 /// Gradients module.
 pub mod grads;
 /// Operation module.

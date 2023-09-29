@@ -1,7 +1,7 @@
 use crate as burn;
 
 use crate::{config::Config, tensor::Tensor};
-use burn_tensor::{backend::Backend, ElementConversion};
+use burn_tensor::backend::Backend;
 
 /// Gradient Clipping provides a way to mitigate exploding gradients
 #[derive(Config)]
@@ -68,26 +68,40 @@ impl GradientClipping {
         clipped_grad.mask_fill(lower_mask, -threshold)
     }
 
-    fn l2_norm<B: Backend, const D: usize>(tensor: Tensor<B, D>) -> Tensor<B, 1> {
-        let squared = tensor.powf(2.0);
-        let sum = squared.sum();
-
-        sum.sqrt()
+    #[cfg(target_family = "wasm")]
+    fn clip_by_norm<B: Backend, const D: usize>(
+        &self,
+        _grad: Tensor<B, D>,
+        _threshold: f32,
+    ) -> Tensor<B, D> {
+        todo!("Not yet supported on wasm");
     }
 
+    #[cfg(not(target_family = "wasm"))]
     fn clip_by_norm<B: Backend, const D: usize>(
         &self,
         grad: Tensor<B, D>,
         threshold: f32,
     ) -> Tensor<B, D> {
+        use burn_tensor::ElementConversion;
+
         let norm = Self::l2_norm(grad.clone());
         let norm_float = norm.into_scalar().elem::<f32>();
+
         if norm_float > threshold {
             let scale = threshold / norm_float;
             grad.mul_scalar(scale)
         } else {
             grad
         }
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    fn l2_norm<B: Backend, const D: usize>(tensor: Tensor<B, D>) -> Tensor<B, 1> {
+        let squared = tensor.powf(2.0);
+        let sum = squared.sum();
+
+        sum.sqrt()
     }
 }
 
