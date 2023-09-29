@@ -51,8 +51,6 @@ pub(crate) fn select_assign<E: WgpuElement, I: WgpuElement, const D: usize>(
     indices: WgpuTensor<I, 1>,
     value: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
-    const WORKGROUP: usize = 32;
-
     let tensor = match tensor.can_mut() {
         true => tensor,
         false => tensor.copy(),
@@ -84,10 +82,12 @@ pub(crate) fn select_assign<E: WgpuElement, I: WgpuElement, const D: usize>(
 
     let info_handle = tensor.client.create(bytemuck::cast_slice(&info));
 
-    let kernel =
-        StaticKernel::<KernelSettings<SelectAssignInplace, E, I, WORKGROUP, WORKGROUP, 1>>::new(
-            elemwise_workgroup(num_elems_per_workgroup, WORKGROUP),
-        );
+    let kernel = StaticKernel::<
+        KernelSettings<SelectAssignInplace, E, I, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
+    >::new(elemwise_workgroup(
+        num_elems_per_workgroup,
+        WORKGROUP_DEFAULT,
+    ));
 
     tensor.client.execute(
         Box::new(kernel),
