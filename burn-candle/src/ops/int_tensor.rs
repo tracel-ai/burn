@@ -1,4 +1,4 @@
-use burn_tensor::{ops::IntTensorOps, Bool, Data, Shape};
+use burn_tensor::{ops::IntTensorOps, Bool, Data, Reader, Shape};
 
 use crate::{
     element::{CandleElement, FloatCandleElement, IntCandleElement},
@@ -18,8 +18,8 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<CandleBackend<F, I
         super::base::shape(tensor)
     }
 
-    fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> Data<IntElem<Self>, D> {
-        super::base::to_data(&tensor)
+    fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> Reader<Data<IntElem<Self>, D>> {
+        Reader::Concrete(super::base::into_data(tensor))
     }
 
     fn int_from_data<const D: usize>(

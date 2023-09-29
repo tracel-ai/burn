@@ -1,8 +1,15 @@
 #![allow(clippy::single_range_in_vec_init)]
-use alloc::format;
-use alloc::string::String;
-use alloc::vec;
+
 use alloc::vec::Vec;
+
+#[cfg(not(target_family = "wasm"))]
+use alloc::format;
+#[cfg(not(target_family = "wasm"))]
+use alloc::string::String;
+#[cfg(not(target_family = "wasm"))]
+use alloc::vec;
+
+use burn_common::reader::Reader;
 use core::{fmt::Debug, ops::Range};
 
 use crate::{
@@ -222,8 +229,6 @@ where
 
     /// Unsqueeze the current tensor. Create new dimensions to fit the given size.
     ///
-    /// # Panics
-    ///
     /// If the output size is higher than the current tensor.
     ///
     /// # Example
@@ -320,11 +325,25 @@ where
         Self::new(K::to_device(self.primitive, device))
     }
 
+    #[cfg(target_family = "wasm")]
     /// Returns the data of the current tensor.
-    pub fn into_data(self) -> Data<K::Elem, D> {
-        K::into_data(self.primitive)
+    pub async fn into_data(self) -> Data<K::Elem, D> {
+        K::into_data(self.primitive).read().await
     }
 
+    #[cfg(not(target_family = "wasm"))]
+    /// Returns the data of the current tensor.
+    pub fn into_data(self) -> Data<K::Elem, D> {
+        K::into_data(self.primitive).read()
+    }
+
+    #[cfg(target_family = "wasm")]
+    /// Returns the data of the current tensor.
+    pub async fn to_data(&self) -> Data<K::Elem, D> {
+        K::into_data(self.primitive.clone()).read().await
+    }
+
+    #[cfg(not(target_family = "wasm"))]
     /// Returns the data of the current tensor without taking ownership.
     pub fn to_data(&self) -> Data<K::Elem, D> {
         Self::into_data(self.clone())
@@ -448,6 +467,7 @@ where
     K: BasicOps<B>,
     <K as BasicOps<B>>::Elem: Debug,
 {
+    #[cfg(not(target_family = "wasm"))]
     /// Recursively formats the tensor data for display and appends it to the provided accumulator string.
     ///
     /// This function is designed to work with tensors of any dimensionality.
@@ -474,7 +494,8 @@ where
                 multi_index[depth] = i;
                 let range: [core::ops::Range<usize>; D] =
                     core::array::from_fn(|i| multi_index[i]..multi_index[i] + 1);
-                let elem = &self.clone().slice(range).to_data().value[0];
+
+                let elem = &self.clone().slice(range).into_data().value[0];
                 acc.push_str(&format!("{elem:?}"));
             }
         } else {
@@ -506,13 +527,18 @@ where
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         writeln!(f, "Tensor {{")?;
-        write!(f, "  data: ")?;
 
-        let mut acc = String::new();
-        let mut multi_index = vec![0; D];
-        self.display_recursive(&mut acc, 0, &mut multi_index);
-        write!(f, "{acc}")?;
-        writeln!(f, ",")?;
+        #[cfg(not(target_family = "wasm"))]
+        {
+            write!(f, "  data: ")?;
+            let mut acc = String::new();
+            let mut multi_index = vec![0; D];
+
+            self.display_recursive(&mut acc, 0, &mut multi_index);
+            write!(f, "{acc}")?;
+            writeln!(f, ",")?;
+        }
+
         writeln!(f, "  shape:  {:?},", self.dims())?;
         writeln!(f, "  device:  {:?},", self.device())?;
         writeln!(f, "  backend:  {:?},", B::name())?;
@@ -755,7 +781,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// For extracting the data of a tensor, users should prefer the [Tensor::into_data](Tensor::into_data) function,
     /// which is more high-level and designed for public use.
-    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Data<Self::Elem, D>;
+    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Reader<Data<Self::Elem, D>>;
 
     /// Creates a tensor from the given data.
     ///
@@ -914,7 +940,7 @@ impl<B: Backend> BasicOps<B> for Float {
         B::to_device(tensor, device)
     }
 
-    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Data<Self::Elem, D> {
+    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Reader<Data<Self::Elem, D>> {
         B::into_data(tensor)
     }
 
@@ -1001,7 +1027,7 @@ impl<B: Backend> BasicOps<B> for Int {
         B::int_to_device(tensor, device)
     }
 
-    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Data<Self::Elem, D> {
+    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Reader<Data<Self::Elem, D>> {
         B::int_into_data(tensor)
     }
 
@@ -1088,7 +1114,7 @@ impl<B: Backend> BasicOps<B> for Bool {
         B::bool_to_device(tensor, device)
     }
 
-    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Data<Self::Elem, D> {
+    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Reader<Data<Self::Elem, D>> {
         B::bool_into_data(tensor)
     }
 

@@ -2,7 +2,7 @@ use crate::{
     compute::compute_client, element::WgpuElement, kernel, tensor::WgpuTensor, GraphicsApi,
     WgpuDevice,
 };
-use burn_tensor::{backend::Backend, Data, Shape};
+use burn_tensor::{backend::Backend, Data, Reader, Shape};
 
 pub type FloatElem<B> = <B as Backend>::FloatElem;
 pub type Device<B> = <B as Backend>::Device;
@@ -25,12 +25,24 @@ pub fn from_data<G: GraphicsApi, E: WgpuElement, const D: usize>(
     WgpuTensor::new(client, device.clone(), data.shape, buffer)
 }
 
-pub fn into_data<E: WgpuElement, const D: usize>(tensor: WgpuTensor<E, D>) -> Data<E, D> {
+pub fn into_data<E: WgpuElement, const D: usize>(tensor: WgpuTensor<E, D>) -> Reader<Data<E, D>> {
     let tensor = kernel::into_contiguous(tensor);
-    let bytes = tensor.client.read(&tensor.handle);
-    let values = E::from_bytes(&bytes);
 
-    Data::new(values.to_vec(), tensor.shape)
+    tensor
+        .client
+        .read(&tensor.handle)
+        .map(|bytes| Data::new(E::from_bytes(&bytes).to_vec(), tensor.shape))
+}
+
+pub fn bool_into_data<const D: usize>(tensor: WgpuTensor<u32, D>) -> Reader<Data<bool, D>> {
+    let tensor = kernel::into_contiguous(tensor);
+
+    tensor.client.read(&tensor.handle).map(|bytes| {
+        Data::new(
+            u32::from_bytes(&bytes).iter().map(|i| *i != 0).collect(),
+            tensor.shape,
+        )
+    })
 }
 
 pub fn to_device<G: GraphicsApi, E: WgpuElement, const D: usize>(

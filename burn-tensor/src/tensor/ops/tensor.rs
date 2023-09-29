@@ -1,7 +1,7 @@
-use alloc::vec::Vec;
-use core::ops::Range;
-
 use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion};
+use alloc::vec::Vec;
+use burn_common::reader::Reader;
+use core::ops::Range;
 
 /// Operations on float tensors.
 pub trait TensorOps<B: Backend> {
@@ -104,7 +104,9 @@ pub trait TensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn to_data<const D: usize>(tensor: &B::TensorPrimitive<D>) -> Data<B::FloatElem, D>;
+    fn to_data<const D: usize>(tensor: &B::TensorPrimitive<D>) -> Reader<Data<B::FloatElem, D>> {
+        Self::into_data(tensor.clone())
+    }
 
     /// Converts the tensor to a data structure.
     ///
@@ -115,9 +117,7 @@ pub trait TensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn into_data<const D: usize>(tensor: B::TensorPrimitive<D>) -> Data<B::FloatElem, D> {
-        Self::to_data(&tensor)
-    }
+    fn into_data<const D: usize>(tensor: B::TensorPrimitive<D>) -> Reader<Data<B::FloatElem, D>>;
 
     /// Gets the device of the tensor.
     ///

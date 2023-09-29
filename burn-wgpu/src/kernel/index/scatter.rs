@@ -1,7 +1,7 @@
 use crate::{
     compute::StaticKernel,
     element::WgpuElement,
-    kernel::{self, build_info, elemwise_workgroup, KernelSettings},
+    kernel::{self, build_info, elemwise_workgroup, KernelSettings, WORKGROUP_DEFAULT},
     kernel_wgsl,
     tensor::WgpuTensor,
 };
@@ -14,8 +14,6 @@ pub(crate) fn scatter<E: WgpuElement, I: WgpuElement, const D: usize>(
     indices: WgpuTensor<I, D>,
     value: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
-    const WORKGROUP: usize = 32;
-
     let indices = kernel::into_contiguous(indices);
     let tensor = kernel::into_contiguous(tensor);
     let value = kernel::into_contiguous(value);
@@ -51,9 +49,12 @@ pub(crate) fn scatter<E: WgpuElement, I: WgpuElement, const D: usize>(
 
     let info_handle = tensor.client.create(bytemuck::cast_slice(&info));
 
-    let kernel = StaticKernel::<KernelSettings<Scatter, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
-        elemwise_workgroup(num_elems_per_workgroup, WORKGROUP),
-    );
+    let kernel = StaticKernel::<
+        KernelSettings<Scatter, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
+    >::new(elemwise_workgroup(
+        num_elems_per_workgroup,
+        WORKGROUP_DEFAULT,
+    ));
 
     tensor.client.execute(
         Box::new(kernel),

@@ -3,7 +3,7 @@ use crate::{
     ADBackendDecorator,
 };
 
-use burn_tensor::{backend::Backend, ops::IntTensorOps, Data, Shape};
+use burn_tensor::{backend::Backend, ops::IntTensorOps, Data, Reader, Shape};
 
 impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     fn int_from_data<const D: usize>(
@@ -17,11 +17,11 @@ impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         B::int_shape(tensor)
     }
 
-    fn int_to_data<const D: usize>(tensor: &IntTensor<B, D>) -> Data<B::IntElem, D> {
+    fn int_to_data<const D: usize>(tensor: &IntTensor<B, D>) -> Reader<Data<B::IntElem, D>> {
         B::int_to_data(tensor)
     }
 
-    fn int_into_data<const D: usize>(tensor: IntTensor<B, D>) -> Data<B::IntElem, D> {
+    fn int_into_data<const D: usize>(tensor: IntTensor<B, D>) -> Reader<Data<B::IntElem, D>> {
         B::int_into_data(tensor)
     }
 

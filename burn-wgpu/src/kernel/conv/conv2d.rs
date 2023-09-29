@@ -1,7 +1,7 @@
 use crate::{
     compute::StaticKernel,
     element::WgpuElement,
-    kernel::{self, build_info, elemwise_workgroup, KernelSettings},
+    kernel::{self, build_info, elemwise_workgroup, KernelSettings, WORKGROUP_DEFAULT},
     kernel_wgsl,
     ops::numeric::empty_device,
     tensor::WgpuTensor,
@@ -19,8 +19,6 @@ pub(crate) fn conv2d<E: WgpuElement + Element>(
     bias: Option<WgpuTensor<E, 1>>,
     options: ConvOptions<2>,
 ) -> WgpuTensor<E, 4> {
-    const WORKGROUP: usize = 32;
-
     let input = kernel::into_contiguous(input);
     let weight = kernel::into_contiguous(weight);
     let [batch_size, _, in_height, in_width] = input.shape.dims;
@@ -64,9 +62,12 @@ pub(crate) fn conv2d<E: WgpuElement + Element>(
 
     let info_handle = input.client.create(bytemuck::cast_slice(&info));
 
-    let kernel = StaticKernel::<KernelSettings<Conv2d, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
-        elemwise_workgroup(output.shape.num_elements(), WORKGROUP),
-    );
+    let kernel = StaticKernel::<
+        KernelSettings<Conv2d, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
+    >::new(elemwise_workgroup(
+        output.shape.num_elements(),
+        WORKGROUP_DEFAULT,
+    ));
 
     input.client.execute(
         Box::new(kernel),

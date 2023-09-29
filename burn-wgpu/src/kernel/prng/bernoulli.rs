@@ -5,7 +5,7 @@ use crate::{
     element::WgpuElement,
     kernel::{
         prng::base::{make_args_buffer, make_info_buffer},
-        prng_workgroup, KernelSettings, SourceTemplate, StaticKernelSource,
+        prng_workgroup, KernelSettings, SourceTemplate, StaticKernelSource, WORKGROUP_DEFAULT,
     },
     ops::numeric::empty_device,
     tensor::WgpuTensor,
@@ -34,18 +34,16 @@ pub fn random_bernoulli<G: GraphicsApi, E: WgpuElement, const D: usize>(
     device: &WgpuDevice,
     prob: E,
 ) -> WgpuTensor<E, D> {
-    const WORKGROUP: usize = 32;
     const N_VALUES_PER_THREAD: usize = 128;
 
     let client = compute_client::<G>(device);
     let output = empty_device(client.clone(), device.clone(), shape.clone());
     let info_handle = make_info_buffer(client.clone(), N_VALUES_PER_THREAD);
     let args_handle = make_args_buffer(client.clone(), &[prob]);
-    let workgroup = prng_workgroup(shape.num_elements(), WORKGROUP, N_VALUES_PER_THREAD);
-    let kernel =
-        StaticKernel::<KernelSettings<BernoulliPrng, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
-            workgroup,
-        );
+    let workgroup = prng_workgroup(shape.num_elements(), WORKGROUP_DEFAULT, N_VALUES_PER_THREAD);
+    let kernel = StaticKernel::<
+        KernelSettings<BernoulliPrng, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
+    >::new(workgroup);
 
     client.execute(
         Box::new(kernel),

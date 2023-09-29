@@ -5,7 +5,8 @@ use crate::{
     tensor::WgpuTensor,
     GraphicsApi, WgpuBackend,
 };
-use burn_tensor::{ops::BoolTensorOps, ops::IntTensorOps, Data, Shape};
+use burn_tensor::{ops::BoolTensorOps, Data, Shape};
+use burn_tensor::{ops::IntTensorOps, Reader};
 use std::ops::Range;
 
 impl<G, F, I> BoolTensorOps<WgpuBackend<G, F, I>> for WgpuBackend<G, F, I>
@@ -22,10 +23,8 @@ where
         tensor.shape.clone()
     }
 
-    fn bool_into_data<const D: usize>(tensor: BoolTensor<Self, D>) -> Data<bool, D> {
-        let data = super::into_data(tensor);
-
-        Data::new(data.value.into_iter().map(|i| i != 0).collect(), data.shape)
+    fn bool_into_data<const D: usize>(tensor: BoolTensor<Self, D>) -> Reader<Data<bool, D>> {
+        super::bool_into_data(tensor)
     }
 
     fn bool_from_data<const D: usize>(
@@ -51,7 +50,10 @@ where
         }
 
         let device = Self::bool_device(&tensor);
-        let data = Self::bool_into_data(tensor).convert::<I>();
+        let data = Self::bool_into_data(tensor)
+            .read_sync()
+            .expect("Can't convert bool to int with a different type size async")
+            .convert::<I>();
 
         Self::int_from_data(data, &device)
     }

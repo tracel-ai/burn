@@ -1,4 +1,4 @@
-use super::{elemwise_workgroup, KernelSettings, StaticKernelSource};
+use super::{elemwise_workgroup, KernelSettings, StaticKernelSource, WORKGROUP_DEFAULT};
 use crate::{compute::StaticKernel, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 
 kernel_wgsl!(UnaryRaw, "../template/unary.wgsl");
@@ -98,14 +98,14 @@ macro_rules! unary_inplace {
 pub fn unary_default<K: StaticKernelSource, E: WgpuElement, const D: usize>(
     input: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
-    unary::<K, E, D, 32>(input)
+    unary::<K, E, D, WORKGROUP_DEFAULT>(input)
 }
 
 /// Execute a unary inplace kernel using the default settings.
 pub fn unary_inplace_default<K: StaticKernelSource, E: WgpuElement, const D: usize>(
     input: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
-    unary_inplace::<K, E, D, 32>(input)
+    unary_inplace::<K, E, D, WORKGROUP_DEFAULT>(input)
 }
 
 /// Execute a unary inplace kernel using the provided WORKGROUP.
