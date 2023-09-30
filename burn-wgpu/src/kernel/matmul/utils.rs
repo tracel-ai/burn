@@ -41,8 +41,6 @@ pub(crate) mod tests {
         let z = func(x_wgpu.into_primitive(), y_wgpu.into_primitive());
         let z = TestTensor::from_primitive(z);
 
-        println!("{:?}", z_reference.to_data());
-        println!("{:?}", z.to_data());
         z_reference.into_data().assert_approx_eq(&z.into_data(), 3);
     }
 
