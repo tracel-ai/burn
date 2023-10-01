@@ -98,3 +98,6 @@ serde = { version = "1.0.164", default-features = false, features = [
 ] } # alloc is for no_std, derive is needed
 serde_json = { version = "1.0.96", default-features = false }
 uuid = { version = "1.3.4", default-features = false }
+
+[profile.dev]
+debug = 0 # Speed up compilation time and not necessary.
