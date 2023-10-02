@@ -1,4 +1,4 @@
-use burn_wgpu::WgpuDevice;
+use burn_wgpu::{kernel::matmul::vec4_primitive, WgpuDevice};
 
 use std::marker::PhantomData;
 
@@ -102,6 +102,11 @@ bench_matmul!(
     Tiling2DMatmulContiguousVectorized,
     contiguous_vectorized::matmul_tiling_2d_default
 );
+bench_matmul!(
+    Tiling2DMatmulVec4PrimitiveBenchmark,
+    Tiling2DMatmulVec4Primitive,
+    vec4_primitive::matmul_tiling_2d_vec4_primitive_default
+);
 
 #[allow(dead_code)]
 /// Runs the benchmarks for wgpu matmul implementations
@@ -109,7 +114,7 @@ pub fn bench(device: &WgpuDevice) {
     const D: usize = 3;
     let num_repeats = 3;
     let batch_size = 3;
-    let m = 1024;
+    let m = 2048;
     let k = 2048;
     let n = 1024;
     let shape_lhs = Shape::new([batch_size, m, k]);
@@ -129,6 +134,7 @@ pub fn bench(device: &WgpuDevice) {
     run_matmul_benchmark!(Tiling2DMatmulTileBenchmark);
     run_matmul_benchmark!(Tiling2DMatmulTileVectorizedBenchmark);
     run_matmul_benchmark!(Tiling2DMatmulContiguousVectorizedBenchmark);
+    run_matmul_benchmark!(Tiling2DMatmulVec4PrimitiveBenchmark);
 }
 
 fn main() {
