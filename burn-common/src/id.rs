@@ -1,4 +1,4 @@
-use crate::rand::{get_seeded_rng, Rng, SEED};
+use crate::rand::gen_random;
 use alloc::string::{String, ToString};
 use uuid::{Builder, Bytes};
 
@@ -8,15 +8,7 @@ pub struct IdGenerator {}
 impl IdGenerator {
     /// Generates a new ID in the form of a UUID.
     pub fn generate() -> String {
-        let mut seed = SEED.lock().unwrap();
-        let mut rng = if let Some(rng_seeded) = seed.as_ref() {
-            rng_seeded.clone()
-        } else {
-            get_seeded_rng()
-        };
-
-        let random_bytes: Bytes = rng.gen();
-        *seed = Some(rng);
+        let random_bytes: Bytes = gen_random();
 
         let uuid = Builder::from_random_bytes(random_bytes).into_uuid();
 
