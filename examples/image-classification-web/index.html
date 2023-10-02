@@ -24,6 +24,8 @@
       crossorigin="anonymous"
     ></script>
 
+    <script src="./index.js"></script>
+
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/normalize.min.css@8.0.1/normalize.min.css"
@@ -93,15 +95,6 @@
 
     <!-- JavaScript Logic -->
     <script type="module">
-      import {
-        $,
-        toFixed,
-        chartConfigBuilder,
-        extractLabelsAndProbabilities,
-        extractRGBValuesFromCanvas,
-        isSafari,
-      } from "./index.js";
-
       // DOM Elements
       const imgDropdown = $("imageDropdown");
       const backendDropdown = $("backend");

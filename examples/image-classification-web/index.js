@@ -7,7 +7,7 @@
  * Looks up element by an id.
  * @param {string} - Element id.
  */
-export function $(id) {
+function $(id) {
     return document.getElementById(id);
 }
 
@@ -17,7 +17,7 @@ export function $(id) {
  * @param {number} fixed - Decimal positions.
  * src: https://stackoverflow.com/a/11818658
  */
-export function toFixed(num, fixed) {
+function toFixed(num, fixed) {
     const re = new RegExp('^-?\\d+(?:\.\\d{0,' + (fixed || -1) + '})?');
     return num.toString().match(re)[0];
 }
@@ -28,7 +28,7 @@ export function toFixed(num, fixed) {
  * 
  * NOTE: Assumes chart.js is loaded into the global.
  */
-export function chartConfigBuilder(chartEl) {
+function chartConfigBuilder(chartEl) {
     Chart.register(ChartDataLabels);
     return new Chart(chartEl, {
         plugins: [ChartDataLabels],
@@ -82,7 +82,7 @@ export function chartConfigBuilder(chartEl) {
  * @param {object} data - Data object.
  * @returns {object} - Object with labels and probabilities.
  */
-export function extractLabelsAndProbabilities(data) {
+function extractLabelsAndProbabilities(data) {
     const labels = [];
     const probabilities = [];
 
@@ -105,7 +105,7 @@ export function extractLabelsAndProbabilities(data) {
  * @param {object} ctx - Canvas context.
  * @returns {object} - Flattened array of RGB values.
  */
-export function extractRGBValuesFromCanvas(canvas, ctx) {
+function extractRGBValuesFromCanvas(canvas, ctx) {
     // Get image data from the canvas
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
@@ -139,7 +139,7 @@ export function extractRGBValuesFromCanvas(canvas, ctx) {
 /** Detect if browser is safari
  * @returns {boolean} - True if browser is safari.
  */
-export function isSafari() {
+function isSafari() {
     // https://stackoverflow.com/questions/7944460/detect-safari-browser
     let isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
     return isSafari;
