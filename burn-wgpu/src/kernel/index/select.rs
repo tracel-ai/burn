@@ -53,10 +53,7 @@ pub(crate) fn select_assign<E: WgpuElement, I: WgpuElement, const D: usize>(
 ) -> WgpuTensor<E, D> {
     let tensor = match tensor.can_mut() {
         true => tensor,
-        false => {
-            println!("Copy");
-            tensor.copy()
-        }
+        false => tensor.copy(),
     };
 
     let mut info = build_info(&[&tensor, &value]);
