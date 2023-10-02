@@ -1,6 +1,5 @@
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-
-use burn_common::id::IdGenerator;
 
 use super::Requirement;
 
@@ -27,14 +26,15 @@ impl Node {
 /// Unique identifier generated for each [node](Node).
 #[derive(Clone, Hash, PartialEq, Eq, Debug)]
 pub struct NodeID {
-    pub value: String,
+    pub value: u64,
 }
 
 impl NodeID {
     /// Create a unique [node id](NodeID).
     pub fn new() -> Self {
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
         Self {
-            value: IdGenerator::generate(),
+            value: COUNTER.fetch_add(1, Ordering::Relaxed),
         }
     }
 }
