@@ -73,7 +73,7 @@ mod tests {
         let kernel_size = [3, 3];
         let stride = [2, 2];
         let input_ref = Tensor::<ReferenceBackend, 4>::from_data(input.to_data());
-        let options = burn_tensor::ops::UnfoldOptions::new(kernel_size, Some(stride), None, None);
+        let options = burn_tensor::ops::UnfoldOptions::new(Some(stride), None, None);
 
         let output = module::unfold4d(input, kernel_size, options.clone());
         let output_ref = module::unfold4d(input_ref, kernel_size, options);

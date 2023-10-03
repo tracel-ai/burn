@@ -99,9 +99,6 @@ pub struct ConvTransposeOptions<const N: usize> {
 /// Unfold operation options.
 #[derive(new, Debug, Clone)]
 pub struct UnfoldOptions {
-    /// The size of the blocks (patches) that we want to extract and unroll.
-    pub kernel_size: [usize; 2],
-
     /// The number of positions to slide over the input tensor in each dimension.
     /// A stride of `[1, 1]` will slide the kernel one pixel at a time. If not provided, defaults to `[1, 1]`.
     pub stride: Option<[usize; 2]>,

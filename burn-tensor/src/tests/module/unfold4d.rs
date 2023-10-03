@@ -45,12 +45,7 @@ mod tests {
             let output = unfold4d(
                 x,
                 self.kernel_size,
-                UnfoldOptions::new(
-                    self.kernel_size,
-                    Some(self.stride),
-                    Some(self.padding),
-                    Some(self.dilation),
-                ),
+                UnfoldOptions::new(Some(self.stride), Some(self.padding), Some(self.dilation)),
             );
 
             assert_eq!(
