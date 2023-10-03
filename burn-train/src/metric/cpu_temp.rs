@@ -36,7 +36,10 @@ impl Metric for CpuTemperature {
             Err(_) => self.temp_celsius = f32::NAN,
         }
 
-        let formatted = format!("{}: {:.2}°C", Self::NAME, self.temp_celsius);
+        let formatted = match self.temp_celsius.is_nan() {
+            true => format!("{}: NaN °C", Self::NAME),
+            false => format!("{}: {:.2} °C", Self::NAME, self.temp_celsius),
+        };
         let raw = format!("{:.2}", self.temp_celsius);
 
         MetricEntry::new(Self::NAME.to_string(), formatted, raw)

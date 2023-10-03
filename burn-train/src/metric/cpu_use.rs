@@ -53,7 +53,7 @@ impl Metric for CpuUse {
             self.last_refresh = Instant::now();
         }
 
-        let formatted = format!("{}: {:.2}%", Self::NAME, self.current);
+        let formatted = format!("{}: {:.2} %", Self::NAME, self.current);
         let raw = format!("{:.2}", self.current);
 
         MetricEntry::new(Self::NAME.to_string(), formatted, raw)
