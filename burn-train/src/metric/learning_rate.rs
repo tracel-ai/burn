@@ -25,6 +25,8 @@ impl Default for LearningRateMetric {
 }
 
 impl Metric for LearningRateMetric {
+    const NAME: &'static str = "Learning Rate";
+
     type Input = ();
 
     fn update(&mut self, _item: &(), metadata: &MetricMetadata) -> MetricEntry {

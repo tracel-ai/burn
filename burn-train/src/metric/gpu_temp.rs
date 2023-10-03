@@ -1,19 +1,45 @@
-/// GPU Temperature metric
 use super::MetricMetadata;
 use crate::metric::{Metric, MetricEntry};
+use std::time::{Duration, Instant};
 use sysinfo::{ComponentExt, System, SystemExt};
-
-static NAME: &str = "GPU_TEMP";
 
 /// GPU Temperature in celsius degrees
 pub struct GpuTemp {
-    temp_celsius: f32,
+    last_refresh: Instant,
+    refresh_frequency: Duration,
+    sys: System,
+    current: Vec<f64>,
 }
 
 impl GpuTemp {
     /// Creates a new GPU temp metric
     pub fn new() -> Self {
-        Self { temp_celsius: 0. }
+        let mut sys = System::new();
+        let current = Self::refresh(&mut sys);
+
+        Self {
+            last_refresh: Instant::now(),
+            refresh_frequency: Duration::from_millis(200),
+            sys,
+            current,
+        }
+    }
+
+    fn refresh(sys: &mut System) -> Vec<f64> {
+        // refreshing components' info
+        sys.refresh_components_list();
+        sys.refresh_components();
+
+        let components = sys.components();
+        let mut temps = Vec::new();
+
+        for component in components {
+            if component.label().to_lowercase().contains("gpu") {
+                temps.push(component.temperature() as f64);
+            }
+        }
+
+        temps
     }
 }
 
@@ -24,39 +50,28 @@ impl Default for GpuTemp {
 }
 
 impl Metric for GpuTemp {
+    const NAME: &'static str = "GPU Temperature";
+
     type Input = ();
 
     fn update(&mut self, _item: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
-        let mut sys = System::new();
-
-        // Vec containing all "gpu" labeled devices' temperature
-        let mut temps_vec: Vec<f32> = Vec::new();
-
-        // refreshing components' info
-        sys.refresh_components_list();
-        sys.refresh_components();
-
-        for component in sys.components().iter() {
-            // if the component is a gpu, its temperature is added to the `temps` vec.
-            // Then, the mean of all these temps will be calculated
-            if component.label().to_lowercase().contains("gpu") {
-                // saving the temperature
-                temps_vec.push(component.temperature());
-            }
+        if self.last_refresh.elapsed() >= self.refresh_frequency {
+            self.current = Self::refresh(&mut self.sys);
+            self.last_refresh = Instant::now();
         }
 
-        self.temp_celsius = temps_vec.iter().sum::<f32>() / temps_vec.len() as f32;
+        let mean_temp = self.current.iter().sum::<f64>() / self.current.len() as f64;
 
         // if there is more than 1 GPU, the metric lets the user know that the value displayed is a mean
-        let formatted = if temps_vec.len() > 1 {
-            format!("Mean of GPUs temps: {:.2}°C", self.temp_celsius)
+        let formatted = if self.current.len() > 1 {
+            format!("Mean of GPUs temps: {:.2}°C", mean_temp)
         } else {
-            format!("GPU Temp: {:.2}°C", self.temp_celsius)
+            format!("GPU Temp: {:.2}°C", mean_temp)
         };
 
-        let raw = format!("{:.2}", self.temp_celsius);
+        let raw = format!("{:.2}", mean_temp);
 
-        MetricEntry::new(NAME.to_string(), formatted, raw)
+        MetricEntry::new(Self::NAME.to_string(), formatted, raw)
     }
 
     fn clear(&mut self) {}
