@@ -1,15 +1,15 @@
 /// CPU Temperature metric
-use super::MetricMetadata;
+use super::{MetricMetadata, Numeric};
 use crate::metric::{Metric, MetricEntry};
 use systemstat::{Platform, System};
 
 /// CPU Temperature in celsius degrees
-pub struct CpuTemp {
+pub struct CpuTemperature {
     temp_celsius: f32,
     sys: System,
 }
 
-impl CpuTemp {
+impl CpuTemperature {
     /// Creates a new CPU temp metric
     pub fn new() -> Self {
         Self {
@@ -19,13 +19,13 @@ impl CpuTemp {
     }
 }
 
-impl Default for CpuTemp {
+impl Default for CpuTemperature {
     fn default() -> Self {
-        CpuTemp::new()
+        CpuTemperature::new()
     }
 }
 
-impl Metric for CpuTemp {
+impl Metric for CpuTemperature {
     const NAME: &'static str = "CPU Temperature";
 
     type Input = ();
@@ -43,4 +43,10 @@ impl Metric for CpuTemp {
     }
 
     fn clear(&mut self) {}
+}
+
+impl Numeric for CpuTemperature {
+    fn value(&self) -> f64 {
+        self.temp_celsius as f64
+    }
 }
