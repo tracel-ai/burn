@@ -1,4 +1,4 @@
-use burn_import::onnx::ModelGen;
+use burn_import::onnx::{ModelGen, RecordType};
 
 fn main() {
     // Re-run this build script if the onnx-tests directory changes.
@@ -34,6 +34,77 @@ fn main() {
         .input("tests/tanh/tanh.onnx")
         .input("tests/transpose/transpose.onnx")
         .out_dir("model/")
+        .run_from_script();
+
+    // The following tests are used to generate the model with different record types.
+    // (e.g. bincode, pretty_json, etc.) Do not need to add new tests here, just use the default
+    // record type to the ModelGen::new() call above.
+
+    ModelGen::new()
+        .input("tests/conv1d/conv1d.onnx")
+        .out_dir("model/named_mpk/")
+        .record_type(RecordType::NamedMpk)
+        .run_from_script();
+
+    ModelGen::new()
+        .input("tests/conv1d/conv1d.onnx")
+        .out_dir("model/named_mpk_half/")
+        .record_type(RecordType::NamedMpk)
+        .half_precision(true)
+        .run_from_script();
+
+    ModelGen::new()
+        .input("tests/conv1d/conv1d.onnx")
+        .out_dir("model/pretty_json/")
+        .record_type(RecordType::PrettyJson)
+        .run_from_script();
+
+    ModelGen::new()
+        .input("tests/conv1d/conv1d.onnx")
+        .out_dir("model/pretty_json_half/")
+        .record_type(RecordType::PrettyJson)
+        .half_precision(true)
+        .run_from_script();
+
+    ModelGen::new()
+        .input("tests/conv1d/conv1d.onnx")
+        .out_dir("model/named_mpk_gz/")
+        .record_type(RecordType::NamedMpkGz)
+        .run_from_script();
+
+    ModelGen::new()
+        .input("tests/conv1d/conv1d.onnx")
+        .out_dir("model/named_mpk_gz_half/")
+        .record_type(RecordType::NamedMpkGz)
+        .half_precision(true)
+        .run_from_script();
+
+    ModelGen::new()
+        .input("tests/conv1d/conv1d.onnx")
+        .out_dir("model/bincode/")
+        .record_type(RecordType::Bincode)
+        .run_from_script();
+
+    ModelGen::new()
+        .input("tests/conv1d/conv1d.onnx")
+        .out_dir("model/bincode_half/")
+        .record_type(RecordType::Bincode)
+        .half_precision(true)
+        .run_from_script();
+
+    ModelGen::new()
+        .input("tests/conv1d/conv1d.onnx")
+        .out_dir("model/bincode_embedded/")
+        .embed_states(true)
+        .record_type(RecordType::Bincode)
+        .run_from_script();
+
+    ModelGen::new()
+        .input("tests/conv1d/conv1d.onnx")
+        .out_dir("model/bincode_embedded_half/")
+        .embed_states(true)
+        .half_precision(true)
+        .record_type(RecordType::Bincode)
         .run_from_script();
 
     // panic!("Purposefully failing build to output logs.");

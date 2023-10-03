@@ -32,6 +32,10 @@ impl<B: Backend> Backend for ADBackendDecorator<B> {
     fn seed(seed: u64) {
         B::seed(seed)
     }
+
+    fn sync(device: &B::Device) {
+        B::sync(device);
+    }
 }
 
 impl<B: Backend> ADBackend for ADBackendDecorator<B> {

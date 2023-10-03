@@ -1,14 +1,16 @@
 use crate::{
+    compute::StaticKernel,
     element::WgpuElement,
     kernel::{self, build_info, elemwise_workgroup, KernelSettings},
     kernel_wgsl,
+    ops::numeric::empty_device,
     tensor::WgpuTensor,
 };
-use burn_tensor::{ops::ConvTransposeOptions, Shape};
+use burn_tensor::{ops::ConvTransposeOptions, Element, ElementConversion, Shape};
 
 kernel_wgsl!(ConvTranspose2d, "../../template/conv/conv_transpose2d.wgsl");
 
-pub(crate) fn conv_transpose2d<E: WgpuElement>(
+pub(crate) fn conv_transpose2d<E: WgpuElement + Element>(
     input: WgpuTensor<E, 4>,
     weight: WgpuTensor<E, 4>,
     bias: Option<WgpuTensor<E, 1>>,
@@ -35,12 +37,13 @@ pub(crate) fn conv_transpose2d<E: WgpuElement>(
     let shape_out = Shape::new([batch_size, out_channels * options.groups, out_0, out_1]);
     let num_elems = shape_out.num_elements();
 
-    let buffer = input
-        .context
-        .create_buffer(num_elems * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(input.context.clone(), shape_out, buffer);
-
+    let output = empty_device(
+        input.client.clone(),
+        input.device.clone(),
+        shape_out.clone(),
+    );
     let mut info = build_info(&[&input, &output, &weight]);
+
     info.push(options.stride[0] as u32);
     info.push(options.stride[1] as u32);
     info.push(options.padding[0] as u32);
@@ -49,28 +52,24 @@ pub(crate) fn conv_transpose2d<E: WgpuElement>(
     info.push(options.dilation[1] as u32);
     info.push(options.groups as u32);
 
-    let bias_buffer = bias
-        .map(|bias| bias.buffer)
-        .unwrap_or_else(|| input.context.create_buffer(core::mem::size_of::<E>()));
+    let bias_handle = bias
+        .map(|bias| bias.handle)
+        .unwrap_or_else(|| input.client.create(E::as_bytes(&[0.elem()])));
 
-    let info_buffer = input
-        .context
-        .create_buffer_with_data(bytemuck::cast_slice(&info));
+    let info_handle = input.client.create(bytemuck::cast_slice(&info));
 
-    let kernel = input
-        .context
-        .compile_static::<KernelSettings<ConvTranspose2d, E, i32, WORKGROUP, WORKGROUP, 1>>();
-
-    let workgroup = elemwise_workgroup(num_elems, WORKGROUP);
-    input.context.execute(
-        workgroup,
-        kernel,
+    let kernel =
+        StaticKernel::<KernelSettings<ConvTranspose2d, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
+            elemwise_workgroup(num_elems, WORKGROUP),
+        );
+    input.client.execute(
+        Box::new(kernel),
         &[
-            &input.buffer,
-            &weight.buffer,
-            &bias_buffer,
-            &output.buffer,
-            &info_buffer,
+            &input.handle,
+            &weight.handle,
+            &bias_handle,
+            &output.handle,
+            &info_handle,
         ],
     );
 

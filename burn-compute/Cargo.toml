@@ -1,0 +1,27 @@
+[package]
+authors = ["louisfd <louisfd94@gmail.com>", "Nathaniel Simard"]
+categories = ["science"]
+description = "Compute crate that helps creating high performance async backends."
+edition = "2021"
+keywords = ["deep-learning", "machine-learning", "data"]
+license = "MIT OR Apache-2.0"
+name = "burn-compute"
+readme = "README.md"
+repository = "https://github.com/burn-rs/burn/tree/main/burn-compute"
+version = "0.10.0"
+
+[features]
+default = ["std", "channel-mutex", "channel-mpsc", "channel-cell", "storage-bytes"]
+std = []
+channel-mutex = []
+channel-cell = []
+channel-mpsc = [] # Assume std
+storage-bytes = []
+
+[dependencies]
+burn-common = { path = "../burn-common", version = "0.10.0", default-features = false }
+derive-new = { workspace = true }
+spin = { workspace = true }
+hashbrown = { workspace = true }
+
+[dev-dependencies]

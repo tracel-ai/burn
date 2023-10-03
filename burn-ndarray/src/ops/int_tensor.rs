@@ -371,4 +371,12 @@ impl<E: FloatNdArrayElement> IntTensorOps<NdArrayBackend<E>> for NdArrayBackend<
         let array = tensor.array.mapv(|a| a.elem()).into_shared();
         NdArrayTensor { array }
     }
+
+    fn int_swap_dims<const D: usize>(
+        tensor: <NdArrayBackend<E> as Backend>::IntTensorPrimitive<D>,
+        dim1: usize,
+        dim2: usize,
+    ) -> <NdArrayBackend<E> as Backend>::IntTensorPrimitive<D> {
+        NdArrayOps::swap_dims(tensor, dim1, dim2)
+    }
 }

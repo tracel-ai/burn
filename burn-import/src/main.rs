@@ -1,4 +1,4 @@
-use burn_import::onnx::ModelGen;
+use burn_import::onnx::{ModelGen, RecordType};
 
 /// Takes an ONNX file and generates a model from it
 fn main() {
@@ -11,6 +11,7 @@ fn main() {
     ModelGen::new()
         .input(onnx_file.as_str())
         .development(true)
+        .record_type(RecordType::PrettyJson)
         .out_dir(output_dir.as_str())
         .run_from_cli();
 }

@@ -1,11 +1,10 @@
-use std::sync::Arc;
-
+use crate::{
+    compute::{WgpuComputeClient, WgpuHandle},
+    element::WgpuElement,
+    kernel_wgsl, SEED,
+};
 use burn_common::rand::get_seeded_rng;
-use burn_tensor::Shape;
 use rand::Rng;
-use wgpu::Buffer;
-
-use crate::{context::Context, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor, SEED};
 
 kernel_wgsl!(Prng, "../../template/prng/prng.wgsl");
 
@@ -23,22 +22,20 @@ pub(crate) fn get_seeds() -> Vec<u32> {
     seeds
 }
 
-pub(crate) fn make_output_tensor<E: WgpuElement, const D: usize>(
-    context: Arc<Context>,
-    shape: Shape<D>,
-) -> WgpuTensor<E, D> {
-    let buffer = context.create_buffer(shape.num_elements() * core::mem::size_of::<E>());
-    WgpuTensor::new(context, shape, buffer)
-}
-
-pub(crate) fn make_info_buffer(context: Arc<Context>, n_values_per_thread: usize) -> Arc<Buffer> {
+pub(crate) fn make_info_buffer(
+    client: WgpuComputeClient,
+    n_values_per_thread: usize,
+) -> WgpuHandle {
     let mut info = get_seeds();
     info.insert(0, n_values_per_thread as u32);
-    context.create_buffer_with_data(bytemuck::cast_slice(&info))
+    client.create(bytemuck::cast_slice(&info))
 }
 
-pub(crate) fn make_args_buffer<E: WgpuElement>(context: Arc<Context>, args: &[E]) -> Arc<Buffer> {
-    context.create_buffer_with_data(E::as_bytes(args))
+pub(crate) fn make_args_buffer<E: WgpuElement>(
+    client: WgpuComputeClient,
+    args: &[E],
+) -> WgpuHandle {
+    client.create(E::as_bytes(args))
 }
 
 #[cfg(test)]

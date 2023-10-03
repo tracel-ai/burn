@@ -12,17 +12,10 @@ use std::time::Instant;
 ///
 /// We currently ignore the time taken for the validation part.
 pub(crate) struct ProgressBarState {
-    progress_train: f64,
+    progress_train: f64,         // Progress for total training.
+    progress_train_for_eta: f64, // Progress considering the starting epoch.
+    starting_epoch: usize,
     started: Instant,
-}
-
-impl Default for ProgressBarState {
-    fn default() -> Self {
-        Self {
-            progress_train: 0.0,
-            started: Instant::now(),
-        }
-    }
 }
 
 const MINUTE: u64 = 60;
@@ -30,13 +23,18 @@ const HOUR: u64 = 60 * 60;
 const DAY: u64 = 24 * 60 * 60;
 
 impl ProgressBarState {
+    pub fn new(checkpoint: Option<usize>) -> Self {
+        Self {
+            progress_train: 0.0,
+            progress_train_for_eta: 0.0,
+            started: Instant::now(),
+            starting_epoch: checkpoint.unwrap_or(0),
+        }
+    }
     /// Update the training progress.
     pub(crate) fn update_train(&mut self, progress: &TrainingProgress) {
-        let total_items = progress.progress.items_total * progress.epoch_total;
-        let epoch_items = (progress.epoch - 1) * progress.progress.items_total;
-        let iteration_items = progress.progress.items_processed as f64;
-
-        self.progress_train = (epoch_items as f64 + iteration_items) / total_items as f64
+        self.progress_train = calculate_progress(progress, 0);
+        self.progress_train_for_eta = calculate_progress(progress, self.starting_epoch);
     }
 
     /// Update the validation progress.
@@ -47,10 +45,10 @@ impl ProgressBarState {
     /// Create a view for the current progress.
     pub(crate) fn view(&self) -> ProgressBarView {
         let eta = self.started.elapsed();
-        let total_estimated = (eta.as_secs() as f64) / self.progress_train;
+        let total_estimated = (eta.as_secs() as f64) / self.progress_train_for_eta;
 
         let eta = if total_estimated.is_normal() {
-            let remaining = 1.0 - self.progress_train;
+            let remaining = 1.0 - self.progress_train_for_eta;
             let eta = (total_estimated * remaining) as u64;
             format_eta(eta)
         } else {
@@ -106,6 +104,17 @@ impl ProgressBarView {
     }
 }
 
+fn calculate_progress(progress: &TrainingProgress, starting_epoch: usize) -> f64 {
+    let epoch_total = progress.epoch_total - starting_epoch;
+    let epoch = progress.epoch - starting_epoch;
+
+    let total_items = progress.progress.items_total * epoch_total;
+    let epoch_items = (epoch - 1) * progress.progress.items_total;
+    let iteration_items = progress.progress.items_processed as f64;
+
+    (epoch_items as f64 + iteration_items) / total_items as f64
+}
+
 fn format_eta(eta_secs: u64) -> String {
     let seconds = eta_secs % 60;
     let minutes = eta_secs / MINUTE % 60;
@@ -130,6 +139,7 @@ fn format_eta(eta_secs: u64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use burn_core::data::dataloader::Progress;
 
     #[test]
     fn test_format_eta() {
@@ -140,5 +150,25 @@ mod tests {
         assert_eq!("2 hours", format_eta(2 * 3601), "More than 2 hour");
         assert_eq!("1 days", format_eta(24 * 3601), "More than 1 day");
         assert_eq!("2 days", format_eta(48 * 3601), "More than 2 day");
+    }
+
+    #[test]
+    fn calculate_progress_for_eta() {
+        let half = Progress {
+            items_processed: 5,
+            items_total: 10,
+        };
+        let progress = TrainingProgress {
+            progress: half,
+            epoch: 9,
+            epoch_total: 10,
+            iteration: 500,
+        };
+
+        let starting_epoch = 8;
+        let progress = calculate_progress(&progress, starting_epoch);
+
+        // Two epochs remaining while the first is half done.
+        assert_eq!(0.25, progress);
     }
 }

@@ -1,14 +1,13 @@
 use std::ops::Range;
 
-use burn_tensor::Shape;
+use burn_tensor::{Element, Shape};
 
 use crate::{
     element::WgpuElement,
     kernel::{slice, slice_assign},
+    ops::numeric::zeros_device,
     tensor::WgpuTensor,
 };
-
-use super::base::empty_from_context;
 
 // Output of the pad_round function. Allows to know explicitly if early return occurred
 pub(super) enum PaddingOutput<E: WgpuElement, const D: usize> {
@@ -29,7 +28,7 @@ impl<E: WgpuElement, const D: usize> PaddingOutput<E, D> {
 /// divisible by some quantity.
 /// For instance tensor of shape [1000, 1000] with divisors 64 and 64
 /// will be padded to [1024, 1024] with the last 24 elements being zeros
-pub(super) fn pad_round<E: WgpuElement, const D: usize>(
+pub(super) fn pad_round<E: WgpuElement + Element, const D: usize>(
     tensor: WgpuTensor<E, D>,
     row_divisor: usize,
     col_divisor: usize,
@@ -62,7 +61,7 @@ pub(super) fn pad_round<E: WgpuElement, const D: usize>(
 }
 
 /// Pads tensor by adding zeros when padded dim is larger than tensor dim
-fn padding<E: WgpuElement, const D: usize>(
+fn padding<E: WgpuElement + Element, const D: usize>(
     tensor: WgpuTensor<E, D>,
     padded_shape: Shape<D>,
 ) -> WgpuTensor<E, D> {
@@ -73,8 +72,9 @@ fn padding<E: WgpuElement, const D: usize>(
         .collect::<Vec<Range<usize>>>()
         .try_into()
         .unwrap();
+
     slice_assign::<E, D, D>(
-        empty_from_context(tensor.context.clone(), &padded_shape),
+        zeros_device(tensor.client.clone(), tensor.device.clone(), padded_shape),
         ranges,
         tensor,
     )

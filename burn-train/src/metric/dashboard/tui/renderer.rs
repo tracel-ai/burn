@@ -79,7 +79,7 @@ impl DashboardRenderer for TuiDashboardRenderer {
 
 impl TuiDashboardRenderer {
     /// Create a new CLI dashboard renderer.
-    pub fn new(interuptor: TrainingInterrupter) -> Self {
+    pub fn new(interuptor: TrainingInterrupter, checkpoint: Option<usize>) -> Self {
         let mut stdout = io::stdout();
         execute!(stdout, EnterAlternateScreen).unwrap();
         enable_raw_mode().unwrap();
@@ -88,7 +88,7 @@ impl TuiDashboardRenderer {
         Self {
             terminal,
             last_update: Instant::now(),
-            progress: ProgressBarState::default(),
+            progress: ProgressBarState::new(checkpoint),
             metrics_numeric: NumericMetricsState::default(),
             metrics_text: TextMetricsState::default(),
             status: StatusState::default(),

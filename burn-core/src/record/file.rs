@@ -294,13 +294,20 @@ impl<S: PrecisionSettings> Recorder for NamedMpkFileRecorder<S> {
 #[cfg(test)]
 mod tests {
 
+    use burn_tensor::backend::Backend;
+
     use super::*;
     use crate::{
         module::Module,
-        nn,
+        nn::{
+            conv::{Conv2d, Conv2dConfig},
+            Linear, LinearConfig,
+        },
         record::{BinBytesRecorder, FullPrecisionSettings},
         TestBackend,
     };
+
+    use crate as burn;
 
     static FILE_PATH: &str = "/tmp/burn_test_file_recorder";
 
@@ -351,7 +358,22 @@ mod tests {
         assert_eq!(model_bytes_after, model_bytes_before);
     }
 
-    pub fn create_model() -> nn::Linear<TestBackend> {
-        nn::LinearConfig::new(32, 32).with_bias(true).init()
+    #[derive(Module, Debug)]
+    pub struct Model<B: Backend> {
+        conv2d1: Conv2d<B>,
+        linear1: Linear<B>,
+        phantom: core::marker::PhantomData<B>,
+    }
+
+    pub fn create_model() -> Model<TestBackend> {
+        let conv2d1 = Conv2dConfig::new([1, 8], [3, 3]).init();
+
+        let linear1 = LinearConfig::new(32, 32).with_bias(true).init();
+
+        Model {
+            conv2d1,
+            linear1,
+            phantom: core::marker::PhantomData,
+        }
     }
 }

@@ -33,7 +33,7 @@ where
     }
 
     fn int_device<const D: usize>(tensor: &IntTensor<Self, D>) -> Device<Self> {
-        tensor.context.device.clone()
+        tensor.device.clone()
     }
 
     fn int_to_device<const D: usize>(
@@ -309,5 +309,16 @@ where
 
     fn int_into_float<const D: usize>(tensor: IntTensor<Self, D>) -> FloatTensor<Self, D> {
         kernel::cast(tensor)
+    }
+
+    fn int_swap_dims<const D: usize>(
+        mut tensor: IntTensor<Self, D>,
+        dim1: usize,
+        dim2: usize,
+    ) -> IntTensor<Self, D> {
+        tensor.strides.swap(dim1, dim2);
+        tensor.shape.dims.swap(dim1, dim2);
+
+        tensor
     }
 }

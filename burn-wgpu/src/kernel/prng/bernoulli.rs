@@ -1,12 +1,13 @@
 use burn_tensor::Shape;
 
 use crate::{
+    compute::{compute_client, StaticKernel},
     element::WgpuElement,
     kernel::{
-        prng::base::{make_args_buffer, make_info_buffer, make_output_tensor},
-        prng_workgroup, KernelSettings, SourceTemplate, StaticKernel,
+        prng::base::{make_args_buffer, make_info_buffer},
+        prng_workgroup, KernelSettings, SourceTemplate, StaticKernelSource,
     },
-    pool::get_context,
+    ops::numeric::empty_device,
     tensor::WgpuTensor,
     GraphicsApi, WgpuDevice,
 };
@@ -15,9 +16,9 @@ use super::base::Prng;
 
 struct BernoulliPrng;
 
-impl StaticKernel for BernoulliPrng {
-    fn source_template() -> SourceTemplate {
-        Prng::source_template()
+impl StaticKernelSource for BernoulliPrng {
+    fn source() -> SourceTemplate {
+        Prng::source()
             .register("num_args", "1")
             .register(
                 "prng_loop",
@@ -36,15 +37,19 @@ pub fn random_bernoulli<G: GraphicsApi, E: WgpuElement, const D: usize>(
     const WORKGROUP: usize = 32;
     const N_VALUES_PER_THREAD: usize = 128;
 
-    let context = get_context::<G>(device);
-    let output = make_output_tensor(context.clone(), shape.clone());
-    let info_buffer = make_info_buffer(context.clone(), N_VALUES_PER_THREAD);
-    let args_buffer = make_args_buffer(context.clone(), &[prob]);
+    let client = compute_client::<G>(device);
+    let output = empty_device(client.clone(), device.clone(), shape.clone());
+    let info_handle = make_info_buffer(client.clone(), N_VALUES_PER_THREAD);
+    let args_handle = make_args_buffer(client.clone(), &[prob]);
+    let workgroup = prng_workgroup(shape.num_elements(), WORKGROUP, N_VALUES_PER_THREAD);
+    let kernel =
+        StaticKernel::<KernelSettings<BernoulliPrng, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
+            workgroup,
+        );
 
-    context.execute(
-        prng_workgroup(shape.num_elements(), WORKGROUP, N_VALUES_PER_THREAD),
-        context.compile_static::<KernelSettings<BernoulliPrng, E, i32, WORKGROUP, WORKGROUP, 1>>(),
-        &[&output.buffer, &info_buffer, &args_buffer],
+    client.execute(
+        Box::new(kernel),
+        &[&output.handle, &info_handle, &args_handle],
     );
 
     output

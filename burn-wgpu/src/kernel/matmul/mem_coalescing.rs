@@ -2,10 +2,13 @@ use std::marker::PhantomData;
 
 use super::utils::shape_out;
 use crate::{
-    context::WorkGroup,
+    compute::{DynamicKernel, WorkGroup},
     element::WgpuElement,
-    kernel::{build_info, into_contiguous, DynamicKernel, SourceTemplate, StaticKernel},
+    kernel::{
+        build_info, into_contiguous, DynamicKernelSource, SourceTemplate, StaticKernelSource,
+    },
     kernel_wgsl,
+    ops::numeric::empty_device,
     tensor::WgpuTensor,
 };
 
@@ -21,9 +24,9 @@ struct MatmulMemCoalescing<E: WgpuElement> {
     _elem: PhantomData<E>,
 }
 
-impl<E: WgpuElement> DynamicKernel for MatmulMemCoalescing<E> {
-    fn source_template(self) -> SourceTemplate {
-        MatmulMemCoalescingRaw::source_template()
+impl<E: WgpuElement> DynamicKernelSource for MatmulMemCoalescing<E> {
+    fn source(self) -> SourceTemplate {
+        MatmulMemCoalescingRaw::source()
             .register("workgroup_size_x", self.workgroup_size_x.to_string())
             .register("workgroup_size_y", self.workgroup_size_y.to_string())
             .register("elem", E::type_name())
@@ -59,26 +62,11 @@ pub fn matmul_mem_coalescing<E: WgpuElement, const D: usize>(
     let num_rows = lhs.shape.dims[D - 2];
     let num_cols = rhs.shape.dims[D - 1];
 
-    let buffer = lhs
-        .context
-        .create_buffer(shape_out.num_elements() * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(lhs.context.clone(), shape_out, buffer);
+    let output = empty_device(lhs.client.clone(), lhs.device.clone(), shape_out);
 
     // set number of workgroups
     let blocks_needed_in_x = f32::ceil(num_rows as f32 / workgroup_size_x as f32) as u32;
     let blocks_needed_in_y = f32::ceil(num_cols as f32 / workgroup_size_y as f32) as u32;
-
-    let kernel = lhs.context.compile_dynamic(MatmulMemCoalescing::<E>::new(
-        workgroup_size_x,
-        workgroup_size_y,
-    ));
-
-    let info = build_info(&[&lhs, &rhs, &output]);
-
-    let info_buffers = lhs
-        .context
-        .create_buffer_with_data(bytemuck::cast_slice(&info));
-
     let mut num_iter = 1;
     for i in 0..D - 2 {
         num_iter *= output.shape.dims[i];
@@ -86,10 +74,18 @@ pub fn matmul_mem_coalescing<E: WgpuElement, const D: usize>(
 
     let workgroup = WorkGroup::new(blocks_needed_in_x, blocks_needed_in_y, num_iter as u32);
 
-    lhs.context.execute(
+    let kernel = DynamicKernel::new(
+        MatmulMemCoalescing::<E>::new(workgroup_size_x, workgroup_size_y),
         workgroup,
-        kernel,
-        &[&lhs.buffer, &rhs.buffer, &output.buffer, &info_buffers],
+    );
+
+    let info = build_info(&[&lhs, &rhs, &output]);
+
+    let info_handle = lhs.client.create(bytemuck::cast_slice(&info));
+
+    lhs.client.execute(
+        Box::new(kernel),
+        &[&lhs.handle, &rhs.handle, &output.handle, &info_handle],
     );
 
     output

@@ -1,3 +1,5 @@
+#![no_std]
+
 /// Include generated models in the `model` directory in the target directory.
 macro_rules! include_models {
     ($($model:ident),*) => {
@@ -42,7 +44,7 @@ include_models!(
 
 #[cfg(test)]
 mod tests {
-    use std::f64::consts;
+    use core::f64::consts;
 
     use super::*;
 

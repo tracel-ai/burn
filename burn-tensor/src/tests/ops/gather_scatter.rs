@@ -164,4 +164,14 @@ mod tests {
             Data::from([[0.0, 1.0, 0.0], [0.0, 0.0, 4.0]])
         );
     }
+
+    #[test]
+    #[should_panic]
+    fn scatter_should_panic_on_mismatch_of_shapes() {
+        let tensor = TestTensor::from_floats([0.0, 0.0, 0.0]);
+        let values = TestTensor::from_floats([5.0, 4.0]);
+        let indices = TestTensorInt::from_ints([1, 0, 2]);
+
+        tensor.scatter(0, indices, values);
+    }
 }

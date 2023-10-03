@@ -1,4 +1,5 @@
 use crate::{
+    compute::StaticKernel,
     element::WgpuElement,
     kernel::{self, build_info, elemwise_workgroup, KernelSettings},
     kernel_wgsl,
@@ -48,18 +49,15 @@ pub(crate) fn scatter<E: WgpuElement, I: WgpuElement, const D: usize>(
 
     info.push(dim as u32);
 
-    let info_buffer = tensor
-        .context
-        .create_buffer_with_data(bytemuck::cast_slice(&info));
+    let info_handle = tensor.client.create(bytemuck::cast_slice(&info));
 
-    let kernel = tensor
-        .context
-        .compile_static::<KernelSettings<Scatter, E, i32, WORKGROUP, WORKGROUP, 1>>();
-
-    tensor.context.execute(
+    let kernel = StaticKernel::<KernelSettings<Scatter, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
         elemwise_workgroup(num_elems_per_workgroup, WORKGROUP),
-        kernel,
-        &[&tensor.buffer, &indices.buffer, &value.buffer, &info_buffer],
+    );
+
+    tensor.client.execute(
+        Box::new(kernel),
+        &[&tensor.handle, &indices.handle, &value.handle, &info_handle],
     );
 
     tensor
