@@ -4,11 +4,11 @@ use crate::kernel::{
     self, unary_default, unary_inplace_default, unary_scalar_default, unary_scalar_inplace_default,
 };
 
-use crate::unary_scalar_inplace;
 use crate::{
     element::{FloatElement, IntElement},
     unary, unary_inplace, unary_scalar, GraphicsApi, WgpuBackend,
 };
+use crate::{unary_scalar_inplace, WgpuDevice};
 use burn_tensor::{ops::TensorOps, Data, Distribution, Shape};
 use burn_tensor::{ElementConversion, Reader};
 
@@ -83,6 +83,14 @@ where
 
     fn zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
         numeric::zeros::<G, F, D>(shape, device)
+    }
+
+    fn full<const D: usize>(
+        shape: Shape<D>,
+        fill_value: FloatElem<Self>,
+        device: &WgpuDevice,
+    ) -> FloatTensor<Self, D> {
+        numeric::full::<G, F, D>(shape, device, fill_value)
     }
 
     fn ones<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
