@@ -28,13 +28,15 @@ impl<B: Backend> LossMetric<B> {
 }
 
 impl<B: Backend> Metric for LossMetric<B> {
+    const NAME: &'static str = "Loss";
+
     type Input = LossInput<B>;
 
     fn update(&mut self, loss: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
         let loss = f64::from_elem(loss.tensor.clone().mean().into_data().value[0]);
 
         self.state
-            .update(loss, 1, FormatOptions::new("Loss").precision(2))
+            .update(loss, 1, FormatOptions::new(Self::NAME).precision(2))
     }
 
     fn clear(&mut self) {

@@ -10,21 +10,21 @@ use std::sync::Arc;
 /// Learner struct encapsulating all components necessary to train a Neural Network model.
 ///
 /// To create a learner, use the [builder](crate::learner::LearnerBuilder) struct.
-pub struct Learner<B, M, O, LR, TO, VO>
+pub struct Learner<B, Model, Optim, LR, TrainOutput, ValidOutput>
 where
     B: ADBackend,
-    M: ADModule<B>,
-    O: Optimizer<M, B>,
     LR: LRScheduler,
+    Model: ADModule<B>,
+    Optim: Optimizer<Model, B>,
 {
-    pub(super) model: M,
-    pub(super) optim: O,
+    pub(super) model: Model,
+    pub(super) optim: Optim,
     pub(super) lr_scheduler: LR,
     pub(super) num_epochs: usize,
-    pub(super) callback: Box<dyn LearnerCallback<TO, VO>>,
+    pub(super) callback: Box<dyn LearnerCallback<TrainOutput, ValidOutput>>,
     pub(super) checkpoint: Option<usize>,
-    pub(super) checkpointer_model: CheckpointModel<M, B>,
-    pub(super) checkpointer_optimizer: CheckpointOptim<O, M, B>,
+    pub(super) checkpointer_model: CheckpointModel<Model, B>,
+    pub(super) checkpointer_optimizer: CheckpointOptim<Optim, Model, B>,
     pub(super) checkpointer_scheduler: CheckpointScheduler<LR>,
     pub(super) grad_accumulation: Option<usize>,
     pub(super) devices: Vec<B::Device>,
@@ -35,21 +35,22 @@ type CheckpointModel<M, B> = Option<Box<dyn Checkpointer<<M as Module<B>>::Recor
 type CheckpointOptim<O, M, B> = Option<Box<dyn Checkpointer<<O as Optimizer<M, B>>::Record>>>;
 type CheckpointScheduler<LR> = Option<Box<dyn Checkpointer<<LR as LRScheduler>::Record>>>;
 
-impl<B, M, O, LR, TO, VO> Learner<B, M, O, LR, TO, VO>
+impl<B, Model, Optim, LR, TrainOutput, ValidOutput>
+    Learner<B, Model, Optim, LR, TrainOutput, ValidOutput>
 where
-    VO: Send + Sync + 'static,
-    TO: Send + Sync + 'static,
+    ValidOutput: Send + Sync + 'static,
+    TrainOutput: Send + Sync + 'static,
     B: ADBackend,
-    M: ADModule<B>,
-    O: Optimizer<M, B>,
+    Model: ADModule<B>,
+    Optim: Optimizer<Model, B>,
     LR: LRScheduler,
 {
     pub(super) fn checkpoint(
-        model: &M,
-        optim: &O,
+        model: &Model,
+        optim: &Optim,
         scheduler: &LR,
-        checkpointer_model: &CheckpointModel<M, B>,
-        checkpointer_optimizer: &CheckpointOptim<O, M, B>,
+        checkpointer_model: &CheckpointModel<Model, B>,
+        checkpointer_optimizer: &CheckpointOptim<Optim, Model, B>,
         checkpointer_scheduler: &CheckpointScheduler<LR>,
         epoch: usize,
     ) {
