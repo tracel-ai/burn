@@ -7,7 +7,7 @@ use crate::metric::dashboard::{
 };
 use crate::metric::{Adaptor, Metric};
 use crate::AsyncTrainerCallback;
-use burn_core::lr_scheduler::LRScheduler;
+use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::ADModule;
 use burn_core::optim::Optimizer;
 use burn_core::record::FileRecorder;
@@ -24,7 +24,7 @@ where
     B: ADBackend,
     M: ADModule<B>,
     O: Optimizer<M, B>,
-    S: LRScheduler,
+    S: LrScheduler,
 {
     checkpointer_model: Option<Arc<dyn Checkpointer<M::Record> + Send + Sync>>,
     checkpointer_optimizer: Option<Arc<dyn Checkpointer<O::Record> + Send + Sync>>,
@@ -49,7 +49,7 @@ where
     B: ADBackend,
     Model: ADModule<B>,
     Optim: Optimizer<Model, B>,
-    LR: LRScheduler,
+    LR: LrScheduler,
 {
     /// Creates a new learner builder.
     ///

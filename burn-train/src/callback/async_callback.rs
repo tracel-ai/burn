@@ -20,7 +20,7 @@ pub struct AsyncTrainerCallback<T, V> {
 
 #[derive(new)]
 struct CallbackThread<T, V> {
-    callback: Mutex<Box<dyn LearnerCallback<T, V>>>,
+    callback: Mutex<Box<dyn LearnerCallback<ItemTrain = T, ItemValid = V>>>,
     receiver: mpsc::Receiver<Message<T, V>>,
 }
 
@@ -54,7 +54,7 @@ impl<T, V> CallbackThread<T, V> {
 
 impl<T: Send + Sync + 'static, V: Send + Sync + 'static> AsyncTrainerCallback<T, V> {
     /// Create a new async trainer callback.
-    pub fn new(callback: Box<dyn LearnerCallback<T, V>>) -> Self {
+    pub fn new(callback: Box<dyn LearnerCallback<ItemTrain = T, ItemValid = V>>) -> Self {
         let (sender, receiver) = mpsc::channel();
         let thread = CallbackThread::new(Mutex::new(callback), receiver);
 
@@ -65,7 +65,10 @@ impl<T: Send + Sync + 'static, V: Send + Sync + 'static> AsyncTrainerCallback<T,
     }
 }
 
-impl<T: Send, V: Send> LearnerCallback<T, V> for AsyncTrainerCallback<T, V> {
+impl<T: Send, V: Send> LearnerCallback for AsyncTrainerCallback<T, V> {
+    type ItemTrain = T;
+    type ItemValid = V;
+
     fn on_train_item(&mut self, item: LearnerItem<T>) {
         self.sender.send(Message::LogTrain(item)).unwrap();
     }

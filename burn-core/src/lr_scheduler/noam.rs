@@ -1,6 +1,6 @@
 use crate as burn;
 
-use super::LRScheduler;
+use super::LrScheduler;
 use crate::{config::Config, LearningRate};
 
 /// Configuration to create a [noam](NoamLRScheduler) learning rate scheduler.
@@ -37,7 +37,7 @@ impl NoamLRSchedulerConfig {
     }
 }
 
-impl LRScheduler for NoamLRScheduler {
+impl LrScheduler for NoamLRScheduler {
     type Record = usize;
 
     fn step(&mut self) -> LearningRate {

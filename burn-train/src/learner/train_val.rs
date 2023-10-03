@@ -1,9 +1,10 @@
 use super::Learner;
 
-use crate::{TrainEpoch, ValidEpoch};
+use crate::components::TrainingComponents;
+use crate::{LearnerCallback, NewLearner, TrainEpoch, ValidEpoch};
 use burn_core::data::dataloader::DataLoader;
-use burn_core::lr_scheduler::LRScheduler;
-use burn_core::module::ADModule;
+use burn_core::lr_scheduler::LrScheduler;
+use burn_core::module::{ADModule, Module};
 use burn_core::optim::{GradientsParams, Optimizer};
 use burn_core::tensor::backend::ADBackend;
 use std::sync::Arc;
@@ -101,7 +102,7 @@ where
     B: ADBackend,
     M: ADModule<B> + core::fmt::Display,
     O: Optimizer<M, B>,
-    LR: LRScheduler,
+    LR: LrScheduler,
 {
     /// Fits the model.
     ///
@@ -184,6 +185,101 @@ where
                 &self.checkpointer_scheduler,
                 epoch,
             );
+        }
+
+        model
+    }
+}
+
+impl<T: TrainingComponents> NewLearner<T> {
+    /// Fits the model.
+    ///
+    /// # Arguments
+    ///
+    /// * `dataloader_train` - The training dataloader.
+    /// * `dataloader_valid` - The validation dataloader.
+    ///
+    /// # Returns
+    ///
+    /// The fitted model.
+    pub fn fit<InputTrain, InputValid, OutputTrain, OutputValid>(
+        mut self,
+        dataloader_train: Arc<dyn DataLoader<InputTrain>>,
+        dataloader_valid: Arc<dyn DataLoader<InputValid>>,
+    ) -> T::Model
+    where
+        InputTrain: Send + 'static,
+        InputValid: Send,
+        OutputTrain: Send + 'static,
+        OutputValid: Send,
+        T::Model: TrainStep<InputTrain, OutputTrain>,
+        <T::Model as ADModule<T::Backend>>::InnerModule: ValidStep<InputValid, OutputValid>,
+        T::Callback: LearnerCallback<ItemTrain = OutputTrain, ItemValid = OutputValid>,
+    {
+        log::info!("Fitting {}", self.model.to_string());
+        // The reference model is always on the first device provided.
+        if let Some(device) = self.devices.get(0) {
+            self.model = self.model.fork(device);
+        }
+
+        let starting_epoch = 1;
+        // let starting_epoch = match self.checkpoint {
+        //     Some(checkpoint) => {
+        //         self = self.load_checkpoint(checkpoint);
+        //         checkpoint + 1
+        //     }
+        //     None => 1,
+        // };
+
+        let mut model = self.model;
+        let mut optim = self.optim;
+        let mut callback: Box<
+            dyn LearnerCallback<ItemTrain = OutputTrain, ItemValid = OutputValid>,
+        > = Box::new(self.callback);
+
+        for epoch in starting_epoch..self.num_epochs + 1 {
+            let epoch_train = TrainEpoch::new(
+                dataloader_train.clone(),
+                epoch,
+                self.num_epochs,
+                self.grad_accumulation,
+            );
+
+            if self.devices.len() > 1 {
+                (model, optim) = epoch_train.run_multi_device(
+                    model,
+                    optim,
+                    &mut self.lr_scheduler,
+                    &mut callback,
+                    self.devices.clone(),
+                    &self.interrupter,
+                )
+            } else {
+                (model, optim) = epoch_train.run(
+                    model,
+                    optim,
+                    &mut self.lr_scheduler,
+                    &mut callback,
+                    &self.interrupter,
+                );
+            }
+
+            if self.interrupter.should_stop() {
+                break;
+            }
+
+            let epoch_valid = ValidEpoch::new(dataloader_valid.clone(), epoch, self.num_epochs);
+            epoch_valid.run(&model, &mut callback, &self.interrupter);
+
+            // Self::checkpoint(
+            //     &model,
+            //     &optim,
+            //     &self.lr_scheduler,
+            //     &self.checkpointer_model,
+            //     &self.checkpointer_optimizer,
+            //     &self.checkpointer_scheduler,
+            //     epoch,
+            // );
         }
 
         model

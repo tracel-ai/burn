@@ -1,6 +1,6 @@
 use burn_core::{
     data::dataloader::DataLoader,
-    lr_scheduler::LRScheduler,
+    lr_scheduler::LrScheduler,
     module::ADModule,
     optim::{GradientsAccumulator, Optimizer},
     tensor::backend::ADBackend,
@@ -37,7 +37,7 @@ impl<I> ValidEpoch<I> {
     pub fn run<B, M, TO, VO>(
         &self,
         model: &M,
-        callback: &mut Box<dyn LearnerCallback<TO, VO>>,
+        callback: &mut Box<dyn LearnerCallback<ItemTrain = TO, ItemValid = VO>>,
         interrupter: &TrainingInterrupter,
     ) where
         B: ADBackend,
@@ -92,14 +92,14 @@ impl<TI> TrainEpoch<TI> {
         mut model: M,
         mut optim: O,
         scheduler: &mut LR,
-        callback: &mut Box<dyn LearnerCallback<TO, VO>>,
+        callback: &mut Box<dyn LearnerCallback<ItemTrain = TO, ItemValid = VO>>,
         interrupter: &TrainingInterrupter,
     ) -> (M, O)
     where
         B: ADBackend,
         M: TrainStep<TI, TO> + ADModule<B>,
         O: Optimizer<M, B>,
-        LR: LRScheduler,
+        LR: LrScheduler,
     {
         log::info!("Executing training step for epoch {}", self.epoch,);
 
@@ -170,7 +170,7 @@ impl<TI> TrainEpoch<TI> {
         mut model: M,
         mut optim: O,
         lr_scheduler: &mut S,
-        callback: &mut Box<dyn LearnerCallback<TO, VO>>,
+        callback: &mut Box<dyn LearnerCallback<ItemTrain = TO, ItemValid = VO>>,
         devices: Vec<B::Device>,
         interrupter: &TrainingInterrupter,
     ) -> (M, O)
@@ -179,7 +179,7 @@ impl<TI> TrainEpoch<TI> {
         M: ADModule<B> + 'static,
         O: Optimizer<M, B>,
         M: TrainStep<TI, TO>,
-        S: LRScheduler,
+        S: LrScheduler,
         TI: Send + 'static,
         TO: Send + 'static,
     {

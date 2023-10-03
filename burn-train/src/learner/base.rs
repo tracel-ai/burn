@@ -1,11 +1,32 @@
 use crate::checkpoint::Checkpointer;
+use crate::components::TrainingComponents;
 use crate::LearnerCallback;
-use burn_core::lr_scheduler::LRScheduler;
+use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::{ADModule, Module};
 use burn_core::optim::Optimizer;
 use burn_core::tensor::backend::ADBackend;
+use burn_core::tensor::backend::Backend;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+
+pub struct NewLearner<T: TrainingComponents> {
+    pub model: T::Model,
+    pub optim: T::Optimizer,
+    pub lr_scheduler: T::LrScheduler,
+    pub num_epochs: usize,
+    pub checkpoint: Option<usize>,
+    pub grad_accumulation: Option<usize>,
+    pub checkpointer: TrainingCheckpointer<T>,
+    pub devices: Vec<<T::Backend as Backend>::Device>,
+    pub callback: T::Callback,
+    pub interrupter: TrainingInterrupter,
+}
+
+pub struct TrainingCheckpointer<T: TrainingComponents> {
+    model: T::CheckpointerModel,
+    optim: T::CheckpointerOptimizer,
+    lr_scheduler: T::CheckpointerLrScheduler,
+}
 
 /// Learner struct encapsulating all components necessary to train a Neural Network model.
 ///
@@ -13,7 +34,7 @@ use std::sync::Arc;
 pub struct Learner<B, Model, Optim, LR, TrainOutput, ValidOutput>
 where
     B: ADBackend,
-    LR: LRScheduler,
+    LR: LrScheduler,
     Model: ADModule<B>,
     Optim: Optimizer<Model, B>,
 {
@@ -21,7 +42,7 @@ where
     pub(super) optim: Optim,
     pub(super) lr_scheduler: LR,
     pub(super) num_epochs: usize,
-    pub(super) callback: Box<dyn LearnerCallback<TrainOutput, ValidOutput>>,
+    pub(super) callback: Box<dyn LearnerCallback<ItemTrain = TrainOutput, ItemValid = ValidOutput>>,
     pub(super) checkpoint: Option<usize>,
     pub(super) checkpointer_model: CheckpointModel<Model, B>,
     pub(super) checkpointer_optimizer: CheckpointOptim<Optim, Model, B>,
@@ -33,7 +54,7 @@ where
 
 type CheckpointModel<M, B> = Option<Box<dyn Checkpointer<<M as Module<B>>::Record>>>;
 type CheckpointOptim<O, M, B> = Option<Box<dyn Checkpointer<<O as Optimizer<M, B>>::Record>>>;
-type CheckpointScheduler<LR> = Option<Box<dyn Checkpointer<<LR as LRScheduler>::Record>>>;
+type CheckpointScheduler<LR> = Option<Box<dyn Checkpointer<<LR as LrScheduler>::Record>>>;
 
 impl<B, Model, Optim, LR, TrainOutput, ValidOutput>
     Learner<B, Model, Optim, LR, TrainOutput, ValidOutput>
@@ -43,7 +64,7 @@ where
     B: ADBackend,
     Model: ADModule<B>,
     Optim: Optimizer<Model, B>,
-    LR: LRScheduler,
+    LR: LrScheduler,
 {
     pub(super) fn checkpoint(
         model: &Model,

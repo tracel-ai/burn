@@ -171,11 +171,14 @@ impl<T> From<&LearnerItem<T>> for MetricMetadata {
     }
 }
 
-impl<T, V> LearnerCallback<T, V> for Dashboard<T, V>
+impl<T, V> LearnerCallback for Dashboard<T, V>
 where
     T: Send + Sync + 'static,
     V: Send + Sync + 'static,
 {
+    type ItemTrain = T;
+    type ItemValid = V;
+
     fn on_train_item(&mut self, item: LearnerItem<T>) {
         let metadata = (&item).into();
         for metric in self.metrics.train.iter_mut() {
