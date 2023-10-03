@@ -35,11 +35,11 @@ where
     }
 
     fn unfold4d(
-        _x: FloatTensor<Self, 4>,
-        _kernel_size: [usize; 2],
-        _options: UnfoldOptions,
+        x: FloatTensor<Self, 4>,
+        kernel_size: [usize; 2],
+        options: UnfoldOptions,
     ) -> FloatTensor<Self, 3> {
-        todo!() // write shader or trick conv2d into doing this for us again?
+        kernel::unfold::unfold4d(x, kernel_size, options)
     }
 
     fn avg_pool2d(
