@@ -74,6 +74,19 @@ macro_rules! unary_scalar_inplace {
 
     (
         $struct:ident,
+        body $body:expr
+    ) => {
+        pub struct $struct;
+
+        impl $crate::kernel::StaticKernelSource for $struct {
+            fn source() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::UnaryScalarInplaceRaw::source().register("body", $body)
+            }
+        }
+    };
+
+    (
+        $struct:ident,
         func $func:expr
     ) => {
         pub struct $struct;

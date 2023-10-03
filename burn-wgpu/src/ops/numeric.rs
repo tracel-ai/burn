@@ -10,6 +10,28 @@ use crate::{
 use crate::{GraphicsApi, WgpuDevice};
 use burn_tensor::{Element, ElementConversion, Shape};
 
+pub fn full<G: GraphicsApi, E: WgpuElement + Element, const D: usize>(
+    shape: Shape<D>,
+    device: &WgpuDevice,
+    value: E,
+) -> WgpuTensor<E, D> {
+    let client = compute_client::<G>(device);
+
+    full_device(client, shape, device.clone(), value)
+}
+
+pub fn full_device<E: WgpuElement + Element, const D: usize>(
+    client: WgpuComputeClient,
+    shape: Shape<D>,
+    device: WgpuDevice,
+    value: E,
+) -> WgpuTensor<E, D> {
+    let empty = empty_device(client, device, shape);
+
+    unary_scalar_inplace!(Full, body "lhs[id] = rhs;");
+    unary_scalar_inplace_default::<Full, E, D>(empty, value)
+}
+
 pub fn zeros<G: GraphicsApi, E: WgpuElement + Element, const D: usize>(
     shape: Shape<D>,
     device: &WgpuDevice,
@@ -24,7 +46,24 @@ pub fn zeros_device<E: WgpuElement + Element, const D: usize>(
     device: WgpuDevice,
     shape: Shape<D>,
 ) -> WgpuTensor<E, D> {
-    mul_scalar(empty_device(client, device, shape), 0i32.elem::<E>())
+    full_device::<E, D>(client, shape, device, 0.elem())
+}
+
+pub fn ones<G: GraphicsApi, E: WgpuElement + Element, const D: usize>(
+    shape: Shape<D>,
+    device: &WgpuDevice,
+) -> WgpuTensor<E, D> {
+    let client = compute_client::<G>(device);
+
+    ones_device(client, device.clone(), shape)
+}
+
+pub fn ones_device<E: WgpuElement + Element, const D: usize>(
+    client: WgpuComputeClient,
+    device: WgpuDevice,
+    shape: Shape<D>,
+) -> WgpuTensor<E, D> {
+    full_device::<E, D>(client, shape, device, 1.elem())
 }
 
 pub fn empty_device<E: WgpuElement, const D: usize>(
@@ -35,13 +74,6 @@ pub fn empty_device<E: WgpuElement, const D: usize>(
     let buffer = client.empty(shape.num_elements() * core::mem::size_of::<E>());
 
     WgpuTensor::new(client, device, shape, buffer)
-}
-
-pub fn ones<G: GraphicsApi, E: WgpuElement + Element, const D: usize>(
-    shape: Shape<D>,
-    device: &WgpuDevice,
-) -> WgpuTensor<E, D> {
-    add_scalar(zeros::<G, E, D>(shape, device), 1i32.elem::<E>())
 }
 
 pub fn add<E: WgpuElement, const D: usize>(
