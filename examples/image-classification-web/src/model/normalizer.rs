@@ -27,7 +27,7 @@ impl<B: Backend> Normalizer<B> {
     /// The normalization is done according to the following formula:
     /// `input = (input - mean) / std`
     pub fn normalize(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
-        input - self.mean.clone() / self.std.clone()
+        (input - self.mean.clone()) / self.std.clone()
     }
 }
 

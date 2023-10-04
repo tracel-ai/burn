@@ -20,7 +20,6 @@ burn = { path = "../../burn", default-features = false, features = [
 
 burn-candle = { path = "../../burn-candle", version = "0.10.0", default-features = false }
 
-getrandom = { workspace = true, features = ["js"] }
 js-sys = "0.3.64"
 log = { workspace = true }
 serde = { workspace = true }

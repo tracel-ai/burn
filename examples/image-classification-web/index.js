@@ -1,5 +1,11 @@
 /**
- * index.js contains all helper functions image classification web demo.
+ *
+ * This demo is part of Burn project: https://github.com/burn-rs/burn
+ * 
+ * Released under a dual license: 
+ * https://github.com/burn-rs/burn/blob/main/LICENSE-MIT
+ * https://github.com/burn-rs/burn/blob/main/LICENSE-APACHE
+ * 
  */
 
 
