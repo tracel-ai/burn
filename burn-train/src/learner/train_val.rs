@@ -1,9 +1,6 @@
-use super::Learner;
-
 use crate::components::TrainingComponents;
-use crate::{LearnerCallback, NewLearner, TrainEpoch, ValidEpoch};
+use crate::{Learner, LearnerCallback, TrainEpoch, ValidEpoch};
 use burn_core::data::dataloader::DataLoader;
-use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::{ADModule, Module};
 use burn_core::optim::{GradientsParams, Optimizer};
 use burn_core::tensor::backend::ADBackend;
@@ -95,103 +92,7 @@ pub trait ValidStep<VI, VO> {
     fn step(&self, item: VI) -> VO;
 }
 
-impl<B, M, O, LR, TO, VO> Learner<B, M, O, LR, TO, VO>
-where
-    VO: Send + Sync + 'static,
-    TO: Send + Sync + 'static,
-    B: ADBackend,
-    M: ADModule<B> + core::fmt::Display,
-    O: Optimizer<M, B>,
-    LR: LrScheduler,
-{
-    /// Fits the model.
-    ///
-    /// # Arguments
-    ///
-    /// * `dataloader_train` - The training dataloader.
-    /// * `dataloader_valid` - The validation dataloader.
-    ///
-    /// # Returns
-    ///
-    /// The fitted model.
-    pub fn fit<TI, VI>(
-        mut self,
-        dataloader_train: Arc<dyn DataLoader<TI>>,
-        dataloader_valid: Arc<dyn DataLoader<VI>>,
-    ) -> M
-    where
-        TI: Send + 'static,
-        TO: Send + 'static,
-        M: TrainStep<TI, TO> + Send + Clone + 'static,
-        M::InnerModule: ValidStep<VI, VO>,
-    {
-        log::info!("Fitting {}", self.model.to_string());
-        // The reference model is always on the first device provided.
-        if let Some(device) = self.devices.get(0) {
-            self.model = self.model.fork(device);
-        }
-
-        let starting_epoch = match self.checkpoint {
-            Some(checkpoint) => {
-                self = self.load_checkpoint(checkpoint);
-                checkpoint + 1
-            }
-            None => 1,
-        };
-
-        let mut model = self.model;
-        let mut optim = self.optim;
-
-        for epoch in starting_epoch..self.num_epochs + 1 {
-            let epoch_train = TrainEpoch::new(
-                dataloader_train.clone(),
-                epoch,
-                self.num_epochs,
-                self.grad_accumulation,
-            );
-
-            if self.devices.len() > 1 {
-                (model, optim) = epoch_train.run_multi_device(
-                    model,
-                    optim,
-                    &mut self.lr_scheduler,
-                    &mut self.callback,
-                    self.devices.clone(),
-                    &self.interrupter,
-                )
-            } else {
-                (model, optim) = epoch_train.run(
-                    model,
-                    optim,
-                    &mut self.lr_scheduler,
-                    &mut self.callback,
-                    &self.interrupter,
-                );
-            }
-
-            if self.interrupter.should_stop() {
-                break;
-            }
-
-            let epoch_valid = ValidEpoch::new(dataloader_valid.clone(), epoch, self.num_epochs);
-            epoch_valid.run(&model, &mut self.callback, &self.interrupter);
-
-            Self::checkpoint(
-                &model,
-                &optim,
-                &self.lr_scheduler,
-                &self.checkpointer_model,
-                &self.checkpointer_optimizer,
-                &self.checkpointer_scheduler,
-                epoch,
-            );
-        }
-
-        model
-    }
-}
-
-impl<T: TrainingComponents> NewLearner<T> {
+impl<T: TrainingComponents> Learner<T> {
     /// Fits the model.
     ///
     /// # Arguments
@@ -222,17 +123,21 @@ impl<T: TrainingComponents> NewLearner<T> {
             self.model = self.model.fork(device);
         }
 
-        let starting_epoch = 1;
-        // let starting_epoch = match self.checkpoint {
-        //     Some(checkpoint) => {
-        //         self = self.load_checkpoint(checkpoint);
-        //         checkpoint + 1
-        //     }
-        //     None => 1,
-        // };
+        let starting_epoch = match self.checkpoint {
+            Some(checkpoint) => {
+                if let Some(checkpointer) = &self.checkpointer {
+                    (self.model, self.optim, self.lr_scheduler) = checkpointer.load_checkpoint(
+                        self.model,
+                        self.optim,
+                        self.lr_scheduler,
+                        checkpoint,
+                    );
+                }
+                checkpoint + 1
+            }
+            None => 1,
+        };
 
-        let mut model = self.model;
-        let mut optim = self.optim;
         let mut callback: Box<
             dyn LearnerCallback<ItemTrain = OutputTrain, ItemValid = OutputValid>,
         > = Box::new(self.callback);
@@ -246,18 +151,18 @@ impl<T: TrainingComponents> NewLearner<T> {
             );
 
             if self.devices.len() > 1 {
-                (model, optim) = epoch_train.run_multi_device(
-                    model,
-                    optim,
+                (self.model, self.optim) = epoch_train.run_multi_device(
+                    self.model,
+                    self.optim,
                     &mut self.lr_scheduler,
                     &mut callback,
                     self.devices.clone(),
                     &self.interrupter,
                 )
             } else {
-                (model, optim) = epoch_train.run(
-                    model,
-                    optim,
+                (self.model, self.optim) = epoch_train.run(
+                    self.model,
+                    self.optim,
                     &mut self.lr_scheduler,
                     &mut callback,
                     &self.interrupter,
@@ -269,19 +174,13 @@ impl<T: TrainingComponents> NewLearner<T> {
             }
 
             let epoch_valid = ValidEpoch::new(dataloader_valid.clone(), epoch, self.num_epochs);
-            epoch_valid.run(&model, &mut callback, &self.interrupter);
+            epoch_valid.run(&self.model, &mut callback, &self.interrupter);
 
-            // Self::checkpoint(
-            //     &model,
-            //     &optim,
-            //     &self.lr_scheduler,
-            //     &self.checkpointer_model,
-            //     &self.checkpointer_optimizer,
-            //     &self.checkpointer_scheduler,
-            //     epoch,
-            // );
+            if let Some(checkpointer) = &self.checkpointer {
+                checkpointer.checkpoint(&self.model, &self.optim, &self.lr_scheduler, epoch);
+            }
         }
 
-        model
+        self.model
     }
 }

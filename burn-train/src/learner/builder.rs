@@ -1,12 +1,13 @@
 use super::log::install_file_logger;
 use super::Learner;
-use crate::checkpoint::{AsyncCheckpointer, Checkpointer, FileCheckpointer};
+use crate::checkpoint::{AsyncCheckpointer, FileCheckpointer};
+use crate::components::TrainingComponentsMarker;
 use crate::logger::{FileMetricLogger, MetricLogger};
 use crate::metric::dashboard::{
     default_renderer, Dashboard, DashboardRenderer, MetricWrapper, Metrics,
 };
 use crate::metric::{Adaptor, Metric};
-use crate::AsyncTrainerCallback;
+use crate::{AsyncTrainerCallback, TrainingCheckpointer};
 use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::ADModule;
 use burn_core::optim::Optimizer;
@@ -26,9 +27,11 @@ where
     O: Optimizer<M, B>,
     S: LrScheduler,
 {
-    checkpointer_model: Option<Arc<dyn Checkpointer<M::Record> + Send + Sync>>,
-    checkpointer_optimizer: Option<Arc<dyn Checkpointer<O::Record> + Send + Sync>>,
-    checkpointer_scheduler: Option<Arc<dyn Checkpointer<S::Record> + Send + Sync>>,
+    checkpointers: Option<(
+        AsyncCheckpointer<M::Record>,
+        AsyncCheckpointer<O::Record>,
+        AsyncCheckpointer<S::Record>,
+    )>,
     num_epochs: usize,
     checkpoint: Option<usize>,
     directory: String,
@@ -47,7 +50,7 @@ where
     T: Send + Sync + 'static,
     V: Send + Sync + 'static,
     B: ADBackend,
-    Model: ADModule<B>,
+    Model: ADModule<B> + core::fmt::Display + 'static,
     Optim: Optimizer<Model, B>,
     LR: LrScheduler,
 {
@@ -60,9 +63,7 @@ where
         Self {
             num_epochs: 1,
             checkpoint: None,
-            checkpointer_model: None,
-            checkpointer_optimizer: None,
-            checkpointer_scheduler: None,
+            checkpointers: None,
             directory: directory.to_string(),
             grad_accumulation: None,
             devices: vec![B::Device::default()],
@@ -219,25 +220,35 @@ where
     pub fn with_file_checkpointer<FR>(mut self, num_keep: usize, recorder: FR) -> Self
     where
         FR: FileRecorder + 'static,
+        Optim::Record: 'static,
+        Model::Record: 'static,
+        LR::Record: 'static,
     {
-        self.checkpointer_model = Some(Arc::new(FileCheckpointer::new(
+        let checkpointer_model = Arc::new(FileCheckpointer::new(
             recorder.clone(),
             format!("{}/checkpoint", self.directory).as_str(),
             "model",
             num_keep,
-        )));
-        self.checkpointer_optimizer = Some(Arc::new(FileCheckpointer::new(
+        ));
+        let checkpointer_optimizer = Arc::new(FileCheckpointer::new(
             recorder.clone(),
             format!("{}/checkpoint", self.directory).as_str(),
             "optim",
             num_keep,
-        )));
-        self.checkpointer_scheduler = Some(Arc::new(FileCheckpointer::new(
+        ));
+        let checkpointer_scheduler = Arc::new(FileCheckpointer::new(
             recorder,
             format!("{}/checkpoint", self.directory).as_str(),
             "scheduler",
             num_keep,
-        )));
+        ));
+
+        self.checkpointers = Some((
+            AsyncCheckpointer::new(checkpointer_model),
+            AsyncCheckpointer::new(checkpointer_optimizer),
+            AsyncCheckpointer::new(checkpointer_scheduler),
+        ));
+
         self
     }
 
@@ -249,7 +260,18 @@ where
         model: Model,
         optim: Optim,
         lr_scheduler: LR,
-    ) -> Learner<B, Model, Optim, LR, T, V>
+    ) -> Learner<
+        TrainingComponentsMarker<
+            B,
+            LR,
+            Model,
+            Optim,
+            AsyncCheckpointer<Model::Record>,
+            AsyncCheckpointer<Optim::Record>,
+            AsyncCheckpointer<LR::Record>,
+            AsyncTrainerCallback<T, V>,
+        >,
+    >
     where
         Model::Record: 'static,
         Optim::Record: 'static,
@@ -270,43 +292,20 @@ where
         });
         let dashboard = Dashboard::new(renderer, self.metrics, logger_train, logger_valid);
         let callback = Box::new(dashboard);
-        let callback = Box::new(AsyncTrainerCallback::new(callback));
+        let callback = AsyncTrainerCallback::new(callback);
 
-        let checkpointer_optimizer = match self.checkpointer_optimizer {
-            Some(checkpointer) => {
-                let checkpointer: Box<dyn Checkpointer<Optim::Record>> =
-                    Box::new(AsyncCheckpointer::new(checkpointer));
-                Some(checkpointer)
-            }
-            None => None,
-        };
-        let checkpointer_model = match self.checkpointer_model {
-            Some(checkpointer) => {
-                let checkpointer: Box<dyn Checkpointer<Model::Record>> =
-                    Box::new(AsyncCheckpointer::new(checkpointer));
-                Some(checkpointer)
-            }
-            None => None,
-        };
-        let checkpointer_scheduler = match self.checkpointer_scheduler {
-            Some(checkpointer) => {
-                let checkpointer: Box<dyn Checkpointer<LR::Record>> =
-                    Box::new(AsyncCheckpointer::new(checkpointer));
-                Some(checkpointer)
-            }
-            None => None,
-        };
+        let checkpointer = self
+            .checkpointers
+            .map(|(model, optim, scheduler)| TrainingCheckpointer::new(model, optim, scheduler));
 
         Learner {
             model,
             optim,
             lr_scheduler,
+            checkpointer,
             num_epochs: self.num_epochs,
             callback,
             checkpoint: self.checkpoint,
-            checkpointer_model,
-            checkpointer_optimizer,
-            checkpointer_scheduler,
             grad_accumulation: self.grad_accumulation,
             devices: self.devices,
             interrupter: self.interrupter,

@@ -2,7 +2,9 @@ use burn_core::{data::dataloader::Progress, LearningRate};
 
 /// The base trait for trainer callbacks.
 pub trait LearnerCallback: Send {
+    /// Training item.
     type ItemTrain;
+    /// Validation item.
     type ItemValid;
 
     /// Called when a training item is logged.

@@ -27,9 +27,9 @@ impl<R: Record> CheckpointerThread<R> {
 }
 
 /// Async checkpointer.
-pub struct AsyncCheckpointer<E> {
-    checkpointer: Arc<dyn Checkpointer<E> + Send + Sync>,
-    sender: mpsc::SyncSender<Message<E>>,
+pub struct AsyncCheckpointer<Record> {
+    checkpointer: Arc<dyn Checkpointer<Record> + Send + Sync>,
+    sender: mpsc::SyncSender<Message<Record>>,
     handler: Option<std::thread::JoinHandle<()>>,
 }
 
