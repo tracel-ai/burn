@@ -15,7 +15,6 @@ use burn_core::record::FileRecorder;
 use burn_core::tensor::backend::ADBackend;
 
 use crate::learner::base::TrainingInterrupter;
-use std::sync::Arc;
 
 /// Struct to configure and create a [learner](Learner).
 pub struct LearnerBuilder<B, T, V, M, O, S>
@@ -45,14 +44,14 @@ where
     log_to_file: bool,
 }
 
-impl<B, T, V, Model, Optim, LR> LearnerBuilder<B, T, V, Model, Optim, LR>
+impl<B, T, V, M, O, S> LearnerBuilder<B, T, V, M, O, S>
 where
+    B: ADBackend,
     T: Send + Sync + 'static,
     V: Send + Sync + 'static,
-    B: ADBackend,
-    Model: ADModule<B> + core::fmt::Display + 'static,
-    Optim: Optimizer<Model, B>,
-    LR: LrScheduler,
+    M: ADModule<B> + core::fmt::Display + 'static,
+    O: Optimizer<M, B>,
+    S: LrScheduler,
 {
     /// Creates a new learner builder.
     ///
@@ -106,9 +105,9 @@ where
     }
 
     /// Register a training metric.
-    pub fn metric_train<M: Metric + 'static>(mut self, metric: M) -> Self
+    pub fn metric_train<Me: Metric + 'static>(mut self, metric: Me) -> Self
     where
-        T: Adaptor<M::Input>,
+        T: Adaptor<Me::Input>,
     {
         self.metrics
             .train
@@ -117,9 +116,9 @@ where
     }
 
     /// Register a validation metric.
-    pub fn metric_valid<M: Metric + 'static>(mut self, metric: M) -> Self
+    pub fn metric_valid<Me: Metric + 'static>(mut self, metric: Me) -> Self
     where
-        V: Adaptor<M::Input>,
+        V: Adaptor<Me::Input>,
     {
         self.metrics
             .valid
@@ -149,10 +148,10 @@ where
     /// Only [numeric](crate::metric::Numeric) metric can be displayed on a plot.
     /// If the same metric is also registered for the [validation split](Self::metric_valid_plot),
     /// the same graph will be used for both.
-    pub fn metric_train_plot<M>(mut self, metric: M) -> Self
+    pub fn metric_train_plot<Me>(mut self, metric: Me) -> Self
     where
-        M: Metric + crate::metric::Numeric + 'static,
-        T: Adaptor<M::Input>,
+        Me: Metric + crate::metric::Numeric + 'static,
+        T: Adaptor<Me::Input>,
     {
         self.metrics
             .train_numeric
@@ -167,12 +166,12 @@ where
     /// Only [numeric](crate::metric::Numeric) metric can be displayed on a plot.
     /// If the same metric is also registered for the [training split](Self::metric_train_plot),
     /// the same graph will be used for both.
-    pub fn metric_valid_plot<M: Metric + crate::metric::Numeric + 'static>(
+    pub fn metric_valid_plot<Me: Metric + crate::metric::Numeric + 'static>(
         mut self,
-        metric: M,
+        metric: Me,
     ) -> Self
     where
-        V: Adaptor<M::Input>,
+        V: Adaptor<Me::Input>,
     {
         self.metrics
             .valid_numeric
@@ -220,28 +219,28 @@ where
     pub fn with_file_checkpointer<FR>(mut self, num_keep: usize, recorder: FR) -> Self
     where
         FR: FileRecorder + 'static,
-        Optim::Record: 'static,
-        Model::Record: 'static,
-        LR::Record: 'static,
+        O::Record: 'static,
+        M::Record: 'static,
+        S::Record: 'static,
     {
-        let checkpointer_model = Arc::new(FileCheckpointer::new(
+        let checkpointer_model = FileCheckpointer::new(
             recorder.clone(),
             format!("{}/checkpoint", self.directory).as_str(),
             "model",
             num_keep,
-        ));
-        let checkpointer_optimizer = Arc::new(FileCheckpointer::new(
+        );
+        let checkpointer_optimizer = FileCheckpointer::new(
             recorder.clone(),
             format!("{}/checkpoint", self.directory).as_str(),
             "optim",
             num_keep,
-        ));
-        let checkpointer_scheduler = Arc::new(FileCheckpointer::new(
+        );
+        let checkpointer_scheduler = FileCheckpointer::new(
             recorder,
             format!("{}/checkpoint", self.directory).as_str(),
             "scheduler",
             num_keep,
-        ));
+        );
 
         self.checkpointers = Some((
             AsyncCheckpointer::new(checkpointer_model),
@@ -257,25 +256,25 @@ where
     /// [learning rate](burn_core::LearningRate).
     pub fn build(
         self,
-        model: Model,
-        optim: Optim,
-        lr_scheduler: LR,
+        model: M,
+        optim: O,
+        lr_scheduler: S,
     ) -> Learner<
         TrainingComponentsMarker<
             B,
-            LR,
-            Model,
-            Optim,
-            AsyncCheckpointer<Model::Record>,
-            AsyncCheckpointer<Optim::Record>,
-            AsyncCheckpointer<LR::Record>,
+            S,
+            M,
+            O,
+            AsyncCheckpointer<M::Record>,
+            AsyncCheckpointer<O::Record>,
+            AsyncCheckpointer<S::Record>,
             AsyncTrainerCallback<T, V>,
         >,
     >
     where
-        Model::Record: 'static,
-        Optim::Record: 'static,
-        LR::Record: 'static,
+        M::Record: 'static,
+        O::Record: 'static,
+        S::Record: 'static,
     {
         if self.log_to_file {
             self.init_logger();
