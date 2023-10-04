@@ -1,45 +1,55 @@
 /// CPU Temperature metric
-use super::MetricMetadata;
+use super::{MetricMetadata, Numeric};
 use crate::metric::{Metric, MetricEntry};
 use systemstat::{Platform, System};
 
-static NAME: &str = "CPU_TEMP";
-
 /// CPU Temperature in celsius degrees
-pub struct CpuTemp {
+pub struct CpuTemperature {
     temp_celsius: f32,
+    sys: System,
 }
 
-impl CpuTemp {
+impl CpuTemperature {
     /// Creates a new CPU temp metric
     pub fn new() -> Self {
-        Self { temp_celsius: 0. }
+        Self {
+            temp_celsius: 0.,
+            sys: System::new(),
+        }
     }
 }
 
-impl Default for CpuTemp {
+impl Default for CpuTemperature {
     fn default() -> Self {
-        CpuTemp::new()
+        CpuTemperature::new()
     }
 }
 
-impl Metric for CpuTemp {
+impl Metric for CpuTemperature {
+    const NAME: &'static str = "CPU Temperature";
+
     type Input = ();
 
     fn update(&mut self, _item: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
-        let sys = System::new();
-
-        match sys.cpu_temp() {
+        match self.sys.cpu_temp() {
             Ok(temp) => self.temp_celsius = temp,
             Err(_) => self.temp_celsius = f32::NAN,
         }
 
-        let formatted = format!("CPU Temp: {:.2}°C", self.temp_celsius);
-
+        let formatted = match self.temp_celsius.is_nan() {
+            true => format!("{}: NaN °C", Self::NAME),
+            false => format!("{}: {:.2} °C", Self::NAME, self.temp_celsius),
+        };
         let raw = format!("{:.2}", self.temp_celsius);
 
-        MetricEntry::new(NAME.to_string(), formatted, raw)
+        MetricEntry::new(Self::NAME.to_string(), formatted, raw)
     }
 
     fn clear(&mut self) {}
+}
+
+impl Numeric for CpuTemperature {
+    fn value(&self) -> f64 {
+        self.temp_celsius as f64
+    }
 }

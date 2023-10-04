@@ -5,6 +5,7 @@ use burn::module::Module;
 use burn::optim::decay::WeightDecayConfig;
 use burn::optim::AdamConfig;
 use burn::record::{CompactRecorder, NoStdTrainingRecorder};
+use burn::train::metric::{CpuMemory, CpuTemperature, CpuUse};
 use burn::{
     config::Config,
     data::{dataloader::DataLoaderBuilder, dataset::source::huggingface::MNISTDataset},
@@ -59,6 +60,12 @@ pub fn run<B: ADBackend>(device: B::Device) {
     let learner = LearnerBuilder::new(ARTIFACT_DIR)
         .metric_train_plot(AccuracyMetric::new())
         .metric_valid_plot(AccuracyMetric::new())
+        .metric_train_plot(CpuUse::new())
+        .metric_valid_plot(CpuUse::new())
+        .metric_train_plot(CpuMemory::new())
+        .metric_valid_plot(CpuMemory::new())
+        .metric_train_plot(CpuTemperature::new())
+        .metric_valid_plot(CpuTemperature::new())
         .metric_train_plot(LossMetric::new())
         .metric_valid_plot(LossMetric::new())
         .with_file_checkpointer(1, CompactRecorder::new())
