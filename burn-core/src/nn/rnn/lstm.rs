@@ -122,8 +122,7 @@ impl<B: Backend> Lstm<B> {
         batched_input: Tensor<B, 3>,
         state: Option<(Tensor<B, 2>, Tensor<B, 2>)>,
     ) -> (Tensor<B, 3>, Tensor<B, 3>) {
-        let batch_size = batched_input.shape().dims[0];
-        let seq_length = batched_input.shape().dims[1];
+        let [batch_size, seq_length, _] = batched_input.shape().dims;
         let mut batched_cell_state = Tensor::zeros([batch_size, seq_length, self.d_hidden]);
         let mut batched_hidden_state = Tensor::zeros([batch_size, seq_length, self.d_hidden]);
 
