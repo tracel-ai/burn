@@ -27,6 +27,10 @@ fn main(
     let kernel_size_1 = info[10];  
     let stride_0 = info[11];
     let stride_1 = info[12];
+    let padding_0 = info[13];
+    let padding_1 = info[14];
+    let dilation_0 = info[15];
+    let dilation_1 = info[16];
 
     // Determine the current position to process
     let b = global_id.x;
@@ -40,15 +44,18 @@ fn main(
     for (var c = 0u; c < input_shape_1; c++) {
         for (var kh = 0u; kh < kernel_size_0; kh++) {
             for (var kw = 0u; kw < kernel_size_1; kw++) {
-                let ih = h * stride_0 + kh;
-                let iw = w * stride_1 + kw;
+                let ih = h * stride_0 + kh * dilation_0 - padding_0;
+                let iw = w * stride_1 + kw * dilation_1 - padding_1;
 
                 // Boundary check
-                if ih < input_shape_2 && iw < input_shape_3 {
+                if ih >= 0u && ih < input_shape_2 && iw >= 0u && iw < input_shape_3 {
                     let index_input = b * input_shape_1 * input_shape_2 * input_shape_3 + c * input_shape_2 * input_shape_3 + ih * input_shape_3 + iw;
 
                     // Place the value from input into the correct position in the unfolded output tensor
                     output[output_idx] = input[index_input];
+                } else {
+                    // Set to zero, we're in a padded region
+                    output[output_idx] = 0.0;
                 }
                 output_idx += 1u;
             }
