@@ -4,6 +4,7 @@ use crate::{
 };
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
+use burn_tensor::benchmark::BenchmarkResult;
 use core::marker::PhantomData;
 
 /// The ComputeClient is the entry point to require tasks from the ComputeServer.
@@ -58,6 +59,10 @@ where
     /// Executes the `kernel` over the given `handles`.
     pub fn execute(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]) {
         self.channel.execute(kernel, handles)
+    }
+
+    pub fn bench(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]) -> BenchmarkResult {
+        self.channel.bench(kernel, handles)
     }
 
     /// Wait for the completion of every task in the server.

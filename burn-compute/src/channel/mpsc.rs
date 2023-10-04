@@ -4,6 +4,7 @@ use std::{
 };
 
 use burn_common::reader::Reader;
+use burn_tensor::benchmark::BenchmarkResult;
 
 use super::ComputeChannel;
 use crate::server::{ComputeServer, Handle};
@@ -37,6 +38,7 @@ where
     Create(Vec<u8>, Callback<Handle<Server>>),
     Empty(usize, Callback<Handle<Server>>),
     Execute(Server::Kernel, Vec<Handle<Server>>),
+    Bench(Server::Kernel, Vec<Handle<Server>>),
     Sync(Callback<()>),
 }
 
@@ -66,6 +68,9 @@ where
                     }
                     Message::Execute(kernel, handles) => {
                         server.execute(kernel, &handles.iter().collect::<Vec<_>>());
+                    }
+                    Message::Bench(kernel, handles) => {
+                        server.bench(kernel, &handles.iter().collect::<Vec<_>>());
                     }
                     Message::Sync(callback) => {
                         server.sync();
@@ -137,6 +142,23 @@ where
                     .collect::<Vec<Handle<Server>>>(),
             ))
             .unwrap()
+    }
+
+    fn bench(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]) -> BenchmarkResult {
+        let (callback, response) = mpsc::sync_channel(1);
+
+        self.state
+            .sender
+            .send(Message::Execute(
+                kernel,
+                handles
+                    .iter()
+                    .map(|h| (*h).clone())
+                    .collect::<Vec<Handle<Server>>>(),
+            ))
+            .unwrap();
+
+        self.response(response)
     }
 
     fn sync(&self) {

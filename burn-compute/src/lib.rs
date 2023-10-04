@@ -14,6 +14,8 @@ mod id;
 pub mod channel;
 /// Compute client module.
 pub mod client;
+/// TODO
+pub mod tune;
 
 /// Memory management module.
 pub mod memory_management;

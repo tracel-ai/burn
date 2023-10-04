@@ -4,6 +4,7 @@ use crate::{
 };
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
+use burn_tensor::benchmark::BenchmarkResult;
 
 /// The compute server is responsible for handling resources and computations over resources.
 ///
@@ -34,6 +35,9 @@ where
     /// Kernels have mutable access to every resource they are given
     /// and are responsible of determining which should be read or written.
     fn execute(&mut self, kernel: Self::Kernel, handles: &[&Handle<Self>]);
+
+    /// TODO
+    fn bench(&mut self, kernel: Self::Kernel, handles: &[&Handle<Self>]) -> BenchmarkResult;
 
     /// Wait for the completion of every task in the server.
     fn sync(&mut self);

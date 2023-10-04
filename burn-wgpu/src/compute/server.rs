@@ -339,4 +339,12 @@ where
 
         self.device.poll(wgpu::Maintain::Wait);
     }
+
+    fn bench(
+        &mut self,
+        kernel: Self::Kernel,
+        handles: &[&server::Handle<Self>],
+    ) -> burn_tensor::benchmark::BenchmarkResult {
+        todo!()
+    }
 }

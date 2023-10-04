@@ -3,6 +3,7 @@ use crate::server::{ComputeServer, Handle};
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
+use burn_tensor::benchmark::BenchmarkResult;
 use spin::Mutex;
 
 /// The MutexComputeChannel ensures thread-safety by locking the server
@@ -49,6 +50,10 @@ where
 
     fn execute(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]) {
         self.server.lock().execute(kernel, handles)
+    }
+
+    fn bench(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]) -> BenchmarkResult {
+        self.server.lock().bench(kernel, handles)
     }
 
     fn sync(&self) {

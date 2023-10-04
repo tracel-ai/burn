@@ -1,6 +1,7 @@
 use crate::server::{ComputeServer, Handle};
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
+use burn_tensor::benchmark::BenchmarkResult;
 
 /// The ComputeChannel trait links the ComputeClient to the ComputeServer
 /// while ensuring thread-safety
@@ -16,6 +17,8 @@ pub trait ComputeChannel<Server: ComputeServer>: Clone + core::fmt::Debug {
 
     /// Executes the `kernel` over the given `handles`.
     fn execute(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]);
+
+    fn bench(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]) -> BenchmarkResult;
 
     /// Wait for the completion of every task in the server.
     fn sync(&self);
