@@ -1,13 +1,13 @@
 use super::log::install_file_logger;
 use super::Learner;
 use crate::checkpoint::{AsyncCheckpointer, FileCheckpointer};
-use crate::components::TrainingComponentsMarker;
+use crate::components::LearnerComponentsMarker;
 use crate::logger::{FileMetricLogger, MetricLogger};
-use crate::metric::dashboard::{
-    default_renderer, Dashboard, DashboardRenderer, MetricWrapper, Metrics,
+use crate::metric::callback::{
+    default_renderer, MetricWrapper, Metrics, MetricsCallback, MetricsRenderer,
 };
 use crate::metric::{Adaptor, Metric};
-use crate::{AsyncTrainerCallback, TrainingCheckpointer};
+use crate::{AsyncTrainerCallback, LearnerCheckpointer};
 use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::ADModule;
 use burn_core::optim::Optimizer;
@@ -38,7 +38,7 @@ where
     devices: Vec<B::Device>,
     metric_logger_train: Option<Box<dyn MetricLogger + 'static>>,
     metric_logger_valid: Option<Box<dyn MetricLogger + 'static>>,
-    renderer: Option<Box<dyn DashboardRenderer + 'static>>,
+    renderer: Option<Box<dyn MetricsRenderer + 'static>>,
     metrics: Metrics<T, V>,
     interrupter: TrainingInterrupter,
     log_to_file: bool,
@@ -98,7 +98,7 @@ where
     /// * `renderer` - The custom renderer.
     pub fn renderer<DR>(mut self, renderer: DR) -> Self
     where
-        DR: DashboardRenderer + 'static,
+        DR: MetricsRenderer + 'static,
     {
         self.renderer = Some(Box::new(renderer));
         self
@@ -260,7 +260,7 @@ where
         optim: O,
         lr_scheduler: S,
     ) -> Learner<
-        TrainingComponentsMarker<
+        LearnerComponentsMarker<
             B,
             S,
             M,
@@ -289,13 +289,16 @@ where
         let logger_valid = self.metric_logger_valid.unwrap_or_else(|| {
             Box::new(FileMetricLogger::new(format!("{directory}/valid").as_str()))
         });
-        let dashboard = Dashboard::new(renderer, self.metrics, logger_train, logger_valid);
-        let callback = Box::new(dashboard);
-        let callback = AsyncTrainerCallback::new(callback);
+        let callback = AsyncTrainerCallback::new(MetricsCallback::new(
+            renderer,
+            self.metrics,
+            logger_train,
+            logger_valid,
+        ));
 
         let checkpointer = self
             .checkpointers
-            .map(|(model, optim, scheduler)| TrainingCheckpointer::new(model, optim, scheduler));
+            .map(|(model, optim, scheduler)| LearnerCheckpointer::new(model, optim, scheduler));
 
         Learner {
             model,

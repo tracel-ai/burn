@@ -4,7 +4,7 @@ use super::{
 use ratatui::prelude::{Constraint, Direction, Layout, Rect};
 
 #[derive(new)]
-pub(crate) struct DashboardView<'a> {
+pub(crate) struct MetricsView<'a> {
     metric_numeric: NumericMetricView<'a>,
     metric_text: TextMetricView,
     progress: ProgressBarView,
@@ -12,7 +12,7 @@ pub(crate) struct DashboardView<'a> {
     status: StatusView,
 }
 
-impl<'a> DashboardView<'a> {
+impl<'a> MetricsView<'a> {
     pub(crate) fn render(self, frame: &mut TerminalFrame<'_>, size: Rect) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)

@@ -1,4 +1,4 @@
-use crate::metric::dashboard::TrainingProgress;
+use crate::metric::callback::TrainingProgress;
 
 use super::{FullHistoryPlot, RecentHistoryPlot, TerminalFrame};
 use crossterm::event::{Event, KeyCode};

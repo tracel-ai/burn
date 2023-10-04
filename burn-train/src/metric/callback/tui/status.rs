@@ -1,5 +1,5 @@
 use super::TerminalFrame;
-use crate::metric::dashboard::TrainingProgress;
+use crate::metric::callback::TrainingProgress;
 use ratatui::{
     prelude::{Alignment, Rect},
     style::{Color, Style, Stylize},

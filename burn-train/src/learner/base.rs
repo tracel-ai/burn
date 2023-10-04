@@ -1,5 +1,5 @@
 use crate::checkpoint::Checkpointer;
-use crate::components::TrainingComponents;
+use crate::components::LearnerComponents;
 use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::Module;
 use burn_core::optim::Optimizer;
@@ -10,32 +10,32 @@ use std::sync::Arc;
 /// Learner struct encapsulating all components necessary to train a Neural Network model.
 ///
 /// To create a learner, use the [builder](crate::learner::LearnerBuilder) struct.
-pub struct Learner<T: TrainingComponents> {
-    pub(crate) model: T::Model,
-    pub(crate) optim: T::Optimizer,
-    pub(crate) lr_scheduler: T::LrScheduler,
+pub struct Learner<C: LearnerComponents> {
+    pub(crate) model: C::Model,
+    pub(crate) optim: C::Optimizer,
+    pub(crate) lr_scheduler: C::LrScheduler,
     pub(crate) num_epochs: usize,
     pub(crate) checkpoint: Option<usize>,
     pub(crate) grad_accumulation: Option<usize>,
-    pub(crate) checkpointer: Option<TrainingCheckpointer<T>>,
-    pub(crate) devices: Vec<<T::Backend as Backend>::Device>,
-    pub(crate) callback: T::Callback,
+    pub(crate) checkpointer: Option<LearnerCheckpointer<C>>,
+    pub(crate) devices: Vec<<C::Backend as Backend>::Device>,
+    pub(crate) callback: C::Callback,
     pub(crate) interrupter: TrainingInterrupter,
 }
 
 #[derive(new)]
-pub(crate) struct TrainingCheckpointer<T: TrainingComponents> {
-    model: T::CheckpointerModel,
-    optim: T::CheckpointerOptimizer,
-    lr_scheduler: T::CheckpointerLrScheduler,
+pub(crate) struct LearnerCheckpointer<C: LearnerComponents> {
+    model: C::CheckpointerModel,
+    optim: C::CheckpointerOptimizer,
+    lr_scheduler: C::CheckpointerLrScheduler,
 }
 
-impl<T: TrainingComponents> TrainingCheckpointer<T> {
+impl<C: LearnerComponents> LearnerCheckpointer<C> {
     pub(crate) fn checkpoint(
         &self,
-        model: &T::Model,
-        optim: &T::Optimizer,
-        scheduler: &T::LrScheduler,
+        model: &C::Model,
+        optim: &C::Optimizer,
+        scheduler: &C::LrScheduler,
         epoch: usize,
     ) {
         self.model.save(epoch, model.clone().into_record()).unwrap();
@@ -47,11 +47,11 @@ impl<T: TrainingComponents> TrainingCheckpointer<T> {
 
     pub(crate) fn load_checkpoint(
         &self,
-        model: T::Model,
-        optim: T::Optimizer,
-        scheduler: T::LrScheduler,
+        model: C::Model,
+        optim: C::Optimizer,
+        scheduler: C::LrScheduler,
         epoch: usize,
-    ) -> (T::Model, T::Optimizer, T::LrScheduler) {
+    ) -> (C::Model, C::Optimizer, C::LrScheduler) {
         let record = self.model.restore(epoch).unwrap();
         let model = model.load_record(record);
 

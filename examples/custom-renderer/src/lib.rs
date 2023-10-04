@@ -1,5 +1,5 @@
 use burn::data::dataset::source::huggingface::MNISTDataset;
-use burn::train::metric::dashboard::{DashboardMetricState, DashboardRenderer, TrainingProgress};
+use burn::train::metric::callback::{MetricState, MetricsRenderer, TrainingProgress};
 use burn::train::LearnerBuilder;
 use burn::{
     config::Config, data::dataloader::DataLoaderBuilder, optim::AdamConfig,
@@ -25,10 +25,10 @@ pub struct MnistTrainingConfig {
 
 struct CustomRenderer {}
 
-impl DashboardRenderer for CustomRenderer {
-    fn update_train(&mut self, _state: DashboardMetricState) {}
+impl MetricsRenderer for CustomRenderer {
+    fn update_train(&mut self, _state: MetricState) {}
 
-    fn update_valid(&mut self, _state: DashboardMetricState) {}
+    fn update_valid(&mut self, _state: MetricState) {}
 
     fn render_train(&mut self, item: TrainingProgress) {
         dbg!(item);

@@ -8,7 +8,7 @@ use burn_core::{
 use std::marker::PhantomData;
 
 /// All components necessary to train a model grouped in one trait.
-pub trait TrainingComponents {
+pub trait LearnerComponents {
     /// The backend in used for the training.
     type Backend: ADBackend;
     /// The learning rate scheduler used for the training.
@@ -29,8 +29,34 @@ pub trait TrainingComponents {
     type Callback: LearnerCallback + 'static;
 }
 
-/// Concrete type that implement [training components trait](TrainingComponents).
-pub struct TrainingComponentsMarker<B, LR, M, O, CM, CO, CS, C> {
+// pub trait DataComponents {
+//     type InputTrain: Send + 'static;
+//     type InputValid: Send + 'static;
+//     type OutputTrain: Send + 'static;
+//     type OutputValid: Send + 'static;
+// }
+//
+// pub(crate) type Backend<T> = <<T as TrainingComponents>::Learner as LearnerComponents>::Backend;
+// pub(crate) type Model<T> = <<T as TrainingComponents>::Learner as LearnerComponents>::Model;
+// pub(crate) type InnerModel<T> = <<<T as TrainingComponents>::Learner as LearnerComponents>::Model as ADModule<Backend<T>>>::InnerModule;
+// pub(crate) type Callback<T> = <<T as TrainingComponents>::Learner as LearnerComponents>::Callback;
+// pub(crate) type InputTrain<T> = <<T as TrainingComponents>::Data as DataComponents>::InputTrain;
+// pub(crate) type InputValid<T> = <<T as TrainingComponents>::Data as DataComponents>::InputValid;
+// pub(crate) type OutputTrain<T> = <<T as TrainingComponents>::Data as DataComponents>::OutputTrain;
+// pub(crate) type OutputValid<T> = <<T as TrainingComponents>::Data as DataComponents>::OutputValid;
+//
+// pub trait TrainingComponents
+// where
+//     Model<Self>: TrainStep<InputTrain<Self>, OutputTrain<Self>>,
+//     InnerModel<Self>: ValidStep<InputValid<Self>, OutputValid<Self>>,
+//     Callback<Self>: LearnerCallback<ItemTrain = OutputTrain<Self>, ItemValid = OutputValid<Self>>,
+// {
+//     type Learner: LearnerComponents + TrainStep<InputTrain<Self>, OutputTrain<Self>>;
+//     type Data: DataComponents;
+// }
+
+/// Concrete type that implements [training components trait](TrainingComponents).
+pub struct LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, C> {
     _backend: PhantomData<B>,
     _lr_scheduler: PhantomData<LR>,
     _model: PhantomData<M>,
@@ -41,8 +67,8 @@ pub struct TrainingComponentsMarker<B, LR, M, O, CM, CO, CS, C> {
     _callback: PhantomData<C>,
 }
 
-impl<B, LR, M, O, CM, CO, CS, C> TrainingComponents
-    for TrainingComponentsMarker<B, LR, M, O, CM, CO, CS, C>
+impl<B, LR, M, O, CM, CO, CS, C> LearnerComponents
+    for LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, C>
 where
     B: ADBackend,
     LR: LrScheduler,

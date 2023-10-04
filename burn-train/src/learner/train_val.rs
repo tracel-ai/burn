@@ -1,4 +1,4 @@
-use crate::components::TrainingComponents;
+use crate::components::LearnerComponents;
 use crate::{Learner, LearnerCallback, TrainEpoch, ValidEpoch};
 use burn_core::data::dataloader::DataLoader;
 use burn_core::module::{ADModule, Module};
@@ -92,7 +92,7 @@ pub trait ValidStep<VI, VO> {
     fn step(&self, item: VI) -> VO;
 }
 
-impl<T: TrainingComponents> Learner<T> {
+impl<T: LearnerComponents> Learner<T> {
     /// Fits the model.
     ///
     /// # Arguments

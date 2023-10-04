@@ -1,5 +1,5 @@
-use crate::metric::dashboard::tui::NumericMetricsState;
-use crate::metric::dashboard::{DashboardMetricState, DashboardRenderer, TrainingProgress};
+use crate::metric::callback::tui::NumericMetricsState;
+use crate::metric::callback::{MetricState, MetricsRenderer, TrainingProgress};
 use crate::TrainingInterrupter;
 use crossterm::{
     event::{self, Event, KeyCode},
@@ -14,7 +14,7 @@ use std::{
 };
 
 use super::{
-    Callback, CallbackFn, ControlsView, DashboardView, PopupState, ProgressBarState, StatusState,
+    Callback, CallbackFn, ControlsView, MetricsView, PopupState, ProgressBarState, StatusState,
     TextMetricsState,
 };
 
@@ -25,8 +25,8 @@ pub(crate) type TerminalFrame<'a> = ratatui::Frame<'a, TerminalBackend>;
 
 const MAX_REFRESH_RATE_MILLIS: u64 = 100;
 
-/// The CLI dashboard renderer.
-pub struct TuiDashboardRenderer {
+/// The terminal UI metrics renderer.
+pub struct TuiMetricsRenderer {
     terminal: Terminal<TerminalBackend>,
     last_update: std::time::Instant,
     progress: ProgressBarState,
@@ -37,25 +37,25 @@ pub struct TuiDashboardRenderer {
     popup: PopupState,
 }
 
-impl DashboardRenderer for TuiDashboardRenderer {
-    fn update_train(&mut self, state: DashboardMetricState) {
+impl MetricsRenderer for TuiMetricsRenderer {
+    fn update_train(&mut self, state: MetricState) {
         match state {
-            DashboardMetricState::Generic(entry) => {
+            MetricState::Generic(entry) => {
                 self.metrics_text.update_train(entry);
             }
-            DashboardMetricState::Numeric(entry, value) => {
+            MetricState::Numeric(entry, value) => {
                 self.metrics_numeric.push_train(entry.name.clone(), value);
                 self.metrics_text.update_train(entry);
             }
         };
     }
 
-    fn update_valid(&mut self, state: DashboardMetricState) {
+    fn update_valid(&mut self, state: MetricState) {
         match state {
-            DashboardMetricState::Generic(entry) => {
+            MetricState::Generic(entry) => {
                 self.metrics_text.update_valid(entry);
             }
-            DashboardMetricState::Numeric(entry, value) => {
+            MetricState::Numeric(entry, value) => {
                 self.metrics_numeric.push_valid(entry.name.clone(), value);
                 self.metrics_text.update_valid(entry);
             }
@@ -77,8 +77,8 @@ impl DashboardRenderer for TuiDashboardRenderer {
     }
 }
 
-impl TuiDashboardRenderer {
-    /// Create a new CLI dashboard renderer.
+impl TuiMetricsRenderer {
+    /// Create a new terminal UI renderer.
     pub fn new(interuptor: TrainingInterrupter, checkpoint: Option<usize>) -> Self {
         let mut stdout = io::stdout();
         execute!(stdout, EnterAlternateScreen).unwrap();
@@ -118,7 +118,7 @@ impl TuiDashboardRenderer {
             match self.popup.view() {
                 Some(view) => view.render(frame, size),
                 None => {
-                    let view = DashboardView::new(
+                    let view = MetricsView::new(
                         self.metrics_numeric.view(),
                         self.metrics_text.view(),
                         self.progress.view(),
@@ -194,7 +194,7 @@ impl CallbackFn for PopupCancel {
     }
 }
 
-impl Drop for TuiDashboardRenderer {
+impl Drop for TuiMetricsRenderer {
     fn drop(&mut self) {
         disable_raw_mode().ok();
         execute!(self.terminal.backend_mut(), LeaveAlternateScreen).unwrap();
