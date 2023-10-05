@@ -2,6 +2,7 @@ use super::log::install_file_logger;
 use super::Learner;
 use crate::checkpoint::{AsyncCheckpointer, FileCheckpointer};
 use crate::components::LearnerComponentsMarker;
+use crate::learner::base::TrainingInterrupter;
 use crate::logger::{FileMetricLogger, MetricLogger};
 use crate::metric::callback::{
     default_renderer, MetricWrapper, Metrics, MetricsCallback, MetricsRenderer,
@@ -14,8 +15,6 @@ use burn_core::optim::Optimizer;
 use burn_core::record::FileRecorder;
 use burn_core::tensor::backend::ADBackend;
 
-use crate::learner::base::TrainingInterrupter;
-
 /// Struct to configure and create a [learner](Learner).
 pub struct LearnerBuilder<B, T, V, M, O, S>
 where
@@ -26,6 +25,10 @@ where
     O: Optimizer<M, B>,
     S: LrScheduler,
 {
+    // Not that complex and very convenient when the traits are
+    // already constrained correctly. Extracting in another type
+    // would be more complex.
+    #[allow(clippy::type_complexity)]
     checkpointers: Option<(
         AsyncCheckpointer<M::Record>,
         AsyncCheckpointer<O::Record>,
@@ -254,6 +257,8 @@ where
     /// Create the [learner](Learner) from a [model](ADModule) and an [optimizer](Optimizer).
     /// The [learning rate scheduler](LRScheduler) can also be a simple
     /// [learning rate](burn_core::LearningRate).
+    #[allow(clippy::type_complexity)] // The goal for the builder is to handle all types and
+                                      // creates a clean learner.
     pub fn build(
         self,
         model: M,
