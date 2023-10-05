@@ -10,32 +10,32 @@ use std::sync::Arc;
 /// Learner struct encapsulating all components necessary to train a Neural Network model.
 ///
 /// To create a learner, use the [builder](crate::learner::LearnerBuilder) struct.
-pub struct Learner<C: LearnerComponents> {
-    pub(crate) model: C::Model,
-    pub(crate) optim: C::Optimizer,
-    pub(crate) lr_scheduler: C::LrScheduler,
+pub struct Learner<LC: LearnerComponents> {
+    pub(crate) model: LC::Model,
+    pub(crate) optim: LC::Optimizer,
+    pub(crate) lr_scheduler: LC::LrScheduler,
     pub(crate) num_epochs: usize,
     pub(crate) checkpoint: Option<usize>,
     pub(crate) grad_accumulation: Option<usize>,
-    pub(crate) checkpointer: Option<LearnerCheckpointer<C>>,
-    pub(crate) devices: Vec<<C::Backend as Backend>::Device>,
-    pub(crate) callback: C::Callback,
+    pub(crate) checkpointer: Option<LearnerCheckpointer<LC>>,
+    pub(crate) devices: Vec<<LC::Backend as Backend>::Device>,
+    pub(crate) callback: LC::Callback,
     pub(crate) interrupter: TrainingInterrupter,
 }
 
 #[derive(new)]
-pub(crate) struct LearnerCheckpointer<C: LearnerComponents> {
-    model: C::CheckpointerModel,
-    optim: C::CheckpointerOptimizer,
-    lr_scheduler: C::CheckpointerLrScheduler,
+pub(crate) struct LearnerCheckpointer<LC: LearnerComponents> {
+    model: LC::CheckpointerModel,
+    optim: LC::CheckpointerOptimizer,
+    lr_scheduler: LC::CheckpointerLrScheduler,
 }
 
-impl<C: LearnerComponents> LearnerCheckpointer<C> {
+impl<LC: LearnerComponents> LearnerCheckpointer<LC> {
     pub(crate) fn checkpoint(
         &self,
-        model: &C::Model,
-        optim: &C::Optimizer,
-        scheduler: &C::LrScheduler,
+        model: &LC::Model,
+        optim: &LC::Optimizer,
+        scheduler: &LC::LrScheduler,
         epoch: usize,
     ) {
         self.model.save(epoch, model.clone().into_record()).unwrap();
@@ -47,11 +47,11 @@ impl<C: LearnerComponents> LearnerCheckpointer<C> {
 
     pub(crate) fn load_checkpoint(
         &self,
-        model: C::Model,
-        optim: C::Optimizer,
-        scheduler: C::LrScheduler,
+        model: LC::Model,
+        optim: LC::Optimizer,
+        scheduler: LC::LrScheduler,
         epoch: usize,
-    ) -> (C::Model, C::Optimizer, C::LrScheduler) {
+    ) -> (LC::Model, LC::Optimizer, LC::LrScheduler) {
         let record = self.model.restore(epoch).unwrap();
         let model = model.load_record(record);
 

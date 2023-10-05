@@ -99,9 +99,9 @@ where
     /// # Arguments
     ///
     /// * `renderer` - The custom renderer.
-    pub fn renderer<DR>(mut self, renderer: DR) -> Self
+    pub fn renderer<MR>(mut self, renderer: MR) -> Self
     where
-        DR: MetricsRenderer + 'static,
+        MR: MetricsRenderer + 'static,
     {
         self.renderer = Some(Box::new(renderer));
         self
@@ -255,7 +255,7 @@ where
     }
 
     /// Create the [learner](Learner) from a [model](ADModule) and an [optimizer](Optimizer).
-    /// The [learning rate scheduler](LRScheduler) can also be a simple
+    /// The [learning rate scheduler](LrScheduler) can also be a simple
     /// [learning rate](burn_core::LearningRate).
     #[allow(clippy::type_complexity)] // The goal for the builder is to handle all types and
                                       // creates a clean learner.

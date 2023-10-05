@@ -12,7 +12,7 @@ use crate::{
 use burn::{
     config::Config,
     data::{dataloader::DataLoaderBuilder, dataset::transform::SamplerDataset},
-    lr_scheduler::noam::NoamLRSchedulerConfig,
+    lr_scheduler::noam::NoamLrSchedulerConfig,
     module::Module,
     nn::transformer::TransformerEncoderConfig,
     optim::AdamConfig,
@@ -84,7 +84,7 @@ pub fn train<B: ADBackend, D: TextClassificationDataset + 'static>(
     let optim = config.optimizer.init();
 
     // Initialize learning rate scheduler
-    let lr_scheduler = NoamLRSchedulerConfig::new(0.25)
+    let lr_scheduler = NoamLrSchedulerConfig::new(0.25)
         .with_warmup_steps(1000)
         .with_model_size(config.transformer.d_model)
         .init();

@@ -92,7 +92,7 @@ pub trait ValidStep<VI, VO> {
     fn step(&self, item: VI) -> VO;
 }
 
-impl<T: LearnerComponents> Learner<T> {
+impl<LC: LearnerComponents> Learner<LC> {
     /// Fits the model.
     ///
     /// # Arguments
@@ -107,15 +107,15 @@ impl<T: LearnerComponents> Learner<T> {
         mut self,
         dataloader_train: Arc<dyn DataLoader<InputTrain>>,
         dataloader_valid: Arc<dyn DataLoader<InputValid>>,
-    ) -> T::Model
+    ) -> LC::Model
     where
         InputTrain: Send + 'static,
         InputValid: Send,
         OutputTrain: Send + 'static,
         OutputValid: Send,
-        T::Model: TrainStep<InputTrain, OutputTrain>,
-        <T::Model as ADModule<T::Backend>>::InnerModule: ValidStep<InputValid, OutputValid>,
-        T::Callback: LearnerCallback<ItemTrain = OutputTrain, ItemValid = OutputValid>,
+        LC::Model: TrainStep<InputTrain, OutputTrain>,
+        <LC::Model as ADModule<LC::Backend>>::InnerModule: ValidStep<InputValid, OutputValid>,
+        LC::Callback: LearnerCallback<ItemTrain = OutputTrain, ItemValid = OutputValid>,
     {
         log::info!("Fitting {}", self.model.to_string());
         // The reference model is always on the first device provided.
