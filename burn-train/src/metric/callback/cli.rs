@@ -1,16 +1,16 @@
 use crate::metric::callback::{MetricState, MetricsRenderer, TrainingProgress};
 
 /// A simple renderer for when the cli feature is not enabled.
-pub struct CLIMetricsRenderer;
+pub struct CliMetricsRenderer;
 
-impl CLIMetricsRenderer {
+impl CliMetricsRenderer {
     /// Create a new instance.
     pub fn new() -> Self {
         Self {}
     }
 }
 
-impl MetricsRenderer for CLIMetricsRenderer {
+impl MetricsRenderer for CliMetricsRenderer {
     fn update_train(&mut self, _state: MetricState) {}
 
     fn update_valid(&mut self, _state: MetricState) {}

@@ -3,9 +3,9 @@ mod base;
 pub use base::*;
 
 #[cfg(not(feature = "tui"))]
-mod cli_stub;
+mod cli;
 #[cfg(not(feature = "tui"))]
-pub use cli_stub::CLIMetricsRenderer as SelectedMetricsRenderer;
+pub use cli::CliMetricsRenderer as SelectedMetricsRenderer;
 
 #[cfg(feature = "tui")]
 mod tui;

@@ -29,32 +29,6 @@ pub trait LearnerComponents {
     type Callback: LearnerCallback + 'static;
 }
 
-// pub trait DataComponents {
-//     type InputTrain: Send + 'static;
-//     type InputValid: Send + 'static;
-//     type OutputTrain: Send + 'static;
-//     type OutputValid: Send + 'static;
-// }
-//
-// pub(crate) type Backend<T> = <<T as TrainingComponents>::Learner as LearnerComponents>::Backend;
-// pub(crate) type Model<T> = <<T as TrainingComponents>::Learner as LearnerComponents>::Model;
-// pub(crate) type InnerModel<T> = <<<T as TrainingComponents>::Learner as LearnerComponents>::Model as ADModule<Backend<T>>>::InnerModule;
-// pub(crate) type Callback<T> = <<T as TrainingComponents>::Learner as LearnerComponents>::Callback;
-// pub(crate) type InputTrain<T> = <<T as TrainingComponents>::Data as DataComponents>::InputTrain;
-// pub(crate) type InputValid<T> = <<T as TrainingComponents>::Data as DataComponents>::InputValid;
-// pub(crate) type OutputTrain<T> = <<T as TrainingComponents>::Data as DataComponents>::OutputTrain;
-// pub(crate) type OutputValid<T> = <<T as TrainingComponents>::Data as DataComponents>::OutputValid;
-//
-// pub trait TrainingComponents
-// where
-//     Model<Self>: TrainStep<InputTrain<Self>, OutputTrain<Self>>,
-//     InnerModel<Self>: ValidStep<InputValid<Self>, OutputValid<Self>>,
-//     Callback<Self>: LearnerCallback<ItemTrain = OutputTrain<Self>, ItemValid = OutputValid<Self>>,
-// {
-//     type Learner: LearnerComponents + TrainStep<InputTrain<Self>, OutputTrain<Self>>;
-//     type Data: DataComponents;
-// }
-
 /// Concrete type that implements [training components trait](TrainingComponents).
 pub struct LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, C> {
     _backend: PhantomData<B>,
