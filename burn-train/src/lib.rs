@@ -19,6 +19,9 @@ pub mod logger;
 /// The metric module.
 pub mod metric;
 
+/// All informations collected during training.
+pub mod info;
+
 mod callback;
 mod learner;
 

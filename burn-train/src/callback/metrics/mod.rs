@@ -1,3 +1,3 @@
 mod base;
 
-pub use base::*;
+pub(crate) use base::*;

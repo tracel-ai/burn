@@ -1,8 +1,9 @@
 use super::log::install_file_logger;
 use super::Learner;
-use crate::callback::metrics::{Metrics, MetricsCallback};
+use crate::callback::metrics::MetricsCallback;
 use crate::checkpoint::{AsyncCheckpointer, FileCheckpointer};
 use crate::components::LearnerComponentsMarker;
+use crate::info::Metrics;
 use crate::learner::base::TrainingInterrupter;
 use crate::logger::{FileMetricLogger, MetricLogger};
 use crate::metric::{Adaptor, Metric};
@@ -38,12 +39,11 @@ where
     directory: String,
     grad_accumulation: Option<usize>,
     devices: Vec<B::Device>,
-    metric_logger_train: Option<Box<dyn MetricLogger + 'static>>,
-    metric_logger_valid: Option<Box<dyn MetricLogger + 'static>>,
     renderer: Option<Box<dyn MetricsRenderer + 'static>>,
     metrics: Metrics<T, V>,
     interrupter: TrainingInterrupter,
     log_to_file: bool,
+    num_loggers: usize,
 }
 
 impl<B, T, V, M, O, S> LearnerBuilder<B, T, V, M, O, S>
@@ -68,12 +68,11 @@ where
             directory: directory.to_string(),
             grad_accumulation: None,
             devices: vec![B::Device::default()],
-            metric_logger_train: None,
-            metric_logger_valid: None,
             metrics: Metrics::new(),
             renderer: None,
             interrupter: TrainingInterrupter::new(),
             log_to_file: true,
+            num_loggers: 0,
         }
     }
 
@@ -88,8 +87,9 @@ where
         MT: MetricLogger + 'static,
         MV: MetricLogger + 'static,
     {
-        self.metric_logger_train = Some(Box::new(logger_train));
-        self.metric_logger_valid = Some(Box::new(logger_valid));
+        self.metrics.add_logger_train(logger_train);
+        self.metrics.add_logger_valid(logger_valid);
+        self.num_loggers += 1;
         self
     }
 
@@ -251,7 +251,7 @@ where
     #[allow(clippy::type_complexity)] // The goal for the builder is to handle all types and
                                       // creates a clean learner.
     pub fn build(
-        self,
+        mut self,
         model: M,
         optim: O,
         lr_scheduler: S,
@@ -279,18 +279,15 @@ where
             Box::new(default_renderer(self.interrupter.clone(), self.checkpoint))
         });
         let directory = &self.directory;
-        let logger_train = self.metric_logger_train.unwrap_or_else(|| {
-            Box::new(FileMetricLogger::new(format!("{directory}/train").as_str()))
-        });
-        let logger_valid = self.metric_logger_valid.unwrap_or_else(|| {
-            Box::new(FileMetricLogger::new(format!("{directory}/valid").as_str()))
-        });
-        let callback = AsyncTrainerCallback::new(MetricsCallback::new(
-            renderer,
-            self.metrics,
-            logger_train,
-            logger_valid,
-        ));
+
+        if self.num_loggers == 0 {
+            self.metrics
+                .add_logger_train(FileMetricLogger::new(format!("{directory}/train").as_str()));
+            self.metrics
+                .add_logger_valid(FileMetricLogger::new(format!("{directory}/train").as_str()));
+        }
+
+        let callback = AsyncTrainerCallback::new(MetricsCallback::new(renderer, self.metrics));
 
         let checkpointer = self
             .checkpointers
