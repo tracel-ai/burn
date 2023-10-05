@@ -1,0 +1,57 @@
+.container {
+  width: 100%;
+  max-width: 800px;
+  margin: auto;
+}
+
+.selections {
+  display: flex;
+  justify-content: space-between;
+}
+
+.select-box {
+  margin-bottom: 20px;
+}
+
+.file-input-box {
+  margin-bottom: 20px;
+}
+
+.actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 20px;
+}
+
+#chart {
+  border: 1px solid #aaa;
+  /* width: 600px; */
+  /* height: 300px; */
+}
+
+#imageCanvas {
+  border: 1px solid #aaa;
+}
+
+/* Wrapping container for the three boxes */
+.row-container {
+  display: flex;
+  align-items: center; /* Vertically center the content */
+  justify-content: space-between; /* Distributes space between the items */
+  flex-wrap: wrap; /* Allows the flex items to wrap */
+}
+
+.canvas-box,
+.chart-box {
+  flex: 1; /* Takes up equal width */
+}
+
+#time {
+  text-align: center;
+  white-space: nowrap;
+  padding: 10px;
+}
+
+#time > span {
+    font-weight: bold;
+}

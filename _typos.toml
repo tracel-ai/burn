@@ -1,9 +1,8 @@
 [default]
-extend-ignore-identifiers-re = [
-    "ratatui",
-    "NdArray*",
-    "ND"
-]
+extend-ignore-identifiers-re = ["ratatui", "NdArray*", "ND"]
 
 [files]
-extend-exclude = ["assets/ModuleSerialization.xml"]
+extend-exclude = [
+    "assets/ModuleSerialization.xml",
+    "examples/image-classification-web/src/model/label.txt",
+]
