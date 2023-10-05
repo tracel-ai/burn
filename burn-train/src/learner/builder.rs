@@ -1,13 +1,12 @@
 use super::log::install_file_logger;
 use super::Learner;
+use crate::callback::metrics::{Metrics, MetricsCallback};
 use crate::checkpoint::{AsyncCheckpointer, FileCheckpointer};
 use crate::components::LearnerComponentsMarker;
 use crate::learner::base::TrainingInterrupter;
 use crate::logger::{FileMetricLogger, MetricLogger};
-use crate::metric::callback::{
-    default_renderer, MetricWrapper, Metrics, MetricsCallback, MetricsRenderer,
-};
 use crate::metric::{Adaptor, Metric};
+use crate::renderer::{default_renderer, MetricsRenderer};
 use crate::{AsyncTrainerCallback, LearnerCheckpointer};
 use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::ADModule;
@@ -112,9 +111,7 @@ where
     where
         T: Adaptor<Me::Input>,
     {
-        self.metrics
-            .train
-            .push(Box::new(MetricWrapper::new(metric)));
+        self.metrics.add_train(metric);
         self
     }
 
@@ -123,9 +120,7 @@ where
     where
         V: Adaptor<Me::Input>,
     {
-        self.metrics
-            .valid
-            .push(Box::new(MetricWrapper::new(metric)));
+        self.metrics.add_valid(metric);
         self
     }
 
@@ -156,9 +151,7 @@ where
         Me: Metric + crate::metric::Numeric + 'static,
         T: Adaptor<Me::Input>,
     {
-        self.metrics
-            .train_numeric
-            .push(Box::new(MetricWrapper::new(metric)));
+        self.metrics.add_numeric_train(metric);
         self
     }
 
@@ -176,9 +169,7 @@ where
     where
         V: Adaptor<Me::Input>,
     {
-        self.metrics
-            .valid_numeric
-            .push(Box::new(MetricWrapper::new(metric)));
+        self.metrics.add_numeric_valid(metric);
         self
     }
 

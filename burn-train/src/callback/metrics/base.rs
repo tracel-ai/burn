@@ -1,9 +1,9 @@
 use crate::{
     logger::MetricLogger,
     metric::{Adaptor, Metric, MetricEntry, MetricMetadata, Numeric},
+    renderer::{MetricState, MetricsRenderer, TrainingProgress},
     LearnerCallback, LearnerItem,
 };
-use burn_core::data::dataloader::Progress;
 
 /// Holds all metrics, metric loggers, and a metrics renderer.
 pub struct MetricsCallback<T, V>
@@ -114,88 +114,16 @@ where
     }
 }
 
-/// Training progress.
-#[derive(Debug)]
-pub struct TrainingProgress {
-    /// The progress.
-    pub progress: Progress,
-
-    /// The epoch.
-    pub epoch: usize,
-
-    /// The total number of epochs.
-    pub epoch_total: usize,
-
-    /// The iteration.
-    pub iteration: usize,
-}
-
-impl TrainingProgress {
-    /// Creates a new empty training progress.
-    pub fn none() -> Self {
-        Self {
-            progress: Progress {
-                items_processed: 0,
-                items_total: 0,
-            },
-            epoch: 0,
-            epoch_total: 0,
-            iteration: 0,
-        }
-    }
-}
-
-/// The state of a metric.
-#[derive(Debug)]
-pub enum MetricState {
-    /// A generic metric.
-    Generic(MetricEntry),
-
-    /// A numeric metric.
-    Numeric(MetricEntry, f64),
-}
-
-/// Trait for rendering metrics.
-pub trait MetricsRenderer: Send + Sync {
-    /// Updates the training metric state.
-    ///
-    /// # Arguments
-    ///
-    /// * `state` - The metric state.
-    fn update_train(&mut self, state: MetricState);
-
-    /// Updates the validation metric state.
-    ///
-    /// # Arguments
-    ///
-    /// * `state` - The metric state.
-    fn update_valid(&mut self, state: MetricState);
-
-    /// Renders the training progress.
-    ///
-    /// # Arguments
-    ///
-    /// * `item` - The training progress.
-    fn render_train(&mut self, item: TrainingProgress);
-
-    /// Renders the validation progress.
-    ///
-    /// # Arguments
-    ///
-    /// * `item` - The validation progress.
-    fn render_valid(&mut self, item: TrainingProgress);
-}
-
 /// A container for the metrics held by a metrics callback.
 pub(crate) struct Metrics<T, V>
 where
     T: Send + Sync + 'static,
     V: Send + Sync + 'static,
 {
-    pub(crate) train: Vec<Box<dyn MetricUpdater<T>>>,
-    pub(crate) valid: Vec<Box<dyn MetricUpdater<V>>>,
-    pub(crate) train_numeric: Vec<Box<dyn NumericMetricUpdater<T>>>,
-    pub(crate) valid_numeric: Vec<Box<dyn NumericMetricUpdater<V>>>,
+    train: Vec<Box<dyn MetricUpdater<T>>>,
+    valid: Vec<Box<dyn MetricUpdater<V>>>,
+    train_numeric: Vec<Box<dyn NumericMetricUpdater<T>>>,
+    valid_numeric: Vec<Box<dyn NumericMetricUpdater<V>>>,
 }
 
 impl<T, V> Metrics<T, V>
@@ -210,6 +138,38 @@ where
             train_numeric: vec![],
             valid_numeric: vec![],
         }
+    }
+
+    pub(crate) fn add_train<Me: Metric + 'static>(&mut self, metric: Me)
+    where
+        T: Adaptor<Me::Input>,
+    {
+        let metric = MetricWrapper::new(metric);
+        self.train.push(Box::new(metric))
+    }
+
+    pub(crate) fn add_valid<Me: Metric + 'static>(&mut self, metric: Me)
+    where
+        V: Adaptor<Me::Input>,
+    {
+        let metric = MetricWrapper::new(metric);
+        self.valid.push(Box::new(metric))
+    }
+
+    pub(crate) fn add_numeric_train<Me: Metric + Numeric + 'static>(&mut self, metric: Me)
+    where
+        T: Adaptor<Me::Input>,
+    {
+        let metric = MetricWrapper::new(metric);
+        self.train_numeric.push(Box::new(metric))
+    }
+
+    pub(crate) fn add_numeric_valid<Me: Metric + Numeric + 'static>(&mut self, metric: Me)
+    where
+        V: Adaptor<Me::Input>,
+    {
+        let metric = MetricWrapper::new(metric);
+        self.valid_numeric.push(Box::new(metric))
     }
 }
 
@@ -236,18 +196,18 @@ impl<T> From<&LearnerItem<T>> for MetricMetadata {
     }
 }
 
-pub(crate) trait NumericMetricUpdater<T>: Send + Sync {
+trait NumericMetricUpdater<T>: Send + Sync {
     fn update(&mut self, item: &LearnerItem<T>, metadata: &MetricMetadata) -> (MetricEntry, f64);
     fn clear(&mut self);
 }
 
-pub(crate) trait MetricUpdater<T>: Send + Sync {
+trait MetricUpdater<T>: Send + Sync {
     fn update(&mut self, item: &LearnerItem<T>, metadata: &MetricMetadata) -> MetricEntry;
     fn clear(&mut self);
 }
 
 #[derive(new)]
-pub(crate) struct MetricWrapper<M> {
+struct MetricWrapper<M> {
     metric: M,
 }
 

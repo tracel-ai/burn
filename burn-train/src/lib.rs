@@ -10,6 +10,9 @@ pub mod checkpoint;
 
 pub(crate) mod components;
 
+/// Renderer modules to display metrics and training informations.
+pub mod renderer;
+
 /// The logger module.
 pub mod logger;
 
