@@ -1,23 +1,23 @@
-use super::LRScheduler;
+use super::LrScheduler;
 use crate::LearningRate;
 
-/// Constant learning rate implementing [learning rate scheduler](LRScheduler).
+/// Constant learning rate implementing [learning rate scheduler](LrScheduler).
 ///
 /// # Notes
 ///
 /// You can also use [learning rate](LearningRate) which the same effect.
 #[derive(new, Clone, Debug)]
-pub struct ConstantLR {
+pub struct ConstantLr {
     lr: LearningRate,
 }
 
-impl From<LearningRate> for ConstantLR {
+impl From<LearningRate> for ConstantLr {
     fn from(lr: LearningRate) -> Self {
         Self { lr }
     }
 }
 
-impl LRScheduler for ConstantLR {
+impl LrScheduler for ConstantLr {
     type Record = ();
 
     fn step(&mut self) -> LearningRate {
@@ -31,7 +31,7 @@ impl LRScheduler for ConstantLR {
     }
 }
 
-impl LRScheduler for LearningRate {
+impl LrScheduler for LearningRate {
     type Record = ();
 
     fn step(&mut self) -> LearningRate {

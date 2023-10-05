@@ -1,11 +1,11 @@
 use crate as burn;
 
-use super::LRScheduler;
+use super::LrScheduler;
 use crate::{config::Config, LearningRate};
 
-/// Configuration to create a [noam](NoamLRScheduler) learning rate scheduler.
+/// Configuration to create a [noam](NoamLrScheduler) learning rate scheduler.
 #[derive(Config)]
-pub struct NoamLRSchedulerConfig {
+pub struct NoamLrSchedulerConfig {
     /// The initial learning rate.
     init_lr: LearningRate,
     /// The number of steps before the exponential decay stats.
@@ -18,17 +18,17 @@ pub struct NoamLRSchedulerConfig {
 
 /// Noam learning rate scheduler as described in [Attention Is All You Need](https://arxiv.org/abs/1706.03762).
 #[derive(Clone, Debug)]
-pub struct NoamLRScheduler {
+pub struct NoamLrScheduler {
     warmup_steps: f64,
     embedding_size: f64,
     init_lr: LearningRate,
     step: f64,
 }
 
-impl NoamLRSchedulerConfig {
-    /// Initialize a new [noam](NoamLRScheduler) learning rate scheduler.
-    pub fn init(&self) -> NoamLRScheduler {
-        NoamLRScheduler {
+impl NoamLrSchedulerConfig {
+    /// Initialize a new [noam](NoamLrScheduler) learning rate scheduler.
+    pub fn init(&self) -> NoamLrScheduler {
+        NoamLrScheduler {
             warmup_steps: self.warmup_steps as f64,
             embedding_size: self.model_size as f64,
             init_lr: self.init_lr,
@@ -37,7 +37,7 @@ impl NoamLRSchedulerConfig {
     }
 }
 
-impl LRScheduler for NoamLRScheduler {
+impl LrScheduler for NoamLrScheduler {
     type Record = usize;
 
     fn step(&mut self) -> LearningRate {
@@ -66,7 +66,7 @@ mod tests {
     #[test]
     fn test_function_increase_and_decrease() {
         let warmup_steps = 100;
-        let mut scheduler = NoamLRSchedulerConfig::new(10.0)
+        let mut scheduler = NoamLrSchedulerConfig::new(10.0)
             .with_warmup_steps(warmup_steps)
             .init();
         let mut lr_current = 0.0;
