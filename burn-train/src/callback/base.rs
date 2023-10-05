@@ -18,6 +18,27 @@ pub trait LearnerCallback: Send {
 
     /// Called when a validation epoch is finished.
     fn on_valid_end_epoch(&mut self, _epoch: usize) {}
+
+    /// Find the epoch following the given criteria.
+    fn find_epoch(
+        &mut self,
+        name: &str,
+        aggregate: Aggregate,
+        direction: Direction,
+        split: Split,
+    ) -> Option<usize>;
+}
+
+pub enum Aggregate {
+    Mean,
+}
+pub enum Split {
+    Train,
+    Valid,
+}
+pub enum Direction {
+    Lowest,
+    Hightest,
 }
 
 /// A learner item.

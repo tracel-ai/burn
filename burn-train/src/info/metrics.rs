@@ -1,7 +1,8 @@
+use super::NumericMetricsAggregate;
 use crate::{
     logger::MetricLogger,
     metric::{Adaptor, Metric, MetricEntry, MetricMetadata, Numeric},
-    LearnerItem,
+    Aggregate, Direction, LearnerItem, Split,
 };
 
 /// A container for the metrics held by a metrics callback.
@@ -16,6 +17,8 @@ where
     valid_numeric: Vec<Box<dyn NumericMetricUpdater<V>>>,
     loggers_train: Vec<Box<dyn MetricLogger>>,
     loggers_valid: Vec<Box<dyn MetricLogger>>,
+    aggregate_train: NumericMetricsAggregate,
+    aggregate_valid: NumericMetricsAggregate,
 }
 
 #[derive(new)]
@@ -37,6 +40,8 @@ where
             valid_numeric: vec![],
             loggers_train: vec![],
             loggers_valid: vec![],
+            aggregate_train: NumericMetricsAggregate::default(),
+            aggregate_valid: NumericMetricsAggregate::default(),
         }
     }
 
@@ -122,6 +127,25 @@ where
         }
 
         MetricsUpdate::new(entries, entries_numeric)
+    }
+
+    pub fn find_epoch(
+        &mut self,
+        name: &str,
+        aggregate: Aggregate,
+        direction: Direction,
+        split: Split,
+    ) -> Option<usize> {
+        match split {
+            Split::Train => {
+                self.aggregate_train
+                    .find_epoch(name, aggregate, direction, &mut self.loggers_train)
+            }
+            Split::Valid => {
+                self.aggregate_valid
+                    .find_epoch(name, aggregate, direction, &mut self.loggers_valid)
+            }
+        }
     }
 
     pub(crate) fn add_logger_train<ML: MetricLogger + 'static>(&mut self, logger: ML) {

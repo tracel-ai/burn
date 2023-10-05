@@ -1,3 +1,5 @@
+use crate::{Aggregate, Direction, Split};
+
 use super::{LearnerCallback, LearnerItem};
 use std::{sync::mpsc, thread::JoinHandle};
 
@@ -7,6 +9,13 @@ enum Message<T, V> {
     ClearTrain(usize),
     ClearValid(usize),
     End,
+    FindEpoch(
+        String,
+        Aggregate,
+        Direction,
+        Split,
+        mpsc::SyncSender<Option<usize>>,
+    ),
 }
 
 /// Async trainer callback tracker.
@@ -42,6 +51,10 @@ where
                 }
                 Message::End => {
                     return;
+                }
+                Message::FindEpoch(name, aggregate, direction, split, sender) => {
+                    let response = self.callback.find_epoch(&name, aggregate, direction, split);
+                    sender.send(response).unwrap();
                 }
             }
         }
@@ -82,6 +95,30 @@ impl<T: Send, V: Send> LearnerCallback for AsyncTrainerCallback<T, V> {
 
     fn on_valid_end_epoch(&mut self, epoch: usize) {
         self.sender.send(Message::ClearValid(epoch)).unwrap();
+    }
+
+    fn find_epoch(
+        &mut self,
+        name: &str,
+        aggregate: Aggregate,
+        direction: Direction,
+        split: Split,
+    ) -> Option<usize> {
+        let (sender, receiver) = mpsc::sync_channel(1);
+        self.sender
+            .send(Message::FindEpoch(
+                name.to_string(),
+                aggregate,
+                direction,
+                split,
+                sender,
+            ))
+            .unwrap();
+
+        match receiver.recv() {
+            Ok(value) => value,
+            Err(err) => panic!("Async server crashed: {:?}", err),
+        }
     }
 }
 

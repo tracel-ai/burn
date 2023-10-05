@@ -2,7 +2,7 @@ use crate::{
     info::Metrics,
     metric::MetricMetadata,
     renderer::{MetricState, MetricsRenderer, TrainingProgress},
-    LearnerCallback, LearnerItem,
+    Aggregate, Direction, LearnerCallback, LearnerItem, Split,
 };
 
 /// Holds all metrics, metric loggers, and a metrics renderer.
@@ -74,6 +74,16 @@ where
 
     fn on_valid_end_epoch(&mut self, epoch: usize) {
         self.metrics.end_epoch_valid(epoch);
+    }
+
+    fn find_epoch(
+        &mut self,
+        name: &str,
+        aggregate: Aggregate,
+        direction: Direction,
+        split: Split,
+    ) -> Option<usize> {
+        self.metrics.find_epoch(name, aggregate, direction, split)
     }
 }
 

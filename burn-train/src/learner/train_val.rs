@@ -181,6 +181,15 @@ impl<LC: LearnerComponents> Learner<LC> {
             }
         }
 
+        let epoch = callback.find_epoch(
+            <crate::metric::LossMetric<LC::Backend> as crate::metric::Metric>::NAME,
+            crate::Aggregate::Mean,
+            crate::Direction::Lowest,
+            crate::Split::Valid,
+        );
+        
+        log::info!("Lowest Loss: {epoch:?}");
+
         self.model
     }
 }
