@@ -7,6 +7,9 @@ pub trait DummyKernel: Send {
 
 /// Contains the algorithm for element-wise addition
 pub struct DummyElementwiseAddition;
+pub struct DummyElementwiseAdditionAlt;
+pub struct DummyElementwiseMultiplication;
+pub struct DummyElementwiseMultiplicationAlt;
 
 impl DummyKernel for DummyElementwiseAddition {
     fn compute(&self, inputs: &mut [BytesResource]) {
@@ -21,5 +24,21 @@ impl DummyKernel for DummyElementwiseAddition {
         for i in 0..size {
             out[i] = lhs[i] + rhs[i];
         }
+    }
+}
+
+impl DummyKernel for DummyElementwiseAdditionAlt {
+    fn compute(&self, resources: &mut [BytesResource]) {
+        todo!()
+    }
+}
+impl DummyKernel for DummyElementwiseMultiplication {
+    fn compute(&self, resources: &mut [BytesResource]) {
+        todo!()
+    }
+}
+impl DummyKernel for DummyElementwiseMultiplicationAlt {
+    fn compute(&self, resources: &mut [BytesResource]) {
+        todo!()
     }
 }

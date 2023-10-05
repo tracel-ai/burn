@@ -1,7 +1,10 @@
 mod dummy;
 
 use burn_compute::tune::Tuner;
-use dummy::{client, DummyDevice, DummyElementwiseAddition};
+use dummy::{
+    client, make_kernel_pool, ArrayHashable, DummyDevice, DummyElementwiseAddition,
+    DummyOperationAdd,
+};
 
 #[test]
 fn created_resource_is_the_same_when_read() {
@@ -45,6 +48,7 @@ fn autotune() {
     let rhs = client.create(&[4, 4, 4]);
     let out = client.empty(3);
 
-    let kernel_pools = todo!();
-    let tuner = Tuner::new(client, kernel_pools);
+    let kernel_pool = make_kernel_pool::<DummyOperationAdd>(client, &[&lhs, &rhs, &out]);
+    let tuner = Tuner::new(client, kernel_pool);
+    tuner.tune(ArrayHashable::new([3, 3, 3]))
 }

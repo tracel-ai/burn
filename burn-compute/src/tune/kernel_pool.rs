@@ -1,55 +1,67 @@
 use core::marker::PhantomData;
 
+use alloc::sync::Arc;
+use burn_common::benchmark::Benchmark;
 use hashbrown::HashMap;
 
 use crate::{channel::ComputeChannel, server::ComputeServer};
 
-use super::{Benchmark, InputHashable, Operation};
+use super::{InputHashable, Operation};
 
-pub struct KernelType<O, S, C, BM> {
-    _server: PhantomData<S>,
-    _operation: PhantomData<O>,
-    _channel: PhantomData<C>,
-    _benchmark: PhantomData<BM>,
+pub trait TuneBenchmark: Benchmark {
+    type Args: InputHashable;
 }
 
-impl<O, S, C, BM> Clone for KernelType<O, S, C, BM> {
-    fn clone(&self) -> KernelType<O, S, C, BM> {
+#[derive(new)]
+pub struct KernelType<TB, O, S: ComputeServer, C> {
+    pub kernel: Arc<S::Kernel>,
+    pub tune_benchmark: Arc<TB>,
+    pub _operation: PhantomData<O>,
+    pub _channel: PhantomData<C>,
+}
+
+impl<TB, O, S: ComputeServer, C> Clone for KernelType<TB, O, S, C> {
+    fn clone(&self) -> KernelType<TB, O, S, C> {
         KernelType {
-            _server: PhantomData,
+            kernel: self.kernel.clone(),
+            tune_benchmark: self.tune_benchmark.clone(),
             _operation: PhantomData,
             _channel: PhantomData,
-            _benchmark: PhantomData,
         }
     }
 }
-impl<O, S, C, BM> Copy for KernelType<O, S, C, BM> {}
 
-impl<O: Operation<S>, S: ComputeServer, C: ComputeChannel<S>, BM: Benchmark<O, S, C>>
-    KernelType<O, S, C, BM>
+impl<TB, O, S, C> KernelType<TB, O, S, C>
+where
+    TB: TuneBenchmark,
+    O: Operation<S>,
+    S: ComputeServer,
+    C: ComputeChannel<S>,
 {
-    pub(crate) fn to_kernel(&self) -> S::Kernel {
-        todo!()
-    }
-    pub(crate) fn to_benchmark(&self) -> BM {
-        todo!()
+    pub(crate) fn to_benchmark(&self) -> Arc<TB> {
+        self.tune_benchmark.clone()
     }
 }
 
-pub struct KernelPool<O: Operation<S>, S: ComputeServer, C, BM> {
+#[derive(new)]
+pub struct KernelPool<TB, O, S, C>
+where
+    O: Operation<S>,
+    S: ComputeServer,
+{
     cache: HashMap<String, usize>,
-    pub kernel_types: Vec<KernelType<O, S, C, BM>>, // is actually static?
+    pub kernel_types: Vec<KernelType<TB, O, S, C>>,
     _operation: PhantomData<O>,
 }
 
-impl<O: Operation<S>, S: ComputeServer, C, BM> KernelPool<O, S, C, BM> {
-    pub(crate) fn try_cache(&self, input: &O::Input) -> Option<KernelType<O, S, C, BM>> {
+impl<TB, O: Operation<S>, S: ComputeServer, C> KernelPool<TB, O, S, C> {
+    pub(crate) fn try_cache(&self, input: &O::Input) -> Option<KernelType<TB, O, S, C>> {
         let index = self.cache.get(&input.custom_hash());
-        index.map(|i| self.kernel_types[*i])
+        index.map(|i| self.kernel_types[*i].clone())
     }
 
-    pub(crate) fn get(&self, index: usize) -> KernelType<O, S, C, BM> {
-        *self.kernel_types.get(index).unwrap()
+    pub(crate) fn get(&self, index: usize) -> KernelType<TB, O, S, C> {
+        (*self.kernel_types.get(index).unwrap()).clone()
     }
 
     pub(crate) fn add_to_cache(&mut self, input: &O::Input, index: usize) -> () {

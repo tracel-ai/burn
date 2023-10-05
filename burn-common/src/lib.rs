@@ -1,4 +1,5 @@
-#![cfg_attr(not(feature = "std"), no_std)]
+// EXTREME TODO REACTIVATE
+// #![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
 
 //! # Burn Common Library
@@ -21,5 +22,7 @@ pub mod stub;
 /// Useful when you need to read async data without having to decorate each function with async
 /// notation.
 pub mod reader;
+
+pub mod benchmark;
 
 extern crate alloc;
