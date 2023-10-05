@@ -18,6 +18,7 @@ fn main(
     @builtin(global_invocation_id) global_id: vec3<u32>,
     @builtin(num_workgroups) num_workgroups: vec3<u32>,
 ) {
+    let linear_id = global_id.y * (num_workgroups.x * WORKGROUP_SIZE_X) + global_id.x;
 
     let input_shape_1 = info[2];
     let input_shape_2 = info[3];
@@ -33,15 +34,16 @@ fn main(
     let dilation_1 = info[16];
 
     // Determine the current position to process
-    let b = global_id.x;
-    let h = global_id.y;
-    let w = global_id.z;
+    let b = linear_id / (input_shape_1 * input_shape_2 * input_shape_3);
+    let c = (linear_id % (input_shape_1 * input_shape_2 * input_shape_3)) / (input_shape_2 * input_shape_3);
+    let h = (linear_id % (input_shape_2 * input_shape_3)) / input_shape_3;
+    let w = linear_id % input_shape_3;
 
     // Initialize index for the output tensor
     var output_idx = 0u;
 
     // Iterate over channels and local patch
-    for (var c = 0u; c < input_shape_1; c++) {
+    for (var ic = c; ic < input_shape_1; ic++) {
         for (var kh = 0u; kh < kernel_size_0; kh++) {
             for (var kw = 0u; kw < kernel_size_1; kw++) {
                 let ih = h * stride_0 + kh * dilation_0 - padding_0;
@@ -49,7 +51,7 @@ fn main(
 
                 // Boundary check
                 if ih >= 0u && ih < input_shape_2 && iw >= 0u && iw < input_shape_3 {
-                    let index_input = b * input_shape_1 * input_shape_2 * input_shape_3 + c * input_shape_2 * input_shape_3 + ih * input_shape_3 + iw;
+                    let index_input = b * input_shape_1 * input_shape_2 * input_shape_3 + ic * input_shape_2 * input_shape_3 + ih * input_shape_3 + iw;
 
                     // Place the value from input into the correct position in the unfolded output tensor
                     output[output_idx] = input[index_input];
@@ -57,7 +59,7 @@ fn main(
                     // Set to zero, we're in a padded region
                     output[output_idx] = 0.0;
                 }
-                output_idx += 1u;
+                output_idx++;
             }
         }
     }
