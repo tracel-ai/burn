@@ -4,7 +4,6 @@ use crate::{
 };
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
-use burn_tensor::benchmark::BenchmarkResult;
 use core::marker::PhantomData;
 
 /// The ComputeClient is the entry point to require tasks from the ComputeServer.

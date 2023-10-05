@@ -4,7 +4,6 @@ use std::{
 };
 
 use burn_common::reader::Reader;
-use burn_tensor::benchmark::BenchmarkResult;
 
 use super::ComputeChannel;
 use crate::server::{ComputeServer, Handle};

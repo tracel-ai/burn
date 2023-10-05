@@ -1,5 +1,6 @@
 mod dummy;
 
+use burn_compute::tune::Tuner;
 use dummy::{client, DummyDevice, DummyElementwiseAddition};
 
 #[test]
@@ -35,4 +36,15 @@ fn execute_elementwise_addition() {
     let obtained_resource = client.read(&out);
 
     assert_eq!(obtained_resource.read(), Vec::from([4, 5, 6]))
+}
+
+#[test]
+fn autotune() {
+    let client = client(&DummyDevice);
+    let lhs = client.create(&[0, 1, 2]);
+    let rhs = client.create(&[4, 4, 4]);
+    let out = client.empty(3);
+
+    let kernel_pools = todo!();
+    let tuner = Tuner::new(client, kernel_pools);
 }

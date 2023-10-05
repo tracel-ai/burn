@@ -4,7 +4,6 @@ use burn_compute::{
     server::{ComputeServer, Handle},
     storage::BytesStorage,
 };
-use burn_tensor::benchmark::Benchmark;
 use derive_new::new;
 
 use super::DummyKernel;

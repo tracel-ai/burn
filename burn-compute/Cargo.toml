@@ -26,7 +26,6 @@ storage-bytes = []
 
 [dependencies]
 burn-common = { path = "../burn-common", version = "0.10.0", default-features = false }
-burn-tensor = { path = "../burn-tensor", version = "0.10.0", default-features = false }
 derive-new = { workspace = true }
 spin = { workspace = true }
 hashbrown = { workspace = true }

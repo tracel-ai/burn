@@ -1,46 +1,32 @@
 use core::marker::PhantomData;
 
-use burn_tensor::{backend::Backend, benchmark::Benchmark};
 use hashbrown::HashMap;
 
-use crate::server::ComputeServer;
+use crate::{channel::ComputeChannel, server::ComputeServer};
 
-use super::{InputHashable, Operation};
+use super::{Benchmark, InputHashable, Operation};
 
-pub(crate) struct KernelType<B, BM, S>
-where
-    B: Backend,
-    BM: Benchmark<B>,
-{
-    _backend: PhantomData<B>,
-    _benchmark: PhantomData<BM>,
+pub struct KernelType<O, S, C, BM> {
     _server: PhantomData<S>,
+    _operation: PhantomData<O>,
+    _channel: PhantomData<C>,
+    _benchmark: PhantomData<BM>,
 }
 
-impl<B, BM, S> Clone for KernelType<B, BM, S>
-where
-    B: Backend,
-    BM: Benchmark<B>,
-{
-    fn clone(&self) -> KernelType<B, BM, S> {
+impl<O, S, C, BM> Clone for KernelType<O, S, C, BM> {
+    fn clone(&self) -> KernelType<O, S, C, BM> {
         KernelType {
-            _backend: PhantomData,
-            _benchmark: PhantomData,
             _server: PhantomData,
+            _operation: PhantomData,
+            _channel: PhantomData,
+            _benchmark: PhantomData,
         }
     }
 }
-impl<B, BM, S> Copy for KernelType<B, BM, S>
-where
-    B: Backend,
-    BM: Benchmark<B>,
-{
-}
+impl<O, S, C, BM> Copy for KernelType<O, S, C, BM> {}
 
-impl<B, BM, S: ComputeServer> KernelType<B, BM, S>
-where
-    B: Backend,
-    BM: Benchmark<B>,
+impl<O: Operation<S>, S: ComputeServer, C: ComputeChannel<S>, BM: Benchmark<O, S, C>>
+    KernelType<O, S, C, BM>
 {
     pub(crate) fn to_kernel(&self) -> S::Kernel {
         todo!()
@@ -50,27 +36,19 @@ where
     }
 }
 
-pub(crate) struct KernelPool<B, BM, O: Operation<S>, S: ComputeServer>
-where
-    B: Backend,
-    BM: Benchmark<B>,
-{
+pub struct KernelPool<O: Operation<S>, S: ComputeServer, C, BM> {
     cache: HashMap<String, usize>,
-    pub kernel_types: Vec<KernelType<B, BM, S>>, // is actually static?
+    pub kernel_types: Vec<KernelType<O, S, C, BM>>, // is actually static?
     _operation: PhantomData<O>,
 }
 
-impl<B, BM, O: Operation<S>, S: ComputeServer> KernelPool<B, BM, O, S>
-where
-    B: Backend,
-    BM: Benchmark<B>,
-{
-    pub(crate) fn try_cache(&self, input: &O::Input) -> Option<KernelType<B, BM, S>> {
+impl<O: Operation<S>, S: ComputeServer, C, BM> KernelPool<O, S, C, BM> {
+    pub(crate) fn try_cache(&self, input: &O::Input) -> Option<KernelType<O, S, C, BM>> {
         let index = self.cache.get(&input.custom_hash());
         index.map(|i| self.kernel_types[*i])
     }
 
-    pub(crate) fn get(&self, index: usize) -> KernelType<B, BM, S> {
+    pub(crate) fn get(&self, index: usize) -> KernelType<O, S, C, BM> {
         *self.kernel_types.get(index).unwrap()
     }
 

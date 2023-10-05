@@ -10,7 +10,7 @@ pub trait InputHashable<S: ComputeServer>: PartialEq + Eq + Hash {
     fn make_handles(&self) -> &[&Handle<S>];
 }
 
-pub(crate) trait Operation<S: ComputeServer>: PartialEq + Eq + Hash {
+pub trait Operation<S: ComputeServer>: PartialEq + Eq + Hash {
     // Important: For input, Hash and stuff not derived, must be custom
     type Input: InputHashable<S>;
 }

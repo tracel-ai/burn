@@ -3,7 +3,6 @@ use crate::server::{ComputeServer, Handle};
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
-use burn_tensor::benchmark::BenchmarkResult;
 
 /// A channel using a [ref cell](core::cell::RefCell) to access the server with mutability.
 ///
@@ -61,7 +60,6 @@ where
             .borrow_mut()
             .execute(kernel_description, handles)
     }
-
 
     fn sync(&self) {
         self.server.borrow_mut().sync()

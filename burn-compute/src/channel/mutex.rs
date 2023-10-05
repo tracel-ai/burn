@@ -3,7 +3,6 @@ use crate::server::{ComputeServer, Handle};
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
-use burn_tensor::benchmark::BenchmarkResult;
 use spin::Mutex;
 
 /// The MutexComputeChannel ensures thread-safety by locking the server

@@ -1,36 +1,33 @@
 use core::time::Duration;
 
-use burn_tensor::backend::Backend;
-use burn_tensor::benchmark::{Benchmark, BenchmarkResult};
 use hashbrown::HashMap;
 use spin::Mutex;
 
 use crate::tune::{InputHashable, KernelPool, Operation};
 use crate::{channel::ComputeChannel, client::ComputeClient, server::ComputeServer};
 
-use super::KernelType;
+use super::{Benchmark, BenchmarkResult, KernelType};
 
-struct Tuner<B, BM, O, S, C>
+#[derive(new)]
+pub struct Tuner<O, S, C, BM>
 where
-    B: Backend,
-    BM: Benchmark<B>,
     O: Operation<S>,
     S: ComputeServer,
     C: ComputeChannel<S>,
+    BM: Benchmark<O, S, C>,
 {
     client: ComputeClient<S, C>,
-    kernel_pools: HashMap<O, Mutex<KernelPool<B, BM, O, S>>>,
+    kernel_pools: HashMap<O, Mutex<KernelPool<O, S, C, BM>>>,
 }
 
-impl<B, BM, O, S, C> Tuner<B, BM, O, S, C>
+impl<O, S, C, BM> Tuner<O, S, C, BM>
 where
-    B: Backend,
-    BM: Benchmark<B>,
     O: Operation<S>,
     S: ComputeServer,
     C: ComputeChannel<S>,
+    BM: Benchmark<O, S, C>,
 {
-    pub fn tune(&self, operation: O, input: O::Input, device: &B::Device) {
+    pub fn tune(&self, operation: O, input: O::Input) {
         let mut kernel_pool = self
             .kernel_pools
             .get(&operation)
@@ -39,12 +36,12 @@ where
 
         let kernel_type = kernel_pool
             .try_cache(&input)
-            .unwrap_or(self.no_kernel_type_found(&mut kernel_pool, &input, device));
+            .unwrap_or(self.no_kernel_type_found(&mut kernel_pool, &input));
 
         self.execute_found_kernel(kernel_type, input);
     }
 
-    fn execute_found_kernel(&self, kernel_type: KernelType<B, BM, S>, input: O::Input) {
+    fn execute_found_kernel(&self, kernel_type: KernelType<O, S, C, BM>, input: O::Input) {
         let kernel = kernel_type.to_kernel();
         let handles = input.make_handles();
         self.client.execute(kernel, handles)
@@ -52,15 +49,14 @@ where
 
     fn no_kernel_type_found(
         &self,
-        kernel_pool: &mut KernelPool<B, BM, O, S>,
+        kernel_pool: &mut KernelPool<O, S, C, BM>,
         input: &O::Input,
-        device: &B::Device,
-    ) -> KernelType<B, BM, S> {
+    ) -> KernelType<O, S, C, BM> {
         let results: Vec<BenchmarkResult> = kernel_pool
             .kernel_types
             .iter()
             .map(KernelType::to_benchmark)
-            .map(|benchmark| self.bench(benchmark, device))
+            .map(|benchmark| self.bench(benchmark))
             .collect();
         let best_index = self.find_best(results);
         kernel_pool.add_to_cache(input, best_index);
@@ -83,7 +79,7 @@ where
         best_tunable.expect("At least one kernel needed. ")
     }
 
-    fn bench(&self, benchmark: BM, device: &B::Device) -> BenchmarkResult {
-        benchmark.run(device)
+    fn bench(&self, benchmark: BM) -> BenchmarkResult {
+        benchmark.run(&self.client)
     }
 }
