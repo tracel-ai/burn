@@ -18,8 +18,6 @@ pub trait ComputeChannel<Server: ComputeServer>: Clone + core::fmt::Debug {
     /// Executes the `kernel` over the given `handles`.
     fn execute(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]);
 
-    fn bench(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]) -> BenchmarkResult;
-
     /// Wait for the completion of every task in the server.
     fn sync(&self);
 }

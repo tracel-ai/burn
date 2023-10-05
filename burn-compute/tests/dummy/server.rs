@@ -4,6 +4,7 @@ use burn_compute::{
     server::{ComputeServer, Handle},
     storage::BytesStorage,
 };
+use burn_tensor::benchmark::Benchmark;
 use derive_new::new;
 
 use super::DummyKernel;
@@ -57,9 +58,5 @@ where
 
     fn sync(&mut self) {
         // Nothing to do with dummy backend.
-    }
-
-    fn bench(&mut self, kernel: Self::Kernel, handles: &[&Handle<Self>]) -> burn_tensor::benchmark::BenchmarkResult {
-        todo!()
     }
 }

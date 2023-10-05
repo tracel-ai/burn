@@ -61,10 +61,6 @@ where
         self.channel.execute(kernel, handles)
     }
 
-    pub fn bench(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]) -> BenchmarkResult {
-        self.channel.bench(kernel, handles)
-    }
-
     /// Wait for the completion of every task in the server.
     pub fn sync(&self) {
         self.channel.sync()

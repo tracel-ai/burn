@@ -62,13 +62,6 @@ where
             .execute(kernel_description, handles)
     }
 
-    fn bench(
-        &self,
-        kernel_description: Server::Kernel,
-        handles: &[&Handle<Server>],
-    ) -> BenchmarkResult {
-        self.server.borrow_mut().bench(kernel_description, handles)
-    }
 
     fn sync(&self) {
         self.server.borrow_mut().sync()

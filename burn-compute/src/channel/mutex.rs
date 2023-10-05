@@ -52,10 +52,6 @@ where
         self.server.lock().execute(kernel, handles)
     }
 
-    fn bench(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]) -> BenchmarkResult {
-        self.server.lock().bench(kernel, handles)
-    }
-
     fn sync(&self) {
         self.server.lock().sync()
     }
