@@ -1,7 +1,10 @@
-use crate::{backend, element::TchElement, TchBackend, TchTensor};
-use burn_tensor::ops::{
-    ConvOptions, ConvTransposeOptions, MaxPool1dWithIndices, MaxPool2dBackward,
-    MaxPool2dWithIndices, ModuleOps, UnfoldOptions,
+use crate::{backend, element::TchElement, ops::TchOps, TchBackend, TchTensor};
+use burn_tensor::{
+    ops::{
+        ConvOptions, ConvTransposeOptions, MaxPool1dWithIndices, MaxPool2dBackward,
+        MaxPool2dWithIndices, ModuleOps, UnfoldOptions,
+    },
+    Shape,
 };
 use tch::{Device, IndexOp, Kind};
 
@@ -139,22 +142,10 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
             weight
         }
 
-        let batch_size = x.shape().dims[0];
         let channels_in = x.shape().dims[1];
         let stride = options.stride.unwrap_or([1, 1]);
         let padding = options.padding.unwrap_or([0, 0]);
         let dilation = options.dilation.unwrap_or([1, 1]);
-
-        let channels_out = channels_in * kernel_size[0] * kernel_size[1];
-        // See https://pytorch.org/docs/stable/generated/torch.nn.Unfold.html#torch.nn.Unfold for full explanation,
-        // This calculates the number of patches with each patch having channels_out values
-        let l_dim_1 = (x.shape().dims[2] + 2 * padding[0] - dilation[0] * (kernel_size[0] - 1) - 1)
-            / stride[0]
-            + 1;
-        let l_dim_2 = (x.shape().dims[3] + 2 * padding[1] - dilation[1] * (kernel_size[1] - 1) - 1)
-            / stride[1]
-            + 1;
-        let l = l_dim_1 * l_dim_2;
 
         let weight = TchTensor::new(create_unfolding_weight(
             channels_in as i64,
@@ -173,29 +164,12 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
                 },
             );
 
-        let reshaped = tch::Tensor::zeros(
-            [batch_size as i64, channels_out as i64, l as i64],
-            (Kind::Float, Device::Cpu),
-        );
+        let [batch_size, channels_out, out_height, out_width] = unfolded.shape().dims;
 
-        // Iterate over each dimension and fill in the values from unfolded to reshaped
-        for b in 0..batch_size {
-            for c in 0..channels_out {
-                let mut l_index: usize = 0;
-                for h in 0..l_dim_1 {
-                    for w in 0..l_dim_2 {
-                        let value = unfolded.tensor.i((b as i64, c as i64, h as i64, w as i64));
-                        reshaped
-                            .i((b as i64, c as i64, l_index as i64))
-                            .copy_(&value);
-
-                        l_index += 1;
-                    }
-                }
-            }
-        }
-
-        TchTensor::new(reshaped)
+        TchOps::reshape(
+            unfolded,
+            Shape::new([batch_size, channels_out, out_height * out_width]),
+        )
     }
 
     fn avg_pool1d(
