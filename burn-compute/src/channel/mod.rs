@@ -6,9 +6,9 @@ mod mutex;
 #[cfg(feature = "channel-mutex")]
 pub use mutex::*;
 
-#[cfg(feature = "channel-mpsc")]
+#[cfg(all(feature = "channel-mpsc", not(target_family = "wasm")))]
 mod mpsc;
-#[cfg(feature = "channel-mpsc")]
+#[cfg(all(feature = "channel-mpsc", not(target_family = "wasm")))]
 pub use mpsc::*;
 
 #[cfg(feature = "channel-cell")]

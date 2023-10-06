@@ -72,8 +72,8 @@ pub fn run<B: ADBackend>(device: B::Device) {
 
             println!(
                 "[Train - Epoch {} - Iteration {}] Loss {:.3} | Accuracy {:.3} %",
-                iteration,
                 epoch,
+                iteration,
                 loss.clone().into_scalar(),
                 accuracy,
             );

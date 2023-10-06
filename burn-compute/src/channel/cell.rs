@@ -2,6 +2,7 @@ use super::ComputeChannel;
 use crate::server::{ComputeServer, Handle};
 use alloc::sync::Arc;
 use alloc::vec::Vec;
+use burn_common::reader::Reader;
 
 /// A channel using a [ref cell](core::cell::RefCell) to access the server with mutability.
 ///
@@ -40,7 +41,7 @@ impl<Server> ComputeChannel<Server> for RefCellComputeChannel<Server>
 where
     Server: ComputeServer,
 {
-    fn read(&self, handle: &Handle<Server>) -> Vec<u8> {
+    fn read(&self, handle: &Handle<Server>) -> Reader<Vec<u8>> {
         let mut server = self.server.borrow_mut();
 
         server.read(handle)

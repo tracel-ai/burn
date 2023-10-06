@@ -1,8 +1,5 @@
 use super::{LearnerCallback, LearnerItem};
-use std::{
-    sync::{mpsc, Mutex},
-    thread::JoinHandle,
-};
+use std::{sync::mpsc, thread::JoinHandle};
 
 enum Message<T, V> {
     LogTrain(LearnerItem<T>),
@@ -19,30 +16,29 @@ pub struct AsyncTrainerCallback<T, V> {
 }
 
 #[derive(new)]
-struct CallbackThread<T, V> {
-    callback: Mutex<Box<dyn LearnerCallback<T, V>>>,
+struct CallbackThread<C, T, V> {
+    callback: C,
     receiver: mpsc::Receiver<Message<T, V>>,
 }
 
-impl<T, V> CallbackThread<T, V> {
-    fn run(self) {
+impl<C, T, V> CallbackThread<C, T, V>
+where
+    C: LearnerCallback<ItemTrain = T, ItemValid = V>,
+{
+    fn run(mut self) {
         for item in self.receiver.iter() {
             match item {
                 Message::LogTrain(item) => {
-                    let mut callback = self.callback.lock().unwrap();
-                    callback.on_train_item(item);
+                    self.callback.on_train_item(item);
                 }
                 Message::ClearTrain(epoch) => {
-                    let mut callback = self.callback.lock().unwrap();
-                    callback.on_train_end_epoch(epoch);
+                    self.callback.on_train_end_epoch(epoch);
                 }
                 Message::LogValid(item) => {
-                    let mut callback = self.callback.lock().unwrap();
-                    callback.on_valid_item(item);
+                    self.callback.on_valid_item(item);
                 }
                 Message::ClearValid(epoch) => {
-                    let mut callback = self.callback.lock().unwrap();
-                    callback.on_valid_end_epoch(epoch);
+                    self.callback.on_valid_end_epoch(epoch);
                 }
                 Message::End => {
                     return;
@@ -54,9 +50,12 @@ impl<T, V> CallbackThread<T, V> {
 
 impl<T: Send + Sync + 'static, V: Send + Sync + 'static> AsyncTrainerCallback<T, V> {
     /// Create a new async trainer callback.
-    pub fn new(callback: Box<dyn LearnerCallback<T, V>>) -> Self {
+    pub fn new<C>(callback: C) -> Self
+    where
+        C: LearnerCallback<ItemTrain = T, ItemValid = V> + 'static,
+    {
         let (sender, receiver) = mpsc::channel();
-        let thread = CallbackThread::new(Mutex::new(callback), receiver);
+        let thread = CallbackThread::new(callback, receiver);
 
         let handler = std::thread::spawn(move || thread.run());
         let handler = Some(handler);
@@ -65,7 +64,10 @@ impl<T: Send + Sync + 'static, V: Send + Sync + 'static> AsyncTrainerCallback<T,
     }
 }
 
-impl<T: Send, V: Send> LearnerCallback<T, V> for AsyncTrainerCallback<T, V> {
+impl<T: Send, V: Send> LearnerCallback for AsyncTrainerCallback<T, V> {
+    type ItemTrain = T;
+    type ItemValid = V;
+
     fn on_train_item(&mut self, item: LearnerItem<T>) {
         self.sender.send(Message::LogTrain(item)).unwrap();
     }

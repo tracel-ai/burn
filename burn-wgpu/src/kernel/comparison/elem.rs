@@ -1,7 +1,7 @@
 use crate::{
     compute::StaticKernel,
     element::WgpuElement,
-    kernel::{elemwise_workgroup, KernelSettings, StaticKernelSource},
+    kernel::{elemwise_workgroup, KernelSettings, StaticKernelSource, WORKGROUP_DEFAULT},
     kernel_wgsl,
     tensor::WgpuTensor,
 };
@@ -58,14 +58,14 @@ pub fn comparison_elem<K: StaticKernelSource, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: E,
 ) -> WgpuTensor<u32, D> {
-    const WORKGROUP: usize = 32;
     let num_elems = lhs.shape.num_elements();
 
     let handle = lhs.client.empty(num_elems * core::mem::size_of::<u32>());
     let rhs_handle = lhs.client.create(E::as_bytes(&[rhs]));
-    let kernel = StaticKernel::<KernelSettings<K, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
-        elemwise_workgroup(num_elems, WORKGROUP),
-    );
+    let kernel =
+        StaticKernel::<KernelSettings<K, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>>::new(
+            elemwise_workgroup(num_elems, WORKGROUP_DEFAULT),
+        );
 
     lhs.client
         .execute(Box::new(kernel), &[&lhs.handle, &rhs_handle, &handle]);
@@ -77,11 +77,10 @@ pub fn comparison_elem_inplace<K: StaticKernelSource, E: WgpuElement, const D: u
     lhs: WgpuTensor<E, D>,
     rhs: E,
 ) -> WgpuTensor<u32, D> {
-    const WORKGROUP: usize = 32;
-
-    let kernel = StaticKernel::<KernelSettings<K, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
-        elemwise_workgroup(lhs.shape.num_elements(), WORKGROUP),
-    );
+    let kernel =
+        StaticKernel::<KernelSettings<K, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>>::new(
+            elemwise_workgroup(lhs.shape.num_elements(), WORKGROUP_DEFAULT),
+        );
     let rhs_handle = lhs.client.create(E::as_bytes(&[rhs]));
     lhs.client
         .execute(Box::new(kernel), &[&lhs.handle, &rhs_handle]);

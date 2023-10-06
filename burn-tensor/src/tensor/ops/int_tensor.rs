@@ -1,7 +1,7 @@
-use alloc::vec::Vec;
-use core::ops::Range;
-
 use crate::{backend::Backend, tensor::Shape, Data, ElementConversion};
+use alloc::vec::Vec;
+use burn_common::reader::Reader;
+use core::ops::Range;
 
 /// Int Tensor API for basic and numeric operations, see [tensor](crate::Tensor)
 /// for documentation on each function.
@@ -38,7 +38,9 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn int_into_data<const D: usize>(tensor: B::IntTensorPrimitive<D>) -> Data<B::IntElem, D>;
+    fn int_into_data<const D: usize>(
+        tensor: B::IntTensorPrimitive<D>,
+    ) -> Reader<Data<B::IntElem, D>>;
 
     /// Gets the data from the tensor.
     ///
@@ -49,7 +51,9 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data cloned from the data structure.
-    fn int_to_data<const D: usize>(tensor: &B::IntTensorPrimitive<D>) -> Data<B::IntElem, D> {
+    fn int_to_data<const D: usize>(
+        tensor: &B::IntTensorPrimitive<D>,
+    ) -> Reader<Data<B::IntElem, D>> {
         Self::int_into_data(tensor.clone())
     }
 

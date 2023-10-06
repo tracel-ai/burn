@@ -10,7 +10,7 @@ fn created_resource_is_the_same_when_read() {
 
     let obtained_resource = client.read(&resource_description);
 
-    assert_eq!(resource, obtained_resource)
+    assert_eq!(resource, obtained_resource.read())
 }
 
 #[test]
@@ -20,7 +20,7 @@ fn empty_allocates_memory() {
     let resource_description = client.empty(size);
     let empty_resource = client.read(&resource_description);
 
-    assert_eq!(empty_resource.len(), 4);
+    assert_eq!(empty_resource.read().len(), 4);
 }
 
 #[test]
@@ -34,5 +34,5 @@ fn execute_elementwise_addition() {
 
     let obtained_resource = client.read(&out);
 
-    assert_eq!(obtained_resource, Vec::from([4, 5, 6]))
+    assert_eq!(obtained_resource.read(), Vec::from([4, 5, 6]))
 }

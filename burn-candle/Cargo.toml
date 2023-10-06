@@ -14,8 +14,8 @@ version = "0.10.0"
 
 [dependencies]
 derive-new = { workspace = true }
-burn-tensor = { path = "../burn-tensor", version = "0.10.0" }
-half = { workspace = true, features = ["std"] }
+burn-tensor = { path = "../burn-tensor", version = "0.10.0", default-features = false }
+half = { workspace = true }
 # candle-core = { version = "0.1.2" }
 candle-core = { git = "https://github.com/huggingface/candle", rev = "237323c" }
 

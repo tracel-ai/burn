@@ -1,6 +1,8 @@
 use super::TchOps;
 use crate::{element::TchElement, TchBackend, TchDevice, TchShape, TchTensor};
-use burn_tensor::{backend::Backend, ops::TensorOps, Data, Distribution, ElementConversion, Shape};
+use burn_tensor::{
+    backend::Backend, ops::TensorOps, Data, Distribution, ElementConversion, Reader, Shape,
+};
 use std::ops::Range;
 
 impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
@@ -79,20 +81,14 @@ impl<E: TchElement> TensorOps<TchBackend<E>> for TchBackend<E> {
         tensor.shape()
     }
 
-    fn to_data<const D: usize>(
-        tensor: &<TchBackend<E> as Backend>::TensorPrimitive<D>,
-    ) -> Data<<TchBackend<E> as Backend>::FloatElem, D> {
-        let shape = Self::shape(tensor);
-        let tensor = Self::reshape(tensor.clone(), Shape::new([shape.num_elements()]));
-        let values: Result<Vec<E>, tch::TchError> = tensor.tensor.shallow_clone().try_into();
-
-        Data::new(values.unwrap(), shape)
-    }
-
     fn into_data<const D: usize>(
         tensor: <TchBackend<E> as Backend>::TensorPrimitive<D>,
-    ) -> Data<<TchBackend<E> as Backend>::FloatElem, D> {
-        Self::to_data(&tensor)
+    ) -> Reader<Data<<TchBackend<E> as Backend>::FloatElem, D>> {
+        let shape = Self::shape(&tensor);
+        let tensor = Self::reshape(tensor.clone(), Shape::new([shape.num_elements()]));
+        let values: Result<Vec<E>, tch::TchError> = tensor.tensor.try_into();
+
+        Reader::Concrete(Data::new(values.unwrap(), shape))
     }
 
     fn device<const D: usize>(tensor: &TchTensor<E, D>) -> TchDevice {

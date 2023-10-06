@@ -1,22 +1,27 @@
 use super::{Checkpointer, CheckpointerError};
 use burn_core::record::Record;
-use std::sync::{mpsc, Arc};
+use std::sync::mpsc;
 
 enum Message<R> {
+    Restore(usize, mpsc::SyncSender<Result<R, CheckpointerError>>),
     Save(usize, R),
     End,
 }
 
 #[derive(new)]
-struct CheckpointerThread<R> {
-    checkpointer: Arc<dyn Checkpointer<R> + Send + Sync>,
+struct CheckpointerThread<C, R> {
+    checkpointer: C,
     receiver: mpsc::Receiver<Message<R>>,
 }
 
-impl<R: Record> CheckpointerThread<R> {
+impl<C: Checkpointer<R>, R: Record> CheckpointerThread<C, R> {
     fn run(self) {
         for item in self.receiver.iter() {
             match item {
+                Message::Restore(epoch, sender) => {
+                    let record = self.checkpointer.restore(epoch);
+                    sender.send(record).unwrap();
+                }
                 Message::Save(epoch, state) => self.checkpointer.save(epoch, state).unwrap(),
                 Message::End => {
                     return;
@@ -27,9 +32,8 @@ impl<R: Record> CheckpointerThread<R> {
 }
 
 /// Async checkpointer.
-pub struct AsyncCheckpointer<E> {
-    checkpointer: Arc<dyn Checkpointer<E> + Send + Sync>,
-    sender: mpsc::SyncSender<Message<E>>,
+pub struct AsyncCheckpointer<Record> {
+    sender: mpsc::SyncSender<Message<Record>>,
     handler: Option<std::thread::JoinHandle<()>>,
 }
 
@@ -43,17 +47,16 @@ impl<R: Record + 'static> AsyncCheckpointer<R> {
     /// # Returns
     ///
     /// The async checkpointer.
-    pub fn new(checkpointer: Arc<dyn Checkpointer<R> + Send + Sync>) -> Self {
+    pub fn new<C>(checkpointer: C) -> Self
+    where
+        C: Checkpointer<R> + Send + 'static,
+    {
         // Only on checkpoint can be done in advance.
         let (sender, receiver) = mpsc::sync_channel(0);
-        let thread = CheckpointerThread::new(checkpointer.clone(), receiver);
+        let thread = CheckpointerThread::new(checkpointer, receiver);
         let handler = Some(std::thread::spawn(move || thread.run()));
 
-        Self {
-            checkpointer,
-            sender,
-            handler,
-        }
+        Self { sender, handler }
     }
 }
 
@@ -68,7 +71,16 @@ where
     }
 
     fn restore(&self, epoch: usize) -> Result<R, CheckpointerError> {
-        self.checkpointer.restore(epoch)
+        let (sender, receiver) = mpsc::sync_channel(1);
+        self.sender
+            .send(Message::Restore(epoch, sender))
+            .map_err(|e| CheckpointerError::Unknown(e.to_string()))?;
+
+        if let Ok(record) = receiver.recv() {
+            return record;
+        };
+
+        Err(CheckpointerError::Unknown("Channel error.".to_string()))
     }
 }
 

@@ -7,7 +7,7 @@ use burn_compute::{
     memory_management::{DeallocStrategy, SimpleMemoryManagement, SliceStrategy},
     Compute,
 };
-use wgpu::{DeviceDescriptor, DeviceType};
+use wgpu::DeviceDescriptor;
 
 type MemoryManagement = SimpleMemoryManagement<WgpuStorage>;
 type Server = WgpuServer<MemoryManagement>;
@@ -26,41 +26,58 @@ pub fn compute_client<G: GraphicsApi>(device: &WgpuDevice) -> ComputeClient<Serv
     let device = Arc::new(device);
 
     COMPUTE.client(&device, move || {
-        let (device_wgpu, queue, info) = pollster::block_on(select_device::<G>(&device));
-
-        log::info!(
-            "Created wgpu compute server on device {:?} => {:?}",
-            device,
-            info
-        );
-
-        // TODO: Support a way to modify max_tasks without std.
-        let max_tasks = match std::env::var("BURN_WGPU_MAX_TASKS") {
-            Ok(value) => value
-                .parse::<usize>()
-                .expect("BURN_WGPU_MAX_TASKS should be a positive integer."),
-            Err(_) => 64, // 64 tasks by default
-        };
-
-        let device = Arc::new(device_wgpu);
-        let storage = WgpuStorage::new(device.clone());
-        let memory_management = SimpleMemoryManagement::new(
-            storage,
-            DeallocStrategy::new_period_tick(1000),
-            SliceStrategy::Ratio(0.9),
-        );
-        let server = WgpuServer::new(memory_management, device, queue, max_tasks);
-        let channel = Channel::new(server);
-
-        ComputeClient::new(channel)
+        pollster::block_on(create_client::<G>(&device))
     })
+}
+
+/// Init the client async, necessary for wasm.
+pub async fn init_async<G: GraphicsApi>(device: &WgpuDevice) {
+    let device = Arc::new(device);
+    let client = create_client::<G>(&device).await;
+
+    COMPUTE.register(&device, client)
+}
+
+async fn create_client<G: GraphicsApi>(device: &WgpuDevice) -> ComputeClient<Server, Channel> {
+    let (device_wgpu, queue, info) = select_device::<G>(device).await;
+
+    log::info!(
+        "Created wgpu compute server on device {:?} => {:?}",
+        device,
+        info
+    );
+
+    // TODO: Support a way to modify max_tasks without std.
+    let max_tasks = match std::env::var("BURN_WGPU_MAX_TASKS") {
+        Ok(value) => value
+            .parse::<usize>()
+            .expect("BURN_WGPU_MAX_TASKS should be a positive integer."),
+        Err(_) => 64, // 64 tasks by default
+    };
+
+    let device = Arc::new(device_wgpu);
+    let storage = WgpuStorage::new(device.clone());
+    let memory_management = SimpleMemoryManagement::new(
+        storage,
+        DeallocStrategy::new_period_tick(1000),
+        SliceStrategy::Ratio(0.9),
+    );
+    let server = WgpuServer::new(memory_management, device, queue, max_tasks);
+    let channel = Channel::new(server);
+
+    ComputeClient::new(channel)
 }
 
 /// Select the wgpu device and queue based on the provided [device](WgpuDevice).
 pub async fn select_device<G: GraphicsApi>(
     device: &WgpuDevice,
 ) -> (wgpu::Device, wgpu::Queue, wgpu::AdapterInfo) {
+    #[cfg(target_family = "wasm")]
+    let adapter = select_adapter::<G>(device).await;
+
+    #[cfg(not(target_family = "wasm"))]
     let adapter = select_adapter::<G>(device);
+
     let limits = adapter.limits();
 
     let (device, queue) = adapter
@@ -85,9 +102,21 @@ pub async fn select_device<G: GraphicsApi>(
     (device, queue, adapter.get_info())
 }
 
-fn select_adapter<G: GraphicsApi>(device: &WgpuDevice) -> wgpu::Adapter {
+#[cfg(target_family = "wasm")]
+async fn select_adapter<G: GraphicsApi>(_device: &WgpuDevice) -> wgpu::Adapter {
     let instance = wgpu::Instance::default();
 
+    instance
+        .request_adapter(&wgpu::RequestAdapterOptionsBase::default())
+        .await
+        .unwrap()
+}
+
+#[cfg(not(target_family = "wasm"))]
+fn select_adapter<G: GraphicsApi>(device: &WgpuDevice) -> wgpu::Adapter {
+    use wgpu::DeviceType;
+
+    let instance = wgpu::Instance::default();
     let mut adapters_other = Vec::new();
     let mut adapters = Vec::new();
 

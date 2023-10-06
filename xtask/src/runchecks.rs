@@ -52,6 +52,7 @@ fn run_cargo(command: &str, params: Params, error: &str) {
 
     // Run cargo
     let cargo = Command::new("cargo")
+        .env("CARGO_INCREMENTAL", "0")
         .arg(command)
         .args(params.params)
         .stdout(Stdio::inherit()) // Send stdout directly to terminal

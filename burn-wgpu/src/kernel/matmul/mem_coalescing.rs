@@ -6,6 +6,7 @@ use crate::{
     element::WgpuElement,
     kernel::{
         build_info, into_contiguous, DynamicKernelSource, SourceTemplate, StaticKernelSource,
+        WORKGROUP_DEFAULT,
     },
     kernel_wgsl,
     ops::numeric::empty_device,
@@ -43,7 +44,7 @@ pub fn matmul_mem_coalescing_default<E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
-    matmul_mem_coalescing::<E, D>(lhs, rhs, 16, 16)
+    matmul_mem_coalescing::<E, D>(lhs, rhs, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT)
 }
 
 /// Matrix multiplication using memory coalescing algorithm with custom workgroup sizes

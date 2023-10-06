@@ -8,8 +8,6 @@ extern crate alloc;
 
 mod ops;
 
-/// Benchmark module
-pub mod benchmark;
 /// Compute related module.
 pub mod compute;
 /// Kernel module

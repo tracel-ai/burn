@@ -9,7 +9,9 @@ use crate::{
     ADBackendDecorator,
 };
 
-use burn_tensor::{backend::Backend, ops::TensorOps, Data, ElementConversion, Shape, Tensor};
+use burn_tensor::{
+    backend::Backend, ops::TensorOps, Data, ElementConversion, Reader, Shape, Tensor,
+};
 
 use super::maxmin::MaxMinDim;
 
@@ -41,11 +43,11 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         B::shape(&tensor.primitive)
     }
 
-    fn to_data<const D: usize>(tensor: &ADTensor<B, D>) -> Data<FloatElem<B>, D> {
+    fn to_data<const D: usize>(tensor: &ADTensor<B, D>) -> Reader<Data<FloatElem<B>, D>> {
         B::to_data(&tensor.primitive)
     }
 
-    fn into_data<const D: usize>(tensor: ADTensor<B, D>) -> Data<FloatElem<B>, D> {
+    fn into_data<const D: usize>(tensor: ADTensor<B, D>) -> Reader<Data<FloatElem<B>, D>> {
         B::into_data(tensor.primitive)
     }
 

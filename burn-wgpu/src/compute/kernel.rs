@@ -98,7 +98,7 @@ mod tests {
 
         client.execute(kernel, &[&lhs, &rhs, &out, &info]);
 
-        let data = client.read(&out);
+        let data = client.read(&out).read_sync().unwrap();
         let output: &[f32] = bytemuck::cast_slice(&data);
 
         assert_eq!(output, [10., 12., 14., 9., 11., 8., 7., 7.]);

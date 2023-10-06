@@ -9,8 +9,10 @@ This crate demonstrates how to run an MNIST-trained model in the browser for inf
 1. Build
 
    ```shell
-   ./build-for-web.sh
+   ./build-for-web.sh {backend}
    ```
+
+   The backend can either be `ndarray` or `wgpu`. Note that `wgpu` only works for browsers with support for WebGPU.
 
 2. Run the server
 
