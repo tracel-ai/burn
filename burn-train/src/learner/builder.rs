@@ -284,7 +284,7 @@ where
             self.metrics
                 .add_logger_train(FileMetricLogger::new(format!("{directory}/train").as_str()));
             self.metrics
-                .add_logger_valid(FileMetricLogger::new(format!("{directory}/train").as_str()));
+                .add_logger_valid(FileMetricLogger::new(format!("{directory}/valid").as_str()));
         }
 
         let callback = AsyncTrainerCallback::new(MetricsCallback::new(renderer, self.metrics));

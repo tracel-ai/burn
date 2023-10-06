@@ -29,15 +29,24 @@ pub trait LearnerCallback: Send {
     ) -> Option<usize>;
 }
 
+/// How to aggregate the metric.
 pub enum Aggregate {
+    /// Compute the average.
     Mean,
 }
+
+/// The split to use.
 pub enum Split {
+    /// The training split.
     Train,
+    /// The validation split.
     Valid,
 }
+/// The direction of the query.
 pub enum Direction {
+    /// Lower is better.
     Lowest,
+    /// Higher is better.
     Hightest,
 }
 

@@ -129,7 +129,7 @@ where
         MetricsUpdate::new(entries, entries_numeric)
     }
 
-    pub fn find_epoch(
+    pub(crate) fn find_epoch(
         &mut self,
         name: &str,
         aggregate: Aggregate,

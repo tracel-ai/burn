@@ -187,8 +187,8 @@ impl<LC: LearnerComponents> Learner<LC> {
             crate::Direction::Lowest,
             crate::Split::Valid,
         );
-        
-        log::info!("Lowest Loss: {epoch:?}");
+
+        log::info!("Lowest validation loss: {epoch:?}");
 
         self.model
     }
