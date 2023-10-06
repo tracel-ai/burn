@@ -1,7 +1,7 @@
-use alloc::vec::Vec;
-use core::ops::Range;
-
 use crate::{backend::Backend, tensor::Shape, Data};
+use alloc::vec::Vec;
+use burn_common::reader::Reader;
+use core::ops::Range;
 
 /// Bool Tensor API for basic operations, see [tensor](crate::Tensor)
 /// for documentation on each function.
@@ -39,7 +39,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn bool_into_data<const D: usize>(tensor: B::BoolTensorPrimitive<D>) -> Data<bool, D>;
+    fn bool_into_data<const D: usize>(tensor: B::BoolTensorPrimitive<D>) -> Reader<Data<bool, D>>;
 
     /// Gets the data from the tensor.
     ///
@@ -51,7 +51,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data cloned from the data structure.
-    fn bool_to_data<const D: usize>(tensor: &B::BoolTensorPrimitive<D>) -> Data<bool, D> {
+    fn bool_to_data<const D: usize>(tensor: &B::BoolTensorPrimitive<D>) -> Reader<Data<bool, D>> {
         Self::bool_into_data(tensor.clone())
     }
 

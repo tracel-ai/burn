@@ -42,6 +42,11 @@ impl MetricMetadata {
 /// This is important since some conflict may happen when the model output is adapted for each
 /// metric's input type.
 pub trait Metric: Send + Sync {
+    /// The name of the metric.
+    ///
+    /// This should be unique, so avoid using short generic names, prefer using the long name.
+    const NAME: &'static str;
+
     /// The input type of the metric.
     type Input;
 

@@ -1,6 +1,6 @@
 use std::borrow::Borrow;
 
-use burn_tensor::{ops::TensorOps, Data, Distribution, ElementConversion, Shape};
+use burn_tensor::{ops::TensorOps, Data, Distribution, ElementConversion, Reader, Shape};
 use candle_core::{backend::BackendStorage, shape, Tensor};
 
 use crate::{
@@ -54,8 +54,8 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
         super::base::shape(tensor)
     }
 
-    fn to_data<const D: usize>(tensor: &CandleTensor<F, D>) -> Data<F, D> {
-        super::base::to_data(tensor)
+    fn into_data<const D: usize>(tensor: CandleTensor<F, D>) -> Reader<Data<F, D>> {
+        Reader::Concrete(super::base::into_data(tensor))
     }
 
     fn device<const D: usize>(tensor: &CandleTensor<F, D>) -> Device<Self> {

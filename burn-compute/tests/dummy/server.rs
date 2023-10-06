@@ -1,3 +1,4 @@
+use burn_common::reader::Reader;
 use burn_compute::{
     memory_management::{MemoryManagement, SimpleMemoryManagement},
     server::{ComputeServer, Handle},
@@ -9,7 +10,7 @@ use super::DummyKernel;
 
 /// The dummy server is used to test the burn-compute infrastructure.
 /// It uses simple memory management with a bytes storage on CPU, without asynchronous tasks.
-#[derive(new)]
+#[derive(new, Debug)]
 pub struct DummyServer<MM = SimpleMemoryManagement<BytesStorage>> {
     memory_management: MM,
 }
@@ -22,10 +23,10 @@ where
     type Storage = BytesStorage;
     type MemoryManagement = MM;
 
-    fn read(&mut self, handle: &Handle<Self>) -> Vec<u8> {
-        let bytes = self.memory_management.get(handle);
+    fn read(&mut self, handle: &Handle<Self>) -> Reader<Vec<u8>> {
+        let bytes = self.memory_management.get(&handle.memory);
 
-        bytes.read().to_vec()
+        Reader::Concrete(bytes.read().to_vec())
     }
 
     fn create(&mut self, data: &[u8]) -> Handle<Self> {
@@ -38,17 +39,17 @@ where
             bytes[i] = *val;
         }
 
-        handle
+        Handle::new(handle)
     }
 
     fn empty(&mut self, size: usize) -> Handle<Self> {
-        self.memory_management.reserve(size)
+        Handle::new(self.memory_management.reserve(size))
     }
 
     fn execute(&mut self, kernel: Self::Kernel, handles: &[&Handle<Self>]) {
         let mut resources = handles
             .iter()
-            .map(|handle| self.memory_management.get(handle))
+            .map(|handle| self.memory_management.get(&handle.memory))
             .collect::<Vec<_>>();
 
         kernel.compute(&mut resources);

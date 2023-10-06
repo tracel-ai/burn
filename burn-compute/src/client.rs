@@ -3,10 +3,12 @@ use crate::{
     server::{ComputeServer, Handle},
 };
 use alloc::vec::Vec;
+use burn_common::reader::Reader;
 use core::marker::PhantomData;
 
 /// The ComputeClient is the entry point to require tasks from the ComputeServer.
 /// It should be obtained for a specific device via the Compute struct.
+#[derive(Debug)]
 pub struct ComputeClient<Server, Channel> {
     channel: Channel,
     _server: PhantomData<Server>,
@@ -39,7 +41,7 @@ where
     }
 
     /// Given a handle, returns owned resource as bytes.
-    pub fn read(&self, handle: &Handle<Server>) -> Vec<u8> {
+    pub fn read(&self, handle: &Handle<Server>) -> Reader<Vec<u8>> {
         self.channel.read(handle)
     }
 

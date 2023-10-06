@@ -16,8 +16,7 @@ impl<E, const D: usize> NdArrayTensor<E, D> {
 #[cfg(test)]
 mod utils {
     use super::*;
-    use crate::{element::FloatNdArrayElement, NdArrayBackend};
-    use burn_tensor::ops::TensorOps;
+    use crate::element::FloatNdArrayElement;
 
     impl<E, const D: usize> NdArrayTensor<E, D>
     where
@@ -27,7 +26,10 @@ mod utils {
         where
             E: FloatNdArrayElement,
         {
-            <NdArrayBackend<E> as TensorOps<NdArrayBackend<E>>>::into_data::<D>(self)
+            let shape = self.shape();
+            let values = self.array.into_iter().collect();
+
+            Data::new(values, shape)
         }
     }
 }

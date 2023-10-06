@@ -1,5 +1,5 @@
-use super::{elemwise_workgroup, KernelSettings, StaticKernel};
-use crate::{element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
+use super::{elemwise_workgroup, KernelSettings, StaticKernelSource, WORKGROUP_DEFAULT};
+use crate::{compute::StaticKernel, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 
 kernel_wgsl!(UnaryScalarRaw, "../template/unary_scalar.wgsl");
 kernel_wgsl!(
@@ -16,9 +16,9 @@ macro_rules! unary_scalar {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::StaticKernel for $struct {
-            fn source_template() -> $crate::kernel::SourceTemplate {
-                $crate::kernel::UnaryScalarRaw::source_template()
+        impl $crate::kernel::StaticKernelSource for $struct {
+            fn source() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::UnaryScalarRaw::source()
                     .register("body", format!("output[id] = lhs[id] {} rhs;", $ops))
             }
         }
@@ -30,9 +30,9 @@ macro_rules! unary_scalar {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::StaticKernel for $struct {
-            fn source_template() -> $crate::kernel::SourceTemplate {
-                $crate::kernel::UnaryScalarRaw::source_template()
+        impl $crate::kernel::StaticKernelSource for $struct {
+            fn source() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::UnaryScalarRaw::source()
                     .register("body", format!("output[id] = {}(lhs[id], rhs);", $func))
             }
         }
@@ -45,9 +45,9 @@ macro_rules! unary_scalar {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::StaticKernel for $struct {
-            fn source_template() -> $crate::kernel::SourceTemplate {
-                $crate::kernel::UnaryScalarRaw::source_template()
+        impl $crate::kernel::StaticKernelSource for $struct {
+            fn source() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::UnaryScalarRaw::source()
                     .register("body", format!("output[id] = {}(lhs[id], rhs);", $func))
                     .add_template(include_str!($file))
             }
@@ -64,10 +64,23 @@ macro_rules! unary_scalar_inplace {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::StaticKernel for $struct {
-            fn source_template() -> $crate::kernel::SourceTemplate {
-                $crate::kernel::UnaryScalarInplaceRaw::source_template()
+        impl $crate::kernel::StaticKernelSource for $struct {
+            fn source() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::UnaryScalarInplaceRaw::source()
                     .register("body", format!("lhs[id] = lhs[id] {} rhs;", $ops))
+            }
+        }
+    };
+
+    (
+        $struct:ident,
+        body $body:expr
+    ) => {
+        pub struct $struct;
+
+        impl $crate::kernel::StaticKernelSource for $struct {
+            fn source() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::UnaryScalarInplaceRaw::source().register("body", $body)
             }
         }
     };
@@ -78,9 +91,9 @@ macro_rules! unary_scalar_inplace {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::StaticKernel for $struct {
-            fn source_template() -> $crate::kernel::SourceTemplate {
-                $crate::kernel::UnaryScalarInplaceRaw::source_template()
+        impl $crate::kernel::StaticKernelSource for $struct {
+            fn source() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::UnaryScalarInplaceRaw::source()
                     .register("body", format!("lhs[id] = {}(lhs[id], rhs);", $func))
             }
         }
@@ -93,9 +106,9 @@ macro_rules! unary_scalar_inplace {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::StaticKernel for $struct {
-            fn source_template() -> $crate::kernel::SourceTemplate {
-                $crate::kernel::UnaryScalarInplaceRaw::source_template()
+        impl $crate::kernel::StaticKernelSource for $struct {
+            fn source() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::UnaryScalarInplaceRaw::source()
                     .register("body", format!("lhs[id] = {}(lhs[id], rhs);", $func))
                     .add_template(include_str!($file))
             }
@@ -104,48 +117,16 @@ macro_rules! unary_scalar_inplace {
 }
 
 /// Execute a unary scalar kernel using the default settings.
-pub fn unary_scalar_default<K: StaticKernel, E: WgpuElement, const D: usize>(
+pub fn unary_scalar_default<K: StaticKernelSource, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     scalar: E,
 ) -> WgpuTensor<E, D> {
-    unary_scalar::<K, E, D, 32>(lhs, scalar)
+    unary_scalar::<K, E, D, WORKGROUP_DEFAULT>(lhs, scalar)
 }
 
 /// Execute a unary scalar kernel using the provided WORKGROUP.
-pub fn unary_scalar<K: StaticKernel, E: WgpuElement, const D: usize, const WORKGROUP: usize>(
-    lhs: WgpuTensor<E, D>,
-    scalar: E,
-) -> WgpuTensor<E, D> {
-    let num_elems = lhs.shape.num_elements();
-    let buffer = lhs
-        .context
-        .create_buffer(num_elems * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(lhs.context.clone(), lhs.shape, buffer);
-    let kernel = lhs
-        .context
-        .compile_static::<KernelSettings<K, E, i32, WORKGROUP, WORKGROUP, 1>>();
-    let rhs_buffer = lhs.context.create_buffer_with_data(E::as_bytes(&[scalar]));
-
-    lhs.context.execute(
-        elemwise_workgroup(num_elems, WORKGROUP),
-        kernel,
-        &[&lhs.buffer, &rhs_buffer, &output.buffer],
-    );
-
-    output
-}
-
-/// Execute a unary scalar inplace kernel using the default settings.
-pub fn unary_scalar_inplace_default<K: StaticKernel, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<E, D>,
-    scalar: E,
-) -> WgpuTensor<E, D> {
-    unary_scalar_inplace::<K, E, D, 32>(lhs, scalar)
-}
-
-/// Execute a unary scalar inplace kernel using the provided WORKGROUP.
-pub fn unary_scalar_inplace<
-    K: StaticKernel,
+pub fn unary_scalar<
+    K: StaticKernelSource,
     E: WgpuElement,
     const D: usize,
     const WORKGROUP: usize,
@@ -153,19 +134,48 @@ pub fn unary_scalar_inplace<
     lhs: WgpuTensor<E, D>,
     scalar: E,
 ) -> WgpuTensor<E, D> {
-    let kernel = lhs
-        .context
-        .compile_static::<KernelSettings<K, E, i32, WORKGROUP, WORKGROUP, 1>>();
-    let rhs_buffer = lhs.context.create_buffer_with_data(E::as_bytes(&[scalar]));
-
-    lhs.context.execute(
-        {
-            let num_elems = lhs.shape.num_elements();
-            elemwise_workgroup(num_elems, WORKGROUP)
-        },
-        kernel,
-        &[&lhs.buffer, &rhs_buffer],
+    let num_elems = lhs.shape.num_elements();
+    let buffer = lhs.client.empty(num_elems * core::mem::size_of::<E>());
+    let output = WgpuTensor::new(lhs.client.clone(), lhs.device, lhs.shape, buffer);
+    let kernel = StaticKernel::<KernelSettings<K, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
+        elemwise_workgroup(num_elems, WORKGROUP),
     );
+    let rhs_handle = lhs.client.create(E::as_bytes(&[scalar]));
+
+    lhs.client.execute(
+        Box::new(kernel),
+        &[&lhs.handle, &rhs_handle, &output.handle],
+    );
+
+    output
+}
+
+/// Execute a unary scalar inplace kernel using the default settings.
+pub fn unary_scalar_inplace_default<K: StaticKernelSource, E: WgpuElement, const D: usize>(
+    lhs: WgpuTensor<E, D>,
+    scalar: E,
+) -> WgpuTensor<E, D> {
+    unary_scalar_inplace::<K, E, D, WORKGROUP_DEFAULT>(lhs, scalar)
+}
+
+/// Execute a unary scalar inplace kernel using the provided WORKGROUP.
+pub fn unary_scalar_inplace<
+    K: StaticKernelSource,
+    E: WgpuElement,
+    const D: usize,
+    const WORKGROUP: usize,
+>(
+    lhs: WgpuTensor<E, D>,
+    scalar: E,
+) -> WgpuTensor<E, D> {
+    let num_elems = lhs.shape.num_elements();
+    let kernel = StaticKernel::<KernelSettings<K, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
+        elemwise_workgroup(num_elems, WORKGROUP),
+    );
+    let rhs_handle = lhs.client.create(E::as_bytes(&[scalar]));
+
+    lhs.client
+        .execute(Box::new(kernel), &[&lhs.handle, &rhs_handle]);
 
     lhs
 }

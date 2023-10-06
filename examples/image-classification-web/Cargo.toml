@@ -1,0 +1,35 @@
+[package]
+authors = ["Dilshod Tadjibaev (@antimora)"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+name = "image-classification-web"
+publish = false
+version = "0.10.0"
+
+[lib]
+crate-type = ["cdylib"]
+
+[features]
+default = []
+
+[dependencies]
+burn = { path = "../../burn", default-features = false, features = [
+    "ndarray-no-std",
+    "wgpu",
+] }
+
+burn-candle = { path = "../../burn-candle", version = "0.10.0", default-features = false }
+
+js-sys = "0.3.64"
+log = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde-wasm-bindgen = "0.6.0"
+wasm-bindgen = "0.2.87"
+wasm-bindgen-futures = "0.4.37"
+wasm-logger = "0.2.0"
+wasm-timer = "0.2.5"
+
+[build-dependencies]
+# Used to generate code from ONNX model
+burn-import = { path = "../../burn-import" }

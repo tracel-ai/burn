@@ -1,7 +1,8 @@
 use crate::{
-    element::WgpuElement, kernel, pool::get_context, tensor::WgpuTensor, GraphicsApi, WgpuDevice,
+    compute::compute_client, element::WgpuElement, kernel, tensor::WgpuTensor, GraphicsApi,
+    WgpuDevice,
 };
-use burn_tensor::{backend::Backend, Data, Shape};
+use burn_tensor::{backend::Backend, Data, Reader, Shape};
 
 pub type FloatElem<B> = <B as Backend>::FloatElem;
 pub type Device<B> = <B as Backend>::Device;
@@ -18,40 +19,52 @@ pub fn from_data<G: GraphicsApi, E: WgpuElement, const D: usize>(
     data: Data<E, D>,
     device: &WgpuDevice,
 ) -> WgpuTensor<E, D> {
-    let context = get_context::<G>(device);
-    let buffer = context.create_buffer_with_data_options(E::as_bytes(&data.value), true);
+    let client = compute_client::<G>(device);
+    let buffer = client.create(E::as_bytes(&data.value));
 
-    WgpuTensor::new(context, data.shape, buffer)
+    WgpuTensor::new(client, device.clone(), data.shape, buffer)
 }
 
-pub fn into_data<E: WgpuElement, const D: usize>(tensor: WgpuTensor<E, D>) -> Data<E, D> {
+pub fn into_data<E: WgpuElement, const D: usize>(tensor: WgpuTensor<E, D>) -> Reader<Data<E, D>> {
     let tensor = kernel::into_contiguous(tensor);
-    let bytes = tensor.context.read_buffer(tensor.buffer);
-    let values = E::from_bytes(&bytes);
 
-    Data::new(values.to_vec(), tensor.shape)
+    tensor
+        .client
+        .read(&tensor.handle)
+        .map(|bytes| Data::new(E::from_bytes(&bytes).to_vec(), tensor.shape))
+}
+
+pub fn bool_into_data<const D: usize>(tensor: WgpuTensor<u32, D>) -> Reader<Data<bool, D>> {
+    let tensor = kernel::into_contiguous(tensor);
+
+    tensor.client.read(&tensor.handle).map(|bytes| {
+        Data::new(
+            u32::from_bytes(&bytes).iter().map(|i| *i != 0).collect(),
+            tensor.shape,
+        )
+    })
 }
 
 pub fn to_device<G: GraphicsApi, E: WgpuElement, const D: usize>(
     tensor: WgpuTensor<E, D>,
     device: &WgpuDevice,
 ) -> WgpuTensor<E, D> {
-    if &tensor.context.device == device {
+    if &tensor.device == device {
         return tensor;
     }
 
-    let context = get_context::<G>(device);
-    tensor.to_context(context)
+    let client = compute_client::<G>(device);
+    tensor.to_client(client, device.clone())
 }
 
 pub fn empty<G: GraphicsApi, E: WgpuElement, const D: usize>(
     shape: Shape<D>,
     device: &WgpuDevice,
 ) -> WgpuTensor<E, D> {
-    let context = get_context::<G>(device);
-    let buffer = context.create_buffer(shape.num_elements() * core::mem::size_of::<E>());
+    let client = compute_client::<G>(device);
+    let buffer = client.empty(shape.num_elements() * core::mem::size_of::<E>());
 
-    WgpuTensor::new(context, shape, buffer)
+    WgpuTensor::new(client, device.clone(), shape, buffer)
 }
 
 pub fn swap_dims<E: WgpuElement, const D: usize>(
@@ -72,5 +85,5 @@ pub fn reshape<E: WgpuElement, const D1: usize, const D2: usize>(
     // TODO: Not force standard layout all the time (improve performance).
     let tensor = kernel::into_contiguous(tensor);
 
-    WgpuTensor::new(tensor.context, shape, tensor.buffer)
+    WgpuTensor::new(tensor.client, tensor.device, shape, tensor.handle)
 }

@@ -1,7 +1,7 @@
 use crate::{record::Record, LearningRate};
 
 /// Learning rate scheduler defines how the learning rate will evolve during training.
-pub trait LRScheduler: Send + Sync {
+pub trait LrScheduler: Send + Sync {
     /// Scheduler associative type to be used when saving and loading the state.
     type Record: Record;
 

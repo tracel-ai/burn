@@ -1,28 +1,15 @@
+use super::padding::{crop, pad_round, PaddingOutput};
 use crate::{
-    context::{Context, WorkGroup},
+    compute::{DynamicKernel, WgpuHandle, WorkGroup},
     element::WgpuElement,
-    kernel::{build_info, into_contiguous, matmul::utils::shape_out},
+    kernel::{build_info, into_contiguous, matmul::utils::shape_out, DynamicKernelSource},
+    ops::numeric::empty_device,
     tensor::WgpuTensor,
 };
-use burn_tensor::Shape;
-use std::{
-    cmp::{max, min},
-    sync::Arc,
-};
-use wgpu::ComputePipeline;
-
-use super::padding::{crop, pad_round, PaddingOutput};
+use burn_tensor::{Element, Shape};
+use std::cmp::{max, min};
 
 const MAX_SHARED_MEMORY_SIZE: usize = 8192;
-
-pub(super) fn empty_from_context<E: WgpuElement, const D: usize>(
-    context: Arc<Context>,
-    shape: &Shape<D>,
-) -> WgpuTensor<E, D> {
-    let buffer = context.create_buffer(shape.num_elements() * core::mem::size_of::<E>());
-
-    WgpuTensor::new(context, shape.clone(), buffer)
-}
 
 /// Create a source template for tile 2d matmul.
 #[macro_export(local_inner_macros)]
@@ -63,11 +50,11 @@ macro_rules! matmul_tile_2d {
             _elem: core::marker::PhantomData<E>,
         }
 
-        impl<E: WgpuElement> DynamicKernel for $struct<E> {
-            fn source_template(self) -> SourceTemplate {
+        impl<E: WgpuElement> DynamicKernelSource for $struct<E> {
+            fn source(self) -> SourceTemplate {
                 kernel_wgsl!(Raw, $file);
 
-                Raw::source_template()
+                Raw::source()
                     .register("b_m", self.b_m.to_string())
                     .register("b_n", self.b_n.to_string())
                     .register("b_k", self.b_k.to_string())
@@ -90,7 +77,7 @@ macro_rules! matmul_tile_2d {
         }
 
         /// Matrix multiplication using tiling 2D algorithm with default parameters
-        pub fn matmul_tiling_2d_default<E: WgpuElement, const D: usize>(
+        pub fn matmul_tiling_2d_default<E: WgpuElement + burn_tensor::Element, const D: usize>(
             lhs: WgpuTensor<E, D>,
             rhs: WgpuTensor<E, D>,
         ) -> WgpuTensor<E, D> {
@@ -125,7 +112,7 @@ macro_rules! matmul_tile_2d {
         /// Matrix multiplication using tiling 2D algorithm with custom parameters
         #[allow(clippy::too_many_arguments)]
         pub fn matmul_tiling_2d<
-            E: WgpuElement,
+            E: WgpuElement + burn_tensor::Element,
             const D: usize,
        >(
             lhs: WgpuTensor<E, D>,
@@ -140,14 +127,13 @@ macro_rules! matmul_tile_2d {
 
         ) -> WgpuTensor<E, D> {
             let kernel = $struct::<E>::new(b_m, b_n, b_k, t_m, t_n, workgroup_size_x, workgroup_size_y);
-            let kernel = lhs.context.compile_dynamic(kernel);
             matmul_tiling_2d_launch::<
                 E,
                 D,
+                $struct::<E>,
             >(
                 lhs,
                 rhs,
-                kernel,
                 b_m,
                 b_n,
                 b_k,
@@ -155,6 +141,7 @@ macro_rules! matmul_tile_2d {
                 t_n,
                 workgroup_size_x,
                 workgroup_size_y,
+                kernel,
               )
         }
 
@@ -412,21 +399,23 @@ pub(super) fn make_workgroup<const D: usize>(
     WorkGroup::new(num_blocks_x, num_blocks_y, num_blocks_z as u32)
 }
 
-pub(super) fn make_info_buffers<E: WgpuElement, const D: usize>(
+pub(super) fn make_info_handle<E: WgpuElement, const D: usize>(
     lhs: &WgpuTensor<E, D>,
     rhs: &WgpuTensor<E, D>,
     output: &WgpuTensor<E, D>,
-) -> Arc<wgpu::Buffer> {
+) -> WgpuHandle {
     let info = build_info(&[lhs, rhs, output]);
-    rhs.context
-        .create_buffer_with_data(bytemuck::cast_slice(&info))
+    rhs.client.create(bytemuck::cast_slice(&info))
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn matmul_tiling_2d_launch<E: WgpuElement, const D: usize>(
+pub(super) fn matmul_tiling_2d_launch<
+    E: WgpuElement + Element,
+    const D: usize,
+    K: DynamicKernelSource + 'static,
+>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
-    kernel: Arc<ComputePipeline>,
     b_m: usize,
     b_n: usize,
     b_k: usize,
@@ -434,6 +423,7 @@ pub(super) fn matmul_tiling_2d_launch<E: WgpuElement, const D: usize>(
     t_n: usize,
     workgroup_size_x: usize,
     workgroup_size_y: usize,
+    kernel: K,
 ) -> WgpuTensor<E, D> {
     matmul_parameter_assertions::<E, D>(
         b_m,
@@ -470,15 +460,18 @@ pub(super) fn matmul_tiling_2d_launch<E: WgpuElement, const D: usize>(
 
     let rounded_output_shape = shape_out(&lhs, &rhs);
 
-    let output = empty_from_context::<E, D>(rhs.context.clone(), &rounded_output_shape);
+    let output = empty_device(
+        rhs.client.clone(),
+        rhs.device.clone(),
+        rounded_output_shape.clone(),
+    );
 
     let workgroup = make_workgroup(rounded_output_shape, b_m, b_n);
-    let info_buffers = make_info_buffers(&lhs, &rhs, &output);
+    let info_handle = make_info_handle(&lhs, &rhs, &output);
 
-    lhs.context.execute(
-        workgroup,
-        kernel,
-        &[&lhs.buffer, &rhs.buffer, &output.buffer, &info_buffers],
+    output.client.execute(
+        Box::new(DynamicKernel::new(kernel, workgroup)),
+        &[&lhs.handle, &rhs.handle, &output.handle, &info_handle],
     );
 
     crop(output, final_output_shape)

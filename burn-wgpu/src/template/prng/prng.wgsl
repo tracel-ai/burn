@@ -36,7 +36,7 @@ fn main(
 
 fn taus_step(z: u32, s1: u32, s2: u32, s3: u32, m: u32) -> u32 {   
     let b = ((z << s1) ^ z) >> s2;  
-    return (z & m) << s3 ^ b; 
+    return ((z & m) << s3) ^ b; 
 } 
 
 fn taus_step_0(z: u32) -> u32 {

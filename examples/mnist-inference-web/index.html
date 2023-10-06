@@ -123,13 +123,13 @@
       wasm().then((module) => {
         const mnist = new Mnist();
 
-        function fireOffInference() {
+        async function fireOffInference() {
           clearTimeout(timeoutId);
-          timeoutId = setTimeout(() => {
+          timeoutId = setTimeout(async () => {
             isTimeOutSet = true;
             fabricCanvas.freeDrawingBrush._finalizeAndAddPath();
             const data = cropScaleGetImageData(mainContext, cropContext, scaledContext);
-            const output = mnist.inference(data);
+            const output = await mnist.inference(data);
             chart.data.datasets[0].data = output;
             chart.update();
             isTimeOutSet = false;
@@ -140,14 +140,14 @@
         fabricCanvas.on("mouse:down", function (event) {
           isDrawing = true;
         });
-        fabricCanvas.on("mouse:up", function (event) {
+        fabricCanvas.on("mouse:up", async function (event) {
           isDrawing = false;
-          fireOffInference();
+          await fireOffInference();
         });
 
-        fabricCanvas.on("mouse:move", function (event) {
+        fabricCanvas.on("mouse:move", async function (event) {
           if (isDrawing && isTimeOutSet == false) {
-            fireOffInference();
+            await fireOffInference();
           }
         });
       });

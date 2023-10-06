@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use burn_tensor::{backend::Backend, ops::IntTensorOps, Data, Shape};
+use burn_tensor::{backend::Backend, ops::IntTensorOps, Data, Reader, Shape};
 
 use crate::{element::TchElement, TchBackend, TchDevice, TchShape, TchTensor};
 
@@ -23,16 +23,12 @@ impl<E: TchElement> IntTensorOps<TchBackend<E>> for TchBackend<E> {
         TchOps::repeat(tensor, dim, times)
     }
 
-    fn int_to_data<const D: usize>(tensor: &TchTensor<i64, D>) -> Data<i64, D> {
-        let shape = Self::int_shape(tensor);
+    fn int_into_data<const D: usize>(tensor: TchTensor<i64, D>) -> Reader<Data<i64, D>> {
+        let shape = Self::int_shape(&tensor);
         let tensor = Self::int_reshape(tensor.clone(), Shape::new([shape.num_elements()]));
         let values: Result<Vec<i64>, tch::TchError> = tensor.tensor.shallow_clone().try_into();
 
-        Data::new(values.unwrap(), shape)
-    }
-
-    fn int_into_data<const D: usize>(tensor: TchTensor<i64, D>) -> Data<i64, D> {
-        Self::int_to_data(&tensor)
+        Reader::Concrete(Data::new(values.unwrap(), shape))
     }
 
     fn int_to_device<const D: usize>(

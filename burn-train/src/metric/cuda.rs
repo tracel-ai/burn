@@ -2,8 +2,6 @@ use super::{Adaptor, MetricMetadata};
 use crate::metric::{Metric, MetricEntry};
 use nvml_wrapper::Nvml;
 
-static NAME: &str = "CUDA";
-
 /// Track basic cuda infos.
 pub struct CUDAMetric {
     nvml: Option<Nvml>,
@@ -32,12 +30,14 @@ impl<T> Adaptor<()> for T {
 }
 
 impl Metric for CUDAMetric {
+    const NAME: &'static str = "CUDA Stats";
+
     type Input = ();
 
     fn update(&mut self, _item: &(), _metadata: &MetricMetadata) -> MetricEntry {
         let not_available = || {
             MetricEntry::new(
-                NAME.to_string(),
+                Self::NAME.to_string(),
                 "Unavailable".to_string(),
                 "Unavailable".to_string(),
             )
@@ -91,7 +91,7 @@ impl Metric for CUDAMetric {
                 formatted = format!("{formatted} - Usage {utilization_rate_formatted}");
             }
 
-            MetricEntry::new(NAME.to_string(), formatted, raw_running)
+            MetricEntry::new(Self::NAME.to_string(), formatted, raw_running)
         };
 
         match &self.nvml {

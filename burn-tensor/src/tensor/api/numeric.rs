@@ -9,6 +9,7 @@ where
     K: Numeric<B>,
     K::Elem: Element,
 {
+    #[cfg(not(target_family = "wasm"))]
     /// Convert the tensor into a scalar.
     ///
     /// # Panics
@@ -19,6 +20,19 @@ where
         let data = self.into_data();
         data.value[0]
     }
+
+    #[cfg(target_family = "wasm")]
+    /// Convert the tensor into a scalar.
+    ///
+    /// # Panics
+    ///
+    /// If the tensor doesn't have one element.
+    pub async fn into_scalar(self) -> K::Elem {
+        check!(TensorCheck::into_scalar(&self.shape()));
+        let data = self.into_data().await;
+        data.value[0]
+    }
+
     /// Applies element wise addition operation.
     ///
     /// `y = x2 + x1`
@@ -447,6 +461,25 @@ where
     /// Apply element wise absolute value operation
     pub fn abs(self) -> Self {
         Self::new(K::abs(self.primitive))
+    }
+}
+
+impl<B, K> Tensor<B, 2, K>
+where
+    B: Backend,
+    K: Numeric<B>,
+    K::Elem: Element,
+{
+    /// Create diagonal matrix.
+    ///
+    /// # Arguments
+    ///
+    /// * `size` - The size of the square matrix.
+    pub fn diagonal(size: usize) -> Self {
+        let indices = Tensor::<B, 1, Int>::arange(0..size).unsqueeze();
+        let ones = K::ones([1, size].into(), &B::Device::default());
+        let zeros = K::zeros([size, size].into(), &B::Device::default());
+        Self::new(K::scatter(0, zeros, indices, ones))
     }
 }
 

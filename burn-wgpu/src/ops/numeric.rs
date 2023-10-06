@@ -1,8 +1,8 @@
+use crate::compute::{compute_client, WgpuComputeClient};
 use crate::kernel::{
     binary_elemwise_default, binary_elemwise_inplace_default, unary_scalar_default,
     unary_scalar_inplace_default,
 };
-use crate::pool::get_context;
 use crate::{
     binary_elemwise, binary_elemwise_inplace, element::WgpuElement, tensor::WgpuTensor,
     unary_scalar, unary_scalar_inplace,
@@ -10,26 +10,70 @@ use crate::{
 use crate::{GraphicsApi, WgpuDevice};
 use burn_tensor::{Element, ElementConversion, Shape};
 
-pub fn zeros<G: GraphicsApi, E: WgpuElement, const D: usize>(
+pub fn full<G: GraphicsApi, E: WgpuElement + Element, const D: usize>(
+    shape: Shape<D>,
+    device: &WgpuDevice,
+    value: E,
+) -> WgpuTensor<E, D> {
+    let client = compute_client::<G>(device);
+
+    full_device(client, shape, device.clone(), value)
+}
+
+pub fn full_device<E: WgpuElement + Element, const D: usize>(
+    client: WgpuComputeClient,
+    shape: Shape<D>,
+    device: WgpuDevice,
+    value: E,
+) -> WgpuTensor<E, D> {
+    let empty = empty_device(client, device, shape);
+
+    unary_scalar_inplace!(Full, body "lhs[id] = rhs;");
+    unary_scalar_inplace_default::<Full, E, D>(empty, value)
+}
+
+pub fn zeros<G: GraphicsApi, E: WgpuElement + Element, const D: usize>(
     shape: Shape<D>,
     device: &WgpuDevice,
 ) -> WgpuTensor<E, D> {
-    let context = get_context::<G>(device);
+    let client = compute_client::<G>(device);
 
-    let buffer = context.create_buffer(shape.num_elements() * core::mem::size_of::<E>());
+    zeros_device(client, device.clone(), shape)
+}
 
-    WgpuTensor::new(context, shape, buffer)
+pub fn zeros_device<E: WgpuElement + Element, const D: usize>(
+    client: WgpuComputeClient,
+    device: WgpuDevice,
+    shape: Shape<D>,
+) -> WgpuTensor<E, D> {
+    full_device::<E, D>(client, shape, device, 0.elem())
 }
 
 pub fn ones<G: GraphicsApi, E: WgpuElement + Element, const D: usize>(
     shape: Shape<D>,
     device: &WgpuDevice,
 ) -> WgpuTensor<E, D> {
-    let context = get_context::<G>(device);
+    let client = compute_client::<G>(device);
 
-    let buffer = context.create_buffer(shape.num_elements() * core::mem::size_of::<E>());
+    ones_device(client, device.clone(), shape)
+}
 
-    add_scalar(WgpuTensor::new(context, shape, buffer), 1i32.elem::<E>())
+pub fn ones_device<E: WgpuElement + Element, const D: usize>(
+    client: WgpuComputeClient,
+    device: WgpuDevice,
+    shape: Shape<D>,
+) -> WgpuTensor<E, D> {
+    full_device::<E, D>(client, shape, device, 1.elem())
+}
+
+pub fn empty_device<E: WgpuElement, const D: usize>(
+    client: WgpuComputeClient,
+    device: WgpuDevice,
+    shape: Shape<D>,
+) -> WgpuTensor<E, D> {
+    let buffer = client.empty(shape.num_elements() * core::mem::size_of::<E>());
+
+    WgpuTensor::new(client, device, shape, buffer)
 }
 
 pub fn add<E: WgpuElement, const D: usize>(

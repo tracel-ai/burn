@@ -91,4 +91,12 @@ impl<E: TchElement> Backend for TchBackend<E> {
     fn name() -> String {
         "tch".to_string()
     }
+
+    fn sync(device: &Self::Device) {
+        if let TchDevice::Cuda(index) = device {
+            tch::Cuda::synchronize(*index as i64);
+        } else if let TchDevice::Mps = device {
+            panic!("Can't sync MPS device")
+        }
+    }
 }

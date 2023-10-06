@@ -3,11 +3,14 @@ use std::{
     thread,
 };
 
+use burn_common::reader::Reader;
+
 use super::ComputeChannel;
 use crate::server::{ComputeServer, Handle};
 
 /// Create a channel using the [multi-producer, single-consumer channel](mpsc) to communicate with
 /// the compute server spawn on its own thread.
+#[derive(Debug)]
 pub struct MpscComputeChannel<Server>
 where
     Server: ComputeServer,
@@ -15,6 +18,7 @@ where
     state: Arc<MpscComputeChannelState<Server>>,
 }
 
+#[derive(Debug)]
 struct MpscComputeChannelState<Server>
 where
     Server: ComputeServer,
@@ -29,7 +33,7 @@ enum Message<Server>
 where
     Server: ComputeServer,
 {
-    Read(Handle<Server>, Callback<Vec<u8>>),
+    Read(Handle<Server>, Callback<Reader<Vec<u8>>>),
     Create(Vec<u8>, Callback<Handle<Server>>),
     Empty(usize, Callback<Handle<Server>>),
     Execute(Server::Kernel, Vec<Handle<Server>>),
@@ -89,7 +93,7 @@ impl<Server> ComputeChannel<Server> for MpscComputeChannel<Server>
 where
     Server: ComputeServer + 'static,
 {
-    fn read(&self, handle: &Handle<Server>) -> Vec<u8> {
+    fn read(&self, handle: &Handle<Server>) -> Reader<Vec<u8>> {
         let (callback, response) = mpsc::sync_channel(1);
 
         self.state

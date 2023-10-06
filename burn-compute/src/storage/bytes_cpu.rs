@@ -8,7 +8,13 @@ pub struct BytesStorage {
     memory: HashMap<StorageId, AllocatedBytes>,
 }
 
-/// Can send to other threads, but can't sync.
+impl core::fmt::Debug for BytesStorage {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("BytesStorage")
+    }
+}
+
+/// Can send to other threads.
 unsafe impl Send for BytesStorage {}
 unsafe impl Send for BytesResource {}
 

@@ -6,7 +6,7 @@ use crate::{
 };
 
 /// Gradient identifier.
-pub type GradID = String;
+pub type GradID = u64;
 
 /// Gradients container used during the backward pass.
 pub struct Gradients {
@@ -80,13 +80,11 @@ impl Gradients {
         value: TensorPrimitive<B, D>,
     ) {
         if let Some(tensor_old) = self.container.remove::<B, D>(&node.id.value) {
-            self.container.register(
-                node.id.value.clone(),
-                Tensor::from_primitive(value).add(tensor_old),
-            );
+            self.container
+                .register(node.id.value, Tensor::from_primitive(value).add(tensor_old));
         } else {
             self.container
-                .register::<B, D>(node.id.value.clone(), Tensor::from_primitive(value));
+                .register::<B, D>(node.id.value, Tensor::from_primitive(value));
         }
     }
 }

@@ -8,6 +8,8 @@ extern crate derive_new;
 /// The checkpoint module.
 pub mod checkpoint;
 
+pub(crate) mod components;
+
 /// The logger module.
 pub mod logger;
 

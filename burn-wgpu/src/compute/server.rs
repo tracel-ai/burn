@@ -1,11 +1,11 @@
-use std::{borrow::Cow, sync::Arc};
-
-use super::WgpuStorage;
-use crate::{context::WorkGroup, kernel::SourceTemplate};
+use super::{WgpuStorage, WorkGroup};
+use crate::kernel::SourceTemplate;
+use alloc::{borrow::Cow, sync::Arc};
 use burn_compute::{
-    memory_management::{MemoryManagement, SimpleMemoryManagement},
+    memory_management::MemoryManagement,
     server::{self, ComputeServer},
 };
+use burn_tensor::Reader;
 use hashbrown::HashMap;
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
@@ -13,7 +13,8 @@ use wgpu::{
 };
 
 /// Wgpu compute server.
-pub struct WgpuServer<MM = SimpleMemoryManagement<WgpuStorage>> {
+#[derive(Debug)]
+pub struct WgpuServer<MM: MemoryManagement<WgpuStorage>> {
     memory_management: MM,
     device: Arc<wgpu::Device>,
     queue: wgpu::Queue,
@@ -21,20 +22,27 @@ pub struct WgpuServer<MM = SimpleMemoryManagement<WgpuStorage>> {
     pipelines: HashMap<String, Arc<ComputePipeline>>,
     tasks: Vec<ComputeTask>,
     max_tasks: usize,
+    manual_available: HashMap<usize, Vec<server::Handle<Self>>>,
+    manual_taken: Vec<(usize, server::Handle<Self>)>,
 }
 
-#[derive(new)]
+#[derive(new, Debug)]
 struct ComputeTask {
     pipeline: Arc<ComputePipeline>,
     bind_group: BindGroup,
     work_group: WorkGroup,
 }
 
+/// Kernel trait with the [source](SourceTemplate) that will be compiled and cached based on the
+/// provided id.
+///
+/// The kernel will be launched with the given [workgroup](WorkGroup).
 pub trait Kernel: 'static + Send {
     /// Source template for the kernel.
-    fn source_template(self: Box<Self>) -> SourceTemplate;
+    fn source(self: Box<Self>) -> SourceTemplate;
     /// Identifier for the kernel, used for caching kernel compilation.
     fn id(&self) -> String;
+    /// Launch information.
     fn workgroup(&self) -> WorkGroup;
 }
 
@@ -42,6 +50,7 @@ impl<MM> WgpuServer<MM>
 where
     MM: MemoryManagement<WgpuStorage>,
 {
+    /// Create a new server.
     pub fn new(
         memory_management: MM,
         device: Arc<wgpu::Device>,
@@ -60,6 +69,8 @@ where
             pipelines: HashMap::new(),
             tasks: Vec::new(),
             max_tasks,
+            manual_available: HashMap::new(),
+            manual_taken: Vec::new(),
         }
     }
 
@@ -68,13 +79,54 @@ where
             self.tasks.is_empty(),
             "Tasks should be completed before submitting the current encoder."
         );
-        println!("Submit");
         let mut new_encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
         core::mem::swap(&mut new_encoder, &mut self.encoder);
 
         self.queue.submit(Some(new_encoder.finish()));
+
+        // Cleanup allocations and deallocations.
+        self.free_manual_allocations();
+        self.memory_management.storage().perform_deallocations();
+    }
+
+    fn free_manual_allocations(&mut self) {
+        let mut manual_taken_tmp = Vec::new();
+        core::mem::swap(&mut manual_taken_tmp, &mut self.manual_taken);
+
+        for (size, handle) in manual_taken_tmp.drain(..) {
+            if handle.can_mut() {
+                self.register_manual(size, handle);
+            } else {
+                self.manual_taken.push((size, handle));
+            }
+        }
+    }
+
+    // Finds a free, manually-added handle of specified size, or creates it if none is found
+    fn manual_reserve(&mut self, size: usize) -> server::Handle<Self> {
+        let handle = self
+            .manual_available
+            .get_mut(&size)
+            .and_then(|h| h.pop())
+            .unwrap_or_else(|| {
+                let memory = self.memory_management.alloc(size);
+                server::Handle::new(memory)
+            });
+
+        self.manual_taken.push((size, handle.clone()));
+
+        handle
+    }
+
+    // Manually adds a handle of given size
+    fn register_manual(&mut self, size: usize, handle: server::Handle<Self>) {
+        if let Some(handles) = self.manual_available.get_mut(&size) {
+            handles.push(handle);
+        } else {
+            self.manual_available.insert(size, [handle].into());
+        }
     }
 
     fn register_tasks(&mut self) {
@@ -102,7 +154,7 @@ where
             return pipeline.clone();
         }
 
-        let pipeline = self.compile_source(&kernel.source_template().complete());
+        let pipeline = self.compile_source(&kernel.source().complete());
         self.pipelines.insert(kernel_id.clone(), pipeline.clone());
 
         pipeline
@@ -124,21 +176,12 @@ where
                 }),
         )
     }
-}
 
-impl<MM> ComputeServer for WgpuServer<MM>
-where
-    MM: MemoryManagement<WgpuStorage>,
-{
-    type Kernel = Box<dyn Kernel>;
-    type Storage = WgpuStorage;
-    type MemoryManagement = MM;
-
-    fn read(&mut self, handle: &server::Handle<Self>) -> Vec<u8> {
+    fn buffer_reader(&mut self, handle: &server::Handle<Self>) -> BufferReader {
         // Register previous tasks before reading the buffer so that it is up to date.
         self.register_tasks();
 
-        let resource = self.memory_management.get(handle);
+        let resource = self.memory_management.get(&handle.memory);
 
         let size = resource.size();
         let buffer_dest = self.device.create_buffer(&wgpu::BufferDescriptor {
@@ -158,7 +201,28 @@ where
 
         self.submit();
 
-        let buffer_slice = buffer_dest.slice(..);
+        BufferReader::new(buffer_dest)
+    }
+}
+
+#[derive(new)]
+struct BufferReader {
+    buffer: wgpu::Buffer,
+}
+
+impl BufferReader {
+    #[cfg(target_family = "wasm")]
+    async fn read(self, device: alloc::sync::Arc<wgpu::Device>) -> Vec<u8> {
+        self.read_async(&device).await
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    fn read(self, device: &wgpu::Device) -> Vec<u8> {
+        pollster::block_on(self.read_async(device))
+    }
+
+    async fn read_async(&self, device: &wgpu::Device) -> Vec<u8> {
+        let buffer_slice = self.buffer.slice(..);
         let (sender, receiver) = futures_intrusive::channel::shared::oneshot_channel();
         buffer_slice.map_async(wgpu::MapMode::Read, move |v| {
             sender
@@ -166,24 +230,49 @@ where
                 .expect("Unable to send buffer slice result to async channel.")
         });
 
-        self.device.poll(wgpu::Maintain::Wait);
+        device.poll(wgpu::Maintain::Wait);
 
-        let result = pollster::block_on(receiver.receive());
+        let result = receiver.receive().await;
 
         if let Some(Ok(())) = result {
             let data = buffer_slice.get_mapped_range();
             let result = bytemuck::cast_slice(&data).to_vec();
 
             drop(data);
-            buffer_dest.unmap();
+            self.buffer.unmap();
             result
         } else {
             panic!("Unable to read buffer {:?}", result)
         }
     }
+}
 
+impl<MM> ComputeServer for WgpuServer<MM>
+where
+    MM: MemoryManagement<WgpuStorage>,
+{
+    type Kernel = Box<dyn Kernel>;
+    type Storage = WgpuStorage;
+    type MemoryManagement = MM;
+
+    fn read(&mut self, handle: &server::Handle<Self>) -> Reader<Vec<u8>> {
+        #[cfg(target_family = "wasm")]
+        {
+            let future = self.buffer_reader(handle).read(self.device.clone());
+            return Reader::Future(Box::pin(future));
+        }
+
+        #[cfg(not(target_family = "wasm"))]
+        Reader::Concrete(self.buffer_reader(handle).read(&self.device))
+    }
+
+    /// When we create a new handle from existing data, we use custom allocations so that we don't
+    /// have to execute the current pending tasks.
+    ///
+    /// This is important, otherwise the compute passes are going to be too small and we won't be able to
+    /// fully utilize the GPU.
     fn create(&mut self, data: &[u8]) -> server::Handle<Self> {
-        let handle = self.empty(data.len());
+        let handle = self.manual_reserve(data.len());
 
         let buffer_src = Arc::new(self.device.create_buffer_init(&BufferInitDescriptor {
             label: Some("Buffer Src"),
@@ -191,9 +280,7 @@ where
             usage: wgpu::BufferUsages::COPY_SRC,
         }));
 
-        let resource = self.memory_management.get(&handle);
-
-        self.register_tasks();
+        let resource = self.memory_management.get(&handle.memory);
 
         self.encoder.copy_buffer_to_buffer(
             &buffer_src,
@@ -207,7 +294,7 @@ where
     }
 
     fn empty(&mut self, size: usize) -> server::Handle<Self> {
-        self.memory_management.reserve(size)
+        server::Handle::new(self.memory_management.reserve(size))
     }
 
     fn execute(&mut self, kernel: Self::Kernel, handles: &[&server::Handle<Self>]) {
@@ -217,7 +304,7 @@ where
 
         let handles = handles
             .iter()
-            .map(|handle| self.memory_management.get(handle))
+            .map(|handle| self.memory_management.get(&handle.memory))
             .collect::<Vec<_>>();
 
         let entries = handles
@@ -249,5 +336,7 @@ where
             self.register_tasks();
             self.submit();
         }
+
+        self.device.poll(wgpu::Maintain::Wait);
     }
 }

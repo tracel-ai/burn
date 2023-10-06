@@ -9,5 +9,7 @@ pub mod contiguous_vectorized;
 pub mod tile;
 /// Loading is done in a tile manner, with left hand tensor being transposed.
 pub mod tile_vectorized;
+/// WGSL vec4 primitives are used on left hand tensor
+pub mod vec4_primitive;
 
 pub use contiguous_vectorized::*;

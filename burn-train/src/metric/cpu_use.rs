@@ -1,19 +1,38 @@
-/// The CPU use metric.
 use super::{MetricMetadata, Numeric};
 use crate::metric::{Metric, MetricEntry};
-use sysinfo::{CpuExt, System, SystemExt};
-
-static NAME: &str = "CPU_USE";
+use std::time::{Duration, Instant};
+use sysinfo::{CpuExt, CpuRefreshKind, RefreshKind, System, SystemExt};
 
 /// General CPU Usage metric
 pub struct CpuUse {
-    use_percentage: f32,
+    last_refresh: Instant,
+    refresh_frequency: Duration,
+    sys: System,
+    current: f64,
 }
 
 impl CpuUse {
     /// Creates a new CPU metric
     pub fn new() -> Self {
-        Self { use_percentage: 0. }
+        let mut sys = System::new();
+        let current = Self::refresh(&mut sys);
+
+        Self {
+            last_refresh: Instant::now(),
+            refresh_frequency: Duration::from_millis(200),
+            sys,
+            current,
+        }
+    }
+
+    fn refresh(sys: &mut System) -> f64 {
+        sys.refresh_specifics(RefreshKind::new().with_cpu(CpuRefreshKind::new().with_cpu_usage()));
+
+        let cpus = sys.cpus();
+        let num_cpus = cpus.len();
+        let use_percentage = cpus.iter().fold(0.0, |acc, cpu| acc + cpu.cpu_usage()) as f64;
+
+        use_percentage / num_cpus as f64
     }
 }
 
@@ -24,37 +43,20 @@ impl Default for CpuUse {
 }
 
 impl Metric for CpuUse {
+    const NAME: &'static str = "CPU Usage";
+
     type Input = ();
 
     fn update(&mut self, _item: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
-        let mut sys = System::new();
-
-        // variables are declared here so that we can still access them after the 'for' loop
-        let mut formatted = String::new();
-        let mut raw = String::new();
-
-        // CPU data is gathered twice because all values are 0 the first time
-        // sysinfo documentation says the following:
-        // "Please note that the result will very likely be inaccurate at the first call.
-        // You need to call this method at least twice with a bit of time between each call" (see line 59)
-        for _i in 0..=1 {
-            let mut cores_use: Vec<f32> = Vec::new();
-
-            sys.refresh_cpu(); // Refreshing CPU information
-
-            for cpu in sys.cpus() {
-                // use percentage of each core
-                cores_use.push(cpu.cpu_usage());
-            }
-            // Mean of all cores use -> General CPU use
-            self.use_percentage = cores_use.iter().sum::<f32>() / sys.cpus().len() as f32;
-            formatted = format!("CPU Use: {:.2}%", self.use_percentage);
-            raw = format!("{:.2}", self.use_percentage);
-
-            std::thread::sleep(System::MINIMUM_CPU_UPDATE_INTERVAL);
+        if self.last_refresh.elapsed() >= self.refresh_frequency {
+            self.current = Self::refresh(&mut self.sys);
+            self.last_refresh = Instant::now();
         }
 
-        MetricEntry::new(NAME.to_string(), formatted, raw)
+        let formatted = format!("{}: {:.2} %", Self::NAME, self.current);
+        let raw = format!("{:.2}", self.current);
+
+        MetricEntry::new(Self::NAME.to_string(), formatted, raw)
     }
 
     fn clear(&mut self) {}
@@ -62,6 +64,6 @@ impl Metric for CpuUse {
 
 impl Numeric for CpuUse {
     fn value(&self) -> f64 {
-        self.use_percentage as f64
+        self.current
     }
 }

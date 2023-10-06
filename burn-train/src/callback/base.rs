@@ -1,12 +1,17 @@
 use burn_core::{data::dataloader::Progress, LearningRate};
 
 /// The base trait for trainer callbacks.
-pub trait LearnerCallback<T, V>: Send {
+pub trait LearnerCallback: Send {
+    /// Training item.
+    type ItemTrain;
+    /// Validation item.
+    type ItemValid;
+
     /// Called when a training item is logged.
-    fn on_train_item(&mut self, _item: LearnerItem<T>) {}
+    fn on_train_item(&mut self, _item: LearnerItem<Self::ItemTrain>) {}
 
     /// Called when a validation item is logged.
-    fn on_valid_item(&mut self, _item: LearnerItem<V>) {}
+    fn on_valid_item(&mut self, _item: LearnerItem<Self::ItemValid>) {}
 
     /// Called when a training epoch is finished.
     fn on_train_end_epoch(&mut self, _epoch: usize) {}

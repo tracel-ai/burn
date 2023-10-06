@@ -1,24 +1,24 @@
 use crate::{
+    compute::StaticKernel,
     element::WgpuElement,
-    kernel::{self, build_info, elemwise_workgroup, KernelSettings},
+    kernel::{self, build_info, elemwise_workgroup, KernelSettings, WORKGROUP_DEFAULT},
     kernel_wgsl,
+    ops::numeric::empty_device,
     tensor::WgpuTensor,
 };
 use burn_tensor::{
     ops::{conv::calculate_conv_output_size, ConvOptions},
-    Shape,
+    Element, ElementConversion, Shape,
 };
 
 kernel_wgsl!(Conv2d, "../../template/conv/conv2d.wgsl");
 
-pub(crate) fn conv2d<E: WgpuElement>(
+pub(crate) fn conv2d<E: WgpuElement + Element>(
     input: WgpuTensor<E, 4>,
     weight: WgpuTensor<E, 4>,
     bias: Option<WgpuTensor<E, 1>>,
     options: ConvOptions<2>,
 ) -> WgpuTensor<E, 4> {
-    const WORKGROUP: usize = 32;
-
     let input = kernel::into_contiguous(input);
     let weight = kernel::into_contiguous(weight);
     let [batch_size, _, in_height, in_width] = input.shape.dims;
@@ -40,12 +40,12 @@ pub(crate) fn conv2d<E: WgpuElement>(
     );
 
     let shape_out = Shape::new([batch_size, out_channels, out_0, out_1]);
-    let num_elems = shape_out.num_elements();
 
-    let buffer = input
-        .context
-        .create_buffer(num_elems * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(input.context.clone(), shape_out, buffer);
+    let output = empty_device(
+        input.client.clone(),
+        input.device.clone(),
+        shape_out.clone(),
+    );
 
     let mut info = build_info(&[&input, &output, &weight]);
     info.push(options.stride[0] as u32);
@@ -56,27 +56,27 @@ pub(crate) fn conv2d<E: WgpuElement>(
     info.push(options.dilation[1] as u32);
     info.push(options.groups as u32);
 
-    let bias_buffer = bias
-        .map(|bias| bias.buffer)
-        .unwrap_or_else(|| input.context.create_buffer(core::mem::size_of::<E>()));
+    let bias_handle = bias
+        .map(|bias| bias.handle)
+        .unwrap_or_else(|| input.client.create(E::as_bytes(&[0.elem()])));
 
-    let info_buffer = input
-        .context
-        .create_buffer_with_data(bytemuck::cast_slice(&info));
+    let info_handle = input.client.create(bytemuck::cast_slice(&info));
 
-    let kernel = input
-        .context
-        .compile_static::<KernelSettings<Conv2d, E, i32, WORKGROUP, WORKGROUP, 1>>();
+    let kernel = StaticKernel::<
+        KernelSettings<Conv2d, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
+    >::new(elemwise_workgroup(
+        output.shape.num_elements(),
+        WORKGROUP_DEFAULT,
+    ));
 
-    input.context.execute(
-        elemwise_workgroup(output.shape.num_elements(), WORKGROUP),
-        kernel,
+    input.client.execute(
+        Box::new(kernel),
         &[
-            &input.buffer,
-            &weight.buffer,
-            &bias_buffer,
-            &output.buffer,
-            &info_buffer,
+            &input.handle,
+            &weight.handle,
+            &bias_handle,
+            &output.handle,
+            &info_handle,
         ],
     );
 

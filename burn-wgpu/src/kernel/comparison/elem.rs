@@ -1,6 +1,7 @@
 use crate::{
+    compute::StaticKernel,
     element::WgpuElement,
-    kernel::{elemwise_workgroup, KernelSettings, StaticKernel},
+    kernel::{elemwise_workgroup, KernelSettings, StaticKernelSource, WORKGROUP_DEFAULT},
     kernel_wgsl,
     tensor::WgpuTensor,
 };
@@ -20,9 +21,9 @@ macro_rules! comparison_elem {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::StaticKernel for $struct {
-            fn source_template() -> $crate::kernel::SourceTemplate {
-                $crate::kernel::ComparisonElemRaw::source_template()
+        impl $crate::kernel::StaticKernelSource for $struct {
+            fn source() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::ComparisonElemRaw::source()
                     .register("body", format!("output[id] = u32(lhs[id] {} rhs);", $ops))
             }
         }
@@ -38,9 +39,9 @@ macro_rules! comparison_elem_inplace {
     ) => {
         pub struct $struct;
 
-        impl $crate::kernel::StaticKernel for $struct {
-            fn source_template() -> $crate::kernel::SourceTemplate {
-                $crate::kernel::ComparisonElemInplaceRaw::source_template()
+        impl $crate::kernel::StaticKernelSource for $struct {
+            fn source() -> $crate::kernel::SourceTemplate {
+                $crate::kernel::ComparisonElemInplaceRaw::source()
                     .register("body", "lhs[id] = compare(lhs[id], rhs);")
                     .add_template(format!(
                         "{}return {{{{ elem }}}}(lhs {} rhs);{}",
@@ -53,48 +54,38 @@ macro_rules! comparison_elem_inplace {
     };
 }
 
-pub fn comparison_elem<K: StaticKernel, E: WgpuElement, const D: usize>(
+pub fn comparison_elem<K: StaticKernelSource, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: E,
 ) -> WgpuTensor<u32, D> {
-    const WORKGROUP: usize = 32;
     let num_elems = lhs.shape.num_elements();
 
-    let buffer = lhs
-        .context
-        .create_buffer(num_elems * core::mem::size_of::<u32>());
-    let rhs_buffer = lhs.context.create_buffer_with_data(E::as_bytes(&[rhs]));
-    let kernel = lhs
-        .context
-        .compile_static::<KernelSettings<K, E, i32, WORKGROUP, WORKGROUP, 1>>();
+    let handle = lhs.client.empty(num_elems * core::mem::size_of::<u32>());
+    let rhs_handle = lhs.client.create(E::as_bytes(&[rhs]));
+    let kernel =
+        StaticKernel::<KernelSettings<K, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>>::new(
+            elemwise_workgroup(num_elems, WORKGROUP_DEFAULT),
+        );
 
-    lhs.context.execute(
-        elemwise_workgroup(num_elems, WORKGROUP),
-        kernel,
-        &[&lhs.buffer, &rhs_buffer, &buffer],
-    );
+    lhs.client
+        .execute(Box::new(kernel), &[&lhs.handle, &rhs_handle, &handle]);
 
-    WgpuTensor::new(lhs.context, lhs.shape, buffer)
+    WgpuTensor::new(lhs.client, lhs.device, lhs.shape, handle)
 }
 
-pub fn comparison_elem_inplace<K: StaticKernel, E: WgpuElement, const D: usize>(
+pub fn comparison_elem_inplace<K: StaticKernelSource, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: E,
 ) -> WgpuTensor<u32, D> {
-    const WORKGROUP: usize = 32;
+    let kernel =
+        StaticKernel::<KernelSettings<K, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>>::new(
+            elemwise_workgroup(lhs.shape.num_elements(), WORKGROUP_DEFAULT),
+        );
+    let rhs_handle = lhs.client.create(E::as_bytes(&[rhs]));
+    lhs.client
+        .execute(Box::new(kernel), &[&lhs.handle, &rhs_handle]);
 
-    let kernel = lhs
-        .context
-        .compile_static::<KernelSettings<K, E, i32, WORKGROUP, WORKGROUP, 1>>();
-
-    let rhs_buffer = lhs.context.create_buffer_with_data(E::as_bytes(&[rhs]));
-    lhs.context.execute(
-        elemwise_workgroup(lhs.shape.num_elements(), WORKGROUP),
-        kernel,
-        &[&lhs.buffer, &rhs_buffer],
-    );
-
-    WgpuTensor::new(lhs.context, lhs.shape, lhs.buffer)
+    WgpuTensor::new(lhs.client, lhs.device, lhs.shape, lhs.handle)
 }
 
 #[cfg(test)]
