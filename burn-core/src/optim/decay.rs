@@ -6,14 +6,14 @@ use crate::record::Record;
 use crate::config::Config;
 use crate::tensor::{ElementConversion, Tensor};
 
-/// Configuration to create [WeightDecay](WeightDecay).
+/// Configuration to create [weight decay](WeightDecay).
 #[derive(Config)]
 pub struct WeightDecayConfig {
     /// L2 penalty.
     pub penalty: f64,
 }
 
-/// State of [WeightDecay](WeightDecay).
+/// State of [weight decay](WeightDecay).
 #[derive(Record, Clone, new)]
 pub struct WeightDecayState<B: Backend, const D: usize> {
     pub(crate) grad_last_step: Tensor<B, D>,
@@ -25,7 +25,7 @@ pub struct WeightDecay<B: Backend> {
 }
 
 impl<B: Backend> WeightDecay<B> {
-    /// Creates a new [WeightDecay](WeightDecay) from a [WeightDecayConfig](WeightDecayConfig).
+    /// Creates a new [weight decay](WeightDecay) from a [config](WeightDecayConfig).
     pub fn new(config: &WeightDecayConfig) -> Self {
         Self {
             penalty: config.penalty.elem(),
