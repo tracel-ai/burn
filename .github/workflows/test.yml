@@ -23,7 +23,7 @@ jobs:
             test: std
             rustflags: -Cinstrument-coverage -Clink-dead-code
             rustcomponents: ', llvm-tools-preview'
-            testflags: --jobs 6
+            testflags: --jobs 4
             cache: stable
           - rust: 1.71.0
             cache: 1-71-0
