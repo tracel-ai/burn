@@ -14,52 +14,44 @@ pub(crate) fn unfold4d<E: WgpuElement + Element>(
     input: WgpuTensor<E, 4>,
     kernel_size: [usize; 2],
     options: UnfoldOptions,
-) -> WgpuTensor<E, 3> {
+) -> WgpuTensor<E, 4> {
     const WORKGROUP: usize = 32;
 
-    let input = kernel::into_contiguous(input);
-    let [batch_size, channels_in, in_height, in_width] = input.shape.dims;
+    let intermediate_input = kernel::into_contiguous(input.clone());
+    let [_, channels_in, _, _] = intermediate_input.shape.dims;
     let stride = options.stride.unwrap_or([1, 1]);
     let padding = options.padding.unwrap_or([0, 0]);
     let dilation = options.dilation.unwrap_or([1, 1]);
 
     let channels_out = channels_in * kernel_size[0] * kernel_size[1];
 
-    let l_dim_1 =
-        (in_height + 2 * padding[0] - dilation[0] * (kernel_size[0] - 1) - 1) / stride[0] + 1;
-    let l_dim_2 =
-        (in_width + 2 * padding[1] - dilation[1] * (kernel_size[1] - 1) - 1) / stride[1] + 1;
-    let l = l_dim_1 * l_dim_2;
-
-    let shape_out = Shape::new([batch_size, channels_out, l]);
-    let output = empty_device(
-        input.client.clone(),
-        input.device.clone(),
-        shape_out.clone(),
+    let weight_shape = Shape::new([channels_out, channels_in, kernel_size[0], kernel_size[1]]);
+    let weight = empty_device(
+        intermediate_input.client.clone(),
+        intermediate_input.device.clone(),
+        weight_shape.clone(),
     );
 
-    let mut info = build_info(&[&input]);
+    let mut info = build_info(&[&intermediate_input]);
     info.push(kernel_size[0] as u32);
     info.push(kernel_size[1] as u32);
-    info.push(stride[0] as u32);
-    info.push(stride[1] as u32);
-    info.push(padding[0] as u32);
-    info.push(padding[1] as u32);
-    info.push(dilation[0] as u32);
-    info.push(dilation[1] as u32);
 
-    let info_handle = input.client.create(bytemuck::cast_slice(&info));
+    let info_handle = intermediate_input
+        .client
+        .create(bytemuck::cast_slice(&info));
 
     let kernel = StaticKernel::<KernelSettings<Unfold4d, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
-        elemwise_workgroup(output.shape.num_elements(), WORKGROUP),
+        elemwise_workgroup(weight.shape.num_elements(), WORKGROUP),
     );
 
-    input.client.execute(
-        Box::new(kernel),
-        &[&input.handle, &output.handle, &info_handle],
-    );
+    intermediate_input
+        .client
+        .execute(Box::new(kernel), &[&weight.handle, &info_handle]);
 
-    output
+    let options = burn_tensor::ops::ConvOptions::new(stride, padding, dilation, 1);
+    let unfolded = kernel::conv::conv2d(input, weight, None, options.clone());
+
+    unfolded
 }
 
 #[cfg(test)]
