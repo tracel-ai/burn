@@ -23,8 +23,6 @@ pub struct LstmConfig {
     /// Lstm initializer
     #[config(default = "Initializer::XavierNormal{gain:1.0}")]
     pub initializer: Initializer,
-    /// The batch size.
-    pub batch_size: usize,
 }
 
 /// The Lstm module. This implementation is for a unidirectional, stateless, Lstm.
@@ -34,7 +32,6 @@ pub struct Lstm<B: Backend> {
     forget_gate: GateController<B>,
     output_gate: GateController<B>,
     cell_gate: GateController<B>,
-    batch_size: usize,
     d_hidden: usize,
 }
 
@@ -73,7 +70,6 @@ impl LstmConfig {
             forget_gate,
             output_gate,
             cell_gate,
-            batch_size: self.batch_size,
             d_hidden: self.d_hidden,
         }
     }
@@ -101,7 +97,6 @@ impl LstmConfig {
                 record.output_gate,
             ),
             cell_gate: gate_controller::GateController::new_with(&linear_config, record.cell_gate),
-            batch_size: self.batch_size,
             d_hidden: self.d_hidden,
         }
     }
@@ -127,15 +122,15 @@ impl<B: Backend> Lstm<B> {
         batched_input: Tensor<B, 3>,
         state: Option<(Tensor<B, 2>, Tensor<B, 2>)>,
     ) -> (Tensor<B, 3>, Tensor<B, 3>) {
-        let seq_length = batched_input.shape().dims[1];
-        let mut batched_cell_state = Tensor::zeros([self.batch_size, seq_length, self.d_hidden]);
-        let mut batched_hidden_state = Tensor::zeros([self.batch_size, seq_length, self.d_hidden]);
+        let [batch_size, seq_length, _] = batched_input.shape().dims;
+        let mut batched_cell_state = Tensor::zeros([batch_size, seq_length, self.d_hidden]);
+        let mut batched_hidden_state = Tensor::zeros([batch_size, seq_length, self.d_hidden]);
 
         let (mut cell_state, mut hidden_state) = match state {
             Some((cell_state, hidden_state)) => (cell_state, hidden_state),
             None => (
-                Tensor::zeros([self.batch_size, self.d_hidden]),
-                Tensor::zeros([self.batch_size, self.d_hidden]),
+                Tensor::zeros([batch_size, self.d_hidden]),
+                Tensor::zeros([batch_size, self.d_hidden]),
             ),
         };
 
@@ -162,11 +157,11 @@ impl<B: Backend> Lstm<B> {
 
             // store the state for this timestep
             batched_cell_state = batched_cell_state.slice_assign(
-                [0..self.batch_size, t..(t + 1), 0..self.d_hidden],
+                [0..batch_size, t..(t + 1), 0..self.d_hidden],
                 cell_state.clone().unsqueeze(),
             );
             batched_hidden_state = batched_hidden_state.slice_assign(
-                [0..self.batch_size, t..(t + 1), 0..self.d_hidden],
+                [0..batch_size, t..(t + 1), 0..self.d_hidden],
                 hidden_state.clone().unsqueeze(),
             );
         }
@@ -224,7 +219,7 @@ mod tests {
     fn test_with_uniform_initializer() {
         TestBackend::seed(0);
 
-        let config = LstmConfig::new(5, 5, false, 2)
+        let config = LstmConfig::new(5, 5, false)
             .with_initializer(Initializer::Uniform { min: 0.0, max: 1.0 });
         let lstm = config.init::<TestBackend>();
 
@@ -249,7 +244,7 @@ mod tests {
     #[test]
     fn test_forward_single_input_single_feature() {
         TestBackend::seed(0);
-        let config = LstmConfig::new(1, 1, false, 1);
+        let config = LstmConfig::new(1, 1, false);
         let mut lstm = config.init::<TestBackend>();
 
         fn create_gate_controller(

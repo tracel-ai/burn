@@ -18,7 +18,7 @@ std = ["rand/std"]
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 async-trait = { workspace = true }
-getrandom = { version = "0.2", features = ["js"] }
+getrandom = { workspace = true, features = ["js"] }
 
 [dependencies]
 # ** Please make sure all dependencies support no_std when std is disabled **

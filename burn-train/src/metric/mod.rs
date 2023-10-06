@@ -1,7 +1,7 @@
-/// Dashboard module for training progress.
-pub mod dashboard;
+/// Callback module for training progress.
+pub mod callback;
 
-/// State module for dashboard metrics.
+/// State module for callback metrics.
 pub mod state;
 
 mod acc;

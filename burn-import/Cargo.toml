@@ -17,8 +17,7 @@ default = ["onnx"]
 onnx = []
 
 [dependencies]
-burn = {path = "../burn", version = "0.10.0" }
-burn-common = {path = "../burn-common", version = "0.10.0" }
+burn = {path = "../burn", version = "0.10.0"}
 burn-ndarray = {path = "../burn-ndarray", version = "0.10.0" }
 
 bytemuck = {workspace = true}

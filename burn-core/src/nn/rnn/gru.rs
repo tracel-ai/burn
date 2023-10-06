@@ -23,8 +23,6 @@ pub struct GruConfig {
     /// Gru initializer
     #[config(default = "Initializer::XavierNormal{gain:1.0}")]
     pub initializer: Initializer,
-    /// The batch size.
-    pub batch_size: usize,
 }
 
 /// The Gru module. This implementation is for a unidirectional, stateless, Gru.
@@ -33,7 +31,6 @@ pub struct Gru<B: Backend> {
     update_gate: GateController<B>,
     reset_gate: GateController<B>,
     new_gate: GateController<B>,
-    batch_size: usize,
     d_hidden: usize,
 }
 
@@ -65,7 +62,6 @@ impl GruConfig {
             update_gate,
             reset_gate,
             new_gate,
-            batch_size: self.batch_size,
             d_hidden: self.d_hidden,
         }
     }
@@ -89,7 +85,6 @@ impl GruConfig {
                 record.reset_gate,
             ),
             new_gate: gate_controller::GateController::new_with(&linear_config, record.new_gate),
-            batch_size: self.batch_size,
             d_hidden: self.d_hidden,
         }
     }
@@ -111,11 +106,11 @@ impl<B: Backend> Gru<B> {
         batched_input: Tensor<B, 3>,
         state: Option<Tensor<B, 3>>,
     ) -> Tensor<B, 3> {
-        let seq_length = batched_input.shape().dims[1];
+        let [batch_size, seq_length, _] = batched_input.shape().dims;
 
         let mut hidden_state = match state {
             Some(state) => state,
-            None => Tensor::zeros([self.batch_size, seq_length, self.d_hidden]),
+            None => Tensor::zeros([batch_size, seq_length, self.d_hidden]),
         };
 
         for (t, (input_t, hidden_t)) in batched_input
@@ -146,7 +141,7 @@ impl<B: Backend> Gru<B> {
                 + update_values.clone().mul(hidden_t);
 
             hidden_state = hidden_state.slice_assign(
-                [0..self.batch_size, t..(t + 1), 0..self.d_hidden],
+                [0..batch_size, t..(t + 1), 0..self.d_hidden],
                 state_vector.clone().unsqueeze(),
             );
         }
@@ -210,7 +205,7 @@ mod tests {
     #[test]
     fn tests_forward_single_input_single_feature() {
         TestBackend::seed(0);
-        let config = GruConfig::new(1, 1, false, 1);
+        let config = GruConfig::new(1, 1, false);
         let mut gru = config.init::<TestBackend>();
 
         fn create_gate_controller(
