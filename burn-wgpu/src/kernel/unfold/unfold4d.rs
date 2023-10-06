@@ -49,9 +49,8 @@ pub(crate) fn unfold4d<E: WgpuElement + Element>(
         .execute(Box::new(kernel), &[&weight.handle, &info_handle]);
 
     let options = burn_tensor::ops::ConvOptions::new(stride, padding, dilation, 1);
-    let unfolded = kernel::conv::conv2d(input, weight, None, options.clone());
 
-    unfolded
+    kernel::conv::conv2d(input, weight, None, options.clone())
 }
 
 #[cfg(test)]
