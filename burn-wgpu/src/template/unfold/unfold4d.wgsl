@@ -26,7 +26,7 @@ fn main(
     let kw = linear_id % kernel_size_1;
 
     // Initialize index for the output tensor
-    var output_idx = c * kernel_size_0 * kernel_size_1 + kh * kernel_size_1 + kw;
+    var output_idx = c * (kernel_size_0 * kernel_size_1 * in_channels) + kh * (kernel_size_1 * in_channels) + kw * in_channels;
 
     // Set the appropriate locations to one
     if (c < in_channels && kh < kernel_size_0 && kw < kernel_size_1) {
