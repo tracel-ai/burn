@@ -21,6 +21,7 @@ pub struct UnaryNode {
 #[derive(Clone)]
 pub enum UnaryNodeKind {
     Cast,
+    Erf,
     Flatten,
     LogSoftmax,
     Softmax,
@@ -34,6 +35,7 @@ impl UnaryNodeKind {
     pub fn as_str(&self) -> &str {
         match self {
             Self::Cast => "cast",
+            Self::Erf => "erf",
             Self::Flatten => "flatten",
             Self::LogSoftmax => "log_softmax",
             Self::Softmax => "softmax",
@@ -94,6 +96,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnaryNode {
 }
 
 impl UnaryNode {
+    pub(crate) fn erf(input: Type, output: Type) -> Self {
+        let function = move |input| quote! {#input.erf()};
+        Self::new(input, output, UnaryNodeKind::Erf, Rc::new(function))
+    }
+
     pub(crate) fn flatten(input: Type, output: Type, start_dim: usize, end_dim: usize) -> Self {
         let start_dim = start_dim.to_tokens();
         let end_dim = end_dim.to_tokens();
