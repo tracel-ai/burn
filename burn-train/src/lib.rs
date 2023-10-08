@@ -22,10 +22,10 @@ pub mod metric;
 /// All informations collected during training.
 pub mod info;
 
-mod callback;
+mod collector;
 mod learner;
 
-pub use callback::*;
+pub use collector::*;
 pub use learner::*;
 
 #[cfg(test)]

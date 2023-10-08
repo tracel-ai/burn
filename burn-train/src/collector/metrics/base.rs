@@ -2,7 +2,7 @@ use crate::{
     info::Metrics,
     metric::MetricMetadata,
     renderer::{MetricState, MetricsRenderer, TrainingProgress},
-    Aggregate, Direction, LearnerCallback, LearnerItem, Split,
+    Aggregate, Direction, LearnerItem, Split, TrainingEvent, TrainingEventCollector,
 };
 
 /// Holds all metrics, metric loggers, and a metrics renderer.
@@ -16,7 +16,7 @@ where
     metrics: Metrics<T, V>,
 }
 
-impl<T, V> LearnerCallback for MetricsCallback<T, V>
+impl<T, V> TrainingEventCollector for MetricsCallback<T, V>
 where
     T: Send + Sync + 'static,
     V: Send + Sync + 'static,
@@ -24,6 +24,36 @@ where
     type ItemTrain = T;
     type ItemValid = V;
 
+    fn on_event_train(&mut self, event: TrainingEvent<Self::ItemTrain>) {
+        match event {
+            TrainingEvent::ProcessedItem(item) => self.on_train_item(item),
+            TrainingEvent::EndEpoch(epoch) => self.on_train_end_epoch(epoch),
+        }
+    }
+
+    fn on_event_valid(&mut self, event: TrainingEvent<Self::ItemValid>) {
+        match event {
+            TrainingEvent::ProcessedItem(item) => self.on_valid_item(item),
+            TrainingEvent::EndEpoch(epoch) => self.on_valid_end_epoch(epoch),
+        }
+    }
+
+    fn find_epoch(
+        &mut self,
+        name: &str,
+        aggregate: Aggregate,
+        direction: Direction,
+        split: Split,
+    ) -> Option<usize> {
+        self.metrics.find_epoch(name, aggregate, direction, split)
+    }
+}
+
+impl<T, V> MetricsCallback<T, V>
+where
+    T: Send + Sync + 'static,
+    V: Send + Sync + 'static,
+{
     fn on_train_item(&mut self, item: LearnerItem<T>) {
         let progress = (&item).into();
         let metadata = (&item).into();
@@ -74,16 +104,6 @@ where
 
     fn on_valid_end_epoch(&mut self, epoch: usize) {
         self.metrics.end_epoch_valid(epoch);
-    }
-
-    fn find_epoch(
-        &mut self,
-        name: &str,
-        aggregate: Aggregate,
-        direction: Direction,
-        split: Split,
-    ) -> Option<usize> {
-        self.metrics.find_epoch(name, aggregate, direction, split)
     }
 }
 

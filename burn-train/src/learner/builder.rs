@@ -1,7 +1,7 @@
 use super::log::install_file_logger;
 use super::Learner;
-use crate::callback::metrics::MetricsCallback;
 use crate::checkpoint::{AsyncCheckpointer, FileCheckpointer};
+use crate::collector::metrics::MetricsCallback;
 use crate::components::LearnerComponentsMarker;
 use crate::info::Metrics;
 use crate::learner::base::TrainingInterrupter;

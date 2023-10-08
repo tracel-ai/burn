@@ -1,13 +1,10 @@
-use crate::{Aggregate, Direction, Split};
-
-use super::{LearnerCallback, LearnerItem};
+use super::TrainingEventCollector;
+use crate::{Aggregate, Direction, Split, TrainingEvent};
 use std::{sync::mpsc, thread::JoinHandle};
 
 enum Message<T, V> {
-    LogTrain(LearnerItem<T>),
-    LogValid(LearnerItem<V>),
-    ClearTrain(usize),
-    ClearValid(usize),
+    OnEventTrain(TrainingEvent<T>),
+    OnEventValid(TrainingEvent<V>),
     End,
     FindEpoch(
         String,
@@ -32,23 +29,11 @@ struct CallbackThread<C, T, V> {
 
 impl<C, T, V> CallbackThread<C, T, V>
 where
-    C: LearnerCallback<ItemTrain = T, ItemValid = V>,
+    C: TrainingEventCollector<ItemTrain = T, ItemValid = V>,
 {
     fn run(mut self) {
         for item in self.receiver.iter() {
             match item {
-                Message::LogTrain(item) => {
-                    self.callback.on_train_item(item);
-                }
-                Message::ClearTrain(epoch) => {
-                    self.callback.on_train_end_epoch(epoch);
-                }
-                Message::LogValid(item) => {
-                    self.callback.on_valid_item(item);
-                }
-                Message::ClearValid(epoch) => {
-                    self.callback.on_valid_end_epoch(epoch);
-                }
                 Message::End => {
                     return;
                 }
@@ -56,6 +41,8 @@ where
                     let response = self.callback.find_epoch(&name, aggregate, direction, split);
                     sender.send(response).unwrap();
                 }
+                Message::OnEventTrain(event) => self.callback.on_event_train(event),
+                Message::OnEventValid(event) => self.callback.on_event_valid(event),
             }
         }
     }
@@ -65,7 +52,7 @@ impl<T: Send + Sync + 'static, V: Send + Sync + 'static> AsyncTrainerCallback<T,
     /// Create a new async trainer callback.
     pub fn new<C>(callback: C) -> Self
     where
-        C: LearnerCallback<ItemTrain = T, ItemValid = V> + 'static,
+        C: TrainingEventCollector<ItemTrain = T, ItemValid = V> + 'static,
     {
         let (sender, receiver) = mpsc::channel();
         let thread = CallbackThread::new(callback, receiver);
@@ -77,24 +64,16 @@ impl<T: Send + Sync + 'static, V: Send + Sync + 'static> AsyncTrainerCallback<T,
     }
 }
 
-impl<T: Send, V: Send> LearnerCallback for AsyncTrainerCallback<T, V> {
+impl<T: Send, V: Send> TrainingEventCollector for AsyncTrainerCallback<T, V> {
     type ItemTrain = T;
     type ItemValid = V;
 
-    fn on_train_item(&mut self, item: LearnerItem<T>) {
-        self.sender.send(Message::LogTrain(item)).unwrap();
+    fn on_event_train(&mut self, event: TrainingEvent<Self::ItemTrain>) {
+        self.sender.send(Message::OnEventTrain(event)).unwrap();
     }
 
-    fn on_valid_item(&mut self, item: LearnerItem<V>) {
-        self.sender.send(Message::LogValid(item)).unwrap();
-    }
-
-    fn on_train_end_epoch(&mut self, epoch: usize) {
-        self.sender.send(Message::ClearTrain(epoch)).unwrap();
-    }
-
-    fn on_valid_end_epoch(&mut self, epoch: usize) {
-        self.sender.send(Message::ClearValid(epoch)).unwrap();
+    fn on_event_valid(&mut self, event: TrainingEvent<Self::ItemValid>) {
+        self.sender.send(Message::OnEventValid(event)).unwrap();
     }
 
     fn find_epoch(

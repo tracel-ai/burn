@@ -1,5 +1,5 @@
 use crate::components::LearnerComponents;
-use crate::{Learner, LearnerCallback, TrainEpoch, ValidEpoch};
+use crate::{Learner, TrainEpoch, TrainingEventCollector, ValidEpoch};
 use burn_core::data::dataloader::DataLoader;
 use burn_core::module::{ADModule, Module};
 use burn_core::optim::{GradientsParams, Optimizer};
@@ -115,7 +115,8 @@ impl<LC: LearnerComponents> Learner<LC> {
         OutputValid: Send,
         LC::Model: TrainStep<InputTrain, OutputTrain>,
         <LC::Model as ADModule<LC::Backend>>::InnerModule: ValidStep<InputValid, OutputValid>,
-        LC::Callback: LearnerCallback<ItemTrain = OutputTrain, ItemValid = OutputValid>,
+        LC::EventCollector:
+            TrainingEventCollector<ItemTrain = OutputTrain, ItemValid = OutputValid>,
     {
         log::info!("Fitting {}", self.model.to_string());
         // The reference model is always on the first device provided.
@@ -139,7 +140,7 @@ impl<LC: LearnerComponents> Learner<LC> {
         };
 
         let mut callback: Box<
-            dyn LearnerCallback<ItemTrain = OutputTrain, ItemValid = OutputValid>,
+            dyn TrainingEventCollector<ItemTrain = OutputTrain, ItemValid = OutputValid>,
         > = Box::new(self.callback);
 
         for epoch in starting_epoch..self.num_epochs + 1 {

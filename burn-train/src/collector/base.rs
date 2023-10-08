@@ -1,25 +1,24 @@
 use burn_core::{data::dataloader::Progress, LearningRate};
 
+/// Event happening during the training process.
+pub enum TrainingEvent<T> {
+    /// Processing an item for either training of inference.
+    ProcessedItem(LearnerItem<T>),
+    /// Signal the end of an epoch.
+    EndEpoch(usize),
+}
+
 /// The base trait for trainer callbacks.
-pub trait LearnerCallback: Send {
+pub trait TrainingEventCollector: Send {
     /// Training item.
     type ItemTrain;
     /// Validation item.
     type ItemValid;
 
-    /// Called when a training item is logged.
-    fn on_train_item(&mut self, _item: LearnerItem<Self::ItemTrain>) {}
+    fn on_event_train(&mut self, event: TrainingEvent<Self::ItemTrain>);
+    fn on_event_valid(&mut self, event: TrainingEvent<Self::ItemValid>);
 
-    /// Called when a validation item is logged.
-    fn on_valid_item(&mut self, _item: LearnerItem<Self::ItemValid>) {}
-
-    /// Called when a training epoch is finished.
-    fn on_train_end_epoch(&mut self, _epoch: usize) {}
-
-    /// Called when a validation epoch is finished.
-    fn on_valid_end_epoch(&mut self, _epoch: usize) {}
-
-    /// Find the epoch following the given criteria.
+    /// Find the epoch following the given criteria following the collected data.
     fn find_epoch(
         &mut self,
         name: &str,
