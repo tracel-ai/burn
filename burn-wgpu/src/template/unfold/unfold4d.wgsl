@@ -15,22 +15,24 @@ fn main(
     @builtin(num_workgroups) num_workgroups: vec3<u32>,
 ) {
     let linear_id = global_id.y * (num_workgroups.x * WORKGROUP_SIZE_X) + global_id.x;
-
-    let in_channels = info[5];
+    let in_channels = info[5]; //  or is this 6?
     let kernel_size_0 = info[9]; 
     let kernel_size_1 = info[10];  
 
-    // Determine the current channel and position within kernel
-    let c = linear_id / (kernel_size_0 * kernel_size_1);
-    let kh = (linear_id % (kernel_size_0 * kernel_size_1)) / kernel_size_1;
-    let kw = linear_id % kernel_size_1;
+    var remainder = linear_id;
 
-    // Initialize index for the output tensor
-    var output_idx = c * (kernel_size_0 * kernel_size_1 * in_channels) + kh * (kernel_size_1 * in_channels) + kw * in_channels;
+    let out_c = remainder / (in_channels * kernel_size_0 * kernel_size_1);
+    remainder = remainder % (in_channels * kernel_size_0 * kernel_size_1);
 
-    // Set the appropriate locations to one
+    let c = remainder / (kernel_size_0 * kernel_size_1);
+    remainder = remainder % (kernel_size_0 * kernel_size_1);
+
+    let kh = remainder / kernel_size_1;
+    let kw = remainder % kernel_size_1;
+
+    let output_idx = out_c * in_channels * kernel_size_0 * kernel_size_1 + c * kernel_size_0 * kernel_size_1 + kh * kernel_size_1 + kw;
+
     if (c < in_channels && kh < kernel_size_0 && kw < kernel_size_1) {
-        let output_channel = c * kernel_size_0 * kernel_size_1 + kh * kernel_size_1 + kw;
-        weight[output_idx] = 1.0;
+        weight[output_idx] = 1.0
     }
 }
