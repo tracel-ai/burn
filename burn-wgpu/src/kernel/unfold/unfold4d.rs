@@ -1,7 +1,7 @@
 use crate::{
     compute::StaticKernel,
     element::WgpuElement,
-    kernel::{self, build_info, elemwise_workgroup, KernelSettings},
+    kernel::{self, elemwise_workgroup, KernelSettings},
     kernel_wgsl,
     ops::numeric::empty_device,
     tensor::WgpuTensor,
@@ -9,6 +9,25 @@ use crate::{
 use burn_tensor::{ops::UnfoldOptions, Element, Shape};
 
 kernel_wgsl!(Unfold4d, "../../template/unfold/unfold4d.wgsl");
+
+fn compute_unfolding_indices(channels_in: usize, kernel_size: [usize; 2]) -> Vec<usize> {
+    let mut indices = vec![];
+
+    for k in 0..channels_in {
+        for i in 0..kernel_size[0] {
+            for j in 0..kernel_size[1] {
+                let output_channel = k * kernel_size[0] * kernel_size[1] + i * kernel_size[1] + j;
+                let index = output_channel * channels_in * kernel_size[0] * kernel_size[1]
+                    + k * kernel_size[0] * kernel_size[1]
+                    + i * kernel_size[1]
+                    + j;
+                indices.push(index);
+            }
+        }
+    }
+
+    indices
+}
 
 pub(crate) fn unfold4d<E: WgpuElement + Element>(
     input: WgpuTensor<E, 4>,
@@ -26,27 +45,24 @@ pub(crate) fn unfold4d<E: WgpuElement + Element>(
     let channels_out = channels_in * kernel_size[0] * kernel_size[1];
 
     let weight_shape = Shape::new([channels_out, channels_in, kernel_size[0], kernel_size[1]]);
-    let weight = empty_device(
+    let weight = kernel::into_contiguous(empty_device(
         intermediate_input.client.clone(),
         intermediate_input.device.clone(),
         weight_shape.clone(),
-    );
+    ));
 
-    let mut info = build_info(&[&intermediate_input]);
-    info.push(kernel_size[0] as u32);
-    info.push(kernel_size[1] as u32);
-
-    let info_handle = intermediate_input
+    let indices = compute_unfolding_indices(channels_in, kernel_size);
+    let indices_handle = intermediate_input
         .client
-        .create(bytemuck::cast_slice(&info));
+        .create(bytemuck::cast_slice(&indices));
 
     let kernel = StaticKernel::<KernelSettings<Unfold4d, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
         elemwise_workgroup(weight.shape.num_elements(), WORKGROUP),
     );
 
-    intermediate_input
+    weight
         .client
-        .execute(Box::new(kernel), &[&weight.handle, &info_handle]);
+        .execute(Box::new(kernel), &[&weight.handle, &indices_handle]);
 
     let options = burn_tensor::ops::ConvOptions::new(stride, padding, dilation, 1);
 
@@ -59,7 +75,7 @@ mod tests {
     use burn_tensor::{module, Distribution, Tensor};
 
     #[test]
-    fn unfold_should_match_reference_shape() {
+    fn unfold_should_match_reference_values() {
         let input = Tensor::<TestBackend, 4>::random([6, 16, 32, 32], Distribution::Default);
         let kernel_size = [3, 3];
         let stride = [2, 2];
@@ -69,6 +85,8 @@ mod tests {
         let output = module::unfold4d(input, kernel_size, options.clone());
         let output_ref = module::unfold4d(input_ref, kernel_size, options);
 
-        assert_eq!(output_ref.shape().dims, output.shape().dims);
+        output
+            .into_data()
+            .assert_approx_eq(&output_ref.into_data(), 3);
     }
 }
