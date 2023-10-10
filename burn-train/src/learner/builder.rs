@@ -1,14 +1,14 @@
 use super::log::install_file_logger;
 use super::Learner;
 use crate::checkpoint::{AsyncCheckpointer, FileCheckpointer};
-use crate::collector::metrics::MetricsCallback;
+use crate::collector::metrics::RenderedMetricsEventCollector;
 use crate::components::LearnerComponentsMarker;
-use crate::info::Metrics;
+use crate::info::MetricsInfo;
 use crate::learner::base::TrainingInterrupter;
 use crate::logger::{FileMetricLogger, MetricLogger};
 use crate::metric::{Adaptor, Metric};
 use crate::renderer::{default_renderer, MetricsRenderer};
-use crate::{AsyncTrainerCallback, LearnerCheckpointer};
+use crate::{AsyncEventCollector, LearnerCheckpointer};
 use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::ADModule;
 use burn_core::optim::Optimizer;
@@ -40,7 +40,7 @@ where
     grad_accumulation: Option<usize>,
     devices: Vec<B::Device>,
     renderer: Option<Box<dyn MetricsRenderer + 'static>>,
-    metrics: Metrics<T, V>,
+    info: MetricsInfo<T, V>,
     interrupter: TrainingInterrupter,
     log_to_file: bool,
     num_loggers: usize,
@@ -68,7 +68,7 @@ where
             directory: directory.to_string(),
             grad_accumulation: None,
             devices: vec![B::Device::default()],
-            metrics: Metrics::new(),
+            info: MetricsInfo::new(),
             renderer: None,
             interrupter: TrainingInterrupter::new(),
             log_to_file: true,
@@ -87,8 +87,8 @@ where
         MT: MetricLogger + 'static,
         MV: MetricLogger + 'static,
     {
-        self.metrics.add_logger_train(logger_train);
-        self.metrics.add_logger_valid(logger_valid);
+        self.info.register_logger_train(logger_train);
+        self.info.register_logger_valid(logger_valid);
         self.num_loggers += 1;
         self
     }
@@ -111,7 +111,7 @@ where
     where
         T: Adaptor<Me::Input>,
     {
-        self.metrics.add_train(metric);
+        self.info.register_metric_train(metric);
         self
     }
 
@@ -120,7 +120,7 @@ where
     where
         V: Adaptor<Me::Input>,
     {
-        self.metrics.add_valid(metric);
+        self.info.register_valid_metric(metric);
         self
     }
 
@@ -139,37 +139,25 @@ where
         self
     }
 
-    /// Register a training metric and displays it on a plot.
-    ///
-    /// # Notes
-    ///
-    /// Only [numeric](crate::metric::Numeric) metric can be displayed on a plot.
-    /// If the same metric is also registered for the [validation split](Self::metric_valid_plot),
-    /// the same graph will be used for both.
-    pub fn metric_train_plot<Me>(mut self, metric: Me) -> Self
+    /// Register a [numeric](crate::metric::Numeric) training [metric](Metric).
+    pub fn metric_train_numeric<Me>(mut self, metric: Me) -> Self
     where
         Me: Metric + crate::metric::Numeric + 'static,
         T: Adaptor<Me::Input>,
     {
-        self.metrics.add_numeric_train(metric);
+        self.info.register_train_metric_numeric(metric);
         self
     }
 
-    /// Register a validation metric and displays it on a plot.
-    ///
-    /// # Notes
-    ///
-    /// Only [numeric](crate::metric::Numeric) metric can be displayed on a plot.
-    /// If the same metric is also registered for the [training split](Self::metric_train_plot),
-    /// the same graph will be used for both.
-    pub fn metric_valid_plot<Me: Metric + crate::metric::Numeric + 'static>(
+    /// Register a [numeric](crate::metric::Numeric) validation [metric](Metric).
+    pub fn metric_valid_numeric<Me: Metric + crate::metric::Numeric + 'static>(
         mut self,
         metric: Me,
     ) -> Self
     where
         V: Adaptor<Me::Input>,
     {
-        self.metrics.add_numeric_valid(metric);
+        self.info.register_valid_metric_numeric(metric);
         self
     }
 
@@ -264,7 +252,7 @@ where
             AsyncCheckpointer<M::Record>,
             AsyncCheckpointer<O::Record>,
             AsyncCheckpointer<S::Record>,
-            AsyncTrainerCallback<T, V>,
+            AsyncEventCollector<T, V>,
         >,
     >
     where
@@ -281,13 +269,16 @@ where
         let directory = &self.directory;
 
         if self.num_loggers == 0 {
-            self.metrics
-                .add_logger_train(FileMetricLogger::new(format!("{directory}/train").as_str()));
-            self.metrics
-                .add_logger_valid(FileMetricLogger::new(format!("{directory}/valid").as_str()));
+            self.info.register_logger_train(FileMetricLogger::new(
+                format!("{directory}/train").as_str(),
+            ));
+            self.info.register_logger_valid(FileMetricLogger::new(
+                format!("{directory}/valid").as_str(),
+            ));
         }
 
-        let callback = AsyncTrainerCallback::new(MetricsCallback::new(renderer, self.metrics));
+        let collector =
+            AsyncEventCollector::new(RenderedMetricsEventCollector::new(renderer, self.info));
 
         let checkpointer = self
             .checkpointers
@@ -299,7 +290,7 @@ where
             lr_scheduler,
             checkpointer,
             num_epochs: self.num_epochs,
-            callback,
+            callback: collector,
             checkpoint: self.checkpoint,
             grad_accumulation: self.grad_accumulation,
             devices: self.devices,

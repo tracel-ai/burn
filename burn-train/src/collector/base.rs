@@ -1,24 +1,29 @@
 use burn_core::{data::dataloader::Progress, LearningRate};
 
-/// Event happening during the training process.
-pub enum TrainingEvent<T> {
-    /// Processing an item for either training of inference.
+/// Event happening during the training/validation process.
+pub enum Event<T> {
+    /// Signal that an item have been processed.
     ProcessedItem(LearnerItem<T>),
     /// Signal the end of an epoch.
     EndEpoch(usize),
 }
 
-/// The base trait for trainer callbacks.
-pub trait TrainingEventCollector: Send {
+/// Defines how training and validation events are collected.
+///
+/// This trait also exposes methods that uses the collected data to compute useful information.
+pub trait EventCollector: Send {
     /// Training item.
     type ItemTrain;
     /// Validation item.
     type ItemValid;
 
-    fn on_event_train(&mut self, event: TrainingEvent<Self::ItemTrain>);
-    fn on_event_valid(&mut self, event: TrainingEvent<Self::ItemValid>);
+    /// Collect the training event.
+    fn on_event_train(&mut self, event: Event<Self::ItemTrain>);
 
-    /// Find the epoch following the given criteria following the collected data.
+    /// Collect the validaion event.
+    fn on_event_valid(&mut self, event: Event<Self::ItemValid>);
+
+    /// Find the epoch following the given criteria from the collected data.
     fn find_epoch(
         &mut self,
         name: &str,
@@ -41,6 +46,7 @@ pub enum Split {
     /// The validation split.
     Valid,
 }
+
 /// The direction of the query.
 pub enum Direction {
     /// Lower is better.

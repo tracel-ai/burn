@@ -5,8 +5,8 @@ use crate::{
     Aggregate, Direction, LearnerItem, Split,
 };
 
-/// A container for the metrics held by a metrics callback.
-pub struct Metrics<T, V>
+/// Metrics information collected during training.
+pub struct MetricsInfo<T, V>
 where
     T: Send + Sync + 'static,
     V: Send + Sync + 'static,
@@ -27,7 +27,7 @@ pub(crate) struct MetricsUpdate {
     pub(crate) entries_numeric: Vec<(MetricEntry, f64)>,
 }
 
-impl<T, V> Metrics<T, V>
+impl<T, V> MetricsInfo<T, V>
 where
     T: Send + Sync + 'static,
     V: Send + Sync + 'static,
@@ -45,6 +45,7 @@ where
         }
     }
 
+    /// Signal the end of a training epoch.
     pub(crate) fn end_epoch_train(&mut self, epoch: usize) {
         for metric in self.train.iter_mut() {
             metric.clear();
@@ -57,6 +58,7 @@ where
         }
     }
 
+    /// Signal the end of a validation epoch.
     pub(crate) fn end_epoch_valid(&mut self, epoch: usize) {
         for metric in self.valid.iter_mut() {
             metric.clear();
@@ -69,6 +71,7 @@ where
         }
     }
 
+    /// Update the training information from the training item.
     pub(crate) fn update_train(
         &mut self,
         item: &LearnerItem<T>,
@@ -99,6 +102,7 @@ where
         MetricsUpdate::new(entries, entries_numeric)
     }
 
+    /// Update the training information from the validation item.
     pub(crate) fn update_valid(
         &mut self,
         item: &LearnerItem<V>,
@@ -129,6 +133,7 @@ where
         MetricsUpdate::new(entries, entries_numeric)
     }
 
+    /// Find the epoch corresponding to the given criteria.
     pub(crate) fn find_epoch(
         &mut self,
         name: &str,
@@ -148,15 +153,18 @@ where
         }
     }
 
-    pub(crate) fn add_logger_train<ML: MetricLogger + 'static>(&mut self, logger: ML) {
+    /// Register a logger for training metrics.
+    pub(crate) fn register_logger_train<ML: MetricLogger + 'static>(&mut self, logger: ML) {
         self.loggers_train.push(Box::new(logger));
     }
 
-    pub(crate) fn add_logger_valid<ML: MetricLogger + 'static>(&mut self, logger: ML) {
+    /// Register a logger for validation metrics.
+    pub(crate) fn register_logger_valid<ML: MetricLogger + 'static>(&mut self, logger: ML) {
         self.loggers_valid.push(Box::new(logger));
     }
 
-    pub(crate) fn add_train<Me: Metric + 'static>(&mut self, metric: Me)
+    /// Register a training metric.
+    pub(crate) fn register_metric_train<Me: Metric + 'static>(&mut self, metric: Me)
     where
         T: Adaptor<Me::Input>,
     {
@@ -164,7 +172,8 @@ where
         self.train.push(Box::new(metric))
     }
 
-    pub(crate) fn add_valid<Me: Metric + 'static>(&mut self, metric: Me)
+    /// Register a validation metric.
+    pub(crate) fn register_valid_metric<Me: Metric + 'static>(&mut self, metric: Me)
     where
         V: Adaptor<Me::Input>,
     {
@@ -172,16 +181,22 @@ where
         self.valid.push(Box::new(metric))
     }
 
-    pub(crate) fn add_numeric_train<Me: Metric + Numeric + 'static>(&mut self, metric: Me)
-    where
+    /// Register a numeric training metric.
+    pub(crate) fn register_train_metric_numeric<Me: Metric + Numeric + 'static>(
+        &mut self,
+        metric: Me,
+    ) where
         T: Adaptor<Me::Input>,
     {
         let metric = MetricWrapper::new(metric);
         self.train_numeric.push(Box::new(metric))
     }
 
-    pub(crate) fn add_numeric_valid<Me: Metric + Numeric + 'static>(&mut self, metric: Me)
-    where
+    /// Register a numeric validation metric.
+    pub(crate) fn register_valid_metric_numeric<Me: Metric + Numeric + 'static>(
+        &mut self,
+        metric: Me,
+    ) where
         V: Adaptor<Me::Input>,
     {
         let metric = MetricWrapper::new(metric);

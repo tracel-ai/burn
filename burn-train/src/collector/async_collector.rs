@@ -1,10 +1,10 @@
-use super::TrainingEventCollector;
-use crate::{Aggregate, Direction, Split, TrainingEvent};
+use super::EventCollector;
+use crate::{Aggregate, Direction, Event, Split};
 use std::{sync::mpsc, thread::JoinHandle};
 
 enum Message<T, V> {
-    OnEventTrain(TrainingEvent<T>),
-    OnEventValid(TrainingEvent<V>),
+    OnEventTrain(Event<T>),
+    OnEventValid(Event<V>),
     End,
     FindEpoch(
         String,
@@ -15,21 +15,24 @@ enum Message<T, V> {
     ),
 }
 
-/// Async trainer callback tracker.
-pub struct AsyncTrainerCallback<T, V> {
+/// Async [training event collector](TrainingEventCollector).
+///
+/// This will create a worker thread where all the computation is done ensuring that the training loop is
+/// never blocked by metric calculation, logging and checkpointing.
+pub struct AsyncEventCollector<T, V> {
     sender: mpsc::Sender<Message<T, V>>,
     handler: Option<JoinHandle<()>>,
 }
 
 #[derive(new)]
-struct CallbackThread<C, T, V> {
-    callback: C,
+struct WorkerThread<C, T, V> {
+    collector: C,
     receiver: mpsc::Receiver<Message<T, V>>,
 }
 
-impl<C, T, V> CallbackThread<C, T, V>
+impl<C, T, V> WorkerThread<C, T, V>
 where
-    C: TrainingEventCollector<ItemTrain = T, ItemValid = V>,
+    C: EventCollector<ItemTrain = T, ItemValid = V>,
 {
     fn run(mut self) {
         for item in self.receiver.iter() {
@@ -38,24 +41,26 @@ where
                     return;
                 }
                 Message::FindEpoch(name, aggregate, direction, split, sender) => {
-                    let response = self.callback.find_epoch(&name, aggregate, direction, split);
+                    let response = self
+                        .collector
+                        .find_epoch(&name, aggregate, direction, split);
                     sender.send(response).unwrap();
                 }
-                Message::OnEventTrain(event) => self.callback.on_event_train(event),
-                Message::OnEventValid(event) => self.callback.on_event_valid(event),
+                Message::OnEventTrain(event) => self.collector.on_event_train(event),
+                Message::OnEventValid(event) => self.collector.on_event_valid(event),
             }
         }
     }
 }
 
-impl<T: Send + Sync + 'static, V: Send + Sync + 'static> AsyncTrainerCallback<T, V> {
-    /// Create a new async trainer callback.
-    pub fn new<C>(callback: C) -> Self
+impl<T: Send + Sync + 'static, V: Send + Sync + 'static> AsyncEventCollector<T, V> {
+    /// Create a new async [training event collector](TrainingEventCollector).
+    pub fn new<C>(collector: C) -> Self
     where
-        C: TrainingEventCollector<ItemTrain = T, ItemValid = V> + 'static,
+        C: EventCollector<ItemTrain = T, ItemValid = V> + 'static,
     {
         let (sender, receiver) = mpsc::channel();
-        let thread = CallbackThread::new(callback, receiver);
+        let thread = WorkerThread::new(collector, receiver);
 
         let handler = std::thread::spawn(move || thread.run());
         let handler = Some(handler);
@@ -64,15 +69,15 @@ impl<T: Send + Sync + 'static, V: Send + Sync + 'static> AsyncTrainerCallback<T,
     }
 }
 
-impl<T: Send, V: Send> TrainingEventCollector for AsyncTrainerCallback<T, V> {
+impl<T: Send, V: Send> EventCollector for AsyncEventCollector<T, V> {
     type ItemTrain = T;
     type ItemValid = V;
 
-    fn on_event_train(&mut self, event: TrainingEvent<Self::ItemTrain>) {
+    fn on_event_train(&mut self, event: Event<Self::ItemTrain>) {
         self.sender.send(Message::OnEventTrain(event)).unwrap();
     }
 
-    fn on_event_valid(&mut self, event: TrainingEvent<Self::ItemValid>) {
+    fn on_event_valid(&mut self, event: Event<Self::ItemValid>) {
         self.sender.send(Message::OnEventValid(event)).unwrap();
     }
 
@@ -101,7 +106,7 @@ impl<T: Send, V: Send> TrainingEventCollector for AsyncTrainerCallback<T, V> {
     }
 }
 
-impl<T, V> Drop for AsyncTrainerCallback<T, V> {
+impl<T, V> Drop for AsyncEventCollector<T, V> {
     fn drop(&mut self) {
         self.sender.send(Message::End).unwrap();
         let handler = self.handler.take();

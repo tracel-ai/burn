@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 /// Type that can be used to fetch and use numeric metric aggregates.
 #[derive(Default, Debug)]
-pub struct NumericMetricsAggregate {
+pub(crate) struct NumericMetricsAggregate {
     mean_for_each_epoch: HashMap<Key, f64>,
 }
 

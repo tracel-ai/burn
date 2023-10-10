@@ -1,22 +1,22 @@
 use crate::{
-    info::Metrics,
+    info::MetricsInfo,
     metric::MetricMetadata,
     renderer::{MetricState, MetricsRenderer, TrainingProgress},
-    Aggregate, Direction, LearnerItem, Split, TrainingEvent, TrainingEventCollector,
+    Aggregate, Direction, Event, EventCollector, LearnerItem, Split,
 };
 
-/// Holds all metrics, metric loggers, and a metrics renderer.
+/// Collect training events in order to display metrics with a metrics renderer.
 #[derive(new)]
-pub(crate) struct MetricsCallback<T, V>
+pub(crate) struct RenderedMetricsEventCollector<T, V>
 where
     T: Send + Sync + 'static,
     V: Send + Sync + 'static,
 {
     renderer: Box<dyn MetricsRenderer>,
-    metrics: Metrics<T, V>,
+    info: MetricsInfo<T, V>,
 }
 
-impl<T, V> TrainingEventCollector for MetricsCallback<T, V>
+impl<T, V> EventCollector for RenderedMetricsEventCollector<T, V>
 where
     T: Send + Sync + 'static,
     V: Send + Sync + 'static,
@@ -24,17 +24,17 @@ where
     type ItemTrain = T;
     type ItemValid = V;
 
-    fn on_event_train(&mut self, event: TrainingEvent<Self::ItemTrain>) {
+    fn on_event_train(&mut self, event: Event<Self::ItemTrain>) {
         match event {
-            TrainingEvent::ProcessedItem(item) => self.on_train_item(item),
-            TrainingEvent::EndEpoch(epoch) => self.on_train_end_epoch(epoch),
+            Event::ProcessedItem(item) => self.on_train_item(item),
+            Event::EndEpoch(epoch) => self.on_train_end_epoch(epoch),
         }
     }
 
-    fn on_event_valid(&mut self, event: TrainingEvent<Self::ItemValid>) {
+    fn on_event_valid(&mut self, event: Event<Self::ItemValid>) {
         match event {
-            TrainingEvent::ProcessedItem(item) => self.on_valid_item(item),
-            TrainingEvent::EndEpoch(epoch) => self.on_valid_end_epoch(epoch),
+            Event::ProcessedItem(item) => self.on_valid_item(item),
+            Event::EndEpoch(epoch) => self.on_valid_end_epoch(epoch),
         }
     }
 
@@ -45,11 +45,11 @@ where
         direction: Direction,
         split: Split,
     ) -> Option<usize> {
-        self.metrics.find_epoch(name, aggregate, direction, split)
+        self.info.find_epoch(name, aggregate, direction, split)
     }
 }
 
-impl<T, V> MetricsCallback<T, V>
+impl<T, V> RenderedMetricsEventCollector<T, V>
 where
     T: Send + Sync + 'static,
     V: Send + Sync + 'static,
@@ -58,7 +58,7 @@ where
         let progress = (&item).into();
         let metadata = (&item).into();
 
-        let update = self.metrics.update_train(&item, &metadata);
+        let update = self.info.update_train(&item, &metadata);
 
         update
             .entries
@@ -80,7 +80,7 @@ where
         let progress = (&item).into();
         let metadata = (&item).into();
 
-        let update = self.metrics.update_valid(&item, &metadata);
+        let update = self.info.update_valid(&item, &metadata);
 
         update
             .entries
@@ -99,11 +99,11 @@ where
     }
 
     fn on_train_end_epoch(&mut self, epoch: usize) {
-        self.metrics.end_epoch_train(epoch);
+        self.info.end_epoch_train(epoch);
     }
 
     fn on_valid_end_epoch(&mut self, epoch: usize) {
-        self.metrics.end_epoch_valid(epoch);
+        self.info.end_epoch_valid(epoch);
     }
 }
 
