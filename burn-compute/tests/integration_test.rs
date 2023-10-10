@@ -2,8 +2,8 @@ mod dummy;
 
 use burn_compute::tune::Tuner;
 use dummy::{
-    client, make_kernel_pool, ArrayHashable, DummyDevice, DummyElementwiseAddition,
-    DummyOperationAdd,
+    client, make_kernel_pool, AdditionOp, ArrayHashable, DummyDevice, DummyElementwiseAddition,
+    DummyServer,
 };
 
 #[test]
@@ -47,8 +47,9 @@ fn autotune() {
     let lhs = client.create(&[0, 1, 2]);
     let rhs = client.create(&[4, 4, 4]);
     let out = client.empty(3);
+    let binding = [&lhs, &rhs, &out];
 
-    let kernel_pool = make_kernel_pool::<DummyOperationAdd>(client, &[&lhs, &rhs, &out]);
-    let tuner = Tuner::new(client, kernel_pool);
+    let kernel_pool = make_kernel_pool::<AdditionOp, DummyServer>(&client, &binding);
+    let tuner = Tuner::new(kernel_pool);
     tuner.tune(ArrayHashable::new([3, 3, 3]))
 }

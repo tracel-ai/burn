@@ -1,3 +1,4 @@
+use core::marker::PhantomData;
 use core::time::Duration;
 
 use burn_common::benchmark::{Benchmark, BenchmarkResult};
@@ -7,26 +8,24 @@ use spin::Mutex;
 use crate::tune::{InputHashable, KernelPool, Operation};
 use crate::{channel::ComputeChannel, client::ComputeClient, server::ComputeServer};
 
-use super::{KernelType, TuneBenchmark};
+use super::TuneBenchmark;
 
 #[derive(new)]
-pub struct Tuner<TB, O, S, C>
+pub struct Tuner<TB, O, S>
 where
-    TB: TuneBenchmark,
-    O: Operation<S>,
+    TB: TuneBenchmark<O, S>,
+    O: Operation,
     S: ComputeServer,
-    C: ComputeChannel<S>,
 {
-    client: ComputeClient<S, C>,
-    kernel_pool: Mutex<KernelPool<TB, O, S, C>>,
+    kernel_pool: Mutex<KernelPool<TB, O, S>>,
+    _server: PhantomData<S>,
 }
 
-impl<TB, O, S, C> Tuner<TB, O, S, C>
+impl<TB, O, S> Tuner<TB, O, S>
 where
-    TB: TuneBenchmark,
-    O: Operation<S>,
+    TB: TuneBenchmark<O, S>,
+    O: Operation,
     S: ComputeServer,
-    C: ComputeChannel<S>,
 {
     pub fn tune(&self, input: O::Input) {
         let mut kernel_pool = self.kernel_pool.lock();
@@ -38,7 +37,7 @@ where
         self.execute_found_kernel(kernel, input);
     }
 
-    fn execute_found_kernel(&self, kernel_type: KernelType<TB, O, S, C>, input: O::Input) {
+    fn execute_found_kernel(&self, kernel: S::Kernel, input: O::Input) {
         todo!()
         // let kernel = kernel_type.to_kernel();
         // let handles = input.make_handles();
@@ -47,13 +46,12 @@ where
 
     fn no_kernel_type_found(
         &self,
-        kernel_pool: &mut KernelPool<TB, O, S, C>,
+        kernel_pool: &mut KernelPool<TB, O, S>,
         input: &O::Input,
-    ) -> KernelType<TB, O, S, C> {
+    ) -> S::Kernel {
         let results: Vec<BenchmarkResult> = kernel_pool
-            .kernel_types
+            .tune_benchmarks
             .iter()
-            .map(KernelType::to_benchmark)
             .map(|benchmark| benchmark.run())
             .collect();
         let best_index = self.find_best(results);

@@ -5,22 +5,25 @@ use burn_compute::{
     channel::ComputeChannel,
     client::ComputeClient,
     server::{ComputeServer, Handle},
-    tune::{InputHashable, KernelPool, KernelType, Operation, TuneBenchmark},
+    tune::{InputHashable, KernelPool, Operation, TuneBenchmark},
 };
 use derive_new::new;
 use hashbrown::HashMap;
 use spin::Mutex;
 
-use crate::dummy;
-
 use super::{
     DummyChannel, DummyClient, DummyElementwiseAddition, DummyElementwiseAdditionAlt,
-    DummyElementwiseMultiplication, DummyElementwiseMultiplicationAlt, DummyServer,
+    DummyElementwiseMultiplication, DummyElementwiseMultiplicationAlt, DummyKernel, DummyServer,
 };
 
 #[derive(new, PartialEq, Eq, Hash)]
 pub struct ArrayHashable {
-    sizes: [usize; 3],
+    pub sizes: [usize; 3],
+}
+impl ArrayHashable {
+    fn to_bytes(&self) -> &[u8] {
+        todo!()
+    }
 }
 
 impl InputHashable for ArrayHashable {
@@ -34,39 +37,23 @@ impl InputHashable for ArrayHashable {
     }
 }
 
-#[derive(PartialEq, Eq, Hash)]
-pub struct DummyOperationAdd {}
-impl Operation<DummyServer> for DummyOperationAdd {
-    type Input = ArrayHashable;
-}
-
-#[derive(PartialEq, Eq, Hash)]
-pub struct DummyOperationMul {}
-impl Operation<DummyServer> for DummyOperationMul {
-    type Input = ArrayHashable;
-}
-
 #[derive(new)]
-pub struct DummyBenchmark<S, C> {
-    client: ComputeClient<S, C>,
-    kernel: Arc<<DummyServer as ComputeServer>::Kernel>,
-    handles: &[&Handle<DummyServer>]
+pub struct DummyBenchmark<'a> {
+    client: &'a DummyClient,
+    kernel_constructor: Box<dyn Fn() -> Box<dyn DummyKernel>>,
+    // kernel: Option<Box<dyn DummyKernel>>,
+    handles: &'a [&'a Handle<DummyServer>],
 }
 
-impl<S, C> Benchmark for DummyBenchmark<S, C>
-where
-    S: ComputeServer,
-    C: ComputeChannel<S>,
-{
-    type Args = ArrayHashable;
+impl<'a> Benchmark for DummyBenchmark<'a> {
+    type Args = Box<dyn DummyKernel>;
 
     fn prepare(&self) -> Self::Args {
-        self.inputs
+        (self.kernel_constructor)()
     }
 
     fn execute(&self, args: Self::Args) {
-        self.client.execute(kernel, handles);
-        todo!()
+        self.client.execute(args, self.handles);
     }
 
     fn name(&self) -> String {
@@ -78,67 +65,77 @@ where
     }
 }
 
-impl<S, C> TuneBenchmark for DummyBenchmark<S, C>
-where
-    S: ComputeServer,
-    C: ComputeChannel<S>,
-{
-    type Args = ArrayHashable;
+impl<'a, O> TuneBenchmark<O, DummyServer> for DummyBenchmark<'a> {
+    fn take_kernel(&self) -> Box<dyn DummyKernel> {
+        (self.kernel_constructor)()
+    }
 }
 
 macro_rules! make_kernel {
-    ($name:ident, $kernel:ident) => {
+    ($name:ident, $kernel:ident, $operation:ident) => {
         pub struct $name {}
 
         impl $name {
-            pub fn kernel_type<O>(
-                client: &DummyClient,
-                handles: &[&Handle<DummyServer>],
-            ) -> KernelType<DummyBenchmark<DummyServer, DummyChannel>, O, DummyServer, DummyChannel>
-            {
-                let kernel: Arc<<DummyServer as ComputeServer>::Kernel> =
-                    Arc::new(Box::new($kernel {}));
-                let tune_benchmark = Arc::new(DummyBenchmark::new(client, kernel, handles));
-                let kernel_type: KernelType<
-                    DummyBenchmark<DummyServer, DummyChannel>,
-                    O,
-                    DummyServer,
-                    DummyChannel,
-                > = KernelType::new(kernel, tune_benchmark);
-                kernel_type
+            pub fn make_benchmark<'a>(
+                client: &'a DummyClient,
+                handles: &'a [&'a Handle<DummyServer>],
+            ) -> DummyBenchmark<'a> {
+                let kernel_constructor: Box<dyn Fn() -> <DummyServer as ComputeServer>::Kernel> =
+                    Box::new(|| Box::new($kernel {}));
+                DummyBenchmark::new(client, kernel_constructor, handles)
             }
         }
     };
 }
 
-make_kernel!(DummyElementwiseAdditionType, DummyElementwiseAddition);
-make_kernel!(DummyElementwiseAdditionAltType, DummyElementwiseAdditionAlt);
+#[derive(PartialEq, Eq, Hash)]
+pub struct AdditionOp {}
+impl Operation for AdditionOp {
+    type Input = ArrayHashable;
+}
+
+#[derive(PartialEq, Eq, Hash)]
+pub struct MultiplicationOp {}
+impl Operation for MultiplicationOp {
+    type Input = ArrayHashable;
+}
+
+make_kernel!(
+    DummyElementwiseAdditionType,
+    DummyElementwiseAddition,
+    AdditionOp
+);
+make_kernel!(
+    DummyElementwiseAdditionAltType,
+    DummyElementwiseAdditionAlt,
+    AdditionOp
+);
 make_kernel!(
     DummyElementwiseMultiplicationType,
-    DummyElementwiseMultiplication
+    DummyElementwiseMultiplication,
+    MultiplicationOp
 );
 make_kernel!(
     DummyElementwiseMultiplicationAltType,
-    DummyElementwiseMultiplicationAlt
+    DummyElementwiseMultiplicationAlt,
+    MultiplicationOp
 );
 
-pub fn make_kernel_pool<O>(
-    client: DummyClient,
-    handles: &[&Handle<DummyServer>],
-) -> Mutex<KernelPool<DummyBenchmark<DummyServer, DummyChannel>, O, DummyServer, DummyChannel>>
+pub fn make_kernel_pool<'a, O, S>(
+    client: &'a DummyClient,
+    handles: &'a [&'a Handle<DummyServer>],
+) -> Mutex<KernelPool<DummyBenchmark<'a>, O, S>>
 where
-    O: Operation<DummyServer>,
+    O: Operation,
 {
     let cache = HashMap::new();
-    let kernel_types: Vec<
-        KernelType<DummyBenchmark<DummyServer, DummyChannel>, O, DummyServer, DummyChannel>,
-    > = vec![
-        DummyElementwiseAdditionType::kernel_type(&client, handles),
-        DummyElementwiseAdditionAltType::kernel_type(&client, handles),
+    let benchmarks: Vec<DummyBenchmark> = vec![
+        DummyElementwiseAdditionType::make_benchmark(&client, handles),
+        DummyElementwiseAdditionAltType::make_benchmark(&client, handles),
         // DummyElementwiseMultiplicationType::kernel_type(),
         // DummyElementwiseMultiplicationAltType::kernel_type(),
     ];
 
-    let kernel_pool = KernelPool::new(cache, kernel_types);
+    let kernel_pool = KernelPool::new(cache, benchmarks);
     Mutex::new(kernel_pool)
 }

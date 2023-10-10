@@ -8,7 +8,6 @@ pub trait InputHashable: PartialEq + Eq + Hash {
     fn custom_hash(&self) -> String;
 }
 
-pub trait Operation<S: ComputeServer>: PartialEq + Eq + Hash {
-    // Important: For input, Hash and stuff not derived, must be custom
+pub trait Operation: PartialEq + Eq + Hash {
     type Input: InputHashable;
 }
