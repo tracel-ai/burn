@@ -36,7 +36,6 @@ impl DummyKernel for DummyElementwiseAdditionAlt {
         let out = &mut inputs[2].write();
 
         let size = lhs.len();
-        println!("af");
 
         for i in 0..size {
             sleep(Duration::from_millis(10));
