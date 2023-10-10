@@ -139,7 +139,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<CandleBackend<F, I>>
         kernel_size: [usize; 2],
         option: UnfoldOptions,
     ) -> FloatTensor<Self, 3> {
-        todo!()
+        panic!("Candle does not support unfold")
     }
 
     fn avg_pool2d(
