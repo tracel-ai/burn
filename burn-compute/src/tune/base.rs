@@ -27,21 +27,12 @@ where
     O: Operation,
     S: ComputeServer,
 {
-    pub fn tune(&self, input: O::Input) {
+    pub fn tune(&self, input: O::Input) -> S::Kernel {
         let mut kernel_pool = self.kernel_pool.lock();
 
-        let kernel = kernel_pool
+        kernel_pool
             .try_cache(&input)
-            .unwrap_or(self.no_kernel_type_found(&mut kernel_pool, &input));
-
-        self.execute_found_kernel(kernel, input);
-    }
-
-    fn execute_found_kernel(&self, kernel: S::Kernel, input: O::Input) {
-        todo!()
-        // let kernel = kernel_type.to_kernel();
-        // let handles = input.make_handles();
-        // self.client.execute(kernel, handles)
+            .unwrap_or(self.no_kernel_type_found(&mut kernel_pool, &input))
     }
 
     fn no_kernel_type_found(
