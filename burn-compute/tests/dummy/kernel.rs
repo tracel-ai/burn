@@ -31,17 +31,16 @@ impl DummyKernel for DummyElementwiseAddition {
 
 impl DummyKernel for DummyElementwiseAdditionAlt {
     fn compute(&self, inputs: &mut [BytesResource]) {
-        // Notice how the kernel is responsible for determining which inputs
-        // are read-only and which are writable.
+        // Slow and wrong on purpose, for tests
         let lhs = &inputs[0].read();
-        let rhs = &inputs[1].read();
         let out = &mut inputs[2].write();
 
         let size = lhs.len();
+        println!("af");
 
         for i in 0..size {
             sleep(Duration::from_millis(10));
-            out[i] = lhs[i] + rhs[i];
+            out[i] = lhs[i]
         }
     }
 }

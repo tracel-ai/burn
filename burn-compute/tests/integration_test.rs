@@ -53,5 +53,9 @@ fn autotune() {
     let tuner = Tuner::new(kernel_pool);
     let kernel = tuner.tune(ArrayHashable::new([3, 3, 3]));
 
-    client.execute(kernel, handles)
+    client.execute(kernel, handles);
+    let obtained_resource = client.read(&out);
+
+    // If slow kernel was selected it would output 0, 1, 2
+    assert_eq!(obtained_resource.read(), Vec::from([4, 5, 6]));
 }
