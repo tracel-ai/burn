@@ -1,4 +1,4 @@
-use super::{format_float, MetricEntry, Numeric};
+use crate::metric::{format_float, MetricEntry, Numeric};
 
 /// Usefull utility to implement numeric metrics.
 ///

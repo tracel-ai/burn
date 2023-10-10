@@ -1,4 +1,4 @@
-use crate::{checkpoint::Checkpointer, LearnerCallback};
+use crate::{checkpoint::Checkpointer, EventCollector};
 use burn_core::{
     lr_scheduler::LrScheduler,
     module::{ADModule, Module},
@@ -25,8 +25,8 @@ pub trait LearnerComponents {
     >;
     /// The checkpointer used for the scheduler.
     type CheckpointerLrScheduler: Checkpointer<<Self::LrScheduler as LrScheduler>::Record>;
-    /// Callback used for training tracking.
-    type Callback: LearnerCallback + 'static;
+    /// Training event collector used for training tracking.
+    type EventCollector: EventCollector + 'static;
 }
 
 /// Concrete type that implements [training components trait](TrainingComponents).
@@ -41,8 +41,8 @@ pub struct LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, C> {
     _callback: PhantomData<C>,
 }
 
-impl<B, LR, M, O, CM, CO, CS, C> LearnerComponents
-    for LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, C>
+impl<B, LR, M, O, CM, CO, CS, EC> LearnerComponents
+    for LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, EC>
 where
     B: ADBackend,
     LR: LrScheduler,
@@ -51,7 +51,7 @@ where
     CM: Checkpointer<M::Record>,
     CO: Checkpointer<O::Record>,
     CS: Checkpointer<LR::Record>,
-    C: LearnerCallback + 'static,
+    EC: EventCollector + 'static,
 {
     type Backend = B;
     type LrScheduler = LR;
@@ -60,5 +60,5 @@ where
     type CheckpointerModel = CM;
     type CheckpointerOptimizer = CO;
     type CheckpointerLrScheduler = CS;
-    type Callback = C;
+    type EventCollector = EC;
 }

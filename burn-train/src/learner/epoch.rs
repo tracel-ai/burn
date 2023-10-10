@@ -7,8 +7,8 @@ use burn_core::{
 };
 use std::sync::Arc;
 
-use crate::learner::base::TrainingInterrupter;
-use crate::{LearnerCallback, LearnerItem, MultiDevicesTrainStep, TrainStep, ValidStep};
+use crate::{learner::base::TrainingInterrupter, Event};
+use crate::{EventCollector, LearnerItem, MultiDevicesTrainStep, TrainStep, ValidStep};
 
 /// A validation epoch.
 #[derive(new)]
@@ -37,7 +37,7 @@ impl<VI> ValidEpoch<VI> {
     pub fn run<B, M, TO, VO>(
         &self,
         model: &M,
-        callback: &mut Box<dyn LearnerCallback<ItemTrain = TO, ItemValid = VO>>,
+        callback: &mut Box<dyn EventCollector<ItemTrain = TO, ItemValid = VO>>,
         interrupter: &TrainingInterrupter,
     ) where
         B: ADBackend,
@@ -64,13 +64,14 @@ impl<VI> ValidEpoch<VI> {
                 None,
             );
 
-            callback.on_valid_item(item);
+            callback.on_event_valid(Event::ProcessedItem(item));
+
             if interrupter.should_stop() {
                 log::info!("Training interrupted.");
                 break;
             }
         }
-        callback.on_valid_end_epoch(self.epoch);
+        callback.on_event_valid(Event::EndEpoch(self.epoch));
     }
 }
 
@@ -92,7 +93,7 @@ impl<TI> TrainEpoch<TI> {
         mut model: M,
         mut optim: O,
         scheduler: &mut LR,
-        callback: &mut Box<dyn LearnerCallback<ItemTrain = TO, ItemValid = VO>>,
+        callback: &mut Box<dyn EventCollector<ItemTrain = TO, ItemValid = VO>>,
         interrupter: &TrainingInterrupter,
     ) -> (M, O)
     where
@@ -139,13 +140,13 @@ impl<TI> TrainEpoch<TI> {
                 Some(lr),
             );
 
-            callback.on_train_item(item);
+            callback.on_event_train(Event::ProcessedItem(item));
             if interrupter.should_stop() {
                 log::info!("Training interrupted.");
                 break;
             }
         }
-        callback.on_train_end_epoch(self.epoch);
+        callback.on_event_train(Event::EndEpoch(self.epoch));
 
         (model, optim)
     }
@@ -170,7 +171,7 @@ impl<TI> TrainEpoch<TI> {
         mut model: M,
         mut optim: O,
         lr_scheduler: &mut S,
-        callback: &mut Box<dyn LearnerCallback<ItemTrain = TO, ItemValid = VO>>,
+        callback: &mut Box<dyn EventCollector<ItemTrain = TO, ItemValid = VO>>,
         devices: Vec<B::Device>,
         interrupter: &TrainingInterrupter,
     ) -> (M, O)
@@ -232,7 +233,8 @@ impl<TI> TrainEpoch<TI> {
                     Some(lr),
                 );
 
-                callback.on_train_item(item);
+                callback.on_event_train(Event::ProcessedItem(item));
+
                 if interrupter.should_stop() {
                     log::info!("Training interrupted.");
                     interrupted = true;
@@ -245,7 +247,7 @@ impl<TI> TrainEpoch<TI> {
             }
         }
 
-        callback.on_train_end_epoch(self.epoch);
+        callback.on_event_train(Event::EndEpoch(self.epoch));
 
         (model, optim)
     }

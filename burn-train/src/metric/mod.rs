@@ -1,7 +1,4 @@
-/// Callback module for training progress.
-pub mod callback;
-
-/// State module for callback metrics.
+/// State module.
 pub mod state;
 
 mod acc;

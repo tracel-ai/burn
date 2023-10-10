@@ -1,5 +1,4 @@
 mod base;
-
 pub use base::*;
 
 #[cfg(not(feature = "tui"))]
