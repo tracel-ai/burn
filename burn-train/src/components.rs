@@ -41,8 +41,8 @@ pub struct LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, C> {
     _callback: PhantomData<C>,
 }
 
-impl<B, LR, M, O, CM, CO, CS, C> LearnerComponents
-    for LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, C>
+impl<B, LR, M, O, CM, CO, CS, EC> LearnerComponents
+    for LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, EC>
 where
     B: ADBackend,
     LR: LrScheduler,
@@ -51,7 +51,7 @@ where
     CM: Checkpointer<M::Record>,
     CO: Checkpointer<O::Record>,
     CS: Checkpointer<LR::Record>,
-    C: EventCollector + 'static,
+    EC: EventCollector + 'static,
 {
     type Backend = B;
     type LrScheduler = LR;
@@ -60,5 +60,5 @@ where
     type CheckpointerModel = CM;
     type CheckpointerOptimizer = CO;
     type CheckpointerLrScheduler = CS;
-    type EventCollector = C;
+    type EventCollector = EC;
 }

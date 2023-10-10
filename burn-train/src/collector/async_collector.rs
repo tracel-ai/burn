@@ -18,7 +18,7 @@ enum Message<T, V> {
 /// Async [event collector](EventCollector).
 ///
 /// This will create a worker thread where all the computation is done ensuring that the training loop is
-/// never blocked by metric calculation, logging and checkpointing.
+/// never blocked by metric calculation.
 pub struct AsyncEventCollector<T, V> {
     sender: mpsc::Sender<Message<T, V>>,
     handler: Option<JoinHandle<()>>,

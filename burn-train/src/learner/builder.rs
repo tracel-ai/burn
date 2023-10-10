@@ -290,7 +290,7 @@ where
             lr_scheduler,
             checkpointer,
             num_epochs: self.num_epochs,
-            callback: collector,
+            collector,
             checkpoint: self.checkpoint,
             grad_accumulation: self.grad_accumulation,
             devices: self.devices,

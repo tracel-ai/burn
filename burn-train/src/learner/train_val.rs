@@ -140,7 +140,7 @@ impl<LC: LearnerComponents> Learner<LC> {
 
         let mut callback: Box<
             dyn EventCollector<ItemTrain = OutputTrain, ItemValid = OutputValid>,
-        > = Box::new(self.callback);
+        > = Box::new(self.collector);
 
         for epoch in starting_epoch..self.num_epochs + 1 {
             let epoch_train = TrainEpoch::new(
@@ -180,15 +180,6 @@ impl<LC: LearnerComponents> Learner<LC> {
                 checkpointer.checkpoint(&self.model, &self.optim, &self.lr_scheduler, epoch);
             }
         }
-
-        let epoch = callback.find_epoch(
-            <crate::metric::LossMetric<LC::Backend> as crate::metric::Metric>::NAME,
-            crate::Aggregate::Mean,
-            crate::Direction::Lowest,
-            crate::Split::Valid,
-        );
-
-        log::info!("Lowest validation loss: {epoch:?}");
 
         self.model
     }

@@ -21,7 +21,6 @@ impl NumericMetricsAggregate {
         loggers: &mut [Box<dyn MetricLogger>],
     ) -> Option<f64> {
         let key = Key::new(name.to_string(), epoch);
-        println!("{key:?}");
 
         if let Some(value) = self.mean_for_each_epoch.get(&key) {
             return Some(*value);
@@ -66,7 +65,6 @@ impl NumericMetricsAggregate {
             match aggregate {
                 Aggregate::Mean => match self.mean(name, current_epoch, loggers) {
                     Some(value) => {
-                        println!("{value}");
                         data.push(value);
                     }
                     None => break,
