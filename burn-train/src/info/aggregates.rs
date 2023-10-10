@@ -80,7 +80,7 @@ impl NumericMetricsAggregate {
 
         let mut current_value = match &direction {
             Direction::Lowest => f64::MAX,
-            Direction::Hightest => f64::MIN,
+            Direction::Highest => f64::MIN,
         };
 
         for (i, value) in data.into_iter().enumerate() {
@@ -91,7 +91,7 @@ impl NumericMetricsAggregate {
                         current_epoch = i + 1;
                     }
                 }
-                Direction::Hightest => {
+                Direction::Highest => {
                     if value > current_value {
                         current_value = value;
                         current_epoch = i + 1;
@@ -141,13 +141,13 @@ mod tests {
         let mut logger = TestLogger::new();
         let mut aggregate = NumericMetricsAggregate::default();
 
-        logger.log(500.);
-        logger.log(1000.);
+        logger.log(500.); // Epoch 1
+        logger.log(1000.); // Epoch 1
         logger.new_epoch();
-        logger.log(200.);
-        logger.log(1000.);
+        logger.log(200.); // Epoch 2
+        logger.log(1000.); // Epoch 2
         logger.new_epoch();
-        logger.log(10000.);
+        logger.log(10000.); // Epoch 3
 
         let value = aggregate
             .find_epoch(

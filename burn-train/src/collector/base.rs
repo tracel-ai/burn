@@ -52,7 +52,7 @@ pub enum Direction {
     /// Lower is better.
     Lowest,
     /// Higher is better.
-    Hightest,
+    Highest,
 }
 
 /// A learner item.
