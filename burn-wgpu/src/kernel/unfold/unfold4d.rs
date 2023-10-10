@@ -42,9 +42,12 @@ pub(crate) fn unfold4d<E: WgpuElement + Element>(
     let padding = options.padding.unwrap_or([0, 0]);
     let dilation = options.dilation.unwrap_or([1, 1]);
 
-    let channels_out = channels_in * kernel_size[0] * kernel_size[1];
-
-    let weight_shape = Shape::new([channels_out, channels_in, kernel_size[0], kernel_size[1]]);
+    let weight_shape = Shape::new([
+        channels_in * kernel_size[0] * kernel_size[1],
+        channels_in,
+        kernel_size[0],
+        kernel_size[1],
+    ]);
     let weight = kernel::into_contiguous(empty_device(
         intermediate_input.client.clone(),
         intermediate_input.device.clone(),
@@ -65,7 +68,6 @@ pub(crate) fn unfold4d<E: WgpuElement + Element>(
         .execute(Box::new(kernel), &[&weight.handle, &indices_handle]);
 
     let options = burn_tensor::ops::ConvOptions::new(stride, padding, dilation, 1);
-
     kernel::conv::conv2d(input, weight, None, options.clone())
 }
 
