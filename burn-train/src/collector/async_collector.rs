@@ -15,7 +15,7 @@ enum Message<T, V> {
     ),
 }
 
-/// Async [training event collector](TrainingEventCollector).
+/// Async [event collector](EventCollector).
 ///
 /// This will create a worker thread where all the computation is done ensuring that the training loop is
 /// never blocked by metric calculation, logging and checkpointing.
@@ -54,7 +54,7 @@ where
 }
 
 impl<T: Send + Sync + 'static, V: Send + Sync + 'static> AsyncEventCollector<T, V> {
-    /// Create a new async [training event collector](TrainingEventCollector).
+    /// Create a new async [event collector](EventCollector).
     pub fn new<C>(collector: C) -> Self
     where
         C: EventCollector<ItemTrain = T, ItemValid = V> + 'static,

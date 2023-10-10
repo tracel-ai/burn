@@ -59,7 +59,7 @@ pub trait Config: serde::Serialize + serde::de::DeserializeOwned {
     /// The loaded configuration.
     #[cfg(feature = "std")]
     fn load<P: AsRef<std::path::Path>>(file: P) -> Result<Self, ConfigError> {
-        let content = std::fs::read_to_string(file.as_ref().clone())
+        let content = std::fs::read_to_string(file.as_ref())
             .map_err(|_| ConfigError::FileNotFound(file.as_ref().to_string_lossy().to_string()))?;
         config_from_str(&content)
     }
