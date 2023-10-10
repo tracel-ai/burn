@@ -97,7 +97,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnaryNode {
 
 impl UnaryNode {
     pub(crate) fn erf(input: Type, output: Type) -> Self {
-        let function = move |input| quote! {#input.erf()};
+        let function = move |input| quote! { #input.erf() };
         Self::new(input, output, UnaryNodeKind::Erf, Rc::new(function))
     }
 
