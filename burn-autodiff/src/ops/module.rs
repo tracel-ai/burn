@@ -493,7 +493,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         struct Unfold4D;
 
         impl<B: Backend> Backward<B, 3, 1> for Unfold4D {
-            type State = (); // Not sure if there's anything to really keep track of here
+            type State = ();
 
             fn backward(self, _ops: Ops<Self::State, 1>, _grads: &mut Gradients) {
                 panic!("Backward pass for unfold4d is not supported."); // this is a fold

@@ -1,10 +1,10 @@
 @group(0)
 @binding(0)
-var<storage, read_write> weight: array<{{ elem }}>; // weight matrix
+var<storage, read_write> weight: array<{{ elem }}>;
 
 @group(0)
 @binding(1)
-var<storage, read> indices: array<u32, 256>;
+var<storage, read> indices: array<u32, 512>;
 
 const WORKGROUP_SIZE_X = {{ workgroup_size_x }}u;
 

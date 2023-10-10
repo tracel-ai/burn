@@ -8,7 +8,7 @@ use crate::{
 };
 use burn_tensor::{ops::UnfoldOptions, Element, Shape};
 
-kernel_wgsl!(Unfold4d, "../../template/unfold/unfold4d.wgsl");
+kernel_wgsl!(FillWeights, "../../template/unfold/fill_weights.wgsl");
 
 fn compute_unfolding_indices(channels_in: usize, kernel_size: [usize; 2]) -> Vec<usize> {
     let mut indices = vec![];
@@ -56,7 +56,7 @@ pub(crate) fn unfold4d<E: WgpuElement + Element>(
         .client
         .create(bytemuck::cast_slice(&indices));
 
-    let kernel = StaticKernel::<KernelSettings<Unfold4d, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
+    let kernel = StaticKernel::<KernelSettings<FillWeights, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
         elemwise_workgroup(weight.shape.num_elements(), WORKGROUP),
     );
 
