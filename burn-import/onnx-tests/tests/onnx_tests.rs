@@ -26,6 +26,7 @@ include_models!(
     dropout_opset16,
     dropout_opset7,
     equal,
+    erf,
     flatten,
     global_avr_pool,
     linear,
@@ -232,6 +233,17 @@ mod tests {
         let expected_sum = 1200.0; // from pytorch
 
         assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
+    }
+
+    #[test]
+    fn erf() {
+        let model: erf::Model<Backend> = erf::Model::default();
+
+        let input = Tensor::<Backend, 4>::from_data([[[[1.0, 2.0, 3.0, 4.0]]]]);
+        let output = model.forward(input);
+        let expected = Tensor::<Backend, 4>::from_data([[[[0.8427, 0.9953, 1.0000, 1.0000]]]]);
+
+        output.to_data().assert_approx_eq(&expected.to_data(), 4);
     }
 
     #[test]
