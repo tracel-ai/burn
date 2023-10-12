@@ -19,7 +19,7 @@ pub struct Learner<LC: LearnerComponents> {
     pub(crate) grad_accumulation: Option<usize>,
     pub(crate) checkpointer: Option<LearnerCheckpointer<LC>>,
     pub(crate) devices: Vec<<LC::Backend as Backend>::Device>,
-    pub(crate) callback: LC::Callback,
+    pub(crate) collector: LC::EventCollector,
     pub(crate) interrupter: TrainingInterrupter,
 }
 

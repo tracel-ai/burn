@@ -25,7 +25,7 @@ derive-new = {workspace = true}
 half = {workspace = true}
 log = {workspace = true}
 proc-macro2 = {workspace = true}
-protobuf = {version = "3.2", features = ["with-bytes"]}
+protobuf = {version = "3.3", features = ["with-bytes"]}
 quote = {workspace = true}
 rust-format = {version = "0.3", features = ["token_stream", "post_process"]}
 serde = {workspace = true}

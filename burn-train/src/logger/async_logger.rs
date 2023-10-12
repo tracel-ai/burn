@@ -4,6 +4,7 @@ use std::sync::mpsc;
 enum Message<T> {
     Log(T),
     End,
+    Sync(mpsc::Sender<()>),
 }
 /// Async logger.
 pub struct AsyncLogger<T> {
@@ -30,6 +31,9 @@ where
                 Message::End => {
                     return;
                 }
+                Message::Sync(callback) => {
+                    callback.send(()).unwrap();
+                }
             }
         }
     }
@@ -47,6 +51,17 @@ impl<T: Send + Sync + 'static> AsyncLogger<T> {
         let handler = Some(std::thread::spawn(move || thread.run()));
 
         Self { sender, handler }
+    }
+
+    /// Sync the async logger.
+    pub(crate) fn sync(&self) {
+        let (sender, receiver) = mpsc::channel();
+
+        self.sender.send(Message::Sync(sender)).unwrap();
+
+        receiver
+            .recv()
+            .expect("Should sync, otherwise the thread is dead.");
     }
 }
 
