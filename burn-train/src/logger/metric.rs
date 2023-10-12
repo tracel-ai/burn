@@ -49,10 +49,13 @@ impl FileMetricLogger {
 
     fn file_path(&self, name: &str, epoch: usize) -> String {
         let directory = format!("{}/epoch-{}", self.directory, epoch);
-        std::fs::create_dir_all(&directory).ok();
         let name = name.replace(' ', "_");
 
         format!("{directory}/{name}.log")
+    }
+    fn create_directory(&self, epoch: usize) {
+        let directory = format!("{}/epoch-{}", self.directory, epoch);
+        std::fs::create_dir_all(directory).ok();
     }
 }
 
@@ -64,6 +67,8 @@ impl MetricLogger for FileMetricLogger {
         let logger = match self.loggers.get_mut(key) {
             Some(val) => val,
             None => {
+                self.create_directory(self.epoch);
+
                 let file_path = self.file_path(key, self.epoch);
                 let logger = FileLogger::new(&file_path);
                 let logger = AsyncLogger::new(logger);
@@ -82,6 +87,10 @@ impl MetricLogger for FileMetricLogger {
     }
 
     fn read_numeric(&mut self, name: &str, epoch: usize) -> Result<Vec<f64>, String> {
+        if let Some(value) = self.loggers.get(name) {
+            value.sync()
+        }
+
         let file_path = self.file_path(name, epoch);
 
         let mut errors = false;

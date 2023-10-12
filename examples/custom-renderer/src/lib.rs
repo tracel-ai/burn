@@ -1,5 +1,5 @@
 use burn::data::dataset::source::huggingface::MNISTDataset;
-use burn::train::metric::callback::{MetricState, MetricsRenderer, TrainingProgress};
+use burn::train::renderer::{MetricState, MetricsRenderer, TrainingProgress};
 use burn::train::LearnerBuilder;
 use burn::{
     config::Config, data::dataloader::DataLoaderBuilder, optim::AdamConfig,
