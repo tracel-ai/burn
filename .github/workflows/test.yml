@@ -57,8 +57,18 @@ jobs:
           sudo apt-get update
           sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
 
+      - name: Run cargo clippy for stable version
+        if: matrix.rust == 'stable' && matrix.test == 'std'
+        uses: giraffate/clippy-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # Run clippy for each workspace, targets, and featrues, considering
+          # warnings as errors
+          clippy_flags: --workspace --all-targets --all-features -- -D warnings
+          reporter: github-pr-check
+
       - name: run checks & tests
-        run: RUST_MATRIX=${{ matrix.rust }} cargo xtask run-checks ${{ matrix.test }}
+        run: CI_RUN=1 cargo xtask run-checks ${{ matrix.test }}
 
   check-typos:
     runs-on: ubuntu-latest
