@@ -1,9 +1,7 @@
-use std::sync::Arc;
+use std::marker::PhantomData;
 
 use burn_common::benchmark::Benchmark;
 use burn_compute::{
-    channel::ComputeChannel,
-    client::ComputeClient,
     server::{ComputeServer, Handle},
     tune::{InputHashable, KernelPool, Operation, TuneBenchmark},
 };
@@ -12,25 +10,22 @@ use hashbrown::HashMap;
 use spin::Mutex;
 
 use super::{
-    DummyChannel, DummyClient, DummyElementwiseAddition, DummyElementwiseAdditionAlt,
-    DummyElementwiseMultiplication, DummyElementwiseMultiplicationAlt, DummyKernel, DummyServer,
+    CacheTestFastOn3, CacheTestSlowOn3, DummyClient, DummyElementwiseAddition,
+    DummyElementwiseAdditionSlowWrong, DummyElementwiseMultiplication,
+    DummyElementwiseMultiplicationSlowWrong, DummyKernel, DummyServer,
 };
 
 #[derive(new, PartialEq, Eq, Hash)]
 pub struct ArrayHashable {
     pub sizes: [usize; 3],
 }
-impl ArrayHashable {
-    fn to_bytes(&self) -> &[u8] {
-        todo!()
-    }
-}
 
 impl InputHashable for ArrayHashable {
     fn custom_hash(&self) -> String {
         let mut hash = String::new();
         for size in self.sizes {
-            hash.push_str(size.to_string().as_str());
+            let exp = f32::ceil(f32::log2(size as f32)) as u32;
+            hash.push_str(2_u32.pow(exp).to_string().as_str());
             hash.push_str(",");
         }
         hash
@@ -38,34 +33,28 @@ impl InputHashable for ArrayHashable {
 }
 
 #[derive(new)]
-pub struct DummyBenchmark<'a> {
+pub struct DummyBenchmark<'a, O> {
     client: &'a DummyClient,
     kernel_constructor: Box<dyn Fn() -> Box<dyn DummyKernel>>,
-    // kernel: Option<Box<dyn DummyKernel>>,
-    handles: &'a [&'a Handle<DummyServer>],
+    _operation: PhantomData<O>,
 }
 
-impl<'a> Benchmark for DummyBenchmark<'a> {
+impl<'a, O: Operation> TuneBenchmark<O, DummyServer> for DummyBenchmark<'a, O> {
     type Args = Box<dyn DummyKernel>;
 
     fn prepare(&self) -> Self::Args {
-        (self.kernel_constructor)()
+        let kernel = (self.kernel_constructor)();
+        kernel
     }
 
-    fn execute(&self, args: Self::Args) {
-        self.client.execute(args, self.handles);
-    }
-
-    fn name(&self) -> String {
-        "i'm dummy".to_owned()
+    fn execute_with_handles(&self, args: Self::Args, handles: &[&Handle<DummyServer>]) {
+        self.client.execute(args, handles);
     }
 
     fn sync(&self) {
         self.client.sync()
     }
-}
 
-impl<'a, O> TuneBenchmark<O, DummyServer> for DummyBenchmark<'a> {
     fn take_kernel(&self) -> Box<dyn DummyKernel> {
         (self.kernel_constructor)()
     }
@@ -76,13 +65,10 @@ macro_rules! make_kernel {
         pub struct $name {}
 
         impl $name {
-            pub fn make_benchmark<'a>(
-                client: &'a DummyClient,
-                handles: &'a [&'a Handle<DummyServer>],
-            ) -> DummyBenchmark<'a> {
+            pub fn make_benchmark<'a>(client: &'a DummyClient) -> DummyBenchmark<'a, $operation> {
                 let kernel_constructor: Box<dyn Fn() -> <DummyServer as ComputeServer>::Kernel> =
                     Box::new(|| Box::new($kernel {}));
-                DummyBenchmark::new(client, kernel_constructor, handles)
+                DummyBenchmark::<'a, $operation>::new(client, kernel_constructor)
             }
         }
     };
@@ -100,14 +86,20 @@ impl Operation for MultiplicationOp {
     type Input = ArrayHashable;
 }
 
+#[derive(PartialEq, Eq, Hash)]
+pub struct CacheTestOp {}
+impl Operation for CacheTestOp {
+    type Input = ArrayHashable;
+}
+
 make_kernel!(
     DummyElementwiseAdditionType,
     DummyElementwiseAddition,
     AdditionOp
 );
 make_kernel!(
-    DummyElementwiseAdditionAltType,
-    DummyElementwiseAdditionAlt,
+    DummyElementwiseAdditionSlowWrongType,
+    DummyElementwiseAdditionSlowWrong,
     AdditionOp
 );
 make_kernel!(
@@ -116,26 +108,45 @@ make_kernel!(
     MultiplicationOp
 );
 make_kernel!(
-    DummyElementwiseMultiplicationAltType,
-    DummyElementwiseMultiplicationAlt,
+    DummyElementwiseMultiplicationSlowWrongType,
+    DummyElementwiseMultiplicationSlowWrong,
     MultiplicationOp
 );
+make_kernel!(CacheTestFastOn3Type, CacheTestFastOn3, CacheTestOp);
+make_kernel!(CacheTestSlowOn3Type, CacheTestSlowOn3, CacheTestOp);
 
 pub fn make_kernel_pool<'a, O, S>(
-    client: &'a DummyClient,
-    handles: &'a [&'a Handle<DummyServer>],
-) -> Mutex<KernelPool<DummyBenchmark<'a>, O, S>>
+    benchmarks: Vec<DummyBenchmark<'a, O>>,
+) -> Mutex<KernelPool<DummyBenchmark<'a, O>, O, S>>
 where
     O: Operation,
 {
     let cache = HashMap::new();
-    let benchmarks: Vec<DummyBenchmark> = vec![
-        DummyElementwiseAdditionType::make_benchmark(&client, handles),
-        DummyElementwiseAdditionAltType::make_benchmark(&client, handles),
-        // DummyElementwiseMultiplicationType::kernel_type(),
-        // DummyElementwiseMultiplicationAltType::kernel_type(),
-    ];
-
     let kernel_pool = KernelPool::new(cache, benchmarks);
     Mutex::new(kernel_pool)
+}
+
+pub fn get_addition_benchmarks<'a>(client: &'a DummyClient) -> Vec<DummyBenchmark<'a, AdditionOp>> {
+    vec![
+        DummyElementwiseAdditionType::make_benchmark(&client),
+        DummyElementwiseAdditionSlowWrongType::make_benchmark(&client),
+    ]
+}
+
+pub fn get_multiplication_benchmarks<'a>(
+    client: &'a DummyClient,
+) -> Vec<DummyBenchmark<'a, MultiplicationOp>> {
+    vec![
+        DummyElementwiseMultiplicationSlowWrongType::make_benchmark(&client),
+        DummyElementwiseMultiplicationType::make_benchmark(&client),
+    ]
+}
+
+pub fn get_cache_test_benchmarks<'a>(
+    client: &'a DummyClient,
+) -> Vec<DummyBenchmark<'a, CacheTestOp>> {
+    vec![
+        CacheTestFastOn3Type::make_benchmark(&client),
+        CacheTestSlowOn3Type::make_benchmark(&client),
+    ]
 }

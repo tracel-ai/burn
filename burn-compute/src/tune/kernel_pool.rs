@@ -1,13 +1,51 @@
-use burn_common::benchmark::Benchmark;
+use burn_common::benchmark::{Benchmark, BenchmarkResult};
 use core::marker::PhantomData;
 use hashbrown::HashMap;
+use std::time::Instant;
 
-use crate::server::ComputeServer;
+use crate::server::{ComputeServer, Handle};
 
 use super::{InputHashable, Operation};
 
-pub trait TuneBenchmark<O, S: ComputeServer>: Benchmark {
+pub trait TuneBenchmark<O: Operation, S: ComputeServer> {
+    type Args;
+    fn prepare(&self) -> Self::Args;
+    fn num_samples(&self) -> usize {
+        10
+    }
+
+    fn sync(&self);
     fn take_kernel(&self) -> S::Kernel;
+
+    fn execute_with_handles(&self, args: Self::Args, handles: &[&Handle<S>]);
+
+    // useless, replaced by execute_with_handles
+    fn execute(&self, args: Self::Args) {}
+
+    fn run(&self, handles: &[&Handle<S>]) -> BenchmarkResult {
+        // Warmup
+        self.execute_with_handles(self.prepare(), handles);
+        self.sync();
+
+        let mut durations = Vec::with_capacity(self.num_samples());
+
+        for _ in 0..self.num_samples() {
+            // Prepare
+            let args = self.prepare();
+            self.sync();
+
+            // Execute the benchmark
+            let start = Instant::now();
+            self.execute_with_handles(args, handles);
+            self.sync();
+            let end = Instant::now();
+
+            // Register the duration
+            durations.push(end - start);
+        }
+
+        BenchmarkResult::new(durations)
+    }
 }
 
 #[derive(new)]

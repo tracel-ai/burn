@@ -3,7 +3,7 @@ use alloc::vec::Vec;
 use std::time::{Duration, Instant};
 
 /// Results of a benchmark run.
-#[derive(Debug)]
+#[derive(new, Debug)]
 pub struct BenchmarkResult {
     durations: Vec<Duration>,
 }
