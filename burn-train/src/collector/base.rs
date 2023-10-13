@@ -79,3 +79,59 @@ pub struct LearnerItem<T> {
     /// The learning rate.
     pub lr: Option<LearningRate>,
 }
+
+#[cfg(test)]
+pub mod test_utils {
+    use crate::{info::MetricsInfo, Aggregate, Direction, Event, EventCollector, Split};
+
+    #[derive(new)]
+    pub struct TestEventCollector<T, V>
+    where
+        T: Send + Sync + 'static,
+        V: Send + Sync + 'static,
+    {
+        info: MetricsInfo<T, V>,
+    }
+
+    impl<T, V> EventCollector for TestEventCollector<T, V>
+    where
+        T: Send + Sync + 'static,
+        V: Send + Sync + 'static,
+    {
+        type ItemTrain = T;
+        type ItemValid = V;
+
+        fn on_event_train(&mut self, event: Event<Self::ItemTrain>) {
+            match event {
+                Event::ProcessedItem(item) => {
+                    println!("Item");
+                    let metadata = (&item).into();
+                    self.info.update_train(&item, &metadata);
+                }
+                Event::EndEpoch(epoch) => self.info.end_epoch_train(epoch),
+            }
+        }
+
+        fn on_event_valid(&mut self, event: Event<Self::ItemValid>) {
+            match event {
+                Event::ProcessedItem(item) => {
+                    let metadata = (&item).into();
+                    self.info.update_valid(&item, &metadata);
+                }
+                Event::EndEpoch(epoch) => self.info.end_epoch_valid(epoch),
+            }
+        }
+
+        fn find_epoch(
+            &mut self,
+            name: &str,
+            aggregate: Aggregate,
+            direction: Direction,
+            split: Split,
+        ) -> Option<usize> {
+            let al = self.info.find_epoch(name, aggregate, direction, split);
+            println!("{al:?}");
+            return al;
+        }
+    }
+}
