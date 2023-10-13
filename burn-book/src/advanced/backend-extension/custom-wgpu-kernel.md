@@ -238,11 +238,8 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for WgpuBackend<G, 
         // Create the output tensor primitive.
         let output = WgpuTensor::new(lhs.context.clone(), shape_out, buffer);
 
-        // Compile the kernel or use the cache based on the template id.
-        let kernel = lhs.context.compile_dynamic(FusedMatmulAddRelu::<F>::new(
-            workgroup_size_x,
-            workgroup_size_y,
-        ));
+        // Create the kernel.
+        let kernel = FusedMatmulAddRelu::<F>::new(workgroup_size_x, workgroup_size_y);
 
         // Build info buffer with tensor information needed by the kernel, such as shapes and strides.
         let info = build_info(&[&lhs, &rhs, &output]);
@@ -256,15 +253,14 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for WgpuBackend<G, 
         let workgroup = WorkGroup::new(blocks_needed_in_x, blocks_needed_in_y, num_batches as u32);
 
         // Execute lazily the kernel with the launch information and the given buffers.
-        lhs.context.execute(
-            workgroup,
-            kernel,
+        lhs.client.execute(
+            Box::new(DynamicKernel::new(kernel, workgroup)),
             &[
-                &lhs.buffer,
-                &rhs.buffer,
-                &bias.buffer,
-                &output.buffer,
-                &info_buffer,
+                &lhs.handle,
+                &rhs.handle,
+                &bias.handle,
+                &output.handle,
+                &info_handle,
             ],
         );
 

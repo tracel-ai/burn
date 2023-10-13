@@ -5,7 +5,7 @@ use crate::record::Record;
 use crate::tensor::{ElementConversion, Tensor};
 use burn_tensor::backend::Backend;
 
-/// Configuration to create momentum [Momentum](Momentum).
+/// Configuration to create [momentum](Momentum).
 #[derive(Config)]
 pub struct MomentumConfig {
     /// Momemtum factor
@@ -20,7 +20,7 @@ pub struct MomentumConfig {
     pub nesterov: bool,
 }
 
-/// State of [Momentum](Momentum).
+/// State of [momentum](Momentum).
 #[derive(Record, Clone, new)]
 pub struct MomentumState<B: Backend, const D: usize> {
     velocity: Tensor<B, D>,
@@ -34,7 +34,7 @@ pub struct Momentum<B: Backend> {
 }
 
 impl<B: Backend> Momentum<B> {
-    /// Creates a new [Momentum](Momentum) from a [MomentumConfig](MomentumConfig).
+    /// Creates a new [momentum](Momentum) from a [config](MomentumConfig).
     pub fn new(config: &MomentumConfig) -> Self {
         Self {
             momentum: config.momentum.elem(),

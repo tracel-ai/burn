@@ -230,6 +230,7 @@ impl ONNXGraph {
                 NodeType::Mul => graph.register(Self::mul_conversion(node)),
                 NodeType::Div => graph.register(Self::div_conversion(node)),
                 NodeType::Equal => graph.register(Self::equal_conversion(node)),
+                NodeType::Erf => graph.register(Self::erf_conversion(node)),
                 NodeType::Clip => graph.register(Self::clip_conversion(node)),
                 NodeType::Conv1d => graph.register(Self::conv1d_conversion::<PS>(node)),
                 NodeType::Conv2d => graph.register(Self::conv2d_conversion::<PS>(node)),
@@ -374,6 +375,13 @@ impl ONNXGraph {
         let output = node.outputs.get(0).unwrap().to_type();
 
         BinaryNode::equal(lhs, rhs, output)
+    }
+
+    fn erf_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.get(0).unwrap().to_type();
+        let output = node.outputs.get(0).unwrap().to_type();
+
+        UnaryNode::erf(input, output)
     }
 
     fn relu_conversion(node: Node) -> UnaryNode {

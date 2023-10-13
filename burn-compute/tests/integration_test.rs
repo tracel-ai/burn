@@ -1,9 +1,13 @@
 mod dummy;
 
+use crate::dummy::{client, DummyDevice, DummyElementwiseAddition};
+
+#[cfg(feature = "std")]
 use crate::dummy::{
-    client, get_addition_benchmarks, get_cache_test_benchmarks, get_multiplication_benchmarks,
-    ArraysResource, DummyDevice, DummyElementwiseAddition,
+    get_addition_benchmarks, get_cache_test_benchmarks, get_multiplication_benchmarks,
+    ArraysResource,
 };
+#[cfg(feature = "std")]
 use burn_compute::tune::Tuner;
 use serial_test::serial;
 
@@ -44,6 +48,7 @@ fn execute_elementwise_addition() {
 
 #[test]
 #[serial]
+#[cfg(feature = "std")]
 fn autotune_basic_addition_execution() {
     let client = client(&DummyDevice);
     let lhs = client.create(&[0, 1, 2]);
@@ -64,6 +69,7 @@ fn autotune_basic_addition_execution() {
 
 #[test]
 #[serial]
+#[cfg(feature = "std")]
 fn autotune_basic_multiplication_execution() {
     let client = client(&DummyDevice);
     let lhs = client.create(&[0, 1, 2]);
@@ -84,6 +90,7 @@ fn autotune_basic_multiplication_execution() {
 
 #[test]
 #[serial]
+#[cfg(feature = "std")]
 fn autotune_cache_hit_test() {
     let client = client(&DummyDevice);
 
@@ -112,6 +119,7 @@ fn autotune_cache_hit_test() {
 
 #[test]
 #[serial]
+#[cfg(feature = "std")]
 fn autotune_cache_miss_test() {
     let client = client(&DummyDevice);
 

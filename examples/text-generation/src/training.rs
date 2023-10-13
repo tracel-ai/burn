@@ -6,7 +6,7 @@ use burn::data::dataset::transform::SamplerDataset;
 use burn::{
     config::Config,
     data::{dataloader::DataLoaderBuilder, dataset::Dataset},
-    lr_scheduler::noam::NoamLRSchedulerConfig,
+    lr_scheduler::noam::NoamLrSchedulerConfig,
     module::Module,
     nn::transformer::TransformerEncoderConfig,
     optim::AdamConfig,
@@ -62,7 +62,7 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
 
     let accum = 6; // Effective batch size = 6 * 6 = 32.
     let optim = config.optimizer.init();
-    let lr_scheduler = NoamLRSchedulerConfig::new(0.01 / accum as f64)
+    let lr_scheduler = NoamLrSchedulerConfig::new(0.01 / accum as f64)
         .with_warmup_steps(6000)
         .with_model_size(config.transformer.d_model)
         .init();
@@ -70,11 +70,11 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
     let learner = LearnerBuilder::new(artifact_dir)
         .metric_train(CUDAMetric::new())
         .metric_valid(CUDAMetric::new())
-        .metric_train_plot(AccuracyMetric::new().with_pad_token(tokenizer.pad_token()))
-        .metric_valid_plot(AccuracyMetric::new().with_pad_token(tokenizer.pad_token()))
+        .metric_train_numeric(AccuracyMetric::new().with_pad_token(tokenizer.pad_token()))
+        .metric_valid_numeric(AccuracyMetric::new().with_pad_token(tokenizer.pad_token()))
         .metric_train(LossMetric::new())
         .metric_valid(LossMetric::new())
-        .metric_train_plot(LearningRateMetric::new())
+        .metric_train_numeric(LearningRateMetric::new())
         .with_file_checkpointer(2, CompactRecorder::new())
         .devices(vec![device])
         .grads_accumulation(accum)

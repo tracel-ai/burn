@@ -106,7 +106,7 @@ fn cargo_fmt() {
 
 // Run cargo clippy command
 fn cargo_clippy() {
-    if std::env::var("RUST_MATRIX").map_or(false, |matrix| matrix != "stable") {
+    if std::env::var("CI_RUN").is_ok() {
         return;
     }
     // Run cargo clippy
