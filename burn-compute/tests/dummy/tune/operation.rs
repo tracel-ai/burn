@@ -1,13 +1,13 @@
-use burn_compute::tune::{InputHashable, Operation};
+use burn_compute::tune::{HashableResources, Operation};
 use derive_new::new;
 
 #[derive(new, PartialEq, Eq, Hash)]
-pub struct ArrayHashable {
+pub struct ArraysResource {
     pub sizes: [usize; 3],
 }
 
-impl InputHashable for ArrayHashable {
-    fn custom_hash(&self) -> String {
+impl HashableResources for ArraysResource {
+    fn key(&self) -> String {
         let mut hash = String::new();
         for size in self.sizes {
             let exp = f32::ceil(f32::log2(size as f32)) as u32;
@@ -21,17 +21,17 @@ impl InputHashable for ArrayHashable {
 #[derive(PartialEq, Eq, Hash)]
 pub struct AdditionOp {}
 impl Operation for AdditionOp {
-    type Input = ArrayHashable;
+    type Resources = ArraysResource;
 }
 
 #[derive(PartialEq, Eq, Hash)]
 pub struct MultiplicationOp {}
 impl Operation for MultiplicationOp {
-    type Input = ArrayHashable;
+    type Resources = ArraysResource;
 }
 
 #[derive(PartialEq, Eq, Hash)]
 pub struct CacheTestOp {}
 impl Operation for CacheTestOp {
-    type Input = ArrayHashable;
+    type Resources = ArraysResource;
 }

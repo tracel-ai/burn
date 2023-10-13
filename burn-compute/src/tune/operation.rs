@@ -1,11 +1,13 @@
 use core::hash::Hash;
 
-/// TODO
-pub trait InputHashable: PartialEq + Eq + Hash {
-    /// TODO
-    fn custom_hash(&self) -> String;
+/// Format of the inputs and outputs of a kernel
+pub trait HashableResources: PartialEq + Eq + Hash {
+    /// Description used as an autotune key
+    fn key(&self) -> String;
 }
 
+/// Type of operation for the kernel
 pub trait Operation: PartialEq + Eq + Hash {
-    type Input: InputHashable;
+    /// Input and output format for the operation
+    type Resources: HashableResources;
 }

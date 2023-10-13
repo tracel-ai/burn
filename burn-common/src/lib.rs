@@ -23,6 +23,4 @@ pub mod stub;
 /// notation.
 pub mod reader;
 
-pub mod benchmark;
-
 extern crate alloc;

@@ -25,9 +25,10 @@ getrandom = { version = "0.2", features = ["js"] }
 
 const-random = { workspace = true }
 rand = { workspace = true }
-spin = { workspace = true }         # using in place of use std::sync::Mutex;          
+spin = { workspace = true }          # using in place of use std::sync::Mutex;          
 uuid = { workspace = true }
 derive-new = { workspace = true }
+embedded-time = { workspace = true }
 
 [dev-dependencies]
 dashmap = { workspace = true }

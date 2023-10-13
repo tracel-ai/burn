@@ -2,7 +2,7 @@ mod dummy;
 
 use crate::dummy::{
     client, get_addition_benchmarks, get_cache_test_benchmarks, get_multiplication_benchmarks,
-    make_benchmark_pool, ArrayHashable, DummyDevice, DummyElementwiseAddition,
+    ArraysResource, DummyDevice, DummyElementwiseAddition,
 };
 use burn_compute::tune::Tuner;
 use serial_test::serial;
@@ -52,9 +52,8 @@ fn autotune_basic_addition_execution() {
     let handles = &[&lhs, &rhs, &out];
 
     let benchmarks = get_addition_benchmarks(&client);
-    let kernel_pool = make_benchmark_pool(benchmarks);
-    let tuner = Tuner::new(kernel_pool);
-    let kernel = tuner.tune(ArrayHashable::new([3, 3, 3]), handles);
+    let tuner = Tuner::new(benchmarks);
+    let kernel = tuner.tune(ArraysResource::new([3, 3, 3]), handles);
 
     client.execute(kernel, handles);
     let obtained_resource = client.read(&out);
@@ -73,9 +72,8 @@ fn autotune_basic_multiplication_execution() {
     let handles = &[&lhs, &rhs, &out];
 
     let benchmarks = get_multiplication_benchmarks(&client);
-    let kernel_pool = make_benchmark_pool(benchmarks);
-    let tuner = Tuner::new(kernel_pool);
-    let kernel = tuner.tune(ArrayHashable::new([3, 3, 3]), handles);
+    let tuner = Tuner::new(benchmarks);
+    let kernel = tuner.tune(ArraysResource::new([3, 3, 3]), handles);
 
     client.execute(kernel, handles);
     let obtained_resource = client.read(&out);
@@ -90,8 +88,7 @@ fn autotune_cache_hit_test() {
     let client = client(&DummyDevice);
 
     let benchmarks = get_cache_test_benchmarks(&client);
-    let kernel_pool = make_benchmark_pool(benchmarks);
-    let tuner = Tuner::new(kernel_pool);
+    let tuner = Tuner::new(benchmarks);
 
     let lhs_1 = client.create(&[0, 1, 2]);
     let rhs_1 = client.create(&[4, 4, 4]);
@@ -103,8 +100,8 @@ fn autotune_cache_hit_test() {
     let out_2 = client.empty(4);
     let handles_2 = &[&lhs_2, &rhs_2, &out_2];
 
-    tuner.tune(ArrayHashable::new([3, 3, 3]), handles_1);
-    let kernel = tuner.tune(ArrayHashable::new([4, 4, 4]), handles_2);
+    tuner.tune(ArraysResource::new([3, 3, 3]), handles_1);
+    let kernel = tuner.tune(ArraysResource::new([4, 4, 4]), handles_2);
 
     client.execute(kernel, handles_2);
     let obtained_resource = client.read(&out_2);
@@ -119,8 +116,7 @@ fn autotune_cache_miss_test() {
     let client = client(&DummyDevice);
 
     let benchmarks = get_cache_test_benchmarks(&client);
-    let kernel_pool = make_benchmark_pool(benchmarks);
-    let tuner = Tuner::new(kernel_pool);
+    let tuner = Tuner::new(benchmarks);
 
     let lhs_1 = client.create(&[0, 1, 2]);
     let rhs_1 = client.create(&[4, 4, 4]);
@@ -132,8 +128,8 @@ fn autotune_cache_miss_test() {
     let out_2 = client.empty(5);
     let handles_2 = &[&lhs_2, &rhs_2, &out_2];
 
-    tuner.tune(ArrayHashable::new([3, 3, 3]), handles_1);
-    let kernel = tuner.tune(ArrayHashable::new([5, 5, 5]), handles_2);
+    tuner.tune(ArraysResource::new([3, 3, 3]), handles_1);
+    let kernel = tuner.tune(ArraysResource::new([5, 5, 5]), handles_2);
 
     client.execute(kernel, handles_2);
     let obtained_resource = client.read(&out_2);

@@ -2,11 +2,9 @@ use std::marker::PhantomData;
 
 use burn_compute::{
     server::Handle,
-    tune::{BenchmarkPool, Operation, TuneBenchmark},
+    tune::{Operation, TuneBenchmark},
 };
 use derive_new::new;
-use hashbrown::HashMap;
-use spin::Mutex;
 
 use crate::dummy::{
     tune::{
@@ -27,35 +25,17 @@ pub struct DummyBenchmark<'a, O> {
 }
 
 impl<'a, O: Operation> TuneBenchmark<O, DummyServer> for DummyBenchmark<'a, O> {
-    type Args = Box<dyn DummyKernel>;
-
-    fn prepare(&self) -> Self::Args {
-        let kernel = (self.kernel_constructor)();
-        kernel
+    fn make_kernel(&self) -> Box<dyn DummyKernel> {
+        (self.kernel_constructor)()
     }
 
-    fn execute_with_handles(&self, args: Self::Args, handles: &[&Handle<DummyServer>]) {
-        self.client.execute(args, handles);
+    fn execute(&self, kernel: Box<dyn DummyKernel>, handles: &[&Handle<DummyServer>]) {
+        self.client.execute(kernel, handles);
     }
 
     fn sync(&self) {
         self.client.sync()
     }
-
-    fn take_kernel(&self) -> Box<dyn DummyKernel> {
-        (self.kernel_constructor)()
-    }
-}
-
-pub fn make_benchmark_pool<'a, O, S>(
-    benchmarks: Vec<DummyBenchmark<'a, O>>,
-) -> Mutex<BenchmarkPool<DummyBenchmark<'a, O>, O, S>>
-where
-    O: Operation,
-{
-    let cache = HashMap::new();
-    let kernel_pool = BenchmarkPool::new(cache, benchmarks);
-    Mutex::new(kernel_pool)
 }
 
 pub fn get_addition_benchmarks<'a>(client: &'a DummyClient) -> Vec<DummyBenchmark<'a, AdditionOp>> {
