@@ -54,9 +54,7 @@ pub fn get_multiplication_benchmarks(
     ]
 }
 
-pub fn get_cache_test_benchmarks(
-    client: &DummyClient,
-) -> Vec<DummyBenchmark<'_, CacheTestOp>> {
+pub fn get_cache_test_benchmarks(client: &DummyClient) -> Vec<DummyBenchmark<'_, CacheTestOp>> {
     vec![
         CacheTestFastOn3Type::make_benchmark(client),
         CacheTestSlowOn3Type::make_benchmark(client),
