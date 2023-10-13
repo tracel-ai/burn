@@ -1,4 +1,4 @@
-use crate::checkpoint::{Checkpointer, CheckpointerAction, CheckpointerStrategy};
+use crate::checkpoint::{Checkpointer, CheckpointingAction, CheckpointingStrategy};
 use crate::components::LearnerComponents;
 use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::Module;
@@ -44,12 +44,12 @@ impl<LC: LearnerComponents> LearnerCheckpointer<LC> {
 
         for action in actions {
             match action {
-                CheckpointerAction::Delete(epoch) => {
+                CheckpointingAction::Delete(epoch) => {
                     self.model.delete(epoch).unwrap();
                     self.optim.delete(epoch).unwrap();
                     self.lr_scheduler.delete(epoch).unwrap();
                 }
-                CheckpointerAction::Save => {
+                CheckpointingAction::Save => {
                     self.model.save(epoch, model.clone().into_record()).unwrap();
                     self.optim.save(epoch, optim.to_record()).unwrap();
                     self.lr_scheduler

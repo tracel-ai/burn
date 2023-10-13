@@ -1,13 +1,16 @@
 use super::log::install_file_logger;
 use super::Learner;
-use crate::checkpoint::{AsyncCheckpointer, CheckpointerStrategy, FileCheckpointer, KeepLastN};
-use crate::collector::metrics::RenderedMetricsEventCollector;
+use crate::checkpoint::{
+    AsyncCheckpointer, CheckpointingStrategy, ComposedCheckpointingStrategy, FileCheckpointer,
+    KeepLastNCheckpoints, MetricCheckpointingStrategy,
+};
 use crate::components::LearnerComponentsMarker;
 use crate::info::MetricsInfo;
 use crate::learner::base::TrainingInterrupter;
 use crate::logger::{FileMetricLogger, MetricLogger};
-use crate::metric::{Adaptor, Metric};
+use crate::metric::{Adaptor, LossMetric, Metric};
 use crate::renderer::{default_renderer, MetricsRenderer};
+use crate::{collector::metrics::RenderedMetricsEventCollector, Aggregate, Direction, Split};
 use crate::{AsyncEventCollector, LearnerCheckpointer};
 use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::ADModule;
@@ -44,7 +47,7 @@ where
     interrupter: TrainingInterrupter,
     log_to_file: bool,
     num_loggers: usize,
-    checkpointer_strategy: Box<dyn CheckpointerStrategy<AsyncEventCollector<T, V>>>,
+    checkpointer_strategy: Box<dyn CheckpointingStrategy<AsyncEventCollector<T, V>>>,
 }
 
 impl<B, T, V, M, O, S> LearnerBuilder<B, T, V, M, O, S>
@@ -74,7 +77,14 @@ where
             interrupter: TrainingInterrupter::new(),
             log_to_file: true,
             num_loggers: 0,
-            checkpointer_strategy: Box::new(KeepLastN::new(2)),
+            checkpointer_strategy: Box::new(ComposedCheckpointingStrategy::new(vec![
+                Box::new(KeepLastNCheckpoints::new(2)),
+                Box::new(MetricCheckpointingStrategy::new::<LossMetric<B>>(
+                    Aggregate::Mean,
+                    Direction::Lowest,
+                    Split::Valid,
+                )),
+            ])),
         }
     }
 
@@ -95,9 +105,10 @@ where
         self
     }
 
-    pub fn with_checkpointer_strategy<CS>(&mut self, strategy: CS)
+    /// Update the checkpointing_strategy.
+    pub fn with_checkpointing_strategy<CS>(&mut self, strategy: CS)
     where
-        CS: CheckpointerStrategy<AsyncEventCollector<T, V>> + 'static,
+        CS: CheckpointingStrategy<AsyncEventCollector<T, V>> + 'static,
     {
         self.checkpointer_strategy = Box::new(strategy);
     }
@@ -255,7 +266,7 @@ where
             AsyncCheckpointer<O::Record>,
             AsyncCheckpointer<S::Record>,
             AsyncEventCollector<T, V>,
-            Box<dyn CheckpointerStrategy<AsyncEventCollector<T, V>>>,
+            Box<dyn CheckpointingStrategy<AsyncEventCollector<T, V>>>,
         >,
     >
     where

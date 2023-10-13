@@ -1,5 +1,5 @@
 use crate::{
-    checkpoint::{Checkpointer, CheckpointerStrategy},
+    checkpoint::{Checkpointer, CheckpointingStrategy},
     EventCollector,
 };
 use burn_core::{
@@ -31,7 +31,7 @@ pub trait LearnerComponents {
     /// Training event collector used for training tracking.
     type EventCollector: EventCollector + 'static;
     /// The strategy to save and delete checkpoints.
-    type CheckpointerStrategy: CheckpointerStrategy<Self::EventCollector>;
+    type CheckpointerStrategy: CheckpointingStrategy<Self::EventCollector>;
 }
 
 /// Concrete type that implements [training components trait](TrainingComponents).
@@ -58,7 +58,7 @@ where
     CO: Checkpointer<O::Record>,
     CS: Checkpointer<LR::Record>,
     EC: EventCollector + 'static,
-    S: CheckpointerStrategy<EC>,
+    S: CheckpointingStrategy<EC>,
 {
     type Backend = B;
     type LrScheduler = LR;

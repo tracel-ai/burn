@@ -98,7 +98,7 @@ pub fn train<B: ADBackend, D: TextClassificationDataset + 'static>(
         .metric_train_numeric(LossMetric::new())
         .metric_valid_numeric(LossMetric::new())
         .metric_train_numeric(LearningRateMetric::new())
-        .with_file_checkpointer(2, CompactRecorder::new())
+        .with_file_checkpointer(CompactRecorder::new())
         .devices(vec![device])
         .num_epochs(config.num_epochs)
         .build(model, optim, lr_scheduler);

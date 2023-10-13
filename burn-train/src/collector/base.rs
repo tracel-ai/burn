@@ -33,12 +33,14 @@ pub trait EventCollector: Send {
     ) -> Option<usize>;
 }
 
+#[derive(Copy, Clone)]
 /// How to aggregate the metric.
 pub enum Aggregate {
     /// Compute the average.
     Mean,
 }
 
+#[derive(Copy, Clone)]
 /// The split to use.
 pub enum Split {
     /// The training split.
@@ -47,6 +49,7 @@ pub enum Split {
     Valid,
 }
 
+#[derive(Copy, Clone)]
 /// The direction of the query.
 pub enum Direction {
     /// Lower is better.

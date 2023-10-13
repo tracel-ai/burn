@@ -68,7 +68,7 @@ pub fn run<B: ADBackend>(device: B::Device) {
         .metric_valid_numeric(CpuTemperature::new())
         .metric_train_numeric(LossMetric::new())
         .metric_valid_numeric(LossMetric::new())
-        .with_file_checkpointer(1, CompactRecorder::new())
+        .with_file_checkpointer(CompactRecorder::new())
         .devices(vec![device])
         .num_epochs(config.num_epochs)
         .build(Model::new(), config.optimizer.init(), 1e-4);
