@@ -38,27 +38,27 @@ impl<'a, O: Operation> TuneBenchmark<O, DummyServer> for DummyBenchmark<'a, O> {
     }
 }
 
-pub fn get_addition_benchmarks<'a>(client: &'a DummyClient) -> Vec<DummyBenchmark<'a, AdditionOp>> {
+pub fn get_addition_benchmarks(client: &DummyClient) -> Vec<DummyBenchmark<'_, AdditionOp>> {
     vec![
-        DummyElementwiseAdditionType::make_benchmark(&client),
-        DummyElementwiseAdditionSlowWrongType::make_benchmark(&client),
+        DummyElementwiseAdditionType::make_benchmark(client),
+        DummyElementwiseAdditionSlowWrongType::make_benchmark(client),
     ]
 }
 
-pub fn get_multiplication_benchmarks<'a>(
-    client: &'a DummyClient,
-) -> Vec<DummyBenchmark<'a, MultiplicationOp>> {
+pub fn get_multiplication_benchmarks(
+    client: &DummyClient,
+) -> Vec<DummyBenchmark<'_, MultiplicationOp>> {
     vec![
-        DummyElementwiseMultiplicationSlowWrongType::make_benchmark(&client),
-        DummyElementwiseMultiplicationType::make_benchmark(&client),
+        DummyElementwiseMultiplicationSlowWrongType::make_benchmark(client),
+        DummyElementwiseMultiplicationType::make_benchmark(client),
     ]
 }
 
-pub fn get_cache_test_benchmarks<'a>(
-    client: &'a DummyClient,
-) -> Vec<DummyBenchmark<'a, CacheTestOp>> {
+pub fn get_cache_test_benchmarks(
+    client: &DummyClient,
+) -> Vec<DummyBenchmark<'_, CacheTestOp>> {
     vec![
-        CacheTestFastOn3Type::make_benchmark(&client),
-        CacheTestSlowOn3Type::make_benchmark(&client),
+        CacheTestFastOn3Type::make_benchmark(client),
+        CacheTestSlowOn3Type::make_benchmark(client),
     ]
 }

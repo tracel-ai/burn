@@ -12,7 +12,7 @@ impl HashableResources for ArraysResource {
         for size in self.sizes {
             let exp = f32::ceil(f32::log2(size as f32)) as u32;
             hash.push_str(2_u32.pow(exp).to_string().as_str());
-            hash.push_str(",");
+            hash.push(',');
         }
         hash
     }

@@ -103,7 +103,7 @@ impl<TB: TuneBenchmark<O, S>, O: Operation, S: ComputeServer> BenchmarkPool<TB, 
         (*self.tune_benchmarks.get(index).unwrap()).make_kernel()
     }
 
-    pub(crate) fn add_to_cache(&mut self, resources: &O::Resources, index: usize) -> () {
+    pub(crate) fn add_to_cache(&mut self, resources: &O::Resources, index: usize) {
         self.cache.insert(resources.key(), index);
     }
 }

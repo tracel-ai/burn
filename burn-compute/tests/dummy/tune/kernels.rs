@@ -63,9 +63,7 @@ impl DummyKernel for CacheTestFastOn3 {
 
         let size = lhs.len();
         if size == 3 {
-            for i in 0..size {
-                out[i] = lhs[i];
-            }
+            out[..size].copy_from_slice(&lhs[..size]);
         } else {
             for i in 0..size {
                 sleep(Duration::from_millis(SLEEP_MS));
@@ -89,9 +87,7 @@ impl DummyKernel for CacheTestSlowOn3 {
                 out[i] = rhs[i];
             }
         } else {
-            for i in 0..size {
-                out[i] = rhs[i];
-            }
+            out[..size].copy_from_slice(&rhs[..size]);
         }
     }
 }
