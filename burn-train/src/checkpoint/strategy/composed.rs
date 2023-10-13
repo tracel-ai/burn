@@ -26,7 +26,14 @@ impl<E: EventCollector> CheckpointingStrategy<E> for ComposedCheckpointingStrate
         let mut epoch_to_check = Vec::new();
 
         for (i, strategy) in self.strategies.iter_mut().enumerate() {
-            for action in strategy.checkpointing(epoch, collector) {
+            let actions = strategy.checkpointing(epoch, collector);
+            // We assume that the strategy would not want the current epoch to be saved.
+            // So we flag it as deleted.
+            if actions.is_empty() {
+                self.deleted.get_mut(i).unwrap().insert(epoch);
+            }
+
+            for action in actions {
                 match action {
                     CheckpointingAction::Delete(epoch) => {
                         self.deleted.get_mut(i).unwrap().insert(epoch);
@@ -35,6 +42,10 @@ impl<E: EventCollector> CheckpointingStrategy<E> for ComposedCheckpointingStrate
                     CheckpointingAction::Save => saved = true,
                 }
             }
+        }
+
+        if saved {
+            actions.push(CheckpointingAction::Save);
         }
 
         for epoch in epoch_to_check.into_iter() {
@@ -54,10 +65,39 @@ impl<E: EventCollector> CheckpointingStrategy<E> for ComposedCheckpointingStrate
             }
         }
 
-        if saved {
-            actions.push(CheckpointingAction::Save);
-        }
-
         actions
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        checkpoint::KeepLastNCheckpoints, info::MetricsInfo, test_utils::TestEventCollector,
+    };
+
+    use super::*;
+
+    #[test]
+    fn should_delete_when_both_deletes() {
+        let strategy_1 = KeepLastNCheckpoints::new(1);
+        let strategy_2 = KeepLastNCheckpoints::new(2);
+        let mut collector = TestEventCollector::<f64, f64>::new(MetricsInfo::new());
+        let mut strategy =
+            ComposedCheckpointingStrategy::new(vec![Box::new(strategy_1), Box::new(strategy_2)]);
+
+        assert_eq!(
+            vec![CheckpointingAction::Save],
+            strategy.checkpointing(1, &mut collector)
+        );
+
+        assert_eq!(
+            vec![CheckpointingAction::Save],
+            strategy.checkpointing(2, &mut collector)
+        );
+
+        assert_eq!(
+            vec![CheckpointingAction::Save, CheckpointingAction::Delete(1)],
+            strategy.checkpointing(3, &mut collector)
+        );
     }
 }
