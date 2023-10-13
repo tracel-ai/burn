@@ -1,4 +1,4 @@
-use burn_common::benchmark::{Benchmark, BenchmarkResult};
+use burn_common::benchmark::BenchmarkResult;
 use core::marker::PhantomData;
 use hashbrown::HashMap;
 use std::time::Instant;
@@ -18,9 +18,6 @@ pub trait TuneBenchmark<O: Operation, S: ComputeServer> {
     fn take_kernel(&self) -> S::Kernel;
 
     fn execute_with_handles(&self, args: Self::Args, handles: &[&Handle<S>]);
-
-    // useless, replaced by execute_with_handles
-    fn execute(&self, args: Self::Args) {}
 
     fn run(&self, handles: &[&Handle<S>]) -> BenchmarkResult {
         // Warmup
@@ -49,14 +46,14 @@ pub trait TuneBenchmark<O: Operation, S: ComputeServer> {
 }
 
 #[derive(new)]
-pub struct KernelPool<TB, O, S> {
+pub struct BenchmarkPool<TB, O, S> {
     cache: HashMap<String, usize>,
     pub tune_benchmarks: Vec<TB>,
     _operation: PhantomData<O>,
     _server: PhantomData<S>,
 }
 
-impl<TB: TuneBenchmark<O, S>, O: Operation, S: ComputeServer> KernelPool<TB, O, S> {
+impl<TB: TuneBenchmark<O, S>, O: Operation, S: ComputeServer> BenchmarkPool<TB, O, S> {
     pub(crate) fn try_cache(&self, input: &O::Input) -> Option<S::Kernel> {
         let index = self.cache.get(&input.custom_hash());
         if let Some(&i) = index {
@@ -65,7 +62,7 @@ impl<TB: TuneBenchmark<O, S>, O: Operation, S: ComputeServer> KernelPool<TB, O, 
         None
     }
 
-    pub(crate) fn get(&self, index: usize) -> S::Kernel {
+    pub(crate) fn get_kernel(&self, index: usize) -> S::Kernel {
         (*self.tune_benchmarks.get(index).unwrap()).take_kernel()
     }
 

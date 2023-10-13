@@ -1,13 +1,12 @@
 use core::marker::PhantomData;
 use core::time::Duration;
 
-use burn_common::benchmark::{Benchmark, BenchmarkResult};
-use hashbrown::HashMap;
+use burn_common::benchmark::BenchmarkResult;
 use spin::Mutex;
 
+use crate::server::ComputeServer;
 use crate::server::Handle;
-use crate::tune::{InputHashable, KernelPool, Operation};
-use crate::{channel::ComputeChannel, client::ComputeClient, server::ComputeServer};
+use crate::tune::{BenchmarkPool, Operation};
 
 use super::TuneBenchmark;
 
@@ -18,8 +17,7 @@ where
     O: Operation,
     S: ComputeServer,
 {
-    kernel_pool: Mutex<KernelPool<TB, O, S>>,
-    _server: PhantomData<S>,
+    benchmark_pool: Mutex<BenchmarkPool<TB, O, S>>,
 }
 
 impl<TB, O, S> Tuner<TB, O, S>
@@ -29,27 +27,27 @@ where
     S: ComputeServer,
 {
     pub fn tune(&self, input: O::Input, handles: &[&Handle<S>]) -> S::Kernel {
-        let mut kernel_pool = self.kernel_pool.lock();
+        let mut benchmark_pool = self.benchmark_pool.lock();
 
-        kernel_pool
+        benchmark_pool
             .try_cache(&input)
-            .unwrap_or(self.no_kernel_type_found(&mut kernel_pool, &input, handles))
+            .unwrap_or(self.no_kernel_type_found(&mut benchmark_pool, &input, handles))
     }
 
     fn no_kernel_type_found(
         &self,
-        kernel_pool: &mut KernelPool<TB, O, S>,
+        benchmark_pool: &mut BenchmarkPool<TB, O, S>,
         input: &O::Input,
         handles: &[&Handle<S>],
     ) -> S::Kernel {
-        let results: Vec<BenchmarkResult> = kernel_pool
+        let results: Vec<BenchmarkResult> = benchmark_pool
             .tune_benchmarks
             .iter()
             .map(|benchmark| benchmark.run(handles))
             .collect();
         let best_index = self.find_best(results);
-        kernel_pool.add_to_cache(input, best_index);
-        kernel_pool.get(best_index)
+        benchmark_pool.add_to_cache(input, best_index);
+        benchmark_pool.get_kernel(best_index)
     }
 
     fn find_best(&self, results: Vec<BenchmarkResult>) -> usize {
