@@ -1,13 +1,10 @@
 use burn_core::{
-    data::dataloader::DataLoader,
-    lr_scheduler::LrScheduler,
-    module::ADModule,
-    optim::{GradientsAccumulator, Optimizer},
-    tensor::backend::ADBackend,
+    data::dataloader::DataLoader, lr_scheduler::LrScheduler, module::ADModule,
+    optim::GradientsAccumulator, tensor::backend::Backend,
 };
 use std::sync::Arc;
 
-use crate::{learner::base::TrainingInterrupter, Event};
+use crate::{components::LearnerComponents, learner::base::TrainingInterrupter, Event};
 use crate::{EventCollector, LearnerItem, MultiDevicesTrainStep, TrainStep, ValidStep};
 
 /// A validation epoch.
@@ -34,15 +31,14 @@ impl<VI> ValidEpoch<VI> {
     ///
     /// * `model` - The model to validate.
     /// * `callback` - The callback to use.
-    pub fn run<B, M, TO, VO>(
+    pub fn run<LC: LearnerComponents, VO>(
         &self,
-        model: &M,
-        callback: &mut Box<dyn EventCollector<ItemTrain = TO, ItemValid = VO>>,
+        model: &LC::Model,
+        callback: &mut LC::EventCollector,
         interrupter: &TrainingInterrupter,
     ) where
-        B: ADBackend,
-        M: ADModule<B>,
-        M::InnerModule: ValidStep<VI, VO>,
+        LC::EventCollector: EventCollector<ItemValid = VO>,
+        <LC::Model as ADModule<LC::Backend>>::InnerModule: ValidStep<VI, VO>,
     {
         log::info!("Executing validation step for epoch {}", self.epoch);
         let model = model.valid();
@@ -88,19 +84,17 @@ impl<TI> TrainEpoch<TI> {
     /// # Returns
     ///
     /// The trained model and the optimizer.
-    pub fn run<B, M, O, LR, TO, VO>(
+    pub fn run<LC: LearnerComponents, TO>(
         &self,
-        mut model: M,
-        mut optim: O,
-        scheduler: &mut LR,
-        callback: &mut Box<dyn EventCollector<ItemTrain = TO, ItemValid = VO>>,
+        mut model: LC::Model,
+        mut optim: LC::Optimizer,
+        scheduler: &mut LC::LrScheduler,
+        callback: &mut LC::EventCollector,
         interrupter: &TrainingInterrupter,
-    ) -> (M, O)
+    ) -> (LC::Model, LC::Optimizer)
     where
-        B: ADBackend,
-        M: TrainStep<TI, TO> + ADModule<B>,
-        O: Optimizer<M, B>,
-        LR: LrScheduler,
+        LC::EventCollector: EventCollector<ItemTrain = TO>,
+        LC::Model: TrainStep<TI, TO>,
     {
         log::info!("Executing training step for epoch {}", self.epoch,);
 
@@ -166,23 +160,20 @@ impl<TI> TrainEpoch<TI> {
     /// # Returns
     ///
     /// The trained model and the optimizer.
-    pub fn run_multi_device<B, M, O, S, TO, VO>(
+    pub fn run_multi_device<LC: LearnerComponents, TO>(
         &self,
-        mut model: M,
-        mut optim: O,
-        lr_scheduler: &mut S,
-        callback: &mut Box<dyn EventCollector<ItemTrain = TO, ItemValid = VO>>,
-        devices: Vec<B::Device>,
+        mut model: LC::Model,
+        mut optim: LC::Optimizer,
+        lr_scheduler: &mut LC::LrScheduler,
+        callback: &mut LC::EventCollector,
+        devices: Vec<<LC::Backend as Backend>::Device>,
         interrupter: &TrainingInterrupter,
-    ) -> (M, O)
+    ) -> (LC::Model, LC::Optimizer)
     where
-        B: ADBackend,
-        M: ADModule<B> + 'static,
-        O: Optimizer<M, B>,
-        M: TrainStep<TI, TO>,
-        S: LrScheduler,
-        TI: Send + 'static,
+        LC::EventCollector: EventCollector<ItemTrain = TO>,
+        LC::Model: TrainStep<TI, TO>,
         TO: Send + 'static,
+        TI: Send + 'static,
     {
         log::info!(
             "Executing training step for epoch {} on devices {:?}",

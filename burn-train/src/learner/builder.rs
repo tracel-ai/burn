@@ -1,6 +1,6 @@
 use super::log::install_file_logger;
 use super::Learner;
-use crate::checkpoint::{AsyncCheckpointer, FileCheckpointer};
+use crate::checkpoint::{AsyncCheckpointer, CheckpointerStrategy, FileCheckpointer, KeepLastN};
 use crate::collector::metrics::RenderedMetricsEventCollector;
 use crate::components::LearnerComponentsMarker;
 use crate::info::MetricsInfo;
@@ -44,6 +44,7 @@ where
     interrupter: TrainingInterrupter,
     log_to_file: bool,
     num_loggers: usize,
+    checkpointer_strategy: Box<dyn CheckpointerStrategy<AsyncEventCollector<T, V>>>,
 }
 
 impl<B, T, V, M, O, S> LearnerBuilder<B, T, V, M, O, S>
@@ -73,6 +74,7 @@ where
             interrupter: TrainingInterrupter::new(),
             log_to_file: true,
             num_loggers: 0,
+            checkpointer_strategy: Box::new(KeepLastN::new(2)),
         }
     }
 
@@ -91,6 +93,13 @@ where
         self.info.register_logger_valid(logger_valid);
         self.num_loggers += 1;
         self
+    }
+
+    pub fn with_checkpointer_strategy<CS>(&mut self, strategy: CS)
+    where
+        CS: CheckpointerStrategy<AsyncEventCollector<T, V>> + 'static,
+    {
+        self.checkpointer_strategy = Box::new(strategy);
     }
 
     /// Replace the default CLI renderer with a custom one.
@@ -194,11 +203,7 @@ where
 
     /// Register a checkpointer that will save the [optimizer](Optimizer) and the
     /// [model](ADModule).
-    ///
-    /// The number of checkpoints to be keep should be set to a minimum of two to be safe, since
-    /// they are saved and deleted asynchronously and a crash during training might make a
-    /// checkpoint non-usable.
-    pub fn with_file_checkpointer<FR>(mut self, num_keep: usize, recorder: FR) -> Self
+    pub fn with_file_checkpointer<FR>(mut self, recorder: FR) -> Self
     where
         FR: FileRecorder + 'static,
         O::Record: 'static,
@@ -209,19 +214,16 @@ where
             recorder.clone(),
             format!("{}/checkpoint", self.directory).as_str(),
             "model",
-            num_keep,
         );
         let checkpointer_optimizer = FileCheckpointer::new(
             recorder.clone(),
             format!("{}/checkpoint", self.directory).as_str(),
             "optim",
-            num_keep,
         );
         let checkpointer_scheduler = FileCheckpointer::new(
             recorder,
             format!("{}/checkpoint", self.directory).as_str(),
             "scheduler",
-            num_keep,
         );
 
         self.checkpointers = Some((
@@ -253,6 +255,7 @@ where
             AsyncCheckpointer<O::Record>,
             AsyncCheckpointer<S::Record>,
             AsyncEventCollector<T, V>,
+            Box<dyn CheckpointerStrategy<AsyncEventCollector<T, V>>>,
         >,
     >
     where
@@ -280,9 +283,9 @@ where
         let collector =
             AsyncEventCollector::new(RenderedMetricsEventCollector::new(renderer, self.info));
 
-        let checkpointer = self
-            .checkpointers
-            .map(|(model, optim, scheduler)| LearnerCheckpointer::new(model, optim, scheduler));
+        let checkpointer = self.checkpointers.map(|(model, optim, scheduler)| {
+            LearnerCheckpointer::new(model, optim, scheduler, self.checkpointer_strategy)
+        });
 
         Learner {
             model,
