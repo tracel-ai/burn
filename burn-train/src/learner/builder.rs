@@ -77,14 +77,16 @@ where
             interrupter: TrainingInterrupter::new(),
             log_to_file: true,
             num_loggers: 0,
-            checkpointer_strategy: Box::new(ComposedCheckpointingStrategy::new(vec![
-                Box::new(KeepLastNCheckpoints::new(2)),
-                Box::new(MetricCheckpointingStrategy::new::<LossMetric<B>>(
-                    Aggregate::Mean,
-                    Direction::Lowest,
-                    Split::Valid,
-                )),
-            ])),
+            checkpointer_strategy: Box::new(
+                ComposedCheckpointingStrategy::builder()
+                    .add(KeepLastNCheckpoints::new(2))
+                    .add(MetricCheckpointingStrategy::new::<LossMetric<B>>(
+                        Aggregate::Mean,
+                        Direction::Lowest,
+                        Split::Valid,
+                    ))
+                    .build(),
+            ),
         }
     }
 
@@ -212,8 +214,8 @@ where
         self
     }
 
-    /// Register a checkpointer that will save the [optimizer](Optimizer) and the
-    /// [model](ADModule).
+    /// Register a checkpointer that will save the [optimizer](Optimizer), the
+    /// [model](ADModule) and the [scheduler](LrScheduler) to different files.
     pub fn with_file_checkpointer<FR>(mut self, recorder: FR) -> Self
     where
         FR: FileRecorder + 'static,

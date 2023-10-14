@@ -104,7 +104,6 @@ pub mod test_utils {
         fn on_event_train(&mut self, event: Event<Self::ItemTrain>) {
             match event {
                 Event::ProcessedItem(item) => {
-                    println!("Item");
                     let metadata = (&item).into();
                     self.info.update_train(&item, &metadata);
                 }
@@ -129,9 +128,7 @@ pub mod test_utils {
             direction: Direction,
             split: Split,
         ) -> Option<usize> {
-            let al = self.info.find_epoch(name, aggregate, direction, split);
-            println!("{al:?}");
-            return al;
+            self.info.find_epoch(name, aggregate, direction, split)
         }
     }
 }

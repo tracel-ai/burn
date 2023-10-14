@@ -61,7 +61,7 @@ impl<LC: LearnerComponents> LearnerCheckpointer<LC> {
     }
 
     pub(crate) fn load_checkpoint(
-        &mut self,
+        &self,
         model: LC::Model,
         optim: LC::Optimizer,
         scheduler: LC::LrScheduler,
