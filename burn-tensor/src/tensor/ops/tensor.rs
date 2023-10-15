@@ -295,9 +295,7 @@ pub trait TensorOps<B: Backend> {
         tensor: B::TensorPrimitive<D>,
         min: B::FloatElem,
     ) -> B::TensorPrimitive<D> {
-        // Default implementation
-        let mask = Self::lower_elem(tensor.clone(), min);
-        B::mask_fill(tensor, mask, min)
+        B::clamp_min(tensor, min)
     }
 
     /// Clamps a tensor over a maximum value.
@@ -314,9 +312,7 @@ pub trait TensorOps<B: Backend> {
         tensor: B::TensorPrimitive<D>,
         max: B::FloatElem,
     ) -> B::TensorPrimitive<D> {
-        // Default implementation
-        let mask = Self::greater_elem(tensor.clone(), max);
-        B::mask_fill(tensor, mask, max)
+        B::clamp_max(tensor, max)
     }
 
     /// Clamps a tensor between a minimum and maximum value.
