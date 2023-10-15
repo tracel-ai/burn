@@ -63,19 +63,15 @@ pub(crate) fn unfold4d_using_conv2d<B: Backend>(
     options: UnfoldOptions,
 ) -> B::TensorPrimitive<3> {
     let [_batch_size, in_channels, _in_height, _in_width] = B::shape(&x).dims;
-    let stride = options.stride.unwrap_or([1, 1]);
-    let padding = options.padding.unwrap_or([0, 0]);
-    let dilation = options.dilation.unwrap_or([1, 1]);
-
     let weight = create_unfolding_weight::<B>(in_channels, kernel_size, &B::device(&x));
     let unfolded = B::conv2d(
         x,
         weight,
         None,
         ConvOptions {
-            stride,
-            padding,
-            dilation,
+            stride: options.stride,
+            padding: options.padding,
+            dilation: options.dilation,
             groups: 1,
         },
     );

@@ -38,9 +38,6 @@ pub(crate) fn unfold4d<E: WgpuElement + Element>(
 
     let intermediate_input = kernel::into_contiguous(input.clone());
     let [_, channels_in, _, _] = intermediate_input.shape.dims;
-    let stride = options.stride.unwrap_or([1, 1]);
-    let padding = options.padding.unwrap_or([0, 0]);
-    let dilation = options.dilation.unwrap_or([1, 1]);
 
     let weight_shape = Shape::new([
         channels_in * kernel_size[0] * kernel_size[1],
@@ -67,7 +64,8 @@ pub(crate) fn unfold4d<E: WgpuElement + Element>(
         .client
         .execute(Box::new(kernel), &[&weight.handle, &indices_handle]);
 
-    let options = burn_tensor::ops::ConvOptions::new(stride, padding, dilation, 1);
+    let options =
+        burn_tensor::ops::ConvOptions::new(options.stride, options.padding, options.dilation, 1);
     kernel::conv::conv2d(input, weight, None, options.clone())
 }
 
@@ -82,7 +80,7 @@ mod tests {
         let kernel_size = [3, 3];
         let stride = [2, 2];
         let input_ref = Tensor::<ReferenceBackend, 4>::from_data(input.to_data());
-        let options = burn_tensor::ops::UnfoldOptions::new(Some(stride), None, None);
+        let options = burn_tensor::ops::UnfoldOptions::new(stride, [0, 0], [1, 1]);
 
         let output = module::unfold4d(input, kernel_size, options.clone());
         let output_ref = module::unfold4d(input_ref, kernel_size, options);

@@ -100,16 +100,14 @@ pub struct ConvTransposeOptions<const N: usize> {
 #[derive(new, Debug, Clone)]
 pub struct UnfoldOptions {
     /// The number of positions to slide over the input tensor in each dimension.
-    /// A stride of `[1, 1]` will slide the kernel one pixel at a time. If not provided, defaults to `[1, 1]`.
-    pub stride: Option<[usize; 2]>,
+    /// A stride of `[1, 1]` will slide the kernel one pixel at a time.
+    pub stride: [usize; 2],
 
     /// The number of zero-padding pixels added to each side of the input tensor in each dimension.
-    /// If not provided, defaults to no padding (`[0, 0]`).
-    pub padding: Option<[usize; 2]>,
+    pub padding: [usize; 2],
 
     /// The spacing between the blocks (patches) in the original input tensor.
-    /// If not provided, defaults to `[1, 1]`.
-    pub dilation: Option<[usize; 2]>,
+    pub dilation: [usize; 2],
 }
 
 /// Module operations trait.
