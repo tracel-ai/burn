@@ -76,11 +76,8 @@ pub fn run<B: ADBackend>(device: B::Device) {
             let accuracy = accuracy(output, batch.targets);
 
             println!(
-                "[Train - Epoch {} - Iteration {}] Loss {:.3} | Accuracy {:.3} %",
-                iteration,
-                epoch,
+                "[Train - Epoch {epoch} - Iteration {iteration}] Loss {:.3} | Accuracy {accuracy:.3} %",
                 loss.clone().into_scalar(),
-                accuracy,
             );
 
             // Gradients for the current backward pass
@@ -101,11 +98,8 @@ pub fn run<B: ADBackend>(device: B::Device) {
             let accuracy = accuracy(output, batch.targets);
 
             println!(
-                "[Valid - Epoch {} - Iteration {}] Loss {} | Accuracy {}",
-                iteration,
-                epoch,
+                "[Valid - Epoch {epoch} - Iteration {iteration}] Loss {} | Accuracy {accuracy}",
                 loss.clone().into_scalar(),
-                accuracy,
             );
         }
     }
