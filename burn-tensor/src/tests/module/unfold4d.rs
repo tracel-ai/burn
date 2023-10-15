@@ -124,7 +124,6 @@ mod tests {
                 UnfoldOptions::new(self.stride, self.padding, self.dilation),
             );
 
-            println!("{output}");
             output
                 .into_data()
                 .assert_approx_eq(&expected.into_data(), 3);
