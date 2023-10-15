@@ -1,4 +1,4 @@
-use super::{conv, pool};
+use super::{conv, pool, unfold::unfold4d_using_conv2d};
 use crate::{backend::Backend, Shape};
 
 /// Gradient computed during the backward pass for each tensor used by [conv2d](ModuleOps::conv2d).
@@ -271,7 +271,9 @@ pub trait ModuleOps<B: Backend> {
         x: B::TensorPrimitive<4>,
         kernel_size: [usize; 2],
         options: UnfoldOptions,
-    ) -> B::TensorPrimitive<3>;
+    ) -> B::TensorPrimitive<3> {
+        unfold4d_using_conv2d::<B>(x, kernel_size, options)
+    }
 
     /// One dimensional avg pooling.
     ///

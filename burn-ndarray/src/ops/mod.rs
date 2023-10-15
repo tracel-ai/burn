@@ -12,6 +12,5 @@ pub(crate) mod macros;
 pub(crate) mod matmul;
 pub(crate) mod maxpool;
 pub(crate) mod padding;
-pub(crate) mod unfold;
 
 pub(crate) use base::*;
