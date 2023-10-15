@@ -422,4 +422,28 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
                 .unwrap(),
         )
     }
+
+    fn clamp_min<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        min: FloatElem<Self>,
+    ) -> FloatTensor<Self, D> {
+        let mask = Self::lower_elem(tensor.clone(), min);
+        Self::mask_fill(tensor, mask, min)
+    }
+
+    fn clamp_max<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        max: FloatElem<Self>,
+    ) -> FloatTensor<Self, D> {
+        let mask = Self::greater_elem(tensor.clone(), max);
+        Self::mask_fill(tensor, mask, max)
+    }
+
+    fn clamp<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        min: FloatElem<Self>,
+        max: FloatElem<Self>,
+    ) -> FloatTensor<Self, D> {
+        Self::clamp_min(Self::clamp_max(tensor, max), min)
+    }
 }
