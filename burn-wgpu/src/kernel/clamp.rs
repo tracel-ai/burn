@@ -14,15 +14,19 @@ pub(crate) fn clamp_min<E: WgpuElement, const D: usize>(
     min: E,
 ) -> WgpuTensor<E, D> {
     let num_elems = input.shape.num_elements();
+    let num_elems_buffer = input
+        .client
+        .create(bytemuck::cast_slice(&[num_elems as u32]));
     let min_handle = input.client.create(E::as_bytes(&[min]));
 
     let kernel = StaticKernel::<
         KernelSettings<ClampMin, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
     >::new(elemwise_workgroup(num_elems, WORKGROUP_DEFAULT));
 
-    input
-        .client
-        .execute(Box::new(kernel), &[&input.handle, &min_handle]);
+    input.client.execute(
+        Box::new(kernel),
+        &[&input.handle, &min_handle, &num_elems_buffer],
+    );
     input
 }
 
@@ -31,15 +35,19 @@ pub(crate) fn clamp_max<E: WgpuElement, const D: usize>(
     min: E,
 ) -> WgpuTensor<E, D> {
     let num_elems = input.shape.num_elements();
+    let num_elems_buffer = input
+        .client
+        .create(bytemuck::cast_slice(&[num_elems as u32]));
     let min_handle = input.client.create(E::as_bytes(&[min]));
 
     let kernel = StaticKernel::<
         KernelSettings<ClampMax, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
     >::new(elemwise_workgroup(num_elems, WORKGROUP_DEFAULT));
 
-    input
-        .client
-        .execute(Box::new(kernel), &[&input.handle, &min_handle]);
+    input.client.execute(
+        Box::new(kernel),
+        &[&input.handle, &min_handle, &num_elems_buffer],
+    );
     input
 }
 

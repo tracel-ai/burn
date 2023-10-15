@@ -6,6 +6,10 @@ var<storage, read_write> input: array<{{ elem }}>;
 @binding(1)
 var<storage, read> value: {{ elem }};
 
+@group(0)
+@binding(2)
+var<storage, read> length: u32;
+
 const WORKGROUP_SIZE_X = {{ workgroup_size_x }}u;
 
 @compute
@@ -16,7 +20,9 @@ fn main(
 ) {
     let linear_id = global_id.y * (num_workgroups.x * WORKGROUP_SIZE_X) + global_id.x;
 
-    if(input[linear_id] < value) {
-        input[linear_id] = value;
+    if (linear_id < length) {
+        if(input[linear_id] < value) {
+            input[linear_id] = value;
+        }
     }
 }
