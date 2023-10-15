@@ -1,5 +1,9 @@
-use burn_tensor::ops::{
-    ConvOptions, ConvTransposeOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
+use burn_tensor::{
+    ops::{
+        ConvOptions, ConvTransposeOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
+        TensorOps, UnfoldOptions,
+    },
+    Shape,
 };
 
 use crate::{
@@ -31,6 +35,19 @@ where
         options: ConvTransposeOptions<2>,
     ) -> FloatTensor<Self, 4> {
         kernel::conv::conv_transpose2d(x, weight, bias, options)
+    }
+
+    fn unfold4d(
+        x: FloatTensor<Self, 4>,
+        kernel_size: [usize; 2],
+        options: UnfoldOptions,
+    ) -> FloatTensor<Self, 3> {
+        let unfold_intermediate = kernel::unfold::unfold4d(x, kernel_size, options);
+        let [batch_size, channels_out, out_height, out_width] = unfold_intermediate.shape.dims;
+        <WgpuBackend<G, F, I> as TensorOps<WgpuBackend<G, F, I>>>::reshape(
+            unfold_intermediate,
+            Shape::new([batch_size, channels_out, out_height * out_width]),
+        )
     }
 
     fn avg_pool2d(

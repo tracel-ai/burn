@@ -1,6 +1,6 @@
 use crate::{
     backend::Backend,
-    ops::{ConvOptions, ConvTransposeOptions},
+    ops::{ConvOptions, ConvTransposeOptions, UnfoldOptions},
     Int, Tensor,
 };
 
@@ -82,6 +82,14 @@ where
         bias.map(|b| b.primitive),
         options,
     ))
+}
+
+/// Applies a [4D to 3D unfold](crate::ops::ModuleOps::unfold4d).
+pub fn unfold4d<B>(x: Tensor<B, 4>, kernel_size: [usize; 2], options: UnfoldOptions) -> Tensor<B, 3>
+where
+    B: Backend,
+{
+    Tensor::new(B::unfold4d(x.primitive, kernel_size, options))
 }
 
 /// Applies a [1D max pooling](crate::ops::ModuleOps::max_pool1d).
