@@ -1,4 +1,4 @@
-use burn_compute::tune::{AutotuneKernel, HashableResources};
+use burn_compute::tune::AutotuneKernel;
 use derive_new::new;
 
 use crate::dummy::{DummyElementwiseAddition, DummyKernel, DummyServer};

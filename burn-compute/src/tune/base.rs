@@ -31,7 +31,7 @@ where
 
     /// Looks for cached kernel for the input or finds one manually, saving the fastest one
     pub fn tune(&mut self, autotune_kernel: Box<dyn AutotuneKernel<S>>) -> S::Kernel {
-        self.try_cache(autotune_kernel)
+        self.try_cache(&autotune_kernel)
             .unwrap_or(self.no_kernel_type_found(autotune_kernel))
     }
 
@@ -42,7 +42,8 @@ where
             .map(|kernel| self.run_benchmark(kernel, autotune_kernel.autotune_handles()))
             .collect();
         let fastest_index = self.find_fastest(results);
-        self.add_to_cache(autotune_kernel, fastest_index);
+        self.cache
+            .insert(autotune_kernel.autotune_key(), fastest_index);
         autotune_kernel.fastest_kernel(fastest_index)
     }
 
@@ -66,7 +67,7 @@ where
         todo!()
     }
 
-    fn try_cache(&self, autotune_kernel: Box<dyn AutotuneKernel<S>>) -> Option<S::Kernel> {
+    fn try_cache(&self, autotune_kernel: &Box<dyn AutotuneKernel<S>>) -> Option<S::Kernel> {
         let index = self.cache.get(&autotune_kernel.autotune_key());
         if let Some(&i) = index {
             return Some(autotune_kernel.fastest_kernel(i));
@@ -74,7 +75,5 @@ where
         None
     }
 
-    fn add_to_cache(&mut self, autotune_kernel: Box<dyn AutotuneKernel<S>>, index: usize) {
-        self.cache.insert(autotune_kernel.autotune_key(), index);
-    }
+    fn add_to_cache(&mut self, autotune_key: String, index: usize) {}
 }

@@ -66,12 +66,11 @@ where
         self.channel.sync()
     }
 
-    pub fn execute_autotune<AK: AutotuneKernel<Server>>(
+    pub fn execute_autotune(
         &self,
-        autotune_kernel: AK,
+        autotune_kernel: Box<dyn AutotuneKernel<Server>>,
         handles: &[&Handle<Server>],
     ) {
-        self.channel
-            .execute_autotune(Box::new(autotune_kernel), handles);
+        self.channel.execute_autotune(autotune_kernel, handles);
     }
 }
