@@ -195,22 +195,25 @@ fn select_adapter<G: GraphicsApi>(device: &WgpuDevice) -> wgpu::Adapter {
             let mut most_performant_adapter = None;
             let mut current_score = -1;
 
-            adapters.into_iter().for_each(|adapter| {
-                let info = adapter.get_info();
-                let score = match info.device_type {
-                    DeviceType::DiscreteGpu => 5,
-                    DeviceType::Other => 4, // Let's be optimistic with the Other device, it's
-                    // often a Discrete Gpu.
-                    DeviceType::IntegratedGpu => 3,
-                    DeviceType::VirtualGpu => 2,
-                    DeviceType::Cpu => 1,
-                };
+            adapters
+                .into_iter()
+                .chain(adapters_other)
+                .for_each(|adapter| {
+                    let info = adapter.get_info();
+                    let score = match info.device_type {
+                        DeviceType::DiscreteGpu => 5,
+                        DeviceType::Other => 4, // Let's be optimistic with the Other device, it's
+                        // often a Discrete Gpu.
+                        DeviceType::IntegratedGpu => 3,
+                        DeviceType::VirtualGpu => 2,
+                        DeviceType::Cpu => 1,
+                    };
 
-                if score > current_score {
-                    most_performant_adapter = Some(adapter);
-                    current_score = score;
-                }
-            });
+                    if score > current_score {
+                        most_performant_adapter = Some(adapter);
+                        current_score = score;
+                    }
+                });
 
             if let Some(adapter) = most_performant_adapter {
                 adapter
