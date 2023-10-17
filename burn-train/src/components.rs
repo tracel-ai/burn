@@ -1,4 +1,7 @@
-use crate::{checkpoint::Checkpointer, EventCollector};
+use crate::{
+    checkpoint::{Checkpointer, CheckpointingStrategy},
+    EventCollector,
+};
 use burn_core::{
     lr_scheduler::LrScheduler,
     module::{ADModule, Module},
@@ -27,10 +30,12 @@ pub trait LearnerComponents {
     type CheckpointerLrScheduler: Checkpointer<<Self::LrScheduler as LrScheduler>::Record>;
     /// Training event collector used for training tracking.
     type EventCollector: EventCollector + 'static;
+    /// The strategy to save and delete checkpoints.
+    type CheckpointerStrategy: CheckpointingStrategy<Self::EventCollector>;
 }
 
 /// Concrete type that implements [training components trait](TrainingComponents).
-pub struct LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, C> {
+pub struct LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, EC, S> {
     _backend: PhantomData<B>,
     _lr_scheduler: PhantomData<LR>,
     _model: PhantomData<M>,
@@ -38,11 +43,12 @@ pub struct LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, C> {
     _checkpointer_model: PhantomData<CM>,
     _checkpointer_optim: PhantomData<CO>,
     _checkpointer_scheduler: PhantomData<CS>,
-    _callback: PhantomData<C>,
+    _collector: PhantomData<EC>,
+    _strategy: S,
 }
 
-impl<B, LR, M, O, CM, CO, CS, EC> LearnerComponents
-    for LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, EC>
+impl<B, LR, M, O, CM, CO, CS, EC, S> LearnerComponents
+    for LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, EC, S>
 where
     B: ADBackend,
     LR: LrScheduler,
@@ -52,6 +58,7 @@ where
     CO: Checkpointer<O::Record>,
     CS: Checkpointer<LR::Record>,
     EC: EventCollector + 'static,
+    S: CheckpointingStrategy<EC>,
 {
     type Backend = B;
     type LrScheduler = LR;
@@ -61,4 +68,5 @@ where
     type CheckpointerOptimizer = CO;
     type CheckpointerLrScheduler = CS;
     type EventCollector = EC;
+    type CheckpointerStrategy = S;
 }

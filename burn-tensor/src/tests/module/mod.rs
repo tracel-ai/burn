@@ -9,3 +9,4 @@ mod conv_transpose2d;
 mod forward;
 mod maxpool1d;
 mod maxpool2d;
+mod unfold4d;

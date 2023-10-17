@@ -92,7 +92,7 @@ pub fn train<B: ADBackend>(artifact_dir: &str, config: TrainingConfig, device: B
         .metric_valid_numeric(AccuracyMetric::new())
         .metric_train_numeric(LossMetric::new())
         .metric_valid_numeric(LossMetric::new())
-        .with_file_checkpointer(1, CompactRecorder::new())
+        .with_file_checkpointer(CompactRecorder::new())
         .devices(vec![device])
         .num_epochs(config.num_epochs)
         .build(

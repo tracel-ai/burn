@@ -5,6 +5,7 @@ use std::sync::mpsc;
 enum Message<R> {
     Restore(usize, mpsc::SyncSender<Result<R, CheckpointerError>>),
     Save(usize, R),
+    Delete(usize),
     End,
 }
 
@@ -23,6 +24,7 @@ impl<C: Checkpointer<R>, R: Record> CheckpointerThread<C, R> {
                     sender.send(record).unwrap();
                 }
                 Message::Save(epoch, state) => self.checkpointer.save(epoch, state).unwrap(),
+                Message::Delete(epoch) => self.checkpointer.delete(epoch).unwrap(),
                 Message::End => {
                     return;
                 }
@@ -81,6 +83,14 @@ where
         };
 
         Err(CheckpointerError::Unknown("Channel error.".to_string()))
+    }
+
+    fn delete(&self, epoch: usize) -> Result<(), CheckpointerError> {
+        self.sender
+            .send(Message::Delete(epoch))
+            .map_err(|e| CheckpointerError::Unknown(e.to_string()))?;
+
+        Ok(())
     }
 }
 

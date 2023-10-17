@@ -9,7 +9,7 @@ use alloc::string::String;
 #[cfg(not(target_family = "wasm"))]
 use alloc::vec;
 
-use burn_common::reader::Reader;
+use burn_common::{reader::Reader, stub::Mutex};
 use core::{fmt::Debug, ops::Range};
 
 use crate::{
@@ -468,6 +468,59 @@ where
     <K as BasicOps<B>>::Elem: Debug,
 {
     #[cfg(not(target_family = "wasm"))]
+    #[inline]
+    fn push_newline_indent(acc: &mut String, indent: usize) {
+        acc.push('\n');
+        for _ in 0..indent {
+            acc.push(' ');
+        }
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    fn fmt_inner_tensor(
+        &self,
+        acc: &mut String,
+        depth: usize,
+        multi_index: &mut [usize],
+        range: (usize, usize),
+    ) {
+        let (start, end) = range;
+        for i in start..end {
+            if i > 0 {
+                acc.push_str(", ");
+            }
+            multi_index[depth] = i;
+            let range: [core::ops::Range<usize>; D] =
+                core::array::from_fn(|i| multi_index[i]..multi_index[i] + 1);
+
+            let elem = &self.clone().slice(range).into_data().value[0];
+            acc.push_str(&format!("{elem:?}"));
+        }
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    fn fmt_outer_tensor(
+        &self,
+        acc: &mut String,
+        depth: usize,
+        multi_index: &mut [usize],
+        print_options: &PrintOptions,
+        summarize: bool,
+        range: (usize, usize),
+    ) {
+        let (start, end) = range;
+        for i in start..end {
+            if i > start {
+                acc.push(',');
+                Self::push_newline_indent(acc, depth + 1);
+            }
+            acc.push('[');
+            multi_index[depth] = i;
+            self.display_recursive(acc, depth + 1, multi_index, print_options, summarize);
+            acc.push(']');
+        }
+    }
+
     /// Recursively formats the tensor data for display and appends it to the provided accumulator string.
     ///
     /// This function is designed to work with tensors of any dimensionality.
@@ -480,34 +533,72 @@ where
     /// * `acc` - A mutable reference to a `String` used as an accumulator for the formatted output.
     /// * `depth` - The current depth of the tensor dimensions being processed.
     /// * `multi_index` - A mutable slice of `usize` representing the current indices in each dimension.
-    fn display_recursive(&self, acc: &mut String, depth: usize, multi_index: &mut [usize]) {
+    #[cfg(not(target_family = "wasm"))]
+    fn display_recursive(
+        &self,
+        acc: &mut String,
+        depth: usize,
+        multi_index: &mut [usize],
+        print_options: &PrintOptions,
+        summarize: bool,
+    ) {
+        let edge_items = print_options.edge_items;
+
         if depth == 0 {
             acc.push('[');
         }
 
         if depth == self.dims().len() - 1 {
             // if we are at the innermost dimension, just push its elements into the accumulator
-            for i in 0..self.dims()[depth] {
-                if i > 0 {
-                    acc.push_str(", ");
-                }
-                multi_index[depth] = i;
-                let range: [core::ops::Range<usize>; D] =
-                    core::array::from_fn(|i| multi_index[i]..multi_index[i] + 1);
-
-                let elem = &self.clone().slice(range).into_data().value[0];
-                acc.push_str(&format!("{elem:?}"));
+            if summarize && self.dims()[depth] > 2 * edge_items {
+                // print the starting `edge_items` elements
+                self.fmt_inner_tensor(acc, depth, multi_index, (0, edge_items));
+                acc.push_str(", ...");
+                // print the last `edge_items` elements
+                self.fmt_inner_tensor(
+                    acc,
+                    depth,
+                    multi_index,
+                    (self.dims()[depth] - edge_items, self.dims()[depth]),
+                );
+            } else {
+                // print all the elements
+                self.fmt_inner_tensor(acc, depth, multi_index, (0, self.dims()[depth]));
             }
         } else {
             // otherwise, iterate through the current dimension and recursively display the inner tensors
-            for i in 0..self.dims()[depth] {
-                if i > 0 {
-                    acc.push_str(", ");
-                }
-                acc.push('[');
-                multi_index[depth] = i;
-                self.display_recursive(acc, depth + 1, multi_index);
-                acc.push(']');
+            if summarize && self.dims()[depth] > 2 * edge_items {
+                self.fmt_outer_tensor(
+                    acc,
+                    depth,
+                    multi_index,
+                    print_options,
+                    summarize,
+                    (0, edge_items),
+                );
+
+                acc.push(',');
+                Self::push_newline_indent(acc, depth + 1);
+                acc.push_str("...");
+                Self::push_newline_indent(acc, depth + 1);
+
+                self.fmt_outer_tensor(
+                    acc,
+                    depth,
+                    multi_index,
+                    print_options,
+                    summarize,
+                    (self.dims()[depth] - edge_items, self.dims()[depth]),
+                );
+            } else {
+                self.fmt_outer_tensor(
+                    acc,
+                    depth,
+                    multi_index,
+                    print_options,
+                    summarize,
+                    (0, self.dims()[depth]),
+                );
             }
         }
 
@@ -515,6 +606,31 @@ where
             acc.push(']');
         }
     }
+}
+
+/// Options for Tensor pretty printing
+pub struct PrintOptions {
+    /// number of elements to start summarizing tensor
+    pub threshold: usize,
+    /// number of starting elements and ending elements to display
+    pub edge_items: usize,
+}
+
+static PRINT_OPTS: Mutex<PrintOptions> = Mutex::new(PrintOptions::const_default());
+
+impl PrintOptions {
+    // We cannot use the default trait as it's not const.
+    const fn const_default() -> Self {
+        Self {
+            threshold: 1000,
+            edge_items: 3,
+        }
+    }
+}
+
+/// Set print options
+pub fn set_print_options(options: PrintOptions) {
+    *PRINT_OPTS.lock().unwrap() = options
 }
 
 /// Pretty print tensors
@@ -530,11 +646,14 @@ where
 
         #[cfg(not(target_family = "wasm"))]
         {
-            write!(f, "  data: ")?;
+            let po = PRINT_OPTS.lock().unwrap();
             let mut acc = String::new();
             let mut multi_index = vec![0; D];
+            let summarize = self.shape().num_elements() > po.threshold;
 
-            self.display_recursive(&mut acc, 0, &mut multi_index);
+            self.display_recursive(&mut acc, 0, &mut multi_index, &po, summarize);
+
+            writeln!(f, "  data:")?;
             write!(f, "{acc}")?;
             writeln!(f, ",")?;
         }

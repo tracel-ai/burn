@@ -121,3 +121,42 @@ impl MetricLogger for FileMetricLogger {
         }
     }
 }
+
+/// In memory metric logger, useful when testing and debugging.
+#[derive(Default)]
+pub struct InMemoryMetricLogger {
+    values: HashMap<String, Vec<Vec<String>>>,
+}
+
+impl MetricLogger for InMemoryMetricLogger {
+    fn log(&mut self, item: &MetricEntry) {
+        if !self.values.contains_key(&item.name) {
+            self.values.insert(item.name.clone(), vec![vec![]]);
+        }
+
+        let values = self.values.get_mut(&item.name).unwrap();
+
+        values.last_mut().unwrap().push(item.serialize.clone());
+    }
+
+    fn epoch(&mut self, _epoch: usize) {
+        for (_, values) in self.values.iter_mut() {
+            values.push(Vec::new());
+        }
+    }
+
+    fn read_numeric(&mut self, name: &str, epoch: usize) -> Result<Vec<f64>, String> {
+        let values = match self.values.get(name) {
+            Some(values) => values,
+            None => return Ok(Vec::new()),
+        };
+
+        match values.get(epoch - 1) {
+            Some(values) => Ok(values
+                .iter()
+                .filter_map(|value| value.parse::<f64>().ok())
+                .collect()),
+            None => Ok(Vec::new()),
+        }
+    }
+}
