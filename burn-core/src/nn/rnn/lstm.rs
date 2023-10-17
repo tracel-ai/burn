@@ -155,14 +155,19 @@ impl<B: Backend> Lstm<B> {
             cell_state = forget_values * cell_state.clone() + add_values * candidate_cell_values;
             hidden_state = output_values * cell_state.clone().tanh();
 
+            let unsqueezed_shape = [cell_state.shape().dims[0], 1, cell_state.shape().dims[1]];
+
+            let unsqueezed_cell_state = cell_state.clone().reshape(unsqueezed_shape);
+            let unsqueezed_hidden_state = hidden_state.clone().reshape(unsqueezed_shape);
+
             // store the state for this timestep
             batched_cell_state = batched_cell_state.slice_assign(
                 [0..batch_size, t..(t + 1), 0..self.d_hidden],
-                cell_state.clone().unsqueeze(),
+                unsqueezed_cell_state.clone(),
             );
             batched_hidden_state = batched_hidden_state.slice_assign(
                 [0..batch_size, t..(t + 1), 0..self.d_hidden],
-                hidden_state.clone().unsqueeze(),
+                unsqueezed_hidden_state.clone(),
             );
         }
 
