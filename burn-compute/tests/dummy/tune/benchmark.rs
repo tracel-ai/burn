@@ -18,13 +18,13 @@ use crate::dummy::{
 use super::{AdditionOp, CacheTestOp, MultiplicationOp};
 
 #[derive(new)]
-pub struct DummyBenchmark<'a, O> {
-    client: &'a DummyClient,
+pub struct DummyBenchmark<O> {
+    client: DummyClient,
     kernel_constructor: Box<dyn Fn() -> Box<dyn DummyKernel>>,
     _operation: PhantomData<O>,
 }
 
-impl<'a, O: Operation> TuneBenchmark<O, DummyServer> for DummyBenchmark<'a, O> {
+impl<'a, O: Operation> TuneBenchmark<O, DummyServer> for DummyBenchmark<O> {
     fn make_kernel(&self) -> Box<dyn DummyKernel> {
         (self.kernel_constructor)()
     }
@@ -38,25 +38,23 @@ impl<'a, O: Operation> TuneBenchmark<O, DummyServer> for DummyBenchmark<'a, O> {
     }
 }
 
-pub fn get_addition_benchmarks(client: &DummyClient) -> Vec<DummyBenchmark<'_, AdditionOp>> {
+pub fn get_addition_benchmarks(client: DummyClient) -> Vec<DummyBenchmark<AdditionOp>> {
     vec![
-        DummyElementwiseAdditionType::make_benchmark(client),
+        DummyElementwiseAdditionType::make_benchmark(client.clone()),
         DummyElementwiseAdditionSlowWrongType::make_benchmark(client),
     ]
 }
 
-pub fn get_multiplication_benchmarks(
-    client: &DummyClient,
-) -> Vec<DummyBenchmark<'_, MultiplicationOp>> {
+pub fn get_multiplication_benchmarks(client: DummyClient) -> Vec<DummyBenchmark<MultiplicationOp>> {
     vec![
-        DummyElementwiseMultiplicationSlowWrongType::make_benchmark(client),
+        DummyElementwiseMultiplicationSlowWrongType::make_benchmark(client.clone()),
         DummyElementwiseMultiplicationType::make_benchmark(client),
     ]
 }
 
-pub fn get_cache_test_benchmarks(client: &DummyClient) -> Vec<DummyBenchmark<'_, CacheTestOp>> {
+pub fn get_cache_test_benchmarks(client: DummyClient) -> Vec<DummyBenchmark<CacheTestOp>> {
     vec![
-        CacheTestFastOn3Type::make_benchmark(client),
+        CacheTestFastOn3Type::make_benchmark(client.clone()),
         CacheTestSlowOn3Type::make_benchmark(client),
     ]
 }

@@ -97,10 +97,10 @@ macro_rules! make_kernel {
         pub struct $name {}
 
         impl $name {
-            pub fn make_benchmark<'a>(client: &'a DummyClient) -> DummyBenchmark<'a, $operation> {
+            pub fn make_benchmark(client: DummyClient) -> DummyBenchmark<$operation> {
                 let kernel_constructor: Box<dyn Fn() -> <DummyServer as ComputeServer>::Kernel> =
                     Box::new(|| Box::new($kernel {}));
-                DummyBenchmark::<'a, $operation>::new(client, kernel_constructor)
+                DummyBenchmark::<$operation>::new(client, kernel_constructor)
             }
         }
     };

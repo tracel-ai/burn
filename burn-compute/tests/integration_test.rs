@@ -56,7 +56,7 @@ fn autotune_basic_addition_execution() {
     let out = client.empty(3);
     let handles = &[&lhs, &rhs, &out];
 
-    let benchmarks = get_addition_benchmarks(&client);
+    let benchmarks = get_addition_benchmarks(client.clone());
     let tuner = Tuner::new(benchmarks);
     let kernel = tuner.tune(ArraysResource::new([3, 3, 3]), handles);
 
@@ -77,7 +77,7 @@ fn autotune_basic_multiplication_execution() {
     let out = client.empty(3);
     let handles = &[&lhs, &rhs, &out];
 
-    let benchmarks = get_multiplication_benchmarks(&client);
+    let benchmarks = get_multiplication_benchmarks(client.clone());
     let tuner = Tuner::new(benchmarks);
     let kernel = tuner.tune(ArraysResource::new([3, 3, 3]), handles);
 
@@ -94,7 +94,7 @@ fn autotune_basic_multiplication_execution() {
 fn autotune_cache_hit_test() {
     let client = client(&DummyDevice);
 
-    let benchmarks = get_cache_test_benchmarks(&client);
+    let benchmarks = get_cache_test_benchmarks(client.clone());
     let tuner = Tuner::new(benchmarks);
 
     let lhs_1 = client.create(&[0, 1, 2]);
@@ -123,7 +123,7 @@ fn autotune_cache_hit_test() {
 fn autotune_cache_miss_test() {
     let client = client(&DummyDevice);
 
-    let benchmarks = get_cache_test_benchmarks(&client);
+    let benchmarks = get_cache_test_benchmarks(client.clone());
     let tuner = Tuner::new(benchmarks);
 
     let lhs_1 = client.create(&[0, 1, 2]);
