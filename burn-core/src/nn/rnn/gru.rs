@@ -140,9 +140,12 @@ impl<B: Backend> Gru<B> {
                 .mul(update_values.clone().sub_scalar(1).mul_scalar(-1)) // (1 - z(t)) = -(z(t) - 1)
                 + update_values.clone().mul(hidden_t);
 
+            let current_shape = state_vector.shape().dims;
+            let unsqueezed_shape = [current_shape[0], 1, current_shape[1]];
+            let reshaped_state_vector = state_vector.reshape(unsqueezed_shape);
             hidden_state = hidden_state.slice_assign(
                 [0..batch_size, t..(t + 1), 0..self.d_hidden],
-                state_vector.clone().unsqueeze(),
+                reshaped_state_vector,
             );
         }
 
