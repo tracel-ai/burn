@@ -6,6 +6,7 @@ use crate::checkpoint::{
 };
 use crate::components::LearnerComponentsMarker;
 use crate::info::MetricsInfo;
+use crate::info::{EarlyStopping, EarlyStoppingStrategy};
 use crate::learner::base::TrainingInterrupter;
 use crate::logger::{FileMetricLogger, MetricLogger};
 use crate::metric::{Adaptor, LossMetric, Metric};
@@ -48,6 +49,7 @@ where
     log_to_file: bool,
     num_loggers: usize,
     checkpointer_strategy: Box<dyn CheckpointingStrategy<AsyncEventCollector<T, V>>>,
+    early_stopping: Option<EarlyStopping>,
 }
 
 impl<B, T, V, M, O, S> LearnerBuilder<B, T, V, M, O, S>
@@ -87,6 +89,7 @@ where
                     ))
                     .build(),
             ),
+            early_stopping: None,
         }
     }
 
@@ -206,6 +209,13 @@ where
         self.interrupter.clone()
     }
 
+    /// Register an [early stopping strategy](EarlyStoppingStrategy) to stop the training when the
+    /// conditions are meet.
+    pub fn early_stopping<Strategy: EarlyStoppingStrategy>(mut self, strategy: Strategy) -> Self {
+        self.early_stopping = Some(strategy.into());
+        self
+    }
+
     /// By default, Rust logs are captured and written into
     /// `experiment.log`. If disabled, standard Rust log handling
     /// will apply.
@@ -311,6 +321,7 @@ where
             grad_accumulation: self.grad_accumulation,
             devices: self.devices,
             interrupter: self.interrupter,
+            early_stopping: self.early_stopping,
         }
     }
 

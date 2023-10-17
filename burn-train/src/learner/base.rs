@@ -1,5 +1,6 @@
 use crate::checkpoint::{Checkpointer, CheckpointingAction, CheckpointingStrategy};
 use crate::components::LearnerComponents;
+use crate::info::EarlyStopping;
 use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::Module;
 use burn_core::optim::Optimizer;
@@ -21,6 +22,7 @@ pub struct Learner<LC: LearnerComponents> {
     pub(crate) devices: Vec<<LC::Backend as Backend>::Device>,
     pub(crate) collector: LC::EventCollector,
     pub(crate) interrupter: TrainingInterrupter,
+    pub(crate) early_stopping: Option<EarlyStopping>,
 }
 
 #[derive(new)]

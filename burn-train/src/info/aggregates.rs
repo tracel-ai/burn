@@ -4,7 +4,7 @@ use std::collections::HashMap;
 /// Type that can be used to fetch and use numeric metric aggregates.
 #[derive(Default, Debug)]
 pub(crate) struct NumericMetricsAggregate {
-    mean_for_each_epoch: HashMap<Key, f64>,
+    value_for_each_epoch: HashMap<Key, f64>,
 }
 
 #[derive(new, Hash, PartialEq, Eq, Debug)]
@@ -14,15 +14,16 @@ struct Key {
 }
 
 impl NumericMetricsAggregate {
-    pub(crate) fn mean(
+    pub(crate) fn aggregate(
         &mut self,
         name: &str,
         epoch: usize,
+        aggregate: Aggregate,
         loggers: &mut [Box<dyn MetricLogger>],
     ) -> Option<f64> {
         let key = Key::new(name.to_string(), epoch);
 
-        if let Some(value) = self.mean_for_each_epoch.get(&key) {
+        if let Some(value) = self.value_for_each_epoch.get(&key) {
             return Some(*value);
         }
 
@@ -45,10 +46,13 @@ impl NumericMetricsAggregate {
         }
 
         let num_points = points.len();
-        let mean = points.into_iter().sum::<f64>() / num_points as f64;
+        let sum = points.into_iter().sum::<f64>();
+        let value = match aggregate {
+            Aggregate::Mean => sum / num_points as f64,
+        };
 
-        self.mean_for_each_epoch.insert(key, mean);
-        Some(mean)
+        self.value_for_each_epoch.insert(key, value);
+        Some(value)
     }
 
     pub(crate) fn find_epoch(
@@ -62,13 +66,11 @@ impl NumericMetricsAggregate {
         let mut current_epoch = 1;
 
         loop {
-            match aggregate {
-                Aggregate::Mean => match self.mean(name, current_epoch, loggers) {
-                    Some(value) => {
-                        data.push(value);
-                    }
-                    None => break,
-                },
+            match self.aggregate(name, current_epoch, aggregate, loggers) {
+                Some(value) => {
+                    data.push(value);
+                }
+                None => break,
             };
 
             current_epoch += 1;

@@ -153,6 +153,25 @@ where
         }
     }
 
+    pub(crate) fn find_metric(
+        &mut self,
+        name: &str,
+        epoch: usize,
+        aggregate: Aggregate,
+        split: Split,
+    ) -> Option<f64> {
+        match split {
+            Split::Train => {
+                self.aggregate_train
+                    .aggregate(name, epoch, aggregate, &mut self.loggers_train)
+            }
+            Split::Valid => {
+                self.aggregate_valid
+                    .aggregate(name, epoch, aggregate, &mut self.loggers_valid)
+            }
+        }
+    }
+
     /// Register a logger for training metrics.
     pub(crate) fn register_logger_train<ML: MetricLogger + 'static>(&mut self, logger: ML) {
         self.loggers_train.push(Box::new(logger));

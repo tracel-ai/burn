@@ -13,6 +13,13 @@ enum Message<T, V> {
         Split,
         mpsc::SyncSender<Option<usize>>,
     ),
+    FindMetric(
+        String,
+        usize,
+        Aggregate,
+        Split,
+        mpsc::SyncSender<Option<f64>>,
+    ),
 }
 
 /// Async [event collector](EventCollector).
@@ -44,6 +51,10 @@ where
                     let response = self
                         .collector
                         .find_epoch(&name, aggregate, direction, split);
+                    sender.send(response).unwrap();
+                }
+                Message::FindMetric(name, epoch, aggregate, split, sender) => {
+                    let response = self.collector.find_metric(&name, epoch, aggregate, split);
                     sender.send(response).unwrap();
                 }
                 Message::OnEventTrain(event) => self.collector.on_event_train(event),
@@ -94,6 +105,30 @@ impl<T: Send, V: Send> EventCollector for AsyncEventCollector<T, V> {
                 name.to_string(),
                 aggregate,
                 direction,
+                split,
+                sender,
+            ))
+            .unwrap();
+
+        match receiver.recv() {
+            Ok(value) => value,
+            Err(err) => panic!("Async server crashed: {:?}", err),
+        }
+    }
+
+    fn find_metric(
+        &mut self,
+        name: &str,
+        epoch: usize,
+        aggregate: Aggregate,
+        split: Split,
+    ) -> Option<f64> {
+        let (sender, receiver) = mpsc::sync_channel(1);
+        self.sender
+            .send(Message::FindMetric(
+                name.to_string(),
+                epoch,
+                aggregate,
                 split,
                 sender,
             ))

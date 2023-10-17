@@ -47,6 +47,16 @@ where
     ) -> Option<usize> {
         self.info.find_epoch(name, aggregate, direction, split)
     }
+
+    fn find_metric(
+        &mut self,
+        name: &str,
+        epoch: usize,
+        aggregate: Aggregate,
+        split: Split,
+    ) -> Option<f64> {
+        self.info.find_metric(name, epoch, aggregate, split)
+    }
 }
 
 impl<T, V> RenderedMetricsEventCollector<T, V>

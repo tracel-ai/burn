@@ -31,6 +31,15 @@ pub trait EventCollector: Send {
         direction: Direction,
         split: Split,
     ) -> Option<usize>;
+
+    /// Find the metric value for the current epoch following the given criteria.
+    fn find_metric(
+        &mut self,
+        name: &str,
+        epoch: usize,
+        aggregate: Aggregate,
+        split: Split,
+    ) -> Option<f64>;
 }
 
 #[derive(Copy, Clone)]
@@ -129,6 +138,16 @@ pub mod test_utils {
             split: Split,
         ) -> Option<usize> {
             self.info.find_epoch(name, aggregate, direction, split)
+        }
+
+        fn find_metric(
+            &mut self,
+            name: &str,
+            epoch: usize,
+            aggregate: Aggregate,
+            split: Split,
+        ) -> Option<f64> {
+            self.info.find_metric(name, epoch, aggregate, split)
         }
     }
 }

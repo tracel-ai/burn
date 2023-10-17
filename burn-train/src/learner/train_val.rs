@@ -181,6 +181,12 @@ impl<LC: LearnerComponents> Learner<LC> {
                     &mut self.collector,
                 );
             }
+
+            if let Some(early_stopping) = &mut self.early_stopping {
+                if early_stopping.should_stop::<LC>(epoch, &mut self.collector) {
+                    break;
+                }
+            }
         }
 
         self.model
