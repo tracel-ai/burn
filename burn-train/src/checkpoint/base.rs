@@ -23,6 +23,9 @@ pub trait Checkpointer<R: Record> {
     /// * `record` - The record.
     fn save(&self, epoch: usize, record: R) -> Result<(), CheckpointerError>;
 
+    /// Delete the record at the given epoch if present.
+    fn delete(&self, epoch: usize) -> Result<(), CheckpointerError>;
+
     /// Restore the record.
     ///
     /// # Arguments

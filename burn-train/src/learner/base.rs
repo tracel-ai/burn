@@ -1,4 +1,4 @@
-use crate::checkpoint::Checkpointer;
+use crate::checkpoint::{Checkpointer, CheckpointingAction, CheckpointingStrategy};
 use crate::components::LearnerComponents;
 use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::Module;
@@ -28,21 +28,36 @@ pub(crate) struct LearnerCheckpointer<LC: LearnerComponents> {
     model: LC::CheckpointerModel,
     optim: LC::CheckpointerOptimizer,
     lr_scheduler: LC::CheckpointerLrScheduler,
+    strategy: LC::CheckpointerStrategy,
 }
 
 impl<LC: LearnerComponents> LearnerCheckpointer<LC> {
     pub(crate) fn checkpoint(
-        &self,
+        &mut self,
         model: &LC::Model,
         optim: &LC::Optimizer,
         scheduler: &LC::LrScheduler,
         epoch: usize,
+        collector: &mut LC::EventCollector,
     ) {
-        self.model.save(epoch, model.clone().into_record()).unwrap();
-        self.optim.save(epoch, optim.to_record()).unwrap();
-        self.lr_scheduler
-            .save(epoch, scheduler.to_record())
-            .unwrap();
+        let actions = self.strategy.checkpointing(epoch, collector);
+
+        for action in actions {
+            match action {
+                CheckpointingAction::Delete(epoch) => {
+                    self.model.delete(epoch).unwrap();
+                    self.optim.delete(epoch).unwrap();
+                    self.lr_scheduler.delete(epoch).unwrap();
+                }
+                CheckpointingAction::Save => {
+                    self.model.save(epoch, model.clone().into_record()).unwrap();
+                    self.optim.save(epoch, optim.to_record()).unwrap();
+                    self.lr_scheduler
+                        .save(epoch, scheduler.to_record())
+                        .unwrap();
+                }
+            }
+        }
     }
 
     pub(crate) fn load_checkpoint(
