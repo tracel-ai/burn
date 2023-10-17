@@ -47,11 +47,21 @@ where
         self.server.lock().empty(size)
     }
 
-    fn execute(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]) {
-        self.server.lock().execute(kernel, handles)
+    fn execute_kernel(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]) {
+        self.server.lock().execute_kernel(kernel, handles)
     }
 
     fn sync(&self) {
         self.server.lock().sync()
+    }
+
+    fn execute_autotune(
+        &self,
+        autotune_kernel: Box<dyn crate::tune::AutotuneKernel<Server>>,
+        handles: &[&Handle<Server>],
+    ) -> usize {
+        self.server
+            .lock()
+            .execute_autotune(autotune_kernel, handles)
     }
 }

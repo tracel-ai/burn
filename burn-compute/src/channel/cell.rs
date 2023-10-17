@@ -55,13 +55,23 @@ where
         self.server.borrow_mut().empty(size)
     }
 
-    fn execute(&self, kernel_description: Server::Kernel, handles: &[&Handle<Server>]) {
+    fn execute_kernel(&self, kernel_description: Server::Kernel, handles: &[&Handle<Server>]) {
         self.server
             .borrow_mut()
-            .execute(kernel_description, handles)
+            .execute_kernel(kernel_description, handles)
     }
 
     fn sync(&self) {
         self.server.borrow_mut().sync()
+    }
+
+    fn execute_autotune(
+        &self,
+        autotune_kernel: Box<dyn crate::tune::AutotuneKernel<Server>>,
+        handles: &[&Handle<Server>],
+    ) -> usize {
+        self.server
+            .borrow_mut()
+            .execute_autotune(autotune_kernel, handles)
     }
 }

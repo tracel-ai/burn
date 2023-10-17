@@ -1,6 +1,7 @@
 use crate::{
     memory_management::{MemoryHandle, MemoryManagement},
     storage::ComputeStorage,
+    tune::AutotuneKernel,
 };
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
@@ -33,10 +34,17 @@ where
     ///
     /// Kernels have mutable access to every resource they are given
     /// and are responsible of determining which should be read or written.
-    fn execute(&mut self, kernel: Self::Kernel, handles: &[&Handle<Self>]);
+    fn execute_kernel(&mut self, kernel: Self::Kernel, handles: &[&Handle<Self>]);
 
     /// Wait for the completion of every task in the server.
     fn sync(&mut self);
+
+    /// Returns the index of the fastest kernel in the vector of kernels
+    fn execute_autotune(
+        &mut self,
+        autotune_kernel: Box<dyn AutotuneKernel<Self>>,
+        handles: &[&Handle<Self>],
+    ) -> usize;
 }
 
 /// Server handle containing the [memory handle](MemoryManagement::Handle).

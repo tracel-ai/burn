@@ -1,12 +1,14 @@
-/// Format of the inputs and outputs of a kernel
-pub trait HashableResources {
-    /// Description used as an autotune key
-    fn key(&self) -> String;
-}
+use core::fmt::Debug;
+
+use crate::server::{ComputeServer, Handle};
 
 /// Type of operation for the kernel
-// pub trait Operation: PartialEq + Eq + Hash {
-pub trait Operation {
-    /// Input and output format for the operation
-    type Resources: HashableResources;
+pub trait AutotuneKernel<S>: Debug + Send
+where
+    S: ComputeServer,
+{
+    fn autotune_key(&self) -> String;
+    fn autotune_kernels(&self) -> Vec<S::Kernel>;
+    fn autotune_handles(&self) -> &[&Handle<S>];
+    fn fastest_kernel(&self, fastest_kernel_index: usize) -> S::Kernel;
 }

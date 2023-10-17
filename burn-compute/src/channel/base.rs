@@ -1,4 +1,7 @@
-use crate::server::{ComputeServer, Handle};
+use crate::{
+    server::{ComputeServer, Handle},
+    tune::AutotuneKernel,
+};
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
 
@@ -15,8 +18,14 @@ pub trait ComputeChannel<Server: ComputeServer>: Clone + core::fmt::Debug {
     fn empty(&self, size: usize) -> Handle<Server>;
 
     /// Executes the `kernel` over the given `handles`.
-    fn execute(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]);
+    fn execute_kernel(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]);
 
     /// Wait for the completion of every task in the server.
     fn sync(&self);
+
+    fn execute_autotune(
+        &self,
+        autotune_kernel: Box<dyn AutotuneKernel<Server>>,
+        handles: &[&Handle<Server>],
+    ) -> usize;
 }

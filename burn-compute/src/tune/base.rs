@@ -1,56 +1,49 @@
+use core::marker::PhantomData;
 use core::time::Duration;
 
-use spin::Mutex;
+use burn_common::benchmark::BenchmarkResult;
+use hashbrown::HashMap;
 
 use crate::server::ComputeServer;
 use crate::server::Handle;
-use crate::tune::{BenchmarkPool, Operation};
 
-use super::BenchmarkResult;
-use super::TuneBenchmark;
+use super::AutotuneKernel;
 
 /// Use to find and reuse the best kernel for some input
-pub struct Tuner<TB, O, S>
+pub struct Tuner<S>
 where
-    TB: TuneBenchmark<O, S>,
-    O: Operation,
     S: ComputeServer,
 {
-    benchmark_pool: Mutex<BenchmarkPool<TB, O, S>>,
+    _server: PhantomData<S>,
+    cache: HashMap<String, usize>,
 }
 
-impl<TB, O, S> Tuner<TB, O, S>
+impl<S> Tuner<S>
 where
-    TB: TuneBenchmark<O, S>,
-    O: Operation,
     S: ComputeServer,
 {
-    /// Create a tuner over tune benchmarks which contain kernels
-    pub fn new(benchmarks: Vec<TB>) -> Self {
+    pub fn new() -> Self {
         Tuner {
-            benchmark_pool: Mutex::new(BenchmarkPool::new(benchmarks)),
+            cache: HashMap::new(),
+            _server: PhantomData,
         }
     }
 
     /// Looks for cached kernel for the input or finds one manually, saving the fastest one
-    pub fn tune(&self, resources: O::Resources, handles: &[&Handle<S>]) -> S::Kernel {
-        let mut benchmark_pool = self.benchmark_pool.lock();
-
-        benchmark_pool
-            .try_cache(&resources)
-            .unwrap_or(self.no_kernel_type_found(&mut benchmark_pool, &resources, handles))
+    pub fn tune(&mut self, autotune_kernel: Box<dyn AutotuneKernel<S>>) -> S::Kernel {
+        self.try_cache(autotune_kernel)
+            .unwrap_or(self.no_kernel_type_found(autotune_kernel))
     }
 
-    fn no_kernel_type_found(
-        &self,
-        benchmark_pool: &mut BenchmarkPool<TB, O, S>,
-        resources: &O::Resources,
-        handles: &[&Handle<S>],
-    ) -> S::Kernel {
-        let results = benchmark_pool.run_benchmarks(handles);
-        let best_index = self.find_fastest(results);
-        benchmark_pool.add_to_cache(resources, best_index);
-        benchmark_pool.get_kernel(best_index)
+    fn no_kernel_type_found(&mut self, autotune_kernel: Box<dyn AutotuneKernel<S>>) -> S::Kernel {
+        let results = autotune_kernel
+            .autotune_kernels()
+            .iter()
+            .map(|kernel| self.run_benchmark(kernel, autotune_kernel.autotune_handles()))
+            .collect();
+        let fastest_index = self.find_fastest(results);
+        self.add_to_cache(autotune_kernel, fastest_index);
+        autotune_kernel.fastest_kernel(fastest_index)
     }
 
     fn find_fastest(&self, results: Vec<BenchmarkResult>) -> usize {
@@ -67,5 +60,21 @@ where
         }
 
         fastest_tunable.expect("At least one kernel needed. ")
+    }
+
+    fn run_benchmark(&self, kernel: &S::Kernel, handles: &[&Handle<S>]) -> BenchmarkResult {
+        todo!()
+    }
+
+    fn try_cache(&self, autotune_kernel: Box<dyn AutotuneKernel<S>>) -> Option<S::Kernel> {
+        let index = self.cache.get(&autotune_kernel.autotune_key());
+        if let Some(&i) = index {
+            return Some(autotune_kernel.fastest_kernel(i));
+        }
+        None
+    }
+
+    fn add_to_cache(&mut self, autotune_kernel: Box<dyn AutotuneKernel<S>>, index: usize) {
+        self.cache.insert(autotune_kernel.autotune_key(), index);
     }
 }

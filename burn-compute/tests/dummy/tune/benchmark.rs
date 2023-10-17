@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use burn_compute::{
     server::Handle,
-    tune::{Operation, TuneBenchmark},
+    tune::{AutotuneKernel, TuneBenchmark},
 };
 use derive_new::new;
 
@@ -24,7 +24,7 @@ pub struct DummyBenchmark<O> {
     _operation: PhantomData<O>,
 }
 
-impl<'a, O: Operation> TuneBenchmark<O, DummyServer> for DummyBenchmark<O> {
+impl<'a, O: AutotuneKernel<DummyServer>> TuneBenchmark<O, DummyServer> for DummyBenchmark<O> {
     fn make_kernel(&self) -> Box<dyn DummyKernel> {
         (self.kernel_constructor)()
     }
@@ -38,7 +38,7 @@ impl<'a, O: Operation> TuneBenchmark<O, DummyServer> for DummyBenchmark<O> {
     }
 }
 
-pub fn get_addition_benchmarks(client: DummyClient) -> Vec<DummyBenchmark<AdditionOp>> {
+pub fn get_addition_kernels(client: DummyClient) -> Vec<DummyBenchmark<AdditionOp>> {
     vec![
         DummyElementwiseAdditionType::make_benchmark(client.clone()),
         DummyElementwiseAdditionSlowWrongType::make_benchmark(client),

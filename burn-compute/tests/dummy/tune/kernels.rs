@@ -92,39 +92,40 @@ impl DummyKernel for CacheTestSlowOn3 {
     }
 }
 
-macro_rules! make_kernel {
-    ($name:ident, $kernel:ident, $operation:ident) => {
-        pub struct $name {}
+// macro_rules! make_kernel {
+//     ($name:ident, $kernel:ident, $operation:ident) => {
+//         pub struct $name {}
 
-        impl $name {
-            pub fn make_benchmark(client: DummyClient) -> DummyBenchmark<$operation> {
-                let kernel_constructor: Box<dyn Fn() -> <DummyServer as ComputeServer>::Kernel> =
-                    Box::new(|| Box::new($kernel {}));
-                DummyBenchmark::<$operation>::new(client, kernel_constructor)
-            }
-        }
-    };
-}
+//         impl $name {
+//             pub fn make_benchmark(client: DummyClient) -> DummyBenchmark<$operation> {
+//                 let kernel_constructor: Box<dyn Fn() -> <DummyServer as ComputeServer>::Kernel> =
+//                     Box::new(|| Box::new($kernel {}));
+//                 DummyBenchmark::<$operation>::new(client, kernel_constructor)
+//             }
+//         }
+//     };
+// }
 
-make_kernel!(
-    DummyElementwiseAdditionType,
-    DummyElementwiseAddition,
-    AdditionOp
-);
-make_kernel!(
-    DummyElementwiseAdditionSlowWrongType,
-    DummyElementwiseAdditionSlowWrong,
-    AdditionOp
-);
-make_kernel!(
-    DummyElementwiseMultiplicationType,
-    DummyElementwiseMultiplication,
-    MultiplicationOp
-);
-make_kernel!(
-    DummyElementwiseMultiplicationSlowWrongType,
-    DummyElementwiseMultiplicationSlowWrong,
-    MultiplicationOp
-);
-make_kernel!(CacheTestFastOn3Type, CacheTestFastOn3, CacheTestOp);
-make_kernel!(CacheTestSlowOn3Type, CacheTestSlowOn3, CacheTestOp);
+// make_kernel!(
+//     DummyElementwiseAdditionType,
+//     DummyElementwiseAddition,
+//     AdditionOp
+// );
+// make_kernel!(
+//     DummyElementwiseAdditionSlowWrongType,
+//     DummyElementwiseAdditionSlowWrong,
+//     AdditionOp
+// );
+// make_kernel!(
+//     DummyElementwiseMultiplicationType,
+//     DummyElementwiseMultiplication,
+//     MultiplicationOp
+// );
+// make_kernel!(
+//     DummyElementwiseMultiplicationSlowWrongType,
+//     DummyElementwiseMultiplicationSlowWrong,
+//     MultiplicationOp
+// );
+// make_kernel!(CacheTestFastOn3Type, CacheTestFastOn3, CacheTestOp);
+// make_kernel!(CacheTestSlowOn3Type, CacheTestSlowOn3, CacheTestOp);
+

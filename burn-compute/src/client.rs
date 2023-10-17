@@ -1,6 +1,7 @@
 use crate::{
     channel::ComputeChannel,
     server::{ComputeServer, Handle},
+    tune::AutotuneKernel,
 };
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
@@ -56,12 +57,21 @@ where
     }
 
     /// Executes the `kernel` over the given `handles`.
-    pub fn execute(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]) {
-        self.channel.execute(kernel, handles)
+    pub fn execute_kernel(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]) {
+        self.channel.execute_kernel(kernel, handles)
     }
 
     /// Wait for the completion of every task in the server.
     pub fn sync(&self) {
         self.channel.sync()
+    }
+
+    pub fn execute_autotune<AK: AutotuneKernel<Server>>(
+        &self,
+        autotune_kernel: AK,
+        handles: &[&Handle<Server>],
+    ) {
+        self.channel
+            .execute_autotune(Box::new(autotune_kernel), handles);
     }
 }
