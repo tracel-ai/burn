@@ -67,14 +67,8 @@ impl NumericMetricsAggregate {
         let mut data = Vec::new();
         let mut current_epoch = 1;
 
-        loop {
-            match self.aggregate(name, current_epoch, aggregate, loggers) {
-                Some(value) => {
-                    data.push(value);
-                }
-                None => break,
-            };
-
+        while let Some(value) = self.aggregate(name, current_epoch, aggregate, loggers) {
+            data.push(value);
             current_epoch += 1;
         }
 

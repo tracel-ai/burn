@@ -11,20 +11,14 @@ pub struct ComposedCheckpointingStrategy {
 }
 
 /// Help building a [checkpointing strategy](CheckpointingStrategy) by combining multiple ones.
+#[derive(Default)]
 pub struct ComposedCheckpointingStrategyBuilder {
     strategies: Vec<Box<dyn CheckpointingStrategy>>,
 }
 
-impl Default for ComposedCheckpointingStrategyBuilder {
-    fn default() -> Self {
-        Self {
-            strategies: Vec::new(),
-        }
-    }
-}
-
 impl ComposedCheckpointingStrategyBuilder {
     /// Add a new [checkpointing strategy](CheckpointingStrategy).
+    #[allow(clippy::should_implement_trait)]
     pub fn add<S>(mut self, strategy: S) -> Self
     where
         S: CheckpointingStrategy + 'static,

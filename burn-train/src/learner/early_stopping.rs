@@ -87,9 +87,9 @@ impl EarlyStoppingStrategy for MetricEarlyStoppingStrategy {
     }
 }
 
-impl Into<EarlyStopping> for MetricEarlyStoppingStrategy {
-    fn into(self) -> EarlyStopping {
-        EarlyStopping::Metric(self)
+impl From<MetricEarlyStoppingStrategy> for EarlyStopping {
+    fn from(val: MetricEarlyStoppingStrategy) -> Self {
+        EarlyStopping::Metric(val)
     }
 }
 
