@@ -1,7 +1,4 @@
-use burn_compute::{
-    server::{ComputeServer, Handle},
-    tune::{AutotuneOperation, Operation},
-};
+use burn_compute::tune::{AutotuneOperation, Operation};
 use derive_new::new;
 
 use crate::dummy::{DummyElementwiseAddition, DummyKernel, DummyServer};

@@ -3,7 +3,6 @@ use burn_compute::{
     memory_management::{MemoryManagement, SimpleMemoryManagement},
     server::{ComputeServer, Handle},
     storage::BytesStorage,
-    tune::{AutotuneOperation, Tuner},
 };
 use derive_new::new;
 
@@ -14,7 +13,6 @@ use super::DummyKernel;
 #[derive(new, Debug)]
 pub struct DummyServer<MM = SimpleMemoryManagement<BytesStorage>> {
     memory_management: MM,
-    tuner: Tuner,
 }
 
 impl<MM> ComputeServer for DummyServer<MM>
@@ -60,5 +58,4 @@ where
     fn sync(&mut self) {
         // Nothing to do with dummy backend.
     }
-
 }

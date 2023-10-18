@@ -1,3 +1,4 @@
+use core::marker::PhantomData;
 use core::time::Duration;
 
 use burn_common::benchmark::BenchmarkResult;
@@ -11,43 +12,37 @@ use super::Operation;
 
 /// Use to find and reuse the best kernel for some input
 #[derive(Debug)]
-pub struct Tuner {
+pub struct Tuner<S> {
     cache: HashMap<String, usize>,
+    _server: PhantomData<S>,
 }
 
-impl Tuner {
+impl<S: ComputeServer> Tuner<S> {
     pub fn new() -> Self {
         Tuner {
             cache: HashMap::new(),
+            _server: PhantomData,
         }
     }
 
     /// Looks for cached kernel for the input or finds one manually, saving the fastest one
-    pub fn tune<S: ComputeServer>(
-        &mut self,
-        autotune_operation: Box<dyn AutotuneOperation<S>>,
-        autotune_handles: Vec<Handle<S>>,
-    ) -> Operation<S> {
-        self.try_cache(&autotune_operation)
-            .unwrap_or(self.no_kernel_type_found(autotune_operation, autotune_handles))
-    }
+    // pub fn tune(
+    //     &mut self,
+    //     autotune_operation: Box<dyn AutotuneOperation<S>>,
+    //     autotune_handles: Vec<Handle<S>>,
+    // ) -> Operation<S> {
+    //     self.try_cache(&autotune_operation)
+    //         .unwrap_or(self.no_kernel_type_found(autotune_operation, autotune_handles))
+    // }
 
-    fn no_kernel_type_found<S: ComputeServer>(
-        &mut self,
-        autotune_operation: Box<dyn AutotuneOperation<S>>,
-        autotune_handles: Vec<Handle<S>>,
-    ) -> Operation<S> {
-        let results = autotune_operation
-            .autotunables()
-            .into_iter()
-            .map(|op| self.run_benchmark(op, &autotune_handles))
-            .collect();
-        let fastest_index = self.find_fastest(results);
-        self.cache.insert(autotune_operation.key(), fastest_index);
-        autotune_operation.fastest(fastest_index)
-    }
+    // pub fn find_fastest_operation(
+    //     &mut self,
+    //     autotune_operation: Box<dyn AutotuneOperation<S>>,
+    //     autotune_handles: Vec<Handle<S>>,
+    // ) -> Operation<S> {
+    // }
 
-    fn find_fastest(&self, results: Vec<BenchmarkResult>) -> usize {
+    pub(crate) fn find_fastest(&self, results: Vec<BenchmarkResult>) -> usize {
         let mut smallest_duration = Duration::MAX;
         let mut fastest_tunable = None;
 
@@ -63,23 +58,18 @@ impl Tuner {
         fastest_tunable.expect("At least one kernel needed. ")
     }
 
-    fn run_benchmark<S: ComputeServer>(
+    pub(crate) fn try_cache(
         &self,
-        operation: Operation<S>,
-        handles: &Vec<Handle<S>>,
-    ) -> BenchmarkResult {
-        // operation.execute(handles);
-        todo!()
-    }
-
-    fn try_cache<S: ComputeServer>(
-        &self,
-        autotune_kernel: &Box<dyn AutotuneOperation<S>>,
+        autotune_operation: &Box<dyn AutotuneOperation<S>>,
     ) -> Option<Operation<S>> {
-        let index = self.cache.get(&autotune_kernel.key());
+        let index = self.cache.get(&autotune_operation.key());
         if let Some(&i) = index {
-            return Some(autotune_kernel.fastest(i));
+            return Some(autotune_operation.fastest(i));
         }
         None
+    }
+
+    pub(crate) fn cache_insert(&mut self, key: String, fastest_index: usize) -> () {
+        self.cache.insert(key, fastest_index);
     }
 }
