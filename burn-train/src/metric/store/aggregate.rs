@@ -135,8 +135,8 @@ mod tests {
             ));
         }
         fn new_epoch(&mut self) {
-            self.epoch += 1;
             self.logger.end_epoch(self.epoch);
+            self.epoch += 1;
         }
     }
 
