@@ -196,7 +196,7 @@ impl<B: Backend> Gru<B> {
 mod tests {
     use super::*;
     use crate::{module::Param, nn::LinearRecord, TestBackend};
-    use burn_tensor::Data;
+    use burn_tensor::{Data, Distribution};
 
     /// Test forward pass with simple input vector.
     ///
@@ -265,5 +265,15 @@ mod tests {
         let output = state.select(0, Tensor::arange(0..1)).squeeze(0);
 
         output.to_data().assert_approx_eq(&Data::from([[0.034]]), 3);
+    }
+
+    #[test]
+    fn test_batched_forward_pass() {
+        let gru = GruConfig::new(64, 1024, true).init::<TestBackend>();
+        let batched_input = Tensor::<TestBackend, 3>::random([8, 10, 64], Distribution::Default);
+
+        let hidden_state = gru.forward(batched_input, None);
+
+        assert_eq!(hidden_state.shape().dims, [8, 10, 1024]);
     }
 }

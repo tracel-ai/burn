@@ -218,7 +218,7 @@ impl<B: Backend> Lstm<B> {
 mod tests {
     use super::*;
     use crate::{module::Param, nn::LinearRecord, TestBackend};
-    use burn_tensor::Data;
+    use burn_tensor::{Data, Distribution};
 
     #[test]
     fn test_with_uniform_initializer() {
@@ -321,5 +321,16 @@ mod tests {
         hidden_state
             .to_data()
             .assert_approx_eq(&Data::from([[0.024]]), 3)
+    }
+
+    #[test]
+    fn test_batched_forward_pass() {
+        let lstm = LstmConfig::new(64, 1024, true).init::<TestBackend>();
+        let batched_input = Tensor::<TestBackend, 3>::random([8, 10, 64], Distribution::Default);
+
+        let (cell_state, hidden_state) = lstm.forward(batched_input, None);
+
+        assert_eq!(cell_state.shape().dims, [8, 10, 1024]);
+        assert_eq!(hidden_state.shape().dims, [8, 10, 1024]);
     }
 }
