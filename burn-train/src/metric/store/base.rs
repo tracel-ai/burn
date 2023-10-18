@@ -2,7 +2,7 @@ use crate::metric::MetricEntry;
 
 /// Event happening during the training/validation process.
 pub enum Event {
-    /// Signal that an item have been processed.
+    /// Signal that metrics have been updated.
     MetricsUpdate(MetricsUpdate),
     /// Signal the end of an epoch.
     EndEpoch(usize),
@@ -11,9 +11,9 @@ pub enum Event {
 /// Contains all metric information.
 #[derive(new, Clone)]
 pub struct MetricsUpdate {
-    /// Metric information related to non-numeric metrics.
+    /// Metrics information related to non-numeric metrics.
     pub entries: Vec<MetricEntry>,
-    /// Metric information related to numeric metrics.
+    /// Metrics information related to numeric metrics.
     pub entries_numeric: Vec<(MetricEntry, f64)>,
 }
 
@@ -21,7 +21,7 @@ pub struct MetricsUpdate {
 ///
 /// This trait also exposes methods that uses the collected data to compute useful information.
 pub(crate) trait EventStore: Send {
-    /// Collect the training event.
+    /// Collect a training/validation event.
     fn add_event(&mut self, event: Event, split: Split);
 
     /// Find the epoch following the given criteria from the collected data.
@@ -43,7 +43,7 @@ pub(crate) trait EventStore: Send {
     ) -> Option<f64>;
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Hash, PartialEq, Eq, Debug)]
 /// How to aggregate the metric.
 pub enum Aggregate {
     /// Compute the average.

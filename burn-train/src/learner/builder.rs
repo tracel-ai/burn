@@ -8,7 +8,7 @@ use crate::checkpoint::{
 };
 use crate::components::LearnerComponentsMarker;
 use crate::learner::base::TrainingInterrupter;
-use crate::learner::{EarlyStopping, EarlyStoppingStrategy};
+use crate::learner::EarlyStoppingStrategy;
 use crate::logger::{FileMetricLogger, MetricLogger};
 use crate::metric::processor::{FullEventProcessor, Metrics};
 use crate::metric::store::{Aggregate, Direction, EventStoreClient, LogEventStore, Split};
@@ -52,7 +52,7 @@ where
     log_to_file: bool,
     num_loggers: usize,
     checkpointer_strategy: Box<dyn CheckpointingStrategy>,
-    early_stopping: Option<EarlyStopping>,
+    early_stopping: Option<Box<dyn EarlyStoppingStrategy>>,
 }
 
 impl<B, T, V, M, O, S> LearnerBuilder<B, T, V, M, O, S>
@@ -215,8 +215,11 @@ where
 
     /// Register an [early stopping strategy](EarlyStoppingStrategy) to stop the training when the
     /// conditions are meet.
-    pub fn early_stopping<Strategy: EarlyStoppingStrategy>(mut self, strategy: Strategy) -> Self {
-        self.early_stopping = Some(strategy.into());
+    pub fn early_stopping<Strategy>(mut self, strategy: Strategy) -> Self
+    where
+        Strategy: EarlyStoppingStrategy + 'static,
+    {
+        self.early_stopping = Some(Box::new(strategy));
         self
     }
 

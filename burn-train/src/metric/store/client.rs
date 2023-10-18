@@ -2,26 +2,6 @@ use super::EventStore;
 use super::{Aggregate, Direction, Event, Split};
 use std::{sync::mpsc, thread::JoinHandle};
 
-enum Message {
-    OnEventTrain(Event),
-    OnEventValid(Event),
-    End,
-    FindEpoch(
-        String,
-        Aggregate,
-        Direction,
-        Split,
-        mpsc::SyncSender<Option<usize>>,
-    ),
-    FindMetric(
-        String,
-        usize,
-        Aggregate,
-        Split,
-        mpsc::SyncSender<Option<f64>>,
-    ),
-}
-
 /// Type that allows to communicate with an [event store](EventStore).
 pub struct EventStoreClient {
     sender: mpsc::Sender<Message>,
@@ -46,12 +26,12 @@ impl EventStoreClient {
 
 impl EventStoreClient {
     /// Add a training event to the [event store](EventStore).
-    pub fn add_event_train(&self, event: Event) {
+    pub(crate) fn add_event_train(&self, event: Event) {
         self.sender.send(Message::OnEventTrain(event)).unwrap();
     }
 
     /// Add a validation event to the [event store](EventStore).
-    pub fn add_event_valid(&self, event: Event) {
+    pub(crate) fn add_event_valid(&self, event: Event) {
         self.sender.send(Message::OnEventValid(event)).unwrap();
     }
 
@@ -76,7 +56,7 @@ impl EventStoreClient {
 
         match receiver.recv() {
             Ok(value) => value,
-            Err(err) => panic!("Async server crashed: {:?}", err),
+            Err(err) => panic!("Event store thread crashed: {:?}", err),
         }
     }
 
@@ -101,7 +81,7 @@ impl EventStoreClient {
 
         match receiver.recv() {
             Ok(value) => value,
-            Err(err) => panic!("Async server crashed: {:?}", err),
+            Err(err) => panic!("Event store thread crashed: {:?}", err),
         }
     }
 }
@@ -135,6 +115,26 @@ where
             }
         }
     }
+}
+
+enum Message {
+    OnEventTrain(Event),
+    OnEventValid(Event),
+    End,
+    FindEpoch(
+        String,
+        Aggregate,
+        Direction,
+        Split,
+        mpsc::SyncSender<Option<usize>>,
+    ),
+    FindMetric(
+        String,
+        usize,
+        Aggregate,
+        Split,
+        mpsc::SyncSender<Option<f64>>,
+    ),
 }
 
 impl Drop for EventStoreClient {

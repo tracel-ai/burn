@@ -1,6 +1,6 @@
 use crate::checkpoint::{Checkpointer, CheckpointingAction, CheckpointingStrategy};
 use crate::components::LearnerComponents;
-use crate::learner::EarlyStopping;
+use crate::learner::EarlyStoppingStrategy;
 use crate::metric::store::EventStoreClient;
 use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::Module;
@@ -22,7 +22,7 @@ pub struct Learner<LC: LearnerComponents> {
     pub(crate) checkpointer: Option<LearnerCheckpointer<LC>>,
     pub(crate) devices: Vec<<LC::Backend as Backend>::Device>,
     pub(crate) interrupter: TrainingInterrupter,
-    pub(crate) early_stopping: Option<EarlyStopping>,
+    pub(crate) early_stopping: Option<Box<dyn EarlyStoppingStrategy>>,
     pub(crate) event_processor: LC::EventProcessor,
     pub(crate) event_store: Arc<EventStoreClient>,
 }

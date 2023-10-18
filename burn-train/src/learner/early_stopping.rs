@@ -3,20 +3,6 @@ use crate::metric::{
     Metric,
 };
 
-/// Break of the training loop when some conditions are meet.
-pub enum EarlyStopping {
-    /// Strategy based on metrics.
-    Metric(MetricEarlyStoppingStrategy),
-}
-
-impl EarlyStopping {
-    pub(crate) fn should_stop(&mut self, epoch: usize, info: &EventStoreClient) -> bool {
-        match self {
-            EarlyStopping::Metric(strategy) => strategy.should_stop(epoch, info),
-        }
-    }
-}
-
 /// The condition that [early stopping strategies](EarlyStoppingStrategy) should follow.
 pub enum StoppingCondition {
     /// When no improvement has happended since the given number of epochs.
@@ -28,9 +14,9 @@ pub enum StoppingCondition {
 }
 
 /// A strategy that checks if the training should be stopped.
-pub trait EarlyStoppingStrategy: Into<EarlyStopping> {
+pub trait EarlyStoppingStrategy {
     /// Update its current state and returns if the training should be stopped.
-    fn should_stop(&mut self, epoch: usize, info: &EventStoreClient) -> bool;
+    fn should_stop(&mut self, epoch: usize, store: &EventStoreClient) -> bool;
 }
 
 /// An [early stopping strategy](EarlyStoppingStrategy) based on a metrics collected
@@ -46,9 +32,9 @@ pub struct MetricEarlyStoppingStrategy {
 }
 
 impl EarlyStoppingStrategy for MetricEarlyStoppingStrategy {
-    fn should_stop(&mut self, epoch: usize, info: &EventStoreClient) -> bool {
+    fn should_stop(&mut self, epoch: usize, store: &EventStoreClient) -> bool {
         let current_value =
-            match info.find_metric(&self.metric_name, epoch, self.aggregate, self.split) {
+            match store.find_metric(&self.metric_name, epoch, self.aggregate, self.split) {
                 Some(value) => value,
                 None => {
                     log::warn!("Can't find metric for early stopping.");
@@ -75,7 +61,7 @@ impl EarlyStoppingStrategy for MetricEarlyStoppingStrategy {
 
         match self.condition {
             StoppingCondition::NoImprovementSince { n_epochs } => {
-                let should_stop = epoch - self.best_epoch > n_epochs;
+                let should_stop = epoch - self.best_epoch >= n_epochs;
 
                 if should_stop {
                     log::info!("Stopping training loop, no improvement since epoch {}, {}: {},  current epoch {}, {}: {}", self.best_epoch, self.metric_name, self.best_value, epoch, self.metric_name, current_value);
@@ -84,12 +70,6 @@ impl EarlyStoppingStrategy for MetricEarlyStoppingStrategy {
                 should_stop
             }
         }
-    }
-}
-
-impl From<MetricEarlyStoppingStrategy> for EarlyStopping {
-    fn from(val: MetricEarlyStoppingStrategy) -> Self {
-        EarlyStopping::Metric(val)
     }
 }
 

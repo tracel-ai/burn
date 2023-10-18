@@ -14,7 +14,7 @@ impl CheckpointingStrategy for KeepLastNCheckpoints {
     fn checkpointing(
         &mut self,
         epoch: usize,
-        _collector: &EventStoreClient,
+        _store: &EventStoreClient,
     ) -> Vec<CheckpointingAction> {
         let mut actions = vec![CheckpointingAction::Save];
 

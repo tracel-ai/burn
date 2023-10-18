@@ -137,7 +137,7 @@ mod tests {
         let num_epochs = 3;
         let dummy_iteration = 1;
 
-        processor.add_event_train(Event::ProcessedItem(LearnerItem::new(
+        processor.process_train(Event::ProcessedItem(LearnerItem::new(
             value,
             dummy_progress,
             epoch,
@@ -148,8 +148,8 @@ mod tests {
     }
 
     fn end_epoch(processor: &mut MinimalEventProcessor<f64, f64>, epoch: usize) {
-        processor.add_event_train(Event::EndEpoch(epoch));
-        processor.add_event_valid(Event::EndEpoch(epoch));
+        processor.process_train(Event::EndEpoch(epoch));
+        processor.process_valid(Event::EndEpoch(epoch));
     }
 
     impl<B: Backend> Adaptor<LossInput<B>> for f64 {

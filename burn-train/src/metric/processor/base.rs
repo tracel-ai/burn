@@ -9,13 +9,17 @@ pub enum Event<T> {
     EndEpoch(usize),
 }
 
+/// Process events happening during training and validation.
 pub trait EventProcessor {
+    /// The training item.
     type ItemTrain;
+    /// The validation item.
     type ItemValid;
 
-    /// Collect the training event.
-    fn add_event_train(&mut self, event: Event<Self::ItemTrain>);
-    fn add_event_valid(&mut self, event: Event<Self::ItemValid>);
+    /// Collect a training event.
+    fn process_train(&mut self, event: Event<Self::ItemTrain>);
+    /// Collect a validation event.
+    fn process_valid(&mut self, event: Event<Self::ItemValid>);
 }
 
 /// A learner item.

@@ -14,7 +14,7 @@ impl<T, V> EventProcessor for MinimalEventProcessor<T, V> {
     type ItemTrain = T;
     type ItemValid = V;
 
-    fn add_event_train(&mut self, event: Event<Self::ItemTrain>) {
+    fn process_train(&mut self, event: Event<Self::ItemTrain>) {
         match event {
             Event::ProcessedItem(item) => {
                 let metadata = (&item).into();
@@ -32,7 +32,7 @@ impl<T, V> EventProcessor for MinimalEventProcessor<T, V> {
         }
     }
 
-    fn add_event_valid(&mut self, event: Event<Self::ItemValid>) {
+    fn process_valid(&mut self, event: Event<Self::ItemValid>) {
         match event {
             Event::ProcessedItem(item) => {
                 let metadata = (&item).into();

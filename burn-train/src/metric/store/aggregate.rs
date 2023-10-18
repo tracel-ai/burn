@@ -13,6 +13,7 @@ pub(crate) struct NumericMetricsAggregate {
 struct Key {
     name: String,
     epoch: usize,
+    aggregate: Aggregate,
 }
 
 impl NumericMetricsAggregate {
@@ -23,7 +24,7 @@ impl NumericMetricsAggregate {
         aggregate: Aggregate,
         loggers: &mut [Box<dyn MetricLogger>],
     ) -> Option<f64> {
-        let key = Key::new(name.to_string(), epoch);
+        let key = Key::new(name.to_string(), epoch, aggregate);
 
         if let Some(value) = self.value_for_each_epoch.get(&key) {
             return Some(*value);
