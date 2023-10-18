@@ -2,7 +2,7 @@ use super::{aggregate::NumericMetricsAggregate, Aggregate, Direction, Event, Eve
 use crate::logger::MetricLogger;
 
 #[derive(Default)]
-pub struct LogEventStore {
+pub(crate) struct LogEventStore {
     loggers_train: Vec<Box<dyn MetricLogger>>,
     loggers_valid: Vec<Box<dyn MetricLogger>>,
     aggregate_train: NumericMetricsAggregate,

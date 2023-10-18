@@ -46,7 +46,7 @@ where
     grad_accumulation: Option<usize>,
     devices: Vec<B::Device>,
     renderer: Option<Box<dyn MetricsRenderer + 'static>>,
-    event_processor: FullEventProcessorBuilder<T, V>,
+    event_processor_builder: FullEventProcessorBuilder<T, V>,
     event_store: LogEventStore,
     interrupter: TrainingInterrupter,
     log_to_file: bool,
@@ -77,7 +77,7 @@ where
             directory: directory.to_string(),
             grad_accumulation: None,
             devices: vec![B::Device::default()],
-            event_processor: FullEventProcessorBuilder::default(),
+            event_processor_builder: FullEventProcessorBuilder::default(),
             event_store: LogEventStore::default(),
             renderer: None,
             interrupter: TrainingInterrupter::new(),
@@ -140,7 +140,7 @@ where
     where
         T: Adaptor<Me::Input>,
     {
-        self.event_processor.register_metric_train(metric);
+        self.event_processor_builder.register_metric_train(metric);
         self
     }
 
@@ -149,7 +149,7 @@ where
     where
         V: Adaptor<Me::Input>,
     {
-        self.event_processor.register_valid_metric(metric);
+        self.event_processor_builder.register_valid_metric(metric);
         self
     }
 
@@ -174,7 +174,8 @@ where
         Me: Metric + crate::metric::Numeric + 'static,
         T: Adaptor<Me::Input>,
     {
-        self.event_processor.register_train_metric_numeric(metric);
+        self.event_processor_builder
+            .register_train_metric_numeric(metric);
         self
     }
 
@@ -186,7 +187,8 @@ where
     where
         V: Adaptor<Me::Input>,
     {
-        self.event_processor.register_valid_metric_numeric(metric);
+        self.event_processor_builder
+            .register_valid_metric_numeric(metric);
         self
     }
 
@@ -309,8 +311,10 @@ where
                 ));
         }
 
-        let store = Arc::new(EventStoreClient::new(self.event_store));
-        let processor = self.event_processor.build(renderer, store.clone());
+        let event_store = Arc::new(EventStoreClient::new(self.event_store));
+        let event_processor = self
+            .event_processor_builder
+            .build(renderer, event_store.clone());
 
         let checkpointer = self.checkpointers.map(|(model, optim, scheduler)| {
             LearnerCheckpointer::new(model, optim, scheduler, self.checkpointer_strategy)
@@ -322,8 +326,8 @@ where
             lr_scheduler,
             checkpointer,
             num_epochs: self.num_epochs,
-            event_processor: processor,
-            event_store: store,
+            event_processor,
+            event_store,
             checkpoint: self.checkpoint,
             grad_accumulation: self.grad_accumulation,
             devices: self.devices,

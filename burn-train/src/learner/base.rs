@@ -42,9 +42,9 @@ impl<LC: LearnerComponents> LearnerCheckpointer<LC> {
         optim: &LC::Optimizer,
         scheduler: &LC::LrScheduler,
         epoch: usize,
-        collector: &EventStoreClient,
+        store: &EventStoreClient,
     ) {
-        let actions = self.strategy.checkpointing(epoch, collector);
+        let actions = self.strategy.checkpointing(epoch, store);
 
         for action in actions {
             match action {

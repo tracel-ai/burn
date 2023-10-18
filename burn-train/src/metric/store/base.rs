@@ -8,16 +8,19 @@ pub enum Event {
     EndEpoch(usize),
 }
 
+/// Contains all metric information.
 #[derive(new)]
 pub struct MetricsUpdate {
+    /// Metric information related to non-numeric metrics.
     pub entries: Vec<MetricEntry>,
+    /// Metric information related to numeric metrics.
     pub entries_numeric: Vec<(MetricEntry, f64)>,
 }
 
 /// Defines how training and validation events are collected and searched.
 ///
 /// This trait also exposes methods that uses the collected data to compute useful information.
-pub trait EventStore: Send {
+pub(crate) trait EventStore: Send {
     /// Collect the training event.
     fn add_event(&mut self, event: Event, split: Split);
 

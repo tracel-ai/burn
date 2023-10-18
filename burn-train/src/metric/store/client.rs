@@ -22,18 +22,15 @@ enum Message {
     ),
 }
 
-/// Async [event collector](EventCollector).
-///
-/// This will create a worker thread where all the computation is done ensuring that the training loop is
-/// never blocked by metric calculation.
+/// Type that allows to communicate with an [event store](EventStore).
 pub struct EventStoreClient {
     sender: mpsc::Sender<Message>,
     handler: Option<JoinHandle<()>>,
 }
 
 impl EventStoreClient {
-    /// Create a new async [event collector](EventCollector).
-    pub fn new<C>(store: C) -> Self
+    /// Create a new [event store](EventStore) client.
+    pub(crate) fn new<C>(store: C) -> Self
     where
         C: EventStore + 'static,
     {
@@ -48,14 +45,17 @@ impl EventStoreClient {
 }
 
 impl EventStoreClient {
+    /// Add a training event to the [event store](EventStore).
     pub fn add_event_train(&self, event: Event) {
         self.sender.send(Message::OnEventTrain(event)).unwrap();
     }
 
+    /// Add a validation event to the [event store](EventStore).
     pub fn add_event_valid(&self, event: Event) {
         self.sender.send(Message::OnEventValid(event)).unwrap();
     }
 
+    /// Find the epoch following the given criteria from the collected data.
     pub fn find_epoch(
         &self,
         name: &str,
@@ -80,6 +80,7 @@ impl EventStoreClient {
         }
     }
 
+    /// Find the metric value for the current epoch following the given criteria.
     pub fn find_metric(
         &self,
         name: &str,
@@ -106,8 +107,8 @@ impl EventStoreClient {
 }
 
 #[derive(new)]
-struct WorkerThread<C> {
-    collector: C,
+struct WorkerThread<S> {
+    store: S,
     receiver: mpsc::Receiver<Message>,
 }
 
@@ -122,17 +123,15 @@ where
                     return;
                 }
                 Message::FindEpoch(name, aggregate, direction, split, sender) => {
-                    let response = self
-                        .collector
-                        .find_epoch(&name, aggregate, direction, split);
+                    let response = self.store.find_epoch(&name, aggregate, direction, split);
                     sender.send(response).unwrap();
                 }
                 Message::FindMetric(name, epoch, aggregate, split, sender) => {
-                    let response = self.collector.find_metric(&name, epoch, aggregate, split);
+                    let response = self.store.find_metric(&name, epoch, aggregate, split);
                     sender.send(response).unwrap();
                 }
-                Message::OnEventTrain(event) => self.collector.add_event(event, Split::Train),
-                Message::OnEventValid(event) => self.collector.add_event(event, Split::Valid),
+                Message::OnEventTrain(event) => self.store.add_event(event, Split::Train),
+                Message::OnEventValid(event) => self.store.add_event(event, Split::Valid),
             }
         }
     }

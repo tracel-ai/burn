@@ -4,6 +4,9 @@ use crate::metric::{Adaptor, Metric, MetricEntry, MetricMetadata, Numeric};
 use crate::renderer::{MetricState, MetricsRenderer, TrainingProgress};
 use std::sync::Arc;
 
+/// An [event processor](EventProcessor) that handles:
+///   - Computing and storing metrics in an [event store](crate::metric::store::EventStore).
+///   - Render metrics using a [metrics renderer](MetricsRenderer).
 pub struct FullEventProcessor<T, V> {
     train: Vec<Box<dyn MetricUpdater<T>>>,
     valid: Vec<Box<dyn MetricUpdater<V>>>,

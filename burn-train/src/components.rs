@@ -34,7 +34,7 @@ pub trait LearnerComponents {
 }
 
 /// Concrete type that implements [training components trait](TrainingComponents).
-pub struct LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, EC, S> {
+pub struct LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, EP, S> {
     _backend: PhantomData<B>,
     _lr_scheduler: PhantomData<LR>,
     _model: PhantomData<M>,
@@ -42,12 +42,12 @@ pub struct LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, EC, S> {
     _checkpointer_model: PhantomData<CM>,
     _checkpointer_optim: PhantomData<CO>,
     _checkpointer_scheduler: PhantomData<CS>,
-    _collector: PhantomData<EC>,
+    _event_processor: PhantomData<EP>,
     _strategy: S,
 }
 
-impl<B, LR, M, O, CM, CO, CS, EC, S> LearnerComponents
-    for LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, EC, S>
+impl<B, LR, M, O, CM, CO, CS, EP, S> LearnerComponents
+    for LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, EP, S>
 where
     B: ADBackend,
     LR: LrScheduler,
@@ -56,7 +56,7 @@ where
     CM: Checkpointer<M::Record>,
     CO: Checkpointer<O::Record>,
     CS: Checkpointer<LR::Record>,
-    EC: EventProcessor + 'static,
+    EP: EventProcessor + 'static,
     S: CheckpointingStrategy,
 {
     type Backend = B;
@@ -66,6 +66,6 @@ where
     type CheckpointerModel = CM;
     type CheckpointerOptimizer = CO;
     type CheckpointerLrScheduler = CS;
-    type EventProcessor = EC;
+    type EventProcessor = EP;
     type CheckpointerStrategy = S;
 }
