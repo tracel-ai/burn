@@ -67,13 +67,15 @@ mod tests {
     use crate::{
         logger::InMemoryMetricLogger,
         metric::{
-            processor::{Event, EventProcessor, LearnerItem, Metrics, MinimalEventProcessor},
+            processor::{
+                test_utils::{end_epoch, process_train},
+                Metrics, MinimalEventProcessor,
+            },
             store::LogEventStore,
-            Adaptor, LossInput, LossMetric,
+            LossMetric,
         },
         TestBackend,
     };
-    use burn_core::tensor::{backend::Backend, ElementConversion, Tensor};
     use std::sync::Arc;
 
     use super::*;
@@ -96,8 +98,8 @@ mod tests {
 
         // Two points for the first epoch. Mean 0.75
         let mut epoch = 1;
-        item(&mut processor, 1.0, epoch);
-        item(&mut processor, 0.5, epoch);
+        process_train(&mut processor, 1.0, epoch);
+        process_train(&mut processor, 0.5, epoch);
         end_epoch(&mut processor, epoch);
 
         // Should save the current record.
@@ -108,8 +110,8 @@ mod tests {
 
         // Two points for the second epoch. Mean 0.4
         epoch += 1;
-        item(&mut processor, 0.5, epoch);
-        item(&mut processor, 0.3, epoch);
+        process_train(&mut processor, 0.5, epoch);
+        process_train(&mut processor, 0.3, epoch);
         end_epoch(&mut processor, epoch);
 
         // Should save the current record and delete the pervious one.
@@ -120,41 +122,12 @@ mod tests {
 
         // Two points for the last epoch. Mean 2.0
         epoch += 1;
-        item(&mut processor, 1.0, epoch);
-        item(&mut processor, 3.0, epoch);
+        process_train(&mut processor, 1.0, epoch);
+        process_train(&mut processor, 3.0, epoch);
         end_epoch(&mut processor, epoch);
 
         // Should not delete the previous record, since it's the best one, and should not save a
         // new one.
         assert!(strategy.checkpointing(epoch, &store).is_empty());
-    }
-
-    fn item(processor: &mut MinimalEventProcessor<f64, f64>, value: f64, epoch: usize) {
-        let dummy_progress = burn_core::data::dataloader::Progress {
-            items_processed: 1,
-            items_total: 10,
-        };
-        let num_epochs = 3;
-        let dummy_iteration = 1;
-
-        processor.process_train(Event::ProcessedItem(LearnerItem::new(
-            value,
-            dummy_progress,
-            epoch,
-            num_epochs,
-            dummy_iteration,
-            None,
-        )));
-    }
-
-    fn end_epoch(processor: &mut MinimalEventProcessor<f64, f64>, epoch: usize) {
-        processor.process_train(Event::EndEpoch(epoch));
-        processor.process_valid(Event::EndEpoch(epoch));
-    }
-
-    impl<B: Backend> Adaptor<LossInput<B>> for f64 {
-        fn adapt(&self) -> LossInput<B> {
-            LossInput::new(Tensor::from_data([self.elem()]))
-        }
     }
 }

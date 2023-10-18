@@ -4,6 +4,6 @@ mod base;
 mod client;
 mod log;
 
+pub(crate) use self::log::*;
 pub use base::*;
 pub use client::*;
-pub(crate) use log::*;
