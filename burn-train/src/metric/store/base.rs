@@ -20,7 +20,7 @@ pub struct MetricsUpdate {
 /// Defines how training and validation events are collected and searched.
 ///
 /// This trait also exposes methods that uses the collected data to compute useful information.
-pub(crate) trait EventStore: Send {
+pub trait EventStore: Send {
     /// Collect a training/validation event.
     fn add_event(&mut self, event: Event, split: Split);
 
