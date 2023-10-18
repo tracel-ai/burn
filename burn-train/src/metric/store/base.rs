@@ -9,7 +9,7 @@ pub enum Event {
 }
 
 /// Contains all metric information.
-#[derive(new)]
+#[derive(new, Clone)]
 pub struct MetricsUpdate {
     /// Metric information related to non-numeric metrics.
     pub entries: Vec<MetricEntry>,

@@ -107,35 +107,32 @@ impl CheckpointingStrategy for ComposedCheckpointingStrategy {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use crate::{
-//         checkpoint::KeepLastNCheckpoints, info::MetricsInfo, test_utils::TestEventCollector,
-//     };
-//
-//     use super::*;
-//
-//     #[test]
-//     fn should_delete_when_both_deletes() {
-//         let mut collector = TestEventCollector::<f64, f64>::new(MetricsInfo::new());
-//         let mut strategy = ComposedCheckpointingStrategy::builder()
-//             .add(KeepLastNCheckpoints::new(1))
-//             .add(KeepLastNCheckpoints::new(2))
-//             .build();
-//
-//         assert_eq!(
-//             vec![CheckpointingAction::Save],
-//             strategy.checkpointing(1, &mut collector)
-//         );
-//
-//         assert_eq!(
-//             vec![CheckpointingAction::Save],
-//             strategy.checkpointing(2, &mut collector)
-//         );
-//
-//         assert_eq!(
-//             vec![CheckpointingAction::Save, CheckpointingAction::Delete(1)],
-//             strategy.checkpointing(3, &mut collector)
-//         );
-//     }
-// }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{checkpoint::KeepLastNCheckpoints, metric::store::LogEventStore};
+
+    #[test]
+    fn should_delete_when_both_deletes() {
+        let store = EventStoreClient::new(LogEventStore::default());
+        let mut strategy = ComposedCheckpointingStrategy::builder()
+            .add(KeepLastNCheckpoints::new(1))
+            .add(KeepLastNCheckpoints::new(2))
+            .build();
+
+        assert_eq!(
+            vec![CheckpointingAction::Save],
+            strategy.checkpointing(1, &store)
+        );
+
+        assert_eq!(
+            vec![CheckpointingAction::Save],
+            strategy.checkpointing(2, &store)
+        );
+
+        assert_eq!(
+            vec![CheckpointingAction::Save, CheckpointingAction::Delete(1)],
+            strategy.checkpointing(3, &store)
+        );
+    }
+}

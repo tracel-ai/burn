@@ -10,7 +10,7 @@ use crate::components::LearnerComponentsMarker;
 use crate::learner::base::TrainingInterrupter;
 use crate::learner::{EarlyStopping, EarlyStoppingStrategy};
 use crate::logger::{FileMetricLogger, MetricLogger};
-use crate::metric::processor::{FullEventProcessor, FullEventProcessorBuilder};
+use crate::metric::processor::{FullEventProcessor, Metrics};
 use crate::metric::store::{Aggregate, Direction, EventStoreClient, LogEventStore, Split};
 use crate::metric::{Adaptor, LossMetric, Metric};
 use crate::renderer::{default_renderer, MetricsRenderer};
@@ -46,7 +46,7 @@ where
     grad_accumulation: Option<usize>,
     devices: Vec<B::Device>,
     renderer: Option<Box<dyn MetricsRenderer + 'static>>,
-    event_processor_builder: FullEventProcessorBuilder<T, V>,
+    metrics: Metrics<T, V>,
     event_store: LogEventStore,
     interrupter: TrainingInterrupter,
     log_to_file: bool,
@@ -77,7 +77,7 @@ where
             directory: directory.to_string(),
             grad_accumulation: None,
             devices: vec![B::Device::default()],
-            event_processor_builder: FullEventProcessorBuilder::default(),
+            metrics: Metrics::default(),
             event_store: LogEventStore::default(),
             renderer: None,
             interrupter: TrainingInterrupter::new(),
@@ -140,7 +140,7 @@ where
     where
         T: Adaptor<Me::Input>,
     {
-        self.event_processor_builder.register_metric_train(metric);
+        self.metrics.register_metric_train(metric);
         self
     }
 
@@ -149,7 +149,7 @@ where
     where
         V: Adaptor<Me::Input>,
     {
-        self.event_processor_builder.register_valid_metric(metric);
+        self.metrics.register_valid_metric(metric);
         self
     }
 
@@ -174,8 +174,7 @@ where
         Me: Metric + crate::metric::Numeric + 'static,
         T: Adaptor<Me::Input>,
     {
-        self.event_processor_builder
-            .register_train_metric_numeric(metric);
+        self.metrics.register_train_metric_numeric(metric);
         self
     }
 
@@ -187,8 +186,7 @@ where
     where
         V: Adaptor<Me::Input>,
     {
-        self.event_processor_builder
-            .register_valid_metric_numeric(metric);
+        self.metrics.register_valid_metric_numeric(metric);
         self
     }
 
@@ -312,9 +310,7 @@ where
         }
 
         let event_store = Arc::new(EventStoreClient::new(self.event_store));
-        let event_processor = self
-            .event_processor_builder
-            .build(renderer, event_store.clone());
+        let event_processor = FullEventProcessor::new(self.metrics, renderer, event_store.clone());
 
         let checkpointer = self.checkpointers.map(|(model, optim, scheduler)| {
             LearnerCheckpointer::new(model, optim, scheduler, self.checkpointer_strategy)

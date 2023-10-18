@@ -40,11 +40,11 @@ impl EventStore for LogEventStore {
                 Split::Train => self
                     .loggers_train
                     .iter_mut()
-                    .for_each(|logger| logger.epoch(epoch)),
+                    .for_each(|logger| logger.end_epoch(epoch)),
                 Split::Valid => self
                     .loggers_valid
                     .iter_mut()
-                    .for_each(|logger| logger.epoch(epoch)),
+                    .for_each(|logger| logger.end_epoch(epoch + 1)),
             },
         }
     }

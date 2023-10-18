@@ -28,30 +28,29 @@ impl CheckpointingStrategy for KeepLastNCheckpoints {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use crate::{info::MetricsInfo, test_utils::TestEventCollector};
-//
-//     use super::*;
-//
-//     #[test]
-//     fn should_always_delete_lastn_epoch_if_higher_than_one() {
-//         let mut strategy = KeepLastNCheckpoints::new(2);
-//         let mut collector = TestEventCollector::<f64, f64>::new(MetricsInfo::new());
-//
-//         assert_eq!(
-//             vec![CheckpointingAction::Save],
-//             strategy.checkpointing(1, &mut collector)
-//         );
-//
-//         assert_eq!(
-//             vec![CheckpointingAction::Save],
-//             strategy.checkpointing(2, &mut collector)
-//         );
-//
-//         assert_eq!(
-//             vec![CheckpointingAction::Save, CheckpointingAction::Delete(1)],
-//             strategy.checkpointing(3, &mut collector)
-//         );
-//     }
-// }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::metric::store::LogEventStore;
+
+    #[test]
+    fn should_always_delete_lastn_epoch_if_higher_than_one() {
+        let mut strategy = KeepLastNCheckpoints::new(2);
+        let store = EventStoreClient::new(LogEventStore::default());
+
+        assert_eq!(
+            vec![CheckpointingAction::Save],
+            strategy.checkpointing(1, &store)
+        );
+
+        assert_eq!(
+            vec![CheckpointingAction::Save],
+            strategy.checkpointing(2, &store)
+        );
+
+        assert_eq!(
+            vec![CheckpointingAction::Save, CheckpointingAction::Delete(1)],
+            strategy.checkpointing(3, &store)
+        );
+    }
+}
