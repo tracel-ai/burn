@@ -7,7 +7,7 @@ where
 {
     fn key(&self) -> String;
     fn autotunables(&self) -> Vec<Operation<S>>;
-    fn inputs(&self, server: &mut S) -> Vec<Handle<S>>;
+    fn inputs(&self) -> Vec<Vec<u8>>;
     fn fastest(&self, fastest_index: usize) -> Operation<S> {
         self.autotunables().remove(fastest_index)
     }

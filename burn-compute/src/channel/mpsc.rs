@@ -7,6 +7,7 @@ use burn_common::reader::Reader;
 
 use super::ComputeChannel;
 use crate::{
+    autotune_server::AutotuneServer,
     server::{ComputeServer, Handle},
     tune::AutotuneOperation,
 };
@@ -51,32 +52,35 @@ where
     /// Create a new mpsc compute channel.
     pub fn new(mut server: Server, bound: usize) -> Self {
         let (sender, receiver) = mpsc::sync_channel(bound);
+        let mut autotune_server = AutotuneServer::new(server);
 
         let _handle = thread::spawn(move || {
             while let Ok(message) = receiver.recv() {
                 match message {
                     Message::Read(handle, callback) => {
-                        let data = server.read(&handle);
+                        let data = autotune_server.server.read(&handle);
                         core::mem::drop(handle);
                         callback.send(data).unwrap();
                     }
                     Message::Create(data, callback) => {
-                        let handle = server.create(&data);
+                        let handle = autotune_server.server.create(&data);
                         callback.send(handle).unwrap();
                     }
                     Message::Empty(size, callback) => {
-                        let handle = server.empty(size);
+                        let handle = autotune_server.server.empty(size);
                         callback.send(handle).unwrap();
                     }
                     Message::ExecuteKernel(kernel, handles) => {
-                        server.execute_kernel(kernel, &handles.iter().collect::<Vec<_>>());
+                        autotune_server
+                            .server
+                            .execute_kernel(kernel, &handles.iter().collect::<Vec<_>>());
                     }
                     Message::Sync(callback) => {
-                        server.sync();
+                        autotune_server.server.sync();
                         callback.send(()).unwrap();
                     }
                     Message::ExecuteAutotune(autotune_kernel, handles) => {
-                        let index = server
+                        let index = autotune_server
                             .execute_autotune(autotune_kernel, &handles.iter().collect::<Vec<_>>());
                     }
                 };

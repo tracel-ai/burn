@@ -61,13 +61,4 @@ where
         // Nothing to do with dummy backend.
     }
 
-    fn execute_autotune(
-        &mut self,
-        autotune_kernel: Box<dyn AutotuneOperation<Self>>,
-        handles: &[&Handle<Self>],
-    ) {
-        let operation = self.tuner.tune(autotune_kernel, self);
-        let kernel = operation.get_kernel(); // not sure
-        self.execute_kernel(kernel, handles);
-    }
 }

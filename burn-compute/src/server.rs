@@ -38,13 +38,6 @@ where
 
     /// Wait for the completion of every task in the server.
     fn sync(&mut self);
-
-    /// Returns the index of the fastest kernel in the vector of kernels
-    fn execute_autotune(
-        &mut self,
-        autotune_kernel: Box<dyn AutotuneOperation<Self>>,
-        handles: &[&Handle<Self>],
-    );
 }
 
 /// Server handle containing the [memory handle](MemoryManagement::Handle).

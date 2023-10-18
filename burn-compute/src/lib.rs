@@ -19,6 +19,7 @@ pub mod client;
 #[cfg(feature = "std")]
 pub mod tune;
 
+pub(crate) mod autotune_server;
 /// Memory management module.
 pub mod memory_management;
 /// Compute server module.

@@ -26,21 +26,21 @@ impl Tuner {
     pub fn tune<S: ComputeServer>(
         &mut self,
         autotune_operation: Box<dyn AutotuneOperation<S>>,
-        server: &mut S,
+        autotune_handles: Vec<Handle<S>>,
     ) -> Operation<S> {
         self.try_cache(&autotune_operation)
-            .unwrap_or(self.no_kernel_type_found(autotune_operation, server))
+            .unwrap_or(self.no_kernel_type_found(autotune_operation, autotune_handles))
     }
 
     fn no_kernel_type_found<S: ComputeServer>(
         &mut self,
         autotune_operation: Box<dyn AutotuneOperation<S>>,
-        server: &mut S,
+        autotune_handles: Vec<Handle<S>>,
     ) -> Operation<S> {
         let results = autotune_operation
             .autotunables()
             .into_iter()
-            .map(|op| self.run_benchmark(op, autotune_operation.inputs(server), server))
+            .map(|op| self.run_benchmark(op, &autotune_handles))
             .collect();
         let fastest_index = self.find_fastest(results);
         self.cache.insert(autotune_operation.key(), fastest_index);
@@ -66,10 +66,9 @@ impl Tuner {
     fn run_benchmark<S: ComputeServer>(
         &self,
         operation: Operation<S>,
-        handles: Vec<Handle<S>>,
-        server: &mut S,
+        handles: &Vec<Handle<S>>,
     ) -> BenchmarkResult {
-        operation.execute(handles, server);
+        // operation.execute(handles);
         todo!()
     }
 
