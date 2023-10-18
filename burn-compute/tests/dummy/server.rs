@@ -3,7 +3,7 @@ use burn_compute::{
     memory_management::{MemoryManagement, SimpleMemoryManagement},
     server::{ComputeServer, Handle},
     storage::BytesStorage,
-    tune::{AutotuneKernel, TuneBenchmark, Tuner},
+    tune::{AutotuneKernel, Tuner},
 };
 use derive_new::new;
 
@@ -14,7 +14,7 @@ use super::DummyKernel;
 #[derive(new, Debug)]
 pub struct DummyServer<MM = SimpleMemoryManagement<BytesStorage>> {
     memory_management: MM,
-    tuner: Tuner<Self>,
+    tuner: Tuner,
 }
 
 impl<MM> ComputeServer for DummyServer<MM>
@@ -63,10 +63,10 @@ where
 
     fn execute_autotune(
         &mut self,
-        autotune_kernel: Box<dyn AutotuneKernel>,
+        autotune_kernel: Box<dyn AutotuneKernel<Self>>,
         handles: &[&Handle<Self>],
     ) {
         let kernel = self.tuner.tune(autotune_kernel);
-        self.execute_kernel(kernel, handles)
+        self.execute_kernel(kernel, handles);
     }
 }

@@ -1,9 +1,7 @@
-use core::fmt::Debug;
-
 use crate::server::{ComputeServer, Handle};
 
 /// Type of operation for the kernel
-pub trait AutotuneKernel<S>: Debug + Send
+pub trait AutotuneKernel<S>: Send
 where
     S: ComputeServer,
 {

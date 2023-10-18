@@ -3,10 +3,7 @@ mod dummy;
 use crate::dummy::{client, DummyDevice, DummyElementwiseAddition};
 
 #[cfg(feature = "std")]
-use crate::dummy::{
-    get_addition_benchmarks, get_cache_test_benchmarks, get_multiplication_benchmarks,
-    ArraysResource,
-};
+use crate::dummy::get_addition_autotune_kernel;
 #[cfg(feature = "std")]
 use burn_compute::tune::Tuner;
 use serial_test::serial;
@@ -39,7 +36,7 @@ fn execute_elementwise_addition() {
     let rhs = client.create(&[4, 4, 4]);
     let out = client.empty(3);
 
-    client.execute(Box::new(DummyElementwiseAddition), &[&lhs, &rhs, &out]);
+    client.execute_kernel(Box::new(DummyElementwiseAddition), &[&lhs, &rhs, &out]);
 
     let obtained_resource = client.read(&out);
 
@@ -56,10 +53,9 @@ fn autotune_basic_addition_execution() {
     let out = client.empty(3);
     let handles = &[&lhs, &rhs, &out];
 
-    let kernels = get_addition_autotune_kernel();
-    client.execute_autotune(autotune_kernel, handles);
+    let addition_autotune_kernel = get_addition_autotune_kernel();
+    client.execute_autotune(Box::new(addition_autotune_kernel), handles);
 
-    client.execute(kernel, handles);
     let obtained_resource = client.read(&out);
 
     // If slow kernel was selected it would output [0, 1, 2]

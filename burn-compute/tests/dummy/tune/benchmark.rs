@@ -1,21 +1,9 @@
 use std::marker::PhantomData;
 
-use burn_compute::{
-    server::Handle,
-    tune::{AutotuneKernel, TuneBenchmark},
-};
+use burn_compute::{server::Handle, tune::AutotuneKernel};
 use derive_new::new;
 
-use crate::dummy::{
-    tune::{
-        CacheTestFastOn3Type, CacheTestSlowOn3Type, DummyElementwiseAdditionSlowWrongType,
-        DummyElementwiseAdditionType, DummyElementwiseMultiplicationSlowWrongType,
-        DummyElementwiseMultiplicationType,
-    },
-    DummyClient, DummyKernel, DummyServer,
-};
-
-use super::{AdditionOp, CacheTestOp, MultiplicationOp};
+use crate::dummy::{DummyClient, DummyKernel, DummyServer};
 
 #[derive(new)]
 pub struct DummyBenchmark<O> {

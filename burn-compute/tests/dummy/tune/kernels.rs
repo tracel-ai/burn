@@ -4,8 +4,6 @@ use burn_compute::{server::ComputeServer, storage::BytesResource};
 
 use crate::dummy::{DummyClient, DummyElementwiseAddition, DummyKernel, DummyServer};
 
-use super::{AdditionOp, CacheTestOp, DummyBenchmark, MultiplicationOp};
-
 const SLEEP_MS: u64 = 1;
 
 pub struct DummyElementwiseAdditionSlowWrong;
@@ -128,4 +126,3 @@ impl DummyKernel for CacheTestSlowOn3 {
 // );
 // make_kernel!(CacheTestFastOn3Type, CacheTestFastOn3, CacheTestOp);
 // make_kernel!(CacheTestSlowOn3Type, CacheTestSlowOn3, CacheTestOp);
-

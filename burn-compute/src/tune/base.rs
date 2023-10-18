@@ -10,32 +10,31 @@ use crate::server::Handle;
 use super::AutotuneKernel;
 
 /// Use to find and reuse the best kernel for some input
-pub struct Tuner<S>
-where
-    S: ComputeServer,
-{
-    _server: PhantomData<S>,
+#[derive(Debug)]
+pub struct Tuner {
     cache: HashMap<String, usize>,
 }
 
-impl<S> Tuner<S>
-where
-    S: ComputeServer,
-{
+impl Tuner {
     pub fn new() -> Self {
         Tuner {
             cache: HashMap::new(),
-            _server: PhantomData,
         }
     }
 
     /// Looks for cached kernel for the input or finds one manually, saving the fastest one
-    pub fn tune(&mut self, autotune_kernel: Box<dyn AutotuneKernel<S>>) -> S::Kernel {
+    pub fn tune<S: ComputeServer>(
+        &mut self,
+        autotune_kernel: Box<dyn AutotuneKernel<S>>,
+    ) -> S::Kernel {
         self.try_cache(&autotune_kernel)
             .unwrap_or(self.no_kernel_type_found(autotune_kernel))
     }
 
-    fn no_kernel_type_found(&mut self, autotune_kernel: Box<dyn AutotuneKernel<S>>) -> S::Kernel {
+    fn no_kernel_type_found<S: ComputeServer>(
+        &mut self,
+        autotune_kernel: Box<dyn AutotuneKernel<S>>,
+    ) -> S::Kernel {
         let results = autotune_kernel
             .autotune_kernels()
             .iter()
@@ -63,17 +62,22 @@ where
         fastest_tunable.expect("At least one kernel needed. ")
     }
 
-    fn run_benchmark(&self, kernel: &S::Kernel, handles: &[&Handle<S>]) -> BenchmarkResult {
+    fn run_benchmark<S: ComputeServer>(
+        &self,
+        kernel: &S::Kernel,
+        handles: &[&Handle<S>],
+    ) -> BenchmarkResult {
         todo!()
     }
 
-    fn try_cache(&self, autotune_kernel: &Box<dyn AutotuneKernel<S>>) -> Option<S::Kernel> {
+    fn try_cache<S: ComputeServer>(
+        &self,
+        autotune_kernel: &Box<dyn AutotuneKernel<S>>,
+    ) -> Option<S::Kernel> {
         let index = self.cache.get(&autotune_kernel.autotune_key());
         if let Some(&i) = index {
             return Some(autotune_kernel.fastest_kernel(i));
         }
         None
     }
-
-    fn add_to_cache(&mut self, autotune_key: String, index: usize) {}
 }

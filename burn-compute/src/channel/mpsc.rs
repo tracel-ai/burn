@@ -41,11 +41,7 @@ where
     Empty(usize, Callback<Handle<Server>>),
     ExecuteKernel(Server::Kernel, Vec<Handle<Server>>),
     Sync(Callback<()>),
-    ExecuteAutotune(
-        Box<dyn AutotuneKernel<Server>>,
-        Vec<Handle<Server>>,
-        Callback<usize>,
-    ),
+    ExecuteAutotune(Box<dyn AutotuneKernel<Server>>, Vec<Handle<Server>>),
 }
 
 impl<Server> MpscComputeChannel<Server>
@@ -79,10 +75,9 @@ where
                         server.sync();
                         callback.send(()).unwrap();
                     }
-                    Message::ExecuteAutotune(autotune_kernel, handles, callback) => {
+                    Message::ExecuteAutotune(autotune_kernel, handles) => {
                         let index = server
                             .execute_autotune(autotune_kernel, &handles.iter().collect::<Vec<_>>());
-                        callback.send(index).unwrap();
                     }
                 };
             }
@@ -156,9 +151,7 @@ where
         &self,
         autotune_kernel: Box<dyn AutotuneKernel<Server>>,
         handles: &[&Handle<Server>],
-    ) -> usize {
-        let (callback, response) = mpsc::sync_channel(1);
-
+    ) {
         self.state
             .sender
             .send(Message::ExecuteAutotune(
@@ -167,11 +160,8 @@ where
                     .iter()
                     .map(|h| (*h).clone())
                     .collect::<Vec<Handle<Server>>>(),
-                callback,
             ))
             .unwrap();
-
-        self.response(response)
     }
 
     fn sync(&self) {

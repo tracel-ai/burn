@@ -69,9 +69,9 @@ where
         &self,
         autotune_kernel: Box<dyn crate::tune::AutotuneKernel<Server>>,
         handles: &[&Handle<Server>],
-    ) -> usize {
+    ) {
         self.server
             .borrow_mut()
-            .execute_autotune(autotune_kernel, handles)
+            .execute_autotune(autotune_kernel, handles);
     }
 }

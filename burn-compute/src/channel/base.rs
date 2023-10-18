@@ -27,5 +27,5 @@ pub trait ComputeChannel<Server: ComputeServer>: Clone + core::fmt::Debug {
         &self,
         autotune_kernel: Box<dyn AutotuneKernel<Server>>,
         handles: &[&Handle<Server>],
-    ) -> usize;
+    );
 }

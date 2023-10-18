@@ -44,7 +44,7 @@ where
         &mut self,
         autotune_kernel: Box<dyn AutotuneKernel<Self>>,
         handles: &[&Handle<Self>],
-    ) -> usize;
+    );
 }
 
 /// Server handle containing the [memory handle](MemoryManagement::Handle).

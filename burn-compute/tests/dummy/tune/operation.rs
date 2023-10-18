@@ -3,22 +3,24 @@ use derive_new::new;
 
 use crate::dummy::{DummyElementwiseAddition, DummyKernel, DummyServer};
 
-#[derive(new, PartialEq, Eq, Hash)]
-pub struct ArraysResource {
-    pub sizes: [usize; 3],
-}
+use super::DummyElementwiseAdditionSlowWrong;
 
-impl HashableResources for ArraysResource {
-    fn key(&self) -> String {
-        let mut hash = String::new();
-        for size in self.sizes {
-            let exp = f32::ceil(f32::log2(size as f32)) as u32;
-            hash.push_str(2_u32.pow(exp).to_string().as_str());
-            hash.push(',');
-        }
-        hash
-    }
-}
+// #[derive(new, PartialEq, Eq, Hash)]
+// pub struct ArraysResource {
+//     pub sizes: [usize; 3],
+// }
+
+// impl HashableResources for ArraysResource {
+//     fn key(&self) -> String {
+//         let mut hash = String::new();
+//         for size in self.sizes {
+//             let exp = f32::ceil(f32::log2(size as f32)) as u32;
+//             hash.push_str(2_u32.pow(exp).to_string().as_str());
+//             hash.push(',');
+//         }
+//         hash
+//     }
+// }
 
 // pub struct AdditionOp {}
 // impl Operation for AdditionOp {
@@ -47,7 +49,7 @@ impl HashableResources for ArraysResource {
 // make_operation!(
 //     AdditionOp,
 //     ArraysResource,
-//     [DummyElementwiseAddition, DummyElementwiseAdditionSlowWrong]
+//
 // );
 
 // pub struct AdditionOp {
@@ -61,9 +63,36 @@ impl HashableResources for ArraysResource {
 //         self.kernels
 //     }
 // }
+//
 
 pub struct AdditionAutotuneKernel {}
 
-impl AutotuneKernel for AdditionAutotuneKernel {}
+impl AutotuneKernel<DummyServer> for AdditionAutotuneKernel {
+    fn autotune_key(&self) -> String {
+        todo!()
+    }
 
-pub fn get_addition_autotune_kernel() -> AutotuneKernel {}
+    fn autotune_kernels(
+        &self,
+    ) -> Vec<<DummyServer as burn_compute::server::ComputeServer>::Kernel> {
+        vec![
+            Box::new(DummyElementwiseAddition),
+            Box::new(DummyElementwiseAdditionSlowWrong),
+        ]
+    }
+
+    fn autotune_handles(&self) -> &[&burn_compute::server::Handle<DummyServer>] {
+        todo!()
+    }
+
+    fn fastest_kernel(
+        &self,
+        fastest_kernel_index: usize,
+    ) -> <DummyServer as burn_compute::server::ComputeServer>::Kernel {
+        todo!()
+    }
+}
+
+pub fn get_addition_autotune_kernel() -> AdditionAutotuneKernel {
+    AdditionAutotuneKernel {}
+}
