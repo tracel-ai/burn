@@ -1,8 +1,8 @@
+pub(crate) mod aggregate;
 mod base;
 mod client;
+mod log;
 
 pub use base::*;
 pub use client::*;
-
-/// Metrics collector module.
-pub mod metrics;
+pub use log::*;

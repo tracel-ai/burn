@@ -2,7 +2,7 @@ use crate::{
     info::MetricsInfo,
     metric::MetricMetadata,
     renderer::{MetricState, MetricsRenderer, TrainingProgress},
-    Aggregate, Direction, Event, EventCollector, LearnerItem, Split,
+    Aggregate, Direction, Event, EventStore, LearnerItem, Split,
 };
 
 /// Collect training events in order to display metrics with a metrics renderer.
@@ -16,7 +16,7 @@ where
     info: MetricsInfo<T, V>,
 }
 
-impl<T, V> EventCollector for RenderedMetricsEventCollector<T, V>
+impl<T, V> EventStore for RenderedMetricsEventCollector<T, V>
 where
     T: Send + Sync + 'static,
     V: Send + Sync + 'static,
@@ -24,14 +24,14 @@ where
     type ItemTrain = T;
     type ItemValid = V;
 
-    fn on_event_train(&mut self, event: Event<Self::ItemTrain>) {
+    fn add_event_train(&mut self, event: Event<Self::ItemTrain>) {
         match event {
             Event::ProcessedItem(item) => self.on_train_item(item),
             Event::EndEpoch(epoch) => self.on_train_end_epoch(epoch),
         }
     }
 
-    fn on_event_valid(&mut self, event: Event<Self::ItemValid>) {
+    fn add_event_valid(&mut self, event: Event<Self::ItemValid>) {
         match event {
             Event::ProcessedItem(item) => self.on_valid_item(item),
             Event::EndEpoch(epoch) => self.on_valid_end_epoch(epoch),
@@ -117,25 +117,4 @@ where
     }
 }
 
-impl<T> From<&LearnerItem<T>> for TrainingProgress {
-    fn from(item: &LearnerItem<T>) -> Self {
-        Self {
-            progress: item.progress.clone(),
-            epoch: item.epoch,
-            epoch_total: item.epoch_total,
-            iteration: item.iteration,
-        }
-    }
-}
 
-impl<T> From<&LearnerItem<T>> for MetricMetadata {
-    fn from(item: &LearnerItem<T>) -> Self {
-        Self {
-            progress: item.progress.clone(),
-            epoch: item.epoch,
-            epoch_total: item.epoch_total,
-            iteration: item.iteration,
-            lr: item.lr,
-        }
-    }
-}

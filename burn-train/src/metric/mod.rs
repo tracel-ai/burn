@@ -26,3 +26,6 @@ pub use learning_rate::*;
 pub use loss::*;
 #[cfg(feature = "metrics")]
 pub use memory_use::*;
+
+pub mod processor;
+pub mod store;

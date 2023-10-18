@@ -5,9 +5,9 @@ use burn::module::Module;
 use burn::optim::decay::WeightDecayConfig;
 use burn::optim::AdamConfig;
 use burn::record::{CompactRecorder, NoStdTrainingRecorder};
-use burn::train::info::{MetricEarlyStoppingStrategy, StoppingCondition};
+use burn::train::metric::store::{Aggregate, Direction, Split};
 use burn::train::metric::{CpuMemory, CpuTemperature, CpuUse};
-use burn::train::{Aggregate, Direction, Split};
+use burn::train::{MetricEarlyStoppingStrategy, StoppingCondition};
 use burn::{
     config::Config,
     data::{dataloader::DataLoaderBuilder, dataset::source::huggingface::MNISTDataset},
