@@ -57,7 +57,7 @@ where
 
     fn execute_autotune(
         &self,
-        autotune_kernel: Box<dyn crate::tune::AutotuneKernel<Server>>,
+        autotune_kernel: Box<dyn crate::tune::AutotuneOperation<Server>>,
         handles: &[&Handle<Server>],
     ) {
         self.server

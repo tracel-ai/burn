@@ -1,4 +1,8 @@
-use burn_compute::tune::AutotuneKernel;
+use burn_compute::{
+    channel::ComputeChannel,
+    server::{ComputeServer, Handle},
+    tune::{AutotuneOperation, Operation},
+};
 use derive_new::new;
 
 use crate::dummy::{DummyElementwiseAddition, DummyKernel, DummyServer};
@@ -65,34 +69,66 @@ use super::DummyElementwiseAdditionSlowWrong;
 // }
 //
 
-pub struct AdditionAutotuneKernel {}
-
-impl AutotuneKernel<DummyServer> for AdditionAutotuneKernel {
-    fn autotune_key(&self) -> String {
-        todo!()
-    }
-
-    fn autotune_kernels(
-        &self,
-    ) -> Vec<<DummyServer as burn_compute::server::ComputeServer>::Kernel> {
-        vec![
-            Box::new(DummyElementwiseAddition),
-            Box::new(DummyElementwiseAdditionSlowWrong),
-        ]
-    }
-
-    fn autotune_handles(&self) -> &[&burn_compute::server::Handle<DummyServer>] {
-        todo!()
-    }
-
-    fn fastest_kernel(
-        &self,
-        fastest_kernel_index: usize,
-    ) -> <DummyServer as burn_compute::server::ComputeServer>::Kernel {
-        todo!()
-    }
+#[derive(new)]
+pub struct AdditionAutotuneKernel {
+    shapes: Vec<Vec<usize>>,
 }
 
-pub fn get_addition_autotune_kernel() -> AdditionAutotuneKernel {
-    AdditionAutotuneKernel {}
+impl AutotuneOperation<DummyServer> for AdditionAutotuneKernel {
+    fn key(&self) -> String {
+        let mut hash = String::new();
+        let lhs = &self.shapes[0];
+        for size in lhs {
+            let exp = f32::ceil(f32::log2(*size as f32)) as u32;
+            hash.push_str(2_u32.pow(exp).to_string().as_str());
+            hash.push(',');
+        }
+        hash
+    }
+
+    fn autotunables(&self) -> Vec<Operation<DummyServer>> {
+        let x: Box<dyn DummyKernel> = Box::new(DummyElementwiseAddition);
+        let y: Box<dyn DummyKernel> = Box::new(DummyElementwiseAdditionSlowWrong);
+        vec![Operation::new(x, None), Operation::new(y, None)]
+    }
+
+    fn inputs(&self, server: &mut DummyServer) -> Vec<Handle<DummyServer>> {
+        // todo!()
+        // if cyclic mutable ref, return only list of bytes to create
+        const ARBITRARY_BYTE: u8 = 42;
+        let mut handles = Vec::with_capacity(self.shapes.len());
+        for shape in &self.shapes {
+            let n_elements: usize = shape.iter().product();
+            let handle = server.create(&vec![ARBITRARY_BYTE; n_elements]);
+            handles.push(handle)
+        }
+        handles
+    }
+
+    // fn autotune_key(&self) -> String {
+    //     let mut hash = String::new();
+    //     for size in self.shape.clone() {
+    //         let exp = f32::ceil(f32::log2(size as f32)) as u32;
+    //         hash.push_str(2_u32.pow(exp).to_string().as_str());
+    //         hash.push(',');
+    //     }
+    //     hash
+    // }
+
+    //     fn autotune_kernels(
+    //         &self,
+    //     ) -> Vec<<DummyServer as burn_compute::server::ComputeServer>::Kernel> {
+    //
+    //     }
+
+    //     fn autotune_handles(&self, server: &mut S) -> Vec<Handle<S>> {
+    //
+    //     }
+
+    //     fn fastest_kernel(
+    //         &self,
+    //         fastest_kernel_index: usize,
+    //     ) -> <DummyServer as burn_compute::server::ComputeServer>::Kernel {
+    //         todo!()
+    //     }
 }

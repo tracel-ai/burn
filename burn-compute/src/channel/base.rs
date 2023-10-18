@@ -1,6 +1,6 @@
 use crate::{
     server::{ComputeServer, Handle},
-    tune::AutotuneKernel,
+    tune::AutotuneOperation,
 };
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
@@ -25,7 +25,7 @@ pub trait ComputeChannel<Server: ComputeServer>: Clone + core::fmt::Debug {
 
     fn execute_autotune(
         &self,
-        autotune_kernel: Box<dyn AutotuneKernel<Server>>,
+        autotune_kernel: Box<dyn AutotuneOperation<Server>>,
         handles: &[&Handle<Server>],
     );
 }

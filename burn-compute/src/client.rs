@@ -1,7 +1,7 @@
 use crate::{
     channel::ComputeChannel,
     server::{ComputeServer, Handle},
-    tune::AutotuneKernel,
+    tune::AutotuneOperation,
 };
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
@@ -68,7 +68,7 @@ where
 
     pub fn execute_autotune(
         &self,
-        autotune_kernel: Box<dyn AutotuneKernel<Server>>,
+        autotune_kernel: Box<dyn AutotuneOperation<Server>>,
         handles: &[&Handle<Server>],
     ) {
         self.channel.execute_autotune(autotune_kernel, handles);

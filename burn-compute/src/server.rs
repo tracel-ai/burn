@@ -1,7 +1,7 @@
 use crate::{
     memory_management::{MemoryHandle, MemoryManagement},
     storage::ComputeStorage,
-    tune::AutotuneKernel,
+    tune::AutotuneOperation,
 };
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
@@ -42,7 +42,7 @@ where
     /// Returns the index of the fastest kernel in the vector of kernels
     fn execute_autotune(
         &mut self,
-        autotune_kernel: Box<dyn AutotuneKernel<Self>>,
+        autotune_kernel: Box<dyn AutotuneOperation<Self>>,
         handles: &[&Handle<Self>],
     );
 }

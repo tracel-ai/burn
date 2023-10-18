@@ -2,10 +2,6 @@ mod dummy;
 
 use crate::dummy::{client, DummyDevice, DummyElementwiseAddition};
 
-#[cfg(feature = "std")]
-use crate::dummy::get_addition_autotune_kernel;
-#[cfg(feature = "std")]
-use burn_compute::tune::Tuner;
 use serial_test::serial;
 
 #[test]
@@ -48,12 +44,14 @@ fn execute_elementwise_addition() {
 #[cfg(feature = "std")]
 fn autotune_basic_addition_execution() {
     let client = client(&DummyDevice);
+    let shapes = vec![vec![1, 3], vec![1, 3], vec![1, 3]];
+
     let lhs = client.create(&[0, 1, 2]);
     let rhs = client.create(&[4, 4, 4]);
     let out = client.empty(3);
     let handles = &[&lhs, &rhs, &out];
 
-    let addition_autotune_kernel = get_addition_autotune_kernel();
+    let addition_autotune_kernel = dummy::AdditionAutotuneKernel::new(shapes);
     client.execute_autotune(Box::new(addition_autotune_kernel), handles);
 
     let obtained_resource = client.read(&out);

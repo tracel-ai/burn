@@ -3,7 +3,7 @@ use burn_compute::{
     memory_management::{MemoryManagement, SimpleMemoryManagement},
     server::{ComputeServer, Handle},
     storage::BytesStorage,
-    tune::{AutotuneKernel, Tuner},
+    tune::{AutotuneOperation, Tuner},
 };
 use derive_new::new;
 
@@ -63,10 +63,11 @@ where
 
     fn execute_autotune(
         &mut self,
-        autotune_kernel: Box<dyn AutotuneKernel<Self>>,
+        autotune_kernel: Box<dyn AutotuneOperation<Self>>,
         handles: &[&Handle<Self>],
     ) {
-        let kernel = self.tuner.tune(autotune_kernel);
+        let operation = self.tuner.tune(autotune_kernel, self);
+        let kernel = operation.get_kernel(); // not sure
         self.execute_kernel(kernel, handles);
     }
 }
