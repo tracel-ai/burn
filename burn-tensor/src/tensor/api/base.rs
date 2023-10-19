@@ -272,8 +272,32 @@ where
     /// fn example<B: Backend>() {
     ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 3]));
     ///     let tensor_slices = tensor.slice([0..1, 0..3, 1..2]);
-    ///     println!("{:?}", tensor_slices.dims()); // [1, 3, 2]
-    ///     
+    ///     println!("expecting [1, 3, 1] : {:?}", tensor_slices.dims());
+    ///
+    ///     let tensor = Tensor::<TestBackend, 1, Int>::arange(0..12);
+    ///     let tensor = tensor.reshape([1, 3, 4]);
+    ///     println!("\nexpecting [[[0,1,2,3],[4,5,6,7],[8,9,10,11]]] : {:?}", tensor);
+    ///     println!("expecting [1, 3, 1] : {:?}", tensor.dims());
+    ///
+    ///     let tensor = tensor.reshape([12]);
+    ///     println!("\nexpecting [0,1,2,3,4,5,6,7,8,9,10,11] : {:?}", tensor);
+    ///     println!("expecting [12] : {:?}", tensor.dims());
+    ///
+    ///     let tensor = tensor.reshape([1, 3, 4]);
+    ///     println!("\nexpecting [[[0,1,2,3],[4,5,6,7],[8,9,10,11]]] : {:?}", tensor);
+    ///     println!("expecting [1, 3, 1] : {:?}", tensor.dims());
+    ///
+    ///     let tensor_slices = tensor.clone().slice([0..1, 0..3, 1..2]);
+    ///     println!("\nexpecting [1, 3, 1] : {:?}", tensor_slices.dims());
+    ///     println!("expecting [[[1],[5],[9]]] : {:?}", tensor_slices);
+    ///
+    ///     let tensor_slices = tensor.clone().slice([0..1, 1..3]);
+    ///     println!("\nexpecting dim [1, 2, 4] : {:?}", tensor_slices.dims());
+    ///     println!("expecting [[[4,5,6,7],[8,9,10,11]]] : {:?}", tensor_slices);
+    ///
+    ///     let tensor_slices = tensor.slice([0..1, 1..3, 1..2]);
+    ///     println!("\nexpecting [1, 2, 1] : {:?}", tensor_slices.dims());
+    ///     println!("expecting [[[5],[9]]] : {:?}", tensor_slices);
     /// }
     /// ```
     pub fn slice<const D2: usize>(self, ranges: [core::ops::Range<usize>; D2]) -> Self {
