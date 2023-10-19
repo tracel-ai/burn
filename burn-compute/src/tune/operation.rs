@@ -5,7 +5,14 @@ pub trait AutotuneOperation<S>: Send
 where
     S: ComputeServer,
 {
-    fn key(&self) -> String;
+    fn key(&self) -> String {
+        let mut key = String::new();
+        key.push_str(&self.operation_key());
+        key.push_str(&self.input_key());
+        key
+    }
+    fn operation_key(&self) -> String;
+    fn input_key(&self) -> String;
     fn autotunables(&self) -> Vec<Operation<S>>;
     fn inputs(&self) -> Vec<Vec<u8>>;
     fn fastest(&self, fastest_index: usize) -> Operation<S> {
