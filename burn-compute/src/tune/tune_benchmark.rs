@@ -16,7 +16,7 @@ impl<'a, S: ComputeServer> MutBenchmark for TuneBenchmark<'a, S> {
     fn prepare(&self) -> Self::Args {}
 
     fn execute(&mut self, _: Self::Args) {
-        self.operation.clone().execute(self.handles.clone(), self.server)
+        self.operation.execute(self.handles.clone(), self.server)
     }
 
     fn name(&self) -> String {

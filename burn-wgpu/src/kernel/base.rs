@@ -20,7 +20,7 @@ pub trait StaticKernelSource: Send + 'static {
 /// Dynamic wgpu kernel to create a [source template](SourceTemplate).
 pub trait DynamicKernelSource: Send {
     /// Source template for the kernel.
-    fn source(self) -> SourceTemplate;
+    fn source(&self) -> SourceTemplate;
     /// Identifier for the kernel, used for caching kernel compilation.
     fn id(&self) -> String;
 }

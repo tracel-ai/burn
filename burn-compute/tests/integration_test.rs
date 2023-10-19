@@ -86,35 +86,63 @@ fn autotune_basic_multiplication_execution() {
     assert_eq!(obtained_resource.read(), Vec::from([0, 4, 8]));
 }
 
-// #[test]
-// #[serial]
-// #[cfg(feature = "std")]
-// fn autotune_cache_hit_test() {
-//     let client = client(&DummyDevice);
+#[test]
+#[serial]
+#[cfg(feature = "std")]
+fn autotune_cache_hit_test() {
+    let client = client(&DummyDevice);
 
-//     let benchmarks = get_cache_test_benchmarks(client.clone());
-//     let tuner = Tuner::new(benchmarks);
+    let shapes_1 = vec![vec![1, 3], vec![1, 3], vec![1, 3]];
+    let lhs_1 = client.create(&[0, 1, 2]);
+    let rhs_1 = client.create(&[4, 4, 4]);
+    let out_1 = client.empty(3);
+    let handles_1 = &[&lhs_1, &rhs_1, &out_1];
 
-//     let lhs_1 = client.create(&[0, 1, 2]);
-//     let rhs_1 = client.create(&[4, 4, 4]);
-//     let out_1 = client.empty(3);
-//     let handles_1 = &[&lhs_1, &rhs_1, &out_1];
+    let shapes_2 = vec![vec![1, 4], vec![1, 4], vec![1, 4]];
+    let lhs_2 = client.create(&[0, 1, 2, 3]);
+    let rhs_2 = client.create(&[5, 6, 7, 8]);
+    let out_2 = client.empty(4);
+    let handles_2 = &[&lhs_2, &rhs_2, &out_2];
 
-//     let lhs_2 = client.create(&[0, 1, 2, 3]);
-//     let rhs_2 = client.create(&[5, 6, 7, 8]);
-//     let out_2 = client.empty(4);
-//     let handles_2 = &[&lhs_2, &rhs_2, &out_2];
+    let cache_test_autotune_kernel_1 = dummy::CacheTestAutotuneKernel::new(shapes_1);
+    let cache_test_autotune_kernel_2 = dummy::CacheTestAutotuneKernel::new(shapes_2);
+    client.execute_autotune(Box::new(cache_test_autotune_kernel_1), handles_1);
+    client.execute_autotune(Box::new(cache_test_autotune_kernel_2), handles_2);
 
-//     tuner.tune(ArraysResource::new([3, 3, 3]), handles_1);
-//     let kernel = tuner.tune(ArraysResource::new([4, 4, 4]), handles_2);
+    let obtained_resource = client.read(&out_2);
 
-//     client.execute(kernel, handles_2);
-//     let obtained_resource = client.read(&out_2);
+    // Cache should be hit, so CacheTestFastOn3 should be used, returning lhs
+    assert_eq!(obtained_resource.read(), Vec::from([0, 1, 2, 3]));
+}
 
-//     // Cache should be hit, so CacheTestFastOn3 should be used, returning lhs
-//     assert_eq!(obtained_resource.read(), Vec::from([0, 1, 2, 3]));
-// }
+#[test]
+#[serial]
+#[cfg(feature = "std")]
+fn autotune_cache_miss_test() {
+    let client = client(&DummyDevice);
 
+    let shapes_1 = vec![vec![1, 3], vec![1, 3], vec![1, 3]];
+    let lhs_1 = client.create(&[0, 1, 2]);
+    let rhs_1 = client.create(&[4, 4, 4]);
+    let out_1 = client.empty(3);
+    let handles_1 = &[&lhs_1, &rhs_1, &out_1];
+
+    let shapes_2 = vec![vec![1, 5], vec![1, 5], vec![1, 5]];
+    let lhs_2 = client.create(&[0, 1, 2, 3, 4]);
+    let rhs_2 = client.create(&[5, 6, 7, 8, 9]);
+    let out_2 = client.empty(5);
+    let handles_2 = &[&lhs_2, &rhs_2, &out_2];
+
+    let cache_test_autotune_kernel_1 = dummy::CacheTestAutotuneKernel::new(shapes_1);
+    let cache_test_autotune_kernel_2 = dummy::CacheTestAutotuneKernel::new(shapes_2);
+    client.execute_autotune(Box::new(cache_test_autotune_kernel_1), handles_1);
+    client.execute_autotune(Box::new(cache_test_autotune_kernel_2), handles_2);
+
+    let obtained_resource = client.read(&out_2);
+
+    // Cache should be missed, so CacheTestSlowOn3 (but faster on 5) should be used, returning rhs
+    assert_eq!(obtained_resource.read(), Vec::from([5, 6, 7, 8, 9]));
+}
 // #[test]
 // #[serial]
 // #[cfg(feature = "std")]

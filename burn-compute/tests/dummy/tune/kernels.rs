@@ -4,7 +4,7 @@ use burn_compute::storage::BytesResource;
 
 use crate::dummy::DummyKernel;
 
-const SLEEP_MS: u64 = 5;
+const SLEEP_MS: u64 = 1;
 
 pub struct DummyElementwiseAdditionSlowWrong;
 pub struct DummyElementwiseMultiplication;

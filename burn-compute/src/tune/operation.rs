@@ -16,6 +16,7 @@ where
     fn autotunables(&self) -> Vec<Operation<S>>;
     fn inputs(&self) -> Vec<Vec<u8>>;
     fn fastest(&self, fastest_index: usize) -> Operation<S> {
+        // TODO this creates all autotunables again
         self.autotunables().remove(fastest_index)
     }
 }
@@ -27,26 +28,19 @@ pub struct Operation<S: ComputeServer> {
 }
 
 impl<S: ComputeServer> Operation<S> {
-    pub fn execute(self, inputs: Vec<Handle<S>>, server: &mut S) {
+    pub fn execute(&self, inputs: Vec<Handle<S>>, server: &mut S) {
         let mut all_handles = inputs;
-        if let Some(vec) = self.parameters {
+        if let Some(vec) = self.parameters.clone() {
             all_handles.extend(vec);
         }
         let slice = &all_handles
             .iter()
             .map(|h| h as &Handle<S>)
             .collect::<Vec<&Handle<S>>>();
-        server.execute_kernel(self.kernel, slice);
+        server.execute_kernel(self.kernel.clone(), slice);
     }
 
     pub fn get_kernel(self) -> S::Kernel {
         self.kernel
-    }
-
-    pub(crate) fn clone(&self) -> Self {
-        Operation {
-            kernel: self.kernel.clone(),
-            parameters: self.parameters.clone(),
-        }
     }
 }
