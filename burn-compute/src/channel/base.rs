@@ -18,7 +18,7 @@ pub trait ComputeChannel<Server: ComputeServer>: Clone + core::fmt::Debug {
     fn empty(&self, size: usize) -> Handle<Server>;
 
     /// Executes the `kernel` over the given `handles`.
-    fn execute_kernel(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]);
+    fn execute(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]);
 
     /// Wait for the completion of every task in the server.
     fn sync(&self);

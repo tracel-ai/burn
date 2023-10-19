@@ -54,11 +54,11 @@ where
         self.autotune_server.borrow_mut().server.empty(size)
     }
 
-    fn execute_kernel(&self, kernel_description: Server::Kernel, handles: &[&Handle<Server>]) {
+    fn execute(&self, kernel_description: Server::Kernel, handles: &[&Handle<Server>]) {
         self.autotune_server
             .borrow_mut()
             .server
-            .execute_kernel(kernel_description, handles)
+            .execute(kernel_description, handles)
     }
 
     fn sync(&self) {

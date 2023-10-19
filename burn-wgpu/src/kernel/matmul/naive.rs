@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use super::utils::shape_out;
 use crate::{
     compute::{StaticKernel, WorkGroup},
@@ -77,7 +79,7 @@ pub fn matmul_naive<
     let info_handle = lhs.client.create(bytemuck::cast_slice(&info));
 
     lhs.client.execute(
-        Box::new(kernel),
+        Arc::new(kernel),
         &[&lhs.handle, &rhs.handle, &output.handle, &info_handle],
     );
 

@@ -57,8 +57,8 @@ where
     }
 
     /// Executes the `kernel` over the given `handles`.
-    pub fn execute_kernel(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]) {
-        self.channel.execute_kernel(kernel, handles)
+    pub fn execute(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]) {
+        self.channel.execute(kernel, handles)
     }
 
     /// Wait for the completion of every task in the server.

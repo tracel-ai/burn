@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     compute::StaticKernel,
     element::WgpuElement,
@@ -46,7 +48,7 @@ pub fn cat<E: WgpuElement, const D: usize>(
         ));
 
         client.execute(
-            Box::new(kernel),
+            Arc::new(kernel),
             &[&input.handle, &output.handle, &info_buffer],
         );
     }

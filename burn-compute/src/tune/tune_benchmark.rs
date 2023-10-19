@@ -1,6 +1,8 @@
+use burn_common::benchmark::Benchmark;
+
 use crate::server::{ComputeServer, Handle};
 
-use super::{MutBenchmark, Operation};
+use super::Operation;
 
 /// A benchmark that runs on server handles
 #[derive(new)]
@@ -10,7 +12,7 @@ pub struct TuneBenchmark<'a, S: ComputeServer> {
     server: &'a mut S,
 }
 
-impl<'a, S: ComputeServer> MutBenchmark for TuneBenchmark<'a, S> {
+impl<'a, S: ComputeServer> Benchmark for TuneBenchmark<'a, S> {
     type Args = ();
 
     fn prepare(&self) -> Self::Args {}

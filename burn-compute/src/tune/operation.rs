@@ -15,13 +15,10 @@ where
     fn input_key(&self) -> String;
     fn autotunables(&self) -> Vec<Operation<S>>;
     fn inputs(&self) -> Vec<Vec<u8>>;
-    fn fastest(&self, fastest_index: usize) -> Operation<S> {
-        // TODO this creates all autotunables again
-        self.autotunables().remove(fastest_index)
-    }
+    fn fastest(&self, fastest_index: usize) -> Operation<S>;
 }
 
-#[derive(new, Clone)]
+#[derive(new)]
 pub struct Operation<S: ComputeServer> {
     kernel: S::Kernel,
     parameters: Option<Vec<Handle<S>>>,
@@ -37,10 +34,19 @@ impl<S: ComputeServer> Operation<S> {
             .iter()
             .map(|h| h as &Handle<S>)
             .collect::<Vec<&Handle<S>>>();
-        server.execute_kernel(self.kernel.clone(), slice);
+        server.execute(self.kernel.clone(), slice);
     }
 
     pub fn get_kernel(self) -> S::Kernel {
         self.kernel
+    }
+}
+
+impl<S: ComputeServer> Clone for Operation<S> {
+    fn clone(&self) -> Self {
+        Self {
+            kernel: self.kernel.clone(),
+            parameters: self.parameters.clone(),
+        }
     }
 }

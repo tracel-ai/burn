@@ -73,7 +73,7 @@ where
                     Message::ExecuteKernel(kernel, handles) => {
                         autotune_server
                             .server
-                            .execute_kernel(kernel, &handles.iter().collect::<Vec<_>>());
+                            .execute(kernel, &handles.iter().collect::<Vec<_>>());
                     }
                     Message::Sync(callback) => {
                         autotune_server.server.sync();
@@ -138,7 +138,7 @@ where
         self.response(response)
     }
 
-    fn execute_kernel(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]) {
+    fn execute(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]) {
         self.state
             .sender
             .send(Message::ExecuteKernel(

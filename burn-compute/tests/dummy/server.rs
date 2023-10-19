@@ -21,7 +21,7 @@ impl<MM> ComputeServer for DummyServer<MM>
 where
     MM: MemoryManagement<BytesStorage>,
 {
-    type Kernel = Arc<Box<dyn DummyKernel>>;
+    type Kernel = Arc<dyn DummyKernel>;
     type Storage = BytesStorage;
     type MemoryManagement = MM;
 
@@ -48,7 +48,7 @@ where
         Handle::new(self.memory_management.reserve(size))
     }
 
-    fn execute_kernel(&mut self, kernel: Self::Kernel, handles: &[&Handle<Self>]) {
+    fn execute(&mut self, kernel: Self::Kernel, handles: &[&Handle<Self>]) {
         let mut resources = handles
             .iter()
             .map(|handle| self.memory_management.get(&handle.memory))

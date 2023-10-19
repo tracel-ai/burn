@@ -25,13 +25,17 @@ impl AutotuneOperation<DummyServer> for AdditionAutotuneKernel {
     }
 
     fn autotunables(&self) -> Vec<Operation<DummyServer>> {
-        let x: Arc<Box<dyn DummyKernel>> = Arc::new(Box::new(DummyElementwiseAddition));
-        let y: Arc<Box<dyn DummyKernel>> = Arc::new(Box::new(DummyElementwiseAdditionSlowWrong));
+        let x: Arc<dyn DummyKernel> = Arc::new(DummyElementwiseAddition);
+        let y: Arc<dyn DummyKernel> = Arc::new(DummyElementwiseAdditionSlowWrong);
         vec![Operation::new(x, None), Operation::new(y, None)]
     }
 
     fn inputs(&self) -> Vec<Vec<u8>> {
         arbitrary_bytes(&self.shapes)
+    }
+
+    fn fastest(&self, fastest_index: usize) -> Operation<DummyServer> {
+        self.autotunables()[fastest_index].clone()
     }
 }
 
@@ -50,14 +54,17 @@ impl AutotuneOperation<DummyServer> for MultiplicationAutotuneKernel {
     }
 
     fn autotunables(&self) -> Vec<Operation<DummyServer>> {
-        let x: Arc<Box<dyn DummyKernel>> =
-            Arc::new(Box::new(DummyElementwiseMultiplicationSlowWrong));
-        let y: Arc<Box<dyn DummyKernel>> = Arc::new(Box::new(DummyElementwiseMultiplication));
+        let x: Arc<dyn DummyKernel> = Arc::new(DummyElementwiseMultiplicationSlowWrong);
+        let y: Arc<dyn DummyKernel> = Arc::new(DummyElementwiseMultiplication);
         vec![Operation::new(x, None), Operation::new(y, None)]
     }
 
     fn inputs(&self) -> Vec<Vec<u8>> {
         arbitrary_bytes(&self.shapes)
+    }
+
+    fn fastest(&self, fastest_index: usize) -> Operation<DummyServer> {
+        self.autotunables()[fastest_index].clone()
     }
 }
 
@@ -76,13 +83,17 @@ impl AutotuneOperation<DummyServer> for CacheTestAutotuneKernel {
     }
 
     fn autotunables(&self) -> Vec<Operation<DummyServer>> {
-        let x: Arc<Box<dyn DummyKernel>> = Arc::new(Box::new(CacheTestFastOn3));
-        let y: Arc<Box<dyn DummyKernel>> = Arc::new(Box::new(CacheTestSlowOn3));
+        let x: Arc<dyn DummyKernel> = Arc::new(CacheTestFastOn3);
+        let y: Arc<dyn DummyKernel> = Arc::new(CacheTestSlowOn3);
         vec![Operation::new(x, None), Operation::new(y, None)]
     }
 
     fn inputs(&self) -> Vec<Vec<u8>> {
         arbitrary_bytes(&self.shapes)
+    }
+
+    fn fastest(&self, fastest_index: usize) -> Operation<DummyServer> {
+        self.autotunables()[fastest_index].clone()
     }
 }
 

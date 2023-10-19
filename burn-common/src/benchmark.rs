@@ -30,7 +30,7 @@ pub trait Benchmark {
     /// measuring the execution time.
     fn prepare(&self) -> Self::Args;
     /// Execute the benchmark and returns the time it took to complete.
-    fn execute(&self, args: Self::Args);
+    fn execute(&mut self, args: Self::Args);
     /// Number of samples required to have a statistical significance.
     fn num_samples(&self) -> usize {
         10
@@ -38,9 +38,9 @@ pub trait Benchmark {
     /// Name of the benchmark.
     fn name(&self) -> String;
     /// Wait for computations to be over
-    fn sync(&self);
+    fn sync(&mut self);
     /// Run the benchmark a number of times.
-    fn run(&self) -> BenchmarkResult {
+    fn run(&mut self) -> BenchmarkResult {
         // Warmup
         self.execute(self.prepare());
         self.sync();

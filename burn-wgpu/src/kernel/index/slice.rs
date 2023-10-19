@@ -7,7 +7,7 @@ use crate::{
     tensor::WgpuTensor,
 };
 use burn_tensor::Shape;
-use std::ops::Range;
+use std::{ops::Range, sync::Arc};
 
 kernel_wgsl!(IndexRaw, "../../template/index/slice.wgsl");
 kernel_wgsl!(
@@ -41,7 +41,7 @@ pub(crate) fn slice<E: WgpuElement, const D1: usize, const D2: usize>(
     >::new(elemwise_workgroup(num_elems, WORKGROUP_DEFAULT));
 
     tensor.client.execute(
-        Box::new(kernel),
+        Arc::new(kernel),
         &[&tensor.handle, &output.handle, &info_handle],
     );
 
@@ -72,7 +72,7 @@ pub(crate) fn slice_assign<E: WgpuElement, const D1: usize, const D2: usize>(
     >::new(elemwise_workgroup(num_elems, WORKGROUP_DEFAULT));
 
     tensor.client.execute(
-        Box::new(kernel),
+        Arc::new(kernel),
         &[&tensor.handle, &value.handle, &info_handle],
     );
 

@@ -48,11 +48,8 @@ where
         self.autotune_server.lock().server.empty(size)
     }
 
-    fn execute_kernel(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]) {
-        self.autotune_server
-            .lock()
-            .server
-            .execute_kernel(kernel, handles)
+    fn execute(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]) {
+        self.autotune_server.lock().server.execute(kernel, handles)
     }
 
     fn sync(&self) {

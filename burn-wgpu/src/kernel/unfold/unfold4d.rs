@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     compute::StaticKernel,
     element::WgpuElement,
@@ -65,7 +67,7 @@ pub(crate) fn unfold4d<E: WgpuElement + Element>(
 
     weight
         .client
-        .execute(Box::new(kernel), &[&weight.handle, &indices_handle]);
+        .execute(Arc::new(kernel), &[&weight.handle, &indices_handle]);
 
     let options = burn_tensor::ops::ConvOptions::new(stride, padding, dilation, 1);
     kernel::conv::conv2d(input, weight, None, options.clone())

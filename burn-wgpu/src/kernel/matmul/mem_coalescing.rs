@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, sync::Arc};
 
 use super::utils::shape_out;
 use crate::{
@@ -26,7 +26,7 @@ struct MatmulMemCoalescing<E: WgpuElement> {
 }
 
 impl<E: WgpuElement> DynamicKernelSource for MatmulMemCoalescing<E> {
-    fn source(self) -> SourceTemplate {
+    fn source(&self) -> SourceTemplate {
         MatmulMemCoalescingRaw::source()
             .register("workgroup_size_x", self.workgroup_size_x.to_string())
             .register("workgroup_size_y", self.workgroup_size_y.to_string())
@@ -85,7 +85,7 @@ pub fn matmul_mem_coalescing<E: WgpuElement, const D: usize>(
     let info_handle = lhs.client.create(bytemuck::cast_slice(&info));
 
     lhs.client.execute(
-        Box::new(kernel),
+        Arc::new(kernel),
         &[&lhs.handle, &rhs.handle, &output.handle, &info_handle],
     );
 

@@ -1,8 +1,8 @@
-use burn_common::benchmark::BenchmarkResult;
+use burn_common::benchmark::{Benchmark, BenchmarkResult};
 
 use crate::{
     server::{ComputeServer, Handle},
-    tune::{AutotuneOperation, MutBenchmark, Operation, TuneBenchmark, Tuner},
+    tune::{AutotuneOperation, Operation, TuneBenchmark, Tuner},
 };
 
 /// Server with extra capability of autotuning kernels
@@ -44,7 +44,7 @@ impl<S: ComputeServer> AutotuneServer<S> {
         }
         let operation = cache_result.unwrap();
         let kernel = operation.get_kernel(); // not sure
-        self.server.execute_kernel(kernel, execution_handles);
+        self.server.execute(kernel, execution_handles);
     }
 
     fn run_benchmark(

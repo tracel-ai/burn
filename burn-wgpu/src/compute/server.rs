@@ -37,9 +37,9 @@ struct ComputeTask {
 /// provided id.
 ///
 /// The kernel will be launched with the given [workgroup](WorkGroup).
-pub trait Kernel: 'static + Send {
+pub trait Kernel: 'static + Send + Sync {
     /// Source template for the kernel.
-    fn source(self: Box<Self>) -> SourceTemplate;
+    fn source(&self) -> SourceTemplate;
     /// Identifier for the kernel, used for caching kernel compilation.
     fn id(&self) -> String;
     /// Launch information.
@@ -148,7 +148,7 @@ where
         self.tasks.clear();
     }
 
-    fn pipeline(&mut self, kernel: Box<dyn Kernel>) -> Arc<ComputePipeline> {
+    fn pipeline(&mut self, kernel: Arc<dyn Kernel>) -> Arc<ComputePipeline> {
         let kernel_id = kernel.id();
         if let Some(pipeline) = self.pipelines.get(&kernel_id) {
             return pipeline.clone();
@@ -251,7 +251,7 @@ impl<MM> ComputeServer for WgpuServer<MM>
 where
     MM: MemoryManagement<WgpuStorage>,
 {
-    type Kernel = Box<dyn Kernel>;
+    type Kernel = Arc<dyn Kernel>;
     type Storage = WgpuStorage;
     type MemoryManagement = MM;
 
