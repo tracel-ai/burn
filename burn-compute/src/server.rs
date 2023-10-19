@@ -1,7 +1,6 @@
 use crate::{
     memory_management::{MemoryHandle, MemoryManagement},
     storage::ComputeStorage,
-    tune::AutotuneOperation,
 };
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
@@ -15,7 +14,7 @@ where
     Self: Sized,
 {
     /// The kernel type defines the computation algorithms.
-    type Kernel: Send;
+    type Kernel: Send + Clone;
     /// The [storage](ComputeStorage) type defines how data is stored and accessed.
     type Storage: ComputeStorage;
     /// The [memory management](MemoryManagement) type defines strategies for allocation in the [storage](ComputeStorage) type.

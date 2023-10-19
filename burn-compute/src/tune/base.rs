@@ -5,7 +5,6 @@ use burn_common::benchmark::BenchmarkResult;
 use hashbrown::HashMap;
 
 use crate::server::ComputeServer;
-use crate::server::Handle;
 
 use super::AutotuneOperation;
 use super::Operation;

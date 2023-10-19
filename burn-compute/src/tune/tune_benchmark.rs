@@ -1,29 +1,29 @@
-use burn_common::benchmark::Benchmark;
+use crate::server::{ComputeServer, Handle};
 
-use crate::server::ComputeServer;
+use super::{MutBenchmark, Operation};
 
 /// A benchmark that runs on server handles
 #[derive(new)]
-pub struct TuneBenchmark<S> {
-    server: S,
+pub struct TuneBenchmark<'a, S: ComputeServer> {
+    operation: Operation<S>,
+    handles: Vec<Handle<S>>,
+    server: &'a mut S,
 }
 
-impl<S: ComputeServer> Benchmark for TuneBenchmark<S> {
-    type Args;
+impl<'a, S: ComputeServer> MutBenchmark for TuneBenchmark<'a, S> {
+    type Args = ();
 
-    fn prepare(&self) -> Self::Args {
-        todo!()
-    }
+    fn prepare(&self) -> Self::Args {}
 
-    fn execute(&self, args: Self::Args) {
-        todo!()
+    fn execute(&mut self, _: Self::Args) {
+        self.operation.clone().execute(self.handles.clone(), self.server)
     }
 
     fn name(&self) -> String {
         "Autotune".to_string()
     }
 
-    fn sync(&self) {
+    fn sync(&mut self) {
         self.server.sync();
     }
 }

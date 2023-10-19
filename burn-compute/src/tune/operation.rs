@@ -13,7 +13,7 @@ where
     }
 }
 
-#[derive(new)]
+#[derive(new, Clone)]
 pub struct Operation<S: ComputeServer> {
     kernel: S::Kernel,
     parameters: Option<Vec<Handle<S>>>,
@@ -34,5 +34,12 @@ impl<S: ComputeServer> Operation<S> {
 
     pub fn get_kernel(self) -> S::Kernel {
         self.kernel
+    }
+
+    pub(crate) fn clone(&self) -> Self {
+        Operation {
+            kernel: self.kernel.clone(),
+            parameters: self.parameters.clone(),
+        }
     }
 }

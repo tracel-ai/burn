@@ -1,8 +1,8 @@
-use burn_common::benchmark::{Benchmark, BenchmarkResult};
+use burn_common::benchmark::BenchmarkResult;
 
 use crate::{
     server::{ComputeServer, Handle},
-    tune::{AutotuneOperation, Operation, TuneBenchmark, Tuner},
+    tune::{AutotuneOperation, MutBenchmark, Operation, TuneBenchmark, Tuner},
 };
 
 /// Server with extra capability of autotuning kernels
@@ -52,8 +52,6 @@ impl<S: ComputeServer> AutotuneServer<S> {
         operation: Operation<S>,
         handles: Vec<Handle<S>>,
     ) -> BenchmarkResult {
-        TuneBenchmark::new(operation, handles, &mut self.server);
-        operation.execute(handles, &mut self.server);
-        todo!()
+        TuneBenchmark::new(operation, handles, &mut self.server).run()
     }
 }

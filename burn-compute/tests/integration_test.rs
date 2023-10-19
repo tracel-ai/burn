@@ -1,5 +1,7 @@
 mod dummy;
 
+use std::sync::Arc;
+
 use crate::dummy::{client, DummyDevice, DummyElementwiseAddition};
 
 use serial_test::serial;
@@ -32,7 +34,10 @@ fn execute_elementwise_addition() {
     let rhs = client.create(&[4, 4, 4]);
     let out = client.empty(3);
 
-    client.execute_kernel(Box::new(DummyElementwiseAddition), &[&lhs, &rhs, &out]);
+    client.execute_kernel(
+        Arc::new(Box::new(DummyElementwiseAddition)),
+        &[&lhs, &rhs, &out],
+    );
 
     let obtained_resource = client.read(&out);
 

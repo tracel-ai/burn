@@ -1,8 +1,8 @@
 use std::{thread::sleep, time::Duration};
 
-use burn_compute::{server::ComputeServer, storage::BytesResource};
+use burn_compute::storage::BytesResource;
 
-use crate::dummy::{DummyClient, DummyElementwiseAddition, DummyKernel, DummyServer};
+use crate::dummy::DummyKernel;
 
 const SLEEP_MS: u64 = 1;
 

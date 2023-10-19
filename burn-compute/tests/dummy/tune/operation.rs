@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use burn_compute::tune::{AutotuneOperation, Operation};
 use derive_new::new;
 
@@ -23,8 +25,8 @@ impl AutotuneOperation<DummyServer> for AdditionAutotuneKernel {
     }
 
     fn autotunables(&self) -> Vec<Operation<DummyServer>> {
-        let x: Box<dyn DummyKernel> = Box::new(DummyElementwiseAddition);
-        let y: Box<dyn DummyKernel> = Box::new(DummyElementwiseAdditionSlowWrong);
+        let x: Arc<Box<dyn DummyKernel>> = Arc::new(Box::new(DummyElementwiseAddition));
+        let y: Arc<Box<dyn DummyKernel>> = Arc::new(Box::new(DummyElementwiseAdditionSlowWrong));
         vec![Operation::new(x, None), Operation::new(y, None)]
     }
 
