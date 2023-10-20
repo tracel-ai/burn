@@ -11,35 +11,18 @@ use super::Operation;
 
 /// Use to find and reuse the best kernel for some input
 #[derive(Debug)]
-pub struct Tuner<S> {
+pub struct TuneCache<S> {
     cache: HashMap<String, usize>,
     _server: PhantomData<S>,
 }
 
-impl<S: ComputeServer> Tuner<S> {
-    pub fn new() -> Self {
-        Tuner {
+impl<S: ComputeServer> TuneCache<S> {
+    pub(crate) fn new() -> Self {
+        TuneCache {
             cache: HashMap::new(),
             _server: PhantomData,
         }
     }
-
-    /// Looks for cached kernel for the input or finds one manually, saving the fastest one
-    // pub fn tune(
-    //     &mut self,
-    //     autotune_operation: Box<dyn AutotuneOperation<S>>,
-    //     autotune_handles: Vec<Handle<S>>,
-    // ) -> Operation<S> {
-    //     self.try_cache(&autotune_operation)
-    //         .unwrap_or(self.no_kernel_type_found(autotune_operation, autotune_handles))
-    // }
-
-    // pub fn find_fastest_operation(
-    //     &mut self,
-    //     autotune_operation: Box<dyn AutotuneOperation<S>>,
-    //     autotune_handles: Vec<Handle<S>>,
-    // ) -> Operation<S> {
-    // }
 
     pub(crate) fn find_fastest(&self, results: Vec<BenchmarkResult>) -> usize {
         let mut smallest_duration = Duration::MAX;

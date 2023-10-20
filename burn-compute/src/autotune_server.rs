@@ -2,21 +2,21 @@ use burn_common::benchmark::{Benchmark, BenchmarkResult};
 
 use crate::{
     server::{ComputeServer, Handle},
-    tune::{AutotuneOperation, Operation, TuneBenchmark, Tuner},
+    tune::{AutotuneOperation, Operation, TuneBenchmark, TuneCache},
 };
 
 /// Server with extra capability of autotuning kernels
 #[derive(Debug)]
 pub(crate) struct AutotuneServer<S> {
     pub server: S,
-    pub tuner: Tuner<S>,
+    pub tuner: TuneCache<S>,
 }
 
 impl<S: ComputeServer> AutotuneServer<S> {
     pub fn new(server: S) -> Self {
         AutotuneServer {
             server,
-            tuner: Tuner::new(),
+            tuner: TuneCache::new(),
         }
     }
 
@@ -43,8 +43,7 @@ impl<S: ComputeServer> AutotuneServer<S> {
             cache_result = self.tuner.try_cache(&autotune_operation);
         }
         let operation = cache_result.unwrap();
-        let kernel = operation.get_kernel(); // not sure
-        self.server.execute(kernel, execution_handles);
+        operation.execute(execution_handles, &mut self.server);
     }
 
     fn run_benchmark(

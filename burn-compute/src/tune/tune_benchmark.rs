@@ -18,7 +18,10 @@ impl<'a, S: ComputeServer> Benchmark for TuneBenchmark<'a, S> {
     fn prepare(&self) -> Self::Args {}
 
     fn execute(&mut self, _: Self::Args) {
-        self.operation.execute(self.handles.clone(), self.server)
+        self.operation.execute(
+            &self.handles.iter().collect::<Vec<&Handle<S>>>(),
+            self.server,
+        )
     }
 
     fn name(&self) -> String {

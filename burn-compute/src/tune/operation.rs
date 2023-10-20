@@ -6,10 +6,11 @@ where
     S: ComputeServer,
 {
     fn key(&self) -> String {
-        let mut key = String::new();
-        key.push_str(&self.operation_key());
-        key.push_str(&self.input_key());
-        key
+        format!(
+            "(AutoTuneKey) Operation: {} - Inputs: {:?}",
+            self.operation_key(),
+            self.input_key()
+        )
     }
     fn operation_key(&self) -> String;
     fn input_key(&self) -> String;
@@ -25,20 +26,15 @@ pub struct Operation<S: ComputeServer> {
 }
 
 impl<S: ComputeServer> Operation<S> {
-    pub fn execute(&self, inputs: Vec<Handle<S>>, server: &mut S) {
-        let mut all_handles = inputs;
-        if let Some(vec) = self.parameters.clone() {
-            all_handles.extend(vec);
-        }
-        let slice = &all_handles
-            .iter()
-            .map(|h| h as &Handle<S>)
-            .collect::<Vec<&Handle<S>>>();
-        server.execute(self.kernel.clone(), slice);
-    }
+    pub fn execute(&self, inputs: &[&Handle<S>], server: &mut S) {
+        let mut handles = inputs.iter().cloned().collect::<Vec<_>>();
 
-    pub fn get_kernel(self) -> S::Kernel {
-        self.kernel
+        let p = match self.parameters.clone() {
+            Some(parameter_handles) => parameter_handles.into_iter().collect::<Vec<Handle<S>>>(),
+            None => Vec::new(),
+        };
+        handles.extend(p.iter().collect::<Vec<&Handle<S>>>());
+        server.execute(self.kernel.clone(), &handles);
     }
 }
 
