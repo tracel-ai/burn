@@ -2,8 +2,8 @@ use crate::{
     server::{ComputeServer, Handle},
     tune::AutotuneOperation,
 };
-use alloc::vec::Vec;
 use alloc::boxed::Box;
+use alloc::vec::Vec;
 use burn_common::reader::Reader;
 
 /// The ComputeChannel trait links the ComputeClient to the ComputeServer
