@@ -59,7 +59,7 @@ mod tests {
     burn_tensor::testgen_clamp!();
     burn_tensor::testgen_cos!();
     // burn_tensor::testgen_div!();
-    // burn_tensor::testgen_erf!();
+    burn_tensor::testgen_erf!();
     burn_tensor::testgen_exp!();
     burn_tensor::testgen_flatten!();
     burn_tensor::testgen_full!();
@@ -121,7 +121,7 @@ mod tests {
     burn_autodiff::testgen_ad_cos!();
     burn_autodiff::testgen_ad_cross_entropy_loss!();
     burn_autodiff::testgen_ad_div!();
-    // burn_autodiff::testgen_ad_erf!();
+    burn_autodiff::testgen_ad_erf!();
     burn_autodiff::testgen_ad_exp!();
     // burn_autodiff::testgen_ad_slice!();
     burn_autodiff::testgen_ad_gather_scatter!();
