@@ -12,7 +12,6 @@ pub struct DummyElementwiseMultiplicationSlowWrong;
 pub struct CacheTestFastOn3;
 pub struct CacheTestSlowOn3;
 pub struct ParameteredKernel;
-pub struct UnparameteredKernel;
 
 impl DummyKernel for DummyElementwiseAdditionSlowWrong {
     fn compute(&self, inputs: &mut [BytesResource]) {
@@ -105,4 +104,3 @@ impl DummyKernel for ParameteredKernel {
         }
     }
 }
-

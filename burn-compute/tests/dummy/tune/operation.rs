@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use burn_compute::{
-    server::{ComputeServer, Handle},
+    server::Handle,
     tune::{AutotuneOperation, Operation},
 };
 use derive_new::new;
