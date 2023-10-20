@@ -32,7 +32,7 @@ impl<S: ComputeServer> TuneCache<S> {
         None
     }
 
-    pub(crate) fn cache_insert(&mut self, key: String, fastest_index: usize) -> () {
+    pub(crate) fn cache_insert(&mut self, key: String, fastest_index: usize) {
         self.cache.insert(key, fastest_index);
     }
 }

@@ -43,7 +43,7 @@ pub struct Operation<S: ComputeServer> {
 impl<S: ComputeServer> Operation<S> {
     /// Executes the operation on given handles and server, with the additional parameters
     pub fn execute(&self, inputs: &[&Handle<S>], server: &mut S) {
-        let mut handles = inputs.iter().cloned().collect::<Vec<_>>();
+        let mut handles = inputs.to_vec();
 
         let p = match self.parameters.clone() {
             Some(parameter_handles) => parameter_handles.into_iter().collect::<Vec<Handle<S>>>(),
